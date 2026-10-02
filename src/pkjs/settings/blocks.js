@@ -7,7 +7,7 @@
 // this file requires the four registering ones, so requiring blocks.js registers
 // every block and not just its own (the webview concatenates every file instead —
 // see scripts/build-config-page.js APP_FILES).
-/* global PConf, COUNTRY_DEFAULTS */
+/* global PConf, COUNTRY_DEFAULTS, INJECTED_USERDATA */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
@@ -31,6 +31,10 @@ if (typeof require !== 'undefined') {
     // file): tomorrow.io's usage line registers into it.
     var keyStatus = (typeof require !== 'undefined')
         ? require('./key-status.js') : PConf.keyStatus;
+    // The regional radar sources' areas (radar-coverage.js, concatenated ahead of this
+    // file): the note under the Radar provider row.
+    var radarCoverage = (typeof require !== 'undefined')
+        ? require('../weather/radar-coverage.js') : window.RadarCoverage;
     // The update-interval ladder under every active budget guard, shared with onbuild.js's
     // save-time fit so the page and the save clamp can't drift apart.
     var intervalBudget = (typeof require !== 'undefined')
@@ -1795,8 +1799,26 @@ if (typeof require !== 'undefined') {
         return CD.mapCountry(S && S.holidayCountry).radarProvider;
     });
 
+    /**
+     * The amber note under the Radar provider row (its staticText's textFrom): the picked
+     * source's missing key (key-status.js keyMissingNote), else — for DWD or Met.no — the
+     * last update's location outside that source's area (radar-coverage.js note, from the
+     * phone's record userData.radarCoverage). '' when neither: no note.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {Object} args The row's key-status args (RADAR_KEY_ARGS).
+     * @returns {string} The note (plain text), or ''.
+     */
+    function radarProviderNote(S, env, args) {
+        var ud = (typeof INJECTED_USERDATA !== 'undefined' && INJECTED_USERDATA) || {};
+        return keyStatus.keyMissingNote(S, env, args)
+            || radarCoverage.note((S || {}).radarProvider, ud.radarCoverage);
+    }
+    PConf.hintResolvers.register('radarProviderNote', radarProviderNote);
+
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
+            radarProviderNote: radarProviderNote,
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
             tomorrowioUsageLine: tomorrowioUsageLine,
             rainbowBudgetBlock: rainbowBudgetBlock,

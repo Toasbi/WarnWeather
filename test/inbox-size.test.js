@@ -258,9 +258,9 @@ test('the heaviest bundle carries the weather alerts\' entries at their cap', ()
 });
 
 // The radar limit notice (RAIN_RADAR_LIMITED, radar-wire.js limitedRadarTuples) is
-// sent INSTEAD of the three radar tuples, never beside them: a 7 B header + a 4 B
-// int32 (PKJS packs a JS number as int32) replaces 7 + 24 + 7 + 24 + 7 + 4 = 73 B. So
-// the recorded heaviest bundles above stay the worst case; this pins both halves.
+// sent INSTEAD of the three radar tuples, never beside them: a 7 B header + its line
+// ("Radar limit reached" + NUL, 20 B) replaces 7 + 24 + 7 + 24 + 7 + 4 = 73 B. So the
+// recorded heaviest bundles above stay the worst case; this pins both halves.
 test('the radar limit notice rides alone, so a limited bundle is lighter than the heaviest', () => {
   const radarWire = require('../src/pkjs/weather/radar-wire.js');
   const limited = radarWire.limitedRadarTuples();
@@ -276,8 +276,28 @@ test('the radar limit notice rides alone, so a limited bundle is lighter than th
     RADAR_KEYS.forEach(function(k) { delete withNotice[k]; });
     Object.assign(withNotice, limited);
     const size = dictSize(buildWeatherOutboxPayload(withNotice));
-    assert.equal(size, dictSize(heaviest) - 73 + 11, platform + ': the notice costs 11 B in place of 73 B');
+    assert.equal(size, dictSize(heaviest) - 73 + 27, platform + ': the notice costs 27 B in place of 73 B');
     assert.ok(size <= dictSize(heaviest), platform + ': a limited bundle is at most the heaviest');
+  });
+});
+
+// The out-of-coverage answer (radar-wire.js outOfCoverageRadarTuples) is the clear plus
+// the source's line: 7 + 0 + 7 + 0 + 7 + 4 = 25 B of empty arrays and a zero start, and
+// a 7 B header + at most 31 B of line + NUL, so at most 64 B in place of the window's
+// 73 B: an out-of-coverage bundle is never heavier than the heaviest.
+test('the out-of-coverage answer is lighter than the radar window it replaces', () => {
+  const radarWire = require('../src/pkjs/weather/radar-wire.js');
+  const radarCoverage = require('../src/pkjs/weather/radar-coverage.js');
+  Object.keys(radarCoverage.COVERAGE).forEach(function(id) {
+    const line = radarCoverage.watchText(id);
+    assert.ok(Buffer.byteLength(line) <= 31, id + ': within the watch\'s 32 B notice buffer');
+    ['emery', 'aplite'].forEach(function(platform) {
+      const heaviest = buildHeaviestBundle(platform);
+      const outside = Object.assign({}, heaviest, radarWire.outOfCoverageRadarTuples(line));
+      const size = dictSize(buildWeatherOutboxPayload(outside));
+      assert.equal(size, dictSize(heaviest) - 73 + 25 + 7 + Buffer.byteLength(line) + 1, platform + ' ' + id);
+      assert.ok(size < dictSize(heaviest), platform + ' ' + id + ': lighter than the heaviest');
+    });
   });
 });
 

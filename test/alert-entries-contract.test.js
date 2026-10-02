@@ -98,16 +98,18 @@ test('the watch checks the tuple before persisting it, behind WW_ON_DEMAND', () 
   assert.ok(guard !== -1, 'the handler sits behind WW_ON_DEMAND (aplite never gets it)');
 });
 
-// The persist enum is append-only: its numbers are the on-flash slots. The new
-// key must be the LAST entry, right after RADAR_LIMITED (56), i.e. slot 57.
-test('PERSIST ALERT_ENTRIES is appended at the end of the key enum (57)', () => {
+// The persist enum is append-only: its numbers are the on-flash slots. The key
+// sits right after RADAR_LIMITED (56), i.e. slot 57; only RADAR_NOTICE (58, the
+// radar notice's text) came after it.
+test('PERSIST ALERT_ENTRIES is appended after RADAR_LIMITED in the key enum (57)', () => {
   const m = persistC.match(/enum key \{([\s\S]*?)\n\};/);
   assert.ok(m, 'persist.c key enum missing');
   const names = m[1]
     .replace(/\/\/[^\n]*/g, '')
     .split(/[,\s]+/)
     .filter((t) => /^[A-Z][A-Z0-9_]*$/.test(t));
-  assert.equal(names[names.length - 1], 'ALERT_ENTRIES');
+  assert.equal(names[names.length - 1], 'RADAR_NOTICE');
   assert.equal(names.indexOf('RADAR_LIMITED'), 56);
   assert.equal(names.indexOf('ALERT_ENTRIES'), 57);
+  assert.equal(names.indexOf('RADAR_NOTICE'), 58);
 });

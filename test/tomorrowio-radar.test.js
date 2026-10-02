@@ -106,7 +106,7 @@ test('a 429 (rate limit or quota) is the limit notice, not a clear or null', () 
   responder = (url, type, onSuccess, onError) => onError({ code: 'status_429', detail: 'http_status' });
   let out = 'unset';
   fetchTuples((t) => { out = t; });
-  assert.deepEqual(out, { RAIN_RADAR_LIMITED: 1 });
+  assert.deepEqual(out, { RAIN_RADAR_LIMITED: 'Radar limit reached' });
 });
 
 test('a 401/403 key rejection clears the watch radar', () => {

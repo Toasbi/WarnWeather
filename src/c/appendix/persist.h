@@ -356,14 +356,19 @@ int  persist_get_notice_text(char *buffer, size_t buffer_size);
 bool persist_set_norain_text(const char *text);
 int  persist_get_norain_text(char *buffer, size_t buffer_size);
 
-// The radar limit notice (RAIN_RADAR_LIMITED tuple; see radar_limit.h for when it
-// moves and what the radar then draws). Unguarded for the same reason as the
-// no-rain text above: rain_radar_layer.c reads it and compiles on aplite too,
-// where nothing references either accessor and --gc-sections reaps both.
-// Get: whether the notice is up (absent slot = not limited). Set: false deletes
-// the slot, true stores it; returns whether the stored state actually changed.
-bool persist_get_radar_limited(void);
-bool persist_set_radar_limited(bool limited);
+// The radar notice (RAIN_RADAR_LIMITED string tuple; see radar_limit.h for when it
+// moves and what the radar then draws): the phone's line for a source refusing us
+// over a request limit or a place outside its coverage. Unguarded for the same
+// reason as the no-rain text above: rain_radar_layer.c reads it and compiles on
+// aplite too, where nothing references the accessors and --gc-sections reaps them.
+// Storage cap: 31 bytes of UTF-8 + NUL (the phone sends at most that much).
+// Has: whether a notice is up (absent slot = none). Get: the text's length in
+// bytes, 0 while none is up. Set: NULL or "" deletes the slot, a text stores it
+// (bounded like the no-rain text); returns whether the stored state changed.
+#define RADAR_NOTICE_BUF_BYTES 32
+bool persist_has_radar_notice(void);
+int  persist_get_radar_notice(char *buffer, size_t buffer_size);
+bool persist_set_radar_notice(const char *text);
 
 bool persist_set_forecast_start(time_t val);
 

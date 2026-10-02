@@ -284,7 +284,7 @@ test('Rainbow (own key): an old null does not clear the window another source ju
 //
 // A 429 used to be a transient null, so the watch rolled its window into a
 // made-up "no rain" while the source refused us. It answers the limit notice
-// now ({RAIN_RADAR_LIMITED: 1}, radar-wire.js): sent once, alone, and ended by
+// now ({RAIN_RADAR_LIMITED: its line}, radar-wire.js): sent once, alone, and ended by
 // the next radar arrays, even a window equal to the one the watch holds.
 
 const DRY = function() { return 0; };
@@ -299,7 +299,7 @@ const RADAR_KEYS = ['RAIN_RADAR_TREND_UINT8', 'RAIN_RADAR_TREND_AREA_UINT8', 'RA
 function assertOneNoticeAlone(msg) {
   var notices = limitSends();
   assert.equal(notices.length, 1, msg + ': one send carries the notice');
-  assert.equal(notices[0].RAIN_RADAR_LIMITED, 1, msg);
+  assert.equal(notices[0].RAIN_RADAR_LIMITED, 'Radar limit reached', msg);
   RADAR_KEYS.forEach(function(k) {
     assert.equal(k in notices[0], false, msg + ': ' + k + ' never rides with the notice');
   });
@@ -372,7 +372,7 @@ test('a failed forecast forwards the bare notice, not the answer the sky rows we
   };
   assert.equal(cycle('tomorrowio', TIO, T0, { sky: true, forecastFails: true }), null);
   var notice = assertOneNoticeAlone('sky on');
-  assert.deepEqual(notice, { RAIN_RADAR_LIMITED: 1 }, 'fresh sky rows never ride a failed forecast');
+  assert.deepEqual(notice, { RAIN_RADAR_LIMITED: 'Radar limit reached' }, 'fresh sky rows never ride a failed forecast');
 });
 
 test('with the forecast working, the notice and fresh sky rows share the one send', () => {

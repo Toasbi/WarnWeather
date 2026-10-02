@@ -1618,10 +1618,10 @@ test('the radar picker reads ONE key table for its Edit button, badge, summary, 
   const section = radarPickerSection();
   const at = section.items.indexOf(item);
   const note = section.items[at + 1];
-  assert.equal(note.type, 'staticText', 'the missing-key note hugs the row');
+  assert.equal(note.type, 'staticText', 'the missing-key (or out-of-coverage) note hugs the row');
   assert.equal(note.style, 'info');
   assert.equal(note.joinPrevious, true);
-  assert.deepEqual(note.textFrom, { resolver: 'keyMissingNote', args: args });
+  assert.deepEqual(note.textFrom, { resolver: 'radarProviderNote', args: args });
   assert.deepEqual(note.showWhen, { key: 'radarMode', ne: 'off' }, 'the picker\'s own gate');
   const scaleNote = section.items[at + 2];
   assert.equal(scaleNote.type, 'staticText');

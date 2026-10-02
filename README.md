@@ -36,6 +36,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 2-hour precipitation nowcast from regional and worldwide providers
 * Worldwide Rainbow.ai radar out of the box — *Rainbow (limited)* in the radar picker: shared by every user, so it refreshes every 30 minutes; pick *Rainbow (own key)* and add your own Rainbow API key to refresh it at your update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 * The radar says *Radar limit reached* when a radar source refuses requests over its limit, instead of claiming no rain
+* Outside a regional radar's area (DWD: Germany, Met.no: the Nordic countries) the radar says so, and the Radar tab suggests a source that covers your location
 * Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on its way (one of the Alerts, see Status lines)
 * Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph — in the Radar tab
 * Clouds, sun & lightning rows under the radar graph's time axis (on by default): cloud cover and sun strength per quarter hour for the next 2 hours, with a lightning bolt where thunderstorms are expected (Open-Meteo, any radar source; not on Pebble Classic/Steel, which has no radar)

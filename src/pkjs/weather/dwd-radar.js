@@ -9,6 +9,7 @@ var wireUnits = require('../wire-units.js');
 var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 var radarWire = require('./radar-wire.js');
+var radarCoverage = require('./radar-coverage.js');
 var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
 var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 
@@ -222,10 +223,13 @@ function frameSlot(frame, index, slotZeroEpoch) {
 /**
  * Fetch 2-hour DWD rain-radar tuples for pre-resolved coordinates — the one
  * seam every radar source exports (radar-factory). Coordinates come from the
- * single per-cycle acquisition in the orchestrator. A parse/transport failure
- * or missing fields calls back null (transient: the watch keeps and
- * self-advances its last window — see radar-fetch.js);
- * an out-of-coverage answer ships the flat 24-zero signal.
+ * single per-cycle acquisition in the orchestrator. A place outside DWD's
+ * composite (radar-coverage.js: a box around Germany) gets no request: the
+ * out-of-coverage answer, so the watch says "DWD radar: Germany only". A
+ * parse/transport failure or missing fields calls back null (transient: the
+ * watch keeps and self-advances its last window — see radar-fetch.js; a 404
+ * from a point inside the box but off the grid stays one of these); an empty
+ * frame list ships the flat 24-zero signal.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
@@ -234,6 +238,11 @@ function frameSlot(frame, index, slotZeroEpoch) {
  * @returns {void}
  */
 function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
+    if (radarCoverage.isOutside('dwd', lat, lon)) {
+        console.log('DWD radar: the location is outside its coverage, no request');
+        callback(radarWire.outOfCoverageRadarTuples(radarCoverage.watchText('dwd')));
+        return;
+    }
     radarFetch.fetchRadarJson({
         url: buildRadarUrl(lat, lon, slotZeroEpoch),
         label: 'DWD'
@@ -243,7 +252,7 @@ function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
             return null;
         }
         if (body.radar.length === 0) {
-            // Out of DWD coverage — a flat signal rather than a failure.
+            // No frames for this window — a flat signal rather than a failure.
             return radarWire.flatRadarTuples(slotZeroEpoch);
         }
         var frames = body.radar;

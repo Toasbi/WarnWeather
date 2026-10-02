@@ -572,3 +572,31 @@ test('page: aplite has no Radar tab — no dot and no dialog for a radar-only To
   assert.equal(page.modal.innerHTML, '');
   assert.equal((await page.saved()).radarProvider, 'tomorrowio');
 });
+
+// --- the note under the Radar provider row: a regional source that cannot see the place ---
+
+test('page: DWD picked while the last update\'s location lies outside its area — the amber note under the row', () => {
+  const userData = { radarCoverage: JSON.stringify({ dwd: true, metno: true }) };
+  const page = bootGeneratedPage({ provider: 'openmeteo', radarMode: 'graph', radarProvider: 'dwd' }, 'basalt', { userData });
+  page.clickTab('radar');
+  const note = '<div class="static join info"><div class="info-box">DWD radar only covers Germany, and your location '
+    + 'is outside it. Rainbow covers the whole world.</div></div>';
+  assert.ok(page.scroll.innerHTML.indexOf(note) !== -1, 'the note hugs the row');
+  page.openSelect('radarProvider');
+  page.pickOption('radarProvider', 'rainbow');
+  assert.doesNotMatch(page.scroll.innerHTML, /only covers/, 'a worldwide source: no note');
+  page.openSelect('radarProvider');
+  page.pickOption('radarProvider', 'metno');
+  assert.match(page.scroll.innerHTML, /Met\.no radar only covers the Nordic countries, and your location is outside it\./);
+});
+
+test('page: no note while the place is inside, with no record yet, or with radar off', () => {
+  const inside = { radarCoverage: JSON.stringify({ dwd: false, metno: true }) };
+  const dwd = { provider: 'openmeteo', radarMode: 'graph', radarProvider: 'dwd' };
+  [[dwd, inside], [dwd, {}], [Object.assign({}, dwd, { radarMode: 'off' }), { radarCoverage: JSON.stringify({ dwd: true }) }]]
+    .forEach(([cfg, userData]) => {
+      const page = bootGeneratedPage(cfg, 'basalt', { userData });
+      page.clickTab('radar');
+      assert.doesNotMatch(page.scroll.innerHTML, /only covers/, JSON.stringify([cfg, userData]));
+    });
+});

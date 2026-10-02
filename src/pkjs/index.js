@@ -81,6 +81,7 @@ var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_NOTICES = storageKeys.NOTICES_KEY;
 var KEY_AUTH_BACKOFF = storageKeys.AUTH_BACKOFF_KEY;
 var KEY_RADAR_KEY_RESULT = storageKeys.RADAR_KEY_RESULT_KEY;
+var KEY_RADAR_COVERAGE = storageKeys.RADAR_COVERAGE_KEY;
 var KEY_GEOCODE_CACHE = storageKeys.GEOCODE_CACHE_KEY;
 var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
@@ -196,6 +197,10 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // the source, the key's fingerprint and the status), as stored, or null: the key
         // status under the Radar provider row's "Rainbow (own key)" reads it.
         radarKeyResult: localStorage.getItem(KEY_RADAR_KEY_RESULT),
+        // Which regional radar sources can see the last update's location
+        // (radar-coverage.js: {dwd, metno}, true = outside; never the position), or null:
+        // the amber note under the Radar provider row while the picked one cannot.
+        radarCoverage: localStorage.getItem(KEY_RADAR_COVERAGE),
         // Day totals + the newest events, never the raw 7-day log: that pushed the
         // data: URL past Android's 2 MiB cap at short update intervals (dev-stats.js).
         devStats: devStats.summarize(),

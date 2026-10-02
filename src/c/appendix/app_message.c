@@ -277,9 +277,11 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
     Tuple *rain_radar_exact_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_TREND_UINT8);
     Tuple *rain_radar_area_tuple  = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_TREND_AREA_UINT8);
     Tuple *rain_radar_start_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_START);
-    // The limit notice (radar_limit.h): its PRESENCE is the signal. It rides in
-    // place of the three arrays and leaves the stored window untouched.
-    const bool limited_sent = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_LIMITED) != NULL;
+    // The notice (radar_limit.h): the phone's line, a string. The limit notice rides
+    // in place of the three arrays and leaves the stored window untouched; the
+    // out-of-coverage one rides with the clear.
+    Tuple *notice_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_LIMITED);
+    const bool limited_sent = notice_tuple != NULL;
     bool window_applied = false;   // a window or the clear was stored
     bool changed = false;
 
@@ -314,10 +316,12 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
         window_applied = true;
     }
     // The notice goes up when it arrives and comes down with the next stored
-    // window or clear; a message with neither never touches the slot.
-    if (window_applied || limited_sent) {
-        changed |= persist_set_radar_limited(
-            radar_limited_after(window_applied, limited_sent, persist_get_radar_limited()));
+    // window or clear; a message with neither never touches the slot. A notice that
+    // is no string stores as none.
+    const int move = radar_notice_move(window_applied, limited_sent);
+    if (move != 0) {
+        changed |= persist_set_radar_notice((move > 0 && notice_tuple->type == TUPLE_CSTRING)
+            ? notice_tuple->value->cstring : NULL);
     }
     *radar_dirty |= changed;
     return true;

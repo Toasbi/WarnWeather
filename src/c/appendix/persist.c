@@ -107,13 +107,19 @@ enum key {
     // callers, the WW_RAIN_RADAR-guarded handler and the unreferenced
     // rain_radar_layer.c, drop out there), but the ID stays listed on every
     // platform: the enum is append-only because the numbers are the on-flash slots.
-    RADAR_LIMITED,                // 56 — bool, present only while limited (absent = not)
+    RADAR_LIMITED,                // 56 — RETIRED (1.24.0): the bool the notice text below replaced
     // Appended: the weather alerts' phone-baked metric entries (ALERT_ENTRIES_UINT8,
     // encoding in alert_set.h), stored verbatim so the On demand items survive a
     // relaunch. On demand only (WW_ON_DEMAND), so aplite never reads or writes it,
     // but the ID stays listed on every platform: the enum is append-only because
     // the numbers are the on-flash slots.
-    ALERT_ENTRIES                 // 57 — <= ALERT_ENTRIES_MAX_BYTES, absent = no metric alert
+    ALERT_ENTRIES,                // 57 — <= ALERT_ENTRIES_MAX_BYTES, absent = no metric alert
+    // Appended: the radar notice's text (RAIN_RADAR_LIMITED, now the phone's line:
+    // "Radar limit reached", or the source's coverage), replacing the RADAR_LIMITED
+    // bool above, whose slot stays listed (append-only) and is never read again: a
+    // notice that was up across the upgrade comes back with the source's next answer.
+    // Radar-only, so aplite never reads or writes it (the radar callers drop out there).
+    RADAR_NOTICE                  // 58 — <= RADAR_NOTICE_BUF_BYTES text + NUL, absent = no notice
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -491,35 +497,46 @@ int persist_get_notice_text(char *buffer, size_t buffer_size) {
 // Unguarded on purpose (see persist.h): rain_radar_layer.c compiles on every
 // platform, so the getter must exist everywhere; on aplite both accessors are
 // unreferenced and --gc-sections reaps them (the notice-text pattern).
-bool persist_set_norain_text(const char *text) {
-    // NORAIN_TEXT_BUF_BYTES bound: the phone pack already truncates to 24
-    // UTF-8 bytes; this is a defensive clamp for a skewed/rogue sender. The
-    // back-off loop drops any UTF-8 continuation bytes (10xxxxxx) left at the
-    // clamp point so a split multi-byte sequence is never persisted.
-    char bounded[NORAIN_TEXT_BUF_BYTES];
+// A radar text (the no-rain line, the notice) stored bounded to `cap` - 1 bytes +
+// NUL: the phone already truncates to that budget; this is a defensive clamp for a
+// skewed/rogue sender. The back-off loop drops any UTF-8 continuation bytes
+// (10xxxxxx) left at the clamp point so a split multi-byte sequence is never
+// persisted. Empty is stored too (a lone NUL).
+static bool write_bounded_text(const uint32_t key, const char *text, const size_t cap) {
+    char bounded[RADAR_NOTICE_BUF_BYTES];   // the larger of the two caps
     size_t len = text ? strlen(text) : 0;
-    if (len > sizeof(bounded) - 1) {
-        len = sizeof(bounded) - 1;
+    if (len > cap - 1) {
+        len = cap - 1;
         while (len > 0 && (((const uint8_t *) text)[len] & 0xC0) == 0x80) {
             len--;
         }
     }
-    // Empty is stored too (a lone NUL): the user cleared the message, so the
-    // radar draws no line. Only an ABSENT slot (never configured) falls back to
-    // the built-in default.
     if (len > 0) { memcpy(bounded, text, len); }
     bounded[len] = '\0';
-    return write_sized_data_if_changed(NORAIN_TEXT, bounded, len + 1); // include NUL
+    return write_sized_data_if_changed(key, bounded, len + 1); // include NUL
 }
 
-int persist_get_norain_text(char *buffer, size_t buffer_size) {
+// A stored radar text into `buffer`: its length in bytes, or -1 while the slot is
+// absent (the buffer then holds "").
+static int read_text(const uint32_t key, char *buffer, const size_t buffer_size) {
     if (buffer_size == 0) { return -1; }
     buffer[0] = '\0';
-    if (!persist_exists(NORAIN_TEXT)) { return -1; }
-    int n = persist_read_data(NORAIN_TEXT, buffer, buffer_size);
+    if (!persist_exists(key)) { return -1; }
+    int n = persist_read_data(key, buffer, buffer_size);
     if (n <= 0) { buffer[0] = '\0'; return -1; }
     buffer[buffer_size - 1] = '\0';  // guarantee termination
     return (int) strlen(buffer);
+}
+
+bool persist_set_norain_text(const char *text) {
+    // Empty is stored too: the user cleared the message, so the radar draws no
+    // line. Only an ABSENT slot (never configured) falls back to the built-in
+    // default.
+    return write_bounded_text(NORAIN_TEXT, text, NORAIN_TEXT_BUF_BYTES);
+}
+
+int persist_get_norain_text(char *buffer, size_t buffer_size) {
+    return read_text(NORAIN_TEXT, buffer, buffer_size);
 }
 
 #if defined(WW_RAIN_RADAR)
@@ -533,21 +550,26 @@ bool persist_set_radar_sky(const uint8_t *data, size_t size) {
 #endif
 
 // Unguarded on purpose (see persist.h), like the no-rain text above:
-// rain_radar_layer.c compiles on every platform and reads the getter; on aplite
-// both accessors are unreferenced and --gc-sections reaps them.
-bool persist_get_radar_limited(void) {
-    return persist_exists(RADAR_LIMITED) && persist_read_bool(RADAR_LIMITED);
+// rain_radar_layer.c compiles on every platform and reads the getters; on aplite
+// the accessors are unreferenced and --gc-sections reaps them.
+bool persist_has_radar_notice(void) {
+    return persist_exists(RADAR_NOTICE);
 }
 
-bool persist_set_radar_limited(bool limited) {
-    // Not limited is the ABSENT slot, so every window that arrives on an install
-    // that was never limited costs no flash write, and ending the notice deletes.
-    if (!limited) {
-        if (!persist_exists(RADAR_LIMITED)) { return false; }
-        persist_delete(RADAR_LIMITED);
+int persist_get_radar_notice(char *buffer, size_t buffer_size) {
+    const int n = read_text(RADAR_NOTICE, buffer, buffer_size);
+    return n > 0 ? n : 0;
+}
+
+bool persist_set_radar_notice(const char *text) {
+    // No notice is the ABSENT slot, so every window that arrives on an install
+    // that never had one costs no flash write, and ending the notice deletes.
+    if (!text || !text[0]) {
+        if (!persist_exists(RADAR_NOTICE)) { return false; }
+        persist_delete(RADAR_NOTICE);
         return true;
     }
-    return write_bool_if_changed(RADAR_LIMITED, true);
+    return write_bounded_text(RADAR_NOTICE, text, RADAR_NOTICE_BUF_BYTES);
 }
 
 time_t persist_get_rain_radar_start() {

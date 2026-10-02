@@ -6582,7 +6582,7 @@
                 "style": "info",
                 "joinPrevious": true,
                 "textFrom": {
-                  "resolver": "keyMissingNote",
+                  "resolver": "radarProviderNote",
                   "args": {
                     "keyed": {
                       "rainbowkey": {

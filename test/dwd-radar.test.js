@@ -76,7 +76,29 @@ test('nearby disk-max picks up a wet cell within 2 km even when the exact point 
   assert.equal(out.RAIN_RADAR_TREND_AREA_UINT8[0], 108, 'nearby max = round(90 * 1.2) = 108');
 });
 
-test('out-of-coverage (radar: []) ships 24 zeros with slotZeroEpoch (not a failure)', () => {
+test('a place outside the DWD composite gets the out-of-coverage clear with its line, and no request', () => {
+  let asked = 0;
+  responder = function() { asked += 1; };
+  const OUTSIDE = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0,
+    RAIN_RADAR_LIMITED: 'DWD radar: Germany only' };
+  // Miami (the owner's 404 on every update), Madrid, Oslo, London.
+  const places = [{ lat: 25.76, lon: -80.19 }, { lat: 40.42, lon: -3.7 }, { lat: 59.91, lon: 10.75 }, { lat: 51.5, lon: -0.12 }];
+  places.forEach((pl) => {
+    let out;
+    radar.fetchRadarTuplesAt(pl.lat, pl.lon, SLOT0, function(t) { out = t; });
+    assert.deepEqual(out, OUTSIDE, pl.lat + ',' + pl.lon);
+  });
+  assert.equal(asked, 0, 'no request');
+});
+
+test('a 404 from inside the box (off the grid, or a Brightsky hiccup) stays transient: null', () => {
+  responder = function(url, type, onSuccess, onError) { onError({ code: 'status_404', detail: 'http_status' }); };
+  let out = 'unset';
+  radar.fetchRadarTuplesAt(48.85, 2.35, SLOT0, function(t) { out = t; });   // Paris: in the box
+  assert.equal(out, null);
+});
+
+test('no frames for the window (radar: []) ships 24 zeros with slotZeroEpoch (not a failure)', () => {
   respondWith({ latlon_position: { x: 0, y: 0 }, radar: [] });
   let out = 'unset';
   fetchTuples(function(t) { out = t; });

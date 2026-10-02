@@ -40,9 +40,13 @@ function respondWith(body) {
   responder = function(url, type, onSuccess) { onSuccess(JSON.stringify(body)); };
 }
 
+// Oslo: inside the Nordic area, so the request goes out (radar-coverage.js).
 function fetchTuples(cb) {
-  metnoRadar.fetchRadarTuplesAt(52.5, 13.4, SLOT0, cb);
+  metnoRadar.fetchRadarTuplesAt(59.91, 10.75, SLOT0, cb);
 }
+
+const OUTSIDE = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0,
+  RAIN_RADAR_LIMITED: 'Met.no radar: Nordics only' };
 
 test('builds the nowcast URL with 4-decimal coords and passes the Met.no headers', () => {
   let seenUrl, seenType, seenHeaders;
@@ -50,8 +54,8 @@ test('builds the nowcast URL with 4-decimal coords and passes the Met.no headers
     seenUrl = url; seenType = type; seenHeaders = headers;
     onSuccess(JSON.stringify(nowcastBody([0])));
   };
-  metnoRadar.fetchRadarTuplesAt(52.520008, 13.4049995, SLOT0, function() {});
-  assert.equal(seenUrl, 'https://api.met.no/weatherapi/nowcast/2.0/complete?lat=52.52&lon=13.405');
+  metnoRadar.fetchRadarTuplesAt(59.913868, 10.7522454, SLOT0, function() {});
+  assert.equal(seenUrl, 'https://api.met.no/weatherapi/nowcast/2.0/complete?lat=59.9139&lon=10.7522');
   assert.equal(seenType, 'GET');
   assert.equal(seenHeaders['User-Agent'], 'WarnWeather github.com/Toasbi/WarnWeather');
   assert.equal(seenHeaders['Origin'], 'https://github.com/Toasbi/WarnWeather');
@@ -99,21 +103,41 @@ test("coverage 'temporarily unavailable' → null (radar outage keeps watch rada
   assert.equal(out, null);
 });
 
-test("coverage 'no coverage' → 24 zeros with the passed slot epoch", () => {
+test("coverage 'no coverage' → the out-of-coverage clear with Met.no's line", () => {
   respondWith(nowcastBody([], 'no coverage'));
   let out;
   fetchTuples(function(t) { out = t; });
-  assert.deepEqual(out.RAIN_RADAR_TREND_UINT8, zeros());
-  assert.deepEqual(out.RAIN_RADAR_TREND_AREA_UINT8, zeros());
-  assert.equal(out.RAIN_RADAR_START, SLOT0);
+  assert.deepEqual(out, OUTSIDE);
 });
 
-test('HTTP 422 (outside Nordic product area) → 24 zeros', () => {
+test('an unknown coverage value, or no frames, → 24 zeros with the passed slot epoch, as before', () => {
+  [nowcastBody([], 'ok'), nowcastBody([1], 'something new')].forEach((body) => {
+    respondWith(body);
+    let out;
+    fetchTuples(function(t) { out = t; });
+    assert.deepEqual(out.RAIN_RADAR_TREND_UINT8, zeros());
+    assert.deepEqual(out.RAIN_RADAR_TREND_AREA_UINT8, zeros());
+    assert.equal(out.RAIN_RADAR_START, SLOT0);
+  });
+});
+
+test('HTTP 422 (outside Nordic product area) → the out-of-coverage clear with Met.no\'s line', () => {
   responder = function(url, type, onSuccess, onError) { onError({ code: 'status_422', detail: 'http_status' }); };
   let out;
   fetchTuples(function(t) { out = t; });
-  assert.deepEqual(out.RAIN_RADAR_TREND_UINT8, zeros());
-  assert.equal(out.RAIN_RADAR_START, SLOT0);
+  assert.deepEqual(out, OUTSIDE);
+});
+
+test('a place outside the Nordic box gets the out-of-coverage clear with no request', () => {
+  let asked = 0;
+  responder = function() { asked += 1; };
+  const places = [{ lat: 25.76, lon: -80.19 }, { lat: 52.5, lon: 13.4 }, { lat: 41.9, lon: 12.5 }, { lat: 78.2, lon: 15.6 }];
+  places.forEach((pl) => {
+    let out;
+    metnoRadar.fetchRadarTuplesAt(pl.lat, pl.lon, SLOT0, function(t) { out = t; });
+    assert.deepEqual(out, OUTSIDE, pl.lat + ',' + pl.lon);
+  });
+  assert.equal(asked, 0, 'no request');
 });
 
 test('other HTTP failure → null (watch keeps its existing radar)', () => {

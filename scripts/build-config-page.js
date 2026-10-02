@@ -40,6 +40,9 @@ var APP_FILES = [
   // there: test/config-page-bundle.test.js pins both into the generated page.
   path.join(ROOT, 'src/pkjs/key-fingerprint.js'),
   path.join(ROOT, 'src/pkjs/settings/key-status.js'),
+  // The regional radar sources' areas (window.RadarCoverage): blocks.js's note under the
+  // Radar provider row reads it when it renders, after the missing-key note above.
+  path.join(ROOT, 'src/pkjs/weather/radar-coverage.js'),
   // The graph-colour resolver the forecast preview draws from, plus its two deps.
   // ORDER IS LOAD-BEARING and stricter than the globals above: each of these reads the
   // previous one's window global while its OWN top-level body runs (resolve-ink needs

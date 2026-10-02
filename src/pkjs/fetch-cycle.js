@@ -31,6 +31,7 @@ var radarFactory = require('./weather/radar-factory.js');
 var radarSourceId = require('./weather/radar-source-id.js');
 var radarWire = require('./weather/radar-wire.js');
 var radarSky = require('./weather/radar-sky.js');
+var radarCoverage = require('./weather/radar-coverage.js');
 var WeatherProvider = require('./weather/provider.js');
 var forecastSeries = require('./forecast-series.js');
 var keyFingerprint = require('./key-fingerprint.js');
@@ -340,7 +341,9 @@ function createFetchCycle(deps) {
      * key, a missing or outdated Rainbow proxy) calls back the clearing tuples, and
      * a source refusing us over a request limit (HTTP 429) the limit notice
      * (radarWire.limitedRadarTuples), which rides the send in place of the three
-     * radar arrays. Out-of-coverage produces zero arrays, shipped normally. A
+     * radar arrays. A place outside a regional source's area (radar-coverage.js)
+     * gets the clear with the source's line (radarWire.outOfCoverageRadarTuples),
+     * shipped normally, and the verdicts are kept for the settings page. A
      * throttled source re-serves its slot's answer (a real window, the limit notice
      * or the clear), or answers null (no RAIN_RADAR_* keys, like a dedupe skip)
      * when the slot's request got none of them; the sky rows still ride.
@@ -413,7 +416,8 @@ function createFetchCycle(deps) {
                     : 're-serving this slot\'s window.';
                 console.log('Radar request skipped: ' + radarId + ' is limited to one request per '
                     + (radarFactory.minRequestIntervalMs(radarId) / 60000) + ' min; ' + reserved);
-                cb(slot.tuples);
+                // A limit notice an older build kept (the 1 it sent) goes out as today's line.
+                cb(radarWire.isLimitedRadarTuples(slot.tuples) ? radarWire.limitedRadarTuples() : slot.tuples);
                 return;
             }
             source.fetchRadarTuplesAt(lat, lon, slotZeroEpoch, function (tuples) {
@@ -422,7 +426,12 @@ function createFetchCycle(deps) {
             });
         }, function (cb) {
             skySource.fetchSkyTupleAt(lat, lon, slotZeroEpoch, cb);
-        }, callback);
+        }, function (tuples) {
+            // Which regional radar sources can see this place (no position kept), for the
+            // settings page's note under the Radar provider row.
+            radarCoverage.remember(lat, lon, radarId, radarWire.isOutOfCoverageRadarTuples(tuples));
+            callback(tuples);
+        });
     }
 
     /**
@@ -644,15 +653,14 @@ function createFetchCycle(deps) {
             // The radar LIMIT notice likewise (a 429 from the radar source): it is
             // not fresh data either, and without it the watch rolls its window into
             // a made-up "no rain" while the source refuses us — so it goes out as
-            // radarWire.limitedRadarTuples() alone, never the merged answer.
+            // radarWire.limitedRadarTuples() alone, never the merged answer. And the
+            // OUT-OF-COVERAGE clear with its line (radarWire.failureForward picks).
             // The outbox dedupe sends each once. Not on a NACK: that send already
             // carried them, and its uncommitted cache retries next cycle.
             if (!(failure && failure.stage === 'app_message')) {
-                if (radarWire.isClearRadarTuples(radarTuples)) {
-                    Object.assign(failureSend, radarWire.clearRadarTuples());
-                }
-                if (radarWire.isLimitedRadarTuples(radarTuples)) {
-                    Object.assign(failureSend, radarWire.limitedRadarTuples());
+                var radarForward = radarWire.failureForward(radarTuples);
+                if (radarForward) {
+                    Object.assign(failureSend, radarForward);
                 }
                 if (radarSky.isClearSkyTuple(radarTuples)) {
                     Object.assign(failureSend, radarSky.clearSkyTuple());

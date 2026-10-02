@@ -132,5 +132,10 @@ module.exports = {
     // many updates in a row it answered with a 5xx, a timeout or no connection;
     // fetch-cycle.js). Its notice waits for the second one, so a one-off outage stays
     // quiet; a success, another kind of failure or another provider ends the run.
-    SERVER_FAILURE_STREAK_KEY: 'serverFailureStreak'
+    SERVER_FAILURE_STREAK_KEY: 'serverFailureStreak',
+    // Which regional radar sources can see the last update's location ({dwd, metno}:
+    // true = outside its area; weather/radar-coverage.js), never the position itself. The
+    // settings page reads it as userData.radarCoverage for the note under the Radar
+    // provider row.
+    RADAR_COVERAGE_KEY: 'radarCoverage'
 };

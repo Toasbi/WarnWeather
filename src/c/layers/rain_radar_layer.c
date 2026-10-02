@@ -446,14 +446,16 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     // fresh-install state) whose slots are all dry would otherwise render as a bare
     // axis over nothing. Say so instead, centred in the plot under the axis. The
     // wording deliberately claims only what ~90 minutes of radar can know. While
-    // the radar source refuses us over a request limit (radar_limit.h) the line
-    // says that instead: the window it keeps is unverified, so "no rain" would be
-    // made up. Where the kept window still shows rain, the bars win and no line
-    // is drawn. A limit hit with no window ever received (start 0: a fresh
-    // install, or right after a clear) still shows the notice, over the zeroed
-    // slots under an axis without hour digits (radar_axis_slot_mark): the view
-    // resolves the radar in for it (radar_has_view, main_window_radar_has_data).
-    const bool limited = persist_get_radar_limited();
+    // the phone's notice is up (radar_limit.h: the source refuses us over a request
+    // limit, or the place is outside its coverage) the line says that instead: the
+    // window it keeps is unverified, so "no rain" would be made up. Where the kept
+    // window still shows rain, the bars win and no line is drawn. A notice with no
+    // window (start 0: a fresh install, right after a clear, or out of coverage,
+    // which rides with the clear) still shows, over the zeroed slots under an axis
+    // without hour digits (radar_axis_slot_mark): the view resolves the radar in for
+    // it (radar_has_view, main_window_radar_has_data).
+    char notice[RADAR_NOTICE_BUF_BYTES];
+    const bool limited = persist_get_radar_notice(notice, sizeof(notice)) > 0;
     bool any_rain = false;
     for (int i = 0; i < RADAR_NUM_SLOTS; i++) {
         if (exact_tenths[i] > 0 || area_tenths[i] > 0) { any_rain = true; break; }
@@ -481,13 +483,13 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
             text_h = 14;
 #endif
         }
-        // The limit notice beats any no-rain text. Otherwise a configured text
+        // The notice beats any no-rain text. Otherwise a configured text
         // (CLAY_NORAIN_TEXT, Radar settings) replaces the built-in line; an empty
         // one (the user cleared the message) draws no line at all; a slot never
         // set (-1) keeps the built-in default (radar_empty_text).
         char custom[NORAIN_TEXT_BUF_BYTES];
         const int custom_len = persist_get_norain_text(custom, sizeof(custom));
-        const char *text = radar_empty_text(limited, custom_len, custom);
+        const char *text = radar_empty_text(limited ? notice : NULL, custom_len, custom);
         if (text) {
             // A custom text can run to 24 UTF-8 bytes — wider than a 144 px plot at
             // this font — so the box grows to TWO lines when the plot affords them

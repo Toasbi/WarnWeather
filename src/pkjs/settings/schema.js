@@ -3041,13 +3041,16 @@ module.exports = {
                 options: RADAR_PROVIDER_OPTIONS
             }, {
                 // The own key's empty field, said where it cannot be missed: an amber note
-                // hugging the row while "Rainbow (own key)" is picked with no key (textFrom
-                // answers '' otherwise). It follows the picker's own gate, so radar off
-                // hides it with the row.
+                // hugging the row while "Rainbow (own key)" or Tomorrow.io is picked with no
+                // key. For DWD and Met.no the same note says when the last update's location
+                // lies outside the picked source's area, naming one that covers it
+                // (radar-coverage.js; the phone's record userData.radarCoverage). textFrom
+                // answers '' otherwise. It follows the picker's own gate, so radar off hides
+                // it with the row.
                 type: 'staticText',
                 style: 'info',
                 joinPrevious: true,
-                textFrom: {resolver: 'keyMissingNote', args: RADAR_KEY_ARGS},
+                textFrom: {resolver: 'radarProviderNote', args: RADAR_KEY_ARGS},
                 showWhen: {key: 'radarMode', ne: 'off'}
             }, {
                 // Radar preview now rides the bar-scale note (blockBefore), so it sits BELOW the picker

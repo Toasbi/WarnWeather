@@ -30,6 +30,8 @@ RAIN RADAR
   30 minutes; pick "Rainbow (own key)" and add your own Rainbow API key to refresh it at your
   own update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 - "Radar limit reached" on the radar when a radar source refuses requests over its limit
+- Outside a regional radar's area (DWD: Germany, Met.no: the Nordic countries) the radar says so,
+  and the Radar tab suggests a source that covers your location
 - Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on
   its way (Alerts)
 - Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph

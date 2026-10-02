@@ -16,30 +16,51 @@ var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
 
 /**
+ * The notice a radar subset carries (the RAIN_RADAR_LIMITED line, or the 1 an older
+ * build sent), or null.
+ * @param {Object} subset Radar subset.
+ * @returns {*} The notice value, or null.
+ */
+function noticeOf(subset) {
+    return (subset && subset.RAIN_RADAR_LIMITED !== undefined) ? subset.RAIN_RADAR_LIMITED : null;
+}
+
+/**
+ * Whether two radar subsets carry the same arrays and start (or neither carries any).
+ * @param {Object} a Radar subset.
+ * @param {Object} b Radar subset.
+ * @returns {boolean} True when equal.
+ */
+function sameArrays(a, b) {
+    return JSON.stringify([a.RAIN_RADAR_TREND_UINT8, a.RAIN_RADAR_TREND_AREA_UINT8, a.RAIN_RADAR_START])
+        === JSON.stringify([b.RAIN_RADAR_TREND_UINT8, b.RAIN_RADAR_TREND_AREA_UINT8, b.RAIN_RADAR_START]);
+}
+
+/**
  * Decide whether a candidate radar subset differs from the last-sent one.
  *
  * @param {Object} newSubset Candidate subset: {RAIN_RADAR_TREND_UINT8: number[],
- *   RAIN_RADAR_TREND_AREA_UINT8: number[], RAIN_RADAR_START: number}, or the
- *   limit notice {RAIN_RADAR_LIMITED: 1} (radarWire.limitedRadarTuples).
- * @param {Object|null} cachedSubset Last-sent subset in either shape, or null
- *   when nothing was sent yet.
+ *   RAIN_RADAR_TREND_AREA_UINT8: number[], RAIN_RADAR_START: number}, the limit
+ *   notice {RAIN_RADAR_LIMITED: text} (radarWire.limitedRadarTuples), or the
+ *   out-of-coverage clear with its notice (radarWire.outOfCoverageRadarTuples).
+ * @param {Object|null} cachedSubset Last-sent subset in any of those shapes, or
+ *   null when nothing was sent yet.
  * @returns {boolean} true when the radar should be sent (changed), false to skip.
  */
 function radarComparator(newSubset, cachedSubset) {
     if (!cachedSubset) {
         return true;  // nothing sent yet
     }
-    // The limit notice carries no window, so it has nothing to align. A repeat
-    // of it is unchanged: a source that stays limited sends it once, not every
-    // cycle. After it, any window or clear must go out, even one equal to the
-    // window the watch already holds: the arrays are what end the notice there.
-    var newLimited = radarWire.isLimitedRadarTuples(newSubset);
-    var oldLimited = radarWire.isLimitedRadarTuples(cachedSubset);
-    if (newLimited) {
-        return !oldLimited;
-    }
-    if (oldLimited) {
-        return true;
+    // A notice (the limit notice alone, or the out-of-coverage clear with its line)
+    // has no window to align. A repeat of the same answer is unchanged: a source that
+    // stays limited, or a place that stays outside, sends it once, not every cycle.
+    // Another line (the limit after the coverage, the older build's 1) must go out.
+    // After a notice, any window or clear must go out, even one equal to the window
+    // the watch already holds: the arrays are what end the notice there.
+    var newNotice = noticeOf(newSubset);
+    var oldNotice = noticeOf(cachedSubset);
+    if (newNotice !== null || oldNotice !== null) {
+        return !(newNotice === oldNotice && sameArrays(newSubset, cachedSubset));
     }
     var newExact = newSubset.RAIN_RADAR_TREND_UINT8;
     var newArea = newSubset.RAIN_RADAR_TREND_AREA_UINT8;

@@ -890,6 +890,30 @@ test('start: an auth backoff an older build left for a provider whose key is scr
     assert.equal(keyed.cycle.start(false), false, 'a keyed provider still waits for the user');
 });
 
+test('radar: a place outside DWD\'s composite asks nothing, sends the clear with DWD\'s line, and keeps the verdict', () => {
+    resetStore();
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'dwd' };
+    const h = makeHarness({ settings: settings, watchInfo: BASALT });
+    const OUTSIDE = Object.assign({ RAIN_RADAR_LIMITED: 'DWD radar: Germany only' }, CLEAR);
+    h.cycle.start(false);
+    h.provider.fix(25.76, -80.19);   // Miami
+    assert.equal(radarRequests.length, 0, 'no radar request');
+    assert.deepEqual(h.provider.lastForecast().extras, Object.assign({ IS_SLEEPING: false }, OUTSIDE, SKY_CLEAR));
+    assert.equal(store[KEYS.RADAR_COVERAGE_KEY], JSON.stringify({ dwd: true, metno: true }),
+        'the settings page\'s record: verdicts, no position');
+    // A failed forecast still forwards it, line and all.
+    h.provider.fail({ stage: 'provider_data', code: 'fake_parse_error' });
+    assert.deepEqual(h.calls.sendWeather, [Object.assign({}, OUTSIDE, SKY_CLEAR)]);
+
+    h.advance(HOUR);
+    h.cycle.start(false);
+    h.provider.fix(52.52, 13.4);   // Berlin: in the box, so DWD is asked
+    assert.equal(radarRequests.length, 1, 'inside the box the request goes out');
+    assert.equal(store[KEYS.RADAR_COVERAGE_KEY], JSON.stringify({ dwd: true, metno: true }), 'the record waits for the answer');
+    radarRequests[0].onError({ code: 'status_503', detail: 'http_status' });
+    assert.equal(store[KEYS.RADAR_COVERAGE_KEY], JSON.stringify({ dwd: false, metno: true }));
+});
+
 test('coordinates: a failed fix is recorded and tracked, and starts no radar, forecast, send or sleep commit', () => {
     resetStore();
     const settings = Object.assign(
