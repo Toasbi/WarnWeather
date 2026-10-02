@@ -47,6 +47,8 @@
 # Message key ids as constants: basalt -1176 B (60212), diorite/flint -1172 B (57920).
 # Hidden visibility, no .got: basalt -72 B (60140), diorite/flint -76 B (57844).
 # One warning helper for the inbox's skipped tuples: -756 B on each (59384, 57088).
+# Measured after merging those cuts with the radar notice moving to the phone (clearer
+# errors): basalt 59388, diorite/flint 57076.
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -63,9 +65,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-59384}"
-  "diorite:${DIORITE_IMAGE_CEILING:-57088}"
-  "flint:${FLINT_IMAGE_CEILING:-57088}"
+  "basalt:${BASALT_IMAGE_CEILING:-59388}"
+  "diorite:${DIORITE_IMAGE_CEILING:-57076}"
+  "flint:${FLINT_IMAGE_CEILING:-57076}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).
