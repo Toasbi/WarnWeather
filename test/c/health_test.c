@@ -58,6 +58,18 @@ static HealthValue s_sum;
 static HealthMetric s_access_metric;
 static HealthMetric s_sum_metric;
 static int s_sum_calls;
+static HealthServiceAccessibilityMask s_hr_access = HealthServiceAccessibilityMaskNotAvailable;
+static HealthValue s_peek;
+static int s_peek_calls;
+static int s_iterate_calls;
+static time_t s_sleep_start;
+static time_t s_sleep_end;
+
+// The firmware's HealthServiceCache as PebbleOS applib/health_service.c keeps it: the
+// sum, peek and iterate calls allocate it when there is none, and only an events
+// unsubscribe frees it.
+static bool s_cache_held;
+static int s_unsubscribe_calls;
 
 static void expect_int(const char *name, int got, int want) {
     if (got != want) {
@@ -66,7 +78,14 @@ static void expect_int(const char *name, int got, int want) {
     }
 }
 
+bool health_service_events_unsubscribe(void) {
+    s_unsubscribe_calls++;
+    s_cache_held = false;
+    return true;
+}
+
 HealthValue health_service_sum_today(HealthMetric metric) {
+    s_cache_held = true;
     s_sum_metric = metric;
     s_sum_calls++;
     return s_sum;
@@ -82,7 +101,9 @@ HealthServiceAccessibilityMask health_service_metric_accessible(
 
 HealthValue health_service_peek_current_value(HealthMetric metric) {
     (void)metric;
-    return 0;
+    s_cache_held = true;
+    s_peek_calls++;
+    return s_peek;
 }
 
 HealthServiceAccessibilityMask health_service_metric_aggregate_averaged_accessible(
@@ -93,7 +114,7 @@ HealthServiceAccessibilityMask health_service_metric_aggregate_averaged_accessib
     (void)time_end;
     (void)aggregation;
     (void)scope;
-    return HealthServiceAccessibilityMaskNotAvailable;
+    return s_hr_access;
 }
 
 uint32_t health_service_get_minute_history(HealthMinuteData *minute_data,
@@ -117,8 +138,59 @@ void health_service_activities_iterate(HealthActivityMask activity_mask,
     (void)time_start;
     (void)time_end;
     (void)direction;
-    (void)callback;
-    (void)context;
+    s_cache_held = true;
+    s_iterate_calls++;
+    // One restful-sleep session; the callback runs while the cache is held.
+    callback(HealthActivityRestfulSleep, s_sleep_start, s_sleep_end, context);
+    expect_int("iterate.cache_held_during_callback", s_cache_held, true);
+}
+
+// Each read that makes the firmware allocate its cache frees it again before it
+// returns, and still returns what the service answered.
+static void each_read_frees_the_firmware_cache(void) {
+    s_access = HealthServiceAccessibilityMaskAvailable;
+    s_hr_access = HealthServiceAccessibilityMaskAvailable;
+    s_sum = 1234;
+    s_peek = 72;
+    s_sum_calls = 0;
+    s_peek_calls = 0;
+    s_unsubscribe_calls = 0;
+
+    expect_int("release.steps.value", health_steps_today(), 1234);
+    expect_int("release.steps.held", s_cache_held, false);
+    expect_int("release.distance.value", health_distance_today_m(), 1234);
+    expect_int("release.distance.held", s_cache_held, false);
+    expect_int("release.sleep.value", health_sleep_today_seconds(), 1234);
+    expect_int("release.sleep.held", s_cache_held, false);
+    expect_int("release.hr.value", health_hr_current(), 72);
+    expect_int("release.hr.held", s_cache_held, false);
+    expect_int("release.sum_calls", s_sum_calls, 3);
+    expect_int("release.peek_calls", s_peek_calls, 1);
+    expect_int("release.unsubscribe_calls", s_unsubscribe_calls, 4);
+    s_hr_access = HealthServiceAccessibilityMaskNotAvailable;
+}
+
+// The sleep fill marks the hours its session covers and frees the cache after the
+// iterate; with no HRM the peek is skipped and the HR reads 0.
+static void sleep_fill_frees_the_firmware_cache(void) {
+    const time_t end_hour = 100 * 3600;      // slot 3 = the hour ending here
+    uint8_t state[4] = { 9, 9, 9, 9 };
+    s_sleep_start = end_hour - 3 * 3600 + 600;   // inside slot 1 ...
+    s_sleep_end   = end_hour - 2 * 3600 + 60;    // ... to just into slot 2
+    s_iterate_calls = 0;
+
+    health_fill_hourly_sleep(state, 4, end_hour);
+    expect_int("sleep_fill.iterate_calls", s_iterate_calls, 1);
+    expect_int("sleep_fill.held", s_cache_held, false);
+    expect_int("sleep_fill.slot0", state[0], HEALTH_SLEEP_AWAKE);
+    expect_int("sleep_fill.slot1", state[1], HEALTH_SLEEP_DEEP);
+    expect_int("sleep_fill.slot2", state[2], HEALTH_SLEEP_DEEP);
+    expect_int("sleep_fill.slot3", state[3], HEALTH_SLEEP_AWAKE);
+
+    s_peek_calls = 0;
+    expect_int("hr_absent.value", health_hr_current(), 0);
+    expect_int("hr_absent.peek_calls", s_peek_calls, 0);
+    expect_int("hr_absent.held", s_cache_held, false);
 }
 
 static void accessible_distance_returns_today_sum(void) {
@@ -169,6 +241,8 @@ int main(void) {
     accessible_distance_returns_today_sum();
     inaccessible_distance_returns_sentinel_without_sum();
     health_minute_schema_fields_are_usable();
+    each_read_frees_the_firmware_cache();
+    sleep_fill_frees_the_firmware_cache();
     if (s_failures) {
         printf("%d health failure(s)\n", s_failures);
         return 1;

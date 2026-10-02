@@ -18,11 +18,13 @@
 #
 # PROVISIONAL: "Draw from: Top" (basalt +144 B, diorite/flint +192 B; stack +16 B on the
 # forecast paint path, +16 B on the radar's), the temperature curve's margins with the
-# hi/lo labels lined up on it (net basalt +252 B, diorite/flint +248 B; stack unchanged)
-# and the night re-shade setting its underlay colour per column (basalt +4 B; stack
-# unchanged) stay in these ceilings only if the basalt heap re-measure after the heap work
-# shows 0 failed allocations with them in. Otherwise the owner picks a scope cut and the
-# ceilings come down by what it saves.
+# hi/lo labels lined up on it (net basalt +252 B, diorite/flint +248 B; stack unchanged),
+# the night re-shade setting its underlay colour per column (basalt +4 B; stack
+# unchanged) and the health reads freeing the firmware's 2 KB health cache again
+# (basalt/diorite/flint +56 B of image for 2052 B of runtime heap; stack +8 B on the
+# health read paths) stay in these ceilings only if the basalt heap re-measure after the
+# heap work shows 0 failed allocations with them in. Otherwise the owner picks a scope cut
+# and the ceilings come down by what it saves.
 #
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
@@ -40,9 +42,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-59132}"
-  "diorite:${DIORITE_IMAGE_CEILING:-56900}"
-  "flint:${FLINT_IMAGE_CEILING:-56900}"
+  "basalt:${BASALT_IMAGE_CEILING:-59188}"
+  "diorite:${DIORITE_IMAGE_CEILING:-56956}"
+  "flint:${FLINT_IMAGE_CEILING:-56956}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).

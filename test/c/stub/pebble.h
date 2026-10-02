@@ -143,6 +143,7 @@ void health_service_activities_iterate(HealthActivityMask activity_mask,
                                        HealthActivityIteratorCB callback,
                                        void *context);
 MeasurementSystem health_service_get_measurement_system_for_display(HealthMetric metric);
+bool health_service_events_unsubscribe(void);
 
 typedef struct AppTimer AppTimer;
 typedef void (*AppTimerCallback)(void *data);

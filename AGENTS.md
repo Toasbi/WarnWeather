@@ -187,6 +187,11 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   paint-only elements as light as possible.
 - `ENABLE_MEMORY_LOGGING=1` does **not** build on aplite — the `MEM|` logging overflows
   `.bss`. Capture heap logs on diorite (a B/W proxy) or another platform instead.
+- **HealthService calls live in `src/c/services/health.c` only.** The firmware puts a
+  2 KB `HealthServiceCache` on the app heap at the first `health_service_sum*` / peek /
+  `activities_iterate` call and keeps it until the app exits, so each such read there
+  frees it again before returning (`health_release_service_cache`). A new allocating
+  call does the same, or the 2 KB stays held.
 
 ## Aplite source-fork convention
 

@@ -44,6 +44,8 @@ void health_fill_hourly_hr(int16_t *out, int count, time_t end_hour);
 /**
  * Fills `count` hourly sleep-state buckets with HEALTH_SLEEP_* values.
  * out[0] = oldest hour, out[count-1] = the hour ending at end_hour.
+ * Leaves them as they are when the heap cannot spare the firmware's 2 KB
+ * health cache for the read (health.c).
  */
 void health_fill_hourly_sleep(uint8_t *state_out, int count, time_t end_hour);
 
