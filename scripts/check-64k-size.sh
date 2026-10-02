@@ -62,6 +62,12 @@
 # the screen's edge neither anchors an edge nor keeps a stripe's band: basalt +16 B
 # (59292 -> 59308), diorite/flint +20 B (57092 -> 57112), all .text in
 # forecast_update_proc; .data/.bss and its stack frame unchanged.
+# Then the share became a curve (owner, 2026-10-02: "with more space in larger graphs,
+# the padding ... can be larger than the 1/8"), in the same exception: an anchored edge's
+# margin is the plot height squared over TEMP_AXIS_PAD_SQ_DIV (512), an eighth at 64 rows
+# and a quarter at 128: basalt +4 B (59308 -> 59312), diorite/flint +4 B (57112 ->
+# 57116), all .text in forecast_update_proc (the multiply); .data/.bss and its stack
+# frame unchanged.
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -78,9 +84,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-59308}"
-  "diorite:${DIORITE_IMAGE_CEILING:-57112}"
-  "flint:${FLINT_IMAGE_CEILING:-57112}"
+  "basalt:${BASALT_IMAGE_CEILING:-59312}"
+  "diorite:${DIORITE_IMAGE_CEILING:-57116}"
+  "flint:${FLINT_IMAGE_CEILING:-57116}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).

@@ -259,13 +259,13 @@ static void load_dataset(ForecastDataset *ds) {
 // temperature curve.
 //
 // On an anchored edge (temp_axis_pad.h: rain bars or an amount line drawn from it, with a
-// value above 0) the temperature-axis lines' margin grows to an eighth of the plot height
-// where that is more. s_temp_margin holds the temperature curve's two margins, set per
-// redraw, and every line with an inset (the phone sends the temperature-axis lines the
-// curve's own) takes them, so they stay pixel-aligned with it; a line with no inset (every
-// metric line off the temperature axis) keeps its full-height mapping. aplite has
-// neither: LINE_TOP / LINE_BOTTOM are the plain inset there, byte-for-byte as before
-// (the frozen fork).
+// value above 0) the temperature-axis lines' margin grows to the plot height squared over
+// TEMP_AXIS_PAD_SQ_DIV where that is more: the taller the plot, the larger its share.
+// s_temp_margin holds the temperature curve's two margins, set per redraw, and every line
+// with an inset (the phone sends the temperature-axis lines the curve's own) takes them, so
+// they stay pixel-aligned with it; a line with no inset (every metric line off the
+// temperature axis) keeps its full-height mapping. aplite has neither: LINE_TOP /
+// LINE_BOTTOM are the plain inset there, byte-for-byte as before (the frozen fork).
 #if defined(WW_LINE_STYLE)
 static TempMargin s_temp_margin;
 #define LINE_TOP(inset) ((inset) ? s_temp_margin.top : 0)
@@ -631,8 +631,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #if defined(WW_LINE_STYLE)
     // The temperature curve's margins for this redraw (LINE_TOP / LINE_BOTTOM): its inset,
     // none at the top under a top stripe band (whose 2 px gap keeps it clear), and on each
-    // anchored edge at least an eighth of the plot's content rows [top_band, plot_axis_y),
-    // the rows between the two stripe bands. The rain bars' edge joins the lines' edges
+    // anchored edge at least the square of the plot's content rows [top_band, plot_axis_y),
+    // the rows between the two stripe bands, over TEMP_AXIS_PAD_SQ_DIV. The rain bars' edge joins the lines' edges
     // here, when a bar on screen has a value above 0.
     if (bars_on) {
         temp_axis_edges_add(&edges, bars->bars.values, drawn, false, false,

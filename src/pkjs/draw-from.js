@@ -29,9 +29,10 @@
 // its marks or the Main metric's fill (not a stripe, which keeps a band of its own), but only
 // while it has a value above 0 in the hours the graph draws: an all-zero one draws nothing
 // and the graph lays out as if it were not there. On an anchored edge the temperature curve
-// and the lines sharing its axis keep a margin of at least an eighth of the plot
-// (src/c/appendix/temp_axis_pad.h); forecastAnchors is that reading for the settings
-// preview, which supplies the data half (its samples). The watch reads the bars' edge off
+// and the lines sharing its axis keep a margin of at least the plot's height squared over
+// TEMP_AXIS_PAD_SQ_DIV, a share that grows with the plot (src/c/appendix/temp_axis_pad.h);
+// forecastAnchors is that reading for the settings preview, which supplies the data half
+// (its samples). The watch reads the bars' edge off
 // the palette flag below and a line's off its style byte: bit 5 for the edge, and bit 6
 // (FLOAT_BIT) on a drawn line that anchors nothing, its metric having no zero to stand on
 // (pressure, feels-like, dew point: every metric without a Draw from key).

@@ -101,18 +101,36 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     }
 
     // The temperature-axis margins and hi/lo labels (src/c/appendix/temp_axis_pad.h),
-    // mirrored: an anchored edge's margin is the plot height over TEMP_AXIS_ANCHOR_DIV (an
-    // eighth), and the labels keep TEMP_LABEL_MIN_INK_GAP watch px of blank rows between their
+    // mirrored: an anchored edge's margin is the plot height squared over
+    // TEMP_AXIS_PAD_SQ_DIV (the share grows with the plot: an eighth at 64 rows, a quarter at
+    // 128), and the labels keep TEMP_LABEL_MIN_INK_GAP watch px of blank rows between their
     // ink. Both are the watch's numbers, held equal to the header's by
     // test/config-temp-axis-pad.test.js. WATCH_INSET_PX is the watch's temperature inset
     // (bottom_view.h BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), the unit the preview scales watch px by.
-    var TEMP_AXIS_ANCHOR_DIV = 8;
+    var TEMP_AXIS_PAD_SQ_DIV = 512;
     var TEMP_LABEL_MIN_INK_GAP = 11;
     var WATCH_INSET_PX = 7;
     // The hi/lo labels' digit cap, in preview units: about 0.7 em of their 8-unit font.
     var LABEL_CAP = 5.6;
     // The preview's curve inset in units: 12 units stand for the watch's WATCH_INSET_PX.
     var CURVE_INSET_PREV = 12;
+
+    /**
+     * An anchored edge's share of a plot `units` preview units tall, in preview units:
+     * temp_axis_pad.h temp_axis_margin's curve, mirrored. The curve is not linear, so it is
+     * taken where the watch takes it, in watch rows: the plot goes to whole watch px at the
+     * preview's scale (CURVE_INSET_PREV units per WATCH_INSET_PX, as the inset and the label
+     * gap), the watch's integer square over TEMP_AXIS_PAD_SQ_DIV is taken there, and the px it
+     * gives come back as units. The preview's unbanded plot (87 units, 50 watch rows) is about
+     * the watch's default view (55 rows), and the share there stays under the inset, as it does
+     * on the watch.
+     * @param {number} units The plot's height in preview units (>= 0).
+     * @returns {number} The share, in preview units.
+     */
+    function anchorShare(units) {
+        var rows = Math.floor(units * WATCH_INSET_PX / CURVE_INSET_PREV);
+        return Math.floor(rows * rows / TEMP_AXIS_PAD_SQ_DIV) * CURVE_INSET_PREV / WATCH_INSET_PX;
+    }
 
     /**
      * The hi/lo labels' baselines, aligned with the temperature curve's extremes when there
@@ -432,8 +450,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var curveInsetPrev = CURVE_INSET_PREV;
         // On an anchored edge (the rain bars' or a drawn amount line's with a value above 0:
         // draw-from.js forecastAnchors; none previewing aplite, whose margins are frozen) the
-        // margin is at least an eighth of the band [MT, PB], the plot the metrics map into
-        // between the stripe bands — temp_axis_pad.h temp_axis_margin, mirrored.
+        // margin is at least the curve's share of the band [MT, PB], the plot the metrics map
+        // into between the stripe bands — temp_axis_pad.h temp_axis_margin, mirrored.
         var anchored = drawFrom.forecastAnchors(state, caps, function (key) {
             if (key === 'bars') { return rainDrawn; }
             for (var li = 0; li < LINES.length; li += 1) {
@@ -441,11 +459,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             }
             return false;
         });
-        var anchorShare = Math.floor((PB - MT) / TEMP_AXIS_ANCHOR_DIV);
+        var share = anchorShare(PB - MT);
         var topToday = topBand ? 0 : curveInsetPrev;
         var topMargin = topToday, bottomMargin = curveInsetPrev;
-        if (anchored.top && anchorShare > topMargin) { topMargin = anchorShare; }
-        if (anchored.bottom && anchorShare > bottomMargin) { bottomMargin = anchorShare; }
+        if (anchored.top && share > topMargin) { topMargin = share; }
+        if (anchored.bottom && share > bottomMargin) { bottomMargin = share; }
         var ytop = MT + topMargin, ybot = PB - bottomMargin;
         var yT = function (t) { return ybot - (t - tmin) / (tmax - tmin || 1) * (ybot - ytop); };
         var n0 = tickX(9), n1 = tickX(n - 1);       // night band: sunset 21:00 (slot 9) -> right edge
@@ -990,11 +1008,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             forecastPreview: forecastPreview,
-            TEMP_AXIS_ANCHOR_DIV: TEMP_AXIS_ANCHOR_DIV,
+            TEMP_AXIS_PAD_SQ_DIV: TEMP_AXIS_PAD_SQ_DIV,
             TEMP_LABEL_MIN_INK_GAP: TEMP_LABEL_MIN_INK_GAP,
             WATCH_INSET_PX: WATCH_INSET_PX,
             LABEL_CAP: LABEL_CAP,
             CURVE_INSET_PREV: CURVE_INSET_PREV,
+            anchorShare: anchorShare,
             alignLabels: alignLabels,
             pressureCurves: PRESSURE_CURVES,
             splitRuns: splitRuns

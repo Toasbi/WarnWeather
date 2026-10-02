@@ -23,20 +23,27 @@
 // the whole graph above the hour axis without stripes. An edge that something stands on or
 // hangs from is ANCHORED: the rain bars (Bars from: Bottom or Top), or an amount metric's
 // line, marks or Main-metric fill (Draw from; standing = the bottom, hanging = the top). On an
-// anchored edge the margin is at least (B - T) / TEMP_AXIS_ANCHOR_DIV, so a tall graph keeps
-// light bars clear of the temperature line and only heavy ones reach into it; a plot under 64
-// rows keeps its 7 px inset, which an eighth of it does not exceed. An edge nothing is
-// anchored on keeps today's margin exactly (the inset, or 0 at the top under a top stripe
-// band, whose gap keeps the curve clear). The bars' scale and the metric lines' mapping
-// (inset 0) do not change.
+// anchored edge the margin is at least (B - T)^2 / TEMP_AXIS_PAD_SQ_DIV, so a tall graph keeps
+// light bars clear of the temperature line and only heavy ones reach into it, and the taller
+// the graph, the larger its share; a plot under 64 rows keeps its 7 px inset, which the curve
+// does not exceed there. An edge nothing is anchored on keeps today's margin exactly (the
+// inset, or 0 at the top under a top stripe band, whose gap keeps the curve clear). The bars'
+// scale and the metric lines' mapping (inset 0) do not change.
 #include <stdbool.h>
 #include <stdint.h>
 
 #include "c/layers/status_metrics.h"
 
-// The share: an anchored edge's margin is the plot height over this. The owner's first pick
-// was a quarter (4); "much less" (2026-10-02) made it an eighth, the one knob he tunes further.
-#define TEMP_AXIS_ANCHOR_DIV 8
+// The curve: an anchored edge's margin is the plot height squared over this, so its share of
+// the plot is plot_h / TEMP_AXIS_PAD_SQ_DIV and grows with the graph: an eighth at 64 rows, a
+// quarter at 128 (basalt's no-calendar view, 77 rows: 11 px; emery's, 91 rows: 16 px). Under
+// 64 rows it is never more than the 7 px inset, so the calendar views keep their 7. The
+// owner's first pick was a flat quarter, then "much less" made it a flat eighth; "with more
+// space in larger graphs, the padding to top and bottom can be larger than the 1/8"
+// (2026-10-02) made it this curve. The one knob he tunes: a larger divisor, smaller margins.
+// The two margins would meet at TEMP_AXIS_PAD_SQ_DIV / 2 = 256 rows (half the plot each),
+// past emery's 228-row screen.
+#define TEMP_AXIS_PAD_SQ_DIV 512
 
 // The anchored edges, as a mask: one bit per edge something is drawn from.
 // TEMP_AXIS_ANCHOR(from_top) is the bit of the edge a bool from_top names.
@@ -102,10 +109,12 @@ static inline bool temp_axis_edges_add(TempAxisEdges *e, const int16_t *values, 
 }
 
 // The temperature curve's margin at one edge: `today` (its inset there; 0 at the top under a
-// top stripe band), or, on an anchored edge, the plot's content height `plot_h` (>= 0) over
-// TEMP_AXIS_ANCHOR_DIV where that is more.
+// top stripe band), or, on an anchored edge, the square of the plot's content height `plot_h`
+// (0 .. the screen's height) over TEMP_AXIS_PAD_SQ_DIV where that is more. The square is
+// taken in 32 bits: emery's tallest plots pass 181 rows, whose square no longer fits an
+// int16; unsigned, so the power-of-two divisor is a shift with no sign fix-up.
 static inline int temp_axis_margin(int today, bool anchored, int plot_h) {
-    const int share = (int)((unsigned)plot_h / TEMP_AXIS_ANCHOR_DIV);
+    const int share = (int)((unsigned)plot_h * (unsigned)plot_h / TEMP_AXIS_PAD_SQ_DIV);
     return (anchored && share > today) ? share : today;
 }
 
