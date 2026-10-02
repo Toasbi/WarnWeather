@@ -10,82 +10,19 @@
 # free heap at runtime, measured with ENABLE_MEMORY_LOGGING=1 on the emulator: 4.5 KB
 # on basalt and diorite (the custom-layout v2 heap gate, c24da813).
 #
-# The ceilings below are the 1.24.0 images (On demand and the status slots' short
-# forms, on top of 1.23.2); this script prints the boot free heap each leaves before
-# the first allocation (65536 B less the image). Basalt is under the 4.5 KB gate by
-# construction, and the 640 B inbox alone takes diorite/flint close to it before any
-# window or layer. The runtime low point is not measured yet, and the owner has not
-# decided between re-setting the gate to a measured floor and cutting image bytes.
-# Until then the ceilings are the measured images, set only so the next change cannot
-# drift further. Lower a ceiling when bytes are reclaimed; never raise one without a
-# measured runtime low point that allows it. (Four recorded exceptions, all for the
-# heap-64k reclaim to take back: the final review's On demand layout fix, the slots
-# back, added 180 B — less the 44 B (basalt) and 48 B (diorite, flint) its other
-# fixes gave back, and basalt's 12 B of headroom, it raised basalt's ceiling by 124 B
-# and diorite/flint's by 132 B; merging the released 1.23.2 brought its own radar
-# sky-row bytes, basalt +28 B and diorite/flint +36 B, which users already run; and
-# the merged alerts' review fixes — an alert that draws nothing changes nothing
-# (basalt +80 B, diorite/flint +76 B), then on bars where both sides merge one only
-# the alert of a slot that hid stands in (+24 B), with od_layout's paint-path frame
-# brought back from 264 to 240 B (basalt +8 B, diorite/flint +12 B): +112 B on each;
-# and "Draw from: Top", the chart's one flip rule (rain bars, radar bars and the amount
-# lines hang from the top; scratchpad design draw-from-top.md, the owner accepted the
-# cost on 2026-10-01): basalt +144 B (61092 -> 61236), diorite/flint +192 B (58748 ->
-# 58940), .bss/.data unchanged. That last one is PROVISIONAL, an exception pending the
-# basalt re-measure after the heap work (A5 + A4 + A6 + A1, plus the reserve item if
-# needed): it stands only if that re-measure shows 0 failed allocations with the
-# feature in; otherwise the owner picks a scope cut (design §4.11) and this ceiling
-# comes back down by what the cut saves.) Lowered since: the date's bare day-number short
-# form went (owner, 2026-10-02), -68 B on each (basalt 61168, diorite/flint 58872). Raised
-# since, inside that same PROVISIONAL exception and standing or falling with it (the same
-# basalt re-measure): the temperature curve's margin of a quarter of the plot on each edge
-# the rain bars or an amount line are drawn from, and the hi/lo labels lined up with the
-# curve's extremes (request H, owner 2026-10-02; temp_axis_pad.h): basalt +220 B
-# (61168 -> 61388), diorite/flint +220 B (58872 -> 59092), all of it .text in
-# forecast_update_proc and apply_line_style; .data/.bss and the update proc's stack frame
-# unchanged.
-# Message key ids as constants: basalt -1176 B (60212), diorite/flint -1172 B (57920).
-# Hidden visibility, no .got: basalt -72 B (60140), diorite/flint -76 B (57844).
-# One warning helper for the inbox's skipped tuples: -756 B on each (59384, 57088).
-# Measured after merging those cuts with the radar notice moving to the phone (clearer
-# errors): basalt 59388, diorite/flint 57076.
-# Clock digits loaded per glyph, not as a strip: basalt -104 B (59284), diorite/flint 0 B.
-# A clock glyph that fails to load ends the digits there, not skipped: basalt -4 B (59280).
-# Raised since, inside the same PROVISIONAL Draw-from exception and standing or falling
-# with it: the margin rules reworked on the owner's feedback (2026-10-02;
-# temp_axis_pad.h): the rain bars or a line with no value above 0 in the drawn hours
-# anchor no edge, a stripe with none takes no band, and the share is an eighth instead
-# of a quarter: basalt +12 B (59280 -> 59292), diorite/flint +16 B (57076 -> 57092), all
-# .text in forecast_update_proc; .data/.bss and its stack frame unchanged.
-# Then its review fix, in the same exception: the drawn hours are the ones on screen
-# (temp_axis_drawn_entries; the phone sends 24, basalt shows at most 19), so a value past
-# the screen's edge neither anchors an edge nor keeps a stripe's band: basalt +16 B
-# (59292 -> 59308), diorite/flint +20 B (57092 -> 57112), all .text in
-# forecast_update_proc; .data/.bss and its stack frame unchanged.
-# Then the share became a curve (owner, 2026-10-02: "with more space in larger graphs,
-# the padding ... can be larger than the 1/8"), in the same exception: an anchored edge's
-# margin is the plot height squared over TEMP_AXIS_PAD_SQ_DIV (512), an eighth at 64 rows
-# and a quarter at 128: basalt +4 B (59308 -> 59312), diorite/flint +4 B (57112 ->
-# 57116), all .text in forecast_update_proc (the multiply); .data/.bss and its stack
-# frame unchanged.
-# Then its review fix, in the same exception: the flat eighth is the curve's floor (below
-# 64 rows the curve alone gave a hanging element under a top stripe band less room than
-# the eighth did): basalt +8 B (59312 -> 59320), diorite/flint +4 B (57116 -> 57120), all
-# .text in forecast_update_proc (the floor's compare); .data/.bss and its stack frame
-# unchanged.
-# Lowered since: a metric line comes down to the zero row next to a reading (owner,
-# 2026-10-02; chart_runs.h CHART_ZERO_JOIN). The Main line over its fill now computes its
-# own vertices instead of riding the fill's contour, so ChartLineLayer lost its
-# precomputed-points pointer and every ChartLayer 4 B (.bss -128 B on each); .text basalt
-# -28 B, diorite/flint 0 B: basalt 59320 -> 59164, diorite/flint 57120 -> 56992.
-# The temperature curve keeps its inset at the top under a top stripe band (owner,
-# 2026-10-02; temp_axis_pad.h temp_axis_margins drops its band test): -8 B .text on each,
-# basalt 59164 -> 59156, diorite/flint 56992 -> 56984.
-# The feels-like and dew point lines map on the temperature's own scale (owner,
-# 2026-10-02: "feels like and dew may do that"; temp_axis_pad.h THE SCALE): the watch
-# turns the temperature-axis bytes into rows per redraw and the layers map rows 1:1, so
-# s_temp_margin and the inset arms go: basalt 0 B (59156), diorite/flint -8 B .text
-# (56984 -> 56976), emery -16 B; .data/.bss and the update proc's stack frame unchanged.
+# The ceilings below are the measured release images; the script prints the boot free
+# heap each leaves (65536 B less the image). The runtime low point is not measured yet.
+# Lower a ceiling when bytes are reclaimed; never raise one without a measured runtime
+# low point that allows it. A ceiling change edits only the numbers below: why it moved,
+# and by how much, is in its commit message.
+#
+# PROVISIONAL: "Draw from: Top" (basalt +144 B, diorite/flint +192 B; stack +16 B on the
+# forecast paint path, +24 B on the radar's) and the temperature curve's margins with the
+# hi/lo labels lined up on it (net basalt +252 B, diorite/flint +248 B; stack unchanged)
+# stay in these ceilings only if the basalt heap re-measure after the heap work shows 0
+# failed allocations with them in. Otherwise the owner picks a scope cut and the ceilings
+# come down by what it saves.
+#
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
