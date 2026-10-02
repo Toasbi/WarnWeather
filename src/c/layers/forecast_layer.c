@@ -532,15 +532,18 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // for the ticks. The plot's baseline lifts by the band.
     const int stripe_h = FORECAST_STRIPE_H(axis_y);
     // One scan of each series' drawn window (temp_axis_pad.h): only a series with a value
-    // above 0 takes part. A stripe then takes a band on its edge; an amount line, its marks
-    // or fill anchor the edge they are drawn from (the rain bars add theirs once the palette
-    // is read, below). A stripe with nothing above 0 is dropped here, so it takes no band
-    // and the stripe layout below never sees it: the plot grows into its rows.
+    // above 0 in the hours on screen takes part (the phone sends 24; the hours past the
+    // screen's right edge never count). A stripe then takes a band on its edge; an amount
+    // line, its marks or fill anchor the edge they are drawn from (the rain bars add theirs
+    // once the palette is read, below). A stripe with nothing above 0 is dropped here, so it
+    // takes no band and the stripe layout below never sees it: the plot grows into its rows.
+    const int drawn = temp_axis_drawn_entries(ds.num_entries, bounds.size.w - graph_left,
+                                              chart_def_pitch(&FORECAST_GRID_DEF));
     TempAxisEdges edges = { 0, 0, 0 };
     for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
         Series *s = &ds.series[sid];
         if (s->present) {
-            s->present = temp_axis_edges_add(&edges, s->line.values, ds.num_entries,
+            s->present = temp_axis_edges_add(&edges, s->line.values, drawn,
                                              SERIES_IS_STRIPE(s), s->line.floating,
                                              s->line.from_top);
         }
@@ -630,9 +633,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // none at the top under a top stripe band (whose 2 px gap keeps it clear), and on each
     // anchored edge at least an eighth of the plot's content rows [top_band, plot_axis_y),
     // the rows between the two stripe bands. The rain bars' edge joins the lines' edges
-    // here, when a bar has a value above 0.
+    // here, when a bar on screen has a value above 0.
     if (bars_on) {
-        temp_axis_edges_add(&edges, bars->bars.values, ds.num_entries, false, false,
+        temp_axis_edges_add(&edges, bars->bars.values, drawn, false, false,
                             palette_from_top(bar_stops));
     }
     s_temp_margin = temp_axis_margins(first->line.inset_y, top_band, plot_axis_y - top_band,

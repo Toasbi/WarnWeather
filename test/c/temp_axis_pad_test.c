@@ -28,6 +28,16 @@
 #define EMERY_COMPACTCAL  (82 - 20)    // the default view
 #define EMERY_NOCAL       (111 - 20)
 
+// The forecast band's width (test/c/layout_test.c goldens: L.bottom) and the hour pitch
+// (chart.h chart_def_pitch over forecast_grid.h: 1 + 2 * 1 + 4 on basalt, 1 + 2 * 1 + 5 on
+// emery). The graph starts right of the label strip, graph_left = the strip (at least
+// BOTTOM_VIEW_LABEL_STRIP_MIN_W, 15) + its 2 px gap (bottom_view.h), wider for wider labels.
+#define BASALT_W 144
+#define EMERY_W 198
+#define BASALT_PITCH 7
+#define EMERY_PITCH 8
+#define GRAPH_LEFT_MIN 17
+
 static void test_constants(void) {
     assert(TEMP_AXIS_ANCHOR(false) == TEMP_AXIS_ANCHOR_BOTTOM);
     assert(TEMP_AXIS_ANCHOR(true) == TEMP_AXIS_ANCHOR_TOP);
@@ -36,7 +46,38 @@ static void test_constants(void) {
     assert(TEMP_AXIS_ANCHOR_DIV == 8);                     // the owner's "much less": an eighth
 }
 
-// The one scan: any value above 0 in values[0..n), nothing past n.
+// The drawn window: the entries whose column starts on screen. The phone sends 24 hours; a
+// partly visible cell counts, a column past the screen's edge never does.
+static void test_drawn_entries(void) {
+    // basalt, the narrowest strip: columns at 17 + 7 i, the 19th (i = 18) on x 143, the
+    // screen's last; i = 19 would start at 150. Entries 19..23 are never drawn.
+    assert(temp_axis_drawn_entries(MAX_ENTRIES, BASALT_W - GRAPH_LEFT_MIN, BASALT_PITCH) == 19);
+    // emery: columns at 17 + 8 i, i = 22 on x 193 (its cell runs past the edge: it counts),
+    // i = 23 on x 201. Only entry 23 is never drawn.
+    assert(temp_axis_drawn_entries(MAX_ENTRIES, EMERY_W - GRAPH_LEFT_MIN, EMERY_PITCH) == 23);
+    // Wider labels hide more: basalt's strip at 25 leaves 119 px, exactly 17 columns.
+    assert(temp_axis_drawn_entries(MAX_ENTRIES, BASALT_W - 25, BASALT_PITCH) == 17);
+    assert(temp_axis_drawn_entries(MAX_ENTRIES, BASALT_W - 24, BASALT_PITCH) == 18);
+    // Fewer hours sent than fit: all of them.
+    assert(temp_axis_drawn_entries(12, BASALT_W - GRAPH_LEFT_MIN, BASALT_PITCH) == 12);
+    assert(temp_axis_drawn_entries(2, EMERY_W - GRAPH_LEFT_MIN, EMERY_PITCH) == 2);
+    assert(temp_axis_drawn_entries(MAX_ENTRIES, 24 * EMERY_PITCH + 40, EMERY_PITCH) == MAX_ENTRIES);
+    // Every graph_left and width: the last counted column starts on screen, the next one (if
+    // sent) does not.
+    const int widths[] = { BASALT_W, EMERY_W }, pitches[] = { BASALT_PITCH, EMERY_PITCH };
+    for (int p = 0; p < 2; ++p) {
+        for (int gl = GRAPH_LEFT_MIN; gl <= 40; ++gl) {
+            for (int n = 2; n <= MAX_ENTRIES; ++n) {
+                const int d = temp_axis_drawn_entries(n, widths[p] - gl, pitches[p]);
+                assert(d >= 1 && d <= n);
+                assert(gl + (d - 1) * pitches[p] < widths[p]);
+                assert(d == n || gl + d * pitches[p] >= widths[p]);
+            }
+        }
+    }
+}
+
+// The one scan: any value above 0 in values[0..n), nothing past n (n: the drawn window).
 static void test_any_above_zero(void) {
     int16_t v[MAX_ENTRIES + 1];
     memset(v, 0, sizeof(v));
@@ -139,7 +180,8 @@ typedef struct {
 
 // forecast_update_proc's glue around the header, line for line: the lines' pass (a stripe
 // with nothing above 0 dropped), the two bands, the bars' edge (after the palette read), and
-// the margins over the content rows between the bands.
+// the margins over the content rows between the bands. n is the drawn window, the entries on
+// screen (temp_axis_drawn_entries, computed once per redraw).
 static Plot layout(int axis_y, int inset, const Ser *s, int count, int n) {
     Plot p;
     memset(&p, 0, sizeof(p));
@@ -231,6 +273,44 @@ static void test_layout_cases(void) {
     }
     Ser late[] = { AT(K_BARS, true, 12) };
     assert(same_layout(layout(BASALT_NOCAL, INSET, late, 1, 12), none));   // 12 hours drawn
+
+    // The hours past the screen's edge: basalt draws 19 of the 24 sent (the narrowest label
+    // strip), so rain only at hours 19..23 is never seen. Bars from Top then anchor nothing,
+    // in the no-calendar view (7 px, not an eighth's 9) and under a top stripe (0, not 6).
+    const int basalt_n = temp_axis_drawn_entries(MAX_ENTRIES, BASALT_W - GRAPH_LEFT_MIN,
+                                                 BASALT_PITCH);
+    Ser rain_late = ZERO(K_BARS, true);
+    for (int i = 19; i < MAX_ENTRIES; ++i) { rain_late.values[i] = 200; }
+    Ser off_screen[] = { rain_late };
+    p = layout(BASALT_NOCAL, INSET, off_screen, 1, basalt_n);
+    assert(p.anchors == 0 && same_layout(p, none));
+    assert(layout(BASALT_NOCAL, INSET, off_screen, 1, MAX_ENTRIES).margin.top == 9);
+    Ser under_stripe[] = { AT(K_STRIPE, true, 3), rain_late };
+    p = layout(BASALT_COMPACTCAL, INSET, under_stripe, 2, basalt_n);
+    assert(p.top_band == 6 && p.anchors == 0 && p.margin.top == 0);
+    assert(layout(BASALT_COMPACTCAL, INSET, under_stripe, 2, MAX_ENTRIES).margin.top == 6);
+    // A December afternoon at 15:00: a top UV stripe whose UV starts at 10:00 tomorrow (hours
+    // 19..22) is empty in every cell on screen. It drops: no band, the curve takes its rows.
+    Ser uv_late = ZERO(K_STRIPE, true);
+    for (int i = 19; i <= 22; ++i) { uv_late.values[i] = 40; }
+    Ser uv[] = { uv_late };
+    p = layout(BASALT_COMPACTCAL, INSET, uv, 1, basalt_n);
+    assert(!p.kept[0] && p.top_band == 0 && same_layout(p, layout(BASALT_COMPACTCAL, INSET,
+                                                                  NULL, 0, basalt_n)));
+    // One hour back on screen (18, x 143, the last column) and it counts again.
+    uv[0].values[18] = 40;
+    p = layout(BASALT_COMPACTCAL, INSET, uv, 1, basalt_n);
+    assert(p.kept[0] && p.top_band == 6);
+    // emery draws 23: only hour 23 is never seen.
+    const int emery_n = temp_axis_drawn_entries(MAX_ENTRIES, EMERY_W - GRAPH_LEFT_MIN,
+                                                EMERY_PITCH);
+    Ser emery_late[] = { AT(K_BARS, false, 23), AT(K_STRIPE, false, 23) };
+    p = layout(EMERY_NOCAL, INSET, emery_late, 2, emery_n);
+    assert(p.anchors == 0 && !p.kept[1] && p.stripe_band == 0 && p.margin.bottom == INSET);
+    Ser emery_22[] = { AT(K_BARS, false, 22), AT(K_STRIPE, false, 22) };
+    p = layout(EMERY_NOCAL, INSET, emery_22, 2, emery_n);
+    assert(p.anchors == TEMP_AXIS_ANCHOR_BOTTOM && p.kept[1] && p.stripe_band == 6 + 1);
+    assert(p.margin.bottom == (EMERY_NOCAL - 7) / 8);
 
     // An all-zero top stripe and a line hanging from the top with a value: the stripe takes
     // no band (the plot grows into its rows), the line anchors the top of the whole graph.
@@ -430,6 +510,7 @@ static void test_label_invariants(void) {
 
 int main(void) {
     test_constants();
+    test_drawn_entries();
     test_any_above_zero();
     test_stripe_band();
     test_margins();

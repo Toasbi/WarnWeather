@@ -5,9 +5,10 @@
 // from (the rain bars, an amount line, its marks or fill) the temperature curve and the lines on
 // its axis keep at least an eighth of the plot between the stripe bands; an edge nothing is
 // drawn from keeps today's margin. The labels sit level with the curve's extremes when there
-// is space, and stay put while the curve reaches today's margins. The watch half is pinned on
-// the host by test/c/temp_axis_pad_test.c; this file pins the preview and the constants both
-// share.
+// is space, and stay put while the curve reaches today's margins on an edge without a stripe
+// band; under a top stripe band the hi label follows the watch's plain rule. The watch half is
+// pinned on the host by test/c/temp_axis_pad_test.c; this file pins the preview and the
+// constants both share.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -227,6 +228,34 @@ test('nothing anchored, or nothing moved: the labels keep today\'s corners, as t
   assert.ok(near(lifted.hi, 4 + 11) && near(lifted.lo, PB - 6 - 1));
 });
 
+test('under a top stripe band the hi label follows the curve\'s top with nothing anchored, as the watch\'s does', () => {
+  // The watch's hi label is fixed to the top of the graph, not to the band: one stripe leaves
+  // the curve's top above the label's ink, so it stays; two or three push the curve's top below
+  // it (basalt's default view: band 11 or 16 rows against the ink's centre row 9) and the label
+  // moves down with it (temp_axis_pad.h temp_labels_align, no reach gate there).
+  const top = (over) => Object.assign({ thirdLine: 'uv', thirdLineStyle: 'stripeTop' }, UV_SOME, over);
+  const one = preview(top({}), BASALT);
+  assert.ok(near(curveRows(one).top, BAND), 'premise: nothing anchored, right under the band');
+  assert.ok(near(labelBases(one).hi, 4 + 11), 'one stripe: the hi label keeps its corner');
+  const cases = [
+    { over: { fourthLine: 'cloud', fourthLineStyle: 'stripeTop' }, band: 4 + 5 + 1 + 5 + 2 },
+    { over: { fourthLine: 'cloud', fourthLineStyle: 'stripeTop', fifthLine: 'precip_prob',
+      fifthLineStyle: 'stripeTop' }, band: 4 + 3 * 5 + 2 * 1 + 2 }
+  ];
+  cases.forEach((c) => {
+    const svg = preview(top(c.over), BASALT);
+    const rows = curveRows(svg);
+    const labels = labelBases(svg);
+    assert.ok(near(rows.top, c.band), 'premise: nothing anchored, the curve right under the band');
+    // The ink (the cap above the baseline) is centred on the curve's top; the lo label stays.
+    assert.ok(near(labels.hi - FC.LABEL_CAP / 2, rows.top), JSON.stringify(c.over));
+    assert.ok(near(labels.lo, PB - 1));
+  });
+  // 19.8 and 25.8: where 7e6cc716's preview put them, in step with the watch.
+  assert.ok(near(labelBases(preview(top(cases[0].over), BASALT)).hi, 19.8));
+  assert.ok(near(labelBases(preview(top(cases[1].over), BASALT)).hi, 25.8));
+});
+
 test('the hi label sits level with the curve\'s top once a hanging element pushes it down', () => {
   const svg = preview({ thirdLine: 'cloud', thirdLineStyle: 'stripeTop', secondaryLine: 'precip_prob',
     precipLineFrom: 'top' }, BASALT);
@@ -269,4 +298,8 @@ test('alignLabels: off today\'s reach only, inward only, the minimum gap, else t
   assert.deepEqual(FC.alignLabels(15, 93, 30, fits - 0.01, 19, 82), { hi: 15, lo: 93 });
   // A flat curve: today's place.
   assert.deepEqual(FC.alignLabels(15, 93, 50, 50, 19, 82), { hi: 15, lo: 93 });
+  // No gate (under a top stripe band): the hi label follows any curve top inward of its own
+  // ink, and keeps its place above that.
+  assert.deepEqual(FC.alignLabels(15, 93, 17, 82, -Infinity, 82), { hi: 17 + cap / 2, lo: 93 });
+  assert.deepEqual(FC.alignLabels(15, 93, 11, 82, -Infinity, 82), { hi: 15, lo: 93 });
 });

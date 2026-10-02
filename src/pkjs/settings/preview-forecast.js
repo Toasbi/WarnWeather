@@ -121,17 +121,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * two keep the watch's minimum ink gap apart (scaled like the inset); else both keep
      * today's.
      *
-     * On the watch today's label ink sits just inside the row the curve reaches with today's
-     * margins (its inset row), so a label stays put until the curve stops short of that row:
-     * an anchored edge's wider margin, or a feels-like or dew point line widening the band.
-     * The preview's labels sit further out than that, at the plot's corners, so each one
-     * moves only once its extreme lies inside `reachTop` / `reachBottom`, today's reach;
-     * with nothing anchored the labels stay where they always were, as the watch's do.
+     * The reach gate. On the watch, on an edge with no stripe band, today's label ink sits just
+     * inside the row the curve reaches with today's margins (its inset row), so the label stays
+     * put until the curve stops short of that row: an anchored edge's wider margin, or a
+     * feels-like or dew point line widening the band. The preview's labels sit further out, in
+     * the plot's corners beyond its inset rows, so there each one moves only once its extreme
+     * lies inside `reachTop` / `reachBottom`, today's reach: with nothing anchored and no band
+     * the labels stay where they always were, as the watch's do. The lo label sits on the
+     * plot's floor on both, so its reach is always the inset row over it. The hi label's place
+     * is fixed to the top of the graph on both, not to a top stripe band, so under a band there
+     * is no gate (`reachTop` -Infinity, the watch's plain rule): one stripe leaves the curve's
+     * top above the label's ink and it stays; two or three push the curve's top below it and
+     * the label follows, as the watch's does wherever its band reaches past the label's ink
+     * (basalt's default view from two stripes on; temp_axis_pad.h temp_labels_align).
      * @param {number} hiBase Today's hi baseline.
      * @param {number} loBase Today's lo baseline.
      * @param {number} curveTop The curve's highest y.
      * @param {number} curveBottom The curve's lowest y.
-     * @param {number} reachTop The highest y the curve reaches with today's top margin.
+     * @param {number} reachTop The highest y the curve reaches with today's top margin, or
+     *   -Infinity under a top stripe band (no gate).
      * @param {number} reachBottom The lowest y it reaches with today's bottom margin.
      * @returns {{hi: number, lo: number}} The baselines to draw.
      */
@@ -965,10 +973,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // (forecast_layer.c text_labels_refresh) and a low the air never reached
         // would be a lie. With feels and dew off the two are identical.
         // Where there is space each label's ink sits level with the curve's extreme it names
-        // (alignLabels; never previewing aplite, whose labels are frozen).
+        // (alignLabels; never previewing aplite, whose labels are frozen). Today's reach gates
+        // the lo label always and the hi label only without a top stripe band: under one the
+        // watch's plain rule applies (see alignLabels).
         var labels = stylesFrozen ? { hi: PT + 11, lo: PB - 1 }
             : alignLabels(PT + 11, PB - 1, yT(tLabelMax), yT(tLabelMin),
-                MT + topToday, PB - curveInsetPrev);
+                topBand ? -Infinity : MT + curveInsetPrev, PB - curveInsetPrev);
         e += txt(3, labels.hi, 8, '#AEB4BD', 'start', 600, tLabelMax + '°') + txt(3, labels.lo, 8, '#AEB4BD', 'start', 600, tLabelMin + '°');
         e += drawAxis();
         e += legend.markup;

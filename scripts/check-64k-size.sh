@@ -57,6 +57,11 @@
 # anchor no edge, a stripe with none takes no band, and the share is an eighth instead
 # of a quarter: basalt +12 B (59280 -> 59292), diorite/flint +16 B (57076 -> 57092), all
 # .text in forecast_update_proc; .data/.bss and its stack frame unchanged.
+# Then its review fix, in the same exception: the drawn hours are the ones on screen
+# (temp_axis_drawn_entries; the phone sends 24, basalt shows at most 19), so a value past
+# the screen's edge neither anchors an edge nor keeps a stripe's band: basalt +16 B
+# (59292 -> 59308), diorite/flint +20 B (57092 -> 57112), all .text in
+# forecast_update_proc; .data/.bss and its stack frame unchanged.
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -73,9 +78,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-59292}"
-  "diorite:${DIORITE_IMAGE_CEILING:-57092}"
-  "flint:${FLINT_IMAGE_CEILING:-57092}"
+  "basalt:${BASALT_IMAGE_CEILING:-59308}"
+  "diorite:${DIORITE_IMAGE_CEILING:-57112}"
+  "flint:${FLINT_IMAGE_CEILING:-57112}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).

@@ -8,11 +8,13 @@
 // test/config-temp-axis-pad.test.js.
 //
 // WHAT TAKES PART (owner, 2026-10-02). Only a series with at least one value above 0 in the
-// window the graph draws (its first num_entries samples) takes part in the layout. One with
-// nothing above 0 draws nothing (a stripe's empty cell, a bar of 0, a metric line's wire
-// byte 0: all draw nothing), and the plot lays out as if it were not there: a stripe gives up
-// its band (no band, no gap; the plot grows into it) and a line, its marks, its fill or the
-// rain bars anchor no edge. The moment one hour has a value above 0 it counts again.
+// window the graph draws takes part in the layout: the hours whose column starts on screen
+// (temp_axis_drawn_entries; the phone sends 24, at most 19 fit on basalt and 23 on emery). One
+// with nothing above 0 there draws nothing (a stripe's empty cell, a bar of 0, a metric line's
+// wire byte 0: all draw nothing), and the plot lays out as if it were not there: a stripe
+// gives up its band (no band, no gap; the plot grows into it) and a line, its marks, its fill
+// or the rain bars anchor no edge. The moment one hour on screen has a value above 0 it counts
+// again.
 //
 // THE MARGINS (owner, 2026-10-02). The temperature curve and the lines sharing its inset
 // (feels-like and dew point: every series whose phone-sent inset_y is not 0) keep a margin
@@ -58,7 +60,18 @@ static inline int forecast_stripe_band(int stripes, int stripe_h, int gap) {
     return stripes ? stripes * stripe_h + (stripes - 1) * FORECAST_STRIPE_GAP + gap : 0;
 }
 
-// The one scan: whether any of a series' values[0..n) (the drawn window) is above 0.
+// The drawn window: how many of the n entries the graph draws. Entry i's column starts
+// i * pitch px into the `visible_w` px right of the label strip, so it counts while that is
+// on screen, a partly visible cell too; the hours past the screen's edge never do. (A line's
+// slope towards the first hidden hour shows on at most pitch - 1 columns; that hour does not
+// count.) visible_w > 0, pitch > 0: unsigned division, no sign fix-up.
+static inline int temp_axis_drawn_entries(int n, int visible_w, int pitch) {
+    const int shown = (int)((unsigned)(visible_w + pitch - 1) / (unsigned)pitch);
+    return shown < n ? shown : n;
+}
+
+// The one scan: whether any of a series' values[0..n) (the drawn window,
+// temp_axis_drawn_entries) is above 0.
 static inline bool temp_axis_any_above_zero(const int16_t *values, int n) {
     while (n-- > 0) {
         if (*values++ > 0) { return true; }
@@ -115,7 +128,10 @@ static inline TempMargin temp_axis_margins(int inset, int top_band, int plot_h, 
 // place. On an edge that is not anchored and has no stripe band, the curve reaches today's
 // inset row there, which lies outward of today's label ink centre (rows 7 against 9, basalt;
 // 7 against 14, emery), so that label moves only where the curve stops short of the inset (a
-// feels-like or dew point line widening the band).
+// feels-like or dew point line widening the band). Under a top stripe band the curve's top
+// is the band's foot, while the hi label stays fixed to the top of the graph: one stripe's
+// band ends above its ink centre, two or three can end below it (basalt's default view: 11
+// or 16 against 9), and then the label follows the curve down even with nothing anchored.
 //
 // Today's minimum: the smallest gap the labels leave in any preset's view, emery's 68 px band
 // (fullCal, compactDense) at GOTHIC_24 (forecast_layer.c draw_left_axis). basalt's tightest,
