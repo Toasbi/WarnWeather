@@ -407,42 +407,35 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
         return;
     }
 
-    const GPoint  *pts  = l->points;
-    const int16_t *vals = l->values;     // non-NULL when we compute the points here
-    if (pts == NULL) {
-        GPoint *out = l->export_points ? l->export_points : s_pts_scratch;
-        const GRect c          = r->geo.content;
-        // The value range spans inner_h, seated between the two margins: value==lo
-        // lands at plot_bottom - inset_bottom, value==hi at plot_top + inset_top.
-        // A larger inset_bottom lifts the baseline clear of a bottom band (e.g. the
-        // health sleep stripe) without lowering the top. Hanging, the same values
-        // mirror over the plot (chart_value_y).
-        const int  inner_h     = c.size.h - l->inset_top - l->inset_bottom;
-        const int  zero        = CHART_ZERO(r);
-        const int  range       = l->hi - l->lo;
-        for (int i = 0; i < count; ++i) {
-            if (vals && chart_sample_absent(vals[i], l->lo, l->zero_absent)) {
-                // Placeholder for an absent bucket; never drawn (skipped below).
-                out[i] = GPoint(chart_slot_tick_x(&r->geo, i), zero);
-                continue;
-            }
-            out[i] = GPoint(chart_slot_tick_x(&r->geo, i),
-                            chart_value_y(vals[i], l->lo, range, inner_h,
-                                          zero, CHART_DIR(r), l->inset_bottom));
-        }
-        pts = out;
+    const int16_t *vals = l->values;
+    GPoint *pts = l->export_points ? l->export_points : s_pts_scratch;
+    const GRect c          = r->geo.content;
+    // The value range spans inner_h, seated between the two margins: value==lo
+    // lands at plot_bottom - inset_bottom, value==hi at plot_top + inset_top.
+    // A larger inset_bottom lifts the baseline clear of a bottom band (e.g. the
+    // health sleep stripe) without lowering the top. Hanging, the same values
+    // mirror over the plot (chart_value_y).
+    const int  inner_h     = c.size.h - l->inset_top - l->inset_bottom;
+    const int  zero        = CHART_ZERO(r);
+    const int  range       = l->hi - l->lo;
+    for (int i = 0; i < count; ++i) {
+        // A sample at or below the floor lands where lo does: the zero row a JOIN line
+        // comes down to next to a reading (chart_next_run), held on the plot's first row
+        // when it hangs, like any vertex. Any other one is never drawn; the clamp only
+        // keeps the CHART_ABSENT sentinel's arithmetic in range.
+        const int16_t v = vals[i] < l->lo ? (int16_t)l->lo : vals[i];
+        pts[i] = GPoint(chart_slot_tick_x(&r->geo, i),
+                        chart_value_y(v, l->lo, range, inner_h,
+                                      zero, CHART_DIR(r), l->inset_bottom));
     }
-    // Precomputed points (.points: the Main line on its Area fill's contour) arrive
-    // already mirrored and held by the AREA layer; that LINE layer never sets
-    // from_top, so nothing here flips them a second time.
 
     graphics_context_set_stroke_color(r->ctx, l->color);
     graphics_context_set_stroke_width(r->ctx, l->width);
 
-    // Break the polyline across absent buckets: each contiguous run of non-absent
-    // points is its own open path (chart_next_run, chart_runs.h — host-pinned by
-    // test/c/chart_absent_test.c). A line without a values[] array (precomputed
-    // points) carries no sentinel, so it draws as a single run — unchanged.
+    // Break the polyline across absent buckets: each run of drawn points is its own
+    // open path (chart_next_run, chart_runs.h — host-pinned by
+    // test/c/chart_absent_test.c). On a JOIN line a run takes the zero next to each
+    // end of its readings, so the line comes down to the zero row there.
     int i = 0;
     while (i < count) {
         int start;
@@ -460,12 +453,13 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
                 graphics_draw_line(r->ctx, pts[k], pts[k + 1]);
             }
 #else
-            GPath path = { .num_points = (uint32_t)run, .points = (GPoint *)&pts[start] };
+            GPath path = { .num_points = (uint32_t)run, .points = &pts[start] };
             gpath_draw_outline_open(r->ctx, &path);
 #endif
         } else if (run == 1) {
             // A lone reading between two gaps can't form a line; mark it with a
-            // small filled square so the value isn't silently dropped.
+            // small filled square so the value isn't silently dropped. (A JOIN line
+            // never gets here: its lone reading is a peak down to the zeros beside it.)
             const int w = l->width < 1 ? 1 : l->width;
             graphics_context_set_fill_color(r->ctx, l->color);
             graphics_fill_rect(r->ctx,
@@ -600,8 +594,9 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
     // to its zero row below — standing, the axis closes it, inset or not.
     // Hanging, the contour mirrors over the plot and a value above zero is held on
     // the plot's first row like a line vertex (chart_flip_vertex_y), so the Main
-    // line on this contour never paints the gap row under a top stripe band; a zero
-    // stretch stays on the zero row and fills nothing.
+    // line over the fill, which computes its vertices by the same mapping, rides this
+    // contour exactly; a zero stretch stays on the zero row and fills nothing (the
+    // line's zero vertex is held on the first row, off the gap under a top stripe band).
 #if defined(WW_CURVE_INSET)
     const int  inset_bottom = a->inset_bottom;
     const int  inner_h      = c.size.h - a->inset_top - inset_bottom;

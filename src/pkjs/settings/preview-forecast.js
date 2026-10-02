@@ -57,37 +57,45 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     /**
      * Catmull-Rom-ish smoothing: a cubic Bezier path through every point.
      * @param {Array.<Array.<number>>} pts [x, y] vertices in draw order.
+     * @param {function(number): number} [hold] Clamps each control point's y, so the
+     *   curve (inside its control points' hull) never swings past a line's zero row.
      * @returns {string} SVG path data ('' for fewer than two points).
      */
-    function smooth(pts) {
+    function smooth(pts, hold) {
         if (pts.length < 2) { return ''; }
+        var h = hold || function (y) { return y; };
         var d = 'M' + pts[0][0] + ',' + pts[0][1];
         for (var i = 0; i < pts.length - 1; i++) {
             var p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
-            d += ' C' + (p1[0] + (p2[0] - p0[0]) / 6) + ',' + (p1[1] + (p2[1] - p0[1]) / 6) + ' ' + (p2[0] - (p3[0] - p1[0]) / 6) + ',' + (p2[1] - (p3[1] - p1[1]) / 6) + ' ' + p2[0] + ',' + p2[1];
+            d += ' C' + (p1[0] + (p2[0] - p0[0]) / 6) + ',' + h(p1[1] + (p2[1] - p0[1]) / 6) + ' ' + (p2[0] - (p3[0] - p1[0]) / 6) + ',' + h(p2[1] - (p3[1] - p1[1]) / 6) + ' ' + p2[0] + ',' + p2[1];
         }
         return d;
     }
 
     /**
-     * Split [x, y] vertices on null-y gaps into contiguous runs — the preview
-     * half of chart_runs.h's chart_next_run (host-pinned by
-     * test/c/chart_absent_test.c; this side by test/config-blocks.test.js).
-     * A lone vertex stays its own run: the caller draws chart_render_line's
-     * run == 1 small square for it.
-     * @param {Array.<Array.<?number>>} pts [x, y|null] vertices in draw order.
-     * @returns {Array.<Array.<Array.<number>>>} Runs of gap-free vertices.
+     * The runs one line's polyline draws — the preview half of chart_runs.h's
+     * chart_next_run, both held to test/c/chart_absent_test.c's LINE_RUN_VECTORS
+     * (parsed by test/config-blocks.test.js). A segment between two samples draws
+     * when both are readings, or on a joining line when one is: the line comes down
+     * to a zero next to a reading. Two zeros in a row never draw. A run of one is a
+     * lone reading no segment reaches (chart_render_line's small square).
+     * @param {Array.<boolean>} absent Per sample: draws nothing on its own (byte 0).
+     * @param {boolean} join A zero next to a reading is a vertex (CHART_ZERO_JOIN).
+     * @returns {Array.<Array.<number>>} [start, length] per run, left to right.
      */
-    function splitRuns(pts) {
-        var runs = [], run = [];
-        for (var i = 0; i < pts.length; i += 1) {
-            if (pts[i][1] === null) {
-                if (run.length) { runs.push(run); run = []; }
-            } else {
-                run.push(pts[i]);
-            }
+    function lineRuns(absent, join) {
+        var n = absent.length, runs = [], i = 0, start;
+        function drawn(k) {
+            return join ? !(absent[k] && absent[k + 1]) : !(absent[k] || absent[k + 1]);
         }
-        if (run.length) { runs.push(run); }
+        while (i < n) {
+            while (i < n && absent[i] && !(i + 1 < n && drawn(i))) { i += 1; }
+            if (i >= n) { break; }
+            start = i;
+            while (i + 1 < n && drawn(i)) { i += 1; }
+            runs.push([start, i + 1 - start]);
+            i += 1;
+        }
         return runs;
     }
 
@@ -533,12 +541,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             return out;
         }
         /**
-         * One metric value's y in column/tick i — THE value→y mapping. The line
-         * vertices, the bar-aligned marks (both skipZero true: a zero-based
-         * metric's zero is genuinely "no data" and returns null, mirroring the
-         * watch's zero_absent metric-line layers) and the area fill (skipZero
-         * false: the fill's contour drops to the baseline over the gaps, like
-         * chart_render_area's h = 0) all share it. Feels rides the
+         * One metric value's y in column/tick i — THE value→y mapping. The
+         * bar-aligned marks (skipZero true: a zero-based metric's zero is
+         * genuinely "no data" and returns null, mirroring the watch's mark skip),
+         * the line vertices and the area fill (skipZero false: a zero lands on the
+         * baseline — the fill's contour drops to it over the gaps, like
+         * chart_render_area's h = 0, and the line comes down to it next to a
+         * reading, lineFor) all share it. Feels rides the
          * shared temperature axis (joint band via yT — a temperature has no
          * skippable zero, never a 0..max scale); pressure's piecewise absolute
          * curve draws EVERY reading — a deep low off the visible band is real
@@ -598,10 +607,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             if (y === null || m.tempAxis) { return y; }
             return hangs(m.id) ? PTL + PB - y : y;
         }
-        // Vertex computation for the main-metric FILL contour (the stroke gaps its
-        // zeros in lineFor instead): one point per sample, vertices on the hour
-        // ticks, zeros at the baseline. Returns null for an unknown metric or
-        // fewer than 2 points (nothing to draw).
+        // Vertex computation for the main-metric FILL contour (the stroke takes the
+        // same vertices run by run in lineFor, skipping two zeros in a row): one
+        // point per sample, vertices on the hour ticks, zeros at the baseline.
+        // Returns null for an unknown metric or fewer than 2 points (nothing to draw).
         function metricPoints(metric) {
             var m = METRIC[metric];
             if (!m) { return null; }
@@ -673,13 +682,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         /**
          * One metric as a line whose vertices sit on the hour ticks. A zero-based
-         * metric's zeros draw nothing (metricY skipZero — the metric lines'
-         * zero_absent flag in chart.c), so the stroke breaks into one path per
-         * contiguous run of non-zero samples; a lone sample between gaps becomes a
-         * small stroke-width square, mirroring chart_render_line's run == 1 arm.
-         * Band-scaled metrics (pressure, feels, dew) never null, so they stay one path.
-         * The fill (if any) is drawn separately by areaFillFor() — see its doc
-         * comment for why.
+         * metric's zero draws nothing on its own (sampleShown — the wire's byte 0),
+         * but the line still comes down to the zero row at a zero next to a reading,
+         * the vertex the fill's contour has there (metricY, skipZero false): the
+         * stroke is one path per run of lineRuns (chart_runs.h), so two zeros in a
+         * row stay a gap, a lone zero between readings is a dip and a lone reading
+         * between zeros a peak. A floating metric (pressure, feels, dew) never has a
+         * zero here, and would keep a plain gap (the watch's GAP lines). A lone
+         * reading no segment reaches would be a small stroke-width square, mirroring
+         * chart_render_line's run == 1 arm. The watch strokes straight segments; a
+         * run with a zero vertex keeps its smoothed curve on the plot side of the zero
+         * row (smooth's hold), so it never swings past it either. The fill (if any) is
+         * drawn separately by areaFillFor() — see its doc comment for why.
          * @param {string} metric The metric the colour was resolved for.
          * @param {string} color Resolved stroke colour (hex).
          * @param {number} w Stroke width (mainW for 'line', boldW for 'bold').
@@ -688,20 +702,26 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var lineFor = function (metric, color, w) {
             var m = METRIC[metric];
             if (!m) { return ''; }
-            var pts = [];
-            for (var i = 0; i < m.vals.length; i += 1) {
-                pts.push([tickX(i), metricY(m, i, true)]);
-            }
-            var runs = splitRuns(pts), out = '';
+            var absent = [];
+            for (var i = 0; i < m.vals.length; i += 1) { absent.push(!sampleShown(m, i)); }
+            var runs = lineRuns(absent, !(m.tempAxis || m.curve)), out = '';
+            var hold = hangs(metric)
+                ? function (y) { return Math.max(y, PTL); }
+                : function (y) { return Math.min(y, PB); };
             for (var r = 0; r < runs.length; r += 1) {
-                var run = runs[r];
+                var run = [], zeroVertex = false;
+                for (var k = runs[r][0]; k < runs[r][0] + runs[r][1]; k += 1) {
+                    run.push([tickX(k), metricY(m, k, false)]);
+                    if (absent[k]) { zeroVertex = true; }
+                }
                 if (run.length >= 2) {
-                    out += '<path d="' + smooth(run) + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"></path>';
+                    out += '<path d="' + smooth(run, zeroVertex ? hold : null) + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"></path>';
                 } else {
                     // Lone reading between gaps: chart_render_line's run == 1
-                    // small square. The fixed demo series never produce a lone
-                    // run, so this arm is pinned via splitRuns (below) and the
-                    // C kernel's run == 1 case (test/c/chart_absent_test.c).
+                    // small square. No series here reaches it (a zero-based line
+                    // joins its zeros, a floating one has none), so this arm is
+                    // pinned via lineRuns' GAP vectors and the C kernel's
+                    // (test/c/chart_absent_test.c LINE_RUN_VECTORS).
                     out += rect(run[0][0] - w / 2, run[0][1] - w / 2, w, w, color);
                 }
             }
@@ -1021,7 +1041,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             anchorShare: anchorShare,
             alignLabels: alignLabels,
             pressureCurves: PRESSURE_CURVES,
-            splitRuns: splitRuns
+            lineRuns: lineRuns
         };
     }
 })();

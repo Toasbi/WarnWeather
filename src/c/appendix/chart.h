@@ -153,8 +153,7 @@ typedef enum { CHART_LINE_SOLID = 0, CHART_LINE_DOTS = 1, CHART_LINE_X = 2,
                CHART_LINE_STRIPE = 3 } ChartLineStyle;
 
 typedef struct {
-    const int16_t *values;            // compute points from values...
-    const GPoint  *points;            // ...OR consume precomputed points
+    const int16_t *values;            // the points are computed from these
     GPoint        *export_points;     // optional out: count points
     int            count;
     int            lo, hi;
@@ -172,13 +171,16 @@ typedef struct {
     int            width;
     uint8_t        style;             // ChartLineStyle — uint8_t so the layer keeps the
                                       // 1-byte slot the old `dotted` bool sat in
-    uint8_t        zero_absent;       // nonzero: a value at or below `lo` draws nothing —
-                                      // the SOLID path breaks into runs there, matching the
-                                      // skip the mark styles have always applied. Set on the
-                                      // metric lines, whose wire invariant reserves byte 0
-                                      // for "nothing" (forecast-series.js metricBytes);
-                                      // temp/feels leave it 0 — their byte 0 is the band
-                                      // floor, real data. Sits in the struct's tail padding.
+    uint8_t        zero_absent;       // CHART_ZERO_* (chart_runs.h): GAP or JOIN, a value
+                                      // at or below `lo` draws nothing — the SOLID path
+                                      // breaks into runs there, matching the skip the mark
+                                      // styles have always applied — and on a JOIN line the
+                                      // stroke still comes down to such a zero next to a
+                                      // reading. Set on the metric lines, whose wire
+                                      // invariant reserves byte 0 for "nothing"
+                                      // (forecast-series.js metricBytes); the temperature
+                                      // curve and the HR line leave it DATA (0) — their
+                                      // floor is real data. Sits in the struct's tail padding.
 } ChartLineLayer;
 
 typedef struct {

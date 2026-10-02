@@ -7,10 +7,10 @@
 //
 // Phone-side only, by design: a sample below the warn level ships as wire byte 0, which
 // the watch already draws as "no value" on the metric lines (forecast-series.js' WIRE
-// INVARIANT, chart.c's zero_absent breaks the polyline into runs), and a sample at or
-// above it is scaled from the band's bottom to its top (a line drawn as a stripe: its
-// cell is shaded by the same place in the band, scalePercent). No watch code, no wire
-// format.
+// INVARIANT, chart.c's zero_absent breaks the polyline into runs, which come down to the
+// warn row next to a reading), and a sample at or above it is scaled from the band's
+// bottom to its top (a line drawn as a stripe: its cell is shaded by the same place in
+// the band, scalePercent). No watch code, no wire format.
 // A watch without Alert settings (aplite: no WW_ON_DEMAND) hides the row and always
 // draws All (alertsDrawn).
 //

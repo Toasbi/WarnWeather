@@ -114,7 +114,9 @@ var BAND_FLOOR_PERMILLE = 2;
 // sitting on the x-axis "reads as data where there is none", and the solid stroke
 // honors the same reading on the metric lines (their layers set zero_absent, so
 // the polyline breaks into runs across byte-0 stretches instead of hugging the
-// baseline). With lo = 0 that makes wire byte 0 mean ABSENT in every style, so a
+// baseline; a ZERO-BASED metric's line still comes down to the zero row at a byte 0
+// next to a reading, a floating one's — below — keeps a plain gap, chart_runs.h).
+// With lo = 0 that makes wire byte 0 mean ABSENT in every style, so a
 // metric may only emit it where zero genuinely means "nothing".
 //
 // That splits the metrics in two:

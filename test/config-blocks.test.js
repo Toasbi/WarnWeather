@@ -517,42 +517,101 @@ test('the second metric (dots) spans the full plot width (no early stop)', () =>
   assert.ok(Math.max.apply(null, xs) > 180, 'a dot reaches the right edge (>180); got ' + Math.max.apply(null, xs));
 });
 
-test('UV line breaks across its zero stretch instead of hugging the baseline', () => {
-  // The demo UV series is [8,6,4,2,1, 0,0,0,0,0, 1,3]: zeros are "no UV", not a
-  // reading, so the line renders as two runs (slots 0-4 and 10-11) with nothing
-  // in between — the zero_absent metric-line rendering in chart.c, mirrored here.
-  const svg = FC.forecastPreview(
-    { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false },
-    { color: true });
-  const segs = svg.match(/fill="none" stroke="#FF00FF"/g) || [];
-  assert.equal(segs.length, 2, 'UV renders as two runs around the zero stretch; got ' + segs.length);
-  const paths = [...svg.matchAll(/d="(M[^"]+)" fill="none" stroke="#FF00FF"/g)].map((m) => m[1]);
-  paths.forEach((d) => assert.equal(d.indexOf(',94'), -1,
-    'no run touches the baseline (a zero would have): ' + d));
-  // The runs start on slots 0 and 10: tickX(0) = 20, tickX(10) = 20 + 10 * (177 / 11).
-  const starts = paths.map((d) => Number(/^M([\d.]+),/.exec(d)[1]));
-  assert.equal(starts[0], 20, 'first run starts on slot 0');
-  assert.ok(Math.abs(starts[1] - (20 + 10 * (177 / 11))) < 1e-9, 'second run starts on slot 10; got ' + starts[1]);
+// A stroke path's vertices: the M point and the last point of every C segment.
+const pathVertices = (d) => d.split(' C').map((seg) => {
+  const pairs = seg.replace(/^M/, '').trim().split(' ');
+  return pairs[pairs.length - 1].split(',').map(Number);
 });
 
-test('splitRuns keeps a lone sample as its own run (the small-square arm)', () => {
-  // The run segmentation behind lineFor — chart_runs.h's chart_next_run,
-  // mirrored: a lone non-null vertex between gaps must survive as a length-1
-  // run (drawn as chart_render_line's small square), matching the C kernel's
-  // [5,0,0,3,2] pin in test/c/chart_absent_test.c. The fixed demo series never
-  // produce a lone run (UV splits 5 + 2), so this is the arm's only reachable pin.
-  assert.deepEqual(
-    FC.splitRuns([[0, 5], [1, null], [2, null], [3, 7], [4, 2]]),
-    [[[0, 5]], [[3, 7], [4, 2]]]);
-  assert.deepEqual(FC.splitRuns([[0, null], [1, 3], [2, null]]), [[[1, 3]]]);
-  assert.deepEqual(FC.splitRuns([[0, null], [1, null]]), []);
-  assert.deepEqual(FC.splitRuns([]), []);
+test('UV line comes down to the zero row next to its zero stretch and skips the rest of it', () => {
+  // The demo UV series is [8,6,4,2,1, 0,0,0,0,0, 1,3]: zeros are "no UV", not a
+  // reading, so the stretch between the zeros next to a reading draws nothing, but
+  // the line comes down to the baseline at slot 5 and rises from it at slot 9 — the
+  // watch's JOIN metric lines (chart_runs.h), mirrored here. Hanging (Draw from:
+  // Top) the zero row is the plot's top.
+  const tick = (i) => 20 + i * (177 / 11);
+  [['bottom', 94], ['top', 4]].forEach(([from, zeroY]) => {
+    const svg = FC.forecastPreview(
+      { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false, uvLineFrom: from },
+      { color: true, platform: 'basalt', lineStyles: true });
+    const paths = [...svg.matchAll(/d="(M[^"]+)" fill="none" stroke="#FF00FF"/g)].map((m) => pathVertices(m[1]));
+    assert.equal(paths.length, 2, from + ': two runs around the zero stretch; got ' + paths.length);
+    assert.equal(paths[0].length, 6, from + ': slots 0-5');
+    assert.equal(paths[0][0][0], 20, from + ': the first run starts on slot 0');
+    assert.ok(Math.abs(paths[0][5][0] - tick(5)) < 1e-9 && paths[0][5][1] === zeroY,
+      from + ': it comes down to the zero row on slot 5; got ' + paths[0][5]);
+    assert.equal(paths[1].length, 3, from + ': slots 9-11');
+    assert.ok(Math.abs(paths[1][0][0] - tick(9)) < 1e-9 && paths[1][0][1] === zeroY,
+      from + ': the second run rises from the zero row on slot 9; got ' + paths[1][0]);
+    paths.forEach((p) => p.slice(1, -1).forEach((v) => assert.notEqual(v[1], zeroY,
+      from + ': only a run\'s ends sit on the zero row here')));
+  });
+});
+
+test('a metric line\'s smoothed curve never swings past the zero row it comes down to', () => {
+  // UV drawn Alert at warn 6: slot 1 (UV 6) sits just off the warn row, slot 0 well
+  // above it, and the run ends on the warn row on slot 2. Unclamped, the smoothing's
+  // control points would carry the curve below the baseline between slots 1 and 2; the
+  // watch strokes straight segments, which never do. Every control point stays on the
+  // plot side of the zero row, so the curve (inside their hull) does too.
+  [['bottom', (y) => y <= 94], ['top', (y) => y >= 4]].forEach(([from, inside]) => {
+    const svg = FC.forecastPreview(
+      { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false, uvLineFrom: from,
+        uvLineOnlyAlert: 'alert', threshUvWarn: '6', threshUvDanger: '8' },
+      { color: true, platform: 'basalt', lineStyles: true });
+    const d = /d="(M[^"]+)" fill="none" stroke="#FF00FF"/.exec(svg);
+    assert.ok(d, from + ': the line draws');
+    d[1].replace(/[MC]/g, ' ').trim().split(/\s+/).forEach((pt) => {
+      const y = Number(pt.split(',')[1]);
+      assert.ok(inside(y), from + ': ' + pt + ' stays on the plot side of the zero row');
+    });
+  });
+});
+
+// The polyline's runs: the watch's kernel (chart_runs.h chart_next_run) and the
+// preview's (lineRuns) are both held to the C test's LINE_RUN_VECTORS, parsed here
+// (the CITY_VECTORS pattern), so the two renderers cannot drift.
+test('lineRuns matches the watch\'s run kernel, vector for vector', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, 'c', 'chart_absent_test.c'), 'utf8');
+  const table = /LINE_RUN_VECTORS\[\] = \{([\s\S]*?)\n\};/.exec(src);
+  assert.ok(table, 'LINE_RUN_VECTORS found in chart_absent_test.c');
+  const rows = table[1].split('\n').filter((line) => /^\s*\{/.test(line)).map((line) => {
+    const m = /^\s*\{ "([\d ]*)", (CHART_ZERO_(?:DATA|GAP|JOIN)), "([\d+ ]*)" \},$/.exec(line);
+    assert.ok(m, 'one row per line, in the table shape: ' + line);
+    return m.slice(1);
+  });
+  ['CHART_ZERO_DATA', 'CHART_ZERO_GAP', 'CHART_ZERO_JOIN'].forEach((zero) =>
+    assert.ok(rows.some((r) => r[1] === zero), 'the table has ' + zero + ' rows'));
+  rows.forEach(([vals, zero, runs]) => {
+    const absent = vals.split(' ').map((v) => zero !== 'CHART_ZERO_DATA' && Number(v) <= 0);
+    const want = runs ? runs.split(' ').map((p) => p.split('+').map(Number)) : [];
+    assert.deepEqual(FC.lineRuns(absent, zero === 'CHART_ZERO_JOIN'), want, '"' + vals + '" ' + zero);
+  });
+  assert.deepEqual(FC.lineRuns([], true), []);
+});
+
+test('Visible values: Alert — a lone hour over the warn level is a peak off the warn row', () => {
+  // A wind line drawn Alert draws nothing below the warn level (wire byte 0): with the
+  // warn level at 25 km/h only the demo's 26 km/h hour (slot 10) shows, so the line
+  // rises from the warn row (the plot's baseline) on slot 9 and comes back down to it
+  // on slot 11 — a peak, where it used to be a lone square.
+  const svg = FC.forecastPreview(
+    { barSource: 'off', secondaryLine: 'wind', windScale: 'mid', windUnits: 'kph', dayNightShading: false,
+      windLineOnlyAlert: 'alert', threshWindWarn: '25', threshWindDanger: '40' },
+    { color: true, platform: 'basalt', lineStyles: true });
+  const paths = [...svg.matchAll(/d="(M[^"]+)" fill="none" stroke="#FFFF00"/g)].map((m) => pathVertices(m[1]));
+  assert.equal(paths.length, 1, 'one run');
+  assert.deepEqual(paths[0].map((v) => Math.round((v[0] - 20) / (177 / 11))), [9, 10, 11], 'slots 9-11');
+  assert.equal(paths[0][0][1], 94, 'rises from the warn row');
+  assert.equal(paths[0][2][1], 94, 'and comes back down to it');
+  assert.ok(paths[0][1][1] < 94, 'the reading above it');
 });
 
 test('a filled zero-based main metric keeps its fill contour at the baseline over zeros', () => {
-  // The stroke gaps, but the area fill still closes to the axis: metricPoints
-  // (skipZero false) keeps a baseline vertex per zero, matching chart_render_area's
-  // h = 0 mapping — the fill must not inherit the line's gaps.
+  // The stroke skips two zeros in a row, but the area fill still closes to the axis:
+  // metricPoints (skipZero false) keeps a baseline vertex per zero, matching
+  // chart_render_area's h = 0 mapping — the fill must not inherit the line's gaps.
   const svg = FC.forecastPreview(
     { barSource: 'off', secondaryLine: 'uv', secondaryLineFill: true, windScale: 'mid',
       dayNightShading: false },

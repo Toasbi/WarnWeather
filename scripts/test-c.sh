@@ -225,8 +225,9 @@ cc $CFLAGS -DWW_LINE_STYLE test/c/line_style_decode_test.c \
 build/host/line_style_decode_test
 # The solid line's gap/run kernel (chart_runs.h, header-only): segmentation of
 # a polyline across absent samples, incl. the metric lines' zero_absent
-# "wire byte 0 draws nothing" reading. Mirrored against the preview's UV
-# segmentation pins in test/config-blocks.test.js.
+# "wire byte 0 draws nothing" reading and the zero a JOIN line still comes down
+# to next to a reading. The preview's twin (lineRuns) runs the same
+# LINE_RUN_VECTORS in test/config-blocks.test.js.
 cc $CFLAGS test/c/chart_absent_test.c -o build/host/chart_absent_test
 build/host/chart_absent_test
 # The stripe line style's arithmetic (chart_stripe.h, header-only): value ->

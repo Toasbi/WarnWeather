@@ -45,9 +45,10 @@ static inline int chart_flip_span_y(int zero, int dir, int h0, int h1) {
 // a top stripe band, so a value above zero that scales under one pixel (a Visible
 // values: Alert line at its warn crossing, a 1 % rain chance) is held on the plot's
 // first row instead, the way the marks slide back inside the plot: a thin stroke never
-// paints a gap row, and a bold one (3 px) keeps the upper gap row clear. `held` is
-// false for a value at the floor itself, which draws nothing (a line breaks there; a
-// fill's zero stretch stays on the zero row, as it stays on the axis standing).
+// paints a gap row, and a bold one (3 px) keeps the upper gap row clear. A line's
+// vertex is always held, its zero too: the one a metric line comes down to next to a
+// reading (chart_runs.h CHART_ZERO_JOIN). `held` is false only for a fill's zero, whose
+// stretch stays on the zero row and fills nothing, as it stays on the axis standing.
 static inline int chart_flip_vertex_y(int zero, int dir, int h, bool held) {
     if (held && dir > 0 && h < 1) {
         h = 1;

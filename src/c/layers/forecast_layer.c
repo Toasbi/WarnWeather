@@ -276,6 +276,18 @@ static TempMargin s_temp_margin;
 #define LINE_BOTTOM(inset) (inset)
 #endif
 
+// How a metric line reads its wire byte 0, "nothing" (chart_runs.h): a metric with a zero
+// (rain chance, clouds, wind, gusts, UV, and a Visible values: Alert line below its warn
+// level) still comes down to the zero row next to a reading (JOIN); a floating line's
+// byte 0 is a missing reading (pressure, feels-like, dew point), a plain gap. aplite has
+// no float bit, so its lines all JOIN: feels-like and dew point are not offered there,
+// and a pressure line comes down next to a missing hour.
+#if defined(WW_LINE_STYLE)
+#define LINE_ZERO(s) ((s)->line.floating ? CHART_ZERO_GAP : CHART_ZERO_JOIN)
+#else
+#define LINE_ZERO(s) CHART_ZERO_JOIN
+#endif
+
 static ChartLayer mark_line_layer(const Series *s, int count) {
     return (ChartLayer){ CHART_LAYER_LINE, .from_top = SERIES_FROM_TOP(s), .line = {
         .values = s->line.values, .count = count,
@@ -283,7 +295,7 @@ static ChartLayer mark_line_layer(const Series *s, int count) {
         .inset_top = LINE_TOP(s->line.inset_y), .inset_bottom = LINE_BOTTOM(s->line.inset_y),
         .color = s->line.color, .width = s->line.width,
         .style = series_style_pick(s->line, CHART_LINE_DOTS),
-        .zero_absent = true } };  // metric line: wire byte 0 means "nothing", every style
+        .zero_absent = LINE_ZERO(s) } };  // metric line: wire byte 0 means "nothing", every style
 }
 
 static Layer *s_forecast_layer;
@@ -657,18 +669,16 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                                   // hand-maintained platform pair.
     int n = 0;
     // "Draw from: Top" of the Main metric: its fill, the fill's night re-shade and its
-    // line (marks, or a line off the fill) all hang. The line on the fill's contour
-    // takes the AREA layer's points, already hanging, so it never flips itself.
+    // line or marks all hang.
     const bool second_top = SERIES_FROM_TOP(second);
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .from_top = second_top, .area = {
             .values = second->line.values, .export_points = area_pts,
             .count = ds.num_entries, .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
 #if defined(WW_CURVE_INSET)
-            // The fill's contour must share the line's inset mapping (feels-like
-            // as Main metric can now draw filled AND inset); the line-over-fill
-            // and the night re-hatch reuse these exported points, so all three
-            // follow. aplite: insets are compile-time constants there and the
+            // The fill's contour must share the line's inset mapping, so the line
+            // over the fill rides it; the night re-hatch reuses these exported
+            // points. aplite: insets are compile-time constants there and the
             // area engine skips the inset math, so nothing to pass.
             .inset_top = LINE_TOP(second->line.inset_y),
             .inset_bottom = LINE_BOTTOM(second->line.inset_y),
@@ -773,21 +783,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         }
     }
     if (line_on) {
-        // Only the solid polyline can consume the AREA layer's exported
-        // contour; a mark-styled main line draws from values like the others.
-        // aplite folds to `fill_on` — its main line is frozen SOLID.
-        // The contour arm carries values purely as the gap sentinel: the stroke
-        // breaks over byte-0 hours (zero_absent) while the pre-computed contour
-        // points — where the fill beneath drops to the axis — stay untouched.
-        const bool second_on_contour = fill_on
-            && series_style_pick(second->line, CHART_LINE_SOLID) == CHART_LINE_SOLID;
-        layers[n++] = second_on_contour
-            ? (ChartLayer){ CHART_LAYER_LINE, .line = {
-                  .points = area_pts, .values = second->line.values,
-                  .count = ds.num_entries,
-                  .color = second->line.color, .width = second->line.width,
-                  .zero_absent = true } }
-            : (ChartLayer){ CHART_LAYER_LINE, .from_top = second_top, .line = {
+        // Over a fill too, the line computes its vertices by the AREA layer's own
+        // mapping, so it rides the fill's contour; only its zero vertex differs, held
+        // on the plot's first row when it hangs (chart_flip_vertex_y) where the fill's
+        // zero stretch stays on the zero row.
+        layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .from_top = second_top, .line = {
                   .values = second->line.values, .count = ds.num_entries,
                   .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
                   .inset_top = LINE_TOP(second->line.inset_y),
@@ -795,7 +795,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                   .export_points = area_pts,
                   .color = second->line.color, .width = second->line.width,
                   .style = series_style_pick(second->line, CHART_LINE_SOLID),
-                  .zero_absent = true } };
+                  .zero_absent = LINE_ZERO(second) } };
     }
     // Fill present: marks go over the line + its opaque fill so they stay visible.
     if (fill_on) {
