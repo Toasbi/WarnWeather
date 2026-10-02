@@ -172,6 +172,29 @@ function countServerFailure(providerId, failure, isServerFailure) {
     }
 }
 
+// The watch hides a forecast this old behind "No data :(" (loading_layer.c
+// FORECAST_MAX_AGE_S). Its forecast starts at or before the update that brought it,
+// so this long after the last success the watch surely shows nothing worth keeping.
+var WATCH_FORECAST_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Whether the watch may still show a good forecast: the last success (lastFetchSuccess)
+ * is at most WATCH_FORECAST_MAX_AGE_MS old. A `whenStale` notice (notices.js) keeps its
+ * watch line back meanwhile, as the overlay would cover that forecast. Missing or
+ * unreadable record: false (the watch has nothing to cover).
+ * @param {number} now Epoch milliseconds.
+ * @returns {boolean} True while the watch's forecast may still be fresh.
+ */
+function watchMayShowForecast(now) {
+    try {
+        var rec = JSON.parse(localStorage.getItem(KEY_LAST_FETCH_SUCCESS));
+        var at = rec ? new Date(rec.time).getTime() : NaN;
+        return isFinite(at) && now - at <= WATCH_FORECAST_MAX_AGE_MS;
+    } catch (e) {
+        return false;
+    }
+}
+
 // --- radar request throttle -------------------------------------------------
 // A throttled radar source (radar-factory.js RADAR_MIN_REQUEST_INTERVAL_MS: the
 // shared Rainbow proxy) is asked once per UTC-aligned slot, wherever the watch is:
@@ -629,13 +652,16 @@ function createFetchCycle(deps) {
             // change-detector skips absent categories).
             var failureSend = {};
             // Surface notice-worthy failures (401/403 → watch overlay + settings panel;
-            // 429 → settings panel only; a server failure → watch overlay + settings
-            // panel from the second update in a row). Other failures raise nothing.
+            // 429 → settings panel only; a provider not answering — a server failure
+            // from the second update in a row, or its own retry delay → settings panel,
+            // and the watch overlay only once the watch's forecast is too old to show,
+            // so it never covers a good one). Other failures raise nothing.
             var serverRun = countServerFailure(provider.id, failure, deps.notices.isServerFailure);
-            var notice = deps.notices.noticeForFailure(failure, provider.name, +deps.now(), serverRun);
+            var notice = deps.notices.noticeForFailure(failure, provider.name, +deps.now(), serverRun,
+                provider.shortName);
             if (notice) {
                 deps.notices.add(notice);
-                if (notice.watch) {
+                if (notice.watch && !(notice.whenStale && watchMayShowForecast(+deps.now()))) {
                     // Error notices push a plain-text overlay.
                     failureSend.NOTICE_TEXT = deps.notices.watchText();
                 }

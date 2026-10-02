@@ -54,6 +54,8 @@ function createProvider(providerId, settings) {
 
 module.exports = {
     DEFAULT_PROVIDER_ID: DEFAULT_PROVIDER_ID,
+    // Every registered provider id (tests walk them all).
+    PROVIDER_IDS: Object.keys(PROVIDER_FACTORIES),
     isKnownProvider: isKnownProvider,
     createProvider: createProvider
 };

@@ -397,8 +397,9 @@ test('a freshly scraped key that is refused too reports WU not answering, with a
     retryAfterMs: WundergroundProvider.UNAVAILABLE_RETRY_MS });
   assert.equal(WundergroundProvider.UNAVAILABLE_RETRY_MS, 60 * 60 * 1000, 'about an hour');
   assert.equal(authBackoff.isAuthFailure(out.failures[0]), false, 'never the indefinite auth backoff');
-  const notice = notices.noticeForFailure(out.failures[0], 'Weather Underground', 1);
-  assert.equal(notice.watch, 'Weather Underground not answering', 'never "API key error"');
+  const wu = new WundergroundProvider();
+  const notice = notices.noticeForFailure(out.failures[0], wu.name, 1, undefined, wu.shortName);
+  assert.equal(notice.watch, 'Wunderground not answering', 'never "API key error"');
   assert.equal(notice.html, '<b>Weather Underground</b> is not answering. The watch tries again in about an hour.');
   assert.equal(log.scrapes, 1, 'exactly one re-scrape');
   assert.deepEqual(log.api, ['revokedkey', 'neverworks']);

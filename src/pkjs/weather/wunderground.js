@@ -106,6 +106,7 @@ function mapForecast(forecast, current) {
 var WundergroundProvider = function() {
     this._super.call(this);
     this.name = 'Weather Underground';
+    this.shortName = 'Wunderground';
     this.id = 'wunderground';
     // The key is scraped, never the user's: a refusal is answered with a timed retry
     // (asUnavailable below), never the indefinite auth backoff, and fetch-cycle.js drops

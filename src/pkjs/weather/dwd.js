@@ -235,6 +235,7 @@ function slotRecords(hourly, byEpoch, startEpoch, count) {
 var DwdProvider = function() {
     this._super.call(this);
     this.name = 'Brightsky (Deutscher Wetterdienst)';
+    this.shortName = 'DWD';
     this.id = 'dwd';
     // Its UV is Open-Meteo's (openmeteo.fetchUvInto): the UV day record carries
     // across a switch between the two.

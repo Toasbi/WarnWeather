@@ -860,6 +860,7 @@ test('failure: a provider\'s own retry delay raises the neutral notice at once a
     resetStore();
     const wu = makeProvider('wunderground');
     wu.name = 'Weather Underground';
+    wu.shortName = 'Wunderground';
     wu.scrapesKey = true;
     const h = makeHarness({ provider: wu, settings: { fetchIntervalMin: '15' } });
     const refused = { stage: 'provider_data', code: 'wu_current_refused_401', retryAfterMs: HOUR };
@@ -868,11 +869,49 @@ test('failure: a provider\'s own retry delay raises the neutral notice at once a
     wu.fail(refused);
     assert.equal(authBackoff.isActive(), false, 'no indefinite auth backoff');
     assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['unavailable'], 'shown at once');
-    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'Weather Underground not answering' }]);
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'Wunderground not answering' }],
+        'no forecast on the watch to keep: its short name, on the watch at once');
     h.setNow(T0 + 30 * MIN);
     assert.equal(h.cycle.shouldFetchNow(), false, 'past two 15-min slots, still resting');
     h.setNow(T0 + HOUR);
     assert.equal(h.cycle.shouldFetchNow(), true, 'the next update after the hour tries again');
+});
+
+test('failure: a provider not answering leaves a good forecast on the watch — its line goes out once that forecast is too old', () => {
+    resetStore();
+    const h = makeHarness();
+    assert.equal(h.cycle.start(true), true);
+    h.provider.fix(52.5, 13.4);
+    h.provider.succeed();   // T0: the watch shows this forecast for 12 h
+    h.calls.sendWeather.length = 0;
+    const f503 = { stage: 'provider_data', code: 'fake_status_503' };
+    h.advance(MIN);
+    failOnce(h, f503);
+    h.advance(MIN);
+    failOnce(h, { stage: 'provider_data', code: 'fake_network_error' });
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['server'], 'the panel shows it at once');
+    assert.deepEqual(h.calls.sendWeather, [], 'but no overlay hides the forecast on the watch');
+
+    h.setNow(T0 + 12 * HOUR);
+    failOnce(h, f503);
+    assert.deepEqual(h.calls.sendWeather, [], 'not up to the watch\'s own 12 h');
+    h.setNow(T0 + 12 * HOUR + MIN);
+    failOnce(h, f503);
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'fake weather not answering' }],
+        'then the line takes the place of the bare "No data :("');
+
+    resetStore();
+    const wu = makeProvider('wunderground');
+    wu.shortName = 'Wunderground';
+    const w = makeHarness({ provider: wu });
+    assert.equal(w.cycle.start(true), true);
+    wu.fix(52.5, 13.4);
+    wu.succeed();
+    w.calls.sendWeather.length = 0;
+    w.advance(MIN);
+    failOnce(w, { stage: 'provider_data', code: 'wu_current_refused_401', retryAfterMs: HOUR });
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['unavailable']);
+    assert.deepEqual(w.calls.sendWeather, [], 'Weather Underground\'s hour of rest keeps the forecast too');
 });
 
 test('start: an auth backoff an older build left for a provider whose key is scraped is dropped, not obeyed', () => {

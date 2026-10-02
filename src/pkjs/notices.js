@@ -1,15 +1,21 @@
 // src/pkjs/notices.js — ES5, watch runtime.
 //
 // A general phone-side notice list, surfaced in two places: `error` notices push
-// a short plain-text overlay to the watch (NOTICE_TEXT, rendered by loading_layer),
-// and every notice (error or info) renders as HTML in the settings General-tab
-// panel. Deduped by `key`, capped. Watch-runtime PKJS: ES5 only (var/function,
-// no ES6 built-ins).
+// a short plain-text overlay to the watch (NOTICE_TEXT, rendered by loading_layer;
+// a `whenStale` one only once the watch's forecast is too old to show, so it never
+// covers a good forecast — fetch-cycle.js decides), and every notice (error or info)
+// renders as HTML in the settings General-tab panel. Deduped by `key`, capped.
+// Watch-runtime PKJS: ES5 only (var/function, no ES6 built-ins).
 
 var storageKeys = require('./storage-keys.js');
+var utf8 = require('./utf8.js');
 var NOTICES_KEY = storageKeys.NOTICES_KEY;
 var MAX_NOTICES = 20;
 var GC_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+// The longest watch text, in UTF-8 bytes: loading_layer.c reads it into a 48 B buffer
+// (NOTICE_TEXT_MAX, sized for this ~32 B cap + NUL) and clamps anything longer
+// mid-word, and the overlay's Gothic 18 holds about two short lines.
+var WATCH_TEXT_MAX_BYTES = 31;
 
 /**
  * @returns {Array<Object>} Parsed notice list (oldest→newest); [] when absent/corrupt.
@@ -160,6 +166,17 @@ function retryPhrase(ms) {
 }
 
 /**
+ * The watch line of the neutral "not answering" notice, within WATCH_TEXT_MAX_BYTES.
+ * @param {string} label The provider's watch label (its short name, else its name).
+ * @returns {string} "<label> not answering", or "Weather not answering" when that
+ *   would not fit the watch.
+ */
+function notAnsweringWatchText(label) {
+    var text = (label || '') + ' not answering';
+    return label && utf8.byteLength(text) <= WATCH_TEXT_MAX_BYTES ? text : 'Weather not answering';
+}
+
+/**
  * Build a notice for a fetch failure, or null when the failure is not
  * notice-worthy (GPS, parse errors and a first server failure raise nothing).
  * Every notice names the weather provider, so only its own `provider_data` stage
@@ -169,20 +186,23 @@ function retryPhrase(ms) {
  * - 429: the rate-limit info (panel only).
  * - A failure the provider gives its own retry delay (failure.retryAfterMs: Weather
  *   Underground refusing even a freshly scraped key — the user has no key to blame):
- *   the neutral "not answering" notice (watch overlay + panel) at once, naming when it
- *   tries again.
- * - A server failure (isServerFailure): the neutral "not answering" notice (watch
- *   overlay + panel), from the second update in a row that failed that way
- *   (`failedUpdates`) — a one-off outage raises nothing, and the watch keeps its last
- *   forecast meanwhile.
+ *   the neutral "not answering" notice (panel) at once, naming when it tries again.
+ * - A server failure (isServerFailure): the neutral "not answering" notice (panel),
+ *   from the second update in a row that failed that way (`failedUpdates`) — a one-off
+ *   outage raises nothing.
+ * The neutral notice is `whenStale`: its watch line goes out only once the watch's
+ * forecast is too old to show (fetch-cycle.js), so the watch keeps its last forecast
+ * meanwhile and the line replaces the bare "No data :(" after it.
  * @param {{stage: string, code: string, retryAfterMs?: number}|*} failure Normalized fetch failure.
  * @param {string} providerName Active provider display name.
  * @param {number} now Timestamp (Date.now()).
  * @param {number} [failedUpdates] Updates in a row this provider failed with a server
  *   failure, this one included (fetch-cycle.js); read only for a server failure.
- * @returns {?{key: string, type: string, html: string, watch?: string, since: number}}
+ * @param {string} [watchName] The provider's short name for the watch line (provider.shortName),
+ *   when its display name is too long there; defaults to providerName.
+ * @returns {?{key: string, type: string, html: string, watch?: string, whenStale?: boolean, since: number}}
  */
-function noticeForFailure(failure, providerName, now, failedUpdates) {
+function noticeForFailure(failure, providerName, now, failedUpdates, watchName) {
     if (!failure || failure.stage !== 'provider_data') { return null; }
     var code = typeof failure.code === 'string' ? failure.code : '';
     var name = providerName || 'The weather provider';
@@ -190,7 +210,8 @@ function noticeForFailure(failure, providerName, now, failedUpdates) {
         return {
             key: 'unavailable',
             type: 'error',
-            watch: name + ' not answering',
+            watch: notAnsweringWatchText(watchName || providerName),
+            whenStale: true,
             html: '<b>' + name + '</b> is not answering. The watch tries again '
                 + retryPhrase(failure.retryAfterMs) + '.',
             since: now
@@ -202,7 +223,8 @@ function noticeForFailure(failure, providerName, now, failedUpdates) {
         return {
             key: 'server',
             type: 'error',
-            watch: name + ' not answering',
+            watch: notAnsweringWatchText(watchName || providerName),
+            whenStale: true,
             html: '<b>' + name + '</b> is not answering: the last ' + n + ' updates failed ('
                 + serverReason(code) + '). The watch tries again at the next update.',
             since: now
@@ -238,5 +260,6 @@ module.exports = {
     watchText: watchText,
     isServerFailure: isServerFailure,
     noticeForFailure: noticeForFailure,
+    WATCH_TEXT_MAX_BYTES: WATCH_TEXT_MAX_BYTES,
     gc: gc
 };

@@ -33,6 +33,9 @@ var GPS_CACHE_MAX_AGE_MS = locationLib.GPS_CACHE_MAX_AGE_MS;
 var WeatherProvider = function() {
     this.numEntries = 24;
     this.name = 'Template';
+    // The name on the watch's notice line (notices.js, ~31 B) when `name` is too long
+    // there; empty = `name`.
+    this.shortName = '';
     this.id = 'interface';
     this.location = null; // Address query used for overriding the GPS
     this.countryCode = null;

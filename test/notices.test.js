@@ -123,7 +123,7 @@ test('noticeForFailure: a server failure raises nothing on the first update, the
   assert.strictEqual(notices.noticeForFailure(f503, 'Open-Meteo', 1, 1), null, 'the first failed update: nothing');
   var second = notices.noticeForFailure(f503, 'Open-Meteo', 700, 2);
   assert.deepStrictEqual(second, {
-    key: 'server', type: 'error', watch: 'Open-Meteo not answering', since: 700,
+    key: 'server', type: 'error', watch: 'Open-Meteo not answering', whenStale: true, since: 700,
     html: '<b>Open-Meteo</b> is not answering: the last 2 updates failed (HTTP 503). '
       + 'The watch tries again at the next update.'
   });
@@ -131,15 +131,42 @@ test('noticeForFailure: a server failure raises nothing on the first update, the
     .html.indexOf('the last 3 updates failed (no answer in time)') !== -1);
   assert.ok(notices.noticeForFailure({ stage: 'provider_data', code: 'owm_network_error' }, 'OpenWeatherMap', 1, 2)
     .html.indexOf('(no connection)') !== -1);
-  assert.ok(notices.noticeForFailure(f503, 'Weather Underground', 1, 2).watch.length <= 47,
-    'the longest provider name still fits the watch\'s 48 B notice buffer');
+});
+
+test('noticeForFailure: the neutral notice\'s watch line fits the watch for every provider, the panel keeps the full name', function () {
+  var providerFactory = require('../src/pkjs/provider-factory.js');
+  var utf8 = require('../src/pkjs/utf8.js');
+  assert.ok(providerFactory.PROVIDER_IDS.length >= 7, 'every registered provider');
+  providerFactory.PROVIDER_IDS.forEach(function (id) {
+    var p = providerFactory.createProvider(id, {});
+    var failures = [
+      { stage: 'provider_data', code: id + '_status_503' },
+      { stage: 'provider_data', code: id + '_refused_401', retryAfterMs: 3600000 }
+    ];
+    failures.forEach(function (f) {
+      var n = notices.noticeForFailure(f, p.name, 1, 2, p.shortName);
+      assert.ok(utf8.byteLength(n.watch) <= notices.WATCH_TEXT_MAX_BYTES,
+        id + ': "' + n.watch + '" fits ' + notices.WATCH_TEXT_MAX_BYTES + ' B');
+      assert.match(n.watch, / not answering$/, id);
+      assert.notStrictEqual(n.watch, 'Weather not answering', id + ' is named on the watch');
+      assert.ok(n.html.indexOf('<b>' + p.name + '</b>') === 0, id + ': the panel names it in full');
+    });
+  });
+  var dwd = notices.noticeForFailure({ stage: 'provider_data', code: 'dwd_status_503' },
+    'Brightsky (Deutscher Wetterdienst)', 1, 2, 'DWD');
+  assert.strictEqual(dwd.watch, 'DWD not answering');
+  assert.strictEqual(notices.noticeForFailure({ stage: 'provider_data', code: 'x_status_503' },
+    'Brightsky (Deutscher Wetterdienst)', 1, 2).watch, 'Weather not answering',
+    'a name too long for the watch, without a short one, falls back to a generic line');
+  assert.strictEqual(notices.noticeForFailure({ stage: 'provider_data', code: 'x_status_503' }, '', 1, 2).watch,
+    'Weather not answering');
 });
 
 test('noticeForFailure: a provider\'s own retry delay raises the neutral notice at once, saying when it retries', function () {
   var wu = notices.noticeForFailure({ stage: 'provider_data', code: 'wu_current_refused_401', retryAfterMs: 3600000 },
-    'Weather Underground', 900);
+    'Weather Underground', 900, undefined, 'Wunderground');
   assert.deepStrictEqual(wu, {
-    key: 'unavailable', type: 'error', watch: 'Weather Underground not answering', since: 900,
+    key: 'unavailable', type: 'error', watch: 'Wunderground not answering', whenStale: true, since: 900,
     html: '<b>Weather Underground</b> is not answering. The watch tries again in about an hour.'
   });
   assert.ok(notices.noticeForFailure({ stage: 'provider_data', code: 'x', retryAfterMs: 30 * 60000 }, 'X', 1)
