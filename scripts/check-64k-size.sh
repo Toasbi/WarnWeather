@@ -68,6 +68,11 @@
 # and a quarter at 128: basalt +4 B (59308 -> 59312), diorite/flint +4 B (57112 ->
 # 57116), all .text in forecast_update_proc (the multiply); .data/.bss and its stack
 # frame unchanged.
+# Then its review fix, in the same exception: the flat eighth is the curve's floor (below
+# 64 rows the curve alone gave a hanging element under a top stripe band less room than
+# the eighth did): basalt +8 B (59312 -> 59320), diorite/flint +4 B (57116 -> 57120), all
+# .text in forecast_update_proc (the floor's compare); .data/.bss and its stack frame
+# unchanged.
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -84,9 +89,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-59312}"
-  "diorite:${DIORITE_IMAGE_CEILING:-57116}"
-  "flint:${FLINT_IMAGE_CEILING:-57116}"
+  "basalt:${BASALT_IMAGE_CEILING:-59320}"
+  "diorite:${DIORITE_IMAGE_CEILING:-57120}"
+  "flint:${FLINT_IMAGE_CEILING:-57120}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).

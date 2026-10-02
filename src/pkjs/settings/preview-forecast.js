@@ -101,10 +101,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     }
 
     // The temperature-axis margins and hi/lo labels (src/c/appendix/temp_axis_pad.h),
-    // mirrored: an anchored edge's margin is the plot height squared over
-    // TEMP_AXIS_PAD_SQ_DIV (the share grows with the plot: an eighth at 64 rows, a quarter at
-    // 128), and the labels keep TEMP_LABEL_MIN_INK_GAP watch px of blank rows between their
-    // ink. Both are the watch's numbers, held equal to the header's by
+    // mirrored: an anchored edge's margin is an eighth of the plot height, or from 64 rows on
+    // its square over TEMP_AXIS_PAD_SQ_DIV (the share grows with the plot: an eighth at 64
+    // rows, a quarter at 128), and the labels keep TEMP_LABEL_MIN_INK_GAP watch px of blank
+    // rows between their ink. Both are the watch's numbers, held equal to the header's by
     // test/config-temp-axis-pad.test.js. WATCH_INSET_PX is the watch's temperature inset
     // (bottom_view.h BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), the unit the preview scales watch px by.
     var TEMP_AXIS_PAD_SQ_DIV = 512;
@@ -117,19 +117,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
     /**
      * An anchored edge's share of a plot `units` preview units tall, in preview units:
-     * temp_axis_pad.h temp_axis_margin's curve, mirrored. The curve is not linear, so it is
-     * taken where the watch takes it, in watch rows: the plot goes to whole watch px at the
-     * preview's scale (CURVE_INSET_PREV units per WATCH_INSET_PX, as the inset and the label
-     * gap), the watch's integer square over TEMP_AXIS_PAD_SQ_DIV is taken there, and the px it
-     * gives come back as units. The preview's unbanded plot (87 units, 50 watch rows) is about
-     * the watch's default view (55 rows), and the share there stays under the inset, as it does
-     * on the watch.
+     * temp_axis_pad.h temp_axis_margin, mirrored, the larger of its two terms. The eighth,
+     * the floor, is linear, so it is taken in units as it always was (Math.floor(units / 8)).
+     * The curve is not, so it is taken where the watch takes it, in watch rows: the plot goes
+     * to whole watch px at the preview's scale (CURVE_INSET_PREV units per WATCH_INSET_PX, as
+     * the inset and the label gap), the watch's integer square over TEMP_AXIS_PAD_SQ_DIV is
+     * taken there, and the px it gives come back as units. The curve passes the eighth only
+     * from 64 watch rows (about 110 units); the preview's own plots are at most 87 units (50
+     * watch rows, about the watch's default view), so the preview keeps the flat eighth's
+     * margins, as the watch does in plots that small.
      * @param {number} units The plot's height in preview units (>= 0).
      * @returns {number} The share, in preview units.
      */
     function anchorShare(units) {
+        var eighth = Math.floor(units / 8);
         var rows = Math.floor(units * WATCH_INSET_PX / CURVE_INSET_PREV);
-        return Math.floor(rows * rows / TEMP_AXIS_PAD_SQ_DIV) * CURVE_INSET_PREV / WATCH_INSET_PX;
+        var curve = Math.floor(rows * rows / TEMP_AXIS_PAD_SQ_DIV) * CURVE_INSET_PREV / WATCH_INSET_PX;
+        return curve > eighth ? curve : eighth;
     }
 
     /**
@@ -450,8 +454,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var curveInsetPrev = CURVE_INSET_PREV;
         // On an anchored edge (the rain bars' or a drawn amount line's with a value above 0:
         // draw-from.js forecastAnchors; none previewing aplite, whose margins are frozen) the
-        // margin is at least the curve's share of the band [MT, PB], the plot the metrics map
-        // into between the stripe bands — temp_axis_pad.h temp_axis_margin, mirrored.
+        // margin is at least the share (anchorShare: the eighth, or the curve past it) of the
+        // band [MT, PB], the plot the metrics map into between the stripe bands —
+        // temp_axis_pad.h temp_axis_margin, mirrored.
         var anchored = drawFrom.forecastAnchors(state, caps, function (key) {
             if (key === 'bars') { return rainDrawn; }
             for (var li = 0; li < LINES.length; li += 1) {
