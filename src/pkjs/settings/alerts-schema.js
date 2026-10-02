@@ -47,7 +47,7 @@ var SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the 
 /**
  * An item's Shows on grid and its note, the first rows of its sheet (under the sheet's
  * intro): one row per status bar the watch draws, each with a Left and a Right tick
- * for that side's list (alerts-page.js onDemandBars; a checklist, engine.js renderChecklist).
+ * for that side's list (alerts-page.js onDemandBars; a checklist, config-ui lib/checklist.js).
  * A tap goes to on-demand.js through the grid's writer (reset-status-defaults.js
  * onDemandTick: tickOn / untickFrom), which keeps the list in priority order and the item
  * on one side of the bar. The grid has no messageKey: it stores nothing of its own.

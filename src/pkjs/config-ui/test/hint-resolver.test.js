@@ -20,6 +20,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+// The lib files in the page's own order (build-page.js), so a bundle here loads what the
+// page loads.
+const { LIB_PAGE_FILES } = require('../scripts/build-page.js');
 // Shared dual-use modules must populate global.PConf before engine.js reads them.
 require('../lib/schema-walk.js');
 require('../lib/color.js');
@@ -185,8 +188,7 @@ const HINT_RE = /(<div class="hint" data-hint-for=")([^"]*)(">)([\s\S]*?)(<\/div
  */
 function bootNudgePage(schema, env) {
   const LIB = path.join(__dirname, '..', 'lib');
-  const BUNDLE = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'date-picker.js',
-    'range-control.js', 'rgb-control.js', 'engine.js']
+  const BUNDLE = LIB_PAGE_FILES
     .map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
     + '\nPConf.engine.boot();';
   const listeners = {};

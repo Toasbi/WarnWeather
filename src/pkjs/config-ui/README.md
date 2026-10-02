@@ -826,13 +826,16 @@ rename, so a concurrent reader never sees a half-written file), and returns `out
    - `lib/schema-walk.js` — single-source schema traversal (`PConf.schemaWalk`)
    - `lib/color.js` — int↔hex color conversion (`PConf.color`)
    - `lib/show-when.js` — predicate evaluator (`PConf.showWhen`)
-   - `lib/html.js` — the escape helper, the shared sheet header, and the swatch+hex
-     colour readout the `rgb` control and a `chip` badge both print (`PConf.html`)
+   - `lib/html.js` — the escape helper, the shared sheet header, the swatch+hex
+     colour readout the `rgb` control and a `chip` badge both print, and a joined row's
+     no-divider class (`PConf.html`)
    - `lib/date-picker.js` — the date control: value helpers, wheel renderers, scroll-settle wiring (`PConf.datePicker`)
    - `lib/range-control.js` — the dual-thumb, one-thumb and threshold sliders: numeric rules, renderers,
      the single-thumb track, and the drag wiring every slider and the `rgb` control share (`PConf.rangeControl`)
    - `lib/rgb-control.js` — the `rgb` control: the `"r,g,b"` value rules, the swatch readout above three
      single-thumb channel tracks, and its in-place repaint (`PConf.rgbControl`)
+   - `lib/checklist.js` — the `checklist` control's renderer: the grid of ticks and the
+     list codes it reads (`PConf.checklist`); a tap stays with the engine
    - `lib/engine.js` — render engine, registries, hooks, modal shell, event wiring
    - each file in `appFiles` — the app's blocks and hooks
    - `PConf.engine.boot();` — boot runs last, after all registrations

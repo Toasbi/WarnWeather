@@ -1,7 +1,8 @@
 // src/pkjs/config-ui/lib/html.js — shared HTML primitives: the escape helper
 // every renderer interpolates through, the sheet-header chrome the three modals
-// share, and the colour readout the rgb control and a row's colour badge both
-// print. A leaf: loaded before date-picker.js/range-control.js/rgb-control.js/engine.js
+// share, the colour readout the rgb control and a row's colour badge both
+// print, and a joined row's no-divider class. A leaf: loaded before
+// date-picker.js/range-control.js/rgb-control.js/checklist.js/engine.js
 // in the page concat (build-page.js LIB_PAGE_FILES), required under Node.
 // Dual-context export mirrors color.js: attached to the shared PConf global
 // for the concatenated page (and the test bundle), module.exports under Node.
@@ -68,5 +69,16 @@ function swatchReadout(hex, live) {
     + '<span' + (live ? ' data-rgb-hex' : '') + '>' + h + '</span></span>';
 }
 
-PConf.html = { esc: esc, sheetHeader: sheetHeader, swatchReadout: swatchReadout };
+/**
+ * Map a join mode from engine.js nextVisibleJoins() to the preceding row's no-divider
+ * class: '' for none, ' nb' for a tight join (drops the divider and tightens the padding),
+ * ' nbl' for a loose join (drops the divider but keeps normal padding). See the .nb / .nbl
+ * rules in shell.html. Shared by the engine's rows and the checklist's (checklist.js).
+ *
+ * @param {(string|boolean)} mode 'loose', another truthy value for tight, or falsy.
+ * @returns {string} The class suffix, with its leading space, or ''.
+ */
+function nbClass(mode) { return mode === 'loose' ? ' nbl' : (mode ? ' nb' : ''); }
+
+PConf.html = { esc: esc, sheetHeader: sheetHeader, swatchReadout: swatchReadout, nbClass: nbClass };
 if (typeof module !== 'undefined' && module.exports) { module.exports = PConf.html; }

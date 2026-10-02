@@ -13,6 +13,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // control renders above its sliders (rgb-control.js renderRgb), so a row and the
   // sheet it opens show one colour in one vocabulary.
   var swatchReadout = htmlLib.swatchReadout;
+  // A joined row's no-divider class (' nb' / ' nbl'), shared with the checklist's rows.
+  var nbClass = htmlLib.nbClass;
   // The date control (value helpers + renderers + wheel wiring) lives in
   // lib/date-picker.js; the aliases keep this file's call sites and export
   // surface unchanged.
@@ -36,6 +38,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   var setRgbChannel = rgbControl.setRgbChannel;
   var renderRgb = rgbControl.renderRgb;
   var paintRgb = rgbControl.paintRgb;
+  // The checklist control (type: 'checklist', a grid of ticks for one code) renders in
+  // lib/checklist.js; its tap stays here (controlClick's [data-check] case). Same alias
+  // discipline.
+  var checklist = (typeof require !== 'undefined') ? require('./checklist.js') : PConf.checklist;
+  var renderChecklist = checklist.renderChecklist;
   var formatDateValue = datePicker.formatDateValue;
   var parseDateParts = datePicker.parseDateParts;
   var dateValueFromParts = datePicker.dateValueFromParts;
@@ -1033,59 +1040,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     return h;
   }
-  /**
-   * The codes a stored list holds: its comma list split, blanks dropped.
-   * @param {*} value Stored list, e.g. 'bt,qt,snooze' ('' when none).
-   * @returns {string[]} The codes, in stored order.
-   */
-  function checklistCodes(value) {
-    var parts = String(value == null ? '' : value).split(','), out = [], i;
-    for (i = 0; i < parts.length; i++) { if (parts[i]) { out.push(parts[i]); } }
-    return out;
-  }
-
-  /**
-   * A `checklist` control, a grid of ticks for ONE code (item.check): under one sub-header
-   * (item.label, in the .subhdr.grp look, carrying the columns' captions over their ticks),
-   * one plain row per option, its name as the label and meta.desc as the hint, with one
-   * tick per column on the right. Each option names the lists its ticks read and write in
-   * meta.keys, one key per column, left to right; item.columns carries the captions. The
-   * rows are joined (no divider, the tight rhythm of joinPrevious). A tick is on while its
-   * list holds the code, and names its list (data-k), the code (data-check) and the writer
-   * that stores a tap (data-write: item.writeWith, a PConf.checkWriters id). meta.disabled
-   * renders a row's ticks inert WITH their state, so a gate never rewrites a stored list.
-   * @param {Object} item Checklist item with its options materialized (resolveRowItem).
-   * @param {{lists: Object}} view Render state: lists is the live settings the ticks read.
-   * @returns {string} Control HTML.
-   */
-  function renderChecklist(item, view) {
-    var cols = item.columns || [], opts = item.options || [], lists = view.lists || {};
-    var code = String(item.check), label = esc(String(item.label || '')), write = esc(item.writeWith || '');
-    var i, c, meta, key, on, gated;
-    var h = '<div class="chk-list" role="group" aria-label="' + label + '">'
-      + '<div class="subhdr grp chk-hdr"><span>' + label + '</span><span class="chk-caps" aria-hidden="true">';
-    for (c = 0; c < cols.length; c++) { h += '<span>' + esc(String(cols[c].label || '')) + '</span>'; }
-    h += '</span></div>';
-    for (i = 0; i < opts.length; i++) {
-      meta = opts[i][2] || {};
-      gated = Boolean(meta.disabled);
-      h += '<div class="row chk-opt' + nbClass(i < opts.length - 1 ? 'tight' : '') + (gated ? ' off' : '') + '">'
-        + '<span class="lft"><span class="lbl">' + esc(opts[i][0]) + '</span>'
-        + (meta.desc ? '<span class="hint">' + esc(meta.desc) + '</span>' : '') + '</span>'
-        + '<span class="chk-ticks">';
-      for (c = 0; c < cols.length; c++) {
-        key = (meta.keys || [])[c];
-        on = checklistCodes(lists[key]).indexOf(code) >= 0;
-        h += '<button type="button" class="chk-tick' + (on ? ' on' : '') + '" role="checkbox" aria-checked="'
-          + (on ? 'true' : 'false') + '" aria-label="' + esc(opts[i][0] + ', ' + cols[c].label)
-          + '" data-k="' + esc(key) + '" data-check="' + esc(code) + '" data-write="' + write + '"'
-          + (gated ? ' disabled aria-disabled="true"' : '') + '>'
-          + '<span class="chk-box" aria-hidden="true"></span></button>';
-      }
-      h += '</span></div>';
-    }
-    return h + '</div>';
-  }
 
     var CONTROLS = {
     toggle: function (item, view) { return renderToggle(item, view.value); },
@@ -1185,7 +1139,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // (labelIconHtml) on every row shape that keeps the box.
     var labelIco = labelIconHtml(item);
     // A checklist's label heads its grid (the sub-header and the list's aria-label,
-    // renderChecklist) rather than the row.
+    // checklist.js renderChecklist) rather than the row.
     var shownLabel = item.type === 'checklist' ? '' : item.label;
     var label = (shownLabel || labelAct || labelIco)
       ? '<div class="lbl">' + labelIco + (shownLabel ? esc(shownLabel) : '') + labelAct + '</div>'
@@ -1517,11 +1471,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     return '';
   }
-
-  // Map a join mode from nextVisibleJoins() to the preceding row's no-divider class: '' for none,
-  // ' nb' for a tight join (drops the divider and tightens the padding), ' nbl' for a loose join
-  // (drops the divider but keeps normal padding). See the .nb / .nbl rules in shell.html.
-  function nbClass(mode) { return mode === 'loose' ? ' nbl' : (mode ? ' nb' : ''); }
 
   function renderCardHeader(sec, secId, isCollapsible, isOpen, cx) {
     if (!(sec.title || isCollapsible)) { return ''; }

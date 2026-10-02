@@ -9,6 +9,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+// The lib files in the page's own order (build-page.js), so a bundle here loads what the
+// page loads.
+const { LIB_PAGE_FILES } = require('../scripts/build-page.js');
 require('../lib/schema-walk.js');
 require('../lib/color.js');
 require('../lib/show-when.js');
@@ -95,8 +98,7 @@ test('content that fits under the cap is never clamped', () => {
  */
 function bootSelectSheet() {
   const LIB = path.join(__dirname, '..', 'lib');
-  const BUNDLE = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'date-picker.js',
-    'range-control.js', 'rgb-control.js', 'engine.js']
+  const BUNDLE = LIB_PAGE_FILES
     .map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
     + '\nPConf.engine.boot();';
   const SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [

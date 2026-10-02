@@ -6,16 +6,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+// The lib files in the page's own order (build-page.js), so a bundle here loads what the
+// page loads.
+const { LIB_PAGE_FILES } = require('../scripts/build-page.js');
 
 const LIB = path.join(__dirname, '..', 'lib');
-const BUNDLE = fs.readFileSync(path.join(LIB, 'schema-walk.js'), 'utf8')
-  + '\n' + fs.readFileSync(path.join(LIB, 'color.js'), 'utf8')
-  + '\n' + fs.readFileSync(path.join(LIB, 'show-when.js'), 'utf8')
-  + '\n' + fs.readFileSync(path.join(LIB, 'html.js'), 'utf8')
-  + '\n' + fs.readFileSync(path.join(LIB, 'date-picker.js'), 'utf8')
-  + '\n' + fs.readFileSync(path.join(LIB, 'range-control.js'), 'utf8')
-  + '\n' + fs.readFileSync(path.join(LIB, 'rgb-control.js'), 'utf8')
-  + '\n' + fs.readFileSync(path.join(LIB, 'engine.js'), 'utf8')
+const BUNDLE = LIB_PAGE_FILES.map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
   + '\nPConf.engine.boot();';
 
 function renderScroll(schema, env) {
