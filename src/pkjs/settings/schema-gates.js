@@ -1,9 +1,10 @@
 // src/pkjs/settings/schema-gates.js — ES5, PKJS-parsed. The gates and copy links the
 // settings schema's modules share, split out of schema.js so the modules that build parts
-// of the schema (schema.js, level-rows-schema.js, alerts-schema.js) can read them without
-// requiring each other: the named showWhen predicates (the capability gates and the
-// setting gates several rows repeat), the one-pass gateAll, the link that brings a tab to
-// the front and the inline action button an intro carries. Plain CommonJS with an
+// of the schema (schema.js, level-rows-schema.js, alerts-schema.js and
+// forecast-lines-schema.js) can read them without requiring each other: the named
+// showWhen predicates (the capability gates and the setting gates several rows repeat),
+// the one-pass gateAll, the link that brings a tab to the front and the inline action
+// button an intro carries. Plain CommonJS with an
 // unguarded require(), like schema.js itself (custom-layout-schema.js's precedent): the
 // schema is evaluated in PKJS and injected into the page as data, never concatenated into
 // it as a flat browser file.
@@ -70,6 +71,12 @@ var HEALTH_BAR_WHEN = {all: [{env: 'health'}, {key: 'healthMode', in: ['status',
 // a name. (The compound "effectively B&W" check is the BW_LEGEND rows' showWhen in
 // schema.js.)
 var COLOR_THEME_WHEN = {key: 'theme', nin: ['bw', 'bw-light']};
+// "This watch draws the third metric line and selectable styles at all" — the
+// WW_LINE_STYLE mirror (platform.js), one gate for the Third- and Fourth-metric rows
+// and every line-style picker (the rows under those pickers ask lineRow, which reads
+// the same fact). Fails open for an unknown platform, like every feature-absence
+// capability.
+var LINE_STYLES_WHEN = {env: 'lineStyles'};
 
 /**
  * Gate every item that has no showWhen of its own — the sheet and group
@@ -113,6 +120,7 @@ module.exports = {
     RADAR_BAR_WHEN: RADAR_BAR_WHEN,
     HEALTH_BAR_WHEN: HEALTH_BAR_WHEN,
     COLOR_THEME_WHEN: COLOR_THEME_WHEN,
+    LINE_STYLES_WHEN: LINE_STYLES_WHEN,
     gateAll: gateAll,
     introAction: introAction
 };
