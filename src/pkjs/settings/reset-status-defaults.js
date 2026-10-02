@@ -195,7 +195,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Keep an On demand item on at most one side of a bar: whatever a side's list just
-     * gained is removed from the bar's other side. Mutates S.
+     * gained is removed from the bar's other side. The side lists' own onChange (their
+     * carriers, schema.js onDemandListsSection), so every write through them follows it:
+     * each tick in an item's Shows on grid. Mutates S.
      * @param {Object} S live settings state (key already set to newValue)
      * @param {string} key the side list that changed, e.g. 'statusTopOnDemandLeftItems'
      * @param {*} oldValue its previous list

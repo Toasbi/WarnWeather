@@ -418,7 +418,9 @@
      The rows carry their own 16px side padding and dividers; the container only scrolls. */
   dialog#modal .esheet { background: transparent; padding-bottom: 8px; }
   dialog#modal .esheet .intro { padding-top: 10px; }
-  dialog#modal .esheet .row:last-child { border-bottom: none; }
+  /* the sheet's last row or note draws no divider at its bottom edge (a card's do the same,
+     .card .static:last-child): e.g. a placement sheet that ends on its Shows on note */
+  dialog#modal .esheet .row:last-child, dialog#modal .esheet .static:last-child { border-bottom: none; }
   /* the Save button's confirm dialog (a row needs attention): one sentence, then the fix
      and "Save anyway" side by side. A margin between the two, not a flex gap, which old
      Android WebViews do not lay out. */

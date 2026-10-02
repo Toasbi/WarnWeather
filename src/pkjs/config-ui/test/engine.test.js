@@ -531,6 +531,13 @@ test('shell.html: an icon run in a hint never breaks inside', () => {
   assert.match(shell, /\.ico-run \.lbl-ico\s*\{\s*margin-right:\s*4px;\s*\}/);
 });
 
+test('shell.html: a sheet\'s last row or note draws no divider at the sheet\'s bottom edge', () => {
+  // A card drops it (.card .static:last-child); a sheet that ends on a note (the Quiet
+  // time and Sleep sheets end on their Shows on note) does too.
+  const shell = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
+  assert.match(shell, /dialog#modal \.esheet \.row:last-child, dialog#modal \.esheet \.static:last-child\s*\{\s*border-bottom:\s*none;\s*\}/);
+});
+
 test('renderSelectModal: duplicate messageKey resolves the VISIBLE block (theme B&W regression)', () => {
   // Two items share messageKey 'theme': a 4-option color block and a 2-option B/W block,
   // mutually exclusive by showWhen (mirrors schema.js). The open picker must mirror whichever

@@ -985,16 +985,16 @@ if (typeof require !== 'undefined') {
     // direction arrows), the date formats and the Show-unit toggles
     // (the Alert levels group's own reset deliberately covers only the levels),
     // each weather kind's slot Highlight switch (a slot-sheet row, like Bold — a
-    // goal kind's rides its Goals header and that group's reset), each bar's two On
-    // demand sides' ticks (on-demand.js DEFAULTS' eight side lists — the rows live in
-    // the bar's own sub-section of this card), and, on aplite only (a watch
-    // without On demand), the Watch Status Bar's other rows: 'Show battery below 10%'
-    // (batteryLowOnly), the quiet-time icon (showQt), the bluetooth vibration (vibe)
-    // and icon (btIcons) — elsewhere those keys belong to the Alert settings card. Deliberately
-    // untouched: thresholds, colors, warn looks and scale maxes (every sheet has its own
-    // reset button), the On demand items' own settings (the Alert settings card's reset,
-    // resetOnDemand below), and the countdown companion dates (inert once a slot
-    // leaves 'countdown'). Silent beyond the re-render, like resetThresholds above —
+    // goal kind's rides its Goals header and that group's reset), each bar's two Alerts
+    // sides (on-demand.js DEFAULTS' eight side lists — each bar's read-only Alerts row in
+    // this card shows them; the Alerts tab's reset restores them too), and, on aplite
+    // only (a watch without On demand), the Watch Status Bar's other rows: 'Show battery
+    // below 10%' (batteryLowOnly), the quiet-time icon (showQt), the bluetooth vibration
+    // (vibe) and icon (btIcons) — elsewhere those keys belong to the Alert settings card.
+    // Deliberately untouched: thresholds, colors, warn looks and scale maxes (every sheet
+    // has its own reset button), the On demand items' own settings (the Alert settings
+    // card's reset, resetOnDemand below), and the countdown companion dates (inert once a
+    // slot leaves 'countdown'). Silent beyond the re-render, like resetThresholds above —
     // the engine has no shared toast for [data-action] buttons.
     /**
      * @param {*} arg Unused (the engine passes the button's data-action-arg).
@@ -1024,12 +1024,8 @@ if (typeof require !== 'undefined') {
         if (env && env.onDemand === false) {
             schemaKeys.push('batteryLowOnly', 'showQt', 'vibe', 'btIcons');
         }
-        // Every bar's On demand sides: the ticked items.
-        for (var b = 0; b < onDemand.BARS.length; b++) {
-            for (var sd = 0; sd < onDemand.SIDES.length; sd++) {
-                schemaKeys.push(onDemand.itemsKey(onDemand.BARS[b].bar, onDemand.SIDES[sd]));
-            }
-        }
+        // Every bar's On demand sides: the items placed there.
+        schemaKeys = schemaKeys.concat(onDemandListKeys());
         // dateSlotFullFormat is the one key here whose fresh-install value is
         // COUNTRY-derived, not the schema default: the wizard writes
         // mapCountry().dateSlotFullFormat ('slash' for US installs). Resetting
@@ -1054,14 +1050,31 @@ if (typeof require !== 'undefined') {
         return true;
     };
 
+    /**
+     * The eight side lists (on-demand.js itemsKey), in BARS × SIDES order: where each item
+     * shows, which both resets restore.
+     * @returns {string[]} The keys.
+     */
+    function onDemandListKeys() {
+        var keys = [];
+        for (var b = 0; b < onDemand.BARS.length; b++) {
+            for (var sd = 0; sd < onDemand.SIDES.length; sd++) {
+                keys.push(onDemand.itemsKey(onDemand.BARS[b].bar, onDemand.SIDES[sd]));
+            }
+        }
+        return keys;
+    }
+
     // Reset-to-defaults for the Alert settings card (the inline text button closing its intro
-    // on the General tab — schema.js ON_DEMAND_INTRO): the items' own settings back to their
+    // on the Alerts tab — schema.js ON_DEMAND_INTRO): the items' own settings back to their
     // schema defaults, via the engine's resolver like resetStatusSlots above — the Battery
     // item's warn level and Look, the Bluetooth item's Show and vibration, the rain alert's
-    // window and look, and each metric alert's Look, Days and tomorrow mark (the contract's
-    // ALERT_KINDS, the five the card lists). Deliberately untouched: the levels, warn looks
-    // and colours (each sheet's Alert levels header has its own reset, which also serves the
-    // slots' highlight) and which bar ticks which item (the status card's reset).
+    // window and look, each metric alert's Look, Days and tomorrow mark (the contract's
+    // ALERT_KINDS, the five the card lists) — and where each item shows: the eight side
+    // lists its sheets' Shows on grids write (the status card's reset restores those too, as
+    // its bars' Alerts rows show them). Deliberately untouched: the levels, warn looks and
+    // colours (each sheet's Alert levels header has its own reset, which also serves the
+    // slots' highlight).
     /**
      * @param {*} arg Unused (the engine passes the button's data-action-arg).
      * @param {Object} S Live settings state (mutated in place).
@@ -1079,6 +1092,7 @@ if (typeof require !== 'undefined') {
             keys.push('alert' + stem + 'Display', 'alert' + stem + 'Days',
                 'alert' + stem + 'NextDayMark');
         }
+        keys = keys.concat(onDemandListKeys());
         for (var n = 0; n < keys.length; n++) {
             S[keys[n]] = defaultOf(keys[n]);
         }
@@ -1229,7 +1243,7 @@ if (typeof require !== 'undefined') {
 
     /**
      * The badge of an Alert settings card row with no colours to preview (Battery,
-     * Bluetooth): the Edit button alone.
+     * Bluetooth, Quiet time, Sleep): the Edit button alone.
      * @returns {Object} Badge state.
      */
     function onDemandBadge() {
@@ -1322,11 +1336,11 @@ if (typeof require !== 'undefined') {
     PConf.hintResolvers.register('rainAlertHint', rainAlertHint);
 
     /**
-     * Whether a ticked item cannot show, whatever the tick: Rain
-     * while the radar is off, Pollen off the DWD provider.
+     * Whether a placed item cannot show, wherever it is placed: Rain while the radar is
+     * off, Pollen off the DWD provider.
      * @param {Object} S Live settings state.
      * @param {string} code An on-demand.js ITEMS code.
-     * @returns {?string} Why it cannot show (the Alerts sheet's note), or null when it can.
+     * @returns {?string} Why it cannot show, or null when it can.
      */
     function onDemandBlocked(S, code) {
         if (code === 'rain' && radarOff(S)) { return 'Needs the rain radar (Radar tab)'; }
@@ -1335,39 +1349,78 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The bar's Alerts row live summary (the row's hint): per side, the names of the
-     * ticked items that can show, in priority order, e.g. "Left: Bluetooth, Rain · Right:
-     * Battery, UV index"; a side with nothing to show is left out, and nothing at all
-     * while nothing is ticked (both sides are then off). Ticks that all cannot show (Rain
-     * with the radar Off, Pollen off DWD) say so instead, and the sheet's notes say why.
+     * An item's Shows on grid (schema.js showsOnRows; a transposed checklist): under the
+     * "Shows on" header, one row per status bar the watch draws (on-demand.js barExists,
+     * the rule the Status slots tab's bar gates RADAR_BAR_WHEN / HEALTH_BAR_WHEN state), in
+     * the page's order. Each row names its two side lists in meta.keys (Left, Right), which
+     * its ticks write through their carriers (schema.js onDemandListsSection). Like those
+     * gates, it ignores the layout: a bar no view draws still gets its row. While the item
+     * cannot show at all (onDemandBlocked: Rain with the radar off, Pollen off DWD) the
+     * rows go inert and keep their ticks; the Rain sheet's box says why, and Pollen's card
+     * row (so its sheet) is gone off DWD.
      * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (unused).
-     * @param {{bar: string}} args The bar (an on-demand.js BARS bar).
-     * @returns {string} The hint ('' for none).
+     * @param {Object} env Platform env.
+     * @param {{code: string, bars: string[], names: Object<string, string>}} args The item,
+     *     the bars in the page's order and their names.
+     * @returns {Array<Array>} [label, value, meta] options.
      */
-    function onDemandSummary(S, env, args) {
-        var parts = [];
-        var ticked = false;
-        onDemand.SIDES.forEach(function (side) {
-            var codes = onDemand.parse((S || {})[onDemand.itemsKey(args.bar, side)]);
-            var names = [];
-            if (codes.length) { ticked = true; }
-            codes.forEach(function (code) {
-                if (onDemandBlocked(S, code) === null) {
-                    names.push(onDemand.ITEMS[onDemand.itemIndex(code)].label);
-                }
-            });
-            if (names.length) { parts.push((side === 'left' ? 'Left: ' : 'Right: ') + names.join(', ')); }
+    function onDemandBars(S, env, args) {
+        var a = args || {};
+        var inert = onDemandBlocked(S, a.code) !== null;
+        var out = [['Shows on', '', {groupHeader: true}]];
+        (a.bars || []).forEach(function (bar) {
+            if (!onDemand.barExists(S, bar, env)) { return; }
+            var meta = {keys: onDemand.SIDES.map(function (side) { return onDemand.itemsKey(bar, side); })};
+            if (inert) { meta.disabled = true; }
+            out.push([(a.names || {})[bar] || bar, bar, meta]);
         });
-        if (!ticked) { return ''; }
-        return parts.length ? parts.join(' · ') : 'None of the ticked items can show';
+        return out;
     }
-    PConf.hintResolvers.register('onDemandSummary', onDemandSummary);
+    PConf.optionsResolvers.register('onDemandBars', onDemandBars);
 
     /**
-     * A bar's Alerts sheet options: the ten items in priority order under the two group
-     * headers, each with its note when it cannot show (disabled, keeping its ticks). The
-     * sheet's Left and Right columns show where each sits, so no note names a side.
+     * A bar's read-only Alerts row on the Status slots tab (its hint): per side, the icons
+     * of the placed items that can show, in priority order (the Alert settings card's), each
+     * side one unbreakable run ("Left" + icons, "Right" + icons; shell.html .ico-run), so a
+     * narrow phone wraps between the sides, never inside one; then args.where on a line of
+     * its own, where they are set up (a link to the Alerts tab). Each icon carries its
+     * item's name (role img), so a screen reader reads "Left Bluetooth Rain Right Battery".
+     * Blocked items (Rain with the radar off, Pollen off DWD) are left out, as the watch
+     * leaves them out; when every placed item is blocked the row says so. With nothing
+     * placed, the pointer alone. The names are on-demand.js ITEMS constants, never
+     * settings: the engine prints a hint as raw HTML.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{bar: string, where: string}} args The bar (an on-demand.js BARS bar) and the
+     *     schema's pointer HTML.
+     * @returns {string} The hint HTML.
+     */
+    function onDemandBarIcons(S, env, args) {
+        var runs = [], placed = false;
+        onDemand.SIDES.forEach(function (side) {
+            var icons = '';
+            onDemand.parse((S || {})[onDemand.itemsKey(args.bar, side)]).forEach(function (code) {
+                placed = true;
+                if (onDemandBlocked(S, code) !== null) { return; }
+                var item = onDemand.ITEMS[onDemand.itemIndex(code)];
+                var svg = PConf.icons ? PConf.icons.get(item.icon) : null;
+                if (svg) {
+                    icons += '<span class="lbl-ico" role="img" aria-label="' + item.label + '">' + svg + '</span>';
+                }
+            });
+            if (icons) { runs.push('<span class="ico-run">' + (side === 'left' ? 'Left ' : 'Right ') + icons + '</span>'); }
+        });
+        if (!placed) { return args.where; }
+        return (runs.length ? runs.join(' ') : 'None of the alerts placed here can show.') + '<br>' + args.where;
+    }
+    PConf.hintResolvers.register('onDemandBarIcons', onDemandBarIcons);
+
+    /**
+     * The side lists' options (schema.js onDemandListsSection, the carriers every Shows on
+     * grid writes through): the ten items in priority order under the two group headers, so
+     * engine.js checklistToggle rebuilds a list in that order. An item that cannot show
+     * stays in, disabled with its note, so a tick elsewhere keeps it in its list. Never
+     * drawn now (the grids draw bars, not items); the per-bar sheets drew these.
      * @param {Object} S Live settings state.
      * @returns {Array<Array>} [label, value, meta] options.
      */

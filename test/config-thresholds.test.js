@@ -559,15 +559,15 @@ test('the sheets: the levels and look stay live whatever the slot Highlight, whi
   page.clickTab('watch');
   assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
     'the default AQI forecast slot renders its pencil');
-  // The AQI levels live in the kind's alert sheet in the Alert settings card, which has no
-  // switch (the bars' Alerts sheets place the alert); the slot's Alert highlighting switch
-  // lives in the slot sheet.
+  // The AQI levels live in the kind's alert sheet (the Alerts tab), which has no switch
+  // (its Shows on grid places the alert); the slot's Alert highlighting switch lives in
+  // the slot sheet.
   page.openEditSheet('alertAqi');
   assert.equal(page.modal.innerHTML.indexOf('data-k="threshAqiOn"'), -1,
     'the alert sheet carries no highlight toggle');
   assert.ok(page.modal.innerHTML.indexOf('data-k="alertAqiDisplay"')
-    < page.modal.innerHTML.indexOf('<div class="subhdr grp"><span>Alert levels'),
-    'the alert\'s Look row sits above the levels group header');
+    > page.modal.innerHTML.indexOf('<div class="subhdr grp"><span>Alert levels'),
+    'the alert\'s Look row follows the levels group (the owner\'s order, 2026-10-01)');
   // The slider is LIVE on the seeds (default cfg is WAQI → US AQI), and so are the
   // warn look and colors: they style the alert icon whether or not the slot is
   // highlighted.
@@ -629,18 +629,23 @@ test('the goal sheet: the switch rides the Goals header and mutes the warn look 
     'and live once they are on');
 });
 
-test('the page renders an On demand alert sheet: its Look, then the levels, and no switch', () => {
+test('the page renders an alert sheet: its Shows on grid, the levels, then the Look, and no switch', () => {
   const page = bootGeneratedPage();
-  page.clickTab('watch');
+  page.clickTab('alerts');
   page.openEditSheet('alertUv');
   const sheet = page.modal.innerHTML;
   assert.ok(sheet.indexOf('UV index alert') !== -1, 'the sheet carries its title');
-  assert.equal(sheet.indexOf('data-k="alertUv"'), -1, 'no switch: the bars\' Alerts sheets tick the alert');
+  assert.equal(sheet.indexOf('data-k="alertUv"'), -1, 'no switch: its Shows on grid places the alert');
   assert.equal(sheet.indexOf('<span>Alert</span>'), -1, 'and no Alert sub-header');
   assert.ok(sheet.indexOf('Shows the UV icon at the edge of a status bar when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.') !== -1,
     'with its intro');
-  assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert levels') > sheet.indexOf('data-k="alertUvDisplay"'),
-    'the levels group follows the Look');
+  const at = (frag) => sheet.indexOf(frag);
+  assert.ok(at('aria-label="Shows on"') < at('<div class="subhdr grp"><span>Alert levels'), 'the grid first');
+  assert.ok(at('<div class="subhdr grp"><span>Alert levels') < at('data-range="threshUvWarn"'), 'the levels header');
+  assert.ok(at('data-range="threshUvWarn"') < at('<div class="info-box">By default, warn sits at 6'), 'the slider');
+  assert.ok(at('<div class="info-box">By default, warn sits at 6') < at('data-k="alertUvDisplay"'), 'the card');
+  assert.ok(at('data-k="alertUvDisplay"') < at('data-k="alertUvDays"'), 'then the Look');
+  assert.ok(at('data-k="alertUvDays"') < at('data-k="threshUvWarnLook"'), 'then the Days');
   assert.ok(sheet.indexOf('data-range="threshUvWarn"') !== -1, 'the slider renders');
   assert.ok(sheet.indexOf('data-k="threshUvBoldMode"') === -1
     && sheet.indexOf('data-k="uvSlotDisplay"') === -1,
@@ -813,9 +818,11 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
 
   const off = bootGeneratedPage();
   off.clickTab('watch');
-  // The status card's slot pencils only: the Alert settings card below badges the placed
-  // alerts' colours of its own (alertLevelBadge).
-  const statusCard = off.scroll.innerHTML.slice(0, off.scroll.innerHTML.indexOf('<span class="ttl">Alert settings</span>'));
+  // The status card's slot pencils only: the Alert settings card, on its own tab, badges the
+  // placed alerts' colours of its own (alertLevelBadge), and the bars' read-only Alerts rows
+  // carry no badge.
+  const statusCard = off.scroll.innerHTML;
+  assert.equal(statusCard.indexOf('Alert settings'), -1, 'the Alert settings card is not on this tab');
   assert.ok(statusCard.indexOf('data-edit-sheet="threshAqi"') !== -1, 'the status card is in the slice');
   assert.equal(statusCard.indexOf('pen-dot'), -1,
     'no badge while every kind is disabled');
@@ -1357,7 +1364,7 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
   });
   // An alert kind's slot sheet ends on its highlight group, no header, rows joined:
   // the Alert highlighting switch (a divider above it), the pointer to its alert sheet
-  // in the Alert settings card instead of the levels (tight), then Bold (loose), last.
+  // on the Alerts tab instead of the levels (tight), then Bold (loose), last.
   ALERT_STEMS.forEach(stem => {
     const items = sheetFor(stem).items;
     const n = items.length;
@@ -1370,8 +1377,9 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     }, stem + ' the highlight group opens on its switch');
     assert.deepEqual(items[n - 2], {
       type: 'staticText', style: 'info', joinPrevious: true,
-      text: 'Alert levels and colors are set in General → Alert settings, under Weather alerts.'
-    }, stem + ' the On demand pointer hugs the switch');
+      text: 'Alert levels and colors are set in the <button type="button" class="txt-link"'
+        + ' data-goto-tab="alerts">Alerts tab</button>, under Weather alerts.'
+    }, stem + ' the pointer (a link to the Alerts tab) hugs the switch');
     assert.equal(items[n - 1], boldFor(stem), stem + ' Bold closes the sheet');
     assert.equal(boldFor(stem).joinPrevious, 'loose', stem + ' Bold joins the group without a divider');
   });
@@ -1456,14 +1464,17 @@ test('the middle Bold option goes inert only while nothing gives the kind a leve
   assert.equal(HEALTH_STEMS.length + ALERT_STEMS.length, STEMS.length, 'every kind covered');
 });
 
-test('the warn look sits where the outline toggle sat: right after the levels', () => {
+test('the warn look heads the colours: right after the levels in a goal sheet, after Days and the mark in an alert sheet', () => {
   const wind = levelsSheetFor('Wind').items;
   const wi = wind.findIndex(it => it.messageKey === 'threshWindWarnLook');
   assert.equal(wind[wi].type, 'segmented');
-  assert.equal(wind[wi - 1].messageKey, 'threshWindMax', 'after the slider\'s companions');
+  assert.equal(wind[wi - 1].messageKey, 'alertWindNextDayMark', 'after the Days and its mark');
+  assert.equal(wind[wi].joinPrevious, undefined, 'its own group: a divider above it');
   assert.equal(wind[wi + 1].messageKey, 'threshWindWarnColor', 'before the colours');
   const steps = sheetFor('Steps').items;
   const si = steps.findIndex(it => it.messageKey === 'threshStepsWarnLook');
+  assert.equal(steps[si - 1].messageKey, 'threshStepsMax', 'a goal sheet: after the slider\'s companions');
+  assert.equal(steps[si].joinPrevious, true, 'a goal sheet keeps its join (no visible effect behind the companions)');
   assert.equal(steps[si + 1].messageKey, 'threshStepsWarnColor');
 });
 
@@ -1644,7 +1655,7 @@ function alertSheets() {
   return out;
 }
 
-test('every metric alert sheet: its intro, the Look, the Days and mark, then the levels group — no switch', () => {
+test('every metric alert sheet: its intro, the Shows on grid, the levels group, the Look, the Days and mark, then the warn look — no switch', () => {
   const sheets = alertSheets().filter(s => s.sheetId !== 'alertRain');
   assert.deepEqual(sheets.map(s => s.sheetId), ALERT_STEMS.map(stem => 'alert' + stem));
   const SUBJECT = { Uv: 'the UV index', Wind: 'the wind speed', Gust: 'the gust speed',
@@ -1666,7 +1677,8 @@ test('every metric alert sheet: its intro, the Look, the Days and mark, then the
     assert.equal(s.intro, 'Shows the ' + ICON[stem] + ' icon at the edge of a status bar when '
       + SUBJECT[stem] + ' reaches your warn level at any point left today, so an afternoon peak shows'
       + ' from the morning on.' + coda, s.sheetId + ' intro');
-    assert.deepEqual(s.items.slice(0, 3), [{
+    const lookAt = s.items.findIndex(it => it.messageKey === key + 'Display');
+    assert.deepEqual(s.items.slice(lookAt, lookAt + 3), [{
       type: 'segmented', messageKey: key + 'Display', label: 'Look', defaultValue: 'icon',
       options: [['Icon', 'icon'], ['Icon + value', 'value']],
       // Only the value look explains itself — and when it gives way (after the status
@@ -1694,8 +1706,12 @@ test('every metric alert sheet: its intro, the Look, the Days and mark, then the
       joinPrevious: true,
       showWhen: { key: key + 'Days', ne: 'today' }
     }], s.sheetId + ': the Look, the Days and the mark, never inert');
-    assert.ok(!s.items.some(it => it.messageKey === key), s.sheetId + ': no switch (the checklists tick it)');
-    const head = s.items[3];
+    assert.ok(!s.items.some(it => it.messageKey === key), s.sheetId + ': no switch (its Shows on grid places it)');
+    // The owner's order (2026-10-01): the Shows on grid and its note first, then the alert
+    // levels, the info card, the Look, then everything else.
+    assert.equal(s.items[0].check, stem.toLowerCase(), s.sheetId + ': the Shows on grid first');
+    assert.equal(s.items[1].joinPrevious, true, s.sheetId + ': its note, tight');
+    const head = s.items[2];
     assert.equal(head.type, 'subheader', s.sheetId + ': the levels group follows');
     assert.equal(head.text, 'Alert levels');
     assert.equal(head.toggleKey, undefined, s.sheetId + ': the levels header has no switch');
@@ -1718,15 +1734,23 @@ test('every metric alert sheet: its intro, the Look, the Days and mark, then the
     const at = s.items.indexOf(range);
     assert.ok(s.items.slice(at + 1, at + 1 + CARDS[stem]).every(it => it.type === 'staticText'
       && it.style === 'info' && !it.joinPrevious), s.sheetId + ': the level cards stand off after the slider');
+    assert.equal(at, 3, s.sheetId + ': the slider right under the levels header');
     assert.equal(s.items[at + 1 + CARDS[stem]].type, 'hidden', s.sheetId + ': then the hidden companions');
-    assert.equal(s.items.length, 3 + 7 + CARDS[stem], s.sheetId + ': the seven group items and the cards close it');
+    assert.equal(s.items[at + 2 + CARDS[stem]].type, 'hidden');
+    assert.equal(lookAt, at + 3 + CARDS[stem], s.sheetId + ': then the Look, Days and mark');
+    assert.deepEqual(s.items.slice(lookAt + 3).map(it => it.messageKey),
+      ['thresh' + stem + 'WarnLook', 'thresh' + stem + 'WarnColor', 'thresh' + stem + 'DangerColor'],
+      s.sheetId + ': the warn look and its colours close it');
+    assert.equal(s.items[lookAt + 3].joinPrevious, undefined, s.sheetId + ': the warn look starts its own group');
+    assert.equal(s.items.length, 2 + 1 + 1 + CARDS[stem] + 2 + 3 + 3,
+      s.sheetId + ': grid + note, header, slider, the cards, two companions, Look/Days/mark, the look rows');
   });
   assert.equal(itemsByKey().threshPollenWarn[0].hint,
     'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.',
     'Pollen\'s scale note rides its slider in the alert sheet');
 });
 
-test('the rain alert sheet: the unplaced note, the time window and the look — no switch', () => {
+test('the rain alert sheet: the Shows on grid and note, the radar-off box, the look, then the time window — no switch', () => {
   const s = alertSheets().find(x => x.sheetId === 'alertRain');
   assert.ok(s, 'the rain sheet exists');
   assert.equal(s.title, 'Rain alert');
@@ -1737,18 +1761,22 @@ test('the rain alert sheet: the unplaced note, the time window and the look — 
   assert.equal(s.intro, 'Shows the rain icon at the edge of a status bar while it rains at your location'
     + ' or rain is due within the time window. On a color watch the rain icon takes the radar’s rain color,'
     + ' except with a B&W theme. Hidden during the Battery saver hours.');
-  assert.ok(!s.items.some(it => it.messageKey === 'alertRain'), 'no switch: the checklists tick Rain');
-  // The unplaced note (its predicate is pinned by the page tests).
-  assert.equal(s.items[0].type, 'staticText');
-  assert.equal(s.items[0].style, 'info');
-  assert.equal(s.items[0].text, 'No status bar has Rain ticked under Alerts, so the rain icon won’t show.');
-  assert.deepEqual(s.items[1], {
+  assert.ok(!s.items.some(it => it.messageKey === 'alertRain'), 'no switch: its Shows on grid places Rain');
+  // The grid and its note (rain never merges into a slot), then the box while the radar is
+  // off: under the note, not above the grid (alerts-tab.md §11.6).
+  assert.equal(s.items[0].check, 'rain');
+  assert.equal(s.items[1].text, 'One side per bar. On a crowded bar, the items lower in the Alert settings list'
+    + ' drop first.');
+  assert.deepEqual(s.items[2], { type: 'staticText', style: 'info',
+    text: 'The rain alert needs the rain radar. Turn it on in the Radar tab.', showWhen: { key: 'radarMode', eq: 'off' } });
+  assert.deepEqual(s.items[4], {
     type: 'segmented', messageKey: 'rainCountdownHorizon', label: 'Time window', defaultValue: '60',
     options: [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']],
     hint: 'Rain due further out doesn’t show the icon. Radar forecasts change often, so a shorter window'
       + ' gives fewer false alarms.'
   });
-  assert.deepEqual(s.items[2], {
+  // The owner's order (2026-10-01): the Look before rain's own row.
+  assert.deepEqual(s.items[3], {
     type: 'segmented', messageKey: 'rainAlertDisplay', label: 'Look', defaultValue: 'text',
     options: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']],
     // The icon alone describes itself; the two longer looks say what they print and
@@ -1764,7 +1792,7 @@ test('the rain alert sheet: the unplaced note, the time window and the look — 
         + ' then does it shorten to the minutes, then to the rain icon alone.'
     }
   });
-  assert.equal(s.items.length, 3);
+  assert.equal(s.items.length, 5);
 });
 
 test('alert sheets carry no slot rows (Bold, display mode, arrow, unit)', () => {
@@ -1922,7 +1950,7 @@ test('the UV sheet: the Value selection group, then the highlight group closed b
       key + ' joins the group tight');
   });
   assert.equal(items[6].joinPrevious, undefined, 'the highlight group keeps its divider above');
-  assert.equal(items[7].style, 'info', 'the pointer to the Alert settings card follows the switch');
+  assert.equal(items[7].style, 'info', 'the pointer to the Alerts tab follows the switch');
   assert.equal(disp.disabledWhen, undefined, 'not muted by the highlight toggle or the master Bold row');
   // Tomorrow's peak mark explains its one value that needs it.
   assert.deepEqual(items[5].hintByValue, { none: 'Tomorrow\'s peak then looks just like today\'s.' });
@@ -2266,7 +2294,7 @@ test('resetStatusSlots reverts every bar\'s On demand ticks, and leaves the item
   assert.equal(A.btIcons, 'disconnected');
 });
 
-test('resetOnDemand reverts the items\' settings — not the levels, the colours or the ticks', () => {
+test('resetOnDemand reverts the items\' settings and where each shows — not the levels or the colours', () => {
   const map = itemsByKey();
   const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], ENV);
   const S = { threshUvWarn: '7', threshUvDanger: '9', threshUvOn: true, rainCountdownHorizon: '120',
@@ -2295,7 +2323,10 @@ test('resetOnDemand reverts the items\' settings — not the levels, the colours
   assert.equal(S.threshUvWarn, '7', 'the levels keep their own reset');
   assert.equal(S.threshUvWarnLook, 'outline', 'and so do the warn looks');
   assert.strictEqual(S.threshUvOn, true, 'and the highlight switch');
-  assert.equal(S.statusTopOnDemandRightItems, 'rain', 'the ticks ride the status card\'s reset');
+  assert.equal(S.statusTopOnDemandRightItems, 'battery,gust,uv,aqi,wind', 'where each item shows: the defaults (E2)');
+  assert.equal(S.statusTopOnDemandLeftItems, 'bt,qt,snooze,rain');
+  ['Forecast', 'Radar', 'Health'].forEach((bar) => ['Left', 'Right'].forEach((side) =>
+    assert.equal(S['status' + bar + 'OnDemand' + side + 'Items'], '', bar + side + ': empty again')));
 });
 
 test('the intro reset button resets a live page (slots + bold) on click', () => {

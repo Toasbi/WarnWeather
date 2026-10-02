@@ -13,7 +13,8 @@
 //             what the row should match, rather than a second wind curl)
 //   aqi    -> STATUS_AQI.pdc     (leaf)
 //   pollen -> STATUS_POLLEN.pdc  (four-petal flower on a curved stem)
-// and the Alert settings card's System info rows:
+// and the Alert settings card's System info rows (all ten also draw the Status slots
+// tab's read-only Alerts rows, by on-demand.js ITEMS icon):
 //   battery   -> battery_item.c (a battery body with its nub and a low charge bar;
 //                the watch draws it procedurally, filled by the charge)
 //   bluetooth -> STATUS_BT.pdc      (the Bluetooth rune)

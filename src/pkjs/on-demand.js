@@ -28,18 +28,20 @@
   // The items, in priority order: nearest the side's status slot first, and the last
   // drops first when a bar runs short of room. The index is the watch's OdItem and the
   // cell byte's offset.
-  // `label` is the page's name for the item (the checklist, the summaries, the card).
+  // `label` is the page's name for the item (the Alert settings card, the icons' spoken
+  // names); `icon` its glyph's PConf.icons id on the page (status-slot-icons.js: the Status
+  // slots tab's read-only Alerts rows draw the placed items by it). Both page-only.
   var ITEMS = [
-    {code: 'battery', group: 'system', label: 'Battery'},
-    {code: 'bt', group: 'system', label: 'Bluetooth'},
-    {code: 'qt', group: 'system', label: 'Quiet time'},
-    {code: 'snooze', group: 'system', label: 'Sleep'},
-    {code: 'rain', group: 'weather', label: 'Rain'},
-    {code: 'gust', group: 'weather', label: 'Wind gusts'},
-    {code: 'uv', group: 'weather', label: 'UV index'},
-    {code: 'aqi', group: 'weather', label: 'Air quality'},
-    {code: 'pollen', group: 'weather', label: 'Pollen'},
-    {code: 'wind', group: 'weather', label: 'Wind speed'}
+    {code: 'battery', group: 'system', label: 'Battery', icon: 'battery'},
+    {code: 'bt', group: 'system', label: 'Bluetooth', icon: 'bluetooth'},
+    {code: 'qt', group: 'system', label: 'Quiet time', icon: 'quiet'},
+    {code: 'snooze', group: 'system', label: 'Sleep', icon: 'snooze'},
+    {code: 'rain', group: 'weather', label: 'Rain', icon: 'rain'},
+    {code: 'gust', group: 'weather', label: 'Wind gusts', icon: 'gust'},
+    {code: 'uv', group: 'weather', label: 'UV index', icon: 'uv'},
+    {code: 'aqi', group: 'weather', label: 'Air quality', icon: 'aqi'},
+    {code: 'pollen', group: 'weather', label: 'Pollen', icon: 'pollen'},
+    {code: 'wind', group: 'weather', label: 'Wind speed', icon: 'wind'}
   ];
 
   // The status bars, in the watch's ThreshBar order (the 2-bit cell order in a cell byte).
@@ -272,8 +274,9 @@
 
   /**
    * Take items off one side's list, which is written back in the canonical order. THE
-   * write that unticks: the page's one-side-per-bar hook, its open-time heal and
-   * untickEverywhere all go through it. Mutates S; a list that held none of them is left
+   * write that unticks: the page's one-side-per-bar hook (the side lists' onChange, which
+   * every Shows on grid's tick runs), its open-time heal and untickEverywhere all go
+   * through it. Mutates S; a list that held none of them is left
    * as stored.
    * @param {Object} S Settings blob.
    * @param {string} key A side's items key (itemsKey).

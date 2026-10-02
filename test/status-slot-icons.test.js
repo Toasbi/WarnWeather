@@ -9,7 +9,8 @@ require('../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
 const ICONS = require('../src/pkjs/settings/status-slot-icons.js');
 
-// The six weather glyphs and the Alert settings card's four System info glyphs.
+// The six weather glyphs and the Alert settings card's four System info glyphs (also the
+// Status slots tab's read-only Alerts rows, by on-demand.js ITEMS icon).
 const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze'];
 
 test('every glyph is a 24x24 svg drawn in currentColor', () => {
@@ -45,4 +46,16 @@ test('requiring the module with the engine loaded registers every glyph', () => 
     { value: false });
   assert.ok(row.indexOf('<div class="lbl"><span class="lbl-ico" aria-hidden="true">' + ICONS.uv) !== -1,
     'a row naming the id prints the glyph before its label');
+});
+
+test('every Alerts item names a registered glyph (an unknown id would print nothing, silently)', () => {
+  // The read-only Alerts rows draw each placed item by on-demand.js ITEMS icon. bt and qt
+  // have no glyph of their own name, so the ids are not the codes.
+  const OD = require('../src/pkjs/on-demand.js');
+  OD.ITEMS.forEach((item) => {
+    assert.ok(IDS.indexOf(item.icon) !== -1, item.code + ': ' + item.icon + ' is one of the glyphs');
+    assert.equal(global.PConf.icons.get(item.icon), ICONS[item.icon], item.code + ': registered');
+  });
+  assert.deepEqual(OD.ITEMS.map((i) => i.icon), ['battery', 'bluetooth', 'quiet', 'snooze', 'rain', 'gust', 'uv',
+    'aqi', 'pollen', 'wind']);
 });

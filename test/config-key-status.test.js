@@ -265,7 +265,7 @@ test('page: a missing key — "Add key" as the plain grey button, the amber note
   assert.match(body, /<button type="button" class="thr-btn" data-edit-sheet="providerKeyOwm"[^>]*><span>Add key<\/span>/);
   assert.match(body, /<div class="static join info"><div class="info-box">Needs an API key\. Without one, the watch gets no forecast\.<\/div><\/div>/);
   assert.match(tabButton(page, 'general'), /aria-label="General \(OpenWeatherMap has no API key\)">General<span class="tab-dot" aria-hidden="true"><\/span>/);
-  ['weather', 'forecast', 'radar', 'watch', 'layout', 'more'].forEach((id) =>
+  ['weather', 'forecast', 'radar', 'alerts', 'watch', 'layout', 'more'].forEach((id) =>
     assert.doesNotMatch(tabButton(page, id), /tab-dot/, id));
 });
 

@@ -18,13 +18,14 @@ const UNIT_LABEL = { kph: 'kph', mph: 'mph', kn: 'kn', us: '', eu: '', '': '' };
 
 /**
  * @param {string} stem Alert kind key stem.
- * @returns {Object[]} The staticText cards of the kind's alert sheet.
+ * @returns {Object[]} The info-box cards of the kind's alert sheet (not the plain note
+ *     under its Shows on grid).
  */
 function cardsOf(stem) {
   const sheet = schema.tabs.reduce((acc, t) => acc.concat(t.sections), [])
     .find((s) => s.sheetId === 'alert' + stem);
   assert.ok(sheet, 'alert' + stem + ' exists');
-  return sheet.items.filter((it) => it.type === 'staticText');
+  return sheet.items.filter((it) => it.type === 'staticText' && it.style === 'info');
 }
 
 /**

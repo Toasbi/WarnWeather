@@ -91,494 +91,6 @@
             ]
           },
           {
-            "id": "onDemand",
-            "title": "Alert settings",
-            "showWhen": {
-              "env": "onDemand"
-            },
-            "intro": "An alert shows at the edge of a status bar only when it reaches its warn level or is active right now, and stays hidden the rest of the time, so the watch face only shows what matters. For example: the battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn level. Tick them under Alerts on each status bar (Status slots tab), left or right. <button type=\"button\" class=\"txt-link\" data-action=\"resetOnDemand\">Reset alert settings to defaults</button>",
-            "items": [
-              {
-                "type": "staticText",
-                "style": "info",
-                "text": "Your Default view has no Watch Status Bar, so Alerts won’t show there. Tick them under Alerts on one of its other status bars.",
-                "showWhen": {
-                  "any": [
-                    {
-                      "all": [
-                        {
-                          "key": "layoutPreset",
-                          "eq": "weatherOnly"
-                        },
-                        {
-                          "key": "radarMode",
-                          "ne": "countdown"
-                        },
-                        {
-                          "not": {
-                            "any": [
-                              {
-                                "any": [
-                                  {
-                                    "key": "statusForecastOnDemandLeftItems",
-                                    "ne": ""
-                                  },
-                                  {
-                                    "key": "statusForecastOnDemandRightItems",
-                                    "ne": ""
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "radarMode",
-                                    "eq": "status"
-                                  },
-                                  {
-                                    "any": [
-                                      {
-                                        "key": "statusRadarOnDemandLeftItems",
-                                        "ne": ""
-                                      },
-                                      {
-                                        "key": "statusRadarOnDemandRightItems",
-                                        "ne": ""
-                                      }
-                                    ]
-                                  }
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "all": [
-                        {
-                          "key": "layoutPreset",
-                          "eq": "custom"
-                        },
-                        {
-                          "key": "viewStripOff0"
-                        },
-                        {
-                          "not": {
-                            "any": [
-                              {
-                                "any": [
-                                  {
-                                    "all": [
-                                      {
-                                        "key": "viewUpper0",
-                                        "eq": "weather"
-                                      },
-                                      {
-                                        "any": [
-                                          {
-                                            "key": "statusForecastOnDemandLeftItems",
-                                            "ne": ""
-                                          },
-                                          {
-                                            "key": "statusForecastOnDemandRightItems",
-                                            "ne": ""
-                                          }
-                                        ]
-                                      }
-                                    ]
-                                  },
-                                  {
-                                    "all": [
-                                      {
-                                        "key": "viewUpper0",
-                                        "eq": "radar"
-                                      },
-                                      {
-                                        "key": "radarMode",
-                                        "in": [
-                                          "status",
-                                          "graph"
-                                        ]
-                                      },
-                                      {
-                                        "any": [
-                                          {
-                                            "key": "statusRadarOnDemandLeftItems",
-                                            "ne": ""
-                                          },
-                                          {
-                                            "key": "statusRadarOnDemandRightItems",
-                                            "ne": ""
-                                          }
-                                        ]
-                                      }
-                                    ]
-                                  },
-                                  {
-                                    "all": [
-                                      {
-                                        "key": "viewUpper0",
-                                        "eq": "health"
-                                      },
-                                      {
-                                        "key": "healthMode",
-                                        "in": [
-                                          "status",
-                                          "all"
-                                        ]
-                                      },
-                                      {
-                                        "any": [
-                                          {
-                                            "key": "statusHealthOnDemandLeftItems",
-                                            "ne": ""
-                                          },
-                                          {
-                                            "key": "statusHealthOnDemandRightItems",
-                                            "ne": ""
-                                          }
-                                        ]
-                                      }
-                                    ]
-                                  }
-                                ]
-                              },
-                              {
-                                "any": [
-                                  {
-                                    "all": [
-                                      {
-                                        "key": "viewLower0",
-                                        "eq": "weather"
-                                      },
-                                      {
-                                        "any": [
-                                          {
-                                            "key": "statusForecastOnDemandLeftItems",
-                                            "ne": ""
-                                          },
-                                          {
-                                            "key": "statusForecastOnDemandRightItems",
-                                            "ne": ""
-                                          }
-                                        ]
-                                      }
-                                    ]
-                                  },
-                                  {
-                                    "all": [
-                                      {
-                                        "key": "viewLower0",
-                                        "eq": "radar"
-                                      },
-                                      {
-                                        "key": "radarMode",
-                                        "in": [
-                                          "status",
-                                          "graph"
-                                        ]
-                                      },
-                                      {
-                                        "any": [
-                                          {
-                                            "key": "statusRadarOnDemandLeftItems",
-                                            "ne": ""
-                                          },
-                                          {
-                                            "key": "statusRadarOnDemandRightItems",
-                                            "ne": ""
-                                          }
-                                        ]
-                                      }
-                                    ]
-                                  },
-                                  {
-                                    "all": [
-                                      {
-                                        "key": "viewLower0",
-                                        "eq": "health"
-                                      },
-                                      {
-                                        "key": "healthMode",
-                                        "in": [
-                                          "status",
-                                          "all"
-                                        ]
-                                      },
-                                      {
-                                        "any": [
-                                          {
-                                            "key": "statusHealthOnDemandLeftItems",
-                                            "ne": ""
-                                          },
-                                          {
-                                            "key": "statusHealthOnDemandRightItems",
-                                            "ne": ""
-                                          }
-                                        ]
-                                      }
-                                    ]
-                                  }
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "subheader",
-                "text": "System info"
-              },
-              {
-                "type": "sheet",
-                "sheetId": "odBattery",
-                "label": "Battery",
-                "icon": "battery",
-                "hintFrom": {
-                  "resolver": "onDemandBatteryText"
-                },
-                "editBadgeFrom": {
-                  "resolver": "onDemandBadge"
-                }
-              },
-              {
-                "type": "sheet",
-                "sheetId": "odBluetooth",
-                "label": "Bluetooth",
-                "icon": "bluetooth",
-                "hintFrom": {
-                  "resolver": "onDemandBluetoothText"
-                },
-                "editBadgeFrom": {
-                  "resolver": "onDemandBadge"
-                },
-                "joinPrevious": true
-              },
-              {
-                "type": "readout",
-                "label": "Quiet time",
-                "icon": "quiet",
-                "hintFrom": {
-                  "resolver": "onDemandPlainText",
-                  "args": {
-                    "code": "qt",
-                    "text": "While Quiet Time is on"
-                  }
-                },
-                "joinPrevious": true
-              },
-              {
-                "type": "readout",
-                "label": "Sleep",
-                "icon": "snooze",
-                "hintFrom": {
-                  "resolver": "onDemandSleepText"
-                },
-                "joinPrevious": true
-              },
-              {
-                "type": "subheader",
-                "text": "Weather alerts"
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertRain",
-                "label": "Rain",
-                "icon": "rain",
-                "hintFrom": {
-                  "resolver": "rainAlertHint",
-                  "args": {
-                    "windows": [
-                      [
-                        "Within 30 min",
-                        "30"
-                      ],
-                      [
-                        "Within 60 min",
-                        "60"
-                      ],
-                      [
-                        "Within 2 hours",
-                        "120"
-                      ]
-                    ],
-                    "looks": [
-                      [
-                        "Icon",
-                        "icon"
-                      ],
-                      [
-                        "Icon + minutes",
-                        "minutes"
-                      ],
-                      [
-                        "Text",
-                        "text"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "rainAlertBadge"
-                }
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertGust",
-                "label": "Wind gusts",
-                "icon": "gust",
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Gust",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Gust"
-                  }
-                },
-                "joinPrevious": true
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertUv",
-                "label": "UV index",
-                "icon": "uv",
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Uv",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Uv"
-                  }
-                },
-                "joinPrevious": true
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertAqi",
-                "label": "Air quality",
-                "icon": "aqi",
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Aqi",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Aqi"
-                  }
-                },
-                "joinPrevious": true
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertPollen",
-                "label": "Pollen",
-                "icon": "pollen",
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Pollen",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Pollen"
-                  }
-                },
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "provider",
-                  "eq": "dwd"
-                }
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertWind",
-                "label": "Wind speed",
-                "icon": "wind",
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Wind",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Wind"
-                  }
-                },
-                "joinPrevious": true
-              }
-            ]
-          },
-          {
             "items": [
               {
                 "type": "select",
@@ -6341,7 +5853,7 @@
                 "defaultValue": "graph",
                 "hintByValue": {
                   "off": "Radar is hidden.",
-                  "countdown": "Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on a status bar where Rain is ticked under Alerts.",
+                  "countdown": "Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on the status bars picked for Rain in the Alerts tab.",
                   "status": "Adds the Radar Status Bar.",
                   "graph": "Adds the Radar Status Bar and the full radar rain graph."
                 },
@@ -6368,7 +5880,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "‘Rain alert only’ fetches the radar for the rain icon, but no status bar has Rain ticked under Alerts.",
+                "text": "‘Rain alert only’ fetches the radar for the rain icon, but Rain shows on no status bar (<button type=\"button\" class=\"txt-link\" data-goto-tab=\"alerts\">Alerts tab</button> → Rain).",
                 "showWhen": {
                   "all": [
                     {
@@ -7076,6 +6588,511 @@
         ]
       },
       {
+        "id": "alerts",
+        "label": "Alerts",
+        "showWhen": {
+          "env": "onDemand"
+        },
+        "sections": [
+          {
+            "id": "onDemand",
+            "title": "Alert settings",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "intro": "An alert shows at the edge of a status bar only when it reaches its warn level or is active right now, and stays hidden the rest of the time, so the watch face only shows what matters. For example: the battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn level. Open an alert to choose which status bars show it, left or right. <button type=\"button\" class=\"txt-link\" data-action=\"resetOnDemand\">Reset alert settings to defaults</button>",
+            "items": [
+              {
+                "type": "staticText",
+                "style": "info",
+                "text": "Your Default view has no Watch Status Bar, so Alerts won’t show there. Open an alert and, under Shows on, pick another status bar that view shows.",
+                "showWhen": {
+                  "any": [
+                    {
+                      "all": [
+                        {
+                          "key": "layoutPreset",
+                          "eq": "weatherOnly"
+                        },
+                        {
+                          "key": "radarMode",
+                          "ne": "countdown"
+                        },
+                        {
+                          "not": {
+                            "any": [
+                              {
+                                "any": [
+                                  {
+                                    "key": "statusForecastOnDemandLeftItems",
+                                    "ne": ""
+                                  },
+                                  {
+                                    "key": "statusForecastOnDemandRightItems",
+                                    "ne": ""
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "radarMode",
+                                    "eq": "status"
+                                  },
+                                  {
+                                    "any": [
+                                      {
+                                        "key": "statusRadarOnDemandLeftItems",
+                                        "ne": ""
+                                      },
+                                      {
+                                        "key": "statusRadarOnDemandRightItems",
+                                        "ne": ""
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "all": [
+                        {
+                          "key": "layoutPreset",
+                          "eq": "custom"
+                        },
+                        {
+                          "key": "viewStripOff0"
+                        },
+                        {
+                          "not": {
+                            "any": [
+                              {
+                                "any": [
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewUpper0",
+                                        "eq": "weather"
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "key": "statusForecastOnDemandLeftItems",
+                                            "ne": ""
+                                          },
+                                          {
+                                            "key": "statusForecastOnDemandRightItems",
+                                            "ne": ""
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewUpper0",
+                                        "eq": "radar"
+                                      },
+                                      {
+                                        "key": "radarMode",
+                                        "in": [
+                                          "status",
+                                          "graph"
+                                        ]
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "key": "statusRadarOnDemandLeftItems",
+                                            "ne": ""
+                                          },
+                                          {
+                                            "key": "statusRadarOnDemandRightItems",
+                                            "ne": ""
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewUpper0",
+                                        "eq": "health"
+                                      },
+                                      {
+                                        "key": "healthMode",
+                                        "in": [
+                                          "status",
+                                          "all"
+                                        ]
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "key": "statusHealthOnDemandLeftItems",
+                                            "ne": ""
+                                          },
+                                          {
+                                            "key": "statusHealthOnDemandRightItems",
+                                            "ne": ""
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "any": [
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewLower0",
+                                        "eq": "weather"
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "key": "statusForecastOnDemandLeftItems",
+                                            "ne": ""
+                                          },
+                                          {
+                                            "key": "statusForecastOnDemandRightItems",
+                                            "ne": ""
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewLower0",
+                                        "eq": "radar"
+                                      },
+                                      {
+                                        "key": "radarMode",
+                                        "in": [
+                                          "status",
+                                          "graph"
+                                        ]
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "key": "statusRadarOnDemandLeftItems",
+                                            "ne": ""
+                                          },
+                                          {
+                                            "key": "statusRadarOnDemandRightItems",
+                                            "ne": ""
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewLower0",
+                                        "eq": "health"
+                                      },
+                                      {
+                                        "key": "healthMode",
+                                        "in": [
+                                          "status",
+                                          "all"
+                                        ]
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "key": "statusHealthOnDemandLeftItems",
+                                            "ne": ""
+                                          },
+                                          {
+                                            "key": "statusHealthOnDemandRightItems",
+                                            "ne": ""
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "subheader",
+                "text": "System info"
+              },
+              {
+                "type": "sheet",
+                "sheetId": "odBattery",
+                "label": "Battery",
+                "icon": "battery",
+                "hintFrom": {
+                  "resolver": "onDemandBatteryText"
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
+                }
+              },
+              {
+                "type": "sheet",
+                "sheetId": "odBluetooth",
+                "label": "Bluetooth",
+                "icon": "bluetooth",
+                "hintFrom": {
+                  "resolver": "onDemandBluetoothText"
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "sheet",
+                "sheetId": "odQuiet",
+                "label": "Quiet time",
+                "icon": "quiet",
+                "hintFrom": {
+                  "resolver": "onDemandPlainText",
+                  "args": {
+                    "code": "qt",
+                    "text": "While Quiet Time is on"
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "sheet",
+                "sheetId": "odSleep",
+                "label": "Sleep",
+                "icon": "snooze",
+                "hintFrom": {
+                  "resolver": "onDemandSleepText"
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "subheader",
+                "text": "Weather alerts"
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertRain",
+                "label": "Rain",
+                "icon": "rain",
+                "hintFrom": {
+                  "resolver": "rainAlertHint",
+                  "args": {
+                    "windows": [
+                      [
+                        "Within 30 min",
+                        "30"
+                      ],
+                      [
+                        "Within 60 min",
+                        "60"
+                      ],
+                      [
+                        "Within 2 hours",
+                        "120"
+                      ]
+                    ],
+                    "looks": [
+                      [
+                        "Icon",
+                        "icon"
+                      ],
+                      [
+                        "Icon + minutes",
+                        "minutes"
+                      ],
+                      [
+                        "Text",
+                        "text"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "rainAlertBadge"
+                }
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertGust",
+                "label": "Wind gusts",
+                "icon": "gust",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Gust",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Gust"
+                  }
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertUv",
+                "label": "UV index",
+                "icon": "uv",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Uv",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Uv"
+                  }
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertAqi",
+                "label": "Air quality",
+                "icon": "aqi",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Aqi",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Aqi"
+                  }
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertPollen",
+                "label": "Pollen",
+                "icon": "pollen",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Pollen",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Pollen"
+                  }
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "provider",
+                  "eq": "dwd"
+                }
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertWind",
+                "label": "Wind speed",
+                "icon": "wind",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Wind",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Wind"
+                  }
+                },
+                "joinPrevious": true
+              }
+            ]
+          }
+        ]
+      },
+      {
         "id": "watch",
         "label": "Status slots",
         "sections": [
@@ -7229,17 +7246,14 @@
                 }
               },
               {
-                "type": "sheet",
-                "sheetId": "odTop",
+                "type": "readout",
                 "label": "Alerts",
                 "hintFrom": {
-                  "resolver": "onDemandSummary",
+                  "resolver": "onDemandBarIcons",
                   "args": {
-                    "bar": "top"
+                    "bar": "top",
+                    "where": "Set up in the <button type=\"button\" class=\"txt-link\" data-goto-tab=\"alerts\">Alerts tab</button>."
                   }
-                },
-                "editBadgeFrom": {
-                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -7434,17 +7448,14 @@
                 }
               },
               {
-                "type": "sheet",
-                "sheetId": "odForecast",
+                "type": "readout",
                 "label": "Alerts",
                 "hintFrom": {
-                  "resolver": "onDemandSummary",
+                  "resolver": "onDemandBarIcons",
                   "args": {
-                    "bar": "forecast"
+                    "bar": "forecast",
+                    "where": "Set up in the <button type=\"button\" class=\"txt-link\" data-goto-tab=\"alerts\">Alerts tab</button>."
                   }
-                },
-                "editBadgeFrom": {
-                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -7671,17 +7682,14 @@
                 }
               },
               {
-                "type": "sheet",
-                "sheetId": "odHealth",
+                "type": "readout",
                 "label": "Alerts",
                 "hintFrom": {
-                  "resolver": "onDemandSummary",
+                  "resolver": "onDemandBarIcons",
                   "args": {
-                    "bar": "health"
+                    "bar": "health",
+                    "where": "Set up in the <button type=\"button\" class=\"txt-link\" data-goto-tab=\"alerts\">Alerts tab</button>."
                   }
-                },
-                "editBadgeFrom": {
-                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -7926,17 +7934,14 @@
                 }
               },
               {
-                "type": "sheet",
-                "sheetId": "odRadar",
+                "type": "readout",
                 "label": "Alerts",
                 "hintFrom": {
-                  "resolver": "onDemandSummary",
+                  "resolver": "onDemandBarIcons",
                   "args": {
-                    "bar": "radar"
+                    "bar": "radar",
+                    "where": "Set up in the <button type=\"button\" class=\"txt-link\" data-goto-tab=\"alerts\">Alerts tab</button>."
                   }
-                },
-                "editBadgeFrom": {
-                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -8161,7 +8166,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set in General → Alert settings, under Weather alerts.",
+                "text": "Alert levels and colors are set in the <button type=\"button\" class=\"txt-link\" data-goto-tab=\"alerts\">Alerts tab</button>, under Weather alerts.",
                 "joinPrevious": true
               },
               {
@@ -8344,7 +8349,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set in General → Alert settings, under Weather alerts.",
+                "text": "Alert levels and colors are set in the <button type=\"button\" class=\"txt-link\" data-goto-tab=\"alerts\">Alerts tab</button>, under Weather alerts.",
                 "joinPrevious": true
               },
               {
@@ -8701,7 +8706,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set in General → Alert settings, under Weather alerts.",
+                "text": "Alert levels and colors are set in the <button type=\"button\" class=\"txt-link\" data-goto-tab=\"alerts\">Alerts tab</button>, under Weather alerts.",
                 "joinPrevious": true
               },
               {
@@ -9058,7 +9063,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set in General → Alert settings, under Weather alerts.",
+                "text": "Alert levels and colors are set in the <button type=\"button\" class=\"txt-link\" data-goto-tab=\"alerts\">Alerts tab</button>, under Weather alerts.",
                 "joinPrevious": true
               },
               {
@@ -9401,7 +9406,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set in General → Alert settings, under Weather alerts.",
+                "text": "Alert levels and colors are set in the <button type=\"button\" class=\"txt-link\" data-goto-tab=\"alerts\">Alerts tab</button>, under Weather alerts.",
                 "joinPrevious": true
               },
               {
@@ -11042,28 +11047,15 @@
           },
           {
             "sheetOnly": true,
-            "sheetId": "odTop",
+            "sheetId": "odLists",
             "showWhen": {
               "env": "onDemand"
             },
-            "title": "Alerts",
-            "intro": "<b>Watch Status Bar</b><br>Ticked items show at this bar’s left or right edge only when they reach their warn level or are active right now, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
             "items": [
               {
-                "type": "checklist",
+                "type": "hidden",
                 "messageKey": "statusTopOnDemandLeftItems",
-                "label": "Alerts",
                 "defaultValue": "bt,qt,snooze,rain",
-                "columns": [
-                  {
-                    "messageKey": "statusTopOnDemandLeftItems",
-                    "label": "Left"
-                  },
-                  {
-                    "messageKey": "statusTopOnDemandRightItems",
-                    "label": "Right"
-                  }
-                ],
                 "optionsFrom": {
                   "resolver": "onDemandItems"
                 },
@@ -11072,34 +11064,16 @@
               {
                 "type": "hidden",
                 "messageKey": "statusTopOnDemandRightItems",
-                "defaultValue": "battery,gust,uv,aqi,wind"
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
-            "sheetId": "odForecast",
-            "showWhen": {
-              "env": "onDemand"
-            },
-            "title": "Alerts",
-            "intro": "<b>Forecast Status Bar</b><br>Ticked items show at this bar’s left or right edge only when they reach their warn level or are active right now, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
-            "items": [
+                "defaultValue": "battery,gust,uv,aqi,wind",
+                "optionsFrom": {
+                  "resolver": "onDemandItems"
+                },
+                "onChange": "onDemandExclusive"
+              },
               {
-                "type": "checklist",
+                "type": "hidden",
                 "messageKey": "statusForecastOnDemandLeftItems",
-                "label": "Alerts",
                 "defaultValue": "",
-                "columns": [
-                  {
-                    "messageKey": "statusForecastOnDemandLeftItems",
-                    "label": "Left"
-                  },
-                  {
-                    "messageKey": "statusForecastOnDemandRightItems",
-                    "label": "Right"
-                  }
-                ],
                 "optionsFrom": {
                   "resolver": "onDemandItems"
                 },
@@ -11108,52 +11082,16 @@
               {
                 "type": "hidden",
                 "messageKey": "statusForecastOnDemandRightItems",
-                "defaultValue": ""
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
-            "sheetId": "odRadar",
-            "showWhen": {
-              "all": [
-                {
-                  "env": "onDemand"
-                },
-                {
-                  "all": [
-                    {
-                      "env": "radar"
-                    },
-                    {
-                      "key": "radarMode",
-                      "in": [
-                        "status",
-                        "graph"
-                      ]
-                    }
-                  ]
-                }
-              ]
-            },
-            "title": "Alerts",
-            "intro": "<b>Radar Status Bar</b><br>Ticked items show at this bar’s left or right edge only when they reach their warn level or are active right now, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
-            "items": [
-              {
-                "type": "checklist",
-                "messageKey": "statusRadarOnDemandLeftItems",
-                "label": "Alerts",
                 "defaultValue": "",
-                "columns": [
-                  {
-                    "messageKey": "statusRadarOnDemandLeftItems",
-                    "label": "Left"
-                  },
-                  {
-                    "messageKey": "statusRadarOnDemandRightItems",
-                    "label": "Right"
-                  }
-                ],
+                "optionsFrom": {
+                  "resolver": "onDemandItems"
+                },
+                "onChange": "onDemandExclusive"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusRadarOnDemandLeftItems",
+                "defaultValue": "",
                 "optionsFrom": {
                   "resolver": "onDemandItems"
                 },
@@ -11162,52 +11100,16 @@
               {
                 "type": "hidden",
                 "messageKey": "statusRadarOnDemandRightItems",
-                "defaultValue": ""
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
-            "sheetId": "odHealth",
-            "showWhen": {
-              "all": [
-                {
-                  "env": "onDemand"
-                },
-                {
-                  "all": [
-                    {
-                      "env": "health"
-                    },
-                    {
-                      "key": "healthMode",
-                      "in": [
-                        "status",
-                        "all"
-                      ]
-                    }
-                  ]
-                }
-              ]
-            },
-            "title": "Alerts",
-            "intro": "<b>Health Status Bar</b><br>Ticked items show at this bar’s left or right edge only when they reach their warn level or are active right now, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
-            "items": [
-              {
-                "type": "checklist",
-                "messageKey": "statusHealthOnDemandLeftItems",
-                "label": "Alerts",
                 "defaultValue": "",
-                "columns": [
-                  {
-                    "messageKey": "statusHealthOnDemandLeftItems",
-                    "label": "Left"
-                  },
-                  {
-                    "messageKey": "statusHealthOnDemandRightItems",
-                    "label": "Right"
-                  }
-                ],
+                "optionsFrom": {
+                  "resolver": "onDemandItems"
+                },
+                "onChange": "onDemandExclusive"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusHealthOnDemandLeftItems",
+                "defaultValue": "",
                 "optionsFrom": {
                   "resolver": "onDemandItems"
                 },
@@ -11216,7 +11118,11 @@
               {
                 "type": "hidden",
                 "messageKey": "statusHealthOnDemandRightItems",
-                "defaultValue": ""
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "onDemandItems"
+                },
+                "onChange": "onDemandExclusive"
               }
             ]
           },
@@ -11229,6 +11135,42 @@
             "title": "Battery",
             "intro": "Shows the battery icon at the edge of a status bar while the watch battery is at or below the warn level. A bar that already shows the battery in a slot (Watch battery or Watch battery percentage) leaves the icon out, and draws it only when that slot is hidden to make room.",
             "items": [
+              {
+                "type": "checklist",
+                "label": "Shows on",
+                "check": "battery",
+                "columns": [
+                  {
+                    "label": "Left"
+                  },
+                  {
+                    "label": "Right"
+                  }
+                ],
+                "optionsFrom": {
+                  "resolver": "onDemandBars",
+                  "args": {
+                    "code": "battery",
+                    "bars": [
+                      "top",
+                      "forecast",
+                      "health",
+                      "radar"
+                    ],
+                    "names": {
+                      "top": "Watch Status Bar",
+                      "forecast": "Forecast Status Bar",
+                      "radar": "Radar Status Bar",
+                      "health": "Health Status Bar"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "joinPrevious": true,
+                "text": "One side per bar. On a crowded bar, the items lower in the Alert settings list drop first."
+              },
               {
                 "type": "range",
                 "single": true,
@@ -11292,6 +11234,42 @@
             "intro": "Shows the Bluetooth icon at the edge of a status bar.",
             "items": [
               {
+                "type": "checklist",
+                "label": "Shows on",
+                "check": "bt",
+                "columns": [
+                  {
+                    "label": "Left"
+                  },
+                  {
+                    "label": "Right"
+                  }
+                ],
+                "optionsFrom": {
+                  "resolver": "onDemandBars",
+                  "args": {
+                    "code": "bt",
+                    "bars": [
+                      "top",
+                      "forecast",
+                      "health",
+                      "radar"
+                    ],
+                    "names": {
+                      "top": "Watch Status Bar",
+                      "forecast": "Forecast Status Bar",
+                      "radar": "Radar Status Bar",
+                      "health": "Health Status Bar"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "joinPrevious": true,
+                "text": "One side per bar. On a crowded bar, the items lower in the Alert settings list drop first."
+              },
+              {
                 "type": "select",
                 "messageKey": "btIcons",
                 "label": "Show",
@@ -11336,6 +11314,100 @@
           },
           {
             "sheetOnly": true,
+            "sheetId": "odQuiet",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "Quiet time",
+            "intro": "Shows the quiet time icon at the edge of a status bar while Quiet Time is on.",
+            "items": [
+              {
+                "type": "checklist",
+                "label": "Shows on",
+                "check": "qt",
+                "columns": [
+                  {
+                    "label": "Left"
+                  },
+                  {
+                    "label": "Right"
+                  }
+                ],
+                "optionsFrom": {
+                  "resolver": "onDemandBars",
+                  "args": {
+                    "code": "qt",
+                    "bars": [
+                      "top",
+                      "forecast",
+                      "health",
+                      "radar"
+                    ],
+                    "names": {
+                      "top": "Watch Status Bar",
+                      "forecast": "Forecast Status Bar",
+                      "radar": "Radar Status Bar",
+                      "health": "Health Status Bar"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "joinPrevious": true,
+                "text": "One side per bar. On a crowded bar, the items lower in the Alert settings list drop first."
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "odSleep",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "Sleep",
+            "intro": "Shows the sleep icon at the edge of a status bar during the Battery saver hours (General tab).",
+            "items": [
+              {
+                "type": "checklist",
+                "label": "Shows on",
+                "check": "snooze",
+                "columns": [
+                  {
+                    "label": "Left"
+                  },
+                  {
+                    "label": "Right"
+                  }
+                ],
+                "optionsFrom": {
+                  "resolver": "onDemandBars",
+                  "args": {
+                    "code": "snooze",
+                    "bars": [
+                      "top",
+                      "forecast",
+                      "health",
+                      "radar"
+                    ],
+                    "names": {
+                      "top": "Watch Status Bar",
+                      "forecast": "Forecast Status Bar",
+                      "radar": "Radar Status Bar",
+                      "health": "Health Status Bar"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "joinPrevious": true,
+                "text": "One side per bar. On a crowded bar, the items lower in the Alert settings list drop first."
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
             "sheetId": "alertRain",
             "showWhen": {
               "env": "onDemand"
@@ -11344,158 +11416,49 @@
             "intro": "Shows the rain icon at the edge of a status bar while it rains at your location or rain is due within the time window. On a color watch the rain icon takes the radar’s rain color, except with a B&W theme. Hidden during the Battery saver hours.",
             "items": [
               {
-                "type": "staticText",
-                "style": "info",
-                "text": "No status bar has Rain ticked under Alerts, so the rain icon won’t show.",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarMode",
-                      "ne": "off"
-                    },
-                    {
-                      "env": "onDemand"
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "env": "onDemand"
-                          },
-                          {
-                            "any": [
-                              {
-                                "key": "statusTopOnDemandLeftItems",
-                                "has": "rain"
-                              },
-                              {
-                                "key": "statusTopOnDemandRightItems",
-                                "has": "rain"
-                              },
-                              {
-                                "key": "statusForecastOnDemandLeftItems",
-                                "has": "rain"
-                              },
-                              {
-                                "key": "statusForecastOnDemandRightItems",
-                                "has": "rain"
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "statusRadarOnDemandLeftItems",
-                                    "has": "rain"
-                                  },
-                                  {
-                                    "all": [
-                                      {
-                                        "env": "radar"
-                                      },
-                                      {
-                                        "key": "radarMode",
-                                        "in": [
-                                          "status",
-                                          "graph"
-                                        ]
-                                      }
-                                    ]
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "statusRadarOnDemandRightItems",
-                                    "has": "rain"
-                                  },
-                                  {
-                                    "all": [
-                                      {
-                                        "env": "radar"
-                                      },
-                                      {
-                                        "key": "radarMode",
-                                        "in": [
-                                          "status",
-                                          "graph"
-                                        ]
-                                      }
-                                    ]
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "statusHealthOnDemandLeftItems",
-                                    "has": "rain"
-                                  },
-                                  {
-                                    "all": [
-                                      {
-                                        "env": "health"
-                                      },
-                                      {
-                                        "key": "healthMode",
-                                        "in": [
-                                          "status",
-                                          "all"
-                                        ]
-                                      }
-                                    ]
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "statusHealthOnDemandRightItems",
-                                    "has": "rain"
-                                  },
-                                  {
-                                    "all": [
-                                      {
-                                        "env": "health"
-                                      },
-                                      {
-                                        "key": "healthMode",
-                                        "in": [
-                                          "status",
-                                          "all"
-                                        ]
-                                      }
-                                    ]
-                                  }
-                                ]
-                              }
-                            ]
-                          }
-                        ]
-                      }
+                "type": "checklist",
+                "label": "Shows on",
+                "check": "rain",
+                "columns": [
+                  {
+                    "label": "Left"
+                  },
+                  {
+                    "label": "Right"
+                  }
+                ],
+                "optionsFrom": {
+                  "resolver": "onDemandBars",
+                  "args": {
+                    "code": "rain",
+                    "bars": [
+                      "top",
+                      "forecast",
+                      "health",
+                      "radar"
+                    ],
+                    "names": {
+                      "top": "Watch Status Bar",
+                      "forecast": "Forecast Status Bar",
+                      "radar": "Radar Status Bar",
+                      "health": "Health Status Bar"
                     }
-                  ]
+                  }
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "rainCountdownHorizon",
-                "label": "Time window",
-                "defaultValue": "60",
-                "options": [
-                  [
-                    "30 min",
-                    "30"
-                  ],
-                  [
-                    "60 min",
-                    "60"
-                  ],
-                  [
-                    "2 hours",
-                    "120"
-                  ]
-                ],
-                "hint": "Rain due further out doesn’t show the icon. Radar forecasts change often, so a shorter window gives fewer false alarms."
+                "type": "staticText",
+                "joinPrevious": true,
+                "text": "One side per bar. On a crowded bar, the items lower in the Alert settings list drop first."
+              },
+              {
+                "type": "staticText",
+                "style": "info",
+                "text": "The rain alert needs the rain radar. Turn it on in the Radar tab.",
+                "showWhen": {
+                  "key": "radarMode",
+                  "eq": "off"
+                }
               },
               {
                 "type": "segmented",
@@ -11520,6 +11483,27 @@
                   "minutes": "The rain icon with the minutes until the rain starts or, while it rains, + the minutes until it stops. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then is it just the icon.",
                   "text": "On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it shorten to the minutes, then to the rain icon alone."
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "rainCountdownHorizon",
+                "label": "Time window",
+                "defaultValue": "60",
+                "options": [
+                  [
+                    "30 min",
+                    "30"
+                  ],
+                  [
+                    "60 min",
+                    "60"
+                  ],
+                  [
+                    "2 hours",
+                    "120"
+                  ]
+                ],
+                "hint": "Rain due further out doesn’t show the icon. Radar forecasts change often, so a shorter window gives fewer false alarms."
               }
             ]
           },
@@ -11533,78 +11517,40 @@
             "intro": "Shows the gust icon at the edge of a status bar when the gust speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
             "items": [
               {
-                "type": "segmented",
-                "messageKey": "alertGustDisplay",
-                "label": "Look",
-                "defaultValue": "icon",
-                "options": [
-                  [
-                    "Icon",
-                    "icon"
-                  ],
-                  [
-                    "Icon + value",
-                    "value"
-                  ]
+                "type": "checklist",
+                "label": "Shows on",
+                "check": "gust",
+                "columns": [
+                  {
+                    "label": "Left"
+                  },
+                  {
+                    "label": "Right"
+                  }
                 ],
-                "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon."
+                "optionsFrom": {
+                  "resolver": "onDemandBars",
+                  "args": {
+                    "code": "gust",
+                    "bars": [
+                      "top",
+                      "forecast",
+                      "health",
+                      "radar"
+                    ],
+                    "names": {
+                      "top": "Watch Status Bar",
+                      "forecast": "Forecast Status Bar",
+                      "radar": "Radar Status Bar",
+                      "health": "Health Status Bar"
+                    }
+                  }
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "alertGustDays",
-                "label": "Days",
-                "defaultValue": "tomorrow",
-                "options": [
-                  [
-                    "Today",
-                    "today"
-                  ],
-                  [
-                    "Today + tomorrow",
-                    "tomorrow"
-                  ]
-                ],
-                "hintByValue": {
-                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
-                }
-              },
-              {
-                "type": "select",
-                "messageKey": "alertGustNextDayMark",
-                "label": "Tomorrow's mark",
-                "defaultValue": "raquo",
-                "options": [
-                  [
-                    "»6",
-                    "raquo"
-                  ],
-                  [
-                    ">6",
-                    "gt"
-                  ],
-                  [
-                    "+6",
-                    "plus"
-                  ],
-                  [
-                    "6*",
-                    "star"
-                  ],
-                  [
-                    "No mark",
-                    "none"
-                  ]
-                ],
-                "hintByValue": {
-                  "none": "An alert for tomorrow then looks just like one for today."
-                },
+                "type": "staticText",
                 "joinPrevious": true,
-                "showWhen": {
-                  "key": "alertGustDays",
-                  "ne": "today"
-                }
+                "text": "One side per bar. On a crowded bar, the items lower in the Alert settings list drop first. Where the status slot on that side shows the gust speed, the alert goes into that slot, with its colors, instead of adding its alert icon."
               },
               {
                 "type": "subheader",
@@ -11682,6 +11628,80 @@
               },
               {
                 "type": "segmented",
+                "messageKey": "alertGustDisplay",
+                "label": "Look",
+                "defaultValue": "icon",
+                "options": [
+                  [
+                    "Icon",
+                    "icon"
+                  ],
+                  [
+                    "Icon + value",
+                    "value"
+                  ]
+                ],
+                "hintByValue": {
+                  "value": "Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon."
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "alertGustDays",
+                "label": "Days",
+                "defaultValue": "tomorrow",
+                "options": [
+                  [
+                    "Today",
+                    "today"
+                  ],
+                  [
+                    "Today + tomorrow",
+                    "tomorrow"
+                  ]
+                ],
+                "hintByValue": {
+                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "alertGustNextDayMark",
+                "label": "Tomorrow's mark",
+                "defaultValue": "raquo",
+                "options": [
+                  [
+                    "»6",
+                    "raquo"
+                  ],
+                  [
+                    ">6",
+                    "gt"
+                  ],
+                  [
+                    "+6",
+                    "plus"
+                  ],
+                  [
+                    "6*",
+                    "star"
+                  ],
+                  [
+                    "No mark",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "none": "An alert for tomorrow then looks just like one for today."
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "alertGustDays",
+                  "ne": "today"
+                }
+              },
+              {
+                "type": "segmented",
                 "messageKey": "threshGustWarnLook",
                 "label": "Warn look",
                 "options": [
@@ -11730,8 +11750,7 @@
                       "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
                     }
                   }
-                },
-                "joinPrevious": true
+                }
               },
               {
                 "type": "color",
@@ -11802,6 +11821,86 @@
             "title": "UV index alert",
             "intro": "Shows the UV icon at the edge of a status bar when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
             "items": [
+              {
+                "type": "checklist",
+                "label": "Shows on",
+                "check": "uv",
+                "columns": [
+                  {
+                    "label": "Left"
+                  },
+                  {
+                    "label": "Right"
+                  }
+                ],
+                "optionsFrom": {
+                  "resolver": "onDemandBars",
+                  "args": {
+                    "code": "uv",
+                    "bars": [
+                      "top",
+                      "forecast",
+                      "health",
+                      "radar"
+                    ],
+                    "names": {
+                      "top": "Watch Status Bar",
+                      "forecast": "Forecast Status Bar",
+                      "radar": "Radar Status Bar",
+                      "health": "Health Status Bar"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "joinPrevious": true,
+                "text": "One side per bar. On a crowded bar, the items lower in the Alert settings list drop first. Where the status slot on that side shows the UV index, the alert goes into that slot, with its colors, instead of adding its alert icon."
+              },
+              {
+                "type": "subheader",
+                "text": "Alert levels",
+                "intro": "Warn and danger levels for this value: reaching warn draws the warn look below, reaching danger fills the alert icon — and the status slot, while its Alert highlighting is on.",
+                "labelAction": {
+                  "action": "resetThresholds",
+                  "arg": "Uv",
+                  "label": "Reset to defaults"
+                }
+              },
+              {
+                "type": "range",
+                "messageKey": "threshUvWarn",
+                "dangerKey": "threshUvDanger",
+                "maxKey": "threshUvMax",
+                "defaultValue": "",
+                "hint": "",
+                "joinPrevious": true,
+                "rangeFrom": {
+                  "resolver": "thresholdRange",
+                  "args": {
+                    "keyStem": "Uv",
+                    "chips": {
+                      "warn": "Warn",
+                      "danger": "Danger"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "style": "info",
+                "text": "By default, warn sits at 6, where the <a target='_blank' href='https://www.who.int/news-room/questions-and-answers/item/radiation-the-ultraviolet-%28uv%29-index'>WHO’s UV index scale</a> starts High, and danger at 8, where Very high starts and the WHO advises staying out of the midday sun. The WHO advises sun protection from UV 3 on."
+              },
+              {
+                "type": "hidden",
+                "messageKey": "threshUvDanger",
+                "defaultValue": ""
+              },
+              {
+                "type": "hidden",
+                "messageKey": "threshUvMax",
+                "defaultValue": ""
+              },
               {
                 "type": "segmented",
                 "messageKey": "alertUvDisplay",
@@ -11877,50 +11976,6 @@
                 }
               },
               {
-                "type": "subheader",
-                "text": "Alert levels",
-                "intro": "Warn and danger levels for this value: reaching warn draws the warn look below, reaching danger fills the alert icon — and the status slot, while its Alert highlighting is on.",
-                "labelAction": {
-                  "action": "resetThresholds",
-                  "arg": "Uv",
-                  "label": "Reset to defaults"
-                }
-              },
-              {
-                "type": "range",
-                "messageKey": "threshUvWarn",
-                "dangerKey": "threshUvDanger",
-                "maxKey": "threshUvMax",
-                "defaultValue": "",
-                "hint": "",
-                "joinPrevious": true,
-                "rangeFrom": {
-                  "resolver": "thresholdRange",
-                  "args": {
-                    "keyStem": "Uv",
-                    "chips": {
-                      "warn": "Warn",
-                      "danger": "Danger"
-                    }
-                  }
-                }
-              },
-              {
-                "type": "staticText",
-                "style": "info",
-                "text": "By default, warn sits at 6, where the <a target='_blank' href='https://www.who.int/news-room/questions-and-answers/item/radiation-the-ultraviolet-%28uv%29-index'>WHO’s UV index scale</a> starts High, and danger at 8, where Very high starts and the WHO advises staying out of the midday sun. The WHO advises sun protection from UV 3 on."
-              },
-              {
-                "type": "hidden",
-                "messageKey": "threshUvDanger",
-                "defaultValue": ""
-              },
-              {
-                "type": "hidden",
-                "messageKey": "threshUvMax",
-                "defaultValue": ""
-              },
-              {
                 "type": "segmented",
                 "messageKey": "threshUvWarnLook",
                 "label": "Warn look",
@@ -11970,8 +12025,7 @@
                       "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
                     }
                   }
-                },
-                "joinPrevious": true
+                }
               },
               {
                 "type": "color",
@@ -12043,78 +12097,40 @@
             "intro": "Shows the air quality icon at the edge of a status bar when the air quality index reaches your warn level at any point left today, so an afternoon peak shows from the morning on. Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (General tab): WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading.",
             "items": [
               {
-                "type": "segmented",
-                "messageKey": "alertAqiDisplay",
-                "label": "Look",
-                "defaultValue": "icon",
-                "options": [
-                  [
-                    "Icon",
-                    "icon"
-                  ],
-                  [
-                    "Icon + value",
-                    "value"
-                  ]
+                "type": "checklist",
+                "label": "Shows on",
+                "check": "aqi",
+                "columns": [
+                  {
+                    "label": "Left"
+                  },
+                  {
+                    "label": "Right"
+                  }
                 ],
-                "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon."
+                "optionsFrom": {
+                  "resolver": "onDemandBars",
+                  "args": {
+                    "code": "aqi",
+                    "bars": [
+                      "top",
+                      "forecast",
+                      "health",
+                      "radar"
+                    ],
+                    "names": {
+                      "top": "Watch Status Bar",
+                      "forecast": "Forecast Status Bar",
+                      "radar": "Radar Status Bar",
+                      "health": "Health Status Bar"
+                    }
+                  }
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "alertAqiDays",
-                "label": "Days",
-                "defaultValue": "tomorrow",
-                "options": [
-                  [
-                    "Today",
-                    "today"
-                  ],
-                  [
-                    "Today + tomorrow",
-                    "tomorrow"
-                  ]
-                ],
-                "hintByValue": {
-                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
-                }
-              },
-              {
-                "type": "select",
-                "messageKey": "alertAqiNextDayMark",
-                "label": "Tomorrow's mark",
-                "defaultValue": "raquo",
-                "options": [
-                  [
-                    "»6",
-                    "raquo"
-                  ],
-                  [
-                    ">6",
-                    "gt"
-                  ],
-                  [
-                    "+6",
-                    "plus"
-                  ],
-                  [
-                    "6*",
-                    "star"
-                  ],
-                  [
-                    "No mark",
-                    "none"
-                  ]
-                ],
-                "hintByValue": {
-                  "none": "An alert for tomorrow then looks just like one for today."
-                },
+                "type": "staticText",
                 "joinPrevious": true,
-                "showWhen": {
-                  "key": "alertAqiDays",
-                  "ne": "today"
-                }
+                "text": "One side per bar. On a crowded bar, the items lower in the Alert settings list drop first. Where the status slot on that side shows the air quality index, the alert goes into that slot, with its colors, instead of adding its alert icon."
               },
               {
                 "type": "subheader",
@@ -12193,6 +12209,80 @@
               },
               {
                 "type": "segmented",
+                "messageKey": "alertAqiDisplay",
+                "label": "Look",
+                "defaultValue": "icon",
+                "options": [
+                  [
+                    "Icon",
+                    "icon"
+                  ],
+                  [
+                    "Icon + value",
+                    "value"
+                  ]
+                ],
+                "hintByValue": {
+                  "value": "Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon."
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "alertAqiDays",
+                "label": "Days",
+                "defaultValue": "tomorrow",
+                "options": [
+                  [
+                    "Today",
+                    "today"
+                  ],
+                  [
+                    "Today + tomorrow",
+                    "tomorrow"
+                  ]
+                ],
+                "hintByValue": {
+                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "alertAqiNextDayMark",
+                "label": "Tomorrow's mark",
+                "defaultValue": "raquo",
+                "options": [
+                  [
+                    "»6",
+                    "raquo"
+                  ],
+                  [
+                    ">6",
+                    "gt"
+                  ],
+                  [
+                    "+6",
+                    "plus"
+                  ],
+                  [
+                    "6*",
+                    "star"
+                  ],
+                  [
+                    "No mark",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "none": "An alert for tomorrow then looks just like one for today."
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "alertAqiDays",
+                  "ne": "today"
+                }
+              },
+              {
+                "type": "segmented",
                 "messageKey": "threshAqiWarnLook",
                 "label": "Warn look",
                 "options": [
@@ -12241,8 +12331,7 @@
                       "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
                     }
                   }
-                },
-                "joinPrevious": true
+                }
               },
               {
                 "type": "color",
@@ -12313,6 +12402,86 @@
             "title": "Pollen alert",
             "intro": "Shows the pollen icon at the edge of a status bar when the pollen index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
             "items": [
+              {
+                "type": "checklist",
+                "label": "Shows on",
+                "check": "pollen",
+                "columns": [
+                  {
+                    "label": "Left"
+                  },
+                  {
+                    "label": "Right"
+                  }
+                ],
+                "optionsFrom": {
+                  "resolver": "onDemandBars",
+                  "args": {
+                    "code": "pollen",
+                    "bars": [
+                      "top",
+                      "forecast",
+                      "health",
+                      "radar"
+                    ],
+                    "names": {
+                      "top": "Watch Status Bar",
+                      "forecast": "Forecast Status Bar",
+                      "radar": "Radar Status Bar",
+                      "health": "Health Status Bar"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "joinPrevious": true,
+                "text": "One side per bar. On a crowded bar, the items lower in the Alert settings list drop first. Where the status slot on that side shows the pollen index, the alert goes into that slot, with its colors, instead of adding its alert icon."
+              },
+              {
+                "type": "subheader",
+                "text": "Alert levels",
+                "intro": "Warn and danger levels for this value: reaching warn draws the warn look below, reaching danger fills the alert icon — and the status slot, while its Alert highlighting is on.",
+                "labelAction": {
+                  "action": "resetThresholds",
+                  "arg": "Pollen",
+                  "label": "Reset to defaults"
+                }
+              },
+              {
+                "type": "range",
+                "messageKey": "threshPollenWarn",
+                "dangerKey": "threshPollenDanger",
+                "maxKey": "threshPollenMax",
+                "defaultValue": "",
+                "hint": "DWD pollen index 0–3 (half-levels like \"2-3\" count as 2.5); DWD provider only.",
+                "joinPrevious": true,
+                "rangeFrom": {
+                  "resolver": "thresholdRange",
+                  "args": {
+                    "keyStem": "Pollen",
+                    "chips": {
+                      "warn": "Warn",
+                      "danger": "Danger"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "style": "info",
+                "text": "By default, warn sits at 2 (medium load) and danger at 3 (high load) on the <a target='_blank' href='https://www.dwd.de/DE/leistungen/gefahrenindizespollen/erklaerungen.html'>German Weather Service’s (DWD) pollen index</a>. High means, for example, more than 50 birch or 30 grass pollen grains per cubic meter of air. The DWD notes that very sensitive people can react strongly at low levels too."
+              },
+              {
+                "type": "hidden",
+                "messageKey": "threshPollenDanger",
+                "defaultValue": ""
+              },
+              {
+                "type": "hidden",
+                "messageKey": "threshPollenMax",
+                "defaultValue": ""
+              },
               {
                 "type": "segmented",
                 "messageKey": "alertPollenDisplay",
@@ -12388,50 +12557,6 @@
                 }
               },
               {
-                "type": "subheader",
-                "text": "Alert levels",
-                "intro": "Warn and danger levels for this value: reaching warn draws the warn look below, reaching danger fills the alert icon — and the status slot, while its Alert highlighting is on.",
-                "labelAction": {
-                  "action": "resetThresholds",
-                  "arg": "Pollen",
-                  "label": "Reset to defaults"
-                }
-              },
-              {
-                "type": "range",
-                "messageKey": "threshPollenWarn",
-                "dangerKey": "threshPollenDanger",
-                "maxKey": "threshPollenMax",
-                "defaultValue": "",
-                "hint": "DWD pollen index 0–3 (half-levels like \"2-3\" count as 2.5); DWD provider only.",
-                "joinPrevious": true,
-                "rangeFrom": {
-                  "resolver": "thresholdRange",
-                  "args": {
-                    "keyStem": "Pollen",
-                    "chips": {
-                      "warn": "Warn",
-                      "danger": "Danger"
-                    }
-                  }
-                }
-              },
-              {
-                "type": "staticText",
-                "style": "info",
-                "text": "By default, warn sits at 2 (medium load) and danger at 3 (high load) on the <a target='_blank' href='https://www.dwd.de/DE/leistungen/gefahrenindizespollen/erklaerungen.html'>German Weather Service’s (DWD) pollen index</a>. High means, for example, more than 50 birch or 30 grass pollen grains per cubic meter of air. The DWD notes that very sensitive people can react strongly at low levels too."
-              },
-              {
-                "type": "hidden",
-                "messageKey": "threshPollenDanger",
-                "defaultValue": ""
-              },
-              {
-                "type": "hidden",
-                "messageKey": "threshPollenMax",
-                "defaultValue": ""
-              },
-              {
                 "type": "segmented",
                 "messageKey": "threshPollenWarnLook",
                 "label": "Warn look",
@@ -12481,8 +12606,7 @@
                       "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
                     }
                   }
-                },
-                "joinPrevious": true
+                }
               },
               {
                 "type": "color",
@@ -12554,78 +12678,40 @@
             "intro": "Shows the wind icon at the edge of a status bar when the wind speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
             "items": [
               {
-                "type": "segmented",
-                "messageKey": "alertWindDisplay",
-                "label": "Look",
-                "defaultValue": "icon",
-                "options": [
-                  [
-                    "Icon",
-                    "icon"
-                  ],
-                  [
-                    "Icon + value",
-                    "value"
-                  ]
+                "type": "checklist",
+                "label": "Shows on",
+                "check": "wind",
+                "columns": [
+                  {
+                    "label": "Left"
+                  },
+                  {
+                    "label": "Right"
+                  }
                 ],
-                "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon."
+                "optionsFrom": {
+                  "resolver": "onDemandBars",
+                  "args": {
+                    "code": "wind",
+                    "bars": [
+                      "top",
+                      "forecast",
+                      "health",
+                      "radar"
+                    ],
+                    "names": {
+                      "top": "Watch Status Bar",
+                      "forecast": "Forecast Status Bar",
+                      "radar": "Radar Status Bar",
+                      "health": "Health Status Bar"
+                    }
+                  }
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "alertWindDays",
-                "label": "Days",
-                "defaultValue": "tomorrow",
-                "options": [
-                  [
-                    "Today",
-                    "today"
-                  ],
-                  [
-                    "Today + tomorrow",
-                    "tomorrow"
-                  ]
-                ],
-                "hintByValue": {
-                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
-                }
-              },
-              {
-                "type": "select",
-                "messageKey": "alertWindNextDayMark",
-                "label": "Tomorrow's mark",
-                "defaultValue": "raquo",
-                "options": [
-                  [
-                    "»6",
-                    "raquo"
-                  ],
-                  [
-                    ">6",
-                    "gt"
-                  ],
-                  [
-                    "+6",
-                    "plus"
-                  ],
-                  [
-                    "6*",
-                    "star"
-                  ],
-                  [
-                    "No mark",
-                    "none"
-                  ]
-                ],
-                "hintByValue": {
-                  "none": "An alert for tomorrow then looks just like one for today."
-                },
+                "type": "staticText",
                 "joinPrevious": true,
-                "showWhen": {
-                  "key": "alertWindDays",
-                  "ne": "today"
-                }
+                "text": "One side per bar. On a crowded bar, the items lower in the Alert settings list drop first. Where the status slot on that side shows the wind speed, the alert goes into that slot, with its colors, instead of adding its alert icon."
               },
               {
                 "type": "subheader",
@@ -12703,6 +12789,80 @@
               },
               {
                 "type": "segmented",
+                "messageKey": "alertWindDisplay",
+                "label": "Look",
+                "defaultValue": "icon",
+                "options": [
+                  [
+                    "Icon",
+                    "icon"
+                  ],
+                  [
+                    "Icon + value",
+                    "value"
+                  ]
+                ],
+                "hintByValue": {
+                  "value": "Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon."
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "alertWindDays",
+                "label": "Days",
+                "defaultValue": "tomorrow",
+                "options": [
+                  [
+                    "Today",
+                    "today"
+                  ],
+                  [
+                    "Today + tomorrow",
+                    "tomorrow"
+                  ]
+                ],
+                "hintByValue": {
+                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "alertWindNextDayMark",
+                "label": "Tomorrow's mark",
+                "defaultValue": "raquo",
+                "options": [
+                  [
+                    "»6",
+                    "raquo"
+                  ],
+                  [
+                    ">6",
+                    "gt"
+                  ],
+                  [
+                    "+6",
+                    "plus"
+                  ],
+                  [
+                    "6*",
+                    "star"
+                  ],
+                  [
+                    "No mark",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "none": "An alert for tomorrow then looks just like one for today."
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "alertWindDays",
+                  "ne": "today"
+                }
+              },
+              {
+                "type": "segmented",
                 "messageKey": "threshWindWarnLook",
                 "label": "Warn look",
                 "options": [
@@ -12751,8 +12911,7 @@
                       "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
                     }
                   }
-                },
-                "joinPrevious": true
+                }
               },
               {
                 "type": "color",

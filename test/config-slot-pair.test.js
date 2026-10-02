@@ -78,7 +78,7 @@ test('each two-value sheet leads with its Value selection group: order, then the
       k.sheetId + ': order, separator, custom separator, spacing — in that order');
   });
   // UV's tomorrow mark closes its Value selection group; the highlight group follows:
-  // the switch, the pointer to the Alert settings card (UV's levels live there), then Bold.
+  // the switch, the pointer to the Alerts tab (UV's levels live in its alert sheet), then Bold.
   const uvKeys = sheet('threshUv').items.map(it => it.messageKey || it.type);
   assert.deepEqual(uvKeys.slice(uvKeys.indexOf('uvSlotSeparatorSpaced') + 1),
     ['uvSlotNextDayMark', 'threshUvOn', 'staticText', 'threshUvBoldMode']);

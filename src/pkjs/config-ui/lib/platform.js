@@ -55,7 +55,7 @@ var HR_PLATFORMS = { emery: true, diorite: true };
 var COLOR_BACKLIGHT_PLATFORMS = { emery: true };
 // Platforms where the watch compiles On demand out (no WW_ON_DEMAND): aplite
 // (Pebble Classic/Steel), the frozen-lean fork, which keeps its fixed quiet-time /
-// Bluetooth indicators and the low-battery takeover instead. The Alerts rows,
+// Bluetooth indicators and the low-battery takeover instead. The Alerts tab, rows,
 // card and sheets are hidden there. Keep in lockstep with the C
 // `#if defined(WW_ON_DEMAND)` guards (wscript defines the macro for every platform
 // except aplite).
