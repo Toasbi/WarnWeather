@@ -24,8 +24,9 @@
 // gate a forced fetch clears), so a forced fetch that then fails for another reason keeps
 // a refused key refused. Written only when an entry changes; never logged, never sent.
 //
-// The page reads the map through verdictOf, and classify reads its Test button's
-// answers too, so what a status says about a key is decided here only.
+// The page reads the map through verdictOf, classify reads its Test button's answers
+// too, and auth-backoff.js asks classify about a failure's code (statusOfCode) before it
+// stops fetching, so what a status says about a key is decided here only.
 (function () {
     var storageKeys = (typeof require !== 'undefined') ? require('./storage-keys.js') : null;
     var keyFingerprint = (typeof require !== 'undefined') ? require('./key-fingerprint.js') : null;
@@ -56,17 +57,32 @@
     }
 
     /**
-     * The stored map. Phone only; never throws.
-     * @returns {Object} The map; {} when absent, unreadable or off the phone.
+     * The map, parsed from its stored JSON. Never throws.
+     * @param {*} raw The map as stored (a JSON string), or absent.
+     * @returns {Object} The map; {} when absent, unreadable or not a map.
      */
-    function readMap() {
+    function parseMap(raw) {
         try {
-            if (!storageKeys || typeof localStorage === 'undefined' || !localStorage) { return {}; }
-            var map = JSON.parse(localStorage.getItem(storageKeys.KEY_RESULTS_KEY));
+            var map = JSON.parse(raw);
             return (map && typeof map === 'object' && !Array.isArray(map)) ? map : {};
         } catch (e) {
             return {};
         }
+    }
+
+    /**
+     * The stored map. Phone only; never throws.
+     * @returns {Object} The map; {} when absent, unreadable or off the phone.
+     */
+    function readMap() {
+        var raw;
+        try {
+            if (!storageKeys || typeof localStorage === 'undefined' || !localStorage) { return {}; }
+            raw = localStorage.getItem(storageKeys.KEY_RESULTS_KEY);
+        } catch (e) {
+            return {};
+        }
+        return parseMap(raw);
     }
 
     /**
@@ -109,10 +125,8 @@
      */
     function verdictOf(raw, id, keyHash) {
         if (typeof raw !== 'string' || !raw || typeof id !== 'string' || !keyHash) { return null; }
-        var map;
-        try { map = JSON.parse(raw); } catch (e) { return null; }
-        var entry = (map && typeof map === 'object' && Object.prototype.hasOwnProperty.call(map, id))
-            ? map[id] : null;
+        var map = parseMap(raw);
+        var entry = Object.prototype.hasOwnProperty.call(map, id) ? map[id] : null;
         var state = (entry && entry.keyHash === keyHash) ? classify(entry.status) : null;
         return state ? { state: state, status: entry.status } : null;
     }

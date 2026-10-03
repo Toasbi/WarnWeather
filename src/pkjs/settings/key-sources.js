@@ -26,9 +26,6 @@
 //                  ("invalid key", "no access") says less.
 //   usage?         A usage line the summary appends, by name (blocks.js registers
 //                  tomorrow.io's projected calls and Rainbow's monthly projection).
-//   updateId?      The source id the phone's answers to the key are kept under
-//                  (key-result.js), when it is not the picker's value (no source sets one
-//                  today).
 //   sharedSheet?   {key, eq, sheetId}: while settings[key] === eq the other picker picks
 //                  the source too, its own sheet is gated off, and the key lives in
 //                  sheetId, which the Edit button and the Save dialog then open.

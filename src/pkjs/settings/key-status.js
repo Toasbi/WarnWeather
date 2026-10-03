@@ -6,7 +6,7 @@
 //
 // Each picker's keyed sources are ONE table in settings/key-sources.js, by the picker's
 // messageKey: {outcome, sources: {<the picker's value>: {name, sheetId, keyField, test,
-// reasons?, usage?, updateId?, sharedSheet?}}}; what each field means is documented
+// reasons?, usage?, sharedSheet?}}}; what each field means is documented
 // there. Every resolver below looks its row's table up by the picker: the row's own
 // messageKey (the engine merges it into the args of every row resolver), or args.picker
 // for the missing-key note (a staticText has no messageKey), so a row hands them nothing
@@ -25,10 +25,10 @@
 // "This exact key" is its fingerprint (key-fingerprint.js): the Test result is kept per
 // key field with the fingerprint of the key it tested, and the phone keeps each source's
 // last answer with the fingerprint of the key it sent (userData.keyResults, key-result.js:
-// weather updates and radar requests alike, by the source id — the picker's value, or
-// the source's updateId). A key edited since — even one character — matches neither and
-// reads as untested until it is tested or used. What a status says about a key is
-// key-result.js's classify, for the Test button and the phone's answers alike.
+// weather updates and radar requests alike, by the source id: the picker's value). A key
+// edited since — even one character — matches neither and reads as untested until it is
+// tested or used. What a status says about a key is key-result.js's classify, for the
+// Test button and the phone's answers alike.
 //
 // What the page shows from it:
 //   keySheet         (sheetResolvers)     the Edit button: the sheet holding the picked
@@ -173,9 +173,9 @@
      * The status of a source's key in the live settings: this page open's Test answer for
      * this exact key, else the source's last answer to it on the phone
      * (userData.keyResults), else untested.
-     * @param {Object} source The source ({keyField, updateId?}).
-     * @param {string} id The picker value that picks it (the phone's source id, unless
-     *   the source names another as updateId).
+     * @param {Object} source The source ({keyField}).
+     * @param {string} id The picker value that picks it: the source id the phone keeps its
+     *   answers to the key under.
      * @param {Object} S Live settings state.
      * @returns {{state: string, tail: (string|undefined), status: (number|undefined)}}
      *   state is 'missing', 'ok', 'rejected' or 'untested'; tail the key's last four
@@ -189,7 +189,7 @@
         var tail = key.slice(-4);
         var t = tests[source.keyField];
         if (t && t.hash === hash) { return { state: t.state, tail: tail, status: t.status }; }
-        var v = keyResult.verdictOf(userData().keyResults, source.updateId || id, hash);
+        var v = keyResult.verdictOf(userData().keyResults, id, hash);
         if (!v) { return { state: 'untested', tail: tail }; }
         return v.state === 'rejected' ? { state: v.state, tail: tail, status: v.status }
             : { state: v.state, tail: tail };

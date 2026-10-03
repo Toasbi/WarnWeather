@@ -11,13 +11,15 @@
 // successful fetch. Watch-runtime PKJS: ES5 only (var/function, no ES6).
 
 var storageKeys = require('./storage-keys.js');
+var keyResult = require('./key-result.js');
 var AUTH_BACKOFF_KEY = storageKeys.AUTH_BACKOFF_KEY;
 
 /**
  * Whether a normalized fetch failure is the WEATHER PROVIDER's permanent auth
  * rejection (HTTP 401/403). Provider failure codes are encoded as
  * `<provider>_status_<httpCode>` (see weather/http.js `failure()` and
- * openweathermap.js), so we match a 401/403 suffix.
+ * openweathermap.js), so the code's status (key-result.js statusOfCode) is
+ * read the way the key's verdict reads it: 'rejected' (key-result.js classify).
  *
  * Only the `provider_data` stage counts: every provider request reports under
  * it, while the auxiliary geocoders (the keyless ArcGIS city lookup, the app's
@@ -38,7 +40,7 @@ function isAuthFailure(failure) {
     if (typeof failure.retryAfterMs === 'number' && failure.retryAfterMs > 0) {
         return false;
     }
-    return /(^|_)status_(401|403)$/.test(failure.code);
+    return keyResult.classify(keyResult.statusOfCode(failure.code)) === 'rejected';
 }
 
 /**
