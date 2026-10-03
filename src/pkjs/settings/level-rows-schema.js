@@ -246,9 +246,10 @@ function levelLead(keyStem, voice, hint, gate, why) {
     };
     // An alert group's cards on its default levels (ALERT_LEVEL_CARDS) are the slider's
     // info text now (under it, or behind its '?'): the scale hint, then the one card whose
-    // unit or scale is in effect (blocks.js levelInfo evaluates each card's showWhen).
+    // unit or scale is in effect (blocks.js levelInfo evaluates each card's showWhen; the
+    // scale hint reaches it as the engine's args.staticHint, so no second copy rides here).
     if (why && why.length) {
-        range.hintFrom = {resolver: 'levelInfo', args: {hint: hint, cards: why}};
+        range.hintFrom = {resolver: 'levelInfo', args: {cards: why}};
     }
     lead.push(range);
     // Every plain item in the group carries the same gate; applying it in one pass

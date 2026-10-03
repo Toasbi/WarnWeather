@@ -91,12 +91,14 @@ test('exactly one card shows per alert for every unit and AQI scale, and it stat
       assert.match(text, /By default/, what + ': speaks of the defaults');
       // The slider's info text (blocks.js levelInfo) shows that card — after the scale
       // hint, when the kind has one — and no other.
-      const args = sliderOf(stem).hintFrom.args;
+      // The engine hands every hint resolver the row's own hint as staticHint.
+      const slider = sliderOf(stem);
+      const args = Object.assign({ staticHint: slider.hint }, slider.hintFrom.args);
       const info = B.levelInfo(S, {}, args);
       assert.ok(info.indexOf(shown[0].text) !== -1, what + ': the info text carries that card');
       cards.filter((c) => c !== shown[0])
         .forEach((c) => assert.equal(info.indexOf(c.text), -1, what + ': and no other card'));
-      if (args.hint) { assert.equal(info.indexOf(args.hint), 0, what + ': led by the scale hint'); }
+      if (slider.hint) { assert.equal(info.indexOf(slider.hint), 0, what + ': led by the scale hint'); }
     });
   });
 });
@@ -109,7 +111,9 @@ test('one card per unit or scale a kind\'s seed varies by, each riding the slide
     const range = sliderOf(stem);
     assert.equal(range.label, 'Warn · danger', stem + ': the slider names its two values');
     assert.equal(range.joinPrevious, undefined, stem + ': the slider stands off, not joined');
-    assert.equal(range.hintFrom.args.hint, range.hint, stem + ': the info text leads with the slider\'s own hint');
+    // The info text leads with the slider's own hint, which the engine hands levelInfo as
+    // args.staticHint: the args carry no second copy of it.
+    assert.ok(!('hint' in range.hintFrom.args), stem + ': no second copy of the slider\'s hint in its args');
     // The cards are the slider's info text now, not rows of the sheet: no info box is
     // left behind to double them.
     const sheet = allSections().find((s) => s.sheetId === 'alert' + stem);

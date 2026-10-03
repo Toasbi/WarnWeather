@@ -8587,7 +8587,6 @@
                 "hintFrom": {
                   "resolver": "levelInfo",
                   "args": {
-                    "hint": "",
                     "cards": [
                       {
                         "showWhen": {
@@ -8909,7 +8908,6 @@
                 "hintFrom": {
                   "resolver": "levelInfo",
                   "args": {
-                    "hint": "",
                     "cards": [
                       {
                         "text": "By default, warn sits at 6, where the <a target='_blank' href='https://www.who.int/news-room/questions-and-answers/item/radiation-the-ultraviolet-%28uv%29-index'>WHO’s UV index scale</a> starts High, and danger at 8, where Very high starts and the WHO advises staying out of the midday sun. The WHO advises sun protection from UV 3 on."
@@ -9205,7 +9203,6 @@
                 "hintFrom": {
                   "resolver": "levelInfo",
                   "args": {
-                    "hint": "",
                     "cards": [
                       {
                         "showWhen": {
@@ -9530,7 +9527,6 @@
                 "hintFrom": {
                   "resolver": "levelInfo",
                   "args": {
-                    "hint": "DWD pollen index 0–3 (half-levels like \"2-3\" count as 2.5); DWD provider only.",
                     "cards": [
                       {
                         "text": "By default, warn sits at 2 (medium load) and danger at 3 (high load) on the <a target='_blank' href='https://www.dwd.de/DE/leistungen/gefahrenindizespollen/erklaerungen.html'>German Weather Service’s (DWD) pollen index</a>. High means, for example, more than 50 birch or 30 grass pollen grains per cubic meter of air. The DWD notes that very sensitive people can react strongly at low levels too."
@@ -9826,7 +9822,6 @@
                 "hintFrom": {
                   "resolver": "levelInfo",
                   "args": {
-                    "hint": "",
                     "cards": [
                       {
                         "showWhen": {
@@ -14016,10 +14011,6 @@
                 "hintFrom": {
                   "resolver": "radarColorHint",
                   "args": {
-                    "hints": {
-                      "multicolor": "Colors each part differently depending on intensity:<span style=\"display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;\"><span style=\"text-align:center;font-size:10px;\"><span style=\"display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;\"></span>0.1</span><span style=\"text-align:center;font-size:10px;\"><span style=\"display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;\"></span>0.5</span><span style=\"text-align:center;font-size:10px;\"><span style=\"display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;\"></span>2</span><span style=\"text-align:center;font-size:10px;\"><span style=\"display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;\"></span>10</span><span style=\"text-align:center;font-size:10px;\"><span style=\"display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;\"></span>40</span></span>",
-                      "white": "Shows every bar in a single color."
-                    },
                     "note": "The bars don't scale linearly. They're divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall, so light drizzle stays visible while heavy rain still has room to grow."
                   }
                 },

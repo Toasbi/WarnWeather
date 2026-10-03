@@ -1129,6 +1129,9 @@ if (typeof require !== 'undefined') {
         }
         return null;
     }
+    // The Alerts tab's resolvers (alerts-page.js, which loads after this file) print their
+    // Days, window and look labels with this same lookup.
+    PConf.optionLabel = optionLabel;
 
     /**
      * A forecast line's nav-row summary: its metric and style by the labels their pickers
@@ -1241,35 +1244,36 @@ if (typeof require !== 'undefined') {
     PConf.hintResolvers.register('barScaleHint', barScaleHint);
 
     /**
-     * The Radar color row's info text: the colour's own words (args.hints), then the bar
-     * scale note.
+     * The Radar color row's info text: the colour's own words (args.staticHint, the row's
+     * hintByValue entry the engine hands every hint resolver), then the bar scale note.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{value: string, hints: Object, note: string}} args The row's value, its
-     *     per-value hints and the note.
+     * @param {{staticHint: (string|undefined), note: string}} args The row's own hint for
+     *     the shown value, and the note.
      * @returns {string} The hint.
      */
     function radarColorHint(S, env, args) {
         var a = args || {};
-        var own = (a.hints || {})[a.value] || '';
-        return own ? own + '<br>' + a.note : a.note;
+        return a.staticHint ? a.staticHint + '<br>' + a.note : a.note;
     }
     PConf.hintResolvers.register('radarColorHint', radarColorHint);
 
     /**
-     * A weather alert's levels slider's info text: its scale hint (args.hint) and the card
-     * on its default levels for the unit or AQI scale in effect (args.cards, schema.js
-     * ALERT_LEVEL_CARDS: each card's showWhen picks it, the same predicates the cards
-     * carried as their own rows).
+     * A weather alert's levels slider's info text: its scale hint (args.staticHint, the
+     * row's own hint the engine hands every hint resolver) and the card on its default
+     * levels for the unit or AQI scale in effect (args.cards, schema.js ALERT_LEVEL_CARDS:
+     * each card's showWhen picks it, the same predicates the cards carried as their own
+     * rows).
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
-     * @param {{hint: string, cards: Array<{text: string, showWhen: (Object|undefined)}>}} args
+     * @param {{staticHint: (string|undefined),
+     *     cards: Array<{text: string, showWhen: (Object|undefined)}>}} args
      * @returns {?string} The hint, or null for the static one.
      */
     function levelInfo(S, env, args) {
         var a = args || {}, ctx = Object.assign({}, S || {}), parts = [], i;
         ctx.env = env || {};
-        if (a.hint) { parts.push(a.hint); }
+        if (a.staticHint) { parts.push(a.staticHint); }
         for (i = 0; i < (a.cards || []).length; i++) {
             if (!a.cards[i].showWhen || PConf.showWhen.evaluate(a.cards[i].showWhen, ctx)) {
                 parts.push(a.cards[i].text);

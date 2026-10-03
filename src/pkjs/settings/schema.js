@@ -2138,9 +2138,9 @@ module.exports = {
                 // barColorDefault). See rainBarColor above.
                 defaultValue: 'multicolor',
                 hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
-                // The bar-scale note follows the colour's own words.
-                hintFrom: {resolver: 'radarColorHint', args: {hints: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
-                    note: SCALE_NOTE}},
+                // The bar-scale note follows the colour's own words (the engine hands the
+                // resolver the hintByValue entry as args.staticHint).
+                hintFrom: {resolver: 'radarColorHint', args: {note: SCALE_NOTE}},
                 capabilities: ['COLOR'],
                 // VALUE stays 'white' for wire compatibility (the watch resolves it to the
                 // right polarity color itself — see rain-tier.js); only the label changes.

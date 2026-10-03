@@ -7,7 +7,8 @@
 //
 // It reads two helpers of blocks.js's threshold machinery, which blocks.js publishes as
 // PConf.thresholdLevels: a kind's slider geometry (rangeOf, the unit a metric alert's
-// levels print in) and its badge dots (levelDots, which the slot's Edit button draws too). So it
+// levels print in) and its badge dots (levelDots, which the slot's Edit button draws too),
+// plus its option-label lookup (PConf.optionLabel, which the line summaries share). So it
 // loads AFTER blocks.js in both contexts: under Node blocks.js requires this file at the
 // end of its own body, so requiring blocks.js registers these resolvers too; the webview
 // concatenates it right after blocks.js (scripts/build-config-page.js APP_FILES, pinned by
@@ -150,18 +151,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     PConf.hintResolvers.register('alertLevelsHint', alertLevelsHint);
 
-    /**
-     * The label of a stored value in a [label, value] option list.
-     * @param {Array<Array<string>>} options The list.
-     * @param {*} value The stored value.
-     * @returns {?string} Its label, or null when the list has no such value.
-     */
-    function optionLabel(options, value) {
-        for (var i = 0; i < (options || []).length; i++) {
-            if (options[i][1] === String(value)) { return options[i][0]; }
-        }
-        return null;
-    }
+    // The label of a stored value in a [label, value] option list, or null when the list
+    // has no such value (blocks.js publishes it; the Graphs tab's line summaries use it too).
+    var optionLabel = PConf.optionLabel;
 
     /**
      * Whether the radar fetches nothing (radar mode 'off', the schema default 'graph'
