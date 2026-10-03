@@ -873,8 +873,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * carried inside, the swatches widened the button by ~29px exactly on the rows that
    * had them, so the Edit buttons could never line up down the right edge. Out here
    * the button is one fixed width and the swatch reads as what it is — a preview,
-   * with nothing to press. aria-hidden like the dots: the badge's ariaNote already
-   * announces the state on the Edit button itself.
+   * with nothing to press. aria-hidden like the dots: the badge's ariaNote announces the
+   * state instead — on the Edit button itself, or on a nav row as visually hidden text
+   * (chevronRow).
    *
    * @param {{editSheet: ?string, editBadge: ?Object}} view Render view state.
    * @returns {string} Swatch HTML, or ''.
@@ -1069,7 +1070,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (sec.pinBlock) {
       var fn = PConf.blocks.get(sec.pinBlock);
       var ph = fn ? (fn(cx.S, cx.ENV, cx.USERDATA) || '') : '';
-      if (ph) { pin = '<div class="pin dlg-pin"><div class="pin-blk">' + ph + '</div></div>'; }
+      if (ph) { pin = '<div class="' + pinClass(cx, 'dlg-pin') + '"><div class="pin-blk">' + ph + '</div></div>'; }
     }
     return dialogHeader(titleId, String(sec.title || 'Edit'), cx.editKicker || '', Boolean(cx.editNested),
         (introId ? infoButtonHtml(introId, introOpen, sec.title) : '') + labelActionHtml(sec))
@@ -1453,9 +1454,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    *   'data-edit-sheet').
    * @param {string} value That attribute's value — the action id or the sheet id.
    * @param {(string|boolean)} noDivider Join mode from nextVisibleJoins(), for nbClass().
+   * @param {Object} [cx] Render context (hintFrom / labelFrom / summaryFaintFrom).
+   * @param {string} [swatch] The badge's preview (editSwatchHtml), before the chevron.
+   * @param {string} [ariaNote] The badge's state in words (badge.ariaNote, e.g. the hex the
+   *   aria-hidden swatch shows), said to a screen reader as visually hidden text.
    * @returns {string} Row HTML.
    */
-  function chevronRow(item, attr, value, noDivider, cx, swatch) {
+  function chevronRow(item, attr, value, noDivider, cx, swatch, ariaNote) {
     // A nav row's sub-line is a SUMMARY of what it leads to (the live state a hintFrom
     // resolver reads off the settings, else the static hint), so it stays in view — no '?'.
     var summary = item.hint || '';
@@ -1483,7 +1488,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     return '<div class="row nav' + nbClass(noDivider) + (item.indent ? ' indent' : '') + '" ' + attr + '="'
       + esc(value) + '" role="button" tabindex="0" style="cursor:pointer">'
-      + '<div class="lft"><div class="lbl">' + labelIconHtml(item) + esc(label) + '</div>' + sub + '</div>'
+      + '<div class="lft"><div class="lbl">' + labelIconHtml(item) + esc(label) + '</div>' + sub
+      + (ariaNote ? '<span class="sr-only">' + esc(String(ariaNote)) + '</span>' : '') + '</div>'
       + '<div class="rgt">' + (swatch || '') + (item.navNote ? '<span class="nav-note">' + esc(item.navNote) + '</span>' : '')
       + '<span class="chev">&#8250;</span></div></div>';
   }
@@ -1519,11 +1525,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // Every sheet row is a nav row now: the whole row opens the sheet (a full-screen
       // dialog), its summary under the label and, where it declares a badge, the
       // badge's colour preview before the chevron.
-      var badgeSwatch = '';
+      var badgeSwatch = '', badgeNote = '';
       if (item.editBadgeFrom) {
-        badgeSwatch = editSwatchHtml({ editSheet: sId, editBadge: resolveEditBadge(item, cx.S, cx.ENV) });
+        var navBadge = resolveEditBadge(item, cx.S, cx.ENV);
+        badgeSwatch = editSwatchHtml({ editSheet: sId, editBadge: navBadge });
+        badgeNote = (navBadge && navBadge.ariaNote) ? String(navBadge.ariaNote) : '';
       }
-      return { kind: 'control', html: chevronRow(item, 'data-edit-sheet', sId, noDivider, cx, badgeSwatch) };
+      return { kind: 'control', html: chevronRow(item, 'data-edit-sheet', sId, noDivider, cx, badgeSwatch, badgeNote) };
     }
     if (item.type === 'staticText') {
       // a joinPrevious static acts as the control's description, so the join modifier tightens its
@@ -2125,6 +2133,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * The class list of a pinned header (a tab's or a dialog's). It stays in view while the
+   * cards scroll under it, except while a colour palette is open (cx.openColor): the open
+   * 64-swatch grid is taller than what a sticky preview leaves of a narrow phone's screen,
+   * so the header lets go (.loose) and scrolls away with the page until the palette closes.
+   * @param {Object} cx Render context.
+   * @param {string} [extra] Another class ('dlg-pin').
+   * @returns {string} The class attribute's value.
+   */
+  function pinClass(cx, extra) {
+    return 'pin' + (extra ? ' ' + extra : '') + (cx && cx.openColor ? ' loose' : '');
+  }
+
+  /**
    * A tab's sticky header: its pane switcher (more than one shown pane) and the pinned
    * preview block (the active pane's pinBlock, else the tab's). '' when it has neither.
    * @param {Object} tab Schema tab.
@@ -2153,7 +2174,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       block = fn ? (fn(cx.S, cx.ENV, cx.USERDATA) || '') : '';
     }
     if (!seg && !block) { return ''; }
-    return '<div class="pin">' + seg + (block ? '<div class="pin-blk">' + block + '</div>' : '') + '</div>';
+    return '<div class="' + pinClass(cx) + '">' + seg + (block ? '<div class="pin-blk">' + block + '</div>' : '') + '</div>';
   }
 
 
@@ -3292,6 +3313,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         actionLabel: att.actionLabel,
         confirmLabel: att.confirmLabel,
         tab: found.tab,
+        // The tab's pane that holds the row (the Graphs tab's Rain radar for the radar key),
+        // so the fix opens over the row it belongs to, not the tab's first pane.
+        pane: found.section.pane || null,
         sheet: att.sheet || resolveEditSheet(found.item, S, ENV)
           || (found.section.sheetOnly ? found.section.sheetId : null)
       };
@@ -3318,6 +3342,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         tabScroll[activeTab] = scroll.scrollTop;
         activeTab = cf.tab;
       }
+      if (cf && cf.pane) { activePane[activeTab] = cf.pane; }
       if (cf && cf.sheet) {
         editStack = [{ id: cf.sheet, kicker: tabLabel(activeTab), snap: Object.assign({}, S) }];
         openEdit = cf.sheet;

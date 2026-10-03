@@ -217,6 +217,17 @@ test('sheet rows are nav rows: summary in view, swatch and note before the chevr
   assert.ok(faint.indexOf('<div class="hint faint">Warn 6 · Danger 8</div>') !== -1, 'summaryFaintFrom dims it');
 });
 
+test('a nav row says its badge\'s state to a screen reader: the swatch is aria-hidden', () => {
+  global.PConf.badgeResolvers.register('discNoteBadge', () => ({ label: 'Edit', ariaNote: '#C8280A',
+    dots: [{ color: '#C8280A' }] }));
+  const schema = { tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'sheet', sheetId: 'dlg', label: 'Color', editBadgeFrom: { resolver: 'discNoteBadge' } }] },
+    { sheetOnly: true, sheetId: 'dlg', title: 'Dlg', items: [{ type: 'toggle', messageKey: 'q', label: 'Q' }] }] }] };
+  const body = E.renderBody(schema, 't', cxFor({}));
+  assert.ok(body.indexOf('<div class="lft"><div class="lbl">Color</div><span class="sr-only">#C8280A</span></div>'
+    + '<div class="rgt"><span class="thr-swatch" aria-hidden="true">') !== -1, body);
+});
+
 test('an inline group with a groupLabel is one From–To row', () => {
   const HOURS = [['00:00', '0'], ['07:00', '7'], ['22:00', '22']];
   const schema = { tabs: [{ id: 't', label: 'T', sections: [{ items: [
@@ -252,6 +263,21 @@ test('a tab with panes pins its switcher and the active pane\'s block; other pan
   assert.equal(activePane.g, 'a', 'the first shown pane is remembered');
   const b = E.renderBody(schema, 'g', cxFor(S, { activePane: { g: 'b' } }));
   assert.ok(b.indexOf('preview B') !== -1 && b.indexOf('data-k="kb"') !== -1 && b.indexOf('data-k="ka"') === -1);
+});
+
+test('a pinned header lets go while a colour palette is open, on a tab and in a dialog', () => {
+  global.PConf.blocks.register('discLoose', () => '<i>preview</i>');
+  const schema = { tabs: [{ id: 't', label: 'T', pinBlock: 'discLoose', sections: [
+    { items: [{ type: 'color', messageKey: 'c', label: 'C', defaultValue: '#FF0000' }] },
+    { sheetOnly: true, sheetId: 'd', title: 'D', pinBlock: 'discLoose', items: [
+      { type: 'color', messageKey: 'c2', label: 'C2', defaultValue: '#FF0000' }] }] }] };
+  const S = E.hydrate(schema, {});
+  assert.ok(E.renderBody(schema, 't', cxFor(S)).indexOf('<div class="pin"><div class="pin-blk">') === 0, 'sticky');
+  assert.ok(E.renderBody(schema, 't', cxFor(S, { openColor: 'c' })).indexOf('<div class="pin loose"><div class="pin-blk">') === 0,
+    'an open palette: the header scrolls away with the page');
+  assert.ok(E.renderEditModal(schema, cxFor(S, { openEdit: 'd' })).indexOf('<div class="pin dlg-pin"><div class="pin-blk">') !== -1);
+  assert.ok(E.renderEditModal(schema, cxFor(S, { openEdit: 'd', openColor: 'c2' }))
+    .indexOf('<div class="pin dlg-pin loose"><div class="pin-blk">') !== -1, 'and in a dialog');
 });
 
 test('a tab pinBlock pins without a switcher; one shown pane has none either', () => {
