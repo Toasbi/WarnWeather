@@ -35,9 +35,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
      * not a stripe, on a watch with line styles). With `metrics`: the first line that
      * draws one of them (line-style.js effectiveLineMetric: off, or a stored repeat of an
      * earlier pick, draws nothing), the Third and Fourth metric lines only on a watch that
-     * carries them (env.lineStyles, the WW_LINE_STYLE mirror, read as forecast-hints.js
-     * reads it for the Visible values hints). So the row moves with its metric from picker to
-     * picker and shows once.
+     * carries them (env.lineStyles, the WW_LINE_STYLE mirror, read truthy like the schema's
+     * {env: 'lineStyles'} leaf that shows those pickers: an env without the fact has none,
+     * where line-alert.js and draw-from.js read it as capable). So the row moves with its
+     * metric from picker to picker and shows once.
      * @param {Object} S Settings (the showWhen context).
      * @param {?Object} env Platform env.
      * @param {{from: (string|undefined), metrics: (string[]|undefined)}} args The row.

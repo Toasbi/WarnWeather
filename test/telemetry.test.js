@@ -614,9 +614,11 @@ test('snapshot includes largeGraphFont as a real boolean', () => {
 //
 // Telemetry reports ONE value per element: the colour for the metric that element is
 // currently painted from, in the polarity the watch ACTUALLY renders, resolved through
-// line-style.renderContext — the same call the wire packer opens with — so a telemetry row
-// can never disagree with the wire. Same lockstep rule as pressureScale above: the watch
-// snapshot AND the Deno .strip() schema, or it is silently dropped.
+// line-style.renderContextFor over config-ui computeEnv — the wire packer
+// (weather/graph-wire.js) resolves through resolveGraphColors, which opens with the same
+// call — so a telemetry row can never disagree with the wire. Same lockstep rule as
+// pressureScale above: the watch snapshot AND the Deno .strip() schema, or it is
+// silently dropped.
 const GRAPH_COLOR_FIELDS = ['graphMainColor', 'graphFillColor', 'graphSecondColor',
                             'nightHatchColor', 'nightBoundaryColor', 'nightFillColor'];
 
@@ -737,9 +739,10 @@ test('the reported graph colour is the pick for the polarity the watch renders',
 // pinned a divergence: this file had copied line-style's effectiveTheme fold but not its
 // colour-display check, so a B&W watch reported picks the wire was already resolving away
 // to GColorWhite — the dashboards would have counted a pick nobody could see. Both halves
-// now come from line-style.renderContext, so a B&W watch reports nothing, exactly like a
-// B&W theme below. The aplite polarity fold still matters and is still tested — on the
-// wire (test/line-style.test.js), where it changes a colour that is actually painted.
+// now come from line-style.renderContextFor (over config-ui computeEnv), so a B&W watch
+// reports nothing, exactly like a B&W theme below. The aplite polarity fold still matters
+// and is still tested — on the wire (test/graph-wire.test.js), where it changes a colour
+// that is actually painted.
 test('a watch with no colour display reports no graph colours at all', () => {
   const picks = {
     theme: 'light', secondaryLine: 'wind', thirdLine: 'uv',
