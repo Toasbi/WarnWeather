@@ -167,8 +167,9 @@ static const AlertEntry *item_entry(const StatusOnDemandState *s, int item) {
 // O(1) and flash-free — which is why a bar with items is refreshed on the minute tick
 // and after a radar rescan; the metric alerts from the stored tuple (one flash read —
 // app_message.c has already checked it with alert_set_bytes_ok). Returns the tuple
-// bytes read into s->bytes: 0 when none is stored, or the bar has no metric item.
-static size_t collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SETTINGS_BYTES]) {
+// bytes read into s->bytes: 0 when none is stored, or the bar has no metric item; -1
+// when the bar has no item at all.
+static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SETTINGS_BYTES]) {
     s->set.count = 0;
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
     s->bt_key = 0;
@@ -176,11 +177,11 @@ static size_t collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH
     BatteryChargeState bs = watch_services_battery_state();
     s->charge = bs.charge_percent;
     s->charging = bs.is_charging || bs.is_plugged;
-    bool metric = false;
+    int assigned = 0;   // bit 0: an item sits on this bar; bit 1: a metric item does
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         s->side[item] = (uint8_t)status_threshold_on_demand_side(blob, bar, item);
         s->active[item] = false;
-        if (item >= OD_GUST && s->side[item] != OD_SIDE_NONE) { metric = true; }
+        if (s->side[item] != OD_SIDE_NONE) { assigned |= item >= OD_GUST ? 3 : 1; }
     }
     if (s->side[OD_BATTERY] != OD_SIDE_NONE) {
         s->battery_value = status_threshold_battery_value(blob);
@@ -204,9 +205,9 @@ static size_t collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH
         s->rain_display = status_threshold_rain_display(blob);
         s->active[OD_RAIN] = rain_countdown_get(&s->rain, watch_services_now());
     }
-    if (!metric) { return 0; }
-    size_t n = (size_t)persist_get_alert_entries(s->bytes, sizeof(s->bytes));
-    alert_set_parse(s->bytes, n, &s->set);
+    if (!(assigned & 2)) { return assigned - 1; }   // no metric item: 0, or -1 for none
+    const int n = persist_get_alert_entries(s->bytes, sizeof(s->bytes));   // >= 0
+    alert_set_parse(s->bytes, (size_t)n, &s->set);
     for (int item = OD_GUST; item < OD_ITEM_COUNT; item++) {
         s->active[item] = s->side[item] != OD_SIDE_NONE && item_entry(s, item);
     }
@@ -300,13 +301,9 @@ static void measure(const StatusOnDemandState *s, const StatusOnDemandRow *row,
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
                                const uint8_t blob[THRESH_SETTINGS_BYTES]) {
     StatusOnDemandState s;
-    size_t n = collect(&s, bar, blob);
-    bool assigned = false;
-    for (int item = 0; item < OD_ITEM_COUNT; item++) {
-        if (s.side[item] != OD_SIDE_NONE) { assigned = true; }
-    }
-    row->assigned = assigned;
-    if (!assigned) {
+    const int n = collect(&s, bar, blob);
+    row->assigned = n >= 0;
+    if (n < 0) {
         // Nothing can draw here: give the glyphs back now rather than at teardown.
         status_on_demand_release(row);
         return sig;
@@ -321,7 +318,7 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
                          rain ? s.rain.tier : 0, text ? s.rain.mins : 0,
                          (uint8_t)(text && s.rain.raining) };
     sig = sig_fold(sig, live, sizeof(live));
-    return sig_fold(sig, s.bytes, n);
+    return sig_fold(sig, s.bytes, (size_t)n);
 }
 
 // One draw's short forms: the three slots' families as the layout takes them, and the
