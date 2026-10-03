@@ -113,7 +113,7 @@ LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views and optional auto-return, including Weather only: rain radar, clock, weather and a big forecast without the top bar
 - Custom layout (still beta)
 - First-run setup wizard that picks sensible defaults for your country and watch
-- A tidy settings page: six tabs, a live preview pinned at the top, explanations behind a ? next to each setting, and rarely-changed settings under More options
+- A tidy settings page: six tabs, a live preview pinned at the top, an explanation under each setting (or behind a ? icon, if you prefer), and rarely-changed settings under More options
 
 WEATHER
 - Detailed 5-day weather forecast for multiple locations inside the settings app

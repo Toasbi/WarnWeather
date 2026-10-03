@@ -93,8 +93,12 @@
     color: var(--hint); font: 800 10.5px 'Inter', sans-serif; line-height: 1; cursor: pointer;
     vertical-align: middle; transition: background-color .15s, color .15s, box-shadow .15s; }
   .info-q.on { background-color: #FA4A35; box-shadow: none; color: #FFFFFF; }
-  .lbl .info-q { margin-left: 2px; vertical-align: -3px; }
-  .lbl .nw { white-space: nowrap; }
+  /* Beside a label the '?' rides the label's last word (engine labelWithInfo), and the two
+     centre on the text's line box like the card title's flex row does, so the circle sits
+     on the text's middle whatever font the phone draws it in (a fixed vertical-align
+     offset only fits one font's metrics). */
+  .lbl .nw { white-space: nowrap; display: inline-flex; align-items: center; }
+  .lbl .info-q { margin-left: 2px; }
   .cardHdr .info-q { margin-left: 2px; }
   .info-q:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; }
   .card.nohdr .intro { padding-top: 14px; }

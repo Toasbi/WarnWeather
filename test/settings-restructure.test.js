@@ -35,6 +35,26 @@ test('page-only keys are never stored: the Night hours and Separate hours', () =
   uiOnly.forEach(k => assert.equal(Object.prototype.hasOwnProperty.call(blob, k), false, k));
 });
 
+test('the info text shows by default; Misc\'s Hide info text puts it behind ? buttons, page-only', async () => {
+  const p = bootGeneratedPage({ provider: 'dwd' }, 'basalt');
+  p.clickTab('setup');
+  let html = p.scroll.innerHTML;
+  assert.equal(html.indexOf('info-q'), -1, 'no ? by default');
+  assert.ok(html.indexOf('Open this settings page on the Weather tab instead of Watchface.') !== -1, 'hints in view');
+  assert.ok(/<span class="ttl">Misc<\/span>[\s\S]*?data-k="hideInfoText"/.test(html), 'the toggle sits in Misc');
+  p.clickToggle('hideInfoText');
+  html = p.scroll.innerHTML;
+  assert.ok(html.indexOf('data-info="k:startOnWeatherTab"') !== -1, 'the ? buttons appear at once');
+  assert.equal(html.indexOf('Open this settings page on the Weather tab instead of Watchface.'), -1, 'and the text goes');
+  p.toggleInfo('k:startOnWeatherTab');
+  assert.ok(p.scroll.innerHTML.indexOf('Open this settings page on the Weather tab instead of Watchface.') !== -1);
+  const blob = await p.save();
+  assert.equal(blob.hideInfoText, true, 'the choice is kept with the page\'s settings');
+  const again = bootGeneratedPage({ provider: 'dwd', hideInfoText: true }, 'basalt');
+  again.clickTab('setup');
+  assert.ok(again.scroll.innerHTML.indexOf('data-info="k:startOnWeatherTab"') !== -1, 'and the page reopens that way');
+});
+
 test('Separate hours reads the pairs the night features use, ignoring the ones they do not', () => {
   const emery = platformLib.computeEnv({ platform: 'emery' });
   // Defaults: dim 0–7, saver 0–7, the theme's custom hours 20–7 but the theme follows the sun.
@@ -52,7 +72,7 @@ test('Separate hours reads the pairs the night features use, ignoring the ones t
 test('shared Night hours: one pick writes all three pairs; the page shows one row', async () => {
   const p = bootGeneratedPage({ provider: 'dwd' }, 'emery');
   p.clickTab('watchface');
-  assert.ok(p.scroll.innerHTML.indexOf('data-info="g:Night hours:nightHoursFrom"') !== -1);
+  assert.ok(p.scroll.innerHTML.indexOf('<div class="lbl">Night hours</div>') !== -1, 'the one shared row');
   ['backlightDimStartHour', 'themeAutoStartHour', 'sleepStartHour'].forEach(k =>
     assert.equal(p.scroll.innerHTML.indexOf('data-select="' + k + '"'), -1, k + ' has no row of its own'));
   p.openSelect('nightHoursFrom');
@@ -91,7 +111,7 @@ test('Separate hours: on at load when the pairs differ, a From–To per feature;
   p.clickTab('watchface');
   assert.equal(p.S.nightHoursSeparate, true);
   const html = p.scroll.innerHTML;
-  assert.equal(html.indexOf('data-info="g:Night hours:nightHoursFrom"'), -1, 'no shared row');
+  assert.equal(html.indexOf('<div class="lbl">Night hours</div>'), -1, 'no shared row');
   assert.ok(html.indexOf('data-select="themeAutoStartHour"') !== -1 && html.indexOf('data-select="sleepStartHour"') !== -1);
   assert.ok(html.indexOf('data-k="nightHoursSeparate" data-toggle="1"') !== -1,
     'the card opened with its More options out (Separate hours is on)');

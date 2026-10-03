@@ -1070,6 +1070,9 @@ function keyRow(picker, when) {
 module.exports = {
     appName: 'WarnWeather',
     themeKey: 'configTheme',
+    // The Misc card's "Hide info text" (page-only): the engine draws the hints and intros
+    // in view while it is off, and behind '?' buttons once it is on.
+    infoIconsKey: 'hideInfoText',
     versionLabel: versionLabel + ' <a href="https://github.com/Toasbi/WarnWeather">GitHub source</a>',
     tabs: [{
         // The Weather tab is content, not configuration: live graphs + a
@@ -1077,7 +1080,7 @@ module.exports = {
         // (weather-tab*.js). DISPLAY-ONLY: its keys are blob-only and never
         // touch the watch's provider/location or any AppMessage.
         // FIRST in the bar, but not what the page opens on: that stays
-        // Watchface unless the user asks for this tab in Setup › About.
+        // Watchface unless the user asks for this tab in Setup › Misc.
         id: 'weather', label: 'Weather', openWhen: {key: 'startOnWeatherTab', eq: true}, sections: [{
             // Collapsed by default (collapsible sections start closed); the
             // header paints the current pick via titleFrom so the closed card
@@ -2235,7 +2238,7 @@ module.exports = {
             }]
         }])
     }, {
-        // Setup — what is set once: location, weather data, units, and the About and
+        // Setup — what is set once: location, weather data, units, and the Misc and
         // Advanced items.
         id: 'setup', label: 'Setup', sections: [{
             id: 'location',
@@ -2396,7 +2399,7 @@ module.exports = {
             }]
         }, {
             id: 'about',
-            title: 'About',
+            title: 'Misc',
             items: [{
                 // Page-only, like onboardingDone below: it picks the tab the
                 // settings page opens on and never goes near the watch.
@@ -2405,6 +2408,14 @@ module.exports = {
                 label: 'Start on the Weather tab',
                 defaultValue: false,
                 hint: 'Open this settings page on the Weather tab instead of Watchface.'
+            }, {
+                // Page-only too (the schema's infoIconsKey): how this page shows its
+                // explanations. Never read by the watch-side JS.
+                type: 'toggle',
+                messageKey: 'hideInfoText',
+                label: 'Hide info text',
+                defaultValue: false,
+                hint: 'Show a ? beside each setting instead of its explanation. Tap the ? to read it.'
             }, {
                 type: 'toggle',
                 messageKey: 'telemetryEnabled',

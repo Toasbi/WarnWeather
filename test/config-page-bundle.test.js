@@ -380,8 +380,8 @@ test('every preview block reaches the generated settings page', () => {
 // The two page files the six-tab layout added. Neither throws when dropped: the Status
 // bars tab would lose its pinned preview (an unregistered block renders nothing), and the
 // Watchface tab's Night hours would open on undefined and write nothing, while every Node
-// test still passes through require(). preview-status-bars.js reads window.StatusLineCatalog
-// and window.OnDemand at IIFE time, so it must follow both.
+// test still passes through require(). preview-status-bars.js reads window.StatusLineCatalog,
+// window.OnDemand and window.PreviewSvg at IIFE time, so it must follow all three.
 test('the Status bars preview and the Night hours reach the page, in dependency order', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
@@ -391,6 +391,8 @@ test('the Status bars preview and the Night hours reach the page, in dependency 
   };
   assert.ok(idx('pkjs/status-line-catalog.js') < idx('settings/preview-status-bars.js'));
   assert.ok(idx('pkjs/on-demand.js') < idx('settings/preview-status-bars.js'));
+  assert.ok(idx('settings/preview-svg.js') < idx('settings/preview-status-bars.js'),
+    'preview-status-bars.js reads window.PreviewSvg (the theme ink) at IIFE time');
   idx('settings/night-hours.js');
   const src = page();
   ["PConf.displayResolvers.register('nightHoursValue'", "PConf.displayResolvers.register('nightHoursSeparate'",
