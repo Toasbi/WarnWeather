@@ -84,20 +84,22 @@ node scripts/check-alert-lane-lockstep.js build/host/alert_lane.txt
 # status_short_text.h). The module's body sits behind WW_ON_DEMAND like alert_set.c's,
 # and it places its slots through the row layout it is linked with.
 # on_demand_ladder_test.c includes the engine's source (its middle invariants measure
-# layouts through the engine's own eval()), so the other four link it.
-cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_ladder_test.c \
+# layouts through the engine's own eval()), so the other four link it. OD_TEST_PROBES
+# adds the ladder row each side ends on (OdLayout.stage), which the tests read and the
+# watch build leaves out.
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_ladder_test.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_ladder_test
 build/host/on_demand_ladder_test
-cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_sides_test.c src/c/appendix/on_demand.c \
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_sides_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_sides_test
 build/host/on_demand_sides_test
-cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_battery_test.c src/c/appendix/on_demand.c \
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_battery_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_battery_test
 build/host/on_demand_battery_test
-cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_merge_test.c src/c/appendix/on_demand.c \
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_merge_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_merge_test
 build/host/on_demand_merge_test
-cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_short_test.c src/c/appendix/on_demand.c \
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_short_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_short_test
 build/host/on_demand_short_test
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test

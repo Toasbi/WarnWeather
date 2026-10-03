@@ -160,8 +160,11 @@ typedef struct {
     uint8_t n[2];                          // items kept (0: no run)
     uint8_t skip[2];                       // 1 + the kept item not drawn; 0: none
     uint8_t lane[2];                       // their lane
+#ifdef OD_TEST_PROBES
+    // Host tests only (scripts/test-c.sh): nothing on the watch reads it.
     uint8_t stage[2];                      // the ladder row the side ends on, at its
                                            // look lane[] (after the relax)
+#endif
     int16_t item_x[2][OD_SIDE_MAX];        // each drawn item's left edge
 } OdLayout;
 

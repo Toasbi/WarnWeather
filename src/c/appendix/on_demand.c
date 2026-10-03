@@ -320,7 +320,7 @@ static uint8_t pushed_sides(const Geom *g) {
 // middle first, centred on its full form's centre (or anywhere in its span when
 // free), then the left slot up to the middle less its run, or with the middle hidden
 // up to the right claim, then the right slot from whatever the left one left.
-static void place(const Pass *p, const Geom *g, const uint8_t pos[2], OdLayout *out) {
+static void place(const Pass *p, const Geom *g, OdLayout *out) {
     const Conf *c = &g->c;
     memset(out, 0, sizeof(*out));
     // The working values are ints, cast only where they are stored: an int16_t local
@@ -361,7 +361,6 @@ static void place(const Pass *p, const Geom *g, const uint8_t pos[2], OdLayout *
             out->n[d] = (uint8_t)(c->n[d] + (c->skip[d] != 0));
             out->skip[d] = c->skip[d];
             out->lane[d] = c->lane[d];
-            out->stage[d] = ROW(pos[d]);
             const OdSideIn *s = &p->sides[d];
             // Each side is laid out in its own frame, `u` in from its edge, and mirrored
             // for the right side: the own slot at the edge, then its run.
@@ -658,7 +657,12 @@ static void layout_pass(Pass *p, OdLayout *out) {
         }
     } while (middle_costs_look(p, pos, &g));
     middle_back(p, pos, &g, mid_w);
-    place(p, &g, pos, out);
+    place(p, &g, out);
+#ifdef OD_TEST_PROBES
+    for (int d = 0; d < 2; d++) {
+        if (out->n[d]) { out->stage[d] = ROW(pos[d]); }
+    }
+#endif
 }
 
 // One pass's state from the inputs in `p`: everything from `batt` on, cleared first.
