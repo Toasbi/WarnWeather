@@ -463,21 +463,6 @@ test('alertLevelBadge: the alert\'s colours while it is placed, no bold B', () =
   assert.equal(badge({}, { thresholds: false }, uv), null, 'aplite');
 });
 
-test('rainAlertBadge: the Edit button alone, the aria note following the placement', () => {
-  const badge = PConf.badgeResolvers.get('rainAlertBadge');
-  assert.equal(typeof badge, 'function', 'badge resolver registered');
-  // Rain draws in the radar's colours and never boxes: the button only.
-  assert.deepEqual(badge({}, {}), { label: 'Edit', ariaNote: '', dots: [] }, 'placed by default');
-  assert.deepEqual(badge(null, {}), { label: 'Edit', ariaNote: '', dots: [] }, 'absent = the default ticks');
-  assert.deepEqual(badge({ statusTopOnDemandLeftItems: 'bt' }, {}),
-    { label: 'Edit', ariaNote: 'not in any status bar', dots: [] });
-});
-
-test('onDemandBadge: the Edit button alone', () => {
-  const badge = PConf.badgeResolvers.get('onDemandBadge');
-  assert.deepEqual(badge({}, {}), { label: 'Edit', ariaNote: '', dots: [] });
-});
-
 test('layoutPresetOptions resolver: compactDense offered once health OR radar shows a status row', () => {
   const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
   assert.equal(typeof resolver, 'function', 'resolver registered');

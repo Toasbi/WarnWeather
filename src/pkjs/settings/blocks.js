@@ -1335,30 +1335,6 @@ if (typeof require !== 'undefined') {
     PConf.badgeResolvers.register('alertLevelBadge', alertLevelBadge);
 
     /**
-     * The Alert settings card's Rain row badge (editBadgeFrom): the Edit button every row
-     * carries, and no dots — rain draws in the radar's colours and never boxes. Only the
-     * aria note follows the placement.
-     * @param {Object} S Live settings state.
-     * @param {Object} env Platform env.
-     * @returns {Object} Badge state.
-     */
-    function rainAlertBadge(S, env) {
-        return {label: 'Edit', ariaNote: onDemand.placedAnywhere(S, 'rain', env) ? '' : 'not in any status bar',
-            dots: []};
-    }
-    PConf.badgeResolvers.register('rainAlertBadge', rainAlertBadge);
-
-    /**
-     * The badge of an Alert settings card row with no colours to preview (Battery,
-     * Bluetooth, Quiet time, Sleep): the Edit button alone.
-     * @returns {Object} Badge state.
-     */
-    function onDemandBadge() {
-        return {label: 'Edit', ariaNote: '', dots: []};
-    }
-    PConf.badgeResolvers.register('onDemandBadge', onDemandBadge);
-
-    /**
      * The Alerts-tab row's summary for a metric alert: "Not in any status bar" while its
      * item is ticked on no bar, else the kind's levels and where it shows, e.g. "Warn 40
      * kph · Danger 60 kph · Forecast bar, right" (args.levelsOnly: the levels alone, for

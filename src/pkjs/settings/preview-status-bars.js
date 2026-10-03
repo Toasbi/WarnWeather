@@ -140,6 +140,11 @@
         + '.sbp-v{font:700 14px Inter,sans-serif;color:#FFFFFF;color:var(--sbp-fg,#FFFFFF);white-space:nowrap;'
         + 'overflow:hidden;text-overflow:ellipsis}'
         + '.sbp-left{text-align:left}.sbp-mid{text-align:center}.sbp-right{text-align:right}';
+    /**
+     * Inject the preview's stylesheet (id 'sbp-style') once; nothing outside a DOM or when
+     * it is already there.
+     * @returns {void}
+     */
     function ensureStyle() {
         if (typeof document === 'undefined' || !document.getElementById || document.getElementById('sbp-style')) { return; }
         var el = document.createElement('style');

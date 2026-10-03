@@ -1087,7 +1087,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (ph) { pin = '<div class="' + pinClass(cx, 'dlg-pin') + '"><div class="pin-blk">' + ph + '</div></div>'; }
     }
     return dialogHeader(titleId, String(sec.title || 'Edit'), cx.editKicker || '', Boolean(cx.editNested),
-        (introId ? infoButtonHtml(introId, introOpen, sec.title) : '') + labelActionHtml(sec))
+        introId ? infoButtonHtml(introId, introOpen, sec.title) : '', labelActionHtml(sec))
       + '<div class="ssel-list esheet">' + pin
       + (introOpen ? '<div class="dlg-intro">' + sec.intro + '</div>' : '')
       + body + '</div>';
@@ -1121,17 +1121,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {string} title The dialog's title (plain text).
    * @param {string} kicker Where it opened from (plain text, '' for none).
    * @param {boolean} nested Opened from another dialog.
-   * @param {string} [afterTitle] Markup beside the title (the '?' and a reset).
+   * @param {string} [info] The title's '?' (infoButtonHtml), glued to its last word.
+   * @param {string} [afterTitle] Markup after the title (a reset).
    * @returns {string} Header HTML.
    */
-  function dialogHeader(titleId, title, kicker, nested, afterTitle) {
+  function dialogHeader(titleId, title, kicker, nested, info, afterTitle) {
     return '<div class="dlg-hdr">'
       + (nested
         ? '<button type="button" class="dlg-x" data-dlg-back aria-label="Back">&#8249;</button>'
         : '<button type="button" class="dlg-x" data-dlg-close aria-label="Close and discard changes">&#215;</button>')
       + '<div class="dlg-ttlwrap">' + (kicker ? '<span class="dlg-kick">' + esc(kicker) + '</span>' : '')
-      + '<span class="dlg-ttlline"><span class="ssel-modal-ttl dlg-ttl" id="' + titleId + '">' + esc(title)
-      + '</span>' + (afterTitle || '') + '</span></div>'
+      + '<span class="dlg-ttlline"><span class="ssel-modal-ttl dlg-ttl" id="' + titleId + '">'
+      + labelWithInfo(title, info || '') + '</span>' + (afterTitle || '') + '</span></div>'
       + '<button type="button" class="dlg-done" data-dlg-done>Done</button></div>';
   }
 
@@ -1465,14 +1466,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * when they shared a tab. Same rules as resolveRowItem: the item's default when it is
    * still offered, else the first option; a dormantValues value is left stored. Rows
    * hidden by their tab's, pane's, section's or own showWhen keep their value, as an
-   * undrawn row always did. Walks in schema order, so an earlier row's snap is seen by
-   * the later rows' resolvers.
+   * undrawn row always did. So does a value that was already outside its options when
+   * the page opened (`initial`) and has not changed since: one chosen on another watch
+   * that shares the phone's settings (a heart-rate slot read on a watch without one) is
+   * left to its own row, which snaps it only once drawn — the old page's rule. Walks in
+   * schema order, so an earlier row's snap is seen by the later rows' resolvers.
    * @param {Object} schema Config schema.
    * @param {Object} S Settings state (mutated).
    * @param {Object} env Platform env.
+   * @param {Object} [initial] The settings as the page opened (boot's INITIAL).
    * @returns {void}
    */
-  function snapShownOptions(schema, S, env) {
+  function snapShownOptions(schema, S, env, initial) {
     var ctx = Object.assign({}, S, { env: env }), sw = PConf.showWhen;
     (schema.tabs || []).forEach(function (tab) {
       if (!sw.isVisible(tab, ctx)) { return; }
@@ -1489,6 +1494,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           var stored = S[item.messageKey];
           if (!derived.length || optionHasValue(derived, stored)) { return; }
           if (item.dormantValues && item.dormantValues.indexOf(stored) >= 0) { return; }
+          if (initial && stored === initial[item.messageKey]
+              && !optionHasValue(resolveOptionsFrom(item, initial, env), stored)) { return; }
           var dflt = resolveDefaultFrom(item, env);
           S[item.messageKey] = (dflt != null && optionHasValue(derived, dflt)) ? dflt : derived[0][1];
           ctx[item.messageKey] = S[item.messageKey];
@@ -1770,9 +1777,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var info = hint && cx.infoIcons ? infoButtonHtml(id, open, head.groupLabel) : '';
     return { controlCount: ctl.length, html: '<div class="row hours' + nbClass(noDivider)
       + (head.indent ? ' indent' : '') + (inlineList ? ' isel-open' : '') + '">'
-      + '<div class="lft"><div class="lbl">' + labelWithInfo(head.groupLabel, info) + '</div>'
-      + (hint && open ? '<div class="hint">' + hint + '</div>' : '') + '</div>'
+      + '<div class="lft"><div class="lbl">' + labelWithInfo(head.groupLabel, info) + '</div></div>'
       + '<div class="rgt hrs">' + ctl.join('<span class="hrs-dash">–</span>') + '</div>'
+      + (hint && open ? '<div class="hint">' + hint + '</div>' : '')
       + inlineList + '</div>' };
   }
 
@@ -1923,18 +1930,46 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * The defaults a `more` group's values are measured against (moreDiffers): every
+   * stored key's default, then — for each item flagged `convertsDefaults` (the Theme
+   * row) whose value at open differs from its default — that value with the item's
+   * onChange hooks run over the defaults, as picking it would have run them. So the
+   * colours a light theme converted (the time colour, the rain bars) count as defaults
+   * for a light-theme page, not as the user's own picks.
+   * @param {Object} schema Config schema.
+   * @param {Object} initial The settings as the page opened.
+   * @param {Object} env Platform env.
+   * @returns {Object} The baseline, keyed by messageKey.
+   */
+  function moreBaseline(schema, initial, env) {
+    var D = hydrate(schema, {}, env);
+    eachItem(schema, function (it) {
+      if (!it.convertsDefaults || !it.messageKey || it.uiOnly) { return; }
+      var k = it.messageKey, oldV = D[k], newV = initial[k];
+      if (typeof newV === 'undefined' || newV === oldV) { return; }
+      D[k] = newV;
+      onChangeHooks(it).forEach(function (fn) { fn(D, oldV, newV, env, k); });
+    });
+    return D;
+  }
+
+  /**
    * Whether a `more` group starts expanded: one of its keyed items held something other
    * than its default when the page opened (cx.INITIAL), so a customised setting is never
-   * tucked away. Page-only items do not count. Compared in the stored shape
-   * (storedDefault); colours case-insensitively; an absent value is the default.
+   * tucked away. Page-only items do not count, nor do rows this watch never shows. The
+   * default is the theme-aware one (cx.MORE_BASE, moreBaseline), else storedDefault;
+   * an empty default with a displayFrom (an AUTO colour) also matches the value it
+   * resolves to, which the page may have written back. Compared in the stored shape;
+   * colours case-insensitively; an absent value is the default.
    * @param {Object[]} items The group's `more` items.
-   * @param {Object} cx Render context (INITIAL, else S; ENV).
+   * @param {Object} cx Render context (INITIAL, else S; MORE_BASE; ENV; evalCtx).
    * @returns {boolean} True when one differs.
    */
   function moreDiffers(items, cx) {
-    var base = cx.INITIAL || cx.S, i, it, v, d, sub;
+    var base = cx.INITIAL || cx.S, i, it, v, d, sub, probe, shown;
     for (i = 0; i < items.length; i++) {
       it = items[i];
+      if (cx.evalCtx && !PConf.showWhen.isVisible(it, cx.evalCtx)) { continue; }
       // A nav row stores nothing itself: the values behind it are its dialog's, so a
       // customised one there keeps the row in view too (one level deep).
       if (it.type === 'sheet' && it.sheetId && cx.schema && !cx.moreNested) {
@@ -1952,8 +1987,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       v = base[it.messageKey];
       if (typeof v === 'undefined') { continue; }
-      d = storedDefault(it, cx.ENV);
+      d = (cx.MORE_BASE && Object.prototype.hasOwnProperty.call(cx.MORE_BASE, it.messageKey))
+        ? cx.MORE_BASE[it.messageKey] : storedDefault(it, cx.ENV);
       if (typeof d === 'undefined') { continue; }
+      if (d === '' && it.displayFrom && typeof v === 'string') {
+        probe = Object.assign({}, base);
+        probe[it.messageKey] = '';
+        shown = resolveDisplayValue(it, probe, cx.ENV);
+        if (typeof shown === 'string' && shown.toUpperCase() === v.toUpperCase()) { continue; }
+      }
       if (typeof v === 'string' && typeof d === 'string') {
         if (v.toUpperCase() !== d.toUpperCase()) { return true; }
       } else if (v !== d) { return true; }
@@ -2060,7 +2102,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       Boolean(it.disabledWhen) && PConf.showWhen.evaluate(it.disabledWhen, cx.evalCtx));
   }
 
-  // Render one section as its card(s). '' when every card is empty.
+  /**
+   * Render one section as its card(s) (buildCards).
+   * @param {Object} sec The schema section.
+   * @param {Object} cx Render context.
+   * @param {string} [secKey] The key its cards and their More options are remembered
+   *   under; 'sec:' + its id or title when omitted.
+   * @returns {string} Card HTML, or '' when every card is empty.
+   */
   function renderSection(sec, cx, secKey) {
     return buildCards(sec, cx, secKey || ('sec:' + (sec.id || sec.title || ''))).map(function (c) { return c.html; }).join('');
   }
@@ -2326,6 +2375,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '', health: true };
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
     var S = hydrate(SCHEMA, INJECTED_CFG, ENV), INITIAL = Object.assign({}, S);
+    // What More options measures "customised" against (moreDiffers), once per page.
+    var MORE_BASE = moreBaseline(SCHEMA, INITIAL, ENV);
     var activeTab = initialTab(SCHEMA, S);
     var openColor = null, openSelect = null, openDate = null, openEdit = null;
     // The Save button's confirm dialog while it is open (requestSave): {title, body,
@@ -2669,14 +2720,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     function render() {
-      snapShownOptions(SCHEMA, S, ENV);
+      snapShownOptions(SCHEMA, S, ENV, INITIAL);
       var cx = {
         S: S, ENV: ENV, USERDATA: USERDATA, openColor: openColor,
         openSelect: openSelect, openDate: openDate, openEdit: openEdit,
         openInline: openInline,
         selectQuery: selectQuery,
         collapsed: collapsed, evalCtx: evalCtx(),
-        INITIAL: INITIAL, infoOpen: infoOpen, infoIcons: infoIconsOn(SCHEMA, S), moreOpen: moreOpen,
+        INITIAL: INITIAL, MORE_BASE: MORE_BASE, infoOpen: infoOpen, infoIcons: infoIconsOn(SCHEMA, S), moreOpen: moreOpen,
         activePane: activePane, schema: SCHEMA,
         editKicker: editStack.length ? editStack[editStack.length - 1].kicker : '',
         editNested: editStack.length > 1
@@ -3331,7 +3382,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
     // Save: run submit hooks, serialize, flash the toast, then return to the watch.
     function save() {
-      snapShownOptions(SCHEMA, S, ENV);
+      snapShownOptions(SCHEMA, S, ENV, INITIAL);
       PConf.hooks.runSubmit(hookCtx);
       var blob = serialize(SCHEMA, S, ENV);
       var el = document.getElementById('toast');

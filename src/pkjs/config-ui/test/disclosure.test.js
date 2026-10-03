@@ -41,7 +41,8 @@ test('by default every info text shows in place and no ? is drawn', () => {
       defaultValue: '0', hint: 'Used by all three.' },
     { type: 'select', messageKey: 'to', label: 'To', options: [['00:00', '0']], inline: 'h', defaultValue: '0' }] }] }] };
   const hb = E.renderBody(hours, 't', cxFor(E.hydrate(hours, {})));
-  assert.ok(hb.indexOf('<div class="lbl">Night hours</div><div class="hint">Used by all three.</div>') !== -1, hb);
+  // The hours row's hint runs full width under its label and pickers.
+  assert.ok(/<div class="lbl">Night hours<\/div><\/div><div class="rgt hrs">[\s\S]*?<\/div><div class="hint">Used by all three\.<\/div><\/div>/.test(hb), hb);
   const dlg = { tabs: [{ id: 't', label: 'T', sections: [
     { sheetOnly: true, sheetId: 'd1', title: 'Dialog one', intro: 'What it is.', items: [
       { type: 'toggle', messageKey: 'k', label: 'K' }] }] }] };
@@ -334,8 +335,9 @@ test('renderEditModal: the dialog header (× or ‹, kicker, title with its ?, D
   const root = E.renderEditModal(schema, cxFor(S, { infoIcons: true, openEdit: 'd1', editKicker: 'Status bars' }));
   assert.ok(root.indexOf('<div class="dlg-hdr"><button type="button" class="dlg-x" data-dlg-close aria-label="Close and discard changes">&#215;</button>'
     + '<div class="dlg-ttlwrap"><span class="dlg-kick">Status bars</span><span class="dlg-ttlline">'
-    + '<span class="ssel-modal-ttl dlg-ttl" id="esheet-ttl-d1">Dialog one</span>'
+    + '<span class="ssel-modal-ttl dlg-ttl" id="esheet-ttl-d1">Dialog <span class="nw">one'
     + '<button type="button" class="info-q" data-info="d:d1"') === 0, root);
+  // The title wraps rather than cut off, so its '?' rides the last word (labelWithInfo).
   assert.ok(root.indexOf('<button type="button" class="dlg-done" data-dlg-done>Done</button></div>') !== -1);
   assert.ok(root.indexOf('<div class="ssel-list esheet"><div class="pin dlg-pin"><div class="pin-blk"><em>pinned</em></div></div>') !== -1);
   assert.equal(root.indexOf('What it is.'), -1, 'the intro waits behind the title ?');

@@ -179,7 +179,7 @@ test('the key status and its fingerprint are bundled before blocks.js and the ke
     'key-status.js must precede key-test.js');
   const src = page();
   ['window.KeyFingerprint = api', "PConf.attentionResolvers.register('keyAttention'",
-    "PConf.badgeResolvers.register('keyBadge'", "PConf.hintResolvers.register('keyMissingNote'",
+    "PConf.hintResolvers.register('keyRowSummary'", "PConf.hintResolvers.register('keyMissingNote'",
     "keyStatus.registerUsage('tomorrowio'"].forEach((s) =>
     assert.ok(src.indexOf(s) !== -1, 'the generated page lacks ' + s));
 });

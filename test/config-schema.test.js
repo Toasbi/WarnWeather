@@ -857,17 +857,21 @@ const NIGHT_STATES = {
 
 test('Theme & night: every line in the card introduces a top-level row, in every expansion state', () => {
   Object.keys(NIGHT_STATES).forEach((name) => {
-    const separate = NIGHT_STATES[name].nightHoursSeparate === true;
+    const st = NIGHT_STATES[name];
+    const separate = st.nightHoursSeparate === true;
+    // The shared Night hours and Separate hours show while a night feature reads hours.
+    const inUse = st.backlightDim !== false || st.sleepNightEnabled !== false
+      || (st.themeAuto === true && st.themeAutoMode === 'manual');
     [false, true].forEach((more) => {
       const label = name + (more ? ' (More options open)' : '');
-      const outline = nightOutline(NIGHT_STATES[name], emeryEnv, more);
+      const outline = nightOutline(st, emeryEnv, more);
       // Separate hours is a customised value: its More options open on their own.
       const moreShown = more || separate;
-      const expected = ['Theme'].concat(separate ? [] : ['Night hours'],
+      const moreRows = (inUse ? ['Separate hours'] : []).concat(st.backlightDim !== false ? ['Dim backlight color'] : []);
+      const expected = ['Theme'].concat(separate || !inUse ? [] : ['Night hours'],
         ['Dim backlight', 'Night theme', 'Battery saver'],
-        moreShown ? ['Separate hours'] : [],
-        moreShown && NIGHT_STATES[name].backlightDim !== false ? ['Dim backlight color'] : [],
-        [moreShown ? 'Fewer options' : 'More options']);
+        moreShown ? moreRows : [],
+        moreRows.length ? [moreShown ? 'Fewer options' : 'More options'] : []);
       assert.deepEqual(outline.filter(isGroupOpener).map(titleOf), expected, label + ': the top-level rows');
       // A row that keeps its divider (no nb/nbl) either ENDS the card — whose divider
       // .card .row:last-child removes anyway — or sits directly above a top-level row,
@@ -892,13 +896,13 @@ test('Theme & night: a group is separated from the one above even when it is col
   // but its switch row, and a join from the group below must not take that row's line
   // away — or the two groups run together. Each collapsed switch row keeps its own
   // divider, and that divider is the line into the next row.
+  // With no night feature on, the Night hours have nothing to drive: no shared row, no
+  // Separate hours — and so no More options either.
   assert.deepEqual(nightOutline(NIGHT_STATES['everything off']), [
     'row:Theme',
-    'row hours:Night hours',
     'row:Dim backlight',
     'row:Night theme',
     'row:Battery saver',
-    'row more-row:More options',
   ], 'collapsed groups back to back, each only its switch row, each drawing its line');
 
   // With the shared Night hours, Dim backlight and the battery saver have no rows of
@@ -1103,7 +1107,10 @@ test('the Theme & night card opens on the theme, then the shared Night hours, wh
     assert.equal(it.uiOnly, true, it.messageKey + ' is never stored');
     assert.equal(it.onChange, 'nightHoursSync', it.messageKey + ' writes the three pairs');
     assert.equal(it.initFrom.resolver, 'nightHoursValue', it.messageKey + ' opens on the pairs\' hours');
-    assert.deepEqual(it.showWhen, { not: NIGHT_SEPARATE }, it.messageKey + ' gives way to Separate hours');
+    assert.deepEqual(it.showWhen.all[0], { not: NIGHT_SEPARATE }, it.messageKey + ' gives way to Separate hours');
+    // ...and shows only while a night feature reads hours (night-hours.js PAIRS inUse).
+    const inUse = it.showWhen.all[1].any;
+    assert.equal(inUse.length, 3, 'Dim backlight, the Night theme on its own hours, the Battery saver');
   });
   const sep = byKey('nightHoursSeparate');
   assert.equal(sep.uiOnly, true);
