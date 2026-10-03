@@ -253,8 +253,8 @@ test('sheet: .picking is added while a palette is open and removed with it', () 
 });
 
 test('a palette left open in the tab body does not grow an unrelated select sheet', () => {
-  // openColor is ONE variable serving palettes in both surfaces, but only the edit
-  // sheet ever renders a palette inside the dialog. Keyed on openColor alone, a body
+  // `expanded` is ONE variable serving palettes in both surfaces, but only the edit
+  // sheet ever renders a palette inside the dialog. Keyed on `expanded` alone, a body
   // palette would raise the cap on (and suppress the peek clamp of) a select sheet
   // opened from the same card.
   const h = bootPickingSheet();

@@ -329,6 +329,62 @@ test('page: "Save anyway" saves as Save does; the close button saves nothing', a
   assert.equal(blob.yandexApiKey, '');
 });
 
+test('page: the dialog hands focus back to Save when it closes unsaved, and nowhere on "Save anyway"', async () => {
+  const page = bootGeneratedPage({ provider: 'yandex', yandexApiKey: '' }, 'basalt', { dialog: true });
+  const save = page.window.document.getElementById('save');
+  const closes = {
+    'the close button': () => tapInModal(page, '[data-select-close]'),
+    'the backdrop': () => page.modal.dispatch('click', { target: page.modal }),
+    'Escape': () => page.modal.dispatch('cancel', { preventDefault: () => {} })
+  };
+  Object.keys(closes).forEach((how, i) => {
+    page.tapSave();
+    assert.equal(page.modal.open, true, how + ': the dialog opened');
+    closes[how]();
+    assert.equal(page.modal.open, false, how + ': closed');
+    assert.equal(save.focuses, i + 1, how + ': focus is back on Save');
+  });
+  page.tapSave();
+  tapInModal(page, '[data-confirm]', 'data-confirm', 'save');
+  assert.equal(save.focuses, 3, '"Save anyway" hands focus to nothing: the page is leaving');
+  assert.equal((await page.saved()).provider, 'yandex');
+});
+
+test('page: a palette left open in the tab body closes under the Save dialog and stays closed', () => {
+  const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: '' }, 'basalt', { dialog: true });
+  page.clickTab('layout');
+  const sw = { getAttribute: (n) => (n === 'data-color' ? 'colorTime' : null),
+    closest: (sel) => (sel === '[data-color]' ? sw : null) };
+  page.scroll.dispatch('click', { target: sw });
+  assert.ok(page.scroll.innerHTML.indexOf('class="palette"') !== -1, 'the palette is open');
+  page.tapSave();
+  assert.equal(page.modal.open, true, 'the dialog opened');
+  assert.equal(page.scroll.innerHTML.indexOf('class="palette"'), -1, 'the palette closed under it');
+  tapInModal(page, '[data-select-close]');
+  assert.equal(page.scroll.innerHTML.indexOf('class="palette"'), -1, 'and does not come back');
+});
+
+test('page: the dialog\'s fix on the tab already showing leaves the tab bar; a tap on that tab brings it in', () => {
+  const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: '' }, 'basalt', { dialog: true });
+  // The geometry of the test above: General rests at 18-90 in a 360 px bar with 18 px padding.
+  const X = { general: [18, 90], more: [600, 660] };
+  const onTab = () => (/class="tab on" data-tab="(\w+)"/.exec(page.tabs.innerHTML) || [])[1];
+  page.tabs.getBoundingClientRect = () => ({ left: 0, right: 360 });
+  page.tabs.querySelector = (sel) => (sel !== '.tab.on' ? null : { getBoundingClientRect: () => ({
+    left: (X[onTab()] || [0, 0])[0] - page.tabs.scrollLeft, right: (X[onTab()] || [0, 0])[1] - page.tabs.scrollLeft }) });
+  page.window.getComputedStyle = () => ({ paddingLeft: '18px' });
+  page.tabs.scrollLeft = 0;
+  page.clickTab('general');
+  page.tabs.scrollLeft = 50;   // the bar swiped sideways: General is cut off at the left edge
+  page.tapSave();
+  tapInModal(page, '[data-confirm]', 'data-confirm', 'action');
+  assert.ok(page.modal.innerHTML.indexOf('data-k="owmApiKey"') !== -1, 'the key sheet opened over General');
+  assert.equal(page.tabs.scrollLeft, 50, 'no tab switched, so the bar stays where it was');
+  tapInModal(page, '[data-select-close]');
+  page.clickTab('general');
+  assert.equal(page.tabs.scrollLeft, 0, 'a tap on the half-hidden General brings it fully in');
+});
+
 test('page: a key the last update was refused with — the summary, the dot and the "rejected" dialog', async () => {
   const userData = { keyResults: results({ openweathermap: [OWM_KEY, 401] }) };
   const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: OWM_KEY }, 'basalt', { userData, dialog: true });

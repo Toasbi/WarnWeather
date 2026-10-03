@@ -1460,7 +1460,29 @@ test('boot(): external openSheet close skips underlying trigger focus and calls 
   assert.equal(closed, 1);
 });
 
-// One openColor variable serves palettes on BOTH surfaces — the tab body and an edit
+test('boot(): a tab switch closing an openSheet() sheet runs its onClose; no later close runs it again', () => {
+  // The callback rides the sheet it belongs to: every path that closes that sheet runs it
+  // once, and an unrelated sheet closing later never does.
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [
+    { id: 'a', label: 'A', sections: THEME_SCHEMA.tabs[0].sections },
+    { id: 'b', label: 'B', sections: [{ title: 'S', items: [
+      { type: 'select', messageKey: 'mode', label: 'Mode', defaultValue: 'x', options: [['X', 'x'], ['Y', 'y']] }
+    ] }] }
+  ] };
+  const r = bootWithCapturedListeners(SCH, {}, { dialog: true });
+  let closed = 0;
+  r.openSheet('theme', () => { closed++; });
+  assert.equal(r.modal.open, true, 'the sheet opened');
+  r.tabsListeners.click({ target: { closest: () => ({ getAttribute: () => 'b' }) } });
+  assert.equal(r.modal.open, false, 'the switch closed it');
+  assert.equal(closed, 1, 'and ran its onClose');
+  clickMatching(r.listeners.click, '[data-select]', { 'data-select': 'mode' });
+  clickMatching(r.modalListeners.click, '[data-select-close]', {});
+  assert.equal(r.focusCounts.select.mode, 1, 'the other sheet closed the usual way');
+  assert.equal(closed, 1, 'without running the first sheet\'s onClose');
+});
+
+// One `expanded` variable serves palettes on BOTH surfaces — the tab body and an edit
 // sheet — so this card deliberately mixes a color row with a select row (the shipped
 // Layout tab does exactly that) and adds a sheet holding a color row of its own.
 const COLOR_SURFACE_SCHEMA = {
@@ -1516,6 +1538,31 @@ test('boot(): closing an edit sheet collapses a palette expanded inside it', () 
   clickMatching(r.modalListeners.click, '[data-select-close]', {});
   clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'more' });
   assert.equal(r.modal.innerHTML.indexOf('class="palette"'), -1, 'the sheet reopens collapsed');
+});
+
+test('boot(): an edit sheet opens with nothing expanded, though a palette was open in the tab body', () => {
+  const r = bootWithCapturedListeners(COLOR_SURFACE_SCHEMA, {}, { dialog: true });
+  clickMatching(r.listeners.click, '[data-color]', { 'data-color': 'tint' });
+  assert.ok(r.scroll.innerHTML.indexOf('class="palette"') >= 0, 'the palette expands in the tab body');
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'more' });
+  assert.equal(r.scroll.innerHTML.indexOf('class="palette"'), -1, 'the body palette closed');
+  assert.equal(r.modal.classes.has('picking'), false, 'the sheet opens at its normal cap');
+  r.modalListeners.cancel({ preventDefault: () => {} });
+  assert.equal(r.modal.open, false, 'one Escape closes the sheet: nothing was left to collapse');
+});
+
+test('boot(): a tab switch closes a palette left open in the tab body', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [
+    { id: 'a', label: 'A', sections: COLOR_SURFACE_SCHEMA.tabs[0].sections },
+    { id: 'b', label: 'B', sections: [{ title: 'S', items: [{ type: 'toggle', messageKey: 'tb', label: 'On B', defaultValue: false }] }] }
+  ] };
+  const r = bootWithCapturedListeners(SCH, {});
+  clickMatching(r.listeners.click, '[data-color]', { 'data-color': 'tint' });
+  assert.ok(r.scroll.innerHTML.indexOf('class="palette"') >= 0, 'the palette expands in the tab body');
+  r.tabsListeners.click({ target: { closest: () => ({ getAttribute: () => 'b' }) } });
+  r.tabsListeners.click({ target: { closest: () => ({ getAttribute: () => 'a' }) } });
+  assert.ok(r.scroll.innerHTML.indexOf('data-color="tint"') >= 0, 'back on A');
+  assert.equal(r.scroll.innerHTML.indexOf('class="palette"'), -1, 'with the palette closed');
 });
 
 // A toggle row carrying the pencil (the shape the retired Alerts card's "show this
@@ -1888,30 +1935,32 @@ test('renderEditModal: a muted member of an inline group never expands', () => {
     'its live neighbour still expands');
 });
 
-test('renderEditModal/renderBody: only the sheet\'s copy of a key expands inline', () => {
-  // The same select in a card AND in a sheet: an openInline key expands the sheet's row
-  // only, so the card behind the sheet keeps its collapsed trigger.
+test('boot(): only the sheet\'s copy of a key expands inline; the card behind stays collapsed', () => {
+  // The same select in a card AND in a sheet: render() hands the expanded key to the
+  // sheet's rows only (renderEditModal's cx.openInline), so the card behind the sheet
+  // keeps its collapsed trigger.
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
     { title: 'S', items: [
       { type: 'select', messageKey: 'sep', label: 'Separator', defaultValue: 'slash',
-        options: [['12/10', 'slash'], ['Custom', 'custom']] }
+        options: [['12/10', 'slash'], ['Custom', 'custom']] },
+      { type: 'sheet', sheetId: 'fmt', label: 'Format' }
     ] },
     { sheetOnly: true, sheetId: 'fmt', title: 'Format', items: [
       { type: 'select', messageKey: 'sep', label: 'Separator', defaultValue: 'slash',
         options: [['12/10', 'slash'], ['Custom', 'custom']] }
     ] }
   ] }] };
-  const S = E.hydrate(SCH, {});
-  const cx = { S: S, ENV: {}, USERDATA: {}, openColor: null, openSelect: null, openEdit: 'fmt',
-    openInline: 'sep', collapsed: {}, evalCtx: Object.assign({}, S, { env: {} }) };
-  const body = E.renderBody(SCH, 't', cx);
-  assert.equal(body.indexOf('isel-list'), -1, 'the card row stays collapsed');
-  assert.match(selectRowTags(body, 'sep').trigger, /aria-expanded="false"/);
-  const sheet = E.renderEditModal(SCH, cx);
+  const r = bootWithCapturedListeners(SCH, {});
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'fmt' });
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  const sheet = r.modal.innerHTML, body = r.scroll.innerHTML;
   assert.ok(sheet.indexOf('class="isel-list"') >= 0, 'the sheet row expands');
   assert.match(selectRowTags(sheet, 'sep').trigger, /aria-expanded="true"/);
   assert.match(sheet, /data-select-pick="custom" data-k="sep"/, 'its options pick into the key');
   assert.match(sheet, /class="ssel-opt on" role="option" aria-selected="true"/, 'the current value is checked');
+  assert.ok(body.indexOf('data-select="sep"') >= 0, 'the card row is drawn behind the sheet');
+  assert.equal(body.indexOf('isel-list'), -1, 'the card row stays collapsed');
+  assert.match(selectRowTags(body, 'sep').trigger, /aria-expanded="false"/);
 });
 
 test('boot(): a select in the tab body still opens the select modal and closes on a pick', () => {
@@ -2619,8 +2668,10 @@ test('boot(): each tab keeps its scroll offset, and a switch scrolls an off-scre
     assert.equal(r.scroll.scrollTop, 120, 'A comes back where it was left');
     tapTab(r, 'b');
     assert.equal(r.scroll.scrollTop, 40, 'and so does B');
+    r.scroll.scrollTop = 70;
     tapTab(r, 'b');
     assert.equal(r.tabs.scrollLeft, 118, 'a tab already in view leaves the bar where it is');
+    assert.equal(r.scroll.scrollTop, 70, 'and a tap on the tab showing leaves the page where it is');
   } finally {
     delete global.getComputedStyle;
   }

@@ -45,6 +45,9 @@ const HINT_RE = /(<div class="hint" data-hint-for=")([^"]*)(">)([\s\S]*?)(<\/div
  * — the engine's in-place hint repaint after a keyboard nudge on a range thumb
  * (repaintDerivedHints). Its innerHTML writes are spliced back the same way and bump
  * `hintRepaints`, not `writes`.
+ *
+ * `focuses` counts focus() calls; `document.querySelector('#save')` answers the Save
+ * button's stub, so a test can see the Save dialog hand focus back to it.
  * @param {string} id element id
  * @returns {Object} stub exposing addEventListener/dispatch + an innerHTML counter
  */
@@ -104,7 +107,7 @@ function makeEl(id) {
     return stub;
   }
   const el = {
-    id, className: '', textContent: '', writes: 0, relabels: 0, hintRepaints: 0,
+    id, className: '', textContent: '', writes: 0, relabels: 0, hintRepaints: 0, focuses: 0,
     addEventListener(type, fn) { (handlers[type] = handlers[type] || []).push(fn); },
     dispatch(type, ev) { (handlers[type] || []).forEach(fn => fn(ev)); },
     types() { return Object.keys(handlers); },
@@ -126,7 +129,7 @@ function makeEl(id) {
     },
     classList: { add() {}, remove() {}, contains() { return false; } },
     style: {},
-    focus() {}, getAttribute() { return null; }, setAttribute() {}
+    focus() { el.focuses += 1; }, getAttribute() { return null; }, setAttribute() {}
   };
   Object.defineProperty(el, 'innerHTML', {
     get() { return raw; },
@@ -167,7 +170,8 @@ function bootGeneratedPage(cfg, platformName, opts) {
   sandbox.window = sandbox;
   sandbox.document = {
     getElementById(id) { return (els[id] = els[id] || makeEl(id)); },
-    querySelector() { return null; }, querySelectorAll() { return []; },
+    querySelector(sel) { return sel === '#save' ? sandbox.document.getElementById('save') : null; },
+    querySelectorAll() { return []; },
     addEventListener() {}
   };
   sandbox.navigator = {};

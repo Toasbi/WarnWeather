@@ -3538,3 +3538,17 @@ test('no searchSelect sits in an edit sheet: a select there expands inline, with
   assert.ok(selects.indexOf('uvSlotSeparator') !== -1 && selects.indexOf('alertUvNextDayMark') !== -1,
     'the sheets hold selects that open inline');
 });
+
+test('no key is a colour in one item and another type in the next', () => {
+  // The page keeps ONE expanded key for a colour's palette and a select's in-place list
+  // (config-ui engine boot, `expanded`), and tells the two apart by the key's item type.
+  // A key that were both would open the wrong one, and Escape would hand focus to a
+  // trigger that is not there.
+  const types = {};
+  items.forEach((it) => {
+    if (it.messageKey) { (types[it.messageKey] = types[it.messageKey] || new Set()).add(it.type); }
+  });
+  const mixed = Object.keys(types).filter((k) => types[k].has('color') && types[k].size > 1);
+  assert.deepEqual(mixed, []);
+  assert.ok(Object.keys(types).filter((k) => types[k].has('color')).length > 10, 'the rule has colours to hold');
+});

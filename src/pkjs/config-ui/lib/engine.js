@@ -973,8 +973,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * fields, color pickers …) through the same item renderer the tab body uses, so
    * showWhen/joins/hints and the color-palette state all behave identically.
    * '' when nothing is open, the sheetId is unknown, or the section is gated off.
-   * The rows render with cx.inSheet set, which is what lets a select in the sheet expand
-   * inline (cx.openInline) while the same key in the tab body behind stays collapsed.
+   * cx.openInline is the select expanded in place in the sheet. Only the sheet's cx
+   * carries it (boot's render()), so the same key in the tab body behind stays collapsed.
    *
    * @param {Object} schema Config schema.
    * @param {{S: Object, ENV: Object, openEdit: ?string, openInline: ?string}} cx Render context.
@@ -993,7 +993,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // The sheet honors its section gate even when forced open — on aplite
     // (env.thresholds false) it must stay empty regardless of how it was opened.
     if (sec.showWhen && !PConf.showWhen.isVisible(sec, cx.evalCtx)) { return ''; }
-    var built = buildSectionBody(sec, Object.assign({}, cx, { inSheet: true }));
+    var built = buildSectionBody(sec, cx);
     if (built.isEmpty) { return ''; }
     var titleId = 'esheet-ttl-' + esc(String(cx.openEdit));
     // A sheet-level labelAction rides the TITLE, beside the text. Same shape as an item's
@@ -1367,9 +1367,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // list could not be collapsed again. The row draws collapsed (trigger included), and
     // render() drops the open key once the sheet has no list for it.
     if (view.disabled) { view.openInline = null; }
-    // A select expanded in place inside an edit sheet (view.openInline is only ever set
-    // there — buildSectionBody gates it on cx.inSheet). rowItem, so an optionsFrom list and
-    // the per-option meta.disabled gates apply exactly as in the select modal.
+    // A select expanded in place inside an edit sheet (only the sheet's cx carries
+    // openInline, see renderEditModal). rowItem, so an optionsFrom list and the per-option
+    // meta.disabled gates apply exactly as in the select modal.
     if (item.type === 'select' && view.openInline === item.messageKey) {
       view.inlineList = renderInlineList(rowItem, view.value, cx);
     }
@@ -1429,7 +1429,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         value: cx.S[item.messageKey],
         openColor: cx.openColor,
         openSelect: cx.openSelect,
-        openInline: cx.inSheet && !muted ? cx.openInline : null,
+        openInline: muted ? null : cx.openInline,
         openDate: cx.openDate,
         selectQuery: cx.selectQuery
       };
@@ -1530,9 +1530,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         value: cx.S[item.messageKey],
         openColor: cx.openColor,
         openSelect: cx.openSelect,
-        // Only the edit sheet's rows expand in place: the same key rendered in the tab
-        // body behind the sheet keeps its collapsed trigger.
-        openInline: cx.inSheet ? cx.openInline : null,
+        // Only the edit sheet's rows expand in place: the tab body's cx carries no
+        // openInline, so the same key rendered behind the sheet keeps its collapsed trigger.
+        openInline: cx.openInline,
         openDate: cx.openDate,
         selectQuery: cx.selectQuery
       };
@@ -1748,16 +1748,21 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
     var S = hydrate(SCHEMA, INJECTED_CFG, ENV), INITIAL = Object.assign({}, S);
     var activeTab = initialTab(SCHEMA, S);
-    var openColor = null, openSelect = null, openDate = null, openEdit = null;
-    // The Save button's confirm dialog while it is open (requestSave): {title, body,
-    // actionLabel, confirmLabel, tab, sheet} — a row needs attention
-    // (PConf.attentionResolvers). Shares the one sheet with the others, one at a time.
-    var openConfirm = null;
-    // The messageKey of the `select` expanded in place inside the open edit sheet
-    // (renderInlineList), or null. One expander at a time: opening a list clears
-    // openColor and opening a palette clears this, and every path that clears openColor
-    // for a closing sheet clears it too.
-    var openInline = null;
+    // The one sheet open in the shared <dialog id="modal">, or null. An opener sets it
+    // whole, so two sheets can never be open at once:
+    // - {kind: 'select', key, focusBack, onClose}: a select/searchSelect's options (key:
+    //   its messageKey). openSheet() sets focusBack false, since its trigger lives in the
+    //   caller's overlay, and an onClose to run after any close.
+    // - {kind: 'date', key}: a date's wheels.
+    // - {kind: 'edit', key}: a sheetOnly section (key: its sheetId).
+    // - {kind: 'confirm', confirm}: the Save button's dialog while a row needs attention
+    //   (requestSave; confirm: {title, body, actionLabel, confirmLabel, tab, sheet}).
+    var sheet = null;
+    // The messageKey of the one control expanded in place, or null: a colour's palette
+    // (in the tab body or in the open edit sheet) or a `select`'s option list (in the edit
+    // sheet only, renderInlineList). Opening one closes the other. No key is both a
+    // colour and a select, so the key alone says which (expandedIsPalette).
+    var expanded = null;
     var selectQuery = '', collapsed = initialCollapsed(SCHEMA);
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
@@ -1774,20 +1779,39 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var item = findItem(key);
       return item ? storedDefault(item, ENV) : undefined;
     }
-    // The messageKey of the trigger to restore focus to when the modal closes. Stored by key
-    // (not the DOM node) because render() replaces #scroll's innerHTML, detaching any node
-    // captured at open time; re-querying by key after render finds the fresh trigger.
-    var lastSelectKey = null;
-    // Same, for an edit sheet: the sheetId whose pencil trigger regains focus on close.
-    var lastEditSheet = null;
-    // Optional one-shot callback fired after the sheet closes, set by openSheet() so an external
-    // caller (the onboarding wizard, which lives in its own overlay) can react to a pick/dismiss.
-    var onSheetClose = null;
+    /**
+     * Whether the open sheet is of a kind.
+     * @param {string} kind 'select' | 'date' | 'edit' | 'confirm'.
+     * @returns {boolean} True when a sheet of that kind is open.
+     */
+    function sheetIs(kind) { return Boolean(sheet && sheet.kind === kind); }
+    /**
+     * The open sheet's key when it is of a kind: what the renderers read as cx.openSelect,
+     * cx.openDate and cx.openEdit.
+     * @param {string} kind 'select' | 'date' | 'edit'.
+     * @returns {?string} The key, or null when no sheet of that kind is open.
+     */
+    function openKey(kind) { return sheetIs(kind) ? sheet.key : null; }
+    /**
+     * Whether the expanded control is a colour's palette rather than a select's option list.
+     * @returns {boolean} True for a palette; false for a list or when nothing is expanded.
+     */
+    function expandedIsPalette() {
+      var item = expanded ? findItem(expanded) : null;
+      return Boolean(item && item.type === 'color');
+    }
+    /**
+     * The trigger of the expanded control: the palette's swatch or the select's button.
+     * @returns {string} Its selector (call only while something is expanded).
+     */
+    function expandedTrigger() {
+      return (expandedIsPalette() ? '[data-color="' : '[data-select="') + expanded + '"]';
+    }
     // The date wheel-settle machinery lives with the picker (createDateWiring);
     // the engine hands it the live accessors and calls in through this instance.
     var dateWiring = datePicker.createDateWiring({
       S: S,
-      getOpenDateKey: function () { return openDate; },
+      getOpenDateKey: function () { return openKey('date'); },
       render: render
     });
     // Same shape for the slider's drag machinery (createRangeWiring); the
@@ -1810,19 +1834,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         || modal.querySelector('.ssel-opt.on') || modal.querySelector('.ssel-opt');
       if (el) { el.focus(); }
     }
-    // Open/close the native <dialog> to match the shared select/date sheet state.
+    // Open/close the native <dialog> to match the shared sheet state.
     // showModal()/close() fire only on the state edges (calling showModal() on an already-open
     // dialog throws), and no-op in the pure-render test harness, which shims a plain #modal.
     function syncDialog() {
       var dlg = document.getElementById('modal');
       if (!dlg || !dlg.showModal) { return; }
-      var sheetOpen = openSelect || openDate || openEdit || openConfirm;
-      var opening = Boolean(sheetOpen && !dlg.open);
-      if (sheetOpen) {
+      var opening = Boolean(sheet && !dlg.open);
+      if (sheet) {
         if (opening) { dlg.showModal(); }
         var ttl = dlg.querySelector('.ssel-modal-ttl');
         if (ttl && ttl.id) { dlg.setAttribute('aria-labelledby', ttl.id); }
-        var editShown = Boolean(openEdit);
+        var editShown = sheetIs('edit');
         if (editShown) { dlg.classList.add('edit'); } else { dlg.classList.remove('edit'); }
         // An expanded palette or in-place option list needs more room than the 80dvh cap
         // allows (.picking raises it to 94dvh, and fitSelectPeek leaves a .picking sheet
@@ -1830,15 +1853,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // EVERY render, not just the open edge, so this tracks an expander opening and
         // closing inside an already-open sheet. add/remove, never the two-argument
         // classList.toggle — unsafe in old Android WebViews.
-        // openColor is shared with the tab body, and only the EDIT sheet ever renders a
-        // palette; without the openEdit half, a palette left expanded in the body would
+        // `expanded` also serves the tab body, and only the EDIT sheet ever renders a
+        // palette; without the edit half, a palette left expanded in the body would
         // also grow (and un-peek) an unrelated select sheet opened from the same card.
-        if (editShown && (openColor || openInline)) {
+        if (editShown && expanded) {
           dlg.classList.add('picking');
         } else {
           dlg.classList.remove('picking');
         }
-        if (openDate) {
+        if (sheetIs('date')) {
           dlg.classList.remove('search');
           dlg.classList.add('date');
           dateWiring.scheduleAlign(dlg, opening);
@@ -1913,39 +1936,32 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       });
     }
 
-        // Close the shared modal and return focus to the fresh trigger rendered in its place.
+    /**
+     * THE close protocol, run by every dismissal: a pick, the close button, the backdrop,
+     * Escape, a swipe, a second tap on the trigger, and the Save dialog's "Save anyway".
+     * A pending date settle lands first. The sheet goes, and with an edit sheet whatever it
+     * had expanded, which would otherwise come back expanded on reopen; a palette expanded
+     * in the tab body stays, untouched by a select or date sheet closing over its card. The
+     * page repaints, focus returns to the fresh trigger rendered in the old one's place (Save,
+     * for the Save dialog) unless the sheet's focusBack is false, and the sheet's onClose
+     * runs. A tab switch closes a sheet the same way (switchTab), but places no focus.
+     * @returns {void}
+     */
     function closeModal() {
-      var selectKey = lastSelectKey;
-      var dateKey = openDate;
-      var editKey = lastEditSheet;
-      var confirmShown = Boolean(openConfirm);
+      var closing = sheet;
       dateWiring.flushPending();
-      openSelect = null;
-      openDate = null;
-      openEdit = null;
-      openConfirm = null;
-      // openColor is one variable serving palettes in BOTH surfaces — the tab body and an
-      // edit sheet — so clear it only when a sheet is what's closing. A palette expanded
-      // inside the sheet is going away with it (and would come back expanded on reopen);
-      // one expanded in the tab body is untouched by closing a select/date modal that
-      // happens to sit in the same card. An in-place option list only ever lives in a
-      // sheet, and goes with it the same way.
-      if (editKey) { openColor = null; openInline = null; }
+      sheet = null;
+      if (closing && closing.kind === 'edit') { expanded = null; }
       render();
-      // A dismissed Save dialog hands focus back to Save.
-      var selector = selectKey ? '[data-select="' + selectKey + '"]'
-        : dateKey ? '[data-date="' + dateKey + '"]'
-        : editKey ? '[data-edit-sheet="' + editKey + '"]'
-        : confirmShown ? '#save' : null;
+      if (!closing) { return; }
+      // By key, never a node captured at open time: render() replaced the old trigger.
+      var selector = closing.focusBack === false ? null
+        : closing.kind === 'confirm' ? '#save'
+        : '[' + (closing.kind === 'edit' ? 'data-edit-sheet' : 'data-' + closing.kind) + '="'
+          + closing.key + '"]';
       var trigger = selector ? document.querySelector(selector) : null;
       if (trigger) { trigger.focus(); }
-      lastSelectKey = null;
-      lastEditSheet = null;
-      if (onSheetClose) {
-        var cb = onSheetClose;
-        onSheetClose = null;
-        cb();
-      }
+      if (closing.onClose) { closing.onClose(); }
     }
     // evalCtx(): the {settings..., env} object showWhen predicates evaluate against.
     function evalCtx() { var c = Object.assign({}, S); c.env = ENV; return c; }
@@ -1974,10 +1990,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     function render() {
+      // A palette reads `expanded` as openColor in the tab body and in the sheet; a
+      // select's list reads it as openInline in the edit sheet only (renderEditModal).
       var cx = {
-        S: S, ENV: ENV, USERDATA: USERDATA, openColor: openColor,
-        openSelect: openSelect, openDate: openDate, openEdit: openEdit,
-        openInline: openInline,
+        S: S, ENV: ENV, USERDATA: USERDATA, openColor: expanded,
+        openSelect: openKey('select'), openDate: openKey('date'), openEdit: openKey('edit'),
         selectQuery: selectQuery,
         collapsed: collapsed, evalCtx: evalCtx()
       };
@@ -1986,17 +2003,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var modalEl = document.getElementById('modal');
       var prevList = modalEl.querySelector ? modalEl.querySelector('.ssel-list') : null;
       var keepTop = prevList ? prevList.scrollTop : 0;
-      var editShown = Boolean(openEdit);
-      var modalHtml = openConfirm ? renderConfirmModal(openConfirm)
-        : openDate ? renderDateModal(SCHEMA, cx)
-        : editShown ? renderEditModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
+      var editShown = sheetIs('edit');
+      var modalHtml = sheetIs('confirm') ? renderConfirmModal(sheet.confirm)
+        : sheetIs('date') ? renderDateModal(SCHEMA, cx)
+        : editShown ? renderEditModal(SCHEMA, Object.assign({}, cx, { openInline: expanded }))
+        : renderSelectModal(SCHEMA, cx);
       // An open list lives only while its row renders live. A row hidden by its showWhen
       // or muted by its disabledWhen (one tap away, in the same sheet) draws no list, and
       // a key left open would keep .picking on, the scroll nudge hunting, and Escape's
       // first press collapsing a list that isn't there — or bring it back pre-opened.
       // Read off the HTML, not the DOM, so the check holds in the Node DOM shims too.
-      if (openInline && modalHtml.indexOf('id="ssel-list-' + esc(openInline) + '" class="isel-list"') < 0) {
-        openInline = null;
+      // A palette is exempt: it stays expanded while its row is hidden, as in the tab body.
+      if (expanded && !expandedIsPalette()
+          && modalHtml.indexOf('id="ssel-list-' + esc(expanded) + '" class="isel-list"') < 0) {
+        expanded = null;
       }
       modalEl.innerHTML = modalHtml;
       // The edit sheet's scroll container is a NEW node after every render, so a swatch
@@ -2007,8 +2027,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var list = (editShown && modalEl.querySelector) ? modalEl.querySelector('.ssel-list') : null;
       if (list) {
         list.scrollTop = keepTop;
-        var sw = openColor ? list.querySelector('[data-color="' + openColor + '"]')
-          : openInline ? list.querySelector('[data-select="' + openInline + '"]') : null;
+        var sw = expanded ? list.querySelector(expandedTrigger()) : null;
         var row = (sw && sw.closest) ? sw.closest('.row') : null;
         if (row && row.getBoundingClientRect && list.getBoundingClientRect) {
           var over = row.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom;
@@ -2016,8 +2035,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         }
       }
       syncDialog();
-      document.getElementById('scroll').className =
-        'scroll' + (openSelect || openDate || openEdit || openConfirm ? ' locked' : '');
+      document.getElementById('scroll').className = 'scroll' + (sheet ? ' locked' : '');
       applyTheme();
     }
 
@@ -2026,28 +2044,30 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // wherever the previous tab's offset happened to clamp.
     var tabScroll = {};
     /**
-     * THE tab switch: a tab-bar tap, and a [data-goto-tab] link in an intro, a hint, a note
-     * or an open sheet. It closes whatever is open (a sheet included: render() closes the
-     * dialog on that edge), keeps the old tab's scroll offset, restores the new one's, and
-     * scrolls the tab bar so the new tab shows.
+     * THE tab switch: a tab-bar tap, a [data-goto-tab] link in an intro, a hint, a note or
+     * an open sheet, and the Save dialog's fix (confirmChoice), which opens thenSheet over
+     * the tab. It closes whatever is open as closeModal does (a pending date settle lands,
+     * render() closes the dialog on that edge, the sheet's onClose runs) but leaves focus to
+     * the caller. A switch keeps the old tab's scroll offset and restores the new one's; the
+     * tab bar then scrolls so the tab shows, unless a fix stays on the tab already showing.
      * @param {string} id The tab to bring to the front.
+     * @param {?Object} [thenSheet] The sheet to open over it (the `sheet` shape), or none.
      * @returns {void}
      */
-    function switchTab(id) {
+    function switchTab(id, thenSheet) {
+      var closing = sheet, scroll = document.getElementById('scroll');
+      var switching = id !== activeTab;
       dateWiring.flushPending();
-      var scroll = document.getElementById('scroll');
-      tabScroll[activeTab] = scroll.scrollTop;
-      activeTab = id;
-      openColor = null;
-      openInline = null;
-      openSelect = null;
-      openDate = null;
-      openEdit = null;
-      openConfirm = null;
-      lastEditSheet = null;
+      if (switching) {
+        tabScroll[activeTab] = scroll.scrollTop;
+        activeTab = id;
+      }
+      expanded = null;
+      sheet = thenSheet || null;
       render();
-      scroll.scrollTop = tabScroll[activeTab] || 0;
-      revealActiveTab();
+      if (switching) { scroll.scrollTop = tabScroll[activeTab] || 0; }
+      if (switching || !(closing && closing.kind === 'confirm')) { revealActiveTab(); }
+      if (closing && closing.onClose) { closing.onClose(); }
     }
     /**
      * A tab bar wider than the screen scrolls sideways with its scrollbar hidden, so a
@@ -2159,13 +2179,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       if ((t = e.target.closest('[data-color-pick]'))) {
         setValue(t.getAttribute('data-k'), t.getAttribute('data-color-pick'));
-        openColor = null; render(); return true;
+        expanded = null; render(); return true;
       }
       if ((t = e.target.closest('[data-color]'))) {
         var ck = t.getAttribute('data-color');
         // One expander at a time: a palette opening in a sheet collapses an open option list.
-        openInline = null;
-        openColor = (openColor === ck ? null : ck); render(); return true;
+        expanded = (expanded === ck ? null : ck); render(); return true;
       }
       if ((t = e.target.closest('[data-check]'))) {
         // A gated tick keeps its state and ignores the tap.
@@ -2313,41 +2332,31 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       scroll.addEventListener('click', function (e) {
         var t;
         if ((t = e.target.closest('[data-edit-sheet]'))) {
-          var ek = t.getAttribute('data-edit-sheet');
           dateWiring.flushPending();
-          openSelect = null;
-          openDate = null;
-          lastSelectKey = null;
           // The sheet opens with nothing expanded. A palette left open in the tab body
           // would otherwise count as the sheet's own (it closes with the sheet anyway, see
           // closeModal): Escape would spend its first press collapsing it and the sheet
           // would open at the raised .picking cap.
-          openColor = null;
-          openInline = null;
-          openEdit = ek;
-          lastEditSheet = ek;
+          expanded = null;
+          sheet = { kind: 'edit', key: t.getAttribute('data-edit-sheet') };
           render();
           return;
         }
         if ((t = e.target.closest('[data-select]'))) {
           var sk = t.getAttribute('data-select');
-          if (openSelect === sk) { closeModal(); return; }
+          if (openKey('select') === sk) { closeModal(); return; }
           dateWiring.flushPending();
-          openDate = null;
-          openSelect = sk;
+          sheet = { kind: 'select', key: sk };
           selectQuery = '';
-          lastSelectKey = sk;
           render();
           focusModal();
           return;
         }
         if ((t = e.target.closest('[data-date]'))) {
           var dk = t.getAttribute('data-date');
-          if (openDate === dk) { closeModal(); return; }
+          if (openKey('date') === dk) { closeModal(); return; }
           dateWiring.flushPending();
-          openSelect = null;
-          lastSelectKey = null;
-          openDate = dk;
+          sheet = { kind: 'date', key: dk };
           render();
           return;
         }
@@ -2382,10 +2391,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @returns {boolean} True when something was collapsed.
      */
     function collapseSheetExpander() {
-      if (!openEdit || !(openInline || openColor)) { return false; }
-      var sel = openInline ? '[data-select="' + openInline + '"]' : '[data-color="' + openColor + '"]';
-      openInline = null;
-      openColor = null;
+      if (!sheetIs('edit') || !expanded) { return false; }
+      var sel = expandedTrigger();
+      expanded = null;
       render();
       focusInModal([sel]);
       return true;
@@ -2400,7 +2408,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var t;
         // The Save dialog's two buttons (renderConfirmModal); its close button and the
         // backdrop fall through to the shared close below and save nothing.
-        if (openConfirm && e.target.closest && (t = e.target.closest('[data-confirm]'))) {
+        if (sheetIs('confirm') && e.target.closest && (t = e.target.closest('[data-confirm]'))) {
           confirmChoice(t.getAttribute('data-confirm'));
           return;
         }
@@ -2410,8 +2418,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           // A pick in a list expanded inside an edit sheet collapses that list and
           // leaves the sheet open, focus back on the row's trigger (the node render()
           // just rebuilt). Anywhere else a pick closes the select sheet.
-          if (openEdit && !openSelect && openInline) {
-            openInline = null;
+          if (sheetIs('edit') && expanded) {
+            expanded = null;
             render();
             focusInModal(['[data-select="' + k + '"]']);
             return;
@@ -2421,29 +2429,28 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // Edit-sheet controls: the sheet renders ordinary rows inside the dialog,
         // so the SAME shared control cases #scroll dispatches must work here —
         // one matcher (controlClick) instead of a hand-curated duplicate list.
-        // render() repaints the dialog's innerHTML in place (openEdit is
-        // unchanged), so the sheet stays open throughout. The openEdit gate keeps
+        // render() repaints the dialog's innerHTML in place (the sheet is
+        // unchanged), so the sheet stays open throughout. The edit gate keeps
         // clicks inside date/select sheets out of the control cases.
         // A select row in the sheet expands its options in place, under the row
         // (renderInlineList); a second tap on its trigger collapses them.
-        if (openEdit && !openSelect && e.target.closest && (t = e.target.closest('[data-select]'))) {
+        if (sheetIs('edit') && e.target.closest && (t = e.target.closest('[data-select]'))) {
           var sk = t.getAttribute('data-select');
-          openColor = null;
-          openInline = (openInline === sk ? null : sk);
+          expanded = (expanded === sk ? null : sk);
           render();
           // [data-select-pick] on the current option too: a gated current value renders a
           // disabled button, which cannot take focus — fall through to the first pickable one.
           // A tap that opened nothing (render() dropped the key) lands back on the trigger.
-          focusInModal(openInline
+          focusInModal(expanded
             ? ['.isel-list .ssel-opt.on[data-select-pick]', '.isel-list [data-select-pick]']
             : ['[data-select="' + sk + '"]']);
           return;
         }
-        if (openEdit && !openSelect && e.target.closest && controlClick(e)) { return; }
-        if (e.target.closest && (t = e.target.closest('.date-opt')) && openDate) {
+        if (sheetIs('edit') && e.target.closest && controlClick(e)) { return; }
+        if (e.target.closest && (t = e.target.closest('.date-opt')) && sheetIs('date')) {
           var wheel = t.closest('[data-date-wheel]');
           if (!wheel) { return; }
-          var dateKey = openDate;
+          var dateKey = sheet.key;
           dateWiring.flushPending();
           var parts = parseDateParts(S[dateKey]);
           parts[wheel.getAttribute('data-date-wheel')] =
@@ -2509,9 +2516,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var list = modal.querySelector('.ssel-list');
         var wheel = e.target.closest && e.target.closest('[data-date-wheel]');
         var header = e.target.closest && e.target.closest('.ssel-modal-hdr');
-        var canDragDate = Boolean(openDate
+        var canDragDate = Boolean(sheetIs('date')
           && (header || (wheel && wheel.scrollTop <= 0)));
-        var canDragSelect = Boolean((openSelect || openEdit) && list && list.scrollTop <= 0);
+        var canDragSelect = Boolean((sheetIs('select') || sheetIs('edit')) && list && list.scrollTop <= 0);
         dragY = (canDragDate || canDragSelect) ? e.touches[0].clientY : null;
         dragging = false;
         modal.style.transition = '';
@@ -2590,15 +2597,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       try { found = findAttention(SCHEMA, { S: S, ENV: ENV, evalCtx: evalCtx() }); } catch (err) { found = null; }
       if (!found || !found.attention.title || !dlg || typeof dlg.showModal !== 'function') { save(); return; }
       var att = found.attention;
-      dateWiring.flushPending();
-      openSelect = null;
-      openDate = null;
-      openEdit = null;
-      openColor = null;
-      openInline = null;
-      lastSelectKey = null;
-      lastEditSheet = null;
-      openConfirm = {
+      // Save sits outside the dialog, inert while a sheet is open, so no sheet is open
+      // here. A palette left open in the tab body closes under the dialog.
+      expanded = null;
+      sheet = { kind: 'confirm', confirm: {
         title: att.title,
         body: att.body,
         actionLabel: att.actionLabel,
@@ -2606,39 +2608,29 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         tab: found.tab,
         sheet: att.sheet || resolveEditSheet(found.item, S, ENV)
           || (found.section.sheetOnly ? found.section.sheetId : null)
-      };
+      } };
       render();
       focusInModal(['[data-confirm="action"]', '[data-confirm="save"]']);
     }
 
     /**
      * A tap on one of the Save dialog's buttons. "save" closes it and saves exactly as
-     * Save does; "action" closes it WITHOUT saving and opens the fix on the row's tab:
-     * that tab comes to the front (its scroll offset kept as a tab tap keeps it, the tab
-     * bar scrolled so it shows) and the row's sheet opens over it, so closing the sheet
-     * lands on the row it belongs to. Not switchTab: that one closes every sheet.
+     * Save does; focus goes nowhere, the page is leaving. "action" closes it WITHOUT
+     * saving and opens the fix on the row's tab (switchTab): that tab comes to the front
+     * and the row's sheet opens over it, so closing the sheet lands on the row it
+     * belongs to.
      * @param {string} which 'save' | 'action'.
      * @returns {void}
      */
     function confirmChoice(which) {
-      var cf = openConfirm;
-      openConfirm = null;
-      if (which === 'save') { render(); save(); return; }
-      var scroll = document.getElementById('scroll');
-      var switching = Boolean(cf && cf.tab && cf.tab !== activeTab);
-      if (switching) {
-        tabScroll[activeTab] = scroll.scrollTop;
-        activeTab = cf.tab;
+      var cf = sheet.confirm;
+      if (which === 'save') {
+        sheet.focusBack = false;
+        closeModal();
+        save();
+        return;
       }
-      if (cf && cf.sheet) {
-        openEdit = cf.sheet;
-        lastEditSheet = cf.sheet;
-      }
-      render();
-      if (switching) {
-        scroll.scrollTop = tabScroll[activeTab] || 0;
-        revealActiveTab();
-      }
+      switchTab(cf.tab || activeTab, cf.sheet ? { kind: 'edit', key: cf.sheet } : null);
     }
 
     function wireSave() {
@@ -2669,13 +2661,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // Open a schema select/searchSelect in the shared bottom-sheet dialog. Used by the wizard,
       // which lives in its own overlay: the sheet is a showModal() top-layer dialog, so it renders
       // above that overlay. The engine sets S[key] on pick; onClose fires after any close.
+      // The trigger lives in that overlay, so closing hands focus back to nothing on the page.
       openSheet: function (key, onClose) {
         dateWiring.flushPending();
-        openDate = null;
-        openSelect = key;
+        sheet = { kind: 'select', key: key, focusBack: false, onClose: onClose || null };
         selectQuery = '';
-        lastSelectKey = null;
-        onSheetClose = onClose || null;
         render(); focusModal();
       }
     });
