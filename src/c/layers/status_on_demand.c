@@ -57,7 +57,7 @@ static void evict(StatusOnDemandCache *cache, int slot) {
 }
 
 void status_on_demand_release(StatusOnDemandRow *row) {
-    if (!row || !row->cache) { return; }
+    if (!row->cache) { return; }
     for (int i = 0; i < GLYPH_SLOTS; i++) { evict(row->cache, i); }
     free(row->cache);
     row->cache = NULL;
@@ -299,7 +299,6 @@ static void measure(const StatusOnDemandState *s, const StatusOnDemandRow *row,
 // or an idle Battery or an icon-only rain alert would repaint every minute for nothing.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
                                const uint8_t blob[THRESH_SETTINGS_BYTES]) {
-    if (!row) { return sig; }
     StatusOnDemandState s;
     size_t n = collect(&s, bar, blob);
     bool assigned = false;
@@ -513,7 +512,7 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
 
 void status_on_demand_paint(GContext *ctx, const StatusOnDemandRow *row,
                             const StatusOnDemandPass *pass, const StatusOnDemandEnv *env) {
-    if (!ctx || !row || !pass || !env || !pass->any) { return; }
+    if (!pass->any) { return; }
     const OdLayout *l = &pass->layout;
     for (int d = 0; d < 2; d++) {
         const OdSideIn *side = &pass->sides[d];

@@ -65,7 +65,7 @@ typedef struct {
     bool assigned;   // an item sits on a side of this bar, as of the last refresh
 } StatusOnDemandRow;
 
-// Free the glyph cache and every glyph it holds (NULL-safe).
+// Free the glyph cache and every glyph it holds; a row without one is left as is.
 void status_on_demand_release(StatusOnDemandRow *row);
 
 // Refresh-time: read which items sit on `bar` (a ThreshBar) from `blob` (the
