@@ -107,17 +107,6 @@
     }
 
     /**
-     * @param {*} rowKey A Draw from key.
-     * @returns {?{key: string, metrics: string[]}} Its ROWS entry; null for any other key.
-     */
-    function rowOf(rowKey) {
-        for (var i = 0; i < ROWS.length; i++) {
-            if (ROWS[i].key === rowKey) { return ROWS[i]; }
-        }
-        return null;
-    }
-
-    /**
      * Whether a watch draws anything from the top: every watch with line styles (the
      * WW_LINE_STYLE mirror). Only an explicit lineStyles false (aplite) is incapable, so
      * an unknown watch reads capable, as computeEnv(null) does.
@@ -267,7 +256,6 @@
         BAR_KEYS: BAR_KEYS,
         value: value,
         settingKey: settingKey,
-        rowOf: rowOf,
         capable: capable,
         metricFromTop: metricFromTop,
         lineEdge: lineEdge,

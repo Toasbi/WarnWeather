@@ -164,6 +164,14 @@ test('packs sixteen bytes: five line colours, a line flag byte, five night colou
   assert.equal(bytes[9], 0, 'night fill still on its built-in tint');
 });
 
+// The two flag bytes' bits, pinned to what the watch reads: app_message.c tests byte [3]
+// against LINE_STYLE_FLAG_SECONDARY_FILL (0x01). Byte [9]'s bit rides the NIGHT_COLORS blob
+// unread (see FLAG_NIGHT_FILL_EXPLICIT in graph-wire.js), so only its packing is pinned.
+test('the line flag byte\'s fill bit is the one the watch reads', () => {
+  assert.equal(graphWire.FLAG_SECONDARY_FILL, 0x01, 'app_message.c LINE_STYLE_FLAG_SECONDARY_FILL');
+  assert.equal(graphWire.FLAG_NIGHT_FILL_EXPLICIT, 0x01);
+});
+
 // Bytes 4..9 are the watch's NIGHT_COLORS persist blob verbatim (persist.h's
 // NIGHT_COLOR_BYTES = 6), which is the whole reason the night-fill bit lives in byte
 // [9] instead of byte [3]: app_message.c stores the tail straight through, so the two
@@ -177,8 +185,8 @@ test('the night block is a contiguous six-byte block at [4..9], flag included', 
   }, emery);
   assert.equal(bytes.length, 16, 'night block [4..9] + ext block [10..13] + fifth block [14..15]');
   assert.equal(bytes[9] & graphWire.FLAG_NIGHT_FILL_EXPLICIT, graphWire.FLAG_NIGHT_FILL_EXPLICIT);
-  assert.equal(bytes[3] & 0x01, 1, 'the line flag byte still carries only the fill bit');
-  assert.equal(bytes[3], 0x01, 'and nothing else — the night flag left byte [3] entirely');
+  assert.equal(bytes[3], graphWire.FLAG_SECONDARY_FILL,
+    'the line flag byte carries the fill bit and nothing else — the night flag left byte [3] entirely');
 });
 
 // Bytes [11..13] are the watch's LINE_STYLES persist blob verbatim (persist.h's
@@ -212,13 +220,13 @@ test('byte [10] is the third-metric line colour, resolved like the others', () =
 test('the fill flag follows secondaryLineFill', () => {
   const on = graphWire.buildLineStyleBytes(
     { secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark' }, emery);
-  assert.equal(on[3] & 0x01, 1);
+  assert.equal(on[3] & graphWire.FLAG_SECONDARY_FILL, graphWire.FLAG_SECONDARY_FILL);
 });
 
 test('feels-like never fills, whatever the setting says', () => {
   const bytes = graphWire.buildLineStyleBytes(
     { secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: true, theme: 'dark' }, emery);
-  assert.equal(bytes[3] & 0x01, 0);
+  assert.equal(bytes[3] & graphWire.FLAG_SECONDARY_FILL, 0);
 });
 
 test('the packed colour equals the quantized resolved colour', () => {

@@ -46,13 +46,10 @@ test('the five amount metrics have a key, wind and gusts one shared key; no othe
 test('the rows cover exactly the stripe metrics, each once, in their order', () => {
   const covered = [];
   drawFrom.ROWS.forEach((row) => {
-    assert.equal(drawFrom.rowOf(row.key), row);
     row.metrics.forEach((m) => { assert.equal(drawFrom.settingKey(m), row.key); covered.push(m); });
   });
   assert.deepEqual(covered, lineStyle.STRIPE_METRIC_IDS);
   assert.deepEqual(drawFrom.ROWS.map((r) => r.key), ['precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom']);
-  assert.equal(drawFrom.rowOf('rainBarFrom'), null);
-  assert.equal(drawFrom.rowOf('constructor'), null);
   assert.deepEqual(drawFrom.BAR_KEYS, { rain: 'rainBarFrom', radar: 'radarBarFrom' });
 });
 
