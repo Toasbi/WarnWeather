@@ -28,21 +28,21 @@ var KEY_SOURCES = require('./key-sources.js');
 // from view-cycle.js's mode lists — the same table buildCustomCycle folds by.
 var customLayout = require('./custom-layout-schema.js');
 // The gates and copy links the schema's modules share (settings/schema-gates.js): the
-// named capability and setting gates, the one-pass gateAll, the Alerts tab link and the
-// intros' inline action button.
+// named capability and setting gates, the one-pass gateAll, the link that brings a tab to
+// the front and the link row a reset rides.
 var gates = require('./schema-gates.js');
 var HEALTH_SLOT_WHEN = gates.HEALTH_SLOT_WHEN;
 var HR_SLOT_WHEN = gates.HR_SLOT_WHEN;
 var THRESHOLD_WHEN = gates.THRESHOLD_WHEN;
 var ON_DEMAND_WHEN = gates.ON_DEMAND_WHEN;
-var ALERTS_TAB_LINK = gates.ALERTS_TAB_LINK;
 var BOLD_ALL_WHEN = gates.BOLD_ALL_WHEN;
 var RADAR_BAR_WHEN = gates.RADAR_BAR_WHEN;
 var HEALTH_BAR_WHEN = gates.HEALTH_BAR_WHEN;
 var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 var LINE_STYLES_WHEN = gates.LINE_STYLES_WHEN;
 var gateAll = gates.gateAll;
-var introAction = gates.introAction;
+var tabLink = gates.tabLink;
+var linkRow = gates.linkRow;
 // A kind's level group (its Alert levels or Goals: the header, the slider, the warn look
 // and the colours), the group's two voices and the next-day mark options
 // (settings/level-rows-schema.js), shared with the Alerts tab's alert sheets.
@@ -58,6 +58,7 @@ var levelRows = levelRowsSchema.levelRows;
 // leaf).
 var alertsSchema = require('./alerts-schema.js');
 var ALERT_KINDS = alertsSchema.ALERT_KINDS;
+var ALERT_DAYS_OPTIONS = alertsSchema.ALERT_DAYS_OPTIONS;
 var BT_ICON_OPTIONS = alertsSchema.BT_ICON_OPTIONS;
 var alertCodeOf = alertsSchema.alertCodeOf;
 var onDemandPlacedWhen = alertsSchema.onDemandPlacedWhen;
@@ -320,6 +321,7 @@ function orderRow(prefix, orderOptions) {
         defaultValue: orderOptions[0][1],
         options: orderOptions,
         joinPrevious: true,
+        more: true,
         showWhen: {key: prefix + 'SlotDisplay', eq: 'both'}
     };
 }
@@ -359,6 +361,7 @@ function separatorRows(prefix, first, second) {
             separators.map(function (option) { return option[1]; })),
         options: separators,
         joinPrevious: true,
+        more: true,
         showWhen: bothWhen
     }, {
         // maxlength is the soft UI cap (the browser counts UTF-16 units); the formatter
@@ -370,6 +373,7 @@ function separatorRows(prefix, first, second) {
         attributes: {maxlength: STATUS_PAIR.CUSTOM_MAX_CHARS},
         hint: pairCustomHint(prefix, first, second),
         joinPrevious: true,
+        more: true,
         showWhen: {all: [bothWhen, {key: prefix + 'SlotSeparator', eq: 'custom'}]}
     }, {
         // Spacing is orthogonal to the separator — the owner asked for 8/8 or 8 / 8
@@ -391,6 +395,7 @@ function separatorRows(prefix, first, second) {
                 }).join(', ') + '.'
         },
         joinPrevious: true,
+        more: true,
         showWhen: bothWhen
     }];
 }
@@ -443,6 +448,7 @@ function dayMaxRows(prefix, copy, now, max) {
             hintByValue: {none: 'Tomorrow\'s peak then looks just like today\'s.'},
             options: nextDayMarkOptions(),
             joinPrevious: true,
+            more: true,
             showWhen: {key: prefix + 'SlotDisplay', in: ['max', 'both']}
         }]);
 }
@@ -588,11 +594,13 @@ function alertSlotSheet(keyStem, extraItems) {
     // neither is on.
     var noLevelWhen = {all: [{not: {key: 'thresh' + keyStem + 'On'}},
         {not: onDemandPlacedWhen(alertCodeOf(keyStem))}]};
-    var note = alertLevelsNote();
-    note.joinPrevious = true;
     var bold = boldRow(keyStem, ALERT_VOICE, noLevelWhen);
-    bold.joinPrevious = 'loose';
-    return sheetOf(keyStem, title, (extraItems || []).concat([highlightToggle(keyStem), note, bold]));
+    // Two cards: the slot's own rows (the kind's display rows, Bold), then Alert
+    // highlighting — its switch, and the row that opens the kind's alert dialog, where
+    // the levels and colours the highlight uses are set.
+    return sheetOf(keyStem, title, (extraItems || []).concat([bold,
+        {type: 'subheader', text: 'Alert highlighting'},
+        highlightToggle(keyStem), alertLevelsRow(keyStem)]));
 }
 // A weather kind's slot highlight switch — the watch's enable bit for the kind
 // (kindConfig), which styles its STATUS SLOTS only: the alert icon shows on the bars the
@@ -619,21 +627,24 @@ function highlightToggle(keyStem) {
         defaultValue: false
     };
 }
-// The five alert kinds' slot sheets carry this pointer instead of the levels group,
-// right under the 'Alert highlighting' switch: the levels and colors live in ONE
-// place, the kind's alert sheet in the Alert settings card on the Alerts tab (the slot
-// sheet opens from the Status slots tab, so the note names the tab, as a tab link: a tap
-// closes the sheet and brings the Alerts tab to the front). It opens the tab, not the
-// alert's own sheet: the link says "Alerts tab". A fresh object per call, like every
-// item.
+// The five alert kinds' slot dialogs carry this row instead of the levels group, right
+// under the 'Alert highlighting' switch: the levels and colors live in ONE place, the
+// kind's alert dialog on the Alerts tab, and the row opens it on top of the slot dialog
+// (‹ comes back). Its summary is the levels the dialog opens on (blocks.js
+// alertLevelsHint, as on the Alerts tab's row). Only where the Alerts exist (aplite has
+// neither them nor slot dialogs). A fresh object per call, like every item.
 /**
- * @returns {Object} The info-box staticText in an alert kind's slot sheet.
+ * @param {string} keyStem Alert kind key stem, e.g. 'Uv'.
+ * @returns {Object} The nav row in an alert kind's slot dialog.
  */
-function alertLevelsNote() {
+function alertLevelsRow(keyStem) {
     return {
-        type: 'staticText',
-        style: 'info',
-        text: 'Alert levels and colors are set in the ' + ALERTS_TAB_LINK + ', under Weather alerts.'
+        type: 'sheet',
+        sheetId: 'alert' + keyStem,
+        label: 'Alert levels and colors',
+        navNote: 'Alerts',
+        hintFrom: {resolver: 'alertLevelsHint', args: {keyStem: keyStem, days: ALERT_DAYS_OPTIONS, levelsOnly: true}},
+        showWhen: ON_DEMAND_WHEN
     };
 }
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
@@ -896,6 +907,166 @@ var BACKLIGHT_ON_WHEN = {all: [BACKLIGHT_WHEN, {key: 'backlightDim', eq: true}]}
 // sheet is what actually stores it.
 var BACKLIGHT_COLOR_SHEET = 'backlightColor';
 var BACKLIGHT_COLOR_DEFAULT = '40,10,0';
+// ── The restructured page's building blocks ────────────────────────────────────
+// Six tabs: Weather · Watchface · Status bars · Alerts · Graphs · Setup. Every item and
+// its messageKey, default and gates are the ones the earlier tabs carried; what moved is
+// where they render. Hints are the rows' info text (behind each row's '?', engine.js),
+// intros the cards' and dialogs' (behind the header's '?'), and rarely-changed rows sit
+// behind each card's "More options" (`more: true`).
+
+// The Night hours row and its per-feature twins. In shared mode (the default) ONE
+// From–To row stands for the three hour pairs (Dim backlight, Night theme's custom hours,
+// Battery saver) and a change to it writes all three (blocks.js nightHoursSync); "Separate
+// hours" (a page-only toggle, read off the pairs as the page opens: blocks.js
+// nightHoursSeparate) brings back one From–To per feature. Both page-only keys are
+// uiOnly: never stored, never sent — the three stored pairs stay the only truth.
+var NIGHT_SEPARATE_WHEN = {key: 'nightHoursSeparate', eq: true};
+var NIGHT_SHARED_WHEN = {not: NIGHT_SEPARATE_WHEN};
+// Separate hours means something only where two features have hours to differ in: the
+// Night theme (themePolarity) or Dim backlight (colorBacklight) beside the Battery saver.
+var NIGHT_SPLITTABLE_WHEN = {any: [{env: 'themePolarity'}, {env: 'colorBacklight'}]};
+/**
+ * A From–To row's two pickers (an inline group carrying a groupLabel, engine.js
+ * renderHoursGroup): the stored start and end hour of one feature.
+ * @param {string} startKey The start hour's key.
+ * @param {string} endKey The end hour's key.
+ * @param {string} startDefault Its default.
+ * @param {string} endDefault Its default.
+ * @param {Object} when The row's gate.
+ * @returns {Object[]} The two items.
+ */
+function hoursPair(startKey, endKey, startDefault, endDefault, when) {
+    var group = startKey + 'Hours';
+    return [{
+        type: 'select',
+        messageKey: startKey,
+        label: 'From',
+        groupLabel: 'From – To',
+        indent: true,
+        defaultValue: startDefault,
+        options: HOURS,
+        inline: group,
+        joinPrevious: true,
+        showWhen: when
+    }, {
+        type: 'select',
+        messageKey: endKey,
+        label: 'To',
+        defaultValue: endDefault,
+        options: HOURS,
+        inline: group,
+        showWhen: when
+    }];
+}
+
+// The tabs' and cards' intros.
+var VIEWS_INTRO = 'Rain radar is a second view — a precise short-term rain forecast for your location. '
+    + 'Health shows your activity on the watchface: today\'s steps, last night\'s sleep, and current heart rate.';
+var LAYOUT_INTRO = 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the '
+    + 'preview. What a metric means or how it\'s coloured lives in Graphs.';
+var STATUS_INTRO = 'Every view has its own status bar — one row with a left, middle, and right slot you can '
+    + 'fill with weather, time, health, and more. Choose what each view shows below.';
+var FORECAST_INTRO = 'The forecast graph looks up to 24 hours ahead. Temperature is always drawn; the metrics '
+    + 'and rain bars you pick below join it.';
+var GRAPH_COLORS_INTRO = 'One row per metric, plus the night shading. Each row’s colours are remembered '
+    + 'separately for the Dark and the Light theme.';
+
+// The forecast graph's four lines: each a nav row on the Graphs tab (its metric and
+// style as the summary, its line colour as the swatch) opening the line's own dialog.
+var GRAPH_LINES = [
+    {key: 'secondaryLine', sheetId: 'lineMain', label: 'Main metric'},
+    {key: 'thirdLine', sheetId: 'lineSecond', label: 'Second metric'},
+    {key: 'fourthLine', sheetId: 'lineThird', label: 'Third metric', gate: LINE_STYLES_WHEN},
+    {key: 'fifthLine', sheetId: 'lineFourth', label: 'Fourth metric', gate: LINE_STYLES_WHEN}
+];
+// The colour sheet of each metric, by its id (the Graph colors dialog's rows).
+var GRAPH_COLOR_SHEETS = (function () {
+    var out = {};
+    GRAPH_COLOR_ROWS.forEach(function (row) { out[row.scope] = {sheetId: row.sheetId, label: row.label}; });
+    return out;
+}());
+/**
+ * A line's nav row on the Graphs tab.
+ * @param {Object} line A GRAPH_LINES entry.
+ * @returns {Object} Schema item.
+ */
+function lineRow(line) {
+    var row = {
+        type: 'sheet',
+        sheetId: line.sheetId,
+        label: line.label,
+        hintFrom: {resolver: 'lineSummary', args: {lineKey: line.key, main: line.key === 'secondaryLine'}},
+        editBadgeFrom: {resolver: 'lineSwatch', args: {lineKey: line.key}}
+    };
+    if (line.gate) { row.showWhen = line.gate; }
+    return row;
+}
+/**
+ * The row in a line's dialog that opens the colours of the metric the line draws (the
+ * Graph colors dialog's sheet for that metric, nested): "Precipitation % colors".
+ * @param {string} lineKey The line's picker key.
+ * @returns {Object} Schema item.
+ */
+function lineColorsRow(lineKey) {
+    return {
+        type: 'sheet',
+        label: 'Colors',
+        editSheetFrom: {resolver: 'lineColorSheet', args: {messageKey: lineKey, sheets: GRAPH_COLOR_SHEETS}},
+        labelFrom: {resolver: 'lineColorLabel', args: {lineKey: lineKey, sheets: GRAPH_COLOR_SHEETS}},
+        editBadgeFrom: {resolver: 'lineSwatch', args: {lineKey: lineKey}},
+        capabilities: ['COLOR'],
+        showWhen: {all: [COLOR_THEME_WHEN, {key: lineKey, ne: 'off'}]}
+    };
+}
+/**
+ * One line's dialog: its metric, style, Draw from, (the Main metric) fill, the scale and
+ * Visible values rows its metric has, and its colours — the rows the Forecast tab
+ * stacked under that picker, in that order. The rows stand apart here (their
+ * joinPrevious was the four lines' shared card's rhythm), and the graph preview stays
+ * pinned above them.
+ * @param {Object} line A GRAPH_LINES entry.
+ * @param {Object[]} rows The line's rows, picker first.
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function lineSheet(line, rows) {
+    var sec = {
+        sheetOnly: true,
+        sheetId: line.sheetId,
+        title: line.label,
+        pinBlock: 'forecastPreview',
+        items: rows.map(function (item) {
+            var copy = Object.assign({}, item);
+            delete copy.joinPrevious;
+            return copy;
+        }).concat([lineColorsRow(line.key)])
+    };
+    if (line.gate) { sec.showWhen = line.gate; }
+    return sec;
+}
+
+/**
+ * The row under a source picker that opens its API key's dialog (the key-status table's
+ * sheet for the picked source, settings/key-sources.js; hidden for a source without a
+ * key): "<Name> API key", the key's status as its summary ("Key ••••1234 · ✓ works", or
+ * "No key"). The row has no messageKey, so its args name the picker.
+ * @param {string} picker The picker's messageKey ('provider' / 'radarProvider').
+ * @param {?Object} when The row's gate, or null.
+ * @returns {Object} Schema item.
+ */
+function keyRow(picker, when) {
+    var keyArgs = {picker: picker};
+    var row = {
+        type: 'sheet',
+        label: 'API key',
+        indent: true,
+        editSheetFrom: {resolver: 'keySheet', args: keyArgs},
+        labelFrom: {resolver: 'keyRowLabel', args: keyArgs},
+        hintFrom: {resolver: 'keyRowSummary', args: keyArgs}
+    };
+    if (when) { row.showWhen = when; }
+    return row;
+}
+
 module.exports = {
     appName: 'WarnWeather',
     themeKey: 'configTheme',
@@ -906,7 +1077,7 @@ module.exports = {
         // (weather-tab*.js). DISPLAY-ONLY: its keys are blob-only and never
         // touch the watch's provider/location or any AppMessage.
         // FIRST in the bar, but not what the page opens on: that stays
-        // General unless the user asks for this tab in More > Misc.
+        // Watchface unless the user asks for this tab in Setup › About.
         id: 'weather', label: 'Weather', openWhen: {key: 'startOnWeatherTab', eq: true}, sections: [{
             // Collapsed by default (collapsible sections start closed); the
             // header paints the current pick via titleFrom so the closed card
@@ -954,7 +1125,10 @@ module.exports = {
             }]
         }]
     }, {
-        id: 'general', label: 'General', openDefault: true, sections: [{
+        // Watchface — what decides how the face looks: which views exist, how they are laid
+        // out, the theme and what changes at night, the time and the calendar. The page
+        // opens here. The layout preview stays pinned at the top while the cards scroll.
+        id: 'watchface', label: 'Watchface', openDefault: true, pinBlock: 'layoutPreviewCombined', sections: [{
             // The fetch-error notices stay first: the panel draws nothing until a fetch
             // fails, and then it is the news the page opens on.
             block: 'noticesPanel',
@@ -964,6 +1138,160 @@ module.exports = {
                 defaultValue: false
             }]
         }, {
+            // The two optional views, next to the layout they feed. aplite draws neither
+            // (each row is env-gated), so the card is gone there.
+            id: 'views',
+            title: 'Views',
+            intro: VIEWS_INTRO,
+            items: [{
+                type: 'select',
+                messageKey: 'radarMode',
+                label: 'Rain radar',
+                defaultValue: 'graph',
+                hintByValue: {
+                    off: 'Radar is hidden.',
+                    // No radar bar or graph in this mode: the rain icon's place is the Rain
+                    // dialog's Shows on grid (Alerts tab). Plain text: a per-value hint.
+                    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on the status bars picked in Alerts › Rain.',
+                    status: 'Adds the Radar Status Bar.',
+                    graph: 'Adds the Radar Status Bar and the full radar rain graph.'
+                },
+                // 'Rain alert only' — the VALUE stays 'countdown' (stored + telemetry): the
+                // mode fetches radar solely for the rain alert, which an On demand side draws.
+                options: [['Off', 'off'], ['Rain alert only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
+                onChange: 'resetStatusRadar',
+                // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined).
+                showWhen: {env: 'radar'}
+            }, rainAlertUnshownNote(), {
+                type: 'select',
+                messageKey: 'healthMode',
+                label: 'Health',
+                defaultValue: 'all',
+                hintByValue: {
+                    off: 'Health is hidden.',
+                    slot: 'Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar.',
+                    status: 'Adds the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
+                    all: 'Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line. Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                },
+                options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph (BETA)', 'all']],
+                onChange: 'resetStatusHealth',
+                // aplite has no health sensors — the watch compiles the view out.
+                showWhen: {env: 'health'}
+            }]
+        }, {
+            id: 'layout',
+            title: 'Layout',
+            intro: LAYOUT_INTRO,
+            items: [{
+                type: 'radio',
+                messageKey: 'layoutPreset',
+                label: 'Layout preset',
+                defaultValue: 'compactCal',
+                hintByValue: {
+                    fullCal: '3-row calendar. Health and radar appear on wrist-flicks.',
+                    compactCal: '2-row calendar. Flick to radar and health as you enable them.',
+                    compactDense: 'Compact calendar with two status bars at once — health or radar above the clock, forecast below.',
+                    noCal: 'No calendar — a big forecast. Flick to radar and health.',
+                    weatherOnly: 'No calendar and no top bar — the rain radar, clock, weather and a big forecast. Flick to health.',
+                    custom: 'Build each view yourself — pick its elements and graphs, then order, size and align them.'
+                },
+                // 'Weather only' draws a different Default view per radar mode
+                // (view-cycle.js buildViewCycle: WO_RADAR / WO_RADAR_S / NONE_FC_W /
+                // WO_PLAIN), so its hint follows radarMode; the static one above is the
+                // Graph text, the default mode's. Every other preset keeps hintByValue.
+                // The resolver appends " Flick to health." only while a Health view exists
+                // (healthMode status/all on a health watch) — without one the Weather-only
+                // cycle is its Default view alone.
+                hintFrom: {resolver: 'weatherOnlyHint', args: {byRadar: {
+                    graph: 'No calendar and no top bar — the rain radar, clock, weather and a big forecast.',
+                    status: 'No calendar and no top bar — the clock, the weather and radar status bars and a big forecast.',
+                    countdown: 'No calendar — the top bar, where the rain icon shows by default, then the clock, weather and a big forecast.',
+                    off: 'No calendar and no top bar — the clock, weather and a big forecast.'
+                }}},
+                // Compact-dense only differs from Compact when a health status row OR the
+                // radar status row is shown; with both off the two produce identical cycles,
+                // so it's hidden then. A stored compactDense lies DORMANT while hidden
+                // (dormantValues): the radio displays the compactCal fallback but the
+                // stored choice is kept, so it returns when a status row re-enables it —
+                // the wire compiles hidden-dense to the identical compactCal cycle, so the
+                // watch always matches the display. Order stays constant (compactDense
+                // between compactCal and noCal) so toggling health/radar doesn't reshuffle
+                // the list. See layoutPresetOptions in blocks.js + engine.resolveRowItem.
+                // 'custom' is dormant the same way on aplite (Custom is never offered
+                // there; the payload folds it to compactCal, matching the display).
+                // Picking custom seeds the per-view keys once (layoutPresetChanged).
+                optionsFrom: { resolver: 'layoutPresetOptions' },
+                dormantValues: ['compactDense', 'weatherOnly', 'custom'],
+                onChange: 'layoutPresetChanged'
+            },
+            // The Custom-layout "Edit views" row — custom-layout-schema.js.
+            customLayout.editRow,
+            {
+                type: 'toggle',
+                messageKey: 'largeGraphFont',
+                label: 'Larger graph fonts',
+                // ON out of the box: on emery's 200 px screen the taller tier is simply the
+                // more readable one at a glance, and it costs no band height (chart.c solves
+                // both tiers against the same ink floor). Only a FRESH install -- or an
+                // upgrade from before the setting existed, whose missing key seedDefaults
+                // backfills -- lands here; a v1.14.0 install already stores its own value,
+                // so this is deliberately not migrated.
+                defaultValue: true,
+                hint: 'Draw the graph axis labels in bigger type.',
+                more: true,
+                // Emery only: the 200 px screen is the only one with room for a font
+                // tier up, and on a 144 px watch the graph left axis is ALREADY drawn
+                // at the calendar size (both GOTHIC_18), so there is nothing to step.
+                // An unavailable watchInfo leaves env.platform '' and hides the row --
+                // fail-closed is right for an emery-only cosmetic toggle.
+                showWhen: {env: 'platform', eq: 'emery'}
+            }, {
+                type: 'toggle',
+                messageKey: 'swapClockStatus',
+                label: 'Swap clock and status row',
+                // ON out of the box: beside the forecast the status row reads as part of the
+                // graph, and the clock keeps the top of the screen to itself. Only a FRESH
+                // install lands here — an existing one already stores its own value, so this
+                // is deliberately not migrated. Still gated to compactCal (showWhen below and
+                // view-cycle.js's bake); the other presets ignore it.
+                defaultValue: true,
+                hint: 'Move the status row below the clock, next to the forecast.',
+                more: true,
+                // Gated on the preset the radio SHOWS, not merely the stored one: a DORMANT
+                // value displays as compactCal (layoutPreset's dormantValues) and compiles
+                // as compactCal, swap included (view-cycle.js buildViewCycle, resolvePresetKey).
+                // That is a compactDense no status row makes dense — the complement of
+                // blocks.js layoutPresetOptions' dense predicate; keep the two in step — and
+                // a 'custom' or 'weatherOnly' on aplite, which offers neither.
+                showWhen: {any: [
+                    {key: 'layoutPreset', eq: 'compactCal'},
+                    {all: [{key: 'layoutPreset', eq: 'compactDense'},
+                           {key: 'healthMode', in: ['off', 'slot']},
+                           {key: 'radarMode', in: ['off', 'countdown']}]},
+                    {all: [{key: 'layoutPreset', eq: 'custom'}, {env: 'platform', eq: 'aplite'}]},
+                    {all: [{key: 'layoutPreset', eq: 'weatherOnly'}, {env: 'platform', eq: 'aplite'}]}
+                ]}
+            }, {
+                // Last in the card deliberately: the rows above shape what the layout
+                // LOOKS like, this one is about when it snaps back.
+                type: 'segmented',
+                messageKey: 'viewResetMin',
+                label: 'View reset time',
+                defaultValue: '2',
+                hint: 'Automatically return to the default view after the selected time has passed.',
+                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
+                more: true,
+                showWhen: {env: 'platform', ne: 'aplite'}
+            }]
+        },
+        // Custom-layout storage (sheetOnly per-view keys) — custom-layout-schema.js.
+        customLayout.storageSection,
+        {
+            // The theme and everything that changes after dark, in one card. ONE Night hours
+            // row drives all three night features (their hours are written together); under
+            // More options, Separate hours gives each its own From–To again.
+            id: 'themeNight',
+            title: 'Theme & night',
             items: [{
                 type: 'select',
                 messageKey: 'theme',
@@ -977,10 +1305,8 @@ module.exports = {
                 },
                 options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
                 // Always visible and never renamed. `theme` has always doubled as the
-                // day theme: with Theme switching (the Nighttime card) on, that card
-                // adds the night one and this row keeps its meaning. It used to be
-                // hidden and replaced by a "Day theme" copy of itself, which read as
-                // the page renaming a row behind the user's back.
+                // day theme: with the Night theme on, that row adds the night one and this
+                // row keeps its meaning.
                 showWhen: {env: 'color'},
                 onChange: 'themeConvert'
             }, {
@@ -1000,168 +1326,101 @@ module.exports = {
                 showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}]},
                 onChange: 'themeConvert'
             }, {
-                type: 'segmented', messageKey: 'locationMode', label: 'Location', defaultValue: 'gps', hintByValue: {
-                    gps: 'Detect your location automatically via phone GPS.', manual: 'Enter a city or address below.'
-                }, options: [['GPS', 'gps'], ['Manual', 'manual']]
-            }, {
-                type: 'text',
-                messageKey: 'location',
-                label: 'Manual location',
-                defaultValue: '',
-                attributes: {placeholder: 'e.g. Manhattan'},
-                hint: 'Example: "Manhattan" or "123 Oak St Plainsville KY".',
-                showWhen: {key: 'locationMode', eq: 'manual'}
+                // The shared Night hours: page-only pickers (uiOnly — never stored) that
+                // open on the hours the night features already use (blocks.js
+                // nightHoursValue) and write all three pairs on a pick (nightHoursSync).
+                type: 'select',
+                uiOnly: true,
+                messageKey: 'nightHoursFrom',
+                label: 'From',
+                groupLabel: 'Night hours',
+                defaultValue: '0',
+                options: HOURS,
+                inline: 'nightHours',
+                initFrom: {resolver: 'nightHoursValue', args: {end: false}},
+                onChange: 'nightHoursSync',
+                hint: 'Used by Dim backlight, Night theme and Battery saver.',
+                hintFrom: {resolver: 'nightHoursHint'},
+                showWhen: NIGHT_SHARED_WHEN
             }, {
                 type: 'select',
-                messageKey: 'gpsCacheMin',
-                label: 'GPS cache',
-                defaultValue: '30',
-                joinPrevious: 'loose',
-                optionsFrom: {interval: 'fetchIntervalMin', ladder: [30, 60, 120, 360, 720, 1440]},
-                showWhen: {key: 'locationMode', eq: 'gps'},
-                hint: 'How long a GPS fix is reused before re-acquiring. Longer saves battery; shorter keeps your location fresher on the move. The lowest value matches your update interval.'
-            }]
-        }, {
-            // Everything that changes after dark, in one card. Every switch here
-            // owns its hours outright — there is no card-level window, so nothing in
-            // the card reads or moves another group's times.
-            title: 'Nighttime settings', items: [{
-                // Each group opens on its own switch row, which carries the group's
-                // copy as its hint — the same shape as every other toggle row.
+                uiOnly: true,
+                messageKey: 'nightHoursTo',
+                label: 'To',
+                defaultValue: '7',
+                options: HOURS,
+                inline: 'nightHours',
+                initFrom: {resolver: 'nightHoursValue', args: {end: true}},
+                onChange: 'nightHoursSync',
+                showWhen: NIGHT_SHARED_WHEN
+            }, {
                 type: 'toggle',
                 messageKey: 'backlightDim',
                 label: 'Dim backlight',
                 defaultValue: true,
                 hint: 'Dim the backlight when it comes on between the hours below, so it is easier on your eyes.',
+                hintFrom: {resolver: 'nightFeatureHint', args: {
+                    shared: 'Dim the backlight when it comes on during Night hours, so it is easier on your eyes.'}},
+                // "Dim backlight" is emery-only: env.colorBacklight is a fact about the
+                // BACKLIGHT (only emery's board carries the RGB LED driver).
                 showWhen: BACKLIGHT_WHEN
-            }, {
-                // The dim window, and now the feature's only one — it no longer
-                // falls back to anything. Still 0–7: that is the stretch where a
-                // full-brightness backlight actually hurts, and starting in the
-                // evening would dim the screen for someone still awake in a lit
-                // room, which reads as a fault rather than a setting. It is also
-                // what night-light.js falls back to when nothing is stored, so the
-                // page and the reader agree on an install that never opened this
-                // card.
-                //
-                // First row under its switch — joins it tight.
-                type: 'select',
-                messageKey: 'backlightDimStartHour',
-                label: 'From',
-                defaultValue: '0',
-                options: HOURS,
-                inline: 'backlightDimHours',
-                joinPrevious: true,
-                showWhen: BACKLIGHT_ON_WHEN
-            }, {
-                type: 'select',
-                messageKey: 'backlightDimEndHour',
-                label: 'To',
-                defaultValue: '7',
-                options: HOURS,
-                inline: 'backlightDimHours',
-                showWhen: BACKLIGHT_ON_WHEN
-            }, {
-                // The colour opens in a bottom sheet (the section below) instead of
-                // standing in the card: three channel sliders made the Nighttime
-                // card's smallest setting its tallest row. What stays here is the
-                // colour itself — the badge resolver reports the stored value as a
-                // `chip`, which the engine prints as the same swatch-and-hex readout
-                // the sheet shows above its sliders, so the card names what the
-                // backlight will glow and nothing more. Same surface as the
-                // Graph-colors rows (graphColorRow above), which preview two or three
-                // colours each and so keep the compact dots.
-                //
-                // A `sheet` row has no messageKey, and the engine merges the item's
-                // absent one UNDER these args — so `key` is the resolver's only way
-                // to know which value it is previewing.
-                type: 'sheet',
-                sheetId: BACKLIGHT_COLOR_SHEET,
-                label: 'Color',
-                editBadgeFrom: {
-                    resolver: 'rgbSwatch',
-                    args: {key: 'backlightDimColor', defaultValue: BACKLIGHT_COLOR_DEFAULT}
-                },
-                // Joins the rows above into ONE block: everything a group reveals when its
-                // switch goes on belongs to that switch, so the only lines inside the card
-                // are the ones between groups.
-                //
-                // TIGHT, not 'loose', and that is a card-wide rule rather than this row's
-                // taste: a tight join sets the gap to 5px+5px and a loose one leaves the
-                // standard 14px+14px, so a group mixing the two steps its rows unevenly (the
-                // owner's report: "Enabled hours, from and the color are not evenly spaced").
-                // Theme switching's rows were already tight, so every join INSIDE a Nighttime
-                // group is tight and the whole card keeps one rhythm. Pinned by the
-                // even-spacing test in test/config-schema.test.js.
-                joinPrevious: true,
-                showWhen: BACKLIGHT_ON_WHEN
-            }, {
-                // The Theme row in the card above doubles as the day theme and is
-                // left exactly as the user set it; enabling this only seeds a night
-                // theme (theme-flip.js).
+            }].concat(hoursPair('backlightDimStartHour', 'backlightDimEndHour', '0', '7',
+                {all: [BACKLIGHT_ON_WHEN, NIGHT_SEPARATE_WHEN]}), [{
+                // The Theme row above doubles as the day theme and is left exactly as the
+                // user set it; enabling this only seeds a night theme (theme-flip.js).
                 type: 'toggle',
                 messageKey: 'themeAuto',
-                label: 'Theme switching',
+                label: 'Night theme',
                 defaultValue: false,
                 hint: 'Switch between two themes automatically — with the sun, or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.',
-                // themePolarity: aplite has nothing to switch between (the light
-                // polarity is compiled out there), so the whole group hides.
+                // themePolarity: aplite has nothing to switch between.
                 showWhen: {env: 'themePolarity'},
                 onChange: 'themeAutoPreset'
             }, {
                 // No themeConvert here: the stored colour defaults track the DAY
                 // theme's polarity; the night flip converts a scratch copy at send
-                // time instead (theme-schedule.js). First row under its switch, so
-                // both copies join it tight.
+                // time instead (theme-schedule.js).
                 type: 'select',
                 messageKey: 'themeNight',
-                label: 'Night theme',
+                label: 'Theme at night',
                 defaultValue: 'dark',
                 options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
+                indent: true,
                 joinPrevious: true,
                 showWhen: {all: [{env: 'color'}, {key: 'themeAuto', eq: true}]}
             }, {
                 type: 'select',
                 messageKey: 'themeNight',
-                label: 'Night theme',
+                label: 'Theme at night',
                 defaultValue: 'dark',
                 options: [['Dark', 'dark'], ['Light', 'light']],
+                indent: true,
                 joinPrevious: true,
                 showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}, {key: 'themeAuto', eq: true}]}
             }, {
-                // The one mode switch left in the card: sunrise/sunset is a real
-                // alternative to a clock window, so it needs somewhere to be chosen.
-                // The other two groups just take their hours directly.
+                // When the night theme holds. 'manual' is the STORED value for custom
+                // hours — relabelled, never renamed: with the shared Night hours it reads
+                // "Night hours", with Separate hours "Custom" (its own From–To below).
                 type: 'segmented',
                 messageKey: 'themeAutoMode',
-                label: 'Enabled hours',
+                label: 'Hours',
                 defaultValue: 'sun',
-                // 'manual' is the STORED value for custom hours and predates this
-                // control's current labels — relabelled, never renamed, so an install
-                // that already picked fixed hours keeps them.
-                options: [['Sunrise/sunset', 'sun'], ['Custom', 'manual']],
-                // themePolarity too: hidden items keep serializing, but a
-                // paired aplite watch must not show orphaned auto-theme rows.
-                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}]},
-                joinPrevious: true
-            }, {
-                type: 'select',
-                messageKey: 'themeAutoStartHour',
-                label: 'From',
-                defaultValue: '20',
-                options: HOURS,
-                inline: 'themeAutoHours',
+                options: [['Night hours', 'manual'], ['Sunrise/sunset', 'sun']],
+                indent: true,
                 joinPrevious: true,
-                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
+                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, NIGHT_SHARED_WHEN]}
             }, {
-                type: 'select',
-                messageKey: 'themeAutoEndHour',
-                label: 'To',
-                defaultValue: '7',
-                options: HOURS,
-                inline: 'themeAutoHours',
-                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
-            }, {
+                type: 'segmented',
+                messageKey: 'themeAutoMode',
+                label: 'Hours',
+                defaultValue: 'sun',
+                options: [['Sunrise/sunset', 'sun'], ['Custom', 'manual']],
+                indent: true,
+                joinPrevious: true,
+                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, NIGHT_SEPARATE_WHEN]}
+            }].concat(hoursPair('themeAutoStartHour', 'themeAutoEndHour', '20', '7',
+                {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'},
+                    NIGHT_SEPARATE_WHEN]}), [{
                 // "Sending", not "fetching": with the phone-battery slot the saver
                 // also suppresses the status micro-send, so the copy has to describe
                 // what it stops, not where the data comes from.
@@ -1169,39 +1428,45 @@ module.exports = {
                 messageKey: 'sleepNightEnabled',
                 label: 'Battery saver',
                 defaultValue: true,
-                hint: 'Stop sending updates to your watch between the hours below to save battery.'
+                hint: 'Stop sending updates to your watch between the hours below to save battery.',
+                hintFrom: {resolver: 'nightFeatureHint', args: {
+                    shared: 'Stop sending updates to your watch during Night hours to save battery.'}}
+            }].concat(hoursPair('sleepStartHour', 'sleepEndHour', '0', '7',
+                {all: [{key: 'sleepNightEnabled', eq: true}, NIGHT_SEPARATE_WHEN]}), [{
+                // Page-only (uiOnly): on as the page opens when the night features in use
+                // keep different hours (blocks.js nightHoursSeparate). Off copies the Night
+                // hours into all three pairs (nightHoursMode).
+                type: 'toggle',
+                uiOnly: true,
+                messageKey: 'nightHoursSeparate',
+                label: 'Separate hours',
+                defaultValue: false,
+                hint: 'Give each feature its own hours.',
+                initFrom: {resolver: 'nightHoursSeparate'},
+                onChange: 'nightHoursMode',
+                more: true,
+                showWhen: NIGHT_SPLITTABLE_WHEN
             }, {
-                // sleepStartHour/sleepEndHour, back under the switch that has always
-                // owned them: same keys, same options, same '0'/'7' defaults, same
-                // gate. Nothing an install has stored means anything different than
-                // it did before the Nighttime card existed.
-                //
-                // First row under its switch — joins it tight.
-                type: 'select',
-                messageKey: 'sleepStartHour',
-                label: 'From',
-                defaultValue: '0',
-                options: HOURS,
-                inline: 'sleepHours',
-                joinPrevious: true,
-                showWhen: {key: 'sleepNightEnabled', eq: true}
-            }, {
-                type: 'select',
-                messageKey: 'sleepEndHour',
-                label: 'To',
-                defaultValue: '7',
-                options: HOURS,
-                inline: 'sleepHours',
-                showWhen: {key: 'sleepNightEnabled', eq: true}
-            }]
+                // The dim colour opens in its own dialog (three channel sliders); the row
+                // shows the colour itself (the badge's chip). A `sheet` row has no
+                // messageKey, so `key` is the resolver's only way to know which value it
+                // is previewing.
+                type: 'sheet',
+                sheetId: BACKLIGHT_COLOR_SHEET,
+                label: 'Dim backlight color',
+                editBadgeFrom: {
+                    resolver: 'rgbSwatch',
+                    args: {key: 'backlightDimColor', defaultValue: BACKLIGHT_COLOR_DEFAULT}
+                },
+                more: true,
+                showWhen: BACKLIGHT_ON_WHEN
+            }])))
         }, {
-            // The Dim backlight colour, alone in its bottom sheet — opened by the
-            // "Color" row of the card above and rendered nowhere else (sheetOnly
-            // sections are skipped by the tab renderer while hydrate/serialize still
-            // walk them, so the key, its "r,g,b" wire format and its default are
-            // untouched by the move out of the card).
+            // The Dim backlight colour, alone in its dialog — opened by the row above and
+            // rendered nowhere else (sheetOnly sections are skipped by the tab renderer
+            // while hydrate/serialize still walk them).
             //
-            // Gated like the row that opens it: a sheet forced open on a watch whose
+            // Gated like the row that opens it: a dialog forced open on a watch whose
             // backlight cannot be tinted — or with Dim backlight switched off — must
             // render empty rather than offer a colour that does nothing.
             sheetOnly: true,
@@ -1215,622 +1480,169 @@ module.exports = {
                 // the watch's own brightness setting, so the value carries the hue
                 // AND how deep the dim goes.
                 //
-                // No label: the sheet's title already names this control, and the
-                // threshold sliders drop theirs for the same reason — a labelled row
-                // directly under a title saying the same thing reads as a stutter.
+                // No label: the dialog's title already names this control.
                 type: 'rgb',
                 messageKey: 'backlightDimColor',
                 defaultValue: BACKLIGHT_COLOR_DEFAULT
             }]
         }, {
-            title: 'Provider settings', items: [{
-                type: 'select',
-                messageKey: 'fetchIntervalMin',
-                label: 'Update interval',
-                defaultValue: '15',
-                hint: 'Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.',
-                optionsFrom: {resolver: 'fetchIntervalBudget'}
-            }, {
-                type: 'select',
-                messageKey: 'provider',
-                label: 'Weather provider',
-                defaultValue: 'wunderground',
-                onChange: 'clearPollenForProvider',
-                // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→Open-Meteo),
-                // reading the same country→provider map the wizard uses. See blocks.js recommend resolvers.
-                recommendFrom: 'recommendedWeatherProvider',
-                // Options are alphabetical by name. The 3rd tuple slot's desc is the short "what it's
-                // best at" tag shown under each name in the dropdown; the selected provider's fuller
-                // rationale renders via hintByValue (PROVIDER_WHY) — the wrap layout flows it around
-                // the trigger and full-width below it.
-                // Scope (Germany/Nordics) lives in the desc + the "why" note, not the label —
-                // the label stays short so the collapsed trigger doesn't overlap the field label.
-                // DWD carries a `short` so the trigger reads "DWD" while the sheet keeps the full name.
-                hintByValue: PROVIDER_WHY,
-                // A provider that needs a key gets an Edit button after the dropdown, opening its
-                // key sheet (the sheetOnly sections below this card) — the key field, its Test, the
-                // links and any budget guard live there, not on the card. The row shows the key's
-                // status (settings/key-status.js, which reads the table key-sources.js keeps
-                // for this picker): the button reads "Add key" while the key is empty; under the
-                // "why" hint (this row's own PROVIDER_WHY copy, which the engine hands the
-                // resolver, so the two cannot drift) a line "Key ••••1234 · ✓ works"; and a key
-                // that is missing or known to be rejected puts a dot on this tab and a dialog
-                // in front of Save ("Add key" / "Save anyway"). The missing-key note is the
-                // staticText right below.
-                editSheetFrom: {resolver: 'keySheet'},
-                editBadgeFrom: {resolver: 'keyBadge'},
-                hintFrom: {resolver: 'keySummaryHint'},
-                attentionFrom: {resolver: 'keyAttention'},
-                options: [
-                    ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
-                    ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
-                    ['Open-Meteo', 'openmeteo', {desc: 'Good automatic national model selection · no key'}],
-                    ['OpenWeatherMap', 'openweathermap', {desc: 'Popular general-purpose API, worldwide · needs a free key'}],
-                    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise hyperlocal forecasts, worldwide · needs a free key'}],
-                    ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
-                    ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
-                ]
-            }, {
-                // The keyed provider's empty key, said where it cannot be missed: an amber note
-                // hugging the row, only while the picked provider's key is blank (textFrom
-                // answers '' otherwise and the note is gone, divider and all). A staticText has
-                // no messageKey, so its args name the picker.
-                type: 'staticText',
-                style: 'info',
-                joinPrevious: true,
-                textFrom: {resolver: 'keyMissingNote', args: {picker: 'provider'}}
-            }, {
-                type: 'select',
-                messageKey: 'aqiSource',
-                label: 'AQI provider',
-                defaultValue: 'waqi',
-                hintByValue: {
-                    auto: 'Prefers WAQI and falls back to Open-Meteo when no nearby station is available.',
-                    waqi: 'WAQI (aqicn.org) reads real monitoring stations — most accurate, but rural / under-monitored areas may have no nearby station and show "--".',
-                    openmeteo: 'Open-Meteo is a global model with coverage everywhere.'
-                },
-                options: [['Auto', 'auto'], ['WAQI', 'waqi'], ['Open-Meteo', 'openmeteo']]
-            }]
-        },
-        // The keyed weather providers' key sheets, opened by the Edit button after the Weather
-        // provider dropdown in the card above and rendered nowhere else (sheetOnly, like the dim
-        // colour's sheet). The keys, their trimming and refetch on Save (onbuild.js) and the Test
-        // actions are the ones the card's rows carried.
-        keySheetSection(PROVIDER_KEYS.openweathermap, {key: 'provider', eq: 'openweathermap'}, [{
-            type: 'text',
-            messageKey: 'owmApiKey',
-            label: 'API key',
-            defaultValue: '',
-            suffixAction: 'testOwmKey',
-            suffixLabel: 'Test',
-            hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401.'
-        }]),
-        // Shown only while tomorrow.io is the WEATHER provider; when it is radar-only the same key
-        // + budget guard live in the Radar tab's Tomorrow.io sheet instead (see
-        // TOMORROWIO_RADAR_ONLY_WHEN). While it is both, this is the one sheet that holds the
-        // key, and the Radar provider row's Edit opens it too (RADAR_KEYS sharedSheet).
-        keySheetSection(PROVIDER_KEYS.tomorrowio, TOMORROWIO_WEATHER_WHEN, TOMORROWIO_KEY_ROWS),
-        keySheetSection(PROVIDER_KEYS.yandex, {key: 'provider', eq: 'yandex'}, [{
-            type: 'text',
-            messageKey: 'yandexApiKey',
-            label: 'API key',
-            defaultValue: '',
-            hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here.'
-        }]), {
-            title: 'Units', items: [{
-                type: 'segmented',
-                messageKey: 'temperatureUnits',
-                label: 'Temperature',
-                defaultValue: 'c',
-                options: [['°F', 'f'], ['°C', 'c']]
+            id: 'time',
+            title: 'Time', items: [{
+                type: 'toggle', messageKey: 'timeLeadingZero', label: 'Leading zero', defaultValue: false
             }, {
                 type: 'segmented',
-                messageKey: 'aqiScale',
-                label: 'Air quality scale',
-                defaultValue: 'european',
-                options: [['European', 'european'], ['US', 'us']],
-                showWhen: {key: 'aqiSource', eq: 'openmeteo'},
-                hint: 'Which air-quality index the Open-Meteo source reports. WAQI always uses the US EPA scale.'
+                messageKey: 'timeFont',
+                label: 'Main time font',
+                defaultValue: 'roboto',
+                options: [['Roboto', 'roboto'], ['Leco', 'leco'], ['Bitham', 'bitham']]
+            }, {
+                type: 'toggle', messageKey: 'timeShowAmPm', label: 'Show AM / PM', defaultValue: false, more: true
             }, {
                 type: 'segmented',
-                messageKey: 'windUnits',
-                label: 'Wind speed',
-                defaultValue: 'kph',
-                options: [['kph', 'kph'], ['mph', 'mph'], ['Knots', 'knots']],
-                hint: 'Unit for the wind and gust status items.'
+                messageKey: 'axisTimeFormat',
+                label: 'Axis time format',
+                defaultValue: '24h',
+                hint: 'Tip: Settings &gt; Date &amp; Time &gt; Time Format changes the main time format.',
+                options: [['12h', '12h'], ['24h', '24h']],
+                more: true
             }, {
-                type: 'segmented',
-                messageKey: 'distanceUnits',
-                label: 'Distance',
-                defaultValue: 'metric',
-                options: [['Kilometres', 'metric'], ['Miles', 'imperial']],
-                hint: 'Unit for the "Walked distance" status item.'
-            }, {
-                // Phone-side only (feels-like.js resolvers; fetch-cycle.js hands it to
-                // the provider per fetch) and in renderSignature, so a flip refetches.
-                type: 'segmented',
-                messageKey: 'feelsFormula',
-                label: 'Feels-like formula',
-                defaultValue: 'provider',
-                options: [['Provider', 'provider'], ['Steadman', 'steadman']],
-                hintByValue: {
-                    provider: 'Uses the feels-like value your weather service reports. For some services it '
-                        + 'equals the air temperature in mild weather. Services without one use Steadman.',
-                    steadman: 'Calculates feels-like from air temperature, humidity and wind, the same '
-                        + 'way on every provider, so it differs from the temperature all year round.'
-                }
-            }]
-        }]
-    }, {
-        id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always drawn; the metrics and rain bars you pick below join it.',
-            // One flat list: each picker's four Draw from rows (lineFromCopies) are
-            // spliced in right after its Line style.
-            items: [{
-                type: 'select',
-                messageKey: 'secondaryLine',
-                label: 'Main metric',
-                defaultValue: 'precip_prob',
-                hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric'},
-                onChange: 'forecastMetricFill',
-                blockBefore: 'forecastPreview',
-                blockBeforeSticky: true
-            },
-            lineStyleCopy('secondaryLine')
-            ].concat(lineFromCopies('secondaryLine'), [{
-                type: 'toggle',
-                messageKey: 'secondaryLineFill',
-                // Direction-neutral: with Draw from on Top the fill hangs with its line.
-                label: 'Area fill',
-                defaultValue: true,
-                joinPrevious: true,
-                // Feels-like and dew point ride the temperature axis rather than a 0..max scale, so
-                // "below the line" is not the area between the curve and a meaningful
-                // zero — a fill there would flood the plot up to an arbitrary band
-                // floor. The row is hidden for it and the 'forecastMetricFill' hook
-                // above clears the stored value; forecast-series.js re-forces false at
-                // bake time so a settings blob written before this gate still can't fill.
-                // A stripe has no curve to fill below either (line-style.js gates
-                // fillOn the same way) — unless this watch ignores the styles, or the
-                // metric cannot be a stripe: a stored stripe then lies dormant in the
-                // style row (dormantValues — it stays stored) and draws as a line, so
-                // the metric is read too, not only the stored style.
-                showWhen: {all: [
-                    {key: 'secondaryLine', nin: lineStyle.TEMP_AXIS_METRIC_IDS},
-                    {any: [{not: LINE_STYLES_WHEN},
-                        {key: 'secondaryLineStyle', nin: STRIPE_STYLES},
-                        {key: 'secondaryLine', nin: lineStyle.STRIPE_METRIC_IDS}]}
-                ]}
-            },
-            windScaleCopy('secondaryLine', 'kph', WIND_SCALE_HINTS_KPH),
-            windScaleCopy('secondaryLine', 'mph', WIND_SCALE_HINTS_MPH),
-            windScaleCopy('secondaryLine', 'knots', WIND_SCALE_HINTS_KNOTS),
-            pressureScaleCopy('secondaryLine'),
-            lineShowCopy('secondaryLine', 'wind'),
-            lineShowCopy('secondaryLine', 'gust'),
-            lineShowCopy('secondaryLine', 'uv'),
-            {
-                type: 'select',
-                messageKey: 'thirdLine',
-                label: 'Second metric',
-                defaultValue: 'uv',
-                hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine']}}
-            },
-            lineStyleCopy('thirdLine', true)
-            ], lineFromCopies('thirdLine'), [
-            windScaleCopy('thirdLine', 'kph', WIND_SCALE_HINTS_KPH),
-            windScaleCopy('thirdLine', 'mph', WIND_SCALE_HINTS_MPH),
-            windScaleCopy('thirdLine', 'knots', WIND_SCALE_HINTS_KNOTS),
-            pressureScaleCopy('thirdLine'),
-            lineShowCopy('thirdLine', 'wind'),
-            lineShowCopy('thirdLine', 'gust'),
-            lineShowCopy('thirdLine', 'uv'),
-            {
-                type: 'select',
-                messageKey: 'fourthLine',
-                label: 'Third metric',
-                defaultValue: 'off',
-                hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine']}},
-                // Only watches with enough memory carry a third metric line
-                // (LINE_STYLES_WHEN — the WW_LINE_STYLE mirror, fail-open for
-                // an unknown platform). Row-level hiding, not option-gating,
-                // so the stored value is never display-snapped away on a
-                // watch that lacks the line.
-                showWhen: LINE_STYLES_WHEN
-            },
-            lineStyleCopy('fourthLine', true)
-            ], lineFromCopies('fourthLine'), [
-            windScaleCopy('fourthLine', 'kph', WIND_SCALE_HINTS_KPH),
-            windScaleCopy('fourthLine', 'mph', WIND_SCALE_HINTS_MPH),
-            windScaleCopy('fourthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
-            pressureScaleCopy('fourthLine'),
-            lineShowCopy('fourthLine', 'wind'),
-            lineShowCopy('fourthLine', 'gust'),
-            lineShowCopy('fourthLine', 'uv'),
-            {
-                type: 'select',
-                messageKey: 'fifthLine',
-                label: 'Fourth metric',
-                defaultValue: 'off',
-                hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine']}},
-                // Same row-level gate as the third metric (WW_LINE_STYLE mirror).
-                showWhen: LINE_STYLES_WHEN
-            },
-            lineStyleCopy('fifthLine', true)
-            ], lineFromCopies('fifthLine'), [
-            windScaleCopy('fifthLine', 'kph', WIND_SCALE_HINTS_KPH),
-            windScaleCopy('fifthLine', 'mph', WIND_SCALE_HINTS_MPH),
-            windScaleCopy('fifthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
-            pressureScaleCopy('fifthLine'),
-            lineShowCopy('fifthLine', 'wind'),
-            lineShowCopy('fifthLine', 'gust'),
-            lineShowCopy('fifthLine', 'uv'),
-            {
-                type: 'segmented',
-                messageKey: 'barSource',
-                label: 'Bars',
-                defaultValue: 'rain',
-                hintByValue: {rain: 'Adds bars that represent the rain amount in one hour.'},
-                options: [['Rain', 'rain'], ['Off', 'off']]
-            }, {
-                type: 'staticText',
-                joinPrevious: true,
-                text: SCALE_NOTE,
+                type: 'color',
+                messageKey: 'colorTime',
+                label: 'Main time color',
+                defaultValue: 0xFFFFFF,
                 capabilities: ['COLOR'],
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, COLOR_THEME_WHEN]}
-            }, {
-                type: 'staticText',
-                joinPrevious: true,
-                text: BW_LEGEND,
-                // Effective color: shows whenever the display isn't rendering as color —
-                // real B&W hardware OR the Black & White theme (bw/bw-light) on a color watch.
-                showWhen: {all: [
-                    {not: {all: [{env: 'color'}, COLOR_THEME_WHEN]}},
-                    {key: 'barSource', eq: 'rain'}
-                ]}
-            }, {
-                type: 'segmented',
-                messageKey: 'rainBarColor',
-                label: 'Bar color',
-                // The DARK-polarity default. The light polarity starts on Solid instead:
-                // resolve-ink.js's barColorDefault owns that pair, and theme-convert.js
-                // converts a value still holding this one when the Theme control flips
-                // polarity. This cannot become a defaultFrom — a defaults-resolver is
-                // handed only `env` (platform facts), and the theme is a settings key.
-                defaultValue: 'multicolor',
-                joinPrevious: true,
-                hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
-                capabilities: ['COLOR'],
-                // VALUE stays 'white' for wire compatibility (the watch resolves it to the
-                // right polarity color itself — see rain-tier.js); only the label changes.
-                options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, COLOR_THEME_WHEN]}
-            }, {
-                // Bars from [Bottom | Top] (draw-from.js rainBarFrom): while the bars are
-                // drawn, on a watch with line styles (the WW_LINE_STYLE mirror the watch's
-                // flip sits behind; aplite never hangs them). Joined to Bar color; with
-                // that row hidden (B&W) it joins the bar note, which joins Bars.
-                type: 'segmented',
-                messageKey: 'rainBarFrom',
-                label: 'Bars from',
-                defaultValue: DRAW_FROM.BOTTOM,
-                joinPrevious: true,
-                hintByValue: {top: BARS_TOP_HINT},
-                options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, LINE_STYLES_WHEN]}
-            }, {
-                type: 'toggle',
-                messageKey: 'dayNightShading',
-                label: 'Day / night shading',
-                defaultValue: true,
-                hint: 'Hatches the hours between sunset and sunrise.'
-            }])
+                more: true,
+                showWhen: COLOR_THEME_WHEN
+            }]
         }, {
-            // One card holding one row per graph metric, plus the night band. Deliberately
-            // NOT groupCard: a grouped section renders through renderSectionGroup, which
-            // emits no card header, and this card needs its title. buildSectionBody runs
-            // before the visibility test, so on a B&W watch the whole card — header
-            // included — disappears.
-            id: 'graphColors',
-            title: 'Graph colors',
-            capabilities: ['COLOR'],
-            showWhen: COLOR_THEME_WHEN,
-            intro: 'One row per metric, plus the night shading. Each row’s colours are remembered separately for the Dark and the Light theme.',
-            items: GRAPH_COLOR_ROWS.map(function (row, i) {
-                return graphColorRow(row, i > 0);
-            })
-        }].concat(GRAPH_COLOR_ROWS.map(graphColorSheet))
-    }, {
-        // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined — the 24 KB
-        // budget can't afford it), so the whole tab is env-hidden there (tab-level
-        // showWhen; see platform.js radar env flag). Mirrors the health tab.
-        id: 'radar', label: 'Radar', showWhen: {env: 'radar'}, sections: [{
-            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where the view appears in the Layout tab.<br>',
-            items: [{
-                type: 'radio',
-                messageKey: 'radarMode',
-                label: 'Radar view',
-                defaultValue: 'graph',
-                hintByValue: {
-                    off: 'Radar is hidden.',
-                    // No radar bar or graph in this mode: the rain icon's place is the Rain
-                    // sheet's Shows on grid (Alerts tab), not the Layout tab the intro names.
-                    // Plain text: a radio's per-value hint, not a tab link.
-                    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on the status bars picked for Rain in the Alerts tab.',
-                    status: 'Adds the Radar Status Bar.',
-                    graph: 'Adds the Radar Status Bar and the full radar rain graph.'
-                },
-                // 'Rain alert only' — the VALUE stays 'countdown' (stored + telemetry): the
-                // mode fetches radar solely for the rain alert, which an On demand side draws.
-                options: [['Off', 'off'], ['Rain alert only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
-                onChange: 'resetStatusRadar'
-            }, rainAlertUnshownNote(), {
-                type: 'select',
-                messageKey: 'radarProvider',
-                label: 'Radar provider',
-                defaultValue: 'rainbow',
-                showWhen: {key: 'radarMode', ne: 'off'},
-                // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→
-                // "Rainbow (limited)"), the same map the wizard uses. See blocks.js recommend
-                // resolvers; the bracketed name moves the marker onto the desc line (engine.js).
-                recommendFrom: 'recommendedRadarProvider',
-                // Two Rainbow options, one per radar source (radar-factory.js): "Rainbow
-                // (limited)" ('rainbow') is the shared proxy, at most every 30 min (fetch-cycle.js
-                // throttle; builds without a proxy endpoint still offer it and clear the radar);
-                // "Rainbow (own key)" ('rainbowkey') is api.rainbow.ai directly on the user's
-                // key, at every update, which works without the endpoint. A changed source
-                // forces a fetch (index.js).
-                // The selected provider's fuller rationale renders via hintByValue (RADAR_WHY),
-                // wrapping around the trigger — mirroring the weather picker.
-                hintByValue: RADAR_WHY,
-                // "Rainbow (own key)" and Tomorrow.io get an Edit button after the dropdown,
-                // opening their key sheet (the sheetOnly sections after this one): the key
-                // field with its Test, the links, the read-out and the budget guard live
-                // there. The row shows the key's status like the Weather provider row
-                // (settings/key-status.js, which reads the table key-sources.js keeps for this
-                // picker): "Add key" while the key is empty, a line "Key ••••1234 · ✓ works"
-                // under the RADAR_WHY hint, and a key that is missing or known to be rejected
-                // puts a dot on this tab and a dialog in front of Save ("Add key" / "Save
-                // anyway"). The missing-key note is the staticText right below. Tomorrow.io's
-                // key is the weather provider's too: while Tomorrow.io is also the weather
-                // provider, Edit opens the General tab's Tomorrow.io sheet, the one copy of
-                // the key then, and the summary and dot here agree with that row's.
-                editSheetFrom: {resolver: 'keySheet'},
-                editBadgeFrom: {resolver: 'keyBadge'},
-                hintFrom: {resolver: 'keySummaryHint'},
-                attentionFrom: {resolver: 'keyAttention'},
-                options: RADAR_PROVIDER_OPTIONS
-            }, {
-                // The own key's empty field, said where it cannot be missed: an amber note
-                // hugging the row while "Rainbow (own key)" or Tomorrow.io is picked with no
-                // key. For DWD and Met.no the same note says when the last update's location
-                // lies outside the picked source's area, or (DWD) inside it with no radar
-                // data from DWD, naming one that covers it (radar-coverage.js; the phone's
-                // record userData.radarCoverage). textFrom
-                // answers '' otherwise. It follows the picker's own gate, so radar off hides
-                // it with the row. A staticText has no messageKey, so its args name the picker.
-                type: 'staticText',
-                style: 'info',
-                joinPrevious: true,
-                textFrom: {resolver: 'radarProviderNote', args: {picker: 'radarProvider'}},
-                showWhen: {key: 'radarMode', ne: 'off'}
-            }, {
-                // Radar preview now rides the bar-scale note (blockBefore), so it sits BELOW the picker
-                // instead of stickied above it; the note stands as separate info text beneath the preview
-                // (no joinPrevious). One of SCALE_NOTE (color) / BW_LEGEND (B/W) shows in graph mode.
-                type: 'staticText',
-                blockBefore: 'radarPreview',
-                text: SCALE_NOTE,
-                hinted: true,
-                capabilities: ['COLOR'],
-                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, COLOR_THEME_WHEN]}
-            }, {
-                type: 'staticText',
-                blockBefore: 'radarPreview',
-                text: BW_LEGEND,
-                hinted: true,
-                showWhen: {all: [
-                    {not: {all: [{env: 'color'}, COLOR_THEME_WHEN]}},
-                    {key: 'radarMode', eq: 'graph'}
-                ]}
-            }, {
+            id: 'calendar',
+            title: 'Calendar', items: [{
                 type: 'segmented',
-                messageKey: 'radarColor',
-                label: 'Radar color',
-                // Dark-polarity default; light starts on Solid (resolve-ink.js's
-                // barColorDefault). See rainBarColor above.
-                defaultValue: 'multicolor',
-                hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
-                capabilities: ['COLOR'],
-                // VALUE stays 'white' for wire compatibility (the watch resolves it to the
-                // right polarity color itself — see rain-tier.js); only the label changes.
-                options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
-                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, COLOR_THEME_WHEN]}
-            }, {
-                // Bars from [Bottom | Top] (draw-from.js radarBarFrom): the radar graph's
-                // rain bars, the exact spot's and DWD's nearby-area ones together, hang
-                // under the time axis (and under the sky rows). Only the graph draws bars;
-                // the tab is already radar-gated, and LINE_STYLES_WHEN states the watch
-                // side's WW_LINE_STYLE dependency. Joined to Radar color; with that row
-                // hidden (B&W) it joins the bar note above it.
-                type: 'segmented',
-                messageKey: 'radarBarFrom',
-                label: 'Bars from',
-                defaultValue: DRAW_FROM.BOTTOM,
+                messageKey: 'weekStartDay',
+                label: 'Start week on',
+                defaultValue: 'mon',
+                options: [['Sun', 'sun'], ['Mon', 'mon']]
+            }, {type: 'toggle', messageKey: 'holidaysEnabled', label: 'Holiday highlight', defaultValue: true}, {
+                type: 'searchSelect',
+                messageKey: 'holidayCountry',
+                label: 'Country',
+                defaultValue: 'DE',
+                indent: true,
                 joinPrevious: true,
-                hintByValue: {top: BARS_TOP_HINT},
-                options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
-                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, LINE_STYLES_WHEN]}
+                options: holidayData.COUNTRY_OPTIONS,
+                showWhen: {key: 'holidaysEnabled', eq: true}
             }, {
-                // The radar's sky rows (radar-sky.js): an extra Open-Meteo request per
-                // fetch, on by default (a missing key reads as on everywhere: radar-sky.js
-                // skySourceIdFor, index.js, telemetry-settings.js). Only the radar GRAPH draws them,
-                // like the no-rain text below; fetch-cycle.js (radarSky.skySourceIdFor) clears
-                // them whenever the graph is not shown.
-                type: 'toggle',
-                messageKey: 'radarSky',
-                label: 'Clouds, sun & lightning',
-                defaultValue: true,
-                hint: 'Two thin stripes under the radar\'s time axis show the next two hours, one cell per quarter hour.<br>Top, clouds: a full stripe means overcast. Thin high cloud, which the sun shines through, counts half.<br>Bottom, sun: a full stripe means sunshine as strong as on a clear day at that time of day, so a low morning sun can be full too.<br>Thin cloud can let the sun through, so both stripes can show at once. A bolt marks expected thunderstorms. Uses Open-Meteo, whatever the radar source.',
-                showWhen: {key: 'radarMode', eq: 'graph'}
-            }, {
-                // Custom quiet-state text: drawn in the radar GRAPH when the nowcast
-                // finds no rain in the whole window. Ships visibly with the watch's
-                // built-in default so users override the actual message. The UI
-                // maxlength is a soft character cap; the phone re-truncates to 24
-                // UTF-8 BYTES at pack time. Empty/whitespace-only text shows no line.
-                // A 1.23.0 migration moved older empty values (which meant "default")
-                // and the untouched old default "No rain ahead" to "You're good :)". Only rain_radar_layer.c
-                // draws it, so the field follows the graph ('graph'), not the radar
-                // as a whole — in 'status'/'countdown' there is no plot to write on.
-                type: 'text',
-                messageKey: 'radarNoRainText',
-                label: 'No-rain message',
-                defaultValue: "You're good :)",
-                attributes: {maxlength: 24},
-                hint: 'Shown in the radar graph when no rain is coming; the default is “You\'re good :)”. Up to 24 characters; leave it empty to show nothing.',
-                showWhen: {key: 'radarMode', eq: 'graph'}
-            }]
-            // The rain alert's time window (rainCountdownHorizon) used to close this
-            // section; it is set in the Rain alert sheet (the Alerts tab) alone.
-        },
-        // "Rainbow (own key)"'s key sheet, opened by the Edit button after the Radar provider
-        // dropdown and rendered nowhere else. The key, its trimming and refetch on Save
-        // (onbuild.js), its keeping through Reset (clay-settings.js PRESERVED_SETTING_KEYS)
-        // and the Test action are as before; the key never rides the watch wire.
-        keySheetSection(RADAR_KEYS.rainbowkey, RAINBOW_OWN_KEY_WHEN, [{
-            type: 'text',
-            messageKey: 'rainbowApiKey',
-            label: 'API key',
-            defaultValue: '',
-            suffixAction: 'testRainbowKey',
-            suffixLabel: 'Test',
-            hint: RAINBOW_KEY_HINT
-        }, {
-            type: 'toggle',
-            messageKey: 'rainbowFitBudget',
-            label: 'Fit update interval to rate limit',
-            defaultValue: true,
-            joinPrevious: 'loose',
-            // The monthly-usage read-out sits between the key field and this toggle.
-            blockBefore: 'rainbowBudget',
-            hint: RAINBOW_BUDGET_HINT
-        }]),
-        // Radar-only Tomorrow.io's key sheet, opened by the Edit button after the Radar provider
-        // dropdown and rendered nowhere else: the General tab's Tomorrow.io sheet's rows, same
-        // messageKeys, gated apart (TOMORROWIO_RADAR_ONLY_WHEN), so findShownItem keeps the two
-        // copies apart. While Tomorrow.io is also the weather provider this sheet is closed and
-        // the General tab's holds the key. Trimming and refetch on Save (onbuild.js) and the
-        // Test action are the key's, whichever sheet it was typed in.
-        keySheetSection(RADAR_KEYS.tomorrowio, TOMORROWIO_RADAR_ONLY_WHEN, TOMORROWIO_KEY_ROWS)]
-    }, {
-        // aplite has no health sensors — the watch compiles the view out, so the whole
-        // tab is env-hidden there (tab-level showWhen; see platform.js health env flag).
-        id: 'health', label: 'Health', showWhen: {env: 'health'}, sections: [{
-            intro: 'Show your activity on the watchface: today\'s steps, last night\'s sleep, and current heart rate. Where it appears is set in the Layout tab.',
-            items: [{
-                type: 'radio',
-                messageKey: 'healthMode',
-                label: 'Health view',
+                type: 'searchSelect',
+                messageKey: 'holidayRegion',
+                label: 'Region',
                 defaultValue: 'all',
-                hintByValue: {
-                    off: 'Health is hidden.',
-                    slot: 'Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar.',
-                    status: 'Adds the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
-                    all: 'Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line. Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
-                },
-                options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph (BETA)', 'all']],
-                onChange: 'resetStatusHealth'
+                indent: true,
+                joinPrevious: true,
+                optionsFrom: {byKey: 'holidayCountry', map: holidayData.REGION_OPTIONS},
+                showWhen: {
+                    all: [{
+                        key: 'holidayCountry',
+                        in: Object.keys(holidayData.REGION_OPTIONS)
+                    }, {key: 'holidaysEnabled', eq: true}]
+                }
             }, {
-                type: 'range',
-                messageKey: 'hrScale',
-                label: 'Heart-rate scale',
-                // Kept in lockstep with the watch's own HEALTH_HR_LO/HEALTH_HR_HI
-                // (src/c/layers/health_graph_layer.c) and the clay-payload fallback:
-                // all three are the same number, so a watch that never received the
-                // key draws the same scale as one that did. 180 was the old top; 150
-                // keeps a resting-to-brisk-walk day filling the plot instead of
-                // hugging the floor, and anything above it still shows as edge dots.
-                defaultValue: '40-150',
-                min: 30, max: 220, step: 5, minSpan: 50, unit: 'BPM',
-                hint: 'The top and bottom of the heart-rate line in the health graph. '
-                    + 'A narrower range makes small changes visible; hours outside it '
-                    + 'are drawn as dots on the edge.',
-                // The HR line lives only in the graph ('all'), and only emery/diorite
-                // have a sensor (platform.js HR_PLATFORMS) — on anything else the line
-                // is permanently absent, so a scale for it would be inert.
-                showWhen: {all: [{env: 'hr'}, {key: 'healthMode', eq: 'all'}]}
+                type: 'segmented',
+                messageKey: 'firstWeek',
+                label: 'First week to display',
+                defaultValue: 'prev',
+                options: [['Prev', 'prev'], ['Curr', 'curr']],
+                more: true
+            }, {
+                type: 'color',
+                messageKey: 'colorToday',
+                label: 'Today highlight',
+                defaultValue: 0,
+                capabilities: ['COLOR'],
+                hint: 'Black (default) means match date color; any other value overrides it.',
+                more: true,
+                showWhen: COLOR_THEME_WHEN
+            }, {
+                type: 'color',
+                messageKey: 'colorSunday',
+                label: 'Sunday color',
+                defaultValue: 0xFF0055,
+                capabilities: ['COLOR'],
+                more: true,
+                showWhen: COLOR_THEME_WHEN
+            }, {
+                type: 'color',
+                messageKey: 'colorSaturday',
+                label: 'Saturday color',
+                defaultValue: 0xFF0055,
+                capabilities: ['COLOR'],
+                more: true,
+                showWhen: COLOR_THEME_WHEN
+            }, {
+                type: 'color',
+                messageKey: 'colorUSFederal',
+                label: 'Holiday color',
+                defaultValue: 0x0055FF,
+                capabilities: ['COLOR'],
+                // White is the "no highlight" appearance in dark; the holidaysEnabled
+                // toggle owns on/off instead of a special color.
+                excludeColors: ['#FFFFFF'],
+                more: true,
+                showWhen: {all: [{key: 'holidaysEnabled', eq: true}, {key: 'theme', eq: 'dark'}]}
+            }, {
+                type: 'color',
+                messageKey: 'colorUSFederal',
+                label: 'Holiday color',
+                defaultValue: 0x0055FF,
+                capabilities: ['COLOR'],
+                // Black is the "no highlight" appearance in the light theme instead.
+                excludeColors: ['#000000'],
+                more: true,
+                showWhen: {all: [{key: 'holidaysEnabled', eq: true}, {key: 'theme', eq: 'light'}]}
             }]
         }]
     }, {
-        // The Alerts tab (the owner, 2026-10-01): the Alert settings card, moved off the
-        // General tab as it was, between Health and Status slots. Every row opens its
-        // item's sheet, which leads with the item's Shows on grid (where it shows, per
-        // bar, Left or Right); the Status slots tab's Alerts rows only show the result.
-        // aplite has no Alerts (ON_DEMAND_WHEN), so the whole tab is env-hidden there
-        // (renderTabBar, renderBody and the attention dots all skip a tab whose showWhen
-        // fails). The card (alerts-schema.js cardSection) stores nothing: its sheets and the
-        // eight side lists' hidden items close the Status slots tab's sections (renderEditModal
-        // finds a sheet on any tab); the end of that tab says why they stay there.
-        id: 'alerts', label: 'Alerts', showWhen: ON_DEMAND_WHEN, sections: [alertsSchema.cardSection()]
-    }, {
-        // Label renamed 'Watch' → 'Status slots' when Time/Calendar moved to the
-        // Layout tab; the id stays 'watch' — deep links and tests key on it.
-        id: 'watch', label: 'Status slots', sections: [{
-            // The intro + the four status-bar sections share one groupCard so they render as a
-            // single card (each title becomes an in-card sub-header). Time/Calendar below stay
-            // their own cards.
-            groupCard: 'watchStatus',
-            // The intro's inline reset (introAction) reverts every slot AND the bold
-            // settings in one tap (blocks.js resetStatusSlots — the engine injects section
-            // intros as raw HTML and dispatches [data-action] clicks globally). Deliberately
-            // NOT thresholds-gated: aplite has slots but no bold machinery, and
-            // "status bars" stays truthful there either way.
-            intro: 'Every view has its own status bar — one row with a left, middle, and right slot you can fill with weather, time, health, and more. Choose what each view shows below. '
-                + introAction('resetStatusSlots', 'Reset status bars to defaults'),
-            items: [
-                // Master bold switch over EVERY slot kind. It lives in the card's
-                // title-less intro section — ABOVE the per-bar sub-headers — because
-                // it governs all bars, not just the forecast one: 'all' packs each
-                // kind's bold cell as always-bold when the threshold blob is built
-                // (status-thresholds.js) and leaves the stored per-kind modes
-                // untouched — the per-slot Bold rows mute via BOLD_ALL_WHEN
-                // meanwhile. A settings-store key only: it rides the packed blob,
-                // never an AppMessage key of its own. Same platform gate as the
-                // edit sheets — aplite compiles the bold machinery out.
+        // Status bars — only the bars and their slots (the id stays 'watch': links and
+        // tests key on it). Where alerts sit at a bar's edges is the Alerts tab's; each
+        // bar's Alerts row shows them and opens it. All active bars stay pinned at the top.
+        id: 'watch', label: 'Status bars', pinBlock: 'statusBarsPreview', sections: [{
+            id: 'statusAll',
+            title: 'All status bars',
+            intro: STATUS_INTRO,
+            // The reset reverts every slot AND the bold settings in one tap (blocks.js
+            // resetStatusSlots). Deliberately NOT thresholds-gated: aplite has slots but
+            // no bold machinery, and "status bars" stays truthful there either way.
+            items: [linkRow('resetStatusSlots', 'Reset status bars to defaults'),
+                // Master bold switch over EVERY slot kind: 'all' packs each kind's bold
+                // cell as always-bold when the threshold blob is built
+                // (status-thresholds.js) and leaves the stored per-kind modes untouched —
+                // the per-slot Bold rows mute via BOLD_ALL_WHEN meanwhile. A settings-store
+                // key only: it rides the packed blob, never an AppMessage key of its own.
+                // Same platform gate as the slot dialogs — aplite compiles the bold
+                // machinery out.
                 {
                     type: 'segmented',
                     messageKey: 'statusBoldAll',
                     label: 'Bold values',
-                    // "have", not "let": the ES5 guardrail (test/config-es5.test.js)
-                    // greps for \blet\s in shipped pkjs source and cannot tell a
-                    // string literal from a declaration.
                     // The selected option's meaning only; Per slot says where the choice is.
                     hintByValue: {
-                        perSlot: 'Each slot’s edit sheet has its own Bold row.',
+                        perSlot: 'Each slot’s dialog has its own Bold row.',
                         all: 'Every slot value prints in heavier text.'
                     },
                     defaultValue: 'perSlot',
                     options: [['Per slot', 'perSlot'], ['All', 'all']],
+                    more: true,
                     showWhen: THRESHOLD_WHEN
                 }
             ]
         }, {
-            // The bars in the owner's order (2026-10-01: "1: watch status bar 2 weather 3
-            // health 4 radar"; before it Forecast, Radar, Health, Watch): the page's order
-            // only. on-demand.js BARS (top, forecast, radar, health), the wire and the keys
-            // keep theirs, and the save blob carries the same keys (the bars' keys just come
-            // out in this order).
-            groupCard: 'watchStatus',
+            // The bars in the owner's order (2026-10-01): Watch, Forecast, Health, Radar —
+            // the page's order only; on-demand.js BARS, the wire and the keys keep theirs.
+            id: 'barTop',
             title: 'Watch Status Bar',
             // aplite has no On demand (ON_DEMAND_WHEN): it keeps the bar's fixed battery,
             // quiet-time and Bluetooth rows, and only it. Everywhere else the Battery,
-            // Quiet time and Bluetooth items live in the Alert settings card (the Alerts
-            // tab), and vibe/btIcons in the Bluetooth sheet (the same keys, gated apart).
+            // Quiet time and Bluetooth items live on the Alerts tab, and vibe/btIcons in
+            // the Bluetooth dialog (the same keys, gated apart).
             items: barSlots('statusTop', null).concat(gateAll([
                 {
                     type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',
@@ -1844,8 +1656,7 @@ module.exports = {
                 },
                 {
                     // joinPrevious groups the bluetooth icon select with the vibrate-on-disconnect
-                    // toggle above it (no divider between the two bluetooth settings); the divider
-                    // stays between "Show quiet time icon" and "Vibrate on bluetooth disconnect".
+                    // toggle above it (no divider between the two bluetooth settings).
                     type: 'select',
                     messageKey: 'btIcons',
                     label: 'Show icon for bluetooth',
@@ -1855,20 +1666,23 @@ module.exports = {
                 }
             ], {not: ON_DEMAND_WHEN}))
         }, {
-            groupCard: 'watchStatus',
+            id: 'barForecast',
             title: 'Forecast Status Bar',
             items: barSlots('statusForecast', null)
         }, {
-            groupCard: 'watchStatus',
+            id: 'barHealth',
             title: 'Health Status Bar',
+            showWhen: HEALTH_BAR_WHEN,
             items: barSlots('statusHealth', HEALTH_BAR_WHEN)
         }, {
-            groupCard: 'watchStatus',
+            id: 'barRadar',
             title: 'Radar Status Bar',
+            showWhen: RADAR_BAR_WHEN,
             items: barSlots('statusRadar', RADAR_BAR_WHEN)
         },
-        // Threshold edit sheets (sheetOnly): reachable only through the pencil next to a
-        // status slot whose selected value has thresholds — never rendered as cards here.
+        // Slot dialogs (sheetOnly): reachable only through the Edit button next to a
+        // status slot whose selected value has a dialog — never rendered as cards here.
+        // Each keeps the bars pinned above it.
         // The AQI day max needs an hourly forecast, which only the Open-Meteo source
         // has: on WAQI's current reading every mode prints that reading alone. The
         // note closes the Day max and Both hints for the source that cannot give a
@@ -1885,7 +1699,6 @@ module.exports = {
                 }
             }
         }, '42', '58')),
-        // Pollen's scale hint rides its levels group, in its alert sheet (the Alerts tab).
         alertSlotSheet('Pollen'),
         // Wind and gust each carry their own direction arrow: the two slots often sit
         // side by side, and one arrow drawn twice is noise — so the choice is per kind,
@@ -1919,22 +1732,17 @@ module.exports = {
         // per-kind, baked phone-side (status-lines.js formatValue), and on
         // renderSignature() so a change re-bakes without waiting for the next fetch.
         // What each mode prints is wire-units' dayMaxShown.
-        // It leads the sheet like the wind arrow: it configures the slot, and the
-        // highlight follows it (the policy is status-wire.js displayValue's). So
-        // do the rows shaping how it reads, which change the text only — the
-        // highlight judges the numbers, never their presentation.
         alertSlotSheet('Uv', dayMaxRows('uv', {noun: 'UV index'}, '3', '7')),
         goalSlotSheet('Steps', 'Steps', 'Steps per day.', HEALTH_SLOT_WHEN),
         goalSlotSheet('Sleep', 'Sleep', 'Hours of sleep, e.g. 7.5.', HEALTH_SLOT_WHEN),
         goalSlotSheet('Walked distance', 'Distance', 'Distance walked per day.', HEALTH_SLOT_WHEN),
-        // Bold-only sheets for the level-less slot kinds (same pencil, one row —
-        // plus the display rows a few kinds add above it: Temp's mode and pair,
-        // the units, the date formats). Order and labels mirror the contract's
-        // KINDS appendix (wire ids 8..19); the battery GLYPH item is deliberately
-        // absent — see boldSection (the battery PERCENTAGE kind sits near the end).
-        // "Temperature slot", not the catalog's "Temperature (actual/feels like)":
-        // the parenthetical exists to advertise the choice from the dropdown, and
-        // repeating it on the sheet that MAKES the choice is noise.
+        // Bold-only dialogs for the level-less slot kinds (one row — plus the display
+        // rows a few kinds add above it: Temp's mode and pair, the units, the date
+        // formats). Order and labels mirror the contract's KINDS appendix (wire ids
+        // 8..19); the battery GLYPH item is deliberately absent — see boldSection.
+        // "Temperature slot", not the catalog's "Temperature (actual/feels like)": the
+        // parenthetical exists to advertise the choice from the dropdown, and repeating
+        // it on the dialog that MAKES the choice is noise.
         boldSection('Temperature', 'Temp', null, [{
             // Global per-kind, like the bold modes: one choice covers every slot
             // showing temp. The phone bakes the slot text from it (status-lines.js
@@ -1948,7 +1756,7 @@ module.exports = {
             // The selected mode only; the measured temperature (the default) needs
             // none. The sample pair is printed with the default separator.
             hintByValue: {
-                feels: 'What it feels like, by the formula set under General → Units.',
+                feels: 'What it feels like, by the formula set under Setup › Units.',
                 both: 'The temperature and what it feels like, like 12' +
                     STATUS_PAIR.SEPARATORS[STATUS_PAIR.defaultSeparator('temp')].mid +
                     '10. Order and Separator shape the pair.'
@@ -1961,13 +1769,13 @@ module.exports = {
             onChange: 'tempUnitExclusive'
         }, orderRow('temp', [['Temp first', 'actual'], ['Feels like first', 'feels']])]
             .concat(separatorRows('temp', '12', '10'), [
-            // The degree sign alone, never °C/°F: the unit is already the Units tab's
+            // The degree sign alone, never °C/°F: the unit is already Setup › Units'
             // temperatureUnits choice, and restating it in a three-character slot
             // spends the width on something the user picked once. Off by default —
             // temp slots have never printed a degree sign. Turning it ON while the
             // mode is Both drops the mode back to Temp, the mirror of the hook above;
             // status-lines.js holds the authoritative gate for a blob that predates
-            // either. No join: it answers to every mode, not to Both's pair rows.
+            // either.
             Object.assign(unitRow('tempSlotUnit', '12°', '12'),
                 { onChange: 'tempUnitExclusive' })])),
         boldSection('Air pressure (hPa)', 'Pressure', null,
@@ -2016,245 +1824,579 @@ module.exports = {
         boldSection('Battery percentage', 'BatteryPct'),
         // Dew point shares temperature's degree sign and its reasoning.
         boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', '12°', '12')]),
-        // ONE sheet for TWO catalog items: 'phoneBattery' (icon + NN%) and
+        // ONE dialog for TWO catalog items: 'phoneBattery' (icon + NN%) and
         // 'phoneBatteryPlain' (NN%, no icon) are separate wire kinds (18/19) so the
         // no-icon variant can't drive City's bold row, but both KINDS entries share
         // key 'PhoneBattery' — and the sheet resolver returns 'thresh' + key
-        // (blocks.js statusSlotEditSheet), so both pencils open this sheet and the
-        // one mode packs into both cells. Android-only on the slot side; the sheet
+        // (blocks.js statusSlotEditSheet), so both Edit buttons open this dialog and the
+        // one mode packs into both cells. Android-only on the slot side; the dialog
         // needs no extra gate, because a slot that can't be chosen never opens it.
         boldSection('Phone battery', 'PhoneBattery')
-        // The Alerts tab's sections (alerts-schema.js sheetSections): the eight side lists'
-        // hidden items, then the sheets the Alert settings card's rows open, in the card's
-        // order. They stay last here though their card is on the Alerts tab: a sheet opens
-        // from any tab (renderEditModal), and two of their keys have an earlier copy (vibe
-        // and btIcons in aplite's Watch Status Bar). For a key with two items the engine's
-        // findItem answers the LAST one in schema order: its onChange (setValue, a text
-        // field's commit), its default for a reset (defaultAsStored) and a searchSelect's
-        // options. So these sheets' copies own the two keys. The copies agree on both today,
-        // so the order binds nothing yet; check findItem's readers before moving the sheets
-        // ahead of the other copies.
-        // Neither hydrate (every copy writes the same default) nor the save blob's key
-        // order (no reader depends on it) is the constraint.
-        ].concat(alertsSchema.sheetSections())
+        ].map(function (sec) {
+            // Every slot dialog keeps the bars pinned above its rows.
+            if (sec.sheetOnly) { sec.pinBlock = 'statusBarsPreview'; }
+            return sec;
+        })
     }, {
-        id: 'layout', label: 'Layout', sections: [{
-            intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',
+        // Alerts — one tab owns every alert: when it fires, how it looks, and which bar
+        // edge shows it. Every row opens its alert's dialog, which leads with its Shows on
+        // card (per bar, Left or Right). aplite has no Alerts (ON_DEMAND_WHEN), so the
+        // whole tab is env-hidden there.
+        // The tab's cards and the dialogs behind them (alerts-schema.js): About alerts with
+        // its reset, System info and Weather alerts, then the eight side lists' hidden
+        // items and the alert dialogs, in the tab's order — Battery, Bluetooth, Quiet time,
+        // Sleep, rain, then one per metric alert kind holding its Shows on grid, levels,
+        // Look and Days (the levels' one home). Two of their keys have an earlier copy
+        // (vibe and btIcons in aplite's Watch Status Bar, on the Status bars tab). For a
+        // key with two items the engine's findItem answers the LAST one in schema order:
+        // its onChange (setValue, a text field's commit), its default for a reset
+        // (defaultAsStored) and a searchSelect's options. So these dialogs' copies own the
+        // two keys. The copies agree on both today, so the order binds nothing yet; check
+        // findItem's readers before moving this tab ahead of the Status bars tab.
+        id: 'alerts', label: 'Alerts', showWhen: ON_DEMAND_WHEN,
+        sections: alertsSchema.cardSections().concat(alertsSchema.sheetSections())
+    }, {
+        // Graphs — the forecast graph, the rain radar and the health graph behind one
+        // switch, the matching live preview pinned under it. Every graph dialog repeats
+        // the preview at its top so colour and style edits show as they are made.
+        id: 'graphs', label: 'Graphs', panes: [
+            {id: 'forecast', label: 'Forecast', pinBlock: 'forecastPreview'},
+            // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined).
+            {id: 'radar', label: 'Rain radar', pinBlock: 'radarPreview', showWhen: {env: 'radar'}},
+            // The health graph's one setting is the heart-rate line's scale: only the
+            // heart-rate watches have one (platform.js HR_PLATFORMS).
+            {id: 'health', label: 'Health', pinBlock: 'healthPreview', showWhen: {all: [{env: 'health'}, {env: 'hr'}]}}
+        ], sections: [{
+            pane: 'forecast',
+            id: 'lines',
+            title: 'Lines',
+            intro: FORECAST_INTRO,
+            items: GRAPH_LINES.map(lineRow)
+        }, {
+            pane: 'forecast',
+            id: 'bars',
+            title: 'Bars & shading',
             items: [{
-                type: 'radio',
-                messageKey: 'layoutPreset',
-                label: 'Layout preset',
-                defaultValue: 'compactCal',
-                hintByValue: {
-                    fullCal: '3-row calendar. Health and radar appear on wrist-flicks.',
-                    compactCal: '2-row calendar. Flick to radar and health as you enable them.',
-                    compactDense: 'Compact calendar with two status bars at once — health or radar above the clock, forecast below.',
-                    noCal: 'No calendar — a big forecast. Flick to radar and health.',
-                    weatherOnly: 'No calendar and no top bar — the rain radar, clock, weather and a big forecast. Flick to health.',
-                    custom: 'Build each view yourself — pick its elements and graphs, then order, size and align them.'
-                },
-                // 'Weather only' draws a different Default view per radar mode
-                // (view-cycle.js buildViewCycle: WO_RADAR / WO_RADAR_S / NONE_FC_W /
-                // WO_PLAIN), so its hint follows radarMode; the static one above is the
-                // Graph text, the default mode's. Every other preset keeps hintByValue.
-                // The resolver appends " Flick to health." only while a Health view exists
-                // (healthMode status/all on a health watch) — without one the Weather-only
-                // cycle is its Default view alone.
-                hintFrom: {resolver: 'weatherOnlyHint', args: {byRadar: {
-                    graph: 'No calendar and no top bar — the rain radar, clock, weather and a big forecast.',
-                    status: 'No calendar and no top bar — the clock, the weather and radar status bars and a big forecast.',
-                    countdown: 'No calendar — the top bar, where the rain icon shows by default, then the clock, weather and a big forecast.',
-                    off: 'No calendar and no top bar — the clock, weather and a big forecast.'
-                }}},
-                // Compact-dense only differs from Compact when a health status row OR the
-                // radar status row is shown; with both off the two produce identical cycles,
-                // so it's hidden then. A stored compactDense lies DORMANT while hidden
-                // (dormantValues): the radio displays the compactCal fallback but the
-                // stored choice is kept, so it returns when a status row re-enables it —
-                // the wire compiles hidden-dense to the identical compactCal cycle, so the
-                // watch always matches the display. Order stays constant (compactDense
-                // between compactCal and noCal) so toggling health/radar doesn't reshuffle
-                // the list. See layoutPresetOptions in blocks.js + engine.resolveRowItem.
-                // 'custom' is dormant the same way on aplite (Custom is never offered
-                // there; the payload folds it to compactCal, matching the display).
-                // Picking custom seeds the per-view keys once (layoutPresetChanged).
-                optionsFrom: { resolver: 'layoutPresetOptions' },
-                dormantValues: ['compactDense', 'weatherOnly', 'custom'],
-                onChange: 'layoutPresetChanged',
-                blockBefore: 'layoutPreviewCombined',
-                blockBeforeSticky: true
-            },
-            // The Custom-layout Edit-button row — custom-layout-schema.js.
-            customLayout.editRow,
-            {
-                type: 'toggle',
-                messageKey: 'largeGraphFont',
-                label: 'Larger graph fonts',
-                // ON out of the box: on emery's 200 px screen the taller tier is simply the
-                // more readable one at a glance, and it costs no band height (chart.c solves
-                // both tiers against the same ink floor). Only a FRESH install -- or an
-                // upgrade from before the setting existed, whose missing key seedDefaults
-                // backfills -- lands here; a v1.14.0 install already stores its own value,
-                // so this is deliberately not migrated.
-                defaultValue: true,
-                hint: 'Draw the graph axis labels in bigger type.',
-                // Emery only: the 200 px screen is the only one with room for a font
-                // tier up, and on a 144 px watch the graph left axis is ALREADY drawn
-                // at the calendar size (both GOTHIC_18), so there is nothing to step.
-                // An unavailable watchInfo leaves env.platform '' and hides the row --
-                // fail-closed is right for an emery-only cosmetic toggle.
-                showWhen: {env: 'platform', eq: 'emery'}
+                type: 'segmented',
+                messageKey: 'barSource',
+                label: 'Bars',
+                defaultValue: 'rain',
+                hintByValue: {rain: 'Adds bars that represent the rain amount in one hour.'},
+                // With the bars on, the scale note (colour) or the B&W legend joins the
+                // hint (blocks.js barScaleHint).
+                hintFrom: {resolver: 'barScaleHint', args: {colorNote: SCALE_NOTE, bwNote: BW_LEGEND}},
+                options: [['Rain', 'rain'], ['Off', 'off']]
             }, {
                 type: 'toggle',
-                messageKey: 'swapClockStatus',
-                label: 'Swap clock and status row',
-                // ON out of the box: beside the forecast the status row reads as part of the
-                // graph, and the clock keeps the top of the screen to itself. Only a FRESH
-                // install lands here — an existing one already stores its own value, so this
-                // is deliberately not migrated. Still gated to compactCal (showWhen below and
-                // view-cycle.js's bake); the other presets ignore it.
+                messageKey: 'dayNightShading',
+                label: 'Day / night shading',
                 defaultValue: true,
-                hint: 'Move the status row below the clock, next to the forecast.',
-                // Gated on the preset the radio SHOWS, not merely the stored one: a DORMANT
-                // value displays as compactCal (layoutPreset's dormantValues) and compiles
-                // as compactCal, swap included (view-cycle.js buildViewCycle, resolvePresetKey).
-                // That is a compactDense no status row makes dense — the complement of
-                // blocks.js layoutPresetOptions' dense predicate; keep the two in step — and
-                // a 'custom' or 'weatherOnly' on aplite, which offers neither.
-                showWhen: {any: [
-                    {key: 'layoutPreset', eq: 'compactCal'},
-                    {all: [{key: 'layoutPreset', eq: 'compactDense'},
-                           {key: 'healthMode', in: ['off', 'slot']},
-                           {key: 'radarMode', in: ['off', 'countdown']}]},
-                    {all: [{key: 'layoutPreset', eq: 'custom'}, {env: 'platform', eq: 'aplite'}]},
-                    {all: [{key: 'layoutPreset', eq: 'weatherOnly'}, {env: 'platform', eq: 'aplite'}]}
-                ]}
-            }, {
-                // Last in the section deliberately: the rows above shape what the layout
-                // LOOKS like, this one is about when it snaps back. It is also the one row
-                // here with no compactCal gate, so ending on it keeps the gated rows
-                // together above rather than leaving a hole mid-section when the preset
-                // hides them.
-                type: 'segmented',
-                messageKey: 'viewResetMin',
-                label: 'View reset time',
-                defaultValue: '2',
-                hint: 'Automatically return to the default view after the selected time has passed.',
-                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
-                showWhen: {env: 'platform', ne: 'aplite'}
-            }]
-        },
-        // Custom-layout storage (sheetOnly per-view keys) — custom-layout-schema.js.
-        customLayout.storageSection,
-        {
-            // Time and Calendar moved here from the Watch tab (now 'Status slots'):
-            // they shape fixed watchface areas, so they read as layout concerns.
-            // Items are verbatim — gates and hooks unchanged by the move.
-            title: 'Time', items: [{
-                type: 'toggle', messageKey: 'timeLeadingZero', label: 'Leading zero', defaultValue: false
-            }, {type: 'toggle', messageKey: 'timeShowAmPm', label: 'Show AM / PM', defaultValue: false}, {
-                type: 'segmented',
-                messageKey: 'axisTimeFormat',
-                label: 'Axis time format',
-                defaultValue: '24h',
-                hint: 'Tip: Settings &gt; Date &amp; Time &gt; Time Format changes the main time format.',
-                options: [['12h', '12h'], ['24h', '24h']]
+                hint: 'Hatches the hours between sunset and sunrise.'
             }, {
                 type: 'segmented',
-                messageKey: 'timeFont',
-                label: 'Main time font',
-                defaultValue: 'roboto',
-                options: [['Roboto', 'roboto'], ['Leco', 'leco'], ['Bitham', 'bitham']]
-            }, {
-                type: 'color',
-                messageKey: 'colorTime',
-                label: 'Main time color',
-                defaultValue: 0xFFFFFF,
+                messageKey: 'rainBarColor',
+                label: 'Bar color',
+                // The DARK-polarity default. The light polarity starts on Solid instead:
+                // resolve-ink.js's barColorDefault owns that pair, and theme-convert.js
+                // converts a value still holding this one when the Theme control flips
+                // polarity. This cannot become a defaultFrom — a defaults-resolver is
+                // handed only `env` (platform facts), and the theme is a settings key.
+                defaultValue: 'multicolor',
+                hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
                 capabilities: ['COLOR'],
-                showWhen: COLOR_THEME_WHEN
+                // VALUE stays 'white' for wire compatibility (the watch resolves it to the
+                // right polarity color itself — see rain-tier.js); only the label changes.
+                options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
+                more: true,
+                showWhen: {all: [{key: 'barSource', eq: 'rain'}, COLOR_THEME_WHEN]}
+            }, {
+                // Bars from [Bottom | Top] (draw-from.js rainBarFrom): while the bars are
+                // drawn, on a watch with line styles (the WW_LINE_STYLE mirror the watch's
+                // flip sits behind; aplite never hangs them).
+                type: 'segmented',
+                messageKey: 'rainBarFrom',
+                label: 'Bars from',
+                defaultValue: DRAW_FROM.BOTTOM,
+                hintByValue: {top: BARS_TOP_HINT},
+                options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
+                more: true,
+                showWhen: {all: [{key: 'barSource', eq: 'rain'}, LINE_STYLES_WHEN]}
             }]
         }, {
-            title: 'Calendar', items: [{
-                type: 'segmented',
-                messageKey: 'weekStartDay',
-                label: 'Start week on',
-                defaultValue: 'mon',
-                options: [['Sun', 'sun'], ['Mon', 'mon']]
+            // The Graph colors row, a card of its own: one dialog holding one row per graph
+            // metric plus the night band, each opening that row's colours. B&W watches and
+            // themes have no colours to pick, so the card is gone there.
+            pane: 'forecast',
+            id: 'graphColorsCard',
+            capabilities: ['COLOR'],
+            showWhen: COLOR_THEME_WHEN,
+            items: [{
+                type: 'sheet',
+                sheetId: 'graphColors',
+                label: 'Graph colors',
+                hint: 'One row per metric, plus the night shading.',
+                navNote: String(GRAPH_COLOR_ROWS.length),
+                capabilities: ['COLOR']
+            }]
+        }, {
+            sheetOnly: true,
+            sheetId: 'graphColors',
+            title: 'Graph colors',
+            capabilities: ['COLOR'],
+            showWhen: COLOR_THEME_WHEN,
+            intro: GRAPH_COLORS_INTRO,
+            pinBlock: 'forecastPreview',
+            items: GRAPH_COLOR_ROWS.map(function (row) {
+                return graphColorRow(row, false);
+            }).concat([linkRow('resetAllGraphColors', 'Reset graph colors to defaults')])
+        }].concat(GRAPH_COLOR_ROWS.map(function (row) {
+            var sheet = graphColorSheet(row);
+            sheet.pinBlock = 'forecastPreview';
+            return sheet;
+        }), [
+            // The four lines' dialogs: each picker with the rows the old Forecast tab
+            // stacked under it (style, Draw from, fill, scales, Visible values).
+            lineSheet(GRAPH_LINES[0], [{
+                type: 'select',
+                messageKey: 'secondaryLine',
+                label: 'Metric',
+                defaultValue: 'precip_prob',
+                hintFrom: METRIC_HINT_FROM,
+                optionsFrom: {resolver: 'forecastMetric'},
+                onChange: 'forecastMetricFill'
+            },
+            lineStyleCopy('secondaryLine')
+            ].concat(lineFromCopies('secondaryLine'), [{
+                type: 'toggle',
+                messageKey: 'secondaryLineFill',
+                // Direction-neutral: with Draw from on Top the fill hangs with its line.
+                label: 'Area fill',
+                defaultValue: true,
+                // Feels-like and dew point ride the temperature axis rather than a 0..max
+                // scale, so "below the line" is not the area between the curve and a
+                // meaningful zero — a fill there would flood the plot up to an arbitrary
+                // band floor. The row is hidden for it and the 'forecastMetricFill' hook
+                // above clears the stored value; forecast-series.js re-forces false at
+                // bake time so a settings blob written before this gate still can't fill.
+                // A stripe has no curve to fill below either (line-style.js gates
+                // fillOn the same way) — unless this watch ignores the styles, or the
+                // metric cannot be a stripe: a stored stripe then lies dormant in the
+                // style row (dormantValues — it stays stored) and draws as a line, so
+                // the metric is read too, not only the stored style.
+                showWhen: {all: [
+                    {key: 'secondaryLine', nin: lineStyle.TEMP_AXIS_METRIC_IDS},
+                    {any: [{not: LINE_STYLES_WHEN},
+                        {key: 'secondaryLineStyle', nin: STRIPE_STYLES},
+                        {key: 'secondaryLine', nin: lineStyle.STRIPE_METRIC_IDS}]}
+                ]}
+            },
+            windScaleCopy('secondaryLine', 'kph', WIND_SCALE_HINTS_KPH),
+            windScaleCopy('secondaryLine', 'mph', WIND_SCALE_HINTS_MPH),
+            windScaleCopy('secondaryLine', 'knots', WIND_SCALE_HINTS_KNOTS),
+            pressureScaleCopy('secondaryLine'),
+            lineShowCopy('secondaryLine', 'wind'),
+            lineShowCopy('secondaryLine', 'gust'),
+            lineShowCopy('secondaryLine', 'uv')])),
+            lineSheet(GRAPH_LINES[1], [{
+                type: 'select',
+                messageKey: 'thirdLine',
+                label: 'Metric',
+                defaultValue: 'uv',
+                hintFrom: METRIC_HINT_FROM,
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine']}}
+            },
+            lineStyleCopy('thirdLine', true)
+            ].concat(lineFromCopies('thirdLine'), [
+            windScaleCopy('thirdLine', 'kph', WIND_SCALE_HINTS_KPH),
+            windScaleCopy('thirdLine', 'mph', WIND_SCALE_HINTS_MPH),
+            windScaleCopy('thirdLine', 'knots', WIND_SCALE_HINTS_KNOTS),
+            pressureScaleCopy('thirdLine'),
+            lineShowCopy('thirdLine', 'wind'),
+            lineShowCopy('thirdLine', 'gust'),
+            lineShowCopy('thirdLine', 'uv')])),
+            lineSheet(GRAPH_LINES[2], [{
+                type: 'select',
+                messageKey: 'fourthLine',
+                label: 'Metric',
+                defaultValue: 'off',
+                hintFrom: METRIC_HINT_FROM,
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine']}},
+                // Only watches with enough memory carry a third metric line
+                // (LINE_STYLES_WHEN — the WW_LINE_STYLE mirror, fail-open for
+                // an unknown platform). Row-level hiding, not option-gating,
+                // so the stored value is never display-snapped away on a
+                // watch that lacks the line.
+                showWhen: LINE_STYLES_WHEN
+            },
+            lineStyleCopy('fourthLine', true)
+            ].concat(lineFromCopies('fourthLine'), [
+            windScaleCopy('fourthLine', 'kph', WIND_SCALE_HINTS_KPH),
+            windScaleCopy('fourthLine', 'mph', WIND_SCALE_HINTS_MPH),
+            windScaleCopy('fourthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
+            pressureScaleCopy('fourthLine'),
+            lineShowCopy('fourthLine', 'wind'),
+            lineShowCopy('fourthLine', 'gust'),
+            lineShowCopy('fourthLine', 'uv')])),
+            lineSheet(GRAPH_LINES[3], [{
+                type: 'select',
+                messageKey: 'fifthLine',
+                label: 'Metric',
+                defaultValue: 'off',
+                hintFrom: METRIC_HINT_FROM,
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine']}},
+                // Same row-level gate as the third metric (WW_LINE_STYLE mirror).
+                showWhen: LINE_STYLES_WHEN
+            },
+            lineStyleCopy('fifthLine', true)
+            ].concat(lineFromCopies('fifthLine'), [
+            windScaleCopy('fifthLine', 'kph', WIND_SCALE_HINTS_KPH),
+            windScaleCopy('fifthLine', 'mph', WIND_SCALE_HINTS_MPH),
+            windScaleCopy('fifthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
+            pressureScaleCopy('fifthLine'),
+            lineShowCopy('fifthLine', 'wind'),
+            lineShowCopy('fifthLine', 'gust'),
+            lineShowCopy('fifthLine', 'uv')])),
+            {
+            // ── Rain radar pane ──
+            pane: 'radar',
+            id: 'radar',
+            showWhen: {env: 'radar'},
+            items: [{
+                // With the radar view off there is nothing to set up here: say where it
+                // goes back on.
+                type: 'staticText',
+                style: 'info',
+                text: 'The rain radar is off. Turn it on in ' + tabLink('watchface', 'Watchface › Views') + '.',
+                showWhen: {key: 'radarMode', eq: 'off'}
             }, {
-                type: 'segmented',
-                messageKey: 'firstWeek',
-                label: 'First week to display',
-                defaultValue: 'prev',
-                options: [['Prev', 'prev'], ['Curr', 'curr']]
+                type: 'select',
+                messageKey: 'radarProvider',
+                label: 'Radar provider',
+                defaultValue: 'rainbow',
+                showWhen: {key: 'radarMode', ne: 'off'},
+                // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→
+                // "Rainbow (limited)"), the same map the wizard uses. See blocks.js recommend
+                // resolvers; the bracketed name moves the marker onto the desc line (engine.js).
+                recommendFrom: 'recommendedRadarProvider',
+                // Two Rainbow options, one per radar source (radar-factory.js): "Rainbow
+                // (limited)" ('rainbow') is the shared proxy, at most every 30 min (fetch-cycle.js
+                // throttle; builds without a proxy endpoint still offer it and clear the radar);
+                // "Rainbow (own key)" ('rainbowkey') is api.rainbow.ai directly on the user's
+                // key, at every update, which works without the endpoint. A changed source
+                // forces a fetch (index.js).
+                // The selected provider's fuller rationale is the row's info text.
+                hintByValue: RADAR_WHY,
+                // A key that is missing or known to be rejected puts a dot on this tab and a
+                // dialog in front of Save ("Add key" / "Save anyway"); the key's own row
+                // (keyRow, below the note) opens its dialog. Tomorrow.io's key is the
+                // weather provider's too: while Tomorrow.io is also the weather provider,
+                // that row opens Setup's Tomorrow.io dialog, the one copy of the key then.
+                attentionFrom: {resolver: 'keyAttention'},
+                options: RADAR_PROVIDER_OPTIONS
             }, {
-                type: 'color',
-                messageKey: 'colorToday',
-                label: 'Today highlight',
-                defaultValue: 0,
-                capabilities: ['COLOR'],
-                hint: 'Black (default) means match date color; any other value overrides it.',
-                showWhen: COLOR_THEME_WHEN
-            }, {
-                type: 'color',
-                messageKey: 'colorSunday',
-                label: 'Sunday color',
-                defaultValue: 0xFF0055,
-                capabilities: ['COLOR'],
-                showWhen: COLOR_THEME_WHEN
-            }, {
-                type: 'color',
-                messageKey: 'colorSaturday',
-                label: 'Saturday color',
-                defaultValue: 0xFF0055,
-                capabilities: ['COLOR'],
-                showWhen: COLOR_THEME_WHEN
-            }, {type: 'toggle', messageKey: 'holidaysEnabled', label: 'Holiday highlight', defaultValue: true}, {
-                type: 'color',
-                messageKey: 'colorUSFederal',
-                label: 'Holiday color',
-                defaultValue: 0x0055FF,
-                capabilities: ['COLOR'],
-                // White is the "no highlight" appearance in dark; the holidaysEnabled
-                // toggle owns on/off instead of a special color.
-                excludeColors: ['#FFFFFF'],
-                joinPrevious: 'loose',
-                showWhen: {all: [{key: 'holidaysEnabled', eq: true}, {key: 'theme', eq: 'dark'}]}
-            }, {
-                type: 'color',
-                messageKey: 'colorUSFederal',
-                label: 'Holiday color',
-                defaultValue: 0x0055FF,
-                capabilities: ['COLOR'],
-                // Black is the "no highlight" appearance in the light theme instead.
-                excludeColors: ['#000000'],
-                joinPrevious: 'loose',
-                showWhen: {all: [{key: 'holidaysEnabled', eq: true}, {key: 'theme', eq: 'light'}]}
-            }, {
-                type: 'searchSelect',
-                messageKey: 'holidayCountry',
-                label: 'Country',
-                defaultValue: 'DE',
+                // The own key's empty field, said where it cannot be missed: an amber note
+                // hugging the row while "Rainbow (own key)" or Tomorrow.io is picked with no
+                // key. For DWD and Met.no the same note says when the last update's location
+                // lies outside the picked source's area, or (DWD) inside it with no radar
+                // data from DWD, naming one that covers it (radar-coverage.js; the phone's
+                // record userData.radarCoverage). textFrom answers '' otherwise.
+                type: 'staticText',
+                style: 'info',
                 joinPrevious: true,
-                options: holidayData.COUNTRY_OPTIONS,
-                showWhen: {key: 'holidaysEnabled', eq: true}
+                textFrom: {resolver: 'radarProviderNote', args: {picker: 'radarProvider'}},
+                showWhen: {key: 'radarMode', ne: 'off'}
+            }, keyRow('radarProvider', {key: 'radarMode', ne: 'off'}), {
+                type: 'segmented',
+                messageKey: 'radarColor',
+                label: 'Radar color',
+                // Dark-polarity default; light starts on Solid (resolve-ink.js's
+                // barColorDefault). See rainBarColor above.
+                defaultValue: 'multicolor',
+                hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
+                // The bar-scale note follows the colour's own words.
+                hintFrom: {resolver: 'radarColorHint', args: {hints: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
+                    note: SCALE_NOTE}},
+                capabilities: ['COLOR'],
+                // VALUE stays 'white' for wire compatibility (the watch resolves it to the
+                // right polarity color itself — see rain-tier.js); only the label changes.
+                options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
+                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, COLOR_THEME_WHEN]}
             }, {
-                type: 'searchSelect',
-                messageKey: 'holidayRegion',
-                label: 'Region',
-                defaultValue: 'all',
+                // B&W watches and themes have no Radar color row: the legend stands alone.
+                type: 'staticText',
+                text: BW_LEGEND,
+                hinted: true,
+                showWhen: {all: [
+                    {not: {all: [{env: 'color'}, COLOR_THEME_WHEN]}},
+                    {key: 'radarMode', eq: 'graph'}
+                ]}
+            }, {
+                // The radar's sky rows (radar-sky.js): an extra Open-Meteo request per
+                // fetch, on by default (a missing key reads as on everywhere: radar-sky.js
+                // skySourceIdFor, index.js, telemetry-settings.js). Only the radar GRAPH draws them,
+                // like the no-rain text below; fetch-cycle.js (radarSky.skySourceIdFor) clears
+                // them whenever the graph is not shown.
+                type: 'toggle',
+                messageKey: 'radarSky',
+                label: 'Clouds, sun & lightning',
+                defaultValue: true,
+                hint: 'Two thin stripes under the radar\'s time axis show the next two hours, one cell per quarter hour.<br>Top, clouds: a full stripe means overcast. Thin high cloud, which the sun shines through, counts half.<br>Bottom, sun: a full stripe means sunshine as strong as on a clear day at that time of day, so a low morning sun can be full too.<br>Thin cloud can let the sun through, so both stripes can show at once. A bolt marks expected thunderstorms. Uses Open-Meteo, whatever the radar source.',
+                showWhen: {key: 'radarMode', eq: 'graph'}
+            }, {
+                // Custom quiet-state text: drawn in the radar GRAPH when the nowcast
+                // finds no rain in the whole window. Ships visibly with the watch's
+                // built-in default so users override the actual message. The UI
+                // maxlength is a soft character cap; the phone re-truncates to 24
+                // UTF-8 BYTES at pack time. Empty/whitespace-only text shows no line.
+                // A 1.23.0 migration moved older empty values (which meant "default")
+                // and the untouched old default "No rain ahead" to "You're good :)". Only rain_radar_layer.c
+                // draws it, so the field follows the graph ('graph'), not the radar
+                // as a whole — in 'status'/'countdown' there is no plot to write on.
+                type: 'text',
+                messageKey: 'radarNoRainText',
+                label: 'No-rain message',
+                defaultValue: "You're good :)",
+                attributes: {maxlength: 24},
+                hint: 'Shown in the radar graph when no rain is coming; the default is “You\'re good :)”. Up to 24 characters; leave it empty to show nothing.',
+                showWhen: {key: 'radarMode', eq: 'graph'}
+            }, {
+                // Bars from [Bottom | Top] (draw-from.js radarBarFrom): the radar graph's
+                // rain bars, the exact spot's and DWD's nearby-area ones together, hang
+                // under the time axis (and under the sky rows). Only the graph draws bars;
+                // LINE_STYLES_WHEN states the watch side's WW_LINE_STYLE dependency.
+                type: 'segmented',
+                messageKey: 'radarBarFrom',
+                label: 'Bars from',
+                defaultValue: DRAW_FROM.BOTTOM,
+                hintByValue: {top: BARS_TOP_HINT},
+                options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
+                more: true,
+                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, LINE_STYLES_WHEN]}
+            }]
+            // The rain alert's time window (rainCountdownHorizon) used to close this
+            // section; it is set in the Rain alert dialog (Alerts › Rain) alone.
+        },
+        // "Rainbow (own key)"'s key dialog, opened by its key row under the Radar provider
+        // and rendered nowhere else. The key, its trimming and refetch on Save
+        // (onbuild.js), its keeping through Reset (clay-settings.js PRESERVED_SETTING_KEYS)
+        // and the Test action are as before; the key never rides the watch wire.
+        keySheetSection(RADAR_KEYS.rainbowkey, RAINBOW_OWN_KEY_WHEN, [{
+            type: 'text',
+            messageKey: 'rainbowApiKey',
+            label: 'API key',
+            defaultValue: '',
+            suffixAction: 'testRainbowKey',
+            suffixLabel: 'Test',
+            hint: RAINBOW_KEY_HINT
+        }, {
+            type: 'toggle',
+            messageKey: 'rainbowFitBudget',
+            label: 'Fit update interval to rate limit',
+            defaultValue: true,
+            joinPrevious: 'loose',
+            // The monthly-usage read-out sits between the key field and this toggle.
+            blockBefore: 'rainbowBudget',
+            hint: RAINBOW_BUDGET_HINT
+        }]),
+        // Radar-only Tomorrow.io's key dialog: Setup's Tomorrow.io dialog's rows, same
+        // messageKeys, gated apart (TOMORROWIO_RADAR_ONLY_WHEN), so findShownItem keeps
+        // the two copies apart. While Tomorrow.io is also the weather provider this dialog
+        // is closed and Setup's holds the key.
+        keySheetSection(RADAR_KEYS.tomorrowio, TOMORROWIO_RADAR_ONLY_WHEN, TOMORROWIO_KEY_ROWS), {
+            // ── Health pane ── the heart-rate line's scale (the health graph's one setting).
+            pane: 'health',
+            id: 'healthGraph',
+            showWhen: {env: 'health'},
+            items: [{
+                type: 'range',
+                messageKey: 'hrScale',
+                label: 'Heart-rate scale',
+                // Kept in lockstep with the watch's own HEALTH_HR_LO/HEALTH_HR_HI
+                // (src/c/layers/health_graph_layer.c) and the clay-payload fallback:
+                // all three are the same number, so a watch that never received the
+                // key draws the same scale as one that did. 180 was the old top; 150
+                // keeps a resting-to-brisk-walk day filling the plot instead of
+                // hugging the floor, and anything above it still shows as edge dots.
+                defaultValue: '40-150',
+                min: 30, max: 220, step: 5, minSpan: 50, unit: 'BPM',
+                hint: 'The top and bottom of the heart-rate line in the health graph. '
+                    + 'A narrower range makes small changes visible; hours outside it '
+                    + 'are drawn as dots on the edge.',
+                // The HR line lives only in the graph ('all'), and only emery/diorite
+                // have a sensor (platform.js HR_PLATFORMS) — on anything else the line
+                // is permanently absent, so a scale for it would be inert.
+                showWhen: {all: [{env: 'hr'}, {key: 'healthMode', eq: 'all'}]}
+            }, {
+                type: 'staticText',
+                style: 'info',
+                text: 'The heart-rate line is part of the health graph. Pick “Status + Graph” for Health in '
+                    + tabLink('watchface', 'Watchface › Views') + '.',
+                showWhen: {all: [{env: 'hr'}, {key: 'healthMode', ne: 'all'}]}
+            }]
+        }])
+    }, {
+        // Setup — what is set once: location, weather data, units, and the About and
+        // Advanced items.
+        id: 'setup', label: 'Setup', sections: [{
+            id: 'location',
+            title: 'Location',
+            items: [{
+                type: 'segmented', messageKey: 'locationMode', label: 'Location', defaultValue: 'gps', hintByValue: {
+                    gps: 'Detect your location automatically via phone GPS.', manual: 'Enter a city or address below.'
+                }, options: [['GPS', 'gps'], ['Manual', 'manual']]
+            }, {
+                type: 'text',
+                messageKey: 'location',
+                label: 'Manual location',
+                defaultValue: '',
+                attributes: {placeholder: 'e.g. Manhattan'},
+                hint: 'Example: "Manhattan" or "123 Oak St Plainsville KY".',
+                showWhen: {key: 'locationMode', eq: 'manual'}
+            }, {
+                type: 'select',
+                messageKey: 'gpsCacheMin',
+                label: 'GPS cache',
+                defaultValue: '30',
+                optionsFrom: {interval: 'fetchIntervalMin', ladder: [30, 60, 120, 360, 720, 1440]},
+                more: true,
+                showWhen: {key: 'locationMode', eq: 'gps'},
+                hint: 'How long a GPS fix is reused before re-acquiring. Longer saves battery; shorter keeps your location fresher on the move. The lowest value matches your update interval.'
+            }]
+        }, {
+            id: 'weatherData',
+            title: 'Weather data',
+            items: [{
+                type: 'select',
+                messageKey: 'provider',
+                label: 'Weather provider',
+                defaultValue: 'wunderground',
+                onChange: 'clearPollenForProvider',
+                // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→Open-Meteo),
+                // reading the same country→provider map the wizard uses. See blocks.js recommend resolvers.
+                recommendFrom: 'recommendedWeatherProvider',
+                // Options are alphabetical by name. The 3rd tuple slot's desc is the short "what it's
+                // best at" tag shown under each name in the dropdown; the selected provider's fuller
+                // rationale is the row's info text (PROVIDER_WHY).
+                // DWD carries a `short` so the trigger reads "DWD" while the list keeps the full name.
+                hintByValue: PROVIDER_WHY,
+                // A provider that needs a key gets its key row under this one (keyRow), which
+                // opens its key dialog — the key field, its Test, the links and any budget
+                // guard live there. A key that is missing or known to be rejected puts a dot
+                // on this tab and a dialog in front of Save ("Add key" / "Save anyway"). The
+                // missing-key note is the staticText right below.
+                attentionFrom: {resolver: 'keyAttention'},
+                options: [
+                    ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
+                    ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
+                    ['Open-Meteo', 'openmeteo', {desc: 'Good automatic national model selection · no key'}],
+                    ['OpenWeatherMap', 'openweathermap', {desc: 'Popular general-purpose API, worldwide · needs a free key'}],
+                    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise hyperlocal forecasts, worldwide · needs a free key'}],
+                    ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
+                    ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
+                ]
+            }, {
+                // The keyed provider's empty key, said where it cannot be missed: an amber note
+                // hugging the row, only while the picked provider's key is blank (textFrom
+                // answers '' otherwise and the note is gone, divider and all).
+                type: 'staticText',
+                style: 'info',
                 joinPrevious: true,
-                optionsFrom: {byKey: 'holidayCountry', map: holidayData.REGION_OPTIONS},
-                showWhen: {
-                    all: [{
-                        key: 'holidayCountry',
-                        in: Object.keys(holidayData.REGION_OPTIONS)
-                    }, {key: 'holidaysEnabled', eq: true}]
+                textFrom: {resolver: 'keyMissingNote', args: {picker: 'provider'}}
+            }, keyRow('provider', null), {
+                type: 'select',
+                messageKey: 'fetchIntervalMin',
+                label: 'Update interval',
+                defaultValue: '15',
+                hint: 'Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.',
+                optionsFrom: {resolver: 'fetchIntervalBudget'}
+            }, {
+                type: 'select',
+                messageKey: 'aqiSource',
+                label: 'AQI provider',
+                defaultValue: 'waqi',
+                hintByValue: {
+                    auto: 'Prefers WAQI and falls back to Open-Meteo when no nearby station is available.',
+                    waqi: 'WAQI (aqicn.org) reads real monitoring stations — most accurate, but rural / under-monitored areas may have no nearby station and show "--".',
+                    openmeteo: 'Open-Meteo is a global model with coverage everywhere.'
+                },
+                options: [['Auto', 'auto'], ['WAQI', 'waqi'], ['Open-Meteo', 'openmeteo']],
+                more: true
+            }]
+        },
+        // The keyed weather providers' key dialogs, opened by the key row under the Weather
+        // provider and rendered nowhere else (sheetOnly). The keys, their trimming and
+        // refetch on Save (onbuild.js) and the Test actions are the ones the card's rows
+        // carried.
+        keySheetSection(PROVIDER_KEYS.openweathermap, {key: 'provider', eq: 'openweathermap'}, [{
+            type: 'text',
+            messageKey: 'owmApiKey',
+            label: 'API key',
+            defaultValue: '',
+            suffixAction: 'testOwmKey',
+            suffixLabel: 'Test',
+            hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401.'
+        }]),
+        // Shown only while tomorrow.io is the WEATHER provider; when it is radar-only the same key
+        // + budget guard live in the Rain radar pane's Tomorrow.io dialog instead (see
+        // TOMORROWIO_RADAR_ONLY_WHEN). While it is both, this is the one dialog that holds the
+        // key, and the Radar provider's key row opens it too (RADAR_KEYS sharedSheet).
+        keySheetSection(PROVIDER_KEYS.tomorrowio, TOMORROWIO_WEATHER_WHEN, TOMORROWIO_KEY_ROWS),
+        keySheetSection(PROVIDER_KEYS.yandex, {key: 'provider', eq: 'yandex'}, [{
+            type: 'text',
+            messageKey: 'yandexApiKey',
+            label: 'API key',
+            defaultValue: '',
+            hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here.'
+        }]), {
+            id: 'units',
+            title: 'Units', items: [{
+                type: 'segmented',
+                messageKey: 'temperatureUnits',
+                label: 'Temperature',
+                defaultValue: 'c',
+                options: [['°F', 'f'], ['°C', 'c']]
+            }, {
+                type: 'segmented',
+                messageKey: 'windUnits',
+                label: 'Wind speed',
+                defaultValue: 'kph',
+                options: [['kph', 'kph'], ['mph', 'mph'], ['Knots', 'knots']],
+                hint: 'Unit for the wind and gust status items.'
+            }, {
+                type: 'segmented',
+                messageKey: 'distanceUnits',
+                label: 'Distance',
+                defaultValue: 'metric',
+                options: [['Kilometres', 'metric'], ['Miles', 'imperial']],
+                hint: 'Unit for the "Walked distance" status item.'
+            }, {
+                type: 'segmented',
+                messageKey: 'aqiScale',
+                label: 'Air quality scale',
+                defaultValue: 'european',
+                options: [['European', 'european'], ['US', 'us']],
+                more: true,
+                showWhen: {key: 'aqiSource', eq: 'openmeteo'},
+                hint: 'Which air-quality index the Open-Meteo source reports. WAQI always uses the US EPA scale.'
+            }, {
+                // Phone-side only (feels-like.js resolvers; fetch-cycle.js hands it to
+                // the provider per fetch) and in renderSignature, so a flip refetches.
+                type: 'segmented',
+                messageKey: 'feelsFormula',
+                label: 'Feels-like formula',
+                defaultValue: 'provider',
+                options: [['Provider', 'provider'], ['Steadman', 'steadman']],
+                more: true,
+                hintByValue: {
+                    provider: 'Uses the feels-like value your weather service reports. For some services it '
+                        + 'equals the air temperature in mild weather. Services without one use Steadman.',
+                    steadman: 'Calculates feels-like from air temperature, humidity and wind, the same '
+                        + 'way on every provider, so it differs from the temperature all year round.'
                 }
             }]
-        }]
-    }, {
-        id: 'more', label: 'More', sections: [{
-            title: 'Misc',
+        }, {
+            id: 'about',
+            title: 'About',
             items: [{
                 // Page-only, like onboardingDone below: it picks the tab the
                 // settings page opens on and never goes near the watch.
@@ -2262,7 +2404,7 @@ module.exports = {
                 messageKey: 'startOnWeatherTab',
                 label: 'Start on the Weather tab',
                 defaultValue: false,
-                hint: 'Open this settings page on the Weather tab instead of General.'
+                hint: 'Open this settings page on the Weather tab instead of Watchface.'
             }, {
                 type: 'toggle',
                 messageKey: 'telemetryEnabled',
@@ -2281,9 +2423,7 @@ module.exports = {
                 type: 'hidden',
                 messageKey: 'onboardingDone',
                 defaultValue: false
-            }]
-        }, {
-            title: 'Links', items: [{
+            }, {
                 type: 'staticText',
                 text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:var(--lbl);">Help</span>' + '<a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a></div>'
             }, {

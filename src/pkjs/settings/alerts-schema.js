@@ -15,9 +15,9 @@ var STATUS_THRESHOLDS = require('../status-thresholds.js');
 var ON_DEMAND = require('../on-demand.js');
 var gates = require('./schema-gates.js');
 var ON_DEMAND_WHEN = gates.ON_DEMAND_WHEN;
-var ALERTS_TAB_LINK = gates.ALERTS_TAB_LINK;
 var FINE_BATTERY_WHEN = gates.FINE_BATTERY_WHEN;
-var introAction = gates.introAction;
+var tabLink = gates.tabLink;
+var linkRow = gates.linkRow;
 var levelRowsSchema = require('./level-rows-schema.js');
 var ALERT_VOICE = levelRowsSchema.ALERT_VOICE;
 var nextDayMarkOptions = levelRowsSchema.nextDayMarkOptions;
@@ -34,8 +34,8 @@ var RAIN_LOOK_OPTIONS = [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text
 // On demand (the Alerts): each status bar's two sides and the items on them
 // (src/pkjs/on-demand.js, the one reading the phone and this page share). The bars' names
 // as their sub-headers print them.
-var OD_BAR_NAMES = {top: 'Watch Status Bar', forecast: 'Forecast Status Bar',
-    radar: 'Radar Status Bar', health: 'Health Status Bar'};
+var OD_BAR_NAMES = {top: 'Watch bar', forecast: 'Forecast bar',
+    radar: 'Radar bar', health: 'Health bar'};
 // The bars in the page's order, the Status slots tab's (the owner, 2026-10-01): the rows
 // of every Shows on grid. on-demand.js BARS keeps the wire's ThreshBar order.
 var OD_PAGE_BARS = ['top', 'forecast', 'health', 'radar'];
@@ -43,7 +43,7 @@ var OD_PAGE_BARS = ['top', 'forecast', 'health', 'radar'];
 // bar; the make-room order drops the lowest-priority item first, and on-demand.js ITEMS
 // priority is the Alert settings card's order). The per-bar Alerts sheet's intro said
 // them until the grids replaced it.
-var SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the Alert settings list drop first.';
+var SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.';
 /**
  * An item's Shows on grid and its note, the first rows of its sheet (under the sheet's
  * intro): one row per status bar the watch draws, each with a Left and a Right tick
@@ -57,20 +57,37 @@ var SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the 
  *     (status_on_demand.c). Rain and the System info items never merge.
  * @returns {Object[]} The grid and its note.
  */
-function showsOnRows(code, merge) {
+function showsOnRows(code, merge, notes) {
+    // The dialog's Shows on card: its title is the grid's name, the side rules its info
+    // text (behind the card's '?'), the grid itself under the Left / Right captions, then
+    // any boxed notes on why the item may not show (the caller's, and the Default view's).
     return [{
+        type: 'subheader',
+        text: 'Shows on',
+        intro: SHOWS_ON_NOTE + (merge ? ' Where the status slot on that side shows ' + merge
+            + ', the alert goes into that slot, with its colors, instead of adding its alert icon.' : '')
+    }].concat(notes || [], [{
         type: 'checklist',
         label: 'Shows on',
+        captionsOnly: true,
         check: code,
         writeWith: 'onDemandTick',
         columns: [{label: 'Left'}, {label: 'Right'}],
         optionsFrom: {resolver: 'onDemandBars', args: {code: code, bars: OD_PAGE_BARS, names: OD_BAR_NAMES}}
-    }, {
+    }, defaultViewNote()]);
+}
+/**
+ * Under a Shows on grid while the Default view shows no bar with Alerts on it
+ * (when-resolvers.js defaultViewLacksOnDemand): where the fix is. A fresh object per call.
+ * @returns {Object} The info-box staticText.
+ */
+function defaultViewNote() {
+    return {
         type: 'staticText',
-        joinPrevious: true,
-        text: SHOWS_ON_NOTE + (merge ? ' Where the status slot on that side shows ' + merge
-            + ', the alert goes into that slot, with its colors, instead of adding its alert icon.' : '')
-    }];
+        style: 'info',
+        text: 'Your Default view has no Watch Status Bar. Tick another bar below.',
+        showWhen: {when: 'defaultViewLacksOnDemand'}
+    };
 }
 /**
  * The when-leaf "the item shows on a status bar" (settings/when-resolvers.js
@@ -96,8 +113,8 @@ function rainAlertUnshownNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: '‘Rain alert only’ fetches the radar for the rain icon, but Rain shows on no status bar ('
-            + ALERTS_TAB_LINK + ' → Rain).',
+        text: '‘Rain alert only’ fetches the radar for the rain icon, but Rain isn’t on any status bar ('
+            + tabLink('alerts', 'Alerts › Rain') + ').',
         showWhen: {all: [{key: 'radarMode', eq: 'countdown'}, ON_DEMAND_WHEN, {not: onDemandPlacedWhen('rain')}]}
     };
 }
@@ -111,7 +128,7 @@ function rainRadarOffNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'The rain alert needs the rain radar. Turn it on in the Radar tab.',
+        text: 'The rain alert needs the rain radar. Turn it on in ' + tabLink('watchface', 'Watchface › Views') + '.',
         showWhen: {key: 'radarMode', eq: 'off'}
     };
 }
@@ -138,9 +155,17 @@ function rainAlertSheet() {
         intro: 'Shows the rain icon at the edge of a status bar while it rains at your location or rain is due '
             + 'within the time window. On a color watch the rain icon takes the radar’s rain color, except with a '
             + 'B&W theme. Hidden during the Battery saver hours.',
-        // The radar-off box sits under the grid's note, not above the grid: every sheet's
-        // intro is followed by its grid, the first control (alerts-tab.md §11.6).
-        items: showsOnRows('rain').concat([rainRadarOffNote(), {
+        // Two cards: Shows on (with the boxes on why the icon cannot show yet: the radar
+        // off, or Rain on no bar), then the alert's own rows, its time window first.
+        items: showsOnRows('rain', null, [rainRadarOffNote(), rainNotPlacedNote()]).concat([
+            {type: 'subheader', text: 'Alert'}, {
+            type: 'segmented',
+            messageKey: 'rainCountdownHorizon',
+            label: 'Time window',
+            defaultValue: String(STATUS_THRESHOLDS.rainAlert(null).horizonMin),
+            options: RAIN_WINDOW_SEGMENTS,
+            hint: 'Rain due further out doesn’t show the icon. Radar forecasts change often, so a shorter window gives fewer false alarms.'
+        }, {
             // How the rain alert draws. 'text' is the "Rain in 12′" the strip always
             // showed. The watch resolves the rain entry itself, so this rides the Clay
             // message (thresholds blob byte 34), not the phone's bake.
@@ -158,14 +183,20 @@ function rainAlertSheet() {
                 minutes: 'The rain icon with the minutes until the rain starts or, while it rains, + the minutes until it stops. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then is it just the icon.',
                 text: 'On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it shorten to the minutes, then to the rain icon alone.'
             }
-        }, {
-            type: 'segmented',
-            messageKey: 'rainCountdownHorizon',
-            label: 'Time window',
-            defaultValue: String(STATUS_THRESHOLDS.rainAlert(null).horizonMin),
-            options: RAIN_WINDOW_SEGMENTS,
-            hint: 'Rain due further out doesn’t show the icon. Radar forecasts change often, so a shorter window gives fewer false alarms.'
         }])
+    };
+}
+/**
+ * The Rain dialog's box while the radar runs but Rain is ticked on no bar: the icon has
+ * nowhere to show, and the grid right below is the fix. A fresh object per call.
+ * @returns {Object} The info-box staticText.
+ */
+function rainNotPlacedNote() {
+    return {
+        type: 'staticText',
+        style: 'info',
+        text: 'Rain isn’t on any status bar yet, so the rain icon won’t show. Tick a side below.',
+        showWhen: {all: [{key: 'radarMode', ne: 'off'}, {not: onDemandPlacedWhen('rain')}]}
     };
 }
 // A metric alert's Days, named once: the sheet's row offers them and the card row's hint
@@ -261,6 +292,7 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
             label: 'Days',
             defaultValue: STATUS_THRESHOLDS.alertDays(null, code),
             options: ALERT_DAYS_OPTIONS,
+            more: true,
             hintByValue: {
                 tomorrow: 'When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark.'
             }
@@ -278,8 +310,9 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
                 none: 'An alert for tomorrow then looks just like one for today.'
             },
             joinPrevious: true,
+            more: true,
             showWhen: alertLooksAheadWhen(key + 'Days')
-        }], levelLook(keyStem, ALERT_VOICE, null, undefined, false))
+        }], levelLook(keyStem, ALERT_VOICE, null, undefined, false, true))
     };
 }
 /**
@@ -409,7 +442,7 @@ var ALERT_KINDS = [
     // sheet's source note, in the General tab's own labels ('AQI provider', 'Open-Meteo').
     {keyStem: 'Aqi', label: 'Air quality', title: 'Air quality (AQI)', subject: 'the air quality index',
         iconName: 'air quality', icon: 'aqi', why: ALERT_LEVEL_CARDS.Aqi,
-        coda: ' Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (General tab): '
+        coda: ' Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (Setup › Weather data): '
             + 'WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading.'},
     {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen index', iconName: 'pollen',
         icon: 'pollen', gate: {key: 'provider', eq: 'dwd'}, why: ALERT_LEVEL_CARDS.Pollen,
@@ -429,12 +462,14 @@ var ALERT_KINDS = [
 function onDemandRow(prefix, barWhen) {
     var bar = null;
     ON_DEMAND.BARS.forEach(function (b) { if (b.prefix === prefix) { bar = b.bar; } });
+    // A nav row: its summary shows the icons of the alerts placed on each side, and a tap
+    // brings the Alerts tab, where each alert's dialog places it, to the front.
     return {
-        type: 'readout',
+        type: 'button',
         label: 'Alerts',
-        hintFrom: {resolver: 'onDemandBarIcons', args: {bar: bar, where: 'Set up in the ' + ALERTS_TAB_LINK + '.'}},
-        joinPrevious: true,
-        compact: true,
+        gotoTab: 'alerts',
+        navNote: 'Alerts',
+        hintFrom: {resolver: 'onDemandBarIcons', args: {bar: bar, where: 'None'}},
         showWhen: barWhen ? {all: [ON_DEMAND_WHEN, barWhen]} : ON_DEMAND_WHEN
     };
 }
@@ -502,6 +537,7 @@ function batterySheet() {
             + 'warn level. A bar that already shows the battery in a slot (Watch battery or Watch battery '
             + 'percentage) leaves the icon out, and draws it only when that slot is hidden to make room.',
         items: showsOnRows('battery').concat([
+            {type: 'subheader', text: 'Alert'},
             batteryLevelRow(5, FINE_BATTERY_WHEN),
             batteryLevelRow(10, {not: FINE_BATTERY_WHEN}),
             {
@@ -539,7 +575,7 @@ function bluetoothSheet() {
         showWhen: ON_DEMAND_WHEN,
         title: 'Bluetooth',
         intro: 'Shows the Bluetooth icon at the edge of a status bar.',
-        items: showsOnRows('bt').concat([{
+        items: showsOnRows('bt').concat([{type: 'subheader', text: 'Alert'}, {
             type: 'select',
             messageKey: 'btIcons',
             label: 'Show',
@@ -595,13 +631,18 @@ function placementSheet(sheetId, title, code, intro) {
  * @param {boolean} [joins] Whether the row joins the one above (no divider).
  * @returns {Object} Schema item.
  */
-function onDemandSheetRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFrom, joins) {
-    var row = {type: 'sheet', sheetId: sheetId, label: label, icon: icon, hintFrom: hintFrom,
-        editBadgeFrom: editBadgeFrom};
-    if (joins) { row.joinPrevious = true; }
+function onDemandSheetRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFrom) {
+    var row = {type: 'sheet', sheetId: sheetId, label: label, icon: icon, hintFrom: hintFrom};
+    if (editBadgeFrom) { row.editBadgeFrom = editBadgeFrom; }
+    // A row whose alert is on no bar reads dimmed (its summary says so).
+    row.summaryFaintFrom = {not: onDemandPlacedWhen(ON_DEMAND_CODES[sheetId])};
     if (showWhen) { row.showWhen = showWhen; }
     return row;
 }
+// Each Alerts-tab row's on-demand.js ITEMS code, by the sheet it opens.
+var ON_DEMAND_CODES = {odBattery: 'battery', odBluetooth: 'bt', odQuiet: 'qt', odSleep: 'snooze',
+    alertRain: 'rain', alertGust: 'gust', alertUv: 'uv', alertAqi: 'aqi', alertPollen: 'pollen',
+    alertWind: 'wind'};
 /**
  * The Alert settings card's rows: the no-Watch-Status-Bar note, then System info (Battery,
  * Bluetooth, Quiet time and Sleep) and Weather alerts (Rain, then the five metric alerts),
@@ -611,38 +652,27 @@ function onDemandSheetRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFro
  * @returns {Object[]} The card's items, in order.
  */
 function onDemandCardItems() {
+    // Every row's summary ends on where its alert shows ("Watch bar, left"), or reads
+    // "Not in any status bar" (dimmed) — alerts-page.js appends it to each resolver's text.
     return [
-        {
-            // The Default view the watch runs has no Watch Status Bar and none of the bars
-            // it does show carries an item, so no item is drawn there (settings/
-            // when-resolvers.js defaultViewLacksOnDemand). Nothing moves the items for the
-            // user: the note names the gap and the fix.
-            type: 'staticText',
-            style: 'info',
-            text: 'Your Default view has no Watch Status Bar, so Alerts won’t show there. Open an alert and, '
-                + 'under Shows on, pick another status bar that view shows.',
-            showWhen: {when: 'defaultViewLacksOnDemand'}
-        },
         {type: 'subheader', text: 'System info'},
         onDemandSheetRow('odBattery', 'Battery', 'battery', null,
-            {resolver: 'onDemandBatteryText'}, {resolver: 'onDemandBadge'}),
+            {resolver: 'onDemandBatteryText'}, null),
         onDemandSheetRow('odBluetooth', 'Bluetooth', 'bluetooth', null,
-            {resolver: 'onDemandBluetoothText'}, {resolver: 'onDemandBadge'}, true),
+            {resolver: 'onDemandBluetoothText'}, null),
         // Quiet time and Sleep have no settings of their own; their sheets place them
         // (the owner, 2026-10-02: "you need a sheet for them then too").
         onDemandSheetRow('odQuiet', 'Quiet time', 'quiet', null,
-            {resolver: 'onDemandPlainText', args: {code: 'qt', text: 'While Quiet Time is on'}},
-            {resolver: 'onDemandBadge'}, true),
+            {resolver: 'onDemandPlainText', args: {code: 'qt', text: 'While Quiet Time is on'}}, null),
         onDemandSheetRow('odSleep', 'Sleep', 'snooze', null,
-            {resolver: 'onDemandSleepText'}, {resolver: 'onDemandBadge'}, true),
+            {resolver: 'onDemandSleepText'}, null),
         {type: 'subheader', text: 'Weather alerts'},
         onDemandSheetRow('alertRain', 'Rain', 'rain', null,
-            {resolver: 'rainAlertHint', args: {windows: RAIN_WINDOW_OPTIONS, looks: RAIN_LOOK_OPTIONS}},
-            {resolver: 'rainAlertBadge'})
+            {resolver: 'rainAlertHint', args: {windows: RAIN_WINDOW_OPTIONS, looks: RAIN_LOOK_OPTIONS}}, null)
     ].concat(ALERT_KINDS.map(function (k) {
         return onDemandSheetRow('alert' + k.keyStem, k.label, k.icon, k.gate || null,
             {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem, days: ALERT_DAYS_OPTIONS}},
-            {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}}, true);
+            {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}});
     }));
 }
 // The Alert settings card's intro (the owner's wording, 2026-10-01; its last sentence the
@@ -652,29 +682,45 @@ function onDemandCardItems() {
 var ON_DEMAND_INTRO = 'An alert shows at the edge of a status bar only when it reaches its warn level or is '
     + 'active right now, and stays hidden the rest of the time, so the watch face only shows what matters. '
     + 'For example: the battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn '
-    + 'level. Open an alert to choose which status bars show it, left or right. '
-    + introAction('resetOnDemand', 'Reset alert settings to defaults');
+    + 'level. Open an alert to choose which status bars show it, left or right.';
 /**
- * The Alert settings card, the Alerts tab's one section: the intro with its reset, then
- * the rows (onDemandCardItems). It stores nothing; its rows open the sheets sheetSections
- * builds.
- * @returns {Object} Schema section.
+ * The Alerts tab's cards: About alerts (the intro behind its '?', the card's reset — the
+ * items' settings and where each shows, blocks.js resetOnDemand — and the note while the
+ * Default view shows no bar with Alerts on it), then the rows (onDemandCardItems), each
+ * subheader a card of its own (System info, Weather alerts). They store nothing; the rows
+ * open the sheets sheetSections builds.
+ * @returns {Object[]} Schema sections.
  */
-function cardSection() {
-    return {
+function cardSections() {
+    return [{
         id: 'onDemand',
-        title: 'Alert settings',
+        title: 'About alerts',
         showWhen: ON_DEMAND_WHEN,
         intro: ON_DEMAND_INTRO,
+        items: [linkRow('resetOnDemand', 'Reset alert settings to defaults'), {
+            // The Default view the watch runs has no Watch Status Bar and none of the bars
+            // it does show carries an item, so no item is drawn there (settings/
+            // when-resolvers.js defaultViewLacksOnDemand). Nothing moves the items for the
+            // user: the note names the gap and the fix.
+            type: 'staticText',
+            style: 'info',
+            text: 'Your Default view has no Watch Status Bar, so Alerts won’t show there. Open an alert and, '
+                + 'under Shows on, pick another status bar that view shows.',
+            showWhen: {when: 'defaultViewLacksOnDemand'}
+        }]
+    }, {
+        // System info, then Weather alerts: each subheader opens a card of its own.
+        id: 'onDemandItems',
+        showWhen: ON_DEMAND_WHEN,
         items: onDemandCardItems()
-    };
+    }];
 }
 /**
  * The sections behind the card's rows, in the card's order: the eight side lists' hidden
  * items (onDemandListsSection), then one sheet per item: Battery, Bluetooth, Quiet time,
  * Sleep, Rain, then one per metric alert kind (ALERT_KINDS) holding its Shows on grid,
- * levels, Look and Days (the levels' one home). schema.js ends the Status slots tab's
- * section list with them, and says there why they sit there.
+ * levels, Look and Days (the levels' one home). schema.js ends the Alerts tab's section
+ * list with them, after the cards (cardSections).
  * @returns {Object[]} Schema sections (sheetOnly).
  */
 function sheetSections() {
@@ -682,7 +728,7 @@ function sheetSections() {
         placementSheet('odQuiet', 'Quiet time', 'qt',
             'Shows the quiet time icon at the edge of a status bar while Quiet Time is on.'),
         placementSheet('odSleep', 'Sleep', 'snooze',
-            'Shows the sleep icon at the edge of a status bar during the Battery saver hours (General tab).'),
+            'Shows the sleep icon at the edge of a status bar during the Battery saver hours (Watchface › Theme & night).'),
         rainAlertSheet()].concat(ALERT_KINDS.map(function (k) {
         return alertSheet(k.keyStem, k.title, k.subject, k.iconName, k.hint || '', k.coda || '', k.why);
     }));
@@ -690,11 +736,12 @@ function sheetSections() {
 
 module.exports = {
     ALERT_KINDS: ALERT_KINDS,
+    ALERT_DAYS_OPTIONS: ALERT_DAYS_OPTIONS,
     BT_ICON_OPTIONS: BT_ICON_OPTIONS,
     alertCodeOf: alertCodeOf,
     onDemandPlacedWhen: onDemandPlacedWhen,
     onDemandRow: onDemandRow,
     rainAlertUnshownNote: rainAlertUnshownNote,
-    cardSection: cardSection,
+    cardSections: cardSections,
     sheetSections: sheetSections
 };

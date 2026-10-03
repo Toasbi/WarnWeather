@@ -305,7 +305,7 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
 - **News body style: say WHAT was added, not how it works.** One `**bold**` heading per
   feature, named the way the user sees it; under it one or two short bullets: what it
-  does in a sentence, then where to find it (`Forecast tab → Graph colors.`) and any
+  does in a sentence, then where to find it (`Graphs tab → Graph colors.`) and any
   platform limit (`Color watches only.`). Fixes go under a final `**Fixed**` heading,
   one short line per watchface bug a user would have noticed, plus one grouped line for
   polish. Leave out mechanics, defaults, edge cases and anything the settings page's own
@@ -314,7 +314,7 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   ```
   **Graph colors**
   - The forecast graph now has one color row per metric and a setting for the night shading.
-  - Forecast tab → Graph colors. Color watches only.
+  - Graphs tab → Graph colors. Color watches only.
 
   **Fixed**
   - In 12-hour mode the AM/PM label now lines up with the top of the digits.

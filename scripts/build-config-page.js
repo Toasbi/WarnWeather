@@ -103,6 +103,10 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/preview-radar.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-diagnostics.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-layout.js'),
+  // The Status bars tab's pinned preview (reads StatusLineCatalog and OnDemand).
+  path.join(ROOT, 'src/pkjs/settings/preview-status-bars.js'),
+  // The Graphs tab's Health pane preview (reads PreviewSvg and ResolveInk).
+  path.join(ROOT, 'src/pkjs/settings/preview-health.js'),
   // The status-slot row glyphs, registered into PConf.icons at IIFE time. It reads
   // nothing but PConf.icons (engine.js, a lib file, already ran), so any slot after
   // the lib files would do; it sits with the other page-only registrars, ahead of
@@ -138,6 +142,8 @@ var APP_FILES = [
   // test/config-page-bundle.test.js pins the file after blocks.js and its registrations
   // into the page.
   path.join(ROOT, 'src/pkjs/settings/alerts-page.js'),
+  // The Watchface tab's shared Night hours (its resolvers, onChange hooks and onSubmit).
+  path.join(ROOT, 'src/pkjs/settings/night-hours.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),
   // defaults-policy.js assigns window.DefaultsPolicy and must precede wizard.js, which

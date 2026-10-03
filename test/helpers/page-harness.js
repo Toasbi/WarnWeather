@@ -185,6 +185,11 @@ function bootGeneratedPage(cfg, platformName, opts) {
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
   let ready = null;
+  // A tap on one of the open dialog's header buttons, by its selector.
+  function tapModal(selector) {
+    const t = { getAttribute: () => null, closest: sel => (sel === selector ? t : null) };
+    els.modal.dispatch('click', { target: t });
+  }
   sandbox.PConf.hooks.onReady(ctx => { ready = ctx; });   // the only handle on the live S
   sandbox.PConf.engine.boot();
   assert.ok(ready, 'onReady ran (boot completed against the fake DOM)');
@@ -206,6 +211,48 @@ function bootGeneratedPage(cfg, platformName, opts) {
       };
       els.scroll.dispatch('click', { target: t });
       assert.ok(els.modal.innerHTML.length > 0, 'the edit sheet rendered into #modal');
+    },
+    // Tap a row INSIDE the open dialog that opens another dialog (a nested one, ‹ back).
+    openNestedSheet(sheetId) {
+      assert.ok(els.modal.innerHTML.indexOf('data-edit-sheet="' + sheetId + '"') !== -1,
+        sheetId + ' row is rendered in the open dialog');
+      const t = {
+        getAttribute: n => (n === 'data-edit-sheet' ? sheetId : null),
+        closest: sel => (sel === '[data-edit-sheet]' ? t : null)
+      };
+      els.modal.dispatch('click', { target: t });
+    },
+    // The full-screen dialog's header: Done (keep the edits), ‹ (back to the parent,
+    // keeping them) and × (close and put back every value it changed).
+    doneDialog() { tapModal('[data-dlg-done]'); },
+    backDialog() { tapModal('[data-dlg-back]'); },
+    cancelDialog() { tapModal('[data-dlg-close]'); },
+    // Open every card's More options in a host ('scroll' or 'modal'), so rows behind it
+    // render. Repeats until none is left closed (opening one can show another card).
+    openAllMore(host) {
+      const h = els[host || 'scroll'];
+      const re = /data-more="([^"]+)" aria-expanded="false"/g;
+      let m, guard = 0;
+      while ((m = re.exec(h.innerHTML)) && guard++ < 50) {
+        const id = unescHtml(m[1]);
+        const t = { getAttribute: n => (n === 'data-more' ? id : null), closest: sel => (sel === '[data-more]' ? t : null) };
+        h.dispatch('click', { target: t });
+        re.lastIndex = 0;
+      }
+    },
+    // Tap a '?' (data-info id) in a host: its info text shows (or hides again).
+    toggleInfo(id, host) {
+      const h = els[host || 'scroll'];
+      assert.ok(h.innerHTML.indexOf('data-info="' + escHtml(id) + '"') !== -1, id + ' info button is rendered');
+      const t = { getAttribute: n => (n === 'data-info' ? id : null), closest: sel => (sel === '[data-info]' ? t : null) };
+      h.dispatch('click', { target: t });
+    },
+    // Tap a pane of a tab with panes (the Graphs tab's Forecast · Rain radar · Health).
+    clickPane(tabId, paneId) {
+      const v = tabId + ':' + paneId;
+      assert.ok(els.scroll.innerHTML.indexOf('data-pane="' + v + '"') !== -1, v + ' pane is offered');
+      const t = { getAttribute: n => (n === 'data-pane' ? v : null), closest: sel => (sel === '[data-pane]' ? t : null) };
+      els.scroll.dispatch('click', { target: t });
     },
     // Flip a toggle rendered in the open edit sheet.
     clickModalToggle(key) {

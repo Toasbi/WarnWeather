@@ -3,8 +3,8 @@
 // of the schema (schema.js, level-rows-schema.js, alerts-schema.js and
 // forecast-lines-schema.js) can read them without requiring each other: the named
 // showWhen predicates (the capability gates and the setting gates several rows repeat),
-// the one-pass gateAll, the link that brings a tab to the front and the inline action
-// button an intro carries. Plain CommonJS with an
+// the one-pass gateAll, the link that brings a tab to the front and the link row a reset
+// rides. Plain CommonJS with an
 // unguarded require(), like schema.js itself (custom-layout-schema.js's precedent): the
 // schema is evaluated in PKJS and injected into the page as data, never concatenated into
 // it as a flat browser file.
@@ -37,7 +37,7 @@ var ON_DEMAND_WHEN = {env: 'onDemand'};
 /**
  * A link in copy that brings a tab to the front (engine.js [data-goto-tab]: from the tab
  * body or from inside a sheet, which closes; never to a tab whose showWhen hides it). Same
- * markup and look as introAction's inline button (shell.html .txt-link).
+ * markup and look as an inline text link (shell.html .txt-link).
  * @param {string} tab The tab's id, e.g. 'alerts'.
  * @param {string} label The link's text (a constant here, printed as is).
  * @returns {string} The link's HTML.
@@ -45,13 +45,6 @@ var ON_DEMAND_WHEN = {env: 'onDemand'};
 function tabLink(tab, label) {
     return '<button type="button" class="txt-link" data-goto-tab="' + tab + '">' + label + '</button>';
 }
-// "Alerts tab" as a link to it: the slot sheets' pointer, the Status slots tab's read-only
-// Alerts rows and the Radar tab's rain note. Every place that shows it is gated off where
-// the tab is (aplite): the rows and the note by ON_DEMAND_WHEN, the tab's own gate, the
-// slot sheets by THRESHOLD_WHEN, which leaves out the same platforms today. A link to a
-// tab the bar hides changes nothing (engine.js tabShown), so a gate that drifted would
-// leave a dead link, not a broken page.
-var ALERTS_TAB_LINK = tabLink('alerts', 'Alerts tab');
 // "This watch reports its battery charge in 5 % steps" (emery): the Battery item's warn
 // level steps by 5 there and by 10 everywhere else.
 var FINE_BATTERY_WHEN = {env: 'fineBattery'};
@@ -95,17 +88,14 @@ function gateAll(items, gate) {
     return items;
 }
 /**
- * An inline text button inside a card's intro copy: it reads like the link in the
- * Telemetry hint (More tab, "Telemetry section") — the link colour and underline in the
- * copy's own font, flowing after the last sentence — and dispatches through the engine's
- * shared [data-action] handler like any button (shell.html .txt-link). The Alert settings
- * card's and the status card's resets ride it.
+ * A link row (a `button` drawn as a line of link text, engine.js chevronRow): a reset,
+ * e.g. the About alerts card's.
  * @param {string} action A registered PConf.actions id, e.g. 'resetOnDemand'.
- * @param {string} label The button's text (a constant here, printed as is).
- * @returns {string} The button's HTML.
+ * @param {string} label The link's text.
+ * @returns {Object} Schema item.
  */
-function introAction(action, label) {
-    return '<button type="button" class="txt-link" data-action="' + action + '">' + label + '</button>';
+function linkRow(action, label) {
+    return {type: 'button', style: 'link', action: action, label: label};
 }
 
 module.exports = {
@@ -113,7 +103,6 @@ module.exports = {
     HR_SLOT_WHEN: HR_SLOT_WHEN,
     THRESHOLD_WHEN: THRESHOLD_WHEN,
     ON_DEMAND_WHEN: ON_DEMAND_WHEN,
-    ALERTS_TAB_LINK: ALERTS_TAB_LINK,
     FINE_BATTERY_WHEN: FINE_BATTERY_WHEN,
     BOLD_ALL_WHEN: BOLD_ALL_WHEN,
     RADAR_BAR_WHEN: RADAR_BAR_WHEN,
@@ -121,5 +110,6 @@ module.exports = {
     COLOR_THEME_WHEN: COLOR_THEME_WHEN,
     LINE_STYLES_WHEN: LINE_STYLES_WHEN,
     gateAll: gateAll,
-    introAction: introAction
+    tabLink: tabLink,
+    linkRow: linkRow
 };

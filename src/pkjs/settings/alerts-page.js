@@ -47,9 +47,44 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return null;
     }
 
-    // What every Alert settings card row reads while its item is ticked on no side of a bar
-    // that exists (on-demand.js placedAnywhere): the item cannot show anywhere.
+    // What every Alerts-tab row reads while its item is ticked on no side of a bar that
+    // exists (on-demand.js placedAnywhere): the item cannot show anywhere.
     var NOT_PLACED = 'Not in any status bar';
+    // The bars by their short names, in the page's order (the Status bars tab's): the
+    // rows' "where it shows" and the Shows on grids.
+    var PAGE_BARS = [['top', 'Watch bar'], ['forecast', 'Forecast bar'], ['health', 'Health bar'],
+        ['radar', 'Radar bar']];
+
+    /**
+     * Where an alert shows, for its Alerts-tab row: each bar edge it sits on, in the
+     * page's bar order — "Watch bar, left", "Watch bar, left · Forecast bar, right" — read
+     * the way the watch places it (on-demand.js sideOf: a tick on a bar that exists).
+     * @param {Object} S Live settings state.
+     * @param {string} code An on-demand.js ITEMS code.
+     * @param {Object} env Platform env.
+     * @returns {string} The placement, or '' when it shows nowhere.
+     */
+    function placementText(S, code, env) {
+        var out = [];
+        PAGE_BARS.forEach(function (b) {
+            var side = onDemand.sideOf(S || {}, b[0], code, env);
+            if (side) { out.push(b[1] + ', ' + side); }
+        });
+        return out.join(' · ');
+    }
+
+    /**
+     * A row's live text followed by where its alert shows.
+     * @param {string} text The row's own text.
+     * @param {Object} S Live settings state.
+     * @param {string} code The item's code.
+     * @param {Object} env Platform env.
+     * @returns {string} "<text> · <placement>".
+     */
+    function withPlacement(text, S, code, env) {
+        var where = placementText(S, code, env);
+        return where ? text + ' · ' + where : text;
+    }
 
     /**
      * The Alert settings card row's badge for a metric alert (editBadgeFrom, args.keyStem):
@@ -102,9 +137,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.badgeResolvers.register('onDemandBadge', onDemandBadge);
 
     /**
-     * The Alert settings card row's hint for a metric alert: "Not in any status bar" while
-     * its item is ticked on no bar, else the kind's levels, e.g. "Warn 40 kph · Danger
-     * 60 kph". The pair is the resolved one (the stored pair, else the seed — what the
+     * The Alerts-tab row's summary for a metric alert: "Not in any status bar" while its
+     * item is ticked on no bar, else the kind's levels and where it shows, e.g. "Warn 40
+     * kph · Danger 60 kph · Forecast bar, right" (args.levelsOnly: the levels alone, for
+     * a slot dialog's row). The pair is the resolved one (the stored pair, else the seed — what the
      * watch judges with), in the unit the kind's slider shows, so the row reads the
      * numbers its sheet opens on. A Days other than the default follows by the label its
      * sheet offers it under ("Warn 6 · Danger 8 · Today"); the default adds nothing. The
@@ -123,14 +159,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var metric = alertKindOf(args && args.keyStem);
         if (!metric) { return null; }
         var st = S || {};
-        if (!onDemand.placedAnywhere(st, metric.code, env)) { return NOT_PLACED; }
+        var levelsOnly = Boolean(args && args.levelsOnly);
+        if (!levelsOnly && !onDemand.placedAnywhere(st, metric.code, env)) { return NOT_PLACED; }
         var pair = thresholds.resolvedPair(metric.key, st);
         var unit = rangeOf(metric.key, st).unit;
         var suffix = unit ? ' ' + unit : '';
         var text = 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix;
+        // A slot dialog's "Alert levels and colors" row (levelsOnly) says the levels
+        // alone: they drive the slot's highlight wherever the alert is placed.
+        if (levelsOnly) { return text; }
         var days = thresholds.alertDays(st, metric.code);
         var daysLabel = days === thresholds.alertDays(null, metric.code) ? null : optionLabel(args.days, days);
-        return daysLabel ? text + ' · ' + daysLabel : text;
+        return withPlacement(daysLabel ? text + ' · ' + daysLabel : text, st, metric.code, env);
     }
     PConf.hintResolvers.register('alertLevelsHint', alertLevelsHint);
 
@@ -173,15 +213,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function rainAlertHint(S, env, args) {
         var st = S || {};
-        if (radarOff(st)) { return 'Turn on the rain radar (Radar tab)'; }
+        if (radarOff(st)) { return 'Turn on the rain radar (Watchface › Views)'; }
         if (!onDemand.placedAnywhere(st, 'rain', env)) { return NOT_PLACED; }
         var rain = thresholds.rainAlert(st);
         var a = args || {};
         // The window by its long label — the stored pick, not its parse — and the
         // contract's default window for one outside the list.
-        return (optionLabel(a.windows, st.rainCountdownHorizon)
+        return withPlacement((optionLabel(a.windows, st.rainCountdownHorizon)
                 || optionLabel(a.windows, thresholds.rainAlert(null).horizonMin))
-            + ' · ' + optionLabel(a.looks, rain.look);
+            + ' · ' + optionLabel(a.looks, rain.look), st, 'rain', env);
     }
     PConf.hintResolvers.register('rainAlertHint', rainAlertHint);
 
@@ -193,7 +233,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {?string} Why it cannot show, or null when it can.
      */
     function onDemandBlocked(S, code) {
-        if (code === 'rain' && radarOff(S)) { return 'Needs the rain radar (Radar tab)'; }
+        if (code === 'rain' && radarOff(S)) { return 'Needs the rain radar (Watchface › Views)'; }
         if (code === 'pollen' && (!S || S.provider !== 'dwd')) { return 'DWD provider only'; }
         return null;
     }
@@ -219,12 +259,41 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var inert = onDemandBlocked(S, a.code) !== null;
         var out = [];
         (a.bars || []).forEach(function (bar) {
-            if (!onDemand.barExists(S, bar, env)) { return; }
+            var reason = null;
+            if (!onDemand.barExists(S, bar, env)) {
+                // A bar this watch can never draw (no radar or health on aplite-class
+                // hardware) has no row; one whose view is merely off is shown inert, with
+                // the reason, so the grid always lists the same bars.
+                reason = barOffReason(S, bar, env);
+                if (reason === null) { return; }
+            }
             var meta = {keys: onDemand.SIDES.map(function (side) { return onDemand.itemsKey(bar, side); })};
-            if (inert) { meta.disabled = true; }
+            if (inert || reason) { meta.disabled = true; }
+            if (reason) { meta.desc = reason; }
             out.push([(a.names || {})[bar] || bar, bar, meta]);
         });
         return out;
+    }
+
+    /**
+     * Why a bar is not drawn, for its inert Shows on row: its view is off, or shows no
+     * bar in its mode. null for a bar this watch cannot draw at all (no row then).
+     * @param {Object} S Live settings state.
+     * @param {string} bar An on-demand.js BARS bar.
+     * @param {Object} env Platform env.
+     * @returns {?string} The reason.
+     */
+    function barOffReason(S, bar, env) {
+        var st = S || {};
+        if (bar === 'radar') {
+            if (env && env.radar === false) { return null; }
+            return (st.radarMode || 'graph') === 'off' ? 'Radar view is off' : 'Rain alert only has no radar bar';
+        }
+        if (bar === 'health') {
+            if (env && env.health === false) { return null; }
+            return (st.healthMode || 'all') === 'off' ? 'Health view is off' : 'Status slots only has no health bar';
+        }
+        return null;
     }
     PConf.optionsResolvers.register('onDemandBars', onDemandBars);
 
@@ -261,7 +330,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (icons) { runs.push('<span class="ico-run">' + (side === 'left' ? 'Left ' : 'Right ') + icons + '</span>'); }
         });
         if (!placed) { return args.where; }
-        return (runs.length ? runs.join(' ') : 'None of the alerts placed here can show.') + '<br>' + args.where;
+        return runs.length ? runs.join(' ') : 'None of the alerts placed here can show.';
     }
     PConf.hintResolvers.register('onDemandBarIcons', onDemandBarIcons);
 
@@ -304,7 +373,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var text = 'At ' + onDemand.batteryLevel(st, env) + '% or below';
         if (onDemand.batteryShowsValue(st)) { text += ' · Icon + value'; }
         if (batteryBesideSlot(st, env)) { text += ' · Hidden while a battery slot shows the charge'; }
-        return text;
+        return withPlacement(text, st, 'battery', env);
     }
     PConf.hintResolvers.register('onDemandBatteryText', onDemandBatteryText);
 
@@ -324,7 +393,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var st = S || {};
         var vibe = st.vibe === true ? ' · Vibrates on disconnect' : '';
         if (!onDemand.placedAnywhere(st, 'bt', env)) { return NOT_PLACED + vibe; }
-        return (BT_SHOW_TEXT[st.btIcons] || BT_SHOW_TEXT.disconnected) + vibe;
+        return withPlacement((BT_SHOW_TEXT[st.btIcons] || BT_SHOW_TEXT.disconnected) + vibe, st, 'bt', env);
     }
     PConf.hintResolvers.register('onDemandBluetoothText', onDemandBluetoothText);
 
@@ -337,7 +406,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} The hint.
      */
     function onDemandPlainText(S, env, args) {
-        return onDemand.placedAnywhere(S, args.code, env) ? args.text : NOT_PLACED;
+        return onDemand.placedAnywhere(S, args.code, env) ? withPlacement(args.text, S, args.code, env) : NOT_PLACED;
     }
     PConf.hintResolvers.register('onDemandPlainText', onDemandPlainText);
 
@@ -361,9 +430,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function onDemandSleepText(S, env) {
         var st = S || {};
         if (!onDemand.placedAnywhere(st, 'snooze', env)) { return NOT_PLACED; }
-        if (st.sleepNightEnabled === false) { return 'Battery saver is off (General tab)'; }
-        return 'During the Battery saver hours, ' + hourText(st.sleepStartHour, 0) + '–'
-            + hourText(st.sleepEndHour, 7);
+        if (st.sleepNightEnabled === false) { return 'Battery saver is off (Watchface › Theme & night)'; }
+        return withPlacement('During the Battery saver hours, ' + hourText(st.sleepStartHour, 0) + '–'
+            + hourText(st.sleepEndHour, 7), st, 'snooze', env);
     }
     PConf.hintResolvers.register('onDemandSleepText', onDemandSleepText);
 })();

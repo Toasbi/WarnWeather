@@ -122,7 +122,7 @@ spot), Rainbow (global satellite + radar nowcast, exact spot, worldwide), or
 Tomorrow.io (ML nowcast on the user's own key, exact spot, worldwide) — chosen
 independently of the weather provider. Every source answers the same interface;
 "off" is itself a source whose tuples clear the radar. Rainbow is two sources,
-and the Radar tab's picker offers both: "Rainbow (limited)", shared Rainbow
+and the Radar provider picker (Graphs tab › Rain radar) offers both: "Rainbow (limited)", shared Rainbow
 (id `rainbow`), goes through the project's proxy
 on the project's key and its monthly allowance, so it refreshes at most every
 30 minutes (one request per UTC-aligned half-hour slot, wherever the watch is:

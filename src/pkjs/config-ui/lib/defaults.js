@@ -17,7 +17,8 @@ function deriveDefaults(schema) {
   eachItem(schema, function (it) {
     // Only static defaultValue items are seeded; defaultFrom items stay unseeded (see
     // above), even one that also carries a defaultValue (resolveDefaultFrom ignores it).
-    if (it.messageKey && !it.defaultFrom && typeof it.defaultValue !== 'undefined') {
+    // A page-only item (uiOnly) is never stored, so it is never seeded either.
+    if (it.messageKey && !it.defaultFrom && !it.uiOnly && typeof it.defaultValue !== 'undefined') {
       out[it.messageKey] = it.defaultValue;
     }
   });

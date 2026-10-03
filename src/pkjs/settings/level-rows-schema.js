@@ -58,6 +58,9 @@ var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 var BOLD_ALWAYS_HINT = 'Every status slot showing this value prints it in heavier text.';
 var ALERT_VOICE = {
     header: 'Alert levels',
+    // The levels slider's own label, now that its group is a card of its own: the card
+    // title says what the pair is for, the label which two values the thumbs set.
+    rangeLabel: 'Warn · danger',
     // No switch on the group: a weather kind's highlight switch is the slot sheet's
     // 'Alert highlighting' row (schema.js highlightToggle), and its alert's switch heads the
     // Alert sheet.
@@ -82,7 +85,7 @@ var ALERT_VOICE = {
     chips: {warn: 'Warn', danger: 'Danger'},
     look: {
         base: {
-            none: 'No box at warn — bold text still follows the Bold row in the slot’s sheet.',
+            none: 'No box at warn — bold text still follows the Bold row in the slot’s dialog.',
             outline: 'A thin frame in the warn color.',
             fill: 'A solid box in the warn color, with the value in a contrasting color.'
         },
@@ -100,6 +103,7 @@ var ALERT_VOICE = {
 };
 var GOAL_VOICE = {
     header: 'Goals',
+    rangeLabel: 'Close · goal',
     // Aria-only: the switch rides the group header, whose intro carries the meaning.
     switchLabel: 'Goals',
     // "On color watches": on B&W the looks are drawn in the theme's ink and the color
@@ -225,29 +229,28 @@ function levelLead(keyStem, voice, hint, gate, why) {
             defaultValue: false
         });
     }
-    lead.push({
+    var range = {
         type: 'range',
         messageKey: 'thresh' + keyStem + 'Warn',
         dangerKey: 'thresh' + keyStem + 'Danger',
         maxKey: 'thresh' + keyStem + 'Max',
-        // Title + reset live on the group's sub-header now, so the row itself is
-        // label-less: repeating "Alert levels" directly under the header read as a
-        // stutter. No disabledWhen: see the top of this function.
+        // The group's title and reset ride its card header; the row names the two values
+        // its thumbs set, which is also what its '?' hangs off. No disabledWhen: see the
+        // top of this function.
+        label: voice.rangeLabel,
         defaultValue: '',
         hint: hint,
-        joinPrevious: true,
         // The chips' words ride the args: the resolver owns the numbers, the voice
         // the wording.
         rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem, chips: voice.chips}}
-    });
-    // An alert group's cards on its default levels, right after the slider whose numbers
-    // they explain: amber info boxes that stand off (not joined), each shown while its
-    // unit or scale is in effect. Their own gate layers under the group's.
-    (why || []).forEach(function (card) {
-        var item = {type: 'staticText', style: 'info', text: card.text};
-        if (card.showWhen) { item.showWhen = gate ? {all: [gate, card.showWhen]} : card.showWhen; }
-        lead.push(item);
-    });
+    };
+    // An alert group's cards on its default levels (ALERT_LEVEL_CARDS) are the slider's
+    // info text now, behind its '?': the scale hint, then the one card whose unit or scale
+    // is in effect (blocks.js levelInfo evaluates each card's showWhen).
+    if (why && why.length) {
+        range.hintFrom = {resolver: 'levelInfo', args: {hint: hint, cards: why}};
+    }
+    lead.push(range);
     // Every plain item in the group carries the same gate; applying it in one pass
     // (gateAll) means an item added above cannot forget its gate line. (The warn
     // look and color pickers — levelLook — set showWhen inline instead: they layer the
@@ -280,7 +283,7 @@ function levelLead(keyStem, voice, hint, gate, why) {
  *     mark or Days, and a join would glue it to them, so it starts its own group.
  * @returns {Object[]} The warn look, warn color and danger color rows.
  */
-function levelLook(keyStem, voice, gate, offWhen, joinsAbove) {
+function levelLook(keyStem, voice, gate, offWhen, joinsAbove, moreLook) {
     var colorWhen = gate ? {all: [gate, COLOR_THEME_WHEN]} : COLOR_THEME_WHEN;
     var warnLook = {
         // The warn look — the box drawn at the warn level (a goal kind's "close"),
@@ -313,6 +316,9 @@ function levelLook(keyStem, voice, gate, offWhen, joinsAbove) {
     // Deleted rather than built without it, so a goal sheet's warn look keeps its key
     // order (the golden pins goal sheets byte for byte).
     if (!joinsAbove) { delete warnLook.joinPrevious; }
+    // An alert's warn look is one of its More options; a goal's stays in view (the
+    // colours are More options on both).
+    if (moreLook) { warnLook.more = true; }
     return [warnLook, {
         // An unset (or black / white) colour is AUTO — status-thresholds.js
         // thresholdColor, the one rule for the packer, the page and the on-open heal
@@ -326,6 +332,7 @@ function levelLook(keyStem, voice, gate, offWhen, joinsAbove) {
         defaultValue: voice.colorDefault,
         displayFrom: {resolver: 'thresholdColor', args: {keyStem: keyStem, which: 'Warn'}},
         joinPrevious: true,
+        more: true,
         capabilities: ['COLOR'],
         // colorWhen (gate + color-capable theme) composed with the warn look — a
         // look of 'none' draws no box to colour.
@@ -338,6 +345,7 @@ function levelLook(keyStem, voice, gate, offWhen, joinsAbove) {
         defaultValue: voice.colorDefault,
         displayFrom: {resolver: 'thresholdColor', args: {keyStem: keyStem, which: 'Danger'}},
         joinPrevious: true,
+        more: true,
         capabilities: ['COLOR'],
         showWhen: colorWhen,
         disabledWhen: offWhen

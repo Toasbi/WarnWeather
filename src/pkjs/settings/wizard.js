@@ -575,7 +575,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // tomorrow.io once a key is entered, which must not change whether the upsell shows.
         var countryProvider = mapCountry(W.ctx.S.holidayCountry).provider;
         var upsell = (countryProvider !== 'dwd' && countryProvider !== 'metno') ? tomorrowioUpsell() : '';
-        return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs, and you can run this setup again any time from <b>More → Misc → Run setup again</b>.</p>'
+        return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs, and you can run this setup again any time from <b>Setup › About › Run setup again</b>.</p>'
             + upsell
             + '<p>If you enjoy WarnWeather, please ♥ it on the Pebble appstore — it really helps.</p>'
             + '<p>Need help or have feedback? Open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>, or use the appstore’s “Message the developer” to reach me directly.</p>';

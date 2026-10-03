@@ -1122,9 +1122,210 @@ if (typeof require !== 'undefined') {
     // card row draws too.
     PConf.thresholdLevels = {rangeOf: rangeOf, levelDots: levelDots};
 
+    // ---- The Graphs tab's line rows and dialogs ----
+
+    // The graph metrics and line styles in picker order, as the line pickers offer them
+    // (forecast-hints.js, which loads ahead of this file in both contexts): a line's
+    // summary names its metric and style by the labels its pickers show.
+    var FORECAST_METRICS = PConf.forecastLineOptions.metrics;
+    var LINE_STYLE_OPTIONS = PConf.forecastLineOptions.styles;
+
+    /**
+     * The label a picker shows for a value.
+     * @param {Array<Array<string>>} options [label, value] pairs.
+     * @param {*} value The value.
+     * @returns {?string} Its label, or null when no option carries it.
+     */
+    function optionLabel(options, value) {
+        for (var i = 0; i < (options || []).length; i++) {
+            if (options[i][1] === String(value)) { return options[i][0]; }
+        }
+        return null;
+    }
+
+    /**
+     * A forecast line's nav-row summary: its metric and style by the labels their pickers
+     * show, ", filled" for the Main metric's area fill — "Precipitation % · Thin line,
+     * filled" — or "Off". The style is the one the watch draws (line-style.js
+     * lineStyleValue: a stored stripe on a metric that cannot be one draws as a line), and
+     * a watch without style pickers (env.lineStyles false) names the metric alone.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{lineKey: string, main: boolean}} args The line's picker key; whether it is
+     *     the Main metric (the one line that fills).
+     * @returns {string} The summary.
+     */
+    function lineSummary(S, env, args) {
+        var st = S || {}, a = args || {};
+        var metric = st[a.lineKey];
+        if (!metric || metric === 'off') { return 'Off'; }
+        var name = optionLabel(FORECAST_METRICS, metric) || String(metric);
+        if (env && env.lineStyles === false) { return name; }
+        var style = lineStyle.lineStyleValue(st, a.lineKey + 'Style');
+        var text = name + ' · ' + (optionLabel(LINE_STYLE_OPTIONS, style) || style);
+        var fills = a.main && st.secondaryLineFill !== false && !lineStyle.isTempAxisMetric(metric)
+            && !lineStyle.isStripeValue(style);
+        return fills ? text + ', filled' : text;
+    }
+    PConf.hintResolvers.register('lineSummary', lineSummary);
+
+    /**
+     * A forecast line's colour swatch (its nav row, and the colours row in its dialog):
+     * the line colour of its metric in the theme being edited, as the Graph colors
+     * dialog's row would preview it. None for a line that is off, on a B&W watch or
+     * theme.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{lineKey: string}} args The line's picker key.
+     * @returns {?Object} Badge state, or null.
+     */
+    function lineSwatch(S, env, args) {
+        var st = S || {};
+        var metric = st[(args || {}).lineKey];
+        if (!lineStyle || !env || !env.color || !metric || metric === 'off') { return null; }
+        if (st.theme === 'bw' || st.theme === 'bw-light') { return null; }
+        var sfx = lineStyle.renderContextFor(st, {color: true, themePolarity: true}).suffix;
+        var color = colorHexOf(st[lineStyle.graphColorKey(metric, 'Line', sfx)],
+            lineStyle.graphColorDefault(metric, 'Line', sfx, st));
+        return {label: 'Edit', dots: [{color: color}]};
+    }
+    PConf.badgeResolvers.register('lineSwatch', lineSwatch);
+
+    /**
+     * The colours row in a line's dialog opens the Graph colors sheet of the metric the
+     * line draws (args.sheets: schema.js GRAPH_COLOR_SHEETS); none for a line that is off.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{messageKey: string, sheets: Object}} args The line's picker key and the
+     *     metric → sheet table.
+     * @returns {?string} The sheet id, or null.
+     */
+    function lineColorSheet(S, env, args) {
+        var a = args || {};
+        var entry = (a.sheets || {})[(S || {})[a.messageKey]];
+        return entry ? entry.sheetId : null;
+    }
+    PConf.sheetResolvers.register('lineColorSheet', lineColorSheet);
+
+    /**
+     * That row's label: "<Metric> colors", the title of the sheet it opens.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{lineKey: string, sheets: Object}} args As lineColorSheet.
+     * @returns {?string} The label, or null for the static one.
+     */
+    function lineColorLabel(S, env, args) {
+        var a = args || {};
+        var entry = (a.sheets || {})[(S || {})[a.lineKey]];
+        return entry ? entry.label + ' colors' : null;
+    }
+    PConf.hintResolvers.register('lineColorLabel', lineColorLabel);
+
+    /**
+     * Whether the page draws in colour: a colour watch under a colour theme.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @returns {boolean}
+     */
+    function colorThemeOn(S, env) {
+        var theme = (S || {}).theme;
+        return Boolean(env && env.color !== false) && theme !== 'bw' && theme !== 'bw-light';
+    }
+
+    /**
+     * The Bars row's info text: what the bars show, then how they scale — the colour
+     * note on a colour theme, the B&W legend otherwise (args, schema.js SCALE_NOTE /
+     * BW_LEGEND). Only while the bars are on; null (the row's hintByValue) otherwise.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{value: string, colorNote: string, bwNote: string}} args The row's value
+     *     and the two notes.
+     * @returns {?string} The hint, or null.
+     */
+    function barScaleHint(S, env, args) {
+        var a = args || {};
+        if (a.value !== 'rain') { return null; }
+        return 'Adds bars that represent the rain amount in one hour. '
+            + (colorThemeOn(S, env) ? a.colorNote : a.bwNote);
+    }
+    PConf.hintResolvers.register('barScaleHint', barScaleHint);
+
+    /**
+     * The Radar color row's info text: the colour's own words (args.hints), then the bar
+     * scale note.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{value: string, hints: Object, note: string}} args The row's value, its
+     *     per-value hints and the note.
+     * @returns {string} The hint.
+     */
+    function radarColorHint(S, env, args) {
+        var a = args || {};
+        var own = (a.hints || {})[a.value] || '';
+        return own ? own + '<br>' + a.note : a.note;
+    }
+    PConf.hintResolvers.register('radarColorHint', radarColorHint);
+
+    /**
+     * A weather alert's levels slider's info text: its scale hint (args.hint) and the card
+     * on its default levels for the unit or AQI scale in effect (args.cards, schema.js
+     * ALERT_LEVEL_CARDS: each card's showWhen picks it, the same predicates the cards
+     * carried as their own rows).
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{hint: string, cards: Array<{text: string, showWhen: (Object|undefined)}>}} args
+     * @returns {?string} The hint, or null for the static one.
+     */
+    function levelInfo(S, env, args) {
+        var a = args || {}, ctx = Object.assign({}, S || {}), parts = [], i;
+        ctx.env = env || {};
+        if (a.hint) { parts.push(a.hint); }
+        for (i = 0; i < (a.cards || []).length; i++) {
+            if (!a.cards[i].showWhen || PConf.showWhen.evaluate(a.cards[i].showWhen, ctx)) {
+                parts.push(a.cards[i].text);
+                break;
+            }
+        }
+        return parts.length ? parts.join('<br>') : null;
+    }
+    PConf.hintResolvers.register('levelInfo', levelInfo);
+
+    // Reset-to-defaults for EVERY graph colour (the Graph colors dialog's link): each
+    // metric's sheet keeps its own reset (resetGraphColors, its key list in the button's
+    // arg); this one walks the full key set line-style.js hands out, so it cannot miss a
+    // row the schema adds. Each key lands on its schema default through the engine.
+    /**
+     * @param {string} arg Unused.
+     * @param {Object} S Live settings state (mutated in place).
+     * @param {Object} env Platform env (unused).
+     * @param {function(string): *} defaultOf The engine's stored-shape default resolver.
+     * @returns {boolean} true so the engine re-renders.
+     */
+    PConf.actions.resetAllGraphColors = function (arg, S, env, defaultOf) {
+        if (!S || !defaultOf || !lineStyle) { return false; }
+        var scopes = FORECAST_METRICS.map(function (m) { return m[1]; }).concat(['night']);
+        scopes.forEach(function (scope) {
+            lineStyle.graphColorRoles(scope).forEach(function (role) {
+                ['Dark', 'Light'].forEach(function (sfx) {
+                    var key = lineStyle.graphColorKey(scope, role, sfx);
+                    var d = defaultOf(key);
+                    if (typeof d !== 'undefined') { S[key] = d; }
+                });
+            });
+        });
+        return true;
+    };
+
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             radarProviderNote: radarProviderNote,
+            lineSummary: lineSummary,
+            lineSwatch: lineSwatch,
+            lineColorSheet: lineColorSheet,
+            lineColorLabel: lineColorLabel,
+            barScaleHint: barScaleHint,
+            radarColorHint: radarColorHint,
+            levelInfo: levelInfo,
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
             tomorrowioUsageLine: tomorrowioUsageLine,
             rainbowBudgetBlock: rainbowBudgetBlock,

@@ -42,8 +42,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var cols = item.columns || [], opts = item.options || [], lists = view.lists || {};
     var code = String(item.check), label = esc(String(item.label || '')), write = esc(item.writeWith || '');
     var i, c, meta, key, on, gated;
+    // captionsOnly: the grid sits in a card its name already titles (a "Shows on" card),
+    // so its header row carries only the columns' captions; the label still names it.
     var h = '<div class="chk-list" role="group" aria-label="' + label + '">'
-      + '<div class="subhdr grp chk-hdr"><span>' + label + '</span><span class="chk-caps" aria-hidden="true">';
+      + '<div class="subhdr grp chk-hdr' + (item.captionsOnly ? ' caps-only' : '') + '"><span>'
+      + (item.captionsOnly ? '' : label) + '</span><span class="chk-caps" aria-hidden="true">';
     for (c = 0; c < cols.length; c++) { h += '<span>' + esc(String(cols[c].label || '')) + '</span>'; }
     h += '</span></div>';
     for (i = 0; i < opts.length; i++) {
