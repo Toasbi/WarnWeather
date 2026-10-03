@@ -185,11 +185,18 @@ test('badge bold flag: a pen-b "B" leads the swatch, with or without dots', () =
 test('renderEditModal: header + intro + fields for the open sheet; \'\' otherwise', () => {
   const S = E.hydrate(SCHEMA, {});
   const html = E.renderEditModal(SCHEMA, cxFor(S, { openEdit: 'sheetWind' }));
-  assert.ok(html.indexOf('Wind thresholds') !== -1, 'sheet title in the header');
-  assert.ok(html.indexOf('Sheet intro.') !== -1, 'sheet intro rendered');
+  assert.ok(html.indexOf('<span class="ssel-modal-ttl dlg-ttl" id="esheet-ttl-sheetWind">Wind thresholds</span>') !== -1,
+    'sheet title in the header');
+  // The intro is in view by default, under the header — no '?' to open first.
+  assert.ok(html.indexOf('<div class="ssel-list esheet"><div class="dlg-intro">Sheet intro.</div>') !== -1,
+    'sheet intro rendered at the top of the body');
+  assert.equal(html.indexOf('info-q'), -1, 'no \'?\' button by default');
   assert.ok(html.indexOf('data-k="windWarn"') !== -1, 'text field rendered in the sheet');
   assert.ok(html.indexOf('data-color="windColor"') !== -1, 'color control rendered in the sheet');
-  assert.ok(html.indexOf('data-select-close') !== -1, 'close button uses the shared close hook');
+  // A full-screen dialog: × (close, discarding) and Done (keep) in its header.
+  assert.ok(html.indexOf('data-dlg-close') !== -1, 'the × close button');
+  assert.ok(html.indexOf('data-dlg-done') !== -1, 'the Done button');
+  assert.equal(html.indexOf('data-select-close'), -1, 'not the bottom sheet\'s close hook');
   assert.equal(E.renderEditModal(SCHEMA, cxFor(S)), '', 'nothing open -> empty');
   assert.equal(E.renderEditModal(SCHEMA, cxFor(S, { openEdit: 'nope' })), '', 'unknown sheet -> empty');
 });
@@ -207,18 +214,22 @@ test('a section-level labelAction rides the sheet title, between the text and th
 
   assert.ok(html.indexOf('data-action="resetThings"') !== -1, 'the button is rendered');
   assert.ok(html.indexOf('data-action-arg="a,b"') !== -1, 'carrying its key list');
+  // The dialog header reads × · title · [reset] · Done: the reset rides the title line,
+  // after its text and before Done on the right.
   const title = html.indexOf('Wind thresholds');
   const button = html.indexOf('data-action="resetThings"');
-  const close = html.indexOf('data-select-close');
-  assert.ok(title < button && button < close,
-    'seated after the title text and before the close button');
+  const done = html.indexOf('data-dlg-done');
+  assert.ok(title < button && button < done,
+    'seated after the title text and before the Done button');
+  assert.ok(/<span class="dlg-ttlline"><span class="ssel-modal-ttl dlg-ttl"[^>]*>Wind thresholds<\/span><button type="button" class="lbl-act" data-action="resetThings"/.test(html),
+    'on the title line itself, right after the title');
   // Inside the header, not floated into the body — otherwise it scrolls away with the rows.
   assert.ok(button < html.indexOf('ssel-list esheet'), 'still within the header row');
 
   // And a sheet without one is unchanged: no stray button, close still present.
   const plain = E.renderEditModal(SCHEMA, cxFor(E.hydrate(SCHEMA, {}), { openEdit: 'sheetWind' }));
   assert.equal(plain.indexOf('lbl-act'), -1, 'no reset button when the section declares none');
-  assert.ok(plain.indexOf('data-select-close') !== -1);
+  assert.ok(plain.indexOf('data-dlg-close') !== -1);
 });
 
 test('a gated sheetOnly section renders an empty modal (and no pencil can reach it)', () => {
@@ -256,10 +267,15 @@ function subCx(S, extra) {
   }, extra || {});
 }
 
-test('subheader renders its text as an in-body .subhdr', () => {
+// A sub-header splits the dialog into cards: the rows above it (Bold) form the untitled
+// first card, and the sub-header opens a card of its own titled by its text — the in-body
+// .subhdr line it used to draw survives only in groupCard-merged tab sections.
+test('subheader opens a card of its own in the sheet, titled by its text', () => {
   const S = E.hydrate(SUB_SCHEMA, {});
   const html = E.renderEditModal(SUB_SCHEMA, subCx(S));
-  assert.match(html, /class="subhdr[^"]*"[^>]*>[\s\S]*?Thresholds/);
+  assert.match(html, /<div class="card nohdr"><div>[\s\S]*?data-k="bold"[\s\S]*?<div class="card"><div class="cardHdr"><span class="ttlwrap"><span class="ttl">Thresholds<\/span>[\s\S]*?data-k="windWarn"/,
+    'Bold in the untitled first card, the threshold rows under the Thresholds card header');
+  assert.equal(html.indexOf('subhdr'), -1, 'no in-card sub-header line');
 });
 
 test('subheader hosts the referenced toggle, which no longer renders its own row', () => {
@@ -278,11 +294,14 @@ test('subheader toggle reflects the off state', () => {
   assert.match(html, /<button class="sw"[^>]*data-k="windOn"/);
 });
 
-test('the sheet title row keeps only the close button now', () => {
+test('the sheet title row keeps only its close and Done buttons now', () => {
   const S = E.hydrate(SUB_SCHEMA, { windOn: true });
   const html = E.renderEditModal(SUB_SCHEMA, subCx(S));
-  const hdr = html.slice(0, html.indexOf('</div>'));
+  // The whole dialog header: × · title · Done, everything before the body.
+  const hdr = html.slice(0, html.indexOf('<div class="ssel-list esheet">'));
+  assert.match(hdr, /^<div class="dlg-hdr">/);
   assert.match(hdr, /Wind speed slot/);
+  assert.match(hdr, /data-dlg-close[\s\S]*data-dlg-done/);
   assert.equal(hdr.indexOf('data-toggle'), -1, 'master switch is no longer in the title row');
 });
 
@@ -403,7 +422,9 @@ test('type:sheet renders a trigger row for its sheet, with no key of its own', (
   assert.equal(html.indexOf('aria-label="Edit settings'), -1, 'it is a row, not the per-value pencil chip');
   // Same chevron as a button row, coloured by the shared .chev rule (var(--link)) so it
   // follows the light theme instead of being frozen at the dark link colour.
-  assert.ok(html.indexOf('<span class="chev">&#9656;</span>') !== -1, 'class-based chevron');
+  assert.ok(html.indexOf('<div class="row nav" data-edit-sheet="sheetColors" role="button" tabindex="0"') !== -1,
+    'the whole row is the way in (a nav row)');
+  assert.ok(html.indexOf('<span class="chev">&#8250;</span>') !== -1, 'class-based chevron');
   assert.equal(html.indexOf('#FF6A52'), -1, 'no hard-coded link colour');
 });
 
@@ -422,29 +443,35 @@ test('type:sheet falls back to editSheetFrom, and renders nothing when nothing r
   assert.ok(bare.indexOf('data-k="flag"') !== -1, 'the rest of the section still renders');
 });
 
-test('type:sheet WITH a badge renders as a preview + Edit row, not a chevron row', () => {
+// Every sheet row is a nav row now (the whole row opens the full-screen dialog); a badge
+// no longer turns it into a preview + Edit row — its preview rides the nav row instead,
+// before the chevron.
+test('type:sheet WITH a badge renders as a nav row with the badge preview before the chevron', () => {
   // The per-metric graph-colour rows: no control to pick, just the colours they hold
   // and the way in. The row has no messageKey, so its identity rides editBadgeFrom.args.
+  let seenArgs = null;
   global.PConf.badgeResolvers.register('scopeBadge', function (S, env, args) {
+    seenArgs = args;
     return { label: 'Edit', dots: [{ color: '#55AAFF' }, { color: '#0055AA', ring: true }] };
   });
   const BADGED = sheetTriggerSchema({ type: 'sheet', sheetId: 'sheetColors',
     label: 'Wind speed', editBadgeFrom: { resolver: 'scopeBadge', args: { scope: 'wind' } } });
   const html = E.renderBody(BADGED, 't', cxFor(E.hydrate(BADGED, {})));
-  assert.ok(html.indexOf('<div class="rgt has-pen">') !== -1, 'the swatch+Edit control cell');
-  assert.ok(html.indexOf('data-edit-sheet="sheetColors"') !== -1, 'the Edit button opens the sheet');
-  assert.ok(html.indexOf('thr-btn') !== -1, 'rendered as the shared Edit button');
+  assert.equal(seenArgs && seenArgs.scope, 'wind', 'the badge resolver gets the row\'s args');
+  assert.ok(html.indexOf('<div class="row nav" data-edit-sheet="sheetColors"') !== -1,
+    'the row itself opens the sheet');
+  assert.equal(html.indexOf('thr-btn'), -1, 'no separate Edit button');
+  assert.equal(html.indexOf('has-pen'), -1, 'no swatch+Edit control cell');
   assert.equal(html.split('pen-dot').length - 1, 2, 'both badge dots rendered');
-  assert.equal(html.indexOf('chev'), -1, 'a badged sheet row is NOT a chevron row');
-  assert.ok(html.indexOf('Wind speed') !== -1, 'the label still shows');
-  // renderControl has no case for 'sheet', so the cell between swatch and button is empty.
-  assert.ok(/thr-swatch[\s\S]*?<\/span><button type="button" class="thr-btn"/.test(html),
-    'nothing is drawn between the swatch and the Edit button');
+  assert.ok(html.indexOf('<div class="lbl">Wind speed</div>') !== -1, 'the label still shows');
+  assert.ok(/<div class="rgt"><span class="thr-swatch" aria-hidden="true"><span class="pen-dot fill" style="--th-c:#55AAFF"><\/span><span class="pen-dot ring" style="--th-c:#0055AA"><\/span><\/span><span class="chev">&#8250;<\/span><\/div>/.test(html),
+    'the preview sits right before the chevron, nothing in between');
 
-  // Same item without the badge stays the chevron row it has always been.
+  // Same item without the badge: the same nav row, with no preview.
   const PLAIN = sheetTriggerSchema({ type: 'sheet', sheetId: 'sheetColors', label: 'Wind speed' });
   const plain = E.renderBody(PLAIN, 't', cxFor(E.hydrate(PLAIN, {})));
-  assert.ok(plain.indexOf('<span class="chev">&#9656;</span>') !== -1, 'still a chevron row');
+  assert.ok(plain.indexOf('<div class="rgt"><span class="chev">&#8250;</span></div>') !== -1, 'a bare chevron row');
+  assert.equal(plain.indexOf('thr-swatch'), -1, 'no preview');
   assert.equal(plain.indexOf('thr-btn'), -1, 'and no Edit button');
 });
 
@@ -510,11 +537,14 @@ test('a sheet renders a checklist in place: plain rows under its one header, a g
       ({ type: 'hidden', messageKey: k, defaultValue: k === 'r2' ? 'c' : '' })) }
   ] }] };
   const sheet = E.renderEditModal(SCH, cxFor(E.hydrate(SCH, {}), { openEdit: 'pick' }));
-  assert.ok(sheet.indexOf('<div class="intro"><b>Bar</b><br>Tick them.</div>') !== -1, 'the intro leads');
+  assert.ok(sheet.indexOf('<div class="ssel-list esheet"><div class="dlg-intro"><b>Bar</b><br>Tick them.</div>') !== -1,
+    'the intro leads');
   assert.ok(sheet.indexOf('<div class="chk-list" role="group" aria-label="Things"><div class="subhdr grp chk-hdr">'
     + '<span>Things</span><span class="chk-caps" aria-hidden="true"><span>L</span><span>R</span></span></div>'
     + '<div class="row chk-opt nb">') !== -1, 'the label heads the grid, over the captions');
-  assert.equal(sheet.indexOf('class="card'), -1, 'no card inside the sheet');
+  // A dialog's rows sit in its untitled card; the grid gets no card (or title) of its own.
+  assert.equal(sheet.split('class="card').length - 1, 1, 'one card in the sheet, no nested card for the grid');
+  assert.ok(sheet.indexOf('<div class="card nohdr">') !== -1, 'and that card is untitled');
   assert.match(sheet, /aria-checked="false" aria-label="One, L" data-k="l1" data-check="c" data-write="pickTick">/);
   assert.match(sheet, /aria-checked="true" aria-label="Two, R" data-k="r2" data-check="c" data-write="pickTick" disabled aria-disabled="true">/);
 });

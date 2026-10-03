@@ -246,7 +246,7 @@ test('resolver direction is above for every kind (the axis is retired)', () => {
   });
 });
 
-test('wind/gust/distance scales follow the General-tab unit pickers', () => {
+test('wind/gust/distance scales follow the Setup › Units pickers', () => {
   const kph = B.thresholdRangeCfg({}, ENV, { keyStem: 'Wind' });
   assert.deepEqual([kph.max, kph.seedWarn, kph.seedDanger, kph.unit], [120, 40, 60, 'kph']);
   const mph = B.thresholdRangeCfg({ windUnits: 'mph' }, ENV, { keyStem: 'Wind' });
@@ -553,6 +553,20 @@ const { bootGeneratedPage } = require('./helpers/page-harness.js');
 // A row carrying the given data-k, muted (row class `dis`) — e.g. the warn look's row.
 const disabledRowWith = (html, key) => new RegExp('<div class="row[^"]*\\bdis\\b[^"]*">'
   + '(?:(?!<div class="row)[\\s\\S])*?data-k="' + key + '"').test(html);
+// A card header in a rendered page or dialog: a subheader becomes a card titled by it.
+const cardTitle = title => '<span class="ttl">' + title + '</span>';
+
+/**
+ * Open a kind's alert sheet from the Alerts tab, with its More options out: the Days,
+ * the tomorrow mark, the warn look and its colours ride them (more: true).
+ * @param {Object} page The page-harness handle.
+ * @param {string} stem Kind key stem.
+ */
+function openAlertSheet(page, stem) {
+  page.clickTab('alerts');
+  page.openEditSheet('alert' + stem);
+  page.openAllMore('modal');
+}
 
 test('the sheets: the levels and look stay live whatever the slot Highlight, which writes no numbers', () => {
   const page = bootGeneratedPage();
@@ -562,12 +576,15 @@ test('the sheets: the levels and look stay live whatever the slot Highlight, whi
   // The AQI levels live in the kind's alert sheet (the Alerts tab), which has no switch
   // (its Shows on grid places the alert); the slot's Alert highlighting switch lives in
   // the slot sheet.
-  page.openEditSheet('alertAqi');
+  openAlertSheet(page, 'Aqi');
   assert.equal(page.modal.innerHTML.indexOf('data-k="threshAqiOn"'), -1,
     'the alert sheet carries no highlight toggle');
+  assert.ok(page.modal.innerHTML.indexOf(cardTitle('Alert levels')) !== -1, 'the levels card renders');
   assert.ok(page.modal.innerHTML.indexOf('data-k="alertAqiDisplay"')
-    > page.modal.innerHTML.indexOf('<div class="subhdr grp"><span>Alert levels'),
+    > page.modal.innerHTML.indexOf(cardTitle('Alert levels')),
     'the alert\'s Look row follows the levels group (the owner\'s order, 2026-10-01)');
+  assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiWarnLook"') !== -1,
+    'the warn look renders (under the card\'s More options)');
   // The slider is LIVE on the seeds (default cfg is WAQI → US AQI), and so are the
   // warn look and colors: they style the alert icon whether or not the slot is
   // highlighted.
@@ -592,9 +609,8 @@ test('the sheets: the levels and look stay live whatever the slot Highlight, whi
     'readout chips carry the values');
   assert.ok(sheet.indexOf('data-max-edit="threshAqiMax"') !== -1,
     'AQI is unbounded → scale-max editor present');
-  assert.ok(sheet.indexOf('data-action="resetThresholds"') !== -1
-    && sheet.indexOf('data-action-arg="Aqi"') !== -1,
-    'the reset-to-defaults button rides the group sub-header');
+  assert.ok(/<span class="ttl">Alert levels<\/span><button type="button" class="lbl-act" data-action="resetThresholds" data-action-arg="Aqi"/
+    .test(sheet), 'the reset-to-defaults button rides the levels card\'s header');
 
   // The slot sheet's Highlight switch is its own stored state: neither ON nor OFF
   // touches the pair, which stays blank (= the seed for the AQI scale in effect).
@@ -607,9 +623,11 @@ test('the sheets: the levels and look stay live whatever the slot Highlight, whi
   assert.strictEqual(page.S.threshAqiOn, false, 'the stored toggle is off');
   assert.equal(page.S.threshAqiWarn, '', 'toggling off leaves the warn');
   assert.equal(page.S.threshAqiDanger, '', 'toggling off leaves the danger');
-  page.openEditSheet('alertAqi');
+  openAlertSheet(page, 'Aqi');
+  assert.ok(page.modal.innerHTML.indexOf('data-range="threshAqiWarn"') !== -1, 'the slider renders');
   assert.ok(!/class="row stack[^"]*\bdis\b/.test(page.modal.innerHTML),
     'the slider stays live with the highlight off');
+  assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiWarnLook"') !== -1, 'the warn look renders');
   assert.ok(!disabledRowWith(page.modal.innerHTML, 'threshAqiWarnLook'),
     'and so does the warn look');
 });
@@ -620,8 +638,9 @@ test('the goal sheet: the switch rides the Goals header and mutes the warn look 
   const page = bootGeneratedPage({ healthMode: 'status', statusHealthLeft: 'steps' });
   page.clickTab('watch');
   page.openEditSheet('threshSteps');
-  assert.ok(/<div class="subhdr grp"><span>Goals<\/span>[\s\S]*?data-k="threshStepsOn"/.test(page.modal.innerHTML),
-    'the switch rides the Goals sub-header');
+  // The Goals subheader opens a card of its own; the switch sits in that card's header.
+  assert.ok(/<div class="cardHdr"><span class="ttlwrap"><span class="ttl">Goals<\/span>(?:(?!<\/div>)[\s\S])*<button class="sw" data-k="threshStepsOn" data-toggle="1"/
+    .test(page.modal.innerHTML), 'the switch rides the Goals card header');
   assert.ok(disabledRowWith(page.modal.innerHTML, 'threshStepsWarnLook'),
     'the warn look is muted while the goals are off');
   page.clickModalToggle('threshStepsOn');
@@ -631,19 +650,26 @@ test('the goal sheet: the switch rides the Goals header and mutes the warn look 
 
 test('the page renders an alert sheet: its Shows on grid, the levels, then the Look, and no switch', () => {
   const page = bootGeneratedPage();
-  page.clickTab('alerts');
-  page.openEditSheet('alertUv');
+  openAlertSheet(page, 'Uv');
   const sheet = page.modal.innerHTML;
   assert.ok(sheet.indexOf('UV index alert') !== -1, 'the sheet carries its title');
   assert.equal(sheet.indexOf('data-k="alertUv"'), -1, 'no switch: its Shows on grid places the alert');
-  assert.equal(sheet.indexOf('<span>Alert</span>'), -1, 'and no Alert sub-header');
-  assert.ok(sheet.indexOf('Shows the UV icon at the edge of a status bar when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.') !== -1,
-    'with its intro');
-  const at = (frag) => sheet.indexOf(frag);
-  assert.ok(at('aria-label="Shows on"') < at('<div class="subhdr grp"><span>Alert levels'), 'the grid first');
-  assert.ok(at('<div class="subhdr grp"><span>Alert levels') < at('data-range="threshUvWarn"'), 'the levels header');
-  assert.ok(at('data-range="threshUvWarn"') < at('<div class="info-box">By default, warn sits at 6'), 'the slider');
-  assert.ok(at('<div class="info-box">By default, warn sits at 6') < at('data-k="alertUvDisplay"'), 'the card');
+  assert.equal(sheet.indexOf(cardTitle('Alert')), -1, 'and no Alert card');
+  assert.ok(sheet.indexOf('<div class="dlg-intro">Shows the UV icon at the edge of a status bar when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.</div>') !== -1,
+    'with its intro, in view');
+  const at = (frag) => {
+    const i = sheet.indexOf(frag);
+    assert.ok(i !== -1, frag + ' renders');
+    return i;
+  };
+  const card = '<div class="hint" data-hint-for="threshUvWarn">By default, warn sits at 6';
+  assert.ok(at(cardTitle('Shows on')) < at('aria-label="Shows on"'), 'the Shows on card');
+  assert.ok(at('aria-label="Shows on"') < at(cardTitle('Alert levels')), 'the grid first');
+  assert.ok(at(cardTitle('Alert levels')) < at('<div class="lbl">Warn · danger</div>'), 'the levels card');
+  // The card on the default levels is the slider's info text, in view under its label.
+  assert.ok(at('<div class="lbl">Warn · danger</div>') < at(card), 'the slider\'s label');
+  assert.ok(at(card) < at('data-range="threshUvWarn"'), 'the card, under it');
+  assert.ok(at('data-range="threshUvWarn"') < at('data-k="alertUvDisplay"'), 'the slider');
   assert.ok(at('data-k="alertUvDisplay"') < at('data-k="alertUvDays"'), 'then the Look');
   assert.ok(at('data-k="alertUvDays"') < at('data-k="threshUvWarnLook"'), 'then the Days');
   assert.ok(sheet.indexOf('data-range="threshUvWarn"') !== -1, 'the slider renders');
@@ -717,16 +743,14 @@ test('the warn look row: label, the selected look\'s hint, and the B&W wording',
 
   // Rendered: the colour watch opens on Fill with its hint; a B&W watch on Outline.
   const colour = bootGeneratedPage({ provider: 'dwd' });
-  colour.clickTab('watch');
-  colour.openEditSheet('alertUv');
+  openAlertSheet(colour, 'Uv');
   assert.ok(colour.modal.innerHTML.indexOf('<button class="on" data-k="threshUvWarnLook" data-v="fill">') !== -1,
     'colour watch: Fill selected by default');
   assert.ok(colour.modal.innerHTML.indexOf('data-hint-for="threshUvWarnLook">' + wind.hintByValue.fill + '<') !== -1,
     'with the Fill hint');
   assert.ok(colour.modal.innerHTML.indexOf('>Warn color<') !== -1, 'and the Warn color picker');
   const bw = bootGeneratedPage({ provider: 'dwd' }, 'diorite');
-  bw.clickTab('watch');
-  bw.openEditSheet('alertUv');
+  openAlertSheet(bw, 'Uv');
   assert.ok(bw.modal.innerHTML.indexOf('<button class="on" data-k="threshUvWarnLook" data-v="outline">') !== -1,
     'B&W watch: Outline selected by default');
   assert.ok(bw.modal.innerHTML.indexOf('data-hint-for="threshUvWarnLook">' + wind.hintFrom.args.copy.bw.outline + '<') !== -1,
@@ -744,7 +768,10 @@ test('the reset button blanks the pair, restores default colors, clears the scal
     threshWindWarnColor: '#00AAFF', threshWindDangerColor: '#5500FF',
     threshWindMax: '900'
   });
-  page.openEditSheet('threshWind');
+  // The reset rides the levels card's header in the kind's alert sheet (Alerts tab).
+  openAlertSheet(page, 'Wind');
+  assert.ok(/<span class="ttl">Alert levels<\/span><button type="button" class="lbl-act" data-action="resetThresholds" data-action-arg="Wind"/
+    .test(page.modal.innerHTML), 'the reset button renders on the levels card');
   const t = {
     getAttribute: n => (n === 'data-action' ? 'resetThresholds'
       : n === 'data-action-arg' ? 'Wind' : null),
@@ -818,11 +845,12 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
 
   const off = bootGeneratedPage();
   off.clickTab('watch');
-  // The status card's slot pencils only: the Alert settings card, on its own tab, badges the
-  // placed alerts' colours of its own (alertLevelBadge), and the bars' read-only Alerts rows
-  // carry no badge.
+  // The status bars' slot pencils only: the Alerts tab's Weather alerts card badges the
+  // placed alerts' colours of its own (alertLevelBadge), and the bars' Alerts rows (links
+  // to the Alerts tab) carry no badge.
   const statusCard = off.scroll.innerHTML;
-  assert.equal(statusCard.indexOf('Alert settings'), -1, 'the Alert settings card is not on this tab');
+  assert.equal(statusCard.indexOf(cardTitle('Weather alerts')), -1, 'the Weather alerts card is not on this tab');
+  assert.ok(statusCard.indexOf('data-goto-tab="alerts"') !== -1, 'the bars\' Alerts rows are');
   assert.ok(statusCard.indexOf('data-edit-sheet="threshAqi"') !== -1, 'the status card is in the slice');
   assert.equal(statusCard.indexOf('pen-dot'), -1,
     'no badge while every kind is disabled');
@@ -834,7 +862,7 @@ test('the stored toggle round-trips through hydrate, independent of its pair', (
     threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '100'
   });
   assert.strictEqual(on.S.threshAqiOn, true, 'a stored ON hydrates as ON');
-  on.clickTab('watch');
+  on.clickTab('alerts');
   on.openEditSheet('alertAqi');
   assert.ok(on.modal.innerHTML.indexOf('data-range="threshAqiWarn"') !== -1,
     'the slider renders immediately with the stored values');
@@ -1209,16 +1237,17 @@ test('closing the scale-max field rebuilds only its slider, so the tap that clos
 test('the real generated page: threshold pencils + sheet on basalt, nothing on aplite', () => {
   const aplite = bootGeneratedPage({ provider: 'dwd' }, 'aplite');
   aplite.clickTab('watch');
+  aplite.openAllMore('scroll');   // the master Bold row rides More options: look behind them too
   const apliteWatch = aplite.scroll.innerHTML;
   assert.equal(apliteWatch.indexOf('data-edit-sheet'), -1,
     'no threshold pencil on aplite (env.thresholds is false)');
   ['threshAqiOn', 'threshAqiWarn', 'threshWindOn', 'threshStepsOn',
     'threshAqiWarnColor', 'statusBoldAll'].forEach((k) =>
     assert.equal(apliteWatch.indexOf('data-k="' + k + '"'), -1, k + ' absent on aplite'));
-  // Time/Calendar moved to the Layout tab, so probe an always-shown
+  // Time/Calendar live in the Watchface tab, so probe an always-shown
   // Watch-Status-Bar toggle instead.
   assert.ok(apliteWatch.indexOf('data-k="showQt"') !== -1,
-    'the rest of the Status-slots tab still renders on aplite');
+    'the rest of the Status bars tab still renders on aplite');
 });
 
 // --- the slot sheet's shape: Bold row above its own thresholds/goals group ----
@@ -1278,18 +1307,25 @@ test('the master toggle moved off the sheet title row onto the group header', ()
   sheetSections().forEach(s => {
     assert.equal(s.headerToggleKey, undefined, s.sheetId + ' still has headerToggleKey');
   });
-  // Only the level kinds have a group header — in their levels sheet; the bold-only
-  // sheets carry no subheader at all (their single Bold row IS the sheet), and neither
-  // do the alert kinds' slot sheets (their levels live in the alert sheet). Only a
-  // GOAL kind's header carries the switch: a weather kind's is the slot sheet's
-  // Alert highlighting row, and its alert sheet has no switch at all.
+  // Only the level kinds have a levels group header — in their levels sheet; the
+  // bold-only sheets carry no subheader at all (their single Bold row IS the sheet), and
+  // the alert kinds' slot sheets carry no levels group (their levels live in the alert
+  // sheet). Only a GOAL kind's header carries the switch: a weather kind's is the slot
+  // sheet's Alert highlighting row, and its alert sheet has no switch at all.
   STEMS.forEach(stem => {
     assert.equal(headerFor(stem).toggleKey,
       ALERT_STEMS.includes(stem) ? undefined : 'thresh' + stem + 'On', stem);
   });
   ALERT_STEMS.forEach(stem => {
-    assert.ok(!sheetFor(stem).items.some(it => it.type === 'subheader'),
+    const items = sheetFor(stem).items;
+    assert.ok(!items.some(it => it.type === 'subheader' && (it.text === 'Alert levels' || it.text === 'Goals')),
       stem + ' slot sheet carries no levels group');
+    assert.ok(!items.some(it => it.type === 'range'), stem + ' slot sheet carries no levels slider');
+    // Its one header is the highlight group's, and that header hosts no switch: the
+    // Alert highlighting toggle is a row of its own under it.
+    const headers = items.filter(it => it.type === 'subheader');
+    assert.deepEqual(headers, [{ type: 'subheader', text: 'Alert highlighting' }],
+      stem + ' slot sheet: only the highlight group\'s header, no switch on it');
   });
 });
 
@@ -1326,8 +1362,14 @@ test('the slider no longer carries the group title or the reset action', () => {
   STEMS.forEach(stem => {
     const range = levelsSheetFor(stem).items.find(it => it.type === 'range');
     assert.equal(range.labelAction, undefined, stem + ' slider still has the reset button');
-    assert.ok(!range.label, stem + ' slider still has a label duplicating the header');
+    // Its label names the slider's two values (the chips' words), never the group title
+    // its card header already shows.
+    assert.notEqual(range.label, headerFor(stem).text, stem + ' slider has a label duplicating the header');
+    const chips = range.rangeFrom.args.chips;
+    assert.equal(range.label, chips.warn + ' · ' + chips.danger.toLowerCase(), stem + ' slider label');
   });
+  assert.equal(levelsSheetFor('Wind').items.find(it => it.type === 'range').label, 'Warn · danger');
+  assert.equal(levelsSheetFor('Steps').items.find(it => it.type === 'range').label, 'Close · goal');
 });
 
 test('the intro describes the group, so it hangs off the header, not the sheet', () => {
@@ -1362,26 +1404,32 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     assert.ok(items.indexOf(boldFor(stem)) < items.indexOf(headerFor(stem)),
       stem + ' bold row is not above the group header');
   });
-  // An alert kind's slot sheet ends on its highlight group, no header, rows joined:
-  // the Alert highlighting switch (a divider above it), the pointer to its alert sheet
-  // on the Alerts tab instead of the levels (tight), then Bold (loose), last.
+  // An alert kind's slot sheet closes its own rows with Bold, then its highlight group
+  // follows as a card of its own: the 'Alert highlighting' header, the switch, then a
+  // row leading to the kind's alert sheet on the Alerts tab, where its levels and
+  // colours are set (it replaced the info box that pointed there).
   ALERT_STEMS.forEach(stem => {
     const items = sheetFor(stem).items;
     const n = items.length;
-    assert.deepEqual(items[n - 3], {
+    assert.equal(items[n - 4], boldFor(stem), stem + ' Bold closes the slot\'s own rows');
+    assert.equal(boldFor(stem).joinPrevious, undefined, stem + ' Bold is a row of its own');
+    assert.deepEqual(items[n - 3], { type: 'subheader', text: 'Alert highlighting' },
+      stem + ' the highlight group opens its own card');
+    assert.deepEqual(items[n - 2], {
       type: 'toggle', messageKey: 'thresh' + stem + 'On', label: 'Alert highlighting',
       hintByValue: {
         true: 'Fills this slot from the danger level on and draws the warn look from warn.'
       },
       defaultValue: false
-    }, stem + ' the highlight group opens on its switch');
-    assert.deepEqual(items[n - 2], {
-      type: 'staticText', style: 'info', joinPrevious: true,
-      text: 'Alert levels and colors are set in the <button type="button" class="txt-link"'
-        + ' data-goto-tab="alerts">Alerts tab</button>, under Weather alerts.'
-    }, stem + ' the pointer (a link to the Alerts tab) hugs the switch');
-    assert.equal(items[n - 1], boldFor(stem), stem + ' Bold closes the sheet');
-    assert.equal(boldFor(stem).joinPrevious, 'loose', stem + ' Bold joins the group without a divider');
+    }, stem + ' the highlight group leads with its switch');
+    const alertDays = levelsSheetFor(stem).items.find(it => it.messageKey === 'alert' + stem + 'Days');
+    assert.deepEqual(items[n - 1], {
+      type: 'sheet', sheetId: 'alert' + stem, label: 'Alert levels and colors', navNote: 'Alerts',
+      hintFrom: { resolver: 'alertLevelsHint',
+        args: { keyStem: stem, days: alertDays.options, levelsOnly: true } },
+      showWhen: { env: 'onDemand' }
+    }, stem + ' then the row into its alert sheet (Alerts tab), summarising the levels');
+    assert.equal(levelsSheetId(stem), items[n - 1].sheetId, stem + ': the row leads to the levels sheet');
   });
   STEMS.forEach(stem => {
     const bold = boldFor(stem);
@@ -1389,7 +1437,7 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     assert.equal(bold.label, 'Bold');
     assert.equal(bold.defaultValue, 'warn');
     // The row must stay live while the kind's thresholds are off (Always needs
-    // none) — its only mute is the Watch-tab master row's override.
+    // none) — its only mute is the Status bars tab's master row's override.
     assert.deepEqual(bold.disabledWhen, { key: 'statusBoldAll', eq: 'all' },
       stem + ' bold row must mute only under the master Bold values row');
   });
@@ -1616,17 +1664,21 @@ const BOLD_SHEET_EXTRA_ROWS = {
   Date: ['dateSlotMonthFormat', 'dateSlotFullFormat']
 };
 
-// Bold is the last row before any Goals group on EVERY slot sheet — the bold-only
-// ones, where it follows the kind's extras, the alert kinds', where it closes the
-// highlight group, and the goal ones, where it sits right above the Goals subheader.
-// Asserted across all of them at once rather than per kind, so a sheet added later
+// Bold is the last row before any group card on EVERY slot sheet — the bold-only
+// ones, where it follows the kind's extras, the alert kinds', where it sits right above
+// the Alert highlighting card, and the goal ones, where it sits right above the Goals
+// card. Asserted across all of them at once rather than per kind, so a sheet added later
 // cannot quietly become an exception.
-test('Bold is the last row before any Goals group on every slot sheet', () => {
+test('Bold is the last row before any Goals or Alert highlighting group on every slot sheet', () => {
   const sheets = sheetSections();
   assert.ok(sheets.length >= 17, 'found ' + sheets.length + ' slot sheets');
   sheets.forEach((s) => {
-    const goals = s.items.findIndex(it => it.type === 'subheader' && it.text === 'Goals');
-    const end = goals === -1 ? s.items.length : goals;
+    const group = s.items.findIndex(it => it.type === 'subheader');
+    if (group !== -1) {
+      assert.ok(['Goals', 'Alert highlighting'].includes(s.items[group].text),
+        s.title + ': the only group a slot sheet opens is its Goals or Alert highlighting card');
+    }
+    const end = group === -1 ? s.items.length : group;
     const last = s.items[end - 1];
     assert.ok(last, s.title + ' has no rows');
     assert.match(String(last.messageKey), /BoldMode$/,
@@ -1663,9 +1715,9 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     assert.deepEqual(s.showWhen, { env: 'onDemand' }, s.sheetId + ': gated to a watch with On demand');
     // AQI's look-ahead — later today and tomorrow — depends on its source (WAQI has no
     // forecast): its intro closes on the note the slot sheet carries too (settings
-    // audit #10), in the General tab's labels.
+    // audit #10), naming where the AQI provider is picked (Setup › Weather data).
     const coda = stem === 'Aqi' ? ' Looking ahead — later today and tomorrow — needs the Open-Meteo AQI'
-      + ' provider (General tab): WAQI, which Auto mostly reads, has no forecast, so the alert then judges'
+      + ' provider (Setup › Weather data): WAQI, which Auto mostly reads, has no forecast, so the alert then judges'
       + ' the current reading.' : '';
     assert.equal(s.intro, 'Shows the ' + ICON[stem] + ' icon at the edge of a status bar when '
       + SUBJECT[stem] + ' reaches your warn level at any point left today, so an afternoon peak shows'
@@ -1684,8 +1736,10 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     }, {
       // Days: "Today + tomorrow" by default (the contract's alertDays on an absent
       // key); only it explains itself — Today is what the intro already says.
+      // It is rarely changed, so it waits under the card's More options.
       type: 'segmented', messageKey: key + 'Days', label: 'Days', defaultValue: 'tomorrow',
       options: [['Today', 'today'], ['Today + tomorrow', 'tomorrow']],
+      more: true,
       hintByValue: {
         tomorrow: 'When nothing left today reaches your warn level but tomorrow does, the alert is active'
           + ' for tomorrow and its icon carries its Tomorrow’s mark.'
@@ -1697,14 +1751,24 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
       options: MARKS,
       hintByValue: { none: 'An alert for tomorrow then looks just like one for today.' },
       joinPrevious: true,
+      more: true,
       showWhen: { key: key + 'Days', ne: 'today' }
     }], s.sheetId + ': the Look, the Days and the mark, never inert');
     assert.ok(!s.items.some(it => it.messageKey === key), s.sheetId + ': no switch (its Shows on grid places it)');
     // The owner's order (2026-10-01): the Shows on grid and its note first, then the alert
-    // levels, the info card, the Look, then everything else.
-    assert.equal(s.items[0].check, stem.toLowerCase(), s.sheetId + ': the Shows on grid first');
-    assert.equal(s.items[1].joinPrevious, true, s.sheetId + ': its note, tight');
-    const head = s.items[2];
+    // levels, the info card, the Look, then everything else. The grid opens its own
+    // 'Shows on' card, the note its intro (where items drop first, and how the alert
+    // merges into a slot showing the same value), and the Default view's warning follows it.
+    assert.deepEqual(s.items[0], { type: 'subheader', text: 'Shows on',
+      intro: 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.'
+        + ' Where the status slot on that side shows ' + SUBJECT[stem] + ', the alert goes into that slot,'
+        + ' with its colors, instead of adding its alert icon.' }, s.sheetId + ': the Shows on card, its note as intro');
+    assert.equal(s.items[1].check, stem.toLowerCase(), s.sheetId + ': the Shows on grid first');
+    assert.equal(s.items[1].captionsOnly, true, s.sheetId + ': its header row shows the column captions only');
+    assert.equal(s.items[2].type, 'staticText', s.sheetId + ': then the Default view note');
+    assert.equal(s.items[2].text, 'Your Default view has no Watch Status Bar. Tick another bar below.');
+    assert.ok(s.items[2].showWhen, s.sheetId + ': only while that view has no On demand bar');
+    const head = s.items[3];
     assert.equal(head.type, 'subheader', s.sheetId + ': the levels group follows');
     assert.equal(head.text, 'Alert levels');
     assert.equal(head.toggleKey, undefined, s.sheetId + ': the levels header has no switch');
@@ -1721,29 +1785,34 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     });
     assert.ok(!s.items.some(it => it.messageKey === 'thresh' + stem + 'On'),
       s.sheetId + ': the slot Highlight is not in this sheet');
-    // The cards on the default levels follow the slider, one per unit or AQI scale
-    // (test/config-alert-level-cards.test.js holds their numbers and gates).
+    // The cards on the default levels ride the slider's info text, one per unit or AQI
+    // scale (test/config-alert-level-cards.test.js holds their numbers and gates).
     const CARDS = { Gust: 3, Wind: 3, Aqi: 2, Uv: 1, Pollen: 1 };
     const at = s.items.indexOf(range);
-    assert.ok(s.items.slice(at + 1, at + 1 + CARDS[stem]).every(it => it.type === 'staticText'
-      && it.style === 'info' && !it.joinPrevious), s.sheetId + ': the level cards stand off after the slider');
-    assert.equal(at, 3, s.sheetId + ': the slider right under the levels header');
-    assert.equal(s.items[at + 1 + CARDS[stem]].type, 'hidden', s.sheetId + ': then the hidden companions');
-    assert.equal(s.items[at + 2 + CARDS[stem]].type, 'hidden');
-    assert.equal(lookAt, at + 3 + CARDS[stem], s.sheetId + ': then the Look, Days and mark');
+    assert.equal(range.hintFrom.resolver, 'levelInfo', s.sheetId + ': the slider\'s info text carries the cards');
+    assert.equal(range.hintFrom.args.cards.length, CARDS[stem], s.sheetId + ': one card per unit or scale');
+    assert.ok(!s.items.some(it => it.type === 'staticText' && it.style === 'info'
+      && range.hintFrom.args.cards.some(c => c.text === it.text)), s.sheetId + ': no card stands as a row of its own');
+    assert.equal(at, 4, s.sheetId + ': the slider right under the levels header');
+    assert.equal(s.items[at + 1].type, 'hidden', s.sheetId + ': then the hidden companions');
+    assert.equal(s.items[at + 2].type, 'hidden');
+    assert.equal(lookAt, at + 3, s.sheetId + ': then the Look, Days and mark');
+    assert.equal(s.items[lookAt].more, undefined, s.sheetId + ': the Look stays in view');
     assert.deepEqual(s.items.slice(lookAt + 3).map(it => it.messageKey),
       ['thresh' + stem + 'WarnLook', 'thresh' + stem + 'WarnColor', 'thresh' + stem + 'DangerColor'],
       s.sheetId + ': the warn look and its colours close it');
     assert.equal(s.items[lookAt + 3].joinPrevious, undefined, s.sheetId + ': the warn look starts its own group');
-    assert.equal(s.items.length, 2 + 1 + 1 + CARDS[stem] + 2 + 3 + 3,
-      s.sheetId + ': grid + note, header, slider, the cards, two companions, Look/Days/mark, the look rows');
+    s.items.slice(lookAt + 3).forEach(it => assert.strictEqual(it.more, true,
+      s.sheetId + ': ' + it.messageKey + ' waits under More options'));
+    assert.equal(s.items.length, 3 + 1 + 1 + 2 + 3 + 3,
+      s.sheetId + ': Shows on header + grid + note, levels header, slider, two companions, Look/Days/mark, the look rows');
   });
   assert.equal(itemsByKey().threshPollenWarn[0].hint,
     'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.',
     'Pollen\'s scale note rides its slider in the alert sheet');
 });
 
-test('the rain alert sheet: the Shows on grid and note, the radar-off box, the look, then the time window — no switch', () => {
+test('the rain alert sheet: the Shows on card (note, radar-off and not-placed boxes, grid), then the time window and the look — no switch', () => {
   const s = alertSheets().find(x => x.sheetId === 'alertRain');
   assert.ok(s, 'the rain sheet exists');
   assert.equal(s.title, 'Rain alert');
@@ -1755,21 +1824,38 @@ test('the rain alert sheet: the Shows on grid and note, the radar-off box, the l
     + ' or rain is due within the time window. On a color watch the rain icon takes the radar’s rain color,'
     + ' except with a B&W theme. Hidden during the Battery saver hours.');
   assert.ok(!s.items.some(it => it.messageKey === 'alertRain'), 'no switch: its Shows on grid places Rain');
-  // The grid and its note (rain never merges into a slot), then the box while the radar is
-  // off: under the note, not above the grid (alerts-tab.md §11.6).
-  assert.equal(s.items[0].check, 'rain');
-  assert.equal(s.items[1].text, 'One side per bar. On a crowded bar, the items lower in the Alert settings list'
-    + ' drop first.');
-  assert.deepEqual(s.items[2], { type: 'staticText', style: 'info',
-    text: 'The rain alert needs the rain radar. Turn it on in the Radar tab.', showWhen: { key: 'radarMode', eq: 'off' } });
-  assert.deepEqual(s.items[4], {
+  // The Shows on card: its note as the card's intro (rain never merges into a slot, so no
+  // merge sentence), then the boxes — the radar is off (a link to where it is turned on),
+  // or Rain sits on no bar — then the grid they point at, then the Default view's warning.
+  assert.deepEqual(s.items[0], { type: 'subheader', text: 'Shows on',
+    intro: 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.' });
+  assert.deepEqual(s.items[1], { type: 'staticText', style: 'info',
+    text: 'The rain alert needs the rain radar. Turn it on in <button type="button" class="txt-link"'
+      + ' data-goto-tab="watchface">Watchface › Views</button>.',
+    showWhen: { key: 'radarMode', eq: 'off' } });
+  assert.equal(s.items[2].text, 'Rain isn’t on any status bar yet, so the rain icon won’t show. Tick a side below.');
+  const OD = require('../src/pkjs/on-demand.js');
+  const odEnv = { onDemand: true, radar: true, health: true };
+  const notPlaced = (od) => PC.showWhen.evaluate(s.items[2].showWhen,
+    Object.assign({ env: odEnv }, OD.DEFAULTS, od));
+  assert.equal(notPlaced({ radarMode: 'countdown' }), false, 'hidden while Rain is on a bar (the default)');
+  assert.equal(notPlaced({ radarMode: 'countdown', statusTopOnDemandLeftItems: 'bt' }), true,
+    'shown once Rain is on no bar');
+  assert.equal(notPlaced({ radarMode: 'off', statusTopOnDemandLeftItems: 'bt' }), false,
+    'never doubled with the radar-off box');
+  assert.equal(s.items[3].check, 'rain', 'then the grid');
+  assert.equal(s.items[3].captionsOnly, true);
+  assert.equal(s.items[4].text, 'Your Default view has no Watch Status Bar. Tick another bar below.');
+  // Then the Alert card: rain's own row first, then its Look (the owner's order since
+  // the restructure; it was the Look first).
+  assert.deepEqual(s.items[5], { type: 'subheader', text: 'Alert' });
+  assert.deepEqual(s.items[6], {
     type: 'segmented', messageKey: 'rainCountdownHorizon', label: 'Time window', defaultValue: '60',
     options: [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']],
     hint: 'Rain due further out doesn’t show the icon. Radar forecasts change often, so a shorter window'
       + ' gives fewer false alarms.'
   });
-  // The owner's order (2026-10-01): the Look before rain's own row.
-  assert.deepEqual(s.items[3], {
+  assert.deepEqual(s.items[7], {
     type: 'segmented', messageKey: 'rainAlertDisplay', label: 'Look', defaultValue: 'text',
     options: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']],
     // The icon alone describes itself; the two longer looks say what they print and
@@ -1785,7 +1871,7 @@ test('the rain alert sheet: the Shows on grid and note, the radar-off box, the l
         + ' then does it shorten to the minutes, then to the rain icon alone.'
     }
   });
-  assert.equal(s.items.length, 5);
+  assert.equal(s.items.length, 8);
 });
 
 test('alert sheets carry no slot rows (Bold, display mode, arrow, unit)', () => {
@@ -1905,7 +1991,7 @@ test('the Temp sheet leads with its Value selection, and Bold closes it', () => 
   // One hint per SELECTED mode; the measured temperature (the default) needs none.
   assert.equal(disp.hint, undefined, 'no all-options hint');
   assert.equal(disp.hintByValue.actual, undefined, 'the default mode has no hint');
-  assert.equal(disp.hintByValue.feels, 'What it feels like, by the formula set under General → Units.');
+  assert.equal(disp.hintByValue.feels, 'What it feels like, by the formula set under Setup › Units.');
   // Both shows the pair on the default separator and names the rows that shape it.
   assert.equal(disp.hintByValue.both,
     'The temperature and what it feels like, like 12|10. Order and Separator shape the pair.');
@@ -1917,7 +2003,7 @@ test('the Temp sheet leads with its Value selection, and Bold closes it', () => 
   assert.equal(disp.disabledWhen, undefined);
 });
 
-test('the UV sheet: the Value selection group, then the highlight group closed by Bold', () => {
+test('the UV sheet: the Value selection group, Bold, then the highlight group', () => {
   const items = sheetFor('Uv').items;
   const disp = items[0];
   assert.equal(disp.messageKey, 'uvSlotDisplay', 'Value selection leads the sheet');
@@ -1932,18 +2018,22 @@ test('the UV sheet: the Value selection group, then the highlight group closed b
   assert.deepEqual(Object.keys(disp.hintByValue).sort(), ['both', 'max']);
   // It configures the SLOT, not the highlight, so it leads the sheet like the wind
   // arrow — and stays live while the highlight is off. So do the rows shaping how it
-  // reads (test/config-slot-pair.test.js), which follow it directly, then the mark.
+  // reads (test/config-slot-pair.test.js), which follow it directly, then the mark; Bold
+  // closes the slot's own rows, and the highlight group follows as a card of its own.
   assert.deepEqual(items.map(it => it.messageKey || it.type),
     ['uvSlotDisplay', 'uvSlotOrder', 'uvSlotSeparator', 'uvSlotSeparatorCustom',
-      'uvSlotSeparatorSpaced', 'uvSlotNextDayMark', 'threshUvOn', 'staticText', 'threshUvBoldMode'],
-    'Value selection → Order → separator rows → Tomorrow\'s peak mark, then the highlight group');
+      'uvSlotSeparatorSpaced', 'uvSlotNextDayMark', 'threshUvBoldMode', 'subheader', 'threshUvOn', 'sheet'],
+    'Value selection → Order → separator rows → Tomorrow\'s peak mark → Bold, then the highlight group');
   ['uvSlotOrder', 'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced',
     'uvSlotNextDayMark'].forEach((key) => {
-    assert.strictEqual(items.find(it => it.messageKey === key).joinPrevious, true,
-      key + ' joins the group tight');
+    const row = items.find(it => it.messageKey === key);
+    assert.strictEqual(row.joinPrevious, true, key + ' joins the group tight');
+    assert.strictEqual(row.more, true, key + ' waits under More options');
   });
-  assert.equal(items[6].joinPrevious, undefined, 'the highlight group keeps its divider above');
-  assert.equal(items[7].style, 'info', 'the pointer to the Alerts tab follows the switch');
+  assert.equal(items[6].joinPrevious, undefined, 'Bold keeps its divider above');
+  assert.equal(items[7].text, 'Alert highlighting', 'the highlight group opens its own card');
+  assert.equal(items[8].joinPrevious, undefined, 'its switch leads it');
+  assert.equal(items[9].sheetId, 'alertUv', 'the row into the alert sheet (Alerts tab) follows the switch');
   assert.equal(disp.disabledWhen, undefined, 'not muted by the highlight toggle or the master Bold row');
   // Tomorrow's peak mark explains its one value that needs it.
   assert.deepEqual(items[5].hintByValue, { none: 'Tomorrow\'s peak then looks just like today\'s.' });
@@ -2107,7 +2197,7 @@ test('bold-only BoldMode keys hydrate their default and ride the save blob', () 
     'uvSlotDisplay must survive hydrate → serialize');
 });
 
-// --- the Watch-tab master Bold row (statusBoldAll) ---------------------------
+// --- the Status bars tab's master Bold row (statusBoldAll) --------------------
 // A settings-store key only — it has no AppMessage key of its own: 'all'
 // overrides the PACKED bold cell of every kind at blob-build time
 // (status-wire.js buildSettingsBlob), the stored per-kind modes stay
@@ -2116,21 +2206,26 @@ test('bold-only BoldMode keys hydrate their default and ride the save blob', () 
 
 test('the master Bold values row leads the slot selects, thresholds-gated', () => {
   const watch = schema.tabs.find(t => t.id === 'watch');
-  // The master governs EVERY bar, so it lives in the watchStatus card's
-  // title-less intro section — ABOVE the per-bar sub-headers ("Forecast
-  // Status Bar", ...), not inside the first bar's own group.
-  const sections = watch.sections.filter(s => s.groupCard === 'watchStatus');
+  // The master governs EVERY bar, so it lives in the Status bars tab's first card, 'All
+  // status bars' — ABOVE the per-bar cards ("Watch Status Bar", "Forecast Status Bar",
+  // ...), not inside the first bar's own card.
+  const sections = watch.sections.filter(s => !s.sheetOnly);
   const masterIdx = sections.findIndex(s =>
     (s.items || []).some(it => it.messageKey === 'statusBoldAll'));
   const slotsIdx = sections.findIndex(s =>
-    (s.items || []).some(it => it.messageKey === 'statusForecastLeft'));
-  assert.ok(masterIdx !== -1, 'master row exists in the watchStatus card');
+    (s.items || []).some(it => it.messageKey === 'statusTopLeft'));
+  assert.ok(masterIdx !== -1, 'master row exists in the Status bars tab');
+  assert.equal(masterIdx, 0, 'in its first card');
   assert.ok(masterIdx < slotsIdx,
-    'master row renders above the first status-bar group');
-  assert.equal(sections[masterIdx].title, undefined,
-    'master row lives in the title-less intro section, not under a bar header');
+    'master row renders above the first status-bar card');
+  assert.equal(sections[masterIdx].id, 'statusAll');
+  assert.equal(sections[masterIdx].title, 'All status bars',
+    'master row lives in the card for every bar, not under a bar header');
+  assert.ok(!sections[masterIdx].items.some(it => /^status(Top|Forecast|Health|Radar)(Left|Mid|Right)$/
+    .test(String(it.messageKey))), 'a card that holds no bar\'s slots');
   const master = sections[masterIdx].items
     .find(it => it.messageKey === 'statusBoldAll');
+  assert.strictEqual(master.more, true, 'rarely changed: it waits under the card\'s More options');
   assert.equal(master.type, 'segmented');
   assert.equal(master.label, 'Bold values');
   assert.equal(master.defaultValue, 'perSlot');
@@ -2170,7 +2265,7 @@ test('the sheets gray their Bold row out while the master is "all"', () => {
   const page = bootGeneratedPage({ provider: 'dwd', statusBoldAll: 'all' });
   page.clickTab('watch');
   assert.ok(page.scroll.innerHTML.indexOf('data-k="statusBoldAll"') !== -1,
-    'the master row renders in the Watch tab');
+    'the master row renders in the Status bars tab (its non-default value opens More options)');
   page.openEditSheet('threshAqi');
   assert.match(rowClassFor(page.modal.innerHTML, 'threshAqiBoldMode'), /\bdis\b/,
     'the sheet Bold row is muted under the master override');
@@ -2195,7 +2290,7 @@ test('the generated page renders the Temp display pills and the battery-% sheet'
 });
 
 // --- the status-card reset button (blocks.js resetStatusSlots) ---------------
-// One text button in the Watch tab's intro puts every slot of every bar back to
+// One link row in the Status bars tab's 'All status bars' card puts every slot of every bar back to
 // its platform-aware default and the bold settings back to their shipped
 // defaults. Thresholds, colors, outlines, and scale maxes stay put — each sheet
 // carries its own reset for those.
@@ -2323,15 +2418,17 @@ test('resetOnDemand reverts the items\' settings and where each shows — not th
     assert.equal(S['status' + bar + 'OnDemand' + side + 'Items'], '', bar + side + ': empty again')));
 });
 
-test('the intro reset button resets a live page (slots + bold) on click', () => {
+test('the All status bars reset link resets a live page (slots + bold) on click', () => {
   const page = bootGeneratedPage({
     provider: 'dwd',
     statusForecastLeft: 'uv', statusTopMid: 'week', statusHealthRight: 'steps',
     statusBoldAll: 'all', threshCityBoldMode: 'always', threshWindBoldMode: 'off'
   });
   page.clickTab('watch');
-  assert.ok(page.scroll.innerHTML.indexOf('data-action="resetStatusSlots"') !== -1,
-    'the Watch-tab intro renders the reset button');
+  assert.ok(/<div class="row linkrow[^"]*"><button type="button" class="txt-link" data-action="resetStatusSlots">Reset status bars to defaults<\/button><\/div>/
+    .test(page.scroll.innerHTML), 'the All status bars card renders the reset link');
+  assert.ok(page.scroll.innerHTML.indexOf('data-action="resetStatusSlots"')
+    > page.scroll.innerHTML.indexOf(cardTitle('All status bars')), 'inside that card');
   const t = {
     getAttribute: n => (n === 'data-action' ? 'resetStatusSlots' : null),
     closest: sel => (sel === '[data-action]' ? t : null)
