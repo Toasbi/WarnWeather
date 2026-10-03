@@ -668,9 +668,12 @@ shown value, then `hint`; an empty string is honoured as "no hint here".
 One commit skips the render on purpose: an arrow-key nudge on a range thumb paints the slider in
 place so the thumb keeps focus (range-control.js). So a derived hint is re-resolved in place
 after it instead — `renderRow` marks every derived hint element with `data-hint-for="<messageKey>"`,
-and the engine rewrites just that element's markup, replacing no node. WarnWeather's day-max
-hints (`dayMaxHint`) rely on it: they quote the warn level the slider below them sets. A hint
-that rendered empty (no element) and the row's wrap layout wait for the next full render.
+and the engine rewrites just that element's markup, replacing no node. No WarnWeather hint
+relies on it today: the hints that quote a slider's value (the Alerts card's `alertLevelsHint`,
+the Battery row's `onDemandBatteryText`) sit on keyless rows outside the sheet and refresh on the
+render that closes it. The library keeps it for a hint that reads a slider in its own sheet
+(`test/hint-resolver.test.js` pins it). A hint that rendered empty (no element) and the row's
+wrap layout wait for the next full render.
 
 ### Attention-resolver registry — PConf.attentionResolvers
 

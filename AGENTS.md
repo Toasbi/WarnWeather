@@ -136,10 +136,10 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   the holiday mask — belong in `sendClaySettings` (`outbox.sendClay`). The weather payload
   carries only forecast/status/sun/radar/sleep. (The rain-bar/radar palette rides the Clay
   message as of v1.4, and the forecast line styling — `CLAY_LINE_STYLE_UINT8` — joined it
-  later; `weather/graph-wire.js` packs both from `line-style.js`' and `draw-from.js`'
-  readings, and `clay-payload.js` sends them alongside the other settings. Colours pack as single `GColor8` argb bytes, not int32 hex: an array
-  tuple costs 7 B + N, a scalar costs 7 B + 4, so packing several into one array is the
-  cheap shape.)
+  later; `weather/graph-wire.js` packs both from `rain-tier.js`', `line-style.js`' and
+  `draw-from.js`' readings, and `clay-payload.js` sends them alongside the other settings.
+  Colours pack as single `GColor8` argb bytes, not int32 hex: an array tuple costs 7 B + N,
+  a scalar costs 7 B + 4, so packing several into one array is the cheap shape.)
 - **A new telemetry setting must be added in two places or it's silently dropped:** the
   watch-side snapshot in `src/pkjs/telemetry.js` AND the Deno `.strip()` schema in
   `supabase/functions/telemetry-ingest/handler.ts`.

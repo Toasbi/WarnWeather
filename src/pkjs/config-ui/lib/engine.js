@@ -2316,7 +2316,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * only the hint element's markup changes, no node around it is replaced. For a commit
      * that deliberately skips render(): a keyboard nudge on a range thumb (range-control.js)
      * must keep focus on the thumb, yet a hint elsewhere in the sheet may read the value it
-     * just wrote (e.g. a day-max kind's hint quoting its warn level). Each hint is found by
+     * just wrote (e.g. a hint quoting the level a slider in its sheet sets). Each hint is found by
      * its data-hint-for key (renderRow marks derived hints only) and resolved the way
      * renderItem does — the resolver's answer, else the static hintByValue/hint for the
      * stored value. A hint that rendered empty has no element to find and waits for the

@@ -777,7 +777,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // the thumb the user is arrowing — so it paints the move in place instead, same
       // as a drag frame. A drag's release renders once and so refreshes every row that
       // reads the value; a nudge has no release, so after its commit the derived hints
-      // (hintFrom — e.g. a day-max hint quoting the warn level) are re-resolved in place
+      // (hintFrom — e.g. a hint quoting the value just set) are re-resolved in place
       // too, with the same no-replaced-node discipline. (Enter in the inline scale-max
       // field commits via blur → focusout, that field's single commit path.)
       host.addEventListener('keydown', function (e) {
