@@ -222,7 +222,7 @@ test('the UV tomorrow mark is a dropdown whose default is the » the slot always
 
 test('the new rows carry no onChange hook and never mute', () => {
   // The formatter sanitises the custom text authoritatively, and nothing here couples
-  // to another key the way Both couples to the degree (tempUnitExclusive).
+  // to another key.
   ['tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced', 'tempSlotOrder',
     'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced', 'uvSlotOrder',
     'uvSlotNextDayMark'].forEach((key) => {
@@ -452,7 +452,7 @@ test('the separator dropdown opens inside the sheet and a Custom pick reveals th
   assert.equal(page.S.tempSlotSeparator, 'custom', 'the stored pick survives');
 });
 
-test('picking Both still clears the degree, and the pair rows leave the degree alone', () => {
+test('Both and the degree sign are independent: neither pick moves the other', () => {
   const page = openSheet({ tempSlotDisplay: 'actual', tempSlotUnit: true }, 'threshTemp');
   const node = (attrs) => {
     const n = {
@@ -462,11 +462,15 @@ test('picking Both still clears the degree, and the pair rows leave the degree a
     return n;
   };
   page.modal.dispatch('click', { target: node({ 'data-k': 'tempSlotDisplay', 'data-v': 'both' }) });
-  assert.equal(page.S.tempSlotUnit, false, 'Both clears the degree (tempUnitExclusive)');
+  assert.equal(page.S.tempSlotDisplay, 'both');
+  assert.equal(page.S.tempSlotUnit, true, 'picking Both keeps the degree');
   page.modal.dispatch('click', { target: node({ 'data-k': 'tempSlotOrder', 'data-v': 'feels' }) });
   assert.equal(page.S.tempSlotOrder, 'feels');
   assert.equal(page.S.tempSlotDisplay, 'both', 'the order pick does not leave Both');
-  assert.equal(page.S.tempSlotUnit, false);
+  assert.equal(page.S.tempSlotUnit, true);
+  ['tempSlotDisplay', 'tempSlotUnit'].forEach((key) => {
+    assert.equal(item(key).onChange, undefined, key + ' carries no coupling hook');
+  });
 });
 
 test('Reset status bars puts every pair row and the tomorrow mark back to its default', () => {

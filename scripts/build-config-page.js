@@ -103,7 +103,17 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/preview-radar.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-diagnostics.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-layout.js'),
-  // The Status bars tab's pinned preview (reads StatusLineCatalog and OnDemand).
+  // The slot-text chain the watch-runtime bake prints every phone-baked slot through
+  // (window.Utf8 -> window.StatusPair -> window.SlotText, each reading the ones before
+  // it, and StatusLineCatalog, at IIFE time) and the date slot's formats
+  // (window.DateFormat), so the Status bars tab's preview prints its samples exactly
+  // as the watch prints the real readings.
+  path.join(ROOT, 'src/pkjs/utf8.js'),
+  path.join(ROOT, 'src/pkjs/status-pair.js'),
+  path.join(ROOT, 'src/pkjs/slot-text.js'),
+  path.join(ROOT, 'src/pkjs/date-format.js'),
+  // The Status bars tab's pinned preview (reads StatusLineCatalog, OnDemand, VIEW_CYCLE,
+  // PreviewSvg, the slot-text chain above, and preview-layout.js' view cycle at render).
   path.join(ROOT, 'src/pkjs/settings/preview-status-bars.js'),
   // The Graphs tab's Health pane preview (reads PreviewSvg and ResolveInk).
   path.join(ROOT, 'src/pkjs/settings/preview-health.js'),

@@ -382,7 +382,9 @@ test('every preview block reaches the generated settings page', () => {
 // bars tab would lose its pinned preview (an unregistered block renders nothing), and the
 // Watchface tab's Night hours would open on undefined and write nothing, while every Node
 // test still passes through require(). preview-status-bars.js reads window.StatusLineCatalog,
-// window.OnDemand and window.PreviewSvg at IIFE time, so it must follow all three.
+// window.OnDemand, window.PreviewSvg, VIEW_CYCLE and the slot-text chain (window.Utf8,
+// window.StatusPair, window.SlotText — each reading the ones before it — and
+// window.DateFormat) at IIFE time, so it must follow all of them.
 test('the Status bars preview and the Night hours reach the page, in dependency order', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
@@ -394,6 +396,12 @@ test('the Status bars preview and the Night hours reach the page, in dependency 
   assert.ok(idx('pkjs/on-demand.js') < idx('settings/preview-status-bars.js'));
   assert.ok(idx('settings/preview-svg.js') < idx('settings/preview-status-bars.js'),
     'preview-status-bars.js reads window.PreviewSvg (the theme ink) at IIFE time');
+  assert.ok(idx('pkjs/view-cycle.js') < idx('settings/preview-status-bars.js'));
+  assert.ok(idx('pkjs/status-line-catalog.js') < idx('pkjs/status-pair.js'));
+  assert.ok(idx('pkjs/utf8.js') < idx('pkjs/status-pair.js'), 'status-pair.js reads window.Utf8');
+  assert.ok(idx('pkjs/status-pair.js') < idx('pkjs/slot-text.js'), 'slot-text.js reads window.StatusPair');
+  assert.ok(idx('pkjs/slot-text.js') < idx('settings/preview-status-bars.js'));
+  assert.ok(idx('pkjs/date-format.js') < idx('settings/preview-status-bars.js'));
   idx('settings/night-hours.js');
   const src = page();
   ["PConf.displayResolvers.register('nightHoursValue'", "PConf.displayResolvers.register('nightHoursSeparate'",

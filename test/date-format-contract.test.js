@@ -113,3 +113,28 @@ test('the resolver order agrees with effectiveHolidayCountry (the wire\'s Auto r
         + JSON.stringify(S));
     });
 });
+
+test('the settings page\'s date formatters render exactly the pinned C outputs', () => {
+  // The status bars preview prints the date slot through date-format.js'
+  // formatMonthYear / formatFullDate, JS copies of date_format.h — the same 7 Sep
+  // 2026 the C test pins, in both orders.
+  const d = new Date(2026, 8, 7);
+  dateFormat.MONTH_FORMAT_CODES.forEach((code) => {
+    assert.equal(dateFormat.formatMonthYear(d, code), cPins['month ' + code], 'month ' + code);
+  });
+  assert.equal(dateFormat.formatMonthYear(d, 'bogus'), cPins['month unknown->auto']);
+  dateFormat.FULL_FORMAT_CODES.forEach((code) => {
+    assert.equal(dateFormat.formatFullDate(d, code, false), cPins['full ' + code], 'full ' + code);
+    assert.equal(dateFormat.formatFullDate(d, code, true), cPins['full ' + code + ' US'],
+      'full ' + code + ' US');
+  });
+  assert.equal(dateFormat.formatFullDate(d, undefined, false), cPins['full unknown->auto']);
+  // January 1st, the shapes the C clamp test pins for its in-range result.
+  const jan = new Date(2026, 0, 1);
+  assert.equal(dateFormat.formatFullDate(jan, 'auto', false), cPins['clamped auto']);
+  assert.equal(dateFormat.formatFullDate(jan, 'noyear', false), cPins['clamped noyear']);
+  assert.equal(dateFormat.formatFullDate(jan, 'text', false), cPins['clamped text']);
+  assert.equal(dateFormat.formatFullDate(jan, 'textyear', true), cPins['clamped textyear']);
+  assert.equal(dateFormat.formatMonthYear(jan, 'auto'), cPins['clamped month auto']);
+  assert.equal(dateFormat.formatMonthYear(jan, 'name'), cPins['clamped month name']);
+});

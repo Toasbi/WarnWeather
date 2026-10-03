@@ -924,28 +924,35 @@ test('an unavailable reading stays "--" with the unit on', () => {
   });
 });
 
-// THE HARD CASE. '-12|-10' is 7 bytes and the degree sign is 2, so the edge
-// slot's 8-byte cap cannot hold both. utf8Truncate would chop the degree back
-// off at the code-point boundary — the slot would look untouched while silently
-// ignoring the setting — so the unit is appended only when it actually fits.
-test('both-mode never takes a degree, whatever is stored or however wide it is', () => {
-  // The two are mutually exclusive: the settings page keeps them apart, and this
-  // is the authoritative gate for a blob that predates that. Deciding by WIDTH
-  // instead would make the degree appear and vanish with the digit count as the
-  // day warmed up, and differ between an edge slot and a mid slot.
+// THE HARD CASE. Show unit answers in every Value selection, Both included: a pair
+// carries the degree on both readings ('20°|10°') -- but '-12°|-10°' is 11 bytes and
+// '20°|10°' 9, past an edge slot's 8. utf8Truncate would chop the second reading
+// ('-12°|-1'), a wrong number that looks like a right one, so a pair that cannot
+// hold its degrees prints bare instead -- the wind unit's own "when it fits" rule.
+test('both-mode carries the degree on both readings while the pair fits the slot', () => {
   const wide = Object.assign(basePayload(), { CURRENT_TEMP: 10, FEELS_CURRENT: 14 });
   const narrow = Object.assign(basePayload(), { CURRENT_TEMP: 68, FEELS_CURRENT: 50 });
+  const single = Object.assign(basePayload(), { CURRENT_TEMP: 46, FEELS_CURRENT: 42 });
   const s = baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true });
 
+  // A middle slot has the room: every pair takes its degrees.
+  assert.equal(statusLines.formatValue('temp', wide, s, 'statusForecastMid',
+    catalog.CAPS.MID_TEXT_MAX), '-12' + DEG + '|-10' + DEG);
+  assert.equal(statusLines.formatValue('temp', narrow, s, 'statusForecastMid',
+    catalog.CAPS.MID_TEXT_MAX), '20' + DEG + '|10' + DEG);
+  // An edge slot holds them for single-digit readings ('8°|6°', 7 bytes)...
+  assert.equal(statusLines.formatValue('temp', single, s, 'statusRadarLeft',
+    catalog.CAPS.EDGE_TEXT_MAX), '8' + DEG + '|6' + DEG);
+  assertPlainText(slotBytesFor('temp', single, s), '8' + DEG + '|6' + DEG, 'packed edge slot');
+  // ...and prints a wider pair bare rather than truncated.
   assert.equal(statusLines.formatValue('temp', wide, s, 'statusRadarLeft',
     catalog.CAPS.EDGE_TEXT_MAX), '-12|-10');
   assertPlainText(slotBytesFor('temp', wide, s), '-12|-10', 'packed edge slot');
-  // A mid slot has 19 bytes to spare and still gets no degree — the rule is the
-  // mode, not the room.
-  assert.equal(statusLines.formatValue('temp', wide, s, 'statusForecastMid',
-    catalog.CAPS.MID_TEXT_MAX), '-12|-10');
-  // And a value that would comfortably fit one still does not get it.
   assert.equal(statusLines.formatValue('temp', narrow, s, 'statusRadarLeft'), '20|10');
+  // Off, a pair never takes one, whatever the room.
+  assert.equal(statusLines.formatValue('temp', narrow,
+    baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: false }), 'statusForecastMid',
+    catalog.CAPS.MID_TEXT_MAX), '20|10');
 });
 
 test('the other two temp modes still take the degree when it is switched on', () => {
@@ -1004,11 +1011,15 @@ test('a spaced temp pair too wide for an edge slot drops its spaces there only',
   assertPlainText(midSlotBytesFor('temp', p, custom), '-12 ÿÿ -10', 'mid: as picked');
 });
 
-test('a styled both-mode temp still never takes the degree', () => {
+test('a styled both-mode temp takes the degree inside the user\'s separator', () => {
   const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
   const s = baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true,
     tempSlotSeparatorSpaced: true });
-  assert.equal(statusLines.formatValue('temp', p, s, 'statusForecastMid', MID_CAP), '20 | 10');
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusForecastMid', MID_CAP),
+    '20' + DEG + ' | 10' + DEG);
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true, tempSlotSeparator: 'brackets',
+      tempSlotOrder: 'feels' }), 'statusForecastMid', MID_CAP), '10' + DEG + '(20' + DEG + ')');
 });
 
 test('the single-value temp modes and the missing-feels fallback ignore the pair settings', () => {
@@ -1020,9 +1031,11 @@ test('the single-value temp modes and the missing-feels fallback ignore the pair
   assert.equal(statusLines.formatValue('temp', p,
     baseSettings(Object.assign({ tempSlotDisplay: 'feels' }, style)), 'statusRadarLeft'),
     '10' + DEG);
-  // FEELS_CURRENT missing: 'both' is the actual temp alone, never '(20)' or '20 ('.
+  // FEELS_CURRENT missing: 'both' is the actual temp alone, never '(20)' or '20 (',
+  // with the degree Show unit asks for.
   assert.equal(statusLines.formatValue('temp', basePayload(),
-    baseSettings(Object.assign({ tempSlotDisplay: 'both' }, style)), 'statusRadarLeft'), '20');
+    baseSettings(Object.assign({ tempSlotDisplay: 'both' }, style)), 'statusRadarLeft'),
+    '20' + DEG);
 });
 
 test('every temp pair preset fits the edge slot untruncated, across the planet\'s range', () => {
@@ -1031,13 +1044,15 @@ test('every temp pair preset fits the edge slot untruncated, across the planet\'
       for (const sep of ['slash', 'brackets', 'dot', 'bar', 'custom']) {
         for (const spaced of [false, true]) {
           for (const order of ['actual', 'feels']) {
-            const text = statusLines.formatValue('temp',
-              { CURRENT_TEMP: f, FEELS_CURRENT: f - 8 },
-              baseSettings({ temperatureUnits: units, tempSlotDisplay: 'both',
-                tempSlotSeparator: sep, tempSlotOrder: order, tempSlotSeparatorSpaced: spaced,
-                tempSlotSeparatorCustom: 'ÿÿ' }), 'statusRadarLeft', EDGE_CAP);
-            assert.ok(statusLines.utf8Encode(text).length <= EDGE_CAP,
-              `"${text}" exceeds EDGE_TEXT_MAX (${f}F ${units} ${sep} ${spaced} ${order})`);
+            for (const unit of [false, true]) {
+              const text = statusLines.formatValue('temp',
+                { CURRENT_TEMP: f, FEELS_CURRENT: f - 8 },
+                baseSettings({ temperatureUnits: units, tempSlotDisplay: 'both',
+                  tempSlotSeparator: sep, tempSlotOrder: order, tempSlotSeparatorSpaced: spaced,
+                  tempSlotSeparatorCustom: 'ÿÿ', tempSlotUnit: unit }), 'statusRadarLeft', EDGE_CAP);
+              assert.ok(statusLines.utf8Encode(text).length <= EDGE_CAP,
+                `"${text}" exceeds EDGE_TEXT_MAX (${f}F ${units} ${sep} ${spaced} ${order} ${unit})`);
+            }
           }
         }
       }

@@ -317,8 +317,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
     PConf.blocks.register('layoutPreviewCombined', layoutPreviewCombined);
     // The editor overlay (view-editor.js, concatenated after this file in the webview)
-    // reads the single-view preview from here; under Node it require()s this module.
-    PConf.previewLayout = { viewPreviewSvg: viewPreviewSvg };
+    // reads the single-view preview from here, and the status bars preview the view
+    // cycle (which views show a calendar); under Node both require() this module.
+    PConf.previewLayout = { viewPreviewSvg: viewPreviewSvg, presetContents: presetContents };
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {

@@ -1786,22 +1786,21 @@ module.exports = {
                     '10. Order and Separator shape the pair.'
             },
             defaultValue: 'actual',
-            options: [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']],
-            // Picking Both clears the degree: "-12|-10" is already 7 of an edge
-            // slot's 8 bytes and the sign is two more, so the pair cannot fit.
-            // Clearing it here is the fill-vs-feels pattern (forecastMetricFill).
-            onChange: 'tempUnitExclusive'
+            options: [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']]
         }, orderRow('temp', [['Temp first', 'actual'], ['Feels like first', 'feels']])]
             .concat(separatorRows('temp', '12', '10'), [
             // The degree sign alone, never °C/°F: the unit is already Setup › Units'
             // temperatureUnits choice, and restating it in a three-character slot
             // spends the width on something the user picked once. Off by default —
-            // temp slots have never printed a degree sign. Turning it ON while the
-            // mode is Both drops the mode back to Temp, the mirror of the hook above;
-            // status-lines.js holds the authoritative gate for a blob that predates
-            // either.
-            Object.assign(unitRow('tempSlotUnit', '12°', '12'),
-                { onChange: 'tempUnitExclusive' })])),
+            // temp slots have never printed a degree sign. Independent of Value
+            // selection (the owner, 2026-10-03): Both puts it on both readings while
+            // the pair fits the slot (slot-text.js tempText), so its hint says when.
+            Object.assign(unitRow('tempSlotUnit', '12°', '12'), {
+                hint: 'Prints the unit after the value: 12° instead of 12. With Both, '
+                    + 'each value gets one, like 12°' + STATUS_PAIR.SEPARATORS[
+                        STATUS_PAIR.defaultSeparator('temp')].mid + '10°, when the pair '
+                    + 'fits — a left or right slot has room only for single-digit values.'
+            })])),
         boldSection('Air pressure (hPa)', 'Pressure', null,
             [unitRow('pressureSlotUnit', '1013hPa', '1013')]),
         boldSection('Sunrise/sunset', 'Sun'),

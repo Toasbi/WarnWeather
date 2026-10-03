@@ -7086,8 +7086,7 @@
                     "Both",
                     "both"
                   ]
-                ],
-                "onChange": "tempUnitExclusive"
+                ]
               },
               {
                 "type": "segmented",
@@ -7195,8 +7194,7 @@
                 "messageKey": "tempSlotUnit",
                 "label": "Show unit",
                 "defaultValue": false,
-                "hint": "Prints the unit after the value: 12° instead of 12.",
-                "onChange": "tempUnitExclusive"
+                "hint": "Prints the unit after the value: 12° instead of 12. With Both, each value gets one, like 12°|10°, when the pair fits — a left or right slot has room only for single-digit values."
               },
               {
                 "type": "segmented",

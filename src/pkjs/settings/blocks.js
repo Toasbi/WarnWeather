@@ -353,20 +353,6 @@ if (typeof require !== 'undefined') {
     // are the row badge (graphColorSwatch below) and the in-sheet swatch, which reads
     // the display resolver registered next to it.
 
-    // The temp slot's "Both" mode and its degree sign are mutually exclusive:
-    // "-12/-10" is already 7 of an edge slot's 8 bytes and the sign is two more.
-    // Whichever the user just picked wins, so neither choice is ever refused --
-    // the other simply steps aside. Both rows share this hook; the key says which
-    // one moved. status-lines.js gates the pair independently, for a settings blob
-    // written before this existed.
-    PConf.onChange.register('tempUnitExclusive', function (S, oldValue, newValue, env, key) {
-        if (key === 'tempSlotDisplay') {
-            if (newValue === 'both') { S.tempSlotUnit = false; }
-        } else if (newValue) {
-            if (S.tempSlotDisplay === 'both') { S.tempSlotDisplay = 'actual'; }
-        }
-    });
-
     // A kind's warn look default (thresh<K>WarnLook's defaultFrom): the contract's
     // warnLookDefault — fill on a colour watch, outline on a B&W one, outline for the
     // goal kinds — so the page shows exactly what the packer resolves an unset key

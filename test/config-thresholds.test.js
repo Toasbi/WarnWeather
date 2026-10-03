@@ -2445,33 +2445,11 @@ test('the All status bars reset link resets a live page (slots + bold) on click'
   assert.ok(page.scroll.writes > writesBefore, 'the reset re-rendered the page');
 });
 
-test('the temp slot keeps Both and the degree sign apart, in both directions', () => {
-  // "-12/-10" is 7 of an edge slot's 8 bytes and the degree is 2 more, so the two
-  // cannot coexist. Whichever the user just picked wins; the other steps aside.
-  const hook = PConf.onChange.get('tempUnitExclusive');
-  assert.ok(hook, 'tempUnitExclusive hook is registered');
-
-  // Choosing Both while the degree is on clears the degree.
-  const a = { tempSlotDisplay: 'actual', tempSlotUnit: true };
-  a.tempSlotDisplay = 'both';
-  hook(a, 'actual', 'both', {}, 'tempSlotDisplay');
-  assert.equal(a.tempSlotUnit, false);
-
-  // Turning the degree on while in Both drops the mode back to Temp.
-  const b = { tempSlotDisplay: 'both', tempSlotUnit: false };
-  b.tempSlotUnit = true;
-  hook(b, false, true, {}, 'tempSlotUnit');
-  assert.equal(b.tempSlotDisplay, 'actual');
-
-  // Turning the degree OFF never touches the mode.
-  const c = { tempSlotDisplay: 'both', tempSlotUnit: true };
-  hook(c, true, false, {}, 'tempSlotUnit');
-  assert.equal(c.tempSlotDisplay, 'both');
-
-  // Choosing a non-Both mode never touches the degree.
-  const d = { tempSlotDisplay: 'both', tempSlotUnit: true };
-  hook(d, 'both', 'feels', {}, 'tempSlotDisplay');
-  assert.equal(d.tempSlotUnit, true);
+test('the temp slot\'s Value selection and its degree sign never touch each other', () => {
+  // The owner, 2026-10-03: Show unit is separate from Value selection. Both prints the
+  // degree on both readings while the pair fits (slot-text.js tempText), so neither
+  // row steps the other aside any more.
+  assert.equal(PConf.onChange.get('tempUnitExclusive'), undefined, 'no coupling hook');
 });
 
 test("a goal kind's legacy null warn color heals to the auto green on page open", () => {

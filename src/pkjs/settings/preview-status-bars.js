@@ -3,99 +3,205 @@
 // now, one line each, its three slots as sample values — left, middle and right — so a
 // slot pick shows where it lands before the main Save. Also pinned above every slot dialog.
 //
-// The values are SAMPLES (a fixed afternoon: 18°, gusts 20/45, UV 3 …), shaped by the
-// settings that change how a slot prints (Temp / Feels / Both, the day-max pairs, the
-// units); the watch draws the real ones with its own icons. Which item a slot holds is
-// the catalog's own resolution (status-line-catalog.js resolveSelection — defaults and
-// availability included), and which bars exist is on-demand.js barExists, the rule the
-// Status bars tab gates its cards by.
-/* global PConf */
+// The readings are SAMPLES (a fixed afternoon: 18°, wind 12 now / 30 at its peak, UV 3 …),
+// but the TEXT is the watch's: each sample goes through the code that prints the real
+// reading — slot-text.js and status-pair.js for the phone-baked kinds (Value selection,
+// Order, Separator and its spacing, Show unit and whether it fits the slot's bytes, the
+// unit giving way to the wind arrow), date-format.js' copy of the watch's date formats
+// for the date slot (month + year where the bar's view shows a calendar, the full date
+// where it doesn't), and the watch's own shapes for the kinds it renders itself (steps
+// '6.2k', sleep '7h12'). Which item a slot holds is the catalog's own resolution
+// (status-line-catalog.js resolveSelection — defaults and availability included), and
+// which bars exist is on-demand.js barExists, the rule the Status bars tab gates its
+// cards by. The watch draws an icon beside most items; the preview shows the page's copy
+// of it where one exists (status-slot-icons.js), else a short dim label.
+/* global PConf, VIEW_CYCLE */
 (function () {
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
         : null;
-    var catalog = (typeof require !== 'undefined')
-        ? require('../status-line-catalog.js') : window.StatusLineCatalog;
-    var onDemand = (typeof require !== 'undefined')
-        ? require('../on-demand.js') : window.OnDemand;
-    var esc = (typeof require !== 'undefined')
-        ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
-    var previewInk = ((typeof require !== 'undefined')
-        ? require('./preview-svg.js') : window.PreviewSvg).previewInk;
+    var NODE = typeof require !== 'undefined';
+    var catalog = NODE ? require('../status-line-catalog.js') : window.StatusLineCatalog;
+    var onDemand = NODE ? require('../on-demand.js') : window.OnDemand;
+    var esc = NODE ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
+    var previewInk = (NODE ? require('./preview-svg.js') : window.PreviewSvg).previewInk;
+    var slotText = NODE ? require('../slot-text.js') : window.SlotText;
+    var dateFormat = NODE ? require('../date-format.js') : window.DateFormat;
+    var VC = NODE ? require('../view-cycle.js') : VIEW_CYCLE;
 
-    // The bars in the page's order, their slot-key prefixes and names.
+    // The bars in the page's order, their slot-key prefixes, names and the view-cycle
+    // status source that seats them (the Watch bar is the top strip, src: null).
     var BARS = [
-        {bar: 'top', prefix: 'statusTop', name: 'Watch'},
-        {bar: 'forecast', prefix: 'statusForecast', name: 'Forecast'},
-        {bar: 'health', prefix: 'statusHealth', name: 'Health'},
-        {bar: 'radar', prefix: 'statusRadar', name: 'Radar'}
+        {bar: 'top', prefix: 'statusTop', name: 'Watch', src: null},
+        {bar: 'forecast', prefix: 'statusForecast', name: 'Forecast', src: VC.STATUS_SRC_FORECAST},
+        {bar: 'health', prefix: 'statusHealth', name: 'Health', src: VC.STATUS_SRC_HEALTH},
+        {bar: 'radar', prefix: 'statusRadar', name: 'Radar', src: VC.STATUS_SRC_RADAR}
     ];
-    var POSITIONS = [['Left', 'left'], ['Mid', 'mid'], ['Right', 'right']];
+    // [key suffix, position, byte cap]: the middle slot holds 19 bytes, the edges 8
+    // (status-line-catalog.js CAPS) — the room the unit and pair fit rules measure.
+    var POSITIONS = [['Left', 'left', catalog.CAPS.EDGE_TEXT_MAX],
+        ['Mid', 'mid', catalog.CAPS.MID_TEXT_MAX], ['Right', 'right', catalog.CAPS.EDGE_TEXT_MAX]];
+
+    // The sample readings, in the units the payload carries them in: temperatures in °F
+    // (18° / feels 16° / dew 9° C), the day-max kinds as [now, today's peak] in each wind
+    // unit's whole numbers (kph 12/30, the same wind in mph and knots).
+    var SAMPLE = {
+        tempF: 64.4,
+        feelsF: 60.8,
+        dewF: 48.2,
+        uv: [3, 7],
+        aqi: [42, 58],
+        wind: {kph: [12, 30], mph: [7, 19], knots: [6, 16]},
+        gust: {kph: [20, 45], mph: [12, 28], knots: [11, 24]}
+    };
+
+    // A short label for a kind whose glyph the page has no copy of — kept for the
+    // kinds the old preview named, so a bare number still says what it is.
+    var LABEL = {uv: 'UV', aqi: 'AQI', pollen: 'Pollen'};
 
     /**
-     * A day-max kind's sample as its Value selection prints it: the reading, the day's
-     * peak, or both in the Order picked ('20/45').
+     * A day-max kind's sample numbers as wire-units' dayMaxShown would pick them for
+     * the kind's Value selection: the reading (Now, the default), the day's peak alone
+     * (Day max) or both (Both). The sample's peak is today's, so it carries no mark.
+     * @param {string} code 'uv' | 'wind' | 'gust' | 'aqi'.
      * @param {Object} S Settings.
-     * @param {string} prefix 'uv' | 'wind' | 'gust' | 'aqi'.
-     * @param {string} now The sample reading.
-     * @param {string} max The sample peak.
-     * @returns {string} The text.
+     * @returns {{now: ?number, peak: ?number, nextDay: boolean}} The picked numbers.
      */
-    function dayMax(S, prefix, now, max) {
-        var mode = S[prefix + 'SlotDisplay'];
-        if (mode === 'max') { return max; }
-        if (mode !== 'both') { return now; }
-        return S[prefix + 'SlotOrder'] === 'max' ? max + '/' + now : now + '/' + max;
+    function dayMaxShown(code, S) {
+        var nums = SAMPLE[code];
+        if (code === 'wind' || code === 'gust') {
+            nums = nums[S.windUnits === 'mph' ? 'mph' : S.windUnits === 'knots' ? 'knots' : 'kph'];
+        }
+        var mode = S[code + 'SlotDisplay'];
+        var shown = {now: nums[0], peak: null, nextDay: false};
+        if (mode === 'max' || mode === 'both') { shown.peak = nums[1]; }
+        if (mode === 'max') { shown.now = null; }
+        return shown;
     }
 
     /**
-     * A wind speed's unit label, while the slot prints its unit.
+     * Whether a wind or gust slot draws its direction arrow (status-lines.js
+     * directionSentinel): its Show wind direction toggle is on, the slot shows the
+     * current reading (Day max alone prints the peak, not the wind the arrow
+     * describes), and the watch has the arrow at all (not aplite).
+     * @param {string} code The slot's item.
      * @param {Object} S Settings.
-     * @param {string} key The kind's Show unit key.
-     * @returns {string} ' kph' | ' mph' | ' kn' | ''.
+     * @param {Object} [env] Platform env.
+     * @returns {boolean}
      */
-    function windUnit(S, key) {
-        if (S[key] === false) { return ''; }
-        return S.windUnits === 'mph' ? ' mph' : S.windUnits === 'knots' ? ' kn' : ' kph';
+    function arrowShown(code, S, env) {
+        if (code !== 'wind' && code !== 'gust') { return false; }
+        if (env && env.platform === 'aplite') { return false; }
+        return Boolean(S[code + 'SlotDirection']) && dayMaxShown(code, S).now !== null;
     }
 
     /**
-     * One slot's sample text.
+     * Whether a view puts a calendar on screen — the watch's layout_full_date rule
+     * (windows/layout.h) turned round: a calendar top band with rows to show (a 2- or
+     * 3-row tier). Without one the date slot carries the full date.
+     * @param {?Object} spec One view-cycle ViewSpec.
+     * @returns {boolean}
+     */
+    function calendarShown(spec) {
+        return Boolean(spec) && spec.top === VC.TOP_CAL
+            && (spec.tier === VC.TIER_COMPACT || spec.tier === VC.TIER_FULL);
+    }
+
+    /**
+     * The first view of the cycle that seats a bar — the Watch bar any view whose top
+     * strip shows, a status bar a view with it in a status row — else the Default view.
+     * @param {Array<?Object>} views The view cycle (preview-layout.js presetContents).
+     * @param {{src: ?number}} b A BARS entry.
+     * @returns {?Object} The ViewSpec, or null for an empty cycle.
+     */
+    function barView(views, b) {
+        for (var i = 0; i < views.length; i++) {
+            var v = views[i];
+            if (!v) { continue; }
+            if (b.src === null ? !v.stripOff : (v.statusUpper === b.src || v.statusLower === b.src)) {
+                return v;
+            }
+        }
+        return views[0] || null;
+    }
+
+    /**
+     * The date slot's text as the watch prints it (status_row.c format_status_date):
+     * month + year while a calendar is on screen, the full date otherwise, each in its
+     * format picker's choice, day and month in the Holiday region's order. Aplite's
+     * lean twin keeps the original two formats whatever is picked.
+     * @param {Object} S Settings.
+     * @param {Object} [env] Platform env.
+     * @param {Date} now Today.
+     * @param {boolean} fullDate Whether the bar's view shows no calendar.
+     * @returns {string} e.g. 'Oct 2026', '03.10.26'
+     */
+    function dateText(S, env, now, fullDate) {
+        var aplite = Boolean(env && env.platform === 'aplite');
+        if (!fullDate) { return dateFormat.formatMonthYear(now, aplite ? 'auto' : S.dateSlotMonthFormat); }
+        // clay-payload.js effectiveHolidayCountry: an absent key reads as the US.
+        var country = Object.prototype.hasOwnProperty.call(S, 'holidayCountry') ? S.holidayCountry : 'US';
+        return dateFormat.formatFullDate(now, aplite ? 'auto' : S.dateSlotFullFormat, country === 'US');
+    }
+
+    /**
+     * One slot's sample text, exactly as the watch would print the sample reading.
      * @param {string} code The catalog item the slot shows.
      * @param {Object} S Settings.
-     * @returns {string} Plain text ('' for an empty slot).
+     * @param {{cap: number, env: Object, now: Date, fullDate: boolean, slotKey: string}}
+     *     [ctx] The slot's byte cap (absent = an edge slot's), the platform, today (absent
+     *     = the clock's), whether its bar's view shows no calendar, and its settings key
+     *     (the countdown's target date).
+     * @returns {string} Plain text ('' for an empty slot or the battery glyph).
      */
-    function sample(code, S) {
-        var deg = function (key, v) { return S[key] === true ? v + '°' : v; };
+    function sample(code, S, ctx) {
+        var c = ctx || {};
+        var cap = typeof c.cap === 'number' ? c.cap : catalog.CAPS.EDGE_TEXT_MAX;
+        var now = c.now || new Date();
         switch (code) {
         case 'temp':
-            if (S.tempSlotDisplay === 'feels') { return deg('tempSlotUnit', '16'); }
-            if (S.tempSlotDisplay === 'both') {
-                return S.tempSlotOrder === 'feels' ? '16|18' : '18|16';
-            }
-            return deg('tempSlotUnit', '18');
-        case 'wind': return dayMax(S, 'wind', '12', '30') + windUnit(S, 'windSlotUnit');
-        case 'gust': return dayMax(S, 'gust', '20', '45') + windUnit(S, 'gustSlotUnit');
-        case 'uv': return 'UV ' + dayMax(S, 'uv', '3', '7');
-        case 'aqi': return 'AQI ' + dayMax(S, 'aqi', '42', '58');
-        case 'pollen': return 'Pollen 1';
-        case 'pressure': return S.pressureSlotUnit === false ? '1013' : '1013hPa';
-        case 'dew': return deg('dewSlotUnit', '9');
-        case 'sun': return '19:14';
-        case 'date': return 'Thu 2';
-        case 'week': return 'W40';
+            return slotText.tempText(slotText.formatTemp(SAMPLE.tempF, S),
+                slotText.formatTemp(SAMPLE.feelsF, S), S, cap);
+        case 'wind':
+        case 'gust':
+        case 'uv':
+        case 'aqi':
+            return slotText.dayMaxText(code, dayMaxShown(code, S), null, S, cap);
+        case 'pollen': return '1';
+        case 'pressure':
+            return slotText.withUnit('1013', slotText.unitEnabled(S, 'pressureSlotUnit') ? 'hPa' : '', cap);
+        case 'dew':
+            return slotText.withUnit(slotText.formatTemp(SAMPLE.dewF, S),
+                slotText.unitEnabled(S, 'dewSlotUnit') ? slotText.DEGREE : '', cap);
+        case 'sun': return slotText.clockText(19, 14, S);
+        case 'date': return dateText(S, c.env, now, Boolean(c.fullDate));
+        case 'week': return 'W' + slotText.isoWeek(now);
         case 'city': return 'Berlin';
-        case 'countdown': return S.countdownSlotUnit === false ? '5' : '5d';
-        case 'steps': return '6,214';
-        case 'distance': return S.distanceUnits === 'imperial' ? '2.6 mi' : '4.2 km';
+        case 'countdown':
+            return slotText.formatCountdown(c.slotKey ? S[c.slotKey + 'Countdown'] : undefined, now,
+                slotText.unitEnabled(S, 'countdownSlotUnit'), cap);
+        // The watch-rendered kinds, in status_row.c format_live_value's shapes.
+        case 'steps': return '6.2k';
+        case 'distance': return S.distanceUnits === 'imperial' ? '2.6mi' : '4.2km';
         case 'hr': return '64';
-        case 'sleep': return '7h 12m';
-        case 'battery': return '80%';
+        case 'sleep': return '7h12';
         case 'batteryPct': return '80%';
         case 'phoneBattery': return '72%';
         case 'phoneBatteryPlain': return '72%';
-        default: return '';
+        default: return '';   // 'empty', and the battery item, which is its glyph alone
         }
+    }
+
+    /**
+     * The glyph (or dim label) a slot's text follows: the page's copy of the watch's
+     * icon where status-slot-icons.js has one, else LABEL's short name, else nothing.
+     * @param {string} code The slot's item.
+     * @returns {string} HTML ('' for none).
+     */
+    function lead(code) {
+        var svg = PConf && PConf.icons && PConf.icons.get ? PConf.icons.get(code) : null;
+        if (svg) { return '<span class="sbp-ico" aria-hidden="true">' + svg + '</span>'; }
+        return LABEL[code] ? '<span class="sbp-k">' + LABEL[code] + '</span>' : '';
     }
 
     /**
@@ -106,12 +212,19 @@
      */
     function statusBarsPreview(S, env) {
         var st = S || {}, rows = '';
+        var layout = NODE ? require('./preview-layout.js') : (PConf && PConf.previewLayout);
+        var views = layout && layout.presetContents ? layout.presetContents(st, env) : [];
+        var now = new Date();
         BARS.forEach(function (b) {
             if ((b.bar === 'radar' || b.bar === 'health') && !onDemand.barExists(st, b.bar, env)) { return; }
+            var fullDate = !calendarShown(barView(views, b));
             var cells = POSITIONS.map(function (p) {
                 var key = b.prefix + p[0];
                 var code = catalog.resolveSelection(st[key], st, env, {slotKey: key, position: p[1]});
-                return '<span class="sbp-v sbp-' + p[1] + '">' + esc(sample(code, st)) + '</span>';
+                var text = sample(code, st, {cap: p[2], env: env, now: now, fullDate: fullDate, slotKey: key});
+                var arrow = arrowShown(code, st, env) ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
+                var body = code === 'empty' ? '' : lead(code) + esc(text) + arrow;
+                return '<span class="sbp-v sbp-' + p[1] + '">' + body + '</span>';
             }).join('');
             rows += '<div class="sbp-row"><span class="sbp-n">' + esc(b.name) + '</span>' + cells + '</div>';
         });
@@ -128,18 +241,25 @@
 
     // The preview's look, injected once: the watch's screen in its theme's ink (the
     // --sbp-* properties the block sets inline; the dark theme's as the fallback), rows
-    // split by a hairline.
+    // split by a hairline. The side slots take their text's width and the middle one the
+    // rest, centred, as on the watch (whose middle slot holds 19 bytes to the sides' 8).
+    // A slot's glyph sits on the text's line at the text's size.
     // It sits in a pinned frame that carries a preview's padding (shell.html .pin-blk),
     // which the negative margins cancel, as a preview SVG's do (preview-svg.js svgFrame).
     var CSS = '.sbp{background:#000;background:var(--sbp-bg,#000);padding:4px 12px;margin:-12px -16px -14px}'
-        + '.sbp-row{display:grid;grid-template-columns:70px 1fr 1fr 1fr;align-items:center;padding:7px 0;'
-        + 'border-top:1px solid #1C1C1E;border-top-color:var(--sbp-line,#1C1C1E)}'
+        + '.sbp-row{display:grid;grid-template-columns:62px auto minmax(0,1fr) auto;column-gap:8px;'
+        + 'align-items:center;'
+        + 'padding:7px 0;border-top:1px solid #1C1C1E;border-top-color:var(--sbp-line,#1C1C1E)}'
         + '.sbp-row:first-child{border-top:none}'
         + '.sbp-n{font:700 10.5px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7C808A;'
         + 'color:var(--sbp-dim,#7C808A)}'
         + '.sbp-v{font:700 14px Inter,sans-serif;color:#FFFFFF;color:var(--sbp-fg,#FFFFFF);white-space:nowrap;'
-        + 'overflow:hidden;text-overflow:ellipsis}'
-        + '.sbp-left{text-align:left}.sbp-mid{text-align:center}.sbp-right{text-align:right}';
+        + 'overflow:hidden;text-overflow:ellipsis;min-width:0}'
+        + '.sbp-left{text-align:left}.sbp-mid{text-align:center}.sbp-right{text-align:right}'
+        + '.sbp-ico{display:inline-block;width:13px;height:13px;margin-right:3px;vertical-align:-1px}'
+        + '.sbp-ico svg{display:block;width:100%;height:100%}'
+        + '.sbp-k{font-size:10px;margin-right:3px;color:#7C808A;color:var(--sbp-dim,#7C808A)}'
+        + '.sbp-arr{margin-left:1px}';
     /**
      * Inject the preview's stylesheet (id 'sbp-style') once; nothing outside a DOM or when
      * it is already there.
@@ -155,6 +275,7 @@
 
     if (PConf && PConf.blocks) { PConf.blocks.register('statusBarsPreview', statusBarsPreview); }
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = {statusBarsPreview: statusBarsPreview, sample: sample};
+        module.exports = {statusBarsPreview: statusBarsPreview, sample: sample, arrowShown: arrowShown,
+            calendarShown: calendarShown};
     }
 })();
