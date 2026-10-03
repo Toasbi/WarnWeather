@@ -5,7 +5,7 @@
 #include "theme.h"
 #include "chart_stripe.h"
 
-// The forecast keeps 12 of these, its bands 7 and 6 in static arrays: the from_top byte
+// The forecast keeps 12 of these in a static array: the from_top byte
 // sits in the padding after the 1-byte type, so a layer must not grow past 44 B.
 _Static_assert(sizeof(ChartLayer) <= 44, "ChartLayer grew: from_top must stay in padding");
 

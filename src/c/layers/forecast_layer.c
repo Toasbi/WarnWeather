@@ -741,39 +741,6 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #endif
             .contour        = NULL } };
     }
-#if defined(WW_LINE_STYLE)
-    // Top stripes go to the band above the plot (top_layers), bottom stripes to the
-    // band below the zero line (band_layers); both are drawn after the plot, stacked
-    // in line order — so a top stripe's cells land over the night shading the plot's
-    // hatch carried up into the band.
-    static ChartLayer band_layers[SERIES_COUNT + 1];   // stripes + frame + axis; aplite never reaches here
-    static ChartLayer top_layers[SERIES_COUNT];        // stripes + frame
-    int nb = 0, nt = 0;
-    {
-        int stacked_top = 0, stacked_bottom = 0;
-        for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
-            const Series *s = &ds.series[sid];
-            if (!s->present || !SERIES_IS_STRIPE(s)) continue;
-            // Every stripe is laid out from the top of its own band: the top band
-            // above the plot, or the band flush under the zero line; a 1 px gap
-            // separates stripes sharing an edge.
-            int *stacked = s->line.from_top ? &stacked_top : &stacked_bottom;
-            const int16_t y_offset = (int16_t)((*stacked)++ * (stripe_h + FORECAST_STRIPE_GAP));
-            const ChartLayer stripe = (ChartLayer){ CHART_LAYER_STRIPE, .stripe = {
-                .values = s->line.values, .count = ds.num_entries,
-                .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-                .color = s->line.color,
-                .y_offset = y_offset,
-                .height = (int16_t)stripe_h,
-                .top = true } };
-            if (s->line.from_top) {
-                top_layers[nt++] = stripe;
-            } else {
-                band_layers[nb++] = stripe;
-            }
-        }
-    }
-#endif
     // Attach the scaled rain-tier palette to the BARS series (computed above).
     bars->bars.stops     = scaled_bar_stops;
     bars->bars.num_stops = bar_num_stops;
@@ -846,27 +813,39 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
     chart_draw(ctx, &FORECAST_GRID_DEF, plot, layers, n);
 #if defined(WW_LINE_STYLE)
-    if (top_band > 0) {
-        // The top band's own chart: same columns, the stripes laid out from its top
-        // edge, and the left axis line carried up through it so the graph's axis has
-        // no break at the plot's top.
-        top_layers[nt++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
+    // The stripe bands, each its own chart over the same columns, drawn after the plot:
+    // the top band above it first, then the band under the zero line — so a top
+    // stripe's cells land over the night shading the plot's hatch carried up into its
+    // band. layers[] is free again once the plot's chart_draw has returned, so each
+    // band is built in it. A band's stripes stack in line order from its top edge, a
+    // 1 px gap apart; the left axis line carries on through both, so the graph's axis
+    // has no break at the plot's top or between the zero line and the hour ticks. The
+    // bottom band's last row is the original axis row, so the hour ticks and labels
+    // land exactly where they always do.
+    for (int top = 1; top >= 0; --top) {
+        const int16_t band_h = top ? top_band : stripe_band;
+        if (band_h <= 0) continue;
+        int nb = 0;
+        for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
+            const Series *s = &ds.series[sid];
+            if (!s->present || !SERIES_IS_STRIPE(s) || s->line.from_top != top) continue;
+            layers[nb] = (ChartLayer){ CHART_LAYER_STRIPE, .stripe = {
+                .values = s->line.values, .count = ds.num_entries,
+                .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+                .color = s->line.color,
+                .y_offset = (int16_t)(nb * (stripe_h + FORECAST_STRIPE_GAP)),
+                .height = (int16_t)stripe_h,
+                .top = true } };
+            nb++;
+        }
+        layers[nb++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
             .left = { 1, axis_color } } } };
-        chart_draw(ctx, &FORECAST_GRID_DEF, GRect(outer.origin.x, 0, outer.size.w, top_band),
-                   top_layers, nt);
-    }
-    if (stripe_band > 0) {
-        // The band's own chart: same columns (anchor + pitch), and its last row
-        // is the original axis row, so the hour ticks and labels land exactly
-        // where they always do. The left axis line carries on through the band
-        // (over the stripes' first column), so the graph's axis has no break
-        // between the zero line and the hour ticks.
-        band_layers[nb++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
-            .left = { 1, axis_color } } } };
-        band_layers[nb++] = axis_layer;
-        const GRect band = GRect(outer.origin.x, plot_axis_y + 1,
-                                 outer.size.w, stripe_band);
-        chart_draw(ctx, &FORECAST_GRID_DEF, band, band_layers, nb);
+        if (!top) {
+            layers[nb++] = axis_layer;
+        }
+        chart_draw(ctx, &FORECAST_GRID_DEF,
+                   GRect(outer.origin.x, top ? 0 : plot_axis_y + 1, outer.size.w, band_h),
+                   layers, nb);
     }
 #endif
 
