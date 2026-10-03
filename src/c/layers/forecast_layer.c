@@ -762,13 +762,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // the marks ride ABOVE the line so the fill can't hide them; with no fill
     // (a thin stroke) they sit BELOW so the main line stays the dominant
     // series. Per-metric color on color watches; white on B&W, where the mark
-    // shape (not color) distinguishes them from the main-metric line.
-    if (!fill_on) {
-        for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
-            if (ds.series[sid].present && !SERIES_IS_STRIPE(&ds.series[sid])) {
-                layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries,
-                                             LINE_HI(ds.series[sid].line.inset_y));
-            }
+    // shape (not color) distinguishes them from the main-metric line. One loop for
+    // both orders: with a fill the line's slot is taken first, so the marks land
+    // after it (fill_on implies line_on, so the slot is always filled).
+    const int line_at = fill_on ? n++ : 0;
+    for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
+        if (ds.series[sid].present && !SERIES_IS_STRIPE(&ds.series[sid])) {
+            layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries,
+                                         LINE_HI(ds.series[sid].line.inset_y));
         }
     }
     if (line_on) {
@@ -776,7 +777,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         // mapping, so it rides the fill's contour; only its zero vertex differs, held
         // on the plot's first row when it hangs (chart_flip_vertex_y) where the fill's
         // zero stretch stays on the zero row.
-        layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .from_top = second_top, .line = {
+        layers[fill_on ? line_at : n++] = (ChartLayer){ CHART_LAYER_LINE, .from_top = second_top, .line = {
                   .values = second->line.values, .count = ds.num_entries,
                   .lo = 0, .hi = LINE_HI(second->line.inset_y),
                   .inset_top = LINE_TOP(second->line.inset_y),
@@ -785,15 +786,6 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                   .color = second->line.color, .width = second->line.width,
                   .style = series_style_pick(second->line, CHART_LINE_SOLID),
                   .zero_absent = LINE_ZERO(second) } };
-    }
-    // Fill present: marks go over the line + its opaque fill so they stay visible.
-    if (fill_on) {
-        for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
-            if (ds.series[sid].present && !SERIES_IS_STRIPE(&ds.series[sid])) {
-                layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries,
-                                             LINE_HI(ds.series[sid].line.inset_y));
-            }
-        }
     }
 
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
