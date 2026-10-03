@@ -323,34 +323,37 @@ static uint8_t pushed_sides(const Geom *g) {
 static void place(const Pass *p, const Geom *g, const uint8_t pos[2], OdLayout *out) {
     const Conf *c = &g->c;
     memset(out, 0, sizeof(*out));
-    const int16_t W = p->w;
+    // The working values are ints, cast only where they are stored: an int16_t local
+    // costs a sign extension around every step of the arithmetic on Thumb.
+    const int W = p->w;
     // How far in from its own edge each side's slot may reach, less the gap: to the
     // middle's near edge, or with the middle hidden to the other claim (the left one as
     // placed, for the right side).
-    int16_t reach[2] = { 0, 0 };
+    int reach[2] = { 0, 0 };
     if (g->mid_shown) {
-        const int16_t right = (int16_t)(g->hi + g->mw);   // the span's right bound
+        const int right = g->hi + g->mw;   // the span's right bound
         uint8_t v = 0;
-        int16_t w = g->mw;
-        int16_t x = g->target;
+        int w = g->mw;
+        int x = g->target;
         if (c->mid == OD_SHORT) {
-            const Fit f = { g->lo, right, p->plain[1].icon_x, p->plain_w[1], c->mid_free };
+            const Fit f = { g->lo, (int16_t)right, p->plain[1].icon_x, p->plain_w[1],
+                            c->mid_free };
             w = pick_short(p, 1, &f, &v);
-            x = (int16_t)(p->plain[1].icon_x + (p->plain_w[1] - w) / 2);
+            x = p->plain[1].icon_x + (p->plain_w[1] - w) / 2;
         }
         if (c->mid_free) {
-            if (x > right - w) { x = (int16_t)(right - w); }
+            if (x > right - w) { x = right - w; }
             if (x < g->lo) { x = g->lo; }
         }
         out->variant[1] = v;
-        status_slot_place_at(&p->slots[1].m[v], x, w, &out->place[1]);
-        reach[0] = (int16_t)(x - GAP);
-        reach[1] = (int16_t)(W - x - w - GAP);
+        status_slot_place_at(&p->slots[1].m[v], (int16_t)x, (int16_t)w, &out->place[1]);
+        reach[0] = x - GAP;
+        reach[1] = W - x - w - GAP;
     }
-    int16_t other = g->claim[1];   // the far claim: the right one, for the left side
+    int other = g->claim[1];   // the far claim: the right one, for the left side
     for (int d = 0; d < 2; d++) {
         const int i = OWN(d);
-        int16_t claim = g->claim[0];   // the left claim, as placed below
+        int claim = g->claim[0];   // the left claim, as placed below
         if (!c->n[d]) {
             if (c->own[d] != OD_HIDDEN) { out->place[i] = p->plain[i]; }
         } else {
@@ -362,31 +365,31 @@ static void place(const Pass *p, const Geom *g, const uint8_t pos[2], OdLayout *
             const OdSideIn *s = &p->sides[d];
             // Each side is laid out in its own frame, `u` in from its edge, and mirrored
             // for the right side: the own slot at the edge, then its run.
-            int16_t u = (int16_t)-p->bleed[d];
-            int16_t u0;
+            int u = -p->bleed[d];
+            int u0;
             if (c->own[d] != OD_HIDDEN) {
                 uint8_t v = 0;
-                int16_t w = p->plain_w[i];
+                int w = p->plain_w[i];
                 if (c->own[d] == OD_SHORT) {
                     if (!g->mid_shown) {
-                        reach[d] = (int16_t)(W - (other > 0 ? other + GAP : 0));
+                        reach[d] = W - (other > 0 ? other + GAP : 0);
                     }
                     const Fit f = { 0, (int16_t)(reach[d] - GAP - g->run[d]), 0, 0, true };
                     w = pick_short(p, i, &f, &v);
                 }
                 out->variant[i] = v;
-                status_slot_place_at(&p->slots[i].m[v], d ? (int16_t)(W - w) : 0, w,
+                status_slot_place_at(&p->slots[i].m[v], (int16_t)(d ? W - w : 0), (int16_t)w,
                                      &out->place[i]);
-                u = (int16_t)(w + GAP);
+                u = w + GAP;
             }
             u0 = u;
             const int end = c->first[d] + out->n[d];
             for (int k = c->first[d]; k < end; k++) {
                 if (k + 1 == c->skip[d]) { continue; }
-                if (u != u0) { u = (int16_t)(u + item_gap(s, k)); }
-                const int16_t wk = s->w[c->lane[d]][k];
-                out->item_x[d][k] = d ? (int16_t)(W - u - wk) : u;
-                u = (int16_t)(u + wk);
+                if (u != u0) { u += item_gap(s, k); }
+                const int wk = s->w[c->lane[d]][k];
+                out->item_x[d][k] = (int16_t)(d ? W - u - wk : u);
+                u += wk;
             }
             claim = u;
         }
