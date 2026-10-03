@@ -113,8 +113,8 @@ typedef struct {
     uint8_t side[OD_ITEM_COUNT];               // OdSide of each item on this bar
     bool active[OD_ITEM_COUNT];
     uint8_t bt_key;                            // the Bluetooth glyph (0: none)
-    uint8_t charge;                            // the charge in %, Battery assigned
-    bool charging;
+    uint8_t charge;                            // the watch's charge in %
+    bool charging;                             // charging or plugged in
     bool battery_value;                        // Look Icon + value
 } StatusOnDemandState;
 

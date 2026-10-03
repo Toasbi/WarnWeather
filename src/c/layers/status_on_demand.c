@@ -159,9 +159,11 @@ static const AlertEntry *item_entry(const StatusOnDemandState *s, int item) {
 }
 
 // Everything that decides what the bar's items draw: which item sits on which side
-// of `bar`, which of them are active, and what they show. Only what an assigned item
-// needs is read — the charge for Battery, the link for Bluetooth, the radar cache for
-// Rain, the entries for a metric alert — so a bar without items costs ten cell reads.
+// of `bar`, which of them are active, and what they show. Beside the battery state
+// (the Battery item's charge, and whether the slots' battery glyph keeps its bolt
+// lane), only what an assigned item needs is read — the link for Bluetooth, the radar
+// cache for Rain, the entries for a metric alert — so a bar without items costs ten
+// cell reads and a battery peek.
 // The rain alert comes from the cache rain_countdown_refresh() keeps, every pass —
 // O(1) and flash-free — which is why a bar with items is refreshed on the minute tick
 // and after a radar rescan; the metric alerts from the stored tuple (one flash read —
@@ -171,9 +173,10 @@ static size_t collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH
     s->set.count = 0;
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
     s->bt_key = 0;
-    s->charge = 0;
-    s->charging = false;
     s->battery_value = false;
+    BatteryChargeState bs = watch_services_battery_state();
+    s->charge = bs.charge_percent;
+    s->charging = bs.is_charging || bs.is_plugged;
     bool metric = false;
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         s->side[item] = (uint8_t)status_threshold_on_demand_side(blob, bar, item);
@@ -181,9 +184,6 @@ static size_t collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH
         if (item >= OD_GUST && s->side[item] != OD_SIDE_NONE) { metric = true; }
     }
     if (s->side[OD_BATTERY] != OD_SIDE_NONE) {
-        BatteryChargeState bs = watch_services_battery_state();
-        s->charge = bs.charge_percent;
-        s->charging = bs.is_charging || bs.is_plugged;
         s->battery_value = status_threshold_battery_value(blob);
         s->active[OD_BATTERY] = status_threshold_battery_low(s->charge,
                                                              status_threshold_battery_level(blob));
@@ -431,8 +431,7 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     }
     // The slots' short forms, measured now that a side has something to show.
     Families f;
-    BatteryChargeState bs = watch_services_battery_state();
-    f.charging = bs.is_charging || bs.is_plugged;
+    f.charging = s->charging;
     for (int i = 0; i < 3; i++) { measure_family(&f, i, &slots[i], &m[i], env, content_w); }
     const int8_t bleed[2] = { env->bleed_left, 0 };
     // W7: a slot of this bar that shows the watch battery (the glyph or the Battery %,
