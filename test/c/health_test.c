@@ -1,4 +1,4 @@
-// Host tests for the HealthService wrapper's walked-distance accessors.
+// Host tests for the HealthService wrapper (services/health.c).
 #include <stdio.h>
 
 #include "c/services/health.h"
@@ -58,6 +58,7 @@ static HealthValue s_sum;
 static HealthMetric s_access_metric;
 static HealthMetric s_sum_metric;
 static int s_sum_calls;
+static int s_step_access_calls;
 static HealthServiceAccessibilityMask s_hr_access = HealthServiceAccessibilityMaskNotAvailable;
 static HealthValue s_peek;
 static int s_peek_calls;
@@ -96,6 +97,7 @@ HealthServiceAccessibilityMask health_service_metric_accessible(
     (void)time_start;
     (void)time_end;
     s_access_metric = metric;
+    if (metric == HealthMetricStepCount) { s_step_access_calls++; }
     return s_access;
 }
 
@@ -143,6 +145,28 @@ void health_service_activities_iterate(HealthActivityMask activity_mask,
     // One restful-sleep session; the callback runs while the cache is held.
     callback(HealthActivityRestfulSleep, s_sleep_start, s_sleep_end, context);
     expect_int("iterate.cache_held_during_callback", s_cache_held, true);
+}
+
+// health_available() asks the firmware until its first yes and keeps that yes
+// without asking again: with the cache freed after every read, each ask reads the
+// step history from the activity settings file, and main_window.c asks on every
+// minute tick, flick and settings apply.
+static void availability_is_latched_at_the_first_yes(void) {
+    s_step_access_calls = 0;
+    s_access = HealthServiceAccessibilityMaskNotAvailable;
+    expect_int("available.no.value", health_available(), false);
+    expect_int("available.no.again", health_available(), false);
+    expect_int("available.no.asks", s_step_access_calls, 2);
+
+    s_access = HealthServiceAccessibilityMaskAvailable;
+    expect_int("available.yes.value", health_available(), true);
+    expect_int("available.yes.again", health_available(), true);
+    expect_int("available.yes.asks", s_step_access_calls, 3);
+
+    s_access = HealthServiceAccessibilityMaskNotAvailable;
+    expect_int("available.latched.value", health_available(), true);
+    expect_int("available.latched.asks", s_step_access_calls, 3);
+    expect_int("available.latched.held", s_cache_held, false);
 }
 
 // Each read that makes the firmware allocate its cache frees it again before it
@@ -238,6 +262,7 @@ static void health_minute_schema_fields_are_usable(void) {
 }
 
 int main(void) {
+    availability_is_latched_at_the_first_yes();
     accessible_distance_returns_today_sum();
     inaccessible_distance_returns_sentinel_without_sum();
     health_minute_schema_fields_are_usable();

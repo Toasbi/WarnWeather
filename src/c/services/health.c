@@ -1,7 +1,5 @@
 #include "health.h"
 
-#include <stdlib.h>
-
 // This HealthService wrapper exists only on health-capable hardware. On
 // platforms without PBL_HEALTH (e.g. aplite) there are no sensors and no
 // callers — the health view that used these accessors is itself compiled out
@@ -10,10 +8,6 @@
 #if defined(PBL_HEALTH)
 
 #define HOUR_SECS 3600
-
-// The firmware's HealthServiceCache as an SDK 3+ app's heap block (PebbleOS
-// applib_malloc.json: HealthServiceCache size_3x).
-#define HEALTH_SERVICE_CACHE_BYTES 2048
 
 /**
  * Returns local midnight (start of today) as a time_t.
@@ -36,12 +30,18 @@ static time_t s_start_of_today(void) {
    so health_service_events_unsubscribe() only frees the cache (the event service
    returns early for a handler it never subscribed). Each read below that allocates
    it calls this before returning, so the cache lives for that one read: the ONE
-   place the face lets go of it. The values do not change: the sums and the peek
-   use the cache only to keep a copy of the step history (the steps sum then reads
-   it afresh, as the distance and sleep sums always do), and activities_iterate, the
-   one call that needs it, has it for its whole run. When the heap cannot spare
-   2 KB at that moment the firmware goes without: the sums and the peek still
-   answer, and health_fill_hourly_sleep keeps the last read's hours. */
+   place the face lets go of it.
+   The values do not change. activities_iterate, the one call that needs the cache,
+   has it for its whole run. Otherwise the firmware keeps only a copy of the 30-day
+   step history there, and two calls here used that copy: the steps sum and
+   health_available()'s StepCount accessibility check. Without it, each reads the
+   history from the activity settings file (open, look the record up, close), as
+   the distance and sleep sums always do. health_available() latches its first yes,
+   so it stops reading after that; the steps sum reads the file once per summary
+   refresh, the fourth such read there next to the distance check and the distance
+   and sleep sums. When the heap cannot spare 2 KB at that moment the firmware goes
+   without: the sums and the peek still answer, and the sleep iterate reports
+   nothing (health_fill_hourly_sleep). */
 static void health_release_service_cache(void) {
     health_service_events_unsubscribe();
 }
@@ -54,9 +54,23 @@ __attribute__((noinline)) static int sum_today(HealthMetric metric) {
     return v;
 }
 
+/* The firmware answers from activity_is_initialized(), set once at its own boot and
+   never cleared, and today's entry of the 30-day step history, which costs an
+   activity settings file read whenever its cache holds no copy of that history
+   (health_release_service_cache). While the firmware held its cache, every call
+   after the first was answered from that copy, so the answer stayed yes (bar a no
+   at exactly 00:00:00, when the range from midnight to now is empty). The latch
+   keeps that yes for the app's life without the read: while health is on,
+   main_window.c asks through health_renderable() twice per minute tick, about four
+   times per flick and about five times per settings apply. A no is asked again on
+   the next call. */
 bool health_available(void) {
-    return (health_service_metric_accessible(HealthMetricStepCount,
-        s_start_of_today(), time(NULL)) & HealthServiceAccessibilityMaskAvailable) != 0;
+    static bool s_available;
+    if (!s_available) {
+        s_available = (health_service_metric_accessible(HealthMetricStepCount,
+            s_start_of_today(), time(NULL)) & HealthServiceAccessibilityMaskAvailable) != 0;
+    }
+    return s_available;
 }
 
 int health_steps_today(void) {
@@ -241,14 +255,10 @@ void health_fill_hourly_sleep(uint8_t *state_out, int count, time_t end_hour) {
        weighted → identical every hour). Sleep has no per-minute field in the
        history API, so we read sleep ACTIVITIES — each is a [start,end] interval
        — and paint the hours they cover.
-       The iterate reports nothing without the firmware's 2 KB cache, which it
-       allocates for its run (see health_release_service_cache). When the heap
-       cannot spare that block now, keep the last read's hours rather than paint
-       them all awake. The test block is freed at once, so the iterate's own
-       allocation finds it (or an earlier one) free. */
-    void *room = malloc(HEALTH_SERVICE_CACHE_BYTES);
-    if (!room) { return; }
-    free(room);
+       The iterate allocates the firmware's 2 KB cache for its run (see
+       health_release_service_cache). When the heap cannot spare that block, it
+       reports nothing and the window reads awake until the next build reads it
+       again (the next hourly rollover). */
     for (int i = 0; i < count; i++) { state_out[i] = HEALTH_SLEEP_AWAKE; }
     SleepFill f = { .state_out = state_out, .count = count, .end_hour = end_hour };
     health_service_activities_iterate(

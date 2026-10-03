@@ -12,7 +12,8 @@
 // feature out, so there is nothing to declare there.
 #if defined(PBL_HEALTH)
 
-/** Returns true if step-count health data is accessible right now. */
+/** Returns true once step-count health data is accessible; the first true is
+ *  latched for the app's life (health.c). */
 bool health_available(void);
 
 /** Returns today's total step count, or 0 if unavailable. */
@@ -44,8 +45,8 @@ void health_fill_hourly_hr(int16_t *out, int count, time_t end_hour);
 /**
  * Fills `count` hourly sleep-state buckets with HEALTH_SLEEP_* values.
  * out[0] = oldest hour, out[count-1] = the hour ending at end_hour.
- * Leaves them as they are when the heap cannot spare the firmware's 2 KB
- * health cache for the read (health.c).
+ * All awake when the heap cannot spare the firmware's 2 KB health cache for
+ * the read (health.c).
  */
 void health_fill_hourly_sleep(uint8_t *state_out, int count, time_t end_hour);
 

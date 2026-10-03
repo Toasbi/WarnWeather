@@ -191,7 +191,10 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   2 KB `HealthServiceCache` on the app heap at the first `health_service_sum*` / peek /
   `activities_iterate` call and keeps it until the app exits, so each such read there
   frees it again before returning (`health_release_service_cache`). A new allocating
-  call does the same, or the 2 KB stays held.
+  call does the same, or the 2 KB stays held. Without the cache, every StepCount sum or
+  accessibility check reads the step history from the activity settings file, so a new
+  one on the tick or flick path costs a flash read each time (why `health_available()`
+  latches its first true).
 
 ## Aplite source-fork convention
 
