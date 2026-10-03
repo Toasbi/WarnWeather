@@ -161,6 +161,8 @@
   .row.nav .chev { font-size: 21px; font-weight: 700; line-height: 16px; }
   .row.nav .hint { margin-top: 3px; line-height: 1.45; }
   .row.nav:active { background: var(--row-press, rgba(127,127,127,0.08)); }
+  /* text for a screen reader only (a nav row's badge state, engine chevronRow) */
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .nav-note { font: 600 13px 'Inter', sans-serif; color: var(--muted); }
   .row .hint.faint, .hint-faint { color: var(--faint); }
   /* a link row (button style 'link'): a reset or outside link as a line of link text */
@@ -178,6 +180,9 @@
   /* a tab's pinned header (engine renderPin): its pane switcher and the preview that
      stays in view while the cards scroll under it, on the page ground */
   .pin { position: sticky; top: 0; z-index: 6; background: var(--bg); margin: 0 -16px; padding: 0 16px 14px; -webkit-transform: translateZ(0); transform: translateZ(0); }
+  /* …except while a colour palette is open (engine pinClass): then it scrolls away with the
+     page, so the 64-swatch grid is never partly under it on a short screen */
+  .pin.loose { position: relative; }
   /* the pinned block bleeds to its own rounded frame: a preview SVG cancels a .blockrow's
      padding with negative margins (preview-svg.js svgFrame), so the frame carries it */
   .pin-blk { padding: 12px 16px 14px; border-radius: 12px; overflow: hidden; border: 1px solid var(--card-line); background: var(--card); }

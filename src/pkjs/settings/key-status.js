@@ -232,14 +232,15 @@
 
     /**
      * keySheet (editSheetFrom): the sheet holding the picked source's key (sheetOf), null
-     * (no Edit button) for a source without a key.
+     * (no key row) for a source without a key.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{messageKey: string}} args The row's key: the picker.
+     * @param {{picker: (string|undefined), messageKey: (string|undefined)}} args The picker:
+     *   args.picker on the key row under it, else the row's own messageKey.
      * @returns {?string} The sheetId, or null.
      */
     function keySheet(S, env, args) {
-        var source = sourceOf(args, (S || {})[args.messageKey]);
+        var source = sourceOf(args, pickedValue(S, args));
         return source ? sheetOf(source, S) : null;
     }
 
