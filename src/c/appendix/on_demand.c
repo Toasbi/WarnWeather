@@ -310,13 +310,6 @@ static uint8_t pushed_sides(const Geom *g) {
     return v ? v : active;
 }
 
-static void plain_out(const Pass *p, OdLayout *out) {
-    memset(out, 0, sizeof(*out));
-    for (int i = 0; i < 3; i++) {
-        out->place[i] = p->plain[i];
-    }
-}
-
 // Place a settled layout (§5.5): the middle at its target (clamped into its span
 // when free), each own slot at its edge with its run beside it, each far slot where
 // plain put it, and the items in order from the own slot inward — from the edge
@@ -648,15 +641,17 @@ static bool ladder(Pass *p, uint8_t pos[2], Geom *g) {
 // The ladder, the middle's two checks, then the placement. The ladder runs a second
 // time only without the middle (middle_costs_look), from the items the first left,
 // and the loop keeps it one call, so its frame folds into od_layout's: this runs on
-// the paint path's stack.
+// the paint path's stack. Where no side has an item, the layout of row 0 is the plain
+// one, and place() lays it out as status_row_layout() did (every slot that shows at
+// its plain place).
 static void layout_pass(Pass *p, OdLayout *out) {
     Geom g;
     uint8_t pos[2];
     const int16_t mid_w = p->plain_w[1];
     do {
         if (!ladder(p, pos, &g)) {
-            plain_out(p, out);
-            return;
+            eval(p, pos, &g);
+            break;
         }
     } while (middle_costs_look(p, pos, &g));
     middle_back(p, pos, &g, mid_w);
