@@ -718,6 +718,18 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
     return GRect((int16_t)(x0 + lo - 2), v.y, (int16_t)((hi - lo) + 4), v.h);
 }
 
+// The shared arrow (s_arrow_path), turned to `angle`, centred on `at` and drawn in
+// `ink`, outline and fill: the sunrise/sunset arrow and the wind-direction arrow.
+static void draw_arrow(GContext *ctx, int32_t angle, GPoint at, GColor ink) {
+    if (!s_arrow_path) { return; }
+    gpath_rotate_to(s_arrow_path, angle);
+    gpath_move_to(s_arrow_path, at);
+    graphics_context_set_stroke_color(ctx, ink);
+    graphics_context_set_fill_color(ctx, ink);
+    gpath_draw_outline_open(ctx, s_arrow_path);
+    gpath_draw_filled(ctx, s_arrow_path);
+}
+
 void status_row_draw(StatusRow *row, GContext *ctx) {
     if (!row || !ctx) { return; }
     StatusSlotView views[STATUS_SLOT_COUNT];
@@ -832,15 +844,8 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         } else if (slots[i].slot.icon == STATUS_ICON_DRAWN_SUN
                    && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;
-            int arrow_x = icon_x + ARROW_W / 2;
-            if (s_arrow_path) {
-                gpath_rotate_to(s_arrow_path, arrow_up ? TRIG_MAX_ANGLE / 2 : 0);
-                gpath_move_to(s_arrow_path, GPoint(arrow_x, glyph_cy));
-                graphics_context_set_stroke_color(ctx, theme_fg());
-                graphics_context_set_fill_color(ctx, theme_fg());
-                gpath_draw_outline_open(ctx, s_arrow_path);
-                gpath_draw_filled(ctx, s_arrow_path);
-            }
+            draw_arrow(ctx, arrow_up ? TRIG_MAX_ANGLE / 2 : 0,
+                       GPoint(icon_x + ARROW_W / 2, glyph_cy), theme_fg());
         }
         if (places[i].text_visible) {
             graphics_draw_text(ctx, slots[i].text, slots[i].font,
@@ -859,19 +864,15 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         // sentinel.) `ink`, not theme_fg(): a filled wind slot draws its
         // text and its glyph legible OVER the fill, and an arrow in the foreground
         // colour would disappear into it. The measure has the final say: a wind slot
-        // in its last short form (On demand) drops the arrow's lane.
-        if (places[i].text_visible && slots[i].dir >= 0 && measures[i].suffix_w > 0
-                && s_arrow_path) {
-            gpath_rotate_to(s_arrow_path, (int32_t)((TRIG_MAX_ANGLE
-                * status_dir_turn_sixteenths(slots[i].dir)) / 16));
+        // in its last short form (On demand) drops the arrow's lane. A lane is
+        // reserved only for a slot with a heading (measure_slot: dir >= 0), so
+        // suffix_w > 0 says there is one.
+        if (places[i].text_visible && measures[i].suffix_w > 0) {
             // Centred in its ARROW_H-square lane, seated on the same cap centre the
             // icons, the battery glyph and the sun arrow all co-centre on.
-            gpath_move_to(s_arrow_path,
-                GPoint(x0 + places[i].suffix_x + ARROW_H / 2, glyph_cy));
-            graphics_context_set_stroke_color(ctx, ink);
-            graphics_context_set_fill_color(ctx, ink);
-            gpath_draw_outline_open(ctx, s_arrow_path);
-            gpath_draw_filled(ctx, s_arrow_path);
+            draw_arrow(ctx, (int32_t)((TRIG_MAX_ANGLE
+                           * status_dir_turn_sixteenths(slots[i].dir)) / 16),
+                       GPoint(x0 + places[i].suffix_x + ARROW_H / 2, glyph_cy), ink);
         }
     }
 }
