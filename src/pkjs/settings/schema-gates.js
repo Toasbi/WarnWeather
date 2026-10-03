@@ -25,8 +25,8 @@ var HR_SLOT_WHEN = {all: HEALTH_SLOT_WHEN.all.concat([{env: 'hr'}])};
 // threshold edit sheet. aplite compiles the feature out (no WW_THRESHOLD_HIGHLIGHT:
 // its lean status-row twin has no highlight code and its image has no room), so
 // offering the settings there would be a sheet that silently does nothing. The
-// statusSlotEditSheet resolver (blocks.js) applies the same env gate to the pencil
-// trigger, so the sheet is unreachable there too. Platform fact lives in
+// statusSlotEditSheet resolver (blocks.js) applies the same env gate to the slot's
+// Edit button, so the sheet is unreachable there too. Platform fact lives in
 // config-ui/lib/platform.js.
 var THRESHOLD_WHEN = {env: 'thresholds'};
 // "This watch draws On demand items" — every On demand row, card and sheet. aplite
@@ -48,7 +48,7 @@ function tabLink(tab, label) {
 // "This watch reports its battery charge in 5 % steps" (emery): the Battery item's warn
 // level steps by 5 there and by 10 everywhere else.
 var FINE_BATTERY_WHEN = {env: 'fineBattery'};
-// "The Watch-tab master Bold row overrides every slot" — statusBoldAll 'all' packs
+// "The Status bars tab's master Bold row overrides every slot" — statusBoldAll 'all' packs
 // the bold cell of EVERY kind as always-bold at blob-build time
 // (status-wire.js buildSettingsBlob) WITHOUT touching the stored per-kind
 // thresh<Stem>BoldMode values, so the per-slot Bold rows go inert (disabledWhen —

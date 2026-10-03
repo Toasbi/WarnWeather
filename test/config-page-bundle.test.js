@@ -280,7 +280,8 @@ test('the key status, its tables, its fingerprint and the key results are bundle
     'key-status.js must precede key-test.js');
   const src = page();
   ['window.KeySources = api', 'window.KeyFingerprint = api', 'window.KeyResult = api',
-    "PConf.attentionResolvers.register('keyAttention'", "PConf.badgeResolvers.register('keyBadge'", "PConf.hintResolvers.register('keyMissingNote'",
+    "PConf.attentionResolvers.register('keyAttention'", "PConf.hintResolvers.register('keyRowSummary'",
+    "PConf.hintResolvers.register('keyMissingNote'",
     "keyStatus.registerUsage('tomorrowio'"].forEach((s) =>
     assert.ok(src.indexOf(s) !== -1, 'the generated page lacks ' + s));
 });

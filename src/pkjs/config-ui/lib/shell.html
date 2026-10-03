@@ -135,7 +135,7 @@
   .subhdr.grp > span:first-child { min-width: 0; }
   .subhdr.grp .sw { flex: none; margin-left: auto; }
   .subhdr.grp .lbl-act { flex: none; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 16px; border-bottom: 1px solid var(--row-line); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 18px; padding: 14px 16px; border-bottom: 1px solid var(--row-line); }
   /* stacked rows are a column, so the .row flex `gap` would space label/hint/control far apart;
      zero it and let the hint's own margin-top own the label→hint gap (matching non-stacked rows). */
   .row.stack { flex-direction: column; align-items: stretch; gap: 0; }
@@ -176,7 +176,10 @@
   /* a From–To row (an inline group with a groupLabel): the two pickers joined by a dash */
   .row.hours .rgt.hrs { display: inline-flex; align-items: center; gap: 6px; }
   .hrs-dash { color: var(--muted); font-weight: 600; }
-  .row.hours.isel-open { flex-wrap: wrap; }
+  /* its hint runs full width under the label and pickers (as .segwide's does); the
+     pickers drop under the label on a phone too narrow for both (the .row rule below) */
+  .row.hours { column-gap: 14px; }
+  .row.hours > .hint { flex-basis: 100%; margin-top: 0; }
   /* a tab's pinned header (engine renderPin): its pane switcher and the preview that
      stays in view while the cards scroll under it, on the page ground */
   .pin { position: sticky; top: 0; z-index: 6; background: var(--bg); margin: 0 -16px; padding: 0 16px 14px; -webkit-transform: translateZ(0); transform: translateZ(0); }
@@ -198,6 +201,12 @@
   .row .hint a { color: var(--link); }
   .row .lft { min-width: 0; flex: 1; }
   .row .rgt { flex: none; }
+  /* A label + control row (.row wraps): when the control leaves the label less room than
+     its longest word (and the '?' riding it), the control drops onto a line of its own,
+     right-aligned under the label, instead of sliding over the text — a narrow phone, or
+     a full-screen dialog's inset card. Wide enough, nothing changes. */
+  .row > .lft { min-width: -webkit-min-content; min-width: min-content; }
+  .row > .rgt { margin-left: auto; }
   /* A switch is an inline box on its cell's text baseline, so the line's descent (the
      strut) hung 4px of air under it: a hint-less toggle row's cell stood 32px tall around
      a 28px switch, centred 2px high, and anything under it sat 4px further off. Top-
@@ -211,7 +220,8 @@
      needs flex-basis 0 (`flex: 1`, not `1 1 auto`) so its intrinsic text width doesn't
      count toward line-breaking and push the control onto its own line below the label. */
   .row.segwide { flex-wrap: wrap; column-gap: 14px; row-gap: 8px; }
-  .row.segwide .lft { flex: 1; min-width: 0; }
+  .row.segwide .lft { flex: 1; min-width: 0; min-width: -webkit-min-content; min-width: min-content; }
+  .row.segwide > .rgt { margin-left: auto; }
   .row.segwide .hint { flex-basis: 100%; margin-top: 0; }
   /* free-form text rendered verbatim from a staticText schema item */
   .static { padding: 14px 16px; font-size: 13.5px; color: var(--static); line-height: 1.5; border-bottom: 1px solid var(--row-line); }
@@ -335,6 +345,8 @@
   /* a disabled row (item.disabledWhen): visible — it shows what turning the feature
      on would offer — but muted and inert */
   .row.dis { opacity: .45; pointer-events: none; }
+  /* ...but its '?' still opens: the info text often says why the row is off */
+  .row.dis .info-q { pointer-events: auto; }
   /* small icon button beside a row label (item.labelAction — reset to defaults) */
   /* .lbl-act appears inline in labels AND on group sub-headers (.subhdr.grp), so the
      chrome reset must be unscoped — a `.lbl .lbl-act` scope leaves the sub-header copy
@@ -499,8 +511,10 @@
   .dlg-ttlwrap { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
   .dlg-kick { font: 800 11px 'Inter', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--ttl); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 1px; }
   .dlg-ttlline { display: flex; align-items: center; min-width: 0; }
-  .dlg-ttl { font: 800 19px 'Inter', sans-serif; letter-spacing: -.02em; color: var(--lbl); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dlg-ttlline .info-q { margin-left: 3px; }
+  /* the title wraps rather than cut a metric's name short; its '?' rides the last word */
+  .dlg-ttl { font: 800 19px 'Inter', sans-serif; letter-spacing: -.02em; color: var(--lbl); line-height: 1.2; overflow-wrap: break-word; word-wrap: break-word; min-width: 0; }
+  .dlg-ttl .nw { white-space: nowrap; display: inline-flex; align-items: center; }
+  .dlg-ttl .info-q { margin-left: 3px; letter-spacing: 0; }
   .dlg-ttlline .lbl-act { flex: none; margin-left: 4px; }
   .dlg-done { flex: none; padding: 9px 18px; border: none; border-radius: 11px; background: linear-gradient(135deg, #FA4A35, #D93A24); color: #FFFFFF; font: 700 14px 'Inter', sans-serif; box-shadow: 0 4px 14px rgba(250,74,53,0.35); cursor: pointer; }
   .dlg-done:active { transform: translateY(1px); }
@@ -530,14 +544,6 @@
      status slots'. */
   .thr-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; min-height: 33px; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); cursor: pointer; padding: 0 10px; border-radius: 9px; font: 600 12px 'Inter', sans-serif; transition: color .15s, background .15s, border-color .15s; }
   .thr-btn:active { color: var(--link); border-color: var(--link); background: rgba(250,74,53,0.12); }
-  /* Action row hosted in a staticText item (the Custom-layout Edit row): title + sub-hint
-     left, a .thr-btn right. Own classes rather than .row .lbl/.hint — those are scoped to
-     .row and this markup renders inside .static; sizes match the previous inline styles
-     (title = .lbl's look, sub slightly tighter than .hint: 12px, 2px gap). The 400 weight
-     on the sub is load-bearing — it is nested inside the 600-weight title span. */
-  .row-action { display: flex; justify-content: space-between; align-items: center; gap: 18px; }
-  .row-action-title { font-size: 14.5px; font-weight: 600; color: var(--lbl); }
-  .row-action-sub { display: block; font-size: 12px; font-weight: 400; color: var(--hint); margin-top: 2px; }
   /* Badge colour preview, LEFT of the control: one dot per colour the row's badge
      reports, hollow (.ring) or filled (.fill) — the watch's own outline/fill language,
      so the shape carries meaning and not just the hue. It is a preview, not a control —

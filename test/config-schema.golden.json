@@ -977,7 +977,8 @@
                 "showWhen": {
                   "env": "color"
                 },
-                "onChange": "themeConvert"
+                "onChange": "themeConvert",
+                "convertsDefaults": true
               },
               {
                 "type": "select",
@@ -1010,7 +1011,8 @@
                     }
                   ]
                 },
-                "onChange": "themeConvert"
+                "onChange": "themeConvert",
+                "convertsDefaults": true
               },
               {
                 "type": "select",
@@ -1130,10 +1132,48 @@
                   "resolver": "nightHoursHint"
                 },
                 "showWhen": {
-                  "not": {
-                    "key": "nightHoursSeparate",
-                    "eq": true
-                  }
+                  "all": [
+                    {
+                      "not": {
+                        "key": "nightHoursSeparate",
+                        "eq": true
+                      }
+                    },
+                    {
+                      "any": [
+                        {
+                          "all": [
+                            {
+                              "env": "colorBacklight"
+                            },
+                            {
+                              "key": "backlightDim",
+                              "eq": true
+                            }
+                          ]
+                        },
+                        {
+                          "all": [
+                            {
+                              "env": "themePolarity"
+                            },
+                            {
+                              "key": "themeAuto",
+                              "eq": true
+                            },
+                            {
+                              "key": "themeAutoMode",
+                              "eq": "manual"
+                            }
+                          ]
+                        },
+                        {
+                          "key": "sleepNightEnabled",
+                          "eq": true
+                        }
+                      ]
+                    }
+                  ]
                 }
               },
               {
@@ -1249,10 +1289,48 @@
                 },
                 "onChange": "nightHoursSync",
                 "showWhen": {
-                  "not": {
-                    "key": "nightHoursSeparate",
-                    "eq": true
-                  }
+                  "all": [
+                    {
+                      "not": {
+                        "key": "nightHoursSeparate",
+                        "eq": true
+                      }
+                    },
+                    {
+                      "any": [
+                        {
+                          "all": [
+                            {
+                              "env": "colorBacklight"
+                            },
+                            {
+                              "key": "backlightDim",
+                              "eq": true
+                            }
+                          ]
+                        },
+                        {
+                          "all": [
+                            {
+                              "env": "themePolarity"
+                            },
+                            {
+                              "key": "themeAuto",
+                              "eq": true
+                            },
+                            {
+                              "key": "themeAutoMode",
+                              "eq": "manual"
+                            }
+                          ]
+                        },
+                        {
+                          "key": "sleepNightEnabled",
+                          "eq": true
+                        }
+                      ]
+                    }
+                  ]
                 }
               },
               {
@@ -2193,12 +2271,50 @@
                 "onChange": "nightHoursMode",
                 "more": true,
                 "showWhen": {
-                  "any": [
+                  "all": [
                     {
-                      "env": "themePolarity"
+                      "any": [
+                        {
+                          "env": "themePolarity"
+                        },
+                        {
+                          "env": "colorBacklight"
+                        }
+                      ]
                     },
                     {
-                      "env": "colorBacklight"
+                      "any": [
+                        {
+                          "all": [
+                            {
+                              "env": "colorBacklight"
+                            },
+                            {
+                              "key": "backlightDim",
+                              "eq": true
+                            }
+                          ]
+                        },
+                        {
+                          "all": [
+                            {
+                              "env": "themePolarity"
+                            },
+                            {
+                              "key": "themeAuto",
+                              "eq": true
+                            },
+                            {
+                              "key": "themeAutoMode",
+                              "eq": "manual"
+                            }
+                          ]
+                        },
+                        {
+                          "key": "sleepNightEnabled",
+                          "eq": true
+                        }
+                      ]
                     }
                   ]
                 }

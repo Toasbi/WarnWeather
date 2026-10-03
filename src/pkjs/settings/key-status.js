@@ -30,14 +30,13 @@
 // tested or used. What a status says about a key is key-result.js's classify, for the
 // Test button and the phone's answers alike.
 //
-// What the page shows from it:
-//   keySheet         (sheetResolvers)     the Edit button: the sheet holding the picked
-//                                         source's key (sheetOf);
-//   keyBadge         (badgeResolvers)     "Add key" (the page's normal button) while the
-//                                         key is missing, "Edit" otherwise;
-//   keySummaryHint   (hintResolvers)      the row's own hint for its value (the engine's
-//                                         args.staticHint: its hintByValue copy) and the
-//                                         summary line "Key ••••1234 · ✓ works";
+// What the page shows from it (the key row under a source picker, Setup › Weather data
+// and Graphs › Rain radar):
+//   keySheet         (sheetResolvers)     the dialog the key row opens: the sheet holding
+//                                         the picked source's key (sheetOf);
+//   keyRowLabel      (hintResolvers, labelFrom) the row's label, "<Name> API key";
+//   keyRowSummary    (hintResolvers)      its summary, "Key ••••1234 · ✓ works", or a
+//                                         dimmed "No key";
 //   keyMissingNote   (hintResolvers, a staticText's textFrom) the amber note while the
 //                                         key is missing;
 //   keyAttention     (attentionResolvers) missing or rejected: the tab's dot and the Save
@@ -245,47 +244,6 @@
     }
 
     /**
-     * keyBadge (editBadgeFrom): the Edit button reads "Add key" while the picked source's
-     * key is missing; "Edit" otherwise. Both are the page's normal grey button (the
-     * owner, 2026-10-01): the amber note under the row and the tab's dot say the key is
-     * missing. Only consulted while keySheet offers a sheet.
-     * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (unused).
-     * @param {{messageKey: string}} args The row's key: the picker.
-     * @returns {Object} Badge state.
-     */
-    function keyBadge(S, env, args) {
-        var id = (S || {})[args.messageKey];
-        var source = sourceOf(args, id);
-        var st = source ? statusOf(source, id, S) : null;
-        if (st && st.state === 'missing') {
-            return { label: 'Add key', ariaNote: 'no API key', dots: [] };
-        }
-        return { label: 'Edit', ariaNote: (st && st.state === 'rejected') ? 'API key rejected' : '', dots: [] };
-    }
-
-    /**
-     * keySummaryHint (hintFrom): for a keyed source, the row's own hint for the value
-     * (args.staticHint, which the engine hands every hint resolver: the row's hintByValue
-     * copy for the value it shows) with the summary line under it; null otherwise, so
-     * hintByValue answers.
-     * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (unused).
-     * @param {{messageKey: string, value: string, staticHint: (string|undefined)}} args
-     *   The row's key (the picker), its shown value and its static hint for that value.
-     * @returns {?string} The hint, or null.
-     */
-    function keySummaryHint(S, env, args) {
-        var id = pickedValue(S, args);
-        var source = sourceOf(args, id);
-        if (!source) { return null; }
-        var why = args.staticHint || '';
-        var line = summaryLine(source, statusOf(source, id, S), S);
-        if (!line) { return why; }
-        return why ? why + '<br>' + line : line;
-    }
-
-    /**
      * keyRowLabel (labelFrom of the key row under a picker): "<Name> API key" for the
      * picked source; null (the row's own label) for a source without a key — the row is
      * hidden then anyway (keySheet answers no sheet).
@@ -369,8 +327,6 @@
         sheetOf: sheetOf,
         summaryLine: summaryLine,
         keySheet: keySheet,
-        keyBadge: keyBadge,
-        keySummaryHint: keySummaryHint,
         keyRowLabel: keyRowLabel,
         keyRowSummary: keyRowSummary,
         keyMissingNote: keyMissingNote,
@@ -382,8 +338,6 @@
     if (PConf) { PConf.keyStatus = api; }
     if (PConf && PConf.attentionResolvers) {
         PConf.sheetResolvers.register('keySheet', keySheet);
-        PConf.badgeResolvers.register('keyBadge', keyBadge);
-        PConf.hintResolvers.register('keySummaryHint', keySummaryHint);
         PConf.hintResolvers.register('keyRowLabel', keyRowLabel);
         PConf.hintResolvers.register('keyRowSummary', keyRowSummary);
         PConf.hintResolvers.register('keyMissingNote', keyMissingNote);

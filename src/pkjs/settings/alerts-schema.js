@@ -36,12 +36,12 @@ var RAIN_LOOK_OPTIONS = [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text
 // as their sub-headers print them.
 var OD_BAR_NAMES = {top: 'Watch bar', forecast: 'Forecast bar',
     radar: 'Radar bar', health: 'Health bar'};
-// The bars in the page's order, the Status slots tab's (the owner, 2026-10-01): the rows
+// The bars in the page's order, the Status bars tab's (the owner, 2026-10-01): the rows
 // of every Shows on grid. on-demand.js BARS keeps the wire's ThreshBar order.
 var OD_PAGE_BARS = ['top', 'forecast', 'health', 'radar'];
 // The note under every Shows on grid: the two side rules a user can act on (one side per
 // bar; the make-room order drops the lowest-priority item first, and on-demand.js ITEMS
-// priority is the Alert settings card's order). The per-bar Alerts sheet's intro said
+// priority is the Alerts tab's row order). The per-bar Alerts sheet's intro said
 // them until the grids replaced it.
 var SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.';
 /**
@@ -99,10 +99,11 @@ function onDemandPlacedWhen(code) {
     return {when: 'onDemandPlaced', args: {code: code}};
 }
 /**
- * The Radar tab's note in radar mode 'Rain alert only', the mode that fetches the radar
- * for the rain icon alone, while no side of a bar that exists in it holds Rain, with a
- * link to the Alerts tab, where the Rain sheet's Shows on grid places it. Not in 'Status'
- * or 'Graph' mode: a user there who took Rain off every bar chose that. The radar bar
+ * The note under the Rain radar row (Watchface › Views) in radar mode 'Rain alert only',
+ * the mode that fetches the radar for the rain icon alone, while no side of a bar that
+ * exists in it holds Rain, with a link to the Alerts tab, where the Rain sheet's Shows
+ * on grid places it. Not in 'Status' or 'Graph' mode: a user there who took Rain off
+ * every bar chose that. The radar bar
  * never shows in this mode, so on-demand.js placedAnywhere (onDemandPlacedWhen) leaves a
  * Rain ticked there out, as placeRainForCountdown does. The Rain sheet needs no note of
  * its own: its Shows on grid shows where Rain is. A fresh object per call, like every
@@ -133,8 +134,8 @@ function rainRadarOffNote() {
     };
 }
 /**
- * The rain alert's sheet (sheetId alertRain), opened from the Alert settings card's Rain row
- * (the Alerts tab): its Shows on grid and note, the radar-off box, the Look, then the time
+ * The rain alert's sheet (sheetId alertRain), opened from the Rain row in the Alerts tab's
+ * Weather alerts card: its Shows on grid and note, the radar-off box, the Look, then the time
  * window (the owner's order, 2026-10-01: where it shows, the Look, then its own rows). It
  * has no switch: a tick in its Shows on grid is the switch. The time window is set here
  * alone (the owner, 2026-10-02: the Radar tab's copy went, "Alerts is enough"). The look's
@@ -232,8 +233,8 @@ function alertLooksAheadWhen(daysKey) {
         ? {key: daysKey, ne: 'today'} : {key: daysKey, eq: 'tomorrow'};
 }
 /**
- * One metric alert's sheet (sheetId alert<Stem>), opened from its Alert settings card row
- * (the Alerts tab), in the owner's order (2026-10-01): its Shows on grid and note, the
+ * One metric alert's sheet (sheetId alert<Stem>), opened from its row in the Alerts tab's
+ * Weather alerts card, in the owner's order (2026-10-01): its Shows on grid and note, the
  * Alert levels (header, slider, the info card for the unit or scale in effect), the Look,
  * then everything else (the Days with the tomorrow mark, the warn look and its colours) —
  * the levels' ONE home (the slot sheet points here). It has no switch: a tick in its Shows
@@ -439,7 +440,7 @@ var ALERT_KINDS = [
     // (AQI_DAY_PEAKS): WAQI — the default source, and Auto whenever a station answers
     // — has none, so alertReading judges the current reading and no tomorrow entry is
     // ever baked (wire-units dayMaxTomorrow reads null). The coda mirrors the slot
-    // sheet's source note, in the General tab's own labels ('AQI provider', 'Open-Meteo').
+    // sheet's source note, in Setup › Weather data's own labels ('AQI provider', 'Open-Meteo').
     {keyStem: 'Aqi', label: 'Air quality', title: 'Air quality (AQI)', subject: 'the air quality index',
         iconName: 'air quality', icon: 'aqi', why: ALERT_LEVEL_CARDS.Aqi,
         coda: ' Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (Setup › Weather data): '
@@ -451,10 +452,10 @@ var ALERT_KINDS = [
         icon: 'wind', why: ALERT_LEVEL_CARDS.Wind}
 ];
 /**
- * A bar's Alerts row, after its three slots: READ-ONLY (the owner, 2026-10-01). Its hint
- * shows the icons of the items placed on each side ("Left" + icons, "Right" + icons), then
- * where they are set up: the Alerts tab, as a link (alerts-page.js onDemandBarIcons). A readout:
- * no key, no Edit, nothing to open; each item's sheet on the Alerts tab places it.
+ * A bar's Alerts row, after its three slots: a nav row to the Alerts tab, storing nothing
+ * (the owner, 2026-10-01). Its summary shows the icons of the items placed on each side
+ * ("Left" + icons, "Right" + icons; alerts-page.js onDemandBarIcons), or "None". No key and no
+ * Edit button: each item's sheet on the Alerts tab places it.
  * @param {string} prefix The bar's key prefix, e.g. 'statusTop'.
  * @param {?Object} barWhen The bar's gate (RADAR_BAR_WHEN …), or null.
  * @returns {Object} The row.
@@ -620,8 +621,8 @@ function placementSheet(sheetId, title, code, intro) {
     };
 }
 /**
- * One Alert settings card row that opens a sheet: a badged `sheet` row (icon + label, the
- * item's live state under the label, its colours as dots where it has any, Edit).
+ * One Alerts-tab nav row that opens a sheet: a badged `sheet` row (icon + label, the
+ * item's live state under the label, its colours as dots where it has any, a chevron).
  * @param {string} sheetId The item's sheet, e.g. 'alertUv'.
  * @param {string} label Row label.
  * @param {string} icon Registered PConf.icons id (status-slot-icons.js).
@@ -644,12 +645,12 @@ var ON_DEMAND_CODES = {odBattery: 'battery', odBluetooth: 'bt', odQuiet: 'qt', o
     alertRain: 'rain', alertGust: 'gust', alertUv: 'uv', alertAqi: 'aqi', alertPollen: 'pollen',
     alertWind: 'wind'};
 /**
- * The Alert settings card's rows: the no-Watch-Status-Bar note, then System info (Battery,
+ * The Alerts tab's item rows, under the About alerts card: System info (Battery,
  * Bluetooth, Quiet time and Sleep) and Weather alerts (Rain, then the five metric alerts),
  * every row opening its item's sheet, which leads with where the item shows (its Shows on
- * grid). Every row prints its item's live state. Each group is one joined block, like the
- * Graph colors card: every row after its sub-header's first joins the one above.
- * @returns {Object[]} The card's items, in order.
+ * grid). Every row prints its item's live state. Each sub-header opens a card of its own
+ * (engine.js splits the section at it), so each group is one card.
+ * @returns {Object[]} The section's items, in order.
  */
 function onDemandCardItems() {
     // Every row's summary ends on where its alert shows ("Watch bar, left"), or reads
@@ -675,7 +676,7 @@ function onDemandCardItems() {
             {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}});
     }));
 }
-// The Alert settings card's intro (the owner's wording, 2026-10-01; its last sentence the
+// The About alerts card's intro (the owner's wording, 2026-10-01; its last sentence the
 // owner's of 2026-10-02): when an alert shows, then examples, then where they are placed
 // (each item's sheet opens on its Shows on grid), with the card's reset (the items'
 // settings and where each shows; blocks.js resetOnDemand).

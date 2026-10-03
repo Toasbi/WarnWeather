@@ -236,3 +236,89 @@ test('the page saves the same values however much of it was opened', async () =>
     assert.deepEqual(full, quick, plat);
   }
 });
+
+test('a choice made on another watch survives a save it was not drawn in, as on the old page', async () => {
+  // The phone keeps one settings blob for every watch it pairs with: a heart-rate slot
+  // set on a Time 2 is not offered on a Time, a feels-like line not on a Classic.
+  const basalt = await bootGeneratedPage({ provider: 'dwd', statusTopLeft: 'hr' }, 'basalt').save();
+  assert.equal(basalt.statusTopLeft, 'hr', 'untouched, the slot keeps it');
+  const p = bootGeneratedPage({ provider: 'dwd', statusTopLeft: 'hr' }, 'basalt');
+  p.clickTab('setup');
+  p.clickToggle('startOnWeatherTab');
+  assert.equal((await p.save()).statusTopLeft, 'hr', 'an unrelated change keeps it too');
+  const aplite = await bootGeneratedPage({ provider: 'dwd', thirdLine: 'feels' }, 'aplite').save();
+  assert.equal(aplite.thirdLine, 'feels');
+  // Drawn, the row shows what this watch can do and saves that — the old page's rule.
+  const shown = bootGeneratedPage({ provider: 'dwd', statusTopLeft: 'hr' }, 'basalt');
+  shown.clickTab('watch');
+  assert.notEqual((await shown.save()).statusTopLeft, 'hr');
+});
+
+test('with no night feature in use there is no Night hours row to pick in', () => {
+  const p = bootGeneratedPage({ provider: 'dwd', sleepNightEnabled: false, themeAuto: false }, 'basalt');
+  p.clickTab('watchface');
+  assert.equal(p.scroll.innerHTML.indexOf('data-select="nightHoursFrom"'), -1, 'nothing reads the hours');
+  assert.equal(p.scroll.innerHTML.indexOf('data-k="nightHoursSeparate"'), -1, 'nor Separate hours');
+  p.clickToggle('sleepNightEnabled');
+  assert.ok(p.scroll.innerHTML.indexOf('data-select="nightHoursFrom"') !== -1, 'the saver on: the row is back');
+});
+
+test('the one feature switched on brings its own hours: the Night hours become them', async () => {
+  const p = bootGeneratedPage({ provider: 'dwd', sleepNightEnabled: false, themeAuto: false, themeAutoMode: 'manual',
+    themeAutoStartHour: '22', themeAutoEndHour: '6' }, 'basalt');
+  p.clickTab('watchface');
+  p.clickToggle('themeAuto');
+  assert.equal(p.S.nightHoursSeparate, false, 'nothing else uses hours: no need to split');
+  assert.equal(p.S.nightHoursFrom, '22');
+  assert.equal(p.S.nightHoursTo, '6');
+  const blob = await p.save();
+  assert.equal(blob.themeAutoStartHour, '22');
+  assert.equal(blob.themeAutoEndHour, '6');
+  assert.equal(blob.sleepStartHour, '0', 'the saver is off and keeps its own');
+});
+
+test('Separate hours off and straight back on gives every feature its own hours back', async () => {
+  const cfg = { provider: 'dwd', backlightDimStartHour: '21', backlightDimEndHour: '5', themeAuto: true,
+    themeAutoMode: 'manual', themeAutoStartHour: '23', themeAutoEndHour: '8', sleepStartHour: '1', sleepEndHour: '6' };
+  const p = bootGeneratedPage(cfg, 'emery');
+  p.clickTab('watchface');
+  assert.equal(p.S.nightHoursSeparate, true);
+  p.clickToggle('nightHoursSeparate');
+  assert.equal(p.S.sleepStartHour, '21', 'off: one set of hours for all');
+  p.clickToggle('nightHoursSeparate');
+  const blob = await p.save();
+  assert.deepEqual([blob.backlightDimStartHour, blob.themeAutoStartHour, blob.sleepStartHour], ['21', '23', '1']);
+  assert.deepEqual([blob.backlightDimEndHour, blob.themeAutoEndHour, blob.sleepEndHour], ['5', '8', '6']);
+  // A Night hours pick in between is a choice: back on, the features keep it.
+  const q = bootGeneratedPage(cfg, 'emery');
+  q.clickTab('watchface');
+  q.clickToggle('nightHoursSeparate');
+  q.openSelect('nightHoursFrom');
+  q.pickOption('nightHoursFrom', '22');
+  q.clickToggle('nightHoursSeparate');
+  assert.equal((await q.save()).sleepStartHour, '22');
+});
+
+test('More options stays folded for colours the light theme set and alert colours the page filled in', async () => {
+  // Pick Light (the theme conversion rewrites the time colour and the rain bars), save,
+  // save once more (the page writes the alerts' automatic colours back), reopen.
+  const p = bootGeneratedPage({ provider: 'dwd' }, 'basalt');
+  p.clickTab('watchface');
+  p.openSelect('theme');
+  p.pickOption('theme', 'light');
+  const once = await p.save();
+  assert.equal(once.colorTime, '#000000', 'the theme conversion ran');
+  const twice = await bootGeneratedPage(once, 'basalt').save();
+  const r = bootGeneratedPage(twice, 'basalt');
+  r.clickTab('watchface');
+  assert.ok(r.scroll.innerHTML.indexOf('data-more="watchface:time/0#more" aria-expanded="false"') !== -1, 'Time');
+  r.clickTab('graphs');
+  assert.ok(r.scroll.innerHTML.indexOf('data-more="graphs:bars/0#more" aria-expanded="false"') !== -1, 'Bars');
+  r.clickTab('alerts');
+  r.openEditSheet('alertGust');
+  assert.ok(/data-more="dlg:alertGust\/\d+#more" aria-expanded="false"/.test(r.modal.innerHTML), 'the gust alert');
+  // A colour the user picked still opens them.
+  const own = bootGeneratedPage(Object.assign({}, twice, { colorTime: '#FF0000' }), 'basalt');
+  own.clickTab('watchface');
+  assert.ok(own.scroll.innerHTML.indexOf('data-more="watchface:time/0#more" aria-expanded="true"') !== -1);
+});

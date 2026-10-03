@@ -15,8 +15,8 @@ var gateAll = gates.gateAll;
 var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 
 // A kind's level group speaks in one of two voices, and the CALLER picks it: the
-// weather kinds rise to ALERT LEVELS (ALERT_VOICE, in the kind's alert sheet in the
-// Alert settings card); the health kinds work toward GOALS (GOAL_VOICE, in their slot
+// weather kinds rise to ALERT LEVELS (ALERT_VOICE, in the kind's alert sheet on the
+// Alerts tab); the health kinds work toward GOALS (GOAL_VOICE, in their slot
 // sheet) — same rises-toward-the-pair machinery, friendlier words. A voice record
 // carries every word the group, its slider's chips (the thresholdRange resolver,
 // blocks.js) and the slot's Bold row (schema.js boldRow) say, so the builders hold no
@@ -172,10 +172,10 @@ function nextDayMarkOptions() {
 // `gate` (optional showWhen) hides kinds that can't appear in any slot (health
 // on aplite / with health off); color pickers additionally hide on B&W
 // (capability + bw theme).
-// The group has ONE home per kind: the goal kinds' slot pencil sheet
+// The group has ONE home per kind: the goal kinds' slot sheet
 // (schema.js goalSlotSheet, below the slot's Bold row), and for the five alert kinds the
-// alert sheet the Alert settings card opens (alerts-schema.js alertSheet, the Alerts tab) — their slot
-// sheets carry a pointer there instead (schema.js alertSlotSheet's alertLevelsNote), so every key
+// alert sheet their Alerts-tab row opens (alerts-schema.js alertSheet) — their slot
+// sheets carry a row to it instead (schema.js alertSlotSheet's alertLevelsRow), so every key
 // renders in exactly one place.
 // It is built in two halves: levelLead (the header, the slider, the cards and the hidden
 // companions) and levelLook (the warn look and the two colours). A goal sheet runs them
