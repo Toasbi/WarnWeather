@@ -1952,6 +1952,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       });
     }
 
+    // The attribute that carries a sheet's key on the trigger that opened it, by the sheet's
+    // kind (a confirm sheet's trigger is Save itself).
+    var TRIGGER_ATTR = { select: 'data-select', date: 'data-date', edit: 'data-edit-sheet' };
     /**
      * THE close protocol, run by every dismissal: a pick, the close button, the backdrop,
      * Escape, a swipe, a second tap on the trigger, and the Save dialog's "Save anyway".
@@ -1959,11 +1962,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * had expanded, which would otherwise come back expanded on reopen; a palette expanded
      * in the tab body stays, untouched by a select or date sheet closing over its card. The
      * page repaints, focus returns to the fresh trigger rendered in the old one's place (Save,
-     * for the Save dialog) unless the sheet's focusBack is false, and the sheet's onClose
-     * runs. A tab switch closes a sheet the same way (switchTab), but places no focus.
+     * for the Save dialog) unless the sheet's focusBack is false or the caller asks for none,
+     * and the sheet's onClose runs. A tab switch closes a sheet the same way (switchTab), but
+     * places no focus.
+     * @param {boolean} [noFocus] Place no focus ("Save anyway": the page is leaving).
      * @returns {void}
      */
-    function closeModal() {
+    function closeModal(noFocus) {
       var closing = sheet;
       dateWiring.flushPending();
       sheet = null;
@@ -1971,10 +1976,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       render();
       if (!closing) { return; }
       // By key, never a node captured at open time: render() replaced the old trigger.
-      var selector = closing.focusBack === false ? null
+      var selector = (noFocus || closing.focusBack === false) ? null
         : closing.kind === 'confirm' ? '#save'
-        : '[' + (closing.kind === 'edit' ? 'data-edit-sheet' : 'data-' + closing.kind) + '="'
-          + closing.key + '"]';
+        : '[' + TRIGGER_ATTR[closing.kind] + '="' + closing.key + '"]';
       var trigger = selector ? document.querySelector(selector) : null;
       if (trigger) { trigger.focus(); }
       if (closing.onClose) { closing.onClose(); }
@@ -2642,8 +2646,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     function confirmChoice(which) {
       var cf = sheet.confirm;
       if (which === 'save') {
-        sheet.focusBack = false;
-        closeModal();
+        closeModal(true);
         save();
         return;
       }

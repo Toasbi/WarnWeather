@@ -306,6 +306,22 @@ function tapInModal(page, sel, attr, value) {
   page.modal.dispatch('click', { target: t });
 }
 
+/**
+ * Give the page's tab bar a layout the engine's tab reveal can measure: a 360 px bar with
+ * 18 px side padding, in which General rests at 18-90 and More sits far right at 600-660,
+ * both shifted by the bar's scrollLeft. Leaves scrollLeft to the test.
+ * @param {Object} page bootGeneratedPage handle.
+ * @returns {void}
+ */
+function stubTabBarGeometry(page) {
+  const X = { general: [18, 90], more: [600, 660] };
+  const onTab = () => (/class="tab on" data-tab="(\w+)"/.exec(page.tabs.innerHTML) || [])[1];
+  page.tabs.getBoundingClientRect = () => ({ left: 0, right: 360 });
+  page.tabs.querySelector = (sel) => (sel !== '.tab.on' ? null : { getBoundingClientRect: () => ({
+    left: (X[onTab()] || [0, 0])[0] - page.tabs.scrollLeft, right: (X[onTab()] || [0, 0])[1] - page.tabs.scrollLeft }) });
+  page.window.getComputedStyle = () => ({ paddingLeft: '18px' });
+}
+
 test('page: a missing key — "Add key" as the plain grey button, the amber note, a dot on the General tab', () => {
   const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: '' }, 'basalt', { dialog: true });
   const body = page.scroll.innerHTML;
@@ -336,13 +352,7 @@ test('page: Save with a missing key opens the dialog; "Add key" opens the key sh
 
 test('page: the dialog\'s fix on another tab scrolls the tab bar until that tab shows', () => {
   const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: '' }, 'basalt', { dialog: true });
-  // A 360 px bar with 18 px side padding: General rests at 18-90, More sits far right.
-  const X = { general: [18, 90], more: [600, 660] };
-  const onTab = () => (/class="tab on" data-tab="(\w+)"/.exec(page.tabs.innerHTML) || [])[1];
-  page.tabs.getBoundingClientRect = () => ({ left: 0, right: 360 });
-  page.tabs.querySelector = (sel) => (sel !== '.tab.on' ? null : { getBoundingClientRect: () => ({
-    left: (X[onTab()] || [0, 0])[0] - page.tabs.scrollLeft, right: (X[onTab()] || [0, 0])[1] - page.tabs.scrollLeft }) });
-  page.window.getComputedStyle = () => ({ paddingLeft: '18px' });
+  stubTabBarGeometry(page);
   page.tabs.scrollLeft = 0;
   page.clickTab('more');
   assert.equal(page.tabs.scrollLeft, 660 - (360 - 18), 'the tap on More scrolled it into view');
@@ -405,13 +415,7 @@ test('page: a palette left open in the tab body closes under the Save dialog and
 
 test('page: the dialog\'s fix on the tab already showing leaves the tab bar; a tap on that tab brings it in', () => {
   const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: '' }, 'basalt', { dialog: true });
-  // The geometry of the test above: General rests at 18-90 in a 360 px bar with 18 px padding.
-  const X = { general: [18, 90], more: [600, 660] };
-  const onTab = () => (/class="tab on" data-tab="(\w+)"/.exec(page.tabs.innerHTML) || [])[1];
-  page.tabs.getBoundingClientRect = () => ({ left: 0, right: 360 });
-  page.tabs.querySelector = (sel) => (sel !== '.tab.on' ? null : { getBoundingClientRect: () => ({
-    left: (X[onTab()] || [0, 0])[0] - page.tabs.scrollLeft, right: (X[onTab()] || [0, 0])[1] - page.tabs.scrollLeft }) });
-  page.window.getComputedStyle = () => ({ paddingLeft: '18px' });
+  stubTabBarGeometry(page);   // General rests at 18-90 in a 360 px bar with 18 px padding
   page.tabs.scrollLeft = 0;
   page.clickTab('general');
   page.tabs.scrollLeft = 50;   // the bar swiped sideways: General is cut off at the left edge

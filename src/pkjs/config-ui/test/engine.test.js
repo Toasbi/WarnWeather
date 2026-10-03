@@ -1993,9 +1993,12 @@ test('boot(): a select in the tab body still opens the select modal and closes o
   assert.match(selectRowTags(r.scroll.innerHTML, 'mode').trigger, /aria-expanded="true"/);
   assert.doesNotMatch(selectRowTags(r.scroll.innerHTML, 'mode').row, /isel-open/,
     'the tab-body row is not an inline-open row');
+  // The page under an open sheet does not scroll (shell.html .scroll.locked).
+  assert.equal(r.scroll.className, 'scroll locked', 'the page is locked under the sheet');
   clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'mode', 'data-select-pick': 'b' });
   assert.equal(r.getValue('mode'), 'b');
   assert.equal(r.modal.innerHTML, '', 'a pick closes the modal');
+  assert.equal(r.scroll.className, 'scroll', 'and the page scrolls again');
   assert.equal(r.focusCounts.select.mode, 1, 'focus returns to the tab-body trigger');
 });
 
