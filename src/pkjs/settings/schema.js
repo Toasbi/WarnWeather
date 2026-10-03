@@ -987,7 +987,7 @@ function levelLead(keyStem, voice, hint, gate, why) {
         toggleKey: switchKey,
         intro: voice.intro,
         // Reverts pair + colors + scale max to the kind's defaults (blocks.js
-        // action) — deliberately NOT the pencil sheet's Bold row, which is not part
+        // action) — deliberately NOT the slot sheet's Bold row, which is not part
         // of the group.
         labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'}
     }];
@@ -1005,8 +1005,8 @@ function levelLead(keyStem, voice, hint, gate, why) {
         dangerKey: 'thresh' + keyStem + 'Danger',
         maxKey: 'thresh' + keyStem + 'Max',
         // The group's title and reset ride its card header; the row names the two values
-        // its thumbs set, which is also what its '?' hangs off. No disabledWhen: see the
-        // top of this function.
+        // its thumbs set, which is also what its info text (or '?') hangs off. No
+        // disabledWhen: see the top of this function.
         label: voice.rangeLabel,
         defaultValue: '',
         hint: hint,
@@ -1015,8 +1015,8 @@ function levelLead(keyStem, voice, hint, gate, why) {
         rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem, chips: voice.chips}}
     };
     // An alert group's cards on its default levels (ALERT_LEVEL_CARDS) are the slider's
-    // info text now, behind its '?': the scale hint, then the one card whose unit or scale
-    // is in effect (blocks.js levelInfo evaluates each card's showWhen).
+    // info text now (under it, or behind its '?'): the scale hint, then the one card whose
+    // unit or scale is in effect (blocks.js levelInfo evaluates each card's showWhen).
     if (why && why.length) {
         range.hintFrom = {resolver: 'levelInfo', args: {hint: hint, cards: why}};
     }
@@ -1314,7 +1314,7 @@ var SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the 
  */
 function showsOnRows(code, merge, notes) {
     // The dialog's Shows on card: its title is the grid's name, the side rules its info
-    // text (behind the card's '?'), the grid itself under the Left / Right captions, then
+    // text (the card's intro), the grid itself under the Left / Right captions, then
     // any boxed notes on why the item may not show (the caller's, and the Default view's).
     return [{
         type: 'subheader',
@@ -1951,7 +1951,6 @@ function placementSheet(sheetId, title, code, intro) {
  * @param {?Object} showWhen The row's own gate, or null.
  * @param {Object} hintFrom The live-state hint resolver ({resolver, args}).
  * @param {Object} editBadgeFrom The badge resolver ({resolver, args}).
- * @param {boolean} [joins] Whether the row joins the one above (no divider).
  * @returns {Object} Schema item.
  */
 function onDemandSheetRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFrom) {
@@ -2145,10 +2144,10 @@ var RADAR_PROVIDER_OPTIONS = [
     ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}]
 ];
 // The tomorrow.io key + budget guard live in a key sheet of whichever picker actually uses
-// the key: the General tab's Tomorrow.io sheet (the Edit button after the Weather provider
-// dropdown) while it is the WEATHER provider, the Radar tab's Tomorrow.io sheet (the Edit
-// button after the Radar provider dropdown) while it is radar-only, so the key never sits
-// with the weather provider for a non-weather provider. Both sheets hold the same rows
+// the key: Setup's Tomorrow.io sheet (the key row under the Weather provider) while it is
+// the WEATHER provider, the Rain radar pane's Tomorrow.io sheet (the key row under the
+// Radar provider) while it is radar-only, so the key never sits with the weather
+// provider for a non-weather provider. Both sheets hold the same rows
 // (TOMORROWIO_KEY_ROWS) under the same messageKeys, gated apart (like the theme color/B&W
 // split). The radar-only gate also needs a running radar (as "Rainbow (own key)"'s sheet
 // does): with radar off no Tomorrow.io radar call is made and the picker is hidden.
@@ -2156,14 +2155,14 @@ var TOMORROWIO_WEATHER_WHEN = {key: 'provider', eq: 'tomorrowio'};
 var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'radarMode', ne: 'off'},
     {key: 'provider', ne: 'tomorrowio'}]};
 // The weather providers that need an API key, by their `provider` value — the table every
-// key-status resolver on the Weather provider row reads (settings/key-status.js): the
-// provider's name as the dropdown shows it (the key sheet's title, the Save dialog's), the
-// sheet the Edit button after the dropdown opens, the field that sheet stores the key in,
-// whether that field has a Test button (`test`: the summary then says "not tested yet"
-// for a key it knows nothing about), a refusal's short reason by HTTP status where the
-// default ("invalid key", "no access") says less, and a usage line (blocks.js
-// registers tomorrow.io's projected calls). A provider missing here has no key, so its
-// row shows no Edit button and no key status.
+// key-status resolver on the Weather provider's rows reads (settings/key-status.js): the
+// provider's name as the dropdown shows it (the key sheet's title, the key row's label, the
+// Save dialog's), the sheet the key row under the dropdown opens, the field that sheet
+// stores the key in, whether that field has a Test button (`test`: the summary then says
+// "not tested yet" for a key it knows nothing about), a refusal's short reason by HTTP
+// status where the default ("invalid key", "no access") says less, and a usage line
+// (blocks.js registers tomorrow.io's projected calls). A provider missing here has no
+// key, so it gets no key row and no key status.
 var PROVIDER_KEYS = {
     openweathermap: {name: 'OpenWeatherMap', sheetId: 'providerKeyOwm', keyField: 'owmApiKey', test: true,
         // OpenWeatherMap answers 401 for a wrong key AND for one not on the One Call 3.0 plan.
@@ -2176,7 +2175,7 @@ var PROVIDER_KEYS = {
 // missing without a working key (the missing-key note and the Save dialog's sentence).
 var PROVIDER_KEY_ARGS = {keyed: PROVIDER_KEYS, picker: 'provider', outcome: 'the watch gets no forecast'};
 // The radar sources that need the user's own key, by their picker value — the table every
-// key-status resolver on the Radar provider row reads (settings/key-status.js), shaped like
+// key-status resolver on the Radar provider's rows reads (settings/key-status.js), shaped like
 // PROVIDER_KEYS. "Rainbow (own key)": its key never rides a weather update, so its key
 // status comes from the Test button and from the last radar update's verdict
 // (`evidence: 'radar'`, weather/radar-key-result.js). Its usage line is the monthly
@@ -2186,10 +2185,10 @@ var PROVIDER_KEY_ARGS = {keyed: PROVIDER_KEYS, picker: 'provider', outcome: 'the
 // the weather updates' evidence) with only the sheet changed, plus the radar's own verdicts
 // (`radarEvidence`, recorded by tomorrowio-radar.js), which answer while the radar runs the
 // key alone and no weather update says anything about it: radar-only, the key lives in
-// the Radar tab's own Tomorrow.io sheet; while Tomorrow.io is also the weather provider,
-// that sheet is gated off and the General tab's sheet holds the key (`sharedSheet`), so
-// the Radar row's Edit button and Save dialog open that one, and its summary and tab dot
-// read the same state as the Weather provider row's.
+// the Rain radar pane's own Tomorrow.io sheet; while Tomorrow.io is also the weather
+// provider, that sheet is gated off and Setup's sheet holds the key (`sharedSheet`), so
+// the Radar provider's key row and Save dialog open that one, and its summary and tab dot
+// read the same state as the Weather provider's.
 var RADAR_KEYS = {
     rainbowkey: {name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey', test: true,
         usage: 'rainbow', evidence: 'radar'},
@@ -2234,7 +2233,7 @@ function countdownDateItem(slotKey, barWhen) {
 
 /**
  * One status-bar slot select: the identical five-resolver wiring every slot
- * carries (platform-aware default, row dedupe on pick, edit sheet, pencil
+ * carries (platform-aware default, row dedupe on pick, edit sheet, Edit-button
  * badge, catalog options) — hand-copied twelve times before this helper.
  * @param {string} slotKey Slot messageKey, e.g. 'statusForecastLeft'.
  * @param {string} position 'left' | 'mid' | 'right'.
@@ -2285,10 +2284,10 @@ function barSlots(prefix, barWhen, leftJoins) {
 // the URL and open it in desktop-site mode. See copyBtn() + the engine's [data-copy] handler.
 var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b>' + copyBtn('https://app.tomorrow.io/development/keys', 'Copy the API-keys page link') + ', copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io\'s mobile site shows an error (404) on the API-keys page — tap the copy button, then open the link in your browser\'s desktop-site mode.</b>';
 var TOMORROWIO_BUDGET_HINT = 'Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.';
-// The rows of both Tomorrow.io key sheets, the weather provider's (General tab) and the
-// radar-only one (Radar tab): the key field with its Test button, then the budget guard
-// with the call-budget read-out between the two (blockBefore). keySheetSection gives each
-// sheet's copies that sheet's gate.
+// The rows of both Tomorrow.io key sheets, the weather provider's (Setup › Weather data) and
+// the radar-only one (Graphs › Rain radar): the key field with its Test button, then the
+// budget guard with the call-budget read-out between the two (blockBefore).
+// keySheetSection gives each sheet's copies that sheet's gate.
 var TOMORROWIO_KEY_ROWS = [{
     type: 'text',
     messageKey: 'tomorrowioApiKey',
@@ -2315,13 +2314,14 @@ var RAINBOW_BUDGET_HINT = 'Only offer update intervals that fit the free 5,000 c
 
 /**
  * A keyed source's key sheet (sheetOnly; the sheet its key table — PROVIDER_KEYS or
- * RADAR_KEYS — names for it), opened by the Edit button after its picker while that
- * source is picked. It holds everything about the key — the field with its Test button
- * and verdict line, the hint with its links, any budget read-out and guard — so the
- * picker's card keeps only the pickers. The sheet's title is the source's name, so the
- * key row's label is just "API key". The section and every item share the source's
- * gate: findShownItem picks a key's shown copy by the item's own gate, which keeps the
- * Radar tab's radar-only Tomorrow.io sheet apart from the weather provider's.
+ * RADAR_KEYS — names for it), opened by the key row under its picker ("<Name> API key",
+ * keyRow) while that source is picked. It holds everything about the key — the field
+ * with its Test button and verdict line, the hint with its links, any budget read-out
+ * and guard — so the picker's card carries just that one key row for it. The
+ * sheet's title is the source's name, so the key field's label is just "API key". The
+ * section and every item share the source's gate: findShownItem picks a key's shown copy
+ * by the item's own gate, which keeps the Rain radar pane's radar-only Tomorrow.io sheet
+ * apart from the weather provider's.
  * @param {{sheetId: string, name: string}} source The source's key-table entry (its name
  *   titles the sheet).
  * @param {Object} when The source's gate, set on the section and on every item.
@@ -2337,7 +2337,7 @@ function keySheetSection(source, when, items) {
         items: items.map(function (item) { return Object.assign({}, item, {showWhen: when}); })
     };
 }
-// The Nighttime card's gates. "Dim backlight" is emery-only: env.colorBacklight
+// The Theme & night card's backlight gates. "Dim backlight" is emery-only: env.colorBacklight
 // (config-ui/lib/platform.js) is a fact about the BACKLIGHT, not the screen — only
 // emery's board carries the RGB LED driver light_set_color_rgb888() needs, so
 // basalt/chalk (colour screen, plain white backlight) are deliberately out. NOT
@@ -2354,9 +2354,10 @@ var BACKLIGHT_COLOR_DEFAULT = '40,10,0';
 // ── The restructured page's building blocks ────────────────────────────────────
 // Six tabs: Weather · Watchface · Status bars · Alerts · Graphs · Setup. Every item and
 // its messageKey, default and gates are the ones the earlier tabs carried; what moved is
-// where they render. Hints are the rows' info text (behind each row's '?', engine.js),
-// intros the cards' and dialogs' (behind the header's '?'), and rarely-changed rows sit
-// behind each card's "More options" (`more: true`).
+// where they render. Hints are the rows' info text (under each row, engine.js), intros
+// the cards' and dialogs' (under the header); with Setup › Misc › Hide info text on, both
+// sit behind a '?' instead. Rarely-changed rows sit behind each card's "More options"
+// (`more: true`).
 
 // The Night hours row and its per-feature twins. In shared mode (the default) ONE
 // From–To row stands for the three hour pairs (Dim backlight, Night theme's custom hours,
@@ -2482,7 +2483,7 @@ function lineColorsRow(lineKey) {
 }
 /**
  * One line's dialog: its metric, style, Draw from, (the Main metric) fill, the scale and
- * Visible values rows its metric has, and its colours — the rows the Forecast tab
+ * Visible values rows its metric has, and its colours — the rows the old Forecast tab
  * stacked under that picker, in that order. The rows stand apart here (their
  * joinPrevious was the four lines' shared card's rhythm), and the graph preview stays
  * pinned above them.

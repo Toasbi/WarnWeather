@@ -289,7 +289,7 @@ if (typeof require !== 'undefined') {
      * @param {Object} [S] Live settings state.
      * @param {Object} [env] Platform env; `lineStyles` truthy = the watch draws the Third
      *   and Fourth metric lines (whose metrics can share a band); `onDemand` false = no
-     *   Alert settings (aplite), so every line draws All.
+     *   Alerts tab (aplite), so every line draws All.
      * @returns {?{bottom: string, top: string, full: string}} The three levels as
      *   printed ('UV 6', '40 kph'); null when the line is not drawn or shows All.
      */
@@ -468,7 +468,7 @@ if (typeof require !== 'undefined') {
      * kph, your gust danger level." for two. Reads the stored scale, like the bake.
      * @param {Object} S Live settings state.
      * @param {Object} [env] Platform env; `lineStyles` truthy = the watch draws the Third
-     *   and Fourth metric lines; `onDemand` false = no Alert settings (aplite).
+     *   and Fourth metric lines; `onDemand` false = no Alerts tab (aplite).
      * @returns {?string} The hint; null for "use the row's hintByValue" (no drawn wind
      *   or gust line shows Alert).
      */
@@ -560,7 +560,7 @@ if (typeof require !== 'undefined') {
     }
     PConf.hintResolvers.register('dayMaxHint', dayMaxHint);
 
-    // Per-slot edit sheet: the pencil left of a slot dropdown opens the threshold sheet
+    // Per-slot edit sheet: the Edit button beside a slot dropdown opens the threshold sheet
     // for the slot's CURRENT value, when that value is a threshold kind. The catalog's
     // slot codes and the threshold contract's KINDS codes are the same vocabulary
     // ('wind', 'aqi', 'steps', ...), so the contract IS the mapping — no hand-copied
@@ -641,7 +641,7 @@ if (typeof require !== 'undefined') {
     // status-thresholds.js compares against at bake/pack time), keyed by the
     // contract's scaleVariant — the same key its seed table uses, so the slider and
     // the seeds cannot read the unit and AQI-scale pickers apart. Looked up per render
-    // (rangeOf) so the General-tab unit pickers reshape the scales live. fixedMax
+    // (rangeOf) so the Setup › Units pickers reshape the scales live. fixedMax
     // marks the naturally-bounded kinds (no inline scale-max editor). The SEED pairs
     // are not here: they live in the contract (status-thresholds.js SEEDS /
     // seedPair) — the one table the phone bake resolves a blank pair against too, so
@@ -960,14 +960,14 @@ if (typeof require !== 'undefined') {
         return graphNightTintHex(S, args.scope, args.suffix);
     });
 
-    // Row badge for the Graph-colors card (schema.js' GRAPH_COLOR_ROWS): the preview
-    // between a row's label and its Edit button.
+    // Row badge for the Graph colors dialog (schema.js' GRAPH_COLOR_ROWS): the preview
+    // between a row's label and its chevron.
     //
     // ONE DOT PER PICKER in that row's sheet — three for a metric (line, fill, night
     // tint), one for feels (which never fills, so line-style hands it no fill or tint
     // key) and two for the night band — so the badge is the row's whole colour state
     // rather than a sample of it, and the dot count also says how many pickers are
-    // behind Edit. The threshold badge shows two dots for the same reason: a threshold
+    // behind the row. The threshold badge shows two dots for the same reason: a threshold
     // kind owns exactly two colours.
     //
     // The last dot of a multi-dot row is drawn as a ring purely so several chips read
@@ -1010,12 +1010,13 @@ if (typeof require !== 'undefined') {
     });
 
     // Row badge for a `sheet` row whose sheet holds ONE rgb control — schema.js'
-    // Nighttime card, whose "Color" row opens the dim-backlight sliders. It reports a
-    // `chip`, not `dots`: the engine prints that as the full swatch-and-hex readout the
-    // sheet itself shows above the sliders (html.js swatchReadout, one builder for both),
-    // so the row names the colour it is set to instead of hinting at it with a 9px pip.
-    // The graph rows keep dots because each of them previews two or three colours at
-    // once and three readouts would not fit a row — chip is the ONE-colour shape.
+    // Theme & night card, whose "Dim backlight color" row opens the dim-backlight
+    // sliders. It reports a `chip`, not `dots`: the engine prints that as the full
+    // swatch-and-hex readout the sheet itself shows above the sliders (html.js
+    // swatchReadout, one builder for both), so the row names the colour it is set to
+    // instead of hinting at it with a 9px pip. The graph rows keep dots because each of
+    // them previews two or three colours at once and three readouts would not fit a row
+    // — chip is the ONE-colour shape.
     //
     // The hex is derived, not stored: the value is the control's "r,g,b" wire string,
     // parsed by rgb-control.js' own parser so an unset or bruised value (blank, two
@@ -1042,11 +1043,11 @@ if (typeof require !== 'undefined') {
         return {label: 'Edit', ariaNote: hex, chip: hex};
     });
 
-    // Reset-to-defaults for the whole status-bar card (the inline text button closing the
-    // Status slots tab's intro — schema.js introAction): every slot of every bar back to its
-    // platform-aware default (the same statusSlotDefault seed a fresh install gets,
-    // hrDefaults flavor included), and every other covered key back to ITS SCHEMA
-    // DEFAULT, resolved through the engine — no value is mirrored here, because
+    // Reset-to-defaults for every status bar (the "Reset status bars to defaults" link
+    // row in the Status bars tab's All status bars card — schema.js linkRow): every slot
+    // of every bar back to its platform-aware default (the same statusSlotDefault seed a
+    // fresh install gets, hrDefaults flavor included), and every other covered key back
+    // to ITS SCHEMA DEFAULT, resolved through the engine — no value is mirrored here, because
     // mirrored literals drift when the schema changes: the wind arrow's hardcoded
     // false outlived the schema flipping it to true, and the non-uniform "Show
     // unit" defaults only ever escaped the same fate because a test pinned them.
@@ -1058,13 +1059,13 @@ if (typeof require !== 'undefined') {
     // (the Alert levels group's own reset deliberately covers only the levels),
     // each weather kind's slot Highlight switch (a slot-sheet row, like Bold — a
     // goal kind's rides its Goals header and that group's reset), each bar's two Alerts
-    // sides (on-demand.js DEFAULTS' eight side lists — each bar's read-only Alerts row in
-    // this card shows them; the Alerts tab's reset restores them too), and, on aplite
+    // sides (on-demand.js DEFAULTS' eight side lists — each bar's Alerts nav row on
+    // that tab shows them; the Alerts tab's reset restores them too), and, on aplite
     // only (a watch without On demand), the Watch Status Bar's other rows: 'Show battery
     // below 10%' (batteryLowOnly), the quiet-time icon (showQt), the bluetooth vibration
-    // (vibe) and icon (btIcons) — elsewhere those keys belong to the Alert settings card.
+    // (vibe) and icon (btIcons) — elsewhere those keys belong to the Alerts tab.
     // Deliberately untouched: thresholds, colors, warn looks and scale maxes (every sheet
-    // has its own reset button), the On demand items' own settings (the Alert settings
+    // has its own reset button), the On demand items' own settings (the About alerts
     // card's reset, resetOnDemand below), and the countdown companion dates (inert once a
     // slot leaves 'countdown'). Silent beyond the re-render, like resetThresholds above —
     // the engine has no shared toast for [data-action] buttons.
@@ -1137,13 +1138,13 @@ if (typeof require !== 'undefined') {
         return keys;
     }
 
-    // Reset-to-defaults for the Alert settings card (the inline text button closing its intro
-    // on the Alerts tab — schema.js ON_DEMAND_INTRO): the items' own settings back to their
+    // Reset-to-defaults for the Alerts tab (the link row under the About alerts card's
+    // intro — schema.js linkRow, ON_DEMAND_INTRO): the items' own settings back to their
     // schema defaults, via the engine's resolver like resetStatusSlots above — the Battery
     // item's warn level and Look, the Bluetooth item's Show and vibration, the rain alert's
     // window and look, each metric alert's Look, Days and tomorrow mark (the contract's
-    // ALERT_KINDS, the five the card lists) — and where each item shows: the eight side
-    // lists its sheets' Shows on grids write (the status card's reset restores those too, as
+    // ALERT_KINDS, the five the tab lists) — and where each item shows: the eight side
+    // lists its sheets' Shows on grids write (the Status bars reset restores those too, as
     // its bars' Alerts rows show them). Deliberately untouched: the levels, warn looks and
     // colours (each sheet's Alert levels header has its own reset, which also serves the
     // slots' highlight).
@@ -1205,10 +1206,10 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The pencil badge of one threshold kind's slot: the warn pip + danger-color
+     * The Edit-button badge of one threshold kind's slot: the warn pip + danger-color
      * dot (levelDots) while the kind's highlight is ENABLED (the contract's
      * kindConfig — the rule the watch actually packs with), plus the bold 'B'.
-     * (The Alert settings card's rows badge the alert instead — alertLevelBadge.)
+     * (The Alerts tab's rows badge the alert instead — alertLevelBadge.)
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (callers gate on env.thresholds; env.color
      *     picks the default warn look).
@@ -1218,8 +1219,8 @@ if (typeof require !== 'undefined') {
     function penStateForKind(S, env, kindIndex) {
         var key = thresholds.KINDS[kindIndex].key;
         var enabled = thresholds.kindConfig(S, kindIndex).enabled;
-        // EFFECTIVE always-bold, not the stored ladder alone: the Watch-tab
-        // master row packs every kind's bold cell as always at wire time
+        // EFFECTIVE always-bold, not the stored ladder alone: the Status bars
+        // tab's master row packs every kind's bold cell as always at wire time
         // (status-wire.js buildSettingsBlob) without touching the stored
         // per-kind values, and the badge previews what the watch will
         // actually render — so the master lights every slot's B.
@@ -1242,10 +1243,10 @@ if (typeof require !== 'undefined') {
         };
     }
 
-    // Pencil badge (engine item.editBadgeFrom): when the slot's current value is an
-    // ENABLED threshold kind, the pencil gains a warn-color ring + danger-color dot,
-    // and a 'B' when the slot prints always-bold. Same env gate + code→kind mapping
-    // as the sheet resolver above.
+    // Edit-button badge (engine item.editBadgeFrom): when the slot's current value is an
+    // ENABLED threshold kind, the row shows a warn-color ring + danger-color dot before
+    // its Edit button, and a 'B' when the slot prints always-bold. Same env gate +
+    // code→kind mapping as the sheet resolver above.
     PConf.badgeResolvers.register('thresholdPenState', function (S, env, args) {
         if (!env || !env.thresholds) { return null; }
         var code = S[args.messageKey];
@@ -1256,7 +1257,7 @@ if (typeof require !== 'undefined') {
     });
 
     /**
-     * The contract's metric alert behind an Alert settings card row, found by the row's key
+     * The contract's metric alert behind an Alerts-tab row, found by the row's key
      * stem (the schema builds each row's sheet and keys from it).
      * @param {*} keyStem Kind key stem, e.g. 'Uv'.
      * @returns {?{code: string, key: string}} Its ALERT_KINDS entry, or null for a
@@ -1309,11 +1310,11 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The Alert settings card row's badge for a metric alert (editBadgeFrom, args.keyStem):
+     * The Alerts-tab row's badge for a metric alert (editBadgeFrom, args.keyStem):
      * the colours the watch draws that alert in, while its item is placed on a bar (no
      * dots at all otherwise) — the warn pip in the kind's warn look (no pip for 'none', a
-     * ring for 'outline', a dot for 'fill' — warnPip, shared with the slot pencil) and a
-     * dot in the danger colour (the filled box). No 'B': bold is how a SLOT prints, not
+     * ring for 'outline', a dot for 'fill' — warnPip, shared with the slot's Edit-button
+     * badge) and a dot in the danger colour (the filled box). No 'B': bold is how a SLOT prints, not
      * part of the alert. The placement decides, not the slot's Highlight switch: the
      * entries take the kind's colours either way.
      * @param {Object} S Live settings state.
@@ -1396,7 +1397,7 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The Alert settings card's Rain row hint: "Turn on the rain radar (Radar tab)" while the
+     * The Alerts tab's Rain row hint: "Turn on the rain radar (Watchface › Views)" while the
      * radar is off (that comes first: no tick helps then), "Not in any status bar" while
      * Rain is ticked on no bar, else its time window and look by the labels its sheet
      * offers them under, e.g. "Within 60 min · Text". The lists come from the schema
@@ -1438,7 +1439,7 @@ if (typeof require !== 'undefined') {
 
     /**
      * The rows of an item's Shows on grid (schema.js showsOnRows; a checklist): one per
-     * status bar the watch draws (on-demand.js barExists, the rule the Status slots tab's
+     * status bar the watch draws (on-demand.js barExists, the rule the Status bars tab's
      * bar gates RADAR_BAR_WHEN / HEALTH_BAR_WHEN state), in the page's order. Each row
      * names its two side lists in meta.keys (Left, Right), the lists its ticks read and
      * write (reset-status-defaults.js onDemandTick). Like those gates, it ignores the
@@ -1496,20 +1497,20 @@ if (typeof require !== 'undefined') {
     PConf.optionsResolvers.register('onDemandBars', onDemandBars);
 
     /**
-     * A bar's read-only Alerts row on the Status slots tab (its hint): per side, the icons
-     * of the placed items that can show, in priority order (the Alert settings card's), each
-     * side one unbreakable run ("Left" + icons, "Right" + icons; shell.html .ico-run), so a
-     * narrow phone wraps between the sides, never inside one; then args.where on a line of
-     * its own, where they are set up (a link to the Alerts tab). Each icon carries its
-     * item's name (role img), so a screen reader reads "Left Bluetooth Rain Right Battery".
+     * A bar's Alerts nav row on the Status bars tab (its summary; a tap opens the Alerts
+     * tab): per side, the icons of the placed items that can show, in priority order (the
+     * Alerts tab's), each side one unbreakable run ("Left" + icons, "Right" + icons;
+     * shell.html .ico-run), so a narrow phone wraps between the sides, never inside one.
+     * Each icon carries its item's name (role img), so a screen reader reads "Left
+     * Bluetooth Rain Right Battery".
      * Blocked items (Rain with the radar off, Pollen off DWD) are left out, as the watch
      * leaves them out; when every placed item is blocked the row says so. With nothing
-     * placed, the pointer alone. The names are on-demand.js ITEMS constants, never
+     * placed, args.where alone ("None"). The names are on-demand.js ITEMS constants, never
      * settings: the engine prints a hint as raw HTML.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
      * @param {{bar: string, where: string}} args The bar (an on-demand.js BARS bar) and the
-     *     schema's pointer HTML.
+     *     schema's text for a bar with nothing placed.
      * @returns {string} The hint HTML.
      */
     function onDemandBarIcons(S, env, args) {
@@ -1692,8 +1693,8 @@ if (typeof require !== 'undefined') {
     // editor opens showing exactly what the watch shows and an untouched session
     // compiles back byte-identical (nothing transmits). Re-picking a preset later
     // leaves the keys stored (dormant) — re-entering Custom restores the user's work.
-    // Seeding is ALL the pick does: the editor opens only through the dedicated Edit
-    // row (the schema's data-action="openViewEditor" button), never automatically.
+    // Seeding is ALL the pick does: the editor opens only through the dedicated "Edit
+    // views" row (the schema's openViewEditor button row), never automatically.
     PConf.onChange.register('layoutPresetChanged', function (S, oldValue, newValue) {
         if (newValue !== 'custom') { return; }
         viewCycleLib.seedCustomKeys(S, oldValue);
@@ -1752,8 +1753,8 @@ if (typeof require !== 'undefined') {
     /**
      * The interval a budget read-out computes with: the one Save will store (interval-budget.js
      * fitInterval), not the raw stored value. With a "Fit update interval" guard on, a stored
-     * interval the budget no longer affords (radar picked on the Radar tab, the interval set on
-     * General) is replaced at Save; warning "over budget" about it would contradict the toggle.
+     * interval the budget no longer affords (radar picked in Graphs › Rain radar, the interval
+     * set in Setup › Weather data) is replaced at Save; warning "over budget" about it would contradict the toggle.
      *
      * @param {Object} state Settings state.
      * @returns {number} Minutes.
@@ -1872,9 +1873,9 @@ if (typeof require !== 'undefined') {
     // none active (or its toggle off) the full ladder passes through, and the info
     // block shows the red warning instead. If the stored interval drops out, the
     // engine's resolveRowItem snaps it to the item default ('15') — but only while the
-    // row renders (General tab), so onbuild.js's onSubmit applies the same fit, from the
+    // row renders (Setup tab), so onbuild.js's onSubmit applies the same fit, from the
     // same interval-budget.js, at save time for a change made on another tab (the radar
-    // provider/mode, on the Radar tab).
+    // provider in Graphs › Rain radar, the radar mode in Watchface › Views).
     PConf.optionsResolvers.register('fetchIntervalBudget', function (S) {
         return intervalBudget.fittingOptions(S || {});
     });

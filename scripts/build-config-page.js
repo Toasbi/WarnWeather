@@ -24,7 +24,7 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
   // The runtime's radar-source resolver (Rainbow + rainbowOwnKey -> 'rainbowkey'), which
   // rainbow-budget.js reads as PConf.radarSourceId at load and onbuild.js at its hooks
-  // (the Radar tab's "Rainbow (own key)" fold).
+  // (the Rain radar pane's "Rainbow (own key)" fold).
   path.join(ROOT, 'src/pkjs/weather/radar-source-id.js'),
   // rainbow-budget.js reads PConf.tomorrowioBudget (ladder + night-pause rule) at load, and
   // interval-budget.js reads both; blocks.js reads all three at load — keep this order.
@@ -35,7 +35,7 @@ var APP_FILES = [
   // comes first). blocks.js registers tomorrow.io's usage line into PConf.keyStatus while
   // ITS body runs, so both precede it; key-test.js reads PConf.keyStatus only when a test
   // answers. Every Node test takes the require() branch, so neither a dropped file (no
-  // Edit button, summary line, missing-key note, tab dot or Save dialog — or, without the
+  // key row, key summary, missing-key note, tab dot or Save dialog — or, without the
   // fingerprint, a throw at the first keyed provider's render) nor a wrong order shows
   // there: test/config-page-bundle.test.js pins both into the generated page.
   path.join(ROOT, 'src/pkjs/key-fingerprint.js'),
