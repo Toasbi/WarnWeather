@@ -8,19 +8,25 @@
 // nightHoursTo) unless "Separate hours" (page-only nightHoursSeparate) is on, which brings
 // back one From–To per feature. Nothing here is stored under a key of its own: the page
 // derives the three page-only values from the stored pairs as it opens, and every write
-// lands on the stored pairs.
+// lands on the stored pairs — only on the pairs of features IN USE: a feature that is off
+// (or the Night theme following the sun) keeps the hours it has stored, as it did before
+// the shared row existed.
 //
 //   nightHoursValue    (displayResolvers, initFrom) the Night hours a page opens on: the
 //                      first pair a feature in use reads (else the Battery saver's);
 //   nightHoursSeparate (displayResolvers, initFrom) on when the features in use keep
 //                      different hours (features that are off, absent from this watch, or
 //                      — the Night theme — following the sun do not count);
-//   nightHoursSync     (onChange) a Night hours pick writes that end of all three pairs;
+//   nightHoursSync     (onChange) a Night hours pick writes that end of every pair in use;
 //   nightHoursMode     (onChange) Separate hours off: the Night hours become the first
-//                      in-use pair's, written into all three;
+//                      in-use pair's, written into every pair in use;
+//   nightFeatureOn     (onChange of the feature rows) a feature switched on in shared mode
+//                      whose own stored hours were set by the user (not its defaults) and
+//                      differ from the Night hours turns Separate hours on, so its hours
+//                      show and are kept instead of being overwritten;
 //   nightHoursHint, nightFeatureHint (hintResolvers) the rows' info text for the mode;
-//   onSubmit           in shared mode, once the user touched the night rows, all three
-//                      pairs carry the Night hours (a feature switched on after the pick
+//   onSubmit           in shared mode, once the user touched the night rows, every pair
+//                      in use carries the Night hours (a feature switched on after the pick
 //                      still lands on them).
 (function () {
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
@@ -98,14 +104,15 @@
     }
 
     /**
-     * Write the Night hours into every pair this watch has.
+     * Write the Night hours into every pair in use. A feature that is off keeps the hours
+     * it has stored.
      * @param {Object} S Settings (mutated).
      * @param {Object} env Platform env.
      * @returns {void}
      */
     function writeAll(S, env) {
         for (var i = 0; i < PAIRS.length; i++) {
-            if (!PAIRS[i].exists(env)) { continue; }
+            if (!PAIRS[i].inUse(S, env)) { continue; }
             if (S.nightHoursFrom != null) { S[PAIRS[i].start] = String(S.nightHoursFrom); }
             if (S.nightHoursTo != null) { S[PAIRS[i].end] = String(S.nightHoursTo); }
         }
@@ -113,7 +120,7 @@
 
     /**
      * nightHoursSync (onChange of the Night hours pickers): in shared mode, the picked end
-     * lands on every pair.
+     * lands on every pair in use.
      * @param {Object} S Settings (mutated).
      * @param {*} oldV The previous hour.
      * @param {*} newV The picked hour.
@@ -127,7 +134,7 @@
 
     /**
      * nightHoursMode (onChange of Separate hours): switched off, the Night hours become
-     * the first in-use pair's hours and every pair takes them.
+     * the first in-use pair's hours and every pair in use takes them.
      * @param {Object} S Settings (mutated).
      * @param {*} oldV The previous value.
      * @param {*} newV The new value.
@@ -140,6 +147,39 @@
         S.nightHoursFrom = h.from;
         S.nightHoursTo = h.to;
         writeAll(S, env);
+    }
+
+    /**
+     * Whether a pair's stored hours are ones the user set: not the feature's defaults.
+     * @param {Object} S Settings.
+     * @param {Object} pair A PAIRS entry.
+     * @returns {boolean}
+     */
+    function customised(S, pair) {
+        var h = hoursOf(S, pair);
+        return h.from !== pair.from || h.to !== pair.to;
+    }
+
+    /**
+     * nightFeatureOn (onChange of Dim backlight, Night theme, its Hours and Battery saver):
+     * in shared mode, every feature in use follows the Night hours, so one just switched on
+     * would take them on Save. When its own stored hours are the user's (not its defaults)
+     * and differ, Separate hours turns on instead: the card shows that feature's From–To
+     * with the hours it kept, and nothing the user set is overwritten.
+     * @param {Object} S Settings (mutated).
+     * @param {*} oldV The previous value.
+     * @param {*} newV The new value.
+     * @param {Object} env Platform env.
+     * @returns {void}
+     */
+    function nightFeatureOn(S, oldV, newV, env) {
+        if (S.nightHoursSeparate === true) { return; }
+        var from = String(S.nightHoursFrom), to = String(S.nightHoursTo), i, h;
+        for (i = 0; i < PAIRS.length; i++) {
+            if (!PAIRS[i].inUse(S, env) || !customised(S, PAIRS[i])) { continue; }
+            h = hoursOf(S, PAIRS[i]);
+            if (h.from !== from || h.to !== to) { S.nightHoursSeparate = true; return; }
+        }
     }
 
     /**
@@ -170,9 +210,10 @@
     }
 
     /**
-     * On Save, in shared mode: once any night row changed, all three pairs carry the Night
-     * hours (a feature switched on after the pick lands on them too). Untouched, nothing is
-     * written — a page opened and saved changes no stored hour.
+     * On Save, in shared mode: once any night row changed, every pair in use carries the
+     * Night hours (a feature switched on after the pick lands on them too); a feature that
+     * is off keeps its own. Untouched, nothing is written — a page opened and saved changes
+     * no stored hour.
      * @param {Object} ctx The hook context (get, set, getInitial, env).
      * @returns {void}
      */
@@ -183,8 +224,10 @@
             if (ctx.get(TOUCH_KEYS[i]) !== ctx.getInitial(TOUCH_KEYS[i])) { touched = true; }
         }
         if (!touched) { return; }
+        var st = {};
+        for (i = 0; i < TOUCH_KEYS.length; i++) { st[TOUCH_KEYS[i]] = ctx.get(TOUCH_KEYS[i]); }
         for (i = 0; i < PAIRS.length; i++) {
-            if (!PAIRS[i].exists(ctx.env)) { continue; }
+            if (!PAIRS[i].inUse(st, ctx.env)) { continue; }
             ctx.set(PAIRS[i].start, String(ctx.get('nightHoursFrom')));
             ctx.set(PAIRS[i].end, String(ctx.get('nightHoursTo')));
         }
@@ -196,6 +239,7 @@
         nightHoursSeparate: nightHoursSeparate,
         nightHoursSync: nightHoursSync,
         nightHoursMode: nightHoursMode,
+        nightFeatureOn: nightFeatureOn,
         nightHoursHint: nightHoursHint,
         nightFeatureHint: nightFeatureHint,
         onSubmit: onSubmit
@@ -205,6 +249,7 @@
         PConf.displayResolvers.register('nightHoursSeparate', nightHoursSeparate);
         PConf.onChange.register('nightHoursSync', nightHoursSync);
         PConf.onChange.register('nightHoursMode', nightHoursMode);
+        PConf.onChange.register('nightFeatureOn', nightFeatureOn);
         PConf.hintResolvers.register('nightHoursHint', nightHoursHint);
         PConf.hintResolvers.register('nightFeatureHint', nightFeatureHint);
         PConf.hooks.onSubmit(onSubmit);

@@ -174,7 +174,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   PConf.whenResolvers = makeRegistry();
 
   // --- onChange registry --- a schema item opts into a post-change side effect by
-  // name (item.onChange: id) without the engine knowing what that side effect is.
+  // name (item.onChange: id, or a list of ids run in order) without the engine knowing
+  // what that side effect is.
   // fn(S, oldValue, newValue, env) runs synchronously, right after the click handler
   // sets the new value and before the next render(). env is the platform env (INJECTED_ENV).
   PConf.onChange = makeRegistry();
@@ -289,6 +290,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (v === 'light') { return 'light'; }
     if (v === 'dark') { return 'dark'; }
     return prefersLight ? 'light' : 'dark';
+  }
+
+  /**
+   * An item's onChange hooks, in order: `onChange` names one registered hook or a list of
+   * them (a row whose change matters to two features — the Night theme toggle seeds a
+   * night theme and joins the shared Night hours). Unregistered names are skipped.
+   * @param {?Object} item Schema item.
+   * @returns {Function[]} The hooks.
+   */
+  function onChangeHooks(item) {
+    if (!item || !item.onChange) { return []; }
+    return [].concat(item.onChange).map(function (id) { return PConf.onChange.get(id); })
+      .filter(function (fn) { return typeof fn === 'function'; });
   }
 
   /**
@@ -1412,6 +1426,48 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
     }
     return Object.assign({}, item, { options: derived });
+  }
+
+  /**
+   * Snap every shown optionsFrom select / radio into its derived options, wherever its row
+   * sits: on another tab, in a dialog, or behind a card's More options. resolveRowItem
+   * does it for the rows on screen; this does it for the rest, so the stored state never
+   * depends on which rows happen to be drawn. A choice in one row that takes an option
+   * away from another (the forecast lines: a later line may not repeat an earlier line's
+   * metric) clears it at once even when the two rows sit in different dialogs, as it did
+   * when they shared a tab. Same rules as resolveRowItem: the item's default when it is
+   * still offered, else the first option; a dormantValues value is left stored. Rows
+   * hidden by their tab's, pane's, section's or own showWhen keep their value, as an
+   * undrawn row always did. Walks in schema order, so an earlier row's snap is seen by
+   * the later rows' resolvers.
+   * @param {Object} schema Config schema.
+   * @param {Object} S Settings state (mutated).
+   * @param {Object} env Platform env.
+   * @returns {void}
+   */
+  function snapShownOptions(schema, S, env) {
+    var ctx = Object.assign({}, S, { env: env }), sw = PConf.showWhen;
+    (schema.tabs || []).forEach(function (tab) {
+      if (!sw.isVisible(tab, ctx)) { return; }
+      var paneShown = {};
+      (tab.panes || []).forEach(function (p) { paneShown[p.id] = sw.isVisible(p, ctx); });
+      (tab.sections || []).forEach(function (sec) {
+        if (sec.showWhen && !sw.isVisible(sec, ctx)) { return; }
+        if (sec.pane && tab.panes && !paneShown[sec.pane]) { return; }
+        (sec.items || []).forEach(function (item) {
+          if (!item.optionsFrom || item.uiOnly || !item.messageKey) { return; }
+          if (item.type !== 'select' && item.type !== 'searchSelect' && item.type !== 'radio') { return; }
+          if (!sw.isVisible(item, ctx)) { return; }
+          var derived = resolveOptionsFrom(item, S, env);
+          var stored = S[item.messageKey];
+          if (!derived.length || optionHasValue(derived, stored)) { return; }
+          if (item.dormantValues && item.dormantValues.indexOf(stored) >= 0) { return; }
+          var dflt = resolveDefaultFrom(item, env);
+          S[item.messageKey] = (dflt != null && optionHasValue(derived, dflt)) ? dflt : derived[0][1];
+          ctx[item.messageKey] = S[item.messageKey];
+        });
+      });
+    });
   }
 
   /**
@@ -2600,6 +2656,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     function render() {
+      snapShownOptions(SCHEMA, S, ENV);
       // A palette reads `expanded` as openColor in the tab body and in the sheet (only a
       // palette: a pinned header lets go for it, pinClass); a select's list reads it as
       // openInline in the edit sheet only (renderEditModal).
@@ -2775,8 +2832,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var oldV = arguments.length > 2 ? optOldV : S[key];
       S[key] = newV;
       var item = findItem(key);
-      var fn = item && item.onChange && PConf.onChange.get(item.onChange);
-      if (fn) { fn(S, oldV, newV, ENV, key); }
+      onChangeHooks(item).forEach(function (fn) { fn(S, oldV, newV, ENV, key); });
     }
 
     /**
@@ -2894,8 +2950,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (!inp || inp.getAttribute('data-k') == null) { return; }
       var tk = inp.getAttribute('data-k'), newV = inp.value;
       var tItem = findItem(tk);
-      var onChangeFn = tItem && tItem.onChange && PConf.onChange.get(tItem.onChange);
-      if (!onChangeFn) { S[tk] = newV; relabelSelectTriggers(); return; }
+      if (!onChangeHooks(tItem).length) { S[tk] = newV; relabelSelectTriggers(); return; }
       // No focusin seen (programmatic value + change): fall back to the new value so a
       // revert is a no-op rather than restoring something that was never in the field.
       var oldV = Object.prototype.hasOwnProperty.call(textPreEdit, tk)
@@ -3267,6 +3322,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
     // Save: run submit hooks, serialize, flash the toast, then return to the watch.
     function save() {
+      snapShownOptions(SCHEMA, S, ENV);
       PConf.hooks.runSubmit(hookCtx);
       var blob = serialize(SCHEMA, S, ENV);
       var el = document.getElementById('toast');
@@ -3390,7 +3446,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
     selectTriggerLabel: selectTriggerLabel, findShownItem: findShownItem,
     resolveDefaultFrom: resolveDefaultFrom, resolveHint: resolveHint,
-    resolveTheme: resolveTheme, infoIconsOn: infoIconsOn,
+    resolveTheme: resolveTheme, infoIconsOn: infoIconsOn, snapShownOptions: snapShownOptions,
     fitSelectPeek: fitSelectPeek,
     resolveStaticText: resolveStaticText, resolveAttention: resolveAttention,
     findAttention: findAttention, renderConfirmModal: renderConfirmModal
@@ -3428,6 +3484,7 @@ if (typeof module !== 'undefined' && module.exports) {
     resolveHint: PConf.engine.resolveHint,
     resolveTheme: PConf.engine.resolveTheme,
     infoIconsOn: PConf.engine.infoIconsOn,
+    snapShownOptions: PConf.engine.snapShownOptions,
     fitSelectPeek: PConf.engine.fitSelectPeek,
     checkWriters: PConf.checkWriters,
     attentionResolvers: PConf.attentionResolvers,

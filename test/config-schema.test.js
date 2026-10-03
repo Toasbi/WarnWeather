@@ -2231,7 +2231,10 @@ test('theme switching: toggle + Night theme + mode + custom hours, gated correct
   assert.equal(auto.type, 'toggle');
   assert.equal(auto.label, 'Night theme');
   assert.equal(auto.defaultValue, false, 'off by default');
-  assert.equal(auto.onChange, 'themeAutoPreset', 'first enable seeds a night theme');
+  assert.deepEqual(auto.onChange, ['themeAutoPreset', 'nightFeatureOn'],
+    'first enable seeds a night theme, and the switch joins the shared Night hours');
+  ['backlightDim', 'sleepNightEnabled'].forEach((k) => assert.equal(byKey(k).onChange, 'nightFeatureOn', k));
+  items.filter((i) => i.messageKey === 'themeAutoMode').forEach((it) => assert.equal(it.onChange, 'nightFeatureOn', 'both Hours rows'));
   assert.deepEqual(auto.showWhen, { env: 'themePolarity' }, 'hidden on aplite like the theme picker');
   assert.equal(byKey('themeAutoStartHour').label, 'From',
     'hour labels match the other night rows');

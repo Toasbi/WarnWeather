@@ -70,7 +70,10 @@ test('Separate hours reads the pairs the night features use, ignoring the ones t
 });
 
 test('shared Night hours: one pick writes all three pairs; the page shows one row', async () => {
-  const p = bootGeneratedPage({ provider: 'dwd' }, 'emery');
+  // All three in use on emery: Dim backlight and Battery saver by default, the Night theme
+  // on custom hours that match theirs.
+  const p = bootGeneratedPage({ provider: 'dwd', themeAuto: true, themeAutoMode: 'manual', themeAutoStartHour: '0',
+    themeAutoEndHour: '7' }, 'emery');
   p.clickTab('watchface');
   assert.ok(p.scroll.innerHTML.indexOf('<div class="lbl">Night hours</div>') !== -1, 'the one shared row');
   ['backlightDimStartHour', 'themeAutoStartHour', 'sleepStartHour'].forEach(k =>
@@ -96,13 +99,45 @@ test('opened and saved untouched, the shared mode writes no hour', async () => {
 });
 
 test('a night feature switched on in shared mode takes the Night hours on Save', async () => {
-  const p = bootGeneratedPage({ provider: 'dwd', sleepStartHour: '22', sleepEndHour: '6' }, 'basalt');
+  // The theme's own hours are its defaults (20–7): nothing the user set, so it joins.
+  const p = bootGeneratedPage({ provider: 'dwd', sleepStartHour: '22', sleepEndHour: '6', themeAutoMode: 'manual' },
+    'basalt');
   p.clickTab('watchface');
   assert.equal(p.S.nightHoursFrom, '22', 'the Night hours open on the saver\'s hours');
   p.clickToggle('themeAuto');
+  assert.equal(p.S.nightHoursSeparate, false, 'still one shared row');
   const blob = await p.save();
   assert.equal(blob.themeAutoStartHour, '22');
   assert.equal(blob.themeAutoEndHour, '6');
+});
+
+test('a feature that is off keeps its own stored hours, whatever the Night hours do', async () => {
+  // The Night theme is on but follows the sun: its custom hours are not in use.
+  const p = bootGeneratedPage({ provider: 'dwd', themeAuto: true }, 'basalt');
+  p.clickTab('watchface');
+  p.openSelect('nightHoursFrom');
+  p.pickOption('nightHoursFrom', '22');
+  p.clickToggle('sleepNightEnabled');
+  p.clickToggle('sleepNightEnabled');
+  const blob = await p.save();
+  assert.equal(blob.sleepStartHour, '22', 'the saver follows the Night hours');
+  assert.equal(blob.themeAutoStartHour, '20', 'the sun-following theme keeps its own custom hours');
+  assert.equal(blob.themeAutoEndHour, '7');
+});
+
+test('a feature switched on with hours the user set keeps them: Separate hours turns on', async () => {
+  const p = bootGeneratedPage({ provider: 'dwd', themeAuto: false, themeAutoMode: 'manual', themeAutoStartHour: '22',
+    themeAutoEndHour: '6' }, 'basalt');
+  p.clickTab('watchface');
+  assert.equal(p.S.nightHoursSeparate, false, 'the theme is off, so one shared row (the saver\'s 0–7)');
+  p.clickToggle('themeAuto');
+  assert.equal(p.S.nightHoursSeparate, true, 'switched on, its own 22–6 would be lost: the hours split');
+  const html = p.scroll.innerHTML;
+  assert.ok(html.indexOf('data-select="themeAutoStartHour"') !== -1, 'the theme\'s From–To shows');
+  const blob = await p.save();
+  assert.equal(blob.themeAutoStartHour, '22');
+  assert.equal(blob.themeAutoEndHour, '6');
+  assert.equal(blob.sleepStartHour, '0', 'the saver keeps its hours');
 });
 
 test('Separate hours: on at load when the pairs differ, a From–To per feature; off copies one into all', () => {
@@ -122,6 +157,22 @@ test('Separate hours: on at load when the pairs differ, a From–To per feature;
     assert.equal(p.S[a], '21', a);
     assert.equal(p.S[b], '6', b);
   });
+});
+
+test('a forecast line that picks a later line\'s metric clears it, though the two sit in different dialogs', async () => {
+  const p = bootGeneratedPage({ provider: 'dwd', secondaryLine: 'precip_prob', thirdLine: 'wind', fourthLine: 'gust' },
+    'basalt');
+  p.clickTab('graphs');
+  p.openEditSheet('lineMain');
+  const pick = { getAttribute: n => (n === 'data-k' ? 'secondaryLine' : (n === 'data-select-pick' ? 'gust' : null)),
+    closest: sel => (sel === '[data-select-pick]' ? pick : null) };
+  p.modal.dispatch('click', { target: pick });
+  assert.equal(p.S.secondaryLine, 'gust');
+  assert.equal(p.S.fourthLine, 'off', 'the Third metric dialog never opened, and still lets go of gusts');
+  p.doneDialog();
+  const blob = await p.save();
+  assert.equal(blob.fourthLine, 'off');
+  assert.equal(blob.thirdLine, 'wind');
 });
 
 test('a dialog\'s × puts back everything it changed, nested dialogs included; Done keeps', () => {
