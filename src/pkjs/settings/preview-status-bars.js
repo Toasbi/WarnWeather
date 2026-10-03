@@ -20,6 +20,8 @@
         ? require('../on-demand.js') : window.OnDemand;
     var esc = (typeof require !== 'undefined')
         ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
+    var previewInk = ((typeof require !== 'undefined')
+        ? require('./preview-svg.js') : window.PreviewSvg).previewInk;
 
     // The bars in the page's order, their slot-key prefixes and names.
     var BARS = [
@@ -115,18 +117,27 @@
         });
         if (!rows) { return ''; }
         ensureStyle();
-        return '<div class="sbp" role="img" aria-label="Status bars preview">' + rows + '</div>';
+        // The watch draws the bars in its theme's ink (status_row.c: theme_fg() on the
+        // theme's background), so a light theme previews black on white.
+        var ink = previewInk(st.theme);
+        return '<div class="sbp" role="img" aria-label="Status bars preview" style="--sbp-bg:' + ink.bg
+            + ';--sbp-fg:' + ink.fg + ';--sbp-dim:' + ink.rgba('0.5') + ';--sbp-line:' + ink.rgba('0.12') + '">'
+            + rows + '</div>';
     }
 
-    // The preview's look, injected once: the watch's black screen, rows split by a hairline.
+    // The preview's look, injected once: the watch's screen in its theme's ink (the
+    // --sbp-* properties the block sets inline; the dark theme's as the fallback), rows
+    // split by a hairline.
     // It sits in a pinned frame that carries a preview's padding (shell.html .pin-blk),
     // which the negative margins cancel, as a preview SVG's do (preview-svg.js svgFrame).
-    var CSS = '.sbp{background:#000;padding:4px 12px;margin:-12px -16px -14px}'
+    var CSS = '.sbp{background:#000;background:var(--sbp-bg,#000);padding:4px 12px;margin:-12px -16px -14px}'
         + '.sbp-row{display:grid;grid-template-columns:70px 1fr 1fr 1fr;align-items:center;padding:7px 0;'
-        + 'border-top:1px solid #1C1C1E}'
+        + 'border-top:1px solid #1C1C1E;border-top-color:var(--sbp-line,#1C1C1E)}'
         + '.sbp-row:first-child{border-top:none}'
-        + '.sbp-n{font:700 10.5px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7C808A}'
-        + '.sbp-v{font:700 14px Inter,sans-serif;color:#FFFFFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+        + '.sbp-n{font:700 10.5px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7C808A;'
+        + 'color:var(--sbp-dim,#7C808A)}'
+        + '.sbp-v{font:700 14px Inter,sans-serif;color:#FFFFFF;color:var(--sbp-fg,#FFFFFF);white-space:nowrap;'
+        + 'overflow:hidden;text-overflow:ellipsis}'
         + '.sbp-left{text-align:left}.sbp-mid{text-align:center}.sbp-right{text-align:right}';
     function ensureStyle() {
         if (typeof document === 'undefined' || !document.getElementById || document.getElementById('sbp-style')) { return; }

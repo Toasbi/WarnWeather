@@ -214,6 +214,7 @@ module.exports = {
   appName:      "MyApp",
   versionLabel: "v1.0.0",
   themeKey:     "configTheme",   // optional: messageKey of an 'auto'|'light'|'dark' setting
+  infoIconsKey: "hideInfoText",  // optional: messageKey of a toggle that puts info text behind '?'
   tabs: [ /* Tab, … */ ]
 };
 ```
@@ -223,6 +224,10 @@ theme. `'auto'` follows `prefers-color-scheme`; a missing `matchMedia` or `var()
 back to dark. Omit `themeKey` and the page stays dark (base theme). Support floor: correct
 rendering ~Chromium 84+, theming from Chromium 49; below that the page stays dark and readable
 via literal fallbacks.
+
+`infoIconsKey` (optional) names a page-only toggle: while it is `true`, row hints and card and
+dialog intros sit behind small '?' buttons (see *Info text, in view or behind '?'* below); off or
+omitted, they show in place.
 
 ### Tabs, sections, items
 
@@ -236,7 +241,7 @@ Schema
        ├─ panes         [{id, label, showWhen?, pinBlock?}] (a segmented switcher; see Panes)
        └─ sections[]
             ├─ title        string
-            ├─ intro        string  (HTML — the card's info text, behind its header's '?')
+            ├─ intro        string  (HTML — the card's info text; behind its header's '?' in the '?' mode)
             ├─ block        string  (custom-block id — rendered below the items)
             ├─ collapsible  boolean (renders section as a collapsible card)
             ├─ titleFrom    {resolver, args?} (collapsed-header value; see Section fields)
@@ -369,7 +374,7 @@ app code.
 `subheader` items split ONE section into several cards — use them when a section holds rows
 that answer to different scopes (a slot dialog keeps its `Bold` row in one card and its Alert
 highlighting in the next). Each visible subheader opens a card titled by its `text`; its
-optional `intro` is that card's info text (behind the header's '?'), its optional
+optional `intro` is that card's info text (behind the header's '?' in the '?' mode), its optional
 `labelAction` sits beside the title, and its optional `toggleKey` names a `toggle` item **in the
 same section**, which then renders as a switch on the card header instead of as a row of its
 own — while keeping its normal place in `items`, so hydrate/serialize/`onChange` are
@@ -442,7 +447,7 @@ picking the shown swatch is what writes it.
 | `compact` | boolean | Gives any row the tight vertical rhythm of the status-slot rows (`.slot`). |
 | `more` | boolean | The row renders behind its card's "More options · N more" row (see Progressive disclosure). |
 | `indent` | boolean | Indents the row (32px) — a child of the row above. |
-| `hintShown` | boolean | Keeps the row's hint in view instead of behind its '?' (a live summary, not info text). |
+| `hintShown` | boolean | Keeps the row's hint in view even in the '?' mode (a live summary, not info text). |
 | `infoId` | string | The id the row's '?' is remembered under (default: `k:<messageKey>`, `s:<sheetId>`, `a:<action>`, `l:<label>`). |
 | `uiOnly` | boolean | A page-only control: hydrated from `initFrom`, never read from or written to the save blob, never seeded. |
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
@@ -461,14 +466,17 @@ picking the shown swatch is what writes it.
 The page shows each card as its labels and controls; explanations and rarely-changed rows wait
 one tap away. Every piece of this state is UI-only (per page open, never saved).
 
-- **Info text behind '?'.** A value row's hint (`hint`, `hintByValue`, `hintFrom`) renders only
+- **Info text, in view or behind '?'.** A value row's hint (`hint`, `hintByValue`, `hintFrom`),
+  a card's `intro` and a dialog's `intro` are the page's info text. By default it all shows in
+  place. The schema's top-level `infoIconsKey` names a page-only toggle (WarnWeather:
+  `hideInfoText`, *Hide info text* in Setup › Misc); while that is on, each one renders only
   while its info is open: the label carries a small '?' button (`.info-q`, `data-info="<id>"`,
   `aria-expanded`) and a tap shows the hint under the label (or hides it again). A row with no
   label, a `readout`, a nav row and a row with `hintShown: true` keep theirs in view. A titled
-  card's `intro` (a section's, or a subheader's) is the card's info text behind a '?' beside the
-  card title (`data-info="c:<cardId>"`, where cardId is `<tabId>:<section id or index>/<card
-  index>`); an untitled card's intro stays in view. A dialog's intro sits behind a '?' beside the
-  dialog title (`data-info="d:<sheetId>"`).
+  card's `intro` (a section's, or a subheader's) goes behind a '?' beside the card title
+  (`data-info="c:<cardId>"`, where cardId is `<tabId>:<section id or index>/<card index>`); an
+  untitled card's intro stays in view. A dialog's intro goes behind a '?' beside the dialog
+  title (`data-info="d:<sheetId>"`).
 - **More options.** Items flagged `more: true` render after the card's other rows, only while its
   "More options · N more" row is open (N counts the ones that would show); open, the rows come
   first and a "Fewer options" row closes the card. A card opens with them out when one of its

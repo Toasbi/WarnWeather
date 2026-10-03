@@ -276,6 +276,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * Whether the page puts its info texts (row hints, card and dialog intros) behind small
+   * '?' buttons instead of in view. The schema names the setting that picks it
+   * (schema.infoIconsKey, a page-only toggle); without one, or with it off, every info
+   * text shows in place and no '?' is drawn.
+   * @param {Object} schema Config schema (reads schema.infoIconsKey).
+   * @param {Object} S Settings state.
+   * @returns {boolean} True for the '?' buttons.
+   */
+  function infoIconsOn(schema, S) {
+    return Boolean(schema && schema.infoIconsKey && S && S[schema.infoIconsKey] === true);
+  }
+
+  /**
    * Flatten settings state into the messageKey->value blob sent back to the
    * watch. staticText items (no real value) are skipped, and so is a
    * `defaultFrom: {sticky: false}` item whose value equals its default resolved
@@ -1048,9 +1061,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var body = cards.map(function (c) { return c.html; }).join('');
     if (!body && !sec.intro) { return ''; }
     var titleId = 'esheet-ttl-' + esc(String(cx.openEdit));
-    // The dialog's intro is its info text, behind the '?' beside the title.
-    var introId = sec.intro ? 'd:' + cx.openEdit : null;
-    var introOpen = Boolean(introId && cx.infoOpen && cx.infoOpen[introId]);
+    // The dialog's intro is its info text: under the header, or behind the '?' beside the
+    // title while the page's '?' buttons are on.
+    var introId = sec.intro && cx.infoIcons ? 'd:' + cx.openEdit : null;
+    var introOpen = Boolean(sec.intro) && (!introId || Boolean(cx.infoOpen && cx.infoOpen[introId]));
     var pin = '';
     if (sec.pinBlock) {
       var fn = PConf.blocks.get(sec.pinBlock);
@@ -1269,14 +1283,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // per-value hint, else the plain one.
     var hint = view.hint != null ? view.hint
       : item.hintByValue ? (item.hintByValue[view.value] || item.hint) : item.hint;
-    // The hint is the row's INFO text: it sits behind a small '?' button beside the label
-    // and shows only while that is open (view.infoOpen, the page's UI-only map), so a card
-    // reads as its labels and controls. Two kinds of row keep theirs in view: a row whose
-    // hint is a live summary of what it leads to (item.hintShown — a badged sheet row, a
-    // readout), and a row with no label for the button to sit beside (the threshold
-    // slider under its group header).
+    // The hint is the row's INFO text. It shows under the label, unless the page puts info
+    // behind '?' buttons (view.infoIcons — the user's page-only choice): then it sits
+    // behind a small '?' beside the label and shows only while that is open
+    // (view.infoOpen, the page's UI-only map), so a card reads as its labels and controls.
+    // Two kinds of row keep theirs in view either way: a row whose hint is a live summary
+    // of what it leads to (item.hintShown — a badged sheet row, a readout), and a row with
+    // no label for the button to sit beside (the threshold slider under its group header).
     var shownLabelText = item.type === 'checklist' ? '' : item.label;
-    var infoTip = Boolean(hint) && !item.hintShown && !view.hintShown && Boolean(shownLabelText);
+    var infoTip = Boolean(view.infoIcons) && Boolean(hint) && !item.hintShown && !view.hintShown
+      && Boolean(shownLabelText);
     var infoBtn = infoTip ? infoButtonHtml(infoIdOf(item), Boolean(view.infoOpen), shownLabelText) : '';
     if (infoTip && !view.infoOpen) { hint = ''; }
     // A segmented control with many options is a wide pill row that can't float beside the
@@ -1564,8 +1580,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       view.hint = resolveHint(item, cx.S, cx.ENV, view.value);
     }
     // A readout's hint IS the row (a live summary with no control), so it stays in view;
-    // every other row's hint is info text behind its '?', open per the page's map.
+    // with the page's '?' buttons on, every other row's hint is info text behind its '?',
+    // open per the page's map.
     if (item.type === 'readout') { view.hintShown = true; }
+    view.infoIcons = Boolean(cx.infoIcons);
     view.infoOpen = Boolean(cx.infoOpen && cx.infoOpen[infoIdOf(item)]);
     // A muted row never shows its list: .dis makes the trigger untappable, so an expanded
     // list could not be collapsed again. The row draws collapsed (trigger included), and
@@ -1684,8 +1702,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var hint = head.hintFrom ? resolveHint(head, cx.S, cx.ENV, cx.S[head.messageKey]) : undefined;
     if (hint === undefined) { hint = head.hint || ''; }
     var id = 'g:' + head.groupLabel + ':' + (head.messageKey || '');
-    var open = Boolean(cx.infoOpen && cx.infoOpen[id]);
-    var info = hint ? infoButtonHtml(id, open, head.groupLabel) : '';
+    var open = !cx.infoIcons || Boolean(cx.infoOpen && cx.infoOpen[id]);
+    var info = hint && cx.infoIcons ? infoButtonHtml(id, open, head.groupLabel) : '';
     return { controlCount: ctl.length, html: '<div class="row hours' + nbClass(noDivider)
       + (head.indent ? ' indent' : '') + (inlineList ? ' isel-open' : '') + '">'
       + '<div class="lft"><div class="lbl">' + labelWithInfo(head.groupLabel, info) + '</div>'
@@ -1932,9 +1950,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // header hosts a master switch (a goal's Goals card with every row gated off).
       var keeps = (!head.title && head.intro && gi === 0) || Boolean(g.head && g.head.toggleKey && head.toggle);
       if (!hasRows && !keeps) { cards.push({ html: '', isEmpty: true }); continue; }
-      // The card's intro is info text: behind the header's '?' when the card has a title,
-      // in view on an untitled card (nothing to hang the button on).
-      introId = head.intro && head.title ? 'c:' + cardId : null;
+      // The card's intro is info text: in view, unless the page's '?' buttons are on and
+      // the card has a title to hang one on — then behind the header's '?'.
+      introId = cx.infoIcons && head.intro && head.title ? 'c:' + cardId : null;
       introOpen = Boolean(introId && infoOpen[introId]);
       intro = head.intro && (!introId || introOpen) ? '<div class="intro">' + head.intro + '</div>' : '';
       var isCollapsible = gi === 0 && Boolean(sec.collapsible) && !untitled;
@@ -2580,7 +2598,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         openInline: openInline,
         selectQuery: selectQuery,
         collapsed: collapsed, evalCtx: evalCtx(),
-        INITIAL: INITIAL, infoOpen: infoOpen, moreOpen: moreOpen, activePane: activePane, schema: SCHEMA,
+        INITIAL: INITIAL, infoOpen: infoOpen, infoIcons: infoIconsOn(SCHEMA, S), moreOpen: moreOpen,
+        activePane: activePane, schema: SCHEMA,
         editKicker: editStack.length ? editStack[editStack.length - 1].kicker : '',
         editNested: editStack.length > 1
       };
@@ -3374,7 +3393,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
     selectTriggerLabel: selectTriggerLabel, findShownItem: findShownItem,
     resolveDefaultFrom: resolveDefaultFrom, resolveHint: resolveHint,
-    resolveTheme: resolveTheme,
+    resolveTheme: resolveTheme, infoIconsOn: infoIconsOn,
     fitSelectPeek: fitSelectPeek,
     resolveStaticText: resolveStaticText, resolveAttention: resolveAttention,
     findAttention: findAttention, renderConfirmModal: renderConfirmModal
@@ -3411,6 +3430,7 @@ if (typeof module !== 'undefined' && module.exports) {
     resolveDefaultFrom: PConf.engine.resolveDefaultFrom,
     resolveHint: PConf.engine.resolveHint,
     resolveTheme: PConf.engine.resolveTheme,
+    infoIconsOn: PConf.engine.infoIconsOn,
     fitSelectPeek: PConf.engine.fitSelectPeek,
     checkWriters: PConf.checkWriters,
     attentionResolvers: PConf.attentionResolvers,

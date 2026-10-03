@@ -1,5 +1,6 @@
-// src/pkjs/config-ui/test/disclosure.test.js — the page's progressive disclosure: a
-// row's info text behind its '?', a card's intro behind its header's '?', subheaders
+// src/pkjs/config-ui/test/disclosure.test.js — the page's progressive disclosure: info
+// text in view by default, or (the '?' mode, schema.infoIconsKey) a row's info text behind
+// its '?' and a card's intro behind its header's '?'; subheaders
 // splitting a section into cards, "More options", nav and link rows, From–To rows,
 // panes with a pinned header, page-only (uiOnly) items, and the full-screen dialog's
 // header. Pure renders only; the boot-time wiring (taps, the dialog stack and its
@@ -20,33 +21,69 @@ function cxFor(S, extra) {
   }, extra || {});
 }
 const ALL_OPEN = new Proxy({}, { get: () => true });
+// The '?' mode's render context: info text behind '?' buttons.
+const Q = { infoIcons: true };
 
-// ── '?' info text ───────────────────────────────────────────────────────────
+// ── info text: in view by default ───────────────────────────────────────────
+
+test('by default every info text shows in place and no ? is drawn', () => {
+  const item = { type: 'toggle', messageKey: 'flag', label: 'Flag', hint: 'What the flag does.' };
+  const row = E.renderRow(item, { value: false });
+  assert.ok(row.indexOf('<div class="lbl">Flag</div><div class="hint">What the flag does.</div>') !== -1, row);
+  assert.equal(row.indexOf('info-q'), -1);
+  const S = E.hydrate(CARDS, {});
+  const body = E.renderBody(CARDS, 't', cxFor(S));
+  assert.equal(body.indexOf('info-q'), -1, 'no ? on a card either');
+  assert.ok(body.indexOf('<span class="ttl">One</span></span></div><div><div class="intro">About one.</div>') !== -1, body);
+  assert.ok(body.indexOf('<div class="intro">About two.</div>') !== -1);
+  const hours = { tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'select', messageKey: 'from', label: 'From', groupLabel: 'Night hours', options: [['00:00', '0']], inline: 'h',
+      defaultValue: '0', hint: 'Used by all three.' },
+    { type: 'select', messageKey: 'to', label: 'To', options: [['00:00', '0']], inline: 'h', defaultValue: '0' }] }] }] };
+  const hb = E.renderBody(hours, 't', cxFor(E.hydrate(hours, {})));
+  assert.ok(hb.indexOf('<div class="lbl">Night hours</div><div class="hint">Used by all three.</div>') !== -1, hb);
+  const dlg = { tabs: [{ id: 't', label: 'T', sections: [
+    { sheetOnly: true, sheetId: 'd1', title: 'Dialog one', intro: 'What it is.', items: [
+      { type: 'toggle', messageKey: 'k', label: 'K' }] }] }] };
+  const modal = E.renderEditModal(dlg, cxFor({}, { openEdit: 'd1' }));
+  assert.ok(modal.indexOf('<div class="dlg-intro">What it is.</div>') !== -1 && modal.indexOf('info-q') === -1, modal);
+});
+
+test('the schema\'s infoIconsKey picks the ? mode; without it the page keeps its text', () => {
+  const schema = { infoIconsKey: 'hideInfoText', tabs: [] };
+  assert.equal(E.infoIconsOn(schema, { hideInfoText: true }), true);
+  assert.equal(E.infoIconsOn(schema, { hideInfoText: false }), false);
+  assert.equal(E.infoIconsOn(schema, {}), false);
+  assert.equal(E.infoIconsOn({ tabs: [] }, { hideInfoText: true }), false, 'no key named: text stays');
+});
+
+// ── the '?' mode ────────────────────────────────────────────────────────────
 
 test('a row hint sits behind its ? until the info is open', () => {
   const item = { type: 'toggle', messageKey: 'flag', label: 'Flag', hint: 'What the flag does.' };
-  const closed = E.renderRow(item, { value: false });
+  const closed = E.renderRow(item, { value: false, infoIcons: true });
   // The '?' rides the label's last word (span.nw), so a narrow phone never strands it.
   assert.ok(closed.indexOf('<div class="lbl"><span class="nw">Flag<button type="button" class="info-q" data-info="k:flag"'
     + ' aria-expanded="false" aria-label="Info about Flag">?</button></span></div>') !== -1, closed);
   assert.equal(closed.indexOf('What the flag does.'), -1, 'the hint is not rendered while closed');
-  const open = E.renderRow(item, { value: false, infoOpen: true });
+  const open = E.renderRow(item, { value: false, infoIcons: true, infoOpen: true });
   assert.ok(open.indexOf('class="info-q on" data-info="k:flag" aria-expanded="true" aria-label="Hide info about Flag"') !== -1);
   assert.ok(open.indexOf('<div class="hint">What the flag does.</div>') !== -1, 'open: the hint renders');
 });
 
 test('no hint, no ?; a label-less row, a readout and hintShown keep their hint in view', () => {
-  assert.equal(E.renderRow({ type: 'toggle', messageKey: 'a', label: 'A' }, { value: true }).indexOf('info-q'), -1);
+  assert.equal(E.renderRow({ type: 'toggle', messageKey: 'a', label: 'A' }, { value: true, infoIcons: true }).indexOf('info-q'), -1);
   const bare = E.renderRow({ type: 'range', messageKey: 'r', hint: 'Scale note.', min: 0, max: 10, defaultValue: '1-5' },
-    { value: '1-5' });
+    { value: '1-5', infoIcons: true });
   assert.ok(bare.indexOf('Scale note.') !== -1 && bare.indexOf('info-q') === -1, 'no label: hint stays');
-  const shown = E.renderRow({ type: 'toggle', messageKey: 'b', label: 'B', hint: 'Summary.', hintShown: true }, { value: true });
+  const shown = E.renderRow({ type: 'toggle', messageKey: 'b', label: 'B', hint: 'Summary.', hintShown: true },
+    { value: true, infoIcons: true });
   assert.ok(shown.indexOf('Summary.') !== -1 && shown.indexOf('info-q') === -1, 'hintShown: hint stays');
   const S = { x: 1 };
   global.PConf.hintResolvers.register('discReadout', () => 'Live state');
   const schema = { tabs: [{ id: 't', label: 'T', sections: [{ items: [
     { type: 'readout', label: 'R', hintFrom: { resolver: 'discReadout' } }] }] }] };
-  const body = E.renderBody(schema, 't', cxFor(S));
+  const body = E.renderBody(schema, 't', cxFor(S, Q));
   assert.ok(body.indexOf('<div class="hint">Live state</div>') !== -1 && body.indexOf('info-q') === -1, 'readout');
 });
 
@@ -55,7 +92,7 @@ test('renderBody opens exactly the rows the infoOpen map names', () => {
     { type: 'toggle', messageKey: 'a', label: 'A', hint: 'Hint A' },
     { type: 'toggle', messageKey: 'b', label: 'B', hint: 'Hint B' }] }] }] };
   const S = E.hydrate(schema, {});
-  const body = E.renderBody(schema, 't', cxFor(S, { infoOpen: { 'k:b': true } }));
+  const body = E.renderBody(schema, 't', cxFor(S, { infoIcons: true, infoOpen: { 'k:b': true } }));
   assert.equal(body.indexOf('Hint A'), -1);
   assert.ok(body.indexOf('Hint B') !== -1);
 });
@@ -76,7 +113,7 @@ const CARDS = { tabs: [{ id: 't', label: 'T', sections: [
 
 test('subheaders split a section into cards; titled intros sit behind the header ?', () => {
   const S = E.hydrate(CARDS, {});
-  const body = E.renderBody(CARDS, 't', cxFor(S));
+  const body = E.renderBody(CARDS, 't', cxFor(S, Q));
   const cards = (body.match(/<div class="card(?: nohdr)?">/g) || []).length;
   assert.equal(cards, 3, 'One, Two and the untitled card (Gone has no row to show)');
   assert.ok(body.indexOf('<div class="cardHdr"><span class="ttlwrap"><span class="ttl">One</span>'
@@ -89,7 +126,7 @@ test('subheaders split a section into cards; titled intros sit behind the header
   assert.equal(body.indexOf('<div class="lbl">B'), -1, 'and not as a row of its own');
   assert.equal(body.indexOf('>Gone<'), -1, 'a card with no row to show drops out');
   assert.ok(body.indexOf('<div class="intro">An untitled intro shows as it is.</div>') !== -1);
-  const open = E.renderBody(CARDS, 't', cxFor(S, { infoOpen: { 'c:t:one/0': true } }));
+  const open = E.renderBody(CARDS, 't', cxFor(S, { infoIcons: true, infoOpen: { 'c:t:one/0': true } }));
   assert.ok(open.indexOf('<div class="intro">About one.</div>') !== -1, 'open: the intro leads the card');
 });
 
@@ -187,7 +224,7 @@ test('an inline group with a groupLabel is one From–To row', () => {
       defaultValue: '22', hint: 'Used by all three.', indent: true },
     { type: 'select', messageKey: 'to', label: 'To', options: HOURS, inline: 'h', defaultValue: '7' }] }] }] };
   const S = E.hydrate(schema, {});
-  const body = E.renderBody(schema, 't', cxFor(S));
+  const body = E.renderBody(schema, 't', cxFor(S, Q));
   assert.ok(body.indexOf('<div class="row hours indent"><div class="lft"><div class="lbl">Night <span class="nw">hours'
     + '<button type="button" class="info-q" data-info="g:Night hours:from"') !== -1, body);
   assert.ok(/<div class="rgt hrs"><button type="button" class="sel-wrap" data-select="from"[\s\S]*?22:00[\s\S]*?<span class="hrs-dash">–<\/span><button type="button" class="sel-wrap" data-select="to"/.test(body));
@@ -250,7 +287,7 @@ test('renderEditModal: the dialog header (× or ‹, kicker, title with its ?, D
       { type: 'subheader', text: 'Second card' },
       { type: 'toggle', messageKey: 'k2', label: 'K2' }] }] }] };
   const S = {};
-  const root = E.renderEditModal(schema, cxFor(S, { openEdit: 'd1', editKicker: 'Status bars' }));
+  const root = E.renderEditModal(schema, cxFor(S, { infoIcons: true, openEdit: 'd1', editKicker: 'Status bars' }));
   assert.ok(root.indexOf('<div class="dlg-hdr"><button type="button" class="dlg-x" data-dlg-close aria-label="Close and discard changes">&#215;</button>'
     + '<div class="dlg-ttlwrap"><span class="dlg-kick">Status bars</span><span class="dlg-ttlline">'
     + '<span class="ssel-modal-ttl dlg-ttl" id="esheet-ttl-d1">Dialog one</span>'
@@ -260,8 +297,8 @@ test('renderEditModal: the dialog header (× or ‹, kicker, title with its ?, D
   assert.equal(root.indexOf('What it is.'), -1, 'the intro waits behind the title ?');
   assert.equal((root.match(/<div class="card(?: nohdr)?">/g) || []).length, 2, 'the subheader opens a second card');
   assert.ok(root.indexOf('<span class="ttl">Second card</span>') !== -1);
-  const nested = E.renderEditModal(schema, cxFor(S, { openEdit: 'd1', editKicker: 'Parent', editNested: true,
-    infoOpen: { 'd:d1': true } }));
+  const nested = E.renderEditModal(schema, cxFor(S, { infoIcons: true, openEdit: 'd1', editKicker: 'Parent',
+    editNested: true, infoOpen: { 'd:d1': true } }));
   assert.ok(nested.indexOf('<button type="button" class="dlg-x" data-dlg-back aria-label="Back">&#8249;</button>') === 0 + '<div class="dlg-hdr">'.length);
   assert.ok(nested.indexOf('<div class="dlg-intro">What it is.</div>') !== -1);
 });
