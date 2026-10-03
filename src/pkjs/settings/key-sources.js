@@ -1,24 +1,24 @@
 // src/pkjs/settings/key-sources.js — ES5, PKJS + settings webview. The keyed sources: for
 // each picker whose options include sources that need the user's own API key (the Weather
-// provider row's OpenWeatherMap, Tomorrow.io and Yandex Weather; the Radar provider row's
+// provider's OpenWeatherMap, Tomorrow.io and Yandex Weather; the Radar provider's
 // "Rainbow (own key)" and Tomorrow.io), those sources and what goes missing without a
 // working key. One table per picker, by the picker's messageKey:
 //   {outcome, sources: {<the picker's value>: source}}
-// It is the table every key-status resolver on the picker's row reads (settings/
-// key-status.js, which defines the key's states, looks it up by the row's messageKey, or
-// by args.picker for the missing-key note, a staticText without one) and the key sheets
-// are built from (schema.js keySheetSection). So the rows' resolvers carry no args of
-// their own, and the table reaches the page once, as code, not inside each row's schema.
-// A picker value missing from `sources` has no key: its row shows no Edit button and no
-// key status.
+// It is the table every key-status resolver on the picker's rows reads (settings/
+// key-status.js, which defines the key's states, looks it up by the picker row's
+// messageKey, or by args.picker for the missing-key note and the key row under the
+// dropdown, which have none) and the key sheets are built from (schema.js
+// keySheetSection). So the rows' args name at most the picker, and the table reaches the
+// page once, as code, not inside each row's schema. A picker value missing from `sources`
+// has no key: it gets no key row and no key status.
 //
 // `outcome` is what goes missing without a working key; it ends the missing-key note's and
 // the Save dialog's sentence ("Without one, the watch gets no forecast.").
 //
 // A source:
-//   name           Its name as the dropdown shows it: its key sheet's title and the Save
-//                  dialog's.
-//   sheetId        The key sheet the Edit button after the dropdown opens.
+//   name           Its name as the dropdown shows it: its key sheet's title, the key
+//                  row's label and the Save dialog's.
+//   sheetId        The key sheet the key row under the dropdown opens.
 //   keyField       The field (messageKey) that sheet stores the key in.
 //   test           Whether that field has a Test button; the summary then says "not
 //                  tested yet" for a key it knows nothing about.
@@ -28,7 +28,7 @@
 //                  tomorrow.io's projected calls and Rainbow's monthly projection).
 //   sharedSheet?   {key, eq, sheetId}: while settings[key] === eq the other picker picks
 //                  the source too, its own sheet is gated off, and the key lives in
-//                  sheetId, which the Edit button and the Save dialog then open.
+//                  sheetId, which the key row and the Save dialog then open.
 // A key two pickers share (the Tomorrow.io key) is one key with one verdict: both sources
 // name the same keyField and the same source id, so they show one state.
 //
@@ -53,10 +53,10 @@
     // its entry IS that provider's (name, key field, Test, reasons, the daily usage line)
     // with only the sheet changed; the weather updates and the radar requests keep their
     // answers under the one id 'tomorrowio', so the newest of them is the key's verdict on
-    // both rows. Radar-only, the key lives in the Radar tab's own Tomorrow.io sheet; while
-    // Tomorrow.io is the weather provider too, the General tab's sheet holds it (sharedSheet),
-    // so the Radar row's Edit button and Save dialog open that one, and its summary and tab
-    // dot read the Weather provider row's state.
+    // both pickers. Radar-only, the key lives in the Rain radar pane's own Tomorrow.io sheet;
+    // while Tomorrow.io is the weather provider too, Setup's sheet holds it (sharedSheet), so
+    // the Radar provider's key row and Save dialog open that one, and its summary and tab dot
+    // read the Weather provider's state.
     var RADAR_SOURCES = {
         rainbowkey: {name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey', test: true,
             usage: 'rainbow'},

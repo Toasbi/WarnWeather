@@ -103,10 +103,10 @@
   .info-q:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; }
   .card.nohdr .intro { padding-top: 14px; }
   .intro a { color: var(--link); }
-  /* an inline text button in intro copy (schema-gates.js introAction: the Alert
-     settings and status cards' resets), drawn like the links in hints (the Telemetry hint's
-     "Telemetry section"): link colour, underline, the copy's own font, flowing after the
-     last sentence. A <button> only so it carries a [data-action] instead of a URL. */
+  /* an inline text button (schema-gates.js linkRow: the About alerts and All status bars
+     cards' resets; tabLink: a tab link in copy), drawn like the links in hints (the
+     Telemetry hint's "Telemetry section"): link colour, underline, the copy's own font.
+     A <button> only so it carries a [data-action] or [data-goto-tab] instead of a URL. */
   .txt-link { -webkit-appearance: none; appearance: none; display: inline; margin: 0; padding: 0; border: none; background: none; color: var(--link); font: inherit; line-height: inherit; text-align: inherit; text-decoration: underline; cursor: pointer; }
   .txt-link:active { opacity: .6; }
   /* in-card sub-header for grouped sections (groupCard): the same muted-gray, tracked
@@ -232,7 +232,7 @@
      the join variant reuses the same appearance and adds the pull-up spacing below. */
   .static.join, .static.hinted { color: var(--hint); font-size: 12.5px; line-height: 1.55; }
   .static.join { margin-top: -5px; padding-top: 0; }
-  /* style: 'info' — a boxed note, the General tab's fetch-notice item (notices-panel.js
+  /* style: 'info' — a boxed note, the Watchface tab's fetch-notice item (notices-panel.js
      .notice-item) in the page's info amber (--info-tint / --info-rule, in tune with the
      orange accents; error boxes stay red): tinted fill, 3px left rule, rounded. The
      explicit text colour keeps a tight-joined box (.static.join) off the hint grey, which

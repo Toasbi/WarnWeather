@@ -1,7 +1,7 @@
 // src/pkjs/settings/custom-layout-schema.js — ES5, PKJS-parsed. The Custom-layout
 // block of the settings schema, split out of schema.js: the per-view storage items
-// (the editor's contract), the sheetOnly section hosting them, and the Edit-button
-// row. Plain CommonJS with an unguarded require(), exactly like schema.js itself —
+// (the editor's contract), the sheetOnly section hosting them, and the "Edit views"
+// nav row that opens the editor. Plain CommonJS with an unguarded require(), exactly like schema.js itself —
 // the schema is evaluated at build time / in PKJS, never as a flat browser file.
 // Split so the capability gates can be BUILT from view-cycle.js's mode lists:
 // one table, three consumers (compiler, editor, these sheets).

@@ -1550,13 +1550,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (item.type === 'sheet') {
       var sId = item.sheetId || resolveEditSheet(item, cx.S, cx.ENV);
       if (!sId) { return { html: '', kind: 'hidden' }; }
-      // A sheet row that declares a badge renders as an ordinary row with the preview +
-      // Edit pair instead (renderControl yields '' for type 'sheet', so the control cell
-      // holds only those two); without one it stays a chevron row. resolveEditBadge
-      // merges the item's messageKey UNDER editBadgeFrom.args and a sheet row has none,
+      // A sheet row's badge (editBadgeFrom) is resolved through resolveEditBadge, which
+      // merges the item's messageKey UNDER editBadgeFrom.args — and a sheet row has none,
       // so such a row identifies itself through those args. It honours hintFrom the
       // same way: the resolver gets no row value (a sheet row stores nothing) and reads
-      // what it describes from S — e.g. an Alert settings card row printing its item's live
+      // what it describes from S — e.g. an Alerts tab row printing its item's live
       // state ("Not in any status bar", or its levels) under the label.
       // Every sheet row is a nav row now: the whole row opens the sheet (a full-screen
       // dialog), its summary under the label and, where it declares a badge, the
@@ -1576,7 +1574,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // (e.g. below a preview block) that should still read as secondary, hint-coloured text.
       // Only a tight join (joinPrevious: true) gets the .join pull-up that hugs the row above; a
       // loose join keeps the static's normal standoff (the row above just drops its divider).
-      // style 'info': the note is boxed like the General tab's fetch-notice panel (its
+      // style 'info': the note is boxed like the Watchface tab's fetch-notice panel (its
       // tinted, left-ruled .notice-item) in the page's info amber — a pointer the reader
       // should not scroll past as body copy (e.g. "this is set on another tab").
       var isInfo = item.style === 'info';
@@ -1585,8 +1583,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (item.textFrom && staticText === '') { return { html: '', kind: 'hidden' }; }
       var staticCls = 'static' + (item.joinPrevious === true ? ' join' : '') + (item.hinted ? ' hinted' : '')
         + (isInfo ? ' info' : '') + nbClass(noDivider);
-      // A staticText may host preview blocks too (blockBefore/block) — e.g. the Layout tab's
-      // after-flick preview rides a caption. renderBlock() no-ops when the id is absent.
+      // A staticText may host preview blocks too (blockBefore/block) — e.g. a preview
+      // riding a caption. renderBlock() no-ops when the id is absent.
       var staticHtml = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
         + '<div class="' + staticCls + '">'
         + (isInfo ? '<div class="info-box">' + staticText + '</div>' : staticText) + '</div>'

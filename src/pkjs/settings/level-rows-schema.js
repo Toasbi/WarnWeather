@@ -217,7 +217,7 @@ function levelLead(keyStem, voice, hint, gate, why) {
         toggleKey: switchKey,
         intro: voice.intro,
         // Reverts pair + colors + scale max to the kind's defaults (blocks.js
-        // action) — deliberately NOT the pencil sheet's Bold row, which is not part
+        // action) — deliberately NOT the slot sheet's Bold row, which is not part
         // of the group.
         labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'}
     }];
@@ -235,8 +235,8 @@ function levelLead(keyStem, voice, hint, gate, why) {
         dangerKey: 'thresh' + keyStem + 'Danger',
         maxKey: 'thresh' + keyStem + 'Max',
         // The group's title and reset ride its card header; the row names the two values
-        // its thumbs set, which is also what its '?' hangs off. No disabledWhen: see the
-        // top of this function.
+        // its thumbs set, which is also what its info text (or '?') hangs off. No
+        // disabledWhen: see the top of this function.
         label: voice.rangeLabel,
         defaultValue: '',
         hint: hint,
@@ -245,8 +245,8 @@ function levelLead(keyStem, voice, hint, gate, why) {
         rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem, chips: voice.chips}}
     };
     // An alert group's cards on its default levels (ALERT_LEVEL_CARDS) are the slider's
-    // info text now, behind its '?': the scale hint, then the one card whose unit or scale
-    // is in effect (blocks.js levelInfo evaluates each card's showWhen).
+    // info text now (under it, or behind its '?'): the scale hint, then the one card whose
+    // unit or scale is in effect (blocks.js levelInfo evaluates each card's showWhen).
     if (why && why.length) {
         range.hintFrom = {resolver: 'levelInfo', args: {hint: hint, cards: why}};
     }

@@ -1,13 +1,13 @@
 // src/pkjs/settings/alerts-page.js — ES5, WebView. The Alerts tab's resolvers, split out of
-// blocks.js: what the Alert settings card's rows print (their live hints and Edit badges),
-// the rows of every item's Shows on grid (onDemandBars, a checklist's options), and the
-// icons a bar's read-only Alerts row on the Status slots tab shows (onDemandBarIcons). The
-// card's reset (resetOnDemand) stays among blocks.js's reset actions, beside the Status
-// slots card's, which restores the same side lists.
+// blocks.js: what the Alerts tab's rows print (their live summaries and badges), the rows
+// of every item's Shows on grid (onDemandBars, a checklist's options), and the icons a
+// bar's Alerts row on the Status bars tab shows (onDemandBarIcons). The tab's reset
+// (resetOnDemand) stays among blocks.js's reset actions, beside the Status bars reset,
+// which restores the same side lists.
 //
 // It reads two helpers of blocks.js's threshold machinery, which blocks.js publishes as
 // PConf.thresholdLevels: a kind's slider geometry (rangeOf, the unit a metric alert's
-// levels print in) and its badge dots (levelDots, which the slot pencil draws too). So it
+// levels print in) and its badge dots (levelDots, which the slot's Edit button draws too). So it
 // loads AFTER blocks.js in both contexts: under Node blocks.js requires this file at the
 // end of its own body, so requiring blocks.js registers these resolvers too; the webview
 // concatenates it right after blocks.js (scripts/build-config-page.js APP_FILES, pinned by
@@ -34,7 +34,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var levelDots = PConf.thresholdLevels.levelDots;
 
     /**
-     * The contract's metric alert behind an Alert settings card row, found by the row's key
+     * The contract's metric alert behind an Alerts-tab row, found by the row's key
      * stem (the schema builds each row's sheet and keys from it).
      * @param {*} keyStem Kind key stem, e.g. 'Uv'.
      * @returns {?{code: string, key: string}} Its ALERT_KINDS entry, or null for a
@@ -87,11 +87,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The Alert settings card row's badge for a metric alert (editBadgeFrom, args.keyStem):
+     * The Alerts-tab row's badge for a metric alert (editBadgeFrom, args.keyStem):
      * the colours the watch draws that alert in, while its item is placed on a bar (no
      * dots at all otherwise) — the warn pip in the kind's warn look (no pip for 'none', a
-     * ring for 'outline', a dot for 'fill' — warnPip, shared with the slot pencil) and a
-     * dot in the danger colour (the filled box). No 'B': bold is how a SLOT prints, not
+     * ring for 'outline', a dot for 'fill' — warnPip, shared with the slot's Edit-button
+     * badge) and a dot in the danger colour (the filled box). No 'B': bold is how a SLOT prints, not
      * part of the alert. The placement decides, not the slot's Highlight switch: the
      * entries take the kind's colours either way.
      * @param {Object} S Live settings state.
@@ -174,7 +174,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The Alert settings card's Rain row hint: "Turn on the rain radar (Radar tab)" while the
+     * The Alerts tab's Rain row hint: "Turn on the rain radar (Watchface › Views)" while the
      * radar is off (that comes first: no tick helps then), "Not in any status bar" while
      * Rain is ticked on no bar, else its time window and look by the labels its sheet
      * offers them under, e.g. "Within 60 min · Text". The lists come from the schema
@@ -216,7 +216,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The rows of an item's Shows on grid (alerts-schema.js showsOnRows; a checklist): one per
-     * status bar the watch draws (on-demand.js barExists, the rule the Status slots tab's
+     * status bar the watch draws (on-demand.js barExists, the rule the Status bars tab's
      * bar gates RADAR_BAR_WHEN / HEALTH_BAR_WHEN state), in the page's order. Each row
      * names its two side lists in meta.keys (Left, Right), the lists its ticks read and
      * write (reset-status-defaults.js onDemandTick). Like those gates, it ignores the
@@ -274,20 +274,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.optionsResolvers.register('onDemandBars', onDemandBars);
 
     /**
-     * A bar's read-only Alerts row on the Status slots tab (its hint): per side, the icons
-     * of the placed items that can show, in priority order (the Alert settings card's), each
-     * side one unbreakable run ("Left" + icons, "Right" + icons; shell.html .ico-run), so a
-     * narrow phone wraps between the sides, never inside one; then args.where on a line of
-     * its own, where they are set up (a link to the Alerts tab). Each icon carries its
-     * item's name (role img), so a screen reader reads "Left Bluetooth Rain Right Battery".
+     * A bar's Alerts nav row on the Status bars tab (its summary; a tap opens the Alerts
+     * tab): per side, the icons of the placed items that can show, in priority order (the
+     * Alerts tab's), each side one unbreakable run ("Left" + icons, "Right" + icons;
+     * shell.html .ico-run), so a narrow phone wraps between the sides, never inside one.
+     * Each icon carries its item's name (role img), so a screen reader reads "Left
+     * Bluetooth Rain Right Battery".
      * Blocked items (Rain with the radar off, Pollen off DWD) are left out, as the watch
      * leaves them out; when every placed item is blocked the row says so. With nothing
-     * placed, the pointer alone. The names are on-demand.js ITEMS constants, never
+     * placed, args.where alone ("None"). The names are on-demand.js ITEMS constants, never
      * settings: the engine prints a hint as raw HTML.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
      * @param {{bar: string, where: string}} args The bar (an on-demand.js BARS bar) and the
-     *     schema's pointer HTML.
+     *     schema's text for a bar with nothing placed.
      * @returns {string} The hint HTML.
      */
     function onDemandBarIcons(S, env, args) {

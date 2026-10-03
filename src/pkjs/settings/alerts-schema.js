@@ -1,10 +1,11 @@
 // src/pkjs/settings/alerts-schema.js — ES5, PKJS-parsed. The Alerts tab's part of the
-// settings schema, split out of schema.js: the Alert settings card (its rows and its intro
-// with the reset), the sheet behind every row (Battery, Bluetooth, Quiet time, Sleep, Rain
-// and the five metric alerts, each leading with its Shows on grid), the alert-level cards,
-// the eight side lists' hidden items, and the pieces the other tabs show: a bar's read-only
-// Alerts row (Status slots tab), the rain alert's 'Rain alert only' note (Radar tab), and
-// the Bluetooth icon's choices (aplite's Watch Status Bar). schema.js's alert slot sheets
+// settings schema, split out of schema.js: the About alerts card (its intro, its reset
+// link row and the Default view note) and the item rows under it, the sheet behind every
+// row (Battery, Bluetooth, Quiet time, Sleep, Rain and the five metric alerts, each leading
+// with its Shows on grid), the alert-level cards, the eight side lists' hidden items, and
+// the pieces the other tabs show: a bar's Alerts row (Status bars tab), the rain alert's
+// 'Rain alert only' note (Watchface › Views), and the Bluetooth icon's choices (aplite's
+// Watch Status Bar). schema.js's alert slot sheets
 // read the kinds, their contract codes and the placement leaf from here.
 // It reads the shared gates (schema-gates.js) and the level group (level-rows-schema.js),
 // never schema.js, so the dependency points one way. Plain CommonJS with an unguarded
@@ -59,7 +60,7 @@ var SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the 
  */
 function showsOnRows(code, merge, notes) {
     // The dialog's Shows on card: its title is the grid's name, the side rules its info
-    // text (behind the card's '?'), the grid itself under the Left / Right captions, then
+    // text (the card's intro), the grid itself under the Left / Right captions, then
     // any boxed notes on why the item may not show (the caller's, and the Default view's).
     return [{
         type: 'subheader',
@@ -135,10 +136,10 @@ function rainRadarOffNote() {
 }
 /**
  * The rain alert's sheet (sheetId alertRain), opened from the Rain row in the Alerts tab's
- * Weather alerts card: its Shows on grid and note, the radar-off box, the Look, then the time
- * window (the owner's order, 2026-10-01: where it shows, the Look, then its own rows). It
- * has no switch: a tick in its Shows on grid is the switch. The time window is set here
- * alone (the owner, 2026-10-02: the Radar tab's copy went, "Alerts is enough"). The look's
+ * Weather alerts card: its Shows on grid and notes, the radar-off box, then its Alert card:
+ * the time window, then the Look. It has no switch: a tick in its Shows on grid is the
+ * switch. The time window is set here alone (the owner, 2026-10-02: the old Radar tab's
+ * copy went, "Alerts is enough"). The look's
  * and the window's defaults are the contract's (status-thresholds.js rainAlert), so the
  * page hydrating a key and the packer reading it absent never disagree.
  * @returns {Object} Schema section (sheetOnly).
@@ -629,7 +630,6 @@ function placementSheet(sheetId, title, code, intro) {
  * @param {?Object} showWhen The row's own gate, or null.
  * @param {Object} hintFrom The live-state hint resolver ({resolver, args}).
  * @param {Object} editBadgeFrom The badge resolver ({resolver, args}).
- * @param {boolean} [joins] Whether the row joins the one above (no divider).
  * @returns {Object} Schema item.
  */
 function onDemandSheetRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFrom) {

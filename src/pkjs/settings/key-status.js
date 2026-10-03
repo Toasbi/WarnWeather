@@ -230,8 +230,8 @@
     }
 
     /**
-     * keySheet (editSheetFrom): the sheet holding the picked source's key (sheetOf), null
-     * (no key row) for a source without a key.
+     * keySheet (editSheetFrom of the key row): the sheet holding the picked source's key
+     * (sheetOf), null (the key row hides) for a source without a key.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
      * @param {{picker: (string|undefined), messageKey: (string|undefined)}} args The picker:

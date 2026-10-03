@@ -146,7 +146,7 @@ function windScaleCopy(pickerKey, unit, hints) {
 /**
  * One metric's Visible values [All | Alert] row (internally the Show row: line-alert.js)
  * under one picker: shown while that picker's line draws the metric (lineRowWhen, so a
- * stored repeat on a later picker shows it once), on a watch with Alert settings
+ * stored repeat on a later picker shows it once), on a watch with an Alerts tab
  * (ON_DEMAND_WHEN: aplite has none, and its lines always draw All, line-alert.js
  * alertBands). The wind speed, wind gust and UV index lines have one
  * each (line-alert.js METRIC_IDS, the graph metrics with Alert levels), stored per

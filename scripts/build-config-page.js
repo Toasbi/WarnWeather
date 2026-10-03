@@ -35,7 +35,7 @@ var APP_FILES = [
   // they come first. blocks.js registers tomorrow.io's usage line into PConf.keyStatus
   // while ITS body runs, so all four precede it; key-test.js reads PConf.keyStatus only
   // when a test answers. Every Node test takes the require() branch, so neither a dropped
-  // file (no Edit button, summary line, missing-key note, tab dot or Save dialog — or,
+  // file (no key row, key summary, missing-key note, tab dot or Save dialog — or,
   // without the tables, the fingerprint or the key results, a throw at the first keyed
   // provider's render) nor a wrong order shows there: test/config-page-bundle.test.js pins
   // all four into the generated page.
@@ -134,7 +134,7 @@ var APP_FILES = [
   // the order and its registrations into the page.
   path.join(ROOT, 'src/pkjs/settings/forecast-hints.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
-  // The Alerts tab's resolvers (the Alert settings card's hints and badges, the Shows on
+  // The Alerts tab's resolvers (its rows' summaries and badges, the Shows on
   // grids' rows, a bar's Alerts row). They bind PConf.thresholdLevels, which blocks.js
   // publishes while ITS body runs, so they follow it; before it, the page throws at boot.
   // Dropped, nothing throws: the card's rows and the grids silently lose everything these

@@ -308,10 +308,12 @@ sliders — the same fragment, from the same builder (`lib/html.js` `swatchReado
 and the sheet it opens name a colour identically. `dots` are small pips, outlined when the
 entry sets `ring` and filled otherwise, for a row previewing several colours at once where
 several readouts would not fit. Both preview lanes are `aria-hidden`, so `ariaNote` is what
-actually announces the state: it is appended to the Edit button's `aria-label` in parentheses.
-The button itself always has the one look; a badge's `label` only renames it (WarnWeather's
-Weather provider row reads "Add key" while the picked provider's API key is empty, and a
-`textFrom` note under the row and its `attentionFrom` tab dot say why).
+actually announces the state: on a value row it is appended to the Edit button's `aria-label`
+in parentheses, and on a nav row it follows the summary as visually hidden text. The Edit
+button itself always has the one look; a badge's `label` only renames it. (A missing API key
+is not shown that way: WarnWeather's provider pickers each have a key row, "<Name> API key",
+whose summary reads "No key", and a `textFrom` note under the picker and its
+`attentionFrom` tab dot say why.)
 
 Rows inside an open sheet behave as they do in a card (a text row's `suffixAction` button and
 its verdict line, and a hint's tap-to-copy `[data-copy]` button, included), with one
@@ -386,7 +388,7 @@ subheaders as in-card headers.
 
 `staticText` items carry their HTML in a `text` field and are emitted verbatim without control
 chrome. They are not serialized (no `messageKey`). `style: 'info'` boxes the note — the
-tinted, left-ruled look of the General tab's fetch-notice items, in the page's info amber
+tinted, left-ruled look of the Watchface tab's fetch-notice items, in the page's info amber
 (`--info-tint` / `--info-rule` in `shell.html`, shared with those notice items and flipped by
 the light theme; error boxes stay red) — for a pointer the reader should not skim past as
 body copy ("this is set on another tab"). A boxed note keeps the row padding (14px) to
