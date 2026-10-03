@@ -21,6 +21,9 @@ const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { renderSignature } = require('../src/pkjs/render-signature.js');
 const { buildSettingsSnapshot } = require('../src/pkjs/telemetry.js');
 
+const BASALT = platform.computeEnv({ platform: 'basalt' });
+const APLITE = platform.computeEnv({ platform: 'aplite' });
+
 // km/h for wind and gusts, UV x 10 for UV — the series' own units.
 const RAW = {
   precips: [], clouds: [], rains: [],
@@ -81,12 +84,29 @@ test('Show reads \'alert\' as Alert, anything else as All', () => {
 });
 
 test('every watch with Alert settings draws Alert; aplite, without them, never does', () => {
-  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) =>
-    assert.equal(lineAlert.alertsDrawn(platform.computeEnv({ platform: p })), true, p));
-  assert.equal(lineAlert.alertsDrawn(platform.computeEnv({ platform: 'aplite' })), false);
-  assert.equal(lineAlert.alertsDrawn(platform.computeEnv(null)), true, 'an unknown watch is capable');
-  assert.equal(lineAlert.alertsDrawn(undefined), true);
-  assert.equal(lineAlert.alertsDrawn({ lineStyles: false }), true, 'an env without the fact is capable');
+  const s = { secondaryLine: 'wind', windLineShow: 'alert' };
+  const drawn = (env) => Object.keys(lineAlert.alertBands(s, env));
+  ['basalt', 'chalk', 'diorite', 'emery', 'flint', 'gabbro'].forEach((p) =>
+    assert.deepEqual(drawn(platform.computeEnv({ platform: p })), ['wind'], p));
+  assert.deepEqual(drawn(APLITE), []);
+  assert.deepEqual(drawn(platform.computeEnv(null)), ['wind'], 'an unknown watch is capable');
+  assert.deepEqual(drawn(undefined), ['wind']);
+  assert.deepEqual(drawn(null), ['wind']);
+  assert.deepEqual(drawn({ lineStyles: false }), ['wind'], 'an env without the fact is capable');
+  assert.deepEqual(drawn({ onDemand: false }), [], 'only an explicit false lacks Alert');
+});
+
+test('drawnMetrics: the Third and Fourth metric lines only on a watch with line styles', () => {
+  const s = { secondaryLine: 'wind', thirdLine: 'uv', fourthLine: 'gust', fifthLine: 'cloud' };
+  assert.deepEqual(lineAlert.drawnMetrics(s, BASALT), ['wind', 'uv', 'gust', 'cloud']);
+  assert.deepEqual(lineAlert.drawnMetrics(s, APLITE), ['wind', 'uv']);
+  assert.deepEqual(lineAlert.drawnMetrics(s, { lineStyles: false }), ['wind', 'uv']);
+  // An unknown watch, or an env without the fact, reads capable.
+  [platform.computeEnv(null), null, undefined, {}].forEach((env) =>
+    assert.deepEqual(lineAlert.drawnMetrics(s, env), ['wind', 'uv', 'gust', 'cloud'], JSON.stringify(env)));
+  // Off and repeats draw nothing.
+  assert.deepEqual(lineAlert.drawnMetrics({ secondaryLine: 'uv', thirdLine: 'uv', fourthLine: 'off',
+    fifthLine: 'wind' }, BASALT), ['uv', 'wind']);
 });
 
 test('the wind scale is the one table the bake and the page read', () => {
@@ -161,70 +181,70 @@ test('a step\'s start prints as the first shown number from which every reading 
 test('one line\'s band: its warn level at the bottom, the higher of its usual top and its danger level at the top', () => {
   // Wind seed 40/60: over the mid scale (50) the danger level tops it, over high (70) the scale.
   const s = { secondaryLine: 'wind', windLineShow: 'alert', windScale: 'mid' };
-  assert.deepEqual(lineAlert.alertBands(s, true), { wind: band(40, 60, 'wind') });
-  assert.deepEqual(lineAlert.alertBands(Object.assign({}, s, { windScale: 'high' }), true),
+  assert.deepEqual(lineAlert.alertBands(s, BASALT), { wind: band(40, 60, 'wind') });
+  assert.deepEqual(lineAlert.alertBands(Object.assign({}, s, { windScale: 'high' }), BASALT),
     { wind: band(40, 70) });
   // UV seed 6/8 under UV 11: the line's usual top.
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'uv', uvLineShow: 'alert' }, true),
+  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'uv', uvLineShow: 'alert' }, BASALT),
     { uv: band(60, 110) });
   // The levels in the series' unit: 25/40 mph is 40.2335/64.3736 km/h.
-  const mph = lineAlert.alertBands(Object.assign({ windUnits: 'mph' }, s), true).wind;
+  const mph = lineAlert.alertBands(Object.assign({ windUnits: 'mph' }, s), BASALT).wind;
   assert.ok(Math.abs(mph.bottom - 25 * 1.60934) < 1e-9, 'got ' + mph.bottom);
   assert.ok(Math.abs(mph.top - 40 * 1.60934) < 1e-9, 'got ' + mph.top);
   assert.equal(mph.topDanger, 'wind');
   // All (stored, absent): no band. A metric no line draws: none either.
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineShow: 'all' }, true), {});
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind' }, true), {});
+  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineShow: 'all' }, BASALT), {});
+  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind' }, BASALT), {});
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'precip_prob', thirdLine: 'off',
-    windLineShow: 'alert' }, true), {});
+    windLineShow: 'alert' }, BASALT), {});
 });
 
 test('the top never jumps: it follows the higher of the scale and the danger level', () => {
   // The gusts' seed 65/90 tops every scale: 90 under Low, Mid AND High (the first build
   // dropped to High's 70 once the scale passed the warn level).
   ['low', 'mid', 'high'].forEach((windScale) => assert.deepEqual(lineAlert.alertBands(
-    { secondaryLine: 'gust', gustLineShow: 'alert', windScale }, true),
+    { secondaryLine: 'gust', gustLineShow: 'alert', windScale }, BASALT),
   { gust: band(65, 90, 'gust') }, windScale));
   // Danger swept past the mid scale (50) with warn 40: the top is max(50, danger) all the way.
   for (let danger = 40; danger <= 100; danger += 1) {
     const b = lineAlert.alertBands({ secondaryLine: 'wind', windLineShow: 'alert', windScale: 'mid',
-      threshWindWarn: '40', threshWindDanger: String(danger) }, true).wind;
+      threshWindWarn: '40', threshWindDanger: String(danger) }, BASALT).wind;
     assert.equal(b.top, Math.max(50, danger), 'danger ' + danger);
     assert.equal(b.topDanger, danger > 50 ? 'wind' : null, 'danger ' + danger);
   }
   // A danger level below the scale: the scale's top (wind 20/30 under High).
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineShow: 'alert',
-    windScale: 'high', threshWindWarn: '20', threshWindDanger: '30' }, true), { wind: band(20, 70) });
+    windScale: 'high', threshWindWarn: '20', threshWindDanger: '30' }, BASALT), { wind: band(20, 70) });
   // UV: danger 12 over UV 11 tops it.
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'uv', uvLineShow: 'alert',
-    threshUvWarn: '11', threshUvDanger: '12' }, true), { uv: band(110, 120, 'uv') });
+    threshUvWarn: '11', threshUvDanger: '12' }, BASALT), { uv: band(110, 120, 'uv') });
 });
 
 test('a danger level equal to its warn level at or above the top: one unit above, no jump to the next step', () => {
   const gust = (warn, danger) => lineAlert.alertBands({ secondaryLine: 'gust', gustLineShow: 'alert',
-    windScale: 'mid', threshGustWarn: String(warn), threshGustDanger: String(danger) }, true).gust;
+    windScale: 'mid', threshGustWarn: String(warn), threshGustDanger: String(danger) }, BASALT).gust;
   // Gusts 60/60 over the mid scale (50): no range, so 61 — where 60/61 puts it too.
   assert.deepEqual(gust(60, 60), band(60, 61));
   assert.deepEqual(gust(60, 61), band(60, 61, 'gust'));
   // Wind 40/40 over the low scale (30), the same.
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineShow: 'alert',
-    windScale: 'low', threshWindWarn: '40', threshWindDanger: '40' }, true), { wind: band(40, 41) });
+    windScale: 'low', threshWindWarn: '40', threshWindDanger: '40' }, BASALT), { wind: band(40, 41) });
   // UV 11/11 sits on UV 11 itself: UV 11.1; 11/12 tops out at UV 12.
   const uv = (warn, danger) => lineAlert.alertBands({ secondaryLine: 'uv', uvLineShow: 'alert',
-    threshUvWarn: String(warn), threshUvDanger: String(danger) }, true).uv;
+    threshUvWarn: String(warn), threshUvDanger: String(danger) }, BASALT).uv;
   assert.deepEqual(uv(11, 11), band(110, 111));
   assert.deepEqual(uv(11, 12), band(110, 120, 'uv'));
   assert.deepEqual(uv(12, 12), band(120, 121));
   // An equal pair below the scale keeps the scale's top: a range is left.
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineShow: 'alert',
-    windScale: 'high', threshWindWarn: '40', threshWindDanger: '40' }, true), { wind: band(40, 70) });
+    windScale: 'high', threshWindWarn: '40', threshWindDanger: '40' }, BASALT), { wind: band(40, 70) });
 });
 
 test('a shared band with one equal pair keeps its range: the higher of the scale and the danger levels', () => {
   const both = (gustWarn, gustDanger, extra) => lineAlert.alertBands(Object.assign({
     secondaryLine: 'wind', thirdLine: 'gust', windLineShow: 'alert', gustLineShow: 'alert',
     windScale: 'low', threshWindWarn: '40', threshWindDanger: '55',
-    threshGustWarn: String(gustWarn), threshGustDanger: String(gustDanger) }, extra), true);
+    threshGustWarn: String(gustWarn), threshGustDanger: String(gustDanger) }, extra), BASALT);
   // Wind 40/55, gusts 60/60 under Low (30): 40..60, the gust danger on top — and one step
   // apart (60/61) only one unit higher.
   assert.deepEqual(both(60, 60), { wind: band(40, 60, 'gust'), gust: band(40, 60, 'gust') });
@@ -239,20 +259,20 @@ test('wind and gusts both on Alert share one band: the lower warn at the bottom,
     gustLineShow: 'alert', windScale: 'high' };
   // Seeds 40/60 (wind) and 65/90 (gusts): 40..90 under every scale, the gust danger on top.
   ['low', 'mid', 'high'].forEach((windScale) => assert.deepEqual(
-    lineAlert.alertBands(Object.assign({}, both, { windScale }), true),
+    lineAlert.alertBands(Object.assign({}, both, { windScale }), BASALT),
     { wind: band(40, 90, 'gust'), gust: band(40, 90, 'gust') }, windScale));
   // The lower warn wins whichever metric holds it; the wind danger (60) tops the mid scale.
   assert.deepEqual(lineAlert.alertBands(Object.assign({}, both, { windScale: 'mid',
-    threshGustWarn: '30', threshGustDanger: '45' }), true),
+    threshGustWarn: '30', threshGustDanger: '45' }), BASALT),
   { wind: band(30, 60, 'wind'), gust: band(30, 60, 'wind') });
 });
 
 test('a line on All beside one on Alert: each keeps its own scale', () => {
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', thirdLine: 'gust',
-    gustLineShow: 'alert', windScale: 'mid' }, true), { gust: band(65, 90, 'gust') });
+    gustLineShow: 'alert', windScale: 'mid' }, BASALT), { gust: band(65, 90, 'gust') });
   // Not drawn at all (Alert stored on an unpicked metric) shares nothing either.
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', thirdLine: 'uv',
-    windLineShow: 'alert', gustLineShow: 'alert', windScale: 'mid' }, true),
+    windLineShow: 'alert', gustLineShow: 'alert', windScale: 'mid' }, BASALT),
   { wind: band(40, 60, 'wind') });
 });
 
@@ -260,17 +280,19 @@ test('a watch without the Third metric line: a gust line there does not join the
   const s = { secondaryLine: 'wind', thirdLine: 'off', fourthLine: 'gust',
     windLineShow: 'alert', gustLineShow: 'alert', windScale: 'mid',
     threshGustWarn: '30', threshGustDanger: '45' };
-  assert.deepEqual(lineAlert.alertBands(s, false), { wind: band(40, 60, 'wind') });
-  assert.deepEqual(lineAlert.alertBands(s, true),
+  assert.deepEqual(lineAlert.alertBands(s, { lineStyles: false }), { wind: band(40, 60, 'wind') });
+  assert.deepEqual(lineAlert.alertBands(s, BASALT),
     { wind: band(30, 60, 'wind'), gust: band(30, 60, 'wind') });
 });
 
 test('a watch without Alert settings gets no band at all', () => {
   const s = { secondaryLine: 'wind', thirdLine: 'uv', windLineShow: 'alert', uvLineShow: 'alert' };
-  assert.deepEqual(lineAlert.alertBands(s, false, false), {});
-  assert.deepEqual(lineAlert.alertBands(s, true, false), {});
-  assert.deepEqual(Object.keys(lineAlert.alertBands(s, false, true)), ['wind', 'uv']);
-  assert.deepEqual(Object.keys(lineAlert.alertBands(s, false)), ['wind', 'uv'], 'omitted reads capable');
+  assert.deepEqual(lineAlert.alertBands(s, APLITE), {});
+  assert.deepEqual(lineAlert.alertBands(s, { lineStyles: true, onDemand: false }), {});
+  assert.deepEqual(Object.keys(lineAlert.alertBands(s, { lineStyles: false, onDemand: true })), ['wind', 'uv']);
+  assert.deepEqual(Object.keys(lineAlert.alertBands(s, { lineStyles: false })), ['wind', 'uv'],
+    'an env without the fact reads capable');
+  assert.deepEqual(Object.keys(lineAlert.alertBands(s, null)), ['wind', 'uv'], 'null reads capable');
 });
 
 // --- the bake ---------------------------------------------------------------

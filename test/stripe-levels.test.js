@@ -274,7 +274,7 @@ const PREVIEW_PITCH = (197 - 20) / 11;
  * @returns {Object} buildForecastSeries' raw input.
  */
 function previewSample(state) {
-  const shown = FC.alertSamples(state, lineAlert.alertBands(state, true, true),
+  const shown = FC.alertSamples(state, lineAlert.alertBands(state, null),
     { wind: SAMPLE.winds, gust: SAMPLE.gusts, uv: SAMPLE.uvs.map((v) => v / 10) });
   return Object.assign({}, SAMPLE, { winds: shown.wind, gusts: shown.gust, uvs: shown.uv.map((v) => v * 10) });
 }

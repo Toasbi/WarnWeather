@@ -211,7 +211,7 @@ test('under a top stripe band the top keeps the inset, the same 12 units as the 
     assert.ok(near(marks.top, BAND + Math.max(12, hung)), style);
   });
   // A floating line (pressure, feels-like, dew point) anchors nothing (draw-from.test.js
-  // lineAnchor): the inset.
+  // lineEdge): the inset.
   assert.ok(near(curveRows(preview(Object.assign({ fourthLine: 'feels' }, S))).top, BAND + 12));
   // Under two top stripe bands (17 units) a hanging line's share is an eighth of the 77 under
   // them, 9 (the curve alone: 44 watch rows, 3 px, 5.1 units): the inset again.

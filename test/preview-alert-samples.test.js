@@ -200,7 +200,7 @@ function sharedState(over) {
  */
 function assertSharedBand(S) {
   const label = JSON.stringify(S);
-  const bands = lineAlert.alertBands(S, true, true);
+  const bands = lineAlert.alertBands(S, BASALT);
   assert.deepEqual(bands.wind, bands.gust, 'premise: one shared band');
   const band = bands.wind;
   const room = (band.top - lineAlert.alertBand(S, 'wind', ['wind']).bottom) / (band.top - band.bottom);
@@ -284,14 +284,14 @@ test('a sample on Alert peaks under its band\'s top and starts at the warn level
   // Gusts at the seed levels in kph: warn 65, danger 90 tops the Mid scale's 50. The plain
   // sample's middle (29 kph) maps to the warn level, its peak (36) 90 % of the way to the top.
   const S = { secondaryLine: 'gust', gustLineShow: 'alert', windScale: 'mid' };
-  const shown = FC.alertSamples(S, lineAlert.alertBands(S, true, true), SAMPLES).gust;
+  const shown = FC.alertSamples(S, lineAlert.alertBands(S, BASALT), SAMPLES).gust;
   assert.equal(shown[10], 65 + 0.9 * (90 - 65), 'the peak');
   assert.ok(shown.every((v) => v <= 90), 'never past the top');
   assert.ok(shown.filter((v) => v >= 65).length === 6 && shown.filter((v) => v < 65 / 2).length === 6,
     'six hours from the warn level up, the other six under half of it');
   // UV at warn 6: the morning's 4 is the warn level itself, the hour drawn at the band's bottom.
   const U = { secondaryLine: 'uv', uvLineShow: 'alert' };
-  assert.equal(FC.alertSamples(U, lineAlert.alertBands(U, true, true), SAMPLES).uv[2], 6);
+  assert.equal(FC.alertSamples(U, lineAlert.alertBands(U, BASALT), SAMPLES).uv[2], 6);
 });
 
 test('All, and a watch without Alert settings, keep the plain samples, the very arrays', () => {
@@ -300,11 +300,12 @@ test('All, and a watch without Alert settings, keep the plain samples, the very 
     // Alert stored on a metric that is not drawn.
     { secondaryLine: 'wind', gustLineShow: 'alert', uvLineShow: 'alert' },
     { secondaryLine: 'precip_prob', thirdLine: 'cloud', windLineShow: 'alert' },
-    // On the Fourth metric picker of a watch without it.
+    // On the Fourth metric picker of a watch without it (a hand-built env: no platform
+    // has Alert settings without line styles).
     { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'gust', gustLineShow: 'alert' }
   ];
   plain.forEach((S) => {
-    const shown = FC.alertSamples(S, lineAlert.alertBands(S, false, true), SAMPLES);
+    const shown = FC.alertSamples(S, lineAlert.alertBands(S, { lineStyles: false }), SAMPLES);
     Object.keys(SAMPLES).forEach((k) => assert.equal(shown[k], SAMPLES[k], JSON.stringify(S) + ' ' + k));
   });
   // aplite draws every line All, whatever is stored: the same preview.
@@ -312,7 +313,7 @@ test('All, and a watch without Alert settings, keep the plain samples, the very 
     const S = lineState(metric, {});
     const alert = Object.assign({ [lineAlert.settingKey(metric)]: 'alert' }, S);
     assert.equal(FC.forecastPreview(alert, APLITE), FC.forecastPreview(S, APLITE), metric);
-    assert.deepEqual(FC.alertSamples(alert, lineAlert.alertBands(alert, false, false), SAMPLES), SAMPLES);
+    assert.deepEqual(FC.alertSamples(alert, lineAlert.alertBands(alert, APLITE), SAMPLES), SAMPLES);
   });
   // Alert stored for a line that is not drawn leaves the preview as it was.
   const S = { secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'off' };

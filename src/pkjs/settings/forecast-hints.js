@@ -198,16 +198,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * (alertScaleCopy) and the UV line's Visible values hint (lineShowHint).
      * @param {string} metric The line's metric.
      * @param {Object} [S] Live settings state.
-     * @param {Object} [env] Platform env; `lineStyles` truthy = the watch draws the Third
-     *   and Fourth metric lines (whose metrics can share a band); `onDemand` false = no
-     *   Alert settings (aplite), so every line draws All.
+     * @param {Object} [env] Platform env, as line-alert.js alertBands reads it: `lineStyles`
+     *   = the watch draws the Third and Fourth metric lines (whose metrics can share a
+     *   band); `onDemand` false = no Alert settings (aplite), so every line draws All.
      * @returns {?{bottom: string, top: string, full: string}} The three levels as
      *   printed ('UV 6', '40 kph'); null when the line is not drawn or shows All.
      */
     function alertScaleLevels(metric, S, env) {
         if (!S || !lineAlert.showsAlert(S, metric)) { return null; }
-        var band = lineAlert.alertBands(S, Boolean(env && env.lineStyles),
-            lineAlert.alertsDrawn(env))[metric];
+        var band = lineAlert.alertBands(S, env)[metric];
         if (!band) { return null; }
         return {
             bottom: lineAlert.levelText(S, metric, band.bottom),
@@ -378,16 +377,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * on All: "Tops out at 70 kph." for one top; "Wind tops out at 30 kph, gusts at 90
      * kph, your gust danger level." for two. Reads the stored scale, like the bake.
      * @param {Object} S Live settings state.
-     * @param {Object} [env] Platform env; `lineStyles` truthy = the watch draws the Third
-     *   and Fourth metric lines; `onDemand` false = no Alert settings (aplite).
+     * @param {Object} [env] Platform env (see alertScaleLevels).
      * @returns {?string} The hint; null for "use the row's hintByValue" (no drawn wind
      *   or gust line shows Alert).
      */
     function windScaleHint(S, env) {
         if (!S) { return null; }
-        var allLines = Boolean(env && env.lineStyles);
-        var drawn = lineAlert.drawnMetrics(S, allLines);
-        var bands = lineAlert.alertBands(S, allLines, lineAlert.alertsDrawn(env));
+        var drawn = lineAlert.drawnMetrics(S, env);
+        var bands = lineAlert.alertBands(S, env);
         var lines = [], anyAlert = false, i, m;
         for (i = 0; i < drawn.length; i += 1) {
             m = drawn[i];

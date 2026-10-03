@@ -303,8 +303,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         //                  is a watch-render fact this preview has never modelled, and
         //                  wiring it in here would change what aplite users see.
         //   lineStyles:    the WW_LINE_STYLE mirror (stylesFrozen below), so a stored
-        //                  stripe cannot switch the fill off on a watch that ignores it,
-        //                  and nothing hangs from the top there (draw-from.js capable).
+        //                  stripe cannot switch the fill off on a watch that ignores it.
+        // The other readings (draw-from.js, line-alert.js) take `env` itself.
         var caps = { color: !(env && !env.color), themePolarity: true,
             lineStyles: !(Boolean(env) && env.lineStyles === false) };
         var cx = lineStyle.renderContextFor(state, caps);
@@ -394,7 +394,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // A wind, gust or UV line drawn Show: Alert: the band the bake maps it over, for
         // the lines this watch draws (the shared wind/gust band only where both draw), on
         // a watch with Alert settings (aplite draws every line All).
-        var alertBands = lineAlert.alertBands(state, !stylesFrozen, lineAlert.alertsDrawn(env));
+        var alertBands = lineAlert.alertBands(state, env);
         // Such a line draws its sample redrawn against the user's levels (alertSamples).
         var shown = alertSamples(state, alertBands, { wind: wind, gust: gust, uv: uv });
         // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
@@ -533,7 +533,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // band [MT, PB], the plot the metrics map into between the stripe bands —
         // temp_axis_pad.h temp_axis_margin, mirrored. Both edges start from the inset, the
         // top under a top stripe band too.
-        var anchored = drawFrom.forecastAnchors(state, caps, function (key) {
+        var anchored = drawFrom.forecastAnchors(state, env, function (key) {
             if (key === 'bars') { return rainDrawn; }
             for (var li = 0; li < LINES.length; li += 1) {
                 if (LINES[li].key === key) { return LINES[li].drawn; }
@@ -658,16 +658,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         /**
          * Whether a metric's line hangs from the top (Draw from: Top, draw-from.js
-         * metricFromTop on this preview's caps: never previewing aplite). Only the five
-         * amount metrics have the setting; a temperature-axis curve never hangs. Only a
-         * drawn line or marks, or the Main metric's fill, ever asks (stripes shade by
-         * level and keep their own Top/Bottom), which is lineFromTop's rule.
+         * metricFromTop: never previewing aplite). Only the five amount metrics have the
+         * setting; a temperature-axis curve never hangs. Only a drawn line or marks, or the
+         * Main metric's fill, ever asks (stripes shade by level and keep their own
+         * Top/Bottom), which is lineEdge's rule.
          * @param {string} metric A metric id.
          * @returns {boolean}
          */
         function hangs(metric) {
             var m = METRIC[metric];
-            return Boolean(m) && !m.tempAxis && drawFrom.metricFromTop(state, metric, caps);
+            return Boolean(m) && !m.tempAxis && drawFrom.metricFromTop(state, metric, env);
         }
         /**
          * One metric value's y in column/tick i, as drawn: metricYRaw's, mirrored over
@@ -1079,7 +1079,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var rainWhite = state.rainBarColor === 'white' || !isColor;
             // Bars from: Top hangs them from the plot's top (PTL: under a top stripe band),
             // the way the watch anchors them under its content's top row.
-            var barsTop = drawFrom.barsFromTop(state, 'rain', caps);
+            var barsTop = drawFrom.barsFromTop(state, 'rain', env);
             for (var i = 0; i < n - 1; i += 1) {
                 e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, barsTop ? PTL : PB, plotH, rainWhite,
                     P.rainTiers, !isColor, barFg, ink.bg, barEdge, barsTop);

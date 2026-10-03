@@ -148,7 +148,7 @@ function windScaleCopy(pickerKey, unit, hints) {
  * under one picker: shown while that picker's line draws the metric (lineRowWhen, so a
  * stored repeat on a later picker shows it once), on a watch with Alert settings
  * (ON_DEMAND_WHEN: aplite has none, and its lines always draw All, line-alert.js
- * alertsDrawn). The wind speed, wind gust and UV index lines have one
+ * alertBands). The wind speed, wind gust and UV index lines have one
  * each (line-alert.js METRIC_IDS, the graph metrics with Alert levels), stored per
  * metric, so the row follows its metric from picker to picker. Each value has its own
  * hint (forecast-hints.js 'lineShowHint'); Alert's names the warn level it gaps below and, on
@@ -177,7 +177,7 @@ function lineShowCopy(pickerKey, metric) {
  * a stripe the row moves to the next one that is a line (a stripe keeps its own
  * Top/Bottom). Stored per metric (wind and gusts share one key), so the row follows its
  * metric from picker to picker; a stored Top on a stripe or an undrawn line lies dormant
- * (lineFromTop) and the row hides. Only Top has a hint
+ * (lineEdge) and the row hides. Only Top has a hint
  * (forecast-hints.js 'lineFromHint').
  * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @param {string} rowKey precipLineFrom|cloudLineFrom|windLineFrom|uvLineFrom.

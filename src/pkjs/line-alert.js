@@ -12,7 +12,12 @@
 // bottom to its top (a line drawn as a stripe: its cell is shaded by the same place in
 // the band, scalePercent). No watch code, no wire format.
 // A watch without Alert settings (aplite: no WW_ON_DEMAND) hides the row and always
-// draws All (alertsDrawn).
+// draws All (alertBands).
+//
+// THE WATCH. drawnMetrics and alertBands take it as `env`, config-ui platform.js
+// computeEnv() facts (the phone's of the connected watch, or the settings page's own):
+// `lineStyles` (the Third and Fourth metric lines) and `onDemand` (Show: Alert). Only an
+// explicit false (aplite) lacks one, so null or an env without the fact reads capable.
 //
 // THE SETTING. One key per metric (METRICS: <metric>LineShow), holding 'all' or 'alert'
 // (SHOW_ALL, SHOW_ALERT); showValue reads anything but 'alert' as 'all'. The settings
@@ -115,16 +120,15 @@
     }
 
     /**
-     * Whether a watch draws a line's Show: Alert at all: every watch with Alert settings
-     * (the config-UI env's onDemand, the WW_ON_DEMAND mirror). aplite has none, so the
-     * page hides the row there and the line always draws All, whatever is stored. An env
-     * without the fact (an unknown watch, a test's env) reads capable, as on-demand.js
-     * facts() does.
-     * @param {?Object} [env] config-ui platform.js computeEnv() facts.
+     * Whether a watch has one capability (see the header): every watch but one whose env
+     * says false (aplite), so an unknown watch or an env without the fact reads capable,
+     * as on-demand.js facts() does.
+     * @param {?Object} env config-ui platform.js computeEnv() facts.
+     * @param {string} fact 'lineStyles' | 'onDemand'.
      * @returns {boolean}
      */
-    function alertsDrawn(env) {
-        return !(env && env.onDemand === false);
+    function capable(env, fact) {
+        return !(env && env[fact] === false);
     }
 
     /**
@@ -200,13 +204,14 @@
     /**
      * The metrics the watch draws: each forecast line's effective metric (line-style.js
      * effectiveLineMetric — off and repeat-of-an-earlier-line draw nothing), the Third
-     * and Fourth metric lines only on a watch that carries them (WW_LINE_STYLE, not
-     * aplite).
+     * and Fourth metric lines only on a watch that carries them (env.lineStyles, the
+     * WW_LINE_STYLE mirror: not aplite).
      * @param {Object} settings Clay settings blob.
-     * @param {boolean} allLines The watch draws the Third and Fourth metric lines.
+     * @param {?Object} [env] Platform env (capable; see the header).
      * @returns {string[]} Drawn metric ids, in line order.
      */
-    function drawnMetrics(settings, allLines) {
+    function drawnMetrics(settings, env) {
+        var allLines = capable(env, 'lineStyles');
         var out = [];
         for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
             if (i >= 2 && !allLines) { break; }
@@ -254,19 +259,18 @@
     }
 
     /**
-     * Every drawn Show: Alert line's band, by metric. None on a watch without Alert
-     * settings (alerts false: aplite), which draws every line All.
+     * Every drawn Show: Alert line's band, by metric (the lines drawnMetrics answers). None
+     * on a watch without Alert settings (env.onDemand, the WW_ON_DEMAND mirror: aplite),
+     * which draws every line All, whatever is stored; the page hides the row there.
      * @param {Object} settings Clay settings blob.
-     * @param {boolean} allLines The watch draws the Third and Fourth metric lines.
-     * @param {boolean} [alerts] The watch draws Show: Alert (alertsDrawn); omitted reads
-     *   true, a watch with Alert settings.
+     * @param {?Object} [env] Platform env (capable; see the header).
      * @returns {Object<string, {bottom: number, top: number, topDanger: ?string}>} {}
      *   when no drawn line shows Alert.
      */
-    function alertBands(settings, allLines, alerts) {
+    function alertBands(settings, env) {
         var out = {};
-        if (alerts === false) { return out; }
-        var drawn = drawnMetrics(settings, allLines);
+        if (!capable(env, 'onDemand')) { return out; }
+        var drawn = drawnMetrics(settings, env);
         for (var i = 0; i < drawn.length; i++) {
             var band = alertBand(settings, drawn[i], drawn);
             if (band) { out[drawn[i]] = band; }
@@ -383,7 +387,7 @@
      * @returns {string} e.g. 'wind,uv'; '' for none.
      */
     function signature(settings) {
-        var drawn = drawnMetrics(settings, true);
+        var drawn = drawnMetrics(settings, null);
         var out = [];
         for (var i = 0; i < drawn.length; i++) {
             if (showsAlert(settings, drawn[i])) { out.push(drawn[i]); }
@@ -402,7 +406,6 @@
         showValue: showValue,
         showOf: showOf,
         showsAlert: showsAlert,
-        alertsDrawn: alertsDrawn,
         shownNumber: shownNumber,
         reachesWarn: reachesWarn,
         scaleTop: scaleTop,

@@ -24,6 +24,8 @@ const APLITE = platform.computeEnv({ platform: 'aplite' });
 const KEYS = ['precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom', 'radarBarFrom'];
 const ALL_TOP = { precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top', uvLineFrom: 'top',
   rainBarFrom: 'top', radarBarFrom: 'top' };
+// Each forecast line's lineEdge, in line order.
+const edges = (S, env) => lineStyle.FORECAST_LINES.map((l) => drawFrom.lineEdge(S, l.key, env));
 
 test('only the exact string \'top\' reads Top; absent, true, \'TOP\' and junk read Bottom', () => {
   assert.equal(drawFrom.value('top'), 'top');
@@ -41,15 +43,13 @@ test('the five amount metrics have a key, wind and gusts one shared key; no othe
     assert.equal(drawFrom.settingKey(m), null, String(m)));
 });
 
-test('the metric set is exactly the stripe metrics, and the rows cover each once', () => {
-  assert.deepEqual(drawFrom.METRIC_IDS, lineStyle.STRIPE_METRIC_IDS);
-  assert.deepEqual(Object.keys(drawFrom.LINE_KEYS).sort(), drawFrom.METRIC_IDS.slice().sort());
+test('the rows cover exactly the stripe metrics, each once, in their order', () => {
   const covered = [];
   drawFrom.ROWS.forEach((row) => {
     assert.equal(drawFrom.rowOf(row.key), row);
     row.metrics.forEach((m) => { assert.equal(drawFrom.settingKey(m), row.key); covered.push(m); });
   });
-  assert.deepEqual(covered.sort(), drawFrom.METRIC_IDS.slice().sort());
+  assert.deepEqual(covered, lineStyle.STRIPE_METRIC_IDS);
   assert.deepEqual(drawFrom.ROWS.map((r) => r.key), ['precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom']);
   assert.equal(drawFrom.rowOf('rainBarFrom'), null);
   assert.equal(drawFrom.rowOf('constructor'), null);
@@ -69,40 +69,41 @@ test('every watch with line styles is capable; aplite is not; an unknown one is'
 test('a drawn line hangs only when its metric\'s key reads Top', () => {
   const S = { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust',
     secondaryLineStyle: 'line', thirdLineStyle: 'dots', fourthLineStyle: 'x', fifthLineStyle: 'bold' };
-  lineStyle.FORECAST_LINES.forEach((l) => assert.equal(drawFrom.lineFromTop(S, l.key, BASALT), false, l.key));
+  assert.deepEqual(edges(S, BASALT), ['bottom', 'bottom', 'bottom', 'bottom']);
   const top = Object.assign({ precipLineFrom: 'top', windLineFrom: 'top' }, S);
-  assert.equal(drawFrom.lineFromTop(top, 'secondaryLine', BASALT), true, 'rain chance');
-  assert.equal(drawFrom.lineFromTop(top, 'thirdLine', BASALT), false, 'UV keeps Bottom');
-  assert.equal(drawFrom.lineFromTop(top, 'fourthLine', BASALT), true, 'wind');
-  assert.equal(drawFrom.lineFromTop(top, 'fifthLine', BASALT), true, 'gusts share the wind key');
+  assert.deepEqual(edges(top, BASALT), ['top', 'bottom', 'top', 'top'],
+    'rain chance, UV keeps Bottom, wind, gusts share the wind key');
   // Every style that is a line or marks hangs.
   ['line', 'bold', 'dots', 'x'].forEach((style) => assert.equal(
-    drawFrom.lineFromTop({ secondaryLine: 'cloud', secondaryLineStyle: style, cloudLineFrom: 'top' },
-      'secondaryLine', BASALT), true, style));
+    drawFrom.lineEdge({ secondaryLine: 'cloud', secondaryLineStyle: style, cloudLineFrom: 'top' },
+      'secondaryLine', BASALT), 'top', style));
 });
 
 test('the gates: aplite, a stripe, a line off, a repeat, a metric without the setting', () => {
   // aplite: never, whatever is stored.
-  lineStyle.FORECAST_LINES.forEach((l) => assert.equal(drawFrom.lineFromTop(Object.assign(
-    { secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'wind', fifthLine: 'uv' }, ALL_TOP),
-  l.key, APLITE), false, 'aplite ' + l.key));
+  assert.deepEqual(edges(Object.assign(
+    { secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'wind', fifthLine: 'feels' }, ALL_TOP), APLITE),
+  [null, null, null, null], 'aplite');
   // A stripe keeps its own Top/Bottom: a stored Top lies dormant.
-  ['stripeTop', 'stripeBottom'].forEach((style) => assert.equal(drawFrom.lineFromTop(
-    { secondaryLine: 'uv', secondaryLineStyle: style, uvLineFrom: 'top' }, 'secondaryLine', BASALT), false, style));
+  ['stripeTop', 'stripeBottom'].forEach((style) => assert.equal(drawFrom.lineEdge(
+    { secondaryLine: 'uv', secondaryLineStyle: style, uvLineFrom: 'top' }, 'secondaryLine', BASALT), null, style));
   // Line off.
-  assert.equal(drawFrom.lineFromTop({ secondaryLine: 'uv', thirdLine: 'off', cloudLineFrom: 'top' },
-    'thirdLine', BASALT), false);
+  assert.equal(drawFrom.lineEdge({ secondaryLine: 'uv', thirdLine: 'off', cloudLineFrom: 'top' },
+    'thirdLine', BASALT), null);
   // A repeat of an earlier picker's metric is not drawn (effectiveLineMetric null).
   const repeat = { secondaryLine: 'cloud', thirdLine: 'cloud', cloudLineFrom: 'top' };
-  assert.equal(drawFrom.lineFromTop(repeat, 'secondaryLine', BASALT), true);
-  assert.equal(drawFrom.lineFromTop(repeat, 'thirdLine', BASALT), false);
+  assert.equal(drawFrom.lineEdge(repeat, 'secondaryLine', BASALT), 'top');
+  assert.equal(drawFrom.lineEdge(repeat, 'thirdLine', BASALT), null);
   // A stale UV Top while no line draws UV flips nothing.
   const stale = { secondaryLine: 'precip_prob', thirdLine: 'wind', fourthLine: 'off', fifthLine: 'off',
     uvLineFrom: 'top' };
-  lineStyle.FORECAST_LINES.forEach((l) => assert.equal(drawFrom.lineFromTop(stale, l.key, BASALT), false, l.key));
-  // Temperature-axis and pressure lines never hang, whatever is stored.
-  ['feels', 'dew', 'pressure'].forEach((m) => assert.equal(drawFrom.lineFromTop(Object.assign(
-    { secondaryLine: m }, ALL_TOP), 'secondaryLine', BASALT), false, m));
+  assert.deepEqual(edges(stale, BASALT), ['bottom', 'bottom', null, null]);
+  // Temperature-axis and pressure lines never hang, whatever is stored: they float.
+  ['feels', 'dew', 'pressure'].forEach((m) => assert.equal(drawFrom.lineEdge(Object.assign(
+    { secondaryLine: m }, ALL_TOP), 'secondaryLine', BASALT), 'float', m));
+  // An env without the fact reads capable, as computeEnv(null) does; no settings draw nothing.
+  assert.deepEqual(edges(Object.assign({ secondaryLine: 'cloud' }, ALL_TOP), {}), ['top', null, null, null]);
+  assert.deepEqual(edges(undefined, BASALT), [null, null, null, null]);
 });
 
 test('the choice follows its metric from picker to picker', () => {
@@ -110,7 +111,7 @@ test('the choice follows its metric from picker to picker', () => {
   lineStyle.FORECAST_LINES.forEach((l, i) => {
     const s = Object.assign({ secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' }, S);
     if (i > 0) { s[l.key] = 'cloud'; } else { s.secondaryLine = 'cloud'; }
-    assert.equal(drawFrom.lineFromTop(s, l.key, BASALT), true, l.key);
+    assert.equal(drawFrom.lineEdge(s, l.key, BASALT), 'top', l.key);
     assert.equal(drawFrom.metricFromTop(s, 'cloud', BASALT), true);
   });
 });
@@ -144,8 +145,7 @@ test('rowLine: the first line that hangs from a key, where the settings page put
   assert.equal(drawFrom.rowLine(S, 'windLineFrom', platform.computeEnv({ platform: 'aplite' })), null, 'the page env too');
   // Where the row is, the wire hangs that line once the key reads Top, and no earlier one.
   const top = Object.assign({ fifthLineStyle: 'dots', cloudLineFrom: 'top' }, S);
-  assert.equal(drawFrom.lineFromTop(top, 'fifthLine', BASALT), true);
-  ['secondaryLine', 'thirdLine', 'fourthLine'].forEach((k) => assert.equal(drawFrom.lineFromTop(top, k, BASALT), false, k));
+  assert.deepEqual(edges(top, BASALT), ['bottom', 'bottom', 'bottom', 'top']);
 });
 
 test('the bars hang per chart, whatever barSource and radarMode say', () => {
@@ -163,33 +163,29 @@ test('the bars hang per chart, whatever barSource and radarMode say', () => {
 test('the anchored edges: a drawn amount line anchors the edge it is drawn from', () => {
   const S = { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'pressure',
     secondaryLineStyle: 'line', thirdLineStyle: 'dots', fourthLineStyle: 'x', fifthLineStyle: 'bold' };
-  assert.deepEqual(lineStyle.FORECAST_LINES.map((l) => drawFrom.lineAnchor(S, l.key, BASALT)),
-    ['bottom', 'bottom', 'bottom', null], 'standing; pressure anchors nothing');
+  assert.deepEqual(edges(S, BASALT), ['bottom', 'bottom', 'bottom', 'float'], 'standing; pressure anchors nothing');
   const top = Object.assign({ precipLineFrom: 'top', windLineFrom: 'top' }, S);
-  assert.deepEqual(lineStyle.FORECAST_LINES.map((l) => drawFrom.lineAnchor(top, l.key, BASALT)),
-    ['top', 'bottom', 'top', null]);
-  // Never: a stripe, a line off or repeated, a temperature-axis metric, aplite.
-  assert.equal(drawFrom.lineAnchor({ secondaryLine: 'uv', secondaryLineStyle: 'stripeTop' }, 'secondaryLine', BASALT), null);
-  assert.equal(drawFrom.lineAnchor({ secondaryLine: 'uv', thirdLine: 'off' }, 'thirdLine', BASALT), null);
-  assert.equal(drawFrom.lineAnchor({ secondaryLine: 'uv', thirdLine: 'uv' }, 'thirdLine', BASALT), null);
-  ['feels', 'dew', 'pressure'].forEach((m) =>
-    assert.equal(drawFrom.lineAnchor({ secondaryLine: m }, 'secondaryLine', BASALT), null, m));
-  lineStyle.FORECAST_LINES.forEach((l) => assert.equal(drawFrom.lineAnchor(S, l.key, APLITE), null, 'aplite ' + l.key));
+  assert.deepEqual(edges(top, BASALT), ['top', 'bottom', 'top', 'float']);
+  // No edge: a stripe, a line off or repeated, aplite.
+  assert.equal(drawFrom.lineEdge({ secondaryLine: 'uv', secondaryLineStyle: 'stripeTop' }, 'secondaryLine', BASALT), null);
+  assert.equal(drawFrom.lineEdge({ secondaryLine: 'uv', thirdLine: 'off' }, 'thirdLine', BASALT), null);
+  assert.equal(drawFrom.lineEdge({ secondaryLine: 'uv', thirdLine: 'uv' }, 'thirdLine', BASALT), null);
+  assert.deepEqual(edges(S, APLITE), [null, null, null, null], 'aplite');
 });
 
 test('a drawn line floats exactly when its metric has no Draw from key', () => {
   ['feels', 'dew', 'pressure'].forEach((m) => {
-    assert.equal(drawFrom.lineFloats({ secondaryLine: m }, 'secondaryLine', BASALT), true, m);
-    ['dots', 'x', 'bold'].forEach((st) => assert.equal(drawFrom.lineFloats(
-      { secondaryLine: 'uv', thirdLine: m, thirdLineStyle: st }, 'thirdLine', BASALT), true, m + ' ' + st));
-    assert.equal(drawFrom.lineFloats({ secondaryLine: m }, 'secondaryLine', APLITE), false, 'aplite ' + m);
-    assert.equal(drawFrom.lineFloats({ secondaryLine: m, thirdLine: m }, 'thirdLine', BASALT), false, 'repeat ' + m);
+    assert.equal(drawFrom.lineEdge({ secondaryLine: m }, 'secondaryLine', BASALT), 'float', m);
+    ['dots', 'x', 'bold'].forEach((st) => assert.equal(drawFrom.lineEdge(
+      { secondaryLine: 'uv', thirdLine: m, thirdLineStyle: st }, 'thirdLine', BASALT), 'float', m + ' ' + st));
+    assert.equal(drawFrom.lineEdge({ secondaryLine: m }, 'secondaryLine', APLITE), null, 'aplite ' + m);
+    assert.equal(drawFrom.lineEdge({ secondaryLine: m, thirdLine: m }, 'thirdLine', BASALT), null, 'repeat ' + m);
   });
-  drawFrom.METRIC_IDS.forEach((m) =>
-    assert.equal(drawFrom.lineFloats({ secondaryLine: m }, 'secondaryLine', BASALT), false, m));
-  assert.equal(drawFrom.lineFloats({ secondaryLine: 'off' }, 'secondaryLine', BASALT), false);
-  assert.equal(drawFrom.lineFloats({ secondaryLine: 'uv', secondaryLineStyle: 'stripeBottom' }, 'secondaryLine', BASALT),
-    false, 'a stripe');
+  lineStyle.STRIPE_METRIC_IDS.forEach((m) =>
+    assert.equal(drawFrom.lineEdge({ secondaryLine: m }, 'secondaryLine', BASALT), 'bottom', m));
+  assert.equal(drawFrom.lineEdge({ secondaryLine: 'off' }, 'secondaryLine', BASALT), null);
+  assert.equal(drawFrom.lineEdge({ secondaryLine: 'uv', secondaryLineStyle: 'stripeBottom' }, 'secondaryLine', BASALT),
+    null, 'a stripe');
 });
 
 test('forecastAnchors: the rain bars while they draw, and the drawn amount lines', () => {

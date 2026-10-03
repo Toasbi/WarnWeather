@@ -1,6 +1,6 @@
 var rainTier = require('./weather/rain-tier');
 var lineStyle = require('./line-style.js');   // LINE_COLORS/FILL_COLORS + the resolved line styling
-var configUi = require('./config-ui');        // isLineStylePlatform — the WW_LINE_STYLE mirror
+var configUi = require('./config-ui');        // computeEnv — the watch's env; isLineStylePlatform
 var statusLines = require('./status-lines.js');
 var statusRebake = require('./status-rebake.js');
 var statusCatalog = require('./status-line-catalog.js');
@@ -402,7 +402,7 @@ function metricPermille(metric, raw, settings, band) {
  */
 function buildForecastSeries(raw, settings) {
     var out = {};
-    var bands = raw.alertBands || lineAlert.alertBands(settings, true);
+    var bands = raw.alertBands || lineAlert.alertBands(settings, null);
     var stylesDrawn = raw.lineStyles !== false;
 
     // One symmetric block per ordered line (line-style.js FORECAST_LINES).
@@ -418,11 +418,10 @@ function buildForecastSeries(raw, settings) {
         var band = (metric && Object.prototype.hasOwnProperty.call(bands, metric))
             ? bands[metric] : null;
         // Drawn as a stripe: the watch draws the styles and the line's effective style is
-        // a stripe (lineStyleValue never resolves one on a metric that cannot be one). A
-        // stripe metric without a scale of its own would keep the exact bytes below.
+        // a stripe (lineStyleValue never resolves one on a metric that cannot be one, and
+        // every metric that can has a scale: stripe-levels.js METRIC_SCALES, pinned equal).
         var stripe = Boolean(metric) && stylesDrawn
-            && lineStyle.isStripeStyle(settings, lineStyle.FORECAST_LINES[i].styleKey)
-            && stripeLevels.scaleOf(metric) !== null;
+            && lineStyle.isStripeStyle(settings, lineStyle.FORECAST_LINES[i].styleKey);
         if (!metric) {
             out[LINE_TREND_KEYS[key]] = [];
         } else if (stripe) {
@@ -518,12 +517,11 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // line's shared bottom down there. aplite has no Alert settings at all, so it gets
     // none and draws every line All whatever is stored. An unknown platform draws every
     // line, and Alert.
-    var watchEnv = envOf(watchInfo);
-    raw.alertBands = lineAlert.alertBands(settings, watchEnv.lineStyles,
-        lineAlert.alertsDrawn(watchEnv));
+    var env = configUi.computeEnv(watchInfo);
+    raw.alertBands = lineAlert.alertBands(settings, env);
     // Whether the watch draws the line styles (WW_LINE_STYLE): only then does a line
     // stored as a stripe take stripe level bytes. aplite draws its frozen line and dots.
-    raw.lineStyles = watchEnv.lineStyles !== false;
+    raw.lineStyles = env.lineStyles;
     payload.TEMP_TREND_UINT8 = tempTrendToBytes(rawTemps, tempBand || undefined).bytes;
     var series = buildForecastSeries(raw, settings);
     delete payload.TEMP_RAW_TREND; // transient PKJS-only; encoded into TEMP_TREND_UINT8 above, never wired
@@ -554,7 +552,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // (WW_LINE_STYLE — aplite has no SERIES_FOURTH/FIFTH, so the keys would only
     // spend weather-bundle bytes there). An unknown platform keeps the key:
     // the capability table treats missing watchInfo as capable.
-    if (configUi.isLineStylePlatform(watchInfo && watchInfo.platform ? watchInfo.platform : '')) {
+    if (env.lineStyles) {
         payload.FOURTH_LINE_TREND_UINT8 = series.FOURTH_LINE_TREND_UINT8;
         payload.FIFTH_LINE_TREND_UINT8 = series.FIFTH_LINE_TREND_UINT8;
     }
@@ -563,29 +561,20 @@ function applyForecastSeries(payload, settings, watchInfo) {
 }
 
 /**
- * The platform env the alert half of the fetch gates reads: a known aplite has no On
- * demand, so it never fetches for an alert it cannot show; a missing watchInfo counts
- * as capable (computeEnv).
- * @param {?Object} watchInfo getActiveWatchInfo() result, or null/undefined.
- * @returns {Object} config-ui platform env.
- */
-function envOf(watchInfo) {
-    return configUi.computeEnv(watchInfo);
-}
-
-/**
  * Whether the watch wants a metric outside the forecast lines: a status slot shows
  * it (unfetched, the slot bakes empty), or its alert is on (ticked on an On demand
  * side of any bar, statusThresholds.alertOn). A placed alert needs the metric
- * with no slot showing it, and unfetched the alert can never fire. The status half of
- * every metric fetch gate below; each adds its own line or provider rule.
+ * with no slot showing it, and unfetched the alert can never fire. A known aplite has
+ * no On demand (computeEnv), so it never fetches for an alert it cannot show; a
+ * missing watchInfo counts as capable. The status half of every metric fetch gate
+ * below; each adds its own line or provider rule.
  * @param {Object} settings Clay settings (non-null).
  * @param {string} code 'uv' | 'aqi' | 'pollen'.
  * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
  * @returns {boolean}
  */
 function metricWanted(settings, code, watchInfo) {
-    return statusThresholds.alertOn(settings, code, envOf(watchInfo))
+    return statusThresholds.alertOn(settings, code, configUi.computeEnv(watchInfo))
         || statusCatalog.selectedCodes(settings).indexOf(code) !== -1;
 }
 
@@ -616,7 +605,7 @@ function needsUv(settings, watchInfo) {
  */
 function dayPeakCodes(settings, watchInfo) {
     if (!settings) { return []; }
-    var env = envOf(watchInfo);
+    var env = configUi.computeEnv(watchInfo);
     return statusCatalog.DAY_MAX_KINDS.filter(function (kind) {
         return statusThresholds.alertOn(settings, kind, env) || statusCatalog.dayMaxInUse(settings, kind);
     });

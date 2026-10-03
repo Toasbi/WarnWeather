@@ -16,6 +16,7 @@ global.localStorage = {
 
 const graphWire = require('../src/pkjs/weather/graph-wire.js');
 const lineStyle = require('../src/pkjs/line-style.js');
+const drawFrom = require('../src/pkjs/draw-from.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const rainTier = require('../src/pkjs/weather/rain-tier.js');
 const COLORS = require('../src/pkjs/pebble-colors.js');
@@ -80,12 +81,14 @@ test('the Draw from bits: bits 5 and 6 of a style byte, bit 7 of a palette\'s by
   assert.equal(graphWire.LINE_BIT, 0x20);
   assert.equal(graphWire.FLOAT_BIT, 0x40);
   assert.equal(graphWire.PALETTE_BIT, 0x80);
+  // The byte carries draw-from.js lineEdge: Top in bit 5, a float in bit 6.
   [0x04, 0x0C, 0x01, 0x02].forEach((b) => {
-    assert.equal(graphWire.styleByte(b, false), b);
-    assert.equal(graphWire.styleByte(b, true), b | 0x20);
-    assert.equal(graphWire.styleByte(b, true) & 0x1F, b, 'kind and width untouched');
-    assert.equal(graphWire.styleByte(b, false, true), b | 0x40);
-    assert.equal(graphWire.styleByte(b, false, false), b);
+    assert.equal(graphWire.styleByte(b, drawFrom.BOTTOM), b);
+    assert.equal(graphWire.styleByte(b, null), b, 'a line not drawn, a stripe, aplite');
+    assert.equal(graphWire.styleByte(b, drawFrom.TOP), b | 0x20);
+    assert.equal(graphWire.styleByte(b, drawFrom.TOP) & 0x1F, b, 'kind and width untouched');
+    assert.equal(graphWire.styleByte(b, drawFrom.FLOAT), b | 0x40);
+    assert.equal(graphWire.styleByte(b, drawFrom.FLOAT) & 0x1F, b, 'kind and width untouched');
   });
   const blob = [0, 0, 234, 140, 0, 223];
   assert.equal(graphWire.markPalette(blob, false), blob, 'Bottom: the blob itself');

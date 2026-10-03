@@ -35,8 +35,9 @@
 // which supplies the data half (its samples). The watch reads the bars' edge off their
 // palette and a line's off its style byte: a Top bit for the edge, and a float bit on a
 // drawn line that anchors nothing, its metric having no zero to stand on (pressure,
-// feels-like, dew point: every metric without a Draw from key). The bits and where they
-// ride: weather/graph-wire.js.
+// feels-like, dew point: every metric without a Draw from key). lineEdge is that reading
+// of one line, for the wire and the page alike. The bits and where they ride:
+// weather/graph-wire.js.
 //
 // THE WATCH. Every reading takes the watch as `env`, config-ui platform.js computeEnv()
 // facts (the phone's of the connected watch, or the settings page's own); only its
@@ -56,24 +57,24 @@
     // The two values.
     var BOTTOM = 'bottom';
     var TOP = 'top';
-    // A line metric -> its setting key. Wind and gusts share one (see the header).
-    var LINE_KEYS = {
-        precip_prob: 'precipLineFrom',
-        cloud: 'cloudLineFrom',
-        wind: 'windLineFrom',
-        gust: 'windLineFrom',
-        uv: 'uvLineFrom'
-    };
-    // The metrics with a key: exactly line-style.js STRIPE_METRIC_IDS (a test holds the
-    // two equal).
-    var METRIC_IDS = ['precip_prob', 'cloud', 'wind', 'gust', 'uv'];
-    // The settings page's Draw from rows, one per key, with the metrics each one flips.
+    // lineEdge's answer for a drawn line that anchors no edge (see the header).
+    var FLOAT = 'float';
+    // The keys, one settings-page Draw from row each, with the metrics each one flips.
+    // Wind and gusts share one (see the header). The metrics are exactly line-style.js
+    // STRIPE_METRIC_IDS, in its order (a test holds the two equal).
     var ROWS = [
         { key: 'precipLineFrom', metrics: ['precip_prob'] },
         { key: 'cloudLineFrom', metrics: ['cloud'] },
         { key: 'windLineFrom', metrics: ['wind', 'gust'] },
         { key: 'uvLineFrom', metrics: ['uv'] }
     ];
+    // A line metric -> its setting key, read off ROWS.
+    var LINE_KEYS = {};
+    for (var r = 0; r < ROWS.length; r++) {
+        for (var m = 0; m < ROWS[r].metrics.length; m++) {
+            LINE_KEYS[ROWS[r].metrics[m]] = ROWS[r].key;
+        }
+    }
     // A chart -> its Bars from key.
     var BAR_KEYS = { rain: 'rainBarFrom', radar: 'radarBarFrom' };
 
@@ -129,7 +130,7 @@
 
     /**
      * Whether a metric's lines are set to hang from the top on this watch: its key reads
-     * Top. Says nothing about whether such a line is drawn, or is a stripe (lineFromTop).
+     * Top. Says nothing about whether such a line is drawn, or is a stripe (lineEdge).
      * @param {Object} settings Clay settings blob.
      * @param {*} metric A graph metric id.
      * @param {?Object} [env] Platform env (capable).
@@ -141,63 +142,33 @@
     }
 
     /**
-     * Whether one forecast line hangs from the top, as the wire sends it: the watch draws
-     * line styles, the line is drawn (not off, not a repeat of an earlier picker's
-     * metric), its metric has a key, it is not drawn as a stripe, and that key reads Top.
+     * The edge one forecast line is drawn from, as the wire sends it (graph-wire.js
+     * styleByte): for a line the watch draws as a line or marks (it draws line styles, the
+     * line is not off, not a repeat of an earlier picker's metric, not a stripe), its
+     * metric's key's TOP or BOTTOM, or FLOAT for a metric without a key (pressure,
+     * feels-like, dew point), which anchors no edge. Null for every other line: not drawn,
+     * a stripe (it keeps its own Top/Bottom), or a watch without line styles.
      * @param {Object} settings Clay settings blob.
      * @param {string} lineKey secondaryLine|thirdLine|fourthLine|fifthLine.
      * @param {?Object} [env] Platform env (capable).
-     * @returns {boolean}
+     * @returns {?string} TOP, BOTTOM, FLOAT or null.
      */
-    function lineFromTop(settings, lineKey, env) {
-        var metric = lineStyle.effectiveLineMetric(settings, lineKey);
-        return metric !== null
-            && !lineStyle.isStripeStyle(settings || {}, lineKey + 'Style')
-            && metricFromTop(settings, metric, env);
+    function lineEdge(settings, lineKey, env) {
+        var s = settings || {};
+        var metric = lineStyle.effectiveLineMetric(s, lineKey);
+        if (!capable(env) || metric === null || lineStyle.isStripeStyle(s, lineKey + 'Style')) {
+            return null;
+        }
+        var key = settingKey(metric);
+        return key === null ? FLOAT : value(s[key]);
     }
 
     /**
-     * The drawn metric of one forecast line, when it is drawn as a line or marks (not a
-     * stripe) on a watch that draws line styles; null otherwise.
-     * @param {Object} settings Clay settings blob.
-     * @param {string} lineKey secondaryLine|thirdLine|fourthLine|fifthLine.
-     * @param {?Object} [env] Platform env (capable).
-     * @returns {?string}
+     * @param {?string} edge A lineEdge answer.
+     * @returns {boolean} Whether it anchors an edge of the graph: TOP or BOTTOM.
      */
-    function drawnLineMetric(settings, lineKey, env) {
-        if (!capable(env)) { return null; }
-        var metric = lineStyle.effectiveLineMetric(settings, lineKey);
-        return metric !== null && !lineStyle.isStripeStyle(settings || {}, lineKey + 'Style')
-            ? metric : null;
-    }
-
-    /**
-     * The edge of the forecast graph one line anchors (see the header): BOTTOM while a drawn
-     * amount line stands on it, TOP while it hangs; null for a line that anchors none (not
-     * drawn, a stripe, a metric without a zero to stand on, or a watch without line styles).
-     * @param {Object} settings Clay settings blob.
-     * @param {string} lineKey secondaryLine|thirdLine|fourthLine|fifthLine.
-     * @param {?Object} [env] Platform env (capable).
-     * @returns {?string} TOP, BOTTOM or null.
-     */
-    function lineAnchor(settings, lineKey, env) {
-        var metric = drawnLineMetric(settings, lineKey, env);
-        if (metric === null || settingKey(metric) === null) { return null; }
-        return metricFromTop(settings, metric, env) ? TOP : BOTTOM;
-    }
-
-    /**
-     * Whether one forecast line floats, as the wire sends it (graph-wire.js FLOAT_BIT): it
-     * is drawn as a line or marks, but its metric has no Draw from key (pressure,
-     * feels-like, dew point), so it anchors no edge.
-     * @param {Object} settings Clay settings blob.
-     * @param {string} lineKey secondaryLine|thirdLine|fourthLine|fifthLine.
-     * @param {?Object} [env] Platform env (capable).
-     * @returns {boolean}
-     */
-    function lineFloats(settings, lineKey, env) {
-        var metric = drawnLineMetric(settings, lineKey, env);
-        return metric !== null && settingKey(metric) === null;
+    function anchors(edge) {
+        return edge === TOP || edge === BOTTOM;
     }
 
     /**
@@ -222,15 +193,15 @@
         }
         for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
             var key = lineStyle.FORECAST_LINES[i].key;
-            var edge = lineAnchor(s, key, env);
-            if (edge !== null && has(key)) { out[edge] = true; }
+            var edge = lineEdge(s, key, env);
+            if (anchors(edge) && has(key)) { out[edge] = true; }
         }
         return out;
     }
 
     /**
      * The forecast lines that read one Draw from key on this watch, in line order: each
-     * drawn as a line or marks (drawnLineMetric) of a metric with that key.
+     * drawn from an edge (lineEdge TOP or BOTTOM) by a metric with that key.
      * @param {Object} settings Clay settings blob.
      * @param {string} rowKey A Draw from key.
      * @param {?Object} [env] Platform env (capable).
@@ -240,8 +211,10 @@
         var out = [];
         for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
             var key = lineStyle.FORECAST_LINES[i].key;
-            var metric = drawnLineMetric(settings, key, env);
-            if (metric !== null && settingKey(metric) === rowKey) { out.push(key); }
+            if (anchors(lineEdge(settings, key, env))
+                && settingKey(lineStyle.effectiveLineMetric(settings, key)) === rowKey) {
+                out.push(key);
+            }
         }
         return out;
     }
@@ -289,8 +262,7 @@
     var api = {
         BOTTOM: BOTTOM,
         TOP: TOP,
-        LINE_KEYS: LINE_KEYS,
-        METRIC_IDS: METRIC_IDS,
+        FLOAT: FLOAT,
         ROWS: ROWS,
         BAR_KEYS: BAR_KEYS,
         value: value,
@@ -298,9 +270,7 @@
         rowOf: rowOf,
         capable: capable,
         metricFromTop: metricFromTop,
-        lineFromTop: lineFromTop,
-        lineAnchor: lineAnchor,
-        lineFloats: lineFloats,
+        lineEdge: lineEdge,
         forecastAnchors: forecastAnchors,
         rowLine: rowLine,
         linesSharing: linesSharing,

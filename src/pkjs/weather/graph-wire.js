@@ -44,15 +44,15 @@ var FLOAT_BIT = 0x40;
 var PALETTE_BIT = 0x80;
 
 /**
- * A packed line-style byte with its Top flag (LINE_BIT) set when `on`, and its float
- * bit (FLOAT_BIT) when `floats`.
+ * A packed line-style byte with the edge its line is drawn from: the Top flag (LINE_BIT)
+ * for TOP, the float bit (FLOAT_BIT) for FLOAT, neither for BOTTOM or null.
  * @param {number} byte line-style.js lineStyleByte output.
- * @param {boolean} on The line hangs from the top (draw-from.js lineFromTop).
- * @param {boolean} [floats] The line anchors no edge (draw-from.js lineFloats).
+ * @param {?string} edge draw-from.js lineEdge: TOP, BOTTOM, FLOAT or null.
  * @returns {number}
  */
-function styleByte(byte, on, floats) {
-    return (on ? (byte | LINE_BIT) : byte) | (floats ? FLOAT_BIT : 0);
+function styleByte(byte, edge) {
+    if (edge === drawFrom.TOP) { return byte | LINE_BIT; }
+    return edge === drawFrom.FLOAT ? (byte | FLOAT_BIT) : byte;
 }
 
 /**
@@ -157,8 +157,7 @@ function buildLineStyleBytes(settings, watchInfo) {
      */
     function styleWithFrom(lineKey) {
         return styleByte(lineStyle.lineStyleByte(settings, lineKey + 'Style'),
-            drawFrom.lineFromTop(settings, lineKey, env),
-            drawFrom.lineFloats(settings, lineKey, env));
+            drawFrom.lineEdge(settings, lineKey, env));
     }
     return [
         rainTier.rgbToGColor8(s.secondary),
