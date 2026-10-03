@@ -64,6 +64,18 @@ function looksBy(lookOf) {
 }
 
 /**
+ * Open a weather kind's alert sheet from the Alerts tab, with its More options open:
+ * the warn look rides them (more: true).
+ * @param {Object} page The page-harness handle.
+ * @param {string} stem Kind key stem.
+ */
+function openAlertSheet(page, stem) {
+  page.clickTab('alerts');
+  page.openEditSheet('alert' + stem);
+  page.openAllMore('modal');
+}
+
+/**
  * Pick a warn look in the kind's open levels sheet (the engine's [data-v] path).
  * @param {Object} page The page-harness handle, with the sheet open.
  * @param {string} stem Kind key stem.
@@ -104,8 +116,7 @@ test('a colour-watch save leaves every warn look absent, so a B&W watch packs it
 
 test('a look picked off the default is saved; picking the default back drops it', async () => {
   const page = bootGeneratedPage({ provider: 'dwd' }, 'emery');
-  page.clickTab('watch');
-  page.openEditSheet('alertUv');
+  openAlertSheet(page, 'Uv');
   pickLook(page, 'Uv', 'outline');
   const saved = await page.save();
   assert.equal(saved.threshUvWarnLook, 'outline', 'a pick that differs from the default is saved');
@@ -116,8 +127,7 @@ test('a look picked off the default is saved; picking the default back drops it'
   // equal the colour default, so the save drops them and they resolve per watch again.
   const again = bootGeneratedPage({ provider: 'dwd', threshUvWarnLook: 'outline', threshWindWarnLook: 'fill' },
     'emery');
-  again.clickTab('watch');
-  again.openEditSheet('alertUv');
+  openAlertSheet(again, 'Uv');
   pickLook(again, 'Uv', 'fill');
   const resaved = await again.save();
   assert.ok(!has(resaved, 'threshUvWarnLook'), 'picking the default back is not saved');
@@ -129,8 +139,7 @@ test('a look picked off the default is saved; picking the default back drops it'
 
 test('on a B&W watch Fill is the pick and is saved; its default Outline is not', async () => {
   const page = bootGeneratedPage({ provider: 'dwd' }, 'diorite');
-  page.clickTab('watch');
-  page.openEditSheet('alertUv');
+  openAlertSheet(page, 'Uv');
   assert.equal(page.S.threshUvWarnLook, 'outline', 'the B&W default');
   const plain = await page.save();
   assert.ok(!has(plain, 'threshUvWarnLook'), 'the B&W default is not saved either');
