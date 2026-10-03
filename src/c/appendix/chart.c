@@ -559,24 +559,19 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
     // draws above the axis standing.
     graphics_context_set_stroke_color(ctx, hl->boundary_color);
     graphics_context_set_stroke_width(ctx, 1);
-    for (int i = 0; i < hl->num_bands; ++i) {
-        const ChartBand *b = &hl->bands[i];
-        if (b->boundary0) {
-            int16_t yt = y_full_top;
-            if (hl->contour) {
-                yt = chart_contour_y_for_x(hl->contour, hl->contour_count, b->x0);
-                if (yt < y_top) yt = y_top;
-            }
-            graphics_draw_line(ctx, GPoint(b->x0, yt), GPoint(b->x0, y_base));
+    // Each band's two edges in turn, its start (x0) before its end (x1).
+    for (int e = 0; e < 2 * hl->num_bands; ++e) {
+        const ChartBand *b = &hl->bands[e >> 1];
+        if (!((e & 1) ? b->boundary1 : b->boundary0)) {
+            continue;
         }
-        if (b->boundary1) {
-            int16_t yt = y_full_top;
-            if (hl->contour) {
-                yt = chart_contour_y_for_x(hl->contour, hl->contour_count, b->x1);
-                if (yt < y_top) yt = y_top;
-            }
-            graphics_draw_line(ctx, GPoint(b->x1, yt), GPoint(b->x1, y_base));
+        const int16_t x = (e & 1) ? b->x1 : b->x0;
+        int16_t yt = y_full_top;
+        if (hl->contour) {
+            yt = chart_contour_y_for_x(hl->contour, hl->contour_count, x);
+            if (yt < y_top) yt = y_top;
         }
+        graphics_draw_line(ctx, GPoint(x, yt), GPoint(x, y_base));
     }
 }
 
