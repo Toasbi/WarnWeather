@@ -1,7 +1,7 @@
 // Host-side pin of the LINE_STYLES byte decode (persist.h): the phone packs
 // each per-line marker style as kind | (stroke_width << 2) (line-style.js
 // lineStyleByte, wire bytes [11..13] and [15] of CLAY_LINE_STYLE_UINT8, with the
-// "Draw from: Top" bit 5 ORed in by draw-from.js styleByte), and these
+// "Draw from: Top" bit 5 ORed in by weather/graph-wire.js styleByte), and these
 // static-inline helpers are the watch's only reader — the header-only pattern
 // of night_light_wire_test, since the consuming render path (chart.c,
 // forecast_layer.c) is SDK-bound and cannot be host-compiled. Built with

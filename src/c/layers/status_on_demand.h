@@ -120,8 +120,9 @@ typedef struct {
 
 // One draw's On demand pass, filled by status_on_demand_layout() and read by
 // status_on_demand_paint(). Only status_on_demand.c reads the fields. It is too big
-// for the app stack beside the rest of a row draw, so status_row.c keeps one
-// file-scope pass that every row's draw reuses (draws are serialized).
+// for the app stack beside the rest of a row draw, so it lives in the shared paint
+// scratch (paint_scratch.h StatusRowPass), filled at the start of each row draw
+// (draws are serialized).
 typedef struct {
     StatusOnDemandState state;
     OdSideIn sides[2];

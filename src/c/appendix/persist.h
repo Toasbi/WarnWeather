@@ -161,7 +161,7 @@ bool persist_set_fifth_line_style(uint8_t style);
 
 // CANONICAL layout of the LINE_STYLES blob — the per-line marker styles the
 // phone resolved, copied verbatim off bytes [11..13] of CLAY_LINE_STYLE_UINT8
-// (line-style.js packs them; app_message.c stores the block straight through):
+// (weather/graph-wire.js packs them; app_message.c stores the block straight through):
 //   [0] main-metric line   [1] second-metric line   [2] third-metric line
 // Each byte packs kind | (field << LINE_STYLE_WIDTH_SHIFT). The kind bits ARE
 // ChartLineStyle's values (chart.h — never renumber either side). For
@@ -201,14 +201,16 @@ static inline int line_style_solid_width(uint8_t b, int fallback) {
     return width > 0 ? width : fallback;
 }
 // Bit 5 of a NON-stripe style byte: the line, its marks and (Main metric) its Area fill
-// hang from the plot's top ("Draw from: Top", draw-from.js LINE_BIT). Bit 7 reserved (0).
+// hang from the plot's top ("Draw from: Top", weather/graph-wire.js LINE_BIT). Bit 7
+// reserved (0).
 #define LINE_STYLE_FROM_TOP 0x20
-// Bit 6 of a NON-stripe style byte (draw-from.js FLOAT_BIT): the line floats: its metric has
-// no zero to stand on or hang from (pressure, an absolute curve around mid-plot; feels-like
-// and dew point, on the temperature axis), so it anchors no edge of the plot. An amount
-// metric's line (rain chance, clouds, wind, gusts, UV) leaves it 0: its line, marks or fill
-// anchor the edge it is drawn from (bit 5), and the temperature curve grows its margin
-// there (temp_axis_pad.h). Never set on aplite, which never reads it.
+// Bit 6 of a NON-stripe style byte (weather/graph-wire.js FLOAT_BIT): the line floats:
+// its metric has no zero to stand on or hang from (pressure, an absolute curve around
+// mid-plot; feels-like and dew point, on the temperature axis), so it anchors no edge of
+// the plot. An amount metric's line (rain chance, clouds, wind, gusts, UV) leaves it 0:
+// its line, marks or fill anchor the edge it is drawn from (bit 5), and the temperature
+// curve grows its margin there (temp_axis_pad.h). Never set on aplite, which never reads
+// it.
 #define LINE_STYLE_FLOATING 0x40
 // Kind-aware: a stripe's edge is its field's low bit; every other kind's is bit 5 — the
 // field's low bit is a SOLID line's width there (0x04 = 1 px) and must never read as top.

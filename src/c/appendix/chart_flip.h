@@ -60,7 +60,7 @@ static inline int chart_flip_vertex_y(int zero, int dir, int h, bool held) {
 }
 
 // A rain palette's "Bars from: Top" flag: bit 15 of stop 0's threshold. The phone ORs
-// 0x80 into the palette blob's byte [1] (draw-from.js markPalette; rain-tier.js
+// 0x80 into the palette blob's byte [1] (weather/graph-wire.js markPalette; rain-tier.js
 // packPalette), and stop 0 otherwise always starts at 0, so a negative stop 0 is the
 // flag and nothing else. Every renderer clamps a stop under the floor to the floor.
 static inline bool chart_flip_palette_top(int16_t stop0_from) {
