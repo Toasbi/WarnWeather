@@ -6362,10 +6362,6 @@
                 "hintFrom": {
                   "resolver": "dayMaxHint",
                   "args": {
-                    "hints": {
-                      "max": "The highest air quality index left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
-                      "both": "The air quality index now and the highest left today, like 42/58, while that peak is still ahead or happening now. After it, tomorrow's peak takes its place with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
-                    },
                     "notes": {
                       "key": "aqiSource",
                       "fallback": "waqi",

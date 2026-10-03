@@ -2021,7 +2021,8 @@ test('dayMaxHint: every day-max kind carries a static by-value hint on its own n
 test('dayMaxHint: AQI closes on its source note via the resolver, from the same by-value copy', () => {
   const item = itemsByKey().aqiSlotDisplay[0];
   assert.equal(item.hintFrom.resolver, 'dayMaxHint');
-  assert.equal(item.hintFrom.args.hints, item.hintByValue, 'one table: the resolver and the static hint');
+  assert.deepEqual(Object.keys(item.hintFrom.args), ['notes'],
+    'one table: the resolver closes the static hint the engine hands it (args.staticHint)');
   assert.equal(item.hintFrom.args.keyStem, undefined, 'the resolver reads no levels');
   const waqi = ' Your AQI provider (WAQI) has no forecast, so the current reading shows.';
   const auto = ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.';

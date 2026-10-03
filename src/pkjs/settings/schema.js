@@ -408,7 +408,7 @@ function separatorRows(prefix, first, second) {
  * The pills' hint explains the SELECTED mode only — Now, the default, gets none
  * (dayMaxHints). AQI closes the Day max and Both hints on its source's note when that
  * source has no forecast to take a peak from: blocks.js dayMaxHint answers the whole
- * hint then, from the same dayMaxHints table the static hintByValue is built from.
+ * hint then, from the row's own hintByValue entry (the engine's args.staticHint).
  * @param {string} prefix Key prefix: 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {{noun: string, notes: ?Object}} copy What the kind measures, without an
  *     article ('UV index'), and (AQI only) the source notes: dayMaxHint closes on
@@ -428,7 +428,7 @@ function dayMaxRows(prefix, copy, now, max) {
         options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
     };
     if (copy.notes) {
-        selection.hintFrom = {resolver: 'dayMaxHint', args: {hints: hints, notes: copy.notes}};
+        selection.hintFrom = {resolver: 'dayMaxHint', args: {notes: copy.notes}};
     }
     return [selection, orderRow(prefix, [['Now first', 'now'], ['Max first', 'max']])]
         .concat(separatorRows(prefix, now, max), [{
@@ -739,11 +739,13 @@ var RADAR_KEYS = KEY_SOURCES.radarProvider.sources;
 // (TOMORROWIO_KEY_ROWS) under the same messageKeys, gated apart (like the theme color/B&W
 // split). The radar-only gate also needs a running radar (as "Rainbow (own key)"'s sheet
 // does): with radar off no Tomorrow.io radar call is made and the picker is hidden.
-// The weather sheet's gate is the radar source's sharedSheet condition, so the sheet the
-// Radar provider row's Edit button opens while Tomorrow.io is both is the one shown.
-var TOMORROWIO_WEATHER_WHEN = {key: RADAR_KEYS.tomorrowio.sharedSheet.key, eq: RADAR_KEYS.tomorrowio.sharedSheet.eq};
+// The weather sheet's gate is the radar source's sharedSheet condition, and the radar-only
+// sheet's its negation, so the sheet the Radar provider row's Edit button opens while
+// Tomorrow.io is both is the one shown, and the other is gated off exactly then.
+var TOMORROWIO_SHARED = RADAR_KEYS.tomorrowio.sharedSheet;
+var TOMORROWIO_WEATHER_WHEN = {key: TOMORROWIO_SHARED.key, eq: TOMORROWIO_SHARED.eq};
 var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'radarMode', ne: 'off'},
-    {key: 'provider', ne: 'tomorrowio'}]};
+    {key: TOMORROWIO_SHARED.key, ne: TOMORROWIO_SHARED.eq}]};
 // "Rainbow (own key)" picked for a running radar: its key sheet's gate. The radarMode
 // clause keeps the sheet (and so the Save dialog's way into it) closed with radar off,
 // when no Rainbow call is made.

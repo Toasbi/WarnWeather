@@ -655,7 +655,8 @@ PConf.hintResolvers.register('lineStyleHint', function (state, env, args) {
 `args.staticHint` is what the row would show without the resolver: its `hintByValue` entry for
 the shown value, else its `hint` (undefined when it has neither). A resolver that only adds to
 that copy — WarnWeather's key-status summary appends "Key ••••1234 · ✓ works" under the
-provider's "why" text — builds on it instead of carrying a second copy of the table in its args.
+provider's "why" text, and the AQI slot's Day max hint closes on its source's note — builds on
+it instead of carrying a second copy of the table in its args.
 
 The resolver runs at render time, after the display-snap. The page re-renders its whole body
 after every change but a text edit (that one waits for the next full render — see the

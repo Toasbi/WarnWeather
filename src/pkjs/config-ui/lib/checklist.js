@@ -68,7 +68,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   PConf.checklist = {
-    checklistCodes: checklistCodes,
     renderChecklist: renderChecklist
   };
   if (typeof module !== 'undefined' && module.exports) { module.exports = PConf.checklist; }

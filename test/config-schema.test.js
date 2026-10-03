@@ -3486,7 +3486,8 @@ test('the Weather tab is display-only: its own keys, blocks, and no watch coupli
 test('every day-max Value selection row carries its by-value hints; AQI adds its source note', () => {
   // One sentence set per SELECTED mode, none for Now, pinned verbatim on each kind's
   // own noun and samples. AQI keeps a resolver (blocks.js dayMaxHint) for its source
-  // note, fed the SAME table the static hintByValue is (one source, no drift).
+  // note, which closes the row's own hintByValue entry (the engine's args.staticHint), so
+  // its args carry the notes alone (one copy, no drift).
   const byKey = (k) => items.find((i) => i.messageKey === k);
   const never = ' Tomorrow\'s peak never triggers Alert highlighting.';
   const hints = (noun, sample) => ({
@@ -3506,7 +3507,6 @@ test('every day-max Value selection row carries its by-value hints; AQI adds its
   assert.deepEqual(byKey('aqiSlotDisplay').hintFrom, {
     resolver: 'dayMaxHint',
     args: {
-      hints: hints('air quality index', '42/58'),
       notes: {
         key: 'aqiSource',
         fallback: 'waqi',

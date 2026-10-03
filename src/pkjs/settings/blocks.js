@@ -118,29 +118,31 @@ if (typeof require !== 'undefined') {
     });
 
     /**
-     * The AQI slot's Day max / Both hint while its source note applies: the by-value
-     * hint the row's static hintByValue carries (args.hints, the same schema.js
-     * dayMaxHints table, so the two cannot drift) closed on the source's note — WAQI
-     * and Auto have no forecast to take a peak from (args.notes). A non-null answer
-     * REPLACES hintByValue (engine renderRow), so this returns the whole text; null
-     * for Now and whenever no note applies, so hintByValue answers.
+     * The AQI slot's Day max / Both hint while its source note applies: the row's own
+     * by-value hint for the shown mode (args.staticHint, which the engine hands every hint
+     * resolver: its hintByValue entry, the schema.js dayMaxHints copy, so the two cannot
+     * drift) closed on the source's note — WAQI and Auto have no forecast to take a peak
+     * from (args.notes). A non-null answer REPLACES hintByValue (engine renderRow), so
+     * this returns the whole text; null for Now and whenever no note applies, so
+     * hintByValue answers. Now never reaches staticHint: the row has no Now hint, and
+     * staticHint would fall back to its plain hint there.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{value: string, hints: {max: string, both: string},
+     * @param {{value: string, staticHint: (string|undefined),
      *   notes: ?{key: string, fallback: string, byValue: Object}}} args The row's shown
-     *   mode + dayMaxRows' copy.
+     *   mode and its static hint for it + dayMaxRows' source notes.
      * @returns {?string} The hint with its note, or null for "use hintByValue".
      */
     function dayMaxHint(S, env, args) {
         if (args.value !== 'max' && args.value !== 'both') { return null; }
         var notes = args.notes;
-        if (!notes || !args.hints) { return null; }
+        if (!notes || !args.staticHint) { return null; }
         var source = (S || {})[notes.key] || notes.fallback;
         // Own keys only: a stored source like 'constructor' must not print an
         // Object.prototype function.
         var note = (typeof source === 'string'
             && Object.prototype.hasOwnProperty.call(notes.byValue, source)) ? notes.byValue[source] : '';
-        return note ? args.hints[args.value] + note : null;
+        return note ? args.staticHint + note : null;
     }
     PConf.hintResolvers.register('dayMaxHint', dayMaxHint);
 
