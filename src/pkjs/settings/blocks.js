@@ -75,8 +75,9 @@ if (typeof require !== 'undefined') {
     // scripts/build-config-page.js concatenates it AHEAD of this file.
     var thresholds = (typeof require !== 'undefined')
         ? require('../status-thresholds.js') : window.StatusThresholds;
-    // The On demand contract (on-demand.js): which bar shows which item, and the Battery
-    // item's warn level — the phone's own reading, concatenated ahead of this file.
+    // The On demand contract (on-demand.js): its bars, sides and side-list keys (BARS,
+    // SIDES, itemsKey), which name the eight lists both resets restore (onDemandListKeys)
+    // — the phone's own reading, concatenated ahead of this file.
     var onDemand = (typeof require !== 'undefined')
         ? require('../on-demand.js') : window.OnDemand;
 

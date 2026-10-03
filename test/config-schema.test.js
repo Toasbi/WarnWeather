@@ -114,8 +114,8 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   const counts = {};
   seen.forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
   const dups = Object.keys(counts).filter((k) => counts[k] > 1);
-  // windScale: one slot per line context (main / second / third / fourth metric).
-  // pressureScale: same four-way split. theme: color-env (4 options) vs. B&W-env
+  // windScale: one slot per metric picker (main / second / third / fourth metric) and wind
+  // unit. pressureScale: one per metric picker. theme: color-env (4 options) vs. B&W-env
   // (2 options) — two slots, not four: the 'Day theme' pair is gone and the Theme
   // row is never renamed. themeNight is the same color/B&W split. colorUSFederal:
   // dark-exclude-white vs. light-exclude-black.
@@ -128,7 +128,7 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // sliders, gated apart. vibe/btIcons: the Bluetooth sheet vs aplite's Watch Status
   // Bar rows, gated apart. rainCountdownHorizon is NOT here: the Rain sheet is its one
   // row (the Radar tab's copy went, the owner's of 2026-10-02).
-  // windLineShow/gustLineShow/uvLineShow: one per line context, like
+  // windLineShow/gustLineShow/uvLineShow: one per metric picker, like
   // pressureScale — the row follows its metric to whichever picker shows it. The four
   // Draw from keys the same way (rainBarFrom/radarBarFrom are one row each).
   assert.deepEqual(dups.sort(),
@@ -139,13 +139,13 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
     'unexpected duplicates: ' + dups.join(','));
   ['windLineShow', 'gustLineShow', 'uvLineShow',
     'precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom'].forEach((k) =>
-    assert.equal(counts[k], 4, k + ' appears in four slots (one per line context)'));
+    assert.equal(counts[k], 4, k + ' appears in four slots (one per metric picker)'));
   ['rainBarFrom', 'radarBarFrom'].forEach((k) => assert.equal(counts[k], 1, k + ' appears once'));
   ALERT_STEMS.forEach((stem) => ['On', 'Warn', 'Danger', 'Max', 'WarnLook', 'WarnColor', 'DangerColor']
     .forEach((suffix) => assert.equal(counts['thresh' + stem + suffix], 1,
       'thresh' + stem + suffix + ' appears once (the alert sheet)')));
-  assert.equal(counts.windScale, 12, 'windScale appears in twelve slots (4 contexts × 3 units)');
-  assert.equal(counts.pressureScale, 4, 'pressureScale appears in four slots (one per line context)');
+  assert.equal(counts.windScale, 12, 'windScale appears in twelve slots (4 pickers × 3 units)');
+  assert.equal(counts.pressureScale, 4, 'pressureScale appears in four slots (one per metric picker)');
   assert.equal(counts.theme, 2, 'theme appears in two slots (color / B&W env)');
   assert.equal(counts.themeNight, 2, 'themeNight appears in two slots (color / B&W env)');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
@@ -1288,7 +1288,7 @@ test('forecast tab nests style, fill and wind scale under the line that enables 
   assert.equal(keys.indexOf('fourthLineStyle'), iFourth + 1, 'third style under Third metric');
   assert.equal(keys.indexOf('fifthLineStyle'), iFifth + 1, 'fourth style under Fourth metric');
   const windIdxs = keys.reduce((a, k, i) => (k === 'windScale' ? a.concat(i) : a), []);
-  assert.equal(windIdxs.length, 12, 'twelve wind-scale slots (4 contexts × 3 units)');
+  assert.equal(windIdxs.length, 12, 'twelve wind-scale slots (4 pickers × 3 units)');
   assert.ok(windIdxs.slice(0, 3).every((i) => i > iFill && i < iThird),
     'secondary-line wind-scale copies sit under the solid line');
   assert.ok(windIdxs.slice(3, 6).every((i) => i > iThird && i < iFourth),

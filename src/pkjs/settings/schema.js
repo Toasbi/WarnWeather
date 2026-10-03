@@ -16,7 +16,8 @@ var STATUS_PAIR = require('../status-pair.js');
 // the renderer doesn't know, miss one it does, or carry a transcribed default hex that
 // drifts away from what the graph paints.
 var lineStyle = require('../line-style.js');
-// Bars from [Bottom | Top]: the values, from the module the wire packs the flags through.
+// Bars from [Bottom | Top]: the values, from the module whose reading the wire packs
+// (weather/graph-wire.js).
 var DRAW_FROM = require('../draw-from.js');
 // The keyed sources of the Weather and Radar provider pickers (their names, key sheets and
 // key fields): the key sheets are built from it here, and the rows' key-status resolvers

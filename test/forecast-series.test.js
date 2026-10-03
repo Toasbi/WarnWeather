@@ -25,7 +25,8 @@ const phoneBattery = require('../src/pkjs/phone-battery.js');
 
 // The graph's line COLOURS and its fill flag moved off the weather message onto the
 // Clay settings message, so buildForecastSeries returns the VALUES only now: the
-// styling lives in line-style.js and is packed by clay-payload.js. The colour rules
+// styling lives in line-style.js and is packed by weather/graph-wire.js for the Clay
+// send (clay-payload.js). The colour rules
 // themselves are unchanged, and the cases below are still their coverage — this
 // helper resolves them through the real resolver, from the same settings + watchInfo
 // the series builder is handed, and returns both halves in one object the way the
