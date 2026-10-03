@@ -1269,9 +1269,44 @@ if (typeof require !== 'undefined') {
         return null;
     }
 
-    // What every Alert settings card row reads while its item is ticked on no side of a bar
-    // that exists (on-demand.js placedAnywhere): the item cannot show anywhere.
+    // What every Alerts-tab row reads while its item is ticked on no side of a bar that
+    // exists (on-demand.js placedAnywhere): the item cannot show anywhere.
     var NOT_PLACED = 'Not in any status bar';
+    // The bars by their short names, in the page's order (the Status bars tab's): the
+    // rows' "where it shows" and the Shows on grids.
+    var PAGE_BARS = [['top', 'Watch bar'], ['forecast', 'Forecast bar'], ['health', 'Health bar'],
+        ['radar', 'Radar bar']];
+
+    /**
+     * Where an alert shows, for its Alerts-tab row: each bar edge it sits on, in the
+     * page's bar order — "Watch bar, left", "Watch bar, left · Forecast bar, right" — read
+     * the way the watch places it (on-demand.js sideOf: a tick on a bar that exists).
+     * @param {Object} S Live settings state.
+     * @param {string} code An on-demand.js ITEMS code.
+     * @param {Object} env Platform env.
+     * @returns {string} The placement, or '' when it shows nowhere.
+     */
+    function placementText(S, code, env) {
+        var out = [];
+        PAGE_BARS.forEach(function (b) {
+            var side = onDemand.sideOf(S || {}, b[0], code, env);
+            if (side) { out.push(b[1] + ', ' + side); }
+        });
+        return out.join(' · ');
+    }
+
+    /**
+     * A row's live text followed by where its alert shows.
+     * @param {string} text The row's own text.
+     * @param {Object} S Live settings state.
+     * @param {string} code The item's code.
+     * @param {Object} env Platform env.
+     * @returns {string} "<text> · <placement>".
+     */
+    function withPlacement(text, S, code, env) {
+        var where = placementText(S, code, env);
+        return where ? text + ' · ' + where : text;
+    }
 
     /**
      * The Alert settings card row's badge for a metric alert (editBadgeFrom, args.keyStem):
@@ -1324,9 +1359,10 @@ if (typeof require !== 'undefined') {
     PConf.badgeResolvers.register('onDemandBadge', onDemandBadge);
 
     /**
-     * The Alert settings card row's hint for a metric alert: "Not in any status bar" while
-     * its item is ticked on no bar, else the kind's levels, e.g. "Warn 40 kph · Danger
-     * 60 kph". The pair is the resolved one (the stored pair, else the seed — what the
+     * The Alerts-tab row's summary for a metric alert: "Not in any status bar" while its
+     * item is ticked on no bar, else the kind's levels and where it shows, e.g. "Warn 40
+     * kph · Danger 60 kph · Forecast bar, right" (args.levelsOnly: the levels alone, for
+     * a slot dialog's row). The pair is the resolved one (the stored pair, else the seed — what the
      * watch judges with), in the unit the kind's slider shows, so the row reads the
      * numbers its sheet opens on. A Days other than the default follows by the label its
      * sheet offers it under ("Warn 6 · Danger 8 · Today"); the default adds nothing. The
@@ -1345,14 +1381,18 @@ if (typeof require !== 'undefined') {
         var metric = alertKindOf(args && args.keyStem);
         if (!metric) { return null; }
         var st = S || {};
-        if (!onDemand.placedAnywhere(st, metric.code, env)) { return NOT_PLACED; }
+        var levelsOnly = Boolean(args && args.levelsOnly);
+        if (!levelsOnly && !onDemand.placedAnywhere(st, metric.code, env)) { return NOT_PLACED; }
         var pair = thresholds.resolvedPair(metric.key, st);
         var unit = rangeOf(metric.key, st).unit;
         var suffix = unit ? ' ' + unit : '';
         var text = 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix;
+        // A slot dialog's "Alert levels and colors" row (levelsOnly) says the levels
+        // alone: they drive the slot's highlight wherever the alert is placed.
+        if (levelsOnly) { return text; }
         var days = thresholds.alertDays(st, metric.code);
         var daysLabel = days === thresholds.alertDays(null, metric.code) ? null : optionLabel(args.days, days);
-        return daysLabel ? text + ' · ' + daysLabel : text;
+        return withPlacement(daysLabel ? text + ' · ' + daysLabel : text, st, metric.code, env);
     }
     PConf.hintResolvers.register('alertLevelsHint', alertLevelsHint);
 
@@ -1395,15 +1435,15 @@ if (typeof require !== 'undefined') {
      */
     function rainAlertHint(S, env, args) {
         var st = S || {};
-        if (radarOff(st)) { return 'Turn on the rain radar (Radar tab)'; }
+        if (radarOff(st)) { return 'Turn on the rain radar (Watchface › Views)'; }
         if (!onDemand.placedAnywhere(st, 'rain', env)) { return NOT_PLACED; }
         var rain = thresholds.rainAlert(st);
         var a = args || {};
         // The window by its long label — the stored pick, not its parse — and the
         // contract's default window for one outside the list.
-        return (optionLabel(a.windows, st.rainCountdownHorizon)
+        return withPlacement((optionLabel(a.windows, st.rainCountdownHorizon)
                 || optionLabel(a.windows, thresholds.rainAlert(null).horizonMin))
-            + ' · ' + optionLabel(a.looks, rain.look);
+            + ' · ' + optionLabel(a.looks, rain.look), st, 'rain', env);
     }
     PConf.hintResolvers.register('rainAlertHint', rainAlertHint);
 
@@ -1415,7 +1455,7 @@ if (typeof require !== 'undefined') {
      * @returns {?string} Why it cannot show, or null when it can.
      */
     function onDemandBlocked(S, code) {
-        if (code === 'rain' && radarOff(S)) { return 'Needs the rain radar (Radar tab)'; }
+        if (code === 'rain' && radarOff(S)) { return 'Needs the rain radar (Watchface › Views)'; }
         if (code === 'pollen' && (!S || S.provider !== 'dwd')) { return 'DWD provider only'; }
         return null;
     }
@@ -1441,12 +1481,41 @@ if (typeof require !== 'undefined') {
         var inert = onDemandBlocked(S, a.code) !== null;
         var out = [];
         (a.bars || []).forEach(function (bar) {
-            if (!onDemand.barExists(S, bar, env)) { return; }
+            var reason = null;
+            if (!onDemand.barExists(S, bar, env)) {
+                // A bar this watch can never draw (no radar or health on aplite-class
+                // hardware) has no row; one whose view is merely off is shown inert, with
+                // the reason, so the grid always lists the same bars.
+                reason = barOffReason(S, bar, env);
+                if (reason === null) { return; }
+            }
             var meta = {keys: onDemand.SIDES.map(function (side) { return onDemand.itemsKey(bar, side); })};
-            if (inert) { meta.disabled = true; }
+            if (inert || reason) { meta.disabled = true; }
+            if (reason) { meta.desc = reason; }
             out.push([(a.names || {})[bar] || bar, bar, meta]);
         });
         return out;
+    }
+
+    /**
+     * Why a bar is not drawn, for its inert Shows on row: its view is off, or shows no
+     * bar in its mode. null for a bar this watch cannot draw at all (no row then).
+     * @param {Object} S Live settings state.
+     * @param {string} bar An on-demand.js BARS bar.
+     * @param {Object} env Platform env.
+     * @returns {?string} The reason.
+     */
+    function barOffReason(S, bar, env) {
+        var st = S || {};
+        if (bar === 'radar') {
+            if (env && env.radar === false) { return null; }
+            return (st.radarMode || 'graph') === 'off' ? 'Radar view is off' : 'Rain alert only has no radar bar';
+        }
+        if (bar === 'health') {
+            if (env && env.health === false) { return null; }
+            return (st.healthMode || 'all') === 'off' ? 'Health view is off' : 'Status slots only has no health bar';
+        }
+        return null;
     }
     PConf.optionsResolvers.register('onDemandBars', onDemandBars);
 
@@ -1483,7 +1552,7 @@ if (typeof require !== 'undefined') {
             if (icons) { runs.push('<span class="ico-run">' + (side === 'left' ? 'Left ' : 'Right ') + icons + '</span>'); }
         });
         if (!placed) { return args.where; }
-        return (runs.length ? runs.join(' ') : 'None of the alerts placed here can show.') + '<br>' + args.where;
+        return runs.length ? runs.join(' ') : 'None of the alerts placed here can show.';
     }
     PConf.hintResolvers.register('onDemandBarIcons', onDemandBarIcons);
 
@@ -1526,7 +1595,7 @@ if (typeof require !== 'undefined') {
         var text = 'At ' + onDemand.batteryLevel(st, env) + '% or below';
         if (onDemand.batteryShowsValue(st)) { text += ' · Icon + value'; }
         if (batteryBesideSlot(st, env)) { text += ' · Hidden while a battery slot shows the charge'; }
-        return text;
+        return withPlacement(text, st, 'battery', env);
     }
     PConf.hintResolvers.register('onDemandBatteryText', onDemandBatteryText);
 
@@ -1546,7 +1615,7 @@ if (typeof require !== 'undefined') {
         var st = S || {};
         var vibe = st.vibe === true ? ' · Vibrates on disconnect' : '';
         if (!onDemand.placedAnywhere(st, 'bt', env)) { return NOT_PLACED + vibe; }
-        return (BT_SHOW_TEXT[st.btIcons] || BT_SHOW_TEXT.disconnected) + vibe;
+        return withPlacement((BT_SHOW_TEXT[st.btIcons] || BT_SHOW_TEXT.disconnected) + vibe, st, 'bt', env);
     }
     PConf.hintResolvers.register('onDemandBluetoothText', onDemandBluetoothText);
 
@@ -1559,7 +1628,7 @@ if (typeof require !== 'undefined') {
      * @returns {string} The hint.
      */
     function onDemandPlainText(S, env, args) {
-        return onDemand.placedAnywhere(S, args.code, env) ? args.text : NOT_PLACED;
+        return onDemand.placedAnywhere(S, args.code, env) ? withPlacement(args.text, S, args.code, env) : NOT_PLACED;
     }
     PConf.hintResolvers.register('onDemandPlainText', onDemandPlainText);
 
@@ -1583,9 +1652,9 @@ if (typeof require !== 'undefined') {
     function onDemandSleepText(S, env) {
         var st = S || {};
         if (!onDemand.placedAnywhere(st, 'snooze', env)) { return NOT_PLACED; }
-        if (st.sleepNightEnabled === false) { return 'Battery saver is off (General tab)'; }
-        return 'During the Battery saver hours, ' + hourText(st.sleepStartHour, 0) + '–'
-            + hourText(st.sleepEndHour, 7);
+        if (st.sleepNightEnabled === false) { return 'Battery saver is off (Watchface › Theme & night)'; }
+        return withPlacement('During the Battery saver hours, ' + hourText(st.sleepStartHour, 0) + '–'
+            + hourText(st.sleepEndHour, 7), st, 'snooze', env);
     }
     PConf.hintResolvers.register('onDemandSleepText', onDemandSleepText);
 
@@ -1863,9 +1932,193 @@ if (typeof require !== 'undefined') {
     }
     PConf.hintResolvers.register('radarProviderNote', radarProviderNote);
 
+    // ---- The Graphs tab's line rows and dialogs ----
+
+    /**
+     * A forecast line's nav-row summary: its metric and style by the labels their pickers
+     * show, ", filled" for the Main metric's area fill — "Precipitation % · Thin line,
+     * filled" — or "Off". The style is the one the watch draws (line-style.js
+     * lineStyleValue: a stored stripe on a metric that cannot be one draws as a line), and
+     * a watch without style pickers (env.lineStyles false) names the metric alone.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{lineKey: string, main: boolean}} args The line's picker key; whether it is
+     *     the Main metric (the one line that fills).
+     * @returns {string} The summary.
+     */
+    function lineSummary(S, env, args) {
+        var st = S || {}, a = args || {};
+        var metric = st[a.lineKey];
+        if (!metric || metric === 'off') { return 'Off'; }
+        var name = optionLabel(FORECAST_METRICS, metric) || String(metric);
+        if (env && env.lineStyles === false) { return name; }
+        var style = lineStyle.lineStyleValue(st, a.lineKey + 'Style');
+        var text = name + ' · ' + (optionLabel(LINE_STYLE_OPTIONS, style) || style);
+        var fills = a.main && st.secondaryLineFill !== false && !lineStyle.isTempAxisMetric(metric)
+            && !lineStyle.isStripeValue(style);
+        return fills ? text + ', filled' : text;
+    }
+    PConf.hintResolvers.register('lineSummary', lineSummary);
+
+    /**
+     * A forecast line's colour swatch (its nav row, and the colours row in its dialog):
+     * the line colour of its metric in the theme being edited, as the Graph colors
+     * dialog's row would preview it. None for a line that is off, on a B&W watch or
+     * theme.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{lineKey: string}} args The line's picker key.
+     * @returns {?Object} Badge state, or null.
+     */
+    function lineSwatch(S, env, args) {
+        var st = S || {};
+        var metric = st[(args || {}).lineKey];
+        if (!lineStyle || !env || !env.color || !metric || metric === 'off') { return null; }
+        if (st.theme === 'bw' || st.theme === 'bw-light') { return null; }
+        var sfx = lineStyle.renderContextFor(st, {color: true, themePolarity: true}).suffix;
+        var color = colorHexOf(st[lineStyle.graphColorKey(metric, 'Line', sfx)],
+            lineStyle.graphColorDefault(metric, 'Line', sfx, st));
+        return {label: 'Edit', dots: [{color: color}]};
+    }
+    PConf.badgeResolvers.register('lineSwatch', lineSwatch);
+
+    /**
+     * The colours row in a line's dialog opens the Graph colors sheet of the metric the
+     * line draws (args.sheets: schema.js GRAPH_COLOR_SHEETS); none for a line that is off.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{messageKey: string, sheets: Object}} args The line's picker key and the
+     *     metric → sheet table.
+     * @returns {?string} The sheet id, or null.
+     */
+    function lineColorSheet(S, env, args) {
+        var a = args || {};
+        var entry = (a.sheets || {})[(S || {})[a.messageKey]];
+        return entry ? entry.sheetId : null;
+    }
+    PConf.sheetResolvers.register('lineColorSheet', lineColorSheet);
+
+    /**
+     * That row's label: "<Metric> colors", the title of the sheet it opens.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{lineKey: string, sheets: Object}} args As lineColorSheet.
+     * @returns {?string} The label, or null for the static one.
+     */
+    function lineColorLabel(S, env, args) {
+        var a = args || {};
+        var entry = (a.sheets || {})[(S || {})[a.lineKey]];
+        return entry ? entry.label + ' colors' : null;
+    }
+    PConf.hintResolvers.register('lineColorLabel', lineColorLabel);
+
+    /**
+     * Whether the page draws in colour: a colour watch under a colour theme.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @returns {boolean}
+     */
+    function colorThemeOn(S, env) {
+        var theme = (S || {}).theme;
+        return Boolean(env && env.color !== false) && theme !== 'bw' && theme !== 'bw-light';
+    }
+
+    /**
+     * The Bars row's info text: what the bars show, then how they scale — the colour
+     * note on a colour theme, the B&W legend otherwise (args, schema.js SCALE_NOTE /
+     * BW_LEGEND). Only while the bars are on; null (the row's hintByValue) otherwise.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{value: string, colorNote: string, bwNote: string}} args The row's value
+     *     and the two notes.
+     * @returns {?string} The hint, or null.
+     */
+    function barScaleHint(S, env, args) {
+        var a = args || {};
+        if (a.value !== 'rain') { return null; }
+        return 'Adds bars that represent the rain amount in one hour. '
+            + (colorThemeOn(S, env) ? a.colorNote : a.bwNote);
+    }
+    PConf.hintResolvers.register('barScaleHint', barScaleHint);
+
+    /**
+     * The Radar color row's info text: the colour's own words (args.hints), then the bar
+     * scale note.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{value: string, hints: Object, note: string}} args The row's value, its
+     *     per-value hints and the note.
+     * @returns {string} The hint.
+     */
+    function radarColorHint(S, env, args) {
+        var a = args || {};
+        var own = (a.hints || {})[a.value] || '';
+        return own ? own + '<br>' + a.note : a.note;
+    }
+    PConf.hintResolvers.register('radarColorHint', radarColorHint);
+
+    /**
+     * A weather alert's levels slider's info text: its scale hint (args.hint) and the card
+     * on its default levels for the unit or AQI scale in effect (args.cards, schema.js
+     * ALERT_LEVEL_CARDS: each card's showWhen picks it, the same predicates the cards
+     * carried as their own rows).
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{hint: string, cards: Array<{text: string, showWhen: (Object|undefined)}>}} args
+     * @returns {?string} The hint, or null for the static one.
+     */
+    function levelInfo(S, env, args) {
+        var a = args || {}, ctx = Object.assign({}, S || {}), parts = [], i;
+        ctx.env = env || {};
+        if (a.hint) { parts.push(a.hint); }
+        for (i = 0; i < (a.cards || []).length; i++) {
+            if (!a.cards[i].showWhen || PConf.showWhen.evaluate(a.cards[i].showWhen, ctx)) {
+                parts.push(a.cards[i].text);
+                break;
+            }
+        }
+        return parts.length ? parts.join('<br>') : null;
+    }
+    PConf.hintResolvers.register('levelInfo', levelInfo);
+
+    // Reset-to-defaults for EVERY graph colour (the Graph colors dialog's link): each
+    // metric's sheet keeps its own reset (resetGraphColors, its key list in the button's
+    // arg); this one walks the full key set line-style.js hands out, so it cannot miss a
+    // row the schema adds. Each key lands on its schema default through the engine.
+    /**
+     * @param {string} arg Unused.
+     * @param {Object} S Live settings state (mutated in place).
+     * @param {Object} env Platform env (unused).
+     * @param {function(string): *} defaultOf The engine's stored-shape default resolver.
+     * @returns {boolean} true so the engine re-renders.
+     */
+    PConf.actions.resetAllGraphColors = function (arg, S, env, defaultOf) {
+        if (!S || !defaultOf || !lineStyle) { return false; }
+        var scopes = FORECAST_METRICS.map(function (m) { return m[1]; }).concat(['night']);
+        scopes.forEach(function (scope) {
+            lineStyle.graphColorRoles(scope).forEach(function (role) {
+                ['Dark', 'Light'].forEach(function (sfx) {
+                    var key = lineStyle.graphColorKey(scope, role, sfx);
+                    var d = defaultOf(key);
+                    if (typeof d !== 'undefined') { S[key] = d; }
+                });
+            });
+        });
+        return true;
+    };
+
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             radarProviderNote: radarProviderNote,
+            placementText: placementText,
+            onDemandBars: onDemandBars,
+            lineSummary: lineSummary,
+            lineSwatch: lineSwatch,
+            lineColorSheet: lineColorSheet,
+            lineColorLabel: lineColorLabel,
+            barScaleHint: barScaleHint,
+            radarColorHint: radarColorHint,
+            levelInfo: levelInfo,
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
             tomorrowioUsageLine: tomorrowioUsageLine,
             rainbowBudgetBlock: rainbowBudgetBlock,

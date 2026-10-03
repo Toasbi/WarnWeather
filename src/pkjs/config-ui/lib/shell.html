@@ -71,6 +71,11 @@
   .blockrow.sticky { position: sticky; top: 0; z-index: 5; background: var(--card); -webkit-transform: translateZ(0); transform: translateZ(0); }
   .cardHdr { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 15px 16px; background: transparent; border: none; cursor: default; font: inherit; text-align: left; }
   .cardHdr.coll { cursor: pointer; }
+  /* the title and what rides beside it (the card's '?' and a reset) pack from the left;
+     a hosted switch, the collapsed value and the chevron follow on the right */
+  .cardHdr .ttlwrap { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; }
+  .cardHdr .sw { flex: none; margin-left: 12px; }
+  .cardHdr .lbl-act { flex: none; margin-left: 6px; }
   .cardHdr .ttl { font-size: 11.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ttl); }
   /* the collapsed-card value (section titleFrom) — right-aligned beside the chevron */
   .cardHdr .ttlval { margin-left: auto; margin-right: 10px; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
@@ -78,6 +83,20 @@
      sheet rows). One rule, so both follow --link when the page flips to the light theme. */
   .chev { color: var(--link); font-size: 16px; font-weight: 700; line-height: 1; }
   .intro { padding: 2px 16px 12px; font-size: 12.5px; color: var(--hint); line-height: 1.55; }
+  /* The '?' that shows a row's or a card's info text (engine infoButtonHtml): a small
+     outlined circle beside the label or title, filled with the accent while its text is
+     out. A 16px glyph with a 28px hit area (the negative margin keeps the row height). */
+  .info-q { display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 17px; height: 17px; margin: -6px -5px -6px 1px; padding: 0; border: 6px solid transparent;
+    box-sizing: content-box; background-clip: padding-box; border-radius: 50%;
+    background-color: transparent; box-shadow: inset 0 0 0 1.4px var(--faint);
+    color: var(--hint); font: 800 10.5px 'Inter', sans-serif; line-height: 1; cursor: pointer;
+    vertical-align: middle; transition: background-color .15s, color .15s, box-shadow .15s; }
+  .info-q.on { background-color: #FA4A35; box-shadow: none; color: #FFFFFF; }
+  .lbl .info-q { margin-left: 2px; vertical-align: -3px; }
+  .lbl .nw { white-space: nowrap; }
+  .cardHdr .info-q { margin-left: 2px; }
+  .info-q:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; }
   .card.nohdr .intro { padding-top: 14px; }
   .intro a { color: var(--link); }
   /* an inline text button in intro copy (schema.js introAction: the Alert settings and
@@ -130,7 +149,37 @@
   .row.nbl + .blockrow { border-bottom: none; }
   /* status-line slots (compact searchSelect rows) sit closer together than standard rows */
   .row.slot { padding-top: 8px; padding-bottom: 8px; }
-  .row.indent { padding-left: 30px; }
+  .row.indent { padding-left: 32px; }
+  /* a nav row (a sheet, tab or action it leads to): the whole row is the tap target; its
+     summary sits under the label, a colour preview and the chevron on the right */
+  .row.nav { padding-top: 13px; padding-bottom: 13px; }
+  .row.nav .rgt { display: inline-flex; align-items: center; gap: 10px; }
+  .row.nav .chev { font-size: 21px; font-weight: 700; line-height: 16px; }
+  .row.nav .hint { margin-top: 3px; line-height: 1.45; }
+  .row.nav:active { background: var(--row-press, rgba(127,127,127,0.08)); }
+  .nav-note { font: 600 13px 'Inter', sans-serif; color: var(--muted); }
+  .row .hint.faint, .hint-faint { color: var(--faint); }
+  /* a link row (button style 'link'): a reset or outside link as a line of link text */
+  .row.linkrow { padding-top: 12px; padding-bottom: 12px; }
+  .row.linkrow .txt-link { font: 400 12.5px 'Inter', sans-serif; }
+  /* a card's More options / Fewer options row (items flagged more: true) */
+  .row.more-row { width: 100%; background: transparent; border-left: none; border-right: none; border-top: none;
+    font: inherit; text-align: left; cursor: pointer; padding-top: 13px; padding-bottom: 13px; }
+  .more-lbl { font: 700 14px 'Inter', sans-serif; color: var(--link); }
+  .more-n { font: 600 12.5px 'Inter', sans-serif; color: var(--faint); }
+  /* a From–To row (an inline group with a groupLabel): the two pickers joined by a dash */
+  .row.hours .rgt.hrs { display: inline-flex; align-items: center; gap: 6px; }
+  .hrs-dash { color: var(--muted); font-weight: 600; }
+  .row.hours.isel-open { flex-wrap: wrap; }
+  /* a tab's pinned header (engine renderPin): its pane switcher and the preview that
+     stays in view while the cards scroll under it, on the page ground */
+  .pin { position: sticky; top: 0; z-index: 6; background: var(--bg); margin: 0 -16px; padding: 0 16px 14px; -webkit-transform: translateZ(0); transform: translateZ(0); }
+  /* the pinned block bleeds to its own rounded frame: a preview SVG cancels a .blockrow's
+     padding with negative margins (preview-svg.js svgFrame), so the frame carries it */
+  .pin-blk { padding: 12px 16px 14px; border-radius: 12px; overflow: hidden; border: 1px solid var(--card-line); background: var(--card); }
+  .pin-blk .preview { padding: 0; }
+  .pane-seg { display: flex; width: 100%; margin-bottom: 12px; }
+  .pane-seg button { flex: 1 1 0; padding: 7px 8px; }
   /* inline group: consecutive `inline`-grouped items rendered side by side in one row (e.g. sleep From/To) */
   .row.inline { gap: 14px; }
   .row.inline .icell { display: flex; align-items: center; gap: 10px; }
@@ -361,15 +410,21 @@
   .row.chk-row { padding: 0; border-bottom: none; }
   .row.chk-row > div:last-child { margin-top: 0; }
   .chk-opt .lbl, .chk-opt .hint { display: block; }
-  .chk-opt.off { opacity: .38; }
+  .chk-hdr.caps-only { padding-top: 4px; padding-bottom: 4px; border-top: none; }
+  .chk-hdr.caps-only .chk-caps > span { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ttl); }
+  /* an inert row (a bar whose view is off, an item that cannot show) keeps its ticks:
+     the name and its reason go faint, the boxes dim */
+  .chk-opt.off .lbl { color: var(--faint); }
+  .chk-opt.off .hint { color: var(--faint); }
+  .chk-opt.off .chk-box { opacity: .45; }
   .chk-ticks, .chk-caps { flex: none; display: flex; }
   .chk-caps { margin-left: auto; }
-  .chk-caps > span { width: 44px; text-align: center; font-size: 11.5px; font-weight: 600; color: var(--hint); }
-  .chk-tick { width: 44px; height: 32px; margin: -6px 0; padding: 0; display: flex; align-items: center; justify-content: center; border: none; background: transparent; cursor: pointer; }
+  .chk-caps > span { width: 56px; text-align: center; font-size: 11.5px; font-weight: 600; color: var(--hint); }
+  .chk-tick { width: 56px; height: 34px; margin: -6px 0; padding: 0; display: flex; align-items: center; justify-content: center; border: none; background: transparent; cursor: pointer; }
   .chk-tick[disabled] { cursor: not-allowed; }
-  .chk-box { flex: none; position: relative; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--ctl-line); box-sizing: border-box; }
+  .chk-box { flex: none; position: relative; width: 24px; height: 24px; border-radius: 7px; border: 1.5px solid var(--ctl-line); background: var(--ctl); box-sizing: border-box; }
   .chk-tick.on .chk-box { border-color: transparent; background: linear-gradient(135deg, #FA4A35, #D93A24); }
-  .chk-tick.on .chk-box::after { content: ''; position: absolute; left: 5px; top: 1.5px; width: 4px; height: 9px; border: solid #FFFFFF; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .chk-tick.on .chk-box::after { content: ''; position: absolute; left: 7.5px; top: 3.5px; width: 5px; height: 10px; border: solid #FFFFFF; border-width: 0 2.2px 2.2px 0; transform: rotate(45deg); }
   /* select/searchSelect popup — dim overlay + centered card, matching the News popup */
   /* select/searchSelect popup as a native <dialog> shaped like a bottom sheet. HTML can't paint
      over the host app's native bar, so instead of a full-screen overlay the sheet sits at the
@@ -420,6 +475,28 @@
   /* the sheet's last row or note draws no divider at its bottom edge (a card's do the same,
      .card .static:last-child): e.g. a placement sheet that ends on its Shows on note */
   dialog#modal .esheet .row:last-child, dialog#modal .esheet .static:last-child { border-bottom: none; }
+  /* a drill-down (sheetOnly section) opens as a FULL-SCREEN dialog on the page ground, so
+     it joins the web view's top bar: × / ‹, the kicker over the title, Done; its cards
+     scroll under an optional pinned preview */
+  dialog#modal.edit { top: 0; bottom: 0; height: 100%; height: 100vh; height: 100dvh; max-height: none; max-width: 460px; border-radius: 0; background: var(--bg); box-shadow: none; }
+  dialog#modal.edit::backdrop { background: var(--bg); }
+  @media (prefers-reduced-motion: no-preference) {
+    dialog#modal.edit[open] { animation: dlg-in .18s ease-out; }
+  }
+  @keyframes dlg-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  dialog#modal.edit .ssel-list { border-top: none; background: var(--bg); padding: 0 16px 40px; }
+  .dlg-hdr { flex: none; display: flex; align-items: center; gap: 12px; padding: 8px 16px 14px; }
+  .dlg-x { flex: none; width: 38px; height: 38px; padding: 0; border-radius: 11px; background: var(--tab); border: 1px solid var(--tab-line); color: var(--muted); font: 500 22px 'Inter', sans-serif; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .dlg-ttlwrap { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .dlg-kick { font: 800 11px 'Inter', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--ttl); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 1px; }
+  .dlg-ttlline { display: flex; align-items: center; min-width: 0; }
+  .dlg-ttl { font: 800 19px 'Inter', sans-serif; letter-spacing: -.02em; color: var(--lbl); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dlg-ttlline .info-q { margin-left: 3px; }
+  .dlg-ttlline .lbl-act { flex: none; margin-left: 4px; }
+  .dlg-done { flex: none; padding: 9px 18px; border: none; border-radius: 11px; background: linear-gradient(135deg, #FA4A35, #D93A24); color: #FFFFFF; font: 700 14px 'Inter', sans-serif; box-shadow: 0 4px 14px rgba(250,74,53,0.35); cursor: pointer; }
+  .dlg-done:active { transform: translateY(1px); }
+  .dlg-intro { padding: 0 2px 14px; font-size: 12.5px; color: var(--hint); line-height: 1.55; }
+  dialog#modal .dlg-pin { margin: 0 -16px; padding: 0 16px 12px; }
   /* the Save button's confirm dialog (a row needs attention): one sentence, then the fix
      and "Save anyway" side by side. A margin between the two, not a flex gap, which old
      Android WebViews do not lay out. */

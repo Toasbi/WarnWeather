@@ -232,16 +232,24 @@ Schema
        ├─ id            string  (unique)
        ├─ label         string  (tab bar text)
        ├─ showWhen      Predicate (false: no tab button, no body, no tab link lands there)
+       ├─ pinBlock      string  (block id pinned at the top of the tab while its cards scroll)
+       ├─ panes         [{id, label, showWhen?, pinBlock?}] (a segmented switcher; see Panes)
        └─ sections[]
             ├─ title        string
-            ├─ intro        string  (HTML — displayed above items)
+            ├─ intro        string  (HTML — the card's info text, behind its header's '?')
             ├─ block        string  (custom-block id — rendered below the items)
             ├─ collapsible  boolean (renders section as a collapsible card)
             ├─ titleFrom    {resolver, args?} (collapsed-header value; see Section fields)
             ├─ groupCard    string  (consecutive sections sharing an id merge into one card)
+            ├─ pane         string  (renders only while its tab shows that pane)
+            ├─ sheetOnly / sheetId  (a full-screen dialog, not a card; see Dialogs)
+            ├─ pinBlock     string  (sheetOnly only: block pinned under the dialog's header)
             └─ items[]
                  └─ (see Item fields below; blockBefore is ITEM-level)
 ```
+
+A section renders as one or more **cards**: every visible `subheader` item opens a new card
+titled by its text (see Progressive disclosure), so one section can hold a card per group.
 
 ### Item types
 
@@ -265,19 +273,28 @@ Schema
 | `checklist` | A grid of ticks for one code (`check`): a plain row per option, a tick per column, joined under one sub-header; a tap goes to the `writeWith` writer | — (not serialized: the ticks show other items' lists) | — |
 | `readout` | Label (+ `icon`) and a live hint; no control, no key | — (not serialized) | — |
 
-A `sheet` item is a whole-row chevron target by default. Give it an
+A `sheet` item is a **nav row**: the whole row is the tap target (`role="button"`, Enter and
+Space tap it) and opens its dialog; its label leads, its summary sits under the label and a
+chevron (›) closes the row on the right. The summary is the row's static `hint` or a
+`hintFrom` resolver's answer — the live state of the settings behind it ("Off", or their
+current levels) — and, unlike a value row's hint, it is always in view (no '?'). The resolver
+gets no row value (`args.value` is `undefined` — the row stores nothing) and reads whatever it
+describes from `S`. `summaryFaintFrom` (a showWhen predicate) dims the summary while it holds
+(e.g. "Not in any status bar"). `navNote` prints a short muted note before the chevron ("Alerts",
+a count). `labelFrom: {resolver, args}` (a hint resolver) derives the label from the settings
+("Tomorrow.io API key" for the picked provider). The dialog comes from `sheetId`, or from
+`editSheetFrom` (a sheet resolver — the row hides itself while it answers none). Give it an
 `editBadgeFrom: { resolver, args }` — a named resolver `fn(S, env, args)` returning `null` or
 `{label?, ariaNote?, chip?, dots: [{color, ring?}]}`, registered on `PConf.badgeResolvers` — and
-it renders as an ordinary row instead: label on the left, then the badge's colour preview and an
-**Edit** button on the right, with nothing between them (there is no control to draw for a
-`sheet`). Use that shape for a row that only leads to a sheet but should still show what is
-configured in there. Because the row has no `messageKey`, whatever the resolver needs to
-identify the row must be passed in `editBadgeFrom.args`. Such a badged row also honours
-`hintFrom`: the resolver gets no row value (`args.value` is `undefined` — the row stores
-nothing) and reads whatever it describes from `S`, e.g. a row printing the live state of the
-settings behind it ("Off", or their current levels) under its label. That hint is not
-repainted in place after a range nudge (it has no key to be found by); the sheet the nudge
-happens in re-renders the page when it closes.
+the badge's colour preview leads the chevron. Because the row has no `messageKey`, whatever a
+resolver needs to identify the row must be passed in its args. A summary is not repainted in
+place after a range nudge (it has no key to be found by); the dialog the nudge happens in
+re-renders the page when it closes.
+
+A `button` item is the same nav row, dispatching `action` (or, with `gotoTab: '<tab id>'`,
+bringing that tab to the front like a tab link); with `style: 'link'` it is a single line of
+link-coloured text instead (a reset). A status-slot select keeps its own per-value dialog
+behind an **Edit** button beside the dropdown (`editSheetFrom` on a value row).
 
 The preview comes in two shapes, chosen by how many colours the row owns. `chip` is ONE
 `'#RRGGBB'`, printed as the full swatch-and-hex readout an `rgb` control shows above its
@@ -349,15 +366,17 @@ The seventeen types above are the complete built-in set. Anything bespoke belong
 registered via `PConf.blocks.register` — the control-type dispatch itself is not pluggable from
 app code.
 
-`subheader` items split ONE section into several visually-titled groups — use them when a
-section holds rows that answer to different scopes (the threshold sheets keep a slot-level
-`Bold` row outside the Alert levels group). Fields: `text` (the heading), optional `intro`
-(HTML shown under the heading, like a section `intro`), optional `labelAction`, and optional
-`toggleKey`. `toggleKey` names a `toggle` item **in the same section**, which then renders as a
-switch on the header instead of as a row of its own — while keeping its normal place in
-`items`, so hydrate/serialize/`onChange` are unaffected. The hosted toggle's `disabledWhen`
-still applies there: while it holds, the header's switch renders `disabled` (dimmed, showing
-the held value) and a tap on it changes nothing.
+`subheader` items split ONE section into several cards — use them when a section holds rows
+that answer to different scopes (a slot dialog keeps its `Bold` row in one card and its Alert
+highlighting in the next). Each visible subheader opens a card titled by its `text`; its
+optional `intro` is that card's info text (behind the header's '?'), its optional
+`labelAction` sits beside the title, and its optional `toggleKey` names a `toggle` item **in the
+same section**, which then renders as a switch on the card header instead of as a row of its
+own — while keeping its normal place in `items`, so hydrate/serialize/`onChange` are
+unaffected. The hosted toggle's `disabledWhen` still applies there: while it holds, the
+header's switch renders `disabled` (dimmed, showing the held value) and a tap on it changes
+nothing. A card with no row to show drops out. Only sections merged by `groupCard` keep their
+subheaders as in-card headers.
 
 `staticText` items carry their HTML in a `text` field and are emitted verbatim without control
 chrome. They are not serialized (no `messageKey`). `style: 'info'` boxes the note — the
@@ -421,10 +440,56 @@ picking the shown swatch is what writes it.
 | `textFrom` | `{ resolver, args }` | `staticText` only: the body derived by a named hint resolver; `''` renders nothing (see above) |
 | `style` | `'info'` | `staticText` only: render the note as a boxed info note (see above) |
 | `compact` | boolean | Gives any row the tight vertical rhythm of the status-slot rows (`.slot`). |
+| `more` | boolean | The row renders behind its card's "More options · N more" row (see Progressive disclosure). |
+| `indent` | boolean | Indents the row (32px) — a child of the row above. |
+| `hintShown` | boolean | Keeps the row's hint in view instead of behind its '?' (a live summary, not info text). |
+| `infoId` | string | The id the row's '?' is remembered under (default: `k:<messageKey>`, `s:<sheetId>`, `a:<action>`, `l:<label>`). |
+| `uiOnly` | boolean | A page-only control: hydrated from `initFrom`, never read from or written to the save blob, never seeded. |
+| `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
+| `groupLabel` | string | On the first member of an `inline` group: renders the group as ONE labelled row, the members side by side joined by a dash (a From–To row). |
+| `gotoTab` | string | `button` only: the row brings that tab to the front. |
+| `style` | `'link'` | `button` only: a line of link text instead of a nav row. |
+| `navNote`, `labelFrom`, `summaryFaintFrom` | | `sheet`/`button` nav rows only (see the `sheet` type above). |
+| `captionsOnly` | boolean | `checklist` only: its header row shows only the column captions (the card's title already names the grid). |
 | `columns` | `[{label}]` | `checklist` only: the columns' captions, left to right (see above). |
 | `check` | string | `checklist` only: the one code the grid ticks in its rows' lists (`meta.keys`; see above). |
 | `writeWith` | string | `checklist` only: the `PConf.checkWriters` id that stores a tap (see above). |
 | `single` | boolean | `range` only: one thumb, a plain integer string (see above). |
+
+### Progressive disclosure
+
+The page shows each card as its labels and controls; explanations and rarely-changed rows wait
+one tap away. Every piece of this state is UI-only (per page open, never saved).
+
+- **Info text behind '?'.** A value row's hint (`hint`, `hintByValue`, `hintFrom`) renders only
+  while its info is open: the label carries a small '?' button (`.info-q`, `data-info="<id>"`,
+  `aria-expanded`) and a tap shows the hint under the label (or hides it again). A row with no
+  label, a `readout`, a nav row and a row with `hintShown: true` keep theirs in view. A titled
+  card's `intro` (a section's, or a subheader's) is the card's info text behind a '?' beside the
+  card title (`data-info="c:<cardId>"`, where cardId is `<tabId>:<section id or index>/<card
+  index>`); an untitled card's intro stays in view. A dialog's intro sits behind a '?' beside the
+  dialog title (`data-info="d:<sheetId>"`).
+- **More options.** Items flagged `more: true` render after the card's other rows, only while its
+  "More options · N more" row is open (N counts the ones that would show); open, the rows come
+  first and a "Fewer options" row closes the card. A card opens with them out when one of its
+  `more` items (a nav row's: one of its dialog's) held a non-default value as the page opened,
+  so a customised setting is never tucked away.
+- **Panes.** A tab with `panes` shows a segmented switcher at its top; a section with `pane`
+  renders only while that pane is picked (the first shown pane by default). The switcher and
+  the active pane's `pinBlock` (else the tab's `pinBlock`) form one sticky header (`.pin`) the
+  cards scroll under.
+
+### Dialogs
+
+A `sheetOnly` section opens as a **full-screen dialog** on the page ground: the header holds ×
+(close and put back every setting as it was when the dialog opened — changes made in dialogs
+opened from it included), the kicker (where it was opened from: the tapped row's card title,
+else the tab label) over the title with the dialog's '?' and `labelAction` beside it, and
+**Done** (keep the changes). A dialog opened from inside another (a `sheet` row in a dialog)
+stacks on top with ‹ instead of ×, stepping back to its parent and keeping its changes; Escape
+steps back like Done. The section's `pinBlock` stays pinned under the header; its items render
+as cards like a tab's. Edits only reach the watch with the main Save. Select pickers, the date
+wheel and the Save confirm stay bottom sheets.
 
 ### showWhen predicate grammar
 

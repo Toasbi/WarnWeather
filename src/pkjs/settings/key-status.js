@@ -336,6 +336,37 @@
     }
 
     /**
+     * keyRowLabel (labelFrom of the key row under a picker): "<Name> API key" for the
+     * picked source; null (the row's own label) for a source without a key — the row is
+     * hidden then anyway (keySheet answers no sheet).
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{picker: string, keyed: Object}} args The picker's key and table.
+     * @returns {?string} The label, or null.
+     */
+    function keyRowLabel(S, env, args) {
+        var source = sourceOf(args, pickedValue(S, args));
+        return source ? source.name + ' API key' : null;
+    }
+
+    /**
+     * keyRowSummary (hintFrom of the key row): the key's status line — "Key ••••1234 · ✓
+     * works", its usage, a refusal's reason — or "No key" (dimmed) while it is missing.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{picker: string, keyed: Object}} args The picker's key and table.
+     * @returns {?string} The summary (HTML-safe), or null for a source without a key.
+     */
+    function keyRowSummary(S, env, args) {
+        var id = pickedValue(S, args);
+        var source = sourceOf(args, id);
+        if (!source) { return null; }
+        var st = statusOf(source, id, S);
+        if (st.state === 'missing') { return '<span class="hint-faint">No key</span>'; }
+        return summaryLine(source, st, S);
+    }
+
+    /**
      * keyMissingNote (a staticText's textFrom, under the picker row): "Needs an API key.
      * Without one, <outcome>." while the picked source's key is missing, '' (no note)
      * otherwise.
@@ -391,6 +422,8 @@
         keySheet: keySheet,
         keyBadge: keyBadge,
         keySummaryHint: keySummaryHint,
+        keyRowLabel: keyRowLabel,
+        keyRowSummary: keyRowSummary,
         keyMissingNote: keyMissingNote,
         keyAttention: keyAttention
     };
@@ -402,6 +435,8 @@
         PConf.sheetResolvers.register('keySheet', keySheet);
         PConf.badgeResolvers.register('keyBadge', keyBadge);
         PConf.hintResolvers.register('keySummaryHint', keySummaryHint);
+        PConf.hintResolvers.register('keyRowLabel', keyRowLabel);
+        PConf.hintResolvers.register('keyRowSummary', keyRowSummary);
         PConf.hintResolvers.register('keyMissingNote', keyMissingNote);
         PConf.attentionResolvers.register('keyAttention', keyAttention);
     }

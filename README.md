@@ -36,9 +36,9 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 2-hour precipitation nowcast from regional and worldwide providers
 * Worldwide Rainbow.ai radar out of the box — *Rainbow (limited)* in the radar picker: shared by every user, so it refreshes every 30 minutes; pick *Rainbow (own key)* and add your own Rainbow API key to refresh it at your update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 * The radar says *Radar limit reached* when a radar source refuses requests over its limit, instead of claiming no rain
-* Outside a regional radar's area (DWD: Germany, Met.no: the Nordic countries) the radar says so, and the Radar tab suggests a source that covers your location
+* Outside a regional radar's area (DWD: Germany, Met.no: the Nordic countries) the radar says so, and the radar settings (Graphs tab › Rain radar) suggest a source that covers your location
 * Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on its way (one of the Alerts, see Status lines)
-* Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph — in the Radar tab
+* Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph — under Watchface › Views
 * Clouds, sun & lightning rows under the radar graph's time axis (on by default): cloud cover and sun strength per quarter hour for the next 2 hours, with a lightning bolt where thunderstorms are expected (Open-Meteo, any radar source; not on Pebble Classic/Steel, which has no radar)
 
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
@@ -55,7 +55,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
 * Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set (not on Pebble Classic/Steel)
 * Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or danger level you set (its Alert levels) (not on Pebble Classic/Steel)
-* Alerts: items that show at a status bar's edge, next to the status slot there, only when they reach their warn level or are active right now (low battery, Bluetooth disconnected, rain coming, a high UV or wind forecast), so the watch face stays free of distractions the rest of the time (not on Pebble Classic/Steel). The *Alerts* tab lists them in its *Alert settings* card. Open one to set it up and to choose which status bars show it, Left or Right (one side per bar). The Status slots tab shows, under each bar's *Alerts*, the icons placed there. The items and how they show:
+* Alerts: items that show at a status bar's edge, next to the status slot there, only when they reach their warn level or are active right now (low battery, Bluetooth disconnected, rain coming, a high UV or wind forecast), so the watch face stays free of distractions the rest of the time (not on Pebble Classic/Steel). The *Alerts* tab lists them. Open one to set it up and to choose which status bars show it, Left or Right (one side per bar). The Status bars tab shows, under each bar's *Alerts*, the icons placed there. The items and how they show:
   * System info — the watch battery at or below a warn level you set (the icon, or the icon and the charge), Bluetooth when it disconnects (or connects, or both), quiet time while it is on, and a sleep icon during the Battery saver hours
   * Weather alerts — rain falling or on its way, or wind gusts, UV index, air quality, (with DWD) pollen or wind speed reaching your warn level today (later hours included) or, once nothing left today does, tomorrow; each metric alert can print its value next to its icon and can stick to today or also look ahead to tomorrow, marking a tomorrow alert with `»` or a mark you pick (`>`, `+`, `*` or none); the rain alert shows as the rain icon, the minutes until it starts (or, while it rains, how long it keeps falling), or the full countdown text
   * On by default: Bluetooth, quiet time, sleep and the rain alert on the left of the Watch Status Bar (the top bar), and the battery with the wind gust, UV index, air quality and wind speed alerts on its right; the pollen alert is off, and every other bar starts with no alerts
@@ -77,8 +77,8 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Layout customization**
 * Multiple layout presets, with flick-to-cycle between views and optional auto-return — including *Weather only*: no top bar, just the rain radar, clock, weather and a big forecast (not on Pebble Classic/Steel)
 * Fully custom layouts (not on Pebble Classic/Steel): build each view yourself — pick, remove and reorder the calendar, clock and status bars per view; any view can drop its top bar, and flick views also the clock, for a true full-screen radar or graph
-* Light/Dark settings page with grouped, easy-to-browse pickers
-* Weather tab in the settings page: live graphs — temperature & precipitation, wind & gusts, humidity & dew point, pressure, sun & moon — plus a 5-day forecast, for your current location or up to three saved places, with its own switchable data source (never touches the watchface's provider or location); refreshes only on demand — pull down or tap Refresh, which also re-reads your phone's location; it leads the tab bar, and a Misc toggle makes it the tab the page opens on
+* Light/Dark settings page in six tabs — Weather, Watchface, Status bars, Alerts, Graphs, Setup — with a pinned live preview, explanations behind a ? next to each setting, rarely-changed settings under *More options*, and full-screen dialogs (× discards, Done keeps)
+* Weather tab in the settings page: live graphs — temperature & precipitation, wind & gusts, humidity & dew point, pressure, sun & moon — plus a 5-day forecast, for your current location or up to three saved places, with its own switchable data source (never touches the watchface's provider or location); refreshes only on demand — pull down or tap Refresh, which also re-reads your phone's location; it leads the tab bar, and a Setup › About toggle makes it the tab the page opens on
 * First-run setup wizard that picks sensible defaults for your country and watch — it bolds the rows you read first, highlights air quality from its warn level, and puts steps on the top row when your watch has health
 
 *Weather and radar data from [MET Norway](https://www.met.no/) is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*
@@ -127,12 +127,12 @@ Two things that both involve rain over time, but answer different questions:
   sampled at your location, and each 5-minute frame becomes one bar whose height is the rain
   amount — solid bars are rain at your exact spot; with DWD, the hatched outline behind
   them is the strongest rain within 2 km. The bars stand on the graph's bottom, or hang from
-  below its time axis with *Bars from* set to *Top* (Radar tab), heavier
+  below its time axis with *Bars from* set to *Top* (Graphs tab › Rain radar), heavier
   rain reaching further down. Available from DWD (Germany), Met.no (Nordics), Rainbow.ai
   (worldwide, exact location only; *Rainbow (limited)* on the shared key refreshes every 30
   minutes, *Rainbow (own key)* on your own Rainbow API key refreshes at your update interval —
   free for 5,000 calls a month, Rainbow asks for a credit card) and Tomorrow.io (worldwide, needs a free API key). Good for *"is it about to rain on me right now?"*
-  With *Clouds, sun & lightning* (Radar tab, on by default), two thin stripes appear under the
+  With *Clouds, sun & lightning* (Graphs tab › Rain radar, on by default), two thin stripes appear under the
   graph's time axis: cloud cover (thin high cloud counts half) and sun strength (full when the
   sun is as strong as under a clear sky) for each quarter hour, drawn like the forecast's
   stripes, with a lightning bolt in the quarter hours where Open-Meteo expects a

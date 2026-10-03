@@ -31,7 +31,7 @@ RAIN RADAR
   own update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 - "Radar limit reached" on the radar when a radar source refuses requests over its limit
 - Outside a regional radar's area (DWD: Germany, Met.no: the Nordic countries) the radar says so,
-  and the Radar tab suggests a source that covers your location
+  and the radar settings suggest a source that covers your location
 - Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on
   its way (Alerts)
 - Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph
@@ -113,6 +113,7 @@ LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views and optional auto-return, including Weather only: rain radar, clock, weather and a big forecast without the top bar
 - Custom layout (still beta)
 - First-run setup wizard that picks sensible defaults for your country and watch
+- A tidy settings page: six tabs, a live preview pinned at the top, explanations behind a ? next to each setting, and rarely-changed settings under More options
 
 WEATHER
 - Detailed 5-day weather forecast for multiple locations inside the settings app

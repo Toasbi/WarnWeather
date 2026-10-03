@@ -204,7 +204,7 @@ test('the graph-colour resolver and its deps reach the generated settings page',
 // block id renders nothing and only warns, so the block would silently vanish from a
 // real phone's settings page while every Node test still passed through require().
 const PREVIEW_BLOCK_FILES = ['settings/preview-forecast.js', 'settings/preview-radar.js',
-  'settings/preview-diagnostics.js', 'settings/preview-layout.js'];
+  'settings/preview-diagnostics.js', 'settings/preview-layout.js', 'settings/preview-health.js'];
 
 test('the graph-colour modules and the preview kit are bundled in dependency order', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
@@ -266,13 +266,37 @@ test('the night-tint display rule reaches the generated page, after line-style',
 
 test('every preview block reaches the generated settings page', () => {
   const src = page();
-  ['forecastPreview', 'radarPreview', 'devStats', 'lastFetch', 'layoutPreviewCombined']
+  ['forecastPreview', 'radarPreview', 'devStats', 'lastFetch', 'layoutPreviewCombined', 'statusBarsPreview',
+    'healthPreview']
     .forEach((id) => {
       assert.ok(src.indexOf("PConf.blocks.register('" + id + "'") !== -1,
         'nothing registers the ' + id + ' block — its file is probably missing from ' +
         'APP_FILES in scripts/build-config-page.js, which drops the block from the page ' +
         'on a real phone while every Node test passes');
     });
+});
+
+// The two page files the six-tab layout added. Neither throws when dropped: the Status
+// bars tab would lose its pinned preview (an unregistered block renders nothing), and the
+// Watchface tab's Night hours would open on undefined and write nothing, while every Node
+// test still passes through require(). preview-status-bars.js reads window.StatusLineCatalog
+// and window.OnDemand at IIFE time, so it must follow both.
+test('the Status bars preview and the Night hours reach the page, in dependency order', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('pkjs/status-line-catalog.js') < idx('settings/preview-status-bars.js'));
+  assert.ok(idx('pkjs/on-demand.js') < idx('settings/preview-status-bars.js'));
+  idx('settings/night-hours.js');
+  const src = page();
+  ["PConf.displayResolvers.register('nightHoursValue'", "PConf.displayResolvers.register('nightHoursSeparate'",
+    "PConf.onChange.register('nightHoursSync'", "PConf.onChange.register('nightHoursMode'",
+    "PConf.hintResolvers.register('nightHoursHint'", "PConf.hintResolvers.register('nightFeatureHint'",
+    'PConf.hooks.onSubmit(onSubmit)'].forEach((needle) =>
+    assert.ok(src.indexOf(needle) !== -1, 'the generated page lacks ' + needle));
 });
 
 // support.js is the quietest omission of the lot: nothing else in the page references it,

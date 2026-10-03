@@ -5,7 +5,7 @@
 // view-cycle.js buildCustomCycle — the storage contract). Select rows open the engine's sheets via
 // the onReady ctx's openSheet, which showModal()s ABOVE this overlay; edits write S
 // live like every engine control, and the header's ✕ restores a snapshot taken on
-// open while "Save layout" keeps S and closes — draft semantics without touching the
+// open while Done keeps S and closes — draft semantics without touching the
 // sheet machinery. The pure reorder/add/remove core is exported for node tests.
 /* global PConf */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
@@ -722,12 +722,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         '#viewEditor{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;display:flex;'
         + 'flex-direction:column;max-width:460px;margin:0 auto;background:var(--bg);'
         + 'color:var(--fg);font-family:Inter,system-ui,sans-serif}'
-        + '#viewEditor .ve-hd{display:flex;align-items:center;gap:12px;padding:14px 16px 8px;flex:none}'
-        + '#viewEditor .ve-hd h2{flex:1;margin:0;color:#FA4A35;font-size:19px;font-weight:800}'
-        + '#viewEditor .ve-x{border:1px solid var(--ctl-line);background:var(--ctl);color:var(--fg);'
-        + 'border-radius:9px;font:700 15px Inter,sans-serif;padding:7px 12px;cursor:pointer}'
-        + '#viewEditor .ve-save{border:none;border-radius:9px;padding:8px 16px;cursor:pointer;'
-        + 'background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff;font:700 13.5px Inter,sans-serif}'
+        + '#viewEditor .ve-hd h2{margin:0}'
         + '#viewEditor .ve-tabs{display:flex;gap:8px;padding:6px 16px 10px;flex:none}'
         + '#viewEditor .ve-body{flex:1;min-height:0;overflow-y:auto;padding:4px 16px 16px}'
         + '#viewEditor .ve-row{display:flex;align-items:stretch;gap:8px;margin-bottom:8px}'
@@ -1082,10 +1077,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var overlay = document.createElement('div');
         overlay.id = 'viewEditor';
         overlay.innerHTML =
-            '<div class="ve-hd">'
-            + '<button type="button" class="ve-x" data-ve-close aria-label="Discard changes">✕</button>'
-            + '<h2>Custom layout</h2>'
-            + '<button type="button" class="ve-save" data-ve-save>Save layout</button>'
+            // The page's full-screen dialog header (shell.html .dlg-*): × discards, the
+            // kicker says where it opened from, Done keeps the layout.
+            '<div class="dlg-hdr ve-hd">'
+            + '<button type="button" class="dlg-x ve-x" data-ve-close aria-label="Close and discard changes">&#215;</button>'
+            + '<div class="dlg-ttlwrap"><span class="dlg-kick">Watchface</span>'
+            + '<span class="dlg-ttlline"><h2 class="dlg-ttl">Custom layout</h2></span></div>'
+            + '<button type="button" class="dlg-done ve-save" data-ve-save>Done</button>'
             + '</div>'
             + '<div class="ve-tabs" data-ve-tabs></div>'
             + '<div class="ve-body" data-ve-body></div>';
