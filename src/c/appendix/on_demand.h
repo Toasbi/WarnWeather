@@ -119,8 +119,9 @@ static inline int16_t od_item_footprint(int16_t icon_w, int16_t text_w, bool box
 
 // One of the bar's three slots, as measured: m[0] its full form, then its short
 // family widest first (status_short_text.h). n == 0 is an empty slot, n == 1 a slot
-// with no short form. A member counts as short only while it is narrower than the
-// slot's width in the plain layout.
+// with no short form; n is never more than OD_VARIANTS (the members m[] holds), which
+// od_layout() takes as given. A member counts as short only while it is narrower than
+// the slot's width in the plain layout.
 typedef struct {
     StatusSlotMeasure m[OD_VARIANTS];
     uint8_t n;
@@ -131,7 +132,8 @@ typedef struct {
 
 // One side's items, nearest the side's own slot first (ascending OdItem, so rank[]
 // rises). Whether an item is boxed, and so the air beside it, is read off its rank
-// (od_item_boxed).
+// (od_item_boxed). An item sits on one side only, so n is never more than OD_SIDE_MAX,
+// which od_layout() takes as given.
 typedef struct {
     uint8_t n;
     uint8_t rank[OD_SIDE_MAX];            // the item's OdItem

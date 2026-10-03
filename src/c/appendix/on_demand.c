@@ -140,7 +140,7 @@ static bool fits(const Fit *f, int w) {
 // "N. York" shows before "New…". The ladder settled on the narrowest member, which
 // the settled geometry accepts, so the search starts from it.
 static int16_t pick_short(const Pass *p, int i, const Fit *f, uint8_t *variant) {
-    const int n = p->slots[i].n > OD_VARIANTS ? OD_VARIANTS : p->slots[i].n;
+    const int n = p->slots[i].n;   // at most OD_VARIANTS (OdSlotIn)
     int best = p->short_w[i];
     uint8_t v_best = p->short_v[i];
     int below = p->plain_w[i];   // the elastic member stays under every other member
@@ -679,7 +679,7 @@ static void pass_init(Pass *p) {
         p->plain_w[i] = status_slot_placed_w(&p->plain[i], &full[i]);
         p->short_w[i] = p->plain_w[i];
         if (p->plain_w[i] <= 0) { continue; }
-        const int n = slots[i].n > OD_VARIANTS ? OD_VARIANTS : slots[i].n;
+        const int n = slots[i].n;   // at most OD_VARIANTS (OdSlotIn)
         for (int v = 1; v <= n; v++) {
             StatusSlotMeasure m = slots[i].m[v < n ? v : n - 1];
             if (v == n) {
@@ -700,7 +700,7 @@ static void pass_init(Pass *p) {
     // item, and it shows the charge wherever the layout keeps one.
     p->batt = p->batt0;
     for (int d = 0; d < 2; d++) {
-        p->n[d] = sides[d].n > OD_SIDE_MAX ? OD_SIDE_MAX : sides[d].n;
+        p->n[d] = sides[d].n;   // at most OD_SIDE_MAX (OdSideIn)
         if (p->batt && p->n[d] > 0 && sides[d].rank[0] == OD_BATTERY) {
             p->first[d] = 1;
             p->n[d]--;
