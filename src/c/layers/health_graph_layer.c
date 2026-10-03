@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "health_graph_layer.h"
+#include "paint_scratch.h"
 #include "layer_util.h"
 #include "c/appendix/chart.h"
 #include "c/appendix/forecast_grid.h"
@@ -397,8 +398,10 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     // Bottom-axis hour labels/ticks for the trailing window. chart_render_axis
     // iterates all def->num_slots entries, so clear the whole scratch first
     // (TICK_NONE, no label) and only fill the visible window.
-    static ChartAxisSlot axis_slots[MAX_BOTTOM_VIEW_ENTRIES];
-    memset(axis_slots, 0, sizeof(axis_slots));  // {label "", TICK_NONE}
+    // The per-draw buffers are the shared paint scratch's (paint_scratch.h).
+    HealthPaint *const paint = &g_paint_scratch.health;
+    ChartAxisSlot *const axis_slots = paint->axis_slots;
+    memset(axis_slots, 0, sizeof(paint->axis_slots));  // {label "", TICK_NONE}
     time_t     start       = s_end_hour - (time_t)(visible_slots - 1) * BOTTOM_VIEW_STEP_SECONDS;
     struct tm *start_local = localtime(&start);
     forecast_grid_fill_axis_slots(axis_slots, visible_slots,
@@ -424,14 +427,14 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     // pre-theme v1, combining with the white outline into what reads as a solid
     // white bar) and bw-light fills white with a black outline, the polarity
     // mirror. theme_pick() is a runtime call on color builds, so this can no longer
-    // be a static initializer — module-static scratch, rebuilt each redraw (mirrors
+    // be a static initializer — paint scratch, rebuilt each redraw (mirrors
     // rain_radar_layer.c's radar_tick_style()).
-    static ChartColorStop step_stops[1];
+    ChartColorStop *const step_stops = paint->step_stops;
     step_stops[0] = (ChartColorStop){ .from = 0, .color = theme_pick(GColorGreen, theme_bg()) };
 
-    // aplite-style discipline: per-frame layer array is module-static, not stack.
+    // aplite-style discipline: the per-frame layer array is scratch, not stack.
     // Max reachable here is 7 (sleep + gridlines + bars + HR + clamp dots + frame + axis).
-    static ChartLayer layers[7];
+    ChartLayer *const layers = paint->layers;
     int n = 0;
 
     layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM, .custom = {

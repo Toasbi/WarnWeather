@@ -15,6 +15,7 @@
 #include "c/appendix/bottom_view.h"
 #include "c/appendix/theme.h"
 #include "c/appendix/temp_axis_pad.h"
+#include "paint_scratch.h"
 
 #define TEMP_LABEL_PAD 2
 #define TEMP_LABEL_MEASURE_BOX_W 200
@@ -99,12 +100,6 @@ typedef struct
     time_t timestamp;
     int type; // 0 = sunrise, 1 = sunset
 } SunEvent;
-
-typedef struct {
-    int    num_entries;          // clamped to MAX_BOTTOM_VIEW_ENTRIES
-    time_t forecast_start;
-    Series series[SERIES_COUNT];
-} ForecastDataset;
 
 #if defined(WW_LINE_STYLE)
 // Restyle one metric line from its persisted style byte. SOLID takes the
@@ -541,20 +536,25 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                                      bounds.size.h - BOTTOM_VIEW_BOTTOM_PAD);
     const int h = graph_bounds.size.h;
 
-    // Single static layer, single-threaded redraw: keep the dataset off the stack so
-    // nested chart_draw/SDK graphics calls retain enough stack headroom.
-    static ForecastDataset ds;
-    load_dataset(&ds);
+    // The per-redraw buffers are the shared paint scratch's (paint_scratch.h), not stack:
+    // the dataset off the stack keeps nested chart_draw/SDK graphics calls enough
+    // headroom, and aplite's small app stack overflows otherwise (PC=0/LR=0). All are
+    // recomputed each redraw. Series values are already contiguous int16 permille from
+    // PKJS, so the chart layers read them directly; only the contour points + axis
+    // slots need scratch.
+    ForecastPaint *const paint = &g_paint_scratch.forecast;
+    ForecastDataset *const ds = &paint->ds;
+    load_dataset(ds);
     MemoryHeapProbe redraw_probe = MEMORY_HEAP_PROBE_START("forecast_update");
-    if (ds.num_entries < 2)
+    if (ds->num_entries < 2)
     {
         graphics_context_set_fill_color(ctx, theme_bg());
         graphics_fill_rect(ctx, bounds, 0, GCornerNone);
         MEMORY_LOG_HEAP("forecast_update:exit");
         return;
     }
-    const time_t forecast_start = ds.forecast_start;
-    const time_t forecast_end = forecast_start + (ds.num_entries - 1) * BOTTOM_VIEW_STEP_SECONDS;
+    const time_t forecast_start = ds->forecast_start;
+    const time_t forecast_end = forecast_start + (ds->num_entries - 1) * BOTTOM_VIEW_STEP_SECONDS;
     struct tm *forecast_start_local = localtime(&forecast_start);
 
 
@@ -565,7 +565,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
     const int16_t axis_y     = h - BOTTOM_VIEW_AXIS_H;
     const int16_t grid_right = graph_bounds.origin.x
-                             + ds.num_entries * chart_def_pitch(&FORECAST_GRID_DEF);
+                             + ds->num_entries * chart_def_pitch(&FORECAST_GRID_DEF);
 #if defined(WW_LINE_STYLE)
     // Bottom stripes live BELOW the plot's zero line, in a band of their own
     // between it and the hour axis, so bars, fills and lines can never paint
@@ -579,11 +579,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // line, its marks or fill anchor the edge they are drawn from (the rain bars add theirs
     // once the palette is read, below). A stripe with nothing above 0 is dropped here, so it
     // takes no band and the stripe layout below never sees it: the plot grows into its rows.
-    const int drawn = temp_axis_drawn_entries(ds.num_entries, bounds.size.w - graph_left,
+    const int drawn = temp_axis_drawn_entries(ds->num_entries, bounds.size.w - graph_left,
                                               chart_def_pitch(&FORECAST_GRID_DEF));
     TempAxisEdges edges = { 0, 0, 0 };
     for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
-        Series *s = &ds.series[sid];
+        Series *s = &ds->series[sid];
         if (s->present) {
             s->present = temp_axis_edges_add(&edges, s->line.values, drawn,
                                              SERIES_IS_STRIPE(s), s->line.floating,
@@ -617,21 +617,16 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #define plot outer
 #endif
 
-    // Per-redraw data prep + layer list. The scratch arrays are module-static
-    // (not stack): aplite's small app stack overflows otherwise (PC=0/LR=0).
-    // Safe — single layer instance, single-threaded, all recomputed each redraw.
-    // Series values are already contiguous int16 permille from PKJS, so the
-    // chart layers read them directly; only the contour points + axis slots need
-    // scratch.
-    static GPoint  area_pts[MAX_BOTTOM_VIEW_ENTRIES + 2];
-    static ChartAxisSlot axis_slots[MAX_BOTTOM_VIEW_ENTRIES];
+    // Per-redraw data prep + layer list.
+    GPoint *const area_pts = paint->area_pts;
+    ChartAxisSlot *const axis_slots = paint->axis_slots;
     forecast_grid_fill_axis_slots(axis_slots, MAX_BOTTOM_VIEW_ENTRIES,
                              outer.origin.x, chart_def_pitch(&FORECAST_GRID_DEF),
                              bounds.size.w, forecast_start_local);
 
-    Series *first  = &ds.series[SERIES_FIRST];
-    Series *second = &ds.series[SERIES_SECOND];
-    Series *bars   = &ds.series[SERIES_BARS];
+    Series *first  = &ds->series[SERIES_FIRST];
+    Series *second = &ds->series[SERIES_SECOND];
+    Series *bars   = &ds->series[SERIES_BARS];
 
     // A stripe main metric is not a line: no stroke, and no fill under it.
     const bool line_on       = second->present && !SERIES_IS_STRIPE(second);
@@ -641,10 +636,10 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Night bands span slot 0..(num_entries-1) so the linear time->x map lands
     // on the same hour columns (anchor_x + i*pitch) the ticks/lines use.
     const GRect night_plot_rect = GRect(outer.origin.x, 0,
-                                        (ds.num_entries - 1)
+                                        (ds->num_entries - 1)
                                             * chart_def_pitch(&FORECAST_GRID_DEF),
                                         outer.size.h - 1);
-    static ChartBand night_bands[3];   // aplite: per-frame scratch — static not stack; NightSegments holds at most 3
+    ChartBand *const night_bands = paint->night_bands;   // NightSegments holds at most 3
     int num_night_bands = 0;
     if (night_on) {
         num_night_bands = build_night_bands(night_bands, 3, &night_segments,
@@ -664,7 +659,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // otherwise every tier above the first lands off the top of the plot and
     // heavy-rain colors (green/yellow/orange) never show. Scratch copy keeps the
     // shared palette store (and the radar's view of it) unmodified.
-    static ChartColorStop scaled_bar_stops[PALETTE_MAX_STOPS];
+    ChartColorStop *const scaled_bar_stops = paint->scaled_bar_stops;
     for (int i = 0; i < bar_num_stops; ++i) {
         scaled_bar_stops[i].from = (int16_t)(
             (int32_t)bar_stops[i].from * FORECAST_TREND_FULL_SCALE / 1000);
@@ -682,14 +677,13 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         temp_axis_edges_add(&edges, bars->bars.values, drawn, false, false,
                             palette_from_top(bar_stops));
     }
-    fit_temp_axis(&ds, temp_rows, edges.anchors);
+    fit_temp_axis(ds, temp_rows, edges.anchors);
 #endif
 
     // Z-order = array order, bottom first. Frame after the data bands so it
     // overwrites curve/area pixels at the border columns. Line/bars are gated on
     // what PKJS sent; the fill + its night re-hatch only exist with the line.
-    static ChartLayer layers[SERIES_COUNT + 6]; // largest redraw array — must be static, not
-                                  // stack (aplite's small app stack overflows otherwise).
+    ChartLayer *const layers = paint->layers; // largest redraw array — scratch, not stack.
                                   // Max reachable is SERIES_COUNT + 5: one layer per present
                                   // series (a stripe replaces its line, never adds one), plus
                                   // the area fill, two night hatches, frame and axis. +6
@@ -703,7 +697,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .from_top = second_top, .area = {
             .values = second->line.values, .export_points = area_pts,
-            .count = ds.num_entries, .lo = 0, .hi = LINE_HI(second->line.inset_y),
+            .count = ds->num_entries, .lo = 0, .hi = LINE_HI(second->line.inset_y),
             .fill_color = second->line.fill_color } };
     }
     // night_under re-shades the filled area, so it needs the AREA layer's
@@ -722,7 +716,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .spacing        = night_hatch_spacing,
             .underlay_color = NIGHT_C(NIGHT_INK_AREA_BASE),
             .has_underlay   = !theme_is_bw(),
-            .contour        = area_pts, .contour_count = ds.num_entries } };
+            .contour        = area_pts, .contour_count = ds->num_entries } };
     }
     // night_over is the full-height day/night hatch — independent of line/bars.
     if (night_on) {
@@ -749,7 +743,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         // scaled copy's stop 0 is negative too, and the renderer clamps it.
         layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .from_top = palette_from_top(bar_stops),
                                     .bars = {
-            .values = bars->bars.values, .count = ds.num_entries,
+            .values = bars->bars.values, .count = ds->num_entries,
             .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
             .stops = bars->bars.stops, .num_stops = bars->bars.num_stops,
             .style = bars->bars.style } };
@@ -767,9 +761,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // after it (fill_on implies line_on, so the slot is always filled).
     const int line_at = fill_on ? n++ : 0;
     for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
-        if (ds.series[sid].present && !SERIES_IS_STRIPE(&ds.series[sid])) {
-            layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries,
-                                         LINE_HI(ds.series[sid].line.inset_y));
+        if (ds->series[sid].present && !SERIES_IS_STRIPE(&ds->series[sid])) {
+            layers[n++] = mark_line_layer(&ds->series[sid], ds->num_entries,
+                                         LINE_HI(ds->series[sid].line.inset_y));
         }
     }
     if (line_on) {
@@ -778,7 +772,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         // on the plot's first row when it hangs (chart_flip_vertex_y) where the fill's
         // zero stretch stays on the zero row.
         layers[fill_on ? line_at : n++] = (ChartLayer){ CHART_LAYER_LINE, .from_top = second_top, .line = {
-                  .values = second->line.values, .count = ds.num_entries,
+                  .values = second->line.values, .count = ds->num_entries,
                   .lo = 0, .hi = LINE_HI(second->line.inset_y),
                   .inset_top = LINE_TOP(second->line.inset_y),
                   .inset_bottom = LINE_BOTTOM(second->line.inset_y),
@@ -789,7 +783,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
 
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
-        .values = first->line.values, .count = ds.num_entries,
+        .values = first->line.values, .count = ds->num_entries,
         .lo = 0, .hi = TEMP_HI,
         .inset_top = LINE_TOP(first->line.inset_y), .inset_bottom = LINE_BOTTOM(first->line.inset_y),
         .color = first->line.color, .width = first->line.width } };
@@ -819,10 +813,10 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         if (band_h <= 0) continue;
         int nb = 0;
         for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
-            const Series *s = &ds.series[sid];
+            const Series *s = &ds->series[sid];
             if (!s->present || !SERIES_IS_STRIPE(s) || s->line.from_top != top) continue;
             layers[nb] = (ChartLayer){ CHART_LAYER_STRIPE, .stripe = {
-                .values = s->line.values, .count = ds.num_entries,
+                .values = s->line.values, .count = ds->num_entries,
                 .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
                 .color = s->line.color,
                 .y_offset = (int16_t)(nb * (stripe_h + FORECAST_STRIPE_GAP)),
@@ -842,7 +836,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #endif
 
     // hi/lo temp strip: chart-adjacent chrome, not a chart layer
-    draw_left_axis(ctx, h, plot_axis_y, first->line.values, ds.num_entries);
+    draw_left_axis(ctx, h, plot_axis_y, first->line.values, ds->num_entries);
 #if !defined(WW_LINE_STYLE)
 #undef plot
 #endif

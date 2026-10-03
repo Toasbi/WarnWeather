@@ -14,6 +14,7 @@
 #include "../services/watch_services.h"
 #include "status_on_demand.h"
 #include "status_sig.h"
+#include "paint_scratch.h"
 #if defined(PBL_HEALTH)
 #include "../services/health_summary.h"
 #include "../services/health.h"
@@ -74,20 +75,23 @@ struct StatusRow {
     StatusOnDemandRow od;
 };
 
+// A pass's buffers, in the shared paint scratch (paint_scratch.h StatusRowPass): every
+// refresh and draw loads them at its start and is done with them when it returns.
 // Main-app drawing and refresh callbacks are serialized, so all row instances can
-// reuse this buffer without retaining expanded copies of their packed blobs. The
+// reuse them without retaining expanded copies of their packed blobs. The
 // resolved slot TEXT has no such shared buffer: it rides the caller's transient
 // ResolvedSlot, so a pass takes exactly the slots it needs — all three to fold or
 // paint a row.
-static uint8_t s_blob_scratch[STATUS_LINE_MAX_BYTES];
-// Threshold-highlight settings blob (CLAY_THRESHOLDS_UINT8), reloaded per
-// refresh/draw like the packed line blobs and normalized to the full layout as it
-// loads (status_threshold_normalize: whatever is stored, or nothing).
-static uint8_t s_thresh_scratch[THRESH_SETTINGS_BYTES];
-// One draw's On demand pass (status_on_demand.h): the resolved items, their measures
-// and the layout. Too big for the app stack beside the rest of a draw, and draws are
-// serialized, so every row's draw reuses this one.
-static StatusOnDemandPass s_od_pass;
+//  - s_blob_scratch: the line's packed blob.
+//  - s_thresh_scratch: the threshold-highlight settings blob (CLAY_THRESHOLDS_UINT8),
+//    reloaded per refresh/draw like the packed line blobs and normalized to the full
+//    layout as it loads (status_threshold_normalize: whatever is stored, or nothing).
+//  - s_od_pass: one draw's On demand pass (status_on_demand.h): the resolved items,
+//    their measures and the layout. Too big for the app stack beside the rest of a
+//    draw.
+#define s_blob_scratch (g_paint_scratch.row.blob)
+#define s_thresh_scratch (g_paint_scratch.row.thresh)
+#define s_od_pass (g_paint_scratch.row.od)
 // Packed weather threshold-levels value (STATUS_LEVELS_UINT8, 2 wire bytes LE —
 // UV rides bits 8-9), reloaded once per refresh/draw pass alongside the blob
 // above (persist_get_status_levels() is persist_exists + persist_read_int;

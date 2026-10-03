@@ -14,6 +14,7 @@
 #include "c/appendix/radar_sky.h"
 #include "c/appendix/radar_limit.h"
 #include "c/layers/status_metrics.h"
+#include "paint_scratch.h"
 
 // Layout constants. The axis area sits above the bar plot. Hour labels
 // share a single vertical strip with the tick row: at hour-aligned slot
@@ -29,7 +30,6 @@
 // constant false off emery, so every other platform folds this to the plain 12.
 #define RADAR_AXIS_H_BASE       12
 #define RADAR_AXIS_H_LARGE_STEP 4
-#define RADAR_NUM_SLOTS         24
 
 static inline int radar_axis_h(void) {
     return RADAR_AXIS_H_BASE + (config_large_graph_font() ? RADAR_AXIS_H_LARGE_STEP : 0);
@@ -379,8 +379,9 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     // radar window: no sky, a cleared radar (start 0) or a sky the window has
     // slid past = no band, the plain radar (outer == axis_outer).
 #if defined(WW_RAIN_RADAR)
-    static uint8_t sky[RADAR_SKY_MAX_BYTES];
-    const int sky_n = radar_sky_count(sky, persist_get_radar_sky(sky, sizeof(sky)));
+    uint8_t *const sky = g_paint_scratch.radar.sky;
+    const int sky_n = radar_sky_count(sky, persist_get_radar_sky(sky,
+                                                                 sizeof(g_paint_scratch.radar.sky)));
     const int sky_band = radar_sky_band_h(
         radar_sky_in_window(sky, sky_n, (int32_t)radar_start,
                             RADAR_NUM_SLOTS * RADAR_SLOT_SECONDS),
@@ -389,11 +390,11 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     const int sky_band = 0;
 #endif
 
-    // Module-static scratch (not stack): aplite's small app stack overflows
-    // otherwise (PC=0/LR=0). Safe — single layer instance, single-threaded,
-    // both recomputed before each use (exact_pm only on a redraw with rain).
-    static int16_t exact_pm[RADAR_NUM_SLOTS];
-    static ChartAxisSlot axis_slots[RADAR_NUM_SLOTS];
+    // The shared paint scratch (paint_scratch.h), not stack: aplite's small app stack
+    // overflows otherwise (PC=0/LR=0). Both are recomputed before each use (exact_pm
+    // only on a redraw with rain), as is the sky blob above.
+    int16_t *const exact_pm = g_paint_scratch.radar.exact_pm;
+    ChartAxisSlot *const axis_slots = g_paint_scratch.radar.axis_slots;
     radar_fill_axis_slots(axis_slots, radar_start);
 
     // The axis hangs off the top of the whole plot (above the sky band); the
