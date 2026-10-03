@@ -9,8 +9,9 @@
  * Also the date slot's TEXT, for the settings page's status bars preview: the watch
  * renders the slot itself (status_row.c format_status_date), so formatMonthYear and
  * formatFullDate are JS copies of date_format.h's two formatters, pinned to the C
- * host test's strings by test/date-format-contract.test.js. The settings page loads
- * this file too (window.DateFormat). ES5 only (aplite PKJS).
+ * host test's strings by test/date-format-contract.test.js; dateMonthFirst is the
+ * day/month order both they and the Clay message (CLAY_DATE_MONTH_FIRST) follow. The
+ * settings page loads this file too (window.DateFormat). ES5 only (aplite PKJS).
  */
 (function () {
     var MONTH_FORMAT_CODES = ['auto', 'name', 'dots', 'slash', 'iso'];
@@ -42,6 +43,34 @@
             codeByte(MONTH_FORMAT_CODES, settings.dateSlotMonthFormat),
             codeByte(FULL_FORMAT_CODES, settings.dateSlotFullFormat)
         ];
+    }
+
+    /**
+     * The country the holiday features (and the date-order derivation) act for.
+     * An ABSENT key means a pre-holidayCountry install that never re-saved — those
+     * were US-market builds, so the legacy fallback is 'US', deliberately NOT the
+     * schema's fresh-install 'DE': seedDefaults writes the key into every seeded
+     * blob (making this arm unreachable there), but fixture applications and
+     * direct payload builds still exercise it, and flipping them to day-first
+     * dates would be a silent behavior change. THE one home for that knowledge —
+     * it used to be inlined at three sites that could drift apart.
+     *
+     * @param {Object} settings Clay settings blob.
+     * @returns {string} Country code ('US' when the key is absent).
+     */
+    function effectiveHolidayCountry(settings) {
+        return Object.prototype.hasOwnProperty.call(settings, 'holidayCountry')
+            ? settings.holidayCountry : 'US';
+    }
+
+    /**
+     * Whether the full date leads with the month: US writes mm.dd.yy, everyone else
+     * dd.mm.yy (CLAY_DATE_MONTH_FIRST, which the watch's date formats order by).
+     * @param {Object} settings Clay settings blob.
+     * @returns {boolean}
+     */
+    function dateMonthFirst(settings) {
+        return effectiveHolidayCountry(settings) === 'US';
     }
 
     /**
@@ -115,6 +144,8 @@
         MONTH_FORMAT_CODES: MONTH_FORMAT_CODES,
         FULL_FORMAT_CODES: FULL_FORMAT_CODES,
         buildDateFormatBytes: buildDateFormatBytes,
+        effectiveHolidayCountry: effectiveHolidayCountry,
+        dateMonthFirst: dateMonthFirst,
         formatMonthYear: formatMonthYear,
         formatFullDate: formatFullDate
     };

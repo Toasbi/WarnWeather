@@ -94,13 +94,29 @@ test('wind units sit tight, drop when they do not fit, and give way to the arrow
 });
 
 test('the arrow follows the watch: on, the current reading shown, not aplite', () => {
-  assert.equal(preview.arrowShown('wind', { windSlotDirection: true }, {}), true);
-  assert.equal(preview.arrowShown('wind', { windSlotDirection: false }, {}), false);
-  assert.equal(preview.arrowShown('wind', { windSlotDirection: true, windSlotDisplay: 'max' }, {}), false,
+  assert.equal(preview.arrowDue('wind', { windSlotDirection: true }, {}), true);
+  assert.equal(preview.arrowDue('wind', { windSlotDirection: false }, {}), false);
+  assert.equal(preview.arrowDue('wind', { windSlotDirection: true, windSlotDisplay: 'max' }, {}), false,
     'Day max alone prints the peak, not the wind the arrow points');
-  assert.equal(preview.arrowShown('wind', { windSlotDirection: true, windSlotDisplay: 'both' }, {}), true);
-  assert.equal(preview.arrowShown('wind', { windSlotDirection: true }, { platform: 'aplite' }), false);
-  assert.equal(preview.arrowShown('uv', { uvSlotDirection: true }, {}), false);
+  assert.equal(preview.arrowDue('wind', { windSlotDirection: true, windSlotDisplay: 'both' }, {}), true);
+  assert.equal(preview.arrowDue('wind', { windSlotDirection: true }, { platform: 'aplite' }), false);
+  assert.equal(preview.arrowDue('uv', { uvSlotDirection: true }, {}), false);
+});
+
+test('the arrow needs a free byte after the text, as packLine appends it', () => {
+  // A spaced two-letter custom separator fills an edge slot: '12 ab 30' is 8 bytes.
+  const S = { windSlotDirection: true, windSlotDisplay: 'both', windSlotSeparator: 'custom',
+    windSlotSeparatorCustom: 'ab', windSlotSeparatorSpaced: true };
+  const text = sample('wind', S, { cap: EDGE });
+  assert.equal(text, '12 ab 30');
+  assert.equal(preview.arrowShown('wind', text, S, {}, EDGE), false);
+  assert.equal(preview.arrowShown('wind', '12/30', S, {}, EDGE), true);
+});
+
+test('aplite keeps the wind unit where the arrow would have stood', () => {
+  const S = { windSlotDisplay: 'both', windSlotUnit: true, windSlotDirection: true };
+  assert.equal(sample('wind', S, { cap: EDGE, env: { platform: 'aplite' } }), '12/30kph');
+  assert.equal(sample('wind', S, { cap: EDGE, env: {} }), '12/30');
 });
 
 test('the other phone-baked kinds print their units by their own toggles', () => {
@@ -122,6 +138,8 @@ test('the watch-rendered kinds print in the watch\'s own shapes', () => {
   assert.equal(sample('distance', {}), '4.2km');
   assert.equal(sample('distance', { distanceUnits: 'imperial' }), '2.6mi');
   assert.equal(sample('battery', {}), '', 'the watch battery is its glyph alone');
+  assert.equal(sample('battery', {}, { env: { platform: 'aplite' } }), '80%',
+    'aplite\'s lean twin prints the charge instead');
 });
 
 test('the block prints the date by whether the bar\'s view shows a calendar', () => {
@@ -150,4 +168,19 @@ test('a calendar shows only for a calendar top with rows', () => {
   assert.equal(preview.calendarShown({ top: VC.TOP_GRAPH, tier: VC.TIER_NONE }), false);
   assert.equal(preview.calendarShown({ top: VC.TOP_RADAR, tier: VC.TIER_FULL }), false);
   assert.equal(preview.calendarShown(null), false);
+});
+
+test('a bar no view of the layout seats is left out', () => {
+  // Weather only without health: no view shows the top strip, so no Watch bar.
+  const S = { layoutPreset: 'weatherOnly', healthMode: 'off', radarMode: 'graph' };
+  const html = preview.statusBarsPreview(S, {});
+  assert.equal(html.indexOf('>Watch<'), -1, html);
+  assert.ok(html.indexOf('>Forecast<') !== -1);
+  assert.ok(preview.statusBarsPreview({ layoutPreset: 'compactCal' }, {}).indexOf('>Watch<') !== -1);
+});
+
+test('two-value temperature pairs keep the user\'s separator when the degree cannot fit', () => {
+  const S = { tempSlotDisplay: 'both', tempSlotUnit: true, tempSlotSeparator: 'dot',
+    tempSlotSeparatorSpaced: true };
+  assert.equal(sample('temp', S, { cap: EDGE }), '18 · 16', 'bare, never a narrowed 18°·16°');
 });

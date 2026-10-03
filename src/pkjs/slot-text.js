@@ -120,10 +120,10 @@
      * thermometer icon already says "temperature") and answers to it in every mode.
      * A single reading takes it when it fits (withUnit). A pair puts it on BOTH
      * readings ('12°|10°') — one degree on the second reading alone would read as
-     * though only that one were a temperature — and keeps it when that pair still
-     * fits the slot; otherwise the pair prints bare. A middle slot always has the
-     * room; a left or right slot (8 bytes) holds it only for single-digit readings,
-     * as '12°|10°' is 9 bytes.
+     * though only that one were a temperature — when that pair still fits the slot
+     * in the separator form the bare pair takes; otherwise the pair prints bare
+     * (status-pair.js formatTempPair). A middle slot always has the room; a left or
+     * right slot (8 bytes) only for a short pair like '8°|6°', as '12°|10°' is 9.
      *
      * @param {string} actual the formatted actual temperature (formatTemp)
      * @param {?string} feels the formatted feels-like temperature; null when unknown,
@@ -139,14 +139,7 @@
         var degree = unitEnabled(s, 'tempSlotUnit') ? DEGREE : '';
         if (feels !== null && typeof feels !== 'undefined') {
             if (mode === 'feels') { return withUnit(feels, degree, cap); }
-            if (mode === 'both') {
-                var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
-                if (degree) {
-                    var marked = statusPair.formatTempPair(actual + degree, feels + degree, s, cap);
-                    if (utf8.byteLength(marked) <= limit) { return marked; }
-                }
-                return statusPair.formatTempPair(actual, feels, s, cap);
-            }
+            if (mode === 'both') { return statusPair.formatTempPair(actual, feels, s, cap, degree); }
         }
         return withUnit(actual, degree, cap);
     }
@@ -165,13 +158,14 @@
      *   for none
      * @param {Object} settings Clay settings blob
      * @param {number} [cap] the slot's byte cap; defaults to the narrow edge cap
+     * @param {boolean} [arrow] whether the slot draws the direction arrow (the bake's
+     *   status-lines.js arrowSector); the unit then leaves its byte free
      * @returns {string} e.g. '3', '»6', '3/7', '12/30kph'
      */
-    function dayMaxText(code, shown, merged, settings, cap) {
+    function dayMaxText(code, shown, merged, settings, cap, arrow) {
         var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
-        var arrowByte = (settings[code + 'SlotDirection'] && shown && shown.now !== null) ? 1 : 0;
         return withUnit(merged !== null ? merged : statusPair.formatPeak(code, shown, settings, cap),
-            dayMaxUnit(code, settings), limit - arrowByte);
+            dayMaxUnit(code, settings), limit - (arrow ? 1 : 0));
     }
 
     /**

@@ -178,15 +178,32 @@
      * @returns {string} e.g. '12/10', '12 / 10', '12 (10)'
      */
     function joinPair(first, second, separator, custom, spaced, cap, fallback) {
+        var form = pairForm(first, second, separator, custom, spaced, cap, fallback);
+        return first + form.mid + second + form.end;
+    }
+
+    /**
+     * The separator form joinPair settles on for two readings: the first of the
+     * user's forms (spaced, then tight) whose pair fits the cap, else the kind's
+     * default separator. Same arguments as joinPair.
+     * @param {string} first the reading shown first
+     * @param {string} second the reading shown second
+     * @param {*} separator stored separator setting
+     * @param {*} custom stored custom separator text
+     * @param {*} spaced stored spacing toggle
+     * @param {number} [cap] the slot's byte cap; defaults to the narrow edge cap
+     * @param {*} [fallback] the kind's default preset key
+     * @returns {{mid: string, end: string}} the form
+     */
+    function pairForm(first, second, separator, custom, spaced, cap, fallback) {
         var preset = presetFor(separator, custom, fallback);
         var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
         var forms = Boolean(spaced) ? [spaceAround(preset), preset] : [preset];
         for (var i = 0; i < forms.length; i++) {
             var text = first + forms[i].mid + second + forms[i].end;
-            if (utf8.byteLength(text) <= limit) { return text; }
+            if (utf8.byteLength(text) <= limit) { return forms[i]; }
         }
-        var last = fallbackPreset(fallback);
-        return first + last.mid + second + last.end;
+        return fallbackPreset(fallback);
     }
 
     /**
@@ -204,21 +221,32 @@
      * The temperature slot's 'both' text: actual and feels-like in the user's order
      * (tempSlotOrder, absent = actual first), joined by the user's separator (absent =
      * the bar, defaultSeparator), spaced or tight (tempSlotSeparatorSpaced, absent =
-     * tight). The readings come in finished, each with its degree when the slot
-     * shows one (slot-text.js tempText, which also checks the pair still fits).
-     * @param {string} actual the formatted actual temperature, e.g. '12' or '12°'
+     * tight). The separator form is settled on the bare readings, exactly as without
+     * a unit; the unit (the degree, while Show unit is on) then marks both readings
+     * when the pair still fits the cap in that same form, and the pair prints bare
+     * when it doesn't -- a unit never costs the user's separator or its spaces.
+     * @param {string} actual the formatted actual temperature
      * @param {string} feels the formatted feels-like temperature
      * @param {Object} settings Clay settings blob (tempSlotSeparator,
      *   tempSlotSeparatorCustom, tempSlotSeparatorSpaced, tempSlotOrder)
      * @param {number} [cap] the slot's byte cap
-     * @returns {string} e.g. '12|10', or '10 (12)' feels-first in spaced brackets
+     * @param {string} [unit] the unit each reading takes ('°'); absent or '' = none
+     * @returns {string} e.g. '12|10', '12°|10°', or '10 (12)' feels-first in spaced
+     *   brackets
      */
-    function formatTempPair(actual, feels, settings, cap) {
+    function formatTempPair(actual, feels, settings, cap, unit) {
         var s = settings || {};
         var feelsFirst = s.tempSlotOrder === 'feels';
-        return joinPair(feelsFirst ? feels : actual, feelsFirst ? actual : feels,
-            s.tempSlotSeparator, s.tempSlotSeparatorCustom, s.tempSlotSeparatorSpaced, cap,
-            defaultSeparator('temp'));
+        var first = feelsFirst ? feels : actual;
+        var second = feelsFirst ? actual : feels;
+        var form = pairForm(first, second, s.tempSlotSeparator, s.tempSlotSeparatorCustom,
+            s.tempSlotSeparatorSpaced, cap, defaultSeparator('temp'));
+        if (unit) {
+            var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
+            var marked = first + unit + form.mid + second + unit + form.end;
+            if (utf8.byteLength(marked) <= limit) { return marked; }
+        }
+        return first + form.mid + second + form.end;
     }
 
     /**

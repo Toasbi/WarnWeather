@@ -1171,6 +1171,21 @@ test('the direction arrow still rides along when the wind unit is off', () => {
   }
 });
 
+test('the wind unit gives way only to an arrow the slot actually draws', () => {
+  // '12/30kph' is exactly an edge slot's 8 bytes: the unit leaves the arrow its
+  // byte where the arrow is drawn, and keeps it where none is (aplite has no
+  // arrow; no bearing, no arrow).
+  const both = { windSlotDisplay: 'both', windSlotUnit: true, windSlotDirection: true };
+  const payload = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 20, 0], WIND_DIR_TREND: [270] };
+  const drawn = slotBytesFor('wind', payload, both);
+  assert.equal(Buffer.from(drawn.slice(0, drawn.length - 1)).toString('utf8'), '12/30');
+  assert.equal(tailByte(drawn), SENTINEL_BASE + 4, 'the arrow takes the freed byte');
+  assertPlainText(slotBytesFor('wind', payload, both,
+    { platform: 'aplite', color: false, health: false }), '12/30kph', 'aplite draws no arrow');
+  assertPlainText(slotBytesFor('wind', { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 20, 0] },
+    both), '12/30kph', 'no bearing, no arrow');
+});
+
 // --- Phone battery ---------------------------------------------------------
 // The one status item with nothing to do with the weather fetch: the phone bakes
 // its OWN charge into the slot's text, and picks the icon id per bake so charging

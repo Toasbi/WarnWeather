@@ -13,8 +13,9 @@
 // '6.2k', sleep '7h12'). Which item a slot holds is the catalog's own resolution
 // (status-line-catalog.js resolveSelection — defaults and availability included), and
 // which bars exist is on-demand.js barExists, the rule the Status bars tab gates its
-// cards by. The watch draws an icon beside most items; the preview shows the page's copy
-// of it where one exists (status-slot-icons.js), else a short dim label.
+// cards by, and only bars a view of the layout seats. The watch draws an icon beside
+// most items; the preview shows the page's copy of it where one exists
+// (status-slot-icons.js).
 /* global PConf, VIEW_CYCLE */
 (function () {
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
@@ -26,6 +27,7 @@
     var esc = NODE ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
     var previewInk = (NODE ? require('./preview-svg.js') : window.PreviewSvg).previewInk;
     var slotText = NODE ? require('../slot-text.js') : window.SlotText;
+    var utf8 = NODE ? require('../utf8.js') : window.Utf8;
     var dateFormat = NODE ? require('../date-format.js') : window.DateFormat;
     var VC = NODE ? require('../view-cycle.js') : VIEW_CYCLE;
 
@@ -55,10 +57,6 @@
         gust: {kph: [20, 45], mph: [12, 28], knots: [11, 24]}
     };
 
-    // A short label for a kind whose glyph the page has no copy of — kept for the
-    // kinds the old preview named, so a bare number still says what it is.
-    var LABEL = {uv: 'UV', aqi: 'AQI', pollen: 'Pollen'};
-
     /**
      * A day-max kind's sample numbers as wire-units' dayMaxShown would pick them for
      * the kind's Value selection: the reading (Now, the default), the day's peak alone
@@ -81,18 +79,33 @@
 
     /**
      * Whether a wind or gust slot draws its direction arrow (status-lines.js
-     * directionSentinel): its Show wind direction toggle is on, the slot shows the
-     * current reading (Day max alone prints the peak, not the wind the arrow
-     * describes), and the watch has the arrow at all (not aplite).
+     * arrowSector, the sample having a bearing): its Show wind direction toggle is on,
+     * the slot shows the current reading (Day max alone prints the peak, not the wind
+     * the arrow describes), and the watch has the arrow at all (not aplite). The slot's
+     * unit leaves the arrow its byte; packLine then appends it only into a free one.
      * @param {string} code The slot's item.
      * @param {Object} S Settings.
      * @param {Object} [env] Platform env.
      * @returns {boolean}
      */
-    function arrowShown(code, S, env) {
+    function arrowDue(code, S, env) {
         if (code !== 'wind' && code !== 'gust') { return false; }
         if (env && env.platform === 'aplite') { return false; }
         return Boolean(S[code + 'SlotDirection']) && dayMaxShown(code, S).now !== null;
+    }
+
+    /**
+     * Whether the slot shows the arrow after its text: due, and a byte still free
+     * (status-lines.js packLine: a text that fills the cap leaves it out).
+     * @param {string} code The slot's item.
+     * @param {string} text The slot's text (sample).
+     * @param {Object} S Settings.
+     * @param {Object} [env] Platform env.
+     * @param {number} cap The slot's byte cap.
+     * @returns {boolean}
+     */
+    function arrowShown(code, text, S, env, cap) {
+        return arrowDue(code, S, env) && utf8.byteLength(text) < cap;
     }
 
     /**
@@ -109,10 +122,10 @@
 
     /**
      * The first view of the cycle that seats a bar — the Watch bar any view whose top
-     * strip shows, a status bar a view with it in a status row — else the Default view.
+     * strip shows, a status bar a view with it in a status row.
      * @param {Array<?Object>} views The view cycle (preview-layout.js presetContents).
      * @param {{src: ?number}} b A BARS entry.
-     * @returns {?Object} The ViewSpec, or null for an empty cycle.
+     * @returns {?Object} The ViewSpec, or null when no view shows the bar.
      */
     function barView(views, b) {
         for (var i = 0; i < views.length; i++) {
@@ -122,7 +135,7 @@
                 return v;
             }
         }
-        return views[0] || null;
+        return null;
     }
 
     /**
@@ -139,9 +152,8 @@
     function dateText(S, env, now, fullDate) {
         var aplite = Boolean(env && env.platform === 'aplite');
         if (!fullDate) { return dateFormat.formatMonthYear(now, aplite ? 'auto' : S.dateSlotMonthFormat); }
-        // clay-payload.js effectiveHolidayCountry: an absent key reads as the US.
-        var country = Object.prototype.hasOwnProperty.call(S, 'holidayCountry') ? S.holidayCountry : 'US';
-        return dateFormat.formatFullDate(now, aplite ? 'auto' : S.dateSlotFullFormat, country === 'US');
+        return dateFormat.formatFullDate(now, aplite ? 'auto' : S.dateSlotFullFormat,
+            dateFormat.dateMonthFirst(S));
     }
 
     /**
@@ -166,7 +178,7 @@
         case 'gust':
         case 'uv':
         case 'aqi':
-            return slotText.dayMaxText(code, dayMaxShown(code, S), null, S, cap);
+            return slotText.dayMaxText(code, dayMaxShown(code, S), null, S, cap, arrowDue(code, S, c.env));
         case 'pollen': return '1';
         case 'pressure':
             return slotText.withUnit('1013', slotText.unitEnabled(S, 'pressureSlotUnit') ? 'hPa' : '', cap);
@@ -188,20 +200,24 @@
         case 'batteryPct': return '80%';
         case 'phoneBattery': return '72%';
         case 'phoneBatteryPlain': return '72%';
-        default: return '';   // 'empty', and the battery item, which is its glyph alone
+        // The battery item is its glyph alone, except on aplite, whose lean twin prints
+        // the charge (status_row_aplite.c format_live_value).
+        case 'battery': return c.env && c.env.platform === 'aplite' ? '80%' : '';
+        default: return '';
         }
     }
 
     /**
-     * The glyph (or dim label) a slot's text follows: the page's copy of the watch's
-     * icon where status-slot-icons.js has one, else LABEL's short name, else nothing.
+     * The glyph a slot's text follows: the page's copy of the watch's icon where
+     * status-slot-icons.js has one. Aplite's battery slot is text, no glyph.
      * @param {string} code The slot's item.
+     * @param {Object} [env] Platform env.
      * @returns {string} HTML ('' for none).
      */
-    function lead(code) {
+    function lead(code, env) {
+        if (code === 'battery' && env && env.platform === 'aplite') { return ''; }
         var svg = PConf && PConf.icons && PConf.icons.get ? PConf.icons.get(code) : null;
-        if (svg) { return '<span class="sbp-ico" aria-hidden="true">' + svg + '</span>'; }
-        return LABEL[code] ? '<span class="sbp-k">' + LABEL[code] + '</span>' : '';
+        return svg ? '<span class="sbp-ico" aria-hidden="true">' + svg + '</span>' : '';
     }
 
     /**
@@ -217,13 +233,18 @@
         var now = new Date();
         BARS.forEach(function (b) {
             if ((b.bar === 'radar' || b.bar === 'health') && !onDemand.barExists(st, b.bar, env)) { return; }
-            var fullDate = !calendarShown(barView(views, b));
+            // A bar no view seats is not on the watch (Weather only without health has
+            // no top strip anywhere). An empty cycle (no layout module) keeps every bar.
+            var view = barView(views, b);
+            if (!view && views.length) { return; }
+            var fullDate = !calendarShown(view);
             var cells = POSITIONS.map(function (p) {
                 var key = b.prefix + p[0];
                 var code = catalog.resolveSelection(st[key], st, env, {slotKey: key, position: p[1]});
                 var text = sample(code, st, {cap: p[2], env: env, now: now, fullDate: fullDate, slotKey: key});
-                var arrow = arrowShown(code, st, env) ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
-                var body = code === 'empty' ? '' : lead(code) + esc(text) + arrow;
+                var arrow = arrowShown(code, text, st, env, p[2])
+                    ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
+                var body = code === 'empty' ? '' : lead(code, env) + esc(text) + arrow;
                 return '<span class="sbp-v sbp-' + p[1] + '">' + body + '</span>';
             }).join('');
             rows += '<div class="sbp-row"><span class="sbp-n">' + esc(b.name) + '</span>' + cells + '</div>';
@@ -247,18 +268,17 @@
     // It sits in a pinned frame that carries a preview's padding (shell.html .pin-blk),
     // which the negative margins cancel, as a preview SVG's do (preview-svg.js svgFrame).
     var CSS = '.sbp{background:#000;background:var(--sbp-bg,#000);padding:4px 12px;margin:-12px -16px -14px}'
-        + '.sbp-row{display:grid;grid-template-columns:62px auto minmax(0,1fr) auto;column-gap:8px;'
+        + '.sbp-row{display:grid;grid-template-columns:58px auto minmax(0,1fr) auto;column-gap:6px;'
         + 'align-items:center;'
         + 'padding:7px 0;border-top:1px solid #1C1C1E;border-top-color:var(--sbp-line,#1C1C1E)}'
         + '.sbp-row:first-child{border-top:none}'
-        + '.sbp-n{font:700 10.5px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7C808A;'
+        + '.sbp-n{font:700 10px Inter,sans-serif;letter-spacing:.05em;text-transform:uppercase;color:#7C808A;'
         + 'color:var(--sbp-dim,#7C808A)}'
-        + '.sbp-v{font:700 14px Inter,sans-serif;color:#FFFFFF;color:var(--sbp-fg,#FFFFFF);white-space:nowrap;'
+        + '.sbp-v{font:700 13px Inter,sans-serif;letter-spacing:-.01em;color:#FFFFFF;color:var(--sbp-fg,#FFFFFF);white-space:nowrap;'
         + 'overflow:hidden;text-overflow:ellipsis;min-width:0}'
         + '.sbp-left{text-align:left}.sbp-mid{text-align:center}.sbp-right{text-align:right}'
-        + '.sbp-ico{display:inline-block;width:13px;height:13px;margin-right:3px;vertical-align:-1px}'
+        + '.sbp-ico{display:inline-block;width:12px;height:12px;margin-right:2px;vertical-align:-1px}'
         + '.sbp-ico svg{display:block;width:100%;height:100%}'
-        + '.sbp-k{font-size:10px;margin-right:3px;color:#7C808A;color:var(--sbp-dim,#7C808A)}'
         + '.sbp-arr{margin-left:1px}';
     /**
      * Inject the preview's stylesheet (id 'sbp-style') once; nothing outside a DOM or when
@@ -275,7 +295,7 @@
 
     if (PConf && PConf.blocks) { PConf.blocks.register('statusBarsPreview', statusBarsPreview); }
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = {statusBarsPreview: statusBarsPreview, sample: sample, arrowShown: arrowShown,
-            calendarShown: calendarShown};
+        module.exports = {statusBarsPreview: statusBarsPreview, sample: sample, arrowDue: arrowDue,
+            arrowShown: arrowShown, calendarShown: calendarShown};
     }
 })();

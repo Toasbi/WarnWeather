@@ -1799,7 +1799,9 @@ module.exports = {
                 hint: 'Prints the unit after the value: 12° instead of 12. With Both, '
                     + 'each value gets one, like 12°' + STATUS_PAIR.SEPARATORS[
                         STATUS_PAIR.defaultSeparator('temp')].mid + '10°, when the pair '
-                    + 'fits — a left or right slot has room only for single-digit values.'
+                    + 'fits the slot: always in the middle slot, and in a left or right '
+                    + 'slot only for short pairs like 8°' + STATUS_PAIR.SEPARATORS[
+                        STATUS_PAIR.defaultSeparator('temp')].mid + '6°.'
             })])),
         boldSection('Air pressure (hPa)', 'Pressure', null,
             [unitRow('pressureSlotUnit', '1013hPa', '1013')]),

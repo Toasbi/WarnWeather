@@ -7194,7 +7194,7 @@
                 "messageKey": "tempSlotUnit",
                 "label": "Show unit",
                 "defaultValue": false,
-                "hint": "Prints the unit after the value: 12° instead of 12. With Both, each value gets one, like 12°|10°, when the pair fits — a left or right slot has room only for single-digit values."
+                "hint": "Prints the unit after the value: 12° instead of 12. With Both, each value gets one, like 12°|10°, when the pair fits the slot: always in the middle slot, and in a left or right slot only for short pairs like 8°|6°."
               },
               {
                 "type": "segmented",

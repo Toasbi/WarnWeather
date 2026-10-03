@@ -138,9 +138,12 @@ function phoneBatterySupported() {
  *   this slot's metric that it merged (packLine's mergedAlert, its mark the one a
  *   tomorrow value takes here): the slot shows both values once
  *   (status-pair.js mergeAlert). Absent = none.
+ * @param {Object} [env] Platform environment: a wind or gust slot keeps a byte free
+ *   for the direction arrow only where packLine will draw one (arrowSector).
+ *   Absent = a watch with the arrow (not aplite).
  * @returns {string} display text, '--' when the value is unavailable
  */
-function formatValue(code, payload, settings, slotKey, cap, dayMax, alert) {
+function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) {
   var v;
   if (code === 'countdown') {
     return formatCountdown(settings && slotKey
@@ -180,7 +183,9 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert) {
     if (!shown && merged === null) { return '--'; }
     // The unit gives way to the direction arrow (packLine appends it after the
     // text, only into a free byte): '12/30' + arrow, never '12/30kph' without one.
-    return slotText.dayMaxText(code, shown, merged, settings, cap);
+    // Only to an arrow packLine will draw -- none on aplite or without a bearing.
+    return slotText.dayMaxText(code, shown, merged, settings, cap,
+      arrowSector(code, payload, settings, env || {}, shown) !== 0);
   }
   if (code === 'pressure') {
     v = trendHead(payload.PRESSURE_TREND);
@@ -276,18 +281,33 @@ function textCap(slotIndex) {
  * @returns {number} 0x01..0x10, or 0 when no arrow should be drawn
  */
 function directionSentinel(code, payload, settings, env, text, dayMax) {
-  // Never on aplite: its lean status-row twin has no arrow and would draw the
-  // control byte as a glyph box.
-  if (!settings || !env || env.platform === 'aplite') { return 0; }
-  if (code !== 'wind' && code !== 'gust') { return 0; }
-  var on = code === 'wind' ? settings.windSlotDirection : settings.gustSlotDirection;
-  if (!on) { return 0; }
   // The speed and the bearing fail INDEPENDENTLY -- a provider can report a
   // bearing for an hour whose speed is missing. An arrow beside a dead reading
   // reads as live data next to nothing, so the arrow follows the value: no
   // number, no arrow. (The caller passes the already-formatted text so this
   // check can never disagree with what the slot actually shows.)
   if (text === '--') { return 0; }
+  return arrowSector(code, payload, settings, env, dayMax);
+}
+
+/**
+ * The arrow a wind or gust slot with a reading would draw: its sentinel byte, or 0
+ * when it draws none. directionSentinel's rule without the slot's text, so
+ * formatValue can keep a byte free for exactly the arrows packLine appends.
+ * @param {string} code catalog item code
+ * @param {Object} payload weather payload (pre-transform)
+ * @param {Object} settings Clay settings blob
+ * @param {Object} [env] platform environment; absent = no arrow
+ * @param {?Object} dayMax the slot's day-max pick (wireUnits.dayMaxShown)
+ * @returns {number} 0x01..0x10, or 0
+ */
+function arrowSector(code, payload, settings, env, dayMax) {
+  // Never on aplite: its lean status-row twin has no arrow and would draw the
+  // control byte as a glyph box.
+  if (!settings || !env || env.platform === 'aplite') { return 0; }
+  if (code !== 'wind' && code !== 'gust') { return 0; }
+  var on = code === 'wind' ? settings.windSlotDirection : settings.gustSlotDirection;
+  if (!on) { return 0; }
   // Day max alone prints the peak, not the wind the arrow describes (the current
   // hour's), so it draws none; Both keeps it, its first reading being now's. The
   // pick is the one the text was formatted from, so the two never judge
@@ -408,7 +428,7 @@ function packLine(line, payload, settings, env, alerts) {
       // The cap goes DOWN into formatValue so a per-kind unit can decline to
       // append itself rather than be silently chopped off again by utf8Truncate
       // below (see withUnit). The truncation still guards the value itself.
-      var text = formatValue(code, payload, settings, key, textCap(s), dayMax, alert);
+      var text = formatValue(code, payload, settings, key, textCap(s), dayMax, alert, env);
       // An edge slot's city walks the watch's word ladder before the cap cuts it: the
       // first form that fits ('B. Soden', not 'Bad Sode'), whose words the watch can
       // still shorten from there. A name no form fits whole is cut as before ('New
