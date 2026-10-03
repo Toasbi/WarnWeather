@@ -152,6 +152,18 @@ test('what record writes, verdictOf reads back', () => {
     { state: 'rejected', status: 403 });
 });
 
+test('record over a corrupt stored map starts a fresh map, so the answer is not lost', () => {
+  // An array or a number parses but is no map: writing onto it would stringify back to
+  // '[]' or '5' and drop every answer from then on.
+  ['[]', '5', 'null', '{oops'].forEach((corrupt) => {
+    const { store } = mockStorage();
+    store[KEYS.KEY_RESULTS_KEY] = corrupt;
+    keyResult.record('openweathermap', 'k', 401);
+    assert.deepEqual(keyResult.verdictOf(store[KEYS.KEY_RESULTS_KEY], 'openweathermap', fingerprint('k')),
+      { state: 'rejected', status: 401 }, corrupt);
+  });
+});
+
 // --- the radar transport writes it for a keyed source ----------------------------------------
 
 /**
