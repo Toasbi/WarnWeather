@@ -249,7 +249,7 @@
      * hidden then anyway (keySheet answers no sheet).
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{picker: string, keyed: Object}} args The picker's key and table.
+     * @param {{picker: string}} args The picker whose key-sources.js table is read.
      * @returns {?string} The label, or null.
      */
     function keyRowLabel(S, env, args) {
@@ -262,7 +262,7 @@
      * works", its usage, a refusal's reason — or "No key" (dimmed) while it is missing.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{picker: string, keyed: Object}} args The picker's key and table.
+     * @param {{picker: string}} args The picker whose key-sources.js table is read.
      * @returns {?string} The summary (HTML-safe), or null for a source without a key.
      */
     function keyRowSummary(S, env, args) {

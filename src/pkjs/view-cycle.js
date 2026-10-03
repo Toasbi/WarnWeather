@@ -825,8 +825,8 @@ function resolvePresetKey(state) {
 
 /**
  * The view cycle a watch runs for a settings state: THE one reading, for the Clay payload
- * (clay-payload.js), the Layout preview (settings/preview-layout.js) and the Alert settings
- * card's Default-view note (settings/when-resolvers.js). layoutPreset 'custom' compiles the
+ * (clay-payload.js), the Layout preview (settings/preview-layout.js) and the Alerts tab's
+ * About alerts Default-view note (settings/when-resolvers.js). layoutPreset 'custom' compiles the
  * per-view keys (buildCustomCycle), except on an APLITE watch, which folds custom to the
  * explicit compactCal preset: aplite is frozen-lean, its settings screen never offers
  * Custom, and resolvePresetKey pins the fold so a legacy topViewMode value can't redirect

@@ -751,7 +751,7 @@ var RADAR_KEYS = KEY_SOURCES.radarProvider.sources;
 // split). The radar-only gate also needs a running radar (as "Rainbow (own key)"'s sheet
 // does): with radar off no Tomorrow.io radar call is made and the picker is hidden.
 // The weather sheet's gate is the radar source's sharedSheet condition, and the radar-only
-// sheet's its negation, so the sheet the Radar provider row's Edit button opens while
+// sheet's its negation, so the sheet the key row under the Radar provider opens while
 // Tomorrow.io is both is the one shown, and the other is gated off exactly then.
 var TOMORROWIO_SHARED = RADAR_KEYS.tomorrowio.sharedSheet;
 var TOMORROWIO_WEATHER_WHEN = {key: TOMORROWIO_SHARED.key, eq: TOMORROWIO_SHARED.eq};
