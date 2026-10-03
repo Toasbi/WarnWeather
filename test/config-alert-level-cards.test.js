@@ -1,14 +1,20 @@
 'use strict';
 // test/config-alert-level-cards.test.js — each weather alert's cards on its default
-// levels (schema.js ALERT_LEVEL_CARDS, after the levels slider in the alert<Stem> sheet).
-// The cards write the seed numbers out next to the published levels they sit on, so
-// nothing derives them: this holds every card to its unit's or scale's seed pair
-// (status-thresholds.js seedPair), and its gate to the contract's scaleVariant, so that
-// exactly one card shows for every combination of the pickers.
+// levels (schema.js ALERT_LEVEL_CARDS). They no longer stand as rows of their own: they
+// ride the levels slider's info text in the alert<Stem> sheet, the hint shown under its
+// label (the range row's hintFrom: blocks.js levelInfo, which shows the scale hint and
+// the one card whose showWhen holds). The cards write the seed numbers out next to the published levels
+// they sit on, so nothing derives them: this holds every card to its unit's or scale's
+// seed pair (status-thresholds.js seedPair), and its gate to the contract's
+// scaleVariant, so that exactly one card shows for every combination of the pickers.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const schema = require('../src/pkjs/settings/schema.js');
+require('../src/pkjs/config-ui/lib/schema-walk.js');
+require('../src/pkjs/config-ui/lib/color.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
+require('../src/pkjs/config-ui/lib/engine.js');
+const B = require('../src/pkjs/settings/blocks.js');
+const schema = require('../src/pkjs/settings/schema.js');
 const thresholds = require('../src/pkjs/status-thresholds.js');
 
 const ALERT_STEMS = ['Gust', 'Uv', 'Aqi', 'Pollen', 'Wind'];
@@ -16,16 +22,29 @@ const ALERT_STEMS = ['Gust', 'Uv', 'Aqi', 'Pollen', 'Wind'];
 // a unitless kind's numbers stand alone.
 const UNIT_LABEL = { kph: 'kph', mph: 'mph', kn: 'kn', us: '', eu: '', '': '' };
 
+const allSections = () => schema.tabs.reduce((acc, t) => acc.concat(t.sections), []);
+
 /**
  * @param {string} stem Alert kind key stem.
- * @returns {Object[]} The info-box cards of the kind's alert sheet (not the plain note
- *     under its Shows on grid).
+ * @returns {Object} The levels slider (range row) of the kind's alert sheet.
+ */
+function sliderOf(stem) {
+  const sheet = allSections().find((s) => s.sheetId === 'alert' + stem);
+  assert.ok(sheet, 'alert' + stem + ' exists');
+  const range = sheet.items.find((it) => it.type === 'range' && it.messageKey === 'thresh' + stem + 'Warn');
+  assert.ok(range, 'alert' + stem + ' carries its levels slider');
+  return range;
+}
+
+/**
+ * @param {string} stem Alert kind key stem.
+ * @returns {Object[]} The cards the kind's levels slider shows in its info text.
  */
 function cardsOf(stem) {
-  const sheet = schema.tabs.reduce((acc, t) => acc.concat(t.sections), [])
-    .find((s) => s.sheetId === 'alert' + stem);
-  assert.ok(sheet, 'alert' + stem + ' exists');
-  return sheet.items.filter((it) => it.type === 'staticText' && it.style === 'info');
+  const range = sliderOf(stem);
+  assert.ok(range.hintFrom && range.hintFrom.resolver === 'levelInfo',
+    stem + ': the slider\'s info text is levelInfo');
+  return range.hintFrom.args.cards;
 }
 
 /**
@@ -70,19 +89,32 @@ test('exactly one card shows per alert for every unit and AQI scale, and it stat
       assert.ok(states(text, seed.danger, unit),
         what + ': states danger ' + seed.danger + ' ' + unit + ' in "' + text + '"');
       assert.match(text, /By default/, what + ': speaks of the defaults');
+      // The slider's info text (blocks.js levelInfo) shows that card — after the scale
+      // hint, when the kind has one — and no other.
+      const args = sliderOf(stem).hintFrom.args;
+      const info = B.levelInfo(S, {}, args);
+      assert.ok(info.indexOf(shown[0].text) !== -1, what + ': the info text carries that card');
+      cards.filter((c) => c !== shown[0])
+        .forEach((c) => assert.equal(info.indexOf(c.text), -1, what + ': and no other card'));
+      if (args.hint) { assert.equal(info.indexOf(args.hint), 0, what + ': led by the scale hint'); }
     });
   });
 });
 
-test('one card per unit or scale a kind\'s seed varies by, each an info box after the slider', () => {
+test('one card per unit or scale a kind\'s seed varies by, each riding the slider\'s info text', () => {
   const variants = (stem) => new Set(COMBOS.map((S) => thresholds.scaleVariant(stem, S))).size;
   ALERT_STEMS.forEach((stem) => {
     const cards = cardsOf(stem);
     assert.equal(cards.length, variants(stem), stem);
-    cards.forEach((c) => {
-      assert.equal(c.style, 'info', stem + ': the amber info box');
-      assert.equal(c.joinPrevious, undefined, stem + ': stands off, not joined to the slider');
-    });
+    const range = sliderOf(stem);
+    assert.equal(range.label, 'Warn · danger', stem + ': the slider names its two values');
+    assert.equal(range.joinPrevious, undefined, stem + ': the slider stands off, not joined');
+    assert.equal(range.hintFrom.args.hint, range.hint, stem + ': the info text leads with the slider\'s own hint');
+    // The cards are the slider's info text now, not rows of the sheet: no info box is
+    // left behind to double them.
+    const sheet = allSections().find((s) => s.sheetId === 'alert' + stem);
+    assert.ok(!sheet.items.some((it) => it.type === 'staticText' && it.style === 'info'
+      && cards.some((c) => c.text === it.text)), stem + ': no card stands as its own row');
   });
 });
 
@@ -109,5 +141,8 @@ test('the goal kinds\' levels get no cards', () => {
     const sheet = all.find((s) => s.sheetId === 'thresh' + stem);
     assert.ok(sheet, stem);
     assert.ok(!sheet.items.some((it) => it.type === 'staticText' && it.style === 'info'), stem);
+    const range = sheet.items.find((it) => it.type === 'range');
+    assert.ok(range, stem + ': the goal sheet carries its levels slider');
+    assert.ok(!range.hintFrom || range.hintFrom.resolver !== 'levelInfo', stem + ': its slider carries no cards');
   });
 });
