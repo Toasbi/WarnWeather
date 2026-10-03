@@ -337,67 +337,86 @@ test('weatherOnlyHint promises a health flick only when a Health view exists', (
 // partial settings blob reads the default ticks, so an empty right list unplaces UV.
 const UNPLACED = { statusTopOnDemandRightItems: '' };
 
-test('alertLevelsHint: "Not in any status bar" while unplaced, else the resolved pair and the unit — never the slot highlight', () => {
+test('alertLevelsHint: "Not in any status bar" while unplaced, else the resolved pair, the unit and where it shows — never the slot highlight', () => {
   const hint = PConf.hintResolvers.get('alertLevelsHint');
   assert.equal(typeof hint, 'function', 'hint resolver registered');
   const env = { thresholds: true };
   const uv = { keyStem: 'Uv' };
+  // The default ticks put the metric alerts on the Watch Status Bar's right side, and the
+  // Alerts-tab row says so after the levels.
+  const WHERE = ' · Watch bar, right';
   assert.equal(hint(UNPLACED, env, uv), 'Not in any status bar');
   assert.equal(hint(Object.assign({ threshUvOn: true }, UNPLACED), env, uv), 'Not in any status bar',
     'whatever the highlight says: the row describes the alert');
-  assert.equal(hint({}, env, uv), 'Warn 6 · Danger 8',
+  assert.equal(hint({}, env, uv), 'Warn 6 · Danger 8' + WHERE,
     'the default ticks place UV; a blank pair reads as the kind\'s seed');
   assert.equal(hint({ threshUvWarn: '5', threshUvDanger: '9' }, env, uv),
-    'Warn 5 · Danger 9', 'a stored pair wins');
-  assert.equal(hint({ threshUvOn: true }, env, uv), 'Warn 6 · Danger 8',
+    'Warn 5 · Danger 9' + WHERE, 'a stored pair wins');
+  assert.equal(hint({ threshUvOn: true }, env, uv), 'Warn 6 · Danger 8' + WHERE,
     'the slot\'s Highlight switch lives in the slot sheet and is not the alert\'s state');
   assert.equal(hint({ windUnits: 'mph' }, env, { keyStem: 'Wind' }),
-    'Warn 25 mph · Danger 40 mph',
+    'Warn 25 mph · Danger 40 mph' + WHERE,
     'wind speaks the slider\'s unit, on both numbers');
   // AQI seeds follow the scale: European (Open-Meteo, non-US) 60/80, US 100/150.
   assert.equal(hint({ aqiSource: 'openmeteo', aqiScale: 'european' }, env, { keyStem: 'Aqi' }),
-    'Warn 60 · Danger 80', 'the European AQI seed');
+    'Warn 60 · Danger 80' + WHERE, 'the European AQI seed');
   assert.equal(hint({ aqiSource: 'openmeteo', aqiScale: 'us' }, env, { keyStem: 'Aqi' }),
-    'Warn 100 · Danger 150', 'the US AQI seed');
+    'Warn 100 · Danger 150' + WHERE, 'the US AQI seed');
   // The Days follows only when it is not the default ("Today + tomorrow"), by the
   // label the sheet offers it under (the schema's list, through args).
   const days = [['Today', 'today'], ['Today + tomorrow', 'tomorrow']];
   const uvDays = { keyStem: 'Uv', days };
-  assert.equal(hint({}, env, uvDays), 'Warn 6 · Danger 8', 'the default Days adds nothing');
-  assert.equal(hint({ alertUvDays: 'tomorrow' }, env, uvDays), 'Warn 6 · Danger 8',
+  assert.equal(hint({}, env, uvDays), 'Warn 6 · Danger 8' + WHERE, 'the default Days adds nothing');
+  assert.equal(hint({ alertUvDays: 'tomorrow' }, env, uvDays), 'Warn 6 · Danger 8' + WHERE,
     'nor does it stored');
-  assert.equal(hint({ alertUvDays: 'today' }, env, uvDays), 'Warn 6 · Danger 8 · Today');
-  assert.equal(hint({ alertUvDays: 'bogus' }, env, uvDays), 'Warn 6 · Danger 8',
+  assert.equal(hint({ alertUvDays: 'today' }, env, uvDays), 'Warn 6 · Danger 8 · Today' + WHERE,
+    'a non-default Days follows the levels, the placement comes last');
+  assert.equal(hint({ alertUvDays: 'bogus' }, env, uvDays), 'Warn 6 · Danger 8' + WHERE,
     'an unknown Days reads as the default the phone bakes with');
   assert.equal(hint({ windUnits: 'mph', alertWindDays: 'today' }, env, { keyStem: 'Wind', days }),
-    'Warn 25 mph · Danger 40 mph · Today', 'after the unit');
+    'Warn 25 mph · Danger 40 mph · Today' + WHERE, 'after the unit');
   assert.equal(hint(Object.assign({ alertUvDays: 'today' }, UNPLACED), env, uvDays), 'Not in any status bar',
     'an unplaced alert reads that only');
   assert.equal(hint({ statusForecastOnDemandLeftItems: 'pollen' }, env,
-    { keyStem: 'Pollen' }), 'Warn 2 · Danger 3', 'placed on another bar counts too');
+    { keyStem: 'Pollen' }), 'Warn 2 · Danger 3 · Forecast bar, left', 'placed on another bar counts too');
+  assert.equal(hint({ statusForecastOnDemandLeftItems: 'uv' }, env, uv),
+    'Warn 6 · Danger 8 · Watch bar, right · Forecast bar, left',
+    'every bar edge it sits on, in the page\'s bar order');
+  // A slot dialog's "Alert levels and colors" row (levelsOnly): the levels alone — no
+  // placement, no Days, and no "Not in any status bar" (they drive the slot's highlight).
+  const uvLevels = { keyStem: 'Uv', days, levelsOnly: true };
+  assert.equal(hint({}, env, uvLevels), 'Warn 6 · Danger 8', 'levelsOnly: no placement');
+  assert.equal(hint(Object.assign({ alertUvDays: 'today' }, UNPLACED), env, uvLevels), 'Warn 6 · Danger 8',
+    'levelsOnly: the levels even while unplaced, without the Days');
+  assert.equal(hint({ windUnits: 'mph' }, env, { keyStem: 'Wind', levelsOnly: true }),
+    'Warn 25 mph · Danger 40 mph', 'levelsOnly keeps the unit');
   assert.equal(hint({}, { thresholds: false }, uv), null, 'aplite: no levels to describe');
   assert.equal(hint({}, env, { keyStem: 'Temp' }), null, 'a level-less kind has no hint');
   assert.equal(hint({}, env, { keyStem: 'Steps' }), null, 'a goal kind has no alert');
 });
 
-test('rainAlertHint: the radar first, then the placement, else its window and look by their labels', () => {
+test('rainAlertHint: the radar first, then the placement, else its window, look and where it shows', () => {
   const hint = PConf.hintResolvers.get('rainAlertHint');
   assert.equal(typeof hint, 'function', 'hint resolver registered');
   const args = {
     windows: [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
     looks: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']]
   };
-  assert.equal(hint({}, {}, args), 'Within 60 min · Text', 'unset: the sheet\'s defaults, placed by default');
+  // The default ticks put Rain on the Watch Status Bar's left side.
+  const WHERE = ' · Watch bar, left';
+  assert.equal(hint({}, {}, args), 'Within 60 min · Text' + WHERE, 'unset: the sheet\'s defaults, placed by default');
   assert.equal(hint({ rainCountdownHorizon: '120', rainAlertDisplay: 'minutes' }, {}, args),
-    'Within 2 hours · Icon + minutes');
-  assert.equal(hint({ rainCountdownHorizon: 30, rainAlertDisplay: 'icon' }, {}, args), 'Within 30 min · Icon',
+    'Within 2 hours · Icon + minutes' + WHERE);
+  assert.equal(hint({ rainCountdownHorizon: 30, rainAlertDisplay: 'icon' }, {}, args), 'Within 30 min · Icon' + WHERE,
     'a numeric window reads like its stored string');
   assert.equal(hint({ statusTopOnDemandLeftItems: 'bt' }, {}, args), 'Not in any status bar');
-  assert.equal(hint({ radarMode: 'off' }, {}, args), 'Turn on the rain radar (Radar tab)');
+  assert.equal(hint({ statusTopOnDemandLeftItems: 'bt', statusForecastOnDemandRightItems: 'rain' }, {}, args),
+    'Within 60 min · Text · Forecast bar, right', 'placed on another bar: that bar\'s edge');
+  assert.equal(hint({ radarMode: 'off' }, {}, args), 'Turn on the rain radar (Watchface › Views)');
   assert.equal(hint({ radarMode: 'off', statusTopOnDemandLeftItems: '' }, {}, args),
-    'Turn on the rain radar (Radar tab)', 'the radar comes first: no tick helps while it is off');
+    'Turn on the rain radar (Watchface › Views)', 'the radar comes first: no tick helps while it is off');
   assert.equal(hint({ rainCountdownHorizon: '0', rainAlertDisplay: 'bogus' }, {}, args),
-    'Within 60 min · Text', 'a value outside the lists reads as the default');
+    'Within 60 min · Text' + WHERE, 'a value outside the lists reads as the default');
 });
 
 test('alertLevelBadge: the alert\'s colours while it is placed, no bold B', () => {
@@ -1834,7 +1853,7 @@ test('forecastPreview: a top stripe puts the plot below its band, the temperatur
     'the temperature curve keeps its 12-unit inset below the stripe band (' + striped + ')');
 });
 
-// The radar's sky rows (Radar tab -> Clouds, sun & lightning): the preview draws
+// The radar's sky rows (Graphs › Rain radar -> Clouds, sun & lightning): the preview draws
 // rain_radar_layer.c's band — the cloud and sun rows as stripe cells, the bolts
 // over them — only when the toggle is on and the radar GRAPH is shown.
 test('radarPreview: the sky rows show with the toggle in graph mode, never on aplite', () => {

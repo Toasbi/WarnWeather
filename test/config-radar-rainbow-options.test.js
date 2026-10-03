@@ -1,11 +1,11 @@
-// test/config-radar-rainbow-options.test.js — the Radar tab's picker offers Rainbow twice, one
-// option per radar source: "Rainbow (limited)" ('rainbow', the shared proxy) and "Rainbow (own
-// key)" ('rainbowkey', the user's own key). The blob keeps the shape every release since 1.23.1
-// reads — radarProvider 'rainbow' plus rainbowOwnKey — so no new stored value and no migration:
-// settings/onbuild.js folds the pair into the picker on open and writes it back on Save. Pinned
-// here against the REAL generated page for a fresh install, a 1.23.2 blob (the switch era) and a
-// dev phone that ran every 1.24.0 migration (whose blob holds the same pair), and for the setup
-// wizard's country pick.
+// test/config-radar-rainbow-options.test.js — the Radar provider picker (Graphs tab, Rain radar
+// pane) offers Rainbow twice, one option per radar source: "Rainbow (limited)" ('rainbow', the
+// shared proxy) and "Rainbow (own key)" ('rainbowkey', the user's own key). The blob keeps the
+// shape every release since 1.23.1 reads — radarProvider 'rainbow' plus rainbowOwnKey — so no
+// new stored value and no migration: settings/onbuild.js folds the pair into the picker on open
+// and writes it back on Save. Pinned here against the REAL generated page for a fresh install, a
+// 1.23.2 blob (the switch era) and a dev phone that ran every 1.24.0 migration (whose blob holds
+// the same pair), and for the setup wizard's country pick.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -53,14 +53,24 @@ function trigger(html) {
 }
 
 /**
- * A stored blob booted on the Radar tab.
+ * Open the Graphs tab's Rain radar pane (the Radar provider picker and its key row).
+ * @param {Object} page The page (page-harness).
+ * @returns {void}
+ */
+function openRadarPane(page) {
+  page.clickTab('graphs');
+  page.clickPane('graphs', 'radar');
+}
+
+/**
+ * A stored blob booted on the Graphs tab's Rain radar pane.
  * @param {Object} stored The stored settings.
  * @param {string} [platform] The watch.
  * @returns {Object} The page (page-harness).
  */
 function radarPage(stored, platform) {
   const page = bootGeneratedPage(Object.assign({ provider: 'openmeteo', radarMode: 'graph' }, stored), platform);
-  page.clickTab('radar');
+  openRadarPane(page);
   return page;
 }
 
@@ -88,14 +98,15 @@ test('recommended marker: a country\'s Rainbow pick is "Rainbow (limited)", the 
 
 // --- the page: what it opens on ------------------------------------------------------------
 
-test('a fresh install opens on "Rainbow (limited)": no Edit button, no key rows', () => {
+test('a fresh install opens on "Rainbow (limited)": no key row, no key fields', () => {
   const page = bootGeneratedPage({ provider: 'openmeteo' });
-  page.clickTab('radar');
+  openRadarPane(page);
   const tab = page.scroll.innerHTML;
   assert.deepEqual(trigger(tab), { label: LIMITED, aria: 'Radar provider: ' + LIMITED });
   assert.equal(page.S.radarProvider, 'rainbow');
   assert.equal(page.S.rainbowOwnKey, false);
   assert.doesNotMatch(tab, /data-edit-sheet="radarKeyRainbow"/);
+  assert.doesNotMatch(tab, /API key<\/div>/, 'no key row');
   assert.doesNotMatch(tab, /Needs an API key/);
   assert.doesNotMatch(tab, /Use your own key/, 'the switch is gone as a control');
   assert.doesNotMatch(tab, /data-k="rainbowApiKey"|data-k="rainbowOwnKey"|calls\/month/);
@@ -106,7 +117,9 @@ test('a 1.23.2 (or dev-phone) blob on the own key opens on "Rainbow (own key)"',
   assert.equal(trigger(page.scroll.innerHTML).label, OWN);
   assert.equal(page.S.radarProvider, 'rainbowkey', 'the page holds the source');
   assert.equal(page.S.rainbowOwnKey, false, 'and reads the switch\'s key as false while open');
-  assert.match(page.scroll.innerHTML, /class="thr-btn" data-edit-sheet="radarKeyRainbow"[^>]*><span>Edit<\/span>/);
+  assert.match(page.scroll.innerHTML,
+    /<div class="row nav indent" data-edit-sheet="radarKeyRainbow"[^>]*><div class="lft"><div class="lbl">Rainbow API key<\/div><div class="hint">Key ••••wxyz/,
+    'the own key\'s key row, naming the saved key');
 });
 
 test('the shared radar with a key kept from earlier stays "Rainbow (limited)": a key alone switches nothing', () => {
@@ -157,7 +170,7 @@ test('Save keeps the key of either Rainbow option', async () => {
   assert.equal(saved.rainbowApiKey, 'keep-me', 'limited keeps the key for a later switch back');
 });
 
-test('aplite (no Radar tab, radar forced off) keeps a stored own key through a Save', async () => {
+test('aplite (no Rain radar pane, radar forced off) keeps a stored own key through a Save', async () => {
   const page = bootGeneratedPage({ provider: 'openmeteo', radarProvider: 'rainbow', rainbowOwnKey: true,
     rainbowApiKey: 'k' }, 'aplite');
   const saved = await page.save();

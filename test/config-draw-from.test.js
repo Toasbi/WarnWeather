@@ -1,10 +1,11 @@
 // test/config-draw-from.test.js — the settings page's side of Draw from / Bars from
-// [Bottom | Top] (src/pkjs/draw-from.js): the joined Draw from row under the first
-// Forecast-tab picker that draws an amount metric (rain chance, clouds, wind and gusts
-// together, UV) as a line or marks, never on aplite, a stripe or any other metric; the
-// Bars from rows of the forecast and the radar; every hint; the copy a hanging line made
-// wrong ("Area fill", "Graph top", "at full height"); and the forecast and radar
-// previews, which mirror what the watch draws. Modelled on config-line-show.test.js.
+// [Bottom | Top] (src/pkjs/draw-from.js): the Draw from row in the dialog of the first
+// forecast line (Graphs tab › Forecast › Lines) whose picker draws an amount metric
+// (rain chance, clouds, wind and gusts together, UV) as a line or marks, never on
+// aplite, a stripe or any other metric; the Bars from rows of the forecast and the
+// radar; every hint; the copy a hanging line made wrong ("Area fill", "Graph top", "at
+// full height"); and the forecast and radar previews, which mirror what the watch draws.
+// Modelled on config-line-show.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const schema = require('../src/pkjs/settings/schema.js');
@@ -26,8 +27,16 @@ const KEY_OF = { precip_prob: 'precipLineFrom', cloud: 'cloudLineFrom', wind: 'w
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 const DIORITE = platform.computeEnv({ platform: 'diorite' });
 const APLITE = platform.computeEnv({ platform: 'aplite' });
-const forecastItems = schema.tabs.find((t) => t.id === 'forecast').sections[0].items;
-const radarItems = schema.tabs.find((t) => t.id === 'radar').sections[0].items;
+const graphsTab = schema.tabs.find((t) => t.id === 'graphs');
+// Each forecast line's dialog (schema.js GRAPH_LINES), opened from the Lines card: its
+// picker first, then the rows the old Forecast tab stacked under that picker.
+const LINE_SHEETS = { secondaryLine: 'lineMain', thirdLine: 'lineSecond', fourthLine: 'lineThird',
+  fifthLine: 'lineFourth' };
+const lineSheet = (picker) => graphsTab.sections.find((s) => s.sheetOnly && s.sheetId === LINE_SHEETS[picker]);
+// Every line dialog's rows, in line order: a picker, its own rows, then the next picker.
+const forecastItems = PICKERS.reduce((all, picker) => all.concat(lineSheet(picker).items), []);
+const barItems = graphsTab.sections.find((s) => s.pane === 'forecast' && s.id === 'bars').items;
+const radarItems = graphsTab.sections.find((s) => s.pane === 'radar' && s.id === 'radar').items;
 const fromItems = forecastItems.filter((i) => i.label === 'Draw from');
 
 /**
@@ -42,17 +51,32 @@ function visibleRows(S, env) {
 }
 
 /**
- * A tab's body, through the real engine.
- * @param {string} tab Tab id.
+ * What the page draws for one graph, through the real engine: the Graphs tab's pane
+ * with every card's More options open (Bars from waits there), and for the forecast
+ * also the four line dialogs its Lines card opens (where the Draw from rows live).
+ * @param {string} pane 'forecast' | 'radar'.
  * @param {Object} stored Stored settings.
  * @param {Object} env Platform env.
+ * @param {boolean} [folded] Leave the More options as the page opens them (folded
+ *   unless one of their rows holds a changed value).
  * @returns {string} HTML.
  */
-function body(tab, stored, env) {
+function body(pane, stored, env, folded) {
   const S = E.hydrate(schema, stored, env);
-  return E.renderBody(schema, tab, { S, ENV: env, USERDATA: {}, openColor: null,
+  const cx = { S, ENV: env, USERDATA: {}, openColor: null,
     openSelect: null, openDate: null, openEdit: null, selectQuery: '', collapsed: {},
-    evalCtx: Object.assign({}, S, { env }) });
+    evalCtx: Object.assign({}, S, { env }), schema, activePane: { graphs: pane } };
+  if (!folded) { cx.moreOpen = new Proxy({}, { get: () => true }); }
+  let html = E.renderBody(schema, 'graphs', cx);
+  if (pane === 'radar') {
+    assert.ok(html.indexOf('aria-selected="true" data-pane="graphs:radar"') !== -1, 'premise: the radar pane is shown');
+  }
+  if (pane === 'forecast') {
+    PICKERS.forEach((picker) => {
+      html += E.renderEditModal(schema, Object.assign({}, cx, { openEdit: LINE_SHEETS[picker] }));
+    });
+  }
+  return html;
 }
 
 const count = (html, s) => html.split(s).length - 1;
@@ -60,20 +84,25 @@ const LINE_HINT = 'The higher the value, the further down it reaches.';
 const BOTH_HINT = 'Both reach further down the stronger the wind.';
 const BARS_HINT = 'The more rain, the further down they reach.';
 
-test('sixteen rows: the four keys under each of the four pickers, right after its Line style', () => {
+test('sixteen rows: the four keys in each of the four line dialogs, right after its Line style', () => {
   assert.equal(fromItems.length, 16);
   fromItems.forEach((it) => {
     assert.equal(it.type, 'segmented');
     assert.deepEqual(it.options, [['Bottom', 'bottom'], ['Top', 'top']]);
     assert.equal(it.defaultValue, 'bottom');
-    assert.equal(it.joinPrevious, true, 'joined to its picker\'s group');
+    // The line's own dialog holds only its rows, so none joins the row above any more.
+    assert.equal(it.joinPrevious, undefined, 'a row of its own in the line\'s dialog');
     assert.deepEqual(it.hintFrom, { resolver: 'lineFromHint', args: { key: it.messageKey } });
     assert.equal(it.hintByValue, undefined);
   });
   PICKERS.forEach((picker) => {
-    const at = forecastItems.findIndex((i) => i.messageKey === picker + 'Style');
-    assert.deepEqual(forecastItems.slice(at + 1, at + 5).map((i) => i.messageKey),
+    const items = lineSheet(picker).items;
+    assert.equal(items[0].messageKey, picker, picker + '\'s dialog opens on its picker');
+    const at = items.findIndex((i) => i.messageKey === picker + 'Style');
+    assert.equal(at, 1, picker + ': Line style follows the picker');
+    assert.deepEqual(items.slice(at + 1, at + 5).map((i) => i.messageKey),
       ['precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom'], picker);
+    assert.equal(items.filter((i) => i.label === 'Draw from').length, 4, picker + ': no copy elsewhere');
   });
   // The Main block: Line style, Draw from, Area fill, the scales, Visible values.
   const main = forecastItems.findIndex((i) => i.messageKey === 'secondaryLineStyle');
@@ -213,20 +242,35 @@ test('the row and the wire agree: a stored repeat hides it, the line that hangs 
 });
 
 test('Bars from: one row per chart, while its bars are drawn, never on aplite', () => {
-  const rain = forecastItems.find((i) => i.messageKey === 'rainBarFrom');
+  const rain = barItems.find((i) => i.messageKey === 'rainBarFrom');
   const radar = radarItems.find((i) => i.messageKey === 'radarBarFrom');
   [rain, radar].forEach((it) => {
     assert.equal(it.type, 'segmented');
     assert.equal(it.label, 'Bars from');
     assert.deepEqual(it.options, [['Bottom', 'bottom'], ['Top', 'top']]);
     assert.equal(it.defaultValue, 'bottom');
-    assert.equal(it.joinPrevious, true);
+    // A rarely changed row: it waits under its card's More options, a row of its own.
+    assert.equal(it.more, true, 'under the card\'s More options');
+    assert.equal(it.joinPrevious, undefined);
     assert.deepEqual(it.hintByValue, { top: BARS_HINT }, 'only Top has a hint');
   });
-  // Placement: under Bar color / Radar color.
-  assert.equal(forecastItems[forecastItems.indexOf(rain) - 1].messageKey, 'rainBarColor');
-  assert.equal(radarItems[radarItems.indexOf(radar) - 1].messageKey, 'radarColor');
-  assert.equal(radarItems[radarItems.indexOf(radar) + 1].messageKey, 'radarSky');
+  // Placement: right under Bar color (the Bars & shading card's other More option); the
+  // radar card's only More option, after Radar color.
+  assert.equal(barItems[barItems.indexOf(rain) - 1].messageKey, 'rainBarColor');
+  assert.equal(barItems[barItems.indexOf(rain) - 1].more, true, 'Bar color is a More option too');
+  assert.deepEqual(radarItems.filter((i) => i.more).map((i) => i.messageKey), ['radarBarFrom']);
+  assert.ok(radarItems.indexOf(radar) > radarItems.findIndex((i) => i.messageKey === 'radarColor'));
+  const forecastHtml = body('forecast', { barSource: 'rain' }, BASALT);
+  assert.ok(forecastHtml.indexOf('>Bar color<') < forecastHtml.indexOf('>Bars from<'), 'Bars from follows Bar color');
+  const radarHtml = body('radar', { radarMode: 'graph' }, BASALT);
+  assert.ok(radarHtml.indexOf('>Radar color<') !== -1
+    && radarHtml.indexOf('>Radar color<') < radarHtml.indexOf('>Bars from<'), 'Bars from follows Radar color');
+  // Folded as the page opens on Bottom; a stored Top opens the card's More options, so a
+  // hanging chart's row is never out of sight.
+  assert.equal(count(body('forecast', { barSource: 'rain' }, BASALT, true), '>Bars from<'), 0, 'folded');
+  assert.equal(count(body('forecast', { barSource: 'rain', rainBarFrom: 'top' }, BASALT, true), '>Bars from<'), 1);
+  assert.equal(count(body('radar', { radarMode: 'graph' }, BASALT, true), '>Bars from<'), 0, 'folded');
+  assert.equal(count(body('radar', { radarMode: 'graph', radarBarFrom: 'top' }, BASALT, true), '>Bars from<'), 1);
   const shown = (it, S, env) => showWhen.isVisible(it, Object.assign({ env }, S));
   assert.equal(shown(rain, { barSource: 'rain' }, BASALT), true);
   assert.equal(shown(rain, { barSource: 'off' }, BASALT), false);
@@ -235,7 +279,7 @@ test('Bars from: one row per chart, while its bars are drawn, never on aplite', 
   ['off', 'countdown', 'status'].forEach((mode) => assert.equal(shown(radar, { radarMode: mode }, BASALT), false, mode));
   assert.equal(shown(radar, { radarMode: 'graph' }, BASALT), true);
   assert.equal(shown(radar, { radarMode: 'graph' }, DIORITE), true, 'B&W too');
-  // Through the engine, B&W included (the row joins the bar note there).
+  // Through the engine (every More options open), B&W included.
   [BASALT, DIORITE].forEach((env) => {
     assert.equal(count(body('forecast', { barSource: 'rain' }, env), '>Bars from<'), 1, env.platform);
     assert.equal(count(body('radar', { radarMode: 'graph' }, env), '>Bars from<'), 1, env.platform);
@@ -291,7 +335,7 @@ test('the copy a hanging line made wrong: Area fill, and the Wind graph scale\'s
   const fill = forecastItems.find((i) => i.messageKey === 'secondaryLineFill');
   assert.equal(fill.label, 'Area fill');
   const fillRows = [];
-  schema.tabs.find((t) => t.id === 'forecast').sections.forEach((s) => (s.items || []).forEach((i) => {
+  graphsTab.sections.forEach((s) => (s.items || []).forEach((i) => {
     if (/^gc[A-Za-z]+Fill(Dark|Light)$/.test(i.messageKey || '')) { fillRows.push(i); }
   }));
   assert.equal(fillRows.length, 12, 'six metrics x two polarities');

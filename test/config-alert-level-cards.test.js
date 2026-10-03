@@ -146,3 +146,37 @@ test('the goal kinds\' levels get no cards', () => {
     assert.ok(!range.hintFrom || range.hintFrom.resolver !== 'levelInfo', stem + ': its slider carries no cards');
   });
 });
+
+// Rendered: the card the pickers select reads as the slider's info text, in view under
+// its 'Warn · danger' label as the sheet opens — the way the info box after the slider
+// used to stand in view. Only the page's Hide info text mode (Setup › Misc) folds it
+// behind the slider's '?', like every other row's info text.
+test('the sheet shows the slider\'s card in view under its label; Hide info text folds it behind the \'?\'', () => {
+  const { bootGeneratedPage } = require('./helpers/page-harness.js');
+  const open = (cfg) => {
+    const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, cfg));
+    page.clickTab('alerts');
+    page.openEditSheet('alertWind');
+    return page;
+  };
+  // The default wind unit is kph: exactly that card shows.
+  const kph = cardsOf('Wind').filter((c) => showWhen.isVisible(c, { windUnits: 'kph' }));
+  assert.equal(kph.length, 1, 'one kph card');
+  const hint = '<div class="hint" data-hint-for="threshWindWarn">';
+  const html = open({}).modal.innerHTML;
+  const label = html.indexOf('<div class="lbl">Warn · danger</div>');
+  assert.ok(label !== -1, 'the slider renders, labelled');
+  assert.ok(html.indexOf(hint) > label && html.indexOf(hint) < html.indexOf('data-range="threshWindWarn"'),
+    'its info text sits under the label, above the track');
+  assert.ok(html.indexOf(kph[0].text) > html.indexOf(hint), 'carrying the kph card');
+  assert.equal(html.indexOf('data-info="k:threshWindWarn"'), -1, 'no \'?\' to open first');
+  cardsOf('Wind').filter((c) => c !== kph[0])
+    .forEach((c) => assert.equal(html.indexOf(c.text), -1, 'and no other unit\'s card'));
+
+  const page = open({ hideInfoText: true });
+  assert.ok(page.modal.innerHTML.indexOf('data-info="k:threshWindWarn"') !== -1, 'the slider\'s \'?\'');
+  assert.equal(page.modal.innerHTML.indexOf(kph[0].text), -1, 'the card waits behind it');
+  page.toggleInfo('k:threshWindWarn', 'modal');
+  assert.ok(page.modal.innerHTML.indexOf(hint) !== -1 && page.modal.innerHTML.indexOf(kph[0].text) !== -1,
+    'and shows once the \'?\' is opened');
+});

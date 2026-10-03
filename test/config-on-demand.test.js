@@ -207,8 +207,12 @@ test('each bar ends on one Alerts nav row: the icons on each side, a tap brings 
   assert.equal(barHint(html, 'Watch Status Bar'), TOP_HINT, 'Left + its icons, Right + its icons');
   assert.equal(top.indexOf('data-edit-sheet'), -1, 'no dialog of its own');
   assert.equal(top.indexOf('thr-btn'), -1, 'no Edit button');
-  assert.equal(top.indexOf('info-q'), -1, 'a summary, always shown: no \'?\'');
   assert.equal(top.indexOf('data-hint-for'), -1, 'no key behind its summary');
+  // A nav row's summary is always in view, even with Setup › Misc › Hide info text on: no '?'.
+  const q = watchTab({ hideInfoText: true }).scroll.innerHTML;
+  assert.ok(q.indexOf('class="info-q"') !== -1, 'premise: the \'?\' mode draws its buttons');
+  assert.equal(barRow(q, 'Watch Status Bar').indexOf('info-q'), -1, 'the Alerts row has no \'?\' in that mode');
+  assert.equal(barHint(q, 'Watch Status Bar'), TOP_HINT, 'and keeps its summary in view');
   assert.match(rowOf(html, 'data-select="statusTopRight"'), /^<div class="row slot">/,
     'a row of its own: the slot above no longer joins it');
   assert.equal(barHint(html, 'Forecast Status Bar'), NONE, 'nothing placed: None');
@@ -265,18 +269,6 @@ test('a tap on the Alerts row brings the Alerts tab to the front', () => {
 // --- the Shows on grids -------------------------------------------------------------
 const CAPS = '<span class="chk-caps" aria-hidden="true"><span>Left</span><span>Right</span></span>';
 const NOTE = 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.';
-
-/**
- * The '?' id of the open dialog's Shows on card (its side rules sit behind it).
- * @param {Object} page the page-harness handle
- * @returns {string} the card's data-info id
- */
-function showsOnInfo(page) {
-  const m = /<span class="ttl">Shows on<\/span><button type="button" class="info-q[^"]*" data-info="([^"]*)"/
-    .exec(page.modal.innerHTML);
-  assert.ok(m, 'the Shows on card has a \'?\'');
-  return m[1];
-}
 // A metric alert's note adds the merge into the slot that shows its value.
 const MERGE = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air quality index',
   pollen: 'the pollen index', wind: 'the wind speed' };
@@ -284,16 +276,12 @@ const MERGE = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air qualit
 const TOP_SIDE = { battery: 'right', bt: 'left', qt: 'left', snooze: 'left', rain: 'left', gust: 'right',
   uv: 'right', aqi: 'right', pollen: 'none', wind: 'right' };
 
-test('every item dialog opens on its Shows on card: a row per status bar, a Left and a Right tick, the note behind its \'?\'', () => {
+test('every item dialog opens on its Shows on card: a row per status bar, a Left and a Right tick, then the note', () => {
   const page = alertsTab();
   CODES.forEach((code) => {
     page.openEditSheet(SHEET[code]);
-    const closed = page.modal.innerHTML;
-    assert.equal(closed.indexOf(NOTE), -1, code + ': the side rules wait behind the card\'s \'?\'');
-    assert.equal(closed.indexOf('<div class="dlg-intro">'), -1, code + ': the intro behind the title\'s \'?\'');
-    page.toggleInfo('d:' + SHEET[code], 'modal');
-    page.toggleInfo(showsOnInfo(page), 'modal');
     const sheet = page.modal.innerHTML;
+    assert.equal(sheet.indexOf('info-q'), -1, code + ': no \'?\' by default: the intro and the note are in view');
     const card = sheet.indexOf('<span class="ttl">Shows on</span>');
     assert.ok(sheet.indexOf('<div class="dlg-intro">') !== -1 && card > sheet.indexOf('<div class="dlg-intro">'),
       code + ': the intro, then the Shows on card');
@@ -316,7 +304,7 @@ test('every item dialog opens on its Shows on card: a row per status bar, a Left
       });
       assert.equal(ticked(sheet, bar), bar === 'top' ? TOP_SIDE[code] : 'none', code + ' ' + bar + ': the default');
     });
-    // The note is the card's info text, right above the grid: the merge sentence for a
+    // The note is the card's intro, in view right above the grid: the merge sentence for a
     // metric alert alone.
     assert.ok(sheet.indexOf('<div class="intro">' + NOTE
       + (MERGE[code] ? ' Where the status slot on that side shows ' + MERGE[code] + ', the alert goes into that'
@@ -535,22 +523,22 @@ test('the Alerts tab sits between Status bars and Graphs: About alerts, then the
   assert.deepEqual((page.tabs.innerHTML.match(/data-tab="[^"]*"/g) || []).map((a) => a.slice(10, -1)),
     ['weather', 'watchface', 'watch', 'alerts', 'graphs', 'setup']);
   assert.match(page.tabs.innerHTML, /<button class="tab on" data-tab="alerts">Alerts<\/button>/);
-  let html = page.scroll.innerHTML;
+  const html = page.scroll.innerHTML;
   const about = html.indexOf('<span class="ttl">About alerts</span>');
   assert.ok(about !== -1, 'a titled card');
   assert.equal(cardStarts(html).filter((s) => s < about).length, 1, 'it leads the tab');
   assert.equal(cardStarts(html).length, 3, 'About alerts, System info, Weather alerts');
-  // The owner's text C, its last sentence the owner's of 2026-10-02, behind the card's '?';
-  // the reset a text-link row of the card.
-  assert.equal(html.indexOf(ON_DEMAND_INTRO), -1, 'the intro waits behind the \'?\'');
+  // The owner's text C, its last sentence the owner's of 2026-10-02, in view as the card's
+  // intro; the reset a text-link row of the card, under it.
+  assert.equal(html.indexOf('info-q'), -1, 'no \'?\' by default');
+  const intro = html.indexOf('<span class="ttl">About alerts</span></span></div><div><div class="intro">'
+    + ON_DEMAND_INTRO + '</div>');
+  assert.equal(intro, about, 'the intro opens the About alerts card');
   const system = html.indexOf('<span class="ttl">System info</span>');
   const reset = html.indexOf('<div class="row linkrow"><button type="button" class="txt-link"'
     + ' data-action="resetOnDemand">Reset alert settings to defaults</button></div>');
-  assert.ok(reset > about && reset < system, 'the reset: a link row in About alerts');
+  assert.ok(reset > html.indexOf(ON_DEMAND_INTRO) && reset < system, 'the reset: a link row in About alerts, under the intro');
   assert.ok(html.indexOf('<span class="ttl">Weather alerts</span>') > system, 'System info, then Weather alerts');
-  page.toggleInfo('c:alerts:onDemand/0');
-  html = page.scroll.innerHTML;
-  assert.ok(html.indexOf('<div class="intro">' + ON_DEMAND_INTRO + '</div>') > about, 'the \'?\' shows the intro');
   // Not on the tabs that took General's rows (the page opens on Watchface), nor on Status bars.
   ['watchface', 'setup', 'watch'].forEach((tab) => {
     const other = onTab(tab).scroll.innerHTML;
@@ -604,11 +592,10 @@ test('the Quiet time and Sleep dialogs: their intro, then the Shows on card alon
     ['odSleep', 'snooze', 'Sleep', 'Shows the sleep icon at the edge of a status bar during the Battery saver hours'
       + ' (Watchface › Theme & night).']].forEach(([id, code, title, intro]) => {
     page.openEditSheet(id);
-    assert.ok(page.modal.innerHTML.indexOf('id="esheet-ttl-' + id + '">' + title + '</span>') !== -1, id + ': the title');
-    page.toggleInfo('d:' + id, 'modal');
-    page.toggleInfo(showsOnInfo(page), 'modal');
     const sheet = page.modal.innerHTML;
-    assert.ok(sheet.indexOf('<div class="dlg-intro">' + intro + '</div>') !== -1, id + ': the intro');
+    assert.ok(sheet.indexOf('id="esheet-ttl-' + id + '">' + title + '</span>') !== -1, id + ': the title');
+    assert.ok(sheet.indexOf('<div class="ssel-list esheet"><div class="dlg-intro">' + intro + '</div><div class="card">')
+      !== -1, id + ': the intro in view, then the card');
     assert.equal(cardStarts(sheet).length, 1, id + ': one card');
     assert.equal(sheet.split('<div class="row').length - 1, 1 + PAGE_BARS.length, id + ': the grid\'s rows alone');
     assert.equal(sheet.indexOf('more-row'), -1, id + ': nothing behind More options');
@@ -943,9 +930,9 @@ test('the Rain dialog holds the one rain window; picking Rain alert only in View
   assert.equal(page.S.statusTopOnDemandLeftItems, 'bt,rain', 'Rain on the Watch Status Bar\'s left');
   page.clickTab('alerts');
   page.openEditSheet('alertRain');
-  assert.match(rowOf(page.modal.innerHTML, 'data-info="k:rainCountdownHorizon"'),
-    /^<div class="row"><div class="lft"><div class="lbl">Time (?:<span class="nw">)?window<button/,
-    'the Rain dialog\'s Time window');
+  assert.match(rowOf(page.modal.innerHTML, 'data-k="rainCountdownHorizon"'),
+    /^<div class="row wrap"><div class="lbl">Time window<\/div><div class="rgt">[\s\S]*<div class="hint">Rain due further out/,
+    'the Rain dialog\'s Time window, its hint in view');
   assert.equal((page.modal.innerHTML.match(/data-k="rainCountdownHorizon" data-v=/g) || []).length,
     3, 'its three windows');
 });

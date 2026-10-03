@@ -1,8 +1,8 @@
 // test/config-key-status.test.js — the key status of a keyed weather provider (OpenWeatherMap,
-// Tomorrow.io, Yandex Weather; settings/key-status.js): the summary line under the Weather
-// provider row ("Key ••••1234 · ✓ works"), the "Add key" button and amber note while the key
-// is missing, the dot on the tab and the Save dialog while it is missing or known to be
-// rejected. The states come from the Test button's last result for that exact key and from
+// Tomorrow.io, Yandex Weather; settings/key-status.js): the key row under the Weather
+// provider row (Setup › Weather data: "<Name> API key", its summary "Key ••••1234 · ✓ works"
+// or a dimmed "No key"), the amber note while the key is missing, the dot on the tab and the
+// Save dialog while it is missing or known to be rejected. The states come from the Test button's last result for that exact key and from
 // the phone's records of the last weather update (userData.lastFetchSuccess /
 // userData.authBackoff, each stamped with the key's fingerprint). Module first, then the
 // resolvers, then the REAL generated page (page-harness).
@@ -20,10 +20,12 @@ const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 const PC = global.PConf;
-const general = schema.tabs.find((t) => t.id === 'general');
-const card = general.sections.find((s) => s.title === 'Provider settings');
+const setup = schema.tabs.find((t) => t.id === 'setup');
+const card = setup.sections.find((s) => s.id === 'weatherData');
 const providerRow = card.items.find((i) => i.messageKey === 'provider');
 const noteItem = card.items[card.items.indexOf(providerRow) + 1];
+// The nav row under the note that opens the picked provider's key sheet.
+const keyRowItem = card.items[card.items.indexOf(providerRow) + 2];
 const ARGS = providerRow.attentionFrom.args;
 const KEYED = ARGS.keyed;
 const OWM_KEY = 'owm-secret-0123abcd';
@@ -67,15 +69,28 @@ test('key fingerprint: FNV-1a of the trimmed key as 8 hex digits, \'\' for no ke
 
 // --- the table on the row ----------------------------------------------------------------
 
-test('the Weather provider row reads ONE table for every key-status resolver', () => {
+test('the Weather provider row and its key row read ONE table for every key-status resolver', () => {
   assert.deepEqual(Object.keys(KEYED).sort(), ['openweathermap', 'tomorrowio', 'yandex']);
-  assert.equal(providerRow.editBadgeFrom.resolver, 'keyBadge');
   assert.equal(providerRow.attentionFrom.resolver, 'keyAttention');
+  // The picker no longer opens the key sheet itself: the key row under it does.
+  assert.equal(providerRow.editSheetFrom, undefined, 'no Edit / "Add key" button on the picker');
+  assert.equal(providerRow.editBadgeFrom, undefined);
   assert.equal(ARGS.picker, 'provider');
   assert.equal(ARGS.outcome, 'the watch gets no forecast');
+  // The key row: a nav row whose sheet, label and summary all come from the same table.
+  assert.equal(keyRowItem.type, 'sheet');
+  assert.equal(keyRowItem.indent, true, 'indented under the picker');
+  assert.equal(keyRowItem.editSheetFrom.resolver, 'keySheet');
+  assert.equal(keyRowItem.labelFrom.resolver, 'keyRowLabel');
+  assert.equal(keyRowItem.hintFrom.resolver, 'keyRowSummary');
+  [keyRowItem.editSheetFrom, keyRowItem.labelFrom, keyRowItem.hintFrom].forEach((from) => {
+    assert.equal(from.args.keyed, KEYED, from.resolver + ': the picker\'s table');
+    assert.equal(from.args.messageKey, 'provider', from.resolver);
+    assert.equal(from.args.picker, 'provider', from.resolver);
+  });
   // The sheet titles are the table's names; the Test flag follows the sheet's key field.
   Object.keys(KEYED).forEach((p) => {
-    const sheet = general.sections.find((s) => s.sheetOnly && s.sheetId === KEYED[p].sheetId);
+    const sheet = setup.sections.find((s) => s.sheetOnly && s.sheetId === KEYED[p].sheetId);
     assert.equal(sheet.title, KEYED[p].name, p);
     assert.equal(sheet.items[0].messageKey, KEYED[p].keyField, p);
     assert.equal(Boolean(sheet.items[0].suffixAction), KEYED[p].test, p + ': test flag = a Test button');
@@ -189,15 +204,30 @@ test('Tomorrow.io adds the calls a day the settings come to', () => {
 
 // --- the resolvers -------------------------------------------------------------------------
 
-test('keyBadge: "Add key" (the plain grey button) while the key is missing, "Edit" otherwise', () => {
-  const fn = PC.badgeResolvers.get('keyBadge');
-  const args = argsOf(providerRow.editBadgeFrom);
-  assert.deepEqual(fn({ provider: 'openweathermap', owmApiKey: ' ' }, {}, args),
-    { label: 'Add key', ariaNote: 'no API key', dots: [] });
-  assert.deepEqual(fn({ provider: 'openweathermap', owmApiKey: OWM_KEY }, {}, args),
-    { label: 'Edit', ariaNote: '', dots: [] });
+test('the key row: the picked provider\'s sheet and "<Name> API key"; a dimmed "No key" while it is missing, else the summary line', () => {
+  const sheet = PC.sheetResolvers.get('keySheet');
+  const label = PC.hintResolvers.get('keyRowLabel');
+  const summary = PC.hintResolvers.get('keyRowSummary');
+  const args = (from, S) => argsOf(from, S.provider);
+  const owm = (k) => ({ provider: 'openweathermap', owmApiKey: k });
+  assert.equal(sheet(owm(' '), {}, args(keyRowItem.editSheetFrom, owm(' '))), 'providerKeyOwm');
+  assert.equal(label(owm(' '), {}, args(keyRowItem.labelFrom, owm(' '))), 'OpenWeatherMap API key');
+  assert.equal(summary(owm(' '), {}, args(keyRowItem.hintFrom, owm(' '))), '<span class="hint-faint">No key</span>',
+    'missing: the dimmed "No key"');
+  assert.equal(summary(owm(OWM_KEY), {}, args(keyRowItem.hintFrom, owm(OWM_KEY))), 'Key ••••abcd · not tested yet');
   keyStatus.recordTest('owmApiKey', OWM_KEY, 401);
-  assert.equal(fn({ provider: 'openweathermap', owmApiKey: OWM_KEY }, {}, args).ariaNote, 'API key rejected');
+  assert.equal(summary(owm(OWM_KEY), {}, args(keyRowItem.hintFrom, owm(OWM_KEY))),
+    'Key ••••abcd · ✗ rejected: not valid for One Call 3.0 (401)', 'the summary line, a refusal and all');
+  const ydx = { provider: 'yandex' };
+  assert.equal(sheet(ydx, {}, args(keyRowItem.editSheetFrom, ydx)), 'providerKeyYandex');
+  assert.equal(label(ydx, {}, args(keyRowItem.labelFrom, ydx)), 'Yandex Weather API key');
+  // A provider without a key: no sheet, so the row is not drawn (the page tests below).
+  ['dwd', 'wunderground', 'metno', 'openmeteo'].forEach((p) => {
+    const S = { provider: p };
+    assert.equal(sheet(S, {}, args(keyRowItem.editSheetFrom, S)), null, p + ': no sheet');
+    assert.equal(label(S, {}, args(keyRowItem.labelFrom, S)), null, p + ': the row\'s own label');
+    assert.equal(summary(S, {}, args(keyRowItem.hintFrom, S)), null, p + ': no summary');
+  });
 });
 
 test('keyMissingNote: the note while the picked provider\'s key is missing, \'\' otherwise', () => {
@@ -259,19 +289,48 @@ function tapInModal(page, sel, attr, value) {
   page.modal.dispatch('click', { target: t });
 }
 
-test('page: a missing key — "Add key" as the plain grey button, the amber note, a dot on the General tab', () => {
+/**
+ * The Weather data card's key row (the nav row that opens a provider's key sheet).
+ * @param {Object} page bootGeneratedPage handle, on the Setup tab.
+ * @param {string} sheetId The key sheet it opens.
+ * @returns {?string} Its markup, or null when it is not drawn.
+ */
+function keyRowHtml(page, sheetId) {
+  const m = page.scroll.innerHTML.match(new RegExp('<div class="row nav[^"]*" data-edit-sheet="' + sheetId +
+    '"[^>]*><div class="lft">[\\s\\S]*?</div></div>'));
+  return m ? m[0] : null;
+}
+
+test('page: a missing key — the key row reads "No key", the amber note, a dot on the Setup tab', () => {
   const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: '' }, 'basalt', { dialog: true });
+  page.clickTab('setup');
   const body = page.scroll.innerHTML;
-  assert.match(body, /<button type="button" class="thr-btn" data-edit-sheet="providerKeyOwm"[^>]*><span>Add key<\/span>/);
+  assert.equal(keyRowHtml(page, 'providerKeyOwm'), '<div class="row nav indent" data-edit-sheet="providerKeyOwm" ' +
+    'role="button" tabindex="0" style="cursor:pointer"><div class="lft"><div class="lbl">OpenWeatherMap API key</div>' +
+    '<div class="hint"><span class="hint-faint">No key</span></div></div>');
+  assert.doesNotMatch(body, /class="thr-btn" data-edit-sheet="providerKeyOwm"/, 'no Edit / "Add key" button any more');
   assert.match(body, /<div class="static join info"><div class="info-box">Needs an API key\. Without one, the watch gets no forecast\.<\/div><\/div>/);
-  assert.match(tabButton(page, 'general'), /aria-label="General \(OpenWeatherMap has no API key\)">General<span class="tab-dot" aria-hidden="true"><\/span>/);
-  ['weather', 'forecast', 'radar', 'alerts', 'watch', 'layout', 'more'].forEach((id) =>
+  assert.ok(body.indexOf('data-select="provider"') < body.indexOf('Needs an API key') &&
+    body.indexOf('Needs an API key') < body.indexOf('data-edit-sheet="providerKeyOwm"'),
+    'the picker, its note, then the key row');
+  assert.match(tabButton(page, 'setup'), /aria-label="Setup \(OpenWeatherMap has no API key\)">Setup<span class="tab-dot" aria-hidden="true"><\/span>/);
+  ['weather', 'watchface', 'watch', 'alerts', 'graphs'].forEach((id) =>
     assert.doesNotMatch(tabButton(page, id), /tab-dot/, id));
+});
+
+test('page: a keyless provider draws no key row and no note', () => {
+  const page = bootGeneratedPage({ provider: 'dwd' }, 'basalt', { dialog: true });
+  page.clickTab('setup');
+  assert.ok(page.scroll.innerHTML.indexOf('data-select="provider"') !== -1, 'the picker is there');
+  assert.doesNotMatch(page.scroll.innerHTML, /data-edit-sheet="providerKey/, 'no key row');
+  assert.doesNotMatch(page.scroll.innerHTML, /API key<\/div>/);
+  assert.doesNotMatch(page.scroll.innerHTML, /Needs an API key/);
+  assert.doesNotMatch(page.tabs.innerHTML, /tab-dot/);
 });
 
 test('page: Save with a missing key opens the dialog; "Add key" opens the key sheet and saves nothing', async () => {
   const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: '' }, 'basalt', { dialog: true });
-  page.clickTab('more');
+  page.clickTab('graphs');
   page.tapSave();
   const dlg = page.modal.innerHTML;
   assert.ok(page.modal.open, 'the native dialog opened');
@@ -282,27 +341,30 @@ test('page: Save with a missing key opens the dialog; "Add key" opens the key sh
   assert.ok(dlg.indexOf('data-confirm="action"') < dlg.indexOf('data-confirm="save"'), 'the fix comes first');
   tapInModal(page, '[data-confirm]', 'data-confirm', 'action');
   assert.ok(page.modal.innerHTML.indexOf('data-k="owmApiKey"') !== -1, 'the OpenWeatherMap key sheet is open');
-  assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="providerKeyOwm"') !== -1, 'over the General tab');
-  assert.match(tabButton(page, 'general'), /class="tab on"/);
+  assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="providerKeyOwm"') !== -1, 'over the Setup tab');
+  assert.match(tabButton(page, 'setup'), /class="tab on"/);
   assert.equal(await page.saved(), null, 'nothing was saved');
 });
 
 test('page: the dialog\'s fix on another tab scrolls the tab bar until that tab shows', () => {
   const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: '' }, 'basalt', { dialog: true });
-  // A 360 px bar with 18 px side padding: General rests at 18-90, More sits far right.
-  const X = { general: [18, 90], more: [600, 660] };
+  // A 360 px bar with 18 px side padding: Weather rests at 18-90, Graphs sits past the
+  // right edge and Setup, the last tab, further right still.
+  const X = { weather: [18, 90], graphs: [520, 590], setup: [600, 660] };
   const onTab = () => (/class="tab on" data-tab="(\w+)"/.exec(page.tabs.innerHTML) || [])[1];
   page.tabs.getBoundingClientRect = () => ({ left: 0, right: 360 });
   page.tabs.querySelector = (sel) => (sel !== '.tab.on' ? null : { getBoundingClientRect: () => ({
     left: (X[onTab()] || [0, 0])[0] - page.tabs.scrollLeft, right: (X[onTab()] || [0, 0])[1] - page.tabs.scrollLeft }) });
   page.window.getComputedStyle = () => ({ paddingLeft: '18px' });
   page.tabs.scrollLeft = 0;
-  page.clickTab('more');
-  assert.equal(page.tabs.scrollLeft, 660 - (360 - 18), 'the tap on More scrolled it into view');
+  page.clickTab('weather');
+  assert.equal(page.tabs.scrollLeft, 0, 'a tab already in view leaves the bar where it is');
+  page.clickTab('graphs');
+  assert.equal(page.tabs.scrollLeft, 590 - (360 - 18), 'the tap on Graphs scrolled it into view');
   page.tapSave();
   tapInModal(page, '[data-confirm]', 'data-confirm', 'action');
-  assert.match(tabButton(page, 'general'), /class="tab on"/, 'the fix opened on General');
-  assert.equal(page.tabs.scrollLeft, 0, 'and the bar scrolled back until General shows (confirmChoice\'s reveal)');
+  assert.match(tabButton(page, 'setup'), /class="tab on"/, 'the fix opened on Setup');
+  assert.equal(page.tabs.scrollLeft, 660 - (360 - 18), 'and the bar scrolled on until Setup shows (confirmChoice\'s reveal)');
 });
 
 test('page: "Save anyway" saves as Save does; the close button saves nothing', async () => {
@@ -326,10 +388,12 @@ test('page: a key the last update was refused with — the summary, the dot and 
     authBackoff: JSON.stringify({ code: 'owm_status_401', since: 1, provider: 'openweathermap', keyHash: fingerprint(OWM_KEY) })
   };
   const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: OWM_KEY }, 'basalt', { userData, dialog: true });
-  assert.ok(page.scroll.innerHTML.indexOf('<br>Key ••••abcd · ✗ rejected: not valid for One Call 3.0 (401)</div>') !== -1);
-  assert.match(page.scroll.innerHTML, /class="thr-btn" data-edit-sheet="providerKeyOwm"[^>]*\(API key rejected\)[^>]*><span>Edit<\/span>/);
+  page.clickTab('setup');
+  assert.match(keyRowHtml(page, 'providerKeyOwm'),
+    /<div class="lbl">OpenWeatherMap API key<\/div><div class="hint">Key ••••abcd · ✗ rejected: not valid for One Call 3\.0 \(401\)<\/div>/,
+    'the key row\'s summary says it was refused');
   assert.doesNotMatch(page.scroll.innerHTML, /Needs an API key/, 'the key is there: no missing-key note');
-  assert.match(tabButton(page, 'general'), /General \(OpenWeatherMap rejected the API key\)/);
+  assert.match(tabButton(page, 'setup'), /Setup \(OpenWeatherMap rejected the API key\)/);
   page.tapSave();
   assert.ok(page.modal.innerHTML.indexOf('OpenWeatherMap rejected the API key') !== -1);
   assert.ok(page.modal.innerHTML.indexOf('Until it accepts a key, the watch gets no forecast.') !== -1);
@@ -339,9 +403,9 @@ test('page: a key the last update was refused with — the summary, the dot and 
   const inp = { value: 'fresh-key-9999', getAttribute: (n) => (n === 'data-k' ? 'owmApiKey' : null),
     closest: (sel) => (sel === 'input[type=text]' ? inp : null) };
   ['focusin', 'input', 'change'].forEach((type) => page.modal.dispatch(type, { target: inp }));
-  tapInModal(page, '[data-select-close]');
-  assert.ok(page.scroll.innerHTML.indexOf('Key ••••9999 · not tested yet') !== -1);
-  assert.doesNotMatch(tabButton(page, 'general'), /tab-dot/, 'no dot for an untested key');
+  page.doneDialog();   // Done keeps the typed key (× would put the refused one back)
+  assert.match(keyRowHtml(page, 'providerKeyOwm'), /<div class="hint">Key ••••9999 · not tested yet<\/div>/);
+  assert.doesNotMatch(tabButton(page, 'setup'), /tab-dot/, 'no dot for an untested key');
   page.tapSave();
   const blob = await page.saved();
   assert.equal(blob.owmApiKey, 'fresh-key-9999', 'an untested key never stops Save');
@@ -352,7 +416,9 @@ test('page: a key the last update went through with reads "✓ works"', () => {
     name: 'Tomorrow.io', keyHash: fingerprint(TIO_KEY) }) };
   const page = bootGeneratedPage({ provider: 'tomorrowio', tomorrowioApiKey: TIO_KEY, radarProvider: 'rainbow',
     fetchIntervalMin: '15', sleepNightEnabled: false }, 'basalt', { userData });
-  assert.ok(page.scroll.innerHTML.indexOf('Key ••••wxyz · ✓ works · ~96 of 500 calls a day') !== -1);
+  page.clickTab('setup');
+  assert.match(keyRowHtml(page, 'providerKeyTomorrowio'),
+    /<div class="lbl">Tomorrow\.io API key<\/div><div class="hint">Key ••••wxyz · ✓ works · ~96 of 500 calls a day<\/div>/);
   assert.doesNotMatch(page.tabs.innerHTML, /tab-dot/);
 });
 
@@ -368,15 +434,16 @@ test('page: the Test button\'s answer reaches the summary once the sheet closes'
   const result = { textContent: '' };
   page.window.document.querySelector = (sel) => (sel === 'input[data-k="owmApiKey"]' ? field
     : sel === '[data-action-result="owmApiKey"]' ? result : null);
+  page.clickTab('setup');
   page.openEditSheet('providerKeyOwm');
   tapInModal(page, '[data-action]', 'data-action', 'testOwmKey');
   assert.equal(xhrs.length, 1, 'the Test request went out');
   xhrs[0].status = 401;
   xhrs[0].onload();
   assert.match(result.textContent, /Rejected \(401\)/, 'the verdict line as before');
-  tapInModal(page, '[data-select-close]');
-  assert.ok(page.scroll.innerHTML.indexOf('Key ••••abcd · ✗ rejected: not valid for One Call 3.0 (401)') !== -1);
-  assert.match(tabButton(page, 'general'), /tab-dot/);
+  page.doneDialog();
+  assert.match(keyRowHtml(page, 'providerKeyOwm'), /<div class="hint">Key ••••abcd · ✗ rejected: not valid for One Call 3\.0 \(401\)<\/div>/);
+  assert.match(tabButton(page, 'setup'), /tab-dot/);
 });
 
 test('page: no <dialog> support — Save saves at once, missing key and all', async () => {
@@ -396,9 +463,11 @@ test('page: a keyless provider, or a working key, saves without a dialog', async
 
 test('page: aplite shows the same key status (the provider row is on every watch)', () => {
   const page = bootGeneratedPage({ provider: 'yandex', yandexApiKey: '' }, 'aplite', { dialog: true });
-  assert.ok(page.scroll.innerHTML.indexOf('<span>Add key</span>') !== -1);
+  page.clickTab('setup');
+  assert.match(keyRowHtml(page, 'providerKeyYandex'),
+    /<div class="lbl">Yandex Weather API key<\/div><div class="hint"><span class="hint-faint">No key<\/span><\/div>/);
   assert.ok(page.scroll.innerHTML.indexOf('Needs an API key. Without one, the watch gets no forecast.') !== -1);
-  assert.match(tabButton(page, 'general'), /tab-dot/);
+  assert.match(tabButton(page, 'setup'), /tab-dot/);
   page.tapSave();
   assert.ok(page.modal.innerHTML.indexOf('Yandex Weather has no API key') !== -1);
 });

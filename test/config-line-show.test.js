@@ -1,10 +1,10 @@
 // test/config-line-show.test.js — the settings page's side of a graph line's Visible
 // values [All | Alert] (src/pkjs/line-alert.js, internally "Show"; the row's label was
-// "Show" until the owner renamed it, 2026-10-01): the joined row under whichever Forecast-tab
-// picker shows wind speed, wind gusts or the UV index (under no other metric, and not
-// on aplite, which has no Alert settings), each value's hint (the UV line's Alert hint
-// closing on its scale), the style and Wind graph scale hints while it is on Alert, and the
-// forecast preview.
+// "Show" until the owner renamed it, 2026-10-01): the row in the dialog of whichever
+// forecast line (Graphs tab › Forecast › Lines) shows wind speed, wind gusts or the UV
+// index (under no other metric, and not on aplite, which has no Alert settings), each
+// value's hint (the UV line's Alert hint closing on its scale), the style and Wind graph
+// scale hints while it is on Alert, and the forecast preview.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const schema = require('../src/pkjs/settings/schema.js');
@@ -21,7 +21,14 @@ const METRICS = ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feel
 const SHOW_KEYS = { wind: 'windLineShow', gust: 'gustLineShow', uv: 'uvLineShow' };
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 const APLITE = platform.computeEnv({ platform: 'aplite' });
-const forecastItems = schema.tabs.find((t) => t.id === 'forecast').sections[0].items;
+const graphsTab = schema.tabs.find((t) => t.id === 'graphs');
+// Each forecast line's dialog (schema.js GRAPH_LINES), opened from the Lines card: its
+// picker first, then the rows the old Forecast tab stacked under that picker.
+const LINE_SHEETS = { secondaryLine: 'lineMain', thirdLine: 'lineSecond', fourthLine: 'lineThird',
+  fifthLine: 'lineFourth' };
+const lineSheet = (picker) => graphsTab.sections.find((s) => s.sheetOnly && s.sheetId === LINE_SHEETS[picker]);
+// Every line dialog's rows, in line order: a picker, its own rows, then the next picker.
+const forecastItems = PICKERS.reduce((all, picker) => all.concat(lineSheet(picker).items), []);
 const showItems = forecastItems.filter((i) => i.label === 'Visible values');
 
 /**
@@ -36,16 +43,23 @@ function visibleRows(S, env) {
 }
 
 /**
- * The Forecast tab's body, through the real engine.
+ * What the page draws for the forecast lines, through the real engine: the Graphs tab's
+ * Forecast pane (every More options open) and the four line dialogs its Lines card opens.
  * @param {Object} stored Stored settings.
  * @param {Object} env Platform env.
  * @returns {string} HTML.
  */
 function body(stored, env) {
   const S = E.hydrate(schema, stored, env);
-  return E.renderBody(schema, 'forecast', { S, ENV: env, USERDATA: {}, openColor: null,
+  const cx = { S, ENV: env, USERDATA: {}, openColor: null,
     openSelect: null, openDate: null, openEdit: null, selectQuery: '', collapsed: {},
-    evalCtx: Object.assign({}, S, { env }) });
+    evalCtx: Object.assign({}, S, { env }), schema, activePane: { graphs: 'forecast' },
+    moreOpen: new Proxy({}, { get: () => true }) };
+  let html = E.renderBody(schema, 'graphs', cx);
+  PICKERS.forEach((picker) => {
+    html += E.renderEditModal(schema, Object.assign({}, cx, { openEdit: LINE_SHEETS[picker] }));
+  });
+  return html;
 }
 
 const count = (html, s) => html.split(s).length - 1;
@@ -57,20 +71,20 @@ test('twelve rows: one per metric with Alert levels, under each of the four pick
     assert.equal(it.type, 'segmented');
     assert.deepEqual(it.options, [['All', 'all'], ['Alert', 'alert']]);
     assert.equal(it.defaultValue, 'all');
-    assert.equal(it.joinPrevious, true, 'joined to its picker\'s group');
+    // The line's own dialog holds only its rows, so none joins the row above any more.
+    assert.equal(it.joinPrevious, undefined, 'a row of its own in the line\'s dialog');
     assert.deepEqual(it.hintFrom, { resolver: 'lineShowHint', args: { metric: it.hintFrom.args.metric } });
     assert.equal(it.hintByValue, undefined, 'each value\'s hint comes from the resolver');
     assert.equal(it.messageKey, SHOW_KEYS[it.hintFrom.args.metric]);
   });
 });
 
-test('each row sits in its own picker\'s group, after the picker and before the next one', () => {
-  PICKERS.forEach((picker, p) => {
-    const at = forecastItems.findIndex((i) => i.messageKey === picker);
-    const next = p + 1 < PICKERS.length
-      ? forecastItems.findIndex((i) => i.messageKey === PICKERS[p + 1])
-      : forecastItems.findIndex((i) => i.messageKey === 'barSource');
-    const rows = forecastItems.slice(at + 1, next).filter((i) => i.label === 'Visible values');
+test('each row sits in its own picker\'s dialog, after the picker', () => {
+  PICKERS.forEach((picker) => {
+    const items = lineSheet(picker).items;
+    assert.equal(items[0].messageKey, picker, picker + '\'s dialog opens on its picker');
+    assert.equal(items.filter((i) => PICKERS.indexOf(i.messageKey) !== -1).length, 1, picker + ': one picker');
+    const rows = items.slice(1).filter((i) => i.label === 'Visible values');
     assert.deepEqual(rows.map((r) => r.messageKey),
       ['windLineShow', 'gustLineShow', 'uvLineShow'], picker);
   });
@@ -109,7 +123,7 @@ test('every watch with Alert settings shows the row; aplite, without them, never
     S[picker] = metric;
     assert.deepEqual(visibleRows(S, APLITE), [], 'aplite ' + picker + '=' + metric);
   }));
-  // Through the engine: no Show row on aplite's Forecast tab, Alert stored or not.
+  // Through the engine: no Show row in aplite's line dialogs, Alert stored or not.
   assert.equal(count(body({ secondaryLine: 'wind', thirdLine: 'uv', windLineShow: 'alert' }, APLITE),
     '>Visible values<'), 0);
   assert.equal(count(body({ secondaryLine: 'wind', thirdLine: 'uv' }, BASALT), '>Visible values<'), 2);
@@ -211,7 +225,7 @@ test('only the UV line\'s Alert hint gets a scale: All, wind and gusts unchanged
     'Draws UV only where it reaches your warn level (UV 6), so the line is only visible when you actually care.');
 });
 
-test('the Forecast tab\'s UV row shows its Alert scale, through the real engine', () => {
+test('the UV line\'s Visible values row shows its Alert scale, through the real engine', () => {
   const scale = 'The graph then runs from UV 6 at the bottom to UV 11 at the top.';
   const alert = body({ secondaryLine: 'precip_prob', thirdLine: 'uv', uvLineShow: 'alert' }, BASALT);
   assert.equal(count(alert, 'so the line is only visible when you actually care. ' + scale), 1);
@@ -225,7 +239,7 @@ test('the Forecast tab\'s UV row shows its Alert scale, through the real engine'
     'All: no scale');
 });
 
-test('the Forecast tab renders the row, the picked value lit and its hint, through the real engine', () => {
+test('the line dialog renders the row, the picked value lit and its hint, through the real engine', () => {
   const allHint = 'The line is always visible, calm hours included.';
   const alertHint = 'Draws gusts only where they reach your warn level (65 kph)';
   const all = body({ secondaryLine: 'precip_prob', thirdLine: 'gust' }, BASALT);
@@ -361,7 +375,7 @@ test('the Wind graph scale hint with wind and gusts both drawn', () => {
   assert.equal(B.windScaleHint(S({ windLineShow: 'alert', gustLineShow: 'alert' }), APLITE), null);
 });
 
-test('the Forecast tab\'s Wind graph scale row shows an Alert line\'s top, through the real engine', () => {
+test('the line dialog\'s Wind graph scale row shows an Alert line\'s top, through the real engine', () => {
   const low = body({ secondaryLine: 'gust', windScale: 'low', gustLineShow: 'alert' }, BASALT);
   assert.equal(count(low, 'Tops out at 90 kph, your gust danger level, while Visible values is set to Alert.'), 1, 'Low');
   assert.equal(count(low, 'Tops out at 30 kph'), 0, 'Low: not the scale\'s own top');

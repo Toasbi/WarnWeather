@@ -346,15 +346,20 @@ test('renderBody: joinPrevious look-ahead skips hidden items (mutually-exclusive
 // group used to run straight into it. So the look-ahead reports a LOOSE join for a
 // sub-header: the row above drops its own divider (no two stacked 1px lines) and
 // keeps its normal padding.
+// Sub-headers draw in-card only inside a groupCard-merged body now (a standalone section
+// splits into one card per sub-header — see the next test), so the rule is pinned there.
+const SUBHDR_ITEMS = [
+  { type: 'toggle', messageKey: 'lead', label: 'Lead', defaultValue: false },
+  { type: 'subheader', text: 'Grp', toggleKey: 'grpOn' },
+  { type: 'toggle', messageKey: 'grpOn', label: 'Grp', defaultValue: false },
+  { type: 'toggle', messageKey: 'dep', label: 'Dep', defaultValue: false, showWhen: { key: 'grpOn', eq: true } },
+  { type: 'subheader', text: 'Next' },
+  { type: 'toggle', messageKey: 'tail', label: 'Tail', defaultValue: false }
+];
+
 test('renderBody: a subheader item makes the row above it divider-less, loosely', () => {
-  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
-    { type: 'toggle', messageKey: 'lead', label: 'Lead', defaultValue: false },
-    { type: 'subheader', text: 'Grp', toggleKey: 'grpOn' },
-    { type: 'toggle', messageKey: 'grpOn', label: 'Grp', defaultValue: false },
-    { type: 'toggle', messageKey: 'dep', label: 'Dep', defaultValue: false, showWhen: { key: 'grpOn', eq: true } },
-    { type: 'subheader', text: 'Next' },
-    { type: 'toggle', messageKey: 'tail', label: 'Tail', defaultValue: false }
-  ] } ] } ] };
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
+    { groupCard: 'g', title: 'S', items: SUBHDR_ITEMS } ] } ] };
   const render = (over) => {
     const S = Object.assign(E.hydrate(SCH, {}), over || {});
     return E.renderBody(SCH, 't', { S: S, ENV: { color: true }, USERDATA: {}, openColor: null,
@@ -380,6 +385,32 @@ test('renderBody: a subheader item makes the row above it divider-less, loosely'
   assert.equal((on.match(/\bnb\b/g) || []).length, 0, 'a sub-header never pulls a row up tight');
 });
 
+// Outside a groupCard a sub-header no longer draws in-card: it opens a card of its own,
+// titled by its text, with its hosted switch in that card's header. The row above it is
+// then the last row of ITS card and keeps its plain class, and a card whose rows are all
+// gated off survives only because its header hosts the master switch.
+test('renderBody: in a standalone section each subheader opens a card of its own', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
+    { title: 'S', items: SUBHDR_ITEMS } ] } ] };
+  const render = (over) => {
+    const S = Object.assign(E.hydrate(SCH, {}), over || {});
+    return E.renderBody(SCH, 't', { S: S, ENV: { color: true }, USERDATA: {}, openColor: null,
+      collapsed: {}, evalCtx: Object.assign({}, S, { env: { color: true } }) });
+  };
+  const off = render({ grpOn: false });
+  assert.equal((off.match(/<div class="card[ "]/g) || []).length, 3, 'S, Grp and Next are three cards');
+  assert.equal(off.indexOf('subhdr'), -1, 'no in-card sub-header');
+  assert.match(off, /<div class="cardHdr"><span class="ttlwrap"><span class="ttl">Grp<\/span><\/span><button class="sw" data-k="grpOn" data-toggle="1" aria-label="Grp">/,
+    'the hosted switch rides the Grp card header, even with every row of that card hidden');
+  assert.match(off, /<span class="ttl">S<\/span>[\s\S]*?data-k="lead"[\s\S]*?<span class="ttl">Grp<\/span>[\s\S]*?<span class="ttl">Next<\/span>[\s\S]*?data-k="tail"/,
+    'the cards keep the item order');
+  assert.match(off, /<div class="row"><div class="lft"><div class="lbl">Lead<\/div>/,
+    'the last row of a card keeps its plain class');
+  const on = render({ grpOn: true, dep: true });
+  assert.match(on, /<span class="ttl">Grp<\/span>[\s\S]*?<div class="row"><div class="lft"><div class="lbl">Dep<\/div>[\s\S]*?<span class="ttl">Next<\/span>/,
+    'the dependent row renders inside the Grp card, divider and all');
+});
+
 test('renderBody: groupCard merges consecutive sections into one card with in-card sub-headers', () => {
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
     { groupCard: 'g', intro: 'Lead-in text.', items: [] },
@@ -391,8 +422,9 @@ test('renderBody: groupCard merges consecutive sections into one card with in-ca
   const cx = { S: E.hydrate(SCH, {}), ENV: { color: true }, USERDATA: {}, openColor: null, collapsed: {},
     evalCtx: Object.assign({}, E.hydrate(SCH, {}), { env: { color: true } }) };
   const html = E.renderBody(SCH, 't', cx);
-  // Two card containers: the merged group + the standalone section.
-  assert.equal((html.match(/<div class="card/g) || []).length, 2, 'the four grouped sections collapse to one card beside the standalone');
+  // Two card containers: the merged group + the standalone section. (`card[ "]`, so a
+  // standalone card's <div class="cardHdr"> header is not counted as a card of its own.)
+  assert.equal((html.match(/<div class="card[ "]/g) || []).length, 2, 'the four grouped sections collapse to one card beside the standalone');
   assert.ok(html.indexOf('Lead-in text.') >= 0, 'group intro rides the top of the merged card');
   // Grouped titles render as in-card sub-headers, never as their own card headers.
   assert.ok(html.indexOf('class="subhdr">First Bar</div>') >= 0, 'first bar title is a sub-header');
@@ -697,8 +729,11 @@ test('renderBody: button and sheet rows share ONE chevron, coloured by class not
   const html = E.renderBody(SCH, 't', cx);
   assert.ok(html.indexOf('data-action="doIt"') >= 0, 'the button row dispatches its action');
   assert.ok(html.indexOf('data-edit-sheet="more"') >= 0, 'the sheet row opens its sheet');
-  assert.equal(html.split('<span class="chev">&#9656;</span>').length - 1, 2,
+  // Both are nav rows now: the whole row is the way in, the › chevron on its right.
+  assert.equal(html.split('<span class="chev">&#8250;</span>').length - 1, 2,
     'both rows emit the same class-based chevron');
+  assert.equal((html.match(/<div class="row nav" data-(action|edit-sheet)="/g) || []).length, 2,
+    'both render as the same nav-row shape');
   // A literal here is the light-theme bug: --link is #FF6A52 dark / #D93A24 light, and
   // only the .chev rule in shell.html follows the flip.
   assert.equal(html.indexOf('#FF6A52'), -1, 'no hard-coded link colour survives');
@@ -1512,14 +1547,20 @@ test('boot(): closing an unrelated modal leaves a tab-body palette expanded', ()
 });
 
 test('boot(): closing an edit sheet collapses a palette expanded inside it', () => {
-  const r = bootWithCapturedListeners(COLOR_SURFACE_SCHEMA, {});
-  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'more' });
-  assert.ok(r.modal.innerHTML.indexOf('data-color="accent"') >= 0, 'the sheet renders its color row');
-  clickMatching(r.modalListeners.click, '[data-color]', { 'data-color': 'accent' });
-  assert.ok(r.modal.innerHTML.indexOf('class="palette"') >= 0, 'the palette expands inside the sheet');
-  clickMatching(r.modalListeners.click, '[data-select-close]', {});
-  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'more' });
-  assert.equal(r.modal.innerHTML.indexOf('class="palette"'), -1, 'the sheet reopens collapsed');
+  // An edit sheet is a full-screen dialog: its ways out are × ([data-dlg-close], discards)
+  // and Done ([data-dlg-done], keeps). Either one takes the expanded palette with it.
+  ['[data-dlg-close]', '[data-dlg-done]'].forEach((way) => {
+    const r = bootWithCapturedListeners(COLOR_SURFACE_SCHEMA, {});
+    clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'more' });
+    assert.ok(r.modal.innerHTML.indexOf('data-color="accent"') >= 0, 'the sheet renders its color row');
+    assert.ok(r.modal.innerHTML.indexOf(way.slice(1, -1)) >= 0, way + ' is in the dialog header');
+    clickMatching(r.modalListeners.click, '[data-color]', { 'data-color': 'accent' });
+    assert.ok(r.modal.innerHTML.indexOf('class="palette"') >= 0, 'the palette expands inside the sheet');
+    clickMatching(r.modalListeners.click, way, {});
+    assert.equal(r.modal.innerHTML, '', way + ': the sheet closes');
+    clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'more' });
+    assert.equal(r.modal.innerHTML.indexOf('class="palette"'), -1, way + ': the sheet reopens collapsed');
+  });
 });
 
 // A toggle row carrying the pencil (the shape the retired Alerts card's "show this
@@ -1743,29 +1784,46 @@ test('boot(): Escape collapses an open list (or palette) first and closes the sh
   });
 });
 
-test('boot(): the close button, the backdrop and a swipe-down close the sheet; it reopens collapsed', () => {
+// Edit sheets are full-screen dialogs now: × and Done are the ways out (Escape too, see
+// above). The bottom-sheet dismissals are gone by design — a full-screen dialog has no
+// backdrop to tap, and a downward drag is no way to throw away (or keep) its changes.
+test('boot(): × and Done close the sheet, list and all; it reopens collapsed', () => {
   const closes = {
-    'the close button': (r) => clickMatching(r.modalListeners.click, '[data-select-close]', {}),
+    'the × button': (r) => clickMatching(r.modalListeners.click, '[data-dlg-close]', {}),
+    'the Done button': (r) => clickMatching(r.modalListeners.click, '[data-dlg-done]', {})
+  };
+  Object.keys(closes).forEach((how) => {
+    const r = bootWithFormatSheet();
+    clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+    assert.ok(r.modal.innerHTML.indexOf('isel-list') >= 0, how + ': the list is open');
+    closes[how](r);
+    assert.equal(r.modal.innerHTML, '', how + ': the sheet itself closes, list and all');
+    assert.equal(r.getValue('sep'), 'slash', how + ': nothing picked');
+    assert.equal(r.focusCounts['edit-sheet'].fmt || 0, 1, how + ': focus returns to the row that opened it');
+    clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'fmt' });
+    assert.ok(r.modal.innerHTML.indexOf('data-select="sep"') >= 0, how + ': the sheet reopens');
+    assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, how + ': collapsed');
+  });
+});
+
+test('boot(): the backdrop and a swipe-down leave a full-screen sheet open', () => {
+  const stays = {
     'the backdrop': (r) => r.modalListeners.click({ target: r.modal }),
-    // Drag the sheet (scrolled to its top) down past the 90 px threshold, starting
-    // outside the list.
+    // The drag that dismissed the old bottom sheet: scrolled to its top, starting outside
+    // the list, down past the 90 px threshold.
     'a swipe-down': (r) => {
       r.modalListeners.touchstart({ target: { closest: () => null }, touches: [{ clientY: 100 }] });
       r.modalListeners.touchmove({ touches: [{ clientY: 250 }], preventDefault: () => {} });
       r.modalListeners.touchend({ changedTouches: [{ clientY: 250 }] });
     }
   };
-  Object.keys(closes).forEach((how) => {
-    // The swipe arms only on the sheet's .ssel-list at scrollTop 0; the other closes ignore it.
+  Object.keys(stays).forEach((how) => {
     const list = { scrollTop: 0, querySelector: () => null };
     const r = bootWithFormatSheet({ modalQuery: (sel) => (sel === '.ssel-list' ? list : null) });
-    clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
-    closes[how](r);
-    assert.equal(r.modal.innerHTML, '', how + ': the sheet itself closes, list and all');
-    assert.equal(r.getValue('sep'), 'slash', how + ': nothing picked');
-    clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'fmt' });
-    assert.ok(r.modal.innerHTML.indexOf('data-select="sep"') >= 0, how + ': the sheet reopens');
-    assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, how + ': collapsed');
+    stays[how](r);
+    assert.ok(r.modal.innerHTML.indexOf('data-k="flag"') >= 0, how + ': the sheet stays open');
+    assert.ok(!r.modal.style.transform, how + ': the dialog never followed a finger');
+    assert.equal(r.focusCounts['edit-sheet'].fmt || 0, 0, how + ': nothing closed');
   });
 });
 

@@ -1,18 +1,18 @@
 // test/config-slot-pair.test.js — the rows that shape a two-value status slot.
 //
 // Temperature and UV each print a PAIR in their "Both" mode (12|10, 3/7). How the pair
-// reads is chosen on that kind's Edit sheet, right under its Value selection: which
-// value leads, a separator dropdown (four presets labelled by example, plus Custom), a
-// custom-separator field the Custom pick reveals, and whether spaces flank the
-// separator (one toggle over every preset). UV adds the mark on a max that has rolled
-// on to tomorrow's peak, which shows in Day max as well as Both. The phone bakes all of
-// it into the slot text (status-pair.js); the watch is not involved.
+// reads is chosen in that kind's slot dialog, under the card's More options (they are
+// rarely changed): which value leads, a separator dropdown (four presets labelled by
+// example, plus Custom), a custom-separator field the Custom pick reveals, and whether
+// spaces flank the separator (one toggle over every preset). UV adds the mark on a max
+// that has rolled on to tomorrow's peak, which shows in Day max as well as Both. The
+// phone bakes all of it into the slot text (status-pair.js); the watch is not involved.
 //
 // The contract pinned here: the keys and stored values the formatter reads, each kind's
 // default separator (the bar for temperature, the slash for UV) printing exactly what
 // an absent key prints, the rows showing only in the modes where they mean something,
-// tight joins onto the Value selection row (the shape every row group revealed by a
-// control has), and the reset covering them.
+// tight joins inside the pair group (the shape every row group revealed by a control
+// has), and the reset covering them.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
@@ -76,12 +76,24 @@ test('each two-value sheet leads with its Value selection group: order, then the
       [k.prefix + 'SlotOrder', k.prefix + 'SlotSeparator', k.prefix + 'SlotSeparatorCustom',
         k.prefix + 'SlotSeparatorSpaced'],
       k.sheetId + ': order, separator, custom separator, spacing — in that order');
+    // The Value selection is a main row; the rows shaping its pair wait under the card's
+    // More options (they render after the card's main rows while it is open).
+    assert.equal(item(k.prefix + 'SlotDisplay').more, undefined, k.prefix + ': Value selection in view');
+    ['SlotOrder', 'SlotSeparator', 'SlotSeparatorCustom', 'SlotSeparatorSpaced'].forEach((suffix) => {
+      assert.strictEqual(item(k.prefix + suffix).more, true, k.prefix + suffix + ' rides More options');
+    });
   });
-  // UV's tomorrow mark closes its Value selection group; the highlight group follows:
-  // the switch, the pointer to the Alerts tab (UV's levels live in its alert sheet), then Bold.
-  const uvKeys = sheet('threshUv').items.map(it => it.messageKey || it.type);
+  assert.strictEqual(item('uvSlotNextDayMark').more, true, 'the tomorrow mark rides More options too');
+  // UV's tomorrow mark closes its Value selection group, and Bold closes the slot's own
+  // rows; the highlight group follows as a card of its own: its 'Alert highlighting'
+  // header, the switch, then the row leading to UV's alert sheet on the Alerts tab (its
+  // levels and colours live there).
+  const uvItems = sheet('threshUv').items;
+  const uvKeys = uvItems.map(it => it.messageKey || it.type);
   assert.deepEqual(uvKeys.slice(uvKeys.indexOf('uvSlotSeparatorSpaced') + 1),
-    ['uvSlotNextDayMark', 'threshUvOn', 'staticText', 'threshUvBoldMode']);
+    ['uvSlotNextDayMark', 'threshUvBoldMode', 'subheader', 'threshUvOn', 'sheet']);
+  assert.equal(uvItems[uvKeys.indexOf('subheader')].text, 'Alert highlighting');
+  assert.equal(uvItems[uvKeys.indexOf('sheet')].sheetId, 'alertUv');
   // Temp's degree toggle answers to every mode, so it stays after the pair group, and
   // Bold closes the sheet.
   const tempKeys = sheet('threshTemp').items.map(it => it.messageKey);
@@ -288,11 +300,12 @@ test('fresh defaults ride the save blob and print exactly what an absent key pri
 });
 
 // --- rendered spacing ---------------------------------------------------------
-// Rows a control reveals join it TIGHT (joinPrevious: true), the Nighttime card's
-// Theme switching shape: the control's row drops its divider and tightens (.nb) onto
-// the first revealed row, and the group's last row keeps its divider to whatever
-// follows. Hidden rows are skipped by the join look-ahead, so a mode that reveals
-// nothing leaves the sheet exactly as it was.
+// Rows a control reveals join TIGHT (joinPrevious: true): each row drops its divider and
+// tightens (.nb) onto the next revealed row, and the group's last row keeps its divider
+// to whatever follows. Hidden rows are skipped by the join look-ahead, so a mode that
+// reveals nothing leaves the sheet exactly as it was. The pair rows ride the card's
+// More options, so they render after the card's main rows: the group joins inside
+// itself, but never reaches back across the More fold onto the Value selection or Bold.
 
 /**
  * Class attribute of the row holding a control (data-k for pills/toggles/text,
@@ -316,23 +329,38 @@ const JOINED = /\bnbl?\b/;
  * Boot the real page with a stored state and open a sheet.
  * @param {Object} cfg Stored settings.
  * @param {string} sheetId Sheet to open.
+ * @param {boolean} [more] Also open the sheet's More options (where the pair rows sit).
  * @returns {Object} The harness, sheet open.
  */
-function openSheet(cfg, sheetId) {
+function openSheet(cfg, sheetId, more) {
   const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, cfg));
   page.clickTab('watch');
   page.openEditSheet(sheetId);
+  if (more) { page.openAllMore('modal'); }
   return page;
 }
 
-test('Temp in Both: the pair rows join the display row tight; the degree keeps its divider', () => {
-  const html = openSheet({ tempSlotDisplay: 'both' }, 'threshTemp').modal.innerHTML;
-  assert.match(rowClass(html, 'tempSlotDisplay'), TIGHT, 'display row tightens onto Order');
+test('Temp in Both: the pair rows join each other tight; the degree keeps its divider', () => {
+  // As the dialog opens on default pair rows, they wait folded under More options.
+  const folded = openSheet({ tempSlotDisplay: 'both' }, 'threshTemp').modal.innerHTML;
+  assert.equal(folded.indexOf('data-k="tempSlotOrder"'), -1, 'the pair rows start folded');
+  assert.ok(folded.indexOf('<span class="more-n">3 more</span>') !== -1,
+    'the More row counts Order, Separator and Spacing');
+  assert.doesNotMatch(rowClass(folded, 'tempSlotDisplay'), JOINED,
+    'nothing it reveals is in view, so the display row keeps its divider');
+
+  const html = openSheet({ tempSlotDisplay: 'both' }, 'threshTemp', true).modal.innerHTML;
+  assert.doesNotMatch(rowClass(html, 'tempSlotDisplay'), JOINED,
+    'the display row keeps its divider: the pair rows sit after the main rows, under More options');
+  assert.ok(html.indexOf('data-k="threshTempBoldMode"') < html.indexOf('data-k="tempSlotOrder"'),
+    'the pair group follows the main rows');
+  assert.doesNotMatch(rowClass(html, 'threshTempBoldMode'), JOINED,
+    'Bold keeps its divider: the group opens below it, never joined back across the fold');
   assert.match(rowClass(html, 'tempSlotOrder'), TIGHT, 'Order tightens onto Separator');
   assert.match(rowClass(html, 'tempSlotSeparator'), TIGHT, 'Separator tightens onto Spacing');
-  assert.doesNotMatch(rowClass(html, 'tempSlotSeparatorSpaced'), /\bnbl?\b/,
-    'Spacing keeps its divider: the degree row is not part of the pair group');
-  assert.doesNotMatch(rowClass(html, 'tempSlotUnit'), /\bnbl?\b/,
+  assert.doesNotMatch(rowClass(html, 'tempSlotSeparatorSpaced'), JOINED,
+    'Spacing keeps its divider: it closes the pair group');
+  assert.doesNotMatch(rowClass(html, 'tempSlotUnit'), JOINED,
     'the degree keeps its divider above Bold, its own row');
   assert.equal(html.indexOf('data-k="tempSlotSeparatorCustom"'), -1, 'no custom field on a preset');
 });
@@ -361,30 +389,41 @@ test('Temp outside Both: no pair rows, and the sheet spaces exactly as before', 
   });
 });
 
-test('UV: the mark joins in Day max, the pair rows join in Both, the highlight group follows', () => {
-  const max = openSheet({ uvSlotDisplay: 'max' }, 'threshUv').modal.innerHTML;
+test('UV: the mark shows in Day max, the pair rows join in Both, the highlight group follows', () => {
+  const max = openSheet({ uvSlotDisplay: 'max' }, 'threshUv', true).modal.innerHTML;
   assert.equal(max.indexOf('data-select="uvSlotSeparator"'), -1, 'Day max prints no pair');
-  assert.match(rowClass(max, 'uvSlotDisplay'), TIGHT, 'display row tightens onto the mark');
+  assert.ok(max.indexOf('data-select="uvSlotNextDayMark"') !== -1, 'Day max shows the mark');
+  assert.doesNotMatch(rowClass(max, 'uvSlotDisplay'), JOINED,
+    'the display row keeps its divider: the mark sits under More options, after Bold');
+  assert.doesNotMatch(rowClass(max, 'threshUvBoldMode'), JOINED, 'Bold is not joined onto the mark');
   assert.doesNotMatch(rowClass(max, 'uvSlotNextDayMark'), JOINED,
-    'the group keeps its divider above the (unjoined) Alert highlighting switch');
+    'the mark closes the card with its divider');
 
-  const both = openSheet({ uvSlotDisplay: 'both' }, 'threshUv').modal.innerHTML;
-  ['uvSlotDisplay', 'uvSlotOrder', 'uvSlotSeparator', 'uvSlotSeparatorSpaced'].forEach((key) => {
+  const both = openSheet({ uvSlotDisplay: 'both' }, 'threshUv', true).modal.innerHTML;
+  ['uvSlotOrder', 'uvSlotSeparator', 'uvSlotSeparatorSpaced'].forEach((key) => {
     assert.match(rowClass(both, key), TIGHT, key + ' tightens onto the next row of the group');
   });
-  assert.doesNotMatch(rowClass(both, 'uvSlotNextDayMark'), JOINED);
+  assert.doesNotMatch(rowClass(both, 'uvSlotNextDayMark'), JOINED, 'the mark closes the group');
+  assert.doesNotMatch(rowClass(both, 'threshUvBoldMode'), JOINED,
+    'Bold keeps its divider: the group opens below it');
 
-  const now = openSheet({ uvSlotDisplay: 'current' }, 'threshUv').modal.innerHTML;
+  const now = openSheet({ uvSlotDisplay: 'current' }, 'threshUv', true).modal.innerHTML;
   assert.equal(now.indexOf('data-select="uvSlotNextDayMark"'), -1, 'Now prints no max to mark');
-  assert.doesNotMatch(rowClass(now, 'uvSlotDisplay'), JOINED, 'the highlight group follows directly');
-  // The highlight group: the switch, then the pointer joined tight, then Bold joined loose.
-  assert.match(rowClass(now, 'threshUvOn'), TIGHT, 'the switch tightens onto the info box');
-  assert.ok(now.indexOf('<div class="static join info nbl"><div class="info-box">Alert levels') !== -1,
-    'the info box hugs the switch and drops its divider above Bold (a loose join)');
+  assert.equal(now.indexOf('data-more='), -1, 'nothing left under More options in Now');
+  assert.doesNotMatch(rowClass(now, 'uvSlotDisplay'), JOINED, 'Bold follows directly');
+  // The highlight group is a card of its own after Bold: its header, the switch, then the
+  // row leading to the levels and colours in UV's alert sheet (Alerts tab).
+  const card = now.indexOf('<span class="ttl">Alert highlighting</span>');
+  assert.ok(card > now.indexOf('data-k="threshUvBoldMode"'), 'the Alert highlighting card follows Bold');
+  assert.ok(now.indexOf('data-k="threshUvOn"') > card, 'its switch inside it');
+  assert.ok(/<div class="row nav[^"]*" data-edit-sheet="alertUv"[^>]*><div class="lft"><div class="lbl">Alert levels and colors<\/div>/
+    .test(now.slice(card)), 'then the row into the alert sheet');
+  assert.ok(now.indexOf('data-edit-sheet="alertUv"') > now.indexOf('data-k="threshUvOn"'), 'below the switch');
+  assert.ok(now.indexOf('<span class="nav-note">Alerts</span>') > card, 'naming the tab it lives in');
 });
 
 test('the separator dropdown opens inside the sheet and a Custom pick reveals the field', () => {
-  const page = openSheet({ tempSlotDisplay: 'both' }, 'threshTemp');
+  const page = openSheet({ tempSlotDisplay: 'both' }, 'threshTemp', true);
   /**
    * @param {string} selector The one selector the target answers to.
    * @param {Object} attrs getAttribute table.
