@@ -1961,13 +1961,15 @@ if (typeof require !== 'undefined') {
     PConf.hintResolvers.register('lineSummary', lineSummary);
 
     /**
-     * A forecast line's colour swatch (its nav row, and the colours row in its dialog):
-     * the line colour of its metric in the theme being edited, as the Graph colors
-     * dialog's row would preview it. None for a line that is off, on a B&W watch or
+     * A forecast line's colour swatch. On its nav row: the line colour of its metric in
+     * the theme being edited, one dot. On the colours row in its dialog (args.all), which
+     * opens the same sheet as the metric's Graph colors row: that row's whole preview, one
+     * dot per picker (graphColorSwatch). None for a line that is off, on a B&W watch or
      * theme.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
-     * @param {{lineKey: string}} args The line's picker key.
+     * @param {{lineKey: string, all: (boolean|undefined)}} args The line's picker key;
+     *     whether to preview every colour of the metric's sheet.
      * @returns {?Object} Badge state, or null.
      */
     function lineSwatch(S, env, args) {
@@ -1975,6 +1977,7 @@ if (typeof require !== 'undefined') {
         var metric = st[(args || {}).lineKey];
         if (!lineStyle || !env || !env.color || !metric || metric === 'off') { return null; }
         if (st.theme === 'bw' || st.theme === 'bw-light') { return null; }
+        if (args.all) { return PConf.badgeResolvers.get('graphColorSwatch')(st, env, {scope: metric}); }
         var sfx = lineStyle.renderContextFor(st, {color: true, themePolarity: true}).suffix;
         var color = colorHexOf(st[lineStyle.graphColorKey(metric, 'Line', sfx)],
             lineStyle.graphColorDefault(metric, 'Line', sfx, st));

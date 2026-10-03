@@ -1986,3 +1986,20 @@ test('preview-stripe cell: 2 units per watch column from x 0 draws what the fore
     + '<rect x="30" y="4" width="2" height="5" fill="#55AAFF"></rect>'
     + '<rect x="36" y="4" width="1" height="5" fill="#55AAFF"></rect>');
 });
+
+// A forecast line's swatch: its nav row shows the metric's line colour, and the colours
+// row in its dialog — which opens the same sheet as the metric's Graph colors row —
+// previews exactly what that row does, one dot per picker.
+test('lineSwatch: one dot (the line colour) on the nav row; the Graph colors row\'s whole preview in the dialog', () => {
+  const platform = require('../src/pkjs/config-ui/lib/platform.js');
+  const env = platform.computeEnv({ platform: 'basalt' });
+  const S = { secondaryLine: 'precip_prob', theme: 'dark', gcPrecipFillDark: '#00AAFF' };
+  const graph = global.PConf.badgeResolvers.get('graphColorSwatch')(S, env, { scope: 'precip_prob' });
+  const row = B.lineSwatch(S, env, { lineKey: 'secondaryLine' });
+  assert.equal(row.dots.length, 1);
+  assert.equal(row.dots[0].color, graph.dots[0].color, 'the nav row\'s dot is the sheet\'s line colour');
+  assert.deepEqual(B.lineSwatch(S, env, { lineKey: 'secondaryLine', all: true }), graph,
+    'the dialog\'s colours row and the Graph colors row preview one sheet the same way');
+  assert.equal(B.lineSwatch(Object.assign({}, S, { theme: 'bw' }), env, { lineKey: 'secondaryLine', all: true }), null);
+  assert.equal(B.lineSwatch({ secondaryLine: 'off' }, env, { lineKey: 'secondaryLine' }), null);
+});

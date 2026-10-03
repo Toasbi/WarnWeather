@@ -118,8 +118,9 @@
         if (!rows) { return ''; }
         ensureStyle();
         // The watch draws the bars in its theme's ink (status_row.c: theme_fg() on the
-        // theme's background), so a light theme previews black on white.
-        var ink = previewInk(st.theme);
+        // theme's background), so a light theme previews black on white — except on a
+        // watch without the light polarity (aplite), which always draws white on black.
+        var ink = previewInk(env && env.themePolarity === false ? 'dark' : st.theme);
         return '<div class="sbp" role="img" aria-label="Status bars preview" style="--sbp-bg:' + ink.bg
             + ';--sbp-fg:' + ink.fg + ';--sbp-dim:' + ink.rgba('0.5') + ';--sbp-line:' + ink.rgba('0.12') + '">'
             + rows + '</div>';
