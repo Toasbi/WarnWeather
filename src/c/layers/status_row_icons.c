@@ -3,6 +3,8 @@
 #include "../appendix/theme.h"
 #include <limits.h>
 
+// Not built on aplite: no PDC resources there, and its lean status row
+// (status_row_aplite.c) loads no glyph.
 #if !defined(PBL_PLATFORM_APLITE)
 
 #define PRECISE_UNITS_PER_PX 8
@@ -347,25 +349,5 @@ GDrawCommandImage *status_row_icons_load_filled(uint32_t resource_id, int target
 void status_row_icons_destroy(GDrawCommandImage *image) {
     if (image) { gdraw_command_image_destroy(image); }
 }
-
-#else  // aplite: frozen lean fork, no PDC resources — every id is text-only.
-
-GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top_strip) {
-    (void) icon_id;
-    (void) target_h;
-    (void) top_strip;
-    return NULL;
-}
-
-GDrawCommandImage *status_row_icons_load_filled(uint32_t resource_id, int target_h,
-                                                GColor tint, bool outline) {
-    (void) resource_id;
-    (void) target_h;
-    (void) tint;
-    (void) outline;
-    return NULL;
-}
-
-void status_row_icons_destroy(GDrawCommandImage *image) { (void) image; }
 
 #endif

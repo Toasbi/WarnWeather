@@ -2,8 +2,10 @@
 #include <pebble.h>
 #include "../appendix/status_line.h"
 
+// Not built on aplite: its lean status row (status_row_aplite.c) draws text only.
+
 // Icon id → recolored, size-normalized PDC image, or NULL when the id has no
-// bundled glyph (NONE, DRAWN_* sentinels, unknown id, load failure, aplite).
+// bundled glyph (NONE, DRAWN_* sentinels, unknown id, load failure).
 // A NULL degrades the slot to text-only — never suppress the value for it.
 // `top_strip` gates the small-tier size substitutions: the strip's icon tier is
 // deliberately smaller (calendar clearance), so tall small-size variants are
@@ -27,7 +29,7 @@ _Static_assert(STATUS_ROW_ICON_BT_OFF < 0x80, "the system glyph ids stay below t
 // size rule differs from status_row_icons_load's: the authored VIEWBOX (not the
 // ink) scales into a square 120 % of target_h, snapped to the pixel grid, so every
 // bucket keeps the retired strip's drop size and only the drop count changes.
-// NULL for resource 0, a non-positive target_h, a load failure, and on aplite.
+// NULL for resource 0, a non-positive target_h and a load failure.
 GDrawCommandImage *status_row_icons_load_filled(uint32_t resource_id, int target_h,
                                                 GColor tint, bool outline);
 void status_row_icons_destroy(GDrawCommandImage *image);
