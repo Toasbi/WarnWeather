@@ -652,6 +652,14 @@ happens depends on the control that changed:
   render snaps it. The option sheet is rebuilt whenever it opens, so it is always current.
   Anything else a text key feeds (hints, `showWhen`, blocks) catches up at the next full render.
 
+A stored value that is no longer among its item's options snaps to the item's default (when
+still offered) or the first option — a `dormantValues` value excepted, which stays stored. Every
+full render and every Save does this for EVERY shown `optionsFrom` row (`snapShownOptions`), in
+schema order, wherever the row sits: on another tab, in a dialog, behind More options. So a pick
+in one row that takes an option away from another (one forecast line taking the metric a later
+line showed) clears it at once, and what is saved never depends on which rows were drawn. A row
+hidden by its own, its section's, its pane's or its tab's `showWhen` keeps its value.
+
 ### Defaults-resolver registry — PConf.defaultsResolvers
 
 A keyed item with a `defaultFrom: { resolver: id, args, sticky }` field takes its default from a

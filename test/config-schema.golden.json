@@ -1376,6 +1376,7 @@
                     "shared": "Dim the backlight when it comes on during Night hours, so it is easier on your eyes."
                   }
                 },
+                "onChange": "nightFeatureOn",
                 "showWhen": {
                   "env": "colorBacklight"
                 }
@@ -1640,7 +1641,10 @@
                 "showWhen": {
                   "env": "themePolarity"
                 },
-                "onChange": "themeAutoPreset"
+                "onChange": [
+                  "themeAutoPreset",
+                  "nightFeatureOn"
+                ]
               },
               {
                 "type": "select",
@@ -1730,6 +1734,7 @@
                 ],
                 "indent": true,
                 "joinPrevious": true,
+                "onChange": "nightFeatureOn",
                 "showWhen": {
                   "all": [
                     {
@@ -1765,6 +1770,7 @@
                 ],
                 "indent": true,
                 "joinPrevious": true,
+                "onChange": "nightFeatureOn",
                 "showWhen": {
                   "all": [
                     {
@@ -2043,7 +2049,8 @@
                   "args": {
                     "shared": "Stop sending updates to your watch during Night hours to save battery."
                   }
-                }
+                },
+                "onChange": "nightFeatureOn"
               },
               {
                 "type": "select",
@@ -16354,7 +16361,8 @@
                 "editBadgeFrom": {
                   "resolver": "lineSwatch",
                   "args": {
-                    "lineKey": "secondaryLine"
+                    "lineKey": "secondaryLine",
+                    "all": true
                   }
                 },
                 "capabilities": [
@@ -17154,7 +17162,8 @@
                 "editBadgeFrom": {
                   "resolver": "lineSwatch",
                   "args": {
-                    "lineKey": "thirdLine"
+                    "lineKey": "thirdLine",
+                    "all": true
                   }
                 },
                 "capabilities": [
@@ -18190,7 +18199,8 @@
                 "editBadgeFrom": {
                   "resolver": "lineSwatch",
                   "args": {
-                    "lineKey": "fourthLine"
+                    "lineKey": "fourthLine",
+                    "all": true
                   }
                 },
                 "capabilities": [
@@ -19449,7 +19459,8 @@
                 "editBadgeFrom": {
                   "resolver": "lineSwatch",
                   "args": {
-                    "lineKey": "fifthLine"
+                    "lineKey": "fifthLine",
+                    "all": true
                   }
                 },
                 "capabilities": [

@@ -290,6 +290,24 @@ test('a tab pinBlock pins without a switcher; one shown pane has none either', (
 
 // ── page-only items ─────────────────────────────────────────────────────────
 
+test('every shown optionsFrom row snaps into its options, wherever it sits; hidden and dormant values stay', () => {
+  global.PConf.optionsResolvers.register('discNotA', (S) => [['Off', 'off'], ['B', 'b'], ['C', 'c']]
+    .filter((o) => o[1] === 'off' || o[1] !== S.first));
+  const schema = { tabs: [{ id: 't', label: 'T', sections: [
+    { items: [{ type: 'select', messageKey: 'first', label: 'First', options: [['B', 'b'], ['C', 'c']], defaultValue: 'b' }] },
+    { sheetOnly: true, sheetId: 'd', title: 'D', items: [
+      { type: 'select', messageKey: 'second', label: 'Second', optionsFrom: { resolver: 'discNotA' }, defaultValue: 'off' },
+      { type: 'select', messageKey: 'third', label: 'Third', optionsFrom: { resolver: 'discNotA' }, defaultValue: 'off',
+        dormantValues: ['b', 'c'] },
+      { type: 'select', messageKey: 'hidden', label: 'Hidden', optionsFrom: { resolver: 'discNotA' }, defaultValue: 'off',
+        showWhen: { key: 'never', eq: true } }] }] }] };
+  const S = { first: 'c', second: 'c', third: 'c', hidden: 'c' };
+  E.snapShownOptions(schema, S, {});
+  assert.equal(S.second, 'off', 'a row in a closed dialog snaps to its default, as if it were on screen');
+  assert.equal(S.third, 'c', 'a dormant value stays stored');
+  assert.equal(S.hidden, 'c', 'a row its showWhen hides keeps its value');
+});
+
 test('a uiOnly item hydrates from its initFrom resolver and is never saved or seeded', () => {
   global.PConf.displayResolvers.register('discInit', (S) => S.a === S.b);
   const schema = { tabs: [{ id: 't', label: 'T', sections: [{ items: [

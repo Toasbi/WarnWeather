@@ -2467,7 +2467,7 @@ function lineColorsRow(lineKey) {
         label: 'Colors',
         editSheetFrom: {resolver: 'lineColorSheet', args: {messageKey: lineKey, sheets: GRAPH_COLOR_SHEETS}},
         labelFrom: {resolver: 'lineColorLabel', args: {lineKey: lineKey, sheets: GRAPH_COLOR_SHEETS}},
-        editBadgeFrom: {resolver: 'lineSwatch', args: {lineKey: lineKey}},
+        editBadgeFrom: {resolver: 'lineSwatch', args: {lineKey: lineKey, all: true}},
         capabilities: ['COLOR'],
         showWhen: {all: [COLOR_THEME_WHEN, {key: lineKey, ne: 'off'}]}
     };
@@ -2817,6 +2817,7 @@ module.exports = {
                 hint: 'Dim the backlight when it comes on between the hours below, so it is easier on your eyes.',
                 hintFrom: {resolver: 'nightFeatureHint', args: {
                     shared: 'Dim the backlight when it comes on during Night hours, so it is easier on your eyes.'}},
+                onChange: 'nightFeatureOn',
                 // "Dim backlight" is emery-only: env.colorBacklight is a fact about the
                 // BACKLIGHT (only emery's board carries the RGB LED driver).
                 showWhen: BACKLIGHT_WHEN
@@ -2831,7 +2832,9 @@ module.exports = {
                 hint: 'Switch between two themes automatically — with the sun, or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.',
                 // themePolarity: aplite has nothing to switch between.
                 showWhen: {env: 'themePolarity'},
-                onChange: 'themeAutoPreset'
+                // Seeds a night theme on first enable (theme-convert.js), and joins the shared
+                // Night hours (night-hours.js).
+                onChange: ['themeAutoPreset', 'nightFeatureOn']
             }, {
                 // No themeConvert here: the stored colour defaults track the DAY
                 // theme's polarity; the night flip converts a scratch copy at send
@@ -2864,6 +2867,7 @@ module.exports = {
                 options: [['Night hours', 'manual'], ['Sunrise/sunset', 'sun']],
                 indent: true,
                 joinPrevious: true,
+                onChange: 'nightFeatureOn',
                 showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, NIGHT_SHARED_WHEN]}
             }, {
                 type: 'segmented',
@@ -2873,6 +2877,7 @@ module.exports = {
                 options: [['Sunrise/sunset', 'sun'], ['Custom', 'manual']],
                 indent: true,
                 joinPrevious: true,
+                onChange: 'nightFeatureOn',
                 showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, NIGHT_SEPARATE_WHEN]}
             }].concat(hoursPair('themeAutoStartHour', 'themeAutoEndHour', '20', '7',
                 {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'},
@@ -2886,7 +2891,8 @@ module.exports = {
                 defaultValue: true,
                 hint: 'Stop sending updates to your watch between the hours below to save battery.',
                 hintFrom: {resolver: 'nightFeatureHint', args: {
-                    shared: 'Stop sending updates to your watch during Night hours to save battery.'}}
+                    shared: 'Stop sending updates to your watch during Night hours to save battery.'}},
+                onChange: 'nightFeatureOn'
             }].concat(hoursPair('sleepStartHour', 'sleepEndHour', '0', '7',
                 {all: [{key: 'sleepNightEnabled', eq: true}, NIGHT_SEPARATE_WHEN]}), [{
                 // Page-only (uiOnly): on as the page opens when the night features in use
