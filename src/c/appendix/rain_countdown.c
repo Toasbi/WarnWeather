@@ -74,22 +74,15 @@ bool rain_countdown_get(RainCountdown *rc, time_t now) {
     }
 
     const bool raining = now >= s_rc_rain_start;
-    int mins;
-    if (!raining) {
-        // Upcoming: minutes until rain starts, rounded to nearest, min 1.
-        mins = (int) ((s_rc_rain_start - now + 30) / 60);
-        if (mins < 1) {
-            mins = 1;
-        }
-        if (mins > horizon) {
-            return false;  // beyond the configured look-ahead: no alert yet
-        }
-    } else {
-        // Raining now: minutes until rain stops, rounded up, min 1.
-        mins = (int) ((s_rc_rain_end - now + 59) / 60);
-        if (mins < 1) {
-            mins = 1;
-        }
+    // Upcoming: minutes until rain starts, rounded to nearest. Raining now: minutes
+    // until rain stops, rounded up. Min 1 either way.
+    int mins = raining ? (int) ((s_rc_rain_end - now + 59) / 60)
+                       : (int) ((s_rc_rain_start - now + 30) / 60);
+    if (mins < 1) {
+        mins = 1;
+    }
+    if (!raining && mins > horizon) {
+        return false;  // beyond the configured look-ahead: no alert yet
     }
     // A cached segment has at least one rain slot, so its tier is never 0; the bucket
     // is clamped all the same, so the drops always draw.
