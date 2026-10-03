@@ -313,21 +313,17 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
         status_on_demand_release(row);
         return sig;
     }
-    uint8_t live[5] = { (uint8_t)s.active[OD_BATTERY], s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
-                        (uint8_t)s.active[OD_SLEEP], (uint8_t)s.active[OD_RAIN] };
+    // One fold: what an inactive item would add stays 0, so it changes nothing.
+    const bool batt = s.active[OD_BATTERY];
+    const bool rain = s.active[OD_RAIN];
+    const bool text = rain && s.rain_display != THRESH_RAIN_DISPLAY_ICON;
+    uint8_t live[10] = { (uint8_t)batt, s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
+                         (uint8_t)s.active[OD_SLEEP], (uint8_t)rain,
+                         batt ? s.charge : 0, (uint8_t)(batt && s.charging),
+                         rain ? s.rain.tier : 0, text ? s.rain.mins : 0,
+                         (uint8_t)(text && s.rain.raining) };
     sig = sig_fold(sig, live, sizeof(live));
-    if (s.active[OD_BATTERY]) {
-        uint8_t charge[2] = { s.charge, (uint8_t)s.charging };
-        sig = sig_fold(sig, charge, sizeof(charge));
-    }
-    sig = sig_fold(sig, s.bytes, n);
-    if (s.active[OD_RAIN]) {
-        bool text = s.rain_display != THRESH_RAIN_DISPLAY_ICON;
-        uint8_t rain[3] = { s.rain.tier, text ? s.rain.mins : 0,
-                            (uint8_t)(text && s.rain.raining) };
-        sig = sig_fold(sig, rain, sizeof(rain));
-    }
-    return sig;
+    return sig_fold(sig, s.bytes, n);
 }
 
 // One draw's short forms: the three slots' families as the layout takes them, and the
