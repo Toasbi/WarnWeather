@@ -710,9 +710,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // a row refreshed ahead of the rescan would keep showing the old rain alert until
     // the next minute tick. The radar payload (or the snooze latch/release) is the
     // countdown's only data-change source, hence the radar_dirty gate.
-    // aplite drops the rain-countdown alert (24 KB budget), so it skips the rescan and
-    // rain_countdown.c is --gc-sections'd out of that image.
-#ifndef PBL_PLATFORM_APLITE
+    // The countdown's only reader is the On demand Rain item: aplite does not build
+    // it (WW_ON_DEMAND, 24 KB budget), so it skips the rescan and rain_countdown.c is
+    // --gc-sections'd out of that image.
+#if defined(WW_ON_DEMAND)
     if (radar_dirty) {
         rain_countdown_refresh(watch_services_now());
     }
