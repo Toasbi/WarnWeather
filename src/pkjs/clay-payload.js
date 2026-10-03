@@ -5,7 +5,7 @@
 var utf8 = require('./utf8.js');
 var pebbleColors = require('./pebble-colors.js');
 var holidayMask = require('./holidays/holiday-mask.js');
-var paletteWire = require('./weather/palette-wire.js');
+var graphWire = require('./weather/graph-wire.js');
 var viewCycle = require('./view-cycle.js');
 var resolveInk = require('./resolve-ink.js').resolveInk;
 var statusThresholds = require('./status-thresholds.js');
@@ -211,24 +211,11 @@ function buildClayPayload(settings, watchInfo, now) {
     if (env.platform === 'aplite') {
         payload.CLAY_BATTERY_LOW_ONLY = Boolean(settings.batteryLowOnly);
     }
-    var palette = paletteWire.buildPaletteTuples(watchInfo, settings);
-    payload.BAR_PALETTE_UINT8 = palette.BAR_PALETTE_UINT8;
-    payload.RADAR_PALETTE_UINT8 = palette.RADAR_PALETTE_UINT8;
-
-    // Graph line styling, ten bytes: [0] main metric line, [1] area fill, [2] second
-    // metric line, [3] line flags, [4] full-height night hatch, [5] full-height dusk/dawn
-    // line, [6] night-area base, [7] night-area hatch (derived from [6]), [8] night-area
-    // boundary (also derived from [6]), [9] night flags — the user's picks resolved
-    // against the theme's polarity, or the built-in colours when a pick is on Auto. Bytes
-    // [4..9] are byte-for-byte the watch's NIGHT_COLORS persist blob, which is why the
-    // night flag sits in its own byte instead of beside the fill flag in [3]; the full
-    // layout lives on buildLineStyleBytes (line-style.js). Derived from the settings blob
-    // plus the platform's colour/polarity capabilities alone, never from weather data, so
-    // it rides the Clay message. It replaces the four scalar tuples that used to travel on
-    // EVERY weather send (44 B there; 11 B here when it landed as four bytes, 17 B now).
-    // Deliberately NOT platform-gated, unlike the threshold blob / no-rain text / curve
-    // insets above: aplite renders the same two metric lines, so it needs the colours too.
-    payload.CLAY_LINE_STYLE_UINT8 = lineStyle.buildLineStyleBytes(settings, watchInfo);
+    // The graph's three tuples: the forecast's and the radar's bar palettes (each with
+    // its Bars from flag) and the line styling (colours, fill and night flags, the style
+    // bytes with their Draw from bits). The layout and why none of it is platform-gated
+    // live on weather/graph-wire.js, the one packer the fixture send shares.
+    Object.assign(payload, graphWire.buildGraphTuples(settings, watchInfo));
 
     // Dim backlight, five bytes: [0..2] the LED's r/g/b channels, [3] the window's
     // start hour (inclusive), [4] its end hour (exclusive, wrapping past midnight).

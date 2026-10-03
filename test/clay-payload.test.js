@@ -13,6 +13,7 @@ const { buildClayPayload, truncateUtf8Bytes } = require('../src/pkjs/clay-payloa
 const holidayMask = require('../src/pkjs/holidays/holiday-mask');
 const viewCycle = require('../src/pkjs/view-cycle');
 const lineStyle = require('../src/pkjs/line-style');
+const graphWire = require('../src/pkjs/weather/graph-wire');
 const nightLight = require('../src/pkjs/night-light');
 
 const NOW = new Date('2026-06-26T00:00:00Z');
@@ -472,10 +473,11 @@ test('the Clay message carries the graph line styling', function() {
   const p = buildClayPayload(s, { platform: 'emery' }, NOW);
   assert.ok(Array.isArray(p.CLAY_LINE_STYLE_UINT8));
   assert.equal(p.CLAY_LINE_STYLE_UINT8.length, 16);
-  // Packed by the one resolver both the wire and the render read (line-style.js),
-  // so the Clay tuple can't drift from what the graph builder assumes.
+  // Packed by the one graph packer (weather/graph-wire.js, over the resolver both the
+  // wire and the render read), so the Clay tuple can't drift from what the graph
+  // builder assumes.
   assert.deepEqual(p.CLAY_LINE_STYLE_UINT8,
-    lineStyle.buildLineStyleBytes(s, { platform: 'emery' }));
+    graphWire.buildLineStyleBytes(s, { platform: 'emery' }));
 });
 
 test('aplite gets the line styling too (it has the forecast graph)', function() {

@@ -1,8 +1,8 @@
 // test/draw-from.test.js — Draw from / Bars from [Bottom | Top] (src/pkjs/draw-from.js):
 // the one reading of the six settings, its gates (aplite, a stripe, a line that is not
-// drawn, a metric without the setting), the bit helpers the wire uses, and the
-// telemetry fields. The wire bytes themselves are pinned in line-style.test.js and
-// palette-wire.test.js, the settings page in config-draw-from.test.js.
+// drawn, a metric without the setting), and the telemetry fields. The wire bytes and
+// their bits are pinned in graph-wire.test.js, the settings page in
+// config-draw-from.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -19,8 +19,8 @@ const lineStyle = require('../src/pkjs/line-style.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { buildSettingsSnapshot } = require('../src/pkjs/telemetry.js');
 
-const BASALT = lineStyle.capsForWatch({ platform: 'basalt' });
-const APLITE = lineStyle.capsForWatch({ platform: 'aplite' });
+const BASALT = platform.computeEnv({ platform: 'basalt' });
+const APLITE = platform.computeEnv({ platform: 'aplite' });
 const KEYS = ['precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom', 'radarBarFrom'];
 const ALL_TOP = { precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top', uvLineFrom: 'top',
   rainBarFrom: 'top', radarBarFrom: 'top' };
@@ -57,13 +57,11 @@ test('the metric set is exactly the stripe metrics, and the rows cover each once
 });
 
 test('every watch with line styles is capable; aplite is not; an unknown one is', () => {
-  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) => {
-    assert.equal(drawFrom.capable(lineStyle.capsForWatch({ platform: p })), true, p + ' caps');
-    assert.equal(drawFrom.capable(platform.computeEnv({ platform: p })), true, p + ' env');
-  });
+  ['basalt', 'chalk', 'diorite', 'emery', 'flint', 'gabbro'].forEach((p) =>
+    assert.equal(drawFrom.capable(platform.computeEnv({ platform: p })), true, p));
   assert.equal(drawFrom.capable(APLITE), false);
-  assert.equal(drawFrom.capable(platform.computeEnv({ platform: 'aplite' })), false);
-  assert.equal(drawFrom.capable(lineStyle.capsForWatch(null)), true, 'no watchInfo reads basalt');
+  assert.equal(drawFrom.capable(platform.computeEnv(null)), true, 'no watchInfo: an unknown watch');
+  assert.equal(drawFrom.capable(platform.computeEnv({ platform: 'foo' })), true, 'an unknown platform');
   assert.equal(drawFrom.capable(undefined), true);
   assert.equal(drawFrom.capable({}), true, 'an env without the fact');
 });
@@ -236,30 +234,6 @@ test('forecastAnchors: an element with nothing above 0 anchors nothing (hasValue
     BASALT, only([]));
   assert.deepEqual(asked, []);
   assert.deepEqual(drawFrom.forecastAnchors(S, APLITE, only(['bars'])), { top: false, bottom: false }, 'aplite');
-});
-
-test('the bit helpers: bits 5 and 6 of a style byte, bit 7 of a palette\'s byte [1]', () => {
-  assert.equal(drawFrom.LINE_BIT, 0x20);
-  assert.equal(drawFrom.FLOAT_BIT, 0x40);
-  assert.equal(drawFrom.PALETTE_BIT, 0x80);
-  [0x04, 0x0C, 0x01, 0x02].forEach((b) => {
-    assert.equal(drawFrom.styleByte(b, false), b);
-    assert.equal(drawFrom.styleByte(b, true), b | 0x20);
-    assert.equal(drawFrom.styleByte(b, true) & 0x1F, b, 'kind and width untouched');
-    assert.equal(drawFrom.styleByte(b, false, true), b | 0x40);
-    assert.equal(drawFrom.styleByte(b, false, false), b);
-  });
-  const blob = [0, 0, 234, 140, 0, 223];
-  assert.equal(drawFrom.markPalette(blob, false), blob, 'Bottom: the blob itself');
-  const marked = drawFrom.markPalette(blob, true);
-  assert.deepEqual(marked, [0, 0x80, 234, 140, 0, 223]);
-  assert.deepEqual(blob, [0, 0, 234, 140, 0, 223], 'the input is not mutated');
-  assert.deepEqual(drawFrom.markPalette([0, 0, 192], true), [0, 0x80, 192], 'a single stop');
-  assert.deepEqual(drawFrom.markPalette([], true), [], 'nothing to mark');
-  // The watch reads the flag as a negative stop-0 threshold (int16 LE).
-  const from = (b) => { const v = b[0] | (b[1] << 8); return v >= 0x8000 ? v - 0x10000 : v; };
-  assert.ok(from(marked) < 0);
-  assert.equal(from(blob), 0);
 });
 
 test('telemetry reports the six choices as chosen, absent or junk as \'bottom\'', () => {

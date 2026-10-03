@@ -11,9 +11,10 @@ var STATUS_LINE_CATALOG = require('../status-line-catalog.js');
 var STATUS_PAIR = require('../status-pair.js');
 // The graph-colour vocabulary: the storage key behind every picker, the roles each
 // metric actually owns, and the built-in colour each one defaults to. All of it comes
-// from line-style.js — the module that RESOLVES these keys when it packs the watch's
-// wire — so the settings page cannot offer a colour the renderer doesn't know, miss one
-// it does, or carry a transcribed default hex that drifts away from what the graph paints.
+// from line-style.js — the module that RESOLVES these keys for the watch's wire
+// (weather/graph-wire.js packs its answer) — so the settings page cannot offer a colour
+// the renderer doesn't know, miss one it does, or carry a transcribed default hex that
+// drifts away from what the graph paints.
 var lineStyle = require('../line-style.js');
 // Bars from [Bottom | Top]: the values, from the module the wire packs the flags through.
 var DRAW_FROM = require('../draw-from.js');

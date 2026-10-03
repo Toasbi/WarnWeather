@@ -781,12 +781,13 @@ test('a Black & White theme reports no graph colours at all', () => {
 // about whether the pick survived at all.
 test('the reported pick agrees with the wire on every platform', () => {
   const lineStyle = require('../src/pkjs/line-style.js');
+  const computeEnv = require('../src/pkjs/config-ui/lib/platform.js').computeEnv;
   const settings = { theme: 'dark', secondaryLine: 'wind', thirdLine: 'off',
                      gcWindLineDark: 0xFF0000 };
   ['basalt', 'emery', 'diorite', 'aplite'].forEach((platform) => {
     const watchInfo = { platform };
     const reported = buildSettingsSnapshot(settings, watchInfo).graphMainColor;
-    const painted = lineStyle.resolveLineStyle(settings, watchInfo).secondary === 0xFF0000;
+    const painted = lineStyle.resolveGraphColors(settings, computeEnv(watchInfo)).secondary === 0xFF0000;
     assert.strictEqual(reported === '#FF0000', painted,
       platform + ' must not report a pick the wire resolved away (or vice versa)');
   });
@@ -797,13 +798,14 @@ test('the reported pick agrees with the wire on every platform', () => {
 // is painting the built-in, on the gust row where the built-in is not even a constant.
 test('reporting default agrees with the wire painting the built-in', () => {
   const lineStyle = require('../src/pkjs/line-style.js');
+  const computeEnv = require('../src/pkjs/config-ui/lib/platform.js').computeEnv;
   [{ rainBarColor: 'white', stored: 0xFFFFFF, builtIn: 0xAAAAAA },
    { rainBarColor: 'multicolor', stored: 0xAAAAAA, builtIn: 0xFFFFFF }].forEach((c) => {
     const settings = { theme: 'dark', secondaryLine: 'gust', thirdLine: 'off',
                        rainBarColor: c.rainBarColor, gcGustLineDark: c.stored };
     assert.strictEqual(buildSettingsSnapshot(settings, { platform: 'basalt' }).graphMainColor,
       'default', 'a gust line on either built-in reads as untouched');
-    assert.strictEqual(lineStyle.resolveLineStyle(settings, { platform: 'basalt' }).secondary,
+    assert.strictEqual(lineStyle.resolveGraphColors(settings, computeEnv({ platform: 'basalt' })).secondary,
       c.builtIn, 'and the wire paints the rainBarColor-correct built-in, not the stored byte');
   });
 });

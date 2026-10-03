@@ -292,8 +292,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * @returns {string} SVG markup.
      */
     function forecastPreview(state, env, userData) {
-        // The graph's colours, resolved by the SAME function that packs the watch's
-        // Clay wire (line-style.resolveLineStyle is the watchInfo adapter over this one)
+        // The graph's colours, resolved by the SAME function whose answer the watch's Clay
+        // wire packs (weather/graph-wire.js, over the connected watch's computeEnv)
         // and read off `state` — the LIVE settings object render() hands every block —
         // so a pick shows up the moment it is made, not on the next page open. What the
         // page supplies in place of a watchInfo:

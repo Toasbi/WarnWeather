@@ -83,7 +83,7 @@ test('BAR_COLOR_KEYS names both bar-mode settings', () => {
 test('requiring resolve-ink registers nothing — that is why both sides can share it', () => {
   // The property that makes this module the home for barColorDefault rather than
   // settings/theme-convert.js, which registers a config-UI onChange hook at import
-  // time. A phone-side consumer (clay-settings.js, weather/palette-wire.js) must be
+  // time. A phone-side consumer (clay-settings.js, weather/graph-wire.js) must be
   // able to require it without dragging a page registry into the runtime.
   const before = global.PConf;
   delete require.cache[require.resolve('../src/pkjs/resolve-ink.js')];

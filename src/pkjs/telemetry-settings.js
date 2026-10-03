@@ -9,10 +9,10 @@
 // batch. test/telemetry.test.js holds the two key sets and their types equal. Deploy the
 // ingest BEFORE the app that sends a new field ships.
 var statusCatalog = require('./status-line-catalog.js');
-var configUi = require('./config-ui');          // intToHex
-// renderContext / graphColorKey / graphColorIsDefault — the module that resolves the graph
-// colours for the WIRE, so this snapshot reports what the watch actually paints instead
-// of a second opinion about it.
+var configUi = require('./config-ui');          // intToHex, computeEnv
+// renderContextFor / graphColorKey / graphColorIsDefault — the module that resolves the
+// graph colours for the WIRE, so this snapshot reports what the watch actually paints
+// instead of a second opinion about it.
 var lineStyle = require('./line-style.js');
 var viewCycle = require('./view-cycle.js');
 // enabledAlerts, rainAlert and warnLookFor — the bake's and the packer's own reading
@@ -73,7 +73,7 @@ function boolDefaultOn(value) {
  * @param {Object} settings Clay settings blob (the gc* keys, plus rainBarColor for gust).
  * @param {string} scope A metric id (line-style's GRAPH_METRICS), or 'night' for the band.
  * @param {string} role 'Line'|'Fill'|'Night' for a metric; 'Hatch'|'Boundary' for 'night'.
- * @param {string} suffix Polarity to read, 'Dark' or 'Light' (renderContext's `suffix`).
+ * @param {string} suffix Polarity to read, 'Dark' or 'Light' (renderContextFor's `suffix`).
  * @returns {string} '#RRGGBB' for a colour moved off the built-in, else 'default'.
  */
 function graphColorReport(settings, scope, role, suffix) {
@@ -151,13 +151,17 @@ function warnLooksReport(safe, isColor) {
  *
  * @param {Object} settings Clay settings object.
  * @param {Object} [watchInfo] Pebble.getActiveWatchInfo() result — only its platform is
- *   read, to resolve the graph colours the way the renderer does (line-style.renderContext:
- *   the theme fold and the colour-display check). Absent = colour basalt.
+ *   read: what the watch can show, and the graph colours resolved the way the renderer
+ *   does (line-style.renderContextFor: the theme fold and the colour-display check).
+ *   Absent = an unknown watch, which answers like basalt: colour, no LED.
  * @returns {Object} Telemetry-safe settings snapshot.
  */
 function buildSettingsSnapshot(settings, watchInfo) {
     var safe = settings || {};
-    var cx = lineStyle.renderContext(safe, watchInfo);
+    // What this watch can show (the config page's own facts): no On demand on aplite.
+    // An unknown watch (watchInfo absent) answers like basalt: colour, no LED.
+    var env = configUi.computeEnv(watchInfo);
+    var cx = lineStyle.renderContextFor(safe, env);
     // Custom-layout usage: the three packed CLAY_VIEW values fully describe what a
     // custom user built (elements, seats, order, clock/strip omissions) in 3 ints.
     // null (-> absent fields) unless custom is active, so preset rows stay unchanged.
@@ -167,9 +171,6 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // (packExt, 0..0x7FFF) rather than widening customView*: an ingest that predates
     // them strips unknown keys, but a known field failing validation 400s the batch.
     var customExt = customCycle ? customCycle.map(viewCycle.packExt) : null;
-    // What this watch can show (the config page's own facts): no On demand on aplite.
-    // An unknown watch (watchInfo absent) answers like basalt: colour, no LED.
-    var env = configUi.computeEnv(watchInfo);
     // --- the Nighttime card's gates, resolved once for the fields below ---------
     // Dim backlight is HARDWARE-gated, not only setting-gated: the red tint is
     // light_set_color_rgb888() and emery is the only watch with the LED
@@ -378,7 +379,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
     }
     // The graph colours, one field per painted ELEMENT, carrying the value for the polarity
     // this watch ACTUALLY RENDERS. Every platform/theme judgement comes from line-style's
-    // renderContext (cx above) — the same call resolveLineStyle opens with — rather than
+    // renderContextFor (cx above) — the same call resolveGraphColors opens with — rather than
     // being re-derived here, which is how the two drifted before: this file had copied the
     // theme fold but not the colour-display check, and reported picks on a B&W watch that
     // the wire was already resolving away to the theme foreground.

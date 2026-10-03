@@ -15,6 +15,7 @@ global.localStorage = {
 
 const { buildForecastSeries: buildSeriesValues, applyForecastSeries, needsUv, needsAqi, needsPollen } = require('../src/pkjs/forecast-series');
 const lineStyle = require('../src/pkjs/line-style');
+const platform = require('../src/pkjs/config-ui/lib/platform.js');
 // The gates below judge slots and lines: nothing placed, so the default On demand ticks
 // (which place the UV and AQI alerts) do not answer for them.
 const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
@@ -38,7 +39,7 @@ const phoneBattery = require('../src/pkjs/phone-battery.js');
  * @returns {Object} Wire series fields plus SECONDARY_/THIRD_LINE colour fields.
  */
 function buildForecastSeries(raw, settings, watchInfo) {
-  const style = lineStyle.resolveLineStyle(settings, watchInfo);
+  const style = lineStyle.resolveGraphColors(settings, platform.computeEnv(watchInfo));
   return Object.assign(buildSeriesValues(raw, settings), {
     SECONDARY_LINE_COLOR: style.secondary,
     SECONDARY_LINE_FILL: style.fillOn,
@@ -789,8 +790,8 @@ test('feels selected: temp bytes rescale against the joint band, but TEMP_MIN/MA
   // lifts the lowest reading off byte 0, which would read as no reading).
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 100, 200]);
   // Its colour rides the Clay message now, not this payload.
-  assert.equal(lineStyle.resolveLineStyle(
-    { secondaryLine: 'feels', thirdLine: 'off' }, { platform: 'basalt' }).secondary,
+  assert.equal(lineStyle.resolveGraphColors(
+    { secondaryLine: 'feels', thirdLine: 'off' }, platform.computeEnv({ platform: 'basalt' })).secondary,
     0xAAAAAA); // GColorLightGray
 });
 
@@ -925,8 +926,8 @@ test('feels as the third line: dots ride the temp axis, light gray, none lost to
   assert.deepEqual(out.TEMP_TREND_UINT8, [50, 150, 250]);
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [1, 100, 200]);
   // Its colour rides the Clay message now, not this payload.
-  assert.equal(lineStyle.resolveLineStyle(
-    { secondaryLine: 'precip_prob', thirdLine: 'feels' }, { platform: 'basalt' }).third,
+  assert.equal(lineStyle.resolveGraphColors(
+    { secondaryLine: 'precip_prob', thirdLine: 'feels' }, platform.computeEnv({ platform: 'basalt' })).third,
     0xAAAAAA); // GColorLightGray
   // Regression: the third line is DOTS, and chart.c skips any dot at byte 0
   // ("values[i] <= lo"). The coldest feels hour defines the joint band's floor, so

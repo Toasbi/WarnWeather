@@ -51,8 +51,8 @@
      * Whether the watch draws in colour: a colour display showing a colour theme. A B&W
      * display and the two B&W themes both draw in the theme's ink alone — the settings
      * page's previews, the highlight swatches and the graph colours all take the B&W
-     * arm then. Only an explicit `color: false` is a B&W display (computeEnv and
-     * capsForWatch always report a boolean); an absent env or flag counts as colour,
+     * arm then. Only an explicit `color: false` is a B&W display (computeEnv always
+     * reports a boolean); an absent env or flag counts as colour,
      * the packer's rule for a blob packed without an env.
      * @param {?{color: boolean}} env Platform env or capabilities.
      * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.

@@ -318,21 +318,24 @@ The tuple has since grown to sixteen bytes by two more tail blocks, each behind 
 length check as the growth rule above asks: `[10]` the third-metric line colour,
 `[11..13]` the per-line style bytes (byte-for-byte the watch's `LINE_STYLES` persist
 blob), `[14]` the fourth-metric line colour and `[15]` its style byte (`FIFTH_LINE_STYLE`).
-`buildLineStyleBytes` (`line-style.js`) carries the full layout and `persist.h`'s
-`LINE_STYLES` comment the canonical layout of a style byte. The watch parses `[10..15]`
+`buildLineStyleBytes` (`weather/graph-wire.js`, the phone-only packer of the graph's Clay
+tuples) carries the full layout and `persist.h`'s `LINE_STYLES` comment the canonical
+layout of a style byte. The watch parses `[10..15]`
 only under `WW_LINE_STYLE`, so aplite ignores them.
 
 A style byte packs `kind | (field << 2)`: the kind (0–3) in bits 0–1, the field (a solid
 line's width, a stripe's edge) in bits 2–4. The encoder never reaches bit 5 (its largest
 bytes are `0x0C`, bold, and `0x07`, stripeTop), so **Draw from: Top** (1.24.0) rides
-there: bit 5 (`0x20`; `draw-from.js` `LINE_BIT`, `persist.h` `LINE_STYLE_FROM_TOP`) of
+there: bit 5 (`0x20`; `graph-wire.js` `LINE_BIT`, `persist.h` `LINE_STYLE_FROM_TOP`) of
 `[11]`, `[12]`, `[13]` and `[15]` says that line hangs from the plot's top — its stroke
-or marks, and, for the Main metric, its Area fill with it. Bits 6–7 are reserved at 0.
+or marks, and, for the Main metric, its Area fill with it. Bit 6 (`FLOAT_BIT`, `persist.h`
+`LINE_STYLE_FLOATING`) marks a drawn line that anchors no edge (pressure, feels-like, dew
+point); bit 7 is reserved at 0. `draw-from.js` is the reading behind both bits.
 
 - **The decode is kind-aware** (`line_style_top_edge`). A stripe keeps its own edge in
   the field's low bit, bit 2; every other kind reads bit 5. Bit 2 is a solid line's width
   there (`0x04` thin, `0x0C` bold), so reusing the stripe decode would hang every solid
-  line. The phone never sets bit 5 on a stripe byte, nor for aplite (`capsForWatch` →
+  line. The phone never sets bit 5 on a stripe byte, nor for aplite (`computeEnv` →
   `lineStyles: false`), whatever is stored.
 - **No storage of its own.** `[11..13]` are stored verbatim and `[15]` as an int, so a
   flip changes the stored value, dirties the forecast and repaints it.
@@ -340,7 +343,7 @@ or marks, and, for the Main metric, its Area fill with it. Bits 6–7 are reserv
 **Bars from: Top cannot ride in this tuple:** `handle_line_style` dirties only the
 forecast, so a radar flag here would not repaint the radar. Each chart's bar flag sits in
 its own palette blob instead, `BAR_PALETTE_UINT8` and `RADAR_PALETTE_UINT8` (3 B per stop,
-`[from_lo, from_hi, GColor8]`, `rain-tier.js` `packPalette`): bit 7 (`0x80`; `draw-from.js`
+`[from_lo, from_hi, GColor8]`, `rain-tier.js` `packPalette`): bit 7 (`0x80`; `graph-wire.js`
 `PALETTE_BIT`) of byte `[1]`, stop 0's `from_hi`. Every palette starts at `from = 0`, so
 that byte is otherwise always 0. The flag turns stop 0's threshold negative, which the
 watch reads as `palette_from_top()` (`stops[0].from < 0`): no mask, no persist key, and
@@ -359,7 +362,7 @@ byte what they were before the feature; no tuple grew, and the Clay budget is un
 
 ## 8. One render context, three consumers
 
-`renderContext(settings, watchInfo)` is the single authority on *what this watch is
+`renderContextFor(settings, caps)` is the single authority on *what this watch is
 actually rendering*. The wire packer and the telemetry snapshot once derived it
 separately and diverged — telemetry copied the theme fold but dropped the
 colour-platform half, so a diorite install reported picks the wire had already resolved
@@ -373,14 +376,18 @@ away to white.
 - `suffix` is the polarity half of every key name, derived from the folded theme so the
   pick that is read is the pick that is painted.
 
-The settings page has no watchInfo, so it enters through `renderContextFor` /
-`resolveGraphColors` with capabilities passed in. `resolveLineStyle` is the thin
-watchInfo adapter over the same body — the preview and the wire run one resolution, not
-two copies.
+Every caller describes the target by its capabilities. The phone passes config-ui's
+`computeEnv(watchInfo)` for the connected watch: `weather/graph-wire.js` packs
+`resolveGraphColors`' answer and telemetry reads `renderContextFor`'s. The settings page
+passes the env of the platform it previews. The preview and the wire run one resolution,
+not two copies, and no adapter stands between a watchInfo and it.
 
 This is also why `line-style.js` is dual-context: a CommonJS module on the phone and in
 the tests, and a plain concatenated `<script>` in the settings-page webview, which has
 no `require()`. `pebble-colors.js` and `resolve-ink.js` must precede it in the bundle.
+The wire half (the packing, `rain-tier.js`' `GColor8` conversion and the platform table)
+stays out of it, in the phone-only `weather/graph-wire.js`, so the page bundle carries
+no code it cannot run.
 
 ## 9. Displaying a derived value
 

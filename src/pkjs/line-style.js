@@ -1,7 +1,8 @@
 // src/pkjs/line-style.js — ES5. The graph's colours: three metric lines, the area fill
 // and its flag, the five night colours and the night flag, and the per-line marker
 // styles. All settings-derived, never weather-derived, so they ride the Clay settings
-// message.
+// message. This is the reading; weather/graph-wire.js (phone only) packs it for one
+// watch, and the settings page's preview draws from the same resolution.
 //
 // DESIGN LOG: docs/adr/0003-graph-colour-model.md — the key vocabulary, why the
 // built-ins are derived rather than listed, why the night tint cascades at resolve
@@ -18,14 +19,6 @@
         ? require('./pebble-colors') : window.PebbleColors;
     var resolveInkLib = (typeof require !== 'undefined')
         ? require('./resolve-ink.js') : window.ResolveInk;
-    // Phone-only deps — neither is in the page bundle, and neither of their consumers
-    // here is reachable from it: configUi backs capsForWatch (so renderContext and
-    // resolveLineStyle are phone-only; the page enters through renderContextFor /
-    // resolveGraphColors), rainTier backs buildLineStyleBytes, which only wire packers call.
-    var configUi = (typeof require !== 'undefined')
-        ? require('./config-ui') : null;   // isColorPlatform — same helper rain-tier/palette-wire use
-    var rainTier = (typeof require !== 'undefined')
-        ? require('./weather/rain-tier') : null;
     var resolveInk = resolveInkLib.resolveInk;
     var drawsColor = resolveInkLib.drawsColor;
     var isLightPolarity = resolveInkLib.isLightPolarity;
@@ -210,7 +203,7 @@
      * The storage key one graph colour lives under.
      * @param {string} scope A metric id from GRAPH_METRICS, or 'night' for the full-height band.
      * @param {string} role 'Line'|'Fill'|'Night' for a metric; 'Hatch'|'Boundary' for 'night'.
-     * @param {string} suffix Polarity, 'Dark' or 'Light' (renderContext's `suffix`).
+     * @param {string} suffix Polarity, 'Dark' or 'Light' (renderContextFor's `suffix`).
      * @returns {string} e.g. 'gcPrecipLineDark', 'gcNightHatchLight'.
      */
     function graphColorKey(scope, role, suffix) {
@@ -418,9 +411,6 @@
         return null;
     }
 
-    // Line-style flag byte (wire byte [3]), bit 0: the secondary line's area fill is on.
-    var FLAG_SECONDARY_FILL = 0x01;
-
     // --- Per-line marker styles (wire bytes [11..13]) -----------------------
     // One setting per configurable line, six values: 'line' (thin solid),
     // 'bold' (thick solid), 'dots' (square dots), 'x' (little x marks), and
@@ -542,12 +532,6 @@
             ? LINE_STYLE_WIDTHS[v] : 0;
         return LINE_STYLE_KINDS[v] | (width << 2);
     }
-    // NIGHT flag byte (wire byte [9]), bit 0: the night-area tint is an explicit user pick.
-    // It was the light-polarity opt-in for the night re-shade; NO WATCH READS IT any more,
-    // since light re-shades unconditionally off NIGHT_AREA_COLORS' light arm. Still sent,
-    // because bytes [4..9] are byte-for-byte the watch's NIGHT_COLORS persist blob and
-    // dropping it would change that blob's length for one dead byte. ADR-0003 §7.
-    var FLAG_NIGHT_FILL_EXPLICIT = 0x01;
 
     /**
      * What this watch is ACTUALLY rendering — the ONE authority every graph-colour consumer
@@ -556,48 +540,19 @@
      *
      * `theme` is the FOLDED theme (aplite has the light polarity compiled out, so resolving
      * off settings.theme would send black lines to a black background). `isColor` is the
-     * EFFECTIVE colour flag — colour hardware only counts when the theme isn't B&W.
-     * `suffix` is the polarity half of every key name, off the folded theme, so the pick
-     * that is read is the pick that is painted.
+     * EFFECTIVE colour flag — colour hardware only counts when the theme isn't B&W, so
+     * `caps.color` is the DISPLAY's colour capability and the bw/bw-light fold is applied
+     * here, exactly as it is for a real watch. `suffix` is the polarity half of every key
+     * name, off the folded theme, so the pick that is read is the pick that is painted.
+     *
+     * The target comes as its capabilities, so the phone (config-ui computeEnv of the
+     * connected watch: weather/graph-wire.js, telemetry) and the settings page (its own
+     * env) ask the one question the same way.
      *
      * @param {Object} settings Clay settings blob; only `theme` is read.
-     * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null/undefined
-     *   (treated as colour basalt).
-     * @returns {{theme: string, isColor: boolean, suffix: string}} The render context.
-     */
-    function renderContext(settings, watchInfo) {
-        return renderContextFor(settings, capsForWatch(watchInfo));
-    }
-
-    /**
-     * The two render capabilities a target platform decides, looked up from a watchInfo.
-     * Phone-only: it is the one place in this module that needs config-ui's platform table,
-     * which the settings-page bundle does not carry.
-     * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null/undefined
-     *   (treated as colour basalt).
-     * @returns {{color: boolean, themePolarity: boolean, lineStyles: boolean}} Capabilities
-     *   for renderContextFor / resolveGraphColors.
-     */
-    function capsForWatch(watchInfo) {
-        var platform = watchInfo && watchInfo.platform ? watchInfo.platform : 'basalt';
-        return {
-            color: configUi.isColorPlatform(platform),
-            themePolarity: configUi.isThemePolarityPlatform(platform),
-            lineStyles: configUi.isLineStylePlatform(platform)
-        };
-    }
-
-    /**
-     * renderContext() with the platform's capabilities supplied directly, for a caller that
-     * has no watchInfo to look them up from — the settings page, which is previewing a
-     * target described by its own `env` rather than asking a connected watch.
-     *
-     * `caps.color` is the DISPLAY's colour capability, not the effective flag: the
-     * bw/bw-light fold is applied here, exactly as it is for a real watch.
-     *
-     * @param {Object} settings Clay settings blob; only `theme` is read.
-     * @param {{color: boolean, themePolarity: boolean}} caps Whether the target renders in
-     *   colour at all, and whether it ships the light polarity (false folds light→dark).
+     * @param {{color: boolean, themePolarity: boolean}} caps config-ui computeEnv() facts,
+     *   or any object carrying these two: whether the target renders in colour at all, and
+     *   whether it ships the light polarity (false folds light→dark).
      * @returns {{theme: string, isColor: boolean, suffix: string}} The render context.
      */
     function renderContextFor(settings, caps) {
@@ -611,7 +566,7 @@
 
     /**
      * Line/dot colour for a metric, resolved for the platform + theme. Both isColor and
-     * theme must come from renderContext() — the EFFECTIVE flag and the FOLDED theme, so
+     * theme must come from renderContextFor() — the EFFECTIVE flag and the FOLDED theme, so
      * bw/bw-light take the `!isColor` arm and never reach the light-variant branch.
      * TOTAL: an unknown metric answers the theme foreground. ADR-0003 §6.
      * @param {string} metric precip_prob|wind|gust|uv.
@@ -735,13 +690,13 @@
      * bytes no watch ever read. These bytes describe colours that render mode ignores.
      *
      * `fillExplicit` is the only one on the wire (byte [9]). No watch reads it now — see
-     * FLAG_NIGHT_FILL_EXPLICIT — but it stays honest rather than pinned true: it is the
-     * same "is this a pick?" answer telemetry reports, and the wire and telemetry
-     * disagreeing about intent is the bug §8 exists to prevent. ADR-0003 §4, §7.
+     * weather/graph-wire.js FLAG_NIGHT_FILL_EXPLICIT — but it stays honest rather than
+     * pinned true: it is the same "is this a pick?" answer telemetry reports, and the wire
+     * and telemetry disagreeing about intent is the bug §8 exists to prevent. ADR-0003 §4, §7.
      *
      * @param {Object} settings Clay settings blob (the gcNightHatch / gcNightBoundary keys
      *   and the gc&lt;Metric&gt;Night / gc&lt;Metric&gt;Fill pair, both polarities).
-     * @param {{suffix: string, theme: string}} cx renderContext() result — the polarity
+     * @param {{suffix: string, theme: string}} cx renderContextFor() result — the polarity
      *   suffix and theme are read from the FOLDED theme, so an aplite light install looks
      *   up the Dark colours it can paint.
      * @param {string} metric The secondary line's metric, which keys the night area.
@@ -762,38 +717,26 @@
     }
 
     /**
-     * Resolve the graph's line styling from settings alone (no weather data). A thin
-     * watchInfo adapter over resolveGraphColors — the only thing a watchInfo adds is the
-     * two capability bits capsForWatch looks up.
+     * Resolve the graph's line styling from settings alone (no weather data), for a target
+     * described by its capabilities: the connected watch on the phone (weather/graph-wire.js
+     * packs this answer, with config-ui computeEnv of the watch) and the platform the
+     * settings page previews. One body, so the preview and the wire run the SAME
+     * resolution rather than two copies of it (ADR-0003 §8).
      *
      * CONTRACT: every colour handed back is 0xRRGGBB on the Pebble-64 grid, so nothing
      * downstream has to quantize again.
      *
      * @param {Object} settings Clay settings blob (theme, secondaryLine, thirdLine,
-     *   fourthLine, secondaryLineFill, rainBarColor, and the 36 gc* graph-colour keys).
-     * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null/undefined
-     *   (treated as colour basalt).
+     *   fourthLine, fifthLine, secondaryLineFill, secondaryLineStyle, rainBarColor, and the
+     *   gc* graph-colour keys).
+     * @param {{color: boolean, themePolarity: boolean, lineStyles: boolean}} caps config-ui
+     *   computeEnv() facts, or any object carrying these three; see renderContextFor.
+     *   `lineStyles` is the WW_LINE_STYLE mirror: only an explicit false (aplite) ignores
+     *   the stored styles, so a stripe picked on a colour watch paired to the same phone
+     *   cannot switch an aplite fill off.
      * @returns {{secondary: number, fill: number, third: number, fourth: number,
-     *   fifth: number, fillOn: boolean, night: Object}} Four 0xRRGGBB colours, the resolved fill flag,
-     *   and the night colours (see resolveNightColors).
-     */
-    function resolveLineStyle(settings, watchInfo) {
-        return resolveGraphColors(settings, capsForWatch(watchInfo));
-    }
-
-    /**
-     * resolveLineStyle() for a caller that describes its target by capabilities rather than
-     * by a watchInfo — the settings page, which previews a platform it is not connected to.
-     * This is the whole body; resolveLineStyle is the watchInfo adapter over it, so the
-     * preview and the wire run the SAME resolution rather than two copies of it.
-     *
-     * @param {Object} settings Clay settings blob — as for resolveLineStyle.
-     * @param {{color: boolean, themePolarity: boolean, lineStyles: boolean}} caps See
-     *   renderContextFor. `lineStyles` is the WW_LINE_STYLE mirror: only an explicit false
-     *   (aplite) ignores the stored styles, so a stripe picked on a colour watch paired to
-     *   the same phone cannot switch an aplite fill off.
-     * @returns {{secondary: number, fill: number, third: number, fourth: number,
-     *   fifth: number, fillOn: boolean, night: Object}} As resolveLineStyle.
+     *   fifth: number, fillOn: boolean, night: Object}} Four 0xRRGGBB line colours, the
+     *   fill colour, the resolved fill flag, and the night colours (see resolveNightColors).
      */
     function resolveGraphColors(settings, caps) {
         var cx = renderContextFor(settings, caps);
@@ -835,91 +778,9 @@
         };
     }
 
-    /**
-     * Pack the line styling for the Clay wire — SIXTEEN bytes:
-     *
-     *   [0] main-metric line colour    (GColor8 argb)
-     *   [1] area fill colour           (GColor8 argb)
-     *   [2] second-metric line colour  (GColor8 argb)
-     *   [3] line flags — bit 0 = fill on
-     *   [4] full-height night hatch    (GColor8 argb)  ┐
-     *   [5] full-height dusk/dawn line (GColor8 argb)  │ bytes [4..9] are byte-for-byte
-     *   [6] night-area underlay base   (GColor8 argb)  │ the watch's NIGHT_COLORS persist
-     *   [7] night-area hatch           (GColor8 argb)  │ blob (NIGHT_COLOR_BYTES = 6);
-     *   [8] night-area boundary        (GColor8 argb)  │ app_message.c stores the tail
-     *   [9] night flags — bit 0 = the tint is an explicit pick  ┘ straight through.
-     *   [10] third-metric line colour  (GColor8 argb)
-     *   [11] main-metric line style    ┐ bytes [11..13] are byte-for-byte the watch's
-     *   [12] second-metric line style  │ LINE_STYLES persist blob (kind | width << 2 —
-     *   [13] third-metric line style   ┘ see LINE_STYLE_KINDS above; persist.h).
-     *   [14] fourth-metric line colour (GColor8 argb)  ┐ the third tail block:
-     *   [15] fourth-metric line style  (kind | field)  ┘ FIFTH_LINE_COLOR / _STYLE.
-     *
-     * Each style byte [11], [12], [13], [15] also carries its line's Draw from: Top in
-     * bit 5 (draw-from.js LINE_BIT, persist.h LINE_STYLE_FROM_TOP), which kind | field
-     * never reaches, and in bit 6 whether the drawn line floats, anchoring no edge of the
-     * graph (draw-from.js FLOAT_BIT, persist.h LINE_STYLE_FLOATING: pressure, feels-like,
-     * dew point); bit 7 stays 0. Neither is ever set on a stripe or on aplite, so with every
-     * Draw from on Bottom and no floating line drawn the bytes are the ones this function
-     * always sent.
-     *
-     * rgbToGColor8 matches Pebble's GColorFromHEX exactly, so the pixel is identical to
-     * sending the full 0xRRGGBB. The watch treats everything past byte [3] as OPTIONAL
-     * tail blocks (its length checks are minimums, one per block), so a shorter tuple
-     * from an older sender still applies in full — which is the rule for growing this:
-     * append a block plus its own length check, never widen the minimum. ADR-0003 §7.
-     * Bytes [10..15] ship to every watch — aplite has no parse arm for them and simply
-     * ignores the tail, exactly as pre-feature watches ignore bytes they postdate.
-     *
-     * @param {Object} settings Clay settings blob.
-     * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null.
-     * @returns {number[]} The sixteen bytes above.
-     */
-    function buildLineStyleBytes(settings, watchInfo) {
-        var s = resolveLineStyle(settings, watchInfo);
-        // Required here, not at load: draw-from.js binds this module while its own body
-        // runs. Phone-only, like rainTier below.
-        var drawFrom = require('./draw-from.js');
-        var caps = capsForWatch(watchInfo);
-        /**
-         * One line's style byte with its Draw from flag and its float bit.
-         * @param {string} lineKey secondaryLine|thirdLine|fourthLine|fifthLine.
-         * @returns {number} lineStyleByte, bit 5 set while the line hangs from the top, bit 6
-         *   while it is drawn but anchors no edge (pressure, feels-like, dew point).
-         */
-        function styleWithFrom(lineKey) {
-            return drawFrom.styleByte(lineStyleByte(settings, lineKey + 'Style'),
-                drawFrom.lineFromTop(settings, lineKey, caps),
-                drawFrom.lineFloats(settings, lineKey, caps));
-        }
-        return [
-            rainTier.rgbToGColor8(s.secondary),
-            rainTier.rgbToGColor8(s.fill),
-            rainTier.rgbToGColor8(s.third),
-            s.fillOn ? FLAG_SECONDARY_FILL : 0,
-            rainTier.rgbToGColor8(s.night.hatch),
-            rainTier.rgbToGColor8(s.night.boundary),
-            rainTier.rgbToGColor8(s.night.areaBase),
-            rainTier.rgbToGColor8(s.night.areaHatch),
-            rainTier.rgbToGColor8(s.night.areaBoundary),
-            s.night.fillExplicit ? FLAG_NIGHT_FILL_EXPLICIT : 0,
-            rainTier.rgbToGColor8(s.fourth),
-            styleWithFrom('secondaryLine'),
-            styleWithFrom('thirdLine'),
-            styleWithFrom('fourthLine'),
-            rainTier.rgbToGColor8(s.fifth),
-            styleWithFrom('fifthLine')
-        ];
-    }
-
     var api = {
-        renderContext: renderContext,
         renderContextFor: renderContextFor,
-        // Phone-only (configUi): palette-wire.js reads the platform's caps through it.
-        capsForWatch: capsForWatch,
-        resolveLineStyle: resolveLineStyle,
         resolveGraphColors: resolveGraphColors,
-        buildLineStyleBytes: buildLineStyleBytes,
         GRAPH_METRICS: GRAPH_METRICS,
         METRIC_SLUG: METRIC_SLUG,
         METRIC_ROLES: METRIC_ROLES,
@@ -942,7 +803,6 @@
         lineStyleValue: lineStyleValue,
         lineStyleByte: lineStyleByte,
         isStripeStyle: isStripeStyle,
-        FLAG_NIGHT_FILL_EXPLICIT: FLAG_NIGHT_FILL_EXPLICIT,
         LINE_COLORS: LINE_COLORS,
         FILL_COLORS: FILL_COLORS,
         colorPick: colorPick,

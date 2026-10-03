@@ -1,7 +1,7 @@
 // src/pkjs/fixture-weather.js
 //
 // Dev-only fixture send path: turn a fixtures/<name>.json weather block into
-// the real watch AppMessage payload (weather + radar + palette tuples) and
+// the real watch AppMessage payload (weather + radar + the graph's Clay tuples) and
 // send it, bypassing live provider fetch. Pulled out of index.js so the
 // orchestrator stays focused on event wiring and live fetch.
 
@@ -9,8 +9,7 @@ var WeatherProvider = require('./weather/provider.js');
 var fetchOptions = require('./weather/fetch-options.js');
 var forecastSeries = require('./forecast-series.js');
 var wireUnits = require('./wire-units.js');
-var paletteWire = require('./weather/palette-wire.js');
-var lineStyle = require('./line-style.js');
+var graphWire = require('./weather/graph-wire.js');
 var radarSky = require('./weather/radar-sky.js');
 var radarWire = require('./weather/radar-wire.js');
 
@@ -251,19 +250,13 @@ function sendFixtureWeather(fixture, deps) {
         }
     }
 
-    // Bundle the rain palette too, so fixture bars honor rainBarColor.
-    Object.assign(payload, paletteWire.buildPaletteTuples(deps.watchInfo, deps.settings));
-
-    // Same reason, same trick for the graph's line styling: it rides the Clay
-    // settings message in production, and a fixture send bypasses that path
-    // entirely, so bundle it here or the fixture renders its lines in whatever
-    // colours the last real settings send happened to leave on the watch. The
-    // inbox handlers each dict_find their own key, so a Clay tuple is read just
-    // as happily off the weather message. Ten bytes — the fixture's claySettings
-    // block drives the night colours and their flag (bytes 4..9) too; the layout
-    // lives on buildLineStyleBytes in line-style.js.
-    payload.CLAY_LINE_STYLE_UINT8 = lineStyle.buildLineStyleBytes(
-        deps.settings, deps.watchInfo);
+    // Bundle the graph's Clay tuples too (the bar palettes and the line styling): they
+    // ride the Clay settings message in production, and a fixture send bypasses that
+    // path entirely, so without them the fixture's bars and lines render in whatever
+    // the last real settings send left on the watch. The inbox handlers each dict_find
+    // their own key, so a Clay tuple is read just as happily off the weather message.
+    // The fixture's claySettings block drives them like any settings blob.
+    Object.assign(payload, graphWire.buildGraphTuples(deps.settings, deps.watchInfo));
 
     // Dev: let a fixture exercise sleep mode (the snooze indicator + frozen
     // weather slots). The live path derives IS_SLEEPING from the sleep window;

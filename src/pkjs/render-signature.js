@@ -81,7 +81,7 @@ function renderSignature(settings) {
     // bakes (and fetches — UV), so it joins. NOT the theme or the area-fill toggle:
     // the line colours, the fill flag, the ...LineStyle keys and the
     // threshold auto-colours all ride the Clay message now (line-style.js,
-    // palette-wire.js, status-wire.js' buildSettingsBlob), and the auto theme
+    // weather/graph-wire.js, status-wire.js' buildSettingsBlob), and the auto theme
     // switch already flips with a Clay-only resend. The one style fact the bake does
     // read — which lines are stripes at all (their level bytes) — joins as a derived
     // value, so a style edit that bakes nothing forces no fetch. (The edge a stripe sits
