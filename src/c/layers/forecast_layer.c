@@ -262,13 +262,11 @@ static void load_dataset(ForecastDataset *ds) {
 // byte-for-byte as before (the frozen fork).
 #if defined(WW_LINE_STYLE)
 #define LINE_HI(inset) ((inset) ? temp_rows : FORECAST_TREND_FULL_SCALE)
-#define LINE_TOP(inset) 0
-#define LINE_BOTTOM(inset) 0
+#define LINE_INSET(inset) 0   // a layer's inset_top and inset_bottom alike
 #define TEMP_HI temp_rows
 #else
 #define LINE_HI(inset) FORECAST_TREND_FULL_SCALE
-#define LINE_TOP(inset) (inset)
-#define LINE_BOTTOM(inset) (inset)
+#define LINE_INSET(inset) (inset)
 #define TEMP_HI FORECAST_TREND_FULL_SCALE
 #endif
 
@@ -297,7 +295,7 @@ static ChartLayer mark_line_layer(const Series *s, int count, int hi) {
     return (ChartLayer){ CHART_LAYER_LINE, .from_top = SERIES_FROM_TOP(s), .line = {
         .values = s->line.values, .count = count,
         .lo = 0, .hi = hi,
-        .inset_top = LINE_TOP(s->line.inset_y), .inset_bottom = LINE_BOTTOM(s->line.inset_y),
+        .inset_top = LINE_INSET(s->line.inset_y), .inset_bottom = LINE_INSET(s->line.inset_y),
         .color = s->line.color, .width = s->line.width,
         .style = series_style_pick(s->line, CHART_LINE_DOTS),
         .zero_absent = LINE_ZERO(s) } };  // metric line: wire byte 0 means "nothing", every style
@@ -774,8 +772,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         layers[fill_on ? line_at : n++] = (ChartLayer){ CHART_LAYER_LINE, .from_top = second_top, .line = {
                   .values = second->line.values, .count = ds->num_entries,
                   .lo = 0, .hi = LINE_HI(second->line.inset_y),
-                  .inset_top = LINE_TOP(second->line.inset_y),
-                  .inset_bottom = LINE_BOTTOM(second->line.inset_y),
+                  .inset_top = LINE_INSET(second->line.inset_y),
+                  .inset_bottom = LINE_INSET(second->line.inset_y),
                   .export_points = area_pts,
                   .color = second->line.color, .width = second->line.width,
                   .style = series_style_pick(second->line, CHART_LINE_SOLID),
@@ -785,7 +783,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = first->line.values, .count = ds->num_entries,
         .lo = 0, .hi = TEMP_HI,
-        .inset_top = LINE_TOP(first->line.inset_y), .inset_bottom = LINE_BOTTOM(first->line.inset_y),
+        .inset_top = LINE_INSET(first->line.inset_y), .inset_bottom = LINE_INSET(first->line.inset_y),
         .color = first->line.color, .width = first->line.width } };
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
         .left   = { 1, axis_color },
