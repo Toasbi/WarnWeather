@@ -22,8 +22,10 @@ const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 const radarTab = schema.tabs.find((t) => t.id === 'radar');
 const radarRow = radarTab.sections[0].items.find((i) => i.messageKey === 'radarProvider');
-const ARGS = radarRow.attentionFrom.args;
-const SOURCE = ARGS.keyed.rainbowkey;
+// The keyed sources of both pickers (key-sources.js): the Radar row's resolvers read the
+// radarProvider table by the row's messageKey, the Weather provider row's the provider one.
+const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
+const SOURCE = KEY_SOURCES.radarProvider.sources.rainbowkey;
 const RBW_KEY = 'rbw-secret-0123wxyz';
 // Settings with the radar on "Rainbow (own key)".
 const OWN = { radarProvider: 'rainbowkey', radarMode: 'graph', fetchIntervalMin: '15', sleepNightEnabled: false };
@@ -133,8 +135,22 @@ test('the summary adds the month\'s calls the settings come to, unless the key i
   assert.equal(keyStatus.summaryLine(SOURCE, stateOf(S), S), 'Key ••••wxyz · ✗ rejected: invalid key (401)');
 });
 
+test('the Radar row\'s hint: its own "why" copy for the value, the summary line under it', () => {
+  // Through the engine, as the page resolves it: the row's resolvers carry no args, so the
+  // copy is the engine's staticHint (the row's hintByValue) and the table is found by the
+  // row's messageKey.
+  const resolveHint = global.PConf.engine.resolveHint;
+  const S = Object.assign({ rainbowApiKey: RBW_KEY }, OWN);
+  assert.equal(resolveHint(radarRow, S, {}, 'rainbowkey'),
+    radarRow.hintByValue.rainbowkey + '<br>Key ••••wxyz · not tested yet · ~2,976 of 5,000 calls a month');
+  assert.equal(resolveHint(radarRow, Object.assign({}, OWN, { radarProvider: 'rainbow' }), {}, 'rainbow'), undefined,
+    'the shared Rainbow: no key, the static hintByValue answers');
+});
+
 test('the resolvers answer for "Rainbow (own key)" and Tomorrow.io only', () => {
-  const args = (value) => Object.assign({ messageKey: 'radarProvider', value }, ARGS);
+  // The args the engine hands a row resolver: the row's messageKey and value (the row has none
+  // of its own).
+  const args = (value) => ({ messageKey: 'radarProvider', value });
   ['dwd', 'metno', 'rainbow'].forEach((v) => {
     const S = Object.assign({}, OWN, { radarProvider: v });
     assert.equal(keyStatus.keySheet(S, {}, args(v)), null, v + ': no Edit button');
@@ -304,11 +320,8 @@ test('page: aplite has no Radar tab — no dot and no dialog for a stored own ke
 // Tomorrow.io sheet (providerKeyTomorrowio) is the one copy of the key, and the Radar row's
 // Edit, summary, note, dot and Save dialog all read that key's one state.
 
-const TIO = ARGS.keyed.tomorrowio;
-const generalTab = schema.tabs.find((t) => t.id === 'general');
-const WEATHER_ARGS = generalTab.sections.reduce((found, sec) => found
-  || (sec.items.find((i) => i.messageKey === 'provider') || {}).attentionFrom, null).args;
-const WEATHER_TIO = WEATHER_ARGS.keyed.tomorrowio;
+const TIO = KEY_SOURCES.radarProvider.sources.tomorrowio;
+const WEATHER_TIO = KEY_SOURCES.provider.sources.tomorrowio;
 const TIO_KEY = 'tio-secret-0123wxyz';
 // A running radar on Tomorrow.io, the weather on DWD (radar-only) or on Tomorrow.io too (both).
 const TIO_RADAR_ONLY = { provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'graph', fetchIntervalMin: '15',
@@ -329,7 +342,7 @@ function typeTioKey(page, value) {
 }
 
 test('Tomorrow.io: radar-only its own sheet; while it is the weather provider too, the General tab\'s', () => {
-  const args = Object.assign({ messageKey: 'radarProvider', value: 'tomorrowio' }, ARGS);
+  const args = { messageKey: 'radarProvider', value: 'tomorrowio' };
   const noKey = Object.assign({ tomorrowioApiKey: '' }, TIO_RADAR_ONLY);
   const noKeyBoth = Object.assign({}, noKey, { provider: 'tomorrowio' });
   assert.equal(keyStatus.keySheet(noKey, {}, args), 'radarKeyTomorrowio');

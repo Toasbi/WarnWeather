@@ -645,11 +645,17 @@ own line draws, which lives in a sibling key.
 ```js
 // Returns the hint HTML; null/undefined = "use the row's static hint"; '' = no hint.
 PConf.hintResolvers.register('lineStyleHint', function (state, env, args) {
-  // args carries the row's messageKey and the value the row SHOWS (after the
-  // display-snap), both merged UNDER hintFrom.args
+  // args carries the row's messageKey, the value the row SHOWS (after the
+  // display-snap) and the row's static hint for that value (staticHint), all merged
+  // UNDER hintFrom.args
   return scaleFor(state[args.metricKey], args.value);
 });
 ```
+
+`args.staticHint` is what the row would show without the resolver: its `hintByValue` entry for
+the shown value, else its `hint` (undefined when it has neither). A resolver that only adds to
+that copy — WarnWeather's key-status summary appends "Key ••••1234 · ✓ works" under the
+provider's "why" text — builds on it instead of carrying a second copy of the table in its args.
 
 The resolver runs at render time, after the display-snap. The page re-renders its whole body
 after every change but a text edit (that one waits for the next full render — see the

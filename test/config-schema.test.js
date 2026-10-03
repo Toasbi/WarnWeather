@@ -1587,19 +1587,30 @@ const RAINBOW_OWN_KEY_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbowkey' },
 const radarPickerSection = () => schema.tabs.reduce((found, t) => found
   || t.sections.find((sec) => sec.items.some((i) => i.messageKey === 'radarProvider')), null);
 
-// The key tables live in settings/key-sources.js, one per picker, and the schema hands them
-// over as they are: each row's args carry its picker's table and outcome, and the General
-// tab's Tomorrow.io sheet is gated on the radar source's sharedSheet condition, so the
-// sheet the Radar row's Edit opens while Tomorrow.io is both is the one that shows.
+// The key tables live in settings/key-sources.js, one per picker, by the picker's
+// messageKey. The rows' key-status resolvers read them in the page by the row's own
+// messageKey, so the rows hand them no args (the schema does not carry the tables); the key
+// sheets are built from them; and the General tab's Tomorrow.io sheet is gated on the radar
+// source's sharedSheet condition, so the sheet the Radar row's Edit opens while Tomorrow.io
+// is both is the one that shows.
 test('the provider and radar rows read their key tables from key-sources.js', () => {
   const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
   assert.deepEqual(Object.keys(KEY_SOURCES), ['provider', 'radarProvider']);
   Object.keys(KEY_SOURCES).forEach((picker) => {
-    const args = byKey(picker).editSheetFrom.args;
-    assert.equal(args.keyed, KEY_SOURCES[picker].sources, picker + ': the module\'s own table');
-    assert.equal(args.picker, picker);
-    assert.equal(args.outcome, KEY_SOURCES[picker].outcome, picker);
+    const row = byKey(picker);
+    assert.deepEqual([row.editSheetFrom, row.editBadgeFrom, row.hintFrom, row.attentionFrom],
+      [{ resolver: 'keySheet' }, { resolver: 'keyBadge' }, { resolver: 'keySummaryHint' }, { resolver: 'keyAttention' }],
+      picker + ': no args, the table is found by the row\'s messageKey');
+    const sources = KEY_SOURCES[picker].sources;
+    Object.keys(sources).forEach((id) => {
+      const sheet = schema.tabs.reduce((found, t) => found
+        || t.sections.find((s) => s.sheetOnly && s.sheetId === sources[id].sheetId), null);
+      assert.ok(sheet, picker + '/' + id + ': its key sheet is built');
+      assert.equal(sheet.title, sources[id].name, picker + '/' + id);
+      assert.equal(sheet.items[0].messageKey, sources[id].keyField, picker + '/' + id);
+    });
   });
+  assert.ok(JSON.stringify(schema).indexOf('"keyed"') === -1, 'no row carries a key table into the page');
   const shared = KEY_SOURCES.radarProvider.sources.tomorrowio.sharedSheet;
   const general = schema.tabs.find((t) => t.id === 'general');
   const sheet = general.sections.find((s) => s.sheetOnly && s.sheetId === shared.sheetId);
@@ -1609,25 +1620,23 @@ test('the provider and radar rows read their key tables from key-sources.js', ()
 });
 
 test('the radar picker reads ONE key table for its Edit button, badge, summary, note and Save dialog', () => {
+  const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
   const item = radarItem();
-  const args = item.editSheetFrom.args;
-  assert.equal(item.editSheetFrom.resolver, 'keySheet');
-  assert.equal(item.editBadgeFrom.resolver, 'keyBadge');
-  assert.equal(item.hintFrom.resolver, 'keySummaryHint');
-  assert.equal(item.attentionFrom.resolver, 'keyAttention');
-  [item.editBadgeFrom.args, item.attentionFrom.args].forEach((a) => assert.equal(a, args, 'the same args object'));
-  assert.equal(item.hintFrom.args.hints, item.hintByValue, 'the summary closes the same RADAR_WHY copy');
-  assert.equal(item.hintFrom.args.keyed, args.keyed);
-  assert.equal(args.picker, 'radarProvider');
-  assert.equal(args.outcome, 'the watch gets no rain radar');
-  assert.deepEqual(Object.keys(args.keyed), ['rainbowkey', 'tomorrowio'], 'the own key and Tomorrow.io');
-  assert.deepEqual(args.keyed.rainbowkey, { name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey',
+  assert.deepEqual(item.editSheetFrom, { resolver: 'keySheet' });
+  assert.deepEqual(item.editBadgeFrom, { resolver: 'keyBadge' });
+  assert.deepEqual(item.hintFrom, { resolver: 'keySummaryHint' },
+    'the summary closes the row\'s own RADAR_WHY copy, which the engine hands it');
+  assert.deepEqual(item.attentionFrom, { resolver: 'keyAttention' });
+  const table = KEY_SOURCES.radarProvider;
+  assert.equal(table.outcome, 'the watch gets no rain radar');
+  assert.deepEqual(Object.keys(table.sources), ['rainbowkey', 'tomorrowio'], 'the own key and Tomorrow.io');
+  assert.deepEqual(table.sources.rainbowkey, { name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey',
     test: true, usage: 'rainbow' });
   // Tomorrow.io's key is the weather provider's: the same entry (one key, one verdict: the
   // phone keeps both pickers' answers to it under the one id), only its own sheet differs, and
   // while Tomorrow.io is the weather provider too the General tab's sheet holds the key.
-  const weatherTio = byKey('provider').editSheetFrom.args.keyed.tomorrowio;
-  assert.deepEqual(args.keyed.tomorrowio, Object.assign({}, weatherTio, { sheetId: 'radarKeyTomorrowio',
+  const weatherTio = KEY_SOURCES.provider.sources.tomorrowio;
+  assert.deepEqual(table.sources.tomorrowio, Object.assign({}, weatherTio, { sheetId: 'radarKeyTomorrowio',
     sharedSheet: { key: 'provider', eq: 'tomorrowio', sheetId: 'providerKeyTomorrowio' } }));
   assert.equal(weatherTio.sheetId, 'providerKeyTomorrowio');
 
@@ -1637,7 +1646,8 @@ test('the radar picker reads ONE key table for its Edit button, badge, summary, 
   assert.equal(note.type, 'staticText', 'the missing-key (or out-of-coverage) note hugs the row');
   assert.equal(note.style, 'info');
   assert.equal(note.joinPrevious, true);
-  assert.deepEqual(note.textFrom, { resolver: 'radarProviderNote', args: args });
+  assert.deepEqual(note.textFrom, { resolver: 'radarProviderNote', args: { picker: 'radarProvider' } },
+    'a staticText has no messageKey, so its args name the picker');
   assert.deepEqual(note.showWhen, { key: 'radarMode', ne: 'off' }, 'the picker\'s own gate');
   const scaleNote = section.items[at + 2];
   assert.equal(scaleNote.type, 'staticText');

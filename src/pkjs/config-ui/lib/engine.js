@@ -144,8 +144,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // picker explaining the scale of its line's metric. Read at render time, after the
   // display-snap, like the badge resolver; the page re-renders its whole body after
   // every change, so the hint follows any key the resolver reads with no dependency
-  // list. args carries the row's messageKey and its shown value, merged UNDER
-  // hintFrom.args.
+  // list. args carries the row's messageKey, its shown value and its static hint for
+  // that value (`staticHint`: hintByValue's entry, else hint; what the row shows
+  // without the resolver, so a resolver can add to that copy instead of carrying a
+  // second one), merged UNDER hintFrom.args.
   PConf.hintResolvers = makeRegistry();
 
   // --- attention-resolver registry --- a row opts into "needs attention" by name
@@ -581,14 +583,28 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * A row's static hint for a value: its hintByValue entry for that value, else its
+   * plain hint (undefined when it has neither) — what the row shows without a hint
+   * resolver, or when its resolver answers null/undefined.
+   * @param {Object} item Schema item (hint, hintByValue).
+   * @param {*} value The value the row shows.
+   * @returns {(string|undefined)} Hint HTML, or undefined.
+   */
+  function staticHintOf(item, value) {
+    return item.hintByValue ? (item.hintByValue[value] || item.hint) : item.hint;
+  }
+
+  /**
    * The hint a row derives from the live settings, via the item's named hint resolver —
    * undefined when the item opts out, the resolver is missing or it answers
    * null/undefined, in which case the row falls back to its static hintByValue/hint.
    * An empty string is honoured: the resolver saying "no hint here".
    *
-   * `args` gets the row's messageKey and its SHOWN value (after the display-snap, so a
+   * `args` gets the row's messageKey, its SHOWN value (after the display-snap, so a
    * stored value the options no longer carry is described as what the row displays)
-   * merged UNDER hintFrom.args.
+   * and its static hint for that value (`staticHint`, staticHintOf) merged UNDER
+   * hintFrom.args, so a resolver that only adds to the row's own copy needs no second
+   * copy of it in its args.
    *
    * @param {Object} item Schema item (hintFrom: {resolver, args}).
    * @param {Object} S Live settings state.
@@ -600,7 +616,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (!item.hintFrom) { return undefined; }
     var fn = PConf.hintResolvers.get(item.hintFrom.resolver);
     if (!fn) { return undefined; }
-    var args = Object.assign({ messageKey: item.messageKey, value: value }, item.hintFrom.args || {});
+    var args = Object.assign({ messageKey: item.messageKey, value: value,
+      staticHint: staticHintOf(item, value) }, item.hintFrom.args || {});
     var hint = fn(S, env, args);
     return hint == null ? undefined : String(hint);
   }
@@ -1108,8 +1125,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     // view.hint is a hintFrom resolver's answer (renderItem); without one the static
     // per-value hint, else the plain one.
-    var hint = view.hint != null ? view.hint
-      : item.hintByValue ? (item.hintByValue[view.value] || item.hint) : item.hint;
+    var hint = view.hint != null ? view.hint : staticHintOf(item, view.value);
     // A segmented control with many options is a wide pill row that can't float beside the
     // label without stranding it above (2-3-option segmenteds stay narrow and keep the
     // inline/float layouts). It gets its own flex row (.segwide): the control keeps the
@@ -2316,9 +2332,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           item = findShownItem(SCHEMA, key, ctx);
           if (!item || !item.hintFrom) { continue; }
           hint = resolveHint(item, S, ENV, S[key]);
-          if (hint === undefined) {
-            hint = item.hintByValue ? (item.hintByValue[S[key]] || item.hint) : item.hint;
-          }
+          if (hint === undefined) { hint = staticHintOf(item, S[key]); }
           hint = hint == null ? '' : String(hint);
           if (els[i].innerHTML !== hint) { els[i].innerHTML = hint; }
         }

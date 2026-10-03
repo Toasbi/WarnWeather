@@ -1103,7 +1103,7 @@ if (typeof require !== 'undefined') {
      * record userData.radarCoverage). '' when neither: no note.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
-     * @param {Object} args The row's key-status args (RADAR_KEY_ARGS).
+     * @param {{picker: string}} args The picker's key ('radarProvider'), for keyMissingNote.
      * @returns {string} The note (plain text), or ''.
      */
     function radarProviderNote(S, env, args) {

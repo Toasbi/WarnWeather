@@ -18,8 +18,9 @@ var STATUS_PAIR = require('../status-pair.js');
 var lineStyle = require('../line-style.js');
 // Bars from [Bottom | Top]: the values, from the module the wire packs the flags through.
 var DRAW_FROM = require('../draw-from.js');
-// The keyed sources of the Weather and Radar provider pickers (their names, key sheets,
-// key fields and evidence), the table their rows' key-status resolvers read.
+// The keyed sources of the Weather and Radar provider pickers (their names, key sheets and
+// key fields): the key sheets are built from it here, and the rows' key-status resolvers
+// read it in the page (key-status.js).
 var KEY_SOURCES = require('./key-sources.js');
 // The Custom-layout block (the per-view storage items, their sheetOnly section and
 // the Edit-button row) lives in its own module so its capability gates are BUILT
@@ -725,13 +726,11 @@ var RADAR_PROVIDER_OPTIONS = [
     ['Rainbow (own key)', 'rainbowkey', {desc: 'Worldwide satellite + radar nowcast · needs a free key'}],
     ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}]
 ];
-// The Weather and Radar provider rows' key-status args: the row's keyed sources
-// (settings/key-sources.js), the picker, and what goes missing without a working key (the
-// missing-key note and the Save dialog's sentence).
+// The Weather and Radar provider rows' keyed sources (settings/key-sources.js), which their
+// key sheets are built from. The rows' key-status resolvers read the same tables in the page
+// by the row's picker, so the rows hand them no args.
 var PROVIDER_KEYS = KEY_SOURCES.provider.sources;
 var RADAR_KEYS = KEY_SOURCES.radarProvider.sources;
-var PROVIDER_KEY_ARGS = {keyed: PROVIDER_KEYS, picker: 'provider', outcome: KEY_SOURCES.provider.outcome};
-var RADAR_KEY_ARGS = {keyed: RADAR_KEYS, picker: 'radarProvider', outcome: KEY_SOURCES.radarProvider.outcome};
 // The tomorrow.io key + budget guard live in a key sheet of whichever picker actually uses
 // the key: the General tab's Tomorrow.io sheet (the Edit button after the Weather provider
 // dropdown) while it is the WEATHER provider, the Radar tab's Tomorrow.io sheet (the Edit
@@ -1249,16 +1248,17 @@ module.exports = {
                 // A provider that needs a key gets an Edit button after the dropdown, opening its
                 // key sheet (the sheetOnly sections below this card) — the key field, its Test, the
                 // links and any budget guard live there, not on the card. The row shows the key's
-                // status (settings/key-status.js, all from key-sources.js): the button reads "Add
-                // key" in the warn look while the key is empty; under the "why" hint (the same
-                // PROVIDER_WHY table, so the two cannot drift) a line "Key ••••1234 · ✓ works";
-                // and a key that is missing or known to be rejected puts a dot on this tab and
-                // a dialog in front of Save ("Add key" / "Save anyway"). The missing-key note
-                // is the staticText right below.
-                editSheetFrom: {resolver: 'keySheet', args: PROVIDER_KEY_ARGS},
-                editBadgeFrom: {resolver: 'keyBadge', args: PROVIDER_KEY_ARGS},
-                hintFrom: {resolver: 'keySummaryHint', args: Object.assign({hints: PROVIDER_WHY}, PROVIDER_KEY_ARGS)},
-                attentionFrom: {resolver: 'keyAttention', args: PROVIDER_KEY_ARGS},
+                // status (settings/key-status.js, which reads the table key-sources.js keeps
+                // for this picker): the button reads "Add key" while the key is empty; under the
+                // "why" hint (this row's own PROVIDER_WHY copy, which the engine hands the
+                // resolver, so the two cannot drift) a line "Key ••••1234 · ✓ works"; and a key
+                // that is missing or known to be rejected puts a dot on this tab and a dialog
+                // in front of Save ("Add key" / "Save anyway"). The missing-key note is the
+                // staticText right below.
+                editSheetFrom: {resolver: 'keySheet'},
+                editBadgeFrom: {resolver: 'keyBadge'},
+                hintFrom: {resolver: 'keySummaryHint'},
+                attentionFrom: {resolver: 'keyAttention'},
                 options: [
                     ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
                     ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
@@ -1271,11 +1271,12 @@ module.exports = {
             }, {
                 // The keyed provider's empty key, said where it cannot be missed: an amber note
                 // hugging the row, only while the picked provider's key is blank (textFrom
-                // answers '' otherwise and the note is gone, divider and all).
+                // answers '' otherwise and the note is gone, divider and all). A staticText has
+                // no messageKey, so its args name the picker.
                 type: 'staticText',
                 style: 'info',
                 joinPrevious: true,
-                textFrom: {resolver: 'keyMissingNote', args: PROVIDER_KEY_ARGS}
+                textFrom: {resolver: 'keyMissingNote', args: {picker: 'provider'}}
             }, {
                 type: 'select',
                 messageKey: 'aqiSource',
@@ -1596,18 +1597,18 @@ module.exports = {
                 // opening their key sheet (the sheetOnly sections after this one): the key
                 // field with its Test, the links, the read-out and the budget guard live
                 // there. The row shows the key's status like the Weather provider row
-                // (settings/key-status.js, all from key-sources.js): "Add key" while the key is
-                // empty, a line "Key ••••1234 · ✓ works" under the RADAR_WHY hint, and a key
-                // that is missing or known to be rejected puts a dot on this tab and a dialog
-                // in front of Save ("Add key" / "Save anyway"). The missing-key note is the
-                // staticText right below. Tomorrow.io's key is the weather provider's too:
-                // while Tomorrow.io is also the weather provider, Edit opens the General tab's
-                // Tomorrow.io sheet, the one copy of the key then, and the summary and dot
-                // here agree with that row's.
-                editSheetFrom: {resolver: 'keySheet', args: RADAR_KEY_ARGS},
-                editBadgeFrom: {resolver: 'keyBadge', args: RADAR_KEY_ARGS},
-                hintFrom: {resolver: 'keySummaryHint', args: Object.assign({hints: RADAR_WHY}, RADAR_KEY_ARGS)},
-                attentionFrom: {resolver: 'keyAttention', args: RADAR_KEY_ARGS},
+                // (settings/key-status.js, which reads the table key-sources.js keeps for this
+                // picker): "Add key" while the key is empty, a line "Key ••••1234 · ✓ works"
+                // under the RADAR_WHY hint, and a key that is missing or known to be rejected
+                // puts a dot on this tab and a dialog in front of Save ("Add key" / "Save
+                // anyway"). The missing-key note is the staticText right below. Tomorrow.io's
+                // key is the weather provider's too: while Tomorrow.io is also the weather
+                // provider, Edit opens the General tab's Tomorrow.io sheet, the one copy of
+                // the key then, and the summary and dot here agree with that row's.
+                editSheetFrom: {resolver: 'keySheet'},
+                editBadgeFrom: {resolver: 'keyBadge'},
+                hintFrom: {resolver: 'keySummaryHint'},
+                attentionFrom: {resolver: 'keyAttention'},
                 options: RADAR_PROVIDER_OPTIONS
             }, {
                 // The own key's empty field, said where it cannot be missed: an amber note
@@ -1617,11 +1618,11 @@ module.exports = {
                 // data from DWD, naming one that covers it (radar-coverage.js; the phone's
                 // record userData.radarCoverage). textFrom
                 // answers '' otherwise. It follows the picker's own gate, so radar off hides
-                // it with the row.
+                // it with the row. A staticText has no messageKey, so its args name the picker.
                 type: 'staticText',
                 style: 'info',
                 joinPrevious: true,
-                textFrom: {resolver: 'radarProviderNote', args: RADAR_KEY_ARGS},
+                textFrom: {resolver: 'radarProviderNote', args: {picker: 'radarProvider'}},
                 showWhen: {key: 'radarMode', ne: 'off'}
             }, {
                 // Radar preview now rides the bar-scale note (blockBefore), so it sits BELOW the picker

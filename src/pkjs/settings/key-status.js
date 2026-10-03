@@ -4,15 +4,16 @@
 // "Rainbow (own key)" and Tomorrow.io): which state that key is in, and the resolvers
 // that show it.
 //
-// A picker row describes its keyed sources in ONE table, handed to every resolver below
-// as args.keyed — by the picker's value: {name, sheetId, keyField, test, reasons?,
-// usage?, updateId?, sharedSheet?}. The tables and what each field means live in
-// settings/key-sources.js, one per picker. A key two pickers share (the Tomorrow.io key:
-// the weather provider's and the radar's) is one key with one verdict: both sources name
-// the same keyField and the same source id, so they read one state. The row's other
-// args: `picker`, the picker's messageKey (row resolvers get it as their own messageKey
-// too), and `outcome`, what goes missing without a working key ("the watch gets no
-// forecast").
+// Each picker's keyed sources are ONE table in settings/key-sources.js, by the picker's
+// messageKey: {outcome, sources: {<the picker's value>: {name, sheetId, keyField, test,
+// reasons?, usage?, updateId?, sharedSheet?}}}; what each field means is documented
+// there. Every resolver below looks its row's table up by the picker: the row's own
+// messageKey (the engine merges it into the args of every row resolver), or args.picker
+// for the missing-key note (a staticText has no messageKey), so a row hands them nothing
+// else. A key two pickers share (the Tomorrow.io key: the weather provider's and the
+// radar's) is one key with one verdict: both sources name the same keyField and the same
+// source id, so they read one state. `outcome` is what goes missing without a working
+// key ("the watch gets no forecast").
 //
 // The states of the picked source's key:
 //   missing   — the key field is blank (once trimmed, as onbuild.js stores it);
@@ -34,8 +35,9 @@
 //                                         source's key (sheetOf);
 //   keyBadge         (badgeResolvers)     "Add key" (the page's normal button) while the
 //                                         key is missing, "Edit" otherwise;
-//   keySummaryHint   (hintResolvers)      the row's hint (args.hints, its hintByValue copy)
-//                                         and the summary line "Key ••••1234 · ✓ works";
+//   keySummaryHint   (hintResolvers)      the row's own hint for its value (the engine's
+//                                         args.staticHint: its hintByValue copy) and the
+//                                         summary line "Key ••••1234 · ✓ works";
 //   keyMissingNote   (hintResolvers, a staticText's textFrom) the amber note while the
 //                                         key is missing;
 //   keyAttention     (attentionResolvers) missing or rejected: the tab's dot and the Save
@@ -46,6 +48,10 @@
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
         : null;
+    // The keyed sources, one table per picker (window.KeySources in the page, concatenated
+    // ahead of this file).
+    var keySources = (typeof require !== 'undefined')
+        ? require('./key-sources.js') : window.KeySources;
     var keyFingerprint = (typeof require !== 'undefined')
         ? require('../key-fingerprint.js') : window.KeyFingerprint;
     // The phone's answers to each key, and what a status says about a key (window.KeyResult
@@ -114,13 +120,25 @@
     }
 
     /**
-     * The keyed source a picker value picks, from the row's table, or null.
-     * @param {Object} args The row's args ({keyed}).
+     * The table of the row's picker (key-sources.js): by args.picker, else the row's own
+     * messageKey; null for a picker without one.
+     * @param {Object} args The row's args ({picker} and/or the engine's messageKey).
+     * @returns {?{outcome: string, sources: Object}} The table, or null.
+     */
+    function tableOf(args) {
+        var picker = args && (args.picker || args.messageKey);
+        return (typeof picker === 'string' && Object.prototype.hasOwnProperty.call(keySources, picker))
+            ? keySources[picker] : null;
+    }
+
+    /**
+     * The keyed source a picker value picks, from the table of the row's picker, or null.
+     * @param {Object} args The row's args ({picker} and/or the engine's messageKey).
      * @param {*} value A picker value.
      * @returns {?Object} The source, or null for a source without a key.
      */
     function sourceOf(args, value) {
-        var keyed = (args && args.keyed) || {};
+        var keyed = (tableOf(args) || {}).sources || {};
         return (typeof value === 'string' && Object.prototype.hasOwnProperty.call(keyed, value))
             ? keyed[value] : null;
     }
@@ -217,7 +235,7 @@
      * (no Edit button) for a source without a key.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{messageKey: string, keyed: Object}} args The row's key and table.
+     * @param {{messageKey: string}} args The row's key: the picker.
      * @returns {?string} The sheetId, or null.
      */
     function keySheet(S, env, args) {
@@ -232,7 +250,7 @@
      * missing. Only consulted while keySheet offers a sheet.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{messageKey: string, keyed: Object}} args The row's key and table.
+     * @param {{messageKey: string}} args The row's key: the picker.
      * @returns {Object} Badge state.
      */
     function keyBadge(S, env, args) {
@@ -247,20 +265,20 @@
 
     /**
      * keySummaryHint (hintFrom): for a keyed source, the row's own hint for the value
-     * (args.hints, its hintByValue table) with the summary line under it; null otherwise,
-     * so hintByValue answers.
+     * (args.staticHint, which the engine hands every hint resolver: the row's hintByValue
+     * copy for the value it shows) with the summary line under it; null otherwise, so
+     * hintByValue answers.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{value: string, keyed: Object, hints: Object<string, string>}} args The
-     *   row's shown value, table and hint copy.
+     * @param {{messageKey: string, value: string, staticHint: (string|undefined)}} args
+     *   The row's key (the picker), its shown value and its static hint for that value.
      * @returns {?string} The hint, or null.
      */
     function keySummaryHint(S, env, args) {
         var id = pickedValue(S, args);
         var source = sourceOf(args, id);
         if (!source) { return null; }
-        var hints = (args && args.hints) || {};
-        var why = Object.prototype.hasOwnProperty.call(hints, id) ? hints[id] : '';
+        var why = args.staticHint || '';
         var line = summaryLine(source, statusOf(source, id, S), S);
         if (!line) { return why; }
         return why ? why + '<br>' + line : line;
@@ -272,15 +290,14 @@
      * otherwise.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{picker: string, keyed: Object, outcome: string}} args The picker's key, the
-     *   table and what goes missing.
+     * @param {{picker: string}} args The picker's key (the note has no messageKey).
      * @returns {string} The note, or ''.
      */
     function keyMissingNote(S, env, args) {
         var id = pickedValue(S, args);
         var source = sourceOf(args, id);
         if (!source || statusOf(source, id, S).state !== 'missing') { return ''; }
-        return 'Needs an API key. Without one, ' + args.outcome + '.';
+        return 'Needs an API key. Without one, ' + tableOf(args).outcome + '.';
     }
 
     /**
@@ -288,24 +305,25 @@
      * rejected — the tab's dot and the Save dialog. An untested key asks for nothing.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{messageKey: string, keyed: Object, outcome: string}} args The row's key,
-     *   table and what goes missing.
+     * @param {{messageKey: string, value: *}} args The row's key (the picker) and its
+     *   stored value.
      * @returns {?Object} The attention (engine.js PConf.attentionResolvers), or null.
      */
     function keyAttention(S, env, args) {
         var id = pickedValue(S, args);
         var source = sourceOf(args, id);
         if (!source) { return null; }
+        var outcome = tableOf(args).outcome;
         var state = statusOf(source, id, S).state;
         var title;
         if (state === 'missing') {
             title = source.name + ' has no API key';
-            return { note: title, title: title, body: 'Without one, ' + args.outcome + '.',
+            return { note: title, title: title, body: 'Without one, ' + outcome + '.',
                 actionLabel: 'Add key', sheet: sheetOf(source, S) };
         }
         if (state === 'rejected') {
             title = source.name + ' rejected the API key';
-            return { note: title, title: title, body: 'Until it accepts a key, ' + args.outcome + '.',
+            return { note: title, title: title, body: 'Until it accepts a key, ' + outcome + '.',
                 actionLabel: 'Edit key', sheet: sheetOf(source, S) };
         }
         return null;

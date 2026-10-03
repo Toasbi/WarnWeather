@@ -8,8 +8,9 @@
 //   - a hooked row shows the resolver's answer, and it follows a change to a key the
 //     resolver reads on the next render — the page re-renders its whole body after
 //     every change, so no dependency list is needed;
-//   - the resolver sees the row's messageKey and its SHOWN value (after the
-//     display-snap) under its own args;
+//   - the resolver sees the row's messageKey, its SHOWN value (after the
+//     display-snap) and its static hint for that value (staticHint) under its own args,
+//     so a resolver can add to the row's own copy without a second copy in its args;
 //   - null/undefined falls back to the static hint, '' means "no hint", and an
 //     unregistered resolver id falls back too;
 //   - the hook reaches a row inside an edit sheet;
@@ -120,6 +121,40 @@ test('resolveHint: args carry the messageKey and shown value UNDER hintFrom.args
   E.resolveHint({ messageKey: 'k', hintFrom: { resolver: 'spy' } }, { k: 'stored' }, {}, 'shown');
   assert.equal(seen.args.value, 'shown', 'the SHOWN value, not the stored one');
   assert.equal(E.resolveHint({ messageKey: 'k' }, {}, {}, 'x'), undefined, 'no hintFrom -> undefined');
+});
+
+test('resolveHint: args carry the row\'s static hint for the shown value (staticHint) UNDER hintFrom.args', () => {
+  let seen = null;
+  E.hintResolvers.register('staticSpy', function (S, env, args) { seen = args; return 'ok'; });
+  const item = { type: 'select', messageKey: 'k', hint: 'PLAIN', hintByValue: { b: 'PLAIN B' },
+    hintFrom: { resolver: 'staticSpy' } };
+  E.resolveHint(item, { k: 'a' }, {}, 'b');
+  assert.equal(seen.staticHint, 'PLAIN B', 'hintByValue for the SHOWN value');
+  E.resolveHint(item, { k: 'b' }, {}, 'a');
+  assert.equal(seen.staticHint, 'PLAIN', 'no entry for the value: the plain hint');
+  E.resolveHint(item, {}, {}, undefined);
+  assert.equal(seen.staticHint, 'PLAIN', 'a keyless sheet row (no value): the plain hint');
+  E.resolveHint({ messageKey: 'k', hintFrom: { resolver: 'staticSpy' } }, {}, {}, 'b');
+  assert.equal(seen.staticHint, undefined, 'a row without static copy');
+  assert.ok('staticHint' in seen, 'still handed over, as undefined');
+  E.resolveHint(Object.assign({}, item, { hintFrom: { resolver: 'staticSpy', args: { staticHint: 'PINNED' } } }),
+    {}, {}, 'b');
+  assert.equal(seen.staticHint, 'PINNED', 'schema args merge over it');
+});
+
+test('a resolver that adds to the row\'s own copy: the row shows the copy with the addition', () => {
+  E.hintResolvers.register('addLine', function (S, env, args) {
+    return args.value === 'b' ? args.staticHint + '<br>more' : null;
+  });
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'select', messageKey: 'pick', label: 'Pick', defaultValue: 'b',
+      hintByValue: { a: 'WHY A', b: 'WHY B' }, hintFrom: { resolver: 'addLine' },
+      options: [['A', 'a'], ['B', 'b']] }
+  ] }] }] };
+  const S = E.hydrate(SCH, {});
+  assert.ok(E.renderBody(SCH, 't', cxFor(S)).indexOf(hintHtml('WHY B<br>more', 'pick')) >= 0, 'the copy, then the line');
+  S.pick = 'a';
+  assert.ok(E.renderBody(SCH, 't', cxFor(S)).indexOf(hintHtml('WHY A', 'pick')) >= 0, 'null: the static copy alone');
 });
 
 test('resolveHint: the shown value is the display-snapped one', () => {

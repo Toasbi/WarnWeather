@@ -250,19 +250,22 @@ test('the stripe scales are bundled before the previews and the forecast hints t
     'nothing assigns window.StripeLevels in the generated page');
 });
 
-// The key status under a keyed weather provider: key-status.js reads window.KeyFingerprint
-// and window.KeyResult (the phone's answers to each key) while its own body runs, and
-// blocks.js registers tomorrow.io's usage line into PConf.keyStatus while ITS body runs. Out
-// of the page, the Edit button, its summary line, the missing-key note, the tab's dot and the
-// Save dialog all quietly vanish on a real phone while every Node test passes through
+// The key status under a keyed weather provider: key-status.js reads window.KeySources (each
+// picker's keyed sources; the rows carry no table in their args), window.KeyFingerprint and
+// window.KeyResult (the phone's answers to each key) while its own body runs, and blocks.js
+// registers tomorrow.io's usage line into PConf.keyStatus while ITS body runs. Out of the
+// page, the Edit button, its summary line, the missing-key note, the tab's dot and the Save
+// dialog all quietly vanish (or throw) on a real phone while every Node test passes through
 // require().
-test('the key status, its fingerprint and the key results are bundled before blocks.js and the key tests', () => {
+test('the key status, its tables, its fingerprint and the key results are bundled before blocks.js and the key tests', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
     const at = appFiles.findIndex((f) => f.endsWith(suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
+  assert.ok(idx('settings/key-sources.js') < idx('settings/key-status.js'),
+    'key-sources.js must precede key-status.js');
   assert.ok(idx('pkjs/key-fingerprint.js') < idx('settings/key-status.js'),
     'key-fingerprint.js must precede key-status.js');
   assert.ok(idx('pkjs/key-result.js') < idx('settings/key-status.js'),
@@ -272,8 +275,8 @@ test('the key status, its fingerprint and the key results are bundled before blo
   assert.ok(idx('settings/key-status.js') < idx('settings/key-test.js'),
     'key-status.js must precede key-test.js');
   const src = page();
-  ['window.KeyFingerprint = api', 'window.KeyResult = api', "PConf.attentionResolvers.register('keyAttention'",
-    "PConf.badgeResolvers.register('keyBadge'", "PConf.hintResolvers.register('keyMissingNote'",
+  ['window.KeySources = api', 'window.KeyFingerprint = api', 'window.KeyResult = api',
+    "PConf.attentionResolvers.register('keyAttention'", "PConf.badgeResolvers.register('keyBadge'", "PConf.hintResolvers.register('keyMissingNote'",
     "keyStatus.registerUsage('tomorrowio'"].forEach((s) =>
     assert.ok(src.indexOf(s) !== -1, 'the generated page lacks ' + s));
 });

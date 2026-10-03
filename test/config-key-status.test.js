@@ -24,8 +24,11 @@ const general = schema.tabs.find((t) => t.id === 'general');
 const card = general.sections.find((s) => s.title === 'Provider settings');
 const providerRow = card.items.find((i) => i.messageKey === 'provider');
 const noteItem = card.items[card.items.indexOf(providerRow) + 1];
-const ARGS = providerRow.attentionFrom.args;
-const KEYED = ARGS.keyed;
+// The Weather provider picker's table (key-sources.js), which every key-status resolver on
+// the row reads by the row's messageKey, and the note's args, which name the picker.
+const TABLE = require('../src/pkjs/settings/key-sources.js').provider;
+const KEYED = TABLE.sources;
+const NOTE_ARGS = noteItem.textFrom.args;
 const OWM_KEY = 'owm-secret-0123abcd';
 const TIO_KEY = 'tio-secret-9876wxyz';
 
@@ -78,12 +81,15 @@ test('key fingerprint: FNV-1a of the trimmed key as 8 hex digits, \'\' for no ke
 
 // --- the table on the row ----------------------------------------------------------------
 
-test('the Weather provider row reads ONE table for every key-status resolver', () => {
+test('the Weather provider row reads ONE table for every key-status resolver, by its own messageKey', () => {
   assert.deepEqual(Object.keys(KEYED).sort(), ['openweathermap', 'tomorrowio', 'yandex']);
-  assert.equal(providerRow.editBadgeFrom.resolver, 'keyBadge');
-  assert.equal(providerRow.attentionFrom.resolver, 'keyAttention');
-  assert.equal(ARGS.picker, 'provider');
-  assert.equal(ARGS.outcome, 'the watch gets no forecast');
+  // The row hands its resolvers no args: the engine merges the row's messageKey (the
+  // picker) into each, and key-status.js looks the table up by it.
+  assert.deepEqual(providerRow.editSheetFrom, { resolver: 'keySheet' });
+  assert.deepEqual(providerRow.editBadgeFrom, { resolver: 'keyBadge' });
+  assert.deepEqual(providerRow.hintFrom, { resolver: 'keySummaryHint' });
+  assert.deepEqual(providerRow.attentionFrom, { resolver: 'keyAttention' });
+  assert.equal(TABLE.outcome, 'the watch gets no forecast');
   // The sheet titles are the table's names; the Test flag follows the sheet's key field.
   Object.keys(KEYED).forEach((p) => {
     const sheet = general.sections.find((s) => s.sheetOnly && s.sheetId === KEYED[p].sheetId);
@@ -91,12 +97,45 @@ test('the Weather provider row reads ONE table for every key-status resolver', (
     assert.equal(sheet.items[0].messageKey, KEYED[p].keyField, p);
     assert.equal(Boolean(sheet.items[0].suffixAction), KEYED[p].test, p + ': test flag = a Test button');
   });
-  // The amber note hugs the row and is all textFrom.
+  // The amber note hugs the row and is all textFrom; a staticText has no messageKey, so its
+  // args name the picker.
   assert.equal(noteItem.type, 'staticText');
   assert.equal(noteItem.style, 'info');
   assert.equal(noteItem.joinPrevious, true);
-  assert.deepEqual(noteItem.textFrom, { resolver: 'keyMissingNote', args: ARGS });
+  assert.deepEqual(noteItem.textFrom, { resolver: 'keyMissingNote', args: { picker: 'provider' } });
   assert.equal(noteItem.text, undefined);
+});
+
+test('the resolvers find the table by the picker they are handed, and nothing for a picker without one', () => {
+  const sheet = PC.sheetResolvers.get('keySheet');
+  const note = PC.hintResolvers.get('keyMissingNote');
+  const attention = PC.attentionResolvers.get('keyAttention');
+  const S = { provider: 'openweathermap', owmApiKey: '', radarProvider: 'rainbowkey', rainbowApiKey: '' };
+  assert.equal(sheet(S, {}, { messageKey: 'provider' }), 'providerKeyOwm');
+  assert.equal(sheet(S, {}, { messageKey: 'radarProvider' }), 'radarKeyRainbow', 'the Radar picker\'s own table');
+  assert.equal(note(S, {}, { picker: 'provider' }), 'Needs an API key. Without one, the watch gets no forecast.');
+  assert.equal(note(S, {}, { picker: 'radarProvider' }), 'Needs an API key. Without one, the watch gets no rain radar.');
+  assert.equal(attention(S, {}, { messageKey: 'radarProvider' }).body, 'Without one, the watch gets no rain radar.');
+  // A row whose picker has no table (or a value its picker's table lacks) shows no key status.
+  const other = { aqiSource: 'openweathermap', owmApiKey: '' };
+  assert.equal(sheet(other, {}, { messageKey: 'aqiSource' }), null);
+  assert.equal(note(other, {}, { picker: 'aqiSource' }), '');
+  assert.equal(attention(other, {}, { messageKey: 'aqiSource' }), null);
+  ['toString', 'hasOwnProperty'].forEach((k) =>
+    assert.equal(sheet({ provider: k }, {}, { messageKey: 'provider' }), null, k + ' is no source'));
+  assert.equal(sheet(S, {}, { messageKey: 'constructor' }), null, 'nor is constructor a picker');
+});
+
+test('keySummaryHint: the row\'s own "why" copy (the engine\'s staticHint) with the summary line under it', () => {
+  const S = { provider: 'openweathermap', owmApiKey: OWM_KEY };
+  const why = providerRow.hintByValue.openweathermap;
+  assert.ok(why, 'the row has its own copy for the value');
+  assert.equal(PC.engine.resolveHint(providerRow, S, {}, 'openweathermap'), why + '<br>Key ••••abcd · not tested yet',
+    'through the engine, as the page resolves it');
+  assert.equal(PC.engine.resolveHint(providerRow, { provider: 'openweathermap', owmApiKey: '' }, {}, 'openweathermap'),
+    why, 'a missing key: only the copy (the amber note says the rest)');
+  assert.equal(PC.engine.resolveHint(providerRow, { provider: 'dwd' }, {}, 'dwd'), undefined,
+    'a provider without a key: the static hintByValue answers');
 });
 
 // --- the states ----------------------------------------------------------------------------
@@ -211,12 +250,12 @@ test('keyBadge: "Add key" (the plain grey button) while the key is missing, "Edi
 test('keyMissingNote: the note while the picked provider\'s key is missing, \'\' otherwise', () => {
   const fn = PC.hintResolvers.get('keyMissingNote');
   const note = 'Needs an API key. Without one, the watch gets no forecast.';
-  assert.equal(fn({ provider: 'yandex' }, {}, ARGS), note);
-  assert.equal(fn({ provider: 'tomorrowio', tomorrowioApiKey: ' \n' }, {}, ARGS), note);
-  assert.equal(fn({ provider: 'tomorrowio', tomorrowioApiKey: TIO_KEY }, {}, ARGS), '');
-  assert.equal(fn({ provider: 'dwd' }, {}, ARGS), '', 'no key, no note');
+  assert.equal(fn({ provider: 'yandex' }, {}, NOTE_ARGS), note);
+  assert.equal(fn({ provider: 'tomorrowio', tomorrowioApiKey: ' \n' }, {}, NOTE_ARGS), note);
+  assert.equal(fn({ provider: 'tomorrowio', tomorrowioApiKey: TIO_KEY }, {}, NOTE_ARGS), '');
+  assert.equal(fn({ provider: 'dwd' }, {}, NOTE_ARGS), '', 'no key, no note');
   keyStatus.recordTest('tomorrowioApiKey', TIO_KEY, 401);
-  assert.equal(fn({ provider: 'tomorrowio', tomorrowioApiKey: TIO_KEY }, {}, ARGS), '', 'a rejected key is not missing');
+  assert.equal(fn({ provider: 'tomorrowio', tomorrowioApiKey: TIO_KEY }, {}, NOTE_ARGS), '', 'a rejected key is not missing');
 });
 
 test('keyAttention: missing or known-rejected asks; an untested or working key does not', () => {

@@ -20,6 +20,9 @@ const general = schema.tabs.find((t) => t.id === 'general');
 const card = general.sections.find((s) => s.title === 'Provider settings');
 const providerRow = card.items.find((i) => i.messageKey === 'provider');
 const sheetById = (id) => general.sections.find((s) => s.sheetOnly && s.sheetId === id);
+// The Weather provider picker's keyed sources (key-sources.js), which the row's key-status
+// resolvers read by its messageKey.
+const SOURCES = require('../src/pkjs/settings/key-sources.js').provider.sources;
 
 // Provider value -> [sheetId, sheet title, the sheet's rows (messageKey order)].
 const KEYED = {
@@ -59,14 +62,13 @@ function closeSheet(page) {
 test('the keyed providers are exactly the options whose tag says they need a key', () => {
   const needsKey = providerRow.options.filter((o) => /needs (a free |an? )?key/.test(o[2].desc)).map((o) => o[1]);
   assert.deepEqual(needsKey.sort(), Object.keys(KEYED).sort());
-  assert.deepEqual(providerRow.editSheetFrom.resolver, 'keySheet');
-  assert.deepEqual(Object.keys(providerRow.editSheetFrom.args.keyed).sort(), Object.keys(KEYED).sort());
-  assert.equal(providerRow.hintFrom.resolver, 'keySummaryHint');
-  assert.equal(providerRow.hintFrom.args.hints, providerRow.hintByValue,
-    'the summary rides under the same "why" copy the row shows, so the two cannot drift');
-  // Every key-status resolver on the row reads ONE table.
-  [providerRow.editBadgeFrom, providerRow.hintFrom, providerRow.attentionFrom].forEach((from) =>
-    assert.equal(from.args.keyed, providerRow.editSheetFrom.args.keyed, from.resolver));
+  assert.deepEqual(Object.keys(SOURCES).sort(), Object.keys(KEYED).sort());
+  // Every key-status resolver on the row reads ONE table, key-sources.js', by the row's
+  // messageKey; the summary rides under the row's own "why" copy, which the engine hands it
+  // (staticHint), so the row carries neither the table nor a second copy of the hints.
+  assert.deepEqual([providerRow.editSheetFrom, providerRow.editBadgeFrom, providerRow.hintFrom,
+    providerRow.attentionFrom], [{ resolver: 'keySheet' }, { resolver: 'keyBadge' }, { resolver: 'keySummaryHint' },
+    { resolver: 'keyAttention' }]);
 });
 
 test('each key sheet sits right below the card, sheetOnly, gated on its provider, rows and all', () => {
@@ -79,8 +81,8 @@ test('each key sheet sits right below the card, sheetOnly, gated on its provider
     assert.equal(sheet.sheetOnly, true, id);
     assert.equal(sheet.title, title, id + ' is titled with the provider\'s name');
     assert.deepEqual(sheet.items.map((i) => i.messageKey), keys);
-    assert.equal(providerRow.editSheetFrom.args.keyed[provider].sheetId, id);
-    assert.equal(providerRow.editSheetFrom.args.keyed[provider].keyField, keys[0]);
+    assert.equal(SOURCES[provider].sheetId, id);
+    assert.equal(SOURCES[provider].keyField, keys[0]);
     // Section AND item carry the gate: findShownItem judges a key's copies by the item's own.
     [sheet].concat(sheet.items).forEach((it) => assert.deepEqual(it.showWhen, { key: 'provider', eq: provider }));
     const field = sheet.items[0];
@@ -95,26 +97,29 @@ test('each key sheet sits right below the card, sheetOnly, gated on its provider
 });
 
 test('keySheet: the picked provider\'s key sheet, nothing for a provider without a key', () => {
-  const fn = PC.sheetResolvers.get('keySheet');
-  const args = Object.assign({ messageKey: 'provider' }, providerRow.editSheetFrom.args);
-  Object.keys(KEYED).forEach((p) => assert.equal(fn({ provider: p }, {}, args), KEYED[p][0], p));
+  // With the args the engine builds for the row: its messageKey (the row adds none).
+  const fn = PC.sheetResolvers.get(providerRow.editSheetFrom.resolver);
+  const sheet = (S) => fn(S, {}, Object.assign({ messageKey: 'provider' }, providerRow.editSheetFrom.args));
+  Object.keys(KEYED).forEach((p) => assert.equal(sheet({ provider: p }), KEYED[p][0], p));
   ['dwd', 'metno', 'openmeteo', 'wunderground', 'constructor', '', undefined].forEach((p) =>
-    assert.equal(fn({ provider: p }, {}, args), null, String(p)));
+    assert.equal(sheet({ provider: p }), null, String(p)));
 });
 
 test('keySummaryHint: the "why" alone while the key is empty, the key\'s summary under it once it is in', () => {
-  const fn = PC.hintResolvers.get('keySummaryHint');
+  // Through the engine, as the page resolves it (its args: the row's messageKey, the shown
+  // value and the row's static hint for it).
+  const hint = (S, value) => PC.engine.resolveHint(providerRow, S, {}, value);
   const why = providerRow.hintByValue;
-  const args = (value) => Object.assign({ messageKey: 'provider', value }, providerRow.hintFrom.args);
-  assert.equal(fn({ owmApiKey: '' }, {}, args('openweathermap')), why.openweathermap,
+  assert.equal(hint({ owmApiKey: '' }, 'openweathermap'), why.openweathermap,
     'no "Tap Edit" pointer any more: the amber note and the "Add key" button say it');
-  assert.equal(fn({}, {}, args('yandex')), why.yandex, 'an unset key is empty');
-  assert.equal(fn({ tomorrowioApiKey: '  \n' }, {}, args('tomorrowio')), why.tomorrowio,
+  assert.equal(hint({}, 'yandex'), why.yandex, 'an unset key is empty');
+  assert.equal(hint({ tomorrowioApiKey: '  \n' }, 'tomorrowio'), why.tomorrowio,
     'a blank key is empty (Save trims it to nothing)');
-  assert.equal(fn({ owmApiKey: 'abcd1234' }, {}, args('openweathermap')),
+  assert.equal(hint({ owmApiKey: 'abcd1234' }, 'openweathermap'),
     why.openweathermap + '<br>Key ••••1234 · not tested yet');
-  assert.equal(fn({ owmApiKey: 'k' }, {}, args('yandex')), why.yandex, 'another provider\'s key does not count');
-  ['dwd', 'wunderground', 'constructor'].forEach((p) => assert.equal(fn({}, {}, args(p)), null, p));
+  assert.equal(hint({ owmApiKey: 'k' }, 'yandex'), why.yandex, 'another provider\'s key does not count');
+  ['dwd', 'wunderground', 'constructor'].forEach((p) =>
+    assert.equal(hint({}, p), undefined, p + ': no key, so the row\'s static hint answers'));
 });
 
 test('page: Edit after the dropdown opens the provider\'s key sheet; no key rows on the card', () => {

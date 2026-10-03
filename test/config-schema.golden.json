@@ -1119,149 +1119,16 @@
                   "yandex": "Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key."
                 },
                 "editSheetFrom": {
-                  "resolver": "keySheet",
-                  "args": {
-                    "keyed": {
-                      "openweathermap": {
-                        "name": "OpenWeatherMap",
-                        "sheetId": "providerKeyOwm",
-                        "keyField": "owmApiKey",
-                        "test": true,
-                        "reasons": {
-                          "401": "not valid for One Call 3.0"
-                        }
-                      },
-                      "tomorrowio": {
-                        "name": "Tomorrow.io",
-                        "sheetId": "providerKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey",
-                        "test": true,
-                        "reasons": {
-                          "403": "no access to this data"
-                        },
-                        "usage": "tomorrowio"
-                      },
-                      "yandex": {
-                        "name": "Yandex Weather",
-                        "sheetId": "providerKeyYandex",
-                        "keyField": "yandexApiKey",
-                        "test": false
-                      }
-                    },
-                    "picker": "provider",
-                    "outcome": "the watch gets no forecast"
-                  }
+                  "resolver": "keySheet"
                 },
                 "editBadgeFrom": {
-                  "resolver": "keyBadge",
-                  "args": {
-                    "keyed": {
-                      "openweathermap": {
-                        "name": "OpenWeatherMap",
-                        "sheetId": "providerKeyOwm",
-                        "keyField": "owmApiKey",
-                        "test": true,
-                        "reasons": {
-                          "401": "not valid for One Call 3.0"
-                        }
-                      },
-                      "tomorrowio": {
-                        "name": "Tomorrow.io",
-                        "sheetId": "providerKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey",
-                        "test": true,
-                        "reasons": {
-                          "403": "no access to this data"
-                        },
-                        "usage": "tomorrowio"
-                      },
-                      "yandex": {
-                        "name": "Yandex Weather",
-                        "sheetId": "providerKeyYandex",
-                        "keyField": "yandexApiKey",
-                        "test": false
-                      }
-                    },
-                    "picker": "provider",
-                    "outcome": "the watch gets no forecast"
-                  }
+                  "resolver": "keyBadge"
                 },
                 "hintFrom": {
-                  "resolver": "keySummaryHint",
-                  "args": {
-                    "hints": {
-                      "dwd": "Germany's national weather service — the most accurate forecasts across Germany and decent across Central Europe (ICON model). No API key needed.",
-                      "metno": "The service behind yr.no — best across the Nordics with a 2.5 km model, and solid worldwide. No API key needed.",
-                      "openmeteo": "Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.",
-                      "openweathermap": "A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.",
-                      "tomorrowio": "Minute-by-minute hyperlocal forecasts worldwide, from proprietary ML models and satellites. Needs a free API key.",
-                      "wunderground": "A huge crowd-sourced network of 250,000+ personal weather stations — dense local readings, strongest across the US and Europe. No API key needed.",
-                      "yandex": "Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key."
-                    },
-                    "keyed": {
-                      "openweathermap": {
-                        "name": "OpenWeatherMap",
-                        "sheetId": "providerKeyOwm",
-                        "keyField": "owmApiKey",
-                        "test": true,
-                        "reasons": {
-                          "401": "not valid for One Call 3.0"
-                        }
-                      },
-                      "tomorrowio": {
-                        "name": "Tomorrow.io",
-                        "sheetId": "providerKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey",
-                        "test": true,
-                        "reasons": {
-                          "403": "no access to this data"
-                        },
-                        "usage": "tomorrowio"
-                      },
-                      "yandex": {
-                        "name": "Yandex Weather",
-                        "sheetId": "providerKeyYandex",
-                        "keyField": "yandexApiKey",
-                        "test": false
-                      }
-                    },
-                    "picker": "provider",
-                    "outcome": "the watch gets no forecast"
-                  }
+                  "resolver": "keySummaryHint"
                 },
                 "attentionFrom": {
-                  "resolver": "keyAttention",
-                  "args": {
-                    "keyed": {
-                      "openweathermap": {
-                        "name": "OpenWeatherMap",
-                        "sheetId": "providerKeyOwm",
-                        "keyField": "owmApiKey",
-                        "test": true,
-                        "reasons": {
-                          "401": "not valid for One Call 3.0"
-                        }
-                      },
-                      "tomorrowio": {
-                        "name": "Tomorrow.io",
-                        "sheetId": "providerKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey",
-                        "test": true,
-                        "reasons": {
-                          "403": "no access to this data"
-                        },
-                        "usage": "tomorrowio"
-                      },
-                      "yandex": {
-                        "name": "Yandex Weather",
-                        "sheetId": "providerKeyYandex",
-                        "keyField": "yandexApiKey",
-                        "test": false
-                      }
-                    },
-                    "picker": "provider",
-                    "outcome": "the watch gets no forecast"
-                  }
+                  "resolver": "keyAttention"
                 },
                 "options": [
                   [
@@ -1323,35 +1190,7 @@
                 "textFrom": {
                   "resolver": "keyMissingNote",
                   "args": {
-                    "keyed": {
-                      "openweathermap": {
-                        "name": "OpenWeatherMap",
-                        "sheetId": "providerKeyOwm",
-                        "keyField": "owmApiKey",
-                        "test": true,
-                        "reasons": {
-                          "401": "not valid for One Call 3.0"
-                        }
-                      },
-                      "tomorrowio": {
-                        "name": "Tomorrow.io",
-                        "sheetId": "providerKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey",
-                        "test": true,
-                        "reasons": {
-                          "403": "no access to this data"
-                        },
-                        "usage": "tomorrowio"
-                      },
-                      "yandex": {
-                        "name": "Yandex Weather",
-                        "sheetId": "providerKeyYandex",
-                        "keyField": "yandexApiKey",
-                        "test": false
-                      }
-                    },
-                    "picker": "provider",
-                    "outcome": "the watch gets no forecast"
+                    "picker": "provider"
                   }
                 }
               },
@@ -4944,135 +4783,16 @@
                   "tomorrowio": "A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key and counts against the same call budget."
                 },
                 "editSheetFrom": {
-                  "resolver": "keySheet",
-                  "args": {
-                    "keyed": {
-                      "rainbowkey": {
-                        "name": "Rainbow",
-                        "sheetId": "radarKeyRainbow",
-                        "keyField": "rainbowApiKey",
-                        "test": true,
-                        "usage": "rainbow"
-                      },
-                      "tomorrowio": {
-                        "name": "Tomorrow.io",
-                        "sheetId": "radarKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey",
-                        "test": true,
-                        "reasons": {
-                          "403": "no access to this data"
-                        },
-                        "usage": "tomorrowio",
-                        "sharedSheet": {
-                          "key": "provider",
-                          "eq": "tomorrowio",
-                          "sheetId": "providerKeyTomorrowio"
-                        }
-                      }
-                    },
-                    "picker": "radarProvider",
-                    "outcome": "the watch gets no rain radar"
-                  }
+                  "resolver": "keySheet"
                 },
                 "editBadgeFrom": {
-                  "resolver": "keyBadge",
-                  "args": {
-                    "keyed": {
-                      "rainbowkey": {
-                        "name": "Rainbow",
-                        "sheetId": "radarKeyRainbow",
-                        "keyField": "rainbowApiKey",
-                        "test": true,
-                        "usage": "rainbow"
-                      },
-                      "tomorrowio": {
-                        "name": "Tomorrow.io",
-                        "sheetId": "radarKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey",
-                        "test": true,
-                        "reasons": {
-                          "403": "no access to this data"
-                        },
-                        "usage": "tomorrowio",
-                        "sharedSheet": {
-                          "key": "provider",
-                          "eq": "tomorrowio",
-                          "sheetId": "providerKeyTomorrowio"
-                        }
-                      }
-                    },
-                    "picker": "radarProvider",
-                    "outcome": "the watch gets no rain radar"
-                  }
+                  "resolver": "keyBadge"
                 },
                 "hintFrom": {
-                  "resolver": "keySummaryHint",
-                  "args": {
-                    "hints": {
-                      "dwd": "Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.",
-                      "metno": "Precise weather radar — rain at your exact spot. Nordics only.",
-                      "rainbow": "A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
-                      "rainbowkey": "A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. A key is free: Rainbow's free plan covers 5,000 calls a month. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
-                      "tomorrowio": "A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key and counts against the same call budget."
-                    },
-                    "keyed": {
-                      "rainbowkey": {
-                        "name": "Rainbow",
-                        "sheetId": "radarKeyRainbow",
-                        "keyField": "rainbowApiKey",
-                        "test": true,
-                        "usage": "rainbow"
-                      },
-                      "tomorrowio": {
-                        "name": "Tomorrow.io",
-                        "sheetId": "radarKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey",
-                        "test": true,
-                        "reasons": {
-                          "403": "no access to this data"
-                        },
-                        "usage": "tomorrowio",
-                        "sharedSheet": {
-                          "key": "provider",
-                          "eq": "tomorrowio",
-                          "sheetId": "providerKeyTomorrowio"
-                        }
-                      }
-                    },
-                    "picker": "radarProvider",
-                    "outcome": "the watch gets no rain radar"
-                  }
+                  "resolver": "keySummaryHint"
                 },
                 "attentionFrom": {
-                  "resolver": "keyAttention",
-                  "args": {
-                    "keyed": {
-                      "rainbowkey": {
-                        "name": "Rainbow",
-                        "sheetId": "radarKeyRainbow",
-                        "keyField": "rainbowApiKey",
-                        "test": true,
-                        "usage": "rainbow"
-                      },
-                      "tomorrowio": {
-                        "name": "Tomorrow.io",
-                        "sheetId": "radarKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey",
-                        "test": true,
-                        "reasons": {
-                          "403": "no access to this data"
-                        },
-                        "usage": "tomorrowio",
-                        "sharedSheet": {
-                          "key": "provider",
-                          "eq": "tomorrowio",
-                          "sheetId": "providerKeyTomorrowio"
-                        }
-                      }
-                    },
-                    "picker": "radarProvider",
-                    "outcome": "the watch gets no rain radar"
-                  }
+                  "resolver": "keyAttention"
                 },
                 "options": [
                   [
@@ -5119,32 +4839,7 @@
                 "textFrom": {
                   "resolver": "radarProviderNote",
                   "args": {
-                    "keyed": {
-                      "rainbowkey": {
-                        "name": "Rainbow",
-                        "sheetId": "radarKeyRainbow",
-                        "keyField": "rainbowApiKey",
-                        "test": true,
-                        "usage": "rainbow"
-                      },
-                      "tomorrowio": {
-                        "name": "Tomorrow.io",
-                        "sheetId": "radarKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey",
-                        "test": true,
-                        "reasons": {
-                          "403": "no access to this data"
-                        },
-                        "usage": "tomorrowio",
-                        "sharedSheet": {
-                          "key": "provider",
-                          "eq": "tomorrowio",
-                          "sheetId": "providerKeyTomorrowio"
-                        }
-                      }
-                    },
-                    "picker": "radarProvider",
-                    "outcome": "the watch gets no rain radar"
+                    "picker": "radarProvider"
                   }
                 },
                 "showWhen": {
