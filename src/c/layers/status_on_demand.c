@@ -269,8 +269,8 @@ static int16_t item_icon_w(const StatusOnDemandRow *row, const StatusOnDemandSta
 }
 
 // The width of a lane's text `buf` in `font`. A lane's text is never cut: measured in a
-// box no text reaches. The measure and the paint both take it, on the same text in the
-// same draw, so the paint draws each lane at the width the layout placed.
+// box no text reaches. The measure takes it into the footprint, and the paint reads it
+// back out of that (paint_item), so it draws each lane at the width the layout placed.
 static int16_t lane_text_w(const char *buf, GFont font) {
     return status_row_text_w(buf, font, 1000, 100);
 }
@@ -457,16 +457,20 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
 }
 
 // Paint one item at content-absolute `x`, `w` wide (its footprint on `lane`). Its parts
-// are derived again as measure() derived them: the same state, glyphs and text.
+// are derived again as measure() derived them: the same state, glyphs and text; the
+// text's width from `w`.
 static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
                        const StatusOnDemandState *s, const StatusOnDemandEnv *env,
                        int item, int lane, int16_t x, int16_t w) {
     char buf[ALERT_SET_LANE_CAP];
     GFont font = item_text(s, item, lane, env, buf, sizeof(buf));
-    int16_t text_w = lane_text_w(buf, font);
     int16_t icon_w = item_icon_w(row, s, env, item);
     int16_t icon_x = (int16_t)(x + (od_item_boxed(item) ? STATUS_ON_DEMAND_BOX_PAD_X : 0));
     int16_t text_x = (int16_t)(icon_x + icon_w + (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
+    // The text's width is what the footprint leaves it (od_item_footprint backwards):
+    // the measure took the footprint from this same text in this draw.
+    int16_t text_w = buf[0] == '\0' ? 0 : (int16_t)(x + w - text_x - (od_item_boxed(item)
+        ? STATUS_ON_DEMAND_BOX_PAD_X - OD_TEXT_TRAIL_SPACING : 0));
     int16_t icon_top = (int16_t)(env->glyph_cy - env->icon_h / 2);
     GColor ink = theme_fg();
     // A metric entry is boxed at DANGER always (filled) and at WARN per its kind's
