@@ -37,7 +37,6 @@ struct StatusOnDemandCache {
     GDrawCommandImage *images[GLYPH_SLOTS];
     uint8_t keys[GLYPH_SLOTS];   // 0 = free
     int16_t target_h;
-    bool top_strip;
     GColor fg;
     GColor rain_tint;
     bool rain_outline;
@@ -104,13 +103,14 @@ static int find_key(const StatusOnDemandCache *cache, uint8_t key) {
 // longer wanted — resident only while its item is active, so an idle bar holds no
 // glyph heap. The foreground, the rain tint and the light theme's edge on the drops
 // are part of the key: a theme or tier change reloads just the glyphs it affects.
+// `top_strip` is not: a row is the top strip's or a bar's for its whole life
+// (status_bar.c's bar_line, top_status_layer.c), and so is its cache.
 static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int tier,
                    int target_h, bool top_strip) {
     GColor fg = theme_fg();
     GColor tint = rain_tint(tier);
     bool outline = theme_is_light();
-    bool env = target_h != cache->target_h || top_strip != cache->top_strip
-        || !gcolor_equal(fg, cache->fg);
+    bool env = target_h != cache->target_h || !gcolor_equal(fg, cache->fg);
     bool rain_env = env || !gcolor_equal(tint, cache->rain_tint) || outline != cache->rain_outline;
     for (int i = 0; i < GLYPH_SLOTS; i++) {
         uint8_t key = cache->keys[i];
@@ -123,7 +123,6 @@ static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int t
         if (stale || !wanted) { evict(cache, i); }
     }
     cache->target_h = (int16_t)target_h;
-    cache->top_strip = top_strip;
     cache->fg = fg;
     cache->rain_tint = tint;
     cache->rain_outline = outline;
