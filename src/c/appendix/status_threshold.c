@@ -223,17 +223,11 @@ static int status_threshold_warn_look(const uint8_t blob[THRESH_SETTINGS_BYTES],
     return look == 3 ? THRESH_WARN_LOOK_OUTLINE : look;   // 3 is reserved
 }
 
-// The box for a ThreshLevel under a ThreshWarnLook: NORMAL none, DANGER fill
-// (whatever the look), WARN exactly the look.
-static int status_threshold_box_for(int level, int look) {
-    if (level == THRESH_LEVEL_DANGER) { return THRESH_BOX_FILL; }
-    if (level != THRESH_LEVEL_WARN) { return THRESH_BOX_NONE; }
-    switch (look) {
-        case THRESH_WARN_LOOK_NONE: return THRESH_BOX_NONE;
-        case THRESH_WARN_LOOK_FILL: return THRESH_BOX_FILL;
-        default:                    return THRESH_BOX_OUTLINE;
-    }
-}
+// A ThreshWarnLook IS the ThreshBox it draws, so the look's box is the look itself.
+_Static_assert((int)THRESH_WARN_LOOK_NONE == (int)THRESH_BOX_NONE
+               && (int)THRESH_WARN_LOOK_OUTLINE == (int)THRESH_BOX_OUTLINE
+               && (int)THRESH_WARN_LOOK_FILL == (int)THRESH_BOX_FILL,
+               "a warn look is the box it draws");
 
 // Whether a slot of `kind` drawn at `level` prints bold. Kind -1 (a slot with no
 // threshold-capable content) is never bold.
@@ -247,11 +241,13 @@ static bool status_threshold_is_bold(const uint8_t blob[THRESH_SETTINGS_BYTES], 
 }
 
 ThreshLook status_threshold_look(const uint8_t blob[THRESH_SETTINGS_BYTES], int kind, int level) {
-    // Only WARN depends on the warn look; skip the blob read otherwise.
+    // Only WARN depends on the warn look; skip the blob read otherwise. The box:
+    // NORMAL none, DANGER fill (whatever the look), WARN exactly the look
+    // (status_threshold_warn_look() answers 0..2 only).
     int warn_look = level == THRESH_LEVEL_WARN
         ? status_threshold_warn_look(blob, kind) : THRESH_WARN_LOOK_NONE;
     ThreshLook look = {
-        .box = (uint8_t)status_threshold_box_for(level, warn_look),
+        .box = (uint8_t)(level == THRESH_LEVEL_DANGER ? THRESH_BOX_FILL : warn_look),
         .bold = (uint8_t)status_threshold_is_bold(blob, kind, level),
         .color8 = status_threshold_color8(blob, kind, level),
     };
