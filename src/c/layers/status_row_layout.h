@@ -44,6 +44,11 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 int16_t status_slot_place_at(const StatusSlotMeasure *m, int16_t x, int16_t max_w,
                              StatusSlotPlace *out);
 
+// A group's width for a normalized (non-negative) icon, text and suffix: the icon,
+// the gap + text while there is text (no gap without an icon), then the suffix lane
+// (the suffix plus its gap while there is text).
+int16_t status_group_w(int16_t icon_w, int16_t text_w, int16_t suffix_w);
+
 // A placed slot's group width, the width its fit gave it: the icon, the gap + text
 // while the text shows, then the suffix lane (whose gap goes with the text). 0 for a
 // hidden slot. `m` is the non-negative measure the slot was laid out with. The same

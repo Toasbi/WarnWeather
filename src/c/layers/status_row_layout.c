@@ -16,11 +16,10 @@ static int16_t suffix_lane_w(int16_t suffix_w, int16_t text_w) {
     return (int16_t)(suffix_w + (text_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
 }
 
-// A group's width for a normalized (non-negative) icon, text and suffix: the icon,
-// the gap + text while there is text, then the suffix lane. The one sum a slot is
-// sized by — its desired width, its fit, and status_slot_placed_w() reading a placed
-// slot back.
-static int16_t group_w(int16_t icon_w, int16_t text_w, int16_t suffix_w) {
+// status_row_layout.h. The one sum a slot is sized by — its desired width, its fit,
+// and status_slot_placed_w() reading a placed slot back — and an On demand item's
+// footprint before its box.
+int16_t status_group_w(int16_t icon_w, int16_t text_w, int16_t suffix_w) {
     return (int16_t)(icon_w + ((text_w > 0)
         ? (STATUS_ROW_ICON_TEXT_GAP * (icon_w > 0)) + text_w
         : 0) + suffix_lane_w(suffix_w, text_w));
@@ -57,7 +56,7 @@ static GroupFit fit_group(const StatusSlotMeasure *m, int16_t max_w) {
     fit.visible = true;
     fit.text_visible = text_w > 0;
     fit.text_w = text_w;
-    fit.group_w = group_w(m->icon_w, text_w, m->suffix_w);
+    fit.group_w = status_group_w(m->icon_w, text_w, m->suffix_w);
     return fit;
 }
 
@@ -85,7 +84,7 @@ static void place_group(const StatusSlotMeasure *m, const GroupFit *fit,
 static int16_t desired_group_w(const StatusSlotMeasure *m) {
     if (!m->present) { return 0; }
     if (m->icon_w <= 0 && m->text_w <= 0) { return 0; }
-    return group_w(m->icon_w, m->text_w, m->suffix_w);
+    return status_group_w(m->icon_w, m->text_w, m->suffix_w);
 }
 
 void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
@@ -167,7 +166,7 @@ int16_t status_slot_place_at(const StatusSlotMeasure *m, int16_t x, int16_t max_
 int16_t status_slot_placed_w(const StatusSlotPlace *place, const StatusSlotMeasure *m) {
     if (!place->visible) { return 0; }
     // The fit's text width is the place's while the text shows, else none.
-    return group_w(m->icon_w, place->text_visible ? place->text_w : 0, m->suffix_w);
+    return status_group_w(m->icon_w, place->text_visible ? place->text_w : 0, m->suffix_w);
 }
 
 void status_slot_ink(const StatusSlotPlace *place, const StatusSlotMeasure *m,

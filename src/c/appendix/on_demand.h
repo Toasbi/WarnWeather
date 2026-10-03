@@ -103,14 +103,14 @@ static inline bool od_slot_shows_battery(int kind) {
 }
 
 // An item's footprint on one lane: its icon, then its text after
-// STATUS_ROW_ICON_TEXT_GAP (no gap without an icon); 0 with nothing to draw. A boxed
+// STATUS_ROW_ICON_TEXT_GAP (no gap without an icon), a slot's group without the
+// suffix (status_group_w); 0 with nothing to draw. A boxed
 // item (od_item_boxed) adds `pad` on both sides and is measured by its ink — a last
 // icon's one-column overhang in, a last text's trailing letter spacing out — so its
 // air to the box stroke is equal on both sides.
 static inline int16_t od_item_footprint(int16_t icon_w, int16_t text_w, bool boxed,
                                         int16_t pad) {
-    int16_t fw = (int16_t)(icon_w + (text_w > 0
-        ? (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + text_w : 0));
+    int16_t fw = status_group_w(icon_w, text_w, 0);
     if (fw > 0 && boxed) {
         fw = (int16_t)(fw + 2 * pad + (text_w > 0 ? -OD_TEXT_TRAIL_SPACING : OD_GLYPH_INK_OVERHANG));
     }
