@@ -126,14 +126,14 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // sheet only points there), so each of their keys appears exactly once.
   // batteryLowLevel: the Battery sheet's 5 % (emery) and 10 % (every other watch)
   // sliders, gated apart. vibe/btIcons: the Bluetooth sheet vs aplite's Watch Status
-  // Bar rows, gated apart. rainCountdownHorizon: the Rain sheet and its Radar-tab copy —
-  // the one pair that is live at the same time (flat hydrate/serialize cope).
+  // Bar rows, gated apart. rainCountdownHorizon is NOT here: the Rain sheet is its one
+  // row (the Radar tab's copy went, the owner's of 2026-10-02).
   // windLineShow/gustLineShow/uvLineShow: one per line context, like
   // pressureScale — the row follows its metric to whichever picker shows it. The four
   // Draw from keys the same way (rainBarFrom/radarBarFrom are one row each).
   assert.deepEqual(dups.sort(),
     ['batteryLowLevel', 'btIcons', 'cloudLineFrom', 'colorUSFederal', 'gustLineShow',
-      'precipLineFrom', 'pressureScale', 'rainCountdownHorizon', 'theme', 'themeNight',
+      'precipLineFrom', 'pressureScale', 'theme', 'themeNight',
       'tomorrowioApiKey', 'tomorrowioFitBudget', 'uvLineFrom', 'uvLineShow', 'vibe',
       'windLineFrom', 'windLineShow', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
@@ -151,8 +151,9 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
   assert.equal(counts.tomorrowioApiKey, 2, 'tomorrow.io key in the General + Radar tabs\' key sheets');
   assert.equal(counts.tomorrowioFitBudget, 2, 'tomorrow.io budget guard in the General + Radar tabs\' key sheets');
-  ['batteryLowLevel', 'btIcons', 'vibe', 'rainCountdownHorizon'].forEach((k) =>
+  ['batteryLowLevel', 'btIcons', 'vibe'].forEach((k) =>
     assert.equal(counts[k], 2, k + ' appears in exactly two slots'));
+  assert.equal(counts.rainCountdownHorizon, 1, 'the rain window appears once (the Rain sheet)');
   assert.deepEqual(Object.keys(counts).sort(), EXPECTED_KEYS.slice().sort());
 });
 
@@ -2504,23 +2505,19 @@ test('aplite keeps the Watch Status Bar\'s own battery, quiet time and Bluetooth
   ['basalt', 'diorite', 'emery', 'flint'].forEach((p) => assert.deepEqual(vis(p), [], p));
 });
 
-test('rainCountdownHorizon: the Rain sheet\'s window, and its copy on the Radar tab in every fetching mode', () => {
+test('rainCountdownHorizon: the Rain sheet\'s window is its one row; the Radar tab carries no copy', () => {
   const rows = items.filter((i) => i.messageKey === 'rainCountdownHorizon');
-  assert.equal(rows.length, 2, 'two live copies of one key');
-  const radar = schema.tabs.find((t) => t.id === 'radar');
-  const radarItems = radar.sections[0].items;
-  const at = radarItems.findIndex((i) => i.messageKey === 'rainCountdownHorizon');
-  assert.equal(radarItems[at - 1].type, 'staticText', 'right after the rain note');
-  assert.equal(radarItems[at - 2].messageKey, 'radarMode');
-  assert.deepEqual(radarItems[at], {
-    type: 'segmented', messageKey: 'rainCountdownHorizon', label: 'Rain alert window', defaultValue: '60',
-    options: [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']],
-    showWhen: { all: [{ key: 'radarMode', ne: 'off' }, ON_DEMAND_WHEN] }
-  });
+  assert.equal(rows.length, 1, 'one row for the key');
   const sheet = schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.sheetId === 'alertRain');
-  assert.ok(sheet.items.indexOf(rows[1]) !== -1, 'the other copy lives in the Rain sheet (findItem\'s last match)');
-  assert.deepEqual(rows[0].options, rows[1].options, 'one list');
-  assert.equal(rows[0].defaultValue, rows[1].defaultValue, 'one default');
+  assert.ok(sheet.items.indexOf(rows[0]) !== -1, 'it lives in the Rain sheet');
+  assert.equal(rows[0].showWhen, undefined, 'ungated in its sheet: the sheet\'s own gate is enough');
+  // The owner's of 2026-10-02: "Rain alert window can be removed from the radar tab..
+  // Alerts is enough". The tab keeps the radar mode, the rain note, then the provider.
+  const radarItems = schema.tabs.find((t) => t.id === 'radar').sections[0].items;
+  assert.ok(!radarItems.some((i) => i.messageKey === 'rainCountdownHorizon'), 'no window on the Radar tab');
+  assert.equal(radarItems[0].messageKey, 'radarMode');
+  assert.equal(radarItems[1].type, 'staticText', 'the rain note');
+  assert.equal(radarItems[2].messageKey, 'radarProvider', 'the provider follows the rain note');
 });
 
 // Each metric alert's Days and tomorrow mark against the contract the bake reads them
@@ -3016,9 +3013,9 @@ test('radar and health status-line slots hide unless the feature shows their bar
     assert.deepEqual(byKey(k).showWhen, {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]}, k));
 });
 
-test('the rain alert\'s horizon control is labelled "Time window" in its sheet, "Rain alert window" on the Radar tab', () => {
+test('the rain alert\'s horizon control is labelled "Time window", in its sheet only', () => {
   assert.deepEqual(items.filter((i) => i.messageKey === 'rainCountdownHorizon').map((i) => i.label),
-    ['Rain alert window', 'Time window']);
+    ['Time window']);
 });
 
 test('secondaryLine offers cloud cover second, then pressure, feels-like and dew point last', () => {

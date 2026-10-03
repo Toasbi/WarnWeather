@@ -819,19 +819,49 @@ test('the rain notes: the Radar tab\'s in Rain alert only, with a link; the Rain
   PAGE_BARS.filter((bar) => bar !== 'radar').forEach((bar) => assert.equal(ticked(sheet, bar), 'none', bar));
 });
 
-test('the Radar tab carries a copy of the rain window; entering Rain alert only places Rain', () => {
+/**
+ * Tap one segment of a segmented control (or one option of a radio), the engine's
+ * [data-v] path.
+ * @param {Object} host the element the control renders in (page.scroll or page.modal)
+ * @param {string} key the control's messageKey
+ * @param {string} value the segment's value
+ */
+function pickSegment(host, key, value) {
+  const t = { getAttribute: n => (n === 'data-k' ? key : (n === 'data-v' ? value : null)),
+    closest: sel => (sel === '[data-v]' ? t : null) };
+  host.dispatch('click', { target: t });
+}
+
+// The owner's of 2026-10-02: "Rain alert window can be removed from the radar tab.. Alerts
+// is enough". The window is the Rain sheet's row alone.
+test('the Radar tab carries no rain window in any mode; entering Rain alert only places Rain', () => {
+  ['off', 'countdown', 'status', 'graph'].forEach((mode) => {
+    const tab = onTab('radar', { radarMode: mode, rainCountdownHorizon: '30' });
+    assert.equal(tab.scroll.innerHTML.indexOf('data-k="rainCountdownHorizon"'), -1, mode + ': no window control');
+    assert.equal(tab.scroll.innerHTML.indexOf('Rain alert window'), -1, mode + ': no window label');
+  });
   const page = onTab('radar', { radarMode: 'graph', statusTopOnDemandLeftItems: 'bt' });
-  assert.ok(page.scroll.innerHTML.indexOf('>Rain alert window</div>') !== -1, 'the copy renders');
-  const pick = (p, key, value) => {
-    const t = { getAttribute: n => (n === 'data-k' ? key : (n === 'data-v' ? value : null)),
-      closest: sel => (sel === '[data-v]' ? t : null) };
-    p.scroll.dispatch('click', { target: t });
-  };
-  pick(page, 'radarMode', 'countdown');
+  pickSegment(page.scroll, 'radarMode', 'countdown');
   assert.equal(page.S.statusTopOnDemandLeftItems, 'bt,rain', 'Rain on the Watch Status Bar\'s left');
-  const off = onTab('radar', { radarMode: 'graph' });
-  pick(off, 'radarMode', 'off');
-  assert.equal(off.scroll.innerHTML.indexOf('>Rain alert window</div>'), -1, 'no window while the radar is off');
+});
+
+test('the Rain sheet reads the stored window, writes a pick, and Save carries it', async () => {
+  const lit = (p) => {
+    const m = p.modal.innerHTML.match(/class="on" data-k="rainCountdownHorizon" data-v="([^"]*)"/);
+    return m ? m[1] : null;
+  };
+  const page = alertsTab({ radarMode: 'countdown', rainCountdownHorizon: '30' });
+  page.openEditSheet('alertRain');
+  assert.equal(lit(page), '30', 'the stored window is the lit segment');
+  pickSegment(page.modal, 'rainCountdownHorizon', '120');
+  assert.equal(page.S.rainCountdownHorizon, '120', 'the pick lands in the state');
+  assert.equal(lit(page), '120', 'and lights its segment');
+  assert.equal((await page.save()).rainCountdownHorizon, '120', 'Save carries the pick');
+  // An absent key reads as the contract's default window, and Save writes it.
+  const fresh = alertsTab({ radarMode: 'graph' });
+  fresh.openEditSheet('alertRain');
+  assert.equal(lit(fresh), '60', 'no stored window: 60 min lit');
+  assert.equal((await fresh.save()).rainCountdownHorizon, '60', 'Save writes the default');
 });
 
 test('the slot sheet points at the Alerts tab for the levels, and its link opens it', () => {

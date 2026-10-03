@@ -3,9 +3,9 @@
 // with the reset), the sheet behind every row (Battery, Bluetooth, Quiet time, Sleep, Rain
 // and the five metric alerts, each leading with its Shows on grid), the alert-level cards,
 // the eight side lists' hidden items, and the pieces the other tabs show: a bar's read-only
-// Alerts row (Status slots tab), the rain alert's window and its 'Rain alert only' note
-// (Radar tab), and the Bluetooth icon's choices (aplite's Watch Status Bar). schema.js's
-// alert slot sheets read the kinds, their contract codes and the placement leaf from here.
+// Alerts row (Status slots tab), the rain alert's 'Rain alert only' note (Radar tab), and
+// the Bluetooth icon's choices (aplite's Watch Status Bar). schema.js's alert slot sheets
+// read the kinds, their contract codes and the placement leaf from here.
 // It reads the shared gates (schema-gates.js) and the level group (level-rows-schema.js),
 // never schema.js, so the dependency points one way. Plain CommonJS with an unguarded
 // require(), like schema.js itself: the schema is built in PKJS and reaches the page as
@@ -116,35 +116,13 @@ function rainRadarOffNote() {
     };
 }
 /**
- * The rain alert's window as a segmented control: the Rain sheet's row and, in every
- * radar mode but Off, its copy on the Radar tab (the same key: hydrate and serialize are
- * flat, so both copies read and write one value).
- * @param {string} label The row's label.
- * @param {?string} hint The row's hint, or null.
- * @param {?Object} showWhen The row's gate, or null.
- * @returns {Object} Schema item.
- */
-function rainWindowRow(label, hint, showWhen) {
-    var row = {
-        type: 'segmented',
-        messageKey: 'rainCountdownHorizon',
-        label: label,
-        // The contract's window (status-thresholds.js rainAlert): what the phone packs
-        // for an absent key.
-        defaultValue: String(STATUS_THRESHOLDS.rainAlert(null).horizonMin),
-        options: RAIN_WINDOW_SEGMENTS
-    };
-    if (hint) { row.hint = hint; }
-    if (showWhen) { row.showWhen = showWhen; }
-    return row;
-}
-/**
  * The rain alert's sheet (sheetId alertRain), opened from the Alert settings card's Rain row
  * (the Alerts tab): its Shows on grid and note, the radar-off box, the Look, then the time
  * window (the owner's order, 2026-10-01: where it shows, the Look, then its own rows). It
- * has no switch: a tick in its Shows on grid is the switch. The look's default is the
- * contract's (status-thresholds.js rainAlert), so the page hydrating a key and the packer
- * reading it absent never disagree.
+ * has no switch: a tick in its Shows on grid is the switch. The time window is set here
+ * alone (the owner, 2026-10-02: the Radar tab's copy went, "Alerts is enough"). The look's
+ * and the window's defaults are the contract's (status-thresholds.js rainAlert), so the
+ * page hydrating a key and the packer reading it absent never disagree.
  * @returns {Object} Schema section (sheetOnly).
  */
 function rainAlertSheet() {
@@ -180,9 +158,14 @@ function rainAlertSheet() {
                 minutes: 'The rain icon with the minutes until the rain starts or, while it rains, + the minutes until it stops. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then is it just the icon.',
                 text: 'On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it shorten to the minutes, then to the rain icon alone.'
             }
-        }, rainWindowRow('Time window',
-            'Rain due further out doesn’t show the icon. Radar forecasts change often, so a shorter window gives fewer false alarms.',
-            null)])
+        }, {
+            type: 'segmented',
+            messageKey: 'rainCountdownHorizon',
+            label: 'Time window',
+            defaultValue: String(STATUS_THRESHOLDS.rainAlert(null).horizonMin),
+            options: RAIN_WINDOW_SEGMENTS,
+            hint: 'Rain due further out doesn’t show the icon. Radar forecasts change often, so a shorter window gives fewer false alarms.'
+        }])
     };
 }
 // A metric alert's Days, named once: the sheet's row offers them and the card row's hint
@@ -711,7 +694,6 @@ module.exports = {
     alertCodeOf: alertCodeOf,
     onDemandPlacedWhen: onDemandPlacedWhen,
     onDemandRow: onDemandRow,
-    rainWindowRow: rainWindowRow,
     rainAlertUnshownNote: rainAlertUnshownNote,
     cardSection: cardSection,
     sheetSections: sheetSections

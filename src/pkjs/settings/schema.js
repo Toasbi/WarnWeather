@@ -52,16 +52,15 @@ var GOAL_VOICE = levelRowsSchema.GOAL_VOICE;
 var nextDayMarkOptions = levelRowsSchema.nextDayMarkOptions;
 var levelRows = levelRowsSchema.levelRows;
 // The Alerts tab's schema (settings/alerts-schema.js): its card and sheets, plus what the
-// other tabs show of it (a bar's Alerts row, the rain alert's window and note, the
-// Bluetooth icon's choices) and what the alert slot sheets read (the kinds, their codes,
-// the placement leaf).
+// other tabs show of it (a bar's Alerts row, the rain alert's note, the Bluetooth icon's
+// choices) and what the alert slot sheets read (the kinds, their codes, the placement
+// leaf).
 var alertsSchema = require('./alerts-schema.js');
 var ALERT_KINDS = alertsSchema.ALERT_KINDS;
 var BT_ICON_OPTIONS = alertsSchema.BT_ICON_OPTIONS;
 var alertCodeOf = alertsSchema.alertCodeOf;
 var onDemandPlacedWhen = alertsSchema.onDemandPlacedWhen;
 var onDemandRow = alertsSchema.onDemandRow;
-var rainWindowRow = alertsSchema.rainWindowRow;
 var rainAlertUnshownNote = alertsSchema.rainAlertUnshownNote;
 // The Forecast tab's line rows (settings/forecast-lines-schema.js): the rows each metric
 // picker carries (Line style, Draw from, the graph scales, Visible values), the metric
@@ -1566,15 +1565,7 @@ module.exports = {
                 // mode fetches radar solely for the rain alert, which an On demand side draws.
                 options: [['Off', 'off'], ['Rain alert only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
                 onChange: 'resetStatusRadar'
-            }, rainAlertUnshownNote(),
-            // The rain alert's window, a second copy of the Rain sheet's row for every radar
-            // mode that fetches: the window is what the radar is fetched for. The same key
-            // as the sheet's row — the first live duplicate: hydrate and serialize are flat,
-            // and findItem's last match is the sheet's row, which shares this one's key,
-            // default and options (only the label and hint differ, and a segmented control
-            // has no modal title for them to cross into), so both copies read and write one
-            // value.
-            rainWindowRow('Rain alert window', null, {all: [{key: 'radarMode', ne: 'off'}, ON_DEMAND_WHEN]}), {
+            }, rainAlertUnshownNote(), {
                 type: 'select',
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
@@ -1701,9 +1692,8 @@ module.exports = {
                 hint: 'Shown in the radar graph when no rain is coming; the default is “You\'re good :)”. Up to 24 characters; leave it empty to show nothing.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
             }]
-            // The rain countdown's time window (rainCountdownHorizon) used to close this
-            // section; its home is the Rain alert sheet (the Alerts tab), with a second copy
-            // under the radar mode above.
+            // The rain alert's time window (rainCountdownHorizon) used to close this
+            // section; it is set in the Rain alert sheet (the Alerts tab) alone.
         },
         // "Rainbow (own key)"'s key sheet, opened by the Edit button after the Radar provider
         // dropdown and rendered nowhere else. The key, its trimming and refetch on Save
@@ -2034,13 +2024,13 @@ module.exports = {
         // The Alerts tab's sections (alerts-schema.js sheetSections): the eight side lists'
         // hidden items, then the sheets the Alert settings card's rows open, in the card's
         // order. They stay last here though their card is on the Alerts tab: a sheet opens
-        // from any tab (renderEditModal), and three of their keys have an earlier copy
-        // (rainCountdownHorizon under the Radar tab's radar mode, vibe and btIcons in aplite's
-        // Watch Status Bar). For a key with two items the engine's findItem answers the LAST
-        // one in schema order: its onChange (setValue, a text field's commit), its default
-        // for a reset (defaultAsStored) and a searchSelect's options. So these sheets' copies
-        // own the three keys. The copies agree on all three today, so the order binds nothing yet;
-        // check findItem's readers before moving the sheets ahead of the other copies.
+        // from any tab (renderEditModal), and two of their keys have an earlier copy (vibe
+        // and btIcons in aplite's Watch Status Bar). For a key with two items the engine's
+        // findItem answers the LAST one in schema order: its onChange (setValue, a text
+        // field's commit), its default for a reset (defaultAsStored) and a searchSelect's
+        // options. So these sheets' copies own the two keys. The copies agree on both today,
+        // so the order binds nothing yet; check findItem's readers before moving the sheets
+        // ahead of the other copies.
         // Neither hydrate (every copy writes the same default) nor the save blob's key
         // order (no reader depends on it) is the constraint.
         ].concat(alertsSchema.sheetSections())

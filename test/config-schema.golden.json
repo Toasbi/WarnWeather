@@ -4735,37 +4735,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "rainCountdownHorizon",
-                "label": "Rain alert window",
-                "defaultValue": "60",
-                "options": [
-                  [
-                    "30 min",
-                    "30"
-                  ],
-                  [
-                    "60 min",
-                    "60"
-                  ],
-                  [
-                    "2 hours",
-                    "120"
-                  ]
-                ],
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarMode",
-                      "ne": "off"
-                    },
-                    {
-                      "env": "onDemand"
-                    }
-                  ]
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "radarProvider",
                 "label": "Radar provider",
