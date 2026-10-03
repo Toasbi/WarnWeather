@@ -117,6 +117,13 @@ static const GPathInfo ARROW_PATH_INFO = {
 
 static int s_row_count;
 
+uint16_t sig_fold(uint16_t sig, const uint8_t *data, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        sig = (uint16_t)((sig * 31) + data[i]);
+    }
+    return sig;
+}
+
 // Seat this row's line in its band. Every row cap-centres (status_text_y) EXCEPT the top
 // strip, which rides STATUS_TOP_STRIP_LIFT rows higher inside an unchanged band — its top edge
 // is the screen edge, so the air above the line is invisible while the gap below, down to the
