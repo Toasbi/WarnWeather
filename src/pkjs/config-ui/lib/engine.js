@@ -2387,7 +2387,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     /**
      * Collapse whatever is expanded in place inside the open edit sheet — an option list
      * or a palette — and hand focus back to the row's trigger. The first answer to
-     * Escape: only a sheet with nothing expanded closes on it.
+     * Escape: only a sheet with nothing expanded closes on it. The edit check is not
+     * redundant: under a select sheet `expanded` can be a palette in the tab body, which
+     * Escape leaves alone.
      * @returns {boolean} True when something was collapsed.
      */
     function collapseSheetExpander() {
@@ -2417,7 +2419,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           setValue(k, v);
           // A pick in a list expanded inside an edit sheet collapses that list and
           // leaves the sheet open, focus back on the row's trigger (the node render()
-          // just rebuilt). Anywhere else a pick closes the select sheet.
+          // just rebuilt). Anywhere else a pick closes the select sheet, and leaves alone
+          // a palette open in the tab body, which `expanded` may also hold.
           if (sheetIs('edit') && expanded) {
             expanded = null;
             render();

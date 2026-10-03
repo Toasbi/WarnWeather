@@ -1551,6 +1551,27 @@ test('boot(): an edit sheet opens with nothing expanded, though a palette was op
   assert.equal(r.modal.open, false, 'one Escape closes the sheet: nothing was left to collapse');
 });
 
+// `expanded` serves both surfaces, so a palette can stay open in the tab body while a
+// select sheet sits over it. A pick and Escape both act on the in-place expander only
+// inside an EDIT sheet; in a select sheet they close the sheet and leave the body alone.
+// The `sheetIs('edit')` halves of those two guards carry that, and look redundant.
+test('boot(): a pick and Escape in a select sheet close it and leave a body palette open', () => {
+  const r = bootWithCapturedListeners(COLOR_SURFACE_SCHEMA, {}, { dialog: true });
+  clickMatching(r.listeners.click, '[data-color]', { 'data-color': 'tint' });
+  clickMatching(r.listeners.click, '[data-select]', { 'data-select': 'mode' });
+  assert.equal(r.modal.open, true, 'the select sheet opened over the palette\'s card');
+  clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'mode', 'data-select-pick': 'b' });
+  assert.equal(r.getValue('mode'), 'b', 'the pick landed');
+  assert.equal(r.modal.open, false, 'a pick closes the select sheet');
+  assert.ok(r.scroll.innerHTML.indexOf('class="palette"') >= 0, 'and leaves the body palette open');
+
+  clickMatching(r.listeners.click, '[data-select]', { 'data-select': 'mode' });
+  assert.equal(r.modal.open, true, 'the select sheet reopened');
+  r.modalListeners.cancel({ preventDefault: () => {} });
+  assert.equal(r.modal.open, false, 'Escape closes the select sheet');
+  assert.ok(r.scroll.innerHTML.indexOf('class="palette"') >= 0, 'and leaves the body palette open');
+});
+
 test('boot(): a tab switch closes a palette left open in the tab body', () => {
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [
     { id: 'a', label: 'A', sections: COLOR_SURFACE_SCHEMA.tabs[0].sections },
