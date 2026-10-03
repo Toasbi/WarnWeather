@@ -30,6 +30,19 @@
     }
 
     /**
+     * The step marks the watch rules and labels for a day's peak (step_scale.h
+     * step_scale_marks): the closest full 500 at or under the peak, and the halfway full
+     * 500 when that is a different line; under 500 steps one full-200 line.
+     * @param {number} peak The day's busiest hour.
+     * @returns {number[]} The marks, top first.
+     */
+    function stepMarks(peak) {
+        if (peak < 500) { return [Math.max(200, Math.floor(peak / 200) * 200)]; }
+        var topU = Math.floor(peak / 500), midU = Math.floor((topU + 1) / 2);
+        return midU === topU ? [topU * 500] : [topU * 500, midU * 500];
+    }
+
+    /**
      * The block.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
@@ -39,7 +52,10 @@
         var st = S || {};
         var ink = previewInk(st.theme);
         var color = Boolean(env && env.color !== false) && !resolveInk.isBwTheme(st.theme);
-        var PX0 = 12, PX1 = 180, PT = 8, PB = 94, STRIPE = 5, GAP = 4;
+        // The frame and the step gridlines: dark gray on a colour theme, black on light,
+        // the ink on B&W (health_graph_layer.c HEALTH_AXIS_COLOR / STEP_GRID_COLOR).
+        var furniture = color ? (ink.bg === '#000000' ? '#555555' : '#000000') : ink.fg;
+        var PX0 = 20, PX1 = 180, PT = 8, PB = 94, STRIPE = 5, GAP = 4;
         var n = STEPS.length, pitch = (PX1 - PX0) / n, bw = pitch - 1.6;
         var e = rect(0, 0, 200, 112, ink.bg);
         // Last night's sleep along the bottom of the plot.
@@ -48,17 +64,30 @@
             var fill = SLEEP[i] === 2 ? (color ? '#0000FF' : ink.fg) : (color ? '#00AAFF' : '#AAAAAA');
             e += rect((PX0 + i * pitch).toFixed(1), PB - STRIPE, (pitch + 0.2).toFixed(1), STRIPE, fill);
         }
-        // Step bars, on their own scale (the peak hour reaches near the top).
+        // Step bars, on their own scale (the peak hour reaches near the top): green on a
+        // colour theme, the background on B&W, and — on every theme but colour-dark — an
+        // outline in the ink round the top and sides (chart.c BAR_OUTLINED; the axis
+        // closes the bottom).
         var peak = 0;
         STEPS.forEach(function (v) { if (v > peak) { peak = v; } });
         var barTop = PT + 6, barSpan = PB - STRIPE - barTop;
+        // The marks' dashed gridlines under the data, labelled in thousands on the left.
+        stepMarks(peak).forEach(function (m) {
+            var gy = (PB - STRIPE - m / (peak * 1.1) * barSpan).toFixed(1);
+            e += '<line x1="' + PX0 + '" y1="' + gy + '" x2="' + PX1 + '" y2="' + gy + '" stroke="' + furniture
+                + '" stroke-width="0.8" stroke-dasharray="2 2"></line>';
+            e += txt(PX0 - 3, (+gy + 2.5).toFixed(1), 7, ink.fg, 'end', 700, String(m / 1000));
+        });
+        var outlined = !(color && ink.bg === '#000000');
         for (i = 0; i < n; i++) {
             if (!STEPS[i]) { continue; }
             var h = Math.max(1.5, STEPS[i] / (peak * 1.1) * barSpan);
-            var x = (PX0 + i * pitch + 0.8).toFixed(1), y = (PB - STRIPE - h).toFixed(1);
-            e += color ? rect(x, y, bw.toFixed(1), h.toFixed(1), '#00FF00')
-                : '<rect x="' + x + '" y="' + y + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1)
-                    + '" fill="' + ink.bg + '" stroke="' + ink.fg + '" stroke-width="0.8"></rect>';
+            var x0 = PX0 + i * pitch + 0.8, y0 = PB - STRIPE - h, x1 = x0 + bw, yb = PB - STRIPE;
+            e += rect(x0.toFixed(1), y0.toFixed(1), bw.toFixed(1), h.toFixed(1), color ? '#00FF00' : ink.bg);
+            if (outlined) {
+                e += '<path d="M' + x0.toFixed(1) + ' ' + yb + ' V' + y0.toFixed(1) + ' H' + x1.toFixed(1) + ' V' + yb
+                    + '" fill="none" stroke="' + ink.fg + '" stroke-width="0.8"></path>';
+            }
         }
         // The heart-rate line on the scale: an hour outside it breaks the line and shows as
         // a dot on the edge it left through.
@@ -81,9 +110,9 @@
                 + ' stroke-linejoin="round" stroke-linecap="round"></path>';
         }
         e += dots;
-        // The frame and the hour axis.
-        e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.5')
-            + '" stroke-width="0.8"></line>';
+        // The frame (left and bottom) and the hour axis.
+        e += '<path d="M' + PX0 + ' ' + PT + ' V' + PB + ' H' + PX1 + '" fill="none" stroke="' + furniture
+            + '" stroke-width="0.8"></path>';
         for (i = 0; i < n; i += 6) {
             var hour = (START_HOUR + i + 1) % 24;
             e += txt((PX0 + (i + 1) * pitch).toFixed(1), 105, 8, ink.rgba('0.7'), 'middle', 700, String(hour));
@@ -95,5 +124,5 @@
     }
 
     if (typeof PConf !== 'undefined' && PConf && PConf.blocks) { PConf.blocks.register('healthPreview', healthPreview); }
-    if (typeof module !== 'undefined' && module.exports) { module.exports = {healthPreview: healthPreview, hrScale: hrScale}; }
+    if (typeof module !== 'undefined' && module.exports) { module.exports = {healthPreview: healthPreview, hrScale: hrScale, stepMarks: stepMarks}; }
 })();
