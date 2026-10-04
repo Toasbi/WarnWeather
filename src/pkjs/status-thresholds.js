@@ -200,7 +200,7 @@
   // force (Beaufort 8, from 62 kph, 39 mph, 34 kn), kph on the step just below it.
   // 1.24.0 moved gust warn kph 60 -> 65 and kn 30 -> 35, and wind danger kn 30 -> 35;
   // the pairs the page pinned before then are frozen in migrations/seed-pairs.js.
-  // Each weather alert's sheet explains its pair in an info card per unit or scale
+  // Each weather alert's dialog explains its pair in a note per unit or scale
   // (settings/alerts-schema.js ALERT_LEVEL_CARDS), which quotes these numbers next to the references
   // they sit on; test/config-alert-level-cards.test.js holds the two equal.
   var SEEDS = {

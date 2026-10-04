@@ -1258,32 +1258,6 @@ if (typeof require !== 'undefined') {
     }
     PConf.hintResolvers.register('radarColorHint', radarColorHint);
 
-    /**
-     * A weather alert's levels slider's info text: its scale hint (args.staticHint, the
-     * row's own hint the engine hands every hint resolver) and the card on its default
-     * levels for the unit or AQI scale in effect (args.cards, schema.js ALERT_LEVEL_CARDS:
-     * each card's showWhen picks it, the same predicates the cards carried as their own
-     * rows).
-     * @param {Object} S Live settings state.
-     * @param {Object} env Platform env.
-     * @param {{staticHint: (string|undefined),
-     *     cards: Array<{text: string, showWhen: (Object|undefined)}>}} args
-     * @returns {?string} The hint, or null for the static one.
-     */
-    function levelInfo(S, env, args) {
-        var a = args || {}, ctx = Object.assign({}, S || {}), parts = [], i;
-        ctx.env = env || {};
-        if (a.staticHint) { parts.push(a.staticHint); }
-        for (i = 0; i < (a.cards || []).length; i++) {
-            if (!a.cards[i].showWhen || PConf.showWhen.evaluate(a.cards[i].showWhen, ctx)) {
-                parts.push(a.cards[i].text);
-                break;
-            }
-        }
-        return parts.length ? parts.join('<br>') : null;
-    }
-    PConf.hintResolvers.register('levelInfo', levelInfo);
-
     // Reset-to-defaults for EVERY graph colour (the Graph colors dialog's link): each
     // metric's sheet keeps its own reset (resetGraphColors, its key list in the button's
     // arg); this one walks the full key set line-style.js hands out, so it cannot miss a
@@ -1319,7 +1293,6 @@ if (typeof require !== 'undefined') {
             lineColorLabel: lineColorLabel,
             barScaleHint: barScaleHint,
             radarColorHint: radarColorHint,
-            levelInfo: levelInfo,
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
             tomorrowioUsageLine: tomorrowioUsageLine,
             rainbowBudgetBlock: rainbowBudgetBlock,

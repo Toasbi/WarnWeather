@@ -520,7 +520,9 @@
   .dlg-ttlline .lbl-act { flex: none; margin-left: 4px; }
   .dlg-done { flex: none; padding: 9px 18px; border: none; border-radius: 11px; background: linear-gradient(135deg, #FA4A35, #D93A24); color: #FFFFFF; font: 700 14px 'Inter', sans-serif; box-shadow: 0 4px 14px rgba(250,74,53,0.35); cursor: pointer; }
   .dlg-done:active { transform: translateY(1px); }
-  .dlg-intro { padding: 0 2px 14px; font-size: 12.5px; color: var(--hint); line-height: 1.55; }
+  /* a dialog's intro card (engine dialogIntroHtml): the intro, then its notes as paragraphs */
+  dialog#modal .esheet .dlg-intro .intro { padding: 12px 16px; }
+  .intro .intro-more { margin: 8px 0 0; }
   dialog#modal .dlg-pin { margin: 0 -16px; padding: 0 16px 12px; }
   /* the Save button's confirm dialog (a row needs attention): one sentence, then the fix
      and "Save anyway" side by side. A margin between the two, not a flex gap, which old

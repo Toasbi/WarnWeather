@@ -235,8 +235,9 @@ function alertLooksAheadWhen(daysKey) {
 }
 /**
  * One metric alert's sheet (sheetId alert<Stem>), opened from its row in the Alerts tab's
- * Weather alerts card, in the owner's order (2026-10-01): its Shows on grid and note, the
- * Alert levels (header, slider, the info card for the unit or scale in effect), the Look,
+ * Weather alerts card, in the owner's order (2026-10-01): its intro card (with the note on
+ * the default levels for the unit or scale in effect), its Shows on grid and note, the
+ * Alert levels (header, slider), the Look,
  * then everything else (the Days with the tomorrow mark, the warn look and its colours) —
  * the levels' ONE home (the slot sheet points here). It has no switch: a tick in its Shows
  * on grid is the switch. The phone bakes an entry into the ALERT_ENTRIES_UINT8 tuple
@@ -250,8 +251,8 @@ function alertLooksAheadWhen(daysKey) {
  * @param {string} iconName The kind's alert icon as the intro names it, e.g. 'UV'.
  * @param {string} hint The levels slider's scale note ('' for none).
  * @param {string} [coda] A closing sentence for the intro (leading space), '' for none.
- * @param {Array<{text: string, showWhen: (Object|undefined)}>} [why] The kind's cards on
- *     its default levels (ALERT_LEVEL_CARDS), after the slider.
+ * @param {Array<{text: string, showWhen: (Object|undefined)}>} [why] The kind's notes on
+ *     its default levels (ALERT_LEVEL_CARDS), under the dialog's intro.
  * @returns {Object} Schema section (sheetOnly).
  */
 function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
@@ -268,10 +269,13 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
         intro: 'Shows the ' + iconName + ' icon at the edge of a status bar when ' + subject
             + ' reaches your warn level at any point left today, so an afternoon peak shows from the morning on.'
             + (coda || ''),
+        // The note on the default levels for the unit or AQI scale in effect, under the intro
+        // in the dialog's intro card (engine dialogIntroHtml; owner, 2026-10-04).
+        introNotes: why || [],
         // The two hidden companions close levelLead, so the Look below keeps the divider
         // the cards draw; the warn look starts its own group (levelLook, joinsAbove
         // false) rather than gluing itself under Tomorrow's mark or Days.
-        items: showsOnRows(code, subject).concat(levelLead(keyStem, ALERT_VOICE, hint, null, why), [{
+        items: showsOnRows(code, subject).concat(levelLead(keyStem, ALERT_VOICE, hint, null), [{
             type: 'segmented',
             messageKey: key + 'Display',
             label: 'Look',
@@ -349,8 +353,8 @@ function refLink(href, text) {
 // German pages: the warnings table also lists kn and Bft, the glossary gives Beaufort in
 // km/h).
 var DWD_GUST_WARNINGS = 'https://www.dwd.de/DE/wetter/warnungen_aktuell/kriterien/warnkriterien.html';
-// Each weather alert's reasons for its default levels: info cards right after its
-// levels slider (level-rows-schema.js levelLead), one per unit or AQI scale its seed pair varies by
+// Each weather alert's reasons for its default levels: notes under its dialog's intro
+// (alertSheet introNotes), one per unit or AQI scale its seed pair varies by
 // (status-thresholds.js scaleVariant), each shown only while that one is in effect
 // (scaleVariantWhen), so a sheet always shows exactly one. Always shown, stored levels or
 // not: they speak of the defaults ("By default, …"), the reference for picking others.

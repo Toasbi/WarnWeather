@@ -188,7 +188,7 @@ test('renderEditModal: header + intro + fields for the open sheet; \'\' otherwis
   assert.ok(html.indexOf('<span class="ssel-modal-ttl dlg-ttl" id="esheet-ttl-sheetWind">Wind thresholds</span>') !== -1,
     'sheet title in the header');
   // The intro is in view by default, under the header — no '?' to open first.
-  assert.ok(html.indexOf('<div class="ssel-list esheet"><div class="dlg-intro">Sheet intro.</div>') !== -1,
+  assert.ok(html.indexOf('<div class="ssel-list esheet"><div class="card nohdr dlg-intro"><div class="intro">Sheet intro.</div></div>') !== -1,
     'sheet intro rendered at the top of the body');
   assert.equal(html.indexOf('info-q'), -1, 'no \'?\' button by default');
   assert.ok(html.indexOf('data-k="windWarn"') !== -1, 'text field rendered in the sheet');
@@ -537,13 +537,14 @@ test('a sheet renders a checklist in place: plain rows under its one header, a g
       ({ type: 'hidden', messageKey: k, defaultValue: k === 'r2' ? 'c' : '' })) }
   ] }] };
   const sheet = E.renderEditModal(SCH, cxFor(E.hydrate(SCH, {}), { openEdit: 'pick' }));
-  assert.ok(sheet.indexOf('<div class="ssel-list esheet"><div class="dlg-intro"><b>Bar</b><br>Tick them.</div>') !== -1,
+  assert.ok(sheet.indexOf('<div class="ssel-list esheet"><div class="card nohdr dlg-intro"><div class="intro"><b>Bar</b><br>Tick them.</div></div>') !== -1,
     'the intro leads');
   assert.ok(sheet.indexOf('<div class="chk-list" role="group" aria-label="Things"><div class="subhdr grp chk-hdr">'
     + '<span>Things</span><span class="chk-caps" aria-hidden="true"><span>L</span><span>R</span></span></div>'
     + '<div class="row chk-opt nb">') !== -1, 'the label heads the grid, over the captions');
-  // A dialog's rows sit in its untitled card; the grid gets no card (or title) of its own.
-  assert.equal(sheet.split('class="card').length - 1, 1, 'one card in the sheet, no nested card for the grid');
+  // A dialog's rows sit in its untitled card, after the intro's card; the grid gets no card
+  // (or title) of its own.
+  assert.equal(sheet.split('class="card').length - 1, 2, 'the intro card and one card for the rows, none for the grid');
   assert.ok(sheet.indexOf('<div class="card nohdr">') !== -1, 'and that card is untitled');
   assert.match(sheet, /aria-checked="false" aria-label="One, L" data-k="l1" data-check="c" data-write="pickTick">/);
   assert.match(sheet, /aria-checked="true" aria-label="Two, R" data-k="r2" data-check="c" data-write="pickTick" disabled aria-disabled="true">/);

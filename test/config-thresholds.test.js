@@ -655,20 +655,22 @@ test('the page renders an alert sheet: its Shows on grid, the levels, then the L
   assert.ok(sheet.indexOf('UV index alert') !== -1, 'the sheet carries its title');
   assert.equal(sheet.indexOf('data-k="alertUv"'), -1, 'no switch: its Shows on grid places the alert');
   assert.equal(sheet.indexOf(cardTitle('Alert')), -1, 'and no Alert card');
-  assert.ok(sheet.indexOf('<div class="dlg-intro">Shows the UV icon at the edge of a status bar when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.</div>') !== -1,
+  assert.ok(sheet.indexOf('<div class="card nohdr dlg-intro"><div class="intro">Shows the UV icon at the edge of a status bar when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.<p class="intro-more">') !== -1,
     'with its intro, in view');
   const at = (frag) => {
     const i = sheet.indexOf(frag);
     assert.ok(i !== -1, frag + ' renders');
     return i;
   };
-  const card = '<div class="hint" data-hint-for="threshUvWarn">By default, warn sits at 6';
+  // The card on the default levels is a note under the intro, in the intro card
+  // (owner, 2026-10-04), above the Shows on card; the slider has no info text of its own.
+  const card = '<p class="intro-more">By default, warn sits at 6';
+  assert.ok(at(card) < at(cardTitle('Shows on')), 'the default-levels note, in the intro card');
   assert.ok(at(cardTitle('Shows on')) < at('aria-label="Shows on"'), 'the Shows on card');
   assert.ok(at('aria-label="Shows on"') < at(cardTitle('Alert levels')), 'the grid first');
   assert.ok(at(cardTitle('Alert levels')) < at('<div class="lbl">Warn · danger</div>'), 'the levels card');
-  // The card on the default levels is the slider's info text, in view under its label.
-  assert.ok(at('<div class="lbl">Warn · danger</div>') < at(card), 'the slider\'s label');
-  assert.ok(at(card) < at('data-range="threshUvWarn"'), 'the card, under it');
+  assert.equal(sheet.indexOf('data-hint-for="threshUvWarn"'), -1, 'no info text under the slider\'s label');
+  assert.ok(at('<div class="lbl">Warn · danger</div>') < at('data-range="threshUvWarn"'), 'the slider\'s label');
   assert.ok(at('data-range="threshUvWarn"') < at('data-k="alertUvDisplay"'), 'the slider');
   assert.ok(at('data-k="alertUvDisplay"') < at('data-k="alertUvDays"'), 'then the Look');
   assert.ok(at('data-k="alertUvDays"') < at('data-k="threshUvWarnLook"'), 'then the Days');
@@ -1785,14 +1787,14 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     });
     assert.ok(!s.items.some(it => it.messageKey === 'thresh' + stem + 'On'),
       s.sheetId + ': the slot Highlight is not in this sheet');
-    // The cards on the default levels ride the slider's info text, one per unit or AQI
-    // scale (test/config-alert-level-cards.test.js holds their numbers and gates).
+    // The cards on the default levels are notes under the dialog's intro, one per unit or
+    // AQI scale (test/config-alert-level-cards.test.js holds their numbers and gates).
     const CARDS = { Gust: 3, Wind: 3, Aqi: 2, Uv: 1, Pollen: 1 };
     const at = s.items.indexOf(range);
-    assert.equal(range.hintFrom.resolver, 'levelInfo', s.sheetId + ': the slider\'s info text carries the cards');
-    assert.equal(range.hintFrom.args.cards.length, CARDS[stem], s.sheetId + ': one card per unit or scale');
+    assert.equal(range.hintFrom, undefined, s.sheetId + ': the slider carries no cards');
+    assert.equal(s.introNotes.length, CARDS[stem], s.sheetId + ': one intro note per unit or scale');
     assert.ok(!s.items.some(it => it.type === 'staticText' && it.style === 'info'
-      && range.hintFrom.args.cards.some(c => c.text === it.text)), s.sheetId + ': no card stands as a row of its own');
+      && s.introNotes.some(c => c.text === it.text)), s.sheetId + ': no card stands as a row of its own');
     assert.equal(at, 4, s.sheetId + ': the slider right under the levels header');
     assert.equal(s.items[at + 1].type, 'hidden', s.sheetId + ': then the hidden companions');
     assert.equal(s.items[at + 2].type, 'hidden');

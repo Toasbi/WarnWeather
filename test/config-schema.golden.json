@@ -8509,6 +8509,37 @@
             },
             "title": "Wind gusts alert",
             "intro": "Shows the gust icon at the edge of a status bar when the gust speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
+            "introNotes": [
+              {
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "windUnits",
+                      "ne": "mph"
+                    },
+                    {
+                      "key": "windUnits",
+                      "ne": "knots"
+                    }
+                  ]
+                },
+                "text": "The <a target='_blank' href='https://www.dwd.de/DE/wetter/warnungen_aktuell/kriterien/warnkriterien.html'>German Weather Service (DWD)</a> warns of storm gusts from 65 kph and of severe storm gusts from 90 kph. By default, warn and danger sit at those two levels."
+              },
+              {
+                "showWhen": {
+                  "key": "windUnits",
+                  "eq": "mph"
+                },
+                "text": "The <a target='_blank' href='https://www.dwd.de/DE/wetter/warnungen_aktuell/kriterien/warnkriterien.html'>German Weather Service (DWD)</a> warns of storm gusts from 65 kph (about 40 mph) and of severe storm gusts from 90 kph (about 56 mph). By default, warn sits at 40 mph and danger at 55 mph, the nearest steps."
+              },
+              {
+                "showWhen": {
+                  "key": "windUnits",
+                  "eq": "knots"
+                },
+                "text": "The <a target='_blank' href='https://www.dwd.de/DE/wetter/warnungen_aktuell/kriterien/warnkriterien.html'>German Weather Service (DWD)</a> warns of storm gusts from 34 kn and of severe storm gusts from 48 kn. By default, warn sits at 35 kn and danger at 50 kn, the nearest steps."
+              }
+            ],
             "items": [
               {
                 "type": "subheader",
@@ -8582,42 +8613,6 @@
                       "warn": "Warn",
                       "danger": "Danger"
                     }
-                  }
-                },
-                "hintFrom": {
-                  "resolver": "levelInfo",
-                  "args": {
-                    "cards": [
-                      {
-                        "showWhen": {
-                          "all": [
-                            {
-                              "key": "windUnits",
-                              "ne": "mph"
-                            },
-                            {
-                              "key": "windUnits",
-                              "ne": "knots"
-                            }
-                          ]
-                        },
-                        "text": "The <a target='_blank' href='https://www.dwd.de/DE/wetter/warnungen_aktuell/kriterien/warnkriterien.html'>German Weather Service (DWD)</a> warns of storm gusts from 65 kph and of severe storm gusts from 90 kph. By default, warn and danger sit at those two levels."
-                      },
-                      {
-                        "showWhen": {
-                          "key": "windUnits",
-                          "eq": "mph"
-                        },
-                        "text": "The <a target='_blank' href='https://www.dwd.de/DE/wetter/warnungen_aktuell/kriterien/warnkriterien.html'>German Weather Service (DWD)</a> warns of storm gusts from 65 kph (about 40 mph) and of severe storm gusts from 90 kph (about 56 mph). By default, warn sits at 40 mph and danger at 55 mph, the nearest steps."
-                      },
-                      {
-                        "showWhen": {
-                          "key": "windUnits",
-                          "eq": "knots"
-                        },
-                        "text": "The <a target='_blank' href='https://www.dwd.de/DE/wetter/warnungen_aktuell/kriterien/warnkriterien.html'>German Weather Service (DWD)</a> warns of storm gusts from 34 kn and of severe storm gusts from 48 kn. By default, warn sits at 35 kn and danger at 50 kn, the nearest steps."
-                      }
-                    ]
                   }
                 }
               },
@@ -8830,6 +8825,11 @@
             },
             "title": "UV index alert",
             "intro": "Shows the UV icon at the edge of a status bar when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
+            "introNotes": [
+              {
+                "text": "By default, warn sits at 6, where the <a target='_blank' href='https://www.who.int/news-room/questions-and-answers/item/radiation-the-ultraviolet-%28uv%29-index'>WHO’s UV index scale</a> starts High, and danger at 8, where Very high starts and the WHO advises staying out of the midday sun. The WHO advises sun protection from UV 3 on."
+              }
+            ],
             "items": [
               {
                 "type": "subheader",
@@ -8903,16 +8903,6 @@
                       "warn": "Warn",
                       "danger": "Danger"
                     }
-                  }
-                },
-                "hintFrom": {
-                  "resolver": "levelInfo",
-                  "args": {
-                    "cards": [
-                      {
-                        "text": "By default, warn sits at 6, where the <a target='_blank' href='https://www.who.int/news-room/questions-and-answers/item/radiation-the-ultraviolet-%28uv%29-index'>WHO’s UV index scale</a> starts High, and danger at 8, where Very high starts and the WHO advises staying out of the midday sun. The WHO advises sun protection from UV 3 on."
-                      }
-                    ]
                   }
                 }
               },
@@ -9125,6 +9115,40 @@
             },
             "title": "Air quality (AQI) alert",
             "intro": "Shows the air quality icon at the edge of a status bar when the air quality index reaches your warn level at any point left today, so an afternoon peak shows from the morning on. Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (Setup › Weather data): WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading.",
+            "introNotes": [
+              {
+                "showWhen": {
+                  "not": {
+                    "all": [
+                      {
+                        "key": "aqiSource",
+                        "eq": "openmeteo"
+                      },
+                      {
+                        "key": "aqiScale",
+                        "ne": "us"
+                      }
+                    ]
+                  }
+                },
+                "text": "By default, warn sits at 100, which equals the <a target='_blank' href='https://www.airnow.gov/aqi/aqi-basics/'>US health standard for short-term exposure</a>: above it, the US EPA rates the air unhealthy for sensitive groups, such as children, older adults and people with heart or lung disease. Danger sits at 150: above it, the air is rated unhealthy and the general public can be affected too."
+              },
+              {
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "aqiSource",
+                      "eq": "openmeteo"
+                    },
+                    {
+                      "key": "aqiScale",
+                      "ne": "us"
+                    }
+                  ]
+                },
+                "text": "By default, warn sits at 60, where the <a target='_blank' href='https://airindex.eea.europa.eu/AQI/index.html'>European Air Quality Index</a> rates the air Poor, and danger at 80, where it rates it Very poor. At Poor, the European Environment Agency advises cutting back on intense outdoor activity if you get sore eyes or a cough; at Very poor, sensitive people should reduce outdoor activity."
+              }
+            ],
             "items": [
               {
                 "type": "subheader",
@@ -9198,45 +9222,6 @@
                       "warn": "Warn",
                       "danger": "Danger"
                     }
-                  }
-                },
-                "hintFrom": {
-                  "resolver": "levelInfo",
-                  "args": {
-                    "cards": [
-                      {
-                        "showWhen": {
-                          "not": {
-                            "all": [
-                              {
-                                "key": "aqiSource",
-                                "eq": "openmeteo"
-                              },
-                              {
-                                "key": "aqiScale",
-                                "ne": "us"
-                              }
-                            ]
-                          }
-                        },
-                        "text": "By default, warn sits at 100, which equals the <a target='_blank' href='https://www.airnow.gov/aqi/aqi-basics/'>US health standard for short-term exposure</a>: above it, the US EPA rates the air unhealthy for sensitive groups, such as children, older adults and people with heart or lung disease. Danger sits at 150: above it, the air is rated unhealthy and the general public can be affected too."
-                      },
-                      {
-                        "showWhen": {
-                          "all": [
-                            {
-                              "key": "aqiSource",
-                              "eq": "openmeteo"
-                            },
-                            {
-                              "key": "aqiScale",
-                              "ne": "us"
-                            }
-                          ]
-                        },
-                        "text": "By default, warn sits at 60, where the <a target='_blank' href='https://airindex.eea.europa.eu/AQI/index.html'>European Air Quality Index</a> rates the air Poor, and danger at 80, where it rates it Very poor. At Poor, the European Environment Agency advises cutting back on intense outdoor activity if you get sore eyes or a cough; at Very poor, sensitive people should reduce outdoor activity."
-                      }
-                    ]
                   }
                 }
               },
@@ -9449,6 +9434,11 @@
             },
             "title": "Pollen alert",
             "intro": "Shows the pollen icon at the edge of a status bar when the pollen index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
+            "introNotes": [
+              {
+                "text": "By default, warn sits at 2 (medium load) and danger at 3 (high load) on the <a target='_blank' href='https://www.dwd.de/DE/leistungen/gefahrenindizespollen/erklaerungen.html'>German Weather Service’s (DWD) pollen index</a>. High means, for example, more than 50 birch or 30 grass pollen grains per cubic meter of air. The DWD notes that very sensitive people can react strongly at low levels too."
+              }
+            ],
             "items": [
               {
                 "type": "subheader",
@@ -9522,16 +9512,6 @@
                       "warn": "Warn",
                       "danger": "Danger"
                     }
-                  }
-                },
-                "hintFrom": {
-                  "resolver": "levelInfo",
-                  "args": {
-                    "cards": [
-                      {
-                        "text": "By default, warn sits at 2 (medium load) and danger at 3 (high load) on the <a target='_blank' href='https://www.dwd.de/DE/leistungen/gefahrenindizespollen/erklaerungen.html'>German Weather Service’s (DWD) pollen index</a>. High means, for example, more than 50 birch or 30 grass pollen grains per cubic meter of air. The DWD notes that very sensitive people can react strongly at low levels too."
-                      }
-                    ]
                   }
                 }
               },
@@ -9744,6 +9724,37 @@
             },
             "title": "Wind speed alert",
             "intro": "Shows the wind icon at the edge of a status bar when the wind speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
+            "introNotes": [
+              {
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "windUnits",
+                      "ne": "mph"
+                    },
+                    {
+                      "key": "windUnits",
+                      "ne": "knots"
+                    }
+                  ]
+                },
+                "text": "By default, warn sits at 40 kph, Beaufort 6 on the <a target='_blank' href='https://www.dwd.de/DE/service/lexikon/Functions/glossar.html?lv2=100310&amp;lv3=100390'>wind scale</a>: large branches sway and umbrellas are hard to hold. Danger sits at 60 kph, the top of Beaufort 7 and just below gale force: whole trees move and walking against the wind is hard."
+              },
+              {
+                "showWhen": {
+                  "key": "windUnits",
+                  "eq": "mph"
+                },
+                "text": "By default, warn sits at 25 mph, where Beaufort 6 starts on the wind scale: large branches sway and umbrellas are hard to hold. Danger sits at 40 mph, gale force (Beaufort 8) and the <a target='_blank' href='https://www.weather.gov/lwx/WarningsDefined'>US National Weather Service’s High Wind Warning</a> level for wind that blows that hard for an hour or more."
+              },
+              {
+                "showWhen": {
+                  "key": "windUnits",
+                  "eq": "knots"
+                },
+                "text": "By default, warn sits at 20 kn, just below a strong breeze (Beaufort 6, from 22 kn) on the <a target='_blank' href='https://weather.metoffice.gov.uk/guides/coast-and-sea/beaufort-scale'>Beaufort scale</a>. Danger sits at 35 kn, gale force (Beaufort 8): twigs break off trees and walking is hard going."
+              }
+            ],
             "items": [
               {
                 "type": "subheader",
@@ -9817,42 +9828,6 @@
                       "warn": "Warn",
                       "danger": "Danger"
                     }
-                  }
-                },
-                "hintFrom": {
-                  "resolver": "levelInfo",
-                  "args": {
-                    "cards": [
-                      {
-                        "showWhen": {
-                          "all": [
-                            {
-                              "key": "windUnits",
-                              "ne": "mph"
-                            },
-                            {
-                              "key": "windUnits",
-                              "ne": "knots"
-                            }
-                          ]
-                        },
-                        "text": "By default, warn sits at 40 kph, Beaufort 6 on the <a target='_blank' href='https://www.dwd.de/DE/service/lexikon/Functions/glossar.html?lv2=100310&amp;lv3=100390'>wind scale</a>: large branches sway and umbrellas are hard to hold. Danger sits at 60 kph, the top of Beaufort 7 and just below gale force: whole trees move and walking against the wind is hard."
-                      },
-                      {
-                        "showWhen": {
-                          "key": "windUnits",
-                          "eq": "mph"
-                        },
-                        "text": "By default, warn sits at 25 mph, where Beaufort 6 starts on the wind scale: large branches sway and umbrellas are hard to hold. Danger sits at 40 mph, gale force (Beaufort 8) and the <a target='_blank' href='https://www.weather.gov/lwx/WarningsDefined'>US National Weather Service’s High Wind Warning</a> level for wind that blows that hard for an hour or more."
-                      },
-                      {
-                        "showWhen": {
-                          "key": "windUnits",
-                          "eq": "knots"
-                        },
-                        "text": "By default, warn sits at 20 kn, just below a strong breeze (Beaufort 6, from 22 kn) on the <a target='_blank' href='https://weather.metoffice.gov.uk/guides/coast-and-sea/beaufort-scale'>Beaufort scale</a>. Danger sits at 35 kn, gale force (Beaufort 8): twigs break off trees and walking is hard going."
-                      }
-                    ]
                   }
                 }
               },

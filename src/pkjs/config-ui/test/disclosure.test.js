@@ -47,7 +47,7 @@ test('by default every info text shows in place and no ? is drawn', () => {
     { sheetOnly: true, sheetId: 'd1', title: 'Dialog one', intro: 'What it is.', items: [
       { type: 'toggle', messageKey: 'k', label: 'K' }] }] }] };
   const modal = E.renderEditModal(dlg, cxFor({}, { openEdit: 'd1' }));
-  assert.ok(modal.indexOf('<div class="dlg-intro">What it is.</div>') !== -1 && modal.indexOf('info-q') === -1, modal);
+  assert.ok(modal.indexOf('<div class="card nohdr dlg-intro"><div class="intro">What it is.</div></div>') !== -1 && modal.indexOf('info-q') === -1, modal);
 });
 
 test('the schema\'s infoIconsKey picks the ? mode; without it the page keeps its text', () => {
@@ -385,7 +385,7 @@ test('renderEditModal: the dialog header (× or ‹, kicker, title with its ?, D
   const nested = E.renderEditModal(schema, cxFor(S, { infoIcons: true, openEdit: 'd1', editKicker: 'Parent',
     editNested: true, infoOpen: { 'd:d1': true } }));
   assert.ok(nested.indexOf('<button type="button" class="dlg-x" data-dlg-back aria-label="Back">&#8249;</button>') === 0 + '<div class="dlg-hdr">'.length);
-  assert.ok(nested.indexOf('<div class="dlg-intro">What it is.</div>') !== -1);
+  assert.ok(nested.indexOf('<div class="card nohdr dlg-intro"><div class="intro">What it is.</div></div>') !== -1);
 });
 
 test('a checklist with captionsOnly heads its grid with the captions alone', () => {

@@ -1,9 +1,9 @@
 'use strict';
 // test/config-alert-level-cards.test.js — each weather alert's cards on its default
-// levels (settings/alerts-schema.js ALERT_LEVEL_CARDS). They no longer stand as rows of their
-// own: they ride the levels slider's info text in the alert<Stem> sheet, the hint shown under
-// its label (the range row's hintFrom: blocks.js levelInfo, which shows the scale hint and
-// the one card whose showWhen holds). The cards write the seed numbers out next to the published levels
+// levels (settings/alerts-schema.js ALERT_LEVEL_CARDS). They stand as notes under the
+// alert<Stem> dialog's intro, in its intro card (the section's introNotes; engine.js
+// dialogIntroHtml shows each note whose showWhen holds — owner, 2026-10-04: the notes used
+// to ride the levels slider's info text). The cards write the seed numbers out next to the published levels
 // they sit on, so nothing derives them: this holds every card to its unit's or scale's
 // seed pair (status-thresholds.js seedPair), and its gate to the contract's
 // scaleVariant, so that exactly one card shows for every combination of the pickers.
@@ -13,7 +13,7 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-const B = require('../src/pkjs/settings/blocks.js');
+require('../src/pkjs/settings/blocks.js');
 const schema = require('../src/pkjs/settings/schema.js');
 const thresholds = require('../src/pkjs/status-thresholds.js');
 
@@ -38,13 +38,13 @@ function sliderOf(stem) {
 
 /**
  * @param {string} stem Alert kind key stem.
- * @returns {Object[]} The cards the kind's levels slider shows in its info text.
+ * @returns {Object[]} The cards the kind's dialog shows under its intro (introNotes).
  */
 function cardsOf(stem) {
-  const range = sliderOf(stem);
-  assert.ok(range.hintFrom && range.hintFrom.resolver === 'levelInfo',
-    stem + ': the slider\'s info text is levelInfo');
-  return range.hintFrom.args.cards;
+  const sheet = allSections().find((s) => s.sheetId === 'alert' + stem);
+  assert.ok(sheet && Array.isArray(sheet.introNotes) && sheet.introNotes.length,
+    stem + ': the dialog carries its cards as introNotes');
+  return sheet.introNotes;
 }
 
 /**
@@ -89,21 +89,11 @@ test('exactly one card shows per alert for every unit and AQI scale, and it stat
       assert.ok(states(text, seed.danger, unit),
         what + ': states danger ' + seed.danger + ' ' + unit + ' in "' + text + '"');
       assert.match(text, /By default/, what + ': speaks of the defaults');
-      // The slider's info text (blocks.js levelInfo) shows that card — after the scale
-      // hint, when the kind has one — and no other.
-      // The engine hands every hint resolver the row's own hint as staticHint.
-      const slider = sliderOf(stem);
-      const args = Object.assign({ staticHint: slider.hint }, slider.hintFrom.args);
-      const info = B.levelInfo(S, {}, args);
-      assert.ok(info.indexOf(shown[0].text) !== -1, what + ': the info text carries that card');
-      cards.filter((c) => c !== shown[0])
-        .forEach((c) => assert.equal(info.indexOf(c.text), -1, what + ': and no other card'));
-      if (slider.hint) { assert.equal(info.indexOf(slider.hint), 0, what + ': led by the scale hint'); }
     });
   });
 });
 
-test('one card per unit or scale a kind\'s seed varies by, each riding the slider\'s info text', () => {
+test('one card per unit or scale a kind\'s seed varies by, under the dialog\'s intro, not on the slider', () => {
   const variants = (stem) => new Set(COMBOS.map((S) => thresholds.scaleVariant(stem, S))).size;
   ALERT_STEMS.forEach((stem) => {
     const cards = cardsOf(stem);
@@ -111,11 +101,9 @@ test('one card per unit or scale a kind\'s seed varies by, each riding the slide
     const range = sliderOf(stem);
     assert.equal(range.label, 'Warn · danger', stem + ': the slider names its two values');
     assert.equal(range.joinPrevious, undefined, stem + ': the slider stands off, not joined');
-    // The info text leads with the slider's own hint, which the engine hands levelInfo as
-    // args.staticHint: the args carry no second copy of it.
-    assert.ok(!('hint' in range.hintFrom.args), stem + ': no second copy of the slider\'s hint in its args');
-    // The cards are the slider's info text now, not rows of the sheet: no info box is
-    // left behind to double them.
+    // The slider's info text is its own scale hint alone: the cards moved to the intro.
+    assert.equal(range.hintFrom, undefined, stem + ': the slider resolves no cards');
+    // The cards are intro notes, not rows of the sheet: no info box doubles them.
     const sheet = allSections().find((s) => s.sheetId === 'alert' + stem);
     assert.ok(!sheet.items.some((it) => it.type === 'staticText' && it.style === 'info'
       && cards.some((c) => c.text === it.text)), stem + ': no card stands as its own row');
@@ -147,15 +135,15 @@ test('the goal kinds\' levels get no cards', () => {
     assert.ok(!sheet.items.some((it) => it.type === 'staticText' && it.style === 'info'), stem);
     const range = sheet.items.find((it) => it.type === 'range');
     assert.ok(range, stem + ': the goal sheet carries its levels slider');
-    assert.ok(!range.hintFrom || range.hintFrom.resolver !== 'levelInfo', stem + ': its slider carries no cards');
+    assert.equal(range.hintFrom, undefined, stem + ': its slider carries no cards');
+    assert.ok(!sheet.introNotes || !sheet.introNotes.length, stem + ': nor its dialog');
   });
 });
 
-// Rendered: the card the pickers select reads as the slider's info text, in view under
-// its 'Warn · danger' label as the sheet opens — the way the info box after the slider
-// used to stand in view. Only the page's Hide info text mode (Setup › Misc) folds it
-// behind the slider's '?', like every other row's info text.
-test('the sheet shows the slider\'s card in view under its label; Hide info text folds it behind the \'?\'', () => {
+// Rendered: the card the pickers select reads under the intro, in the dialog's intro card
+// above the Shows on card, as the dialog opens. The page's Hide info text mode (Setup ›
+// Misc) folds the intro and its card behind the title's '?', like every dialog's intro.
+test('the dialog shows the pickers\' card under its intro, in the intro card; Hide info text folds both behind the title\'s \'?\'', () => {
   const { bootGeneratedPage } = require('./helpers/page-harness.js');
   const open = (cfg) => {
     const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, cfg));
@@ -166,21 +154,22 @@ test('the sheet shows the slider\'s card in view under its label; Hide info text
   // The default wind unit is kph: exactly that card shows.
   const kph = cardsOf('Wind').filter((c) => showWhen.isVisible(c, { windUnits: 'kph' }));
   assert.equal(kph.length, 1, 'one kph card');
-  const hint = '<div class="hint" data-hint-for="threshWindWarn">';
+  const introCard = '<div class="card nohdr dlg-intro"><div class="intro">Shows the wind icon';
   const html = open({}).modal.innerHTML;
-  const label = html.indexOf('<div class="lbl">Warn · danger</div>');
-  assert.ok(label !== -1, 'the slider renders, labelled');
-  assert.ok(html.indexOf(hint) > label && html.indexOf(hint) < html.indexOf('data-range="threshWindWarn"'),
-    'its info text sits under the label, above the track');
-  assert.ok(html.indexOf(kph[0].text) > html.indexOf(hint), 'carrying the kph card');
-  assert.equal(html.indexOf('data-info="k:threshWindWarn"'), -1, 'no \'?\' to open first');
+  const at = html.indexOf(introCard);
+  assert.ok(at !== -1, 'the intro opens the dialog, in a card');
+  const note = html.indexOf('<p class="intro-more">' + kph[0].text + '</p>');
+  assert.ok(note > at && note < html.indexOf('<span class="ttl">Shows on</span>'),
+    'the kph card follows the intro in that card, above the Shows on card');
+  assert.equal(html.split(kph[0].text).length - 1, 1, 'once');
   cardsOf('Wind').filter((c) => c !== kph[0])
     .forEach((c) => assert.equal(html.indexOf(c.text), -1, 'and no other unit\'s card'));
+  assert.equal(html.indexOf('data-hint-for="threshWindWarn"'), -1, 'the slider carries no info text of its own');
 
   const page = open({ hideInfoText: true });
-  assert.ok(page.modal.innerHTML.indexOf('data-info="k:threshWindWarn"') !== -1, 'the slider\'s \'?\'');
-  assert.equal(page.modal.innerHTML.indexOf(kph[0].text), -1, 'the card waits behind it');
-  page.toggleInfo('k:threshWindWarn', 'modal');
-  assert.ok(page.modal.innerHTML.indexOf(hint) !== -1 && page.modal.innerHTML.indexOf(kph[0].text) !== -1,
-    'and shows once the \'?\' is opened');
+  assert.ok(page.modal.innerHTML.indexOf('data-info="d:alertWind"') !== -1, 'the title\'s \'?\'');
+  assert.equal(page.modal.innerHTML.indexOf(kph[0].text), -1, 'the card waits behind it with the intro');
+  page.toggleInfo('d:alertWind', 'modal');
+  assert.ok(page.modal.innerHTML.indexOf(introCard) !== -1 && page.modal.innerHTML.indexOf(kph[0].text) !== -1,
+    'and both show once the \'?\' is opened');
 });

@@ -177,25 +177,23 @@ function nextDayMarkOptions() {
 // alert sheet their Alerts-tab row opens (alerts-schema.js alertSheet) — their slot
 // sheets carry a row to it instead (schema.js alertSlotSheet's alertLevelsRow), so every key
 // renders in exactly one place.
-// It is built in two halves: levelLead (the header, the slider, the cards and the hidden
-// companions) and levelLook (the warn look and the two colours). A goal sheet runs them
-// back to back (levelRows); an alert sheet puts its Look, Days and mark between them (the
-// owner's order, 2026-10-01: the levels, the info card, the Look row, then the rest).
+// It is built in two halves: levelLead (the header, the slider and the hidden companions)
+// and levelLook (the warn look and the two colours). A goal sheet runs them back to back
+// (levelRows); an alert sheet puts its Look, Days and mark between them (the owner's
+// order, 2026-10-01: the levels, the Look row, then the rest). An alert's notes on its
+// default levels sit in its dialog's intro card (alerts-schema.js alertSheet introNotes).
 /**
  * The levels half of a kind's group: sub-header, (a voice with a switch) the switch, the
- * slider, (an alert) its level cards, then the slider's two hidden companions.
+ * slider, then the slider's two hidden companions.
  * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
  * @param {Object} voice GOAL_VOICE or ALERT_VOICE: every word the group says, and
  *     whether it carries a switch of its own.
  * @param {string} hint Per-kind unit/scale hint under the slider (HTML allowed; '' for
  *     none).
  * @param {?Object} gate Extra showWhen for the whole group, or null.
- * @param {Array<{text: string, showWhen: (Object|undefined)}>} [why] An alert group's
- *     cards on its default levels (alerts-schema.js ALERT_LEVEL_CARDS), one per unit or scale; absent
- *     for a goal group.
  * @returns {Object[]} Those items, in order.
  */
-function levelLead(keyStem, voice, hint, gate, why) {
+function levelLead(keyStem, voice, hint, gate) {
     // The slider is ALWAYS live: the warn level is not the highlight's alone — a
     // weather kind's alert icon shows from it whether or not the slot is coloured
     // (status-wire bakeAlerts), so it must stay editable with the switch off.
@@ -244,13 +242,6 @@ function levelLead(keyStem, voice, hint, gate, why) {
         // the wording.
         rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem, chips: voice.chips}}
     };
-    // An alert group's cards on its default levels (ALERT_LEVEL_CARDS) are the slider's
-    // info text now (under it, or behind its '?'): the scale hint, then the one card whose
-    // unit or scale is in effect (blocks.js levelInfo evaluates each card's showWhen; the
-    // scale hint reaches it as the engine's args.staticHint, so no second copy rides here).
-    if (why && why.length) {
-        range.hintFrom = {resolver: 'levelInfo', args: {cards: why}};
-    }
     lead.push(range);
     // Every plain item in the group carries the same gate; applying it in one pass
     // (gateAll) means an item added above cannot forget its gate line. (The warn

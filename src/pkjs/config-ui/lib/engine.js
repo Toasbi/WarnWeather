@@ -1119,8 +1119,24 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return dialogHeader(titleId, String(sec.title || 'Edit'), cx.editKicker || '', Boolean(cx.editNested),
         introId ? infoButtonHtml(introId, introOpen, sec.title) : '', labelActionHtml(sec))
       + '<div class="ssel-list esheet">' + pin
-      + (introOpen ? '<div class="dlg-intro">' + sec.intro + '</div>' : '')
+      + (introOpen ? dialogIntroHtml(sec, cx) : '')
       + body + '</div>';
+  }
+
+  /**
+   * A dialog's intro card (owner, 2026-10-04: the intro reads as a card like the rest of the
+   * dialog): the section's intro, then each of its introNotes ({text, showWhen?}) whose
+   * showWhen holds, as a paragraph of its own — e.g. an alert dialog's note on its default
+   * levels for the unit in effect. The notes go behind the title's '?' with the intro.
+   * @param {Object} sec The dialog's sheetOnly section (intro, optional introNotes).
+   * @param {Object} cx Render context (evalCtx).
+   * @returns {string} The card HTML.
+   */
+  function dialogIntroHtml(sec, cx) {
+    var notes = (sec.introNotes || []).filter(function (n) {
+      return !n.showWhen || PConf.showWhen.isVisible(n, cx.evalCtx);
+    }).map(function (n) { return '<p class="intro-more">' + n.text + '</p>'; }).join('');
+    return '<div class="card nohdr dlg-intro"><div class="intro">' + sec.intro + notes + '</div></div>';
   }
 
   /**

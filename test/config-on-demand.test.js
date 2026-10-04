@@ -289,9 +289,10 @@ test('every item dialog opens on its Shows on card: a row per status bar, a Left
     const sheet = page.modal.innerHTML;
     assert.equal(sheet.indexOf('info-q'), -1, code + ': no \'?\' by default: the intro and the note are in view');
     const card = sheet.indexOf('<span class="ttl">Shows on</span>');
-    assert.ok(sheet.indexOf('<div class="dlg-intro">') !== -1 && card > sheet.indexOf('<div class="dlg-intro">'),
+    assert.ok(sheet.indexOf('<div class="card nohdr dlg-intro"><div class="intro">') !== -1 && card > sheet.indexOf('<div class="card nohdr dlg-intro"><div class="intro">'),
       code + ': the intro, then the Shows on card');
-    assert.equal(cardStarts(sheet).filter((s) => s < card).length, 1, code + ': the dialog\'s first card');
+    assert.equal(cardStarts(sheet).filter((s) => s < card).length, 2,
+      code + ': the dialog\'s first card after the intro\'s');
     const grid = sheet.indexOf('<div class="chk-list" role="group" aria-label="Shows on"><div class="subhdr grp chk-hdr'
       + ' caps-only"><span></span>' + CAPS + '</div>');
     assert.ok(grid > card, code + ': the grid in that card, its header the Left / Right captions alone');
@@ -600,9 +601,9 @@ test('the Quiet time and Sleep dialogs: their intro, then the Shows on card alon
     page.openEditSheet(id);
     const sheet = page.modal.innerHTML;
     assert.ok(sheet.indexOf('id="esheet-ttl-' + id + '">' + title + '</span>') !== -1, id + ': the title');
-    assert.ok(sheet.indexOf('<div class="ssel-list esheet"><div class="dlg-intro">' + intro + '</div><div class="card">')
+    assert.ok(sheet.indexOf('<div class="ssel-list esheet"><div class="card nohdr dlg-intro"><div class="intro">' + intro + '</div></div><div class="card">')
       !== -1, id + ': the intro in view, then the card');
-    assert.equal(cardStarts(sheet).length, 1, id + ': one card');
+    assert.equal(cardStarts(sheet).length, 2, id + ': the intro card and one card');
     assert.equal(sheet.split('<div class="row').length - 1, 1 + PAGE_BARS.length, id + ': the grid\'s rows alone');
     assert.equal(sheet.indexOf('more-row'), -1, id + ': nothing behind More options');
     assert.ok(sheet.indexOf('data-check="' + code + '"') !== -1, id + ': ticks its own item');
