@@ -2701,6 +2701,13 @@ static void view_timer_tests(void) {
     expect("timer.5min.after_300s_returns", view_auto_return_due(t0 + 300, t0, 5), true);
 }
 
+// A gate that has just taken one flick at `t` (armed when need_pair).
+static ViewFlickGate flicked_at(uint64_t t, bool need_pair) {
+    ViewFlickGate g = {0};
+    view_flick_accept(&g, t, need_pair);
+    return g;
+}
+
 static void view_flick_tests(void) {
     // The wrist-flick gate (view_flick_accept): today's 500 ms debounce in single mode, and
     // Double flick's arm-then-pair rule. t0 is an arbitrary epoch in ms.
@@ -2724,29 +2731,26 @@ static void view_flick_tests(void) {
     expect("flick.double.pair_consumed", g.armed, false);
     expect("flick.double.third_rearms", view_flick_accept(&g, t0 + 1400, true), false);
     expect("flick.double.fourth_fires", view_flick_accept(&g, t0 + 2000, true), true);
-    // Window edges.
-    g = (ViewFlickGate){0};
-    view_flick_accept(&g, t0, true);
-    expect("flick.double.window_edge_fires",
-           view_flick_accept(&g, t0 + VIEW_FLICK_PAIR_MS - 1, true), true);
-    g = (ViewFlickGate){0};
-    view_flick_accept(&g, t0, true);
+    // Any partner inside the window pairs: the earliest a BMI160 watch (basalt/chalk, ~1.28 s
+    // any-motion latch) can deliver, a deliberate flick-pause-flick, and the window's edge.
+    const struct { const char *name; uint64_t gap; } pairs[] = {
+        { "flick.double.bmi160_gap_pairs", 1300 },
+        { "flick.double.slow_cadence_pairs", 2500 },
+        { "flick.double.window_edge_fires", VIEW_FLICK_PAIR_MS - 1 },
+    };
+    for (unsigned i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++) {
+        g = flicked_at(t0, true);
+        expect(pairs[i].name, view_flick_accept(&g, t0 + pairs[i].gap, true), true);
+    }
+    // At the window's end the partner is late: it re-arms as a new first flick.
+    g = flicked_at(t0, true);
     expect("flick.double.window_expired_rearms",
            view_flick_accept(&g, t0 + VIEW_FLICK_PAIR_MS, true), false);
     expect("flick.double.expired_is_new_first", g.armed, true);
     expect("flick.double.late_pair_fires",
            view_flick_accept(&g, t0 + VIEW_FLICK_PAIR_MS + 600, true), true);
-    // basalt's BMI160 latch (~1.28 s): the earliest partner it can deliver must still pair.
-    g = (ViewFlickGate){0};
-    view_flick_accept(&g, t0, true);
-    expect("flick.double.bmi160_gap_pairs", view_flick_accept(&g, t0 + 1300, true), true);
-    // A deliberate flick, pause, flick (the cadence a BMI160 watch needs) pairs too.
-    g = (ViewFlickGate){0};
-    view_flick_accept(&g, t0, true);
-    expect("flick.double.slow_cadence_pairs", view_flick_accept(&g, t0 + 2500, true), true);
     // Faster than the debounce reads as ONE flick: still armed.
-    g = (ViewFlickGate){0};
-    view_flick_accept(&g, t0, true);
+    g = flicked_at(t0, true);
     expect("flick.double.under_debounce_one_flick", view_flick_accept(&g, t0 + 400, true), false);
     expect("flick.double.under_debounce_still_armed", g.armed, true);
     // A shake train of N accepted flicks switches at most N/2 times.
@@ -2755,24 +2759,19 @@ static void view_flick_tests(void) {
     for (int i = 0; i < 6; i++) { fires += view_flick_accept(&g, t0 + (uint64_t) i * 600, true); }
     expect("flick.double.burst_of_6_switches_3", fires == 3, true);
     // Settings toggled mid-gesture (need_pair is read live).
-    g = (ViewFlickGate){0};
-    view_flick_accept(&g, t0, true);
+    g = flicked_at(t0, true);
     expect("flick.toggle.double_to_single_fires", view_flick_accept(&g, t0 + 700, false), true);
     expect("flick.toggle.single_clears_arm", g.armed, false);
-    g = (ViewFlickGate){0};
-    view_flick_accept(&g, t0, false);
+    g = flicked_at(t0, false);
     expect("flick.toggle.single_to_double_needs_two", view_flick_accept(&g, t0 + 700, true), false);
     // Wall-clock steps (time_ms is UTC wall time).
-    g = (ViewFlickGate){0};
-    view_flick_accept(&g, t0, true);
+    g = flicked_at(t0, true);
     expect("flick.clock_back.not_paired", view_flick_accept(&g, t0 - 5000, true), false);
     expect("flick.clock_back.rearmed", g.armed, true);
     expect("flick.clock_back.pairs_after", view_flick_accept(&g, t0 - 5000 + 700, true), true);
-    g = (ViewFlickGate){0};
-    view_flick_accept(&g, t0, false);
+    g = flicked_at(t0, false);
     expect("flick.clock_back.single_fires", view_flick_accept(&g, t0 - 100, false), true);
-    g = (ViewFlickGate){0};
-    view_flick_accept(&g, t0, true);
+    g = flicked_at(t0, true);
     expect("flick.clock_fwd.stale_arm_rearms", view_flick_accept(&g, t0 + 3600000, true), false);
 }
 

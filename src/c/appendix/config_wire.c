@@ -129,8 +129,7 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
         // Low byte: the auto-return minutes; the cast drops the flag bits (config_wire.h).
         out->view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16;
 #if !defined(PBL_PLATFORM_APLITE)
-        // Bit 8: Double flick. An older phone never sets it, so the memset 0 = one flick.
-        // aplite has no flick (WW_VIEW_CYCLE is compiled out) and never reads it.
+        // Bit 8: Double flick (an older phone never sets it).
         out->view_double_flick = (clay_view_reset_tuple->value->int16 & VIEW_RESET_DOUBLE_FLICK) != 0;
 #endif
     }

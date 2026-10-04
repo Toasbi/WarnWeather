@@ -26,9 +26,8 @@
 
 static Window *s_main_window;
 
-// Cycle cursor. A wrist-flick (or, with Double flick on, the second of two flicks within
-// VIEW_FLICK_PAIR_MS; layout.c view_flick_accept) advances to the next enabled + available
-// view and wraps back. Survives a relaunch (e.g. Pebble's Quiet Time forces a full app
+// Cycle cursor. A wrist-flick accepted by view_flick_accept (layout.h) advances to the
+// next enabled + available view and wraps back. Survives a relaunch (e.g. Pebble's Quiet Time forces a full app
 // process relaunch on real hardware) within config_get()->view_reset_min minutes, or
 // MAX_STALE_TIME_SEC when auto-return is disabled — see persist_get_view_cursor()
 // in main_window_load(). Beyond that window it boots to the DEFAULT view (index 0).
@@ -42,8 +41,6 @@ static uint8_t s_view_index;
 static uint32_t s_applied_view_word[3];
 // Epoch of the last view-switching flick (or relaunch-restore to a non-default view),
 // seeding the auto-return-to-default timer. 0 = on the default view / no timer running.
-// A first-of-pair flick under Double flick never sets it, so a stray flick does not
-// extend a flick view's stay.
 static time_t s_flick_epoch;
 // Wrist-flick gate state (rules: layout.c view_flick_accept). RAM only, zeroed at launch:
 // a relaunch starts with no flick pending, and last_ms = 0 never debounces the first one.
@@ -339,13 +336,9 @@ static void health_warm_for_incoming_view(void) {
 
 #if defined(WW_VIEW_CYCLE)
 static void tap_handler(AccelAxisType axis, int32_t direction) {
-    // accel_tap_service fires per-axis, so one physical tap commonly delivers
-    // 2+ callbacks in quick succession (e.g. X then Z) — without debounce the
-    // cursor advances an even number of times and looks like it did nothing.
-    // view_flick_accept debounces them and, with Double flick on, lets only the
-    // second flick of a pair through. A lone (first) flick changes NOTHING here (no
-    // view, no auto-return restart, no health warm), so an accidental flick is
-    // invisible. Availability is judged when the pair completes.
+    // view_flick_accept (layout.h) debounces one flick's per-axis echoes and, with Double
+    // flick on, passes only a pair's second flick. A rejected flick changes nothing here:
+    // no view, no auto-return restart, no health warm.
     time_t now_s;
     uint16_t now_ms_part;
     time_ms(&now_s, &now_ms_part);

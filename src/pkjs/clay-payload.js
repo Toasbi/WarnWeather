@@ -103,30 +103,25 @@ function lineCurveInset(settings, key) {
     return lineStyle.isTempAxisMetric(settings[key]) ? CURVE_INSET_PX : 0;
 }
 
-// CLAY_VIEW_RESET_MIN carries two flick settings in its one int (0 Clay bytes): the
-// auto-return minutes in bits 0-7 and the Double flick switch in bit 8 (config_wire.h
-// VIEW_RESET_DOUBLE_FLICK; test/flick-presets.test.js pins the two equal). Bit 8, never a
-// low-byte bit: a watch build from before the switch casts the tuple to uint8_t, so it
-// drops the bit and keeps its minutes exact. A tuple of its own would cost 11 B and break
-// the Clay message's 10 B headroom floor (test/inbox-size.test.js).
+// CLAY_VIEW_RESET_MIN's wire layout: config_wire.h VIEW_RESET_DOUBLE_FLICK (pinned equal by
+// test/flick-presets.test.js). A bit, not a tuple: 11 B would break the Clay message's 10 B
+// headroom floor (test/inbox-size.test.js).
 var VIEW_RESET_MINUTES_MASK = 0xFF;
 var VIEW_RESET_DOUBLE_FLICK = 0x100;
 
 /**
  * The CLAY_VIEW_RESET_MIN word: the auto-return minutes plus the Double flick bit.
- * Masked to the bare minutes for a known aplite (no flick at all), so its payload and
- * stored config never change with the switch; an unknown platform is treated as capable.
- * The minutes mask keeps the low byte exactly what the watch's uint8 cast always read,
- * and stops any input (e.g. '-1') from spilling into the flag bit.
+ * Masked to the bare minutes for a known aplite (no flick at all), so its payload never
+ * changes with the switch; an unknown platform is treated as capable. The minutes mask
+ * stops any input (e.g. '-1') from spilling into the flag bit.
  * @param {Object} settings Clay settings.
  * @param {Object} env platformLib.computeEnv() result.
  * @returns {number} Non-negative int, at most 0x1FF.
  */
 function packViewReset(settings, env) {
     var word = (parseInt(settings.viewResetMin, 10) || 0) & VIEW_RESET_MINUTES_MASK;
-    // The simple Boolean() is safe: the toggle ships OFF, so absent collapsing to
-    // false IS the default (see largeGraphFont below for the full argument).
-    if (env.platform !== 'aplite' && Boolean(settings.doubleFlick)) {
+    // Absent reads as off, which is the toggle's default.
+    if (env.platform !== 'aplite' && settings.doubleFlick) {
         word = word | VIEW_RESET_DOUBLE_FLICK;
     }
     return word;
@@ -315,7 +310,6 @@ function buildClayPayload(settings, watchInfo, now) {
     payload.CLAY_VIEW_0 = viewCycle.packWire(cycle[0] || null);
     payload.CLAY_VIEW_1 = viewCycle.packWire(cycle[1] || null);
     payload.CLAY_VIEW_2 = viewCycle.packWire(cycle[2] || null);
-    // The auto-return minutes, plus the Double flick bit (packViewReset above).
     payload.CLAY_VIEW_RESET_MIN = packViewReset(settings, env);
 
     // emery-only axis-font step-up (Layout tab). The simple Boolean() is provably safe

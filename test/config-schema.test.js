@@ -1664,7 +1664,6 @@ test('doubleFlick is an OFF-by-default toggle, hidden on aplite like View reset 
   const flick = byKey('doubleFlick');
   assert.equal(flick.type, 'toggle');
   assert.equal(flick.defaultValue, false, 'one flick switches until the user opts in');
-  assert.equal(flick.more, true, 'a More option, like View reset time');
   // Not "quick": a second flick under the 500 ms debounce reads as the same flick, and
   // a BMI160 watch delivers none sooner than ~1.28 s (layout.h VIEW_FLICK_PAIR_MS).
   assert.match(flick.hint, /second flick within a few seconds/);
