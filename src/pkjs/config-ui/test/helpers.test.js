@@ -65,15 +65,26 @@ test('isColorBacklightPlatform: emery only; colour SCREEN is not a colour backli
 });
 
 test('computeEnv from watchInfo', () => {
-  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true });
-  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true });
-  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false, hr: false, thresholds: false, colorBacklight: false, lineStyles: false });
-  assert.deepEqual(platform.computeEnv({ platform: 'emery' }), { color: true, round: false, platform: 'emery', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: true, lineStyles: true });
-  assert.deepEqual(platform.computeEnv({ platform: 'diorite' }), { color: false, round: false, platform: 'diorite', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: false, lineStyles: true });
-  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false, hr: false, thresholds: false, colorBacklight: false, lineStyles: false, onDemand: false, fineBattery: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'emery' }), { color: true, round: false, platform: 'emery', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: true, lineStyles: true, onDemand: true, fineBattery: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'diorite' }), { color: false, round: false, platform: 'diorite', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false });
+  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false });
 });
 
 test('deriveDefaults/deriveColorKeys are schema-driven (colors as ints)', () => {
   assert.deepEqual(defaults.deriveDefaults(FIXTURE), { mode: 'a', flag: false, tint: 0xFF0055 });
   assert.deepEqual(defaults.deriveColorKeys(FIXTURE), ['tint']);
+});
+
+test('deriveDefaults never seeds a defaultFrom item, even one that also has a defaultValue', () => {
+  // The seed backfill would otherwise pin a key the page leaves absent on purpose
+  // (defaultFrom.sticky: false), freezing one watch's default for every watch.
+  const SCH = { tabs: [{ sections: [{ items: [
+    { type: 'select', messageKey: 'plain', defaultValue: 'a' },
+    { type: 'select', messageKey: 'slot', defaultFrom: { resolver: 'x' } },
+    { type: 'segmented', messageKey: 'look', defaultValue: 'fill', defaultFrom: { resolver: 'x', sticky: false } }
+  ] }] }] };
+  assert.deepEqual(defaults.deriveDefaults(SCH), { plain: 'a' });
 });

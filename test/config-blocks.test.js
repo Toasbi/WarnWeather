@@ -165,24 +165,25 @@ test('feels-like as the second metric draws grey squares, labels still the actua
   assert.equal(svg.indexOf('>11°<'), -1);
 });
 
-test('the preview keeps the feels curve clear of the plot floor (band padding)', () => {
-  // Mirrors forecast-series.padJointTempAxisBand. The sample feels series dips to 11°
-  // under a 14° temp low, so the joint band [11, 24] is padded below by
-  // max(1, ceil(13 * 40/960)) = 1 -> [10, 24]. That leaves the grey curve's lowest
-  // point one band-degree above ybot instead of sitting flat on it.
-  //
-  // ybot = 82.0 in preview units (PB 94 − the 12-unit curve inset), so an UNPADDED
-  // band would put the feels minimum at exactly 82.0; the padded band puts it at
-  // ~78.25. The assertion is tight on purpose: a loose "is it on the plot" bound
-  // would pass either way and pin nothing.
+test('the preview\'s feels and dew curves run on into the margin on the temperature\'s scale, held at the floor', () => {
+  // Mirrors temp_axis_pad.h THE SCALE (owner, 2026-10-02: "feels like and dew may do that").
+  // The temperature's own 14..24 fills the margins: 24 on 19 (PT 4 + 3 + the 12-unit inset),
+  // 14 on ybot = 82.0 (PB 94 - 12), 6.3 units a degree. The sample feels low, 13, runs on a
+  // degree into the bottom margin, 88.3; the dew low, 12, would lie two degrees under (94.6,
+  // past the zero line) and is held one watch row (12/7 units) over it.
   const svg = FC.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid',
-    secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: false }, { color: true });
-  const m = /<path d="([^"]+)" fill="none" stroke="#AAAAAA"/.exec(svg);
-  assert.ok(m, 'feels curve path found');
-  const ys = m[1].match(/[\d.]+(?=[,\s]|$)/g).filter((_, i) => i % 2 === 1).map(Number);
-  const lowest = Math.max.apply(null, ys);   // SVG y grows downward
-  assert.ok(Math.abs(lowest - 78.25) < 0.5,
-    'feels bottom should sit at ~78.25 (padded); 82.0 would mean the padding was lost. Got ' + lowest);
+    secondaryLine: 'feels', thirdLine: 'dew', thirdLineStyle: 'line', secondaryLineFill: false }, { color: true });
+  const ysOf = (stroke) => {
+    const m = new RegExp('<path d="([^"]+)" fill="none" stroke="' + stroke + '"').exec(svg);
+    assert.ok(m, stroke + ' curve path found');
+    return [...m[1].matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((p) => Number(p[2])).filter((_, i) => i === 0 || i % 3 === 0);
+  };
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  const temp = ysOf('#FF0000');
+  assert.ok(near(Math.min.apply(null, temp), 19) && near(Math.max.apply(null, temp), 82),
+    'the temperature fills its margins, with a feels-like and a dew line on');
+  assert.ok(near(Math.max.apply(null, ysOf('#AAAAAA')), 82 + 6.3), 'feels: a degree into the margin');
+  assert.ok(near(Math.max.apply(null, ysOf('#55AAAA')), 94 - 12 / 7), 'dew: held over the zero line');
 });
 
 // The temp curve is the only #FF0000 stroke in the color preview; its path starts at
@@ -312,6 +313,156 @@ test('thresholdPenState reports EFFECTIVE always-bold via badge.bold', () => {
     'aplite (no thresholds env) badges nothing, B included');
 });
 
+// "Flick to health" is only true while a Health view exists in the Weather-only cycle:
+// healthMode 'status' / 'all' on a health watch. 'slot' and 'off' add no view.
+test('weatherOnlyHint promises a health flick only when a Health view exists', () => {
+  const hint = PConf.hintResolvers.get('weatherOnlyHint');
+  assert.equal(typeof hint, 'function', 'hint resolver registered');
+  const args = { value: 'weatherOnly', byRadar: { graph: 'Graph text.', off: 'Off text.' } };
+  const env = { health: true };
+  assert.equal(hint({ radarMode: 'graph', healthMode: 'all' }, env, args), 'Graph text. Flick to health.');
+  assert.equal(hint({ radarMode: 'graph', healthMode: 'status' }, env, args), 'Graph text. Flick to health.');
+  assert.equal(hint({ radarMode: 'graph' }, env, args), 'Graph text. Flick to health.',
+    'an absent healthMode reads as the schema default, all');
+  assert.equal(hint({ radarMode: 'graph', healthMode: 'slot' }, env, args), 'Graph text.',
+    'health in the status slots adds no view to flick to');
+  assert.equal(hint({ radarMode: 'off', healthMode: 'off' }, env, args), 'Off text.');
+  assert.equal(hint({ radarMode: 'graph', healthMode: 'all' }, { health: false }, args), 'Graph text.',
+    'a watch without health sensors has no Health view');
+  assert.equal(hint({ radarMode: 'graph' }, env, { value: 'noCal', byRadar: args.byRadar }), null,
+    'other presets keep their static hint');
+});
+
+// The Alert settings card's rows read an item's placement (on-demand.js placedAnywhere): a
+// partial settings blob reads the default ticks, so an empty right list unplaces UV.
+const UNPLACED = { statusTopOnDemandRightItems: '' };
+
+test('alertLevelsHint: "Not in any status bar" while unplaced, else the resolved pair, the unit and where it shows — never the slot highlight', () => {
+  const hint = PConf.hintResolvers.get('alertLevelsHint');
+  assert.equal(typeof hint, 'function', 'hint resolver registered');
+  const env = { thresholds: true };
+  const uv = { keyStem: 'Uv' };
+  // The default ticks put the metric alerts on the Watch Status Bar's right side, and the
+  // Alerts-tab row says so after the levels.
+  const WHERE = ' · Watch bar, right';
+  assert.equal(hint(UNPLACED, env, uv), 'Not in any status bar');
+  assert.equal(hint(Object.assign({ threshUvOn: true }, UNPLACED), env, uv), 'Not in any status bar',
+    'whatever the highlight says: the row describes the alert');
+  assert.equal(hint({}, env, uv), 'Warn 6 · Danger 8' + WHERE,
+    'the default ticks place UV; a blank pair reads as the kind\'s seed');
+  assert.equal(hint({ threshUvWarn: '5', threshUvDanger: '9' }, env, uv),
+    'Warn 5 · Danger 9' + WHERE, 'a stored pair wins');
+  assert.equal(hint({ threshUvOn: true }, env, uv), 'Warn 6 · Danger 8' + WHERE,
+    'the slot\'s Highlight switch lives in the slot sheet and is not the alert\'s state');
+  assert.equal(hint({ windUnits: 'mph' }, env, { keyStem: 'Wind' }),
+    'Warn 25 mph · Danger 40 mph' + WHERE,
+    'wind speaks the slider\'s unit, on both numbers');
+  // AQI seeds follow the scale: European (Open-Meteo, non-US) 60/80, US 100/150.
+  assert.equal(hint({ aqiSource: 'openmeteo', aqiScale: 'european' }, env, { keyStem: 'Aqi' }),
+    'Warn 60 · Danger 80' + WHERE, 'the European AQI seed');
+  assert.equal(hint({ aqiSource: 'openmeteo', aqiScale: 'us' }, env, { keyStem: 'Aqi' }),
+    'Warn 100 · Danger 150' + WHERE, 'the US AQI seed');
+  // The Days follows only when it is not the default ("Today + tomorrow"), by the
+  // label the sheet offers it under (the schema's list, through args).
+  const days = [['Today', 'today'], ['Today + tomorrow', 'tomorrow']];
+  const uvDays = { keyStem: 'Uv', days };
+  assert.equal(hint({}, env, uvDays), 'Warn 6 · Danger 8' + WHERE, 'the default Days adds nothing');
+  assert.equal(hint({ alertUvDays: 'tomorrow' }, env, uvDays), 'Warn 6 · Danger 8' + WHERE,
+    'nor does it stored');
+  assert.equal(hint({ alertUvDays: 'today' }, env, uvDays), 'Warn 6 · Danger 8 · Today' + WHERE,
+    'a non-default Days follows the levels, the placement comes last');
+  assert.equal(hint({ alertUvDays: 'bogus' }, env, uvDays), 'Warn 6 · Danger 8' + WHERE,
+    'an unknown Days reads as the default the phone bakes with');
+  assert.equal(hint({ windUnits: 'mph', alertWindDays: 'today' }, env, { keyStem: 'Wind', days }),
+    'Warn 25 mph · Danger 40 mph · Today' + WHERE, 'after the unit');
+  assert.equal(hint(Object.assign({ alertUvDays: 'today' }, UNPLACED), env, uvDays), 'Not in any status bar',
+    'an unplaced alert reads that only');
+  assert.equal(hint({ statusForecastOnDemandLeftItems: 'pollen' }, env,
+    { keyStem: 'Pollen' }), 'Warn 2 · Danger 3 · Forecast bar, left', 'placed on another bar counts too');
+  assert.equal(hint({ statusForecastOnDemandLeftItems: 'uv' }, env, uv),
+    'Warn 6 · Danger 8 · Watch bar, right · Forecast bar, left',
+    'every bar edge it sits on, in the page\'s bar order');
+  // A slot dialog's "Alert levels and colors" row (levelsOnly): the levels alone — no
+  // placement, no Days, and no "Not in any status bar" (they drive the slot's highlight).
+  const uvLevels = { keyStem: 'Uv', days, levelsOnly: true };
+  assert.equal(hint({}, env, uvLevels), 'Warn 6 · Danger 8', 'levelsOnly: no placement');
+  assert.equal(hint(Object.assign({ alertUvDays: 'today' }, UNPLACED), env, uvLevels), 'Warn 6 · Danger 8',
+    'levelsOnly: the levels even while unplaced, without the Days');
+  assert.equal(hint({ windUnits: 'mph' }, env, { keyStem: 'Wind', levelsOnly: true }),
+    'Warn 25 mph · Danger 40 mph', 'levelsOnly keeps the unit');
+  assert.equal(hint({}, { thresholds: false }, uv), null, 'aplite: no levels to describe');
+  assert.equal(hint({}, env, { keyStem: 'Temp' }), null, 'a level-less kind has no hint');
+  assert.equal(hint({}, env, { keyStem: 'Steps' }), null, 'a goal kind has no alert');
+});
+
+test('rainAlertHint: the radar first, then the placement, else its window, look and where it shows', () => {
+  const hint = PConf.hintResolvers.get('rainAlertHint');
+  assert.equal(typeof hint, 'function', 'hint resolver registered');
+  const args = {
+    windows: [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
+    looks: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']]
+  };
+  // The default ticks put Rain on the Watch Status Bar's left side.
+  const WHERE = ' · Watch bar, left';
+  assert.equal(hint({}, {}, args), 'Within 60 min · Text' + WHERE, 'unset: the sheet\'s defaults, placed by default');
+  assert.equal(hint({ rainCountdownHorizon: '120', rainAlertDisplay: 'minutes' }, {}, args),
+    'Within 2 hours · Icon + minutes' + WHERE);
+  assert.equal(hint({ rainCountdownHorizon: 30, rainAlertDisplay: 'icon' }, {}, args), 'Within 30 min · Icon' + WHERE,
+    'a numeric window reads like its stored string');
+  assert.equal(hint({ statusTopOnDemandLeftItems: 'bt' }, {}, args), 'Not in any status bar');
+  assert.equal(hint({ statusTopOnDemandLeftItems: 'bt', statusForecastOnDemandRightItems: 'rain' }, {}, args),
+    'Within 60 min · Text · Forecast bar, right', 'placed on another bar: that bar\'s edge');
+  assert.equal(hint({ radarMode: 'off' }, {}, args), 'Turn on the rain radar (Watchface › Views)');
+  assert.equal(hint({ radarMode: 'off', statusTopOnDemandLeftItems: '' }, {}, args),
+    'Turn on the rain radar (Watchface › Views)', 'the radar comes first: no tick helps while it is off');
+  assert.equal(hint({ rainCountdownHorizon: '0', rainAlertDisplay: 'bogus' }, {}, args),
+    'Within 60 min · Text' + WHERE, 'a value outside the lists reads as the default');
+});
+
+test('alertLevelBadge: the alert\'s colours while it is placed, no bold B', () => {
+  const badge = PConf.badgeResolvers.get('alertLevelBadge');
+  assert.equal(typeof badge, 'function', 'badge resolver registered');
+  const env = { thresholds: true };
+  const uv = { keyStem: 'Uv' };
+  const off = badge(Object.assign({ threshUvOn: true, threshUvDangerColor: '#FF0000' }, UNPLACED), env, uv);
+  assert.equal(off.label, 'Edit');
+  assert.deepEqual(off.dots, [], 'unplaced: no dots, whatever the highlight says');
+  assert.equal(off.ariaNote, 'not in any status bar');
+  // Placed: the warn pip follows the kind's warn look — none: no pip (the watch draws no
+  // box at warn), outline: a ring, fill: a filled dot — in the warn colour (an unset
+  // one auto: the theme fg), then the danger dot (danger always fills).
+  const on = badge({ theme: 'dark', threshUvDangerColor: '#FF0000', threshUvWarnLook: 'none' }, env, uv);
+  assert.deepEqual(on.dots, [{ color: '#FF0000' }], 'none: the danger dot alone');
+  assert.deepEqual(badge({ theme: 'light', threshUvWarnLook: 'none' }, env, uv).dots,
+    [{ color: '#FF0000' }], 'an unset danger colour is red, on the light theme too');
+  assert.deepEqual(badge({ theme: 'light', threshUvDangerColor: '#FFFFFF', threshUvWarnLook: 'none' }, env, uv).dots,
+    [{ color: '#000000' }], 'a black or white danger pick is the theme text colour');
+  assert.deepEqual(badge({ theme: 'bw', threshUvDangerColor: '#FF0000', threshUvWarnLook: 'none' }, env, uv).dots,
+    [{ color: '#FFFFFF' }], 'a B&W day theme draws every box in the text colour');
+  assert.deepEqual(badge({ theme: 'dark', threshUvWarnLook: 'outline' }, env, uv).dots[0],
+    { color: '#FFFFFF', ring: true }, 'outline: a ring, an unset colour in the theme fg');
+  assert.deepEqual(badge({ theme: 'light', threshUvWarnLook: 'fill' }, env, uv).dots[0],
+    { color: '#000000' }, 'fill: a filled dot');
+  // An unset look previews the platform default: fill on a colour watch, outline on B&W.
+  assert.deepEqual(badge({ theme: 'dark' }, env, uv).dots,
+    [{ color: '#FFFFFF' }, { color: '#FF0000' }],
+    'colour watch default: a text-colour fill, then the red danger — two different dots');
+  assert.deepEqual(badge({ theme: 'dark' }, { thresholds: true, color: false }, uv).dots,
+    [{ color: '#FFFFFF', ring: true }, { color: '#FFFFFF' }],
+    'B&W watch default: an outline, then the danger fill, both in the text colour');
+  assert.equal(on.ariaNote, '');
+  assert.ok(!on.bold, 'no B: bold is a slot property');
+  const picked = badge({ threshUvWarnColor: '#00AAFF' }, env, uv);
+  assert.equal(picked.dots[0].color, '#00AAFF', 'a picked warn colour paints the pip');
+  const allBold = badge({ statusBoldAll: 'all', threshUvBoldMode: 'always' }, env, uv);
+  assert.ok(!allBold.bold, 'not even under the master Bold row');
+  assert.equal(badge({}, env, { keyStem: 'Nope' }), null, 'unknown stem');
+  assert.equal(badge({}, env, { keyStem: 'Temp' }), null, 'bold-only stem');
+  assert.equal(badge({}, env, { keyStem: 'Steps' }), null, 'a goal kind has no alert');
+  assert.equal(badge({}, env, { keyStem: 'Rain' }), null, 'rain has its own resolver');
+  assert.equal(badge({}, { thresholds: false }, uv), null, 'aplite');
+});
+
 test('layoutPresetOptions resolver: compactDense offered once health OR radar shows a status row', () => {
   const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
   assert.equal(typeof resolver, 'function', 'resolver registered');
@@ -371,42 +522,108 @@ test('the second metric (dots) spans the full plot width (no early stop)', () =>
   assert.ok(Math.max.apply(null, xs) > 180, 'a dot reaches the right edge (>180); got ' + Math.max.apply(null, xs));
 });
 
-test('UV line breaks across its zero stretch instead of hugging the baseline', () => {
-  // The demo UV series is [8,6,4,2,1, 0,0,0,0,0, 1,3]: zeros are "no UV", not a
-  // reading, so the line renders as two runs (slots 0-4 and 10-11) with nothing
-  // in between — the zero_absent metric-line rendering in chart.c, mirrored here.
-  const svg = FC.forecastPreview(
-    { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false },
-    { color: true });
-  const segs = svg.match(/fill="none" stroke="#FF00FF"/g) || [];
-  assert.equal(segs.length, 2, 'UV renders as two runs around the zero stretch; got ' + segs.length);
-  const paths = [...svg.matchAll(/d="(M[^"]+)" fill="none" stroke="#FF00FF"/g)].map((m) => m[1]);
-  paths.forEach((d) => assert.equal(d.indexOf(',94'), -1,
-    'no run touches the baseline (a zero would have): ' + d));
-  // The runs start on slots 0 and 10: tickX(0) = 20, tickX(10) = 20 + 10 * (177 / 11).
-  const starts = paths.map((d) => Number(/^M([\d.]+),/.exec(d)[1]));
-  assert.equal(starts[0], 20, 'first run starts on slot 0');
-  assert.ok(Math.abs(starts[1] - (20 + 10 * (177 / 11))) < 1e-9, 'second run starts on slot 10; got ' + starts[1]);
+// A stroke path's vertices: the M point and the last point of every C segment.
+const pathVertices = (d) => d.split(' C').map((seg) => {
+  const pairs = seg.replace(/^M/, '').trim().split(' ');
+  return pairs[pairs.length - 1].split(',').map(Number);
 });
 
-test('splitRuns keeps a lone sample as its own run (the small-square arm)', () => {
-  // The run segmentation behind lineFor — chart_runs.h's chart_next_run,
-  // mirrored: a lone non-null vertex between gaps must survive as a length-1
-  // run (drawn as chart_render_line's small square), matching the C kernel's
-  // [5,0,0,3,2] pin in test/c/chart_absent_test.c. The fixed demo series never
-  // produce a lone run (UV splits 5 + 2), so this is the arm's only reachable pin.
-  assert.deepEqual(
-    FC.splitRuns([[0, 5], [1, null], [2, null], [3, 7], [4, 2]]),
-    [[[0, 5]], [[3, 7], [4, 2]]]);
-  assert.deepEqual(FC.splitRuns([[0, null], [1, 3], [2, null]]), [[[1, 3]]]);
-  assert.deepEqual(FC.splitRuns([[0, null], [1, null]]), []);
-  assert.deepEqual(FC.splitRuns([]), []);
+test('UV line comes down to the zero row next to its zero stretch and skips the rest of it', () => {
+  // The demo UV series is [8,6,4,2,1, 0,0,0,0,0, 1,3]: zeros are "no UV", not a
+  // reading, so the stretch between the zeros next to a reading draws nothing, but
+  // the line comes down to the baseline at slot 5 and rises from it at slot 9 — the
+  // watch's JOIN metric lines (chart_runs.h), mirrored here. Hanging (Draw from:
+  // Top) the zero row is the plot's top.
+  const tick = (i) => 20 + i * (177 / 11);
+  [['bottom', 94], ['top', 4]].forEach(([from, zeroY]) => {
+    const svg = FC.forecastPreview(
+      { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false, uvLineFrom: from },
+      { color: true, platform: 'basalt', lineStyles: true });
+    const paths = [...svg.matchAll(/d="(M[^"]+)" fill="none" stroke="#FF00FF"/g)].map((m) => pathVertices(m[1]));
+    assert.equal(paths.length, 2, from + ': two runs around the zero stretch; got ' + paths.length);
+    assert.equal(paths[0].length, 6, from + ': slots 0-5');
+    assert.equal(paths[0][0][0], 20, from + ': the first run starts on slot 0');
+    assert.ok(Math.abs(paths[0][5][0] - tick(5)) < 1e-9 && paths[0][5][1] === zeroY,
+      from + ': it comes down to the zero row on slot 5; got ' + paths[0][5]);
+    assert.equal(paths[1].length, 3, from + ': slots 9-11');
+    assert.ok(Math.abs(paths[1][0][0] - tick(9)) < 1e-9 && paths[1][0][1] === zeroY,
+      from + ': the second run rises from the zero row on slot 9; got ' + paths[1][0]);
+    paths.forEach((p) => p.slice(1, -1).forEach((v) => assert.notEqual(v[1], zeroY,
+      from + ': only a run\'s ends sit on the zero row here')));
+  });
+});
+
+test('a metric line\'s smoothed curve never swings past the zero row it comes down to', () => {
+  // UV drawn Alert at warn 6, its sample redrawn against the levels (alertSamples): slot 2
+  // (the sample's middle, at the warn level) sits just off the warn row, slots 0-1 well
+  // above it, and the run ends on the warn row on slot 3. Unclamped, the smoothing's
+  // control points would carry the curve below the baseline between slots 2 and 3; the
+  // watch strokes straight segments, which never do. Every control point stays on the
+  // plot side of the zero row, so the curve (inside their hull) does too.
+  [['bottom', (y) => y <= 94], ['top', (y) => y >= 4]].forEach(([from, inside]) => {
+    const svg = FC.forecastPreview(
+      { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false, uvLineFrom: from,
+        uvLineShow: 'alert', threshUvWarn: '6', threshUvDanger: '8' },
+      { color: true, platform: 'basalt', lineStyles: true });
+    const d = /d="(M[^"]+)" fill="none" stroke="#FF00FF"/.exec(svg);
+    assert.ok(d, from + ': the line draws');
+    d[1].replace(/[MC]/g, ' ').trim().split(/\s+/).forEach((pt) => {
+      const y = Number(pt.split(',')[1]);
+      assert.ok(inside(y), from + ': ' + pt + ' stays on the plot side of the zero row');
+    });
+  });
+});
+
+// The polyline's runs: the watch's kernel (chart_runs.h chart_next_run) and the
+// preview's (lineRuns) are both held to the C test's LINE_RUN_VECTORS, parsed here
+// (the CITY_VECTORS pattern), so the two renderers cannot drift.
+test('lineRuns matches the watch\'s run kernel, vector for vector', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, 'c', 'chart_absent_test.c'), 'utf8');
+  const table = /LINE_RUN_VECTORS\[\] = \{([\s\S]*?)\n\};/.exec(src);
+  assert.ok(table, 'LINE_RUN_VECTORS found in chart_absent_test.c');
+  const rows = table[1].split('\n').filter((line) => /^\s*\{/.test(line)).map((line) => {
+    const m = /^\s*\{ "([\d ]*)", (CHART_ZERO_(?:DATA|GAP|JOIN)), "([\d+ ]*)" \},$/.exec(line);
+    assert.ok(m, 'one row per line, in the table shape: ' + line);
+    return m.slice(1);
+  });
+  ['CHART_ZERO_DATA', 'CHART_ZERO_GAP', 'CHART_ZERO_JOIN'].forEach((zero) =>
+    assert.ok(rows.some((r) => r[1] === zero), 'the table has ' + zero + ' rows'));
+  rows.forEach(([vals, zero, runs]) => {
+    const absent = vals.split(' ').map((v) => zero !== 'CHART_ZERO_DATA' && Number(v) <= 0);
+    const want = runs ? runs.split(' ').map((p) => p.split('+').map(Number)) : [];
+    assert.deepEqual(FC.lineRuns(absent, zero === 'CHART_ZERO_JOIN'), want, '"' + vals + '" ' + zero);
+  });
+  assert.deepEqual(FC.lineRuns([], true), []);
+});
+
+test('Visible values: Alert — a stretch over the warn level rises off the warn row and comes back down', () => {
+  // A wind line drawn Alert draws nothing below the warn level (wire byte 0). The preview
+  // redraws its sample against the user's levels (preview-forecast.js alertSamples): at a
+  // warn level of 25 km/h the afternoon (slots 2-4) and the evening (9-11) are readings, so
+  // the line rises from the warn row (the plot's baseline) on slot 1, comes back down to it
+  // on slot 5 and rises from it again on slot 8 — the watch's JOIN lines (chart_runs.h). A
+  // lone hour over the warn level, a peak where it used to be a lone square, no longer
+  // occurs in the preview's samples; lineRuns is held to the kernel's "0 5 0" vector for it.
+  const svg = FC.forecastPreview(
+    { barSource: 'off', secondaryLine: 'wind', windScale: 'mid', windUnits: 'kph', dayNightShading: false,
+      windLineShow: 'alert', threshWindWarn: '25', threshWindDanger: '40' },
+    { color: true, platform: 'basalt', lineStyles: true });
+  const paths = [...svg.matchAll(/d="(M[^"]+)" fill="none" stroke="#FFFF00"/g)].map((m) => pathVertices(m[1]));
+  const slots = (p) => p.map((v) => Math.round((v[0] - 20) / (177 / 11)));
+  assert.equal(paths.length, 2, 'two runs');
+  assert.deepEqual(slots(paths[0]), [1, 2, 3, 4, 5], 'slots 1-5');
+  assert.deepEqual(slots(paths[1]), [8, 9, 10, 11], 'slots 8-11');
+  assert.equal(paths[0][0][1], 94, 'rises from the warn row');
+  assert.equal(paths[0][4][1], 94, 'and comes back down to it');
+  assert.equal(paths[1][0][1], 94, 'and rises from it again');
+  paths[0].slice(1, 4).concat(paths[1].slice(1)).forEach((v) => assert.ok(v[1] < 94, 'a reading above it'));
 });
 
 test('a filled zero-based main metric keeps its fill contour at the baseline over zeros', () => {
-  // The stroke gaps, but the area fill still closes to the axis: metricPoints
-  // (skipZero false) keeps a baseline vertex per zero, matching chart_render_area's
-  // h = 0 mapping — the fill must not inherit the line's gaps.
+  // The stroke skips two zeros in a row, but the area fill still closes to the axis:
+  // metricPoints (skipZero false) keeps a baseline vertex per zero, matching
+  // chart_render_area's h = 0 mapping — the fill must not inherit the line's gaps.
   const svg = FC.forecastPreview(
     { barSource: 'off', secondaryLine: 'uv', secondaryLineFill: true, windScale: 'mid',
       dayNightShading: false },
@@ -619,7 +836,7 @@ test('legend shows the second metric as white dots on B&W (no hue)', () => {
 test('radarPreview legend distinguishes exact-spot rain from nearby rain', () => {
   const color = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
   const bw = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: false });
-  assert.ok(color.indexOf('viewBox="0 0 200 138"') >= 0, 'frame includes the countdown band, which now always accompanies a non-off, non-aplite preview');
+  assert.ok(color.indexOf('viewBox="0 0 200 95"') >= 0, 'frame includes the countdown band, which now always accompanies a non-off, non-aplite preview');
   assert.ok(color.indexOf('>Rain at your exact spot<') >= 0, 'exact-spot label present');
   assert.ok(color.indexOf('>Nearby (2 km)<') >= 0, 'nearby label present');
   assert.ok(color.indexOf('fill="#00FF00"') >= 0, 'tier gradient (green) present on color');
@@ -631,34 +848,70 @@ test('radarPreview legend distinguishes exact-spot rain from nearby rain', () =>
 test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown is on', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
   assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown text present');
-  assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the 20px band height');
+  assert.ok(svg.indexOf('viewBox="0 0 200 95"') >= 0, 'frame grew by the 14px band height');
 });
 
-// rainCountdownHorizon no longer has an Off option — a stray/legacy '0' value must not
-// suppress the band (the only remaining gates are radarMode==='off' and aplite).
-test('radarPreview always shows the countdown band once radar is on, regardless of rainCountdownHorizon', () => {
-  const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
-  assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown text present despite a legacy rainCountdownHorizon of 0');
-  assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the band height');
+// Rain ticked on neither side of the Watch Status Bar: the strip shows no rain alert, so
+// the preview drops the band with it.
+test('radarPreview hides the countdown band while the Watch Status Bar shows no rain', () => {
+  const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
+    statusTopOnDemandLeftItems: 'bt' }, { color: true });
+  assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text with Rain unticked');
+  assert.ok(svg.indexOf('viewBox="0 0 200 81"') >= 0, 'the frame keeps the no-band height');
+  const elsewhere = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
+    statusTopOnDemandLeftItems: 'bt', statusForecastOnDemandLeftItems: 'rain' }, { color: true });
+  assert.equal(elsewhere.indexOf("Rain in 15'"), -1, 'the band mocks the Watch Status Bar only');
+  const unset = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
+  assert.ok(unset.indexOf("Rain in 15'") >= 0, 'the default ticks show it');
 });
 
 test('radarPreview never shows the countdown band on aplite', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false, platform: 'aplite' });
   assert.equal(svg.indexOf("Rain in 15'"), -1, 'no band on aplite even with a horizon set');
-  assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'aplite frame stays at the no-band height');
+  assert.ok(svg.indexOf('viewBox="0 0 200 81"') >= 0, 'aplite frame stays at the no-band height');
 });
 
-test('countdown glyph is tier-coloured on color, white on B&W; text stays white', () => {
+test('countdown drop is tier-coloured on color, white on B&W; text stays white', () => {
   const color = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
   const bw = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false });
-  assert.ok(/stroke="#00FF00"/.test(color), 'glyph uses the green tier stroke on color');
-  assert.equal(/stroke="#00FF00"/.test(bw), false, 'no green glyph stroke on B&W');
+  assert.ok(/<path[^>]*d="M12 3L17\.1 11\.4A6 6 0 1 1 6\.9 11\.4Z" fill="#00FF00"/.test(color),
+    'the watch\'s filled teardrop, in the green tier, on color');
+  assert.equal(/<path[^>]*fill="#00FF00"/.test(bw), false, 'no green drop on B&W');
+  assert.equal(/<line[^>]*stroke="#00FF00"/.test(color), false, 'no three-stroke glyph any more');
   assert.ok(color.indexOf('fill="#FFFFFF"') >= 0, 'white band text present on color');
 });
 
-// The watch colours the countdown glyph with palette_radar_color(tier) (top_status_layer.c
-// rain_glyph_color), clamped to the RADAR palette's last stop — and a Solid radar palette
-// has just the one stop. So the glyph follows the Solid bar colour, never the green tier.
+/**
+ * The preview band's drop x (its path's translate) and its text, if any.
+ * @param {string} svg radarPreview markup
+ * @returns {?{x: number, text: ?string}} null when the band is absent
+ */
+function rainBand(svg) {
+  const m = /<path transform="translate\(([-\d.]+),[-\d.]+\) scale\([\d.]+\)" d="M12 3L17/.exec(svg);
+  if (!m) { return null; }
+  const after = svg.slice(m.index);
+  const t = /<text[^>]*>([^<]*)<\/text>/.exec(after.slice(0, after.indexOf('<line')));
+  return { x: Number(m[1]), text: t ? t[1] : null };
+}
+
+test('radarPreview draws the rain entry in its Look, at the side of the Watch Status Bar that ticks Rain', () => {
+  const base = { radarProvider: 'dwd', radarColor: 'multicolor' };
+  const at = (S) => rainBand(RD.radarPreview(Object.assign({}, base, S), { color: true }));
+  assert.equal(at({}).text, "Rain in 15'", 'the default Look: the countdown text');
+  assert.equal(at({ rainAlertDisplay: 'minutes' }).text, "15'", 'Icon + minutes');
+  assert.equal(at({ rainAlertDisplay: 'icon' }).text, null, 'Icon: the drop alone');
+  const onRight = { statusTopOnDemandLeftItems: 'bt', statusTopOnDemandRightItems: 'battery,rain' };
+  const left = at({ rainAlertDisplay: 'icon' }).x;
+  const right = at(Object.assign({ rainAlertDisplay: 'icon' }, onRight)).x;
+  assert.ok(left < 10, 'the left side (the default) hugs the strip\'s left edge: ' + left);
+  assert.ok(right > 180, 'the right side hugs its right edge: ' + right);
+  assert.equal(at({ statusTopOnDemandLeftItems: '' }), null, 'Rain unticked: no rain entry, no band');
+});
+
+// The watch colours the On demand Rain item's rain icon with palette_radar_color(tier)
+// (status_on_demand.c rain_tint(), colour themes only), clamped to the RADAR palette's
+// last stop — and a Solid radar palette has just the one stop. So the glyph follows the
+// Solid bar colour, never the green tier.
 test('countdown glyph follows radarColor=Solid on a colour watch (the watch\'s single radar stop)', () => {
   const rainTier = require('../src/pkjs/weather/rain-tier.js');
   const colorLib = require('../src/pkjs/config-ui/lib/color.js');
@@ -666,13 +919,13 @@ test('countdown glyph follows radarColor=Solid on a colour watch (the watch\'s s
   ['dark', 'light'].forEach((theme) => {
     const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'white', radarMode: 'graph', theme },
       { color: true, platform: 'basalt' }, userData);
-    const strokes = [];
-    svg.replace(/<line [^>]*stroke="([^"]+)" stroke-width="1\.4"/g, (m, c) => { strokes.push(c); return m; });
+    const fills = [];
+    svg.replace(/<path transform="[^"]*" d="M12 3L17[^"]*" fill="([^"]+)"/g, (m, c) => { fills.push(c); return m; });
     const watch = rainTier.buildPalette('basalt', 'white', theme);
     const expected = colorLib.intToHex(watch.rgb[watch.rgb.length - 1]);
-    assert.equal(strokes.length, 3, theme + ': the three glyph strokes are drawn');
-    assert.deepEqual(strokes, [expected, expected, expected], theme + ': glyph takes the Solid stop ' + expected);
-    assert.equal(/stroke="#00FF00"/.test(svg), false, theme + ': no green tier stroke anywhere');
+    assert.equal(fills.length, 1, theme + ': the drop is drawn');
+    assert.deepEqual(fills, [expected], theme + ': the drop takes the Solid stop ' + expected);
+    assert.equal(/<path[^>]*fill="#00FF00"/.test(svg), false, theme + ': no green tier drop');
   });
 });
 
@@ -956,14 +1209,14 @@ test('radarPreview (rainbow) still renders exact bars and the countdown band', (
 });
 
 // Regression pin, not coverage: preview-radar.js branches on radarProvider === 'dwd' alone
-// (nearby hatching is DWD-only), so Rainbow with "Use your own key" on previews exactly like
-// the shared Rainbow radar.
+// (nearby hatching is DWD-only), so "Rainbow (own key)" ('rainbowkey') previews exactly
+// like the shared "Rainbow (limited)" radar.
 test('radarPreview (Rainbow on your own key) renders the same preview as shared Rainbow', () => {
   [{ color: true }, { color: false }].forEach((env) => {
     ['0', '60'].forEach((horizon) => {
-      const state = { radarProvider: 'rainbow', radarColor: 'multicolor', radarMode: 'graph', rainCountdownHorizon: horizon };
-      const shared = RD.radarPreview(Object.assign({ rainbowOwnKey: false }, state), env);
-      const ownKey = RD.radarPreview(Object.assign({ rainbowOwnKey: true }, state), env);
+      const state = { radarColor: 'multicolor', radarMode: 'graph', rainCountdownHorizon: horizon };
+      const shared = RD.radarPreview(Object.assign({ radarProvider: 'rainbow' }, state), env);
+      const ownKey = RD.radarPreview(Object.assign({ radarProvider: 'rainbowkey' }, state), env);
       assert.equal(ownKey, shared, 'color=' + env.color + ' horizon=' + horizon);
     });
   });
@@ -992,7 +1245,7 @@ test('forecastPreview: bw-light theme on a color env renders the B&W path with a
 
 test('radarPreview: light theme flips the canvas background to white', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'light' }, { color: true });
-  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0);
+  assert.ok(svg.indexOf('width="200" height="81" fill="#FFFFFF"') >= 0);
 });
 
 // A bar drawn by rainBars() in outline mode is a <path fill="BG" stroke="FG"
@@ -1014,7 +1267,7 @@ test('radarPreview: bw theme on a color env outlines the exact bars in white, fi
 test('radarPreview: bw-light theme on a color env outlines the exact bars in black, filled opaque white (light polarity)', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw-light' }, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
-  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
+  assert.ok(svg.indexOf('width="200" height="81" fill="#FFFFFF"') >= 0, 'canvas background is white');
   assert.ok(svg.indexOf(OUTLINE_MARK) >= 0,
     'exact bars are opaque white-filled with a black outline — the polarity mirror of bw, not a hollow box');
 });
@@ -1047,7 +1300,7 @@ test('radarPreview: radarColor=Solid in the light theme uses DarkGray, not black
   // polarity), unrelated to bar/legend fill; excluded here to isolate the bars. aplite is
   // the only remaining band gate now that the horizon has no Off option.
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'white', theme: 'light' }, { color: true, platform: 'aplite' });
-  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
+  assert.ok(svg.indexOf('width="200" height="81" fill="#FFFFFF"') >= 0, 'canvas background is white');
   assert.ok(svg.indexOf('fill="#555555"') >= 0, 'solid bars/legend render DarkGray');
   assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black bar/legend fill in the light theme');
 });
@@ -1188,10 +1441,11 @@ test('fetchIntervalBudget resolver: filters when guard on, passes through when o
     ['5', '10', '15', '30', '60']);
 });
 
-// Rainbow with "Use your own key" on: radar on the user's key, weather elsewhere, no night pause.
+// "Rainbow (own key)" (radarProvider 'rainbowkey'): radar on the user's key, weather
+// elsewhere, no night pause.
 function rainbowState(over) {
   return Object.assign({
-    provider: 'openmeteo', radarProvider: 'rainbow', rainbowOwnKey: true, radarMode: 'graph', fetchIntervalMin: '15',
+    provider: 'openmeteo', radarProvider: 'rainbowkey', radarMode: 'graph', fetchIntervalMin: '15',
     sleepNightEnabled: false, sleepStartHour: '22', sleepEndHour: '7',
     tomorrowioFitBudget: true, rainbowFitBudget: true
   }, over || {});
@@ -1200,8 +1454,8 @@ function rainbowState(over) {
 test('rainbowBudget block: empty unless Rainbow on the user\'s own key drives a running radar', () => {
   const block = global.PConf.blocks.get('rainbowBudget');
   assert.equal(typeof block, 'function', 'the block is registered');
-  assert.equal(block(rainbowState({ rainbowOwnKey: false }), {}), '', 'shared Rainbow bills nothing to the user');
-  assert.equal(block(rainbowState({ radarProvider: 'dwd' }), {}), '', 'another radar source, the switch left on');
+  assert.equal(block(rainbowState({ radarProvider: 'rainbow' }), {}), '', 'shared Rainbow bills nothing to the user');
+  assert.equal(block(rainbowState({ radarProvider: 'dwd' }), {}), '', 'another radar source');
   assert.equal(block(rainbowState({ radarMode: 'off' }), {}), '', 'radar off: no Rainbow call is made');
   assert.equal(B.rainbowBudgetBlock, block, 'the exported renderer is the registered one');
 });
@@ -1274,8 +1528,8 @@ test('fetchIntervalBudget resolver: the intersection of every active guard', () 
   const run = (s) => resolver(s, {}, {}).map((o) => o[1]);
   // Own-key Rainbow guard on: 5 min drops out.
   assert.deepEqual(run(rainbowState()), ['10', '15', '30', '60']);
-  // "Use your own key" off: the shared radar bills nothing, so the full ladder.
-  assert.deepEqual(run(rainbowState({ rainbowOwnKey: false })), ['5', '10', '15', '30', '60']);
+  // "Rainbow (limited)": the shared radar bills nothing, so the full ladder.
+  assert.deepEqual(run(rainbowState({ radarProvider: 'rainbow' })), ['5', '10', '15', '30', '60']);
   // ...off: the full ladder (the block shows the red warning instead).
   assert.deepEqual(run(rainbowState({ rainbowFitBudget: false })), ['5', '10', '15', '30', '60']);
   // Both guards in play (tomorrow.io weather + Rainbow key radar): the intersection.
@@ -1473,6 +1727,52 @@ test('forecastPreview: a 0 % hour leaves its stripe cell transparent', () => {
   assert.equal(stripeCells(svg).length, 6, 'only the six non-zero hours get a cell');
 });
 
+// The night shading runs on up through the top stripe band, as the watch's night hatch
+// does (forecast_layer.c's extend_top): the hatch and both dusk/dawn lines start at the
+// graph top (PT 4), not under the band, and the stripe cells — drawn later and opaque —
+// cover it where they draw, so it shows only in the empty hours and the gaps.
+const nightRect = (svg) => {
+  const m = /<rect x="([0-9.]+)" y="([0-9.]+)" width="([0-9.]+)" height="([0-9.]+)" fill="url\(#nh\)">/.exec(svg);
+  return m && { x: +m[1], y: +m[2], w: +m[3], h: +m[4], at: m.index };
+};
+test('forecastPreview: the night shading runs up through the top stripe band, under its cells', () => {
+  // UV [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3]: the night band (slot 9 on) holds an empty
+  // hour (slot 9, UV 0) and a level-1 hour (slot 10, background plus sparse lines).
+  const base = { theme: 'dark', dayNightShading: true, barSource: 'off', secondaryLine: 'uv',
+    thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', windScale: 'mid' };
+  const env = { color: true, platform: 'basalt', lineStyles: true };
+  const striped = FC.forecastPreview(Object.assign({ secondaryLineStyle: 'stripeTop' }, base), env);
+  const plain = FC.forecastPreview(Object.assign({ secondaryLineStyle: 'dots' }, base), env);
+  const n = nightRect(striped);
+  assert.equal(n.y, 4, 'the hatch starts at the graph top, over the band');
+  assert.deepEqual(nightRect(plain), Object.assign({}, n, { at: nightRect(plain).at }),
+    'the same shading a graph without top stripes draws');
+  const boundaries = [...striped.matchAll(/<line x1="([0-9.]+)" y1="([0-9.]+)" x2="\1" y2="([0-9.]+)" stroke="#555555"/g)]
+    .filter((b) => +b[1] === n.x || +b[1] === n.x + n.w);   // not the hatch pattern's own stroke
+  assert.equal(boundaries.length, 2, 'dusk and dawn');
+  boundaries.forEach((b) => assert.equal(+b[2], 4, 'a dusk/dawn line reaches the graph top too'));
+  // Every cell is drawn after the shading and starts with an opaque rect over its whole
+  // area; the empty hour inside the night band draws nothing, so the shading shows there.
+  const cells = stripeCells(striped);
+  assert.equal(cells.length, 6, 'the six non-zero hours');
+  cells.forEach((c) => assert.ok(striped.indexOf(c) > n.at, 'a cell covers the shading'));
+  const cellXs = cells.map((c) => +/x="([0-9.]+)"/.exec(c)[1]);
+  const inNight = cellXs.filter((x) => x >= n.x - 1e-6 && x < n.x + n.w - 1e-6);
+  assert.equal(inNight.length, 1, 'of the two night hours only the level-1 one draws a cell');
+  assert.ok(cells.some((c) => c.indexOf('fill="#000000"') >= 0), 'a level-1 cell is the opaque background');
+  // B&W: the dither's gaps would show the hatch, so each dithered cell sits on the
+  // background first, as chart_stripe_fill_cell fills it before dithering.
+  const bw = FC.forecastPreview(Object.assign({ secondaryLineStyle: 'stripeTop' }, base),
+    { color: false, platform: 'diorite', lineStyles: true });
+  const dithers = [...bw.matchAll(/<rect x="([0-9.]+)" y="([0-9.]+)" width="([0-9.]+)" height="(5)" fill="url\(#sd[1-4]\)"><\/rect>/g)];
+  assert.equal(dithers.length, 6, 'the six non-zero hours, dithered (the legend ramp is 4 tall)');
+  dithers.forEach((d) => {
+    const under = '<rect x="' + d[1] + '" y="' + d[2] + '" width="' + d[3] + '" height="' + d[4] + '" fill="#000000"></rect>';
+    assert.equal(bw.slice(d.index - under.length, d.index), under, 'the background under a dithered cell');
+  });
+  assert.ok(nightRect(bw).at < dithers[0].index && nightRect(bw).y === 4, 'B&W shading runs up under the cells too');
+});
+
 test('forecastPreview: a stored stripe on feels, dew or pressure previews as the line the watch draws', () => {
   // Stripes are for intensity metrics only (line-style.js metricAllowsStripe): the bake
   // resolves a stored one on these to the line's non-stripe style, and so does the
@@ -1492,33 +1792,35 @@ test('forecastPreview: a stored stripe on feels, dew or pressure previews as the
   });
 });
 
-// The temp curve's path (the only #FF0000 stroke in the colour preview) — it moves
-// exactly when the joint temperature band does.
+// The temp curve's path (the only #FF0000 stroke in the colour preview), and the one thin
+// LightGray path: the feels-like curve drawn as a line.
 const tempCurvePath = (svg) => /<path d="([^"]+)" fill="none" stroke="#FF0000"/.exec(svg)[1];
-test('forecastPreview: feels on the third or fourth metric line widens the joint band like on the second', () => {
+const feelsCurvePath = (svg) => /<path d="([^"]+)" fill="none" stroke="#AAAAAA" stroke-width="1.6"/.exec(svg)[1];
+test('forecastPreview: a feels line on any metric line keeps the temperature on its own scale, and itself on it', () => {
+  // The watch fits the temperature's own range to the margins whatever rides its axis
+  // (temp_axis_pad.h THE SCALE), so the temp curve never moves for a feels-like line, and
+  // the feels-like curve is the same on every line that draws it.
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob',
     secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' };
   const env = { color: true, platform: 'basalt', lineStyles: true };
   const plain = tempCurvePath(FC.forecastPreview(base, env));
-  const onSecond = tempCurvePath(FC.forecastPreview(Object.assign({}, base, { thirdLine: 'feels' }), env));
-  assert.notEqual(onSecond, plain, 'premise: feels widens the band');
-  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels' }), env)),
-    onSecond, 'feels on the third metric line: same joint band');
-  // Feels on the fourth metric line widens the band too (feels is never a stripe, so
-  // it draws as a curve or marks).
-  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base,
-    { fifthLine: 'feels', fifthLineStyle: 'dots' }), env)),
-    onSecond, 'feels on the fourth metric line: same joint band');
-  // A watch without WW_LINE_STYLE draws neither line, so a stored pick widens nothing.
+  const onThird = FC.forecastPreview(Object.assign({}, base, { thirdLine: 'feels', thirdLineStyle: 'line' }), env);
+  assert.equal(tempCurvePath(onThird), plain, 'the second metric line');
+  [{ fourthLine: 'feels', fourthLineStyle: 'line' }, { fifthLine: 'feels', fifthLineStyle: 'line' }].forEach((over) => {
+    const svg = FC.forecastPreview(Object.assign({}, base, over), env);
+    assert.equal(tempCurvePath(svg), plain, JSON.stringify(over));
+    assert.equal(feelsCurvePath(svg), feelsCurvePath(onThird), JSON.stringify(over));
+  });
+  // A watch without WW_LINE_STYLE draws neither of those lines; its temperature keeps its scale.
   const frozenEnv = { color: true, platform: 'aplite', lineStyles: false };
   assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels', fifthLine: 'dew' }), frozenEnv)),
-    tempCurvePath(FC.forecastPreview(base, frozenEnv)), 'aplite preview: the band stays the temperature\'s');
+    tempCurvePath(FC.forecastPreview(base, frozenEnv)), 'aplite preview: the temperature\'s own scale');
 });
 
 // Top stripes get their own band above the plot (forecast_layer.c's top_band): every
-// curve is drawn below it, and the temperature curve runs up to the band instead of
-// keeping its top inset.
-test('forecastPreview: a top stripe puts the plot below its band, the curves up against it', () => {
+// curve is drawn below it, and the temperature curve keeps its top inset under the band,
+// as over the bottom edge (owner, 2026-10-02: "too cramped otherwise").
+test('forecastPreview: a top stripe puts the plot below its band, the temperature curve its inset under it', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob',
     secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' };
   const env = { color: true, platform: 'basalt', lineStyles: true };
@@ -1531,11 +1833,12 @@ test('forecastPreview: a top stripe puts the plot below its band, the curves up 
   const plain = topY(FC.forecastPreview(base, env));
   const striped = topY(FC.forecastPreview(Object.assign({}, base, { fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }), env));
   const bandBottom = 4 + 5 + 2;   // PT + one stripe + the 2-unit gap
-  assert.ok(striped >= bandBottom, 'the temperature curve stays below the stripe band (' + striped + ')');
-  assert.ok(striped < plain, 'and, without its top inset, runs closer to the top than without a stripe');
+  assert.ok(Math.abs(plain - (4 + 3 + 12)) < 1e-9, 'premise: the inset below the plot top without a stripe');
+  assert.ok(Math.abs(striped - (bandBottom + 12)) < 1e-9,
+    'the temperature curve keeps its 12-unit inset below the stripe band (' + striped + ')');
 });
 
-// The radar's sky rows (Radar tab -> Clouds, sun & lightning): the preview draws
+// The radar's sky rows (Graphs › Rain radar -> Clouds, sun & lightning): the preview draws
 // rain_radar_layer.c's band — the cloud and sun rows as stripe cells, the bolts
 // over them — only when the toggle is on and the radar GRAPH is shown.
 test('radarPreview: the sky rows show with the toggle in graph mode, never on aplite', () => {
@@ -1630,10 +1933,15 @@ test('radarPreview: the bolts are drawn at watch scale where draw_radar_sky puts
 
 test('preview-stripe cell: 2 units per watch column from x 0 draws what the forecast always drew', () => {
   // The pre-grid cell (one watch pixel column = 2 preview units, hard-coded), kept
-  // here as the reference: the forecast preview passes unit 2 / origin 0.
+  // here as the reference: the forecast preview passes unit 2 / origin 0. Its B&W arm
+  // has since gained the background under the dither, so a dithered cell covers the
+  // night shading that runs up through the top stripe band, as on the watch.
   const legacyCell = (isColor, x, y, w, h, color, level, bgHex, prefix) => {
     if (level <= 0) { return ''; }
-    if (!isColor) { return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#${prefix}${level})"></rect>`; }
+    if (!isColor) {
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${bgHex}"></rect>`
+        + `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#${prefix}${level})"></rect>`;
+    }
     let out = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${PS.blend(bgHex, color, [0, 0, 1, 2, 4][level])}"></rect>`;
     if (level >= 4) { return out; }
     for (let px = Math.ceil(x / 2); px * 2 < x + w; px += 1) {
@@ -1662,4 +1970,21 @@ test('preview-stripe cell: 2 units per watch column from x 0 draws what the fore
     + '<rect x="24" y="4" width="2" height="5" fill="#55AAFF"></rect>'
     + '<rect x="30" y="4" width="2" height="5" fill="#55AAFF"></rect>'
     + '<rect x="36" y="4" width="1" height="5" fill="#55AAFF"></rect>');
+});
+
+// A forecast line's swatch: its nav row shows the metric's line colour, and the colours
+// row in its dialog — which opens the same sheet as the metric's Graph colors row —
+// previews exactly what that row does, one dot per picker.
+test('lineSwatch: one dot (the line colour) on the nav row; the Graph colors row\'s whole preview in the dialog', () => {
+  const platform = require('../src/pkjs/config-ui/lib/platform.js');
+  const env = platform.computeEnv({ platform: 'basalt' });
+  const S = { secondaryLine: 'precip_prob', theme: 'dark', gcPrecipFillDark: '#00AAFF' };
+  const graph = global.PConf.badgeResolvers.get('graphColorSwatch')(S, env, { scope: 'precip_prob' });
+  const row = B.lineSwatch(S, env, { lineKey: 'secondaryLine' });
+  assert.equal(row.dots.length, 1);
+  assert.equal(row.dots[0].color, graph.dots[0].color, 'the nav row\'s dot is the sheet\'s line colour');
+  assert.deepEqual(B.lineSwatch(S, env, { lineKey: 'secondaryLine', all: true }), graph,
+    'the dialog\'s colours row and the Graph colors row preview one sheet the same way');
+  assert.equal(B.lineSwatch(Object.assign({}, S, { theme: 'bw' }), env, { lineKey: 'secondaryLine', all: true }), null);
+  assert.equal(B.lineSwatch({ secondaryLine: 'off' }, env, { lineKey: 'secondaryLine' }), null);
 });

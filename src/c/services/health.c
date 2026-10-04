@@ -22,13 +22,59 @@ static time_t s_start_of_today(void) {
     return mktime(t);
 }
 
+/* The firmware's HealthServiceCache is 2 KB of THIS app's heap. Every
+   health_service_sum* / peek / activities_iterate call that finds none allocates it
+   (PebbleOS applib/health_service.c, prv_get_state(true)), and nothing but an
+   events unsubscribe or the app's exit frees it. On a 64 KB watch that is the room
+   the paints' transient allocations need. The face subscribes to no health events,
+   so health_service_events_unsubscribe() only frees the cache (the event service
+   returns early for a handler it never subscribed). Each read below that allocates
+   it calls this before returning, so the cache lives for that one read: the ONE
+   place the face lets go of it.
+   The values do not change. activities_iterate, the one call that needs the cache,
+   has it for its whole run. Otherwise the firmware keeps only a copy of the 30-day
+   step history there, and two calls here used that copy: the steps sum and
+   health_available()'s StepCount accessibility check. Without it, each reads the
+   history from the activity settings file (open, look the record up, close), as
+   the distance and sleep sums always do. health_available() latches its first yes,
+   so it stops reading after that; the steps sum reads the file once per summary
+   refresh, the fourth such read there next to the distance check and the distance
+   and sleep sums. When the heap cannot spare 2 KB at that moment the firmware goes
+   without: the sums and the peek still answer, and the sleep iterate reports
+   nothing (health_fill_hourly_sleep). */
+static void health_release_service_cache(void) {
+    health_service_events_unsubscribe();
+}
+
+/** health_service_sum_today(metric), with the firmware's cache freed again. Out of
+    line: the three sums share one copy (16 B less on basalt than inlined). */
+__attribute__((noinline)) static int sum_today(HealthMetric metric) {
+    const int v = (int)health_service_sum_today(metric);
+    health_release_service_cache();
+    return v;
+}
+
+/* The firmware answers from activity_is_initialized(), set once at its own boot and
+   never cleared, and today's entry of the 30-day step history, which costs an
+   activity settings file read whenever its cache holds no copy of that history
+   (health_release_service_cache). While the firmware held its cache, every call
+   after the first was answered from that copy, so the answer stayed yes (bar a no
+   at exactly 00:00:00, when the range from midnight to now is empty). The latch
+   keeps that yes for the app's life without the read: while health is on,
+   main_window.c asks through health_renderable() twice per minute tick, about four
+   times per flick and about five times per settings apply. A no is asked again on
+   the next call. */
 bool health_available(void) {
-    return (health_service_metric_accessible(HealthMetricStepCount,
-        s_start_of_today(), time(NULL)) & HealthServiceAccessibilityMaskAvailable) != 0;
+    static bool s_available;
+    if (!s_available) {
+        s_available = (health_service_metric_accessible(HealthMetricStepCount,
+            s_start_of_today(), time(NULL)) & HealthServiceAccessibilityMaskAvailable) != 0;
+    }
+    return s_available;
 }
 
 int health_steps_today(void) {
-    return (int)health_service_sum_today(HealthMetricStepCount);
+    return sum_today(HealthMetricStepCount);
 }
 
 int health_distance_today_m(void) {
@@ -39,7 +85,7 @@ int health_distance_today_m(void) {
     if (!(access & HealthServiceAccessibilityMaskAvailable)) {
         return -1;
     }
-    return (int)health_service_sum_today(HealthMetricWalkedDistanceMeters);
+    return sum_today(HealthMetricWalkedDistanceMeters);
 }
 
 int health_sleep_today_seconds(void) {
@@ -50,7 +96,7 @@ int health_sleep_today_seconds(void) {
        6h53; sum_today (like the phone Health app) reports 6h53. This mirrors the
        same daily-weighting trap that drove the per-hour graph onto
        activities_iterate (see health_fill_hourly_sleep). */
-    return (int)health_service_sum_today(HealthMetricSleepSeconds);
+    return sum_today(HealthMetricSleepSeconds);
 }
 
 int health_hr_current(void) {
@@ -72,11 +118,13 @@ int health_hr_current(void) {
        now, Avg, Once), so this is its matching accessibility probe (the exact
        pattern the SDK header shows). Non-HRM hardware still returns 0 cleanly. */
     time_t now = time(NULL);
-    return (health_service_metric_aggregate_averaged_accessible(HealthMetricHeartRateRawBPM,
-        now, now, HealthAggregationAvg, HealthServiceTimeScopeOnce)
+    const int bpm = (health_service_metric_aggregate_averaged_accessible(
+        HealthMetricHeartRateRawBPM, now, now, HealthAggregationAvg, HealthServiceTimeScopeOnce)
         & HealthServiceAccessibilityMaskAvailable)
         ? (int)health_service_peek_current_value(HealthMetricHeartRateRawBPM)
         : 0;
+    health_release_service_cache();
+    return bpm;
 }
 
 /**
@@ -206,13 +254,18 @@ void health_fill_hourly_sleep(uint8_t *state_out, int count, time_t end_hour) {
     /* Like steps, per-hour sleep can't come from health_service_sum (daily-
        weighted → identical every hour). Sleep has no per-minute field in the
        history API, so we read sleep ACTIVITIES — each is a [start,end] interval
-       — and paint the hours they cover. */
+       — and paint the hours they cover.
+       The iterate allocates the firmware's 2 KB cache for its run (see
+       health_release_service_cache). When the heap cannot spare that block, it
+       reports nothing and the window reads awake until the next build reads it
+       again (the next hourly rollover). */
     for (int i = 0; i < count; i++) { state_out[i] = HEALTH_SLEEP_AWAKE; }
     SleepFill f = { .state_out = state_out, .count = count, .end_hour = end_hour };
     health_service_activities_iterate(
         HealthActivitySleep | HealthActivityRestfulSleep,
         end_hour - (time_t)count * HOUR_SECS, end_hour,
         HealthIterationDirectionPast, s_sleep_activity_cb, &f);
+    health_release_service_cache();
 }
 
 #endif  // PBL_HEALTH

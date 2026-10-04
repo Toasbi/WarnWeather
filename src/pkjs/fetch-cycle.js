@@ -28,17 +28,19 @@ var fetchOptions = require('./weather/fetch-options.js');
 var sleepWindow = require('./sleep-window.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var radarFactory = require('./weather/radar-factory.js');
-var radarSourceId = require('./weather/radar-source-id.js');
 var radarWire = require('./weather/radar-wire.js');
 var radarSky = require('./weather/radar-sky.js');
+var radarCoverage = require('./weather/radar-coverage.js');
 var WeatherProvider = require('./weather/provider.js');
 var forecastSeries = require('./forecast-series.js');
+var keyResult = require('./key-result.js');
 
 var KEY_FETCH_ATTEMPT = storageKeys.FETCH_ATTEMPT_KEY;
 var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
 var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var KEY_RADAR_REQUEST = storageKeys.RADAR_REQUEST_THROTTLE_KEY;
+var KEY_SERVER_STREAK = storageKeys.SERVER_FAILURE_STREAK_KEY;
 // How long an in-flight weather fetch may run before it is presumed lost. A
 // healthy chain is bounded by its own timeouts — GPS 10 s, then the radar,
 // geocode, provider and UV/AQI/pollen XHRs at 5 s each, then the AppMessage
@@ -75,14 +77,19 @@ function isPastRefreshSlot(lastTimeMs, nowMs, intervalMs) {
  * tick after the first failure, doubling with each consecutive one, capped at
  * the refresh interval so a transient blip never costs more than one normal
  * refresh. A rate limit (HTTP 429) waits the whole interval at once — an
- * earlier retry only spends quota against the limit it is waiting out.
+ * earlier retry only spends quota against the limit it is waiting out. A
+ * provider that names its own delay (failure.retryAfterMs: Weather Underground
+ * refusing even a freshly scraped key) waits exactly that, whatever the interval.
  *
  * @param {number} failures Consecutive failed attempts (the attempt counter).
- * @param {?{code: string}} failure The last attempt's failure.
+ * @param {?{code: string, retryAfterMs?: number}} failure The last attempt's failure.
  * @param {number} intervalMs Refresh interval in ms.
  * @returns {number} Backoff in ms.
  */
 function failureBackoffMs(failures, failure, intervalMs) {
+    if (failure && typeof failure.retryAfterMs === 'number' && failure.retryAfterMs > 0) {
+        return failure.retryAfterMs;
+    }
     var code = (failure && typeof failure.code === 'string') ? failure.code : '';
     if (/(^|_)status_429$/.test(code)) {
         return intervalMs;
@@ -127,6 +134,64 @@ function incrementFetchAttemptCounter() {
  */
 function resetFetchAttemptCounter() {
     localStorage.setItem(KEY_FETCH_ATTEMPT, '0');
+}
+
+// --- server failure run -----------------------------------------------------
+// The weather provider's run of server failures (a 5xx, a timeout, no connection;
+// notices.isServerFailure), so its notice can wait for the second update in a row:
+// an outage that heals by the next update stays quiet. Read and written at call time
+// only (see the load-time invariant above); a broken store just counts from 1 again.
+
+/**
+ * Count this failure into the provider's run of server failures. Only the provider's
+ * own stage counts: a server failure extends the run of the same provider (another
+ * provider starts a new one), any other provider failure ends it, and a failure before
+ * the provider was asked (no fix, a NACK, the watchdog) leaves it as it is.
+ * @param {string} providerId The failing provider's id.
+ * @param {Object} failure Normalized fetch failure.
+ * @param {function(Object): boolean} isServerFailure notices.isServerFailure.
+ * @returns {number} The run's length with this failure (0 when it is not a server failure).
+ */
+function countServerFailure(providerId, failure, isServerFailure) {
+    if (!failure || failure.stage !== 'provider_data') {
+        return 0;
+    }
+    try {
+        if (!isServerFailure(failure)) {
+            localStorage.removeItem(KEY_SERVER_STREAK);
+            return 0;
+        }
+        var rec = null;
+        try { rec = JSON.parse(localStorage.getItem(KEY_SERVER_STREAK)); } catch (e) { rec = null; }
+        var n = (rec && rec.id === providerId && rec.n > 0) ? Math.floor(rec.n) + 1 : 1;
+        localStorage.setItem(KEY_SERVER_STREAK, JSON.stringify({ id: providerId, n: n }));
+        return n;
+    } catch (e) {
+        return 1;
+    }
+}
+
+// The watch hides a forecast this old behind "No data :(" (loading_layer.c
+// FORECAST_MAX_AGE_S). Its forecast starts at or before the update that brought it,
+// so this long after the last success the watch surely shows nothing worth keeping.
+var WATCH_FORECAST_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Whether the watch may still show a good forecast: the last success (lastFetchSuccess)
+ * is at most WATCH_FORECAST_MAX_AGE_MS old. A `whenStale` notice (notices.js) keeps its
+ * watch line back meanwhile, as the overlay would cover that forecast. Missing or
+ * unreadable record: false (the watch has nothing to cover).
+ * @param {number} now Epoch milliseconds.
+ * @returns {boolean} True while the watch's forecast may still be fresh.
+ */
+function watchMayShowForecast(now) {
+    try {
+        var rec = JSON.parse(localStorage.getItem(KEY_LAST_FETCH_SUCCESS));
+        var at = rec ? new Date(rec.time).getTime() : NaN;
+        return isFinite(at) && now - at <= WATCH_FORECAST_MAX_AGE_MS;
+    } catch (e) {
+        return false;
+    }
 }
 
 // --- radar request throttle -------------------------------------------------
@@ -274,7 +339,7 @@ function runCycle(deps) {
  * @param {function():boolean} deps.isWatchConnected True when a watch is connected.
  * @param {{sendWeather: Function, clearWeatherCaches: Function, clearNoticeCache: Function}} deps.outbox The deduping outbox.
  * @param {Object} deps.authBackoff The auth-backoff module (isAuthFailure/isActive/set/clear).
- * @param {Object} deps.notices The notices module (noticeForFailure/add/watchText/clearErrors).
+ * @param {Object} deps.notices The notices module (isServerFailure/noticeForFailure/add/watchText/clearErrors).
  * @param {function(Object):void} deps.trackWeatherFetch Receives each fetch's telemetry event (the caller owns the telemetry-enabled gate).
  * @param {{waqiToken: string, rainbowEndpoint: string}} deps.env Build-injected secrets (package.json's waqi.token and rainbow.endpoint; '' when absent).
  * @param {function():Date} deps.now Current-time supplier (same contract as the channel scheduler's deps.now).
@@ -298,7 +363,11 @@ function createFetchCycle(deps) {
      * key, a missing or outdated Rainbow proxy) calls back the clearing tuples, and
      * a source refusing us over a request limit (HTTP 429) the limit notice
      * (radarWire.limitedRadarTuples), which rides the send in place of the three
-     * radar arrays. Out-of-coverage produces zero arrays, shipped normally. A
+     * radar arrays. A place outside a regional source's area (radar-coverage.js)
+     * gets the clear with the source's line (radarWire.outOfCoverageRadarTuples),
+     * shipped normally, as does one inside DWD's area that DWD sends no radar data
+     * for (its second 404 in a row, "DWD: no radar data"); the verdicts and that run
+     * of 404s are kept for the settings page. A
      * throttled source re-serves its slot's answer (a real window, the limit notice
      * or the clear), or answers null (no RAIN_RADAR_* keys, like a dedupe skip)
      * when the slot's request got none of them; the sky rows still ride.
@@ -336,9 +405,9 @@ function createFetchCycle(deps) {
         // at the clock edge, so the adapters stay deterministic (no clock injection).
         // radarMode 'off' clears the watch's radar via the 'disabled' clearing
         // adapter; any non-off mode fetches the full trend (countdown needs it).
-        // The source is the resolved one (radar-source-id.js): Rainbow with "Use
-        // your own key" on runs 'rainbowkey', with its own (absent) throttle.
-        var radarId = (settings.radarMode || 'graph') === 'off' ? 'disabled' : radarSourceId.effectiveRadarId(settings);
+        // "Rainbow (own key)" is radarProvider 'rainbowkey', with its own (absent)
+        // throttle.
+        var radarId = (settings.radarMode || 'graph') === 'off' ? 'disabled' : settings.radarProvider;
         // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the rainbow
         // adapter then clears the watch's radar (it can never answer).
         // tomorrowioApiKey is the user's key from settings; '' likewise
@@ -371,7 +440,8 @@ function createFetchCycle(deps) {
                     : 're-serving this slot\'s window.';
                 console.log('Radar request skipped: ' + radarId + ' is limited to one request per '
                     + (radarFactory.minRequestIntervalMs(radarId) / 60000) + ' min; ' + reserved);
-                cb(slot.tuples);
+                // A limit notice an older build kept (the 1 it sent) goes out as today's line.
+                cb(radarWire.isLimitedRadarTuples(slot.tuples) ? radarWire.limitedRadarTuples() : slot.tuples);
                 return;
             }
             source.fetchRadarTuplesAt(lat, lon, slotZeroEpoch, function (tuples) {
@@ -380,7 +450,13 @@ function createFetchCycle(deps) {
             });
         }, function (cb) {
             skySource.fetchSkyTupleAt(lat, lon, slotZeroEpoch, cb);
-        }, callback);
+        }, function (tuples) {
+            // Which regional radar sources can see this place (no position kept), for the
+            // settings page's note under the Radar provider row; an update that did not
+            // ask DWD ends its run of 404s.
+            radarCoverage.remember(lat, lon, radarId, tuples);
+            callback(tuples);
+        });
     }
 
     /**
@@ -459,8 +535,13 @@ function createFetchCycle(deps) {
             deps.outbox.clearWeatherCaches();
         }
         else if (deps.authBackoff.isActive()) {
-            console.log('Skipping weather fetch: auth failure backoff active (Force fetch to retry).');
-            return false;
+            if (!provider.scrapesKey) {
+                console.log('Skipping weather fetch: auth failure backoff active (Force fetch to retry).');
+                return false;
+            }
+            // A provider whose key is scraped (Weather Underground) never arms it now; a
+            // record an older build left behind for it would stop it until a forced fetch.
+            deps.authBackoff.clear();
         }
 
         if (typeof provider.isGeocodeBackoffActive === 'function' && provider.isGeocodeBackoffActive()) {
@@ -528,6 +609,9 @@ function createFetchCycle(deps) {
             if (!settle()) { return; }
             // Success: record the fetch time and reset the attempt counter.
             localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
+            // A keyed provider served the key this fetch carried: the settings page's key
+            // status (key-result.js; a keyless provider records nothing).
+            keyResult.record(provider.id, provider.apiKey, 200);
             resetFetchAttemptCounter();
             // The payload reached the watch (ACK, or unchanged since the last ACK):
             // only now is its IS_SLEEPING the watch's state.
@@ -535,6 +619,7 @@ function createFetchCycle(deps) {
                 commitSleepState(sentSleeping);
             }
             deps.authBackoff.clear();
+            localStorage.removeItem(KEY_SERVER_STREAK);
             // A successful fetch means the provider is working: drop error notices and
             // reset the notice send-cache so a later identical error re-notifies. The
             // watch clears its overlay on the forecast payload it just received.
@@ -560,17 +645,25 @@ function createFetchCycle(deps) {
             if (deps.authBackoff.isAuthFailure(failure)) {
                 console.log('[!] Auth failure — pausing auto-fetch until Force fetch or config change.');
                 deps.authBackoff.set(failure);
+                // And the key's verdict, kept apart from the gate: a forced fetch clears
+                // the backoff, never this (key-result.js).
+                keyResult.record(provider.id, provider.apiKey, keyResult.statusOfCode(failure.code));
             }
             // No weather data is available on failure, so whatever the watch still
             // needs rides alone, bundled into ONE send (the channel is half-duplex;
             // change-detector skips absent categories).
             var failureSend = {};
             // Surface notice-worthy failures (401/403 → watch overlay + settings panel;
-            // 429 → settings panel only). Other failures raise nothing.
-            var notice = deps.notices.noticeForFailure(failure, provider.name, +deps.now());
+            // 429 → settings panel only; a provider not answering — a server failure
+            // from the second update in a row, or its own retry delay → settings panel,
+            // and the watch overlay only once the watch's forecast is too old to show,
+            // so it never covers a good one). Other failures raise nothing.
+            var serverRun = countServerFailure(provider.id, failure, deps.notices.isServerFailure);
+            var notice = deps.notices.noticeForFailure(failure, provider.name, +deps.now(), serverRun,
+                provider.shortName);
             if (notice) {
                 deps.notices.add(notice);
-                if (notice.watch) {
+                if (notice.watch && !(notice.whenStale && watchMayShowForecast(+deps.now()))) {
                     // Error notices push a plain-text overlay.
                     failureSend.NOTICE_TEXT = deps.notices.watchText();
                 }
@@ -588,15 +681,14 @@ function createFetchCycle(deps) {
             // The radar LIMIT notice likewise (a 429 from the radar source): it is
             // not fresh data either, and without it the watch rolls its window into
             // a made-up "no rain" while the source refuses us — so it goes out as
-            // radarWire.limitedRadarTuples() alone, never the merged answer.
+            // radarWire.limitedRadarTuples() alone, never the merged answer. And the
+            // OUT-OF-COVERAGE clear with its line (radarWire.failureForward picks).
             // The outbox dedupe sends each once. Not on a NACK: that send already
             // carried them, and its uncommitted cache retries next cycle.
             if (!(failure && failure.stage === 'app_message')) {
-                if (radarWire.isClearRadarTuples(radarTuples)) {
-                    Object.assign(failureSend, radarWire.clearRadarTuples());
-                }
-                if (radarWire.isLimitedRadarTuples(radarTuples)) {
-                    Object.assign(failureSend, radarWire.limitedRadarTuples());
+                var radarForward = radarWire.failureForward(radarTuples);
+                if (radarForward) {
+                    Object.assign(failureSend, radarForward);
                 }
                 if (radarSky.isClearSkyTuple(radarTuples)) {
                     Object.assign(failureSend, radarSky.clearSkyTuple());

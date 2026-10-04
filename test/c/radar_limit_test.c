@@ -1,5 +1,5 @@
-// Host tests for the radar limit notice's pure decisions (radar_limit.h,
-// header-only): when the flag moves (radar_limited_after, called by
+// Host tests for the radar notice's pure decisions (radar_limit.h,
+// header-only): when the notice moves (radar_notice_move, called by
 // app_message.c's handle_rain_radar), whether the radar has anything to show
 // (radar_has_view, called by main_window.c's main_window_radar_has_data and
 // rain_radar_layer.c's empty-state gate) and what the radar's empty state then
@@ -33,19 +33,23 @@ static void expect_text(const char *name, const char *got, const char *want) {
     }
 }
 
-static void flag_moves(void) {
-    // The notice alone raises it, whatever it was.
-    expect_bool("notice.raises", radar_limited_after(false, true, false), true);
-    expect_bool("notice.keeps", radar_limited_after(false, true, true), true);
+static void expect_int(const char *name, int got, int want) {
+    if (got != want) {
+        printf("FAIL %s: got %d want %d\n", name, got, want);
+        s_failures++;
+    }
+}
+
+static void notice_moves(void) {
+    // The notice alone stores what arrived (raised, or replaced by another line).
+    expect_int("notice.stores", radar_notice_move(false, true), 1);
     // The arrays alone (a window or the clear) end it.
-    expect_bool("arrays.end", radar_limited_after(true, false, true), false);
-    expect_bool("arrays.stay_down", radar_limited_after(true, false, false), false);
-    // Both in one message (only a dev fixture sends that): the notice wins.
-    expect_bool("both.notice_wins", radar_limited_after(true, true, false), true);
-    expect_bool("both.notice_wins_up", radar_limited_after(true, true, true), true);
+    expect_int("arrays.end", radar_notice_move(true, false), -1);
+    // Both in one message (out of coverage: the clear and its notice; a dev
+    // fixture's window and notice): the notice wins.
+    expect_int("both.notice_wins", radar_notice_move(true, true), 1);
     // Neither (any other message, a partial or short radar payload): unchanged.
-    expect_bool("neither.keeps_up", radar_limited_after(false, false, true), true);
-    expect_bool("neither.keeps_down", radar_limited_after(false, false, false), false);
+    expect_int("neither.leaves", radar_notice_move(false, false), 0);
 }
 
 static void has_view(void) {
@@ -60,20 +64,20 @@ static void has_view(void) {
 }
 
 static void empty_text(void) {
-    // The notice beats every no-rain text: the built-in, a custom one, a cleared one.
-    expect_text("limited.beats_builtin", radar_empty_text(true, -1, ""), "Radar limit reached");
-    expect_text("limited.beats_custom", radar_empty_text(true, 9, "Dry skies"), "Radar limit reached");
-    expect_text("limited.beats_cleared", radar_empty_text(true, 0, ""), "Radar limit reached");
-    // Not limited: the no-rain rules as before.
-    expect_text("norain.custom", radar_empty_text(false, 9, "Dry skies"), "Dry skies");
-    expect_text("norain.never_set", radar_empty_text(false, -1, ""), "You're good :)");
-    expect_text("norain.cleared", radar_empty_text(false, 0, ""), NULL);
-    // No longer than the longest custom line (24 bytes) the empty-state box is sized for.
-    expect_bool("limited.fits_budget", strlen(RADAR_LIMIT_TEXT) <= 24, true);
+    // The phone's notice beats every no-rain text: the built-in, a custom one, a cleared one.
+    const char *limit = "Radar limit reached";
+    const char *coverage = "DWD radar: Germany only";
+    expect_text("notice.beats_builtin", radar_empty_text(limit, -1, ""), limit);
+    expect_text("notice.beats_custom", radar_empty_text(coverage, 9, "Dry skies"), coverage);
+    expect_text("notice.beats_cleared", radar_empty_text(limit, 0, ""), limit);
+    // No notice: the no-rain rules as before.
+    expect_text("norain.custom", radar_empty_text(NULL, 9, "Dry skies"), "Dry skies");
+    expect_text("norain.never_set", radar_empty_text(NULL, -1, ""), "You're good :)");
+    expect_text("norain.cleared", radar_empty_text(NULL, 0, ""), NULL);
 }
 
 int main(void) {
-    flag_moves();
+    notice_moves();
     has_view();
     empty_text();
     if (s_failures) {

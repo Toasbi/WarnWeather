@@ -1,0 +1,58 @@
+{
+  "watch": {
+    "now": {
+      "year": 2026,
+      "month": 6,
+      "day": 9,
+      "hour": 16,
+      "minute": 10,
+      "second": 0
+    },
+    "battery": {
+      "percent": 74
+    }
+  },
+  "watchSettings": {
+    "timeFormat": "24h"
+  },
+  "claySettings": {
+    "provider": "openmeteo",
+    "temperatureUnits": "c",
+    "axisTimeFormat": "24h",
+    "secondaryLine": "uv",
+    "thirdLine": "off",
+    "barSource": "off",
+    "statusTopOnDemandRightItems": "battery,uv,wind",
+    "alertUvDisplay": "value",
+    "alertUvDays": "tomorrow",
+    "alertUvNextDayMark": "raquo",
+    "threshUvWarn": "6",
+    "threshUvDanger": "8",
+    "alertWindDisplay": "value",
+    "threshWindWarn": "50",
+    "threshWindDanger": "80",
+    "statusForecastRight": "uv",
+    "uvSlotDisplay": "max",
+    "threshUvOn": true
+  },
+  "weather": {
+    "city": "Berlin",
+    "currentTemp": 77,
+    "aqi": 32,
+    "startHour": 16,
+    "temps":     [77, 76, 74, 71, 68, 65, 63, 61, 60, 59, 58, 57, 57, 58, 60, 63, 67, 71, 74, 77, 79, 81, 82, 82],
+    "precipPct": [ 5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5],
+    "windKmh":   [48, 54, 58, 55, 49, 42, 36, 30, 26, 22, 20, 18, 16, 15, 14, 14, 15, 17, 19, 21, 22, 23, 24, 24],
+    "gustKmh":   [70, 78, 84, 78, 68, 58, 50, 44, 38, 32, 28, 26, 24, 22, 21, 21, 22, 25, 28, 31, 33, 34, 35, 35],
+    "uvIndex": [
+      4.2, 3.0, 1.8, 0.8, 0.2, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.5, 1.4, 2.8, 4.4, 6.0, 7.4,
+      8.4, 8.3, 7.6, 6.4, 4.9, 3.4, 2.0, 0.9, 0.3, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0
+    ],
+    "sunEvents": [
+      { "type": "sunset", "dayOffset": 0, "hour": 21, "minute": 29 },
+      { "type": "sunrise", "dayOffset": 1, "hour": 4, "minute": 46 }
+    ]
+  }
+}

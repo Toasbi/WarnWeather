@@ -37,6 +37,7 @@ void layer_destroy(Layer *layer);
 void layer_set_frame(Layer *layer, GRect frame);
 GRect layer_get_frame(const Layer *layer);
 void layer_set_hidden(Layer *layer, bool hidden);
+bool layer_get_hidden(const Layer *layer);
 
 // --- HealthService stand-ins -----------------------------------------------
 // Keep these declarations aligned with SDK 4.17 so the real health.c can be
@@ -142,6 +143,7 @@ void health_service_activities_iterate(HealthActivityMask activity_mask,
                                        HealthActivityIteratorCB callback,
                                        void *context);
 MeasurementSystem health_service_get_measurement_system_for_display(HealthMetric metric);
+bool health_service_events_unsubscribe(void);
 
 typedef struct AppTimer AppTimer;
 typedef void (*AppTimerCallback)(void *data);

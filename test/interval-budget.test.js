@@ -10,12 +10,13 @@ const rb = require('../src/pkjs/settings/rainbow-budget.js');
 const FULL = ['5', '10', '15', '30', '60'];
 const values = (opts) => opts.map((o) => o[1]);
 
-// Base state: no guarded call (Open-Meteo weather, the shared Rainbow radar: "Use your
-// own key" off), no night pause, both guards on. rainbowOwnKey: true puts the radar on
-// the user's key.
+// Base state: no guarded call (Open-Meteo weather, the shared Rainbow radar: "Rainbow
+// (limited)"), no night pause, both guards on. OWN_KEY puts the radar on the user's key
+// ("Rainbow (own key)").
+const OWN_KEY = { radarProvider: 'rainbowkey' };
 function S(over) {
   return Object.assign({
-    provider: 'openmeteo', radarProvider: 'rainbow', rainbowOwnKey: false, radarMode: 'graph',
+    provider: 'openmeteo', radarProvider: 'rainbow', radarMode: 'graph',
     sleepNightEnabled: false, sleepStartHour: '22', sleepEndHour: '7',
     tomorrowioFitBudget: true, rainbowFitBudget: true
   }, over || {});
@@ -37,7 +38,7 @@ test('tomorrow.io only: exactly tomorrow.io\'s own list', () => {
 });
 
 test('Rainbow on the user\'s own key only, no pause: 5 min drops out', () => {
-  const s = S({ rainbowOwnKey: true });
+  const s = S(OWN_KEY);
   assert.deepEqual(values(ib.fittingOptions(s)), ['10', '15', '30', '60']);
   assert.deepEqual(ib.fittingOptions(s), rb.fittingOptions(s));
   assert.deepEqual(ib.activeGuards(s).map((g) => g.toggleKey), ['rainbowFitBudget']);
@@ -45,13 +46,13 @@ test('Rainbow on the user\'s own key only, no pause: 5 min drops out', () => {
 
 test('both guards active: the intersection', () => {
   // Weather on tomorrow.io (1 call/cycle, fits 5 min) with radar on Rainbow's own key.
-  const s = S({ provider: 'tomorrowio', rainbowOwnKey: true });
+  const s = S({ provider: 'tomorrowio', radarProvider: 'rainbowkey' });
   assert.deepEqual(ib.activeGuards(s).map((g) => g.toggleKey), ['tomorrowioFitBudget', 'rainbowFitBudget']);
   assert.deepEqual(values(ib.fittingOptions(s)), ['10', '15', '30', '60']);
 });
 
 test('the two toggles are independent', () => {
-  const both = { provider: 'tomorrowio', rainbowOwnKey: true };
+  const both = { provider: 'tomorrowio', radarProvider: 'rainbowkey' };
   // tomorrow.io's guard off: Rainbow's list alone.
   const tioOff = S(Object.assign({ tomorrowioFitBudget: false }, both));
   assert.deepEqual(values(ib.fittingOptions(tioOff)), values(rb.fittingOptions(tioOff)));
@@ -103,8 +104,8 @@ test('STATE_KEYS holds both toggles and every key of both budgets, with no dupli
 
 test('STATE_KEYS is enough: a state rebuilt from exactly these keys gives the same list', () => {
   // onbuild.js's onSubmit sees only ctx.get(key) and rebuilds S from STATE_KEYS.
-  [S({ provider: 'tomorrowio', rainbowOwnKey: true }),
-    S({ rainbowOwnKey: true, sleepNightEnabled: true, sleepStartHour: '20' }),
+  [S({ provider: 'tomorrowio', radarProvider: 'rainbowkey' }),
+    S({ radarProvider: 'rainbowkey', sleepNightEnabled: true, sleepStartHour: '20' }),
     S({ provider: 'tomorrowio', radarProvider: 'tomorrowio', rainbowFitBudget: false })
   ].forEach((full) => {
     const rebuilt = {};
@@ -114,9 +115,9 @@ test('STATE_KEYS is enough: a state rebuilt from exactly these keys gives the sa
 });
 
 test('activeGuards treats a toggle stored as undefined as on (its default)', () => {
-  const s = S({ rainbowOwnKey: true, rainbowFitBudget: undefined });
+  const s = S({ radarProvider: 'rainbowkey', rainbowFitBudget: undefined });
   assert.deepEqual(ib.activeGuards(s).map((g) => g.toggleKey), ['rainbowFitBudget']);
-  const missing = S({ rainbowOwnKey: true });
+  const missing = S(OWN_KEY);
   delete missing.rainbowFitBudget;
   assert.deepEqual(ib.activeGuards(missing).map((g) => g.toggleKey), ['rainbowFitBudget']);
   assert.deepEqual(values(ib.fittingOptions(missing)), ['10', '15', '30', '60']);
@@ -131,18 +132,18 @@ test('GUARDS wires each budget module to its own toggle', () => {
 // fitInterval: the interval Save stores (onbuild.js fitIntervalToBudget) and the budget
 // read-outs show (blocks.js), so the page never warns about an interval Save replaces.
 test('fitInterval: kept when the list offers it, else the item default 15', () => {
-  const rbk = S({ rainbowOwnKey: true });
+  const rbk = S(OWN_KEY);
   assert.equal(ib.fitInterval(rbk, '10'), '10', 'offered: kept');
   assert.equal(ib.fitInterval(rbk, '5'), '15', 'dropped out: the item default, which fits');
   assert.equal(ib.fitInterval(rbk, 10), '10', 'a number reads as its string');
-  const both = S({ provider: 'tomorrowio', rainbowOwnKey: true, tomorrowioFitBudget: false });
+  const both = S({ provider: 'tomorrowio', radarProvider: 'rainbowkey', tomorrowioFitBudget: false });
   assert.equal(ib.fitInterval(both, '5'), '15', 'Rainbow\'s guard binds with tomorrow.io\'s off');
 });
 
 test('fitInterval: no active guard keeps the stored value, even one off the ladder', () => {
   assert.equal(ib.fitInterval(S(), '5'), '5', 'no guarded call');
   assert.equal(ib.fitInterval(S(), '20'), '20');
-  assert.equal(ib.fitInterval(S({ rainbowOwnKey: true, rainbowFitBudget: false }), '5'), '5',
+  assert.equal(ib.fitInterval(S({ radarProvider: 'rainbowkey', rainbowFitBudget: false }), '5'), '5',
     'the guard is off: the read-out warns instead');
   assert.equal(ib.fitInterval(undefined, '5'), '5', 'no state');
 });

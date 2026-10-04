@@ -1,11 +1,11 @@
 module.exports = {
     // The newest release-notification version already shown (release-notifications.js).
     MAX_NOTIFIED_VERSION_KEY: 'max_notified_version',
-    // Marker keys for the Clay-settings migrations (clay-migrations.js's
-    // runMigrations). APPEND-ONLY: a shipped marker string is the on-flash record
+    // Marker keys for the Clay-settings migrations (migrations/registry.js, run by
+    // clay-migrations.js). APPEND-ONLY: a shipped marker string is the on-flash record
     // that a migration ran, so it is never reused, renamed or renumbered. Part of a
-    // migration's identity — listed here to honor the one-registry rule; the bodies
-    // live in clay-migrations.js.
+    // migration's identity — listed here to honor the one-registry rule; the entries
+    // and their bodies live under migrations/.
     WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY: 'v1.34.0_weekend_holiday_color_migration',
     HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY: 'v1.4.0_holiday_white_to_toggle_migration',
     HOLIDAY_REGION_KEY_MIGRATION_KEY: 'v1.4.0_holiday_region_key_migration',
@@ -22,6 +22,23 @@ module.exports = {
     NORAIN_DEFAULT_TEXT_MIGRATION_KEY: 'v1.23.0_norain_default_text_migration',
     FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY: 'v1.23.1_fifth_line_style_default_migration',
     STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY: 'v1.23.1_stripe_metric_rule_resend_migration',
+    // The 1.24.0 alert-levels move (highlight toggles, warn look, rain window Off, seed
+    // pairs back to blank, temperature separator slash -> bar; migrations/v1_24.js).
+    // Replaced, never released: dev builds of 1.24.0 ran these steps under markers of
+    // their own, 'v1.24.0_threshold_highlight_toggle_migration',
+    // 'v1.24.0_rain_horizon_off_migration', 'v1.24.0_seed_pair_blank_migration',
+    // 'v1.24.0_seed_pair_any_unit_migration' and 'v1.24.0_temp_separator_bar_migration',
+    // and under this string, which is kept on purpose: an install that holds it ran the
+    // moves, and a re-run there would read settings saved on the 1.24.0 page as 1.23
+    // shapes (a highlight switched off with its pair kept would come back on).
+    ALERT_LEVELS_MIGRATION_KEY: 'v1.24.0_warn_look_migration',
+    // 1.24.0: the status bars moved onto On demand (migrations/v1_24.js migrateOnDemand).
+    ON_DEMAND_MIGRATION_KEY: 'v1.24.0_on_demand_migration',
+    // 1.24.0: "Rainbow (own key)" is stored as radarProvider 'rainbowkey' instead of
+    // 'rainbow' plus rainbowOwnKey (migrations/radar.js migrateRainbowOwnKeySource). A
+    // marker of its own, not a step of the alert levels' or On demand's: dev and beta
+    // installs already hold both of those, and they still store the pair.
+    RAINBOW_OWN_KEY_SOURCE_MIGRATION_KEY: 'v1.24.0_rainbow_own_key_source_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',
@@ -55,8 +72,9 @@ module.exports = {
     LAST_UPDATE_CHECK_KEY: 'last_update_check',
     WU_HOURLY_CACHE_KEY: 'wuHourlyCache',
     // The UV / wind / gust / AQI forecast for today's hours already begun, kept
-    // across fetches, so each slot's day max knows whether today's peak is still
-    // ahead, running or behind (weather/day-peaks.js). One record per metric.
+    // across fetches, so each slot's day max (the Day max / Both modes) knows
+    // whether today's peak is still ahead, running or behind
+    // (weather/day-peaks.js). One record per metric.
     UV_DAY_RECORD_KEY: 'uvDayRecord',
     WIND_DAY_RECORD_KEY: 'windDayRecord',
     GUST_DAY_RECORD_KEY: 'gustDayRecord',
@@ -109,5 +127,23 @@ module.exports = {
     // is asked at most once per 30-minute slot, wherever the watch is, and the throttled
     // cycles of that slot re-serve its answer. Persisted so a PKJS relaunch doesn't reset
     // it; a reset's localStorage.clear() drops it (the next fetch then requests).
-    RADAR_REQUEST_THROTTLE_KEY: 'radarRequestThrottle'
+    RADAR_REQUEST_THROTTLE_KEY: 'radarRequestThrottle',
+    // The last answer each keyed source gave the user's own API key ({<id>: {keyHash,
+    // status}}: the key's fingerprint — never the key — and the HTTP status that answered
+    // it, per weather provider or radar source; key-result.js). The settings page reads it
+    // as userData.keyResults for the key status under the Weather and Radar provider rows.
+    // Replaced, never released: dev builds of 1.24.0 kept the radar's verdict alone under
+    // 'radarKeyResult' ({id, keyHash, status}); nothing reads that string any more, and it
+    // is not reused.
+    KEY_RESULTS_KEY: 'keyResults',
+    // The weather provider's run of server failures ({id, n}: the provider id and how
+    // many updates in a row it answered with a 5xx, a timeout or no connection;
+    // fetch-cycle.js). Its notice waits for the second one, so a one-off outage stays
+    // quiet; a success, another kind of failure or another provider ends the run.
+    SERVER_FAILURE_STREAK_KEY: 'serverFailureStreak',
+    // Which regional radar sources can see the last update's location ({dwd, metno}:
+    // true = outside its area; plus misses: {dwd: n}, DWD's 404s in a row from inside its
+    // area; weather/radar-coverage.js), never the position itself. The settings page reads
+    // it as userData.radarCoverage for the note under the Radar provider row.
+    RADAR_COVERAGE_KEY: 'radarCoverage'
 };

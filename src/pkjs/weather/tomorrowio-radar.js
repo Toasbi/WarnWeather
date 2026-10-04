@@ -1,5 +1,8 @@
 var radarWire = require('./radar-wire.js');
 var radarFetch = require('./radar-fetch.js');
+// The radar's source id, which names its answers to the key (radar-fetch.js
+// opts.keyResult): the Tomorrow.io weather provider's too, so the key has one verdict.
+var RADAR_ID = 'tomorrowio';
 var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
 var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 
@@ -80,6 +83,7 @@ function fetchRadarTuplesAt(apiKey, lat, lon, slotZeroEpoch, callback) {
     radarFetch.fetchRadarJson({
         url: buildNowcastUrl(apiKey, lat, lon, slotZeroEpoch),
         label: 'Tomorrow.io',
+        keyResult: { id: RADAR_ID, apiKey: apiKey },
         onTransportError: function (error, cb) {
             if (radarFetch.isRateLimited(error)) {
                 console.log('[!] Tomorrow.io radar: request limit reached (' + error.code + ')');

@@ -28,7 +28,6 @@ var buildClayPayload = require('./clay-payload.js').buildClayPayload;
 var effectiveHolidayCountry = require('./clay-payload.js').effectiveHolidayCountry;
 var holidayWindowOpts = require('./clay-payload.js').holidayWindowOpts;
 var providerFactory = require('./provider-factory.js');
-var radarSourceId = require('./weather/radar-source-id.js');
 var previewPalette = require('./settings/preview-palette.js');
 var newsCache = require('./news-cache.js');
 var weatherTabCache = require('./weather-tab-cache.js');
@@ -79,6 +78,8 @@ var UPDATE_CHECK_STORES = [
 var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
 var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_NOTICES = storageKeys.NOTICES_KEY;
+var KEY_KEY_RESULTS = storageKeys.KEY_RESULTS_KEY;
+var KEY_RADAR_COVERAGE = storageKeys.RADAR_COVERAGE_KEY;
 var KEY_GEOCODE_CACHE = storageKeys.GEOCODE_CACHE_KEY;
 var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
@@ -117,6 +118,8 @@ var fetchCycle = createFetchCycle({
 var scheduler = createChannelScheduler({
     sendClay: sendClaySettings,
     startFetch: function (force) { fetchCycle.start(force); },
+    // The config close's status re-bake: no fetch, the live settings.
+    resendStatus: statusRebake.resendStatus,
     shouldFetchNow: fetchCycle.shouldFetchNow,
     refreshHolidays: refreshHolidays,
     checkForUpdate: onSchedulerTick,
@@ -183,6 +186,16 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // it from today: the page shows it without a request (weather-tab-cache.js).
         weatherTabCache: weatherTabCache.forPage(values, graphsSeed, nowMs),
         notices: localStorage.getItem(KEY_NOTICES),
+        // The last answer each keyed source gave the user's own key (key-result.js: per
+        // weather provider or radar source, the key's fingerprint and the status), as
+        // stored, or null: the key status under the Weather and Radar provider rows
+        // (settings/key-status.js) reads it.
+        keyResults: localStorage.getItem(KEY_KEY_RESULTS),
+        // Which regional radar sources can see the last update's location
+        // (radar-coverage.js: {dwd, metno}, true = outside, plus DWD's run of 404s; never
+        // the position), or null: the amber note under the Radar provider row while the
+        // picked one cannot.
+        radarCoverage: localStorage.getItem(KEY_RADAR_COVERAGE),
         // Day totals + the newest events, never the raw 7-day log: that pushed the
         // data: URL past Android's 2 MiB cap at short update intervals (dev-stats.js).
         devStats: devStats.summarize(),
@@ -236,9 +249,9 @@ Pebble.addEventListener('webviewclosed', function(e) {
         return;
     }
 
-    // The radar SOURCE in effect (radar-source-id.js), not the stored radarProvider:
-    // flipping Rainbow's "Use your own key" switches sources without touching it.
-    var oldRadarSource = app.settings ? radarSourceId.effectiveRadarId(app.settings) : undefined;
+    // The radar source: "Rainbow (limited)" ('rainbow') and "Rainbow (own key)"
+    // ('rainbowkey') are two radarProvider values.
+    var oldRadarProvider = app.settings ? app.settings.radarProvider : undefined;
     var oldRadarMode = app.settings ? app.settings.radarMode : undefined;
     var oldRadarSky = app.settings ? app.settings.radarSky !== false : undefined;
     // Capture the render-affecting settings before they're overwritten below so we can
@@ -261,7 +274,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // Returns the credentials it deliberately kept (API keys), so the forced
         // fetch below still has one to fetch with instead of failing on an empty
         // key the user never actually removed.
-        var preserved = claySettings.resetAll();
+        var preserved = claySettings.resetAll(clayMigrations.RESET_SAFE_MARKERS);
         // Storage stays EMPTY on purpose: the next boot reads the absent blob as a
         // fresh install (hadExistingInstall false), so the onboarding migration
         // leaves onboardingDone false and the wizard reopens (wizard.js
@@ -308,7 +321,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     var decision = decideConfigClose({
         providerOrLocationChanged: providerOrLocationChanged,
         // The sky rows ride the radar fetch, so their toggle counts as a radar change.
-        radarProviderChanged: oldRadarSource !== radarSourceId.effectiveRadarId(app.settings)
+        radarProviderChanged: oldRadarProvider !== app.settings.radarProvider
             || oldRadarMode !== app.settings.radarMode
             || oldRadarSky !== (app.settings.radarSky !== false),
         renderSettingsChanged: prevRender !== renderSignature(app.settings),
@@ -322,11 +335,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // (including radar) so the next fetch resends every category.
         outbox.clearWeatherCaches();
     }
-    // Send Clay settings, then (when forced) fetch after that send settles. The
-    // scheduler chains the fetch into the Clay-send callbacks and defers it past
-    // the webview teardown, so it never rides the half-duplex channel
-    // back-to-back with the Clay send; it also runs the overlay clear only when
-    // no fetch is forced.
+    // Send Clay settings, then re-bake the status category from the last payload
+    // against the settings just saved, then (when forced) fetch. The scheduler
+    // chains each step into the callbacks of the one before and defers the chain
+    // past the webview teardown, so no two ride the half-duplex channel
+    // back-to-back; it also runs the overlay clear only when no fetch is forced.
     scheduler.onConfigClosed({
         forceFetch: decision.forceFetch,
         clearNotice: decision.clearNotice
@@ -373,8 +386,8 @@ Pebble.addEventListener('ready',
         }
         catch (ex) { /* keep the safe default */ }
         // Every marker-gated migration runs inside clay-migrations.runMigrations
-        // (bodies, marker keys and gating live together there); the Clay-colour
-        // ones commit their markers only on the Clay ACK below.
+        // (the ledger is migrations/registry.js); the ones marked 'ack' commit
+        // their markers only on the Clay ACK below.
         var migrations = clayMigrations.runMigrations({
             platform: statusMigrationPlatform,
             colors: DEFAULT_HOLIDAY_COLORS,

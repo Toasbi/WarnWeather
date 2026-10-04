@@ -122,7 +122,8 @@ test('flickStops: layout-only cycle -> Default + Radar; radar copy is provider-a
   assert.equal(stops[1].label, 'Radar');
   assert.equal(stops[1].shotGroup, 'radar');
   assert.match(stops[1].caption, /short-term rain forecast/);
-  assert.match(stops[1].caption, /Watch Status Bar/);
+  assert.match(stops[1].caption, /the Watch Status Bar counts it down at its edge/); // Rain's default side
+  assert.match(stops[1].caption, /Rain in 15’/); // the rain alert's default 'text' look
   assert.doesNotMatch(stops[1].caption, /DWD|nearby/); // no provider named, kept general
 });
 
@@ -208,12 +209,12 @@ test('finishing the wizard on emery bolds the Watch + Forecast rows and hands AQ
 
   BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], 'always', k));
   assert.equal(ctx.S.threshAqiOn, true, 'AQI highlighting on');
-  assert.equal(ctx.S.threshAqiWarnOutlineOn, true, 'AQI warn outline on');
+  assert.equal(ctx.S.threshAqiWarnLook, 'fill', 'AQI warn box: the colour watch\'s default look');
   // threshStepsBoldMode rides with the slot swap: steps replaces sunrise/sunset in
   // the top row, so it has to be bold like the rest of that row.
   assert.equal(ctx.S.threshStepsBoldMode, 'always', 'the promoted steps slot is bold too');
   assert.deepEqual(Object.keys(written).sort(),
-    BOLD_KEYS.concat(['threshAqiOn', 'threshAqiWarnOutlineOn', 'statusTopRight',
+    BOLD_KEYS.concat(['threshAqiOn', 'statusTopRight',
       'statusHealthLeft', 'threshStepsBoldMode']).sort(),
     'the report names exactly the keys it wrote');
 });
@@ -235,27 +236,38 @@ test('finishing the wizard on a narrow watch bolds the Forecast row and fills th
   assert.notEqual(ctx.S.threshStepsBoldMode, 'always',
     'and no bold rides along — it would be the only heavy value in that strip');
   assert.deepEqual(Object.keys(written).sort(),
-    BOLD_FORECAST_KEYS.concat(['threshAqiOn', 'threshAqiWarnOutlineOn', 'statusTopLeft',
+    BOLD_FORECAST_KEYS.concat(['threshAqiOn', 'statusTopLeft',
       'statusHealthLeft']).sort(),
     'the report names exactly the keys it wrote');
 });
 
-test('the AQI seeding runs through the settings page\'s own hooks, not hand-picked numbers', () => {
+test('the wizard\'s AQI highlight == a hand flip: the switch alone, the pair left blank', () => {
+  const thresholds = require('../src/pkjs/status-thresholds.js');
   const ctx = wizCtx();
   W.applyWizardDefaults(ctx, 'save');
 
-  // What flipping the two toggles by hand on the settings page produces.
+  // What flipping the highlight switch by hand on the settings page produces: the
+  // switch carries no hook, so the stored switch and nothing else.
   const hand = wizCtx();
+  const toggles = [];
+  require('../src/pkjs/config-ui/lib/schema-walk.js').eachItem(schema, (it) => {
+    if (it.messageKey === 'threshAqiOn') { toggles.push(it); }
+  });
+  assert.equal(toggles.length, 1, 'guard: the one switch');
+  assert.equal(toggles[0].onChange, undefined, 'guard: it runs no hook a hand flip would add');
   hand.S.threshAqiOn = true;
-  PConf.onChange.get('thresholdToggle')(hand.S, false, true, hand.ENV, 'threshAqiOn');
-  hand.S.threshAqiWarnOutlineOn = true;
-  PConf.onChange.get('thresholdOutlineToggle')(hand.S, false, true, hand.ENV, 'threshAqiWarnOutlineOn');
 
-  assert.notEqual(hand.S.threshAqiWarn, '', 'guard: the hook really seeds a pair');
-  assert.notEqual(hand.S.threshAqiWarnColor, '', 'guard: the hook really seeds an outline color');
-  assert.equal(ctx.S.threshAqiWarn, hand.S.threshAqiWarn);
-  assert.equal(ctx.S.threshAqiDanger, hand.S.threshAqiDanger);
-  assert.equal(ctx.S.threshAqiWarnColor, hand.S.threshAqiWarnColor);
+  ['threshAqiOn', 'threshAqiWarn', 'threshAqiDanger', 'threshAqiWarnColor',
+    'threshAqiDangerColor', 'threshAqiWarnLook'].forEach((k) => {
+    assert.deepEqual(ctx.S[k], hand.S[k], k);
+  });
+  assert.equal(ctx.S.threshAqiWarn, '', 'no pinned warn');
+  assert.equal(ctx.S.threshAqiDanger, '', 'no pinned danger');
+  // A blank pair is the seed for the AQI scale in effect, live: WAQI's US scale now,
+  // Open-Meteo's European one after the user switches the AQI provider.
+  assert.deepEqual(thresholds.resolvedPair('Aqi', ctx.S), { warn: 100, danger: 150, stored: false });
+  ctx.S.aqiSource = 'openmeteo';
+  assert.deepEqual(thresholds.resolvedPair('Aqi', ctx.S), { warn: 60, danger: 80, stored: false });
 });
 
 test('the health slots move only where health can actually report', () => {
@@ -445,7 +457,9 @@ function fakeWizardDom() {
     },
     querySelectorAll: () => [],
     parentNode: null,
-    click: (closest) => (listeners.click || []).forEach((fn) => fn({ target: { closest } }))
+    click: (closest) => (listeners.click || []).forEach((fn) => fn({ target: { closest } })),
+    // Any other overlay event (the upsell key field's 'input'), with the target given.
+    fire: (ev, target) => (listeners[ev] || []).forEach((fn) => fn({ target }))
   };
 
   global.document = {
@@ -559,6 +573,68 @@ test('a health pick that keeps the enable state leaves a customized health row a
   assert.equal(ctx.S.healthMode, 'status');
   assert.deepEqual([ctx.S.statusHealthLeft, ctx.S.statusHealthMid, ctx.S.statusHealthRight],
     ['sleep', 'steps', 'empty']);
+});
+
+// --- the tomorrow.io upsell on the "All set" step -----------------------------------------
+// It renders the settings page's own tomorrow.io key row. Both copies of that row sit in key
+// sheets titled "Tomorrow.io" (the weather provider's on the General tab, the radar-only one on
+// the Radar tab) and read just "API key"; the upsell has no sheet title above it, so it names
+// the provider itself. The field is pinned to the exact markup it had while the Radar tab's
+// copy was a page row labelled "Tomorrow.io API key".
+
+/**
+ * Re-run setup for `saved` and walk to the last step ("All set").
+ * @param {Object} saved Stored settings.
+ * @returns {{ctx: Object, dom: Object, body: string}} The wizard state, the fake DOM and the
+ *   last step's body HTML.
+ */
+function wizardDoneStep(saved) {
+  const dom = fakeWizardDom();
+  const ctx = wizCtx({ saved: Object.assign({ onboardingDone: true }, saved) });
+  Object.assign(ctx, { cfg: { onboardingDone: true }, set: (k, v) => { ctx.S[k] = v; }, save: () => {}, render: () => {} });
+  const nav = (v) => dom.overlay.click((sel) => (sel === '[data-wiz-nav]' ? { getAttribute: () => v } : null));
+  PConf.hooks.runReady(ctx);
+  PConf.actions.startWizard();
+  let guard = 0;
+  while (!/data-wiz-nav="save"/.test(dom.overlay.querySelector('[data-wiz-foot]').innerHTML) && guard++ < 20) { nav('next'); }
+  return { ctx, dom, body: dom.overlay.querySelector('[data-wiz-body]').innerHTML };
+}
+
+test('the tomorrow.io upsell shows the key row as before: "Tomorrow.io API key", its hint and Test', async () => {
+  const hint = items => items.find((i) => i.messageKey === 'tomorrowioApiKey').hint;
+  const copies = [];
+  PConf.schemaWalk.eachItem(schema, (it) => { if (it.messageKey === 'tomorrowioApiKey') { copies.push(it); } });
+  assert.equal(copies.length, 2, 'the weather provider\'s and the radar-only key sheet\'s copies');
+  copies.forEach((it) => assert.equal(it.label, 'API key', 'each copy is labelled by its sheet\'s title'));
+  const field = '<div class="row stack"><div class="lbl">Tomorrow.io API key</div><div class="hint">' + hint(copies)
+    + '</div><div><div class="txt-act"><input type="text" data-k="tomorrowioApiKey" value="" placeholder="">'
+    + '<button class="txt-act-btn" data-action="testTomorrowioKey">Test</button></div>'
+    + '<div class="hint txt-act-result" data-action-result="tomorrowioApiKey"></div></div></div>';
+  // Whatever the radar runs on: the upsell is the same field.
+  [{ holidayCountry: 'US' }, { holidayCountry: 'US', radarProvider: 'tomorrowio', radarMode: 'graph' },
+    { holidayCountry: 'GB', provider: 'tomorrowio', radarProvider: 'tomorrowio' }].forEach((saved) => {
+    const { body } = wizardDoneStep(saved);
+    const at = body.indexOf('<div class="wiz-tio">');
+    assert.ok(at !== -1, JSON.stringify(saved) + ': the upsell shows');
+    assert.ok(body.indexOf(field, at) !== -1, JSON.stringify(saved) + ': the key field, exactly as before');
+  });
+  // Germany gets DWD: no upsell.
+  assert.equal(wizardDoneStep({ holidayCountry: 'DE' }).body.indexOf('wiz-tio'), -1);
+  await drain();
+});
+
+test('a key typed into the upsell makes tomorrow.io the weather provider; clearing it reverts to the country\'s', async () => {
+  const { ctx, dom } = wizardDoneStep({ holidayCountry: 'US', provider: 'dwd' });
+  assert.equal(ctx.S.provider, 'dwd', 'a re-run keeps the stored provider');
+  const inp = { value: 'tio-key', getAttribute: (n) => (n === 'data-k' ? 'tomorrowioApiKey' : null) };
+  inp.closest = (sel) => (sel === 'input[type=text][data-k]' ? inp : null);
+  dom.overlay.fire('input', inp);
+  assert.equal(ctx.S.tomorrowioApiKey, 'tio-key');
+  assert.equal(ctx.S.provider, 'tomorrowio');
+  inp.value = '';
+  dom.overlay.fire('input', inp);
+  assert.equal(ctx.S.provider, 'openmeteo');
+  await drain();
 });
 
 // --- the fresh-install country inference ------------------------------------------------

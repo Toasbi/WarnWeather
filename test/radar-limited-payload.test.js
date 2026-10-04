@@ -87,7 +87,7 @@ test('composeWeatherPayload keeps the limit notice through the render transform,
   provider.sunEvents = [];
   const payload = provider.composeWeatherPayload(
     Object.assign({ IS_SLEEPING: false }, radarWire.limitedRadarTuples()), transform);
-  assert.equal(payload.RAIN_RADAR_LIMITED, 1);
+  assert.equal(payload.RAIN_RADAR_LIMITED, 'Radar limit reached');
   RADAR_ARRAYS.forEach(function(k) { assert.equal(k in payload, false, k + ' must not ride with the notice'); });
   // The transform really ran: the wire temp series replaced the transient one.
   assert.ok(Array.isArray(payload.TEMP_TREND_UINT8), 'the forecast series were built');
@@ -104,7 +104,7 @@ test('the limit notice reaches the wire through fetchWithCoordinates and the out
   });
   assert.equal(ok, 1, 'the fetch succeeds');
   assert.equal(sent.length, 1, 'one bundled send');
-  assert.equal(sent[0].RAIN_RADAR_LIMITED, 1, 'the notice rides the weather message');
+  assert.equal(sent[0].RAIN_RADAR_LIMITED, 'Radar limit reached', 'the notice rides the weather message');
   RADAR_ARRAYS.forEach(function(k) { assert.equal(k in sent[0], false, k + ' stays off the wire'); });
   assert.ok(Array.isArray(sent[0].TEMP_TREND_UINT8), 'beside the forecast it came with');
 });

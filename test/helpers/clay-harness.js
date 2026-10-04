@@ -18,15 +18,8 @@ function installFakeStorage() {
 }
 
 const COLORS = { white: 0xFFFFFF, folly: 0xFF0055, holiday: 0x0055FF };
-
-function makeMarker() {
-  const state = { done: false };
-  return {
-    isDone: function () { return state.done; },
-    mark: function () { state.done = true; },
-    state: state
-  };
-}
+const REGISTRY = require('../../src/pkjs/migrations/registry.js');
+const STORAGE_KEYS = require('../../src/pkjs/storage-keys');
 
 // --- The in-place-upgrade Clay resend -------------------------------------
 // 1.15.0 grew CLAY_LINE_STYLE_UINT8 from 4 to 10 bytes; the watch reads the
@@ -37,29 +30,28 @@ function makeMarker() {
 // existing install. Without a migration that forces one Clay send, the watch
 // paints the hardcoded precip-blue night default under a wind/uv/gust/pressure
 // line until the user opens and SAVES the settings page.
-const SHIPPED_MARKERS = [
-  'WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY',
-  'HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY',
-  'HOLIDAY_REGION_KEY_MIGRATION_KEY',
-  'STATUS_LINE_HEALTH_DEFAULTS_MIGRATION_KEY',
-  'STATUS_TOP_RIGHT_BATTERY_MIGRATION_KEY',
-  'RADAR_VIEW_MODE_MIGRATION_KEY'
-];
+//
+// The markers such an install holds: the ledger up to the 1.10.0 radar-mode move.
+// That slice also holds the 1.20.0 onboarding marker (it runs first), which is
+// page-only and asks for no send, so the boots below behave as without it.
+const PRE_1_15_MARKERS = REGISTRY.slice(0, REGISTRY.findIndex(
+  (e) => e.key === STORAGE_KEYS.RADAR_VIEW_MODE_MIGRATION_KEY) + 1).map((e) => e.key);
 
 // Build the store of an install that has been running a previous release: a
-// seeded+migrated settings blob, every shipped migration marker set, and
+// seeded+migrated settings blob, every marker of that release set, and
 // today's holiday mask already stamped (phone localStorage survives upgrades).
 function seedUpgradedInstall(store, claySettings, KEYS, now) {
   claySettings.seedDefaults(COLORS);
-  SHIPPED_MARKERS.forEach((name) => { store[KEYS[name]] = '1'; });
+  PRE_1_15_MARKERS.forEach((key) => { store[key] = '1'; });
   store[KEYS.LAST_HOLIDAY_DAY_KEY] =
     now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate();
 }
 
-// One whole boot of an upgraded install: run the ledger, take the watch
-// handshake (hasConfig true — the watch kept its config across the upgrade),
-// then ready. Returns the Clay sends this boot produced.
-function bootUpgradedInstall(clayMigrations, createChannelScheduler, now) {
+// One whole boot of an upgraded install: run the ledger (or, with `filter`, the
+// runner's {only: key} slice of it), take the watch handshake (hasConfig true —
+// the watch kept its config across the upgrade), then ready. Returns the Clay
+// sends this boot produced.
+function bootUpgradedInstall(clayMigrations, createChannelScheduler, now, filter) {
   const sends = [];
   const scheduler = createChannelScheduler({
     sendClay: function (onSuccess, onFailure) {
@@ -76,7 +68,7 @@ function bootUpgradedInstall(clayMigrations, createChannelScheduler, now) {
     now: function () { return now; }
   });
   const migrations = clayMigrations.runMigrations({
-    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' }, filter);
   scheduler.onWatchStatus({ hasConfig: true, hasForecast: true });
   scheduler.onReady({
     migrationClayRequired: migrations.clayRequired,
@@ -98,6 +90,26 @@ function loadUpgradeModules() {
     createChannelScheduler: require('../../src/pkjs/channel-scheduler'),
     KEYS: require('../../src/pkjs/storage-keys')
   };
+}
+
+// A fresh store holding `blob` (none when null), fresh modules, and a spy counting
+// the runner's saves. run(key, opts) runs the ledger — just the entry with marker
+// `key` when one is given — with basalt defaults under `opts`.
+function loadLedger(blob) {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  if (blob) { store['clay-settings'] = JSON.stringify(blob); }
+  const saves = { n: 0 };
+  const realSave = mods.claySettings.save;
+  mods.claySettings.save = function (obj) { saves.n++; return realSave.call(mods.claySettings, obj); };
+  return Object.assign(mods, {
+    store,
+    saves,
+    read: () => mods.claySettings.read(),
+    run: (key, opts) => mods.clayMigrations.runMigrations(Object.assign({
+      platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' }, opts),
+    key ? { only: key } : undefined)
+  });
 }
 
 // Replay of the 1.15.0 page picking a metric's fill colour, hook and all
@@ -141,7 +153,6 @@ function seedThemedInstall(store, claySettings, KEYS, now, theme) {
 }
 
 module.exports = {
-  installFakeStorage, COLORS, makeMarker, SHIPPED_MARKERS, seedUpgradedInstall,
-  bootUpgradedInstall, loadUpgradeModules, shippedPageFillPick, PRE_RETUNE_LIGHT,
-  seedPreRetuneInstall, seedThemedInstall
+  installFakeStorage, COLORS, seedUpgradedInstall, bootUpgradedInstall, loadUpgradeModules,
+  loadLedger, shippedPageFillPick, PRE_RETUNE_LIGHT, seedPreRetuneInstall, seedThemedInstall
 };

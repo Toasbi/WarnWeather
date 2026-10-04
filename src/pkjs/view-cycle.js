@@ -499,7 +499,8 @@ function buildViewCycle(presetKey, healthMode, radarMode, swapClockStatus) {
   var radarShowsView = (radarMode === 'status' || radarMode === 'graph');
   // "Weather only": the radar is part of the Default view (no radar flick), which has
   // no top bar; the health flicks are No calendar's. In countdown mode the Default view
-  // keeps its top bar: the "Rain in X′" countdown is drawn there and nowhere else.
+  // keeps its top bar: the rain alert is drawn there by default (the strip's Alerts
+  // placement is Left; another bar draws it only when its own placement is set).
   if (presetKey === 'weatherOnly') {
     var def = (radarMode === 'graph') ? WO_RADAR : (radarMode === 'status') ? WO_RADAR_S
       : (radarMode === 'countdown') ? NONE_FC_W : WO_PLAIN;
@@ -822,6 +823,28 @@ function resolvePresetKey(state) {
   return 'compactCal';
 }
 
+/**
+ * The view cycle a watch runs for a settings state: THE one reading, for the Clay payload
+ * (clay-payload.js), the Layout preview (settings/preview-layout.js) and the Alerts tab's
+ * About alerts Default-view note (settings/when-resolvers.js). layoutPreset 'custom' compiles the
+ * per-view keys (buildCustomCycle), except on an APLITE watch, which folds custom to the
+ * explicit compactCal preset: aplite is frozen-lean, its settings screen never offers
+ * Custom, and resolvePresetKey pins the fold so a legacy topViewMode value can't redirect
+ * it. A preset the watch can't draw runs as the one the settings radio shows
+ * (presetKeyFor). An unknown platform ('' or no env) is custom-capable.
+ * @param {Object} settings settings state
+ * @param {?{platform: string}} [env] platform facts (config-ui platform.js computeEnv)
+ * @returns {Array<?Object>} the view cycle (slot 0 is the Default view)
+ */
+function resolveViewCycle(settings, env) {
+  var s = settings || {};
+  if (s.layoutPreset === 'custom' && !(env && env.platform === 'aplite')) {
+    return buildCustomCycle(s);
+  }
+  return buildViewCycle(presetKeyFor(s, env), s.healthMode || 'off', s.radarMode || 'graph',
+    Boolean(s.swapClockStatus));
+}
+
 // Single public API object, defined once. As a CommonJS module (watch runtime, tests)
 // this is module.exports. When this file is instead concatenated as a plain <script> into
 // the config-UI webview (see scripts/build-config-page.js, which has no `module`),
@@ -848,7 +871,8 @@ var VIEW_CYCLE = {
   capabilities: capabilities,
   buildCustomCycle: buildCustomCycle, specToKeys: specToKeys,
   seedCustomKeys: seedCustomKeys,
-  buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey, presetKeyFor: presetKeyFor
+  buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey, presetKeyFor: presetKeyFor,
+  resolveViewCycle: resolveViewCycle
 };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = VIEW_CYCLE;

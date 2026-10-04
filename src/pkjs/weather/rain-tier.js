@@ -119,6 +119,11 @@ function rgbToGColor8(hex) {
  * Pack a logical palette into the wire blob: 3 bytes/stop —
  * [from_lo, from_hi (int16 LE permille), GColor8 color]. Stop count is the
  * consumer's `len / 3`; there is no separate count field.
+ * Stop 0 always starts at 0 (every buildPalette branch), so its from_hi, the blob's byte
+ * [1], is always 0x00 here: graph-wire.js ORs the chart's Bars from: Top flag into its
+ * bit 7 (markPalette), which the watch reads as a negative stop-0 threshold
+ * (palette.h palette_from_top) and its bar renderer clamps to the zero row. A stop 0
+ * that started anywhere else would collide with that flag.
  * @param {{from: number[], rgb: number[]}} palette Logical palette from buildPalette.
  * @returns {number[]} Packed uint8 array (length === stops * 3).
  */

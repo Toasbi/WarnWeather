@@ -1,7 +1,7 @@
 // src/pkjs/settings/custom-layout-schema.js — ES5, PKJS-parsed. The Custom-layout
 // block of the settings schema, split out of schema.js: the per-view storage items
-// (the editor's contract), the sheetOnly section hosting them, and the Edit-button
-// row. Plain CommonJS with an unguarded require(), exactly like schema.js itself —
+// (the editor's contract), the sheetOnly section hosting them, and the "Edit views"
+// nav row that opens the editor. Plain CommonJS with an unguarded require(), exactly like schema.js itself —
 // the schema is evaluated at build time / in PKJS, never as a flat browser file.
 // Split so the capability gates can be BUILT from view-cycle.js's mode lists:
 // one table, three consumers (compiler, editor, these sheets).
@@ -88,19 +88,15 @@ function customViewItems(i) {
     return items;
 }
 
-// A standard settings row with the outlined Edit button on the right
-// (the per-slot edit-sheet look), not a full-width button. staticText
-// + [data-action] is the shipped idiom for an action inside a row
-// (the "Reset status bars" row); the engine dispatches it globally.
-// Layout/typography live in shell.html's .row-action* classes.
+// The "Edit views" row under the Layout preset while Custom is picked: a nav row (the
+// engine's button row with a chevron, its hint as the summary) that opens the
+// full-screen Custom layout editor (view-editor.js openViewEditor).
 var editRow = {
-    type: 'staticText',
-    // hint copy rides inside the row: staticText items don't render `hint`.
-    text: '<div class="row-action">'
-        + '<span class="row-action-title">Custom layout'
-        + '<span class="row-action-sub">Choose what each view shows, where, and how big.</span></span>'
-        + '<button type="button" class="thr-btn" data-action="openViewEditor"'
-        + ' aria-label="Edit the custom layout">Edit</button></div>',
+    type: 'button',
+    action: 'openViewEditor',
+    label: 'Edit views',
+    hint: 'Choose what each view shows, where, and how big.',
+    indent: true,
     // Platform-gated like the option itself: a DORMANT stored 'custom'
     // (set on a colour watch, then the phone pairs an aplite) displays
     // the compactCal fallback — the editor row must not leak in

@@ -99,9 +99,21 @@ int persist_get_status_levels(void);
 bool persist_set_status_levels(int levels);
 
 // Threshold-highlight settings blob (CLAY_THRESHOLDS_UINT8 tuple; layout in
-// status_threshold.h). Get returns bytes read, <= 0 when absent.
+// status_threshold.h). Get returns bytes read, 0 when absent.
 int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size);
 bool persist_set_threshold_settings(const uint8_t *data, size_t len);
+#endif
+
+// On demand is compiled out of aplite (WW_ON_DEMAND, wscript), and so are
+// these accessors, like the threshold pair above; the ALERT_ENTRIES key ID stays
+// in persist.c's append-only enum on every platform.
+#if defined(WW_ON_DEMAND)
+// The phone-baked metric alert entries (ALERT_ENTRIES_UINT8 tuple, encoding in
+// alert_set.h), stored verbatim. Get returns the byte count, 0 when none is
+// stored (no metric alert active, or never received). Set with len 0 deletes the
+// slot; returns whether the stored value actually changed.
+int persist_get_alert_entries(uint8_t *out, size_t cap);
+bool persist_set_alert_entries(const uint8_t *data, size_t len);
 #endif
 
 // Forecast curve insets are compiled out of aplite (WW_CURVE_INSET, wscript):
@@ -149,15 +161,21 @@ bool persist_set_fifth_line_style(uint8_t style);
 
 // CANONICAL layout of the LINE_STYLES blob — the per-line marker styles the
 // phone resolved, copied verbatim off bytes [11..13] of CLAY_LINE_STYLE_UINT8
-// (line-style.js packs them; app_message.c stores the block straight through):
+// (weather/graph-wire.js packs them; app_message.c stores the block straight through):
 //   [0] main-metric line   [1] second-metric line   [2] third-metric line
 // Each byte packs kind | (field << LINE_STYLE_WIDTH_SHIFT). The kind bits ARE
 // ChartLineStyle's values (chart.h — never renumber either side). For
 // CHART_LINE_SOLID the field is the stroke width (the phone sends 1 or 3 —
 // odd, because the SDK rounds even stroke widths down; snooze.c), and 0 means
 // "keep the built-in width". For CHART_LINE_STRIPE its low bit is the edge:
-// 1 = top, 0 = bottom (line_style_stripe_top). Get always fills out[], defaulting to the
-// pre-feature look — solid 1 px, dots, x — when the slot is unset/short.
+// 1 = top, 0 = bottom (line_style_stripe_top). Bit 5 (LINE_STYLE_FROM_TOP) of any
+// NON-stripe byte: the line hangs from the plot's top ("Draw from: Top"); the phone
+// never sets it on a stripe byte and the watch ignores it there. Bit 6
+// (LINE_STYLE_FLOATING) of a NON-stripe byte: the line anchors no edge of the plot (the
+// phone never sets it on a stripe byte either). Bit 7 is reserved (0). The fourth
+// line's FIFTH_LINE_STYLE byte (wire [15]) is the same layout. Get always fills out[],
+// defaulting to the pre-feature look — solid 1 px, dots, x — when the slot is
+// unset/short.
 #define LINE_STYLE_STYLE_BYTES 3
 #define LINE_STYLE_KIND_MASK   0x03
 #define LINE_STYLE_WIDTH_SHIFT 2
@@ -181,6 +199,24 @@ static inline bool line_style_stripe_top(uint8_t b) {
 static inline int line_style_solid_width(uint8_t b, int fallback) {
     const int width = (b >> LINE_STYLE_WIDTH_SHIFT) & LINE_STYLE_WIDTH_MAX;
     return width > 0 ? width : fallback;
+}
+// Bit 5 of a NON-stripe style byte: the line, its marks and (Main metric) its Area fill
+// hang from the plot's top ("Draw from: Top", weather/graph-wire.js LINE_BIT). Bit 7
+// reserved (0).
+#define LINE_STYLE_FROM_TOP 0x20
+// Bit 6 of a NON-stripe style byte (weather/graph-wire.js FLOAT_BIT): the line floats:
+// its metric has no zero to stand on or hang from (pressure, an absolute curve around
+// mid-plot; feels-like and dew point, on the temperature axis), so it anchors no edge of
+// the plot. An amount metric's line (rain chance, clouds, wind, gusts, UV) leaves it 0:
+// its line, marks or fill anchor the edge it is drawn from (bit 5), and the temperature
+// curve grows its margin there (temp_axis_pad.h). Never set on aplite, which never reads
+// it.
+#define LINE_STYLE_FLOATING 0x40
+// Kind-aware: a stripe's edge is its field's low bit; every other kind's is bit 5 — the
+// field's low bit is a SOLID line's width there (0x04 = 1 px) and must never read as top.
+static inline bool line_style_top_edge(uint8_t b) {
+    return line_style_kind(b) == CHART_LINE_STRIPE ? line_style_stripe_top(b)
+                                                   : (b & LINE_STYLE_FROM_TOP) != 0;
 }
 #endif
 
@@ -323,14 +359,19 @@ int  persist_get_notice_text(char *buffer, size_t buffer_size);
 bool persist_set_norain_text(const char *text);
 int  persist_get_norain_text(char *buffer, size_t buffer_size);
 
-// The radar limit notice (RAIN_RADAR_LIMITED tuple; see radar_limit.h for when it
-// moves and what the radar then draws). Unguarded for the same reason as the
-// no-rain text above: rain_radar_layer.c reads it and compiles on aplite too,
-// where nothing references either accessor and --gc-sections reaps both.
-// Get: whether the notice is up (absent slot = not limited). Set: false deletes
-// the slot, true stores it; returns whether the stored state actually changed.
-bool persist_get_radar_limited(void);
-bool persist_set_radar_limited(bool limited);
+// The radar notice (RAIN_RADAR_LIMITED string tuple; see radar_limit.h for when it
+// moves and what the radar then draws): the phone's line for a source refusing us
+// over a request limit or a place outside its coverage. Unguarded for the same
+// reason as the no-rain text above: rain_radar_layer.c reads it and compiles on
+// aplite too, where nothing references the accessors and --gc-sections reaps them.
+// Storage cap: 31 bytes of UTF-8 + NUL (the phone sends at most that much).
+// Has: whether a notice is up (absent slot = none). Get: the text's length in
+// bytes, 0 while none is up. Set: NULL or "" deletes the slot, a text stores it
+// (bounded like the no-rain text); returns whether the stored state changed.
+#define RADAR_NOTICE_BUF_BYTES 32
+bool persist_has_radar_notice(void);
+int  persist_get_radar_notice(char *buffer, size_t buffer_size);
+bool persist_set_radar_notice(const char *text);
 
 bool persist_set_forecast_start(time_t val);
 

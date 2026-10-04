@@ -62,14 +62,20 @@ test('all drops share one geometry unit, filled-styled', () => {
 });
 
 test('rain glyph normalization preserves filled styling when tinting', () => {
+  // The drops load through status_row_icons_load_filled (the rain alert's On demand item;
+  // the strip's own rain_norm_cb retired with its text takeover): the keep-fill arm of
+  // icon_normalize_cb must tint the FILL, never clear it the way outline art does.
   const source = fs.readFileSync(
-    path.join(__dirname, '..', 'src', 'c', 'layers', 'top_status_layer.c'), 'utf8');
-  const callback = source.slice(
-    source.indexOf('static bool rain_norm_cb'),
-    source.indexOf('static uint32_t rain_glyph_resource'));
+    path.join(__dirname, '..', 'src', 'c', 'layers', 'status_row_icons.c'), 'utf8');
+  const start = source.indexOf('static bool icon_normalize_cb');
+  const callback = source.slice(start, source.indexOf('gdraw_command_get_num_points', start));
+  const keepFill = callback.slice(callback.indexOf('if (b->fill)'),
+                                  callback.indexOf('gdraw_command_set_stroke_color(command, theme_fg())'));
 
-  assert.match(callback, /gdraw_command_set_fill_color\(command, b->tint\);/,
+  assert.match(keepFill, /gdraw_command_set_fill_color\(command, b->fill->tint\);/,
                'runtime applies the tier tint to the drop fill');
-  assert.match(callback, /if \(b->outline\)[\s\S]*gdraw_command_set_stroke_color\(command, GColorBlack\);[\s\S]*gdraw_command_set_stroke_width\(command, 1\);/,
+  assert.match(keepFill, /if \(b->fill->outline\)[\s\S]*gdraw_command_set_stroke_color\(command, GColorBlack\);[\s\S]*gdraw_command_set_stroke_width\(command, 1\);/,
                'light theme may add contrast without replacing the fill');
+  assert.doesNotMatch(keepFill, /set_fill_color\(command, GColorClear\)/,
+                      'the keep-fill arm never clears the fill');
 });

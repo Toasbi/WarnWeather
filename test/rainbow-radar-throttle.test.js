@@ -236,7 +236,7 @@ test('a proxy 429: the slot keeps the limit notice, re-serves it, and the next s
     transport = function() { assert.fail('a throttled cycle must not ask the proxy'); };
     const resent = cycle(T0 + 5 * MIN);
     assert.equal(resent.asked, false, 'throttled');
-    assert.deepEqual(limitSends().map(function(m) { return m.RAIN_RADAR_LIMITED; }), [1],
+    assert.deepEqual(limitSends().map(function(m) { return m.RAIN_RADAR_LIMITED; }), ['Radar limit reached'],
       'the slot re-serves the notice the NACK lost');
     assert.ok(logs.some(function(l) { return l.indexOf('re-serving this slot\'s limit notice.') !== -1; }));
 

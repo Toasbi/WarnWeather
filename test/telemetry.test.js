@@ -236,23 +236,50 @@ test('snapshot includes batteryLowOnly as a real boolean', () => {
   assert.equal(buildSettingsSnapshot({}).batteryLowOnly, false);
 });
 
+// On demand: where each item is ticked, 40 letters read like the bake reads the sides
+// (on-demand.js telemetryCode, pinned in test/on-demand.test.js); the Battery item's
+// warn level as stored and its look.
+test('snapshot reports onDemand, batteryLowLevel and batteryLowDisplay', () => {
+  const fresh = buildSettingsSnapshot({});
+  assert.equal(fresh.onDemand, 'RLLLLRRR-R' + '-'.repeat(30),
+    'untouched: the default ticks, all on the Watch Status Bar');
+  assert.equal(fresh.batteryLowLevel, undefined, 'unseeded: absent, read as the default');
+  assert.equal(fresh.batteryLowDisplay, undefined);
+
+  const moved = buildSettingsSnapshot({ statusTopOnDemandRightItems: '',
+    statusForecastOnDemandLeftItems: 'uv', statusRadarOnDemandRightItems: 'aqi', radarMode: 'off' });
+  assert.equal(moved.onDemand.slice(0, 10), '-LLLL-----', 'nothing ticked on the right');
+  assert.equal(moved.onDemand.slice(10, 20), '------L---', 'the forecast bar\'s ten letters');
+  assert.equal(moved.onDemand.slice(20, 30), '-------r--', 'a bar the radar mode removes reports lower case');
+  assert.equal(moved.onDemand, require('../src/pkjs/on-demand.js').telemetryCode(
+    { statusTopOnDemandRightItems: '', statusForecastOnDemandLeftItems: 'uv',
+      statusRadarOnDemandRightItems: 'aqi', radarMode: 'off' }, require('../src/pkjs/config-ui').computeEnv()),
+  'the shared reading, nothing of its own');
+
+  assert.equal(buildSettingsSnapshot({}, { platform: 'aplite' }).onDemand, undefined,
+    'a known aplite has no On demand: absent');
+
+  // The level as STORED, not the 10 % step a non-emery watch rounds it to.
+  const battery = buildSettingsSnapshot({ batteryLowLevel: '15', batteryLowDisplay: 'value' },
+    { platform: 'basalt' });
+  assert.strictEqual(battery.batteryLowLevel, 15);
+  assert.equal(battery.batteryLowDisplay, 'value');
+});
+
 test('buildSettingsSnapshot includes radarMode (default graph)', () => {
   assert.strictEqual(buildSettingsSnapshot({ radarMode: 'status' }).radarMode, 'status');
   assert.strictEqual(buildSettingsSnapshot({}).radarMode, 'graph');
 });
 
-// Rainbow on the user's own key needs no new telemetry field: radarProvider reports the
-// source in EFFECT (radar-source-id.js), so the "Use your own key" switch shows up as
-// 'rainbowkey' — the value the ingest already takes (any string; see its schemas_test.ts
-// pin). What this also pins: the user's API key never leaves the phone in a snapshot
-// (buildSettingsSnapshot is an explicit allowlist), and neither does rainbowFitBudget —
-// parity with tomorrowioFitBudget, which is not reported either.
+// Rainbow on the user's own key needs no telemetry field of its own: radarProvider is
+// 'rainbowkey' for "Rainbow (own key)" — the value the ingest already takes (any string;
+// see its schemas_test.ts pin). What this also pins: the user's API key never leaves the
+// phone in a snapshot (buildSettingsSnapshot is an explicit allowlist), and neither does
+// rainbowFitBudget — parity with tomorrowioFitBudget, which is not reported either.
 test('a Rainbow install on its own key reports the own-key radar source, never its key', () => {
-  const snapshot = buildSettingsSnapshot({ radarProvider: 'rainbow', rainbowOwnKey: true, radarMode: 'graph',
+  const snapshot = buildSettingsSnapshot({ radarProvider: 'rainbowkey', radarMode: 'graph',
     rainbowApiKey: 'SECRET-RBW', rainbowFitBudget: false }, null);
   assert.strictEqual(snapshot.radarProvider, 'rainbowkey');
-  assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowOwnKey'),
-    'the switch rides radarProvider, not a field of its own');
   assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowApiKey'),
     'the Rainbow API key must never be a snapshot field');
   assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowFitBudget'),
@@ -261,13 +288,10 @@ test('a Rainbow install on its own key reports the own-key radar source, never i
     'the key must not appear anywhere in the snapshot');
 });
 
-test('radarProvider reports the effective radar source for every switch position', () => {
+test('radarProvider reports the stored radar source', () => {
   const report = (s) => buildSettingsSnapshot(s, null).radarProvider;
-  assert.strictEqual(report({ radarProvider: 'rainbow', rainbowOwnKey: false }), 'rainbow', 'the shared radar');
-  assert.strictEqual(report({ radarProvider: 'rainbow' }), 'rainbow', 'a switch never touched is off');
-  assert.strictEqual(report({ radarProvider: 'rainbow', rainbowOwnKey: true }), 'rainbowkey', 'the own key');
-  ['dwd', 'metno', 'tomorrowio'].forEach((p) => {
-    assert.strictEqual(report({ radarProvider: p, rainbowOwnKey: true }), p, p + ' ignores a left-on switch');
+  ['dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio'].forEach((p) => {
+    assert.strictEqual(report({ radarProvider: p }), p, p);
   });
   assert.strictEqual(report({}), undefined, 'unset stays unset');
 });
@@ -365,75 +389,191 @@ test('Dim backlight sub-settings follow the switch, with no mode to gate them', 
   });
 });
 
-// Targeted half of the lockstep for the Nighttime fields, per the
-// threshPhoneBatteryBoldMode precedent above: the set-equality test would also catch
-// a one-sided edit, but it fails as a whole-schema diff instead of naming the key.
-test('the Nighttime fields are declared in the Deno .strip() schema too', () => {
-  const fs = require('fs');
-  const path = require('path');
-  const ts = fs.readFileSync(
-    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
-  const start = ts.indexOf('const settingsSchema');
-  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/handler.ts');
-  const slice = ts.slice(start, ts.indexOf('.strip()', start));
-  const fields = [
-    ['sleepStartHour', 'z\\.number'], ['sleepEndHour', 'z\\.number'],
-    ['backlightDim', 'z\\.boolean'],
-    ['backlightDimStartHour', 'z\\.number'], ['backlightDimEndHour', 'z\\.number'],
-    ['backlightDimColor', 'z\\.string']
-  ];
-  fields.forEach(function (row) {
-    assert.match(slice, new RegExp('^\\s*' + row[0] + ':\\s*' + row[1] + '\\(\\)', 'm'),
-      row[0] + ' must be declared in the ingest schema, or .strip() drops it silently');
-  });
-  // ...and the other half of the two-place rule: a field nobody sends must not linger
-  // here, or the ingest keeps stripping something that will never arrive. The first
-  // four are settings the schema no longer has; sleepNightEnabled is a live setting
-  // that is reported through the PRESENCE of sleepStartHour, as it always was.
+// Retired Nighttime keys stay out of the snapshot (and so, through the lockstep test
+// below, out of the ingest). The first four are settings the schema no longer has;
+// sleepNightEnabled is a live setting that is reported through the PRESENCE of
+// sleepStartHour, as it always was.
+test('the Nighttime card reports no retired key and no saver switch of its own', () => {
+  const snap = buildSettingsSnapshot({ sleepNightEnabled: true, backlightDimMode: 'night' }, EMERY);
   ['sleepNightMode', 'sleepNightStartHour', 'sleepNightEndHour', 'backlightDimMode',
     'sleepNightEnabled'
   ].forEach(function (key) {
-    assert.doesNotMatch(slice, new RegExp('^\\s*' + key + ':', 'm'),
-      key + ' is not sent by buildSettingsSnapshot and must not stay in the ingest');
-    assert.ok(!Object.prototype.hasOwnProperty.call(buildSettingsSnapshot({}, EMERY), key),
-      key + ' must not be in the watch-side snapshot either');
+    assert.ok(!Object.prototype.hasOwnProperty.call(snap, key),
+      key + ' must not be in the watch-side snapshot');
   });
 });
 
-// Targeted half of the lockstep for the newest field. The set-equality test below would
-// also catch a one-sided edit, but it fails as a 90-key diff; this one names the key and
-// the file, which is what a reader needs when the two-place rule gets broken.
-test('threshPhoneBatteryBoldMode is declared in the Deno .strip() schema too', () => {
-  const fs = require('fs');
-  const path = require('path');
-  const ts = fs.readFileSync(
-    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
-  const start = ts.indexOf('const settingsSchema');
-  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/handler.ts');
-  const slice = ts.slice(start, ts.indexOf('.strip()', start));
-  assert.match(slice, /^\s*threshPhoneBatteryBoldMode:\s*z\.string\(\)\.optional\(\)/m,
-    'ingest must accept it as an optional string, or .strip() drops it silently');
+// --- the ingest lockstep -----------------------------------------------------
+// The heaviest realistic snapshot: every reported setting on its longest realistic
+// option, on a light-polarity colour theme so all the graph colours report (bw would
+// report none of them), on emery so the Dim backlight group reports. The lockstep test
+// below reads its VALUES (one per field) and the envelope test further down its BYTES.
+const HEAVIEST_WATCH = { platform: 'emery' };
+const HEAVIEST_SETTINGS = {
+  temperatureUnits: 'fahrenheit', tempSlotDisplay: 'both', uvSlotDisplay: 'current',
+  feelsFormula: 'steadman', aqiScale: 'european',
+  tempSlotSeparator: 'brackets', tempSlotOrder: 'actual', uvSlotSeparator: 'brackets',
+  uvSlotOrder: 'now', uvSlotNextDayMark: 'raquo',
+  tempSlotSeparatorSpaced: true, uvSlotSeparatorSpaced: true,
+  windSlotDisplay: 'current', gustSlotDisplay: 'current', aqiSlotDisplay: 'current',
+  dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
+  aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
+  windSlotDirection: true, gustSlotDirection: true,
+  threshPhoneBatteryBoldMode: 'always', configTheme: 'light', dayNightShading: true,
+  healthMode: 'status', provider: 'openweathermap', fetchIntervalMin: '120',
+  rainCountdownHorizon: '60', sleepNightEnabled: true, sleepStartHour: '23',
+  // The weather alerts at their heaviest: every metric alert placed on a bar, every one
+  // printing its value and looking ahead with a mark, and the rain look on its longest
+  // option. (The alerts code is ten letters whatever they are; this sets every letter
+  // anyway.)
+  statusTopOnDemandRightItems: 'battery,rain,gust,uv,aqi,pollen,wind',
+  alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
+  alertAqiDisplay: 'value', alertPollenDisplay: 'value', rainAlertDisplay: 'minutes',
+  alertUvDays: 'tomorrow', alertWindDays: 'tomorrow', alertGustDays: 'tomorrow',
+  alertAqiDays: 'tomorrow', alertPollenDays: 'tomorrow',
+  alertUvNextDayMark: 'raquo', alertWindNextDayMark: 'gt', alertGustNextDayMark: 'plus',
+  alertAqiNextDayMark: 'star', alertPollenNextDayMark: 'none',
+  // The Battery item on its longest look (the onDemand code is 40 letters whatever is
+  // ticked on this emery).
+  batteryLowLevel: '25', batteryLowDisplay: 'value',
+  sleepEndHour: '7',
+  // The Nighttime card at its heaviest: every one of the three features on, each
+  // reporting its own window. Theme switching is on 'manual' because that is its
+  // only mode that reports hours at all; the other two have no mode and report
+  // theirs whenever the switch is on.
+  backlightDim: true, backlightDimStartHour: '1',
+  backlightDimEndHour: '6', backlightDimColor: '255,255,255',
+  themeAuto: true, themeNight: 'bw-light', themeAutoMode: 'manual',
+  themeAutoStartHour: '23', themeAutoEndHour: '7',
+  axisTimeFormat: 'h12', timeFont: 'bitham', timeLeadingZero: true,
+  timeShowAmPm: true, weekStartDay: 'monday', firstWeek: 'iso', showQt: true,
+  batteryLowOnly: true, topViewMode: 'compact', layoutPreset: 'compactDense',
+  viewResetMin: '15', largeGraphFont: true, vibe: true, btIcons: 'both',
+  secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'high',
+  pressureScale: 'high', thirdLine: 'wind', barSource: 'precip_prob',
+  // The third and fourth metric lines on their longest realistic options (the UI
+  // resolver excludes the metrics already picked above), and every line on the
+  // longest per-line style, 'stripeBottom'. Stripes are for intensity metrics only
+  // (line-style.js metricAllowsStripe) and telemetry reports the style in effect, so
+  // the heaviest pairs are stripe metrics: 'pressure' (8) could only report a 4-char
+  // style, 'wind' (4) reports 'stripeBottom' (12).
+  fourthLine: 'gust', fifthLine: 'cloud',
+  // The three lines' Show on its longer value.
+  windLineShow: 'alert', gustLineShow: 'alert', uvLineShow: 'alert',
+  // Draw from / Bars from on the longer value, 'bottom'.
+  precipLineFrom: 'bottom', cloudLineFrom: 'bottom', windLineFrom: 'bottom', uvLineFrom: 'bottom',
+  rainBarFrom: 'bottom', radarBarFrom: 'bottom',
+  secondaryLineStyle: 'stripeBottom', thirdLineStyle: 'stripeBottom',
+  fourthLineStyle: 'stripeBottom', fifthLineStyle: 'stripeBottom',
+  rainBarColor: 'white', radarProvider: 'rainbow', radarMode: 'countdown',
+  radarColor: 'multicolor', devStatsEnabled: true, theme: 'light',
+  statusForecastLeft: 'phone_battery', statusForecastMid: 'phone_battery',
+  statusForecastRight: 'phone_battery', statusRadarLeft: 'phone_battery',
+  statusRadarMid: 'phone_battery', statusRadarRight: 'phone_battery',
+  statusTopLeft: 'phone_battery', statusTopMid: 'phone_battery',
+  statusTopRight: 'phone_battery', statusHealthLeft: 'phone_battery',
+  statusHealthMid: 'phone_battery', statusHealthRight: 'phone_battery',
+  colorTime: 0xFFFFFF, colorToday: 0xFF0000, colorSunday: 0xFF0000,
+  colorSaturday: 0xFF0000, colorUSFederal: 0xFF0000,
+  // The light-polarity colours for the four metrics selected above (precip_prob as
+  // the secondary line, wind as the third, gust as the fourth, cloud as the
+  // fifth), each moved off its built-in so all eight fields report the
+  // seven-character form.
+  gcPrecipLineLight: 0xFF00FF, gcPrecipFillLight: 0xAAFF55,
+  gcWindLineLight: 0x00AAFF, gcGustLineLight: 0x55FF00, gcCloudLineLight: 0x00FF55,
+  gcPrecipNightLight: 0xAA5500,
+  gcNightHatchLight: 0xAAAAAA, gcNightBoundaryLight: 0xFF0000
+};
+// The same watch on a custom layout: the six custom fields report too, each on its
+// widest realistic number (three views, every one with a stacked order and a non-zero
+// ext). This is the snapshot with a value in EVERY field.
+const HEAVIEST_CUSTOM = Object.assign({}, HEAVIEST_SETTINGS, {
+  layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph', viewCount: '3',
+  viewTop0: 'cal3', viewBody0: 'none', viewUpper0: 'weather', viewLower0: 'radar',
+  viewOrder0: 'ABCT', viewAlign0: 'bottom',
+  viewTop1: 'radar', viewBody1: 'none', viewUpper1: 'health', viewLower1: 'weather',
+  viewOrder1: 'ABCT', viewClockOff1: true, viewStripOff1: true, viewAlign1: 'bottom',
+  viewTop2: 'cal2', viewBody2: 'none', viewUpper2: 'radar', viewLower2: 'health',
+  viewOrder2: 'ACBT', viewClockOff2: false, viewStripOff2: true, viewAlign2: 'center'
 });
 
-test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {
+/**
+ * The ingest's settingsSchema, read out of handler.ts: each field's zod expression by
+ * name, plus the source (for the constants other tests read off it).
+ * @returns {{ts: string, fields: Object<string, string>}}
+ */
+function ingestSettingsSchema() {
   const fs = require('fs');
   const path = require('path');
   const ts = fs.readFileSync(
     path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
-
   // Slice the settingsSchema object literal: `const settingsSchema = z ... .strip()`.
   const start = ts.indexOf('const settingsSchema');
   assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/handler.ts');
   const slice = ts.slice(start, ts.indexOf('.strip()', start));
+  // Field lines look like `  fieldName: z.string().optional(),` or
+  // `  provider: providerSchema.optional(),`; comment lines start with `//`.
+  const fields = {};
+  slice.replace(/^\s*([A-Za-z0-9_]+):\s*(\S.*?),?\s*$/gm, function (m, name, expr) {
+    fields[name] = expr;
+    return m;
+  });
+  return { ts: ts, fields: fields };
+}
 
-  // Field lines look like `  fieldName: z.string()...` or `  provider: providerSchema...`.
-  const denoKeys = [];
-  slice.replace(/^\s*([a-zA-Z0-9_]+):\s*[A-Za-z]/gm, function (_m, name) { denoKeys.push(name); return _m; });
+// Each zod constructor the settingsSchema uses -> the JS type the snapshot must carry
+// for it. A constructor missing here fails the test below until it is taught one.
+const ZOD_TYPEOF = {
+  'z.string': 'string', 'z.number': 'number', 'z.boolean': 'boolean',
+  'z.enum': 'string', providerSchema: 'string'
+};
+
+// The two-place rule, checked in one table: every key buildSettingsSnapshot emits is a
+// field of the ingest's .strip() schema and vice versa (a key missing there is stripped
+// and silently lost; a field only there is a column nothing fills), and each field's
+// zod type accepts the value the phone actually sends. A type mismatch is the costly
+// half: it fails safeParse and 400s the WHOLE batch, the fetch outcomes with it, and
+// nothing retries a 400 — the graph colours are '#RRGGBB'/'default' strings, never
+// numbers, for exactly this reason.
+test('settings snapshot and the Deno telemetry schema agree on keys and types (lockstep)', () => {
+  const schema = ingestSettingsSchema();
+  const denoKeys = Object.keys(schema.fields);
   assert.ok(denoKeys.length >= 20, 'expected to parse the schema fields, got ' + denoKeys.length);
 
-  const snapshotKeys = Object.keys(buildSettingsSnapshot({}));
-  assert.deepEqual(snapshotKeys.slice().sort(), denoKeys.slice().sort(),
-    'buildSettingsSnapshot (telemetry.js) and the Deno settingsSchema must declare the same fields');
+  const snap = buildSettingsSnapshot(HEAVIEST_CUSTOM, HEAVIEST_WATCH);
+  assert.deepEqual(Object.keys(snap).sort(), denoKeys.slice().sort(),
+    'buildSettingsSnapshot (telemetry-settings.js) and the Deno settingsSchema must declare the same fields');
+  // A field with no value in effect is assigned undefined, never deleted, so the key
+  // set cannot depend on the settings: the emptiest snapshot (a B&W watch, nothing
+  // set) declares exactly the same keys.
+  assert.deepEqual(Object.keys(buildSettingsSnapshot({}, { platform: 'aplite' })).sort(),
+    Object.keys(snap).sort(), 'the snapshot key set must not depend on the settings');
+  assert.deepEqual(denoKeys.filter((key) => snap[key] === undefined), [],
+    'the heaviest fixture must give every field a value, or its type goes unchecked');
+
+  const providers = /const providerSchema = z\.enum\(\[([^\]]*)\]\)/.exec(schema.ts);
+  assert.ok(providers, 'providerSchema not found in telemetry-ingest/handler.ts');
+  const members = (list) => list.split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+  denoKeys.forEach((key) => {
+    const expr = schema.fields[key];
+    const ctor = /^(z\.[a-z]+|providerSchema)\b/.exec(expr);
+    assert.ok(ctor && ZOD_TYPEOF[ctor[1]], key + ': teach ZOD_TYPEOF the type of `' + expr + '`');
+    // An absent key serialises away (JSON.stringify drops undefined), so a required
+    // field would 400 every batch whose snapshot has nothing in effect for it.
+    assert.match(expr, /\.optional\(\)/, key + ' must be optional in the ingest');
+    assert.strictEqual(typeof snap[key], ZOD_TYPEOF[ctor[1]],
+      key + ' is sent as ' + typeof snap[key] + ' but the ingest declares `' + expr + '`');
+    if (/\.int\(\)/.test(expr)) {
+      assert.ok(Number.isInteger(snap[key]), key + ' must be sent as an integer');
+    }
+    if (ctor[1] === 'z.enum' || ctor[1] === 'providerSchema') {
+      const allowed = ctor[1] === 'z.enum' ? members(/^z\.enum\(\[([^\]]*)\]\)/.exec(expr)[1])
+        : members(providers[1]);
+      assert.ok(allowed.indexOf(snap[key]) !== -1,
+        key + ' = ' + JSON.stringify(snap[key]) + ' is not in the ingest enum ' + allowed.join('|'));
+    }
+  });
 });
 
 test('custom layouts report customViewExt0-2 = packExt per view; presets report none', () => {
@@ -470,13 +610,15 @@ test('snapshot includes largeGraphFont as a real boolean', () => {
 // graph they colour, which is all the Deno schema and the dashboards know; the storage
 // underneath is per metric and per polarity (gcWindLineDark, …), so there is no list in
 // line-style to derive these from any more — the mapping element -> (metric, role) is
-// telemetry.js's own and this file is the thing that pins it.
+// telemetry-settings.js's own and this file is the thing that pins it.
 //
 // Telemetry reports ONE value per element: the colour for the metric that element is
 // currently painted from, in the polarity the watch ACTUALLY renders, resolved through
-// line-style.renderContext — the same call the wire packer opens with — so a telemetry row
-// can never disagree with the wire. Same lockstep rule as pressureScale above: the watch
-// snapshot AND the Deno .strip() schema, or it is silently dropped.
+// line-style.renderContextFor over config-ui computeEnv — the wire packer
+// (weather/graph-wire.js) resolves through resolveGraphColors, which opens with the same
+// call — so a telemetry row can never disagree with the wire. Same lockstep rule as
+// pressureScale above: the watch snapshot AND the Deno .strip() schema, or it is
+// silently dropped.
 const GRAPH_COLOR_FIELDS = ['graphMainColor', 'graphFillColor', 'graphSecondColor',
                             'nightHatchColor', 'nightBoundaryColor', 'nightFillColor'];
 
@@ -597,9 +739,10 @@ test('the reported graph colour is the pick for the polarity the watch renders',
 // pinned a divergence: this file had copied line-style's effectiveTheme fold but not its
 // colour-display check, so a B&W watch reported picks the wire was already resolving away
 // to GColorWhite — the dashboards would have counted a pick nobody could see. Both halves
-// now come from line-style.renderContext, so a B&W watch reports nothing, exactly like a
-// B&W theme below. The aplite polarity fold still matters and is still tested — on the
-// wire (test/line-style.test.js), where it changes a colour that is actually painted.
+// now come from line-style.renderContextFor (over config-ui computeEnv), so a B&W watch
+// reports nothing, exactly like a B&W theme below. The aplite polarity fold still matters
+// and is still tested — on the wire (test/graph-wire.test.js), where it changes a colour
+// that is actually painted.
 test('a watch with no colour display reports no graph colours at all', () => {
   const picks = {
     theme: 'light', secondaryLine: 'wind', thirdLine: 'uv',
@@ -641,12 +784,13 @@ test('a Black & White theme reports no graph colours at all', () => {
 // about whether the pick survived at all.
 test('the reported pick agrees with the wire on every platform', () => {
   const lineStyle = require('../src/pkjs/line-style.js');
+  const computeEnv = require('../src/pkjs/config-ui/lib/platform.js').computeEnv;
   const settings = { theme: 'dark', secondaryLine: 'wind', thirdLine: 'off',
                      gcWindLineDark: 0xFF0000 };
   ['basalt', 'emery', 'diorite', 'aplite'].forEach((platform) => {
     const watchInfo = { platform };
     const reported = buildSettingsSnapshot(settings, watchInfo).graphMainColor;
-    const painted = lineStyle.resolveLineStyle(settings, watchInfo).secondary === 0xFF0000;
+    const painted = lineStyle.resolveGraphColors(settings, computeEnv(watchInfo)).secondary === 0xFF0000;
     assert.strictEqual(reported === '#FF0000', painted,
       platform + ' must not report a pick the wire resolved away (or vice versa)');
   });
@@ -657,35 +801,15 @@ test('the reported pick agrees with the wire on every platform', () => {
 // is painting the built-in, on the gust row where the built-in is not even a constant.
 test('reporting default agrees with the wire painting the built-in', () => {
   const lineStyle = require('../src/pkjs/line-style.js');
+  const computeEnv = require('../src/pkjs/config-ui/lib/platform.js').computeEnv;
   [{ rainBarColor: 'white', stored: 0xFFFFFF, builtIn: 0xAAAAAA },
    { rainBarColor: 'multicolor', stored: 0xAAAAAA, builtIn: 0xFFFFFF }].forEach((c) => {
     const settings = { theme: 'dark', secondaryLine: 'gust', thirdLine: 'off',
                        rainBarColor: c.rainBarColor, gcGustLineDark: c.stored };
     assert.strictEqual(buildSettingsSnapshot(settings, { platform: 'basalt' }).graphMainColor,
       'default', 'a gust line on either built-in reads as untouched');
-    assert.strictEqual(lineStyle.resolveLineStyle(settings, { platform: 'basalt' }).secondary,
+    assert.strictEqual(lineStyle.resolveGraphColors(settings, computeEnv({ platform: 'basalt' })).secondary,
       c.builtIn, 'and the wire paints the rainBarColor-correct built-in, not the stored byte');
-  });
-});
-
-// Targeted half of the lockstep for the six colour fields, per threshPhoneBatteryBoldMode
-// above — and the ONLY automated guard on their TYPE: the set-equality test catches a
-// missing key but not a wrong type, and `mise test-deno`'s telemetry-ingest suite never
-// sends them. A z.number() here would make every 'default'
-// fail safeParse and 400 the whole event fleet-wide, taking the fetch outcome with it.
-// These six names and types are what the per-metric redesign deliberately did NOT move:
-// the storage changed, the reporting contract did not.
-test('the six graph colour fields are optional STRINGS in the Deno .strip() schema', () => {
-  const fs = require('fs');
-  const path = require('path');
-  const ts = fs.readFileSync(
-    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
-  const start = ts.indexOf('const settingsSchema');
-  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/handler.ts');
-  const slice = ts.slice(start, ts.indexOf('.strip()', start));
-  GRAPH_COLOR_FIELDS.forEach((field) => {
-    assert.match(slice, new RegExp('^\\s*' + field + ':\\s*z\\.string\\(\\)\\.optional\\(\\)', 'm'),
-      field + ' must be z.string().optional() — a number-typed field would reject the event');
   });
 });
 
@@ -704,73 +828,37 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
 // until the unset-field check below was added, is 26 B (3423 before it). The third
 // metric line's fields (fourthLine, the three per-line styles and graphThirdColor)
 // are 125 B (3449 before them). The wind/gust/AQI day-max display modes are 83 B
-// (3600 before them; their pair presentation is deliberately not reported).
-test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
-  const fs = require('fs');
-  const path = require('path');
-  const ts = fs.readFileSync(
-    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
-  const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ts)[1]);
+// (3600 before them; their pair presentation is deliberately not reported). The
+// Alerts row's per-bar placement code and rain switch (alertBars, alertRain) are
+// 37 B (3912 before them): 3949 B, headroom 147; the custom-layout envelope 4059 B,
+// headroom 37 — why alertBars is a four-letter code, not a spelled-out list. The
+// eight-letter warn-look code (warnLooks) is 23 B: 3972 B, headroom 124; the
+// custom-layout envelope 4082 B, headroom 14. Folding the two alert comma lists
+// (alertKinds, alertValueKinds) into the ten-letter alerts code — which also carries
+// each alert's Days and tomorrow mark — saved 61 B: 3911 B, headroom 185; the
+// custom-layout envelope 4021 B, headroom 75. On demand retired the placement code and
+// the rain switch (alertBars, alertRain: the side lists replace both) — 37 B: 3874 B,
+// headroom 222; the custom-layout envelope 3984 B, headroom 112. The 40-letter
+// onDemand code and the Battery item's level and look (batteryLowLevel,
+// batteryLowDisplay) are 103 B: 3977 B, headroom 119; the custom-layout envelope
+// 4087 B, headroom 9.
+// Those two measure the legacy single-event shape, which only app versions before 1.16
+// still send, each with its own older and smaller snapshot. This client sends only
+// batches, and what binds it is the settings header measured last: 2957 of 4096,
+// headroom 1139. (So the custom-layout envelope's 9 B is not this client's limit: the
+// next field that tips it over asks for this check to move to the header alone, not for
+// a shorter field.)
+// That field came in 1.24.0: each graph line's Show (windLineShow, gustLineShow,
+// uvLineShow: 'all' or 'alert', the fixture setting the longer 'alert') took the legacy
+// envelope and the custom-layout one past the cap. Both are still measured and printed,
+// but only the batch header is asserted now. With Draw from / Bars from
+// (precipLineFrom, cloudLineFrom, windLineFrom, uvLineFrom, rainBarFrom, radarBarFrom,
+// 144 B on 'bottom', the longer value) the two envelopes are 4188 B and 4298 B, the
+// batch header 3168 of 4096, headroom 928.
+test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
+  const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');
 
-  // Every reported setting on its longest realistic option, on a light-polarity colour
-  // theme so all six picks report (bw would report none of them).
-  const settings = {
-    temperatureUnits: 'fahrenheit', tempSlotDisplay: 'both', uvSlotDisplay: 'current',
-    feelsFormula: 'steadman', aqiScale: 'european',
-    tempSlotSeparator: 'brackets', tempSlotOrder: 'actual', uvSlotSeparator: 'brackets',
-    uvSlotOrder: 'now', uvSlotNextDayMark: 'raquo',
-    tempSlotSeparatorSpaced: true, uvSlotSeparatorSpaced: true,
-    windSlotDisplay: 'current', gustSlotDisplay: 'current', aqiSlotDisplay: 'current',
-    dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
-    aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
-    windSlotDirection: true, gustSlotDirection: true,
-    threshPhoneBatteryBoldMode: 'always', configTheme: 'light', dayNightShading: true,
-    healthMode: 'status', provider: 'openweathermap', fetchIntervalMin: '120',
-    rainCountdownHorizon: '60', sleepNightEnabled: true, sleepStartHour: '23',
-    sleepEndHour: '7',
-    // The Nighttime card at its heaviest: every one of the three features on, each
-    // reporting its own window. Theme switching is on 'manual' because that is its
-    // only mode that reports hours at all; the other two have no mode and report
-    // theirs whenever the switch is on.
-    backlightDim: true, backlightDimStartHour: '1',
-    backlightDimEndHour: '6', backlightDimColor: '255,255,255',
-    themeAuto: true, themeNight: 'bw-light', themeAutoMode: 'manual',
-    themeAutoStartHour: '23', themeAutoEndHour: '7',
-    axisTimeFormat: 'h12', timeFont: 'bitham', timeLeadingZero: true,
-    timeShowAmPm: true, weekStartDay: 'monday', firstWeek: 'iso', showQt: true,
-    batteryLowOnly: true, topViewMode: 'compact', layoutPreset: 'compactDense',
-    viewResetMin: '15', largeGraphFont: true, vibe: true, btIcons: 'both',
-    secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'high',
-    pressureScale: 'high', thirdLine: 'wind', barSource: 'precip_prob',
-    // The third and fourth metric lines on their longest realistic options (the UI
-    // resolver excludes the metrics already picked above), and every line on the
-    // longest per-line style, 'stripeBottom'. Stripes are for intensity metrics only
-    // (line-style.js metricAllowsStripe) and telemetry reports the style in effect, so
-    // the heaviest pairs are stripe metrics: 'pressure' (8) could only report a 4-char
-    // style, 'wind' (4) reports 'stripeBottom' (12).
-    fourthLine: 'gust', fifthLine: 'cloud',
-    secondaryLineStyle: 'stripeBottom', thirdLineStyle: 'stripeBottom',
-    fourthLineStyle: 'stripeBottom', fifthLineStyle: 'stripeBottom',
-    rainBarColor: 'white', radarProvider: 'rainbow', radarMode: 'countdown',
-    radarColor: 'multicolor', devStatsEnabled: true, theme: 'light',
-    statusForecastLeft: 'phone_battery', statusForecastMid: 'phone_battery',
-    statusForecastRight: 'phone_battery', statusRadarLeft: 'phone_battery',
-    statusRadarMid: 'phone_battery', statusRadarRight: 'phone_battery',
-    statusTopLeft: 'phone_battery', statusTopMid: 'phone_battery',
-    statusTopRight: 'phone_battery', statusHealthLeft: 'phone_battery',
-    statusHealthMid: 'phone_battery', statusHealthRight: 'phone_battery',
-    colorTime: 0xFFFFFF, colorToday: 0xFF0000, colorSunday: 0xFF0000,
-    colorSaturday: 0xFF0000, colorUSFederal: 0xFF0000,
-    // The light-polarity colours for the four metrics selected above (precip_prob as
-    // the secondary line, wind as the third, gust as the fourth, cloud as the
-    // fifth), each moved off its built-in so all eight fields report the
-    // seven-character form.
-    gcPrecipLineLight: 0xFF00FF, gcPrecipFillLight: 0xAAFF55,
-    gcWindLineLight: 0x00AAFF, gcGustLineLight: 0x55FF00, gcCloudLineLight: 0x00FF55,
-    gcPrecipNightLight: 0xAA5500,
-    gcNightHatchLight: 0xAAAAAA, gcNightBoundaryLight: 0xFF0000
-  };
   const payload = {
     eventType: 'weather_fetch',
     timestampUtc: new Date().toISOString(),
@@ -783,7 +871,7 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     locationMode: 'manual_coordinates',
     error: 'e'.repeat(512),  // serializeError's own cap
     countryCode: 'DEU',
-    settings: buildSettingsSnapshot(settings, { platform: 'emery' }),
+    settings: buildSettingsSnapshot(HEAVIEST_SETTINGS, HEAVIEST_WATCH),
     appVersion: '10.10.10',
     buildProfile: 'release',
     watchInfo: {
@@ -802,23 +890,13 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     'customViewExt0', 'customViewExt1', 'customViewExt2'],
     'a snapshot field the fixture never sets understates the ledger — set it on its longest option');
   const bytes = Buffer.byteLength(JSON.stringify(payload));
+  // Measured and printed, no longer asserted: the legacy shape (see the ledger above).
   console.log('heaviest telemetry envelope: ' + bytes + ' B of ' + cap
     + ' B (headroom ' + (cap - bytes) + ')');
-  assert.ok(bytes < cap, 'heaviest envelope ' + bytes + ' B must stay under ' + cap + ' B');
 
-  // The same watch on a custom layout: all six custom fields report, each on its widest
-  // realistic number (three views, every one with a stacked order and a non-zero ext).
-  const custom = Object.assign({}, settings, {
-    layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph', viewCount: '3',
-    viewTop0: 'cal3', viewBody0: 'none', viewUpper0: 'weather', viewLower0: 'radar',
-    viewOrder0: 'ABCT', viewAlign0: 'bottom',
-    viewTop1: 'radar', viewBody1: 'none', viewUpper1: 'health', viewLower1: 'weather',
-    viewOrder1: 'ABCT', viewClockOff1: true, viewStripOff1: true, viewAlign1: 'bottom',
-    viewTop2: 'cal2', viewBody2: 'none', viewUpper2: 'radar', viewLower2: 'health',
-    viewOrder2: 'ACBT', viewClockOff2: false, viewStripOff2: true, viewAlign2: 'center'
-  });
+  // The same watch on a custom layout (HEAVIEST_CUSTOM): all six custom fields report.
   const customPayload = Object.assign({}, payload,
-    { settings: buildSettingsSnapshot(custom, { platform: 'emery' }) });
+    { settings: buildSettingsSnapshot(HEAVIEST_CUSTOM, HEAVIEST_WATCH) });
   [0, 1, 2].forEach((i) => {
     assert.ok(customPayload.settings['customView' + i] > 0, 'customView' + i + ' reports');
     assert.ok(customPayload.settings['customViewExt' + i] > 0, 'customViewExt' + i + ' reports');
@@ -826,7 +904,14 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
   const customBytes = Buffer.byteLength(JSON.stringify(customPayload));
   console.log('heaviest custom-layout telemetry envelope: ' + customBytes + ' B of ' + cap
     + ' B (headroom ' + (cap - customBytes) + ')');
-  assert.ok(customBytes < cap, 'custom envelope ' + customBytes + ' B must stay under ' + cap + ' B');
+
+  // What binds THIS client: it sends only batches, and the batch branch holds the
+  // settings header alone to the same cap (JSON.stringify(batch.settings).length), a
+  // header the ingest copies into every row the batch writes.
+  const header = JSON.stringify(customPayload.settings).length;
+  console.log('heaviest batch settings header: ' + header + ' of ' + cap
+    + ' (headroom ' + (cap - header) + ')');
+  assert.ok(header <= cap, 'settings header ' + header + ' must not exceed ' + cap);
 });
 
 // --- batching ----------------------------------------------------------------
@@ -1148,4 +1233,112 @@ test('a clock-step durationMs queues as null; a real one as-is', () => {
   assert.deepEqual(h.queue().map((r) => r.durationMs),
     [2300, null, null, null, max, 1234, null, null, null, null]);
   assert.ok(max <= 2147483647, 'the phone-side bound sits inside the int4 column');
+});
+
+// The weather alerts: each metric alert's look, Days and tomorrow mark as one ten-letter
+// code in the On demand order, and the rain alert's look — both what the watch is sent,
+// never undefined: the code comes from the alert bake's own calls (a placed alert is on,
+// read for THIS watch) and the look resolves like the blob byte, so an absent key
+// reports the default in effect.
+const { NOTHING_PLACED, placedOnly } = require('./helpers/on-demand.js');
+
+test('the weather alerts report alerts and rainAlertDisplay', () => {
+  const fresh = buildSettingsSnapshot({});
+  assert.equal(fresh.alerts, 'IrIrIro-Ir',
+    'untouched: the default ticks place gust, UV, AQI and wind, looking ahead with the »');
+  assert.equal(fresh.rainAlertDisplay, 'text', 'no look stored: the countdown text');
+  assert.ok(!('alertKinds' in fresh) && !('alertValueKinds' in fresh),
+    'the two comma lists the code replaced are gone');
+  assert.ok(!('alertBars' in fresh) && !('alertRain' in fresh), 'the retired placement and rain switch');
+
+  const none = buildSettingsSnapshot(placedOnly([], { alertUvDisplay: 'value',
+    alertUvDays: 'tomorrow', alertUvNextDayMark: 'star', rainAlertDisplay: 'text' }));
+  assert.equal(none.alerts, 'o-o-o-o-o-', 'an unplaced alert\'s Look, Days and mark do not count');
+  assert.equal(none.rainAlertDisplay, 'text');
+
+  // A placed alert with nothing else stored looks ahead with the »: the contract's
+  // defaults (alertDays 'tomorrow', alertNextDayMark 'raquo'), the ones it bakes with.
+  const some = buildSettingsSnapshot(placedOnly(['aqi', 'uv'], { alertAqiDisplay: 'value',
+    alertUvDisplay: 'icon', rainAlertDisplay: 'minutes' }));
+  assert.equal(some.alerts, 'o-IrVro-o-', 'the On demand order, whatever the key order');
+  assert.equal(some.rainAlertDisplay, 'minutes');
+
+  // Days Today: lower case and no mark, whatever mark is stored (the bake never
+  // reads it). An unknown Days or mark reports the default the bake reads.
+  assert.equal(buildSettingsSnapshot(placedOnly(['uv', 'gust'], { alertUvDays: 'today', alertUvNextDayMark: 'gt',
+    alertGustDisplay: 'value', alertGustDays: 'today' })).alerts, 'v-i-o-o-o-');
+  assert.equal(buildSettingsSnapshot(placedOnly(['uv', 'wind', 'gust', 'aqi', 'pollen'], {
+    alertUvNextDayMark: 'gt', alertWindNextDayMark: 'plus', alertGustNextDayMark: 'star',
+    alertAqiNextDayMark: 'none', alertPollenDays: 'bogus', alertPollenNextDayMark: 'bogus' })).alerts,
+  'IsIgInIrIp');
+  // A known aplite has no On demand: nothing is placed there.
+  assert.equal(buildSettingsSnapshot({}, { platform: 'aplite' }).alerts, 'o-o-o-o-o-');
+});
+
+// The alerts code against the contract: each letter pair is the alert bake's own
+// reading of that alert — its placement, Look, Days and mark — across the whole matrix.
+test('alerts agrees with the bake\'s reading of every alert setting', () => {
+  const th = require('../src/pkjs/status-thresholds.js');
+  const MARK = { raquo: 'r', gt: 'g', plus: 'p', star: 's', none: 'n' };
+  const at = th.ALERT_KINDS.findIndex((a) => a.code === 'wind') * 2;
+  [undefined, 'wind', ''].forEach((items) => [undefined, 'icon', 'value'].forEach((look) =>
+    [undefined, 'today', 'tomorrow', 'bogus'].forEach((days) =>
+      [undefined, 'raquo', 'gt', 'plus', 'star', 'none', 'bogus'].forEach((mark) => {
+        const s = { alertWindDisplay: look, alertWindDays: days, alertWindNextDayMark: mark };
+        if (items !== undefined) { s.statusTopOnDemandRightItems = items; }
+        const pair = buildSettingsSnapshot(s).alerts.slice(at, at + 2);
+        let want = 'o-';
+        if (th.alertOn(s, 'wind')) {
+          const l = s.alertWindDisplay === 'value' ? 'v' : 'i';
+          want = th.alertDays(s, 'wind') === 'tomorrow'
+            ? l.toUpperCase() + MARK[th.alertNextDayMark(s, 'wind')] : l + '-';
+        }
+        assert.equal(pair, want, JSON.stringify(s));
+      }))));
+  assert.deepEqual(Object.keys(MARK), th.ALERT_NEXT_DAY_MARKS, 'every mark has its letter here');
+});
+
+// The rain look reported is the one the watch draws: the blob's alerts byte and the
+// report both resolve through rainAlert, so an unknown value cannot read as a
+// look the watch never got.
+test('rainAlertDisplay agrees with the rain look the blob sends', () => {
+  const thresholds = require('../src/pkjs/status-thresholds.js');
+  const wire = require('../src/pkjs/status-wire.js');
+  [undefined, 'text', 'icon', 'minutes', 'bogus', 3].forEach((look) => {
+    const settings = { rainAlertDisplay: look };
+    const reported = buildSettingsSnapshot(settings).rainAlertDisplay;
+    assert.strictEqual(thresholds.RAIN_DISPLAY[reported],
+      wire.buildSettingsBlob(settings)[wire.ALERTS_OFFSET], String(look));
+  });
+  assert.equal(buildSettingsSnapshot({ rainAlertDisplay: 'bogus' }).rainAlertDisplay, 'text');
+});
+
+// warnLooks and the alerts code's marks spell each value by its FIRST LETTER, so two
+// values of one vocabulary sharing an initial would read as one value in the
+// dashboards. A new look or mark that collides needs a new code, not a charAt(0). (The
+// alerts code's '-' and its looks' o/i/v are fixed letters.)
+test('the one-letter codes are unambiguous: first letters are unique per vocabulary', () => {
+  const thresholds = require('../src/pkjs/status-thresholds.js');
+  [['WARN_LOOKS', Object.keys(thresholds.WARN_LOOKS)],
+    ['ALERT_NEXT_DAY_MARKS', thresholds.ALERT_NEXT_DAY_MARKS]
+  ].forEach((row) => {
+    const initials = row[1].map((v) => v.charAt(0));
+    assert.ok(initials.indexOf('-') === -1, row[0] + ': no value may start with the no-mark dash');
+    assert.ok(initials.length >= 3, row[0] + ' has its values');
+    assert.deepEqual(initials.filter((c, i) => initials.indexOf(c) !== i), [],
+      row[0] + ' values must not share a first letter: ' + row[1].join(', '));
+  });
+});
+
+// The warn box per paired kind: one letter per kind in wire order, RESOLVED with the
+// platform default — fill on a colour watch, outline on B&W and for the goal kinds.
+test('warnLooks reports the resolved warn look per paired kind', () => {
+  assert.equal(buildSettingsSnapshot({}).warnLooks, 'ffffooof',
+    'untouched colour watch (watchInfo absent reads as basalt)');
+  assert.equal(buildSettingsSnapshot({}, { platform: 'diorite' }).warnLooks, 'oooooooo',
+    'untouched B&W watch: outline everywhere');
+  assert.equal(buildSettingsSnapshot({ threshAqiWarnLook: 'none', threshStepsWarnLook: 'fill',
+    threshUvWarnLook: 'outline' }, { platform: 'emery' }).warnLooks, 'nffffooo');
+  assert.equal(buildSettingsSnapshot({ threshWindWarnLook: 'bogus' }).warnLooks, 'ffffooof',
+    'an unknown value reports the default the watch draws');
 });

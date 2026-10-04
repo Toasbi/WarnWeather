@@ -2,13 +2,6 @@
 #include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
 
-#define BATTERY_NUB_W 2
-#define BATTERY_NUB_H 6
-#define BATTERY_STROKE 1
-#define FILL_PADDING 1
-#define ICON_SPACING 3
-#define BATTERY_POWER_ICON_W 7
-
 static GBitmap *s_charging_bitmap;
 static GColor s_charging_palette[2];
 static GColor s_charging_fg;
@@ -36,6 +29,26 @@ static void ensure_charging_bitmap(GColor fg) {
     s_charging_fg = fg;
 }
 
+// Shaped for the paint path's stack. The origin is one GPoint word, so the On demand
+// item's call (its last statement) compiles to a tail call: the body's frame replaces
+// the item's instead of stacking on it. One rect is reused for each part: a compound
+// literal per call would keep its own stack slot for the whole function.
+void battery_body_draw(GContext *ctx, GPoint origin, int bw, int h, int level, GColor fg) {
+    const int x = origin.x, y = origin.y;
+    // Inside the 1 px outline and 1 px of air; +10/110 guarantees a visible sliver at
+    // 0 % by mapping [0,100] -> [~9 %,100 %].
+    GRect r = GRect(x + 2, y + 2, (bw - 4) * (level + 10) / 110, h - 4);
+    graphics_context_set_fill_color(ctx, battery_fill_color(level, fg));
+    graphics_fill_rect(ctx, r, 0, GCornerNone);
+    graphics_context_set_stroke_color(ctx, fg);
+    graphics_context_set_stroke_width(ctx, 1);
+    r = GRect(x, y, bw, h);
+    graphics_draw_rect(ctx, r);
+    const int nub_h = (h * 6) / 10;
+    r = GRect(x + bw - 1, y + (h - nub_h) / 2, BATTERY_NUB_W + 1, nub_h);
+    graphics_draw_rect(ctx, r);
+}
+
 void battery_draw(GContext *ctx, GRect rect, GColor fg) {
     const int ox = rect.origin.x, oy = rect.origin.y;
     const int w = rect.size.w, h = rect.size.h;
@@ -48,18 +61,8 @@ void battery_draw(GContext *ctx, GRect rect, GColor fg) {
         s_charging_bitmap = NULL;
     }
 
-    int battery_x = BATTERY_POWER_ICON_W + ICON_SPACING;
-    int battery_w = (w - battery_x) - BATTERY_NUB_W;
-
-    GRect color_bounds = GRect(
-        ox + battery_x + BATTERY_STROKE + FILL_PADDING, oy + BATTERY_STROKE + FILL_PADDING,
-        battery_w - (BATTERY_STROKE + FILL_PADDING) * 2, h - (BATTERY_STROKE + FILL_PADDING) * 2);
-    // +10/110: guarantees a visible sliver at 0% by mapping [0,100]→[~9%,100%].
-    GRect color_area = GRect(color_bounds.origin.x, color_bounds.origin.y,
-        color_bounds.size.w * (level + 10) / 110, color_bounds.size.h);
-    graphics_context_set_fill_color(ctx, battery_fill_color(level, fg));
-    graphics_fill_rect(ctx, color_area, 0, GCornerNone);
-
+    // The bitmap fills only the bolt lane, left of the body: drawing it first
+    // overlaps nothing the body draws.
     if (charging) {
         ensure_charging_bitmap(fg);
         GRect ib = gbitmap_get_bounds(s_charging_bitmap);
@@ -69,11 +72,8 @@ void battery_draw(GContext *ctx, GRect rect, GColor fg) {
         graphics_context_set_compositing_mode(ctx, GCompOpAssign);
     }
 
-    graphics_context_set_stroke_color(ctx, fg);
-    graphics_context_set_stroke_width(ctx, BATTERY_STROKE);
-    graphics_draw_rect(ctx, GRect(ox + battery_x, oy, battery_w, h));
-    graphics_draw_rect(ctx, GRect(ox + battery_x + battery_w - 1,
-        oy + h / 2 - BATTERY_NUB_H / 2, BATTERY_NUB_W + 1, BATTERY_NUB_H));
+    battery_body_draw(ctx, GPoint(ox + BATTERY_BOLT_LANE_W, oy),
+                      w - BATTERY_BOLT_LANE_W - BATTERY_NUB_W, h, level, fg);
 }
 
 void battery_draw_deinit(void) {

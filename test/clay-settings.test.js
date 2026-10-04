@@ -1,11 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {
-  installFakeStorage, COLORS, makeMarker, SHIPPED_MARKERS, seedUpgradedInstall,
-  bootUpgradedInstall, loadUpgradeModules, shippedPageFillPick, PRE_RETUNE_LIGHT,
-  seedPreRetuneInstall, seedThemedInstall
-} = require('./helpers/clay-harness.js');
+const { installFakeStorage, COLORS } = require('./helpers/clay-harness.js');
 
 test('seedDefaults writes defaults when none stored', () => {
   installFakeStorage();
@@ -30,6 +26,22 @@ test('seedDefaults backfills missing keys without clobbering set ones', () => {
   const read = claySettings.read();
   assert.equal(read.provider, 'dwd');          // preserved
   assert.equal(read.temperatureUnits, 'c');     // backfilled
+});
+
+test('seedDefaults only backfills: a stored On demand list keeps its ticks, whatever else the blob holds', () => {
+  // The boot pass rewrites no stored value; a key no schema row has stays until the
+  // page's next Save, which writes schema keys only.
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['clay-settings'] = JSON.stringify({
+    provider: 'dwd',
+    statusTopOnDemandRight: 'off', statusTopOnDemandRightItems: 'battery,rain,uv'
+  });
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  assert.equal(read.statusTopOnDemandRightItems, 'battery,rain,uv');
+  assert.equal(read.statusTopOnDemandRight, 'off');
 });
 
 test('an existing Custom layout gains the size/Position keys at boot and still compiles to ext 0', () => {
@@ -156,11 +168,23 @@ test('resetAll wipes the settings blob and every cache key for a fresh start', (
   localStorage.setItem('newsCache', '{"items":[]}');
   localStorage.setItem('lastSentForecast', '{"a":1}');
 
-  claySettings.resetAll();
+  claySettings.resetAll([]);
 
   assert.equal(claySettings.hasStored(), false, 'settings blob gone');
   assert.equal(localStorage.getItem('newsCache'), null, 'news cache gone');
   assert.equal(localStorage.getItem('lastSentForecast'), null, 'resend cache gone');
+});
+
+test('resetAll refuses to wipe without the reset-safe marker list', () => {
+  // A caller that forgot the list would leave those migrations unmarked, and the
+  // next boot would re-run them over what the page saved after the reset.
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  localStorage.setItem('clay-settings', JSON.stringify({ provider: 'dwd' }));
+
+  assert.throws(() => claySettings.resetAll(), /reset-safe migration markers/);
+  assert.equal(claySettings.hasStored(), true, 'nothing was wiped');
 });
 
 test('after a reset the defaults are available WITHOUT repopulating storage', () => {
@@ -175,7 +199,7 @@ test('after a reset the defaults are available WITHOUT repopulating storage', ()
   const claySettings = require('../src/pkjs/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ timeFont: 'bitham', reset: true });
-  claySettings.resetAll();
+  claySettings.resetAll([]);
   assert.equal(claySettings.read(), null, 'storage is empty so the wizard reopens');
 
   const defaults = claySettings.getDefaults(COLORS);
@@ -199,7 +223,7 @@ test('reset keeps the credentials the user typed, and nothing else', () => {
   store['wundergroundApiKey'] = 'wu-scraped';
   store['lastSentClaySettings'] = 'stale';
 
-  const kept = claySettings.resetAll();
+  const kept = claySettings.resetAll([]);
 
   // The blob is gone, so the wizard still reopens.
   assert.equal(claySettings.read(), null, 'settings blob must stay absent');
@@ -228,7 +252,7 @@ test('reset parks nothing when the user had no keys', () => {
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
   store['clay-settings'] = JSON.stringify({ timeFont: 'bitham', owmApiKey: '' });
-  assert.deepEqual(claySettings.resetAll(), {});
+  assert.deepEqual(claySettings.resetAll([]), {});
   assert.equal(store['preservedApiKeys'], undefined, 'no empty parking slot left behind');
 });
 
@@ -252,7 +276,7 @@ test('a key entered AFTER the reset is never clobbered by the parked one', () =>
   const claySettings = require('../src/pkjs/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ tomorrowioApiKey: 'OLD-KEY', owmApiKey: 'OLD-OWM' });
-  claySettings.resetAll();
+  claySettings.resetAll([]);
   assert.ok(store['preservedApiKeys'], 'both keys parked');
 
   // The user reopens settings and types a new tomorrow.io key; the page saves.
@@ -271,7 +295,7 @@ test('an empty string does not count as a value worth keeping', () => {
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
   store['clay-settings'] = JSON.stringify({ owmApiKey: 'KEEP-ME' });
-  claySettings.resetAll();
+  claySettings.resetAll([]);
   // A blob whose field exists but is blank (the schema default) is still a gap.
   claySettings.save({ owmApiKey: '' });
   claySettings.seedDefaults(COLORS);
@@ -289,12 +313,12 @@ test('a second reset in one session must not destroy the keys the first one park
   const claySettings = require('../src/pkjs/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ owmApiKey: 'owm-secret', tomorrowioApiKey: 'tio-secret' });
-  claySettings.resetAll();
+  claySettings.resetAll([]);
   assert.ok(store['preservedApiKeys'], 'reset #1 parks the keys');
 
   // Same session: the page saves a reset response whose key fields are all ''.
   claySettings.save({ reset: true, owmApiKey: '', tomorrowioApiKey: '' });
-  const kept = claySettings.resetAll();
+  const kept = claySettings.resetAll([]);
 
   assert.deepEqual(kept, { owmApiKey: 'owm-secret', tomorrowioApiKey: 'tio-secret' },
     'reset #2 hands the parked keys back for the live session');
@@ -310,10 +334,10 @@ test('a key typed between two resets wins over its parked predecessor', () => {
   const claySettings = require('../src/pkjs/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ owmApiKey: 'OLD-OWM', tomorrowioApiKey: 'OLD-TIO' });
-  claySettings.resetAll();
+  claySettings.resetAll([]);
   // The user types a fresh tomorrow.io key and resets again.
   claySettings.save({ reset: true, tomorrowioApiKey: 'NEW-TIO', owmApiKey: '' });
-  const kept = claySettings.resetAll();
+  const kept = claySettings.resetAll([]);
 
   assert.equal(kept.tomorrowioApiKey, 'NEW-TIO', 'the key just typed wins');
   assert.equal(kept.owmApiKey, 'OLD-OWM', 'a key not retyped still survives from reset #1');
@@ -329,7 +353,7 @@ test('fillFromPreserved fills empty key fields from the parked slot, never overw
   const claySettings = require('../src/pkjs/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ owmApiKey: 'owm-secret', yandexApiKey: 'ya-secret' });
-  claySettings.resetAll();
+  claySettings.resetAll([]);
 
   const blob = claySettings.fillFromPreserved(
     { provider: 'owm', owmApiKey: 'NEW-KEY', yandexApiKey: '', tomorrowioApiKey: '' });
@@ -349,7 +373,7 @@ test('a deliberate key clear after the post-reset save sticks', () => {
   const claySettings = require('../src/pkjs/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ owmApiKey: 'owm-secret' });
-  claySettings.resetAll();
+  claySettings.resetAll([]);
   // Save #1 (e.g. finishing the reopened wizard): the '' field is refilled.
   claySettings.save(claySettings.fillFromPreserved({ owmApiKey: '' }));
   assert.equal(claySettings.read().owmApiKey, 'owm-secret');
@@ -373,7 +397,7 @@ test('a non-object parking slot is discarded, not laundered into junk keys', () 
 
   store['preservedApiKeys'] = JSON.stringify(['a', 'b']);
   store['clay-settings'] = JSON.stringify({ owmApiKey: 'KEEP-ME' });
-  const kept = claySettings.resetAll();
+  const kept = claySettings.resetAll([]);
   assert.deepEqual(kept, { owmApiKey: 'KEEP-ME' },
     'only real credentials are parked — no laundered index keys');
 });
@@ -384,8 +408,8 @@ test('reset keeps the Rainbow (own key) radar key, and a post-reset save fills i
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
 
-  store['clay-settings'] = JSON.stringify({ rainbowApiKey: 'rbw-secret', radarProvider: 'rainbow', rainbowOwnKey: true, timeFont: 'bitham' });
-  const kept = claySettings.resetAll();
+  store['clay-settings'] = JSON.stringify({ rainbowApiKey: 'rbw-secret', radarProvider: 'rainbowkey', timeFont: 'bitham' });
+  const kept = claySettings.resetAll([]);
   assert.deepEqual(kept, { rainbowApiKey: 'rbw-secret' }, 'handed back for the live session');
   assert.equal(claySettings.read(), null, 'settings blob must stay absent');
   assert.ok(store['preservedApiKeys'], 'parked for the next boot');
@@ -397,7 +421,7 @@ test('reset keeps the Rainbow (own key) radar key, and a post-reset save fills i
 
   // And the boot restore brings it back too.
   store['clay-settings'] = JSON.stringify({ rainbowApiKey: 'rbw-secret' });
-  claySettings.resetAll();
+  claySettings.resetAll([]);
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
   assert.equal(read.rainbowApiKey, 'rbw-secret');

@@ -1,10 +1,10 @@
 // test/layout-custom-render.test.js
-// Drive the REAL engine over the Layout tab in custom mode (the
+// Drive the REAL engine over the Watchface tab's Layout card in custom mode (the
 // layout-flick-preview lesson: pure-function tests alone once missed a render-path
-// bug). Covers: the Custom radio option (and its aplite absence), the Edit button's
-// visibility, the combined preview rendering the CUSTOM cycle, the seeding hook
-// through the registered onChange path, and the editor action being a safe no-op
-// under Node (no DOM).
+// bug). Covers: the Custom radio option (and its aplite absence), the Edit views row's
+// visibility, the combined preview (the Watchface tab's pinned header) rendering the
+// CUSTOM cycle, the seeding hook through the registered onChange path, and the editor
+// action being a safe no-op under Node (no DOM).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -19,6 +19,14 @@ const schema = require('../src/pkjs/settings/schema.js');
 const onbuild = require('../src/pkjs/settings/onbuild.js');
 const vc = require('../src/pkjs/view-cycle.js');
 
+/**
+ * The Watchface tab rendered through the real engine, split into the parts these tests
+ * read: the pinned layout preview (the tab's sticky header) and the Layout card.
+ * @param {Object} overrides Stored values over the hydrated defaults.
+ * @param {string} [platformName] Platform (basalt by default).
+ * @returns {{body: string, pin: string, card: string, S: Object}} The whole tab body,
+ *   its pinned header, the Layout card, and the settings.
+ */
 function layoutBody(overrides, platformName) {
   const S = Object.assign(eng.hydrate(schema, {}), overrides);
   const ENV = plat.computeEnv({ platform: platformName || 'basalt' });
@@ -30,29 +38,52 @@ function layoutBody(overrides, platformName) {
   });
   const cx = {
     S: S, ENV: ENV, USERDATA: {}, openColor: null, openSelect: null,
-    selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: ENV }),
+    selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: ENV }), schema: schema,
   };
-  return { body: eng.renderBody(schema, 'layout', cx), S: S };
+  const body = eng.renderBody(schema, 'watchface', cx);
+  const firstCard = body.indexOf('<div class="card');
+  assert.ok(body.indexOf('<div class="pin-scope"><div class="pin">') === 0,
+    'the Watchface tab opens on its pinned preview, scoped to the cards through Layout');
+  const at = body.indexOf('<span class="ttl">Layout</span>');
+  assert.ok(at > 0, 'the Layout card rendered');
+  const next = body.indexOf('<div class="card', at);
+  return {
+    body: body,
+    pin: body.slice(0, firstCard),
+    card: body.slice(body.lastIndexOf('<div class="card', at), next === -1 ? undefined : next),
+    S: S,
+  };
 }
 
-test('the Layout tab offers Custom (Beta) on basalt and hides it on aplite', () => {
-  const basalt = layoutBody({ layoutPreset: 'compactCal' }).body;
-  assert.ok(basalt.indexOf('Custom (Beta)') >= 0, 'Custom (Beta) option rendered');
-  const aplite = layoutBody({ layoutPreset: 'compactCal' }, 'aplite').body;
-  assert.equal(aplite.indexOf('Custom (Beta)'), -1, 'no Custom option on aplite');
+test('the Layout card offers Custom (Beta) on basalt and hides it on aplite', () => {
+  const basalt = layoutBody({ layoutPreset: 'compactCal' }).card;
+  assert.ok(basalt.indexOf('data-k="layoutPreset" data-v="custom"><span>Custom (Beta)</span>') >= 0,
+    'Custom (Beta) option rendered in the Layout preset radio');
+  const aplite = layoutBody({ layoutPreset: 'compactCal' }, 'aplite');
+  assert.ok(aplite.card.indexOf('data-k="layoutPreset"') >= 0, 'premise: the preset radio renders on aplite');
+  assert.equal(aplite.body.indexOf('Custom (Beta)'), -1, 'no Custom option on aplite');
 });
 
-test('the Custom layout row with its Edit button renders only in custom mode', () => {
+test('the Edit views row renders only in custom mode', () => {
   const preset = layoutBody({ layoutPreset: 'compactCal' }).body;
   assert.equal(preset.indexOf('data-action="openViewEditor"'), -1);
   const custom = layoutBody({
     layoutPreset: 'custom', customLayoutSeeded: true, viewCount: '1',
     viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather',
     viewLower0: 'off', viewOrder0: 'TACB',
-  }).body;
-  assert.ok(custom.indexOf('data-action="openViewEditor"') >= 0, 'Edit dispatches the action');
-  assert.ok(custom.indexOf('class="thr-btn"') >= 0, 'the outlined Edit-button look');
-  assert.ok(custom.indexOf('Custom layout') >= 0, 'row label present');
+  }).card;
+  // A nav row under the preset radio: the whole row dispatches the action, its label and
+  // summary on the left and a chevron on the right (no separate outlined Edit button).
+  const at = custom.indexOf('data-action="openViewEditor"');
+  assert.ok(at >= 0, 'the row dispatches the action');
+  const row = custom.slice(custom.lastIndexOf('<div class="row', at), custom.indexOf('<span class="chev">', at));
+  assert.match(row, /^<div class="row nav indent" data-action="openViewEditor" role="button" tabindex="0"/,
+    'an indented nav row: the whole row is the way in');
+  assert.ok(row.indexOf('<div class="lbl">Edit views</div>') >= 0, 'row label present');
+  assert.ok(row.indexOf('<div class="hint">Choose what each view shows, where, and how big.</div>') >= 0,
+    'its summary in view');
+  assert.ok(custom.indexOf('data-v="custom"') < at, 'it follows the preset radio');
+  assert.equal(custom.indexOf('class="thr-btn"'), -1, 'no outlined Edit button any more');
 });
 
 test('the combined preview renders the CUSTOM cycle (a stacked clockless flick shows through)', () => {
@@ -63,12 +94,15 @@ test('the combined preview renders the CUSTOM cycle (a stacked clockless flick s
     viewTop1: 'none', viewBody1: 'radar', viewUpper1: 'off', viewLower1: 'off', viewOrder1: 'TACB',
     viewClockOff1: true, viewStripOff1: true,
   });
-  assert.ok(r.body.indexOf('<svg') >= 0, 'preview SVG renders');
-  assert.ok(r.body.indexOf('Flick 1') >= 0, 'the custom flick column exists');
-  assert.ok(r.body.indexOf('Radar') >= 0, 'the full-screen radar body shows');
-  // The flick column must NOT show a Clock band (clockOff view).
-  const flickCol = r.body.slice(r.body.indexOf('Flick 1'));
+  // The preview is the Watchface tab's pinned header, above the cards.
+  assert.ok(r.pin.indexOf('<svg') >= 0, 'preview SVG renders');
+  assert.ok(r.pin.indexOf('Flick 1') >= 0, 'the custom flick column exists');
+  assert.ok(r.pin.indexOf('Radar') >= 0, 'the full-screen radar body shows');
+  // The flick column must NOT show a Clock band (clockOff view)...
+  const flickCol = r.pin.slice(r.pin.indexOf('Flick 1'));
   assert.equal(flickCol.indexOf('Clock'), -1, 'clockless flick previews without a Clock band');
+  // ...while the Default column, before it, does: the check above is not vacuous.
+  assert.ok(r.pin.slice(0, r.pin.indexOf('Flick 1')).indexOf('Clock') >= 0, 'the Default view keeps its Clock band');
 });
 
 test('the registered layoutPresetChanged hook seeds once through the engine registry', () => {
@@ -91,7 +125,7 @@ test('openViewEditor is a safe no-op under Node (no DOM, no ctx)', () => {
   assert.doesNotThrow(() => global.PConf.actions.openViewEditor());
 });
 
-test('a dormant stored custom on aplite renders neither the Edit button nor the option', () => {
+test('a dormant stored custom on aplite renders neither the Edit views row nor the option', () => {
   const r = layoutBody({
     layoutPreset: 'custom', customLayoutSeeded: true, viewCount: '1',
     viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather',

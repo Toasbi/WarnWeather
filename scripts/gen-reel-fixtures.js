@@ -127,7 +127,7 @@ const GRAPH_SEGMENTS = [
   { id: 'graph-4', group: 'graph', flicks: 1, platforms: 'emery basalt flint',
     clay: { layoutPreset: 'noCal', theme: 'dark', timeFont: 'leco',
       radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60', healthMode: 'off' },
-    radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { text: "Rain in 15'", tier: 3 } },
+    radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { mins: 15, raining: false, tier: 3 } },
   { id: 'graph-5', group: 'graph', flicks: 1, platforms: 'emery basalt flint',
     clay: { layoutPreset: 'noCal', theme: 'dark', timeFont: 'leco', healthMode: 'all', radarProvider: 'disabled' },
     // emery only: HR needs the sensor; base (basalt/flint) keeps the plain health-graph frame.
@@ -157,7 +157,7 @@ const STATUS_SEGMENTS = [
       statusForecastLeft: 'temp', statusForecastMid: 'wind', statusForecastRight: 'uv',
       statusTopLeft: 'gust', statusTopMid: 'steps', statusTopRight: 'sleep',
       threshWindOn: true, threshWindWarn: '15', threshWindDanger: '40',
-      threshWindWarnOutlineOn: true, threshWindWarnColor: '#FFAA00',
+      threshWindWarnLook: 'outline', threshWindWarnColor: '#FFAA00',
       threshGustOn: true, threshGustWarn: '20', threshGustDanger: '30',
       threshGustDangerColor: '#FF0000' },
     // emery has the HR sensor; aplite has no health at all -> weather-only top strip.

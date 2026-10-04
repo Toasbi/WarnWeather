@@ -1,9 +1,10 @@
 #pragma once
 
 // Theme accessors — dark=0 (default) / light=1 / bw=2 / bw-light=3 (Config.theme;
-// see docs/superpowers/specs/2026-07-07-theme-inversion-design.md). Static-inline,
-// header-only: no new .c file, no heap. Every accessor reads config_get()->theme
-// directly, so it's safe to call anywhere after config_load() has run.
+// see docs/superpowers/specs/2026-07-07-theme-inversion-design.md). No heap: every
+// accessor reads config_get()->theme directly, so it's safe to call anywhere after
+// config_load() has run. Out of line in appendix/theme.c wherever the light polarity
+// exists (WW_THEME_POLARITY, below); static inline on aplite, where it folds away.
 //
 // Two independent axes used throughout the C render sweep:
 //  - Polarity: dark/bw are white-on-black; light/bw-light are black-on-white.
@@ -23,17 +24,35 @@
 #include <pebble.h>
 #include "config.h"
 
+#if defined(WW_THEME_POLARITY)
+// Out of line (appendix/theme.c) wherever the light polarity exists: every platform
+// but aplite. As static inlines, -Os kept them as calls and emitted a private copy in
+// every file that used one — about 30 copies, some 0.9 KB of image on basalt — and on
+// these platforms the image comes out of the app heap too.
+
+/** True in the light theme (black-on-white polarity): light or bw-light. */
+bool theme_is_light(void);
+/** dark/bw polarity: white. light polarity: black. Default foreground. */
+GColor theme_fg(void);
+/** dark/bw polarity: black. light polarity: white. Window/panel background. */
+GColor theme_bg(void);
+/**
+ * Chart-furniture gray (axis/tick/grid-line constants): light theme flattens
+ * them to black (a midtone gray reads too close to a white background);
+ * dark/bw keep the given gray unchanged.
+ */
+GColor theme_furniture(GColor gray);
+#else
+// Without the light polarity — aplite, and the host tests, which build without the
+// flag — the accessors are static inlines over a constant-false theme_is_light(),
+// so every light arm folds away.
 /** True in the light theme (black-on-white polarity): light or bw-light. */
 static inline bool theme_is_light(void) {
-#if defined(WW_THEME_POLARITY)
-    return config_get()->theme == 1 || config_get()->theme == 3;
-#else
     // aplite (frozen-lean fork, docs/adr/0001): the light polarity is compiled out —
     // see WW_THEME_POLARITY in wscript. Constant false folds every light arm and the
     // out-of-line theme_fg/theme_bg copies out of the image; a stored light/bw-light
     // theme byte is ignored and renders as the classic white-on-black.
     return false;
-#endif
 }
 
 /** dark/bw polarity: white. light polarity: black. Default foreground. */
@@ -54,8 +73,22 @@ static inline GColor theme_bg(void) {
 static inline GColor theme_furniture(GColor gray) {
     return theme_is_light() ? GColorBlack : gray;
 }
+#endif
 
-#ifdef PBL_COLOR
+#if defined(PBL_COLOR) && defined(WW_THEME_POLARITY)
+// Out of line (appendix/theme.c), as above.
+/** True when this color build is rendering the Black & White theme (bw or bw-light). */
+bool theme_is_bw(void);
+/**
+ * Effective-color pick: on a color build, a bw theme takes bw_arm (the exact
+ * value a real B&W watch would use for this constant) at runtime; otherwise
+ * color_arm renders. See theme_is_bw().
+ */
+GColor theme_pick(GColor color_arm, GColor bw_arm);
+#elif defined(PBL_COLOR)
+// A color build without WW_THEME_POLARITY is no watch (every color platform defines
+// it); only a host test compiles this arm (night_light_persist_test's emery build,
+// -DPBL_COLOR, through persist.c).
 /** True when this color build is rendering the Black & White theme (bw or bw-light). */
 static inline bool theme_is_bw(void) {
     return config_get()->theme == 2 || config_get()->theme == 3;

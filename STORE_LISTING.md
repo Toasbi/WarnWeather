@@ -7,12 +7,38 @@ WarnWeather is a weather watchface for Pebble, based on the ForecasWatch2 watchf
 It supports multiple views which can be reached through a wrist flick.
 Highly customizable with a modern settings UI and previews.
 
+ALERTS
+Small screens fill up fast. Alerts keep the watchface clean and bring information
+up only when it matters, so you know before it gets dangerous.
+- Alert icons show at the edge of a status bar only when they reach your warn level
+  or are active right now, and stay hidden the rest of the time
+- System info: low watch battery, Bluetooth disconnected, quiet time, and a sleep
+  icon during the Battery saver hours
+- Weather alerts: rain on its way (as an icon, the minutes, or a countdown), and wind gusts,
+  UV index, air quality, pollen (DWD) or wind speed reaching your warn level, today
+  or tomorrow
+- Alert levels: a warn and a danger level for each weather alert, with its own
+  colors on color watches
+- Alert highlighting: bold, outline, or fill a status slot when it reaches the warn
+  or danger level you set
+- Graph lines on Alert: set a wind, gust or UV line's Visible values to Alert and it
+  shows only the hours that reach your warn level, so the graph stays empty until it
+  matters
+- Pick the status bars that show each alert, left or right; on a crowded bar the
+  status slots shorten first to make room
+- Ready out of the box: battery, Bluetooth, quiet time, sleep, rain, wind, gust,
+  UV and air quality alerts are on by default
+(Alerts are not available on Pebble Classic/Steel)
+
 FORECAST
 - 24-hour forecast with a temperature line and configurable, battery-friendly updates
 - Up to four configurable metrics such as precipitation, cloud cover, UV index, gusts,
   wind, air pressure, feels-like temperature and dew point
 - Show any metric as a line, dots or x marks, and precipitation, cloud cover, UV, wind or
   gusts also as a shaded stripe along the top or bottom of the graph
+- Draw from: Bottom | Top: the precipitation, cloud cover, wind, gust and UV lines, and
+  (Bars from) the forecast's and the radar's rain bars, can hang from the top of the graph,
+  so they cover the temperature curve less (not on Pebble Classic/Steel)
 - Feels-like your way: the provider's own value, or the Steadman formula
   (temperature, humidity, wind) applied the same on every provider
 - Optional day/night shading
@@ -22,11 +48,14 @@ FORECAST
 RAIN RADAR
 - 2-hour precipitation nowcast from regional and worldwide providers
 - Worldwide Rainbow.ai radar: "Rainbow (limited)" is shared by every user, so it refreshes every
-  30 minutes; turn on "Use your own key" and enter your own Rainbow API key to refresh it at your
+  30 minutes; pick "Rainbow (own key)" and add your own Rainbow API key to refresh it at your
   own update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 - "Radar limit reached" on the radar when a radar source refuses requests over its limit
-- Rain countdown telling you when rain starts (or stops)
-- Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph
+- Outside a regional radar's area (DWD: Germany, Met.no: the Nordic countries) the radar says so,
+  and the radar settings suggest a source that covers your location
+- Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on
+  its way (see ALERTS)
+- Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph
 - Clouds, sun and lightning rows under the radar graph: cloud cover and sun strength for the next 2 hours, with a bolt where thunderstorms are expected
 
 HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
@@ -37,7 +66,7 @@ CALENDAR
 - Multi-week calendar with current-day highlight
 - Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
-STATUS LINES
+STATUS BARS
 - Configurable status slots on every view:
    - Weather:
       - feels-like temperature
@@ -63,10 +92,10 @@ STATUS LINES
       - watch battery icon
       - watch battery percentage
       - phone battery
-- Bold status values to make them stand out or easier to read
+- Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
-- Threshold highlighting: bold, outline, or fill a status slot when its value crosses a
-  warn or danger level you set
+  (not on Pebble Classic/Steel)
+- Alerts at each status bar's edge (see ALERTS)
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches
@@ -74,7 +103,8 @@ WATCHFACE THEMES
 
 WATCH
 - Custom color, 12h/24h, optional AM/PM
-- Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
+- Battery, Bluetooth, quiet time and sleep indicators that show only when needed (see ALERTS),
+  plus vibrate on disconnect (Pebble Classic/Steel keeps its fixed indicators)
 - Night battery saver (pause updates to the watch between hours you set, to save battery)
 - Night backlight dimming
 
@@ -82,6 +112,9 @@ LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views and optional auto-return, including Weather only: rain radar, clock, weather and a big forecast without the top bar
 - Custom layout (still beta)
 - First-run setup wizard that picks sensible defaults for your country and watch
+- A settings page in six tabs (Weather, Watchface, Status bars, Alerts, Graphs, Setup; no
+  Alerts tab on Pebble Classic/Steel) with a live preview, an explanation under each setting or behind a ? icon, rarely-changed
+  settings under More options, and full-screen dialogs
 
 WEATHER
 - Detailed 5-day weather forecast for multiple locations inside the settings app

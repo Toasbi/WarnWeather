@@ -71,3 +71,41 @@ Deno.test("a rainbowkey radarProvider is accepted and kept", () => {
   assert(parsed.success);
   assertEquals(parsed.data.settings.radarProvider, "rainbowkey");
 });
+
+// The On demand fields (1.24.0) survive the strip step; the level refuses a value no
+// watch sends. The code has no length bound (like alerts and warnLooks): a longer one,
+// from a build with an item this ingest does not know, is kept, not a 400.
+Deno.test("onDemand, batteryLowLevel and batteryLowDisplay are accepted and kept", () => {
+  const onDemand = "RLLLLRRR-R" + "-".repeat(30);
+  const parsed = telemetryPayloadSchema.safeParse({
+    ...LEGACY,
+    settings: { onDemand, batteryLowLevel: 25, batteryLowDisplay: "value" },
+  });
+  assert(parsed.success);
+  assertEquals(parsed.data.settings.onDemand, onDemand);
+  assertEquals(parsed.data.settings.batteryLowLevel, 25);
+  assertEquals(parsed.data.settings.batteryLowDisplay, "value");
+  const longer = onDemand + "-".repeat(4);
+  const future = telemetryPayloadSchema.safeParse({ ...LEGACY, settings: { onDemand: longer } });
+  assert(future.success);
+  assertEquals(future.data.settings.onDemand, longer);
+  const bad = [{ batteryLowLevel: 101 }, { batteryLowLevel: 12.5 }];
+  for (const settings of bad) {
+    assert(!telemetryPayloadSchema.safeParse({ ...LEGACY, settings }).success, JSON.stringify(settings));
+  }
+});
+
+// Draw from / Bars from (1.24.0, src/pkjs/draw-from.js) survive the strip step; a value
+// a later build might add is kept, not a 400 (z.string, the Show precedent).
+Deno.test("the six Draw from / Bars from fields are accepted and kept", () => {
+  const keys = ["precipLineFrom", "cloudLineFrom", "windLineFrom", "uvLineFrom", "rainBarFrom", "radarBarFrom"];
+  const settings: Record<string, string> = {};
+  keys.forEach((k, i) => { settings[k] = i % 2 ? "top" : "bottom"; });
+  const parsed = telemetryPayloadSchema.safeParse({ ...LEGACY, settings });
+  assert(parsed.success);
+  for (const k of keys) {
+    assertEquals((parsed.data.settings as Record<string, unknown>)[k], settings[k], k);
+  }
+  const future = telemetryPayloadSchema.safeParse({ ...LEGACY, settings: { windLineFrom: "middle" } });
+  assert(future.success);
+});

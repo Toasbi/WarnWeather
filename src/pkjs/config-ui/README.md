@@ -26,9 +26,13 @@ each consuming app supplies its schema, custom blocks, and hooks.
    - [Hidden-item serialization rule](#hidden-item-serialization-rule)
 5. [Registries and hooks](#registries-and-hooks)
    - [Block registry — PConf.blocks](#block-registry--pconfblocks)
+   - [Icon registry — PConf.icons](#icon-registry--pconficons)
    - [Options-resolver registry — PConf.optionsResolvers](#options-resolver-registry--pconfoptionsresolvers)
+   - [Defaults-resolver registry — PConf.defaultsResolvers](#defaults-resolver-registry--pconfdefaultsresolvers)
    - [Display-resolver registry — PConf.displayResolvers](#display-resolver-registry--pconfdisplayresolvers)
    - [Hint-resolver registry — PConf.hintResolvers](#hint-resolver-registry--pconfhintresolvers)
+   - [Attention-resolver registry — PConf.attentionResolvers](#attention-resolver-registry--pconfattentionresolvers)
+   - [When-resolver registry — PConf.whenResolvers](#when-resolver-registry--pconfwhenresolvers)
    - [Action registry — PConf.actions](#action-registry--pconfactions)
    - [Hook registry — PConf.hooks](#hook-registry--pconfhooks)
 6. [Build step — buildPage](#build-step--buildpage)
@@ -190,7 +194,8 @@ configUi.intToHex(n)                 // 0xFFFFFF → '#FFFFFF'
 configUi.hexToInt(h)                 // '#FFFFFF' → 16777215
 
 // Schema introspection
-configUi.deriveDefaults(schema)      // { messageKey: defaultValue, … } — colors as ints
+configUi.deriveDefaults(schema)      // { messageKey: defaultValue, … } — colors as ints;
+                                     // `defaultFrom` items are left out (resolved per watch)
 configUi.deriveColorKeys(schema)     // ['key', …] — all type:'color' messageKeys
 
 // Page injection
@@ -210,6 +215,7 @@ module.exports = {
   appName:      "MyApp",
   versionLabel: "v1.0.0",
   themeKey:     "configTheme",   // optional: messageKey of an 'auto'|'light'|'dark' setting
+  infoIconsKey: "hideInfoText",  // optional: messageKey of a toggle that puts info text behind '?'
   tabs: [ /* Tab, … */ ]
 };
 ```
@@ -220,6 +226,10 @@ back to dark. Omit `themeKey` and the page stays dark (base theme). Support floo
 rendering ~Chromium 84+, theming from Chromium 49; below that the page stays dark and readable
 via literal fallbacks.
 
+`infoIconsKey` (optional) names a page-only toggle: while it is `true`, row hints and card and
+dialog intros sit behind small '?' buttons (see *Info text, in view or behind '?'* below); off or
+omitted, they show in place.
+
 ### Tabs, sections, items
 
 ```
@@ -227,16 +237,25 @@ Schema
   └─ tabs[]
        ├─ id            string  (unique)
        ├─ label         string  (tab bar text)
+       ├─ showWhen      Predicate (false: no tab button, no body, no tab link lands there)
+       ├─ pinBlock      string  (block id pinned at the top of the tab while its cards scroll)
+       ├─ panes         [{id, label, showWhen?, pinBlock?}] (a segmented switcher; see Panes)
        └─ sections[]
             ├─ title        string
-            ├─ intro        string  (HTML — displayed above items)
+            ├─ intro        string  (HTML — the card's info text; behind its header's '?' in the '?' mode)
             ├─ block        string  (custom-block id — rendered below the items)
             ├─ collapsible  boolean (renders section as a collapsible card)
             ├─ titleFrom    {resolver, args?} (collapsed-header value; see Section fields)
             ├─ groupCard    string  (consecutive sections sharing an id merge into one card)
+            ├─ pane         string  (renders only while its tab shows that pane)
+            ├─ sheetOnly / sheetId  (a full-screen dialog, not a card; see Dialogs)
+            ├─ pinBlock     string  (sheetOnly only: block pinned under the dialog's header)
             └─ items[]
                  └─ (see Item fields below; blockBefore is ITEM-level)
 ```
+
+A section renders as one or more **cards**: every visible `subheader` item opens a new card
+titled by its text (see Progressive disclosure), so one section can hold a card per group.
 
 ### Item types
 
@@ -250,22 +269,38 @@ Schema
 | `text` | Text input | string | `input` |
 | `staticText` | Static HTML block; no key | — (not serialized) | `text` |
 | `searchSelect` | Dropdown sheet with a search box | string | — |
-| `range` | Dual-thumb slider | `"lo-hi"` string | — |
+| `range` | Dual-thumb slider (one thumb with `single: true`) | `"lo-hi"` string (`single`: a plain integer string, `"10"`) | — |
 | `rgb` | Three channel sliders (R/G/B) + live swatch | `"r,g,b"` string, each channel 0-255 | — |
 | `date` | Date-wheel sheet (day/month/year) | `"YYYY-MM-DD"` string | — |
 | `hidden` | none — never rendered | any (serialized like any keyed item) | — |
 | `button` | Tappable action row; no key | — (not serialized) | — |
 | `subheader` | In-section group header; no key | — (not serialized) | — |
 | `sheet` | Tappable row that opens a `sheetOnly` section; no key | — (not serialized) | — |
+| `checklist` | A grid of ticks for one code (`check`): a plain row per option, a tick per column, joined under one sub-header; a tap goes to the `writeWith` writer | — (not serialized: the ticks show other items' lists) | — |
+| `readout` | Label (+ `icon`) and a live hint; no control, no key | — (not serialized) | — |
 
-A `sheet` item is a whole-row chevron target by default. Give it an
+A `sheet` item is a **nav row**: the whole row is the tap target (`role="button"`, Enter and
+Space tap it) and opens its dialog; its label leads, its summary sits under the label and a
+chevron (›) closes the row on the right. The summary is the row's static `hint` or a
+`hintFrom` resolver's answer — the live state of the settings behind it ("Off", or their
+current levels) — and, unlike a value row's hint, it is always in view (no '?'). The resolver
+gets no row value (`args.value` is `undefined` — the row stores nothing) and reads whatever it
+describes from `S`. `summaryFaintFrom` (a showWhen predicate) dims the summary while it holds
+(e.g. "Not in any status bar"). `navNote` prints a short muted note before the chevron ("Alerts",
+a count). `labelFrom: {resolver, args}` (a hint resolver) derives the label from the settings
+("Tomorrow.io API key" for the picked provider). The dialog comes from `sheetId`, or from
+`editSheetFrom` (a sheet resolver — the row hides itself while it answers none). Give it an
 `editBadgeFrom: { resolver, args }` — a named resolver `fn(S, env, args)` returning `null` or
 `{label?, ariaNote?, chip?, dots: [{color, ring?}]}`, registered on `PConf.badgeResolvers` — and
-it renders as an ordinary row instead: label on the left, then the badge's colour preview and an
-**Edit** button on the right, with nothing between them (there is no control to draw for a
-`sheet`). Use that shape for a row that only leads to a sheet but should still show what is
-configured in there. Because the row has no `messageKey`, whatever the resolver needs to
-identify the row must be passed in `editBadgeFrom.args`.
+the badge's colour preview leads the chevron. Because the row has no `messageKey`, whatever a
+resolver needs to identify the row must be passed in its args. A summary is not repainted in
+place after a range nudge (it has no key to be found by); the dialog the nudge happens in
+re-renders the page when it closes.
+
+A `button` item is the same nav row, dispatching `action` (or, with `gotoTab: '<tab id>'`,
+bringing that tab to the front like a tab link); with `style: 'link'` it is a single line of
+link-coloured text instead (a reset). A status-slot select keeps its own per-value dialog
+behind an **Edit** button beside the dropdown (`editSheetFrom` on a value row).
 
 The preview comes in two shapes, chosen by how many colours the row owns. `chip` is ONE
 `'#RRGGBB'`, printed as the full swatch-and-hex readout an `rgb` control shows above its
@@ -273,27 +308,100 @@ sliders — the same fragment, from the same builder (`lib/html.js` `swatchReado
 and the sheet it opens name a colour identically. `dots` are small pips, outlined when the
 entry sets `ring` and filled otherwise, for a row previewing several colours at once where
 several readouts would not fit. Both preview lanes are `aria-hidden`, so `ariaNote` is what
-actually announces the state: it is appended to the Edit button's `aria-label` in parentheses.
+actually announces the state: on a value row it is appended to the Edit button's `aria-label`
+in parentheses, and on a nav row it follows the summary as visually hidden text. The Edit
+button itself always has the one look; a badge's `label` only renames it. (A missing API key
+is not shown that way: WarnWeather's provider pickers each have a key row, "<Name> API key",
+whose summary reads "No key", and a `textFrom` note under the picker and its
+`attentionFrom` tab dot say why.)
 
-Rows inside an open sheet behave as they do in a card. A `select` or `searchSelect` row there
-opens its option list in the same dialog, over the sheet; a pick, the close button, the
-backdrop, Escape or a swipe-down all return to the sheet at the scroll offset it had, with
-focus back on the row's trigger. Only closing the sheet itself dismisses the dialog.
+Rows inside an open sheet behave as they do in a card (a text row's `suffixAction` button and
+its verdict line, and a hint's tap-to-copy `[data-copy]` button, included), with one
+difference: a `select` row there expands its option list IN PLACE, under the row inside the
+sheet (the colour palette's pattern), instead of opening the select modal. The trigger stays where it was and reads as
+open (`aria-expanded="true"`, the row gains `isel-open`); the list reuses the modal's option
+rows, so the current value's check, a recommended option and gated (`meta.disabled` /
+`optionDisabledWhen`) options look and behave the same. A pick stores the value, fires the
+item's `onChange` once and collapses the list, leaving the sheet open with focus back on the
+trigger; a second tap on the trigger collapses it without a pick. One expander is open at a
+time: opening a list collapses an open palette and vice versa. Escape first collapses an open
+list or palette and only closes the sheet on the next press; the close button, the backdrop
+and a swipe-down close the sheet, which reopens collapsed. A touch that starts inside the
+list never arms the swipe-down. A list stays open only while its row renders live: when
+another control in the sheet hides the row (`showWhen`) or mutes it (`disabledWhen`), the
+list collapses with it, and the row comes back collapsed. `searchSelect` has no in-sheet
+form: keep it out of `sheetOnly` sections (a schema test enforces it). A select in the tab
+body, and one opened through `openSheet()`, still opens the modal.
 
-The fifteen types above are the complete built-in set. Anything bespoke belongs in a custom block
+A `checklist` is a grid of ticks for ONE code (`check`), ticked in or out of several lists: one
+row per option and, within a row, one list per column. Each option names the lists its ticks
+read and write in `meta.keys`, one key per column, left to right; `columns` carries the
+captions, and `label` the grid's one sub-header (in the `.subhdr.grp` look, the captions over
+the ticks), which also names the grid for assistive tech (its `aria-label`):
+
+```js
+{ type: 'checklist', label: 'Shows on', check: 'rain', writeWith: 'sideTick',
+  columns: [{label: 'Left'}, {label: 'Right'}],
+  options: [['Top bar',    'top',    {keys: ['topLeftItems', 'topRightItems']}],
+            ['Bottom bar', 'bottom', {keys: ['bottomLeftItems', 'bottomRightItems']}]] }
+```
+
+Every tick shows whether its list (a comma list, `'bt,qt,snooze'`, `''` when empty) holds the
+code. The checklist has no `messageKey` and stores nothing, and the engine writes nothing for
+it: a tap calls the writer `writeWith` names, a function registered on `PConf.checkWriters`
+as `fn(S, key, code, on)`, which ticks `code` into the list at `S[key]` (`on`) or out of it,
+the opposite of what the tick showed. The writer is the lists' own contract, so it decides
+their order and anything else a tick moves (WarnWeather's `onDemandTick` stores through
+on-demand.js, which keeps an item on one side of a bar); no `onChange` runs. Every key a grid
+shows still needs an item of its own (a `hidden` one is enough) for its default and its save.
+The options are `[label, value, meta]` like a select's (`optionsFrom` is materialized as for a
+select, but never snapped); each is a plain row (no card), its name the label and `meta.desc`
+its hint, and the rows are joined as by `joinPrevious: true`. `meta.disabled` renders a row
+inert **with its ticks**, so a gate never rewrites a stored list. Each tick is named
+"<option>, <column>" for assistive tech, and focus returns to it after a tap; it is found again
+by its key and its code, so keep one grid per sheet.
+
+A `readout` row is a badged `sheet` row with nothing to open: its label (and `icon`) on the left
+and a live `hint`/`hintFrom` line under it, for a setting summary that has no settings of its own.
+
+A `range` with `single: true` has one thumb and stores a plain integer string. `min`, `max`,
+`step` and `unit` work as on the dual range (a `%` unit hugs the number, "10%"); `dangerKey` and
+`minSpan` do not apply. A stored value off the step grid is SHOWN snapped UP to the next step
+(`min + ceil((v − min) / step) · step`, clamped to `[min, max]`) and is written back only when
+the user moves the thumb.
+
+The seventeen types above are the complete built-in set. Anything bespoke belongs in a custom block
 registered via `PConf.blocks.register` — the control-type dispatch itself is not pluggable from
 app code.
 
-`subheader` items split ONE section into several visually-titled groups — use them when a
-section holds rows that answer to different scopes (the threshold sheets keep a slot-level
-`Bold` row outside the thresholds group). Fields: `text` (the heading), optional `intro`
-(HTML shown under the heading, like a section `intro`), optional `labelAction`, and optional
-`toggleKey`. `toggleKey` names a `toggle` item **in the same section**, which then renders as a
-switch on the header instead of as a row of its own — while keeping its normal place in
-`items`, so hydrate/serialize/`onChange` are unaffected.
+`subheader` items split ONE section into several cards — use them when a section holds rows
+that answer to different scopes (a slot dialog keeps its `Bold` row in one card and its Alert
+highlighting in the next). Each visible subheader opens a card titled by its `text`; its
+optional `intro` is that card's info text (behind the header's '?' in the '?' mode), its optional
+`labelAction` sits beside the title, and its optional `toggleKey` names a `toggle` item **in the
+same section**, which then renders as a switch on the card header instead of as a row of its
+own — while keeping its normal place in `items`, so hydrate/serialize/`onChange` are
+unaffected. The hosted toggle's `disabledWhen` still applies there: while it holds, the
+header's switch renders `disabled` (dimmed, showing the held value) and a tap on it changes
+nothing. A card with no row to show drops out. Only sections merged by `groupCard` keep their
+subheaders as in-card headers.
 
 `staticText` items carry their HTML in a `text` field and are emitted verbatim without control
-chrome. They are not serialized (no `messageKey`).
+chrome. They are not serialized (no `messageKey`). `style: 'info'` boxes the note — the
+tinted, left-ruled look of the Watchface tab's fetch-notice items, in the page's info amber
+(`--info-tint` / `--info-rule` in `shell.html`, shared with those notice items and flipped by
+the light theme; error boxes stay red) — for a pointer the reader should not skim past as
+body copy ("this is set on another tab"). A boxed note keeps the row padding (14px) to
+whatever sits above and below it. A `joinPrevious` drops the divider next to it, never that
+gap, and the box does not hug the row above the way a plain joined note does. The same holds
+for a box right under an intro (`shell.html`, the `.static.info` standoff rules).
+`textFrom: { resolver, args }` derives the note from the live settings through a named
+[hint resolver](#hint-resolver-registry--pconfhintresolvers), for a note whose words, or
+whether it shows at all, depend on more than a `showWhen` can test (WarnWeather's "Needs an
+API key" note, where a key of only spaces counts as empty). The resolver gets `textFrom.args`
+as they are (no messageKey or value: a staticText has none); `null`/`undefined` falls back to
+`text`, and `''` means "no note now": the item renders nothing, blocks included, and the row
+above keeps its divider even when the note would `joinPrevious` it.
 
 `color` items offer all 64 Pebble swatches; `excludeColors` subtracts specific ones (e.g.
 white from the holiday picker, where white means "no highlight" rather than a real color). A
@@ -320,20 +428,79 @@ picking the shown swatch is what writes it.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | One of the fifteen types above |
+| `type` | string | One of the seventeen types above |
 | `messageKey` | string | Serialization key — must match the AppMessage/C key |
 | `defaultValue` | any | Default value. Color defaults are ints (e.g. `0xFFFFFF`). |
+| `defaultFrom` | `{ resolver, args?, sticky? }` | A per-watch default from a named [defaults resolver](#defaults-resolver-registry--pconfdefaultsresolvers), used instead of `defaultValue`. Never seeded by `deriveDefaults`. `sticky: false` leaves the key out of the save blob while it holds that default. |
 | `options` | `[label, value][]` | Choices for `select`, `segmented`, `radio` |
 | `optionDisabledWhen` | `{ value: showWhen }` | Renders individual `segmented`/`radio` options inert while their condition holds. Prefer this over gating the list itself with `optionsFrom`: an option that disappears is snapped away, silently rewriting a stored value the user never touched. |
 | `displayFrom` | `{ resolver, args }` | Paints a DERIVED value from a named [display resolver](#display-resolver-registry--pconfdisplayresolvers) while the stored value stays untouched. Read by `color` only; ignored on an `inline` item. |
 | `description` | string | HTML description rendered below the label |
 | `hint` | string | HTML hint rendered below the control |
 | `hintByValue` | `{ value: string }` | Per-value hints; overrides `hint` for the current value |
-| `hintFrom` | `{ resolver, args }` | A DERIVED hint from a named [hint resolver](#hint-resolver-registry--pconfhintresolvers), for a hint that depends on other keys than the row's own value; overrides `hintByValue`/`hint` unless the resolver answers `null`/`undefined`. Value rows only (not `button`/`sheet` chevron rows or `inline` cells). |
+| `attentionFrom` | `{ resolver, args }` | The row needs fixing before a save, per a named [attention resolver](#attention-resolver-registry--pconfattentionresolvers): its tab's label gets a dot, and Save asks first. |
+| `hintFrom` | `{ resolver, args }` | A DERIVED hint from a named [hint resolver](#hint-resolver-registry--pconfhintresolvers), for a hint that depends on other keys than the row's own value; overrides `hintByValue`/`hint` unless the resolver answers `null`/`undefined`. Value rows and badged `sheet` rows (`editBadgeFrom`, see above) — not `button`/chevron `sheet` rows or `inline` cells. On value rows also re-resolved in place after a keyboard nudge on a range thumb. |
+| `icon` | string | Id of a glyph in the [icon registry](#icon-registry--pconficons), printed before the label text on a value row and on a `button`/`sheet` row alike. An unregistered id prints nothing. |
 | `attributes.placeholder` | string | Placeholder text for `text` items |
 | `capabilities` | `["COLOR"]` | Clay-compatible sugar: hides the item on b&w platforms |
 | `showWhen` | Predicate | Conditional-visibility predicate (see grammar below) |
-| `text` | string | HTML body for `staticText` items (only field besides `type`) |
+| `text` | string | HTML body for `staticText` items |
+| `textFrom` | `{ resolver, args }` | `staticText` only: the body derived by a named hint resolver; `''` renders nothing (see above) |
+| `style` | `'info'` | `staticText` only: render the note as a boxed info note (see above) |
+| `compact` | boolean | Gives any row the tight vertical rhythm of the status-slot rows (`.slot`). |
+| `more` | boolean | The row renders behind its card's "More options · N more" row (see Progressive disclosure). |
+| `indent` | boolean | Indents the row (32px) — a child of the row above. |
+| `hintShown` | boolean | Keeps the row's hint in view even in the '?' mode (a live summary, not info text). |
+| `infoId` | string | The id the row's '?' is remembered under (default: `k:<messageKey>`, `s:<sheetId>`, `a:<action>`, `l:<label>`). |
+| `uiOnly` | boolean | A page-only control: hydrated from `initFrom`, never read from or written to the save blob, never seeded. |
+| `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
+| `groupLabel` | string | On the first member of an `inline` group: renders the group as ONE labelled row, the members side by side joined by a dash (a From–To row). |
+| `gotoTab` | string | `button` only: the row brings that tab to the front. |
+| `style` | `'link'` | `button` only: a line of link text instead of a nav row. |
+| `navNote`, `labelFrom`, `summaryFaintFrom` | | `sheet`/`button` nav rows only (see the `sheet` type above). |
+| `captionsOnly` | boolean | `checklist` only: its header row shows only the column captions (the card's title already names the grid). |
+| `columns` | `[{label}]` | `checklist` only: the columns' captions, left to right (see above). |
+| `check` | string | `checklist` only: the one code the grid ticks in its rows' lists (`meta.keys`; see above). |
+| `writeWith` | string | `checklist` only: the `PConf.checkWriters` id that stores a tap (see above). |
+| `single` | boolean | `range` only: one thumb, a plain integer string (see above). |
+
+### Progressive disclosure
+
+The page shows each card as its labels and controls; explanations and rarely-changed rows wait
+one tap away. Every piece of this state is UI-only (per page open, never saved).
+
+- **Info text, in view or behind '?'.** A value row's hint (`hint`, `hintByValue`, `hintFrom`),
+  a card's `intro` and a dialog's `intro` are the page's info text. By default it all shows in
+  place. The schema's top-level `infoIconsKey` names a page-only toggle (WarnWeather:
+  `hideInfoText`, *Hide info text* in Setup › Misc); while that is on, each one renders only
+  while its info is open: the label carries a small '?' button (`.info-q`, `data-info="<id>"`,
+  `aria-expanded`) and a tap shows the hint under the label (or hides it again). A row with no
+  label, a `readout`, a nav row and a row with `hintShown: true` keep theirs in view. A titled
+  card's `intro` (a section's, or a subheader's) goes behind a '?' beside the card title
+  (`data-info="c:<cardId>"`, where cardId is `<tabId>:<section id or index>/<card index>`); an
+  untitled card's intro stays in view. A dialog's intro goes behind a '?' beside the dialog
+  title (`data-info="d:<sheetId>"`).
+- **More options.** Items flagged `more: true` render after the card's other rows, only while its
+  "More options · N more" row is open (N counts the ones that would show); open, the rows come
+  first and a "Fewer options" row closes the card. A card opens with them out when one of its
+  `more` items (a nav row's: one of its dialog's) held a non-default value as the page opened,
+  so a customised setting is never tucked away.
+- **Panes.** A tab with `panes` shows a segmented switcher at its top; a section with `pane`
+  renders only while that pane is picked (the first shown pane by default). The switcher and
+  the active pane's `pinBlock` (else the tab's `pinBlock`) form one sticky header (`.pin`) the
+  cards scroll under.
+
+### Dialogs
+
+A `sheetOnly` section opens as a **full-screen dialog** on the page ground: the header holds ×
+(close and put back every setting as it was when the dialog opened — changes made in dialogs
+opened from it included), the kicker (where it was opened from: the tapped row's card title,
+else the tab label) over the title with the dialog's '?' and `labelAction` beside it, and
+**Done** (keep the changes). A dialog opened from inside another (a `sheet` row in a dialog)
+stacks on top with ‹ instead of ×, stepping back to its parent and keeping its changes; Escape
+steps back like Done. The section's `pinBlock` stays pinned under the header; its items render
+as cards like a tab's. Edits only reach the watch with the main Save. Select pickers, the date
+wheel and the Save confirm stay bottom sheets.
 
 ### showWhen predicate grammar
 
@@ -347,6 +514,7 @@ A predicate evaluates against a context of `{ <all current settings>, env }`.
 { key: "sleepStart",    nin: ["0","1"] }      // non-membership
 { env: "color",  eq: true }                   // environment fact with operator
 { env: "color" }                              // environment fact — truthy shorthand
+{ when: "lineRow", args: { picker: "thirdLine", metrics: ["uv"] } }  // a named resolver's answer
 
 // Compound forms
 { all: [ <pred>, <pred>, … ] }               // AND
@@ -356,6 +524,8 @@ A predicate evaluates against a context of `{ <all current settings>, env }`.
 ```
 
 Operators supported on `key` and `env`: `eq`, `ne`, `in`, `nin`, and bare truthy (no operator key).
+A `when` leaf asks a [when resolver](#when-resolver-registry--pconfwhenresolvers) by name; an
+unregistered name reads false.
 
 `capabilities: ["COLOR"]` is Clay-compatible sugar internally translated to
 `{ env: "color", eq: true }` ANDed with any existing `showWhen`.
@@ -375,12 +545,14 @@ env = {
   hr:            false,      // true only for emery, diorite (heart-rate sensor)
   thresholds:    true,       // false for aplite (no WW_THRESHOLD_HIGHLIGHT)
   colorBacklight: false,     // true only for emery (RGB backlight LED)
-  lineStyles:    true        // false for aplite (no WW_LINE_STYLE — third metric line + per-line marker styles)
+  lineStyles:    true,       // false for aplite (no WW_LINE_STYLE — third metric line + per-line marker styles)
+  onDemand:      true,       // false for aplite (no WW_ON_DEMAND — the Alerts at the status bars' edges)
+  fineBattery:   false       // true only for emery (battery charge reported in 5 % steps)
 }
 // Fallback when watchInfo is unavailable:
 // { color: true, round: false, platform: '', health: true, radar: true,
 //   themePolarity: true, hr: false, thresholds: true, colorBacklight: false,
-//   lineStyles: true }
+//   lineStyles: true, onDemand: true, fineBattery: false }
 ```
 
 The host app may contribute additional facts by passing them as `generateUrl`'s `env`: the
@@ -390,12 +562,13 @@ know. That is the seam for *phone*-runtime capabilities — WarnWeather passes `
 does) — because the library derives env from `watchInfo` alone and never reads app storage.
 
 The set of known 1-bit platforms (`aplite`, `diorite`, `flint`), the no-health/no-radar/
-no-theme-polarity/no-threshold platform (`aplite`), the heart-rate-capable platforms
-(`emery`, `diorite`) and the colour-backlight platform (`emery`) are Pebble facts owned by the
-library in `lib/platform.js`. Every fallback except `hr` and `colorBacklight` is conservative
-(show the controls if the platform is unknown); those two default to `false` so an unrecognized
-watch isn't offered a permanently-empty slot, or hardware (the RGB backlight LED) it probably
-doesn't have. `colorBacklight` is a fact about the BACKLIGHT, not the screen: basalt and chalk
+no-theme-polarity/no-threshold/no-on-demand platform (`aplite`), the heart-rate-capable platforms
+(`emery`, `diorite`), the colour-backlight platform (`emery`) and the 5 %-battery-step platform
+(`emery`) are Pebble facts owned by the library in `lib/platform.js`. Every fallback except `hr`,
+`colorBacklight` and `fineBattery` is conservative (show the controls if the platform is
+unknown); those three default to `false` so an unrecognized watch isn't offered a
+permanently-empty slot, hardware (the RGB backlight LED) it probably doesn't have, or a battery
+warn level its firmware cannot resolve. `colorBacklight` is a fact about the BACKLIGHT, not the screen: basalt and chalk
 are `color: true` but `colorBacklight: false`, because only emery's board carries the LED driver
 `light_set_color_rgb888()` needs. `env.round` is exposed for forward-compatibility; the rest are
 load-bearing values gating real shipped features.
@@ -404,7 +577,9 @@ load-bearing values gating real shipped features.
 
 An item hidden by `showWhen` or `capabilities` **retains its current value and is still serialized**
 — exactly like Clay's `inject.js` `.hide()`. The serializer walks the full schema regardless of
-visibility, so the output blob stays complete and the C side is not affected.
+visibility, so the output blob stays complete and the C side is not affected. The one key it
+leaves out on purpose is a `defaultFrom` item marked `sticky: false` that still holds its
+default (see [Defaults-resolver registry](#defaults-resolver-registry--pconfdefaultsresolvers)).
 
 ---
 
@@ -435,6 +610,24 @@ Registering to the same `id` twice overwrites the first registration. Requesting
 `userData` carries whatever the app puts there — typically last-fetch timestamps, connection stats,
 or any other data that must travel from PKJS into the page without going through settings storage.
 
+### Icon registry — PConf.icons
+
+An item with an `icon: id` field gets a small glyph in front of its label. The registry holds
+the markup itself, not a renderer:
+
+```js
+PConf.icons.register('rain', '<svg viewBox="0 0 24 24"><path d="…" fill="currentColor"/></svg>');
+```
+
+The engine wraps the fragment in `<span class="lbl-ico" aria-hidden="true">` (the label beside
+it names the row) and sizes it to 16 px. Draw in `currentColor` — stroke, fill or both — so the
+glyph takes the label chrome's muted colour and follows the theme flip; a hard-coded colour
+stays put when the page turns light.
+
+The fragment is printed **unescaped**, exactly like a block's HTML: register only markup your
+page code owns, never a string built from settings, `userData` or anything fetched. As with
+blocks, registering an id twice overwrites it, and an unregistered id renders nothing.
+
 ### Options-resolver registry — PConf.optionsResolvers
 
 A `select`, `searchSelect`, or `radio` item with an `optionsFrom: { resolver: id, args }` field
@@ -449,9 +642,9 @@ PConf.optionsResolvers.register('statusSlot', function (state, env, args) {
 ```
 
 The resolver runs on every render, so the list — labels included — follows any key it reads.
-A resolver can therefore RENAME an option from the live settings as well as filter the list;
-WarnWeather's radar picker calls its Rainbow option "Rainbow (limited)" until a toggle is on and
-a key is typed into a text field. When that happens depends on the control that changed:
+A resolver can therefore RENAME an option from the live settings as well as filter the list —
+say, an option named for whether a toggle is on and a key is typed into a text field. When that
+happens depends on the control that changed:
 
 - **Toggle, select/searchSelect pick, radio, segmented, colour** — the page re-renders at once
   (an action button when its handler returns `true`).
@@ -462,6 +655,48 @@ a key is typed into a text field. When that happens depends on the control that 
   A trigger whose stored value is no longer among its options is left alone until the next full
   render snaps it. The option sheet is rebuilt whenever it opens, so it is always current.
   Anything else a text key feeds (hints, `showWhen`, blocks) catches up at the next full render.
+
+A stored value that is no longer among its item's options snaps to the item's default (when
+still offered) or the first option — a `dormantValues` value excepted, which stays stored. Every
+full render and every Save does this for EVERY shown `optionsFrom` row (`snapShownOptions`), in
+schema order, wherever the row sits: on another tab, in a dialog, behind More options. So a pick
+in one row that takes an option away from another (one forecast line taking the metric a later
+line showed) clears it at once, and what is saved never depends on which rows were drawn. A row
+hidden by its own, its section's, its pane's or its tab's `showWhen` keeps its value.
+
+### Defaults-resolver registry — PConf.defaultsResolvers
+
+A keyed item with a `defaultFrom: { resolver: id, args, sticky }` field takes its default from a
+named resolver instead of a static `defaultValue`, for a default that depends on the watch (a
+heart-rate slot on an HR watch, a look that only reads well on a colour screen):
+
+```js
+// Returns the default VALUE for this watch (one value, not a list).
+PConf.defaultsResolvers.register('warnLookDefault', function (env, args) {
+  return (env && env.color === false) ? 'outline' : 'fill';
+});
+```
+
+The resolver gets the page's `env` and `defaultFrom.args`, never the settings state. It runs at
+hydrate (a key the saved blob lacks takes it), at the display-snap (a select value that fell out
+of its option list lands on it) and for the `defaultOf` handed to actions. `deriveDefaults`
+skips every `defaultFrom` item, so a seeded store never holds one. An unregistered id resolves
+to `undefined`: the key stays unset.
+
+`sticky` decides what a save does with a key that still holds its default:
+
+- **omitted or `true`**: hydrate put the resolved default into the state, and `serialize` writes
+  it back like any value. After the first save the key is stored, so the saving watch's default
+  is frozen as a value, and another watch sharing the phone's store reads it too. Fine for a
+  default that only has to be sensible on first open (WarnWeather's status slots).
+- **`false`**: `serialize` leaves the key out while its value equals the default resolved for
+  the page's `env` (strict equality in the page's shape, so a colour default compares as
+  `'#RRGGBB'`). The key stays absent, as long as the host saves the blob whole (as
+  `getSettings` does) and does not seed it, so it keeps resolving per watch. A different value
+  is a pick and is saved as usual. The flip side: a pick that equals the saving watch's default
+  is not remembered, and follows each watch's default like an untouched key. Use it when
+  "absent" is itself the contract, e.g. an app packer that resolves an unset key per platform
+  (WarnWeather's warn looks).
 
 ### Display-resolver registry — PConf.displayResolvers
 
@@ -493,11 +728,18 @@ own line draws, which lives in a sibling key.
 ```js
 // Returns the hint HTML; null/undefined = "use the row's static hint"; '' = no hint.
 PConf.hintResolvers.register('lineStyleHint', function (state, env, args) {
-  // args carries the row's messageKey and the value the row SHOWS (after the
-  // display-snap), both merged UNDER hintFrom.args
+  // args carries the row's messageKey, the value the row SHOWS (after the
+  // display-snap) and the row's static hint for that value (staticHint), all merged
+  // UNDER hintFrom.args
   return scaleFor(state[args.metricKey], args.value);
 });
 ```
+
+`args.staticHint` is what the row would show without the resolver: its `hintByValue` entry for
+the shown value, else its `hint` (undefined when it has neither). A resolver that only adds to
+that copy — WarnWeather's key-status summary appends "Key ••••1234 · ✓ works" under the
+provider's "why" text, and the AQI slot's Day max hint closes on its source's note — builds on
+it instead of carrying a second copy of the table in its args.
 
 The resolver runs at render time, after the display-snap. The page re-renders its whole body
 after every change but a text edit (that one waits for the next full render — see the
@@ -505,6 +747,78 @@ options-resolver registry above), so the hint follows every key the resolver rea
 to declare — the same reason `optionsFrom` lists and `showWhen` gates stay current. An
 unregistered resolver id, or a `null`/`undefined` answer, falls back to `hintByValue` for the
 shown value, then `hint`; an empty string is honoured as "no hint here".
+
+One commit skips the render on purpose: an arrow-key nudge on a range thumb paints the slider in
+place so the thumb keeps focus (range-control.js). So a derived hint is re-resolved in place
+after it instead — `renderRow` marks every derived hint element with `data-hint-for="<messageKey>"`,
+and the engine rewrites just that element's markup, replacing no node. No WarnWeather hint
+relies on it today: the hints that quote a slider's value (the Alerts card's `alertLevelsHint`,
+the Battery row's `onDemandBatteryText`) sit on keyless rows outside the sheet and refresh on the
+render that closes it. The library keeps it for a hint that reads a slider in its own sheet
+(`test/hint-resolver.test.js` pins it). A hint that rendered empty (no element) and the row's
+wrap layout wait for the next full render.
+
+### Attention-resolver registry — PConf.attentionResolvers
+
+An item with an `attentionFrom: { resolver: id, args }` field can say that it needs fixing
+before the user saves — WarnWeather's Weather provider row, while the picked provider's API
+key is missing or the provider is known to have rejected it:
+
+```js
+// Returns null (nothing to fix) or what to say about it.
+PConf.attentionResolvers.register('keyAttention', function (state, env, args) {
+  // args carries the row's messageKey and its stored value, merged UNDER attentionFrom.args
+  if (state.owmApiKey) { return null; }
+  return {
+    note: 'OpenWeatherMap has no API key',        // appended to the tab's aria-label
+    title: 'OpenWeatherMap has no API key',       // the Save dialog's title
+    body: 'Without one, the watch gets no forecast.',
+    actionLabel: 'Add key',                       // the fix; omit for "Save anyway" alone
+    sheet: 'providerKeyOwm'                       // optional; see below
+    // confirmLabel: 'Save anyway' is the default
+  };
+});
+```
+
+The engine reads it in two places, every render:
+
+- **The tab bar.** The label of a tab holding a visible row that needs attention (in a
+  visible section, a `sheetOnly` one included) ends in a small dot in the info amber
+  (`.tab-dot`, `aria-hidden`), and the first such row's `note` joins the tab's
+  `aria-label` in parentheses.
+- **The Save button.** It first walks the visible tabs in order; the first row that needs
+  attention and has a `title` opens a confirm dialog in the shared sheet instead of saving:
+  the title in the sheet header, `body` (plain text, escaped) and two buttons. `actionLabel`
+  closes the dialog WITHOUT saving, brings the row's tab to the front and opens the fix:
+  `sheet`, else the row's `editSheetFrom` sheet, else the `sheetOnly` section the row sits
+  in. `confirmLabel` ("Save anyway") saves exactly as Save does. The close button, the
+  backdrop and Escape close it and save nothing.
+
+It never stands between the user and a save: with nothing to fix, an attention without a
+`title`, a resolver that throws, or a webview that cannot open a `<dialog>`
+(`showModal` missing), Save saves at once. Only the Save button asks — `runReady`'s
+`save()` (the setup wizard's finish) saves directly. The dialog's buttons sit side by side
+with a margin, not a flex `gap`, which old Android WebViews do not lay out.
+
+### When-resolver registry — PConf.whenResolvers
+
+A `{ when: id, args }` leaf in a `showWhen`, `disabledWhen` or `optionDisabledWhen` predicate
+asks a named resolver whether it holds, for a rule the app already answers in one of its own
+modules: the schema asks that module instead of rebuilding the rule as a tree of `key` leaves
+that tests then have to keep equal to it. WarnWeather's Forecast tab rows ask which picker's
+line draws their metric, and its Alerts gates ask whether an item shows on a status bar.
+
+```js
+// fn(state, env, args): a truthy answer holds. `state` is the evaluation context, the
+// settings with `env` on it; args is the leaf's args ({} when it has none).
+PConf.whenResolvers.register('lineRow', function (state, env, args) {
+  return hostLine(state, env, args) === args.picker;
+});
+```
+
+The page re-renders its whole body after every change, so the leaf follows every key the
+resolver reads with no dependency list, as a hint resolver does. An unregistered id reads
+false, as an `env` fact the host never supplied does.
 
 ### Action registry — PConf.actions
 
@@ -522,6 +836,21 @@ PConf.actions.resetThresholds = function (arg, state, env, defaultOf) {
   return true;
 };
 ```
+
+Copy can carry the same dispatch inline: a section `intro`, a hint or a `staticText` may hold
+`<button type="button" class="txt-link" data-action="resetThresholds">…</button>`, drawn as a
+link in the copy's own font (`.txt-link`). A tab link has the same markup with
+`data-goto-tab="<tab id>"` instead: a tap brings that tab to the front, as a tab-bar tap does.
+Each tab keeps its scroll offset, and the tab bar scrolls sideways until the new tab shows.
+From inside an open sheet, the sheet closes first, and focus lands on the new tab's button in
+the tab bar. A tab whose `showWhen` hides it is never opened that way: the tap changes nothing,
+so link only to a tab that exists wherever the copy shows (gate the copy with the tab). Keep
+both kinds of link out of copy that sits inside a tap target of its own. Which tap wins
+depends on the target: a chevron `sheet` row, a select or date trigger and a card header are
+matched before the shared controls, so they take the tap and the link never fires; inside a
+`button` row (`data-action`) the link wins instead (`controlClick` checks `[data-goto-tab]`
+before `[data-action]`, and an inline action link is the nearer `[data-action]`), so the
+row's own action never runs.
 
 ### Hook registry — PConf.hooks
 
@@ -590,11 +919,16 @@ rename, so a concurrent reader never sees a half-written file), and returns `out
    - `lib/schema-walk.js` — single-source schema traversal (`PConf.schemaWalk`)
    - `lib/color.js` — int↔hex color conversion (`PConf.color`)
    - `lib/show-when.js` — predicate evaluator (`PConf.showWhen`)
-   - `lib/html.js` — the escape helper, the shared sheet header, and the swatch+hex
-     colour readout the `rgb` control and a `chip` badge both print (`PConf.html`)
+   - `lib/html.js` — the escape helper, the shared sheet header, the swatch+hex
+     colour readout the `rgb` control and a `chip` badge both print, and a joined row's
+     no-divider class (`PConf.html`)
    - `lib/date-picker.js` — the date control: value helpers, wheel renderers, scroll-settle wiring (`PConf.datePicker`)
-   - `lib/range-control.js` — the dual-thumb/threshold slider AND the `rgb` control (three single-thumb
-     channel tracks sharing the same drag wiring): numeric rules, renderers, drag wiring (`PConf.rangeControl`)
+   - `lib/range-control.js` — the dual-thumb, one-thumb and threshold sliders: numeric rules, renderers,
+     the single-thumb track, and the drag wiring every slider and the `rgb` control share (`PConf.rangeControl`)
+   - `lib/rgb-control.js` — the `rgb` control: the `"r,g,b"` value rules, the swatch readout above three
+     single-thumb channel tracks, and its in-place repaint (`PConf.rgbControl`)
+   - `lib/checklist.js` — the `checklist` control's renderer: the grid of ticks and the
+     list codes it reads (`PConf.checklist`); a tap stays with the engine
    - `lib/engine.js` — render engine, registries, hooks, modal shell, event wiring
    - each file in `appFiles` — the app's blocks and hooks
    - `PConf.engine.boot();` — boot runs last, after all registrations

@@ -2,7 +2,8 @@
   "_comment": "Real DWD/Brightsky data for Berlin starting 2026-06-20 11:00 local (CEST), 39h. temps/windKmh/gustKmh are real DWD values (temps F). The 2026-06-21 ~noon thunderstorm (real 12.8mm peak, real temp crash at idx 25) is the centerpiece; rainMm and precipPct are SHAPED for the time-lapse around that real peak (DWD observations have no probability and a 1h rain spike). rainMm is two distinct episodes: a small ~1.8mm shower (idx 15-18), a dry gap (idx 19-21), then the big build->12.8mm peak->taper storm (idx 22-31). precipPct stays 0 until the first rain bar appears (idx 15), rises into the peak, then trails out slowly (gentle tail) so the filled precip area lingers after the rain stops. Built for the two-phase time-lapse Phase A scroll.",
   "name": "berlin-timelapse",
   "claySettings": {
-    "provider": "dwd"
+    "provider": "dwd",
+    "statusTopOnDemandRightItems": "battery"
   },
   "watch": {
     "now": {

@@ -6,14 +6,21 @@ var eachItem = require('./schema-walk.js').eachItem;
  * their env-aware default is resolved at hydrate/bake time, and hydrate favors
  * injected/saved values over resolved ones. Seeding them here would make a stale
  * seed value win over the correct resolved default (e.g. HR vs distance by platform).
+ * It is also what lets a `defaultFrom: {sticky: false}` key, which the page leaves
+ * out of its save blob while it holds the default (engine.js serialize), stay absent
+ * in the store: a seed backfill would pin it again on the next boot.
  * @param {Object} schema The config schema (tabs/sections/items).
  * @returns {Object} Map of messageKey to its defaultValue.
  */
 function deriveDefaults(schema) {
   var out = {};
   eachItem(schema, function (it) {
-    // Only static defaultValue items are seeded; defaultFrom items stay unseeded (see above).
-    if (it.messageKey && typeof it.defaultValue !== 'undefined') { out[it.messageKey] = it.defaultValue; }
+    // Only static defaultValue items are seeded; defaultFrom items stay unseeded (see
+    // above), even one that also carries a defaultValue (resolveDefaultFrom ignores it).
+    // A page-only item (uiOnly) is never stored, so it is never seeded either.
+    if (it.messageKey && !it.defaultFrom && !it.uiOnly && typeof it.defaultValue !== 'undefined') {
+      out[it.messageKey] = it.defaultValue;
+    }
   });
   return out;
 }

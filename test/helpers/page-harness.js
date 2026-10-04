@@ -9,7 +9,13 @@
 // scale-max editor) and test/config-night-color-sheet.test.js (the dim-backlight colour
 // sheet) — the two places where a control has to be exercised INSIDE the edit-sheet
 // dialog, which renders outside #scroll and wires its own handlers — and by
-// test/config-rainbow-radar-label.test.js (a text commit relabelling a select trigger).
+// test/config-provider-key-sheets.test.js (a weather provider's key sheet: a text
+// field, its Test button and a hint's copy button inside the dialog), by
+// test/config-key-status.test.js and test/config-radar-key-status.test.js (the key's
+// status: the tab bar's dot and the Save button's confirm dialog, which needs `dialog`
+// below), and by test/config-radar-rainbow-options.test.js (the Radar tab's two Rainbow
+// options, opened on and saved as radarProvider). The trigger stubs
+// below also report the engine's in-place relabel after a text commit (`relabels`).
 'use strict';
 const assert = require('node:assert/strict');
 const vm = require('vm');
@@ -23,6 +29,9 @@ const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').re
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const unescHtml = (s) => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
   .replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+// A derived (hintFrom) hint as engine.js renderRow writes it; group 2 is its row key,
+// group 4 its markup (no nested divs in any hint the harness drives).
+const HINT_RE = /(<div class="hint" data-hint-for=")([^"]*)(">)([\s\S]*?)(<\/div>)/g;
 
 /** A DOM-element stub for the handful of nodes boot() touches.
  *
@@ -31,6 +40,14 @@ const unescHtml = (s) => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').r
  * (relabelSelectTriggers). Its span-text / aria-label writes are spliced back into the
  * markup WITHOUT counting as an innerHTML write (they bump `relabels` instead), so a
  * test can tell an in-place relabel from a full re-render.
+ *
+ * `querySelectorAll('.hint[data-hint-for]')` likewise answers one stub per derived hint
+ * — the engine's in-place hint repaint after a keyboard nudge on a range thumb
+ * (repaintDerivedHints). Its innerHTML writes are spliced back the same way and bump
+ * `hintRepaints`, not `writes`.
+ *
+ * `focuses` counts focus() calls; `document.querySelector('#save')` answers the Save
+ * button's stub, so a test can see the Save dialog hand focus back to it.
  * @param {string} id element id
  * @returns {Object} stub exposing addEventListener/dispatch + an innerHTML counter
  */
@@ -69,13 +86,40 @@ function makeEl(id) {
       querySelector(sel) { return sel === 'span' ? span : null; }
     };
   }
+  // One derived-hint element, by its data-hint-for key.
+  function findHint(key) {
+    HINT_RE.lastIndex = 0;
+    let m;
+    while ((m = HINT_RE.exec(raw))) { if (unescHtml(m[2]) === key) { return m; } }
+    return null;
+  }
+  function hintStub(key) {
+    const stub = { getAttribute: n => (n === 'data-hint-for' ? key : null) };
+    Object.defineProperty(stub, 'innerHTML', {
+      get() { const m = findHint(key); return m ? m[4] : ''; },
+      set(v) {
+        const m = findHint(key);
+        if (!m) { return; }
+        raw = raw.slice(0, m.index) + m[1] + m[2] + m[3] + v + m[5] + raw.slice(m.index + m[0].length);
+        el.hintRepaints += 1;
+      }
+    });
+    return stub;
+  }
   const el = {
-    id, className: '', textContent: '', writes: 0, relabels: 0,
+    id, className: '', textContent: '', writes: 0, relabels: 0, hintRepaints: 0, focuses: 0,
     addEventListener(type, fn) { (handlers[type] = handlers[type] || []).push(fn); },
     dispatch(type, ev) { (handlers[type] || []).forEach(fn => fn(ev)); },
     types() { return Object.keys(handlers); },
     querySelector() { return null; },
     querySelectorAll(sel) {
+      if (sel === '.hint[data-hint-for]') {
+        const hints = [];
+        HINT_RE.lastIndex = 0;
+        let h;
+        while ((h = HINT_RE.exec(raw))) { hints.push(unescHtml(h[2])); }
+        return hints.map(hintStub);
+      }
       if (sel !== '.sel-wrap[data-select]') { return []; }
       const keys = [];
       TRIGGER_RE.lastIndex = 0;
@@ -83,9 +127,9 @@ function makeEl(id) {
       while ((m = TRIGGER_RE.exec(raw))) { keys.push(unescHtml(m[2])); }
       return keys.map(triggerStub);
     },
-    classList: { add() {}, remove() {} },
+    classList: { add() {}, remove() {}, contains() { return false; } },
     style: {},
-    focus() {}, getAttribute() { return null; }, setAttribute() {}
+    focus() { el.focuses += 1; }, getAttribute() { return null; }, setAttribute() {}
   };
   Object.defineProperty(el, 'innerHTML', {
     get() { return raw; },
@@ -97,11 +141,19 @@ function makeEl(id) {
 /** Boot the real generated page in a vm sandbox with a fake DOM.
  * @param {Object} [cfg] stored settings to hydrate from (onboardingDone defaults to true)
  * @param {string} [platformName] Pebble platform for the injected env (default basalt)
- * @returns {{S: Object, scroll: Object, modal: Object, clickTab: function,
- *   openEditSheet: function, clickModalToggle: function, clickToggle: function,
- *   typeText: function, openSelect: function, pickOption: function, save: function}}
+ * @param {{userData: (Object|undefined), dialog: (boolean|undefined)}} [opts] `userData`:
+ *   what the phone injects (default {}); `dialog`: give #modal a native <dialog>'s
+ *   showModal()/close()/open, so the Save button's confirm dialog can open (without it
+ *   the page behaves like a webview with no <dialog>, and Save saves at once).
+ * @returns {{S: Object, scroll: Object, modal: Object, tabs: Object, window: Object,
+ *   clickTab: function, openEditSheet: function, clickModalToggle: function,
+ *   clickToggle: function, typeText: function, openSelect: function, pickOption: function,
+ *   save: function, tapSave: function, saved: function}}
+ *   `window` is the sandbox's global, for a test that stubs a browser API the page
+ *   reads at call time (navigator.clipboard).
  */
-function bootGeneratedPage(cfg, platformName) {
+function bootGeneratedPage(cfg, platformName, opts) {
+  opts = opts || {};
   const html = require('../../src/pkjs/config-ui/scripts/build-page.js').previewPage({
     appFiles: require('../../scripts/build-config-page.js').APP_FILES,
     schema, env: platformLib.computeEnv({ platform: platformName || 'basalt' }),
@@ -109,7 +161,7 @@ function bootGeneratedPage(cfg, platformName) {
     // and without onboardingDone the first-run wizard would auto-open over the page
     // (wizard.js shouldShow). A caller can still pass onboardingDone: false.
     cfg: Object.assign({ onboardingDone: true }, cfg || { provider: 'dwd' }),
-    userData: {}, returnTo: '#'
+    userData: opts.userData || {}, returnTo: '#'
   });
   const src = html.match(/<script>([\s\S]*)<\/script>/)[1]
     .replace(/PConf\.engine\.boot\(\);\s*$/, '');   // boot explicitly, after wiring onReady
@@ -118,14 +170,26 @@ function bootGeneratedPage(cfg, platformName) {
   sandbox.window = sandbox;
   sandbox.document = {
     getElementById(id) { return (els[id] = els[id] || makeEl(id)); },
-    querySelector() { return null; }, querySelectorAll() { return []; },
+    querySelector(sel) { return sel === '#save' ? sandbox.document.getElementById('save') : null; },
+    querySelectorAll() { return []; },
     addEventListener() {}
   };
   sandbox.navigator = {};
   sandbox.location = { href: '' };   // save() navigates to RETURN_TO + the saved blob
+  if (opts.dialog) {
+    const modal = sandbox.document.getElementById('modal');
+    modal.open = false;
+    modal.showModal = function () { modal.open = true; };
+    modal.close = function () { modal.open = false; };
+  }
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
   let ready = null;
+  // A tap on one of the open dialog's header buttons, by its selector.
+  function tapModal(selector) {
+    const t = { getAttribute: () => null, closest: sel => (sel === selector ? t : null) };
+    els.modal.dispatch('click', { target: t });
+  }
   sandbox.PConf.hooks.onReady(ctx => { ready = ctx; });   // the only handle on the live S
   sandbox.PConf.engine.boot();
   assert.ok(ready, 'onReady ran (boot completed against the fake DOM)');
@@ -133,6 +197,8 @@ function bootGeneratedPage(cfg, platformName) {
     S: ready.S,
     scroll: els.scroll,
     modal: els.modal,
+    tabs: els.tabs,
+    window: sandbox,
     clickTab(tabId) {
       const t = { getAttribute: n => (n === 'data-tab' ? tabId : null), closest: sel => (sel === '[data-tab]' ? t : null) };
       els.tabs.dispatch('click', { target: t });
@@ -145,6 +211,48 @@ function bootGeneratedPage(cfg, platformName) {
       };
       els.scroll.dispatch('click', { target: t });
       assert.ok(els.modal.innerHTML.length > 0, 'the edit sheet rendered into #modal');
+    },
+    // Tap a row INSIDE the open dialog that opens another dialog (a nested one, ‹ back).
+    openNestedSheet(sheetId) {
+      assert.ok(els.modal.innerHTML.indexOf('data-edit-sheet="' + sheetId + '"') !== -1,
+        sheetId + ' row is rendered in the open dialog');
+      const t = {
+        getAttribute: n => (n === 'data-edit-sheet' ? sheetId : null),
+        closest: sel => (sel === '[data-edit-sheet]' ? t : null)
+      };
+      els.modal.dispatch('click', { target: t });
+    },
+    // The full-screen dialog's header: Done (keep the edits), ‹ (back to the parent,
+    // keeping them) and × (close and put back every value it changed).
+    doneDialog() { tapModal('[data-dlg-done]'); },
+    backDialog() { tapModal('[data-dlg-back]'); },
+    cancelDialog() { tapModal('[data-dlg-close]'); },
+    // Open every card's More options in a host ('scroll' or 'modal'), so rows behind it
+    // render. Repeats until none is left closed (opening one can show another card).
+    openAllMore(host) {
+      const h = els[host || 'scroll'];
+      const re = /data-more="([^"]+)" aria-expanded="false"/g;
+      let m, guard = 0;
+      while ((m = re.exec(h.innerHTML)) && guard++ < 50) {
+        const id = unescHtml(m[1]);
+        const t = { getAttribute: n => (n === 'data-more' ? id : null), closest: sel => (sel === '[data-more]' ? t : null) };
+        h.dispatch('click', { target: t });
+        re.lastIndex = 0;
+      }
+    },
+    // Tap a '?' (data-info id) in a host: its info text shows (or hides again).
+    toggleInfo(id, host) {
+      const h = els[host || 'scroll'];
+      assert.ok(h.innerHTML.indexOf('data-info="' + escHtml(id) + '"') !== -1, id + ' info button is rendered');
+      const t = { getAttribute: n => (n === 'data-info' ? id : null), closest: sel => (sel === '[data-info]' ? t : null) };
+      h.dispatch('click', { target: t });
+    },
+    // Tap a pane of a tab with panes (the Graphs tab's Forecast · Rain radar · Health).
+    clickPane(tabId, paneId) {
+      const v = tabId + ':' + paneId;
+      assert.ok(els.scroll.innerHTML.indexOf('data-pane="' + v + '"') !== -1, v + ' pane is offered');
+      const t = { getAttribute: n => (n === 'data-pane' ? v : null), closest: sel => (sel === '[data-pane]' ? t : null) };
+      els.scroll.dispatch('click', { target: t });
     },
     // Flip a toggle rendered in the open edit sheet.
     clickModalToggle(key) {
@@ -203,6 +311,18 @@ function bootGeneratedPage(cfg, platformName) {
       els.save.dispatch('click', { target: els.save });
       return new Promise(resolve => setTimeout(() => {
         resolve(JSON.parse(decodeURIComponent(sandbox.location.href.slice(1))));
+      }, 350));
+    },
+    // Tap Save and return at once: a confirm dialog may open in #modal instead of a save
+    // (see `saved`).
+    tapSave() {
+      els.save.dispatch('click', { target: els.save });
+    },
+    // After the toast delay: the saved blob, or null when nothing navigated (no save).
+    saved() {
+      return new Promise(resolve => setTimeout(() => {
+        const href = sandbox.location.href;
+        resolve(href ? JSON.parse(decodeURIComponent(href.slice(1))) : null);
       }, 350));
     }
   };

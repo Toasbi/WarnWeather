@@ -122,7 +122,7 @@ module.exports = {                                        // factory + reusable 
   createConfig: createConfig,
   isColorPlatform: platform.isColorPlatform, computeEnv: platform.computeEnv,
   isThemePolarityPlatform: platform.isThemePolarityPlatform,
-  // telemetry.js gates the Dim backlight fields on this: the LED is emery's alone.
+  // telemetry-settings.js gates the Dim backlight fields on this: the LED is emery's alone.
   isColorBacklightPlatform: platform.isColorBacklightPlatform,
   // forecast-series.js gates the fourth-line trend key on this: aplite has no
   // SERIES_FOURTH (WW_LINE_STYLE).

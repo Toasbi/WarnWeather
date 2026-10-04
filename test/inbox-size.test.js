@@ -89,6 +89,10 @@ function buildWeatherOutboxPayload(payload) {
   return outgoing;
 }
 
+// The weather alerts' entry tuple cap (status-wire.js and alert_set.h
+// ALERT_ENTRIES_MAX_BYTES): the bundle budgets the tuple at it.
+const ALERT_ENTRIES_CAP = require('../src/pkjs/status-wire').ALERT_ENTRIES_MAX_BYTES;
+
 /**
  * Build the heaviest single AppMessage the phone can emit (DWD + wind).
  * @param {string} [platform] Watch platform; aplite's bundle drops the lines it
@@ -123,7 +127,18 @@ function buildHeaviestBundle(platform) {
   // distinct third line + a distinct fourth line (three 24-byte trends) + rain
   // bars, on a platform that carries the fourth line (emery below — aplite's
   // bundle omits the FOURTH key entirely).
-  applyForecastSeries(payload, {
+  // The weather alerts' entries at their heaviest: every metric alert placed on a bar,
+  // every one printing its value, and every one alerting (UV 8, wind 60, gusts 90,
+  // AQI 152, pollen 2-3 — at or past each seed pair). The AQI and pollen readings are
+  // transient bake inputs.
+  const alertSettings = require('./helpers/on-demand.js').placedOnly(['gust', 'uv', 'aqi', 'pollen', 'wind'], {
+    provider: 'dwd',
+    alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
+    alertAqiDisplay: 'value', alertPollenDisplay: 'value'
+  });
+  payload.AQI_TREND = range.map(function() { return 152; });
+  payload.POLLEN_TODAY = '2-3';
+  applyForecastSeries(payload, Object.assign({
     secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'uv', fifthLine: 'precip_prob',
     secondaryLineFill: false, barSource: 'rain', windScale: 'high',
     temperatureUnits: 'c', axisTimeFormat: '12h', timeShowAmPm: true,
@@ -139,7 +154,17 @@ function buildHeaviestBundle(platform) {
     statusRadarLeft: 'city', statusRadarMid: 'city', statusRadarRight: 'city',
     statusTopLeft: 'city', statusTopMid: 'city', statusTopRight: 'city',
     statusHealthLeft: 'city', statusHealthMid: 'city', statusHealthRight: 'city'
-  }, { platform: platform || 'emery' });
+  }, alertSettings), { platform: platform || 'emery' });
+
+  // The entry tuple (off aplite: the bake skips it there, like the levels). The
+  // realistic heaviest bake — all five with values — stays under the cap; the
+  // bundle budgets the tuple AT the cap, the most the watch accepts, so a wider
+  // value (a 3-digit wind in mph, a 2-digit UV) can never tip the inbox.
+  if (Object.prototype.hasOwnProperty.call(payload, 'ALERT_ENTRIES_UINT8')) {
+    assert.ok(payload.ALERT_ENTRIES_UINT8.length > 0 &&
+      payload.ALERT_ENTRIES_UINT8.length <= ALERT_ENTRIES_CAP, 'the real bake stays under the cap');
+    payload.ALERT_ENTRIES_UINT8 = new Array(ALERT_ENTRIES_CAP).fill(0);
+  }
 
   // Radar (DWD supplies it) — two 24-slot trends + a start epoch.
   payload.RAIN_RADAR_TREND_UINT8 = range.map(function() { return 7; });
@@ -192,6 +217,9 @@ test('aplite keeps its 536 B inbox and a bundle without the extra metric lines',
   // MEASURED: the full emery bundle less both extra line trends (2 × 31 B) and
   // the STATUS_LEVELS_UINT8 threshold tuple aplite compiles out.
   assert.equal(size, 473, 'aplite ships neither FOURTH_ nor FIFTH_LINE_TREND_UINT8');
+  // Nor the weather alerts' entries: aplite has no On demand (WW_ON_DEMAND) and no handler.
+  assert.equal(Object.prototype.hasOwnProperty.call(buildHeaviestBundle('aplite'),
+    'ALERT_ENTRIES_UINT8'), false, 'aplite never receives ALERT_ENTRIES_UINT8');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
@@ -212,14 +240,27 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   // line — see the aplite test above).
   // 544 -> 576 when the radar's sky rows joined (RADAR_SKY_UINT8: 7 B tuple
   // header + 25 B blob). Headroom 56 -> 24 B. Never sent to aplite.
-  assert.equal(size, 576, 'update the recorded realistic bundle size when its wire contract changes');
+  // 576 -> 603 when the Alerts row's entries joined (ALERT_ENTRIES_UINT8: 7 B
+  // tuple header + the 20 B cap), with the non-aplite inbox_size raised 600 ->
+  // 640 B for it. Headroom 24 -> 37 B. Never sent to aplite.
+  assert.equal(inbox, 640, 'the non-aplite inbox');
+  assert.equal(size, 603, 'update the recorded realistic bundle size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
+// The entries ride the status category, so the heaviest bundle carries them
+// whenever the status lines change — and they are the tuple the inbox grew for.
+test('the heaviest bundle carries the weather alerts\' entries at their cap', () => {
+  const bundle = buildHeaviestBundle();
+  assert.equal(bundle.ALERT_ENTRIES_UINT8.length, 20);
+  const status = WEATHER_CATEGORIES.filter(function(c) { return c.name === 'status'; })[0];
+  assert.ok(status.keys.indexOf('ALERT_ENTRIES_UINT8') !== -1, 'in the status category');
+});
+
 // The radar limit notice (RAIN_RADAR_LIMITED, radar-wire.js limitedRadarTuples) is
-// sent INSTEAD of the three radar tuples, never beside them: a 7 B header + a 4 B
-// int32 (PKJS packs a JS number as int32) replaces 7 + 24 + 7 + 24 + 7 + 4 = 73 B. So
-// the recorded heaviest bundles above stay the worst case; this pins both halves.
+// sent INSTEAD of the three radar tuples, never beside them: a 7 B header + its line
+// ("Radar limit reached" + NUL, 20 B) replaces 7 + 24 + 7 + 24 + 7 + 4 = 73 B. So the
+// recorded heaviest bundles above stay the worst case; this pins both halves.
 test('the radar limit notice rides alone, so a limited bundle is lighter than the heaviest', () => {
   const radarWire = require('../src/pkjs/weather/radar-wire.js');
   const limited = radarWire.limitedRadarTuples();
@@ -235,13 +276,46 @@ test('the radar limit notice rides alone, so a limited bundle is lighter than th
     RADAR_KEYS.forEach(function(k) { delete withNotice[k]; });
     Object.assign(withNotice, limited);
     const size = dictSize(buildWeatherOutboxPayload(withNotice));
-    assert.equal(size, dictSize(heaviest) - 73 + 11, platform + ': the notice costs 11 B in place of 73 B');
+    assert.equal(size, dictSize(heaviest) - 73 + 27, platform + ': the notice costs 27 B in place of 73 B');
     assert.ok(size <= dictSize(heaviest), platform + ': a limited bundle is at most the heaviest');
   });
 });
 
-/** The Clay settings message now carries the palette tuples too. */
-function buildHeaviestClayMessage() {
+// The out-of-coverage answer (radar-wire.js outOfCoverageRadarTuples) is the clear plus
+// the source's line: 7 + 0 + 7 + 0 + 7 + 4 = 25 B of empty arrays and a zero start, and
+// a 7 B header + at most 31 B of line + NUL, so at most 64 B in place of the window's
+// 73 B: an out-of-coverage bundle is never heavier than the heaviest. The same shape
+// carries DWD's no-data line (its second 404 in a row from inside its area).
+test('the out-of-coverage and no-data answers are lighter than the radar window they replace', () => {
+  const radarWire = require('../src/pkjs/weather/radar-wire.js');
+  const radarCoverage = require('../src/pkjs/weather/radar-coverage.js');
+  const lines = [];
+  Object.keys(radarCoverage.COVERAGE).forEach(function(id) {
+    lines.push([id, radarCoverage.watchText(id)]);
+    if (radarCoverage.noDataText(id)) { lines.push([id + ' no data', radarCoverage.noDataText(id)]); }
+  });
+  assert.deepEqual(lines.map(function(l) { return l[1]; }),
+    ['DWD radar: Germany only', 'DWD: no radar data', 'Met.no radar: Nordics only']);
+  lines.forEach(function(entry) {
+    const label = entry[0];
+    const line = entry[1];
+    assert.ok(Buffer.byteLength(line) <= 31, label + ': within the watch\'s 32 B notice buffer');
+    ['emery', 'aplite'].forEach(function(platform) {
+      const heaviest = buildHeaviestBundle(platform);
+      const outside = Object.assign({}, heaviest, radarWire.outOfCoverageRadarTuples(line));
+      const size = dictSize(buildWeatherOutboxPayload(outside));
+      assert.equal(size, dictSize(heaviest) - 73 + 25 + 7 + Buffer.byteLength(line) + 1, platform + ' ' + label);
+      assert.ok(size < dictSize(heaviest), platform + ' ' + label + ': lighter than the heaviest');
+    });
+  });
+});
+
+/**
+ * The heaviest Clay settings message (the palette tuples included).
+ * @param {?Object} [watchInfo] The watch it is packed for; emery by default.
+ * @returns {Object} The payload.
+ */
+function buildHeaviestClayMessage(watchInfo) {
   const payload = buildClayPayload({
     temperatureUnits: 'c', timeLeadingZero: true, axisTimeFormat: '12h',
     weekStartDay: 'mon', firstWeek: 'prev', timeFont: 'bitham', showQt: true,
@@ -254,7 +328,14 @@ function buildHeaviestClayMessage() {
     // Worst-case custom no-rain text: the full 24-byte UTF-8 cap (CLAY_NORAIN_TEXT
     // packs it + NUL; clay-payload truncates anything longer at pack time).
     radarNoRainText: 'Kein Regen in Sichtweite',
-  }, { platform: 'emery' }, new Date('2026-06-26T00:00:00Z'));
+    // The low-battery takeover switched on: its tuple rides aplite's bundle only.
+    batteryLowOnly: true,
+    // Draw from / Bars from on Top: their flags are bits of the line-style bytes and the
+    // two palettes (draw-from.js), no byte of their own, so the recorded sizes hold
+    // whatever they say.
+    precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top', uvLineFrom: 'top',
+    rainBarFrom: 'top', radarBarFrom: 'top',
+  }, watchInfo === undefined ? { platform: 'emery' } : watchInfo, new Date('2026-06-26T00:00:00Z'));
 
   // The Dim backlight tuple (CLAY_NIGHT_LIGHT_UINT8 = [r, g, b, startHour, endHour])
   // is REAL now: buildClayPayload packs it for every platform (night-light.js), so it
@@ -328,8 +409,37 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // the smallest inbox) 21 -> 19 B.
   // 517 -> 519 when CLAY_CURVE_INSET_UINT8 grew 3 -> 5: feels-like and dew point
   // allowed on the third and fourth metric lines (headroom 19 -> 17 B).
-  assert.equal(size, 519, 'update the recorded Clay message size when its wire contract changes');
+  // 519 -> 522 in 1.24.0 when the threshold blob widened 34 -> 48 (+14 B: the alerts
+  // byte with the rain look in bits 0-1 and bits 2-7 reserved, the On demand Battery
+  // item byte, the two warn-look bytes at 2 bits per paired kind (none / outline /
+  // fill, the box at the warn level) and the ten On demand cells) and
+  // CLAY_BATTERY_LOW_ONLY (7 B tuple header + 4 B int = 11 B) left every bundle but a
+  // known aplite's: the low-battery takeover is aplite's alone, every other watch
+  // shows the battery as the On demand Battery item. The metric alerts themselves ride
+  // the weather message (ALERT_ENTRIES_UINT8, recorded above). Headroom 17 -> 14 B.
+  assert.equal(size, 522,'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
+});
+
+// The tuple split that pays for the On demand cells: CLAY_BATTERY_LOW_ONLY rides a known
+// aplite's Clay bundle alone. An unknown platform is treated as capable and goes without
+// it (an aplite whose platform the phone cannot read reads the takeover as off for that
+// session — the accepted trade-off), so the capable bundles all stay at their recorded
+// size, and aplite's is unchanged by On demand.
+test('CLAY_BATTERY_LOW_ONLY rides aplite\'s Clay bundle only; the per-platform sizes', () => {
+  const sizes = { emery: 522, basalt: 522, chalk: 522, diorite: 498, flint: 498, aplite: 401 };
+  Object.keys(sizes).forEach((platform) => {
+    const payload = buildHeaviestClayMessage({ platform });
+    assert.equal(dictSize(payload), sizes[platform], platform);
+    assert.equal(Object.prototype.hasOwnProperty.call(payload, 'CLAY_BATTERY_LOW_ONLY'), platform === 'aplite',
+      platform + ': the takeover tuple rides aplite alone');
+    assert.ok(readInboxSize(platform) - dictSize(payload) >= 10, platform + ': the 10 B floor');
+  });
+  const unknown = buildHeaviestClayMessage(null);
+  assert.equal(dictSize(unknown), 522, 'an unknown platform: the capable shape');
+  assert.equal(Object.prototype.hasOwnProperty.call(unknown, 'CLAY_BATTERY_LOW_ONLY'), false);
+  // Measured against the smallest inbox, aplite's 536 B, as the conservative floor.
+  assert.ok(readInboxSize('aplite') - dictSize(unknown) >= 10, 'unknown: the 10 B floor against 536 B');
 });
 
 // The custom-layout ext word rides the HIGH half of the CLAY_VIEW_0-2 int32 tuples, so

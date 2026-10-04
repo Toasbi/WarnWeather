@@ -4,9 +4,9 @@
 // ink the face cannot show. The settings page re-derives auto on every open, but a
 // blob nobody re-saved kept the old colour, and the watch drew the warn outline and
 // danger fill black on the black face (reported on a Pebble Time 2 with the night
-// theme switch). status-thresholds.test.js pins buildSettingsBlob; this pins that
-// the Clay the phone actually sends -- startup and night switch -- carries the
-// resolved colour for the face in effect.
+// theme switch). status-thresholds.test.js pins status-wire's buildSettingsBlob; this
+// pins that the Clay the phone actually sends -- startup and night switch -- carries
+// the resolved colour for the face in effect.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -51,13 +51,16 @@ SCENARIOS.forEach((sc) => {
     assert.ok(sends.length >= 1, 'a Clay carrying the threshold blob went out');
     const bytes = Array.from(sends[sends.length - 1].dict.CLAY_THRESHOLDS_UINT8);
 
-    const ST = h.mod('status-thresholds.js');
+    const wire = h.mod('status-wire.js');
     const stored = JSON.parse(h.store['clay-settings']);
     const ink = sc.face === 'dark' ? '#ffffff' : '#000000';
-    const expected = ST.buildSettingsBlob(Object.assign({}, stored, {
+    // The 1.24.0 warn-look move turns a weather danger that held the old auto
+    // text colour into the contract's red (migrations/v1_24.js migrateWarnLook).
+    assert.equal(stored.threshWindDangerColor, '#FF0000', 'the old auto danger is red now');
+    assert.equal(stored.threshUvDangerColor, '#FF0000', 'either text colour');
+    const expected = wire.buildSettingsBlob(Object.assign({}, stored, {
       theme: sc.face,
-      threshWindWarnColor: ink, threshWindDangerColor: ink,
-      threshUvWarnColor: ink, threshUvDangerColor: ink,
+      threshWindWarnColor: ink, threshUvWarnColor: ink,
     }));
     assert.deepEqual(bytes, Array.from(expected), 'every auto colour packs as the face\'s text colour');
     // The paired kinds' warn/danger colour bytes start right after the version byte.

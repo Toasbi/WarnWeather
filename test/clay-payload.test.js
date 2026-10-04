@@ -13,6 +13,7 @@ const { buildClayPayload, truncateUtf8Bytes } = require('../src/pkjs/clay-payloa
 const holidayMask = require('../src/pkjs/holidays/holiday-mask');
 const viewCycle = require('../src/pkjs/view-cycle');
 const lineStyle = require('../src/pkjs/line-style');
+const graphWire = require('../src/pkjs/weather/graph-wire');
 const nightLight = require('../src/pkjs/night-light');
 
 const NOW = new Date('2026-06-26T00:00:00Z');
@@ -70,11 +71,20 @@ test('HOLIDAYS reads the flat holidayRegion key, not the obsolete per-country ho
   assert.equal(seenRegion, 'BY');
 });
 
-test('CLAY_BATTERY_LOW_ONLY reflects the batteryLowOnly setting (default false)', () => {
-  assert.equal(buildClayPayload(baseSettings(), { platform: 'basalt' }, NOW).CLAY_BATTERY_LOW_ONLY, false);
+// The low-battery takeover of the right slot is aplite's alone (every other watch shows
+// the battery as the On demand Battery item), so only a KNOWN aplite gets the key: an
+// unknown platform is treated as capable and goes without it (the Clay floor, §4.4 of
+// the On demand spec; test/inbox-size.test.js).
+test('CLAY_BATTERY_LOW_ONLY reflects the batteryLowOnly setting (default false), on aplite only', () => {
+  assert.equal(buildClayPayload(baseSettings(), { platform: 'aplite' }, NOW).CLAY_BATTERY_LOW_ONLY, false);
   const s = baseSettings();
   s.batteryLowOnly = true;
-  assert.equal(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_BATTERY_LOW_ONLY, true);
+  assert.equal(buildClayPayload(s, { platform: 'aplite' }, NOW).CLAY_BATTERY_LOW_ONLY, true);
+  [{ platform: 'basalt' }, { platform: 'diorite' }, { platform: 'emery' }, { platform: 'flint' },
+    { platform: 'chalk' }, null, {}].forEach((wi) => {
+    assert.equal(Object.prototype.hasOwnProperty.call(buildClayPayload(s, wi, NOW), 'CLAY_BATTERY_LOW_ONLY'),
+      false, JSON.stringify(wi));
+  });
 });
 
 test('buildClayPayload includes the rain/radar palette tuples', function() {
@@ -123,6 +133,28 @@ test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {
   base.radarMode = 'countdown';
   base.rainCountdownHorizon = '120';
   assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 120);
+});
+
+// The horizon reads the window through the contract (status-thresholds.js rainAlert, the
+// one home of its default) and folds radar mode 'off' in itself. Whether Rain draws is
+// its On demand cell, so the ticks never move this value.
+test('CLAY_RAIN_COUNTDOWN_HORIZON on every combination of window and radar mode', () => {
+  const expected = (s) => {
+    let rc = parseInt(s.rainCountdownHorizon, 10);
+    if (isNaN(rc)) { rc = 60; }
+    return (s.radarMode || 'graph') === 'off' ? 0 : rc;
+  };
+  const ABSENT = {};
+  const put = (s, k, v) => { if (v !== ABSENT) { s[k] = v; } };
+  [ABSENT, '30', '60', '120', '0', 45, '', 'x', null].forEach((h) => {
+    [ABSENT, 'graph', 'countdown', 'off'].forEach((mode) => {
+      const s = baseSettings();
+      put(s, 'rainCountdownHorizon', h);
+      put(s, 'radarMode', mode);
+      assert.strictEqual(buildClayPayload(s, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, expected(s),
+        JSON.stringify([h, mode]));
+    });
+  });
 });
 
 test('maps topViewMode to CLAY_TOP_VIEW_MODE int (full=0, compact=1, none=2), default compact', () => {
@@ -322,7 +354,7 @@ test('the built-in no-rain text is one string: payload default, schema default, 
     'the watch falls back to the same text');
   const layer = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'layers', 'rain_radar_layer.c'), 'utf8');
   assert.ok(layer.indexOf('radar_empty_text(') !== -1, 'and the radar layer draws through it');
-  const migrations = fs.readFileSync(path.join(__dirname, '..', 'src', 'pkjs', 'clay-migrations.js'), 'utf8');
+  const migrations = fs.readFileSync(path.join(__dirname, '..', 'src', 'pkjs', 'migrations', 'radar.js'), 'utf8');
   assert.ok(migrations.indexOf('"' + DEFAULT_NORAIN_TEXT + '"') !== -1, 'and the 1.23.0 migration moves to it');
 });
 
@@ -441,10 +473,11 @@ test('the Clay message carries the graph line styling', function() {
   const p = buildClayPayload(s, { platform: 'emery' }, NOW);
   assert.ok(Array.isArray(p.CLAY_LINE_STYLE_UINT8));
   assert.equal(p.CLAY_LINE_STYLE_UINT8.length, 16);
-  // Packed by the one resolver both the wire and the render read (line-style.js),
-  // so the Clay tuple can't drift from what the graph builder assumes.
+  // Packed by the one graph packer (weather/graph-wire.js, over the resolver both the
+  // wire and the render read), so the Clay tuple can't drift from what the graph
+  // builder assumes.
   assert.deepEqual(p.CLAY_LINE_STYLE_UINT8,
-    lineStyle.buildLineStyleBytes(s, { platform: 'emery' }));
+    graphWire.buildLineStyleBytes(s, { platform: 'emery' }));
 });
 
 test('aplite gets the line styling too (it has the forecast graph)', function() {
@@ -460,6 +493,30 @@ test('aplite gets the line styling too (it has the forecast graph)', function() 
   assert.equal(buildClayPayload(s, { platform: 'aplite' }, NOW).CLAY_LINE_STYLE_UINT8.length, 16);
   // ... and an unknown watchInfo never drops it either.
   assert.equal(buildClayPayload(s, null, NOW).CLAY_LINE_STYLE_UINT8.length, 16);
+});
+
+// Draw from / Bars from ride bits of tuples the Clay message already carries (the line
+// style bytes, the two palettes): no tuple joins and none grows. aplite draws nothing
+// from the top, so its whole payload is byte-identical with every key on Top.
+test('Draw from / Bars from: aplite\'s payload is byte-identical on Top; basalt\'s moves only the flag bits', () => {
+  const s = Object.assign(baseSettings(), { secondaryLine: 'precip_prob', thirdLine: 'wind', theme: 'dark',
+    barSource: 'rain', radarMode: 'graph' });
+  const top = Object.assign({}, s, { precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top',
+    uvLineFrom: 'top', rainBarFrom: 'top', radarBarFrom: 'top' });
+  assert.deepEqual(buildClayPayload(top, { platform: 'aplite' }, NOW), buildClayPayload(s, { platform: 'aplite' }, NOW));
+  const plain = buildClayPayload(s, { platform: 'basalt' }, NOW);
+  const hung = buildClayPayload(top, { platform: 'basalt' }, NOW);
+  assert.deepEqual(Object.keys(hung).sort(), Object.keys(plain).sort(), 'no tuple joins or leaves');
+  Object.keys(plain).forEach((k) => {
+    if (['CLAY_LINE_STYLE_UINT8', 'BAR_PALETTE_UINT8', 'RADAR_PALETTE_UINT8'].indexOf(k) === -1) {
+      assert.deepEqual(hung[k], plain[k], k + ' unchanged');
+    }
+  });
+  const flip = (b, at, bit) => { const out = b.slice(); out[at] |= bit; return out; };
+  // The Main metric (rain chance, [11]) and the Second (wind, [12]) hang; [13], [15] are off.
+  assert.deepEqual(hung.CLAY_LINE_STYLE_UINT8, flip(flip(plain.CLAY_LINE_STYLE_UINT8, 11, 0x20), 12, 0x20));
+  assert.deepEqual(hung.BAR_PALETTE_UINT8, flip(plain.BAR_PALETTE_UINT8, 1, 0x80));
+  assert.deepEqual(hung.RADAR_PALETTE_UINT8, flip(plain.RADAR_PALETTE_UINT8, 1, 0x80));
 });
 
 test('CLAY_HR_SCALE falls back to 40-150 when unset or malformed', function() {
@@ -656,6 +713,7 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
   const claySettings = require('../src/pkjs/clay-settings');
   const pebbleColors = require('../src/pkjs/pebble-colors');
   const statusThresholds = require('../src/pkjs/status-thresholds');
+  const statusWire = require('../src/pkjs/status-wire');
   const BASALT = { platform: 'basalt', model: 'pebble_time_black' };
   const savedBlob = (pageState) =>
     settingsLib.parseResponse(encodeURIComponent(JSON.stringify(pageState)));
@@ -685,7 +743,7 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
     const night = buildClayPayload(themeSchedule.effectiveSettings(blob, true), BASALT, NOW);
     const wind = statusThresholds.KINDS.map((k) => k.key).indexOf('Wind');
     assert.strictEqual(
-      night.CLAY_THRESHOLDS_UINT8[statusThresholds.COLORS_OFFSET + 2 * wind + 1], 0xFF,
+      night.CLAY_THRESHOLDS_UINT8[statusWire.COLORS_OFFSET + 2 * wind + 1], 0xFF,
       'GColorWhite (argb 0xFF), not the day face\'s black (0xC0)');
   });
 }

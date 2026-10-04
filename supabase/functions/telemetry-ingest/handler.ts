@@ -61,13 +61,14 @@ const settingsSchema = z
     temperatureUnits: z.string().optional(),
     tempSlotDisplay: z.string().optional(),
     // The Units tab's feels-like formula ('provider' | 'steadman'), lockstep with
-    // buildSettingsSnapshot in src/pkjs/telemetry.js. z.string() like windUnits so an
-    // unexpected value never fails the whole payload.
+    // buildSettingsSnapshot in src/pkjs/telemetry-settings.js. z.string() like windUnits
+    // so an unexpected value never fails the whole payload.
     feelsFormula: z.string().optional(),
     uvSlotDisplay: z.string().optional(),
     // The two-value slots' presentation, lockstep with buildSettingsSnapshot in
-    // src/pkjs/telemetry.js. z.string() for the picks per threshPhoneBatteryBoldMode's
-    // rule below; the two spacing toggles are z.boolean(), like windSlotDirection.
+    // src/pkjs/telemetry-settings.js. z.string() for the picks per
+    // threshPhoneBatteryBoldMode's rule below; the two spacing toggles are z.boolean(),
+    // like windSlotDirection.
     // The custom separator text is deliberately NOT a field: the phone never sends it.
     // DEPLOY-ORDERING: ship this function before the app release that sends these,
     // or the strip step drops them silently.
@@ -98,8 +99,8 @@ const settingsSchema = z
     countdownSlotUnit: z.boolean().optional(),
     tempSlotUnit: z.boolean().optional(),
     dewSlotUnit: z.boolean().optional(),
-    // Lockstep with buildSettingsSnapshot in src/pkjs/telemetry.js (a field missing
-    // here is stripped and silently lost). z.string(), not z.enum: an old or migrated
+    // Lockstep with buildSettingsSnapshot in src/pkjs/telemetry-settings.js (a field
+    // missing here is stripped and silently lost). z.string(), not z.enum: an old or migrated
     // blob can hold a bold mode this build's picker no longer offers, and a stricter
     // type would reject the whole event over one cosmetic setting.
     threshPhoneBatteryBoldMode: z.string().optional(),
@@ -109,6 +110,19 @@ const settingsSchema = z
     provider: providerSchema.optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
     rainCountdownHorizon: z.number().int().min(0).optional(),
+    // The weather alerts (src/pkjs/telemetry-settings.js): the metric alerts, two letters
+    // each in the On demand order (gust, uv, aqi, pollen, wind) — the look, o not placed on
+    // any status bar / i icon / v icon + value, upper case while the alert looks ahead
+    // to tomorrow; then the tomorrow mark in effect, r » / g > / p + / s * / n none,
+    // '-' while not placed or today only (e.g. 'IrIrIro-Ir', an untouched install); and
+    // the rain look, resolved as the watch draws it ('text' when unset). z.string(), not
+    // z.enum: a future alert kind or look must not 400 the batch.
+    alerts: z.string().optional(),
+    rainAlertDisplay: z.string().optional(),
+    // The warn look per paired threshold kind, one letter each in wire order (aqi,
+    // pollen, wind, gust, steps, sleep, distance, uv): n none / o outline / f fill,
+    // resolved with the platform default, e.g. 'ffffooof'.
+    warnLooks: z.string().optional(),
     // The battery saver's night window — its own pair, present only while the saver
     // is on, which is how the night_sleep flag in
     // supabase/reports/telemetry-dashboards.sql reads "battery saver on".
@@ -141,6 +155,21 @@ const settingsSchema = z
     firstWeek: z.string().optional(),
     showQt: z.boolean().optional(),
     batteryLowOnly: z.boolean().optional(),
+    // On demand (src/pkjs/on-demand.js telemetryCode): 40 letters, the ten items of
+    // each bar (top, forecast, radar, health) in the On demand order (battery, bt, qt,
+    // snooze, rain, gust, uv, aqi, pollen, wind) — L/R ticked on a side of a bar that
+    // shows, l/r ticked on a hidden bar, '-' not ticked
+    // (e.g. 'RLLLLRRR-R' + 30 '-', an untouched install). Absent on aplite, whose
+    // showQt/batteryLowOnly above still say what it draws; elsewhere those two are
+    // leftovers and onDemand is the truth. z.string() with no length bound, like alerts
+    // and warnLooks: a future item lengthens the code and must not 400 the batch.
+    // DEPLOY-ORDERING: ship this function before the app release that sends these, or
+    // the strip step drops them silently.
+    onDemand: z.string().optional(),
+    // The Battery item's warn level as stored (a percentage) and its look ('icon' /
+    // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
+    batteryLowLevel: z.number().int().min(0).max(100).optional(),
+    batteryLowDisplay: z.string().optional(),
     topViewMode: z.enum(['full', 'compact', 'none']).optional(),
     // DEPLOY ORDERING: a value missing from this enum fails the WHOLE batch (400), so a
     // new preset (1.23.0: 'weatherOnly') must be deployed here BEFORE the watch build
@@ -166,6 +195,23 @@ const settingsSchema = z
     secondaryLine: z.string().optional(),
     secondaryLineFill: z.boolean().optional(),
     windScale: z.string().optional(),
+    // The wind, gust and UV lines' Show, 'all' or 'alert' (1.24.0, src/pkjs/line-alert.js
+    // showOf). DEPLOY-ORDERING: ship this function before the app release that sends
+    // them, or the strip step drops them silently. z.string(), not z.enum: a future
+    // Show value must not 400 the batch.
+    windLineShow: z.string().optional(),
+    gustLineShow: z.string().optional(),
+    uvLineShow: z.string().optional(),
+    // Draw from / Bars from, 'bottom' or 'top' (1.24.0, src/pkjs/draw-from.js value).
+    // DEPLOY-ORDERING: ship this function before the app release that sends them, or the
+    // strip step drops them silently. z.string(), not z.enum: a future value must not 400
+    // the batch.
+    precipLineFrom: z.string().optional(),
+    cloudLineFrom: z.string().optional(),
+    windLineFrom: z.string().optional(),
+    uvLineFrom: z.string().optional(),
+    rainBarFrom: z.string().optional(),
+    radarBarFrom: z.string().optional(),
     pressureScale: z.string().optional(),
     thirdLine: z.string().optional(),
     fourthLine: z.string().optional(),
@@ -208,8 +254,8 @@ const settingsSchema = z
     // every event and 400 the WHOLE payload — the fetch outcome with it, and nothing
     // retries a 400. And not a z.enum of the 64 Pebble swatches either: a stricter type
     // would reject an entire event over one cosmetic setting. Lockstep with
-    // buildSettingsSnapshot in src/pkjs/telemetry.js — a field missing here is stripped and
-    // silently lost.
+    // buildSettingsSnapshot in src/pkjs/telemetry-settings.js — a field missing here is
+    // stripped and silently lost.
     graphMainColor: z.string().optional(),
     graphFillColor: z.string().optional(),
     graphSecondColor: z.string().optional(),

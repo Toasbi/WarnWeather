@@ -76,12 +76,15 @@
     }
 
     // Scoped styles injected once; scroll + fixed max-height + type differentiation.
+    // The info item takes the page's info amber from shell.html's --info-tint/--info-rule,
+    // the same two variables the staticText info box uses, so the two boxes cannot drift
+    // and both follow the light theme. Errors keep their red.
     var NOTICE_CSS =
         '.notice-panel{padding:2px 0;margin:4px 0}'
         + '.notice-list{max-height:180px;overflow-y:auto}'
         + '.notice-item{padding:6px 8px;border-radius:6px;margin-bottom:6px}'
         + '.notice-item.error{background:rgba(255,106,82,0.12);border-left:3px solid #FF6A52}'
-        + '.notice-item.info{background:rgba(90,140,255,0.12);border-left:3px solid #5A8CFF}'
+        + '.notice-item.info{background:var(--info-tint);border-left:3px solid var(--info-rule)}'
         + '.notice-since{font-size:11px;opacity:0.6;margin-top:2px}'
         // Match the app's neutral button look (like the "Test" .txt-act-btn) instead of a raw browser button.
         + '.notice-ack{margin-top:8px;width:100%;padding:9px 14px;border:1px solid var(--ctl-line);border-radius:9px;'
@@ -111,7 +114,8 @@
         module.exports = {
             renderNoticesPanelHtml: renderNoticesPanelHtml,
             sinceLabel: sinceLabel,
-            buildNoticesPanel: buildNoticesPanel
+            buildNoticesPanel: buildNoticesPanel,
+            NOTICE_CSS: NOTICE_CSS
         };
     }
 }());

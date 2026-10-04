@@ -42,7 +42,8 @@ test('isClearRadarTuples: the clear only — not a window, not a flat out-of-cov
 
 test('limitedRadarTuples is the limit notice alone: no radar array, no start', () => {
   const limited = radarWire.limitedRadarTuples();
-  assert.deepEqual(limited, { RAIN_RADAR_LIMITED: 1 });
+  assert.deepEqual(limited, { RAIN_RADAR_LIMITED: 'Radar limit reached' }, 'the phone writes the line');
+  assert.ok(Buffer.byteLength(limited.RAIN_RADAR_LIMITED) <= 31, 'within the watch\'s 32 B notice buffer');
   // It must never ride with the three radar keys: the arrays are what END the
   // notice on the watch, and riding alone is what keeps the heaviest weather
   // bundle from growing (test/inbox-size.test.js).
@@ -63,6 +64,10 @@ test('isLimitedRadarTuples: the limit notice (sky rows merged in too), never a w
   assert.equal(radarWire.isLimitedRadarTuples(
     Object.assign(radarWire.flatRadarTuples(1700000100), radarWire.limitedRadarTuples())), false);
   assert.equal(radarWire.isLimitedRadarTuples({ RAIN_RADAR_LIMITED: 0 }), false);
+  assert.equal(radarWire.isLimitedRadarTuples({ RAIN_RADAR_LIMITED: '' }), false);
+  assert.equal(radarWire.isLimitedRadarTuples({ RAIN_RADAR_LIMITED: 1 }), true, 'the 1 an older build sent');
+  assert.equal(radarWire.isLimitedRadarTuples(radarWire.outOfCoverageRadarTuples('DWD radar: Germany only')), false,
+    'the out-of-coverage notice rides with the clear');
   assert.equal(radarWire.isLimitedRadarTuples(null), false);
   assert.equal(radarWire.isLimitedRadarTuples(undefined), false);
   assert.equal(radarWire.isLimitedRadarTuples({}), false);
@@ -70,4 +75,27 @@ test('isLimitedRadarTuples: the limit notice (sky rows merged in too), never a w
 
 test('isClearRadarTuples is false for the limit notice', () => {
   assert.equal(radarWire.isClearRadarTuples(radarWire.limitedRadarTuples()), false);
+});
+
+test('outOfCoverageRadarTuples: the clear carrying the source\'s line; a clear to isClear, not the limit notice', () => {
+  const out = radarWire.outOfCoverageRadarTuples('DWD radar: Germany only');
+  assert.deepEqual(out, { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0,
+    RAIN_RADAR_LIMITED: 'DWD radar: Germany only' });
+  assert.equal(radarWire.isOutOfCoverageRadarTuples(out), true);
+  assert.equal(radarWire.isOutOfCoverageRadarTuples(Object.assign({ RADAR_SKY_UINT8: [1] }, out)), true, 'sky merged in');
+  assert.equal(radarWire.isClearRadarTuples(out), true, 'no window to keep');
+  assert.equal(radarWire.isLimitedRadarTuples(out), false);
+  [radarWire.clearRadarTuples(), radarWire.limitedRadarTuples(), radarWire.flatRadarTuples(1700000100), null, {}]
+    .forEach((t) => assert.equal(radarWire.isOutOfCoverageRadarTuples(t), false, JSON.stringify(t)));
+});
+
+test('failureForward: what a failed forecast still forwards of the radar answer, as its own keys', () => {
+  const sky = { RADAR_SKY_UINT8: [1, 2] };
+  assert.deepEqual(radarWire.failureForward(Object.assign({}, sky, radarWire.outOfCoverageRadarTuples('Met.no radar: Nordics only'))),
+    radarWire.outOfCoverageRadarTuples('Met.no radar: Nordics only'));
+  assert.deepEqual(radarWire.failureForward(Object.assign({}, sky, radarWire.clearRadarTuples())), radarWire.clearRadarTuples());
+  assert.deepEqual(radarWire.failureForward(Object.assign({}, sky, { RAIN_RADAR_LIMITED: 1 })), radarWire.limitedRadarTuples(),
+    'an older build\'s 1 goes out as today\'s line');
+  assert.equal(radarWire.failureForward(radarWire.flatRadarTuples(1700000100)), null, 'a window is fresh data');
+  assert.equal(radarWire.failureForward(null), null);
 });

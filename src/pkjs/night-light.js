@@ -49,7 +49,7 @@ var NIGHT_LIGHT_BYTES = 5;
 /**
  * Is the Dim backlight switch on? ABSENT reads as ON — the toggle ships on
  * (schema.js's backlightDim defaultValue), so a blob that predates it, or one a
- * fixture built by hand, must not read as off. Same rule as telemetry.js's
+ * fixture built by hand, must not read as off. Same rule as telemetry-settings.js's
  * boolDefaultOn, which reports the same toggle.
  *
  * @param {Object} settings Clay settings blob (reads backlightDim).
@@ -62,7 +62,7 @@ function isDimEnabled(settings) {
 
 /**
  * Clamp one channel into [0, 255]. Only ever fed an integer (parseDimColor regexes
- * first), so there is no rounding to do — mirrors range-control.js's clampChannel.
+ * first), so there is no rounding to do — mirrors rgb-control.js's clampChannel.
  *
  * @param {number} n Parsed channel value.
  * @returns {number} Integer in [0, 255].
@@ -83,7 +83,7 @@ function clampChannel(n) {
 /**
  * Parse the stored "r,g,b" colour, falling back to the schema default (40,10,0).
  *
- * The parse is the settings page's own, hand-kept: config-ui/lib/range-control.js's
+ * The parse is the settings page's own, hand-kept: config-ui/lib/rgb-control.js's
  * parseRgbStrict is what the sliders and the card's swatch read the same string with,
  * and it is a page-bundle file the watch runtime does not load. Exactly three integer
  * channels, whitespace tolerated; an out-of-range channel is CLAMPED (0-255 is fixed by

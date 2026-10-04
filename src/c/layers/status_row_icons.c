@@ -3,9 +3,20 @@
 #include "../appendix/theme.h"
 #include <limits.h>
 
+// Not built on aplite: no PDC resources there, and its lean status row
+// (status_row_aplite.c) loads no glyph.
 #if !defined(PBL_PLATFORM_APLITE)
 
 #define PRECISE_UNITS_PER_PX 8
+
+// The keep-fill recolour: the fill-authored RAIN_* drops (scripts/gen-rain-pdc.py:
+// white fill, stroke width 0) are drawn FILLED, so their fill takes the tint and
+// the stroke stays off — except on a light theme, where a pale tier colour on the
+// white strip needs a 1-px black edge to read at all.
+typedef struct {
+    GColor tint;
+    bool outline;
+} IconFill;
 
 // Glyph bounding box (in the PDC's point units), the height scale to apply, and the
 // grid-snap parameters. Each point is scaled so the glyph HEIGHT maps to target_h px,
@@ -17,6 +28,8 @@ typedef struct {
     int32_t sum_x, sum_y;                 // (min + max) per axis == 2× the master centre
     int32_t base_x, base_y;               // snapped origin (lands the min vertex on 4 = 0.5px)
     int16_t out_max_x, out_max_y;         // pass 2: max snapped output, for tight bounds
+    const IconFill *fill;                 // NULL = outline art (every status glyph);
+                                          // set = keep-fill art (the rain drops)
 } IconNorm;
 
 // Divide a / b (b > 0) rounding to nearest, half AWAY from zero. Odd in a.
@@ -58,11 +71,25 @@ static bool icon_bbox_cb(GDrawCommand *command, uint32_t index, void *context) {
 // centre — rather than rounding each point independently — keeps mirror vertices mirrored,
 // so octagons/curves stay symmetric instead of tilting a pixel when downscaled. The scale
 // itself rounds half-up (+den/2); the snap then quantises to the crisp phase.
+// Keep-fill art (b->fill set) is recoloured the other way round — fill tinted, stroke
+// off — and snapped by the same rule (its scale maps the viewbox: icon_load).
 static bool icon_normalize_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void) index;
     IconNorm *b = (IconNorm *)context;
-    gdraw_command_set_stroke_color(command, theme_fg());
-    gdraw_command_set_fill_color(command, GColorClear);
+    if (b->fill) {
+        gdraw_command_set_fill_color(command, b->fill->tint);
+        if (b->fill->outline) {
+            // Stroke width is baked 0 by the generator: a colour alone would stay
+            // invisible, so the width has to be set as well.
+            gdraw_command_set_stroke_color(command, GColorBlack);
+            gdraw_command_set_stroke_width(command, 1);
+        } else {
+            gdraw_command_set_stroke_color(command, GColorClear);
+        }
+    } else {
+        gdraw_command_set_stroke_color(command, theme_fg());
+        gdraw_command_set_fill_color(command, GColorClear);
+    }
     uint16_t n = gdraw_command_get_num_points(command);
     for (uint16_t i = 0; i < n; i++) {
         GPoint p = gdraw_command_get_point(command, i);
@@ -80,19 +107,31 @@ static bool icon_normalize_cb(GDrawCommand *command, uint32_t index, void *conte
     return true;
 }
 
-static GDrawCommandImage *icon_load(uint32_t resource_id, int target_h) {
+static GDrawCommandImage *icon_load(uint32_t resource_id, int target_h,
+                                    const IconFill *fill) {
     GDrawCommandImage *image = gdraw_command_image_create_with_resource(resource_id);
     if (!image) { return NULL; }
     GDrawCommandList *list = gdraw_command_image_get_command_list(image);
-    IconNorm b = { .min_x = INT16_MAX, .min_y = INT16_MAX, .max_x = INT16_MIN, .max_y = INT16_MIN };
+    IconNorm b = { .min_x = INT16_MAX, .min_y = INT16_MAX, .max_x = INT16_MIN, .max_y = INT16_MIN,
+                   .fill = fill };
     gdraw_command_list_iterate(list, icon_bbox_cb, &b);
     int glyph_h = b.max_y - b.min_y;
     if (glyph_h <= 0) { return image; }   // degenerate glyph; leave untouched
     int glyph_w = b.max_x - b.min_x;
     // Scale so the glyph's height maps to target_h px. Points are in 1/8-px units, so the
     // numerator carries the ×8; the max point then lands at target_h * 8 units == target_h px.
+    // Keep-fill art maps its authored VIEWBOX to target_h instead of its ink: the three rain
+    // buckets share one 25-px viewbox and one drop size (the count is the intensity), so
+    // scaling the ink would blow a one-row glyph's drops up to the full height and shrink
+    // the two-row downpour's to ~57 % of them.
+    int span = glyph_h;
+    if (fill) {
+        GSize vb = gdraw_command_image_get_bounds_size(image);
+        int vspan = (vb.h > vb.w ? vb.h : vb.w) * PRECISE_UNITS_PER_PX;
+        if (vspan > 0) { span = vspan; }
+    }
     b.num = (int32_t)target_h * PRECISE_UNITS_PER_PX;
-    b.den = glyph_h;
+    b.den = span;
     b.sum_x = (int32_t)b.min_x + b.max_x;
     b.sum_y = (int32_t)b.min_y + b.max_y;
     // Origin phased so the min vertex lands on 4 (0.5 px) — a pixel centre, so the 1px
@@ -139,6 +178,10 @@ static uint32_t icon_resource(uint8_t icon_id) {
         // the draw site (status_row.c ensure_glyphs) never asks for them anyway.
         case STATUS_ICON_PRESSURE: return 0;
         case STATUS_ICON_PHONE_BATTERY_PLAIN: return 0;
+        // The On demand system items (in-memory ids, never on the wire).
+        case STATUS_ROW_ICON_QUIET: return RESOURCE_ID_STATUS_QUIET;
+        case STATUS_ROW_ICON_BT: return RESOURCE_ID_STATUS_BT;
+        case STATUS_ROW_ICON_BT_OFF: return RESOURCE_ID_STATUS_BT_OFF;
 #if defined(PBL_HEALTH)
         // Distance is a HealthService metric (steps → distance), so it lives with the
         // other health glyphs: no health service means no steps and no distance.
@@ -286,22 +329,25 @@ GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top
         h = phone_icon_h(icon_id, h, top_strip);
     }
     if (resource == 0) { return NULL; }
-    return icon_load(resource, h);
+    return icon_load(resource, h, NULL);
+}
+
+// The drops' viewbox square, as a percent of the tier's icon height. The retired
+// strip takeover scaled the viewbox into a square a little taller than the tier's
+// icons (13 px over a 10-px tier on the 144-px screens, 15 over 13 on emery); 120 %
+// gives emery's 15 exactly, and the 144-px screens' 12 snaps to the same 6-px drop
+// as the strip's 13 did.
+#define RAIN_BOX_PCT 120
+
+GDrawCommandImage *status_row_icons_load_filled(uint32_t resource_id, int target_h,
+                                                GColor tint, bool outline) {
+    if (resource_id == 0 || target_h <= 0) { return NULL; }
+    IconFill fill = { .tint = tint, .outline = outline };
+    return icon_load(resource_id, (target_h * RAIN_BOX_PCT) / 100, &fill);
 }
 
 void status_row_icons_destroy(GDrawCommandImage *image) {
     if (image) { gdraw_command_image_destroy(image); }
 }
-
-#else  // aplite: frozen lean fork, no PDC resources — every id is text-only.
-
-GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top_strip) {
-    (void) icon_id;
-    (void) target_h;
-    (void) top_strip;
-    return NULL;
-}
-
-void status_row_icons_destroy(GDrawCommandImage *image) { (void) image; }
 
 #endif

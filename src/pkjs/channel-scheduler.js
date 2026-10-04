@@ -18,6 +18,7 @@ var storageKeys = require('./storage-keys.js');
  * @param {Object} deps Injected behavior + environment.
  * @param {function(Function=, Function=):void} deps.sendClay Deduping Clay send; calls onSuccess after ACK (or immediately when unchanged), onFailure on NACK.
  * @param {function(boolean):void} deps.startFetch Run a weather fetch; the boolean is the force flag.
+ * @param {function(string, Function=, Function=):void} deps.resendStatus Re-bake the status category from the last bake's payload against the live settings and send it (status-rebake.js); calls onSuccess after ACK (or immediately when unchanged or there is nothing to re-bake), onFailure on NACK.
  * @param {function():boolean} deps.shouldFetchNow True when a non-forced refresh is due.
  * @param {function():void} deps.refreshHolidays Ensure holiday data is cached; new data comes back through onHolidaysUpdated.
  * @param {function():void} deps.checkForUpdate Once-per-day appstore update check.
@@ -37,8 +38,8 @@ function createChannelScheduler(deps) {
     // Watch reported no/stale forecast (replaces app.pendingStartupFetch).
     var pendingStartupFetch = false;
     // The auto theme id the watch was last sent (or is being sent); null means
-    // unknown (fresh PKJS session, or the last send carrying it NACKed), so the
-    // next tick attempts one flip send — the content-deduping outbox turns it
+    // unknown (fresh PKJS session, or a Clay send NACKed), so the next tick
+    // attempts one flip send — the content-deduping outbox turns it
     // into a no-op unless the watch really is behind (e.g. PKJS restarted across
     // a sunset). A startup Clay send claims it BEFORE sending (claimThemeStamp):
     // the outbox only knows a payload once it is ACKed, so it cannot dedupe the
@@ -73,9 +74,9 @@ function createChannelScheduler(deps) {
     }
 
     /**
-     * Forget the day stamp after a NACKed Clay send that carried the HOLIDAYS
-     * mask, so the next tick's day-change resend retries it (and keeps retrying,
-     * once a minute, until one is ACKed).
+     * Forget the day stamp after a NACKed Clay send (every one carries the
+     * HOLIDAYS mask), so the next tick's day-change resend retries it (and keeps
+     * retrying, once a minute, until one is ACKed).
      *
      * @returns {void}
      */
@@ -88,8 +89,19 @@ function createChannelScheduler(deps) {
      * outbox's deduped no-op, which means the watch already holds those bytes —
      * first runs the pending deferred migration commit, once.
      *
+     * A NACK of ANY of them — the startup handshake, a migration, a config
+     * close, the day-change or holiday-data resend, a theme flip — arms one
+     * retry policy before onFailure runs: forget the theme stamp and today's
+     * holiday day stamp, so the next tick's day-change resend re-delivers the
+     * settings the watch never got, once a minute until one is ACKed, whether
+     * or not Theme switching is on (that ACK also commits a pending migration's
+     * markers; the outbox dedupes it when a later send already landed). One
+     * policy here, so no send can miss it: a config-close Clay left to wait for
+     * midnight would have the forced fetch after it land new alert entries
+     * against the old thresholds blob.
+     *
      * @param {Function} [onSuccess] Called after ACK, or immediately when unchanged.
-     * @param {Function} [onFailure] Called on NACK.
+     * @param {Function} [onFailure] Called on NACK, after the retry is armed.
      * @returns {void}
      */
     function sendClay(onSuccess, onFailure) {
@@ -102,7 +114,13 @@ function createChannelScheduler(deps) {
             if (typeof onSuccess === 'function') {
                 onSuccess();
             }
-        }, onFailure);
+        }, function (e) {
+            lastEffectiveTheme = null;
+            forgetHolidayDaySent();
+            if (typeof onFailure === 'function') {
+                onFailure(e);
+            }
+        });
     }
 
     /**
@@ -120,23 +138,6 @@ function createChannelScheduler(deps) {
     }
 
     /**
-     * NACK side of a startup Clay send (the watch-reported-no-config handshake,
-     * or a migration's): forget the claimed theme stamp and today's holiday day
-     * stamp, both claimed for this send, so the next tick's day-change resend
-     * re-delivers the settings the watch never got — once a minute until one is
-     * ACKed, whether or not Theme switching is on (that ACK also commits a
-     * pending migration's markers). Then still run the startup fetch the send
-     * was holding back.
-     *
-     * @returns {void}
-     */
-    function onStartupClayNack() {
-        lastEffectiveTheme = null;
-        forgetHolidayDaySent();
-        drainPendingStartupFetch();
-    }
-
-    /**
      * Run the weather fetch queued by the watch's startup state, if any.
      *
      * @returns {void}
@@ -151,8 +152,8 @@ function createChannelScheduler(deps) {
     /**
      * Send whatever the startup handshake asked for: Clay first (the channel is
      * half-duplex, so the fetch chains into the Clay callbacks instead of going
-     * back-to-back), then the weather fetch. No-op until onReady set the
-     * readiness latch.
+     * back-to-back), then the weather fetch — on a NACK too, which sendClay has
+     * already turned into a retry. No-op until onReady set the readiness latch.
      *
      * @returns {void}
      */
@@ -167,7 +168,7 @@ function createChannelScheduler(deps) {
             // resends from colliding with it.
             markHolidayDaySent();
             claimThemeStamp();
-            sendClay(drainPendingStartupFetch, onStartupClayNack);
+            sendClay(drainPendingStartupFetch, drainPendingStartupFetch);
             return;
         }
         drainPendingStartupFetch();
@@ -220,46 +221,54 @@ function createChannelScheduler(deps) {
             markHolidayDaySent();
             claimThemeStamp();
             pendingClayAck = (typeof opts.onClayAck === 'function') ? opts.onClayAck : null;
-            sendClay(drainPendingStartupFetch, onStartupClayNack);
+            sendClay(drainPendingStartupFetch, drainPendingStartupFetch);
             return;
         }
         drainPendingStartupSends();
     }
 
     /**
-     * Force-fetch weather one tick after the config webview closed, past the
-     * webview teardown, and only from inside the Clay-send callbacks so it never
-     * rides the channel alongside the Clay send.
+     * Handle a config-webview close. Three sends, each chained into both
+     * callbacks of the one before it so none rides the half-duplex channel
+     * alongside another:
      *
-     * @returns {void}
-     */
-    function scheduleConfigCloseFetch() {
-        deps.setTimeout(function () {
-            console.log('Force fetch!');
-            deps.startFetch(true);
-        }, 0);
-    }
-
-    /**
-     * Handle a config-webview close: send Clay, then (when forceFetch) chain a
-     * deferred force-fetch into both callbacks, or (when clearNotice, and no
-     * force-fetch) chain a deferred overlay clear into both callbacks.
+     *   1. Clay.
+     *   2. One tick later, the status re-bake (deps.resendStatus). The status
+     *      category — the slot text, the highlight levels, the weather alerts'
+     *      entries — is baked phone-side from the last fetch's payload, so a
+     *      status-only edit (an alert unticked, a level moved, a Look, a
+     *      highlight switched on over a level word an older build packed)
+     *      reaches the watch here, without waiting on the network: the forced
+     *      fetch below can fail (offline, a provider error, an auth backoff),
+     *      and a failed fetch re-bakes nothing. It runs on EVERY close — the
+     *      outbox's change detector turns it into a no-op when the status bytes
+     *      are unchanged, and it still sends when index.js just dropped the
+     *      weather caches (needsRefetch). The forced fetch then bakes fresher
+     *      data over it when it succeeds.
+     *   3. Then (when forceFetch) the forced fetch, or (when clearNotice, and no
+     *      forced fetch) the overlay clear.
+     *
+     * The tick before step 2 clears the webview teardown: the AppMessage
+     * channel is briefly unavailable then, so being inside the Clay callback is
+     * necessary but not sufficient.
      *
      * @param {{forceFetch: boolean, clearNotice: boolean=}} opts Config-close options.
      * @returns {void}
      */
     function onConfigClosed(opts) {
-        var afterClay;
+        var next = null;
+        var afterClay = function () {
+            deps.setTimeout(function () {
+                deps.resendStatus('config-close', next, next);
+            }, 0);
+        };
         if (opts.forceFetch) {
-            afterClay = scheduleConfigCloseFetch;
-        } else if (opts.clearNotice && deps.clearNoticeOnWatch) {
-            // Push the overlay clear one tick out, inside the Clay-send callback:
-            // the AppMessage channel is briefly unavailable during webview teardown,
-            // so (like scheduleConfigCloseFetch) being in the callback is necessary
-            // but not sufficient — the setTimeout(0) clears the teardown window.
-            afterClay = function () {
-                deps.setTimeout(function () { deps.clearNoticeOnWatch(); }, 0);
+            next = function () {
+                console.log('Force fetch!');
+                deps.startFetch(true);
             };
+        } else if (opts.clearNotice && deps.clearNoticeOnWatch) {
+            next = function () { deps.clearNoticeOnWatch(); };
         }
         sendClay(afterClay, afterClay);
     }
@@ -269,13 +278,11 @@ function createChannelScheduler(deps) {
      * a week rollover refreshes the mask without opening settings. The Clay
      * outbox dedupes by content, so only week boundaries actually transmit.
      * The send also carries the auto theme in effect (sendClaySettings builds
-     * from the effective settings), so its callbacks own the flip stamp: only
-     * an ACK records it, and a NACK forgets it so the flip path retries next
-     * tick — otherwise a midnight NACK (BT down) would swallow a coincident
-     * theme flip until the next day/night boundary. A NACK forgets the day
-     * stamp as well, so this resend retries next tick instead of leaving the
-     * mask (or a holiday-data resend that NACKed into it) stale until the next
-     * midnight.
+     * from the effective settings), so its ACK records the flip stamp. A NACK
+     * forgets both stamps (sendClay), so this resend retries next tick instead
+     * of leaving the mask stale, or swallowing a coincident theme flip (BT down
+     * at midnight), until the next boundary. It is also the retry of every
+     * other NACKed scheduler Clay send.
      *
      * @returns {boolean} True when this tick sent a Clay message.
      */
@@ -289,9 +296,6 @@ function createChannelScheduler(deps) {
             if (typeof deps.effectiveThemeId === 'function') {
                 lastEffectiveTheme = deps.effectiveThemeId();
             }
-        }, function () {
-            lastEffectiveTheme = null;
-            forgetHolidayDaySent();
         });
         deps.refreshHolidays();
         return true;
@@ -309,8 +313,9 @@ function createChannelScheduler(deps) {
      * callback): one Clay send, which carries the rebuilt HOLIDAYS mask. It lands
      * at an arbitrary moment — often while the config-close or startup Clay is
      * still in flight — so it can NACK; the cache is fresh by then and nothing
-     * would fetch (or send) it again before the next midnight, so a NACK forgets
-     * the day stamp and the next tick's day-change resend retries it.
+     * would fetch (or send) it again before the next midnight, so it relies on
+     * sendClay's retry: a NACK forgets the day stamp and the next tick's
+     * day-change resend retries it.
      *
      * @returns {void}
      */
@@ -321,7 +326,7 @@ function createChannelScheduler(deps) {
         holidayResendQueued = true;
         deps.setTimeout(function () {
             holidayResendQueued = false;
-            sendClay(function () {}, forgetHolidayDaySent);
+            sendClay();
         }, 0);
     }
 
@@ -330,7 +335,8 @@ function createChannelScheduler(deps) {
      * sendClaySettings builds its payload from the effective settings, so the
      * resend carries the flipped CLAY_THEME plus every colour re-resolved for
      * it. Boundary detection compares deps.effectiveThemeId() across ticks;
-     * a NACK forgets the stamp so the flip retries next tick.
+     * a NACK forgets the stamps (sendClay), so the next tick's day-change
+     * resend retries the flip.
      *
      * @returns {void}
      */
@@ -343,7 +349,7 @@ function createChannelScheduler(deps) {
             return;
         }
         lastEffectiveTheme = themeId;
-        sendClay(function () {}, function () { lastEffectiveTheme = null; });
+        sendClay();
     }
 
     /**

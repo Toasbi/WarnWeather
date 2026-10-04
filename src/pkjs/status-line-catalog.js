@@ -51,9 +51,9 @@
     // lean aplite status-row twin returns NULL for an unknown icon id (reserving
     // zero width), so it simply renders without the droplets glyph.
     { code: 'dew', label: 'Dew point', kind: KINDS.TEXT, icon: ICONS.DEWPOINT, category: 'weather' },
-    // Slashed for the same reason as temp's label: its edit sheet picks the current
-    // index, today's peak, or both.
-    { code: 'uv', label: 'UV index/day max', kind: KINDS.TEXT, icon: ICONS.UV, category: 'weather' },
+    // No '/day max' suffix any more: the edit sheet's Now / Day max / Both pills pick
+    // what prints, and wind, gusts and AQI carry the same modes without one either.
+    { code: 'uv', label: 'UV index', kind: KINDS.TEXT, icon: ICONS.UV, category: 'weather' },
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.AQI, category: 'weather' },
     { code: 'pollen', label: 'Pollen (DWD)', kind: KINDS.TEXT, icon: ICONS.POLLEN, needsProvider: 'dwd', category: 'weather' },
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'weather' },
@@ -387,7 +387,7 @@
   }
 
   /**
-   * The slot kinds with a day max (UV's Now / Day max / Both), and the settings
+   * The slot kinds with a day max (the Now / Day max / Both pills), and the settings
    * each owns on its Edit sheet: kind + suffix, e.g. 'windSlotOrder'. ONE table
    * for the keys schema.js' dayMaxRows builds, resetStatusSlots clears and
    * renderSignature watches, so a new kind or pair setting cannot be left out of
@@ -411,9 +411,10 @@
   }
 
   /**
-   * Whether a day-max kind actually shows a peak: it sits in a status slot and
-   * its display mode prints one. The phone keeps that kind's day record and
-   * fetches its longer series only then.
+   * Whether a day-max kind's slot needs its day peaks: it sits in a status slot
+   * whose display mode prints one. The slot half of the fetch gate — the metric
+   * alerts, which judge the day whatever any slot shows, join it in
+   * forecast-series.js dayPeakCodes, so this catalog stays alert-agnostic.
    * @param {Object} settings Clay settings blob.
    * @param {string} kind A DAY_MAX_KINDS entry.
    * @returns {boolean}

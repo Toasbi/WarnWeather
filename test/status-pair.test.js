@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 
 const pair = require('../src/pkjs/status-pair.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
-const thresholds = require('../src/pkjs/status-thresholds.js');
+const wire = require('../src/pkjs/status-wire.js');
 const utf8 = require('../src/pkjs/utf8.js');
 const wireUnits = require('../src/pkjs/wire-units.js');
 
@@ -38,9 +38,26 @@ test('the preset tables hold exactly the contract values', () => {
   assert.equal(pair.CUSTOM_MAX_CHARS, 2);
 });
 
-// --- THE upgrade guarantee: absent keys bake today's text, byte for byte -------
+test('defaultSeparator: the bar for temperature, the slash for every other pair', () => {
+  assert.equal(pair.defaultSeparator('temp'), 'bar');
+  for (const prefix of ['uv', 'wind', 'gust', 'aqi']) {
+    assert.equal(pair.defaultSeparator(prefix), 'slash', prefix);
+  }
+  for (const bogus of [undefined, null, '', 'constructor', '__proto__', 'toString', 7]) {
+    assert.equal(pair.defaultSeparator(bogus), 'slash', String(bogus));
+  }
+  assert.deepEqual(pair.DEFAULT_SEPARATOR, { temp: 'bar' });
+  for (const key of Object.keys(pair.DEFAULT_SEPARATOR)) {
+    assert.ok(Object.prototype.hasOwnProperty.call(pair.SEPARATORS, pair.DEFAULT_SEPARATOR[key]),
+      key + ': a default is a preset');
+    assert.equal(bytes(pair.SEPARATORS[pair.DEFAULT_SEPARATOR[key]].mid), 1,
+      key + ': one byte, so the last resort fits wherever the slash did');
+  }
+});
 
-test('absent settings reproduce the pre-feature text byte for byte', () => {
+// --- absent keys: temperature's bar, and the day-max text byte for byte ----------
+
+test('absent settings print the bar for temperature and the pre-feature UV text byte for byte', () => {
   for (const settings of [{}, null, undefined, {
     tempSlotSeparator: undefined, tempSlotOrder: undefined, tempSlotSeparatorCustom: undefined,
     tempSlotSeparatorSpaced: undefined,
@@ -55,8 +72,8 @@ test('absent settings reproduce the pre-feature text byte for byte', () => {
   }]) {
     for (const cap of [EDGE, MID, undefined]) {
       const what = JSON.stringify(settings) + ' cap ' + cap;
-      assert.equal(pair.formatTempPair('12', '10', settings, cap), '12/10', what);
-      assert.equal(pair.formatTempPair('-12', '-10', settings, cap), '-12/-10', what);
+      assert.equal(pair.formatTempPair('12', '10', settings, cap), '12|10', what);
+      assert.equal(pair.formatTempPair('-12', '-10', settings, cap), '-12|-10', what);
       assert.equal(pair.formatPeak('uv', uvNow(3, 7), settings, cap), '3/7', what);
       assert.equal(pair.formatPeak('uv', uvTomorrow(5, 6), settings, cap), '5/' + RAQUO + '6', what);
       assert.equal(pair.formatPeak('uv', uvTomorrow(null, 6), settings, cap), RAQUO + '6', what);
@@ -68,7 +85,7 @@ test('absent settings reproduce the pre-feature text byte for byte', () => {
   assert.deepEqual(utf8.encode(pair.formatPeak('uv', uvTomorrow(5, 6), {}, EDGE)),
     [0x35, 0x2F, 0xC2, 0xBB, 0x36]);
   assert.deepEqual(utf8.encode(pair.formatTempPair('-12', '-10', {}, EDGE)),
-    [0x2D, 0x31, 0x32, 0x2F, 0x2D, 0x31, 0x30]);
+    [0x2D, 0x31, 0x32, 0x7C, 0x2D, 0x31, 0x30], "'-12|-10': 7 bytes, like '-12/-10'");
 });
 
 // The UV text before this module, verbatim: the pieces joined by '/', a tomorrow's
@@ -176,7 +193,7 @@ test('the two kinds read their own keys, never each other\'s', () => {
   assert.equal(pair.formatPeak('uv', uvNow(3, 7), tempStyled, MID), '3/7');
   const uvStyled = { uvSlotSeparator: 'brackets', uvSlotOrder: 'max',
     uvSlotSeparatorCustom: 'x', uvSlotSeparatorSpaced: true };
-  assert.equal(pair.formatTempPair('12', '10', uvStyled, MID), '12/10');
+  assert.equal(pair.formatTempPair('12', '10', uvStyled, MID), '12|10');
 });
 
 test('the custom text is read only while the separator is custom', () => {
@@ -186,7 +203,9 @@ test('the custom text is read only while the separator is custom', () => {
     { tempSlotSeparator: 'bar', tempSlotSeparatorCustom: 'x', tempSlotSeparatorSpaced: true },
     MID), '12 | 10');
   assert.equal(pair.formatTempPair('12', '10',
-    { tempSlotSeparatorCustom: 'x' }, MID), '12/10', 'absent separator = slash');
+    { tempSlotSeparatorCustom: 'x' }, MID), '12|10', 'absent separator = the bar');
+  assert.equal(pair.formatPeak('uv', uvNow(3, 7), { uvSlotSeparatorCustom: 'x' }, MID), '3/7',
+    'absent separator = the slash');
 });
 
 // --- the UV next-day mark ------------------------------------------------------
@@ -253,19 +272,27 @@ test('fit rule: the contract\'s worst cases at the edge cap', () => {
   assert.equal(t('brackets', 'feels', true, EDGE), '-10(-12)');
   // Pairs that fit keep their spaces: 7 bytes.
   assert.equal(pair.formatTempPair('12', '10', { tempSlotSeparatorSpaced: true }, EDGE),
-    '12 / 10');
+    '12 | 10');
+  assert.equal(pair.formatTempPair('12', '10',
+    { tempSlotSeparator: 'slash', tempSlotSeparatorSpaced: true }, EDGE), '12 / 10');
   assert.equal(pair.formatTempPair('12', '10',
     { tempSlotSeparator: 'brackets', tempSlotSeparatorSpaced: true }, EDGE), '12 (10)');
 });
 
-test('fit rule: the slash is the last resort, after the spaces are gone', () => {
+test('fit rule: the kind\'s default is the last resort, after the spaces are gone', () => {
   const s = (spaced) => ({ tempSlotSeparator: 'custom', tempSlotSeparatorCustom: 'ÿÿ',
     tempSlotSeparatorSpaced: spaced });
   // '12 ÿÿ 10' is 10 B, '12ÿÿ10' exactly 8: the spaces go, the separator stays.
   assert.equal(pair.formatTempPair('12', '10', s(true), EDGE), '12ÿÿ10');
-  // '-12ÿÿ-10' is 10 B even tight: only now does the slash step in.
-  assert.equal(pair.formatTempPair('-12', '-10', s(true), EDGE), '-12/-10');
-  assert.equal(pair.formatTempPair('-12', '-10', s(false), EDGE), '-12/-10');
+  // '-12ÿÿ-10' is 10 B even tight: only now does temperature's default, the bar,
+  // step in; the day-max kinds take the slash.
+  assert.equal(pair.formatTempPair('-12', '-10', s(true), EDGE), '-12|-10');
+  assert.equal(pair.formatTempPair('-12', '-10', s(false), EDGE), '-12|-10');
+  assert.equal(pair.formatPeak('uv', uvTomorrow(11, 12), { uvSlotSeparator: 'custom',
+    uvSlotSeparatorCustom: 'ÿÿ' }, EDGE), '11/' + RAQUO + '12', "'11ÿÿ»12' is 10 B: the slash");
+  assert.equal(pair.joinPair('-12', '-10', 'custom', 'ÿÿ', false, EDGE, 'bar'), '-12|-10');
+  assert.equal(pair.joinPair('-12', '-10', 'custom', 'ÿÿ', false, EDGE), '-12/-10',
+    'no default passed: the slash');
 });
 
 test('fit rule: the middle slot has room for every preset, spaced or not', () => {
@@ -304,7 +331,7 @@ test('fit rule: UV keeps its order and its mark at every step', () => {
 });
 
 test('fit rule: an absent cap is the narrow edge cap (withUnit\'s convention)', () => {
-  assert.equal(pair.formatTempPair('-12', '-10', { tempSlotSeparatorSpaced: true }), '-12/-10');
+  assert.equal(pair.formatTempPair('-12', '-10', { tempSlotSeparatorSpaced: true }), '-12|-10');
   assert.equal(pair.joinPair('-12', '-10', 'slash', undefined, true), '-12/-10');
   assert.equal(pair.joinPair('12', '10', 'slash', undefined, true), '12 / 10');
 });
@@ -312,20 +339,21 @@ test('fit rule: an absent cap is the narrow edge cap (withUnit\'s convention)', 
 test('fit rule: a wide custom separator falls back on the edge slot only', () => {
   const s = { tempSlotSeparator: 'custom', tempSlotSeparatorCustom: 'ÿÿ' };
   assert.equal(pair.formatTempPair('12', '10', s, EDGE), '12ÿÿ10', "'12ÿÿ10' is exactly 8 B");
-  assert.equal(pair.formatTempPair('-12', '-10', s, EDGE), '-12/-10', "'-12ÿÿ-10' is 10 B");
+  assert.equal(pair.formatTempPair('-12', '-10', s, EDGE), '-12|-10', "'-12ÿÿ-10' is 10 B");
   assert.equal(pair.formatTempPair('-12', '-10', s, MID), '-12ÿÿ-10');
 });
 
 /**
  * What the fit rule must return: the spaced form when asked for and it fits, else
- * the tight form when it fits, else the slash -- nothing in between.
+ * the tight form when it fits, else the kind's default separator (`last`) --
+ * nothing in between.
  */
-function expectedFit(first, second, sep, custom, spaced, cap) {
-  const spacedForm = pair.joinPair(first, second, sep, custom, true, 99);
-  const tightForm = pair.joinPair(first, second, sep, custom, false, 99);
+function expectedFit(first, second, sep, custom, spaced, cap, last) {
+  const spacedForm = pair.joinPair(first, second, sep, custom, true, 99, last);
+  const tightForm = pair.joinPair(first, second, sep, custom, false, 99, last);
   if (spaced && bytes(spacedForm) <= cap) { return spacedForm; }
   if (bytes(tightForm) <= cap) { return tightForm; }
-  return first + '/' + second;
+  return first + pair.SEPARATORS[last].mid + second;
 }
 
 test('no preset, spacing, order or mark ever needs the last-resort truncation on an edge slot', () => {
@@ -342,7 +370,7 @@ test('no preset, spacing, order or mark ever needs the last-resort truncation on
             tempSlotSeparatorCustom: 'ÿÿ', tempSlotSeparatorSpaced: spaced }, EDGE);
           assert.ok(bytes(text) <= EDGE, `${text} (${sep}, ${spaced}, ${order})`);
           const first = order === 'feels' ? g : f, second = order === 'feels' ? f : g;
-          assert.equal(text, expectedFit(first, second, sep, 'ÿÿ', spaced, EDGE),
+          assert.equal(text, expectedFit(first, second, sep, 'ÿÿ', spaced, EDGE, 'bar'),
             `${sep}, ${spaced}, ${order}`);
         }
       }
@@ -361,7 +389,7 @@ test('no preset, spacing, order or mark ever needs the last-resort truncation on
               const marked = pair.markNextDay(String(peak), mark);
               const first = order === 'max' ? marked : String(now);
               const second = order === 'max' ? String(now) : marked;
-              assert.equal(text, expectedFit(first, second, sep, 'ÿÿ', spaced, EDGE),
+              assert.equal(text, expectedFit(first, second, sep, 'ÿÿ', spaced, EDGE, 'slash'),
                 `${sep}, ${spaced}, ${order}, ${mark}`);
             }
           }
@@ -410,10 +438,10 @@ test('sanitizeCustom: a non-string is empty', () => {
   }
 });
 
-test('an empty custom separator renders as the slash', () => {
+test('an empty custom separator renders as the kind\'s default', () => {
   for (const custom of ['', undefined, null, 42, '→', '😀', '\u0000\u0001']) {
     assert.equal(pair.formatTempPair('12', '10',
-      { tempSlotSeparator: 'custom', tempSlotSeparatorCustom: custom }, MID), '12/10',
+      { tempSlotSeparator: 'custom', tempSlotSeparatorCustom: custom }, MID), '12|10',
       JSON.stringify(custom));
     assert.equal(pair.formatPeak('uv', uvTomorrow(5, 6),
       { uvSlotSeparator: 'custom', uvSlotSeparatorCustom: custom }, MID), '5/' + RAQUO + '6',
@@ -424,11 +452,17 @@ test('an empty custom separator renders as the slash', () => {
     { tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '→:→' }, MID), '12:10');
 });
 
-test('an unknown separator value is the slash', () => {
+test('an unknown separator value is the kind\'s default', () => {
   for (const bogus of ['wavy', '', 'constructor', '__proto__', 'hasOwnProperty', 3, {}]) {
     assert.equal(pair.joinPair('12', '10', bogus, 'x', false, MID), '12/10', String(bogus));
     assert.equal(pair.joinPair('12', '10', bogus, 'x', true, MID), '12 / 10', String(bogus));
+    assert.equal(pair.formatTempPair('12', '10', { tempSlotSeparator: bogus }, MID), '12|10',
+      String(bogus));
+    assert.equal(pair.formatPeak('uv', uvNow(3, 7), { uvSlotSeparator: bogus }, MID), '3/7',
+      String(bogus));
   }
+  // A bogus default reads as the slash too.
+  assert.equal(pair.joinPair('12', '10', 'wavy', 'x', false, MID, 'constructor'), '12/10');
 });
 
 // --- presentation never moves a highlight ------------------------------------------
@@ -446,8 +480,8 @@ test('the UV threshold level is blind to the presentation settings', () => {
   for (const mode of ['current', 'max', 'both']) {
     for (const p of payloads) {
       const plain = Object.assign({ uvSlotDisplay: mode }, levels);
-      assert.deepEqual(thresholds.packWeatherLevels(p, Object.assign({}, plain, styled)),
-        thresholds.packWeatherLevels(p, plain), mode + ' ' + JSON.stringify(p));
+      assert.deepEqual(wire.packWeatherLevels(p, Object.assign({}, plain, styled)),
+        wire.packWeatherLevels(p, plain), mode + ' ' + JSON.stringify(p));
     }
   }
 });

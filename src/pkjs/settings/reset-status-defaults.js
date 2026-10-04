@@ -13,18 +13,25 @@
 //      held by a sibling slot or itself unavailable.
 // Pack-time resolveSelection still maps stale/imported invalid codes to empty
 // (defense in depth); this hook exists so a user-driven toggle never leaves a
-// silently-empty slot behind.
+// silently-empty slot behind. The radarMode hook also ticks the rain alert on the
+// Watch Status Bar when the mode that exists only for it is picked and no visible bar
+// shows it (forceRainOnDemand). It also registers the Shows on grids' writer
+// (PConf.checkWriters 'onDemandTick'), which stores each tick through on-demand.js.
 /* global PConf, StatusLineCatalog */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
-    : { onChange: { register: function () {}, get: function () {} } };
+    : { onChange: { register: function () {}, get: function () {} },
+        checkWriters: { register: function () {}, get: function () {} } };
 
 (function () {
     // Node (tests): CommonJS require. Webview: concatenated <script> exposing
     // window.StatusLineCatalog (same dual-context pattern as blocks.js).
     var catalog = (typeof require !== 'undefined')
         ? require('../status-line-catalog.js') : window.StatusLineCatalog;
+    // The On demand contract (on-demand.js), concatenated ahead of this file.
+    var onDemand = (typeof require !== 'undefined')
+        ? require('../on-demand.js') : window.OnDemand;
     var POSITIONS = ['left', 'mid', 'right'];
 
     /**
@@ -170,8 +177,44 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         clearPollenForProvider(S, newValue);
     });
 
+    /**
+     * radarMode 'countdown' fetches the radar for the rain alert alone, so a rain
+     * alert ticked on no bar that exists in that mode (the Watch Status Bar, the
+     * forecast bar, the health bar while it exists — never the radar bar) would spend
+     * radar calls on nothing. Entering the mode then ticks Rain on the Watch Status
+     * Bar's left side (in the canonical order, unticked from its right):
+     * on-demand.js placeRainForCountdown, the rule the 1.24 migration shares. Mutates
+     * S.
+     * @param {Object} S live settings state (radarMode already set to newValue)
+     * @param {*} newValue new radarMode value
+     * @param {Object} [env] platform env
+     * @returns {void}
+     */
+    function forceRainOnDemand(S, newValue, env) {
+        if (newValue === 'countdown') { onDemand.placeRainForCountdown(S, env); }
+    }
+
+    /**
+     * One tap in an item's Shows on grid (alerts-schema.js showsOnRows names this writer;
+     * config-ui lib/checklist.js), stored by on-demand.js, the side lists' writer: a tick
+     * places the item on that side of the bar in the priority order and takes it off the
+     * bar's other side (tickOn); an untick takes it off that side alone (untickFrom).
+     * Mutates S; a key that is no side's list is left alone.
+     * @param {Object} S live settings state
+     * @param {string} key the tapped side's list, e.g. 'statusTopOnDemandLeftItems'
+     * @param {string} code the sheet's item, an on-demand.js ITEMS code
+     * @param {boolean} on true to tick the item there, false to untick it
+     * @returns {void}
+     */
+    function onDemandTick(S, key, code, on) {
+        var at = onDemand.sideOfKey(key);
+        if (!at) { return; }
+        if (on) { onDemand.tickOn(S, at.bar, at.side, code); } else { onDemand.untickFrom(S, key, [code]); }
+    }
+
     PConf.onChange.register('resetStatusRadar', function (S, oldValue, newValue, env) {
         applyReset(S, 'radar', oldValue, newValue, env);
+        forceRainOnDemand(S, newValue, env);
     });
     PConf.onChange.register('resetStatusHealth', function (S, oldValue, newValue, env) {
         applyReset(S, 'health', oldValue, newValue, env);
@@ -180,13 +223,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         resetCountdownDate(S, key, oldValue, newValue);
         dedupeStatusSlot(S, key);
     });
+    PConf.checkWriters.register('onDemandTick', onDemandTick);
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             applyReset: applyReset,
             clearPollenForProvider: clearPollenForProvider,
             dedupeStatusSlot: dedupeStatusSlot,
-            resetCountdownDate: resetCountdownDate
+            resetCountdownDate: resetCountdownDate,
+            forceRainOnDemand: forceRainOnDemand,
+            onDemandTick: onDemandTick
         };
     }
 })();

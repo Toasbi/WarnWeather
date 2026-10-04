@@ -4,8 +4,9 @@
 // all) missed the missing-accessor bug that collapse fixes.
 //
 // Built TWICE by scripts/test-c.sh:
-//   - evolving:  -DPBL_HEALTH -DWW_RAIN_RADAR   => STATUS_BAR_COUNT == 3
-//   - aplite:    neither                        => STATUS_BAR_COUNT == 1
+//   - evolving:  -DPBL_HEALTH -DWW_RAIN_RADAR -DWW_ON_DEMAND => STATUS_BAR_COUNT == 3,
+//                plus the On demand tick (status_bar_tick_on_demand)
+//   - aplite:    none of the three               => STATUS_BAR_COUNT == 1, no tick
 // The second build is what pins the compact-enum contract: it is the only place a
 // stray unguarded STATUS_BAR_RADAR / STATUS_BAR_HEALTH becomes a compile error,
 // because the shared CFLAGS force -DPBL_HEALTH for every other host test.
@@ -125,6 +126,7 @@ void layer_set_frame(Layer *layer, GRect frame) {
 GRect layer_get_frame(const Layer *layer) { return layer->frame; }
 
 void layer_set_hidden(Layer *layer, bool hidden) { layer->hidden = hidden; }
+bool layer_get_hidden(const Layer *layer) { return layer->hidden; }
 
 // --- StatusRow stubs ---------------------------------------------------------
 
@@ -172,6 +174,14 @@ void status_row_set_full_date(StatusRow *row, bool full_date) {
 bool status_row_uses_live_health(const StatusRow *row) {
     return row && s_live_health[row->line_id];
 }
+
+#if defined(WW_ON_DEMAND)
+static bool s_uses_on_demand[STATUS_LINE_COUNT];
+
+bool status_row_uses_on_demand(const StatusRow *row) {
+    return row && s_uses_on_demand[row->line_id];
+}
+#endif
 
 // --- helpers -----------------------------------------------------------------
 
@@ -362,6 +372,61 @@ static void live_health_gate(void) {
     expect_int("destroy.live_health_false", status_bar_any_visible_uses_live_health(&spec), 0);
 }
 
+#if defined(WW_ON_DEMAND)
+// The minute tick (and a radar rescan, and a Bluetooth or battery change) must reach
+// On demand items in ANY visible bar — Quiet time and the rain alert are re-derived
+// only by a refresh — and nothing else: a bar without items, or one the view on screen
+// hides, spends no persist reads. Visible is what status_bar_apply_view last wrote.
+static void tick_on_demand_refreshes_visible_item_bars(void) {
+    Layer parent = {0};
+    s_refresh_changed = true;
+    memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
+    memset(s_live_health, 0, sizeof(s_live_health));
+
+    ViewSpec spec = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
+    status_bar_create_all(&parent, &spec, &L);
+    status_bar_apply_view(&spec, &L);
+    const int fc = STATUS_LINE_FORECAST;
+
+    reset_records();
+    status_bar_tick_on_demand();
+    expect_int("on_demand.no_slot_no_refresh", s_refresh_count[fc], 0);
+
+    s_uses_on_demand[fc] = true;
+    reset_records();
+    status_bar_tick_on_demand();
+    expect_int("on_demand.visible_refreshed", s_refresh_count[fc], 1);
+    expect_int("on_demand.visible_dirtied", s_dirty_count[fc], 1);
+
+    // An unchanged signature refreshes but does not repaint.
+    s_refresh_changed = false;
+    reset_records();
+    status_bar_tick_on_demand();
+    expect_int("on_demand.quiet_minute_refreshed", s_refresh_count[fc], 1);
+    expect_int("on_demand.quiet_minute_no_dirty", s_dirty_count[fc], 0);
+    s_refresh_changed = true;
+
+    ViewSpec hidden = spec_of(2, STATUS_SRC_NONE, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    status_bar_apply_view(&hidden, &L);
+    reset_records();
+    status_bar_tick_on_demand();
+    expect_int("on_demand.hidden_not_refreshed", s_refresh_count[fc], 0);
+
+    // The next view that shows the bar again brings it back into the tick.
+    status_bar_apply_view(&spec, &L);
+    reset_records();
+    status_bar_tick_on_demand();
+    expect_int("on_demand.shown_again_refreshed", s_refresh_count[fc], 1);
+
+    // Independent of the live-health gate in both directions.
+    expect_int("on_demand.not_live_health", status_bar_any_visible_uses_live_health(&spec), 0);
+
+    status_bar_destroy_all();
+    memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
+}
+#endif
+
 #if defined(WW_RAIN_RADAR)
 // The radar bar is the one that had no test before — and the one carrying the bug.
 static void radar_bar_is_a_first_class_bar(void) {
@@ -498,6 +563,9 @@ int main(void) {
     apply_view_assigns_bands_and_visibility();
     tier_and_full_date_are_change_gated();
     live_health_gate();
+#if defined(WW_ON_DEMAND)
+    tick_on_demand_refreshes_visible_item_bars();
+#endif
 #if defined(WW_RAIN_RADAR)
     radar_bar_is_a_first_class_bar();
 #endif

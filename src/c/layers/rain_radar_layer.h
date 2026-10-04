@@ -3,6 +3,9 @@
 
 #include <pebble.h>
 
+// The radar graph's 5-minute slots (also the size of its paint scratch, paint_scratch.h).
+#define RADAR_NUM_SLOTS 24
+
 void rain_radar_layer_create(Layer *parent, GRect frame);
 
 void rain_radar_layer_refresh(void);

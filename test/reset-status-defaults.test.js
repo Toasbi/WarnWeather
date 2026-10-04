@@ -4,7 +4,9 @@ const {
   applyReset,
   clearPollenForProvider,
   dedupeStatusSlot,
-  resetCountdownDate
+  resetCountdownDate,
+  forceRainOnDemand,
+  onDemandTick
 } = require('../src/pkjs/settings/reset-status-defaults.js');
 
 function todayValue() {
@@ -200,4 +202,57 @@ test('resetCountdownDate: already-countdown-to-countdown (no-op transition) leav
   const S = blob({ statusForecastLeft: 'countdown', statusForecastLeftCountdown: '2020-01-01' });
   resetCountdownDate(S, 'statusForecastLeft', 'countdown', 'countdown');
   assert.equal(S.statusForecastLeftCountdown, '2020-01-01');
+});
+
+// radarMode 'countdown' fetches the radar for the rain alert alone, so entering it with
+// Rain ticked on no bar that exists in that mode ticks it on the Watch Status Bar's left,
+// where the defaults put it.
+test('forceRainOnDemand: entering countdown mode ticks Rain on the Watch Status Bar\'s left side', () => {
+  // Rain ticked on no side, so it shows nowhere.
+  const S = { radarMode: 'countdown', rainCountdownHorizon: '30',
+    statusTopOnDemandLeftItems: 'bt,snooze', statusTopOnDemandRightItems: 'battery,uv' };
+  forceRainOnDemand(S, 'countdown', ENV_BASALT);
+  assert.equal(S.statusTopOnDemandLeftItems, 'bt,snooze,rain', 'ticked in the canonical order');
+  assert.equal(S.statusTopOnDemandRightItems, 'battery,uv', 'the right side keeps its ticks');
+  assert.equal(S.rainCountdownHorizon, '30', 'the window is left alone');
+});
+
+test('forceRainOnDemand: Rain already showing on a visible bar is left alone', () => {
+  const onForecast = { radarMode: 'countdown', statusTopOnDemandLeftItems: 'bt',
+    statusForecastOnDemandLeftItems: 'rain' };
+  forceRainOnDemand(onForecast, 'countdown', ENV_BASALT);
+  assert.equal(onForecast.statusTopOnDemandLeftItems, 'bt', 'the forecast bar shows it');
+  const defaults = { radarMode: 'countdown' };
+  forceRainOnDemand(defaults, 'countdown', ENV_BASALT);
+  assert.deepEqual(defaults, { radarMode: 'countdown' }, 'the default ticks already show it');
+  // The radar bar never shows in this mode, so a tick there does not count.
+  const onRadar = { radarMode: 'countdown', statusTopOnDemandLeftItems: '',
+    statusRadarOnDemandRightItems: 'rain' };
+  forceRainOnDemand(onRadar, 'countdown', ENV_BASALT);
+  assert.equal(onRadar.statusTopOnDemandLeftItems, 'rain');
+});
+
+test('forceRainOnDemand: any other mode leaves the ticks alone', () => {
+  ['off', 'status', 'graph'].forEach((mode) => {
+    const S = { radarMode: mode, statusTopOnDemandLeftItems: '' };
+    forceRainOnDemand(S, mode, ENV_BASALT);
+    assert.equal(S.statusTopOnDemandLeftItems, '', 'kept in radarMode ' + mode);
+  });
+});
+
+test('onDemandTick: a tick places the item on that side, off the bar\'s other side; an untick takes it off that side alone', () => {
+  const S = { statusTopOnDemandLeftItems: 'bt,qt,snooze', statusTopOnDemandRightItems: 'battery,rain',
+    statusForecastOnDemandRightItems: 'battery' };
+  onDemandTick(S, 'statusTopOnDemandLeftItems', 'battery', true);
+  assert.equal(S.statusTopOnDemandLeftItems, 'battery,bt,qt,snooze', 'in the priority order, not the tap order');
+  assert.equal(S.statusTopOnDemandRightItems, 'rain', 'moved off the right');
+  assert.equal(S.statusForecastOnDemandRightItems, 'battery', 'other bars keep it');
+  onDemandTick(S, 'statusTopOnDemandLeftItems', 'battery', false);
+  assert.equal(S.statusTopOnDemandLeftItems, 'bt,qt,snooze');
+  assert.equal(S.statusTopOnDemandRightItems, 'rain', 'an untick moves nothing back');
+  // Not a side list: nothing happens.
+  const before = JSON.stringify(S);
+  onDemandTick(S, 'statusTopLeft', 'battery', true);
+  onDemandTick(S, 'statusTopLeft', 'rain', false);
+  assert.equal(JSON.stringify(S), before);
 });

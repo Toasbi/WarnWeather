@@ -38,6 +38,20 @@ test('isAuthFailure: false for a geocoder 401/403 (not the provider\'s key)', ()
   assert.equal(authBackoff.isAuthFailure({ code: 'owm_status_401' }), false, 'no stage → not a provider failure');
 });
 
+test('isAuthFailure: false for a 401/403 that names its own retry (never permanent)', () => {
+  // Weather Underground refusing even a freshly scraped key keeps its code and asks
+  // for a timed retry (wunderground.js asUnavailable): the user has no key to fix.
+  const HOUR_MS = 60 * 60 * 1000;
+  assert.equal(authBackoff.isAuthFailure({ stage: 'provider_data', code: 'wu_current_status_401',
+    retryAfterMs: HOUR_MS }), false);
+  assert.equal(authBackoff.isAuthFailure({ stage: 'provider_data', code: 'wu_api_key_status_403',
+    retryAfterMs: HOUR_MS }), false);
+  // No usable delay: the code decides, as for every other provider.
+  assert.equal(authBackoff.isAuthFailure({ stage: 'provider_data', code: 'owm_status_401', retryAfterMs: 0 }), true);
+  assert.equal(authBackoff.isAuthFailure({ stage: 'provider_data', code: 'owm_status_403', retryAfterMs: 'soon' }),
+    true);
+});
+
 test('isAuthFailure: false for malformed input', () => {
   assert.equal(authBackoff.isAuthFailure(null), false);
   assert.equal(authBackoff.isAuthFailure(undefined), false);
@@ -70,4 +84,17 @@ test('isActive treats a corrupt stored value as inactive and clears it', () => {
   withLocalStorage(map);
   assert.equal(authBackoff.isActive(), false);
   assert.equal(Object.prototype.hasOwnProperty.call(map, AUTH_KEY), false, 'corrupt value removed');
+});
+
+test('set records the gate only: the failure code and when — the key\'s verdict lives in key-result.js', () => {
+  const map = {};
+  withLocalStorage(map);
+  authBackoff.set({ stage: 'provider_data', code: 'owm_status_401' });
+  const rec = JSON.parse(map[AUTH_KEY]);
+  assert.deepEqual(Object.keys(rec).sort(), ['code', 'since']);
+  assert.equal(rec.code, 'owm_status_401');
+  assert.equal(typeof rec.since, 'number');
+  authBackoff.set({ stage: 'provider_data' });
+  assert.equal(JSON.parse(map[AUTH_KEY]).code, 'auth', 'a failure without a code');
+  assert.equal(authBackoff.isActive(), true);
 });

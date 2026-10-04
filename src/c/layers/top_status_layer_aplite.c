@@ -12,8 +12,8 @@
 // so --gc-sections reaps snooze.c from the frozen-lean image; it gains no
 // bitmap/PDC feature. As of fc8cf4d the strip
 // also embeds status_row (Task 12/15) for the configurable left/right slots around
-// the fixed date; status_row_icons_load() returns NULL on aplite, so the slots
-// render as plain text (no icon glyphs) here.
+// the fixed date; aplite's status row loads no icon glyph (status_row_icons.c is
+// not built here), so the slots render as plain text.
 // See docs/adr/0001-aplite-frozen-lean-fork.md.
 
 #include "top_status_layer.h"
@@ -270,7 +270,7 @@ static bool show_qt_icon(void) {
     return config_get()->show_qt && quiet_time_is_active();
 }
 
-void status_icons_refresh() {
+static void status_icons_refresh() {
     // A full strip repaint resyncs the per-minute QT baseline so the next
     // top_status_layer_tick() only fires on a genuine QT transition.
     s_last_qt_active = show_qt_icon();

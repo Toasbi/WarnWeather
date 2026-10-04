@@ -72,7 +72,8 @@
     "viewOrder1": "TCAB",
     "viewAlign1": "clock",
     "viewClockOff1": false,
-    "viewStripOff1": true
+    "viewStripOff1": true,
+    "statusTopOnDemandRightItems": "battery"
   },
   "weather": {
     "city": "Miami",

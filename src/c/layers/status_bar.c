@@ -192,7 +192,8 @@ void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L) {
 
 void status_bar_refresh_all(void) {
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
-        if (s_bars[i].row) { refresh_row((StatusBarId) i); }
+        if (!s_bars[i].row) { continue; }
+        refresh_row((StatusBarId) i);
     }
 }
 
@@ -219,6 +220,21 @@ void status_bar_refresh_live_health(const ViewSpec *spec) {
         }
     }
 }
+
+#if defined(WW_ON_DEMAND)
+void status_bar_tick_on_demand(void) {
+    for (int i = 0; i < STATUS_BAR_COUNT; i++) {
+        StatusBar *b = &s_bars[i];
+        if (!b->row) { continue; }
+        // Visible = not hidden: status_bar_apply_view wrote the flag from the view on
+        // screen. refresh_row repaints only on a signature change, so a quiet minute
+        // (no rain, or an icon-only rain look) costs the refresh and nothing else.
+        if (status_row_uses_on_demand(b->row) && !layer_get_hidden(b->layer)) {
+            refresh_row((StatusBarId) i);
+        }
+    }
+}
+#endif
 
 void status_bar_destroy_all(void) {
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {

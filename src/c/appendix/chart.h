@@ -73,12 +73,33 @@ static inline int chart_slot_bar_x(const ChartGeometry *g, int i) {
     return g->anchor_x + i * g->slots.pitch + g->slots.bar_dx;
 }
 
+// The vertical rule every value-mapped renderer shares (Bottom | Top, chart_flip.h).
+#include "c/appendix/chart_flip.h"
+
 typedef struct {
     GContext       *ctx;
     const ChartDef *def;
     GRect           outer;
     ChartGeometry   geo;
+#if defined(WW_LINE_STYLE)
+    int16_t         zero;   // the current layer's zero row and direction (chart_flip.h),
+    int8_t          dir;    // set by chart_draw from ChartLayer.from_top
+#endif
 } ChartRender;
+
+// The zero row and direction of the layer being drawn, for every renderer and for a
+// CUSTOM layer's own bars (the radar's nearby-area pass), so they all hang by the one
+// rule. aplite has no Top (WW_LINE_STYLE): the bottom edge and -1, constant-folded,
+// which is today's "baseline minus height" there.
+#if defined(WW_LINE_STYLE)
+#define CHART_ZERO(r) ((r)->zero)
+#define CHART_DIR(r)  ((r)->dir)
+#define CHART_VERTEX_Y(zero, dir, h, held) chart_flip_vertex_y((zero), (dir), (h), (held))
+#else
+#define CHART_ZERO(r) ((r)->geo.content.origin.y + (r)->geo.content.size.h)
+#define CHART_DIR(r)  (-1)
+#define CHART_VERTEX_Y(zero, dir, h, held) ((void)(dir), (void)(held), (zero) - (h))
+#endif
 
 typedef enum { TICK_NONE, TICK_SMALL, TICK_BIG } ChartTickKind;
 typedef enum { ALIGN_START, ALIGN_MIDDLE }       ChartSlotAlign;
@@ -108,7 +129,10 @@ typedef struct {
     const int16_t        *values;
     int                   count;      // clamped to def->num_slots
     int                   lo, hi;     // linear range map; lo = baseline value
-    const ChartColorStop *stops;      // >=1, ascending, stops[0].from == lo
+    const ChartColorStop *stops;      // >=1, ascending, stops[0].from <= lo: a negative
+                                      // stop-0 threshold is a palette's "Bars from: Top"
+                                      // flag (chart_flip_palette_top); the renderer
+                                      // clamps every stop under lo to the zero row
     int                   num_stops;
     ChartBarStyle         style;
 } ChartBarsLayer;
@@ -129,8 +153,7 @@ typedef enum { CHART_LINE_SOLID = 0, CHART_LINE_DOTS = 1, CHART_LINE_X = 2,
                CHART_LINE_STRIPE = 3 } ChartLineStyle;
 
 typedef struct {
-    const int16_t *values;            // compute points from values...
-    const GPoint  *points;            // ...OR consume precomputed points
+    const int16_t *values;            // the points are computed from these
     GPoint        *export_points;     // optional out: count points
     int            count;
     int            lo, hi;
@@ -139,32 +162,34 @@ typedef struct {
                                       // inset_bottom. Set larger than inset_top to lift the
                                       // baseline clear of a bottom band (e.g. the health
                                       // sleep stripe). Equal top/bottom = a symmetric inset.
+                                      // Hanging (from_top), the two swap edges: inset_bottom
+                                      // is the margin at the zero edge (the top), inset_top
+                                      // the one at the full edge (the bottom). Only the
+                                      // health HR line and aplite's temperature curve
+                                      // carry insets, and they never hang.
     GColor         color;
     int            width;
     uint8_t        style;             // ChartLineStyle — uint8_t so the layer keeps the
                                       // 1-byte slot the old `dotted` bool sat in
-    uint8_t        zero_absent;       // nonzero: a value at or below `lo` draws nothing —
-                                      // the SOLID path breaks into runs there, matching the
-                                      // skip the mark styles have always applied. Set on the
-                                      // metric lines, whose wire invariant reserves byte 0
-                                      // for "nothing" (forecast-series.js metricBytes);
-                                      // temp/feels leave it 0 — their byte 0 is the band
-                                      // floor, real data. Sits in the struct's tail padding.
+    uint8_t        zero_absent;       // CHART_ZERO_* (chart_runs.h): GAP or JOIN, a value
+                                      // at or below `lo` draws nothing — the SOLID path
+                                      // breaks into runs there, matching the skip the mark
+                                      // styles have always applied — and on a JOIN line the
+                                      // stroke still comes down to such a zero next to a
+                                      // reading. Set on the metric lines, whose wire
+                                      // invariant reserves byte 0 for "nothing"
+                                      // (forecast-series.js metricBytes); the temperature
+                                      // curve and the HR line leave it DATA (0) — their
+                                      // floor is real data. Sits in the struct's tail padding.
 } ChartLineLayer;
 
 typedef struct {
     const int16_t *values;
     GPoint        *export_points;     // optional out: count + 2 points (closing pts)
     int            count;
-    int            lo, hi;
-#if defined(WW_CURVE_INSET)
-    int            inset_top;         // contour margins, matching ChartLineLayer's
-    int            inset_bottom;      // mapping — so a fill under an inset line hugs
-                                      // it exactly. The fill itself still drops to
-                                      // the plot bottom (the axis closes it).
-                                      // aplite compiles them out entirely: no curve
-                                      // insets there, and the union must not grow.
-#endif
+    int            lo, hi;            // no insets: the contour maps lo..hi over the whole
+                                      // plot, as an uninset line does (a temperature-axis
+                                      // line's rows are fitted before it reaches a layer)
     GColor         fill_color;
 } ChartAreaLayer;
 
@@ -182,6 +207,13 @@ typedef struct {
     int              spacing;            // hatch stride
     GColor           underlay_color;     // per-column solid fill before hatch (area re-shade)
     bool             has_underlay;
+#if defined(WW_LINE_STYLE)
+    int16_t          extend_top;         // full-height bands only: rows ABOVE the content
+                                         // that the hatch and its boundary lines cover too
+                                         // (the forecast's top stripe band), so the night
+                                         // shading runs to the top of the graph. Sits in
+                                         // padding; aplite compiles it out (no stripes).
+#endif
     const GPoint    *contour;            // NULL => full-height bands; else per-column top y
     int              contour_count;
 } ChartHatchLayer;
@@ -213,6 +245,16 @@ typedef enum { CHART_LAYER_FRAME, CHART_LAYER_AXIS, CHART_LAYER_BARS,
 
 typedef struct {
     ChartLayerType type;
+    uint8_t        from_top;   // nonzero: BARS, LINE, AREA and a contour HATCH (and a CUSTOM
+                               // layer through CHART_ZERO/CHART_DIR) hang from the content's
+                               // top instead of standing on its bottom (chart_flip.h).
+                               // FRAME, AXIS and STRIPE ignore it. A full-height HATCH must
+                               // keep it 0: its fill ignores it, but its boundary lines end
+                               // on the row next to the zero row, which hanging is the
+                               // content's first row. On every platform, in the short
+                               // enum's padding (ChartLayer stays 44 B):
+                               // rain_radar_layer.c still compiles on aplite, where nothing
+                               // reads it.
     union {
         ChartFrameLayer  frame;
         ChartAxisLayer   axis;

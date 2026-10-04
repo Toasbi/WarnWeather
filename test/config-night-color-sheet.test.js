@@ -1,6 +1,7 @@
 // test/config-night-color-sheet.test.js — the dim-backlight COLOUR surface: one
-// compact row in the Nighttime card showing the colour that is set, and the three
-// channel sliders behind it in a bottom sheet.
+// compact nav row in the Watchface tab's Theme & night card ('Dim backlight color',
+// under the card's More options) showing the colour that is set, and the three channel
+// sliders behind it in a full-screen dialog.
 //
 // The row shows the SHEET's own preview — the 24px chip plus the hex, not a 9px pip —
 // built by html.js swatchReadout, which renderRgb prints too. That shared builder is
@@ -10,7 +11,7 @@
 // Owner review of the rendered page: three inline tracks made the card's smallest
 // setting its tallest row, so the card now shows only the selected colour. The value
 // itself did not move — same key, same "r,g,b" wire format, same default (pinned in
-// config-schema.test.js next to the rest of the Nighttime keys); this file owns where
+// config-schema.test.js next to the rest of the night keys); this file owns where
 // it is edited.
 //
 // Everything here is RENDERED, not read off the schema: the point of the change is what
@@ -46,21 +47,53 @@ function cxFor(state, env, openEdit) {
   return {
     S: S, ENV: ENV, USERDATA: {}, openColor: null, openSelect: null, openDate: null,
     openEdit: openEdit || null, selectQuery: '', collapsed: {},
-    evalCtx: Object.assign({}, S, { env: ENV })
+    evalCtx: Object.assign({}, S, { env: ENV }),
+    // The page's own context carries the schema: a nav row's More options read the
+    // values behind it (its dialog's) through it.
+    schema: schema
   };
 }
 
-/** The Nighttime card's HTML, from its title to wherever the next card starts.
+// Every card's More options open: the colour row rides them (more: true).
+const ALL_MORE_OPEN = () => new Proxy({}, { get: () => true });
+
+/** The Watchface tab's body, as renderBody draws it.
  * @param {Object} [state] Stored values to overlay on the hydrated defaults.
  * @param {Object} [env] Platform env.
+ * @param {boolean} [moreClosed] Leave the cards' More options as the page opens them
+ *     (collapsed unless a more row holds a changed value); default all open.
+ * @returns {string} Tab body HTML.
+ */
+function watchfaceBody(state, env, moreClosed) {
+  const cx = cxFor(state, env);
+  if (!moreClosed) { cx.moreOpen = ALL_MORE_OPEN(); }
+  return eng.renderBody(schema, 'watchface', cx);
+}
+
+/** The Theme & night card's HTML, from its title to wherever the next card starts.
+ * @param {Object} [state] Stored values to overlay on the hydrated defaults.
+ * @param {Object} [env] Platform env.
+ * @param {boolean} [moreClosed] See watchfaceBody.
  * @returns {string} Card HTML.
  */
-function nightCard(state, env) {
-  const body = eng.renderBody(schema, 'general', cxFor(state, env));
-  const at = body.indexOf('>Nighttime settings<');
-  assert.ok(at > 0, 'the Nighttime card rendered');
+function nightCard(state, env, moreClosed) {
+  const body = watchfaceBody(state, env, moreClosed);
+  const at = body.indexOf('<span class="ttl">Theme &amp; night</span>');
+  assert.ok(at > 0, 'the Theme & night card rendered');
   const next = body.indexOf('<div class="card', at);
   return body.slice(at, next === -1 ? undefined : next);
+}
+
+/** The colour row's own HTML inside the card, or '' when it is not drawn.
+ * @param {string} card Card HTML (nightCard).
+ * @returns {string} The row, from its opening tag to the end of its chevron.
+ */
+function colorRow(card) {
+  const at = card.indexOf('data-edit-sheet="' + SHEET_ID + '"');
+  if (at === -1) { return ''; }
+  const open = card.lastIndexOf('<div class="row', at);
+  const end = card.indexOf('<span class="chev">', at);
+  return card.slice(open, card.indexOf('</div></div>', end) + '</div></div>'.length);
 }
 
 /** The open colour sheet's HTML (header + body), as renderEditModal builds it.
@@ -88,14 +121,27 @@ function swatchHex(state) {
 
 // --- the card: the colour, not the sliders ---------------------------------
 
-test('the Nighttime card shows one Color row — the readout and Edit, no channel tracks', () => {
+test('the Theme & night card shows one Dim backlight color row — the readout and a chevron, no channel tracks', () => {
   const card = nightCard();
   assert.ok(card.indexOf('data-edit-sheet="' + SHEET_ID + '"') !== -1,
-    'the Color row opens the colour sheet');
-  // The row carries the SHEET's own preview — the 24px chip and the hex, not a 9px pip —
-  // seated left of the Edit button, which trails on the card's right edge.
-  assert.match(card, /<div class="lbl">Color<\/div>[\s\S]*?<div class="rgt has-pen">[\s\S]*?<span class="sw-wrap sw-ro">[\s\S]*?data-edit-sheet="backlightColor"/);
+    'the colour row opens the colour sheet');
+  // The whole row is the way in (a nav row), and it carries the SHEET's own preview —
+  // the 24px chip and the hex, not a 9px pip — on its right, ahead of the chevron that
+  // trails on the card's right edge. No Edit button any more.
+  const row = colorRow(card);
+  assert.match(row, /^<div class="row nav[^"]*" data-edit-sheet="backlightColor" role="button" tabindex="0"[^>]*>/,
+    'a nav row: the whole row opens the sheet');
+  assert.match(row, /<div class="lbl">Dim backlight color<\/div>[\s\S]*?<div class="rgt"><span class="thr-swatch" aria-hidden="true"><span class="sw-wrap sw-ro">[\s\S]*?<\/span><\/span><span class="chev">/,
+    'the label, then the readout ahead of the chevron');
+  assert.equal(card.indexOf('thr-btn'), -1, 'no Edit button beside it');
   assert.equal(card.indexOf('pen-dot'), -1, 'the small dot it replaced is gone');
+  // The row is a rarely changed setting: it waits under the card's More options, and a
+  // page that opens on the default colour opens with them folded.
+  const folded = nightCard(undefined, undefined, true);
+  assert.equal(folded.indexOf('data-edit-sheet="' + SHEET_ID + '"'), -1, 'folded under More options');
+  assert.ok(folded.indexOf('<span class="more-lbl">More options</span>') !== -1, 'behind the card\'s More row');
+  assert.ok(nightCard({ [KEY]: '200,40,10' }, undefined, true).indexOf('data-edit-sheet="' + SHEET_ID + '"') !== -1,
+    'a picked colour opens the card with its More options out, so the colour shows');
   // ...and NOTHING of the control itself is left in the card. These are the three
   // pieces renderRgb emits — the root, each channel's fill, each channel's thumb —
   // plus the two paint hooks, which belong to the sheet's live copy alone.
@@ -103,10 +149,12 @@ test('the Nighttime card shows one Color row — the readout and Edit, no channe
     'data-rgb-swatch', 'data-rgb-hex'].forEach((frag) =>
     assert.equal(card.indexOf(frag), -1, 'the card must not carry ' + frag + ' any more'));
   // The sheet's rows are a dialog body: the tab renderer skips the whole section.
-  const body = eng.renderBody(schema, 'general', cxFor());
+  const body = watchfaceBody();
   assert.equal(body.indexOf('data-range="' + KEY + '"'), -1,
     'the rgb control renders nowhere in the tab body');
-  assert.equal(body.indexOf('Dim backlight color'), -1, 'nor does the sheet title');
+  // 'Dim backlight color' is the row's label now, so look for the dialog's own pieces.
+  assert.equal(body.indexOf('esheet-ttl-' + SHEET_ID), -1, 'nor does the sheet title');
+  assert.equal(body.indexOf('Pick the color the backlight glows'), -1, 'nor its intro');
 });
 
 test('the row prints the SAME preview the sheet does, from the same builder', () => {
@@ -140,18 +188,43 @@ test('the readout is the colour that is stored — change the value, chip and he
   assert.equal(swatchHex({ [KEY]: undefined }), '#280A00', 'and so does a missing one');
   assert.equal(swatchHex({ [KEY]: '#FF0000' }), '#280A00', 'so does a hex string, which is not r,g,b');
   assert.equal(swatchHex({ [KEY]: '12,34' }), '#280A00', 'and so do two channels');
-  // Whatever it shows, the row still offers the way in and still SAYS the colour: the
-  // readout is inside the aria-hidden preview wrapper, so the button carries the name.
+  // Whatever it shows, the row still offers the way in.
   ['200,40,10', '', 'nonsense'].forEach((v) => {
     const card = nightCard({ [KEY]: v });
     assert.ok(card.indexOf('data-edit-sheet="' + SHEET_ID + '"') !== -1,
-      'the Edit affordance survives the value ' + JSON.stringify(v));
-    assert.ok(/aria-label="Edit settings for the Color value \(#[0-9A-F]{6}\)"/.test(card),
-      'and announces a colour');
+      'the way into the sheet survives the value ' + JSON.stringify(v));
   });
-  assert.ok(nightCard({ [KEY]: '200,40,10' })
-    .indexOf('aria-label="Edit settings for the Color value (#C8280A)"') !== -1,
-    'the Edit button announces the colour the readout shows');
+});
+
+/** What a screen reader gets from a row: its aria-labels, and its text outside the
+ * aria-hidden parts (tags dropped).
+ * @param {string} row Row HTML.
+ * @returns {string} The announced text, roughly.
+ */
+function announced(row) {
+  const labels = [];
+  row.replace(/aria-label="([^"]*)"/g, (m, l) => { labels.push(l); return m; });
+  // The readout wrapper is the only aria-hidden part, and it nests spans: cut it out by
+  // its fixed shape (swatchReadout: <span class="sw-wrap sw-ro"><b …></b><span>#…</span></span>).
+  const shown = row.replace(/<span class="thr-swatch" aria-hidden="true">[\s\S]*?<\/span><\/span><\/span>/g, '')
+    .replace(/<[^>]*>/g, ' ');
+  return labels.concat([shown]).join(' ');
+}
+
+// The readout is aria-hidden (a preview whose hex would be read out a character at a
+// time), so the row must carry the colour some other way: the badge's ariaNote (the
+// rgbSwatch resolver returns the hex as ariaNote for exactly this) used to ride the
+// Edit button's aria-label. The nav row that replaced the button has to keep saying it.
+test('the row still SAYS the colour to a screen reader, not only shows it', () => {
+  assert.equal(global.PConf.badgeResolvers.get('rgbSwatch')({ [KEY]: '200,40,10' }, emeryEnv,
+    { key: KEY, defaultValue: '40,10,0' }).ariaNote, '#C8280A', 'the badge hands the colour over to announce');
+  ['200,40,10', '', 'nonsense'].forEach((v) => {
+    const row = colorRow(nightCard({ [KEY]: v }));
+    assert.ok(row, 'the row renders for ' + JSON.stringify(v));
+    assert.match(announced(row), /#[0-9A-F]{6}/, 'and announces a colour for ' + JSON.stringify(v));
+  });
+  assert.ok(announced(colorRow(nightCard({ [KEY]: '200,40,10' }))).indexOf('#C8280A') !== -1,
+    'the row announces the colour the readout shows');
 });
 
 test('the badge resolver refuses a row that names no key', () => {
@@ -246,12 +319,13 @@ const NO_TARGET = { closest: () => null };
 
 test('the sliders drag and nudge inside the sheet, and the card\'s swatch follows', () => {
   // This boots the flat concatenated page, where nothing require()s: it is also the
-  // one test that exercises the badge resolver's webview branch (PConf.rangeControl
-  // rather than a require of range-control.js) — the card swatch below repaints
+  // one test that exercises the badge resolver's webview branch (PConf.rgbControl
+  // rather than a require of rgb-control.js) — the card swatch below repaints
   // through it.
   const page = bootGeneratedPage({ provider: 'dwd' }, 'emery');
+  page.openAllMore('scroll');   // the colour row rides the Theme & night card's More options
   assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="' + SHEET_ID + '"') !== -1,
-    'the General tab opens on the Color row');
+    'the Watchface tab (the page opens on it) offers the colour row');
   page.openEditSheet(SHEET_ID);
   assert.ok(page.modal.innerHTML.indexOf('data-range="' + KEY + '"') !== -1,
     'the rgb control is in the open sheet');

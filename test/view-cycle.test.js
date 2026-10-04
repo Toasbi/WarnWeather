@@ -866,3 +866,20 @@ test('weatherOnly: no top bar, radar on top, clock then weather row; health flic
   });
   assert.equal(vc.resolvePresetKey({ layoutPreset: 'weatherOnly' }), 'weatherOnly');
 });
+
+test('resolveViewCycle: custom compiles the view keys, except on aplite; presets fold per watch', () => {
+  const custom = { layoutPreset: 'custom', viewCount: '2', viewTop0: 'none', viewBody0: 'forecast',
+    viewUpper0: 'weather', viewLower0: 'off', viewStripOff0: true, viewTop1: 'cal', viewBody1: 'radar',
+    radarMode: 'graph', healthMode: 'off' };
+  assert.deepEqual(vc.resolveViewCycle(custom, { platform: 'basalt' }), vc.buildCustomCycle(custom));
+  assert.deepEqual(vc.resolveViewCycle(custom, null), vc.buildCustomCycle(custom), 'unknown platform: custom-capable');
+  assert.deepEqual(vc.resolveViewCycle(custom, { platform: 'aplite' }), vc.buildViewCycle('compactCal', 'off', 'graph', false),
+    'aplite folds custom to compactCal');
+  const wo = { layoutPreset: 'weatherOnly', radarMode: 'status', healthMode: 'all' };
+  assert.deepEqual(vc.resolveViewCycle(wo, { platform: 'emery' }), vc.buildViewCycle('weatherOnly', 'all', 'status', false));
+  assert.deepEqual(vc.resolveViewCycle(wo, { platform: 'aplite' }), vc.buildViewCycle('compactCal', 'all', 'status', false));
+  // Absent modes read healthMode off and radarMode graph; no settings at all is compactCal.
+  assert.deepEqual(vc.resolveViewCycle({ layoutPreset: 'compactCal', swapClockStatus: 1 }),
+    vc.buildViewCycle('compactCal', 'off', 'graph', true));
+  assert.deepEqual(vc.resolveViewCycle(null), vc.buildViewCycle('compactCal', 'off', 'graph', false));
+});

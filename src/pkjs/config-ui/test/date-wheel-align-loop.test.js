@@ -14,6 +14,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+// The lib files in the page's own order (build-page.js), so a bundle here loads what the
+// page loads.
+const { LIB_PAGE_FILES } = require('../scripts/build-page.js');
 require('../lib/schema-walk.js');
 require('../lib/color.js');
 require('../lib/show-when.js');
@@ -27,13 +30,7 @@ const SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [
 // Boot the engine against a DOM shim, open the date sheet, and return the harness knobs.
 function bootDateSheet() {
   const LIB = path.join(__dirname, '..', 'lib');
-  const BUNDLE = fs.readFileSync(path.join(LIB, 'schema-walk.js'), 'utf8')
-    + '\n' + fs.readFileSync(path.join(LIB, 'color.js'), 'utf8')
-    + '\n' + fs.readFileSync(path.join(LIB, 'show-when.js'), 'utf8')
-    + '\n' + fs.readFileSync(path.join(LIB, 'html.js'), 'utf8')
-    + '\n' + fs.readFileSync(path.join(LIB, 'date-picker.js'), 'utf8')
-    + '\n' + fs.readFileSync(path.join(LIB, 'range-control.js'), 'utf8')
-    + '\n' + fs.readFileSync(path.join(LIB, 'engine.js'), 'utf8')
+  const BUNDLE = LIB_PAGE_FILES.map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
     + '\nPConf.engine.boot();';
 
   const listeners = {};        // #scroll listeners (click/input)
@@ -160,8 +157,7 @@ function el(attrs) {
 // regression would throw here rather than pass quietly.
 function bootPickingSheet() {
   const LIB = path.join(__dirname, '..', 'lib');
-  const BUNDLE = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'date-picker.js',
-    'range-control.js', 'engine.js']
+  const BUNDLE = LIB_PAGE_FILES
     .map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
     + '\nPConf.engine.boot();';
 
@@ -257,8 +253,8 @@ test('sheet: .picking is added while a palette is open and removed with it', () 
 });
 
 test('a palette left open in the tab body does not grow an unrelated select sheet', () => {
-  // openColor is ONE variable serving palettes in both surfaces, but only the edit
-  // sheet ever renders a palette inside the dialog. Keyed on openColor alone, a body
+  // `expanded` is ONE variable serving palettes in both surfaces, but only the edit
+  // sheet ever renders a palette inside the dialog. Keyed on `expanded` alone, a body
   // palette would raise the cap on (and suppress the peek clamp of) a select sheet
   // opened from the same card.
   const h = bootPickingSheet();

@@ -36,7 +36,7 @@ var WEATHER_CATEGORIES = [
         cacheKey: KEYS.LAST_SENT_STATUS_KEY,
         keys: ['STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8',
                'STATUS_LINE_3_UINT8', 'STATUS_LINE_4_UINT8',
-               'STATUS_LEVELS_UINT8']
+               'STATUS_LEVELS_UINT8', 'ALERT_ENTRIES_UINT8']
     },
     {
         name: 'sun',
@@ -46,8 +46,9 @@ var WEATHER_CATEGORIES = [
     {
         name: 'radar',
         cacheKey: KEYS.LAST_SENT_RADAR_KEY,
-        // RAIN_RADAR_LIMITED (the limit notice, radar-wire.js) never rides with
-        // the three arrays; the comparator dedupes a repeat of it.
+        // RAIN_RADAR_LIMITED (the radar notice's line, radar-wire.js): the limit
+        // notice rides without the three arrays, the out-of-coverage one with the
+        // clear; the comparator dedupes a repeat of either.
         keys: ['RAIN_RADAR_TREND_UINT8', 'RAIN_RADAR_TREND_AREA_UINT8', 'RAIN_RADAR_START',
                'RAIN_RADAR_LIMITED'],
         comparator: radarDedupe.radarComparator

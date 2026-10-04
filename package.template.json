@@ -65,19 +65,28 @@
           "type": "bitmap",
           "name": "IMAGE_MUTE",
           "file": "img/mute.png",
-          "memoryFormat": "1BitPalette"
+          "memoryFormat": "1BitPalette",
+          "targetPlatforms": [
+            "aplite"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_BT_DISCONNECT",
           "file": "img/bt-disconnect.png",
-          "memoryFormat": "1BitPalette"
+          "memoryFormat": "1BitPalette",
+          "targetPlatforms": [
+            "aplite"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_BT_CONNECT",
           "file": "img/bt.png",
-          "memoryFormat": "1BitPalette"
+          "memoryFormat": "1BitPalette",
+          "targetPlatforms": [
+            "aplite"
+          ]
         },
         {
           "type": "bitmap",
@@ -291,9 +300,42 @@
           ]
         },
         {
+          "type": "raw",
+          "name": "STATUS_QUIET",
+          "file": "data/STATUS_QUIET.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "STATUS_BT",
+          "file": "data/STATUS_BT.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "STATUS_BT_OFF",
+          "file": "data/STATUS_BT_OFF.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
           "type": "bitmap",
-          "name": "CLOCK_STRIP_ROBOTO",
-          "file": "img/clock-roboto.png",
+          "name": "CLOCK_ROBOTO_0",
+          "file": "img/clock-roboto-0.png",
           "memoryFormat": "2BitPalette",
           "storageFormat": "pbi",
           "targetPlatforms": [
@@ -303,8 +345,228 @@
         },
         {
           "type": "bitmap",
-          "name": "CLOCK_STRIP_BITHAM",
-          "file": "img/clock-bitham.png",
+          "name": "CLOCK_ROBOTO_1",
+          "file": "img/clock-roboto-1.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_ROBOTO_2",
+          "file": "img/clock-roboto-2.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_ROBOTO_3",
+          "file": "img/clock-roboto-3.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_ROBOTO_4",
+          "file": "img/clock-roboto-4.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_ROBOTO_5",
+          "file": "img/clock-roboto-5.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_ROBOTO_6",
+          "file": "img/clock-roboto-6.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_ROBOTO_7",
+          "file": "img/clock-roboto-7.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_ROBOTO_8",
+          "file": "img/clock-roboto-8.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_ROBOTO_9",
+          "file": "img/clock-roboto-9.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_ROBOTO_10",
+          "file": "img/clock-roboto-10.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_BITHAM_0",
+          "file": "img/clock-bitham-0.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_BITHAM_1",
+          "file": "img/clock-bitham-1.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_BITHAM_2",
+          "file": "img/clock-bitham-2.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_BITHAM_3",
+          "file": "img/clock-bitham-3.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_BITHAM_4",
+          "file": "img/clock-bitham-4.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_BITHAM_5",
+          "file": "img/clock-bitham-5.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_BITHAM_6",
+          "file": "img/clock-bitham-6.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_BITHAM_7",
+          "file": "img/clock-bitham-7.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_BITHAM_8",
+          "file": "img/clock-bitham-8.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_BITHAM_9",
+          "file": "img/clock-bitham-9.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
+          "targetPlatforms": [
+            "basalt",
+            "emery"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "CLOCK_BITHAM_10",
+          "file": "img/clock-bitham-10.png",
           "memoryFormat": "2BitPalette",
           "storageFormat": "pbi",
           "targetPlatforms": [
@@ -387,7 +649,8 @@
       "CLAY_NIGHT_LIGHT_UINT8",
       "FIFTH_LINE_TREND_UINT8",
       "RADAR_SKY_UINT8",
-      "RAIN_RADAR_LIMITED"
+      "RAIN_RADAR_LIMITED",
+      "ALERT_ENTRIES_UINT8"
     ]
   }
 }

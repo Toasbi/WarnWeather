@@ -1,9 +1,26 @@
 // Lean aplite (Pebble Classic/Steel) twin of status_row.c.
 //
 // Frozen fork of status_row.c as of 5707b35. FEATURE-FROZEN, NOT CODE-FROZEN:
-// preserve aplite's text/date/sun/battery behavior and hand-port bug
-// fixes, but do not add the evolving PDC glyph, health, week, theme-polarity,
-// or rain-alert pipeline. See docs/adr/0001-aplite-frozen-lean-fork.md.
+// preserve aplite's text/date/sun/battery behavior and hand-port bug fixes, but
+// do not add the evolving PDC glyph, health, week, theme-polarity,
+// threshold-highlight or On demand pipeline. Interface changes are forced by the
+// aplite link error.
+//
+// Last ported against v1.23.1 (ec22f464): review the base's later commits with
+// `git log ec22f464.. -- src/c/layers/status_row.c`. Among them, 1.24.0's On demand
+// (it replaced the top strip's rain text takeover and the fixed indicators) is
+// reconciled here already. It changed status_row.h in three ways:
+//  - the takeover's hooks (status_row_set_suppress_edges /
+//    status_row_right_slot_width) left it, so their no-op stubs left this twin;
+//  - On demand's interface (status_row_uses_on_demand) is declared only under
+//    WW_ON_DEMAND, which aplite never defines, so this twin answers none of it;
+//  - status_row_set_battery_override is declared only under !WW_ON_DEMAND: the base
+//    shows a low charge through the On demand Battery item and dropped the override,
+//    so this twin is its only implementation (top_status_layer_aplite.c's low-battery
+//    takeover still calls it).
+// Nothing else in 1.24.0's status_row.c changes is aplite's to port: they build
+// On demand and the threshold highlight, and aplite has neither.
+// See docs/adr/0001-aplite-frozen-lean-fork.md.
 
 #include "status_row.h"
 #include "layer_util.h"
@@ -194,16 +211,6 @@ void status_row_set_battery_override(StatusRow *row, bool active) {
         row->battery_override = active;
         row->content_sig = 0;
     }
-}
-
-void status_row_set_suppress_edges(StatusRow *row, bool suppress) {
-    (void)row;
-    (void)suppress;
-}
-
-int16_t status_row_right_slot_width(StatusRow *row) {
-    (void)row;
-    return 0;
 }
 
 bool status_row_uses_live_health(const StatusRow *row) {

@@ -27,23 +27,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     var rect = svg.rect, txt = svg.txt, previewInk = svg.previewInk, svgFrame = svg.svgFrame;
 
     /**
-     * Resolve the Layout state to the adaptive view cycle (array of ViewSpec objects).
-     * Shares view-cycle.js with clay-payload.js — no manual sync. layoutPreset
-     * 'custom' compiles the per-view keys (with the same capability folds the wire
-     * gets), EXCEPT for an aplite watch: there the payload folds custom to the
-     * explicit compactCal preset, and the preview must show what the watch renders.
+     * Resolve the Layout state to the view cycle (array of ViewSpec objects): view-cycle.js
+     * resolveViewCycle, the reading clay-payload.js packs for the wire, so the preview
+     * shows what the watch renders (an aplite watch folds a custom layout to compactCal).
      * @param {Object} state Live settings (layoutPreset/healthMode/radarMode/swapClockStatus).
      * @param {Object} [env] Config-UI environment facts (platform gate).
      * @returns {Array.<Object>} The view cycle — one ViewSpec per flick slot.
      */
     function presetContents(state, env) {
-        state = state || {};
-        var radarMode = state.radarMode || 'graph';
-        if (state.layoutPreset === 'custom' && !(env && env.platform === 'aplite')) {
-            return VC.buildCustomCycle(state);
-        }
-        return VC.buildViewCycle(VC.presetKeyFor(state, env), state.healthMode || 'off', radarMode,
-            Boolean(state.swapClockStatus));
+        return VC.resolveViewCycle(state, env);
     }
 
     // Schematic band-stack geometry (px). The calendar is modelled as rows of height ROW
@@ -325,8 +317,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
     PConf.blocks.register('layoutPreviewCombined', layoutPreviewCombined);
     // The editor overlay (view-editor.js, concatenated after this file in the webview)
-    // reads the single-view preview from here; under Node it require()s this module.
-    PConf.previewLayout = { viewPreviewSvg: viewPreviewSvg };
+    // reads the single-view preview from here, and the status bars preview the view
+    // cycle (which views show a calendar); under Node both require() this module.
+    PConf.previewLayout = { viewPreviewSvg: viewPreviewSvg, presetContents: presetContents };
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {

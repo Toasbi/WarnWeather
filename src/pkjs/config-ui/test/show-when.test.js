@@ -43,3 +43,34 @@ test('{ env: colorBacklight } gates an item to the one watch with an RGB backlig
   assert.equal(W.isVisible(item, { env: platform.computeEnv(null) }), false, 'unknown watch');
   assert.equal(W.isVisible(item, {}), false, 'no env at all: fail closed');
 });
+
+test('when: a leaf asks the named resolver; an unregistered name reads false', () => {
+  // A stand-in for engine.js's registry (PConf.whenResolvers), on the PConf this file shares.
+  const fns = {};
+  global.PConf.whenResolvers = { register(id, fn) { fns[id] = fn; }, get(id) { return fns[id]; } };
+  const calls = [];
+  global.PConf.whenResolvers.register('drawsUv', function (state, env, args) {
+    calls.push([state, env, args]);
+    return state[args.picker] === 'uv' ? 1 : 0;
+  });
+  const c = { thirdLine: 'uv', env: { lineStyles: true } };
+  assert.equal(W.evaluate({ when: 'drawsUv', args: { picker: 'thirdLine' } }, c), true, 'a truthy answer holds');
+  assert.deepEqual(calls[0], [c, c.env, { picker: 'thirdLine' }], 'the context, its env and the args');
+  assert.equal(W.evaluate({ when: 'drawsUv', args: { picker: 'fourthLine' } }, c), false, 'a falsy answer does not');
+  W.evaluate({ when: 'drawsUv' }, c);
+  assert.deepEqual(calls[2][2], {}, 'a leaf without args passes {}');
+  assert.equal(W.evaluate({ not: { when: 'drawsUv', args: { picker: 'thirdLine' } } }, c), false);
+  assert.equal(W.evaluate({ when: 'nobodyRegisteredThis' }, c), false, 'unregistered: fail closed');
+  assert.equal(W.evaluate({ not: { when: 'nobodyRegisteredThis' } }, c), true);
+  delete global.PConf.whenResolvers;
+  assert.equal(W.evaluate({ when: 'drawsUv', args: { picker: 'thirdLine' } }, c), false, 'no registry: fail closed');
+});
+
+test('{ env: onDemand } hides On demand on aplite only', () => {
+  const item = { messageKey: 'x', showWhen: { env: 'onDemand' } };
+  const on = (plat) => W.isVisible(item, { env: platform.computeEnv({ platform: plat }) });
+  assert.equal(on('aplite'), false);
+  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) => assert.equal(on(p), true, p));
+  assert.equal(W.isVisible(item, { env: platform.computeEnv(null) }), true,
+    'an unknown watch counts as capable');
+});

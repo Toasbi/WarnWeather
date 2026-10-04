@@ -40,11 +40,21 @@ typedef enum { SERIES_KIND_LINE, SERIES_KIND_BARS } SeriesKind;
 typedef struct {                       // FIRST / SECOND / THIRD (/ FOURTH / FIFTH)
     int16_t values[MAX_BOTTOM_VIEW_ENTRIES];
     GColor  color;                      // stroke (resolved at load)
+#if defined(WW_LINE_STYLE)
+    bool    floating;                   // LINE_STYLE_FLOATING: anchors no plot edge (pressure,
+                                        // feels, dew). Clear, a line, marks or fill drawn
+                                        // from an edge anchors it, and the temperature curve
+                                        // pads off that edge (temp_axis_pad.h). Set, its byte 0
+                                        // is a missing reading (fit_temp_axis keeps it 0).
+                                        // Sits in the padding before `width`.
+#endif
     int     width;                      // stroke px (SOLID) / mark box px (DOTS, X)
     int     inset_y;                    // px: FIRST's fixed inset; a temp-axis metric line (feels, dew) shares it, else 0
     uint8_t style;                      // ChartLineStyle — metric lines only, FIRST stays SOLID
 #if defined(WW_LINE_STYLE)
-    bool    stripe_top;                 // CHART_LINE_STRIPE only: top edge (else bottom)
+    bool    from_top;                   // stripe: in the top band (else the bottom one);
+                                        // any other style: hangs from the plot's top
+                                        // ("Draw from: Top", line_style_top_edge)
 #endif
     bool    fill_on;                    // SECOND only
     GColor  fill_color;                 // SECOND only (B&W override already applied)

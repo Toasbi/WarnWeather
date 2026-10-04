@@ -14,6 +14,7 @@
 #include "c/appendix/radar_sky.h"
 #include "c/appendix/radar_limit.h"
 #include "c/layers/status_metrics.h"
+#include "paint_scratch.h"
 
 // Layout constants. The axis area sits above the bar plot. Hour labels
 // share a single vertical strip with the tick row: at hour-aligned slot
@@ -29,7 +30,6 @@
 // constant false off emery, so every other platform folds this to the plain 12.
 #define RADAR_AXIS_H_BASE       12
 #define RADAR_AXIS_H_LARGE_STEP 4
-#define RADAR_NUM_SLOTS         24
 
 static inline int radar_axis_h(void) {
     return RADAR_AXIS_H_BASE + (config_large_graph_font() ? RADAR_AXIS_H_LARGE_STEP : 0);
@@ -173,17 +173,21 @@ static void nearby_border_v_line(GContext *ctx, int16_t x, int16_t y0, int16_t y
 // full-slot-width rect in the muted RADAR_AREA_HATCH_COLOR; tier
 // intensity is conveyed by the outline + the exact bars on top.
 // Contiguous runs of nonzero slots get a 1-px outline tracing the
-// perimeter — the run's top edge plus the left/right verticals from
-// plot_bottom up — with each segment coloured by its slot's exact tier.
+// perimeter — the run's free edge plus the left/right verticals out from
+// the zero row — with each segment coloured by its slot's exact tier.
+// Heights are px out from the layer's zero row (chart_flip.h), so the
+// pass stands on the plot's bottom or hangs from its top with the exact
+// bars drawn over it: Y(h) is the row h px out.
 static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
                                   SlotGeometry slots,
                                   const uint8_t *area_tenths,
-                                  const uint8_t *exact_tenths) {
+                                  const uint8_t *exact_tenths,
+                                  int zero, int dir) {
     if (bar_plot_rect.size.w <= 0 || bar_plot_rect.size.h <= 0) {
         return;
     }
+#define Y(h) ((int16_t)chart_flip_y(zero, dir, (h)))
     const int16_t plot_x      = bar_plot_rect.origin.x;
-    const int16_t plot_bottom = bar_plot_rect.origin.y + bar_plot_rect.size.h;
     const int16_t bar_h       = bar_plot_rect.size.h;
 
     graphics_context_set_stroke_width(ctx, 1);
@@ -210,7 +214,7 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int16_t x_a = slot_geometry_tick_x(slots, s,     plot_x);
             const int16_t x_b = slot_geometry_tick_x(slots, s + 1, plot_x);
             const int16_t slot_w = x_b - x_a;
-            const GRect r = GRect(x_a, plot_bottom - slot_h, slot_w, slot_h);
+            const GRect r = GRect(x_a, chart_flip_span_y(zero, dir, 0, slot_h), slot_w, slot_h);
             hatch_fill_rect(ctx, r, RADAR_AREA_HATCH_COLOR, hatch_spacing);
         }
 
@@ -219,17 +223,17 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int h0 = slot_height_px(area_tenths[run_start], bar_h);
             const int16_t lx = slot_geometry_tick_x(slots, run_start, plot_x);
             graphics_context_set_stroke_color(ctx, border_color_for_slot(exact_tenths[run_start], area_tenths[run_start]));
-            nearby_border_v_line(ctx, lx, plot_bottom - 1, plot_bottom - h0);
+            nearby_border_v_line(ctx, lx, Y(1), Y(h0));
         }
 
-        // Visible top edge across the run.
+        // Visible free edge across the run (its top, standing).
         for (int s = run_start; s < run_end; ++s) {
             const int h_s = slot_height_px(area_tenths[s], bar_h);
             if (h_s <= 0) { continue; }
             const int16_t x_a = slot_geometry_tick_x(slots, s,     plot_x);
             const int16_t x_b = slot_geometry_tick_x(slots, s + 1, plot_x);
             graphics_context_set_stroke_color(ctx, border_color_for_slot(exact_tenths[s], area_tenths[s]));
-            nearby_border_h_line(ctx, x_a, x_b - 1, plot_bottom - h_s);
+            nearby_border_h_line(ctx, x_a, x_b - 1, Y(h_s));
         }
 
         // Internal vertical steps where adjacent slot heights differ.
@@ -241,7 +245,7 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int min_h = (h_a > h_b) ? h_b : h_a;
             const int max_h = (h_a > h_b) ? h_a : h_b;
             graphics_context_set_stroke_color(ctx, border_color_for_slot(exact_tenths[s + 1], area_tenths[s + 1]));
-            nearby_border_v_line(ctx, bx, plot_bottom - min_h, plot_bottom - max_h);
+            nearby_border_v_line(ctx, bx, Y(min_h), Y(max_h));
         }
 
         // Right vertical outline at the run's right edge.
@@ -249,11 +253,12 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int h_last = slot_height_px(area_tenths[run_end - 1], bar_h);
             const int16_t rx = slot_geometry_tick_x(slots, run_end, plot_x) - 1;
             graphics_context_set_stroke_color(ctx, border_color_for_slot(exact_tenths[run_end - 1], area_tenths[run_end - 1]));
-            nearby_border_v_line(ctx, rx, plot_bottom - 1, plot_bottom - h_last);
+            nearby_border_v_line(ctx, rx, Y(1), Y(h_last));
         }
 
         i = run_end;
     }
+#undef Y
 }
 
 typedef struct {
@@ -264,7 +269,7 @@ typedef struct {
 static void radar_area_bars_layer(const ChartRender *r, void *user) {
     const RadarAreaCtx *c = user;
     draw_radar_area_bars(r->ctx, r->geo.content, r->geo.slots,
-                         c->area_tenths, c->exact_tenths);
+                         c->area_tenths, c->exact_tenths, CHART_ZERO(r), CHART_DIR(r));
 }
 
 #if defined(WW_RAIN_RADAR)
@@ -374,8 +379,9 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     // radar window: no sky, a cleared radar (start 0) or a sky the window has
     // slid past = no band, the plain radar (outer == axis_outer).
 #if defined(WW_RAIN_RADAR)
-    static uint8_t sky[RADAR_SKY_MAX_BYTES];
-    const int sky_n = radar_sky_count(sky, persist_get_radar_sky(sky, sizeof(sky)));
+    uint8_t *const sky = g_paint_scratch.radar.sky;
+    const int sky_n = radar_sky_count(sky, persist_get_radar_sky(sky,
+                                                                 sizeof(g_paint_scratch.radar.sky)));
     const int sky_band = radar_sky_band_h(
         radar_sky_in_window(sky, sky_n, (int32_t)radar_start,
                             RADAR_NUM_SLOTS * RADAR_SLOT_SECONDS),
@@ -383,33 +389,27 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
 #else
     const int sky_band = 0;
 #endif
-    const GRect outer = GRect(axis_outer.origin.x, axis_outer.origin.y + sky_band,
-                              axis_outer.size.w, axis_outer.size.h - sky_band);
 
-    // Module-static scratch (not stack): aplite's small app stack overflows
-    // otherwise (PC=0/LR=0). Safe — single layer instance, single-threaded,
-    // both recomputed each redraw before use.
-    static int16_t exact_pm[RADAR_NUM_SLOTS];
-    rain_tier_fill_permille(exact_tenths, exact_pm, RADAR_NUM_SLOTS);
-    static ChartAxisSlot axis_slots[RADAR_NUM_SLOTS];
+    // The shared paint scratch (paint_scratch.h), not stack: aplite's small app stack
+    // overflows otherwise (PC=0/LR=0). Both are recomputed before each use (exact_pm
+    // only on a redraw with rain), as is the sky blob above.
+    int16_t *const exact_pm = g_paint_scratch.radar.exact_pm;
+    ChartAxisSlot *const axis_slots = g_paint_scratch.radar.axis_slots;
     radar_fill_axis_slots(axis_slots, radar_start);
-    RadarAreaCtx area_ctx = {
-        .exact_tenths = exact_tenths,
-        .area_tenths  = area_tenths,
-    };
-
-    int radar_num_stops = 0;
-    const ChartColorStop *radar_stops = palette_radar_stops(&radar_num_stops);
 
     // The axis hangs off the top of the whole plot (above the sky band); the
-    // bars fill `outer`, below the band. Same slot grid either way.
-    const ChartLayer axis_layers[] = {
-        { CHART_LAYER_AXIS, .axis = {
-              .side = GRAPH_SIDE_TOP, .style = radar_tick_style(),
-              .slots = axis_slots,
-              .label_align = ALIGN_START, .tick_align = ALIGN_START } },
-    };
-    chart_draw(ctx, &RADAR_DEF, axis_outer, axis_layers, 1);
+    // bars fill `outer`, below the band. Same slot grid either way. Its layer
+    // sits in a block of its own, so the bars' layers and the empty-state
+    // buffers below reuse its stack slot: a smaller frame on this paint path.
+    {
+        const ChartLayer axis_layers[] = {
+            { CHART_LAYER_AXIS, .axis = {
+                  .side = GRAPH_SIDE_TOP, .style = radar_tick_style(),
+                  .slots = axis_slots,
+                  .label_align = ALIGN_START, .tick_align = ALIGN_START } },
+        };
+        chart_draw(ctx, &RADAR_DEF, axis_outer, axis_layers, 1);
+    }
 #if defined(WW_RAIN_RADAR)
     if (sky_band > 0) {
         draw_radar_sky(ctx, GRect(axis_outer.origin.x, axis_outer.origin.y,
@@ -418,33 +418,63 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
                        axis_outer.origin.x, chart_def_pitch(&RADAR_DEF));
     }
 #endif
-    const ChartLayer layers[] = {
-        { CHART_LAYER_CUSTOM, .custom = { radar_area_bars_layer, &area_ctx } },
-        { CHART_LAYER_BARS, .bars = {
-              .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,
-              .stops = radar_stops, .num_stops = radar_num_stops,
-              .style = BAR_OUTLINED } },
-    };
-    chart_draw(ctx, &RADAR_DEF, outer, layers,
-               (int)(sizeof(layers) / sizeof(layers[0])));
+    bool any_rain = false;
+    for (int i = 0; i < RADAR_NUM_SLOTS; i++) {
+        if (exact_tenths[i] > 0 || area_tenths[i] > 0) { any_rain = true; break; }
+    }
+    // The plot under the sky band (all of it without one): the bars draw in it, and
+    // the empty-state text below centres in it, whatever the bars hang from.
+    const GRect outer = GRect(axis_outer.origin.x, axis_outer.origin.y + sky_band,
+                              axis_outer.size.w, axis_outer.size.h - sky_band);
+    // Bars only when a slot has rain (an all-dry window would draw none), and then no
+    // empty-state line. Everything they use is set up in this block, so its stack slots
+    // are shared with the empty-state buffers.
+    if (any_rain) {
+        rain_tier_fill_permille(exact_tenths, exact_pm, RADAR_NUM_SLOTS);
+        RadarAreaCtx area_ctx = {
+            .exact_tenths = exact_tenths,
+            .area_tenths  = area_tenths,
+        };
+        // Both passes hang together: the exact bars through chart_render_bars, the
+        // nearby-area bars under them through CHART_ZERO / CHART_DIR.
+        ChartLayer layers[] = {
+            { CHART_LAYER_CUSTOM, .custom = { radar_area_bars_layer, &area_ctx } },
+            { CHART_LAYER_BARS, .bars = {
+                  .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,
+                  .style = BAR_OUTLINED } },
+        };
+        // The radar palette goes straight into the bars layer. "Bars from: Top" rides it
+        // (palette.h palette_from_top), so a flip repaints this chart. Hanging bars
+        // anchor on the row above their rect: the sky band's trailing gap row, or
+        // without sky rows one free row kept under the tick row (`gap`), so a hanging
+        // bar never meets the ticks and the nearby-area outline in a tick column never
+        // continues a tick.
+        layers[1].bars.stops = palette_radar_stops(&layers[1].bars.num_stops);
+        const bool bars_top = palette_from_top(layers[1].bars.stops);
+        layers[0].from_top = layers[1].from_top = bars_top;
+        const int gap = !sky_band && bars_top;
+        chart_draw(ctx, &RADAR_DEF,
+                   GRect(outer.origin.x, outer.origin.y + gap, outer.size.w, outer.size.h - gap),
+                   layers, (int)(sizeof(layers) / sizeof(layers[0])));
+        MEMORY_LOG_HEAP("radar_update:exit");
+        return;
+    }
 
     // Empty-state text: a RECEIVED radar window (start > 0 — never the blank
     // fresh-install state) whose slots are all dry would otherwise render as a bare
     // axis over nothing. Say so instead, centred in the plot under the axis. The
     // wording deliberately claims only what ~90 minutes of radar can know. While
-    // the radar source refuses us over a request limit (radar_limit.h) the line
-    // says that instead: the window it keeps is unverified, so "no rain" would be
-    // made up. Where the kept window still shows rain, the bars win and no line
-    // is drawn. A limit hit with no window ever received (start 0: a fresh
-    // install, or right after a clear) still shows the notice, over the zeroed
-    // slots under an axis without hour digits (radar_axis_slot_mark): the view
-    // resolves the radar in for it (radar_has_view, main_window_radar_has_data).
-    const bool limited = persist_get_radar_limited();
-    bool any_rain = false;
-    for (int i = 0; i < RADAR_NUM_SLOTS; i++) {
-        if (exact_tenths[i] > 0 || area_tenths[i] > 0) { any_rain = true; break; }
-    }
-    if (!any_rain && radar_has_view(radar_start > 0, limited)) {
+    // the phone's notice is up (radar_limit.h: the source refuses us over a request
+    // limit, or the place is outside its coverage) the line says that instead: the
+    // window it keeps is unverified, so "no rain" would be made up. Where the kept
+    // window still shows rain, the bars win and no line is drawn. A notice with no
+    // window (start 0: a fresh install, right after a clear, or out of coverage,
+    // which rides with the clear) still shows, over the zeroed slots under an axis
+    // without hour digits (radar_axis_slot_mark): the view resolves the radar in for
+    // it (radar_has_view, main_window_radar_has_data).
+    char notice[RADAR_NOTICE_BUF_BYTES];
+    const bool limited = persist_get_radar_notice(notice, sizeof(notice)) > 0;
+    if (radar_has_view(radar_start > 0, limited)) {
 #ifdef PBL_PLATFORM_EMERY
         // emery: the taller plot swallows 18px text — step up a font tier.
         GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_24);
@@ -467,13 +497,13 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
             text_h = 14;
 #endif
         }
-        // The limit notice beats any no-rain text. Otherwise a configured text
+        // The notice beats any no-rain text. Otherwise a configured text
         // (CLAY_NORAIN_TEXT, Radar settings) replaces the built-in line; an empty
         // one (the user cleared the message) draws no line at all; a slot never
         // set (-1) keeps the built-in default (radar_empty_text).
         char custom[NORAIN_TEXT_BUF_BYTES];
         const int custom_len = persist_get_norain_text(custom, sizeof(custom));
-        const char *text = radar_empty_text(limited, custom_len, custom);
+        const char *text = radar_empty_text(limited ? notice : NULL, custom_len, custom);
         if (text) {
             // A custom text can run to 24 UTF-8 bytes — wider than a 144 px plot at
             // this font — so the box grows to TWO lines when the plot affords them

@@ -47,6 +47,11 @@ int main(void) {
     // level 1 stands well apart from level 2.
     assert(chart_stripe_tint_level(1) == 0 && chart_stripe_tint_level(2) == 1);
     assert(chart_stripe_tint_level(3) == 2 && chart_stripe_tint_level(4) == 4);
+    // So a level-1 cell's base is the background itself, opaque: every cell that draws
+    // covers its whole rect first, and the forecast's night shading (carried up through
+    // the top stripe band) shows only in the empty cells, never between sparse lines.
+    assert(chart_stripe_blend(0xC0, 0xDB, chart_stripe_tint_level(1)) == 0xC0);   // black
+    assert(chart_stripe_blend(0xFF, 0xC2, chart_stripe_tint_level(1)) == 0xFF);   // white
     for (int level = 1; level <= 4; ++level) {
         int lines = 0;
         for (int x = 0; x < 30; ++x) { lines += chart_stripe_line_on(level, x); }

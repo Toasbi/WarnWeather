@@ -74,6 +74,15 @@ static void validate_tests(void) {
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     expect("kind.reject", status_line_validate(b, n), 0);
 
+    // Kind 11 was the Alerts slot on the unreleased 1.24 branch; the weather alerts
+    // are On demand items now, their entries riding ALERT_ENTRIES_UINT8, so the
+    // ceiling is battery % again and kind 11 is rejected like any kind past it.
+    expect("kind.max_is_battery_pct", STATUS_SLOT_KIND_MAX, SLOT_LIVE_BATTERY_PCT);
+    n = put_slot(b, 0, 11, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("kind11.reject", status_line_validate(b, n), 0);
+
     n = put_slot(b, 0, SLOT_EMPTY, (uint8_t)(STATUS_ICON_MAX + 1), NULL);
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);

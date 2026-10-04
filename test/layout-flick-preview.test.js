@@ -1,8 +1,8 @@
 // test/layout-flick-preview.test.js
-// The Layout tab shows one combined preview: one column per slot of the resolved
-// preset's adaptive view cycle (Default, Flick 1, Flick 2). Drive the real engine over
-// the Layout tab and assert the columns track the cycle — a disabled radar/health slot
-// simply isn't in the cycle, so there's no column to dim.
+// The Watchface tab pins one combined preview at its top: one column per slot of the
+// resolved preset's adaptive view cycle (Default, Flick 1, Flick 2). Drive the real
+// engine over the Watchface tab and assert the columns track the cycle — a disabled
+// radar/health slot simply isn't in the cycle, so there's no column to dim.
 // Also covers the engine capability that a staticText item may host a blockBefore.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -17,7 +17,14 @@ const plat = require('../src/pkjs/config-ui/lib/platform.js');
 const schema = require('../src/pkjs/settings/schema.js');
 const onbuild = require('../src/pkjs/settings/onbuild.js');
 
-function layoutBody(overrides, platformName) {
+/**
+ * The Watchface tab rendered through the real engine, every card's More options open.
+ * @param {Object} overrides Stored values over the hydrated defaults.
+ * @param {string} [platformName] Platform (basalt by default).
+ * @returns {{body: string, pin: string}} The whole tab body and its pinned header (the
+ *   combined layout preview, which sits above every card).
+ */
+function watchfaceTab(overrides, platformName) {
   const S = Object.assign(eng.hydrate(schema, {}), overrides);
   const ENV = plat.computeEnv({ platform: platformName || 'basalt' });
   onbuild.onLoad({
@@ -28,9 +35,24 @@ function layoutBody(overrides, platformName) {
   });
   const cx = {
     S: S, ENV: ENV, USERDATA: {}, openColor: null, openSelect: null,
-    selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: ENV }),
+    selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: ENV }), schema: schema,
+    // Every More options row open, so a row gated off is absent for its gate alone.
+    moreOpen: new Proxy({}, { get: () => true }),
   };
-  return eng.renderBody(schema, 'layout', cx);
+  const body = eng.renderBody(schema, 'watchface', cx);
+  assert.equal(body.indexOf('<div class="pin-scope"><div class="pin">'), 0,
+    'the tab opens on its pinned preview, scoped to the cards through Layout');
+  return { body: body, pin: body.slice(0, body.indexOf('<div class="card')) };
+}
+
+/**
+ * The combined layout preview the Watchface tab pins above its cards.
+ * @param {Object} overrides Stored values over the hydrated defaults.
+ * @param {string} [platformName] Platform (basalt by default).
+ * @returns {string} The pinned header's HTML.
+ */
+function layoutBody(overrides, platformName) {
+  return watchfaceTab(overrides, platformName).pin;
 }
 
 test('compactCal + radar shows a Default and a Flick column (radar view present)', () => {
@@ -53,11 +75,16 @@ test('compactDense all + radar shows three columns incl. Health graph', () => {
 });
 
 test('aplite normalizes stale enabled settings to a single Default view', () => {
-  const body = layoutBody({ layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' }, 'aplite');
+  const stale = { layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' };
+  const tab = watchfaceTab(stale, 'aplite');
+  const body = tab.pin;
   assert.ok(body.indexOf('Default') >= 0, 'default column renders');
   assert.equal(body.indexOf('Flick 1'), -1, 'no first flick column');
   assert.equal(body.indexOf('Flick 2'), -1, 'no second flick column');
-  assert.equal(body.indexOf('View reset time'), -1, 'reset control is hidden');
+  // The reset control (a Layout card More option, open here) is hidden on aplite; on
+  // basalt the same state shows it.
+  assert.equal(tab.body.indexOf('View reset time'), -1, 'reset control is hidden');
+  assert.ok(watchfaceTab(stale).body.indexOf('>View reset time<') >= 0, 'premise: basalt shows the reset control');
 });
 
 test('engine renders a blockBefore hosted on a staticText item', () => {

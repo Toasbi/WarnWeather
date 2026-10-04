@@ -1,6 +1,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+// House pattern: the storage mock goes in BEFORE the modules load. The run of 404s
+// from inside DWD's box (radar-coverage.js misses) lives in the coverage record.
+const store = {};
+global.localStorage = {
+  getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+  setItem: (k, v) => { store[k] = String(v); },
+  removeItem: (k) => { delete store[k]; }
+};
+const KEYS = require('../src/pkjs/storage-keys.js');
+
 // dwd-radar.js reaches the network through radar-fetch.js, which resolves
 // WeatherProvider.request at call time — stubbing it on the provider module
 // works at any point before a fetch runs (same pattern as rainbow-radar.test.js).
@@ -76,7 +86,109 @@ test('nearby disk-max picks up a wet cell within 2 km even when the exact point 
   assert.equal(out.RAIN_RADAR_TREND_AREA_UINT8[0], 108, 'nearby max = round(90 * 1.2) = 108');
 });
 
-test('out-of-coverage (radar: []) ships 24 zeros with slotZeroEpoch (not a failure)', () => {
+test('a place outside the DWD composite gets the out-of-coverage clear with its line, and no request', () => {
+  let asked = 0;
+  responder = function() { asked += 1; };
+  const OUTSIDE = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0,
+    RAIN_RADAR_LIMITED: 'DWD radar: Germany only' };
+  // Miami (the owner's 404 on every update), Madrid, Oslo, London.
+  const places = [{ lat: 25.76, lon: -80.19 }, { lat: 40.42, lon: -3.7 }, { lat: 59.91, lon: 10.75 }, { lat: 51.5, lon: -0.12 }];
+  places.forEach((pl) => {
+    let out;
+    radar.fetchRadarTuplesAt(pl.lat, pl.lon, SLOT0, function(t) { out = t; });
+    assert.deepEqual(out, OUTSIDE, pl.lat + ',' + pl.lon);
+  });
+  assert.equal(asked, 0, 'no request');
+});
+
+// A 404 from inside the box: Brightsky has no radar picture for the place (Paris lies in
+// the box but off the composite) or hiccuped. The first stays transient; from the second
+// in a row the answer is the clear carrying the general line, until radar data comes.
+const PARIS = [48.85, 2.35];
+const NO_DATA = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0,
+  RAIN_RADAR_LIMITED: 'DWD: no radar data' };
+const WINDOW_BODY = { latlon_position: { x: 0, y: 0 }, radar: [{ precipitation_5: [[10]] }] };
+
+/** Empty the coverage record. */
+function resetStore() { for (const k in store) { delete store[k]; } }
+
+/**
+ * One DWD radar update at Paris, answered `answer`: 404, another HTTP status code, or a
+ * response body.
+ * @param {number|Object} answer The HTTP status to fail with, or the 200 body.
+ * @returns {*} The adapter's answer.
+ */
+function parisUpdate(answer) {
+  responder = typeof answer === 'number'
+    ? function(url, type, onSuccess, onError) { onError({ code: 'status_' + answer, detail: 'http_status' }); }
+    : function(url, type, onSuccess) { onSuccess(JSON.stringify(answer)); };
+  let out = 'unset';
+  radar.fetchRadarTuplesAt(PARIS[0], PARIS[1], SLOT0, function(t) { out = t; });
+  return out;
+}
+
+/** The run of 404s the coverage record holds for DWD (0 with none). */
+function dwdMisses() {
+  const rec = store[KEYS.RADAR_COVERAGE_KEY] ? JSON.parse(store[KEYS.RADAR_COVERAGE_KEY]) : {};
+  return (rec.misses && rec.misses.dwd) || 0;
+}
+
+test('a 404 from inside the box, then radar data: the 404 stays transient (null), the data ends the run', () => {
+  resetStore();
+  assert.equal(parisUpdate(404), null, 'one 404 alone changes nothing');
+  assert.equal(dwdMisses(), 1);
+  const out = parisUpdate(WINDOW_BODY);
+  assert.equal(out.RAIN_RADAR_TREND_UINT8[0], 12, 'the window');
+  assert.equal('RAIN_RADAR_LIMITED' in out, false);
+  assert.equal(dwdMisses(), 0, 'the run is over');
+  assert.equal(parisUpdate(404), null, 'so the next 404 is a first one again');
+});
+
+test('two 404s in a row from inside the box: the second answers the clear with "DWD: no radar data"', () => {
+  resetStore();
+  assert.equal(parisUpdate(404), null);
+  assert.deepEqual(parisUpdate(404), NO_DATA);
+  assert.deepEqual(parisUpdate(404), NO_DATA, 'and every 404 after it');
+  assert.equal(dwdMisses(), 2, 'the count stops at the second: no write per update');
+  assert.ok(Buffer.byteLength(NO_DATA.RAIN_RADAR_LIMITED) <= 31, 'the watch\'s notice buffer');
+});
+
+test('404, 404, then radar data: the window goes out and the run ends', () => {
+  resetStore();
+  parisUpdate(404);
+  assert.deepEqual(parisUpdate(404), NO_DATA);
+  const flat = parisUpdate({ latlon_position: { x: 0, y: 0 }, radar: [] });
+  assert.deepEqual(flat.RAIN_RADAR_TREND_UINT8, zeros(), 'no frames for the window is radar data too');
+  assert.equal(flat.RAIN_RADAR_START, SLOT0);
+  assert.equal(dwdMisses(), 0);
+  assert.equal(parisUpdate(404), null, 'a later 404 starts afresh');
+});
+
+test('a failure that is no 404 neither counts nor ends a run of 404s', () => {
+  resetStore();
+  parisUpdate(404);
+  assert.equal(parisUpdate(502), null);
+  assert.equal(dwdMisses(), 1, 'a 5xx does not count');
+  assert.deepEqual(parisUpdate(404), NO_DATA, 'the 404 after it is the second');
+  assert.equal(parisUpdate(503), null, 'a 5xx keeps whatever the watch shows');
+  assert.equal(parisUpdate({ nope: 1 }), null, 'a body without radar: transient too');
+  assert.equal(dwdMisses(), 2, 'the run goes on');
+  assert.deepEqual(parisUpdate(404), NO_DATA);
+});
+
+test('outside the box: no request and the coverage line, whatever the run of 404s', () => {
+  resetStore();
+  parisUpdate(404);
+  parisUpdate(404);
+  let asked = 0;
+  responder = function() { asked += 1; };
+  let out;
+  radar.fetchRadarTuplesAt(25.76, -80.19, SLOT0, function(t) { out = t; });   // Miami
+  assert.equal(asked, 0);
+  assert.equal(out.RAIN_RADAR_LIMITED, 'DWD radar: Germany only');
+});
+
+test('no frames for the window (radar: []) ships 24 zeros with slotZeroEpoch (not a failure)', () => {
   respondWith({ latlon_position: { x: 0, y: 0 }, radar: [] });
   let out = 'unset';
   fetchTuples(function(t) { out = t; });

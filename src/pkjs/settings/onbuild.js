@@ -6,76 +6,84 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : { hooks: { onLoad: function () {}, onSubmit: function () {} } };
 
 (function () {
+    // The threshold contract (status-thresholds.js), concatenated ahead of this file
+    // in the flat page (scripts/build-config-page.js APP_FILES).
+    var thresholds = (typeof require !== 'undefined')
+        ? require('../status-thresholds.js') : window.StatusThresholds;
+    // The On demand contract (on-demand.js), concatenated ahead of this file.
+    var onDemand = (typeof require !== 'undefined')
+        ? require('../on-demand.js') : window.OnDemand;
+    // The page bundle's single-source int -> '#RRGGBB' (config-ui/lib/color.js,
+    // concatenated ahead of every app file).
+    var intToHex = (typeof require !== 'undefined')
+        ? require('../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
+    var COLOR_ROLES = ['Warn', 'Danger'];
+
     /**
-     * The "Highlight this value" toggles are DERIVED state, recomputed on every
-     * open: on = the stored warn/danger pair is complete and ordered — the exact
-     * rule kindConfig() applies at pack time — so the toggle can never disagree
-     * with what the watch actually highlights (locationMode pattern below).
-     * Flipping it live is the thresholdToggle onChange hook in blocks.js.
+     * Heal each threshold kind's highlight colours on every open, so the pickers
+     * show what the watch draws. A colour that is AUTO (status-thresholds.js
+     * isAutoColor: unset, the old parseResponse bug's null, unparseable, or black or
+     * white) is rewritten to what the contract's colour rule (thresholdColor)
+     * resolves it to under the current theme: the text colour for a weather warn
+     * colour and for a weather danger picked black or white, the contract's red for
+     * an unset weather danger, the goal green for a goal kind's two. Re-derived on
+     * every open, so a theme switch carries it along; a user pick survives
+     * untouched. Whether warn draws a box at all is the kind's warn look
+     * (thresh<K>WarnLook), not the colour: a blank warn colour no longer means "no
+     * outline" (the one-time conversion of that old meaning is migrations/v1_24.js
+     * migrateWarnLook).
+     *
+     * The highlight toggle (thresh<K>On — a weather kind's slot-sheet 'Alert
+     * highlighting' row, a goal kind's Goals switch) is STORED state and hydrates
+     * as-is: kindConfig() packs the enable bit from it (AND an ordered pair), and
+     * the levels live on while it is off, so deriving it from the pair here would
+     * undo a user's OFF on the next open. The one-time pair-derived backfill for
+     * blobs saved before the split is migrations/v1_24.js
+     * migrateThresholdHighlightToggles, which runs on the phone before the page can
+     * open.
      * @param {{ get: function, set: function }} ctx onLoad context
      * @returns {void}
      */
-    function deriveThresholdToggles(ctx) {
-        // Node (tests): CommonJS require. Webview: the flat page exposes
-        // window.StatusThresholds (resolved lazily at boot, after all scripts loaded).
-        var contract = (typeof require !== 'undefined')
-            ? require('../status-thresholds.js')
-            : (typeof window !== 'undefined' ? window.StatusThresholds : null);
-        if (!contract) { return; }
-        // Auto colors (see blocks.js thresholdAutoColor): a never-customized color
-        // tracks the current theme's text color, re-derived on every open so a theme
-        // switch updates it. blocks.js is bundled/required before this hook runs.
-        var auto = PConf.thresholdAutoColor;
-        var fg = auto ? auto.fgFor(ctx.get('theme')) : null;
-        for (var i = 0; i < contract.KINDS.length; i++) {
-            var kind = contract.KINDS[i];
-            var warn = contract.parseThreshold(ctx.get('thresh' + kind.key + 'Warn'));
-            var danger = contract.parseThreshold(ctx.get('thresh' + kind.key + 'Danger'));
-            ctx.set('thresh' + kind.key + 'On', contract.pairOrdered(warn, danger));
-            if (auto) {
-                // WARN, weather kinds: the default is NO outline (bold text only) — an
-                // unset color stays '' and a legacy auto-fg value converts back to ''.
-                // GOAL kinds: the green "close" outline is the default — never-touched
-                // and legacy-fg values seed DEFAULT_GOAL_COLOR; only an explicit ''
-                // (their outline toggle turned off) stays off. A user pick survives
-                // either way and means "outline on".
-                var goalHex = contract.DEFAULT_GOAL_HEX;
-                var rawWarn = ctx.get('thresh' + kind.key + 'WarnColor');
-                if (kind.goal) {
-                    if (rawWarn === null) {
-                        // The old parseResponse bug's footprint for an explicitly
-                        // turned-off outline (hexToInt('') = NaN, persisted as
-                        // null; never-touched keys are absent, not null — see
-                        // status-thresholds.js). Heal to the off-sentinel the
-                        // user meant, so the next save stores a durable ''.
-                        ctx.set('thresh' + kind.key + 'WarnColor', '');
-                        rawWarn = '';
-                    } else if (rawWarn !== '' && auto.isAuto(rawWarn)) {
-                        ctx.set('thresh' + kind.key + 'WarnColor', goalHex);
-                        rawWarn = goalHex;
-                    }
-                } else if (auto.isAuto(rawWarn)) {
-                    // WEATHER kinds: the STORED toggle owns the on/off state and
-                    // rides every save; the color is its detail. A custom pick
-                    // survives untouched (this branch not taken — outline on in
-                    // that color); an auto-valued color — blank, the old NaN
-                    // bug's null, or an fg seed/legacy residue — resolves by the
-                    // toggle: stored ON keeps tracking the theme fg (re-derived
-                    // each open, and on B&W the fg seed is the only on-state
-                    // there is), stored OFF or a pre-toggle legacy blob with no
-                    // stored toggle reads as no outline.
-                    var storedOn = ctx.get('thresh' + kind.key + 'WarnOutlineOn') === true;
-                    ctx.set('thresh' + kind.key + 'WarnColor', storedOn ? fg : '');
-                    rawWarn = storedOn ? fg : '';
-                }
-                // Both branches above normalize null/undefined away, so blank is
-                // the one remaining off-state.
-                ctx.set('thresh' + kind.key + 'WarnOutlineOn', rawWarn !== '');
-                var rawDanger = ctx.get('thresh' + kind.key + 'DangerColor');
-                if (auto.isAuto(rawDanger)) {
-                    ctx.set('thresh' + kind.key + 'DangerColor', kind.goal ? goalHex : fg);
-                }
+    function healThresholdColors(ctx) {
+        var theme = ctx.get('theme');
+        for (var i = 0; i < thresholds.KINDS.length; i++) {
+            var kind = thresholds.KINDS[i];
+            if (kind.boldOnly) { continue; }   // no colours to heal
+            for (var r = 0; r < COLOR_ROLES.length; r++) {
+                var key = 'thresh' + kind.key + COLOR_ROLES[r] + 'Color';
+                var raw = ctx.get(key);
+                if (!thresholds.isAutoColor(raw)) { continue; }
+                var s = {theme: theme};
+                s[key] = raw;
+                ctx.set(key, intToHex(thresholds.thresholdColor(s, kind.key, COLOR_ROLES[r])));
             }
+        }
+    }
+
+    /**
+     * Heal each bar's On demand lists on every open: both sides read canonically
+     * (unknown codes and duplicates dropped, priority order — on-demand.js read, which
+     * also reads a non-string list as its default), then anything the left side holds
+     * leaves the right (on-demand.js untickFrom; the watch's Left-wins reading of an
+     * overlap, which only a hand-edited blob can hold). A list is written back only when
+     * it changed.
+     * @param {{ get: function, set: function }} ctx onLoad context
+     * @returns {void}
+     */
+    function healOnDemandLists(ctx) {
+        for (var b = 0; b < onDemand.BARS.length; b++) {
+            var bar = onDemand.BARS[b].bar;
+            var leftKey = onDemand.itemsKey(bar, 'left');
+            var rightKey = onDemand.itemsKey(bar, 'right');
+            var stored = {};
+            stored[leftKey] = ctx.get(leftKey);
+            stored[rightKey] = ctx.get(rightKey);
+            var S = {};
+            S[leftKey] = onDemand.parse(onDemand.read(stored, leftKey)).join(',');
+            S[rightKey] = onDemand.parse(onDemand.read(stored, rightKey)).join(',');
+            onDemand.untickFrom(S, rightKey, onDemand.parse(S[leftKey]));
+            if (stored[leftKey] !== S[leftKey]) { ctx.set(leftKey, S[leftKey]); }
+            if (stored[rightKey] !== S[rightKey]) { ctx.set(rightKey, S[rightKey]); }
         }
     }
 
@@ -97,7 +105,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // leave it pre-checked on the next open.
         ctx.set('reset', false);
         ctx.set('locationMode', ctx.get('location') ? 'manual' : 'gps');
-        deriveThresholdToggles(ctx);
+        healThresholdColors(ctx);
+        healOnDemandLists(ctx);
         if (ctx.env && ctx.env.platform === 'aplite') {
             ctx.set('radarMode', 'off');
             ctx.set('healthMode', 'off');
@@ -110,10 +119,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * own-key Rainbow's (5000 calls/month). The page enforces it by snapping
      * fetchIntervalMin into its fetchIntervalBudget option list (blocks.js), but only when
      * that row RENDERS — and the row lives on the General tab while what it depends on
-     * (the radar provider, Rainbow's "Use your own key" and the mode) is edited on the
-     * Radar tab. Picking a keyed radar (Tomorrow.io, Rainbow on your own key) and saving
-     * without revisiting General used to store an interval the added calls no longer
-     * afford, and the free tier ran out every evening.
+     * (the radar provider and the mode) is edited on the Radar tab. Picking a keyed radar
+     * (Tomorrow.io, "Rainbow (own key)") and saving without revisiting General used to
+     * store an interval the added calls no longer afford, and the free tier ran out
+     * every evening.
      * Same list as that snap and the same rule (interval-budget.js fitInterval, shared
      * with the resolver and the budget read-outs): keep a value the list still offers,
      * else the item's schema default '15' when it fits, else the first (shortest) fitting
@@ -136,9 +145,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * onSubmit: keep the location consistent with the picker, trim paste whitespace off the
-     * API keys, then force a re-fetch when
-     * any provider-identity field or API key changed. GPS mode must leave location empty so the
+     * onSubmit: fit the update interval to the budgets, keep the location consistent with
+     * the picker, trim paste whitespace off the API keys, then force a re-fetch when any
+     * provider-identity field or API key changed. GPS mode must leave location empty so the
      * watch falls back to GPS; clearing it before the change check also means flipping
      * Manual to GPS is correctly detected as a location change.
      * @param {{ get: function, set: function, getInitial: function }} ctx

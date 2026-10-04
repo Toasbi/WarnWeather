@@ -106,7 +106,12 @@ function mapForecast(forecast, current) {
 var WundergroundProvider = function() {
     this._super.call(this);
     this.name = 'Weather Underground';
+    this.shortName = 'Wunderground';
     this.id = 'wunderground';
+    // The key is scraped, never the user's: a refusal is answered with a timed retry
+    // (asUnavailable below), never the indefinite auth backoff, and fetch-cycle.js drops
+    // an auth backoff an older build left behind for it.
+    this.scrapesKey = true;
 };
 
 WundergroundProvider.prototype = Object.create(WeatherProvider.prototype);
@@ -194,6 +199,33 @@ WundergroundProvider.prototype.clearApiKey = function() {
 
 // A 401/403 from api.weather.com: the key itself was refused.
 var KEY_REJECTED_PATTERN = /_status_(401|403)$/;
+// How long Weather Underground rests after it refused even a freshly scraped key, or
+// its page carried none: the next update after that tries again (fetch-cycle.js reads
+// failure.retryAfterMs as the failure backoff).
+var UNAVAILABLE_RETRY_MS = 60 * 60 * 1000;
+
+/**
+ * A failure that says Weather Underground will not serve us right now — a refused key
+ * (401/403, on the API or on the scrape) or a page without a key to scrape — turned
+ * into the neutral "not answering" failure: the code stays as it is, and retryAfterMs
+ * asks for the timed retry. A failure that names its own retry is never the auth
+ * backoff (auth-backoff.js isAuthFailure) nor the "API key error" notice (notices.js
+ * noticeForFailure): the user has no key to fix. Any other failure passes through
+ * unchanged.
+ * @param {{stage: string, code: string}} failure The failure.
+ * @returns {{stage: string, code: string, retryAfterMs?: number}} The failure to report.
+ */
+function asUnavailable(failure) {
+    var code = (failure && typeof failure.code === 'string') ? failure.code : '';
+    if (!KEY_REJECTED_PATTERN.test(code) && code !== 'wu_api_key_not_found') {
+        return failure;
+    }
+    return {
+        stage: failure.stage,
+        code: code,
+        retryAfterMs: UNAVAILABLE_RETRY_MS
+    };
+}
 
 WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
     // callback(apiKey, scraped): scraped is true when the key was fetched from
@@ -241,7 +273,16 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
         this.clearApiKey();
     }
 
-    this.withKeyedData(lat, lon, onSuccess, onFailure, false);
+    this.withKeyedData(lat, lon, onSuccess, (function(failure) {
+        var reported = asUnavailable(failure);
+        if (reported !== failure) {
+            // Refused even after the one re-scrape (or nothing to scrape): rest for the
+            // timed retry, and start that retry from a fresh scrape.
+            console.log('Weather Underground is not answering (' + failure.code + '), retrying in an hour');
+            this.clearApiKey();
+        }
+        onFailure(reported);
+    }).bind(this), false);
 };
 
 /**
@@ -254,8 +295,10 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
  * indefinite auth backoff (auth-backoff.js) and weather stopped until the
  * user forced a fetch, although the fix needs no user action. Only one
  * retry, and none for a key scraped this cycle: a freshly scraped key that is
- * refused is a real rejection, and its failure passes through unchanged so
- * the auth backoff still stops the doomed per-cycle scrape.
+ * refused is refused for now, and withProviderData reports it as Weather
+ * Underground not answering, with a timed retry (asUnavailable) rather than the
+ * auth backoff: the user has no key to fix, and the scrape often works again
+ * later.
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
@@ -297,5 +340,6 @@ WundergroundProvider.prototype.withKeyedData = function(lat, lon, onSuccess, onF
 
 // The pure mapper, exposed for the adapter-shape test (the MAPPED_KEYS vocabulary).
 WundergroundProvider.mapForecast = mapForecast;
+WundergroundProvider.UNAVAILABLE_RETRY_MS = UNAVAILABLE_RETRY_MS;
 
 module.exports = WundergroundProvider;

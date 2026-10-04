@@ -51,8 +51,68 @@ cc $CFLAGS test/c/status_line_test.c src/c/appendix/status_line.c -o build/host/
 build/host/status_line_test
 cc $CFLAGS test/c/status_threshold_test.c src/c/appendix/status_threshold.c -o build/host/status_threshold_test
 build/host/status_threshold_test
+# The thresholds blob's On demand bytes: the item cells, their compiled defaults and the
+# Battery byte. Shares test/c/status_threshold_fixtures.h with the test above.
+cc $CFLAGS test/c/status_threshold_on_demand_test.c src/c/appendix/status_threshold.c \
+   -o build/host/status_threshold_on_demand_test
+build/host/status_threshold_on_demand_test
+# The weather alerts' pure half (the entries' parse, item map and text lanes, and the
+# rain alert's text).
+# Its body sits behind WW_ON_DEMAND (wscript: every platform but aplite), so the flag
+# is required here or the module compiles to nothing and the test fails to link; its
+# companion WW_THRESHOLD_HIGHLIGHT too, which alert_set.h requires beside it (every
+# such platform has both). Linked with the thresholds blob reader the entry's box is
+# judged through.
+cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT test/c/alert_set_test.c src/c/appendix/alert_set.c \
+   src/c/appendix/status_threshold.c -o build/host/alert_set_test
+build/host/alert_set_test
+# A tomorrow alert and a slot showing tomorrow's peak print the same mark: dump every
+# metric text lane the watch builds (per day code, value and values flag) and check
+# each against the phone's slot text (scripts/check-alert-lane-lockstep.js).
+cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT test/c/alert_lane_dump.c src/c/appendix/alert_set.c \
+   src/c/appendix/status_threshold.c -o build/host/alert_lane_dump
+build/host/alert_lane_dump > build/host/alert_lane.txt
+node scripts/check-alert-lane-lockstep.js build/host/alert_lane.txt
+# The On demand layout (appendix/on_demand.c), in five tests sharing
+# test/c/on_demand_fixtures.h: the make-room ladder (one side, looks before slots, the
+# bleed, the drops, the invariants over random bars, down to "a quiet bar is the plain
+# row layout, byte for byte"); two sides at once (the shared middle, the drop order, the
+# far slot, the relax); the Battery stand-in; a weather alert merged into the slot on
+# its side (out while that slot shows, standing in where it hides); and which short
+# form a slot draws (the widest that fits with the gap to its neighbours, on either
+# side, the elastic city's floor, the real date/week/sun families from
+# status_short_text.h). The module's body sits behind WW_ON_DEMAND like alert_set.c's,
+# and it places its slots through the row layout it is linked with.
+# on_demand_ladder_test.c includes the engine's source (its middle invariants measure
+# layouts through the engine's own eval()), so the other four link it. OD_TEST_PROBES
+# adds the ladder row each side ends on (OdLayout.stage), which the tests read and the
+# watch build leaves out.
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_ladder_test.c \
+   src/c/layers/status_row_layout.c -o build/host/on_demand_ladder_test
+build/host/on_demand_ladder_test
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_sides_test.c src/c/appendix/on_demand.c \
+   src/c/layers/status_row_layout.c -o build/host/on_demand_sides_test
+build/host/on_demand_sides_test
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_battery_test.c src/c/appendix/on_demand.c \
+   src/c/layers/status_row_layout.c -o build/host/on_demand_battery_test
+build/host/on_demand_battery_test
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_merge_test.c src/c/appendix/on_demand.c \
+   src/c/layers/status_row_layout.c -o build/host/on_demand_merge_test
+build/host/on_demand_merge_test
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_short_test.c src/c/appendix/on_demand.c \
+   src/c/layers/status_row_layout.c -o build/host/on_demand_short_test
+build/host/on_demand_short_test
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
 build/host/hr_scale_test
+# The health graph's step scale (header-only, step_scale.h): every mark it picks draws,
+# and a quiet window keeps the 0.1k scale.
+cc $CFLAGS test/c/step_scale_test.c -o build/host/step_scale_test
+build/host/step_scale_test
+# The forecast plot's layout (only a series with a value above 0 takes a stripe band or
+# anchors an edge), the temperature-axis margins on anchored edges and the hi/lo labels lined
+# up with the curve (header-only, temp_axis_pad.h).
+cc $CFLAGS test/c/temp_axis_pad_test.c -o build/host/temp_axis_pad_test
+build/host/temp_axis_pad_test
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the
 # per-platform STATUS_STRIP_CAL_GAP.
 cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test
@@ -75,6 +135,16 @@ build/host/status_row_alloc_test
 # never compiles the caller (its status_row twin keeps the hardcoded formats).
 cc $CFLAGS test/c/date_format_test.c -o build/host/date_format_test
 build/host/date_format_test
+# The status slots' short forms (status_short_text.h, header-only like date_format.h):
+# every kind's family, the date's year and day members over date_format.h's real
+# outputs, the city's word ladder, whose vector table test/city-ladder.test.js also
+# runs the phone's twin over, and that no family outgrows on_demand.h's OD_VARIANTS.
+# Only On demand's callers include it, so aplite never does.
+cc $CFLAGS test/c/status_short_text_test.c -o build/host/status_short_text_test
+build/host/status_short_text_test
+# The fixed Quiet Time / Bluetooth / snooze indicators, which only aplite's strip twin
+# (top_status_layer_aplite.c) still resolves; every other platform draws them as On
+# demand items.
 cc $CFLAGS test/c/top_status_indicators_test.c -o build/host/top_status_indicators_test
 build/host/top_status_indicators_test
 # Header-only pure curve (static inline in hatch.h, no .c file — same pattern as
@@ -84,6 +154,10 @@ cc $CFLAGS test/c/hatch_stride_test.c -o build/host/hatch_stride_test
 build/host/hatch_stride_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/hatch_stride_test.c -o build/host/hatch_stride_test_emery
 build/host/hatch_stride_test_emery
+# The hatch's absolute phase (hatch.h hatch_first_y): split at the top stripe band's
+# edge, the night hatch draws exactly the dots of one unsplit pass (chart.c extend_top).
+cc $CFLAGS test/c/hatch_seam_test.c -o build/host/hatch_seam_test
+build/host/hatch_seam_test
 # The band status rows (forecast / radar / health) share ONE owner, so one test
 # covers all three — including the radar row, which had no test of its own before
 # and was the one carrying the missing-live-health bug. Built TWICE: the evolving
@@ -91,7 +165,7 @@ build/host/hatch_stride_test_emery
 # PBL_HEALTH, which is the only place STATUS_BAR_COUNT == 1 and a stray unguarded
 # STATUS_BAR_RADAR / STATUS_BAR_HEALTH becomes a compile error — the shared CFLAGS
 # force -DPBL_HEALTH everywhere else.
-cc $CFLAGS -DWW_RAIN_RADAR -DWW_VIEW_CYCLE test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test
+cc $CFLAGS -DWW_RAIN_RADAR -DWW_VIEW_CYCLE -DWW_ON_DEMAND test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test
 build/host/status_bar_test
 cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
    test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test_aplite
@@ -153,8 +227,9 @@ cc $CFLAGS -DWW_LINE_STYLE test/c/line_style_decode_test.c \
 build/host/line_style_decode_test
 # The solid line's gap/run kernel (chart_runs.h, header-only): segmentation of
 # a polyline across absent samples, incl. the metric lines' zero_absent
-# "wire byte 0 draws nothing" reading. Mirrored against the preview's UV
-# segmentation pins in test/config-blocks.test.js.
+# "wire byte 0 draws nothing" reading and the zero a JOIN line still comes down
+# to next to a reading. The preview's twin (lineRuns) runs the same
+# LINE_RUN_VECTORS in test/config-blocks.test.js.
 cc $CFLAGS test/c/chart_absent_test.c -o build/host/chart_absent_test
 build/host/chart_absent_test
 # The stripe line style's arithmetic (chart_stripe.h, header-only): value ->
@@ -162,18 +237,24 @@ build/host/chart_absent_test
 # preview's stripe pins in test/config-blocks.test.js.
 cc $CFLAGS test/c/chart_stripe_test.c -o build/host/chart_stripe_test
 build/host/chart_stripe_test
+# The chart's one vertical rule, "Draw from" / "Bars from" (chart_flip.h, header-only):
+# the zero row + direction, the mirrored vertex and span mappings, the hanging vertex
+# hold (a value under one pixel stays off the gap row under a top stripe band) and
+# the palette's Top flag. Mirrored by the previews (test/config-draw-from.test.js).
+cc $CFLAGS test/c/chart_flip_test.c -o build/host/chart_flip_test
+build/host/chart_flip_test
 # The radar sky blob decode + bolt glyph (radar_sky.h, header-only), mirrored
 # against radar-sky.js's packSky pin in test/radar-sky.test.js.
 cc $CFLAGS test/c/radar_sky_test.c -o build/host/radar_sky_test
 build/host/radar_sky_test
-# The radar limit notice (RAIN_RADAR_LIMITED): its pure decisions, header-only
-# static inlines in radar_limit.h (when the flag moves; whether the radar has a
-# window or the notice to show; what the empty state says),
-# and the RADAR_LIMITED persist accessors run for real over a faked flash (slot 56,
-# change gating, absent = not limited). The accessors are unguarded, so the plain
-# host build must define them.
+# The radar notice (RAIN_RADAR_LIMITED, the phone's line: a request limit or a place
+# outside the source's coverage): its pure decisions, header-only static inlines in
+# radar_limit.h (when the notice moves; whether the radar has a window or the notice
+# to show; what the empty state says), and the RADAR_NOTICE persist accessors run for
+# real over a faked flash (slot 58, change gating, absent = no notice, the UTF-8-safe
+# bound). The accessors are unguarded, so the plain host build must define them.
 cc $CFLAGS test/c/radar_limit_test.c -o build/host/radar_limit_test
 build/host/radar_limit_test
-cc $CFLAGS test/c/radar_limited_persist_test.c src/c/appendix/persist.c \
-   -o build/host/radar_limited_persist_test
-build/host/radar_limited_persist_test
+cc $CFLAGS test/c/radar_notice_persist_test.c src/c/appendix/persist.c \
+   -o build/host/radar_notice_persist_test
+build/host/radar_notice_persist_test

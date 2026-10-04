@@ -15,6 +15,7 @@ global.localStorage = {
 
 const statusLines = require('../src/pkjs/status-lines.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
+const { NOTHING_PLACED, placedOnly } = require('./helpers/on-demand.js');
 const STORAGE_KEYS = require('../src/pkjs/storage-keys.js');
 
 /**
@@ -136,7 +137,7 @@ test('value formatting', () => {
   assert.equal(statusLines.formatValue('city', p, baseSettings()), 'Saarbrücken');
 });
 
-test('temp slot display modes: actual, feels, and slash-separated both', () => {
+test('temp slot display modes: actual, feels, and bar-separated both (the default)', () => {
   const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 }); // 68F/50F = 20C/10C
   assert.equal(statusLines.formatValue('temp', p, baseSettings()), '20',
     'absent tempSlotDisplay defaults to actual');
@@ -145,7 +146,7 @@ test('temp slot display modes: actual, feels, and slash-separated both', () => {
   assert.equal(statusLines.formatValue('temp', p,
     baseSettings({ tempSlotDisplay: 'feels' })), '10');
   assert.equal(statusLines.formatValue('temp', p,
-    baseSettings({ tempSlotDisplay: 'both' })), '20/10', 'actual first');
+    baseSettings({ tempSlotDisplay: 'both' })), '20|10', 'actual first, the bar by default');
 });
 
 test('°C temp and feels slots round the provider reading once, like the dew slot', () => {
@@ -172,7 +173,7 @@ test('°C temp and feels slots round the provider reading once, like the dew slo
   assert.equal(statusLines.formatValue('temp', fog, c), '0', 'was "-1" via whole °F 31');
   assert.equal(statusLines.formatValue('dew', fog, c), '0');
   assert.equal(statusLines.formatValue('temp', fog, baseSettings({ tempSlotDisplay: 'feels' })), '0');
-  assert.equal(statusLines.formatValue('temp', fog, baseSettings({ tempSlotDisplay: 'both' })), '0/0');
+  assert.equal(statusLines.formatValue('temp', fog, baseSettings({ tempSlotDisplay: 'both' })), '0|0');
   // °C-native providers (DWD/met.no/Tomorrow.io convert °C → °F).
   [[0.3, '0'], [-29.7, '-30'], [20.3, '20'], [-5.3, '-5']].forEach(([celsius, shown]) => {
     assert.equal(statusLines.formatValue('temp', payloadAt(c2f(celsius)), c), shown, celsius + ' °C');
@@ -184,7 +185,7 @@ test('°C temp and feels slots round the provider reading once, like the dew slo
 test('temp display modes convert both halves with temperatureUnits', () => {
   const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
   assert.equal(statusLines.formatValue('temp', p,
-    baseSettings({ tempSlotDisplay: 'both', temperatureUnits: 'f' })), '68/50');
+    baseSettings({ tempSlotDisplay: 'both', temperatureUnits: 'f' })), '68|50');
   assert.equal(statusLines.formatValue('temp', p,
     baseSettings({ tempSlotDisplay: 'feels', temperatureUnits: 'f' })), '50');
 });
@@ -268,10 +269,10 @@ test('worst realistic uv both-mode text fits the edge-slot byte cap untruncated'
 });
 
 test('worst realistic both-mode text fits the edge-slot byte cap untruncated', () => {
-  // 10F = -12C, 14F = -10C -> "-12/-10", 7 bytes vs EDGE_TEXT_MAX = 8.
+  // 10F = -12C, 14F = -10C -> "-12|-10", 7 bytes vs EDGE_TEXT_MAX = 8.
   const p = Object.assign(basePayload(), { CURRENT_TEMP: 10, FEELS_CURRENT: 14 });
   const text = statusLines.formatValue('temp', p, baseSettings({ tempSlotDisplay: 'both' }));
-  assert.equal(text, '-12/-10');
+  assert.equal(text, '-12|-10');
   assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
     'both-mode worst case must survive the edge slot without truncation');
 });
@@ -923,28 +924,35 @@ test('an unavailable reading stays "--" with the unit on', () => {
   });
 });
 
-// THE HARD CASE. '-12/-10' is 7 bytes and the degree sign is 2, so the edge
-// slot's 8-byte cap cannot hold both. utf8Truncate would chop the degree back
-// off at the code-point boundary — the slot would look untouched while silently
-// ignoring the setting — so the unit is appended only when it actually fits.
-test('both-mode never takes a degree, whatever is stored or however wide it is', () => {
-  // The two are mutually exclusive: the settings page keeps them apart, and this
-  // is the authoritative gate for a blob that predates that. Deciding by WIDTH
-  // instead would make the degree appear and vanish with the digit count as the
-  // day warmed up, and differ between an edge slot and a mid slot.
+// THE HARD CASE. Show unit answers in every Value selection, Both included: a pair
+// carries the degree on both readings ('20°|10°') -- but '-12°|-10°' is 11 bytes and
+// '20°|10°' 9, past an edge slot's 8. utf8Truncate would chop the second reading
+// ('-12°|-1'), a wrong number that looks like a right one, so a pair that cannot
+// hold its degrees prints bare instead -- the wind unit's own "when it fits" rule.
+test('both-mode carries the degree on both readings while the pair fits the slot', () => {
   const wide = Object.assign(basePayload(), { CURRENT_TEMP: 10, FEELS_CURRENT: 14 });
   const narrow = Object.assign(basePayload(), { CURRENT_TEMP: 68, FEELS_CURRENT: 50 });
+  const single = Object.assign(basePayload(), { CURRENT_TEMP: 46, FEELS_CURRENT: 42 });
   const s = baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true });
 
-  assert.equal(statusLines.formatValue('temp', wide, s, 'statusRadarLeft',
-    catalog.CAPS.EDGE_TEXT_MAX), '-12/-10');
-  assertPlainText(slotBytesFor('temp', wide, s), '-12/-10', 'packed edge slot');
-  // A mid slot has 19 bytes to spare and still gets no degree — the rule is the
-  // mode, not the room.
+  // A middle slot has the room: every pair takes its degrees.
   assert.equal(statusLines.formatValue('temp', wide, s, 'statusForecastMid',
-    catalog.CAPS.MID_TEXT_MAX), '-12/-10');
-  // And a value that would comfortably fit one still does not get it.
-  assert.equal(statusLines.formatValue('temp', narrow, s, 'statusRadarLeft'), '20/10');
+    catalog.CAPS.MID_TEXT_MAX), '-12' + DEG + '|-10' + DEG);
+  assert.equal(statusLines.formatValue('temp', narrow, s, 'statusForecastMid',
+    catalog.CAPS.MID_TEXT_MAX), '20' + DEG + '|10' + DEG);
+  // An edge slot holds them for single-digit readings ('8°|6°', 7 bytes)...
+  assert.equal(statusLines.formatValue('temp', single, s, 'statusRadarLeft',
+    catalog.CAPS.EDGE_TEXT_MAX), '8' + DEG + '|6' + DEG);
+  assertPlainText(slotBytesFor('temp', single, s), '8' + DEG + '|6' + DEG, 'packed edge slot');
+  // ...and prints a wider pair bare rather than truncated.
+  assert.equal(statusLines.formatValue('temp', wide, s, 'statusRadarLeft',
+    catalog.CAPS.EDGE_TEXT_MAX), '-12|-10');
+  assertPlainText(slotBytesFor('temp', wide, s), '-12|-10', 'packed edge slot');
+  assert.equal(statusLines.formatValue('temp', narrow, s, 'statusRadarLeft'), '20|10');
+  // Off, a pair never takes one, whatever the room.
+  assert.equal(statusLines.formatValue('temp', narrow,
+    baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: false }), 'statusForecastMid',
+    catalog.CAPS.MID_TEXT_MAX), '20|10');
 });
 
 test('the other two temp modes still take the degree when it is switched on', () => {
@@ -961,7 +969,7 @@ test('the other two temp modes still take the degree when it is switched on', ()
 // Temp 'both' and UV 'both' take a per-kind separator and order, UV a next-day
 // mark too. test/status-pair.test.js covers the full matrix; these pin the BAKE:
 // formatValue hands the slot's own cap down (so a styled pair too wide for a
-// corner falls back to the slash there and nowhere else), packLine ships the
+// corner falls back to its default separator there and nowhere else), packLine ships the
 // result, and every mode that shows ONE value ignores the pair settings.
 const EDGE_CAP = catalog.CAPS.EDGE_TEXT_MAX;
 const MID_CAP = catalog.CAPS.MID_TEXT_MAX;
@@ -986,23 +994,32 @@ test('a spaced temp pair too wide for an edge slot drops its spaces there only',
   const p = Object.assign(basePayload(), { CURRENT_TEMP: 10, FEELS_CURRENT: 14 });  // -12C/-10C
   const s = baseSettings({ tempSlotDisplay: 'both', tempSlotSeparatorSpaced: true });
   // Never utf8Truncate's '-12 / -1': a clipped reading looks like a real one.
-  assertPlainText(slotBytesFor('temp', p, s), '-12/-10', 'edge: 9 B spaced, tight instead');
-  assertPlainText(midSlotBytesFor('temp', p, s), '-12 / -10', 'mid: 19 B of room');
+  assertPlainText(slotBytesFor('temp', p, s), '-12|-10', 'edge: 9 B spaced, tight instead');
+  assertPlainText(midSlotBytesFor('temp', p, s), '-12 | -10', 'mid: 19 B of room');
   assertPlainText(slotBytesFor('temp', p, Object.assign({ tempSlotOrder: 'feels' }, s)),
-    '-10/-12', 'the fallback keeps the order');
+    '-10|-12', 'the fallback keeps the order');
   // The spaces go, the user's separator stays: '-12(-10)' is exactly 8 B.
   const brackets = Object.assign({ tempSlotSeparator: 'brackets' }, s);
   assertPlainText(slotBytesFor('temp', p, brackets), '-12(-10)', 'edge: brackets kept');
   assertPlainText(midSlotBytesFor('temp', p, brackets), '-12 (-10)', 'mid: spaced');
   // No cap passed = the narrow edge slot, withUnit's convention.
-  assert.equal(statusLines.formatValue('temp', p, s, 'statusRadarLeft'), '-12/-10');
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusRadarLeft'), '-12|-10');
+  // Too wide even tight ('-12ÿÿ-10' is 10 B): the last resort is temperature's
+  // default separator, the bar, never the slash.
+  const custom = Object.assign({ tempSlotSeparator: 'custom', tempSlotSeparatorCustom: 'ÿÿ' }, s);
+  assertPlainText(slotBytesFor('temp', p, custom), '-12|-10', 'edge: the bar');
+  assertPlainText(midSlotBytesFor('temp', p, custom), '-12 ÿÿ -10', 'mid: as picked');
 });
 
-test('a styled both-mode temp still never takes the degree', () => {
+test('a styled both-mode temp takes the degree inside the user\'s separator', () => {
   const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
   const s = baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true,
     tempSlotSeparatorSpaced: true });
-  assert.equal(statusLines.formatValue('temp', p, s, 'statusForecastMid', MID_CAP), '20 / 10');
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusForecastMid', MID_CAP),
+    '20' + DEG + ' | 10' + DEG);
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true, tempSlotSeparator: 'brackets',
+      tempSlotOrder: 'feels' }), 'statusForecastMid', MID_CAP), '10' + DEG + '(20' + DEG + ')');
 });
 
 test('the single-value temp modes and the missing-feels fallback ignore the pair settings', () => {
@@ -1014,9 +1031,11 @@ test('the single-value temp modes and the missing-feels fallback ignore the pair
   assert.equal(statusLines.formatValue('temp', p,
     baseSettings(Object.assign({ tempSlotDisplay: 'feels' }, style)), 'statusRadarLeft'),
     '10' + DEG);
-  // FEELS_CURRENT missing: 'both' is the actual temp alone, never '(20)' or '20 ('.
+  // FEELS_CURRENT missing: 'both' is the actual temp alone, never '(20)' or '20 (',
+  // with the degree Show unit asks for.
   assert.equal(statusLines.formatValue('temp', basePayload(),
-    baseSettings(Object.assign({ tempSlotDisplay: 'both' }, style)), 'statusRadarLeft'), '20');
+    baseSettings(Object.assign({ tempSlotDisplay: 'both' }, style)), 'statusRadarLeft'),
+    '20' + DEG);
 });
 
 test('every temp pair preset fits the edge slot untruncated, across the planet\'s range', () => {
@@ -1025,13 +1044,15 @@ test('every temp pair preset fits the edge slot untruncated, across the planet\'
       for (const sep of ['slash', 'brackets', 'dot', 'bar', 'custom']) {
         for (const spaced of [false, true]) {
           for (const order of ['actual', 'feels']) {
-            const text = statusLines.formatValue('temp',
-              { CURRENT_TEMP: f, FEELS_CURRENT: f - 8 },
-              baseSettings({ temperatureUnits: units, tempSlotDisplay: 'both',
-                tempSlotSeparator: sep, tempSlotOrder: order, tempSlotSeparatorSpaced: spaced,
-                tempSlotSeparatorCustom: 'ÿÿ' }), 'statusRadarLeft', EDGE_CAP);
-            assert.ok(statusLines.utf8Encode(text).length <= EDGE_CAP,
-              `"${text}" exceeds EDGE_TEXT_MAX (${f}F ${units} ${sep} ${spaced} ${order})`);
+            for (const unit of [false, true]) {
+              const text = statusLines.formatValue('temp',
+                { CURRENT_TEMP: f, FEELS_CURRENT: f - 8 },
+                baseSettings({ temperatureUnits: units, tempSlotDisplay: 'both',
+                  tempSlotSeparator: sep, tempSlotOrder: order, tempSlotSeparatorSpaced: spaced,
+                  tempSlotSeparatorCustom: 'ÿÿ', tempSlotUnit: unit }), 'statusRadarLeft', EDGE_CAP);
+              assert.ok(statusLines.utf8Encode(text).length <= EDGE_CAP,
+                `"${text}" exceeds EDGE_TEXT_MAX (${f}F ${units} ${sep} ${spaced} ${order} ${unit})`);
+            }
           }
         }
       }
@@ -1148,6 +1169,21 @@ test('the direction arrow still rides along when the wind unit is off', () => {
       }
     }
   }
+});
+
+test('the wind unit gives way only to an arrow the slot actually draws', () => {
+  // '12/30kph' is exactly an edge slot's 8 bytes: the unit leaves the arrow its
+  // byte where the arrow is drawn, and keeps it where none is (aplite has no
+  // arrow; no bearing, no arrow).
+  const both = { windSlotDisplay: 'both', windSlotUnit: true, windSlotDirection: true };
+  const payload = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 20, 0], WIND_DIR_TREND: [270] };
+  const drawn = slotBytesFor('wind', payload, both);
+  assert.equal(Buffer.from(drawn.slice(0, drawn.length - 1)).toString('utf8'), '12/30');
+  assert.equal(tailByte(drawn), SENTINEL_BASE + 4, 'the arrow takes the freed byte');
+  assertPlainText(slotBytesFor('wind', payload, both,
+    { platform: 'aplite', color: false, health: false }), '12/30kph', 'aplite draws no arrow');
+  assertPlainText(slotBytesFor('wind', { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 20, 0] },
+    both), '12/30kph', 'no bearing, no arrow');
 });
 
 // --- Phone battery ---------------------------------------------------------
@@ -1290,10 +1326,10 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
   const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
 
   // Written by the bake, never read from an incoming payload — so not snapshot input.
-  const WRITTEN = new Set(['STATUS_LEVELS_UINT8']);
+  const WRITTEN = new Set(['STATUS_LEVELS_UINT8', 'ALERT_ENTRIES_UINT8']);
 
   const seen = new Set();
-  for (const file of ['status-lines.js', 'status-thresholds.js', 'status-pair.js']) {
+  for (const file of ['status-lines.js', 'status-wire.js', 'status-pair.js']) {
     for (const m of read(file).matchAll(/payload\.([A-Z][A-Z_0-9]*)/g)) {
       if (!WRITTEN.has(m[1])) { seen.add(m[1]); }
     }
@@ -1311,4 +1347,122 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
   assert.deepEqual(extra, [], 'keys on SOURCE_KEYS that the bake never reads -- '
     + 'dead weight persisted to flash on every fetch.');
   assert.ok(declared.size > 0);
+});
+
+// ── the weather alerts' entries (ALERT_ENTRIES_UINT8) ────────────────────────
+const wire = require('../src/pkjs/status-wire.js');
+const { decodeAlerts } = require('./helpers/alert-entries.js');
+//
+// The weather alerts are On demand items, not slot items: their metric entries ride
+// their own weather tuple, baked by buildStatusLines through status-wire's
+// bakeAlerts under the 20-B cap the watch's inbox budgets for.
+
+// UV 8 (danger on the seed 6/8), wind 45 km/h (warn on 40/60), gusts 90 (danger),
+// AQI 152 (danger on the US 100/150).
+function alertPayload() {
+  return Object.assign(basePayload(), {
+    UV_TREND_UINT8: [30], UV_DAY_PEAKS: [80, 50, 0],
+    WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 20, 0],
+    GUST_TREND_UINT8: [90], GUST_DAY_PEAKS: [90, 20, 0],
+    AQI_TREND: [152]
+  });
+}
+// The four day-max alerts placed, each printing its value (pollen joins where a test
+// places it too).
+const ALERTS_ALL_VALUES = placedOnly(['gust', 'uv', 'aqi', 'wind'], {
+  alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value', alertAqiDisplay: 'value'
+});
+const ALL_FIVE_VALUES = placedOnly(['gust', 'uv', 'aqi', 'pollen', 'wind'], {
+  alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value', alertAqiDisplay: 'value',
+  alertPollenDisplay: 'value'
+});
+
+test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, icon-only by default', () => {
+  const p = alertPayload();
+  const s = baseSettings(placedOnly(['uv', 'wind']));
+  statusLines.buildStatusLines(p, s, WATCH_BASALT);
+  // UV danger (header bit 7 | kind 7 | danger bit 3), wind warn (kind 2), both
+  // today's, no value bytes.
+  assert.deepEqual(p.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08, 0x80 | 2]);
+  assert.deepEqual(p.ALERT_ENTRIES_UINT8, wire.bakeAlerts(alertPayload(), s));
+});
+
+test('buildStatusLines: all four with values fit the tuple, in the On demand order', () => {
+  const p = alertPayload();
+  statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_EMERY);
+  const ch = (t) => t.split('').map((c) => c.charCodeAt(0));
+  assert.deepEqual(p.ALERT_ENTRIES_UINT8, [].concat(
+    [0x80 | 3 | 0x08], ch('90'),
+    [0x80 | 7 | 0x08], ch('8'),
+    [0x80 | 0 | 0x08], ch('152'),
+    [0x80 | 2], ch('45')));
+  assert.ok(p.ALERT_ENTRIES_UINT8.length <= wire.ALERT_ENTRIES_MAX_BYTES);
+});
+
+test('buildStatusLines: nothing alerting sends an empty ALERT_ENTRIES_UINT8', () => {
+  // Alerts placed, values below warn — and nothing placed with values above it.
+  const quiet = Object.assign(basePayload(), {
+    UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20, 20, 0],
+    WIND_TREND_UINT8: [10], WIND_DAY_PEAKS: [10, 10, 0],
+    GUST_TREND_UINT8: [15], GUST_DAY_PEAKS: [15, 15, 0],
+    AQI_TREND: [20]
+  });
+  statusLines.buildStatusLines(quiet, baseSettings(ALERTS_ALL_VALUES), WATCH_BASALT);
+  assert.deepEqual(quiet.ALERT_ENTRIES_UINT8, [], 'present, so the watch clears its entries');
+  const off = alertPayload();
+  statusLines.buildStatusLines(off, baseSettings(NOTHING_PLACED), WATCH_BASALT);
+  assert.deepEqual(off.ALERT_ENTRIES_UINT8, []);
+});
+
+test('buildStatusLines never sends ALERT_ENTRIES_UINT8 to aplite (no On demand there)', () => {
+  const p = alertPayload();
+  statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_APLITE);
+  assert.equal(Object.prototype.hasOwnProperty.call(p, 'ALERT_ENTRIES_UINT8'), false);
+  // An unknown watch still gets it, like the levels (never hide a real feature).
+  const unknown = alertPayload();
+  statusLines.buildStatusLines(unknown, baseSettings(placedOnly(['uv'])), null);
+  assert.deepEqual(unknown.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08]);
+});
+
+test('the weather alerts are no slot item: no catalog kind, and the lines carry no entries', () => {
+  assert.equal(catalog.byCode('alerts'), undefined);
+  assert.equal(Object.prototype.hasOwnProperty.call(catalog.KINDS, 'ALERTS'), false);
+  const p = alertPayload();
+  statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_BASALT);
+  const top = decodeLine(p.STATUS_LINE_3_UINT8);
+  assert.deepEqual(top.map((slot) => slot.kind), [K.EMPTY, K.LIVE_DATE, K.LIVE_BATTERY],
+    'the strip keeps its shipped slots; the watch overlays the row itself');
+});
+
+test('the entry cap holds all five alerts with their widest values', () => {
+  const p = Object.assign(alertPayload(), {
+    UV_TREND_UINT8: [110], UV_DAY_PEAKS: [110, 0, 0],
+    WIND_TREND_UINT8: [120], WIND_DAY_PEAKS: [120, 0, 0],
+    GUST_TREND_UINT8: [130], GUST_DAY_PEAKS: [130, 0, 0],
+    AQI_TREND: [500], POLLEN_TODAY: '2-3'
+  });
+  const s = baseSettings(Object.assign({ provider: 'dwd' }, ALL_FIVE_VALUES));
+  statusLines.buildStatusLines(p, s, WATCH_BASALT);
+  const bytes = p.ALERT_ENTRIES_UINT8;
+  // Five headers, nothing tail-dropped.
+  assert.deepEqual(decodeAlerts(bytes).map((e) => e.value), ['130', '11', '500', '2-3', '120']);
+  assert.ok(bytes.length <= wire.ALERT_ENTRIES_MAX_BYTES, bytes.length + ' B');
+});
+
+test('the entry cap holds all five alerts with their widest values for tomorrow too', () => {
+  // Nothing left today warns, tomorrow peaks at the widest values: every entry a
+  // tomorrow one, its mark in the header, so the tuple is the same 19 B.
+  const p = Object.assign(alertPayload(), {
+    UV_TREND_UINT8: [0], UV_DAY_PEAKS: [0, 110, 0],
+    WIND_TREND_UINT8: [0], WIND_DAY_PEAKS: [0, 255, 0],
+    GUST_TREND_UINT8: [0], GUST_DAY_PEAKS: [0, 255, 0],
+    AQI_TREND: [0], AQI_DAY_PEAKS: [0, 500, 0], POLLEN_TODAY: '0', POLLEN_TOMORROW: '2-3'
+  });
+  const s = baseSettings(Object.assign({ provider: 'dwd', aqiSource: 'openmeteo', aqiScale: 'us' },
+    ALL_FIVE_VALUES));
+  statusLines.buildStatusLines(p, s, WATCH_BASALT);
+  const entries = decodeAlerts(p.ALERT_ENTRIES_UINT8);
+  assert.deepEqual(entries.map((e) => e.value), ['255', '11', '500', '2-3', '255']);
+  assert.deepEqual(entries.map((e) => e.mark), ['raquo', 'raquo', 'raquo', 'raquo', 'raquo']);
+  assert.equal(p.ALERT_ENTRIES_UINT8.length, 19);
 });

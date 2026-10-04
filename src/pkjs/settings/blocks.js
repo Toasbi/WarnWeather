@@ -1,13 +1,17 @@
 // src/pkjs/settings/blocks.js — ES5, WebView. WarnWeather's threshold-sheet
-// machinery (ranges, auto colors, the toggle/outline hooks, the two reset
+// machinery (ranges, auto colors, the warn-look default, the two reset
 // actions, the sheet/badge resolvers) and the small option/default/recommend
 // resolvers. The BLOCK RENDERERS live one file per concern —
 // preview-forecast.js, preview-radar.js, preview-diagnostics.js and
 // preview-layout.js, over the shared preview-svg.js / preview-rain.js; under Node
 // this file requires the four registering ones, so requiring blocks.js registers
 // every block and not just its own (the webview concatenates every file instead —
-// see scripts/build-config-page.js APP_FILES).
-/* global PConf, COUNTRY_DEFAULTS */
+// see scripts/build-config-page.js APP_FILES). It requires the schema's when resolvers
+// (when-resolvers.js) and the Forecast tab's line resolvers (forecast-hints.js: the
+// metric and style pickers' options and every forecast line row's hint) the same way,
+// and, at its end, the Alerts tab's resolvers (alerts-page.js), which read this file's
+// PConf.thresholdLevels.
+/* global PConf, COUNTRY_DEFAULTS, INJECTED_USERDATA */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
@@ -17,6 +21,8 @@ if (typeof require !== 'undefined') {
     require('./preview-radar.js');
     require('./preview-diagnostics.js');
     require('./preview-layout.js');
+    require('./when-resolvers.js');
+    require('./forecast-hints.js');
 }
 (function () {
     // Dual-context pattern (see line-style.js): CommonJS under Node, a
@@ -27,6 +33,14 @@ if (typeof require !== 'undefined') {
         ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
     var rainbowBudget = (typeof require !== 'undefined')
         ? require('./rainbow-budget.js') : PConf.rainbowBudget;
+    // The key status under a keyed provider (key-status.js, concatenated ahead of this
+    // file): tomorrow.io's usage line registers into it.
+    var keyStatus = (typeof require !== 'undefined')
+        ? require('./key-status.js') : PConf.keyStatus;
+    // The regional radar sources' areas (radar-coverage.js, concatenated ahead of this
+    // file): the note under the Radar provider row.
+    var radarCoverage = (typeof require !== 'undefined')
+        ? require('../weather/radar-coverage.js') : window.RadarCoverage;
     // The update-interval ladder under every active budget guard, shared with onbuild.js's
     // save-time fit so the page and the save clamp can't drift apart.
     var intervalBudget = (typeof require !== 'undefined')
@@ -40,16 +54,32 @@ if (typeof require !== 'undefined') {
     // window.LineStyle exists by the time the page boots.
     var lineStyle = (typeof require !== 'undefined')
         ? require('../line-style.js') : window.LineStyle;
+    // The theme vocabulary (polarity, B&W, whether the watch draws colour), concatenated
+    // ahead of line-style.js and so of this file.
+    var resolveInk = (typeof require !== 'undefined')
+        ? require('../resolve-ink.js') : window.ResolveInk;
     // The page bundle's single-source int<->hex (config-ui/lib/color.js, concatenated
     // ahead of every app file), rather than a fourth local copy of the same six digits.
     var intToHex = (typeof require !== 'undefined')
         ? require('../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
-    // The rgb control's own value helpers (config-ui/lib/range-control.js, likewise
+    // The rgb control's own value helpers (config-ui/lib/rgb-control.js, likewise
     // concatenated ahead of the app files): a badge previewing an rgb key parses the
     // stored "r,g,b" string with the same parser — fallbacks included — as the sliders
     // behind it, so the dot cannot show a colour the sheet would not open on.
-    var rangeControl = (typeof require !== 'undefined')
-        ? require('../config-ui/lib/range-control.js') : PConf.rangeControl;
+    var rgbControl = (typeof require !== 'undefined')
+        ? require('../config-ui/lib/rgb-control.js') : PConf.rgbControl;
+    // The threshold contract (status-thresholds.js): the kinds, their seed pairs, the
+    // colour and warn-look rules and the alert vocabulary — the module the watch's
+    // blob is packed and its alerts baked from, so the sheets, badges and hints read
+    // the numbers, colours and switches the watch uses.
+    // scripts/build-config-page.js concatenates it AHEAD of this file.
+    var thresholds = (typeof require !== 'undefined')
+        ? require('../status-thresholds.js') : window.StatusThresholds;
+    // The On demand contract (on-demand.js): its bars, sides and side-list keys (BARS,
+    // SIDES, itemsKey), which name the eight lists both resets restore (onDemandListKeys)
+    // — the phone's own reading, concatenated ahead of this file.
+    var onDemand = (typeof require !== 'undefined')
+        ? require('../on-demand.js') : window.OnDemand;
 
         // Slot-dropdown options resolver: derives a status-line slot's option list from the
     // catalog (Tasks 2 + 17) — Empty first, availability-gated, sibling+excludeCodes filtered.
@@ -87,192 +117,51 @@ if (typeof require !== 'undefined') {
         ];
     });
 
-    // The eight graph metrics in picker order — one list feeds every forecast picker.
-    var FORECAST_METRICS = [
-        ['Precipitation %', 'precip_prob'], ['Cloud cover %', 'cloud'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
-        ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
-        ['Dew point', 'dew']
-    ];
-    // Metric picker options, shaped by self-describing args from the schema:
-    // `off` leads with an Off row, `exclude` names the sibling picker keys
-    // whose CURRENT pick is withheld (a collision left in a stored value is
-    // display-snapped by the engine — a later pick turns the later line off).
-    // Every picker offers the temperature-axis metrics (feels, dew) — each line
-    // has its own curve-inset byte — except on aplite: the temp-axis line inset
-    // is not compiled there, so they would render misaligned with the
-    // temperature curve.
-    PConf.optionsResolvers.register('forecastMetric', function (S, env, args) {
-        var a = args || {};
-        var exclude = a.exclude || [];
-        var out = a.off ? [['Off', 'off']] : [];
-        for (var i = 0; i < FORECAST_METRICS.length; i += 1) {
-            var opt = FORECAST_METRICS[i];
-            if (lineStyle.isTempAxisMetric(opt[1])
-                && env && env.platform === 'aplite') { continue; }
-            var taken = false;
-            for (var j = 0; j < exclude.length; j += 1) {
-                if (S && opt[1] === S[exclude[j]]) { taken = true; break; }
-            }
-            if (!taken) { out.push(opt); }
-        }
-        return out;
-    });
-
-    // The six line styles in picker order — line-style.js' LINE_STYLE_KINDS vocabulary.
-    var LINE_STYLE_OPTIONS = [
-        ['Thin line', 'line'], ['Thick line', 'bold'], ['Square dots', 'dots'], ['× marks', 'x'],
-        ['Stripe at top', 'stripeTop'], ['Stripe at bottom', 'stripeBottom']
-    ];
-    // One line's style options: the two stripes only while the line's metric can be
-    // one (line-style.js metricAllowsStripe — the rule the bake resolves by), so the
-    // engine's display-snap shows a stored stripe on any other metric as the style the
-    // watch actually draws. args.metricKey names the metric picker it sits under.
-    PConf.optionsResolvers.register('lineStyleOptions', function (S, env, args) {
-        var metric = S ? S[(args || {}).metricKey] : undefined;
-        if (lineStyle.metricAllowsStripe(metric)) { return LINE_STYLE_OPTIONS.slice(); }
-        var out = [];
-        for (var i = 0; i < LINE_STYLE_OPTIONS.length; i += 1) {
-            if (!lineStyle.isStripeValue(LINE_STYLE_OPTIONS[i][1])) { out.push(LINE_STYLE_OPTIONS[i]); }
-        }
-        return out;
-    });
-
-    // ---- The forecast line hints: how a metric's value reads on the graph ----
-    // The scale lives on the LINE-STYLE picker, because the style decides how a value
-    // is shown: a curve or its marks by HEIGHT, a stripe by COLOUR STRENGTH. The
-    // metric pickers keep only notes true of the metric whatever its style — except on
-    // a watch without style pickers (env.lineStyles false: aplite, the schema's
-    // LINE_STYLES_WHEN gate), where the metric picker adds the height wording, so the
-    // scale is explained there too. No hint restates a metric's or a style's name, a
-    // default look or 'Off'. The wind scale is named, not placed ("below"): with wind
-    // and gusts both picked, its row sits under the first of them only; the pressure
-    // scale row always sits below its (single) pressure line.
-    var HEIGHT_SCALE = {
-        precip_prob: 'Half height = 50% chance of rain, full height = 100%.',
-        cloud: 'Half height = half the sky covered, full height = overcast.',
-        wind: 'Scaled by the Wind graph scale setting.',
-        gust: 'Scaled by the Wind graph scale setting.',
-        uv: 'Half height = UV 5.5, full height = UV 11 (extreme).',
-        pressure: 'Sea-level pressure, scaled by the pressure graph scale below.',
-        feels: 'Drawn on the same scale as the temperature curve.',
-        dew: 'Drawn on the same scale as the temperature curve.'
-    };
-    // A stripe cell's colour strength steps with the value (chart_stripe.h: four
-    // levels), so the half/full anchors read as colour instead of height. Keyed by
-    // exactly the metrics a stripe can show (line-style.js STRIPE_METRIC_IDS — a test
-    // holds the two lists equal).
-    var STRIPE_SCALE = {
-        precip_prob: 'Half-strength colour = 50% chance of rain, full colour = 100%.',
-        cloud: 'Half-strength colour = half the sky covered, full colour = overcast.',
-        wind: 'Colour strength follows the Wind graph scale setting.',
-        gust: 'Colour strength follows the Wind graph scale setting.',
-        uv: 'Half-strength colour = UV 5.5, full colour = UV 11 (extreme).'
-    };
-    // What the metric picker says whatever the style.
-    var METRIC_NOTES = {
-        cloud: 'Not available with Yandex.',
-        gust: 'The hourly peak.',
-        dew: 'The closer it runs to the temperature, the more humid it feels.'
-    };
-    // What the style adds after its line's scale. Thin and Thick say it all.
-    var STYLE_NOTES = {
-        dots: 'Aligned to the rain bars.',
-        x: 'Aligned to the rain bars.',
-        stripeTop: 'One cell per hour.',
-        stripeBottom: 'One cell per hour. Below the zero line, where bars and lines never cover it.'
-    };
-
     /**
-     * One entry of a copy table, OWN keys only — a stored value like 'constructor'
-     * must not print an Object.prototype function.
-     * @param {Object} table Copy table.
-     * @param {*} key Lookup key.
-     * @returns {string} The entry, or '' when absent.
+     * The AQI slot's Day max / Both hint while its source note applies: the row's own
+     * by-value hint for the shown mode (args.staticHint, which the engine hands every hint
+     * resolver: its hintByValue entry, the schema.js dayMaxHints copy, so the two cannot
+     * drift) closed on the source's note — WAQI and Auto have no forecast to take a peak
+     * from (args.notes). A non-null answer REPLACES hintByValue (engine renderRow), so
+     * this returns the whole text; null for Now and whenever no note applies, so
+     * hintByValue answers. Now never reaches staticHint: the row has no Now hint, and
+     * staticHint would fall back to its plain hint there.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{value: string, staticHint: (string|undefined),
+     *   notes: ?{key: string, fallback: string, byValue: Object}}} args The row's shown
+     *   mode and its static hint for it + dayMaxRows' source notes.
+     * @returns {?string} The hint with its note, or null for "use hintByValue".
      */
-    function copyOf(table, key) {
-        return (typeof key === 'string' && Object.prototype.hasOwnProperty.call(table, key))
-            ? table[key] : '';
+    function dayMaxHint(S, env, args) {
+        if (args.value !== 'max' && args.value !== 'both') { return null; }
+        var notes = args.notes;
+        if (!notes || !args.staticHint) { return null; }
+        var source = (S || {})[notes.key] || notes.fallback;
+        // Own keys only: a stored source like 'constructor' must not print an
+        // Object.prototype function.
+        var note = (typeof source === 'string'
+            && Object.prototype.hasOwnProperty.call(notes.byValue, source)) ? notes.byValue[source] : '';
+        return note ? args.staticHint + note : null;
     }
+    PConf.hintResolvers.register('dayMaxHint', dayMaxHint);
 
-    /**
-     * Sentences joined with one space, empty ones dropped.
-     * @param {string[]} parts Sentences, '' for none.
-     * @returns {string} The hint, '' when every part is empty.
-     */
-    function joinHint(parts) {
-        var out = [];
-        for (var i = 0; i < parts.length; i += 1) {
-            if (parts[i]) { out.push(parts[i]); }
-        }
-        return out.join(' ');
-    }
-
-    /**
-     * A metric picker's hint: the metric's own note, and — only on a watch without
-     * style pickers — its height scale after it.
-     * @param {string} metric The picker's shown metric (or 'off').
-     * @param {Object} [env] Platform env; `lineStyles` truthy = style pickers exist
-     *   (the same truthy test as the schema's {env: 'lineStyles'} row gate).
-     * @returns {string} The hint, '' for none.
-     */
-    function forecastMetricHint(metric, env) {
-        var note = copyOf(METRIC_NOTES, metric);
-        if (env && env.lineStyles) { return note; }
-        return joinHint([note, copyOf(HEIGHT_SCALE, metric)]);
-    }
-
-    /**
-     * A line-style picker's hint: its line's scale as this style shows it, then the
-     * style's own note.
-     * @param {string} metric The metric of the line this picker styles.
-     * @param {string} style The picker's shown style.
-     * @returns {string} The hint, '' for none.
-     */
-    function lineStyleHint(metric, style) {
-        if (!metric || metric === 'off') { return ''; }
-        return joinHint([copyOf(lineStyle.isStripeValue(style) ? STRIPE_SCALE : HEIGHT_SCALE, metric),
-            copyOf(STYLE_NOTES, style)]);
-    }
-
-    PConf.hintResolvers.register('forecastMetricHint', function (S, env, args) {
-        return forecastMetricHint(args.value, env);
-    });
-    // args.metricKey names the metric picker this style picker sits under.
-    PConf.hintResolvers.register('lineStyleHint', function (S, env, args) {
-        return lineStyleHint(S ? S[args.metricKey] : undefined, args.value);
-    });
-
-    // Per-slot edit sheet: the pencil left of a slot dropdown opens the threshold sheet
+    // Per-slot edit sheet: the Edit button beside a slot dropdown opens the threshold sheet
     // for the slot's CURRENT value, when that value is a threshold kind. The catalog's
     // slot codes and the threshold contract's KINDS codes are the same vocabulary
     // ('wind', 'aqi', 'steps', ...), so the contract IS the mapping — no hand-copied
     // list to drift. env gate mirrors the sheets' own showWhen (aplite compiles the
-    // highlight out). Resolved lazily: in the flat page status-thresholds.js is
-    // concatenated AFTER this file, so window.StatusThresholds only exists at render
-    // time, not at load time (thresholdContract() below wraps exactly that).
+    // highlight out).
     PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
         if (!env || !env.thresholds) { return null; }
-        var contract = thresholdContract();
-        if (!contract) { return null; }
         var code = S[args.messageKey];
-        for (var i = 0; i < contract.KINDS.length; i++) {
-            if (contract.KINDS[i].code === code) { return 'thresh' + contract.KINDS[i].key; }
+        for (var i = 0; i < thresholds.KINDS.length; i++) {
+            if (thresholds.KINDS[i].code === code) { return 'thresh' + thresholds.KINDS[i].key; }
         }
         return null;
     });
 
     // --- threshold sliders (the per-slot edit sheets' controls) ------------------
-
-    /**
-     * The threshold contract module, resolved lazily for the same concat-order
-     * reason statusSlotEditSheet documents above.
-     * @returns {?Object} status-thresholds API, or null when unavailable.
-     */
-    function thresholdContract() {
-        return (typeof require !== 'undefined')
-            ? require('../status-thresholds.js')
-            : (typeof window !== 'undefined' ? window.StatusThresholds : null);
-    }
 
     /**
      * Normalize a stored color (0xRRGGBB int or '#RRGGBB' string) to '#RRGGBB' —
@@ -334,51 +223,52 @@ if (typeof require !== 'undefined') {
         return Math.ceil(Math.round((v / step) * 1e6) / 1e6) * step;
     }
 
-    // Per-kind slider geometry + seeds, in the kind's DISPLAY unit (the unit
-    // status-thresholds.js compares against at bake/pack time). Resolved per render
-    // so the General-tab unit pickers reshape the scales live. fixedMax marks the
-    // naturally-bounded kinds (no inline scale-max editor).
+    // Per-kind slider geometry, in the kind's DISPLAY unit (the unit
+    // status-thresholds.js compares against at bake/pack time), keyed by the
+    // contract's scaleVariant — the same key its seed table uses, so the slider and
+    // the seeds cannot read the unit and AQI-scale pickers apart. Looked up per render
+    // (rangeOf) so the Setup › Units pickers reshape the scales live. fixedMax
+    // marks the naturally-bounded kinds (no inline scale-max editor). The SEED pairs
+    // are not here: they live in the contract (status-thresholds.js SEEDS /
+    // seedPair) — the one table the phone bake resolves a blank pair against too, so
+    // the slider can never preview numbers the watch does not use.
     var THRESHOLD_RANGES = {
-        Wind: function (S) {
-            if (S.windUnits === 'mph') { return {min: 0, max: 75, step: 5, seedWarn: 25, seedDanger: 40, unit: 'mph'}; }
-            if (S.windUnits === 'knots') { return {min: 0, max: 65, step: 5, seedWarn: 20, seedDanger: 30, unit: 'kn'}; }
-            return {min: 0, max: 120, step: 5, seedWarn: 40, seedDanger: 60, unit: 'kph'};
+        Wind: {
+            kph: {min: 0, max: 120, step: 5, unit: 'kph'},
+            mph: {min: 0, max: 75, step: 5, unit: 'mph'},
+            kn: {min: 0, max: 65, step: 5, unit: 'kn'}
         },
-        Gust: function (S) {
-            if (S.windUnits === 'mph') { return {min: 0, max: 100, step: 5, seedWarn: 40, seedDanger: 55, unit: 'mph'}; }
-            if (S.windUnits === 'knots') { return {min: 0, max: 85, step: 5, seedWarn: 30, seedDanger: 50, unit: 'kn'}; }
-            return {min: 0, max: 160, step: 5, seedWarn: 60, seedDanger: 90, unit: 'kph'};
+        Gust: {
+            kph: {min: 0, max: 160, step: 5, unit: 'kph'},
+            mph: {min: 0, max: 100, step: 5, unit: 'mph'},
+            kn: {min: 0, max: 85, step: 5, unit: 'kn'}
         },
-        Aqi: function (S) {
-            // The European scale applies only when Open-Meteo is the AQI source AND the
-            // scale picker says so; WAQI (and auto, which prefers it) reports US-style AQI.
-            var eu = S.aqiSource === 'openmeteo' && S.aqiScale !== 'us';
-            return eu
-                ? {min: 0, max: 150, step: 5, seedWarn: 60, seedDanger: 80, unit: ''}
-                : {min: 0, max: 300, step: 10, seedWarn: 100, seedDanger: 150, unit: ''};
+        Aqi: {
+            us: {min: 0, max: 300, step: 10, unit: ''},
+            eu: {min: 0, max: 150, step: 5, unit: ''}
         },
-        Pollen: function () {
-            return {min: 0, max: 3, step: 0.5, seedWarn: 2, seedDanger: 3, unit: '', fixedMax: true};
-        },
-        Uv: function () {
-            // The slot displays the rounded integer index, so whole steps; 12 covers
-            // every real-world reading (extremes clamp against the top like any kind).
-            return {min: 0, max: 12, step: 1, seedWarn: 6, seedDanger: 8, unit: '', fixedMax: true};
-        },
-        // Goal kinds: seedWarn = "close" (~80% of the goal), seedDanger = the goal —
-        // ordered upward like the weather kinds since the celebration rework.
-        Steps: function () {
-            return {min: 0, max: 20000, step: 250, seedWarn: 8000, seedDanger: 10000, unit: ''};
-        },
-        Sleep: function () {
-            return {min: 0, max: 12, step: 0.5, seedWarn: 6.5, seedDanger: 7.5, unit: 'h', fixedMax: true};
-        },
-        Distance: function (S) {
-            return S.distanceUnits === 'imperial'
-                ? {min: 0, max: 12, step: 0.5, seedWarn: 2.5, seedDanger: 3, unit: 'mi'}
-                : {min: 0, max: 20, step: 0.5, seedWarn: 4, seedDanger: 5, unit: 'km'};
+        Pollen: {'': {min: 0, max: 3, step: 0.5, unit: '', fixedMax: true}},
+        // The slot displays the rounded integer index, so whole steps; 12 covers
+        // every real-world reading (extremes clamp against the top like any kind).
+        Uv: {'': {min: 0, max: 12, step: 1, unit: '', fixedMax: true}},
+        Steps: {'': {min: 0, max: 20000, step: 250, unit: ''}},
+        Sleep: {'': {min: 0, max: 12, step: 0.5, unit: 'h', fixedMax: true}},
+        Distance: {
+            km: {min: 0, max: 20, step: 0.5, unit: 'km'},
+            mi: {min: 0, max: 12, step: 0.5, unit: 'mi'}
         }
     };
+
+    /**
+     * A kind's slider geometry for the unit and scale the settings select.
+     * @param {string} stem Kind key stem with a THRESHOLD_RANGES entry.
+     * @param {Object} S Live settings state.
+     * @returns {{min: number, max: number, step: number, unit: string,
+     *     fixedMax: (boolean|undefined)}} The geometry (shared: read, never mutate).
+     */
+    function rangeOf(stem, S) {
+        return THRESHOLD_RANGES[stem][thresholds.scaleVariant(stem, S)];
+    }
 
     /**
      * Range resolver for the threshold sliders (engine item.rangeFrom): per-kind
@@ -388,31 +278,43 @@ if (typeof require !== 'undefined') {
      * off the track.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
-     * @param {{keyStem: string}} args Kind key stem, e.g. 'Steps'.
+     * @param {{keyStem: string, chips: ({warn: string, danger: string}|undefined)}} args
+     *     Kind key stem, e.g. 'Steps', and the chips' words from the group's voice
+     *     (level-rows-schema.js GOAL_VOICE / ALERT_VOICE); without them the slider says Warn /
+     *     Danger (range-control.js).
      * @returns {Object} Config the engine merges over the schema item.
      */
     function thresholdRangeCfg(S, env, args) {
         var stem = args.keyStem;
-        var contract = thresholdContract();
-        var base = THRESHOLD_RANGES[stem](S || {});
+        var base = rangeOf(stem, S || {});
         var max = base.max;
-        if (contract && !base.fixedMax) {
-            var override = contract.parseThreshold(S['thresh' + stem + 'Max']);
+        if (!base.fixedMax) {
+            var override = thresholds.parseThreshold(S['thresh' + stem + 'Max']);
             if (override !== null && override > base.min) { max = ceilToStep(override, base.step); }
-            var warn = contract.parseThreshold(S['thresh' + stem + 'Warn']);
-            var danger = contract.parseThreshold(S['thresh' + stem + 'Danger']);
+            var warn = thresholds.parseThreshold(S['thresh' + stem + 'Warn']);
+            var danger = thresholds.parseThreshold(S['thresh' + stem + 'Danger']);
             if (warn !== null && warn > max) { max = ceilToStep(warn, base.step); }
             if (danger !== null && danger > max) { max = ceilToStep(danger, base.step); }
+            // The pair the phone actually holds on must sit on the scale too
+            // (resolvedPair: the stored pair when it is ordered, else the seed).
+            // With a blank pair and a stored scale max below the seed — the
+            // slider's max editor is live while the highlight is off, and older
+            // installs kept a Max from before OFF stopped blanking the pair — the
+            // slider would clamp the seed it previews to that max while the bake
+            // uses the real seed: two readings of one rule.
+            var held = thresholds.resolvedPair(stem, S || {});
+            if (held.warn !== null && held.warn > max) { max = ceilToStep(held.warn, base.step); }
+            if (held.danger !== null && held.danger > max) { max = ceilToStep(held.danger, base.step); }
         }
-        // A null warn color (no outline configured) draws the slider's warn pieces
-        // in a neutral gray: the zone still shows WHERE warn spans, while the copy +
-        // outline toggle make clear the watch renders bold text only there.
-        var warnDisplay = thresholdDisplayColor(S, stem, 'Warn');
+        // A null warn color (warn look 'none') draws the slider's warn pieces in a
+        // neutral gray: the zone still shows WHERE warn spans, while the copy +
+        // warn look make clear the watch draws no box there.
+        var warnDisplay = thresholdDisplayColor(S, stem, 'Warn', env);
         var warnColor = warnDisplay === null ? '#8A8E97' : warnDisplay;
-        var dangerColor = thresholdDisplayColor(S, stem, 'Danger');
-        var contractMod = thresholdContract();
-        var isGoal = Boolean(contractMod && contractMod.isGoalKind
-            && contractMod.isGoalKind(stem));
+        var dangerColor = thresholdDisplayColor(S, stem, 'Danger', env);
+        var chips = args.chips || {};
+        // Seeds from the contract's table: what a blank pair means on the phone.
+        var seed = thresholds.seedPair(stem, S || {});
         return {
             min: base.min, max: max, step: base.step, minSpan: base.step,
             // Direction axis retired (status-thresholds.js): every kind's value
@@ -420,20 +322,21 @@ if (typeof require !== 'undefined') {
             // dormant library feature no item sets.
             dir: 'above',
             unit: base.unit,
-            seedWarn: base.seedWarn, seedDanger: base.seedDanger,
+            seedWarn: seed.warn, seedDanger: seed.danger,
             maxEditable: !base.fixedMax,
             warnColor: warnColor, dangerColor: dangerColor,
             warnGlow: glowOf(warnColor), dangerGlow: glowOf(dangerColor),
             dangerText: chipTextOn(dangerColor),
-            // Chip/aria wording: goal kinds celebrate (Close / Goal), weather warns.
-            warnLabel: isGoal ? 'Close' : 'Warn',
-            dangerLabel: isGoal ? 'Goal' : 'Danger'
+            // Chip/aria wording, the voice's: goal kinds celebrate (Close / Goal),
+            // weather warns.
+            warnLabel: chips.warn,
+            dangerLabel: chips.danger
         };
     }
     PConf.rangeResolvers.register('thresholdRange', thresholdRangeCfg);
 
-    // Picking feels-like or dew point as the main metric clears "Fill area below the
-    // line": both map against the temperature axis, not a 0..max scale, so their "below the line"
+    // Picking feels-like or dew point as the main metric clears "Area fill": both map
+    // against the temperature axis, not a 0..max scale, so their "below the line"
     // is the arbitrary joint-band floor rather than a zero the fill can mean anything
     // against. The toggle's showWhen hides the row for them; this writes the stored
     // value false so the settings blob agrees with what the watch renders (and with
@@ -450,158 +353,123 @@ if (typeof require !== 'undefined') {
     // are the row badge (graphColorSwatch below) and the in-sheet swatch, which reads
     // the display resolver registered next to it.
 
-    // The temp slot's "Both" mode and its degree sign are mutually exclusive:
-    // "-12/-10" is already 7 of an edge slot's 8 bytes and the sign is two more.
-    // Whichever the user just picked wins, so neither choice is ever refused --
-    // the other simply steps aside. Both rows share this hook; the key says which
-    // one moved. status-lines.js gates the pair independently, for a settings blob
-    // written before this existed.
-    PConf.onChange.register('tempUnitExclusive', function (S, oldValue, newValue, env, key) {
-        if (key === 'tempSlotDisplay') {
-            if (newValue === 'both') { S.tempSlotUnit = false; }
-        } else if (newValue) {
-            if (S.tempSlotDisplay === 'both') { S.tempSlotDisplay = 'actual'; }
+    // A kind's warn look default (thresh<K>WarnLook's defaultFrom): the contract's
+    // warnLookDefault — fill on a colour watch, outline on a B&W one, outline for the
+    // goal kinds — so the page shows exactly what the packer resolves an unset key
+    // to. The key stays unset in the phone store: defaultFrom items are never
+    // seeded, and the item's sticky: false keeps a save from writing this value.
+    PConf.defaultsResolvers.register('warnLookDefault', function (env, args) {
+        return thresholds.warnLookDefault(args && args.keyStem, env ? env.color : undefined);
+    });
+
+    // The warn look's hint (thresh<K>WarnLook's hintFrom), for the SELECTED look,
+    // from the group voice's look copy the row passes as `copy` (level-rows-schema.js
+    // GOAL_VOICE / ALERT_VOICE `look`):
+    //  - a B&W watch or B&W day theme: its `bw` set — the box is drawn in the text
+    //    colour, the pickers are hidden, and a fill is the danger (reached-goal) fill;
+    //  - a colour day theme with a B&W night theme (Theme switching on): the row's
+    //    own hint (`base`, its hintByValue) plus the `night` note for that look — by
+    //    day the box is in the picked colour, at night a fill matches danger;
+    //  - a colour screen where Fill's two colours resolve to the SAME one (a goal
+    //    kind's defaults are both the goal green; a warn pick can equal danger): the
+    //    `sameColor` note too — that fill IS the danger / reached-goal box;
+    //  - otherwise null — the row's own hintByValue.
+    // A look a set has no line for (none) falls back the same way. The watch still
+    // draws what was picked (status_row.c).
+    PConf.hintResolvers.register('warnLookHint', function (S, env, args) {
+        var copy = args && args.copy;
+        if (!copy) { return null; }
+        var value = args.value;
+        var st = S || {};
+        // By DAY: the case the colour pickers are hidden for (schema-gates.js
+        // COLOR_THEME_WHEN) and every highlight is drawn in the text colour.
+        if (!resolveInk.drawsColor(env, st.theme)) {
+            var bwText = copy.bw && copy.bw[value];
+            return typeof bwText === 'string' ? bwText : null;
         }
-    });
-
-    // Flipping "Highlight this value": OFF blanks the pair — a stored blank IS the
-    // disabled state, the exact wire contract the old text fields had, so nothing
-    // changes watch-side. ON reseeds the kind's defaults unless a valid ordered
-    // pair is already stored (the derived toggle landing on an upgraded install).
-    PConf.onChange.register('thresholdToggle', function (S, oldValue, newValue, env, key) {
-        var m = /^thresh([A-Za-z]+)On$/.exec(key || '');
-        if (!m) { return; }
-        var stem = m[1];
-        if (!newValue) {
-            S['thresh' + stem + 'Warn'] = '';
-            S['thresh' + stem + 'Danger'] = '';
-            return;
+        var base = copy.base && copy.base[value];
+        if (typeof base !== 'string') { return null; }
+        var parts = [base];
+        var note = copy.night && copy.night[value];
+        if (st.themeAuto === true && resolveInk.isBwTheme(st.themeNight) && typeof note === 'string') {
+            parts.push(note);
         }
-        var contract = thresholdContract();
-        if (!contract) { return; }
-        var warn = contract.parseThreshold(S['thresh' + stem + 'Warn']);
-        var danger = contract.parseThreshold(S['thresh' + stem + 'Danger']);
-        var ordered = contract.pairOrdered(warn, danger);
-        if (ordered) { return; }
-        var cfg = thresholdRangeCfg(S, env, {keyStem: stem});
-        S['thresh' + stem + 'Warn'] = String(cfg.seedWarn);
-        S['thresh' + stem + 'Danger'] = String(cfg.seedDanger);
+        if (value === 'fill' && args.keyStem && typeof copy.sameColor === 'string') {
+            var warnHex = thresholdDisplayColor(st, args.keyStem, 'Warn', env);
+            var dangerHex = thresholdDisplayColor(st, args.keyStem, 'Danger', env);
+            if (warnHex && dangerHex && String(warnHex).toUpperCase() === String(dangerHex).toUpperCase()) {
+                parts.push(copy.sameColor);
+            }
+        }
+        return parts.length > 1 ? parts.join(' ') : null;
     });
 
-    // "Warn outline" toggle (thresh<K>WarnOutlineOn): ON seeds the theme's text
-    // color so the outline is immediately visible and editable, OFF blanks the
-    // color — a blank warn color IS the no-outline wire state (the blob's 0x00
-    // sentinel; the watch then renders warn as bold text only). Goal kinds derive
-    // the toggle from the stored color on every open; weather kinds' STORED toggle
-    // owns the state, with auto colors following it — see onbuild.js.
-    PConf.onChange.register('thresholdOutlineToggle', function (S, oldValue, newValue, env, key) {
-        var m = /^thresh([A-Za-z]+)WarnOutlineOn$/.exec(key || '');
-        if (!m) { return; }
-        var contractMod = thresholdContract();
-        var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(m[1]));
-        S['thresh' + m[1] + 'WarnColor'] = newValue
-            ? (goal ? contractMod.DEFAULT_GOAL_HEX : thresholdAutoFg(S.theme)) : '';
-    });
-
-    // "Auto" threshold colors: a color the user never customized tracks the THEME's
-    // text color — outline-vs-fill already carries the warn/danger distinction, and
-    // the fg color beats a fixed hue for contrast on the page and the watch
-    // (watch-side rendering gets its own calibration pass later). ONLY an unset
-    // value or one of the two fg values counts as auto (re-derived on every page
-    // open — onbuild.js onLoad); every other color, the contract's orange/red
-    // included, is a user pick and is left alone. The contract DEFAULT_*_COLOR
-    // constants remain solely the pack-time fallback for a blob built from settings
-    // that never passed through this page. Exposed on PConf because the flat page
-    // has no require().
-    var AUTO_FG_DARK = '#FFFFFF', AUTO_FG_LIGHT = '#000000';
     /**
-     * @param {*} theme stored theme setting ('dark'|'light'|'bw'|'bw-light')
-     * @returns {string} the theme's text color as '#RRGGBB'
-     */
-    function thresholdAutoFg(theme) {
-        return (theme === 'light' || theme === 'bw-light') ? AUTO_FG_LIGHT : AUTO_FG_DARK;
-    }
-    /**
-     * @param {*} value stored color setting
-     * @returns {boolean} true when the value should keep tracking the theme fg
-     */
-    function thresholdColorIsAuto(value) {
-        if (value === null || typeof value === 'undefined' || value === '') { return true; }
-        var v = colorHexOf(value, 0x000000);   // garbage normalizes to a pool value
-        return v === AUTO_FG_DARK || v === AUTO_FG_LIGHT;
-    }
-    /**
-     * The color the page should DRAW for a kind's warn/danger pieces: the theme fg
-     * while the stored value is auto, the user's pick otherwise.
+     * The colour the page DRAWS for a kind's warn/danger pieces (slider zones, badge
+     * dots, the colour pickers' swatches) — what the watch draws by day: the theme's
+     * text colour on a B&W watch or B&W day theme (every highlight is in the text
+     * colour there), else the contract's colour rule (status-thresholds.js
+     * thresholdColor — the one the packer and the on-open heal use too). So an unset
+     * colour previews its auto value, and a black or white pick previews what the
+     * watch turns it into (the text colour; the goal green for a goal kind).
      * @param {Object} S Live settings state.
      * @param {string} stem Kind key stem, e.g. 'Steps'.
      * @param {string} which 'Warn' | 'Danger'.
-     * @returns {string} '#RRGGBB'.
+     * @param {Object} [env] Platform env (env.color false on a B&W watch).
+     * @returns {?string} '#RRGGBB', or null for a warn look of 'none'.
      */
-    function thresholdDisplayColor(S, stem, which) {
-        var raw = S['thresh' + stem + which + 'Color'];
-        // WARN: unset means NO OUTLINE (bold only) — report null so callers render
-        // their neutral no-outline state instead of a color.
-        if (which === 'Warn' && (raw === '' || raw === null || typeof raw === 'undefined')) {
+    function thresholdDisplayColor(S, stem, which, env) {
+        // WARN with the look 'none' draws no box (bold only) — report null so
+        // callers render their neutral no-box state instead of a color.
+        if (which === 'Warn' && S['thresh' + stem + 'WarnLook'] === 'none') {
             return null;
         }
-        if (thresholdColorIsAuto(raw)) { return thresholdAutoFg(S.theme); }
-        return colorHexOf(raw, 0x000000);
+        return intToHex(resolveInk.drawsColor(env, S.theme)
+            ? thresholds.thresholdColor(S, stem, which) : thresholds.textColor(S));
     }
-    PConf.thresholdAutoColor = { fgFor: thresholdAutoFg, isAuto: thresholdColorIsAuto };
+    // The warn and danger pickers paint the same resolution (engine.js' displayFrom
+    // hook), not the raw stored value: after a reset stores the schema's unset '', or
+    // a pick the watch resolves differently (a goal kind's black or white is its
+    // green), the swatch still shows what the watch draws. Clicking a swatch still
+    // writes the pick under the picker's own key.
+    /**
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{keyStem: string, which: string}} args The picker's kind and colour.
+     * @returns {?string} '#RRGGBB' to paint, or null to fall back to the stored value.
+     */
+    PConf.displayResolvers.register('thresholdColor', function (S, env, args) {
+        if (!S || !args || !args.keyStem) { return null; }
+        return thresholdDisplayColor(S, args.keyStem, args.which, env);
+    });
 
     // Reset-to-defaults for one threshold kind (the small button beside the slider's
     // label). Returns true so the engine re-renders.
     PConf.actions = PConf.actions || {};
     PConf.actions.resetThresholds = function (stem, S, env, defaultOf) {
         if (!stem || !S || !THRESHOLD_RANGES[stem] || !defaultOf) { return false; }
-        var fg = thresholdAutoFg(S.theme);
-        var contractMod = thresholdContract();
-        var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(stem));
+        var goal = thresholds.isGoalKind(stem);
         // Every key with a schema default lands on it THROUGH the engine's resolver —
         // mirrored literals drift when the schema changes (see resetStatusSlots
-        // below). The blank pair (highlight OFF, exactly a fresh install: seeding
-        // real numbers would derive the toggle back ON), the cleared Max, and the
-        // goal-vs-weather outline color/toggle are all schema defaults; the On
-        // toggle rides along because onLoad re-derives it only on the NEXT open,
-        // and the re-rendered sheet must agree with the blanked pair immediately.
-        var keys = ['On', 'Warn', 'Danger', 'Max', 'WarnColor', 'WarnOutlineOn'];
+        // below). The result is exactly a fresh install: a goal kind's stored
+        // toggle OFF (its switch rides this group's header, so resetting the goals
+        // switches it off too), the blank pair (= the kind's seed, resolved live — a
+        // wind pair follows windUnits again), the cleared Max, the goal-vs-weather
+        // colours and the platform's warn look are all schema defaults. A weather
+        // colour's default is unset, which the pickers and zones already show as
+        // what the watch draws (thresholdDisplayColor), and the next open's heal
+        // stores. A weather kind's highlight switch is NOT in this group — it is
+        // the slot sheet's Highlight row — so its levels reset leaves it alone, as
+        // it leaves Bold.
+        var keys = ['Warn', 'Danger', 'Max', 'WarnColor', 'DangerColor', 'WarnLook'];
+        if (goal) { keys.unshift('On'); }
         for (var d = 0; d < keys.length; d++) {
             S['thresh' + stem + keys[d]] = defaultOf('thresh' + stem + keys[d]);
         }
-        // The ONE deliberate divergence from the schema: DangerColor's stored
-        // default is '' (= auto, re-derived to the theme fg on every page open by
-        // onbuild), but the PACK-time fallback for '' is the contract's red — so a
-        // reset-then-save would flash red until the next open. Write eagerly what
-        // the next onLoad would derive anyway: theme fg for weather, green for goal.
-        S['thresh' + stem + 'DangerColor'] = goal ? contractMod.DEFAULT_GOAL_HEX : fg;
-        // "Fresh install" is more than the schema: finishing the first-run wizard
-        // applies the defaults-policy table, so the reset lands on those rows too —
-        // AQI's highlight-on-with-warn-outline, seeded through the very hooks
-        // flipping the controls by hand would run. (A wizard-SKIPPED install never
-        // got them; converging its reset on the intended out-of-box state is the
-        // deliberate choice here.) applyDefaults is the policy module's one
-        // interpreter (set order, dependsOn anchoring, seedVia write-through —
-        // shared with the wizard finish); this caller contributes only the veto
-        // scoping it to THIS kind's threshold-family keys, Bold deliberately
-        // excluded (the reset leaves Bold alone — its row sits outside the
-        // Thresholds group). Unlike the wizard, no not-still-default guard:
-        // reset IS the user discarding their choices for this kind.
-        var policy = (typeof require !== 'undefined')
-            ? require('./defaults-policy.js')
-            : (typeof window !== 'undefined' ? window.DefaultsPolicy : null);
-        if (policy) {
-            policy.applyDefaults({wizard: true, env: env, choices: S}, {
-                mayWrite: function (name) {
-                    return name.indexOf('thresh' + stem) === 0
-                        && name !== 'thresh' + stem + 'BoldMode';
-                },
-                getHook: function (name) {
-                    return PConf.onChange && PConf.onChange.get
-                        ? PConf.onChange.get(name) : null;
-                }
-            });
-        }
+        // The first-run wizard's defaults-policy table has no row for any of these
+        // keys (its threshold rows are Bold modes and a weather kind's highlight
+        // switch, both outside this group), so the schema defaults ARE the
+        // out-of-box state and nothing else lands here.
         return true;
     };
 
@@ -664,19 +532,20 @@ if (typeof require !== 'undefined') {
         return graphNightTintHex(S, args.scope, args.suffix);
     });
 
-    // Row badge for the Graph-colors card (schema.js' GRAPH_COLOR_ROWS): the preview
-    // between a row's label and its Edit button.
+    // Row badge for the Graph colors dialog (schema.js' GRAPH_COLOR_ROWS): the preview
+    // between a row's label and its chevron.
     //
     // ONE DOT PER PICKER in that row's sheet — three for a metric (line, fill, night
     // tint), one for feels (which never fills, so line-style hands it no fill or tint
     // key) and two for the night band — so the badge is the row's whole colour state
     // rather than a sample of it, and the dot count also says how many pickers are
-    // behind Edit. The threshold badge shows two dots for the same reason: a threshold
+    // behind the row. The threshold badge shows two dots for the same reason: a threshold
     // kind owns exactly two colours.
     //
     // The last dot of a multi-dot row is drawn as a ring purely so several chips read
-    // as several colours instead of one bar; unlike the threshold badge's ring — which
-    // is the watch's own outline/filled language — it carries no meaning of its own.
+    // as several colours instead of one bar; unlike the threshold badge's ring — the
+    // watch's own outline (a warn look) against its fill — it carries no meaning of
+    // its own.
     //
     // Polarity: the sheet's pickers gate on the RAW `theme` value, so the badge must
     // fold nothing either — hence themePolarity true even when a B&W-polarity watch is
@@ -713,15 +582,16 @@ if (typeof require !== 'undefined') {
     });
 
     // Row badge for a `sheet` row whose sheet holds ONE rgb control — schema.js'
-    // Nighttime card, whose "Color" row opens the dim-backlight sliders. It reports a
-    // `chip`, not `dots`: the engine prints that as the full swatch-and-hex readout the
-    // sheet itself shows above the sliders (html.js swatchReadout, one builder for both),
-    // so the row names the colour it is set to instead of hinting at it with a 9px pip.
-    // The graph rows keep dots because each of them previews two or three colours at
-    // once and three readouts would not fit a row — chip is the ONE-colour shape.
+    // Theme & night card, whose "Dim backlight color" row opens the dim-backlight
+    // sliders. It reports a `chip`, not `dots`: the engine prints that as the full
+    // swatch-and-hex readout the sheet itself shows above the sliders (html.js
+    // swatchReadout, one builder for both), so the row names the colour it is set to
+    // instead of hinting at it with a 9px pip. The graph rows keep dots because each of
+    // them previews two or three colours at once and three readouts would not fit a row
+    // — chip is the ONE-colour shape.
     //
     // The hex is derived, not stored: the value is the control's "r,g,b" wire string,
-    // parsed by range-control.js' own parser so an unset or bruised value (blank, two
+    // parsed by rgb-control.js' own parser so an unset or bruised value (blank, two
     // channels, 300) badges exactly the colour the sliders would open on rather than a
     // second reading of the format.
     /**
@@ -736,8 +606,8 @@ if (typeof require !== 'undefined') {
      *     when the row named no key to preview.
      */
     PConf.badgeResolvers.register('rgbSwatch', function (S, env, args) {
-        if (!rangeControl || !args || !args.key) { return null; }
-        var hex = rangeControl.rgbHex(rangeControl.parseRgb(S ? S[args.key] : null,
+        if (!rgbControl || !args || !args.key) { return null; }
+        var hex = rgbControl.rgbHex(rgbControl.parseRgb(S ? S[args.key] : null,
             {defaultValue: args.defaultValue}));
         // The readout is aria-hidden (it is a preview, and its hex would be read out a
         // character at a time), so ariaNote stays the announcement of the colour — the
@@ -745,25 +615,32 @@ if (typeof require !== 'undefined') {
         return {label: 'Edit', ariaNote: hex, chip: hex};
     });
 
-    // Reset-to-defaults for the whole status-bar card (the text button in the Watch
-    // tab's intro — schema.js watchStatus): every slot of every bar back to its
-    // platform-aware default (the same statusSlotDefault seed a fresh install gets,
-    // hrDefaults flavor included), and every other covered key back to ITS SCHEMA
-    // DEFAULT, resolved through the engine — no value is mirrored here, because
+    // Reset-to-defaults for every status bar (the "Reset status bars to defaults" link
+    // row in the Status bars tab's All status bars card — schema-gates.js linkRow): every slot
+    // of every bar back to its platform-aware default (the same statusSlotDefault seed a
+    // fresh install gets, hrDefaults flavor included), and every other covered key back
+    // to ITS SCHEMA DEFAULT, resolved through the engine — no value is mirrored here, because
     // mirrored literals drift when the schema changes: the wind arrow's hardcoded
     // false outlived the schema flipping it to true, and the non-uniform "Show
     // unit" defaults only ever escaped the same fate because a test pinned them.
     // Covered alongside the slots: the master Bold row, each kind's Bold mode
     // (their sheets carry no reset of their own), the per-kind display options
-    // (the temp slot's Temp/Feels/Both and the UV slot's Now/Day max/Both pills
+    // (the temp slot's Temp/Feels/Both and the day-max kinds' Now/Alert/Both pills
     // with the rows shaping their pair and UV's tomorrow mark, the wind/gust
     // direction arrows), the date formats and the Show-unit toggles
-    // (the threshold sheets' own reset deliberately covers only the thresholds).
-    // Deliberately untouched:
-    // thresholds, colors, outline toggles and scale maxes (every sheet has its own
-    // reset button), and the countdown companion dates (inert once a slot leaves
-    // 'countdown'). Silent beyond the re-render, like resetThresholds above — the
-    // engine has no shared toast for [data-action] buttons.
+    // (the Alert levels group's own reset deliberately covers only the levels),
+    // each weather kind's slot Highlight switch (a slot-sheet row, like Bold — a
+    // goal kind's rides its Goals header and that group's reset), each bar's two Alerts
+    // sides (on-demand.js DEFAULTS' eight side lists — each bar's Alerts nav row on
+    // that tab shows them; the Alerts tab's reset restores them too), and, on aplite
+    // only (a watch without On demand), the Watch Status Bar's other rows: 'Show battery
+    // below 10%' (batteryLowOnly), the quiet-time icon (showQt), the bluetooth vibration
+    // (vibe) and icon (btIcons) — elsewhere those keys belong to the Alerts tab.
+    // Deliberately untouched: thresholds, colors, warn looks and scale maxes (every sheet
+    // has its own reset button), the On demand items' own settings (the About alerts
+    // card's reset, resetOnDemand below), and the countdown companion dates (inert once a
+    // slot leaves 'countdown'). Silent beyond the re-render, like resetThresholds above —
+    // the engine has no shared toast for [data-action] buttons.
     /**
      * @param {*} arg Unused (the engine passes the button's data-action-arg).
      * @param {Object} S Live settings state (mutated in place).
@@ -788,6 +665,12 @@ if (typeof require !== 'undefined') {
             // ...and every day-max kind's mode, pair and tomorrow-mark rows (UV,
             // wind, gusts, AQI), from the catalog's one table.
             .concat(statusLineCatalog.dayMaxSettingKeys());
+        // The Watch Status Bar's own toggles exist only where On demand does not.
+        if (env && env.onDemand === false) {
+            schemaKeys.push('batteryLowOnly', 'showQt', 'vibe', 'btIcons');
+        }
+        // Every bar's On demand sides: the items placed there.
+        schemaKeys = schemaKeys.concat(onDemandListKeys());
         // dateSlotFullFormat is the one key here whose fresh-install value is
         // COUNTRY-derived, not the schema default: the wizard writes
         // mapCountry().dateSlotFullFormat ('slash' for US installs). Resetting
@@ -801,11 +684,10 @@ if (typeof require !== 'undefined') {
         for (var u = 0; u < statusLineCatalog.UNIT_TOGGLES.length; u++) {
             schemaKeys.push(statusLineCatalog.UNIT_TOGGLES[u].key);
         }
-        var contractMod = thresholdContract();
-        if (contractMod) {
-            for (var k = 0; k < contractMod.KINDS.length; k++) {
-                schemaKeys.push('thresh' + contractMod.KINDS[k].key + 'BoldMode');
-            }
+        for (var k = 0; k < thresholds.KINDS.length; k++) {
+            var kd = thresholds.KINDS[k];
+            schemaKeys.push('thresh' + kd.key + 'BoldMode');
+            if (thresholds.isWeatherKind(kd)) { schemaKeys.push('thresh' + kd.key + 'On'); }
         }
         for (var n = 0; n < schemaKeys.length; n++) {
             S[schemaKeys[n]] = defaultOf(schemaKeys[n]);
@@ -813,51 +695,166 @@ if (typeof require !== 'undefined') {
         return true;
     };
 
-    // Pencil badge (engine item.editBadgeFrom): when the slot's current value is an
-    // ENABLED threshold kind, the pencil gains a warn-color ring + danger-color dot.
-    // Same env gate + code→kind mapping as the sheet resolver above; enabled comes
-    // from the contract's kindConfig — the rule the watch actually packs with.
+    /**
+     * The eight side lists (on-demand.js itemsKey), in BARS × SIDES order: where each item
+     * shows, which both resets restore.
+     * @returns {string[]} The keys.
+     */
+    function onDemandListKeys() {
+        var keys = [];
+        for (var b = 0; b < onDemand.BARS.length; b++) {
+            for (var sd = 0; sd < onDemand.SIDES.length; sd++) {
+                keys.push(onDemand.itemsKey(onDemand.BARS[b].bar, onDemand.SIDES[sd]));
+            }
+        }
+        return keys;
+    }
+
+    // Reset-to-defaults for the Alerts tab (the link row under the About alerts card's
+    // intro — schema-gates.js linkRow, alerts-schema.js cardSections): the items' own settings back to their
+    // schema defaults, via the engine's resolver like resetStatusSlots above — the Battery
+    // item's warn level and Look, the Bluetooth item's Show and vibration, the rain alert's
+    // window and look, each metric alert's Look, Days and tomorrow mark (the contract's
+    // ALERT_KINDS, the five the tab lists) — and where each item shows: the eight side
+    // lists its sheets' Shows on grids write (the Status bars reset restores those too, as
+    // its bars' Alerts rows show them). Deliberately untouched: the levels, warn looks and
+    // colours (each sheet's Alert levels header has its own reset, which also serves the
+    // slots' highlight).
+    /**
+     * @param {*} arg Unused (the engine passes the button's data-action-arg).
+     * @param {Object} S Live settings state (mutated in place).
+     * @param {Object} env Platform env (unused).
+     * @param {function(string): *} defaultOf The engine's stored-shape schema
+     *     default resolver (defaultAsStored).
+     * @returns {boolean} true so the engine re-renders with the restored state.
+     */
+    PConf.actions.resetOnDemand = function (arg, S, env, defaultOf) {
+        if (!S || !defaultOf) { return false; }
+        var keys = ['batteryLowLevel', 'batteryLowDisplay', 'btIcons', 'vibe',
+            'rainCountdownHorizon', 'rainAlertDisplay'];
+        for (var k = 0; k < thresholds.ALERT_KINDS.length; k++) {
+            var stem = thresholds.ALERT_KINDS[k].key;
+            keys.push('alert' + stem + 'Display', 'alert' + stem + 'Days',
+                'alert' + stem + 'NextDayMark');
+        }
+        keys = keys.concat(onDemandListKeys());
+        for (var n = 0; n < keys.length; n++) {
+            S[keys[n]] = defaultOf(keys[n]);
+        }
+        return true;
+    };
+
+    /**
+     * The warn pip of a threshold badge, in the watch's own language: the kind's
+     * warn look decides the shape — no pip for 'none' (the watch draws no box at
+     * warn), a ring for 'outline', a filled dot for 'fill' — painted in the warn
+     * colour (the theme text colour while it is auto). The look is the contract's
+     * resolution (warnLookFor), so an unset key previews the platform default.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (env.color picks the default look).
+     * @param {string} stem Kind key stem, e.g. 'Uv'.
+     * @returns {?{color: string, ring: (boolean|undefined)}} The pip, or null for none.
+     */
+    function warnPip(S, env, stem) {
+        var look = thresholds.warnLookFor(S, stem, env ? env.color : undefined);
+        if (look === 'none') { return null; }
+        var color = thresholdDisplayColor(S, stem, 'Warn', env);
+        if (color === null) { return null; }
+        return look === 'outline' ? {color: color, ring: true} : {color: color};
+    }
+
+    /**
+     * The badge dots of an enabled kind: the warn pip (warnPip — absent for the
+     * 'none' look) then the danger dot (danger always fills).
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {string} stem Kind key stem.
+     * @returns {Object[]} Ordered dot list.
+     */
+    function levelDots(S, env, stem) {
+        var pip = warnPip(S, env, stem);
+        var danger = {color: thresholdDisplayColor(S, stem, 'Danger', env)};
+        return pip ? [pip, danger] : [danger];
+    }
+
+    /**
+     * The Edit-button badge of one threshold kind's slot: the warn pip + danger-color
+     * dot (levelDots) while the kind's highlight is ENABLED (the contract's
+     * kindConfig — the rule the watch actually packs with), plus the bold 'B'.
+     * (The Alerts tab's rows badge the alert instead — alerts-page.js
+     * alertLevelBadge, with the same levelDots.)
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (callers gate on env.thresholds; env.color
+     *     picks the default warn look).
+     * @param {number} kindIndex Index into the contract's KINDS.
+     * @returns {Object} Badge state for the engine's editBadgeFrom.
+     */
+    function penStateForKind(S, env, kindIndex) {
+        var key = thresholds.KINDS[kindIndex].key;
+        var enabled = thresholds.kindConfig(S, kindIndex).enabled;
+        // EFFECTIVE always-bold, not the stored ladder alone: the Status bars
+        // tab's master row packs every kind's bold cell as always at wire time
+        // (status-wire.js buildSettingsBlob) without touching the stored
+        // per-kind values, and the badge previews what the watch will
+        // actually render — so the master lights every slot's B.
+        var boldAlways = (S.statusBoldAll === 'all'
+            || S['thresh' + key + 'BoldMode'] === 'always');
+        var notes = [];
+        if (enabled) { notes.push('highlighting on'); }
+        if (boldAlways) { notes.push('always bold'); }
+        return {
+            // The sheet-trigger BUTTON label. The slot sheet configures the whole
+            // slot (bold + thresholds), not just the warn/goal pair, so the button
+            // says what it does rather than naming one section.
+            // A disabled kind still gets the labeled button — it just badges no
+            // dots and adds no aria note, since there is no state to preview.
+            label: 'Edit',
+            ariaNote: notes.join(', '),
+            bold: boldAlways,
+            // The watch's own language: warn in its look, danger FILLED.
+            dots: enabled ? levelDots(S, env, key) : []
+        };
+    }
+
+    // Edit-button badge (engine item.editBadgeFrom): when the slot's current value is an
+    // ENABLED threshold kind, the row shows a warn-color ring + danger-color dot before
+    // its Edit button, and a 'B' when the slot prints always-bold. Same env gate +
+    // code→kind mapping as the sheet resolver above.
     PConf.badgeResolvers.register('thresholdPenState', function (S, env, args) {
         if (!env || !env.thresholds) { return null; }
-        var contract = thresholdContract();
-        if (!contract) { return null; }
         var code = S[args.messageKey];
-        for (var i = 0; i < contract.KINDS.length; i++) {
-            if (contract.KINDS[i].code !== code) { continue; }
-            var enabled = contract.kindConfig(S, i).enabled;
-            // EFFECTIVE always-bold, not the stored ladder alone: the Watch-tab
-            // master row packs every kind's bold cell as always at wire time
-            // (status-thresholds.js' settings-blob packer — not named here: this
-            // comment ships into the flat page, and a page-side occurrence of
-            // that name trips the never-called-from-page guard) without touching
-            // the stored per-kind values, and the badge previews what the watch
-            // will actually render — so the master lights every slot's B.
-            var boldAlways = S.statusBoldAll === 'all'
-                || S['thresh' + contract.KINDS[i].key + 'BoldMode'] === 'always';
-            var notes = [];
-            if (enabled) { notes.push('highlighting on'); }
-            if (boldAlways) { notes.push('always bold'); }
-            var penWarn = thresholdDisplayColor(S, contract.KINDS[i].key, 'Warn');
-            return {
-                // The slot's sheet-trigger BUTTON label. The sheet configures the
-                // whole slot now (bold + thresholds), not just the warn/goal pair,
-                // so the button says what it does rather than naming one section.
-                // A disabled kind still gets the labeled button — it just badges no
-                // dots and adds no aria note, since there is no state to preview.
-                label: 'Edit',
-                ariaNote: notes.join(', '),
-                bold: boldAlways,
-                // The watch's own language: warn is an OUTLINE, danger is FILLED.
-                // No warn outline configured -> neutral gray ring (the enabled badge
-                // still reads; the ring hue just carries no color meaning then).
-                dots: enabled ? [
-                    { color: penWarn === null ? '#8A8E97' : penWarn, ring: true },
-                    { color: thresholdDisplayColor(S, contract.KINDS[i].key, 'Danger') }
-                ] : []
-            };
+        for (var i = 0; i < thresholds.KINDS.length; i++) {
+            if (thresholds.KINDS[i].code === code) { return penStateForKind(S, env, i); }
         }
         return null;
     });
+
+    /**
+     * The layout preset's hint for 'Weather only', whose Default view differs per radar
+     * mode (view-cycle.js buildViewCycle): the schema's text for the stored radarMode,
+     * an absent one read as the radio's default ('graph'). Every other preset answers
+     * null, so its row keeps the static hintByValue.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{value: string, byRadar: Object}} args The row's shown preset + the
+     *     per-radarMode texts (schema.js).
+     * @returns {?string} The hint, or null for the static one.
+     */
+    function weatherOnlyHint(S, env, args) {
+        if (!args || args.value !== 'weatherOnly' || !args.byRadar) { return null; }
+        var mode = (S && S.radarMode) || 'graph';
+        var text = args.byRadar[mode];
+        if (!text) { return null; }
+        // "Flick to health" only while a Health view exists to flick to: the health
+        // bar or graph (healthMode 'status' / 'all', the schema default) on a watch
+        // with health sensors. 'slot' puts health in the status slots and adds no view,
+        // so the Weather-only cycle is then its Default view alone (view-cycle.js).
+        var healthMode = (S && S.healthMode) || 'all';
+        var flick = (healthMode === 'status' || healthMode === 'all')
+            && !(env && env.health === false);
+        return flick ? text + ' Flick to health.' : text;
+    }
+    PConf.hintResolvers.register('weatherOnlyHint', weatherOnlyHint);
 
     var viewCycleLib = (typeof require !== 'undefined')
         ? require('../view-cycle.js') : window.VIEW_CYCLE;
@@ -890,8 +887,8 @@ if (typeof require !== 'undefined') {
     // editor opens showing exactly what the watch shows and an untouched session
     // compiles back byte-identical (nothing transmits). Re-picking a preset later
     // leaves the keys stored (dormant) — re-entering Custom restores the user's work.
-    // Seeding is ALL the pick does: the editor opens only through the dedicated Edit
-    // row (the schema's data-action="openViewEditor" button), never automatically.
+    // Seeding is ALL the pick does: the editor opens only through the dedicated "Edit
+    // views" row (the schema's openViewEditor button row), never automatically.
     PConf.onChange.register('layoutPresetChanged', function (S, oldValue, newValue) {
         if (newValue !== 'custom') { return; }
         viewCycleLib.seedCustomKeys(S, oldValue);
@@ -950,8 +947,8 @@ if (typeof require !== 'undefined') {
     /**
      * The interval a budget read-out computes with: the one Save will store (interval-budget.js
      * fitInterval), not the raw stored value. With a "Fit update interval" guard on, a stored
-     * interval the budget no longer affords (radar picked on the Radar tab, the interval set on
-     * General) is replaced at Save; warning "over budget" about it would contradict the toggle.
+     * interval the budget no longer affords (radar picked in Graphs › Rain radar, the interval
+     * set in Setup › Weather data) is replaced at Save; warning "over budget" about it would contradict the toggle.
      *
      * @param {Object} state Settings state.
      * @returns {number} Minutes.
@@ -1004,8 +1001,23 @@ if (typeof require !== 'undefined') {
     PConf.blocks.register('tomorrowioBudget', tomorrowioBudgetBlock);
 
     /**
-     * Monthly-usage info block under the Rainbow API key field (Rainbow with "Use your
-     * own key" on): the free plan's monthly ceiling, the user's projected month at the
+     * Tomorrow.io's usage on the key status line under the Weather provider row
+     * (key-status.js, the source's `usage`): the calls a day the current settings come to,
+     * the read-out's own figure, against the free plan's daily limit — "~96 of 500 calls a
+     * day". A projection: the phone does not count the calls it makes.
+     * @param {Object} state Settings state.
+     * @returns {?string} The line, or null when no tomorrow.io call is made.
+     */
+    function tomorrowioUsageLine(state) {
+        var B = tomorrowioBudget;
+        if (B.callsPerCycle(state) === 0) { return null; }
+        return '~' + Math.round(B.dailyCalls(state, readoutInterval(state))) + ' of ' + B.LIMIT_DAY + ' calls a day';
+    }
+    if (keyStatus) { keyStatus.registerUsage('tomorrowio', tomorrowioUsageLine); }
+
+    /**
+     * Monthly-usage info block under the Rainbow API key field ("Rainbow (own key)"'s key
+     * sheet): the free plan's monthly ceiling, the user's projected month at the
      * current settings, a ✓/✗ verdict and the derived sleep->cadence unlock rule. Unlike tomorrow.io's block
      * there is no "with radar" qualifier (every Rainbow call is a radar call) and no
      * hourly heads-up (Rainbow documents no hourly limit). Recomputes on every render.
@@ -1033,15 +1045,31 @@ if (typeof require !== 'undefined') {
     }
     PConf.blocks.register('rainbowBudget', rainbowBudgetBlock);
 
+    /**
+     * Rainbow's usage on the key status line under the Radar provider row (key-status.js,
+     * the "Rainbow (own key)" source's `usage`): the calls a month the current settings
+     * come to, the read-out's own figure, against the free plan's monthly limit — "~2,976
+     * of 5,000 calls a month". A projection: the phone does not count the calls it makes.
+     * @param {Object} state Settings state.
+     * @returns {?string} The line, or null when no call is billed to the user's key.
+     */
+    function rainbowUsageLine(state) {
+        var B = rainbowBudget;
+        if (B.callsPerCycle(state) === 0) { return null; }
+        return '~' + withThousands(Math.round(B.monthlyCalls(state, readoutInterval(state))))
+            + ' of ' + withThousands(B.LIMIT_MONTH) + ' calls a month';
+    }
+    if (keyStatus) { keyStatus.registerUsage('rainbow', rainbowUsageLine); }
+
     // Update-interval ladder for fetchIntervalMin: the entries that fit every active
     // budget guard (tomorrow.io, Rainbow own key) — the intersection. A guard is active
     // while its "Fit update interval" toggle is on and its provider makes calls; with
     // none active (or its toggle off) the full ladder passes through, and the info
     // block shows the red warning instead. If the stored interval drops out, the
     // engine's resolveRowItem snaps it to the item default ('15') — but only while the
-    // row renders (General tab), so onbuild.js's onSubmit applies the same fit, from the
+    // row renders (Setup tab), so onbuild.js's onSubmit applies the same fit, from the
     // same interval-budget.js, at save time for a change made on another tab (the radar
-    // provider/mode, on the Radar tab).
+    // provider in Graphs › Rain radar, the radar mode in Watchface › Views).
     PConf.optionsResolvers.register('fetchIntervalBudget', function (S) {
         return intervalBudget.fittingOptions(S || {});
     });
@@ -1049,6 +1077,7 @@ if (typeof require !== 'undefined') {
     // "(Recommended)" markers on the weather + radar provider dropdowns: the option matching the
     // country-derived best pick (holidayCountry, the wizard's own source) is flagged. Same mapping
     // the wizard applies on a fresh install, so the dropdown hint and the wizard can't disagree.
+    // A country's Rainbow pick is 'rainbow', "Rainbow (limited)": the radar that needs no key.
     PConf.recommendResolvers.register('recommendedWeatherProvider', function (S) {
         return CD.mapCountry(S && S.holidayCountry).provider;
     });
@@ -1057,42 +1086,225 @@ if (typeof require !== 'undefined') {
     });
 
     /**
-     * Whether the Rainbow radar runs on the user's own key: "Use your own key" on AND a key
-     * that isn't blank once trimmed (onbuild.js trims it on Save). The switch on with the
-     * field still empty is not "in use" yet, so the option stays the limited one until a
-     * key is there.
-     *
-     * @param {Object} S Settings state (rainbowOwnKey, rainbowApiKey); may be null.
-     * @returns {boolean} True when the own key is in use.
+     * The amber note under the Radar provider row (its staticText's textFrom): the picked
+     * source's missing key (key-status.js keyMissingNote), else — for DWD or Met.no — the
+     * last update's location outside that source's area, or for DWD inside it with no
+     * radar data from DWD (its 404s in a row) (radar-coverage.js note, from the phone's
+     * record userData.radarCoverage). '' when neither: no note.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{picker: string}} args The picker's key ('radarProvider'), for keyMissingNote.
+     * @returns {string} The note (plain text), or ''.
      */
-    function rainbowOwnKeyInUse(S) {
-        return Boolean(S) && S.rainbowOwnKey === true
-            && typeof S.rainbowApiKey === 'string' && S.rainbowApiKey.trim() !== '';
+    function radarProviderNote(S, env, args) {
+        var ud = (typeof INJECTED_USERDATA !== 'undefined' && INJECTED_USERDATA) || {};
+        return keyStatus.keyMissingNote(S, env, args)
+            || radarCoverage.note((S || {}).radarProvider, ud.radarCoverage);
+    }
+    PConf.hintResolvers.register('radarProviderNote', radarProviderNote);
+
+    // What the Alerts tab's resolvers (alerts-page.js, which loads after this file) read
+    // from the threshold machinery above: a kind's slider geometry, for the unit a metric
+    // alert's levels print in, and the badge dots a slot's Edit button draws, which an
+    // alert's Alerts-tab row draws too.
+    PConf.thresholdLevels = {rangeOf: rangeOf, levelDots: levelDots};
+
+    // ---- The Graphs tab's line rows and dialogs ----
+
+    // The graph metrics and line styles in picker order, as the line pickers offer them
+    // (forecast-hints.js, which loads ahead of this file in both contexts): a line's
+    // summary names its metric and style by the labels its pickers show.
+    var FORECAST_METRICS = PConf.forecastLineOptions.metrics;
+    var LINE_STYLE_OPTIONS = PConf.forecastLineOptions.styles;
+
+    /**
+     * The label a picker shows for a value.
+     * @param {Array<Array<string>>} options [label, value] pairs.
+     * @param {*} value The value.
+     * @returns {?string} Its label, or null when no option carries it.
+     */
+    function optionLabel(options, value) {
+        for (var i = 0; i < (options || []).length; i++) {
+            if (options[i][1] === String(value)) { return options[i][0]; }
+        }
+        return null;
+    }
+    // The Alerts tab's resolvers (alerts-page.js, which loads after this file) print their
+    // Days, window and look labels with this same lookup.
+    PConf.optionLabel = optionLabel;
+
+    /**
+     * A forecast line's nav-row summary: its metric and style by the labels their pickers
+     * show, ", filled" for the Main metric's area fill — "Precipitation % · Thin line,
+     * filled" — or "Off". The style is the one the watch draws (line-style.js
+     * lineStyleValue: a stored stripe on a metric that cannot be one draws as a line), and
+     * a watch without style pickers (env.lineStyles false) names the metric alone.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{lineKey: string, main: boolean}} args The line's picker key; whether it is
+     *     the Main metric (the one line that fills).
+     * @returns {string} The summary.
+     */
+    function lineSummary(S, env, args) {
+        var st = S || {}, a = args || {};
+        var metric = st[a.lineKey];
+        if (!metric || metric === 'off') { return 'Off'; }
+        var name = optionLabel(FORECAST_METRICS, metric) || String(metric);
+        if (env && env.lineStyles === false) { return name; }
+        var style = lineStyle.lineStyleValue(st, a.lineKey + 'Style');
+        var text = name + ' · ' + (optionLabel(LINE_STYLE_OPTIONS, style) || style);
+        var fills = a.main && st.secondaryLineFill !== false && !lineStyle.isTempAxisMetric(metric)
+            && !lineStyle.isStripeValue(style);
+        return fills ? text + ', filled' : text;
+    }
+    PConf.hintResolvers.register('lineSummary', lineSummary);
+
+    /**
+     * A forecast line's colour swatch. On its nav row: the line colour of its metric in
+     * the theme being edited, one dot. On the colours row in its dialog (args.all), which
+     * opens the same sheet as the metric's Graph colors row: that row's whole preview, one
+     * dot per picker (graphColorSwatch). None for a line that is off, on a B&W watch or
+     * theme.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{lineKey: string, all: (boolean|undefined)}} args The line's picker key;
+     *     whether to preview every colour of the metric's sheet.
+     * @returns {?Object} Badge state, or null.
+     */
+    function lineSwatch(S, env, args) {
+        var st = S || {};
+        var metric = st[(args || {}).lineKey];
+        if (!lineStyle || !env || !env.color || !metric || metric === 'off') { return null; }
+        if (st.theme === 'bw' || st.theme === 'bw-light') { return null; }
+        if (args.all) { return PConf.badgeResolvers.get('graphColorSwatch')(st, env, {scope: metric}); }
+        var sfx = lineStyle.renderContextFor(st, {color: true, themePolarity: true}).suffix;
+        var color = colorHexOf(st[lineStyle.graphColorKey(metric, 'Line', sfx)],
+            lineStyle.graphColorDefault(metric, 'Line', sfx, st));
+        return {label: 'Edit', dots: [{color: color}]};
+    }
+    PConf.badgeResolvers.register('lineSwatch', lineSwatch);
+
+    /**
+     * The colours row in a line's dialog opens the Graph colors sheet of the metric the
+     * line draws (args.sheets: schema.js GRAPH_COLOR_SHEETS); none for a line that is off.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{messageKey: string, sheets: Object}} args The line's picker key and the
+     *     metric → sheet table.
+     * @returns {?string} The sheet id, or null.
+     */
+    function lineColorSheet(S, env, args) {
+        var a = args || {};
+        var entry = (a.sheets || {})[(S || {})[a.messageKey]];
+        return entry ? entry.sheetId : null;
+    }
+    PConf.sheetResolvers.register('lineColorSheet', lineColorSheet);
+
+    /**
+     * That row's label: "<Metric> colors", the title of the sheet it opens.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{lineKey: string, sheets: Object}} args As lineColorSheet.
+     * @returns {?string} The label, or null for the static one.
+     */
+    function lineColorLabel(S, env, args) {
+        var a = args || {};
+        var entry = (a.sheets || {})[(S || {})[a.lineKey]];
+        return entry ? entry.label + ' colors' : null;
+    }
+    PConf.hintResolvers.register('lineColorLabel', lineColorLabel);
+
+    /**
+     * Whether the page draws in colour: a colour watch under a colour theme.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @returns {boolean}
+     */
+    function colorThemeOn(S, env) {
+        var theme = (S || {}).theme;
+        return Boolean(env && env.color !== false) && theme !== 'bw' && theme !== 'bw-light';
     }
 
-    // The radar picker's options (schema.js RADAR_PROVIDER_OPTIONS, handed over as
-    // args.options) with the Rainbow entry named for the key it runs on: its schema label
-    // ("Rainbow") once the user's own key is in use, "Rainbow (limited)" on the shared key
-    // every user splits — switch off, or on with no key yet. Value, desc and order stay
-    // as they are, so hintByValue, the showWhen gates and the "(Recommended)" marker key
-    // off the same 'rainbow' value in both states (for the bracketed name the marker
-    // leads the desc line instead — engine.js renderSelectOptions).
-    PConf.optionsResolvers.register('radarProviderOptions', function (S, env, args) {
-        var options = (args && args.options) || [];
-        if (rainbowOwnKeyInUse(S)) { return options.slice(); }
-        return options.map(function (o) {
-            return o[1] === 'rainbow' ? [o[0] + ' (limited)'].concat(o.slice(1)) : o;
+    /**
+     * The Bars row's info text: what the bars show, then how they scale — the colour
+     * note on a colour theme, the B&W legend otherwise (args, schema.js SCALE_NOTE /
+     * BW_LEGEND). Only while the bars are on; null (the row's hintByValue) otherwise.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{value: string, colorNote: string, bwNote: string}} args The row's value
+     *     and the two notes.
+     * @returns {?string} The hint, or null.
+     */
+    function barScaleHint(S, env, args) {
+        var a = args || {};
+        if (a.value !== 'rain') { return null; }
+        return 'Adds bars that represent the rain amount in one hour. '
+            + (colorThemeOn(S, env) ? a.colorNote : a.bwNote);
+    }
+    PConf.hintResolvers.register('barScaleHint', barScaleHint);
+
+    /**
+     * The Radar color row's info text: the colour's own words (args.staticHint, the row's
+     * hintByValue entry the engine hands every hint resolver), then the bar scale note.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{staticHint: (string|undefined), note: string}} args The row's own hint for
+     *     the shown value, and the note.
+     * @returns {string} The hint.
+     */
+    function radarColorHint(S, env, args) {
+        var a = args || {};
+        return a.staticHint ? a.staticHint + '<br>' + a.note : a.note;
+    }
+    PConf.hintResolvers.register('radarColorHint', radarColorHint);
+
+    // Reset-to-defaults for EVERY graph colour (the Graph colors dialog's link): each
+    // metric's sheet keeps its own reset (resetGraphColors, its key list in the button's
+    // arg); this one walks the full key set line-style.js hands out, so it cannot miss a
+    // row the schema adds. Each key lands on its schema default through the engine.
+    /**
+     * @param {string} arg Unused.
+     * @param {Object} S Live settings state (mutated in place).
+     * @param {Object} env Platform env (unused).
+     * @param {function(string): *} defaultOf The engine's stored-shape default resolver.
+     * @returns {boolean} true so the engine re-renders.
+     */
+    PConf.actions.resetAllGraphColors = function (arg, S, env, defaultOf) {
+        if (!S || !defaultOf || !lineStyle) { return false; }
+        var scopes = FORECAST_METRICS.map(function (m) { return m[1]; }).concat(['night']);
+        scopes.forEach(function (scope) {
+            lineStyle.graphColorRoles(scope).forEach(function (role) {
+                ['Dark', 'Light'].forEach(function (sfx) {
+                    var key = lineStyle.graphColorKey(scope, role, sfx);
+                    var d = defaultOf(key);
+                    if (typeof d !== 'undefined') { S[key] = d; }
+                });
+            });
         });
-    });
+        return true;
+    };
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
+            radarProviderNote: radarProviderNote,
+            lineSummary: lineSummary,
+            lineSwatch: lineSwatch,
+            lineColorSheet: lineColorSheet,
+            lineColorLabel: lineColorLabel,
+            barScaleHint: barScaleHint,
+            radarColorHint: radarColorHint,
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
+            tomorrowioUsageLine: tomorrowioUsageLine,
             rainbowBudgetBlock: rainbowBudgetBlock,
-            thresholdRangeCfg: thresholdRangeCfg,
-            forecastMetricHint: forecastMetricHint,
-            lineStyleHint: lineStyleHint,
-            STRIPE_SCALE: STRIPE_SCALE
+            rainbowUsageLine: rainbowUsageLine,
+            thresholdRangeCfg: thresholdRangeCfg
         };
+    }
+    // Under Node, requiring this file registers the Alerts tab's resolvers too, as it does
+    // the preview blocks and the when resolvers (top of the file). Unlike those, they read
+    // PConf.thresholdLevels while their own body runs, so they load here, after it is set.
+    // The webview concatenates alerts-page.js right after this file instead.
+    if (typeof require !== 'undefined') {
+        require('./alerts-page.js');
     }
 })();

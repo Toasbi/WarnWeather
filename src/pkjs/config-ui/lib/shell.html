@@ -21,6 +21,9 @@
     --ctl-line-soft: rgba(255,255,255,0.1); --swatch-line: rgba(255,255,255,0.18);
     --chip-line: rgba(255,255,255,0.25);
     --screen-line: rgba(255,255,255,0.14); --link: #FF6A52;
+    /* the info box's amber (staticText style: 'info', and the notice panel's info items):
+       rule 6.1:1 against the card, box text 6.0:1 */
+    --info-rule: #FFB02E; --info-tint: rgba(255,176,46,0.12);
     font-family: 'Inter', -apple-system, system-ui, sans-serif;
     color: #F0F2F6; color: var(--fg);
     max-width: 460px; margin: 0 auto;
@@ -37,6 +40,8 @@
     --ctl-line-soft: rgba(0,0,0,0.11); --swatch-line: rgba(0,0,0,0.18);
     --chip-line: rgba(0,0,0,0.24);
     --screen-line: rgba(0,0,0,0.16); --link: #D93A24;
+    /* light amber: rule 3.65:1 against the card (the 3:1 non-text minimum), text ~8.6:1 */
+    --info-rule: #B86E00; --info-tint: rgba(217,142,4,0.12);
   }
   /* accent — flat Pebble-app red (#FA4A35), matching the watchface store listing */
   /* header + tabs pinned together as one bar while the body scrolls */
@@ -49,6 +54,10 @@
   .tabs::-webkit-scrollbar { display: none; }
   .tab { flex: none; padding: 8px 15px; border-radius: 11px; font: 700 13px 'Inter', sans-serif; cursor: pointer; white-space: nowrap; border: 1px solid var(--tab-line); background: var(--tab); color: var(--muted); transition: background .15s, color .15s, border-color .15s; }
   .tab.on { background: linear-gradient(135deg, #FA4A35, #D93A24); color: #FFFFFF; border-color: transparent; box-shadow: 0 3px 10px rgba(250,74,53,0.30); }
+  /* a tab holding a row that needs attention (attentionFrom): a small dot in the info amber
+     after its label; on the red active tab it gets a white ring so it does not sink in. */
+  .tab-dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 4px; background: var(--info-rule); vertical-align: 1px; }
+  .tab.on .tab-dot { box-shadow: 0 0 0 1.5px #FFFFFF; }
   /* no top padding: a sticky preview pins at top:0, and any top padding here would leave a band
      above it where rows scrolling up paint through (the "few px of content above the preview"). */
   .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 40px; scrollbar-width: none; }
@@ -62,6 +71,11 @@
   .blockrow.sticky { position: sticky; top: 0; z-index: 5; background: var(--card); -webkit-transform: translateZ(0); transform: translateZ(0); }
   .cardHdr { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 15px 16px; background: transparent; border: none; cursor: default; font: inherit; text-align: left; }
   .cardHdr.coll { cursor: pointer; }
+  /* the title and what rides beside it (the card's '?' and a reset) pack from the left;
+     a hosted switch, the collapsed value and the chevron follow on the right */
+  .cardHdr .ttlwrap { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; }
+  .cardHdr .sw { flex: none; margin-left: 12px; }
+  .cardHdr .lbl-act { flex: none; margin-left: 6px; }
   .cardHdr .ttl { font-size: 11.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ttl); }
   /* the collapsed-card value (section titleFrom) — right-aligned beside the chevron */
   .cardHdr .ttlval { margin-left: auto; margin-right: 10px; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
@@ -69,8 +83,32 @@
      sheet rows). One rule, so both follow --link when the page flips to the light theme. */
   .chev { color: var(--link); font-size: 16px; font-weight: 700; line-height: 1; }
   .intro { padding: 2px 16px 12px; font-size: 12.5px; color: var(--hint); line-height: 1.55; }
+  /* The '?' that shows a row's or a card's info text (engine infoButtonHtml): a small
+     outlined circle beside the label or title, filled with the accent while its text is
+     out. A 16px glyph with a 28px hit area (the negative margin keeps the row height). */
+  .info-q { display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 17px; height: 17px; margin: -6px -5px -6px 1px; padding: 0; border: 6px solid transparent;
+    box-sizing: content-box; background-clip: padding-box; border-radius: 50%;
+    background-color: transparent; box-shadow: inset 0 0 0 1.4px var(--faint);
+    color: var(--hint); font: 800 10.5px 'Inter', sans-serif; line-height: 1; cursor: pointer;
+    vertical-align: middle; transition: background-color .15s, color .15s, box-shadow .15s; }
+  .info-q.on { background-color: #FA4A35; box-shadow: none; color: #FFFFFF; }
+  /* Beside a label the '?' rides the label's last word (engine labelWithInfo), and the two
+     centre on the text's line box like the card title's flex row does, so the circle sits
+     on the text's middle whatever font the phone draws it in (a fixed vertical-align
+     offset only fits one font's metrics). */
+  .lbl .nw { white-space: nowrap; display: inline-flex; align-items: center; }
+  .lbl .info-q { margin-left: 2px; }
+  .cardHdr .info-q { margin-left: 2px; }
+  .info-q:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; }
   .card.nohdr .intro { padding-top: 14px; }
   .intro a { color: var(--link); }
+  /* an inline text button (schema-gates.js linkRow: the About alerts and All status bars
+     cards' resets; tabLink: a tab link in copy), drawn like the links in hints (the
+     Telemetry hint's "Telemetry section"): link colour, underline, the copy's own font.
+     A <button> only so it carries a [data-action] or [data-goto-tab] instead of a URL. */
+  .txt-link { -webkit-appearance: none; appearance: none; display: inline; margin: 0; padding: 0; border: none; background: none; color: var(--link); font: inherit; line-height: inherit; text-align: inherit; text-decoration: underline; cursor: pointer; }
+  .txt-link:active { opacity: .6; }
   /* in-card sub-header for grouped sections (groupCard): the same muted-gray, tracked
      uppercase treatment as a standalone card title (var(--ttl)), so a grouped bar's header
      reads just like a section header. The preceding group's last-row divider carries the
@@ -97,7 +135,7 @@
   .subhdr.grp > span:first-child { min-width: 0; }
   .subhdr.grp .sw { flex: none; margin-left: auto; }
   .subhdr.grp .lbl-act { flex: none; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 16px; border-bottom: 1px solid var(--row-line); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 18px; padding: 14px 16px; border-bottom: 1px solid var(--row-line); }
   /* stacked rows are a column, so the .row flex `gap` would space label/hint/control far apart;
      zero it and let the hint's own margin-top own the label→hint gap (matching non-stacked rows). */
   .row.stack { flex-direction: column; align-items: stretch; gap: 0; }
@@ -115,7 +153,47 @@
   .row.nbl + .blockrow { border-bottom: none; }
   /* status-line slots (compact searchSelect rows) sit closer together than standard rows */
   .row.slot { padding-top: 8px; padding-bottom: 8px; }
-  .row.indent { padding-left: 30px; }
+  .row.indent { padding-left: 32px; }
+  /* a nav row (a sheet, tab or action it leads to): the whole row is the tap target; its
+     summary sits under the label, a colour preview and the chevron on the right */
+  .row.nav { padding-top: 13px; padding-bottom: 13px; }
+  .row.nav .rgt { display: inline-flex; align-items: center; gap: 10px; }
+  .row.nav .chev { font-size: 21px; font-weight: 700; line-height: 16px; }
+  .row.nav .hint { margin-top: 3px; line-height: 1.45; }
+  .row.nav:active { background: var(--row-press, rgba(127,127,127,0.08)); }
+  /* text for a screen reader only (a nav row's badge state, engine chevronRow) */
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .nav-note { font: 600 13px 'Inter', sans-serif; color: var(--muted); }
+  .row .hint.faint, .hint-faint { color: var(--faint); }
+  /* a link row (button style 'link'): a reset or outside link as a line of link text */
+  .row.linkrow { padding-top: 12px; padding-bottom: 12px; }
+  .row.linkrow .txt-link { font: 400 12.5px 'Inter', sans-serif; }
+  /* a card's More options / Fewer options row (items flagged more: true) */
+  .row.more-row { width: 100%; background: transparent; border-left: none; border-right: none; border-top: none;
+    font: inherit; text-align: left; cursor: pointer; padding-top: 13px; padding-bottom: 13px; }
+  .more-lbl { font: 700 14px 'Inter', sans-serif; color: var(--link); }
+  .more-n { font: 600 12.5px 'Inter', sans-serif; color: var(--faint); }
+  /* a From–To row (an inline group with a groupLabel): the two pickers joined by a dash */
+  .row.hours .rgt.hrs { display: inline-flex; align-items: center; gap: 6px; }
+  .hrs-dash { color: var(--muted); font-weight: 600; }
+  /* its hint runs full width under the label and pickers (as .segwide's does); the
+     pickers drop under the label on a phone too narrow for both (the .row rule below) */
+  .row.hours { column-gap: 14px; }
+  .row.hours > .hint { flex-basis: 100%; margin-top: 0; }
+  /* a tab's pinned header (engine renderPin): the preview that stays in view while the
+     cards scroll under it, on the page ground (the pane switcher sits above it and scrolls) */
+  .pin { position: sticky; top: 0; z-index: 6; background: var(--bg); margin: 0 -16px; padding: 0 16px 14px; -webkit-transform: translateZ(0); transform: translateZ(0); }
+  /* …except while a colour palette is open (engine pinClass): then it scrolls away with the
+     page, so the 64-swatch grid is never partly under it on a short screen */
+  .pin.loose { position: relative; }
+  /* a tab's pinThrough wraps the header and the cards up to that section in an unstyled
+     .pin-scope: a sticky element never leaves its parent, so past them the header scrolls away */
+  /* the pinned block bleeds to its own rounded frame: a preview SVG cancels a .blockrow's
+     padding with negative margins (preview-svg.js svgFrame), so the frame carries it */
+  .pin-blk { padding: 12px 16px 14px; border-radius: 12px; overflow: hidden; border: 1px solid var(--card-line); background: var(--card); }
+  .pin-blk .preview { padding: 0; }
+  .pane-seg { display: flex; width: 100%; margin-bottom: 12px; }
+  .pane-seg button { flex: 1 1 0; padding: 7px 8px; }
   /* inline group: consecutive `inline`-grouped items rendered side by side in one row (e.g. sleep From/To) */
   .row.inline { gap: 14px; }
   .row.inline .icell { display: flex; align-items: center; gap: 10px; }
@@ -125,6 +203,17 @@
   .row .hint a { color: var(--link); }
   .row .lft { min-width: 0; flex: 1; }
   .row .rgt { flex: none; }
+  /* A label + control row (.row wraps): when the control leaves the label less room than
+     its longest word (and the '?' riding it), the control drops onto a line of its own,
+     right-aligned under the label, instead of sliding over the text — a narrow phone, or
+     a full-screen dialog's inset card. Wide enough, nothing changes. */
+  .row > .lft { min-width: -webkit-min-content; min-width: min-content; }
+  .row > .rgt { margin-left: auto; }
+  /* A switch is an inline box on its cell's text baseline, so the line's descent (the
+     strut) hung 4px of air under it: a hint-less toggle row's cell stood 32px tall around
+     a 28px switch, centred 2px high, and anything under it sat 4px further off. Top-
+     aligned, the switch IS the line, so the cell is exactly the switch. */
+  .row .rgt > .sw { vertical-align: top; }
   .row.wrap { display: block; }
   .row.wrap::after { content: ''; display: block; clear: both; }
   .row.wrap .rgt { float: right; margin: 2px 0 8px 14px; }
@@ -133,7 +222,8 @@
      needs flex-basis 0 (`flex: 1`, not `1 1 auto`) so its intrinsic text width doesn't
      count toward line-breaking and push the control onto its own line below the label. */
   .row.segwide { flex-wrap: wrap; column-gap: 14px; row-gap: 8px; }
-  .row.segwide .lft { flex: 1; min-width: 0; }
+  .row.segwide .lft { flex: 1; min-width: 0; min-width: -webkit-min-content; min-width: min-content; }
+  .row.segwide > .rgt { margin-left: auto; }
   .row.segwide .hint { flex-basis: 100%; margin-top: 0; }
   /* free-form text rendered verbatim from a staticText schema item */
   .static { padding: 14px 16px; font-size: 13.5px; color: var(--static); line-height: 1.5; border-bottom: 1px solid var(--row-line); }
@@ -144,6 +234,24 @@
      the join variant reuses the same appearance and adds the pull-up spacing below. */
   .static.join, .static.hinted { color: var(--hint); font-size: 12.5px; line-height: 1.55; }
   .static.join { margin-top: -5px; padding-top: 0; }
+  /* style: 'info' — a boxed note, the Watchface tab's fetch-notice item (notices-panel.js
+     .notice-item) in the page's info amber (--info-tint / --info-rule, in tune with the
+     orange accents; error boxes stay red): tinted fill, 3px left rule, rounded. The
+     explicit text colour keeps a tight-joined box (.static.join) off the hint grey, which
+     is only 3.97:1 on the dark amber. */
+  .static.info .info-box { padding: 8px 10px; border-radius: 6px; background: var(--info-tint); border-left: 3px solid var(--info-rule); color: var(--static); }
+  /* An info box is a box, not a hint: a join drops the divider next to it, never its
+     standoff. Every box keeps the page's 14px row padding to the content or line on
+     either side, whatever joins it; without these, the .join pull-up, an intro's 12px or
+     a loose join's second 14px put it flush on one side and 26-28px off the other.
+     (Under a COMPACT row, .row.slot's 8px beats .row.nb's 5px: a box tight-joined there
+     would sit 17px off. None does.) Adjacent-sibling selectors only, no :has(), for old
+     webviews. */
+  .static.info.join { margin-top: 0; padding-top: 9px; }   /* + the joined row's 5px (.row.nb) */
+  .static.info.nb { padding-bottom: 9px; }                 /* + the next row's 5px (.static.nb + .row) */
+  .intro + .static.info { padding-top: 2px; }              /* + the intro's 12px */
+  .row.nbl + .static.info { padding-top: 0; }              /* the row's own 14px is the gap */
+  .static.info.nbl + .row { padding-top: 0; }              /* the box's own 14px is the gap */
   /* inline data block attached to a control (e.g. last-fetch under Force weather fetch) */
   .blockrow { padding: 12px 16px 14px; font-size: 12.5px; color: var(--hint); line-height: 1.55; border-bottom: 1px solid var(--row-line); }
   .blockrow a { color: var(--link); }
@@ -169,6 +277,9 @@
   .sw.on { background: linear-gradient(135deg, #FA4A35, #D93A24); box-shadow: 0 2px 8px rgba(250,74,53,0.35); }
   .sw i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 11px; background: #fff; transition: left .18s; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
   .sw.on i { left: 21px; }
+  /* A hosted switch under its disabledWhen (renderToggle's `disabled`): inert, dimmed
+     like a .dis row, keeping its on/off look — it still shows the held value. */
+  .sw[disabled] { cursor: not-allowed; opacity: .45; }
   .radio { display: flex; flex-direction: column; gap: 8px; width: 100%; }
   .radio button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 11px 13px; border-radius: 10px; font: 600 13.5px 'Inter', sans-serif; border: 1px solid var(--ctl-line-soft); background: var(--ctl); color: var(--muted); transition: background .15s, border-color .15s, color .15s; }
   .radio button.on { border-color: #FA4A35; background: rgba(250,74,53,0.16); color: var(--fg); }
@@ -236,6 +347,8 @@
   /* a disabled row (item.disabledWhen): visible — it shows what turning the feature
      on would offer — but muted and inert */
   .row.dis { opacity: .45; pointer-events: none; }
+  /* ...but its '?' still opens: the info text often says why the row is off */
+  .row.dis .info-q { pointer-events: auto; }
   /* small icon button beside a row label (item.labelAction — reset to defaults) */
   /* .lbl-act appears inline in labels AND on group sub-headers (.subhdr.grp), so the
      chrome reset must be unscoped — a `.lbl .lbl-act` scope leaves the sub-header copy
@@ -244,6 +357,15 @@
   .lbl-act { display: inline-flex; border: none; background: none; color: var(--muted); cursor: pointer; padding: 3px; border-radius: 6px; line-height: 0; transition: color .15s, background .15s; }
   .lbl .lbl-act { vertical-align: -3px; margin: -3px 0 -3px 5px; }
   .lbl-act:active { color: var(--link); background: rgba(250,74,53,0.12); }
+  /* a row's leading glyph (item.icon via PConf.icons): drawn in currentColor, so it
+     takes the muted chrome colour here and follows the theme flip with it */
+  .lbl-ico { display: inline-flex; vertical-align: -3px; margin-right: 7px; color: var(--muted); line-height: 0; }
+  .lbl-ico svg { width: 16px; height: 16px; }
+  /* A run of glyphs in a hint, led by its word ("Left" + icons): one unbreakable run, so a
+     narrow phone wraps between runs, never inside one. .lbl-ico is not scoped to .lbl, so
+     the glyphs keep their size, muted colour and theme flip here. */
+  .ico-run { display: inline-block; white-space: nowrap; margin-right: 12px; }
+  .ico-run .lbl-ico { margin-right: 4px; }
   select { -webkit-appearance: none; appearance: none; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); border-radius: 9px; padding: 8px 32px 8px 13px; font: 600 13.5px 'Inter', sans-serif; cursor: pointer; outline: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%23B6BAC2'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; transition: border-color .15s; }
   select:focus { border-color: #FA4A35; }
   body.light select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%235A5F6A'/%3E%3C/svg%3E"); }
@@ -255,13 +377,6 @@
   .txt-act > input[type=text] { flex: 1 1 auto; min-width: 0; }
   .txt-act-btn { flex: 0 0 auto; cursor: pointer; padding: 0 15px; border-radius: 9px; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); font: 600 13px 'Inter', sans-serif; white-space: nowrap; transition: background .15s, border-color .15s; }
   .txt-act-btn:active { border-color: #FA4A35; background: rgba(250,74,53,0.12); }
-  /* the same chip standalone inside a card intro (the Watch tab's reset-status-bars
-     button rides the intro HTML): block keeps a button shrink-wrapped while forcing
-     its own line under the text (inline-block would flow after the last intro line),
-     and the vertical padding replaces the height the .txt-act row's
-     align-items:stretch provides in the suffixAction context (the chip's flex-basis
-     is inert outside that flex row). */
-  .intro .txt-act-btn { display: block; margin-top: 8px; padding: 6px 15px; }
   .txt-act-result:empty { display: none; }
   /* inline tap-to-copy button embedded in hint/static HTML (data-copy) — a small icon chip */
   .copybtn { display: inline-flex; align-items: center; justify-content: center; vertical-align: -3px; margin-left: 5px; padding: 3px; border: 1px solid var(--ctl-line); border-radius: 6px; background: var(--ctl); color: var(--link); cursor: pointer; line-height: 0; transition: background .15s, border-color .15s; }
@@ -280,6 +395,19 @@
   .row.date-row { padding-top: 8px; padding-bottom: 8px; }
   .date-cell { width: 100%; }
   .ssel-list { margin-top: 8px; max-height: 240px; overflow-y: auto; background: var(--ctl); border: 1px solid var(--ctl-line-soft); border-radius: 10px; }
+  /* a select inside an edit sheet expands its options IN PLACE (engine renderInlineList),
+     the palette's pattern: the list is the row's last child and wraps onto a full-width
+     line of its own under the trigger, which stays where it was. row-gap 0 so the list's
+     own margin is the whole distance (the row's 18px gap would add to it). clear:both
+     puts it under the floated control of a .wrap row. Class isel-list, never ssel-list:
+     the engine queries .ssel-list for the sheet's scroll container. The .ssel-opt rules
+     below style its options. */
+  .row.isel-open { flex-wrap: wrap; row-gap: 0; }
+  .row .isel-list { flex-basis: 100%; width: 100%; clear: both; margin-top: 10px; background: var(--ctl); border: 1px solid var(--ctl-line-soft); border-radius: 10px; overflow: hidden; }
+  /* its trigger reads as open: accent border, chevron flipped. Scoped to the open row, so a
+     tab-body trigger whose select sheet is open looks as it always has. */
+  .isel-open .sel-wrap[aria-expanded="true"] { border-color: #FA4A35; }
+  .isel-open .sel-wrap[aria-expanded="true"] .sel-chev { transform: rotate(180deg); }
   .ssel-group { padding: 11px 13px 7px; border-top: 1px solid var(--row-line); font: 700 12px 'Inter', sans-serif; color: var(--ttl); }
   .ssel-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 11px 13px; font: 600 13.5px 'Inter', sans-serif; border: none; border-bottom: 1px solid var(--row-line); background: transparent; color: var(--muted); }
   .ssel-opt:last-child { border-bottom: none; }
@@ -294,6 +422,32 @@
   /* "(Recommended)" marker appended to a select option's name (recommendFrom resolver) */
   .ssel-rec { color: var(--link); font-weight: 800; white-space: nowrap; }
   .ssel-none { padding: 14px 13px; font: 600 13px 'Inter', sans-serif; color: var(--faint); }
+  /* checklist control (lib/checklist.js renderChecklist): plain rows, no cards, under one
+     .subhdr.grp sub-header that also carries the columns' captions (.chk-caps) right over
+     their ticks: a caption and a tick share one fixed width, and the header and the rows
+     share the 16px side padding. The rows are the page's ordinary rows joined (.row.nb: no
+     divider, the tight rhythm). Its row (.chk-row) is only the grid's frame: no padding of
+     its own, no divider. Each tick is a 44px-wide button whose negative margin keeps a
+     one-line row at the text rhythm; a ticked box fills with the accent gradient and draws
+     a CSS tick; a gated row stays visible, keeps its ticks, and dims. */
+  .row.chk-row { padding: 0; border-bottom: none; }
+  .row.chk-row > div:last-child { margin-top: 0; }
+  .chk-opt .lbl, .chk-opt .hint { display: block; }
+  .chk-hdr.caps-only { padding-top: 4px; padding-bottom: 4px; border-top: none; }
+  .chk-hdr.caps-only .chk-caps > span { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ttl); }
+  /* an inert row (a bar whose view is off, an item that cannot show) keeps its ticks:
+     the name and its reason go faint, the boxes dim */
+  .chk-opt.off .lbl { color: var(--faint); }
+  .chk-opt.off .hint { color: var(--faint); }
+  .chk-opt.off .chk-box { opacity: .45; }
+  .chk-ticks, .chk-caps { flex: none; display: flex; }
+  .chk-caps { margin-left: auto; }
+  .chk-caps > span { width: 56px; text-align: center; font-size: 11.5px; font-weight: 600; color: var(--hint); }
+  .chk-tick { width: 56px; height: 34px; margin: -6px 0; padding: 0; display: flex; align-items: center; justify-content: center; border: none; background: transparent; cursor: pointer; }
+  .chk-tick[disabled] { cursor: not-allowed; }
+  .chk-box { flex: none; position: relative; width: 24px; height: 24px; border-radius: 7px; border: 1.5px solid var(--ctl-line); background: var(--ctl); box-sizing: border-box; }
+  .chk-tick.on .chk-box { border-color: transparent; background: linear-gradient(135deg, #FA4A35, #D93A24); }
+  .chk-tick.on .chk-box::after { content: ''; position: absolute; left: 7.5px; top: 3.5px; width: 5px; height: 10px; border: solid #FFFFFF; border-width: 0 2.2px 2.2px 0; transform: rotate(45deg); }
   /* select/searchSelect popup — dim overlay + centered card, matching the News popup */
   /* select/searchSelect popup as a native <dialog> shaped like a bottom sheet. HTML can't paint
      over the host app's native bar, so instead of a full-screen overlay the sheet sits at the
@@ -341,7 +495,45 @@
      The rows carry their own 16px side padding and dividers; the container only scrolls. */
   dialog#modal .esheet { background: transparent; padding-bottom: 8px; }
   dialog#modal .esheet .intro { padding-top: 10px; }
-  dialog#modal .esheet .row:last-child { border-bottom: none; }
+  /* the sheet's last row or note draws no divider at its bottom edge (a card's do the same,
+     .card .static:last-child): e.g. a placement sheet that ends on its Shows on note */
+  dialog#modal .esheet .row:last-child, dialog#modal .esheet .static:last-child { border-bottom: none; }
+  /* a drill-down (sheetOnly section) opens as a FULL-SCREEN dialog on the page ground, so
+     it joins the web view's top bar: × / ‹, the kicker over the title, Done; its cards
+     scroll under an optional pinned preview */
+  dialog#modal.edit { top: 0; bottom: 0; height: 100%; height: 100vh; height: 100dvh; max-height: none; max-width: 460px; border-radius: 0; background: var(--bg); box-shadow: none; }
+  dialog#modal.edit::backdrop { background: var(--bg); }
+  @media (prefers-reduced-motion: no-preference) {
+    dialog#modal.edit[open] { animation: dlg-in .18s ease-out; }
+  }
+  @keyframes dlg-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  dialog#modal.edit .ssel-list { border-top: none; background: var(--bg); padding: 0 16px 40px; }
+  .dlg-hdr { flex: none; display: flex; align-items: center; gap: 12px; padding: 8px 16px 14px; }
+  .dlg-x { flex: none; width: 38px; height: 38px; padding: 0; border-radius: 11px; background: var(--tab); border: 1px solid var(--tab-line); color: var(--muted); font: 500 22px 'Inter', sans-serif; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .dlg-ttlwrap { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .dlg-kick { font: 800 11px 'Inter', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--ttl); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 1px; }
+  .dlg-ttlline { display: flex; align-items: center; min-width: 0; }
+  /* the title wraps rather than cut a metric's name short; its '?' rides the last word */
+  .dlg-ttl { font: 800 19px 'Inter', sans-serif; letter-spacing: -.02em; color: var(--lbl); line-height: 1.2; overflow-wrap: break-word; word-wrap: break-word; min-width: 0; }
+  .dlg-ttl .nw { white-space: nowrap; display: inline-flex; align-items: center; }
+  .dlg-ttl .info-q { margin-left: 3px; letter-spacing: 0; }
+  .dlg-ttlline .lbl-act { flex: none; margin-left: 4px; }
+  .dlg-done { flex: none; padding: 9px 18px; border: none; border-radius: 11px; background: linear-gradient(135deg, #FA4A35, #D93A24); color: #FFFFFF; font: 700 14px 'Inter', sans-serif; box-shadow: 0 4px 14px rgba(250,74,53,0.35); cursor: pointer; }
+  .dlg-done:active { transform: translateY(1px); }
+  /* a dialog's intro card (engine dialogIntroHtml): the intro, then its notes as paragraphs */
+  dialog#modal .esheet .dlg-intro .intro { padding: 12px 16px; }
+  .intro .intro-more { margin: 8px 0 0; }
+  dialog#modal .dlg-pin { margin: 0 -16px; padding: 0 16px 12px; }
+  /* the Save button's confirm dialog (a row needs attention): one sentence, then the fix
+     and "Save anyway" side by side. A margin between the two, not a flex gap, which old
+     Android WebViews do not lay out. */
+  dialog#modal .cfm { border-top: 1px solid var(--row-line); padding: 12px 16px 18px; }
+  dialog#modal .cfm-body { margin: 0 0 14px; font-size: 13.5px; line-height: 1.5; color: var(--static); }
+  .cfm-btns { display: flex; }
+  .cfm-btn { flex: 1 1 0; min-width: 0; padding: 11px 12px; border-radius: 11px; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); font: 700 14px 'Inter', sans-serif; cursor: pointer; }
+  .cfm-btn + .cfm-btn { margin-left: 10px; }
+  .cfm-btn.pri { border-color: transparent; background: linear-gradient(135deg, #FA4A35, #D93A24); color: #FFFFFF; }
+  .cfm-btn:active { opacity: .8; }
   /* A row's per-value edit sheet has two affordances, and they sit on OPPOSITE sides of
      the control: the passive colour swatch leads, the Edit button trails. Edit last is
      what lets it align down the right edge — .rgt is right-aligned and the button is one
@@ -356,14 +548,6 @@
      status slots'. */
   .thr-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; min-height: 33px; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); cursor: pointer; padding: 0 10px; border-radius: 9px; font: 600 12px 'Inter', sans-serif; transition: color .15s, background .15s, border-color .15s; }
   .thr-btn:active { color: var(--link); border-color: var(--link); background: rgba(250,74,53,0.12); }
-  /* Action row hosted in a staticText item (the Custom-layout Edit row): title + sub-hint
-     left, a .thr-btn right. Own classes rather than .row .lbl/.hint — those are scoped to
-     .row and this markup renders inside .static; sizes match the previous inline styles
-     (title = .lbl's look, sub slightly tighter than .hint: 12px, 2px gap). The 400 weight
-     on the sub is load-bearing — it is nested inside the 600-weight title span. */
-  .row-action { display: flex; justify-content: space-between; align-items: center; gap: 18px; }
-  .row-action-title { font-size: 14.5px; font-weight: 600; color: var(--lbl); }
-  .row-action-sub { display: block; font-size: 12px; font-weight: 400; color: var(--hint); margin-top: 2px; }
   /* Badge colour preview, LEFT of the control: one dot per colour the row's badge
      reports, hollow (.ring) or filled (.fill) — the watch's own outline/fill language,
      so the shape carries meaning and not just the hue. It is a preview, not a control —

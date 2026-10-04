@@ -17,8 +17,6 @@ void top_status_layer_set_full_date(bool full_date);
 Layer *top_status_layer_get_root(void);
 #endif
 
-void status_icons_refresh();
-
 void top_status_layer_tick();
 
 void top_status_layer_refresh();

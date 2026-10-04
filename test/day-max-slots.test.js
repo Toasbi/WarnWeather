@@ -1,6 +1,6 @@
 // test/day-max-slots.test.js — the UV slot's day max (Now / Day max / Both) on the
 // wind, gust and AQI slots: the numbers wire-units picks, the text status-lines
-// bakes, the highlight status-thresholds judges, and the peaks getPayload emits.
+// bakes, the highlight status-wire judges, and the peaks getPayload emits.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -14,7 +14,7 @@ global.localStorage = {
 const wireUnits = require('../src/pkjs/wire-units.js');
 const statusLines = require('../src/pkjs/status-lines.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
-const th = require('../src/pkjs/status-thresholds.js');
+const { packedLevel, judged } = require('./helpers/weather-levels.js');
 const http = require('../src/pkjs/weather/http.js');
 const aq = require('../src/pkjs/weather/air-quality.js');
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
@@ -127,20 +127,25 @@ test('the wind arrow stays in Both (its first reading is now) and leaves Day max
   assert.ok(noPeak[2] === 3 && noPeak[5] <= 0x10, 'current reading keeps its arrow');
 });
 
-// ---- status-thresholds: the highlight ---------------------------------------
+// ---- status-wire: the highlight ---------------------------------------------
 
 test('wind, gust and AQI highlights judge the highest of today\'s numbers shown', () => {
   const p = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null],
-    GUST_TREND_UINT8: [30], GUST_DAY_PEAKS: [30, 60, null],
+    GUST_TREND_UINT8: [30], GUST_DAY_PEAKS: [30, 65, null],
     AQI_TREND: [42], AQI_DAY_PEAKS: [58, 61, null] };
-  assert.equal(th.displayValue('wind', p, settings()), 12, 'Now mode: the reading');
-  assert.equal(th.displayValue('wind', p, settings({ windSlotDisplay: 'both' })), 30);
-  assert.equal(th.displayValue('wind', p, settings({ windSlotDisplay: 'both', windUnits: 'mph' })), 19);
-  // "30/»60": tomorrow's peak never counts; a lone "»60" is not judged at all.
-  assert.equal(th.displayValue('gust', p, settings({ gustSlotDisplay: 'both' })), 30);
-  assert.equal(th.displayValue('gust', p, settings({ gustSlotDisplay: 'max' })), null);
-  assert.equal(th.displayValue('aqi', p, settings({ aqiSlotDisplay: 'max' })), 58);
-  assert.equal(th.displayValue('aqi', { AQI_TREND: [] }, settings()), null);
+  assert.equal(judged('wind', p, settings()), 12, 'Now mode: the reading');
+  assert.equal(judged('wind', p, settings({ windSlotDisplay: 'both' })), 30);
+  assert.equal(judged('wind', p, settings({ windSlotDisplay: 'both', windUnits: 'mph' })), 19);
+  // "30/»65": tomorrow's peak never counts; a lone "»65" is not judged at all. So
+  // neither packs the kph seed's warn (65/90) that tomorrow's 65 would reach.
+  assert.equal(statusLines.formatValue('gust', p, settings({ gustSlotDisplay: 'both',
+    gustSlotUnit: false })), '30/' + RAQUO + '65');
+  assert.equal(judged('gust', p, settings({ gustSlotDisplay: 'both' })), 30);
+  assert.equal(judged('gust', p, settings({ gustSlotDisplay: 'max' })), null);
+  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'both' })), 0);
+  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'max' })), 0);
+  assert.equal(judged('aqi', p, settings({ aqiSlotDisplay: 'max' })), 58);
+  assert.equal(judged('aqi', { AQI_TREND: [] }, settings()), null);
 });
 
 // ---- getPayload + the AQI feed ----------------------------------------------
@@ -234,8 +239,11 @@ test('each day-max metric keeps its own record, keyed by its own feed', () => {
 test('only the day-max kinds a slot shows keep a record and widen their requests', () => {
   Object.keys(store).forEach((k) => delete store[k]);
   const forecastSeries = require('../src/pkjs/forecast-series.js');
-  const s = { statusForecastLeft: 'wind', statusForecastMid: 'uv', statusForecastRight: 'aqi',
-    windSlotDisplay: 'both', uvSlotDisplay: 'current', aqiSlotDisplay: 'max' };
+  // Nothing placed as an alert: a placed day-max alert keeps its record too (the
+  // default ticks place gust, UV, AQI and wind), which this test is not about.
+  const s = Object.assign({ statusForecastLeft: 'wind', statusForecastMid: 'uv', statusForecastRight: 'aqi',
+    windSlotDisplay: 'both', uvSlotDisplay: 'current', aqiSlotDisplay: 'max' },
+  require('./helpers/on-demand.js').NOTHING_PLACED);
   assert.deepEqual(forecastSeries.dayPeakCodes(s), ['wind', 'aqi'],
     'uv in Now mode and gust in no slot keep none');
   const p = provider({ id: 'dwd', windTrend: new Array(48).fill(10),
@@ -301,7 +309,7 @@ test('wind and gust records keep to a few km; UV keeps its regional radius', () 
   assert.equal(byKey[KEYS.WIND_DAY_RECORD_KEY].t, LOCAL_9AM + 3600, 'wind: another place, fresh');
 });
 
-test('getPayload skips the peaks of kinds no slot shows in Day max or Both', () => {
+test('getPayload skips the peaks of kinds no slot shows in Alert or Both', () => {
   const out = provider({ windTrend: new Array(48).fill(5), uvTrend: new Array(48).fill(3),
     dayPeakCodes: ['uv'] }).getPayload();
   assert.ok('UV_DAY_PEAKS' in out);
@@ -343,7 +351,7 @@ test('the unit gives way to the direction arrow on an edge slot', () => {
     settings({ windSlotDisplay: 'both', windSlotDirection: true })), '12/30');
   assert.equal(statusLines.formatValue('wind', p,
     settings({ windSlotDisplay: 'both', windSlotDirection: false })), '12/30kph');
-  // Day max alone draws no arrow, so the unit keeps its byte.
+  // Alert alone draws no arrow, so the unit keeps its byte.
   assert.equal(statusLines.formatValue('wind', p,
     settings({ windSlotDisplay: 'max', windSlotDirection: true })), '30kph');
 });

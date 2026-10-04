@@ -20,8 +20,8 @@
 // disagree with. Adding a conditional default is adding a row, never adding an
 // `if` somewhere else. Nothing here is applied on its own: a caller reads its
 // context's values (resolveDefaults) or has them written onto live state through
-// applyDefaults — the ONE interpreter of the execution vocabulary below, shared
-// by the wizard finish and the threshold reset so the semantics cannot fork.
+// applyDefaults — the ONE interpreter of the execution vocabulary below (the
+// wizard finish writes through it), so the semantics cannot fork.
 //
 // THE `when` VOCABULARY (an unlisted key throws — a typo must not read as a
 // condition that quietly never matches):
@@ -45,13 +45,12 @@
 //                        an unset choice matches nothing (except via `health`,
 //                        which knows healthMode's schema default).
 //
-// A row may also carry `seedVia` — see the wizard AQI row for what it is for —
-// `dependsOn` (dependent key -> anchor key of the same set), which couples
-// writes that only make sense together — see the health-slots row — and
-// `overrules` (a list of the rule's own set keys), which exempts a key from the
+// A row may also carry `dependsOn` (dependent key -> anchor key of the same set),
+// which couples writes that only make sense together — see the health-slots row —
+// and `overrules` (a list of the rule's own set keys), which exempts a key from the
 // consumer's "the user has not spoken here" guard: the rule's value replaces
 // even a hand-customized stored one. applyDefaults below is the one interpreter
-// of all three. Tests pin that every dependsOn/overrules name references the
+// of both. Tests pin that every dependsOn/overrules name references the
 // same rule's set, so a typo fails loudly instead of silently stranding a
 // dependent or protecting nothing.
 (function () {
@@ -105,19 +104,15 @@
             when: {wizard: true},
             why: 'Permanent bold costs air quality its alarm: a reading that is always '
                 + 'heavy cannot get heavier when the air turns bad. Switching its '
-                + 'highlight on with the warn outline hands that reading back a signal '
-                + 'the weight can no longer carry.',
-            set: {threshAqiOn: true, threshAqiWarnOutlineOn: true},
-            // Both keys are the visible half of a pair: the stored warn/danger
-            // numbers and the outline colour come from the settings page's own
-            // onChange hooks (blocks.js). Write these two THROUGH those hooks
-            // rather than storing them directly, and the seeded companions are
-            // identical to what flipping the toggle by hand produces — no
-            // hand-picked threshold numbers living in a second place.
-            seedVia: {
-                threshAqiOn: 'thresholdToggle',
-                threshAqiWarnOutlineOn: 'thresholdOutlineToggle'
-            }
+                + 'highlight on hands that reading back a signal the weight can no '
+                + 'longer carry.',
+            // The warn box is the kind's warn look, whose platform default (fill on
+            // colour, outline on B&W) already draws one — nothing to set for it. Nor
+            // for the levels: the pair stays blank, which means the AQI seed for the
+            // scale in effect (status-thresholds.js resolvedPair), so a later switch
+            // to Open-Meteo's European scale moves the levels with it — exactly what
+            // flipping the switch by hand leaves.
+            set: {threshAqiOn: true}
         },
         {
             id: 'wizard-health-slots',
@@ -298,7 +293,7 @@
     /**
      * The rules that apply to a context, in table order. Callers that need more
      * than the values — an overview page, a log line explaining a seeded setting —
-     * read `id`, `why` and `seedVia` off these.
+     * read `id` and `why` off these.
      * @param {Object} ctx {wizard, env, choices}.
      * @param {Object[]} [rules] Table to evaluate; defaults to RULES.
      * @returns {Object[]} The matching rule rows (the rows themselves, not copies).
@@ -345,20 +340,19 @@
      * @param {Object} ctx {wizard, env, choices}.
      * @param {Object[]} [rules] Table to resolve; defaults to RULES.
      * @returns {{keys: Array.<string>, by: Object}} Ordered keys + their
-     *     {value, seedVia, dependsOn, overrules}.
+     *     {value, dependsOn, overrules}.
      */
     function pendingDefaults(ctx, rules) {
         var matching = rulesFor(ctx, rules);
-        var keys = [], by = {}, i, k, set, via, dep, ov, names;
+        var keys = [], by = {}, i, k, set, dep, ov, names;
         for (i = 0; i < matching.length; i += 1) {
             set = matching[i].set || {};
-            via = matching[i].seedVia || {};
             dep = matching[i].dependsOn || {};
             ov = matching[i].overrules || [];
             names = Object.keys(set);
             for (k = 0; k < names.length; k += 1) {
                 if (!Object.prototype.hasOwnProperty.call(by, names[k])) { keys.push(names[k]); }
-                by[names[k]] = {value: set[names[k]], seedVia: via[names[k]] || null,
+                by[names[k]] = {value: set[names[k]],
                     dependsOn: dep[names[k]] || null,
                     overrules: ov.indexOf(names[k]) !== -1};
             }
@@ -369,37 +363,30 @@
     /**
      * Write the matching rules' values onto a live settings state — THE one
      * interpreter of the table's execution vocabulary (later-rules-win
-     * flattening, `set`-order application, dependsOn anchoring, seedVia
-     * write-through, per-key veto). Both consumers go through here — the
-     * wizard's finish (wizard.js applyWizardDefaults) and the per-kind
-     * threshold reset (blocks.js resetThresholds) — so the vocabulary cannot
-     * drift into two dialects.
+     * flattening, `set`-order application, dependsOn anchoring, per-key veto).
+     * The wizard's finish (wizard.js applyWizardDefaults) goes through here, so
+     * the vocabulary cannot drift into two dialects.
      *
-     * ctx.choices doubles as the live state: values are written into it and
-     * seedVia hooks run against it. Both consumers already work that way —
-     * every stored setting (and wizard pick) is in it, so a rule keyed on any
-     * of them just works.
+     * ctx.choices doubles as the live state: values are written into it. The
+     * wizard already works that way — every stored setting (and wizard pick) is
+     * in it, so a rule keyed on any of them just works.
      *
      * @param {Object} ctx Resolver context ({wizard, env, choices}); `choices`
      *     is mutated.
      * @param {Object} [opts]
      * @param {function(string, Object): boolean} [opts.mayWrite] Per-key veto,
-     *     called as (key, meta) with meta = {value, seedVia, dependsOn,
-     *     overrules}; omitted allows every key. A vetoed ANCHOR still blocks
-     *     its dependents — they check the live state, not the veto.
-     * @param {function(string): ?Function} [opts.getHook] Resolves a seedVia
-     *     hook name to the onChange hook to write through, invoked as
-     *     (S, before, value, env, key); omitted writes values directly.
+     *     called as (key, meta) with meta = {value, dependsOn, overrules};
+     *     omitted allows every key. A vetoed ANCHOR still blocks its
+     *     dependents — they check the live state, not the veto.
      * @param {Object[]} [rules] Table to apply; defaults to RULES.
      * @returns {Object} The key -> value pairs actually written (empty when none).
      */
     function applyDefaults(ctx, opts, rules) {
         var S = (ctx && ctx.choices) || {};
         var mayWrite = (opts && opts.mayWrite) || null;
-        var getHook = (opts && opts.getHook) || null;
         var pending = pendingDefaults(ctx, rules);
         var written = {};
-        var i, key, meta, anchor, hook, before;
+        var i, key, meta, anchor;
         for (i = 0; i < pending.keys.length; i += 1) {
             key = pending.keys[i];
             meta = pending.by[key];
@@ -412,10 +399,7 @@
             if (anchor && (!Object.prototype.hasOwnProperty.call(pending.by, anchor)
                 || S[anchor] !== pending.by[anchor].value)) { continue; }
             if (mayWrite && !mayWrite(key, meta)) { continue; }
-            before = S[key];
             S[key] = meta.value;
-            hook = meta.seedVia && getHook ? getHook(meta.seedVia) : null;
-            if (hook) { hook(S, before, meta.value, ctx.env, key); }
             written[key] = meta.value;
         }
         return written;

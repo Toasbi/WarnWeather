@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "health_graph_layer.h"
+#include "paint_scratch.h"
 #include "layer_util.h"
 #include "c/appendix/chart.h"
 #include "c/appendix/forecast_grid.h"
@@ -11,6 +12,7 @@
 #include "c/services/health_cache.h"
 #include "c/appendix/theme.h"
 #include "c/appendix/hr_scale.h"
+#include "c/appendix/step_scale.h"
 #include "c/appendix/config.h"
 
 // The health view exists only on health-capable hardware. Platforms without
@@ -38,7 +40,7 @@
 // on B&W. theme_furniture() flattens the gray to black in the light theme.
 #define HEALTH_AXIS_COLOR         theme_pick(theme_furniture(GColorDarkGray), theme_fg())
 
-// Dashed horizontal gridline(s) at the labeled step marks (see compute_step_marks).
+// Dashed horizontal gridline(s) at the labeled step marks (see step_scale_marks).
 // Same gray family as the axis; the dashing (2px on / 2px off) keeps it distinct from
 // the solid frame.
 #define STEP_GRID_COLOR           theme_pick(theme_furniture(GColorDarkGray), theme_fg())
@@ -72,7 +74,7 @@ static uint8_t s_hr_clamp[MAX_BOTTOM_VIEW_ENTRIES];
 
 // Refresh-time results the update proc renders from (see health_graph_compute).
 static int    s_visible_slots;     // slots filled in s_steps/s_hr/s_sleep
-static int    s_step_hi;           // bars/HR scale top (peak rounded up to 100)
+static int    s_step_hi;           // bars' scale top (step_scale_hi: never below 0.1k)
 static int    s_step_marks[2];     // step values of the labeled dotted lines, top first
 static int    s_step_mark_n;       // number of marks in use (1 or 2)
 static time_t s_end_hour;          // hour boundary the last visible slot ends at
@@ -127,7 +129,7 @@ static void sleep_stripe_draw(const ChartRender *r, void *user) {
 }
 
 // CUSTOM layer: dashed horizontal gridline at each labeled step mark (see
-// compute_step_marks / draw_left_axis) — the marks are the ONLY gridlines, so the left
+// step_scale_marks / draw_left_axis) — the marks are the ONLY gridlines, so the left
 // strip never carries an unlabeled line. Drawn under the bars so data sits on top.
 // Value→y matches the BARS/left-axis mapping: y = plot_bottom - v * plot_h / hi.
 typedef struct { int hi; const int *marks; int n; } StepGrid;
@@ -242,32 +244,6 @@ static void step_mark_label(int value, char *out, size_t out_sz) {
     }
 }
 
-// Derive the labeled dotted line(s) from the visible peak. Goal: round levels that sit
-// BELOW the peak so each line cuts through the tallest bar (like the higher-value grid),
-// never pinned above the bars. peak ≥ 500 → the closest full-500 (top) and its halfway
-// line (mid); a quiet day under 500 → a single full-200 line, so a short band never
-// stacks two "0.x"/"k" labels on top of each other. Fills s_step_marks (top first) +
-// s_step_mark_n.
-static void compute_step_marks(int peak) {
-    if (peak < 500) {
-        int top = (peak / 200) * 200;   // closest full-200 ≤ peak (0.2k or 0.4k)
-        if (top < 100) { top = 100; }   // very low peak: a single 0.1k line still fits
-        s_step_marks[0] = top;
-        s_step_mark_n   = 1;
-        return;
-    }
-    const int top   = (peak / 500) * 500;  // closest full-500 ≤ peak → cuts the top bar
-    const int top_u = top / 500;
-    const int mid_u = (top_u + 1) / 2;      // halfway line (mirrors the old 1k halving)
-    s_step_marks[0] = top;
-    if (mid_u == top_u) {
-        s_step_mark_n = 1;                  // top == mid (500) → a single line
-    } else {
-        s_step_marks[1] = mid_u * 500;
-        s_step_mark_n   = 2;
-    }
-}
-
 // Read health for the visible window and derive the step scale + labeled marks into
 // the module statics the update proc renders from, then feed the widest mark label
 // into bottom_view so the shared left strip widens to fit — bottom_view repaints
@@ -314,15 +290,12 @@ static void health_graph_compute(void) {
             step_peak = s_steps[i];
         }
     }
-    // Scale the bars so the tallest always fills ~95% of the plot: hi = peak / 0.95.
-    // (Rounding the ceiling up to a full 100 left a low-activity day mostly empty above
-    // the bars.) The dotted marks sit at round levels below the peak, so they scale with
-    // hi and keep cutting through the bars.
-    int hi = (step_peak <= 0) ? 100 : (step_peak * 100 + 94) / 95;
-    if (hi > 99000) { hi = 99000; }
-    s_step_hi = hi;
-
-    compute_step_marks(step_peak);
+    // Scale the bars so the tallest always fills ~95% of the plot, never below the 0.1k
+    // scale. (Rounding the ceiling up to a full 100 left a low-activity day mostly empty
+    // above the bars.) The dotted marks sit at round levels below the peak, so they scale
+    // with hi and keep cutting through the bars (step_scale.h).
+    s_step_hi     = step_scale_hi(step_peak);
+    s_step_mark_n = step_scale_marks(step_peak, s_step_marks);
 
     s_visible_slots = visible_slots;
     s_end_hour      = end_hour;
@@ -340,7 +313,7 @@ static void health_graph_compute(void) {
     bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
 }
 
-// Left-axis strip: labels each dotted step mark (see compute_step_marks) as a single-row
+// Left-axis strip: labels each dotted step mark (see step_scale_marks) as a single-row
 // number in thousands ("2", "0.5") — no "k" suffix. The value→y mapping matches the plot
 // (plot_bottom == plot_h == axis_y). The vertical axis line itself is painted by the FRAME
 // layer in chart_draw.
@@ -425,8 +398,10 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     // Bottom-axis hour labels/ticks for the trailing window. chart_render_axis
     // iterates all def->num_slots entries, so clear the whole scratch first
     // (TICK_NONE, no label) and only fill the visible window.
-    static ChartAxisSlot axis_slots[MAX_BOTTOM_VIEW_ENTRIES];
-    memset(axis_slots, 0, sizeof(axis_slots));  // {label "", TICK_NONE}
+    // The per-draw buffers are the shared paint scratch's (paint_scratch.h).
+    HealthPaint *const paint = &g_paint_scratch.health;
+    ChartAxisSlot *const axis_slots = paint->axis_slots;
+    memset(axis_slots, 0, sizeof(paint->axis_slots));  // {label "", TICK_NONE}
     time_t     start       = s_end_hour - (time_t)(visible_slots - 1) * BOTTOM_VIEW_STEP_SECONDS;
     struct tm *start_local = localtime(&start);
     forecast_grid_fill_axis_slots(axis_slots, visible_slots,
@@ -452,14 +427,14 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     // pre-theme v1, combining with the white outline into what reads as a solid
     // white bar) and bw-light fills white with a black outline, the polarity
     // mirror. theme_pick() is a runtime call on color builds, so this can no longer
-    // be a static initializer — module-static scratch, rebuilt each redraw (mirrors
+    // be a static initializer — paint scratch, rebuilt each redraw (mirrors
     // rain_radar_layer.c's radar_tick_style()).
-    static ChartColorStop step_stops[1];
+    ChartColorStop *const step_stops = paint->step_stops;
     step_stops[0] = (ChartColorStop){ .from = 0, .color = theme_pick(GColorGreen, theme_bg()) };
 
-    // aplite-style discipline: per-frame layer array is module-static, not stack.
+    // aplite-style discipline: the per-frame layer array is scratch, not stack.
     // Max reachable here is 7 (sleep + gridlines + bars + HR + clamp dots + frame + axis).
-    static ChartLayer layers[7];
+    ChartLayer *const layers = paint->layers;
     int n = 0;
 
     layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM, .custom = {

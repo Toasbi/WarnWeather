@@ -45,11 +45,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     // Per-stop demo copy. The Default and radar captions are fixed (the radar copy stays
-    // provider-agnostic — no provider named); the health-status and health-graph captions
-    // vary with heart-rate availability (emery + diorite hardware) and are built from the shared
-    // item helpers below, so the health step and the flick demo can never drift.
+    // provider-agnostic — no provider named; its "Rain in 15’" is the rain alert's default
+    // 'text' look, and Rain is ticked on the Watch Status Bar's left side by default); the
+    // health-status and health-graph captions vary with heart-rate availability (emery +
+    // diorite hardware) and are built from the shared item helpers below, so the health
+    // step and the flick demo can never drift.
     var FLICK_CAPTION_DEFAULT = 'your calendar, the Forecast Status Bar, and the forecast.';
-    var FLICK_CAPTION_RADAR = 'a precise short-term rain forecast for the next 2 hours, in 5-minute frames. When rain’s on the way, the Watch Status Bar counts it down (“Rain in 15’”).';
+    var FLICK_CAPTION_RADAR = 'a precise short-term rain forecast for the next 2 hours, in 5-minute frames. When rain’s on the way, the Watch Status Bar counts it down at its edge (“Rain in 15’”).';
 
     /**
      * Health status-line contents, with the heart-rate clause only where the hardware has a
@@ -124,9 +126,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Not "the config has no keys": PKJS seeds the full defaults blob on the first boot,
      * before any settings page can open, so a fresh install never arrives empty. Existing
      * installs are marked onboarded by a one-time phone-side migration
-     * (clay-migrations.js migrateExistingInstallOnboarded), so only a fresh install — or
-     * one just reset — still reads false here. An empty config (a reset, reopened in the
-     * same PKJS session) has no onboardingDone and opens it too.
+     * (migrations/onboarding.js migrateExistingInstallOnboarded), so only a fresh
+     * install — or one just reset — still reads false here. An empty config (a reset,
+     * reopened in the same PKJS session) has no onboardingDone and opens it too.
      * @param {?Object} cfg Raw injected saved config.
      * @returns {boolean} True to auto-open.
      */
@@ -280,7 +282,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var cleanup = (PConf.onChange && PConf.onChange.get)
             ? PConf.onChange.get('clearPollenForProvider') : null;
         if (cleanup) { cleanup(S, oldProvider, m.provider); }
-        S.radarProvider = m.radarProvider;
+        // The country's Rainbow pick is "Rainbow (limited)" ('rainbow'); a radar already on
+        // "Rainbow (own key)" ('rainbowkey') stays there, as it did when the own key was a
+        // switch beside the one Rainbow option.
+        var ownKey = S.radarProvider === 'rainbowkey' && m.radarProvider === 'rainbow';
+        S.radarProvider = ownKey ? 'rainbowkey' : m.radarProvider;
         S.temperatureUnits = m.temperatureUnits;
         S.windUnits = m.windUnits;
         S.distanceUnits = m.distanceUnits;
@@ -546,12 +552,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The tomorrow.io upsell, shown between the first two "All set" paragraphs when the resulting
     // weather provider isn't DWD or Met.no (i.e. outside their strong regions): a free tomorrow.io key
     // unlocks the precise worldwide nowcast. Reuses the real settings field (renderRow) so the signup
-    // instructions, key input and Test button match the Provider-settings tab exactly. Entering a key
+    // instructions, key input and Test button match the Tomorrow.io key sheets exactly. Entering a key
     // switches the weather provider to tomorrow.io (see onTomorrowioKey), wired in openWizard.
+    // Both copies of the key's row (the weather provider's Tomorrow.io sheet and the radar-only one)
+    // are labelled just "API key" under a sheet titled "Tomorrow.io"; any copy will do (same hint,
+    // same Test), and the row here, with no sheet title above it, names the provider itself.
+    var TOMORROWIO_UPSELL_LABEL = 'Tomorrow.io API key';
     function tomorrowioUpsell() {
         var item = findItem(W.ctx.schema, 'tomorrowioApiKey');
         if (!item) { return ''; }
-        var field = PConf.engine.renderRow(item, { value: W.ctx.S.tomorrowioApiKey || '' });
+        var field = PConf.engine.renderRow(Object.assign({}, item, { label: TOMORROWIO_UPSELL_LABEL }),
+            { value: W.ctx.S.tomorrowioApiKey || '' });
         return '<div class="wiz-tio">'
             + '<p><b>Get the most precise forecast.</b> For your region, a free <b>Tomorrow.io</b> account unlocks a hyperlocal forecast anywhere in the world. Set it up below, or skip it to keep the auto-picked provider.</p>'
             + field
@@ -564,7 +575,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // tomorrow.io once a key is entered, which must not change whether the upsell shows.
         var countryProvider = mapCountry(W.ctx.S.holidayCountry).provider;
         var upsell = (countryProvider !== 'dwd' && countryProvider !== 'metno') ? tomorrowioUpsell() : '';
-        return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs, and you can run this setup again any time from <b>More → Misc → Run setup again</b>.</p>'
+        return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs, and you can run this setup again any time from <b>Setup › Misc › Run setup again</b>.</p>'
             + upsell
             + '<p>If you enjoy WarnWeather, please ♥ it on the Pebble appstore — it really helps.</p>'
             + '<p>Need help or have feedback? Open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>, or use the appstore’s “Message the developer” to reach me directly.</p>';
@@ -610,8 +621,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var COMPLETING_NAVS = {save: true, tweak: true};
 
     /**
-     * The conditional-defaults table. Resolved lazily so the flat settings page's file order
-     * never matters (same dual-context pattern as blocks.js's status-thresholds lookup).
+     * The conditional-defaults table. Resolved lazily, on purpose, so the flat settings
+     * page's file order never matters (unlike blocks.js, which binds the status-thresholds
+     * contract once at load and has its bundle position pinned by a test).
      * WEBVIEW REQUIREMENT: the flat page has no require(), so settings/defaults-policy.js must
      * be listed in scripts/build-config-page.js's APP_FILES for window.DefaultsPolicy to exist
      * at all. Without it the wizard simply derives nothing — Node tests take the require()
@@ -663,7 +675,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {Object} ctx onReady ctx ({S, ENV, schema}).
      * @param {string} key Setting messageKey.
      * @param {Object} meta The key's flattened rule meta from applyDefaults
-     *     ({value, seedVia, dependsOn, overrules}).
+     *     ({value, dependsOn, overrules}).
      * @returns {boolean} True when writing is safe.
      */
     function policyMayWrite(ctx, key, meta) {
@@ -694,13 +706,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * existing save path persists them alongside everything else the wizard derived. A nav
      * that doesn't finish the wizard (Skip, Back, Next) writes nothing.
      *
-     * A key the rule marks `seedVia` is written THROUGH that same onChange hook the settings
-     * page uses, so its companions — a threshold pair, an outline colour — come out identical
-     * to flipping the control by hand. No threshold numbers are picked here.
-     *
-     * The execution semantics — flattening, `set` order, dependsOn anchoring, the seedVia
-     * write-through — live in the policy module's applyDefaults, its one interpreter; this
-     * caller only contributes the guard deciding whether a value may land (policyMayWrite).
+     * The execution semantics — flattening, `set` order, dependsOn anchoring — live in the
+     * policy module's applyDefaults, its one interpreter; this caller only contributes the
+     * guard deciding whether a value may land (policyMayWrite).
      *
      * @param {Object} ctx onReady ctx ({S, ENV, schema}).
      * @param {string} nav The footer button pressed ('save'|'tweak'|'skip'|'next'|'back').
@@ -720,10 +728,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // The whole live state doubles as `choices`: every wizard pick and every stored
         // setting is already in it, so a future rule keyed on any of them just works.
         return policy.applyDefaults({wizard: true, env: ctx.ENV, choices: ctx.S}, {
-            mayWrite: function (key, meta) { return policyMayWrite(ctx, key, meta); },
-            getHook: function (name) {
-                return PConf.onChange && PConf.onChange.get ? PConf.onChange.get(name) : null;
-            }
+            mayWrite: function (key, meta) { return policyMayWrite(ctx, key, meta); }
         });
     }
 

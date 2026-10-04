@@ -2926,13 +2926,16 @@ static void expect_at_least(const char *name, int got, int least) {
 // Per-preset clearance figures, so the reference (compactCal) can be compared against.
 typedef struct { int cal_ink_end; int box_top; int cap_top; bool has_cal_and_row; } Clearance;
 
-// Topmost row of the row's threshold-highlight box: the cap centre minus the box's font
-// reach (glyph_below + descender_h), clamped to the band top — MIRRORS the `above` side
-// of status_highlight_extent() in src/c/layers/status_row_layout.c, the same way
-// status_cap_top above mirrors the seat.
+// Topmost row of the row's threshold-highlight box: the digits' cap top minus the font's
+// descender depth (the box is the cap box grown by descender_h on every side), clamped to
+// the band top — MIRRORS the `above` side of status_highlight_extent() in
+// src/c/layers/status_row_layout.c, the same way status_cap_top above mirrors the seat. (A
+// plain-digit box out of rows BELOW lowers its top to keep its air symmetric; it can never
+// rise above this, so the bound stays safe.)
 static int status_box_top(int band_y, int band_h, int content_h) {
     int cap_cy = band_y + status_glyph_center_y(status_seat_y(band_h, content_h), content_h);
-    int above = status_glyph_below(content_h) + status_descender_h(content_h);
+    int above = status_cap_h(content_h) - status_glyph_below(content_h)
+              + status_descender_h(content_h);
     if (above > cap_cy - band_y) { above = cap_cy - band_y; }
     return cap_cy - above;
 }
@@ -3180,7 +3183,7 @@ static const ClockInk CLOCK_INKS[] = {
     {  2, 46 }, {  2, 42 }, {  2, 45 },
 #else
     {  0, 35 }, { -1, 29 }, { -2, 31 },
-    {  0, 34 },    // basalt Roboto, an anti-aliased strip (clock_glyphs_ink.h)
+    {  0, 34 },    // basalt Roboto, anti-aliased glyphs (clock_glyphs_ink.h)
 #endif
     {  7, 20 },    // wildly off-centre, even ink
     { -6, 33 },    // off-centre the other way, odd ink

@@ -7,8 +7,10 @@
 // outbox and the telemetry sink — except auth-backoff.js and notices.js, which
 // are the real modules over the storage mock. Assertions stay on outcomes: the
 // return values, the four storage records (weather_fetch_attempt,
-// lastFetchSuccess, lastFetchAttempt, lastIsSleeping), the calls the fakes saw
-// and the telemetry event. Never on log text, never on module internals.
+// lastFetchSuccess, lastFetchAttempt, lastIsSleeping), the key's answers
+// (keyResults) and the key status the settings page reads from them, the calls
+// the fakes saw and the telemetry event. Never on log text, never on module
+// internals.
 //
 // Radar observation seam: with radarProvider 'tomorrowio' and a key, the radar
 // leg asks WeatherProvider.request (looked up at call time) for a URL carrying
@@ -634,10 +636,10 @@ test('radar: one fix feeds both legs — the radar request and the forecast get 
     assert.equal(typeof call.payloadTransform, 'function');
 });
 
-test('radar: Rainbow with "Use your own key" on sends the user\'s key in the request header', () => {
+test('radar: "Rainbow (own key)" sends the user\'s key in the request header', () => {
     resetStore();
-    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'rainbow',
-        rainbowOwnKey: true, rainbowApiKey: 'K' };
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'rainbowkey',
+        rainbowApiKey: 'K' };
     const h = makeHarness({ settings: settings, watchInfo: BASALT });
     h.cycle.start(true);
     h.provider.fix(52.5, 13.4);
@@ -650,7 +652,7 @@ test('radar: Rainbow with "Use your own key" on sends the user\'s key in the req
 test('radar: Rainbow on your own key with no key clears, and no sky request goes out for it', () => {
     resetStore();
     // The sky rows are on (radarSky unset), but a radar that can never answer draws no graph.
-    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarProvider: 'rainbow', rainbowOwnKey: true,
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarProvider: 'rainbowkey',
         rainbowApiKey: '' };
     const h = makeHarness({ settings: settings, watchInfo: BASALT });
     h.cycle.start(true);
@@ -699,6 +701,137 @@ test('failure: a provider 401 arms the auth backoff, raises the notice, sends it
     // What the armed backoff means for the next starts.
     assert.equal(h.cycle.start(false), false, 'scheduled starts stop');
     assert.equal(h.cycle.start(true), true, 'a forced one retries');
+});
+
+// --- the key's answers (key-result.js), for the settings page's key status ------------------
+
+const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
+const keyStatus = require('../src/pkjs/settings/key-status.js');
+const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
+
+/**
+ * The key status the settings page would show for a keyed source, from what the phone
+ * stored: index.js hands the page localStorage's KEY_RESULTS_KEY as userData.keyResults.
+ * @param {string} picker 'provider' or 'radarProvider'.
+ * @param {string} id The picker's value.
+ * @param {Object} S The settings (the key field).
+ * @returns {Object} key-status.js statusOf's answer.
+ */
+function pageStatus(picker, id, S) {
+    global.INJECTED_USERDATA = { keyResults: localStorage.getItem(KEYS.KEY_RESULTS_KEY) };
+    try { return keyStatus.statusOf(KEY_SOURCES[picker].sources[id], id, S); }
+    finally { delete global.INJECTED_USERDATA; }
+}
+
+test('a keyed provider\'s answers are kept by key fingerprint under its id; the update records name no key', () => {
+    resetStore();
+    const keyed = makeProvider('openweathermap');
+    keyed.apiKey = 'OWMSECRET_abcdef';
+    const h = makeHarness({ provider: keyed });
+    assert.equal(h.cycle.start(false), true);
+    keyed.fix(52.5, 13.4);
+    keyed.fail(AUTH_401);
+    assert.deepEqual(readJson(KEYS.KEY_RESULTS_KEY), { openweathermap: { keyHash: fingerprint('OWMSECRET_abcdef'), status: 401 } },
+        'the refusal, with the status the failure code carries');
+    assert.deepEqual(Object.keys(readJson(KEYS.AUTH_BACKOFF_KEY)).sort(), ['code', 'since'], 'the gate names no key');
+    assert.deepEqual(readJson(KEYS.LAST_FETCH_ATTEMPT_KEY), recordFor(keyed, T0, AUTH_401), 'nor does the attempt');
+
+    assert.equal(h.cycle.start(true), true);
+    keyed.fix(52.5, 13.4);
+    keyed.succeed();
+    assert.deepEqual(readJson(KEYS.KEY_RESULTS_KEY), { openweathermap: { keyHash: fingerprint('OWMSECRET_abcdef'), status: 200 } });
+    assert.deepEqual(readJson(KEYS.LAST_FETCH_SUCCESS_KEY), recordFor(keyed, T0), 'the success names no key');
+    Object.keys(store).forEach((k) => assert.equal(store[k].indexOf('OWMSECRET'), -1, k + ' never holds the key'));
+    assert.equal(authBackoff.isActive(), false);
+
+    // A non-auth failure (a 429) says nothing about the key here; a keyless provider records nothing.
+    assert.equal(h.cycle.start(false), true);
+    keyed.fix(52.5, 13.4);
+    keyed.fail({ stage: 'provider_data', code: 'owm_status_429' });
+    assert.equal(readJson(KEYS.KEY_RESULTS_KEY).openweathermap.status, 200);
+
+    // A 403 is kept as a 403: the status is read out of the refusal's own code, and the page
+    // gives the reason that status names.
+    assert.equal(h.cycle.start(true), true);
+    keyed.fix(52.5, 13.4);
+    keyed.fail({ stage: 'provider_data', code: 'owm_status_403' });
+    assert.deepEqual(readJson(KEYS.KEY_RESULTS_KEY), { openweathermap: { keyHash: fingerprint('OWMSECRET_abcdef'), status: 403 } },
+        'the refusal, with its 403');
+    assert.deepEqual(pageStatus('provider', 'openweathermap', { owmApiKey: 'OWMSECRET_abcdef' }),
+        { state: 'rejected', tail: 'cdef', status: 403 }, 'the page shows the 403');
+    resetStore();
+    const plain = makeHarness();
+    assert.equal(plain.cycle.start(false), true);
+    plain.provider.fix(52.5, 13.4);
+    plain.provider.succeed();
+    assert.deepEqual(readJson(KEYS.LAST_FETCH_SUCCESS_KEY), recordFor(plain.provider, T0));
+    assert.equal(store[KEYS.KEY_RESULTS_KEY], undefined);
+});
+
+// The owner-approved fix (thermo-js-2 PHONE-3): the auth backoff is the "stop fetching" gate, and a
+// forced fetch (the Force toggle, a location or key change) clears it. It used to be the key's
+// verdict too, so a forced fetch that then failed for another reason (offline, a timeout, no
+// position fix) erased the refusal, and the page fell back to an older success with the same key:
+// "✓ works" for a key whose last answer was a 401.
+test('a forced fetch that fails for another reason keeps a refused key refused on the settings page', () => {
+    resetStore();
+    const keyed = makeProvider('openweathermap');
+    keyed.apiKey = 'OWM-revoked-1234';
+    const S = { owmApiKey: 'OWM-revoked-1234' };
+    const h = makeHarness({ provider: keyed });
+    h.cycle.start(false);
+    keyed.fix(52.5, 13.4);
+    keyed.succeed();
+    assert.equal(pageStatus('provider', 'openweathermap', S).state, 'ok', 'the key worked');
+    h.cycle.start(false);
+    keyed.fix(52.5, 13.4);
+    keyed.fail(AUTH_401);
+    assert.deepEqual(pageStatus('provider', 'openweathermap', S), { state: 'rejected', tail: '1234', status: 401 },
+        'then it was revoked');
+
+    // Force fetch: the gate opens, and the fetch dies before the provider answers.
+    assert.equal(h.cycle.start(true), true);
+    assert.equal(authBackoff.isActive(), false, 'the forced fetch cleared the gate');
+    keyed.fix(52.5, 13.4);
+    keyed.fail({ stage: 'provider_data', code: 'timeout' });
+    assert.deepEqual(pageStatus('provider', 'openweathermap', S), { state: 'rejected', tail: '1234', status: 401 },
+        'still refused after a timeout');
+    h.cycle.start(true);
+    keyed.noFix({ stage: 'location', code: 'gps_3' });
+    assert.deepEqual(pageStatus('provider', 'openweathermap', S), { state: 'rejected', tail: '1234', status: 401 },
+        'still refused after a forced fetch with no position fix');
+});
+
+// Tomorrow.io's key serves the forecast and the radar: one id, one entry, so the newest answer
+// either of them got is the key's verdict on both rows (the owner's call, thermo-js-2 PHONE-3).
+test('Tomorrow.io as forecast and radar: the newest answer the key got, weather or radar, is its verdict', () => {
+    const KEY = 'TIO-shared-9876';
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'tomorrowio',
+        tomorrowioApiKey: KEY, provider: 'tomorrowio' };
+    const run = (radarAnswer, weather) => {
+        resetStore();
+        const p = makeProvider('tomorrowio');
+        p.apiKey = KEY;
+        const h = makeHarness({ settings: settings, watchInfo: BASALT, provider: p });
+        h.cycle.start(false);
+        p.fix(52.5, 13.4);
+        assert.equal(radarRequests.length, 1, 'the radar asks with the same key');
+        radarAnswer(radarRequests[0]);
+        weather(p);
+        return ['provider', 'radarProvider'].map((picker) => pageStatus(picker, 'tomorrowio', settings));
+    };
+    // The radar is asked first; a forecast that answers after it has the last word.
+    assert.deepEqual(run((r) => r.onError({ code: 'status_403', detail: 'http_status' }), (p) => p.succeed()),
+        [{ state: 'ok', tail: '9876' }, { state: 'ok', tail: '9876' }], 'radar refused, then the forecast went through');
+    assert.deepEqual(run((r) => r.onSuccess(timelinesBody(radarWire.slotZeroEpochFor(T0), 0)),
+        (p) => p.fail({ stage: 'provider_data', code: 'tomorrowio_status_401' })),
+        [{ state: 'rejected', tail: '9876', status: 401 }, { state: 'rejected', tail: '9876', status: 401 }],
+        'radar served, then the forecast was refused');
+    // A forecast that says nothing about the key leaves the radar's answer standing, on both rows.
+    assert.deepEqual(run((r) => r.onError({ code: 'status_403', detail: 'http_status' }),
+        (p) => p.fail({ stage: 'provider_data', code: 'timeout' })),
+        [{ state: 'rejected', tail: '9876', status: 403 }, { state: 'rejected', tail: '9876', status: 403 }],
+        'radar refused, the forecast timed out');
 });
 
 test('failure: on a radar-capable watch the 401 notice and this cycle\'s radar CLEAR share one send', () => {
@@ -766,6 +899,242 @@ test('failure: a 429 raises a settings-panel notice but sends nothing to the wat
     assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['ratelimit']);
     assert.equal(h.calls.sendWeather.length, 0);
     assert.equal(authBackoff.isActive(), false, 'a rate limit is not an auth failure');
+});
+
+/** Run one forced start that gets a fix and then fails with `failure`. */
+function failOnce(h, failure) {
+    assert.equal(h.cycle.start(true), true);
+    h.provider.fix(52.5, 13.4);
+    h.provider.fail(failure);
+}
+
+test('failure: a server failure stays quiet on the first update and shows from the second; a success ends the run', () => {
+    resetStore();
+    const h = makeHarness();   // aplite: no radar keys ride along
+    const f503 = { stage: 'provider_data', code: 'fake_status_503' };
+    failOnce(h, f503);
+    assert.deepEqual(notices.list(), [], 'the first failed update raises nothing');
+    assert.deepEqual(h.calls.sendWeather, [], 'and sends nothing: the watch keeps its last forecast');
+    assert.equal(authBackoff.isActive(), false);
+
+    h.advance(MIN);
+    failOnce(h, { stage: 'provider_data', code: 'fake_timeout' });
+    const list = notices.list();
+    assert.deepEqual(list.map(function (n) { return n.key; }), ['server'], 'the second one in a row shows');
+    assert.equal(list[0].type, 'error');
+    assert.match(list[0].html, /<b>fake weather<\/b> is not answering: the last 2 updates failed \(no answer in time\)/);
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'fake weather not answering' }], 'the overlay text alone');
+
+    h.advance(MIN);
+    assert.equal(h.cycle.start(true), true);
+    h.provider.fix(52.5, 13.4);
+    h.provider.succeed();
+    assert.deepEqual(notices.list(), [], 'a success clears the notice');
+    assert.equal(store[KEYS.SERVER_FAILURE_STREAK_KEY], undefined, 'and the run');
+    h.calls.sendWeather.length = 0;
+    failOnce(h, f503);
+    assert.deepEqual(notices.list(), [], 'after a success the count starts again');
+    assert.deepEqual(h.calls.sendWeather, []);
+});
+
+test('failure: the run counts one provider\'s server failures in a row — another provider or failure kind starts over', () => {
+    resetStore();
+    const h = makeHarness();
+    const f502 = { stage: 'provider_data', code: 'fake_status_502' };
+    failOnce(h, f502);
+    failOnce(h, { stage: 'provider_data', code: 'fake_parse_error' });
+    failOnce(h, f502);
+    assert.deepEqual(notices.list(), [], 'a parse error in between ends the run');
+
+    h.setProvider(makeProvider('other'));
+    failOnce(h, { stage: 'provider_data', code: 'other_status_500' });
+    assert.deepEqual(notices.list(), [], 'another provider starts its own run');
+
+    assert.equal(h.cycle.start(true), true);
+    h.provider.noFix({ stage: 'coordinates', code: 'timeout' });
+    assert.deepEqual(notices.list(), [], 'no fix: not the provider failing, and no notice');
+    failOnce(h, { stage: 'provider_data', code: 'other_network_error' });
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['server'],
+        'a missing fix neither counts nor ends the run');
+    assert.match(notices.list()[0].html, /<b>other weather<\/b> is not answering: the last 2 updates failed \(no connection\)/);
+});
+
+test('failure: a provider\'s own retry delay raises the neutral notice at once and holds scheduled fetches that long', () => {
+    resetStore();
+    const wu = makeProvider('wunderground');
+    wu.name = 'Weather Underground';
+    wu.shortName = 'Wunderground';
+    wu.scrapesKey = true;
+    const h = makeHarness({ provider: wu, settings: { fetchIntervalMin: '15' } });
+    const refused = { stage: 'provider_data', code: 'wu_current_status_401', retryAfterMs: HOUR };
+    assert.equal(h.cycle.start(false), true);
+    wu.fix(52.5, 13.4);
+    wu.fail(refused);
+    assert.equal(authBackoff.isActive(), false, 'no indefinite auth backoff');
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['unavailable'], 'shown at once');
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'Wunderground not answering' }],
+        'no forecast on the watch to keep: its short name, on the watch at once');
+    h.setNow(T0 + 30 * MIN);
+    assert.equal(h.cycle.shouldFetchNow(), false, 'past two 15-min slots, still resting');
+    h.setNow(T0 + HOUR);
+    assert.equal(h.cycle.shouldFetchNow(), true, 'the next update after the hour tries again');
+});
+
+test('failure: a provider not answering leaves a good forecast on the watch — its line goes out once that forecast is too old', () => {
+    resetStore();
+    const h = makeHarness();
+    assert.equal(h.cycle.start(true), true);
+    h.provider.fix(52.5, 13.4);
+    h.provider.succeed();   // T0: the watch shows this forecast for 12 h
+    h.calls.sendWeather.length = 0;
+    const f503 = { stage: 'provider_data', code: 'fake_status_503' };
+    h.advance(MIN);
+    failOnce(h, f503);
+    h.advance(MIN);
+    failOnce(h, { stage: 'provider_data', code: 'fake_network_error' });
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['server'], 'the panel shows it at once');
+    assert.deepEqual(h.calls.sendWeather, [], 'but no overlay hides the forecast on the watch');
+
+    h.setNow(T0 + 12 * HOUR);
+    failOnce(h, f503);
+    assert.deepEqual(h.calls.sendWeather, [], 'not up to the watch\'s own 12 h');
+    h.setNow(T0 + 12 * HOUR + MIN);
+    failOnce(h, f503);
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'fake weather not answering' }],
+        'then the line takes the place of the bare "No data :("');
+
+    resetStore();
+    const wu = makeProvider('wunderground');
+    wu.shortName = 'Wunderground';
+    const w = makeHarness({ provider: wu });
+    assert.equal(w.cycle.start(true), true);
+    wu.fix(52.5, 13.4);
+    wu.succeed();
+    w.calls.sendWeather.length = 0;
+    w.advance(MIN);
+    failOnce(w, { stage: 'provider_data', code: 'wu_current_status_401', retryAfterMs: HOUR });
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['unavailable']);
+    assert.deepEqual(w.calls.sendWeather, [], 'Weather Underground\'s hour of rest keeps the forecast too');
+});
+
+test('start: an auth backoff an older build left for a provider whose key is scraped is dropped, not obeyed', () => {
+    resetStore();
+    authBackoff.set({ stage: 'provider_data', code: 'wu_current_status_401' }, { provider: 'wunderground' });
+    const wu = makeProvider('wunderground');
+    wu.scrapesKey = true;
+    const h = makeHarness({ provider: wu });
+    assert.equal(h.cycle.start(false), true, 'a scheduled start goes ahead');
+    assert.equal(authBackoff.isActive(), false, 'and the stale record is gone');
+
+    resetStore();
+    authBackoff.set({ stage: 'provider_data', code: 'owm_status_401' }, { provider: 'openweathermap' });
+    const keyed = makeHarness({ provider: makeProvider('openweathermap') });
+    assert.equal(keyed.cycle.start(false), false, 'a keyed provider still waits for the user');
+});
+
+test('radar: a place outside DWD\'s composite asks nothing, sends the clear with DWD\'s line, and keeps the verdict', () => {
+    resetStore();
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'dwd' };
+    const h = makeHarness({ settings: settings, watchInfo: BASALT });
+    const OUTSIDE = Object.assign({ RAIN_RADAR_LIMITED: 'DWD radar: Germany only' }, CLEAR);
+    h.cycle.start(false);
+    h.provider.fix(25.76, -80.19);   // Miami
+    assert.equal(radarRequests.length, 0, 'no radar request');
+    assert.deepEqual(h.provider.lastForecast().extras, Object.assign({ IS_SLEEPING: false }, OUTSIDE, SKY_CLEAR));
+    assert.equal(store[KEYS.RADAR_COVERAGE_KEY], JSON.stringify({ dwd: true, metno: true }),
+        'the settings page\'s record: verdicts, no position');
+    // A failed forecast still forwards it, line and all.
+    h.provider.fail({ stage: 'provider_data', code: 'fake_parse_error' });
+    assert.deepEqual(h.calls.sendWeather, [Object.assign({}, OUTSIDE, SKY_CLEAR)]);
+
+    h.advance(HOUR);
+    h.cycle.start(false);
+    h.provider.fix(52.52, 13.4);   // Berlin: in the box, so DWD is asked
+    assert.equal(radarRequests.length, 1, 'inside the box the request goes out');
+    assert.equal(store[KEYS.RADAR_COVERAGE_KEY], JSON.stringify({ dwd: true, metno: true }), 'the record waits for the answer');
+    radarRequests[0].onError({ code: 'status_503', detail: 'http_status' });
+    assert.equal(store[KEYS.RADAR_COVERAGE_KEY], JSON.stringify({ dwd: false, metno: true }));
+});
+
+test('radar: inside DWD\'s box the second 404 in a row says "DWD: no radar data"; leaving and entering the box start afresh', () => {
+    resetStore();
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'dwd' };
+    const h = makeHarness({ settings: settings, watchInfo: BASALT });
+    const NO_DATA = Object.assign({ RAIN_RADAR_LIMITED: 'DWD: no radar data' }, CLEAR);
+    const OUTSIDE = Object.assign({ RAIN_RADAR_LIMITED: 'DWD radar: Germany only' }, CLEAR);
+    const PARIS = [48.85, 2.35];
+    const MIAMI = [25.76, -80.19];
+    /**
+     * One update at `place`: DWD answers `radar` (an HTTP status to fail with, or a body)
+     * when asked, then the forecast succeeds.
+     * @returns {Object} The radar keys the forecast extras carried.
+     */
+    function update(place, radar) {
+        const asked = radarRequests.length;
+        h.advance(HOUR);
+        assert.equal(h.cycle.start(false), true);
+        h.provider.fix(place[0], place[1]);
+        if (radar !== undefined) {
+            const req = radarRequests[asked];
+            if (typeof radar === 'number') { req.onError({ code: 'status_' + radar, detail: 'http_status' }); }
+            else { req.onSuccess(JSON.stringify(radar)); }
+        }
+        assert.equal(radarRequests.length, asked + (radar === undefined ? 0 : 1), 'a request inside the box only');
+        const extras = h.provider.lastForecast().extras;
+        h.provider.succeed();
+        const out = {};
+        Object.keys(extras).filter((k) => k.indexOf('RAIN_RADAR_') === 0).forEach((k) => { out[k] = extras[k]; });
+        return out;
+    }
+    const record = () => JSON.parse(store[KEYS.RADAR_COVERAGE_KEY]);
+
+    assert.deepEqual(update(PARIS, 404), {}, 'one 404 alone changes nothing: no radar keys');
+    assert.deepEqual(record(), { dwd: false, metno: true, misses: { dwd: 1 } }, 'no position, and no note yet');
+    assert.deepEqual(update(PARIS, 404), NO_DATA, 'the second in a row: the clear with the general line');
+    assert.deepEqual(record(), { dwd: false, metno: true, misses: { dwd: 2 } }, 'inside the box, no data: the note\'s record');
+    assert.deepEqual(update(PARIS, 503), {}, 'a 5xx between keeps what the watch shows');
+    assert.deepEqual(update(PARIS, 404), NO_DATA, 'and the run');
+
+    assert.deepEqual(update(MIAMI), OUTSIDE, 'leaving the box: no request, the coverage line');
+    assert.deepEqual(record(), { dwd: true, metno: true }, 'and the run is over');
+    assert.deepEqual(update(PARIS, 404), {}, 'entering it again: a first 404 once more');
+    assert.deepEqual(update(PARIS, 404), NO_DATA);
+
+    const back = update(PARIS, { latlon_position: { x: 0, y: 0 }, radar: [] });
+    assert.deepEqual(back.RAIN_RADAR_TREND_UINT8, new Array(24).fill(0), 'radar data: a window again, no line');
+    assert.equal('RAIN_RADAR_LIMITED' in back, false);
+    assert.deepEqual(record(), { dwd: false, metno: true }, 'the count and the note are gone');
+    assert.deepEqual(update(PARIS, 404), {}, 'a later 404 is a first one');
+
+    // The second 404 with a failed forecast: the line still reaches the watch.
+    h.advance(HOUR);
+    h.cycle.start(false);
+    h.provider.fix(PARIS[0], PARIS[1]);
+    radarRequests[radarRequests.length - 1].onError({ code: 'status_404', detail: 'http_status' });
+    h.calls.sendWeather.length = 0;
+    h.provider.fail({ stage: 'provider_data', code: 'fake_parse_error' });
+    assert.deepEqual(h.calls.sendWeather, [Object.assign({}, NO_DATA, SKY_CLEAR)]);
+});
+
+test('radar: switching from DWD to another radar source ends DWD\'s run of 404s', () => {
+    resetStore();
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'dwd' };
+    const h = makeHarness({ settings: settings, watchInfo: BASALT });
+    [0, 1].forEach(function (i) {
+        h.advance(HOUR);
+        h.cycle.start(false);
+        h.provider.fix(48.85, 2.35);
+        radarRequests[i].onError({ code: 'status_404', detail: 'http_status' });
+        h.provider.succeed();
+    });
+    assert.deepEqual(JSON.parse(store[KEYS.RADAR_COVERAGE_KEY]).misses, { dwd: 2 });
+    h.setSettings(Object.assign({}, settings, { radarMode: 'off' }));
+    h.advance(HOUR);
+    h.cycle.start(false);
+    h.provider.fix(48.85, 2.35);
+    h.provider.succeed();
+    assert.deepEqual(JSON.parse(store[KEYS.RADAR_COVERAGE_KEY]), { dwd: false, metno: true },
+        'radar off asked DWD nothing: picking DWD again shows no stale note');
 });
 
 test('coordinates: a failed fix is recorded and tracked, and starts no radar, forecast, send or sleep commit', () => {
@@ -1149,12 +1518,12 @@ test('radar throttle: the sky rows are not throttled — they ride a throttled c
 
 test('radar throttle: Rainbow on your own key, tomorrow.io and DWD ask every cycle and keep no record', () => {
     [
-        { radarProvider: 'rainbow', rainbowOwnKey: true, rainbowApiKey: 'K' },
+        { radarProvider: 'rainbowkey', rainbowApiKey: 'K' },
         { radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' },
         { radarProvider: 'dwd' }
     ].forEach(function (over) {
         resetStore();
-        // A shared-Rainbow record from before the switch is forgotten on the first radar step.
+        // A shared-Rainbow record from before the change of source is forgotten on the first radar step.
         store[RB_KEY] = JSON.stringify({ id: 'rainbow', at: RB_T0 });
         const h = rbHarness({ settings: Object.assign({ fetchIntervalMin: '15', radarMode: 'graph', radarSky: false }, over) });
         [0, 5, 15].forEach(function (m) {
@@ -1162,7 +1531,7 @@ test('radar throttle: Rainbow on your own key, tomorrow.io and DWD ask every cyc
             const before = radarRequests.length;
             assert.equal(h.cycle.start(false), true);
             h.provider.fix(52.5, 13.4);
-            const label = over.rainbowOwnKey ? 'rainbow on the own key' : over.radarProvider;
+            const label = over.radarProvider;
             assert.equal(radarRequests.length, before + 1, label + ' asks at +' + m + ' min');
             radarRequests[radarRequests.length - 1].onError({ code: 'status_503', detail: 'http_status' });
             h.provider.succeed();
@@ -1172,16 +1541,16 @@ test('radar throttle: Rainbow on your own key, tomorrow.io and DWD ask every cyc
     });
 });
 
-test('radar throttle: the "Use your own key" switch picks the Rainbow source, and switching back asks the proxy afresh', () => {
+test('radar throttle: "Rainbow (own key)" asks Rainbow directly, and going back to "Rainbow (limited)" asks the proxy afresh', () => {
     resetStore();
-    const settings = Object.assign({}, RB_SETTINGS, { rainbowOwnKey: false, rainbowApiKey: 'K' });
+    const settings = Object.assign({}, RB_SETTINGS, { rainbowApiKey: 'K' });
     const h = rbHarness({ settings: settings });
-    // Switch off: the shared proxy, one request per slot.
+    // "Rainbow (limited)": the shared proxy, one request per slot.
     assert.equal(rbCycle(h, RB_T0).requested, true, 'the shared radar asks the proxy');
     assert.equal(rbCycle(h, RB_T0 + 5 * MIN).requested, false, 'and is throttled within the slot');
     assert.equal(readJson(RB_KEY).id, 'rainbow');
-    // Switch on: Rainbow directly on the user's key, every cycle, and no throttle record.
-    settings.rainbowOwnKey = true;
+    // "Rainbow (own key)": Rainbow directly on the user's key, every cycle, and no throttle record.
+    settings.radarProvider = 'rainbowkey';
     [10, 15].forEach(function (m) {
         h.setNow(RB_T0 + m * MIN);
         const before = radarRequests.length;
@@ -1195,10 +1564,10 @@ test('radar throttle: the "Use your own key" switch picks the Rainbow source, an
         h.provider.succeed();
         assert.equal(store[RB_KEY], undefined, 'the own key keeps no record');
     });
-    assert.equal(proxyRequests().length, 1, 'the proxy was asked only while the switch was off');
-    // Switch off again, still inside the first slot: the shared record went with the
-    // switch, so the proxy is asked afresh rather than skipped.
-    settings.rainbowOwnKey = false;
+    assert.equal(proxyRequests().length, 1, 'the proxy was asked only while on "Rainbow (limited)"');
+    // Back to "Rainbow (limited)", still inside the first slot: the shared record went with
+    // the change of source, so the proxy is asked afresh rather than skipped.
+    settings.radarProvider = 'rainbow';
     assert.equal(rbCycle(h, RB_T0 + 20 * MIN).requested, true, 'back on the proxy, asked afresh');
 });
 

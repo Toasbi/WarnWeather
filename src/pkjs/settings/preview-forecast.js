@@ -30,6 +30,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // sent. Both are in the page bundle ahead of this file.
     var lineStyle = (typeof require !== 'undefined')
         ? require('../line-style.js') : window.LineStyle;
+    // The wind, gust and UV lines' scale and their Show: Alert band and gaps, from the
+    // module the bake reads them through (in the page bundle ahead of this file).
+    var lineAlert = (typeof require !== 'undefined')
+        ? require('../line-alert.js') : window.LineAlert;
+    // A stripe cell's level on its metric's own scale: the table the bake reads.
+    var stripeLevels = (typeof require !== 'undefined')
+        ? require('../stripe-levels.js') : window.StripeLevels;
+    // Draw from / Bars from [Bottom | Top]: which lines and the bars hang from the top,
+    // read as the wire reads it (in the page bundle ahead of this file).
+    var drawFrom = (typeof require !== 'undefined')
+        ? require('../draw-from.js') : window.DrawFrom;
     var resolveInkLib = (typeof require !== 'undefined')
         ? require('../resolve-ink.js') : window.ResolveInk;
     var isLightPolarity = resolveInkLib.isLightPolarity;
@@ -46,37 +57,45 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     /**
      * Catmull-Rom-ish smoothing: a cubic Bezier path through every point.
      * @param {Array.<Array.<number>>} pts [x, y] vertices in draw order.
+     * @param {function(number): number} [hold] Clamps each control point's y, so the
+     *   curve (inside its control points' hull) never swings past a line's zero row.
      * @returns {string} SVG path data ('' for fewer than two points).
      */
-    function smooth(pts) {
+    function smooth(pts, hold) {
         if (pts.length < 2) { return ''; }
+        var h = hold || function (y) { return y; };
         var d = 'M' + pts[0][0] + ',' + pts[0][1];
         for (var i = 0; i < pts.length - 1; i++) {
             var p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
-            d += ' C' + (p1[0] + (p2[0] - p0[0]) / 6) + ',' + (p1[1] + (p2[1] - p0[1]) / 6) + ' ' + (p2[0] - (p3[0] - p1[0]) / 6) + ',' + (p2[1] - (p3[1] - p1[1]) / 6) + ' ' + p2[0] + ',' + p2[1];
+            d += ' C' + (p1[0] + (p2[0] - p0[0]) / 6) + ',' + h(p1[1] + (p2[1] - p0[1]) / 6) + ' ' + (p2[0] - (p3[0] - p1[0]) / 6) + ',' + h(p2[1] - (p3[1] - p1[1]) / 6) + ' ' + p2[0] + ',' + p2[1];
         }
         return d;
     }
 
     /**
-     * Split [x, y] vertices on null-y gaps into contiguous runs — the preview
-     * half of chart_runs.h's chart_next_run (host-pinned by
-     * test/c/chart_absent_test.c; this side by test/config-blocks.test.js).
-     * A lone vertex stays its own run: the caller draws chart_render_line's
-     * run == 1 small square for it.
-     * @param {Array.<Array.<?number>>} pts [x, y|null] vertices in draw order.
-     * @returns {Array.<Array.<Array.<number>>>} Runs of gap-free vertices.
+     * The runs one line's polyline draws — the preview half of chart_runs.h's
+     * chart_next_run, both held to test/c/chart_absent_test.c's LINE_RUN_VECTORS
+     * (parsed by test/config-blocks.test.js). A segment between two samples draws
+     * when both are readings, or on a joining line when one is: the line comes down
+     * to a zero next to a reading. Two zeros in a row never draw. A run of one is a
+     * lone reading no segment reaches (chart_render_line's small square).
+     * @param {Array.<boolean>} absent Per sample: draws nothing on its own (byte 0).
+     * @param {boolean} join A zero next to a reading is a vertex (CHART_ZERO_JOIN).
+     * @returns {Array.<Array.<number>>} [start, length] per run, left to right.
      */
-    function splitRuns(pts) {
-        var runs = [], run = [];
-        for (var i = 0; i < pts.length; i += 1) {
-            if (pts[i][1] === null) {
-                if (run.length) { runs.push(run); run = []; }
-            } else {
-                run.push(pts[i]);
-            }
+    function lineRuns(absent, join) {
+        var n = absent.length, runs = [], i = 0, start;
+        function drawn(k) {
+            return join ? !(absent[k] && absent[k + 1]) : !(absent[k] || absent[k + 1]);
         }
-        if (run.length) { runs.push(run); }
+        while (i < n) {
+            while (i < n && absent[i] && !(i + 1 < n && drawn(i))) { i += 1; }
+            if (i >= n) { break; }
+            start = i;
+            while (i + 1 < n && drawn(i)) { i += 1; }
+            runs.push([start, i + 1 - start]);
+            i += 1;
+        }
         return runs;
     }
 
@@ -89,10 +108,84 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         return lineStyle.isStripeValue(style);
     }
 
+    // The temperature-axis margins and hi/lo labels (src/c/appendix/temp_axis_pad.h),
+    // mirrored: an anchored edge's margin is an eighth of the plot height, or from 64 rows on
+    // its square over TEMP_AXIS_PAD_SQ_DIV (the share grows with the plot: an eighth at 64
+    // rows, a quarter at 128), and the labels keep TEMP_LABEL_MIN_INK_GAP watch px of blank
+    // rows between their ink. Both are the watch's numbers, held equal to the header's by
+    // test/config-temp-axis-pad.test.js. WATCH_INSET_PX is the watch's temperature inset
+    // (bottom_view.h BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), the unit the preview scales watch px by.
+    var TEMP_AXIS_PAD_SQ_DIV = 512;
+    var TEMP_LABEL_MIN_INK_GAP = 11;
+    var WATCH_INSET_PX = 7;
+    // The hi/lo labels' digit cap, in preview units: about 0.7 em of their 8-unit font.
+    var LABEL_CAP = 5.6;
+    // The preview's curve inset in units: 12 units stand for the watch's WATCH_INSET_PX.
+    var CURVE_INSET_PREV = 12;
+
+    /**
+     * An anchored edge's share of a plot `units` preview units tall, in preview units:
+     * temp_axis_pad.h temp_axis_margin, mirrored, the larger of its two terms. The eighth,
+     * the floor, is linear, so it is taken in units as it always was (Math.floor(units / 8)).
+     * The curve is not, so it is taken where the watch takes it, in watch rows: the plot goes
+     * to whole watch px at the preview's scale (CURVE_INSET_PREV units per WATCH_INSET_PX, as
+     * the inset and the label gap), the watch's integer square over TEMP_AXIS_PAD_SQ_DIV is
+     * taken there, and the px it gives come back as units. The curve passes the eighth only
+     * from 64 watch rows (about 110 units); the preview's own plots are at most 87 units (50
+     * watch rows, about the watch's default view), so the preview keeps the flat eighth's
+     * margins, as the watch does in plots that small.
+     * @param {number} units The plot's height in preview units (>= 0).
+     * @returns {number} The share, in preview units.
+     */
+    function anchorShare(units) {
+        var eighth = Math.floor(units / 8);
+        var rows = Math.floor(units * WATCH_INSET_PX / CURVE_INSET_PREV);
+        var curve = Math.floor(rows * rows / TEMP_AXIS_PAD_SQ_DIV) * CURVE_INSET_PREV / WATCH_INSET_PX;
+        return curve > eighth ? curve : eighth;
+    }
+
+    /**
+     * The hi/lo labels' baselines, aligned with the temperature curve's extremes when there
+     * is space — temp_axis_pad.h temp_labels_align, mirrored. Each label's ink (the cap above
+     * its baseline) is centred on its row, moved only inward from today's baseline, and the
+     * two keep the watch's minimum ink gap apart (scaled like the inset); else both keep
+     * today's.
+     *
+     * The reach gate. On the watch, on an edge with no stripe band, today's label ink sits just
+     * inside the row the curve reaches with today's margins (its inset row), so the label stays
+     * put until the curve stops short of that row: an anchored edge's wider margin, or a
+     * feels-like or dew point line widening the band. The preview's labels sit further out, in
+     * the plot's corners beyond its inset rows, so there each one moves only once its extreme
+     * lies inside `reachTop` / `reachBottom`, today's reach: with nothing anchored and no band
+     * the labels stay where they always were, as the watch's do. The lo label sits on the
+     * plot's floor on both, so its reach is always the inset row over it. The hi label's place
+     * is fixed to the top of the graph on both, not to a top stripe band, so under a band there
+     * is no gate (`reachTop` -Infinity, the watch's plain rule): the curve's top keeps its inset
+     * below the band, which lies below the label's ink under any band, and the label follows
+     * it, as basalt's does (its default view under one stripe: row 13 against the ink's centre
+     * row 9; temp_axis_pad.h temp_labels_align).
+     * @param {number} hiBase Today's hi baseline.
+     * @param {number} loBase Today's lo baseline.
+     * @param {number} curveTop The curve's highest y.
+     * @param {number} curveBottom The curve's lowest y.
+     * @param {number} reachTop The highest y the curve reaches with today's top margin, or
+     *   -Infinity under a top stripe band (no gate).
+     * @param {number} reachBottom The lowest y it reaches with today's bottom margin.
+     * @returns {{hi: number, lo: number}} The baselines to draw.
+     */
+    function alignLabels(hiBase, loBase, curveTop, curveBottom, reachTop, reachBottom) {
+        var hi = curveTop > reachTop ? Math.max(hiBase, curveTop + LABEL_CAP / 2) : hiBase;
+        var lo = curveBottom < reachBottom ? Math.min(loBase, curveBottom + LABEL_CAP / 2) : loBase;
+        if (lo - LABEL_CAP - hi >= TEMP_LABEL_MIN_INK_GAP * CURVE_INSET_PREV / WATCH_INSET_PX) {
+            return { hi: hi, lo: lo };
+        }
+        return { hi: hiBase, lo: loBase };
+    }
+
     // Mirrors forecast-series.PRESSURE_SCALE_CURVE_HPA (+ curvePermille); a drift
     // test keeps the curves equal. Duplicated rather than imported because this file
-    // is bundled into the config page, which has no access to the watch modules
-    // (same reason windMax below restates WIND_SCALE_KMH).
+    // is bundled into the config page, which has no access to the watch modules (the
+    // wind scale, by contrast, lives in line-alert.js, which the page does load).
     var PRESSURE_CURVES = {
         low:  [[940, 0], [1010, 150], [1020, 850], [1060, 1000]],
         mid:  [[940, 0], [1005, 150], [1025, 850], [1060, 1000]],
@@ -116,6 +209,77 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         return pts[pts.length - 1][1];
     }
 
+    // A wind, gust or UV line drawn Visible values: Alert (owner, 2026-10-02: "when
+    // enabling alert values only for a gust line, nothing shows in the preview anymore").
+    // The preview's samples are a mild day that never reaches the seed warn levels, so such a
+    // line would draw nothing; on Alert it draws alertSamples' instead.
+    // Series units per sample unit: the bake's UV series is UV x 10, the sample the index.
+    var SERIES_PER_SAMPLE = { wind: 1, gust: 1, uv: 10 };
+    // How far from its warn level towards its band's top a sample on Alert peaks: past the
+    // band scale's full-colour step (stripe-levels.js SCALES.band, 90 %), so a stripe shows
+    // every step from the faintest up.
+    var ALERT_PEAK_SHARE = 0.9;
+    // Wind and gusts sharing one band: the wind peaks lower, this share of the way from its
+    // warn level to the band's top, and wherever it draws the gust sits at least
+    // SHARED_GUST_LIFT of the way from the wind up to that top, so the gust line runs clearly
+    // above the wind's, as real gusts do, instead of on it: apart by at least a fifth of the
+    // room the band leaves above the wind's warn level. (A wind warn level at the band's top
+    // leaves none: the wind can only draw at the top there, and the gusts with it, as on
+    // the watch.)
+    var SHARED_WIND_PEAK_SHARE = 0.6;
+    var SHARED_GUST_LIFT = 0.5;
+
+    /**
+     * The samples a Visible values: Alert line draws: each keeps its shape, redrawn against
+     * the user's own levels. The lower half of its range goes under half the band's bottom:
+     * the line's gaps, whatever the unit rounds. The upper half runs from the metric's warn
+     * level to ALERT_PEAK_SHARE of the way up to the band's top (line-alert.js alertBand:
+     * the higher of the usual top and the danger level). Wind and gusts sharing one band
+     * keep gusts above the wind (SHARED_WIND_PEAK_SHARE, SHARED_GUST_LIFT). A metric
+     * without a band keeps its very array.
+     * @param {Object} state Live settings (windUnits, windScale, the Alert levels).
+     * @param {Object<string, {bottom: number, top: number}>} bands line-alert.js alertBands.
+     * @param {Object<string, number[]>} samples wind and gust (km/h) and uv (the index).
+     * @returns {Object<string, number[]>} The samples to draw, by metric.
+     */
+    function alertSamples(state, bands, samples) {
+        var shared = Boolean(bands.wind && bands.gust && samples.wind && samples.gust);
+        var out = {};
+        Object.keys(samples).forEach(function (id) {
+            var vals = samples[id], band = bands[id];
+            if (!band) { out[id] = vals; return; }
+            var perUnit = SERIES_PER_SAMPLE[id];
+            var hi = Math.max.apply(null, vals);
+            var mid = (Math.min.apply(null, vals) + hi) / 2;
+            // The metric's own warn level: the bottom of the band its line has alone.
+            var warn = lineAlert.alertBand(state, id, [id]).bottom;
+            var share = (shared && id === 'wind') ? SHARED_WIND_PEAK_SHARE : ALERT_PEAK_SHARE;
+            var peak = warn + share * (band.top - warn);
+            out[id] = vals.map(function (s) {
+                if (s < mid) { return s / mid * band.bottom / 2 / perUnit; }
+                // At least one series unit: 0 is no value on these lines, even at warn 0.
+                var x = Math.max(warn + (s - mid) / (hi - mid) * (peak - warn), 1) / perUnit;
+                // A stored warn level with decimals in mph, knots or UV can sit between two
+                // shown numbers (line-alert.js shownNumber rounds): lift to the next one.
+                for (var k = 0; k < 20 && !lineAlert.reachesWarn(state, id, x * perUnit); k += 1) {
+                    x += 1 / perUnit;
+                }
+                return x;
+            });
+        });
+        if (shared) {
+            out.gust = out.gust.map(function (g, i) {
+                var w = out.wind[i];
+                // Where the wind draws, the gust a share of the room above it higher (the
+                // wind's own rounding lift can leave it a hair past the top: no room).
+                var lift = lineAlert.reachesWarn(state, 'wind', w)
+                    ? SHARED_GUST_LIFT * Math.max(bands.gust.top - w, 0) : 0;
+                return Math.max(g, w + lift);
+            });
+        }
+        return out;
+    }
+
     /**
      * The forecast-graph preview block: temp curve, up to three metric lines — each
      * in its selected style (thin/thick line, square dots, x marks); the main one
@@ -128,8 +292,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * @returns {string} SVG markup.
      */
     function forecastPreview(state, env, userData) {
-        // The graph's colours, resolved by the SAME function that packs the watch's
-        // Clay wire (line-style.resolveLineStyle is the watchInfo adapter over this one)
+        // The graph's colours, resolved by the SAME function whose answer the watch's Clay
+        // wire packs (weather/graph-wire.js, over the connected watch's computeEnv)
         // and read off `state` — the LIVE settings object render() hands every block —
         // so a pick shows up the moment it is made, not on the next page open. What the
         // page supplies in place of a watchInfo:
@@ -140,6 +304,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         //                  wiring it in here would change what aplite users see.
         //   lineStyles:    the WW_LINE_STYLE mirror (stylesFrozen below), so a stored
         //                  stripe cannot switch the fill off on a watch that ignores it.
+        // The other readings (draw-from.js, line-alert.js) take `env` itself.
         var caps = { color: !(env && !env.color), themePolarity: true,
             lineStyles: !(Boolean(env) && env.lineStyles === false) };
         var cx = lineStyle.renderContextFor(state, caps);
@@ -169,11 +334,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var rain   = [0, 0.5, 6, 12, 4, 1, 0.3, 0, 0, 0, 0, 0];
         var gust   = [22, 25, 30, 34, 32, 28, 25, 24, 27, 31, 36, 33];
         var uv     = [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3];
-        // Tracks temps a few degrees under (wind chill through the shower + the
-        // breezy night) — the gap between the two curves is the story it tells.
-        var feels  = [21, 21, 19, 17, 15, 13, 12, 11, 11, 12, 15, 17];
+        // Tracks temps a few degrees under through the shower (wind chill), then a degree
+        // under the calm night low: the gap between the two curves is the story it tells,
+        // and the night shows it running on into the margin under the temperature's low.
+        var feels  = [21, 21, 19, 17, 15, 14, 13, 13, 13, 14, 15, 17];
         // Climbs toward the temperature through the shower (the air saturates), then
-        // settles a few degrees under the cool night temps.
+        // settles a few degrees under the cool night temps: past the margin, held at the
+        // plot's floor there.
         var dew    = [13, 14, 17, 18, 16, 14, 13, 12, 12, 12, 13, 13];
         // Falls into the shower (slots 2-4), dips to a below-floor low at slot 4 (984 hPa,
         // below the 'low' band's 990 floor — exercises the floor-clamp-not-skip dot
@@ -209,18 +376,89 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // construction. Entries are named by the settings keys they read (the
         // one frozen vocabulary); the UI ordinals ("Third metric") are labels only.
         var LINES = [
-            { metric: state.secondaryLine, on: true,
+            { key: 'secondaryLine', metric: state.secondaryLine, on: true,
               style: styleFor('secondaryLineStyle'), color: hexColor(gc.secondary) },
-            { metric: state.thirdLine,
+            { key: 'thirdLine', metric: state.thirdLine,
               on: Boolean(lineStyle.effectiveLineMetric(state, 'thirdLine')),
               style: styleFor('thirdLineStyle'), color: hexColor(gc.third) },
-            { metric: state.fourthLine,
+            { key: 'fourthLine', metric: state.fourthLine,
               on: !stylesFrozen && Boolean(lineStyle.effectiveLineMetric(state, 'fourthLine')),
               style: styleFor('fourthLineStyle'), color: hexColor(gc.fourth) },
-            { metric: state.fifthLine,
+            { key: 'fifthLine', metric: state.fifthLine,
               on: !stylesFrozen && Boolean(lineStyle.effectiveLineMetric(state, 'fifthLine')),
               style: styleFor('fifthLineStyle'), color: hexColor(gc.fifth) }
         ];
+        var n = temps.length;
+        var windMax = lineAlert.scaleTop(state, 'wind');
+        var pCurve = PRESSURE_CURVES[state.pressureScale] || PRESSURE_CURVES.mid;
+        // A wind, gust or UV line drawn Show: Alert: the band the bake maps it over, for
+        // the lines this watch draws (the shared wind/gust band only where both draw), on
+        // a watch with Alert settings (aplite draws every line All).
+        var alertBands = lineAlert.alertBands(state, env);
+        // Such a line draws its sample redrawn against the user's levels (alertSamples).
+        var shown = alertSamples(state, alertBands, { wind: wind, gust: gust, uv: uv });
+        // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
+        // feels and dew have no max: they ride the shared temperature axis
+        // (lineStyle.isTempAxisMetric), so they map through yT like the temp curve
+        // instead of a 0..max scale; pressure maps through its curve. `alert`: the
+        // metric's Show: Alert band, or null; `perUnit`: series units per sample unit
+        // there (SERIES_PER_SAMPLE).
+        var METRIC = {
+            precip_prob: { vals: precip, max: 100, fill: true },
+            cloud: { vals: cloud, max: 100 },
+            wind: { vals: shown.wind, max: windMax, perUnit: SERIES_PER_SAMPLE.wind },
+            gust: { vals: shown.gust, max: windMax, perUnit: SERIES_PER_SAMPLE.gust },
+            uv: { vals: shown.uv, max: 11, perUnit: SERIES_PER_SAMPLE.uv },
+            pressure: { vals: pressure, curve: pCurve },
+            feels: { vals: feels },
+            dew: { vals: dew }
+        };
+        Object.keys(METRIC).forEach(function (k) {
+            METRIC[k].id = k;
+            METRIC[k].tempAxis = lineStyle.isTempAxisMetric(k);
+            METRIC[k].alert = Object.prototype.hasOwnProperty.call(alertBands, k) ? alertBands[k] : null;
+        });
+        /**
+         * Whether one sample of a metric shows on its line, its marks or its fill: the
+         * watch's wire byte above 0 (forecast-series.js metricBytes). A zero-based metric's
+         * zero, and a Show: Alert line's sample below the warn level, ship as byte 0 and draw
+         * nothing; pressure, feels-like and dew point always draw. metricYRaw skips by it.
+         * @param {Object} m METRIC entry.
+         * @param {number} i Sample index.
+         * @returns {boolean}
+         */
+        function sampleShown(m, i) {
+            if (m.tempAxis || m.curve) { return true; }
+            if (m.alert) {
+                return lineAlert.alertPermille(state, m.id, [m.vals[i] * m.perUnit], m.alert)[0] !== null;
+            }
+            return Math.min(m.vals[i], m.max) > 0;
+        }
+        /**
+         * Whether a line draws anything in the hours the preview draws: the watch's one scan
+         * (temp_axis_pad.h temp_axis_any_above_zero), a value above 0. A stripe over its
+         * n - 1 hour cells (a cell above level 0), any other style over its n hour ticks.
+         * @param {Object} line LINES entry.
+         * @returns {boolean} False for a line that is off or has nothing above 0.
+         */
+        function drawsAny(line) {
+            var m = METRIC[line.metric];
+            if (!line.on || !m) { return false; }
+            var stripe = isStripe(line.style);
+            for (var i = 0; i < (stripe ? n - 1 : n); i += 1) {
+                if (stripe ? stripeLevel(m, i) > 0 : sampleShown(m, i)) { return true; }
+            }
+            return false;
+        }
+        // Only a line with a value above 0 takes part in the layout (temp_axis_pad.h): a
+        // stripe with none takes no band (the plot grows into its rows, and the next stripe
+        // on its edge closes up), a line with none anchors no edge. The rain bars likewise,
+        // over their n - 1 hour columns.
+        LINES.forEach(function (line) { line.drawn = drawsAny(line); });
+        var rainDrawn = false;
+        for (var ri = 0; ri < n - 1; ri += 1) {
+            if (previewRain.barPermille(Math.round(rain[ri] * 10)) > 0) { rainDrawn = true; }
+        }
         // Bottom stripes sit BELOW the plot's zero line, in their own band above the
         // hour axis (forecast_layer.c's stripe_band): the first flush under the zero
         // line, further ones 1 unit apart, and one free row over the ticks. The
@@ -228,23 +466,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var STRIPE_H = 5, STRIPE_GAP = 1;
         var bottomStripes = 0;
         for (var bs = 0; bs < LINES.length; bs += 1) {
-            if (LINES[bs].on && LINES[bs].style === 'stripeBottom') { bottomStripes += 1; }
+            if (LINES[bs].drawn && LINES[bs].style === 'stripeBottom') { bottomStripes += 1; }
         }
         var AXIS_Y = 94;
         var stripeBand = bottomStripes
             ? bottomStripes * STRIPE_H + (bottomStripes - 1) * STRIPE_GAP + 1 : 0;
         // Top stripes get a band of their own ABOVE the plot (forecast_layer.c's top_band):
         // stacked from the top edge, 2 free rows under the last. The plot — lines, fill,
-        // bars, night shading — starts below it (PTL), and the lines drop their own top
-        // inset there, as the watch does.
+        // bars — starts below it (PTL); the metric lines run up to it, the temperature
+        // curve keeps its inset under it, as over the bottom edge, as the watch does. Only
+        // the night shading runs on up through the band (PT).
         var topStripes = 0;
         for (var ts = 0; ts < LINES.length; ts += 1) {
-            if (LINES[ts].on && LINES[ts].style === 'stripeTop') { topStripes += 1; }
+            if (LINES[ts].drawn && LINES[ts].style === 'stripeTop') { topStripes += 1; }
         }
         var TOP_BAND_GAP = 2;
         var topBand = topStripes
             ? topStripes * STRIPE_H + (topStripes - 1) * STRIPE_GAP + TOP_BAND_GAP : 0;
-        var n = temps.length, PX0 = 20, PX1 = 197, PT = 4, PB = AXIS_Y - stripeBand;
+        var PX0 = 20, PX1 = 197, PT = 4, PB = AXIS_Y - stripeBand;
         var PTL = PT + topBand;
         var MT = topBand ? PTL : PT + 3;   // where a full-height metric value lands
         var plotW = PX1 - PX0, plotH = PB - PTL;
@@ -255,18 +494,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var pitch = plotW / (n - 1);
         var tickX = function (i) { return PX0 + i * pitch; };              // line vertex / hour tick x
         var gapCenter = function (i) { return PX0 + (i + 0.5) * pitch; };  // bar / dot column centre
-        // Joint temperature axis (mirrors forecast-series.applyForecastSeries): with
-        // feels or dew on any drawn line — whatever its style — every curve
-        // rescales against the union band so
-        // the gaps between them are real, and the band is padded on whichever side
-        // they overshoot the temperature so that curve lands clear of the plot edge
-        // instead of flat against it (TEMP_AXIS_EDGE_CLEARANCE_PERMILLE = 40 ‰ there —
-        // pad = ceil(span * 40/960)). The hi/lo LABELS are not this band: they stay
-        // the actual temperature range, which is why tmin/tmax and tLabelMin/Max part
-        // company here. Each line is gated on its own LINES[i].on, not on bare
-        // effectiveLineMetric: previewing a watch without WW_LINE_STYLE turns the
-        // third- and fourth-metric lines off while effectiveLineMetric would still
-        // name their metric, and the band must not widen for a line nobody draws.
+        // The temperature axis (temp_axis_pad.h THE SCALE, mirrored): the temperature's own
+        // lowest and highest value land on the margin rows, and a feels-like or dew point line
+        // on any drawn line — whatever its style — maps on that same scale, so the gaps
+        // between the curves are real and a value beyond the temperature's range runs on into
+        // the margin, held at the plot's edge (yT). The hi/lo LABELS name the same range, the
+        // actual temperature's. Only a flat temperature gives no scale: then, as on the watch,
+        // the joint band the phone encodes the three on (forecast-series.applyForecastSeries)
+        // fills the margins, and a flat band sits mid-plot. Each line is gated on its own
+        // LINES[i].on, not on bare effectiveLineMetric: previewing a watch without
+        // WW_LINE_STYLE turns the third- and fourth-metric lines off while
+        // effectiveLineMetric would still name their metric, and a line nobody draws must not
+        // widen that band.
         var axisSeries = [];
         var AXIS_SAMPLES = { feels: feels, dew: dew };
         LINES.forEach(function (line) {
@@ -276,45 +515,52 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         });
         var tLabelMin = Math.min.apply(null, temps), tLabelMax = Math.max.apply(null, temps);
         var tmin = tLabelMin, tmax = tLabelMax;
-        if (axisSeries.length) {
-            var jMin = Math.min(tmin, Math.min.apply(null, axisSeries));
-            var jMax = Math.max(tmax, Math.max.apply(null, axisSeries));
-            var jPad = Math.max(1, Math.ceil((jMax - jMin) * 40 / 960));
-            tmin = jMin < tLabelMin ? jMin - jPad : jMin;
-            // No top padding under a top stripe: its band keeps the curve clear already.
-            tmax = (jMax > tLabelMax && !topStripes) ? jMax + jPad : jMax;
+        if (tmax === tmin && axisSeries.length) {
+            tmin = Math.min(tmin, Math.min.apply(null, axisSeries));
+            tmax = Math.max(tmax, Math.max.apply(null, axisSeries));
         }
         // Configurable curve offset: the temp axis (temp + feels/dew via isTempAxisMetric
         // below) is inset symmetrically from the shared full-height band
-        // ([PT+3 .. PB], the mapping every other metric uses), mirroring the
+        // ([MT .. PB], the mapping every other metric uses), mirroring the
         // watch's per-series inset_y (fixed 7 px — not a user setting). Scale:
         // the preview band (87 units) is taller than the watch plot; 7 watch px
         // = the preview's long-standing 12-unit bottom clearance over the axis
         // row (the top gains the same symmetric margin the watch actually draws).
-        var curveInsetPrev = 12;
-        var ytop = topBand ? PTL : PT + 3 + curveInsetPrev, ybot = PB - curveInsetPrev;
-        var yT = function (t) { return ybot - (t - tmin) / (tmax - tmin || 1) * (ybot - ytop); };
+        var curveInsetPrev = CURVE_INSET_PREV;
+        // On an anchored edge (the rain bars' or a drawn amount line's with a value above 0:
+        // draw-from.js forecastAnchors; none previewing aplite, whose margins are frozen) the
+        // margin is at least the share (anchorShare: the eighth, or the curve past it) of the
+        // band [MT, PB], the plot the metrics map into between the stripe bands —
+        // temp_axis_pad.h temp_axis_margin, mirrored. Both edges start from the inset, the
+        // top under a top stripe band too.
+        var anchored = drawFrom.forecastAnchors(state, env, function (key) {
+            if (key === 'bars') { return rainDrawn; }
+            for (var li = 0; li < LINES.length; li += 1) {
+                if (LINES[li].key === key) { return LINES[li].drawn; }
+            }
+            return false;
+        });
+        var share = anchorShare(PB - MT);
+        var topMargin = curveInsetPrev, bottomMargin = curveInsetPrev;
+        if (anchored.top && share > topMargin) { topMargin = share; }
+        if (anchored.bottom && share > bottomMargin) { bottomMargin = share; }
+        var ytop = MT + topMargin, ybot = PB - bottomMargin;
+        // The rows a temperature-axis value is held inside (temp_axis_pad.h temp_axis_rows):
+        // the plot's content rows, from where a full-height metric value lands (MT: under a
+        // top stripe band, never into its gap) down to one watch row over the zero line.
+        var yTTop = MT, yTBottom = PB - CURVE_INSET_PREV / WATCH_INSET_PX;
+        /**
+         * A temperature-axis value's y: the scale through the margin rows, held in the plot.
+         * @param {number} y An unheld y.
+         * @returns {number} y inside [yTTop, yTBottom].
+         */
+        var holdT = function (y) { return Math.min(yTBottom, Math.max(yTTop, y)); };
+        var yT = function (t) {
+            return holdT(tmax > tmin ? ybot - (t - tmin) / (tmax - tmin) * (ybot - ytop) : (ybot + ytop) / 2);
+        };
         var n0 = tickX(9), n1 = tickX(n - 1);       // night band: sunset 21:00 (slot 9) -> right edge
         var bw = 9;                                  // rain-bar / dot width
 
-        var windMax = state.windScale === 'low' ? 30 : (state.windScale === 'high' ? 70 : 50);
-        var pCurve = PRESSURE_CURVES[state.pressureScale] || PRESSURE_CURVES.mid;
-        // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
-        // Only pressure sets `min` (a non-zero floor); every other metric defaults to 0.
-        // feels and dew have neither: they ride the shared temperature axis
-        // (lineStyle.isTempAxisMetric), so they map through yT like the temp curve
-        // instead of a 0..max scale.
-        var METRIC = {
-            precip_prob: { vals: precip, max: 100, fill: true },
-            cloud: { vals: cloud, max: 100 },
-            wind: { vals: wind, max: windMax },
-            gust: { vals: gust, max: windMax },
-            uv: { vals: uv, max: 11 },
-            pressure: { vals: pressure, curve: pCurve },
-            feels: { vals: feels },
-            dew: { vals: dew }
-        };
-        Object.keys(METRIC).forEach(function (k) { METRIC[k].tempAxis = lineStyle.isTempAxisMetric(k); });
         // The graph strokes, as SVG colours. Every rule that used to be restated
         // here — the effective-colour gate, the per-polarity colours, gust's coupling to
         // the rain bars and the B&W arm's exactly-white→black readability flip — lives in
@@ -338,12 +584,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // The translucent ink is the B&W arm, standing in for the theme foreground the
         // watch hatches with there.
         var nightHatchStroke = nightPicksApply ? hexColor(gc.night.hatch) : ink.rgba('0.30');
+        /**
+         * The night band: the hatch and its dusk/dawn lines, from the top of the graph
+         * (PT) down to the zero line — up through a top stripe band too, as the watch's
+         * night hatch runs on through it (forecast_layer.c's extend_top). The stripe
+         * cells are drawn later and are opaque (preview-stripe.js cell), so the shading
+         * shows only in a stripe's empty hours and its gaps.
+         * @returns {string} SVG markup, or '' with the shading off.
+         */
         function drawNightShading() {
             if (!state.dayNightShading) { return ''; }
             var boundary = nightPicksApply ? hexColor(gc.night.boundary) : ink.rgba('0.45');
-            return '<rect x="' + n0 + '" y="' + PTL + '" width="' + (n1 - n0) + '" height="' + (PB - PTL) + '" fill="url(#nh)"></rect>'
-                + '<line x1="' + n0 + '" y1="' + PTL + '" x2="' + n0 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>'
-                + '<line x1="' + n1 + '" y1="' + PTL + '" x2="' + n1 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>';
+            return '<rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>'
+                + '<line x1="' + n0 + '" y1="' + PT + '" x2="' + n0 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>'
+                + '<line x1="' + n1 + '" y1="' + PT + '" x2="' + n1 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>';
         }
         function drawTempCurve() {
             return '<path d="' + smooth(temps.map(function (t, i) { return [tickX(i), yT(t)]; }))
@@ -366,40 +620,76 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             return out;
         }
         /**
-         * One metric value's y in column/tick i — THE value→y mapping. The line
-         * vertices, the bar-aligned marks (both skipZero true: a zero-based
-         * metric's zero is genuinely "no data" and returns null, mirroring the
-         * watch's zero_absent metric-line layers) and the area fill (skipZero
-         * false: the fill's contour drops to the baseline over the gaps, like
-         * chart_render_area's h = 0) all share it. Feels rides the
-         * shared temperature axis (joint band via yT — a temperature has no
+         * One metric value's y in column/tick i — THE value→y mapping. The
+         * bar-aligned marks (skipZero true: a zero-based metric's zero is
+         * genuinely "no data" and returns null, mirroring the watch's mark skip),
+         * the line vertices and the area fill (skipZero false: a zero lands on the
+         * baseline — the fill's contour drops to it over the gaps, like
+         * chart_render_area's h = 0, and the line comes down to it next to a
+         * reading, lineFor) all share it. Feels rides the
+         * shared temperature axis (the temperature's scale via yT — a temperature has no
          * skippable zero, never a 0..max scale); pressure's piecewise absolute
          * curve draws EVERY reading — a deep low off the visible band is real
          * data clamped to the baseline, never a skippable zero, mirroring
          * forecast-series.pressurePermille's floor-clamp so the preview and
-         * the watch don't diverge.
+         * the watch don't diverge. A Show: Alert line maps over its band
+         * (line-alert.js alertPermille, as the bake does): a sample below the
+         * warn level is a gap like a zero, one at the bottom is lifted off it
+         * by the bake's 2 ‰ floor (forecast-series.js BAND_FLOOR_PERMILLE).
+         * This is the standing (Draw from: Bottom) y; metricY mirrors it for a line
+         * that hangs from the top.
+         * @param {Object} m METRIC entry.
+         * @param {number} i Sample index.
+         * @param {boolean} skipZero Null out a zero-based metric's zero.
+         * @returns {?number} y, or null to skip the sample.
+         */
+        function metricYRaw(m, i, skipZero) {
+            if (m.tempAxis) { return yT(m.vals[i]); }
+            // The skip rule is sampleShown's (the one the layout's scan reads): a sample that
+            // ships as byte 0 is a gap, or the baseline under a fill.
+            if (!sampleShown(m, i)) { return skipZero ? null : PB; }
+            if (m.alert) {
+                var apm = lineAlert.alertPermille(state, m.id, [m.vals[i] * m.perUnit], m.alert)[0];
+                return PB - Math.max(apm, 2) / 1000 * (PB - MT);
+            }
+            var pm = m.curve ? pressureCurvePermille(m.vals[i], m.curve) / 1000
+                : Math.min(m.vals[i], m.max) / m.max;
+            return PB - pm * (PB - MT);
+        }
+        /**
+         * Whether a metric's line hangs from the top (Draw from: Top, draw-from.js
+         * metricFromTop: never previewing aplite). Only the five amount metrics have the
+         * setting; a temperature-axis curve never hangs. Only a drawn line or marks, or the
+         * Main metric's fill, ever asks (stripes shade by level and keep their own
+         * Top/Bottom), which is lineEdge's rule.
+         * @param {string} metric A metric id.
+         * @returns {boolean}
+         */
+        function hangs(metric) {
+            var m = METRIC[metric];
+            return Boolean(m) && !m.tempAxis && drawFrom.metricFromTop(state, metric, env);
+        }
+        /**
+         * One metric value's y in column/tick i, as drawn: metricYRaw's, mirrored over
+         * the plot box [PTL, PB] for a line that hangs from the top (the watch's mirror
+         * over its content rows) — zero then lands on PTL, under a top stripe band or at
+         * the plot's top, and full height at PB - (MT - PTL). A Visible values: Alert
+         * line's below-warn PB and its 2 ‰ floor flip with it. The skipped sample and
+         * the temperature axis are unchanged.
          * @param {Object} m METRIC entry.
          * @param {number} i Sample index.
          * @param {boolean} skipZero Null out a zero-based metric's zero.
          * @returns {?number} y, or null to skip the sample.
          */
         function metricY(m, i, skipZero) {
-            if (m.tempAxis) { return yT(m.vals[i]); }
-            var pm;
-            if (m.curve) {
-                pm = pressureCurvePermille(m.vals[i], m.curve) / 1000;
-            } else {
-                var v = Math.min(m.vals[i], m.max);
-                if (skipZero && v <= 0) { return null; }
-                if (v < 0) { v = 0; }
-                pm = v / m.max;
-            }
-            return PB - pm * (PB - MT);
+            var y = metricYRaw(m, i, skipZero);
+            if (y === null || m.tempAxis) { return y; }
+            return hangs(m.id) ? PTL + PB - y : y;
         }
-        // Vertex computation for the main-metric FILL contour (the stroke gaps its
-        // zeros in lineFor instead): one point per sample, vertices on the hour
-        // ticks, zeros at the baseline. Returns null for an unknown metric or
-        // fewer than 2 points (nothing to draw).
+        // Vertex computation for the main-metric FILL contour (the stroke takes the
+        // same vertices run by run in lineFor, skipping two zeros in a row): one
+        // point per sample, vertices on the hour ticks, zeros at the baseline.
+        // Returns null for an unknown metric or fewer than 2 points (nothing to draw).
         function metricPoints(metric) {
             var m = METRIC[metric];
             if (!m) { return null; }
@@ -419,7 +709,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         function areaPathFor(metric) {
             var pts = metricPoints(metric);
             if (!pts) { return null; }
-            return smooth(pts) + ' L' + pts[pts.length - 1][0] + ',' + PB + ' L' + pts[0][0] + ',' + PB + ' Z';
+            // The fill closes on its line's zero edge: the plot's top for a hanging line.
+            var edge = hangs(metric) ? PTL : PB;
+            return smooth(pts) + ' L' + pts[pts.length - 1][0] + ',' + edge + ' L' + pts[0][0] + ',' + edge + ' Z';
         }
         // Whether the main metric draws a filled area at all — the resolver's own fill
         // flag, which is the authoritative gate (feels-like never fills: it rides the
@@ -469,13 +761,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         /**
          * One metric as a line whose vertices sit on the hour ticks. A zero-based
-         * metric's zeros draw nothing (metricY skipZero — the metric lines'
-         * zero_absent flag in chart.c), so the stroke breaks into one path per
-         * contiguous run of non-zero samples; a lone sample between gaps becomes a
-         * small stroke-width square, mirroring chart_render_line's run == 1 arm.
-         * Band-scaled metrics (pressure, feels, dew) never null, so they stay one path.
-         * The fill (if any) is drawn separately by areaFillFor() — see its doc
-         * comment for why.
+         * metric's zero draws nothing on its own (sampleShown — the wire's byte 0),
+         * but the line still comes down to the zero row at a zero next to a reading,
+         * the vertex the fill's contour has there (metricY, skipZero false): the
+         * stroke is one path per run of lineRuns (chart_runs.h), so two zeros in a
+         * row stay a gap, a lone zero between readings is a dip and a lone reading
+         * between zeros a peak. A floating metric (pressure, feels, dew) never has a
+         * zero here, and would keep a plain gap (the watch's GAP lines). A lone
+         * reading no segment reaches would be a small stroke-width square, mirroring
+         * chart_render_line's run == 1 arm. The watch strokes straight segments; a
+         * run with a zero vertex keeps its smoothed curve on the plot side of the zero
+         * row (smooth's hold), so it never swings past it either. The fill (if any) is
+         * drawn separately by areaFillFor() — see its doc comment for why.
          * @param {string} metric The metric the colour was resolved for.
          * @param {string} color Resolved stroke colour (hex).
          * @param {number} w Stroke width (mainW for 'line', boldW for 'bold').
@@ -484,20 +781,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var lineFor = function (metric, color, w) {
             var m = METRIC[metric];
             if (!m) { return ''; }
-            var pts = [];
-            for (var i = 0; i < m.vals.length; i += 1) {
-                pts.push([tickX(i), metricY(m, i, true)]);
-            }
-            var runs = splitRuns(pts), out = '';
+            var absent = [];
+            for (var i = 0; i < m.vals.length; i += 1) { absent.push(!sampleShown(m, i)); }
+            var runs = lineRuns(absent, !(m.tempAxis || m.curve)), out = '';
+            // A temperature-axis curve held at the plot's edge keeps its smoothed stretch
+            // there too (holdT), the way the watch's straight segments do.
+            var hold = m.tempAxis ? holdT : hangs(metric)
+                ? function (y) { return Math.max(y, PTL); }
+                : function (y) { return Math.min(y, PB); };
             for (var r = 0; r < runs.length; r += 1) {
-                var run = runs[r];
+                var run = [], zeroVertex = false;
+                for (var k = runs[r][0]; k < runs[r][0] + runs[r][1]; k += 1) {
+                    run.push([tickX(k), metricY(m, k, false)]);
+                    if (absent[k]) { zeroVertex = true; }
+                }
                 if (run.length >= 2) {
-                    out += '<path d="' + smooth(run) + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"></path>';
+                    out += '<path d="' + smooth(run, (zeroVertex || m.tempAxis) ? hold : null) + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"></path>';
                 } else {
                     // Lone reading between gaps: chart_render_line's run == 1
-                    // small square. The fixed demo series never produce a lone
-                    // run, so this arm is pinned via splitRuns (below) and the
-                    // C kernel's run == 1 case (test/c/chart_absent_test.c).
+                    // small square. No series here reaches it (a zero-based line
+                    // joins its zeros, a floating one has none), so this arm is
+                    // pinned via lineRuns' GAP vectors and the C kernel's
+                    // (test/c/chart_absent_test.c LINE_RUN_VECTORS).
                     out += rect(run[0][0] - w / 2, run[0][1] - w / 2, w, w, color);
                 }
             }
@@ -553,20 +858,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // scale (7 px an hour, 8 on emery), not its phase (preview-stripe.js cell).
         var STRIPE_UNIT = 2, STRIPE_ORIGIN = 0;
         /**
-         * A metric value's stripe level, 0..4: the watch's chart_stripe_level on the
-         * wire byte (0..250), so a cell shades exactly where the watch's does. Only
-         * intensity metrics are ever stripes (line-style.js metricAllowsStripe —
-         * styleFor never hands this a feels, dew or pressure stripe), so every value
-         * maps from its own 0..max scale.
+         * A metric value's stripe level, 0..4, as the bake picks it (forecast-series.js
+         * stripeBytes): the value's place on its line's scale (line-alert.js
+         * scalePercent — the Show: Alert band when the line has one), on the metric's
+         * own scale (stripe-levels.js), read back from the wire byte the way the
+         * watch's chart_stripe_level reads it. Only intensity metrics are ever stripes
+         * (line-style.js metricAllowsStripe — styleFor never hands this a feels, dew or
+         * pressure stripe).
          * @param {Object} m METRIC entry.
          * @param {number} i Sample index.
          * @returns {number} 0 (draws nothing) .. 4 (full colour).
          */
         function stripeLevel(m, i) {
-            var y = metricY(m, i, true);
-            if (y === null) { return 0; }
-            var b = Math.round((PB - y) / (PB - MT) * 250);
-            return previewStripe.levelOfByte(b);
+            var pct = lineAlert.scalePercent(state, m.id, m.vals[i] * (m.perUnit || 1), m.alert);
+            return previewStripe.levelOfByte(stripeLevels.metricByte(m.id, pct, Boolean(m.alert)));
         }
         // The cell look itself (tint + lines on colour, dither on B&W) is shared with
         // the radar preview's sky rows: preview-stripe.js, chart_stripe_fill_cell's mirror.
@@ -754,12 +1059,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // The night tint sits on top of the day fill and under the bars — the watch's
         // night-area underlay, which re-shades the filled area during the night hours.
         e += nightTint;
-        // Stripes: over the fill and night band, under the bars and the lines (top),
-        // or in their own band below the zero line (bottom) — forecast_layer.c's
-        // CHART_LAYER_STRIPE slots. Stacked per edge in line order.
+        // Stripes: in their own band above the plot (top), over the night shading that
+        // runs up through it — each cell that draws covers it — or in their own band
+        // below the zero line (bottom) — forecast_layer.c's CHART_LAYER_STRIPE slots.
+        // Stacked per edge in line order.
         var stripeSlots = { top: 0, bottom: 0 };
         for (var si = 0; si < LINES.length; si += 1) {
-            if (LINES[si].on && isStripe(LINES[si].style)) {
+            if (LINES[si].drawn && isStripe(LINES[si].style)) {
                 var sTop = LINES[si].style === 'stripeTop';
                 e += stripeFor(LINES[si].metric, LINES[si].color, sTop,
                     stripeSlots[sTop ? 'top' : 'bottom']++);
@@ -771,8 +1077,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             // silhouette, colour-light as the palette/Solid interior with the theme_fg()
             // silhouette over it (barEdge), colour-dark with no outline at all.
             var rainWhite = state.rainBarColor === 'white' || !isColor;
+            // Bars from: Top hangs them from the plot's top (PTL: under a top stripe band),
+            // the way the watch anchors them under its content's top row.
+            var barsTop = drawFrom.barsFromTop(state, 'rain', env);
             for (var i = 0; i < n - 1; i += 1) {
-                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg, ink.bg, barEdge);
+                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, barsTop ? PTL : PB, plotH, rainWhite,
+                    P.rainTiers, !isColor, barFg, ink.bg, barEdge, barsTop);
             }
         }
         for (var li = 0; li < LINES.length; li += 1) {
@@ -783,10 +1093,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         e += drawTempCurve();
         // No status chrome (location / sunset / current-temp pill): the preview doesn't model it.
         // Hi/lo labels are the ACTUAL temperature range (TEMP_MIN/TEMP_MAX on the
-        // wire), never the padded scaling band — the watch prints them as text
-        // (forecast_layer.c text_labels_refresh) and a low the air never reached
-        // would be a lie. With feels and dew off the two are identical.
-        e += txt(3, PT + 11, 8, '#AEB4BD', 'start', 600, tLabelMax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tLabelMin + '°');
+        // wire), never the joint band the phone encodes on — the watch prints them as
+        // text (forecast_layer.c text_labels_refresh) and a low the air never reached
+        // would be a lie. It is the range the scale fits to the margins (yT).
+        // Where there is space each label's ink sits level with the curve's extreme it names
+        // (alignLabels; never previewing aplite, whose labels are frozen). Today's reach gates
+        // the lo label always and the hi label only without a top stripe band: under one the
+        // watch's plain rule applies (see alignLabels).
+        var labels = stylesFrozen ? { hi: PT + 11, lo: PB - 1 }
+            : alignLabels(PT + 11, PB - 1, yT(tLabelMax), yT(tLabelMin),
+                topBand ? -Infinity : MT + curveInsetPrev, PB - curveInsetPrev);
+        e += txt(3, labels.hi, 8, '#AEB4BD', 'start', 600, tLabelMax + '°') + txt(3, labels.lo, 8, '#AEB4BD', 'start', 600, tLabelMin + '°');
         e += drawAxis();
         e += legend.markup;
         return svgFrame(e, legend.height);
@@ -797,8 +1114,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             forecastPreview: forecastPreview,
+            TEMP_AXIS_PAD_SQ_DIV: TEMP_AXIS_PAD_SQ_DIV,
+            TEMP_LABEL_MIN_INK_GAP: TEMP_LABEL_MIN_INK_GAP,
+            WATCH_INSET_PX: WATCH_INSET_PX,
+            LABEL_CAP: LABEL_CAP,
+            CURVE_INSET_PREV: CURVE_INSET_PREV,
+            anchorShare: anchorShare,
+            alignLabels: alignLabels,
+            alertSamples: alertSamples,
             pressureCurves: PRESSURE_CURVES,
-            splitRuns: splitRuns
+            lineRuns: lineRuns
         };
     }
 })();

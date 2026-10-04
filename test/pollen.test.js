@@ -371,3 +371,101 @@ test('a failed second pollen refresh packs -- instead of the previous severity a
   assert.deepEqual(packedValues, ['2-3', '--']);
   assert.equal(successCalls, 2);
 });
+
+// Tomorrow's band — what a pollen alert that looks ahead judges — comes from the same
+// DWD response as today's, keyed by the next LOCAL calendar day.
+test('nextLocalDay steps one local calendar day, across a month end and a DST change', () => {
+  assert.equal(pollen.localDateKey(pollen.nextLocalDay(new Date(2026, 0, 31, 23, 50))), '2026-02-01');
+  assert.equal(pollen.localDateKey(pollen.nextLocalDay(new Date(2026, 2, 29, 0, 30))), '2026-03-30');
+  assert.equal(pollen.localDateKey(pollen.nextLocalDay(new Date(2026, 9, 25, 12, 0))), '2026-10-26');
+});
+
+test('fetchPollenInto writes tomorrow\'s worst band beside today\'s, from one request', () => {
+  const originalRequest = http.request;
+  const now = new Date();
+  const today = pollen.localDateKey(now) + 'T00:00:00Z';
+  const tomorrow = pollen.localDateKey(pollen.nextLocalDay(now)) + 'T00:00:00Z';
+  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null, pollenTomorrow: null };
+  let requests = 0;
+  http.request = function(url, method, onSuccess) {
+    requests += 1;
+    onSuccess(JSON.stringify({ features: [feature(today, 2, 'Birke'), feature(tomorrow, 5, 'Birke'),
+      feature(tomorrow, 3, 'Graeser')] }));
+  };
+  try {
+    pollen.fetchPollenInto(provider, 52.52, 13.405, function() {});
+  } finally {
+    http.request = originalRequest;
+  }
+  assert.equal(requests, 1);
+  assert.equal(provider.pollenToday, '1');
+  assert.equal(provider.pollenTomorrow, '2-3');
+});
+
+test('fetchPollenInto leaves tomorrow unset while DWD has not issued it', () => {
+  const originalRequest = http.request;
+  const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
+  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null, pollenTomorrow: null };
+  http.request = function(url, method, onSuccess) {
+    onSuccess(JSON.stringify({ features: [feature(today, 4)] }));
+  };
+  try {
+    pollen.fetchPollenInto(provider, 52.52, 13.405, function() {});
+  } finally {
+    http.request = originalRequest;
+  }
+  assert.equal(provider.pollenToday, '2');
+  assert.equal(provider.pollenTomorrow, null);
+});
+
+test('WeatherProvider initializes and transiently exposes pollenTomorrow', () => {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const provider = new WeatherProvider();
+  assert.equal(provider.pollenTomorrow, null);
+  provider.tempTrend = [68];
+  provider.precipTrend = [0];
+  provider.currentTemp = 68;
+  provider.startTime = 1700000000;
+  provider.cityName = 'Berlin';
+  provider.sunEvents = [{ type: 'sunrise', date: new Date(1700003600000) }];
+  provider.numEntries = 1;
+  assert.equal(provider.getPayload().POLLEN_TOMORROW, null);
+  provider.pollenTomorrow = '3';
+  assert.equal(provider.getPayload().POLLEN_TOMORROW, '3');
+});
+
+test('each fetch cycle resets tomorrow\'s band: a refresh without it composes null, not the last one', () => {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const airQuality = require('../src/pkjs/weather/air-quality.js');
+  const outbox = require('../src/pkjs/outbox.js');
+  const originalAqi = airQuality.fetchAqiInto;
+  const originalPollen = pollen.fetchPollenInto;
+  const originalSend = outbox.sendWeather;
+  const provider = new WeatherProvider();
+  const composed = [];
+  provider.withCityName = function(lat, lon, done) { done('Berlin', 'DE'); };
+  provider.withSunEvents = function(lat, lon, done) { done([]); };
+  provider.withProviderData = function(lat, lon, force, done) { done(); };
+  provider.hasValidData = function() { return true; };
+  provider.composeWeatherPayload = function() {
+    composed.push(provider.pollenTomorrow);
+    return {};
+  };
+  airQuality.fetchAqiInto = function(p, lat, lon, done) { done(); };
+  let calls = 0;
+  pollen.fetchPollenInto = function(p, lat, lon, done) {
+    calls += 1;
+    if (calls === 1) { p.pollenTomorrow = '3'; }
+    done();
+  };
+  outbox.sendWeather = function(payload, done) { done(); };
+  try {
+    provider.fetchWithCoordinates(52.52, 13.405, function() {}, assert.fail, false, {}, null);
+    provider.fetchWithCoordinates(52.52, 13.405, function() {}, assert.fail, false, {}, null);
+  } finally {
+    airQuality.fetchAqiInto = originalAqi;
+    pollen.fetchPollenInto = originalPollen;
+    outbox.sendWeather = originalSend;
+  }
+  assert.deepEqual(composed, ['3', null]);
+});

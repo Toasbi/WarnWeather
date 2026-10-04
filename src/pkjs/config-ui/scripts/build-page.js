@@ -3,7 +3,7 @@ var fs = require('fs');
 var path = require('path');
 var inlineScriptJson = require('../index.js').inlineScriptJson;
 var LIB = path.join(__dirname, '..', 'lib');
-var LIB_PAGE_FILES = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'date-picker.js', 'range-control.js', 'engine.js'];
+var LIB_PAGE_FILES = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'date-picker.js', 'range-control.js', 'rgb-control.js', 'checklist.js', 'engine.js'];
 
 /**
  * Drop the whole-line comments and the leading indentation of one JS file.

@@ -274,3 +274,19 @@ test('DST days: the earlier hours are the day\'s own, 23 or 25 of them', () => {
   assert.deepEqual(out.spring, { hours: 12, peak: 7, t: true, len: 13 }, '23-hour day');
   assert.deepEqual(out.autumn, { hours: 14, peak: 7, t: true, len: 15 }, '25-hour day');
 });
+
+// wanted() reads the fetch's dayPeakCodes, which a placed alert extends: an
+// alert-only kind keeps its day record and widens its requests like a Day-max slot.
+test('wanted: a placed alert asks for its day peaks with no slot showing the kind', () => {
+  const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
+  const { placedOnly } = require('./helpers/on-demand.js');
+  const slotless = { statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
+    statusForecastRight: 'empty' };
+  const none = placedOnly([], slotless);
+  const provider = (settings) => ({ options: fetchOptions.build(settings) });
+  assert.equal(record.wanted(provider(none), 'uv'), false, 'guard: nothing asks for UV peaks');
+  assert.equal(record.wanted(provider(placedOnly(['uv'], slotless)), 'uv'), true);
+  assert.equal(record.wanted(provider(placedOnly(['gust'], slotless)), 'gust'), true);
+  assert.equal(record.wanted(provider(placedOnly(['gust'], slotless)), 'wind'), false,
+    'per kind');
+});

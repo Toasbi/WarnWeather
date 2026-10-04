@@ -5,10 +5,12 @@
 var utf8 = require('./utf8.js');
 var pebbleColors = require('./pebble-colors.js');
 var holidayMask = require('./holidays/holiday-mask.js');
-var paletteWire = require('./weather/palette-wire.js');
+var graphWire = require('./weather/graph-wire.js');
 var viewCycle = require('./view-cycle.js');
 var resolveInk = require('./resolve-ink.js').resolveInk;
 var statusThresholds = require('./status-thresholds.js');
+// buildSettingsBlob, the CLAY_THRESHOLDS_UINT8 packer.
+var statusWire = require('./status-wire.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var lineStyle = require('./line-style.js');
 var dateFormat = require('./date-format.js');
@@ -36,46 +38,9 @@ function truncateUtf8Bytes(str, maxBytes) {
     return utf8.truncateToByteCap(str, maxBytes).str;
 }
 
-/**
- * The country the holiday features (and the date-order derivation) act for.
- * An ABSENT key means a pre-holidayCountry install that never re-saved — those
- * were US-market builds, so the legacy fallback is 'US', deliberately NOT the
- * schema's fresh-install 'DE': seedDefaults writes the key into every seeded
- * blob (making this arm unreachable there), but fixture applications and
- * direct payload builds still exercise it, and flipping them to day-first
- * dates would be a silent behavior change. THE one home for that knowledge —
- * it used to be inlined at three sites that could drift apart.
- *
- * @param {Object} settings Clay settings blob.
- * @returns {string} Country code ('US' when the key is absent).
- */
-function effectiveHolidayCountry(settings) {
-    return Object.prototype.hasOwnProperty.call(settings, 'holidayCountry')
-        ? settings.holidayCountry : 'US';
-}
-
-/**
- * Resolve preset + health + radar to the packed view cycle the watch runs.
- * layoutPreset 'custom' compiles the per-view keys instead (buildCustomCycle);
- * an APLITE watch folds custom to the explicit compactCal preset — aplite is
- * frozen-lean, its settings screen never offers Custom, and resolvePresetKey
- * pins the fold so a legacy topViewMode value can't redirect it. An unknown
- * platform ('' when watchInfo is missing) is treated as custom-capable.
- *
- * @param {Object} settings Clay settings.
- * @param {{platform: string}} env platformLib.computeEnv(watchInfo).
- * @returns {Array<Object>} The view cycle (slot 0 is the default view).
- */
-function resolveViewCycle(settings, env) {
-    if (settings.layoutPreset === 'custom' && env.platform !== 'aplite') {
-        return viewCycle.buildCustomCycle(settings);
-    }
-    // A preset the watch can't draw (Weather only on aplite) runs as the one the
-    // settings radio shows (presetKeyFor, shared with the Layout preview).
-    return viewCycle.buildViewCycle(viewCycle.presetKeyFor(settings, env),
-        settings.healthMode || 'off', settings.radarMode || 'graph',
-        Boolean(settings.swapClockStatus));
-}
+// The country the holiday features and the date order act for (date-format.js holds
+// it, so the settings page's status bars preview reads the same rule).
+var effectiveHolidayCountry = dateFormat.effectiveHolidayCountry;
 
 /**
  * The holiday window's calendar layout for an already-resolved cycle. The watch
@@ -89,7 +54,7 @@ function resolveViewCycle(settings, env) {
  * fullCal preset (full default, compact flicks) already ships with.
  *
  * @param {Object} settings Clay settings.
- * @param {Array<Object>} cycle resolveViewCycle() result.
+ * @param {Array<Object>} cycle view-cycle.js resolveViewCycle() result.
  * @returns {{startMon: boolean, prevWeek: boolean}} holidayMask window options.
  */
 function holidayWindowOptsForCycle(settings, cycle) {
@@ -118,7 +83,7 @@ function holidayWindowOptsForCycle(settings, cycle) {
  */
 function holidayWindowOpts(settings, watchInfo) {
     return holidayWindowOptsForCycle(settings,
-        resolveViewCycle(settings, platformLib.computeEnv(watchInfo)));
+        viewCycle.resolveViewCycle(settings, platformLib.computeEnv(watchInfo)));
 }
 
 // Fixed vertical inset for the temperature axis (px) — the watch's
@@ -155,9 +120,10 @@ function buildClayPayload(settings, watchInfo, now) {
     // aplite watch is protected by its own wire masking either way.
     var env = platformLib.computeEnv(watchInfo);
 
-    // Resolve the packed view cycle up front — the holiday mask below anchors on it
-    // (holidayWindowOptsForCycle, the same rule index.js's prefetch uses).
-    var cycle = resolveViewCycle(settings, env);
+    // Resolve the packed view cycle up front (view-cycle.js, the reading the Layout
+    // preview shows) — the holiday mask below anchors on it (holidayWindowOptsForCycle,
+    // the same rule index.js's prefetch uses).
+    var cycle = viewCycle.resolveViewCycle(settings, env);
     var defaultIsFull = cycle[0].tier === viewCycle.TIER_FULL;   // slot 0 is the 3-row calendar
     // CLAY_TOP_VIEW_MODE (TopViewMode enum: 0=full,1=compact,2=none) is a boot-time hint the
     // watch overwrites per active view; derive it from the default slot's tier for correctness.
@@ -171,13 +137,12 @@ function buildClayPayload(settings, watchInfo, now) {
         // No-cal date slot order: US writes the month first (mm.dd.yy); everyone
         // else is day-first (dd.mm.yy). Derived from the configured holiday
         // country (defaults to US, matching the holiday-mask default below).
-        "CLAY_DATE_MONTH_FIRST": effectiveHolidayCountry(settings) === 'US',
+        "CLAY_DATE_MONTH_FIRST": dateFormat.dateMonthFirst(settings),
         "CLAY_PREV_WEEK": settings.firstWeek === 'prev',
         "CLAY_TOP_VIEW_MODE": topViewIdx,
         "CLAY_THEME": ['dark', 'light', 'bw', 'bw-light'].indexOf(theme),
         "CLAY_TIME_FONT": ['roboto', 'leco', 'bitham'].indexOf(settings.timeFont),
         "CLAY_SHOW_QT": settings.showQt,
-        "CLAY_BATTERY_LOW_ONLY": Boolean(settings.batteryLowOnly),
         "CLAY_SHOW_BT": settings.btIcons === "connected" || settings.btIcons === "both",
         "CLAY_SHOW_BT_DISCONNECT": settings.btIcons === "disconnected" || settings.btIcons === "both",
         "CLAY_VIBE": settings.vibe,
@@ -202,10 +167,12 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_HEALTH_MODE": ['off', 'status', 'all', 'slot'].indexOf(settings.healthMode || 'off'),
         "CLAY_FETCH_INTERVAL_MIN": parseInt(settings.fetchIntervalMin, 10) || 30,
         "CLAY_RAIN_COUNTDOWN_HORIZON": (function() {
-            var rc = parseInt(settings.rainCountdownHorizon, 10);
-            if (isNaN(rc)) { rc = 60; }
-            if ((settings.radarMode || 'graph') === 'off') { rc = 0; }
-            return rc;
+            // The rain alert's window, resolved by the contract that owns its default.
+            // A radar that fetches nothing (radar mode 'off') sends horizon 0, the
+            // watch's "no countdown". Whether Rain draws at all is its On demand cell
+            // (CLAY_THRESHOLDS_UINT8), not this value.
+            if ((settings.radarMode || 'graph') === 'off') { return 0; }
+            return statusThresholds.rainAlert(settings).horizonMin;
         })(),
         // Health-graph HR line scale, packed lo | (hi << 8) — both ends are <= 220,
         // so each fits a byte and the pair rides one key instead of two. The watch
@@ -221,24 +188,20 @@ function buildClayPayload(settings, watchInfo, now) {
             return lo | (hi << 8);
         })()
     };
-    var palette = paletteWire.buildPaletteTuples(watchInfo, settings);
-    payload.BAR_PALETTE_UINT8 = palette.BAR_PALETTE_UINT8;
-    payload.RADAR_PALETTE_UINT8 = palette.RADAR_PALETTE_UINT8;
-
-    // Graph line styling, ten bytes: [0] main metric line, [1] area fill, [2] second
-    // metric line, [3] line flags, [4] full-height night hatch, [5] full-height dusk/dawn
-    // line, [6] night-area base, [7] night-area hatch (derived from [6]), [8] night-area
-    // boundary (also derived from [6]), [9] night flags — the user's picks resolved
-    // against the theme's polarity, or the built-in colours when a pick is on Auto. Bytes
-    // [4..9] are byte-for-byte the watch's NIGHT_COLORS persist blob, which is why the
-    // night flag sits in its own byte instead of beside the fill flag in [3]; the full
-    // layout lives on buildLineStyleBytes (line-style.js). Derived from the settings blob
-    // plus the platform's colour/polarity capabilities alone, never from weather data, so
-    // it rides the Clay message. It replaces the four scalar tuples that used to travel on
-    // EVERY weather send (44 B there; 11 B here when it landed as four bytes, 17 B now).
-    // Deliberately NOT platform-gated, unlike the threshold blob / no-rain text / curve
-    // insets above: aplite renders the same two metric lines, so it needs the colours too.
-    payload.CLAY_LINE_STYLE_UINT8 = lineStyle.buildLineStyleBytes(settings, watchInfo);
+    // The low-battery takeover of the right slot is aplite's alone: every other watch
+    // shows the battery as the On demand Battery item instead and ignores the key. Sent
+    // only to a KNOWN aplite, so the 11 B stay out of every other Clay bundle, an
+    // unknown platform's included (test/inbox-size.test.js). The watch treats the key
+    // as optional (config_wire.c); an aplite whose platform the phone cannot read
+    // reads the takeover as off for that session.
+    if (env.platform === 'aplite') {
+        payload.CLAY_BATTERY_LOW_ONLY = Boolean(settings.batteryLowOnly);
+    }
+    // The graph's three tuples: the forecast's and the radar's bar palettes (each with
+    // its Bars from flag) and the line styling (colours, fill and night flags, the style
+    // bytes with their Draw from bits). The layout and why none of it is platform-gated
+    // live on weather/graph-wire.js, the one packer the fixture send shares.
+    Object.assign(payload, graphWire.buildGraphTuples(settings, watchInfo));
 
     // Dim backlight, five bytes: [0..2] the LED's r/g/b channels, [3] the window's
     // start hour (inclusive), [4] its end hour (exclusive, wrapping past midnight).
@@ -258,14 +221,15 @@ function buildClayPayload(settings, watchInfo, now) {
     payload.CLAY_NIGHT_LIGHT_UINT8 = nightLight.buildNightLightBytes(settings);
 
     // Threshold-highlight settings (enabled bits + colors + health-kind
-    // thresholds) — settings-derived, so they ride the Clay message. Omitted for a
+    // thresholds + warn looks, whose default follows env.color) — settings-derived,
+    // so they ride the Clay message. Omitted for a
     // watch that compiles the highlight out (aplite): its settings screen hides the
     // whole threshold card and its inbox handler for this tuple is gone, so the
     // 34 B (27 blob + tuple header) stay out of its Clay bundle. An unknown platform
     // is treated as capable (computeEnv), so a missing watchInfo never drops it.
     // (env computed at the top of this function, beside the cycle branch.)
     if (env.thresholds) {
-        payload.CLAY_THRESHOLDS_UINT8 = statusThresholds.buildSettingsBlob(settings);
+        payload.CLAY_THRESHOLDS_UINT8 = statusWire.buildSettingsBlob(settings, env);
         // Date-slot formats [monthYear, fullDate] — settings-derived, so they ride
         // the Clay message. Gated with the threshold blob: the pickers live on the
         // Date slot's edit sheet, which shares this env gate, and an aplite watch
@@ -294,9 +258,9 @@ function buildClayPayload(settings, watchInfo, now) {
     // [SERIES_FIRST (temp), SERIES_SECOND (main metric), SERIES_THIRD (second
     // metric), SERIES_FOURTH (third metric), SERIES_FIFTH (fourth metric)]. The
     // watch stays metric-agnostic — the phone decides here that feels-like and
-    // dew point share the temp curve's configurable offset (so the two land
-    // pixel-aligned on their joint band) while every other metric keeps the
-    // full-height mapping. Read from the RAW settings: a line that is off or
+    // dew point share the temp curve's offset (the watch then maps them on the
+    // temperature's own scale, temp_axis_pad.h) while every other metric keeps
+    // the full-height mapping. Read from the RAW settings: a line that is off or
     // repeats an earlier line's pick is not drawn on the watch, so its byte is
     // never read and needs no effective-metric resolution. Settings-derived, so
     // it rides the Clay message. Omitted for a watch that compiles the

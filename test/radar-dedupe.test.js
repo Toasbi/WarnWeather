@@ -124,16 +124,50 @@ test('REGRESSION: CLEAR → an all-dry real window → changed (the watch holds 
   assert.equal(radarComparator(subset(zeros(), zeros(), REAL_START), CLEAR), true);
 });
 
-// The LIMIT notice (radarWire.limitedRadarTuples: {RAIN_RADAR_LIMITED: 1}, no
+// The LIMIT notice (radarWire.limitedRadarTuples: {RAIN_RADAR_LIMITED: its line}, no
 // arrays) is what a source refusing us over a request limit sends (HTTP 429).
 // It carries no window to align: a repeat of it is skipped, and whatever radar
 // comes after it must go out, even a window equal to the one the watch holds —
 // the arrays are what end the notice on the watch.
-const LIMITED = { RAIN_RADAR_LIMITED: 1 };
+const LIMITED = { RAIN_RADAR_LIMITED: 'Radar limit reached' };
 
 test('limit notice → limit notice → unchanged (a source that stays limited sends it once)', () => {
   assert.equal(radarComparator(LIMITED, LIMITED), false);
   assert.equal(radarComparator({ RAIN_RADAR_LIMITED: 1 }, { RAIN_RADAR_LIMITED: 1 }), false);
+});
+
+test('the limit notice after an older build\'s 1 → changed: the watch needs the line', () => {
+  assert.equal(radarComparator(LIMITED, { RAIN_RADAR_LIMITED: 1 }), true);
+});
+
+// The OUT-OF-COVERAGE answer (radarWire.outOfCoverageRadarTuples): the clear carrying the
+// source's line. A repeat is skipped (a place that stays outside sends it once); anything
+// else around it goes out — the plain clear has no line, a window ends the notice.
+const OUTSIDE = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0,
+  RAIN_RADAR_LIMITED: 'DWD radar: Germany only' };
+
+test('out of coverage → out of coverage → unchanged; another line → changed', () => {
+  assert.equal(radarComparator(OUTSIDE, Object.assign({}, OUTSIDE)), false);
+  assert.equal(radarComparator(OUTSIDE, Object.assign({}, OUTSIDE, { RAIN_RADAR_LIMITED: 'Met.no radar: Nordics only' })), true);
+});
+
+// DWD's no-data answer (its second 404 in a row from inside its area) is the same clear
+// with the general line: sent once while the 404s go on, and replaced by any other answer.
+const NO_DATA = Object.assign({}, OUTSIDE, { RAIN_RADAR_LIMITED: 'DWD: no radar data' });
+
+test('no data → no data → unchanged; the coverage line, the clear or a window around it → changed', () => {
+  assert.equal(radarComparator(NO_DATA, Object.assign({}, NO_DATA)), false);
+  [OUTSIDE, CLEAR, LIMITED, subset(zeros(), zeros(), REAL_START), null].forEach((other) => {
+    assert.equal(radarComparator(NO_DATA, other), true, JSON.stringify(other));
+    if (other) { assert.equal(radarComparator(other, NO_DATA), true, 'back: ' + JSON.stringify(other)); }
+  });
+});
+
+test('the clear, the limit notice or a window → out of coverage → changed, and back', () => {
+  [CLEAR, LIMITED, subset(zeros(), zeros(), REAL_START), null].forEach((other) => {
+    assert.equal(radarComparator(OUTSIDE, other), true, JSON.stringify(other));
+    if (other) { assert.equal(radarComparator(other, OUTSIDE), true, 'back: ' + JSON.stringify(other)); }
+  });
 });
 
 test('a window → the limit notice → changed', () => {

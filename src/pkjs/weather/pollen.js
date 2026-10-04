@@ -39,7 +39,9 @@ function localDateKey(date) {
 }
 
 /**
- * Find today's highest valid native DWD pollen ordinal.
+ * The worst valid native DWD pollen ordinal on one local day: today's for the
+ * pollen slot and alert, tomorrow's for an alert that looks ahead. The response
+ * carries every forecast day, so both come from the one request.
  * @param {Object} json Parsed WFS GeoJSON response.
  * @param {string} dateKey Local date key in YYYY-MM-DD form.
  * @returns {string|null} Native DWD display value, or null when unavailable.
@@ -69,9 +71,22 @@ function worstToday(json, dateKey) {
 }
 
 /**
- * Fetch today's worst native DWD pollen severity into a weather provider.
+ * The local calendar day after `date`, as a Date at its local midnight — built
+ * from the calendar fields, so a 23 or 25 h DST day needs no special case.
+ * @param {Date} date Local date.
+ * @returns {Date} The next local day.
+ */
+function nextLocalDay(date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+}
+
+/**
+ * Fetch today's and tomorrow's worst native DWD pollen severity into a weather
+ * provider (tomorrow's is what a pollen alert that looks ahead judges; DWD may
+ * not have issued it yet, which leaves it unset).
  * Failures and no-data responses are non-fatal; done is always called once.
- * @param {Object} provider Active provider (reads .options.fetchPollen, writes .pollenToday).
+ * @param {Object} provider Active provider (reads .options.fetchPollen, writes
+ *     .pollenToday and .pollenTomorrow).
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {Function} done Continuation called exactly once.
@@ -92,12 +107,17 @@ function fetchPollenInto(provider, lat, lon, done) {
         http.request(buildUrl(lat, lon), 'GET', function(response) {
             if (completed) { return; }
             var severity = null;
+            var tomorrow = null;
             try {
-                severity = worstToday(JSON.parse(response), localDateKey(new Date()));
+                var json = JSON.parse(response);
+                var now = new Date();
+                severity = worstToday(json, localDateKey(now));
+                tomorrow = worstToday(json, localDateKey(nextLocalDay(now)));
             } catch (ex) {
                 console.log('[!] DWD pollen response parse failed');
             }
             if (severity !== null) { provider.pollenToday = severity; }
+            if (tomorrow !== null) { provider.pollenTomorrow = tomorrow; }
             complete();
         }, function(error) {
             if (completed) { return; }
@@ -115,6 +135,7 @@ function fetchPollenInto(provider, lat, lon, done) {
 module.exports = {
     buildUrl: buildUrl,
     localDateKey: localDateKey,
+    nextLocalDay: nextLocalDay,
     worstToday: worstToday,
     fetchPollenInto: fetchPollenInto
 };

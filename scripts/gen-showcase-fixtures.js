@@ -10,6 +10,12 @@
 // only name the frames (scene_<id>.png), so a frame keeps its id when scenes move.
 // Health numbers come from the compile-time health_fixture.c twin (WW_HEALTH_FIXTURE),
 // not from these files.
+// On demand: every scene's Watch Status Bar right side ticks only Battery, pinned in
+// the base fixtures (berlin.json and the miami-*.json the Miami scenes copy); the left
+// keeps the defaults, the rain alert among them. The default right ticks would add
+// weather-alert icons whose presence depends on the capture time (a day peak counts only
+// while it is still ahead). A scene that should show an alert ticks it in its own clay
+// (statusTopOnDemandRightItems); test/curated-fixtures-on-demand.test.js holds the pin.
 
 const fs = require('fs');
 const path = require('path');
@@ -147,7 +153,9 @@ const SCENES = [
   {
     // Compact-DENSE: weather & health status shown together by default (no flick needed),
     // with a different-looking forecast (filled wind + dotted gust, no rain bars) and
-    // a "Rain in 15'" countdown over the top strip's left/mid, sunset on the right.
+    // a "Rain in 15'" countdown (the On demand Rain item) at the top strip's left edge,
+    // where the default lists tick Rain (the base fixture pins only the right side);
+    // the sunset slot keeps the right corner.
     // The countdown is baked (countdown block) and flicks stay 0, so the radar view
     // never shows. largeGraphFont off (emery-only toggle): the smaller axis labels
     // match the dense status rows.
@@ -165,7 +173,7 @@ const SCENES = [
       statusForecastLeft: 'wind', statusForecastRight: 'gust',
     },
     radar: { exact: RAIN_APPROACH_EXACT, area: RAIN_APPROACH_AREA },
-    countdown: { text: "Rain in 15'", tier: 3 },
+    countdown: { mins: 15, raining: false, tier: 3 },
   },
   // Miami, from the fixtures of the same name (live OpenWeatherMap data, pinned): UV as
   // dots, cloud cover and rain chance as top stripes, feels-like as a curve. Colour
@@ -247,7 +255,7 @@ const SCENES = [
       timeFont: 'bitham',
     },
     radar: { exact: RAIN_NOW_EXACT, area: RAIN_NOW_AREA },
-    countdown: { text: "Rain for 20'", tier: 3 },
+    countdown: { mins: 20, raining: true, tier: 3 },
   },
   // The Miami scenes again in the Light theme: captured with the showcase (for the store
   // and the README) but left out of the GIF and the reel intro (inShowcase: false).

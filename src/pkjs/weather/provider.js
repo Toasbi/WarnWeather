@@ -33,6 +33,9 @@ var GPS_CACHE_MAX_AGE_MS = locationLib.GPS_CACHE_MAX_AGE_MS;
 var WeatherProvider = function() {
     this.numEntries = 24;
     this.name = 'Template';
+    // The name on the watch's notice line (notices.js, ~31 B) when `name` is too long
+    // there; empty = `name`.
+    this.shortName = '';
     this.id = 'interface';
     this.location = null; // Address query used for overriding the GPS
     this.countryCode = null;
@@ -51,8 +54,9 @@ var WeatherProvider = function() {
     // with fetchOptions.build(settings, ...) before each fetch; a provider that
     // is never handed one runs on the defaults.
     this.options = fetchOptions.defaults();
-    // The status slots' day max (day-peaks.js): each metric's peak of today's
-    // hours already begun (day-peaks' recall, in fetchWithCoordinates; getPayload
+    // The status slots' day max (the Day max / Both modes, day-peaks.js): each
+    // metric's peak of today's hours already begun, which tells a running peak
+    // from one behind us (day-peaks' recall, in fetchWithCoordinates; getPayload
     // hands it on as the triples' third entry). Which metrics keep a record and
     // the wind unit a dip is judged in are options.dayPeakCodes/windUnits.
     this.earlierPeaks = {};
@@ -62,11 +66,14 @@ var WeatherProvider = function() {
     // Which hourly AQI FORECAST aqiTrend holds (air-quality.js sets it, per
     // scale), or null when it holds no forecast: WAQI reports the current
     // reading alone, which says nothing about the day's peak, so the AQI slot's
-    // day max only runs on the Open-Meteo forecast.
+    // Day max / Both modes only run on the Open-Meteo forecast.
     this.aqiFeedId = null;
     // Pollen is opt-in and DWD-only; null renders as '--' unless the auxiliary
     // fetch fills it. Transient: consumed by formatValue, never wired.
     this.pollenToday = null;
+    // Tomorrow's band from the same response, for a pollen alert that looks
+    // ahead (status-wire bakeAlerts). Transient too, never wired.
+    this.pollenTomorrow = null;
     // Pressure is sea-level (MSL) hPa and not every provider exposes it; empty →
     // the pressure line stays off and the status slot shows '--'. Transient:
     // consumed by forecast-series + formatValue, never wired.
@@ -578,6 +585,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 self.aqiFeedId = null;
                 airQuality.fetchAqiInto(this, lat, lon, function() {
                     self.pollenToday = null;
+                    self.pollenTomorrow = null;
                     pollen.fetchPollenInto(self, lat, lon, function() {
                         // The day records only refine the slots' day max: a storage
                         // failure leaves that on its plain rule, never the fetch
@@ -726,8 +734,9 @@ WeatherProvider.prototype.getPayload = function() {
         : [];
     // Whole-degree temps ride as a TRANSIENT series: applyForecastSeries encodes
     // them ONCE, where settings are in hand — against temp's own band, or the
-    // padded joint temp-and-feels band when the feels line is selected. (An
-    // early encode here forced a decode-and-re-encode round trip downstream.)
+    // joint temperature, feels-like and dew point band when such a line is
+    // selected. (An early encode here forced a decode-and-re-encode round trip
+    // downstream.)
     // TEMP_MIN/TEMP_MAX carry the ACTUAL air range either way: the watch reads
     // them only for the hi/lo labels; the scaling band travels in the bytes.
     // They are whole °F int32s, so for °C the watch's f_to_c rounds them a second
@@ -749,6 +758,7 @@ WeatherProvider.prototype.getPayload = function() {
         UV_TREND_UINT8: uvs, // Transient PKJS-only: UV tenths; forecast-series consumes + deletes before send
         AQI_TREND: (this.aqiTrend && this.aqiTrend.length) ? this.aqiTrend.slice(0, numEntries) : [], // Transient PKJS-only: current-window AQI ints; forecast-series consumes + deletes before send
         POLLEN_TODAY: this.pollenToday, // Transient PKJS-only: native DWD severity; forecast-series consumes + deletes before send
+        POLLEN_TOMORROW: this.pollenTomorrow, // Transient PKJS-only: tomorrow's DWD severity, read by the pollen alert's look-ahead; deleted before send
         CLOUD_TREND: (this.cloudTrend && this.cloudTrend.length) ? this.cloudTrend.slice(0, numEntries) : [], // Transient PKJS-only: cloud cover %; forecast-series consumes + deletes before send
         PRESSURE_TREND: (this.pressureTrend && this.pressureTrend.length) ? this.pressureTrend.slice(0, numEntries) : [], // Transient PKJS-only: sea-level hPa (no _UINT8 — 950..1050 doesn't fit a byte); forecast-series consumes + deletes before send
         FORECAST_START: this.startTime,

@@ -48,11 +48,18 @@ function walkPdc(file, viewbox, checkCmd) {
 // STATUS_ICON_PHONE_BATTERY_PLAIN) deliberately has NO resource — it exists only so the
 // no-icon variant gets its own threshold kind instead of falling through to City's — so
 // there is no third file to validate here.
+//
+// The On demand system items draw from the same family: STATUS_QUIET (Quiet time, a
+// muted speaker), STATUS_BT and STATUS_BT_OFF (Bluetooth connected / disconnected,
+// the rune and the rune crossed out) — from mute.svg, bluetooth.svg and
+// bluetooth-off.svg. They replace the 10 x 10 bitmaps on every platform but aplite,
+// because a bitmap cannot follow the rows' icon tiers.
 const OUTLINE_24 = ['STATUS_TEMP.pdc', 'STATUS_TEMP_SMALL.pdc', 'STATUS_UV.pdc',
                     'STATUS_WIND.pdc', 'STATUS_GUST.pdc', 'STATUS_POLLEN.pdc',
                     'STATUS_DISTANCE.pdc', 'STATUS_AQI.pdc',
                     'STATUS_COUNTDOWN.pdc', 'STATUS_DEW.pdc',
-                    'STATUS_PHONE_BATTERY.pdc', 'STATUS_PHONE_BATTERY_CHG.pdc'];
+                    'STATUS_PHONE_BATTERY.pdc', 'STATUS_PHONE_BATTERY_CHG.pdc',
+                    'STATUS_QUIET.pdc', 'STATUS_BT.pdc', 'STATUS_BT_OFF.pdc'];
 
 for (const file of OUTLINE_24) {
   test(`${file} is a valid 24x24 outline PDCI`, () => {

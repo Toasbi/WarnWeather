@@ -50,7 +50,7 @@ test('REGRESSION: tomorrow.io as forecast AND radar source with no key still cle
 
 test('Rainbow on your own key with no key clears the watch radar, without a request', () => {
   const out = probe('basalt', {
-    settings: { provider: 'tomorrowio', radarProvider: 'rainbow', rainbowOwnKey: true, tomorrowioApiKey: '' },
+    settings: { provider: 'tomorrowio', radarProvider: 'rainbowkey', tomorrowioApiKey: '' },
     answerXhr: true
   });
   assertOnlyClears(out.radarSends, 'the keyless own-key radar clears');
@@ -102,14 +102,14 @@ test('REGRESSION: the sky toggle off with a failing forecast still clears the wa
 });
 
 test('sky on with a failing forecast: no fresh sky rides it, with a real radar window or a radar clear', () => {
-  [['rainbow', false], ['tomorrowio', false], ['rainbow', true]].forEach(([radarProvider, rainbowOwnKey]) => {
+  ['rainbow', 'tomorrowio', 'rainbowkey'].forEach((radarProvider) => {
     const out = probe('basalt', {
-      settings: { provider: 'tomorrowio', radarProvider, rainbowOwnKey, radarSky: true, tomorrowioApiKey: '' },
+      settings: { provider: 'tomorrowio', radarProvider, radarSky: true, tomorrowioApiKey: '' },
       answerXhr: true
     });
     // tomorrow.io and Rainbow on your own key both run without a key here.
-    const keyless = radarProvider !== 'rainbow' || rainbowOwnKey;
-    const label = radarProvider + (rainbowOwnKey ? ' (own key)' : '');
+    const keyless = radarProvider !== 'rainbow';
+    const label = radarProvider;
     if (keyless) {
       // A keyless radar can never answer: no sky request goes out for rows
       // it could never draw (radarFactory.canAnswer), only the sky clear.

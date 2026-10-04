@@ -1,6 +1,6 @@
 // src/pkjs/settings/rainbow-budget.js — config UI (phone webview) + Node-testable.
 //
-// Pure budget math for the Rainbow radar on the user's own key ("Use your own key") on
+// Pure budget math for the Rainbow radar on the user's own key ("Rainbow (own key)") on
 // Rainbow's free Nowcast tier: 5,000 requests per calendar month (developer.rainbow.ai,
 // checked 2026-09-25: "Free tier 5,000 req / mo ... resets every calendar month"). Consumed by the config-UI
 // rainbowBudget info block in blocks.js, by interval-budget.js (the update-interval
@@ -8,7 +8,7 @@
 // Same shape as tomorrowio-budget.js, whose ladder and night-pause rule it reuses.
 (function () {
     // Resolved up front, not at the bottom like tomorrowio-budget.js: in the webview this
-    // file reads PConf.tomorrowioBudget and PConf.radarSourceId while its own body runs.
+    // file reads PConf.tomorrowioBudget while its own body runs.
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
         : (typeof PConf !== 'undefined' && PConf) ? PConf
@@ -17,10 +17,10 @@
     // against sleep-window.js) — reused, not copied a third time. build-config-page.js
     // concatenates tomorrowio-budget.js ahead of this file.
     var tio = (typeof require !== 'undefined') ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
-    // Which radar source the settings run (the Rainbow option + its "Use your own key"
-    // switch -> 'rainbowkey'): the runtime's own resolver, so the budget bills exactly
-    // what fetch-cycle.js fetches. build-config-page.js concatenates it ahead of this file.
-    var radarSourceId = (typeof require !== 'undefined') ? require('../weather/radar-source-id.js') : PConf.radarSourceId;
+    // The radarProvider of "Rainbow (own key)": the radar source id fetch-cycle.js runs it
+    // under (weather/radar-factory.js OWN_KEY_RADAR_ID; the page cannot load the runtime's
+    // radar modules, so test/rainbow-budget.test.js pins the two equal).
+    var OWN_KEY_RADAR_ID = 'rainbowkey';
 
     // Rainbow's Nowcast API free tier: 5,000 requests per month, reset every calendar month
     // (developer.rainbow.ai, checked 2026-09-25: "Free tier 5,000 req / mo ... resets every calendar
@@ -29,7 +29,7 @@
     // The tier resets per CALENDAR month, so budget for the longest one.
     var DAYS_PER_MONTH = 31;
     // One precip-global request per fetch cycle whenever the radar runs on the user's own key
-    // (radar-source-id.js: Rainbow with "Use your own key" on) and radar is on (fetch-cycle.js
+    // ("Rainbow (own key)") and radar is on (fetch-cycle.js
     // withRainRadarTuplesAt); radar-dedupe.js only skips the SEND, never the request.
     var RADAR_CALLS_PER_CYCLE = 1;
     // Same labels/values as the config UI's update-interval ladder — the very same array.
@@ -40,14 +40,14 @@
     /**
      * Rainbow calls per fetch cycle billed to the user's own key. Shared Rainbow runs on
      * the project's proxy and costs the user nothing, so only the own-key source counts
-     * (radar-source-id.js effectiveRadarId: Rainbow with "Use your own key" on); any
+     * (radarProvider 'rainbowkey': "Rainbow (own key)"); any
      * non-off radar mode (countdown/status/graph all need the trend) makes the call.
      *
-     * @param {Object} S Settings state (radarProvider/rainbowOwnKey/radarMode).
+     * @param {Object} S Settings state (radarProvider/radarMode).
      * @returns {number} 0 or 1 calls per cycle.
      */
     function callsPerCycle(S) {
-        return (S && radarSourceId.effectiveRadarId(S) === radarSourceId.OWN_KEY_RADAR_ID
+        return (S && S.radarProvider === OWN_KEY_RADAR_ID
             && (S.radarMode || 'graph') !== 'off')
             ? RADAR_CALLS_PER_CYCLE : 0;
     }
@@ -124,9 +124,10 @@
     // Every settings key the math above reads. A caller holding only a get(key)
     // accessor (the onSubmit hook, through interval-budget.js) builds its state object
     // from exactly these; test/rainbow-budget.test.js pins the list against what the math reads.
-    var STATE_KEYS = ['radarProvider', 'rainbowOwnKey', 'radarMode', 'sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'];
+    var STATE_KEYS = ['radarProvider', 'radarMode', 'sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'];
 
     var api = {
+        OWN_KEY_RADAR_ID: OWN_KEY_RADAR_ID,
         LIMIT_MONTH: LIMIT_MONTH,
         DAYS_PER_MONTH: DAYS_PER_MONTH,
         RADAR_CALLS_PER_CYCLE: RADAR_CALLS_PER_CYCLE,

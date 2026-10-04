@@ -4,10 +4,11 @@
 // dev-config apply, fixture apply. localStorage is the ambient PKJS global; tests
 // inject a fake before require.
 //
-// The marker-gated migration ledger lives in clay-migrations.js and reads/writes
-// through here. The dependency is one-way BY DESIGN — this module must never require
-// it back, or the two form a cycle and the owner starts growing with the ledger again
-// (which is what put this file near 1000 lines). test/clay-migrations.test.js pins it.
+// The marker-gated migration ledger (migrations/, run by clay-migrations.js) reads and
+// writes through here. The dependency is one-way BY DESIGN — this module must never
+// require it back, or the two form a cycle and the owner starts growing with the ledger
+// again (which is what put this file near 1000 lines). test/clay-migrations.test.js
+// pins it.
 
 var settings = require('./settings');
 var KEYS = require('./storage-keys');
@@ -32,10 +33,17 @@ var PRESERVED_SETTING_KEYS = ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', '
  * The exception is PRESERVED_SETTING_KEYS plus the scraped Weather Underground
  * key: see the note there for why credentials survive a reset.
  *
+ * @param {string[]} resetSafeMarkers Migration markers to set after the wipe
+ *   (clay-migrations.js RESET_SAFE_MARKERS; passed in so this module never
+ *   requires the ledger). Required: a caller that drops it would silently let
+ *   the next boot re-run those migrations over the page's post-reset save.
  * @returns {Object} The preserved credentials, so the caller can keep the live
  *   in-memory settings usable until the next boot re-seeds them.
  */
-function resetAll() {
+function resetAll(resetSafeMarkers) {
+    if (!Array.isArray(resetSafeMarkers)) {
+        throw new Error('resetAll needs the reset-safe migration markers');
+    }
     var blob = read() || {};
     var keep = {};
     var kept = false;
@@ -57,7 +65,7 @@ function resetAll() {
     localStorage.clear();
     // The settings blob itself must stay ABSENT: the next boot reads an absent
     // blob as a fresh install, which is what keeps onboardingDone false through
-    // the onboarding migration (clay-migrations.js) and reopens the wizard.
+    // the onboarding migration (migrations/onboarding.js) and reopens the wizard.
     // Putting the kept credentials straight back would make that boot read as an
     // existing install and silently skip the first-time setup this reset
     // promises. They wait in their own entry instead, and seedDefaults folds them
@@ -65,14 +73,11 @@ function resetAll() {
     // so it just goes back.
     if (kept) { localStorage.setItem(KEYS.PRESERVED_KEYS_KEY, JSON.stringify(keep)); }
     if (wuKey) { localStorage.setItem(KEYS.WU_API_KEY, wuKey); }
-    // The 1.23.0 no-rain migration turns a stored '' into the default, because ''
-    // used to mean "default". After a reset the next blob is seeded with
-    // the default, so any '' saved from here on is a deliberate clear: mark the
-    // migration done, or a clear saved before the next boot would be undone by it.
-    localStorage.setItem(KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY, '1');
-    // Same reasoning for the 1.23.1 fourth-line style move: the next blob is seeded
-    // with the new default 'x', so a 'stripeTop' saved from here on was picked.
-    localStorage.setItem(KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, '1');
+    // Migrations that would misread a blob the page saves before the next boot are
+    // marked done; the ledger says which (each entry's markOnReset says why).
+    for (i = 0; i < resetSafeMarkers.length; i++) {
+        localStorage.setItem(resetSafeMarkers[i], '1');
+    }
     return keep;
 }
 
@@ -409,10 +414,6 @@ function normalizeFixtureColor(value, colorMap) {
 module.exports = {
     read: read,
     save: save,
-    // The blob's storage key, exported for clay-migrations.js — its loadForMigration
-    // reads the raw string to tell "nothing stored" from "malformed". A shipped
-    // storage key: never change the string.
-    STORAGE_KEY: STORAGE_KEY,
     resetAll: resetAll,
     fillFromPreserved: fillFromPreserved,
     shouldReset: shouldReset,

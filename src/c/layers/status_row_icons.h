@@ -1,11 +1,35 @@
 #pragma once
 #include <pebble.h>
+#include "../appendix/status_line.h"
+
+// Not built on aplite: its lean status row (status_row_aplite.c) draws text only.
 
 // Icon id → recolored, size-normalized PDC image, or NULL when the id has no
-// bundled glyph (NONE, DRAWN_* sentinels, unknown id, load failure, aplite).
+// bundled glyph (NONE, DRAWN_* sentinels, unknown id, load failure).
 // A NULL degrades the slot to text-only — never suppress the value for it.
 // `top_strip` gates the small-tier size substitutions: the strip's icon tier is
 // deliberately smaller (calendar clearance), so tall small-size variants are
 // rows-only.
 GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top_strip);
+
+// Glyph ids for the On demand system items (layers/status_on_demand.c). In memory
+// only, never on the wire: right after every StatusIconId (STATUS_ICON_MAX), so the
+// id-to-resource switch stays one dense table, and below the alert glyph cache's rain
+// flag (0x80). Outline art like the slot glyphs, so status_row_icons_load() draws
+// them at any tier.
+#define STATUS_ROW_ICON_QUIET (STATUS_ICON_MAX + 1)    // Quiet time: the muted speaker
+#define STATUS_ROW_ICON_BT (STATUS_ICON_MAX + 2)       // Bluetooth connected: the rune
+#define STATUS_ROW_ICON_BT_OFF (STATUS_ICON_MAX + 3)   // Bluetooth disconnected: crossed out
+_Static_assert(STATUS_ROW_ICON_BT_OFF < 0x80, "the system glyph ids stay below the rain flag");
+
+// The keep-fill flavour, for fill-authored art addressed by RESOURCE id (the
+// RAIN_DRIZZLE / RAIN_RAIN / RAIN_DOWNPOUR drops — no StatusIconId exists for them):
+// the fill takes `tint`, the stroke stays clear, or becomes 1-px black when
+// `outline` (the light theme's rule, so a pale tint still reads on white). The
+// size rule differs from status_row_icons_load's: the authored VIEWBOX (not the
+// ink) scales into a square 120 % of target_h, snapped to the pixel grid, so every
+// bucket keeps the retired strip's drop size and only the drop count changes.
+// NULL for resource 0, a non-positive target_h and a load failure.
+GDrawCommandImage *status_row_icons_load_filled(uint32_t resource_id, int target_h,
+                                                GColor tint, bool outline);
 void status_row_icons_destroy(GDrawCommandImage *image);

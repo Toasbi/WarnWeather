@@ -29,16 +29,18 @@ function staleSuccess() {
 
 /**
  * No UV and no AQI anywhere, plus `over`: every configurable status slot
- * 'empty' and no forecast line on UV. The stored blob is read over the schema
- * defaults (claySettings.read), and those select UV twice (the radar line's
- * left slot and the third forecast line) and AQI once (the forecast line's
- * right slot) — so "none" has to be spelled out key by key.
+ * 'empty', no forecast line on UV and no weather alert placed on any bar. The stored
+ * blob is read over the schema defaults (claySettings.read), and those select UV twice
+ * (the radar line's left slot and the third forecast line) and AQI once (the forecast
+ * line's right slot), and tick the UV index, Air quality, Wind gusts and Wind speed
+ * alerts on the Watch Status Bar — so "none" has to be spelled out key by key.
  *
  * @param {Object} [over] Settings applied on top.
  * @returns {Object} Clay settings for bootIndex.
  */
 function noUvNoAqi(over) {
-  const s = { secondaryLine: 'off', thirdLine: 'off', fourthLine: 'off' };
+  const s = Object.assign({ secondaryLine: 'off', thirdLine: 'off', fourthLine: 'off' },
+    require('./helpers/on-demand.js').NOTHING_PLACED);
   statusCatalog.allSlotKeys().forEach((k) => { s[k] = 'empty'; });
   return Object.assign(s, over || {});
 }
@@ -75,6 +77,11 @@ test('no UV and no AQI selection spends neither request', (t) => {
   const aux = h.xhrs.filter((u) => AUX_REQUEST.test(u));
   assert.equal(aux.length, 1);
   assert.match(aux[0], /&forecast_days=2(&|$)/, 'options.dayPeakCodes came from the settings, not the defaults');
+});
+
+test('a placed UV alert with no UV slot or line sends the UV request too', (t) => {
+  const h = bootAndFetch(t, noUvNoAqi({ statusTopOnDemandRightItems: 'uv' }));
+  assert.equal(h.requestsTo(UV_REQUEST), 1, 'the alert needs the metric it judges');
 });
 
 test('an AQI slot asks the AQI feed in the stored source and scale', (t) => {

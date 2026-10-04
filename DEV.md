@@ -150,6 +150,14 @@ before shipping aplite changes:
 mise check-aplite-size
 ```
 
+Fail when a 64 KB watch's image (basalt, diorite, flint) grows past its recorded
+ceiling. Their heap comes out of the same 64 KB, so image bytes are heap bytes;
+the ceilings and the open heap gate are explained in `scripts/check-64k-size.sh`.
+Run it after C changes:
+```bash
+mise check-64k-size
+```
+
 ### Build
 
 Dev profile (default):
@@ -351,13 +359,23 @@ captured with the rest but left out of the GIF and the reel intro (the Light-the
 scenes 10-12, for the store); a fixture-backed scene's `clay` layers on its fixture's
 settings (their `theme: 'light'`).
 
-Health readings and the rain-countdown strip are read live on the watch and don't
-reproduce in a static compile-time fixture, so screenshot builds swap in two canned twins
-(wired in `wscript`, never shipped in a normal build):
+Health readings and the rain alert are read live on the watch and don't reproduce in a
+static compile-time fixture, so screenshot builds swap in two canned twins (wired in
+`wscript`, never shipped in a normal build):
 
 - `WW_HEALTH_FIXTURE=1` → `src/c/services/health_fixture.c` — canned steps / sleep / heart rate.
-- a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — the exact
-  "Rain in 15'" / "Drizzle in 15'" / "Rain for 20'" strip.
+  `WW_HEALTH_FIXTURE=low` swaps in the same twin with a quiet day's hourly steps (every hour
+  under 100), which puts the health graph on its lowest step scale (0.1k).
+- a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — the rain alert
+  on every side Rain is placed on (the Watch Status Bar's left side by default; the Rain
+  alert's Shows on grid, Alerts tab, puts it Left or Right on any bar):
+  `{ mins, raining, tier }`, where `tier` (1-5) picks the drops, their colour and the noun,
+  so `{ mins: 15, raining: false, tier: 3 }` prints "Rain in 15'" with the 'text' rain look
+  and `15'` with the 'minutes' one, and `{ mins: 20, raining: true, tier: 3 }`
+  "Rain for 20'" / `+20'` (tier 1-2 reads "Drizzle"; `mins: 100` is past the 99-minute cap).
+  Like the real alert it shows nothing while the fixture's settings place Rain on no side
+  (or switch the radar off) or the radar is snoozed. The minutes are canned, though: a
+  time window shorter than them does not hide the alert.
 
 Capture the default platforms (aplite, basalt, flint, emery), or a subset via `PLATFORMS`,
 and only some scenes via `SCENE_IDS` (the other frames stay as they are):
@@ -442,7 +460,7 @@ mise prepare-package release
 | `PEBBLE_EMULATOR` | Default emulator platform (e.g. `basalt`) |
 | `TELEMETRY_ENDPOINT` | Telemetry function URL (set for release/CI builds) |
 | `TELEMETRY_HASH_SECRET` | Secret for server-side HMAC hashing of IDs |
-| `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle (set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — Rainbow is the default radar provider, and an empty endpoint doesn't hide the option, it makes every Rainbow radar fetch fail soft with no radar reaching the watch; dev/fork builds may leave it empty on purpose); also reaches the settings page (userData `rainbowEndpoint`) for the Rainbow API key's Test button (Radar tab, *Use your own key*) — empty = the button says the test isn't available |
+| `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle (set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — Rainbow is the default radar provider, and an empty endpoint doesn't hide the option, it makes every Rainbow radar fetch fail soft with no radar reaching the watch; dev/fork builds may leave it empty on purpose); also reaches the settings page (userData `rainbowEndpoint`) for the Rainbow API key's Test button (Graphs tab › Rain radar, *Rainbow (own key)*'s key dialog) — empty = the button says the test isn't available |
 | `NEWS_ENDPOINT` | News edge-function URL baked into the bundle (set for release/CI builds via the `NEWS_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — the config-page news pill would otherwise be silently disabled for every user) |
 | `AQICN_TOKEN` | Shared WAQI (aqicn.org) token baked into the bundle (set for release/CI builds via the `AQICN_TOKEN_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — WAQI is the default AQI source, so every device would otherwise silently fall back to Open-Meteo) |
 
@@ -464,7 +482,7 @@ Fields supported in `fixtures/<name>.json`:
 - `weather.rainMm` — hourly rain-amount array (mm); drives the optional rain bars
 - `weather.windKmh` / `weather.gustKmh` — hourly wind / gust speed arrays (km/h); a non-zero gust array turns the gust line on
 - `weather.rainRadarExactMm` / `weather.rainRadarAreaMm` — radar rain per 5-minute frame (mm/h): rain at the exact location, and the strongest rain within 2 km. Supply both or radar is skipped
-- `weather.sky` — optional radar sky rows: `{ cloudPct, sunPct, lightning }`, one entry per 15-minute slot from the quarter hour holding the radar start (percent of what each row draws: cloud cover and sun strength against a clear sky, rounded to the nearest of the four stripe levels, so under 12.5 % draws nothing; lightning 0/1); sent as `RADAR_SKY_UINT8` with the radar
+- `weather.sky` — optional radar sky rows: `{ cloudPct, sunPct, lightning }`, one entry per 15-minute slot from the quarter hour holding the radar start (percent of what each row draws: cloud cover and sun strength against a clear sky, each shaded on its row's own scale in `src/pkjs/stripe-levels.js`: under 10 % draws nothing, 10–29 / 30–59 / 60–89 % the three lighter steps, 90 % and up full colour; lightning 0/1); sent as `RADAR_SKY_UINT8` with the radar
 - `weather.radarStartEpoch` — optional Unix-seconds anchor for the radar window (defaults to the forecast start; the time-lapse uses it to scroll radar independently of the forecast)
 - `weather.sunEvents` — next two sun events, authored as local fields `{ type, dayOffset, hour, minute }` and normalized to `{ type, epoch }`
 
@@ -598,8 +616,8 @@ Deploy the rainbow-nowcast edge function:
 supabase functions deploy rainbow-nowcast
 ```
 
-Key-check mode (the settings page's *Test* button beside the Rainbow API key, shown with the
-Rainbow radar's *Use your own key* on; on the endpoint's `/key-check` path): a POST of `{"key":"..."}` as `text/plain` makes one Rainbow call with that key at a fixed,
+Key-check mode (the settings page's *Test* button beside the Rainbow API key, in the key
+dialog of *Rainbow (own key)* (Graphs tab › Rain radar); on the endpoint's `/key-check` path): a POST of `{"key":"..."}` as `text/plain` makes one Rainbow call with that key at a fixed,
 always-covered point (Berlin) and answers HTTP 200 `{"status": <Rainbow status>}`. Any other
 HTTP status is the proxy's own error, never a key verdict: 400 (missing key, or not shaped like
 a Rainbow key), 413 (body over 1 KB), 429 (more than 5 checks per IP per minute) and 504

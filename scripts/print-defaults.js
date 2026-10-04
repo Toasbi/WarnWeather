@@ -246,10 +246,8 @@ function renderRules() {
   const out = heading('1 · SITUATIONAL RULES — defaults that depend on the moment');
   out.push(...wrap('Each row below applies only when its conditions hold, and later rows win. '
     + 'Add or change one in the RULES table of src/pkjs/settings/defaults-policy.js; nothing '
-    + 'applies them on its own — the wizard resolves the table on its finish button. A value '
-    + 'marked "via <hook>" is written through the settings page\'s own onChange hook, so the '
-    + 'companions it seeds (a threshold pair, an outline colour) are identical to what flipping '
-    + 'that control by hand produces.', WIDTH, '  '));
+    + 'applies them on its own — the wizard resolves the table on its finish button.',
+    WIDTH, '  '));
   policy.RULES.forEach((rule, i) => {
     out.push('');
     out.push('  [' + (i + 1) + '] ' + rule.id);
@@ -259,11 +257,9 @@ function renderRules() {
       : 'always (no conditions)'));
     out.push(...field('      ', 'why', rule.why));
     const set = rule.set || {};
-    const via = rule.seedVia || {};
     Object.keys(set).forEach((key, n) => {
-      const seed = via[key] ? '   via ' + via[key] + ' hook' : '';
       out.push('      ' + (n === 0 ? 'sets   ' : '       ') + key.padEnd(24) + ' '
-        + fmt(set[key]).padEnd(8) + seed);
+        + fmt(set[key]));
     });
   });
   return out.map((l) => l.trimEnd());
@@ -276,15 +272,15 @@ function renderRules() {
  */
 function renderCapabilities() {
   const flags = Object.keys(envFor(PLATFORMS[0])).filter((k) => k !== 'platform');
-  const rows = [['platform'].concat(flags)];
-  PLATFORMS.forEach((p) => {
-    const env = envFor(p);
-    rows.push([p].concat(flags.map((f) => (env[f] ? 'yes' : '-'))));
+  const envs = PLATFORMS.map((p) => envFor(p));
+  // One row per fact, one column per watch: every computeEnv fact adds a ROW, so the
+  // table's width stays fixed by the platform list (a fact per column ran past the
+  // report's 100-column ceiling once onDemand joined lineStyles).
+  const rows = [['fact'].concat(PLATFORMS)];
+  flags.forEach((f) => {
+    rows.push([f].concat(envs.map((env) => (env[f] ? 'yes' : '-'))));
   });
-  // Two-space indent, not the section's four: the column set grows with every
-  // computeEnv fact (lineStyles took the four-indent table past the report's
-  // 100-column ceiling) and the width is spent on the facts, not the margin.
-  return table(rows, '  ');
+  return table(rows, '    ');
 }
 
 /**
@@ -369,15 +365,16 @@ const RESOLVER_PROSE = {
 };
 
 /**
- * @returns {string[]} Section 3: the defaultFrom keys, which no saved blob contains.
+ * @returns {string[]} Section 3: the defaultFrom keys, which no seeded blob contains.
  */
 function renderUnseeded() {
   const rows = unseededItems();
   const out = heading('3 · NOT SEEDED INTO THE SETTINGS BLOB — resolved per watch instead');
   out.push(...wrap('deriveDefaults() deliberately skips every `defaultFrom` item, so these '
     + rows.length + ' keys DO NOT EXIST in stored settings until the user saves the settings '
-    + 'page. The trap: reading one straight off the blob gives undefined on a watch nobody has '
-    + 'configured. Resolve it instead (status-line-catalog.slotDefault / '
+    + 'page (a `sticky: false` one, the warn looks, not even then unless picked off that '
+    + 'watch\'s default). The trap: reading one straight off the blob gives undefined on a watch '
+    + 'nobody has configured. Resolve it instead (status-line-catalog.slotDefault / '
     + 'engine.resolveDefaultFrom), which is what the values below are.', WIDTH, '  '));
   const byResolver = {};
   rows.forEach((row) => {

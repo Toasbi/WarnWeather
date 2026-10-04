@@ -48,6 +48,21 @@
     }
 
     /**
+     * Whether the watch draws in colour: a colour display showing a colour theme. A B&W
+     * display and the two B&W themes both draw in the theme's ink alone — the settings
+     * page's previews, the highlight swatches and the graph colours all take the B&W
+     * arm then. Only an explicit `color: false` is a B&W display (computeEnv always
+     * reports a boolean); an absent env or flag counts as colour,
+     * the packer's rule for a blob packed without an env.
+     * @param {?{color: boolean}} env Platform env or capabilities.
+     * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
+     * @returns {boolean} True when the watch draws colour.
+     */
+    function drawsColor(env, theme) {
+        return !(env && env.color === false) && !isBwTheme(theme);
+    }
+
+    /**
      * @param {number} color 0xRRGGBB resolved color.
      * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
      * @returns {number} color, or GColorBlack when color is exactly white and theme is light-polarity.
@@ -107,6 +122,7 @@
         resolveInk: resolveInk,
         isLightPolarity: isLightPolarity,
         isBwTheme: isBwTheme,
+        drawsColor: drawsColor,
         effectiveTheme: effectiveTheme,
         barColorDefault: barColorDefault,
         BAR_COLOR_KEYS: BAR_COLOR_KEYS

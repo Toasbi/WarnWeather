@@ -60,11 +60,11 @@ static bool s_health_graph_reachable;
 // it. Constant-false on aplite (radar is compiled out).
 bool main_window_radar_has_data(void) {
 #if defined(WW_RAIN_RADAR)
-    // A stored window, or the radar limit notice alone (radar_limit.h
-    // radar_has_view): a source that refused us before any window arrived keeps
-    // its radar view, which says why it is empty. The notice flipping with no
+    // A stored window, or the radar notice alone (radar_limit.h radar_has_view):
+    // a source that refused us before any window arrived, or cannot see the place,
+    // keeps its radar view, which says why it is empty. The notice flipping with no
     // window re-applies the top view through app_message.c's bracket.
-    return radar_has_view(persist_get_rain_radar_start() > 0, persist_get_radar_limited());
+    return radar_has_view(persist_get_rain_radar_start() > 0, persist_has_radar_notice());
 #else
     // aplite: radar is compiled out, so it never has data — the view cycle
     // resolves every radar slot away (view_spec_resolve/view_slot_available).
@@ -515,6 +515,12 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
         top_status_layer_refresh();
     }
     top_status_layer_tick();
+#if defined(WW_ON_DEMAND)
+    // The strip's tick re-derives its own On demand items; a band bar with items
+    // needs the same per-minute pass, or its rain countdown and Quiet time would
+    // stand still.
+    status_bar_tick_on_demand();
+#endif
     loading_layer_refresh();
 #if defined(PBL_HEALTH)
     // Keep the cache warm whenever health is enabled (rollover-warm always; the

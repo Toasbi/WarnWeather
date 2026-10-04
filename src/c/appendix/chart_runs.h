@@ -14,26 +14,49 @@
 // it — temp/forecast values never equal INT16_MIN.
 #define CHART_ABSENT INT16_MIN
 
-// One line sample's "draw nothing here" test for the SOLID path: the explicit
-// CHART_ABSENT sentinel, plus — for layers that opt in via zero_absent —
-// anything at or below the floor. The metric lines opt in: their wire
-// invariant (forecast-series.js metricBytes) reserves byte 0 for "nothing",
-// the same reading the marks have always applied. Temp/feels and the HR line
-// leave it unset — their floor readings are real data.
-static inline bool chart_sample_absent(int16_t v, int lo, bool zero_absent) {
+// How a LINE layer reads a value at or below its floor (ChartLineLayer.zero_absent):
+// as data (temperature, HR), as nothing (the line breaks there), or as nothing that
+// is still a real zero (the line comes down to it next to a reading). The metric lines
+// set one of the last two: their wire invariant (forecast-series.js metricBytes)
+// reserves byte 0 for "nothing", the same reading the marks have always applied. GAP
+// is a line whose byte 0 is a missing reading (pressure, feels-like, dew point: the
+// floating lines); JOIN one whose byte 0 is a zero (rain chance, clouds, wind, gusts,
+// UV, and a Visible values: Alert line below its warn level).
+#define CHART_ZERO_DATA 0
+#define CHART_ZERO_GAP  1
+#define CHART_ZERO_JOIN 2
+
+// One line sample's "nothing here" test for the SOLID path: the explicit
+// CHART_ABSENT sentinel, plus — on a GAP or JOIN line — anything at or below the
+// floor. The temperature curve and the HR line (DATA) read their floor as data.
+static inline bool chart_sample_absent(int16_t v, int lo, int zero_absent) {
     return v == CHART_ABSENT || (zero_absent && v <= lo);
 }
 
-// Find the next contiguous run of drawable samples at or after `from`: writes
-// the run's first index to *start and returns its length (0 = nothing left).
-// A NULL vals (precomputed points, no sentinel to read) is one whole-range
-// run — the contour-consuming line draws exactly as before unless it also
-// carries values.
+// Whether the polyline draws the segment from sample k to k + 1: between two readings
+// always; on a JOIN line also between a reading and a zero, so the line comes down to
+// the zero row next to a reading instead of starting or ending in mid-air. Two zeros
+// in a row never draw (a dry spell is a gap), nor does a sentinel on any other line.
+// A JOIN line never carries CHART_ABSENT (its values are wire bytes).
+static inline bool chart_segment_drawn(const int16_t *vals, int k, int lo, int zero_absent) {
+    const bool a = chart_sample_absent(vals[k], lo, zero_absent);
+    const bool b = chart_sample_absent(vals[k + 1], lo, zero_absent);
+    return zero_absent == CHART_ZERO_JOIN ? !(a && b) : !(a || b);
+}
+
+// Find the next run of drawn samples at or after `from`: writes the run's first index
+// to *start and returns its length (0 = nothing left). A run is the vertices joined by
+// drawn segments (chart_segment_drawn): on a JOIN line it takes the zero on each side
+// of its readings, and carries on through a lone zero between two readings (the line
+// dips to the zero row and back), so a lone reading between zeros is a peak. A run of
+// one is a lone reading no segment reaches (chart.c's small square).
 static inline int chart_next_run(const int16_t *vals, int count, int lo,
-                                 bool zero_absent, int from, int *start) {
+                                 int zero_absent, int from, int *start) {
     int i = from;
-    while (i < count && vals && chart_sample_absent(vals[i], lo, zero_absent)) { i++; }
+    while (i < count && chart_sample_absent(vals[i], lo, zero_absent)
+           && !(i + 1 < count && chart_segment_drawn(vals, i, lo, zero_absent))) { i++; }
     *start = i;
-    while (i < count && !(vals && chart_sample_absent(vals[i], lo, zero_absent))) { i++; }
-    return i - *start;
+    if (i >= count) { return 0; }
+    while (i + 1 < count && chart_segment_drawn(vals, i, lo, zero_absent)) { i++; }
+    return i + 1 - *start;
 }

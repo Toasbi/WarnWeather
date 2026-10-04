@@ -50,7 +50,9 @@ const BOLD_TOP = {
   threshDateBoldMode: 'always',
   threshSunBoldMode: 'always'
 };
-const AQI_HIGHLIGHT = { threshAqiOn: true, threshAqiWarnOutlineOn: true };
+// The warn box is the kind's warn look, whose platform default already draws one —
+// the rule switches the highlight on and nothing else.
+const AQI_HIGHLIGHT = { threshAqiOn: true };
 // Steps rides into the top row, so on emery it is bolded with the rest of that row —
 // the top-row bold names the row's DEFAULT kinds, and this rule is what changes one.
 const HEALTH_SLOTS = {
@@ -190,7 +192,7 @@ test('resolveDefaults returns a fresh object and never mutates the table', () =>
   assert.equal(second.statusTopLeft, 'steps');
 });
 
-test('rulesFor exposes the matching rules themselves (ids, why, seedVia)', () => {
+test('rulesFor exposes the matching rules themselves (ids, why)', () => {
   const ids = policy.rulesFor(ctx({ wizard: true })).map((r) => r.id);
   assert.deepEqual(ids, policy.RULES.filter((r) => policy.ruleApplies(r, ctx({ wizard: true }))).map((r) => r.id));
   assert.deepEqual(policy.rulesFor(ctx({ wizard: false })), []);
@@ -242,16 +244,16 @@ test('every value a rule writes is one the schema item accepts', () => {
   });
 });
 
-test('seedVia names the very onChange hook the schema item declares', () => {
-  policy.RULES.forEach((rule) => {
-    const via = rule.seedVia || {};
-    Object.keys(via).forEach((key) => {
-      assert.ok(Object.prototype.hasOwnProperty.call(rule.set, key),
-        rule.id + ': seedVia lists ' + key + ', which the rule does not set');
-      assert.equal(SCHEMA_ITEM[key].onChange, via[key],
-        rule.id + ': ' + key + ' is seeded by a different hook than the settings page uses');
-    });
-  });
+test('the AQI rule switches the highlight on and pins no levels', () => {
+  // The rule used to write threshAqiOn THROUGH the switch's onChange hook, which pinned
+  // the seed pair of the AQI scale in effect at setup (the US 100/150 of the default
+  // WAQI source) — a pair that then stayed US after a switch to Open-Meteo's European
+  // scale. The switch has no hook now and the pair stays blank (= the live seed), so
+  // the rule writes the switch alone, exactly as a hand flip does.
+  const rule = policy.RULES.find((r) => r.id === 'wizard-aqi-keeps-a-warn-signal');
+  assert.deepEqual(rule.set, { threshAqiOn: true });
+  assert.equal(SCHEMA_ITEM.threshAqiOn.onChange, undefined, 'the switch runs no hook');
+  policy.RULES.forEach((r) => assert.equal(r.seedVia, undefined, r.id + ': no write-through hook'));
 });
 
 // --- the matrix's design intent --------------------------------------------
@@ -499,22 +501,22 @@ test('applyDefaults writes matching rules onto the live state and reports what i
   assert.deepEqual(S, { one: 1, two: 2 }, 'values land on the live state');
 });
 
-test('applyDefaults flattens later-rules-win: one write, one hook fire per key', () => {
-  // The pre-extraction blocks.js loop applied rule-by-rule, so a key two rules set
-  // would have been written (and its hook fired) twice — the exact dialect drift
-  // the shared interpreter exists to prevent.
+test('applyDefaults flattens later-rules-win: one write, one veto check per key', () => {
+  // Applied rule-by-rule, a key two rules set would be written (and vetted) twice —
+  // the exact dialect drift the one interpreter exists to prevent.
   const rules = [
-    { id: 'general', when: {}, set: { key: 'general' }, seedVia: { key: 'hook' } },
-    { id: 'specific', when: {}, set: { key: 'specific' }, seedVia: { key: 'hook' } }
+    { id: 'general', when: {}, set: { key: 'general' } },
+    { id: 'specific', when: {}, set: { key: 'specific' } }
   ];
   const calls = [];
   const S = {};
-  policy.applyDefaults(ctx({ choices: S }), {
-    getHook: () => (state, before, value, env, key) => calls.push([key, before, value])
+  const written = policy.applyDefaults(ctx({ choices: S }), {
+    mayWrite: (key, meta) => { calls.push([key, meta.value]); return true; }
   }, rules);
   assert.equal(S.key, 'specific', 'the later row wins');
-  assert.deepEqual(calls, [['key', undefined, 'specific']],
-    'exactly one hook fire — flattening, not per-rule application');
+  assert.deepEqual(written, { key: 'specific' });
+  assert.deepEqual(calls, [['key', 'specific']],
+    'exactly one check — flattening, not per-rule application');
 });
 
 test('applyDefaults: a dependent stands down unless its anchor holds the rule value', () => {
@@ -542,16 +544,4 @@ test('applyDefaults hands mayWrite the flattened meta, overrules included', () =
     mayWrite: (key, meta) => { seen[key] = meta.overrules; return true; }
   }, rules);
   assert.deepEqual(seen, { a: false, b: true });
-});
-
-test('applyDefaults writes seedVia keys through the resolved hook, against the live state', () => {
-  const rules = [{ id: 'r', when: {}, set: { toggleKey: true },
-    seedVia: { toggleKey: 'seedCompanion' } }];
-  const S = { existing: 'kept' };
-  policy.applyDefaults(ctx({ choices: S }), {
-    getHook: (name) => name === 'seedCompanion'
-      ? (state, before, value, env, key) => { state.companion = key + ':' + value; }
-      : null
-  }, rules);
-  assert.deepEqual(S, { existing: 'kept', toggleKey: true, companion: 'toggleKey:true' });
 });

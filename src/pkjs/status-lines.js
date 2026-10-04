@@ -5,11 +5,14 @@
  */
 var catalog = require('./status-line-catalog.js');
 var platformLib = require('./config-ui/lib/platform.js');
-var thresholds = require('./status-thresholds.js');
+var statusWire = require('./status-wire.js');
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
 var isPolarSunPair = require('./weather/sun-events.js').isPolarSunPair;
 var statusPair = require('./status-pair.js');
+var slotText = require('./slot-text.js');
 var wireUnits = require('./wire-units.js');
+var cityLadder = require('./city-ladder.js');
+var onDemand = require('./on-demand.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
 var POSITIONS = ['left', 'mid', 'right'];
@@ -58,196 +61,29 @@ function decodeFirstSunEvent(sunEvents) {
 }
 
 /**
- * @param {number} n
- * @returns {string} a two-digit decimal string
- */
-function pad2(n) {
-  return (n < 10 ? '0' : '') + n;
-}
-
-/**
- * Compact clock string for the sun slot. Hour conversion and leading-zero
- * handling mirror config_format_time in src/c/appendix/config.c. The optional
- * lowercase marker is the compact equivalent of time_layer.c's AM/PM layer.
+ * Compact clock string for the sun slot (slot-text.js clockText, the settings
+ * page's preview's too).
  * @param {number} epoch Unix epoch seconds
  * @param {Object} settings Clay settings blob
  * @returns {string} e.g. "17:04", "5:04p", or "05:04p"
  */
 function formatSunTime(epoch, settings) {
   var d = new Date(epoch * 1000);
-  var h = d.getHours();
-  var m = d.getMinutes();
-  var displayHour = h;
-  var marker = '';
-  if (settings.axisTimeFormat === '12h') {
-    displayHour = h % 12;
-    if (displayHour === 0) { displayHour = 12; }
-    if (settings.timeShowAmPm) { marker = h < 12 ? 'a' : 'p'; }
-  }
-  var hourText = settings.timeLeadingZero ? pad2(displayHour) : String(displayHour);
-  return hourText + ':' + pad2(m) + marker;
+  return slotText.clockText(d.getHours(), d.getMinutes(), settings);
 }
 
-// First trend value or null — shared with status-thresholds' displayValue
+// First trend value or null — shared with status-wire's displayValue
 // through wire-units, so the two read a trend identically.
 var trendHead = wireUnits.trendHead;
 
-/**
- * ISO-8601 week number (1..53) for a local date. Mirrors the watch-side iso_week()
- * used on non-aplite so the phone-baked aplite week matches other platforms.
- * @param {Date} d local date
- * @returns {number}
- */
-function isoWeek(d) {
-  var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  var day = (t.getUTCDay() + 6) % 7;               // Mon=0 .. Sun=6
-  t.setUTCDate(t.getUTCDate() - day + 3);           // Thursday of this ISO week
-  var firstThursday = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
-  var fday = (firstThursday.getUTCDay() + 6) % 7;
-  firstThursday.setUTCDate(firstThursday.getUTCDate() - fday + 3);
-  return 1 + Math.round((t - firstThursday) / 604800000); // 7*24*3600*1000
-}
-
-// The DEGREE SIGN ALONE for the temperature and dew-point slots -- never '°C' /
-// '°F'. The letter would only repeat the global temperature-unit setting, and
-// these are the two units that cost TWO UTF-8 bytes instead of one, which is what
-// makes the edge-slot cap a real constraint (see withUnit).
-var DEGREE = '°';
-
-/**
- * Whether one slot's per-kind "Show unit" toggle is on.
- * An ABSENT key means the kind's default: the four slots that show a unit today
- * (wind, gust, pressure, countdown) default on and the two bare ones (temp, dew)
- * default off, so a settings blob written before this feature renders exactly as
- * it always did.
- * @param {Object} settings Clay settings blob
- * @param {string} key the toggle's settings key, e.g. 'windSlotUnit'
- * @param {boolean} dflt the kind's default when the key is absent
- * @returns {boolean}
- */
-function unitEnabled(settings, key) {
-  var v = settings ? settings[key] : undefined;
-  // The shipped default comes from the catalog's UNIT_TOGGLES table — the one
-  // home for key+default, shared with schema.js's rows, resetStatusSlots and
-  // renderSignature, so the page's claim and the bake can never desynchronize.
-  return (typeof v === 'undefined' || v === null)
-    ? catalog.unitToggleDefault(key) : Boolean(v);
-}
-
-/**
- * Append a unit to a slot value, but only when the result still fits the slot.
- *
- * The cap guard lives HERE rather than in packLine because the unit is part of
- * the value's presentation and this module is the only place that knows which
- * unit each kind carries. packLine's utf8Truncate would otherwise chop an
- * overlong unit back off at the code-point boundary -- the two-byte degree would
- * VANISH whole, so an over-cap slot would look untouched while silently ignoring
- * the user's setting. Dropping the unit deliberately makes that the same visible
- * outcome, arrived at on purpose and testable.
- *
- * @param {string} value the bare formatted value
- * @param {string} unit the unit to append; '' when the toggle is off
- * @param {number} [cap] the slot's byte cap; defaults to the narrow edge cap
- * @returns {string} value + unit when it fits the cap, else value alone
- */
-function withUnit(value, unit, cap) {
-  if (!unit) { return value; }
-  var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
-  var combined = value + unit;
-  return utf8.byteLength(combined) <= limit ? combined : value;
-}
-
-/**
- * The unit a day-max slot appends: wind and gusts their wind-unit label while
- * their "Show unit" toggle is on; UV and AQI none (their icon carries it).
- * @param {string} code a day-max kind
- * @param {Object} settings Clay settings blob
- * @returns {string} e.g. 'kph', or ''
- */
-function dayMaxUnit(code, settings) {
-  var label = DAY_MAX_UNIT_LABELS[code];
-  return label && unitEnabled(settings, code + 'SlotUnit') ? label(settings) : '';
-}
-// Per day-max kind, its unit label (the kinds absent here print none).
-var DAY_MAX_UNIT_LABELS = { wind: windUnitLabel, gust: windUnitLabel };
-
-/**
- * The label of the user's wind unit. The number itself is wire-units' (dayMaxShown,
- * via kmhToDisplay), which the thresholds read too, so the two can never round apart.
- * @param {Object} settings Clay settings blob (reads windUnits)
- * @returns {string} 'kph', 'mph' or 'kn'
- */
-function windUnitLabel(settings) {
-  var unit = settings && settings.windUnits;
-  if (unit === 'mph') { return 'mph'; }
-  if (unit === 'knots') { return 'kn'; }
-  return 'kph';
-}
-
-/**
- * Convert an internal °F temperature to the display unit as a bare number.
- * Shared by the actual and feels-like halves of the temp slot and by the dew
- * point slot, so all three ride the identical conversion/rounding path.
- * Rounds LAST, in both units: CURRENT_TEMP, FEELS_CURRENT and DEW_TREND all carry
- * the provider's unrounded reading (so the °C conversion rounds once rather than
- * twice — a whole-°F pre-round put 0.3 °C at "1" and could show a dew point above
- * the air temperature), and an unrounded °F would render as "53.6" — four
- * characters of nonsense in an 8-byte slot.
- * @param {number} vF temperature in °F
- * @param {Object} settings Clay settings blob (reads temperatureUnits)
- * @returns {string} e.g. "20" or "-12"
- */
-function formatTemp(vF, settings) {
-  var t = vF;
-  if (settings.temperatureUnits !== 'f') {
-    t = (t - 32) * 5 / 9;
-  }
-  return String(Math.round(t));
-}
-
-/**
- * Parse YYYY-MM-DD at local midnight, returning fallback for malformed or
- * normalized-away dates such as 2028-02-31.
- * @param {*} value Stored settings value.
- * @param {Date} fallback Valid local-midnight fallback.
- * @returns {Date} Parsed local-midnight date or fallback.
- */
-function parseCountdownDate(value, fallback) {
-  var parts = typeof value === 'string' ? value.split('-') : [];
-  if (parts.length !== 3 || !/^\d{4}$/.test(parts[0])
-      || !/^\d{2}$/.test(parts[1]) || !/^\d{2}$/.test(parts[2])) {
-    return fallback;
-  }
-  var year = parseInt(parts[0], 10);
-  var month = parseInt(parts[1], 10);
-  var day = parseInt(parts[2], 10);
-  var parsed = new Date(1970, 0, 1);
-  parsed.setFullYear(year, month - 1, day);
-  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1
-      || parsed.getDate() !== day) {
-    return fallback;
-  }
-  return parsed;
-}
-
-/**
- * Format whole local calendar days until a target date.
- * 'now' and '--' never take the unit: neither is a count of days.
- * @param {*} targetValue Stored YYYY-MM-DD target.
- * @param {Date} [now] Current local time; injectable for tests.
- * @param {boolean} [showUnit] Whether countdownSlotUnit is on; absent = its default (on).
- * @param {number} [cap] The slot's byte cap.
- * @returns {string} Nd for future, now for today, -- for passed.
- */
-function formatCountdown(targetValue, now, showUnit, cap) {
-  var current = now || new Date();
-  var today = new Date(current.getFullYear(), current.getMonth(), current.getDate());
-  var target = parseCountdownDate(targetValue, today);
-  var days = Math.round((target.getTime() - today.getTime()) / 86400000);
-  if (days < 0) { return '--'; }
-  if (days === 0) { return 'now'; }
-  return withUnit(String(days), showUnit === false ? '' : 'd', cap);
-}
+// The unit, fit and two-value rules every phone-baked slot prints by — shared with
+// the settings page's status bars preview (slot-text.js).
+var DEGREE = slotText.DEGREE;
+var unitEnabled = slotText.unitEnabled;
+var withUnit = slotText.withUnit;
+var formatTemp = slotText.formatTemp;
+var formatCountdown = slotText.formatCountdown;
+var isoWeek = slotText.isoWeek;
 
 /**
  * The phone's cached battery reading, or null when there is none.
@@ -296,9 +132,18 @@ function phoneBatterySupported() {
  *   Only the per-kind unit and the two-value pairs' fit rule (status-pair.js)
  *   consult it -- the value itself is still truncated by the caller, which owns
  *   the wire.
+ * @param {?Object} [dayMax] A day-max kind's pick, wireUnits.dayMaxShown -- packLine
+ *   reads it once per slot for the text and the arrow; absent = read here.
+ * @param {?{text: string, nextDay: boolean, mark: *}} [alert] The weather alert of
+ *   this slot's metric that it merged (packLine's mergedAlert, its mark the one a
+ *   tomorrow value takes here): the slot shows both values once
+ *   (status-pair.js mergeAlert). Absent = none.
+ * @param {Object} [env] Platform environment: a wind or gust slot keeps a byte free
+ *   for the direction arrow only where packLine will draw one (arrowSector).
+ *   Absent = a watch with the arrow (not aplite).
  * @returns {string} display text, '--' when the value is unavailable
  */
-function formatValue(code, payload, settings, slotKey, cap) {
+function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) {
   var v;
   if (code === 'countdown') {
     return formatCountdown(settings && slotKey
@@ -307,33 +152,14 @@ function formatValue(code, payload, settings, slotKey, cap) {
   }
   if (code === 'temp') {
     if (typeof payload.CURRENT_TEMP !== 'number') { return '--'; }
-    // Global per-kind display mode (temp slot's Edit sheet); absent = 'actual'.
-    var mode = settings.tempSlotDisplay;
-    // Off by default: the thermometer icon already says "temperature", so the
-    // degree is opt-in and today's bare number stays the default rendering.
-    // 'both' never takes one: "-12/-10" is already 7 of an edge slot's 8 bytes,
-    // so the degree would appear or vanish with the digit count. The settings
-    // page keeps the two apart (blocks.js' tempUnitExclusive hook), and this is
-    // the authoritative gate -- a blob stored before that hook existed, or any
-    // future caller, still cannot combine them. Same shape and same reason as
-    // line-style.js' fill guard (no fill under a temperature-axis line).
-    var degree = (mode !== 'both' && unitEnabled(settings, 'tempSlotUnit'))
-      ? DEGREE : '';
-    var actual = formatTemp(payload.CURRENT_TEMP, settings);
-    if (mode === 'feels' || mode === 'both') {
-      // Missing/null FEELS_CURRENT (stale pre-upgrade cache, provider gap):
-      // every mode falls back to the actual temp alone -- never '--/--' or '12/--'.
-      if (typeof payload.FEELS_CURRENT === 'number') {
-        var feels = formatTemp(payload.FEELS_CURRENT, settings);
-        // 'both' joins the two in the user's order and separator (status-pair.js;
-        // absent = actual first, slash: '12/10'), falling back to the slash when
-        // a styled pair would overflow the slot. It carries no degree at all (see
-        // above); 'feels' takes one like the plain reading does.
-        return withUnit(mode === 'feels' ? feels
-          : statusPair.formatTempPair(actual, feels, settings, cap), degree, cap);
-      }
-    }
-    return withUnit(actual, degree, cap);
+    // The Value selection (temp slot's Edit sheet; absent = 'actual') and the degree
+    // (Show unit, off by default) are independent: slot-text.js tempText puts the
+    // degree on every reading it prints, a pair's on both ('12°|10°') while that
+    // pair still fits the slot. A missing/null FEELS_CURRENT (stale pre-upgrade
+    // cache, provider gap) falls back to the actual temp alone in every mode.
+    return slotText.tempText(formatTemp(payload.CURRENT_TEMP, settings),
+      typeof payload.FEELS_CURRENT === 'number' ? formatTemp(payload.FEELS_CURRENT, settings) : null,
+      settings, cap);
   }
   if (code === 'city') { return payload.CITY || '--'; }
   if (code === 'sun') {
@@ -350,14 +176,16 @@ function formatValue(code, payload, settings, slotKey, cap) {
     // 5/»6. No peak ahead known falls back to the current reading alone, never
     // '3/--'. UV and AQI are bare (their icon carries the context); wind and
     // gusts append their unit label when the whole text still fits ('12/30kph').
-    var shown = wireUnits.dayMaxShown(code, payload, settings);
-    if (!shown) { return '--'; }
+    var shown = typeof dayMax === 'undefined'
+      ? wireUnits.dayMaxShown(code, payload, settings) : dayMax;
+    // A merged alert's value joins what the slot shows (null: it adds nothing).
+    var merged = alert ? statusPair.mergeAlert(code, shown, alert, settings, cap) : null;
+    if (!shown && merged === null) { return '--'; }
     // The unit gives way to the direction arrow (packLine appends it after the
     // text, only into a free byte): '12/30' + arrow, never '12/30kph' without one.
-    var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
-    var arrowByte = (settings[code + 'SlotDirection'] && shown.now !== null) ? 1 : 0;
-    return withUnit(statusPair.formatPeak(code, shown, settings, cap),
-      dayMaxUnit(code, settings), limit - arrowByte);
+    // Only to an arrow packLine will draw -- none on aplite or without a bearing.
+    return slotText.dayMaxText(code, shown, merged, settings, cap,
+      arrowSector(code, payload, settings, env || {}, shown) !== 0);
   }
   if (code === 'pressure') {
     v = trendHead(payload.PRESSURE_TREND);
@@ -382,8 +210,14 @@ function formatValue(code, payload, settings, slotKey, cap) {
       unitEnabled(settings, 'dewSlotUnit') ? DEGREE : '', cap);
   }
   if (code === 'pollen') {
-    return payload.POLLEN_TODAY === null || typeof payload.POLLEN_TODAY === 'undefined'
-      ? '--' : String(payload.POLLEN_TODAY);
+    var band = payload.POLLEN_TODAY === null || typeof payload.POLLEN_TODAY === 'undefined'
+      ? null : String(payload.POLLEN_TODAY);
+    // A merged pollen alert pairs with today's band like a Both pair (the slot has no
+    // pair settings: the slash, today first).
+    var pollen = alert ? statusPair.mergeAlert(code, band === null ? null
+      : { now: band, peak: null, nextDay: false }, alert, settings, cap) : null;
+    if (pollen !== null) { return pollen; }
+    return band === null ? '--' : band;
   }
   // Both phone-battery items render the same text; they differ only in the icon
   // id they pack (see iconFor). The value is baked here from the phone's own
@@ -442,25 +276,44 @@ function textCap(slotIndex) {
  * @param {Object} settings Clay settings blob
  * @param {Object} env platform environment
  * @param {string} text the slot's already-formatted display text
+ * @param {?Object} dayMax the slot's day-max pick (wireUnits.dayMaxShown), the
+ *   one its text was formatted from
  * @returns {number} 0x01..0x10, or 0 when no arrow should be drawn
  */
-function directionSentinel(code, payload, settings, env, text) {
-  // Never on aplite: its lean status-row twin has no arrow and would draw the
-  // control byte as a glyph box.
-  if (!settings || !env || env.platform === 'aplite') { return 0; }
-  if (code !== 'wind' && code !== 'gust') { return 0; }
-  var on = code === 'wind' ? settings.windSlotDirection : settings.gustSlotDirection;
-  if (!on) { return 0; }
+function directionSentinel(code, payload, settings, env, text, dayMax) {
   // The speed and the bearing fail INDEPENDENTLY -- a provider can report a
   // bearing for an hour whose speed is missing. An arrow beside a dead reading
   // reads as live data next to nothing, so the arrow follows the value: no
   // number, no arrow. (The caller passes the already-formatted text so this
   // check can never disagree with what the slot actually shows.)
   if (text === '--') { return 0; }
+  return arrowSector(code, payload, settings, env, dayMax);
+}
+
+/**
+ * The arrow a wind or gust slot with a reading would draw: its sentinel byte, or 0
+ * when it draws none. directionSentinel's rule without the slot's text, so
+ * formatValue can keep a byte free for exactly the arrows packLine appends.
+ * @param {string} code catalog item code
+ * @param {Object} payload weather payload (pre-transform)
+ * @param {Object} settings Clay settings blob
+ * @param {Object} [env] platform environment; absent = no arrow
+ * @param {?Object} dayMax the slot's day-max pick (wireUnits.dayMaxShown)
+ * @returns {number} 0x01..0x10, or 0
+ */
+function arrowSector(code, payload, settings, env, dayMax) {
+  // Never on aplite: its lean status-row twin has no arrow and would draw the
+  // control byte as a glyph box.
+  if (!settings || !env || env.platform === 'aplite') { return 0; }
+  if (code !== 'wind' && code !== 'gust') { return 0; }
+  var on = code === 'wind' ? settings.windSlotDirection : settings.gustSlotDirection;
+  if (!on) { return 0; }
   // Day max alone prints the peak, not the wind the arrow describes (the current
-  // hour's), so it draws none; Both keeps it, its first reading being now's.
-  var shown = wireUnits.dayMaxShown(code, payload, settings);
-  if (shown && shown.now === null) { return 0; }
+  // hour's), so it draws none; Both keeps it, its first reading being now's. The
+  // pick is the one the text was formatted from, so the two never judge
+  // different peaks. A slot with no reading of its own draws none either, even
+  // where a merged alert's value fills it.
+  if (!dayMax || dayMax.now === null) { return 0; }
   var from = trendHead(payload && payload.WIND_DIR_TREND);
   if (typeof from !== 'number' || !isFinite(from)) { return 0; }
   // Normalize into [0,360) before the flip so no input can push the byte outside
@@ -498,13 +351,41 @@ function iconFor(code, item) {
 }
 
 /**
+ * The weather alert a slot merges (the owner, 2026-10-01): an edge slot showing the
+ * metric of an alert the bake sends whose item sits on that slot's side of this bar.
+ * The middle slot never merges, nor does a slot on the other side; the watch draws
+ * the merged slot at the alert's level and its item only where the slot hides
+ * (alert_set_merge in src/c/appendix/alert_set.c reads the same three facts: the
+ * entries, the side cells and the slot's metric).
+ * @param {?Array<{code: string}>} alerts status-wire.js bakedAlerts' list; null for
+ *   a watch the entries do not ride to
+ * @param {Object} settings Clay settings blob
+ * @param {Object} env platform environment
+ * @param {string} bar the line's bar (an on-demand.js BARS bar)
+ * @param {number} s the slot's position, 0..2
+ * @param {string} code the slot's item code
+ * @returns {?Object} the alert's entry; null for none
+ */
+function mergedAlert(alerts, settings, env, bar, s, code) {
+  if (!alerts || s === 1) { return null; }
+  for (var i = 0; i < alerts.length; i++) {
+    if (alerts[i].code === code) {
+      return onDemand.sideOf(settings, bar, code, env) === POSITIONS[s] ? alerts[i] : null;
+    }
+  }
+  return null;
+}
+
+/**
  * @param {Object} line catalog line definition
  * @param {Object} payload weather payload
  * @param {Object} settings Clay settings blob
  * @param {Object} env platform environment
+ * @param {?Array<Object>} [alerts] the weather alerts the bake sends (status-wire.js
+ *   bakedAlerts); absent or null = none (a watch the entries do not ride to)
  * @returns {number[]} packed three-slot line
  */
-function packLine(line, payload, settings, env) {
+function packLine(line, payload, settings, env, alerts) {
   var bytes = [];
   for (var s = 0; s < 3; s++) {
     var key = line.slots[s];
@@ -535,10 +416,28 @@ function packLine(line, payload, settings, env) {
       bytes.push(catalog.KINDS.TEXT, icon, weekBytes.length);
       for (var wb = 0; wb < weekBytes.length; wb++) { bytes.push(weekBytes[wb]); }
     } else if (item.kind === catalog.KINDS.TEXT) {
+      // A day-max kind's pick (null for every other kind), read once: the text
+      // and the wind arrow below must judge the same peak.
+      var dayMax = wireUnits.dayMaxShown(code, payload, settings);
+      // The weather alert of this slot's metric on its side, which the slot then
+      // shows too; a tomorrow value takes the slot's own mark where it has one
+      // (the day-max kinds), else the alert's (pollen).
+      var merged = mergedAlert(alerts, settings, env, line.id, s, code);
+      var alert = merged && { text: merged.text, nextDay: merged.nextDay,
+        mark: wireUnits.isDayMaxKind(code) ? settings[code + 'SlotNextDayMark'] : merged.mark };
       // The cap goes DOWN into formatValue so a per-kind unit can decline to
       // append itself rather than be silently chopped off again by utf8Truncate
       // below (see withUnit). The truncation still guards the value itself.
-      var text = formatValue(code, payload, settings, key, textCap(s));
+      var text = formatValue(code, payload, settings, key, textCap(s), dayMax, alert, env);
+      // An edge slot's city walks the watch's word ladder before the cap cuts it: the
+      // first form that fits ('B. Soden', not 'Bad Sode'), whose words the watch can
+      // still shorten from there. A name no form fits whole is cut as before ('New
+      // York', never 'N. Y. Ci'). Not on a known aplite: it has no On demand, and its
+      // bake stays byte for byte what it was.
+      if (code === 'city' && textCap(s) === catalog.CAPS.EDGE_TEXT_MAX
+          && env.platform !== 'aplite') {
+        text = cityLadder.fit(text, textCap(s));
+      }
       var valueBytes = utf8Truncate(utf8Encode(text), textCap(s));
       // Wind-direction arrow: one trailing sentinel byte, appended AFTER the
       // truncation so it can never be split or push the slot past its cap, and
@@ -546,7 +445,7 @@ function packLine(line, payload, settings, env) {
       // watch's blob validator needs no change and the arrow rides inside the
       // slot's already-paid-for text bytes -- zero wire cost. The watch strips
       // the byte before measuring or drawing the text.
-      var dirByte = directionSentinel(code, payload, settings, env, text);
+      var dirByte = directionSentinel(code, payload, settings, env, text, dayMax);
       if (dirByte && valueBytes.length < textCap(s)) { valueBytes.push(dirByte); }
       bytes.push(item.kind, icon, valueBytes.length);
       for (var b = 0; b < valueBytes.length; b++) { bytes.push(valueBytes[b]); }
@@ -558,11 +457,12 @@ function packLine(line, payload, settings, env) {
 }
 
 /**
- * Add STATUS_LINE_1..4_UINT8 AND the packed STATUS_LEVELS_UINT8 threshold
- * byte to the weather payload. Must run BEFORE applyForecastSeries deletes
- * the transient trend arrays (AQI_TREND, WIND_TREND_UINT8, GUST_TREND_UINT8,
- * PRESSURE_TREND, POLLEN_TODAY) -- both the status text and the threshold
- * levels are read from them.
+ * Add STATUS_LINE_1..4_UINT8, the packed STATUS_LEVELS_UINT8 threshold bytes and
+ * the weather alerts' ALERT_ENTRIES_UINT8 to the weather payload. Must run BEFORE
+ * applyForecastSeries deletes the transient trend arrays (AQI_TREND,
+ * WIND_TREND_UINT8, GUST_TREND_UINT8, PRESSURE_TREND, POLLEN_TODAY,
+ * POLLEN_TOMORROW) -- the status text, the threshold levels and the alert
+ * entries are read from them.
  * @param {Object} payload weather payload (mutated)
  * @param {Object} settings Clay settings blob
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
@@ -570,6 +470,10 @@ function packLine(line, payload, settings, env) {
  */
 function buildStatusLines(payload, settings, watchInfo) {
   var env = platformLib.computeEnv(watchInfo);
+  // The weather alerts' entries, judged before the lines: a slot showing an alert's
+  // metric on the alert's side merges it (packLine). Only for a watch they ride to
+  // (see below); null elsewhere, so aplite's lines bake exactly as before.
+  var alerts = env.thresholds ? statusWire.bakedAlerts(payload, settings) : null;
   // computeEnv derives WATCH facts from watchInfo and nothing else, but the two
   // phone-battery items are gated on a PHONE fact: whether this PKJS host
   // exposes the Battery Status API (Android's Chromium WebView only). The flag
@@ -581,7 +485,7 @@ function buildStatusLines(payload, settings, watchInfo) {
   env.phoneBattery = phoneBatterySupported();
   for (var l = 0; l < catalog.LINES.length; l++) {
     var line = catalog.LINES[l];
-    payload[line.wireKey] = packLine(line, payload, settings, env);
+    payload[line.wireKey] = packLine(line, payload, settings, env, alerts);
   }
   // Packed weather-kind threshold levels: computed here because the raw
   // AQI/pollen/wind/gust values exist only phone-side (the watch gets text).
@@ -591,7 +495,15 @@ function buildStatusLines(payload, settings, watchInfo) {
   // read and discarded. The 'status' category still carries the four line blobs,
   // so the change detector is unaffected.
   if (env.thresholds) {
-    payload.STATUS_LEVELS_UINT8 = thresholds.packWeatherLevels(payload, settings);
+    payload.STATUS_LEVELS_UINT8 = statusWire.packWeatherLevels(payload, settings);
+    // The weather alerts' metric entries, judged here for the same reason. Its own
+    // tuple in the 'status' category, so it rides (and is change-detected) with
+    // the lines; [] when nothing is alerting, which clears the watch's stored
+    // entries. The rain alert is not in here: the watch resolves it from its own
+    // radar cache. On demand is compiled out on exactly the platforms the highlight
+    // is (WW_ON_DEMAND and WW_THRESHOLD_HIGHLIGHT: every platform but aplite), so
+    // this gate is the right one, and aplite's inbox never budgets for the tuple.
+    payload.ALERT_ENTRIES_UINT8 = statusWire.packAlerts(alerts);
   }
   return payload;
 }
@@ -599,9 +511,11 @@ function buildStatusLines(payload, settings, watchInfo) {
 /**
  * Every weather-payload key this module's bake actually READS — formatValue's
  * per-code arms plus directionSentinel — and, by inclusion, the only ones
- * status-thresholds' packWeatherLevels needs (its displayValue reads a subset).
- * STATUS_LINE_n_UINT8 and STATUS_LEVELS_UINT8 are deliberately absent: the bake
- * WRITES those.
+ * status-wire's packWeatherLevels and bakeAlerts need (their displayValue /
+ * dayMaxToday / dayMaxTomorrow read a subset: the day-max trends and peaks,
+ * POLLEN_TODAY — plus POLLEN_TOMORROW, which only the alerts read).
+ * STATUS_LINE_n_UINT8, STATUS_LEVELS_UINT8 and ALERT_ENTRIES_UINT8 are
+ * deliberately absent: the bake WRITES those.
  *
  * Exported because status-rebake.js persists exactly this slice of the payload
  * so a charging event can re-bake after a PKJS restart. It lives HERE, next to
@@ -617,7 +531,10 @@ var SOURCE_KEYS = [
   'WIND_DIR_TREND',
   'PRESSURE_TREND',
   'DEW_TREND',
-  'POLLEN_TODAY'
+  'POLLEN_TODAY',
+  // Tomorrow's pollen band: read only by the pollen alert's look-ahead
+  // (status-wire bakeAlerts), never by a slot.
+  'POLLEN_TOMORROW'
   // ...plus the day-max kinds' trends and *_DAY_PEAKS, read through wire-units'
   // dayMaxShown (UV, wind, gusts, AQI).
 ].concat(wireUnits.dayMaxPayloadKeys());

@@ -92,6 +92,21 @@ test('the top strip default is placeable in the slot it names', () => {
   });
 });
 
+// dayMaxInUse is the SLOT half of the day-peaks gate: a slot shows the kind in a mode
+// that prints a peak. The catalog is alert-agnostic — an enabled alert joins the gate
+// in forecast-series.js dayPeakCodes (through the threshold contract), not here.
+test('dayMaxInUse: a slot in a peak mode, and nothing about alerts', () => {
+  const noSlot = { statusRadarLeft: 'empty', statusForecastRight: 'empty' };
+  assert.equal(catalog.dayMaxInUse(noSlot, 'uv'), false);
+  assert.equal(catalog.dayMaxInUse({ statusTopMid: 'uv', uvSlotDisplay: 'max' }, 'uv'), true);
+  assert.equal(catalog.dayMaxInUse({ statusTopMid: 'uv', uvSlotDisplay: 'both' }, 'uv'), true);
+  assert.equal(catalog.dayMaxInUse({ statusTopMid: 'uv', uvSlotDisplay: 'current' }, 'uv'), false);
+  assert.equal(catalog.dayMaxInUse(Object.assign({ alertUv: true }, noSlot), 'uv'), false,
+    'an alert alone is not a slot');
+  assert.equal(catalog.dayMaxInUse(null, 'uv'), false);
+  assert.equal(catalog.alertEnabled, undefined, 'the catalog exports no alert reader');
+});
+
 test('availability gating', () => {
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   assert.ok(catalog.itemAvailable(catalog.byCode('temp'), s, ENV_BASALT));
@@ -186,6 +201,15 @@ test('aqi is a TEXT item (leaf icon) available on every platform and in slot opt
   assert.ok(catalog.itemAvailable(item, {}, ENV_BASALT), 'available on basalt');
   const codes = catalog.slotOptions({}, ENV_BASALT, {}).map(o => o[1]);
   assert.ok(codes.indexOf('aqi') !== -1, 'aqi offered in slot dropdown');
+});
+
+test('the day-max kinds are labelled by what they measure, not by a display mode', () => {
+  // The Now / Alert / Both pills on the Edit sheet pick what prints; the dropdown names
+  // the kind only — UV lost its old '/day max' suffix, the other three never had one.
+  assert.equal(catalog.byCode('uv').label, 'UV index');
+  catalog.DAY_MAX_KINDS.forEach((code) => {
+    assert.doesNotMatch(catalog.byCode(code).label, /max|alert/i, code + ' label names no mode');
+  });
 });
 
 test('dew point is a TEXT weather item with an icon id of its own', () => {

@@ -5,16 +5,14 @@ const metnoRadar = require('../src/pkjs/weather/metno-radar.js');
 const rainbowRadar = require('../src/pkjs/weather/rainbow-radar.js');
 const tomorrowioRadar = require('../src/pkjs/weather/tomorrowio-radar.js');
 const radarFactory = require('../src/pkjs/weather/radar-factory.js');
-const radarSourceId = require('../src/pkjs/weather/radar-source-id.js');
 const schema = require('../src/pkjs/settings/schema.js');
 
 const CLEAR = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0 };
 
-// The radar picker's option list. It resolves through blocks.js radarProviderOptions (which
-// only renames the Rainbow entry by key state), so its values, order and descs are the
-// static list the schema hands the resolver.
+// The radar picker's option list: the static RADAR_PROVIDER_OPTIONS, one option per radar
+// source (the two Rainbow sources included).
 function radarPickerOptions(radarItem) {
-  return radarItem.optionsFrom.args.options;
+  return radarItem.options;
 }
 
 test("createRadarSource('dwd') routes to radar.fetchRadarTuplesAt with lat/lon/slot", () => {
@@ -101,12 +99,12 @@ test('isKnownRadarSource recognizes registered ids only', () => {
   assert.equal(radarFactory.DEFAULT_RADAR_ID, 'disabled');
 });
 
-test('schema radarProvider options are all registered factory ids; the registry also keeps the internal-only "disabled" and "rainbowkey" ids', () => {
+test('schema radarProvider options are all registered factory ids; the registry also keeps the internal-only "disabled" id', () => {
   // As of the radarMode tier, "disabled" is no longer a user-selectable radarProvider
   // option (radarMode owns on/off) but the factory registry keeps it as the fallback
   // for unknown/unset ids (see radar-factory.js DEFAULT_RADAR_ID) and as the id
-  // radar-fetch gating still routes to when radarMode is 'off'. "rainbowkey" is never a
-  // stored value either: radar-source-id.js resolves Rainbow + "Use your own key" to it.
+  // radar-fetch gating still routes to when radarMode is 'off'. "rainbowkey" is the picker
+  // option and stored value of "Rainbow (own key)" (OWN_KEY_RADAR_ID).
   const items = [];
   schema.tabs.forEach(function(t) {
     t.sections.forEach(function(sec) {
@@ -117,18 +115,20 @@ test('schema radarProvider options are all registered factory ids; the registry 
   assert.ok(radarItem, 'radarProvider item exists in the schema');
   const schemaIds = radarPickerOptions(radarItem).map(function(o) { return o[1]; }).sort();
   const registryIds = Object.keys(radarFactory.RADAR_FACTORIES).sort();
-  assert.deepEqual(schemaIds, ['dwd', 'metno', 'rainbow', 'tomorrowio'],
-    'radarProvider schema options offer neither "disabled" (the radarMode radio owns on/off) nor "rainbowkey" (a switch)');
+  assert.deepEqual(schemaIds, ['dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio'],
+    'radarProvider schema options offer every source but "disabled" (the radarMode radio owns on/off)');
   schemaIds.forEach(function(id) {
     assert.ok(registryIds.indexOf(id) >= 0, id + ' schema option must be a registered radar factory id');
   });
   assert.ok(registryIds.indexOf('disabled') >= 0,
     '"disabled" stays registered as the internal fallback factory');
-  // Every registered source is reachable from the settings: a picker option, the
-  // radar-off clear, or the own-key source the resolver turns Rainbow + the switch into.
-  const reachable = schemaIds.concat(['disabled',
-    radarSourceId.effectiveRadarId({ radarProvider: 'rainbow', rainbowOwnKey: true })]).sort();
+  // Every registered source is reachable from the settings: a picker option or the
+  // radar-off clear.
+  const reachable = schemaIds.concat(['disabled']).sort();
   assert.deepEqual(registryIds, reachable, 'no registered source is out of the settings\' reach');
+  assert.equal(radarFactory.OWN_KEY_RADAR_ID, 'rainbowkey', '"Rainbow (own key)"');
+  assert.equal(radarFactory.OWN_KEY_RADAR_ID, rainbowRadar.OWN_KEY_RADAR_ID,
+    'the id the keyed path records its answers under');
 });
 
 test("createRadarSource('tomorrowio') binds cfg.tomorrowioApiKey and routes to tomorrowioRadar", () => {
