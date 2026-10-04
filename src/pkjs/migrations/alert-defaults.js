@@ -12,8 +12,10 @@ var thresholds = require('../status-thresholds.js');
  *    (status-thresholds.js warnLookDefault: the fill on a colour watch). The 1.24.0 move
  *    stored that outline for each kind whose 1.23 'Outline on warn' was on, and the page
  *    stores a look only when it differs from the default, so this is how those installs
- *    get the fill. 'none' is a pick the 1.24.0 page offered and stays; the goal kinds
- *    (steps, sleep, distance) keep their looks.
+ *    get the fill. An outline picked on the 2.0.0 page cannot be told from a moved one
+ *    and resets too (the owner's call: every watch gets the fill; 2.0.0 was out only
+ *    briefly). 'none' is a pick the 1.24.0 page offered and stays; the goal kinds (steps,
+ *    sleep, distance) keep their looks.
  *  - a metric alert's Look stored as 'icon' becomes 'value' (Icon + value). seedDefaults
  *    wrote 'icon' into every earlier install, so a stored 'icon' cannot be told from a
  *    pick; the owner's call is that every watch gets the value.
