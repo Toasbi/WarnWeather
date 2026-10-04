@@ -256,7 +256,9 @@ test('a tab with panes pins its switcher and the active pane\'s block; other pan
   const S = {};
   const activePane = {};
   const body = E.renderBody(schema, 'g', cxFor(S, { activePane: activePane }));
-  assert.ok(body.indexOf('<div class="pin"><div class="seg pane-seg" role="tablist">') === 0, body);
+  // The switcher scrolls away above the sticky header; only the preview is pinned.
+  assert.ok(body.indexOf('<div class="seg pane-seg" role="tablist">') === 0, body);
+  assert.ok(body.indexOf('</div><div class="pin"><div class="pin-blk"><i>preview A</i></div></div>') !== -1, body);
   assert.ok(body.indexOf('data-pane="g:a"') !== -1 && body.indexOf('data-pane="g:b"') !== -1);
   assert.equal(body.indexOf('data-pane="g:c"'), -1, 'a gated pane is not offered');
   assert.ok(body.indexOf('<div class="pin-blk"><i>preview A</i></div>') !== -1);

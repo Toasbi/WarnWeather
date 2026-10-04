@@ -836,7 +836,7 @@ test('legend shows the second metric as white dots on B&W (no hue)', () => {
 test('radarPreview legend distinguishes exact-spot rain from nearby rain', () => {
   const color = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
   const bw = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: false });
-  assert.ok(color.indexOf('viewBox="0 0 200 138"') >= 0, 'frame includes the countdown band, which now always accompanies a non-off, non-aplite preview');
+  assert.ok(color.indexOf('viewBox="0 0 200 95"') >= 0, 'frame includes the countdown band, which now always accompanies a non-off, non-aplite preview');
   assert.ok(color.indexOf('>Rain at your exact spot<') >= 0, 'exact-spot label present');
   assert.ok(color.indexOf('>Nearby (2 km)<') >= 0, 'nearby label present');
   assert.ok(color.indexOf('fill="#00FF00"') >= 0, 'tier gradient (green) present on color');
@@ -848,7 +848,7 @@ test('radarPreview legend distinguishes exact-spot rain from nearby rain', () =>
 test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown is on', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
   assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown text present');
-  assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the 20px band height');
+  assert.ok(svg.indexOf('viewBox="0 0 200 95"') >= 0, 'frame grew by the 14px band height');
 });
 
 // Rain ticked on neither side of the Watch Status Bar: the strip shows no rain alert, so
@@ -857,7 +857,7 @@ test('radarPreview hides the countdown band while the Watch Status Bar shows no 
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
     statusTopOnDemandLeftItems: 'bt' }, { color: true });
   assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text with Rain unticked');
-  assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'the frame keeps the no-band height');
+  assert.ok(svg.indexOf('viewBox="0 0 200 81"') >= 0, 'the frame keeps the no-band height');
   const elsewhere = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
     statusTopOnDemandLeftItems: 'bt', statusForecastOnDemandLeftItems: 'rain' }, { color: true });
   assert.equal(elsewhere.indexOf("Rain in 15'"), -1, 'the band mocks the Watch Status Bar only');
@@ -868,7 +868,7 @@ test('radarPreview hides the countdown band while the Watch Status Bar shows no 
 test('radarPreview never shows the countdown band on aplite', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false, platform: 'aplite' });
   assert.equal(svg.indexOf("Rain in 15'"), -1, 'no band on aplite even with a horizon set');
-  assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'aplite frame stays at the no-band height');
+  assert.ok(svg.indexOf('viewBox="0 0 200 81"') >= 0, 'aplite frame stays at the no-band height');
 });
 
 test('countdown drop is tier-coloured on color, white on B&W; text stays white', () => {
@@ -1245,7 +1245,7 @@ test('forecastPreview: bw-light theme on a color env renders the B&W path with a
 
 test('radarPreview: light theme flips the canvas background to white', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'light' }, { color: true });
-  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0);
+  assert.ok(svg.indexOf('width="200" height="81" fill="#FFFFFF"') >= 0);
 });
 
 // A bar drawn by rainBars() in outline mode is a <path fill="BG" stroke="FG"
@@ -1267,7 +1267,7 @@ test('radarPreview: bw theme on a color env outlines the exact bars in white, fi
 test('radarPreview: bw-light theme on a color env outlines the exact bars in black, filled opaque white (light polarity)', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw-light' }, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
-  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
+  assert.ok(svg.indexOf('width="200" height="81" fill="#FFFFFF"') >= 0, 'canvas background is white');
   assert.ok(svg.indexOf(OUTLINE_MARK) >= 0,
     'exact bars are opaque white-filled with a black outline — the polarity mirror of bw, not a hollow box');
 });
@@ -1300,7 +1300,7 @@ test('radarPreview: radarColor=Solid in the light theme uses DarkGray, not black
   // polarity), unrelated to bar/legend fill; excluded here to isolate the bars. aplite is
   // the only remaining band gate now that the horizon has no Off option.
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'white', theme: 'light' }, { color: true, platform: 'aplite' });
-  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
+  assert.ok(svg.indexOf('width="200" height="81" fill="#FFFFFF"') >= 0, 'canvas background is white');
   assert.ok(svg.indexOf('fill="#555555"') >= 0, 'solid bars/legend render DarkGray');
   assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black bar/legend fill in the light theme');
 });

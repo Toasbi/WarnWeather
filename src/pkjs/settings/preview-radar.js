@@ -171,6 +171,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             + ' d="' + DROP_PATH + '" fill="' + color + '"></path>';
     }
 
+    // The preview's vertical budget, in its 200-wide viewBox units. It sits pinned above the
+    // Rain radar pane, so it stays short (owner, 2026-10-04): the time axis at AXIS_Y, a
+    // PLOT_H plot, one legend row — NO_SKY_H in all — plus the rain alert band on top.
+    var AXIS_Y = 12, PLOT_H = 45, NO_SKY_H = AXIS_Y + 7 + PLOT_H + 17, ALERT_BAND_H = 14;
+
     /**
      * The rain-radar preview block — adapted from index.html:270-286's radarSVG.
      * @param {Object} state Live settings (colours as hex strings).
@@ -185,7 +190,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var ink = previewInk(state.theme);
         var radarMode = state.radarMode || 'graph';
         if (radarMode === 'off') {
-            return svgFrame(rect(0, 0, 200, 120, ink.bg) + txt(100, 63, 10, '#566072', 'middle', 700, 'Radar off'));
+            return svgFrame(rect(0, 0, 200, NO_SKY_H, ink.bg)
+                + txt(100, NO_SKY_H / 2 + 3, 10, '#566072', 'middle', 700, 'Radar off'), NO_SKY_H);
         }
         var local = [0, 0, 0, 0.2, 0.6, 1.5, 3, 7, 14, 10, 5, 2, 0.8, 0.3, 0.1, 0, 0.3, 1, 3, 8, 12, 6, 2, 0.5];
         var add = [0.4, 0.5, 0.7, 1, 1.5, 2, 3, 4, 3, 2, 1.5, 1, 0.8, 0.5, 0.4, 0.3, 0.5, 1.5, 3, 4, 3, 2, 1, 0.5];
@@ -206,10 +212,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // (6 px, 8 on emery's 200 px bucket) span PX0..PX1, watch x 0 (the stripe
         // lines' anchor) at PX0 — so one watch pixel is `unit` preview units.
         var WATCH_PITCH = (env && env.platform === 'emery') ? 8 : 6, SKY_H = 4;
-        var unit = step / WATCH_PITCH, topY = 17;
+        var unit = step / WATCH_PITCH, topY = AXIS_Y;
         var skyBand = skyOn ? (2 * SKY_H + 2) * unit : 0;
-        var PT = topY + 7 + skyBand, PB = 99, plotH = PB - PT;
-        var frameH = skyOn ? 128 : 118;
+        // The plot keeps its height with the sky rows on: they and their legend row grow
+        // the frame instead (owner, 2026-10-04: a short pinned preview leaves the pane room).
+        var PT = topY + 7 + skyBand, PB = PT + PLOT_H, plotH = PLOT_H;
+        var frameH = skyOn ? Math.ceil(NO_SKY_H + skyBand + 10) : NO_SKY_H;
         var e = rect(0, 0, 200, frameH, ink.bg);
         e += '<line x1="' + PX0 + '" y1="' + topY + '" x2="' + PX1 + '" y2="' + topY + '" stroke="' + ink.rgba('0.22') + '" stroke-width="0.6"></line>';
         for (var k = 0; k <= n; k++) {
@@ -281,7 +289,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // theme-fg on B&W) + label, then a hollow grey "nearby" box + label. The nearby
         // box is a fixed grey outline (not tier-coloured), so it reads the same on
         // color and B&W — matching the faint nearby-rain outline bars above.
-        var lgy = 110, lx = PX0;
+        var lgy = PB + 10, lx = PX0;
         if (!radarWhite) {
             for (var t = 0; t < P.rainTiers.length; t += 1) {
                 e += rect(lx + t * 2.4, lgy - 3.5, 2.4, 7, P.rainTiers[t].color);
@@ -300,7 +308,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         if (skyOn) {
             // Second legend row: the two rows and the bolt.
-            var sy = 120, sx = PX0, skc = skyColors(state.theme, isColor, ink.fg);
+            var sy = lgy + 10, sx = PX0, skc = skyColors(state.theme, isColor, ink.fg);
             e += previewStripe.cell(isColor, sx, sy - 2, 10, 4, skc.cloud, 4, ink.bg, 'rsd', unit, PX0);
             e += txt(sx + 13, sy + 3, 7.5, '#AEB4BD', 'start', 600, 'Clouds');
             sx += 13 + labelAdvance('Clouds', 7.5) + 8;
@@ -332,13 +340,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // (hidden) radar colour says.
         var glyphColor = !isColor ? ink.fg : (radarWhite ? radarBarFg : P.rainTiers[2].color);
         var label = rain.look === 'icon' ? '' : (rain.look === 'minutes' ? "15'" : "Rain in 15'");
-        var bandH = 20, dropH = 11, dropW = rainDropW(dropH), edge = 4;
-        var groupW = dropW + (label ? 4 + labelAdvance(label, 11) : 0);
+        var bandH = ALERT_BAND_H, dropH = 8, dropW = rainDropW(dropH), edge = 4, size = 8.5;
+        var groupW = dropW + (label ? 3 + labelAdvance(label, size) : 0);
         var groupX = side === 'left' ? edge : 200 - edge - groupW;
         var band = rect(0, 0, 200, bandH, ink.bg);
         band += rainDrop(groupX, (bandH - dropH) / 2, dropH, glyphColor);
         if (label) {
-            band += txt(groupX + dropW + 4, bandH / 2 + 4, 11, ink.fg, 'start', 700, label);
+            band += txt(groupX + dropW + 3, bandH / 2 + 3, size, ink.fg, 'start', 700, label);
         }
         band += '<line x1="0" y1="' + bandH + '" x2="200" y2="' + bandH + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
         return svgFrame(band + '<g transform="translate(0,' + bandH + ')">' + e + '</g>', frameH + bandH);

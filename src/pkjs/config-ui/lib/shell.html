@@ -180,8 +180,8 @@
      pickers drop under the label on a phone too narrow for both (the .row rule below) */
   .row.hours { column-gap: 14px; }
   .row.hours > .hint { flex-basis: 100%; margin-top: 0; }
-  /* a tab's pinned header (engine renderPin): its pane switcher and the preview that
-     stays in view while the cards scroll under it, on the page ground */
+  /* a tab's pinned header (engine renderPin): the preview that stays in view while the
+     cards scroll under it, on the page ground (the pane switcher sits above it and scrolls) */
   .pin { position: sticky; top: 0; z-index: 6; background: var(--bg); margin: 0 -16px; padding: 0 16px 14px; -webkit-transform: translateZ(0); transform: translateZ(0); }
   /* …except while a colour palette is open (engine pinClass): then it scrolls away with the
      page, so the 64-swatch grid is never partly under it on a short screen */

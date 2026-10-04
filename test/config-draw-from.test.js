@@ -485,17 +485,20 @@ test('forecast preview: Bars from: Top hangs the rain bars from the plot\'s top'
 test('radar preview: Bars from: Top hangs the exact and the nearby bars under the time axis', () => {
   const nearby = (svg) => [...svg.matchAll(/<rect x="[\d.]+" y="([\d.-]+)" width="[\d.]+" height="([\d.]+)" fill="none" stroke="rgba\(255,255,255,0.30\)" stroke-width="0.7">/g)]
     .map((m) => ({ y: Number(m[1]), h: Number(m[2]) }));
-  const floor = /<line x1="11" y1="99" x2="196" y2="99"/;
-  [[false, 24], [true, null]].forEach(([radarSky, PT]) => {
+  // The plot is 45 units tall under the time axis (y 19), and keeps that height under the
+  // sky rows, which push it down (preview-radar.js PLOT_H).
+  const floorAt = (y) => new RegExp('<line x1="11" y1="' + y + '" x2="196" y2="' + y + '"');
+  [[false, 19], [true, null]].forEach(([radarSky, PT]) => {
     const S = { radarProvider: 'dwd', radarColor: 'multicolor', radarMode: 'graph', radarSky, theme: 'dark' };
     const standSvg = RD.radarPreview(S, BASALT);
     const hangSvg = RD.radarPreview(Object.assign({ radarBarFrom: 'top' }, S), BASALT);
     const stand = nearby(standSvg), hang = nearby(hangSvg);
     assert.ok(stand.length > 10, 'premise: DWD\'s nearby bars draw');
-    stand.forEach((r) => assert.ok(near(r.y + r.h, 99), 'standing on the floor'));
     const top = hang[0].y;
     if (PT !== null) { assert.equal(top, PT, 'right under the time axis'); }
-    else { assert.ok(top > 24, 'under the sky rows'); }
+    else { assert.ok(top > 19, 'under the sky rows'); }
+    const floor = top + 45;
+    stand.forEach((r) => assert.ok(near(r.y + r.h, floor), 'standing on the floor'));
     hang.forEach((r, i) => {
       assert.equal(r.y, top, 'every nearby bar hangs from one anchor');
       assert.ok(near(r.h, stand[i].h));
@@ -506,8 +509,8 @@ test('radar preview: Bars from: Top hangs the exact and the nearby bars under th
     exact.forEach((r) => assert.ok(r[1] >= top, 'exact bar band at ' + r[1]));
     assert.ok(Math.min.apply(null, exact.map((r) => r[1])) < top + 1, 'the first band starts on the anchor');
     // The preview's own faint floor line goes with standing bars.
-    assert.match(standSvg, floor);
-    assert.doesNotMatch(hangSvg, floor);
+    assert.match(standSvg, floorAt(floor));
+    assert.doesNotMatch(hangSvg, floorAt(floor));
   });
 });
 

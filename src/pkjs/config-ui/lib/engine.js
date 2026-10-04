@@ -2159,7 +2159,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (t.id !== activeTab) { continue; }
       // The tab's panes (tab.panes: a segmented switcher at the top, e.g. Forecast · Rain
       // radar · Health) and its pinned preview (tab.pinBlock, or the active pane's
-      // pinBlock) ride ONE sticky header, so the preview stays in view while the cards
+      // pinBlock): the switcher scrolls away, the preview stays in view while the cards
       // scroll under it. A section with a `pane` renders only in that pane.
       // tab.pinThrough (a section id) ends that stretch: the header and the sections up to
       // and including that one share a .pin-scope box, and a sticky element never leaves its
@@ -2229,8 +2229,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * A tab's sticky header: its pane switcher (more than one shown pane) and the pinned
-   * preview block (the active pane's pinBlock, else the tab's). '' when it has neither.
+   * A tab's header: its pane switcher (more than one shown pane), which scrolls with the
+   * page, then the sticky pinned preview block (the active pane's pinBlock, else the
+   * tab's). '' when it has neither.
    * @param {Object} tab Schema tab.
    * @param {?Object} pane The active pane (activePaneOf).
    * @param {Object} cx Render context.
@@ -2256,8 +2257,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var fn = PConf.blocks.get(blockId);
       block = fn ? (fn(cx.S, cx.ENV, cx.USERDATA) || '') : '';
     }
-    if (!seg && !block) { return ''; }
-    return '<div class="' + pinClass(cx) + '">' + seg + (block ? '<div class="pin-blk">' + block + '</div>' : '') + '</div>';
+    // The switcher rides above the pinned header, not in it, so it scrolls away and the
+    // pinned preview alone keeps the top of the screen (owner, 2026-10-04).
+    return seg + (block ? '<div class="' + pinClass(cx) + '"><div class="pin-blk">' + block + '</div></div>' : '');
   }
 
 
