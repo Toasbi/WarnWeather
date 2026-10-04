@@ -58,6 +58,17 @@ if [[ "$pbw_built" != "build/warnweather.pbw" ]]; then
   mv "$pbw_built" build/warnweather.pbw
 fi
 
+# The appstore's upload runs behind a 4.5 MB request limit (FUNCTION_PAYLOAD_TOO_LARGE;
+# the 2.0.0 .pbw hit it at 5.5 MB with the JS source map bundled, see wscript). Stop here,
+# with headroom for the upload form, rather than at the store.
+pbw_limit=4400000
+pbw_size=$(wc -c < build/warnweather.pbw | tr -d ' ')
+if (( pbw_size >= pbw_limit )); then
+  echo "build.sh: build/warnweather.pbw is $pbw_size bytes; the appstore upload takes under $pbw_limit." >&2
+  echo "build.sh: list it with 'unzip -lv build/warnweather.pbw' to see what grew." >&2
+  exit 1
+fi
+
 if [[ "$profile" == "dev" ]]; then
   cp build/warnweather.pbw build/warnweather-dev.pbw
 fi

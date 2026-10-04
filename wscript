@@ -8,9 +8,24 @@ import json
 import re
 
 from waflib import Logs
+from waflib.TaskGen import after_method, before_method, feature
 
 top = '.'
 out = 'build'
+
+
+# The SDK's process_js puts webpack's source map (pebble-js-app.js.map, 2.8 MB at 2.0.0)
+# into the .pbw beside the JS. Nothing reads it there: pebble-tool maps `pebble logs`
+# stack traces from build/pebble-js-app.js.map, which the merge task still writes, and
+# the appstore reads appinfo.json. Bundled, it took the 2.0.0 .pbw to 5.5 MB, past the
+# appstore upload's 4.5 MB request limit (FUNCTION_PAYLOAD_TOO_LARGE).
+@feature('js')
+@after_method('process_js')
+@before_method('make_pbl_bundle')
+def drop_js_source_map_from_pbw(task_gen):
+    js = getattr(task_gen, 'js', None)
+    if js:
+        task_gen.js = [n for n in task_gen.to_nodes(js) if not n.name.endswith('.js.map')]
 
 
 def options(ctx):
