@@ -2161,10 +2161,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // radar · Health) and its pinned preview (tab.pinBlock, or the active pane's
       // pinBlock) ride ONE sticky header, so the preview stays in view while the cards
       // scroll under it. A section with a `pane` renders only in that pane.
+      // tab.pinThrough (a section id) ends that stretch: the header and the sections up to
+      // and including that one share a .pin-scope box, and a sticky element never leaves its
+      // parent, so past that section the header scrolls away with the page.
       var pane = activePaneOf(t, cx);
-      h += renderPin(t, pane, cx);
+      var scoped = Boolean(t.pinThrough), passedPin = false;
+      h += (scoped ? '<div class="pin-scope">' : '') + renderPin(t, pane, cx);
       for (si = 0; si < t.sections.length; si++) {
         var sec = t.sections[si];
+        if (scoped && passedPin) {
+          h += '</div>';
+          scoped = false;
+        }
+        // Set before the skips below: a hidden or other-pane pinThrough still ends the stretch.
+        if (scoped && sec.id === t.pinThrough) { passedPin = true; }
         // A sheetOnly section renders only inside the edit-sheet dialog (renderEditModal);
         // its items still hydrate/serialize like any other, they just have no card.
         if (sec.sheetOnly) { continue; }
@@ -2175,12 +2185,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           var group = [sec];
           while (si + 1 < t.sections.length && t.sections[si + 1].groupCard === sec.groupCard) {
             group.push(t.sections[si + 1]); si++;
+            if (scoped && t.sections[si].id === t.pinThrough) { passedPin = true; }
           }
           h += renderSectionGroup(group, cx);
         } else {
           h += renderSection(sec, cx, t.id + ':' + (sec.id || si));
         }
       }
+      if (scoped) { h += '</div>'; }
     }
     return h + '<div class="version">' + (schema.versionLabel || '') + '</div>';
   }

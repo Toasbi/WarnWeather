@@ -1794,9 +1794,12 @@ test('largeGraphFont is offered on emery only, and hidden when watchInfo is unav
   assert.equal(showWhen.isVisible(it, unknown), false, 'hidden without watchInfo');
 });
 
-test('flick/positioning narrative lives only in the Layout card, not Health/Radar copy', () => {
+test('flick/positioning narrative stays out of the Health/Radar hints; the Views intro explains views', () => {
   const views = schema.tabs.find((t) => t.id === 'watchface').sections.find((s) => s.id === 'views');
-  assert.ok(!/flick/i.test(views.intro), 'the Views intro (radar + health) drops flick narrative');
+  // Owner, 2026-10-04: the Views intro explains what a view is and that a flick switches
+  // them; the mode hints below stay about bars and graphs only.
+  assert.match(views.intro, /A view is one screen of the watchface/);
+  assert.match(views.intro, /Flick your wrist to switch views/);
   const mode = byKey('healthMode');
   Object.keys(mode.hintByValue).forEach((k) => assert.ok(!/flick/i.test(mode.hintByValue[k]), 'healthMode hint "' + k + '" drops flick'));
   const radarMode = byKey('radarMode');
@@ -2034,12 +2037,12 @@ test('radarMode is a four-step select with per-mode hint copy', () => {
   ]);
   // Each mode's hint is SELF-CONTAINED — it states everything that mode shows,
   // rather than "also adds" deltas relative to the option above (user request).
+  // Off gets no hint (owner's hint rule: never an "Off" hint).
   assert.deepEqual(item.hintByValue, {
-    off: 'Radar is hidden.',
     // The rain icon's place is the Rain sheet's Shows on grid (Alerts tab).
     countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on the status bars picked in Alerts › Rain.',
     status: 'Adds the Radar Status Bar.',
-    graph: 'Adds the Radar Status Bar and the full radar rain graph.'
+    graph: 'Adds the Radar Status Bar and the rain radar graph.'
   });
 });
 
@@ -2057,7 +2060,9 @@ test('mode hints mention bar/graph only — no view claims, no positions', () =>
     'status hints say the bar is added, not where');
   assert.equal(radar.status, 'Adds the Radar Status Bar.');
   assert.match(health.status, /^Adds the Health Status Bar/);
-  assert.equal(radar.graph, 'Adds the Radar Status Bar and the full radar rain graph.');
+  assert.equal(radar.graph, 'Adds the Radar Status Bar and the rain radar graph.');
+  assert.equal(radar.off, undefined, 'no Off hint');
+  assert.equal(health.off, undefined, 'no Off hint');
   assert.match(health.all, /^Adds the Health Status Bar and a health graph/);
 });
 
@@ -2199,7 +2204,9 @@ test('radar intro drops mechanics; provider positioning lives in the per-provide
   const wf = schema.tabs.find((t) => t.id === 'watchface');
   const views = wf.sections.find((s) => s.id === 'views');
   const intro = views.intro;
-  assert.ok(intro.indexOf('precise short-term rain forecast for your location') >= 0, 'core promise present');
+  // Owner, 2026-10-04: the Views intro explains views (one screen each, the flick, the
+  // layout, Graphs) instead of pitching the radar and health features.
+  assert.match(intro, /^A view is one screen of the watchface\./, 'the intro explains views');
   // Placement: the Layout card sits right below the Views card on the same tab, so the
   // intro needs no pointer to it.
   const cards = wf.sections.filter((s) => !s.sheetOnly);
@@ -2936,14 +2943,16 @@ test('the All status bars card carries the reset-status-bars link row, ungated',
   assert.ok(intro.intro.endsWith('Choose what each view shows below.'), 'the intro ends on its own copy');
   assert.equal(intro.intro.indexOf('<button'), -1, 'no inline reset in the intro any more');
   assert.equal(intro.intro.indexOf('txt-act-btn'), -1, 'not the boxed chip either');
-  assert.deepEqual(intro.items[0], { type: 'button', style: 'link', action: 'resetStatusSlots',
-    label: 'Reset status bars to defaults' }, 'the card leads with the reset link');
+  // Owner, 2026-10-04: the reset moves under the card's More options, after Bold values.
+  const reset = intro.items[intro.items.length - 1];
+  assert.deepEqual(reset, { type: 'button', style: 'link', action: 'resetStatusSlots',
+    label: 'Reset status bars to defaults', more: true }, 'the card ends on the reset link, under More options');
   // The button resets slots too, which every platform has — so unlike the Bold
   // machinery it must NOT be thresholds-gated (neither the section nor the row).
   assert.equal(intro.showWhen, undefined, 'the card carries no platform gate');
-  assert.equal(intro.items[0].showWhen, undefined, 'the reset row carries no platform gate');
+  assert.equal(reset.showWhen, undefined, 'the reset row carries no platform gate');
   // Bold values (thresholds-gated, behind More options) is the card's one other row.
-  assert.deepEqual(intro.items.slice(1).map((i) => i.messageKey), ['statusBoldAll']);
+  assert.deepEqual(intro.items.slice(0, -1).map((i) => i.messageKey), ['statusBoldAll']);
   assert.equal(byKey('statusBoldAll').more, true);
   assert.deepEqual(byKey('statusBoldAll').showWhen, { env: 'thresholds' });
 });

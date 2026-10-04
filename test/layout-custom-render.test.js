@@ -42,7 +42,8 @@ function layoutBody(overrides, platformName) {
   };
   const body = eng.renderBody(schema, 'watchface', cx);
   const firstCard = body.indexOf('<div class="card');
-  assert.ok(body.indexOf('<div class="pin">') === 0, 'the Watchface tab opens on its pinned preview');
+  assert.ok(body.indexOf('<div class="pin-scope"><div class="pin">') === 0,
+    'the Watchface tab opens on its pinned preview, scoped to the cards through Layout');
   const at = body.indexOf('<span class="ttl">Layout</span>');
   assert.ok(at > 0, 'the Layout card rendered');
   const next = body.indexOf('<div class="card', at);

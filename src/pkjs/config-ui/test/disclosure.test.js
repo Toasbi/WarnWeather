@@ -289,6 +289,43 @@ test('a tab pinBlock pins without a switcher; one shown pane has none either', (
   assert.equal(body.indexOf('pane-seg'), -1);
 });
 
+test('tab.pinThrough scopes the pinned header to the cards up to that section, then it scrolls away', () => {
+  global.PConf.blocks.register('discScopePin', () => '<b>scoped preview</b>');
+  const card = (id, extra) => Object.assign({ id: id, title: id.toUpperCase(),
+    items: [{ type: 'toggle', messageKey: 'k' + id, label: 'K' + id }] }, extra || {});
+  const tab = (pinThrough, sections) => ({ tabs: [{ id: 't', label: 'T', pinBlock: 'discScopePin',
+    pinThrough: pinThrough, sections: sections }] });
+  // Where the scope's own </div> sits: walk the <div / </div> depth from its opening tag.
+  const scopeCloseAt = (body) => {
+    assert.equal(body.indexOf('<div class="pin-scope"><div class="pin"><div class="pin-blk"><b>scoped preview</b>'), 0, body);
+    const re = /<div\b|<\/div>/g;
+    let depth = 0, m;
+    while ((m = re.exec(body))) {
+      depth += m[0] === '</div>' ? -1 : 1;
+      if (depth === 0) { return m.index; }
+    }
+    return -1;
+  };
+  const at = (body, key) => body.indexOf('data-k="' + key + '"');
+  // The cards up to and including 'b' share the scope; 'c' renders after it closes.
+  const body = E.renderBody(tab('b', [card('a'), card('b'), card('c')]), 't', cxFor({}));
+  let close = scopeCloseAt(body);
+  assert.ok(close > at(body, 'kb') && close < at(body, 'kc'), 'the scope closes between b and c');
+  assert.equal(body.split('pin-scope').length - 1, 1, 'one scope');
+  // A pinThrough section that renders nothing here (sheetOnly, another pane) still ends it.
+  const sheet = E.renderBody(tab('b', [card('a'), card('b', { sheetOnly: true, sheetId: 'sb' }), card('c')]), 't', cxFor({}));
+  close = scopeCloseAt(sheet);
+  assert.ok(close > at(sheet, 'ka') && close < at(sheet, 'kc'), 'closed before c');
+  // The last section: the scope runs to the end of the tab, before the version line.
+  const last = E.renderBody(tab('c', [card('a'), card('c')]), 't', cxFor({}));
+  close = scopeCloseAt(last);
+  assert.ok(close > at(last, 'kc') && close < last.indexOf('<div class="version">'), 'closed after c, before the version');
+  // No pinThrough: no scope at all (the header pins through the whole tab, as before).
+  const plain = E.renderBody(tab(undefined, [card('a')]), 't', cxFor({}));
+  assert.equal(plain.indexOf('pin-scope'), -1);
+  assert.equal(plain.indexOf('<div class="pin"><div class="pin-blk">'), 0);
+});
+
 // ── page-only items ─────────────────────────────────────────────────────────
 
 test('every shown optionsFrom row snaps into its options, wherever it sits; hidden and dormant values stay', () => {

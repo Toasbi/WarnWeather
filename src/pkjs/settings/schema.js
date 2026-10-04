@@ -970,8 +970,9 @@ function hoursPair(startKey, endKey, startDefault, endDefault, when) {
 }
 
 // The tabs' and cards' intros.
-var VIEWS_INTRO = 'Rain radar is a second view — a precise short-term rain forecast for your location. '
-    + 'Health shows your activity on the watchface: today\'s steps, last night\'s sleep, and current heart rate.';
+var VIEWS_INTRO = 'A view is one screen of the watchface. The Default view shows the forecast graph; '
+    + 'Rain radar and Health can each add a view of their own. Flick your wrist to switch views. '
+    + 'The layout decides how they\'re arranged, and each graph is set up in Graphs.';
 var LAYOUT_INTRO = 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the '
     + 'preview. What a metric means or how it\'s coloured lives in Graphs.';
 var STATUS_INTRO = 'Every view has its own status bar — one row with a left, middle, and right slot you can '
@@ -1140,8 +1141,10 @@ module.exports = {
     }, {
         // Watchface — what decides how the face looks: which views exist, how they are laid
         // out, the theme and what changes at night, the time and the calendar. The page
-        // opens here. The layout preview stays pinned at the top while the cards scroll.
-        id: 'watchface', label: 'Watchface', openDefault: true, pinBlock: 'layoutPreviewCombined', sections: [{
+        // opens here. The layout preview stays pinned at the top while the Views and Layout
+        // cards scroll under it; past Layout it scrolls away with the page (owner, 2026-10-04).
+        id: 'watchface', label: 'Watchface', openDefault: true, pinBlock: 'layoutPreviewCombined',
+        pinThrough: 'layout', sections: [{
             // The fetch-error notices stay first: the panel draws nothing until a fetch
             // fails, and then it is the news the page opens on.
             block: 'noticesPanel',
@@ -1161,13 +1164,14 @@ module.exports = {
                 messageKey: 'radarMode',
                 label: 'Rain radar',
                 defaultValue: 'graph',
+                // The selected option only, and only WHAT it turns on: no views, no places —
+                // the pinned layout preview shows where (owner, 2026-10-04). Off gets none.
                 hintByValue: {
-                    off: 'Radar is hidden.',
                     // No radar bar or graph in this mode: the rain icon's place is the Rain
                     // dialog's Shows on grid (Alerts tab). Plain text: a per-value hint.
                     countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on the status bars picked in Alerts › Rain.',
                     status: 'Adds the Radar Status Bar.',
-                    graph: 'Adds the Radar Status Bar and the full radar rain graph.'
+                    graph: 'Adds the Radar Status Bar and the rain radar graph.'
                 },
                 // 'Rain alert only' — the VALUE stays 'countdown' (stored + telemetry): the
                 // mode fetches radar solely for the rain alert, which an On demand side draws.
@@ -1180,8 +1184,9 @@ module.exports = {
                 messageKey: 'healthMode',
                 label: 'Health',
                 defaultValue: 'all',
+                // As the Rain radar row: what the selected option turns on, no views or
+                // places, no Off hint.
                 hintByValue: {
-                    off: 'Health is hidden.',
                     slot: 'Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar.',
                     status: 'Adds the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
                     all: 'Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line. Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
@@ -1632,10 +1637,7 @@ module.exports = {
             id: 'statusAll',
             title: 'All status bars',
             intro: STATUS_INTRO,
-            // The reset reverts every slot AND the bold settings in one tap (blocks.js
-            // resetStatusSlots). Deliberately NOT thresholds-gated: aplite has slots but
-            // no bold machinery, and "status bars" stays truthful there either way.
-            items: [linkRow('resetStatusSlots', 'Reset status bars to defaults'),
+            items: [
                 // Master bold switch over EVERY slot kind: 'all' packs each kind's bold
                 // cell as always-bold when the threshold blob is built
                 // (status-thresholds.js) and leaves the stored per-kind modes untouched —
@@ -1656,7 +1658,12 @@ module.exports = {
                     options: [['Per slot', 'perSlot'], ['All', 'all']],
                     more: true,
                     showWhen: THRESHOLD_WHEN
-                }
+                },
+                // The reset reverts every slot AND the bold settings in one tap (blocks.js
+                // resetStatusSlots); last under More options (owner, 2026-10-04). Deliberately
+                // NOT thresholds-gated: aplite has slots but no bold machinery, and "status
+                // bars" stays truthful there either way.
+                linkRow('resetStatusSlots', 'Reset status bars to defaults', true)
             ]
         }, {
             // The bars in the owner's order (2026-10-01): Watch, Forecast, Health, Radar —

@@ -92,10 +92,13 @@ function gateAll(items, gate) {
  * e.g. the About alerts card's.
  * @param {string} action A registered PConf.actions id, e.g. 'resetOnDemand'.
  * @param {string} label The link's text.
+ * @param {boolean} [more] True to fold the link under its card's More options.
  * @returns {Object} Schema item.
  */
-function linkRow(action, label) {
-    return {type: 'button', style: 'link', action: action, label: label};
+function linkRow(action, label, more) {
+    var row = {type: 'button', style: 'link', action: action, label: label};
+    if (more) { row.more = true; }
+    return row;
 }
 
 module.exports = {

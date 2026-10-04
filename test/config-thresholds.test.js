@@ -2425,6 +2425,7 @@ test('the All status bars reset link resets a live page (slots + bold) on click'
     statusBoldAll: 'all', threshCityBoldMode: 'always', threshWindBoldMode: 'off'
   });
   page.clickTab('watch');
+  page.openAllMore('scroll');   // the reset waits under the card's More options
   assert.ok(/<div class="row linkrow[^"]*"><button type="button" class="txt-link" data-action="resetStatusSlots">Reset status bars to defaults<\/button><\/div>/
     .test(page.scroll.innerHTML), 'the All status bars card renders the reset link');
   assert.ok(page.scroll.innerHTML.indexOf('data-action="resetStatusSlots"')

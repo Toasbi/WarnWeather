@@ -226,7 +226,12 @@ test('each bar ends on one Alerts nav row: the icons on each side, a tap brings 
 test('the Status bars tab: the bars in the owner\'s order, each its own card with its Alerts row, the reset a link row', () => {
   // The owner, 2026-10-01: "1: watch status bar 2 weather 3 health 4 radar" (the page only;
   // the wire keeps its order). The health bar needs a health mode with a status bar.
-  const html = watchTab({ healthMode: 'status' }).scroll.innerHTML;
+  const closed = watchTab({ healthMode: 'status' });
+  assert.equal(closed.scroll.innerHTML.indexOf('data-action="resetStatusSlots"'), -1,
+    'the reset waits under the All status bars card\'s More options (owner, 2026-10-04)');
+  const page = watchTab({ healthMode: 'status' });
+  page.openAllMore('scroll');
+  const html = page.scroll.innerHTML;
   const at = (title) => html.indexOf('<span class="ttl">' + title + '</span>');
   const order = ['Watch Status Bar', 'Forecast Status Bar', 'Health Status Bar', 'Radar Status Bar'];
   order.forEach((t) => assert.ok(at(t) !== -1, t + ' renders'));
@@ -239,6 +244,7 @@ test('the Status bars tab: the bars in the owner\'s order, each its own card wit
     + 'data-action="resetStatusSlots">Reset status bars to defaults</button></div>');
   assert.ok(reset > at('All status bars') && reset < at('Watch Status Bar'),
     'the reset: a text-link row in the All status bars card, above the bars');
+  assert.ok(reset > html.indexOf('data-k="statusBoldAll"'), 'after Bold values, the last of the More options');
   assert.equal(html.indexOf('txt-act-btn'), -1, 'no boxed chip on the tab');
 });
 

@@ -81,6 +81,7 @@
         "label": "Watchface",
         "openDefault": true,
         "pinBlock": "layoutPreviewCombined",
+        "pinThrough": "layout",
         "sections": [
           {
             "block": "noticesPanel",
@@ -95,7 +96,7 @@
           {
             "id": "views",
             "title": "Views",
-            "intro": "Rain radar is a second view — a precise short-term rain forecast for your location. Health shows your activity on the watchface: today's steps, last night's sleep, and current heart rate.",
+            "intro": "A view is one screen of the watchface. The Default view shows the forecast graph; Rain radar and Health can each add a view of their own. Flick your wrist to switch views. The layout decides how they're arranged, and each graph is set up in Graphs.",
             "items": [
               {
                 "type": "select",
@@ -103,10 +104,9 @@
                 "label": "Rain radar",
                 "defaultValue": "graph",
                 "hintByValue": {
-                  "off": "Radar is hidden.",
                   "countdown": "Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on the status bars picked in Alerts › Rain.",
                   "status": "Adds the Radar Status Bar.",
-                  "graph": "Adds the Radar Status Bar and the full radar rain graph."
+                  "graph": "Adds the Radar Status Bar and the rain radar graph."
                 },
                 "options": [
                   [
@@ -161,7 +161,6 @@
                 "label": "Health",
                 "defaultValue": "all",
                 "hintByValue": {
-                  "off": "Health is hidden.",
                   "slot": "Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar.",
                   "status": "Adds the Health Status Bar — today's steps, last night's sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.",
                   "all": "Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line. Feedback very welcome via <a href=\"https://github.com/Toasbi/WarnWeather/issues\">GitHub</a>."
@@ -4044,12 +4043,6 @@
             "intro": "Every view has its own status bar — one row with a left, middle, and right slot you can fill with weather, time, health, and more. Choose what each view shows below.",
             "items": [
               {
-                "type": "button",
-                "style": "link",
-                "action": "resetStatusSlots",
-                "label": "Reset status bars to defaults"
-              },
-              {
                 "type": "segmented",
                 "messageKey": "statusBoldAll",
                 "label": "Bold values",
@@ -4072,6 +4065,13 @@
                 "showWhen": {
                   "env": "thresholds"
                 }
+              },
+              {
+                "type": "button",
+                "style": "link",
+                "action": "resetStatusSlots",
+                "label": "Reset status bars to defaults",
+                "more": true
               }
             ]
           },

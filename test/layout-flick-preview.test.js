@@ -40,7 +40,8 @@ function watchfaceTab(overrides, platformName) {
     moreOpen: new Proxy({}, { get: () => true }),
   };
   const body = eng.renderBody(schema, 'watchface', cx);
-  assert.equal(body.indexOf('<div class="pin">'), 0, 'the tab opens on its pinned preview');
+  assert.equal(body.indexOf('<div class="pin-scope"><div class="pin">'), 0,
+    'the tab opens on its pinned preview, scoped to the cards through Layout');
   return { body: body, pin: body.slice(0, body.indexOf('<div class="card')) };
 }
 
