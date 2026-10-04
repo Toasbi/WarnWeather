@@ -521,9 +521,12 @@ test('the grid\'s live rows are exactly the bars whose Alerts row the Status bar
 
 // --- the Alerts tab -----------------------------------------------------------------
 const ON_DEMAND_INTRO = 'An alert shows at the edge of a status bar only when it reaches its warn level or is active'
-  + ' right now, and stays hidden the rest of the time, so the watch face only shows what matters. For example: the'
+  + ' right now, and stays hidden the rest of the time, so the watchface only shows what matters. For example: the'
   + ' battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn level. Open an alert to'
-  + ' choose which status bars show it, left or right.';
+  + ' choose which status bars show it, left or right.<p class="intro-more">The warn level works on the graph too:'
+  + ' set a wind, gust or UV line’s Visible values to Alert (<button type="button" class="txt-link"'
+  + ' data-goto-tab="graphs" data-goto-pane="forecast">Graphs › Forecast</button>) and it shows only the hours'
+  + ' that reach it, so the graph stays empty until it matters.</p>';
 
 test('the Alerts tab sits between Status bars and Graphs: About alerts, then the System info and Weather alerts cards', () => {
   const page = alertsTab();
@@ -552,6 +555,24 @@ test('the Alerts tab sits between Status bars and Graphs: About alerts, then the
     assert.equal(other.indexOf('About alerts'), -1, tab + ': no Alerts card');
     assert.equal(other.indexOf('resetOnDemand'), -1, tab + ': no Alerts reset');
   });
+});
+
+// The intro's Graphs › Forecast link opens the Graphs tab on its Forecast pane, where the
+// metric dialogs hold Visible values, even when the tab showed another pane last.
+test('the intro\'s graph link opens Graphs on its Forecast pane, whichever pane showed last', () => {
+  const page = onTab('graphs');
+  page.clickPane('graphs', 'radar');
+  const paneOn = (pane) => page.scroll.innerHTML.indexOf('aria-selected="true" data-pane="graphs:' + pane + '"') !== -1;
+  assert.ok(paneOn('radar'), 'the Rain radar pane shows');
+  page.clickTab('alerts');
+  const link = '<button type="button" class="txt-link" data-goto-tab="graphs" data-goto-pane="forecast">';
+  assert.ok(page.scroll.innerHTML.indexOf(link) !== -1, 'the link is in the About alerts intro');
+  const attrs = { 'data-goto-tab': 'graphs', 'data-goto-pane': 'forecast' };
+  const t = { getAttribute: (n) => attrs[n] || null, closest: (sel) => (sel === '[data-goto-tab]' ? t : null) };
+  page.scroll.dispatch('click', { target: t });
+  assert.match(page.tabs.innerHTML, /<button class="tab on" data-tab="graphs">/, 'the Graphs tab is in front');
+  assert.ok(paneOn('forecast'), 'on its Forecast pane');
+  assert.ok(!paneOn('radar'), 'not the pane it showed last');
 });
 
 test('the Alerts tab rows: each opens its item\'s dialog, with an icon, a live text and where it shows', () => {

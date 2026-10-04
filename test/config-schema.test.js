@@ -2730,11 +2730,17 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
   // The owner's wording, 2026-10-01: when an alert shows, then examples; its last sentence
   // the owner's of 2026-10-02 (each item's sheet opens on its Shows on grid). Its reset
   // left the copy for a link row of its own.
+  // Its second paragraph (the owner, 2026-10-04) carries the warn level onto the graph
+  // lines, linking the Graphs tab's Forecast pane.
   assert.equal(sec.intro, 'An alert shows at the edge of a status bar only when it reaches its warn level or is'
-    + ' active right now, and stays hidden the rest of the time, so the watch face only shows what matters.'
+    + ' active right now, and stays hidden the rest of the time, so the watchface only shows what matters.'
     + ' For example: the battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn level.'
-    + ' Open an alert to choose which status bars show it, left or right.');
-  assert.equal(sec.intro.indexOf('<button'), -1, 'no inline reset in the intro any more');
+    + ' Open an alert to choose which status bars show it, left or right.'
+    + '<p class="intro-more">The warn level works on the graph too: set a wind, gust or UV line’s Visible values'
+    + ' to Alert (<button type="button" class="txt-link" data-goto-tab="graphs" data-goto-pane="forecast">'
+    + 'Graphs › Forecast</button>) and it shows only the hours that reach it, so the graph stays empty until'
+    + ' it matters.</p>');
+  assert.equal(sec.intro.indexOf('data-action'), -1, 'no inline reset in the intro any more');
   const ctx = (p) => ({ env: platform.computeEnv({ platform: p }) });
   const rowsSec = onDemandItemsSection();
   [sec, rowsSec].forEach((s) => {

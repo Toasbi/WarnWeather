@@ -7651,7 +7651,7 @@
             "showWhen": {
               "env": "onDemand"
             },
-            "intro": "An alert shows at the edge of a status bar only when it reaches its warn level or is active right now, and stays hidden the rest of the time, so the watch face only shows what matters. For example: the battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn level. Open an alert to choose which status bars show it, left or right.",
+            "intro": "An alert shows at the edge of a status bar only when it reaches its warn level or is active right now, and stays hidden the rest of the time, so the watchface only shows what matters. For example: the battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn level. Open an alert to choose which status bars show it, left or right.<p class=\"intro-more\">The warn level works on the graph too: set a wind, gust or UV line’s Visible values to Alert (<button type=\"button\" class=\"txt-link\" data-goto-tab=\"graphs\" data-goto-pane=\"forecast\">Graphs › Forecast</button>) and it shows only the hours that reach it, so the graph stays empty until it matters.</p>",
             "items": [
               {
                 "type": "button",

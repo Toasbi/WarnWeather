@@ -3001,9 +3001,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       // A tab link (.txt-link data-goto-tab) in copy: brings its tab to the front, from the
       // tab body or from inside an open sheet (which closes). A tab the bar hides stays put.
+      // A link that names a pane (data-goto-pane, e.g. Graphs › Forecast) opens the tab on
+      // that pane, from its top when it was showing another.
       if ((t = e.target.closest('[data-goto-tab]'))) {
-        var gt = t.getAttribute('data-goto-tab');
-        if (tabShown(gt)) { switchTab(gt); focusActiveTab(); }
+        var gt = t.getAttribute('data-goto-tab'), gp = t.getAttribute('data-goto-pane');
+        if (tabShown(gt)) {
+          var paneMoved = Boolean(gp) && activePane[gt] !== gp;
+          if (paneMoved) { activePane[gt] = gp; tabScroll[gt] = 0; }
+          switchTab(gt);
+          if (paneMoved) { document.getElementById('scroll').scrollTop = 0; }
+          focusActiveTab();
+        }
         return true;
       }
       if ((t = e.target.closest('[data-action]'))) {

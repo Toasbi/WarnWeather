@@ -40,10 +40,13 @@ var ON_DEMAND_WHEN = {env: 'onDemand'};
  * markup and look as an inline text link (shell.html .txt-link).
  * @param {string} tab The tab's id, e.g. 'alerts'.
  * @param {string} label The link's text (a constant here, printed as is).
+ * @param {string} [pane] The pane to open the tab on (a tab with panes, e.g. 'forecast'
+ *     on the Graphs tab); without it the tab shows the pane it showed last.
  * @returns {string} The link's HTML.
  */
-function tabLink(tab, label) {
-    return '<button type="button" class="txt-link" data-goto-tab="' + tab + '">' + label + '</button>';
+function tabLink(tab, label, pane) {
+    return '<button type="button" class="txt-link" data-goto-tab="' + tab + '"'
+        + (pane ? ' data-goto-pane="' + pane + '"' : '') + '>' + label + '</button>';
 }
 // "This watch reports its battery charge in 5 % steps" (emery): the Battery item's warn
 // level steps by 5 there and by 10 everywhere else.
