@@ -42,8 +42,8 @@ static uint32_t s_applied_view_word[3];
 // Epoch of the last view-switching flick (or relaunch-restore to a non-default view),
 // seeding the auto-return-to-default timer. 0 = on the default view / no timer running.
 static time_t s_flick_epoch;
-// Wrist-flick gate state (rules: layout.c view_flick_accept). RAM only, zeroed at launch:
-// a relaunch starts with no flick pending, and last_ms = 0 never debounces the first one.
+// Wrist-flick gate state (rules: layout.h view_flick_accept). RAM only, zeroed at launch:
+// a relaunch starts with no flick pending.
 static ViewFlickGate s_flick_gate;
 #endif
 
@@ -340,9 +340,8 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     // flick on, passes only a pair's second flick. A rejected flick changes nothing here:
     // no view, no auto-return restart, no health warm.
     time_t now_s;
-    uint16_t now_ms_part;
-    time_ms(&now_s, &now_ms_part);
-    if (!view_flick_accept(&s_flick_gate, (uint64_t) now_s * 1000 + now_ms_part,
+    uint16_t now_ms_part = time_ms(&now_s, NULL);
+    if (!view_flick_accept(&s_flick_gate, (uint32_t) now_s * 1000u + now_ms_part,
                            config_get()->view_double_flick)) {
         return;
     }
@@ -350,7 +349,8 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     uint8_t next = next_view_index(s_view_index);
     if (next == s_view_index) { return; }   // nothing else enabled/available (pair consumed)
     s_view_index = next;
-    s_flick_epoch = time(NULL);              // restart the auto-return timer
+    s_flick_epoch = now_s;                   // restart the auto-return timer (time_ms's
+                                             // seconds are time(NULL)'s UTC epoch)
 #if defined(PBL_HEALTH)
     health_warm_for_incoming_view();
 #endif

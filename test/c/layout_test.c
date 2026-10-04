@@ -2702,7 +2702,7 @@ static void view_timer_tests(void) {
 }
 
 // A gate that has just taken one flick at `t` (armed when need_pair).
-static ViewFlickGate flicked_at(uint64_t t, bool need_pair) {
+static ViewFlickGate flicked_at(uint32_t t, bool need_pair) {
     ViewFlickGate g = {0};
     view_flick_accept(&g, t, need_pair);
     return g;
@@ -2710,8 +2710,8 @@ static ViewFlickGate flicked_at(uint64_t t, bool need_pair) {
 
 static void view_flick_tests(void) {
     // The wrist-flick gate (view_flick_accept): today's 500 ms debounce in single mode, and
-    // Double flick's arm-then-pair rule. t0 is an arbitrary epoch in ms.
-    const uint64_t t0 = 1700000000000ULL;
+    // Double flick's arm-then-pair rule. t0 is an arbitrary point on the 32-bit ms clock.
+    const uint32_t t0 = 1700000000u;
     ViewFlickGate g = {0};
     // Single flick: exactly the pre-option rule.
     expect("flick.boot.first_callback_counts", view_flick_accept(&g, t0, false), true);
@@ -2733,7 +2733,7 @@ static void view_flick_tests(void) {
     expect("flick.double.fourth_fires", view_flick_accept(&g, t0 + 2000, true), true);
     // Any partner inside the window pairs: the earliest a BMI160 watch (basalt/chalk, ~1.28 s
     // any-motion latch) can deliver, a deliberate flick-pause-flick, and the window's edge.
-    const struct { const char *name; uint64_t gap; } pairs[] = {
+    const struct { const char *name; uint32_t gap; } pairs[] = {
         { "flick.double.bmi160_gap_pairs", 1300 },
         { "flick.double.slow_cadence_pairs", 2500 },
         { "flick.double.window_edge_fires", VIEW_FLICK_PAIR_MS - 1 },
@@ -2756,7 +2756,7 @@ static void view_flick_tests(void) {
     // A shake train of N accepted flicks switches at most N/2 times.
     g = (ViewFlickGate){0};
     int fires = 0;
-    for (int i = 0; i < 6; i++) { fires += view_flick_accept(&g, t0 + (uint64_t) i * 600, true); }
+    for (int i = 0; i < 6; i++) { fires += view_flick_accept(&g, t0 + (uint32_t) i * 600, true); }
     expect("flick.double.burst_of_6_switches_3", fires == 3, true);
     // Settings toggled mid-gesture (need_pair is read live).
     g = flicked_at(t0, true);
@@ -2773,6 +2773,11 @@ static void view_flick_tests(void) {
     expect("flick.clock_back.single_fires", view_flick_accept(&g, t0 - 100, false), true);
     g = flicked_at(t0, true);
     expect("flick.clock_fwd.stale_arm_rearms", view_flick_accept(&g, t0 + 3600000, true), false);
+    // The 32-bit ms clock wraps every 49.7 days: a pair across the wrap still pairs, and an
+    // echo across it is still debounced.
+    g = flicked_at(0xFFFFFF00u, true);
+    expect("flick.wrap.echo_swallowed", view_flick_accept(&g, 0x00000010u, true), false);
+    expect("flick.wrap.pair_fires", view_flick_accept(&g, 0x00000300u, true), true);
 }
 
 // ── Seating invariant: no band the layout produces may clamp ─────────────────

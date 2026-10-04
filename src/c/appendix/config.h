@@ -149,7 +149,7 @@ typedef struct {
     // layout to a preset on the phone, and its config_wire arm never reads the high half.
     uint16_t view_ext[3];
     // --- double flick (v2.1): switch views only on the second of two flicks within
-    // VIEW_FLICK_PAIR_MS (layout.c view_flick_accept). false = one flick, the behaviour
+    // VIEW_FLICK_PAIR_MS (layout.h view_flick_accept). false = one flick, the behaviour
     // before the option. Wire: bit 8 of CLAY_VIEW_RESET_MIN (config_wire.h VIEW_RESET_DOUBLE_FLICK).
     // Appended at the END (append-only persist offsets): an upgrader's shorter stored blob
     // does not reach this byte, so config_read_or_default()'s seeded false applies until the
