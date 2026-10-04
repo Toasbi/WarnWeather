@@ -67,8 +67,9 @@ function boolDefaultOn(value) {
  * A STRING either way: the ingest schema types these z.string(), and a number or a null
  * against a z.number() would fail safeParse and 400 the WHOLE event, taking the fetch
  * outcome with it, with no retry. '#RRGGBB' rather than an int because the dashboards read
- * these through ->>; the existing int-encoded colorTime/colorSunday appear in no dashboard
- * query, which is exactly why they are unminable.
+ * these through ->> as they are; the int-encoded colorTime family needs a to_hex() in the
+ * query (dashboard #11 in supabase/reports/telemetry-dashboards.sql) and has no 'default'
+ * sentinel, so an untouched one cannot be told from a picked one.
  *
  * @param {Object} settings Clay settings blob (the gc* keys, plus rainBarColor for gust).
  * @param {string} scope A metric id (line-style's GRAPH_METRICS), or 'night' for the band.

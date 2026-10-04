@@ -356,6 +356,44 @@ order by churned_after;
 -- ============================================================
 -- 11. Settings profile of the ACTIVE watches
 -- Option distribution over the active install base, one row per active watch.
+-- EVERY reported field, with no hand-kept list: jsonb_each_text walks each watch's
+-- settings_json, and the telemetry-ingest .strip() schema already decides which keys
+-- can exist there, so a setting added to that schema shows up here on its own.
+--
+-- A field is counted only where a watch reports it, so a setting's watches can sum to
+-- fewer than the active base: older clients omit newer keys, and some keys are sent
+-- only in some states (src/pkjs/telemetry-settings.js) —
+--   * sleepStartHour/EndHour while the battery saver is on;
+--   * backlightDim on emery only, and its hours and colour while it is on;
+--   * themeNight/themeAutoMode while themeAuto is on, and its hours in manual mode only;
+--   * customView0-2/customViewExt0-2 with the custom layout;
+--   * onDemand everywhere but aplite;
+--   * the graph colours on colour watches in a colour theme, with their line on.
+-- The 12 status slots appear here too; #13 pools them across all 12 slots and #14
+-- ranks them within each slot.
+--
+-- Reshaped rather than shown raw:
+--   * the graph colours get their metric and theme in the setting name (see below);
+--   * the Clay colour ints (colorTime, colorToday, colorSunday, colorSaturday,
+--     colorUSFederal) become '#RRGGBB', keyed by theme: a light theme flips their
+--     defaults between white and black, so '#FFFFFF' and '#000000' are mostly the
+--     untouched default of one polarity or the other. colorToday '#000000' is "match
+--     date color". Unlike the graph colours they are sent from B&W watches too, which
+--     never show their pickers.
+--   * the three packed alert codes are split into one row per kind:
+--       alerts.<kind>              gust, uv, aqi, pollen, wind: off (not on any bar),
+--                                  or the look (icon / icon+value) and the Days
+--                                  (today / today+tomorrow, with the tomorrow mark)
+--       warnLook.<kind>            aqi, pollen, wind, gust, steps, sleep, distance, uv:
+--                                  the warn box the watch draws (none / outline / fill)
+--       onDemand.<item>@<bar>      battery, bt, qt (quiet time), snooze (sleep), rain,
+--                                  gust, uv, aqi, pollen, wind on the top, forecast,
+--                                  radar and health bars: left / right, "(bar not in
+--                                  layout)" when ticked on a bar the layout leaves out,
+--                                  or off
+--     The positions mirror status-thresholds.js ALERT_KINDS / KINDS and on-demand.js
+--     BARS / ITEMS. A code whose length no longer matches (a kind was added) is shown
+--     raw under its own name instead of being decoded wrong — update the arrays then.
 -- ============================================================
 with watch_stats as (
   select coalesce(watch_token_hash, account_token_hash) as watch_key,
@@ -380,57 +418,113 @@ select
   s.option,
   count(*) as watches
 from latest_per_watch l
-cross join lateral (values
-  ('temperatureUnits',     l.settings_json ->> 'temperatureUnits'),
-  ('provider',             l.settings_json ->> 'provider'),
-  ('fetchIntervalMin',     l.settings_json ->> 'fetchIntervalMin'),
-  ('secondaryLine',        l.settings_json ->> 'secondaryLine'),
-  ('thirdLine',            l.settings_json ->> 'thirdLine'),
-  ('windScale',            l.settings_json ->> 'windScale'),
-  ('rainBarColor',         l.settings_json ->> 'rainBarColor'),
-  ('radarProvider',        l.settings_json ->> 'radarProvider'),
-  ('radarColor',           l.settings_json ->> 'radarColor'),
-  ('healthMode',           l.settings_json ->> 'healthMode'),
-  ('rainCountdownHorizon', l.settings_json ->> 'rainCountdownHorizon'),
-  ('layoutPreset',         l.settings_json ->> 'layoutPreset'),
-  ('viewResetMin',         l.settings_json ->> 'viewResetMin'),
-  ('btIcons',              l.settings_json ->> 'btIcons'),
-  ('timeFont',             l.settings_json ->> 'timeFont'),
-  ('axisTimeFormat',       l.settings_json ->> 'axisTimeFormat'),
-  ('weekStartDay',         l.settings_json ->> 'weekStartDay'),
-  ('firstWeek',            l.settings_json ->> 'firstWeek'),
-  ('theme',                l.settings_json ->> 'theme'),
-  ('configTheme',          l.settings_json ->> 'configTheme'),
-  ('aqiScale',             l.settings_json ->> 'aqiScale'),
-  ('aqiSource',            l.settings_json ->> 'aqiSource'),
-  -- The six graph colours: '#RRGGBB' where the user moved one, the literal 'default' while
-  -- it is still the built-in, absent wherever the watch paints no colour at all (a Black &
-  -- White theme, or B&W hardware — aplite/diorite/flint), on clients older than the feature,
-  -- and (graphSecondColor only) wherever the third line is off — the `where s.option is not
-  -- null` below drops all of those.
-  --
-  -- These exist to inform the NEXT round of built-in defaults, so the setting NAME carries
-  -- everything that makes two values incomparable, and only the ranking is left over:
-  --   * the THEME, because the watch already resolved each colour to the polarity it
-  --     renders — a dark-theme choice and a light-theme choice are different choices;
-  --   * the METRIC, because the colours are stored per metric now. graphMainColor is the
-  --     line colour of whichever metric is the secondary line, so blending wind's yellow
-  --     with uv's magenta into one ranking would answer no question anyone has. The two
-  --     night-band colours (hatch, dusk/dawn line) belong to no metric and stay unkeyed.
-  -- Ordered by watches desc, so the top row per element is the popular choice. 'default'
-  -- will usually be that top row — that is the useful baseline (how many never touched it);
-  -- add `and s.option <> 'default'` below to rank the TUNED choices alone.
-  ('graphMainColor@'     || coalesce(l.settings_json ->> 'secondaryLine', 'unknown')
-                         || '@' || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'graphMainColor'),
-  ('graphFillColor@'     || coalesce(l.settings_json ->> 'secondaryLine', 'unknown')
-                         || '@' || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'graphFillColor'),
-  ('graphSecondColor@'   || coalesce(l.settings_json ->> 'thirdLine', 'unknown')
-                         || '@' || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'graphSecondColor'),
-  ('nightFillColor@'     || coalesce(l.settings_json ->> 'secondaryLine', 'unknown')
-                         || '@' || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'nightFillColor'),
-  ('nightHatchColor@'    || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'nightHatchColor'),
-  ('nightBoundaryColor@' || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'nightBoundaryColor')
+cross join lateral jsonb_each_text(l.settings_json) as f(key, value)
+cross join lateral (
+  -- Every field but a packed code in its known layout: one row, as reported.
+  select
+    -- The eight graph colours: '#RRGGBB' where the user moved one, the literal 'default'
+    -- while it is still the built-in, absent wherever the watch paints no colour at all (a
+    -- Black & White theme, or B&W hardware — aplite/diorite/flint), on clients older than
+    -- the feature, and (graphSecondColor / graphThirdColor / graphFourthColor) wherever
+    -- their line is off.
+    --
+    -- These exist to inform the NEXT round of built-in defaults, so the setting NAME
+    -- carries everything that makes two values incomparable, and only the ranking is left
+    -- over:
+    --   * the THEME, because the watch already resolved each colour to the polarity it
+    --     renders — a dark-theme choice and a light-theme choice are different choices;
+    --   * the METRIC, because the colours are stored per metric now. graphMainColor is the
+    --     line colour of whichever metric is the secondary line, so blending wind's yellow
+    --     with uv's magenta into one ranking would answer no question anyone has.
+    --     graphSecondColor belongs to thirdLine, graphThirdColor to fourthLine and
+    --     graphFourthColor to fifthLine. The two night-band colours (hatch, dusk/dawn
+    --     line) belong to no metric and stay unkeyed.
+    -- Ordered by watches desc, so the top row per element is the popular choice. 'default'
+    -- will usually be that top row — that is the useful baseline (how many never touched
+    -- it); add `and s.option <> 'default'` below to rank the TUNED choices alone.
+    case
+      when f.key in ('graphMainColor', 'graphFillColor', 'nightFillColor')
+        then f.key || '@' || coalesce(l.settings_json ->> 'secondaryLine', 'unknown')
+                   || '@' || coalesce(l.settings_json ->> 'theme', 'unknown')
+      when f.key = 'graphSecondColor'
+        then f.key || '@' || coalesce(l.settings_json ->> 'thirdLine', 'unknown')
+                   || '@' || coalesce(l.settings_json ->> 'theme', 'unknown')
+      when f.key = 'graphThirdColor'
+        then f.key || '@' || coalesce(l.settings_json ->> 'fourthLine', 'unknown')
+                   || '@' || coalesce(l.settings_json ->> 'theme', 'unknown')
+      when f.key = 'graphFourthColor'
+        then f.key || '@' || coalesce(l.settings_json ->> 'fifthLine', 'unknown')
+                   || '@' || coalesce(l.settings_json ->> 'theme', 'unknown')
+      when f.key in ('nightHatchColor', 'nightBoundaryColor',
+                     'colorTime', 'colorToday', 'colorSunday', 'colorSaturday', 'colorUSFederal')
+        then f.key || '@' || coalesce(l.settings_json ->> 'theme', 'unknown')
+      else f.key
+    end,
+    -- Clay stores its colour pickers as the 0xRRGGBB int. Anything that is not one
+    -- (not digits, or above 0xFFFFFF, which lpad would cut to six digits) stays raw;
+    -- the nested CASE keeps the cast from running on a value the regex rejected.
+    case
+      when f.key in ('colorTime', 'colorToday', 'colorSunday', 'colorSaturday', 'colorUSFederal')
+           and f.value ~ '^[0-9]{1,8}$'
+        then case when f.value::bigint <= 16777215
+               then '#' || upper(lpad(to_hex(f.value::bigint), 6, '0'))
+               else f.value end
+      else f.value
+    end
+  where not ((f.key = 'alerts'    and length(f.value) = 10)
+          or (f.key = 'warnLooks' and length(f.value) = 8)
+          or (f.key = 'onDemand'  and length(f.value) = 40))
+  union all
+  -- alerts: two letters per metric alert. The first is o (not on any bar), i / v (icon /
+  -- icon+value, today only) or I / V (the same, looking ahead to tomorrow); the second
+  -- is '-' for today only, else the tomorrow mark's initial (raquo, gt, plus, star, none).
+  select 'alerts.' || k.kind,
+         case c.look
+           when 'o' then 'off'
+           when 'i' then 'icon, today'
+           when 'v' then 'icon+value, today'
+           when 'I' then 'icon, today+tomorrow'
+           when 'V' then 'icon+value, today+tomorrow'
+           else c.look || c.mark
+         end
+         || case when c.look in ('I', 'V')
+              then ', mark ' || case c.mark when 'r' then '»' when 'g' then '>'
+                                            when 'p' then '+' when 's' then '*'
+                                            when 'n' then 'none' else c.mark end
+              else '' end
+  from unnest(array['gust', 'uv', 'aqi', 'pollen', 'wind']) with ordinality as k(kind, i)
+  cross join lateral (select substr(f.value, (2 * k.i - 1)::int, 1) as look,
+                             substr(f.value, (2 * k.i)::int, 1)     as mark) c
+  where f.key = 'alerts' and length(f.value) = 10
+  union all
+  -- warnLooks: one letter per paired kind, n / o / f, resolved (the platform default
+  -- included), so it is the box the watch actually draws.
+  select 'warnLook.' || k.kind,
+         case substr(f.value, k.i::int, 1)
+           when 'n' then 'none' when 'o' then 'outline' when 'f' then 'fill'
+           else substr(f.value, k.i::int, 1)
+         end
+  from unnest(array['aqi', 'pollen', 'wind', 'gust', 'steps', 'sleep', 'distance', 'uv'])
+       with ordinality as k(kind, i)
+  where f.key = 'warnLooks' and length(f.value) = 8
+  union all
+  -- onDemand: ten letters per bar, one per item — L / R on a bar the layout shows,
+  -- l / r on a bar it leaves out, '-' not ticked.
+  select 'onDemand.' || it.item || '@' || b.bar,
+         case substr(f.value, ((b.i - 1) * 10 + it.i)::int, 1)
+           when 'L' then 'left'
+           when 'R' then 'right'
+           when 'l' then 'left (bar not in layout)'
+           when 'r' then 'right (bar not in layout)'
+           when '-' then 'off'
+           else substr(f.value, ((b.i - 1) * 10 + it.i)::int, 1)
+         end
+  from unnest(array['top', 'forecast', 'radar', 'health']) with ordinality as b(bar, i)
+  cross join unnest(array['battery', 'bt', 'qt', 'snooze', 'rain',
+                          'gust', 'uv', 'aqi', 'pollen', 'wind']) with ordinality as it(item, i)
+  where f.key = 'onDemand' and length(f.value) = 40
 ) as s(setting, option)
+-- jsonb_each_text yields NULL for a JSON null; absent keys yield no row at all.
 where s.option is not null
 group by s.setting, s.option
 order by s.setting, watches desc;
