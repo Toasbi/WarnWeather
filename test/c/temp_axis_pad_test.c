@@ -758,28 +758,86 @@ static void test_label_curve(void) {
     }
 }
 
-// --- THE SCALE (owner, 2026-10-02: "feels like and dew may do that") ----------------------
+// --- THE SCALE (owner, 2026-10-04: "always fit all lines") --------------------------------
 //
-// The temperature's own lowest and highest byte land on the margin rows; a feels-like or dew
-// point value beyond them runs on into the margin on the same scale and is held inside the
-// plot's content rows [1, plot_h]. The phone sends the three on their joint band, bytes
-// 0..250 (forecast-series.js), so a degree is the same number of bytes on all three.
+// The lowest and highest byte of the temperature and of every present line with an inset (a
+// line's byte 0, a missing reading, left out) land on the margin rows, and every byte of the
+// three lies on the one straight line through them. The phone sends the three on their joint
+// band, bytes 0..250 (forecast-series.js), so a degree is the same number of bytes on all
+// three. No line runs past a margin, so none is held at the plot's edge: the hold to the
+// content rows [1, plot_h] is a safety net only. Until then (owner, 2026-10-02: "feels like
+// and dew may do that") only the temperature was fitted, and a feels-like peak above it ran
+// on into the top margin and was held flat along the plot's top edge.
 
 #define FULL_SCALE 250   // forecast_layer.c FORECAST_TREND_FULL_SCALE, the wire's byte range
 
-// fit_temp_axis (forecast_layer.c), line for line: the fit off the temperature's bytes over
-// every hour sent, then the temperature (its byte 0 is data) and every line with an inset (a
-// floating line, whose byte 0 is a missing reading) turned into rows, in place.
+// One line of the graph as fit_temp_axis reads it (series.h Series): its bytes, whether the
+// phone sent it, its curve-inset byte (not 0: on the temperature's scale) and its floating
+// bit (byte 0 a missing reading).
+typedef struct {
+    int16_t values[MAX_ENTRIES];
+    bool present;
+    int inset_y;
+    bool floating;
+} TLine;
+
+// fit_temp_axis (forecast_layer.c), line for line, over s[0..count): s[0] the temperature,
+// the rest the metric lines. The joint range from TEMP_AXIS_RANGE_NONE through the
+// temperature's bytes and every present line's with an inset, the fit on it, then the same
+// series turned into rows, in place. The margins come in worked out (layout() below, or
+// temp_axis_margins), where the layer works them out off the curve's inset.
+static TempAxisFit fit_lines(TLine *s, int count, int n, int plot_h, TempMargin m) {
+    TempAxisRange range = TEMP_AXIS_RANGE_NONE;
+    for (TLine *l = s; l < s + count; ++l) {
+        if (l == s || (l->present && l->inset_y)) {
+            temp_axis_range_widen(&range, l->values, n, l->floating);
+        }
+    }
+    const TempAxisFit fit = temp_axis_fit_range(range, m, plot_h, FULL_SCALE);
+    for (TLine *l = s; l < s + count; ++l) {
+        if (l == s || (l->present && l->inset_y)) {
+            temp_axis_rows(l->values, n, fit, l->floating);
+        }
+    }
+    return fit;
+}
+
+// The temperature and at most one feels-like or dew point line (NULL: none sent), fitted by
+// fit_lines and copied back in place.
 static TempAxisFit fit_all(int16_t *temps, int16_t *line, int n, int plot_h, TempMargin m) {
+    TLine s[2];
+    memset(s, 0, sizeof(s));
+    memcpy(s[0].values, temps, (size_t)n * sizeof(int16_t));
+    s[0].present = true;
+    s[0].inset_y = INSET;
+    if (line) { memcpy(s[1].values, line, (size_t)n * sizeof(int16_t)); }
+    s[1].present = line != NULL;
+    s[1].inset_y = INSET;
+    s[1].floating = true;
+    const TempAxisFit f = fit_lines(s, 2, n, plot_h, m);
+    memcpy(temps, s[0].values, (size_t)n * sizeof(int16_t));
+    if (line) { memcpy(line, s[1].values, (size_t)n * sizeof(int16_t)); }
+    return f;
+}
+
+// The fit before this rule, the temperature's bytes alone (temp_axis_fit): the reference for
+// the lines inside its range, and the old rows the worked examples set against the new.
+static TempAxisFit fit_temp_only(int16_t *temps, int16_t *line, int n, int plot_h,
+                                 TempMargin m) {
     const TempAxisFit f = temp_axis_fit(temps, n, m, plot_h, FULL_SCALE);
     temp_axis_rows(temps, n, f, false);
     if (line) { temp_axis_rows(line, n, f, true); }
     return f;
 }
 
+static bool same_rows(const int16_t *a, const int16_t *b, int n) {
+    return memcmp(a, b, (size_t)n * sizeof(int16_t)) == 0;
+}
+
 // The rows the temperature's lowest and highest byte take, over every plot and margin the
-// views can lay out and every byte range: exactly the margin rows, the rest between them in
-// order, and a line value equal to a temperature value on the same row.
+// views can lay out and every byte range, with a line no wider than the temperature: exactly
+// the margin rows, the rest between them in order, and a line value equal to a temperature
+// value on the same row.
 static void test_scale_extremes(void) {
     int checked = 0;
     for (int plot_h = 24; plot_h <= EMERY_SCREEN_H; ++plot_h) {
@@ -815,42 +873,204 @@ static void test_scale_extremes(void) {
     assert(checked > 100000);
 }
 
-// A worked example, the phone's own numbers (test/forecast-series.test.js: temps 10..30 °F,
-// feels up to 38): the joint band [10, 38], temps on bytes 0, 89, 179, the feels on 45, 89,
-// 250. basalt's default view, 55 rows, the rain bars standing: 7 px both edges (the share, an
-// eighth, is 6), 41 rows between the margins for the temperature's 20 degrees.
+// Worked examples, the phone's own numbers. basalt's default view, 55 rows, the rain bars
+// standing: 7 px both edges (the share, an eighth, is 6), 41 rows between the margins.
 static void test_scale_example(void) {
-    int16_t t[3] = { 0, 89, 179 }, feels[3] = { 45, 89, 250 };
     const TempMargin m = temp_axis_margins(INSET, BASALT_COMPACTCAL, TEMP_AXIS_ANCHOR_BOTTOM);
     assert(m.top == INSET && m.bottom == INSET);
+    const int top_row = BASALT_COMPACTCAL - INSET;   // 48
+    // test/forecast-series.test.js: temps 10..30 °F, feels up to 38. The joint band [10, 38]:
+    // temps on bytes 0, 89, 179, the feels on 45, 89, 250. The joint range is the whole band,
+    // 10 °F on the bottom margin row and the feels-like 38 °F on the top one: the air's high,
+    // 30 °F, sits 12 rows under it (until now it took the top margin row itself, and the feels
+    // peak, 16 rows over it, was held on the plot's top row, 55).
+    int16_t t[3] = { 0, 89, 179 }, feels[3] = { 45, 89, 250 };
     const TempAxisFit f = fit_all(t, feels, 3, BASALT_COMPACTCAL, m);
-    assert(f.span == 179 && f.d == 41 && f.off == INSET);
-    // The temperature fills its margins: 10 °F on row 7, 30 °F on row 48 (55 - 7).
-    assert(t[0] == 7 && t[1] == 27 && t[2] == 48);
-    // 20 °F is the same row on both lines; the feels-like low 15 °F, inside the range, on 17.
-    assert(feels[1] == t[1] && feels[0] == 17);
-    // 38 °F is 8 degrees over the air's high, 16 rows on a 41-row 20 degrees: past the 7 px
-    // margin, so it is held on the plot's top content row, 55.
-    assert(feels[2] == BASALT_COMPACTCAL);
-    // 32 °F (byte 197) runs 2 degrees on into the top margin, 4 rows over the air's high.
+    assert(f.span == 250 && f.d == 41 && f.off == INSET);
+    assert(t[0] == 7 && t[1] == 21 && t[2] == 36);
+    assert(feels[0] == 14 && feels[1] == t[1] && feels[2] == top_row);
+    // 32 °F (byte 197) lies between the air's high and the feels peak, on the same scale.
     int16_t two_over[1] = { 197 };
     temp_axis_rows(two_over, 1, f, true);
-    assert(two_over[0] == 52 && two_over[0] > t[2] && two_over[0] < BASALT_COMPACTCAL);
-    // The same day's dew point under the air's low (temps 10..30, dew down to 2: the joint band
-    // [2, 30], temps 18..250): the dew line runs on into the bottom margin, then is held on
-    // row 1, the content row over the zero row, never on it.
-    int16_t t2[3] = { 71, 161, 250 }, dew[4] = { 63, 54, 1, 0 };
-    const TempAxisFit f2 = fit_all(t2, NULL, 3, BASALT_COMPACTCAL, m);
-    temp_axis_rows(dew, 4, f2, true);
-    assert(t2[0] == 7 && t2[2] == 48);
-    assert(dew[0] == 5 && dew[1] == 3);   // 1 and 2 degrees under: into the margin
-    assert(dew[2] == 1);                  // 20 degrees under: held over the zero row
-    assert(dew[3] == 0);                  // no reading stays no reading
+    assert(two_over[0] == 39 && two_over[0] > t[2] && two_over[0] < top_row);
+
+    // A summer day, 18..24 °C: whole °F temps 64..75, feels-like up to 86 (forecast-series.js
+    // on the joint band [64, 86]: temps 0..125, feels 1..250; the feels low, 64, on byte 1,
+    // a line's floor). Before: the temperature alone filled the margins, and three hours of
+    // feels-like were held flat on the plot's top row. Now the feels peak takes the top margin
+    // row and the temperature curve sits under it, the two curves' gaps true to scale.
+    const int16_t temps_in[6] = { 0, 45, 91, 125, 91, 45 };
+    const int16_t feels_in[6] = { 1, 68, 171, 250, 171, 68 };
+    int16_t old_t[6], old_f[6], new_t[6], new_f[6];
+    memcpy(old_t, temps_in, sizeof(old_t));
+    memcpy(old_f, feels_in, sizeof(old_f));
+    memcpy(new_t, temps_in, sizeof(new_t));
+    memcpy(new_f, feels_in, sizeof(new_f));
+    fit_temp_only(old_t, old_f, 6, BASALT_COMPACTCAL, m);
+    fit_all(new_t, new_f, 6, BASALT_COMPACTCAL, m);
+    const int16_t want_old_t[6] = { 7, 21, 36, 48, 36, 21 };
+    const int16_t want_old_f[6] = { 7, 29, 55, 55, 55, 29 };   // held flat on the top row
+    const int16_t want_new_t[6] = { 7, 14, 21, 27, 21, 14 };
+    const int16_t want_new_f[6] = { 7, 18, 35, 48, 35, 18 };
+    assert(same_rows(old_t, want_old_t, 6) && same_rows(old_f, want_old_f, 6));
+    assert(same_rows(new_t, want_new_t, 6) && same_rows(new_f, want_new_f, 6));
+
+    // A dew point under the air's low (temps 10..30, dew down to 2: the joint band [2, 30],
+    // temps 71..250, the dew low on byte 1, an hour with no dew reading on 0). The dew trough
+    // takes the bottom margin row, the air's low sits 11 rows over it, and the hour without a
+    // reading stays one (until now the dew line ran on into the margin and was held on row 1).
+    int16_t t2[4] = { 71, 161, 250, 161 }, dew[4] = { 63, 54, 1, 0 };
+    const TempAxisFit f2 = fit_all(t2, dew, 4, BASALT_COMPACTCAL, m);
+    assert(f2.span == 249);
+    assert(t2[0] == 18 && t2[1] == 33 && t2[2] == top_row && t2[3] == 33);
+    assert(dew[0] == 17 && dew[1] == 15 && dew[2] == m.bottom && dew[3] == 0);
 }
 
-// Held inside the plot: never past the content rows, whatever a line's bytes, and a missing
-// reading is never turned into a drawn row. Under a top stripe band the far row is the band's
-// foot (the plot's first content row), so a held peak never reaches into the band's gap.
+// THE rule, case by case, over every plot the views lay out (and every one between): a line
+// past the temperature's range takes the margin row, a line inside it changes nothing, and
+// neither a missing reading nor a line that is not sent, or not on the temperature's scale,
+// widens the range.
+static void test_scale_all_lines(void) {
+    srand(17);
+    int peaks = 0, troughs = 0, inside = 0;
+    for (int iter = 0; iter < 200000; ++iter) {
+        const int plot_h = 24 + rand() % (EMERY_SCREEN_H - 23);
+        const TempMargin m = temp_axis_margins(INSET, plot_h, rand() % 4);
+        if (plot_h - m.top - m.bottom < 0) { continue; }
+        const int top_row = plot_h - m.top;
+        const int n = 2 + rand() % (MAX_ENTRIES - 1);
+        // The temperature somewhere in the byte range, its own [tlo, thi] not flat.
+        const int base = rand() % 200, spread = 1 + rand() % (FULL_SCALE - base);
+        int16_t t[MAX_ENTRIES], line[MAX_ENTRIES], ref_t[MAX_ENTRIES], ref_l[MAX_ENTRIES];
+        for (int i = 0; i < n; ++i) { t[i] = (int16_t)(base + rand() % (spread + 1)); }
+        t[0] = (int16_t)base;
+        t[1] = (int16_t)(base + spread);
+        const TempAxisRange own = temp_axis_range(t, n);
+        const int tlo = own.lo, thi = own.hi;
+        const int kind = rand() % 3;   // 0: a peak over thi, 1: a trough under tlo, 2: inside
+        int lmin = 1000, lmax = -1;
+        for (int i = 0; i < n; ++i) {
+            int v;
+            if (rand() % 4 == 0) {
+                v = 0;                                   // no reading
+            } else if (kind == 2) {
+                v = tlo + rand() % (thi - tlo + 1);
+                if (v < 1) { v = 1; }
+            } else {
+                v = 1 + rand() % FULL_SCALE;
+            }
+            line[i] = (int16_t)v;
+            if (v > 0 && v < lmin) { lmin = v; }
+            if (v > 0 && v > lmax) { lmax = v; }
+        }
+        memcpy(ref_t, t, sizeof(t));
+        memcpy(ref_l, line, sizeof(line));
+        int16_t before_t[MAX_ENTRIES], before[MAX_ENTRIES];
+        memcpy(before_t, t, sizeof(t));
+        memcpy(before, line, sizeof(line));
+        fit_temp_only(ref_t, ref_l, n, plot_h, m);
+        const TempAxisFit f = fit_all(t, line, n, plot_h, m);
+        const int jlo = lmax < 0 || tlo < lmin ? tlo : lmin;
+        const int jhi = lmax < 0 || thi > lmax ? thi : lmax;
+        assert(f.span == jhi - jlo && f.d == plot_h - m.top - m.bottom);
+        int trmin = 1000, trmax = -1, lrmin = 1000, lrmax = -1;
+        for (int i = 0; i < n; ++i) {
+            // Every byte of the two on the one straight line, and never past a margin: no
+            // row is held at the plot's edge.
+            assert(t[i] == f.off + before_t[i] * f.d / f.span);
+            assert(before[i] == 0 || line[i] == f.off + before[i] * f.d / f.span);
+            assert(t[i] >= m.bottom && t[i] <= top_row);
+            if (t[i] < trmin) { trmin = t[i]; }
+            if (t[i] > trmax) { trmax = t[i]; }
+            if (before[i] == 0) {
+                assert(line[i] == 0);                    // (4) no reading stays no reading
+                continue;
+            }
+            assert(line[i] >= m.bottom && line[i] <= top_row);
+            if (line[i] < lrmin) { lrmin = line[i]; }
+            if (line[i] > lrmax) { lrmax = line[i]; }
+        }
+        // The joint extremes on the margin rows, whichever series holds them.
+        assert((trmin < lrmin ? trmin : lrmin) == m.bottom);
+        assert((trmax > lrmax ? trmax : lrmax) == top_row);
+        if (lmax > thi) {
+            // (1) A line's peak over the temperature takes the top margin row, and the
+            // temperature's high comes down under it as soon as the gap is a row's worth.
+            assert(lrmax == top_row);
+            if ((lmax - thi) * f.d >= f.span) { assert(trmax < top_row); }
+            ++peaks;
+        }
+        if (lmax > 0 && lmin < tlo) {
+            // (2) A trough under the temperature takes the bottom margin row, and the
+            // temperature's low comes up off it as soon as the gap is a row's worth.
+            assert(lrmin == m.bottom);
+            if ((tlo - lmin) * f.d >= f.span) { assert(trmin > m.bottom); }
+            ++troughs;
+        }
+        if (jlo == tlo && jhi == thi) {
+            // (3)+(4) Inside the temperature's range (missing readings aside): the rows of
+            // the temperature-only fit, byte for byte.
+            assert(same_rows(t, ref_t, n) && same_rows(line, ref_l, n));
+            ++inside;
+        }
+    }
+    assert(peaks > 10000 && troughs > 10000 && inside > 10000);
+
+    // (1) basalt's no-calendar view, nothing anchored (77 rows, 7 px margins): a feels-like
+    // peak 125 bytes over the air's high takes the top margin row, 70; the air's high, on
+    // its own margin row until now, sits 32 rows under it.
+    const TempMargin nocal = temp_axis_margins(INSET, BASALT_NOCAL, 0);
+    int16_t t1[3] = { 0, 125, 60 }, peak[3] = { 1, 250, 60 };
+    fit_all(t1, peak, 3, BASALT_NOCAL, nocal);
+    assert(peak[1] == BASALT_NOCAL - INSET && t1[1] == 38 && t1[0] == INSET);
+    // (2) The same view, a dew trough 124 bytes under the air's low: it takes the bottom
+    // margin row, 7, and the air's low sits 31 rows over it.
+    int16_t t3[3] = { 125, 250, 200 }, trough[3] = { 1, 125, 200 };
+    fit_all(t3, trough, 3, BASALT_NOCAL, nocal);
+    assert(trough[0] == INSET && t3[0] == 38 && t3[1] == BASALT_NOCAL - INSET);
+    // (4) A missing reading widens nothing: the line's bytes 0 under the air's low, its one
+    // reading inside the range, give the temperature-only rows; the zeros stay zeros.
+    int16_t t4[3] = { 100, 200, 150 }, gappy[3] = { 0, 150, 0 };
+    int16_t r4[3] = { 100, 200, 150 }, rg[3] = { 0, 150, 0 };
+    fit_all(t4, gappy, 3, BASALT_NOCAL, nocal);
+    fit_temp_only(r4, rg, 3, BASALT_NOCAL, nocal);
+    assert(same_rows(t4, r4, 3) && same_rows(gappy, rg, 3));
+    assert(gappy[0] == 0 && gappy[2] == 0 && t4[0] == INSET);
+    TempAxisRange r = TEMP_AXIS_RANGE_NONE;
+    const int16_t zeros[2] = { 0, 0 };
+    temp_axis_range_widen(&r, zeros, 2, true);
+    assert(r.lo == 255 && r.hi == 0);                // a floating line's zeros: untouched
+    temp_axis_range_widen(&r, zeros, 2, false);
+    assert(r.lo == 0 && r.hi == 0);                  // the temperature's zeros are data
+    // (5) A line that is not sent (its bytes left over from an earlier redraw), and one sent
+    // with no inset (an amount metric, full height on its own scale), widen nothing, and both
+    // keep their bytes: only the present lines with an inset are turned into rows.
+    TLine s[3];
+    memset(s, 0, sizeof(s));
+    const int16_t temps5[3] = { 100, 200, 150 };
+    memcpy(s[0].values, temps5, sizeof(temps5));
+    s[0].present = true;
+    s[0].inset_y = INSET;
+    const int16_t far[3] = { 250, 1, 250 };
+    memcpy(s[1].values, far, sizeof(far));
+    s[1].present = false;                            // not sent
+    s[1].inset_y = INSET;
+    s[1].floating = true;
+    memcpy(s[2].values, far, sizeof(far));
+    s[2].present = true;                             // sent, off the temperature's scale
+    s[2].inset_y = 0;
+    int16_t r5[3] = { 100, 200, 150 };
+    fit_lines(s, 3, 3, BASALT_NOCAL, nocal);
+    fit_temp_only(r5, NULL, 3, BASALT_NOCAL, nocal);
+    assert(same_rows(s[0].values, r5, 3));
+    assert(same_rows(s[1].values, far, 3) && same_rows(s[2].values, far, 3));
+    assert(s[0].values[0] == INSET && s[0].values[1] == BASALT_NOCAL - INSET);
+}
+
+// The hold to the content rows [1, plot_h] is a safety net: a byte the fit's range does not
+// cover (none the fit itself is handed) is held inside the plot, and a missing reading is
+// never turned into a drawn row. Under a top stripe band the joint high lands on its margin
+// row under the band's foot, as the temperature's own did, never in the band's gap.
 static void test_scale_clamp(void) {
     srand(11);
     for (int iter = 0; iter < 200000; ++iter) {
@@ -865,18 +1085,32 @@ static void test_scale_clamp(void) {
         }
         int16_t before[MAX_ENTRIES];
         memcpy(before, line, sizeof(line));
-        fit_all(t, line, n, plot_h, m);
+        const TempAxisFit f = fit_all(t, line, n, plot_h, m);
         for (int i = 0; i < n; ++i) {
-            assert(t[i] >= 1 && t[i] <= plot_h);
+            assert(t[i] >= m.bottom && t[i] <= plot_h - m.top);
             if (before[i] == 0) {
                 assert(line[i] == 0);
             } else {
-                assert(line[i] >= 1 && line[i] <= plot_h);
+                assert(line[i] >= m.bottom && line[i] <= plot_h - m.top);
             }
         }
+        // The net itself: the wire's extreme bytes, whatever the fit's range, held on the
+        // content rows.
+        int16_t stray[2] = { 255, 0 };
+        temp_axis_rows(stray, 2, f, false);
+        assert(stray[0] >= 1 && stray[0] <= plot_h);
+        assert(stray[1] >= 1 && stray[1] <= plot_h);
     }
-    // The views under top stripe bands: a feels-like peak far over the air's high is held on
-    // the plot's first content row, the band's foot, not in the gap above it.
+    // A fit on a narrow range: a byte far over it is held on the plot's far row, one far
+    // under it on row 1, the content row over the zero row, never on it.
+    const TempMargin m = temp_axis_margins(INSET, BASALT_COMPACTCAL, 0);
+    const TempAxisRange narrow = { 100, 110 };
+    const TempAxisFit f = temp_axis_fit_range(narrow, m, BASALT_COMPACTCAL, FULL_SCALE);
+    int16_t out[3] = { 250, 1, 0 };
+    temp_axis_rows(out, 3, f, true);
+    assert(out[0] == BASALT_COMPACTCAL && out[1] == 1 && out[2] == 0);
+    // The views under top stripe bands: a feels-like peak far over the air's high takes the
+    // top margin row under the band (the inset below its foot), the air's high under it.
     Ser one[] = { AT(K_STRIPE, true, 0) };
     Ser three[] = { AT(K_STRIPE, true, 0), AT(K_STRIPE, true, 1), AT(K_STRIPE, true, 2) };
     const Plot plots[] = { layout(BASALT_COMPACTCAL, INSET, one, 1, MAX_ENTRIES),
@@ -885,15 +1119,16 @@ static void test_scale_clamp(void) {
         assert(plots[v].top_band > 0);
         int16_t t[2] = { 0, 150 }, feels[2] = { 100, 250 };
         fit_all(t, feels, 2, plots[v].plot_h, plots[v].margin);
-        assert(t[1] == plots[v].plot_h - plots[v].margin.top);
-        assert(feels[1] == plots[v].plot_h);   // y = top_band: the first row under the band
+        assert(feels[1] == plots[v].plot_h - plots[v].margin.top);
+        assert(t[0] == plots[v].margin.bottom && t[1] < feels[1]);
     }
 }
 
-// A flat temperature has no span of its own: the whole byte range stands in, the joint band
-// on the margin rows (the mapping before THE SCALE). Without a feels-like or dew line the
-// phone sends a flat temperature as byte 125: mid-plot. With one, the joint band puts the
-// temperature on its edge byte and the line across the rest. Never a division by zero.
+// A flat joint range has no span: the whole byte range stands in, the joint band on the
+// margin rows. Without a feels-like or dew line the phone sends a flat temperature as byte
+// 125: mid-plot, and so with a line flat on the same byte, or one with no reading at all. A
+// flat temperature under a line that is not flat is no flat range: the two fill the margins.
+// Never a division by zero.
 static void test_scale_flat(void) {
     for (int plot_h = 24; plot_h <= EMERY_SCREEN_H; ++plot_h) {
         const TempMargin m = temp_axis_margins(INSET, plot_h, 0);
@@ -907,13 +1142,43 @@ static void test_scale_flat(void) {
         int16_t mid[2] = { 125, 125 };
         fit_all(mid, NULL, 2, plot_h, m);
         assert(mid[0] == m.bottom + d / 2);
-        // Flat at the joint band's top (feels-like up to a degree under it): the temperature on
-        // the top margin row, the feels-like line's floor on the bottom one.
+        int16_t mid2[2] = { 125, 125 }, flat_line[2] = { 125, 125 };
+        fit_all(mid2, flat_line, 2, plot_h, m);
+        assert(mid2[0] == m.bottom + d / 2 && flat_line[1] == mid2[0]);
+        int16_t mid3[2] = { 125, 125 }, no_reading[2] = { 0, 0 };
+        fit_all(mid3, no_reading, 2, plot_h, m);
+        assert(mid3[0] == m.bottom + d / 2 && no_reading[0] == 0 && no_reading[1] == 0);
+        // Flat at the joint band's top (feels-like down to its floor byte under it): the
+        // temperature on the top margin row, the feels-like low on the bottom one.
         int16_t top[2] = { 250, 250 }, feels[2] = { 1, 250 };
         fit_all(top, feels, 2, plot_h, m);
         assert(top[0] == plot_h - m.top && feels[1] == top[0]);
-        assert(feels[0] == m.bottom + d / FULL_SCALE);
+        assert(feels[0] == m.bottom);
     }
+}
+
+// The hi/lo labels follow the temperature curve as it is drawn: under a feels-like peak the
+// curve's top comes down off the top margin row, and the hi label's ink comes down with it.
+static void test_scale_labels(void) {
+    // The summer day of test_scale_example in basalt's no-calendar view, nothing anchored
+    // (77 rows, 7 px margins): the air's high on row 38, screen row 39; its low on row 7,
+    // screen row 70. The hi label's ink (11 rows) centres on row 39, from today's -3 down to
+    // 27; the lo label stays (the curve's floor still on its margin row).
+    const TempMargin m = temp_axis_margins(INSET, BASALT_NOCAL, 0);
+    int16_t t[6] = { 0, 45, 91, 125, 91, 45 }, feels[6] = { 1, 68, 171, 250, 171, 68 };
+    fit_all(t, feels, 6, BASALT_NOCAL, m);
+    assert(t[3] == 38 && t[0] == INSET && feels[3] == BASALT_NOCAL - INSET);
+    int hi = hi_today(18, false), lo = lo_today(18, BASALT_NOCAL);
+    temp_labels_align_to_curve(&hi, &lo, 18, t, 6, BASALT_NOCAL);
+    assert(hi == 27 && lo == lo_today(18, BASALT_NOCAL));
+    assert(ink_top(hi, 18) == 39 - 5 && ink_bottom(hi, 18) == 39 + 5);
+    // The same day fitted to the temperature alone (before): its high on the top margin row,
+    // the label in today's place.
+    int16_t old_t[6] = { 0, 45, 91, 125, 91, 45 };
+    fit_temp_only(old_t, NULL, 6, BASALT_NOCAL, m);
+    int hi_old = hi_today(18, false), lo_old = lo_today(18, BASALT_NOCAL);
+    temp_labels_align_to_curve(&hi_old, &lo_old, 18, old_t, 6, BASALT_NOCAL);
+    assert(hi_old == -3 && lo_old == lo_today(18, BASALT_NOCAL));
 }
 
 int main(void) {
@@ -932,8 +1197,10 @@ int main(void) {
     test_label_curve();
     test_scale_extremes();
     test_scale_example();
+    test_scale_all_lines();
     test_scale_clamp();
     test_scale_flat();
+    test_scale_labels();
     printf("temp_axis_pad_test: all passed\n");
     return 0;
 }

@@ -322,7 +322,8 @@ function jointTempAxisBand(tempMin, tempMax, series) {
  * shared temperature axis: the joint band of the temperature and every drawn
  * temperature-axis series (applyForecastSeries has already built it, so all the
  * curves share one value space and the gaps between them are real; the watch fits
- * that space so the temperature's own range fills its margins, temp_axis_pad.h).
+ * that space so the lowest and highest of all the curves fill its margins,
+ * temp_axis_pad.h).
  * No band (a direct buildForecastSeries caller) → the series scales against
  * its own min/max. Empty/absent series → [] (line off, same graceful degrade as the
  * other metrics); an hour with no reading → null (metricBytes ships it as absent).
@@ -471,17 +472,18 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // share one value space, so with a feels or dew line selected the temps
     // encode against the joint band (the lowest and highest value of the three,
     // unpadded), and tempAxisPermille maps those against that same band via
-    // raw.tempBand. The FITTING is the watch's: it reads the temperature's own
-    // lowest and highest byte back and lands them on its margin rows, and a
-    // feels or dew value beyond them runs on into the margin on the same scale,
-    // held at the plot's edge (temp_axis_pad.h THE SCALE) — only the watch knows
-    // the plot's height and margins, so padding the band here would only spend
-    // byte resolution.
+    // raw.tempBand. The FITTING is the watch's: it reads the lowest and highest
+    // byte of the temperature and of every feels or dew line back and lands them
+    // on its margin rows, so a feels peak or a dew trough beyond the temperature
+    // takes the margin row and the temperature curve sits inside it (owner,
+    // 2026-10-04: "always fit all lines"; temp_axis_pad.h THE SCALE) — only the
+    // watch knows the plot's height and margins, so padding the band here would
+    // only spend byte resolution.
     //
     // TEMP_MIN/TEMP_MAX are NOT the scaling band: the watch scales purely from
     // the bytes and reads these two only to print the hi/lo labels
     // (text_labels_refresh). So they keep carrying the ACTUAL air temperature
-    // range, the very window the watch's fit reads off the temperature's bytes —
+    // range, over the very window the watch's fit reads off the bytes —
     // a "lo" of 52 on a day whose air never dropped below 60 would be a plain
     // lie. The feels and dew curves' own extremes are unlabelled.
     //

@@ -140,11 +140,11 @@ test('forecastPreview draws feels-like grey, and the hi/lo labels stay the ACTUA
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off', secondaryLineFill: false };
   const svg = FC.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels' }), { color: true });
   assert.ok(svg.indexOf('stroke="#AAAAAA"') > -1, 'feels = light grey line (dark theme)');
-  // The feels sample dips to 11° under the 14° temp min. The SCALING band widens (and
-  // pads) to fit it, but the labels name the air temperature — the watch prints
-  // TEMP_MIN/TEMP_MAX as text, so a low the air never reached would be a lie.
+  // The feels sample dips to 13° under the 14° temp min. The SCALE widens to fit it (the
+  // watch fits every line to its margins), but the labels name the air temperature — the
+  // watch prints TEMP_MIN/TEMP_MAX as text, so a low the air never reached would be a lie.
   assert.ok(svg.indexOf('>14°<') > -1, 'lo label stays the actual temperature low');
-  assert.equal(svg.indexOf('>11°<'), -1, 'the feels minimum is never labelled');
+  assert.equal(svg.indexOf('>13°<'), -1, 'the feels minimum is never labelled');
   assert.ok(svg.indexOf('>Feels<') > -1, 'legend lists the feels series');
   const plain = FC.forecastPreview(Object.assign({}, base, { secondaryLine: 'precip_prob' }), { color: true });
   assert.ok(plain.indexOf('>14°<') > -1, 'and they are the same labels without feels');
@@ -162,15 +162,16 @@ test('feels-like as the second metric draws grey squares, labels still the actua
   assert.ok(svg.indexOf('<rect') > -1 && svg.indexOf('fill="#AAAAAA"') > -1,
     'feels renders as filled grey squares');
   assert.ok(svg.indexOf('>14°<') > -1, 'lo label unchanged by the second line too');
-  assert.equal(svg.indexOf('>11°<'), -1);
+  assert.equal(svg.indexOf('>13°<'), -1, 'the feels minimum is never labelled');
 });
 
-test('the preview\'s feels and dew curves run on into the margin on the temperature\'s scale, held at the floor', () => {
-  // Mirrors temp_axis_pad.h THE SCALE (owner, 2026-10-02: "feels like and dew may do that").
-  // The temperature's own 14..24 fills the margins: 24 on 19 (PT 4 + 3 + the 12-unit inset),
-  // 14 on ybot = 82.0 (PB 94 - 12), 6.3 units a degree. The sample feels low, 13, runs on a
-  // degree into the bottom margin, 88.3; the dew low, 12, would lie two degrees under (94.6,
-  // past the zero line) and is held one watch row (12/7 units) over it.
+test('the preview\'s feels and dew curves share the temperature\'s scale, all three fitted to the margins', () => {
+  // Mirrors temp_axis_pad.h THE SCALE (owner, 2026-10-04: "always fit all lines"). The joint
+  // range 12..24 fills the margins: the air's high, 24, on 19 (PT 4 + 3 + the 12-unit
+  // inset), the dew low, 12, on ybot = 82 (PB 94 - 12), 5.25 units a degree. The air's low,
+  // 14, sits two degrees over that floor row (71.5), the feels-like low, 13, one (76.75), and
+  // no curve is held at the plot's edge (until then the temperature alone filled the margins,
+  // 6.3 units a degree, and the dew low was held one watch row over the zero line, 92.3).
   const svg = FC.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid',
     secondaryLine: 'feels', thirdLine: 'dew', thirdLineStyle: 'line', secondaryLineFill: false }, { color: true });
   const ysOf = (stroke) => {
@@ -180,10 +181,10 @@ test('the preview\'s feels and dew curves run on into the margin on the temperat
   };
   const near = (a, b) => Math.abs(a - b) < 1e-9;
   const temp = ysOf('#FF0000');
-  assert.ok(near(Math.min.apply(null, temp), 19) && near(Math.max.apply(null, temp), 82),
-    'the temperature fills its margins, with a feels-like and a dew line on');
-  assert.ok(near(Math.max.apply(null, ysOf('#AAAAAA')), 82 + 6.3), 'feels: a degree into the margin');
-  assert.ok(near(Math.max.apply(null, ysOf('#55AAAA')), 94 - 12 / 7), 'dew: held over the zero line');
+  assert.ok(near(Math.min.apply(null, temp), 19), 'the air\'s high, the joint high, on the top margin row');
+  assert.ok(near(Math.max.apply(null, temp), 82 - 2 * 5.25), 'the air\'s low two degrees over the floor row');
+  assert.ok(near(Math.max.apply(null, ysOf('#AAAAAA')), 82 - 5.25), 'feels: its low a degree over the floor row');
+  assert.ok(near(Math.max.apply(null, ysOf('#55AAAA')), 82), 'dew: its low, the joint low, on the floor row');
 });
 
 // The temp curve is the only #FF0000 stroke in the color preview; its path starts at
@@ -1796,22 +1797,34 @@ test('forecastPreview: a stored stripe on feels, dew or pressure previews as the
 // LightGray path: the feels-like curve drawn as a line.
 const tempCurvePath = (svg) => /<path d="([^"]+)" fill="none" stroke="#FF0000"/.exec(svg)[1];
 const feelsCurvePath = (svg) => /<path d="([^"]+)" fill="none" stroke="#AAAAAA" stroke-width="1.6"/.exec(svg)[1];
-test('forecastPreview: a feels line on any metric line keeps the temperature on its own scale, and itself on it', () => {
-  // The watch fits the temperature's own range to the margins whatever rides its axis
-  // (temp_axis_pad.h THE SCALE), so the temp curve never moves for a feels-like line, and
-  // the feels-like curve is the same on every line that draws it.
+test('forecastPreview: a feels line on any metric line fits the temperature and itself alike', () => {
+  // The watch fits the temperature and every feels-like or dew point line it draws to the
+  // margins (temp_axis_pad.h THE SCALE; owner, 2026-10-04: "always fit all lines"), so the
+  // sample feels low, a degree under the air's, moves the temperature curve the same way on
+  // whichever line draws it, and the feels-like curve is the same on every one.
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob',
     secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' };
   const env = { color: true, platform: 'basalt', lineStyles: true };
   const plain = tempCurvePath(FC.forecastPreview(base, env));
   const onThird = FC.forecastPreview(Object.assign({}, base, { thirdLine: 'feels', thirdLineStyle: 'line' }), env);
-  assert.equal(tempCurvePath(onThird), plain, 'the second metric line');
+  // The curve's vertex rows (the M point and each cubic's end point). Alone the air's 14..24
+  // fills the margin rows 19..82; with the feels-like line the joint 13..24 does, so the air's
+  // high stays on 19 and its low, 14, sits a degree (63 / 11 units) over the floor row.
+  const rowsOf = (path) => [...path.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((p) => Number(p[2]))
+    .filter((_, i) => i === 0 || i % 3 === 0);
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  const plainRows = rowsOf(plain), thirdRows = rowsOf(tempCurvePath(onThird));
+  assert.ok(near(Math.min.apply(null, plainRows), 19) && near(Math.max.apply(null, plainRows), 82),
+    'premise: alone the air fills the margins');
+  assert.ok(near(Math.min.apply(null, thirdRows), 19) && near(Math.max.apply(null, thirdRows), 82 - 63 / 11),
+    'the second metric line: the feels low lifts the air\'s off the floor');
   [{ fourthLine: 'feels', fourthLineStyle: 'line' }, { fifthLine: 'feels', fifthLineStyle: 'line' }].forEach((over) => {
     const svg = FC.forecastPreview(Object.assign({}, base, over), env);
-    assert.equal(tempCurvePath(svg), plain, JSON.stringify(over));
+    assert.equal(tempCurvePath(svg), tempCurvePath(onThird), JSON.stringify(over));
     assert.equal(feelsCurvePath(svg), feelsCurvePath(onThird), JSON.stringify(over));
   });
-  // A watch without WW_LINE_STYLE draws neither of those lines; its temperature keeps its scale.
+  // A watch without WW_LINE_STYLE draws neither of those lines, so neither widens its range:
+  // its temperature keeps its own scale.
   const frozenEnv = { color: true, platform: 'aplite', lineStyles: false };
   assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels', fifthLine: 'dew' }), frozenEnv)),
     tempCurvePath(FC.forecastPreview(base, frozenEnv)), 'aplite preview: the temperature\'s own scale');

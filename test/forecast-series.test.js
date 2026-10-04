@@ -763,7 +763,7 @@ test('applyForecastSeries deletes the transient PRESSURE_TREND', () => {
 // TEMPERATURE axis: applyForecastSeries encodes the temps and the feels on their joint
 // temp∪feels band (the plain lowest and highest value of the two), so both curves share
 // one scale and the vertical gap between them is real. The watch fits that scale so the
-// temperature's own range fills its margins (temp_axis_pad.h THE SCALE).
+// lowest and highest of the curves fill its margins (temp_axis_pad.h THE SCALE).
 const { needsFeels } = require('../src/pkjs/forecast-series');
 const { LINE_COLORS, FILL_COLORS } = require('../src/pkjs/line-style.js');
 
@@ -798,9 +798,9 @@ test('feels selected: temp bytes rescale against the joint band, but TEMP_MIN/MA
 
 test('a feels curve overshooting the temperature: the plain joint band, no padding', () => {
   // Overshooting BOTH ways: feels 2..38 against temps 10..30. The joint band is the plain
-  // [2, 38] (span 36): the watch reads the temperature's own bytes back (56..194), lands them
-  // on its margin rows, and the feels-like line runs on into the margins on the same scale
-  // (owner, 2026-10-02: "feels like and dew may do that"; temp_axis_pad.h THE SCALE), so the
+  // [2, 38] (span 36): the watch reads the bytes of both back (temps 56..194, feels 1..250)
+  // and lands the lowest and highest on its margin rows, the temperature between them on the
+  // same scale (owner, 2026-10-04: "always fit all lines"; temp_axis_pad.h THE SCALE), so the
   // phone pads nothing: padding would only spend byte resolution.
   const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [2, 20, 38] }),
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
@@ -814,7 +814,7 @@ test('a feels curve overshooting the temperature: the plain joint band, no paddi
 
 test('a stripe on either edge bakes the same temperature-axis bytes as none', () => {
   // Feels overshoots above only (temps 10..30, feels up to 38). The watch fits the
-  // temperature into its margins under a top stripe band as over the bottom edge
+  // curves into its margins under a top stripe band as over the bottom edge
   // (temp_axis_pad.h; owner, 2026-10-02), so the joint band is the same with a stripe.
   const settings = { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' };
   const plain = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
