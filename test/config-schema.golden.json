@@ -327,7 +327,7 @@
                 "messageKey": "doubleFlick",
                 "label": "Double flick to switch views",
                 "defaultValue": false,
-                "hint": "Switch views only on a second flick within a few seconds of the first, so a stray flick leaves the view alone.",
+                "hint": "Switch views only on a second flick within a few seconds of the first, to reduce accidental view switches.",
                 "more": true,
                 "showWhen": {
                   "env": "platform",
