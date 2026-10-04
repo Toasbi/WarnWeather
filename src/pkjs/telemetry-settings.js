@@ -93,7 +93,7 @@ function graphColorReport(settings, scope, role, suffix) {
  * The second is the tomorrow mark in effect, the initial of its ALERT_NEXT_DAY_MARKS
  * key (r », g >, p +, s *, n none), while the alert looks ahead, else '-' (an alert
  * that is not placed or judges today only reads no mark — the "value in effect"
- * rule). So 'IrIrIro-Ir' is an untouched install (gust, UV, AQI and wind placed on the
+ * rule). So 'VrVrVro-Vr' is an untouched install (gust, UV, AQI and wind placed on the
  * Watch Status Bar, looking ahead with the »; pollen off), and 'o-Vro-o-i-' UV
  * printing its value and looking ahead, wind as an icon on today only. Placement is
  * read for THIS watch (env): a known aplite has no On demand, so nothing is placed
@@ -105,7 +105,7 @@ function graphColorReport(settings, scope, role, suffix) {
  * test/telemetry.test.js.
  * @param {Object} safe Settings blob (never null).
  * @param {Object} env Platform env (config-ui computeEnv).
- * @returns {string} e.g. 'IrIrIro-Ir' on an untouched install.
+ * @returns {string} e.g. 'VrVrVro-Vr' on an untouched install.
  */
 function alertsReport(safe, env) {
     var kinds = statusThresholds.ALERT_KINDS;

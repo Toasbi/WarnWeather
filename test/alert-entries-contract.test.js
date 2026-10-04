@@ -69,7 +69,7 @@ test('the day codes are in lockstep with alert_set.h, and name the slot\'s marks
   assert.deepEqual(th.ALERT_NEXT_DAY_MARKS.slice().sort(), Object.keys(pair.NEXT_DAY_MARKS).sort());
   // A tomorrow UV entry at danger, marked '>', icon only.
   const bytes = wire.bakeAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 90, 0] },
-    { alertUv: true, alertUvNextDayMark: 'gt' });
+    { alertUv: true, alertUvNextDayMark: 'gt', alertUvDisplay: 'icon' });
   assert.deepEqual(bytes, [cDefine('STATUS_ALERT_HEADER') | 7 | cDefine('STATUS_ALERT_DANGER')
     | (cDefine('STATUS_ALERT_MARK_GT') << cDefine('STATUS_ALERT_DAY_SHIFT'))]);
 });

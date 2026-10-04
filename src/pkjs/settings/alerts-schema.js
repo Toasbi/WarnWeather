@@ -279,11 +279,14 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
             type: 'segmented',
             messageKey: key + 'Display',
             label: 'Look',
-            defaultValue: 'icon',
+            // Icon + value by default (the owner, 2026-10-04; status-thresholds.js
+            // enabledAlerts reads an absent key the same way, and migrations/
+            // alert-defaults.js moves the stored 'icon' of every earlier install).
+            defaultValue: 'value',
             options: [['Icon', 'icon'], ['Icon + value', 'value']],
-            // The icon-only look (the default) needs no hint; the value look says when it
-            // gives way on a crowded bar (the make-room order drops the values only after
-            // the status slot on the item's side and the middle one have hidden).
+            // The icon-only look needs no hint; the value look says when it gives way on a
+            // crowded bar (the make-room order drops the values only after the status
+            // slot on the item's side and the middle one have hidden).
             hintByValue: {
                 value: 'Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon.'
             }

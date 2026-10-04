@@ -797,7 +797,9 @@ test('after a save, a micro-send from the in-memory snapshot bakes the NEW setti
   // forced fetch that save starts fails, the next battery event re-baked the
   // pre-save alerts: a UV alert the user had just switched off came back.
   const mgr = fakeManager(0.62, false);
-  const before = Object.assign({}, SLOT_SETTINGS, require('./helpers/on-demand.js').placedOnly(['uv']));
+  // UV placed with the Icon Look: its entry is the one header byte.
+  const before = Object.assign({}, SLOT_SETTINGS,
+    require('./helpers/on-demand.js').placedOnly(['uv'], { alertUvDisplay: 'icon' }));
   const h = boot({ navigator: modernNavigator(mgr), realBake: true, settings: before });
   const payload = bakePayload();
   payload.UV_TREND_UINT8 = [90];   // UV 9: danger on the seed pair

@@ -96,7 +96,12 @@ function bootBaked(t, settings, opts, uv) {
   const h = bootIndex(t, Object.assign({
     settings: settings,
     network: net.network,
-    store: { lastFetchSuccess: JSON.stringify({ time: new Date(HARNESS_NOW - 2 * HOUR * 1000).toISOString() }) },
+    store: {
+      lastFetchSuccess: JSON.stringify({ time: new Date(HARNESS_NOW - 2 * HOUR * 1000).toISOString() }),
+      // An install already on the 2.0.1 alert defaults: that migration moves a stored
+      // Icon Look to Icon + value, and UV_ONLY's Icon is a pick made since.
+      [KEYS.ALERT_DEFAULTS_MIGRATION_KEY]: '1',
+    },
   }, opts || {}));
   h.ready();
   h.advance(5 * 1000);
@@ -105,9 +110,10 @@ function bootBaked(t, settings, opts, uv) {
 }
 
 // Only the UV alert placed (the Watch Status Bar's right side): the default ticks would
-// place gust, AQI and wind too, whose entries these tests do not follow.
+// place gust, AQI and wind too, whose entries these tests do not follow. Its Look is
+// Icon (the default is Icon + value), so an entry is the one header byte.
 const { placedOnly } = require('./helpers/on-demand.js');
-const UV_ONLY = placedOnly(['uv']);
+const UV_ONLY = placedOnly(['uv'], { alertUvDisplay: 'icon' });
 
 /** @returns {Object[]} The status-carrying weather sends, oldest first. */
 function statusSends(h) {

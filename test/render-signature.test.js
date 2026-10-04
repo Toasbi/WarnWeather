@@ -491,12 +491,15 @@ test('placing an alert and, while placed, its Look change the render signature',
   thresholds.ALERT_KINDS.forEach((a) => {
     const on = renderSignature(placedOnly([a.code]));
     assert.notEqual(on, base, a.code + ': placing it must force a refetch');
-    assert.notEqual(renderSignature(placedOnly([a.code], { ['alert' + a.key + 'Display']: 'value' })),
+    // Icon + value is the default (an absent Look reads 'value'), so Icon is the change.
+    assert.notEqual(renderSignature(placedOnly([a.code], { ['alert' + a.key + 'Display']: 'icon' })),
       on, 'alert' + a.key + 'Display must force a refetch while the alert is placed');
+    assert.equal(renderSignature(placedOnly([a.code], { ['alert' + a.key + 'Display']: 'value' })),
+      on, 'the hydrated default signs like an absent key while placed');
     // Unplaced, the Look bakes nothing: no refetch for it (nor for the page hydrating it).
-    assert.equal(renderSignature(placedOnly([], { ['alert' + a.key + 'Display']: 'value' })), base,
-      'alert' + a.key + 'Display is inert while the alert is not placed');
     assert.equal(renderSignature(placedOnly([], { ['alert' + a.key + 'Display']: 'icon' })), base,
+      'alert' + a.key + 'Display is inert while the alert is not placed');
+    assert.equal(renderSignature(placedOnly([], { ['alert' + a.key + 'Display']: 'value' })), base,
       'the hydrated defaults sign like absent keys');
   });
 });
@@ -556,7 +559,8 @@ test('the alert segment tells apart exactly the placed alerts and their Looks', 
         next[key + 'Items'] = next[key + 'Items'] ? next[key + 'Items'] + ',' + a.code : a.code;
       }
       if (look !== undefined) { next['alert' + a.key + 'Display'] = look; }
-      walk(k + 1, next, baked.concat([(place ? 'on' : '') + '/' + (place && look === 'value' ? 'value' : '')]));
+      // The bake's reading: an absent Look shows the value (the default since 2.0.1).
+      walk(k + 1, next, baked.concat([(place ? 'on' : '') + '/' + (place && look !== 'icon' ? 'value' : '')]));
     }));
   };
   walk(0, Object.assign({}, NOTHING_PLACED), []);
@@ -596,7 +600,7 @@ test('the alert segment signs each kind\'s Days and mark exactly as the bake rea
       const ahead = placed && s[key + 'Days'] !== 'today';
       const mark = thresholds.ALERT_NEXT_DAY_MARKS.indexOf(s[key + 'NextDayMark']) !== -1
         ? s[key + 'NextDayMark'] : 'raquo';
-      return [placed, placed && s[key + 'Display'] === 'value', ahead, ahead ? mark : ''].join('/');
+      return [placed, placed && s[key + 'Display'] !== 'icon', ahead, ahead ? mark : ''].join('/');
     };
     const toSig = new Map();
     const toBaked = new Map();
@@ -623,7 +627,7 @@ test('the alerts each occupy their own signature slot', () => {
   const seen = new Set();
   thresholds.ALERT_KINDS.forEach((a) => {
     seen.add(renderSignature(placedOnly([a.code])));
-    seen.add(renderSignature(placedOnly([a.code], { ['alert' + a.key + 'Display']: 'value' })));
+    seen.add(renderSignature(placedOnly([a.code], { ['alert' + a.key + 'Display']: 'icon' })));
   });
   assert.equal(seen.size, thresholds.ALERT_KINDS.length * 2);
 });

@@ -127,8 +127,11 @@ test('the bake merges the alert into the slot on its side: left and right', () =
     Object.assign({ alertUvDisplay: 'value' }, left))).slots, ['3/8', '', '']);
   // The Icon look adds no value: the slot keeps its own text (the watch still draws it
   // at the alert's level).
+  assert.deepEqual(topTexts(UV, topSettings('empty', 'empty', 'uv',
+    Object.assign({ alertUvDisplay: 'icon' }, right))).slots, ['', '', '3']);
+  // An absent Look is Icon + value, the default: it merges.
   assert.deepEqual(topTexts(UV, topSettings('empty', 'empty', 'uv', right)).slots,
-    ['', '', '3']);
+    ['', '', '3/8']);
   // Day max already shows the 8.
   assert.deepEqual(topTexts(UV, topSettings('empty', 'empty', 'uv',
     Object.assign({ alertUvDisplay: 'value', uvSlotDisplay: 'max' }, right))).slots,
@@ -230,7 +233,8 @@ test('slots without such a pair bake byte for byte as with no alert at all', () 
     });
     alerts.forEach((code) => {
       const key = code === 'uv' ? 'Uv' : code.charAt(0).toUpperCase() + code.slice(1);
-      if (rnd(2)) { S['alert' + key + 'Display'] = 'value'; }
+      // Half Icon, half absent (Icon + value, the default).
+      if (rnd(2)) { S['alert' + key + 'Display'] = 'icon'; }
       if (rnd(2)) { S[code + 'SlotDisplay'] = ['current', 'max', 'both'][rnd(3)]; }
       if (rnd(3)) {
         // Half the time onto a side whose edge slot shows the alert's metric.

@@ -1726,11 +1726,13 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
       + ' from the morning on.' + coda, s.sheetId + ' intro');
     const lookAt = s.items.findIndex(it => it.messageKey === key + 'Display');
     assert.deepEqual(s.items.slice(lookAt, lookAt + 3), [{
-      type: 'segmented', messageKey: key + 'Display', label: 'Look', defaultValue: 'icon',
+      // Icon + value by default since 2.0.1 (status-thresholds.js enabledAlerts reads an
+      // absent Look the same way).
+      type: 'segmented', messageKey: key + 'Display', label: 'Look', defaultValue: 'value',
       options: [['Icon', 'icon'], ['Icon + value', 'value']],
       // Only the value look explains itself — and when it gives way (after the status
       // slot on its side and the middle slot, the owner's order of 2026-09-30); the
-      // default icon look has no hint.
+      // icon look has no hint.
       hintByValue: {
         value: 'Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its'
           + ' side and the middle slot shorten and hide first; only then does the alert drop to just the icon.'
@@ -2360,7 +2362,7 @@ test('resetStatusSlots reverts every bar\'s On demand ticks, and leaves the item
   ['Forecast', 'Radar', 'Health'].forEach((bar) => {
     S['status' + bar + 'OnDemandRightItems'] = 'uv,wind';
   });
-  S.alertUvDisplay = 'value';
+  S.alertUvDisplay = 'icon';   // not the default, so a reset would show
   S.rainAlertDisplay = 'minutes';
   S.batteryLowLevel = '30';
   S.btIcons = 'both';
@@ -2369,7 +2371,7 @@ test('resetStatusSlots reverts every bar\'s On demand ticks, and leaves the item
   PC.actions.resetStatusSlots(null, S, Object.assign({ onDemand: true }, ENV), defaultOf);
   Object.keys(OD.DEFAULTS).filter((k) => /OnDemand/.test(k)).forEach((k) =>
     assert.equal(S[k], OD.DEFAULTS[k], k + ' back to its default'));
-  assert.equal(S.alertUvDisplay, 'value', 'the items\' settings are the Alert settings card\'s reset\'s business');
+  assert.equal(S.alertUvDisplay, 'icon', 'the items\' settings are the Alert settings card\'s reset\'s business');
   assert.equal(S.rainAlertDisplay, 'minutes');
   assert.equal(S.batteryLowLevel, '30');
   assert.equal(S.btIcons, 'both', 'the Bluetooth sheet\'s key is the Alert settings card\'s');
@@ -2393,13 +2395,13 @@ test('resetOnDemand reverts the items\' settings and where each shows — not th
     batteryLowLevel: '25', batteryLowDisplay: 'value', btIcons: 'none', vibe: true,
     threshUvWarnLook: 'outline' };
   ALERT_STEMS.forEach(stem => {
-    S['alert' + stem + 'Display'] = 'value';
+    S['alert' + stem + 'Display'] = 'icon';
     S['alert' + stem + 'Days'] = 'today'; S['alert' + stem + 'NextDayMark'] = 'gt';
   });
   assert.equal(PC.actions.resetOnDemand(null, S, ENV, defaultOf), true, 'asks for a re-render');
   ALERT_STEMS.forEach(stem => {
     assert.ok(!('alert' + stem in S), stem + ': no switch key written');
-    assert.equal(S['alert' + stem + 'Display'], 'icon', stem + ' Look back to Icon');
+    assert.equal(S['alert' + stem + 'Display'], 'value', stem + ' Look back to Icon + value');
     assert.equal(S['alert' + stem + 'Days'], 'tomorrow', stem + ' Days back to Today + tomorrow');
     assert.equal(S['alert' + stem + 'NextDayMark'], 'raquo', stem + ' mark back to the »');
   });
