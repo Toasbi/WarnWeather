@@ -1690,6 +1690,192 @@ test('rainbow own key, upgrade paths: the dev phone holding every other marker m
   assert.equal(L.saves.n, 0);
 });
 
+// --- 2.0.1: the alert defaults (migrations/alert-defaults.js) -------------------------
+// Every install onto the alert defaults: a WEATHER kind's warn look stored as 'outline'
+// goes (it resolves to warnLookDefault: the fill on a colour watch), and an alert's Look
+// stored as Icon becomes Icon + value. The entry runs through the ledger ({only} its
+// marker) for what it stores and sends; its body is called directly for its verdict.
+const ALERT_DEFAULTS = KEYS.ALERT_DEFAULTS_MIGRATION_KEY;
+const { migrateAlertDefaults } = require('../src/pkjs/migrations/alert-defaults.js');
+const WEATHER_KINDS = thresholdsContract.KINDS.filter((k) => !k.goal && !k.boldOnly);
+const GOAL_KINDS = thresholdsContract.KINDS.filter((k) => k.goal);
+const BOLD_ONLY_KINDS = thresholdsContract.KINDS.filter((k) => k.boldOnly);
+const warnLookKey = (k) => 'thresh' + k.key + 'WarnLook';
+const alertLookKey = (a) => 'alert' + a.key + 'Display';
+
+test('alert defaults: each weather kind\'s stored outline goes and resolves to the default', () => {
+  assert.deepEqual(WEATHER_KINDS.map((k) => k.key), ['Aqi', 'Pollen', 'Wind', 'Gust', 'Uv'],
+    'the weather kinds: every one with a warn look that is no goal');
+  WEATHER_KINDS.forEach((k) => {
+    const L = loadLedger({ theme: 'dark', [warnLookKey(k)]: 'outline' });
+    const res = L.run(ALERT_DEFAULTS, { hadExistingInstall: true });
+    const read = L.read();
+    assert.ok(!(warnLookKey(k) in read), k.key + ': the stored outline is deleted');
+    assert.equal(res.clayRequired, true, k.key + ': the warn look rides the Clay blob, so it is sent');
+    assert.equal(thresholdsContract.warnLookFor(read, k.key, true), 'fill', k.key + ': the fill on colour');
+    assert.equal(thresholdsContract.warnLookFor(read, k.key, false), 'outline', k.key + ': the outline on B&W');
+    assert.equal(L.saves.n, 1, k.key + ': saved once');
+    assert.equal(L.store[ALERT_DEFAULTS], '1', k.key + ': marked at once');
+  });
+  // All five in one blob: every one goes.
+  const all = {};
+  WEATHER_KINDS.forEach((k) => { all[warnLookKey(k)] = 'outline'; });
+  const L = loadLedger(all);
+  L.run(ALERT_DEFAULTS, { hadExistingInstall: true });
+  WEATHER_KINDS.forEach((k) => assert.ok(!(warnLookKey(k) in L.read()), k.key));
+});
+
+test('alert defaults: a weather None or Fill stays; goal and bold-only kinds are untouched', () => {
+  ['none', 'fill'].forEach((look) => {
+    const blob = { theme: 'dark' };
+    WEATHER_KINDS.forEach((k) => { blob[warnLookKey(k)] = look; });
+    const L = loadLedger(blob);
+    const res = L.run(ALERT_DEFAULTS, { hadExistingInstall: true });
+    assert.deepEqual(L.read(), blob, look + ': a pick the page offered stands');
+    assert.equal(L.saves.n, 0, look + ': nothing saved');
+    assert.equal(res.clayRequired, false, look + ': nothing sent');
+    assert.equal(L.store[ALERT_DEFAULTS], '1', look + ': marked either way');
+  });
+  // The goal kinds keep their looks, the outline included (it is their default anyway).
+  assert.deepEqual(GOAL_KINDS.map((k) => k.key), ['Steps', 'Sleep', 'Distance']);
+  ['outline', 'none', 'fill'].forEach((look) => {
+    const blob = {};
+    GOAL_KINDS.forEach((k) => { blob[warnLookKey(k)] = look; });
+    const L = loadLedger(blob);
+    const res = L.run(ALERT_DEFAULTS, { hadExistingInstall: true });
+    assert.deepEqual(L.read(), blob, 'goal ' + look + ' stays');
+    assert.equal(L.saves.n, 0, 'goal ' + look + ': nothing saved');
+    assert.equal(res.clayRequired, false, 'goal ' + look + ': nothing sent');
+  });
+  // A bold-only kind owns no look; a stray key is not the migration's business either.
+  const stray = {};
+  BOLD_ONLY_KINDS.forEach((k) => { stray[warnLookKey(k)] = 'outline'; });
+  const L = loadLedger(stray);
+  L.run(ALERT_DEFAULTS, { hadExistingInstall: true });
+  assert.deepEqual(L.read(), stray, 'bold-only kinds untouched');
+  assert.equal(L.saves.n, 0);
+});
+
+test('alert defaults: every alert Look stored as Icon becomes Icon + value; Icon + value and absent stay', () => {
+  assert.deepEqual(thresholdsContract.ALERT_KINDS.map((a) => a.key), ['Gust', 'Uv', 'Aqi', 'Pollen', 'Wind']);
+  thresholdsContract.ALERT_KINDS.forEach((a) => {
+    const L = loadLedger({ theme: 'dark', [alertLookKey(a)]: 'icon' });
+    L.run(ALERT_DEFAULTS, { hadExistingInstall: true });
+    assert.equal(L.read()[alertLookKey(a)], 'value', a.key + ': Icon -> Icon + value');
+    assert.equal(L.saves.n, 1, a.key + ': saved once');
+  });
+  // Icon + value stored: nothing to do.
+  const valued = { theme: 'dark' };
+  thresholdsContract.ALERT_KINDS.forEach((a) => { valued[alertLookKey(a)] = 'value'; });
+  const V = loadLedger(valued);
+  V.run(ALERT_DEFAULTS, { hadExistingInstall: true });
+  assert.deepEqual(V.read(), valued, 'Icon + value stays');
+  assert.equal(V.saves.n, 0, 'nothing saved');
+  // No Look stored: none is invented (an absent Look already reads Icon + value).
+  const A = loadLedger({ theme: 'dark' });
+  A.run(ALERT_DEFAULTS, { hadExistingInstall: true });
+  thresholdsContract.ALERT_KINDS.forEach((a) => assert.ok(!(alertLookKey(a) in A.read()), a.key + ': absent stays absent'));
+  assert.equal(A.saves.n, 0);
+  // Mixed: only the Icon moves.
+  const M = loadLedger({ alertUvDisplay: 'icon', alertWindDisplay: 'value' });
+  M.run(ALERT_DEFAULTS, { hadExistingInstall: true });
+  assert.deepEqual(M.read(), { alertUvDisplay: 'value', alertWindDisplay: 'value' });
+});
+
+test('alert defaults: a Clay send only when a warn look moved on an existing install', () => {
+  const OUTLINE = { threshUvWarnLook: 'outline' };
+  const ICON = { alertUvDisplay: 'icon' };
+  const verdict = (blob, existing) => migrateAlertDefaults(Object.assign({}, blob), { hadExistingInstall: existing });
+  // The body's verdict.
+  assert.deepEqual(verdict(OUTLINE, true), { changed: true, send: true }, 'a look moved on an existing install');
+  assert.deepEqual(verdict(OUTLINE, false), { changed: true, send: false },
+    'a fresh install sends its whole blob at boot anyway');
+  assert.deepEqual(verdict(ICON, true), { changed: true, send: false },
+    'only a Look: the phone-baked entries, no Clay byte');
+  assert.deepEqual(verdict(Object.assign({}, OUTLINE, ICON), true), { changed: true, send: true });
+  assert.deepEqual(verdict(Object.assign({}, OUTLINE, ICON), false), { changed: true, send: false });
+  assert.deepEqual(verdict({ threshUvWarnLook: 'none', alertUvDisplay: 'value' }, true),
+    { changed: false, send: false }, 'nothing to move');
+  // Through the ledger: the send, and the marker set at once ('now') either way.
+  const runOn = (blob, existing) => {
+    const L = loadLedger(blob);
+    const res = L.run(ALERT_DEFAULTS, { hadExistingInstall: existing });
+    assert.equal(L.store[ALERT_DEFAULTS], '1', 'marked without waiting for the ACK');
+    return res.clayRequired;
+  };
+  assert.equal(runOn(OUTLINE, true), true);
+  assert.equal(runOn(OUTLINE, false), false);
+  assert.equal(runOn(ICON, true), false);
+});
+
+test('alert defaults: a second run changes nothing', () => {
+  const blob = { theme: 'dark', threshAqiWarnLook: 'outline', threshWindWarnLook: 'none',
+    threshStepsWarnLook: 'outline', alertGustDisplay: 'icon', alertUvDisplay: 'value' };
+  const L = loadLedger(blob);
+  assert.equal(L.run(ALERT_DEFAULTS, { hadExistingInstall: true }).clayRequired, true);
+  const once = L.read();
+  assert.deepEqual(once, { theme: 'dark', threshWindWarnLook: 'none', threshStepsWarnLook: 'outline',
+    alertGustDisplay: 'value', alertUvDisplay: 'value' });
+  delete L.store[ALERT_DEFAULTS];
+  L.saves.n = 0;
+  assert.equal(L.run(ALERT_DEFAULTS, { hadExistingInstall: true }).clayRequired, false, 'nothing sent again');
+  assert.deepEqual(L.read(), once, 'nothing moves again');
+  assert.equal(L.saves.n, 0, 'nothing saved again');
+  assert.deepEqual(migrateAlertDefaults(once, { hadExistingInstall: true }), { changed: false, send: false });
+});
+
+test('alert defaults: a fresh seeded blob is left as seeded', () => {
+  const L = loadLedger(null);
+  L.claySettings.seedDefaults(COLORS);
+  const seeded = L.read();
+  thresholdsContract.ALERT_KINDS.forEach((a) =>
+    assert.equal(seeded[alertLookKey(a)], 'value', a.key + ': seedDefaults writes the default Look, Icon + value'));
+  WEATHER_KINDS.forEach((k) => assert.ok(!(warnLookKey(k) in seeded), k.key + ': the warn look is never seeded'));
+  L.saves.n = 0;
+  const res = L.run(ALERT_DEFAULTS, { hadExistingInstall: false });
+  assert.deepEqual(L.read(), seeded, 'left as seeded');
+  assert.equal(L.saves.n, 0, 'nothing saved');
+  assert.equal(res.clayRequired, false, 'nothing sent');
+});
+
+test('alert defaults, upgrade paths: a 1.24.0 install gets the fill and the value; a 1.23.1 outline too', () => {
+  // A 1.24.0 install: its seedDefaults stored Icon into every Look, and the page an
+  // outline. Every other marker is set, so this entry alone runs.
+  const others = REGISTRY.map((e) => e.key).filter((k) => k !== ALERT_DEFAULTS);
+  const stored = { theme: 'dark', radarMode: 'graph', threshWindWarnLook: 'outline', threshGustWarnLook: 'none',
+    threshSleepWarnLook: 'none' };
+  thresholdsContract.ALERT_KINDS.forEach((a) => { stored[alertLookKey(a)] = 'icon'; });
+  const v124Boot = bootWholeLedger(stored, others, true);
+  const expected = Object.assign({}, v124Boot.seeded);
+  delete expected.threshWindWarnLook;
+  thresholdsContract.ALERT_KINDS.forEach((a) => { expected[alertLookKey(a)] = 'value'; });
+  assert.deepEqual(v124Boot.read, expected, 'the outline goes, every Look shows the value, the rest stands');
+  assert.equal(v124Boot.res.clayRequired, true, 'the warn look rides the Clay blob: one send');
+  assert.equal(v124Boot.L.store[ALERT_DEFAULTS], '1');
+  // A 1.23.1 install whose 'Outline on warn' was on: the alert levels store the outline,
+  // and this entry, after them in the ledger, takes it back.
+  const v123 = bootWholeLedger({ theme: 'dark', radarMode: 'graph',
+    threshAqiWarnOutlineOn: true, threshAqiWarnColor: 0xFFFFFF }, THROUGH_1_23_1, true);
+  assert.ok(!('threshAqiWarnLook' in v123.read), 'the 1.23.1 outline ends on the default');
+  assert.equal(thresholdsContract.warnLookFor(v123.read, 'Aqi', true), 'fill');
+  assert.equal(v123.read.alertAqiDisplay, 'value');
+});
+
+// After "Reset watchface" the next blob is seeded with these defaults, and a look the
+// page saves before the next boot is a pick: resetAll marks the entry done.
+test('resetAll marks the alert defaults done: a look picked after the reset stands', () => {
+  installFakeStorage();
+  const mods = loadUpgradeModules();
+  localStorage.setItem('clay-settings', JSON.stringify({ threshWindWarnLook: 'outline', alertUvDisplay: 'icon' }));
+  mods.claySettings.resetAll(mods.clayMigrations.RESET_SAFE_MARKERS);
+  assert.equal(localStorage.getItem(ALERT_DEFAULTS), '1', 'marked by the reset');
+  const saved = { threshWindWarnLook: 'outline', alertUvDisplay: 'icon' };
+  localStorage.setItem('clay-settings', JSON.stringify(saved));
+  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const read = mods.claySettings.read();
+  Object.keys(saved).forEach((k) => assert.equal(read[k], saved[k], k + ' stands'));
+});
+
 // --- The ledger itself ---------------------------------------------------------------
 
 test('every registry entry has a unique marker declared in storage-keys.js, and a valid policy', () => {
@@ -1727,7 +1913,8 @@ test('the ledger order and marker policies are pinned: a released entry never mo
     ['v1.23.1_stripe_metric_rule_resend_migration', 'ack', false],
     ['v1.24.0_warn_look_migration', 'now', true],
     ['v1.24.0_on_demand_migration', 'now', true],
-    ['v1.24.0_rainbow_own_key_source_migration', 'now', true]
+    ['v1.24.0_rainbow_own_key_source_migration', 'now', true],
+    ['v2.0.1_alert_defaults_migration', 'now', true]
   ]);
 });
 
@@ -1809,7 +1996,8 @@ test('every reset-safe entry, and no other, is marked by Reset watchface', () =>
   const clayMigrations = require('../src/pkjs/clay-migrations');
   assert.deepEqual(clayMigrations.RESET_SAFE_MARKERS, ['v1.23.0_norain_default_text_migration',
     'v1.23.1_fifth_line_style_default_migration', 'v1.24.0_warn_look_migration',
-    'v1.24.0_on_demand_migration', 'v1.24.0_rainbow_own_key_source_migration']);
+    'v1.24.0_on_demand_migration', 'v1.24.0_rainbow_own_key_source_migration',
+    'v2.0.1_alert_defaults_migration']);
   const L = loadLedger({ theme: 'dark' });
   L.claySettings.resetAll(L.clayMigrations.RESET_SAFE_MARKERS);
   REGISTRY.forEach((e) => assert.equal(L.store[e.key], e.markOnReset ? '1' : undefined, e.key));

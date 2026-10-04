@@ -32,17 +32,20 @@
 // otherwise"; until then the top dropped its inset under a band). The bars' scale and the
 // metric lines' mapping (inset 0) do not change.
 //
-// THE SCALE (owner, 2026-10-02: "feels like and dew may do that"). The lines sharing the
-// curve's inset (feels-like and dew point: every series whose phone-sent inset_y is not 0)
-// share its scale too. The phone sends the three on one joint band, the lowest and highest
-// value of all three as bytes 0..250 (forecast-series.js), and the watch fits the
-// TEMPERATURE to the margins: its own lowest and highest byte over every hour sent (the
-// window the hi/lo labels name) land on the margin rows, and every other value of the three
-// lies on the same straight line through them, so a degree is the same height on all three.
-// A feels-like or dew point value beyond the temperature's range runs on into the margin,
-// up to the plot's edge, where it is held (temp_axis_rows): never into a top stripe band's
-// gap, never onto the zero row. Until then the joint band filled the margins, so a feels-like
-// peak above the day's temperature pushed the temperature curve down.
+// THE SCALE (owner, 2026-10-04: "always fit all lines"). The lines sharing the curve's inset
+// (feels-like and dew point: every series whose phone-sent inset_y is not 0) share its scale
+// too. The phone sends the three on one joint band, the lowest and highest value of all three
+// as bytes 0..250 (forecast-series.js), and the watch fits ALL of them to the margins: the
+// lowest and highest byte of the temperature and of every present line with an inset (its
+// byte 0, a missing reading, left out), over every hour sent (the window the hi/lo labels
+// name), land on the margin rows, and every value of the three lies on the same straight line
+// through them, so a degree is the same height on all three. A feels-like peak above the
+// day's temperature takes the top margin row and the temperature curve sits below it; a dew
+// point trough below the day's low takes the bottom one. No line ever reaches past a margin,
+// so none is held at the plot's edge (temp_axis_rows keeps its hold as a safety net only).
+// Lines inside the temperature's own range leave the fit exactly the temperature's. Until
+// then (owner, 2026-10-02: "feels like and dew may do that") only the temperature was fitted
+// and the lines ran on into its margins, held flat along the plot's edge past them.
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -151,8 +154,8 @@ static inline TempMargin temp_axis_margins(int inset, int plot_h, int anchors) {
         .bottom = (int16_t)temp_axis_margin(inset, anchors & TEMP_AXIS_ANCHOR_BOTTOM, plot_h) };
 }
 
-// The lowest and highest of values[0..n) (n >= 1): the one scan the fit (over the
-// temperature's bytes) and the labels (over its rows) both take.
+// The lowest and highest of values[0..n) (n >= 1): the one scan the labels take over the
+// curve's rows (and temp_axis_fit over the temperature's bytes alone).
 typedef struct { int lo, hi; } TempAxisRange;
 static inline TempAxisRange temp_axis_range(const int16_t *values, int n) {
     TempAxisRange r = { values[0], values[0] };
@@ -164,36 +167,67 @@ static inline TempAxisRange temp_axis_range(const int16_t *values, int n) {
     return r;
 }
 
-// The fit for one redraw (THE SCALE): the temperature's lowest byte over temps[0..n) (n >= 1)
-// lands on the bottom margin's row, its highest on the top margin's, and every byte lies on
-// the straight line through the two: row = off + byte * d / span, held inside the plot's
-// content rows [1, rows]. Rows count out from the plot's zero row as chart_flip.h counts (1 =
-// the content row next to it, `plot_h` = the far one). d is the rows from the lowest to the
-// highest (plot_h less both margins); off puts the lowest byte on m.bottom. Exact at both
-// ends whatever the remainders: (lo + span) * d / span is lo * d / span + d. A flat
-// temperature gives no span, and the whole byte range stands in (0 .. full_scale, the wire's
-// 250): the joint band on the margin rows, the mapping this rule replaced, which keeps a flat
-// curve on its byte (125 when no feels-like or dew point line widens the band: mid-plot).
+// The range no byte has widened yet, for the wire's bytes (0..255, never below 0): the first
+// byte widened in becomes both ends. Cheaper than seeding with a first byte: 4 B of the fit.
+#define TEMP_AXIS_RANGE_NONE { 255, 0 }
+
+// *r widened to cover values[0..n) too: the joint range the fit takes (THE SCALE), from
+// TEMP_AXIS_RANGE_NONE through the temperature's bytes and every present line's with an
+// inset. `gaps` as temp_axis_rows': a floating line's byte 0 is a missing reading and widens
+// nothing. The bytes are never below 0, so `v >= gaps` is "a reading" (any byte without
+// gaps, 1.. with them) in one compare where `!gaps || v > 0` takes two (16 B of the fit).
+static inline void temp_axis_range_widen(TempAxisRange *r, const int16_t *values, int n,
+                                         bool gaps) {
+    for (; n > 0; --n, ++values) {
+        const int v = *values;
+        if (v >= (int)gaps) {
+            if (v < r->lo) { r->lo = v; }
+            if (v > r->hi) { r->hi = v; }
+        }
+    }
+}
+
+// The fit for one redraw (THE SCALE): the joint range's lowest byte `r.lo` lands on the bottom
+// margin's row, its highest `r.hi` on the top margin's, and every byte lies on the straight
+// line through the two: row = off + byte * d / span, inside the plot's content rows
+// [1, rows]. Rows count out from the plot's zero row as chart_flip.h counts (1 = the content
+// row next to it, `plot_h` = the far one). d is the rows from the lowest to the highest
+// (plot_h less both margins); off puts the lowest byte on m.bottom. Exact at both ends
+// whatever the remainders: (lo + span) * d / span is lo * d / span + d. A flat range gives no
+// span, and the whole byte range stands in (0 .. full_scale, the wire's 250): the joint band
+// on the margin rows, which keeps a flat curve on its byte (125: mid-plot, as the phone sends
+// a flat band).
 typedef struct { int off, d, span, rows; } TempAxisFit;
-static inline TempAxisFit temp_axis_fit(const int16_t *temps, int n, TempMargin m, int plot_h,
-                                        int full_scale) {
-    TempAxisRange r = temp_axis_range(temps, n);
+static inline TempAxisFit temp_axis_fit_range(TempAxisRange r, TempMargin m, int plot_h,
+                                              int full_scale) {
     if (r.hi == r.lo) { r.lo = 0; r.hi = full_scale; }
     const int d = plot_h - m.top - m.bottom;
     return (TempAxisFit){ .off = m.bottom - r.lo * d / (r.hi - r.lo), .d = d,
                           .span = r.hi - r.lo, .rows = plot_h };
 }
 
+// The fit off the temperature's bytes temps[0..n) (n >= 1) alone: the joint range with no
+// line widening it, the fit the lines inside the temperature's range leave unchanged.
+static inline TempAxisFit temp_axis_fit(const int16_t *temps, int n, TempMargin m, int plot_h,
+                                        int full_scale) {
+    return temp_axis_fit_range(temp_axis_range(temps, n), m, plot_h, full_scale);
+}
+
 // A whole series in place, values[0..n): each byte becomes its row on the fit, which the
 // chart then maps 1:1 (lo 0, hi the plot's rows, no insets). Both products stay far inside an
-// int (250 * emery's 228 rows). `gaps`: the series' byte 0 is a missing reading (a floating
-// line: feels-like, dew point) and stays 0, which the chart draws as nothing; the
-// temperature's byte 0 is data.
+// int (250 * emery's 228 rows). Every byte of a series the fit's range covers lands between
+// the margin rows; the hold to the content rows [1, rows] (rows >= 1) is a safety net for one
+// it does not, two plain ifs (8 B of the fit under the nested ternary). `gaps`: the series'
+// byte 0 is a missing reading (a floating line: feels-like, dew point) and stays 0, which the
+// chart draws as nothing; the temperature's byte 0 is data (the one compare as
+// temp_axis_range_widen's).
 static inline void temp_axis_rows(int16_t *values, int n, TempAxisFit f, bool gaps) {
     for (; n > 0; --n, ++values) {
-        if (!gaps || *values > 0) {
-            const int h = f.off + *values * f.d / f.span;
-            *values = (int16_t)(h < 1 ? 1 : (h > f.rows ? f.rows : h));
+        if (*values >= (int)gaps) {
+            int h = f.off + *values * f.d / f.span;
+            if (h < 1) { h = 1; }
+            if (h > f.rows) { h = f.rows; }
+            *values = (int16_t)h;
         }
     }
 }
@@ -206,14 +240,16 @@ static inline void temp_axis_rows(int16_t *values, int n, TempAxisFit f, bool ga
 // (a small graph, a crowded strip, a flat temperature curve) both keep today's place. On an
 // edge that is not anchored and has no stripe band, the curve reaches today's inset row
 // there, which lies outward of today's label ink centre (rows 7 against 9, basalt; 7 against
-// 14, emery), so that label stays put: the temperature's own extremes always land on the
-// margin rows (THE SCALE), with a feels-like or dew point line beyond them too; only a flat
-// temperature stops short of them. Under a top stripe band the curve's top
-// is its inset row below the band's foot, while the hi label stays fixed to the top of the
-// graph: on basalt that row lies below the label's ink centre under any band (one stripe in
-// the default view: 6 + 7 = 13 against 9), so the label follows the curve down even with
-// nothing anchored; on emery one stripe's row in the calendar views does not (13 and 14
-// against 14), the no-calendar view's (15) and two stripes' do.
+// 14, emery), so that label stays put while the temperature's own extreme lands on the margin
+// row (THE SCALE). The curve stops short of that row only where a feels-like peak or a dew
+// point trough beyond the temperature takes it (the label follows the curve in once the
+// curve passes its ink centre) or where the temperature is flat (both labels keep today's
+// place, above). Under a top stripe band the curve's top is its inset row below the band's
+// foot, while the hi label stays fixed to the top of the graph: on basalt that row lies below
+// the label's ink centre under any band (one stripe in the default view: 6 + 7 = 13 against
+// 9), so the label follows the curve down even with nothing anchored; on emery one stripe's
+// row in the calendar views does not (13 and 14 against 14), the no-calendar view's (15) and
+// two stripes' do.
 //
 // Today's minimum: the smallest gap the labels leave in any preset's view, emery's 68 px band
 // (fullCal, compactDense) at GOTHIC_24 (forecast_layer.c draw_left_axis). basalt's tightest,

@@ -8630,7 +8630,7 @@
                 "type": "segmented",
                 "messageKey": "alertGustDisplay",
                 "label": "Look",
-                "defaultValue": "icon",
+                "defaultValue": "value",
                 "options": [
                   [
                     "Icon",
@@ -8920,7 +8920,7 @@
                 "type": "segmented",
                 "messageKey": "alertUvDisplay",
                 "label": "Look",
-                "defaultValue": "icon",
+                "defaultValue": "value",
                 "options": [
                   [
                     "Icon",
@@ -9239,7 +9239,7 @@
                 "type": "segmented",
                 "messageKey": "alertAqiDisplay",
                 "label": "Look",
-                "defaultValue": "icon",
+                "defaultValue": "value",
                 "options": [
                   [
                     "Icon",
@@ -9529,7 +9529,7 @@
                 "type": "segmented",
                 "messageKey": "alertPollenDisplay",
                 "label": "Look",
-                "defaultValue": "icon",
+                "defaultValue": "value",
                 "options": [
                   [
                     "Icon",
@@ -9845,7 +9845,7 @@
                 "type": "segmented",
                 "messageKey": "alertWindDisplay",
                 "label": "Look",
-                "defaultValue": "icon",
+                "defaultValue": "value",
                 "options": [
                   [
                     "Icon",

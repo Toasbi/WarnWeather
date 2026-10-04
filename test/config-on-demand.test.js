@@ -863,10 +863,10 @@ function act(page, action) {
 test('both resets restore where each item shows; the card\'s reset also the items\' settings', () => {
   const moved = { statusTopOnDemandLeftItems: 'uv', statusTopOnDemandRightItems: 'rain',
     statusForecastOnDemandRightItems: 'bt' };
-  const page = alertsTab(Object.assign({ alertUvDisplay: 'value', rainAlertDisplay: 'icon', batteryLowLevel: '30',
+  const page = alertsTab(Object.assign({ alertUvDisplay: 'icon', rainAlertDisplay: 'icon', batteryLowLevel: '30',
     btIcons: 'none' }, moved));
   act(page, 'resetOnDemand');
-  assert.equal(page.S.alertUvDisplay, 'icon');
+  assert.equal(page.S.alertUvDisplay, 'value', 'the Look back to Icon + value');
   assert.equal(page.S.rainAlertDisplay, 'text');
   assert.equal(page.S.batteryLowLevel, '10');
   assert.equal(page.S.btIcons, 'disconnected');

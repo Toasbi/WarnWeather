@@ -1377,14 +1377,20 @@ const ALL_FIVE_VALUES = placedOnly(['gust', 'uv', 'aqi', 'pollen', 'wind'], {
   alertPollenDisplay: 'value'
 });
 
-test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, icon-only by default', () => {
+test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, with their values by default', () => {
   const p = alertPayload();
-  const s = baseSettings(placedOnly(['uv', 'wind']));
+  const s = baseSettings(placedOnly(['uv', 'wind'], { alertUvDisplay: 'icon', alertWindDisplay: 'icon' }));
   statusLines.buildStatusLines(p, s, WATCH_BASALT);
   // UV danger (header bit 7 | kind 7 | danger bit 3), wind warn (kind 2), both
-  // today's, no value bytes.
+  // today's; the Icon Look: no value bytes.
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08, 0x80 | 2]);
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, wire.bakeAlerts(alertPayload(), s));
+  // The Looks absent: Icon + value, the default — UV's "8" and wind's "45" follow.
+  const dflt = alertPayload();
+  const d = baseSettings(placedOnly(['uv', 'wind']));
+  statusLines.buildStatusLines(dflt, d, WATCH_BASALT);
+  assert.deepEqual(dflt.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08, 0x38, 0x80 | 2, 0x34, 0x35]);
+  assert.deepEqual(dflt.ALERT_ENTRIES_UINT8, wire.bakeAlerts(alertPayload(), d));
 });
 
 test('buildStatusLines: all four with values fit the tuple, in the On demand order', () => {
@@ -1420,7 +1426,7 @@ test('buildStatusLines never sends ALERT_ENTRIES_UINT8 to aplite (no On demand t
   assert.equal(Object.prototype.hasOwnProperty.call(p, 'ALERT_ENTRIES_UINT8'), false);
   // An unknown watch still gets it, like the levels (never hide a real feature).
   const unknown = alertPayload();
-  statusLines.buildStatusLines(unknown, baseSettings(placedOnly(['uv'])), null);
+  statusLines.buildStatusLines(unknown, baseSettings(placedOnly(['uv'], { alertUvDisplay: 'icon' })), null);
   assert.deepEqual(unknown.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08]);
 });
 

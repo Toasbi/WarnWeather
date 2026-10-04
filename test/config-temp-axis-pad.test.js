@@ -9,10 +9,11 @@
 // 2026-10-02: "minimum how it is at the bottom.. it's too cramped otherwise"). The labels sit
 // level with the curve's extremes when there is space, and stay put while the curve reaches
 // today's margins on an edge without a stripe band; under a top stripe band the hi label
-// follows the watch's plain rule. The temperature's own range fills the margins, and a
-// feels-like or dew point line maps on its scale, running on into a margin and held at the
-// plot's edge (temp_axis_pad.h THE SCALE). The watch half is pinned on the host by
-// test/c/temp_axis_pad_test.c; this file pins the preview and the constants both share.
+// follows the watch's plain rule. The lowest and highest value of the temperature and of
+// every feels-like or dew point line drawn fill the margins, all three on one scale, so no
+// curve runs past a margin (temp_axis_pad.h THE SCALE; owner, 2026-10-04: "always fit all
+// lines"). The watch half is pinned on the host by test/c/temp_axis_pad_test.c; this file
+// pins the preview and the constants both share.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -275,15 +276,18 @@ test('a feels-like line rides the temperature curve\'s scale, its margins and al
   const feels = [...m[1].matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((p) => Number(p[2]))
     .filter((p, i) => i === 0 || i % 3 === 0);
   assert.equal(feels.length, FEELS.length);
-  // The temperature's own range fills the margins (temp_axis_pad.h THE SCALE): its high the
-  // inset under the band, its low the inset over the floor.
-  assert.ok(near(Math.min.apply(null, temp), BAND + Math.max(12, share(PB - BAND))));
-  assert.ok(near(Math.max.apply(null, temp), PB - 12));
-  // One linear map for both: y = ybot - (t - tmin) * k. The feels-like low (13) runs on a
-  // degree under the air's (14), into the bottom margin.
-  const k = (temp[7] - temp[0]) / (24 - 14);
+  // The joint range 13..24 fills the margins (temp_axis_pad.h THE SCALE): the air's high, the
+  // joint high, the inset under the band; the feels-like low (13), a degree under the air's
+  // (14), the inset over the floor.
+  const top = BAND + Math.max(12, share(PB - BAND));
+  assert.ok(near(Math.min.apply(null, temp), top));
+  assert.ok(near(Math.max.apply(null, feels), PB - 12), 'the feels-like low takes the bottom margin row');
+  // One linear map for both: y = ybot - (t - 13) * k, so the air's low sits a degree, k, over
+  // that row, never on it.
+  const k = (PB - 12 - top) / (24 - 13);
+  assert.ok(near(Math.max.apply(null, temp), PB - 12 - k), 'the air\'s low a degree over the floor row');
   FEELS.forEach((f, i) => assert.ok(near(feels[i], temp[i] + (TEMPS[i] - f) * k), 'hour ' + i));
-  assert.ok(Math.max.apply(null, feels) > PB - 12, 'premise: the feels-like low lies in the margin');
+  TEMPS.forEach((t, i) => assert.ok(near(temp[i], PB - 12 - (t - 13) * k), 'hour ' + i));
 });
 
 test('aplite previews keep the frozen margins and labels, whatever is drawn', () => {
@@ -350,17 +354,60 @@ test('under a top stripe band a hanging element moves neither the curve\'s top n
   assert.ok(labels.hi >= 4 + 11);
 });
 
-test('with a feels-like or dew line the temperature keeps its margins, and the labels their corners', () => {
-  // The temperature's own range fills the margins whatever runs on below it (temp_axis_pad.h
-  // THE SCALE; until then the feels-like low widened the band and lifted the air's low off its
-  // floor, and the lo label followed it). Both extremes reach today's reach: the labels stay.
-  [{ thirdLine: 'feels', barSource: 'rain' }, { thirdLine: 'dew', thirdLineStyle: 'line' },
-    { secondaryLine: 'feels', fourthLine: 'dew' }].forEach((over) => {
-    const svg = preview(over, BASALT);
-    const label = JSON.stringify(over);
-    assert.deepEqual(curveRows(svg), { top: 4 + 3 + 12, bottom: PB - 12 }, label);
-    assert.deepEqual(labelBases(svg), { hi: 4 + 11, lo: PB - 1 }, label);
+test('with a feels-like or dew line under the air\'s low, that low lifts off the floor row and the lo label follows it', () => {
+  // The joint range fills the margins (temp_axis_pad.h THE SCALE; owner, 2026-10-04: "always
+  // fit all lines"): the feels-like low (13) or the dew low (12) takes the bottom margin row,
+  // and the air's low (14) sits a degree or two over it, as the watch's does. The air's high
+  // is the joint high in every case, so its top and the hi label stay; the lo label's ink
+  // centres on the lifted low (there is room: the curve's span is the plot less 1-2 degrees).
+  // Until then (2026-10-02) only the temperature was fitted: its low kept the floor row and
+  // the label its corner, and the lines ran on past it.
+  [{ over: { thirdLine: 'feels', barSource: 'rain' }, low: 13 },
+    { over: { thirdLine: 'dew', thirdLineStyle: 'line' }, low: 12 },
+    { over: { secondaryLine: 'feels', fourthLine: 'dew' }, low: 12 }].forEach((c) => {
+    const svg = preview(c.over, BASALT);
+    const label = JSON.stringify(c.over);
+    const top = 4 + 3 + 12, k = (PB - 12 - top) / (24 - c.low);
+    const bottom = PB - 12 - (14 - c.low) * k;
+    const rows = curveRows(svg);
+    assert.ok(near(rows.top, top) && near(rows.bottom, bottom), label);
+    const labels = labelBases(svg);
+    assert.ok(near(labels.hi, 4 + 11) && near(labels.lo, bottom + FC.LABEL_CAP / 2), label);
   });
+});
+
+test('the scale\'s range is the temperature\'s and every drawn line\'s, the C host cases mirrored', () => {
+  // test/c/temp_axis_pad_test.c test_scale_all_lines, on the preview's own helper.
+  const T = [14, 18, 24, 20];
+  // (1) A feels-like peak over the air's high is the range's top.
+  assert.deepEqual(FC.tempAxisRange(T, [[14, 20, 30, 22]]), { min: 14, max: 30 });
+  // (2) A dew trough under the air's low is its bottom.
+  assert.deepEqual(FC.tempAxisRange(T, [[9, 12, 16, 14]]), { min: 9, max: 24 });
+  // (3) Lines inside the temperature's range leave it the temperature's own.
+  assert.deepEqual(FC.tempAxisRange(T, [[15, 20, 23, 19], [14, 16, 18, 17]]), { min: 14, max: 24 });
+  // (4) An hour with no reading widens nothing.
+  assert.deepEqual(FC.tempAxisRange(T, [[null, 16, null, 17]]), { min: 14, max: 24 });
+  assert.deepEqual(FC.tempAxisRange(T, [[null, null, null, null]]), { min: 14, max: 24 });
+  // (5) No line drawn: the temperature's own; a flat temperature stays flat (mid-plot).
+  assert.deepEqual(FC.tempAxisRange(T, []), { min: 14, max: 24 });
+  assert.deepEqual(FC.tempAxisRange([17, 17], []), { min: 17, max: 17 });
+  // Both ways at once.
+  assert.deepEqual(FC.tempAxisRange(T, [[20, 30, 26, 22], [9, 12, 16, 14]]), { min: 9, max: 30 });
+  // (5) end to end: a line the watch does not draw widens nothing. Previewing aplite (no
+  // WW_LINE_STYLE) the fourth and fifth lines are off, so a dew line stored there leaves
+  // the temperature on its own range, today's 12-unit margins at both edges.
+  const aplite = curveRows(preview({ fourthLine: 'dew', fourthLineStyle: 'line', fifthLine: 'feels' }, APLITE));
+  assert.ok(near(aplite.top, 4 + 3 + 12) && near(aplite.bottom, PB - 12));
+  // Nor a feels or dew pick stored on the Main or Second metric line (picked on a colour
+  // watch paired to the same phone): the aplite bake drops it (forecast-series.js
+  // tempAxisLineDrawn) and the frozen fork has no fit, so the air's low keeps the floor row.
+  [{ secondaryLine: 'feels' }, { thirdLine: 'dew', thirdLineStyle: 'line' },
+    { secondaryLine: 'feels', thirdLine: 'dew' }].forEach((over) => {
+    const rows = curveRows(preview(over, APLITE));
+    assert.ok(near(rows.top, 4 + 3 + 12) && near(rows.bottom, PB - 12), 'aplite ' + JSON.stringify(over));
+  });
+  // And the one drawn: the same line on a basalt preview lifts the air's low (2).
+  assert.ok(curveRows(preview({ fourthLine: 'dew', fourthLineStyle: 'line' }, BASALT)).bottom < PB - 12);
 });
 
 test('alignLabels: off today\'s reach only, inward only, the minimum gap, else today\'s place for both', () => {

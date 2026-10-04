@@ -137,8 +137,11 @@
   .subhdr.grp .lbl-act { flex: none; }
   .row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 18px; padding: 14px 16px; border-bottom: 1px solid var(--row-line); }
   /* stacked rows are a column, so the .row flex `gap` would space label/hint/control far apart;
-     zero it and let the hint's own margin-top own the label→hint gap (matching non-stacked rows). */
-  .row.stack { flex-direction: column; align-items: stretch; gap: 0; }
+     zero it and let the hint's own margin-top own the label→hint gap (matching non-stacked rows).
+     nowrap: a column never needs to wrap, and .row's wrap made Chrome size the row before an
+     open palette's aspect-ratio swatches had their width, so the row came out short and the
+     palette spilled over the rows below it (an alert dialog's warn colour). */
+  .row.stack { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 0; }
   .row.stack > div:last-child { margin-top: 11px; }
   .row.nb { border-bottom: none; }
   .card .row:last-child, .card .static:last-child, .card .blockrow:last-child { border-bottom: none; }

@@ -86,6 +86,10 @@ test('buildSettingsBlob: bytes 38-47 carry the On demand cells, effective values
 
 // All five metric alerts placed (the Watch Status Bar's right side), nothing else.
 const ALL_ON = placedOnly(['uv', 'wind', 'gust', 'aqi', 'pollen']);
+// Every alert's Look set to Icon. Icon + value is the default (an absent Look reads
+// 'value' since 2.0.1), so a test that pins icon-only bytes sets the Look itself.
+const ICON_LOOKS = {};
+th.ALERT_KINDS.forEach((a) => { ICON_LOOKS['alert' + a.key + 'Display'] = 'icon'; });
 /**
  * Exactly these alerts placed, with more settings.
  * @param {string[]} codes Alert codes.
@@ -135,9 +139,11 @@ test('enabledAlerts: the placed alerts in the On demand order, with how each rea
 test('alertOn / enabledAlerts: keyed by code, on while placed on any bar, the value only while on', () => {
   th.ALERT_KINDS.forEach((a) => {
     const look = 'alert' + a.key + 'Display';
-    assert.deepEqual(valueCodes(on([a.code])), [], a.code);
+    assert.deepEqual(valueCodes(on([a.code])), [a.code], a.code + ': absent shows the value (the default)');
     assert.deepEqual(valueCodes(on([a.code], { [look]: 'value' })), [a.code], a.code + ' value');
     assert.deepEqual(valueCodes(on([a.code], { [look]: 'icon' })), [], a.code + ' icon');
+    assert.deepEqual(valueCodes(on([a.code], { [look]: 'bogus' })), [a.code],
+      a.code + ': an unknown Look reads as the default');
     assert.deepEqual(valueCodes(on([], { [look]: 'value' })), [],
       a.code + ': unplaced shows no value, whatever its Look');
     assert.equal(th.alertOn(on([a.code]), a.code), true);
@@ -331,13 +337,16 @@ test('bakeAlerts: the exact bytes for a UV-danger + wind-warn row', () => {
     WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 20, 0] };
   // Icons only: one header byte each (bit 7). UV = kind 7, danger (bit 3); wind =
   // kind 2, warn (bit 3 clear); both today's (day bits 4-6 zero).
-  assert.deepEqual(wire.bakeAlerts(p, on(['uv', 'wind'])),
+  const icons = { alertUvDisplay: 'icon', alertWindDisplay: 'icon' };
+  assert.deepEqual(wire.bakeAlerts(p, on(['uv', 'wind'], icons)),
     [0x80 | 7 | 0x08, 0x80 | 2]);
-  assert.deepEqual(wire.bakeAlerts(p, on(['uv', 'wind'])), [0x8F, 0x82]);
+  assert.deepEqual(wire.bakeAlerts(p, on(['uv', 'wind'], icons)), [0x8F, 0x82]);
   // UV with its value ("9" — 8.5 rounds like the slot prints it), wind icon-only:
   // the value needs no length, it runs to the next header.
-  assert.deepEqual(wire.bakeAlerts(p, on(['uv', 'wind'], { alertUvDisplay: 'value' })),
+  assert.deepEqual(wire.bakeAlerts(p, on(['uv', 'wind'], { alertUvDisplay: 'value', alertWindDisplay: 'icon' })),
     [0x8F, 0x39, 0x82]);
+  // Looks absent: both print their value, the default.
+  assert.deepEqual(wire.bakeAlerts(p, on(['uv', 'wind'])), [0x8F, 0x39, 0x82, 0x34, 0x35]);
   // Both with values: wind in the user's unit, no unit label.
   assert.deepEqual(decodeAlerts(wire.bakeAlerts(p, on(['uv', 'wind'], { alertUvDisplay: 'value',
     alertWindDisplay: 'value', windUnits: 'mph' }))),
@@ -346,7 +355,7 @@ test('bakeAlerts: the exact bytes for a UV-danger + wind-warn row', () => {
 });
 
 test('bakeAlerts: the On demand order gust, UV, AQI, pollen, wind; unplaced and quiet kinds absent', () => {
-  const all = decodeAlerts(wire.bakeAlerts(ALL_ALERTING, Object.assign({ provider: 'dwd' }, ALL_ON)));
+  const all = decodeAlerts(wire.bakeAlerts(ALL_ALERTING, Object.assign({ provider: 'dwd' }, ALL_ON, ICON_LOOKS)));
   assert.deepEqual(all.map(e => e.kind), [3, 7, 0, 1, 2], 'gust, UV, AQI, pollen, wind');
   assert.deepEqual(all.map(e => e.level), [2, 2, 2, 1, 1]);
   assert.deepEqual(all.map(e => e.value), ['', '', '', '', ''], 'icon Look: no values');
@@ -423,7 +432,7 @@ test('bakeAlerts: tail-drops entries past the 20 B cap, wind first', () => {
   assert.deepEqual(decodeAlerts(wire.bakeAlerts(huge, values)).map(e => e.value),
     ['90', '8', '', '2', '45']);
   // Icon-only: all five = 5 B.
-  assert.equal(wire.bakeAlerts(over, ALL_ON).length, 5);
+  assert.equal(wire.bakeAlerts(over, Object.assign({}, ALL_ON, ICON_LOOKS)).length, 5);
 });
 
 test('the placed alerts ride in the On demand order, each entry under its wire kind id', () => {
@@ -432,7 +441,7 @@ test('the placed alerts ride in the On demand order, each entry under its wire k
     th.ALERT_KINDS.map((a) => a.code));
   // Only the placed ones, still in that order, and a value only where the Look asks.
   assert.deepEqual(decodeAlerts(wire.bakeAlerts(ALL_ALERTING,
-    on(['pollen', 'uv'], { alertUvDisplay: 'value', alertAqiDisplay: 'value' }))),
+    on(['pollen', 'uv'], { alertUvDisplay: 'value', alertAqiDisplay: 'value', alertPollenDisplay: 'icon' }))),
   [{ kind: 7, level: 2, value: '8' }, { kind: 1, level: 1, value: '' }]);
 });
 
@@ -500,7 +509,8 @@ test('look-ahead: wind in km/h (warn 40 / danger 60), and the building storm', (
     [{ kind: 2, level: 2, value: '43', mark: 'raquo' }]);
   // Gusts read their own peaks.
   assert.deepEqual(decodeAlerts(wire.bakeAlerts({ GUST_TREND_UINT8: [20], GUST_DAY_PEAKS: [30, 65, 0] },
-    on(['gust']))), [{ kind: 3, level: 1, value: '', mark: 'raquo' }], 'gust 65 vs the seed 65/90, icon only');
+    on(['gust'], { alertGustDisplay: 'icon' }))), [{ kind: 3, level: 1, value: '', mark: 'raquo' }],
+  'gust 65 vs the seed 65/90, icon only');
 });
 
 test('look-ahead: tomorrow must be known and above 0 — never a »0', () => {
@@ -570,7 +580,7 @@ test('look-ahead: Days today, an alert that is not placed, and unknown Days', ()
 test('look-ahead: the tomorrow mark rides the header, per alert; today\'s entries carry none', () => {
   const p = uvDay(5, 5, 9, 8);
   th.ALERT_NEXT_DAY_MARKS.forEach((mark, i) => {
-    const bytes = wire.bakeAlerts(p, on(['uv'], { alertUvNextDayMark: mark }));
+    const bytes = wire.bakeAlerts(p, on(['uv'], { alertUvNextDayMark: mark, alertUvDisplay: 'icon' }));
     assert.equal(bytes.length, 1, mark + ': no extra byte for the mark');
     assert.equal((bytes[0] >> wire.ALERT_DAY_SHIFT) & 7, i + 1, mark);
     assert.equal(decodeAlerts(bytes)[0].mark, mark);
@@ -580,11 +590,11 @@ test('look-ahead: the tomorrow mark rides the header, per alert; today\'s entrie
       'raquo', String(v) + ' reads as the default »'));
   // Today's entry is unmarked whatever the mark setting says.
   assert.deepEqual(decodeAlerts(wire.bakeAlerts(uvDay(2, 8, 9, 0),
-    on(['uv'], { alertUvNextDayMark: 'star' }))), [{ kind: 7, level: 2, value: '' }]);
+    on(['uv'], { alertUvNextDayMark: 'star', alertUvDisplay: 'icon' }))), [{ kind: 7, level: 2, value: '' }]);
   // Each alert its own mark; the icon look carries the mark too.
   const both = Object.assign({}, p, { WIND_TREND_UINT8: [30], WIND_DAY_PEAKS: [30, 70, 0] });
   assert.deepEqual(decodeAlerts(wire.bakeAlerts(both, on(['uv', 'wind'], { alertUvNextDayMark: 'none',
-    alertWindNextDayMark: 'star', alertWindDisplay: 'value' }))),
+    alertUvDisplay: 'icon', alertWindNextDayMark: 'star', alertWindDisplay: 'value' }))),
   [{ kind: 7, level: 2, value: '', mark: 'none' }, { kind: 2, level: 2, value: '70', mark: 'star' }]);
 });
 

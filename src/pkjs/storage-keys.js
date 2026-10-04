@@ -39,6 +39,9 @@ module.exports = {
     // marker of its own, not a step of the alert levels' or On demand's: dev and beta
     // installs already hold both of those, and they still store the pair.
     RAINBOW_OWN_KEY_SOURCE_MIGRATION_KEY: 'v1.24.0_rainbow_own_key_source_migration',
+    // 2.0.1: every install onto the alert defaults, a weather warn look filled and an
+    // alert's Look Icon + value (migrations/alert-defaults.js migrateAlertDefaults).
+    ALERT_DEFAULTS_MIGRATION_KEY: 'v2.0.1_alert_defaults_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',

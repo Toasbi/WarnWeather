@@ -251,9 +251,10 @@ static void load_dataset(ForecastDataset *ds) {
 // from 64 rows on its square over TEMP_AXIS_PAD_SQ_DIV, where that is more: the taller the
 // plot, the larger its share.
 //
-// The temperature's own lowest and highest point land on the margin rows, and every line with
-// an inset (the phone sends the temperature-axis lines the curve's own) maps on the same scale,
-// so a feels-like or dew point value past the temperature's range runs on into the margin
+// The lowest and highest point of the temperature and of every line with an inset (the phone
+// sends the temperature-axis lines the curve's own) land on the margin rows, all on one scale
+// (owner, 2026-10-04: "always fit all lines"): a feels-like or dew point value past the
+// temperature's range takes the margin row, and the temperature curve sits inside the margins
 // (temp_axis_pad.h THE SCALE). fit_temp_axis turns the curve's and those lines' bytes into
 // their rows in place (temp_axis_rows), so their layers map rows 1:1: lo 0, hi temp_rows
 // (forecast_update_proc's count of the plot's content rows), no insets. A line with no inset
@@ -502,22 +503,36 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
 
 
 #if defined(WW_LINE_STYLE)
-// The temperature's own lowest and highest byte, over every hour sent (the window the hi/lo
-// labels name), land on the margin rows of a plot `plot_h` content rows tall with the edges
-// `anchors`; the lines with an inset (feels-like, dew point) map on the same scale, so their
-// values past the temperature's range run on into the margins, up to the plot's edge
-// (temp_axis_pad.h THE SCALE). Their bytes become rows here, in place (load_dataset reloads
-// them on every redraw): the curve's always (TEMP_HI), every line's with an inset (LINE_HI's
-// test). A floating line's byte 0 is a missing reading and stays one; the curve's is data.
-static void fit_temp_axis(ForecastDataset *ds, int plot_h, int anchors) {
-    const Series *first = &ds->series[SERIES_FIRST];
-    const TempAxisFit fit = temp_axis_fit(first->line.values, ds->num_entries,
-                                          temp_axis_margins(first->line.inset_y, plot_h, anchors),
-                                          plot_h, FORECAST_TREND_FULL_SCALE);
-    for (SeriesId sid = SERIES_FIRST; sid < SERIES_BARS; ++sid) {
-        Series *s = &ds->series[sid];
-        if (sid == SERIES_FIRST || (s->present && s->line.inset_y)) {
-            temp_axis_rows(s->line.values, ds->num_entries, fit, s->line.floating);
+// The lowest and highest byte of the temperature and of every present line with an inset
+// (feels-like, dew point), over every hour sent (the window the hi/lo labels name), land on
+// the margin rows of a plot `plot_h` content rows tall with the edges `anchors`, all on one
+// scale, so no line runs past a margin (temp_axis_pad.h THE SCALE). Their bytes become rows
+// here, in place (load_dataset reloads them on every redraw): the curve's always (TEMP_HI),
+// every line's with an inset (LINE_HI's test). A floating line's byte 0 is a missing reading:
+// it widens no range and stays one; the curve's is data.
+//
+// noinline, noclone: out of forecast_update_proc and handed `ds` in a register, the two
+// passes cost basalt nothing and diorite/flint 20 B less than the inlined temperature-only
+// fit did; inlined they cost basalt 28 B more (diorite/flint 72), cloned onto the paint
+// scratch's address 36 (40) (measured 2026-10-04; basalt sits at its 64 KB ceiling).
+static __attribute__((noinline, noclone)) void fit_temp_axis(ForecastDataset *ds, int plot_h,
+                                                               int anchors) {
+    Series *const first = &ds->series[SERIES_FIRST];
+    Series *const end = &ds->series[SERIES_BARS];   // the lines, not the bars
+    const int n = ds->num_entries;
+    TempAxisRange range = TEMP_AXIS_RANGE_NONE;
+    for (Series *s = first; s < end; ++s) {
+        if (s == first || (s->present && s->line.inset_y)) {
+            temp_axis_range_widen(&range, s->line.values, n, s->line.floating);
+        }
+    }
+    const TempAxisFit fit = temp_axis_fit_range(range,
+                                                temp_axis_margins(first->line.inset_y, plot_h,
+                                                                  anchors),
+                                                plot_h, FORECAST_TREND_FULL_SCALE);
+    for (Series *s = first; s < end; ++s) {
+        if (s == first || (s->present && s->line.inset_y)) {
+            temp_axis_rows(s->line.values, n, fit, s->line.floating);
         }
     }
 }
@@ -595,9 +610,10 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // under the last so even a full rain bar never touches them. The plot starts below
     // the band, so no fill, bar or line maps into it, and every line maps its values
     // as if the graph began there: a UV 11 or a full rain bar ends just under the
-    // stripes, the hottest hour its margin below them (fit_temp_axis). Only the night
-    // shading runs on up through the band (the full-height hatch's extend_top), and the
-    // stripe cells, drawn after the plot and opaque, cover it wherever they draw.
+    // stripes, the temperature axis's highest value (the air's or a feels-like peak's)
+    // its margin below them (fit_temp_axis). Only the night shading runs on up through
+    // the band (the full-height hatch's extend_top), and the stripe cells, drawn after
+    // the plot and opaque, cover it wherever they draw.
     const int16_t top_band = (int16_t)forecast_stripe_band(edges.top_stripes, stripe_h,
                                                            FORECAST_TOP_BAND_GAP);
 #else

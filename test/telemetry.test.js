@@ -1244,8 +1244,9 @@ const { NOTHING_PLACED, placedOnly } = require('./helpers/on-demand.js');
 
 test('the weather alerts report alerts and rainAlertDisplay', () => {
   const fresh = buildSettingsSnapshot({});
-  assert.equal(fresh.alerts, 'IrIrIro-Ir',
-    'untouched: the default ticks place gust, UV, AQI and wind, looking ahead with the »');
+  assert.equal(fresh.alerts, 'VrVrVro-Vr',
+    'untouched: the default ticks place gust, UV, AQI and wind, printing the value (Icon + value) and'
+    + ' looking ahead with the »');
   assert.equal(fresh.rainAlertDisplay, 'text', 'no look stored: the countdown text');
   assert.ok(!('alertKinds' in fresh) && !('alertValueKinds' in fresh),
     'the two comma lists the code replaced are gone');
@@ -1266,11 +1267,11 @@ test('the weather alerts report alerts and rainAlertDisplay', () => {
   // Days Today: lower case and no mark, whatever mark is stored (the bake never
   // reads it). An unknown Days or mark reports the default the bake reads.
   assert.equal(buildSettingsSnapshot(placedOnly(['uv', 'gust'], { alertUvDays: 'today', alertUvNextDayMark: 'gt',
-    alertGustDisplay: 'value', alertGustDays: 'today' })).alerts, 'v-i-o-o-o-');
+    alertUvDisplay: 'icon', alertGustDisplay: 'value', alertGustDays: 'today' })).alerts, 'v-i-o-o-o-');
   assert.equal(buildSettingsSnapshot(placedOnly(['uv', 'wind', 'gust', 'aqi', 'pollen'], {
     alertUvNextDayMark: 'gt', alertWindNextDayMark: 'plus', alertGustNextDayMark: 'star',
     alertAqiNextDayMark: 'none', alertPollenDays: 'bogus', alertPollenNextDayMark: 'bogus' })).alerts,
-  'IsIgInIrIp');
+  'VsVgVnVrVp', 'no Look stored: Icon + value, the default');
   // A known aplite has no On demand: nothing is placed there.
   assert.equal(buildSettingsSnapshot({}, { platform: 'aplite' }).alerts, 'o-o-o-o-o-');
 });
@@ -1289,7 +1290,8 @@ test('alerts agrees with the bake\'s reading of every alert setting', () => {
         const pair = buildSettingsSnapshot(s).alerts.slice(at, at + 2);
         let want = 'o-';
         if (th.alertOn(s, 'wind')) {
-          const l = s.alertWindDisplay === 'value' ? 'v' : 'i';
+          // The bake shows the value unless the Look is Icon (absent: Icon + value).
+          const l = s.alertWindDisplay === 'icon' ? 'i' : 'v';
           want = th.alertDays(s, 'wind') === 'tomorrow'
             ? l.toUpperCase() + MARK[th.alertNextDayMark(s, 'wind')] : l + '-';
         }

@@ -113,7 +113,8 @@ test('through the real outbox: an unchanged status category skips the send and s
 test('the backstop keeps what alerts look ahead to: a restart re-bakes Days and marks offline', () => {
   const { decodeAlerts } = require('./helpers/alert-entries.js');
   storage = {};
-  let live = require('./helpers/on-demand.js').placedOnly(['uv', 'pollen'], { alertPollenDisplay: 'value' });
+  let live = require('./helpers/on-demand.js').placedOnly(['uv', 'pollen'],
+    { alertUvDisplay: 'icon', alertPollenDisplay: 'value' });
   statusRebake.init({ getSettings: () => live, sendWeather: () => {} });
   statusRebake.rememberBakeInputs({
     CITY: 'Bonn', UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 90, 0],

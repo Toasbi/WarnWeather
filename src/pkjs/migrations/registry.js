@@ -34,6 +34,7 @@ var graphColors = require('./graph-colors.js');
 var lightTheme = require('./light-theme.js');
 var lineStyles = require('./line-styles.js');
 var v124 = require('./v1_24.js');
+var alertDefaults = require('./alert-defaults.js');
 
 module.exports = [
     // 1.20.0. Marks on every boot that finds it unset, fresh installs included (see the
@@ -113,5 +114,12 @@ module.exports = [
     // blob holds no rainbowOwnKey and the page no longer saves one, so there is nothing
     // left for it to move.
     { key: KEYS.RAINBOW_OWN_KEY_SOURCE_MIGRATION_KEY, markOn: 'now', markOnReset: true,
-      run: radar.migrateRainbowOwnKeySource }
+      run: radar.migrateRainbowOwnKeySource },
+    // 2.0.1: the alert defaults (a weather warn look filled, an alert's Look Icon + value)
+    // on every install. After the 1.24.0 warn-look move, whose stored 'outline' it takes
+    // back. Marks now though it can ask for a send (see clay-migrations.js on the
+    // scheduler). Reset-safe: the next blob is seeded with these defaults, and a look the
+    // page saves before the next boot is a pick.
+    { key: KEYS.ALERT_DEFAULTS_MIGRATION_KEY, markOn: 'now', markOnReset: true,
+      run: alertDefaults.migrateAlertDefaults }
 ];

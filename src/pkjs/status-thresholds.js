@@ -474,7 +474,8 @@
   // The metric alerts, in the On demand priority order (on-demand.js ITEMS, after
   // Rain, which the watch resolves itself). `code` is the KINDS code, so the wire
   // kind id is its index there; `key` is the settings stem: alert<Key>Display
-  // ('icon' | 'value') picks whether its number rides after the icon,
+  // ('icon' | 'value') picks whether its number rides after the icon (absent or
+  // unknown reads as 'value', the default since 2.0.1),
   // alert<Key>Days (alertDays) whether it may look ahead to tomorrow and
   // alert<Key>NextDayMark (alertNextDayMark) how a tomorrow entry is marked. An
   // alert is on while its item is ticked on an On demand side of any bar
@@ -610,7 +611,7 @@
       var a = ALERT_KINDS[i];
       if (!alertOn(settings, a.code, env)) { continue; }
       out.push({code: a.code, kindId: kindId(a.code),
-        showValue: alertSetting(settings, a.code, 'Display') === 'value',
+        showValue: alertSetting(settings, a.code, 'Display') !== 'icon',
         days: alertDays(settings, a.code),
         mark: alertNextDayMark(settings, a.code)});
     }
