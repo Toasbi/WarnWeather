@@ -7,6 +7,29 @@ WarnWeather is a weather watchface for Pebble, based on the ForecasWatch2 watchf
 It supports multiple views which can be reached through a wrist flick.
 Highly customizable with a modern settings UI and previews.
 
+ALERTS
+Small screens fill up fast. Alerts keep the watchface clean and bring information
+up only when it matters, so you know before it gets dangerous.
+- Alert icons show at the edge of a status bar only when they reach your warn level
+  or are active right now, and stay hidden the rest of the time
+- System info: low watch battery, Bluetooth disconnected, quiet time, and a sleep
+  icon during the Battery saver hours
+- Weather alerts: rain on its way (as an icon, the minutes, or a countdown), and wind gusts,
+  UV index, air quality, pollen (DWD) or wind speed reaching your warn level, today
+  or tomorrow
+- Alert levels: a warn and a danger level for each weather alert, with its own
+  colors on color watches
+- Alert highlighting: bold, outline, or fill a status slot when it reaches the warn
+  or danger level you set
+- Graph lines on Alert: set a wind, gust or UV line's Visible values to Alert and it
+  shows only the hours that reach your warn level, so the graph stays empty until it
+  matters
+- Pick the status bars that show each alert, left or right; on a crowded bar the
+  status slots shorten first to make room
+- Ready out of the box: battery, Bluetooth, quiet time, sleep, rain, wind, gust,
+  UV and air quality alerts are on by default
+(Alerts are not available on Pebble Classic/Steel)
+
 FORECAST
 - 24-hour forecast with a temperature line and configurable, battery-friendly updates
 - Up to four configurable metrics such as precipitation, cloud cover, UV index, gusts,
@@ -16,8 +39,6 @@ FORECAST
 - Draw from: Bottom | Top: the precipitation, cloud cover, wind, gust and UV lines, and
   (Bars from) the forecast's and the radar's rain bars, can hang from the top of the graph,
   so they cover the temperature curve less (not on Pebble Classic/Steel)
-- Visible values: All | Alert: draw the wind, gust or UV line whole, or only where it reaches
-  your warn level, so the small graph stays empty until it matters (not on Pebble Classic/Steel)
 - Feels-like your way: the provider's own value, or the Steadman formula
   (temperature, humidity, wind) applied the same on every provider
 - Optional day/night shading
@@ -33,7 +54,7 @@ RAIN RADAR
 - Outside a regional radar's area (DWD: Germany, Met.no: the Nordic countries) the radar says so,
   and the radar settings suggest a source that covers your location
 - Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on
-  its way (Alerts)
+  its way (see ALERTS)
 - Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph
 - Clouds, sun and lightning rows under the radar graph: cloud cover and sun strength for the next 2 hours, with a bolt where thunderstorms are expected
 
@@ -45,7 +66,7 @@ CALENDAR
 - Multi-week calendar with current-day highlight
 - Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
-STATUS LINES
+STATUS BARS
 - Configurable status slots on every view:
    - Weather:
       - feels-like temperature
@@ -74,29 +95,7 @@ STATUS LINES
 - Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
   (not on Pebble Classic/Steel)
-- Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or
-  danger level you set (its Alert levels) (not on Pebble Classic/Steel)
-- Alerts: items that show at a status bar's edge, next to the status slot there, only when
-  they reach their warn level or are active right now (low battery, Bluetooth disconnected, rain
-  coming, a high UV or wind forecast), so the watch face stays free of distractions the rest of
-  the time (not on Pebble Classic/Steel). The Alerts tab lists them. Open one to set it up and
-  to choose which status bars show it, left or right. The items and how they show:
-   - System info: the watch battery at or below a warn level you set, Bluetooth when it
-     disconnects, quiet time while it is on, and a sleep icon during the battery saver hours
-   - Weather alerts: rain falling or on its way, or wind gusts, UV index, air quality, pollen
-     (with DWD) or wind speed reaching your warn level today or, looking ahead, tomorrow;
-     with the value next to the icon if you like, and » or a mark you pick on a tomorrow
-     alert; the rain alert shows as an icon, the minutes, or the full countdown text
-   - On by default: Bluetooth, quiet time, sleep and the rain alert at the top left, and the
-     battery with the wind gust, UV index, air quality and wind speed alerts at the top right;
-     the pollen alert is off
-   - A weather alert next to a status slot showing the same value goes into that slot: the
-     slot shows both values once ("3/8") in the alert's colors
-   - When a bar runs short of room, its slots switch to short forms first ("2026" to "'26",
-     "New York" to "N. York", sleep "7h", steps "12k", units dropped; the date keeps its
-     month and hides rather than shrink further), then the slot beside the items hides and
-     the middle slot moves aside and hides, and only then do the alert values and the rain
-     text shorten and the last items drop
+- Alerts at each status bar's edge (see ALERTS)
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches
@@ -104,7 +103,7 @@ WATCHFACE THEMES
 
 WATCH
 - Custom color, 12h/24h, optional AM/PM
-- Battery, Bluetooth, quiet time and sleep indicators that show only when needed (Alerts),
+- Battery, Bluetooth, quiet time and sleep indicators that show only when needed (see ALERTS),
   plus vibrate on disconnect (Pebble Classic/Steel keeps its fixed indicators)
 - Night battery saver (pause updates to the watch between hours you set, to save battery)
 - Night backlight dimming
@@ -113,7 +112,9 @@ LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views and optional auto-return, including Weather only: rain radar, clock, weather and a big forecast without the top bar
 - Custom layout (still beta)
 - First-run setup wizard that picks sensible defaults for your country and watch
-- A tidy settings page: six tabs, a live preview pinned at the top, an explanation under each setting (or behind a ? icon, if you prefer), and rarely-changed settings under More options
+- A settings page in six tabs (Weather, Watchface, Status bars, Alerts, Graphs, Setup; no
+  Alerts tab on Pebble Classic/Steel) with a live preview, an explanation under each setting or behind a ? icon, rarely-changed
+  settings under More options, and full-screen dialogs
 
 WEATHER
 - Detailed 5-day weather forecast for multiple locations inside the settings app

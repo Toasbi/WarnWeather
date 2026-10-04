@@ -175,8 +175,8 @@
     "title": "Cloud cover, stripes, radar sky",
     "body": "The forecast graph can show cloud cover and a fourth metric, and any metric can be a shaded stripe along the top or below the zero line. The radar can add clouds, sun and lightning for the next two hours (Radar tab). (Not on Pebble Classic/Steel.)"
   },
-  "1.24.0": {
-    "title": "Alerts",
-    "body": "Battery, Bluetooth, quiet time, sleep and weather alerts now show at a status bar's edge only while they matter. Set them up in the new Alerts tab. (Not on Pebble Classic/Steel.) The settings page is also tidier: six tabs, with rarely changed settings under More options."
+  "2.0.0": {
+    "title": "Alerts & new settings",
+    "body": "Battery, Bluetooth and weather alerts now show at a status bar's edge only while they matter (not on Pebble Classic/Steel). Set them up in the new Alerts tab of the rebuilt settings page."
   }
 }
