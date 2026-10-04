@@ -97,7 +97,7 @@ const EXPECTED_KEYS = [
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
-  'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
+  'layoutPreset','largeGraphFont','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
   // Setup › Misc › Hide info text: page-only like startOnWeatherTab (rides the saved blob,
   // never read watch-side), but a stored key all the same.
   'hideInfoText','devStatsEnabled','devStatsClear','reset',
@@ -1660,6 +1660,21 @@ test('viewResetMin is hidden on aplite and carries its explanation as its own hi
   assert.equal(showWhen.isVisible(reset, aplite), false);
 });
 
+test('doubleFlick is an OFF-by-default toggle, hidden on aplite like View reset time', () => {
+  const flick = byKey('doubleFlick');
+  assert.equal(flick.type, 'toggle');
+  assert.equal(flick.defaultValue, false, 'one flick switches until the user opts in');
+  // Not "quick": a second flick under the 500 ms debounce reads as the same flick, and
+  // a BMI160 watch delivers none sooner than ~1.28 s (layout.h VIEW_FLICK_PAIR_MS).
+  assert.match(flick.hint, /second flick within a few seconds/);
+  assert.deepEqual(flick.showWhen, byKey('viewResetMin').showWhen, 'shown exactly where View reset time is');
+  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) => {
+    assert.equal(showWhen.isVisible(flick, { env: platform.computeEnv({ platform: p }) }), true, p);
+  });
+  assert.equal(showWhen.isVisible(flick, { env: platform.computeEnv({ platform: 'aplite' }) }), false,
+    'aplite has no flick');
+});
+
 test('swapClockStatus toggle exists, defaults ON, and is shown for compactCal on all platforms', () => {
   const it = byKey('swapClockStatus');
   assert.ok(it, 'swapClockStatus item exists');
@@ -1717,7 +1732,7 @@ test('swapClockStatus is offered and applied exactly where the radio shows Compa
   });
 });
 
-test('the Layout card: combined preview pinned above the preset radio, then the editor row, font toggle, swap toggle and reset segmented below', () => {
+test('the Layout card: combined preview pinned above the preset radio, then the editor row, font toggle, swap toggle, double-flick toggle and reset segmented below', () => {
   const watchface = schema.tabs.find((t) => t.id === 'watchface');
   const layout = watchface.sections.find((s) => s.id === 'layout');
   assert.equal(layout.title, 'Layout');
@@ -1730,6 +1745,7 @@ test('the Layout card: combined preview pinned above the preset radio, then the 
   const fontIdx = items.findIndex((i) => i.messageKey === 'largeGraphFont');
   const resetIdx = items.findIndex((i) => i.messageKey === 'viewResetMin');
   const swapIdx = items.findIndex((i) => i.messageKey === 'swapClockStatus');
+  const flickIdx = items.findIndex((i) => i.messageKey === 'doubleFlick');
   assert.ok(presetIdx >= 0, 'layoutPreset present');
   assert.equal(presetIdx, 0, 'the preset radio heads the card');
   assert.equal(items[presetIdx].blockBefore, undefined, 'the preview is no longer hosted on the preset radio');
@@ -1741,10 +1757,11 @@ test('the Layout card: combined preview pinned above the preset radio, then the 
     'editor row only shows in custom mode, never on aplite (dormant stored custom)');
   assert.equal(fontIdx, editIdx + 1, 'largeGraphFont follows the editor row');
   assert.equal(swapIdx, fontIdx + 1, 'swapClockStatus sits directly below largeGraphFont');
-  assert.equal(resetIdx, swapIdx + 1, 'viewResetMin sits directly below swapClockStatus');
+  assert.equal(flickIdx, swapIdx + 1, 'doubleFlick sits directly below swapClockStatus');
+  assert.equal(resetIdx, flickIdx + 1, 'viewResetMin sits directly below doubleFlick');
   assert.equal(resetIdx, items.length - 1, 'and closes the section');
-  // The three rarely-changed rows sit behind the card's More options.
-  [fontIdx, swapIdx, resetIdx].forEach((i) => assert.equal(items[i].more, true, items[i].messageKey + ' is a More option'));
+  // The four rarely-changed rows sit behind the card's More options.
+  [fontIdx, swapIdx, flickIdx, resetIdx].forEach((i) => assert.equal(items[i].more, true, items[i].messageKey + ' is a More option'));
   // The custom storage section is sheetOnly (never rendered as a tab section), right
   // after the card whose editor writes it.
   const storage = watchface.sections[watchface.sections.indexOf(layout) + 1];

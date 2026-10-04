@@ -26,8 +26,8 @@
 
 static Window *s_main_window;
 
-// Cycle cursor. A wrist-flick advances to the next enabled + available view and
-// wraps back. Survives a relaunch (e.g. Pebble's Quiet Time forces a full app
+// Cycle cursor. A wrist-flick accepted by view_flick_accept (layout.h) advances to the
+// next enabled + available view and wraps back. Survives a relaunch (e.g. Pebble's Quiet Time forces a full app
 // process relaunch on real hardware) within config_get()->view_reset_min minutes, or
 // MAX_STALE_TIME_SEC when auto-return is disabled — see persist_get_view_cursor()
 // in main_window_load(). Beyond that window it boots to the DEFAULT view (index 0).
@@ -39,9 +39,12 @@ static uint8_t s_view_index;
 // keep the cursor). Whole words, so a change confined to the tier/top/custom bits (8-15)
 // or to the custom-layout ext word alone (a size or Position) is still detected.
 static uint32_t s_applied_view_word[3];
-// Epoch of the last flick (or relaunch-restore to a non-default view), seeding the
-// auto-return-to-default timer. 0 = on the default view / no timer running.
+// Epoch of the last view-switching flick (or relaunch-restore to a non-default view),
+// seeding the auto-return-to-default timer. 0 = on the default view / no timer running.
 static time_t s_flick_epoch;
+// Wrist-flick gate state (rules: layout.h view_flick_accept). RAM only, zeroed at launch:
+// a relaunch starts with no flick pending.
+static ViewFlickGate s_flick_gate;
 #endif
 
 #if defined(PBL_HEALTH)
@@ -333,21 +336,21 @@ static void health_warm_for_incoming_view(void) {
 
 #if defined(WW_VIEW_CYCLE)
 static void tap_handler(AccelAxisType axis, int32_t direction) {
-    // accel_tap_service fires per-axis, so one physical tap commonly delivers
-    // 2+ callbacks in quick succession (e.g. X then Z) — without debounce the
-    // cursor advances an even number of times and looks like it did nothing.
-    static uint64_t s_last_tap_ms = 0;
+    // view_flick_accept (layout.h) debounces one flick's per-axis echoes and, with Double
+    // flick on, passes only a pair's second flick. A rejected flick changes nothing here:
+    // no view, no auto-return restart, no health warm.
     time_t now_s;
-    uint16_t now_ms_part;
-    time_ms(&now_s, &now_ms_part);
-    uint64_t now_ms = (uint64_t)now_s * 1000 + now_ms_part;
-    if (now_ms - s_last_tap_ms < 500) return;
-    s_last_tap_ms = now_ms;
+    uint16_t now_ms_part = time_ms(&now_s, NULL);
+    if (!view_flick_accept(&s_flick_gate, (uint32_t) now_s * 1000u + now_ms_part,
+                           config_get()->view_double_flick)) {
+        return;
+    }
 
     uint8_t next = next_view_index(s_view_index);
-    if (next == s_view_index) { return; }   // nothing else enabled/available
+    if (next == s_view_index) { return; }   // nothing else enabled/available (pair consumed)
     s_view_index = next;
-    s_flick_epoch = time(NULL);              // restart the auto-return timer
+    s_flick_epoch = now_s;                   // restart the auto-return timer (time_ms's
+                                             // seconds are time(NULL)'s UTC epoch)
 #if defined(PBL_HEALTH)
     health_warm_for_incoming_view();
 #endif

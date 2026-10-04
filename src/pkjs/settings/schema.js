@@ -973,6 +973,9 @@ function hoursPair(startKey, endKey, startDefault, endDefault, when) {
 var VIEWS_INTRO = 'A view is one screen of the watchface. The Default view shows the forecast graph; '
     + 'Rain radar and Health can each add a view of their own. Flick your wrist to switch views. '
     + 'The layout decides how they\'re arranged, and each graph is set up in Graphs.';
+// The Layout card's two flick rows (Double flick, View reset time): aplite has no flick
+// cycle at all (WW_VIEW_CYCLE is compiled out), so both rows hide there together.
+var VIEW_FLICK_WHEN = {env: 'platform', ne: 'aplite'};
 var LAYOUT_INTRO = 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the '
     + 'preview. What a metric means or how it\'s coloured lives in Graphs.';
 var STATUS_INTRO = 'Every view has its own status bar — one row with a left, middle, and right slot you can '
@@ -1290,8 +1293,20 @@ module.exports = {
                     {all: [{key: 'layoutPreset', eq: 'weatherOnly'}, {env: 'platform', eq: 'aplite'}]}
                 ]}
             }, {
-                // Last in the card deliberately: the rows above shape what the layout
-                // LOOKS like, this one is about when it snaps back.
+                type: 'toggle',
+                messageKey: 'doubleFlick',
+                label: 'Double flick to switch views',
+                // OFF: one flick switches, as it always has. A fresh install lands here, and
+                // an upgrade too (seedDefaults backfills the missing key); off leaves
+                // CLAY_VIEW_RESET_MIN's word unchanged, so an upgrade resends nothing.
+                defaultValue: false,
+                hint: 'Switch views only on a second flick within a few seconds of the first, to reduce accidental view switches.',
+                more: true,
+                showWhen: VIEW_FLICK_WHEN
+            }, {
+                // Last in the card deliberately, right below Double flick: the rows above
+                // shape what the layout LOOKS like; these two are about how it switches
+                // and when it snaps back.
                 type: 'segmented',
                 messageKey: 'viewResetMin',
                 label: 'View reset time',
@@ -1299,7 +1314,7 @@ module.exports = {
                 hint: 'Automatically return to the default view after the selected time has passed.',
                 options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
                 more: true,
-                showWhen: {env: 'platform', ne: 'aplite'}
+                showWhen: VIEW_FLICK_WHEN
             }]
         },
         // Custom-layout storage (sheetOnly per-view keys) — custom-layout-schema.js.

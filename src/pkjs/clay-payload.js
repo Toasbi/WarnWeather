@@ -103,6 +103,30 @@ function lineCurveInset(settings, key) {
     return lineStyle.isTempAxisMetric(settings[key]) ? CURVE_INSET_PX : 0;
 }
 
+// CLAY_VIEW_RESET_MIN's wire layout: config_wire.h VIEW_RESET_DOUBLE_FLICK (pinned equal by
+// test/flick-presets.test.js). A bit, not a tuple: 11 B would break the Clay message's 10 B
+// headroom floor (test/inbox-size.test.js).
+var VIEW_RESET_MINUTES_MASK = 0xFF;
+var VIEW_RESET_DOUBLE_FLICK = 0x100;
+
+/**
+ * The CLAY_VIEW_RESET_MIN word: the auto-return minutes plus the Double flick bit.
+ * Masked to the bare minutes for a known aplite (no flick at all), so its payload never
+ * changes with the switch; an unknown platform is treated as capable. The minutes mask
+ * stops any input (e.g. '-1') from spilling into the flag bit.
+ * @param {Object} settings Clay settings.
+ * @param {Object} env platformLib.computeEnv() result.
+ * @returns {number} Non-negative int, at most 0x1FF.
+ */
+function packViewReset(settings, env) {
+    var word = (parseInt(settings.viewResetMin, 10) || 0) & VIEW_RESET_MINUTES_MASK;
+    // Absent reads as off, which is the toggle's default.
+    if (env.platform !== 'aplite' && settings.doubleFlick) {
+        word = word | VIEW_RESET_DOUBLE_FLICK;
+    }
+    return word;
+}
+
 /**
  * Build the Clay settings AppMessage payload.
  * @param {Object} settings Clay settings (claySettings.read() shape).
@@ -286,7 +310,7 @@ function buildClayPayload(settings, watchInfo, now) {
     payload.CLAY_VIEW_0 = viewCycle.packWire(cycle[0] || null);
     payload.CLAY_VIEW_1 = viewCycle.packWire(cycle[1] || null);
     payload.CLAY_VIEW_2 = viewCycle.packWire(cycle[2] || null);
-    payload.CLAY_VIEW_RESET_MIN = parseInt(settings.viewResetMin, 10) || 0;
+    payload.CLAY_VIEW_RESET_MIN = packViewReset(settings, env);
 
     // emery-only axis-font step-up (Layout tab). The simple Boolean() is provably safe
     // here: engine.js seeds toggles from defaultValue and flips them with !S[key], so a
@@ -310,5 +334,7 @@ module.exports = {
     // Exported for tests (multi-byte boundary cases); production callers go
     // through buildClayPayload.
     truncateUtf8Bytes: truncateUtf8Bytes,
+    // The CLAY_VIEW_RESET_MIN flag bit, pinned against config_wire.h by the tests.
+    VIEW_RESET_DOUBLE_FLICK: VIEW_RESET_DOUBLE_FLICK,
     DEFAULT_NORAIN_TEXT: DEFAULT_NORAIN_TEXT
 };

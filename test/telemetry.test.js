@@ -449,6 +449,7 @@ const HEAVIEST_SETTINGS = {
   timeShowAmPm: true, weekStartDay: 'monday', firstWeek: 'iso', showQt: true,
   batteryLowOnly: true, topViewMode: 'compact', layoutPreset: 'compactDense',
   viewResetMin: '15', largeGraphFont: true, vibe: true, btIcons: 'both',
+  doubleFlick: false,  // false: the longer JSON value
   secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'high',
   pressureScale: 'high', thirdLine: 'wind', barSource: 'precip_prob',
   // The third and fourth metric lines on their longest realistic options (the UI
@@ -604,6 +605,11 @@ test('custom layouts report customViewExt0-2 = packExt per view; presets report 
 test('snapshot includes largeGraphFont as a real boolean', () => {
   assert.strictEqual(buildSettingsSnapshot({ largeGraphFont: true }).largeGraphFont, true);
   assert.strictEqual(buildSettingsSnapshot({}).largeGraphFont, false);
+});
+
+test('snapshot includes doubleFlick as a real boolean', () => {
+  assert.strictEqual(buildSettingsSnapshot({ doubleFlick: true }).doubleFlick, true);
+  assert.strictEqual(buildSettingsSnapshot({}).doubleFlick, false);
 });
 
 // The six graph-colour FIELDS, pinned here by hand. They are named for the ELEMENT of the
@@ -854,7 +860,8 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // but only the batch header is asserted now. With Draw from / Bars from
 // (precipLineFrom, cloudLineFrom, windLineFrom, uvLineFrom, rainBarFrom, radarBarFrom,
 // 144 B on 'bottom', the longer value) the two envelopes are 4188 B and 4298 B, the
-// batch header 3168 of 4096, headroom 928.
+// batch header 3168 of 4096, headroom 928. The Double flick switch (doubleFlick, on its
+// longer value false) is 20 B: batch header 3188 of 4096, headroom 908.
 test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');

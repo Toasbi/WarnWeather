@@ -323,6 +323,18 @@
                 }
               },
               {
+                "type": "toggle",
+                "messageKey": "doubleFlick",
+                "label": "Double flick to switch views",
+                "defaultValue": false,
+                "hint": "Switch views only on a second flick within a few seconds of the first, to reduce accidental view switches.",
+                "more": true,
+                "showWhen": {
+                  "env": "platform",
+                  "ne": "aplite"
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "viewResetMin",
                 "label": "View reset time",
