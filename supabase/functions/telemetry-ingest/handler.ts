@@ -189,6 +189,9 @@ const settingsSchema = z
     customViewExt1: z.number().int().min(0).max(0x7FFF).optional(),
     customViewExt2: z.number().int().min(0).max(0x7FFF).optional(),
     viewResetMin: z.number().int().min(0).optional(),
+    // The Layout card's Double flick switch (2.1.0). DEPLOY-ORDERING: ship this function
+    // before the app release that sends it, or the strip step silently drops it.
+    doubleFlick: z.boolean().optional(),
     largeGraphFont: z.boolean().optional(),
     vibe: z.boolean().optional(),
     btIcons: z.string().optional(),

@@ -2701,6 +2701,81 @@ static void view_timer_tests(void) {
     expect("timer.5min.after_300s_returns", view_auto_return_due(t0 + 300, t0, 5), true);
 }
 
+static void view_flick_tests(void) {
+    // The wrist-flick gate (view_flick_accept): today's 500 ms debounce in single mode, and
+    // Double flick's arm-then-pair rule. t0 is an arbitrary epoch in ms.
+    const uint64_t t0 = 1700000000000ULL;
+    ViewFlickGate g = {0};
+    // Single flick: exactly the pre-option rule.
+    expect("flick.boot.first_callback_counts", view_flick_accept(&g, t0, false), true);
+    expect("flick.single.axis_echo_swallowed", view_flick_accept(&g, t0 + 120, false), false);
+    expect("flick.single.499ms_swallowed", view_flick_accept(&g, t0 + 499, false), false);
+    expect("flick.single.500ms_fires", view_flick_accept(&g, t0 + 500, false), true);
+    expect("flick.single.never_arms", g.armed, false);
+    expect("flick.single.debounce_from_accepted", view_flick_accept(&g, t0 + 800, false), false);
+    expect("flick.single.debounce_from_accepted_fires", view_flick_accept(&g, t0 + 1000, false), true);
+    // Double flick: the first only arms; its echo is swallowed and keeps the arm.
+    g = (ViewFlickGate){0};
+    expect("flick.double.first_only_arms", view_flick_accept(&g, t0, true), false);
+    expect("flick.double.armed", g.armed, true);
+    expect("flick.double.echo_swallowed", view_flick_accept(&g, t0 + 150, true), false);
+    expect("flick.double.echo_keeps_armed", g.armed, true);
+    expect("flick.double.second_fires", view_flick_accept(&g, t0 + 700, true), true);
+    expect("flick.double.pair_consumed", g.armed, false);
+    expect("flick.double.third_rearms", view_flick_accept(&g, t0 + 1400, true), false);
+    expect("flick.double.fourth_fires", view_flick_accept(&g, t0 + 2000, true), true);
+    // Window edges.
+    g = (ViewFlickGate){0};
+    view_flick_accept(&g, t0, true);
+    expect("flick.double.window_edge_fires",
+           view_flick_accept(&g, t0 + VIEW_FLICK_PAIR_MS - 1, true), true);
+    g = (ViewFlickGate){0};
+    view_flick_accept(&g, t0, true);
+    expect("flick.double.window_expired_rearms",
+           view_flick_accept(&g, t0 + VIEW_FLICK_PAIR_MS, true), false);
+    expect("flick.double.expired_is_new_first", g.armed, true);
+    expect("flick.double.late_pair_fires",
+           view_flick_accept(&g, t0 + VIEW_FLICK_PAIR_MS + 600, true), true);
+    // basalt's BMI160 latch (~1.28 s): the earliest partner it can deliver must still pair.
+    g = (ViewFlickGate){0};
+    view_flick_accept(&g, t0, true);
+    expect("flick.double.bmi160_gap_pairs", view_flick_accept(&g, t0 + 1300, true), true);
+    // A deliberate flick, pause, flick (the cadence a BMI160 watch needs) pairs too.
+    g = (ViewFlickGate){0};
+    view_flick_accept(&g, t0, true);
+    expect("flick.double.slow_cadence_pairs", view_flick_accept(&g, t0 + 2500, true), true);
+    // Faster than the debounce reads as ONE flick: still armed.
+    g = (ViewFlickGate){0};
+    view_flick_accept(&g, t0, true);
+    expect("flick.double.under_debounce_one_flick", view_flick_accept(&g, t0 + 400, true), false);
+    expect("flick.double.under_debounce_still_armed", g.armed, true);
+    // A shake train of N accepted flicks switches at most N/2 times.
+    g = (ViewFlickGate){0};
+    int fires = 0;
+    for (int i = 0; i < 6; i++) { fires += view_flick_accept(&g, t0 + (uint64_t) i * 600, true); }
+    expect("flick.double.burst_of_6_switches_3", fires == 3, true);
+    // Settings toggled mid-gesture (need_pair is read live).
+    g = (ViewFlickGate){0};
+    view_flick_accept(&g, t0, true);
+    expect("flick.toggle.double_to_single_fires", view_flick_accept(&g, t0 + 700, false), true);
+    expect("flick.toggle.single_clears_arm", g.armed, false);
+    g = (ViewFlickGate){0};
+    view_flick_accept(&g, t0, false);
+    expect("flick.toggle.single_to_double_needs_two", view_flick_accept(&g, t0 + 700, true), false);
+    // Wall-clock steps (time_ms is UTC wall time).
+    g = (ViewFlickGate){0};
+    view_flick_accept(&g, t0, true);
+    expect("flick.clock_back.not_paired", view_flick_accept(&g, t0 - 5000, true), false);
+    expect("flick.clock_back.rearmed", g.armed, true);
+    expect("flick.clock_back.pairs_after", view_flick_accept(&g, t0 - 5000 + 700, true), true);
+    g = (ViewFlickGate){0};
+    view_flick_accept(&g, t0, false);
+    expect("flick.clock_back.single_fires", view_flick_accept(&g, t0 - 100, false), true);
+    g = (ViewFlickGate){0};
+    view_flick_accept(&g, t0, true);
+    expect("flick.clock_fwd.stale_arm_rearms", view_flick_accept(&g, t0 + 3600000, true), false);
+}
+
 // ── Seating invariant: no band the layout produces may clamp ─────────────────
 // Content height of the font each band's row renders in — mirrors row_font() in
 // src/c/layers/status_row.c. A Gothic font's measured content height is exactly its nominal
@@ -3644,6 +3719,7 @@ int main(int argc, char **argv) {
     if (!s_dump) peek_tests();
     if (!s_dump) view_cursor_tests();
     if (!s_dump) view_timer_tests();
+    if (!s_dump) view_flick_tests();
     if (!s_dump) radar_placement_tests();
     if (!s_dump) test_geometry_lower_only();
     if (!s_dump) test_resolve_tier_lower_only();

@@ -200,6 +200,7 @@ flags as (
                                            or (l.settings_json ->> 'nightBoundaryColor') <> 'default'
                                            or (l.settings_json ->> 'nightFillColor')     <> 'default', false) end),
     ('view_auto_reset',    (l.settings_json ->> 'viewResetMin') <> '0'),
+    ('view_double_flick',  (l.settings_json ->> 'doubleFlick') = 'true'),
     ('quiet_time_icon',    (l.settings_json ->> 'showQt') = 'true'),
     ('battery_low_only',   (l.settings_json ->> 'batteryLowOnly') = 'true'),
     ('bt_icons',           (l.settings_json ->> 'btIcons') <> 'none'),

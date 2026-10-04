@@ -48,7 +48,8 @@ a separate code path.
 **Stop (flick)**:
 One position in the wrist-flick cycle: a view spec shown when the user flicks.
 Today the stops are hardcoded transitions; the à-la-carte plan makes them user
-data.
+data. With *Double flick* on, the cursor advances only on the second accepted
+flick within the pairing window (layout.c `view_flick_accept`).
 
 **Tier push**:
 Per-view layout facts (calendar rows, the date slot's full-date mode, graph gap,

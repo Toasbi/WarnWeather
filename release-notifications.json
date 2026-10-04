@@ -178,5 +178,9 @@
   "2.0.0": {
     "title": "Alerts & new settings",
     "body": "Battery, Bluetooth and weather alerts now show at a status bar's edge only while they matter (not on Pebble Classic/Steel). Set them up in the new Alerts tab of the rebuilt settings page."
+  },
+  "2.1.0": {
+    "title": "Double flick to switch views",
+    "body": "A new option switches views only on a second flick within a few seconds of the first, so an accidental flick leaves the view alone. Turn it on in the Watchface tab, under Layout's More options. (Not on Pebble Classic/Steel.)"
   }
 }

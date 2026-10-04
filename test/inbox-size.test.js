@@ -335,6 +335,9 @@ function buildHeaviestClayMessage(watchInfo) {
     // whatever they say.
     precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top', uvLineFrom: 'top',
     rainBarFrom: 'top', radarBarFrom: 'top',
+    // Double flick on: bit 8 of CLAY_VIEW_RESET_MIN's int (clay-payload.js
+    // packViewReset), no byte of its own, so the recorded sizes hold.
+    viewResetMin: '10', doubleFlick: true,
   }, watchInfo === undefined ? { platform: 'emery' } : watchInfo, new Date('2026-06-26T00:00:00Z'));
 
   // The Dim backlight tuple (CLAY_NIGHT_LIGHT_UINT8 = [r, g, b, startHour, endHour])
@@ -417,6 +420,8 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // known aplite's: the low-battery takeover is aplite's alone, every other watch
   // shows the battery as the On demand Battery item. The metric alerts themselves ride
   // the weather message (ALERT_ENTRIES_UINT8, recorded above). Headroom 17 -> 14 B.
+  // 522 unchanged when Double flick joined: bit 8 of CLAY_VIEW_RESET_MIN, 0 B (a tuple
+  // of its own would be 11 B -> 533 B, under the 10 B floor).
   assert.equal(size, 522,'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

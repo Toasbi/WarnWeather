@@ -936,4 +936,19 @@ bool view_auto_return_due(int32_t now, int32_t flick_since, uint8_t reset_min) {
     if (reset_min == 0) { return false; }
     return (now - flick_since) >= (int32_t) reset_min * 60;
 }
+
+_Static_assert(VIEW_FLICK_PAIR_MS > VIEW_FLICK_DEBOUNCE_MS,
+               "a flick's partner must be able to clear the debounce");
+
+bool view_flick_accept(ViewFlickGate *gate, uint64_t now_ms, bool need_pair) {
+    uint64_t since = now_ms - gate->last_ms;
+    if (since < VIEW_FLICK_DEBOUNCE_MS) { return false; }   // same physical flick
+    gate->last_ms = now_ms;
+    if (need_pair && !(gate->armed && since < VIEW_FLICK_PAIR_MS)) {
+        gate->armed = true;     // first of a pair, or a late partner: arm only
+        return false;
+    }
+    gate->armed = false;        // single flick, or the pair completed
+    return true;
+}
 #endif  // WW_VIEW_CYCLE

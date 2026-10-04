@@ -85,7 +85,7 @@ WATCH
 - Night backlight dimming
 
 LAYOUT CUSTOMIZATION
-- Multiple layout presets, with flick-to-cycle between views and optional auto-return
+- Multiple layout presets, with flick-to-cycle between views (or a double flick, so a stray flick doesn't switch) and optional auto-return
 - Custom layout (still beta)
 - First-run setup wizard that picks sensible defaults for your country and watch
 

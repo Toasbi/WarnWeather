@@ -125,7 +125,15 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     if (clay_view_1_tuple) { out->view_spec2[1] = (uint16_t) clay_view_1_tuple->value->int16; }
     if (clay_view_2_tuple) { out->view_spec2[2] = (uint16_t) clay_view_2_tuple->value->int16; }
 #endif
-    if (clay_view_reset_tuple) { out->view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16; }
+    if (clay_view_reset_tuple) {
+        // Low byte: the auto-return minutes; the cast drops the flag bits (config_wire.h).
+        out->view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16;
+#if !defined(PBL_PLATFORM_APLITE)
+        // Bit 8: Double flick. An older phone never sets it, so the memset 0 = one flick.
+        // aplite has no flick (WW_VIEW_CYCLE is compiled out) and never reads it.
+        out->view_double_flick = (clay_view_reset_tuple->value->int16 & VIEW_RESET_DOUBLE_FLICK) != 0;
+#endif
+    }
     if (clay_theme_tuple) { out->theme = (uint8_t) clay_theme_tuple->value->int16; }
     if (clay_battery_low_only_tuple) {
         out->battery_low_only = (bool) (clay_battery_low_only_tuple->value->int16);

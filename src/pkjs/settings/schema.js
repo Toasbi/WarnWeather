@@ -1290,8 +1290,21 @@ module.exports = {
                     {all: [{key: 'layoutPreset', eq: 'weatherOnly'}, {env: 'platform', eq: 'aplite'}]}
                 ]}
             }, {
-                // Last in the card deliberately: the rows above shape what the layout
-                // LOOKS like, this one is about when it snaps back.
+                type: 'toggle',
+                messageKey: 'doubleFlick',
+                label: 'Double flick to switch views',
+                // OFF: one flick switches, as it always has. A fresh install lands here, and
+                // an upgrade too (seedDefaults backfills the missing key); off leaves
+                // CLAY_VIEW_RESET_MIN's word unchanged, so an upgrade resends nothing.
+                defaultValue: false,
+                hint: 'Switch views only on a second flick within a few seconds of the first, so a stray flick leaves the view alone.',
+                more: true,
+                // aplite has no flick at all (WW_VIEW_CYCLE is compiled out), like View reset time.
+                showWhen: {env: 'platform', ne: 'aplite'}
+            }, {
+                // Last in the card deliberately, right below Double flick: the rows above
+                // shape what the layout LOOKS like; these two are about how it switches
+                // and when it snaps back.
                 type: 'segmented',
                 messageKey: 'viewResetMin',
                 label: 'View reset time',

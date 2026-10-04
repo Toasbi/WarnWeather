@@ -68,6 +68,8 @@ static Config config_defaults(void) {
         // No custom-layout v2 fields: every view renders as before v2 until the phone
         // sends an ext word.
         .view_ext = { 0, 0, 0 },
+        // One flick switches views, as it always has, until the user turns Double flick on.
+        .view_double_flick = false,
 #endif
     };
 }

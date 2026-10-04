@@ -5,10 +5,12 @@
 // statusLower), computed from the current view-cycle.js MATRIX — not hand-picked.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 global.localStorage = { getItem: function () { return null; }, setItem: function () {}, removeItem: function () {} };
 
-const { buildClayPayload } = require('../src/pkjs/clay-payload.js');
+const { buildClayPayload, VIEW_RESET_DOUBLE_FLICK } = require('../src/pkjs/clay-payload.js');
 
 function views(settings) {
   const p = buildClayPayload(settings, null, new Date(0));
@@ -51,6 +53,68 @@ test('legacy pre-preset topViewMode=none → noCal', () => {
 test('viewResetMin maps straight through', () => {
   const p = buildClayPayload({ layoutPreset: 'compactCal', viewResetMin: '5' }, null, new Date(0));
   assert.strictEqual(p.CLAY_VIEW_RESET_MIN, 5);
+});
+
+// Double flick rides bit 8 of CLAY_VIEW_RESET_MIN's int (clay-payload.js packViewReset):
+// no tuple of its own, so the Clay message keeps its size (test/inbox-size.test.js).
+function resetWord(settings, platform) {
+  const watchInfo = platform ? { platform: platform } : null;
+  return buildClayPayload(Object.assign({ layoutPreset: 'compactCal' }, settings), watchInfo, new Date(0))
+    .CLAY_VIEW_RESET_MIN;
+}
+
+test('doubleFlick rides bit 8 of CLAY_VIEW_RESET_MIN; the minutes keep the low byte', () => {
+  ['0', '1', '2', '5', '10'].forEach(function (m) {
+    const off = resetWord({ viewResetMin: m, doubleFlick: false }, 'basalt');
+    const on = resetWord({ viewResetMin: m, doubleFlick: true }, 'basalt');
+    assert.strictEqual(off, Number(m), m + ': off leaves the wire value unchanged');
+    assert.strictEqual(on, Number(m) | 0x100, m + ': on sets bit 8');
+    assert.strictEqual(on & 0xFF, Number(m), m + ': a pre-flag watch\'s uint8 cast still reads the minutes');
+    assert.ok(on <= 0x7FFF, m + ': positive as the watch\'s int16 read');
+  });
+  // An upgrade (key absent until seedDefaults backfills it) sends exactly what OFF sends,
+  // so the outbox's change detector has nothing to resend; a toggle changes the payload.
+  const base = { layoutPreset: 'compactCal', viewResetMin: '2' };
+  const json = function (extra) {
+    return JSON.stringify(buildClayPayload(Object.assign({}, base, extra), { platform: 'basalt' }, new Date(0)));
+  };
+  assert.strictEqual(json({}), json({ doubleFlick: false }), 'absent and off are the same payload');
+  assert.notStrictEqual(json({ doubleFlick: true }), json({ doubleFlick: false }), 'a toggle changes the payload');
+});
+
+test('the double-flick bit is masked for a known aplite, kept for an unknown platform', () => {
+  const s = { viewResetMin: '5', doubleFlick: true };
+  assert.strictEqual(resetWord(s, 'aplite'), 5, 'aplite has no flick: bare minutes');
+  assert.strictEqual(resetWord(s, null), 0x105, 'an unknown platform is treated as capable');
+  assert.strictEqual(resetWord(s, 'emery'), 0x105);
+  const aplite = function (flag) {
+    return JSON.stringify(buildClayPayload({ layoutPreset: 'compactCal', viewResetMin: '5', doubleFlick: flag },
+      { platform: 'aplite' }, new Date(0)));
+  };
+  assert.strictEqual(aplite(true), aplite(false), 'aplite\'s payload never changes with the switch');
+});
+
+test('a junk viewResetMin can never set the double-flick bit', () => {
+  [['-1', 255], ['300', 44], ['abc', 0]].forEach(function (c) {
+    const w = resetWord({ viewResetMin: c[0], doubleFlick: false }, 'basalt');
+    assert.strictEqual(w, c[1], c[0] + ' -> the low byte the watch\'s uint8 cast always read');
+    assert.strictEqual(w & 0x100, 0, c[0] + ' leaves bit 8 clear');
+  });
+});
+
+test('the double-flick bit is one number on both sides of the wire', () => {
+  const h = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'appendix', 'config_wire.h'), 'utf8');
+  const m = /#define\s+VIEW_RESET_DOUBLE_FLICK\s+(0x[0-9A-Fa-f]+)/.exec(h);
+  assert.ok(m, 'config_wire.h defines VIEW_RESET_DOUBLE_FLICK');
+  assert.strictEqual(Number(m[1]), VIEW_RESET_DOUBLE_FLICK);
+  assert.strictEqual(VIEW_RESET_DOUBLE_FLICK, 0x100);
+  assert.ok(VIEW_RESET_DOUBLE_FLICK > 0xFF && VIEW_RESET_DOUBLE_FLICK < 0x8000,
+    'above the minutes byte, below the int16 read\'s sign bit');
+  const c = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'appendix', 'config_wire.c'), 'utf8');
+  assert.match(c, /view_double_flick\s*=\s*\(\s*clay_view_reset_tuple->value->int16\s*&\s*VIEW_RESET_DOUBLE_FLICK\s*\)\s*!=\s*0/,
+    'config_wire.c decodes the flag with the shared constant');
+  assert.ok(c.indexOf('(uint8_t) clay_view_reset_tuple->value->int16') >= 0,
+    'the minutes stay a uint8 cast, which drops the flag bit');
 });
 
 test('no CLAY_DUAL_STATUS key is emitted', () => {

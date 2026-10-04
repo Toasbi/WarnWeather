@@ -305,6 +305,9 @@ function buildSettingsSnapshot(settings, watchInfo) {
         customViewExt1: customExt ? (customExt[1] || 0) : undefined,
         customViewExt2: customExt ? (customExt[2] || 0) : undefined,
         viewResetMin: toIntOrUndefined(safe.viewResetMin),
+        // The Layout card's Double flick switch. Lockstep with the Deno telemetry-ingest
+        // .strip() schema (handler.ts); ships OFF, so aplite's constant false is the default.
+        doubleFlick: Boolean(safe.doubleFlick),
         largeGraphFont: Boolean(safe.largeGraphFont),
         vibe: !!safe.vibe,
         btIcons: safe.btIcons,
