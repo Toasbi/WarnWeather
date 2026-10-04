@@ -181,6 +181,6 @@
   },
   "2.1.0": {
     "title": "Double flick to switch views",
-    "body": "A new option switches views only on a second flick within a few seconds of the first, so an accidental flick leaves the view alone. Turn it on in the Watchface tab, under Layout's More options. (Not on Pebble Classic/Steel.)"
+    "body": "A new option switches views only on a second flick within a few seconds of the first, to reduce accidental view switches. Turn it on in the Watchface tab, under Layout's More options. (Not on Pebble Classic/Steel.)"
   }
 }
