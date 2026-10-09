@@ -13,9 +13,10 @@
 // '6.2k', sleep '7h12'). Which item a slot holds is the catalog's own resolution
 // (status-line-catalog.js resolveSelection — defaults and availability included), and
 // which bars exist is on-demand.js barExists, the rule the Status bars tab gates its
-// cards by, and only bars a view of the layout seats. The watch draws an icon beside
-// most items; the preview shows the page's copy of it where one exists
-// (status-slot-icons.js).
+// cards by — for the Watch and Forecast bars only where a view of the layout seats
+// them, for the Radar and Health bars whenever the Views card turns them on. The
+// watch draws an icon beside most items; the preview shows the page's copy of it
+// where one exists (status-slot-icons.js).
 /* global PConf, VIEW_CYCLE */
 (function () {
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
@@ -232,11 +233,16 @@
         var views = layout && layout.presetContents ? layout.presetContents(st, env) : [];
         var now = new Date();
         BARS.forEach(function (b) {
-            if ((b.bar === 'radar' || b.bar === 'health') && !onDemand.barExists(st, b.bar, env)) { return; }
-            // A bar no view seats is not on the watch (Weather only without health has
-            // no top strip anywhere). An empty cycle (no layout module) keeps every bar.
+            var optional = b.bar === 'radar' || b.bar === 'health';
+            if (optional && !onDemand.barExists(st, b.bar, env)) { return; }
+            // The Radar and Health bars show while the Views card turns them on, as their
+            // cards on the tab do, whether or not the layout seats them (Weather only
+            // with the radar graph, or a custom layout that left the row out): their
+            // slots are still the user's to set. The Watch and Forecast bars show only
+            // where a view seats them (Weather only without health has no top strip
+            // anywhere). An empty cycle (no layout module) keeps every bar.
             var view = barView(views, b);
-            if (!view && views.length) { return; }
+            if (!view && views.length && !optional) { return; }
             var fullDate = !calendarShown(view);
             var cells = POSITIONS.map(function (p) {
                 var key = b.prefix + p[0];

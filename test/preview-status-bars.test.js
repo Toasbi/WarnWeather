@@ -179,6 +179,45 @@ test('a bar no view of the layout seats is left out', () => {
   assert.ok(preview.statusBarsPreview({ layoutPreset: 'compactCal' }, {}).indexOf('>Watch<') !== -1);
 });
 
+test('the Radar and Health bars show while the Views card turns them on, seated or not', () => {
+  const VC = require('../src/pkjs/view-cycle.js');
+  const env = { platform: 'basalt', health: true, radar: true };
+  const presets = ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'];
+  presets.forEach((layoutPreset) => {
+    ['status', 'all'].forEach((healthMode) => {
+      ['status', 'graph'].forEach((radarMode) => {
+        const S = { layoutPreset, healthMode, radarMode };
+        const html = preview.statusBarsPreview(S, env);
+        const label = layoutPreset + '/' + healthMode + '/' + radarMode;
+        assert.ok(html.indexOf('>Radar<') !== -1, label + ': ' + html);
+        assert.ok(html.indexOf('>Health<') !== -1, label + ': ' + html);
+      });
+    });
+  });
+  // Weather only with the radar graph seats no radar row on any view, yet the bar's
+  // card is on the tab, so its row stays — with or without health.
+  const wo = preview.statusBarsPreview({ layoutPreset: 'weatherOnly', healthMode: 'off', radarMode: 'graph' }, env);
+  assert.ok(wo.indexOf('>Radar<') !== -1, wo);
+  // A custom layout that leaves both rows out still lists them while they are on.
+  const custom = { layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph' };
+  VC.seedCustomKeys(custom, 'weatherOnly');
+  const html = preview.statusBarsPreview(custom, env);
+  assert.ok(html.indexOf('>Radar<') !== -1, html);
+  assert.ok(html.indexOf('>Health<') !== -1, html);
+});
+
+test('the Radar and Health bars stay out while the Views card turns them off', () => {
+  const env = { platform: 'basalt', health: true, radar: true };
+  const off = preview.statusBarsPreview({ layoutPreset: 'compactCal', healthMode: 'slot', radarMode: 'countdown' }, env);
+  assert.equal(off.indexOf('>Radar<'), -1, off);
+  assert.equal(off.indexOf('>Health<'), -1, off);
+  // A watch without the radar or health (aplite) never lists them.
+  const aplite = preview.statusBarsPreview({ layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'graph' },
+    { platform: 'aplite', health: false, radar: false });
+  assert.equal(aplite.indexOf('>Radar<'), -1, aplite);
+  assert.equal(aplite.indexOf('>Health<'), -1, aplite);
+});
+
 test('two-value temperature pairs keep the user\'s separator when the degree cannot fit', () => {
   const S = { tempSlotDisplay: 'both', tempSlotUnit: true, tempSlotSeparator: 'dot',
     tempSlotSeparatorSpaced: true };
