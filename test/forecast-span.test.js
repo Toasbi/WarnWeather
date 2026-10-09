@@ -144,11 +144,14 @@ test('lockstep: the schema\'s forecastHours options are CHOICES, its default 24'
   // The long span is labelled by the hours the default emery layout shows; its token stays '48'.
   assert.deepEqual(item.options, [['12 h', '12'], ['24 h', '24'], ['58 h', '48']]);
   assert.match(item.hintByValue['48'], /^About 58 hours/);
-  // The real counts: 66 whole hours on the screen-wide plot (floor(200 / 3)), a 48-hour feed
-  // 43 at the default (pitch 4) and 40 screen-wide (pitch 5).
+  // The real counts: 66 whole hours on the screen-wide plot (floor(200 / 3)); a 48-hour feed
+  // is fitted to the plot (forecast_span.h, test/c/forecast_span_test.c), its last hour's vertex
+  // on the last column whatever the width: OWM's 48 entries show 47 whole, WU's 49 (the
+  // hour in progress and its 48) show 48.
   assert.match(item.hintByValue['48'], /up to 66 with the High \/ low numbers On graph or Off/);
   assert.equal(Math.floor(200 / 3), 66);
-  assert.match(item.hintByValue['48'], /about 40 to 44 with them/);
+  assert.match(item.hintByValue['48'],
+    /their columns widen to fill the graph \(47 whole hours with OpenWeatherMap, 48 with Weather Underground\)/);
 });
 
 test('the "58 h" label is the default emery layout\'s whole hours at the 3 px pitch', () => {

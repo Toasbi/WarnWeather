@@ -18,6 +18,8 @@ _Static_assert(FORECAST_SPAN_DAY_PAD == FORECAST_GRID_PAD
 // emery: the chart's point scratch holds the longest forecast line.
 _Static_assert(FORECAST_MAX_ENTRIES <= CHART_MAX_SLOTS,
                "the chart's point buffer must hold the longest forecast");
+// emery: slot_x.h's time mapping steps one slot per hour, as the forecast's slots do.
+_Static_assert(SLOT_X_STEP_S == BOTTOM_VIEW_STEP_SECONDS, "slot_x.h steps the forecast's hours");
 // emery: forecast_span_mark speaks ChartTickKind.
 _Static_assert(FORECAST_MARK_NONE == TICK_NONE && FORECAST_MARK_TICK == TICK_SMALL
                && FORECAST_MARK_LABEL == TICK_BIG, "forecast_span.h's marks are ChartTickKind");
@@ -27,12 +29,13 @@ ChartDef forecast_grid_def_for(ForecastSpan span) {
     d.num_slots = span.slots;
     d.bar_pad   = span.bar_pad;
     d.bar_w     = span.bar_w;
+    d.pitch_frac = span.pitch_frac;   // the long span's fractional pitch (slot_x.h)
     return d;
 }
 
 void forecast_grid_fill_axis_span(ChartAxisSlot *slots, ForecastSpan span, time_t start,
                                   int x0, int left, int right, bool large, bool skip_first) {
-    const int pitch = forecast_span_pitch(span);
+    const int pitch_q = forecast_span_pitch_q(span);
     int prev = -1;
     for (int i = 0; i < span.slots; ++i) {
         // emery: the slot's own wall-clock hour, so a daylight-saving change inside the window
@@ -45,7 +48,7 @@ void forecast_grid_fill_axis_span(ChartAxisSlot *slots, ForecastSpan span, time_
         slots[i].tick     = (ChartTickKind)mark;
         if (mark != FORECAST_MARK_LABEL || (skip_first && i == 0)) { continue; }
         const int label = config_axis_hour(hour);
-        if (forecast_span_label_fits(x0 + i * pitch, label, large, left, right)) {
+        if (forecast_span_label_fits(x0 + slot_x(pitch_q, i), label, large, left, right)) {
             snprintf(slots[i].label, sizeof(slots[i].label), "%d", label);
         }
     }

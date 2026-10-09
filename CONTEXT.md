@@ -137,17 +137,26 @@ plot width. See `docs/adr/0004-forecast-span-is-the-data.md`.
 _Avoid_: a watch-side forecast hours setting; calling the sent hours the span.
 
 **Visible hours**:
-The hours the emery forecast draws on screen, min(n, ceil(W / pitch)) for the
-n hours sent and the plot width W (174 px at the default layout, the whole
-200 px screen with no left axis): every grid runs the data past the right edge
-rather than leave a blank tail, so the "58 h" option shows 58 whole hours at the
-default layout and 66 with no left axis, and 24 h shows 21 or 25. The
-temperature scale and the hi/lo labels fit the visible hours, not every hour
-sent (`forecast_layer.c` fit_entries, relabel_visible). The hour axis labels
-only what is whole on screen: a label either edge would cut is dropped (its tick
-stays), and with no left axis the current hour (slot 0) is never labelled; the
-long grid marks the clock (a label every 6 hours, every 3 from a 6 px pitch, a
-small tick on the other 3-hour marks).
+The hours the emery forecast draws on screen: the n hours sent whose tick column
+lies on the plot of width W, through the one slot→x mapping
+(`src/c/appendix/slot_x.h`, in 1/256 px: min(n, ceil(W · 256 / pitch_q))). W is
+174 px at the default layout, the whole 200 px screen with no left axis. Every
+grid runs the data to or past the right edge rather than leave a blank tail.
+The long grid's pitch is fractional: the smallest that puts the last hour's
+point on the plot's last column, held to 3..8 px. A full 68-hour feed stays at
+3 px, so the "58 h" option shows 58 whole hours at the default layout and 66
+with no left axis. OpenWeatherMap's 48-hour feed shows 47 whole hours and the
+48th's point on the edge at every width; Weather Underground's 49 entries (the
+hour in progress and its 48) show 48. 24 h shows 21, or 25 with no left axis
+(sent 26; until those arrive, its 24 hours widen to reach the edge, 23 whole).
+The temperature scale and the hi/lo labels fit the visible hours, not every
+hour sent (`forecast_layer.c` fit_entries, relabel_visible); the stripe bands
+and the curve's anchored edges read the hours whose bar starts on screen. The
+hour axis labels only what is whole on screen: a label either edge would cut is
+dropped (its tick stays), and with no left axis the current hour (slot 0) is
+never labelled; each label names its slot's own local hour, across a
+daylight-saving change too; the long grid marks the clock (a label every 6
+hours, every 3 once 3 hours span 18 px, a small tick on the other 3-hour marks).
 _Avoid_: forecast span (that is the option).
 
 **Mapped forecast**:

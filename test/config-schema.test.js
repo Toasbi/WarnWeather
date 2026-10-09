@@ -1828,12 +1828,14 @@ test('forecastHours: the Time span section sits after Bars & shading, emery only
   assert.equal(it.defaultValue, '24');
   assert.deepEqual(it.options.map((o) => o[1]), forecastSpan.CHOICES, 'the stored values are CHOICES');
   // The long span keeps its '48' token and is labelled by the hours the default emery layout
-  // shows; its hint gives the real counts: 66 on the screen-wide plot (no left axis), and the
-  // 48-hour providers' 40 (screen-wide, pitch 5) to about 44 (the default plot, pitch 4).
+  // shows; its hint gives the real counts: 66 on the screen-wide plot (no left axis), and a
+  // 48-hour provider's feed fitted to the plot (forecast_span.h: its last hour's vertex on the
+  // last column, at every plot width; OWM's 48 entries show 47 whole, WU's 49 show 48).
   assert.deepEqual(it.options.map((o) => o[0]), ['12 h', '24 h', '58 h']);
   assert.equal(it.hintByValue['48'], 'About 58 hours in narrow columns; up to 66 with the High / low '
     + 'numbers On graph or Off. Weather Underground and OpenWeatherMap stop at 48 hours: '
-    + 'about 40 to 44 with them.');
+    + 'their columns widen to fill the graph (47 whole hours with OpenWeatherMap, 48 with '
+    + 'Weather Underground).');
   assert.equal(it.hintByValue['12'], 'The next 12 hours, in wider columns.');
   assert.equal(it.hintByValue['24'], 'The next 24 hours.');
   assert.deepEqual(it.showWhen, { env: 'forecastSpan' });

@@ -12,7 +12,10 @@
 // window the graph draws takes part in the layout: the hours whose column starts on screen
 // (temp_axis_drawn_entries; the phone sends 24, at most 19 fit on basalt and 23 on emery,
 // whose 12 h and long spans fill the width and clip the rest; the scale and the labels cover
-// the hours on screen there, forecast_layer.c fit_entries, forecast_span.h). One
+// the hours on screen there, forecast_layer.c fit_entries, forecast_span.h). On emery, but at
+// the 24 h grid's whole pitch, the hours whose bar starts on screen (forecast_span.h
+// forecast_span_laid_out): the long span's last hour, cut at its tick column on the plot's
+// last one, shows nothing that could stand on an edge. One
 // with nothing above 0 there draws nothing (a stripe's empty cell, a bar of 0, a metric line's
 // wire byte 0: all draw nothing), and the plot lays out as if it were not there: a stripe
 // gives up its band (no band, no gap; the plot grows into it) and a line, its marks, its fill

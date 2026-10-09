@@ -30,7 +30,7 @@ ChartDef forecast_grid_def_for(ForecastSpan span);
 // span's cadence (forecast_span.h forecast_span_mark) off its own local clock hour. A labelled
 // slot gets its big tick; its hour label is left out on slot 0 when `skip_first` (the left
 // axis's numbers On graph or Off: the axis starts at the next label) and wherever the screen's
-// edges, columns `left` .. `right`, would slice it, on a tick at x0 + i * pitch
+// edges, columns `left` .. `right`, would slice it, on a tick at x0 + forecast_span_x(span, i)
 // (forecast_span_label_fits; `large`: the hour labels' GOTHIC_18, Larger graph fonts).
 void forecast_grid_fill_axis_span(ChartAxisSlot *slots, ForecastSpan span, time_t start,
                                   int x0, int left, int right, bool large, bool skip_first);

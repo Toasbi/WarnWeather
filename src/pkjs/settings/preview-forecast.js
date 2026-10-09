@@ -155,8 +155,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * label_every / tick_every / by_clock, mirrored for the preview's own window (its 12
      * samples model no pitch): 12 h a label every 2nd slot, 24 h every 3rd, a tick on each,
      * both counted from slot 0; the long span ('48', "58 h") the clock's marks, a label every
-     * 6 clock hours (its 3 px pitch) and a small tick on the other 3-hour marks. Every watch
-     * but emery (env.forecastSpan) draws 24 h.
+     * 6 clock hours (a full feed's 3 px pitch) and a small tick on the other 3-hour marks.
+     * Every watch but emery (env.forecastSpan) draws 24 h.
      * @param {?Object} state Clay settings.
      * @param {?Object} env computeEnv() result.
      * @returns {{labelEvery: number, tickEvery: number, byClock: boolean}}

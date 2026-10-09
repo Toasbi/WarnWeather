@@ -593,7 +593,8 @@ test('long span: WU sends the 48hour feed\'s 48 hours on a 48 h or 68 h window, 
   assert.equal(payload.NUM_ENTRIES, 48);
   ['TEMP_RAW_TREND', 'PRECIP_TREND_UINT8', 'WIND_TREND_UINT8', 'UV_TREND_UINT8', 'PRESSURE_TREND',
     'FEELS_TREND', 'DEW_TREND'].forEach((k) => assert.equal(payload[k].length, 48, k));
-  // The long span's 68 h window: the feed is short (about 40 to 44 visible hours on the watch).
+  // The long span's 68 h window: the feed is short (the watch widens its columns to fit it,
+  // its last hour's point on the plot's right edge, forecast_span.h).
   p.options = fetchOptions.defaults({ fetchUv: true, forecastHours: 68 });
   withMockedNow(NOW_HOUR + 800, function() {
     p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });

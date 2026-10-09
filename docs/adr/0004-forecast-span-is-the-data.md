@@ -34,6 +34,7 @@ The forecast graph on a Pebble Time 2 (emery) can look 12, 24 or 48 hours ahead
   drawn around 24 hours of data for the minutes between the settings save and the refetch.
 - **A fractional or alternating 3/4 px pitch** to use the whole width at 48 h: it breaks
   `slot_geometry`'s integer pitch, which the bars, ticks, marks and night bands share.
+  (Reversed by Amendment 3: one slot→x mapping now carries every x.)
 - **Extracting the night-shading code into a host-testable header**: it measured +20..24 B on
   every non-emery platform, which have no bytes to give.
 
@@ -67,8 +68,9 @@ for the long span, with 2 px rain bars as the floor.
   12 h grid (pitch W / 12, 11..15 px), 15..24 today's grid (pixel-identical), 25..65 the
   **cover rule**: the smallest pitch with n · pitch ≥ W, clamped to 3..8 px (3 px = a tick plus
   the owner's 2 px bar), 1 px pads from 6 px. A full feed draws about 58 hours at the default
-  layout and up to 63 when the hi/lo numbers sit On graph or Off; a 48-hour feed (OWM, WU) draws
-  about 44 at 4 px. Hour labels stop where their ink would cross the edge.
+  layout and up to 63 when the hi/lo numbers sit On graph or Off; a 48-hour feed (OWM, WU) drew
+  about 44 at 4 px (Amendment 3: OWM's 48 show 47 whole and the 48th's point on the edge, WU's
+  49 show 48). Hour labels stop where their ink would cross the edge.
 - **Why the watch, not the phone, trims:** the plot width depends on the health strip's claim,
   the hi/lo numbers' place and Larger graph fonts, which the phone does not see; trimming on
   the phone would also make each of those toggles a refetch. The phone sends the same hours for
@@ -104,9 +106,11 @@ outline rows went with it: both are implied by where the numbers go.
   'off'; a beta's 'beside' and junk read 'axis') and the scale toggle. Wire bits 1 and 4 (axis
   line off, outline off) are retired and reserved; the axis line is drawn exactly On axis, the
   numbers' outline exactly On graph.
-- **No left axis On graph or Off**: no label strip, no axis line, and the forecast layer stops
-  clipping on emery, so the plot runs from the screen's left edge (x 0) to the same right edge
-  as before: W = 200 px. With a health graph sharing the screen the shared strip stays (its
+- **No left axis On graph or Off**: no label strip, no axis line, and on emery the forecast
+  layer draws unclipped inside a clip layer of its own rows that reaches the screen's left
+  edge, so the plot runs from x 0 to the same right edge as before: W = 200 px. The rows above
+  and below the frame stay clipped as they always were (a bold stroke's spill row and a hanging
+  fill's zero row, with no top stripe band, lie on the row above it). With a health graph sharing the screen the shared strip stays (its
   step marks need it), with the axis line only On axis.
 - **The hours sent follow the widest plot**: the long span sends 68 = ceil(200 / 3) + 1 (66
   whole hours on screen with no left axis, still 58 at the default 174 px plot); 24 h sends 26
@@ -119,13 +123,84 @@ outline rows went with it: both are implied by where the numbers go.
 - **Whole hour labels only** (`forecast_span.h` `forecast_span_label_fits`, host-tested): a label
   either screen edge would cut is dropped and its tick stays, in every class; with no left axis
   slot 0 (the current hour) is never labelled. With the numbers On axis the default 24 h graph
-  is unchanged except where its last label would have been cut at the right edge.
+  is unchanged except in two places: where its last label would have been cut at the right
+  edge, and on the two days a year a daylight-saving change falls inside the window, where each
+  label now names its slot's own local hour (the first hour counted on before, so every label
+  after the change read one hour off: '3', '6', '9' where the clock reads 3, 5, 8).
 - **Clock-aligned marks on the long span** (`forecast_span_mark`, host-tested, mirrored in the
   settings preview): from each slot's local hour, a small tick on every 3rd clock hour and a
-  label on every 6th, or every 3rd once 3 hours are at least 18 px (pitch 6 and up, short
-  48-hour feeds on a wide plot). A repeated fall-back hour is marked once; a skipped
+  label on every 6th, or every 3rd once 3 hours are at least 18 px (pitch 6 and up: under
+  Amendment 3's edge rule, feeds of 34 hours or fewer on the screen-wide plot, 29 at the
+  default; a 48-hour feed always gets 6-hour labels). A repeated fall-back hour is marked once; a skipped
   spring-forward mark is not drawn. 12 h and 24 h keep their slot-0 cadence, each label the
   slot's true local hour.
 - **Inbox**: emery's heaviest weather bundle is 867 B of 1024 B (875 B with a cleared notice);
   every other bundle, Clay included, is unchanged, and every non-emery image stays
   byte-identical.
+
+## Amendment 3 (2.2.0): the long span's pitch follows the hours sent
+
+The owner, on 48-hour feeds (Weather Underground, OpenWeatherMap) showing about 44 hours:
+"Cant we make the drawing dynamic? So it draws depending on the given hours. Like a formula that
+calculates how many hours we can draw following the rules I mentioned before.. Like overdrawing
+a little on the right side etc".
+
+- **One slot→x mapping** (`src/c/appendix/slot_x.h`, emery): x = floor(i · pitch_q / 256) for
+  slot i, pitch_q in 1/256 px, and floor(t · pitch_q / (3600 · 256)) for a time t after slot
+  0's hour, so hour i lands exactly on slot i's tick. Every x the forecast derives from an hour
+  or a time goes through it, so a fractional pitch cannot drift between them:
+  - the bars, marks, line and area vertices and stripe cells (`chart.h` `chart_slot_tick_x`)
+  - the hour ticks and labels, and the drop of a label either edge would cut
+  - the night bands (`forecast_layer.c` `graph_x_for_time`)
+  - the frame and its zero line, which end on slot n's tick
+  - the numbers On graph (`number_point_x`)
+  - the count of hours on screen (`slot_x_count`: fit_entries), and of the hours whose bar
+    starts on screen (the stripe bands and the anchored edges, below)
+
+  At a whole pitch it is exactly the integer arithmetic it replaces (host-tested), so the 12 h
+  and 24 h grids, the health graph and the radar keep every pixel. This answers the Rejected
+  item above: `slot_geometry`'s integer pitch is now one input to the mapping, its whole px,
+  not something each renderer multiplies. `ChartDef.pitch_frac` carries only the fraction, 0
+  in every other grid, so a re-padded copy of a def (the health graph's) cannot go stale.
+- **The edge rule** (`forecast_span.h`, 27..68 hours): pitch_q = ceil((W - 1) · 256 / (n - 1)),
+  the smallest pitch that puts the last hour's point on the plot's last column, held to 3..8
+  px.
+  - Unheld, the line ends exactly on the edge column, n - 1 hours show whole and the last one
+    is cut at its point; the area and the night shading reach the edge. That is the "little"
+    overdraw: one hour. OpenWeatherMap's 48-hour feed shows 47 whole hours and Weather
+    Underground's 49 entries (the hour in progress and its 48) show 48, at every plot width
+    (165..200 px).
+  - A full 68-hour feed is held at the 3 px floor, today's grid: 58 whole hours at the
+    default layout, 66 with no left axis, pixel-identical to Amendment 2.
+  - The 8 px cap never binds on emery (27 hours at 200 px: 7.66 px); it stays as a guard.
+  - 12 h keeps its whole pitch and every pixel, and so does 24 h wherever its 8 px columns
+    reach the edge: always with a label strip (W ≤ 183 px), so 24 h On axis is unchanged.
+- **24 h holding fewer than its 26 hours on the screen-wide plot.** The phone sends 26 there to a
+  known emery only; an unknown watch is sent 24 (its payload stays byte-identical), and so is a
+  known one until the refetch a numbers move forces. At 8 px those end the line at x 184 and
+  the bars at 192 of 200: a blank tail. The edge rule stretches the 24 slots to 2215/256 px
+  (8.65; 25 hours: 8.29), bar and pads unchanged, so the last hour's point lands on the last
+  column.
+- **The layout reads the hours whose bar starts on screen** (`forecast_span_laid_out`). Under
+  the edge rule the last hour shows only its point on the plot's last column: its bar, mark
+  and stripe cell lie past the edge. So a value there takes no stripe band and anchors no edge
+  for the temperature curve's margins; the scale and the hi/lo labels still cover it
+  (`forecast_span_drawn`). The 24 h grid at its whole 8 px counts its started columns, as it
+  always has, so 24 h On axis keeps its pixels.
+- **The bars keep one width**, floor(pitch) - 1 - 2 · pad (2 px at the floor, 1 px pads from a
+  whole pitch of 6); the gap after each varies by 1 px. Bars that filled each column would mix
+  bars with and without side walls in colour themes (walls from 3 px) and make the same rain
+  look heavier in a wide column.
+- **Hour labels**: every 6 clock hours, or every 3 once 3 hours span 18 px (3 · pitch_q ≥
+  18 · 256), measured on the fractional pitch: two labels are never closer than 18 px.
+- **Trade-offs**: where the old cover rule met the edge exactly (58 hours at 174 px, 55 at
+  165) its line stopped short and every bar was whole; now the line reaches the edge and one
+  fewer hour is whole. Where the old whole pitch was just above the new one, the bars change
+  by 1 px: narrower (5 → 4.x px: 3 → 2 px bars), or wider where the pads drop (6 → 5.97
+  px, a 30-hour feed at 174 px: 3 → 4 px bars, and its labels go from every 3 hours to every
+  6), always with more hours on screen.
+- **Cost**: emery +348 B of .text and +4 B of .bss over Amendment 2 (61348 → 61700 B): the
+  mapping and the edge rule, the 24 h stretch, the started-bar count and the forecast layer's
+  clip (Amendment 2's No left axis). Every non-emery image is byte-identical (objdump), and no
+  weather payload, Clay message or provider URL changes; the settings hint for the long span
+  names the 48-hour feeds' fit.

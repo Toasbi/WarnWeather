@@ -36,6 +36,9 @@
 #endif
 
 #if defined(PBL_PLATFORM_EMERY)
+// emery: the one slot/time -> x mapping, the grids' fractional pitch (emery only).
+#include "c/appendix/slot_x.h"
+
 // emery: one grid per span class. tick_w stays 1 in every class (FORECAST_GRID_DEF's).
 // The hour axis's marks (forecast_span_mark) count in `unit`s: a slot's index from slot 0
 // (12 h, 24 h) or, in the long class, the slot's local clock hour.
@@ -46,6 +49,9 @@ typedef struct {
     int8_t label_every;  // an hour label + big tick on every Nth unit
     int8_t tick_every;   // a small tick on every Nth unit between labels
     int8_t by_clock;     // the units are clock hours (the long class), else slots from slot 0
+    uint8_t pitch_frac;  // ChartDef.pitch_frac: the pitch's fraction past its whole px
+                         // (forecast_span_pitch), in 1/256 px; 0 at 12 h, and at 24 h but
+                         // on a plot it would stop short of (forecast_span)
 } ForecastSpan;
 
 // emery: the hour counts that bound the classes: up to FORECAST_SPAN_HALF_SENT is the 12 h
@@ -62,6 +68,7 @@ typedef struct {
 // 26 hours reach the 200 px plot's edge: ceil(200 / 8) + 1.
 #define FORECAST_SPAN_DAY_PAD   1
 #define FORECAST_SPAN_DAY_BAR_W 5
+#define FORECAST_SPAN_DAY_PITCH (1 + 2 * FORECAST_SPAN_DAY_PAD + FORECAST_SPAN_DAY_BAR_W)
 // emery: 12 h fills the width: the widest pitch whose 12 columns fit the plot, within [MIN,
 // MAX]; 2 px pads, the bar takes the rest. MAX 16 is the 200 px plot's: 12 columns of 16 and
 // the 14th hour's vertex (13 * 16 = 208) past its edge, where 15 stops at 195.
@@ -69,8 +76,9 @@ typedef struct {
 #define FORECAST_SPAN_HALF_PITCH_MIN 11
 #define FORECAST_SPAN_HALF_PITCH_MAX 16
 // emery: the long class's pitch: the owner's floor (tick 1 + a 2 px bar, "that's the min
-// width for the bars") up to the 24 h grid's; 1 px pads from pitch 6, so pitch 8 is the 24 h
-// look.
+// width for the bars") up to the 24 h grid's; 1 px pads from a whole pitch of 6, so pitch 8 is
+// the 24 h look. Between the two the pitch is fractional (slot_x.h): the hours received fill the
+// plot to its right edge (forecast_span).
 #define FORECAST_SPAN_LONG_PITCH_MIN 3
 #define FORECAST_SPAN_LONG_PITCH_MAX 8
 #define FORECAST_SPAN_LONG_PAD_FROM  6
@@ -85,45 +93,105 @@ typedef struct {
 /**
  * emery: the grid for `n` hourly entries in a plot `visible_w` px wide (from its left edge to
  * the screen's right edge). The watch decides what is visible: every class reaches the right
- * edge, and hours past it are clipped (temp_axis_drawn_entries counts the ones on screen).
- * - 27..68: one slot per hour received, tick 1. The cover rule: the smallest pitch whose n
- *   columns reach the edge (n * pitch >= visible_w), held to [3, 8] -- a full feed (68) is 3
- *   for every visible_w <= 204, 2 px bars, the owner's floor. 1 px pads from pitch 6, so
- *   pitch 8 is the 24 h grid. Clock-aligned marks: a label every 6 clock hours, every 3 from
- *   pitch 6; a small tick on the other 3-hour marks. n slots: the area fill closes one pitch
- *   past the last slot (chart.c chart_render_area).
+ * edge, and hours past it are clipped (forecast_span_drawn counts the ones on screen).
+ * - 27..68: one slot per hour received, tick 1, and a fractional pitch (owner, 2026-10-09:
+ *   "draws depending on the given hours ... overdrawing a little on the right side"): the
+ *   smallest pitch, in 1/256 px, that puts the last hour's vertex on the plot's last column
+ *   (slot_x(n - 1) >= visible_w - 1), held to [3, 8] px. Unheld, the line runs exactly to the
+ *   edge, the last hour's bar lies past it and n - 1 hours show whole; a feed too long for
+ *   that (a full 68 for every visible_w <= 202) stays at the 3 px floor, today's grid, and runs
+ *   further past. The bars keep one width, floor(pitch) - 1 - 2 * pad (2 px at the floor), so
+ *   the gap after each is pad or pad + 1 px; 1 px pads from a whole pitch of 6. Clock-aligned
+ *   marks: a label every 6 clock hours, every 3 once 3 hours span 18 px; a small tick on the
+ *   other 3-hour marks. n slots: the area fill closes on slot n's tick (chart.c
+ *   chart_render_area).
  * - 15..26: the 24 h grid (FORECAST_GRID_DEF's pitch 8, pad 1, bar 5, a label every 3rd slot,
  *   a tick on each), 24 slots up to 24 hours, so 24 h is pixel-identical, and one slot per
- *   hour past it (the 25th and 26th reach the edge of a plot wider than 192 px).
+ *   hour past it (the 25th and 26th reach the edge of a plot wider than 192 px). Where its
+ *   last slot's tick would stop short of the plot's last column, the edge rule above stretches
+ *   it there (pad and bar unchanged): only a plot with no label strip (visible_w 200) holding
+ *   fewer than the 26 hours the phone sends it (an unknown watch is sent 24, and so is a known
+ *   one until the refetch a numbers move forces), so no blank tail opens on the right. With a
+ *   strip (visible_w <= 183) the 24 slots always reach past the edge: 24 h On axis keeps every
+ *   pixel.
  * - 2..14: n slots (the phone sends 14), pitch visible_w / 12 within [11, 16]: 12 whole
  *   columns and the 14th vertex at or past the edge for every visible_w 145..200. A label
  *   every 2nd slot, a tick on each.
  */
+// emery: the edge rule's pitch, in 1/256 px: the smallest that puts slot `last`'s tick on the
+// plot's last column, ceil((visible_w - 1) * 256 / last) (slot_x(last) == visible_w - 1).
+static inline int forecast_span_edge_q(int last, int visible_w) {
+    return ((visible_w - 1) * SLOT_X_ONE + last - 1) / last;
+}
+
 static inline ForecastSpan forecast_span(int n, int visible_w) {
     if (n > FORECAST_SPAN_DAY_SENT) {
-        int pitch = (visible_w + n - 1) / n;
-        if (pitch < FORECAST_SPAN_LONG_PITCH_MIN) { pitch = FORECAST_SPAN_LONG_PITCH_MIN; }
-        if (pitch > FORECAST_SPAN_LONG_PITCH_MAX) { pitch = FORECAST_SPAN_LONG_PITCH_MAX; }
-        const int pad = pitch >= FORECAST_SPAN_LONG_PAD_FROM ? 1 : 0;
-        const int label_h = FORECAST_SPAN_CLOCK_TICK_H * pitch >= FORECAST_SPAN_LABEL_MIN_PX
+        int pq = forecast_span_edge_q(n - 1, visible_w);
+        if (pq < SLOT_X_PITCH_Q(FORECAST_SPAN_LONG_PITCH_MIN)) {
+            pq = SLOT_X_PITCH_Q(FORECAST_SPAN_LONG_PITCH_MIN);
+        }
+        if (pq > SLOT_X_PITCH_Q(FORECAST_SPAN_LONG_PITCH_MAX)) {
+            pq = SLOT_X_PITCH_Q(FORECAST_SPAN_LONG_PITCH_MAX);
+        }
+        const int px = pq >> SLOT_X_Q;   // the narrowest column
+        const int pad = px >= FORECAST_SPAN_LONG_PAD_FROM ? 1 : 0;
+        const int label_h = FORECAST_SPAN_CLOCK_TICK_H * pq
+                                >= SLOT_X_PITCH_Q(FORECAST_SPAN_LABEL_MIN_PX)
                             ? FORECAST_SPAN_CLOCK_TICK_H : FORECAST_SPAN_CLOCK_LABEL_H;
-        return (ForecastSpan){ (int8_t)n, (int8_t)pad, (int8_t)(pitch - 1 - 2 * pad),
-                               (int8_t)label_h, FORECAST_SPAN_CLOCK_TICK_H, 1 };
+        return (ForecastSpan){ (int8_t)n, (int8_t)pad, (int8_t)(px - 1 - 2 * pad),
+                               (int8_t)label_h, FORECAST_SPAN_CLOCK_TICK_H, 1,
+                               (uint8_t)(pq & (SLOT_X_ONE - 1)) };
     }
     if (n > FORECAST_SPAN_HALF_SENT) {
-        return (ForecastSpan){ (int8_t)(n > FORECAST_SPAN_DAY_SLOTS ? n : FORECAST_SPAN_DAY_SLOTS),
-                               FORECAST_SPAN_DAY_PAD, FORECAST_SPAN_DAY_BAR_W, 3, 1, 0 };
+        const int slots = n > FORECAST_SPAN_DAY_SLOTS ? n : FORECAST_SPAN_DAY_SLOTS;
+        int frac = 0;   // the whole 8 px, unless its last slot stops short of the last column
+        if ((slots - 1) * FORECAST_SPAN_DAY_PITCH < visible_w - 1) {
+            frac = forecast_span_edge_q(slots - 1, visible_w)
+                 - SLOT_X_PITCH_Q(FORECAST_SPAN_DAY_PITCH);
+            if (frac > SLOT_X_ONE - 1) { frac = SLOT_X_ONE - 1; }   // past emery's widths
+        }
+        return (ForecastSpan){ (int8_t)slots, FORECAST_SPAN_DAY_PAD, FORECAST_SPAN_DAY_BAR_W,
+                               3, 1, 0, (uint8_t)frac };
     }
     int pitch = visible_w / FORECAST_SPAN_HALF_SLOTS;
     if (pitch < FORECAST_SPAN_HALF_PITCH_MIN) { pitch = FORECAST_SPAN_HALF_PITCH_MIN; }
     if (pitch > FORECAST_SPAN_HALF_PITCH_MAX) { pitch = FORECAST_SPAN_HALF_PITCH_MAX; }
     return (ForecastSpan){ (int8_t)n, FORECAST_SPAN_HALF_PAD,
-                           (int8_t)(pitch - 1 - 2 * FORECAST_SPAN_HALF_PAD), 2, 1, 0 };
+                           (int8_t)(pitch - 1 - 2 * FORECAST_SPAN_HALF_PAD), 2, 1, 0, 0 };
 }
 
-// emery: chart.h chart_def_pitch over the span's grid (tick_w 1).
+// emery: the span's pitch in whole px, its narrowest column: chart.h chart_def_pitch over its
+// grid (tick_w 1).
 static inline int forecast_span_pitch(ForecastSpan s) {
     return 1 + 2 * s.bar_pad + s.bar_w;
+}
+
+// emery: the span's pitch in 1/256 px (chart.h chart_def_pitch_q over its grid).
+static inline int forecast_span_pitch_q(ForecastSpan s) {
+    return SLOT_X_PITCH_Q(forecast_span_pitch(s)) + s.pitch_frac;
+}
+
+// emery: slot i's tick column, px right of the plot's left edge (slot_x.h, the one mapping).
+static inline int forecast_span_x(ForecastSpan s, int i) {
+    return slot_x(forecast_span_pitch_q(s), i);
+}
+
+// emery: the hours on screen (the scale and the hi/lo labels cover them): the n slots whose
+// tick lies on the `visible_w` columns of the plot, a cut bar counting.
+static inline int forecast_span_drawn(ForecastSpan s, int n, int visible_w) {
+    return slot_x_count(forecast_span_pitch_q(s), n, visible_w);
+}
+
+// emery: the hours the plot's layout reads (temp_axis_pad.h WHAT TAKES PART: the stripe
+// bands and the anchored edges): the n slots whose bar starts on the `visible_w` columns,
+// slot_x(i) + 1 + bar_pad <= visible_w - 1. An hour cut at its tick column (the edge rule's
+// last, on the plot's last column) shows no bar, mark or stripe cell to speak of, so it takes
+// no band and anchors no edge. The 24 h grid at its whole 8 px counts its started columns
+// (forecast_span_drawn), as it always has: 24 h keeps its pixels.
+static inline int forecast_span_laid_out(ForecastSpan s, int n, int visible_w) {
+    const int pq = forecast_span_pitch_q(s);
+    const bool day = !s.by_clock && pq == SLOT_X_PITCH_Q(FORECAST_SPAN_DAY_PITCH);
+    return slot_x_count(pq, n, day ? visible_w : visible_w - 1 - s.bar_pad);
 }
 
 // emery: what the hour axis draws on one slot. The values are chart.h's ChartTickKind

@@ -8,8 +8,8 @@ It supports multiple views which can be reached through a wrist flick.
 Highly customizable with a modern settings UI and previews.
 
 FORECAST
-- 24-hour forecast (12, 24 or about 58 hours on Pebble Time 2) with a temperature line and
-  configurable, battery-friendly updates
+- 24-hour forecast (12, 24 or about 58 hours on Pebble Time 2; a shorter forecast fills the
+  graph) with a temperature line and configurable, battery-friendly updates
 - Up to four configurable metrics such as precipitation amount & probability, cloud cover, UV index, gusts,
   wind, air pressure, feels-like temperature and dew point
 - Optional day/night shading

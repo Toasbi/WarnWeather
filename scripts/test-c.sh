@@ -119,7 +119,7 @@ cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/temp_axis_pad_test.c -o build/host/temp_a
 build/host/temp_axis_pad_test_emery
 # The forecast's time span (forecast_span.h, header-only) and the hour axis's cadence
 # (forecast_grid.c, #included): built for a 24 h platform and for emery, whose 12 h / 24 h /
-# long classes, the long span's cover rule and floors, and the edge labels are pinned here.
+# long classes, the long span's edge (fill) rule and floors, and the edge labels are pinned here.
 cc $CFLAGS -DPBL_PLATFORM_BASALT test/c/forecast_span_test.c -o build/host/forecast_span_test
 build/host/forecast_span_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/forecast_span_test.c -o build/host/forecast_span_test_emery

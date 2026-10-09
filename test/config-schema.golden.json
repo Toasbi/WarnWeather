@@ -10292,7 +10292,7 @@
                 "hintByValue": {
                   "12": "The next 12 hours, in wider columns.",
                   "24": "The next 24 hours.",
-                  "48": "About 58 hours in narrow columns; up to 66 with the High / low numbers On graph or Off. Weather Underground and OpenWeatherMap stop at 48 hours: about 40 to 44 with them."
+                  "48": "About 58 hours in narrow columns; up to 66 with the High / low numbers On graph or Off. Weather Underground and OpenWeatherMap stop at 48 hours: their columns widen to fill the graph (47 whole hours with OpenWeatherMap, 48 with Weather Underground)."
                 },
                 "options": [
                   [

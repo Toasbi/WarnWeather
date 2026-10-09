@@ -2009,7 +2009,8 @@ module.exports = {
                     '24': 'The next 24 hours.',
                     '48': 'About 58 hours in narrow columns; up to 66 with the High / low numbers '
                         + 'On graph or Off. Weather Underground and OpenWeatherMap stop at 48 hours: '
-                        + 'about 40 to 44 with them.'
+                        + 'their columns widen to fill the graph (47 whole hours with '
+                        + 'OpenWeatherMap, 48 with Weather Underground).'
                 },
                 options: [['12 h', '12'], ['24 h', '24'], ['58 h', '48']],
                 showWhen: FORECAST_SPAN_WHEN
