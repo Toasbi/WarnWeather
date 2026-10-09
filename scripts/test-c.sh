@@ -113,6 +113,13 @@ build/host/step_scale_test
 # up with the curve (header-only, temp_axis_pad.h).
 cc $CFLAGS test/c/temp_axis_pad_test.c -o build/host/temp_axis_pad_test
 build/host/temp_axis_pad_test
+# The forecast's time span (forecast_span.h, header-only) and the hour axis's cadence
+# (forecast_grid.c, #included): built for a 24 h platform and for emery, whose 12 / 24 / 48 h
+# classes and grids are pinned here.
+cc $CFLAGS -DPBL_PLATFORM_BASALT test/c/forecast_span_test.c -o build/host/forecast_span_test
+build/host/forecast_span_test
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/forecast_span_test.c -o build/host/forecast_span_test_emery
+build/host/forecast_span_test_emery
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the
 # per-platform STATUS_STRIP_CAL_GAP.
 cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test

@@ -135,7 +135,7 @@ static void apply_line_style(SeriesLine *line, uint8_t style_byte, int solid_wid
 static void load_dataset(ForecastDataset *ds) {
     memset(ds, 0, sizeof(*ds));
     const int raw = persist_get_num_entries();
-    const int n = raw > MAX_BOTTOM_VIEW_ENTRIES ? MAX_BOTTOM_VIEW_ENTRIES : (raw < 0 ? 0 : raw);
+    const int n = raw > FORECAST_MAX_ENTRIES ? FORECAST_MAX_ENTRIES : (raw < 0 ? 0 : raw);
     ds->num_entries = n;
     ds->forecast_start = persist_get_forecast_start();
 
@@ -357,10 +357,17 @@ static NightSegments compute_night_segments(time_t graph_start, time_t graph_end
         return night_segments;
     }
 
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: a 48 h graph runs up to two days past the pair, so the pair repeats two days on.
+    SunEvent events[8];
+#define NIGHT_LAST_DAY_OFFSET 2
+#else
     SunEvent events[6];
+#define NIGHT_LAST_DAY_OFFSET 1
+#endif
     int event_count = 0;
 
-    for (int day_offset = -1; day_offset <= 1; ++day_offset)
+    for (int day_offset = -1; day_offset <= NIGHT_LAST_DAY_OFFSET; ++day_offset)
     {
         const time_t offset_seconds = (time_t)day_offset * DAY_SECONDS;
         events[event_count++] = (SunEvent){
@@ -391,9 +398,21 @@ static NightSegments compute_night_segments(time_t graph_start, time_t graph_end
         {
             continue;
         }
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: only the nights the graph shows take one of the three slots. Its 48 h window
+        // meets at most three (night k ends more than 48 h before night k + 3 starts: a real
+        // night is under a day long); the repeats outside it would otherwise crowd one out.
+        // Pixel-neutral at 24 h: a night outside the window used to become a zero-width band
+        // with no boundary, which draws nothing.
+        if (event_end.timestamp <= graph_start || event_start.timestamp >= graph_end)
+        {
+            continue;
+        }
+#endif
 
         night_segments_add(&night_segments, event_start.timestamp, event_end.timestamp);
     }
+#undef NIGHT_LAST_DAY_OFFSET
 
     return night_segments;
 }
@@ -413,10 +432,10 @@ static int16_t graph_x_for_time(time_t timestamp, time_t graph_start, time_t gra
     }
 
     // After the guards above, graph_start < timestamp < graph_end, so
-    // 0 < elapsed < total. total is a forecast span (<= ~3 days for 24
-    // entries) and size.w <= 200 (emery), so elapsed * size.w stays far below
-    // INT32_MAX — 32-bit math is exact here and avoids pulling in the 64-bit
-    // soft-divide routine (__udivmoddi4, ~754 B).
+    // 0 < elapsed < total. total is a forecast span (23 h for 24 entries, 48 h
+    // on emery's 48 h grid: 48 h x 200 px is about 35 M) and size.w <= 200 (emery), so
+    // elapsed * size.w stays far below INT32_MAX — 32-bit math is exact here and
+    // avoids pulling in the 64-bit soft-divide routine (__udivmoddi4, ~754 B).
     const int32_t elapsed = (int32_t)(timestamp - graph_start);
     const int32_t total   = (int32_t)(graph_end - graph_start);
     return graph_left + (int16_t)((elapsed * graph_plot_rect.size.w) / total);
@@ -566,8 +585,32 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         MEMORY_LOG_HEAP("forecast_update:exit");
         return;
     }
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the grid follows the hours the phone sent (forecast_span.h): 12, 24
+    // (FORECAST_GRID_DEF itself) or 25..48; the marks follow its bar columns.
+    const ForecastSpan span = forecast_span(ds->num_entries, bounds.size.w - graph_left);
+    const ChartDef grid = forecast_grid_def_for(span);
+#define GRID (&grid)
+    for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
+        SeriesLine *const line = &ds->series[sid].line;
+        if (line->style != CHART_LINE_SOLID) { line->width = span.bar_w; }
+    }
+    // emery: the night shading runs on through the last hour's column, to the frame's end at
+    // num_entries * pitch: the 12 h and 48 h grids show that column (the 24 h grid runs it
+    // off the screen's right edge, so 24 h is pixel-identical). Past the last vertex the
+    // fill's re-shade follows the fill's own outline, not the last value held flat: it also
+    // reads the area's closing vertex, area_pts[n] (chart.c; the colour fill's diagonal to
+    // the zero row, the bw checkerboard's straight drop at the last vertex).
+#define NIGHT_HOURS(n) (n)
+#define NIGHT_CONTOUR_COUNT(n) ((n) + 1)
+#else
+#define GRID (&FORECAST_GRID_DEF)
+#define NIGHT_HOURS(n) ((n) - 1)
+#define NIGHT_CONTOUR_COUNT(n) (n)
+#endif
     const time_t forecast_start = ds->forecast_start;
-    const time_t forecast_end = forecast_start + (ds->num_entries - 1) * BOTTOM_VIEW_STEP_SECONDS;
+    const time_t forecast_end = forecast_start
+                              + NIGHT_HOURS(ds->num_entries) * BOTTOM_VIEW_STEP_SECONDS;
     struct tm *forecast_start_local = localtime(&forecast_start);
 
 
@@ -578,7 +621,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
     const int16_t axis_y     = h - BOTTOM_VIEW_AXIS_H;
     const int16_t grid_right = graph_bounds.origin.x
-                             + ds->num_entries * chart_def_pitch(&FORECAST_GRID_DEF);
+                             + ds->num_entries * chart_def_pitch(GRID);
 #if defined(WW_LINE_STYLE)
     // Bottom stripes live BELOW the plot's zero line, in a band of their own
     // between it and the hour axis, so bars, fills and lines can never paint
@@ -587,13 +630,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // for the ticks. The plot's baseline lifts by the band.
     const int stripe_h = FORECAST_STRIPE_H(axis_y);
     // One scan of each series' drawn window (temp_axis_pad.h): only a series with a value
-    // above 0 in the hours on screen takes part (the phone sends 24; the hours past the
-    // screen's right edge never count). A stripe then takes a band on its edge; an amount
-    // line, its marks or fill anchor the edge they are drawn from (the rain bars add theirs
-    // once the palette is read, below). A stripe with nothing above 0 is dropped here, so it
-    // takes no band and the stripe layout below never sees it: the plot grows into its rows.
+    // above 0 in the hours on screen takes part (the phone sends 24, or emery's 12 or 48; the
+    // hours past the screen's right edge never count). A stripe then takes a band on its edge;
+    // an amount line, its marks or fill anchor the edge they are drawn from (the rain bars add
+    // theirs once the palette is read, below). A stripe with nothing above 0 is dropped here,
+    // so it takes no band and the stripe layout below never sees it: the plot grows into its
+    // rows.
     const int drawn = temp_axis_drawn_entries(ds->num_entries, bounds.size.w - graph_left,
-                                              chart_def_pitch(&FORECAST_GRID_DEF));
+                                              chart_def_pitch(GRID));
     TempAxisEdges edges = { 0, 0, 0 };
     for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
         Series *s = &ds->series[sid];
@@ -634,9 +678,16 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Per-redraw data prep + layer list.
     GPoint *const area_pts = paint->area_pts;
     ChartAxisSlot *const axis_slots = paint->axis_slots;
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the span's slots at its cadence (a label every 3rd / 2nd / 8th slot at 24 / 12 /
+    // 48 h).
+    forecast_grid_fill_axis_every(axis_slots, span.slots, forecast_start_local,
+                                  span.label_every, span.tick_every);
+#else
     forecast_grid_fill_axis_slots(axis_slots, MAX_BOTTOM_VIEW_ENTRIES,
                              outer.origin.x, chart_def_pitch(&FORECAST_GRID_DEF),
                              bounds.size.w, forecast_start_local);
+#endif
 
     Series *first  = &ds->series[SERIES_FIRST];
     Series *second = &ds->series[SERIES_SECOND];
@@ -648,10 +699,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const bool bars_on       = bars->present;
 
     // Night bands span slot 0..(num_entries-1) so the linear time->x map lands
-    // on the same hour columns (anchor_x + i*pitch) the ticks/lines use.
+    // on the same hour columns (anchor_x + i*pitch) the ticks/lines use (emery: on to
+    // num_entries, the same map one column further).
     const GRect night_plot_rect = GRect(outer.origin.x, 0,
-                                        (ds->num_entries - 1)
-                                            * chart_def_pitch(&FORECAST_GRID_DEF),
+                                        NIGHT_HOURS(ds->num_entries)
+                                            * chart_def_pitch(GRID),
                                         outer.size.h - 1);
     ChartBand *const night_bands = paint->night_bands;   // NightSegments holds at most 3
     int num_night_bands = 0;
@@ -730,7 +782,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .spacing        = night_hatch_spacing,
             .underlay_color = NIGHT_C(NIGHT_INK_AREA_BASE),
             .has_underlay   = !theme_is_bw(),
-            .contour        = area_pts, .contour_count = ds->num_entries } };
+            .contour        = area_pts,
+            .contour_count  = NIGHT_CONTOUR_COUNT(ds->num_entries) } };
     }
     // night_over is the full-height day/night hatch — independent of line/bars.
     if (night_on) {
@@ -811,7 +864,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (stripe_band == 0) {
         layers[n++] = axis_layer;
     }
-    chart_draw(ctx, &FORECAST_GRID_DEF, plot, layers, n);
+    chart_draw(ctx, GRID, plot, layers, n);
 #if defined(WW_LINE_STYLE)
     // The stripe bands, each its own chart over the same columns, drawn after the plot:
     // the top band above it first, then the band under the zero line — so a top
@@ -843,7 +896,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         if (!top) {
             layers[nb++] = axis_layer;
         }
-        chart_draw(ctx, &FORECAST_GRID_DEF,
+        chart_draw(ctx, GRID,
                    GRect(outer.origin.x, top ? 0 : plot_axis_y + 1, outer.size.w, band_h),
                    layers, nb);
     }
@@ -854,6 +907,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #if !defined(WW_LINE_STYLE)
 #undef plot
 #endif
+#undef GRID
+#undef NIGHT_HOURS
+#undef NIGHT_CONTOUR_COUNT
     MEMORY_HEAP_PROBE_LOG_MIN(&redraw_probe);
     MEMORY_LOG_HEAP("forecast_update:exit");
 }

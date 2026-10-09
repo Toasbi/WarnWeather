@@ -227,3 +227,24 @@ test('yandex sources no pressure at all', () => {
   const p = new yandex.YandexProvider('key');
   assert.deepEqual(p.pressureTrend, []);
 });
+
+// Emery's 48 h forecast span (forecast-span.js): the window is windowHours(options), 48.
+test('48 h: buildQuery asks for four days (a distant day may be short); the default three', () => {
+  assert.match(yandex.buildQuery(55.75, 37.62), /days\(limit: 3\)/);
+  assert.match(yandex.buildQuery(55.75, 37.62, 24), /days\(limit: 3\)/);
+  assert.match(yandex.buildQuery(55.75, 37.62, 48), /days\(limit: 4\)/);
+});
+
+test('48 h: mapResponse maps 48 hours across the days, what the feed holds when short', () => {
+  // Four days: the sample's partial third day filled to 24 hours, and 8 hours of a fourth.
+  const r = sampleResponse();
+  for (let i = 54; i < 72; i += 1) r.data.weatherByPoint.forecast.days[2].hours.push(hour(i));
+  const day3 = []; for (let i = 72; i < 80; i += 1) day3.push(hour(i));
+  r.data.weatherByPoint.forecast.days.push({ hours: day3 });
+  const out = mapResponse(r, BASE + 18 * 3600 + 600, 48);
+  ['tempTrend', 'precipTrend', 'rainTrend', 'feelsTrend'].forEach((k) => assert.equal(out[k].length, 48, k));
+  assert.equal(out.tempTrend[47], 50 + 18 + 47);
+  assert.equal(mapResponse(r, BASE + 18 * 3600 + 600).tempTrend.length, 24, 'the default stays 24');
+  // The 54-hour sample leaves 36 from anchor 18.
+  assert.equal(mapResponse(sampleResponse(), BASE + 18 * 3600 + 600, 48).tempTrend.length, 36);
+});

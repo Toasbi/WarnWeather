@@ -159,3 +159,51 @@ test('UV failure on a reused instance drops UV instead of shipping the previous 
   assert.deepEqual(payload.UV_TREND_UINT8, [], 'UV line off for this cycle');
   assert.equal(payload.UV_DAY_PEAKS, undefined, 'no day peaks from a stale window');
 });
+
+test('a 48 h span (emery): 4-day main call, 3-day aux and UV calls, 48 hours in the payload', () => {
+  const urls = [];
+  const series = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+  const time = (n) => series(n, (i) => BASE + i * HOUR);
+  responder = function(url, onSuccess) {
+    urls.push(url);
+    if (url.indexOf('uv_index') !== -1) {
+      onSuccess(JSON.stringify({ hourly: { time: time(72), uv_index: series(72, (i) => i % 9) } }));
+    } else if (url.indexOf('current=apparent_temperature') !== -1) {
+      onSuccess(JSON.stringify({ hourly: { time: time(72), windgusts_10m: series(72, (i) => 20 + i),
+        apparent_temperature: series(72, (i) => 40 + i), dew_point_2m: series(72, () => 35),
+        wind_direction_10m: series(72, () => 90) }, current: { apparent_temperature: 41.5 } }));
+    } else {
+      onSuccess(JSON.stringify({ current: { temperature_2m: 71.5 }, hourly: { time: time(96),
+        temperature_2m: series(96, (i) => 50 + (i % 30)), precipitation_probability: series(96, () => 10),
+        precipitation: series(96, () => 0), windspeed_10m: series(96, (i) => i % 40),
+        windgusts_10m: series(96, () => null), pressure_msl: series(96, () => 1013) } }));
+    }
+  };
+  const p = new OpenMeteoProvider();
+  p.options = fetchOptions.defaults({ fetchUv: true, forecastHours: 48, dayPeakCodes: [] });
+  let ok = false;
+  withMockedNow(BASE + 22 * HOUR + 10, function() {
+    p.withProviderData(0, 0, false, function() { ok = true; },
+      function(f) { throw new Error('fetch failed: ' + JSON.stringify(f)); });
+  });
+  assert.ok(ok);
+  assert.match(urls[0], /&forecast_days=4(&|$)/, 'main: four GMT days');
+  assert.match(urls[1], /current=apparent_temperature[\s\S]*&forecast_days=3(&|$)/, 'aux: three');
+  assert.match(urls[2], /uv_index[\s\S]*&forecast_days=3(&|$)/, 'UV: three');
+  assert.equal(p.payloadEntries(), 48);
+  const payload = p.getPayload();
+  assert.equal(payload.NUM_ENTRIES, 48);
+  ['TEMP_RAW_TREND', 'PRECIP_TREND_UINT8', 'RAIN_TREND_UINT8', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8',
+    'UV_TREND_UINT8', 'PRESSURE_TREND', 'FEELS_TREND', 'DEW_TREND', 'WIND_DIR_TREND'].forEach((k) =>
+    assert.equal(payload[k].length, 48, k));
+  // The same provider on the default span keeps today's requests and 24 hours.
+  urls.length = 0;
+  p.options = fetchOptions.defaults({ fetchUv: true, dayPeakCodes: [] });
+  withMockedNow(BASE + 22 * HOUR + 10, function() {
+    p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error(JSON.stringify(f)); });
+  });
+  assert.match(urls[0], /&forecast_days=3(&|$)/);
+  assert.match(urls[1], /&forecast_days=2(&|$)/);
+  assert.match(urls[2], /&forecast_days=2(&|$)/);
+  assert.equal(p.getPayload().NUM_ENTRIES, 24);
+});

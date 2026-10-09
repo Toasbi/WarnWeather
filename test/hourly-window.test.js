@@ -224,3 +224,38 @@ test('readHourly stops at a repeated or an earlier timestamp, not just a later o
   back[30].t -= HOUR_SECONDS / 2;
   assert.equal(readHourly(back, 0, PEAK_HOURS, epochOf, valueOf).length, 30);
 });
+
+// The forecast span (forecast-span.js) as the adapters read it: windowHours sizes the
+// window an adapter maps, hourlyRun counts the hourly buckets past the base 24.
+test('windowHours: 24 for the default and a 12 h span, 48 for emery\'s 48 h, capped at MAX_FORECAST_HOURS', () => {
+  const { windowHours, MAX_FORECAST_HOURS } = hourlyWindow;
+  assert.equal(MAX_FORECAST_HOURS, 48);
+  assert.equal(windowHours(undefined), 24);
+  assert.equal(windowHours(null), 24);
+  assert.equal(windowHours({}), 24);
+  assert.equal(windowHours({ forecastHours: 12 }), 24, 'a 12 h span still maps the base window');
+  assert.equal(windowHours({ forecastHours: 24 }), 24);
+  assert.equal(windowHours({ forecastHours: 48 }), 48);
+  assert.equal(windowHours({ forecastHours: 99 }), 48, 'capped');
+});
+
+test('hourlyRun: the first 24 unconditionally, then while each bucket is the next hour', () => {
+  const { hourlyRun } = hourlyWindow;
+  const start = 1700000000 - (1700000000 % HOUR_SECONDS);
+  const hourly = (n) => Array.from({ length: n }, (_, i) => start + i * HOUR_SECONDS);
+  assert.equal(hourlyRun(hourly(72), 0, 48), 48, '72 contiguous buckets');
+  assert.equal(hourlyRun(hourly(72), 5, 48), 48, 'from a later anchor');
+  // A feed that turns 6-hourly after hour 30: hours 0..30 are hourly, 31 is +6 h.
+  const thinning = hourly(31).concat([start + 36 * HOUR_SECONDS, start + 42 * HOUR_SECONDS]);
+  assert.equal(hourlyRun(thinning, 0, 48), 31);
+  // Irregular steps inside the first 24 still count (mapResponse checked the window).
+  const irregular = hourly(48);
+  irregular[10] += 1800;
+  assert.equal(hourlyRun(irregular, 0, 48), 48);
+  assert.equal(hourlyRun(hourly(40), 0, 48), 40, 'stops at the array end');
+  assert.equal(hourlyRun(hourly(40), 0, 24), 24, 'stops at hours');
+  // The default epochOf is identity; an accessor reads wrapped buckets the same way.
+  const wrapped = hourly(50).map((t) => ({ t }));
+  assert.equal(hourlyRun(wrapped, 0, 48, (b) => b.t), 48);
+  assert.equal(hourlyRun(hourly(50), 0, 48), hourlyRun(wrapped, 0, 48, (b) => b.t));
+});

@@ -1,10 +1,11 @@
 // src/pkjs/weather/hourly-window.js
 //
-// The shared 24-hour forecast window: its size, the anchor rule (first bucket
-// at or after the FLOORED current hour), and the timestamp-indexed alignment
-// remap. Before this leaf module, FORECAST_HOURS/HOUR_SECONDS were re-declared
-// per provider and the anchor loop was implemented four times against four
-// timestamp encodings. Leaf: no dependencies, safe to require from anywhere.
+// The shared forecast window: its size (the base 24 hours, or 48 for emery's 48 h
+// time span: windowHours), the anchor rule (first bucket at or after the FLOORED
+// current hour), the hourly-run rule and the timestamp-indexed alignment remap.
+// Before this leaf module, FORECAST_HOURS/HOUR_SECONDS were re-declared per provider
+// and the anchor loop was implemented four times against four timestamp encodings.
+// Leaf: no dependencies, safe to require from anywhere.
 
 var FORECAST_HOURS = 24;
 var HOUR_SECONDS = 60 * 60;
@@ -15,9 +16,28 @@ var HOUR_SECONDS = 60 * 60;
 // 25 h DST fall-back day — 49 buckets. Any later anchor needs fewer. (A :30/:45
 // UTC-offset zone's anchor can start up to 45 min before today's midnight: still 49,
 // bar that zone's fall-back days, where a fetch in those minutes reads tomorrow as
-// unknown.) Only the day-max series read this far; every other trend keeps
-// FORECAST_HOURS, and getPayload cuts these back to it for the graph.
+// unknown.) Only the day-max series read this far; every other trend keeps the
+// graph's window, windowHours: 24, or 48 for emery's 48 h span, and getPayload cuts
+// these back to the hours it sends (WeatherProvider#payloadEntries).
 var PEAK_HOURS = 2 * FORECAST_HOURS + 1;
+// The longest forecast the graph draws: emery's 48 h time span (forecast-span.js).
+// Lockstep with FORECAST_MAX_ENTRIES in src/c/appendix/forecast_span.h
+// (test/forecast-span.test.js reads both).
+var MAX_FORECAST_HOURS = 48;
+
+/**
+ * How many hourly buckets an adapter maps for this fetch: the graph's span when it is
+ * longer than the base window (emery's 48 h, capped at MAX_FORECAST_HOURS), else the
+ * base FORECAST_HOURS every adapter has always required, so a 12 h span changes no
+ * request and no failure rule (getPayload sends the 12).
+ *
+ * @param {?Object} [options] The fetch options (fetch-options.js); reads forecastHours.
+ * @returns {number} FORECAST_HOURS..MAX_FORECAST_HOURS.
+ */
+function windowHours(options) {
+    var span = options && options.forecastHours;
+    return span > FORECAST_HOURS ? Math.min(span, MAX_FORECAST_HOURS) : FORECAST_HOURS;
+}
 
 /**
  * Index of the first hourly bucket at or after the current wall-clock hour.
@@ -95,16 +115,38 @@ function alignHourly(json, field, startTime, hours) {
  * @returns {number[]} A fresh array.
  */
 function readHourly(items, anchor, hours, epochOf, valueOf) {
-    var startEpoch = epochOf(items[anchor]);
+    var count = hourlyRun(items, anchor, hours, epochOf);
     var out = [];
     var i;
-    for (i = 0; i < hours && anchor + i < items.length; i += 1) {
-        if (i >= FORECAST_HOURS && epochOf(items[anchor + i]) !== startEpoch + i * HOUR_SECONDS) {
-            break;
-        }
+    for (i = 0; i < count; i += 1) {
         out.push(valueOf(items[anchor + i], anchor + i));
     }
     return out;
+}
+
+/**
+ * How many of a provider's buckets from items[anchor] are hourly slots, up to `hours`:
+ * the first FORECAST_HOURS unconditionally (mapResponse has already checked they exist),
+ * then only while each bucket is exactly the next hour, so a feed that thins to 3- or
+ * 6-hourly steps, or ends, stops the run. readHourly reads its values; the adapters size
+ * a 48 h graph's window with it.
+ *
+ * @param {Array} items The provider's buckets, ascending.
+ * @param {number} anchor Index of entry 0 in items (a valid anchorIndex result).
+ * @param {number} hours Maximum run length.
+ * @param {function(*): number} [epochOf] Bucket -> epoch seconds; defaults to the bucket
+ *   itself (a plain epoch array, anchorIndex's convention).
+ * @returns {number} 0..hours.
+ */
+function hourlyRun(items, anchor, hours, epochOf) {
+    var epoch = epochOf || function(item) { return item; };
+    var startEpoch = epoch(items[anchor]);
+    var n = 0;
+    while (n < hours && anchor + n < items.length
+        && (n < FORECAST_HOURS || epoch(items[anchor + n]) === startEpoch + n * HOUR_SECONDS)) {
+        n += 1;
+    }
+    return n;
 }
 
 /**
@@ -174,7 +216,10 @@ function localDayPeaks(series, startEpoch, nowEpoch) {
 module.exports = {
     FORECAST_HOURS: FORECAST_HOURS,
     PEAK_HOURS: PEAK_HOURS,
+    MAX_FORECAST_HOURS: MAX_FORECAST_HOURS,
     HOUR_SECONDS: HOUR_SECONDS,
+    windowHours: windowHours,
+    hourlyRun: hourlyRun,
     anchorIndex: anchorIndex,
     alignHourly: alignHourly,
     readHourly: readHourly,

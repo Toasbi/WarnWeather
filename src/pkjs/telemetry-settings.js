@@ -25,6 +25,8 @@ var onDemand = require('./on-demand.js');
 var lineAlert = require('./line-alert.js');
 // value — a Draw from / Bars from choice, read like the wire reads it.
 var drawFrom = require('./draw-from.js');
+// The forecast's time span, as this watch draws it (12/24/48 on emery, 24 elsewhere).
+var forecastSpan = require('./forecast-span.js');
 
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
@@ -310,6 +312,9 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // .strip() schema (handler.ts); ships OFF, so aplite's constant false is the default.
         doubleFlick: Boolean(safe.doubleFlick),
         largeGraphFont: Boolean(safe.largeGraphFont),
+        // The forecast's time span this watch draws (an int): the stored 12/24/48 on an
+        // emery, 24 on every other watch whatever is stored. Lockstep with handler.ts.
+        forecastHours: forecastSpan.hours(safe, env),
         vibe: !!safe.vibe,
         btIcons: safe.btIcons,
         secondaryLine: safe.secondaryLine,

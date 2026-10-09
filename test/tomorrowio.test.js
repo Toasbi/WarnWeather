@@ -416,3 +416,40 @@ test('tomorrow.io + steadman: an anchor bucket without windSpeed keeps the API "
   const withWind = tomorrowio.mapResponse(sampleResponse(), BASE + 3 * 3600 + 600);
   assert.equal(withWind.currentWindKmh, withWind.windTrend[0]);
 });
+
+// Emery's 48 h forecast span (forecast-span.js): the window is windowHours(options), 48.
+test('48 h: mapResponse maps 48 hourly intervals; the default stays 24', () => {
+  const r = sampleResponse();
+  for (let i = 30; i < 60; i += 1) r.data.timelines[0].intervals.push(interval(i));
+  const out = mapResponse(r, BASE + 3 * 3600, 48);
+  ['tempTrend', 'precipTrend', 'rainTrend', 'pressureTrend', 'cloudTrend', 'feelsTrend', 'dewTrend',
+    'windDirTrend', 'humidityTrend'].forEach((k) => assert.equal(out[k].length, 48, k));
+  assert.equal(out.tempTrend[47], (3 + 47 + 10) * 9 / 5 + 32);
+  assert.equal(mapResponse(r, BASE + 3 * 3600).tempTrend.length, 24);
+  // A feed short of the span maps what it holds (from anchor 3, 27 of the 30).
+  assert.equal(mapResponse(sampleResponse(), BASE + 3 * 3600, 48).tempTrend.length, 27);
+});
+
+test('48 h: the non-peak request reaches 49 h out, still one call; a day max keeps PEAK_HOURS', () => {
+  const prevXhr = global.XMLHttpRequest;
+  global.XMLHttpRequest = MockXhr;
+  const hourFloor = Math.floor(Date.now() / 3600000) * 3600;
+  const endOf = (url) => decodeURIComponent(url.match(/&endTime=([^&]+)/)[1]);
+  try {
+    const p = new TomorrowIoProvider('KEY123');
+    p.options = fetchOptions.defaults({ forecastHours: 48, dayPeakCodes: [] });
+    p.withProviderData(52.52, 13.41, false, () => {}, () => {});
+    assert.equal(endOf(MockXhr.last.opened.url), new Date((hourFloor + 49 * 3600) * 1000).toISOString());
+    const day = new TomorrowIoProvider('KEY123');
+    day.options = fetchOptions.defaults({ forecastHours: 24, dayPeakCodes: [] });
+    day.withProviderData(52.52, 13.41, false, () => {}, () => {});
+    assert.equal(endOf(MockXhr.last.opened.url), new Date((hourFloor + 25 * 3600) * 1000).toISOString());
+    const peak = new TomorrowIoProvider('KEY123');
+    peak.options = fetchOptions.defaults({ forecastHours: 48, dayPeakCodes: ['uv'] });
+    peak.withProviderData(52.52, 13.41, false, () => {}, () => {});
+    assert.equal(endOf(MockXhr.last.opened.url),
+      new Date((hourFloor + (PEAK_HOURS + 1) * 3600) * 1000).toISOString());
+  } finally {
+    global.XMLHttpRequest = prevXhr;
+  }
+});

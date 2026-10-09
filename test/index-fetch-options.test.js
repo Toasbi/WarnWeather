@@ -92,3 +92,53 @@ test('an AQI slot asks the AQI feed in the stored source and scale', (t) => {
   assert.match(aqi[0], /^https:\/\/air-quality-api\.open-meteo\.com\/.*hourly=us_aqi/,
     'options.aqiSource/aqiScale came from the settings (the defaults are WAQI / european)');
 });
+
+// The forecast's time span (forecast-span.js) reaches the provider through the same
+// options: on an emery set to 48 h the Open-Meteo main call asks for four days and the
+// aux call for three, and the weather message carries 48 hours. Any other watch keeps
+// today's requests and 24 hours, whatever is stored.
+const EMERY = { platform: 'emery', model: 'qemu_platform_emery', language: 'en' };
+const MAIN_REQUEST = /^https:\/\/api\.open-meteo\.com\/v1\/forecast\?.*models=ecmwf_ifs025/;
+
+/**
+ * The weather message the boot fetch sent (the one carrying the forecast).
+ * @param {Object} h Harness handles.
+ * @returns {Object} The AppMessage dictionary.
+ */
+function weatherSend(h) {
+  const sends = h.sends.filter((d) => 'TEMP_TREND_UINT8' in d);
+  assert.equal(sends.length, 1, 'one forecast send');
+  return sends[0];
+}
+
+test('a 48 h span on an emery: 4-day main and 3-day aux calls, 48 hours sent', (t) => {
+  const h = bootIndex(t, { settings: noUvNoAqi({ forecastHours: '48' }), store: staleSuccess(),
+    watchInfo: EMERY });
+  h.ready();
+  h.advance(5 * 1000);
+  assert.equal(h.count(/Successfully fetched weather/), 1);
+  assert.equal(h.uncaught.length, 0);
+  const main = h.xhrs.filter((u) => MAIN_REQUEST.test(u));
+  const aux = h.xhrs.filter((u) => AUX_REQUEST.test(u));
+  assert.equal(main.length, 1);
+  assert.match(main[0], /&forecast_days=4(&|$)/, 'the main call reaches the 48th hour\'s block');
+  assert.equal(aux.length, 1);
+  assert.match(aux[0], /&forecast_days=3(&|$)/, 'three GMT days hold the aux reads');
+  const sent = weatherSend(h);
+  assert.equal(sent.NUM_ENTRIES, 48);
+  assert.equal(sent.TEMP_TREND_UINT8.length, 48);
+});
+
+test('a stored 48 h span on a basalt changes nothing: 3-day main call, 24 hours sent', (t) => {
+  const h = bootIndex(t, { settings: noUvNoAqi({ forecastHours: '48' }), store: staleSuccess() });
+  h.ready();
+  h.advance(5 * 1000);
+  assert.equal(h.count(/Successfully fetched weather/), 1);
+  const main = h.xhrs.filter((u) => MAIN_REQUEST.test(u));
+  assert.match(main[0], /&forecast_days=3(&|$)/);
+  const aux = h.xhrs.filter((u) => AUX_REQUEST.test(u));
+  assert.match(aux[0], /&forecast_days=2(&|$)/);
+  const sent = weatherSend(h);
+  assert.equal(sent.NUM_ENTRIES, 24);
+  assert.equal(sent.TEMP_TREND_UINT8.length, 24);
+});

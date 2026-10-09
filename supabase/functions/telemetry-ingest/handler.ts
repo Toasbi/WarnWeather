@@ -193,6 +193,11 @@ const settingsSchema = z
     // before the app release that sends it, or the strip step silently drops it.
     doubleFlick: z.boolean().optional(),
     largeGraphFont: z.boolean().optional(),
+    // The forecast graph's time span the watch draws, in hours (2.2.0): 12/24/48 on an
+    // emery, 24 elsewhere. DEPLOY-ORDERING: ship this function before the app release
+    // that sends it, or the strip step silently drops it. An open-ended int (no max, like
+    // viewResetMin), not an enum: a longer span a later release adds cannot 400 the batch.
+    forecastHours: z.number().int().min(1).optional(),
     vibe: z.boolean().optional(),
     btIcons: z.string().optional(),
     secondaryLine: z.string().optional(),

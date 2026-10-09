@@ -10084,7 +10084,7 @@
             "pane": "forecast",
             "id": "lines",
             "title": "Lines",
-            "intro": "The forecast graph looks up to 24 hours ahead. Temperature is always drawn; the metrics and rain bars you pick below join it.",
+            "intro": "The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or 48: Time span below). Temperature is always drawn; the metrics and rain bars you pick below join it.",
             "items": [
               {
                 "type": "sheet",
@@ -10272,6 +10272,44 @@
                       "env": "lineStyles"
                     }
                   ]
+                }
+              }
+            ]
+          },
+          {
+            "pane": "forecast",
+            "id": "forecastSpan",
+            "title": "Time span",
+            "showWhen": {
+              "env": "forecastSpan"
+            },
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "forecastHours",
+                "label": "Hours ahead",
+                "defaultValue": "24",
+                "hintByValue": {
+                  "12": "The next 12 hours, in wider columns.",
+                  "24": "The next 24 hours.",
+                  "48": "The next two days, in narrower columns so every hour fits."
+                },
+                "options": [
+                  [
+                    "12 h",
+                    "12"
+                  ],
+                  [
+                    "24 h",
+                    "24"
+                  ],
+                  [
+                    "48 h",
+                    "48"
+                  ]
+                ],
+                "showWhen": {
+                  "env": "forecastSpan"
                 }
               }
             ]

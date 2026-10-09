@@ -24,7 +24,7 @@
 // forecast_layer.c's per-redraw dataset: every series, reloaded at the top of each
 // paint (load_dataset).
 typedef struct {
-    int    num_entries;          // clamped to MAX_BOTTOM_VIEW_ENTRIES
+    int    num_entries;          // clamped to FORECAST_MAX_ENTRIES (forecast_span.h)
     time_t forecast_start;
     Series series[SERIES_COUNT];
 } ForecastDataset;
@@ -35,8 +35,8 @@ typedef struct {
 typedef struct {
     ForecastDataset ds;
     ChartLayer      layers[SERIES_COUNT + 6];
-    GPoint          area_pts[MAX_BOTTOM_VIEW_ENTRIES + 2];
-    ChartAxisSlot   axis_slots[MAX_BOTTOM_VIEW_ENTRIES];
+    GPoint          area_pts[FORECAST_MAX_ENTRIES + 2];
+    ChartAxisSlot   axis_slots[FORECAST_MAX_ENTRIES];
     ChartBand       night_bands[3];   // NightSegments holds at most 3
     ChartColorStop  scaled_bar_stops[PALETTE_MAX_STOPS];
 } ForecastPaint;

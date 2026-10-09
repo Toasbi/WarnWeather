@@ -647,3 +647,48 @@ test('the rain alert\'s placement stays OUT of the render signature (Clay)', () 
     statusTopOnDemandRightItems: 'battery,rain,gust,uv,aqi,wind' }), base, 'nor does Rain on the other side');
   assert.equal(renderSignature({ statusForecastOnDemandRightItems: 'rain,bt' }), base, 'nor on another bar');
 });
+
+// The forecast's time span (forecast-span.js) changes how many hours are fetched and baked
+// on an emery, so a flip forces a refetch. '' for the default and an absent key alike, so the
+// page hydrating forecastHours forces no fetch.
+test('forecastHours joins the signature; absent and 24 sign the same, as does junk', () => {
+  const base = renderSignature({});
+  assert.equal(renderSignature({ forecastHours: '24' }), base, 'hydrating the default forces nothing');
+  assert.equal(renderSignature({ forecastHours: 'junk' }), base);
+  assert.notEqual(renderSignature({ forecastHours: '48' }), base, '24 -> 48');
+  assert.notEqual(renderSignature({ forecastHours: '12' }), base, '24 -> 12');
+  assert.notEqual(renderSignature({ forecastHours: '12' }), renderSignature({ forecastHours: '48' }));
+});
+
+// The premise behind signing it: the bake differs between 24 and 48 h on an emery (the
+// hours sent), and is identical on every other watch, which is always sent 24.
+test('the weather bake follows forecastHours on emery only', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const store = {};
+  global.localStorage = {
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+  const origLog = console.log;
+  console.log = () => {};
+  try {
+    const fixtureWeather = require('../src/pkjs/fixture-weather.js');
+    const defaults = require('../src/pkjs/settings').getDefaults();
+    const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'forecast-48h.json'), 'utf8'));
+    const bake = (platform, forecastHours) => {
+      const s = Object.assign({}, defaults, fx.claySettings, { forecastHours });
+      const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), s, { platform });
+      return JSON.stringify(out, Object.keys(out).sort());
+    };
+    assert.notEqual(bake('emery', '48'), bake('emery', '24'), 'emery: 48 h bakes 48 hours');
+    assert.notEqual(bake('emery', '12'), bake('emery', '24'), 'emery: 12 h bakes 12 hours');
+    ['basalt', 'diorite', 'aplite'].forEach((platform) => {
+      assert.equal(bake(platform, '48'), bake(platform, '24'), platform + ': always 24');
+      assert.equal(bake(platform, '12'), bake(platform, '24'), platform + ': always 24');
+    });
+  } finally {
+    console.log = origLog;
+  }
+});

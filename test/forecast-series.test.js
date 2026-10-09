@@ -1373,3 +1373,32 @@ test('a placed alert makes UV, AQI and pollen fetch with no slot or line', () =>
   assert.equal(needsAqi(partial), true);
   assert.deepEqual(dayPeakCodes(partial), ['uv', 'wind', 'gust', 'aqi']);
 });
+
+// Emery's 48 h forecast span (forecast-span.js): the series bake is length-agnostic, so a
+// 48-hour payload makes every wire trend 48 long — lines, marks, a stripe's level bytes, a
+// Show: Alert line and the rain bars alike.
+test('a 48-hour payload bakes 48-byte wire trends on every line, stripes and alert lines included', () => {
+  const ramp = (f) => Array.from({ length: 48 }, (_, i) => f(i));
+  const payload = () => ({
+    TEMP_RAW_TREND: ramp((i) => 10 + (i % 20)), TEMP_MIN: 10, TEMP_MAX: 29,
+    PRECIP_TREND_UINT8: ramp((i) => (i * 7) % 100), RAIN_TREND_UINT8: ramp((i) => i % 30),
+    WIND_TREND_UINT8: ramp((i) => 10 + (i % 40)), GUST_TREND_UINT8: ramp((i) => 20 + (i % 50)),
+    UV_TREND_UINT8: ramp((i) => (i * 3) % 90), CLOUD_TREND: ramp((i) => (i * 5) % 100),
+    PRESSURE_TREND: ramp((i) => 1000 + (i % 20)), AQI_TREND: [], NUM_ENTRIES: 48,
+    CURRENT_TEMP: 10, CITY: 'X', SUN_EVENTS: [1]
+  });
+  const KEYS = ['TEMP_TREND_UINT8', 'SECONDARY_LINE_TREND_UINT8', 'THIRD_LINE_TREND_UINT8',
+    'FOURTH_LINE_TREND_UINT8', 'FIFTH_LINE_TREND_UINT8', 'BAR_TREND_UINT8'];
+  [
+    { secondaryLine: 'precip_prob', thirdLine: 'wind', fourthLine: 'gust', fifthLine: 'uv' },
+    { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop', thirdLine: 'pressure',
+      fourthLine: 'gust', fourthLineStyle: 'x', fifthLine: 'uv', fifthLineStyle: 'stripeBottom' },
+    { secondaryLine: 'precip_prob', thirdLine: 'wind', fourthLine: 'gust', fifthLine: 'uv',
+      windLineShow: 'alert', gustLineShow: 'alert', uvLineShow: 'alert' }
+  ].forEach((lines) => {
+    const out = applyForecastSeries(payload(), bare(Object.assign({ barSource: 'rain' }, lines)),
+      { platform: 'emery' });
+    KEYS.forEach((k) => assert.equal(out[k].length, 48, JSON.stringify(lines) + ' ' + k));
+    assert.equal(out.NUM_ENTRIES, 48);
+  });
+});

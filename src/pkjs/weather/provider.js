@@ -10,6 +10,7 @@ var pollen = require('./pollen.js');
 var dayPeaks = require('./day-peaks.js');
 var feelsLike = require('./feels-like.js');
 var fetchOptions = require('./fetch-options.js');
+var hourlyWindow = require('./hourly-window.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
 // fetches can require them without the old provider-cycle lazy-require hack);
@@ -30,7 +31,16 @@ var readGpsCache = locationLib.readGpsCache;
 var GPS_CACHE_MAX_AGE_MS = locationLib.GPS_CACHE_MAX_AGE_MS;
 
 
+// The series that become wire trends (forecast-series.js): the hours a payload carries
+// are the fewest any of them holds (payloadEntries). windDirTrend and aqiTrend feed
+// status slots only, so they never shorten the graph.
+var GRAPH_SERIES = ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend', 'gustTrend', 'uvTrend',
+    'cloudTrend', 'pressureTrend', 'feelsTrend', 'dewTrend'];
+
 var WeatherProvider = function() {
+    // The base window every adapter must fill (hasValidData, adoptMapped's zero-fill).
+    // The hours a payload carries are payloadEntries(): the graph's span
+    // (options.forecastHours: 12, 24 or, on an emery, 48).
     this.numEntries = 24;
     this.name = 'Template';
     // The name on the watch's notice line (notices.js, ~31 B) when `name` is too long
@@ -195,7 +205,8 @@ WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure
     var sunEvents;
 
     try {
-        sunEvents = nextSunEvents(new Date(), lat, lon);
+        // The span widens a polar pair to cover a 48 h graph (sun-events.js).
+        sunEvents = nextSunEvents(new Date(), lat, lon, undefined, this.options.forecastHours);
     }
     catch (ex) {
         onFailure(failure('sun_events', 'calc_error'));
@@ -715,14 +726,41 @@ function encodeSunEvents(sunEvents) {
 }
 
 /**
+ * How many hours the payload carries (NUM_ENTRIES, and every trend's length): the
+ * graph's span, options.forecastHours. A 12 h span sends 12 and the default 24 sends
+ * numEntries (a provider whose base window is shorter keeps it). A 48 h span (emery)
+ * sends as many hours as every drawn series holds (GRAPH_SERIES; an empty, off series
+ * never limits it), never fewer than 24: a feed that ends early draws the hours it has
+ * on the watch's 48 h grid, never a 48 h payload with a short series in it.
+ *
+ * @returns {number} The hours to send.
+ */
+WeatherProvider.prototype.payloadEntries = function() {
+    var base = this.numEntries;
+    var span = this.options && this.options.forecastHours;
+    if (!(span > hourlyWindow.FORECAST_HOURS)) {
+        return (span > 0 && span < base) ? span : base;
+    }
+    var n = Math.min(span, hourlyWindow.MAX_FORECAST_HOURS);
+    var i;
+    var series;
+    for (i = 0; i < GRAPH_SERIES.length; i += 1) {
+        series = this[GRAPH_SERIES[i]];
+        if (series && series.length && series.length < n) { n = series.length; }
+    }
+    return Math.max(n, Math.min(base, hourlyWindow.FORECAST_HOURS));
+};
+
+/**
  * Build the watch weather AppMessage payload from the provider's trend/current
  * fields. Trend byte-scaling and sun-event encoding live in their own helpers
- * so this stays a flat assembly of the wire object.
+ * so this stays a flat assembly of the wire object. It carries payloadEntries()
+ * hours, so TEMP_MIN/TEMP_MAX name the window the graph shows.
  *
  * @returns {Object} Weather AppMessage payload (pre render-transform).
  */
 WeatherProvider.prototype.getPayload = function() {
-    var numEntries = this.numEntries;
+    var numEntries = this.payloadEntries();
     var temps = this.tempTrend.slice(0, numEntries).map(function(temperature) {
         return Math.round(temperature);
     });

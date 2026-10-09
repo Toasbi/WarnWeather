@@ -980,12 +980,16 @@ var VIEWS_INTRO = 'A view is one screen of the watchface. The Default view shows
 // The Layout card's two flick rows (Double flick, View reset time): aplite has no flick
 // cycle at all (WW_VIEW_CYCLE is compiled out), so both rows hide there together.
 var VIEW_FLICK_WHEN = {env: 'platform', ne: 'aplite'};
+// The forecast's Time span row: emery only (platform.js isForecastSpanPlatform, the
+// env.forecastSpan fact), hidden on an unknown watch (fail closed: the 640 / 536 B
+// inboxes of every other watch cannot take a 48 h bundle).
+var FORECAST_SPAN_WHEN = {env: 'forecastSpan'};
 var LAYOUT_INTRO = 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the '
     + 'preview. What a metric means or how it\'s coloured lives in Graphs.';
 var STATUS_INTRO = 'Every view has its own status bar — one row with a left, middle, and right slot you can '
     + 'fill with weather, time, health, and more. Choose what each view shows below.';
-var FORECAST_INTRO = 'The forecast graph looks up to 24 hours ahead. Temperature is always drawn; the metrics '
-    + 'and rain bars you pick below join it.';
+var FORECAST_INTRO = 'The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or 48: Time '
+    + 'span below). Temperature is always drawn; the metrics and rain bars you pick below join it.';
 var GRAPH_COLORS_INTRO = 'One row per metric, plus the night shading. Each row’s colours are remembered '
     + 'separately for the Dark and the Light theme.';
 
@@ -1977,6 +1981,30 @@ module.exports = {
                 options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
                 more: true,
                 showWhen: {all: [{key: 'barSource', eq: 'rain'}, LINE_STYLES_WHEN]}
+            }]
+        }, {
+            // Time span (emery only): how many hours the forecast graph looks ahead. The phone
+            // fetches and sends that many hourly points (src/pkjs/forecast-span.js); the
+            // watch's grid follows the count it receives (src/c/appendix/forecast_span.h).
+            // Every other watch keeps 24 h: the 640 B / 536 B inboxes cannot take a 48 h
+            // bundle and the 64 KB images have no room. A changed span re-fetches
+            // (render-signature.js). Not `more`: the span frames the whole graph.
+            pane: 'forecast',
+            id: 'forecastSpan',
+            title: 'Time span',
+            showWhen: FORECAST_SPAN_WHEN,
+            items: [{
+                type: 'segmented',
+                messageKey: 'forecastHours',
+                label: 'Hours ahead',
+                defaultValue: '24',
+                hintByValue: {
+                    '12': 'The next 12 hours, in wider columns.',
+                    '24': 'The next 24 hours.',
+                    '48': 'The next two days, in narrower columns so every hour fits.'
+                },
+                options: [['12 h', '12'], ['24 h', '24'], ['48 h', '48']],
+                showWhen: FORECAST_SPAN_WHEN
             }]
         }, {
             // The Graph colors row, a card of its own: one dialog holding one row per graph

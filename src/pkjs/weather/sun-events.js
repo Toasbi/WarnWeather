@@ -91,14 +91,19 @@ function mirroredSunEvent(sunEvent, lat, lon) {
  * day). They sit two days before and three days after today's UTC midnight,
  * so the pair changes once a day like a real one, and the shaded span runs
  * from yesterday to the end of tomorrow (UTC): the whole 23 h chart of any
- * fetch made today. The sun status slot reads '--' for it (isPolarSunPair).
+ * fetch made today. A graph longer than a day (emery's 48 h span, whose watch
+ * repeats the pair up to two days on) moves the far end a day out, six days
+ * apart: the span then runs from today to three days on, the whole 47 h chart
+ * of any fetch made today. The sun status slot reads '--' for it
+ * (isPolarSunPair).
  *
  * @param {Date} now Reference time.
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
+ * @param {number} [spanHours] The forecast graph's hours (options.forecastHours).
  * @returns {{type: string, date: Date}[]} The two-event polar pair.
  */
-function polarSunEvents(now, lat, lon) {
+function polarSunEvents(now, lat, lon, spanHours) {
     // Classify by the coming solar noon rather than by `now`: in the last
     // short night before polar day the sun is below the horizon, but the day
     // ahead has no sunset.
@@ -107,7 +112,7 @@ function polarSunEvents(now, lat, lon) {
     var sunUp = SunCalc.getPosition(new Date(noon), lat, lon).altitude > SUNRISE_ALTITUDE_RAD;
     var utcMidnight = Math.floor(now.getTime() / DAY_MS) * DAY_MS;
     var before = new Date(utcMidnight - 2 * DAY_MS);
-    var after = new Date(utcMidnight + 3 * DAY_MS);
+    var after = new Date(utcMidnight + (spanHours > 24 ? 4 : 3) * DAY_MS);
     return sunUp
         ? [{ type: 'sunrise', date: before }, { type: 'sunset', date: after }]
         : [{ type: 'sunset', date: before }, { type: 'sunrise', date: after }];
@@ -161,15 +166,17 @@ function isWatchPair(upcoming) {
  * @param {number} lon Longitude.
  * @param {{type: string, date: Date}[]} [candidates] A provider's own
  *   sunrise/sunset list, day by day (OpenWeatherMap's daily data).
+ * @param {number} [spanHours] The forecast graph's hours (options.forecastHours):
+ *   the polar pair's reach (polarSunEvents).
  * @returns {{type: string, date: Date}[]} Exactly two sun events.
  */
-function nextSunEvents(now, lat, lon, candidates) {
+function nextSunEvents(now, lat, lon, candidates, spanHours) {
     var upcoming = candidates ? pickNext24hSunEvents(candidates, now) : [];
     if (!isWatchPair(upcoming) || startsAfterNextDay(upcoming, now)) {
         upcoming = pickNext24hSunEvents(sunCalcSunEvents(now, lat, lon), now);
     }
     if (upcoming.length === 0 || startsAfterNextDay(upcoming, now)) {
-        return polarSunEvents(now, lat, lon);
+        return polarSunEvents(now, lat, lon, spanHours);
     }
     if (upcoming.length === 1) {
         return [upcoming[0], mirroredSunEvent(upcoming[0], lat, lon)];

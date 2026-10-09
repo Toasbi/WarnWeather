@@ -113,6 +113,8 @@ function isWeatherMessage(dict) {
  * @param {function(Function, Function): void} [opts.geolocate] Receives each
  *   getCurrentPosition's (success, error); default never answers.
  * @param {number} [opts.latencyMs] Network latency (default 100 ms).
+ * @param {Object} [opts.watchInfo] What Pebble.getActiveWatchInfo() answers (default a
+ *   basalt).
  * @returns {Object} Harness handles.
  */
 function bootIndex(t, opts) {
@@ -179,7 +181,8 @@ function bootIndex(t, opts) {
   const held = [];
   global.Pebble = {
     addEventListener: (name, fn) => { listeners[name] = fn; },
-    getActiveWatchInfo: () => ({ platform: 'basalt', model: 'qemu_platform_basalt', language: 'en' }),
+    getActiveWatchInfo: () => (opts.watchInfo
+      || { platform: 'basalt', model: 'qemu_platform_basalt', language: 'en' }),
     getAccountToken: () => 'test-token',
     getWatchToken: () => 'watch-token',
     sendAppMessage: (dict, ack, nack) => {

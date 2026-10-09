@@ -3,6 +3,7 @@
 #include <pebble.h>
 #include "c/appendix/chart.h"   // ChartColorStop, ChartBarStyle
 #include "c/appendix/bottom_view.h"   // MAX_BOTTOM_VIEW_ENTRIES
+#include "c/appendix/forecast_span.h" // FORECAST_MAX_ENTRIES (emery: 48)
 
 typedef enum {
     SERIES_FIRST = 0,   // temperature: always on, fixed scale, fixed color, axis chrome
@@ -38,7 +39,7 @@ typedef enum {
 typedef enum { SERIES_KIND_LINE, SERIES_KIND_BARS } SeriesKind;
 
 typedef struct {                       // FIRST / SECOND / THIRD (/ FOURTH / FIFTH)
-    int16_t values[MAX_BOTTOM_VIEW_ENTRIES];
+    int16_t values[FORECAST_MAX_ENTRIES];
     GColor  color;                      // stroke (resolved at load)
 #if defined(WW_LINE_STYLE)
     bool    floating;                   // LINE_STYLE_FLOATING: anchors no plot edge (pressure,
@@ -61,7 +62,7 @@ typedef struct {                       // FIRST / SECOND / THIRD (/ FOURTH / FIF
 } SeriesLine;
 
 typedef struct {                       // BARS
-    int16_t               values[MAX_BOTTOM_VIEW_ENTRIES];
+    int16_t               values[FORECAST_MAX_ENTRIES];
     const ChartColorStop *stops;        // filled at render (scaled palette)
     int                   num_stops;
     ChartBarStyle         style;

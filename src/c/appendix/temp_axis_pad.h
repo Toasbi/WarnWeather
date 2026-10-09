@@ -9,7 +9,8 @@
 //
 // WHAT TAKES PART (owner, 2026-10-02). Only a series with at least one value above 0 in the
 // window the graph draws takes part in the layout: the hours whose column starts on screen
-// (temp_axis_drawn_entries; the phone sends 24, at most 19 fit on basalt and 23 on emery). One
+// (temp_axis_drawn_entries; the phone sends 24, at most 19 fit on basalt and 23 on emery,
+// whose 12 h and 48 h spans fit every hour they are sent, forecast_span.h). One
 // with nothing above 0 there draws nothing (a stripe's empty cell, a bar of 0, a metric line's
 // wire byte 0: all draw nothing), and the plot lays out as if it were not there: a stripe
 // gives up its band (no band, no gap; the plot grows into it) and a line, its marks, its fill

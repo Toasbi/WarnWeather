@@ -98,9 +98,9 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   `change-detector.js`, bundle only the categories whose content changed into ONE send
   (the AppMessage channel is half-duplex, so back-to-back sends collide), and commit the
   last-sent cache only in the ACK callback so a NACK retries next time.
-- **Keep the bundled message within the watch's inbox — `inbox_size` is 536 B on aplite
-  and 640 B everywhere else (`src/c/appendix/app_message.c`).** Because all changed
-  categories ride in one send, a new or enlarged payload key has to keep the *heaviest*
+- **Keep the bundled message within the watch's inbox — `inbox_size` is 536 B on aplite,
+  1024 B on emery and 640 B everywhere else (`src/c/appendix/app_message.c`).** Because
+  all changed categories ride in one send, a new or enlarged payload key has to keep the *heaviest*
   bundle under budget on every platform. On aplite the buffer is allocated from its
   already-tiny heap, so 536 B is a hard ceiling there — you can't just bump it; the other
   platforms have heap to spare, which is why they got a bigger inbox: 600 B when the
@@ -111,6 +111,9 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   (`APP_MSG_BUFFER_OVERFLOW` → "Message dropped!"). Worst realistic case is DWD with all
   four metric lines active, the radar's sky rows on, City in every status slot and a
   full weather-alert entry tuple = 603 B of 640 B (37 B headroom);
+  emery's 1024 B was the owner's call for 2.2.0's 48 h forecast span (six 48-byte
+  trends; `src/pkjs/forecast-span.js`), its heaviest bundle 747 B of 1024 B, and every
+  other watch is never sent more than 24 hours, so it keeps 603 B of 640 B;
   aplite's heaviest bundle, without the lines it cannot draw, is 473 B of 536 B (see
   `test/inbox-size.test.js` — the authoritative computation, which records the bundle
   sizes exactly per platform; keep them in sync). That headroom was 10 B until the settings-derived
@@ -123,8 +126,9 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   bundles; when you grow the worst-case bundle, update its `buildHeaviestBundle()`, and
   treat bumping `inbox_size` as a last resort (the 640 B step was the owner's call for
   a feature-sized tuple that has no settings-side home — the weather alerts' entries are
-  weather-derived — and it stays off aplite). Before spending weather-message bytes, ask
-  whether the value is settings-derived — if it is, it belongs on the Clay message —
+  weather-derived — and it stays off aplite; so is emery's 1024 B, for forecast hours).
+  Before spending weather-message bytes, ask whether the value is settings-derived — if
+  it is, it belongs on the Clay message —
   but the Clay message ships to aplite too and is tight (the heaviest Clay message is
   522 B — the thresholds blob grew 34 -> 48 B in 1.24.0 for the rain alert's look, the
   On demand Battery item, the per-kind warn look and the ten On demand cells, paid for

@@ -97,7 +97,7 @@ const EXPECTED_KEYS = [
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
-  'layoutPreset','largeGraphFont','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
+  'layoutPreset','largeGraphFont','forecastHours','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
   // Setup › Misc › Hide info text: page-only like startOnWeatherTab (rides the saved blob,
   // never read watch-side), but a stored key all the same.
   'hideInfoText','devStatsEnabled','devStatsClear','reset',
@@ -1809,6 +1809,30 @@ test('largeGraphFont is offered on emery only, and hidden when watchInfo is unav
   assert.equal(showWhen.isVisible(it, basalt), false, 'hidden on basalt (no room; its left axis is already calendar-sized)');
   assert.equal(showWhen.isVisible(it, aplite), false, 'hidden on aplite');
   assert.equal(showWhen.isVisible(it, unknown), false, 'hidden without watchInfo');
+});
+
+test('forecastHours: the Time span section sits after Bars & shading, emery only', () => {
+  const forecastSpan = require('../src/pkjs/forecast-span.js');
+  const graphs = graphsTab();
+  const ids = graphs.sections.filter((sec) => sec.pane === 'forecast' && !sec.sheetOnly).map((sec) => sec.id);
+  const at = ids.indexOf('forecastSpan');
+  assert.ok(at > 0, 'the section exists in the forecast pane');
+  assert.equal(ids[at - 1], 'bars', 'directly after Bars & shading');
+  assert.equal(ids[at + 1], 'graphColorsCard', 'directly before the Graph colors card');
+  const section = graphs.sections.find((sec) => sec.id === 'forecastSpan');
+  assert.equal(section.title, 'Time span');
+  assert.deepEqual(section.showWhen, { env: 'forecastSpan' });
+  const it = byKey('forecastHours');
+  assert.equal(it.type, 'segmented');
+  assert.equal(it.defaultValue, '24');
+  assert.deepEqual(it.options.map((o) => o[1]), forecastSpan.CHOICES, 'the stored values are CHOICES');
+  assert.deepEqual(it.showWhen, { env: 'forecastSpan' });
+  assert.ok(!it.more, 'the span frames the whole graph: never behind More');
+  const visible = (p) => showWhen.isVisible(it, { env: platform.computeEnv(p ? { platform: p } : null) })
+    && showWhen.isVisible(section, { env: platform.computeEnv(p ? { platform: p } : null) });
+  assert.equal(visible('emery'), true, 'shown on emery');
+  ['basalt', 'chalk', 'diorite', 'flint', 'aplite'].forEach((p) => assert.equal(visible(p), false, p));
+  assert.equal(visible(null), false, 'hidden without watchInfo (fail closed)');
 });
 
 test('flick/positioning narrative stays out of the Health/Radar hints; the Views intro explains views', () => {

@@ -554,6 +554,18 @@ test('CLAY_LARGE_GRAPH_FONT rides every platform (only the WATCH gates it)', () 
   assert.equal(Object.prototype.hasOwnProperty.call(p, 'CLAY_LARGE_GRAPH_FONT'), true);
 });
 
+// The forecast's time span rides the weather message's NUM_ENTRIES alone (forecast-span.js,
+// src/c/appendix/forecast_span.h): it costs the Clay message nothing on any watch.
+test('forecastHours adds nothing to the Clay message', () => {
+  ['emery', 'basalt', 'aplite'].forEach((platform) => {
+    const s48 = Object.assign(baseSettings(), { forecastHours: '48' });
+    const s12 = Object.assign(baseSettings(), { forecastHours: '12' });
+    const base = buildClayPayload(baseSettings(), { platform }, NOW);
+    assert.deepEqual(buildClayPayload(s48, { platform }, NOW), base, platform + ' 48');
+    assert.deepEqual(buildClayPayload(s12, { platform }, NOW), base, platform + ' 12');
+  });
+});
+
 // ── Dim backlight (CLAY_NIGHT_LIGHT_UINT8) ──────────────────────────
 
 test('CLAY_NIGHT_LIGHT_UINT8 is the five bytes night-light.js packs', () => {

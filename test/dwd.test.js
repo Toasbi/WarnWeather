@@ -605,3 +605,85 @@ test('DWD keeps uvFeedId on the instance, off the mapped forecast', () => {
   assert.equal(p.uvFeedId, 'openmeteo');
   assert.equal(Object.prototype.hasOwnProperty.call(mapped[0], 'uvFeedId'), false);
 });
+
+// Emery's 48 h forecast span (forecast-span.js): the window is windowHours(options).
+/**
+ * Drive a DwdProvider at 09:20 Berlin over canned records with the given options, capturing
+ * the Brightsky forecast and the UV URLs.
+ * @param {Object[]} hourly Brightsky forecast records
+ * @param {Object} options fetch-options overrides
+ * @returns {{p: Object, forecastUrl: string, uvUrl: ?string, ok: boolean}}
+ */
+function runSpan(hourly, options) {
+  let forecastUrl = null;
+  let uvUrl = null;
+  responder = function(url, onSuccess) {
+    if (url.indexOf('hourly=uv_index') !== -1) {
+      uvUrl = url;
+      const time = [], uv_index = [];
+      for (let i = 0; i < 96; i += 1) { time.push(SLOT0 / 1000 + i * 3600); uv_index.push(i % 11); }
+      onSuccess(JSON.stringify({ hourly: { time, uv_index } }));
+      return;
+    }
+    if (url.indexOf('/current_weather') !== -1) {
+      onSuccess(JSON.stringify({ weather: { temperature: 15 } }));
+      return;
+    }
+    forecastUrl = decodeURIComponent(url);
+    onSuccess(JSON.stringify({ weather: hourly }));
+  };
+  const p = new DwdProvider();
+  p.options = fetchOptions.defaults(options);
+  const realNow = Date.now;
+  Date.now = function() { return SLOT0 + 20 * 60000; };
+  let ok = false;
+  try {
+    p.withProviderData(0, 0, false, function() { ok = true; }, function(f) {
+      throw new Error('unexpected failure ' + JSON.stringify(f));
+    });
+  } finally {
+    Date.now = realNow;
+  }
+  return { p, forecastUrl, uvUrl, ok };
+}
+
+test('48 h: DWD asks for 48 h + the record after it and maps 48 slots', () => {
+  const recs = stampedRecords(Array.from({ length: 49 }, (_, i) => i), 47);
+  const { p, forecastUrl, uvUrl, ok } = runSpan(recs, { forecastHours: 48, dayPeakCodes: [], fetchUv: true });
+  assert.equal(ok, true);
+  assert.ok(forecastUrl.indexOf('last_date=' + new Date(SLOT0 + 48 * 3600000).toISOString() + '&') !== -1,
+    forecastUrl);
+  ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend', 'gustTrend', 'pressureTrend', 'dewTrend',
+    'windDirTrend', 'feelsTrend'].forEach((k) => assert.equal(p[k].length, 48, k));
+  assert.equal(p.rainTrend[46], 3, 'the 47th slot reads the record stamped at its end');
+  assert.match(uvUrl, /&forecast_days=3(&|$)/, 'the shared Open-Meteo UV call reads the span too');
+  assert.equal(p.uvTrend.length, 49);
+  assert.equal(p.getPayload().NUM_ENTRIES, 48);
+});
+
+test('48 h: with a wind day max, wind and gusts read on from slot 48 to PEAK_HOURS', () => {
+  const recs = stampedRecords(Array.from({ length: 60 }, (_, i) => i), -1);
+  recs.forEach((r, i) => { r.wind_speed = 100 + i; r.wind_gust_speed = 200 + i; });
+  const { p, forecastUrl } = runSpan(recs, { forecastHours: 48 });
+  assert.equal(p.tempTrend.length, 48);
+  assert.equal(p.windTrend.length, 49);
+  assert.equal(p.windTrend[48], 148, 'the tail starts where the slots end');
+  assert.equal(p.gustTrend[48], 249);
+  // The window reaches the later of the span's end and the end of local tomorrow.
+  const now = new Date(SLOT0 + 20 * 60000);
+  const dayMaxEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2).getTime() + 3600000;
+  const end = new Date(Math.max(SLOT0 + 48 * 3600000, dayMaxEnd)).toISOString();
+  assert.ok(forecastUrl.indexOf('last_date=' + end + '&') !== -1, forecastUrl);
+});
+
+test('the default span keeps DWD\'s 24 slots and 25-record window', () => {
+  const recs = stampedRecords(Array.from({ length: 30 }, (_, i) => i), -1);
+  const { p, forecastUrl } = runSpan(recs, { dayPeakCodes: [] });
+  assert.equal(p.tempTrend.length, 24);
+  assert.equal(p.windTrend.length, 24);
+  assert.ok(forecastUrl.indexOf('last_date=' + new Date(SLOT0 + 24 * 3600000).toISOString() + '&') !== -1,
+    forecastUrl);
+  const peak = runSpan(recs, {});
+  assert.equal(peak.p.tempTrend.length, 24);
+  assert.equal(peak.p.windTrend.length, 49, 'the day max tail from slot 24');
+});

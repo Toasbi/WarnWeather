@@ -575,3 +575,27 @@ test('WU mapForecast emits only MAPPED_KEYS, including every core key', () => {
   assert.equal(mapped.currentHumidity, 55);
   assert.equal(mapped.currentWindKmh, 8);
 });
+
+// Emery's 48 h forecast span (forecast-span.js): the 48hour feed's hours all travel.
+test('48 h: WU sends 48 hours on a 48 h span, 24 on the default', () => {
+  const forecasts = [];
+  for (let i = 0; i < 48; i += 1) {
+    forecasts.push({ temp: 50 + i, pop: 10, qpf: 0, wspd: 5, gust: 9, uv_index: i % 9, mslp: 29.92,
+      clds: 40, feels_like: 48 + i, dewpt: 40, wdir: 90, rh: 50, fcst_valid: NOW_HOUR + i * HOUR });
+  }
+  responder = respondWith(forecasts, 71);
+  const p = new WundergroundProvider();
+  p.options = fetchOptions.defaults({ fetchUv: true, forecastHours: 48 });
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  const payload = p.getPayload();
+  assert.equal(payload.NUM_ENTRIES, 48);
+  ['TEMP_RAW_TREND', 'PRECIP_TREND_UINT8', 'WIND_TREND_UINT8', 'UV_TREND_UINT8', 'PRESSURE_TREND',
+    'FEELS_TREND', 'DEW_TREND'].forEach((k) => assert.equal(payload[k].length, 48, k));
+  p.options = fetchOptions.defaults({ fetchUv: true });
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  assert.equal(p.getPayload().NUM_ENTRIES, 24);
+});

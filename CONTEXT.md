@@ -102,9 +102,19 @@ _Avoid_: fetch orchestrator, refresh loop.
 The one per-fetch value of knobs every adapter and auxiliary fetch reads
 (`provider.options`, built by `weather/fetch-options.js` from the settings):
 which optional series are wanted (UV, AQI, pollen, feels), the feels formula,
-the day-max codes, the wind unit, the AQI scale/source/token. Every default
-lives there; nothing downstream carries its own fallback.
+the day-max codes, the wind unit, the AQI scale/source/token and the forecast
+span (hours, emery only). Every default lives there; nothing downstream carries
+its own fallback.
 _Avoid_: provider flags, per-fetch knobs.
+
+**Forecast span**:
+How many hours the forecast graph draws: 12, 24 or 48 on emery (Graphs ›
+Forecast › Time span), 24 everywhere else and on an unknown watch
+(`src/pkjs/forecast-span.js`). The phone decides it and sends that many hourly
+points (`WeatherProvider#payloadEntries`); the watch's grid follows the count it
+receives (`NUM_ENTRIES`, `src/c/appendix/forecast_span.h`). See
+`docs/adr/0004-forecast-span-is-the-data.md`.
+_Avoid_: a watch-side forecast hours setting.
 
 **Mapped forecast**:
 The plain object an adapter's `withProviderData` produces from its API

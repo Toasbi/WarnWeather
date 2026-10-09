@@ -90,9 +90,9 @@ function followingGust(timeseries, i) {
 /**
  * Map a Met.no locationforecast response into provider trend fields.
  *
- * Anchors the 24-hour window at the current wall-clock hour (the series
- * starts at the last full hour, so the anchor scan only guards against a
- * stale response) and converts to the provider unit convention: °F, km/h,
+ * Anchors the window (24 hours, or `hours` for emery's 48 h span) at the
+ * current wall-clock hour (the series starts at the last full hour, so the
+ * anchor scan only guards against a stale response) and converts to the provider unit convention: °F, km/h,
  * mm/h, probability as a 0..1 fraction, wind bearing in "comes from" degrees.
  * probability_of_precipitation and wind_speed_of_gust exist in the Nordics only
  * — missing values read 0, they are not a failure (the "(Nordics only)" label
@@ -100,8 +100,14 @@ function followingGust(timeseries, i) {
  * starts at the stamp, so slot i reads its own bucket; the gust is the peak of
  * the hour ending at the stamp, so it reads the next one (followingGust).
  *
+ * Met.no is hourly to about 60 h and 6-hourly after, so a 48 h window is normally
+ * whole; past the base 24 it ends early (hourlyRun) at a step that is not the next
+ * hour, at the feed's end, or at a bucket without a temperature.
+ *
  * @param {Object} json Parsed locationforecast/2.0/complete response.
  * @param {number} nowEpoch Current time in epoch seconds.
+ * @param {number} [hours] The window to map (hourly-window.js windowHours);
+ *   FORECAST_HOURS when absent.
  * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[],
  *   windTrend: number[], gustTrend: number[], uvTrend: number[],
  *   pressureTrend: number[], feelsTrend: number[], dewTrend: Array.<?number>,
@@ -110,7 +116,7 @@ function followingGust(timeseries, i) {
  *   malformed or has fewer than FORECAST_HOURS hourly buckets at/after the
  *   current hour.
  */
-function mapResponse(json, nowEpoch) {
+function mapResponse(json, nowEpoch, hours) {
     var timeseries = json && json.properties && json.properties.timeseries;
     if (!Array.isArray(timeseries)) {
         return null;
@@ -137,11 +143,15 @@ function mapResponse(json, nowEpoch) {
     var next1;
     var tempF;
     var feels;
-    for (i = anchor; i < anchor + FORECAST_HOURS; i += 1) {
+    var count = hourlyWindow.hourlyRun(timeseries, anchor, hours || FORECAST_HOURS, entryEpoch);
+    for (i = anchor; i < anchor + count; i += 1) {
         entry = timeseries[i];
         instant = entry.data && entry.data.instant && entry.data.instant.details;
         next1 = entry.data && entry.data.next_1_hours && entry.data.next_1_hours.details;
         if (!instant || typeof instant.air_temperature !== 'number') {
+            // Past the base 24 hours (a 48 h window) a bucket without a temperature
+            // ends the window; inside them it fails the fetch, as it always has.
+            if (i - anchor >= FORECAST_HOURS) { break; }
             return null;
         }
         tempF = celsiusToFahrenheit(instant.air_temperature);
@@ -223,10 +233,12 @@ MetnoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, 
     // per-hour arithmetic worth gating), feels costs a Steadman exp() per hour so
     // mapResponse computes it but the gate decides whether it lands, and
     // clear-sky uv is adopted only when something renders it.
+    // The graph's window: 24 hours, or 48 for emery's 48 h span (fetch-options.js).
+    var hours = hourlyWindow.windowHours(this.options);
     WeatherProvider.requestMapped({
         url: buildForecastUrl(lat, lon), id: 'metno', label: 'Met.no',
         headers: metnoHeaders.HEADERS,
-        map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000)); }
+        map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000), hours); }
     }, (function(mapped) {
         this.adoptMapped(mapped);
         onSuccess();

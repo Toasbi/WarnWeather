@@ -46,7 +46,11 @@ typedef struct {
 // A ChartLayer is NOT a Pebble Layer: no heap, no framebuffer, ~40 B of
 // caller stack describing one draw pass.
 
+#if defined(PBL_PLATFORM_EMERY)
+#define CHART_MAX_SLOTS 48   // emery: the 48 h forecast (forecast_span.h FORECAST_MAX_ENTRIES)
+#else
 #define CHART_MAX_SLOTS 32   // engine point-buffer cap; both charts use 24
+#endif
 
 typedef struct {
     int num_slots;

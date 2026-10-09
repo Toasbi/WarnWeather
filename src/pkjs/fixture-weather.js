@@ -7,6 +7,8 @@
 
 var WeatherProvider = require('./weather/provider.js');
 var fetchOptions = require('./weather/fetch-options.js');
+var forecastSpan = require('./forecast-span.js');
+var platformLib = require('./config-ui/lib/platform.js');
 var forecastSeries = require('./forecast-series.js');
 var wireUnits = require('./wire-units.js');
 var graphWire = require('./weather/graph-wire.js');
@@ -114,12 +116,18 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     provider.name = 'Fixture';
     provider.id = 'fixture';
     // Before adopting: adoptMapped zero-fills an absent rain/wind/gust series to
-    // numEntries.
-    provider.numEntries = Array.isArray(weather.temps) ? weather.temps.length : 0;
+    // numEntries. The fixture's own hours, up to the span this watch draws with these
+    // settings (forecast-span.js): a 48-hour fixture shows 48 only on an emery set to
+    // 48 h, and a longer fixture (the 39-hour time-lapse) sends the 24 every other watch
+    // takes, never more than its inbox holds.
+    var span = forecastSpan.hours(settings, platformLib.computeEnv(watchInfo));
+    provider.numEntries = Array.isArray(weather.temps) ? Math.min(weather.temps.length, span) : 0;
     // A fixture sources every series it carries, whatever the settings select:
     // UV and feels-like always adopt (the fixture's feels ship verbatim, so the
-    // feels-like formula never applies).
-    provider.options = fetchOptions.defaults({ fetchUv: true, fetchFeels: true });
+    // feels-like formula never applies). Its span is the hours it sends
+    // (payloadEntries).
+    provider.options = fetchOptions.defaults({ fetchUv: true, fetchFeels: true,
+        forecastHours: provider.numEntries });
     provider.adoptMapped(mapFixtureWeather(weather));
     // The chain-stage fields a live fetch fills after the adapter (city lookup,
     // sun events, the AQI and pollen aux fetches) are faked directly.

@@ -13,6 +13,7 @@ var statusThresholds = require('./status-thresholds.js');
 var lineStyle = require('./line-style.js');
 var onDemand = require('./on-demand.js');
 var lineAlert = require('./line-alert.js');
+var forecastSpan = require('./forecast-span.js');
 
 /**
  * The drawn metrics whose line is a stripe: a stripe line's bytes are level bytes on the
@@ -121,7 +122,11 @@ function renderSignature(settings) {
         // thing being edited. The Nighttime card's other two features ride the Clay
         // message (the backlight tint) or need no fetch at all (the theme flip), so
         // neither belongs here...
-        settings.sleepNightEnabled, settings.sleepStartHour, settings.sleepEndHour];
+        settings.sleepNightEnabled, settings.sleepStartHour, settings.sleepEndHour,
+        // ...the forecast's time span (emery): how many hours are fetched and baked
+        // ('' for the default 24 and an absent key alike, so hydrating it forces no
+        // fetch)...
+        forecastSpan.signature(settings)];
     // ...the per-kind "Show unit" toggles (whether the phone bakes the unit
     // into the slot text at all — kph/hPa/d/°; same rule: without them here a
     // flip sits invisible until the next scheduled fetch), derived from the

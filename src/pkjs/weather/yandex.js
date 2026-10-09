@@ -9,14 +9,19 @@ var YANDEX_ENDPOINT = 'https://api.weather.yandex.ru/graphql/query';
  * Build the Yandex Weather GraphQL query. Units are requested server-side
  * (FAHRENHEIT, KILOMETERS_PER_HOUR) so mapResponse does zero conversion, and
  * days(limit: 3) guarantees >=24 future hourly buckets even late in the day
- * (a distant day's hours list may be shorter than 24). Coordinates are embedded
- * as unquoted numeric literals (GraphQL Float), never quoted strings.
+ * (a distant day's hours list may be shorter than 24). A 48 h window (emery's
+ * 48 h span) asks for 4 days for the same reason: the third day's list may be
+ * short, and the rest of today plus two full days can leave the 48th hour on it.
+ * Coordinates are embedded as unquoted numeric literals (GraphQL Float), never
+ * quoted strings.
  *
  * @param {number|string} lat Latitude.
  * @param {number|string} lon Longitude.
+ * @param {number} [hours] The graph's window (hourly-window.js windowHours); 24
+ *   when absent.
  * @returns {string} GraphQL query string.
  */
-function buildQuery(lat, lon) {
+function buildQuery(lat, lon, hours) {
     var latNum = Number(lat);
     var lonNum = Number(lon);
     return '{ weatherByPoint(request: {lat: ' + latNum + ', lon: ' + lonNum + '}) {'
@@ -38,7 +43,7 @@ function buildQuery(lat, lon) {
         // nobody. Both degrade exactly as pressure does: dewTrend/windDirTrend stay
         // empty, the dew slot shows '--' and the wind slots draw no arrow. Revisit
         // if Yandex traffic ever appears.
-        + ' forecast { days(limit: 3) { hours {'
+        + ' forecast { days(limit: ' + (hours > FORECAST_HOURS ? 4 : 3) + ') { hours {'
         + ' timestamp temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) precProbability prec'
         + ' windSpeed(unit: KILOMETERS_PER_HOUR) windGust(unit: KILOMETERS_PER_HOUR) uvIndex'
         + ' } } } } }';
@@ -108,17 +113,20 @@ function anchorIndex(hours, nowEpoch) {
 }
 
 /**
- * Map a Yandex GraphQL response into provider trend fields. Anchors the 24-hour
- * window at the current wall-clock hour and slices forward. Units are already
+ * Map a Yandex GraphQL response into provider trend fields. Anchors the window
+ * (24 hours, or `want` for emery's 48 h span, while the hours stay hourly) at
+ * the current wall-clock hour and slices forward. Units are already
  * correct (server-side FAHRENHEIT/KILOMETERS_PER_HOUR), precProbability is
  * already [0,1], and prec is already mm/h, so every field passes through. A
  * missing/non-numeric optional field collapses to 0 (getPayload renders 0).
  *
  * @param {Object} json Parsed GraphQL response ({data:{weatherByPoint:...}}).
  * @param {number} nowEpoch Current time in epoch seconds.
+ * @param {number} [want] The window to map (hourly-window.js windowHours);
+ *   FORECAST_HOURS when absent. (Not `hours`: that is the flattened array.)
  * @returns {Object|null} Mapped fields, or null when malformed / <24 future buckets.
  */
-function mapResponse(json, nowEpoch) {
+function mapResponse(json, nowEpoch, want) {
     var wbp = json && json.data && json.data.weatherByPoint;
     var now = wbp && wbp.now;
     if (!wbp || !now || typeof now.temperature !== 'number') {
@@ -139,7 +147,8 @@ function mapResponse(json, nowEpoch) {
     var feelsTrend = [];
     var i;
     var hr;
-    for (i = 0; i < FORECAST_HOURS; i += 1) {
+    var count = hourlyWindow.hourlyRun(hours, anchor, want || FORECAST_HOURS, hourEpoch);
+    for (i = 0; i < count; i += 1) {
         hr = hours[anchor + i];
         tempTrend.push(typeof hr.temperature === 'number' ? hr.temperature : 0);
         precipTrend.push(typeof hr.precProbability === 'number' ? hr.precProbability : 0);
@@ -202,14 +211,16 @@ YandexProvider.prototype.withProviderData = function(lat, lon, force, onSuccess,
     // owns the field adoption and the feels/uv gates. The GraphQL response has no
     // pressure, dew or bearing series — mapped simply lacks those keys, and
     // adoptMapped sets each absent one to its documented empty value ([]).
+    // The graph's window: 24 hours, or 48 for emery's 48 h span (fetch-options.js).
+    var hours = hourlyWindow.windowHours(this.options);
     WeatherProvider.requestMapped({
         url: YANDEX_ENDPOINT, method: 'POST', id: 'yandex', label: 'Yandex',
         headers: {
             'Content-Type': 'application/json',
             'X-Yandex-Weather-Key': this.apiKey
         },
-        body: JSON.stringify({ query: buildQuery(lat, lon) }),
-        map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000)); }
+        body: JSON.stringify({ query: buildQuery(lat, lon, hours) }),
+        map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000), hours); }
     }, (function(mapped) {
         this.adoptMapped(mapped);
         onSuccess();

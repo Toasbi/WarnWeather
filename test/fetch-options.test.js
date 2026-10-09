@@ -10,14 +10,14 @@ const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 const forecastSeries = require('../src/pkjs/forecast-series.js');
 
 const KNOBS = ['fetchUv', 'fetchAqi', 'fetchPollen', 'fetchFeels', 'feelsFormula',
-  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken'];
+  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours'];
 
 test('DEFAULTS names every knob with its fail-safe default', () => {
   assert.deepEqual(Object.keys(fetchOptions.DEFAULTS).sort(), KNOBS.slice().sort());
   assert.deepEqual(fetchOptions.DEFAULTS, {
     fetchUv: false, fetchAqi: false, fetchPollen: false, fetchFeels: true,
     feelsFormula: 'provider', dayPeakCodes: null, windUnits: 'kph',
-    aqiScale: 'european', aqiSource: 'waqi', aqicnToken: ''
+    aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24
   });
 });
 
@@ -171,4 +171,20 @@ test('a placed alert fetches its metric AND its day peaks with no slot showing i
   // Still exactly forecast-series' predicates.
   const s = placeOn(Object.assign({}, none), 'top', 'right', 'gust');
   assert.deepEqual(fetchOptions.build(s).dayPeakCodes, forecastSeries.dayPeakCodes(s));
+});
+
+test('forecastHours: the stored span on an emery, 24 on every other watch and an unknown one', () => {
+  const emery = { platform: 'emery' };
+  assert.equal(fetchOptions.build({ forecastHours: '48' }, emery).forecastHours, 48);
+  assert.equal(fetchOptions.build({ forecastHours: '12' }, emery).forecastHours, 12);
+  assert.equal(fetchOptions.build({ forecastHours: '24' }, emery).forecastHours, 24);
+  assert.equal(fetchOptions.build({}, emery).forecastHours, 24, 'absent reads the default');
+  assert.equal(fetchOptions.build({ forecastHours: '36' }, emery).forecastHours, 24, 'junk reads 24');
+  assert.equal(fetchOptions.build(null, emery).forecastHours, 24, 'no settings');
+  ['basalt', 'diorite', 'flint', 'chalk', 'aplite'].forEach((platform) => {
+    assert.equal(fetchOptions.build({ forecastHours: '48' }, { platform }).forecastHours, 24, platform);
+    assert.equal(fetchOptions.build({ forecastHours: '12' }, { platform }).forecastHours, 24, platform);
+  });
+  assert.equal(fetchOptions.build({ forecastHours: '48' }, null).forecastHours, 24, 'an unknown watch');
+  assert.equal(fetchOptions.build({ forecastHours: '48' }).forecastHours, 24, 'no watchInfo');
 });

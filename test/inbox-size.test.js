@@ -14,35 +14,54 @@ global.localStorage = {
 const { applyForecastSeries } = require('../src/pkjs/forecast-series');
 const { buildClayPayload } = require('../src/pkjs/clay-payload');
 const { WEATHER_CATEGORIES } = require('../src/pkjs/outbox');
+const forecastSpan = require('../src/pkjs/forecast-span');
+const platformLib = require('../src/pkjs/config-ui/lib/platform');
+const radarWire = require('../src/pkjs/weather/radar-wire');
 
 // Regression guard for the AppMessage inbox size.
 //
 // All changed payload categories ride in ONE sendAppMessage (the channel is
 // half-duplex — see outbox.js), so the watch's inbox must hold the heaviest
 // bundle the phone can emit in a single fetch. The worst realistic case is the
-// DWD provider with all three metric lines active: three 24-byte trends + rain
+// DWD provider with all four metric lines active: four forecast-hour trends + rain
 // bars + radar — so forecast + status + sun + radar all bundle together. (The
 // lines' colours and styles are settings-derived and ride the Clay message.)
+// Every forecast trend carries the most hours that watch is ever sent
+// (forecast-span.js maxHours: 48 on emery for its 48 h span, 24 everywhere else),
+// so each platform's bundle is sized against its own inbox.
 //
 // This guard caught the gust-third-line overflow: the inbox was sized for
 // bundled forecast+radar before the 24-byte gust series existed, so DWD+wind
 // silently overflowed (APP_MSG_BUFFER_OVERFLOW → "Message dropped!").
 
-const N = 24; // provider.numEntries
+/**
+ * The forecast hours a platform's heaviest bundle carries (NUM_ENTRIES).
+ * @param {string} [platform] Watch platform; emery by default.
+ * @returns {number} 48 on emery, 24 everywhere else.
+ */
+function forecastEntries(platform) {
+  return forecastSpan.maxHours(platformLib.computeEnv({ platform: platform || 'emery' }));
+}
+// The radar's slots: 24 five-minute frames on every platform, whatever the forecast span.
+const RADAR_SLOTS = radarWire.NUM_BARS;
 
 /**
  * The inbox size a platform's watch actually opens, read from the C source:
- * aplite keeps its own (tiny-heap) value in the PBL_PLATFORM_APLITE arm, every
- * other platform opens the #else arm's.
- * @param {string} [platform] Watch platform; defaults to a non-aplite one.
+ * aplite keeps its own (tiny-heap) value in the PBL_PLATFORM_APLITE arm, emery its
+ * own (the 48 h forecast span) in the PBL_PLATFORM_EMERY arm, every other platform
+ * opens the #else arm's. The three arms must stay in that order.
+ * @param {string} [platform] Watch platform; emery by default.
  * @returns {number} inbox_size in bytes.
  */
 function readInboxSize(platform) {
   const src = fs.readFileSync(
     path.join(__dirname, '../src/c/appendix/app_message.c'), 'utf8');
-  const m = src.match(/#if defined\(PBL_PLATFORM_APLITE\)[\s\S]*?const\s+int\s+inbox_size\s*=\s*(\d+)\s*;[\s\S]*?#else[\s\S]*?const\s+int\s+inbox_size\s*=\s*(\d+)\s*;/);
-  assert.ok(m, 'could not find the aplite/other inbox_size pair in app_message.c');
-  return parseInt(platform === 'aplite' ? m[1] : m[2], 10);
+  const arm = '[\\s\\S]*?const\\s+int\\s+inbox_size\\s*=\\s*(\\d+)\\s*;';
+  const m = src.match(new RegExp('#if defined\\(PBL_PLATFORM_APLITE\\)' + arm
+    + '\\s*#elif defined\\(PBL_PLATFORM_EMERY\\)' + arm + '\\s*#else' + arm + '\\s*#endif'));
+  assert.ok(m, 'could not find the aplite / emery / other inbox_size arms in app_message.c');
+  const p = platform || 'emery';
+  return parseInt(p === 'aplite' ? m[1] : (p === 'emery' ? m[2] : m[3]), 10);
 }
 
 /**
@@ -95,17 +114,20 @@ const ALERT_ENTRIES_CAP = require('../src/pkjs/status-wire').ALERT_ENTRIES_MAX_B
 
 /**
  * Build the heaviest single AppMessage the phone can emit (DWD + wind).
- * @param {string} [platform] Watch platform; aplite's bundle drops the lines it
- *   cannot draw (FOURTH/FIFTH), so it is sized against aplite's own inbox.
+ * @param {string} [platform] Watch platform; emery by default. aplite's bundle drops the
+ *   lines it cannot draw (FOURTH/FIFTH), and emery's carries 48 forecast hours, so each is
+ *   sized against its own inbox.
  * @returns {Object} The outgoing AppMessage payload.
  */
 function buildHeaviestBundle(platform) {
+  const N = forecastEntries(platform);
   const range = Array.from({ length: N }, function(_, i) { return i; });
+  const radarRange = Array.from({ length: RADAR_SLOTS }, function(_, i) { return i; });
 
   // Base forecast payload as provider.getPayload emits it (pre-series): raw
-  // whole-degree temps; applyForecastSeries encodes them to the 24 wire bytes.
+  // whole-degree temps; applyForecastSeries encodes them to the N wire bytes.
   const payload = {
-    TEMP_RAW_TREND: range.map(function() { return 25; }), // -> 24 TEMP_TREND_UINT8 bytes
+    TEMP_RAW_TREND: range.map(function() { return 25; }), // -> N TEMP_TREND_UINT8 bytes
     TEMP_MIN: -10,
     TEMP_MAX: 35,
     PRECIP_TREND_UINT8: range.map(function() { return 100; }),
@@ -124,9 +146,9 @@ function buildHeaviestBundle(platform) {
   };
 
   // PKJS resolves the render-ready series; worst case = secondary line + a
-  // distinct third line + a distinct fourth line (three 24-byte trends) + rain
-  // bars, on a platform that carries the fourth line (emery below — aplite's
-  // bundle omits the FOURTH key entirely).
+  // distinct third, fourth and fifth line (four N-byte trends) + rain bars, on a
+  // platform that carries the extra lines (aplite's bundle omits the FOURTH and
+  // FIFTH keys entirely).
   // The weather alerts' entries at their heaviest: every metric alert placed on a bar,
   // every one printing its value, and every one alerting (UV 8, wind 60, gusts 90,
   // AQI 152, pollen 2-3 — at or past each seed pair). The AQI and pollen readings are
@@ -166,9 +188,10 @@ function buildHeaviestBundle(platform) {
     payload.ALERT_ENTRIES_UINT8 = new Array(ALERT_ENTRIES_CAP).fill(0);
   }
 
-  // Radar (DWD supplies it) — two 24-slot trends + a start epoch.
-  payload.RAIN_RADAR_TREND_UINT8 = range.map(function() { return 7; });
-  payload.RAIN_RADAR_TREND_AREA_UINT8 = range.map(function() { return 7; });
+  // Radar (DWD supplies it) — two 24-slot trends + a start epoch. The radar keeps its
+  // 24 frames on every forecast span.
+  payload.RAIN_RADAR_TREND_UINT8 = radarRange.map(function() { return 7; });
+  payload.RAIN_RADAR_TREND_AREA_UINT8 = radarRange.map(function() { return 7; });
   payload.RAIN_RADAR_START = 1700000000;
   // The radar's sky rows (radar-sky.js packSky: 5 B header + 9 cloud + 9 sun +
   // 2 B lightning mask). Never sent to aplite: index.js skips the whole radar
@@ -198,8 +221,12 @@ function buildHeaviestBundleWithNotice(platform) {
   return bundle;
 }
 
+// Every platform's heaviest bundle, recorded exactly (bytes), against that platform's inbox.
+const WEATHER_BUNDLES = { emery: 747, basalt: 603, chalk: 603, diorite: 603, flint: 603, aplite: 473 };
+const INBOXES = { emery: 1024, basalt: 640, chalk: 640, diorite: 640, flint: 640, aplite: 536 };
+
 test('heaviest bundled payload (DWD + wind) fits the watch inbox, per platform', function() {
-  ['emery', 'aplite'].forEach(function(platform) {
+  Object.keys(WEATHER_BUNDLES).forEach(function(platform) {
     const inbox = readInboxSize(platform);
     const size = dictSize(buildHeaviestBundleWithNotice(platform));
     assert.ok(
@@ -214,8 +241,9 @@ test('aplite keeps its 536 B inbox and a bundle without the extra metric lines',
   const size = dictSize(buildHeaviestBundle('aplite'));
   console.log(`heaviest aplite weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
   assert.equal(inbox, 536, 'aplite\'s inbox comes out of its tiny heap — do not grow it');
-  // MEASURED: the full emery bundle less both extra line trends (2 × 31 B) and
-  // the STATUS_LEVELS_UINT8 threshold tuple aplite compiles out.
+  // MEASURED: the full 24 h bundle (basalt's) less both extra line trends (2 × 31 B),
+  // the STATUS_LEVELS_UINT8 threshold tuple aplite compiles out, the alert entries and
+  // the radar sky rows.
   assert.equal(size, 473, 'aplite ships neither FOURTH_ nor FIFTH_LINE_TREND_UINT8');
   // Nor the weather alerts' entries: aplite has no On demand (WW_ON_DEMAND) and no handler.
   assert.equal(Object.prototype.hasOwnProperty.call(buildHeaviestBundle('aplite'),
@@ -224,8 +252,8 @@ test('aplite keeps its 536 B inbox and a bundle without the extra metric lines',
 });
 
 test('weather bundle keeps explicit headroom below the watch inbox', () => {
-  const size = dictSize(buildHeaviestBundle());
-  const inbox = readInboxSize();
+  const size = dictSize(buildHeaviestBundle('basalt'));
+  const inbox = readInboxSize('basalt');
   console.log(`heaviest weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
   // 525 -> 526 when STATUS_LEVELS_UINT8 widened to 2 bytes (UV thresholds).
   // Headroom then sat EXACTLY on the 10 B floor.
@@ -243,9 +271,31 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   // 576 -> 603 when the Alerts row's entries joined (ALERT_ENTRIES_UINT8: 7 B
   // tuple header + the 20 B cap), with the non-aplite inbox_size raised 600 ->
   // 640 B for it. Headroom 24 -> 37 B. Never sent to aplite.
-  assert.equal(inbox, 640, 'the non-aplite inbox');
+  // 603 -> 747 on emery when the 48 h forecast span joined (2.2.0; 6 x +24 B: the
+  // temperature, four metric lines and the rain bars at 48 hours); emery inbox
+  // 640 -> 1024, emery only. Every other watch is never sent more than 24 hours
+  // (forecast-span.js) and keeps 603 B of 640 (the per-platform table below).
+  assert.equal(inbox, 640, 'the 24 h platforms\' inbox');
   assert.equal(size, 603, 'update the recorded realistic bundle size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
+});
+
+test('each platform\'s heaviest weather bundle and inbox, recorded', () => {
+  Object.keys(WEATHER_BUNDLES).forEach((platform) => {
+    const bundle = buildHeaviestBundle(platform);
+    const size = dictSize(bundle);
+    const inbox = readInboxSize(platform);
+    console.log(`heaviest ${platform} weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
+    assert.equal(inbox, INBOXES[platform], platform + ' inbox_size');
+    assert.equal(size, WEATHER_BUNDLES[platform], platform + ': update the recorded bundle size');
+    assert.ok(inbox - size >= 10, `${platform}: headroom ${inbox - size} B is below the 10 B floor`);
+    const hours = forecastEntries(platform);
+    assert.equal(bundle.NUM_ENTRIES, hours, platform + ' NUM_ENTRIES');
+    assert.equal(bundle.TEMP_TREND_UINT8.length, hours, platform + ' forecast hours');
+    assert.equal(bundle.RAIN_RADAR_TREND_UINT8.length, RADAR_SLOTS, platform + ': the radar keeps 24 slots');
+  });
+  // emery's 48 h span: six forecast trends grow by 24 B each over the 24 h bundle.
+  assert.equal(WEATHER_BUNDLES.emery, WEATHER_BUNDLES.basalt + 6 * 24);
 });
 
 // The entries ride the status category, so the heaviest bundle carries them

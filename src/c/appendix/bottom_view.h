@@ -11,8 +11,10 @@
 // health guard. Paint-free; allocates zero heap (a few bytes of .bss only).
 
 // --- Geometry (group A) ---
-// Slot count for the shared bottom graphs. Renamed from MAX_FORECAST_ENTRIES
-// (formerly series.h) so the name reads correctly for the health view too.
+// Slot count for the shared bottom graphs: the health window and the 24 h grid
+// (FORECAST_GRID_DEF). Renamed from MAX_FORECAST_ENTRIES (formerly series.h) so the name
+// reads correctly for the health view too. The forecast's own cap is FORECAST_MAX_ENTRIES
+// (forecast_span.h): 24 here too, 48 on emery for its 48 h span.
 #define MAX_BOTTOM_VIEW_ENTRIES 24
 
 #define BOTTOM_VIEW_AXIS_H 10            // height reserved for the bottom hour-label row
