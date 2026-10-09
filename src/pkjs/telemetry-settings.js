@@ -375,9 +375,11 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // the watch renders. Defaults pinned by test/telemetry.test.js. A new key
     // here must also join the Deno .strip() schema or it is silently dropped
     // (supabase/functions/telemetry-ingest/handler.ts).
+    // An absent key reports what it renders (unitToggleAbsent: the look from before
+    // the toggle existed), not a fresh install's default.
     var toggles = statusCatalog.UNIT_TOGGLES;
     for (var i = 0; i < toggles.length; i++) {
-        snapshot[toggles[i].key] = toggles[i].dflt
+        snapshot[toggles[i].key] = statusCatalog.unitToggleAbsent(toggles[i].key)
             ? boolDefaultOn(safe[toggles[i].key])
             : Boolean(safe[toggles[i].key]);
     }

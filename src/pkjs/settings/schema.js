@@ -410,14 +410,18 @@ function separatorRows(prefix, first, second) {
  * highlight follows the numbers, never their presentation (status-wire.js
  * displayValue).
  *
- * The pills' hint explains the SELECTED mode only — Now, the default, gets none
- * (dayMaxHints). AQI closes the Day max and Both hints on its source's note when that
- * source has no forecast to take a peak from: blocks.js dayMaxHint answers the whole
- * hint then, from the row's own hintByValue entry (the engine's args.staticHint).
+ * The pills' hint explains the SELECTED mode only — Now gets none (dayMaxHints).
+ * Now is the default except where the kind's copy names another: wind and gusts
+ * ship on Both (fresh installs and a reset; a stored pick is never rewritten, and
+ * clay-settings.js upgradeBackfill gives an upgrader without the key Now). AQI closes
+ * the Day max and Both hints on its source's note when that source has no forecast
+ * to take a peak from: blocks.js dayMaxHint answers the whole hint then, from the
+ * row's own hintByValue entry (the engine's args.staticHint).
  * @param {string} prefix Key prefix: 'uv' | 'wind' | 'gust' | 'aqi'.
- * @param {{noun: string, notes: ?Object}} copy What the kind measures, without an
- *     article ('UV index'), and (AQI only) the source notes: dayMaxHint closes on
- *     byValue[S[key] || fallback] (a leading space; no entry, no note). null for none.
+ * @param {{noun: string, notes: ?Object, display: ?string}} copy What the kind
+ *     measures, without an article ('UV index'), (AQI only) the source notes:
+ *     dayMaxHint closes on byValue[S[key] || fallback] (a leading space; no entry, no
+ *     note), null for none, and the Value selection default ('current' when absent).
  * @param {string} now Sample current reading for the separator labels, e.g. '3'.
  * @param {string} max Sample peak, e.g. '7'.
  * @returns {Object[]} The rows, in sheet order.
@@ -429,7 +433,7 @@ function dayMaxRows(prefix, copy, now, max) {
         messageKey: prefix + 'SlotDisplay',
         label: 'Value selection',
         hintByValue: hints,
-        defaultValue: 'current',
+        defaultValue: copy.display || 'current',
         options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
     };
     if (copy.notes) {
@@ -1697,8 +1701,11 @@ module.exports = {
                 },
                 {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true},
                 {
+                    // ON out of the box (2.2.0): a lost phone link is the moment the
+                    // watch stops updating, and the buzz is the only way to notice it
+                    // without looking. Mirrors the Alerts › Bluetooth sheet's copy.
                     type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect',
-                    defaultValue: false
+                    defaultValue: true
                 },
                 {
                     // joinPrevious groups the bluetooth icon select with the vibrate-on-disconnect
@@ -1754,7 +1761,9 @@ module.exports = {
         // Wind, gusts and AQI carry UV's display modes (dayMaxRows), each kind its own.
         // The arrow and the unit follow the Value selection group as rows of their
         // own (with dividers): they answer to every mode, not to Both's pair rows.
-        alertSlotSheet('Wind', dayMaxRows('wind', {noun: 'wind'}, '12', '30').concat([{
+        // Wind and gusts ship on Both (now / the day's peak) with no unit: the pair
+        // answers the question at a glance and the unit would not leave it room.
+        alertSlotSheet('Wind', dayMaxRows('wind', {noun: 'wind', display: 'both'}, '12', '30').concat([{
             type: 'toggle',
             messageKey: 'windSlotDirection',
             label: 'Show wind direction',
@@ -1767,7 +1776,7 @@ module.exports = {
             defaultValue: true,
             hint: WIND_DIRECTION_HINT
         }, unitRow('windSlotUnit', null, null)])),
-        alertSlotSheet('Gust', dayMaxRows('gust', {noun: 'gusts'}, '20', '45').concat([{
+        alertSlotSheet('Gust', dayMaxRows('gust', {noun: 'gusts', display: 'both'}, '20', '45').concat([{
             type: 'toggle',
             messageKey: 'gustSlotDirection',
             label: 'Show wind direction',

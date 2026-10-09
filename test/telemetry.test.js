@@ -191,16 +191,21 @@ test('snapshot includes the six Show unit toggles as real booleans', () => {
 // of each toggle's shipped default, and the settings schema owns the first. Pin them
 // together so flipping a default in schema.js can never leave telemetry reporting the
 // old one.
-test('an absent Show unit key reports the schema default, not false', () => {
+test('an absent Show unit key reports what it renders, not false', () => {
   const schema = require('../src/pkjs/settings/schema.js');
+  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const slotText = require('../src/pkjs/slot-text.js');
   const items = [];
   schema.tabs.forEach((t) => t.sections.forEach((s) => s.items.forEach((i) => items.push(i))));
   const snap = buildSettingsSnapshot({});
   const unitItems = items.filter((i) => /SlotUnit$/.test(i.messageKey || ''));
   assert.equal(unitItems.length, 6, 'expected six Show unit rows in the schema');
   unitItems.forEach((item) => {
-    assert.strictEqual(snap[item.messageKey], item.defaultValue,
-      item.messageKey + ' must fall back to its schema default');
+    // The bake's own reading of an absent key: the legacy look where a default changed
+    // after the key shipped (wind and gusts), else the schema default.
+    assert.strictEqual(snap[item.messageKey], slotText.unitEnabled({}, item.messageKey),
+      item.messageKey + ' must report what the slot renders');
+    assert.strictEqual(snap[item.messageKey], catalog.unitToggleAbsent(item.messageKey));
   });
 });
 

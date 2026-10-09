@@ -4250,7 +4250,7 @@
                 "type": "toggle",
                 "messageKey": "vibe",
                 "label": "Vibrate on bluetooth disconnect",
-                "defaultValue": false,
+                "defaultValue": true,
                 "showWhen": {
                   "not": {
                     "env": "onDemand"
@@ -5349,7 +5349,7 @@
                   "max": "The highest wind left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
                   "both": "The wind now and the highest left today, like 12/30, while that peak is still ahead or happening now. After it, tomorrow's peak takes its place with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
-                "defaultValue": "current",
+                "defaultValue": "both",
                 "options": [
                   [
                     "Now",
@@ -5517,7 +5517,7 @@
                 "type": "toggle",
                 "messageKey": "windSlotUnit",
                 "label": "Show unit",
-                "defaultValue": true,
+                "defaultValue": false,
                 "hint": "Prints the unit after the value when it fits — in a narrow left or right slot, a pair plus the direction arrow leaves no room for it."
               },
               {
@@ -5626,7 +5626,7 @@
                   "max": "The highest gusts left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
                   "both": "The gusts now and the highest left today, like 20/45, while that peak is still ahead or happening now. After it, tomorrow's peak takes its place with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
-                "defaultValue": "current",
+                "defaultValue": "both",
                 "options": [
                   [
                     "Now",
@@ -5794,7 +5794,7 @@
                 "type": "toggle",
                 "messageKey": "gustSlotUnit",
                 "label": "Show unit",
-                "defaultValue": true,
+                "defaultValue": false,
                 "hint": "Prints the unit after the value when it fits — in a narrow left or right slot, a pair plus the direction arrow leaves no room for it."
               },
               {
@@ -8255,7 +8255,7 @@
                 "type": "toggle",
                 "messageKey": "vibe",
                 "label": "Vibrate on disconnect",
-                "defaultValue": false,
+                "defaultValue": true,
                 "joinPrevious": "loose",
                 "showWhen": {
                   "env": "onDemand"

@@ -28,6 +28,72 @@ test('seedDefaults backfills missing keys without clobbering set ones', () => {
   assert.equal(read.temperatureUnits, 'c');     // backfilled
 });
 
+// 2.2.0 changed four defaults: Bluetooth vibrate on, wind and gusts on the Both pair
+// without a unit. A fresh install takes them; an existing install keeps its look.
+const CHANGED_222 = ['vibe', 'windSlotDisplay', 'gustSlotDisplay', 'windSlotUnit', 'gustSlotUnit'];
+
+test('a fresh install seeds the 2.2.0 defaults: vibrate on, wind and gusts on Both without a unit', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  assert.strictEqual(read.vibe, true);
+  assert.equal(read.windSlotDisplay, 'both');
+  assert.equal(read.gustSlotDisplay, 'both');
+  assert.strictEqual(read.windSlotUnit, false);
+  assert.strictEqual(read.gustSlotUnit, false);
+  assert.strictEqual(read.windSlotDirection, true, 'the wind arrow stays on');
+  assert.strictEqual(read.gustSlotDirection, false, 'the gust arrow stays off');
+});
+
+test('an existing install missing a changed key backfills its old look, not the new default', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  // A blob from before the keys existed (or one a hand edit thinned out).
+  store['clay-settings'] = JSON.stringify({ provider: 'dwd' });
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  assert.strictEqual(read.vibe, false);
+  assert.equal(read.windSlotDisplay, 'current');
+  assert.equal(read.gustSlotDisplay, 'current');
+  assert.strictEqual(read.windSlotUnit, true, 'wind printed kph before the toggle');
+  assert.strictEqual(read.gustSlotUnit, true);
+  assert.strictEqual(read.pressureSlotUnit, true, 'an unchanged default backfills as before');
+  assert.deepEqual(Object.keys(claySettings.upgradeBackfill()).sort(), CHANGED_222.slice().sort(),
+    'exactly the changed defaults backfill a legacy value');
+});
+
+test('an existing install that stores the changed keys keeps them either way', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  const stored = { vibe: true, windSlotDisplay: 'max', gustSlotDisplay: 'both', windSlotUnit: false,
+    gustSlotUnit: true };
+  store['clay-settings'] = JSON.stringify(stored);
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  CHANGED_222.forEach((k) => assert.deepEqual(read[k], stored[k], k));
+});
+
+test('the backfilled legacy values are what a blob without the keys already renders', () => {
+  const slotText = require('../src/pkjs/slot-text.js');
+  const wireUnits = require('../src/pkjs/wire-units.js');
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  const legacy = claySettings.upgradeBackfill();
+  assert.strictEqual(legacy.windSlotUnit, slotText.unitEnabled({}, 'windSlotUnit'));
+  assert.strictEqual(legacy.gustSlotUnit, slotText.unitEnabled({}, 'gustSlotUnit'));
+  // An absent Value selection prints Now alone, as 'current' does.
+  const payload = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 0, 10] };
+  assert.deepEqual(wireUnits.dayMaxShown('wind', payload, {}),
+    wireUnits.dayMaxShown('wind', payload, { windSlotDisplay: legacy.windSlotDisplay }));
+  assert.equal(wireUnits.dayMaxShown('wind', payload, {}).peak, null, 'Now alone');
+  assert.equal(wireUnits.dayMaxShown('wind', payload, { windSlotDisplay: 'both' }).peak, 30,
+    'where the new default would add the peak');
+});
+
 test('seedDefaults only backfills: a stored On demand list keeps its ticks, whatever else the blob holds', () => {
   // The boot pass rewrites no stored value; a key no schema row has stays until the
   // page's next Save, which writes schema keys only.

@@ -364,11 +364,18 @@
    * to the baker default. The six kinds are exactly the ones whose slot text
    * the PHONE bakes (the watch-formatted kinds would need the flag on the
    * wire); defaults are non-uniform on purpose: a kind that already printed
-   // its unit ships ON, one that never did ships OFF.
+   * its unit ships ON, one that never did ships OFF.
+   *
+   * `dflt` is what a fresh install and a reset get; `legacy`, where present, is
+   * what a blob WITHOUT the key renders — the look from before the toggle
+   * existed — and what clay-settings.js seedDefaults backfills into an existing
+   * install, so a changed default never rearranges an upgrader's watch. Wind and
+   * gusts ship OFF since 2.2.0 (their slots default to the Both pair, whose two
+   * numbers leave the unit no room) but printed kph before, so they keep legacy ON.
    */
   var UNIT_TOGGLES = [
-    { key: 'windSlotUnit', dflt: true },
-    { key: 'gustSlotUnit', dflt: true },
+    { key: 'windSlotUnit', dflt: false, legacy: true },
+    { key: 'gustSlotUnit', dflt: false, legacy: true },
     { key: 'pressureSlotUnit', dflt: true },
     { key: 'countdownSlotUnit', dflt: true },
     { key: 'tempSlotUnit', dflt: false },
@@ -377,13 +384,34 @@
 
   /**
    * @param {string} key A UNIT_TOGGLES settings key.
+   * @returns {?Object} Its UNIT_TOGGLES entry, null for an unknown key.
+   */
+  function unitToggle(key) {
+    for (var i = 0; i < UNIT_TOGGLES.length; i++) {
+      if (UNIT_TOGGLES[i].key === key) { return UNIT_TOGGLES[i]; }
+    }
+    return null;
+  }
+
+  /**
+   * @param {string} key A UNIT_TOGGLES settings key.
    * @returns {boolean} The toggle's shipped default (false for unknown keys).
    */
   function unitToggleDefault(key) {
-    for (var i = 0; i < UNIT_TOGGLES.length; i++) {
-      if (UNIT_TOGGLES[i].key === key) { return UNIT_TOGGLES[i].dflt; }
-    }
-    return false;
+    var t = unitToggle(key);
+    return t ? t.dflt : false;
+  }
+
+  /**
+   * What a settings blob WITHOUT the key renders: the toggle's legacy value where it
+   * has one (a default changed after the key shipped), else its shipped default.
+   * @param {string} key A UNIT_TOGGLES settings key.
+   * @returns {boolean} false for unknown keys.
+   */
+  function unitToggleAbsent(key) {
+    var t = unitToggle(key);
+    if (!t) { return false; }
+    return typeof t.legacy === 'boolean' ? t.legacy : t.dflt;
   }
 
   /**
@@ -432,6 +460,7 @@
     allSlotKeys: allSlotKeys, slotDefault: slotDefault,
     lineOf: lineOf, siblingHolds: siblingHolds,
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
+    unitToggleAbsent: unitToggleAbsent,
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse
   };
 

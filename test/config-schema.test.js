@@ -2894,7 +2894,7 @@ test('the Bluetooth sheet: Show (an inline select) and the vibration, joined loo
       none: 'The icon never shows. Vibrate on disconnect still works.'
     },
     showWhen: ON_DEMAND_WHEN
-  }, { type: 'toggle', messageKey: 'vibe', label: 'Vibrate on disconnect', defaultValue: false,
+  }, { type: 'toggle', messageKey: 'vibe', label: 'Vibrate on disconnect', defaultValue: true,
     joinPrevious: 'loose', showWhen: ON_DEMAND_WHEN }]);
 });
 
@@ -3208,8 +3208,8 @@ test('no other slot sheet carries a direction toggle', () => {
 // deliberately names no example: quoting kph there reads as though the toggle also
 // PICKS the unit, and the engine's value-dependent hint keys off the item's own value.
 const UNIT_ROWS = [
-  { sheetId: 'threshWind', key: 'windSlotUnit', on: null, off: null, def: true },
-  { sheetId: 'threshGust', key: 'gustSlotUnit', on: null, off: null, def: true },
+  { sheetId: 'threshWind', key: 'windSlotUnit', on: null, off: null, def: false },
+  { sheetId: 'threshGust', key: 'gustSlotUnit', on: null, off: null, def: false },
   { sheetId: 'threshPressure', key: 'pressureSlotUnit', on: '1013hPa', off: '1013', def: true },
   { sheetId: 'threshCountdown', key: 'countdownSlotUnit', on: '5d', off: '5', def: true },
   { sheetId: 'threshTemp', key: 'tempSlotUnit', on: '12°', off: '12', def: false },
@@ -3298,18 +3298,23 @@ test('the six phone-baked slot kinds each carry a Show unit toggle', () => {
 // four kinds that print a unit today ship ON, the two that never did ship OFF — so the
 // defaults are deliberately NOT uniform, and a blanket true/false would be a regression
 // for one half or the other.
-test('the Show unit defaults keep every existing watchface looking the same', () => {
+test('the Show unit defaults: a fresh install\'s, and the legacy look an absent key keeps', () => {
+  const catalog = require('../src/pkjs/status-line-catalog.js');
   UNIT_ROWS.forEach((row) => {
     assert.strictEqual(byKey(row.key).defaultValue, row.def,
-      row.key + ' must ship ' + (row.def ? 'on (it prints a unit today)'
-        : 'off (that kind has never printed one)'));
+      row.key + ' must ship ' + (row.def ? 'on' : 'off'));
   });
   assert.deepEqual(UNIT_ROWS.filter((r) => r.def).map((r) => r.key),
-    ['windSlotUnit', 'gustSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit'],
-    'exactly the four kinds that already show a unit default on');
+    ['pressureSlotUnit', 'countdownSlotUnit'],
+    'pressure and the countdown print their unit out of the box');
   assert.deepEqual(UNIT_ROWS.filter((r) => !r.def).map((r) => r.key),
-    ['tempSlotUnit', 'dewSlotUnit'],
-    'the two degree kinds, which show no unit today, default off');
+    ['windSlotUnit', 'gustSlotUnit', 'tempSlotUnit', 'dewSlotUnit'],
+    'wind and gusts ship bare beside their Both pair (2.2.0); the degree kinds never printed one');
+  // A blob without the key keeps the look from before the toggle existed: the four
+  // kinds that printed a unit then still print it, so no upgrade rearranges a watch.
+  assert.deepEqual(UNIT_ROWS.filter((r) => catalog.unitToggleAbsent(r.key)).map((r) => r.key),
+    ['windSlotUnit', 'gustSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit'],
+    'exactly the four kinds that printed a unit before the toggles keep it while absent');
 });
 
 // The Watch tab's "Reset status bars to defaults" button covers the per-kind display

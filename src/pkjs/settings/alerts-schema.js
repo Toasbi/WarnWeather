@@ -599,7 +599,9 @@ function bluetoothSheet() {
             type: 'toggle',
             messageKey: 'vibe',
             label: 'Vibrate on disconnect',
-            defaultValue: false,
+            // ON out of the box (2.2.0), as aplite's Watch Status Bar copy: the buzz is
+            // how a lost phone link gets noticed. Fresh installs and a reset only.
+            defaultValue: true,
             joinPrevious: 'loose',
             showWhen: ON_DEMAND_WHEN
         }])

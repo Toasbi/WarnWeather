@@ -592,7 +592,8 @@ test('the Alerts tab rows: each opens its item\'s dialog, with an icon, a live t
   // basalt's default top-right slot is the Watch battery glyph, so the item stands in.
   row('odBattery', 'battery', 'Battery', 'At 10% or below · Hidden while a battery slot shows the charge'
     + ' · Watch bar, right');
-  row('odBluetooth', 'bluetooth', 'Bluetooth', 'When disconnected · Watch bar, left');
+  // Vibrate on disconnect ships on (2.2.0), so the row names it.
+  row('odBluetooth', 'bluetooth', 'Bluetooth', 'When disconnected · Vibrates on disconnect · Watch bar, left');
   // Quiet time and Sleep have a dialog that places them (the owner, 2026-10-02).
   row('odQuiet', 'quiet', 'Quiet time', 'While Quiet Time is on · Watch bar, left');
   row('odSleep', 'snooze', 'Sleep', 'During the Battery saver hours, 0:00–7:00 · Watch bar, left');

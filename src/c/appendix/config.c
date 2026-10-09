@@ -26,7 +26,7 @@ static Config config_defaults(void) {
         .show_qt = true,
         .show_bt = false,
         .show_bt_disconnect = true,
-        .vibe = false,
+        .vibe = true,
         .show_am_pm = false,
         .time_font = TIME_FONT_ROBOTO,
         .color_today = GColorBlack,
