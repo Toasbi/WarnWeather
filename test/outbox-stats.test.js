@@ -77,18 +77,21 @@ test('second identical send: full skip -> no AppMessage, skip event, all cached'
   assert.deepEqual(events[1].c, { forecast: 0, status: 0, sun: 0 });
 });
 
-test('nack: changed payload, send fails -> caches untouched, nack event', () => {
+test('nack: changed payload, send fails -> its cache forgotten, the others kept, nack event', () => {
   nextSendOutcome = 'nack';
   payload.STATUS_LINE_1_UINT8 = [9];
+  var forecastCache = localStorage.getItem(KEYS.LAST_SENT_FORECAST_KEY);
+  assert.notEqual(forecastCache, null);
   var failed = false;
   outbox.sendWeather(payload, null, function() { failed = true; });
   assert.equal(failed, true);
   assert.equal(transmitted.length, 2);
-  assert.equal(
-    localStorage.getItem(KEYS.LAST_SENT_STATUS_KEY),
-    JSON.stringify({ STATUS_LINE_1_UINT8: [1], STATUS_LINE_2_UINT8: [2], STATUS_LINE_3_UINT8: [3], STATUS_LINE_4_UINT8: [4] }),
-    'NACK must not commit caches'
-  );
+  // The watch may have stored the NACKed status anyway: neither [1] nor [9] is
+  // known to be what it holds, so the next status send goes out whatever it carries.
+  assert.equal(localStorage.getItem(KEYS.LAST_SENT_STATUS_KEY), null,
+    'NACK must not commit, and the send forgot the old status');
+  assert.equal(localStorage.getItem(KEYS.LAST_SENT_FORECAST_KEY), forecastCache,
+    'an unchanged category keeps its cache');
   const events = devStats.read();
   assert.equal(events[2].ok, 0);
   assert.deepEqual(events[2].c, { forecast: 0, status: 1, sun: 0 });

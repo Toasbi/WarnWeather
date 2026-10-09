@@ -578,8 +578,11 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 // failed AQI call still sends the forecast. Reset it per
                 // cycle, like pollen below: the provider instance is reused
                 // across fetches, and a failed, no-station or '-' lookup must
-                // show '--', not the previous cycle's reading (or an
-                // Open-Meteo window aligned to the previous startTime).
+                // not keep the previous cycle's series (an Open-Meteo window
+                // aligned to the previous startTime). Such a lookup shows the
+                // last good reading at the same place and scale from the last
+                // 2 h instead (air-quality.js settleAqi), and '--' only when
+                // there is none.
                 var self = this;
                 self.aqiTrend = [];
                 self.aqiFeedId = null;
