@@ -41,6 +41,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // read as the wire reads it (in the page bundle ahead of this file).
     var drawFrom = (typeof require !== 'undefined')
         ? require('../draw-from.js') : window.DrawFrom;
+    // The forecast's left axis options (BETA, emery): where the hi/lo numbers go and what
+    // they name, read as the wire reads them (in the page bundle ahead of this file).
+    var forecastAxis = (typeof require !== 'undefined')
+        ? require('../forecast-axis.js') : window.ForecastAxis;
     var resolveInkLib = (typeof require !== 'undefined')
         ? require('../resolve-ink.js') : window.ResolveInk;
     var isLightPolarity = resolveInkLib.isLightPolarity;
@@ -122,6 +126,125 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     var LABEL_CAP = 5.6;
     // The preview's curve inset in units: 12 units stand for the watch's WATCH_INSET_PX.
     var CURVE_INSET_PREV = 12;
+    // The numbers on the graph (left axis BETA; temp_axis_pad.h THE NUMBERS ON THE GRAPH,
+    // mirrored): watch px from a point's ink to its number's ink, and between the two
+    // numbers' ink (test/config-temp-axis-pad.test.js holds both equal to the header's),
+    // scaled to preview units like the label gap (CURVE_INSET_PREV units a WATCH_INSET_PX).
+    var TEMP_LABEL_POINT_GAP = 2;
+    var TEMP_LABEL_PART_GAP = 3;
+    // The plot's left edge while the numbers claim no strip (On graph, Off): the watch's
+    // collapsed inset (temp_axis_collapsed_inset: half the widest hour label plus 2 px),
+    // against the label strip's 20 units.
+    var PX0_COLLAPSED = 8;
+    // A number's width per character of the 8-unit label font, in units.
+    var NUMBER_CHAR_W = 4.6;
+
+    /**
+     * The side a number prefers beside sample i: +1 right, -1 left — temp_axis_pad.h
+     * temp_label_side, mirrored. The side whose neighbour lies further from the point (a
+     * missing reading, null, is open space, the furthest); a tie goes right; the first sample
+     * prefers right and the last left.
+     * @param {Array.<?number>} ys The line's y per sample (null: no reading).
+     * @param {number} i The point's sample.
+     * @returns {number} 1 or -1.
+     */
+    function numberSide(ys, i) {
+        var dp = -1, dn = -1;
+        if (i > 0) { dp = ys[i - 1] === null ? Infinity : Math.abs(ys[i - 1] - ys[i]); }
+        if (i + 1 < ys.length) { dn = ys[i + 1] === null ? Infinity : Math.abs(ys[i + 1] - ys[i]); }
+        return dn >= dp ? 1 : -1;
+    }
+
+    /**
+     * One number beside its point — temp_axis_pad.h temp_label_beside, mirrored: its ink
+     * TEMP_LABEL_POINT_GAP watch px clear of the point's ink on the preferred side if it fits,
+     * else the other, else the preferred one; held inside the area; its ink (LABEL_CAP over
+     * the baseline) centred on the point's y and held inside the area's rows.
+     * @param {number} x0 The point's ink, left edge.
+     * @param {number} x1 The point's ink, right edge.
+     * @param {number} y The point's y.
+     * @param {number} side 1 right, -1 left (numberSide).
+     * @param {number} w The number's width.
+     * @param {{left: number, right: number, top: number, bottom: number}} area Where its ink
+     *   may go.
+     * @returns {{x: number, base: number}} The text's left edge and baseline.
+     */
+    function numberBeside(x0, x1, y, side, w, area) {
+        var gap = TEMP_LABEL_POINT_GAP * CURVE_INSET_PREV / WATCH_INSET_PX;
+        var right = x1 + gap, left = x0 - gap - w;
+        var fitsR = right + w <= area.right, fitsL = left >= area.left;
+        var x = side > 0 ? ((fitsR || !fitsL) ? right : left) : ((fitsL || !fitsR) ? left : right);
+        if (x + w > area.right) { x = area.right - w; }
+        if (x < area.left) { x = area.left; }
+        var base = y + LABEL_CAP / 2;
+        if (base - LABEL_CAP < area.top) { base = area.top + LABEL_CAP; }
+        if (base > area.bottom) { base = area.bottom; }
+        return { x: x, base: base };
+    }
+
+    /**
+     * The two numbers apart — temp_axis_pad.h temp_labels_part, mirrored (mutates both):
+     * untouched when their ink, grown by TEMP_LABEL_PART_GAP, does not meet; else the lo
+     * number right under the hi one; else the lo number on the area's last row and the hi
+     * one right over it. When even that does not fit, the hi number keeps numberBeside's
+     * place, inside the area.
+     * @param {{x: number, base: number}} hi The hi number (numberBeside).
+     * @param {number} wHi Its width.
+     * @param {{x: number, base: number}} lo The lo number.
+     * @param {number} wLo Its width.
+     * @param {{left: number, right: number, top: number, bottom: number}} area The area.
+     * @returns {boolean} False when even that does not fit: the lo number is not drawn.
+     */
+    function numbersPart(hi, wHi, lo, wLo, area) {
+        var gap = TEMP_LABEL_PART_GAP * CURVE_INSET_PREV / WATCH_INSET_PX;
+        if (lo.x >= hi.x + wHi + gap || hi.x >= lo.x + wLo + gap
+            || lo.base - LABEL_CAP >= hi.base + gap || hi.base - LABEL_CAP >= lo.base + gap) {
+            return true;
+        }
+        lo.base = hi.base + LABEL_CAP + gap;
+        if (lo.base <= area.bottom) { return true; }
+        lo.base = area.bottom;
+        var lifted = lo.base - LABEL_CAP - gap;
+        if (lifted - LABEL_CAP < area.top) { return false; }   // no room: hi stays put
+        hi.base = lifted;
+        return true;
+    }
+
+    /**
+     * Where the numbers' ink may go — forecast_layer.c draw_axis_numbers' TempLabelArea,
+     * mirrored: right of the axis column to the plot's right edge, from the first content row
+     * under the top stripe band to the row over the zero line, shrunk on every side by the
+     * outline's ring (one watch px) when it is drawn, so the ring never crosses the axis, a
+     * band or the zero line.
+     * @param {number} px0 The plot's left edge (the axis column).
+     * @param {number} px1 The plot's right edge.
+     * @param {number} top The first content row under the top stripe band.
+     * @param {number} zero The zero line's row.
+     * @param {boolean} outline Whether the numbers are outlined.
+     * @returns {{left: number, right: number, top: number, bottom: number}}
+     */
+    function numbersArea(px0, px1, top, zero, outline) {
+        var o = outline ? CURVE_INSET_PREV / WATCH_INSET_PX : 0;
+        return { left: px0 + 1 + o, right: px1 - o, top: top + o, bottom: zero - 1 - o };
+    }
+
+    /**
+     * Whether the lo number is drawn too — draw_axis_numbers' rule, mirrored: a flat range
+     * (equal texts) draws the hi number alone; else both, kept apart by numbersPart, which
+     * may still leave the lo one out. The preview's own sample never has a flat range, so
+     * only the tests reach that case.
+     * @param {string} hiText The hi number's text.
+     * @param {string} loText The lo number's text.
+     * @param {{x: number, base: number}} hi The hi number (numberBeside; numbersPart may move it).
+     * @param {number} wHi Its width.
+     * @param {{x: number, base: number}} lo The lo number (numbersPart may move it).
+     * @param {number} wLo Its width.
+     * @param {{left: number, right: number, top: number, bottom: number}} area numbersArea.
+     * @returns {boolean} False when only the hi number is drawn.
+     */
+    function bothNumbers(hiText, loText, hi, wHi, lo, wLo, area) {
+        return hiText !== loText && numbersPart(hi, wHi, lo, wLo, area);
+    }
 
     /**
      * An anchored edge's share of a plot `units` preview units tall, in preview units:
@@ -508,7 +631,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var TOP_BAND_GAP = 2;
         var topBand = topStripes
             ? topStripes * STRIPE_H + (topStripes - 1) * STRIPE_GAP + TOP_BAND_GAP : 0;
-        var PX0 = 20, PX1 = 197, PT = 4, PB = AXIS_Y - stripeBand;
+        // The left axis options (BETA, forecast-axis.js resolved: every default off a known
+        // emery, so every other preview is unchanged whatever is stored). With the numbers On
+        // graph or Off the label strip goes to the graph, which then starts PX0_COLLAPSED in;
+        // the zero line, the ticks, the vertices and the legend follow PX0. The axis line is
+        // not modelled (no preview draws one).
+        var ax = forecastAxis.resolved(state, env);
+        var PX0 = ax.numbers === forecastAxis.BESIDE ? 20 : PX0_COLLAPSED;
+        var PX1 = 197, PT = 4, PB = AXIS_Y - stripeBand;
         var PTL = PT + topBand;
         var MT = topBand ? PTL : PT + 3;   // where a full-height metric value lands
         var plotW = PX1 - PX0, plotH = PB - PTL;
@@ -542,6 +672,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         });
         var tLabelMin = Math.min.apply(null, temps), tLabelMax = Math.max.apply(null, temps);
         var axisRange = tempAxisRange(temps, axisLines);
+        // 'Include feels-like & dew point' (left axis BETA): the numbers name the scale's ends,
+        // as the bake puts them in TEMP_MIN / TEMP_MAX (forecast-series.js tempScaleRange).
+        var scaleNums = ax.scale && axisLines.length > 0;
+        if (scaleNums) {
+            tLabelMin = Math.round(axisRange.min);
+            tLabelMax = Math.round(axisRange.max);
+        }
         var tmin = axisRange.min, tmax = axisRange.max;
         // Configurable curve offset: the temp axis (temp + feels/dew via isTempAxisMetric
         // below) is inset symmetrically from the shared full-height band
@@ -946,6 +1083,70 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
 
         /**
+         * The hi/lo numbers on the graph (left axis BETA, On graph): forecast_layer.c
+         * draw_axis_numbers, mirrored. Each sits beside the point it names — the temperature
+         * curve's highest and lowest sample or, with scaleNums, the highest and lowest of the
+         * curve and every drawn feels-like / dew point line (the curve first, then line order:
+         * a strictly higher or lower value replaces, so the earliest wins a tie) — at the
+         * point's y, on numberSide's side, held inside the plot's content rows; numbersPart
+         * keeps them apart, and equal texts draw one. The outline is an underlay <text> in the
+         * background colour stroked 2 units wide (no paint-order: an old WebView ignores it),
+         * the watch's 1 px ring in theme_bg.
+         * @returns {string} SVG markup.
+         */
+        function drawNumbersOnGraph() {
+            // The candidate series: their samples, their y per sample (null: no point there)
+            // and each point's ink edges.
+            var cands = [{ vals: temps, x: function (i) { return [tickX(i) - tempW / 2, tickX(i) + tempW / 2]; },
+                marks: false }];
+            if (scaleNums) {
+                LINES.forEach(function (line) {
+                    if (!line.on || stylesFrozen || !lineStyle.isTempAxisMetric(line.metric)) { return; }
+                    var marks = line.style === 'dots' || line.style === 'x';
+                    var w = line.style === 'bold' ? boldW : mainW;
+                    cands.push({ vals: AXIS_SAMPLES[line.metric], marks: marks,
+                        x: marks ? function (i) { return [gapCenter(i) - bw / 2, gapCenter(i) + bw / 2]; }
+                            : function (i) { return [tickX(i) - w / 2, tickX(i) + w / 2]; } });
+                });
+            }
+            var hi = null, lo = null;
+            cands.forEach(function (c) {
+                // A mark-style line draws its marks in the hour columns, n - 1 of them.
+                c.ys = c.vals.map(function (v, i) {
+                    return (v === null || (c.marks && i >= n - 1)) ? null : yT(v);
+                });
+                for (var i = 0; i < c.vals.length; i += 1) {
+                    if (c.ys[i] === null) { continue; }
+                    if (!hi || c.vals[i] > hi.v) { hi = { v: c.vals[i], i: i, c: c }; }
+                    if (!lo || c.vals[i] < lo.v) { lo = { v: c.vals[i], i: i, c: c }; }
+                }
+            });
+            if (!hi) { return ''; }
+            var area = numbersArea(PX0, PX1, PTL, PB, ax.outline);
+            var hiText = tLabelMax + '°', loText = tLabelMin + '°';
+            var wHi = hiText.length * NUMBER_CHAR_W, wLo = loText.length * NUMBER_CHAR_W;
+            var hx = hi.c.x(hi.i), lx = lo.c.x(lo.i);
+            var hb = numberBeside(hx[0], hx[1], hi.c.ys[hi.i], numberSide(hi.c.ys, hi.i), wHi, area);
+            var lb = numberBeside(lx[0], lx[1], lo.c.ys[lo.i], numberSide(lo.c.ys, lo.i), wLo, area);
+            var both = bothNumbers(hiText, loText, hb, wHi, lb, wLo, area);
+            /**
+             * One number, over its outline when the option is on.
+             * @param {{x: number, base: number}} b Where (numberBeside).
+             * @param {string} t The text.
+             * @returns {string} SVG markup.
+             */
+            function number(b, t) {
+                var under = ax.outline
+                    ? '<text x="' + b.x + '" y="' + b.base + '" font-size="8" fill="' + ink.bg + '" stroke="' + ink.bg
+                        + '" stroke-width="2" stroke-linejoin="round" font-family="sans-serif" font-weight="600" text-anchor="start">'
+                        + t + '</text>'
+                    : '';
+                return under + txt(b.x, b.base, 8, '#AEB4BD', 'start', 600, t);
+            }
+            return number(hb, hiText) + (both ? number(lb, loText) : '');
+        }
+
+        /**
          * A little legend-sized x glyph centred on (cx, cy).
          * @param {number} cx Centre x.
          * @param {number} cy Centre y.
@@ -1123,15 +1324,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // wire), never the joint band the phone encodes on — the watch prints them as
         // text (forecast_layer.c text_labels_refresh) and a low the air never reached
         // would be a lie. Its curve fills the margins unless a feels-like or dew point line
-        // reaches past it (yT).
-        // Where there is space each label's ink sits level with the curve's extreme it names
-        // (alignLabels; never previewing aplite, whose labels are frozen). Today's reach gates
-        // the lo label always and the hi label only without a top stripe band: under one the
-        // watch's plain rule applies (see alignLabels).
-        var labels = stylesFrozen ? { hi: PT + 11, lo: PB - 1 }
-            : alignLabels(PT + 11, PB - 1, yT(tLabelMax), yT(tLabelMin),
-                topBand ? -Infinity : MT + curveInsetPrev, PB - curveInsetPrev);
-        e += txt(3, labels.hi, 8, '#AEB4BD', 'start', 600, tLabelMax + '°') + txt(3, labels.lo, 8, '#AEB4BD', 'start', 600, tLabelMin + '°');
+        // reaches past it (yT). The one exception is emery's left axis option 'Include
+        // feels-like & dew point' (scaleNums): then they name the scale's ends, which the
+        // bake puts in TEMP_MIN/TEMP_MAX.
+        // Where they go is the left axis option (BETA, ax.numbers): beside the graph (today),
+        // on it (drawNumbersOnGraph) or nowhere.
+        // Beside: where there is space each label's ink sits level with the curve's extreme
+        // it names (alignLabels; never previewing aplite, whose labels are frozen). Today's
+        // reach gates the lo label always and the hi label only without a top stripe band:
+        // under one the watch's plain rule applies (see alignLabels).
+        if (ax.numbers === forecastAxis.BESIDE) {
+            var labels = stylesFrozen ? { hi: PT + 11, lo: PB - 1 }
+                : alignLabels(PT + 11, PB - 1, yT(tLabelMax), yT(tLabelMin),
+                    topBand ? -Infinity : MT + curveInsetPrev, PB - curveInsetPrev);
+            e += txt(3, labels.hi, 8, '#AEB4BD', 'start', 600, tLabelMax + '°') + txt(3, labels.lo, 8, '#AEB4BD', 'start', 600, tLabelMin + '°');
+        } else if (ax.numbers === forecastAxis.GRAPH) {
+            e += drawNumbersOnGraph();
+        }
         e += drawAxis();
         e += legend.markup;
         return svgFrame(e, legend.height);
@@ -1147,6 +1356,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             WATCH_INSET_PX: WATCH_INSET_PX,
             LABEL_CAP: LABEL_CAP,
             CURVE_INSET_PREV: CURVE_INSET_PREV,
+            TEMP_LABEL_POINT_GAP: TEMP_LABEL_POINT_GAP,
+            TEMP_LABEL_PART_GAP: TEMP_LABEL_PART_GAP,
+            PX0_COLLAPSED: PX0_COLLAPSED,
+            NUMBER_CHAR_W: NUMBER_CHAR_W,
+            numberSide: numberSide,
+            numberBeside: numberBeside,
+            numbersPart: numbersPart,
+            numbersArea: numbersArea,
+            bothNumbers: bothNumbers,
             anchorShare: anchorShare,
             alignLabels: alignLabels,
             tempAxisRange: tempAxisRange,

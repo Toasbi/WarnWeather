@@ -95,6 +95,14 @@ typedef struct {
     int   top_h;
 } ChartAxisLabel;
 
+#ifdef PBL_PLATFORM_EMERY
+// emery: chart.h. The tier chart_axis_label's box geometry below is derived for.
+GFont chart_axis_font(void) {
+    return fonts_get_system_font(config_large_graph_font() ? FONT_KEY_GOTHIC_18
+                                                           : FONT_KEY_GOTHIC_14);
+}
+#endif
+
 static ChartAxisLabel chart_axis_label(void) {
 #ifdef PBL_PLATFORM_EMERY
     // emery: the only platform offering the toggle (schema.js gates the row on
@@ -122,8 +130,7 @@ static ChartAxisLabel chart_axis_label(void) {
     const bool large     = config_large_graph_font();
     const int  content_h = large ? 18 : 14;
     return (ChartAxisLabel){
-        .font      = fonts_get_system_font(large ? FONT_KEY_GOTHIC_18
-                                                 : FONT_KEY_GOTHIC_14),
+        .font      = chart_axis_font(),
         .bottom_dy = (BOTTOM_VIEW_AXIS_H + BOTTOM_VIEW_BOTTOM_PAD) - content_h,
         .bottom_h  = content_h,
         .top_raise = content_h + 1,

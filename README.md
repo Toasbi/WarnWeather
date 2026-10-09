@@ -41,6 +41,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Up to four metric lines at once, each in its own style — thin or thick line, square dots, little x marks, or (for precipitation, cloud cover, UV, wind and gusts) a shaded stripe along the top of the graph or below its zero line, whose colour strengthens with the value (third and fourth metric and style selection on watches with enough memory, not Pebble Classic/Steel)
 * Draw from: Bottom | Top: the precipitation, cloud cover, wind, gust and UV index lines, and with *Bars from* the rain bars of the forecast and of the radar graph, can hang from the top of the graph instead of standing on its bottom, a bigger value reaching further down, so they cover the temperature curve less (wind and gusts move together, and a main metric's area fill hangs with its line; not on Pebble Classic/Steel)
 * Optional day/night shading
+* Left axis options on Pebble Time 2 (beta): hide the axis line, put the high and low numbers on the graph next to the hours they belong to (with an outline in the background color) or turn them off, so the graph gets their width, and let the numbers include the feels-like and dew point lines (Graphs tab › Forecast › Left axis, under More options)
 * Recolor the forecast graph per metric
 * Multiple weather providers, including regional and worldwide sources
 

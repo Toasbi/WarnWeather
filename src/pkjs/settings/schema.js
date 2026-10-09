@@ -19,6 +19,8 @@ var lineStyle = require('../line-style.js');
 // Bars from [Bottom | Top]: the values, from the module whose reading the wire packs
 // (weather/graph-wire.js).
 var DRAW_FROM = require('../draw-from.js');
+// The forecast's left axis options (BETA, emery only): their keys and values.
+var FORECAST_AXIS = require('../forecast-axis.js');
 // The keyed sources of the Weather and Radar provider pickers (their names, key sheets and
 // key fields): the key sheets are built from it here, and the rows' key-status resolvers
 // read it in the page (key-status.js).
@@ -40,6 +42,7 @@ var RADAR_BAR_WHEN = gates.RADAR_BAR_WHEN;
 var HEALTH_BAR_WHEN = gates.HEALTH_BAR_WHEN;
 var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 var LINE_STYLES_WHEN = gates.LINE_STYLES_WHEN;
+var EMERY_WHEN = gates.EMERY_WHEN;
 var gateAll = gates.gateAll;
 var tabLink = gates.tabLink;
 var linkRow = gates.linkRow;
@@ -2005,6 +2008,67 @@ module.exports = {
                 },
                 options: [['12 h', '12'], ['24 h', '24'], ['48 h', '48']],
                 showWhen: FORECAST_SPAN_WHEN
+            }]
+        }, {
+            // Left axis (Beta), emery only (owner, 2026-10-09): the axis line, where the
+            // high / low numbers go (beside the graph, on it, or off: the last two give the
+            // label strip to the graph), their outline, and whether they name the whole
+            // temperature scale. src/pkjs/forecast-axis.js is the one reading (wire bits on
+            // the CLAY_LARGE_GRAPH_FONT word, the scale bake, the preview); the watch's rules
+            // live in src/c/appendix/temp_axis_pad.h (THE NUMBERS ON THE GRAPH). Every row
+            // is `more`: the card shows its title and opens by itself when a row differs
+            // from its default. Dormant values (the outline off the graph, the scale with
+            // the numbers off or no feels-like / dew point line) are kept and sent as the
+            // defaults, so they never cost a resend.
+            pane: 'forecast',
+            id: 'axis',
+            title: 'Left axis (Beta)',
+            showWhen: EMERY_WHEN,
+            items: [{
+                type: 'toggle',
+                messageKey: FORECAST_AXIS.KEYS.line,
+                label: 'Axis line',
+                defaultValue: true,
+                hint: 'The vertical line along the left edge of the graph. Not drawn in the preview.',
+                more: true,
+                showWhen: EMERY_WHEN
+            }, {
+                type: 'segmented',
+                messageKey: FORECAST_AXIS.KEYS.numbers,
+                label: 'High / low numbers',
+                defaultValue: FORECAST_AXIS.BESIDE,
+                options: [['Beside', FORECAST_AXIS.BESIDE], ['On graph', FORECAST_AXIS.GRAPH],
+                    ['Off', FORECAST_AXIS.OFF]],
+                hintByValue: {
+                    beside: 'The forecast\'s highest and lowest temperature, left of the graph.',
+                    graph: 'Each number sits next to the point it names. The graph gets their space.',
+                    off: 'No numbers. The graph gets their space.'
+                },
+                more: true,
+                showWhen: EMERY_WHEN
+            }, {
+                type: 'toggle',
+                messageKey: FORECAST_AXIS.KEYS.outline,
+                label: 'Number outline',
+                defaultValue: true,
+                hint: 'A 1 px edge in the background color keeps the numbers readable over lines, '
+                    + 'bars and shading.',
+                more: true,
+                showWhen: {all: [EMERY_WHEN, {key: FORECAST_AXIS.KEYS.numbers, eq: FORECAST_AXIS.GRAPH}]}
+            }, {
+                // Gated on a drawn feels-like or dew point line (when-resolvers.js
+                // tempAxisLineDrawn): without one the scale is the air temperature's own.
+                // Changes what the phone bakes into TEMP_MIN / TEMP_MAX, so a flip re-fetches
+                // (render-signature.js).
+                type: 'toggle',
+                messageKey: FORECAST_AXIS.KEYS.scale,
+                label: 'Include feels-like & dew point',
+                defaultValue: false,
+                hint: 'The numbers show the lowest and highest value of every line on the '
+                    + 'temperature scale, not only the air temperature.',
+                more: true,
+                showWhen: {all: [EMERY_WHEN, {key: FORECAST_AXIS.KEYS.numbers, ne: FORECAST_AXIS.OFF},
+                    {when: 'tempAxisLineDrawn'}]}
             }]
         }, {
             // The Graph colors row, a card of its own: one dialog holding one row per graph

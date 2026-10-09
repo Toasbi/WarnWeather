@@ -27,6 +27,8 @@ var lineAlert = require('./line-alert.js');
 var drawFrom = require('./draw-from.js');
 // The forecast's time span, as this watch draws it (12/24/48 on emery, 24 elsewhere).
 var forecastSpan = require('./forecast-span.js');
+// The forecast's left axis options (BETA, emery only), read as the wire reads them.
+var forecastAxis = require('./forecast-axis.js');
 
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
@@ -184,6 +186,8 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // direction.
     var hasColorBacklight = env.colorBacklight;
     var dimOn = Boolean(hasColorBacklight && boolDefaultOn(safe.backlightDim));
+    // The left axis options' watch (forecast-axis.js isEmery: a KNOWN emery).
+    var isEmery = forecastAxis.isEmery(env);
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
@@ -315,6 +319,14 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // The forecast's time span this watch draws (an int): the stored 12/24/48 on an
         // emery, 24 on every other watch whatever is stored. Lockstep with handler.ts.
         forecastHours: forecastSpan.hours(safe, env),
+        // The forecast's left axis options (BETA), emery only (the one watch that offers
+        // them), as chosen (forecast-axis.js readers: absent or junk reads the default),
+        // the Draw from precedent below: whether the outline or the scale applies at all is
+        // the numbers and line fields. Lockstep with handler.ts -- deploy it first.
+        forecastAxisLine: isEmery ? forecastAxis.lineShown(safe) : undefined,
+        forecastAxisNumbers: isEmery ? forecastAxis.numbers(safe) : undefined,
+        forecastAxisOutline: isEmery ? forecastAxis.outline(safe) : undefined,
+        forecastAxisScale: isEmery ? forecastAxis.scale(safe) : undefined,
         vibe: !!safe.vibe,
         btIcons: safe.btIcons,
         secondaryLine: safe.secondaryLine,

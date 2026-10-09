@@ -73,6 +73,20 @@ the *category detector* — it distinguishes "this message carries no config"
 deliberately unguarded: they have their own handlers and dirty flags, so a
 parse problem there can't take the whole config down.
 
+**Graph-options word (emery)**:
+The `CLAY_LARGE_GRAPH_FONT` int read as bits on emery: bit 0 *Larger graph
+fonts*, bits 1-5 the forecast's left axis options (BETA, Graphs › Forecast ›
+Left axis): axis line off, high/low numbers on the graph, numbers off, outline
+off, numbers naming the temperature scale. The layout is `config.h`'s
+`GRAPH_OPT_*`, in lockstep with `src/pkjs/forecast-axis.js` `BIT`, and the watch
+keeps bits 1-7 in `Config.forecast_axis`. The phone packs a dormant option as its
+default, so the axis bits are all zero exactly when the graph is today's, and
+while they are the tuple is the bare boolean it always was (a known non-emery
+watch never gets more); emery and an unknown watch get the number once an axis
+option leaves its default. The scale option alone also touches the weather message: on
+a known emery `TEMP_MIN`/`TEMP_MAX` carry the scale's ends instead of the air's.
+_Avoid_: a new message key per graph option.
+
 ## Channel
 
 **Half-duplex channel**:

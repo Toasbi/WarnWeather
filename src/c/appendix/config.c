@@ -75,6 +75,11 @@ static Config config_defaults(void) {
         // One flick switches views, as it always has, until the user turns Double flick on.
         .view_double_flick = false,
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: the forecast's left axis as it always was (config.h GRAPH_OPT_*), until the
+        // phone sends the graph-options word. Guarded because the field itself is.
+        .forecast_axis = 0,
+#endif
     };
 }
 

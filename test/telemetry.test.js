@@ -454,6 +454,10 @@ const HEAVIEST_SETTINGS = {
   timeShowAmPm: true, weekStartDay: 'monday', firstWeek: 'iso', showQt: true,
   batteryLowOnly: true, topViewMode: 'compact', layoutPreset: 'compactDense',
   viewResetMin: '15', largeGraphFont: true, forecastHours: '48', vibe: true, btIcons: 'both',
+  // The forecast's left axis options (BETA, emery: this fixture's watch) on their longer
+  // values: false for the toggles, 'beside' for the numbers.
+  forecastAxisLine: false, forecastAxisNumbers: 'beside', forecastAxisOutline: false,
+  forecastAxisScale: false,
   doubleFlick: false,  // false: the longer JSON value
   secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'high',
   pressureScale: 'high', thirdLine: 'wind', barSource: 'precip_prob',
@@ -614,6 +618,32 @@ test('snapshot reports the forecast span this watch draws, as an int', () => {
     'every other watch is sent 24 whatever is stored');
   assert.strictEqual(buildSettingsSnapshot({ forecastHours: '48' }).forecastHours, 24, 'an unknown watch');
   assert.strictEqual(buildSettingsSnapshot({}, { platform: 'emery' }).forecastHours, 24);
+});
+
+// The left axis options (BETA): emery only, as chosen (forecast-axis.js readers: absent or
+// junk reads the default), the Draw from precedent; every other watch, and an unknown one,
+// reports nothing.
+test('snapshot reports the left axis options on emery only, as chosen', () => {
+  const set = { forecastAxisLine: false, forecastAxisNumbers: 'graph', forecastAxisOutline: false,
+    forecastAxisScale: true };
+  const emery = buildSettingsSnapshot(set, { platform: 'emery' });
+  assert.strictEqual(emery.forecastAxisLine, false);
+  assert.strictEqual(emery.forecastAxisNumbers, 'graph');
+  assert.strictEqual(emery.forecastAxisOutline, false);
+  assert.strictEqual(emery.forecastAxisScale, true);
+  const defaults = buildSettingsSnapshot({ forecastAxisNumbers: 'junk' }, { platform: 'emery' });
+  assert.strictEqual(defaults.forecastAxisLine, true);
+  assert.strictEqual(defaults.forecastAxisNumbers, 'beside');
+  assert.strictEqual(defaults.forecastAxisOutline, true);
+  assert.strictEqual(defaults.forecastAxisScale, false);
+  // As chosen: a dormant outline still reports what is stored.
+  assert.strictEqual(buildSettingsSnapshot({ forecastAxisOutline: false }, { platform: 'emery' })
+    .forecastAxisOutline, false);
+  [{ platform: 'basalt' }, { platform: 'aplite' }, undefined].forEach((watchInfo) => {
+    const snap = buildSettingsSnapshot(set, watchInfo);
+    ['forecastAxisLine', 'forecastAxisNumbers', 'forecastAxisOutline', 'forecastAxisScale'].forEach((k) =>
+      assert.strictEqual(snap[k], undefined, k + ' on ' + JSON.stringify(watchInfo)));
+  });
 });
 
 test('snapshot includes largeGraphFont as a real boolean', () => {
@@ -876,7 +906,10 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // 144 B on 'bottom', the longer value) the two envelopes are 4188 B and 4298 B, the
 // batch header 3168 of 4096, headroom 928. The Double flick switch (doubleFlick, on its
 // longer value false) is 20 B: batch header 3188 of 4096, headroom 908. The forecast's
-// time span (forecastHours, 2.2.0, an int: 48) is 19 B: 3207 of 4096, headroom 889.
+// time span (forecastHours, 2.2.0, an int: 48) is 19 B: 3207 of 4096, headroom 889. The
+// forecast's left axis options (forecastAxisLine, forecastAxisNumbers, forecastAxisOutline,
+// forecastAxisScale; 2.2.0, BETA, emery only; false / 'beside' the longer values) are 110 B:
+// 3317 of 4096, headroom 779.
 test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');

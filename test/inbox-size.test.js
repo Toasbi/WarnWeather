@@ -388,6 +388,11 @@ function buildHeaviestClayMessage(watchInfo) {
     // Double flick on: bit 8 of CLAY_VIEW_RESET_MIN's int (clay-payload.js
     // packViewReset), no byte of its own, so the recorded sizes hold.
     viewResetMin: '10', doubleFlick: true,
+    // The forecast's left axis options (BETA, emery) at their busiest: bits 1-5 of the
+    // CLAY_LARGE_GRAPH_FONT int (forecast-axis.js), no byte of their own, so the recorded
+    // sizes hold.
+    forecastAxisLine: false, forecastAxisNumbers: 'graph', forecastAxisOutline: false,
+    forecastAxisScale: true, secondaryLine: 'dew',
   }, watchInfo === undefined ? { platform: 'emery' } : watchInfo, new Date('2026-06-26T00:00:00Z'));
 
   // The Dim backlight tuple (CLAY_NIGHT_LIGHT_UINT8 = [r, g, b, startHour, endHour])

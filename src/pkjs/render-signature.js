@@ -14,6 +14,7 @@ var lineStyle = require('./line-style.js');
 var onDemand = require('./on-demand.js');
 var lineAlert = require('./line-alert.js');
 var forecastSpan = require('./forecast-span.js');
+var forecastAxis = require('./forecast-axis.js');
 
 /**
  * The drawn metrics whose line is a stripe: a stripe line's bytes are level bytes on the
@@ -96,6 +97,10 @@ function renderSignature(settings) {
         // windUnits, the resolved pairs below) are signed on their own...
         lineAlert.signature(settings),
         settings.barSource, settings.windScale, settings.pressureScale,
+        // ...the left axis's 'Include feels-like & dew point' (BETA, forecast-axis.js): it
+        // changes what TEMP_MIN/TEMP_MAX hold, so it signs while a feels-like or dew point
+        // line is drawn. The axis line, the numbers' place and their outline are Clay-only...
+        forecastAxis.signature(settings),
         // Status-line bake inputs: value formatting...
         settings.temperatureUnits, settings.tempSlotDisplay,
         settings.axisTimeFormat,

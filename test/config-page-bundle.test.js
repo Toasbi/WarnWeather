@@ -140,9 +140,30 @@ test('the Draw from module is bundled after line-style.js and before its readers
     'nothing registers the Draw from row\'s hint in the generated page');
 });
 
+// forecast-axis.js (window.ForecastAxis, the forecast's left axis options, BETA) binds
+// window.LineStyle while its own body runs, and preview-forecast.js and when-resolvers.js bind
+// window.ForecastAxis while theirs do: out of order, the forecast preview and the Left axis
+// card's gate throw on a real phone while every Node test passes through require().
+test('the left axis module is bundled after line-style.js and before its readers', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('pkjs/line-style.js') < idx('pkjs/forecast-axis.js'),
+    'line-style.js must precede forecast-axis.js');
+  ['settings/preview-forecast.js', 'settings/when-resolvers.js'].forEach((reader) => {
+    assert.ok(idx('pkjs/forecast-axis.js') < idx(reader), 'forecast-axis.js must precede ' + reader);
+  });
+  const src = page();
+  assert.ok(src.indexOf('window.ForecastAxis = api') !== -1,
+    'nothing assigns window.ForecastAxis in the generated page');
+});
+
 // when-resolvers.js answers the schema's { when } leaves. It binds window.LineStyle,
-// window.DrawFrom, window.OnDemand and VIEW_CYCLE while its own body runs, so it follows
-// all four. Out of the page, nothing throws: an unregistered leaf reads false, so the
+// window.DrawFrom, window.OnDemand, window.ForecastAxis and VIEW_CYCLE while its own body
+// runs, so it follows all five. Out of the page, nothing throws: an unregistered leaf reads false, so the
 // rows that ask it would silently never show (or always, under a `not`) on a real phone
 // while every Node test passes through blocks.js' require().
 test('the when resolvers are bundled after the modules they ask', () => {
@@ -152,10 +173,11 @@ test('the when resolvers are bundled after the modules they ask', () => {
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  ['pkjs/line-style.js', 'pkjs/draw-from.js', 'pkjs/on-demand.js', 'pkjs/view-cycle.js'].forEach((dep) =>
+  ['pkjs/line-style.js', 'pkjs/draw-from.js', 'pkjs/on-demand.js', 'pkjs/view-cycle.js',
+    'pkjs/forecast-axis.js'].forEach((dep) =>
     assert.ok(idx(dep) < idx('settings/when-resolvers.js'), dep + ' must precede when-resolvers.js'));
   const src = page();
-  ['lineRow', 'onDemandPlaced', 'defaultViewLacksOnDemand'].forEach((id) =>
+  ['lineRow', 'onDemandPlaced', 'defaultViewLacksOnDemand', 'tempAxisLineDrawn'].forEach((id) =>
     assert.ok(src.indexOf("PConf.whenResolvers.register('" + id + "'") !== -1,
       'nothing registers the ' + id + ' when resolver in the generated page'));
 });

@@ -8,6 +8,8 @@
 //  - onDemandPlaced: an Alerts item shows on a status bar (on-demand.js).
 //  - defaultViewLacksOnDemand: the Default view shows no Alerts item at all (view-cycle.js
 //    and on-demand.js).
+//  - tempAxisLineDrawn: a feels-like or dew point line is drawn (forecast-axis.js), the
+//    Left axis card's 'Include feels-like & dew point' gate.
 // Each gets (S, env, args): S is the showWhen context, the settings plus their env.
 // Under Node, blocks.js requires this file, so requiring blocks.js registers these too;
 // the webview concatenates it ahead of blocks.js (scripts/build-config-page.js APP_FILES).
@@ -28,6 +30,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
     var onDemand = (typeof require !== 'undefined') ? require('../on-demand.js') : window.OnDemand;
     // view-cycle.js exposes its API as one top-level VIEW_CYCLE object in the webview.
     var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : VIEW_CYCLE;
+    var forecastAxis = (typeof require !== 'undefined')
+        ? require('../forecast-axis.js') : window.ForecastAxis;
 
     /**
      * The picker a row that follows its metric sits under. With `from` (a Draw from key):
@@ -109,16 +113,30 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
         return true;
     }
 
+    /**
+     * tempAxisLineDrawn: a feels-like or dew point line is drawn (forecast-axis.js
+     * tempAxisLineDrawn: the Third and Fourth metric lines only where the watch draws them),
+     * the Left axis card's 'Include feels-like & dew point' gate.
+     * @param {Object} S Settings (the showWhen context).
+     * @param {?Object} env Platform env.
+     * @returns {boolean}
+     */
+    function tempAxisLineDrawn(S, env) {
+        return forecastAxis.tempAxisLineDrawn(S, env);
+    }
+
     PConf.whenResolvers.register('lineRow', lineRow);
     PConf.whenResolvers.register('onDemandPlaced', onDemandPlaced);
     PConf.whenResolvers.register('defaultViewLacksOnDemand', defaultViewLacksOnDemand);
+    PConf.whenResolvers.register('tempAxisLineDrawn', tempAxisLineDrawn);
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             hostLine: hostLine,
             lineRow: lineRow,
             onDemandPlaced: onDemandPlaced,
-            defaultViewLacksOnDemand: defaultViewLacksOnDemand
+            defaultViewLacksOnDemand: defaultViewLacksOnDemand,
+            tempAxisLineDrawn: tempAxisLineDrawn
         };
     }
 })();

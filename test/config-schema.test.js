@@ -97,7 +97,8 @@ const EXPECTED_KEYS = [
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
-  'layoutPreset','largeGraphFont','forecastHours','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
+  'layoutPreset','largeGraphFont','forecastHours',
+  'forecastAxisLine','forecastAxisNumbers','forecastAxisOutline','forecastAxisScale','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
   // Setup › Misc › Hide info text: page-only like startOnWeatherTab (rides the saved blob,
   // never read watch-side), but a stored key all the same.
   'hideInfoText','devStatsEnabled','devStatsClear','reset',
@@ -1818,7 +1819,7 @@ test('forecastHours: the Time span section sits after Bars & shading, emery only
   const at = ids.indexOf('forecastSpan');
   assert.ok(at > 0, 'the section exists in the forecast pane');
   assert.equal(ids[at - 1], 'bars', 'directly after Bars & shading');
-  assert.equal(ids[at + 1], 'graphColorsCard', 'directly before the Graph colors card');
+  assert.equal(ids[at + 1], 'axis', 'directly before the Left axis (Beta) card');
   const section = graphs.sections.find((sec) => sec.id === 'forecastSpan');
   assert.equal(section.title, 'Time span');
   assert.deepEqual(section.showWhen, { env: 'forecastSpan' });
@@ -1833,6 +1834,71 @@ test('forecastHours: the Time span section sits after Bars & shading, emery only
   assert.equal(visible('emery'), true, 'shown on emery');
   ['basalt', 'chalk', 'diorite', 'flint', 'aplite'].forEach((p) => assert.equal(visible(p), false, p));
   assert.equal(visible(null), false, 'hidden without watchInfo (fail closed)');
+});
+
+// The forecast's left axis options (BETA, emery only; src/pkjs/forecast-axis.js).
+test('Left axis (Beta): a card of four More rows after Time span, emery only', () => {
+  const forecastAxis = require('../src/pkjs/forecast-axis.js');
+  const graphs = graphsTab();
+  const ids = graphs.sections.filter((sec) => sec.pane === 'forecast' && !sec.sheetOnly).map((sec) => sec.id);
+  const at = ids.indexOf('axis');
+  assert.ok(at > 0, 'the section exists in the forecast pane');
+  assert.equal(ids[at - 1], 'forecastSpan', 'directly after Time span');
+  assert.equal(ids[at + 1], 'graphColorsCard', 'directly before the Graph colors card');
+  const section = graphs.sections.find((sec) => sec.id === 'axis');
+  assert.equal(section.title, 'Left axis (Beta)');
+  assert.deepEqual(section.showWhen, { env: 'platform', eq: 'emery' });
+  assert.ok(!section.collapsible, 'no Forecast-pane section collapses');
+  assert.deepEqual(section.items.map((it) => it.messageKey),
+    ['forecastAxisLine', 'forecastAxisNumbers', 'forecastAxisOutline', 'forecastAxisScale']);
+  section.items.forEach((it) => assert.equal(it.more, true, it.messageKey + ' is behind More options'));
+  const line = byKey('forecastAxisLine'), nums = byKey('forecastAxisNumbers');
+  const outline = byKey('forecastAxisOutline'), scale = byKey('forecastAxisScale');
+  assert.equal(line.type, 'toggle');
+  assert.equal(line.defaultValue, true);
+  assert.equal(nums.type, 'segmented');
+  assert.equal(nums.defaultValue, 'beside');
+  assert.deepEqual(nums.options.map((o) => o[1]), forecastAxis.NUMBERS, 'the stored values are NUMBERS');
+  assert.deepEqual(nums.options.map((o) => o[0]), ['Beside', 'On graph', 'Off']);
+  assert.equal(outline.type, 'toggle');
+  assert.equal(outline.defaultValue, true);
+  assert.equal(scale.type, 'toggle');
+  assert.equal(scale.defaultValue, false);
+  // Each key's default is the reader's default: an absent key draws today's graph.
+  assert.equal(forecastAxis.lineShown({}), line.defaultValue);
+  assert.equal(forecastAxis.numbers({}), nums.defaultValue);
+  assert.equal(forecastAxis.outline({}), outline.defaultValue);
+  assert.equal(forecastAxis.scale({}), scale.defaultValue);
+
+  const vis = (it, p, S) => showWhen.isVisible(section, Object.assign({}, S || {}, {
+    env: platform.computeEnv(p ? { platform: p } : null) }))
+    && showWhen.isVisible(it, Object.assign({}, S || {}, { env: platform.computeEnv(p ? { platform: p } : null) }));
+  // The card and its first two rows: emery only, hidden without watchInfo (fail closed).
+  [line, nums].forEach((it) => {
+    assert.equal(vis(it, 'emery'), true, it.messageKey + ' on emery');
+    ['basalt', 'chalk', 'diorite', 'flint', 'aplite', null].forEach((p) =>
+      assert.equal(vis(it, p), false, it.messageKey + ' on ' + p));
+  });
+  // The outline: only with the numbers on the graph.
+  assert.equal(vis(outline, 'emery', { forecastAxisNumbers: 'graph' }), true);
+  assert.equal(vis(outline, 'emery', { forecastAxisNumbers: 'beside' }), false);
+  assert.equal(vis(outline, 'emery', { forecastAxisNumbers: 'off' }), false);
+  assert.equal(vis(outline, 'emery', {}), false, 'absent reads Beside');
+  assert.equal(vis(outline, 'basalt', { forecastAxisNumbers: 'graph' }), false);
+  // The scale: numbers drawn and a feels-like or dew point line drawn, on any line.
+  ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'].forEach((key) => {
+    ['feels', 'dew'].forEach((metric) => {
+      const S = { forecastAxisNumbers: 'graph' };
+      S[key] = metric;
+      assert.equal(vis(scale, 'emery', S), true, key + ' ' + metric);
+      assert.equal(vis(scale, 'emery', Object.assign({}, S, { forecastAxisNumbers: 'beside' })), true,
+        key + ' ' + metric + ' beside');
+      assert.equal(vis(scale, 'emery', Object.assign({}, S, { forecastAxisNumbers: 'off' })), false,
+        key + ' ' + metric + ' numbers off');
+      assert.equal(vis(scale, 'basalt', S), false, key + ' ' + metric + ' basalt');
+    });
+  });
+  assert.equal(vis(scale, 'emery', { secondaryLine: 'wind', thirdLine: 'uv' }), false, 'no temperature-axis line');
 });
 
 test('flick/positioning narrative stays out of the Health/Radar hints; the Views intro explains views', () => {

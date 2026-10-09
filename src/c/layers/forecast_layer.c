@@ -197,6 +197,11 @@ static void load_dataset(ForecastDataset *ds) {
 #if defined(WW_LINE_STYLE) && !defined(WW_CURVE_INSET)
 #error "WW_LINE_STYLE is set but WW_CURVE_INSET is not — the fourth/fifth forecast lines read curve_insets[3..4], which only the 5-byte WW_CURVE_INSET tuple carries"
 #endif
+#if defined(PBL_PLATFORM_EMERY) && !defined(WW_LINE_STYLE)
+// emery: the left axis's numbers on the graph keep inside the rows under the top stripe band
+// (forecast_update_proc's top_band), which only a WW_LINE_STYLE build lays out.
+#error "emery's left-axis numbers read top_band, which needs WW_LINE_STYLE"
+#endif
 #if defined(WW_LINE_STYLE)
     _Static_assert(SERIES_FIFTH < CURVE_INSET_BYTES,
                    "CLAY_CURVE_INSET_UINT8 must carry one byte per SeriesId up to SERIES_FIFTH");
@@ -305,6 +310,14 @@ static ChartLayer mark_line_layer(const Series *s, int count, int hi) {
 static Layer *s_forecast_layer;
 static char s_buffer_lo[12];
 static char s_buffer_hi[12];
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the plot's left edge while the hi/lo numbers claim no strip (the left axis's numbers
+// on the graph or off, config.h GRAPH_OPT_NUMS_MASK) and no health graph shares the screen:
+// half the widest hour label in, so slot 0's label, which chart.c centres on that edge, stays
+// whole (temp_axis_pad.h temp_axis_collapsed_inset). text_labels_refresh measures it on every
+// refresh.
+static uint8_t s_collapsed_inset;
+#endif
 
 static void night_segments_add(NightSegments *night_segments, time_t start, time_t end)
 {
@@ -520,6 +533,119 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
                        GTextOverflowModeFill, GTextAlignmentRight, NULL);
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: one number in the label font, left-aligned in `box`, outlined in the background colour
+// unless `outline` is off: the text in theme_bg() at the eight 1 px offsets, then in theme_fg()
+// on top, so it reads over a line, the bars, a fill or the night shading.
+static void draw_number(GContext *ctx, const char *text, GFont font, GRect box, bool outline) {
+    if (outline) {
+        graphics_context_set_text_color(ctx, theme_bg());
+        for (int dy = -1; dy <= 1; ++dy) {
+            for (int dx = -1; dx <= 1; ++dx) {
+                if (dx | dy) {
+                    graphics_draw_text(ctx, text, font,
+                                       GRect(box.origin.x + dx, box.origin.y + dy,
+                                             box.size.w, box.size.h),
+                                       GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+                }
+            }
+        }
+    }
+    graphics_context_set_text_color(ctx, theme_fg());
+    graphics_draw_text(ctx, text, font, box, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+}
+
+// emery: a number's point, hour i of series s, as its layer draws it: its first ink column
+// (returned) and its last (*x1). A solid stroke is centred on the hour's tick; a dot or x mark
+// sits on the hour's bar column (chart.h chart_slot_bar_x), an x mark 2 * (w / 2) + 1 wide.
+static int number_point_x(const Series *s, int i, int graph_left, const ChartDef *grid,
+                          int *x1) {
+    const int tx = graph_left + i * chart_def_pitch(grid);
+    const int w = s->line.width;
+    if (s->line.style != CHART_LINE_SOLID) {
+        const int bx = tx + grid->tick_w + grid->bar_pad;
+        *x1 = bx + ((s->line.style == CHART_LINE_X) ? 2 * (w / 2) : w - 1);
+        return bx;
+    }
+    *x1 = tx + w / 2;
+    return tx - w / 2;
+}
+
+// emery: the hi/lo numbers under the left axis's options (config.h GRAPH_OPT_*), after
+// everything the plot drew. Beside (today): the strip, draw_left_axis, its numbers lined up
+// with the rows they name: the curve's extremes, or with GRAPH_OPT_SCALE_NUMS the scale's (a
+// feels-like or dew point line's too). On the graph: each number beside its point, inside the
+// plot's content rows (temp_axis_pad.h THE NUMBERS ON THE GRAPH). Off: the strip's mask alone.
+// The points are the rows fit_temp_axis left in the series (load_dataset reloads the bytes on
+// every paint). noinline: its locals stay off forecast_update_proc's frame while chart_draw
+// runs (fit_temp_axis' reason).
+static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const ForecastDataset *ds,
+                                                         const ChartDef *grid, int h,
+                                                         int16_t zero_y, int top,
+                                                         int graph_left, int screen_w,
+                                                         uint8_t opts) {
+    const int n = ds->num_entries;
+    const Series *const first = &ds->series[SERIES_FIRST];
+    const bool scale = (opts & GRAPH_OPT_SCALE_NUMS) != 0;
+    const int mode = opts & GRAPH_OPT_NUMS_MASK;
+    if (!mode && !scale) {
+        draw_left_axis(ctx, h, zero_y, first->line.values, n);   // today's call, today's pixels
+        return;
+    }
+    // The temperature, then (the scale) every line fit_temp_axis fitted with it: the joint
+    // extremes, and the series each one lies on.
+    TempAxisExtremes e = TEMP_AXIS_EXTREMES_NONE;
+    const Series *hi_s = first, *lo_s = first;
+    for (const Series *s = first; s < &ds->series[SERIES_BARS]; ++s) {
+        if (s != first && !(scale && s->present && s->line.inset_y)) { continue; }
+        const int took = temp_axis_extremes_widen(&e, s->line.values, n, s->line.floating);
+        if (took & 1) { hi_s = s; }
+        if (took & 2) { lo_s = s; }
+    }
+    if (!mode) {
+        // Beside, naming the scale: the strip's labels line up with the scale's ends.
+        const int16_t ends[2] = { (int16_t)e.lo, (int16_t)e.hi };
+        draw_left_axis(ctx, h, zero_y, ends, 2);
+        return;
+    }
+    // The strip's mask at the collapsed edge (draw_left_axis's): it hides the curve's left
+    // half-stroke as it always has.
+    graphics_context_set_fill_color(ctx, theme_bg());
+    graphics_fill_rect(ctx, GRect(0, 0, graph_left, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
+    if (mode != GRAPH_OPT_NUMS_GRAPH) { return; }
+
+    const bool outline = !(opts & GRAPH_OPT_OUTLINE_OFF);
+    const int o = outline;
+    const GFont font = bottom_view_label_font();
+    const GSize hs = temp_label_string_size(s_buffer_hi);
+    const GSize ls = temp_label_string_size(s_buffer_lo);
+    // The plot's content rows between the stripe bands, right of the axis column, shrunk by
+    // the outline: a number and its ring never touch the axis, a band, the zero line, the hour
+    // labels or the screen's edge.
+    const TempLabelArea a = { graph_left + 1 + o, screen_w - 1 - o, top + o, zero_y - 1 - o };
+    int x1;
+    int x0 = number_point_x(hi_s, e.hi_i, graph_left, grid, &x1);
+    TempLabelBox hb = temp_label_beside(x0, x1, zero_y - e.hi,
+                                        temp_label_side(hi_s->line.values, n, e.hi_i,
+                                                        hi_s->line.floating),
+                                        hs.w, hs.h, a);
+    x0 = number_point_x(lo_s, e.lo_i, graph_left, grid, &x1);
+    TempLabelBox lb = temp_label_beside(x0, x1, zero_y - e.lo,
+                                        temp_label_side(lo_s->line.values, n, e.lo_i,
+                                                        lo_s->line.floating),
+                                        ls.w, ls.h, a);
+    // One number for a flat range (equal texts), else both, apart.
+    const bool both = strcmp(s_buffer_hi, s_buffer_lo) != 0
+                      && temp_labels_part(&hb, hs.w, &lb, ls.w, hs.h, a);
+    // The boxes get 2 px of slack: a box only content-sized can drop the text's last row
+    // (health_graph_layer.c). Top-anchored, so the ink stays where it was placed.
+    draw_number(ctx, s_buffer_hi, font, GRect(hb.x, hb.y, hs.w + 2, hs.h + 2), outline);
+    if (both) {
+        draw_number(ctx, s_buffer_lo, font, GRect(lb.x, lb.y, ls.w + 2, ls.h + 2), outline);
+    }
+}
+#endif
+
 
 #if defined(WW_LINE_STYLE)
 // The lowest and highest byte of the temperature and of every present line with an inset
@@ -562,7 +688,23 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     MEMORY_LOG_HEAP("forecast_update:enter");
     GRect bounds = layer_get_bounds(layer);
     const bool night_on = config_get()->day_night_shading;
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the left axis's options (config.h GRAPH_OPT_*, BETA): numbers on the graph or off
+    // give the label strip to the plot, which then starts at the collapsed edge, unless the
+    // health graph shares this screen (a custom layout's top band over the body): then the
+    // plot keeps the shared edge, the health labels' strip alone, so the two line up
+    // (bottom_view.h). Axis line off drops the frame's left border in the plot and in both
+    // stripe bands.
+    const uint8_t axis_opts = config_forecast_axis();
+    const int graph_left = ((axis_opts & GRAPH_OPT_NUMS_MASK)
+                            && !bottom_view_other_consumer_shown(layer))
+                               ? s_collapsed_inset : bottom_view_graph_inset();
+    const int axis_w = (axis_opts & GRAPH_OPT_AXIS_LINE_OFF) ? 0 : 1;
+#define AXIS_LEFT_W axis_w
+#else
     const int graph_left = bottom_view_graph_inset();
+#define AXIS_LEFT_W 1
+#endif
     const GRect graph_bounds = GRect(graph_left, 0,
                                      bounds.size.w - graph_left,
                                      bounds.size.h - BOTTOM_VIEW_BOTTOM_PAD);
@@ -855,7 +997,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         .inset_top = LINE_INSET(first->line.inset_y), .inset_bottom = LINE_INSET(first->line.inset_y),
         .color = first->line.color, .width = first->line.width } };
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
-        .left   = { 1, axis_color },
+        .left   = { AXIS_LEFT_W, axis_color },
         .bottom = { 1, axis_color } } } };
     const ChartLayer axis_layer = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
         .side = GRAPH_SIDE_BOTTOM, .style = bottom_view_tick_style(),
@@ -892,7 +1034,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             nb++;
         }
         layers[nb++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
-            .left = { 1, axis_color } } } };
+            .left = { AXIS_LEFT_W, axis_color } } } };
         if (!top) {
             layers[nb++] = axis_layer;
         }
@@ -903,10 +1045,17 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #endif
 
     // hi/lo temp strip: chart-adjacent chrome, not a chart layer
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: beside the graph, on it or off, naming the curve or the scale (left axis, BETA).
+    draw_axis_numbers(ctx, ds, GRID, h, plot_axis_y, top_band, graph_left, bounds.size.w,
+                      axis_opts);
+#else
     draw_left_axis(ctx, h, plot_axis_y, first->line.values, ds->num_entries);
+#endif
 #if !defined(WW_LINE_STYLE)
 #undef plot
 #endif
+#undef AXIS_LEFT_W
 #undef GRID
 #undef NIGHT_HOURS
 #undef NIGHT_CONTOUR_COUNT
@@ -929,6 +1078,21 @@ static void text_labels_refresh()
     const int temp_hi = persist_get_temp_max();
     snprintf(s_buffer_hi, sizeof(s_buffer_hi), "%d", config_localize_temp(temp_hi));
     snprintf(s_buffer_lo, sizeof(s_buffer_lo), "%d", config_localize_temp(temp_lo));
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the collapsed plot edge (the left axis's numbers on the graph or off), re-measured
+    // on every refresh so it follows Larger graph fonts: half the widest hour label in the hour
+    // labels' own font (chart.h chart_axis_font). Numbers on the graph or off claim no strip,
+    // so the health graph's strip is its own labels' alone then (main_window.c retires the
+    // health graph's claim the same way), and a forecast sharing its screen draws from that
+    // edge (forecast_update_proc).
+    s_collapsed_inset = (uint8_t)temp_axis_collapsed_inset(graphics_text_layout_get_content_size(
+        "00", chart_axis_font(), GRect(0, 0, TEMP_LABEL_MEASURE_BOX_W, TEMP_LABEL_MEASURE_BOX_H),
+        GTextOverflowModeFill, GTextAlignmentCenter).w);
+    if (config_forecast_axis() & GRAPH_OPT_NUMS_MASK) {
+        bottom_view_report_label_w(BOTTOM_VIEW_SRC_FORECAST, 0);
+        return;
+    }
+#endif
 
     int content_w = temp_label_string_size(s_buffer_hi).w;
     const int w_lo = temp_label_string_size(s_buffer_lo).w;

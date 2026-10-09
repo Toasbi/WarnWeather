@@ -222,7 +222,11 @@ test('settings that need no refetch stay OUT of the render signature', () => {
     // live, but Clay-delivered: Draw from / Bars from ride bits of the style bytes and
     // the palettes (draw-from.js), never the weather bake
     { precipLineFrom: 'top' }, { cloudLineFrom: 'top' }, { windLineFrom: 'top' },
-    { uvLineFrom: 'top' }, { rainBarFrom: 'top' }, { radarBarFrom: 'top' }
+    { uvLineFrom: 'top' }, { rainBarFrom: 'top' }, { radarBarFrom: 'top' },
+    // live, but Clay-delivered: the left axis's line, numbers and outline ride bits of the
+    // CLAY_LARGE_GRAPH_FONT word (forecast-axis.js), never the weather bake
+    { forecastAxisLine: false }, { forecastAxisNumbers: 'graph' }, { forecastAxisNumbers: 'off' },
+    { forecastAxisOutline: false }
   ].forEach((over) => {
     assert.equal(renderSignature({ sleepNightEnabled: true, sleepStartHour: '0',
       sleepEndHour: '7', ...over }), base,
@@ -688,6 +692,70 @@ test('the weather bake follows forecastHours on emery only', () => {
       assert.equal(bake(platform, '48'), bake(platform, '24'), platform + ': always 24');
       assert.equal(bake(platform, '12'), bake(platform, '24'), platform + ': always 24');
     });
+  } finally {
+    console.log = origLog;
+  }
+});
+
+// The left axis's 'Include feels-like & dew point' (BETA, forecast-axis.js) changes what the
+// bake puts in TEMP_MIN/TEMP_MAX on emery, so it signs while a feels-like or dew point line is
+// drawn; absent and false sign alike (hydrating the default forces nothing).
+test('forecastAxisScale joins the signature only with a feels-like or dew point line', () => {
+  const base = renderSignature({});
+  assert.equal(renderSignature({ forecastAxisScale: false }), base);
+  assert.equal(renderSignature({ forecastAxisScale: true }), base, 'no temperature-axis line: nothing changes');
+  assert.equal(renderSignature({ forecastAxisScale: true, secondaryLine: 'wind' }),
+    renderSignature({ secondaryLine: 'wind' }));
+  ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'].forEach((key) => {
+    ['feels', 'dew'].forEach((metric) => {
+      const s = { [key]: metric };
+      assert.notEqual(renderSignature(Object.assign({ forecastAxisScale: true }, s)), renderSignature(s),
+        key + ' ' + metric);
+      assert.equal(renderSignature(Object.assign({ forecastAxisScale: false }, s)), renderSignature(s),
+        key + ' ' + metric + ' off');
+    });
+  });
+});
+
+// The premise behind keeping the left axis's line, numbers and outline out: on emery the bake
+// reads none of them, whatever the scale option and the lines.
+test('the weather bake is identical across the left axis line, numbers and outline', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const store = {};
+  global.localStorage = {
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+  const origLog = console.log;
+  console.log = () => {};
+  try {
+    const fixtureWeather = require('../src/pkjs/fixture-weather.js');
+    const defaults = require('../src/pkjs/settings').getDefaults();
+    let compared = 0;
+    ['berlin.json', 'feels-curve.json'].forEach((name) => {
+      const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));
+      ['emery', 'basalt'].forEach((platform) => {
+        [{}, { secondaryLine: 'dew', thirdLine: 'feels' }].forEach((lines) => {
+          [false, true].forEach((scale) => {
+            const s = Object.assign({}, defaults, fx.claySettings || {}, lines, { forecastAxisScale: scale });
+            const bake = (settings) => {
+              const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), settings, { platform });
+              return JSON.stringify(out, Object.keys(out).sort());
+            };
+            const ref = bake(s);
+            [{ forecastAxisLine: false }, { forecastAxisNumbers: 'graph' }, { forecastAxisNumbers: 'off' },
+              { forecastAxisOutline: false }].forEach((over) => {
+              assert.equal(bake(Object.assign({}, s, over)), ref,
+                [name, platform, JSON.stringify(lines), scale, JSON.stringify(over)].join(' '));
+              compared++;
+            });
+          });
+        });
+      });
+    });
+    assert.ok(compared >= 32, 'the sweep ran');
   } finally {
     console.log = origLog;
   }

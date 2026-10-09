@@ -133,6 +133,32 @@ static void test_cadence(void) {
         CHECK(slots[i].tick == (i % 3 == 0 ? TICK_BIG : TICK_SMALL), "24 h slot %d tick", i);
     }
 }
+
+// The left axis's numbers on the graph or off (BETA, temp_axis_pad.h THE NUMBERS ON THE GRAPH):
+// the strip goes to the plot, which starts temp_axis_collapsed_inset columns in, a narrower
+// edge than any strip. Every span class still puts every hour on screen there, and 12 h's
+// fitted pitch only grows (to its max) with the extra width.
+static void test_collapsed(void) {
+    for (int hour_w = 0; hour_w <= 22; ++hour_w) {
+        const int inset = temp_axis_collapsed_inset(hour_w);
+        const int visible = EMERY_W - inset;
+        CHECK(inset < GRAPH_LEFT_MIN, "hour_w=%d: inset %d", hour_w, inset);
+        for (int n = 2; n <= FORECAST_MAX_ENTRIES; ++n) {
+            const ForecastSpan s = forecast_span(n, visible);
+            const int pitch = forecast_span_pitch(s);
+            // 12 h and 48 h fit with the frame's closing column; 24 h is today's fixed grid,
+            // whose last cell may run past the edge (its column starts on screen: drawn).
+            CHECK((n > 12 && n <= 24) || s.slots * pitch + 1 <= visible,
+                  "n=%d hour_w=%d: %d px past %d", n, hour_w, s.slots * pitch + 1, visible);
+            CHECK(temp_axis_drawn_entries(n, visible, pitch) == n, "n=%d hour_w=%d drawn", n,
+                  hour_w);
+            if (n <= 12) {
+                CHECK(pitch >= forecast_span_pitch(forecast_span(n, EMERY_W - GRAPH_LEFT_MIN)),
+                      "n=%d hour_w=%d: 12 h pitch %d", n, hour_w, pitch);
+            }
+        }
+    }
+}
 #else
 // Every other platform: the forecast keeps today's 24 slots and today's axis rule (a label on
 // every 3rd slot unless the screen edge would slice a two-digit one, a small tick on the
@@ -160,6 +186,7 @@ int main(void) {
     CHECK(FORECAST_MAX_ENTRIES == 48, "FORECAST_MAX_ENTRIES %d", FORECAST_MAX_ENTRIES);
     test_classes();
     test_cadence();
+    test_collapsed();
 #else
     test_basalt();
 #endif

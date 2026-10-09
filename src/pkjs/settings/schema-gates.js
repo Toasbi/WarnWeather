@@ -73,6 +73,10 @@ var COLOR_THEME_WHEN = {key: 'theme', nin: ['bw', 'bw-light']};
 // the same fact). Fails open for an unknown platform, like every feature-absence
 // capability.
 var LINE_STYLES_WHEN = {env: 'lineStyles'};
+// "This watch is an emery" — emery-only rows whose watch code no other platform carries
+// (the forecast's Left axis (Beta) card, src/pkjs/forecast-axis.js). Fails closed: an
+// unknown platform (no watchInfo) hides them, like largeGraphFont's row.
+var EMERY_WHEN = {env: 'platform', eq: 'emery'};
 
 /**
  * Gate every item that has no showWhen of its own — the sheet and group
@@ -115,6 +119,7 @@ module.exports = {
     HEALTH_BAR_WHEN: HEALTH_BAR_WHEN,
     COLOR_THEME_WHEN: COLOR_THEME_WHEN,
     LINE_STYLES_WHEN: LINE_STYLES_WHEN,
+    EMERY_WHEN: EMERY_WHEN,
     gateAll: gateAll,
     tabLink: tabLink,
     linkRow: linkRow

@@ -81,6 +81,12 @@ var APP_FILES = [
   // readers bind it while theirs run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/draw-from.js'),
+  // The forecast's left axis options, BETA (window.ForecastAxis): the numbers' place and the
+  // scale option, for the forecast preview and the Left axis card's when-resolver. It binds
+  // window.LineStyle while its own body runs, so it follows line-style.js, and
+  // preview-forecast.js and when-resolvers.js bind it while theirs run, so it precedes them —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/forecast-axis.js'),
   // A stripe cell's level on its metric's own scale (window.StripeLevels): the table the
   // bake shades every stripe by, which the forecast and radar previews shade their cells
   // by and forecast-hints.js' stripe hints are written from. It reads nothing at load, and its

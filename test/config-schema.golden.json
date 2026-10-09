@@ -10316,6 +10316,102 @@
           },
           {
             "pane": "forecast",
+            "id": "axis",
+            "title": "Left axis (Beta)",
+            "showWhen": {
+              "env": "platform",
+              "eq": "emery"
+            },
+            "items": [
+              {
+                "type": "toggle",
+                "messageKey": "forecastAxisLine",
+                "label": "Axis line",
+                "defaultValue": true,
+                "hint": "The vertical line along the left edge of the graph. Not drawn in the preview.",
+                "more": true,
+                "showWhen": {
+                  "env": "platform",
+                  "eq": "emery"
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "forecastAxisNumbers",
+                "label": "High / low numbers",
+                "defaultValue": "beside",
+                "options": [
+                  [
+                    "Beside",
+                    "beside"
+                  ],
+                  [
+                    "On graph",
+                    "graph"
+                  ],
+                  [
+                    "Off",
+                    "off"
+                  ]
+                ],
+                "hintByValue": {
+                  "beside": "The forecast's highest and lowest temperature, left of the graph.",
+                  "graph": "Each number sits next to the point it names. The graph gets their space.",
+                  "off": "No numbers. The graph gets their space."
+                },
+                "more": true,
+                "showWhen": {
+                  "env": "platform",
+                  "eq": "emery"
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "forecastAxisOutline",
+                "label": "Number outline",
+                "defaultValue": true,
+                "hint": "A 1 px edge in the background color keeps the numbers readable over lines, bars and shading.",
+                "more": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "platform",
+                      "eq": "emery"
+                    },
+                    {
+                      "key": "forecastAxisNumbers",
+                      "eq": "graph"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "forecastAxisScale",
+                "label": "Include feels-like & dew point",
+                "defaultValue": false,
+                "hint": "The numbers show the lowest and highest value of every line on the temperature scale, not only the air temperature.",
+                "more": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "platform",
+                      "eq": "emery"
+                    },
+                    {
+                      "key": "forecastAxisNumbers",
+                      "ne": "off"
+                    },
+                    {
+                      "when": "tempAxisLineDrawn"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "pane": "forecast",
             "id": "graphColorsCard",
             "capabilities": [
               "COLOR"

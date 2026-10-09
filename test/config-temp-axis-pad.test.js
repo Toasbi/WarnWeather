@@ -432,3 +432,187 @@ test('alignLabels: off today\'s reach only, inward only, the minimum gap, else t
   assert.deepEqual(FC.alignLabels(15, 93, 17, 82, -Infinity, 82), { hi: 17 + cap / 2, lo: 93 });
   assert.deepEqual(FC.alignLabels(15, 93, 11, 82, -Infinity, 82), { hi: 15, lo: 93 });
 });
+
+// --- THE NUMBERS ON THE GRAPH (left axis BETA, emery only) -------------------------------
+// The forecast preview mirrors the watch's left axis options (forecast-axis.js resolved):
+// beside the graph (today), on it (each number beside the point it names), or off; On graph
+// and Off give the label strip to the graph. temp_axis_pad.h pins the watch's half on the host.
+const EMERY = platform.computeEnv({ platform: 'emery' });
+const NUMBER_TEXT = /<text x="([\d.-]+)" y="([\d.-]+)" font-size="8" fill="#AEB4BD"[^>]*>(-?\d+)°<\/text>/g;
+const UNDERLAY = /<text x="([\d.-]+)" y="([\d.-]+)" font-size="8" fill="([^"]+)" stroke="([^"]+)" stroke-width="2"[^>]*>(-?\d+)°<\/text>/g;
+const numbersIn = (svg) => [...svg.matchAll(NUMBER_TEXT)].map((m) => ({ x: Number(m[1]), base: Number(m[2]), t: m[3] }));
+const underlaysIn = (svg) => [...svg.matchAll(UNDERLAY)].map((m) => ({ x: Number(m[1]), base: Number(m[2]),
+  fill: m[3], stroke: m[4], t: m[5] }));
+const ALL_AXIS = { forecastAxisLine: false, forecastAxisNumbers: 'graph', forecastAxisOutline: false,
+  forecastAxisScale: true };
+
+test('the numbers\' gaps: one number each, the watch\'s', () => {
+  assert.equal(FC.TEMP_LABEL_POINT_GAP, define('TEMP_LABEL_POINT_GAP'));
+  assert.equal(FC.TEMP_LABEL_PART_GAP, define('TEMP_LABEL_PART_GAP'));
+  assert.ok(FC.PX0_COLLAPSED < 20, 'the collapsed edge sits left of the label strip\'s');
+});
+
+test('the left axis options change no preview off a known emery, nor emery\'s at the defaults', () => {
+  ['aplite', 'basalt', 'chalk', 'diorite', 'flint', null].forEach((p) => {
+    const env = platform.computeEnv(p ? { platform: p } : null);
+    [{}, { secondaryLine: 'dew' }, { thirdLine: 'feels', barSource: 'rain' }].forEach((over) => {
+      assert.equal(preview(Object.assign({}, over, ALL_AXIS), env), preview(over, env),
+        p + ' ' + JSON.stringify(over));
+    });
+  });
+  const defaults = { forecastAxisLine: true, forecastAxisNumbers: 'beside', forecastAxisOutline: true,
+    forecastAxisScale: false };
+  [{}, { secondaryLine: 'dew' }].forEach((over) => {
+    assert.equal(preview(Object.assign({}, over, defaults), EMERY), preview(over, EMERY), JSON.stringify(over));
+    // Dormant values change nothing either: the outline off the graph, the scale without a line.
+    assert.equal(preview(Object.assign({}, over, { forecastAxisOutline: false }), EMERY), preview(over, EMERY));
+    // The axis line is not modelled.
+    assert.equal(preview(Object.assign({}, over, { forecastAxisLine: false }), EMERY), preview(over, EMERY));
+  });
+  assert.equal(preview({ forecastAxisScale: true }, EMERY), preview({}, EMERY), 'no feels-like / dew point line');
+});
+
+test('On graph: the strip goes to the graph; each number beside the point it names', () => {
+  const svg = preview({ forecastAxisNumbers: 'graph' }, EMERY);
+  assert.ok(svg.indexOf('<text x="3"') === -1, 'no number in the strip');
+  assert.match(svg, /<line x1="8" y1="94" x2="197" y2="94"/, 'the zero line starts at the collapsed edge');
+  const v = tempVertices(svg);
+  assert.equal(v[0][0], FC.PX0_COLLAPSED, 'the curve starts at the collapsed edge');
+  const nums = numbersIn(svg);
+  assert.deepEqual(nums.map((n) => n.t), ['24', '14']);
+  const U = FC.CURVE_INSET_PREV / FC.WATCH_INSET_PX;
+  const gap = FC.TEMP_LABEL_POINT_GAP * U;
+  // The hi number: hour 0 (the first of two 24s), right of its vertex (the first hour
+  // prefers right), its ink centred on the vertex's row.
+  const hi = nums[0];
+  assert.ok(near(hi.x, v[0][0] + 1.1 + gap), 'right of the curve\'s ink (2.2 wide) by the gap');
+  assert.ok(near(hi.base - FC.LABEL_CAP / 2, v[0][1]), 'ink centred on the vertex');
+  // The lo number: hour 7 (the first 14), left of it (its right neighbour is level, its left
+  // one falls away: the side away from the nearer neighbour).
+  const lo = nums[1];
+  assert.equal(FC.numberSide(v.map((p) => p[1]), 7), -1);
+  assert.ok(near(lo.x + 3 * FC.NUMBER_CHAR_W, v[7][0] - 1.1 - gap), 'left of its vertex by the gap');
+  assert.ok(near(lo.base - FC.LABEL_CAP / 2, v[7][1]), 'ink centred on the vertex');
+  // The outline: an underlay in the background colour, just before each number.
+  const under = underlaysIn(svg);
+  assert.equal(under.length, 2);
+  under.forEach((u, i) => {
+    assert.equal(u.fill, '#000000');
+    assert.equal(u.stroke, '#000000');
+    assert.equal(u.t, nums[i].t);
+    assert.ok(near(u.x, nums[i].x) && near(u.base, nums[i].base));
+  });
+  assert.ok(svg.indexOf('paint-order') === -1, 'no paint-order: an old WebView ignores it');
+  // The light theme's background.
+  underlaysIn(preview({ forecastAxisNumbers: 'graph', theme: 'light' }, EMERY))
+    .forEach((u) => assert.equal(u.stroke, '#FFFFFF'));
+  // Outline off: no underlay, the numbers where they were (the area grows by the ring only
+  // where a number is held at its edge).
+  const bare = preview({ forecastAxisNumbers: 'graph', forecastAxisOutline: false }, EMERY);
+  assert.equal(underlaysIn(bare).length, 0);
+  assert.deepEqual(numbersIn(bare), nums);
+});
+
+test('Off: no numbers at all, the strip goes to the graph', () => {
+  const svg = preview({ forecastAxisNumbers: 'off' }, EMERY);
+  assert.equal(numbersIn(svg).length, 0);
+  assert.equal(underlaysIn(svg).length, 0);
+  assert.match(svg, /<line x1="8" y1="94" x2="197" y2="94"/);
+});
+
+test('Include feels-like & dew point: the numbers name the scale\'s ends, beside or on the graph', () => {
+  const dew = [13, 14, 17, 18, 16, 14, 13, 12, 12, 12, 13, 13];   // preview-forecast.js' sample
+  const beside = preview({ secondaryLine: 'dew', forecastAxisScale: true }, EMERY);
+  const strip = [...beside.matchAll(/<text x="3" y="([\d.]+)"[^>]*>(-?\d+)°<\/text>/g)].map((m) => m[2]);
+  assert.deepEqual(strip, ['24', String(Math.round(Math.min.apply(null, dew)))]);
+  const graph = preview({ secondaryLine: 'dew', forecastAxisScale: true, forecastAxisNumbers: 'graph' }, EMERY);
+  assert.deepEqual(numbersIn(graph).map((n) => n.t), ['24', '12']);
+  // The lo number sits at the dew trough's first hour (7), on the bottom margin row.
+  const lo = numbersIn(graph)[1];
+  assert.ok(near(lo.base - FC.LABEL_CAP / 2, PB - 12), 'ink centred on the bottom margin row');
+  // Off a known emery the option changes nothing: the strip names the air.
+  const basalt = preview({ secondaryLine: 'dew', forecastAxisScale: true }, BASALT);
+  assert.equal(basalt, preview({ secondaryLine: 'dew' }, BASALT));
+  // A feels-like low under the air's names that low (the feels-like sample dips to 13).
+  assert.deepEqual(numbersIn(preview({ secondaryLine: 'feels', forecastAxisScale: true,
+    forecastAxisNumbers: 'graph' }, EMERY)).map((n) => n.t), ['24', '13']);
+});
+
+test('numberSide / numberBeside / numbersPart: the header\'s rules, in preview units', () => {
+  // Side: away from the nearer neighbour; a missing reading is open space; ends and ties.
+  assert.equal(FC.numberSide([20, 28, 30, 25, 26].map((v) => -v), 2), 1);
+  assert.equal(FC.numberSide([20, 22, 30, 29, 26].map((v) => -v), 2), -1);
+  assert.equal(FC.numberSide([20, 22, 30], 0), 1);
+  assert.equal(FC.numberSide([20, 22, 30], 2), -1);
+  assert.equal(FC.numberSide([null, 30, 29], 1), -1);
+  assert.equal(FC.numberSide([26, 30, 26], 1), 1);
+  const U = FC.CURVE_INSET_PREV / FC.WATCH_INSET_PX;
+  const gap = FC.TEMP_LABEL_POINT_GAP * U, cap = FC.LABEL_CAP;
+  const area = { left: 9, right: 197, top: 4, bottom: 93 };
+  // Beside: the preferred side, else the other, else held; the ink centred, else held.
+  let b = FC.numberBeside(100, 102, 50, 1, 10, area);
+  assert.ok(near(b.x, 102 + gap) && near(b.base, 50 + cap / 2));
+  b = FC.numberBeside(100, 102, 50, -1, 10, area);
+  assert.ok(near(b.x, 100 - gap - 10));
+  b = FC.numberBeside(190, 192, 50, 1, 10, area);
+  assert.ok(near(b.x, 190 - gap - 10), 'right does not fit: left');
+  b = FC.numberBeside(9, 11, 50, -1, 10, area);
+  assert.ok(near(b.x, 11 + gap), 'left does not fit: right');
+  b = FC.numberBeside(90, 92, 50, 1, 200, area);
+  assert.ok(near(b.x, area.left), 'fits nowhere: held inside');
+  b = FC.numberBeside(50, 52, 2, 1, 10, area);
+  assert.ok(near(b.base - cap, area.top), 'held under the top');
+  b = FC.numberBeside(50, 52, 95, 1, 10, area);
+  assert.ok(near(b.base, area.bottom), 'held over the bottom');
+  // Part: apart untouched; overlapping, lo under hi; at the floor, hi lifted; no room: false.
+  const pg = FC.TEMP_LABEL_PART_GAP * U;
+  let hi = { x: 20, base: 50 }, lo = { x: 150, base: 50 };
+  assert.equal(FC.numbersPart(hi, 10, lo, 10, area), true);
+  assert.deepEqual([hi, lo], [{ x: 20, base: 50 }, { x: 150, base: 50 }]);
+  hi = { x: 50, base: 50 }; lo = { x: 52, base: 51 };
+  assert.equal(FC.numbersPart(hi, 10, lo, 10, area), true);
+  assert.ok(near(lo.base, 50 + cap + pg) && hi.base === 50);
+  hi = { x: 50, base: 90 }; lo = { x: 52, base: 92 };
+  assert.equal(FC.numbersPart(hi, 10, lo, 10, area), true);
+  assert.ok(near(lo.base, area.bottom) && near(hi.base, area.bottom - cap - pg));
+  // No room for both: the lo number is left out, and the hi number keeps numberBeside's
+  // place, inside the area (never lifted over its top).
+  const tiny = { left: 9, right: 197, top: 4, bottom: 14 };
+  hi = { x: 50, base: 12 }; lo = { x: 50, base: 12 };
+  assert.equal(FC.numbersPart(hi, 10, lo, 10, tiny), false);
+  assert.deepEqual(hi, { x: 50, base: 12 }, 'the hi number stays put');
+  assert.ok(hi.base - cap >= tiny.top && hi.base <= tiny.bottom, 'inside the area');
+});
+
+test('numbersArea: right of the axis column, between the bands, shrunk by the outline\'s ring', () => {
+  const U = FC.CURVE_INSET_PREV / FC.WATCH_INSET_PX;
+  assert.deepEqual(FC.numbersArea(8, 197, 4, 94, false), { left: 9, right: 197, top: 4, bottom: 93 });
+  const o = FC.numbersArea(8, 197, 4, 94, true);
+  assert.ok(near(o.left, 9 + U) && near(o.right, 197 - U) && near(o.top, 4 + U) && near(o.bottom, 93 - U));
+  // A number held at the area's corners (a 120-unit number fits on neither side of its
+  // point) moves in by the ring with the outline on, so the ring (one watch px round the ink)
+  // stays off the axis column, the top band, the plot's right edge and the zero line.
+  const plain = FC.numbersArea(8, 197, 4, 94, false);
+  let bare = FC.numberBeside(100, 102, 0, -1, 120, plain);
+  let ring = FC.numberBeside(100, 102, 0, -1, 120, o);
+  assert.ok(near(bare.x, 9) && near(bare.base - FC.LABEL_CAP, 4), 'premise: held top-left');
+  assert.ok(near(ring.x - bare.x, U) && near(ring.base - bare.base, U), 'top-left: in by the ring');
+  bare = FC.numberBeside(100, 102, 200, 1, 120, plain);
+  ring = FC.numberBeside(100, 102, 200, 1, 120, o);
+  assert.ok(near(bare.x + 120, 197) && near(bare.base, 93), 'premise: held bottom-right');
+  assert.ok(near(bare.x - ring.x, U) && near(bare.base - ring.base, U), 'bottom-right: in by the ring');
+});
+
+test('bothNumbers: a flat range draws one number; else both, apart', () => {
+  const area = FC.numbersArea(8, 197, 4, 94, true);
+  // Equal texts: the hi number alone, neither box moved, even where the two would collide.
+  let hi = { x: 50, base: 50 }, lo = { x: 50, base: 50 };
+  assert.equal(FC.bothNumbers('20°', '20°', hi, 10, lo, 10, area), false);
+  assert.deepEqual([hi, lo], [{ x: 50, base: 50 }, { x: 50, base: 50 }]);
+  // Two texts: both, kept apart (the lo one under the hi one).
+  assert.equal(FC.bothNumbers('21°', '20°', hi, 10, lo, 10, area), true);
+  assert.ok(lo.base > hi.base + FC.LABEL_CAP);
+  // Two texts with no room: numbersPart's verdict.
+  hi = { x: 50, base: 12 }; lo = { x: 50, base: 12 };
+  assert.equal(FC.bothNumbers('21°', '20°', hi, 10, lo, 10, { left: 9, right: 197, top: 4, bottom: 14 }), false);
+});
