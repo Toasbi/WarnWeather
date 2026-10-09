@@ -26,7 +26,11 @@ static Config config_defaults(void) {
         .show_qt = true,
         .show_bt = false,
         .show_bt_disconnect = true,
-        .vibe = true,
+        // false although the phone ships Vibrate on disconnect ON since 2.2.0: this default only
+        // covers a fresh install until its first Clay message (seconds), which carries the
+        // phone's seeded true, and storing a nonzero constant here costs 4 B of image on the
+        // 64 KB watches, which sit at their ceilings (scripts/check-64k-size.sh).
+        .vibe = false,
         .show_am_pm = false,
         .time_font = TIME_FONT_ROBOTO,
         .color_today = GColorBlack,
