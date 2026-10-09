@@ -1,16 +1,19 @@
 #pragma once
 // The forecast graph's span: how many hourly entries the forecast keeps, and on emery the
-// grid that keeps them readable. Pure and SDK-free (only <stdint.h>), so the host suite pins
-// every rule (test/c/forecast_span_test.c, the temp_axis_pad.h pattern). forecast_layer.c is
-// the one caller; forecast_grid.c turns a span into the chart engine's ChartDef.
+// grid that keeps them readable and the hour axis's marks. Pure and SDK-free (only <stdint.h>
+// and <stdbool.h>), so the host suite pins every rule (test/c/forecast_span_test.c, the
+// temp_axis_pad.h pattern). forecast_layer.c is the one caller; forecast_grid.c turns a span
+// into the chart engine's ChartDef and its hour axis.
 //
 // THE SPAN IS THE DATA. The phone decides how many hours it sends (Graphs > Forecast > Time
-// span, emery only; src/pkjs/forecast-span.js: 14, 24 or 65 for the 12 h, 24 h and "58 h"
-// options) and the NUM_ENTRIES tuple carries the count, so the watch reads its grid off the
-// hours it holds: no setting of its own, no wire bits. THE VISIBLE WINDOW IS THE WATCH'S: the
-// 12 h and long grids fill the plot to its right edge and clip the hours past it, so how many
-// hours show depends on the plot's width (the label strip, B's collapsed edge), which only the
-// watch knows (docs/adr/0004-forecast-span-is-the-data.md, Amendment 2.2.0).
+// span, emery only; src/pkjs/forecast-span.js: 14, 24 or 68 for the 12 h, 24 h and "58 h"
+// options, and 26 for 24 h when the hi/lo numbers sit On graph or Off) and the NUM_ENTRIES
+// tuple carries the count, so the watch reads its grid off the hours it holds: no setting of
+// its own, no wire bits. THE VISIBLE WINDOW IS THE WATCH'S: every grid fills the plot to its
+// right edge and clips the hours past it, so how many hours show depends on the plot's width
+// (the label strip, or none: the numbers On graph or Off start the plot at the screen's left
+// edge), which only the watch knows (docs/adr/0004-forecast-span-is-the-data.md, Amendments).
+#include <stdbool.h>
 #include <stdint.h>
 
 // The most hourly entries the forecast keeps (persist, the series buffers, the paint
@@ -19,11 +22,12 @@
 // MAX_BOTTOM_VIEW_ENTRIES (asserted in forecast_grid.c), which the health graph keeps on
 // emery too.
 #if defined(PBL_PLATFORM_EMERY)
-// emery: the long span sends 65 hourly points: ceil(190 / 3) + 1, the widest plot (190 px,
-// B's collapsed strip at GOTHIC_14 hour labels) at the 3 px pitch, plus the hour whose vertex
-// lies past the right edge. The watch picks what it shows (forecast_span()).
-#define FORECAST_MAX_ENTRIES 65
-// emery: the nights a 65 h graph can meet (night k + 4 starts 96 h after night k starts; a
+// emery: the long span sends 68 hourly points: ceil(200 / 3) + 1, the widest plot (the whole
+// 200 px screen: the numbers On graph or Off start the plot at its left edge, forecast_layer.c)
+// at the 3 px pitch, plus the hour whose vertex lies past the right edge. The watch picks
+// what it shows (forecast_span()).
+#define FORECAST_MAX_ENTRIES 68
+// emery: the nights a 68 h graph can meet (night k + 4 starts 96 h after night k starts; a
 // night is under a day long).
 #define FORECAST_NIGHTS_MAX 4
 #else
@@ -33,85 +37,139 @@
 
 #if defined(PBL_PLATFORM_EMERY)
 // emery: one grid per span class. tick_w stays 1 in every class (FORECAST_GRID_DEF's).
+// The hour axis's marks (forecast_span_mark) count in `unit`s: a slot's index from slot 0
+// (12 h, 24 h) or, in the long class, the slot's local clock hour.
 typedef struct {
-    int8_t slots;        // ChartDef.num_slots: 2..14 (12 h), 24, or the hours received (25..65)
+    int8_t slots;        // ChartDef.num_slots: 2..14 (12 h), 24..26, or the hours received (27..68)
     int8_t bar_pad;      // ChartDef.bar_pad
     int8_t bar_w;        // ChartDef.bar_w; the dots and x marks match it
-    int8_t label_every;  // an hour label + big tick on every Nth slot, from slot 0
-    int8_t tick_every;   // a small tick on every Nth slot between labels
+    int8_t label_every;  // an hour label + big tick on every Nth unit
+    int8_t tick_every;   // a small tick on every Nth unit between labels
+    int8_t by_clock;     // the units are clock hours (the long class), else slots from slot 0
 } ForecastSpan;
 
 // emery: the hour counts that bound the classes: up to FORECAST_SPAN_HALF_SENT is the 12 h
 // class (the phone sends 14, forecast-span.js HALF_SENT_HOURS, lockstep), up to
-// FORECAST_SPAN_DAY_SLOTS the 24 h class, past it the long one. HALF_SLOTS is the 12 h pitch's
-// divisor: 12 whole columns fill the plot.
+// FORECAST_SPAN_DAY_SENT the 24 h class (the phone sends 24, or 26 with the hi/lo numbers On
+// graph or Off: forecast-span.js DAY_WIDE_HOURS, lockstep), past it the long one.
+// HALF_SLOTS is the 12 h pitch's divisor: 12 whole columns fill the plot.
 #define FORECAST_SPAN_HALF_SLOTS 12
 #define FORECAST_SPAN_HALF_SENT  14
 #define FORECAST_SPAN_DAY_SLOTS  24
+#define FORECAST_SPAN_DAY_SENT   26
 // emery: the 24 h class IS today's grid (forecast_grid.h FORECAST_GRID_PAD / BAR_W, held
 // equal by a _Static_assert in forecast_grid.c): pitch 8, a label every 3rd slot (24 px).
+// 26 hours reach the 200 px plot's edge: ceil(200 / 8) + 1.
 #define FORECAST_SPAN_DAY_PAD   1
 #define FORECAST_SPAN_DAY_BAR_W 5
-// emery: 12 h fills the width: the widest pitch whose 12 columns fit right of the label strip,
-// within [MIN, MAX]; 2 px pads, the bar takes the rest.
+// emery: 12 h fills the width: the widest pitch whose 12 columns fit the plot, within [MIN,
+// MAX]; 2 px pads, the bar takes the rest. MAX 16 is the 200 px plot's: 12 columns of 16 and
+// the 14th hour's vertex (13 * 16 = 208) past its edge, where 15 stops at 195.
 #define FORECAST_SPAN_HALF_PAD       2
 #define FORECAST_SPAN_HALF_PITCH_MIN 11
-#define FORECAST_SPAN_HALF_PITCH_MAX 15
+#define FORECAST_SPAN_HALF_PITCH_MAX 16
 // emery: the long class's pitch: the owner's floor (tick 1 + a 2 px bar, "that's the min
 // width for the bars") up to the 24 h grid's; 1 px pads from pitch 6, so pitch 8 is the 24 h
 // look.
 #define FORECAST_SPAN_LONG_PITCH_MIN 3
 #define FORECAST_SPAN_LONG_PITCH_MAX 8
 #define FORECAST_SPAN_LONG_PAD_FROM  6
-// emery: an hour label's ink runs from its tick - 6 to its tick + 5 (two GOTHIC_18 digits,
-// 14 px of advance, centred in chart.c's 40 px label box).
-#define FORECAST_SPAN_LABEL_INK_R    5
+// emery: the long class's clock-aligned marks (owner, 2026-10-09: "draw the hour markers at
+// 12/15/18/21/00 and so on, so it's easier to gauge where I'm at"): a tick on every clock
+// hour divisible by 3, a label on those divisible by 6 (18 px apart at the 3 px floor), or on
+// every 3-hour mark once 3 hours span FORECAST_SPAN_LABEL_MIN_PX (pitch 6 and up).
+#define FORECAST_SPAN_CLOCK_TICK_H   3
+#define FORECAST_SPAN_CLOCK_LABEL_H  6
+#define FORECAST_SPAN_LABEL_MIN_PX   18
 
 /**
- * emery: the grid for `n` hourly entries in a plot `visible_w` px wide (right of the label
- * strip). The watch decides what is visible: every class reaches the right edge, and hours
- * past it are clipped (temp_axis_drawn_entries counts the ones on screen).
- * - 25..65: one slot per hour received, tick 1. The cover rule: the smallest pitch whose n
- *   columns reach the edge (n * pitch >= visible_w), held to [3, 8] -- a full feed (65) is 3
- *   for every visible_w <= 195, 2 px bars, the owner's floor. 1 px pads from pitch 6, so
- *   pitch 8 is the 24 h grid. A label every 8 / 6 / 6 / 4 / 3 / 3 slots at pitch 3..8 (a
- *   divisor of 24, >= 21 px apart), a small tick every 2nd slot up to pitch 4. n slots: the
- *   area fill closes one pitch past the last slot (chart.c chart_render_area).
- * - 15..24: today's 24 h grid (FORECAST_GRID_DEF), so 24 h is pixel-identical.
- * - 2..14: n slots (the phone sends 14), pitch visible_w / 12 within [11, 15]: 12 whole
- *   columns and the 14th vertex at or past the edge for every visible_w 145..190. A label
+ * emery: the grid for `n` hourly entries in a plot `visible_w` px wide (from its left edge to
+ * the screen's right edge). The watch decides what is visible: every class reaches the right
+ * edge, and hours past it are clipped (temp_axis_drawn_entries counts the ones on screen).
+ * - 27..68: one slot per hour received, tick 1. The cover rule: the smallest pitch whose n
+ *   columns reach the edge (n * pitch >= visible_w), held to [3, 8] -- a full feed (68) is 3
+ *   for every visible_w <= 204, 2 px bars, the owner's floor. 1 px pads from pitch 6, so
+ *   pitch 8 is the 24 h grid. Clock-aligned marks: a label every 6 clock hours, every 3 from
+ *   pitch 6; a small tick on the other 3-hour marks. n slots: the area fill closes one pitch
+ *   past the last slot (chart.c chart_render_area).
+ * - 15..26: the 24 h grid (FORECAST_GRID_DEF's pitch 8, pad 1, bar 5, a label every 3rd slot,
+ *   a tick on each), 24 slots up to 24 hours, so 24 h is pixel-identical, and one slot per
+ *   hour past it (the 25th and 26th reach the edge of a plot wider than 192 px).
+ * - 2..14: n slots (the phone sends 14), pitch visible_w / 12 within [11, 16]: 12 whole
+ *   columns and the 14th vertex at or past the edge for every visible_w 145..200. A label
  *   every 2nd slot, a tick on each.
  */
 static inline ForecastSpan forecast_span(int n, int visible_w) {
-    if (n > FORECAST_SPAN_DAY_SLOTS) {
+    if (n > FORECAST_SPAN_DAY_SENT) {
         int pitch = (visible_w + n - 1) / n;
         if (pitch < FORECAST_SPAN_LONG_PITCH_MIN) { pitch = FORECAST_SPAN_LONG_PITCH_MIN; }
         if (pitch > FORECAST_SPAN_LONG_PITCH_MAX) { pitch = FORECAST_SPAN_LONG_PITCH_MAX; }
         const int pad = pitch >= FORECAST_SPAN_LONG_PAD_FROM ? 1 : 0;
-        const int label_every = pitch == 3 ? 8 : (pitch <= 5 ? 6 : (pitch == 6 ? 4 : 3));
+        const int label_h = FORECAST_SPAN_CLOCK_TICK_H * pitch >= FORECAST_SPAN_LABEL_MIN_PX
+                            ? FORECAST_SPAN_CLOCK_TICK_H : FORECAST_SPAN_CLOCK_LABEL_H;
         return (ForecastSpan){ (int8_t)n, (int8_t)pad, (int8_t)(pitch - 1 - 2 * pad),
-                               (int8_t)label_every, (int8_t)(pitch <= 4 ? 2 : 1) };
+                               (int8_t)label_h, FORECAST_SPAN_CLOCK_TICK_H, 1 };
     }
     if (n > FORECAST_SPAN_HALF_SENT) {
-        return (ForecastSpan){ FORECAST_SPAN_DAY_SLOTS, FORECAST_SPAN_DAY_PAD,
-                               FORECAST_SPAN_DAY_BAR_W, 3, 1 };
+        return (ForecastSpan){ (int8_t)(n > FORECAST_SPAN_DAY_SLOTS ? n : FORECAST_SPAN_DAY_SLOTS),
+                               FORECAST_SPAN_DAY_PAD, FORECAST_SPAN_DAY_BAR_W, 3, 1, 0 };
     }
     int pitch = visible_w / FORECAST_SPAN_HALF_SLOTS;
     if (pitch < FORECAST_SPAN_HALF_PITCH_MIN) { pitch = FORECAST_SPAN_HALF_PITCH_MIN; }
     if (pitch > FORECAST_SPAN_HALF_PITCH_MAX) { pitch = FORECAST_SPAN_HALF_PITCH_MAX; }
     return (ForecastSpan){ (int8_t)n, FORECAST_SPAN_HALF_PAD,
-                           (int8_t)(pitch - 1 - 2 * FORECAST_SPAN_HALF_PAD), 2, 1 };
-}
-
-// emery: the slots that may carry an hour label in the 12 h and long grids: a label's ink
-// (the tick - 6 .. the tick + FORECAST_SPAN_LABEL_INK_R) ends inside the plot. The 24 h grid
-// labels every slot it has, as today.
-static inline int forecast_span_label_end(int pitch, int visible_w) {
-    return (visible_w - 1 - FORECAST_SPAN_LABEL_INK_R) / pitch + 1;
+                           (int8_t)(pitch - 1 - 2 * FORECAST_SPAN_HALF_PAD), 2, 1, 0 };
 }
 
 // emery: chart.h chart_def_pitch over the span's grid (tick_w 1).
 static inline int forecast_span_pitch(ForecastSpan s) {
     return 1 + 2 * s.bar_pad + s.bar_w;
+}
+
+// emery: what the hour axis draws on one slot. The values are chart.h's ChartTickKind
+// (TICK_NONE / TICK_SMALL / TICK_BIG), held equal by a _Static_assert in forecast_grid.c.
+#define FORECAST_MARK_NONE  0
+#define FORECAST_MARK_TICK  1   // a small tick
+#define FORECAST_MARK_LABEL 2   // a big tick and, where it is whole on screen, the hour label
+
+/**
+ * emery: slot i's mark in span `s`: a label on every label_every-th unit, a small tick on
+ * every tick_every-th one between labels, nothing else. The unit is the slot's index (12 h,
+ * 24 h: the cadence runs from slot 0) or, in the long class, its local clock hour `hour`
+ * (0..23), so the marks keep the same clock hours whatever hour the graph starts at.
+ * `prev_hour` is slot i - 1's clock hour (-1 for slot 0): across a daylight-saving fall-back
+ * the clock repeats an hour, and a mark goes on its first slot only, so two labels never
+ * stack a pitch apart. A spring-forward skips an hour, and a mark on the skipped hour is not
+ * drawn: that 3-hour step reads one longer.
+ */
+static inline int forecast_span_mark(ForecastSpan s, int i, int hour, int prev_hour) {
+    int unit = i;
+    if (s.by_clock) {
+        if (hour == prev_hour) { return FORECAST_MARK_NONE; }
+        unit = hour;
+    }
+    if (unit % s.label_every == 0) { return FORECAST_MARK_LABEL; }
+    return (unit % s.tick_every == 0) ? FORECAST_MARK_TICK : FORECAST_MARK_NONE;
+}
+
+// emery: an hour label's ink, measured on the emery fonts: chart.c centres the text in a
+// 40 px box on the tick (GTextAlignmentCenter: (40 - w) / 2 in), the text is `digits` digit
+// advances wide (GOTHIC_14 6 px, GOTHIC_18 7 px: Larger graph fonts), and each digit's ink
+// leaves its advance's first and last column blank. GOTHIC_14 runs tick - 2 .. tick + 1 for
+// one digit and tick - 5 .. tick + 4 for two; GOTHIC_18 tick - 3 .. + 1 and tick - 6 .. + 5.
+#define FORECAST_LABEL_BOX_W 40
+#define FORECAST_LABEL_ADVANCE(large) ((large) ? 7 : 6)
+
+/**
+ * emery: whether hour label `label` (0..23, as config_axis_hour prints it), centred on a tick
+ * at column x, is whole between columns `left` and `right` (inclusive: the screen's edges in
+ * the layer's coordinates). A label either edge would slice is not drawn (owner, 2026-10-09:
+ * "the first hour label, which would now be cut in half at the left edge, isn't drawn", and
+ * the same for the last one at the right edge); its tick stays.
+ */
+static inline bool forecast_span_label_fits(int x, int label, bool large, int left, int right) {
+    const int w = (label >= 10 ? 2 : 1) * FORECAST_LABEL_ADVANCE(large);
+    const int start = x - FORECAST_LABEL_BOX_W / 2 + (FORECAST_LABEL_BOX_W - w) / 2;
+    return start + 1 >= left && start + w - 2 <= right;
 }
 #endif

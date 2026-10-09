@@ -98,7 +98,7 @@ const EXPECTED_KEYS = [
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','forecastHours',
-  'forecastAxisLine','forecastAxisNumbers','forecastAxisOutline','forecastAxisScale','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
+  'forecastAxisNumbers','forecastAxisScale','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
   // Setup › Misc › Hide info text: page-only like startOnWeatherTab (rides the saved blob,
   // never read watch-side), but a stored key all the same.
   'hideInfoText','devStatsEnabled','devStatsClear','reset',
@@ -1828,11 +1828,12 @@ test('forecastHours: the Time span section sits after Bars & shading, emery only
   assert.equal(it.defaultValue, '24');
   assert.deepEqual(it.options.map((o) => o[1]), forecastSpan.CHOICES, 'the stored values are CHOICES');
   // The long span keeps its '48' token and is labelled by the hours the default emery layout
-  // shows; its hint names where more hours come from and the 48-hour providers' limit.
+  // shows; its hint gives the real counts: 66 on the screen-wide plot (no left axis), and the
+  // 48-hour providers' 40 (screen-wide, pitch 5) to about 44 (the default plot, pitch 4).
   assert.deepEqual(it.options.map((o) => o[0]), ['12 h', '24 h', '58 h']);
-  assert.equal(it.hintByValue['48'], 'About 58 hours in narrow columns; more when the graph has more room '
-    + '(High / low numbers On graph or Off). Weather Underground and OpenWeatherMap stop at 48 hours: '
-    + 'about 44 with them.');
+  assert.equal(it.hintByValue['48'], 'About 58 hours in narrow columns; up to 66 with the High / low '
+    + 'numbers On graph or Off. Weather Underground and OpenWeatherMap stop at 48 hours: '
+    + 'about 40 to 44 with them.');
   assert.equal(it.hintByValue['12'], 'The next 12 hours, in wider columns.');
   assert.equal(it.hintByValue['24'], 'The next 24 hours.');
   assert.deepEqual(it.showWhen, { env: 'forecastSpan' });
@@ -1845,7 +1846,7 @@ test('forecastHours: the Time span section sits after Bars & shading, emery only
 });
 
 // The forecast's left axis options (BETA, emery only; src/pkjs/forecast-axis.js).
-test('Left axis (Beta): a card of four More rows after Time span, emery only', () => {
+test('Left axis (Beta): a card of two More rows after Time span, emery only', () => {
   const forecastAxis = require('../src/pkjs/forecast-axis.js');
   const graphs = graphsTab();
   const ids = graphs.sections.filter((sec) => sec.pane === 'forecast' && !sec.sheetOnly).map((sec) => sec.id);
@@ -1857,50 +1858,42 @@ test('Left axis (Beta): a card of four More rows after Time span, emery only', (
   assert.equal(section.title, 'Left axis (Beta)');
   assert.deepEqual(section.showWhen, { env: 'platform', eq: 'emery' });
   assert.ok(!section.collapsible, 'no Forecast-pane section collapses');
-  assert.deepEqual(section.items.map((it) => it.messageKey),
-    ['forecastAxisLine', 'forecastAxisNumbers', 'forecastAxisOutline', 'forecastAxisScale']);
+  // The betas' Axis line and Number outline rows are gone: both follow where the numbers go.
+  assert.deepEqual(section.items.map((it) => it.messageKey), ['forecastAxisNumbers', 'forecastAxisScale']);
+  assert.equal(byKey('forecastAxisLine'), undefined, 'no Axis line row');
+  assert.equal(byKey('forecastAxisOutline'), undefined, 'no Number outline row');
   section.items.forEach((it) => assert.equal(it.more, true, it.messageKey + ' is behind More options'));
-  const line = byKey('forecastAxisLine'), nums = byKey('forecastAxisNumbers');
-  const outline = byKey('forecastAxisOutline'), scale = byKey('forecastAxisScale');
-  assert.equal(line.type, 'toggle');
-  assert.equal(line.defaultValue, true);
+  const nums = byKey('forecastAxisNumbers'), scale = byKey('forecastAxisScale');
   assert.equal(nums.type, 'segmented');
-  assert.equal(nums.defaultValue, 'beside');
+  assert.equal(nums.defaultValue, 'axis');
   assert.deepEqual(nums.options.map((o) => o[1]), forecastAxis.NUMBERS, 'the stored values are NUMBERS');
-  assert.deepEqual(nums.options.map((o) => o[0]), ['Beside', 'On graph', 'Off']);
-  assert.equal(outline.type, 'toggle');
-  assert.equal(outline.defaultValue, true);
+  assert.deepEqual(nums.options.map((o) => o[0]), ['On axis', 'On graph', 'Off']);
+  assert.deepEqual(Object.keys(nums.hintByValue).sort(), forecastAxis.NUMBERS.slice().sort());
+  assert.match(nums.hintByValue.graph, /starts at the left edge/);
+  assert.match(nums.hintByValue.off, /starts at the left edge/);
   assert.equal(scale.type, 'toggle');
   assert.equal(scale.defaultValue, false);
-  // Each key's default is the reader's default: an absent key draws today's graph.
-  assert.equal(forecastAxis.lineShown({}), line.defaultValue);
+  // Each key's default is the reader's default: an absent key draws today's graph; a beta's
+  // stored 'beside' reads the default.
   assert.equal(forecastAxis.numbers({}), nums.defaultValue);
-  assert.equal(forecastAxis.outline({}), outline.defaultValue);
+  assert.equal(forecastAxis.numbers({ forecastAxisNumbers: 'beside' }), nums.defaultValue);
   assert.equal(forecastAxis.scale({}), scale.defaultValue);
 
   const vis = (it, p, S) => showWhen.isVisible(section, Object.assign({}, S || {}, {
     env: platform.computeEnv(p ? { platform: p } : null) }))
     && showWhen.isVisible(it, Object.assign({}, S || {}, { env: platform.computeEnv(p ? { platform: p } : null) }));
-  // The card and its first two rows: emery only, hidden without watchInfo (fail closed).
-  [line, nums].forEach((it) => {
-    assert.equal(vis(it, 'emery'), true, it.messageKey + ' on emery');
-    ['basalt', 'chalk', 'diorite', 'flint', 'aplite', null].forEach((p) =>
-      assert.equal(vis(it, p), false, it.messageKey + ' on ' + p));
-  });
-  // The outline: only with the numbers on the graph.
-  assert.equal(vis(outline, 'emery', { forecastAxisNumbers: 'graph' }), true);
-  assert.equal(vis(outline, 'emery', { forecastAxisNumbers: 'beside' }), false);
-  assert.equal(vis(outline, 'emery', { forecastAxisNumbers: 'off' }), false);
-  assert.equal(vis(outline, 'emery', {}), false, 'absent reads Beside');
-  assert.equal(vis(outline, 'basalt', { forecastAxisNumbers: 'graph' }), false);
+  // The card and the numbers row: emery only, hidden without watchInfo (fail closed).
+  assert.equal(vis(nums, 'emery'), true, 'numbers on emery');
+  ['basalt', 'chalk', 'diorite', 'flint', 'aplite', null].forEach((p) =>
+    assert.equal(vis(nums, p), false, 'numbers on ' + p));
   // The scale: numbers drawn and a feels-like or dew point line drawn, on any line.
   ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'].forEach((key) => {
     ['feels', 'dew'].forEach((metric) => {
       const S = { forecastAxisNumbers: 'graph' };
       S[key] = metric;
       assert.equal(vis(scale, 'emery', S), true, key + ' ' + metric);
-      assert.equal(vis(scale, 'emery', Object.assign({}, S, { forecastAxisNumbers: 'beside' })), true,
-        key + ' ' + metric + ' beside');
+      assert.equal(vis(scale, 'emery', Object.assign({}, S, { forecastAxisNumbers: 'axis' })), true,
+        key + ' ' + metric + ' on axis');
       assert.equal(vis(scale, 'emery', Object.assign({}, S, { forecastAxisNumbers: 'off' })), false,
         key + ' ' + metric + ' numbers off');
       assert.equal(vis(scale, 'basalt', S), false, key + ' ' + metric + ' basalt');

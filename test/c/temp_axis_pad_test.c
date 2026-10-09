@@ -1242,8 +1242,8 @@ static void test_numbers_side(void) {
 
 // Beside its point: TEMP_LABEL_POINT_GAP columns clear of the point's ink, the ink centred on
 // the point's row (THE LABELS' centre), held inside the area. emery's default view: plot
-// columns 10..197 (a collapsed inset of 9, the axis column, the screen's last column 197 of
-// the 198 px band), content rows 0..61.
+// columns 10..197 (a plot starting at column 9, its first column clear, the screen's last
+// column 197 of the 198 px band), content rows 0..61.
 static void test_numbers_beside(void) {
     const TempLabelArea a = { 10, 197, 0, EMERY_COMPACTCAL - 1 };
     // GOTHIC_24, cap 14: ink rows row - 7 .. row + 6.
@@ -1410,27 +1410,16 @@ static void test_numbers_scale_points(void) {
     assert(air.lo == 18 && air.lo_i == 0);
 }
 
-// The collapsed plot edge: half the widest hour label plus TEMP_AXIS_EDGE_SLACK, and at any
-// hour-label width emery's fonts reach every hour of a 24 h forecast is on screen (today ~22).
-static void test_collapsed_inset(void) {
-    // The slack pinned as a number, not re-derived from itself: 0 or 1 must fail here.
-    assert(TEMP_AXIS_EDGE_SLACK == 2);
-    // Slot 0's hour label is centred on the edge in chart.c's 40 px box (chart_draw_axis_label;
-    // CHART_LABEL_NUDGE_X is 0 on emery), so its ink starts at edge - 20 + (40 - w) / 2. The
-    // collapsed edge puts that on column 2 at every width, so even a glyph with a 1 px left
-    // bearing keeps its first column on screen (column 1 or more), never clipped at 0.
-    for (int w = 1; w <= 30; ++w) {
-        const int edge = temp_axis_collapsed_inset(w);
-        assert(edge == (w + 1) / 2 + 2);
-        const int ink0 = edge - 20 + (40 - w) / 2;
-        assert(ink0 == 2);
-        assert(ink0 - 1 >= 1);
-    }
-    for (int w = 0; w <= 22; ++w) {
-        const int inset = temp_axis_collapsed_inset(w);
-        assert(temp_axis_drawn_entries(MAX_ENTRIES, EMERY_W - inset, EMERY_PITCH) == MAX_ENTRIES);
-        assert(inset < GRAPH_LEFT_MIN);   // always narrower than the narrowest strip
-    }
+// The numbers On graph or Off take the left axis away: the plot starts at the screen's left
+// edge, LAYOUT_PAD_X (2) left of the 198 px layer, so it is 200 px wide. Every hour of a 24 h
+// forecast is on screen there, and the hours the phone sends for each span (forecast_span.h)
+// run past the right edge: one hour more than the screen shows.
+static void test_screen_edge(void) {
+    const int w = EMERY_W + 2;
+    assert(temp_axis_drawn_entries(MAX_ENTRIES, w, EMERY_PITCH) == MAX_ENTRIES);
+    assert(temp_axis_drawn_entries(26, w, EMERY_PITCH) == 25);    // 24 h, sent 26
+    assert(temp_axis_drawn_entries(68, w, 3) == 67);              // the long span at 3 px
+    assert(temp_axis_drawn_entries(14, w, 16) == 13);             // 12 h at its widest pitch
 }
 
 #if defined(PBL_PLATFORM_EMERY)
@@ -1503,7 +1492,7 @@ int main(void) {
     test_numbers_beside();
     test_numbers_part();
     test_numbers_scale_points();
-    test_collapsed_inset();
+    test_screen_edge();
 #if defined(PBL_PLATFORM_EMERY)
     test_byte_temp();
     printf("temp_axis_pad_test (emery): all passed\n");

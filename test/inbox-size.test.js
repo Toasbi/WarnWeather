@@ -27,7 +27,7 @@ const radarWire = require('../src/pkjs/weather/radar-wire');
 // bars + radar — so forecast + status + sun + radar all bundle together. (The
 // lines' colours and styles are settings-derived and ride the Clay message.)
 // Every forecast trend carries the most hours that watch is ever sent
-// (forecast-span.js maxHours: 65 on emery for its long span, 24 everywhere else),
+// (forecast-span.js maxHours: 68 on emery for its long span, 24 everywhere else),
 // so each platform's bundle is sized against its own inbox.
 //
 // This guard caught the gust-third-line overflow: the inbox was sized for
@@ -37,7 +37,7 @@ const radarWire = require('../src/pkjs/weather/radar-wire');
 /**
  * The forecast hours a platform's heaviest bundle carries (NUM_ENTRIES).
  * @param {string} [platform] Watch platform; emery by default.
- * @returns {number} 65 on emery, 24 everywhere else.
+ * @returns {number} 68 on emery, 24 everywhere else.
  */
 function forecastEntries(platform) {
   return forecastSpan.maxHours(platformLib.computeEnv({ platform: platform || 'emery' }));
@@ -115,7 +115,7 @@ const ALERT_ENTRIES_CAP = require('../src/pkjs/status-wire').ALERT_ENTRIES_MAX_B
 /**
  * Build the heaviest single AppMessage the phone can emit (DWD + wind).
  * @param {string} [platform] Watch platform; emery by default. aplite's bundle drops the
- *   lines it cannot draw (FOURTH/FIFTH), and emery's carries 65 forecast hours, so each is
+ *   lines it cannot draw (FOURTH/FIFTH), and emery's carries 68 forecast hours, so each is
  *   sized against its own inbox.
  * @returns {Object} The outgoing AppMessage payload.
  */
@@ -222,7 +222,7 @@ function buildHeaviestBundleWithNotice(platform) {
 }
 
 // Every platform's heaviest bundle, recorded exactly (bytes), against that platform's inbox.
-const WEATHER_BUNDLES = { emery: 849, basalt: 603, chalk: 603, diorite: 603, flint: 603, aplite: 473 };
+const WEATHER_BUNDLES = { emery: 867, basalt: 603, chalk: 603, diorite: 603, flint: 603, aplite: 473 };
 const INBOXES = { emery: 1024, basalt: 640, chalk: 640, diorite: 640, flint: 640, aplite: 536 };
 
 test('heaviest bundled payload (DWD + wind) fits the watch inbox, per platform', function() {
@@ -274,7 +274,9 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   // 603 -> 747 on emery when the 48 h forecast span joined (2.2.0; 6 x +24 B: the
   // temperature, four metric lines and the rain bars at 48 hours); emery inbox
   // 640 -> 1024, emery only. 747 -> 849 when the long span (65 hours, labelled
-  // "58 h") replaced 48 h (6 x +17 B). Every other watch is never sent more than 24
+  // "58 h") replaced 48 h (6 x +17 B); 849 -> 867 when the numbers On graph or Off gave
+  // the graph the whole 200 px screen and the long span grew to 68 hours (6 x +3 B).
+  // Every other watch is never sent more than 24
   // hours (forecast-span.js) and keeps 603 B of 640 (the per-platform table below).
   assert.equal(inbox, 640, 'the 24 h platforms\' inbox');
   assert.equal(size, 603, 'update the recorded realistic bundle size when its wire contract changes');
@@ -296,11 +298,11 @@ test('each platform\'s heaviest weather bundle and inbox, recorded', () => {
     assert.equal(bundle.RAIN_RADAR_TREND_UINT8.length, RADAR_SLOTS, platform + ': the radar keeps 24 slots');
   });
   // emery's long span: six forecast trends (the temperature, four metric lines, the rain
-  // bars) grow by one byte an hour, 65 - 24 each, over the 24 h bundle.
-  assert.equal(WEATHER_BUNDLES.emery, WEATHER_BUNDLES.basalt + 6 * (65 - 24));
+  // bars) grow by one byte an hour, 68 - 24 each, over the 24 h bundle.
+  assert.equal(WEATHER_BUNDLES.emery, WEATHER_BUNDLES.basalt + 6 * (68 - 24));
   // With a cleared notice riding along (the inbox ceiling test above): +8 B.
-  assert.equal(dictSize(buildHeaviestBundleWithNotice('emery')), 857);
-  assert.ok(INBOXES.emery - 857 >= 10, 'the cleared-notice bundle keeps the 10 B floor');
+  assert.equal(dictSize(buildHeaviestBundleWithNotice('emery')), 875);
+  assert.ok(INBOXES.emery - 875 >= 10, 'the cleared-notice bundle keeps the 10 B floor');
 });
 
 // The entries ride the status category, so the heaviest bundle carries them
@@ -393,11 +395,10 @@ function buildHeaviestClayMessage(watchInfo) {
     // Double flick on: bit 8 of CLAY_VIEW_RESET_MIN's int (clay-payload.js
     // packViewReset), no byte of its own, so the recorded sizes hold.
     viewResetMin: '10', doubleFlick: true,
-    // The forecast's left axis options (BETA, emery) at their busiest: bits 1-5 of the
+    // The forecast's left axis options (BETA, emery) at their busiest: bits 2 and 5 of the
     // CLAY_LARGE_GRAPH_FONT int (forecast-axis.js), no byte of their own, so the recorded
     // sizes hold.
-    forecastAxisLine: false, forecastAxisNumbers: 'graph', forecastAxisOutline: false,
-    forecastAxisScale: true, secondaryLine: 'dew',
+    forecastAxisNumbers: 'graph', forecastAxisScale: true, secondaryLine: 'dew',
   }, watchInfo === undefined ? { platform: 'emery' } : watchInfo, new Date('2026-06-26T00:00:00Z'));
 
   // The Dim backlight tuple (CLAY_NIGHT_LIGHT_UINT8 = [r, g, b, startHour, endHour])

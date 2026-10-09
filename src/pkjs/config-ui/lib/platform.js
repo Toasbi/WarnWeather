@@ -70,9 +70,9 @@ var FINE_BATTERY_PLATFORMS = { emery: true };
 // Platforms whose forecast graph offers a 12 / 24 / 58 h time span (Graphs > Forecast >
 // Time span): emery (Pebble Time 2) only. Keep in lockstep with the C
 // `#if defined(PBL_PLATFORM_EMERY)` arm of src/c/appendix/forecast_span.h, which sizes the
-// watch's forecast buffers for 65 hours there and 24 everywhere else. Every other watch is
+// watch's forecast buffers for 68 hours there and 24 everywhere else. Every other watch is
 // sent 24 hours whatever is stored: their 640 / 536 B AppMessage inboxes would drop the long
-// span's 65-hour bundle (test/inbox-size.test.js). Unknown platforms get 24 h (fail closed,
+// span's 68-hour bundle (test/inbox-size.test.js). Unknown platforms get 24 h (fail closed,
 // the colorBacklight precedent: never send more hours to a watch that may drop the message).
 var FORECAST_SPAN_PLATFORMS = { emery: true };
 /**
@@ -154,7 +154,7 @@ function isFineBatteryPlatform(platform) { return Boolean(FINE_BATTERY_PLATFORMS
  * Whether a Pebble platform's forecast graph offers the 12 / 24 / 58 h time span (emery only).
  * Unknown platforms are treated as drawing 24 h only.
  * @param {string} platform Platform name (e.g. 'emery', 'basalt').
- * @returns {boolean} True if the platform may be sent 14 or 65 forecast hours.
+ * @returns {boolean} True if the platform may be sent 14, 26 or 68 forecast hours.
  */
 function isForecastSpanPlatform(platform) { return Boolean(FORECAST_SPAN_PLATFORMS[platform]); }
 /**

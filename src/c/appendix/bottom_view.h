@@ -14,7 +14,7 @@
 // Slot count for the shared bottom graphs: the health window and the 24 h grid
 // (FORECAST_GRID_DEF). Renamed from MAX_FORECAST_ENTRIES (formerly series.h) so the name
 // reads correctly for the health view too. The forecast's own cap is FORECAST_MAX_ENTRIES
-// (forecast_span.h): 24 here too, 65 on emery for its long span.
+// (forecast_span.h): 24 here too, 68 on emery for its long span.
 #define MAX_BOTTOM_VIEW_ENTRIES 24
 
 #define BOTTOM_VIEW_AXIS_H 10            // height reserved for the bottom hour-label row
@@ -99,8 +99,8 @@ static inline void bottom_view_unregister_consumer(Layer *layer) { (void) layer;
 // floor) changes its stored value while the gutter both views draw against stays
 // exactly where it was.
 // emery: a forecast whose hi/lo numbers left the strip (the left axis BETA's On graph and
-// Off, config.h GRAPH_OPT_NUMS_MASK) reports 0. Alone on its screen it then draws from its
-// own collapsed inset (forecast_layer.c s_collapsed_inset). The two graphs are not always
+// Off, config.h GRAPH_OPT_NUMS_MASK) reports 0. Alone on its screen it then draws from the
+// screen's left edge, with no axis (forecast_layer.c forecast_update_proc). The two graphs are not always
 // apart: a custom layout can seat one in the top band over the other in the body
 // (layout.c view_spec_resolve keeps one seat per graph KIND, and layout_visibility can raise
 // both). On such a screen the forecast keeps the shared edge

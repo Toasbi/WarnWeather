@@ -417,7 +417,7 @@ test('tomorrow.io + steadman: an anchor bucket without windSpeed keeps the API "
   assert.equal(withWind.currentWindKmh, withWind.windTrend[0]);
 });
 
-// A window past 24 (windowHours(options)): 48 here, under PEAK_HOURS; emery's long span (65)
+// A window past 24 (windowHours(options)): 48 here, under PEAK_HOURS; emery's long span (68)
 // follows these.
 test('48 h: mapResponse maps 48 hourly intervals; the default stays 24', () => {
   const r = sampleResponse();
@@ -455,7 +455,7 @@ test('48 h: the non-peak request reaches 49 h out, still one call; a day max kee
   }
 });
 
-test('long span: a day-max slot asks start + 66 h, not + 50 h; without one too; 24 h keeps its URLs', () => {
+test('long span: a day-max slot asks start + 69 h, not + 50 h; without one too; 24 h keeps its URLs', () => {
   const prevXhr = global.XMLHttpRequest;
   global.XMLHttpRequest = MockXhr;
   const hourFloor = Math.floor(Date.now() / 3600000) * 3600;
@@ -469,21 +469,22 @@ test('long span: a day-max slot asks start + 66 h, not + 50 h; without one too; 
   };
   try {
     ['uv', 'wind', 'gust'].forEach((code) => {
-      assert.equal(endOf(urlFor(65, [code])), at(66), code + ' day max at 65: reachHours(65) + 1');
+      assert.equal(endOf(urlFor(68, [code])), at(69), code + ' day max at 68: reachHours(68) + 1');
       assert.equal(endOf(urlFor(24, [code])), at(PEAK_HOURS + 1), code + ' day max at 24: PEAK_HOURS + 1');
     });
-    assert.equal(endOf(urlFor(65, [])), at(66), 'no day max at 65');
+    assert.equal(endOf(urlFor(68, [])), at(69), 'no day max at 68');
+    assert.equal(endOf(urlFor(26, [])), at(27), 'no day max at 26 (emery\'s 24 h with no left axis)');
     assert.equal(endOf(urlFor(24, [])), at(25), 'no day max at 24');
   } finally {
     global.XMLHttpRequest = prevXhr;
   }
 });
 
-test('long span: mapResponse reads wind, gust and UV on to the 65 h window (reachHours)', () => {
+test('long span: mapResponse reads wind, gust and UV on to the 68 h window (reachHours)', () => {
   const r = { data: { timelines: [{ timestep: '1h', intervals: [] }] } };
-  for (let i = 0; i < 70; i += 1) r.data.timelines[0].intervals.push(interval(i));
-  const out = mapResponse(r, BASE + 3 * 3600, 65);
+  for (let i = 0; i < 75; i += 1) r.data.timelines[0].intervals.push(interval(i));
+  const out = mapResponse(r, BASE + 3 * 3600, 68);
   ['tempTrend', 'windTrend', 'gustTrend', 'uvTrend', 'rainTrend'].forEach((k) =>
-    assert.equal(out[k].length, 65, k));
+    assert.equal(out[k].length, 68, k));
   assert.equal(mapResponse(r, BASE + 3 * 3600, 24).uvTrend.length, PEAK_HOURS, '24 h keeps PEAK_HOURS');
 });

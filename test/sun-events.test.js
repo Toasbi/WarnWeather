@@ -257,11 +257,12 @@ test('a year at polar and ordinary latitudes: always a pair the watch accepts, s
 });
 
 // ---------------------------------------------------------------------------
-// Emery's forecast span (forecast-span.js): 12, 24 or the long span's 65 hours ("58 h"). The
+// Emery's forecast span (forecast-span.js): 14, 24 (26 with no left axis) or the long span's 68
+// hours ("58 h"). The
 // watch repeats the pair a day back and up to two days on, keeps only the nights its chart
 // meets (at most FORECAST_NIGHTS_MAX = 4), and shades from the last sunset listed to the
 // graph's end (forecast_layer.c compute_night_segments, the PBL_PLATFORM_EMERY arm); the
-// polar pair reaches a day further at 48 h and two at 65.
+// polar pair reaches a day further past 24 h (26 and 48) and two at 68.
 // ---------------------------------------------------------------------------
 const EMERY_NIGHTS_MAX = 4;
 
@@ -316,7 +317,7 @@ function nightsOver(times, type0, gstart, gend, lo, hi, trailing, cap) {
  * where emery's shading disagrees with the sun.
  * @param {Date} now Fetch time.
  * @param {number[]} coords [lat, lon].
- * @param {number} hours The hours sent (48 here for a short feed, 65 for the long span).
+ * @param {number} hours The hours sent (48 here for a short feed, 68 for the long span).
  * @returns {{wrong: number, shaded: number}} Disagreeing / shaded minutes.
  */
 function emeryChartShading(now, coords, hours) {
@@ -337,17 +338,17 @@ function emeryChartShading(now, coords, hours) {
   return { wrong: wrong, shaded: shaded };
 }
 
-test('the polar pair reaches five days past today\'s UTC midnight at 65 h, four at 48 h, three at 24 h and less', () => {
+test('the polar pair reaches five days past today\'s UTC midnight at 68 h, four at 48 h and 26 h, three at 24 h and less', () => {
   ['2026-06-21T12:00:00Z', '2026-12-15T12:00:00Z'].forEach((iso) => {
     const now = new Date(iso);
     const midnight = Math.floor(now.getTime() / (DAY_S * 1000)) * DAY_S * 1000;
-    [[65, 5], [48, 4], [24, 3], [14, 3], [12, 3], [undefined, 3]].forEach(([span, days]) => {
+    [[68, 5], [48, 4], [26, 4], [24, 3], [14, 3], [12, 3], [undefined, 3]].forEach(([span, days]) => {
       const far = sunEvents.polarSunEvents(now, TROMSO[0], TROMSO[1], span);
       assert.equal(far[1].date.getTime(), midnight + days * DAY_S * 1000, iso + ' at ' + span);
       assert.equal(far[0].date.getTime(), midnight - 2 * DAY_S * 1000, iso + ': the near end stays');
     });
     // nextSunEvents passes the span through, and the six- and seven-day pairs still read as polar.
-    [48, 65].forEach((span) => {
+    [48, 68].forEach((span) => {
       const pair = sunEvents.nextSunEvents(now, TROMSO[0], TROMSO[1], undefined, span);
       assert.equal(pair[1].date.getTime(), sunEvents.polarSunEvents(now, TROMSO[0], TROMSO[1], span)[1].date.getTime());
       assert.equal(sunEvents.isPolarSunPair(pair[0].date.getTime() / 1000, pair[1].date.getTime() / 1000), true,
@@ -356,8 +357,8 @@ test('the polar pair reaches five days past today\'s UTC midnight at 65 h, four 
   });
 });
 
-test('polar night shades the whole 48 h and 65 h chart from any fetch hour, midnight sun none of it', () => {
-  [48, 65].forEach((hours) => {
+test('polar night shades the whole 48 h and 68 h chart from any fetch hour, midnight sun none of it', () => {
+  [48, 68].forEach((hours) => {
     for (let h = 0; h < 24; h += 3) {
       const hh = String(h).padStart(2, '0');
       assert.deepEqual(emeryChartShading(new Date('2026-12-15T' + hh + ':10:00Z'), TROMSO, hours),
@@ -368,35 +369,35 @@ test('polar night shades the whole 48 h and 65 h chart from any fetch hour, midn
   });
 });
 
-test('ordinary latitudes shade the 48 h chart\'s nights, and the 65 h chart\'s up to four, within minutes', () => {
+test('ordinary latitudes shade the 48 h chart\'s nights, and the 68 h chart\'s up to four, within minutes', () => {
   ['2026-03-20T09:30:00Z', '2026-06-21T20:30:00Z', '2026-10-25T03:30:00Z', '2026-12-21T15:30:00Z']
     .forEach((iso) => {
       const r = emeryChartShading(new Date(iso), BERLIN, 48);
       assert.ok(r.wrong <= 30, iso + ': ' + r.wrong + ' min off');
       assert.ok(r.shaded > 12 * 60, iso + ': both nights shaded');
-      // 65 h: the pair repeats by whole days, so the far end drifts a little more (the sun
+      // 68 h: the pair repeats by whole days, so the far end drifts a little more (the sun
       // pair is from today); the last night, opened by the trailing close, is shaded too.
-      const long = emeryChartShading(new Date(iso), BERLIN, 65);
-      assert.ok(long.wrong <= 45, iso + ': ' + long.wrong + ' min off at 65 h');
-      assert.ok(long.shaded > r.shaded, iso + ': the 65 h chart shades more nights');
+      const long = emeryChartShading(new Date(iso), BERLIN, 68);
+      assert.ok(long.wrong <= 45, iso + ': ' + long.wrong + ' min off at 68 h');
+      assert.ok(long.shaded > r.shaded, iso + ': the 68 h chart shades more nights');
     });
-  // A 65 h chart from a winter night's small hours meets four nights: the one it starts in,
+  // A 68 h chart from a winter night's small hours meets four nights: the one it starts in,
   // two whole ones and the fourth's start, which only the trailing close shades (the pair's
   // repeats list no sunrise after it); the four slots hold them all.
   const nightsFrom = (iso) => {
     const now = new Date(iso);
     const nowS = Math.floor(now.getTime() / 1000);
     const start = nowS - (nowS % 3600);
-    return emeryNightSegments(sunEvents.nextSunEvents(now, BERLIN[0], BERLIN[1], undefined, 65),
-      start, start + 65 * 3600);
+    return emeryNightSegments(sunEvents.nextSunEvents(now, BERLIN[0], BERLIN[1], undefined, 68),
+      start, start + 68 * 3600);
   };
   const four = nightsFrom('2026-12-21T05:10:00Z');
   assert.equal(four.length, 4, 'four nights');
-  assert.equal(four[3][1], Date.parse('2026-12-23T22:00:00Z') / 1000, 'the fourth runs to the graph\'s end');
+  assert.equal(four[3][1], Date.parse('2026-12-24T01:00:00Z') / 1000, 'the fourth runs to the graph\'s end');
   assert.equal(nightsFrom('2026-12-21T15:10:00Z').length, 3, 'from a winter afternoon: three');
 });
 
-test('the twin\'s night rule is the pair repeated over many days, past hour 24 at 65 h (seeded sweep)', () => {
+test('the twin\'s night rule is the pair repeated over many days, past hour 24 at 68 h (seeded sweep)', () => {
   // Port of the plan's night3 check: for generated pairs (any first event in the coming day, any
   // gap under a day, either type) the twin's four slots and trailing close shade exactly what
   // the pair repeated from 6 days back to 9 on, uncapped, shades -- past the first 24 hours,
@@ -414,7 +415,7 @@ test('the twin\'s night rule is the pair repeated over many days, past hour 24 a
   for (let c = 0; c < CASES; c += 1) {
     const now = 10 * DAY_S + Math.floor(rand() * 24 * 60) * 60;
     const gs = now - (now % H);
-    const ge = gs + 65 * H;
+    const ge = gs + 68 * H;
     const first = now + (1 + Math.floor(rand() * 24 * 60)) * 60;
     const times = [first, first + (30 + Math.floor(rand() * (24 * 60 - 31))) * 60];
     const type0 = rand() < 0.5 ? 0 : 1;
@@ -438,7 +439,7 @@ const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 test('WeatherProvider#withSunEvents passes the fetch\'s span to the polar pair', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-12-15T18:00:00Z') });
   const midnight = Date.parse('2026-12-15T00:00:00Z');
-  [[65, 5], [48, 4], [24, 3], [14, 3], [12, 3]].forEach(([span, days]) => {
+  [[68, 5], [48, 4], [26, 4], [24, 3], [14, 3], [12, 3]].forEach(([span, days]) => {
     const p = new WeatherProvider();
     p.options = fetchOptions.defaults({ forecastHours: span });
     let got = null;

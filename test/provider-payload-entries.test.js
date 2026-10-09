@@ -1,7 +1,7 @@
 // test/provider-payload-entries.test.js
 // The hours a weather payload carries (WeatherProvider#payloadEntries): the forecast's span
 // from the fetch options (forecast-span.js). The 12 h span sends 14, 24 h sends 24, and emery's
-// long span (65; a short feed's 48 alike) sends as many hours as every drawn series holds, never
+// long span (68; a short feed's 48 alike) sends as many hours as every drawn series holds, never
 // fewer than 24. hasValidData keeps requiring the base 24 whatever the span.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -63,18 +63,18 @@ test('the 12 h span sends its 14 hours (the 13th column and the vertex past it)'
   ARRAYS.forEach((k) => assert.equal(payload[k].length, 14, k));
 });
 
-test('the long span sends 65 when every drawn series, the day-max ones included, holds them', () => {
-  const p = makeProvider(65, 65, { windTrend: 65, gustTrend: 65, uvTrend: 65 });
-  assert.equal(p.payloadEntries(), 65);
+test('the long span sends 68 when every drawn series, the day-max ones included, holds them', () => {
+  const p = makeProvider(68, 68, { windTrend: 68, gustTrend: 68, uvTrend: 68 });
+  assert.equal(p.payloadEntries(), 68);
   const payload = p.getPayload();
-  assert.equal(payload.NUM_ENTRIES, 65);
-  ARRAYS.forEach((k) => assert.equal(payload[k].length, 65, k));
+  assert.equal(payload.NUM_ENTRIES, 68);
+  ARRAYS.forEach((k) => assert.equal(payload[k].length, 68, k));
 });
 
 test('the long span: a day-max series read only to PEAK_HOURS cuts the payload to 49 (why reachHours)', () => {
-  assert.equal(makeProvider(65, 65, { gustTrend: 65, uvTrend: 65 }).payloadEntries(), 49, 'wind at 49');
-  assert.equal(makeProvider(65, 65).payloadEntries(), 49, 'all three at 49');
-  assert.equal(makeProvider(65, 48, { windTrend: 65, gustTrend: 65, uvTrend: 65 }).payloadEntries(), 48,
+  assert.equal(makeProvider(68, 68, { gustTrend: 68, uvTrend: 68 }).payloadEntries(), 49, 'wind at 49');
+  assert.equal(makeProvider(68, 68).payloadEntries(), 49, 'all three at 49');
+  assert.equal(makeProvider(68, 48, { windTrend: 68, gustTrend: 68, uvTrend: 68 }).payloadEntries(), 48,
     'a 48-hour feed (OWM, WU) sends 48');
 });
 

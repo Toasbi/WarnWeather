@@ -160,7 +160,7 @@ test('UV failure on a reused instance drops UV instead of shipping the previous 
   assert.equal(payload.UV_DAY_PEAKS, undefined, 'no day peaks from a stale window');
 });
 
-test('the long span (emery, 65 h): 4-day main, aux and UV calls, 65 hours in the payload', () => {
+test('the long span (emery, 68 h): 4-day main, aux and UV calls, 68 hours in the payload', () => {
   const urls = [];
   const series = (n, f) => Array.from({ length: n }, (_, i) => f(i));
   const time = (n) => series(n, (i) => BASE + i * HOUR);
@@ -183,7 +183,7 @@ test('the long span (emery, 65 h): 4-day main, aux and UV calls, 65 hours in the
     }
   };
   const p = new OpenMeteoProvider();
-  p.options = fetchOptions.defaults({ fetchUv: true, forecastHours: 65, dayPeakCodes: [] });
+  p.options = fetchOptions.defaults({ fetchUv: true, forecastHours: 68, dayPeakCodes: [] });
   let ok = false;
   withMockedNow(BASE + 22 * HOUR + 10, function() {
     p.withProviderData(0, 0, false, function() { ok = true; },
@@ -192,14 +192,14 @@ test('the long span (emery, 65 h): 4-day main, aux and UV calls, 65 hours in the
   assert.ok(ok);
   assert.match(urls[0], /&forecast_days=4(&|$)/, 'main: four GMT days');
   assert.match(urls[1], /current=apparent_temperature[\s\S]*&forecast_days=4(&|$)/,
-    'aux: four (the 65th gust is bucket 22 + 65 = 87, past three days\' 72)');
+    'aux: four (the 68th gust is bucket 22 + 68 = 90, past three days\' 72)');
   assert.match(urls[2], /uv_index[\s\S]*&forecast_days=4(&|$)/, 'UV: four');
-  assert.equal(p.payloadEntries(), 65, 'wind, gust and UV read on to the window (reachHours), not 49');
+  assert.equal(p.payloadEntries(), 68, 'wind, gust and UV read on to the window (reachHours), not 49');
   const payload = p.getPayload();
-  assert.equal(payload.NUM_ENTRIES, 65);
+  assert.equal(payload.NUM_ENTRIES, 68);
   ['TEMP_RAW_TREND', 'PRECIP_TREND_UINT8', 'RAIN_TREND_UINT8', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8',
     'UV_TREND_UINT8', 'PRESSURE_TREND', 'FEELS_TREND', 'DEW_TREND', 'WIND_DIR_TREND'].forEach((k) =>
-    assert.equal(payload[k].length, 65, k));
+    assert.equal(payload[k].length, 68, k));
   assert.ok(payload.GUST_TREND_UINT8.every((v) => v > 0), 'every gust hour sourced from the aux call');
   // The same provider on the default span keeps today's requests and 24 hours.
   urls.length = 0;

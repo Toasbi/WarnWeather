@@ -310,14 +310,6 @@ static ChartLayer mark_line_layer(const Series *s, int count, int hi) {
 static Layer *s_forecast_layer;
 static char s_buffer_lo[12];
 static char s_buffer_hi[12];
-#if defined(PBL_PLATFORM_EMERY)
-// emery: the plot's left edge while the hi/lo numbers claim no strip (the left axis's numbers
-// on the graph or off, config.h GRAPH_OPT_NUMS_MASK) and no health graph shares the screen:
-// half the widest hour label in, so slot 0's label, which chart.c centres on that edge, stays
-// whole (temp_axis_pad.h temp_axis_collapsed_inset). text_labels_refresh measures it on every
-// refresh.
-static uint8_t s_collapsed_inset;
-#endif
 
 static void night_segments_add(NightSegments *night_segments, time_t start, time_t end)
 {
@@ -414,7 +406,7 @@ static NightSegments compute_night_segments(time_t graph_start, time_t graph_end
         }
 #if defined(PBL_PLATFORM_EMERY)
         // emery: only the nights the graph shows take one of the FORECAST_NIGHTS_MAX slots. A
-        // 65 h window meets at most four (night k + 4 starts 96 h after night k: a real night
+        // 68 h window meets at most four (night k + 4 starts 96 h after night k: a real night
         // is under a day long); the repeats outside it would otherwise crowd one out.
         // Pixel-neutral at 24 h: a night outside the window used to become a zero-width band
         // with no boundary, which draws nothing.
@@ -428,7 +420,7 @@ static NightSegments compute_night_segments(time_t graph_start, time_t graph_end
     }
 #if defined(PBL_PLATFORM_EMERY)
     // emery: a graph running on past the last sunset listed is still in that night: the next
-    // sunrise (the pair's, a further day on) lies past any graph's end (start + 65 h;
+    // sunrise (the pair's, a further day on) lies past any graph's end (start + 68 h;
     // sun-events.js keeps a polar pair's far event 5 days out for the long span). At 12 h and
     // 24 h the last event listed lies past the graph's end, so this adds nothing there
     // (night_segments_add drops an empty segment).
@@ -458,8 +450,8 @@ static int16_t graph_x_for_time(time_t timestamp, time_t graph_start, time_t gra
 
     // After the guards above, graph_start < timestamp < graph_end, so
     // 0 < elapsed < total. total is a forecast span (23 h for 24 entries; on emery up
-    // to 65 h, the long grid's 65 columns at 3 px: 65 h x 195 px is about 46 M, and the 12 h
-    // grid's widest is 14 h x 210 px), so
+    // to 68 h, the long grid's 68 columns at 3 px: 68 h x 205 px is about 50 M, and the 12 h
+    // grid's widest is 14 h x 225 px), so
     // elapsed * size.w stays far below INT32_MAX — 32-bit math is exact here and
     // avoids pulling in the 64-bit soft-divide routine (__udivmoddi4, ~754 B).
     const int32_t elapsed = (int32_t)(timestamp - graph_start);
@@ -547,20 +539,19 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
 }
 
 #if defined(PBL_PLATFORM_EMERY)
-// emery: one number in the label font, left-aligned in `box`, outlined in the background colour
-// unless `outline` is off: the text in theme_bg() at the eight 1 px offsets, then in theme_fg()
-// on top, so it reads over a line, the bars, a fill or the night shading.
-static void draw_number(GContext *ctx, const char *text, GFont font, GRect box, bool outline) {
-    if (outline) {
-        graphics_context_set_text_color(ctx, theme_bg());
-        for (int dy = -1; dy <= 1; ++dy) {
-            for (int dx = -1; dx <= 1; ++dx) {
-                if (dx | dy) {
-                    graphics_draw_text(ctx, text, font,
-                                       GRect(box.origin.x + dx, box.origin.y + dy,
-                                             box.size.w, box.size.h),
-                                       GTextOverflowModeFill, GTextAlignmentLeft, NULL);
-                }
+// emery: one number in the label font, left-aligned in `box`, outlined in the background
+// colour: the text in theme_bg() at the eight 1 px offsets, then in theme_fg() on top, so it
+// reads over a line, the bars, a fill or the night shading. The outline is the numbers On
+// graph's own look, no option (owner, 2026-10-09: "implied by the axis number settings").
+static void draw_number(GContext *ctx, const char *text, GFont font, GRect box) {
+    graphics_context_set_text_color(ctx, theme_bg());
+    for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+            if (dx | dy) {
+                graphics_draw_text(ctx, text, font,
+                                   GRect(box.origin.x + dx, box.origin.y + dy,
+                                         box.size.w, box.size.h),
+                                   GTextOverflowModeFill, GTextAlignmentLeft, NULL);
             }
         }
     }
@@ -585,10 +576,12 @@ static int number_point_x(const Series *s, int i, int graph_left, const ChartDef
 }
 
 // emery: the hi/lo numbers under the left axis's options (config.h GRAPH_OPT_*), after
-// everything the plot drew. Beside (today): the strip, draw_left_axis, its numbers lined up
+// everything the plot drew. On axis (today): the strip, draw_left_axis, its numbers lined up
 // with the rows they name: the curve's extremes, or with GRAPH_OPT_SCALE_NUMS the scale's (a
 // feels-like or dew point line's too). On the graph: each number beside its point, inside the
-// plot's content rows (temp_axis_pad.h THE NUMBERS ON THE GRAPH). Off: the strip's mask alone.
+// plot's content rows (temp_axis_pad.h THE NUMBERS ON THE GRAPH). Off: none. On the graph and
+// Off leave no strip, and the plot starts at the screen's left edge, unless a health graph
+// shares the screen: then the plot keeps the shared strip, which is masked as On axis masks it.
 // The points are the rows fit_temp_axis left in the series (load_dataset reloads the bytes on
 // every paint). noinline: its locals stay off forecast_update_proc's frame while chart_draw
 // runs (fit_temp_axis' reason).
@@ -621,21 +614,23 @@ static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const For
         draw_left_axis(ctx, h, zero_y, ends, 2);
         return;
     }
-    // The strip's mask at the collapsed edge (draw_left_axis's): it hides the curve's left
-    // half-stroke as it always has.
-    graphics_context_set_fill_color(ctx, theme_bg());
-    graphics_fill_rect(ctx, GRect(0, 0, graph_left, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
+    // A strip left of the plot (a health graph's, shared): its mask (draw_left_axis's) hides
+    // the curve's left half-stroke as it always has. Alone the plot starts at the screen's
+    // left edge (graph_left <= 0): no strip, nothing to mask.
+    if (graph_left > 0) {
+        graphics_context_set_fill_color(ctx, theme_bg());
+        graphics_fill_rect(ctx, GRect(0, 0, graph_left, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
+    }
     if (mode != GRAPH_OPT_NUMS_GRAPH) { return; }
 
-    const bool outline = !(opts & GRAPH_OPT_OUTLINE_OFF);
-    const int o = outline;
+    const int o = 1;   // the outline's ring
     const GFont font = bottom_view_label_font();
     const GSize hs = temp_label_string_size(s_buffer_hi);
     const GSize ls = temp_label_string_size(s_buffer_lo);
-    // The plot's content rows between the stripe bands, right of the axis column, shrunk by
-    // the outline: a number and its ring never touch the axis, a band, the zero line, the hour
-    // labels or the screen's edge.
-    const TempLabelArea a = { graph_left + 1 + o, screen_w - 1 - o, top + o, zero_y - 1 - o };
+    // The plot's content rows between the stripe bands, from its left edge (no axis column On
+    // graph) to the screen's right edge, shrunk by the outline: a number and its ring never
+    // touch a band, the zero line, the hour labels or the screen's edges.
+    const TempLabelArea a = { graph_left + o, screen_w - 1 - o, top + o, zero_y - 1 - o };
     int x1;
     int x0 = number_point_x(hi_s, e.hi_i, graph_left, grid, &x1);
     TempLabelBox hb = temp_label_beside(x0, x1, zero_y - e.hi,
@@ -652,9 +647,9 @@ static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const For
                       && temp_labels_part(&hb, hs.w, &lb, ls.w, hs.h, a);
     // The boxes get 2 px of slack: a box only content-sized can drop the text's last row
     // (health_graph_layer.c). Top-anchored, so the ink stays where it was placed.
-    draw_number(ctx, s_buffer_hi, font, GRect(hb.x, hb.y, hs.w + 2, hs.h + 2), outline);
+    draw_number(ctx, s_buffer_hi, font, GRect(hb.x, hb.y, hs.w + 2, hs.h + 2));
     if (both) {
-        draw_number(ctx, s_buffer_lo, font, GRect(lb.x, lb.y, ls.w + 2, ls.h + 2), outline);
+        draw_number(ctx, s_buffer_lo, font, GRect(lb.x, lb.y, ls.w + 2, ls.h + 2));
     }
 }
 #endif
@@ -743,18 +738,22 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     GRect bounds = layer_get_bounds(layer);
     const bool night_on = config_get()->day_night_shading;
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: the left axis's options (config.h GRAPH_OPT_*, BETA): numbers on the graph or off
-    // give the label strip to the plot, which then starts at the collapsed edge, unless the
-    // health graph shares this screen (a custom layout's top band over the body): then the
-    // plot keeps the shared edge, the health labels' strip alone, so the two line up
-    // (bottom_view.h). Axis line off drops the frame's left border in the plot and in both
-    // stripe bands.
+    // emery: the left axis's options (config.h GRAPH_OPT_*, BETA). The numbers On axis (today)
+    // draw the left axis: the label strip and the axis line along the plot's left edge. On
+    // graph or Off draw no left axis at all (owner, 2026-10-09: "the complete left axis should
+    // not be drawn, and the graph should start as much on the left screen as possible"): no
+    // strip, no axis line (the frame's left border, in the plot and both stripe bands), and the
+    // plot starts at the screen's left edge, `screen_left` in the layer's coordinates (the
+    // layer sits LAYOUT_PAD_X in and does not clip: forecast_layer_create). Its right end stays
+    // the screen's right edge. A health graph sharing this screen (a custom layout's top band
+    // over the body) keeps the plot at the shared edge, the health labels' strip alone, so the
+    // two line up (bottom_view.h).
     const uint8_t axis_opts = config_forecast_axis();
-    const int graph_left = ((axis_opts & GRAPH_OPT_NUMS_MASK)
-                            && !bottom_view_other_consumer_shown(layer))
-                               ? s_collapsed_inset : bottom_view_graph_inset();
-    const int axis_w = (axis_opts & GRAPH_OPT_AXIS_LINE_OFF) ? 0 : 1;
-#define AXIS_LEFT_W axis_w
+    const bool axis_on = !(axis_opts & GRAPH_OPT_NUMS_MASK);
+    const int screen_left = -layer_get_frame(layer).origin.x;
+    const int graph_left = (axis_on || bottom_view_other_consumer_shown(layer))
+                               ? bottom_view_graph_inset() : screen_left;
+#define AXIS_LEFT_W ((int)axis_on)
 #else
     const int graph_left = bottom_view_graph_inset();
 #define AXIS_LEFT_W 1
@@ -783,7 +782,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
 #if defined(PBL_PLATFORM_EMERY)
     // emery: the grid follows the hours the phone sent and the plot's width (forecast_span.h):
-    // 2..14 (12 h), 24 (FORECAST_GRID_DEF itself) or 25..65; the marks follow its bar columns.
+    // 2..14 (12 h), 15..26 (FORECAST_GRID_DEF's pitch; itself up to 24) or 27..68; the marks
+    // follow its bar columns.
     const ForecastSpan span = forecast_span(ds->num_entries, bounds.size.w - graph_left);
     const ChartDef grid = forecast_grid_def_for(span);
 #define GRID (&grid)
@@ -807,7 +807,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const time_t forecast_start = ds->forecast_start;
     const time_t forecast_end = forecast_start
                               + NIGHT_HOURS(ds->num_entries) * BOTTOM_VIEW_STEP_SECONDS;
+#if !defined(PBL_PLATFORM_EMERY)
     struct tm *forecast_start_local = localtime(&forecast_start);
+#endif
 
 
     NightSegments night_segments = {0};
@@ -826,7 +828,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // for the ticks. The plot's baseline lifts by the band.
     const int stripe_h = FORECAST_STRIPE_H(axis_y);
     // One scan of each series' drawn window (temp_axis_pad.h): only a series with a value
-    // above 0 in the hours on screen takes part (the phone sends 24, or emery's 14 or 65; the
+    // above 0 in the hours on screen takes part (the phone sends 24, or emery's 14, 26 or 68; the
     // hours past the screen's right edge never count). A stripe then takes a band on its edge;
     // an amount line, its marks or fill anchor the edge they are drawn from (the rain bars add
     // theirs once the palette is read, below). A stripe with nothing above 0 is dropped here,
@@ -875,13 +877,13 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     GPoint *const area_pts = paint->area_pts;
     ChartAxisSlot *const axis_slots = paint->axis_slots;
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: the span's slots at the span's cadence (forecast_span.h); in the 12 h and long
-    // grids no label the right edge would slice (forecast_span_label_end).
-    forecast_grid_fill_axis_every(axis_slots, span.slots, forecast_start_local,
-                                  span.label_every, span.tick_every,
-                                  span.slots == FORECAST_SPAN_DAY_SLOTS ? span.slots
-                                  : forecast_span_label_end(forecast_span_pitch(span),
-                                                            bounds.size.w - graph_left));
+    // emery: the span's slots at the span's cadence (forecast_span.h forecast_span_mark): the
+    // 12 h and 24 h grids from slot 0, the long one on the clock's 3-hour marks. No label the
+    // screen's edges would slice, and none on the current hour while the left axis is gone
+    // (owner, 2026-10-09: "skip the first hour mark and draw one after the current one"); a
+    // dropped label keeps its tick.
+    forecast_grid_fill_axis_span(axis_slots, span, forecast_start, outer.origin.x, screen_left,
+                                 bounds.size.w - 1, config_large_graph_font(), !axis_on);
 #else
     forecast_grid_fill_axis_slots(axis_slots, MAX_BOTTOM_VIEW_ENTRIES,
                              outer.origin.x, chart_def_pitch(&FORECAST_GRID_DEF),
@@ -943,8 +945,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                             palette_from_top(bar_stops));
     }
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: the 12 h and long grids fit the scale and name the labels over the hours on
-    // screen; the 24 h grid keeps every hour sent (pixel-identical). Before fit_temp_axis:
+    // emery: the 12 h and long grids, and the 24 h grid past 24 slots (26 hours on the
+    // screen-wide plot), fit the scale and name the labels over the hours on screen; the
+    // 24-slot grid keeps every hour sent (pixel-identical). Before fit_temp_axis:
     // the relabel reads the bytes, which it turns into rows.
     ds->fit_entries = ds->num_entries;
     if (span.slots != FORECAST_SPAN_DAY_SLOTS) {
@@ -1146,15 +1149,10 @@ static void text_labels_refresh()
     snprintf(s_buffer_hi, sizeof(s_buffer_hi), "%d", config_localize_temp(temp_hi));
     snprintf(s_buffer_lo, sizeof(s_buffer_lo), "%d", config_localize_temp(temp_lo));
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: the collapsed plot edge (the left axis's numbers on the graph or off), re-measured
-    // on every refresh so it follows Larger graph fonts: half the widest hour label in the hour
-    // labels' own font (chart.h chart_axis_font). Numbers on the graph or off claim no strip,
-    // so the health graph's strip is its own labels' alone then (main_window.c retires the
-    // health graph's claim the same way), and a forecast sharing its screen draws from that
-    // edge (forecast_update_proc).
-    s_collapsed_inset = (uint8_t)temp_axis_collapsed_inset(graphics_text_layout_get_content_size(
-        "00", chart_axis_font(), GRect(0, 0, TEMP_LABEL_MEASURE_BOX_W, TEMP_LABEL_MEASURE_BOX_H),
-        GTextOverflowModeFill, GTextAlignmentCenter).w);
+    // emery: the left axis's numbers On graph or Off claim no strip: the forecast then draws
+    // from the screen's left edge (forecast_update_proc), so the health graph's strip is its
+    // own labels' alone (main_window.c retires the health graph's claim the same way), and a
+    // forecast sharing its screen draws from that edge.
     if (config_forecast_axis() & GRAPH_OPT_NUMS_MASK) {
         bottom_view_report_label_w(BOTTOM_VIEW_SRC_FORECAST, 0);
         return;
@@ -1178,6 +1176,14 @@ void forecast_layer_create(Layer *parent_layer, GRect frame)
 {
     s_forecast_layer = layer_create(frame);
     layer_set_update_proc(s_forecast_layer, forecast_update_proc);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the layer sits LAYOUT_PAD_X in from the screen's left edge, and with the left
+    // axis's numbers On graph or Off the plot starts at that edge, left of the layer's frame
+    // (forecast_update_proc's screen_left): the layer clips to its parent, the window, instead.
+    // Nothing else it draws leaves its frame: the hi label's box may start above it, but its
+    // ink rows never do, and whatever runs past the right edge runs off the screen.
+    layer_set_clips(s_forecast_layer, false);
+#endif
     // Registered before the first report below, so a width change repaints this
     // layer from then on (shared strip, bottom_view.h).
     bottom_view_register_consumer(s_forecast_layer);

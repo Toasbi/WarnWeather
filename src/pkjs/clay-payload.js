@@ -131,9 +131,10 @@ function packViewReset(settings, env) {
 
 /**
  * The CLAY_LARGE_GRAPH_FONT tuple, emery's graph-options word (src/c/appendix/config.h
- * GRAPH_OPT_*): bit 0 Larger graph fonts, bits 1-5 the forecast's left axis options (BETA,
- * forecast-axis.js wireBits). While every axis option draws today's graph (bits 1-5 all 0, as
- * always for a KNOWN non-emery watch, whose C never reads the key) it is today's bare boolean,
+ * GRAPH_OPT_*): bit 0 Larger graph fonts, bits 2, 3 and 5 the forecast's left axis options
+ * (BETA, forecast-axis.js wireBits; bits 1 and 4 are retired). While every axis option draws
+ * today's graph (those bits all 0, as always for a KNOWN non-emery watch, whose C never reads
+ * the key) it is today's bare boolean,
  * so a payload with the defaults is exactly what it always was on every platform and an
  * upgrade resends nothing; otherwise the number. Emery and an unknown platform carry the bits,
  * so a watchInfo hiccup cannot reset an emery's options. Either way one int tuple: the boolean
@@ -141,7 +142,7 @@ function packViewReset(settings, env) {
  * is bit 0 alone.
  * @param {Object} settings Clay settings.
  * @param {Object} env platformLib.computeEnv() result.
- * @returns {(boolean|number)} The boolean while the axis bits are 0, else a word 0x02..0x3F.
+ * @returns {(boolean|number)} The boolean while the axis bits are 0, else a word 0x04..0x2D.
  */
 function graphOptionsWord(settings, env) {
     var large = Boolean(settings.largeGraphFont);
@@ -339,8 +340,7 @@ function buildClayPayload(settings, watchInfo, now) {
     // largeGraphFont is provably safe: engine.js seeds toggles from defaultValue and flips
     // them with !S[key], so a stored value is a strict boolean or absent -- and absent
     // collapsing to false IS the default. A default-TRUE toggle would need the
-    // hasOwnProperty ternary dayNightShading uses above (forecast-axis.js reads its own
-    // default-true toggles as `!== false`). Deliberately NOT platform-gated (unlike the
+    // hasOwnProperty ternary dayNightShading uses above. Deliberately NOT platform-gated (unlike the
     // threshold blob / no-rain text / curve insets, which are omitted for watches that
     // compile the feature out): the tuple is 11 B, every non-emery Clay bundle has ample
     // headroom, and sending it unconditionally means an emery watch can't be starved of the

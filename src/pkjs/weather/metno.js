@@ -288,7 +288,7 @@ function hourlyTail(timeseries, anchor, hours) {
  * the hour ending at the stamp, so it reads the next one (followingGust).
  *
  * Met.no is hourly to about 60 h and 6-hourly after. The long span's window (past
- * PEAK_HOURS: 65) has the 6-hourly part made hourly first (hourlyTail); every
+ * PEAK_HOURS: 68) has the 6-hourly part made hourly first (hourlyTail); every
  * other window maps the response as it is. Past the base 24 a window ends early
  * (hourlyRun) at a step that is not the next hour, at the feed's end, or at a
  * bucket without a temperature.
@@ -427,7 +427,7 @@ MetnoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, 
     // per-hour arithmetic worth gating), feels costs a Steadman exp() per hour so
     // mapResponse computes it but the gate decides whether it lands, and
     // clear-sky uv is adopted only when something renders it.
-    // The graph's window: 24 hours, or 65 for emery's long span (fetch-options.js).
+    // The graph's window: 24 hours, or emery's 26 or 68 (fetch-options.js).
     var hours = hourlyWindow.windowHours(this.options);
     WeatherProvider.requestMapped({
         url: buildForecastUrl(lat, lon), id: 'metno', label: 'Met.no',

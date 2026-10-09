@@ -1,8 +1,8 @@
 // test/metno-tail.test.js
-// Met.no on emery's long span (forecast-span.js, labelled "58 h": 65 hours sent). /complete
+// Met.no on emery's long span (forecast-span.js, labelled "58 h": 68 hours sent). /complete
 // is hourly only to a fixed model time (57 to 63 hours from the anchor in recorded
 // responses), then 6-hourly; hourlyTail makes that tail hourly so the long payload reaches
-// 65 and the watch keeps its 3 px pitch. Every other window maps the response as 1fb8bb9
+// 68 and the watch keeps its 3 px pitch. Every other window maps the response as 1fb8bb9
 // did (test/metno-gate.golden.json).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -20,7 +20,7 @@ const golden = require('./metno-gate.golden.json');
 
 const NOW = golden.now;                       // some wall-clock "now"
 const HOUR0 = Math.floor(NOW / HOUR) * HOUR;  // floored current hour: bucket 0
-const LONG = MAX_FORECAST_HOURS;              // 65
+const LONG = MAX_FORECAST_HOURS;              // 68
 
 const epochOf = (b) => Date.parse(b.time) / 1000;
 const details = (b) => b.data.instant.details;
@@ -57,7 +57,7 @@ function fetched(body, forecastHours) {
 const GRAPH = ['tempTrend', 'precipTrend', 'rainTrend', 'pressureTrend', 'cloudTrend', 'feelsTrend',
   'dewTrend', 'windDirTrend', 'windTrend', 'gustTrend', 'uvTrend'];
 
-test('long span: an hourly feed of 66+ hours maps 65 hours in every series, the day-max ones included', () => {
+test('long span: an hourly feed of 69+ hours maps 68 hours in every series, the day-max ones included', () => {
   const body = metnoFeed({ start: HOUR0, hourly: 70, sixHourly: 0 });
   const mapped = metno.mapResponse(body, NOW, LONG);
   GRAPH.forEach((k) => assert.equal(mapped[k].length, LONG, k));
@@ -66,7 +66,7 @@ test('long span: an hourly feed of 66+ hours maps 65 hours in every series, the 
   assert.equal(p.getPayload().NUM_ENTRIES, LONG);
 });
 
-test('long span: a 57-hour run then 6-hourly buckets reaches 65 hours (payload 65, not 57 or 49)', () => {
+test('long span: a 57-hour run then 6-hourly buckets reaches 68 hours (payload 68, not 57 or 49)', () => {
   const body = metnoFeed({ start: HOUR0, hourly: 57 });
   const mapped = metno.mapResponse(body, NOW, LONG);
   GRAPH.forEach((k) => assert.equal(mapped[k].length, LONG, k));

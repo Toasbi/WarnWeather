@@ -75,11 +75,13 @@ parse problem there can't take the whole config down.
 
 **Graph-options word (emery)**:
 The `CLAY_LARGE_GRAPH_FONT` int read as bits on emery: bit 0 *Larger graph
-fonts*, bits 1-5 the forecast's left axis options (BETA, Graphs › Forecast ›
-Left axis): axis line off, high/low numbers on the graph, numbers off, outline
-off, numbers naming the temperature scale. The layout is `config.h`'s
-`GRAPH_OPT_*`, in lockstep with `src/pkjs/forecast-axis.js` `BIT`, and the watch
-keeps bits 1-7 in `Config.forecast_axis`. The phone packs a dormant option as its
+fonts*, bits 2, 3 and 5 the forecast's left axis options (BETA, Graphs › Forecast ›
+Left axis): high/low numbers on the graph, numbers off, numbers naming the
+temperature scale. Bits 1 and 4 (the 2.2.0 betas' axis line off and outline off)
+are retired and reserved: the axis line is drawn exactly when the numbers are on
+the axis, their outline exactly when they are on the graph. The layout is
+`config.h`'s `GRAPH_OPT_*`, in lockstep with `src/pkjs/forecast-axis.js` `BIT`,
+and the watch keeps bits 1-7 in `Config.forecast_axis`. The phone packs a dormant option as its
 default, so the axis bits are all zero exactly when the graph is today's, and
 while they are the tuple is the bare boolean it always was (a known non-emery
 watch never gets more); emery and an unknown watch get the number once an axis
@@ -126,19 +128,26 @@ The forecast graph's time span option: 12 h, 24 h or 58 h on emery (Graphs ›
 Forecast › Time span; stored '12' / '24' / '48', '48' being the long span's
 token), 24 h everywhere else and on an unknown watch
 (`src/pkjs/forecast-span.js`). The phone decides the hours it sends for it,
-14 / 24 / 65 (`hours()`; `WeatherProvider#payloadEntries`, fewer when a feed
-is shorter); the watch fits its grid to the count it receives (`NUM_ENTRIES`,
-`src/c/appendix/forecast_span.h`) and to its own plot width. See
-`docs/adr/0004-forecast-span-is-the-data.md`.
+14 / 24 / 68, and 26 for 24 h when the graph has no left axis (the high/low
+numbers On graph or Off on a known emery) (`hours()`;
+`WeatherProvider#payloadEntries`, fewer when a feed is shorter); the watch fits
+its grid to the count it receives (`NUM_ENTRIES`, `src/c/appendix/forecast_span.h`:
+2..14 the 12 h grid, 15..26 the 24 h grid, 27..68 the long one) and to its own
+plot width. See `docs/adr/0004-forecast-span-is-the-data.md`.
 _Avoid_: a watch-side forecast hours setting; calling the sent hours the span.
 
 **Visible hours**:
 The hours the emery forecast draws on screen, min(n, ceil(W / pitch)) for the
-n hours sent and the plot width W: the 12 h and long grids run the data past
-the right edge rather than leave a blank tail, so the "58 h" option shows
-about 58 at the default layout and more when the hi/lo numbers leave the
-strip. The temperature scale and the hi/lo labels fit the visible hours, not
-every hour sent (`forecast_layer.c` fit_entries, relabel_visible).
+n hours sent and the plot width W (174 px at the default layout, the whole
+200 px screen with no left axis): every grid runs the data past the right edge
+rather than leave a blank tail, so the "58 h" option shows 58 whole hours at the
+default layout and 66 with no left axis, and 24 h shows 21 or 25. The
+temperature scale and the hi/lo labels fit the visible hours, not every hour
+sent (`forecast_layer.c` fit_entries, relabel_visible). The hour axis labels
+only what is whole on screen: a label either edge would cut is dropped (its tick
+stays), and with no left axis the current hour (slot 0) is never labelled; the
+long grid marks the clock (a label every 6 hours, every 3 from a 6 px pitch, a
+small tick on the other 3-hour marks).
 _Avoid_: forecast span (that is the option).
 
 **Mapped forecast**:

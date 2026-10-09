@@ -132,8 +132,8 @@ function ensembleBlockSlice(series, times, anchor, hours) {
  *
  * @param {Object} json Parsed Open-Meteo /v1/forecast response.
  * @param {number} nowEpoch Current time in epoch seconds.
- * @param {number} [hours] The window to map (hourly-window.js windowHours: 24, or 65
- *   for emery's long span); FORECAST_HOURS when absent. Past the base 24 the window
+ * @param {number} [hours] The window to map (hourly-window.js windowHours: 24, or
+ *   emery's 26 or 68); FORECAST_HOURS when absent. Past the base 24 the window
  *   takes what the response holds.
  * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], cloudTrend: number[], startTime: number, currentTemp: number}|null}
  *   Mapped fields, or null when the response is malformed or has fewer than
@@ -170,7 +170,7 @@ function mapResponse(json, nowEpoch, hours) {
         tempTrend: hourly.temperature_2m.slice(anchor, end),
         // Preceding-hour fields: one bucket ahead (see the doc comment), the
         // chance by 3-hour block. forecast_days=3 at GMT is 72 buckets (4 and 96
-        // for the long span's 65 h window) and the anchor is at most 23, so the
+        // past 24 h: emery's 26 or 68) and the anchor is at most 23, so the
         // bucket after the window and the last slot's block boundary are there for
         // a well-formed response.
         precipTrend: ensembleBlockSlice(hourly.precipitation_probability, times, anchor, count)
@@ -180,7 +180,7 @@ function mapResponse(json, nowEpoch, hours) {
         rainTrend: precedingHourSlice(hourly.precipitation, anchor, times.length, 0, count),
         // Wind reads on to PEAK_HOURS for the wind slot's day max (the 72
         // buckets always hold it), or the graph's window when that is longer (the
-        // long span's 65, inside its 96); getPayload cuts it back to the graph's
+        // long span's 68, inside its 96); getPayload cuts it back to the graph's
         // window.
         windTrend: hourly.windspeed_10m.slice(anchor, anchor + hourlyWindow.reachHours(hours)),
         gustTrend: precedingHourSlice(hourly.windgusts_10m, anchor, times.length, null, count),
@@ -217,9 +217,9 @@ OpenMeteoProvider.prototype._super = WeatherProvider;
  * (72 buckets) so a current-hour-anchored 24h window always fits along with
  * the bucket after it and the 3-hour ensemble boundary the chance reads for
  * its last slot (up to 00:00 GMT two days on, from a 22:00 or 23:00 anchor).
- * The long span's 65 h window (emery) asks for 4 days (96 buckets): its last
- * slot's boundary sits at index anchor + 66 from a 22:00 or 23:00 anchor (89 at
- * most), past the third day's 72.
+ * A window past 24 h (emery's 26 or 68) asks for 4 days (96 buckets): the long
+ * span's last slot's boundary sits at index anchor + 69 from a 22:00 or 23:00
+ * anchor (92 at most), past the third day's 72.
  *
  * Pins models=ecmwf_ifs025 rather than the default best_match: best_match
  * blends models and sources precipitation_probability separately from the
@@ -262,8 +262,8 @@ function buildForecastUrl(lat, lon, hours) {
  * dew mapper converts nothing). Mirrors the main request's unixtime/GMT/km-h
  * conventions so the hourly buckets line up with the main window by
  * timestamp. Two GMT days hold every bucket the graph's window reads (the gust's
- * startTime + 24 h included); four for the long span's 65 h window (emery: the
- * gust's startTime + 65 h is bucket anchor + 65, up to 88, past the 72 of three);
+ * startTime + 24 h included); four for the long span's 68 h window (emery: the
+ * gust's startTime + 68 h is bucket anchor + 68, up to 91, past the 72 of three);
  * four too while the gust slot shows its day max, whose window reads on to
  * PEAK_HOURS (to the end of tomorrow, plus the one-bucket-ahead stamp — in a zone
  * ahead of GMT on a 25 h fall-back day that lands on a fourth GMT day, as it does
@@ -293,9 +293,9 @@ function buildGustUrl(lat, lon, gustPeak, hours) {
 
 /**
  * The GMT days an aux call (gusts/feels/dew/bearing, or UV) asks for: four for a
- * day max (PEAK_HOURS) or a window past two days (the long span's 65: the read at
- * anchor 23 + 1 + 64 is bucket 88), three for a window past 24 h up to 48 (bucket
- * 71 at most), else two.
+ * day max (PEAK_HOURS) or a window past two days (the long span's 68: the read at
+ * anchor 23 + 1 + 67 is bucket 91), three for a window past 24 h up to 48 (bucket
+ * 71 at most; emery's 26 reads to 49), else two.
  *
  * @param {boolean} [dayPeak] Whether the call's slot shows its day max.
  * @param {number} [hours] The graph's window (windowHours); 24 when absent.
@@ -314,7 +314,7 @@ var feelsLike = require('./feels-like.js');
 
 /**
  * Extract a reachHours(hours) gust window aligned to a forecast start time — the
- * graph's hours (24, or 65 for emery's long span) plus the rest the gust slot's
+ * graph's hours (24, or emery's 26 or 68) plus the rest the gust slot's
  * day max reads (PEAK_HOURS; getPayload cuts the graph's part back out). windgusts_10m is the max "of the preceding
  * hour", so slot i (the hour starting at startTime + i h) reads the bucket
  * stamped one hour later — the same one-bucket-ahead rule mapResponse applies.
@@ -465,8 +465,8 @@ function adoptFeels(provider, json) {
  * the same stamp meant two different hours depending on where the watch was.
  * With GFS everywhere, mapUv reads one bucket ahead for every location. Four
  * GMT days while the UV slot shows its day max or the window is the long span's
- * 65 h (its last read is bucket anchor + 65, past the 72 of three; two hold the
- * 24 h window):
+ * 68 h (its last read is bucket anchor + 68, past the 72 of three; two hold the
+ * 24 h window, three emery's 26):
  * the UV window reaches PEAK_HOURS ahead so the UV slot can name TOMORROW's peak, the end of the phone's local tomorrow can fall on the
  * third GMT day (far-east zones early in their morning), and the one-bucket-
  * ahead read reaches an hour past that.
@@ -490,7 +490,7 @@ function buildUvUrl(lat, lon, dayPeak, hours) {
 /**
  * Extract a reachHours(hours) UV window aligned to a forecast start time — PEAK_HOURS,
  * longer than the 24 h forecast window, so the UV slot can place tomorrow's peak, or
- * the long span's 65 h window (the graph still takes only its own hours; getPayload
+ * the long span's 68 h window (the graph still takes only its own hours; getPayload
  * slices) — indexing the
  * response's hourly uv_index by timestamp (so a feed whose offset differs still
  * lines up). GFS UV is the mean of the hour ENDING at its stamp (buildUvUrl), so
@@ -543,7 +543,7 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
     // requestMapped owns the parse/missing-fields/error-code grammar; adoptMapped
     // assigns the mapped forecast (gustTrend included — ecmwf_ifs025 returns
     // all-null gusts, so the aux call below overrides when available).
-    // The graph's window: 24 hours, or 65 for emery's long span (fetch-options.js).
+    // The graph's window: 24 hours, or emery's 26 or 68 (fetch-options.js).
     var hours = hourlyWindow.windowHours(this.options);
     WeatherProvider.requestMapped({
         url: buildForecastUrl(lat, lon, hours), id: 'openmeteo', label: 'Open-Meteo',

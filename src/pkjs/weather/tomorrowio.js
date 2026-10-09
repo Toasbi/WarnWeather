@@ -26,9 +26,9 @@ var MPS_TO_KMH = 3.6;
  * the returned intervals are hour-aligned like every other provider; endTime is
  * `hours` + 1 buckets out so `hours` future buckets always remain after the
  * anchor — the forecast window takes the graph's hours of them (FORECAST_HOURS,
- * or 65 for emery's long span), and while a UV, wind or gust slot shows its day
+ * or emery's 26 or 68), and while a UV, wind or gust slot shows its day
  * max those series read on to reachHours (hourly-window.js: PEAK_HOURS, or the
- * long span's 65). One timestep, one call — the calls-per-cycle
+ * long span's 68). One timestep, one call — the calls-per-cycle
  * constants in tomorrowio-budget.js assume this; the longer window costs bytes,
  * not calls.
  *
@@ -247,8 +247,8 @@ TomorrowIoProvider.prototype.withProviderData = function(lat, lon, force, onSucc
     // owns the field adoption and the feels/uv gates. Everything rides the one
     // Timelines call (dew point, bearing and temperatureApparent are Core-tier
     // fields), so mapped carries the full shape and the gates decide what lands.
-    // The graph's window: 24 hours, or 65 for emery's long span (fetch-options.js).
-    // A day max reads reachHours: PEAK_HOURS, or the long span's 65 (asking PEAK_HOURS
+    // The graph's window: 24 hours, or emery's 26 or 68 (fetch-options.js).
+    // A day max reads reachHours: PEAK_HOURS, or the long span's 68 (asking PEAK_HOURS
     // there would cut the payload to 49); still one call per cycle.
     var hours = hourlyWindow.windowHours(this.options);
     WeatherProvider.requestMapped({

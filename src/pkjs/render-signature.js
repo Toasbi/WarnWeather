@@ -99,7 +99,8 @@ function renderSignature(settings) {
         settings.barSource, settings.windScale, settings.pressureScale,
         // ...the left axis's 'Include feels-like & dew point' (BETA, forecast-axis.js): it
         // changes what TEMP_MIN/TEMP_MAX hold, so it signs while a feels-like or dew point
-        // line is drawn. The axis line, the numbers' place and their outline are Clay-only...
+        // line is drawn. The numbers' place is Clay-only, but at 24 h it sets the hours sent
+        // (forecast-span.js signature, below)...
         forecastAxis.signature(settings),
         // Status-line bake inputs: value formatting...
         settings.temperatureUnits, settings.tempSlotDisplay,
@@ -130,7 +131,7 @@ function renderSignature(settings) {
         settings.sleepNightEnabled, settings.sleepStartHour, settings.sleepEndHour,
         // ...the forecast's time span (emery): how many hours are fetched and baked
         // ('' for the default 24 and an absent key alike, so hydrating it forces no
-        // fetch)...
+        // fetch; '26' for 24 h with the hi/lo numbers On graph or Off)...
         forecastSpan.signature(settings)];
     // ...the per-kind "Show unit" toggles (whether the phone bakes the unit
     // into the slot text at all — kph/hPa/d/°; same rule: without them here a

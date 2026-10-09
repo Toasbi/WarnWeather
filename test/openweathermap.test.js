@@ -281,11 +281,11 @@ test('OWM withSunEvents still yields a sun-event pair when daily sunrise/sunset 
 });
 
 // The override hands the fetch's span to nextSunEvents like the base class does
-// (test/sun-events.test.js): a longer fetch's polar pair reaches further (65 h: five days).
-test('OWM withSunEvents passes the fetch\'s span to the polar pair (65 h: five days out, 48 h: four)', (t) => {
+// (test/sun-events.test.js): a longer fetch's polar pair reaches further (68 h: five days).
+test('OWM withSunEvents passes the fetch\'s span to the polar pair (68 h: five days out, 48 h: four)', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-06-21T12:00:00Z') });
   const midnight = Date.parse('2026-06-21T00:00:00Z');
-  [[65, 5], [48, 4], [24, 3]].forEach(([span, days]) => {
+  [[68, 5], [48, 4], [26, 4], [24, 3]].forEach(([span, days]) => {
     const p = new OpenWeatherMapProvider('test-key');
     p.options = fetchOptions.defaults({ forecastHours: span });
     p.withOwmResponse = (lat, lon, cb) => cb({ daily: [{}, {}] });
@@ -370,7 +370,7 @@ test('OWM + steadman degrades to the API current when the observation lacks wind
 });
 
 // Emery's long span (forecast-span.js): One Call's 48 hourly entries all travel, and stop there.
-test('long span: OWM sends all 48 One Call hours on a 48 h or 65 h window, 24 on the default', () => {
+test('long span: OWM sends all 48 One Call hours on a 48 h or 68 h window, 24 on the default', () => {
   const hourly = [];
   for (let i = 0; i < 48; i += 1) {
     hourly.push({ temp: 50 + i, pop: 0.1, wind_speed: 5, wind_gust: 9, uvi: i % 9, pressure: 1010,
@@ -387,8 +387,8 @@ test('long span: OWM sends all 48 One Call hours on a 48 h or 65 h window, 24 on
   ['TEMP_RAW_TREND', 'PRECIP_TREND_UINT8', 'RAIN_TREND_UINT8', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8',
     'UV_TREND_UINT8', 'CLOUD_TREND', 'PRESSURE_TREND', 'FEELS_TREND', 'DEW_TREND'].forEach((k) =>
     assert.equal(payload[k].length, 48, k));
-  // The long span's 65 h window: One Call has no more than 48 hours, so the feed is short.
-  p.options = fetchOptions.defaults({ fetchUv: true, forecastHours: 65 });
+  // The long span's 68 h window: One Call has no more than 48 hours, so the feed is short.
+  p.options = fetchOptions.defaults({ fetchUv: true, forecastHours: 68 });
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   assert.equal(p.getPayload().NUM_ENTRIES, 48);
   assert.equal(p.getPayload().TEMP_RAW_TREND.length, 48);

@@ -10292,7 +10292,7 @@
                 "hintByValue": {
                   "12": "The next 12 hours, in wider columns.",
                   "24": "The next 24 hours.",
-                  "48": "About 58 hours in narrow columns; more when the graph has more room (High / low numbers On graph or Off). Weather Underground and OpenWeatherMap stop at 48 hours: about 44 with them."
+                  "48": "About 58 hours in narrow columns; up to 66 with the High / low numbers On graph or Off. Weather Underground and OpenWeatherMap stop at 48 hours: about 40 to 44 with them."
                 },
                 "options": [
                   [
@@ -10324,26 +10324,14 @@
             },
             "items": [
               {
-                "type": "toggle",
-                "messageKey": "forecastAxisLine",
-                "label": "Axis line",
-                "defaultValue": true,
-                "hint": "The vertical line along the left edge of the graph. Not drawn in the preview.",
-                "more": true,
-                "showWhen": {
-                  "env": "platform",
-                  "eq": "emery"
-                }
-              },
-              {
                 "type": "segmented",
                 "messageKey": "forecastAxisNumbers",
                 "label": "High / low numbers",
-                "defaultValue": "beside",
+                "defaultValue": "axis",
                 "options": [
                   [
-                    "Beside",
-                    "beside"
+                    "On axis",
+                    "axis"
                   ],
                   [
                     "On graph",
@@ -10355,34 +10343,14 @@
                   ]
                 ],
                 "hintByValue": {
-                  "beside": "The forecast's highest and lowest temperature, left of the graph.",
-                  "graph": "Each number sits next to the point it names. The graph gets their space.",
-                  "off": "No numbers. The graph gets their space."
+                  "axis": "The forecast's highest and lowest temperature, beside the axis line on the left.",
+                  "graph": "Each number sits next to the point it names. No axis: the graph starts at the left edge.",
+                  "off": "No numbers and no axis: the graph starts at the left edge."
                 },
                 "more": true,
                 "showWhen": {
                   "env": "platform",
                   "eq": "emery"
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "forecastAxisOutline",
-                "label": "Number outline",
-                "defaultValue": true,
-                "hint": "A 1 px edge in the background color keeps the numbers readable over lines, bars and shading.",
-                "more": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "platform",
-                      "eq": "emery"
-                    },
-                    {
-                      "key": "forecastAxisNumbers",
-                      "eq": "graph"
-                    }
-                  ]
                 }
               },
               {

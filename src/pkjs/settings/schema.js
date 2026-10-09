@@ -985,7 +985,7 @@ var VIEWS_INTRO = 'A view is one screen of the watchface. The Default view shows
 var VIEW_FLICK_WHEN = {env: 'platform', ne: 'aplite'};
 // The forecast's Time span row: emery only (platform.js isForecastSpanPlatform, the
 // env.forecastSpan fact), hidden on an unknown watch (fail closed: the 640 / 536 B
-// inboxes of every other watch cannot take the long span's 65-hour bundle).
+// inboxes of every other watch cannot take the long span's 68-hour bundle).
 var FORECAST_SPAN_WHEN = {env: 'forecastSpan'};
 var LAYOUT_INTRO = 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the '
     + 'preview. What a metric means or how it\'s coloured lives in Graphs.';
@@ -1987,12 +1987,13 @@ module.exports = {
             }]
         }, {
             // Time span (emery only): how many hours the forecast graph looks ahead. The phone
-            // fetches and sends 14, 24 or 65 hourly points (src/pkjs/forecast-span.js); the
-            // watch's grid follows the count it receives and fills the plot's width, so the
+            // fetches and sends 14, 24 (26 with no left axis) or 68 hourly points
+            // (src/pkjs/forecast-span.js); the watch's grid follows the count it receives and
+            // fills the plot's width, so the
             // hours on screen follow the layout (src/c/appendix/forecast_span.h). '48' is the
             // long span's stored token, labelled '58 h': the hours the default layout shows.
             // Every other watch keeps 24 h: the 640 B / 536 B inboxes cannot take the long
-            // span's 65-hour bundle and the 64 KB images have no room. A changed span
+            // span's 68-hour bundle and the 64 KB images have no room. A changed span
             // re-fetches (render-signature.js). Not `more`: the span frames the whole graph.
             pane: 'forecast',
             id: 'forecastSpan',
@@ -2006,59 +2007,47 @@ module.exports = {
                 hintByValue: {
                     '12': 'The next 12 hours, in wider columns.',
                     '24': 'The next 24 hours.',
-                    '48': 'About 58 hours in narrow columns; more when the graph has more room '
-                        + '(High / low numbers On graph or Off). Weather Underground and '
-                        + 'OpenWeatherMap stop at 48 hours: about 44 with them.'
+                    '48': 'About 58 hours in narrow columns; up to 66 with the High / low numbers '
+                        + 'On graph or Off. Weather Underground and OpenWeatherMap stop at 48 hours: '
+                        + 'about 40 to 44 with them.'
                 },
                 options: [['12 h', '12'], ['24 h', '24'], ['58 h', '48']],
                 showWhen: FORECAST_SPAN_WHEN
             }]
         }, {
-            // Left axis (Beta), emery only (owner, 2026-10-09): the axis line, where the
-            // high / low numbers go (beside the graph, on it, or off: the last two give the
-            // label strip to the graph), their outline, and whether they name the whole
-            // temperature scale. src/pkjs/forecast-axis.js is the one reading (wire bits on
-            // the CLAY_LARGE_GRAPH_FONT word, the scale bake, the preview); the watch's rules
-            // live in src/c/appendix/temp_axis_pad.h (THE NUMBERS ON THE GRAPH). Every row
-            // is `more`: the card shows its title and opens by itself when a row differs
-            // from its default. Dormant values (the outline off the graph, the scale with
-            // the numbers off or no feels-like / dew point line) are kept and sent as the
-            // defaults, so they never cost a resend.
+            // Left axis (Beta), emery only (owner, 2026-10-09): where the high / low numbers go
+            // (On axis: beside the axis line on the left, today's look; On graph: next to the
+            // points they name; Off: none; the last two draw no left axis at all, so the graph
+            // starts at the screen's left edge) and whether they name the whole temperature
+            // scale. The axis line and the numbers' outline follow the place (the 2.2.0 betas
+            // had a row each; a beta's stored 'beside' reads as 'axis', the default).
+            // src/pkjs/forecast-axis.js is the one reading (wire bits on the
+            // CLAY_LARGE_GRAPH_FONT word, the scale bake, the 24 h span's 26 hours, the
+            // preview); the watch's rules live in src/c/appendix/temp_axis_pad.h (THE NUMBERS
+            // ON THE GRAPH) and forecast_layer.c. Every row is `more`: the card shows its title
+            // and opens by itself when a row differs from its default. A dormant scale (the
+            // numbers off, or no feels-like / dew point line) is kept and sent as the default,
+            // so it never costs a resend. At 24 h, moving the numbers between On axis and the
+            // other two re-fetches: the hours sent follow (forecast-span.js hours()).
             pane: 'forecast',
             id: 'axis',
             title: 'Left axis (Beta)',
             showWhen: EMERY_WHEN,
             items: [{
-                type: 'toggle',
-                messageKey: FORECAST_AXIS.KEYS.line,
-                label: 'Axis line',
-                defaultValue: true,
-                hint: 'The vertical line along the left edge of the graph. Not drawn in the preview.',
-                more: true,
-                showWhen: EMERY_WHEN
-            }, {
                 type: 'segmented',
                 messageKey: FORECAST_AXIS.KEYS.numbers,
                 label: 'High / low numbers',
-                defaultValue: FORECAST_AXIS.BESIDE,
-                options: [['Beside', FORECAST_AXIS.BESIDE], ['On graph', FORECAST_AXIS.GRAPH],
+                defaultValue: FORECAST_AXIS.AXIS,
+                options: [['On axis', FORECAST_AXIS.AXIS], ['On graph', FORECAST_AXIS.GRAPH],
                     ['Off', FORECAST_AXIS.OFF]],
                 hintByValue: {
-                    beside: 'The forecast\'s highest and lowest temperature, left of the graph.',
-                    graph: 'Each number sits next to the point it names. The graph gets their space.',
-                    off: 'No numbers. The graph gets their space.'
+                    axis: 'The forecast\'s highest and lowest temperature, beside the axis line on the left.',
+                    graph: 'Each number sits next to the point it names. No axis: the graph starts at '
+                        + 'the left edge.',
+                    off: 'No numbers and no axis: the graph starts at the left edge.'
                 },
                 more: true,
                 showWhen: EMERY_WHEN
-            }, {
-                type: 'toggle',
-                messageKey: FORECAST_AXIS.KEYS.outline,
-                label: 'Number outline',
-                defaultValue: true,
-                hint: 'A 1 px edge in the background color keeps the numbers readable over lines, '
-                    + 'bars and shading.',
-                more: true,
-                showWhen: {all: [EMERY_WHEN, {key: FORECAST_AXIS.KEYS.numbers, eq: FORECAST_AXIS.GRAPH}]}
             }, {
                 // Gated on a drawn feels-like or dew point line (when-resolvers.js
                 // tempAxisLineDrawn): without one the scale is the air temperature's own.

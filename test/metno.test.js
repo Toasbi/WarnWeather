@@ -338,7 +338,7 @@ test('withProviderData populates dewTrend and windDirTrend, numEntries long', ()
 });
 
 // A 48-hour window (a window past 24 that stays under PEAK_HOURS, so no hourlyTail): Met.no is
-// hourly to about 60 h. Emery's long span (65) is test/metno-tail.test.js.
+// hourly to about 60 h. Emery's long span (68) is test/metno-tail.test.js.
 test('48 h: mapResponse maps 48 contiguous hours; the default stays 24', () => {
   const mapped = metno.mapResponse(forecastBody(60, HOUR0), NOW, 48);
   ['tempTrend', 'precipTrend', 'rainTrend', 'pressureTrend', 'cloudTrend', 'feelsTrend', 'dewTrend',

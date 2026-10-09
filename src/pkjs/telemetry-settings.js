@@ -321,12 +321,10 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // hours sent (forecast-span.js option()). Lockstep with handler.ts.
         forecastHours: forecastSpan.option(safe, env),
         // The forecast's left axis options (BETA), emery only (the one watch that offers
-        // them), as chosen (forecast-axis.js readers: absent or junk reads the default),
-        // the Draw from precedent below: whether the outline or the scale applies at all is
-        // the numbers and line fields. Lockstep with handler.ts -- deploy it first.
-        forecastAxisLine: isEmery ? forecastAxis.lineShown(safe) : undefined,
+        // them), as chosen (forecast-axis.js readers: absent or junk reads the default, a
+        // beta's 'beside' included), the Draw from precedent below: whether the scale applies
+        // at all is the numbers and line fields. Lockstep with handler.ts -- deploy it first.
         forecastAxisNumbers: isEmery ? forecastAxis.numbers(safe) : undefined,
-        forecastAxisOutline: isEmery ? forecastAxis.outline(safe) : undefined,
         forecastAxisScale: isEmery ? forecastAxis.scale(safe) : undefined,
         vibe: !!safe.vibe,
         btIcons: safe.btIcons,

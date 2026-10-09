@@ -228,16 +228,17 @@ test('yandex sources no pressure at all', () => {
   assert.deepEqual(p.pressureTrend, []);
 });
 
-// Emery's long span (forecast-span.js): the window is windowHours(options), 65 (a 48 h window,
+// Emery's long span (forecast-span.js): the window is windowHours(options), 68 (a 48 h window,
 // a feed's own limit, reads the same way).
-test('long span: buildQuery asks for four days at 65 and 48 (a distant day may be short); the default three', () => {
+test('long span: buildQuery asks for four days at 68 and 48 (a distant day may be short); the default three', () => {
   assert.match(yandex.buildQuery(55.75, 37.62), /days\(limit: 3\)/);
   assert.match(yandex.buildQuery(55.75, 37.62, 24), /days\(limit: 3\)/);
+  assert.match(yandex.buildQuery(55.75, 37.62, 26), /days\(limit: 4\)/, 'emery\'s 24 h with no left axis');
   assert.match(yandex.buildQuery(55.75, 37.62, 48), /days\(limit: 4\)/);
-  assert.match(yandex.buildQuery(55.75, 37.62, 65), /days\(limit: 4\)/);
+  assert.match(yandex.buildQuery(55.75, 37.62, 68), /days\(limit: 4\)/);
 });
 
-test('long span: mapResponse reaches 65 hours on every series when the four day lists are full', () => {
+test('long span: mapResponse reaches 68 hours on every series when the four day lists are full', () => {
   const days = [];
   for (let d = 0; d < 4; d += 1) {
     const hs = []; for (let i = d * 24; i < (d + 1) * 24; i += 1) hs.push(hour(i));
@@ -245,11 +246,11 @@ test('long span: mapResponse reaches 65 hours on every series when the four day 
   }
   const r = { data: { weatherByPoint: { now: { temperature: 71 }, forecast: { days: days } } } };
   const now = BASE + 18 * 3600 + 600;
-  const out = mapResponse(r, now, 65);
+  const out = mapResponse(r, now, 68);
   ['tempTrend', 'precipTrend', 'rainTrend', 'feelsTrend', 'windTrend', 'gustTrend', 'uvTrend'].forEach((k) =>
-    assert.equal(out[k].length, 65, k));
-  assert.equal(out.tempTrend[64], 50 + 18 + 64);
-  assert.equal(out.windTrend[64], 18 + 64);
+    assert.equal(out[k].length, 68, k));
+  assert.equal(out.tempTrend[67], 50 + 18 + 67);
+  assert.equal(out.windTrend[67], 18 + 67);
   // At 24 the day-max series keep their PEAK_HOURS reach; nothing else moves.
   const day = mapResponse(r, now, 24);
   assert.equal(day.tempTrend.length, 24);

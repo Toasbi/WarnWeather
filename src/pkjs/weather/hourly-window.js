@@ -1,7 +1,7 @@
 // src/pkjs/weather/hourly-window.js
 //
-// The shared forecast window: its size (the base 24 hours, or 65 for emery's long
-// span: windowHours), the anchor rule (first bucket at or after the FLOORED
+// The shared forecast window: its size (the base 24 hours, or up to 68 for emery's
+// spans: windowHours), the anchor rule (first bucket at or after the FLOORED
 // current hour), the hourly-run rule and the timestamp-indexed alignment remap.
 // Before this leaf module, FORECAST_HOURS/HOUR_SECONDS were re-declared per provider
 // and the anchor loop was implemented four times against four timestamp encodings.
@@ -17,20 +17,21 @@ var HOUR_SECONDS = 60 * 60;
 // UTC-offset zone's anchor can start up to 45 min before today's midnight: still 49,
 // bar that zone's fall-back days, where a fetch in those minutes reads tomorrow as
 // unknown.) Only the day-max series read this far; every other trend keeps the
-// graph's window, windowHours: 24, or 65 for emery's long span, and getPayload cuts
+// graph's window, windowHours: 24, or emery's 26 or 68, and getPayload cuts
 // these back to the hours it sends (WeatherProvider#payloadEntries). The day-max series
 // read on to the graph's window when that is longer (reachHours).
 var PEAK_HOURS = 2 * FORECAST_HOURS + 1;
 // The longest forecast the graph is sent: emery's long span (forecast-span.js, labelled
-// "58 h"). ceil(190 / 3) + 1: the widest plot (190 px, B's collapsed strip at GOTHIC_14 hour
-// labels) at the 3 px pitch, plus the hour whose vertex lies past the right edge. The watch
-// picks what it shows (src/c/appendix/forecast_span.h). Lockstep with FORECAST_MAX_ENTRIES
-// there (test/forecast-span.test.js reads both).
-var MAX_FORECAST_HOURS = 65;
+// "58 h"). ceil(200 / 3) + 1: the widest plot (the whole 200 px screen: the hi/lo numbers On
+// graph or Off draw no left axis) at the 3 px pitch, plus the hour whose vertex lies past the
+// right edge. The watch picks what it shows (src/c/appendix/forecast_span.h). Lockstep with
+// FORECAST_MAX_ENTRIES there (test/forecast-span.test.js reads both).
+var MAX_FORECAST_HOURS = 68;
 
 /**
  * How many hourly buckets an adapter maps for this fetch: the graph's span when it is
- * longer than the base window (emery's long span, 65, capped at MAX_FORECAST_HOURS), else
+ * longer than the base window (emery's 24 h with no left axis, 26, or its long span, 68,
+ * capped at MAX_FORECAST_HOURS), else
  * the base FORECAST_HOURS every adapter has always required, so a 12 h span changes no
  * request and no failure rule (getPayload sends its 14).
  *
@@ -44,8 +45,8 @@ function windowHours(options) {
 
 /**
  * How far a day-max series (UV, wind, gusts) reads: PEAK_HOURS (to the end of tomorrow), or
- * the graph's window when that is longer (emery's long span, 65). payloadEntries() sends the
- * fewest hours any drawn series holds, so a day-max read stopping at 49 would cut a 65-hour
+ * the graph's window when that is longer (emery's long span, 68). payloadEntries() sends the
+ * fewest hours any drawn series holds, so a day-max read stopping at 49 would cut a 68-hour
  * payload to 49.
  *
  * @param {number} [hours] The graph's window (windowHours); FORECAST_HOURS when absent.

@@ -455,9 +455,8 @@ const HEAVIEST_SETTINGS = {
   batteryLowOnly: true, topViewMode: 'compact', layoutPreset: 'compactDense',
   viewResetMin: '15', largeGraphFont: true, forecastHours: '48', vibe: true, btIcons: 'both',
   // The forecast's left axis options (BETA, emery: this fixture's watch) on their longer
-  // values: false for the toggles, 'beside' for the numbers.
-  forecastAxisLine: false, forecastAxisNumbers: 'beside', forecastAxisOutline: false,
-  forecastAxisScale: false,
+  // values: false for the toggle, 'graph' for the numbers.
+  forecastAxisNumbers: 'graph', forecastAxisScale: false,
   doubleFlick: false,  // false: the longer JSON value
   secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'high',
   pressureScale: 'high', thirdLine: 'wind', barSource: 'precip_prob',
@@ -613,7 +612,7 @@ test('custom layouts report customViewExt0-2 = packExt per view; presets report 
 
 test('snapshot reports the forecast span option this watch draws, as an int: 12 / 24 / 48, not the hours sent', () => {
   // Categorical (forecast-span.js option()): 48 is the long span, labelled "58 h", which is
-  // sent 65 hours; 12 is sent 14. Same values as before 2.2.0's long span, so handler.ts holds.
+  // sent 68 hours; 12 is sent 14. Same values as before 2.2.0's long span, so handler.ts holds.
   assert.strictEqual(buildSettingsSnapshot({ forecastHours: '48' }, { platform: 'emery' }).forecastHours, 48);
   assert.strictEqual(buildSettingsSnapshot({ forecastHours: '12' }, { platform: 'emery' }).forecastHours, 12);
   assert.strictEqual(buildSettingsSnapshot({ forecastHours: '48' }, { platform: 'basalt' }).forecastHours, 24,
@@ -626,24 +625,30 @@ test('snapshot reports the forecast span option this watch draws, as an int: 12 
 // junk reads the default), the Draw from precedent; every other watch, and an unknown one,
 // reports nothing.
 test('snapshot reports the left axis options on emery only, as chosen', () => {
-  const set = { forecastAxisLine: false, forecastAxisNumbers: 'graph', forecastAxisOutline: false,
-    forecastAxisScale: true };
+  const set = { forecastAxisNumbers: 'graph', forecastAxisScale: true };
   const emery = buildSettingsSnapshot(set, { platform: 'emery' });
-  assert.strictEqual(emery.forecastAxisLine, false);
   assert.strictEqual(emery.forecastAxisNumbers, 'graph');
-  assert.strictEqual(emery.forecastAxisOutline, false);
   assert.strictEqual(emery.forecastAxisScale, true);
+  assert.strictEqual(buildSettingsSnapshot({ forecastAxisNumbers: 'off' }, { platform: 'emery' })
+    .forecastAxisNumbers, 'off');
   const defaults = buildSettingsSnapshot({ forecastAxisNumbers: 'junk' }, { platform: 'emery' });
-  assert.strictEqual(defaults.forecastAxisLine, true);
-  assert.strictEqual(defaults.forecastAxisNumbers, 'beside');
-  assert.strictEqual(defaults.forecastAxisOutline, true);
+  assert.strictEqual(defaults.forecastAxisNumbers, 'axis');
   assert.strictEqual(defaults.forecastAxisScale, false);
-  // As chosen: a dormant outline still reports what is stored.
-  assert.strictEqual(buildSettingsSnapshot({ forecastAxisOutline: false }, { platform: 'emery' })
-    .forecastAxisOutline, false);
+  assert.strictEqual(buildSettingsSnapshot({ forecastAxisNumbers: 'beside' }, { platform: 'emery' })
+    .forecastAxisNumbers, 'axis', 'a beta\'s beside reads On axis');
+  // As chosen: a dormant scale (no feels-like / dew point line) still reports what is stored.
+  assert.strictEqual(buildSettingsSnapshot({ forecastAxisScale: true }, { platform: 'emery' })
+    .forecastAxisScale, true);
+  // The betas' Axis line / Number outline are retired: never reported, on any watch.
+  const betas = Object.assign({ forecastAxisLine: false, forecastAxisOutline: false }, set);
+  [{ platform: 'emery' }, { platform: 'basalt' }, undefined].forEach((watchInfo) => {
+    const snap = buildSettingsSnapshot(betas, watchInfo);
+    ['forecastAxisLine', 'forecastAxisOutline'].forEach((k) =>
+      assert.strictEqual(Object.prototype.hasOwnProperty.call(snap, k), false, k + ' on ' + JSON.stringify(watchInfo)));
+  });
   [{ platform: 'basalt' }, { platform: 'aplite' }, undefined].forEach((watchInfo) => {
     const snap = buildSettingsSnapshot(set, watchInfo);
-    ['forecastAxisLine', 'forecastAxisNumbers', 'forecastAxisOutline', 'forecastAxisScale'].forEach((k) =>
+    ['forecastAxisNumbers', 'forecastAxisScale'].forEach((k) =>
       assert.strictEqual(snap[k], undefined, k + ' on ' + JSON.stringify(watchInfo)));
   });
 });
@@ -909,9 +914,8 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // batch header 3168 of 4096, headroom 928. The Double flick switch (doubleFlick, on its
 // longer value false) is 20 B: batch header 3188 of 4096, headroom 908. The forecast's
 // time span (forecastHours, 2.2.0, an int, the option: 48) is 19 B: 3207 of 4096, headroom 889. The
-// forecast's left axis options (forecastAxisLine, forecastAxisNumbers, forecastAxisOutline,
-// forecastAxisScale; 2.2.0, BETA, emery only; false / 'beside' the longer values) are 110 B:
-// 3317 of 4096, headroom 779.
+// forecast's left axis options (forecastAxisNumbers, forecastAxisScale; 2.2.0, BETA, emery
+// only; 'graph' / false the longer values) are 56 B: 3263 of 4096, headroom 833.
 test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');

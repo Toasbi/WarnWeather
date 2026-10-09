@@ -132,12 +132,77 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // scaled to preview units like the label gap (CURVE_INSET_PREV units a WATCH_INSET_PX).
     var TEMP_LABEL_POINT_GAP = 2;
     var TEMP_LABEL_PART_GAP = 3;
-    // The plot's left edge while the numbers claim no strip (On graph, Off): the watch's
-    // collapsed inset (temp_axis_collapsed_inset: half the widest hour label plus 2 px),
-    // against the label strip's 20 units.
-    var PX0_COLLAPSED = 8;
+    // The plot's left edge: the label strip's 20 units with the numbers On axis, the frame's
+    // left edge with them On graph or Off, which draw no left axis (forecast_layer.c: the plot
+    // starts at the screen's left edge). The legend keeps LEGEND_X0_NO_AXIS units in then.
+    var PX0_AXIS = 20;
+    var PX0_NO_AXIS = 0;
+    var LEGEND_X0_NO_AXIS = 8;
+    // The hour axis (forecast_grid.c forecast_grid_fill_axis_span, mirrored): what a slot
+    // draws (src/c/appendix/forecast_span.h FORECAST_MARK_*), and an hour digit's width in
+    // the 7.5-unit axis font, for the edge drop (forecast_span_label_fits).
+    var MARK_NONE = 0;
+    var MARK_TICK = 1;
+    var MARK_LABEL = 2;
+    var HOUR_DIGIT_W = 4.5;
+    // The frame's edges (preview-svg.js svgFrame's viewBox is 200 units wide).
+    var FRAME_W = 200;
     // A number's width per character of the 8-unit label font, in units.
     var NUMBER_CHAR_W = 4.6;
+
+    /**
+     * The hour axis's cadence for the span this watch draws — forecast_span.h forecast_span's
+     * label_every / tick_every / by_clock, mirrored for the preview's own window (its 12
+     * samples model no pitch): 12 h a label every 2nd slot, 24 h every 3rd, a tick on each,
+     * both counted from slot 0; the long span ('48', "58 h") the clock's marks, a label every
+     * 6 clock hours (its 3 px pitch) and a small tick on the other 3-hour marks. Every watch
+     * but emery (env.forecastSpan) draws 24 h.
+     * @param {?Object} state Clay settings.
+     * @param {?Object} env computeEnv() result.
+     * @returns {{labelEvery: number, tickEvery: number, byClock: boolean}}
+     */
+    function axisCadence(state, env) {
+        var span = (env && env.forecastSpan) ? String((state || {}).forecastHours) : '24';
+        if (span === '12') { return { labelEvery: 2, tickEvery: 1, byClock: false }; }
+        if (span === '48') { return { labelEvery: 6, tickEvery: 3, byClock: true }; }
+        return { labelEvery: 3, tickEvery: 1, byClock: false };
+    }
+
+    /**
+     * Slot i's mark — forecast_span.h forecast_span_mark, mirrored: a label on every
+     * labelEvery-th unit, a small tick on every tickEvery-th one between, else none. The unit
+     * is the slot (from slot 0) or, by the clock, its hour, a repeated hour (a daylight-saving
+     * fall-back) marked once.
+     * @param {{labelEvery: number, tickEvery: number, byClock: boolean}} c axisCadence.
+     * @param {number} i The slot.
+     * @param {number} hour Its clock hour, 0..23.
+     * @param {number} prevHour Slot i - 1's clock hour, -1 for slot 0.
+     * @returns {number} MARK_NONE, MARK_TICK or MARK_LABEL.
+     */
+    function axisMark(c, i, hour, prevHour) {
+        var unit = i;
+        if (c.byClock) {
+            if (hour === prevHour) { return MARK_NONE; }
+            unit = hour;
+        }
+        if (unit % c.labelEvery === 0) { return MARK_LABEL; }
+        return unit % c.tickEvery === 0 ? MARK_TICK : MARK_NONE;
+    }
+
+    /**
+     * Whether an hour label centred on x is whole between the frame's edges —
+     * forecast_span.h forecast_span_label_fits, mirrored: a label either edge would cut is
+     * not drawn, and its tick stays.
+     * @param {number} x The tick's x.
+     * @param {string} text The label.
+     * @param {number} left The first unit on screen.
+     * @param {number} right The last.
+     * @returns {boolean}
+     */
+    function axisLabelFits(x, text, left, right) {
+        var w = text.length * HOUR_DIGIT_W;
+        return x - w / 2 >= left && x + w / 2 <= right;
+    }
 
     /**
      * The side a number prefers beside sample i: +1 right, -1 left — temp_axis_pad.h
@@ -212,20 +277,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
     /**
      * Where the numbers' ink may go — forecast_layer.c draw_axis_numbers' TempLabelArea,
-     * mirrored: right of the axis column to the plot's right edge, from the first content row
-     * under the top stripe band to the row over the zero line, shrunk on every side by the
-     * outline's ring (one watch px) when it is drawn, so the ring never crosses the axis, a
-     * band or the zero line.
-     * @param {number} px0 The plot's left edge (the axis column).
+     * mirrored: the plot's left edge (no axis On graph) to its right edge, from the first
+     * content row under the top stripe band to the row over the zero line, shrunk on every side
+     * by the outline's ring (one watch px), so the ring never crosses an edge, a band or the
+     * zero line.
+     * @param {number} px0 The plot's left edge (no axis column On graph).
      * @param {number} px1 The plot's right edge.
      * @param {number} top The first content row under the top stripe band.
      * @param {number} zero The zero line's row.
-     * @param {boolean} outline Whether the numbers are outlined.
      * @returns {{left: number, right: number, top: number, bottom: number}}
      */
-    function numbersArea(px0, px1, top, zero, outline) {
-        var o = outline ? CURVE_INSET_PREV / WATCH_INSET_PX : 0;
-        return { left: px0 + 1 + o, right: px1 - o, top: top + o, bottom: zero - 1 - o };
+    function numbersArea(px0, px1, top, zero) {
+        var o = CURVE_INSET_PREV / WATCH_INSET_PX;   // the outline On graph always draws
+        return { left: px0 + o, right: px1 - o, top: top + o, bottom: zero - 1 - o };
     }
 
     /**
@@ -633,11 +697,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             ? topStripes * STRIPE_H + (topStripes - 1) * STRIPE_GAP + TOP_BAND_GAP : 0;
         // The left axis options (BETA, forecast-axis.js resolved: every default off a known
         // emery, so every other preview is unchanged whatever is stored). With the numbers On
-        // graph or Off the label strip goes to the graph, which then starts PX0_COLLAPSED in;
-        // the zero line, the ticks, the vertices and the legend follow PX0. The axis line is
-        // not modelled (no preview draws one).
+        // graph or Off there is no left axis: the graph starts at the frame's left edge
+        // (PX0_NO_AXIS), and the zero line, the ticks and the vertices follow PX0; the legend
+        // keeps LEGEND_X0_NO_AXIS in. The axis line itself is not modelled (no preview draws
+        // one).
         var ax = forecastAxis.resolved(state, env);
-        var PX0 = ax.numbers === forecastAxis.BESIDE ? 20 : PX0_COLLAPSED;
+        var axisOn = ax.numbers === forecastAxis.AXIS;
+        var PX0 = axisOn ? PX0_AXIS : PX0_NO_AXIS;
         var PX1 = 197, PT = 4, PB = AXIS_Y - stripeBand;
         var PTL = PT + topBand;
         var MT = topBand ? PTL : PT + 3;   // where a full-height metric value lands
@@ -768,16 +834,26 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 + '" fill="none" stroke="' + tempColor + '" stroke-width="' + tempW + '" stroke-linecap="round"></path>';
         }
         function drawAxis() {
-            // One tick per hourly slot; a big tick + hour digit every 3rd slot (mirrors the watch's
-            // big_every = 3). Hour = 12 + i (mod 24): 12, 15, 18, 21 over the noon→23:00 window,
-            // folded to 12, 3, 6, 9 by the 12h axis setting (config.c config_axis_hour: 0 → 12).
-            var out = '';
+            // The watch's hour axis (forecast_grid.c forecast_grid_fill_axis_span, mirrored):
+            // each slot's mark at the span's cadence (axisCadence, axisMark), a big tick and
+            // the hour digit on a label, a small tick on a tick. Hour = 12 + i (mod 24): 12, 15,
+            // 18, 21 over the noon→23:00 window at 24 h, folded to 12, 3, 6, 9 by the 12h axis
+            // setting (config.c config_axis_hour: 0 → 12). With no left axis slot 0 (the
+            // current hour) keeps its tick but no label, and no label a frame edge would cut is
+            // drawn (axisLabelFits).
+            var cad = axisCadence(state, env);
+            var out = '', prev = -1;
             for (var i = 0; i < n; i += 1) {
-                var big = i % 3 === 0;
+                var hour = (12 + i) % 24;
+                var mark = axisMark(cad, i, hour, prev);
+                prev = hour;
+                if (mark === MARK_NONE) { continue; }
+                var big = mark === MARK_LABEL;
                 out += '<line x1="' + tickX(i) + '" y1="' + AXIS_Y + '" x2="' + tickX(i) + '" y2="' + (AXIS_Y + (big ? 4 : 2)) + '" stroke="' + ink.rgba('0.32') + '" stroke-width="0.6"></line>';
-                if (big) {
-                    var h = (12 + i) % 24;
-                    if (state.axisTimeFormat === '12h') { h = h % 12 || 12; }
+                if (!big || (i === 0 && !axisOn)) { continue; }
+                var h = hour;
+                if (state.axisTimeFormat === '12h') { h = h % 12 || 12; }
+                if (axisLabelFits(tickX(i), String(h), 0, FRAME_W)) {
                     out += txt(tickX(i), AXIS_Y + 11, 7.5, '#7C828D', 'middle', 600, String(h));
                 }
             }
@@ -1122,7 +1198,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 }
             });
             if (!hi) { return ''; }
-            var area = numbersArea(PX0, PX1, PTL, PB, ax.outline);
+            var area = numbersArea(PX0, PX1, PTL, PB);
             var hiText = tLabelMax + '°', loText = tLabelMin + '°';
             var wHi = hiText.length * NUMBER_CHAR_W, wLo = loText.length * NUMBER_CHAR_W;
             var hx = hi.c.x(hi.i), lx = lo.c.x(lo.i);
@@ -1130,17 +1206,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var lb = numberBeside(lx[0], lx[1], lo.c.ys[lo.i], numberSide(lo.c.ys, lo.i), wLo, area);
             var both = bothNumbers(hiText, loText, hb, wHi, lb, wLo, area);
             /**
-             * One number, over its outline when the option is on.
+             * One number, over its outline (the background colour: On graph always draws it).
              * @param {{x: number, base: number}} b Where (numberBeside).
              * @param {string} t The text.
              * @returns {string} SVG markup.
              */
             function number(b, t) {
-                var under = ax.outline
-                    ? '<text x="' + b.x + '" y="' + b.base + '" font-size="8" fill="' + ink.bg + '" stroke="' + ink.bg
-                        + '" stroke-width="2" stroke-linejoin="round" font-family="sans-serif" font-weight="600" text-anchor="start">'
-                        + t + '</text>'
-                    : '';
+                var under = '<text x="' + b.x + '" y="' + b.base + '" font-size="8" fill="' + ink.bg + '" stroke="' + ink.bg
+                    + '" stroke-width="2" stroke-linejoin="round" font-family="sans-serif" font-weight="600" text-anchor="start">'
+                    + t + '</text>';
                 return under + txt(b.x, b.base, 8, '#AEB4BD', 'start', 600, t);
             }
             return number(hb, hiText) + (both ? number(lb, loText) : '');
@@ -1200,13 +1274,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             // would cross the right edge starts the next row (never the first in a
             // row, so an over-long single entry still renders).
             var ROW_H = 10, RIGHT_EDGE = 198, gy0 = AXIS_Y + 18;
-            var x = PX0, row = 0, i, en;
+            var X0 = axisOn ? PX0 : LEGEND_X0_NO_AXIS;
+            var x = X0, row = 0, i, en;
             for (i = 0; i < entries.length; i += 1) {
                 en = entries[i];
                 en.gw = (en.kind === 'rain' && isColor && state.rainBarColor !== 'white')
                     ? P.rainTiers.length * 2.4 + 2 : 14;
                 var w = en.gw + 3 + en.label.length * 4.3;
-                if (x > PX0 && x + w > RIGHT_EDGE) { x = PX0; row += 1; }
+                if (x > X0 && x + w > RIGHT_EDGE) { x = X0; row += 1; }
                 en.x = x;
                 en.gy = gy0 + row * ROW_H;
                 x = en.x + w + 8;
@@ -1327,13 +1402,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // reaches past it (yT). The one exception is emery's left axis option 'Include
         // feels-like & dew point' (scaleNums): then they name the scale's ends, which the
         // bake puts in TEMP_MIN/TEMP_MAX.
-        // Where they go is the left axis option (BETA, ax.numbers): beside the graph (today),
-        // on it (drawNumbersOnGraph) or nowhere.
-        // Beside: where there is space each label's ink sits level with the curve's extreme
+        // Where they go is the left axis option (BETA, ax.numbers): on the axis (today), on
+        // the graph (drawNumbersOnGraph) or nowhere.
+        // On axis: where there is space each label's ink sits level with the curve's extreme
         // it names (alignLabels; never previewing aplite, whose labels are frozen). Today's
         // reach gates the lo label always and the hi label only without a top stripe band:
         // under one the watch's plain rule applies (see alignLabels).
-        if (ax.numbers === forecastAxis.BESIDE) {
+        if (axisOn) {
             var labels = stylesFrozen ? { hi: PT + 11, lo: PB - 1 }
                 : alignLabels(PT + 11, PB - 1, yT(tLabelMax), yT(tLabelMin),
                     topBand ? -Infinity : MT + curveInsetPrev, PB - curveInsetPrev);
@@ -1358,7 +1433,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             CURVE_INSET_PREV: CURVE_INSET_PREV,
             TEMP_LABEL_POINT_GAP: TEMP_LABEL_POINT_GAP,
             TEMP_LABEL_PART_GAP: TEMP_LABEL_PART_GAP,
-            PX0_COLLAPSED: PX0_COLLAPSED,
+            PX0_AXIS: PX0_AXIS,
+            PX0_NO_AXIS: PX0_NO_AXIS,
+            MARK_NONE: MARK_NONE,
+            MARK_TICK: MARK_TICK,
+            MARK_LABEL: MARK_LABEL,
+            axisCadence: axisCadence,
+            axisMark: axisMark,
+            axisLabelFits: axisLabelFits,
             NUMBER_CHAR_W: NUMBER_CHAR_W,
             numberSide: numberSide,
             numberBeside: numberBeside,

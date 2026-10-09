@@ -865,8 +865,8 @@ void app_message_init() {
     // its bundle never carries the fourth/fifth metric lines (WW_LINE_STYLE).
     const int inbox_size = 536;
 #elif defined(PBL_PLATFORM_EMERY)
-    // emery: 1024 (was 640, 2.2.0): the long forecast span's six 65-byte trends make the
-    // heaviest bundle 849 B, 857 B with a cleared notice (test/inbox-size.test.js); 128 KB of
+    // emery: 1024 (was 640, 2.2.0): the long forecast span's six 68-byte trends make the
+    // heaviest bundle 867 B, 875 B with a cleared notice (test/inbox-size.test.js); 128 KB of
     // app RAM has the room. Every other watch is never sent more than 24 hours.
     const int inbox_size = 1024;
 #else

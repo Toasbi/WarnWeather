@@ -18,7 +18,8 @@
 // back to the fail-safe answer.
 var forecastSeries = require('../forecast-series.js');
 var feelsLike = require('./feels-like.js');
-// Both leaves (forecast-span.js requires only hourly-window.js), so the invariant above holds.
+// forecast-span.js requires hourly-window.js (a leaf) and forecast-axis.js (line-style.js,
+// as forecast-series.js already does), so the invariant above holds.
 var forecastSpan = require('../forecast-span.js');
 var platform = require('../config-ui/lib/platform.js');
 
@@ -57,9 +58,9 @@ var DEFAULTS = {
     // The shared WAQI token (build-injected via package.json's waqi.token);
     // '' = none, and air-quality.js degrades a token-less WAQI to Open-Meteo US.
     aqicnToken: '',
-    // The hours the forecast graph is sent (14 | 24 | 65; forecast-span.js): 24 on every
-    // watch but an emery set otherwise. The adapters map hourly-window.js windowHours()
-    // of this (24, or 65 for the long span) and getPayload sends
+    // The hours the forecast graph is sent (14 | 24 | 26 | 68; forecast-span.js): 24 on
+    // every watch but an emery set otherwise. The adapters map hourly-window.js windowHours()
+    // of this (24, or 26 or 68 past it) and getPayload sends
     // WeatherProvider#payloadEntries() hours.
     forecastHours: forecastSpan.DEFAULT_HOURS
 };
@@ -139,8 +140,9 @@ function build(settings, watchInfo, env) {
         aqiScale: (settings && settings.aqiScale) || DEFAULTS.aqiScale,
         aqiSource: (settings && settings.aqiSource) || DEFAULTS.aqiSource,
         aqicnToken: (env && env.waqiToken) || '',
-        // The forecast's time span: the stored option's 14 | 24 | 65 hours on an emery, 24 on
-        // every other watch and an unknown one (their inboxes cannot take a 65-hour bundle).
+        // The forecast's time span: the stored option's 14 | 24 | 68 hours on an emery (26 for
+        // 24 h with no left axis), 24 on every other watch and an unknown one (their inboxes
+        // cannot take a 68-hour bundle).
         forecastHours: forecastSpan.hours(settings, platform.computeEnv(watchInfo))
     });
 }

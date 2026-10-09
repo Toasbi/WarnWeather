@@ -676,7 +676,7 @@ test('adoptFeels under the default formula ignores the dew point entirely', () =
   assert.equal(p.currentFeels, null);
 });
 
-// A window past 24 (windowHours(options)): 48 here, under two days; emery's long span (65)
+// A window past 24 (windowHours(options)): 48 here, under two days; emery's long span (68)
 // follows these.
 /**
  * A synthetic `count`-bucket main response (forecast_days=4 is 96), cloud and pressure included.
@@ -726,6 +726,7 @@ test('48 h: the main call asks for four GMT days; the aux and UV calls three, fo
   assert.match(openmeteo.buildForecastUrl(52.52, 13.41), /&forecast_days=3(&|$)/);
   assert.match(openmeteo.buildForecastUrl(52.52, 13.41, 24), /&forecast_days=3(&|$)/);
   assert.match(openmeteo.buildForecastUrl(52.52, 13.41, 48), /&forecast_days=4(&|$)/);
+  assert.match(openmeteo.buildForecastUrl(52.52, 13.41, 26), /&forecast_days=4(&|$)/, 'any window past 24');
   [openmeteo.buildGustUrl, openmeteo.buildUvUrl].forEach((build) => {
     assert.match(build(52.52, 13.41, false), /&forecast_days=2(&|$)/);
     assert.match(build(52.52, 13.41, false, 24), /&forecast_days=2(&|$)/);
@@ -750,44 +751,45 @@ test('48 h: three GMT days hold every aux and UV read of a 48 h window from the 
   assert.equal(openmeteo.mapFeels(aux, start).length, 24, 'the default window stays 24');
 });
 
-test('long span: mapResponse maps 65 hours of every graph series, wind included (reachHours)', () => {
+test('long span: mapResponse maps 68 hours of every graph series, wind included (reachHours)', () => {
   [0, 12, 23].forEach((anchor) => {
-    const out = mapResponse(longResponse(96), BASE + anchor * 3600 + 600, 65);
+    const out = mapResponse(longResponse(96), BASE + anchor * 3600 + 600, 68);
     ['tempTrend', 'precipTrend', 'rainTrend', 'gustTrend', 'pressureTrend', 'cloudTrend', 'windTrend']
-      .forEach((k) => assert.equal(out[k].length, 65, k + ' at anchor ' + anchor));
-    assert.equal(out.tempTrend[64], 50 + anchor + 64);
-    assert.equal(out.windTrend[64], anchor + 64);
-    assert.equal(out.rainTrend[64], anchor + 65, 'the last slot reads the bucket after the window');
+      .forEach((k) => assert.equal(out[k].length, 68, k + ' at anchor ' + anchor));
+    assert.equal(out.tempTrend[67], 50 + anchor + 67);
+    assert.equal(out.windTrend[67], anchor + 67);
+    assert.equal(out.rainTrend[67], anchor + 68, 'the last slot reads the bucket after the window');
   });
   assert.equal(mapResponse(longResponse(96), BASE + 600, 24).windTrend.length, PEAK_HOURS,
     'the 24 h window\'s wind keeps PEAK_HOURS');
 });
 
 test('long span: the main, aux and UV calls ask four GMT days; 48 and 24 keep theirs', () => {
-  assert.match(openmeteo.buildForecastUrl(52.52, 13.41, 65), /&forecast_days=4(&|$)/);
+  assert.match(openmeteo.buildForecastUrl(52.52, 13.41, 68), /&forecast_days=4(&|$)/);
   [openmeteo.buildGustUrl, openmeteo.buildUvUrl].forEach((build) => {
-    // auxDays: (false, 65) = 4, (false, 48) = 3, (false, 24) = 2, (true, 24) = 4.
-    assert.match(build(52.52, 13.41, false, 65), /&forecast_days=4(&|$)/);
-    assert.match(build(52.52, 13.41, true, 65), /&forecast_days=4(&|$)/);
+    // auxDays: (false, 68) = 4, (false, 48) = 3, (false, 26) = 3, (false, 24) = 2, (true, 24) = 4.
+    assert.match(build(52.52, 13.41, false, 68), /&forecast_days=4(&|$)/);
+    assert.match(build(52.52, 13.41, true, 68), /&forecast_days=4(&|$)/);
     assert.match(build(52.52, 13.41, false, 48), /&forecast_days=3(&|$)/);
+    assert.match(build(52.52, 13.41, false, 26), /&forecast_days=3(&|$)/, 'emery\'s 24 h with no left axis');
     assert.match(build(52.52, 13.41, false, 24), /&forecast_days=2(&|$)/);
     assert.match(build(52.52, 13.41, true, 24), /&forecast_days=4(&|$)/);
   });
 });
 
-test('long span: mapGusts and mapUv read 65 aligned values from the latest anchor (four GMT days)', () => {
-  // The latest anchor is 23:00 GMT on day 0: one bucket ahead, the 65th slot reads bucket
-  // 23 + 65 = 88, inside four days' 96.
+test('long span: mapGusts and mapUv read 68 aligned values from the latest anchor (four GMT days)', () => {
+  // The latest anchor is 23:00 GMT on day 0: one bucket ahead, the 68th slot reads bucket
+  // 23 + 68 = 91, inside four days' 96.
   const start = BASE + 23 * 3600;
   const aux = auxResponse(96);
-  const gusts = openmeteo.mapGusts(aux, start, 65);
-  assert.equal(gusts.length, 65);
+  const gusts = openmeteo.mapGusts(aux, start, 68);
+  assert.equal(gusts.length, 68);
   assert.ok(gusts.every((v) => v !== null), 'every gust slot is sourced');
-  assert.equal(gusts[64], 23 + 65 + 5, 'slot 64 reads bucket 88');
+  assert.equal(gusts[67], 23 + 68 + 5, 'slot 67 reads bucket 91');
   const time = Array.from({ length: 96 }, (_, i) => BASE + i * 3600);
-  const uv = openmeteo.mapUv({ hourly: { time, uv_index: time.map((_, i) => i) } }, start, 65);
-  assert.equal(uv.length, 65);
-  assert.equal(uv[64], 88);
+  const uv = openmeteo.mapUv({ hourly: { time, uv_index: time.map((_, i) => i) } }, start, 68);
+  assert.equal(uv.length, 68);
+  assert.equal(uv[67], 91);
   // The default and 24 h reads keep PEAK_HOURS.
   assert.equal(openmeteo.mapGusts(aux, start).length, PEAK_HOURS);
   assert.equal(openmeteo.mapGusts(aux, start, 24).length, PEAK_HOURS);

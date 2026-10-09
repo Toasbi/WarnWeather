@@ -309,9 +309,9 @@ static inline void temp_labels_align_to_curve(int *hi_y, int *lo_y, int h,
 
 // THE NUMBERS ON THE GRAPH (owner, 2026-10-09; BETA, emery only: config.h GRAPH_OPT_*). The
 // left axis's options can take the hi/lo numbers off the label strip: "On graph" puts each
-// number beside the point it names, "Off" draws none, and either way the strip goes to the
-// plot, which then starts temp_axis_collapsed_inset columns in (or, with the health graph on
-// the same screen, at the shared edge: bottom_view.h). The point is the temperature
+// number beside the point it names, "Off" draws none, and either way the left axis goes: no
+// strip, no axis line, and the plot starts at the screen's left edge (or, with the health
+// graph on the same screen, at the shared edge: bottom_view.h). The point is the temperature
 // curve's highest and lowest vertex or, with "Include feels-like & dew point"
 // (GRAPH_OPT_SCALE_NUMS), the highest and lowest of every line on the temperature's scale (THE
 // SCALE: the feels-like and dew point lines too), over every hour sent, as the numbers' values
@@ -322,7 +322,8 @@ static inline void temp_labels_align_to_curve(int *hi_y, int *lo_y, int h,
 // zero line or the hour labels. Two numbers that would touch stack: the lo number under the hi
 // one, else the hi one lifted over it, else the lo number is left out. The curve's margins and
 // scale do not change (the owner's tight margins, above): the numbers' 1 px outline in the
-// background colour keeps them readable where they cover a line. The settings preview mirrors
+// background colour, which On graph always draws (no option: the owner's "implied by the axis
+// number settings"), keeps them readable where they cover a line. The settings preview mirrors
 // these rules (preview-forecast.js numberSide / numberBeside / numbersPart).
 
 // The extremes' rows and hours: a row strictly above `hi` or strictly below `lo` replaces it,
@@ -367,8 +368,8 @@ static inline int temp_label_side(const int16_t *rows, int n, int i, bool gaps) 
     return dn >= dp ? 1 : -1;
 }
 
-// Where a number's ink may go, inclusive screen columns and rows: right of the axis column to
-// the screen's edge, between the stripe bands, shrunk by the outline on every side.
+// Where a number's ink may go, inclusive screen columns and rows: the plot's left edge to the
+// screen's right edge, between the stripe bands, shrunk by the outline on every side.
 typedef struct { int left, right, top, bottom; } TempLabelArea;
 
 // A number's box: its top-left. Its ink starts at column x, and its cap sits on the box's
@@ -418,12 +419,3 @@ static inline bool temp_labels_part(TempLabelBox *hi, int w_hi, TempLabelBox *lo
     return true;
 }
 
-// The plot's left edge while the numbers claim no strip: slot 0's hour label is centred on
-// that edge in a 40 px box (chart.c chart_draw_axis_label; emery nudges it by 0), so its ink
-// starts about ceil(hour_w / 2) left of it. `hour_w` is the widest two-digit hour label's
-// measured width in the hour labels' font; TEMP_AXIS_EDGE_SLACK keeps its first column clear of
-// the screen's edge.
-#define TEMP_AXIS_EDGE_SLACK 2
-static inline int temp_axis_collapsed_inset(int hour_w) {
-    return (int)((unsigned)(hour_w + 1) / 2) + TEMP_AXIS_EDGE_SLACK;
-}

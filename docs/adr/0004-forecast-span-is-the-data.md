@@ -11,12 +11,12 @@ The forecast graph on a Pebble Time 2 (emery) can look 12, 24 or 48 hours ahead
   (`scripts/check-64k-size.sh`), and their 640 B AppMessage inboxes hold a 603 B worst-case
   weather bundle. aplite is the frozen lean fork (ADR 0001), 536 B inbox.
 - A 48 h bundle adds 24 B to each of the six forecast trends: 747 B. (Superseded by the
-  amendment below: the long span's 65 hours make it 849 B.)
+  amendments below: the long span's 65 hours made it 849 B, its 68 hours make it 867 B.)
 
 ## Decision
 
 - **The phone decides the span and sends that many hourly points.** It rides the fetch options
-  (`forecastHours`); the adapters map `windowHours()` buckets (24, or 48 for the 48 h span; 65 since the amendment below);
+  (`forecastHours`); the adapters map `windowHours()` buckets (24, or 48 for the 48 h span; 65, then 26 or 68, since the amendments below);
   `WeatherProvider#payloadEntries()` sends 12, 24, or for 48 h as many hours as every drawn
   series holds, never fewer than 24.
 - **The watch reads its grid off `NUM_ENTRIES`**, which it already receives and clamps:
@@ -89,3 +89,43 @@ for the long span, with 2 px rain bars as the floor.
   night at the graph's end; the polar pair reaches five days out past 48 h.
 - **Inbox**: emery's heaviest weather bundle is 849 B of 1024 B (857 B with a cleared notice);
   every other bundle, Clay included, is unchanged. Every non-emery image stays byte-identical.
+
+## Amendment 2 (2.2.0): no left axis, whole hour labels, clock marks on the long span
+
+The owner, on the left axis options: with the hi/lo numbers On graph or Off "the complete left
+axis should not be drawn, and the graph should start as much on the left screen as possible,
+while maintaining the same spacing on the right edge"; the first hour label, which would then
+be cut in half at the left edge, is not drawn (the first one shown is the next), nor the last
+one when the right edge would cut it; and the long span marks the clock hours (12 / 15 / 18 /
+21 / 00 and so on) "so it's easier to gauge where I'm at". The betas' Axis line and Number
+outline rows went with it: both are implied by where the numbers go.
+
+- **Two left axis settings**: the numbers On axis / On graph / Off (stored 'axis' / 'graph' /
+  'off'; a beta's 'beside' and junk read 'axis') and the scale toggle. Wire bits 1 and 4 (axis
+  line off, outline off) are retired and reserved; the axis line is drawn exactly On axis, the
+  numbers' outline exactly On graph.
+- **No left axis On graph or Off**: no label strip, no axis line, and the forecast layer stops
+  clipping on emery, so the plot runs from the screen's left edge (x 0) to the same right edge
+  as before: W = 200 px. With a health graph sharing the screen the shared strip stays (its
+  step marks need it), with the axis line only On axis.
+- **The hours sent follow the widest plot**: the long span sends 68 = ceil(200 / 3) + 1 (66
+  whole hours on screen with no left axis, still 58 at the default 174 px plot); 24 h sends 26
+  = ceil(200 / 8) + 1 on a known emery with the numbers On graph or Off, else 24 (so the On
+  axis payload stays today's); 12 h keeps 14, its pitch now up to 16 px so 12 columns cover
+  200 px. The watch's classes: 2..14 the 12 h grid, 15..26 the 24 h grid (n > 24 through
+  fit_entries / relabel_visible like the long span), 27..68 the long one. The render signature
+  changes at 24 h for a numbers move between On axis and the other two, never at 12 h or the
+  long span, and never for Larger graph fonts.
+- **Whole hour labels only** (`forecast_span.h` `forecast_span_label_fits`, host-tested): a label
+  either screen edge would cut is dropped and its tick stays, in every class; with no left axis
+  slot 0 (the current hour) is never labelled. With the numbers On axis the default 24 h graph
+  is unchanged except where its last label would have been cut at the right edge.
+- **Clock-aligned marks on the long span** (`forecast_span_mark`, host-tested, mirrored in the
+  settings preview): from each slot's local hour, a small tick on every 3rd clock hour and a
+  label on every 6th, or every 3rd once 3 hours are at least 18 px (pitch 6 and up, short
+  48-hour feeds on a wide plot). A repeated fall-back hour is marked once; a skipped
+  spring-forward mark is not drawn. 12 h and 24 h keep their slot-0 cadence, each label the
+  slot's true local hour.
+- **Inbox**: emery's heaviest weather bundle is 867 B of 1024 B (875 B with a cleared notice);
+  every other bundle, Clay included, is unchanged, and every non-emery image stays
+  byte-identical.

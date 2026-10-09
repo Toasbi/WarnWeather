@@ -9,9 +9,9 @@ var YANDEX_ENDPOINT = 'https://api.weather.yandex.ru/graphql/query';
  * Build the Yandex Weather GraphQL query. Units are requested server-side
  * (FAHRENHEIT, KILOMETERS_PER_HOUR) so mapResponse does zero conversion, and
  * days(limit: 3) guarantees >=24 future hourly buckets even late in the day
- * (a distant day's hours list may be shorter than 24). The long span's 65 h
- * window (emery) asks for 4 days: limit 4 holds 1 + 3 × 24 = 73 hours at the
- * latest anchor (the location's 23:00), past the 66 the window and the bucket
+ * (a distant day's hours list may be shorter than 24). A window past 24 h
+ * (emery's 26 or 68) asks for 4 days: limit 4 holds 1 + 3 × 24 = 73 hours at the
+ * latest anchor (the location's 23:00), past the 69 the long window and the bucket
  * after it read (72 on a 23 h DST day). A short distant day's list just makes
  * the feed short, and the watch widens its pitch to fill the plot.
  * Coordinates are embedded as unquoted numeric literals (GraphQL Float), never
@@ -214,7 +214,7 @@ YandexProvider.prototype.withProviderData = function(lat, lon, force, onSuccess,
     // owns the field adoption and the feels/uv gates. The GraphQL response has no
     // pressure, dew or bearing series — mapped simply lacks those keys, and
     // adoptMapped sets each absent one to its documented empty value ([]).
-    // The graph's window: 24 hours, or 65 for emery's long span (fetch-options.js).
+    // The graph's window: 24 hours, or emery's 26 or 68 (fetch-options.js).
     var hours = hourlyWindow.windowHours(this.options);
     WeatherProvider.requestMapped({
         url: YANDEX_ENDPOINT, method: 'POST', id: 'yandex', label: 'Yandex',

@@ -435,21 +435,22 @@ test('alignLabels: off today\'s reach only, inward only, the minimum gap, else t
 
 // --- THE NUMBERS ON THE GRAPH (left axis BETA, emery only) -------------------------------
 // The forecast preview mirrors the watch's left axis options (forecast-axis.js resolved):
-// beside the graph (today), on it (each number beside the point it names), or off; On graph
-// and Off give the label strip to the graph. temp_axis_pad.h pins the watch's half on the host.
+// on the axis (today), on the graph (each number beside the point it names), or off; On graph
+// and Off draw no left axis, so the graph starts at the frame's left edge. temp_axis_pad.h pins
+// the watch's half on the host.
 const EMERY = platform.computeEnv({ platform: 'emery' });
 const NUMBER_TEXT = /<text x="([\d.-]+)" y="([\d.-]+)" font-size="8" fill="#AEB4BD"[^>]*>(-?\d+)°<\/text>/g;
 const UNDERLAY = /<text x="([\d.-]+)" y="([\d.-]+)" font-size="8" fill="([^"]+)" stroke="([^"]+)" stroke-width="2"[^>]*>(-?\d+)°<\/text>/g;
 const numbersIn = (svg) => [...svg.matchAll(NUMBER_TEXT)].map((m) => ({ x: Number(m[1]), base: Number(m[2]), t: m[3] }));
 const underlaysIn = (svg) => [...svg.matchAll(UNDERLAY)].map((m) => ({ x: Number(m[1]), base: Number(m[2]),
   fill: m[3], stroke: m[4], t: m[5] }));
-const ALL_AXIS = { forecastAxisLine: false, forecastAxisNumbers: 'graph', forecastAxisOutline: false,
-  forecastAxisScale: true };
+const ALL_AXIS = { forecastAxisNumbers: 'graph', forecastAxisScale: true };
 
 test('the numbers\' gaps: one number each, the watch\'s', () => {
   assert.equal(FC.TEMP_LABEL_POINT_GAP, define('TEMP_LABEL_POINT_GAP'));
   assert.equal(FC.TEMP_LABEL_PART_GAP, define('TEMP_LABEL_PART_GAP'));
-  assert.ok(FC.PX0_COLLAPSED < 20, 'the collapsed edge sits left of the label strip\'s');
+  assert.equal(FC.PX0_AXIS, 20, 'On axis: the label strip\'s 20 units');
+  assert.equal(FC.PX0_NO_AXIS, 0, 'no left axis: the frame\'s left edge');
 });
 
 test('the left axis options change no preview off a known emery, nor emery\'s at the defaults', () => {
@@ -460,24 +461,22 @@ test('the left axis options change no preview off a known emery, nor emery\'s at
         p + ' ' + JSON.stringify(over));
     });
   });
-  const defaults = { forecastAxisLine: true, forecastAxisNumbers: 'beside', forecastAxisOutline: true,
-    forecastAxisScale: false };
+  const defaults = { forecastAxisNumbers: 'axis', forecastAxisScale: false };
   [{}, { secondaryLine: 'dew' }].forEach((over) => {
     assert.equal(preview(Object.assign({}, over, defaults), EMERY), preview(over, EMERY), JSON.stringify(over));
-    // Dormant values change nothing either: the outline off the graph, the scale without a line.
-    assert.equal(preview(Object.assign({}, over, { forecastAxisOutline: false }), EMERY), preview(over, EMERY));
-    // The axis line is not modelled.
-    assert.equal(preview(Object.assign({}, over, { forecastAxisLine: false }), EMERY), preview(over, EMERY));
+    // Nor do a beta's stored 'beside' and its retired Axis line / Number outline keys.
+    assert.equal(preview(Object.assign({}, over, { forecastAxisNumbers: 'beside', forecastAxisLine: false,
+      forecastAxisOutline: false }), EMERY), preview(over, EMERY));
   });
   assert.equal(preview({ forecastAxisScale: true }, EMERY), preview({}, EMERY), 'no feels-like / dew point line');
 });
 
-test('On graph: the strip goes to the graph; each number beside the point it names', () => {
+test('On graph: no left axis, the graph from the left edge; each number beside the point it names', () => {
   const svg = preview({ forecastAxisNumbers: 'graph' }, EMERY);
   assert.ok(svg.indexOf('<text x="3"') === -1, 'no number in the strip');
-  assert.match(svg, /<line x1="8" y1="94" x2="197" y2="94"/, 'the zero line starts at the collapsed edge');
+  assert.match(svg, /<line x1="0" y1="94" x2="197" y2="94"/, 'the zero line starts at the left edge');
   const v = tempVertices(svg);
-  assert.equal(v[0][0], FC.PX0_COLLAPSED, 'the curve starts at the collapsed edge');
+  assert.equal(v[0][0], FC.PX0_NO_AXIS, 'the curve starts at the left edge');
   const nums = numbersIn(svg);
   assert.deepEqual(nums.map((n) => n.t), ['24', '14']);
   const U = FC.CURVE_INSET_PREV / FC.WATCH_INSET_PX;
@@ -506,18 +505,16 @@ test('On graph: the strip goes to the graph; each number beside the point it nam
   // The light theme's background.
   underlaysIn(preview({ forecastAxisNumbers: 'graph', theme: 'light' }, EMERY))
     .forEach((u) => assert.equal(u.stroke, '#FFFFFF'));
-  // Outline off: no underlay, the numbers where they were (the area grows by the ring only
-  // where a number is held at its edge).
-  const bare = preview({ forecastAxisNumbers: 'graph', forecastAxisOutline: false }, EMERY);
-  assert.equal(underlaysIn(bare).length, 0);
-  assert.deepEqual(numbersIn(bare), nums);
+  // The outline is no option: a beta's stored outline-off changes nothing.
+  assert.equal(preview({ forecastAxisNumbers: 'graph', forecastAxisOutline: false }, EMERY), svg);
 });
 
-test('Off: no numbers at all, the strip goes to the graph', () => {
+test('Off: no numbers and no left axis, the graph from the left edge', () => {
   const svg = preview({ forecastAxisNumbers: 'off' }, EMERY);
   assert.equal(numbersIn(svg).length, 0);
   assert.equal(underlaysIn(svg).length, 0);
-  assert.match(svg, /<line x1="8" y1="94" x2="197" y2="94"/);
+  assert.match(svg, /<line x1="0" y1="94" x2="197" y2="94"/);
+  assert.equal(tempVertices(svg)[0][0], FC.PX0_NO_AXIS);
 });
 
 test('Include feels-like & dew point: the numbers name the scale\'s ends, beside or on the graph', () => {
@@ -584,27 +581,22 @@ test('numberSide / numberBeside / numbersPart: the header\'s rules, in preview u
   assert.ok(hi.base - cap >= tiny.top && hi.base <= tiny.bottom, 'inside the area');
 });
 
-test('numbersArea: right of the axis column, between the bands, shrunk by the outline\'s ring', () => {
+test('numbersArea: the plot\'s edges, between the bands, shrunk by the outline\'s ring', () => {
   const U = FC.CURVE_INSET_PREV / FC.WATCH_INSET_PX;
-  assert.deepEqual(FC.numbersArea(8, 197, 4, 94, false), { left: 9, right: 197, top: 4, bottom: 93 });
-  const o = FC.numbersArea(8, 197, 4, 94, true);
-  assert.ok(near(o.left, 9 + U) && near(o.right, 197 - U) && near(o.top, 4 + U) && near(o.bottom, 93 - U));
+  // On graph always outlines: the ring (one watch px round the ink) stays off the left
+  // edge, the top band, the plot's right edge and the zero line.
+  const o = FC.numbersArea(0, 197, 4, 94);
+  assert.ok(near(o.left, U) && near(o.right, 197 - U) && near(o.top, 4 + U) && near(o.bottom, 93 - U));
   // A number held at the area's corners (a 120-unit number fits on neither side of its
-  // point) moves in by the ring with the outline on, so the ring (one watch px round the ink)
-  // stays off the axis column, the top band, the plot's right edge and the zero line.
-  const plain = FC.numbersArea(8, 197, 4, 94, false);
-  let bare = FC.numberBeside(100, 102, 0, -1, 120, plain);
-  let ring = FC.numberBeside(100, 102, 0, -1, 120, o);
-  assert.ok(near(bare.x, 9) && near(bare.base - FC.LABEL_CAP, 4), 'premise: held top-left');
-  assert.ok(near(ring.x - bare.x, U) && near(ring.base - bare.base, U), 'top-left: in by the ring');
-  bare = FC.numberBeside(100, 102, 200, 1, 120, plain);
-  ring = FC.numberBeside(100, 102, 200, 1, 120, o);
-  assert.ok(near(bare.x + 120, 197) && near(bare.base, 93), 'premise: held bottom-right');
-  assert.ok(near(bare.x - ring.x, U) && near(bare.base - ring.base, U), 'bottom-right: in by the ring');
+  // point) sits in by the ring.
+  let held = FC.numberBeside(100, 102, 0, -1, 120, o);
+  assert.ok(near(held.x, U) && near(held.base - FC.LABEL_CAP, 4 + U), 'held top-left, in by the ring');
+  held = FC.numberBeside(100, 102, 200, 1, 120, o);
+  assert.ok(near(held.x + 120, 197 - U) && near(held.base, 93 - U), 'held bottom-right, in by the ring');
 });
 
 test('bothNumbers: a flat range draws one number; else both, apart', () => {
-  const area = FC.numbersArea(8, 197, 4, 94, true);
+  const area = FC.numbersArea(0, 197, 4, 94);
   // Equal texts: the hi number alone, neither box moved, even where the two would collide.
   let hi = { x: 50, base: 50 }, lo = { x: 50, base: 50 };
   assert.equal(FC.bothNumbers('20°', '20°', hi, 10, lo, 10, area), false);
@@ -615,4 +607,73 @@ test('bothNumbers: a flat range draws one number; else both, apart', () => {
   // Two texts with no room: numbersPart's verdict.
   hi = { x: 50, base: 12 }; lo = { x: 50, base: 12 };
   assert.equal(FC.bothNumbers('21°', '20°', hi, 10, lo, 10, { left: 9, right: 197, top: 4, bottom: 14 }), false);
+});
+
+// --- THE HOUR AXIS (emery's spans and left axis, mirrored) -------------------------------
+// preview-forecast.js drawAxis mirrors forecast_grid.c forecast_grid_fill_axis_span over its
+// own 12-hour noon window: the span's cadence (forecast_span.h forecast_span), each slot's
+// mark (forecast_span_mark), no label on slot 0 with no left axis, and no label an edge would
+// cut (forecast_span_label_fits). test/c/forecast_span_test.c pins the watch's half.
+const HOUR_TEXT = /<text x="([\d.]+)" y="105"[^>]*>(\d+)<\/text>/g;
+const hourLabels = (svg) => [...svg.matchAll(HOUR_TEXT)].map((m) => m[2]);
+const TICK = /<line x1="([\d.]+)" y1="94" x2="[\d.]+" y2="(98|96)"/g;
+const ticks = (svg) => [...svg.matchAll(TICK)].map((m) => (m[2] === '98' ? 'big' : 'small'));
+const SPAN_HEADER = read('src/c/appendix/forecast_span.h');
+const spanDefine = (name) => Number(new RegExp('#define ' + name + '\\s+(\\d+)').exec(SPAN_HEADER)[1]);
+
+test('hour axis: the marks are forecast_span.h\'s, the long span\'s clock marks at its 3 px pitch', () => {
+  assert.equal(FC.MARK_NONE, spanDefine('FORECAST_MARK_NONE'));
+  assert.equal(FC.MARK_TICK, spanDefine('FORECAST_MARK_TICK'));
+  assert.equal(FC.MARK_LABEL, spanDefine('FORECAST_MARK_LABEL'));
+  const span = (h, env) => FC.axisCadence({ forecastHours: h }, env || EMERY);
+  assert.deepEqual(span('12'), { labelEvery: 2, tickEvery: 1, byClock: false });
+  assert.deepEqual(span('24'), { labelEvery: 3, tickEvery: 1, byClock: false });
+  assert.deepEqual(span(undefined), { labelEvery: 3, tickEvery: 1, byClock: false });
+  // The long span at the default plot's 3 px pitch: 3 hours are 9 px, under the 18 px a
+  // 3-hourly label needs, so a label every 6 clock hours and a small tick between.
+  assert.ok(spanDefine('FORECAST_SPAN_CLOCK_TICK_H') * 3 < spanDefine('FORECAST_SPAN_LABEL_MIN_PX'));
+  assert.deepEqual(span('48'), { labelEvery: spanDefine('FORECAST_SPAN_CLOCK_LABEL_H'),
+    tickEvery: spanDefine('FORECAST_SPAN_CLOCK_TICK_H'), byClock: true });
+  // Every watch but emery draws 24 h, whatever is stored.
+  assert.deepEqual(span('48', BASALT), span('24'));
+  assert.deepEqual(span('12', platform.computeEnv(null)), span('24'));
+  // The clock's marks: 12 / 18 / 0 labelled, 15 / 21 / 3 ticked, the rest bare; a repeated
+  // (fall-back) hour marked once.
+  const long = span('48');
+  assert.deepEqual([12, 13, 15, 18, 21, 0, 3, 6].map((h, i) => FC.axisMark(long, i + 1, h, h - 1)),
+    [2, 0, 1, 2, 1, 2, 1, 2]);
+  assert.equal(FC.axisMark(long, 5, 3, 3), FC.MARK_NONE, 'the repeated 3 o\'clock: once');
+  // 12 h and 24 h count from slot 0, whatever the hour.
+  assert.deepEqual([0, 1, 2, 3].map((i) => FC.axisMark(span('24'), i, 7 + i, 6 + i)), [2, 1, 1, 2]);
+  assert.deepEqual([0, 1, 2].map((i) => FC.axisMark(span('12'), i, 7 + i, 6 + i)), [2, 1, 2]);
+  // A label either edge would cut is not drawn.
+  assert.equal(FC.axisLabelFits(0, '15', 0, 200), false);
+  assert.equal(FC.axisLabelFits(4.5, '15', 0, 200), true);
+  assert.equal(FC.axisLabelFits(197, '21', 0, 200), false);
+  assert.equal(FC.axisLabelFits(197, '9', 0, 200), true);
+});
+
+test('hour axis: On axis keeps today\'s labels; On graph and Off drop slot 0\'s label, keep its tick', () => {
+  assert.deepEqual(hourLabels(preview({}, EMERY)), ['12', '15', '18', '21'], 'On axis: today');
+  ['graph', 'off'].forEach((nums) => {
+    const svg = preview({ forecastAxisNumbers: nums }, EMERY);
+    assert.deepEqual(hourLabels(svg), ['15', '18', '21'], nums + ': the first label is the next one');
+    assert.equal(ticks(svg)[0], 'big', nums + ': slot 0 keeps its big tick');
+    assert.equal(ticks(svg).length, 12, nums + ': a tick per hour');
+  });
+  // Off a known emery the option changes nothing.
+  assert.deepEqual(hourLabels(preview({ forecastAxisNumbers: 'off' }, BASALT)), ['12', '15', '18', '21']);
+});
+
+test('hour axis: the long span marks the clock (12 / 15 / 18 / 21), the 12 h span every 2nd hour', () => {
+  const long = preview({ forecastHours: '48' }, EMERY);
+  assert.deepEqual(hourLabels(long), ['12', '18'], 'labels every 6 clock hours');
+  assert.deepEqual(ticks(long), ['big', 'small', 'big', 'small'], 'a tick on every 3-hour mark only');
+  assert.deepEqual(hourLabels(preview({ forecastHours: '48', forecastAxisNumbers: 'off' }, EMERY)), ['18'],
+    'no left axis: slot 0 unlabelled');
+  assert.deepEqual(hourLabels(preview({ forecastHours: '12' }, EMERY)), ['12', '14', '16', '18', '20', '22']);
+  assert.deepEqual(hourLabels(preview({ forecastHours: '12', forecastAxisNumbers: 'graph' }, EMERY)),
+    ['14', '16', '18', '20', '22']);
+  assert.deepEqual(hourLabels(preview({ forecastHours: '48', axisTimeFormat: '12h' }, EMERY)), ['12', '6'],
+    'folded like config_axis_hour');
 });

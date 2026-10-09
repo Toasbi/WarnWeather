@@ -502,22 +502,28 @@ test('the fixture adopts its UV and feels whatever the settings select or the fo
 });
 
 // The forecast's time span (forecast-span.js): a fixture sends its own hours, up to the hours
-// the span sends this watch with the fixture's settings (14 / 24 / 65 on emery, 24 elsewhere)
+// the span sends this watch with the fixture's settings (14 / 24 or 26 / 68 on emery, 24 elsewhere)
 // — so a long fixture fits every inbox.
 const TRENDS = ['TEMP_TREND_UINT8', 'SECONDARY_LINE_TREND_UINT8', 'THIRD_LINE_TREND_UINT8',
   'FOURTH_LINE_TREND_UINT8', 'BAR_TREND_UINT8'];
+const { MAX_FORECAST_HOURS } = require('../src/pkjs/weather/hourly-window.js');
 const loadFixture = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));
 
-test('forecast-long.json: 65 hours on an emery set to the long span, 24 on 24 and on every other watch', () => {
+test('forecast-long.json: 68 hours on an emery set to the long span, 24 on 24 and on every other watch', () => {
   const fx = loadFixture('forecast-long.json');
-  assert.equal(fx.weather.temps.length, 65, 'premise: 65 hourly entries');
+  assert.equal(fx.weather.temps.length, 68, 'premise: 68 hourly entries');
+  assert.equal(fx.weather.temps.length, MAX_FORECAST_HOURS, 'premise: a full long-span feed');
   assert.equal(fx.claySettings.forecastHours, '48', 'the long span\'s token ("58 h")');
   const emery = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform: 'emery' });
-  assert.equal(emery.NUM_ENTRIES, 65);
-  TRENDS.forEach((k) => assert.equal(emery[k].length, 65, 'emery ' + k));
+  assert.equal(emery.NUM_ENTRIES, 68);
+  TRENDS.forEach((k) => assert.equal(emery[k].length, 68, 'emery ' + k));
   const at12 = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings, { forecastHours: '12' }),
     { platform: 'emery' });
   assert.equal(at12.NUM_ENTRIES, 14);
+  // 24 h: 24 On axis, 26 with no left axis (the numbers On graph or Off).
+  const at24 = (nums) => getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings,
+    { forecastHours: '24', forecastAxisNumbers: nums }), { platform: 'emery' }).NUM_ENTRIES;
+  assert.deepEqual(['axis', 'graph', 'off'].map(at24), [24, 26, 26]);
   ['basalt', 'diorite', 'chalk', 'aplite'].forEach((platform) => {
     const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
     assert.equal(out.NUM_ENTRIES, 24, platform);

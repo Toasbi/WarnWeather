@@ -201,11 +201,10 @@ const settingsSchema = z
     // The forecast graph's left axis options (2.2.0, BETA, src/pkjs/forecast-axis.js),
     // emery only, as chosen. DEPLOY-ORDERING: ship this function before the app release
     // that sends them, or the strip step silently drops them. The numbers' place as a
-    // plain string ('beside' | 'graph' | 'off'), not an enum: a value a later release adds
-    // cannot 400 the batch.
-    forecastAxisLine: z.boolean().optional(),
+    // plain string ('axis' | 'graph' | 'off'), not an enum: a value a later release adds
+    // cannot 400 the batch. The betas' forecastAxisLine / forecastAxisOutline are gone (both
+    // implied by the numbers' place): the strip step drops them from an older dev phone.
     forecastAxisNumbers: z.string().optional(),
-    forecastAxisOutline: z.boolean().optional(),
     forecastAxisScale: z.boolean().optional(),
     vibe: z.boolean().optional(),
     btIcons: z.string().optional(),

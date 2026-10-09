@@ -13,8 +13,9 @@ FORECAST
 - Up to four configurable metrics such as precipitation amount & probability, cloud cover, UV index, gusts,
   wind, air pressure, feels-like temperature and dew point
 - Optional day/night shading
-- Pebble Time 2: left axis options (beta): high/low numbers on the graph or off, no
-  axis line, numbers that include feels-like and dew point
+- Pebble Time 2: left axis options (beta): high/low numbers on the axis, on the graph or
+  off (no left axis: the graph uses the full width), numbers that include feels-like and dew
+  point; the longer span marks the clock hours
 - Fully customizable lines and colors
 - Multiple weather providers, including regional and worldwide sources
 

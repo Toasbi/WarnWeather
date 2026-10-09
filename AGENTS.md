@@ -111,8 +111,8 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   (`APP_MSG_BUFFER_OVERFLOW` → "Message dropped!"). Worst realistic case is DWD with all
   four metric lines active, the radar's sky rows on, City in every status slot and a
   full weather-alert entry tuple = 603 B of 640 B (37 B headroom);
-  emery's 1024 B was the owner's call for 2.2.0's forecast span (six trends of up to 65 B;
-  `src/pkjs/forecast-span.js`), its heaviest bundle 849 B of 1024 B, and every
+  emery's 1024 B was the owner's call for 2.2.0's forecast span (six trends of up to 68 B;
+  `src/pkjs/forecast-span.js`), its heaviest bundle 867 B of 1024 B, and every
   other watch is never sent more than 24 hours, so it keeps 603 B of 640 B;
   aplite's heaviest bundle, without the lines it cannot draw, is 473 B of 536 B (see
   `test/inbox-size.test.js` — the authoritative computation, which records the bundle

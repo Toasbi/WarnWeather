@@ -552,46 +552,51 @@ test('CLAY_LARGE_GRAPH_FONT reflects the largeGraphFont setting (absent reads as
 // resends nothing (the boolean, not a 0 / 1 that packs to the same int32 bytes).
 test('CLAY_LARGE_GRAPH_FONT: the defaults keep the bare boolean on every platform', () => {
   [false, true].forEach((large) => {
-    const s = Object.assign(baseSettings(), { largeGraphFont: large, forecastAxisLine: true,
-      forecastAxisNumbers: 'beside', forecastAxisOutline: true, forecastAxisScale: false });
+    const s = Object.assign(baseSettings(), { largeGraphFont: large,
+      forecastAxisNumbers: 'axis', forecastAxisScale: false });
     [null, {}, { platform: 'emery' }, { platform: 'basalt' }, { platform: 'chalk' }]
       .forEach((info) => {
         const v = buildClayPayload(s, info, NOW).CLAY_LARGE_GRAPH_FONT;
         assert.strictEqual(v, large, JSON.stringify(info) + ' ' + large);
       });
-    // A dormant value (outline off while Beside, scale with no feels-like / dew point line)
-    // keeps it too.
-    const dormant = Object.assign({}, s, { forecastAxisOutline: false, forecastAxisScale: true });
+    // A dormant value (scale with no feels-like / dew point line) and the betas' retired
+    // Axis line / Number outline keys keep it too.
+    const dormant = Object.assign({}, s, { forecastAxisLine: false, forecastAxisOutline: false,
+      forecastAxisScale: true });
     assert.strictEqual(buildClayPayload(dormant, { platform: 'emery' }, NOW).CLAY_LARGE_GRAPH_FONT,
       large, 'dormant ' + large);
   });
 });
 
-// The left axis options (BETA, forecast-axis.js) ride bits 1-5 of the same word on emery
-// (src/c/appendix/config.h GRAPH_OPT_*), canonical: a dormant value packs nothing.
-test('CLAY_LARGE_GRAPH_FONT: emery carries the left axis options in bits 1-5', () => {
+// The left axis options (BETA, forecast-axis.js) ride bits 2, 3 and 5 of the same word on emery
+// (src/c/appendix/config.h GRAPH_OPT_*; bits 1 and 4 retired), canonical: a dormant value packs
+// nothing.
+test('CLAY_LARGE_GRAPH_FONT: emery carries the left axis options in bits 2, 3 and 5', () => {
   const word = (extra, platform) => buildClayPayload(Object.assign(baseSettings(), extra),
     platform === undefined ? { platform: 'emery' } : platform, NOW).CLAY_LARGE_GRAPH_FONT;
   const dew = { secondaryLine: 'dew' };
-  assert.equal(word({ forecastAxisLine: false }), 0x02, 'axis line off');
   assert.equal(word({ forecastAxisNumbers: 'graph' }), 0x04, 'numbers on the graph');
   assert.equal(word({ forecastAxisNumbers: 'off' }), 0x08, 'numbers off');
-  assert.equal(word({ forecastAxisNumbers: 'graph', forecastAxisOutline: false }), 0x14,
-    'on the graph without the outline');
   assert.equal(word(Object.assign({ forecastAxisScale: true }, dew)), 0x20, 'scale with a dew line');
-  assert.equal(word(Object.assign({ largeGraphFont: true, forecastAxisLine: false,
-    forecastAxisNumbers: 'graph', forecastAxisOutline: false, forecastAxisScale: true }, dew)), 0x37,
-  'everything, Larger graph fonts too');
+  assert.equal(word(Object.assign({ largeGraphFont: true, forecastAxisNumbers: 'graph',
+    forecastAxisScale: true }, dew)), 0x25, 'everything, Larger graph fonts too');
   assert.strictEqual(word({ largeGraphFont: true, forecastAxisNumbers: 'graph' }), 0x05,
     'on the graph, Larger graph fonts too');
+  // The default place, by its name or the betas' 'beside': the bare boolean.
+  assert.strictEqual(word({ forecastAxisNumbers: 'axis' }), false, 'On axis');
+  assert.strictEqual(word({ forecastAxisNumbers: 'beside' }), false, 'the betas\' beside');
+  // The betas' retired Axis line / Number outline keys pack nothing (bits 1 and 4 retired).
+  assert.strictEqual(word({ forecastAxisLine: false, forecastAxisOutline: false }), false,
+    'retired keys');
+  assert.equal(word({ forecastAxisNumbers: 'graph', forecastAxisLine: false, forecastAxisOutline: false }),
+    0x04, 'retired keys beside a live option');
   // Dormant values pack nothing: the bare boolean.
-  assert.strictEqual(word({ forecastAxisOutline: false }), false, 'outline off while Beside');
   assert.strictEqual(word({ forecastAxisScale: true }), false,
     'scale with no feels-like / dew point line');
   assert.equal(word(Object.assign({ forecastAxisScale: true, forecastAxisNumbers: 'off' }, dew)),
     0x08, 'scale with the numbers off');
   // Junk reads the defaults.
-  assert.strictEqual(word({ forecastAxisNumbers: 'left', forecastAxisLine: 0, forecastAxisScale: 'yes' }),
+  assert.strictEqual(word({ forecastAxisNumbers: 'left', forecastAxisScale: 'yes' }),
     false, 'junk values');
   // No watchInfo: an unknown platform is capable, so the word still carries them.
   assert.strictEqual(word({ forecastAxisNumbers: 'graph' }, null), 0x04, 'unknown platform');
@@ -601,8 +606,7 @@ test('CLAY_LARGE_GRAPH_FONT: emery carries the left axis options in bits 1-5', (
 // A KNOWN non-emery watch never reads the key: it gets exactly the bare boolean it always
 // got, whatever left axis options a shared settings blob stores.
 test('CLAY_LARGE_GRAPH_FONT: a known non-emery watch gets the bare boolean', () => {
-  const all = { forecastAxisLine: false, forecastAxisNumbers: 'graph', forecastAxisOutline: false,
-    forecastAxisScale: true, secondaryLine: 'dew' };
+  const all = { forecastAxisNumbers: 'graph', forecastAxisScale: true, secondaryLine: 'dew' };
   ['aplite', 'basalt', 'chalk', 'diorite', 'flint'].forEach((platform) => {
     [false, true].forEach((large) => {
       const s = Object.assign(baseSettings(), all, { largeGraphFont: large });

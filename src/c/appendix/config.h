@@ -195,16 +195,18 @@ static inline bool config_large_graph_font(void) {
 // The CLAY_LARGE_GRAPH_FONT graph-options word, which only emery reads (every other watch
 // skips the key): bit 0 Larger graph fonts (Config.large_graph_font); bits 1-7 the forecast's
 // left axis (BETA), kept as sent in Config.forecast_axis. Bits 2-3 are one code: 00 the hi/lo
-// numbers beside the graph (today), 01 on the graph, 10 off (11 reads as off: any nonzero
-// code gives the label strip to the plot, only exactly 01 draws numbers on it). Bits 6-7 are
-// reserved (sent 0). Lockstep with src/pkjs/forecast-axis.js BIT / AXIS_MASK, pinned by
-// test/forecast-axis.test.js.
+// numbers on the axis (beside the axis line, left of the graph: today), 01 on the graph, 10
+// off (11 reads as off: any nonzero code takes the whole left axis away -- no strip, no axis
+// line -- and only exactly 01 draws numbers on the graph). The axis line and the numbers'
+// outline are implied by that code (the line iff on the axis, the outline iff on the graph):
+// bits 1 and 4, their retired options (a dev build's "Axis line" off and "Number outline"
+// off), are reserved -- never sent, never read -- and the other bits keep their places, so a
+// dev watch's stored Config reads right. Bits 6-7 are reserved (sent 0). Lockstep with
+// src/pkjs/forecast-axis.js BIT / AXIS_MASK, pinned by test/forecast-axis.test.js.
 #define GRAPH_OPT_LARGE_FONT    0x01
-#define GRAPH_OPT_AXIS_LINE_OFF 0x02   // no left axis line
 #define GRAPH_OPT_NUMS_MASK     0x0C   // the hi/lo numbers' code
 #define GRAPH_OPT_NUMS_GRAPH    0x04   // ...on the graph, beside the points they name
 #define GRAPH_OPT_NUMS_OFF      0x08   // ...off
-#define GRAPH_OPT_OUTLINE_OFF   0x10   // on the graph: no 1 px background-colour outline
 #define GRAPH_OPT_SCALE_NUMS    0x20   // the numbers name the temperature scale's ends
 #define GRAPH_OPT_AXIS_MASK     0xFE   // bits 1-7: Config.forecast_axis
 
