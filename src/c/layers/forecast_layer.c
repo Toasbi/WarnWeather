@@ -92,7 +92,7 @@ typedef struct
 typedef struct
 {
     int count;
-    NightSegment segments[3];
+    NightSegment segments[FORECAST_NIGHTS_MAX];   // emery: 4 (forecast_span.h), else 3
 } NightSegments;
 
 typedef struct
@@ -371,7 +371,8 @@ static NightSegments compute_night_segments(time_t graph_start, time_t graph_end
     }
 
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: a 48 h graph runs up to two days past the pair, so the pair repeats two days on.
+    // emery: a long graph runs up to two days past the pair, so the pair repeats two days on
+    // (and the trailing close below covers the night the last repeat opens).
     SunEvent events[8];
 #define NIGHT_LAST_DAY_OFFSET 2
 #else
@@ -412,9 +413,9 @@ static NightSegments compute_night_segments(time_t graph_start, time_t graph_end
             continue;
         }
 #if defined(PBL_PLATFORM_EMERY)
-        // emery: only the nights the graph shows take one of the three slots. Its 48 h window
-        // meets at most three (night k ends more than 48 h before night k + 3 starts: a real
-        // night is under a day long); the repeats outside it would otherwise crowd one out.
+        // emery: only the nights the graph shows take one of the FORECAST_NIGHTS_MAX slots. A
+        // 65 h window meets at most four (night k + 4 starts 96 h after night k: a real night
+        // is under a day long); the repeats outside it would otherwise crowd one out.
         // Pixel-neutral at 24 h: a night outside the window used to become a zero-width band
         // with no boundary, which draws nothing.
         if (event_end.timestamp <= graph_start || event_start.timestamp >= graph_end)
@@ -425,6 +426,17 @@ static NightSegments compute_night_segments(time_t graph_start, time_t graph_end
 
         night_segments_add(&night_segments, event_start.timestamp, event_end.timestamp);
     }
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: a graph running on past the last sunset listed is still in that night: the next
+    // sunrise (the pair's, a further day on) lies past any graph's end (start + 65 h;
+    // sun-events.js keeps a polar pair's far event 5 days out for the long span). At 12 h and
+    // 24 h the last event listed lies past the graph's end, so this adds nothing there
+    // (night_segments_add drops an empty segment).
+    if (event_count > 0 && events[event_count - 1].type == 1)
+    {
+        night_segments_add(&night_segments, events[event_count - 1].timestamp, graph_end);
+    }
+#endif
 #undef NIGHT_LAST_DAY_OFFSET
 
     return night_segments;
@@ -445,8 +457,9 @@ static int16_t graph_x_for_time(time_t timestamp, time_t graph_start, time_t gra
     }
 
     // After the guards above, graph_start < timestamp < graph_end, so
-    // 0 < elapsed < total. total is a forecast span (23 h for 24 entries, 48 h
-    // on emery's 48 h grid: 48 h x 200 px is about 35 M) and size.w <= 200 (emery), so
+    // 0 < elapsed < total. total is a forecast span (23 h for 24 entries; on emery up
+    // to 65 h, the long grid's 65 columns at 3 px: 65 h x 195 px is about 46 M, and the 12 h
+    // grid's widest is 14 h x 210 px), so
     // elapsed * size.w stays far below INT32_MAX — 32-bit math is exact here and
     // avoids pulling in the 64-bit soft-divide routine (__udivmoddi4, ~754 B).
     const int32_t elapsed = (int32_t)(timestamp - graph_start);
@@ -584,7 +597,7 @@ static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const For
                                                          int16_t zero_y, int top,
                                                          int graph_left, int screen_w,
                                                          uint8_t opts) {
-    const int n = ds->num_entries;
+    const int n = ds->fit_entries;   // the hours the scale and the labels cover (on screen)
     const Series *const first = &ds->series[SERIES_FIRST];
     const bool scale = (opts & GRAPH_OPT_SCALE_NUMS) != 0;
     const int mode = opts & GRAPH_OPT_NUMS_MASK;
@@ -649,9 +662,10 @@ static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const For
 
 #if defined(WW_LINE_STYLE)
 // The lowest and highest byte of the temperature and of every present line with an inset
-// (feels-like, dew point), over every hour sent (the window the hi/lo labels name), land on
-// the margin rows of a plot `plot_h` content rows tall with the edges `anchors`, all on one
-// scale, so no line runs past a margin (temp_axis_pad.h THE SCALE). Their bytes become rows
+// (feels-like, dew point), over the window the hi/lo labels name (every hour sent; on emery's
+// 12 h and long grids the hours on screen, ds->fit_entries), land on the margin rows of a
+// plot `plot_h` content rows tall with the edges `anchors`, all on one scale, so no line on
+// screen runs past a margin (temp_axis_pad.h THE SCALE). Their bytes become rows
 // here, in place (load_dataset reloads them on every redraw): the curve's always (TEMP_HI),
 // every line's with an inset (LINE_HI's test). A floating line's byte 0 is a missing reading:
 // it widens no range and stays one; the curve's is data.
@@ -665,10 +679,15 @@ static __attribute__((noinline, noclone)) void fit_temp_axis(ForecastDataset *ds
     Series *const first = &ds->series[SERIES_FIRST];
     Series *const end = &ds->series[SERIES_BARS];   // the lines, not the bars
     const int n = ds->num_entries;
+#if defined(PBL_PLATFORM_EMERY)
+    const int fit_n = ds->fit_entries;   // emery: the hours on screen (12 h, long) or all (24 h)
+#else
+#define fit_n n
+#endif
     TempAxisRange range = TEMP_AXIS_RANGE_NONE;
     for (Series *s = first; s < end; ++s) {
         if (s == first || (s->present && s->line.inset_y)) {
-            temp_axis_range_widen(&range, s->line.values, n, s->line.floating);
+            temp_axis_range_widen(&range, s->line.values, fit_n, s->line.floating);
         }
     }
     const TempAxisFit fit = temp_axis_fit_range(range,
@@ -677,9 +696,44 @@ static __attribute__((noinline, noclone)) void fit_temp_axis(ForecastDataset *ds
                                                 plot_h, FORECAST_TREND_FULL_SCALE);
     for (Series *s = first; s < end; ++s) {
         if (s == first || (s->present && s->line.inset_y)) {
+            // Every hour sent: a clipped hour past the right edge holds to the content rows.
             temp_axis_rows(s->line.values, n, fit, s->line.floating);
         }
     }
+#if !defined(PBL_PLATFORM_EMERY)
+#undef fit_n
+#endif
+}
+#endif
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the hi/lo labels name the hours on screen (the 12 h and long grids, which clip the
+// hours past the right edge): the visible byte extremes, read back to whole degrees on the
+// line through the global extremes and TEMP_MIN / TEMP_MAX (temp_axis_pad.h
+// temp_axis_byte_temp). With the left axis naming the scale (GRAPH_OPT_SCALE_NUMS) the
+// extremes run over the same lines as the phone's baked scale ends (the temperature plus the
+// present inset lines), as draw_axis_numbers' do. Reads the bytes, so it runs before
+// fit_temp_axis turns them into rows. The label strip was measured on the global labels
+// (text_labels_refresh), never narrower: digits are monospace and every visible value lies
+// inside [TEMP_MIN, TEMP_MAX].
+static __attribute__((noinline)) void relabel_visible(const ForecastDataset *ds, bool scale) {
+    const Series *const first = &ds->series[SERIES_FIRST];
+    const int fit = ds->fit_entries, n = ds->num_entries;
+    TempAxisRange r = TEMP_AXIS_RANGE_NONE;
+    for (const Series *s = first; s < &ds->series[SERIES_BARS]; ++s) {
+        if (s != first && !(scale && s->present && s->line.inset_y)) { continue; }
+        temp_axis_range_widen(&r, s->line.values, fit, s->line.floating);
+    }
+    TempAxisRange g = r;
+    for (const Series *s = first; s < &ds->series[SERIES_BARS]; ++s) {
+        if (s != first && !(scale && s->present && s->line.inset_y)) { continue; }
+        temp_axis_range_widen(&g, s->line.values + fit, n - fit, s->line.floating);
+    }
+    const int lo = persist_get_temp_min(), hi = persist_get_temp_max();
+    snprintf(s_buffer_lo, sizeof(s_buffer_lo), "%d",
+             config_localize_temp(temp_axis_byte_temp(r.lo, g, lo, hi)));
+    snprintf(s_buffer_hi, sizeof(s_buffer_hi), "%d",
+             config_localize_temp(temp_axis_byte_temp(r.hi, g, lo, hi)));
 }
 #endif
 
@@ -728,8 +782,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         return;
     }
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: the grid follows the hours the phone sent (forecast_span.h): 12, 24
-    // (FORECAST_GRID_DEF itself) or 25..48; the marks follow its bar columns.
+    // emery: the grid follows the hours the phone sent and the plot's width (forecast_span.h):
+    // 2..14 (12 h), 24 (FORECAST_GRID_DEF itself) or 25..65; the marks follow its bar columns.
     const ForecastSpan span = forecast_span(ds->num_entries, bounds.size.w - graph_left);
     const ChartDef grid = forecast_grid_def_for(span);
 #define GRID (&grid)
@@ -738,8 +792,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         if (line->style != CHART_LINE_SOLID) { line->width = span.bar_w; }
     }
     // emery: the night shading runs on through the last hour's column, to the frame's end at
-    // num_entries * pitch: the 12 h and 48 h grids show that column (the 24 h grid runs it
-    // off the screen's right edge, so 24 h is pixel-identical). Past the last vertex the
+    // num_entries * pitch, which every grid runs to or past the screen's right edge (the long
+    // grid's cover rule, forecast_span.h; 24 h is pixel-identical). Past the last vertex the
     // fill's re-shade follows the fill's own outline, not the last value held flat: it also
     // reads the area's closing vertex, area_pts[n] (chart.c; the colour fill's diagonal to
     // the zero row, the bw checkerboard's straight drop at the last vertex).
@@ -772,7 +826,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // for the ticks. The plot's baseline lifts by the band.
     const int stripe_h = FORECAST_STRIPE_H(axis_y);
     // One scan of each series' drawn window (temp_axis_pad.h): only a series with a value
-    // above 0 in the hours on screen takes part (the phone sends 24, or emery's 12 or 48; the
+    // above 0 in the hours on screen takes part (the phone sends 24, or emery's 14 or 65; the
     // hours past the screen's right edge never count). A stripe then takes a band on its edge;
     // an amount line, its marks or fill anchor the edge they are drawn from (the rain bars add
     // theirs once the palette is read, below). A stripe with nothing above 0 is dropped here,
@@ -821,10 +875,13 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     GPoint *const area_pts = paint->area_pts;
     ChartAxisSlot *const axis_slots = paint->axis_slots;
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: the span's slots at its cadence (a label every 3rd / 2nd / 8th slot at 24 / 12 /
-    // 48 h).
+    // emery: the span's slots at the span's cadence (forecast_span.h); in the 12 h and long
+    // grids no label the right edge would slice (forecast_span_label_end).
     forecast_grid_fill_axis_every(axis_slots, span.slots, forecast_start_local,
-                                  span.label_every, span.tick_every);
+                                  span.label_every, span.tick_every,
+                                  span.slots == FORECAST_SPAN_DAY_SLOTS ? span.slots
+                                  : forecast_span_label_end(forecast_span_pitch(span),
+                                                            bounds.size.w - graph_left));
 #else
     forecast_grid_fill_axis_slots(axis_slots, MAX_BOTTOM_VIEW_ENTRIES,
                              outer.origin.x, chart_def_pitch(&FORECAST_GRID_DEF),
@@ -847,10 +904,10 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                                         NIGHT_HOURS(ds->num_entries)
                                             * chart_def_pitch(GRID),
                                         outer.size.h - 1);
-    ChartBand *const night_bands = paint->night_bands;   // NightSegments holds at most 3
+    ChartBand *const night_bands = paint->night_bands;   // NightSegments' cap
     int num_night_bands = 0;
     if (night_on) {
-        num_night_bands = build_night_bands(night_bands, 3, &night_segments,
+        num_night_bands = build_night_bands(night_bands, FORECAST_NIGHTS_MAX, &night_segments,
                                             night_plot_rect, forecast_start, forecast_end);
     }
     const GColor axis_color = night_on ? FORECAST_AXIS_COLOR_NIGHT
@@ -885,6 +942,16 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         temp_axis_edges_add(&edges, bars->bars.values, drawn, false, false,
                             palette_from_top(bar_stops));
     }
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the 12 h and long grids fit the scale and name the labels over the hours on
+    // screen; the 24 h grid keeps every hour sent (pixel-identical). Before fit_temp_axis:
+    // the relabel reads the bytes, which it turns into rows.
+    ds->fit_entries = ds->num_entries;
+    if (span.slots != FORECAST_SPAN_DAY_SLOTS) {
+        ds->fit_entries = drawn;
+        relabel_visible(ds, (axis_opts & GRAPH_OPT_SCALE_NUMS) != 0);   // every paint
+    }
+#endif
     fit_temp_axis(ds, temp_rows, edges.anchors);
 #endif
 

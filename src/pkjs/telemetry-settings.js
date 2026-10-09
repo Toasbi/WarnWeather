@@ -25,7 +25,7 @@ var onDemand = require('./on-demand.js');
 var lineAlert = require('./line-alert.js');
 // value — a Draw from / Bars from choice, read like the wire reads it.
 var drawFrom = require('./draw-from.js');
-// The forecast's time span, as this watch draws it (12/24/48 on emery, 24 elsewhere).
+// The forecast's time span option this watch draws (12/24/48 on emery, 24 elsewhere).
 var forecastSpan = require('./forecast-span.js');
 // The forecast's left axis options (BETA, emery only), read as the wire reads them.
 var forecastAxis = require('./forecast-axis.js');
@@ -316,9 +316,10 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // .strip() schema (handler.ts); ships OFF, so aplite's constant false is the default.
         doubleFlick: Boolean(safe.doubleFlick),
         largeGraphFont: Boolean(safe.largeGraphFont),
-        // The forecast's time span this watch draws (an int): the stored 12/24/48 on an
-        // emery, 24 on every other watch whatever is stored. Lockstep with handler.ts.
-        forecastHours: forecastSpan.hours(safe, env),
+        // The forecast's time span, the option: 12 / 24 / 48 (48 = the long span, labelled
+        // 58 h) on an emery, 24 on every other watch whatever is stored. Categorical, not the
+        // hours sent (forecast-span.js option()). Lockstep with handler.ts.
+        forecastHours: forecastSpan.option(safe, env),
         // The forecast's left axis options (BETA), emery only (the one watch that offers
         // them), as chosen (forecast-axis.js readers: absent or junk reads the default),
         // the Draw from precedent below: whether the outline or the scale applies at all is

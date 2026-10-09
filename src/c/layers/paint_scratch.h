@@ -25,6 +25,9 @@
 // paint (load_dataset).
 typedef struct {
     int    num_entries;          // clamped to FORECAST_MAX_ENTRIES (forecast_span.h)
+#if defined(PBL_PLATFORM_EMERY)
+    int    fit_entries;          // emery: the hours the scale and the labels cover (on screen)
+#endif
     time_t forecast_start;
     Series series[SERIES_COUNT];
 } ForecastDataset;
@@ -37,7 +40,7 @@ typedef struct {
     ChartLayer      layers[SERIES_COUNT + 6];
     GPoint          area_pts[FORECAST_MAX_ENTRIES + 2];
     ChartAxisSlot   axis_slots[FORECAST_MAX_ENTRIES];
-    ChartBand       night_bands[3];   // NightSegments holds at most 3
+    ChartBand       night_bands[FORECAST_NIGHTS_MAX];   // forecast_layer.c NightSegments' cap
     ChartColorStop  scaled_bar_stops[PALETTE_MAX_STOPS];
 } ForecastPaint;
 

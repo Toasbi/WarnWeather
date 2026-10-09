@@ -23,12 +23,15 @@ void forecast_grid_fill_axis_slots(ChartAxisSlot *slots, int num_slots,
 
 #if defined(PBL_PLATFORM_EMERY)
 // emery: the forecast's grid for its span (forecast_span.h): FORECAST_GRID_DEF itself for the
-// 24 h class, the 12 h / 48 h grids otherwise. The health graph keeps FORECAST_GRID_DEF.
+// 24 h class, the 12 h / long grids otherwise. The health graph keeps FORECAST_GRID_DEF.
 ChartDef forecast_grid_def_for(ForecastSpan span);
 // emery: the hour axis at a span's cadence: a label and big tick on every label_every-th
-// slot from slot 0, a small tick on every tick_every-th slot between them.
-// forecast_grid_fill_axis_slots is this at (3, 1), the 24 h cadence the health graph keeps.
+// slot from slot 0, a small tick on every tick_every-th slot between them. Only the slots
+// before label_end carry their label (forecast_span.h forecast_span_label_end: the right edge
+// would slice the rest); a labelled slot past it keeps its big tick. num_slots labels them
+// all. forecast_grid_fill_axis_slots is this at (3, 1, num_slots), the 24 h cadence the
+// health graph keeps.
 void forecast_grid_fill_axis_every(ChartAxisSlot *slots, int num_slots,
                                    const struct tm *start_local,
-                                   int label_every, int tick_every);
+                                   int label_every, int tick_every, int label_end);
 #endif

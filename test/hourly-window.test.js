@@ -227,16 +227,28 @@ test('readHourly stops at a repeated or an earlier timestamp, not just a later o
 
 // The forecast span (forecast-span.js) as the adapters read it: windowHours sizes the
 // window an adapter maps, hourlyRun counts the hourly buckets past the base 24.
-test('windowHours: 24 for the default and a 12 h span, 48 for emery\'s 48 h, capped at MAX_FORECAST_HOURS', () => {
+test('windowHours: 24 for the default and the 12 h span\'s 14, 65 for emery\'s long span, capped at MAX_FORECAST_HOURS', () => {
   const { windowHours, MAX_FORECAST_HOURS } = hourlyWindow;
-  assert.equal(MAX_FORECAST_HOURS, 48);
+  assert.equal(MAX_FORECAST_HOURS, 65);
   assert.equal(windowHours(undefined), 24);
   assert.equal(windowHours(null), 24);
   assert.equal(windowHours({}), 24);
-  assert.equal(windowHours({ forecastHours: 12 }), 24, 'a 12 h span still maps the base window');
+  assert.equal(windowHours({ forecastHours: 14 }), 24, 'the 12 h span (14 sent) still maps the base window');
+  assert.equal(windowHours({ forecastHours: 12 }), 24);
   assert.equal(windowHours({ forecastHours: 24 }), 24);
-  assert.equal(windowHours({ forecastHours: 48 }), 48);
-  assert.equal(windowHours({ forecastHours: 99 }), 48, 'capped');
+  assert.equal(windowHours({ forecastHours: 48 }), 48, 'a window past 24 below the cap maps as asked');
+  assert.equal(windowHours({ forecastHours: 65 }), 65);
+  assert.equal(windowHours({ forecastHours: 100 }), 65, 'capped');
+});
+
+test('reachHours: the day-max series read PEAK_HOURS, or the graph\'s window when longer', () => {
+  const { reachHours } = hourlyWindow;
+  assert.equal(PEAK_HOURS, 49);
+  assert.equal(reachHours(undefined), 49);
+  assert.equal(reachHours(24), 49);
+  assert.equal(reachHours(48), 49);
+  assert.equal(reachHours(49), 49);
+  assert.equal(reachHours(65), 65, 'a day-max read stopping at 49 would cut a 65-hour payload to 49');
 });
 
 test('hourlyRun: the first 24 unconditionally, then while each bucket is the next hour', () => {

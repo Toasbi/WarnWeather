@@ -142,8 +142,12 @@ static bool write_bool_if_changed(const uint32_t key, bool val) {
 }
 
 // The compare buffer of write_data_if_changed: the largest blob it skips a no-op write of.
-// A forecast trend is one byte per hour, FORECAST_MAX_ENTRIES of them (48 on emery).
+// A forecast trend is one byte per hour, FORECAST_MAX_ENTRIES of them (65 on emery).
+#if defined(PBL_PLATFORM_EMERY)
+#define PERSIST_COMPARE_BYTES 72   // emery: the long span's 65-byte trends
+#else
 #define PERSIST_COMPARE_BYTES 64
+#endif
 _Static_assert(FORECAST_MAX_ENTRIES <= PERSIST_COMPARE_BYTES,
                "a forecast trend must fit write_data_if_changed's compare buffer");
 

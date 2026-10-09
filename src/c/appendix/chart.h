@@ -47,7 +47,7 @@ typedef struct {
 // caller stack describing one draw pass.
 
 #if defined(PBL_PLATFORM_EMERY)
-#define CHART_MAX_SLOTS 48   // emery: the 48 h forecast (forecast_span.h FORECAST_MAX_ENTRIES)
+#define CHART_MAX_SLOTS 65   // emery: the long span (forecast_span.h FORECAST_MAX_ENTRIES)
 #else
 #define CHART_MAX_SLOTS 32   // engine point-buffer cap; both charts use 24
 #endif

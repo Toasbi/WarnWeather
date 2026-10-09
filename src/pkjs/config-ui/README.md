@@ -548,7 +548,7 @@ env = {
   lineStyles:    true,       // false for aplite (no WW_LINE_STYLE — third metric line + per-line marker styles)
   onDemand:      true,       // false for aplite (no WW_ON_DEMAND — the Alerts at the status bars' edges)
   fineBattery:   false,      // true only for emery (battery charge reported in 5 % steps)
-  forecastSpan:  false       // true only for emery (the 12 / 24 / 48 h forecast time span)
+  forecastSpan:  false       // true only for emery (the 12 / 24 / 58 h forecast time span)
 }
 // Fallback when watchInfo is unavailable:
 // { color: true, round: false, platform: '', health: true, radar: true,
@@ -569,7 +569,7 @@ no-theme-polarity/no-threshold/no-on-demand platform (`aplite`), the heart-rate-
 `lib/platform.js`. Every fallback except `hr`, `colorBacklight`, `fineBattery` and `forecastSpan`
 is conservative (show the controls if the platform is unknown); those four default to `false` so
 an unrecognized watch isn't offered a permanently-empty slot, hardware (the RGB backlight LED) it
-probably doesn't have, a battery warn level its firmware cannot resolve, or a 48 h forecast its
+probably doesn't have, a battery warn level its firmware cannot resolve, or a long forecast its
 AppMessage inbox would drop. `colorBacklight` is a fact about the BACKLIGHT, not the screen: basalt and chalk
 are `color: true` but `colorBacklight: false`, because only emery's board carries the LED driver
 `light_set_color_rgb888()` needs. `env.round` is exposed for forward-compatibility; the rest are

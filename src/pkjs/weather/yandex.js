@@ -9,9 +9,11 @@ var YANDEX_ENDPOINT = 'https://api.weather.yandex.ru/graphql/query';
  * Build the Yandex Weather GraphQL query. Units are requested server-side
  * (FAHRENHEIT, KILOMETERS_PER_HOUR) so mapResponse does zero conversion, and
  * days(limit: 3) guarantees >=24 future hourly buckets even late in the day
- * (a distant day's hours list may be shorter than 24). A 48 h window (emery's
- * 48 h span) asks for 4 days for the same reason: the third day's list may be
- * short, and the rest of today plus two full days can leave the 48th hour on it.
+ * (a distant day's hours list may be shorter than 24). The long span's 65 h
+ * window (emery) asks for 4 days: limit 4 holds 1 + 3 × 24 = 73 hours at the
+ * latest anchor (the location's 23:00), past the 66 the window and the bucket
+ * after it read (72 on a 23 h DST day). A short distant day's list just makes
+ * the feed short, and the watch widens its pitch to fill the plot.
  * Coordinates are embedded as unquoted numeric literals (GraphQL Float), never
  * quoted strings.
  *
@@ -114,7 +116,7 @@ function anchorIndex(hours, nowEpoch) {
 
 /**
  * Map a Yandex GraphQL response into provider trend fields. Anchors the window
- * (24 hours, or `want` for emery's 48 h span, while the hours stay hourly) at
+ * (24 hours, or `want` for emery's long span, while the hours stay hourly) at
  * the current wall-clock hour and slices forward. Units are already
  * correct (server-side FAHRENHEIT/KILOMETERS_PER_HOUR), precProbability is
  * already [0,1], and prec is already mm/h, so every field passes through. A
@@ -165,12 +167,13 @@ function mapResponse(json, nowEpoch, want) {
         tempTrend: tempTrend,
         precipTrend: precipTrend,
         rainTrend: rainTrend,
-        // The day-max series (UV, wind, gusts) read on to PEAK_HOURS
-        // (hourly-window.js). days(limit: 3) carries the rest of today plus two
-        // full days, past the end of tomorrow.
-        windTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.PEAK_HOURS, hourEpoch, hourWind),
-        gustTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.PEAK_HOURS, hourEpoch, hourGust),
-        uvTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.PEAK_HOURS, hourEpoch, hourUv),
+        // The day-max series (UV, wind, gusts) read on to PEAK_HOURS, or the
+        // graph's window when longer (hourly-window.js reachHours). days(limit: 3)
+        // carries the rest of today plus two full days, past the end of tomorrow;
+        // the long span's limit 4 a third.
+        windTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.reachHours(want), hourEpoch, hourWind),
+        gustTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.reachHours(want), hourEpoch, hourGust),
+        uvTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.reachHours(want), hourEpoch, hourUv),
         feelsTrend: feelsTrend,
         startTime: hourEpoch(hours[anchor]),
         currentTemp: now.temperature,
@@ -211,7 +214,7 @@ YandexProvider.prototype.withProviderData = function(lat, lon, force, onSuccess,
     // owns the field adoption and the feels/uv gates. The GraphQL response has no
     // pressure, dew or bearing series — mapped simply lacks those keys, and
     // adoptMapped sets each absent one to its documented empty value ([]).
-    // The graph's window: 24 hours, or 48 for emery's 48 h span (fetch-options.js).
+    // The graph's window: 24 hours, or 65 for emery's long span (fetch-options.js).
     var hours = hourlyWindow.windowHours(this.options);
     WeatherProvider.requestMapped({
         url: YANDEX_ENDPOINT, method: 'POST', id: 'yandex', label: 'Yandex',

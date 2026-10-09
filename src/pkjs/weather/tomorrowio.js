@@ -26,9 +26,9 @@ var MPS_TO_KMH = 3.6;
  * the returned intervals are hour-aligned like every other provider; endTime is
  * `hours` + 1 buckets out so `hours` future buckets always remain after the
  * anchor — the forecast window takes the graph's hours of them (FORECAST_HOURS,
- * or 48 for emery's 48 h span), and while a UV, wind or gust slot shows its day
- * max those series read all PEAK_HOURS (hourly-window.js), which a 48 h window
- * fits inside. One timestep, one call — the calls-per-cycle
+ * or 65 for emery's long span), and while a UV, wind or gust slot shows its day
+ * max those series read on to reachHours (hourly-window.js: PEAK_HOURS, or the
+ * long span's 65). One timestep, one call — the calls-per-cycle
  * constants in tomorrowio-budget.js assume this; the longer window costs bytes,
  * not calls.
  *
@@ -36,7 +36,7 @@ var MPS_TO_KMH = 3.6;
  * @param {number|string} lon Longitude.
  * @param {string} apiKey tomorrow.io API key.
  * @param {number} nowEpoch Current time in epoch seconds.
- * @param {number} [hours] The graph's window or PEAK_HOURS; PEAK_HOURS when absent.
+ * @param {number} [hours] The graph's window or its reachHours; PEAK_HOURS when absent.
  * @returns {string} Fully-formed request URL.
  */
 function buildUrl(lat, lon, apiKey, nowEpoch, hours) {
@@ -104,7 +104,7 @@ function anchorIndex(intervals, nowEpoch) {
 
 /**
  * Map a Timelines response into provider trend fields. Anchors the window (24
- * hours, or `hours` for emery's 48 h span, while the intervals stay hourly) at
+ * hours, or `hours` for emery's long span, while the intervals stay hourly) at
  * the current wall-clock hour. Conversions: °C->°F, m/s->km/h,
  * probability %->[0,1]; rain (mm/h) and UV pass through (getPayload scales);
  * dew point °C->°F; the bearing is already degrees and only gets normalized.
@@ -186,12 +186,13 @@ function mapResponse(json, nowEpoch, hours) {
         tempTrend: tempTrend,
         precipTrend: precipTrend,
         rainTrend: rainTrend,
-        // The day-max series (UV, wind, gusts) read on to PEAK_HOURS (hourly-window.js).
-        windTrend: hourlyWindow.readHourly(intervals, anchor, hourlyWindow.PEAK_HOURS,
+        // The day-max series (UV, wind, gusts) read on to PEAK_HOURS, or the graph's
+        // window when longer (hourly-window.js reachHours).
+        windTrend: hourlyWindow.readHourly(intervals, anchor, hourlyWindow.reachHours(hours),
             intervalEpoch, intervalWind),
-        gustTrend: hourlyWindow.readHourly(intervals, anchor, hourlyWindow.PEAK_HOURS,
+        gustTrend: hourlyWindow.readHourly(intervals, anchor, hourlyWindow.reachHours(hours),
             intervalEpoch, intervalGust),
-        uvTrend: hourlyWindow.readHourly(intervals, anchor, hourlyWindow.PEAK_HOURS,
+        uvTrend: hourlyWindow.readHourly(intervals, anchor, hourlyWindow.reachHours(hours),
             intervalEpoch, intervalUv),
         pressureTrend: pressureTrend,
         cloudTrend: cloudTrend,
@@ -246,13 +247,14 @@ TomorrowIoProvider.prototype.withProviderData = function(lat, lon, force, onSucc
     // owns the field adoption and the feels/uv gates. Everything rides the one
     // Timelines call (dew point, bearing and temperatureApparent are Core-tier
     // fields), so mapped carries the full shape and the gates decide what lands.
-    // The graph's window: 24 hours, or 48 for emery's 48 h span (fetch-options.js).
-    // A day max reads PEAK_HOURS, which holds either; still one call per cycle.
+    // The graph's window: 24 hours, or 65 for emery's long span (fetch-options.js).
+    // A day max reads reachHours: PEAK_HOURS, or the long span's 65 (asking PEAK_HOURS
+    // there would cut the payload to 49); still one call per cycle.
     var hours = hourlyWindow.windowHours(this.options);
     WeatherProvider.requestMapped({
         url: buildUrl(lat, lon, this.apiKey, Math.floor(Date.now() / 1000),
             (dayPeaks.wanted(this, 'uv') || dayPeaks.wanted(this, 'wind') || dayPeaks.wanted(this, 'gust'))
-                ? hourlyWindow.PEAK_HOURS : hours),
+                ? hourlyWindow.reachHours(hours) : hours),
         id: 'tomorrowio', label: 'Tomorrow.io',
         map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000), hours); }
     }, (function(mapped) {

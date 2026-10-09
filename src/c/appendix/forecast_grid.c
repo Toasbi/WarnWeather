@@ -29,7 +29,7 @@ ChartDef forecast_grid_def_for(ForecastSpan span) {
 
 void forecast_grid_fill_axis_every(ChartAxisSlot *slots, int num_slots,
                                    const struct tm *start_local,
-                                   int label_every, int tick_every) {
+                                   int label_every, int tick_every, int label_end) {
     for (int i = 0; i < num_slots; ++i) {
         slots[i].label[0] = '\0';
         slots[i].tick     = TICK_NONE;
@@ -38,6 +38,7 @@ void forecast_grid_fill_axis_every(ChartAxisSlot *slots, int num_slots,
             continue;
         }
         slots[i].tick = TICK_BIG;  // emery: digit slots keep their big tick
+        if (i >= label_end) { continue; }  // emery: a label the right edge would slice
         snprintf(slots[i].label, sizeof(slots[i].label), "%d",
                  config_axis_hour(start_local->tm_hour + i));
     }
@@ -49,7 +50,7 @@ void forecast_grid_fill_axis_slots(ChartAxisSlot *slots, int num_slots,
                                    int origin_x, int pitch, int visible_w,
                                    const struct tm *start_local) {
     (void) origin_x; (void) pitch; (void) visible_w;
-    forecast_grid_fill_axis_every(slots, num_slots, start_local, 3, 1);
+    forecast_grid_fill_axis_every(slots, num_slots, start_local, 3, 1, num_slots);
 }
 #else
 _Static_assert(FORECAST_MAX_ENTRIES == MAX_BOTTOM_VIEW_ENTRIES,

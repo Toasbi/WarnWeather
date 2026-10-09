@@ -91,11 +91,14 @@ function mirroredSunEvent(sunEvent, lat, lon) {
  * day). They sit two days before and three days after today's UTC midnight,
  * so the pair changes once a day like a real one, and the shaded span runs
  * from yesterday to the end of tomorrow (UTC): the whole 23 h chart of any
- * fetch made today. A graph longer than a day (emery's 48 h span, whose watch
- * repeats the pair up to two days on) moves the far end a day out, six days
- * apart: the span then runs from today to three days on, the whole 47 h chart
- * of any fetch made today. The sun status slot reads '--' for it
- * (isPolarSunPair).
+ * fetch made today. A graph longer than a day (the watch repeats the pair up to
+ * two days on) moves the far end a day out, six days apart: the span then runs
+ * from today to three days on, the whole 47 h chart of any fetch made today.
+ * Emery's long span (65 h) moves it one more day, seven apart: its watch also
+ * shades from the last sunset listed to the graph's end (forecast_layer.c's
+ * trailing close), so the far event repeated a day nearer (midnight + 4 d) must
+ * lie past any long graph's end (now + 65 h, at most midnight + 89 h). The sun
+ * status slot reads '--' for it (isPolarSunPair).
  *
  * @param {Date} now Reference time.
  * @param {number} lat Latitude.
@@ -112,7 +115,7 @@ function polarSunEvents(now, lat, lon, spanHours) {
     var sunUp = SunCalc.getPosition(new Date(noon), lat, lon).altitude > SUNRISE_ALTITUDE_RAD;
     var utcMidnight = Math.floor(now.getTime() / DAY_MS) * DAY_MS;
     var before = new Date(utcMidnight - 2 * DAY_MS);
-    var after = new Date(utcMidnight + (spanHours > 24 ? 4 : 3) * DAY_MS);
+    var after = new Date(utcMidnight + (spanHours > 2 * 24 ? 5 : (spanHours > 24 ? 4 : 3)) * DAY_MS);
     return sunUp
         ? [{ type: 'sunrise', date: before }, { type: 'sunset', date: after }]
         : [{ type: 'sunset', date: before }, { type: 'sunrise', date: after }];

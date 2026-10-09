@@ -10084,7 +10084,7 @@
             "pane": "forecast",
             "id": "lines",
             "title": "Lines",
-            "intro": "The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or 48: Time span below). Temperature is always drawn; the metrics and rain bars you pick below join it.",
+            "intro": "The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or about 58: Time span below). Temperature is always drawn; the metrics and rain bars you pick below join it.",
             "items": [
               {
                 "type": "sheet",
@@ -10292,7 +10292,7 @@
                 "hintByValue": {
                   "12": "The next 12 hours, in wider columns.",
                   "24": "The next 24 hours.",
-                  "48": "The next two days, in narrower columns so every hour fits."
+                  "48": "About 58 hours in narrow columns; more when the graph has more room (High / low numbers On graph or Off). Weather Underground and OpenWeatherMap stop at 48 hours: about 44 with them."
                 },
                 "options": [
                   [
@@ -10304,7 +10304,7 @@
                     "24"
                   ],
                   [
-                    "48 h",
+                    "58 h",
                     "48"
                   ]
                 ],

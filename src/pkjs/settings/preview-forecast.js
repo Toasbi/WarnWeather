@@ -676,8 +676,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // as the bake puts them in TEMP_MIN / TEMP_MAX (forecast-series.js tempScaleRange).
         var scaleNums = ax.scale && axisLines.length > 0;
         if (scaleNums) {
-            tLabelMin = Math.round(axisRange.min);
-            tLabelMax = Math.round(axisRange.max);
+            tLabelMin = Math.floor(axisRange.min);
+            tLabelMax = Math.ceil(axisRange.max);
         }
         var tmin = axisRange.min, tmax = axisRange.max;
         // Configurable curve offset: the temp axis (temp + feels/dew via isTempAxisMetric

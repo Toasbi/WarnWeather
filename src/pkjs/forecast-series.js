@@ -444,11 +444,14 @@ function buildForecastSeries(raw, settings) {
 /**
  * The temperature scale's ends (the left axis's 'Include feels-like & dew point', BETA):
  * the lowest and highest finite value over the air temps and the drawn temperature-axis
- * series, each rounded to a whole degree (TEMP_MIN / TEMP_MAX are whole °F int32s). A missing
- * reading (null, NaN) is skipped.
+ * series, widened outward to whole degrees (TEMP_MIN / TEMP_MAX are whole °F int32s) --
+ * jointTempAxisBand's own rule, so the ends are exactly the band the bytes were scaled
+ * against and the watch's label readback (temp_axis_pad.h temp_axis_byte_temp, emery's
+ * 12 h and long spans) maps them onto whole degrees exactly. A missing reading (null, NaN)
+ * is skipped.
  * @param {number[]} temps Whole-degree air temps (°F).
  * @param {Array} series The drawn feels-like / capped dew point values (°F), concatenated.
- * @returns {?{min: number, max: number}} The rounded ends, or null when no value is finite.
+ * @returns {?{min: number, max: number}} The whole-degree ends, or null when no value is finite.
  */
 function tempScaleRange(temps, series) {
     var all = (temps || []).concat(series || []);
@@ -460,7 +463,7 @@ function tempScaleRange(temps, series) {
         if (v > hi) { hi = v; }
     }
     if (!isFinite(lo)) { return null; }
-    return { min: Math.round(lo), max: Math.round(hi) };
+    return { min: Math.floor(lo), max: Math.ceil(hi) };
 }
 
 /**

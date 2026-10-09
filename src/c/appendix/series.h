@@ -3,7 +3,7 @@
 #include <pebble.h>
 #include "c/appendix/chart.h"   // ChartColorStop, ChartBarStyle
 #include "c/appendix/bottom_view.h"   // MAX_BOTTOM_VIEW_ENTRIES
-#include "c/appendix/forecast_span.h" // FORECAST_MAX_ENTRIES (emery: 48)
+#include "c/appendix/forecast_span.h" // FORECAST_MAX_ENTRIES (emery: 65)
 
 typedef enum {
     SERIES_FIRST = 0,   // temperature: always on, fixed scale, fixed color, axis chrome

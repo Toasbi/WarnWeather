@@ -113,9 +113,13 @@ build/host/step_scale_test
 # up with the curve (header-only, temp_axis_pad.h).
 cc $CFLAGS test/c/temp_axis_pad_test.c -o build/host/temp_axis_pad_test
 build/host/temp_axis_pad_test
+# Again for emery, whose 12 h and long spans read the hi/lo labels back off the bytes on
+# screen (temp_axis_byte_temp, emery only).
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/temp_axis_pad_test.c -o build/host/temp_axis_pad_test_emery
+build/host/temp_axis_pad_test_emery
 # The forecast's time span (forecast_span.h, header-only) and the hour axis's cadence
-# (forecast_grid.c, #included): built for a 24 h platform and for emery, whose 12 / 24 / 48 h
-# classes and grids are pinned here.
+# (forecast_grid.c, #included): built for a 24 h platform and for emery, whose 12 h / 24 h /
+# long classes, the long span's cover rule and floors, and the edge labels are pinned here.
 cc $CFLAGS -DPBL_PLATFORM_BASALT test/c/forecast_span_test.c -o build/host/forecast_span_test
 build/host/forecast_span_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/forecast_span_test.c -o build/host/forecast_span_test_emery

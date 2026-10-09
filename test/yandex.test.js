@@ -228,11 +228,33 @@ test('yandex sources no pressure at all', () => {
   assert.deepEqual(p.pressureTrend, []);
 });
 
-// Emery's 48 h forecast span (forecast-span.js): the window is windowHours(options), 48.
-test('48 h: buildQuery asks for four days (a distant day may be short); the default three', () => {
+// Emery's long span (forecast-span.js): the window is windowHours(options), 65 (a 48 h window,
+// a feed's own limit, reads the same way).
+test('long span: buildQuery asks for four days at 65 and 48 (a distant day may be short); the default three', () => {
   assert.match(yandex.buildQuery(55.75, 37.62), /days\(limit: 3\)/);
   assert.match(yandex.buildQuery(55.75, 37.62, 24), /days\(limit: 3\)/);
   assert.match(yandex.buildQuery(55.75, 37.62, 48), /days\(limit: 4\)/);
+  assert.match(yandex.buildQuery(55.75, 37.62, 65), /days\(limit: 4\)/);
+});
+
+test('long span: mapResponse reaches 65 hours on every series when the four day lists are full', () => {
+  const days = [];
+  for (let d = 0; d < 4; d += 1) {
+    const hs = []; for (let i = d * 24; i < (d + 1) * 24; i += 1) hs.push(hour(i));
+    days.push({ hours: hs });
+  }
+  const r = { data: { weatherByPoint: { now: { temperature: 71 }, forecast: { days: days } } } };
+  const now = BASE + 18 * 3600 + 600;
+  const out = mapResponse(r, now, 65);
+  ['tempTrend', 'precipTrend', 'rainTrend', 'feelsTrend', 'windTrend', 'gustTrend', 'uvTrend'].forEach((k) =>
+    assert.equal(out[k].length, 65, k));
+  assert.equal(out.tempTrend[64], 50 + 18 + 64);
+  assert.equal(out.windTrend[64], 18 + 64);
+  // At 24 the day-max series keep their PEAK_HOURS reach; nothing else moves.
+  const day = mapResponse(r, now, 24);
+  assert.equal(day.tempTrend.length, 24);
+  ['windTrend', 'gustTrend', 'uvTrend'].forEach((k) => assert.equal(day[k].length, PEAK_HOURS, k));
+  assert.deepEqual(mapResponse(r, now), day, 'the default is the 24 h window');
 });
 
 test('48 h: mapResponse maps 48 hours across the days, what the feed holds when short', () => {

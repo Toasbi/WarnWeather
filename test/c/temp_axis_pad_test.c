@@ -1433,6 +1433,51 @@ static void test_collapsed_inset(void) {
     }
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+// The phone's temperature byte (forecast-series.js tempTrendToBytes): t on the joint band
+// [jlo, jlo + S] as round((t - jlo) * 250 / S), JS Math.round's half up, held to 0..250.
+static int enc_temp(int t, int jlo, int S) {
+    const int b = (2 * (t - jlo) * 250 + S) / (2 * S);
+    return b < 0 ? 0 : (b > 250 ? 250 : b);
+}
+
+// emery's hi/lo readback (temp_axis_byte_temp): a byte of the curve back to whole degrees on
+// the line through the air's global byte extremes and TEMP_MIN / TEMP_MAX. Exact for the air
+// alone at any span up to 250, and for every joint band (feels-like or dew point widening the
+// scale) up to 127 degrees, at every air span and offset inside it.
+static void test_byte_temp(void) {
+    for (int S = 1; S <= 250; ++S) {
+        const TempAxisRange g = { enc_temp(0, 0, S), enc_temp(S, 0, S) };
+        assert(g.lo == 0 && g.hi == 250);
+        for (int t = 0; t <= S; ++t) {
+            assert(temp_axis_byte_temp(enc_temp(t, 0, S), g, 0, S) == t);
+        }
+    }
+    long cases = 0;
+    for (int S = 1; S <= 127; ++S) {              // the joint band
+        for (int D = 0; D <= S; ++D) {            // the air's span inside it
+            for (int off = 0; off + D <= S; ++off) {   // the air's low, above the band's
+                const int lo = off, hi = off + D;
+                const TempAxisRange g = { enc_temp(lo, 0, S), enc_temp(hi, 0, S) };
+                for (int t = lo; t <= hi; ++t) {
+                    assert(temp_axis_byte_temp(enc_temp(t, 0, S), g, lo, hi) == t);
+                    ++cases;
+                }
+            }
+        }
+    }
+    assert(cases > 10000000);
+    // The ends are exact whatever the bytes between (a byte at or past an end is that end),
+    // negative degrees too (TEMP_MIN / TEMP_MAX are signed; the bytes never are).
+    const TempAxisRange g = { 40, 200 };
+    assert(temp_axis_byte_temp(40, g, -12, 31) == -12 && temp_axis_byte_temp(200, g, -12, 31) == 31);
+    assert(temp_axis_byte_temp(120, g, -12, 31) == -12 + (2 * 80 * 43 + 160) / 320);
+    // A flat curve (g.lo == g.hi) reads its one value.
+    const TempAxisRange flat = { 125, 125 };
+    assert(temp_axis_byte_temp(125, flat, 54, 54) == 54);
+}
+#endif
+
 int main(void) {
     test_constants();
     test_drawn_entries();
@@ -1459,6 +1504,11 @@ int main(void) {
     test_numbers_part();
     test_numbers_scale_points();
     test_collapsed_inset();
+#if defined(PBL_PLATFORM_EMERY)
+    test_byte_temp();
+    printf("temp_axis_pad_test (emery): all passed\n");
+#else
     printf("temp_axis_pad_test: all passed\n");
+#endif
     return 0;
 }

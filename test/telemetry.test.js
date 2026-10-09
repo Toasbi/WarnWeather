@@ -611,7 +611,9 @@ test('custom layouts report customViewExt0-2 = packExt per view; presets report 
   assert.equal(preset.customViewExt2, undefined);
 });
 
-test('snapshot reports the forecast span this watch draws, as an int', () => {
+test('snapshot reports the forecast span option this watch draws, as an int: 12 / 24 / 48, not the hours sent', () => {
+  // Categorical (forecast-span.js option()): 48 is the long span, labelled "58 h", which is
+  // sent 65 hours; 12 is sent 14. Same values as before 2.2.0's long span, so handler.ts holds.
   assert.strictEqual(buildSettingsSnapshot({ forecastHours: '48' }, { platform: 'emery' }).forecastHours, 48);
   assert.strictEqual(buildSettingsSnapshot({ forecastHours: '12' }, { platform: 'emery' }).forecastHours, 12);
   assert.strictEqual(buildSettingsSnapshot({ forecastHours: '48' }, { platform: 'basalt' }).forecastHours, 24,
@@ -906,7 +908,7 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // 144 B on 'bottom', the longer value) the two envelopes are 4188 B and 4298 B, the
 // batch header 3168 of 4096, headroom 928. The Double flick switch (doubleFlick, on its
 // longer value false) is 20 B: batch header 3188 of 4096, headroom 908. The forecast's
-// time span (forecastHours, 2.2.0, an int: 48) is 19 B: 3207 of 4096, headroom 889. The
+// time span (forecastHours, 2.2.0, an int, the option: 48) is 19 B: 3207 of 4096, headroom 889. The
 // forecast's left axis options (forecastAxisLine, forecastAxisNumbers, forecastAxisOutline,
 // forecastAxisScale; 2.2.0, BETA, emery only; false / 'beside' the longer values) are 110 B:
 // 3317 of 4096, headroom 779.

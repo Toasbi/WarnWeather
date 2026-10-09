@@ -173,10 +173,10 @@ test('a placed alert fetches its metric AND its day peaks with no slot showing i
   assert.deepEqual(fetchOptions.build(s).dayPeakCodes, forecastSeries.dayPeakCodes(s));
 });
 
-test('forecastHours: the stored span on an emery, 24 on every other watch and an unknown one', () => {
+test('forecastHours: the hours the stored span sends an emery (14 / 24 / 65), 24 on every other watch and an unknown one', () => {
   const emery = { platform: 'emery' };
-  assert.equal(fetchOptions.build({ forecastHours: '48' }, emery).forecastHours, 48);
-  assert.equal(fetchOptions.build({ forecastHours: '12' }, emery).forecastHours, 12);
+  assert.equal(fetchOptions.build({ forecastHours: '48' }, emery).forecastHours, 65, 'the long span ("58 h")');
+  assert.equal(fetchOptions.build({ forecastHours: '12' }, emery).forecastHours, 14);
   assert.equal(fetchOptions.build({ forecastHours: '24' }, emery).forecastHours, 24);
   assert.equal(fetchOptions.build({}, emery).forecastHours, 24, 'absent reads the default');
   assert.equal(fetchOptions.build({ forecastHours: '36' }, emery).forecastHours, 24, 'junk reads 24');
@@ -187,4 +187,24 @@ test('forecastHours: the stored span on an emery, 24 on every other watch and an
   });
   assert.equal(fetchOptions.build({ forecastHours: '48' }, null).forecastHours, 24, 'an unknown watch');
   assert.equal(fetchOptions.build({ forecastHours: '48' }).forecastHours, 24, 'no watchInfo');
+});
+
+// The options are all an adapter reads of the span (its URLs, its window, its polar pair), so
+// equal options mean byte-identical requests and payloads: a stored '48' or '12' builds the
+// very options a stored '24' does on every watch but an emery, and on a watch the phone cannot
+// name. (Per-adapter proof against the pre-span-revision build: the adapters' own suites pin
+// their 24 h URLs.)
+test('forecastHours: off emery a stored 48 or 12 builds the same options as 24', () => {
+  const s = { provider: 'openmeteo', fetchUv: true, secondaryLine: 'wind', thirdLine: 'gust' };
+  ['basalt', 'diorite', 'flint', 'chalk', 'aplite', null].forEach((platform) => {
+    const info = platform ? { platform } : null;
+    const day = fetchOptions.build(Object.assign({}, s, { forecastHours: '24' }), info);
+    ['48', '12'].forEach((v) => {
+      assert.deepEqual(fetchOptions.build(Object.assign({}, s, { forecastHours: v }), info), day,
+        String(platform) + ' ' + v);
+    });
+  });
+  // Emery at 24 builds the options every other watch builds.
+  assert.deepEqual(fetchOptions.build(Object.assign({}, s, { forecastHours: '24' }), { platform: 'emery' }),
+    fetchOptions.build(Object.assign({}, s, { forecastHours: '48' }), { platform: 'basalt' }));
 });

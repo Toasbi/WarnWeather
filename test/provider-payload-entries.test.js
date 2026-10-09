@@ -1,8 +1,8 @@
 // test/provider-payload-entries.test.js
 // The hours a weather payload carries (WeatherProvider#payloadEntries): the forecast's span
-// from the fetch options (forecast-span.js). 12 h sends 12, 24 h sends 24, and emery's 48 h
-// sends as many hours as every drawn series holds, never fewer than 24. hasValidData keeps
-// requiring the base 24 whatever the span.
+// from the fetch options (forecast-span.js). The 12 h span sends 14, 24 h sends 24, and emery's
+// long span (65; a short feed's 48 alike) sends as many hours as every drawn series holds, never
+// fewer than 24. hasValidData keeps requiring the base 24 whatever the span.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
@@ -55,6 +55,29 @@ test('a 12 h span sends 12 hours of every series', () => {
   assert.equal(p.hasValidData(), true, 'the base 24 is still what a fetch must hold');
 });
 
+test('the 12 h span sends its 14 hours (the 13th column and the vertex past it)', () => {
+  const p = makeProvider(14, 24);
+  assert.equal(p.payloadEntries(), 14);
+  const payload = p.getPayload();
+  assert.equal(payload.NUM_ENTRIES, 14);
+  ARRAYS.forEach((k) => assert.equal(payload[k].length, 14, k));
+});
+
+test('the long span sends 65 when every drawn series, the day-max ones included, holds them', () => {
+  const p = makeProvider(65, 65, { windTrend: 65, gustTrend: 65, uvTrend: 65 });
+  assert.equal(p.payloadEntries(), 65);
+  const payload = p.getPayload();
+  assert.equal(payload.NUM_ENTRIES, 65);
+  ARRAYS.forEach((k) => assert.equal(payload[k].length, 65, k));
+});
+
+test('the long span: a day-max series read only to PEAK_HOURS cuts the payload to 49 (why reachHours)', () => {
+  assert.equal(makeProvider(65, 65, { gustTrend: 65, uvTrend: 65 }).payloadEntries(), 49, 'wind at 49');
+  assert.equal(makeProvider(65, 65).payloadEntries(), 49, 'all three at 49');
+  assert.equal(makeProvider(65, 48, { windTrend: 65, gustTrend: 65, uvTrend: 65 }).payloadEntries(), 48,
+    'a 48-hour feed (OWM, WU) sends 48');
+});
+
 test('the default span sends 24, as before', () => {
   const p = makeProvider(24, 24);
   assert.equal(p.payloadEntries(), 24);
@@ -64,7 +87,7 @@ test('the default span sends 24, as before', () => {
   assert.equal(makeProvider(undefined, 24).payloadEntries(), 24, 'the constructor defaults');
 });
 
-test('a 48 h span sends 48 when every drawn series holds them', () => {
+test('a 48 h window (a 48-hour feed on the long span) sends 48 when every drawn series holds them', () => {
   const p = makeProvider(48, 48);
   assert.equal(p.payloadEntries(), 48);
   const payload = p.getPayload();
@@ -76,7 +99,7 @@ test('a 48 h span sends 48 when every drawn series holds them', () => {
   assert.equal(makeProvider(24, 48).getPayload().TEMP_MAX, 63, 'a 24 h span names its own 24');
 });
 
-test('a 48 h span sends what the shortest drawn series holds, never under 24', () => {
+test('a 48 h window sends what the shortest drawn series holds, never under 24', () => {
   assert.equal(makeProvider(48, 48, { tempTrend: 40 }).payloadEntries(), 40);
   assert.equal(makeProvider(48, 48, { uvTrend: 30 }).payloadEntries(), 30);
   assert.equal(makeProvider(48, 48, { pressureTrend: 36, rainTrend: 44 }).payloadEntries(), 36);

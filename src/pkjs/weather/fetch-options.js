@@ -57,9 +57,9 @@ var DEFAULTS = {
     // The shared WAQI token (build-injected via package.json's waqi.token);
     // '' = none, and air-quality.js degrades a token-less WAQI to Open-Meteo US.
     aqicnToken: '',
-    // The hours the forecast graph shows (12 | 24 | 48; forecast-span.js): 24 on every
+    // The hours the forecast graph is sent (14 | 24 | 65; forecast-span.js): 24 on every
     // watch but an emery set otherwise. The adapters map hourly-window.js windowHours()
-    // of this (24, or 48 for the 48 h span) and getPayload sends
+    // of this (24, or 65 for the long span) and getPayload sends
     // WeatherProvider#payloadEntries() hours.
     forecastHours: forecastSpan.DEFAULT_HOURS
 };
@@ -105,7 +105,7 @@ function defaults(overrides) {
  * Every settings input here is in renderSignature, so flipping a selection
  * forces a refetch and the options are rebuilt immediately; the forecast's time
  * span is too (forecastSpan.signature). watchInfo (an aplite watch never draws the
- * feels line, nor an On demand alert; only an emery takes a 12 or 48 h span) is
+ * feels line, nor an On demand alert; only an emery takes a 12 h or long span) is
  * fixed per session.
  *
  * @param {?Object} settings Clay settings, or null when none are stored.
@@ -139,8 +139,8 @@ function build(settings, watchInfo, env) {
         aqiScale: (settings && settings.aqiScale) || DEFAULTS.aqiScale,
         aqiSource: (settings && settings.aqiSource) || DEFAULTS.aqiSource,
         aqicnToken: (env && env.waqiToken) || '',
-        // The forecast's time span: the stored 12/24/48 on an emery, 24 on every other
-        // watch and an unknown one (their inboxes cannot take a 48 h bundle).
+        // The forecast's time span: the stored option's 14 | 24 | 65 hours on an emery, 24 on
+        // every other watch and an unknown one (their inboxes cannot take a 65-hour bundle).
         forecastHours: forecastSpan.hours(settings, platform.computeEnv(watchInfo))
     });
 }

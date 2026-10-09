@@ -40,7 +40,7 @@ var GRAPH_SERIES = ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend', 'gustT
 var WeatherProvider = function() {
     // The base window every adapter must fill (hasValidData, adoptMapped's zero-fill).
     // The hours a payload carries are payloadEntries(): the graph's span
-    // (options.forecastHours: 12, 24 or, on an emery, 48).
+    // (options.forecastHours: 14, 24 or, on an emery's long span, 65).
     this.numEntries = 24;
     this.name = 'Template';
     // The name on the watch's notice line (notices.js, ~31 B) when `name` is too long
@@ -205,7 +205,7 @@ WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure
     var sunEvents;
 
     try {
-        // The span widens a polar pair to cover a 48 h graph (sun-events.js).
+        // The span widens a polar pair to cover a long graph (sun-events.js).
         sunEvents = nextSunEvents(new Date(), lat, lon, undefined, this.options.forecastHours);
     }
     catch (ex) {
@@ -727,11 +727,14 @@ function encodeSunEvents(sunEvents) {
 
 /**
  * How many hours the payload carries (NUM_ENTRIES, and every trend's length): the
- * graph's span, options.forecastHours. A 12 h span sends 12 and the default 24 sends
- * numEntries (a provider whose base window is shorter keeps it). A 48 h span (emery)
- * sends as many hours as every drawn series holds (GRAPH_SERIES; an empty, off series
- * never limits it), never fewer than 24: a feed that ends early draws the hours it has
- * on the watch's 48 h grid, never a 48 h payload with a short series in it.
+ * graph's span, options.forecastHours (14, 24 or 65; forecast-span.js hours()). A 12 h
+ * span sends its 14 and the default 24 sends numEntries (a provider whose base window is
+ * shorter keeps it). The long span (emery, 65) sends as many hours as every drawn series
+ * holds (GRAPH_SERIES; an empty, off series never limits it), never fewer than 24: a feed
+ * that ends early sends the hours it has, which the watch's long grid widens to fill the
+ * plot (forecast_span.h), never a 65-hour payload with a short series in it. So every
+ * graph series an adapter maps must reach the window: a day-max read reaches
+ * hourly-window.js reachHours(), not PEAK_HOURS alone.
  *
  * @returns {number} The hours to send.
  */

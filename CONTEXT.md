@@ -122,13 +122,24 @@ its own fallback.
 _Avoid_: provider flags, per-fetch knobs.
 
 **Forecast span**:
-How many hours the forecast graph draws: 12, 24 or 48 on emery (Graphs ›
-Forecast › Time span), 24 everywhere else and on an unknown watch
-(`src/pkjs/forecast-span.js`). The phone decides it and sends that many hourly
-points (`WeatherProvider#payloadEntries`); the watch's grid follows the count it
-receives (`NUM_ENTRIES`, `src/c/appendix/forecast_span.h`). See
+The forecast graph's time span option: 12 h, 24 h or 58 h on emery (Graphs ›
+Forecast › Time span; stored '12' / '24' / '48', '48' being the long span's
+token), 24 h everywhere else and on an unknown watch
+(`src/pkjs/forecast-span.js`). The phone decides the hours it sends for it,
+14 / 24 / 65 (`hours()`; `WeatherProvider#payloadEntries`, fewer when a feed
+is shorter); the watch fits its grid to the count it receives (`NUM_ENTRIES`,
+`src/c/appendix/forecast_span.h`) and to its own plot width. See
 `docs/adr/0004-forecast-span-is-the-data.md`.
-_Avoid_: a watch-side forecast hours setting.
+_Avoid_: a watch-side forecast hours setting; calling the sent hours the span.
+
+**Visible hours**:
+The hours the emery forecast draws on screen, min(n, ceil(W / pitch)) for the
+n hours sent and the plot width W: the 12 h and long grids run the data past
+the right edge rather than leave a blank tail, so the "58 h" option shows
+about 58 at the default layout and more when the hi/lo numbers leave the
+strip. The temperature scale and the hi/lo labels fit the visible hours, not
+every hour sent (`forecast_layer.c` fit_entries, relabel_visible).
+_Avoid_: forecast span (that is the option).
 
 **Mapped forecast**:
 The plain object an adapter's `withProviderData` produces from its API

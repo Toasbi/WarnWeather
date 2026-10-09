@@ -36,7 +36,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Graph lines on Alert (Visible values: All | Alert): a wind speed, wind gust or UV index line draws every value, or only where it reaches your warn level (its Alert levels), its scale then starting at that level, so the small graph stays empty until it matters (Graphs tab › Forecast, in the metric's dialog)
 
 **Forecast**
-* 24-hour forecast with a temperature line and configurable, battery-friendly updates (on Pebble Time 2: 12, 24 or 48 hours, Graphs tab › Forecast › Time span)
+* 24-hour forecast with a temperature line and configurable, battery-friendly updates (on Pebble Time 2: 12, 24 or about 58 hours, Graphs tab › Forecast › Time span)
 * Configurable metrics such as precipitation, cloud cover, UV index, gusts, wind, air pressure, feels-like temperature and dew point (both drawn on the temperature scale)
 * Up to four metric lines at once, each in its own style — thin or thick line, square dots, little x marks, or (for precipitation, cloud cover, UV, wind and gusts) a shaded stripe along the top of the graph or below its zero line, whose colour strengthens with the value (third and fourth metric and style selection on watches with enough memory, not Pebble Classic/Steel)
 * Draw from: Bottom | Top: the precipitation, cloud cover, wind, gust and UV index lines, and with *Bars from* the rain bars of the forecast and of the radar graph, can hang from the top of the graph instead of standing on its bottom, a bigger value reaching further down, so they cover the temperature curve less (wind and gusts move together, and a main metric's area fill hangs with its line; not on Pebble Classic/Steel)
@@ -94,7 +94,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 Two things that both involve rain over time, but answer different questions:
 
 - **Forecast graph** — the hourly prediction, looking up to 24 hours ahead (on Pebble Time 2,
-  12, 24 or 48 — Time span). Temperature is always shown; on top of it you choose what to
+  12, 24 or about 58 — Time span). Temperature is always shown; on top of it you choose what to
   add — precipitation %, cloud cover % (every
   provider except Yandex), wind speed, wind gusts, UV index, air pressure (sea-level, in hPa,
   with a Narrow/Mid/Wide graph scale), feels-like temperature or dew point (both drawn on the

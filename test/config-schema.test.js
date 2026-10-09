@@ -1827,6 +1827,14 @@ test('forecastHours: the Time span section sits after Bars & shading, emery only
   assert.equal(it.type, 'segmented');
   assert.equal(it.defaultValue, '24');
   assert.deepEqual(it.options.map((o) => o[1]), forecastSpan.CHOICES, 'the stored values are CHOICES');
+  // The long span keeps its '48' token and is labelled by the hours the default emery layout
+  // shows; its hint names where more hours come from and the 48-hour providers' limit.
+  assert.deepEqual(it.options.map((o) => o[0]), ['12 h', '24 h', '58 h']);
+  assert.equal(it.hintByValue['48'], 'About 58 hours in narrow columns; more when the graph has more room '
+    + '(High / low numbers On graph or Off). Weather Underground and OpenWeatherMap stop at 48 hours: '
+    + 'about 44 with them.');
+  assert.equal(it.hintByValue['12'], 'The next 12 hours, in wider columns.');
+  assert.equal(it.hintByValue['24'], 'The next 24 hours.');
   assert.deepEqual(it.showWhen, { env: 'forecastSpan' });
   assert.ok(!it.more, 'the span frames the whole graph: never behind More');
   const visible = (p) => showWhen.isVisible(it, { env: platform.computeEnv(p ? { platform: p } : null) })

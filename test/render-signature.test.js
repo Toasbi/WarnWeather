@@ -664,8 +664,24 @@ test('forecastHours joins the signature; absent and 24 sign the same, as does ju
   assert.notEqual(renderSignature({ forecastHours: '12' }), renderSignature({ forecastHours: '48' }));
 });
 
-// The premise behind signing it: the bake differs between 24 and 48 h on an emery (the
-// hours sent), and is identical on every other watch, which is always sent 24.
+// On the long span the watch fits its window to its own plot width (forecast_span.h), so the
+// options that move that width -- the hi/lo numbers' place and Larger graph fonts -- change
+// nothing the phone sends: the same 65 hours ride for every layout, and a toggle forces no
+// refetch.
+test('on the long span, the numbers\' place and largeGraphFont stay out of the signature', () => {
+  ['48', '12', '24'].forEach((span) => {
+    const base = renderSignature({ forecastHours: span });
+    [{ forecastAxisNumbers: 'graph' }, { forecastAxisNumbers: 'off' }, { forecastAxisNumbers: 'beside' },
+      { largeGraphFont: true }, { largeGraphFont: false },
+      { largeGraphFont: true, forecastAxisNumbers: 'off' }].forEach((over) => {
+      assert.equal(renderSignature(Object.assign({ forecastHours: span }, over)), base,
+        span + ' ' + JSON.stringify(over) + ' must not force a refetch');
+    });
+  });
+});
+
+// The premise behind signing it: the bake differs between 24 and the long span on an emery
+// (the hours sent), and is identical on every other watch, which is always sent 24.
 test('the weather bake follows forecastHours on emery only', () => {
   const fs = require('fs');
   const path = require('path');
@@ -686,8 +702,8 @@ test('the weather bake follows forecastHours on emery only', () => {
       const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), s, { platform });
       return JSON.stringify(out, Object.keys(out).sort());
     };
-    assert.notEqual(bake('emery', '48'), bake('emery', '24'), 'emery: 48 h bakes 48 hours');
-    assert.notEqual(bake('emery', '12'), bake('emery', '24'), 'emery: 12 h bakes 12 hours');
+    assert.notEqual(bake('emery', '48'), bake('emery', '24'), 'emery: the long span bakes the feed\'s 48 hours');
+    assert.notEqual(bake('emery', '12'), bake('emery', '24'), 'emery: 12 h bakes 14 hours');
     ['basalt', 'diorite', 'aplite'].forEach((platform) => {
       assert.equal(bake(platform, '48'), bake(platform, '24'), platform + ': always 24');
       assert.equal(bake(platform, '12'), bake(platform, '24'), platform + ': always 24');

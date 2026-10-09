@@ -1374,7 +1374,7 @@ test('a placed alert makes UV, AQI and pollen fetch with no slot or line', () =>
   assert.deepEqual(dayPeakCodes(partial), ['uv', 'wind', 'gust', 'aqi']);
 });
 
-// Emery's 48 h forecast span (forecast-span.js): the series bake is length-agnostic, so a
+// Emery's long span (forecast-span.js): the series bake is length-agnostic, so a
 // 48-hour payload makes every wire trend 48 long — lines, marks, a stripe's level bytes, a
 // Show: Alert line and the rain bars alike.
 test('a 48-hour payload bakes 48-byte wire trends on every line, stripes and alert lines included', () => {
@@ -1409,12 +1409,14 @@ test('a 48-hour payload bakes 48-byte wire trends on every line, stripes and ale
 // bakesScale, forecast-series.js tempScaleRange). The trend bytes never change.
 const { tempScaleRange } = require('../src/pkjs/forecast-series');
 
-test('tempScaleRange: the rounded ends over the air and the drawn series, missing readings skipped', () => {
+test('tempScaleRange: the ends over the air and the drawn series widened to whole degrees, missing readings skipped', () => {
   assert.deepEqual(tempScaleRange([10, 20, 30], []), { min: 10, max: 30 });
   assert.deepEqual(tempScaleRange([10, 20, 30], [5.4, null, 38.6]), { min: 5, max: 39 });
-  assert.deepEqual(tempScaleRange([-3, 2], [-7.5, NaN, undefined]), { min: -7, max: 2 },
-    'negatives round like Math.round');
-  assert.deepEqual(tempScaleRange([], [12.2]), { min: 12, max: 12 });
+  assert.deepEqual(tempScaleRange([10, 20, 30], [5.6, 38.4]), { min: 5, max: 39 },
+    'widened outward (floor / ceil), never rounded inward');
+  assert.deepEqual(tempScaleRange([-3, 2], [-7.5, NaN, undefined]), { min: -8, max: 2 },
+    'negatives floor away from zero');
+  assert.deepEqual(tempScaleRange([], [12.2]), { min: 12, max: 13 });
   assert.equal(tempScaleRange([], []), null);
   assert.equal(tempScaleRange([null], [NaN]), null);
   assert.equal(tempScaleRange(undefined, undefined), null);
@@ -1424,8 +1426,8 @@ test('scale option: a dew trough under the air low and a feels peak over its hig
   const settings = { secondaryLine: 'feels', thirdLine: 'dew', barSource: 'off', forecastAxisScale: true };
   const payload = () => feelsPayload({ FEELS_TREND: [12, 22, 36.6], DEW_TREND: [4.4, 8, 12] });
   const out = applyForecastSeries(payload(), settings, { platform: 'emery' });
-  assert.equal(out.TEMP_MIN, 4, 'Math.round of the dew trough');
-  assert.equal(out.TEMP_MAX, 37, 'Math.round of the feels peak');
+  assert.equal(out.TEMP_MIN, 4, 'Math.floor of the dew trough');
+  assert.equal(out.TEMP_MAX, 37, 'Math.ceil of the feels peak');
   // The bytes are those of the option off: only the labels' values change.
   const off = applyForecastSeries(payload(), Object.assign({}, settings, { forecastAxisScale: false }),
     { platform: 'emery' });
@@ -1434,6 +1436,16 @@ test('scale option: a dew trough under the air low and a feels peak over its hig
   ['TEMP_TREND_UINT8', 'SECONDARY_LINE_TREND_UINT8', 'THIRD_LINE_TREND_UINT8',
     'FOURTH_LINE_TREND_UINT8', 'FIFTH_LINE_TREND_UINT8'].forEach((k) =>
     assert.deepEqual(out[k], off[k], k));
+});
+
+test('scale option: the ends are the joint band the bytes were scaled against (floor / ceil, not round)', () => {
+  // Math.round would name 5 and 36 here, one degree inside the band the curves fill; the
+  // watch's hi/lo readback (emery's 12 h and long spans) maps the bytes back onto these ends.
+  const settings = { secondaryLine: 'feels', thirdLine: 'dew', barSource: 'off', forecastAxisScale: true };
+  const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [12, 22, 36.4], DEW_TREND: [4.6, 8, 12] }),
+    settings, { platform: 'emery' });
+  assert.equal(out.TEMP_MIN, 4);
+  assert.equal(out.TEMP_MAX, 37);
 });
 
 test('scale option: a dew point over the air never raises TEMP_MAX (capped at each hour\'s temp)', () => {

@@ -94,9 +94,10 @@ test('an AQI slot asks the AQI feed in the stored source and scale', (t) => {
 });
 
 // The forecast's time span (forecast-span.js) reaches the provider through the same
-// options: on an emery set to 48 h the Open-Meteo main call asks for four days and the
-// aux call for three, and the weather message carries 48 hours. Any other watch keeps
-// today's requests and 24 hours, whatever is stored.
+// options: on an emery set to the long span (stored '48', labelled "58 h") the Open-Meteo
+// main and aux calls ask for four days and the weather message carries 65 hours; set to
+// 12 h, it carries 14 on today's requests. Any other watch keeps today's requests and 24
+// hours, whatever is stored.
 const EMERY = { platform: 'emery', model: 'qemu_platform_emery', language: 'en' };
 const MAIN_REQUEST = /^https:\/\/api\.open-meteo\.com\/v1\/forecast\?.*models=ecmwf_ifs025/;
 
@@ -111,7 +112,7 @@ function weatherSend(h) {
   return sends[0];
 }
 
-test('a 48 h span on an emery: 4-day main and 3-day aux calls, 48 hours sent', (t) => {
+test('the long span on an emery: 4-day main and aux calls, 65 hours sent', (t) => {
   const h = bootIndex(t, { settings: noUvNoAqi({ forecastHours: '48' }), store: staleSuccess(),
     watchInfo: EMERY });
   h.ready();
@@ -121,12 +122,27 @@ test('a 48 h span on an emery: 4-day main and 3-day aux calls, 48 hours sent', (
   const main = h.xhrs.filter((u) => MAIN_REQUEST.test(u));
   const aux = h.xhrs.filter((u) => AUX_REQUEST.test(u));
   assert.equal(main.length, 1);
-  assert.match(main[0], /&forecast_days=4(&|$)/, 'the main call reaches the 48th hour\'s block');
+  assert.match(main[0], /&forecast_days=4(&|$)/, 'the main call reaches the 65th hour\'s block');
   assert.equal(aux.length, 1);
-  assert.match(aux[0], /&forecast_days=3(&|$)/, 'three GMT days hold the aux reads');
+  assert.match(aux[0], /&forecast_days=4(&|$)/, 'four GMT days hold the aux reads');
   const sent = weatherSend(h);
-  assert.equal(sent.NUM_ENTRIES, 48);
-  assert.equal(sent.TEMP_TREND_UINT8.length, 48);
+  assert.equal(sent.NUM_ENTRIES, 65);
+  assert.equal(sent.TEMP_TREND_UINT8.length, 65);
+});
+
+test('the 12 h span on an emery: today\'s 3-day main and 2-day aux calls, 14 hours sent', (t) => {
+  const h = bootIndex(t, { settings: noUvNoAqi({ forecastHours: '12' }), store: staleSuccess(),
+    watchInfo: EMERY });
+  h.ready();
+  h.advance(5 * 1000);
+  assert.equal(h.count(/Successfully fetched weather/), 1);
+  const main = h.xhrs.filter((u) => MAIN_REQUEST.test(u));
+  assert.match(main[0], /&forecast_days=3(&|$)/);
+  const aux = h.xhrs.filter((u) => AUX_REQUEST.test(u));
+  assert.match(aux[0], /&forecast_days=2(&|$)/);
+  const sent = weatherSend(h);
+  assert.equal(sent.NUM_ENTRIES, 14);
+  assert.equal(sent.TEMP_TREND_UINT8.length, 14);
 });
 
 test('a stored 48 h span on a basalt changes nothing: 3-day main call, 24 hours sent', (t) => {

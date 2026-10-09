@@ -476,7 +476,7 @@ Fields supported in `fixtures/<name>.json`:
 - `weather.city`, `weather.currentTemp` — status-row city label and current temperature (°F)
 - `weather.startHour` — local hour (0–23) of the first forecast entry; fixture prep converts it to a runtime epoch
 - `weather.startDayOffset` — optional day offset added to `watch.now.day` for the forecast start (default 0; pairs with `startHour`)
-- `weather.temps` — hourly Fahrenheit forecast array
+- `weather.temps` — hourly Fahrenheit forecast array. Its length (and the other hourly arrays') is the feed's: a watch is sent at most the hours its stored time span sends (`src/pkjs/forecast-span.js` `hours()`: 14 / 24 / 65 on emery, 24 everywhere else). `forecast-long` is a full 65-hour feed for emery's long span ("58 h"); `forecast-48h` a 48-hour one (OpenWeatherMap's, Weather Underground's), drawn at a wider pitch
 - `weather.precipPct` — hourly precipitation-probability array (0–100)
 - `weather.cloudPct` — optional hourly cloud-cover array (0–100); feeds the cloud-cover metric (omitted → that line stays off)
 - `weather.rainMm` — hourly rain-amount array (mm); drives the optional rain bars

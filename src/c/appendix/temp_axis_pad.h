@@ -11,7 +11,8 @@
 // WHAT TAKES PART (owner, 2026-10-02). Only a series with at least one value above 0 in the
 // window the graph draws takes part in the layout: the hours whose column starts on screen
 // (temp_axis_drawn_entries; the phone sends 24, at most 19 fit on basalt and 23 on emery,
-// whose 12 h and 48 h spans fit every hour they are sent, forecast_span.h). One
+// whose 12 h and long spans fill the width and clip the rest; the scale and the labels cover
+// the hours on screen there, forecast_layer.c fit_entries, forecast_span.h). One
 // with nothing above 0 there draws nothing (a stripe's empty cell, a bar of 0, a metric line's
 // wire byte 0: all draw nothing), and the plot lays out as if it were not there: a stripe
 // gives up its band (no band, no gap; the plot grows into it) and a line, its marks, its fill
@@ -188,6 +189,22 @@ static inline void temp_axis_range_widen(TempAxisRange *r, const int16_t *values
         }
     }
 }
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: byte b of a temperature-axis line read back to whole degrees, on the straight line
+// through the global extremes g (every hour sent) and the phone's TEMP_MIN / TEMP_MAX (lo,
+// hi), rounded half up; the ends exact. The 12 h and long grids name the hours on screen
+// with it (forecast_layer.c relabel_visible). The phone encodes b = round((t - Jlo) * 250 /
+// S) on the joint band S (forecast-series.js tempTrendToBytes), so the read is exact for the
+// air alone at any span up to 250 and for a joint band up to about 127 degrees, +-1 beyond
+// (test/c/temp_axis_pad_test.c). b lies in [g.lo, g.hi], so no sign fix-up.
+static inline int temp_axis_byte_temp(int b, TempAxisRange g, int lo, int hi) {
+    if (b >= g.hi) { return hi; }
+    if (b <= g.lo) { return lo; }
+    const int span = g.hi - g.lo;
+    return lo + (int)((unsigned)(2 * (b - g.lo) * (hi - lo) + span) / (unsigned)(2 * span));
+}
+#endif
 
 // The fit for one redraw (THE SCALE): the joint range's lowest byte `r.lo` lands on the bottom
 // margin's row, its highest `r.hi` on the top margin's, and every byte lies on the straight

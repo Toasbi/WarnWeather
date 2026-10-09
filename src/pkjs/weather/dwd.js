@@ -109,8 +109,8 @@ function currentFeelsFrom(current) {
 
 /**
  * ISO 8601 forecast window starting at the current wall-clock hour and
- * covering the graph's hours + 1 buckets (FORECAST_HOURS, or 48 for emery's
- * 48 h span; or to the end of tomorrow, whichever is later). Brightsky returns `hourly[0]` as the
+ * covering the graph's hours + 1 buckets (FORECAST_HOURS, or 65 for emery's
+ * long span; or to the end of tomorrow, whichever is later). Brightsky returns `hourly[0]` as the
  * bucket whose timestamp >= `date`, so anchoring `date` at the hour
  * boundary keeps `hourly[0]` on the bucket the user is currently inside.
  * `last_date` is inclusive, so ending it the graph's hours on returns one record
@@ -118,7 +118,8 @@ function currentFeelsFrom(current) {
  * slot's preceding-hour rain, chance and gust (see slotRecords). While a wind
  * or gust slot shows its day max it runs on to the end of local tomorrow
  * where that is later: only wind and gusts read on (peakTail). At 24 h it
- * always is (the end of tomorrow + 1 h is never under start + 24 h).
+ * always is (the end of tomorrow + 1 h is never under start + 24 h); at the long
+ * span's 65 h it never is (the end of tomorrow + 1 h is at most start + 49 h).
  *
  * @param {boolean} peak Whether a wind or gust slot shows its day max.
  * @param {number} [hours] The graph's window (hourly-window.js windowHours);
@@ -142,9 +143,10 @@ function forecastWindow(peak, hours) {
 }
 
 /**
- * Wind and gusts for the hours after the graph's slots (from `from`: 24, or 48
- * for emery's 48 h span), out to PEAK_HOURS — what the wind and gust slots' day
- * max reads past the graph.
+ * Wind and gusts for the hours after the graph's slots (from `from`: 24, or 65
+ * for emery's long span), out to PEAK_HOURS — what the wind and gust slots' day
+ * max reads past the graph. From 65 there is nothing to add: the slots already
+ * run past PEAK_HOURS.
  * Paired by timestamp like slotRecords (wind from the hour's own record, the
  * gust from the one an hour on), but a record Brightsky does not return reads
  * as null rather than carrying the previous hour forward: past the graph a
@@ -309,7 +311,7 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             var startEpoch = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
             // The window asks for records out to PEAK_HOURS (forecastWindow);
             // the slots themselves stop at the graph's window (FORECAST_HOURS, or
-            // 48 for emery's 48 h span) so every series agrees
+            // 65 for emery's long span) so every series agrees
             // on its length (wind and gusts read on, peakTail below). A response short of that (fewer records than slots)
             // stays short, so hasValidData still rejects it.
             // Instants (temperature, wind speed, pressure, dew point, bearing)

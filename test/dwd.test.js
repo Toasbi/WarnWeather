@@ -606,7 +606,8 @@ test('DWD keeps uvFeedId on the instance, off the mapped forecast', () => {
   assert.equal(Object.prototype.hasOwnProperty.call(mapped[0], 'uvFeedId'), false);
 });
 
-// Emery's 48 h forecast span (forecast-span.js): the window is windowHours(options).
+// Emery's long span (forecast-span.js): the window is windowHours(options), 65 (48 reads the
+// same way, a feed's own limit).
 /**
  * Drive a DwdProvider at 09:20 Berlin over canned records with the given options, capturing
  * the Brightsky forecast and the UV URLs.
@@ -674,6 +675,27 @@ test('48 h: with a wind day max, wind and gusts read on from slot 48 to PEAK_HOU
   const dayMaxEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2).getTime() + 3600000;
   const end = new Date(Math.max(SLOT0 + 48 * 3600000, dayMaxEnd)).toISOString();
   assert.ok(forecastUrl.indexOf('last_date=' + end + '&') !== -1, forecastUrl);
+});
+
+test('long span: DWD asks for 65 h + the record after it and maps 65 slots; peakTail adds nothing', () => {
+  const recs = stampedRecords(Array.from({ length: 70 }, (_, i) => i), -1);
+  recs.forEach((r, i) => { r.wind_speed = 100 + i; r.wind_gust_speed = 200 + i; });
+  // With a wind day max: the end of local tomorrow + 1 h lies before start + 65 h.
+  const { p, forecastUrl, uvUrl, ok } = runSpan(recs, { forecastHours: 65, fetchUv: true });
+  assert.equal(ok, true);
+  assert.ok(forecastUrl.indexOf('last_date=' + new Date(SLOT0 + 65 * 3600000).toISOString() + '&') !== -1,
+    forecastUrl);
+  ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend', 'gustTrend', 'pressureTrend', 'dewTrend',
+    'windDirTrend', 'feelsTrend'].forEach((k) => assert.equal(p[k].length, 65, k));
+  assert.equal(p.windTrend[64], 164, 'the slots run past PEAK_HOURS: no tail');
+  assert.equal(p.gustTrend[64], 265, 'the gust from the record an hour on');
+  assert.match(uvUrl, /&forecast_days=4(&|$)/, 'the shared Open-Meteo UV call reads four days');
+  assert.equal(p.uvTrend.length, 65);
+  assert.equal(p.getPayload().NUM_ENTRIES, 65);
+  // Without a day max the same window and slots.
+  const plain = runSpan(recs, { forecastHours: 65, dayPeakCodes: [] });
+  assert.equal(plain.forecastUrl, forecastUrl);
+  assert.equal(plain.p.windTrend.length, 65);
 });
 
 test('the default span keeps DWD\'s 24 slots and 25-record window', () => {

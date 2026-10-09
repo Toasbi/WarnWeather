@@ -273,7 +273,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
             graphics_context_set_stroke_width(r->ctx, 1);
             graphics_draw_line(r->ctx, GPoint(x0, y_free), GPoint(x1, y_free));  // free end
 #if defined(PBL_PLATFORM_EMERY)
-            // emery: a bar under 3 px (the 48 h forecast's 2 px) has no interior between
+            // emery: a bar under 3 px (the long forecast's 2 px) has no interior between
             // its walls; colour themes keep the cap only so the tier colours show, a bw
             // theme keeps the walls (they ARE the bar). Health (6 px), radar (5 px) and the
             // 12 / 24 h forecast bars are 5 px or wider and unaffected.
@@ -319,8 +319,8 @@ static int chart_value_y(int16_t v, int lo, int range, int inner_h,
 // over the 4 px bar columns (1 px into the right gap, still 1 px clear of the
 // next tick at pitch 7), and exactly the 5 px column on emery. Two 1 px
 // diagonals — stroke width 1 is already odd, so no SDK round-down (snooze.c).
-// emery's 12 h and 48 h forecasts size the box to their bars (forecast_span.h): 7..11 px
-// at 12 h, 3x3 at 48 h, where neighbouring boxes touch at the 3 px pitch.
+// emery's 12 h and long forecasts size the box to their bars (forecast_span.h): 7..11 px
+// at 12 h, 3x3 at the long span's 3 px pitch, where neighbouring boxes touch.
 static void chart_draw_bar_marks(const ChartRender *r, const ChartLineLayer *l) {
     const int   count       = chart_clamp_count(r, l->count);
     const GRect c           = r->geo.content;
@@ -385,7 +385,7 @@ static void chart_draw_bar_marks(const ChartRender *r, const ChartLineLayer *l) 
                 graphics_context_set_fill_color(r->ctx, theme_bg());
 #if defined(PBL_PLATFORM_EMERY)
                 // emery: where the pitch leaves no free column between two x boxes (the
-                // 48 h forecast: a 3 px box at a 3 px pitch) the backing keeps to the
+                // long forecast: a 3 px box at a 3 px pitch) the backing keeps to the
                 // box's own columns, or each x would erase its left neighbour's arm. At
                 // pitch 8 or wider it is the 1 px border above.
                 const int mx = (r->geo.slots.pitch > 2 * half + 2) ? 1 : 0;
