@@ -131,6 +131,10 @@
     { code: 'phoneBattery', key: 'PhoneBattery', boldOnly: true },
     { code: 'phoneBatteryPlain', key: 'PhoneBattery', boldOnly: true }
   ];
+  // The heart rate slot's kind, KINDS' one tuplePair entry: kindConfig resolves the
+  // switch, pair, warn look and colours that CLAY_HR_ALERT_UINT8 carries.
+  var HR_KIND = 0;
+  while (!KINDS[HR_KIND].tuplePair) { HR_KIND++; }
 
   /**
    * @param {*} v raw settings field ('' = unset; comma decimals accepted)
@@ -666,6 +670,7 @@
 
   var api = {
     KINDS: KINDS,
+    HR_KIND: HR_KIND,
     WARN_LOOKS: WARN_LOOKS,
     warnLookDefault: warnLookDefault,
     warnLookFor: warnLookFor,

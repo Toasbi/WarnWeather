@@ -17,12 +17,10 @@ var configUi = require('./config-ui');          // intToHex, computeEnv
 // instead of a second opinion about it.
 var lineStyle = require('./line-style.js');
 var viewCycle = require('./view-cycle.js');
-// enabledAlerts, rainAlert, warnLookFor and kindConfig — the bake's and the packer's own
-// reading of the weather alerts, the warn looks and the heart rate slot's highlighting, so
-// the report and the watch cannot disagree on what is on or how it looks.
+// enabledAlerts, rainAlert, warnLookFor, kindConfig and HR_KIND — the bake's and the
+// packer's own reading of the weather alerts, the warn looks and the heart rate slot's
+// highlighting, so the report and the watch cannot disagree on what is on or how it looks.
 var statusThresholds = require('./status-thresholds.js');
-// HR_KIND — the heart rate slot's kind, as the packer (buildHrAlertBytes) resolves it.
-var statusWire = require('./status-wire.js');
 // clampByte — the heart rate slot's levels as the bytes the tuple carries.
 var wireUnits = require('./wire-units.js');
 // telemetryCode — where each On demand item is ticked, read like the bake reads it.
@@ -201,7 +199,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
     var hrOk = onDemand.hrAvailable(safe, env);
     var hrPlaced = hrOk && onDemand.placedAnywhere(safe, 'hr', env);
     var hrHl = hrOk
-        ? statusThresholds.kindConfig(safe, statusWire.HR_KIND, env.color !== false) : null;
+        ? statusThresholds.kindConfig(safe, statusThresholds.HR_KIND, env.color !== false) : null;
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,

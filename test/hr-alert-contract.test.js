@@ -51,7 +51,7 @@ test('the levels: the phone\'s ranges fall inside the watch\'s, and the defaults
   const cfg = B.thresholdRangeCfg({}, { platform: 'emery', thresholds: true, color: true }, { keyStem: 'Hr' });
   assert.ok(cfg.min >= bpmMin, 'the warn floor ' + cfg.min + ' is a level the watch highlights');
   assert.ok(cfg.max <= 255, 'one byte');
-  const hl = th.kindConfig({}, wire.HR_KIND, true);
+  const hl = th.kindConfig({}, th.HR_KIND, true);
   assert.ok(hl.warn >= bpmMin && hl.danger >= hl.warn, 'the seed pair is sane on the watch');
 });
 

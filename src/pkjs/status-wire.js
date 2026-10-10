@@ -522,10 +522,9 @@ var HR_ALERT_DANGER_COLOR_OFFSET = 6;
 var HR_ALERT_VALUE_BIT = 0x01;
 var HR_ALERT_HIGHLIGHT_BIT = 0x02;
 var HR_ALERT_LOOK_SHIFT = 2;
-// The heart rate slot's kind, KINDS' one tuplePair entry: kindConfig resolves the switch,
-// pair, warn look and colours that bytes [2]..[6] carry.
-var HR_KIND = 0;
-while (!KINDS[HR_KIND].tuplePair) { HR_KIND++; }
+// The heart rate slot's kind (KINDS' one tuplePair entry): bytes [2]..[6] carry what
+// kindConfig resolves for it.
+var HR_KIND = thresholds.HR_KIND;
 
 /**
  * Build the CLAY_HR_ALERT_UINT8 tuple (layout: src/c/appendix/hr_alert.h): the Heart
@@ -579,7 +578,6 @@ module.exports = {
   packAlerts: packAlerts,
   bakeAlerts: bakeAlerts,
   HR_ALERT_BYTES: HR_ALERT_BYTES,
-  HR_KIND: HR_KIND,
   HR_ALERT_CELLS_OFFSET: HR_ALERT_CELLS_OFFSET,
   HR_ALERT_LEVEL_OFFSET: HR_ALERT_LEVEL_OFFSET,
   HR_ALERT_FLAGS_OFFSET: HR_ALERT_FLAGS_OFFSET,

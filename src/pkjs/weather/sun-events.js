@@ -121,7 +121,7 @@ function mirroredSunEvent(sunEvent, lat, lon) {
  * two days on) moves the far end a day out, six days apart: the span then runs
  * from today to three days on, the whole 47 h chart of any fetch made today.
  * Emery's long span (68 h) moves it one more day, seven apart: its watch also
- * shades from the last sunset listed to the graph's end (forecast_layer.c's
+ * shades from the last sunset listed to the graph's end (forecast_night.h's
  * trailing close), so the far event repeated a day nearer (midnight + 4 d) must
  * lie past any long graph's end (now + 68 h, at most midnight + 92 h). The sun
  * status slot reads '--' for it (isPolarSunPair).

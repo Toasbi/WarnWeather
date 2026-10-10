@@ -2037,7 +2037,7 @@ test('the Hr range: 40..220 bpm in 5s, seeded 120 / 150, no scale-max editor', (
   assert.equal(cfg.maxEditable, false, 'a fixed track');
   assert.equal(cfg.minSpan, cfg.step);
   // The seeds are the packer's (status-thresholds.js SEEDS, kindConfig's fallback).
-  const hl = thresholds.kindConfig({}, wire.HR_KIND, true);
+  const hl = thresholds.kindConfig({}, thresholds.HR_KIND, true);
   assert.deepEqual([hl.warn, hl.danger], [cfg.seedWarn, cfg.seedDanger]);
   // Their colours are the weather kinds' autos: the theme's text colour, then red.
   assert.equal(cfg.warnColor, '#FFFFFF');
@@ -2057,7 +2057,7 @@ test('the Hr reset lands on a fresh install: levels on the seed AND the switch o
   assert.equal(S.threshHrWarnColor, '');
   assert.equal(S.threshHrDangerColor, '');
   assert.equal(S.threshHrBoldMode, 'always', 'reset must not touch Bold');
-  assert.equal(thresholds.kindConfig(S, wire.HR_KIND, true).enabled, false);
+  assert.equal(thresholds.kindConfig(S, thresholds.HR_KIND, true).enabled, false);
   assert.equal(thresholds.ownsGroupSwitch('Hr'), true);
 });
 

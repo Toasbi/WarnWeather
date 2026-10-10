@@ -4,10 +4,9 @@
 // src/c/appendix/config.h.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('fs');
-const path = require('path');
 
 const forecastAxis = require('../src/pkjs/forecast-axis.js');
+const { readC, cDefine } = require('./helpers/c-source.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const env = (p) => platform.computeEnv(p === null ? null : { platform: p });
@@ -139,12 +138,8 @@ test('signature: \'scale\' only while the option and a temperature-axis line are
 });
 
 test('the wire bits are one set of numbers on both sides (config.h GRAPH_OPT_*)', () => {
-  const h = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'appendix', 'config.h'), 'utf8');
-  const def = (name) => {
-    const m = new RegExp('#define\\s+' + name + '\\s+(0x[0-9A-Fa-f]+)').exec(h);
-    assert.ok(m, 'config.h defines ' + name);
-    return Number(m[1]);
-  };
+  const h = readC('src/c/appendix/config.h');
+  const def = (name) => cDefine(h, name);
   const B = forecastAxis.BIT;
   assert.equal(def('GRAPH_OPT_LARGE_FONT'), B.LARGE_FONT);
   assert.equal(def('GRAPH_OPT_NUMS_GRAPH'), B.NUMS_GRAPH);
@@ -161,7 +156,7 @@ test('the wire bits are one set of numbers on both sides (config.h GRAPH_OPT_*)'
   assert.equal(forecastAxis.AXIS_MASK & B.LARGE_FONT, 0, 'the mask leaves bit 0 to Larger graph fonts');
   assert.ok(forecastAxis.AXIS_MASK < 0x8000, 'below the int16 read\'s sign bit');
   // The decode reads the word through the int16 low half, emery only, stored as sent.
-  const c = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'appendix', 'config_wire.c'), 'utf8');
+  const c = readC('src/c/appendix/config_wire.c');
   const emery = c.split('#if defined(PBL_PLATFORM_EMERY)').slice(1)
     .map((block) => block.split('#endif')[0]).join('\n');
   assert.match(emery, /\(uint16_t\)\s*clay_large_graph_font_tuple->value->int16/);

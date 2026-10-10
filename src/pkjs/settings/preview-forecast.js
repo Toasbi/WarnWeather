@@ -902,8 +902,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
 
         /**
-         * The hi/lo numbers on the graph (left axis BETA, On graph): forecast_layer.c
-         * draw_axis_numbers, mirrored. Each sits beside the point it names — the temperature
+         * The hi/lo numbers on the graph (left axis BETA, On graph): forecast_numbers.h
+         * forecast_numbers_on_graph (via forecast_layer.c draw_axis_numbers), mirrored. Each
+         * sits beside the point it names — the temperature
          * curve's highest and lowest sample or, with ax.scale, the highest and lowest of the
          * curve and every drawn feels-like / dew point line (the curve first, then line order:
          * a strictly higher or lower value replaces, so the earliest wins a tie) — at the

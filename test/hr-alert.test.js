@@ -14,7 +14,7 @@ const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const PLATFORMS = ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint'];
 // The heart rate slot's kind (KINDS' tuplePair entry), as the packer finds it.
-const HR = wire.HR_KIND;
+const HR = th.HR_KIND;
 const ENV = {};
 PLATFORMS.forEach((p) => { ENV[p] = platform.computeEnv({ platform: p }); });
 const UNKNOWN = platform.computeEnv(null);
