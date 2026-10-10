@@ -212,8 +212,8 @@ static inline int forecast_span_laid_out(ForecastSpan s, int n, int visible_w) {
 
 // emery: the whole hours on screen: the n slots whose bar ends on the `visible_w` columns,
 // slot_x(i) + bar_pad + bar_w <= visible_w - 1. The settings page labels the long span with
-// this count (src/pkjs/forecast-span-hours.js wholeHours; the two are held to one table,
-// test/c/forecast_span_test.c SPAN_WHOLE_HOURS). Under the edge rule the last hour is cut at
+// this count (src/pkjs/forecast-span-hours.js wholeHours; scripts/test-c.sh holds the two in
+// lockstep over test/c/forecast_span_dump.c). Under the edge rule the last hour is cut at
 // its point, so a feed the rule widens shows n - 1 whole hours; a full feed at the 3 px floor,
 // floor(visible_w / 3). The drawing reads forecast_span_drawn and _laid_out, never this.
 static inline int forecast_span_whole(ForecastSpan s, int n, int visible_w) {

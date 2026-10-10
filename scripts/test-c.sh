@@ -89,6 +89,12 @@ cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT test/c/alert_lane_dump.c src/
    src/c/appendix/status_threshold.c -o build/host/alert_lane_dump
 build/host/alert_lane_dump > build/host/alert_lane.txt
 node scripts/check-alert-lane-lockstep.js build/host/alert_lane.txt
+# The long time span's label names the whole hours the watch shows: dump the watch's count
+# (forecast_span.h forecast_span_whole, emery only) for every long feed on every plot width
+# and check each against the settings page's rule (scripts/check-forecast-span-lockstep.js).
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/forecast_span_dump.c -o build/host/forecast_span_dump
+build/host/forecast_span_dump > build/host/forecast_span.txt
+node scripts/check-forecast-span-lockstep.js build/host/forecast_span.txt
 # The On demand layout (appendix/on_demand.c), in five tests sharing
 # test/c/on_demand_fixtures.h: the make-room ladder (one side, looks before slots, the
 # bleed, the drops, the invariants over random bars, down to "a quiet bar is the plain

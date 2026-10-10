@@ -116,6 +116,9 @@ test('lockstep: FORECAST_MAX_ENTRIES in forecast_span.h is MAX_FORECAST_HOURS on
   assert.equal(Number(m[1]), hourlyWindow.MAX_FORECAST_HOURS);
   assert.equal(Number(m[2]), hourlyWindow.FORECAST_HOURS);
   assert.equal(forecastSpan.DEFAULT_HOURS, hourlyWindow.FORECAST_HOURS);
+  // The stored option's default (forecast-span-hours.js, which the webview loads and which
+  // cannot read hourly-window.js) is the same 24.
+  assert.equal(forecastSpanHours.DEFAULT_HOURS, hourlyWindow.FORECAST_HOURS);
   // 68 = ceil(200 / 3) + 1: the widest plot (the whole 200 px screen: the numbers On graph or
   // Off draw no left axis) at the 3 px pitch floor, plus the hour whose vertex lies past the
   // right edge.
@@ -143,8 +146,6 @@ test('lockstep: the schema\'s forecastHours options are CHOICES, its default 24'
   // The options are forecast-span-hours.js spanOptions (the forecastSpanOptions resolver):
   // whatever the provider and layout, the values are CHOICES; only the long span's label moves.
   assert.deepEqual(item.optionsFrom, { resolver: 'forecastSpanOptions' });
-  assert.deepEqual([forecastSpanHours.VALUES.half, forecastSpanHours.VALUES.day,
-    forecastSpanHours.VALUES.long], forecastSpan.CHOICES);
   [{}, { provider: 'openweathermap' }, { provider: 'wunderground', forecastAxisNumbers: 'off' },
     { provider: 'metno', largeGraphFont: true }].forEach((s) => {
     assert.deepEqual(forecastSpanHours.spanOptions(s).map((o) => o[1]), forecastSpan.CHOICES,

@@ -21,6 +21,8 @@ var lineStyle = require('../line-style.js');
 var DRAW_FROM = require('../draw-from.js');
 // The forecast's left axis options (BETA, emery only): their keys and values.
 var FORECAST_AXIS = require('../forecast-axis.js');
+// The long time span's whole hours (the Forecast card's intro names the most it shows).
+var spanHours = require('../forecast-span-hours.js');
 // The keyed sources of the Weather and Radar provider pickers (their names, key sheets and
 // key fields): the key sheets are built from it here, and the rows' key-status resolvers
 // read it in the page (key-status.js).
@@ -1006,7 +1008,9 @@ var LAYOUT_INTRO = 'How the watchface is arranged, and what a wrist-flick reveal
     + 'preview. What a metric means or how it\'s coloured lives in Graphs.';
 var STATUS_INTRO = 'Every view has its own status bar — one row with a left, middle, and right slot you can '
     + 'fill with weather, time, health, and more. Choose what each view shows below.';
-var FORECAST_INTRO = 'The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or up to 66: '
+// "up to 66": a full feed on the whole screen (the High / low numbers On graph or Off).
+var FORECAST_INTRO = 'The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or up to '
+    + String(spanHours.wholeHours(spanHours.FULL_HOURS, spanHours.SCREEN_W)) + ': '
     + 'Time span below). Temperature is always drawn; the metrics and rain bars you pick below join it.';
 var GRAPH_COLORS_INTRO = 'One row per metric, plus the night shading. Each row’s colours are remembered '
     + 'separately for the Dark and the Light theme.';

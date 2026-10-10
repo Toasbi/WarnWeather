@@ -1,17 +1,22 @@
-// src/pkjs/forecast-span-hours.js — ES5. The long time span's label (Graphs > Forecast > Time
-// span, emery only): the whole hours the watch will show for the picked weather provider and
-// the graph's layout. "47 h" with OpenWeatherMap, "48 h" with Weather Underground, "58 h" with
+// src/pkjs/forecast-span-hours.js — ES5. The Time span row's stored option and the long time
+// span's label (Graphs > Forecast > Time span, emery only).
+//
+// THE STORED OPTION (CHOICES, storedHours, option): '12', '24' or '48'. One reading for the
+// hours sent, the render signature and telemetry (forecast-span.js re-exports it) and the Time
+// span row's values (spanOptions), here because the settings page cannot load forecast-span.js.
+//
+// THE LABEL: the whole hours the watch will show for the picked weather provider and the
+// graph's layout. "47 h" with OpenWeatherMap, "48 h" with Weather Underground, "58 h" with
 // a full feed at the default layout, "66 h" with the High / low numbers On graph or Off. Only
-// the label moves: the option's stored value stays '48' (forecast-span.js CHOICES), so the
-// wire, the fetch, telemetry and storage are unchanged.
+// the label moves: the option's stored value stays '48' (CHOICES), so the wire, the fetch,
+// telemetry and storage are unchanged.
 //
 // THE COUNT is the watch's (src/c/appendix/forecast_span.h forecast_span_whole): the hours
 // whose bar is wholly on screen. Under the edge rule a feed the plot can hold is widened until
 // its last hour's point sits on the last column, so it shows n - 1 whole hours; a full feed
 // stays at the 3 px floor and runs past the edge. wholeHours() is that rule for the long class
-// (27..68 hours); test/forecast-span-hours.test.js holds it to the table the host C suite
-// checks the header against (test/c/forecast_span_test.c SPAN_WHOLE_HOURS: every n 27..68 on
-// every plot width 145..200).
+// (27..68 hours); scripts/test-c.sh holds it to the watch's count for every n 27..68 on every
+// plot width 145..200 (test/c/forecast_span_dump.c, scripts/check-forecast-span-lockstep.js).
 //
 // THE FEED (feedHours): the hours the provider's adapter delivers for the long span's request.
 // OpenWeatherMap's One Call hourly list holds 48 hours (openweathermap.js); Weather
@@ -89,8 +94,36 @@
     var PITCH_MIN = 3;
     var PITCH_MAX = 8;
     var PAD_FROM = 6;
-    // The options' stored values: forecast-span.js CHOICES (pinned equal by the test).
-    var VALUES = { half: '12', day: '24', long: '48' };
+    // The stored values, the schema's options (test/forecast-span.test.js pins both). '48' is the
+    // long span's token: the first cut stored the long span as '48', so the token stays and
+    // nothing migrates. The row labels it with the whole hours the watch will show (spanOptions:
+    // "58 h" at the default layout).
+    var CHOICES = ['12', '24', '48'];
+    // The span every watch draws by default, and the only one off emery: hourly-window.js
+    // FORECAST_HOURS (test/forecast-span.test.js pins the two equal; the webview cannot read it).
+    var DEFAULT_HOURS = 24;
+
+    /**
+     * The span the settings hold, whatever the watch: 12, 24 or 48 (the long span's token); 24
+     * for an absent or unknown value.
+     * @param {?Object} settings Clay settings.
+     * @returns {number} The stored option.
+     */
+    function storedHours(settings) {
+        var v = settings && settings.forecastHours;
+        return CHOICES.indexOf(String(v)) !== -1 ? parseInt(v, 10) : DEFAULT_HOURS;
+    }
+
+    /**
+     * The option this watch draws, for telemetry: categorical, not the hours sent. The stored
+     * 12 / 24 / 48 on a span watch (48 = the long span, whatever its label), else 24.
+     * @param {?Object} settings Clay settings.
+     * @param {?Object} env config-ui/lib/platform.js computeEnv() result.
+     * @returns {number} 12, 24 or 48.
+     */
+    function option(settings, env) {
+        return (env && env.forecastSpan) ? storedHours(settings) : DEFAULT_HOURS;
+    }
 
     /**
      * The whole hours a long feed shows: of `n` hourly entries (27..68) in a plot `w` px wide,
@@ -210,9 +243,9 @@
      */
     function spanOptions(settings, env) {
         return [
-            ['12 h', VALUES.half],
-            ['24 h', VALUES.day],
-            [longHours(settings, env) + ' h', VALUES.long]
+            ['12 h', CHOICES[0]],
+            ['24 h', CHOICES[1]],
+            [longHours(settings, env) + ' h', CHOICES[2]]
         ];
     }
 
@@ -230,7 +263,10 @@
         PITCH_MIN: PITCH_MIN,
         PITCH_MAX: PITCH_MAX,
         PAD_FROM: PAD_FROM,
-        VALUES: VALUES,
+        CHOICES: CHOICES,
+        DEFAULT_HOURS: DEFAULT_HOURS,
+        storedHours: storedHours,
+        option: option,
         wholeHours: wholeHours,
         feedHours: feedHours,
         healthGraph: healthGraph,

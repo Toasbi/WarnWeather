@@ -8,65 +8,50 @@
 // THE SPAN IS THE DATA. The span rides the fetch options (fetch-options.js forecastHours),
 // the adapters map hourly-window.js windowHours() buckets, and getPayload sends
 // WeatherProvider#payloadEntries() of them; the watch reads its grid off the NUM_ENTRIES
-// it receives. Nothing here rides the Clay message. Requires hourly-window.js (a leaf) and
-// forecast-axis.js (line-style.js and its colour leaves): none touches Pebble at load or
-// requires a weather module, so fetch-options.js' load-time invariant holds.
+// it receives. Nothing here rides the Clay message. Requires hourly-window.js (a leaf),
+// forecast-axis.js (line-style.js and its colour leaves) and forecast-span-hours.js (that and
+// view-cycle.js, a leaf): none touches Pebble at load or requires a weather module, so
+// fetch-options.js' load-time invariant holds.
 var hourlyWindow = require('./weather/hourly-window.js');
 var forecastAxis = require('./forecast-axis.js');
+// The stored option (CHOICES, storedHours, option) lives in the dual-context
+// forecast-span-hours.js, which the settings page loads too; re-exported below.
+var spanHours = require('./forecast-span-hours.js');
+var CHOICES = spanHours.CHOICES;
+var storedHours = spanHours.storedHours;
 
 // The span every watch draws by default, and the only one off emery.
 var DEFAULT_HOURS = hourlyWindow.FORECAST_HOURS;
-// The stored values, the schema's options (test/forecast-span.test.js pins both). '48' is the
-// long span's token: the first cut stored the long span as '48', so the token stays and
-// nothing migrates. The settings page labels it with the whole hours the watch will show for
-// the provider's feed and the layout (forecast-span-hours.js: "58 h" at the default layout).
-var CHOICES = ['12', '24', '48'];
 // The 12 h span sends 14: the 13th column (partly on screen at most widths) and the vertex
 // past it carry data (forecast_span.h FORECAST_SPAN_HALF_SENT, lockstep).
 var HALF_SENT_HOURS = 14;
-// The 24 h span on a graph with no left axis (forecast-axis.js axisGone: the hi/lo numbers On
-// graph or Off) sends 26: its plot then spans the whole 200 px screen, and the 24 h grid's
-// fixed 8 px pitch needs ceil(200 / 8) + 1 hours to reach the right edge (forecast_span.h
+// The 24 h span on a graph with no left axis (signature()'s '26': the hi/lo numbers On graph
+// or Off) sends 26: its plot then spans the whole 200 px screen, and the 24 h grid's fixed
+// 8 px pitch needs ceil(200 / 8) + 1 hours to reach the right edge (forecast_span.h
 // FORECAST_SPAN_DAY_SENT, lockstep). With the numbers On axis it sends 24, so that payload and
 // that screen stay today's (the temperature bytes are normalised over the hours sent).
 var DAY_WIDE_HOURS = 26;
-// The hours each choice fetches and sends. The watch fits its grid to them.
-var SENT_HOURS = { '12': HALF_SENT_HOURS, '24': DEFAULT_HOURS, '48': hourlyWindow.MAX_FORECAST_HOURS };
+// The hours each signature() token fetches and sends: '' the 24 h default, '12', '26' (24 h
+// with no left axis) and '48' (the long span). The watch fits its grid to them.
+var SENT_HOURS = {
+    '': DEFAULT_HOURS,
+    '12': HALF_SENT_HOURS,
+    '26': DAY_WIDE_HOURS,
+    '48': hourlyWindow.MAX_FORECAST_HOURS
+};
 
 /**
- * The span the settings hold, whatever the watch: 12, 24 or 48 (the long span's token); 24
- * for an absent or unknown value.
- * @param {?Object} settings Clay settings.
- * @returns {number} The stored option.
- */
-function storedHours(settings) {
-    var v = settings && settings.forecastHours;
-    return CHOICES.indexOf(String(v)) !== -1 ? parseInt(v, 10) : DEFAULT_HOURS;
-}
-
-/**
- * The hours the phone fetches and sends to this watch: on a span watch (emery) the stored
- * option's (14 / 24 / 68; 26 for 24 h on a known emery whose graph has no left axis), else 24.
+ * The hours the phone fetches and sends to this watch: on a span watch (emery) the hours of
+ * its signature() token (14 / 24 / 68; 26 for 24 h with no left axis), else 24. So the hours
+ * sent and the render signature cannot disagree. No platform test of its own: env.forecastSpan
+ * names emery alone (platform.js FORECAST_SPAN_PLATFORMS), the one watch with the left axis
+ * options; a span watch without them would be sent 26 for a stored numbers On graph or Off.
  * @param {?Object} settings Clay settings.
  * @param {?Object} env config-ui/lib/platform.js computeEnv() result.
  * @returns {number} 14, 24, 26 or 68.
  */
 function hours(settings, env) {
-    if (!(env && env.forecastSpan)) { return DEFAULT_HOURS; }
-    var h = storedHours(settings);
-    if (h === DEFAULT_HOURS && forecastAxis.axisGone(settings, env)) { return DAY_WIDE_HOURS; }
-    return SENT_HOURS[String(h)];
-}
-
-/**
- * The option this watch draws, for telemetry: categorical, not the hours sent. The stored
- * 12 / 24 / 48 on a span watch (48 = the long span, whatever its label), else 24.
- * @param {?Object} settings Clay settings.
- * @param {?Object} env config-ui/lib/platform.js computeEnv() result.
- * @returns {number} 12, 24 or 48.
- */
-function option(settings, env) {
-    return (env && env.forecastSpan) ? storedHours(settings) : DEFAULT_HOURS;
+    return (env && env.forecastSpan) ? SENT_HOURS[signature(settings)] : DEFAULT_HOURS;
 }
 
 /**
@@ -102,7 +87,7 @@ module.exports = {
     DAY_WIDE_HOURS: DAY_WIDE_HOURS,
     storedHours: storedHours,
     hours: hours,
-    option: option,
+    option: spanHours.option,
     maxHours: maxHours,
     signature: signature
 };

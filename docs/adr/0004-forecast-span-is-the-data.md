@@ -228,10 +228,11 @@ provider".
   - So "58 h" at the default layout, "59 h" without Larger graph fonts (60 with no health
     graph) and "66 h" with no left axis; "47 h" with OpenWeatherMap and "48 h" with Weather
     Underground on every layout.
-- **One rule, held to one table.** The count is the watch's `forecast_span_whole` (the hours
+- **One rule, held in lockstep.** The count is the watch's `forecast_span_whole` (the hours
   whose bar ends on screen). No drawing code calls it, so every watch image stays
-  byte-identical. The JS mirrors it, and both are held to `test/c/forecast_span_test.c`
-  `SPAN_WHOLE_HOURS`: every feed of 27..68 hours on every plot width 145..200 px.
+  byte-identical. The JS mirrors it, and `scripts/test-c.sh` holds the two to each other
+  (`test/c/forecast_span_dump.c`, `scripts/check-forecast-span-lockstep.js`): every feed of
+  27..68 hours on every plot width 145..200 px.
 - **The watch still decides what is visible.** The phone does not see the watch's plot: a
   one-digit, negative or three-digit temperature, a step mark of whole thousands ("2") or of
   10k steps and more ("10.5"), or a watch without health data (Pebble Health off) moves W by a

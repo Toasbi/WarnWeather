@@ -18,8 +18,9 @@
 // back to the fail-safe answer.
 var forecastSeries = require('../forecast-series.js');
 var feelsLike = require('./feels-like.js');
-// forecast-span.js requires hourly-window.js (a leaf) and forecast-axis.js (line-style.js,
-// as forecast-series.js already does), so the invariant above holds.
+// forecast-span.js requires hourly-window.js (a leaf), forecast-axis.js (line-style.js, as
+// forecast-series.js already does) and forecast-span-hours.js (that and view-cycle.js, a
+// leaf), so the invariant above holds.
 var forecastSpan = require('../forecast-span.js');
 var platform = require('../config-ui/lib/platform.js');
 

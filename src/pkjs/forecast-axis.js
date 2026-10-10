@@ -155,19 +155,6 @@
     }
 
     /**
-     * Whether this watch draws the forecast with no left axis: a known emery with the numbers
-     * On graph or Off. Its plot then starts at the screen's left edge (unless a health graph
-     * shares the screen, which the phone does not track: forecast_layer.c), so the 24 h span
-     * sends 26 hours to reach its right edge (forecast-span.js hours()).
-     * @param {?Object} s Clay settings.
-     * @param {?Object} env computeEnv() result.
-     * @returns {boolean}
-     */
-    function axisGone(s, env) {
-        return resolved(s, env).numbers !== AXIS;
-    }
-
-    /**
      * The options' bits of the CLAY_LARGE_GRAPH_FONT word (never bit 0 or a retired bit:
      * within 0x2C): 0 exactly when the graph is today's, and for a known non-emery watch.
      * @param {?Object} s Clay settings.
@@ -219,7 +206,6 @@
         carried: carried,
         tempAxisLineDrawn: tempAxisLineDrawn,
         resolved: resolved,
-        axisGone: axisGone,
         wireBits: wireBits,
         bakesScale: bakesScale,
         signature: signature

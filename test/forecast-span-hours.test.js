@@ -2,10 +2,11 @@
 
 // The long time span's label (src/pkjs/forecast-span-hours.js): the whole hours the watch shows
 // for the provider's feed and the layout. The count is the watch's rule
-// (src/c/appendix/forecast_span.h forecast_span_whole); the table both sides are held to lives
-// in the host C test (test/c/forecast_span_test.c SPAN_WHOLE_HOURS, every n 27..68 on every
-// plot width 145..200) and is parsed from it here, the city-ladder pattern, so neither side can
-// drift alone. The geometry constants are pinned against the C sources they name.
+// (src/c/appendix/forecast_span.h forecast_span_whole). The full parity runs under
+// scripts/test-c.sh, not here: test/c/forecast_span_dump.c prints the watch's count for every
+// n 27..68 on every plot width 145..200 and scripts/check-forecast-span-lockstep.js holds
+// wholeHours to each. Here, every plot width the page computes is held inside that range, and
+// the geometry constants are pinned against the C sources they name.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -13,7 +14,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const spanHours = require('../src/pkjs/forecast-span-hours.js');
-const forecastSpan = require('../src/pkjs/forecast-span.js');
 const forecastAxis = require('../src/pkjs/forecast-axis.js');
 const hourlyWindow = require('../src/pkjs/weather/hourly-window.js');
 const schema = require('../src/pkjs/settings/schema.js');
@@ -22,6 +22,7 @@ const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const C_TEST = read('test/c/forecast_span_test.c');
+const DUMP = read('test/c/forecast_span_dump.c');
 const SPAN_H = read('src/c/appendix/forecast_span.h');
 
 /**
@@ -36,28 +37,6 @@ function define(src, name) {
   return Number(m[1]);
 }
 
-/**
- * The SPAN_WHOLE_HOURS table of the C test: one row per plot width W (its leading comment),
- * one column per feed n, from SPAN_WHOLE_N_MIN.
- * @returns {{w: number, hours: number[]}[]} The rows, in table order.
- */
-function cTable() {
-  const table = /SPAN_WHOLE_HOURS\[[^\]]+\]\[[^\]]+\] = \{\n([\s\S]*?)\n\};/.exec(C_TEST);
-  assert.ok(table, 'SPAN_WHOLE_HOURS found in forecast_span_test.c');
-  const rows = [...table[1].matchAll(/\/\*(\d+)\*\/\s*\{([^}]*)\}/g)].map((m) => ({
-    w: Number(m[1]),
-    hours: m[2].split(',').map((v) => {
-      assert.match(v.trim(), /^\d+$/, 'a plain count: ' + v);
-      return Number(v);
-    })
-  }));
-  // Nothing in the table the row pattern missed.
-  assert.equal(table[1].replace(/\/\*\d+\*\/\s*\{[^}]*\},?/g, '').trim(), '', 'only rows in the table');
-  return rows;
-}
-
-// The table's axes, read from the C test: W_MIN .. W_MAX (EMERY_SCREEN_W), and the feeds
-// SPAN_WHOLE_N_MIN (FORECAST_SPAN_DAY_SENT + 1, the long class's first) .. FORECAST_MAX_ENTRIES.
 // emery's settings-page env (config-ui platform.js computeEnv): health and custom layouts.
 const EMERY = platform.computeEnv({ platform: 'emery' });
 // A custom layout of one view, the health graph in the top band over the forecast body: the
@@ -67,59 +46,21 @@ const SHARED_VIEW = {
   layoutPreset: 'custom', healthMode: 'all', viewCount: '1', viewTop0: 'health', viewBody0: 'forecast'
 };
 
-const W_MIN = define(C_TEST, 'W_MIN');
+// The lockstep's plot widths (test/c/forecast_span_dump.c W_MIN .. W_MAX) and emery's screen.
+const W_MIN = define(DUMP, 'W_MIN');
+const W_MAX = define(DUMP, 'W_MAX');
 const SCREEN_W = define(C_TEST, 'EMERY_SCREEN_W');
-const N_MIN = define(SPAN_H, 'FORECAST_SPAN_DAY_SENT') + 1;
-const N_MAX = hourlyWindow.MAX_FORECAST_HOURS;
 
-test('the C table spans every long feed on every plot width', () => {
-  assert.match(C_TEST, /#define W_MAX EMERY_SCREEN_W\b/);
-  assert.match(C_TEST, /#define SPAN_WHOLE_N_MIN \(FORECAST_SPAN_DAY_SENT \+ 1\)/);
-  assert.match(C_TEST, /#define SPAN_WHOLE_COLS \(FORECAST_MAX_ENTRIES - SPAN_WHOLE_N_MIN \+ 1\)/);
-  // FORECAST_MAX_ENTRIES on emery is the long span's full feed (test/forecast-span.test.js).
-  const max = /#if defined\(PBL_PLATFORM_EMERY\)[\s\S]*?#define FORECAST_MAX_ENTRIES (\d+)/.exec(SPAN_H);
-  assert.ok(max, 'forecast_span.h defines emery\'s FORECAST_MAX_ENTRIES');
-  assert.equal(Number(max[1]), N_MAX);
-  assert.equal(N_MIN, 27);
-  assert.equal(N_MAX, 68);
-  const rows = cTable();
-  assert.deepEqual(rows.map((r) => r.w), Array.from({ length: SCREEN_W - W_MIN + 1 }, (_, k) => W_MIN + k),
-    'one row per W, W_MIN..EMERY_SCREEN_W in order');
-  rows.forEach((r) => assert.equal(r.hours.length, N_MAX - N_MIN + 1, 'one column per n at W ' + r.w));
-  // Every plot width the page computes is a row: each numbers place and font, with and without
-  // the health graph, and with it beside the forecast.
+test('the lockstep covers every plot width the page computes', () => {
+  // Each numbers place and font, with and without the health graph, and with it beside the
+  // forecast.
   ['axis', 'graph', 'off'].forEach((numbers) => [true, false].forEach((largeGraphFont) => {
     [{}, { healthMode: 'all' }, SHARED_VIEW].forEach((layout) => {
       const s = Object.assign({ forecastAxisNumbers: numbers, largeGraphFont: largeGraphFont }, layout);
       const w = spanHours.plotWidth(s, EMERY);
-      assert.ok(w >= W_MIN && w <= SCREEN_W, JSON.stringify(s) + ': W ' + w + ' is in the table');
+      assert.ok(w >= W_MIN && w <= W_MAX, JSON.stringify(s) + ': W ' + w + ' is in the lockstep');
     });
   }));
-});
-
-test('wholeHours matches the watch on every cell of the C table', () => {
-  let cells = 0;
-  cTable().forEach((r) => r.hours.forEach((want, k) => {
-    const n = N_MIN + k;
-    assert.equal(spanHours.wholeHours(n, r.w), want, 'n=' + n + ' W=' + r.w);
-    cells += 1;
-  }));
-  assert.equal(cells, (SCREEN_W - W_MIN + 1) * (N_MAX - N_MIN + 1));
-});
-
-test('wholeHours: the rule\'s landmarks', () => {
-  // A feed the plot holds is widened until its last hour's point sits on the last column:
-  // n - 1 whole. OWM's 48 show 47 and WU's 49 show 48 on every plot width.
-  for (let w = W_MIN; w <= SCREEN_W; w += 1) {
-    assert.equal(spanHours.wholeHours(48, w), 47, '48 at ' + w);
-    assert.equal(spanHours.wholeHours(49, w), 48, '49 at ' + w);
-  }
-  // A full feed holds the 3 px floor and runs past the edge: floor(W / 3).
-  assert.equal(spanHours.wholeHours(68, 174), 58);
-  assert.equal(spanHours.wholeHours(68, 176), 58);
-  assert.equal(spanHours.wholeHours(68, 180), 60);
-  assert.equal(spanHours.wholeHours(68, 200), 66);
-  assert.equal(spanHours.wholeHours(27, 200), 26, 'the long class\'s shortest feed');
 });
 
 test('the geometry is the watch\'s', () => {
@@ -299,6 +240,4 @@ test('longHours and spanOptions: the label for each provider and layout', () => 
     [['12 h', '12'], ['24 h', '24'], ['47 h', '48']]);
   assert.deepEqual(spanHours.spanOptions({ provider: 'wunderground', largeGraphFont: true }),
     [['12 h', '12'], ['24 h', '24'], ['48 h', '48']]);
-  // The values are forecast-span.js CHOICES, whatever the label.
-  assert.deepEqual(spanHours.spanOptions({}).map((o) => o[1]), forecastSpan.CHOICES);
 });

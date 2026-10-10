@@ -100,17 +100,6 @@ test('resolved: the stored options on a known emery, the defaults everywhere els
     true, 'On axis names the scale too');
 });
 
-test('axisGone: a known emery with the numbers On graph or Off', () => {
-  assert.equal(forecastAxis.axisGone({}, env('emery')), false);
-  assert.equal(forecastAxis.axisGone({ forecastAxisNumbers: 'axis' }, env('emery')), false);
-  assert.equal(forecastAxis.axisGone({ forecastAxisNumbers: 'beside' }, env('emery')), false);
-  assert.equal(forecastAxis.axisGone({ forecastAxisNumbers: 'graph' }, env('emery')), true);
-  assert.equal(forecastAxis.axisGone({ forecastAxisNumbers: 'off' }, env('emery')), true);
-  NON_EMERY.concat([null]).forEach((p) => {
-    assert.equal(forecastAxis.axisGone({ forecastAxisNumbers: 'off' }, env(p)), false, String(p));
-  });
-});
-
 test('wireBits: the exhaustive table, canonical (a dormant value packs no bit)', () => {
   const B = forecastAxis.BIT;
   let rows = 0;
