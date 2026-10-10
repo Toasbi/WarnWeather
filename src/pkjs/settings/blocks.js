@@ -878,7 +878,7 @@ if (typeof require !== 'undefined') {
         // radar): not on aplite, where a stored value lies dormant (dormantValues).
         if (!env || env.platform !== 'aplite') {
             base.push(['Weather only', 'weatherOnly']);
-            base.push(['Custom (Beta)', 'custom']);
+            base.push(['Custom', 'custom']);
         }
         return base;
     });

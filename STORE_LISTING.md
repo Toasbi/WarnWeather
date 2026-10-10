@@ -90,7 +90,7 @@ WATCH
 
 LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views (or a double flick, to reduce accidental view switches) and optional auto-return
-- Custom layout (still beta)
+- Custom layout
 - First-run setup wizard that picks sensible defaults for your country and watch
 
 WEATHER

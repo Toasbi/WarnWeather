@@ -1207,9 +1207,9 @@ module.exports = {
                 hintByValue: {
                     slot: 'Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar.',
                     status: 'Adds the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
-                    all: 'Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line. Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                    all: 'Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line.'
                 },
-                options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph (BETA)', 'all']],
+                options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph', 'all']],
                 onChange: 'resetStatusHealth',
                 // aplite has no health sensors — the watch compiles the view out.
                 showWhen: {env: 'health'}
