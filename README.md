@@ -94,7 +94,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 Two things that both involve rain over time, but answer different questions:
 
 - **Forecast graph** — the hourly prediction, looking up to 24 hours ahead (on Pebble Time 2,
-  12, 24 or about 58 — Time span). Temperature is always shown; on top of it you choose what to
+  12, 24 or up to 66 — Time span). Temperature is always shown; on top of it you choose what to
   add — precipitation %, cloud cover % (every
   provider except Yandex), wind speed, wind gusts, UV index, air pressure (sea-level, in hPa,
   with a Narrow/Mid/Wide graph scale), feels-like temperature or dew point (both drawn on the

@@ -15,7 +15,7 @@ FORECAST
 - Optional day/night shading
 - Pebble Time 2: left axis options (beta): high/low numbers on the axis, on the graph or
   off (no left axis: the graph uses the full width), numbers that include feels-like and dew
-  point; the longer span marks the clock hours
+  point
 - Fully customizable lines and colors
 - Multiple weather providers, including regional and worldwide sources
 
