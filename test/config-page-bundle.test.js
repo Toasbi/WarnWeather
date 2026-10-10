@@ -188,6 +188,30 @@ test('the span hours module is bundled after view-cycle.js and forecast-axis.js,
     'forecast-hints.js does not register the forecastSpanOptions resolver in the generated page');
 });
 
+// The forecast preview and its axis mirrors (preview-axis.js, window.PreviewAxis), each with the
+// window globals it binds while its own body runs. Each must be assigned earlier in the page:
+// out of order, the forecast preview throws on a real phone while every Node test passes
+// through require().
+const BINDS_AT_LOAD = {
+  'preview-axis.js': ['window.ForecastSpanHours'],
+  'preview-forecast.js': ['window.PreviewSvg', 'window.PreviewRain', 'window.LineStyle', 'window.LineAlert',
+    'window.StripeLevels', 'window.DrawFrom', 'window.ForecastAxis', 'window.PreviewAxis', 'window.ResolveInk',
+    'window.PreviewStripe']
+};
+
+test('the forecast preview and its axis mirrors are bundled after every global they bind at load', () => {
+  const src = page();
+  Object.keys(BINDS_AT_LOAD).forEach((file) => {
+    const at = src.indexOf('/* app: ' + file + ' */');
+    assert.notEqual(at, -1, file + ' is not in the generated page');
+    BINDS_AT_LOAD[file].forEach((global) => {
+      const set = src.indexOf(global + ' = ');
+      assert.notEqual(set, -1, 'nothing assigns ' + global + ' in the generated page');
+      assert.ok(set < at, global + ' must be assigned before ' + file + ' runs');
+    });
+  });
+});
+
 // when-resolvers.js answers the schema's { when } leaves. It binds window.LineStyle,
 // window.DrawFrom, window.OnDemand, window.ForecastAxis and VIEW_CYCLE while its own body
 // runs, so it follows all five. Out of the page, nothing throws: an unregistered leaf reads false, so the

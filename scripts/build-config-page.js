@@ -88,9 +88,10 @@ var APP_FILES = [
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/forecast-axis.js'),
   // The long time span's whole hours (window.ForecastSpanHours): the Time span row's label,
-  // by forecast-hints.js' forecastSpanOptions resolver. It binds window.ForecastAxis and
+  // by forecast-hints.js' forecastSpanOptions resolver, and the span option the forecast
+  // preview's hour axis reads (preview-axis.js). It binds window.ForecastAxis and
   // window.VIEW_CYCLE while its own body runs, so it follows forecast-axis.js and view-cycle.js,
-  // and forecast-hints.js binds it while its own runs, so it precedes that —
+  // and forecast-hints.js and preview-axis.js bind it while theirs run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/forecast-span-hours.js'),
   // A stripe cell's level on its metric's own scale (window.StripeLevels): the table the
@@ -111,6 +112,11 @@ var APP_FILES = [
   // preview-stripe.js publishes window.PreviewStripe (the stripe cell look), read by
   // the forecast and radar previews below.
   path.join(ROOT, 'src/pkjs/settings/preview-stripe.js'),
+  // preview-axis.js publishes window.PreviewAxis (the watch's temperature axis and hour
+  // marks, mirrored), read by the forecast preview below. It binds window.ForecastSpanHours
+  // while its own body runs, so it follows forecast-span-hours.js —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/settings/preview-axis.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-forecast.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-radar.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-diagnostics.js'),

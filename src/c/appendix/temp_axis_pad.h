@@ -5,7 +5,7 @@
 // (test/c/temp_axis_pad_test.c; the chart_flip.h pattern). forecast_layer.c is the one
 // caller, and only off aplite: aplite is the frozen fork, it has no stripes, its insets are
 // constants and its labels sit where they always did. The settings preview mirrors the rules
-// (preview-forecast.js, draw-from.js forecastAnchors), pinned by
+// (preview-axis.js, preview-forecast.js, draw-from.js forecastAnchors), pinned by
 // test/config-temp-axis-pad.test.js.
 //
 // WHAT TAKES PART (owner, 2026-10-02). Only a series with at least one value above 0 in the
@@ -327,7 +327,7 @@ static inline void temp_labels_align_to_curve(int *hi_y, int *lo_y, int h,
 // scale do not change (the owner's tight margins, above): the numbers' 1 px outline in the
 // background colour, which On graph always draws (no option: the owner's "implied by the axis
 // number settings"), keeps them readable where they cover a line. The settings preview mirrors
-// these rules (preview-forecast.js numberSide / numberBeside / numbersPart).
+// these rules (preview-axis.js numberSide / numberBeside / numbersPart).
 
 // The extremes' rows and hours: a row strictly above `hi` or strictly below `lo` replaces it,
 // so the series widened first (the temperature) and its earliest hour win a tie.

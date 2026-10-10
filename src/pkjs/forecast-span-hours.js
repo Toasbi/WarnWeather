@@ -2,8 +2,9 @@
 // span's label (Graphs > Forecast > Time span, emery only).
 //
 // THE STORED OPTION (CHOICES, storedHours, option): '12', '24' or '48'. One reading for the
-// hours sent, the render signature and telemetry (forecast-span.js re-exports it) and the Time
-// span row's values (spanOptions), here because the settings page cannot load forecast-span.js.
+// hours sent, the render signature and telemetry (forecast-span.js re-exports it), the Time
+// span row's values (spanOptions) and the forecast preview's hour axis (preview-axis.js
+// axisCadence), here because the settings page cannot load forecast-span.js.
 //
 // THE LABEL: the whole hours the watch will show for the picked weather provider and the
 // graph's layout. "47 h" with OpenWeatherMap, "48 h" with Weather Underground, "58 h" with
@@ -51,7 +52,8 @@
 // Dual-context: a CommonJS module on the phone and in the tests, a plain concatenated
 // <script> in the settings-page webview (scripts/build-config-page.js' APP_FILES, after
 // view-cycle.js and forecast-axis.js, which it reads at load, and ahead of forecast-hints.js,
-// whose forecastSpanOptions resolver reads window.ForecastSpanHours), which has no require().
+// whose forecastSpanOptions resolver reads window.ForecastSpanHours, and preview-axis.js, which
+// binds it at load), which has no require().
 (function () {
     var forecastAxis = (typeof require !== 'undefined')
         ? require('./forecast-axis.js') : window.ForecastAxis;
