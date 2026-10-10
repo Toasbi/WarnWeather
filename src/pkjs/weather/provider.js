@@ -1,9 +1,9 @@
 var sunEventsLib = require('./sun-events.js');
 var nextSunEvents = sunEventsLib.nextSunEvents;
-var isValidSunEvent = sunEventsLib.isValidSunEvent;
+var encodeSunEvents = sunEventsLib.encodeSunEvents;
 var outbox = require('../outbox.js');
 var wireUnits = require('../wire-units.js');
-var clampByte = wireUnits.clampByte;
+var scaleTrendToBytes = wireUnits.scaleTrendToBytes;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
@@ -685,79 +685,23 @@ WeatherProvider.prototype.hasValidData = function() {
 };
 
 /**
- * Scale the first `numEntries` of a trend by `scale` and clamp each to a wire
- * byte [0, 255]. Missing entries collapse to 0.
- *
- * @param {number[]} trend Source trend values.
- * @param {number} numEntries Number of leading entries to keep.
- * @param {number} scale Multiplier applied before clamping (e.g. 10 for tenths).
- * @returns {number[]} Clamped uint8 wire bytes.
- */
-function scaleTrendToBytes(trend, numEntries, scale) {
-    return trend.slice(0, numEntries).map(function(value) {
-        return clampByte((value || 0) * scale);
-    });
-}
-
-/**
- * Encode sun events into the SUN_EVENTS wire array: a leading byte (0 when the
- * series starts on a sunrise, else 1) followed by each event's epoch-seconds
- * reinterpreted as little-endian Int32 bytes.
- *
- * Null when fewer than two events carry a real date, and getPayload then
- * leaves the key out. The watch needs the start byte plus two epochs
- * (handle_sun_events ignores anything shorter), and an Invalid Date would pack
- * as epoch 0, which the watch persists over its last good pair before
- * get_valid_sun_events rejects it.
- *
- * @param {{type: string, date: Date}[]} sunEvents Ordered sun events.
- * @returns {?number[]} SUN_EVENTS wire bytes, or null when there is no pair.
- */
-function encodeSunEvents(sunEvents) {
-    sunEvents = Array.isArray(sunEvents) ? sunEvents.filter(isValidSunEvent) : [];
-    if (sunEvents.length < 2) {
-        return null;
-    }
-    var intView = new Int32Array(sunEvents.map(function(sunEvent) {
-        return sunEvent.date.getTime() / 1000; // Seconds since epoch
-    }));
-    var byteArray = Array.prototype.slice.call(new Uint8Array(intView.buffer));
-    return [sunEvents[0].type === 'sunrise' ? 0 : 1].concat(byteArray);
-}
-
-/**
- * How many hours the payload carries (NUM_ENTRIES, and every trend's length): the
- * graph's span, options.forecastHours (14, 24, 26 or 68; forecast-span.js hours()). A 12 h
- * span sends its 14 and the default 24 sends numEntries (a provider whose base window is
- * shorter keeps it). A span past 24 (emery's 26 or 68) sends as many hours as every drawn series
- * holds (GRAPH_SERIES; an empty, off series never limits it), never fewer than 24: a feed
- * that ends early sends the hours it has, which the watch's long grid widens to fill the
- * plot (forecast_span.h), never a 68-hour payload with a short series in it. So every
- * graph series an adapter maps must reach the window: a day-max read reaches
- * hourly-window.js reachHours(), not PEAK_HOURS alone.
+ * The hours the payload carries: hourly-window.js sendHours over the GRAPH_SERIES lengths.
  *
  * @returns {number} The hours to send.
  */
 WeatherProvider.prototype.payloadEntries = function() {
-    var base = this.numEntries;
-    var span = this.options && this.options.forecastHours;
-    if (!(span > hourlyWindow.FORECAST_HOURS)) {
-        return (span > 0 && span < base) ? span : base;
-    }
-    var n = Math.min(span, hourlyWindow.MAX_FORECAST_HOURS);
-    var i;
-    var series;
-    for (i = 0; i < GRAPH_SERIES.length; i += 1) {
-        series = this[GRAPH_SERIES[i]];
-        if (series && series.length && series.length < n) { n = series.length; }
-    }
-    return Math.max(n, Math.min(base, hourlyWindow.FORECAST_HOURS));
+    var self = this;
+    return hourlyWindow.sendHours(this.options, this.numEntries, GRAPH_SERIES.map(function(k) {
+        var s = self[k];
+        return (s && s.length) || 0;
+    }));
 };
 
 /**
  * Build the watch weather AppMessage payload from the provider's trend/current
  * fields. Trend byte-scaling and sun-event encoding live in their own helpers
- * so this stays a flat assembly of the wire object. It carries payloadEntries()
+ * (wire-units.js scaleTrendToBytes, sun-events.js encodeSunEvents) so this
+ * stays a flat assembly of the wire object. It carries payloadEntries()
  * hours, so TEMP_MIN/TEMP_MAX name the window the graph shows.
  *
  * @returns {Object} Weather AppMessage payload (pre render-transform).

@@ -22,6 +22,32 @@ function isValidSunEvent(sunEvent) {
 }
 
 /**
+ * Encode sun events into the SUN_EVENTS wire array: a leading byte (0 when the
+ * series starts on a sunrise, else 1) followed by each event's epoch-seconds
+ * reinterpreted as little-endian Int32 bytes.
+ *
+ * Null when fewer than two events carry a real date, and getPayload then
+ * leaves the key out. The watch needs the start byte plus two epochs
+ * (handle_sun_events ignores anything shorter), and an Invalid Date would pack
+ * as epoch 0, which the watch persists over its last good pair before
+ * get_valid_sun_events rejects it.
+ *
+ * @param {{type: string, date: Date}[]} sunEvents Ordered sun events.
+ * @returns {?number[]} SUN_EVENTS wire bytes, or null when there is no pair.
+ */
+function encodeSunEvents(sunEvents) {
+    sunEvents = Array.isArray(sunEvents) ? sunEvents.filter(isValidSunEvent) : [];
+    if (sunEvents.length < 2) {
+        return null;
+    }
+    var intView = new Int32Array(sunEvents.map(function(sunEvent) {
+        return sunEvent.date.getTime() / 1000; // Seconds since epoch
+    }));
+    var byteArray = Array.prototype.slice.call(new Uint8Array(intView.buffer));
+    return [sunEvents[0].type === 'sunrise' ? 0 : 1].concat(byteArray);
+}
+
+/**
  * Select the next (up to) two sun events after `now`, preserving order.
  * Both providers gather a 4-event window (today + tomorrow) and need the
  * next 24 hours' worth — i.e. the first two still in the future.
@@ -201,6 +227,7 @@ function isPolarSunPair(firstEpoch, secondEpoch) {
 
 module.exports = {
     isValidSunEvent: isValidSunEvent,
+    encodeSunEvents: encodeSunEvents,
     pickNext24hSunEvents: pickNext24hSunEvents,
     sunCalcSunEvents: sunCalcSunEvents,
     mirroredSunEvent: mirroredSunEvent,

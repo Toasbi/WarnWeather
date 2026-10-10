@@ -1,8 +1,9 @@
 // src/pkjs/weather/hourly-window.js
 //
 // The shared forecast window: its size (the base 24 hours, or up to 68 for emery's
-// spans: windowHours), the anchor rule (first bucket at or after the FLOORED
-// current hour), the hourly-run rule and the timestamp-indexed alignment remap.
+// spans: windowHours; the hours a payload sends: sendHours), the anchor rule (first
+// bucket at or after the FLOORED current hour), the hourly-run rule and the
+// timestamp-indexed alignment remap.
 // Before this leaf module, FORECAST_HOURS/HOUR_SECONDS were re-declared per provider
 // and the anchor loop was implemented four times against four timestamp encodings.
 // Leaf: no dependencies, safe to require from anywhere.
@@ -18,7 +19,7 @@ var HOUR_SECONDS = 60 * 60;
 // bar that zone's fall-back days, where a fetch in those minutes reads tomorrow as
 // unknown.) Only the day-max series read this far; every other trend keeps the
 // graph's window, windowHours: 24, or emery's 26 or 68, and getPayload cuts
-// these back to the hours it sends (WeatherProvider#payloadEntries). The day-max series
+// these back to the hours it sends (sendHours). The day-max series
 // read on to the graph's window when that is longer (reachHours).
 var PEAK_HOURS = 2 * FORECAST_HOURS + 1;
 // The longest forecast the graph is sent: emery's long span (forecast-span.js; its label,
@@ -44,8 +45,38 @@ function windowHours(options) {
 }
 
 /**
+ * How many hours the payload carries (NUM_ENTRIES, and every trend's length): the
+ * graph's span, options.forecastHours (14, 24, 26 or 68; forecast-span.js hours()). A 12 h
+ * span sends its 14 and the default 24 sends `base` (a provider whose base window is
+ * shorter keeps it). A span past 24 (emery's 26 or 68) sends as many hours as every drawn series
+ * holds (an empty, off series never limits it), never fewer than 24: a feed
+ * that ends early sends the hours it has, which the watch's long grid widens to fill the
+ * plot (forecast_span.h), never a 68-hour payload with a short series in it. So every
+ * graph series an adapter maps must reach the window: a day-max read reaches
+ * reachHours(), not PEAK_HOURS alone.
+ *
+ * @param {?Object} [options] The fetch options (fetch-options.js); reads forecastHours.
+ * @param {number} base The provider's base window (WeatherProvider#numEntries).
+ * @param {number[]} lengths Each drawn series' length (provider.js GRAPH_SERIES); 0 for an
+ *   absent or empty one.
+ * @returns {number} The hours to send.
+ */
+function sendHours(options, base, lengths) {
+    var span = options && options.forecastHours;
+    if (!(span > FORECAST_HOURS)) {
+        return (span > 0 && span < base) ? span : base;
+    }
+    var n = windowHours(options);
+    var i;
+    for (i = 0; i < lengths.length; i += 1) {
+        if (lengths[i] && lengths[i] < n) { n = lengths[i]; }
+    }
+    return Math.max(n, Math.min(base, FORECAST_HOURS));
+}
+
+/**
  * How far a day-max series (UV, wind, gusts) reads: PEAK_HOURS (to the end of tomorrow), or
- * the graph's window when that is longer (emery's long span, 68). payloadEntries() sends the
+ * the graph's window when that is longer (emery's long span, 68). sendHours() sends the
  * fewest hours any drawn series holds, so a day-max read stopping at 49 would cut a 68-hour
  * payload to 49.
  *
@@ -236,6 +267,7 @@ module.exports = {
     MAX_FORECAST_HOURS: MAX_FORECAST_HOURS,
     HOUR_SECONDS: HOUR_SECONDS,
     windowHours: windowHours,
+    sendHours: sendHours,
     reachHours: reachHours,
     hourlyRun: hourlyRun,
     anchorIndex: anchorIndex,
