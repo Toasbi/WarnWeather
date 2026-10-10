@@ -8,10 +8,14 @@ It supports multiple views which can be reached through a wrist flick.
 Highly customizable with a modern settings UI and previews.
 
 FORECAST
-- 24-hour forecast with a temperature line and configurable, battery-friendly updates
+- 24-hour forecast (12, 24 or up to 66 hours on Pebble Time 2; a shorter forecast fills the
+  graph) with a temperature line and configurable, battery-friendly updates
 - Up to four configurable metrics such as precipitation amount & probability, cloud cover, UV index, gusts,
   wind, air pressure, feels-like temperature and dew point
 - Optional day/night shading
+- Pebble Time 2: left axis options (beta): high/low numbers on the axis, on the graph or
+  off (no left axis: the graph uses the full width), numbers that include feels-like and dew
+  point
 - Fully customizable lines and colors
 - Multiple weather providers, including regional and worldwide sources
 
@@ -86,7 +90,7 @@ WATCH
 
 LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views (or a double flick, to reduce accidental view switches) and optional auto-return
-- Custom layout (still beta)
+- Custom layout
 - First-run setup wizard that picks sensible defaults for your country and watch
 
 WEATHER

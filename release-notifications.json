@@ -182,5 +182,9 @@
   "2.1.0": {
     "title": "Double flick to switch views",
     "body": "A new option switches views only on a second flick within a few seconds of the first, to reduce accidental view switches. Turn it on in the Watchface tab, under Layout's More options. (Not on Pebble Classic/Steel.)"
+  },
+  "2.2.0": {
+    "title": "Longer forecast on Pebble Time 2",
+    "body": "On Pebble Time 2 the forecast graph can look 12 hours or up to 66 hours ahead, depending on your weather provider (Graphs tab, Forecast, Time span), and its high and low numbers can move onto the graph."
   }
 }

@@ -159,3 +159,56 @@ test('UV failure on a reused instance drops UV instead of shipping the previous 
   assert.deepEqual(payload.UV_TREND_UINT8, [], 'UV line off for this cycle');
   assert.equal(payload.UV_DAY_PEAKS, undefined, 'no day peaks from a stale window');
 });
+
+test('the long span (emery, 68 h): 4-day main, aux and UV calls, 68 hours in the payload', () => {
+  const urls = [];
+  const series = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+  const time = (n) => series(n, (i) => BASE + i * HOUR);
+  responder = function(url, onSuccess) {
+    urls.push(url);
+    // Each call serves the GMT days it asked for (forecast_days), 24 buckets a day.
+    const days = Number(/&forecast_days=(\d+)/.exec(url)[1]);
+    const n = 24 * days;
+    if (url.indexOf('uv_index') !== -1) {
+      onSuccess(JSON.stringify({ hourly: { time: time(n), uv_index: series(n, (i) => i % 9) } }));
+    } else if (url.indexOf('current=apparent_temperature') !== -1) {
+      onSuccess(JSON.stringify({ hourly: { time: time(n), windgusts_10m: series(n, (i) => 20 + i),
+        apparent_temperature: series(n, (i) => 40 + i), dew_point_2m: series(n, () => 35),
+        wind_direction_10m: series(n, () => 90) }, current: { apparent_temperature: 41.5 } }));
+    } else {
+      onSuccess(JSON.stringify({ current: { temperature_2m: 71.5 }, hourly: { time: time(96),
+        temperature_2m: series(96, (i) => 50 + (i % 30)), precipitation_probability: series(96, () => 10),
+        precipitation: series(96, () => 0), windspeed_10m: series(96, (i) => i % 40),
+        windgusts_10m: series(96, () => null), pressure_msl: series(96, () => 1013) } }));
+    }
+  };
+  const p = new OpenMeteoProvider();
+  p.options = fetchOptions.defaults({ fetchUv: true, forecastHours: 68, dayPeakCodes: [] });
+  let ok = false;
+  withMockedNow(BASE + 22 * HOUR + 10, function() {
+    p.withProviderData(0, 0, false, function() { ok = true; },
+      function(f) { throw new Error('fetch failed: ' + JSON.stringify(f)); });
+  });
+  assert.ok(ok);
+  assert.match(urls[0], /&forecast_days=4(&|$)/, 'main: four GMT days');
+  assert.match(urls[1], /current=apparent_temperature[\s\S]*&forecast_days=4(&|$)/,
+    'aux: four (the 68th gust is bucket 22 + 68 = 90, past three days\' 72)');
+  assert.match(urls[2], /uv_index[\s\S]*&forecast_days=4(&|$)/, 'UV: four');
+  assert.equal(p.payloadEntries(), 68, 'wind, gust and UV read on to the window (reachHours), not 49');
+  const payload = p.getPayload();
+  assert.equal(payload.NUM_ENTRIES, 68);
+  ['TEMP_RAW_TREND', 'PRECIP_TREND_UINT8', 'RAIN_TREND_UINT8', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8',
+    'UV_TREND_UINT8', 'PRESSURE_TREND', 'FEELS_TREND', 'DEW_TREND', 'WIND_DIR_TREND'].forEach((k) =>
+    assert.equal(payload[k].length, 68, k));
+  assert.ok(payload.GUST_TREND_UINT8.every((v) => v > 0), 'every gust hour sourced from the aux call');
+  // The same provider on the default span keeps today's requests and 24 hours.
+  urls.length = 0;
+  p.options = fetchOptions.defaults({ fetchUv: true, dayPeakCodes: [] });
+  withMockedNow(BASE + 22 * HOUR + 10, function() {
+    p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error(JSON.stringify(f)); });
+  });
+  assert.match(urls[0], /&forecast_days=3(&|$)/);
+  assert.match(urls[1], /&forecast_days=2(&|$)/);
+  assert.match(urls[2], /&forecast_days=2(&|$)/);
+  assert.equal(p.getPayload().NUM_ENTRIES, 24);
+});

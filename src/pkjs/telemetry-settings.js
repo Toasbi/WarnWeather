@@ -9,6 +9,8 @@
 // batch. test/telemetry.test.js holds the two key sets and their types equal. Deploy the
 // ingest BEFORE the app that sends a new field ships.
 var statusCatalog = require('./status-line-catalog.js');
+// unitEnabled — a Show unit toggle, read like the bake prints the slot.
+var slotText = require('./slot-text.js');
 var configUi = require('./config-ui');          // intToHex, computeEnv
 // renderContextFor / graphColorKey / graphColorIsDefault — the module that resolves the
 // graph colours for the WIRE, so this snapshot reports what the watch actually paints
@@ -25,6 +27,10 @@ var onDemand = require('./on-demand.js');
 var lineAlert = require('./line-alert.js');
 // value — a Draw from / Bars from choice, read like the wire reads it.
 var drawFrom = require('./draw-from.js');
+// The forecast's time span option this watch draws (12/24/48 on emery, 24 elsewhere).
+var forecastSpan = require('./forecast-span.js');
+// The forecast's left axis options (BETA, emery only), read as the wire reads them.
+var forecastAxis = require('./forecast-axis.js');
 
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
@@ -38,11 +44,11 @@ function toIntOrUndefined(value) {
 }
 
 /**
- * Read a boolean setting that ships ON, reporting the shipped state when the key is
- * absent. The catalog's true-default unit toggles ship ON (settings/schema.js), and
- * `Boolean(undefined)` would read as a deliberate "off" — a whole fleet of installs
- * looking like they turned kph off. seedDefaults backfills these keys at boot, so the
- * absent case should never reach here; this keeps the column honest if it ever does.
+ * Read a boolean setting that ships ON (backlightDim), reporting the shipped state when
+ * the key is absent: `Boolean(undefined)` would read as a deliberate "off" — a whole
+ * fleet of installs looking like they turned it off. seedDefaults backfills the key at
+ * boot, so the absent case should never reach here; this keeps the column honest if it
+ * ever does.
  *
  * @param {*} value Raw setting value.
  * @returns {boolean} The stored boolean, or true when the setting is absent.
@@ -182,6 +188,8 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // direction.
     var hasColorBacklight = env.colorBacklight;
     var dimOn = Boolean(hasColorBacklight && boolDefaultOn(safe.backlightDim));
+    // The left axis options' watch (forecast-axis.js isEmery: a KNOWN emery).
+    var isEmery = forecastAxis.isEmery(env);
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
@@ -310,6 +318,16 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // .strip() schema (handler.ts); ships OFF, so aplite's constant false is the default.
         doubleFlick: Boolean(safe.doubleFlick),
         largeGraphFont: Boolean(safe.largeGraphFont),
+        // The forecast's time span, the option: 12 / 24 / 48 (48 = the long span, whatever
+        // its label) on an emery, 24 on every other watch whatever is stored. Categorical, not the
+        // hours sent (forecast-span.js option()). Lockstep with handler.ts.
+        forecastHours: forecastSpan.option(safe, env),
+        // The forecast's left axis options (BETA), emery only (the one watch that offers
+        // them), as chosen (forecast-axis.js readers: absent or junk reads the default, a
+        // beta's 'beside' included), the Draw from precedent below: whether the scale applies
+        // at all is the numbers and line fields. Lockstep with handler.ts -- deploy it first.
+        forecastAxisNumbers: isEmery ? forecastAxis.numbers(safe) : undefined,
+        forecastAxisScale: isEmery ? forecastAxis.scale(safe) : undefined,
         vibe: !!safe.vibe,
         btIcons: safe.btIcons,
         secondaryLine: safe.secondaryLine,
@@ -375,11 +393,11 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // the watch renders. Defaults pinned by test/telemetry.test.js. A new key
     // here must also join the Deno .strip() schema or it is silently dropped
     // (supabase/functions/telemetry-ingest/handler.ts).
+    // An absent key reports what it renders (slot-text.js unitEnabled: the look from
+    // before the toggle existed), not a fresh install's default.
     var toggles = statusCatalog.UNIT_TOGGLES;
     for (var i = 0; i < toggles.length; i++) {
-        snapshot[toggles[i].key] = toggles[i].dflt
-            ? boolDefaultOn(safe[toggles[i].key])
-            : Boolean(safe[toggles[i].key]);
+        snapshot[toggles[i].key] = slotText.unitEnabled(safe, toggles[i].key);
     }
     // The graph colours, one field per painted ELEMENT, carrying the value for the polarity
     // this watch ACTUALLY RENDERS. Every platform/theme judgement comes from line-style's

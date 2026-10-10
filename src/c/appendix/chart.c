@@ -56,6 +56,9 @@ static ChartGeometry chart_geometry(const ChartDef *def, GRect outer) {
                           outer.size.h - def->inset_top  - def->inset_bottom),
         .slots    = slot_geometry(def->num_slots, def->tick_w,
                                   def->bar_pad, def->bar_w),
+#if defined(PBL_PLATFORM_EMERY)
+        .pitch_q  = chart_def_pitch_q(def),   // emery: the mapping's pitch (slot_x.h)
+#endif
     };
 }
 
@@ -95,6 +98,16 @@ typedef struct {
     int   top_h;
 } ChartAxisLabel;
 
+#ifdef PBL_PLATFORM_EMERY
+// emery: the hour labels' font, GOTHIC_14, or GOTHIC_18 with Larger graph fonts: the tier
+// chart_axis_label's box geometry below is derived for. Fresh on every call: the setting flips
+// without a relaunch.
+static GFont chart_axis_font(void) {
+    return fonts_get_system_font(config_large_graph_font() ? FONT_KEY_GOTHIC_18
+                                                           : FONT_KEY_GOTHIC_14);
+}
+#endif
+
 static ChartAxisLabel chart_axis_label(void) {
 #ifdef PBL_PLATFORM_EMERY
     // emery: the only platform offering the toggle (schema.js gates the row on
@@ -122,8 +135,7 @@ static ChartAxisLabel chart_axis_label(void) {
     const bool large     = config_large_graph_font();
     const int  content_h = large ? 18 : 14;
     return (ChartAxisLabel){
-        .font      = fonts_get_system_font(large ? FONT_KEY_GOTHIC_18
-                                                 : FONT_KEY_GOTHIC_14),
+        .font      = chart_axis_font(),
         .bottom_dy = (BOTTOM_VIEW_AXIS_H + BOTTOM_VIEW_BOTTOM_PAD) - content_h,
         .bottom_h  = content_h,
         .top_raise = content_h + 1,
@@ -265,8 +277,17 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
             graphics_context_set_stroke_color(r->ctx, theme_fg());
             graphics_context_set_stroke_width(r->ctx, 1);
             graphics_draw_line(r->ctx, GPoint(x0, y_free), GPoint(x1, y_free));  // free end
-            graphics_draw_line(r->ctx, GPoint(x0, y_free), GPoint(x0, y_base));  // left wall
-            graphics_draw_line(r->ctx, GPoint(x1, y_free), GPoint(x1, y_base));  // right wall
+#if defined(PBL_PLATFORM_EMERY)
+            // emery: a bar under 3 px (the long forecast's 2 px) has no interior between
+            // its walls; colour themes keep the cap only so the tier colours show, a bw
+            // theme keeps the walls (they ARE the bar). Health (6 px), radar (5 px) and the
+            // 12 / 24 h forecast bars are 5 px or wider and unaffected.
+            if (w >= 3 || theme_is_bw())
+#endif
+            {
+                graphics_draw_line(r->ctx, GPoint(x0, y_free), GPoint(x0, y_base));  // left wall
+                graphics_draw_line(r->ctx, GPoint(x1, y_free), GPoint(x1, y_base));  // right wall
+            }
         }
     }
 }
@@ -303,6 +324,8 @@ static int chart_value_y(int16_t v, int lo, int range, int inner_h,
 // over the 4 px bar columns (1 px into the right gap, still 1 px clear of the
 // next tick at pitch 7), and exactly the 5 px column on emery. Two 1 px
 // diagonals — stroke width 1 is already odd, so no SDK round-down (snooze.c).
+// emery's 12 h and long forecasts size the box to their bars (forecast_span.h): 7..11 px
+// at 12 h, 3x3 at the long span's 3 px pitch, where neighbouring boxes touch.
 static void chart_draw_bar_marks(const ChartRender *r, const ChartLineLayer *l) {
     const int   count       = chart_clamp_count(r, l->count);
     const GRect c           = r->geo.content;
@@ -365,8 +388,19 @@ static void chart_draw_bar_marks(const ChartRender *r, const ChartLineLayer *l) 
                 // survives over the checkerboard area fill / an fg bar segment and
                 // is a no-op everywhere else.
                 graphics_context_set_fill_color(r->ctx, theme_bg());
+#if defined(PBL_PLATFORM_EMERY)
+                // emery: where the pitch leaves no free column between two x boxes (the
+                // long forecast: a 3 px box at a 3 px pitch) the backing keeps to the
+                // box's own columns, or each x would erase its left neighbour's arm. At
+                // pitch 8 or wider it is the 1 px border above.
+                const int mx = (r->geo.slots.pitch > 2 * half + 2) ? 1 : 0;
+                graphics_fill_rect(r->ctx, GRect(cx - half - mx, cy - half - 1,
+                                                 2 * half + 1 + 2 * mx, 2 * half + 3),
+                                   0, GCornerNone);
+#else
                 graphics_fill_rect(r->ctx, GRect(cx - half - 1, cy - half - 1,
                                                  2 * half + 3, 2 * half + 3), 0, GCornerNone);
+#endif
             }
             graphics_draw_line(r->ctx, GPoint(cx - half, cy - half), GPoint(cx + half, cy + half));
             graphics_draw_line(r->ctx, GPoint(cx - half, cy + half), GPoint(cx + half, cy - half));
@@ -628,6 +662,13 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
                 hatch_fill_rect_raw(r->ctx, col, theme_fg(), 2);
             }
         }
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: the outline's closing vertex, as the GPath arm below exports it: this
+        // fill stops at the last vertex, so its outline drops straight to the zero row
+        // there. A contour hatch that reads count + 1 points (the forecast's night
+        // re-shade, whose bands reach past the last vertex on emery) ends where it does.
+        pts[count] = GPoint(x_hi, zero);
+#endif
         return;
     }
 #endif
@@ -709,15 +750,25 @@ void chart_stripe_fill_cell(GContext *ctx, GRect cell, GColor color, int level) 
 static void chart_render_stripe(const ChartRender *r, const ChartStripeLayer *s) {
     const int   count = chart_clamp_count(r, s->count);
     const GRect c     = r->geo.content;
+#if !defined(PBL_PLATFORM_EMERY)
     const int   pitch = r->geo.slots.pitch;
+#endif
     const int   y     = s->top ? c.origin.y + s->y_offset
                                : c.origin.y + c.size.h - s->height - s->y_offset;
     if (s->height <= 0 || y < c.origin.y) return;
 
     for (int i = 0; i < count; ++i) {
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: tick to tick through the one mapping, so the cells tile at a fractional pitch.
+        const int x = chart_slot_tick_x(&r->geo, i);
+        chart_stripe_fill_cell(r->ctx,
+            GRect(x, y, chart_slot_tick_x(&r->geo, i + 1) - x, s->height),
+            s->color, chart_stripe_level(s->values[i], s->lo, s->hi));
+#else
         chart_stripe_fill_cell(r->ctx,
             GRect(chart_slot_tick_x(&r->geo, i), y, pitch, s->height),
             s->color, chart_stripe_level(s->values[i], s->lo, s->hi));
+#endif
     }
 }
 #endif

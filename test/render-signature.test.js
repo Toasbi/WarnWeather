@@ -222,7 +222,13 @@ test('settings that need no refetch stay OUT of the render signature', () => {
     // live, but Clay-delivered: Draw from / Bars from ride bits of the style bytes and
     // the palettes (draw-from.js), never the weather bake
     { precipLineFrom: 'top' }, { cloudLineFrom: 'top' }, { windLineFrom: 'top' },
-    { uvLineFrom: 'top' }, { rainBarFrom: 'top' }, { radarBarFrom: 'top' }
+    { uvLineFrom: 'top' }, { rainBarFrom: 'top' }, { radarBarFrom: 'top' },
+    // live, but Clay-delivered: the numbers' place rides bits of the CLAY_LARGE_GRAPH_FONT
+    // word (forecast-axis.js), never the weather bake; it moves the hours sent only at 24 h,
+    // and only off its default place (the span tests below). The betas' 'beside' reads the
+    // default, and their retired Axis line / Number outline keys are read by nothing.
+    { forecastAxisNumbers: 'axis' }, { forecastAxisNumbers: 'beside' },
+    { forecastAxisLine: false }, { forecastAxisOutline: false }
   ].forEach((over) => {
     assert.equal(renderSignature({ sleepNightEnabled: true, sleepStartHour: '0',
       sleepEndHour: '7', ...over }), base,
@@ -646,4 +652,158 @@ test('the rain alert\'s placement stays OUT of the render signature (Clay)', () 
   assert.equal(renderSignature({ statusTopOnDemandLeftItems: 'bt,qt,snooze',
     statusTopOnDemandRightItems: 'battery,rain,gust,uv,aqi,wind' }), base, 'nor does Rain on the other side');
   assert.equal(renderSignature({ statusForecastOnDemandRightItems: 'rain,bt' }), base, 'nor on another bar');
+});
+
+// The forecast's time span (forecast-span.js) changes how many hours are fetched and baked
+// on an emery, so a flip forces a refetch. '' for the default and an absent key alike, so the
+// page hydrating forecastHours forces no fetch.
+test('forecastHours joins the signature; absent and 24 sign the same, as does junk', () => {
+  const base = renderSignature({});
+  assert.equal(renderSignature({ forecastHours: '24' }), base, 'hydrating the default forces nothing');
+  assert.equal(renderSignature({ forecastHours: 'junk' }), base);
+  assert.notEqual(renderSignature({ forecastHours: '48' }), base, '24 -> 48');
+  assert.notEqual(renderSignature({ forecastHours: '12' }), base, '24 -> 12');
+  assert.notEqual(renderSignature({ forecastHours: '12' }), renderSignature({ forecastHours: '48' }));
+});
+
+// The watch fits its window to its own plot width (forecast_span.h), so the options that move
+// that width -- the hi/lo numbers' place and Larger graph fonts -- change nothing the phone
+// sends at 12 h and on the long span: the same 14 / 68 hours ride for every layout, and a
+// toggle forces no refetch. Larger graph fonts never re-signs.
+test('at 12 h and on the long span, the numbers\' place and largeGraphFont stay out of the signature', () => {
+  ['48', '12'].forEach((span) => {
+    const base = renderSignature({ forecastHours: span });
+    [{ forecastAxisNumbers: 'graph' }, { forecastAxisNumbers: 'off' }, { forecastAxisNumbers: 'axis' },
+      { forecastAxisNumbers: 'beside' }, { largeGraphFont: true }, { largeGraphFont: false },
+      { largeGraphFont: true, forecastAxisNumbers: 'off' }].forEach((over) => {
+      assert.equal(renderSignature(Object.assign({ forecastHours: span }, over)), base,
+        span + ' ' + JSON.stringify(over) + ' must not force a refetch');
+    });
+  });
+});
+
+// At 24 h the numbers' place sets the hours sent (forecast-span.js hours(): 26 with no left
+// axis on an emery, 24 On axis), so moving them between On axis and On graph / Off re-signs;
+// On graph <-> Off, Larger graph fonts and the betas' 'beside' (read as On axis) never do.
+test('at 24 h, the numbers\' place re-signs between On axis and the two with no left axis', () => {
+  [undefined, '24'].forEach((span) => {
+    const sig = (over) => renderSignature(Object.assign({ forecastHours: span }, over));
+    const onAxis = sig({});
+    assert.equal(sig({ forecastAxisNumbers: 'axis' }), onAxis);
+    assert.equal(sig({ forecastAxisNumbers: 'beside' }), onAxis, 'a beta\'s beside reads On axis');
+    assert.equal(sig({ largeGraphFont: true }), onAxis);
+    assert.notEqual(sig({ forecastAxisNumbers: 'graph' }), onAxis, 'On axis -> On graph');
+    assert.notEqual(sig({ forecastAxisNumbers: 'off' }), onAxis, 'On axis -> Off');
+    assert.equal(sig({ forecastAxisNumbers: 'graph' }), sig({ forecastAxisNumbers: 'off' }), 'On graph <-> Off');
+    assert.equal(sig({ forecastAxisNumbers: 'off', largeGraphFont: true }), sig({ forecastAxisNumbers: 'off' }));
+    // ...and never collides with another span's.
+    assert.notEqual(sig({ forecastAxisNumbers: 'off' }), renderSignature({ forecastHours: '12' }));
+    assert.notEqual(sig({ forecastAxisNumbers: 'off' }), renderSignature({ forecastHours: '48' }));
+  });
+});
+
+// The premise behind signing it: the bake differs between 24 and the long span on an emery
+// (the hours sent), and is identical on every other watch, which is always sent 24.
+test('the weather bake follows forecastHours on emery only', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const store = {};
+  global.localStorage = {
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+  const origLog = console.log;
+  console.log = () => {};
+  try {
+    const fixtureWeather = require('../src/pkjs/fixture-weather.js');
+    const defaults = require('../src/pkjs/settings').getDefaults();
+    const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'forecast-48h.json'), 'utf8'));
+    const bake = (platform, forecastHours, over) => {
+      const s = Object.assign({}, defaults, fx.claySettings, { forecastHours }, over || {});
+      const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), s, { platform });
+      return JSON.stringify(out, Object.keys(out).sort());
+    };
+    assert.notEqual(bake('emery', '48'), bake('emery', '24'), 'emery: the long span bakes the feed\'s 48 hours');
+    assert.notEqual(bake('emery', '12'), bake('emery', '24'), 'emery: 12 h bakes 14 hours');
+    // 24 h with no left axis bakes 26 hours (the numbers' place, the signature's '26').
+    const off = { forecastAxisNumbers: 'off' };
+    assert.notEqual(bake('emery', '24', off), bake('emery', '24'), 'emery: 24 h with no axis bakes 26 hours');
+    assert.equal(JSON.parse(bake('emery', '24', off)).NUM_ENTRIES, 26);
+    assert.equal(bake('emery', '24', off), bake('emery', '24', { forecastAxisNumbers: 'graph' }));
+    assert.equal(bake('emery', '48', off), bake('emery', '48'), 'the long span: the place bakes nothing');
+    ['basalt', 'diorite', 'aplite'].forEach((platform) => {
+      assert.equal(bake(platform, '48'), bake(platform, '24'), platform + ': always 24');
+      assert.equal(bake(platform, '12'), bake(platform, '24'), platform + ': always 24');
+      assert.equal(bake(platform, '24', off), bake(platform, '24'), platform + ': always 24');
+    });
+  } finally {
+    console.log = origLog;
+  }
+});
+
+// The left axis's 'Include feels-like & dew point' (BETA, forecast-axis.js) changes what the
+// bake puts in TEMP_MIN/TEMP_MAX on emery, so it signs while a feels-like or dew point line is
+// drawn; absent and false sign alike (hydrating the default forces nothing).
+test('forecastAxisScale joins the signature only with a feels-like or dew point line', () => {
+  const base = renderSignature({});
+  assert.equal(renderSignature({ forecastAxisScale: false }), base);
+  assert.equal(renderSignature({ forecastAxisScale: true }), base, 'no temperature-axis line: nothing changes');
+  assert.equal(renderSignature({ forecastAxisScale: true, secondaryLine: 'wind' }),
+    renderSignature({ secondaryLine: 'wind' }));
+  ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'].forEach((key) => {
+    ['feels', 'dew'].forEach((metric) => {
+      const s = { [key]: metric };
+      assert.notEqual(renderSignature(Object.assign({ forecastAxisScale: true }, s)), renderSignature(s),
+        key + ' ' + metric);
+      assert.equal(renderSignature(Object.assign({ forecastAxisScale: false }, s)), renderSignature(s),
+        key + ' ' + metric + ' off');
+    });
+  });
+});
+
+// The premise behind keeping the numbers' place out of the signature but at 24 h: on emery the
+// bake reads it only as the hours sent, so with a 24-hour feed (these fixtures) it bakes the same
+// payload, whatever the scale option and the lines; the betas' retired Axis line / Number
+// outline keys bake nothing.
+test('the weather bake is identical across the numbers\' place on a 24-hour feed', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const store = {};
+  global.localStorage = {
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+  const origLog = console.log;
+  console.log = () => {};
+  try {
+    const fixtureWeather = require('../src/pkjs/fixture-weather.js');
+    const defaults = require('../src/pkjs/settings').getDefaults();
+    let compared = 0;
+    ['berlin.json', 'feels-curve.json'].forEach((name) => {
+      const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));
+      ['emery', 'basalt'].forEach((platform) => {
+        [{}, { secondaryLine: 'dew', thirdLine: 'feels' }].forEach((lines) => {
+          [false, true].forEach((scale) => {
+            const s = Object.assign({}, defaults, fx.claySettings || {}, lines, { forecastAxisScale: scale });
+            const bake = (settings) => {
+              const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), settings, { platform });
+              return JSON.stringify(out, Object.keys(out).sort());
+            };
+            const ref = bake(s);
+            [{ forecastAxisLine: false }, { forecastAxisNumbers: 'graph' }, { forecastAxisNumbers: 'off' },
+              { forecastAxisOutline: false }].forEach((over) => {
+              assert.equal(bake(Object.assign({}, s, over)), ref,
+                [name, platform, JSON.stringify(lines), scale, JSON.stringify(over)].join(' '));
+              compared++;
+            });
+          });
+        });
+      });
+    });
+    assert.ok(compared >= 32, 'the sweep ran');
+  } finally {
+    console.log = origLog;
+  }
 });

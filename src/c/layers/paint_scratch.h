@@ -24,10 +24,21 @@
 // forecast_layer.c's per-redraw dataset: every series, reloaded at the top of each
 // paint (load_dataset).
 typedef struct {
-    int    num_entries;          // clamped to MAX_BOTTOM_VIEW_ENTRIES
+    int    num_entries;          // clamped to FORECAST_MAX_ENTRIES (forecast_span.h)
+#if defined(PBL_PLATFORM_EMERY)
+    int    fit_entries;          // emery: the hours the scale and the labels cover (on screen)
+#endif
     time_t forecast_start;
     Series series[SERIES_COUNT];
 } ForecastDataset;
+
+// The hours the scale and the labels cover: `n`, every hour sent (the caller's
+// ds->num_entries), off emery.
+#if defined(PBL_PLATFORM_EMERY)
+#define FORECAST_FIT_N(ds, n) ((ds)->fit_entries)   // emery: the hours on screen
+#else
+#define FORECAST_FIT_N(ds, n) (n)
+#endif
 
 // forecast_update_proc: the dataset, its layer list (the plot's, then each stripe
 // band's), the area fill's exported contour, the hour axis, the night bands and the
@@ -35,9 +46,9 @@ typedef struct {
 typedef struct {
     ForecastDataset ds;
     ChartLayer      layers[SERIES_COUNT + 6];
-    GPoint          area_pts[MAX_BOTTOM_VIEW_ENTRIES + 2];
-    ChartAxisSlot   axis_slots[MAX_BOTTOM_VIEW_ENTRIES];
-    ChartBand       night_bands[3];   // NightSegments holds at most 3
+    GPoint          area_pts[FORECAST_MAX_ENTRIES + 2];
+    ChartAxisSlot   axis_slots[FORECAST_MAX_ENTRIES];
+    ChartBand       night_bands[FORECAST_NIGHTS_MAX];   // forecast_night.h NightSegments' cap
     ChartColorStop  scaled_bar_stops[PALETTE_MAX_STOPS];
 } ForecastPaint;
 

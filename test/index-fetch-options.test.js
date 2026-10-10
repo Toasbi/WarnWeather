@@ -92,3 +92,99 @@ test('an AQI slot asks the AQI feed in the stored source and scale', (t) => {
   assert.match(aqi[0], /^https:\/\/air-quality-api\.open-meteo\.com\/.*hourly=us_aqi/,
     'options.aqiSource/aqiScale came from the settings (the defaults are WAQI / european)');
 });
+
+// The forecast's time span (forecast-span.js) reaches the provider through the same
+// options: on an emery set to the long span (stored '48') the Open-Meteo
+// main and aux calls ask for four days and the weather message carries 68 hours; set to
+// 12 h, it carries 14 on today's requests; at 24 h with no left axis (the hi/lo numbers On
+// graph or Off) it carries 26. Any other watch keeps today's requests and 24 hours, whatever
+// is stored.
+const EMERY = { platform: 'emery', model: 'qemu_platform_emery', language: 'en' };
+const MAIN_REQUEST = /^https:\/\/api\.open-meteo\.com\/v1\/forecast\?.*models=ecmwf_ifs025/;
+
+/**
+ * The weather message the boot fetch sent (the one carrying the forecast).
+ * @param {Object} h Harness handles.
+ * @returns {Object} The AppMessage dictionary.
+ */
+function weatherSend(h) {
+  const sends = h.sends.filter((d) => 'TEMP_TREND_UINT8' in d);
+  assert.equal(sends.length, 1, 'one forecast send');
+  return sends[0];
+}
+
+test('the long span on an emery: 4-day main and aux calls, 68 hours sent', (t) => {
+  const h = bootIndex(t, { settings: noUvNoAqi({ forecastHours: '48' }), store: staleSuccess(),
+    watchInfo: EMERY });
+  h.ready();
+  h.advance(5 * 1000);
+  assert.equal(h.count(/Successfully fetched weather/), 1);
+  assert.equal(h.uncaught.length, 0);
+  const main = h.xhrs.filter((u) => MAIN_REQUEST.test(u));
+  const aux = h.xhrs.filter((u) => AUX_REQUEST.test(u));
+  assert.equal(main.length, 1);
+  assert.match(main[0], /&forecast_days=4(&|$)/, 'the main call reaches the 68th hour\'s block');
+  assert.equal(aux.length, 1);
+  assert.match(aux[0], /&forecast_days=4(&|$)/, 'four GMT days hold the aux reads');
+  const sent = weatherSend(h);
+  assert.equal(sent.NUM_ENTRIES, 68);
+  assert.equal(sent.TEMP_TREND_UINT8.length, 68);
+});
+
+test('24 h on an emery with no left axis: 26 hours sent; On axis keeps today\'s calls and 24', (t) => {
+  const h = bootIndex(t, { settings: noUvNoAqi({ forecastAxisNumbers: 'off' }), store: staleSuccess(),
+    watchInfo: EMERY });
+  h.ready();
+  h.advance(5 * 1000);
+  assert.equal(h.count(/Successfully fetched weather/), 1);
+  assert.equal(h.uncaught.length, 0);
+  const aux = h.xhrs.filter((u) => AUX_REQUEST.test(u));
+  assert.match(aux[0], /&forecast_days=3(&|$)/, 'three GMT days hold the 26-hour aux reads');
+  const sent = weatherSend(h);
+  assert.equal(sent.NUM_ENTRIES, 26);
+  assert.equal(sent.TEMP_TREND_UINT8.length, 26);
+});
+
+test('24 h on an emery On axis: today\'s 3-day main and 2-day aux calls, 24 hours sent', (t) => {
+  const h = bootIndex(t, { settings: noUvNoAqi({ forecastAxisNumbers: 'axis' }), store: staleSuccess(),
+    watchInfo: EMERY });
+  h.ready();
+  h.advance(5 * 1000);
+  assert.equal(h.count(/Successfully fetched weather/), 1);
+  const main = h.xhrs.filter((u) => MAIN_REQUEST.test(u));
+  assert.match(main[0], /&forecast_days=3(&|$)/);
+  const aux = h.xhrs.filter((u) => AUX_REQUEST.test(u));
+  assert.match(aux[0], /&forecast_days=2(&|$)/);
+  const sent = weatherSend(h);
+  assert.equal(sent.NUM_ENTRIES, 24);
+  assert.equal(sent.TEMP_TREND_UINT8.length, 24);
+});
+
+test('the 12 h span on an emery: today\'s 3-day main and 2-day aux calls, 14 hours sent', (t) => {
+  const h = bootIndex(t, { settings: noUvNoAqi({ forecastHours: '12' }), store: staleSuccess(),
+    watchInfo: EMERY });
+  h.ready();
+  h.advance(5 * 1000);
+  assert.equal(h.count(/Successfully fetched weather/), 1);
+  const main = h.xhrs.filter((u) => MAIN_REQUEST.test(u));
+  assert.match(main[0], /&forecast_days=3(&|$)/);
+  const aux = h.xhrs.filter((u) => AUX_REQUEST.test(u));
+  assert.match(aux[0], /&forecast_days=2(&|$)/);
+  const sent = weatherSend(h);
+  assert.equal(sent.NUM_ENTRIES, 14);
+  assert.equal(sent.TEMP_TREND_UINT8.length, 14);
+});
+
+test('a stored 48 h span on a basalt changes nothing: 3-day main call, 24 hours sent', (t) => {
+  const h = bootIndex(t, { settings: noUvNoAqi({ forecastHours: '48' }), store: staleSuccess() });
+  h.ready();
+  h.advance(5 * 1000);
+  assert.equal(h.count(/Successfully fetched weather/), 1);
+  const main = h.xhrs.filter((u) => MAIN_REQUEST.test(u));
+  assert.match(main[0], /&forecast_days=3(&|$)/);
+  const aux = h.xhrs.filter((u) => AUX_REQUEST.test(u));
+  assert.match(aux[0], /&forecast_days=2(&|$)/);
+  const sent = weatherSend(h);
+  assert.equal(sent.NUM_ENTRIES, 24);
+  assert.equal(sent.TEMP_TREND_UINT8.length, 24);
+});

@@ -97,7 +97,8 @@ const EXPECTED_KEYS = [
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
-  'layoutPreset','largeGraphFont','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
+  'layoutPreset','largeGraphFont','forecastHours',
+  'forecastAxisNumbers','forecastAxisScale','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
   // Setup › Misc › Hide info text: page-only like startOnWeatherTab (rides the saved blob,
   // never read watch-side), but a stored key all the same.
   'hideInfoText','devStatsEnabled','devStatsClear','reset',
@@ -1811,6 +1812,115 @@ test('largeGraphFont is offered on emery only, and hidden when watchInfo is unav
   assert.equal(showWhen.isVisible(it, unknown), false, 'hidden without watchInfo');
 });
 
+test('forecastHours: the Time span section sits after Bars & shading, emery only', () => {
+  const forecastSpan = require('../src/pkjs/forecast-span.js');
+  const graphs = graphsTab();
+  const ids = graphs.sections.filter((sec) => sec.pane === 'forecast' && !sec.sheetOnly).map((sec) => sec.id);
+  const at = ids.indexOf('forecastSpan');
+  assert.ok(at > 0, 'the section exists in the forecast pane');
+  assert.equal(ids[at - 1], 'bars', 'directly after Bars & shading');
+  assert.equal(ids[at + 1], 'axis', 'directly before the Left axis (Beta) card');
+  const section = graphs.sections.find((sec) => sec.id === 'forecastSpan');
+  assert.equal(section.title, 'Time span');
+  assert.deepEqual(section.showWhen, { env: 'forecastSpan' });
+  const it = byKey('forecastHours');
+  assert.equal(it.type, 'segmented');
+  assert.equal(it.defaultValue, '24');
+  // The options are the forecastSpanOptions resolver's (forecast-hints.js): the stored values
+  // are CHOICES whatever the settings, and the long span keeps its '48' token while its label
+  // names the whole hours the watch will show for the provider and the layout
+  // (forecast-span-hours.js, test/forecast-span-hours.test.js).
+  assert.equal(it.options, undefined, 'no static list: the label follows the settings');
+  assert.deepEqual(it.optionsFrom, { resolver: 'forecastSpanOptions' });
+  const resolve = global.PConf.optionsResolvers.get('forecastSpanOptions');
+  assert.equal(typeof resolve, 'function', 'forecast-hints.js registers forecastSpanOptions');
+  const emery = platform.computeEnv({ platform: 'emery' });
+  const labels = (over) => resolve(Object.assign({}, settings.getDefaults(), over), emery, {});
+  assert.deepEqual(labels({}).map((o) => o[1]), forecastSpan.CHOICES, 'the stored values are CHOICES');
+  assert.deepEqual(labels({}), [['12 h', '12'], ['24 h', '24'], ['48 h', '48']],
+    'a fresh install: Weather Underground\'s 48 hours');
+  assert.deepEqual(labels({ provider: 'openmeteo' }).map((o) => o[0]), ['12 h', '24 h', '58 h']);
+  assert.deepEqual(labels({ provider: 'openweathermap' }).map((o) => o[0]), ['12 h', '24 h', '47 h']);
+  assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'off' }).map((o) => o[0]),
+    ['12 h', '24 h', '66 h']);
+  // The default Health (Status + Graph) puts the health graph in the cycle: its "0.5" step
+  // mark widens the shared strip past GOTHIC_18's two-digit hi/lo label (59, not 60); without
+  // the graph the label goes back to 60.
+  assert.deepEqual(labels({ provider: 'openmeteo', largeGraphFont: false }).map((o) => o[0]),
+    ['12 h', '24 h', '59 h']);
+  assert.deepEqual(labels({ provider: 'openmeteo', largeGraphFont: false, healthMode: 'status' })
+    .map((o) => o[0]), ['12 h', '24 h', '60 h']);
+  assert.equal(it.hintByValue['48'], 'As far ahead as your weather provider\'s hourly forecast '
+    + 'reaches and the graph fits, in narrow columns. How many hours depends on the provider and '
+    + 'the graph\'s layout.');
+  assert.equal(it.hintByValue['12'], 'The next 12 hours, in wider columns.');
+  assert.equal(it.hintByValue['24'], 'The next 24 hours.');
+  assert.deepEqual(it.showWhen, { env: 'forecastSpan' });
+  assert.ok(!it.more, 'the span frames the whole graph: never behind More');
+  const visible = (p) => showWhen.isVisible(it, { env: platform.computeEnv(p ? { platform: p } : null) })
+    && showWhen.isVisible(section, { env: platform.computeEnv(p ? { platform: p } : null) });
+  assert.equal(visible('emery'), true, 'shown on emery');
+  ['basalt', 'chalk', 'diorite', 'flint', 'aplite'].forEach((p) => assert.equal(visible(p), false, p));
+  assert.equal(visible(null), false, 'hidden without watchInfo (fail closed)');
+});
+
+// The forecast's left axis options (BETA, emery only; src/pkjs/forecast-axis.js).
+test('Left axis (Beta): a card of two More rows after Time span, emery only', () => {
+  const forecastAxis = require('../src/pkjs/forecast-axis.js');
+  const graphs = graphsTab();
+  const ids = graphs.sections.filter((sec) => sec.pane === 'forecast' && !sec.sheetOnly).map((sec) => sec.id);
+  const at = ids.indexOf('axis');
+  assert.ok(at > 0, 'the section exists in the forecast pane');
+  assert.equal(ids[at - 1], 'forecastSpan', 'directly after Time span');
+  assert.equal(ids[at + 1], 'graphColorsCard', 'directly before the Graph colors card');
+  const section = graphs.sections.find((sec) => sec.id === 'axis');
+  assert.equal(section.title, 'Left axis (Beta)');
+  assert.deepEqual(section.showWhen, { env: 'platform', eq: 'emery' });
+  assert.ok(!section.collapsible, 'no Forecast-pane section collapses');
+  // The betas' Axis line and Number outline rows are gone: both follow where the numbers go.
+  assert.deepEqual(section.items.map((it) => it.messageKey), ['forecastAxisNumbers', 'forecastAxisScale']);
+  assert.equal(byKey('forecastAxisLine'), undefined, 'no Axis line row');
+  assert.equal(byKey('forecastAxisOutline'), undefined, 'no Number outline row');
+  section.items.forEach((it) => assert.equal(it.more, true, it.messageKey + ' is behind More options'));
+  const nums = byKey('forecastAxisNumbers'), scale = byKey('forecastAxisScale');
+  assert.equal(nums.type, 'segmented');
+  assert.equal(nums.defaultValue, 'axis');
+  assert.deepEqual(nums.options.map((o) => o[1]), forecastAxis.NUMBERS, 'the stored values are NUMBERS');
+  assert.deepEqual(nums.options.map((o) => o[0]), ['On axis', 'On graph', 'Off']);
+  assert.deepEqual(Object.keys(nums.hintByValue).sort(), forecastAxis.NUMBERS.slice().sort());
+  assert.match(nums.hintByValue.graph, /starts at the left edge/);
+  assert.match(nums.hintByValue.off, /starts at the left edge/);
+  assert.equal(scale.type, 'toggle');
+  assert.equal(scale.defaultValue, false);
+  // Each key's default is the reader's default: an absent key draws today's graph; a beta's
+  // stored 'beside' reads the default.
+  assert.equal(forecastAxis.numbers({}), nums.defaultValue);
+  assert.equal(forecastAxis.numbers({ forecastAxisNumbers: 'beside' }), nums.defaultValue);
+  assert.equal(forecastAxis.scale({}), scale.defaultValue);
+
+  const vis = (it, p, S) => showWhen.isVisible(section, Object.assign({}, S || {}, {
+    env: platform.computeEnv(p ? { platform: p } : null) }))
+    && showWhen.isVisible(it, Object.assign({}, S || {}, { env: platform.computeEnv(p ? { platform: p } : null) }));
+  // The card and the numbers row: emery only, hidden without watchInfo (fail closed).
+  assert.equal(vis(nums, 'emery'), true, 'numbers on emery');
+  ['basalt', 'chalk', 'diorite', 'flint', 'aplite', null].forEach((p) =>
+    assert.equal(vis(nums, p), false, 'numbers on ' + p));
+  // The scale: numbers drawn and a feels-like or dew point line drawn, on any line.
+  ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'].forEach((key) => {
+    ['feels', 'dew'].forEach((metric) => {
+      const S = { forecastAxisNumbers: 'graph' };
+      S[key] = metric;
+      assert.equal(vis(scale, 'emery', S), true, key + ' ' + metric);
+      assert.equal(vis(scale, 'emery', Object.assign({}, S, { forecastAxisNumbers: 'axis' })), true,
+        key + ' ' + metric + ' on axis');
+      assert.equal(vis(scale, 'emery', Object.assign({}, S, { forecastAxisNumbers: 'off' })), false,
+        key + ' ' + metric + ' numbers off');
+      assert.equal(vis(scale, 'basalt', S), false, key + ' ' + metric + ' basalt');
+    });
+  });
+  assert.equal(vis(scale, 'emery', { secondaryLine: 'wind', thirdLine: 'uv' }), false, 'no temperature-axis line');
+});
+
 test('flick/positioning narrative stays out of the Health/Radar hints; the Views intro explains views', () => {
   const views = schema.tabs.find((t) => t.id === 'watchface').sections.find((s) => s.id === 'views');
   // Owner, 2026-10-04: the Views intro explains what a view is and that a flick switches
@@ -2894,7 +3004,7 @@ test('the Bluetooth sheet: Show (an inline select) and the vibration, joined loo
       none: 'The icon never shows. Vibrate on disconnect still works.'
     },
     showWhen: ON_DEMAND_WHEN
-  }, { type: 'toggle', messageKey: 'vibe', label: 'Vibrate on disconnect', defaultValue: false,
+  }, { type: 'toggle', messageKey: 'vibe', label: 'Vibrate on disconnect', defaultValue: true,
     joinPrevious: 'loose', showWhen: ON_DEMAND_WHEN }]);
 });
 
@@ -3208,8 +3318,8 @@ test('no other slot sheet carries a direction toggle', () => {
 // deliberately names no example: quoting kph there reads as though the toggle also
 // PICKS the unit, and the engine's value-dependent hint keys off the item's own value.
 const UNIT_ROWS = [
-  { sheetId: 'threshWind', key: 'windSlotUnit', on: null, off: null, def: true },
-  { sheetId: 'threshGust', key: 'gustSlotUnit', on: null, off: null, def: true },
+  { sheetId: 'threshWind', key: 'windSlotUnit', on: null, off: null, def: false },
+  { sheetId: 'threshGust', key: 'gustSlotUnit', on: null, off: null, def: false },
   { sheetId: 'threshPressure', key: 'pressureSlotUnit', on: '1013hPa', off: '1013', def: true },
   { sheetId: 'threshCountdown', key: 'countdownSlotUnit', on: '5d', off: '5', def: true },
   { sheetId: 'threshTemp', key: 'tempSlotUnit', on: '12°', off: '12', def: false },
@@ -3298,18 +3408,23 @@ test('the six phone-baked slot kinds each carry a Show unit toggle', () => {
 // four kinds that print a unit today ship ON, the two that never did ship OFF — so the
 // defaults are deliberately NOT uniform, and a blanket true/false would be a regression
 // for one half or the other.
-test('the Show unit defaults keep every existing watchface looking the same', () => {
+test('the Show unit defaults: a fresh install\'s, and the legacy look an absent key keeps', () => {
+  const catalog = require('../src/pkjs/status-line-catalog.js');
   UNIT_ROWS.forEach((row) => {
     assert.strictEqual(byKey(row.key).defaultValue, row.def,
-      row.key + ' must ship ' + (row.def ? 'on (it prints a unit today)'
-        : 'off (that kind has never printed one)'));
+      row.key + ' must ship ' + (row.def ? 'on' : 'off'));
   });
   assert.deepEqual(UNIT_ROWS.filter((r) => r.def).map((r) => r.key),
-    ['windSlotUnit', 'gustSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit'],
-    'exactly the four kinds that already show a unit default on');
+    ['pressureSlotUnit', 'countdownSlotUnit'],
+    'pressure and the countdown print their unit out of the box');
   assert.deepEqual(UNIT_ROWS.filter((r) => !r.def).map((r) => r.key),
-    ['tempSlotUnit', 'dewSlotUnit'],
-    'the two degree kinds, which show no unit today, default off');
+    ['windSlotUnit', 'gustSlotUnit', 'tempSlotUnit', 'dewSlotUnit'],
+    'wind and gusts ship bare beside their Both pair (2.2.0); the degree kinds never printed one');
+  // A blob without the key keeps the look from before the toggle existed: the four
+  // kinds that printed a unit then still print it, so no upgrade rearranges a watch.
+  assert.deepEqual(UNIT_ROWS.filter((r) => catalog.unitToggleAbsent(r.key)).map((r) => r.key),
+    ['windSlotUnit', 'gustSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit'],
+    'exactly the four kinds that printed a unit before the toggles keep it while absent');
 });
 
 // The Watch tab's "Reset status bars to defaults" button covers the per-kind display

@@ -19,6 +19,10 @@ var lineStyle = require('../line-style.js');
 // Bars from [Bottom | Top]: the values, from the module whose reading the wire packs
 // (weather/graph-wire.js).
 var DRAW_FROM = require('../draw-from.js');
+// The forecast's left axis options (BETA, emery only): their keys and values.
+var FORECAST_AXIS = require('../forecast-axis.js');
+// The long time span's whole hours (the Forecast card's intro names the most it shows).
+var spanHours = require('../forecast-span-hours.js');
 // The keyed sources of the Weather and Radar provider pickers (their names, key sheets and
 // key fields): the key sheets are built from it here, and the rows' key-status resolvers
 // read it in the page (key-status.js).
@@ -40,6 +44,7 @@ var RADAR_BAR_WHEN = gates.RADAR_BAR_WHEN;
 var HEALTH_BAR_WHEN = gates.HEALTH_BAR_WHEN;
 var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 var LINE_STYLES_WHEN = gates.LINE_STYLES_WHEN;
+var EMERY_WHEN = gates.EMERY_WHEN;
 var gateAll = gates.gateAll;
 var tabLink = gates.tabLink;
 var linkRow = gates.linkRow;
@@ -410,14 +415,18 @@ function separatorRows(prefix, first, second) {
  * highlight follows the numbers, never their presentation (status-wire.js
  * displayValue).
  *
- * The pills' hint explains the SELECTED mode only — Now, the default, gets none
- * (dayMaxHints). AQI closes the Day max and Both hints on its source's note when that
- * source has no forecast to take a peak from: blocks.js dayMaxHint answers the whole
- * hint then, from the row's own hintByValue entry (the engine's args.staticHint).
+ * The pills' hint explains the SELECTED mode only — Now gets none (dayMaxHints).
+ * Now is the default except where the kind's copy names another: wind and gusts
+ * ship on Both (fresh installs and a reset; a stored pick is never rewritten, and
+ * clay-settings.js upgradeBackfill gives an upgrader without the key Now). AQI closes
+ * the Day max and Both hints on its source's note when that source has no forecast
+ * to take a peak from: blocks.js dayMaxHint answers the whole hint then, from the
+ * row's own hintByValue entry (the engine's args.staticHint).
  * @param {string} prefix Key prefix: 'uv' | 'wind' | 'gust' | 'aqi'.
- * @param {{noun: string, notes: ?Object}} copy What the kind measures, without an
- *     article ('UV index'), and (AQI only) the source notes: dayMaxHint closes on
- *     byValue[S[key] || fallback] (a leading space; no entry, no note). null for none.
+ * @param {{noun: string, notes: ?Object, display: ?string}} copy What the kind
+ *     measures, without an article ('UV index'), (AQI only) the source notes:
+ *     dayMaxHint closes on byValue[S[key] || fallback] (a leading space; no entry, no
+ *     note), null for none, and the Value selection default ('current' when absent).
  * @param {string} now Sample current reading for the separator labels, e.g. '3'.
  * @param {string} max Sample peak, e.g. '7'.
  * @returns {Object[]} The rows, in sheet order.
@@ -429,7 +438,7 @@ function dayMaxRows(prefix, copy, now, max) {
         messageKey: prefix + 'SlotDisplay',
         label: 'Value selection',
         hintByValue: hints,
-        defaultValue: 'current',
+        defaultValue: copy.display || 'current',
         options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
     };
     if (copy.notes) {
@@ -976,12 +985,18 @@ var VIEWS_INTRO = 'A view is one screen of the watchface. The Default view shows
 // The Layout card's two flick rows (Double flick, View reset time): aplite has no flick
 // cycle at all (WW_VIEW_CYCLE is compiled out), so both rows hide there together.
 var VIEW_FLICK_WHEN = {env: 'platform', ne: 'aplite'};
+// The forecast's Time span row: emery only (platform.js isForecastSpanPlatform, the
+// env.forecastSpan fact), hidden on an unknown watch (fail closed: the 640 / 536 B
+// inboxes of every other watch cannot take the long span's 68-hour bundle).
+var FORECAST_SPAN_WHEN = {env: 'forecastSpan'};
 var LAYOUT_INTRO = 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the '
     + 'preview. What a metric means or how it\'s coloured lives in Graphs.';
 var STATUS_INTRO = 'Every view has its own status bar — one row with a left, middle, and right slot you can '
     + 'fill with weather, time, health, and more. Choose what each view shows below.';
-var FORECAST_INTRO = 'The forecast graph looks up to 24 hours ahead. Temperature is always drawn; the metrics '
-    + 'and rain bars you pick below join it.';
+// "up to 66": a full feed on the whole screen (the High / low numbers On graph or Off).
+var FORECAST_INTRO = 'The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or up to '
+    + String(spanHours.wholeHours(spanHours.FULL_HOURS, spanHours.SCREEN_W)) + ': '
+    + 'Time span below). Temperature is always drawn; the metrics and rain bars you pick below join it.';
 var GRAPH_COLORS_INTRO = 'One row per metric, plus the night shading. Each row’s colours are remembered '
     + 'separately for the Dark and the Light theme.';
 
@@ -1192,9 +1207,9 @@ module.exports = {
                 hintByValue: {
                     slot: 'Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar.',
                     status: 'Adds the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
-                    all: 'Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line. Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                    all: 'Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line.'
                 },
-                options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph (BETA)', 'all']],
+                options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph', 'all']],
                 onChange: 'resetStatusHealth',
                 // aplite has no health sensors — the watch compiles the view out.
                 showWhen: {env: 'health'}
@@ -1697,8 +1712,11 @@ module.exports = {
                 },
                 {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true},
                 {
+                    // ON out of the box (2.2.0): a lost phone link is the moment the
+                    // watch stops updating, and the buzz is the only way to notice it
+                    // without looking. Mirrors the Alerts › Bluetooth sheet's copy.
                     type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect',
-                    defaultValue: false
+                    defaultValue: true
                 },
                 {
                     // joinPrevious groups the bluetooth icon select with the vibrate-on-disconnect
@@ -1754,7 +1772,9 @@ module.exports = {
         // Wind, gusts and AQI carry UV's display modes (dayMaxRows), each kind its own.
         // The arrow and the unit follow the Value selection group as rows of their
         // own (with dividers): they answer to every mode, not to Both's pair rows.
-        alertSlotSheet('Wind', dayMaxRows('wind', {noun: 'wind'}, '12', '30').concat([{
+        // Wind and gusts ship on Both (now / the day's peak) with no unit: the pair
+        // answers the question at a glance and the unit would not leave it room.
+        alertSlotSheet('Wind', dayMaxRows('wind', {noun: 'wind', display: 'both'}, '12', '30').concat([{
             type: 'toggle',
             messageKey: 'windSlotDirection',
             label: 'Show wind direction',
@@ -1767,7 +1787,7 @@ module.exports = {
             defaultValue: true,
             hint: WIND_DIRECTION_HINT
         }, unitRow('windSlotUnit', null, null)])),
-        alertSlotSheet('Gust', dayMaxRows('gust', {noun: 'gusts'}, '20', '45').concat([{
+        alertSlotSheet('Gust', dayMaxRows('gust', {noun: 'gusts', display: 'both'}, '20', '45').concat([{
             type: 'toggle',
             messageKey: 'gustSlotDirection',
             label: 'Show wind direction',
@@ -1968,6 +1988,88 @@ module.exports = {
                 options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
                 more: true,
                 showWhen: {all: [{key: 'barSource', eq: 'rain'}, LINE_STYLES_WHEN]}
+            }]
+        }, {
+            // Time span (emery only): how many hours the forecast graph looks ahead. The phone
+            // fetches and sends 14, 24 (26 with no left axis) or 68 hourly points
+            // (src/pkjs/forecast-span.js); the watch's grid follows the count it receives and
+            // fills the plot's width, so the hours on screen follow the layout
+            // (src/c/appendix/forecast_span.h). '48' is the long span's stored token. Its label
+            // names the whole hours the watch will show for the picked weather provider and the
+            // layout (forecastSpanOptions, src/pkjs/forecast-span-hours.js: '58 h' at the
+            // default layout, '59 h' without Larger graph fonts, '66 h' with the High / low
+            // numbers On graph or Off, '47 h' with OpenWeatherMap, '48 h' with Weather
+            // Underground); the stored value never moves.
+            // Every other watch keeps 24 h: the 640 B / 536 B inboxes cannot take the long
+            // span's 68-hour bundle and the 64 KB images have no room. A changed span
+            // re-fetches (render-signature.js). Not `more`: the span frames the whole graph.
+            pane: 'forecast',
+            id: 'forecastSpan',
+            title: 'Time span',
+            showWhen: FORECAST_SPAN_WHEN,
+            items: [{
+                type: 'segmented',
+                messageKey: 'forecastHours',
+                label: 'Hours ahead',
+                defaultValue: '24',
+                hintByValue: {
+                    '12': 'The next 12 hours, in wider columns.',
+                    '24': 'The next 24 hours.',
+                    '48': 'As far ahead as your weather provider\'s hourly forecast reaches and the '
+                        + 'graph fits, in narrow columns. How many hours depends on the provider and '
+                        + 'the graph\'s layout.'
+                },
+                optionsFrom: {resolver: 'forecastSpanOptions'},
+                showWhen: FORECAST_SPAN_WHEN
+            }]
+        }, {
+            // Left axis (Beta), emery only (owner, 2026-10-09): where the high / low numbers go
+            // (On axis: beside the axis line on the left, today's look; On graph: the high one
+            // under its point, the low one over its own; Off: none; the last two draw no left
+            // axis at all, so the graph starts at the screen's left edge) and whether they name
+            // the whole temperature scale. The axis line and the numbers' outline follow the place (the 2.2.0 betas
+            // had a row each; a beta's stored 'beside' reads as 'axis', the default).
+            // src/pkjs/forecast-axis.js is the one reading (wire bits on the
+            // CLAY_LARGE_GRAPH_FONT word, the scale bake, the 24 h span's 26 hours, the
+            // preview); the watch's rules live in src/c/appendix/temp_axis_pad.h (THE NUMBERS
+            // ON THE GRAPH) and forecast_layer.c. Every row is `more`: the card shows its title
+            // and opens by itself when a row differs from its default. A dormant scale (the
+            // numbers off, or no feels-like / dew point line) is kept and sent as the default,
+            // so it never costs a resend. At 24 h, moving the numbers between On axis and the
+            // other two re-fetches: the hours sent follow (forecast-span.js hours()).
+            pane: 'forecast',
+            id: 'axis',
+            title: 'Left axis (Beta)',
+            showWhen: EMERY_WHEN,
+            items: [{
+                type: 'segmented',
+                messageKey: FORECAST_AXIS.KEYS.numbers,
+                label: 'High / low numbers',
+                defaultValue: FORECAST_AXIS.AXIS,
+                options: [['On axis', FORECAST_AXIS.AXIS], ['On graph', FORECAST_AXIS.GRAPH],
+                    ['Off', FORECAST_AXIS.OFF]],
+                hintByValue: {
+                    axis: 'The forecast\'s highest and lowest temperature, beside the axis line on the left.',
+                    graph: 'The high number sits under the highest point, the low one over the lowest. No '
+                        + 'axis: the graph starts at the left edge.',
+                    off: 'No numbers and no axis: the graph starts at the left edge.'
+                },
+                more: true,
+                showWhen: EMERY_WHEN
+            }, {
+                // Gated on a drawn feels-like or dew point line (when-resolvers.js
+                // tempAxisLineDrawn): without one the scale is the air temperature's own.
+                // Changes what the phone bakes into TEMP_MIN / TEMP_MAX, so a flip re-fetches
+                // (render-signature.js).
+                type: 'toggle',
+                messageKey: FORECAST_AXIS.KEYS.scale,
+                label: 'Include feels-like & dew point',
+                defaultValue: false,
+                hint: 'The numbers show the lowest and highest value of every line on the '
+                    + 'temperature scale, not only the air temperature.',
+                more: true,
+                showWhen: {all: [EMERY_WHEN, {key: FORECAST_AXIS.KEYS.numbers, ne: FORECAST_AXIS.OFF},
+                    {when: 'tempAxisLineDrawn'}]}
             }]
         }, {
             // The Graph colors row, a card of its own: one dialog holding one row per graph

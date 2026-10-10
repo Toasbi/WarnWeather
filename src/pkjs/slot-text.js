@@ -22,21 +22,22 @@
 
     /**
      * Whether one slot's per-kind "Show unit" toggle is on.
-     * An ABSENT key means the kind's default: the four slots that show a unit today
-     * (wind, gust, pressure, countdown) default on and the two bare ones (temp, dew)
-     * default off, so a settings blob written before this feature renders exactly as
-     * it always did.
+     * An ABSENT key means the look from before the toggle existed: the four slots
+     * that showed a unit then (wind, gust, pressure, countdown) print it and the two
+     * bare ones (temp, dew) do not, so a settings blob written before this feature
+     * renders exactly as it always did — even where a fresh install's default has
+     * since changed (wind and gusts ship without the unit since 2.2.0).
      * @param {Object} settings Clay settings blob
      * @param {string} key the toggle's settings key, e.g. 'windSlotUnit'
      * @returns {boolean}
      */
     function unitEnabled(settings, key) {
         var v = settings ? settings[key] : undefined;
-        // The shipped default comes from the catalog's UNIT_TOGGLES table — the one
+        // The absent value comes from the catalog's UNIT_TOGGLES table — the one
         // home for key+default, shared with schema.js's rows, resetStatusSlots and
         // renderSignature, so the page's claim and the bake can never desynchronize.
         return (typeof v === 'undefined' || v === null)
-            ? catalog.unitToggleDefault(key) : Boolean(v);
+            ? catalog.unitToggleAbsent(key) : Boolean(v);
     }
 
     /**

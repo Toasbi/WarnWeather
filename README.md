@@ -36,11 +36,12 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Graph lines on Alert (Visible values: All | Alert): a wind speed, wind gust or UV index line draws every value, or only where it reaches your warn level (its Alert levels), its scale then starting at that level, so the small graph stays empty until it matters (Graphs tab › Forecast, in the metric's dialog)
 
 **Forecast**
-* 24-hour forecast with a temperature line and configurable, battery-friendly updates
+* 24-hour forecast with a temperature line and configurable, battery-friendly updates (on Pebble Time 2: 12, 24 or up to 66 hours, the option naming the hours your weather provider and layout show, Graphs tab › Forecast › Time span); a shorter forecast, such as OpenWeatherMap's 48 hours, widens its columns to fill the graph; on the longer span the hour axis marks the clock (a label every 6 hours, a tick at 12, 15, 18, 21 and so on)
 * Configurable metrics such as precipitation, cloud cover, UV index, gusts, wind, air pressure, feels-like temperature and dew point (both drawn on the temperature scale)
 * Up to four metric lines at once, each in its own style — thin or thick line, square dots, little x marks, or (for precipitation, cloud cover, UV, wind and gusts) a shaded stripe along the top of the graph or below its zero line, whose colour strengthens with the value (third and fourth metric and style selection on watches with enough memory, not Pebble Classic/Steel)
 * Draw from: Bottom | Top: the precipitation, cloud cover, wind, gust and UV index lines, and with *Bars from* the rain bars of the forecast and of the radar graph, can hang from the top of the graph instead of standing on its bottom, a bigger value reaching further down, so they cover the temperature curve less (wind and gusts move together, and a main metric's area fill hangs with its line; not on Pebble Classic/Steel)
 * Optional day/night shading
+* Left axis options on Pebble Time 2 (beta): the high and low numbers on the axis, on the graph (the high one under the highest point, the low one over the lowest), or off; on the graph or off there is no left axis and the graph starts at the screen's left edge. The numbers can include the feels-like and dew point lines (Graphs tab › Forecast › Left axis, under More options)
 * Recolor the forecast graph per metric
 * Multiple weather providers, including regional and worldwide sources
 
@@ -92,8 +93,9 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 
 Two things that both involve rain over time, but answer different questions:
 
-- **Forecast graph** — the hourly prediction, looking up to 24 hours ahead. Temperature is
-  always shown; on top of it you choose what to add — precipitation %, cloud cover % (every
+- **Forecast graph** — the hourly prediction, looking up to 24 hours ahead (on Pebble Time 2,
+  12, 24 or up to 66 — Time span). Temperature is always shown; on top of it you choose what to
+  add — precipitation %, cloud cover % (every
   provider except Yandex), wind speed, wind gusts, UV index, air pressure (sea-level, in hPa,
   with a Narrow/Mid/Wide graph scale), feels-like temperature or dew point (both drawn on the
   same scale as the temperature curve) as a main

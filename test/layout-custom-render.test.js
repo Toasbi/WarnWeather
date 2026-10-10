@@ -55,13 +55,13 @@ function layoutBody(overrides, platformName) {
   };
 }
 
-test('the Layout card offers Custom (Beta) on basalt and hides it on aplite', () => {
+test('the Layout card offers Custom on basalt and hides it on aplite', () => {
   const basalt = layoutBody({ layoutPreset: 'compactCal' }).card;
-  assert.ok(basalt.indexOf('data-k="layoutPreset" data-v="custom"><span>Custom (Beta)</span>') >= 0,
-    'Custom (Beta) option rendered in the Layout preset radio');
+  assert.ok(basalt.indexOf('data-k="layoutPreset" data-v="custom"><span>Custom</span>') >= 0,
+    'Custom option rendered in the Layout preset radio');
   const aplite = layoutBody({ layoutPreset: 'compactCal' }, 'aplite');
   assert.ok(aplite.card.indexOf('data-k="layoutPreset"') >= 0, 'premise: the preset radio renders on aplite');
-  assert.equal(aplite.body.indexOf('Custom (Beta)'), -1, 'no Custom option on aplite');
+  assert.equal(aplite.body.indexOf('data-k="layoutPreset" data-v="custom"'), -1, 'no Custom option on aplite');
 });
 
 test('the Edit views row renders only in custom mode', () => {
@@ -132,7 +132,7 @@ test('a dormant stored custom on aplite renders neither the Edit views row nor t
     viewLower0: 'off', viewOrder0: 'TACB',
   }, 'aplite');
   assert.equal(r.body.indexOf('data-action="openViewEditor"'), -1, 'no editor row on aplite');
-  assert.equal(r.body.indexOf('Custom (Beta)'), -1, 'no Custom option on aplite');
+  assert.equal(r.body.indexOf('data-k="layoutPreset" data-v="custom"'), -1, 'no Custom option on aplite');
 });
 
 // The editor's ONLY select surface is the sheet path (openSheet -> renderSelectModal);

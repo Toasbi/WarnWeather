@@ -26,6 +26,10 @@ static Config config_defaults(void) {
         .show_qt = true,
         .show_bt = false,
         .show_bt_disconnect = true,
+        // false although the phone ships Vibrate on disconnect ON since 2.2.0: this default only
+        // covers a fresh install until its first Clay message (seconds), which carries the
+        // phone's seeded true, and storing a nonzero constant here costs 4 B of image on the
+        // 64 KB watches, which sit at their ceilings (scripts/check-64k-size.sh).
         .vibe = false,
         .show_am_pm = false,
         .time_font = TIME_FONT_ROBOTO,
@@ -70,6 +74,11 @@ static Config config_defaults(void) {
         .view_ext = { 0, 0, 0 },
         // One flick switches views, as it always has, until the user turns Double flick on.
         .view_double_flick = false,
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: the forecast's left axis as it always was (config.h GRAPH_OPT_*), until the
+        // phone sends the graph-options word. Guarded because the field itself is.
+        .forecast_axis = 0,
 #endif
     };
 }

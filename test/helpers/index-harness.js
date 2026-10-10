@@ -4,7 +4,10 @@
 // clock plus setTimeout through t.mock.timers — one fake clock drives the 60 s
 // scheduler tick, the network latency and the fetch watchdog alike. index.js
 // keeps module state and registers its Pebble listeners at require time, so
-// every boot drops src/pkjs from the require cache and loads it fresh.
+// every boot drops src/pkjs from the require cache and loads it fresh. A test can
+// boot several lives in a row over one phone store (opts.sharedStore, teardown()
+// between them): helpers/pkjs-lives.js builds the user leaving the watchface and
+// coming back on that.
 //
 // The network answers on a later timer turn, as a real one does: the fetch
 // chain then runs asynchronously, so a throw inside a response callback
@@ -13,6 +16,7 @@
 const path = require('path');
 
 const PKJS_DIR = path.resolve(__dirname, '..', '..', 'src', 'pkjs') + path.sep;
+const PACKAGE_JSON = path.resolve(__dirname, '..', '..', 'package.json');
 const HOUR = 3600;
 // Clock granularity of advance(); the default network latency is a multiple.
 const STEP_MS = 50;
@@ -104,6 +108,12 @@ function isWeatherMessage(dict) {
  *   (manual Berlin coordinates, Open-Meteo, radar off, hourly refresh, battery
  *   saver off — its schema default would pause fetching at night).
  * @param {Object} [opts.store] Extra localStorage entries seeded before boot.
+ * @param {Object<string, string>} [opts.sharedStore] The phone's localStorage
+ *   contents themselves, used as given (no base settings, no seeding, so
+ *   opts.settings and opts.store are ignored) and mutated in place: pass the same
+ *   object to every boot to carry storage from one PKJS life to the next.
+ * @param {string} [opts.waqiToken] The build's WAQI token for this life ('' = a
+ *   dev build); package.json's is left alone when absent.
  * @param {function(string, {method: string, body: *}): (Object|string)} [opts.network]
  *   (URL, the request's method and body) -> response {status, body}, or 'error'
  *   (onerror), 'timeout' (ontimeout), 'hang' (never).
@@ -113,23 +123,31 @@ function isWeatherMessage(dict) {
  * @param {function(Function, Function): void} [opts.geolocate] Receives each
  *   getCurrentPosition's (success, error); default never answers.
  * @param {number} [opts.latencyMs] Network latency (default 100 ms).
- * @returns {Object} Harness handles.
+ * @param {Object} [opts.watchInfo] What Pebble.getActiveWatchInfo() answers (default a
+ *   basalt).
+ * @returns {Object} Harness handles. teardown() ends this life, restoring every
+ *   global it set (a t.after hook also runs it), so the test can boot again.
  */
 function bootIndex(t, opts) {
   opts = opts || {};
+  // A later life in the same test: the previous one's pending timers die with it.
+  try { t.mock.timers.reset(); } catch (e) { /* nothing enabled yet */ }
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: opts.now === undefined ? HARNESS_NOW : opts.now });
 
-  const store = {};
-  store['clay-settings'] = JSON.stringify(Object.assign({
-    location: '52.52,13.40', provider: 'openmeteo', radarMode: 'off', fetchIntervalMin: '60',
-    sleepNightEnabled: false,
-  }, opts.settings || {}));
-  // Keep the daily update check and the day-change Clay resend quiet: neither
-  // is under test, and both would add XHRs / sends to every count.
-  store.last_update_check = String(Date.now());
-  const today = new Date();
-  store.last_holiday_day = today.getFullYear() + '-' + today.getMonth() + '-' + today.getDate();
-  Object.assign(store, opts.store || {});
+  let store = opts.sharedStore;
+  if (!store) {
+    store = {};
+    store['clay-settings'] = JSON.stringify(Object.assign({
+      location: '52.52,13.40', provider: 'openmeteo', radarMode: 'off', fetchIntervalMin: '60',
+      sleepNightEnabled: false,
+    }, opts.settings || {}));
+    // Keep the daily update check and the day-change Clay resend quiet: neither
+    // is under test, and both would add XHRs / sends to every count.
+    store.last_update_check = String(Date.now());
+    const today = new Date();
+    store.last_holiday_day = today.getFullYear() + '-' + today.getMonth() + '-' + today.getDate();
+    Object.assign(store, opts.store || {});
+  }
 
   global.localStorage = {
     getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
@@ -179,7 +197,8 @@ function bootIndex(t, opts) {
   const held = [];
   global.Pebble = {
     addEventListener: (name, fn) => { listeners[name] = fn; },
-    getActiveWatchInfo: () => ({ platform: 'basalt', model: 'qemu_platform_basalt', language: 'en' }),
+    getActiveWatchInfo: () => (opts.watchInfo
+      || { platform: 'basalt', model: 'qemu_platform_basalt', language: 'en' }),
     getAccountToken: () => 'test-token',
     getWatchToken: () => 'watch-token',
     sendAppMessage: (dict, ack, nack) => {
@@ -198,14 +217,25 @@ function bootIndex(t, opts) {
   const realLog = console.log;
   console.log = (msg) => { logs.push(String(msg)); };
 
-  t.after(() => {
+  // index.js reads the build-injected token off package.json at require time.
+  const pkg = require(PACKAGE_JSON);
+  const prevWaqi = pkg.waqi;
+  if (opts.waqiToken !== undefined) { pkg.waqi = { token: opts.waqiToken }; }
+
+  let alive = true;
+  /** End this life: every global it set restored. */
+  function teardown() {
+    if (!alive) { return; }
+    alive = false;
     console.log = realLog;
+    if (opts.waqiToken !== undefined) { pkg.waqi = prevWaqi; }
     delete global.localStorage;
     delete global.Pebble;
     delete global.XMLHttpRequest;
     if (realNavigator) { Object.defineProperty(globalThis, 'navigator', realNavigator); }
     else { delete globalThis.navigator; }
-  });
+  }
+  t.after(teardown);
 
   Object.keys(require.cache).forEach((k) => {
     if (k.indexOf(PKJS_DIR) === 0) { delete require.cache[k]; }
@@ -221,9 +251,14 @@ function bootIndex(t, opts) {
   require(PKJS_DIR + 'index.js');
 
   const h = {
-    store, xhrs, requests, sends, held, logs, listeners, geoRequests, uncaught,
+    store, xhrs, requests, sends, held, logs, listeners, geoRequests, uncaught, teardown,
     /** Boot: PebbleKit 'ready' (runs the first scheduler tick synchronously). */
     ready() { listeners.ready({}); },
+    /** PebbleKit 'ready', then the watch's startup status: config and forecast held. */
+    start() {
+      h.ready();
+      listeners.appmessage({ payload: { WATCH_HAS_CONFIG: 1, WATCH_HAS_FORECAST_DATA: 1 } });
+    },
     /**
      * Advance the fake clock, firing every timer that falls due. Steps in
      * STEP_MS slices: MockTimers moves its clock to the END of a tick before
@@ -263,4 +298,4 @@ function bootIndex(t, opts) {
   return h;
 }
 
-module.exports = { HARNESS_NOW, bootIndex, healthyNetwork, isWeatherMessage, openMeteoMain, openMeteoAux };
+module.exports = { HARNESS_NOW, HOUR, bootIndex, healthyNetwork, isWeatherMessage, openMeteoMain, openMeteoAux };

@@ -46,7 +46,6 @@
 // dusk/dawn line keeps its polarity swap (bw-dark LightGray; bw-light DarkGray —
 // a LightGray boundary reads too faint against a white bw-light background).
 #define FORECAST_TREND_FULL_SCALE 250  // uint8 wire range (PKJS sends 0..250)
-#define DAY_SECONDS (24 * 60 * 60)
 
 // Named indices into the NIGHT_COLORS blob the phone resolved (canonical layout
 // in persist.h). Declared OUTSIDE the PBL_COLOR guard deliberately: on a B&W
@@ -83,24 +82,6 @@ static uint8_t s_night_ink[NIGHT_COLOR_BYTES];
 // flattens the gray to black in the light theme.
 #define FORECAST_AXIS_COLOR_NIGHT  theme_pick(theme_furniture(GColorDarkGray), theme_fg())
 
-typedef struct
-{
-    time_t start;
-    time_t end;
-} NightSegment;
-
-typedef struct
-{
-    int count;
-    NightSegment segments[3];
-} NightSegments;
-
-typedef struct
-{
-    time_t timestamp;
-    int type; // 0 = sunrise, 1 = sunset
-} SunEvent;
-
 #if defined(WW_LINE_STYLE)
 // Restyle one metric line from its persisted style byte. SOLID takes the
 // byte's stroke width (falling back to `solid_width`, the line's built-in);
@@ -135,7 +116,7 @@ static void apply_line_style(SeriesLine *line, uint8_t style_byte, int solid_wid
 static void load_dataset(ForecastDataset *ds) {
     memset(ds, 0, sizeof(*ds));
     const int raw = persist_get_num_entries();
-    const int n = raw > MAX_BOTTOM_VIEW_ENTRIES ? MAX_BOTTOM_VIEW_ENTRIES : (raw < 0 ? 0 : raw);
+    const int n = raw > FORECAST_MAX_ENTRIES ? FORECAST_MAX_ENTRIES : (raw < 0 ? 0 : raw);
     ds->num_entries = n;
     ds->forecast_start = persist_get_forecast_start();
 
@@ -303,148 +284,16 @@ static ChartLayer mark_line_layer(const Series *s, int count, int hi) {
 }
 
 static Layer *s_forecast_layer;
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the forecast layer's clip, its parent (forecast_layer_create): the layer's frame
+// widened left to the window's edge, so a plot with no left axis can start there.
+static Layer *s_forecast_clip;
+#endif
 static char s_buffer_lo[12];
 static char s_buffer_hi[12];
 
-static void night_segments_add(NightSegments *night_segments, time_t start, time_t end)
-{
-    if (night_segments->count >= (int)(sizeof(night_segments->segments) / sizeof(night_segments->segments[0])) || end <= start)
-    {
-        return;
-    }
-
-    night_segments->segments[night_segments->count].start = start;
-    night_segments->segments[night_segments->count].end = end;
-    night_segments->count += 1;
-}
-
-static bool get_valid_sun_events(time_t sun_event_times[2], int *sun_event_start_type)
-{
-    const int num_sun_events = 2;
-    const int sun_events_read = persist_get_sun_event_times(sun_event_times, num_sun_events);
-    if (sun_events_read < (int)(sizeof(time_t) * num_sun_events))
-    {
-        return false;
-    }
-
-    const int start_type = persist_get_sun_event_start_type();
-    if ((start_type != 0 && start_type != 1) || sun_event_times[0] <= 0 || sun_event_times[1] <= 0 || sun_event_times[1] <= sun_event_times[0])
-    {
-        return false;
-    }
-
-    if (sun_event_start_type)
-    {
-        *sun_event_start_type = start_type;
-    }
-
-    return true;
-}
-
-static NightSegments compute_night_segments(time_t graph_start, time_t graph_end)
-{
-    NightSegments night_segments = {0};
-
-    if (graph_end <= graph_start)
-    {
-        return night_segments;
-    }
-
-    time_t sun_event_times[2] = {0, 0};
-    int sun_event_start_type;
-    if (!get_valid_sun_events(sun_event_times, &sun_event_start_type))
-    {
-        return night_segments;
-    }
-
-    SunEvent events[6];
-    int event_count = 0;
-
-    for (int day_offset = -1; day_offset <= 1; ++day_offset)
-    {
-        const time_t offset_seconds = (time_t)day_offset * DAY_SECONDS;
-        events[event_count++] = (SunEvent){
-            .timestamp = sun_event_times[0] + offset_seconds,
-            .type = sun_event_start_type};
-        events[event_count++] = (SunEvent){
-            .timestamp = sun_event_times[1] + offset_seconds,
-            .type = 1 - sun_event_start_type};
-    }
-
-    for (int i = 1; i < event_count; ++i)
-    {
-        SunEvent current = events[i];
-        int j = i - 1;
-        while (j >= 0 && events[j].timestamp > current.timestamp)
-        {
-            events[j + 1] = events[j];
-            --j;
-        }
-        events[j + 1] = current;
-    }
-
-    for (int i = 0; i < event_count - 1; ++i)
-    {
-        const SunEvent event_start = events[i];
-        const SunEvent event_end = events[i + 1];
-        if (event_start.type != 1 || event_end.type != 0)
-        {
-            continue;
-        }
-
-        night_segments_add(&night_segments, event_start.timestamp, event_end.timestamp);
-    }
-
-    return night_segments;
-}
-
-static int16_t graph_x_for_time(time_t timestamp, time_t graph_start, time_t graph_end, GRect graph_plot_rect)
-{
-    const int16_t graph_left = graph_plot_rect.origin.x;
-    const int16_t graph_right = graph_plot_rect.origin.x + graph_plot_rect.size.w;
-
-    if (timestamp <= graph_start)
-    {
-        return graph_left;
-    }
-    if (timestamp >= graph_end)
-    {
-        return graph_right;
-    }
-
-    // After the guards above, graph_start < timestamp < graph_end, so
-    // 0 < elapsed < total. total is a forecast span (<= ~3 days for 24
-    // entries) and size.w <= 200 (emery), so elapsed * size.w stays far below
-    // INT32_MAX — 32-bit math is exact here and avoids pulling in the 64-bit
-    // soft-divide routine (__udivmoddi4, ~754 B).
-    const int32_t elapsed = (int32_t)(timestamp - graph_start);
-    const int32_t total   = (int32_t)(graph_end - graph_start);
-    return graph_left + (int16_t)((elapsed * graph_plot_rect.size.w) / total);
-}
-
-// Convert night time-segments into absolute plot-x bands. Clamps x to the
-// plot like the old draw_night_* loops; flags each edge as a "real" boundary
-// (a sun event strictly inside the window) vs a clamped edge.
-static int build_night_bands(ChartBand *out, int max,
-                             const NightSegments *seg, GRect plot_rect,
-                             time_t gstart, time_t gend) {
-    if (!seg) return 0;
-    const int16_t gl = plot_rect.origin.x;
-    const int16_t gr = plot_rect.origin.x + plot_rect.size.w;
-    int n = 0;
-    for (int i = 0; i < seg->count && n < max; ++i) {
-        int16_t x0 = graph_x_for_time(seg->segments[i].start, gstart, gend, plot_rect);
-        int16_t x1 = graph_x_for_time(seg->segments[i].end,   gstart, gend, plot_rect);
-        if (x0 < gl) x0 = gl;
-        if (x1 > gr) x1 = gr;
-        out[n].x0 = x0;
-        out[n].x1 = x1;
-        out[n].boundary0 = seg->segments[i].start > gstart && seg->segments[i].start < gend;
-        out[n].boundary1 = seg->segments[i].end   > gstart && seg->segments[i].end   < gend;
-        ++n;
-    }
-    return n;
-}
+// The night shading (forecast_night.h): a fragment of this file, included here, in place.
+#include "forecast_night.h"
 
 static GSize temp_label_string_size(const char *text);
 
@@ -501,12 +350,61 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
                        GTextOverflowModeFill, GTextAlignmentRight, NULL);
 }
 
+// The numbers off today's places (forecast_numbers.h): a fragment of this file, included here,
+// in place.
+#include "forecast_numbers.h"
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the hi/lo numbers under the left axis's options (config.h GRAPH_OPT_*), after
+// everything the plot drew. On axis (today): the strip, draw_left_axis, its numbers lined up
+// with the rows they name: the curve's extremes, or with GRAPH_OPT_SCALE_NUMS the scale's (a
+// feels-like or dew point line's too). On the graph: the hi number under its point, the lo
+// number over its own (forecast_numbers.h). Off: none. On the graph and Off leave no strip,
+// and the plot starts at the screen's left edge, unless a health graph shares the screen: then
+// the plot keeps the shared strip, which is masked as On axis masks it. noinline: its locals
+// stay off forecast_update_proc's frame while chart_draw runs (fit_temp_axis' reason).
+static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const ForecastDataset *ds,
+                                                         const ChartDef *grid, int h,
+                                                         int16_t zero_y, int top,
+                                                         int graph_left, int screen_w,
+                                                         uint8_t opts) {
+    const int n = ds->fit_entries;   // the hours the scale and the labels cover (on screen)
+    const bool scale = (opts & GRAPH_OPT_SCALE_NUMS) != 0;
+    const int mode = opts & GRAPH_OPT_NUMS_MASK;
+    if (!mode && !scale) {   // today's call, today's pixels
+        draw_left_axis(ctx, h, zero_y, ds->series[SERIES_FIRST].line.values, n);
+        return;
+    }
+    const Series *hi_s, *lo_s;
+    const TempAxisExtremes e = forecast_numbers_extremes(ds, n, scale, &hi_s, &lo_s);
+    if (!mode) {
+        // On axis, naming the scale: the strip's labels line up with the scale's ends.
+        const int16_t ends[2] = { (int16_t)e.lo, (int16_t)e.hi };
+        draw_left_axis(ctx, h, zero_y, ends, 2);
+        return;
+    }
+    // A strip left of the plot (a health graph's, shared): its mask (draw_left_axis's) hides
+    // the curve's left half-stroke as it always has. Alone the plot starts at the screen's
+    // left edge (graph_left <= 0): no strip, nothing to mask.
+    if (graph_left > 0) {
+        graphics_context_set_fill_color(ctx, theme_bg());
+        graphics_fill_rect(ctx, GRect(0, 0, graph_left, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
+    }
+    if (mode == GRAPH_OPT_NUMS_GRAPH) {
+        forecast_numbers_on_graph(ctx, ds, grid, e, hi_s, lo_s, zero_y, top, graph_left,
+                                  screen_w, s_buffer_hi, temp_label_string_size(s_buffer_hi),
+                                  s_buffer_lo, temp_label_string_size(s_buffer_lo));
+    }
+}
+#endif
+
 
 #if defined(WW_LINE_STYLE)
 // The lowest and highest byte of the temperature and of every present line with an inset
-// (feels-like, dew point), over every hour sent (the window the hi/lo labels name), land on
-// the margin rows of a plot `plot_h` content rows tall with the edges `anchors`, all on one
-// scale, so no line runs past a margin (temp_axis_pad.h THE SCALE). Their bytes become rows
+// (feels-like, dew point), over the window the hi/lo labels name (every hour sent; on emery's
+// 12 h and long grids the hours on screen, ds->fit_entries), land on the margin rows of a
+// plot `plot_h` content rows tall with the edges `anchors`, all on one scale, so no line on
+// screen runs past a margin (temp_axis_pad.h THE SCALE). Their bytes become rows
 // here, in place (load_dataset reloads them on every redraw): the curve's always (TEMP_HI),
 // every line's with an inset (LINE_HI's test). A floating line's byte 0 is a missing reading:
 // it widens no range and stays one; the curve's is data.
@@ -520,10 +418,11 @@ static __attribute__((noinline, noclone)) void fit_temp_axis(ForecastDataset *ds
     Series *const first = &ds->series[SERIES_FIRST];
     Series *const end = &ds->series[SERIES_BARS];   // the lines, not the bars
     const int n = ds->num_entries;
+    const int fit_n = FORECAST_FIT_N(ds, n);   // emery: the hours on screen (12 h, long)
     TempAxisRange range = TEMP_AXIS_RANGE_NONE;
     for (Series *s = first; s < end; ++s) {
         if (s == first || (s->present && s->line.inset_y)) {
-            temp_axis_range_widen(&range, s->line.values, n, s->line.floating);
+            temp_axis_range_widen(&range, s->line.values, fit_n, s->line.floating);
         }
     }
     const TempAxisFit fit = temp_axis_fit_range(range,
@@ -532,6 +431,7 @@ static __attribute__((noinline, noclone)) void fit_temp_axis(ForecastDataset *ds
                                                 plot_h, FORECAST_TREND_FULL_SCALE);
     for (Series *s = first; s < end; ++s) {
         if (s == first || (s->present && s->line.inset_y)) {
+            // Every hour sent: a clipped hour past the right edge holds to the content rows.
             temp_axis_rows(s->line.values, n, fit, s->line.floating);
         }
     }
@@ -543,7 +443,26 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     MEMORY_LOG_HEAP("forecast_update:enter");
     GRect bounds = layer_get_bounds(layer);
     const bool night_on = config_get()->day_night_shading;
+    // The left axis's options (config.h GRAPH_OPT_*, BETA; 0 off emery, so axis_on is true
+    // there). The numbers On axis (today) draw the left axis: the label strip and the axis line
+    // along the plot's left edge. On graph or Off draw no left axis at all (owner, 2026-10-09:
+    // "the complete left axis should not be drawn, and the graph should start as much on the
+    // left screen as possible"): no strip, no axis line (the frame's left border, in the plot
+    // and both stripe bands), and the plot starts at the screen's left edge.
+    const uint8_t axis_opts = config_forecast_axis();
+    const bool axis_on = !(axis_opts & GRAPH_OPT_NUMS_MASK);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the screen's left edge is `screen_left` in the layer's coordinates (the layer sits
+    // LAYOUT_PAD_X in, unclipped inside a clip that reaches that edge: forecast_layer_create).
+    // The plot's right end stays the screen's right edge. A health graph sharing this screen (a
+    // custom layout's top band over the body) keeps the plot at the shared edge, the health
+    // labels' strip alone, so the two line up (bottom_view.h).
+    const int screen_left = -layer_get_frame(layer).origin.x;
+    const int graph_left = (axis_on || bottom_view_other_consumer_shown(layer))
+                               ? bottom_view_graph_inset() : screen_left;
+#else
     const int graph_left = bottom_view_graph_inset();
+#endif
     const GRect graph_bounds = GRect(graph_left, 0,
                                      bounds.size.w - graph_left,
                                      bounds.size.h - BOTTOM_VIEW_BOTTOM_PAD);
@@ -566,9 +485,33 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         MEMORY_LOG_HEAP("forecast_update:exit");
         return;
     }
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the grid follows the hours the phone sent and the plot's width (forecast_span.h):
+    // 2..14 (12 h), 15..26 (FORECAST_GRID_DEF's pitch; itself up to 24) or 27..68; the marks
+    // follow its bar columns.
+    const ForecastSpan span = forecast_span(ds->num_entries, bounds.size.w - graph_left);
+    const ChartDef grid_def = forecast_grid_def_for(span);
+    const ChartDef *const grid = &grid_def;
+    for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
+        SeriesLine *const line = &ds->series[sid].line;
+        if (line->style != CHART_LINE_SOLID) { line->width = span.bar_w; }
+    }
+// emery: slot i's tick column right of the plot's left edge: the one mapping (slot_x.h).
+    const int pitch_q = forecast_span_pitch_q(span);
+#define GRID_X(i) slot_x(pitch_q, (i))
+#else
+    const ChartDef *const grid = &FORECAST_GRID_DEF;
+#define GRID_X(i) ((i) * chart_def_pitch(grid))
+#endif
+    // The night shading's graph ends on the last hour's tick, or on emery a column further
+    // (forecast_span.h FORECAST_NIGHT_PAST_LAST).
     const time_t forecast_start = ds->forecast_start;
-    const time_t forecast_end = forecast_start + (ds->num_entries - 1) * BOTTOM_VIEW_STEP_SECONDS;
+    const time_t forecast_end = forecast_start
+                              + (ds->num_entries - 1 + FORECAST_NIGHT_PAST_LAST)
+                                    * BOTTOM_VIEW_STEP_SECONDS;
+#if !defined(PBL_PLATFORM_EMERY)
     struct tm *forecast_start_local = localtime(&forecast_start);
+#endif
 
 
     NightSegments night_segments = {0};
@@ -577,8 +520,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         night_segments = compute_night_segments(forecast_start, forecast_end);
     }
     const int16_t axis_y     = h - BOTTOM_VIEW_AXIS_H;
-    const int16_t grid_right = graph_bounds.origin.x
-                             + ds->num_entries * chart_def_pitch(&FORECAST_GRID_DEF);
+    const int16_t grid_right = graph_bounds.origin.x + GRID_X(ds->num_entries);
 #if defined(WW_LINE_STYLE)
     // Bottom stripes live BELOW the plot's zero line, in a band of their own
     // between it and the hour axis, so bars, fills and lines can never paint
@@ -587,13 +529,21 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // for the ticks. The plot's baseline lifts by the band.
     const int stripe_h = FORECAST_STRIPE_H(axis_y);
     // One scan of each series' drawn window (temp_axis_pad.h): only a series with a value
-    // above 0 in the hours on screen takes part (the phone sends 24; the hours past the
-    // screen's right edge never count). A stripe then takes a band on its edge; an amount
-    // line, its marks or fill anchor the edge they are drawn from (the rain bars add theirs
-    // once the palette is read, below). A stripe with nothing above 0 is dropped here, so it
-    // takes no band and the stripe layout below never sees it: the plot grows into its rows.
+    // above 0 in the hours on screen takes part (the phone sends 24, or emery's 14, 26 or 68; the
+    // hours past the screen's right edge never count). A stripe then takes a band on its edge;
+    // an amount line, its marks or fill anchor the edge they are drawn from (the rain bars add
+    // theirs once the palette is read, below). A stripe with nothing above 0 is dropped here,
+    // so it takes no band and the stripe layout below never sees it: the plot grows into its
+    // rows.
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the hours whose bar starts on screen, through the one mapping (slot_x.h): the edge
+    // rule's last hour, cut at its tick column on the plot's last one, takes no part. The 24 h
+    // grid at its whole 8 px counts its started columns, as here off emery (forecast_span.h).
+    const int drawn = forecast_span_laid_out(span, ds->num_entries, bounds.size.w - graph_left);
+#else
     const int drawn = temp_axis_drawn_entries(ds->num_entries, bounds.size.w - graph_left,
-                                              chart_def_pitch(&FORECAST_GRID_DEF));
+                                              chart_def_pitch(grid));
+#endif
     TempAxisEdges edges = { 0, 0, 0 };
     for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
         Series *s = &ds->series[sid];
@@ -634,9 +584,19 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Per-redraw data prep + layer list.
     GPoint *const area_pts = paint->area_pts;
     ChartAxisSlot *const axis_slots = paint->axis_slots;
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the span's slots at the span's cadence (forecast_span.h forecast_span_mark): the
+    // 12 h and 24 h grids from slot 0, the long one on the clock's 3-hour marks. No label the
+    // screen's edges would slice, and none on the current hour while the left axis is gone
+    // (owner, 2026-10-09: "skip the first hour mark and draw one after the current one"); a
+    // dropped label keeps its tick.
+    forecast_grid_fill_axis_span(axis_slots, span, forecast_start, outer.origin.x, screen_left,
+                                 bounds.size.w - 1, config_large_graph_font(), !axis_on);
+#else
     forecast_grid_fill_axis_slots(axis_slots, MAX_BOTTOM_VIEW_ENTRIES,
                              outer.origin.x, chart_def_pitch(&FORECAST_GRID_DEF),
                              bounds.size.w, forecast_start_local);
+#endif
 
     Series *first  = &ds->series[SERIES_FIRST];
     Series *second = &ds->series[SERIES_SECOND];
@@ -648,16 +608,25 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const bool bars_on       = bars->present;
 
     // Night bands span slot 0..(num_entries-1) so the linear time->x map lands
-    // on the same hour columns (anchor_x + i*pitch) the ticks/lines use.
+    // on the same hour columns (anchor_x + i*pitch) the ticks/lines use (emery: on to
+    // num_entries, the same map one column further).
+#if !defined(PBL_PLATFORM_EMERY)
     const GRect night_plot_rect = GRect(outer.origin.x, 0,
-                                        (ds->num_entries - 1)
-                                            * chart_def_pitch(&FORECAST_GRID_DEF),
+                                        (ds->num_entries - 1) * chart_def_pitch(grid),
                                         outer.size.h - 1);
-    ChartBand *const night_bands = paint->night_bands;   // NightSegments holds at most 3
+#endif
+    ChartBand *const night_bands = paint->night_bands;   // NightSegments' cap
     int num_night_bands = 0;
     if (night_on) {
-        num_night_bands = build_night_bands(night_bands, 3, &night_segments,
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: through the one mapping (graph_x_for_time), to slot num_entries' tick.
+        num_night_bands = build_night_bands(night_bands, FORECAST_NIGHTS_MAX, &night_segments,
+                                            outer.origin.x, pitch_q, forecast_start,
+                                            forecast_end);
+#else
+        num_night_bands = build_night_bands(night_bands, FORECAST_NIGHTS_MAX, &night_segments,
                                             night_plot_rect, forecast_start, forecast_end);
+#endif
     }
     const GColor axis_color = night_on ? FORECAST_AXIS_COLOR_NIGHT
                                        : BOTTOM_VIEW_AXIS_COLOR;
@@ -691,6 +660,19 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         temp_axis_edges_add(&edges, bars->bars.values, drawn, false, false,
                             palette_from_top(bar_stops));
     }
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the 12 h and long grids, and the 24 h grid past 24 slots (26 hours on the
+    // screen-wide plot), fit the scale and name the labels over the hours on screen, every
+    // hour whose tick is (forecast_span_drawn: the edge rule's last hour's point is on the
+    // plot's last column); the 24-slot grid keeps every hour sent (pixel-identical). Before
+    // fit_temp_axis: the relabel reads the bytes, which it turns into rows.
+    ds->fit_entries = ds->num_entries;
+    if (span.slots != FORECAST_SPAN_DAY_SLOTS) {
+        ds->fit_entries = forecast_span_drawn(span, ds->num_entries, bounds.size.w - graph_left);
+        forecast_numbers_relabel(ds, (axis_opts & GRAPH_OPT_SCALE_NUMS) != 0,   // every paint
+                                 s_buffer_hi, s_buffer_lo, sizeof(s_buffer_hi));
+    }
+#endif
     fit_temp_axis(ds, temp_rows, edges.anchors);
 #endif
 
@@ -730,7 +712,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .spacing        = night_hatch_spacing,
             .underlay_color = NIGHT_C(NIGHT_INK_AREA_BASE),
             .has_underlay   = !theme_is_bw(),
-            .contour        = area_pts, .contour_count = ds->num_entries } };
+            .contour        = area_pts,
+            .contour_count  = ds->num_entries + FORECAST_NIGHT_PAST_LAST } };
     }
     // night_over is the full-height day/night hatch — independent of line/bars.
     if (night_on) {
@@ -802,7 +785,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         .inset_top = LINE_INSET(first->line.inset_y), .inset_bottom = LINE_INSET(first->line.inset_y),
         .color = first->line.color, .width = first->line.width } };
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
-        .left   = { 1, axis_color },
+        .left   = { axis_on, axis_color },
         .bottom = { 1, axis_color } } } };
     const ChartLayer axis_layer = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
         .side = GRAPH_SIDE_BOTTOM, .style = bottom_view_tick_style(),
@@ -811,7 +794,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (stripe_band == 0) {
         layers[n++] = axis_layer;
     }
-    chart_draw(ctx, &FORECAST_GRID_DEF, plot, layers, n);
+    chart_draw(ctx, grid, plot, layers, n);
 #if defined(WW_LINE_STYLE)
     // The stripe bands, each its own chart over the same columns, drawn after the plot:
     // the top band above it first, then the band under the zero line — so a top
@@ -839,21 +822,28 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             nb++;
         }
         layers[nb++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
-            .left = { 1, axis_color } } } };
+            .left = { axis_on, axis_color } } } };
         if (!top) {
             layers[nb++] = axis_layer;
         }
-        chart_draw(ctx, &FORECAST_GRID_DEF,
+        chart_draw(ctx, grid,
                    GRect(outer.origin.x, top ? 0 : plot_axis_y + 1, outer.size.w, band_h),
                    layers, nb);
     }
 #endif
 
     // hi/lo temp strip: chart-adjacent chrome, not a chart layer
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: beside the graph, on it or off, naming the curve or the scale (left axis, BETA).
+    draw_axis_numbers(ctx, ds, grid, h, plot_axis_y, top_band, graph_left, bounds.size.w,
+                      axis_opts);
+#else
     draw_left_axis(ctx, h, plot_axis_y, first->line.values, ds->num_entries);
+#endif
 #if !defined(WW_LINE_STYLE)
 #undef plot
 #endif
+#undef GRID_X
     MEMORY_HEAP_PROBE_LOG_MIN(&redraw_probe);
     MEMORY_LOG_HEAP("forecast_update:exit");
 }
@@ -873,6 +863,14 @@ static void text_labels_refresh()
     const int temp_hi = persist_get_temp_max();
     snprintf(s_buffer_hi, sizeof(s_buffer_hi), "%d", config_localize_temp(temp_hi));
     snprintf(s_buffer_lo, sizeof(s_buffer_lo), "%d", config_localize_temp(temp_lo));
+    // The left axis's numbers On graph or Off (emery's options; 0 elsewhere) claim no strip:
+    // the forecast then draws from the screen's left edge (forecast_update_proc), so the health
+    // graph's strip is its own labels' alone (main_window.c retires the health graph's claim
+    // the same way), and a forecast sharing its screen draws from that edge.
+    if (config_forecast_axis() & GRAPH_OPT_NUMS_MASK) {
+        bottom_view_report_label_w(BOTTOM_VIEW_SRC_FORECAST, 0);
+        return;
+    }
 
     int content_w = temp_label_string_size(s_buffer_hi).w;
     const int w_lo = temp_label_string_size(s_buffer_lo).w;
@@ -887,15 +885,46 @@ static void text_labels_refresh()
     bottom_view_report_label_w(BOTTOM_VIEW_SRC_FORECAST, content_w);
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the clip takes the frame's rows from the window's left edge to the frame's right end
+// (the screen's right edge: a graph runs to it, layout.c); the layer sits in it where the
+// window frame puts it.
+void forecast_layer_set_frame(GRect frame)
+{
+    layer_set_frame(s_forecast_clip,
+                    GRect(0, frame.origin.y, frame.origin.x + frame.size.w, frame.size.h));
+    frame.origin.y = 0;
+    layer_set_frame(s_forecast_layer, frame);
+}
+#endif
+
 void forecast_layer_create(Layer *parent_layer, GRect frame)
 {
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the layer sits LAYOUT_PAD_X in from the screen's left edge, and with the left
+    // axis's numbers On graph or Off the plot starts at that edge, left of the layer's frame
+    // (forecast_update_proc's screen_left). So the layer draws unclipped inside a clip of its
+    // own rows widened to the window's left edge: the plot reaches columns 0 and 1, and every
+    // row outside the frame stays clipped as before, the row above it too (a bold stroke's
+    // spill row and a hanging fill's zero row, chart_flip.h, with no top stripe band).
+    s_forecast_clip = layer_create(GRectZero);
+    s_forecast_layer = layer_create(GRectZero);
+    layer_set_clips(s_forecast_layer, false);
+    forecast_layer_set_frame(frame);   // the bounds follow each frame (layer_set_frame)
+#else
     s_forecast_layer = layer_create(frame);
+#endif
     layer_set_update_proc(s_forecast_layer, forecast_update_proc);
     // Registered before the first report below, so a width change repaints this
     // layer from then on (shared strip, bottom_view.h).
     bottom_view_register_consumer(s_forecast_layer);
     text_labels_refresh();
+#if defined(PBL_PLATFORM_EMERY)
+    layer_add_child(s_forecast_clip, s_forecast_layer);
+    layer_add_child(parent_layer, s_forecast_clip);
+#else
     layer_add_child(parent_layer, s_forecast_layer);
+#endif
     MEMORY_LOG_HEAP("after_forecast_layer_create");
 }
 
@@ -916,6 +945,9 @@ void forecast_layer_destroy()
     MEMORY_LOG_HEAP("forecast_layer_destroy:before");
     bottom_view_unregister_consumer(s_forecast_layer);
     layer_destroy(s_forecast_layer);
+#if defined(PBL_PLATFORM_EMERY)
+    layer_destroy(s_forecast_clip);   // emery: the clip, emptied above
+#endif
     MEMORY_LOG_HEAP("forecast_layer_destroy:after");
 }
 

@@ -12,6 +12,9 @@
 // Lockstep with clay-payload.js VIEW_RESET_DOUBLE_FLICK (test/flick-presets.test.js).
 #define VIEW_RESET_DOUBLE_FLICK 0x0100
 
+// CLAY_LARGE_GRAPH_FONT is emery's graph-options word (bit 0 Larger graph fonts, bits 1-7
+// the forecast's left axis): its layout is config.h's GRAPH_OPT_*.
+
 // Decode the Clay bundle (see CONTEXT.md "Clay bundle" / "Guarded key") into
 // *out. Wire knowledge only — no persist, no layers, no side effects.
 //

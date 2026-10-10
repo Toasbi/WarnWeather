@@ -163,7 +163,7 @@
                 "hintByValue": {
                   "slot": "Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar.",
                   "status": "Adds the Health Status Bar — today's steps, last night's sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.",
-                  "all": "Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line. Feedback very welcome via <a href=\"https://github.com/Toasbi/WarnWeather/issues\">GitHub</a>."
+                  "all": "Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line."
                 },
                 "options": [
                   [
@@ -179,7 +179,7 @@
                     "status"
                   ],
                   [
-                    "Status + Graph (BETA)",
+                    "Status + Graph",
                     "all"
                   ]
                 ],
@@ -4250,7 +4250,7 @@
                 "type": "toggle",
                 "messageKey": "vibe",
                 "label": "Vibrate on bluetooth disconnect",
-                "defaultValue": false,
+                "defaultValue": true,
                 "showWhen": {
                   "not": {
                     "env": "onDemand"
@@ -5349,7 +5349,7 @@
                   "max": "The highest wind left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
                   "both": "The wind now and the highest left today, like 12/30, while that peak is still ahead or happening now. After it, tomorrow's peak takes its place with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
-                "defaultValue": "current",
+                "defaultValue": "both",
                 "options": [
                   [
                     "Now",
@@ -5517,7 +5517,7 @@
                 "type": "toggle",
                 "messageKey": "windSlotUnit",
                 "label": "Show unit",
-                "defaultValue": true,
+                "defaultValue": false,
                 "hint": "Prints the unit after the value when it fits — in a narrow left or right slot, a pair plus the direction arrow leaves no room for it."
               },
               {
@@ -5626,7 +5626,7 @@
                   "max": "The highest gusts left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
                   "both": "The gusts now and the highest left today, like 20/45, while that peak is still ahead or happening now. After it, tomorrow's peak takes its place with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
-                "defaultValue": "current",
+                "defaultValue": "both",
                 "options": [
                   [
                     "Now",
@@ -5794,7 +5794,7 @@
                 "type": "toggle",
                 "messageKey": "gustSlotUnit",
                 "label": "Show unit",
-                "defaultValue": true,
+                "defaultValue": false,
                 "hint": "Prints the unit after the value when it fits — in a narrow left or right slot, a pair plus the direction arrow leaves no room for it."
               },
               {
@@ -8255,7 +8255,7 @@
                 "type": "toggle",
                 "messageKey": "vibe",
                 "label": "Vibrate on disconnect",
-                "defaultValue": false,
+                "defaultValue": true,
                 "joinPrevious": "loose",
                 "showWhen": {
                   "env": "onDemand"
@@ -10084,7 +10084,7 @@
             "pane": "forecast",
             "id": "lines",
             "title": "Lines",
-            "intro": "The forecast graph looks up to 24 hours ahead. Temperature is always drawn; the metrics and rain bars you pick below join it.",
+            "intro": "The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or up to 66: Time span below). Temperature is always drawn; the metrics and rain bars you pick below join it.",
             "items": [
               {
                 "type": "sheet",
@@ -10270,6 +10270,97 @@
                     },
                     {
                       "env": "lineStyles"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "pane": "forecast",
+            "id": "forecastSpan",
+            "title": "Time span",
+            "showWhen": {
+              "env": "forecastSpan"
+            },
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "forecastHours",
+                "label": "Hours ahead",
+                "defaultValue": "24",
+                "hintByValue": {
+                  "12": "The next 12 hours, in wider columns.",
+                  "24": "The next 24 hours.",
+                  "48": "As far ahead as your weather provider's hourly forecast reaches and the graph fits, in narrow columns. How many hours depends on the provider and the graph's layout."
+                },
+                "optionsFrom": {
+                  "resolver": "forecastSpanOptions"
+                },
+                "showWhen": {
+                  "env": "forecastSpan"
+                }
+              }
+            ]
+          },
+          {
+            "pane": "forecast",
+            "id": "axis",
+            "title": "Left axis (Beta)",
+            "showWhen": {
+              "env": "platform",
+              "eq": "emery"
+            },
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "forecastAxisNumbers",
+                "label": "High / low numbers",
+                "defaultValue": "axis",
+                "options": [
+                  [
+                    "On axis",
+                    "axis"
+                  ],
+                  [
+                    "On graph",
+                    "graph"
+                  ],
+                  [
+                    "Off",
+                    "off"
+                  ]
+                ],
+                "hintByValue": {
+                  "axis": "The forecast's highest and lowest temperature, beside the axis line on the left.",
+                  "graph": "The high number sits under the highest point, the low one over the lowest. No axis: the graph starts at the left edge.",
+                  "off": "No numbers and no axis: the graph starts at the left edge."
+                },
+                "more": true,
+                "showWhen": {
+                  "env": "platform",
+                  "eq": "emery"
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "forecastAxisScale",
+                "label": "Include feels-like & dew point",
+                "defaultValue": false,
+                "hint": "The numbers show the lowest and highest value of every line on the temperature scale, not only the air temperature.",
+                "more": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "platform",
+                      "eq": "emery"
+                    },
+                    {
+                      "key": "forecastAxisNumbers",
+                      "ne": "off"
+                    },
+                    {
+                      "when": "tempAxisLineDrawn"
                     }
                   ]
                 }

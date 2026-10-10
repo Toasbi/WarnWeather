@@ -10,8 +10,22 @@
  * battery-expensive part of a fetch cycle.
  *
  * All changed categories ride in ONE Pebble.sendAppMessage call: the channel
- * is half-duplex, so back-to-back sends would collide. Caches are committed
- * only in the ACK callback, so a NACKed category is retried on the next send.
+ * is half-duplex, so back-to-back sends would collide. Each changed category's
+ * cache entry is forgotten BEFORE the send and committed again only in the ACK
+ * callback. A NACK or a timeout does not say the watch lacks the message (it
+ * may have stored it and lost the ACK), and PKJS can be torn down mid-send
+ * (the user left the watchface) with no callback at all; a cache left holding
+ * the previous content would then claim the watch holds what it may not, and
+ * a later payload equal to it would be skipped while the watch kept the
+ * unacknowledged one. Forgotten, the next send of that category goes out
+ * whatever it holds: at most one redundant send after a failure.
+ *
+ * Two sends of one category can be in flight at once (a status re-bake from a
+ * phone-battery event or a config close beside a fetch's send), so an ACK
+ * commits only the categories no later send has carried since: the older
+ * send's ACK would otherwise cache content the newer one may already have
+ * replaced on the watch. The send numbers live in memory, like the callbacks
+ * they guard: a PKJS restart drops both.
  *
  * Every compare/send cycle is reported to dev-stats as a semantic descriptor
  * (skip immediately; ack/nack from the AppMessage callbacks).
@@ -21,6 +35,12 @@ var KEYS = require('./storage-keys');
 var ChangeDetector = require('./change-detector');
 var devStats = require('./dev-stats');
 var radarDedupe = require('./weather/radar-dedupe');
+
+// Numbers each send in this PKJS life (sendCount) and keeps, per cache key, the
+// number of the newest send that carried its category (newestSend): an ACK
+// commits a category only when its send is still that newest one.
+var sendCount = 0;
+var newestSend = {};
 
 /** Weather categories, each mapping a cache key to its AppMessage keys. */
 var WEATHER_CATEGORIES = [
@@ -127,10 +147,23 @@ function sendChangedCategories(payload, categories, label, onSuccess, onFailure)
     }
 
     console.log('Outbox: sending ' + label + ' categories: ' + changedNames.join(', '));
+    sendCount += 1;
+    var sendId = sendCount;
+    // From here until the ACK the watch holds either the old content or this
+    // one: forget the old, so a NACK, a timeout or PKJS torn down before the
+    // callback leaves no cache that claims the watch holds it.
+    changed.forEach(function(entry) {
+        newestSend[entry.cacheKey] = sendId;
+        localStorage.removeItem(entry.cacheKey);
+    });
     Pebble.sendAppMessage(outgoing, function() {
-        // Commit caches only after the watch ACKed, so NACKs retry next time.
+        // Commit caches only after the watch ACKed, so NACKs retry next time,
+        // and only those no later send has carried since: that send may have
+        // replaced this content on the watch, ACKed or not.
         changed.forEach(function(entry) {
-            localStorage.setItem(entry.cacheKey, entry.serialized);
+            if (newestSend[entry.cacheKey] === sendId) {
+                localStorage.setItem(entry.cacheKey, entry.serialized);
+            }
         });
         devStats.record(statsDescriptor(statsType, result, 'ack'));
         console.log('Outbox: ' + label + ' sent successfully.');

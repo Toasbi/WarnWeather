@@ -1,15 +1,16 @@
 var sunEventsLib = require('./sun-events.js');
 var nextSunEvents = sunEventsLib.nextSunEvents;
-var isValidSunEvent = sunEventsLib.isValidSunEvent;
+var encodeSunEvents = sunEventsLib.encodeSunEvents;
 var outbox = require('../outbox.js');
 var wireUnits = require('../wire-units.js');
-var clampByte = wireUnits.clampByte;
+var scaleTrendToBytes = wireUnits.scaleTrendToBytes;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
 var dayPeaks = require('./day-peaks.js');
 var feelsLike = require('./feels-like.js');
 var fetchOptions = require('./fetch-options.js');
+var hourlyWindow = require('./hourly-window.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
 // fetches can require them without the old provider-cycle lazy-require hack);
@@ -30,7 +31,16 @@ var readGpsCache = locationLib.readGpsCache;
 var GPS_CACHE_MAX_AGE_MS = locationLib.GPS_CACHE_MAX_AGE_MS;
 
 
+// The series that become wire trends (forecast-series.js): the hours a payload carries
+// are the fewest any of them holds (payloadEntries). windDirTrend and aqiTrend feed
+// status slots only, so they never shorten the graph.
+var GRAPH_SERIES = ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend', 'gustTrend', 'uvTrend',
+    'cloudTrend', 'pressureTrend', 'feelsTrend', 'dewTrend'];
+
 var WeatherProvider = function() {
+    // The base window every adapter must fill (hasValidData, adoptMapped's zero-fill).
+    // The hours a payload carries are payloadEntries(): the graph's span
+    // (options.forecastHours: 14, 24 or, on an emery, 26 or the long span's 68).
     this.numEntries = 24;
     this.name = 'Template';
     // The name on the watch's notice line (notices.js, ~31 B) when `name` is too long
@@ -195,7 +205,8 @@ WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure
     var sunEvents;
 
     try {
-        sunEvents = nextSunEvents(new Date(), lat, lon);
+        // The span widens a polar pair to cover a long graph (sun-events.js).
+        sunEvents = nextSunEvents(new Date(), lat, lon, undefined, this.options.forecastHours);
     }
     catch (ex) {
         onFailure(failure('sun_events', 'calc_error'));
@@ -578,8 +589,11 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 // failed AQI call still sends the forecast. Reset it per
                 // cycle, like pollen below: the provider instance is reused
                 // across fetches, and a failed, no-station or '-' lookup must
-                // show '--', not the previous cycle's reading (or an
-                // Open-Meteo window aligned to the previous startTime).
+                // not keep the previous cycle's series (an Open-Meteo window
+                // aligned to the previous startTime). Such a lookup shows the
+                // last good reading at the same place and scale from the last
+                // 2 h instead (air-quality.js settleAqi), and '--' only when
+                // there is none.
                 var self = this;
                 self.aqiTrend = [];
                 self.aqiFeedId = null;
@@ -671,55 +685,29 @@ WeatherProvider.prototype.hasValidData = function() {
 };
 
 /**
- * Scale the first `numEntries` of a trend by `scale` and clamp each to a wire
- * byte [0, 255]. Missing entries collapse to 0.
+ * The hours the payload carries: hourly-window.js sendHours over the GRAPH_SERIES lengths.
  *
- * @param {number[]} trend Source trend values.
- * @param {number} numEntries Number of leading entries to keep.
- * @param {number} scale Multiplier applied before clamping (e.g. 10 for tenths).
- * @returns {number[]} Clamped uint8 wire bytes.
+ * @returns {number} The hours to send.
  */
-function scaleTrendToBytes(trend, numEntries, scale) {
-    return trend.slice(0, numEntries).map(function(value) {
-        return clampByte((value || 0) * scale);
-    });
-}
-
-/**
- * Encode sun events into the SUN_EVENTS wire array: a leading byte (0 when the
- * series starts on a sunrise, else 1) followed by each event's epoch-seconds
- * reinterpreted as little-endian Int32 bytes.
- *
- * Null when fewer than two events carry a real date, and getPayload then
- * leaves the key out. The watch needs the start byte plus two epochs
- * (handle_sun_events ignores anything shorter), and an Invalid Date would pack
- * as epoch 0, which the watch persists over its last good pair before
- * get_valid_sun_events rejects it.
- *
- * @param {{type: string, date: Date}[]} sunEvents Ordered sun events.
- * @returns {?number[]} SUN_EVENTS wire bytes, or null when there is no pair.
- */
-function encodeSunEvents(sunEvents) {
-    sunEvents = Array.isArray(sunEvents) ? sunEvents.filter(isValidSunEvent) : [];
-    if (sunEvents.length < 2) {
-        return null;
-    }
-    var intView = new Int32Array(sunEvents.map(function(sunEvent) {
-        return sunEvent.date.getTime() / 1000; // Seconds since epoch
+WeatherProvider.prototype.payloadEntries = function() {
+    var self = this;
+    return hourlyWindow.sendHours(this.options, this.numEntries, GRAPH_SERIES.map(function(k) {
+        var s = self[k];
+        return (s && s.length) || 0;
     }));
-    var byteArray = Array.prototype.slice.call(new Uint8Array(intView.buffer));
-    return [sunEvents[0].type === 'sunrise' ? 0 : 1].concat(byteArray);
-}
+};
 
 /**
  * Build the watch weather AppMessage payload from the provider's trend/current
  * fields. Trend byte-scaling and sun-event encoding live in their own helpers
- * so this stays a flat assembly of the wire object.
+ * (wire-units.js scaleTrendToBytes, sun-events.js encodeSunEvents) so this
+ * stays a flat assembly of the wire object. It carries payloadEntries()
+ * hours, so TEMP_MIN/TEMP_MAX name the window the graph shows.
  *
  * @returns {Object} Weather AppMessage payload (pre render-transform).
  */
 WeatherProvider.prototype.getPayload = function() {
-    var numEntries = this.numEntries;
+    var numEntries = this.payloadEntries();
     var temps = this.tempTrend.slice(0, numEntries).map(function(temperature) {
         return Math.round(temperature);
     });
@@ -738,7 +726,10 @@ WeatherProvider.prototype.getPayload = function() {
     // selected. (An early encode here forced a decode-and-re-encode round trip
     // downstream.)
     // TEMP_MIN/TEMP_MAX carry the ACTUAL air range either way: the watch reads
-    // them only for the hi/lo labels; the scaling band travels in the bytes.
+    // them only for the hi/lo labels; the scaling band travels in the bytes. (One
+    // exception, made later in applyForecastSeries: a known emery with the left
+    // axis's 'Include feels-like & dew point' option on gets the temperature
+    // scale's ends instead -- forecast-axis.js bakesScale.)
     // They are whole °F int32s, so for °C the watch's f_to_c rounds them a second
     // time — a label can sit a degree off the single-rounded temp slot.
     var tempMin = Infinity, tempMax = -Infinity, ti;

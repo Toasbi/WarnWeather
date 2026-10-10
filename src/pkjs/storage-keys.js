@@ -82,6 +82,11 @@ module.exports = {
     WIND_DAY_RECORD_KEY: 'windDayRecord',
     GUST_DAY_RECORD_KEY: 'gustDayRecord',
     AQI_DAY_RECORD_KEY: 'aqiDayRecord',
+    // The last good AQI reading ({scale, at: epoch ms, lat, lon, aqi}) — the AQI
+    // slot's stand-in when a later lookup at the same place, in the same scale,
+    // answers no reading (a WAQI '-' or no station, a timeout) within 2 h
+    // (weather/air-quality.js). Stays on the phone.
+    LAST_AQI_KEY: 'lastAqi',
     NEWS_CACHE_KEY: 'newsCache',
     NOTICES_KEY: 'notices',
     LAST_SENT_NOTICE_KEY: 'lastSentNotice',

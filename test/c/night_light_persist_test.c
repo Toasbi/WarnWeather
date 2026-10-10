@@ -4,8 +4,8 @@
 // (night_light_wire_ok); this pins what happens to the five bytes afterwards.
 //
 // persist.c compiles on the host as-is: it needs nothing from the SDK but the
-// persistent-storage syscalls, which are faked over a RAM map below. That fake is
-// the whole point — it is what lets this file EXECUTE the two things that are
+// persistent-storage syscalls, which fake_persist.h fakes over a RAM map. That fake
+// is the whole point — it is what lets this file EXECUTE the two things that are
 // otherwise only readable:
 //   1. the change gating (AGENTS.md: "only write persist when the value actually
 //      changed"), i.e. that a re-save of identical bytes performs no flash write
@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "c/appendix/persist.h"
+#include "fake_persist.h"
 
 #if !defined(NIGHT_LIGHT_SUPPORTED)
 #error "night_light_persist_test.c must be built with a colour-backlight macro"
@@ -41,74 +42,6 @@ static void expect(const char *name, int got, int want) {
         printf("FAIL %s: got %d want %d\n", name, got, want);
         s_failures++;
     }
-}
-
-// --- Fake persistent storage --------------------------------------------------
-// A RAM map keyed by slot, with the real firmware's return conventions
-// (applib/persist.h): the reads answer E_DOES_NOT_EXIST for an unset key, and
-// persist_read_data copies at most buffer_size bytes and returns how many it
-// copied — so a stored blob SHORTER than the buffer returns short, which is the
-// case persist_get_night_light's guard exists for.
-#define FAKE_KEYS 64u
-#define FAKE_MAX 64u
-
-static bool s_present[FAKE_KEYS];
-static uint8_t s_blob[FAKE_KEYS][FAKE_MAX];
-static size_t s_len[FAKE_KEYS];
-static int s_data_writes;   // persist_write_data calls that actually reached flash
-
-static void flash_reset(void) {
-    memset(s_present, 0, sizeof(s_present));
-    memset(s_blob, 0, sizeof(s_blob));
-    memset(s_len, 0, sizeof(s_len));
-    s_data_writes = 0;
-}
-
-// Seed a slot without going through the setter, to build states the setter itself
-// cannot produce (a truncated blob, a longer one from a future firmware).
-static void flash_seed(uint32_t key, const uint8_t *bytes, size_t len) {
-    s_present[key] = true;
-    memcpy(s_blob[key], bytes, len);
-    s_len[key] = len;
-}
-
-bool persist_exists(const uint32_t key) {
-    return key < FAKE_KEYS && s_present[key];
-}
-
-int persist_get_size(const uint32_t key) {
-    if (!persist_exists(key)) { return E_DOES_NOT_EXIST; }
-    return (int) s_len[key];
-}
-
-int persist_read_data(const uint32_t key, void *buffer, const size_t buffer_size) {
-    if (!persist_exists(key)) { return E_DOES_NOT_EXIST; }
-    size_t n = s_len[key] < buffer_size ? s_len[key] : buffer_size;
-    memcpy(buffer, s_blob[key], n);
-    return (int) n;
-}
-
-int persist_write_data(const uint32_t key, const void *data, const size_t size) {
-    s_data_writes++;
-    s_present[key] = true;
-    memcpy(s_blob[key], data, size);
-    s_len[key] = size;
-    return (int) size;
-}
-
-// Declared by the stub because persist.c's other accessors name them; the
-// night-light path never reaches any of these.
-bool persist_read_bool(const uint32_t key) { (void) key; return false; }
-int32_t persist_read_int(const uint32_t key) { (void) key; return 0; }
-status_t persist_write_bool(const uint32_t key, const bool value) {
-    (void) key; (void) value; return 0;
-}
-status_t persist_write_int(const uint32_t key, const int32_t value) {
-    (void) key; (void) value; return 0;
-}
-status_t persist_delete(const uint32_t key) {
-    if (key < FAKE_KEYS) { s_present[key] = false; s_len[key] = 0; }
-    return 0;
 }
 
 // --- Helpers ------------------------------------------------------------------

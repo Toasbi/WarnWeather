@@ -1373,3 +1373,104 @@ test('a placed alert makes UV, AQI and pollen fetch with no slot or line', () =>
   assert.equal(needsAqi(partial), true);
   assert.deepEqual(dayPeakCodes(partial), ['uv', 'wind', 'gust', 'aqi']);
 });
+
+// Emery's long span (forecast-span.js): the series bake is length-agnostic, so a
+// 48-hour payload makes every wire trend 48 long — lines, marks, a stripe's level bytes, a
+// Show: Alert line and the rain bars alike.
+test('a 48-hour payload bakes 48-byte wire trends on every line, stripes and alert lines included', () => {
+  const ramp = (f) => Array.from({ length: 48 }, (_, i) => f(i));
+  const payload = () => ({
+    TEMP_RAW_TREND: ramp((i) => 10 + (i % 20)), TEMP_MIN: 10, TEMP_MAX: 29,
+    PRECIP_TREND_UINT8: ramp((i) => (i * 7) % 100), RAIN_TREND_UINT8: ramp((i) => i % 30),
+    WIND_TREND_UINT8: ramp((i) => 10 + (i % 40)), GUST_TREND_UINT8: ramp((i) => 20 + (i % 50)),
+    UV_TREND_UINT8: ramp((i) => (i * 3) % 90), CLOUD_TREND: ramp((i) => (i * 5) % 100),
+    PRESSURE_TREND: ramp((i) => 1000 + (i % 20)), AQI_TREND: [], NUM_ENTRIES: 48,
+    CURRENT_TEMP: 10, CITY: 'X', SUN_EVENTS: [1]
+  });
+  const KEYS = ['TEMP_TREND_UINT8', 'SECONDARY_LINE_TREND_UINT8', 'THIRD_LINE_TREND_UINT8',
+    'FOURTH_LINE_TREND_UINT8', 'FIFTH_LINE_TREND_UINT8', 'BAR_TREND_UINT8'];
+  [
+    { secondaryLine: 'precip_prob', thirdLine: 'wind', fourthLine: 'gust', fifthLine: 'uv' },
+    { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop', thirdLine: 'pressure',
+      fourthLine: 'gust', fourthLineStyle: 'x', fifthLine: 'uv', fifthLineStyle: 'stripeBottom' },
+    { secondaryLine: 'precip_prob', thirdLine: 'wind', fourthLine: 'gust', fifthLine: 'uv',
+      windLineShow: 'alert', gustLineShow: 'alert', uvLineShow: 'alert' }
+  ].forEach((lines) => {
+    const out = applyForecastSeries(payload(), bare(Object.assign({ barSource: 'rain' }, lines)),
+      { platform: 'emery' });
+    KEYS.forEach((k) => assert.equal(out[k].length, 48, JSON.stringify(lines) + ' ' + k));
+    assert.equal(out.NUM_ENTRIES, 48);
+  });
+});
+
+// ---- The left axis's 'Include feels-like & dew point' (BETA, emery) -----------------------
+// On a KNOWN emery with forecastAxisScale on, TEMP_MIN/TEMP_MAX name the temperature scale's
+// ends: the air and every drawn feels-like / capped dew point value (forecast-axis.js
+// bakesScale, forecast-series.js tempScaleRange). The trend bytes never change.
+const { tempScaleRange } = require('../src/pkjs/forecast-series');
+
+test('tempScaleRange: the ends over the air and the drawn series widened to whole degrees, missing readings skipped', () => {
+  assert.deepEqual(tempScaleRange([10, 20, 30], []), { min: 10, max: 30 });
+  assert.deepEqual(tempScaleRange([10, 20, 30], [5.4, null, 38.6]), { min: 5, max: 39 });
+  assert.deepEqual(tempScaleRange([10, 20, 30], [5.6, 38.4]), { min: 5, max: 39 },
+    'widened outward (floor / ceil), never rounded inward');
+  assert.deepEqual(tempScaleRange([-3, 2], [-7.5, NaN, undefined]), { min: -8, max: 2 },
+    'negatives floor away from zero');
+  assert.deepEqual(tempScaleRange([], [12.2]), { min: 12, max: 13 });
+  assert.equal(tempScaleRange([], []), null);
+  assert.equal(tempScaleRange([null], [NaN]), null);
+  assert.equal(tempScaleRange(undefined, undefined), null);
+});
+
+test('scale option: a dew trough under the air low and a feels peak over its high name the ends', () => {
+  const settings = { secondaryLine: 'feels', thirdLine: 'dew', barSource: 'off', forecastAxisScale: true };
+  const payload = () => feelsPayload({ FEELS_TREND: [12, 22, 36.6], DEW_TREND: [4.4, 8, 12] });
+  const out = applyForecastSeries(payload(), settings, { platform: 'emery' });
+  assert.equal(out.TEMP_MIN, 4, 'Math.floor of the dew trough');
+  assert.equal(out.TEMP_MAX, 37, 'Math.ceil of the feels peak');
+  // The bytes are those of the option off: only the labels' values change.
+  const off = applyForecastSeries(payload(), Object.assign({}, settings, { forecastAxisScale: false }),
+    { platform: 'emery' });
+  assert.equal(off.TEMP_MIN, 10);
+  assert.equal(off.TEMP_MAX, 30);
+  ['TEMP_TREND_UINT8', 'SECONDARY_LINE_TREND_UINT8', 'THIRD_LINE_TREND_UINT8',
+    'FOURTH_LINE_TREND_UINT8', 'FIFTH_LINE_TREND_UINT8'].forEach((k) =>
+    assert.deepEqual(out[k], off[k], k));
+});
+
+test('scale option: the ends are the joint band the bytes were scaled against (floor / ceil, not round)', () => {
+  // Math.round would name 5 and 36 here, one degree inside the band the curves fill; the
+  // watch's hi/lo readback (emery's 12 h and long spans) maps the bytes back onto these ends.
+  const settings = { secondaryLine: 'feels', thirdLine: 'dew', barSource: 'off', forecastAxisScale: true };
+  const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [12, 22, 36.4], DEW_TREND: [4.6, 8, 12] }),
+    settings, { platform: 'emery' });
+  assert.equal(out.TEMP_MIN, 4);
+  assert.equal(out.TEMP_MAX, 37);
+});
+
+test('scale option: a dew point over the air never raises TEMP_MAX (capped at each hour\'s temp)', () => {
+  const out = applyForecastSeries(feelsPayload({ DEW_TREND: [12, 25, 41] }),
+    { secondaryLine: 'dew', barSource: 'off', forecastAxisScale: true }, { platform: 'emery' });
+  assert.equal(out.TEMP_MAX, 30, 'the capped dew reaches the air high, no further');
+  assert.equal(out.TEMP_MIN, 10);
+});
+
+test('scale option: the air range off a known emery, without a line, or with the option off', () => {
+  const settings = { secondaryLine: 'dew', barSource: 'off', forecastAxisScale: true };
+  const payload = () => feelsPayload({ DEW_TREND: [2, 8, 12] });
+  ['basalt', 'aplite', 'diorite', 'flint', 'chalk'].forEach((p) => {
+    const out = applyForecastSeries(payload(), settings, { platform: p });
+    assert.equal(out.TEMP_MIN, 10, p);
+    assert.equal(out.TEMP_MAX, 30, p);
+  });
+  const unknown = applyForecastSeries(payload(), settings, null);
+  assert.equal(unknown.TEMP_MIN, 10, 'unknown platform: only a KNOWN emery bakes the scale');
+  const noLine = applyForecastSeries(payload(), { secondaryLine: 'wind', barSource: 'off',
+    forecastAxisScale: true }, { platform: 'emery' });
+  assert.equal(noLine.TEMP_MIN, 10, 'no feels-like / dew point line: the air range');
+  assert.equal(noLine.TEMP_MAX, 30);
+  // The numbers' place never gates the bake: a numbers flip stays a Clay-only resend.
+  const numsOff = applyForecastSeries(payload(), Object.assign({ forecastAxisNumbers: 'off' }, settings),
+    { platform: 'emery' });
+  assert.equal(numsOff.TEMP_MIN, 2, 'Off still bakes the scale');
+});

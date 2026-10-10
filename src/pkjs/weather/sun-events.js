@@ -22,6 +22,32 @@ function isValidSunEvent(sunEvent) {
 }
 
 /**
+ * Encode sun events into the SUN_EVENTS wire array: a leading byte (0 when the
+ * series starts on a sunrise, else 1) followed by each event's epoch-seconds
+ * reinterpreted as little-endian Int32 bytes.
+ *
+ * Null when fewer than two events carry a real date, and getPayload then
+ * leaves the key out. The watch needs the start byte plus two epochs
+ * (handle_sun_events ignores anything shorter), and an Invalid Date would pack
+ * as epoch 0, which the watch persists over its last good pair before
+ * get_valid_sun_events rejects it.
+ *
+ * @param {{type: string, date: Date}[]} sunEvents Ordered sun events.
+ * @returns {?number[]} SUN_EVENTS wire bytes, or null when there is no pair.
+ */
+function encodeSunEvents(sunEvents) {
+    sunEvents = Array.isArray(sunEvents) ? sunEvents.filter(isValidSunEvent) : [];
+    if (sunEvents.length < 2) {
+        return null;
+    }
+    var intView = new Int32Array(sunEvents.map(function(sunEvent) {
+        return sunEvent.date.getTime() / 1000; // Seconds since epoch
+    }));
+    var byteArray = Array.prototype.slice.call(new Uint8Array(intView.buffer));
+    return [sunEvents[0].type === 'sunrise' ? 0 : 1].concat(byteArray);
+}
+
+/**
  * Select the next (up to) two sun events after `now`, preserving order.
  * Both providers gather a 4-event window (today + tomorrow) and need the
  * next 24 hours' worth — i.e. the first two still in the future.
@@ -91,14 +117,22 @@ function mirroredSunEvent(sunEvent, lat, lon) {
  * day). They sit two days before and three days after today's UTC midnight,
  * so the pair changes once a day like a real one, and the shaded span runs
  * from yesterday to the end of tomorrow (UTC): the whole 23 h chart of any
- * fetch made today. The sun status slot reads '--' for it (isPolarSunPair).
+ * fetch made today. A graph longer than a day (the watch repeats the pair up to
+ * two days on) moves the far end a day out, six days apart: the span then runs
+ * from today to three days on, the whole 47 h chart of any fetch made today.
+ * Emery's long span (68 h) moves it one more day, seven apart: its watch also
+ * shades from the last sunset listed to the graph's end (forecast_night.h's
+ * trailing close), so the far event repeated a day nearer (midnight + 4 d) must
+ * lie past any long graph's end (now + 68 h, at most midnight + 92 h). The sun
+ * status slot reads '--' for it (isPolarSunPair).
  *
  * @param {Date} now Reference time.
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
+ * @param {number} [spanHours] The forecast graph's hours (options.forecastHours).
  * @returns {{type: string, date: Date}[]} The two-event polar pair.
  */
-function polarSunEvents(now, lat, lon) {
+function polarSunEvents(now, lat, lon, spanHours) {
     // Classify by the coming solar noon rather than by `now`: in the last
     // short night before polar day the sun is below the horizon, but the day
     // ahead has no sunset.
@@ -107,7 +141,7 @@ function polarSunEvents(now, lat, lon) {
     var sunUp = SunCalc.getPosition(new Date(noon), lat, lon).altitude > SUNRISE_ALTITUDE_RAD;
     var utcMidnight = Math.floor(now.getTime() / DAY_MS) * DAY_MS;
     var before = new Date(utcMidnight - 2 * DAY_MS);
-    var after = new Date(utcMidnight + 3 * DAY_MS);
+    var after = new Date(utcMidnight + (spanHours > 2 * 24 ? 5 : (spanHours > 24 ? 4 : 3)) * DAY_MS);
     return sunUp
         ? [{ type: 'sunrise', date: before }, { type: 'sunset', date: after }]
         : [{ type: 'sunset', date: before }, { type: 'sunrise', date: after }];
@@ -161,15 +195,17 @@ function isWatchPair(upcoming) {
  * @param {number} lon Longitude.
  * @param {{type: string, date: Date}[]} [candidates] A provider's own
  *   sunrise/sunset list, day by day (OpenWeatherMap's daily data).
+ * @param {number} [spanHours] The forecast graph's hours (options.forecastHours):
+ *   the polar pair's reach (polarSunEvents).
  * @returns {{type: string, date: Date}[]} Exactly two sun events.
  */
-function nextSunEvents(now, lat, lon, candidates) {
+function nextSunEvents(now, lat, lon, candidates, spanHours) {
     var upcoming = candidates ? pickNext24hSunEvents(candidates, now) : [];
     if (!isWatchPair(upcoming) || startsAfterNextDay(upcoming, now)) {
         upcoming = pickNext24hSunEvents(sunCalcSunEvents(now, lat, lon), now);
     }
     if (upcoming.length === 0 || startsAfterNextDay(upcoming, now)) {
-        return polarSunEvents(now, lat, lon);
+        return polarSunEvents(now, lat, lon, spanHours);
     }
     if (upcoming.length === 1) {
         return [upcoming[0], mirroredSunEvent(upcoming[0], lat, lon)];
@@ -191,6 +227,7 @@ function isPolarSunPair(firstEpoch, secondEpoch) {
 
 module.exports = {
     isValidSunEvent: isValidSunEvent,
+    encodeSunEvents: encodeSunEvents,
     pickNext24hSunEvents: pickNext24hSunEvents,
     sunCalcSunEvents: sunCalcSunEvents,
     mirroredSunEvent: mirroredSunEvent,

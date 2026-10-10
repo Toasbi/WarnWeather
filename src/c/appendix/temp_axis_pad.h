@@ -1,15 +1,21 @@
 #pragma once
 // The forecast plot's vertical layout, the temperature-axis lines' margins and the hi/lo
-// labels that name their extremes: pure, SDK-free, so the host suite can pin every rule
+// labels that name their extremes, beside the graph or (emery's left-axis options, THE NUMBERS
+// ON THE GRAPH at the end) on it: pure, SDK-free, so the host suite can pin every rule
 // (test/c/temp_axis_pad_test.c; the chart_flip.h pattern). forecast_layer.c is the one
 // caller, and only off aplite: aplite is the frozen fork, it has no stripes, its insets are
 // constants and its labels sit where they always did. The settings preview mirrors the rules
-// (preview-forecast.js, draw-from.js forecastAnchors), pinned by
+// (preview-axis.js, preview-forecast.js, draw-from.js forecastAnchors), pinned by
 // test/config-temp-axis-pad.test.js.
 //
 // WHAT TAKES PART (owner, 2026-10-02). Only a series with at least one value above 0 in the
 // window the graph draws takes part in the layout: the hours whose column starts on screen
-// (temp_axis_drawn_entries; the phone sends 24, at most 19 fit on basalt and 23 on emery). One
+// (temp_axis_drawn_entries; the phone sends 24, at most 19 fit on basalt and 23 on emery,
+// whose 12 h and long spans fill the width and clip the rest; the scale and the labels cover
+// the hours on screen there, forecast_layer.c fit_entries, forecast_span.h). On emery, but at
+// the 24 h grid's whole pitch, the hours whose bar starts on screen (forecast_span.h
+// forecast_span_laid_out): the long span's last hour, cut at its tick column on the plot's
+// last one, shows nothing that could stand on an edge. One
 // with nothing above 0 there draws nothing (a stripe's empty cell, a bar of 0, a metric line's
 // wire byte 0: all draw nothing), and the plot lays out as if it were not there: a stripe
 // gives up its band (no band, no gap; the plot grows into it) and a line, its marks, its fill
@@ -187,6 +193,22 @@ static inline void temp_axis_range_widen(TempAxisRange *r, const int16_t *values
     }
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: byte b of a temperature-axis line read back to whole degrees, on the straight line
+// through the global extremes g (every hour sent) and the phone's TEMP_MIN / TEMP_MAX (lo,
+// hi), rounded half up; the ends exact. The 12 h and long grids name the hours on screen
+// with it (forecast_numbers.h forecast_numbers_relabel). The phone encodes b = round((t -
+// Jlo) * 250 / S) on the joint band S (forecast-series.js tempTrendToBytes), so the read is
+// exact for the air alone at any span up to 250 and for a joint band up to about 127 degrees,
+// +-1 beyond (test/c/temp_axis_pad_test.c). b lies in [g.lo, g.hi], so no sign fix-up.
+static inline int temp_axis_byte_temp(int b, TempAxisRange g, int lo, int hi) {
+    if (b >= g.hi) { return hi; }
+    if (b <= g.lo) { return lo; }
+    const int span = g.hi - g.lo;
+    return lo + (int)((unsigned)(2 * (b - g.lo) * (hi - lo) + span) / (unsigned)(2 * span));
+}
+#endif
+
 // The fit for one redraw (THE SCALE): the joint range's lowest byte `r.lo` lands on the bottom
 // margin's row, its highest `r.hi` on the top margin's, and every byte lies on the straight
 // line through the two: row = off + byte * d / span, inside the plot's content rows
@@ -287,3 +309,129 @@ static inline void temp_labels_align_to_curve(int *hi_y, int *lo_y, int h,
     const TempAxisRange r = temp_axis_range(rows, n);
     temp_labels_align(hi_y, lo_y, h, zero_y - r.hi, zero_y - r.lo);
 }
+
+// THE NUMBERS ON THE GRAPH (owner, 2026-10-09; BETA, emery only: config.h GRAPH_OPT_*). The
+// left axis's options can take the hi/lo numbers off the label strip: "On graph" puts the hi
+// number under the point it names and the lo number over its point, "Off" draws none, and
+// either way the left axis goes: no strip, no axis line, and the plot starts at the screen's
+// left edge (or, with the health graph on the same screen, at the shared edge: bottom_view.h).
+// The point is the temperature curve's highest and lowest vertex or, with "Include feels-like
+// & dew point" (GRAPH_OPT_SCALE_NUMS), the highest and lowest of every line on the
+// temperature's scale (THE SCALE: the feels-like and dew point lines too), over every hour
+// sent, as the numbers' values are. A number's ink is centred on its point's columns, held
+// inside the plot, and keeps clear of its point's line (owner, 2026-10-10: "not touching the
+// line"): the hi number's ink starts TEMP_LABEL_POINT_GAP rows under the lowest row that line
+// takes over the number's columns and its ring's, the lo number's ends that far over the
+// highest. Its rows are held inside the plot's content rows, so it never reaches a stripe
+// band, the zero line or the hour labels; where they end first, it touches the line ("if not
+// they can touch the line"). Two numbers that would touch stack: the lo number under the hi
+// one, else the hi one lifted over it, else the lo number is left out. The curve's margins and
+// scale do not change (the owner's tight margins, above): the numbers' 1 px outline in the
+// background colour, which On graph always draws (no option: the owner's "implied by the axis
+// number settings"), keeps them readable where they cover another line. The settings preview
+// mirrors these rules (preview-axis.js numberCentred / numberClear / numbersPart).
+
+// The extremes' rows and hours: a row strictly above `hi` or strictly below `lo` replaces it,
+// so the series widened first (the temperature) and its earliest hour win a tie.
+typedef struct { int hi, hi_i, lo, lo_i; } TempAxisExtremes;
+#define TEMP_AXIS_EXTREMES_NONE { -1, 0, 0x7FFF, 0 }
+
+// One series' rows (after temp_axis_rows) widen *e. `gaps` as temp_axis_rows': a floating
+// line's 0 is a missing reading, no point. Returns the ends this series took: bit 0 the hi
+// end, bit 1 the lo end.
+static inline int temp_axis_extremes_widen(TempAxisExtremes *e, const int16_t *rows, int n,
+                                           bool gaps) {
+    int took = 0;
+    for (int i = 0; i < n; ++i) {
+        const int v = rows[i];
+        if (v < (int)gaps) { continue; }
+        if (v > e->hi) { e->hi = v; e->hi_i = i; took |= 1; }
+        if (v < e->lo) { e->lo = v; e->lo_i = i; took |= 2; }
+    }
+    return took;
+}
+
+// Rows from a line's ink to its number's ink (the outline takes the one next to the number,
+// one stays clear), and rows between two numbers' ink (an outline row each and one clear row).
+#define TEMP_LABEL_POINT_GAP 2
+#define TEMP_LABEL_PART_GAP 3
+
+// Where a number's ink may go, inclusive screen columns and rows: the plot's left edge to the
+// screen's right edge, between the stripe bands, shrunk by the outline on every side.
+typedef struct { int left, right, top, bottom; } TempLabelArea;
+
+// A number's box: its top-left. Its ink starts at column x, and its cap sits on the box's
+// bottom rows (status_metrics.h): rows y + h - cap .. y + h - 1 for a box h rows tall.
+typedef struct { int x, y; } TempLabelBox;
+
+// One column of a straight stretch of line widens [*top, *bot]: the stretch starts on row ya
+// and falls dy rows over dx columns (dx > 0); column dc of it lies between the two whole rows
+// round ya + dy * dc / dx, which a drawn line rounds to one of.
+static inline void temp_line_rows_at(int ya, int dy, int dx, int dc, int *top, int *bot) {
+    const int num = dy * dc;
+    int lo = ya + num / dx, hi = lo;
+    if (num % dx) {
+        if (num > 0) { hi += 1; } else { lo -= 1; }
+    }
+    if (lo < *top) { *top = lo; }
+    if (hi > *bot) { *bot = hi; }
+}
+
+// The rows the stretch of line from (xa, ya) to (xb, yb) (xa < xb, its centre) takes over the
+// columns it shares with [l, r] widen [*top, *bot]; none shared, none. Straight, so its
+// highest and lowest rows over those columns lie on their first and last.
+static inline void temp_line_rows(int xa, int ya, int xb, int yb, int l, int r,
+                                  int *top, int *bot) {
+    const int c0 = (xa > l) ? xa : l, c1 = (xb < r) ? xb : r;
+    if (c0 > c1) { return; }
+    temp_line_rows_at(ya, yb - ya, xb - xa, c0 - xa, top, bot);
+    temp_line_rows_at(ya, yb - ya, xb - xa, c1 - xa, top, bot);
+}
+
+// A number `w` columns wide centred on its point's ink columns x0..x1, held inside the area's
+// columns: its ink's first column.
+static inline int temp_label_centred_x(int x0, int x1, int w, TempLabelArea a) {
+    int x = x0 + (x1 - x0 + 1 - w) / 2;
+    if (x + w - 1 > a.right) { x = a.right - w + 1; }
+    if (x < a.left) { x = a.left; }
+    return x;
+}
+
+// A number in a box `h` rows tall (the label font's content height) under its line (`under`,
+// the hi number) or over it (the lo one): `reach` is the line's lowest (under) or highest
+// (over) ink row over the number's columns and its ring's. Its ink starts
+// TEMP_LABEL_POINT_GAP rows clear of it, held inside the area's rows, where it may then
+// touch the line (the owner's "only if there is space"). The box's top row.
+static inline int temp_label_clear_y(int reach, bool under, int h, TempLabelArea a) {
+    const int cap = status_cap_h(h);
+    int y = under ? reach + 1 + TEMP_LABEL_POINT_GAP - (h - cap)   // ink top under the line
+                  : reach - 1 - TEMP_LABEL_POINT_GAP - (h - 1);    // ink bottom over it
+    if (y + h - cap < a.top) { y = a.top - (h - cap); }
+    if (y + h - 1 > a.bottom) { y = a.bottom - (h - 1); }
+    return y;
+}
+
+// The two numbers apart (both `h` rows tall): untouched when their ink, grown by
+// TEMP_LABEL_PART_GAP, does not meet; else the lo number right under the hi one; else (no rows
+// left under it) the lo number held on the area's last rows and the hi one right over it.
+// Returns false when even that does not fit: the lo number is then not drawn, and the hi
+// number keeps the place temp_label_clear_y gave it, inside the area (the lift is only taken
+// when the lifted ink still starts on the area's first row or below).
+static inline bool temp_labels_part(TempLabelBox *hi, int w_hi, TempLabelBox *lo, int w_lo,
+                                    int h, TempLabelArea a) {
+    const int cap = status_cap_h(h);
+    if (lo->x > hi->x + w_hi - 1 + TEMP_LABEL_PART_GAP
+        || hi->x > lo->x + w_lo - 1 + TEMP_LABEL_PART_GAP
+        || lo->y > hi->y + cap - 1 + TEMP_LABEL_PART_GAP
+        || hi->y > lo->y + cap - 1 + TEMP_LABEL_PART_GAP) {
+        return true;
+    }
+    lo->y = hi->y + cap + TEMP_LABEL_PART_GAP;          // the lo ink right under the hi ink
+    if (lo->y + h - 1 <= a.bottom) { return true; }
+    lo->y = a.bottom - (h - 1);                          // held on the last rows...
+    const int lifted = lo->y - cap - TEMP_LABEL_PART_GAP;   // ...the hi ink right over it
+    if (lifted + h - cap < a.top) { return false; }      // no room: the hi number stays put
+    hi->y = lifted;
+    return true;
+}
+

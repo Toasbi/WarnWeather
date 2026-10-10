@@ -152,7 +152,8 @@ void app_timer_cancel(AppTimer *timer_handle);
 
 // --- night_light_persist_test.c additions -----------------------------------
 // The persistent-storage syscalls, so appendix/persist.c itself can be
-// host-compiled against a RAM-backed fake (the test file supplies the bodies).
+// host-compiled against a RAM-backed fake (the test supplies the bodies:
+// test/c/fake_persist.h, or radar_notice_persist_test.c its own).
 // Signatures copied from the firmware's applib/persist.h; status_t is
 // system/status_codes.h's int32_t. E_DOES_NOT_EXIST is what the reads return
 // for an unset key — persist.c's own short-read guards compare against it.

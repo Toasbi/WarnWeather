@@ -48,6 +48,18 @@ void bottom_view_unregister_consumer(Layer *layer) {
         if (s_consumers[i] == layer) { s_consumers[i] = NULL; }
     }
 }
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: bottom_view.h. The two consumers are the graph roots render_active_view hides and
+// shows per view, so a shown one other than `self` is the other graph on this screen.
+bool bottom_view_other_consumer_shown(const Layer *self) {
+    for (int i = 0; i < BOTTOM_VIEW_MAX_CONSUMERS; i++) {
+        Layer *const c = s_consumers[i];
+        if (c && c != self && !layer_get_hidden(c)) { return true; }
+    }
+    return false;
+}
+#endif
 #endif
 
 // Bracket the store with the max: only the EFFECTIVE width matters (see

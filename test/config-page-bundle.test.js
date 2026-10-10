@@ -140,9 +140,81 @@ test('the Draw from module is bundled after line-style.js and before its readers
     'nothing registers the Draw from row\'s hint in the generated page');
 });
 
+// forecast-axis.js (window.ForecastAxis, the forecast's left axis options, BETA) binds
+// window.LineStyle while its own body runs, and preview-forecast.js and when-resolvers.js bind
+// window.ForecastAxis while theirs do: out of order, the forecast preview and the Left axis
+// card's gate throw on a real phone while every Node test passes through require().
+test('the left axis module is bundled after line-style.js and before its readers', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('pkjs/line-style.js') < idx('pkjs/forecast-axis.js'),
+    'line-style.js must precede forecast-axis.js');
+  ['settings/preview-forecast.js', 'settings/when-resolvers.js'].forEach((reader) => {
+    assert.ok(idx('pkjs/forecast-axis.js') < idx(reader), 'forecast-axis.js must precede ' + reader);
+  });
+  const src = page();
+  assert.ok(src.indexOf('window.ForecastAxis = api') !== -1,
+    'nothing assigns window.ForecastAxis in the generated page');
+});
+
+// forecast-span-hours.js (window.ForecastSpanHours, the long time span's whole hours) binds
+// window.ForecastAxis and window.VIEW_CYCLE while its own body runs, and forecast-hints.js binds
+// window.ForecastSpanHours while its own does: out of order, the page throws at boot on a real
+// phone while every Node test passes through require(). Its resolver, forecastSpanOptions,
+// is the Time span row's, registered by forecast-hints.js's own part of the page.
+test('the span hours module is bundled after view-cycle.js and forecast-axis.js, before forecast-hints.js', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('pkjs/forecast-axis.js') < idx('pkjs/forecast-span-hours.js'),
+    'forecast-axis.js must precede forecast-span-hours.js');
+  assert.ok(idx('pkjs/view-cycle.js') < idx('pkjs/forecast-span-hours.js'),
+    'view-cycle.js must precede forecast-span-hours.js');
+  assert.ok(idx('pkjs/forecast-span-hours.js') < idx('settings/forecast-hints.js'),
+    'forecast-span-hours.js must precede forecast-hints.js');
+  const src = page();
+  assert.ok(src.indexOf('window.ForecastSpanHours = api') !== -1,
+    'nothing assigns window.ForecastSpanHours in the generated page');
+  const from = src.indexOf('/* app: forecast-hints.js */');
+  const part = src.slice(from, src.indexOf('/* app: ', from + 1));
+  assert.ok(part.indexOf("PConf.optionsResolvers.register('forecastSpanOptions'") !== -1,
+    'forecast-hints.js does not register the forecastSpanOptions resolver in the generated page');
+});
+
+// The forecast preview and its axis mirrors (preview-axis.js, window.PreviewAxis), each with the
+// window globals it binds while its own body runs. Each must be assigned earlier in the page:
+// out of order, the forecast preview throws on a real phone while every Node test passes
+// through require().
+const BINDS_AT_LOAD = {
+  'preview-axis.js': ['window.ForecastSpanHours'],
+  'preview-forecast.js': ['window.PreviewSvg', 'window.PreviewRain', 'window.LineStyle', 'window.LineAlert',
+    'window.StripeLevels', 'window.DrawFrom', 'window.ForecastAxis', 'window.PreviewAxis', 'window.ResolveInk',
+    'window.PreviewStripe']
+};
+
+test('the forecast preview and its axis mirrors are bundled after every global they bind at load', () => {
+  const src = page();
+  Object.keys(BINDS_AT_LOAD).forEach((file) => {
+    const at = src.indexOf('/* app: ' + file + ' */');
+    assert.notEqual(at, -1, file + ' is not in the generated page');
+    BINDS_AT_LOAD[file].forEach((global) => {
+      const set = src.indexOf(global + ' = ');
+      assert.notEqual(set, -1, 'nothing assigns ' + global + ' in the generated page');
+      assert.ok(set < at, global + ' must be assigned before ' + file + ' runs');
+    });
+  });
+});
+
 // when-resolvers.js answers the schema's { when } leaves. It binds window.LineStyle,
-// window.DrawFrom, window.OnDemand and VIEW_CYCLE while its own body runs, so it follows
-// all four. Out of the page, nothing throws: an unregistered leaf reads false, so the
+// window.DrawFrom, window.OnDemand, window.ForecastAxis and VIEW_CYCLE while its own body
+// runs, so it follows all five. Out of the page, nothing throws: an unregistered leaf reads false, so the
 // rows that ask it would silently never show (or always, under a `not`) on a real phone
 // while every Node test passes through blocks.js' require().
 test('the when resolvers are bundled after the modules they ask', () => {
@@ -152,10 +224,11 @@ test('the when resolvers are bundled after the modules they ask', () => {
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  ['pkjs/line-style.js', 'pkjs/draw-from.js', 'pkjs/on-demand.js', 'pkjs/view-cycle.js'].forEach((dep) =>
+  ['pkjs/line-style.js', 'pkjs/draw-from.js', 'pkjs/on-demand.js', 'pkjs/view-cycle.js',
+    'pkjs/forecast-axis.js'].forEach((dep) =>
     assert.ok(idx(dep) < idx('settings/when-resolvers.js'), dep + ' must precede when-resolvers.js'));
   const src = page();
-  ['lineRow', 'onDemandPlaced', 'defaultViewLacksOnDemand'].forEach((id) =>
+  ['lineRow', 'onDemandPlaced', 'defaultViewLacksOnDemand', 'tempAxisLineDrawn'].forEach((id) =>
     assert.ok(src.indexOf("PConf.whenResolvers.register('" + id + "'") !== -1,
       'nothing registers the ' + id + ' when resolver in the generated page'));
 });

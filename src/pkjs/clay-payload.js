@@ -15,6 +15,8 @@ var platformLib = require('./config-ui/lib/platform.js');
 var lineStyle = require('./line-style.js');
 var dateFormat = require('./date-format.js');
 var nightLight = require('./night-light.js');
+// The forecast's left axis options (BETA, emery): bits of the CLAY_LARGE_GRAPH_FONT word.
+var forecastAxis = require('./forecast-axis.js');
 
 // The radar's built-in no-rain text — the schema's radarNoRainText default and the
 // watch's fallback string (rain_radar_layer.c). test/clay-payload.test.js pins all three.
@@ -125,6 +127,27 @@ function packViewReset(settings, env) {
         word = word | VIEW_RESET_DOUBLE_FLICK;
     }
     return word;
+}
+
+/**
+ * The CLAY_LARGE_GRAPH_FONT tuple, emery's graph-options word (src/c/appendix/config.h
+ * GRAPH_OPT_*): bit 0 Larger graph fonts, bits 2, 3 and 5 the forecast's left axis options
+ * (BETA, forecast-axis.js wireBits; bits 1 and 4 are retired). While every axis option draws
+ * today's graph (those bits all 0, as always for a KNOWN non-emery watch, whose C never reads
+ * the key) it is today's bare boolean,
+ * so a payload with the defaults is exactly what it always was on every platform and an
+ * upgrade resends nothing; otherwise the number. Emery and an unknown platform carry the bits,
+ * so a watchInfo hiccup cannot reset an emery's options. Either way one int tuple: the boolean
+ * travels as a 4-byte int too, and emery's C reads its low half (config_wire.c), so `true`
+ * is bit 0 alone.
+ * @param {Object} settings Clay settings.
+ * @param {Object} env platformLib.computeEnv() result.
+ * @returns {(boolean|number)} The boolean while the axis bits are 0, else a word 0x04..0x2D.
+ */
+function graphOptionsWord(settings, env) {
+    var large = Boolean(settings.largeGraphFont);
+    var bits = forecastAxis.wireBits(settings, env);
+    return bits ? ((large ? forecastAxis.BIT.LARGE_FONT : 0) | bits) : large;
 }
 
 /**
@@ -312,17 +335,20 @@ function buildClayPayload(settings, watchInfo, now) {
     payload.CLAY_VIEW_2 = viewCycle.packWire(cycle[2] || null);
     payload.CLAY_VIEW_RESET_MIN = packViewReset(settings, env);
 
-    // emery-only axis-font step-up (Layout tab). The simple Boolean() is provably safe
-    // here: engine.js seeds toggles from defaultValue and flips them with !S[key], so a
-    // stored value is a strict boolean or absent -- and absent collapsing to false IS
-    // the default. A default-TRUE toggle would need the hasOwnProperty ternary
-    // dayNightShading uses above. Deliberately NOT platform-gated (unlike the threshold
-    // blob / no-rain text / curve insets, which are omitted for watches that compile the
-    // feature out): the tuple is 11 B, every non-emery Clay bundle has ample headroom, and
-    // sending it unconditionally means an emery watch can't be starved of the setting by a
-    // watchInfo hiccup. The WATCH does the skipping -- config_wire.c only spends a
-    // dict_find on it under PBL_PLATFORM_EMERY (config.h's field carries the same guard).
-    payload.CLAY_LARGE_GRAPH_FONT = Boolean(settings.largeGraphFont);
+    // emery's graph-options word (graphOptionsWord): the axis-font step-up (Layout tab) in
+    // bit 0, the forecast's left axis options (BETA) above it. The simple Boolean() on
+    // largeGraphFont is provably safe: engine.js seeds toggles from defaultValue and flips
+    // them with !S[key], so a stored value is a strict boolean or absent -- and absent
+    // collapsing to false IS the default. A default-TRUE toggle would need the
+    // hasOwnProperty ternary dayNightShading uses above. Deliberately NOT platform-gated (unlike the
+    // threshold blob / no-rain text / curve insets, which are omitted for watches that
+    // compile the feature out): the tuple is 11 B, every non-emery Clay bundle has ample
+    // headroom, and sending it unconditionally means an emery watch can't be starved of the
+    // setting by a watchInfo hiccup. The WATCH does the skipping -- config_wire.c only
+    // spends a dict_find on it under PBL_PLATFORM_EMERY (config.h's fields carry the same
+    // guard). With every axis option at its default (always, for a known non-emery watch) it
+    // is the bare boolean it always was.
+    payload.CLAY_LARGE_GRAPH_FONT = graphOptionsWord(settings, env);
 
     return payload;
 }
@@ -336,5 +362,7 @@ module.exports = {
     truncateUtf8Bytes: truncateUtf8Bytes,
     // The CLAY_VIEW_RESET_MIN flag bit, pinned against config_wire.h by the tests.
     VIEW_RESET_DOUBLE_FLICK: VIEW_RESET_DOUBLE_FLICK,
+    // The CLAY_LARGE_GRAPH_FONT word, exported for the tests.
+    graphOptionsWord: graphOptionsWord,
     DEFAULT_NORAIN_TEXT: DEFAULT_NORAIN_TEXT
 };

@@ -416,3 +416,75 @@ test('tomorrow.io + steadman: an anchor bucket without windSpeed keeps the API "
   const withWind = tomorrowio.mapResponse(sampleResponse(), BASE + 3 * 3600 + 600);
   assert.equal(withWind.currentWindKmh, withWind.windTrend[0]);
 });
+
+// A window past 24 (windowHours(options)): 48 here, under PEAK_HOURS; emery's long span (68)
+// follows these.
+test('48 h: mapResponse maps 48 hourly intervals; the default stays 24', () => {
+  const r = sampleResponse();
+  for (let i = 30; i < 60; i += 1) r.data.timelines[0].intervals.push(interval(i));
+  const out = mapResponse(r, BASE + 3 * 3600, 48);
+  ['tempTrend', 'precipTrend', 'rainTrend', 'pressureTrend', 'cloudTrend', 'feelsTrend', 'dewTrend',
+    'windDirTrend', 'humidityTrend'].forEach((k) => assert.equal(out[k].length, 48, k));
+  assert.equal(out.tempTrend[47], (3 + 47 + 10) * 9 / 5 + 32);
+  assert.equal(mapResponse(r, BASE + 3 * 3600).tempTrend.length, 24);
+  // A feed short of the span maps what it holds (from anchor 3, 27 of the 30).
+  assert.equal(mapResponse(sampleResponse(), BASE + 3 * 3600, 48).tempTrend.length, 27);
+});
+
+test('48 h: the non-peak request reaches 49 h out, still one call; a day max keeps PEAK_HOURS', () => {
+  const prevXhr = global.XMLHttpRequest;
+  global.XMLHttpRequest = MockXhr;
+  const hourFloor = Math.floor(Date.now() / 3600000) * 3600;
+  const endOf = (url) => decodeURIComponent(url.match(/&endTime=([^&]+)/)[1]);
+  try {
+    const p = new TomorrowIoProvider('KEY123');
+    p.options = fetchOptions.defaults({ forecastHours: 48, dayPeakCodes: [] });
+    p.withProviderData(52.52, 13.41, false, () => {}, () => {});
+    assert.equal(endOf(MockXhr.last.opened.url), new Date((hourFloor + 49 * 3600) * 1000).toISOString());
+    const day = new TomorrowIoProvider('KEY123');
+    day.options = fetchOptions.defaults({ forecastHours: 24, dayPeakCodes: [] });
+    day.withProviderData(52.52, 13.41, false, () => {}, () => {});
+    assert.equal(endOf(MockXhr.last.opened.url), new Date((hourFloor + 25 * 3600) * 1000).toISOString());
+    const peak = new TomorrowIoProvider('KEY123');
+    peak.options = fetchOptions.defaults({ forecastHours: 48, dayPeakCodes: ['uv'] });
+    peak.withProviderData(52.52, 13.41, false, () => {}, () => {});
+    assert.equal(endOf(MockXhr.last.opened.url),
+      new Date((hourFloor + (PEAK_HOURS + 1) * 3600) * 1000).toISOString());
+  } finally {
+    global.XMLHttpRequest = prevXhr;
+  }
+});
+
+test('long span: a day-max slot asks start + 69 h, not + 50 h; without one too; 24 h keeps its URLs', () => {
+  const prevXhr = global.XMLHttpRequest;
+  global.XMLHttpRequest = MockXhr;
+  const hourFloor = Math.floor(Date.now() / 3600000) * 3600;
+  const endOf = (url) => decodeURIComponent(url.match(/&endTime=([^&]+)/)[1]);
+  const at = (h) => new Date((hourFloor + h * 3600) * 1000).toISOString();
+  const urlFor = (hours, codes) => {
+    const p = new TomorrowIoProvider('KEY123');
+    p.options = fetchOptions.defaults({ forecastHours: hours, dayPeakCodes: codes });
+    p.withProviderData(52.52, 13.41, false, () => {}, () => {});
+    return MockXhr.last.opened.url;
+  };
+  try {
+    ['uv', 'wind', 'gust'].forEach((code) => {
+      assert.equal(endOf(urlFor(68, [code])), at(69), code + ' day max at 68: reachHours(68) + 1');
+      assert.equal(endOf(urlFor(24, [code])), at(PEAK_HOURS + 1), code + ' day max at 24: PEAK_HOURS + 1');
+    });
+    assert.equal(endOf(urlFor(68, [])), at(69), 'no day max at 68');
+    assert.equal(endOf(urlFor(26, [])), at(27), 'no day max at 26 (emery\'s 24 h with no left axis)');
+    assert.equal(endOf(urlFor(24, [])), at(25), 'no day max at 24');
+  } finally {
+    global.XMLHttpRequest = prevXhr;
+  }
+});
+
+test('long span: mapResponse reads wind, gust and UV on to the 68 h window (reachHours)', () => {
+  const r = { data: { timelines: [{ timestep: '1h', intervals: [] }] } };
+  for (let i = 0; i < 75; i += 1) r.data.timelines[0].intervals.push(interval(i));
+  const out = mapResponse(r, BASE + 3 * 3600, 68);
+  ['tempTrend', 'windTrend', 'gustTrend', 'uvTrend', 'rainTrend'].forEach((k) =>
+    assert.equal(out[k].length, 68, k));
+  assert.equal(mapResponse(r, BASE + 3 * 3600, 24).uvTrend.length, PEAK_HOURS, '24 h keeps PEAK_HOURS');
+});

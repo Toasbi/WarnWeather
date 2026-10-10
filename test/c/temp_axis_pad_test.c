@@ -1181,6 +1181,309 @@ static void test_scale_labels(void) {
     assert(hi_old == -3 && lo_old == lo_today(18, BASALT_NOCAL));
 }
 
+// --- THE NUMBERS ON THE GRAPH (owner, 2026-10-09; BETA, emery only) -------------------------
+//
+// emery's left-axis options: the hi number under the point it names and the lo number over its
+// own (On graph), or no
+// numbers (Off), the label strip given to the plot either way. forecast_layer.c
+// draw_axis_numbers and forecast_numbers.h are SDK-bound; the rules they read are pinned here.
+
+// The emery label fonts' boxes (bottom_view_label_font: GOTHIC_18, GOTHIC_24 with Larger graph
+// fonts) and their caps (status_metrics.h: h / 2 + 2).
+#define G18_H 18
+#define G24_H 24
+
+// A number's ink rows, box top y in a box h rows tall.
+static int num_ink_top(TempLabelBox b, int h) { return b.y + h - status_cap_h(h); }
+static int num_ink_bottom(TempLabelBox b, int h) { return b.y + h - 1; }
+
+// The extremes the numbers name: the temperature widened first wins a tie, its earliest hour
+// wins, a floating line's 0 is no reading, and a line past the curve takes the end.
+static void test_numbers_extremes(void) {
+    int16_t t[5] = { 10, 30, 30, 5, 5 };
+    int16_t dew[5] = { 0, 2, 30, 4, 0 };   // no reading at hours 0 and 4
+    TempAxisExtremes e = TEMP_AXIS_EXTREMES_NONE;
+    assert(temp_axis_extremes_widen(&e, t, 5, false) == 3);   // took both ends
+    assert(e.hi == 30 && e.hi_i == 1 && e.lo == 5 && e.lo_i == 3);   // the earliest hour
+    // The dew line under the curve takes the lo end; its 30 only ties the hi end: kept.
+    assert(temp_axis_extremes_widen(&e, dew, 5, true) == 2);
+    assert(e.lo == 2 && e.lo_i == 1 && e.hi == 30 && e.hi_i == 1);
+    // A floating line of only missing readings takes nothing; the same zeros on the
+    // temperature (not floating) are its rows.
+    int16_t none[3] = { 0, 0, 0 };
+    TempAxisExtremes f = TEMP_AXIS_EXTREMES_NONE;
+    assert(temp_axis_extremes_widen(&f, none, 3, true) == 0);
+    assert(f.hi == -1 && f.lo == 0x7FFF);
+    assert(temp_axis_extremes_widen(&f, none, 3, false) == 3 && f.hi == 0 && f.lo == 0);
+    // A feels-like peak over the curve takes the hi end at its own hour.
+    int16_t c[4] = { 7, 21, 36, 21 }, feels[4] = { 9, 25, 30, 48 };
+    TempAxisExtremes g = TEMP_AXIS_EXTREMES_NONE;
+    temp_axis_extremes_widen(&g, c, 4, false);
+    assert(temp_axis_extremes_widen(&g, feels, 4, true) == 1);
+    assert(g.hi == 48 && g.hi_i == 3 && g.lo == 7 && g.lo_i == 0);
+}
+
+// A line's rows over a number's columns: a straight stretch takes its extremes on the shared
+// columns' first and last, each between the two whole rows round it; it only widens; no shared
+// column, no rows.
+static void test_numbers_line_rows(void) {
+    // Falling 10 rows over 10 columns from (100, 30): columns 103..106 take rows 33..36.
+    int top = 30, bot = 30;
+    temp_line_rows(100, 30, 110, 40, 103, 106, &top, &bot);
+    assert(top == 30 && bot == 36);   // widened, never narrowed
+    top = bot = 50;
+    temp_line_rows(100, 30, 110, 40, 103, 106, &top, &bot);
+    assert(top == 33 && bot == 50);
+    // Between two rows: 5 rows over 10 columns, column 103 lies on 31.5, rows 31 and 32.
+    top = 100; bot = -100;
+    temp_line_rows(100, 30, 110, 35, 103, 103, &top, &bot);
+    assert(top == 31 && bot == 32);
+    // Rising the same way: column 103 lies on 38.5, rows 38 and 39.
+    top = 100; bot = -100;
+    temp_line_rows(100, 40, 110, 35, 103, 103, &top, &bot);
+    assert(top == 38 && bot == 39);
+    // The columns past the stretch's ends: its ends' rows.
+    top = 100; bot = -100;
+    temp_line_rows(100, 30, 110, 40, 90, 120, &top, &bot);
+    assert(top == 30 && bot == 40);
+    // No shared column: unchanged.
+    top = 7; bot = 9;
+    temp_line_rows(100, 30, 110, 40, 111, 120, &top, &bot);
+    temp_line_rows(100, 30, 110, 40, 80, 99, &top, &bot);
+    assert(top == 7 && bot == 9);
+}
+
+// A number centred on its point's ink columns, held inside the area's columns. emery's default
+// view: plot columns 10..197 (a plot starting at column 9, its first column clear, the
+// screen's last column 197 of the 198 px band), content rows 0..61.
+static void test_numbers_centred(void) {
+    const TempLabelArea a = { 10, 197, 0, EMERY_COMPACTCAL - 1 };
+    // A 3-column point (100..102, centre 101): a 21-column number on 91..111; a 20-column one
+    // on 92..111, its odd column to the right.
+    assert(temp_label_centred_x(100, 102, 21, a) == 91);
+    assert(temp_label_centred_x(100, 102, 20, a) == 92);
+    // A 2-column point (a solid 3 px stroke: 99..101 is 3; a 2 px one 100..101).
+    assert(temp_label_centred_x(100, 101, 20, a) == 91);
+    // At the plot's left edge, held on its first column; at the screen's right, on its last.
+    assert(temp_label_centred_x(10, 12, 20, a) == a.left);
+    assert(temp_label_centred_x(195, 197, 20, a) + 20 - 1 == a.right);
+    // Wider than the area: held on its first column.
+    assert(temp_label_centred_x(100, 102, 300, a) == a.left);
+}
+
+// Clear of its line: the hi number's ink TEMP_LABEL_POINT_GAP rows under the line's lowest row
+// over its columns, the lo number's that far over the highest; held inside the area's rows,
+// where it then touches the line.
+static void test_numbers_clear(void) {
+    const TempLabelArea a = { 10, 197, 0, EMERY_COMPACTCAL - 1 };
+    TempLabelBox b = { 50, 0 };
+    // GOTHIC_24, cap 14. Under a line reaching row 20: the ink on rows 23..36.
+    b.y = temp_label_clear_y(20, true, G24_H, a);
+    assert(num_ink_top(b, G24_H) == 20 + 1 + TEMP_LABEL_POINT_GAP && b.y == 13);
+    // Over a line reaching row 40: the ink on rows 24..37.
+    b.y = temp_label_clear_y(40, false, G24_H, a);
+    assert(num_ink_bottom(b, G24_H) == 40 - 1 - TEMP_LABEL_POINT_GAP && b.y == 14);
+    // GOTHIC_18, cap 11, the same gaps.
+    b.y = temp_label_clear_y(20, true, G18_H, a);
+    assert(num_ink_top(b, G18_H) == 23);
+    b.y = temp_label_clear_y(40, false, G18_H, a);
+    assert(num_ink_bottom(b, G18_H) == 37);
+    // No room under the line (the cap would end on row 71): held on the plot's last content
+    // row, touching it. No room over it: held on row 0.
+    b.y = temp_label_clear_y(55, true, G24_H, a);
+    assert(num_ink_bottom(b, G24_H) == a.bottom);
+    b.y = temp_label_clear_y(5, false, G24_H, a);
+    assert(num_ink_top(b, G24_H) == a.top);
+    // Exactly room: under a line on row 45, the 14-row cap ends on the last row, 61.
+    b.y = temp_label_clear_y(45, true, G24_H, a);
+    assert(num_ink_top(b, G24_H) == 48 && num_ink_bottom(b, G24_H) == a.bottom);
+    // The outline's ring takes a row on every side: the area shrinks by one, so the ink holds
+    // on row 1 (its ring on row 0), never on the stripe band or the zero line.
+    const TempLabelArea o = { 11, 196, 1, EMERY_COMPACTCAL - 2 };
+    b.y = temp_label_clear_y(-6, false, G24_H, o);
+    assert(num_ink_top(b, G24_H) == 1);
+    b.y = temp_label_clear_y(70, true, G24_H, o);
+    assert(num_ink_bottom(b, G24_H) == EMERY_COMPACTCAL - 2);
+    // Every reach on and off every plot emery lays out: the ink always inside the area.
+    const int plots[3] = { EMERY_FULLCAL, EMERY_COMPACTCAL, EMERY_NOCAL };
+    const int hs[2] = { G18_H, G24_H };
+    for (int p = 0; p < 3; ++p) {
+        const TempLabelArea pa = { 10, 197, 0, plots[p] - 1 };
+        for (int reach = -8; reach < plots[p] + 8; ++reach) {
+            for (int k = 0; k < 2; ++k) {
+                for (int under = 0; under <= 1; ++under) {
+                    b.y = temp_label_clear_y(reach, under, hs[k], pa);
+                    assert(num_ink_top(b, hs[k]) >= pa.top);
+                    assert(num_ink_bottom(b, hs[k]) <= pa.bottom);
+                }
+            }
+        }
+    }
+}
+
+// A number's box at column x, its ink centred on `row` (THE LABELS' centre), held inside the
+// area's rows: the boxes the parting rule is pinned on.
+static TempLabelBox box_at(int x, int row, int h, TempLabelArea a) {
+    const int cap = status_cap_h(h);
+    int y = row - (h - (cap + 1) / 2);
+    if (y + h - cap < a.top) { y = a.top - (h - cap); }
+    if (y + h - 1 > a.bottom) { y = a.bottom - (h - 1); }
+    return (TempLabelBox){ x, y };
+}
+
+// Two numbers apart: untouched when their ink does not meet; else the lo number under the hi;
+// else (no rows under it) the lo number on the last rows and the hi number lifted over it;
+// else the lo number is left out.
+static void test_numbers_part(void) {
+    const TempLabelArea a = { 10, 197, 0, EMERY_COMPACTCAL - 1 };
+    const int cap = status_cap_h(G24_H);
+    // Apart, side by side on one row: untouched.
+    TempLabelBox hb = box_at(25, 30, G24_H, a);
+    TempLabelBox lb = box_at(155, 30, G24_H, a);
+    const TempLabelBox lb0 = lb, hb0 = hb;
+    assert(temp_labels_part(&hb, 20, &lb, 20, G24_H, a));
+    assert(lb.x == lb0.x && lb.y == lb0.y && hb.x == hb0.x && hb.y == hb0.y);
+    // Apart, one over the other with exactly TEMP_LABEL_PART_GAP rows between: untouched.
+    hb = box_at(55, 20, G24_H, a);
+    lb = (TempLabelBox){ hb.x, hb.y + cap + TEMP_LABEL_PART_GAP };
+    TempLabelBox keep = lb;
+    assert(temp_labels_part(&hb, 20, &lb, 20, G24_H, a) && lb.y == keep.y);
+    // Overlapping (a flat range in the middle): the lo ink right under the hi ink.
+    hb = box_at(55, 30, G24_H, a);
+    lb = box_at(55, 31, G24_H, a);
+    const int hi_y = hb.y;
+    assert(temp_labels_part(&hb, 20, &lb, 20, G24_H, a));
+    assert(hb.y == hi_y && lb.y == hb.y + cap + TEMP_LABEL_PART_GAP);
+    assert(num_ink_top(lb, G24_H) == num_ink_bottom(hb, G24_H) + 1 + TEMP_LABEL_PART_GAP);
+    // Near the floor: the lo number held on the last rows, the hi number lifted over it.
+    hb = box_at(55, 55, G24_H, a);
+    lb = box_at(55, 57, G24_H, a);
+    assert(temp_labels_part(&hb, 20, &lb, 20, G24_H, a));
+    assert(num_ink_bottom(lb, G24_H) == a.bottom);
+    assert(num_ink_bottom(hb, G24_H) == num_ink_top(lb, G24_H) - 1 - TEMP_LABEL_PART_GAP);
+    assert(num_ink_top(hb, G24_H) >= a.top);
+    // A 21-row area cannot hold two 14-row caps 3 rows apart: the lo number is left out, and
+    // the hi number keeps its first place, inside the area (never lifted over it).
+    const TempLabelArea tiny = { 10, 197, 0, 20 };
+    hb = box_at(55, 10, G24_H, tiny);
+    lb = box_at(55, 10, G24_H, tiny);
+    const TempLabelBox tiny_hb = hb;
+    assert(!temp_labels_part(&hb, 20, &lb, 20, G24_H, tiny));
+    assert(hb.x == tiny_hb.x && hb.y == tiny_hb.y);
+    assert(num_ink_top(hb, G24_H) >= tiny.top && num_ink_bottom(hb, G24_H) <= tiny.bottom);
+    // The review's storm-front case: emery fullCal, Larger graph fonts (GOTHIC_24), outline on,
+    // two top stripes and two bottom ones leave the content rows 12..36 (25 rows, under the
+    // 2 * 14 + 3 the pair needs), the hi at hour 10 and the lo at hour 11, one column on. At
+    // every pair of rows in the area: either both fit apart inside it, or the hi number stays
+    // exactly where it was first put, inside the area, and only the lo one goes.
+    const TempLabelArea storm = { 12, 198, 12, 36 };
+    for (int hr = storm.top; hr <= storm.bottom; ++hr) {
+        for (int lr = storm.top; lr <= storm.bottom; ++lr) {
+            hb = box_at(105, hr, G24_H, storm);
+            lb = box_at(112, lr, G24_H, storm);
+            const TempLabelBox hb_first = hb;
+            if (temp_labels_part(&hb, 20, &lb, 20, G24_H, storm)) {
+                assert(num_ink_top(hb, G24_H) >= storm.top);
+                assert(num_ink_bottom(lb, G24_H) <= storm.bottom);
+            } else {
+                assert(hb.x == hb_first.x && hb.y == hb_first.y);
+            }
+            assert(num_ink_top(hb, G24_H) >= storm.top);
+            assert(num_ink_bottom(hb, G24_H) <= storm.bottom);
+        }
+    }
+    // emery's shortest plot (fullCal, 48 rows) holds both at either font tier, outline or not.
+    const int hs[2] = { G18_H, G24_H };
+    for (int k = 0; k < 2; ++k) {
+        for (int o = 0; o <= 1; ++o) {
+            const TempLabelArea s = { 10 + o, 197 - o, o, EMERY_FULLCAL - 1 - o };
+            for (int row = 0; row < EMERY_FULLCAL; ++row) {
+                hb = box_at(55, row, hs[k], s);
+                lb = box_at(55, row, hs[k], s);
+                assert(temp_labels_part(&hb, 20, &lb, 20, hs[k], s));
+                assert(num_ink_top(hb, hs[k]) >= s.top && num_ink_bottom(lb, hs[k]) <= s.bottom);
+                assert(num_ink_top(lb, hs[k]) - num_ink_bottom(hb, hs[k]) - 1
+                       >= TEMP_LABEL_PART_GAP);
+            }
+        }
+    }
+}
+
+// The scale's points (Include feels-like & dew point), test_scale_example's dew day fitted:
+// the extremes take the air's high and the dew trough, which sits on the bottom margin row,
+// and the dew line's missing reading is no point.
+static void test_numbers_scale_points(void) {
+    const TempMargin m = temp_axis_margins(INSET, BASALT_COMPACTCAL, TEMP_AXIS_ANCHOR_BOTTOM);
+    int16_t t2[4] = { 71, 161, 250, 161 }, dew[4] = { 63, 54, 1, 0 };
+    fit_all(t2, dew, 4, BASALT_COMPACTCAL, m);
+    TempAxisExtremes e = TEMP_AXIS_EXTREMES_NONE;
+    assert(temp_axis_extremes_widen(&e, t2, 4, false) == 3);
+    assert(e.hi == BASALT_COMPACTCAL - INSET && e.hi_i == 2 && e.lo == 18 && e.lo_i == 0);
+    assert(temp_axis_extremes_widen(&e, dew, 4, true) == 2);
+    assert(e.lo == m.bottom && e.lo_i == 2 && e.hi_i == 2);
+    // Without the option only the temperature is scanned: its own low, hour 0.
+    TempAxisExtremes air = TEMP_AXIS_EXTREMES_NONE;
+    temp_axis_extremes_widen(&air, t2, 4, false);
+    assert(air.lo == 18 && air.lo_i == 0);
+}
+
+// The numbers On graph or Off take the left axis away: the plot starts at the screen's left
+// edge, LAYOUT_PAD_X (2) left of the 198 px layer, so it is 200 px wide. Every hour of a 24 h
+// forecast is on screen there, and the hours the phone sends for each span (forecast_span.h)
+// run past the right edge: one hour more than the screen shows.
+static void test_screen_edge(void) {
+    const int w = EMERY_W + 2;
+    assert(temp_axis_drawn_entries(MAX_ENTRIES, w, EMERY_PITCH) == MAX_ENTRIES);
+    assert(temp_axis_drawn_entries(26, w, EMERY_PITCH) == 25);    // 24 h, sent 26
+    assert(temp_axis_drawn_entries(68, w, 3) == 67);              // the long span at 3 px
+    assert(temp_axis_drawn_entries(14, w, 16) == 13);             // 12 h at its widest pitch
+}
+
+#if defined(PBL_PLATFORM_EMERY)
+// The phone's temperature byte (forecast-series.js tempTrendToBytes): t on the joint band
+// [jlo, jlo + S] as round((t - jlo) * 250 / S), JS Math.round's half up, held to 0..250.
+static int enc_temp(int t, int jlo, int S) {
+    const int b = (2 * (t - jlo) * 250 + S) / (2 * S);
+    return b < 0 ? 0 : (b > 250 ? 250 : b);
+}
+
+// emery's hi/lo readback (temp_axis_byte_temp): a byte of the curve back to whole degrees on
+// the line through the air's global byte extremes and TEMP_MIN / TEMP_MAX. Exact for the air
+// alone at any span up to 250, and for every joint band (feels-like or dew point widening the
+// scale) up to 127 degrees, at every air span and offset inside it.
+static void test_byte_temp(void) {
+    for (int S = 1; S <= 250; ++S) {
+        const TempAxisRange g = { enc_temp(0, 0, S), enc_temp(S, 0, S) };
+        assert(g.lo == 0 && g.hi == 250);
+        for (int t = 0; t <= S; ++t) {
+            assert(temp_axis_byte_temp(enc_temp(t, 0, S), g, 0, S) == t);
+        }
+    }
+    long cases = 0;
+    for (int S = 1; S <= 127; ++S) {              // the joint band
+        for (int D = 0; D <= S; ++D) {            // the air's span inside it
+            for (int off = 0; off + D <= S; ++off) {   // the air's low, above the band's
+                const int lo = off, hi = off + D;
+                const TempAxisRange g = { enc_temp(lo, 0, S), enc_temp(hi, 0, S) };
+                for (int t = lo; t <= hi; ++t) {
+                    assert(temp_axis_byte_temp(enc_temp(t, 0, S), g, lo, hi) == t);
+                    ++cases;
+                }
+            }
+        }
+    }
+    assert(cases > 10000000);
+    // The ends are exact whatever the bytes between (a byte at or past an end is that end),
+    // negative degrees too (TEMP_MIN / TEMP_MAX are signed; the bytes never are).
+    const TempAxisRange g = { 40, 200 };
+    assert(temp_axis_byte_temp(40, g, -12, 31) == -12 && temp_axis_byte_temp(200, g, -12, 31) == 31);
+    assert(temp_axis_byte_temp(120, g, -12, 31) == -12 + (2 * 80 * 43 + 160) / 320);
+    // A flat curve (g.lo == g.hi) reads its one value.
+    const TempAxisRange flat = { 125, 125 };
+    assert(temp_axis_byte_temp(125, flat, 54, 54) == 54);
+}
+#endif
+
 int main(void) {
     test_constants();
     test_drawn_entries();
@@ -1201,6 +1504,18 @@ int main(void) {
     test_scale_clamp();
     test_scale_flat();
     test_scale_labels();
+    test_numbers_extremes();
+    test_numbers_line_rows();
+    test_numbers_centred();
+    test_numbers_clear();
+    test_numbers_part();
+    test_numbers_scale_points();
+    test_screen_edge();
+#if defined(PBL_PLATFORM_EMERY)
+    test_byte_temp();
+    printf("temp_axis_pad_test (emery): all passed\n");
+#else
     printf("temp_axis_pad_test: all passed\n");
+#endif
     return 0;
 }

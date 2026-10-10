@@ -73,6 +73,22 @@ the *category detector* — it distinguishes "this message carries no config"
 deliberately unguarded: they have their own handlers and dirty flags, so a
 parse problem there can't take the whole config down.
 
+**Graph-options word (emery)**:
+The `CLAY_LARGE_GRAPH_FONT` int read as bits on emery: bit 0 *Larger graph
+fonts*, bits 2, 3 and 5 the forecast's left axis options (BETA, Graphs › Forecast ›
+Left axis): high/low numbers on the graph, numbers off, numbers naming the
+temperature scale. Bits 1 and 4 (the 2.2.0 betas' axis line off and outline off)
+are retired and reserved: the axis line is drawn exactly when the numbers are on
+the axis, their outline exactly when they are on the graph. The layout is
+`config.h`'s `GRAPH_OPT_*`, in lockstep with `src/pkjs/forecast-axis.js` `BIT`,
+and the watch keeps bits 1-7 in `Config.forecast_axis`. The phone packs a dormant option as its
+default, so the axis bits are all zero exactly when the graph is today's, and
+while they are the tuple is the bare boolean it always was (a known non-emery
+watch never gets more); emery and an unknown watch get the number once an axis
+option leaves its default. The scale option alone also touches the weather message: on
+a known emery `TEMP_MIN`/`TEMP_MAX` carry the scale's ends instead of the air's.
+_Avoid_: a new message key per graph option.
+
 ## Channel
 
 **Half-duplex channel**:
@@ -102,9 +118,47 @@ _Avoid_: fetch orchestrator, refresh loop.
 The one per-fetch value of knobs every adapter and auxiliary fetch reads
 (`provider.options`, built by `weather/fetch-options.js` from the settings):
 which optional series are wanted (UV, AQI, pollen, feels), the feels formula,
-the day-max codes, the wind unit, the AQI scale/source/token. Every default
-lives there; nothing downstream carries its own fallback.
+the day-max codes, the wind unit, the AQI scale/source/token and the forecast
+span (hours, emery only). Every default lives there; nothing downstream carries
+its own fallback.
 _Avoid_: provider flags, per-fetch knobs.
+
+**Forecast span**:
+The forecast graph's time span option: 12 h, 24 h or the long span on emery
+(Graphs › Forecast › Time span; stored '12' / '24' / '48', '48' being the long
+span's token, its label the whole hours the watch will show for the provider's
+feed and the layout: `src/pkjs/forecast-span-hours.js`), 24 h everywhere else
+and on an unknown watch (`src/pkjs/forecast-span.js`). The phone decides the
+hours it sends for it, 14 / 24 / 68, and 26 for 24 h when the graph has no left
+axis (the high/low numbers On graph or Off on a known emery) (`hours()`;
+`WeatherProvider#payloadEntries`, fewer when a feed is shorter); the watch fits
+its grid to the count it receives (`NUM_ENTRIES`, `src/c/appendix/forecast_span.h`:
+2..14 the 12 h grid, 15..26 the 24 h grid, 27..68 the long one) and to its own
+plot width. See `docs/adr/0004-forecast-span-is-the-data.md`.
+_Avoid_: a watch-side forecast hours setting; calling the sent hours the span.
+
+**Visible hours**:
+The hours the emery forecast draws on screen: the n hours sent whose tick column
+lies on the plot of width W, through the one slot→x mapping
+(`src/c/appendix/slot_x.h`, in 1/256 px: min(n, ceil(W · 256 / pitch_q))). W
+runs from the plot's left edge to the screen's right edge, so the label strip,
+or none with no left axis, sets it. Every grid runs the data to or past the
+right edge rather than leave a blank tail; the long grid's fractional pitch puts
+the last hour's point on the plot's last column. How many show for each class,
+feed and layout is `src/c/appendix/forecast_span.h`'s rule (see
+`docs/adr/0004-forecast-span-is-the-data.md`). The settings page labels the long
+option with the whole ones (`forecast_span_whole`, mirrored by
+`src/pkjs/forecast-span-hours.js`).
+The temperature scale and the hi/lo labels fit the visible hours, not every
+hour sent (`forecast_layer.c` fit_entries, `forecast_numbers.h`
+forecast_numbers_relabel); the stripe bands and the curve's anchored edges
+read the hours whose bar starts on screen. The
+hour axis labels only what is whole on screen: a label either edge would cut is
+dropped (its tick stays), and with no left axis the current hour (slot 0) is
+never labelled; each label names its slot's own local hour, across a
+daylight-saving change too; the long grid marks the clock (a label every 6
+hours, every 3 once 3 hours span 18 px, a small tick on the other 3-hour marks).
+_Avoid_: forecast span (that is the option).
 
 **Mapped forecast**:
 The plain object an adapter's `withProviderData` produces from its API

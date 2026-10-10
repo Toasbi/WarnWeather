@@ -245,6 +245,21 @@ function clampByte(n) {
 }
 
 /**
+ * Scale the first `numEntries` of a trend by `scale` and clamp each to a wire
+ * byte [0, 255]. Missing entries collapse to 0.
+ *
+ * @param {number[]} trend Source trend values.
+ * @param {number} numEntries Number of leading entries to keep.
+ * @param {number} scale Multiplier applied before clamping (e.g. 10 for tenths).
+ * @returns {number[]} Clamped uint8 wire bytes.
+ */
+function scaleTrendToBytes(trend, numEntries, scale) {
+    return trend.slice(0, numEntries).map(function(value) {
+        return clampByte((value || 0) * scale);
+    });
+}
+
+/**
  * Convert miles/hour to kilometres/hour. Non-numeric input collapses to 0.
  *
  * @param {number} mph Wind speed in mph.
@@ -273,6 +288,7 @@ module.exports = {
     MPH_TO_KMH: MPH_TO_KMH,
     KNOTS_TO_KMH: KNOTS_TO_KMH,
     clampByte: clampByte,
+    scaleTrendToBytes: scaleTrendToBytes,
     mphToKmh: mphToKmh,
     kmhToDisplay: kmhToDisplay,
     trendHead: trendHead,

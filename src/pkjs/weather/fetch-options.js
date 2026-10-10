@@ -18,6 +18,11 @@
 // back to the fail-safe answer.
 var forecastSeries = require('../forecast-series.js');
 var feelsLike = require('./feels-like.js');
+// forecast-span.js requires hourly-window.js (a leaf), forecast-axis.js (line-style.js, as
+// forecast-series.js already does) and forecast-span-hours.js (that and view-cycle.js, a
+// leaf), so the invariant above holds.
+var forecastSpan = require('../forecast-span.js');
+var platform = require('../config-ui/lib/platform.js');
 
 var DEFAULTS = {
     // Request/adopt the UV series (DWD/Open-Meteo spend a request on it; the rest
@@ -53,7 +58,12 @@ var DEFAULTS = {
     aqiSource: 'waqi',
     // The shared WAQI token (build-injected via package.json's waqi.token);
     // '' = none, and air-quality.js degrades a token-less WAQI to Open-Meteo US.
-    aqicnToken: ''
+    aqicnToken: '',
+    // The hours the forecast graph is sent (14 | 24 | 26 | 68; forecast-span.js): 24 on
+    // every watch but an emery set otherwise. The adapters map hourly-window.js windowHours()
+    // of this (24, or 26 or 68 past it) and getPayload sends
+    // WeatherProvider#payloadEntries() hours.
+    forecastHours: forecastSpan.DEFAULT_HOURS
 };
 // Shared and exported: frozen so no consumer can shift every later provider's
 // default by writing to it (Object.freeze is ES5).
@@ -95,8 +105,10 @@ function defaults(overrides) {
  * string knobs fall back to DEFAULTS on a null or unset setting.
  *
  * Every settings input here is in renderSignature, so flipping a selection
- * forces a refetch and the options are rebuilt immediately; watchInfo (an aplite
- * watch never draws the feels line, nor an On demand alert) is fixed per session.
+ * forces a refetch and the options are rebuilt immediately; the forecast's time
+ * span is too (forecastSpan.signature). watchInfo (an aplite watch never draws the
+ * feels line, nor an On demand alert; only an emery takes a 12 h or long span) is
+ * fixed per session.
  *
  * @param {?Object} settings Clay settings, or null when none are stored.
  * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
@@ -128,7 +140,11 @@ function build(settings, watchInfo, env) {
         windUnits: (settings && settings.windUnits) || DEFAULTS.windUnits,
         aqiScale: (settings && settings.aqiScale) || DEFAULTS.aqiScale,
         aqiSource: (settings && settings.aqiSource) || DEFAULTS.aqiSource,
-        aqicnToken: (env && env.waqiToken) || ''
+        aqicnToken: (env && env.waqiToken) || '',
+        // The forecast's time span: the stored option's 14 | 24 | 68 hours on an emery (26 for
+        // 24 h with no left axis), 24 on every other watch and an unknown one (their inboxes
+        // cannot take a 68-hour bundle).
+        forecastHours: forecastSpan.hours(settings, platform.computeEnv(watchInfo))
     });
 }
 

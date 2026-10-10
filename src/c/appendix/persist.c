@@ -141,10 +141,20 @@ static bool write_bool_if_changed(const uint32_t key, bool val) {
     return true;
 }
 
+// The compare buffer of write_data_if_changed: the largest blob it skips a no-op write of.
+// A forecast trend is one byte per hour, FORECAST_MAX_ENTRIES of them (68 on emery).
+#if defined(PBL_PLATFORM_EMERY)
+#define PERSIST_COMPARE_BYTES 72   // emery: the long span's 68-byte trends
+#else
+#define PERSIST_COMPARE_BYTES 64
+#endif
+_Static_assert(FORECAST_MAX_ENTRIES <= PERSIST_COMPARE_BYTES,
+               "a forecast trend must fit write_data_if_changed's compare buffer");
+
 static bool write_data_if_changed(const uint32_t key, const void *data, const size_t size) {
-    // Compare buffer sized for the largest payload blob (24-entry int16 trend);
-    // oversized blobs fall through to an unconditional write.
-    uint8_t current[64];
+    // Compare buffer sized for the largest payload blob (a forecast trend, up to
+    // FORECAST_MAX_ENTRIES bytes); oversized blobs fall through to an unconditional write.
+    uint8_t current[PERSIST_COMPARE_BYTES];
     if (size <= sizeof(current)
             && persist_read_data(key, current, size) == (int) size
             && memcmp(current, data, size) == 0) {
@@ -196,7 +206,7 @@ static bool write_present_blob(const uint32_t key, const uint8_t *data, const si
 // Trends are stored as uint8 (0..250) but the shared chart engine consumes
 // int16 (it also serves the radar at 0..1000). Widen at read into a reused
 // scratch — single-threaded, one redraw at a time.
-static uint8_t s_trend_widen[24]; // MAX_BOTTOM_VIEW_ENTRIES
+static uint8_t s_trend_widen[FORECAST_MAX_ENTRIES];
 
 static int read_trend_widened(uint32_t key, int16_t *out, size_t n) {
     if (n > sizeof(s_trend_widen)) { n = sizeof(s_trend_widen); }

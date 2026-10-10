@@ -383,7 +383,10 @@ bool persist_set_sun_event_times(time_t *data, const size_t size);
 
 // Returns whether the stored config actually changed. Storage only: a caller
 // that gets true must call config_refresh() itself to reload the cached
-// config the rest of the app reads.
+// config the rest of the app reads. The Config must be memset-zeroed before its
+// fields are filled (config_parse_wire): its pad bytes are stored too, and a field
+// later appended into a former tail pad (emery's Config.forecast_axis) reads them
+// back as its value after an upgrade.
 bool persist_set_config(Config config);
 
 bool persist_get_is_sleeping();

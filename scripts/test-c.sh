@@ -73,6 +73,12 @@ cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT test/c/alert_lane_dump.c src/
    src/c/appendix/status_threshold.c -o build/host/alert_lane_dump
 build/host/alert_lane_dump > build/host/alert_lane.txt
 node scripts/check-alert-lane-lockstep.js build/host/alert_lane.txt
+# The long time span's label names the whole hours the watch shows: dump the watch's count
+# (forecast_span.h forecast_span_whole, emery only) for every long feed on every plot width
+# and check each against the settings page's rule (scripts/check-forecast-span-lockstep.js).
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/forecast_span_dump.c -o build/host/forecast_span_dump
+build/host/forecast_span_dump > build/host/forecast_span.txt
+node scripts/check-forecast-span-lockstep.js build/host/forecast_span.txt
 # The On demand layout (appendix/on_demand.c), in five tests sharing
 # test/c/on_demand_fixtures.h: the make-room ladder (one side, looks before slots, the
 # bleed, the drops, the invariants over random bars, down to "a quiet bar is the plain
@@ -113,6 +119,17 @@ build/host/step_scale_test
 # up with the curve (header-only, temp_axis_pad.h).
 cc $CFLAGS test/c/temp_axis_pad_test.c -o build/host/temp_axis_pad_test
 build/host/temp_axis_pad_test
+# Again for emery, whose 12 h and long spans read the hi/lo labels back off the bytes on
+# screen (temp_axis_byte_temp, emery only).
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/temp_axis_pad_test.c -o build/host/temp_axis_pad_test_emery
+build/host/temp_axis_pad_test_emery
+# The forecast's time span (forecast_span.h, header-only) and the hour axis's cadence
+# (forecast_grid.c, #included): built for a 24 h platform and for emery, whose 12 h / 24 h /
+# long classes, the long span's edge (fill) rule and floors, and the edge labels are pinned here.
+cc $CFLAGS -DPBL_PLATFORM_BASALT test/c/forecast_span_test.c -o build/host/forecast_span_test
+build/host/forecast_span_test
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/forecast_span_test.c -o build/host/forecast_span_test_emery
+build/host/forecast_span_test_emery
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the
 # per-platform STATUS_STRIP_CAL_GAP.
 cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test

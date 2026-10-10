@@ -142,9 +142,13 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     }
 #if defined(PBL_PLATFORM_EMERY)
     if (clay_large_graph_font_tuple) {
-        // Booleans arrive as int16 (like every other CLAY_ toggle above) -- NOT int32,
-        // which is the colour / hr_scale idiom.
-        out->large_graph_font = (bool) (clay_large_graph_font_tuple->value->int16);
+        // emery: the graph-options word (config.h GRAPH_OPT_*): bit 0 Larger graph fonts,
+        // bits 1-7 the forecast's left axis (BETA), stored as sent. Read through the low half
+        // like CLAY_VIEW_RESET_MIN: the bare boolean the phone sends while every axis option is
+        // at its default (and sent before 2.2) reads as bit 0 alone.
+        const uint16_t word = (uint16_t) clay_large_graph_font_tuple->value->int16;
+        out->large_graph_font = (word & GRAPH_OPT_LARGE_FONT) != 0;
+        out->forecast_axis = (uint8_t) (word & GRAPH_OPT_AXIS_MASK);
     }
 #endif
 #if !defined(PBL_PLATFORM_APLITE)

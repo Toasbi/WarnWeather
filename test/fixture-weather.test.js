@@ -500,3 +500,76 @@ test('the fixture adopts its UV and feels whatever the settings select or the fo
   assert.deepEqual(raw.FEELS_TREND, [40, 41, 42], 'the fixture values, not Steadman');
   assert.equal(raw.FEELS_CURRENT, 39.5);
 });
+
+// The forecast's time span (forecast-span.js): a fixture sends its own hours, up to the hours
+// the span sends this watch with the fixture's settings (14 / 24 or 26 / 68 on emery, 24 elsewhere)
+// — so a long fixture fits every inbox.
+const TRENDS = ['TEMP_TREND_UINT8', 'SECONDARY_LINE_TREND_UINT8', 'THIRD_LINE_TREND_UINT8',
+  'FOURTH_LINE_TREND_UINT8', 'BAR_TREND_UINT8'];
+const { MAX_FORECAST_HOURS } = require('../src/pkjs/weather/hourly-window.js');
+const loadFixture = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));
+
+test('forecast-long.json: 68 hours on an emery set to the long span, 24 on 24 and on every other watch', () => {
+  const fx = loadFixture('forecast-long.json');
+  assert.equal(fx.weather.temps.length, 68, 'premise: 68 hourly entries');
+  assert.equal(fx.weather.temps.length, MAX_FORECAST_HOURS, 'premise: a full long-span feed');
+  assert.equal(fx.claySettings.forecastHours, '48', 'the long span\'s token');
+  const emery = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform: 'emery' });
+  assert.equal(emery.NUM_ENTRIES, 68);
+  TRENDS.forEach((k) => assert.equal(emery[k].length, 68, 'emery ' + k));
+  const at12 = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings, { forecastHours: '12' }),
+    { platform: 'emery' });
+  assert.equal(at12.NUM_ENTRIES, 14);
+  // 24 h: 24 On axis, 26 with no left axis (the numbers On graph or Off).
+  const at24 = (nums) => getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings,
+    { forecastHours: '24', forecastAxisNumbers: nums }), { platform: 'emery' }).NUM_ENTRIES;
+  assert.deepEqual(['axis', 'graph', 'off'].map(at24), [24, 26, 26]);
+  ['basalt', 'diorite', 'chalk', 'aplite'].forEach((platform) => {
+    const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
+    assert.equal(out.NUM_ENTRIES, 24, platform);
+  });
+  assert.equal(getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), null).NUM_ENTRIES, 24,
+    'an unknown watch');
+});
+
+test('forecast-48h.json: a 48-hour feed (OWM, WU) sends its 48 on the long span, 24 on 24 and on every other watch', () => {
+  const fx = loadFixture('forecast-48h.json');
+  assert.equal(fx.weather.temps.length, 48, 'premise: 48 hourly entries');
+  assert.equal(fx.claySettings.forecastHours, '48');
+  const emery = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform: 'emery' });
+  assert.equal(emery.NUM_ENTRIES, 48, 'a short feed: the watch widens its pitch to fill the plot');
+  TRENDS.forEach((k) => assert.equal(emery[k].length, 48, 'emery ' + k));
+  const at24 = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings, { forecastHours: '24' }),
+    { platform: 'emery' });
+  assert.equal(at24.NUM_ENTRIES, 24);
+  TRENDS.forEach((k) => assert.equal(at24[k].length, 24, 'emery 24 ' + k));
+  ['basalt', 'diorite', 'chalk', 'aplite'].forEach((platform) => {
+    const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
+    assert.equal(out.NUM_ENTRIES, 24, platform);
+    assert.equal(out.TEMP_TREND_UINT8.length, 24, platform);
+  });
+  assert.equal(getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), null).NUM_ENTRIES, 24,
+    'an unknown watch');
+});
+
+test('berlin.json on an emery set to 12 sends 14 hours; the 39-hour time-lapse sends 24 by default', () => {
+  const berlin = loadFixture('berlin.json');
+  const twelve = getFixtureWeatherPayload(berlin, Object.assign({}, berlin.claySettings, { forecastHours: '12' }),
+    { platform: 'emery' });
+  assert.equal(twelve.NUM_ENTRIES, 14, 'the 13th column and the vertex past it');
+  assert.equal(twelve.TEMP_TREND_UINT8.length, 14);
+  assert.equal(twelve.BAR_TREND_UINT8.length, 14);
+  const lapse = loadFixture('berlin-timelapse.json');
+  assert.equal(lapse.weather.temps.length, 39, 'premise: 39 hourly entries');
+  const out = getFixtureWeatherPayload(lapse, Object.assign({}, lapse.claySettings), { platform: 'emery' });
+  assert.equal(out.NUM_ENTRIES, 24);
+  assert.equal(out.TEMP_TREND_UINT8.length, 24);
+});
+
+test('a 3-hour fixture still sends its 3 hours on every span', () => {
+  ['12', '24', '48'].forEach((h) => {
+    const out = getFixtureWeatherPayload(makeFixture({}), { forecastHours: h, barSource: 'off' }, { platform: 'emery' });
+    assert.equal(out.NUM_ENTRIES, 3, h);
+    assert.equal(out.TEMP_TREND_UINT8.length, 3, h);
+  });
+});

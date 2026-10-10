@@ -216,7 +216,7 @@ OpenWeatherMapProvider.prototype.withSunEvents = function(lat, lon, callback, on
         // polar handling. It runs in an XHR callback, so a throw would
         // escape both callbacks, hence the guard the base keeps too.
         try {
-            nextSunEventsPair = nextSunEvents(new Date(), lat, lon, sunEvents);
+            nextSunEventsPair = nextSunEvents(new Date(), lat, lon, sunEvents, this.options.forecastHours);
         }
         catch (ex) {
             onFailure(failure('sun_events', 'calc_error'));

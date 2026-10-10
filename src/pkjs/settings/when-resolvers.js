@@ -8,6 +8,8 @@
 //  - onDemandPlaced: an Alerts item shows on a status bar (on-demand.js).
 //  - defaultViewLacksOnDemand: the Default view shows no Alerts item at all (view-cycle.js
 //    and on-demand.js).
+//  - tempAxisLineDrawn: a feels-like or dew point line is drawn, the Left axis card's
+//    'Include feels-like & dew point' gate: forecast-axis.js' own function, registered as is.
 // Each gets (S, env, args): S is the showWhen context, the settings plus their env.
 // Under Node, blocks.js requires this file, so requiring blocks.js registers these too;
 // the webview concatenates it ahead of blocks.js (scripts/build-config-page.js APP_FILES).
@@ -28,17 +30,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
     var onDemand = (typeof require !== 'undefined') ? require('../on-demand.js') : window.OnDemand;
     // view-cycle.js exposes its API as one top-level VIEW_CYCLE object in the webview.
     var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : VIEW_CYCLE;
+    var forecastAxis = (typeof require !== 'undefined')
+        ? require('../forecast-axis.js') : window.ForecastAxis;
 
     /**
      * The picker a row that follows its metric sits under. With `from` (a Draw from key):
      * the first line that hangs from it (draw-from.js rowLine: drawn as a line or marks,
      * not a stripe, on a watch with line styles). With `metrics`: the first line that
-     * draws one of them (line-style.js effectiveLineMetric: off, or a stored repeat of an
-     * earlier pick, draws nothing), the Third and Fourth metric lines only on a watch that
-     * carries them (env.lineStyles, the WW_LINE_STYLE mirror, read truthy like the schema's
-     * {env: 'lineStyles'} leaf that shows those pickers: an env without the fact has none,
-     * where line-alert.js and draw-from.js read it as capable). So the row moves with its
-     * metric from picker to picker and shows once.
+     * draws one of them (line-style.js firstDrawnLine, by effectiveLineMetric: off, or a
+     * stored repeat of an earlier pick, draws nothing), the Third and Fourth metric lines
+     * only on a watch that carries them (env.lineStyles, the WW_LINE_STYLE mirror, read
+     * truthy like the schema's {env: 'lineStyles'} leaf that shows those pickers: an env
+     * without the fact has none, where line-alert.js and draw-from.js read it as capable).
+     * So the row moves with its metric from picker to picker and shows once.
      * @param {Object} S Settings (the showWhen context).
      * @param {?Object} env Platform env.
      * @param {{from: (string|undefined), metrics: (string[]|undefined)}} args The row.
@@ -47,14 +51,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
     function hostLine(S, env, args) {
         if (args.from) { return drawFrom.rowLine(S, args.from, env); }
         var metrics = args.metrics || [];
-        var allLines = Boolean(env && env.lineStyles);
-        for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
-            if (i >= 2 && !allLines) { break; }
-            var key = lineStyle.FORECAST_LINES[i].key;
-            var metric = lineStyle.effectiveLineMetric(S, key);
-            if (metric !== null && metrics.indexOf(metric) >= 0) { return key; }
-        }
-        return null;
+        return lineStyle.firstDrawnLine(S, Boolean(env && env.lineStyles), function (m) {
+            return metrics.indexOf(m) >= 0;
+        });
     }
 
     /**
@@ -112,6 +111,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
     PConf.whenResolvers.register('lineRow', lineRow);
     PConf.whenResolvers.register('onDemandPlaced', onDemandPlaced);
     PConf.whenResolvers.register('defaultViewLacksOnDemand', defaultViewLacksOnDemand);
+    PConf.whenResolvers.register('tempAxisLineDrawn', forecastAxis.tempAxisLineDrawn);
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {

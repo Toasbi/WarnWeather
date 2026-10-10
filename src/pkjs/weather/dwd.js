@@ -109,26 +109,33 @@ function currentFeelsFrom(current) {
 
 /**
  * ISO 8601 forecast window starting at the current wall-clock hour and
- * covering FORECAST_HOURS + 1 buckets (or to the end of tomorrow). Brightsky returns `hourly[0]` as the
+ * covering the graph's hours + 1 buckets (FORECAST_HOURS, or emery's 26 or 68
+ * hours; or to the end of tomorrow, whichever is later). Brightsky returns `hourly[0]` as the
  * bucket whose timestamp >= `date`, so anchoring `date` at the hour
  * boundary keeps `hourly[0]` on the bucket the user is currently inside.
- * `last_date` is inclusive, so ending it FORECAST_HOURS on returns one record
+ * `last_date` is inclusive, so ending it the graph's hours on returns one record
  * past the window: the one stamped at the last slot's END, which carries that
  * slot's preceding-hour rain, chance and gust (see slotRecords). While a wind
  * or gust slot shows its day max it runs on to the end of local tomorrow
- * instead: only wind and gusts read on (peakTail).
+ * where that is later: only wind and gusts read on (peakTail). At 24 h it
+ * always is (the end of tomorrow + 1 h is never under start + 24 h); at the long
+ * span's 68 h it never is (the end of tomorrow + 1 h is at most start + 49 h).
  *
  * @param {boolean} peak Whether a wind or gust slot shows its day max.
+ * @param {number} [hours] The graph's window (hourly-window.js windowHours);
+ *   FORECAST_HOURS when absent.
  * @returns {{ start: string, end: string }} ISO timestamps.
  */
-function forecastWindow(peak) {
+function forecastWindow(peak, hours) {
     var nowMs = Date.now();
     var startMs = Math.floor(nowMs / HOUR_MS) * HOUR_MS;
-    // The day max reads no further than the end of local tomorrow
-    // (localDayPeaks), plus the record after it that holds the last gust.
-    var endMs = peak
-        ? hourlyWindow.localDayStart(startMs / 1000, Math.floor(nowMs / 1000), 2) * 1000 + HOUR_MS
-        : startMs + FORECAST_HOURS * HOUR_MS;
+    var endMs = startMs + (hours || FORECAST_HOURS) * HOUR_MS;
+    if (peak) {
+        // The day max reads no further than the end of local tomorrow
+        // (localDayPeaks), plus the record after it that holds the last gust.
+        endMs = Math.max(endMs,
+            hourlyWindow.localDayStart(startMs / 1000, Math.floor(nowMs / 1000), 2) * 1000 + HOUR_MS);
+    }
     return {
         start: new Date(startMs).toISOString(),
         end: new Date(endMs).toISOString()
@@ -136,8 +143,10 @@ function forecastWindow(peak) {
 }
 
 /**
- * Wind and gusts for the hours after the graph's FORECAST_HOURS slots, out to
- * PEAK_HOURS — what the wind and gust slots' day max reads past the graph.
+ * Wind and gusts for the hours after the graph's slots (from `from`: 24, or emery's
+ * 26 or 68), out to PEAK_HOURS — what the wind and gust slots' day
+ * max reads past the graph. From 68 there is nothing to add: the slots already
+ * run past PEAK_HOURS.
  * Paired by timestamp like slotRecords (wind from the hour's own record, the
  * gust from the one an hour on), but a record Brightsky does not return reads
  * as null rather than carrying the previous hour forward: past the graph a
@@ -146,13 +155,14 @@ function forecastWindow(peak) {
  *
  * @param {Object} byEpoch Brightsky records by epoch second (recordsByEpoch).
  * @param {number} startEpoch Epoch seconds of slot 0.
+ * @param {number} from The first hour past the graph's slots (the slot count).
  * @returns {{wind: Array.<(number|null)>, gust: Array.<(number|null)>}} km/h.
  */
-function peakTail(byEpoch, startEpoch) {
+function peakTail(byEpoch, startEpoch, from) {
     var wind = [];
     var gust = [];
     var i, own, next;
-    for (i = FORECAST_HOURS; i < PEAK_HOURS; i += 1) {
+    for (i = from; i < PEAK_HOURS; i += 1) {
         own = byEpoch[startEpoch + i * HOUR_SECONDS];
         next = byEpoch[startEpoch + (i + 1) * HOUR_SECONDS];
         wind.push(own && typeof own.wind_speed === 'number' ? own.wind_speed : null);
@@ -247,7 +257,7 @@ DwdProvider.prototype.constructor = DwdProvider;
 DwdProvider.prototype._super = WeatherProvider;
 
 DwdProvider.prototype.withDwdForecast = function(lat, lon, callback, onFailure) {
-    var win = forecastWindow(windPeaksWanted(this));
+    var win = forecastWindow(windPeaksWanted(this), hourlyWindow.windowHours(this.options));
     var url = BRIGHTSKY_BASE + '/weather'
         + '?lat=' + lat
         + '&lon=' + lon
@@ -300,14 +310,16 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
         this.withDwdCurrent(lat, lon, (function(currentTempF, currentFeelsF, currentBearing) {
             var startEpoch = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
             // The window asks for records out to PEAK_HOURS (forecastWindow);
-            // the slots themselves stop at FORECAST_HOURS so every series agrees
+            // the slots themselves stop at the graph's window (FORECAST_HOURS, or
+            // emery's 26 or 68) so every series agrees
             // on its length (wind and gusts read on, peakTail below). A response short of that (fewer records than slots)
             // stays short, so hasValidData still rejects it.
             // Instants (temperature, wind speed, pressure, dew point, bearing)
             // read the slot's own record; the preceding-hour totals read the
             // record one hour on (slotRecords).
             var byEpoch = recordsByEpoch(hourly);
-            var paired = slotRecords(hourly, byEpoch, startEpoch, Math.min(hourly.length, FORECAST_HOURS));
+            var paired = slotRecords(hourly, byEpoch, startEpoch,
+                Math.min(hourly.length, hourlyWindow.windowHours(this.options)));
             var slots = paired.own;
             var following = paired.following;
             // Steadman-computed (no Brightsky feels field): the most expensive
@@ -349,9 +361,9 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             // window reached that far, forecastWindow); getPayload cuts them
             // back to the graph's window. Built on `mapped`, so adoptMapped
             // takes the full series in one step.
-            if (slots.length === FORECAST_HOURS
+            if (slots.length >= FORECAST_HOURS
                 && windPeaksWanted(this)) {
-                var tail = peakTail(byEpoch, startEpoch);
+                var tail = peakTail(byEpoch, startEpoch, slots.length);
                 mapped.windTrend = mapped.windTrend.concat(tail.wind);
                 mapped.gustTrend = mapped.gustTrend.concat(tail.gust);
             }

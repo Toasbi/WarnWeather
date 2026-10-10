@@ -852,30 +852,30 @@ void app_message_init() {
     app_message_register_inbox_received(inbox_received_callback);
     app_message_register_inbox_dropped(inbox_dropped_callback);
 
-    // All changed categories ride in one inbound message (outbox.js bundles
-    // them because the channel is half-duplex). The heaviest bundle is DWD +
-    // wind: the third line (any metric, including gust) rides alongside the
-    // secondary line, plus rain radar + status + sun.
-    // The palette and the line styling now ride the Clay message instead
-    // (see clay-payload.js; handle_palette / handle_line_style above).
-    // test/inbox-size.test.js is the authoritative computation.
-    // 528 (was 512): the selectable top-strip middle slot lets City pack up to
-    // 19 text bytes where the fixed Date packed none (+19 B worst case, 517 B).
-    // 536 (was 528): the threshold-highlight levels byte rides the weather
-    // bundle as its own tuple — 1 value byte + the 7-byte tuple header
-    // (recorded heaviest bundle now 525 B; headroom 11).
+    // All changed categories ride in one inbound message (outbox.js bundles them because the
+    // channel is half-duplex). The heaviest bundle is DWD + wind: the third line (any metric,
+    // gust too) rides alongside the secondary line, plus rain radar + status + sun. The palette
+    // and the line styling ride the Clay message instead (clay-payload.js; handle_palette /
+    // handle_line_style above). test/inbox-size.test.js is the authoritative computation.
+    // 528 (was 512): the selectable top-strip middle slot lets City pack up to 19 text bytes
+    // where the fixed Date packed none (+19 B worst case, 517 B). 536 (was 528): the threshold
+    // levels byte rides as its own tuple, 1 value byte + the 7-byte header (525 B; headroom 11).
 #if defined(PBL_PLATFORM_APLITE)
     // aplite: the buffer comes out of its tiny heap, so 536 B is a hard ceiling;
     // its bundle never carries the fourth/fifth metric lines (WW_LINE_STYLE).
     const int inbox_size = 536;
+#elif defined(PBL_PLATFORM_EMERY)
+    // emery: 1024 (was 640, 2.2.0): the long forecast span's six 68-byte trends make the
+    // heaviest bundle 867 B, 875 B with a cleared notice (test/inbox-size.test.js); 128 KB of
+    // app RAM has the room. Every other watch is never sent more than 24 hours.
+    const int inbox_size = 1024;
 #else
-    // Every other platform carries the extra metric lines (test/inbox-size.test.js
-    // sizes each platform's heaviest bundle against its own value here). Their heap
-    // is not spare either: on basalt, diorite and flint it shares 64 KB with the app
-    // image (scripts/check-64k-size.sh), so every inbox byte counts there too.
-    // 640 (was 600): the weather alerts' ALERT_ENTRIES_UINT8 tuple rides the status
-    // category — 7 B of tuple header + up to 20 entry bytes. aplite stays at 536:
-    // it has no On demand and never receives the tuple.
+    // Every other platform carries the extra metric lines (test/inbox-size.test.js sizes each
+    // platform's heaviest bundle against its own value here). Their heap is not spare either:
+    // on basalt, diorite and flint it shares 64 KB with the app image (check-64k-size.sh), so
+    // every inbox byte counts there too. 640 (was 600): the weather alerts' ALERT_ENTRIES_UINT8
+    // tuple rides the status category, 7 B of tuple header + up to 20 entry bytes. aplite
+    // stays at 536: it has no On demand and never receives the tuple.
     const int inbox_size = 640;
 #endif
     const int outbox_size = dict_calc_buffer_size(2, sizeof(uint8_t), sizeof(uint8_t));

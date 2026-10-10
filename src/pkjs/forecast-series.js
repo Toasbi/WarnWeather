@@ -13,6 +13,8 @@ var pressurePlausibility = require('./weather/pressure-plausibility.js');
 var lineAlert = require('./line-alert.js');
 // A line drawn as a stripe: each hour's level on the metric's own scale.
 var stripeLevels = require('./stripe-levels.js');
+// The forecast's left axis options (BETA, emery): whether TEMP_MIN/TEMP_MAX name the scale.
+var forecastAxis = require('./forecast-axis.js');
 
 /**
  * Quantize a permille value (0..1000) to a 0..250 byte for the wire.
@@ -254,9 +256,9 @@ function pressurePermille(arr, scale) {
  * temperature axis: the Main and Second metric lines (secondaryLine/thirdLine) on
  * every non-aplite watch, the Third and Fourth metric lines (fourthLine/fifthLine)
  * only where the watch compiles them (configUi.isLineStylePlatform — the same gate
- * applyForecastSeries puts on their wire keys). "Effective" is line-style.js'
- * effectiveLineMetric: an off line, or one repeating an earlier line's pick, draws
- * nothing and so widens nothing.
+ * applyForecastSeries puts on their wire keys). line-style.js firstDrawnLine walks
+ * them by effectiveLineMetric: an off line, or one repeating an earlier line's pick,
+ * draws nothing and so widens nothing.
  *
  * Never on aplite: such a curve only lines up with the temp curve when both share
  * a band AND a pixel inset, and aplite compiles the configurable inset out (no
@@ -275,13 +277,8 @@ function pressurePermille(arr, scale) {
 function tempAxisLineDrawn(settings, watchInfo, metric) {
     var platform = watchInfo && watchInfo.platform ? watchInfo.platform : '';
     if (platform === 'aplite') { return false; }
-    var lineStylePlatform = configUi.isLineStylePlatform(platform);
-    for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
-        var key = lineStyle.FORECAST_LINES[i].key;
-        var drawnHere = (key === 'secondaryLine' || key === 'thirdLine') || lineStylePlatform;
-        if (drawnHere && lineStyle.effectiveLineMetric(settings, key) === metric) { return true; }
-    }
-    return false;
+    return lineStyle.firstDrawnLine(settings, configUi.isLineStylePlatform(platform),
+        function (m) { return m === metric; }) !== null;
 }
 
 // Where each temperature-axis metric's series rides: its transient payload key
@@ -440,6 +437,31 @@ function buildForecastSeries(raw, settings) {
 }
 
 /**
+ * The temperature scale's ends (the left axis's 'Include feels-like & dew point', BETA):
+ * the lowest and highest finite value over the air temps and the drawn temperature-axis
+ * series, widened outward to whole degrees (TEMP_MIN / TEMP_MAX are whole °F int32s) --
+ * jointTempAxisBand's own rule, so the ends are exactly the band the bytes were scaled
+ * against and the watch's label readback (temp_axis_pad.h temp_axis_byte_temp, emery's
+ * 12 h and long spans) maps them onto whole degrees exactly. A missing reading (null, NaN)
+ * is skipped.
+ * @param {number[]} temps Whole-degree air temps (°F).
+ * @param {Array} series The drawn feels-like / capped dew point values (°F), concatenated.
+ * @returns {?{min: number, max: number}} The whole-degree ends, or null when no value is finite.
+ */
+function tempScaleRange(temps, series) {
+    var all = (temps || []).concat(series || []);
+    var lo = Infinity, hi = -Infinity;
+    for (var i = 0; i < all.length; i++) {
+        var v = all[i];
+        if (typeof v !== 'number' || !isFinite(v)) { continue; }
+        if (v < lo) { lo = v; }
+        if (v > hi) { hi = v; }
+    }
+    if (!isFinite(lo)) { return null; }
+    return { min: Math.floor(lo), max: Math.ceil(hi) };
+}
+
+/**
  * Replace a payload's raw precip/rain/wind/gust/uv trend keys with the render-ready
  * secondary + third + bar wire series. Mutates and returns the payload. Both the
  * live-fetch and fixture send paths call this so the two can't drift.
@@ -482,10 +504,15 @@ function applyForecastSeries(payload, settings, watchInfo) {
     //
     // TEMP_MIN/TEMP_MAX are NOT the scaling band: the watch scales purely from
     // the bytes and reads these two only to print the hi/lo labels
-    // (text_labels_refresh). So they keep carrying the ACTUAL air temperature
-    // range, over the very window the watch's fit reads off the bytes —
-    // a "lo" of 52 on a day whose air never dropped below 60 would be a plain
-    // lie. The feels and dew curves' own extremes are unlabelled.
+    // (text_labels_refresh). So they carry the ACTUAL air temperature range,
+    // over the very window the watch's fit reads off the bytes — a "lo" of 52
+    // on a day whose air never dropped below 60 would be a plain lie — unless a
+    // known emery has the left axis's 'Include feels-like & dew point' option on
+    // (BETA, forecast-axis.js bakesScale): then the labels name the temperature
+    // scale's ends, the lowest and highest value of the air and of every drawn
+    // feels-like / capped dew point line, and the numbers sit at those points
+    // (temp_axis_pad.h THE NUMBERS ON THE GRAPH). Otherwise the feels and dew
+    // curves' own extremes are unlabelled.
     //
     // A line the watch cannot draw (aplite, see tempAxisLineDrawn) takes the
     // empty-series path: no joint band, and its channel renders off.
@@ -524,6 +551,17 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // Whether the watch draws the line styles (WW_LINE_STYLE): only then does a line
     // stored as a stripe take stripe level bytes. aplite draws its frozen line and dots.
     raw.lineStyles = env.lineStyles;
+    // emery's left axis BETA (forecast-axis.js): the numbers name the temperature scale's
+    // ends -- the air and every drawn feels-like / capped dew point value, over the window
+    // the watch fits (getPayload's payloadEntries hours). tempBand read the air pair above,
+    // so no byte changes; with no line drawn the ends are the air's own.
+    if (forecastAxis.bakesScale(settings, env) && rawTemps.length) {
+        var ends = tempScaleRange(rawTemps, drawnAxis);
+        if (ends) {
+            payload.TEMP_MIN = ends.min;
+            payload.TEMP_MAX = ends.max;
+        }
+    }
     payload.TEMP_TREND_UINT8 = tempTrendToBytes(rawTemps, tempBand || undefined).bytes;
     var series = buildForecastSeries(raw, settings);
     delete payload.TEMP_RAW_TREND; // transient PKJS-only; encoded into TEMP_TREND_UINT8 above, never wired
@@ -665,6 +703,8 @@ module.exports = {
     needsPollen: needsPollen,
     permilleToByte: permilleToByte,
     tempTrendToBytes: tempTrendToBytes,
+    // The left axis's scale bake (BETA), for the tests.
+    tempScaleRange: tempScaleRange,
     // Re-exported from line-style.js, which owns them now: settings/preview-palette.js
     // and the colour tests read them through this module.
     PRESSURE_SCALE_CURVE_HPA: PRESSURE_SCALE_CURVE_HPA,

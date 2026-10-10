@@ -3,14 +3,15 @@
 // lineStyleOptions) and the hints of every row a forecast line carries — the scale copy
 // under its metric and style pickers (forecastMetricHint, lineStyleHint), its Visible
 // values row (lineShowHint), the Wind graph scale row while a line shows Alert
-// (windScaleHint) and its Draw from row (lineFromHint).
+// (windScaleHint) and its Draw from row (lineFromHint) — and the Time span row's options
+// (forecastSpanOptions: the long span named by the hours it shows).
 //
 // It reads only the contract modules the bake reads (line-style.js, line-alert.js,
-// draw-from.js, stripe-levels.js), nothing of blocks.js. Under Node blocks.js requires
-// this file at its top, with the preview blocks and the when resolvers, so requiring
-// blocks.js registers these resolvers too; the webview concatenates it after those four
-// modules and ahead of blocks.js (scripts/build-config-page.js APP_FILES, pinned by
-// test/config-page-bundle.test.js).
+// draw-from.js, stripe-levels.js) and forecast-span-hours.js, nothing of blocks.js. Under
+// Node blocks.js requires this file at its top, with the preview blocks and the when
+// resolvers, so requiring blocks.js registers these resolvers too; the webview concatenates
+// it after those five modules and ahead of blocks.js (scripts/build-config-page.js
+// APP_FILES, pinned by test/config-page-bundle.test.js).
 /* global PConf */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
@@ -35,6 +36,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // and the Visible values: Alert scale hint's "Graph top" read it.
     var drawFrom = (typeof require !== 'undefined')
         ? require('../draw-from.js') : window.DrawFrom;
+    // The long time span's whole hours for the picked provider and layout
+    // (forecast-span-hours.js): the Time span row's third label.
+    var forecastSpanHours = (typeof require !== 'undefined')
+        ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
 
     // The eight graph metrics in picker order — one list feeds every forecast picker.
     var FORECAST_METRICS = [
@@ -85,6 +90,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         return out;
     });
+
+    // The Time span row's options (emery only): 12 h, 24 h and the long span labelled with
+    // the whole hours the watch will show, which follow the weather provider's feed and the
+    // plot the layout leaves: where the High / low numbers sit, Larger graph fonts and the
+    // health graph's labels (forecast-span-hours.js spanOptions). The values stay '12', '24'
+    // and '48', so a relabel never touches the stored setting.
+    PConf.optionsResolvers.register('forecastSpanOptions', forecastSpanHours.spanOptions);
 
     // ---- The forecast line hints: how a metric's value reads on the graph ----
     // The scale lives on the LINE-STYLE picker, because the style decides how a value

@@ -23,6 +23,8 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');
 const FC = require('../src/pkjs/settings/preview-forecast.js');
+const PA = require('../src/pkjs/settings/preview-axis.js');
+const { cDefine } = require('./helpers/c-source.js');
 
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -104,7 +106,27 @@ function zeroLine(svg) {
 const near = (a, b) => Math.abs(a - b) < 1e-9;
 const preview = (over, env) => FC.forecastPreview(Object.assign({}, NONE, over), env || COLOR);
 const HEADER = read('src/c/appendix/temp_axis_pad.h');
-const define = (name) => Number(new RegExp('#define ' + name + ' (\\d+)').exec(HEADER)[1]);
+
+/**
+ * The curve's lowest (under) or highest y over the columns [l, r], half its 2.2 stroke round
+ * it: its vertices and the straight stretches between them, as the watch draws its line.
+ * @param {number[][]} v tempVertices.
+ * @param {number} l Left edge.
+ * @param {number} r Right edge.
+ * @param {boolean} under The lowest, else the highest.
+ * @returns {number}
+ */
+function curveReach(v, l, r, under) {
+  const hw = 1.1, ys = [];
+  v.forEach((p, i) => {
+    if (p[0] >= l - hw && p[0] <= r + hw) { ys.push(p[1]); }
+    const q = v[i + 1];
+    if (!q) { return; }
+    const c0 = Math.max(p[0], l - hw), c1 = Math.min(q[0], r + hw);
+    if (c0 <= c1) { [c0, c1].forEach((c) => ys.push(p[1] + (q[1] - p[1]) * (c - p[0]) / (q[0] - p[0]))); }
+  });
+  return under ? Math.max(...ys) + hw : Math.min(...ys) - hw;
+}
 /**
  * The flat eighth of a plot `units` preview units tall (the floor), in units.
  * @param {number} units Plot height in preview units (an integer, as PB - MT always is).
@@ -120,7 +142,7 @@ const eighth = (units) => Math.floor(units / 8);
  */
 const curve = (units) => {
   const rows = Math.floor(units * 7 / 12);
-  return Math.floor(rows * rows / define('TEMP_AXIS_PAD_SQ_DIV')) * 12 / 7;
+  return Math.floor(rows * rows / cDefine(HEADER, 'TEMP_AXIS_PAD_SQ_DIV')) * 12 / 7;
 };
 /**
  * An anchored edge's share: the larger of the eighth and the curve.
@@ -130,14 +152,14 @@ const curve = (units) => {
 const share = (units) => Math.max(eighth(units), curve(units));
 
 test('the curve, the label gap and the inset: one number each, the watch\'s', () => {
-  assert.equal(FC.TEMP_AXIS_PAD_SQ_DIV, define('TEMP_AXIS_PAD_SQ_DIV'));
-  assert.equal(FC.TEMP_AXIS_PAD_SQ_DIV, 512,
+  assert.equal(PA.TEMP_AXIS_PAD_SQ_DIV, cDefine(HEADER, 'TEMP_AXIS_PAD_SQ_DIV'));
+  assert.equal(PA.TEMP_AXIS_PAD_SQ_DIV, 512,
     'owner, 2026-10-02: "with more space in larger graphs, the padding to top and bottom can be larger than the 1/8"');
-  assert.equal(FC.TEMP_LABEL_MIN_INK_GAP, define('TEMP_LABEL_MIN_INK_GAP'));
-  assert.equal(FC.CURVE_INSET_PREV, 12, 'the scale the curve is taken at: 12 units to the inset');
-  assert.equal(FC.WATCH_INSET_PX,
-    Number(/#define BOTTOM_VIEW_PRIMARY_LINE_INSET_Y (\d+)/.exec(read('src/c/appendix/bottom_view.h'))[1]));
-  assert.equal(FC.WATCH_INSET_PX, Number(/var CURVE_INSET_PX = (\d+);/.exec(read('src/pkjs/clay-payload.js'))[1]));
+  assert.equal(PA.TEMP_LABEL_MIN_INK_GAP, cDefine(HEADER, 'TEMP_LABEL_MIN_INK_GAP'));
+  assert.equal(PA.CURVE_INSET_PREV, 12, 'the scale the curve is taken at: 12 units to the inset');
+  assert.equal(PA.WATCH_INSET_PX,
+    cDefine(read('src/c/appendix/bottom_view.h'), 'BOTTOM_VIEW_PRIMARY_LINE_INSET_Y'));
+  assert.equal(PA.WATCH_INSET_PX, Number(/var CURVE_INSET_PX = (\d+);/.exec(read('src/pkjs/clay-payload.js'))[1]));
 });
 
 test('nothing anchored: today\'s margins, 12 units at both edges', () => {
@@ -155,31 +177,31 @@ test('the share: the eighth, or the curve in watch rows past it; the preview\'s 
   // Every integer plot height, against the share worked out apart from the preview; never
   // below the flat eighth (the curve only ever adds room), never smaller for a taller plot.
   for (let units = 0; units <= 400; units += 1) {
-    assert.ok(near(FC.anchorShare(units), share(units)), String(units));
-    assert.ok(FC.anchorShare(units) >= eighth(units), String(units));
-    if (units > 0) { assert.ok(FC.anchorShare(units) >= FC.anchorShare(units - 1), String(units)); }
+    assert.ok(near(PA.anchorShare(units), share(units)), String(units));
+    assert.ok(PA.anchorShare(units) >= eighth(units), String(units));
+    if (units > 0) { assert.ok(PA.anchorShare(units) >= PA.anchorShare(units - 1), String(units)); }
   }
   // Every plot the preview can lay out (at most the unbanded 87 units, 50 watch rows) keeps
   // the flat eighth exactly: the curve passes it only from 64 watch rows.
   for (let units = 0; units <= PB - 7; units += 1) {
-    assert.equal(FC.anchorShare(units), eighth(units), String(units));
+    assert.equal(PA.anchorShare(units), eighth(units), String(units));
   }
   // The preview's own plots: unbanded 87 units, under a bottom stripe band 81, under one top
   // stripe band 83: 10 each; under two 77: 9 — where the curve alone gives 4, 4, 4 and 3 px
   // (6.9 and 5.1 units), as the watch's default view's would (55 rows 5 px, 49 under one top
   // stripe 4, 44 under two 3) against its eighth's 6, 6 and 5.
   [[87, 10, 4], [81, 10, 4], [83, 10, 4], [77, 9, 3]].forEach((c) => {
-    assert.equal(FC.anchorShare(c[0]), c[1], String(c));
+    assert.equal(PA.anchorShare(c[0]), c[1], String(c));
     assert.ok(near(curve(c[0]), c[2] * 12 / 7), String(c));
   });
   // The watch's no-calendar views at the preview's scale: basalt's 77 rows (132 units) 11 px,
   // emery's 91 (156 units) 16 px — the curve, past their eighths (16 and 19 units).
-  assert.ok(near(FC.anchorShare(77 * 12 / 7), 11 * 12 / 7));
-  assert.ok(near(FC.anchorShare(91 * 12 / 7), 16 * 12 / 7));
+  assert.ok(near(PA.anchorShare(77 * 12 / 7), 11 * 12 / 7));
+  assert.ok(near(PA.anchorShare(91 * 12 / 7), 16 * 12 / 7));
 });
 
 test('the share of the unbanded plot is under today\'s 12: the anchored edges keep it', () => {
-  assert.equal(FC.anchorShare(PB - 7), 10);
+  assert.equal(PA.anchorShare(PB - 7), 10);
   const plain = curveRows(preview({}));
   [{ barSource: 'rain' }, { barSource: 'rain', rainBarFrom: 'top' },
     { secondaryLine: 'uv', uvLineFrom: 'top', barSource: 'rain' },
@@ -327,7 +349,7 @@ test('under a top stripe band the hi label follows the curve\'s top with nothing
     const labels = labelBases(svg);
     assert.ok(near(rows.top, c.band + 12), 'premise: nothing anchored, the inset under the band');
     // The ink (the cap above the baseline) is centred on the curve's top; the lo label stays.
-    assert.ok(near(labels.hi - FC.LABEL_CAP / 2, rows.top), JSON.stringify(c.over));
+    assert.ok(near(labels.hi - PA.LABEL_CAP / 2, rows.top), JSON.stringify(c.over));
     assert.ok(near(labels.lo, PB - 1));
   });
   // 25.8, 31.8 and 37.8: 12 units below where the curve's top and the label stood before the
@@ -348,7 +370,7 @@ test('under a top stripe band a hanging element moves neither the curve\'s top n
   assert.deepEqual(rows, curveRows(preview(S, BASALT)));
   assert.deepEqual(labels, labelBases(preview(S, BASALT)));
   // The ink (the cap above the baseline) is centred on the row; the lo label stays.
-  assert.ok(near(labels.hi - FC.LABEL_CAP / 2, rows.top));
+  assert.ok(near(labels.hi - PA.LABEL_CAP / 2, rows.top));
   assert.ok(near(labels.lo, PB - 1));
   // Never further out than before.
   assert.ok(labels.hi >= 4 + 11);
@@ -372,7 +394,7 @@ test('with a feels-like or dew line under the air\'s low, that low lifts off the
     const rows = curveRows(svg);
     assert.ok(near(rows.top, top) && near(rows.bottom, bottom), label);
     const labels = labelBases(svg);
-    assert.ok(near(labels.hi, 4 + 11) && near(labels.lo, bottom + FC.LABEL_CAP / 2), label);
+    assert.ok(near(labels.hi, 4 + 11) && near(labels.lo, bottom + PA.LABEL_CAP / 2), label);
   });
 });
 
@@ -380,19 +402,19 @@ test('the scale\'s range is the temperature\'s and every drawn line\'s, the C ho
   // test/c/temp_axis_pad_test.c test_scale_all_lines, on the preview's own helper.
   const T = [14, 18, 24, 20];
   // (1) A feels-like peak over the air's high is the range's top.
-  assert.deepEqual(FC.tempAxisRange(T, [[14, 20, 30, 22]]), { min: 14, max: 30 });
+  assert.deepEqual(PA.tempAxisRange(T, [[14, 20, 30, 22]]), { min: 14, max: 30 });
   // (2) A dew trough under the air's low is its bottom.
-  assert.deepEqual(FC.tempAxisRange(T, [[9, 12, 16, 14]]), { min: 9, max: 24 });
+  assert.deepEqual(PA.tempAxisRange(T, [[9, 12, 16, 14]]), { min: 9, max: 24 });
   // (3) Lines inside the temperature's range leave it the temperature's own.
-  assert.deepEqual(FC.tempAxisRange(T, [[15, 20, 23, 19], [14, 16, 18, 17]]), { min: 14, max: 24 });
+  assert.deepEqual(PA.tempAxisRange(T, [[15, 20, 23, 19], [14, 16, 18, 17]]), { min: 14, max: 24 });
   // (4) An hour with no reading widens nothing.
-  assert.deepEqual(FC.tempAxisRange(T, [[null, 16, null, 17]]), { min: 14, max: 24 });
-  assert.deepEqual(FC.tempAxisRange(T, [[null, null, null, null]]), { min: 14, max: 24 });
+  assert.deepEqual(PA.tempAxisRange(T, [[null, 16, null, 17]]), { min: 14, max: 24 });
+  assert.deepEqual(PA.tempAxisRange(T, [[null, null, null, null]]), { min: 14, max: 24 });
   // (5) No line drawn: the temperature's own; a flat temperature stays flat (mid-plot).
-  assert.deepEqual(FC.tempAxisRange(T, []), { min: 14, max: 24 });
-  assert.deepEqual(FC.tempAxisRange([17, 17], []), { min: 17, max: 17 });
+  assert.deepEqual(PA.tempAxisRange(T, []), { min: 14, max: 24 });
+  assert.deepEqual(PA.tempAxisRange([17, 17], []), { min: 17, max: 17 });
   // Both ways at once.
-  assert.deepEqual(FC.tempAxisRange(T, [[20, 30, 26, 22], [9, 12, 16, 14]]), { min: 9, max: 30 });
+  assert.deepEqual(PA.tempAxisRange(T, [[20, 30, 26, 22], [9, 12, 16, 14]]), { min: 9, max: 30 });
   // (5) end to end: a line the watch does not draw widens nothing. Previewing aplite (no
   // WW_LINE_STYLE) the fourth and fifth lines are off, so a dew line stored there leaves
   // the temperature on its own range, today's 12-unit margins at both edges.
@@ -411,24 +433,287 @@ test('the scale\'s range is the temperature\'s and every drawn line\'s, the C ho
 });
 
 test('alignLabels: off today\'s reach only, inward only, the minimum gap, else today\'s place for both', () => {
-  const cap = FC.LABEL_CAP;
-  const gap = FC.TEMP_LABEL_MIN_INK_GAP * FC.CURVE_INSET_PREV / FC.WATCH_INSET_PX;
+  const cap = PA.LABEL_CAP;
+  const gap = PA.TEMP_LABEL_MIN_INK_GAP * PA.CURVE_INSET_PREV / PA.WATCH_INSET_PX;
   // Room: both centred on their rows, each inside today's reach (19 .. 82).
-  assert.deepEqual(FC.alignLabels(15, 93, 30, 70, 19, 82), { hi: 30 + cap / 2, lo: 70 + cap / 2 });
+  assert.deepEqual(PA.alignLabels(15, 93, 30, 70, 19, 82), { hi: 30 + cap / 2, lo: 70 + cap / 2 });
   // A row at today's reach stays where it is: the curve reaches its edge, the label stays.
-  assert.deepEqual(FC.alignLabels(15, 93, 19, 82, 19, 82), { hi: 15, lo: 93 });
-  assert.deepEqual(FC.alignLabels(15, 93, 19, 70, 19, 82), { hi: 15, lo: 70 + cap / 2 });
+  assert.deepEqual(PA.alignLabels(15, 93, 19, 82, 19, 82), { hi: 15, lo: 93 });
+  assert.deepEqual(PA.alignLabels(15, 93, 19, 70, 19, 82), { hi: 15, lo: 70 + cap / 2 });
   // A row beyond today's label clamps to today's (the hi row above it, the lo row below it).
-  assert.deepEqual(FC.alignLabels(15, 93, 12, 95, 11, 96), { hi: 15, lo: 93 });
+  assert.deepEqual(PA.alignLabels(15, 93, 12, 95, 11, 96), { hi: 15, lo: 93 });
   // Exactly the gap fits; a hair less falls back to today's place for both.
   const hi = 30 + cap / 2;
   const fits = hi + gap + cap - cap / 2;
-  assert.deepEqual(FC.alignLabels(15, 93, 30, fits, 19, 82), { hi: hi, lo: fits + cap / 2 });
-  assert.deepEqual(FC.alignLabels(15, 93, 30, fits - 0.01, 19, 82), { hi: 15, lo: 93 });
+  assert.deepEqual(PA.alignLabels(15, 93, 30, fits, 19, 82), { hi: hi, lo: fits + cap / 2 });
+  assert.deepEqual(PA.alignLabels(15, 93, 30, fits - 0.01, 19, 82), { hi: 15, lo: 93 });
   // A flat curve: today's place.
-  assert.deepEqual(FC.alignLabels(15, 93, 50, 50, 19, 82), { hi: 15, lo: 93 });
+  assert.deepEqual(PA.alignLabels(15, 93, 50, 50, 19, 82), { hi: 15, lo: 93 });
   // No gate (under a top stripe band): the hi label follows any curve top inward of its own
   // ink, and keeps its place above that.
-  assert.deepEqual(FC.alignLabels(15, 93, 17, 82, -Infinity, 82), { hi: 17 + cap / 2, lo: 93 });
-  assert.deepEqual(FC.alignLabels(15, 93, 11, 82, -Infinity, 82), { hi: 15, lo: 93 });
+  assert.deepEqual(PA.alignLabels(15, 93, 17, 82, -Infinity, 82), { hi: 17 + cap / 2, lo: 93 });
+  assert.deepEqual(PA.alignLabels(15, 93, 11, 82, -Infinity, 82), { hi: 15, lo: 93 });
+});
+
+// --- THE NUMBERS ON THE GRAPH (left axis BETA, emery only) -------------------------------
+// The forecast preview mirrors the watch's left axis options (forecast-axis.js resolved):
+// on the axis (today), on the graph (the hi number under the point it names, the lo over its own), or off; On graph
+// and Off draw no left axis, so the graph starts at the frame's left edge. temp_axis_pad.h pins
+// the watch's half on the host.
+const EMERY = platform.computeEnv({ platform: 'emery' });
+const NUMBER_TEXT = /<text x="([\d.-]+)" y="([\d.-]+)" font-size="8" fill="#AEB4BD"[^>]*>(-?\d+)°<\/text>/g;
+const UNDERLAY = /<text x="([\d.-]+)" y="([\d.-]+)" font-size="8" fill="([^"]+)" stroke="([^"]+)" stroke-width="2"[^>]*>(-?\d+)°<\/text>/g;
+const numbersIn = (svg) => [...svg.matchAll(NUMBER_TEXT)].map((m) => ({ x: Number(m[1]), base: Number(m[2]), t: m[3] }));
+const underlaysIn = (svg) => [...svg.matchAll(UNDERLAY)].map((m) => ({ x: Number(m[1]), base: Number(m[2]),
+  fill: m[3], stroke: m[4], t: m[5] }));
+const ALL_AXIS = { forecastAxisNumbers: 'graph', forecastAxisScale: true };
+
+test('the numbers\' gaps: one number each, the watch\'s', () => {
+  assert.equal(PA.TEMP_LABEL_POINT_GAP, cDefine(HEADER, 'TEMP_LABEL_POINT_GAP'));
+  assert.equal(PA.TEMP_LABEL_PART_GAP, cDefine(HEADER, 'TEMP_LABEL_PART_GAP'));
+  assert.equal(FC.PX0_AXIS, 20, 'On axis: the label strip\'s 20 units');
+  assert.equal(FC.PX0_NO_AXIS, 0, 'no left axis: the frame\'s left edge');
+});
+
+test('the left axis options change no preview off a known emery, nor emery\'s at the defaults', () => {
+  ['aplite', 'basalt', 'chalk', 'diorite', 'flint', null].forEach((p) => {
+    const env = platform.computeEnv(p ? { platform: p } : null);
+    [{}, { secondaryLine: 'dew' }, { thirdLine: 'feels', barSource: 'rain' }].forEach((over) => {
+      assert.equal(preview(Object.assign({}, over, ALL_AXIS), env), preview(over, env),
+        p + ' ' + JSON.stringify(over));
+    });
+  });
+  const defaults = { forecastAxisNumbers: 'axis', forecastAxisScale: false };
+  [{}, { secondaryLine: 'dew' }].forEach((over) => {
+    assert.equal(preview(Object.assign({}, over, defaults), EMERY), preview(over, EMERY), JSON.stringify(over));
+    // Nor do a beta's stored 'beside' and its retired Axis line / Number outline keys.
+    assert.equal(preview(Object.assign({}, over, { forecastAxisNumbers: 'beside', forecastAxisLine: false,
+      forecastAxisOutline: false }), EMERY), preview(over, EMERY));
+  });
+  assert.equal(preview({ forecastAxisScale: true }, EMERY), preview({}, EMERY), 'no feels-like / dew point line');
+});
+
+test('On graph: no left axis, the graph from the left edge; the hi number under its point, the lo over its own', () => {
+  const svg = preview({ forecastAxisNumbers: 'graph' }, EMERY);
+  assert.ok(svg.indexOf('<text x="3"') === -1, 'no number in the strip');
+  assert.match(svg, /<line x1="0" y1="94" x2="197" y2="94"/, 'the zero line starts at the left edge');
+  const v = tempVertices(svg);
+  assert.equal(v[0][0], FC.PX0_NO_AXIS, 'the curve starts at the left edge');
+  const nums = numbersIn(svg);
+  assert.deepEqual(nums.map((n) => n.t), ['24', '14']);
+  const U = PA.CURVE_INSET_PREV / PA.WATCH_INSET_PX;
+  const gap = PA.TEMP_LABEL_POINT_GAP * U, w = 3 * PA.NUMBER_CHAR_W;
+  // The hi number: hour 0 (the first of two 24s) at the left edge, so held on the plot's first
+  // column (in by the ring); its ink the gap under the curve over its width and ring.
+  const hi = nums[0];
+  assert.ok(near(hi.x, U), 'held on the plot\'s first column');
+  assert.ok(near(hi.base - PA.LABEL_CAP, curveReach(v, hi.x - U, hi.x + w + U, true) + gap),
+    'clear under the curve');
+  assert.ok(hi.base - PA.LABEL_CAP > v[0][1], 'under its vertex');
+  // The lo number: hour 7 (the first 14), centred over it, its ink the gap over the curve.
+  const lo = nums[1];
+  assert.ok(near(lo.x + w / 2, v[7][0]), 'centred on its vertex');
+  assert.ok(near(lo.base, curveReach(v, lo.x - U, lo.x + w + U, false) - gap), 'clear over the curve');
+  assert.ok(lo.base < v[7][1], 'over its vertex');
+  // The outline: an underlay in the background colour, just before each number.
+  const under = underlaysIn(svg);
+  assert.equal(under.length, 2);
+  under.forEach((u, i) => {
+    assert.equal(u.fill, '#000000');
+    assert.equal(u.stroke, '#000000');
+    assert.equal(u.t, nums[i].t);
+    assert.ok(near(u.x, nums[i].x) && near(u.base, nums[i].base));
+  });
+  assert.ok(svg.indexOf('paint-order') === -1, 'no paint-order: an old WebView ignores it');
+  // The light theme's background.
+  underlaysIn(preview({ forecastAxisNumbers: 'graph', theme: 'light' }, EMERY))
+    .forEach((u) => assert.equal(u.stroke, '#FFFFFF'));
+  // The outline is no option: a beta's stored outline-off changes nothing.
+  assert.equal(preview({ forecastAxisNumbers: 'graph', forecastAxisOutline: false }, EMERY), svg);
+});
+
+test('Off: no numbers and no left axis, the graph from the left edge', () => {
+  const svg = preview({ forecastAxisNumbers: 'off' }, EMERY);
+  assert.equal(numbersIn(svg).length, 0);
+  assert.equal(underlaysIn(svg).length, 0);
+  assert.match(svg, /<line x1="0" y1="94" x2="197" y2="94"/);
+  assert.equal(tempVertices(svg)[0][0], FC.PX0_NO_AXIS);
+});
+
+test('Include feels-like & dew point: the numbers name the scale\'s ends, beside or on the graph', () => {
+  const dew = [13, 14, 17, 18, 16, 14, 13, 12, 12, 12, 13, 13];   // preview-forecast.js' sample
+  const beside = preview({ secondaryLine: 'dew', forecastAxisScale: true }, EMERY);
+  const strip = [...beside.matchAll(/<text x="3" y="([\d.]+)"[^>]*>(-?\d+)°<\/text>/g)].map((m) => m[2]);
+  assert.deepEqual(strip, ['24', String(Math.round(Math.min.apply(null, dew)))]);
+  const graph = preview({ secondaryLine: 'dew', forecastAxisScale: true, forecastAxisNumbers: 'graph' }, EMERY);
+  assert.deepEqual(numbersIn(graph).map((n) => n.t), ['24', '12']);
+  // The lo number sits over the dew trough's first hour (7), on the bottom margin row, its ink
+  // at least the gap over it.
+  const lo = numbersIn(graph)[1];
+  const U = PA.CURVE_INSET_PREV / PA.WATCH_INSET_PX;
+  assert.ok(near(lo.x + 3 * PA.NUMBER_CHAR_W / 2, tempVertices(graph)[7][0]), 'centred on the trough');
+  assert.ok(lo.base <= PB - 12 - PA.TEMP_LABEL_POINT_GAP * U, 'over the trough, clear of it');
+  // Off a known emery the option changes nothing: the strip names the air.
+  const basalt = preview({ secondaryLine: 'dew', forecastAxisScale: true }, BASALT);
+  assert.equal(basalt, preview({ secondaryLine: 'dew' }, BASALT));
+  // A feels-like low under the air's names that low (the feels-like sample dips to 13).
+  assert.deepEqual(numbersIn(preview({ secondaryLine: 'feels', forecastAxisScale: true,
+    forecastAxisNumbers: 'graph' }, EMERY)).map((n) => n.t), ['24', '13']);
+});
+
+test('lineReach / numberCentred / numberClear / numbersPart: the header\'s rules, in preview units', () => {
+  const U = PA.CURVE_INSET_PREV / PA.WATCH_INSET_PX;
+  const gap = PA.TEMP_LABEL_POINT_GAP * U, cap = PA.LABEL_CAP;
+  const area = { left: 9, right: 197, top: 4, bottom: 93 };
+  // Reach: a polyline's points and straight stretches over the columns grown by half its
+  // stroke (1 here: ticks every 10 units, a 2-unit stroke); over 14..26 a peak at 20.
+  const xAt = (i) => [i * 10 - 1, i * 10 + 1];
+  const ys = [50, 40, 30, 40, 50];
+  assert.ok(near(PA.lineReach(ys, xAt, false, 1, 15, 25, 30, true), 36 + 1), 'under: its lowest y');
+  assert.ok(near(PA.lineReach(ys, xAt, false, 1, 15, 25, 30, false), 30 - 1), 'over: its highest y');
+  // A missing reading draws no stretch to or from it: only the point's own y is left.
+  assert.ok(near(PA.lineReach(ys, xAt, false, 1, 5, 15, 30, true), 46 + 1));
+  assert.ok(near(PA.lineReach([50, null, 30], xAt, false, 1, 5, 15, 30, true), 30 + 1));
+  // Marks: only the boxes that meet the columns (hour 1's, 12..18).
+  const mAt = (i) => [i * 10 + 2, i * 10 + 8];
+  assert.ok(near(PA.lineReach([50, 40, 30], mAt, true, 3, 9, 13, 35, true), 40 + 3));
+  assert.ok(near(PA.lineReach([50, 40, 30], mAt, true, 3, 9, 13, 35, false), 35 - 3));
+  // Centred on the point's ink, else held inside.
+  assert.ok(near(PA.numberCentred(100, 102, 10, area), 96));
+  assert.ok(near(PA.numberCentred(5, 7, 10, area), area.left), 'held on the left');
+  assert.ok(near(PA.numberCentred(195, 197, 10, area) + 10, area.right), 'held on the right');
+  // Clear: the ink the gap under (its top) or over (its baseline) the line; else held inside,
+  // touching it.
+  assert.ok(near(PA.numberClear(40, true, area), 40 + gap + cap));
+  assert.ok(near(PA.numberClear(40, false, area), 40 - gap));
+  assert.ok(near(PA.numberClear(90, true, area), area.bottom), 'no room under: held over the bottom');
+  assert.ok(near(PA.numberClear(5, false, area) - cap, area.top), 'no room over: held under the top');
+  // Part: apart untouched; overlapping, lo under hi; at the floor, hi lifted; no room: false.
+  const pg = PA.TEMP_LABEL_PART_GAP * U;
+  let hi = { x: 20, base: 50 }, lo = { x: 150, base: 50 };
+  assert.equal(PA.numbersPart(hi, 10, lo, 10, area), true);
+  assert.deepEqual([hi, lo], [{ x: 20, base: 50 }, { x: 150, base: 50 }]);
+  hi = { x: 50, base: 50 }; lo = { x: 52, base: 51 };
+  assert.equal(PA.numbersPart(hi, 10, lo, 10, area), true);
+  assert.ok(near(lo.base, 50 + cap + pg) && hi.base === 50);
+  hi = { x: 50, base: 90 }; lo = { x: 52, base: 92 };
+  assert.equal(PA.numbersPart(hi, 10, lo, 10, area), true);
+  assert.ok(near(lo.base, area.bottom) && near(hi.base, area.bottom - cap - pg));
+  // No room for both: the lo number is left out, and the hi number keeps its first place,
+  // inside the area (never lifted over its top).
+  const tiny = { left: 9, right: 197, top: 4, bottom: 14 };
+  hi = { x: 50, base: 12 }; lo = { x: 50, base: 12 };
+  assert.equal(PA.numbersPart(hi, 10, lo, 10, tiny), false);
+  assert.deepEqual(hi, { x: 50, base: 12 }, 'the hi number stays put');
+  assert.ok(hi.base - cap >= tiny.top && hi.base <= tiny.bottom, 'inside the area');
+});
+
+test('numbersArea: the plot\'s edges, between the bands, shrunk by the outline\'s ring', () => {
+  const U = PA.CURVE_INSET_PREV / PA.WATCH_INSET_PX;
+  // On graph always outlines: the ring (one watch px round the ink) stays off the left
+  // edge, the top band, the plot's right edge and the zero line.
+  const o = PA.numbersArea(0, 197, 4, 94);
+  assert.ok(near(o.left, U) && near(o.right, 197 - U) && near(o.top, 4 + U) && near(o.bottom, 93 - U));
+  // A number held at the area's edges sits in by the ring.
+  assert.ok(near(PA.numberCentred(-5, -3, 20, o), U), 'held left, in by the ring');
+  assert.ok(near(PA.numberCentred(200, 202, 20, o) + 20, 197 - U), 'held right, in by the ring');
+  assert.ok(near(PA.numberClear(0, false, o) - PA.LABEL_CAP, 4 + U), 'held on top, in by the ring');
+  assert.ok(near(PA.numberClear(200, true, o), 93 - U), 'held at the bottom, in by the ring');
+});
+
+test('bothNumbers: a flat range draws one number; else both, apart', () => {
+  const area = PA.numbersArea(0, 197, 4, 94);
+  // Equal texts: the hi number alone, neither box moved, even where the two would collide.
+  let hi = { x: 50, base: 50 }, lo = { x: 50, base: 50 };
+  assert.equal(PA.bothNumbers('20°', '20°', hi, 10, lo, 10, area), false);
+  assert.deepEqual([hi, lo], [{ x: 50, base: 50 }, { x: 50, base: 50 }]);
+  // Two texts: both, kept apart (the lo one under the hi one).
+  assert.equal(PA.bothNumbers('21°', '20°', hi, 10, lo, 10, area), true);
+  assert.ok(lo.base > hi.base + PA.LABEL_CAP);
+  // Two texts with no room: numbersPart's verdict.
+  hi = { x: 50, base: 12 }; lo = { x: 50, base: 12 };
+  assert.equal(PA.bothNumbers('21°', '20°', hi, 10, lo, 10, { left: 9, right: 197, top: 4, bottom: 14 }), false);
+});
+
+// --- THE HOUR AXIS (emery's spans and left axis, mirrored) -------------------------------
+// preview-forecast.js drawAxis mirrors forecast_grid.c forecast_grid_fill_axis_span over its
+// own 12-hour noon window: the span's cadence (forecast_span.h forecast_span), each slot's
+// mark (forecast_span_mark), no label on slot 0 with no left axis, and no label an edge would
+// cut (forecast_span_label_fits). test/c/forecast_span_test.c pins the watch's half.
+const HOUR_TEXT = /<text x="([\d.]+)" y="105"[^>]*>(\d+)<\/text>/g;
+const hourLabels = (svg) => [...svg.matchAll(HOUR_TEXT)].map((m) => m[2]);
+const TICK = /<line x1="([\d.]+)" y1="94" x2="[\d.]+" y2="(98|96)"/g;
+const ticks = (svg) => [...svg.matchAll(TICK)].map((m) => (m[2] === '98' ? 'big' : 'small'));
+const SPAN_HEADER = read('src/c/appendix/forecast_span.h');
+
+test('hour axis: the marks are forecast_span.h\'s, the long span\'s clock marks at its 3 px pitch', () => {
+  assert.equal(PA.MARK_NONE, cDefine(SPAN_HEADER, 'FORECAST_MARK_NONE'));
+  assert.equal(PA.MARK_TICK, cDefine(SPAN_HEADER, 'FORECAST_MARK_TICK'));
+  assert.equal(PA.MARK_LABEL, cDefine(SPAN_HEADER, 'FORECAST_MARK_LABEL'));
+  const span = (h, env) => PA.axisCadence({ forecastHours: h }, env || EMERY);
+  assert.deepEqual(span('12'), { labelEvery: 2, tickEvery: 1, byClock: false });
+  assert.deepEqual(span('24'), { labelEvery: 3, tickEvery: 1, byClock: false });
+  assert.deepEqual(span(undefined), { labelEvery: 3, tickEvery: 1, byClock: false });
+  // The long span at the default plot's 3 px pitch: 3 hours are 9 px, under the 18 px a
+  // 3-hourly label needs, so a label every 6 clock hours and a small tick between.
+  assert.ok(cDefine(SPAN_HEADER, 'FORECAST_SPAN_CLOCK_TICK_H') * 3
+    < cDefine(SPAN_HEADER, 'FORECAST_SPAN_LABEL_MIN_PX'));
+  assert.deepEqual(span('48'), { labelEvery: cDefine(SPAN_HEADER, 'FORECAST_SPAN_CLOCK_LABEL_H'),
+    tickEvery: cDefine(SPAN_HEADER, 'FORECAST_SPAN_CLOCK_TICK_H'), byClock: true });
+  // Every watch but emery draws 24 h, whatever is stored.
+  assert.deepEqual(span('48', BASALT), span('24'));
+  assert.deepEqual(span('12', platform.computeEnv(null)), span('24'));
+  // The clock's marks: 12 / 18 / 0 labelled, 15 / 21 / 3 ticked, the rest bare; a repeated
+  // (fall-back) hour marked once.
+  const long = span('48');
+  assert.deepEqual([12, 13, 15, 18, 21, 0, 3, 6].map((h, i) => PA.axisMark(long, i + 1, h, h - 1)),
+    [2, 0, 1, 2, 1, 2, 1, 2]);
+  assert.equal(PA.axisMark(long, 5, 3, 3), PA.MARK_NONE, 'the repeated 3 o\'clock: once');
+  // 12 h and 24 h count from slot 0, whatever the hour.
+  assert.deepEqual([0, 1, 2, 3].map((i) => PA.axisMark(span('24'), i, 7 + i, 6 + i)), [2, 1, 1, 2]);
+  assert.deepEqual([0, 1, 2].map((i) => PA.axisMark(span('12'), i, 7 + i, 6 + i)), [2, 1, 2]);
+  // A label either edge would cut is not drawn.
+  assert.equal(PA.axisLabelFits(0, '15', 0, 200), false);
+  assert.equal(PA.axisLabelFits(4.5, '15', 0, 200), true);
+  assert.equal(PA.axisLabelFits(197, '21', 0, 200), false);
+  assert.equal(PA.axisLabelFits(197, '9', 0, 200), true);
+});
+
+test('hour axis: every stored span value gives the cadence of the option the watch draws', () => {
+  const TWELVE = { labelEvery: 2, tickEvery: 1, byClock: false };
+  const DAY = { labelEvery: 3, tickEvery: 1, byClock: false };
+  const LONG = { labelEvery: 6, tickEvery: 3, byClock: true };
+  // [stored value, its cadence on emery]; every other watch draws 24 h whatever is stored.
+  [['12', TWELVE], [12, TWELVE], ['24', DAY], [24, DAY], ['48', LONG], [48, LONG], ['36', DAY], ['junk', DAY],
+    [undefined, DAY]].forEach(([stored, onEmery]) => {
+    assert.deepEqual(PA.axisCadence({ forecastHours: stored }, EMERY), onEmery, 'emery ' + stored);
+    [BASALT, platform.computeEnv(null), null].forEach((env) =>
+      assert.deepEqual(PA.axisCadence({ forecastHours: stored }, env), DAY, 'off emery ' + stored));
+  });
+  assert.deepEqual(PA.axisCadence(null, EMERY), DAY, 'no settings');
+});
+
+test('hour axis: On axis keeps today\'s labels; On graph and Off drop slot 0\'s label, keep its tick', () => {
+  assert.deepEqual(hourLabels(preview({}, EMERY)), ['12', '15', '18', '21'], 'On axis: today');
+  ['graph', 'off'].forEach((nums) => {
+    const svg = preview({ forecastAxisNumbers: nums }, EMERY);
+    assert.deepEqual(hourLabels(svg), ['15', '18', '21'], nums + ': the first label is the next one');
+    assert.equal(ticks(svg)[0], 'big', nums + ': slot 0 keeps its big tick');
+    assert.equal(ticks(svg).length, 12, nums + ': a tick per hour');
+  });
+  // Off a known emery the option changes nothing.
+  assert.deepEqual(hourLabels(preview({ forecastAxisNumbers: 'off' }, BASALT)), ['12', '15', '18', '21']);
+});
+
+test('hour axis: the long span marks the clock (12 / 15 / 18 / 21), the 12 h span every 2nd hour', () => {
+  const long = preview({ forecastHours: '48' }, EMERY);
+  assert.deepEqual(hourLabels(long), ['12', '18'], 'labels every 6 clock hours');
+  assert.deepEqual(ticks(long), ['big', 'small', 'big', 'small'], 'a tick on every 3-hour mark only');
+  assert.deepEqual(hourLabels(preview({ forecastHours: '48', forecastAxisNumbers: 'off' }, EMERY)), ['18'],
+    'no left axis: slot 0 unlabelled');
+  assert.deepEqual(hourLabels(preview({ forecastHours: '12' }, EMERY)), ['12', '14', '16', '18', '20', '22']);
+  assert.deepEqual(hourLabels(preview({ forecastHours: '12', forecastAxisNumbers: 'graph' }, EMERY)),
+    ['14', '16', '18', '20', '22']);
+  assert.deepEqual(hourLabels(preview({ forecastHours: '48', axisTimeFormat: '12h' }, EMERY)), ['12', '6'],
+    'folded like config_axis_hour');
 });

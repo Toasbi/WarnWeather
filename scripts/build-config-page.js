@@ -81,6 +81,19 @@ var APP_FILES = [
   // readers bind it while theirs run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/draw-from.js'),
+  // The forecast's left axis options, BETA (window.ForecastAxis): the numbers' place and the
+  // scale option, for the forecast preview and the Left axis card's when-resolver. It binds
+  // window.LineStyle while its own body runs, so it follows line-style.js, and
+  // preview-forecast.js and when-resolvers.js bind it while theirs run, so it precedes them —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/forecast-axis.js'),
+  // The long time span's whole hours (window.ForecastSpanHours): the Time span row's label,
+  // by forecast-hints.js' forecastSpanOptions resolver, and the span option the forecast
+  // preview's hour axis reads (preview-axis.js). It binds window.ForecastAxis and
+  // window.VIEW_CYCLE while its own body runs, so it follows forecast-axis.js and view-cycle.js,
+  // and forecast-hints.js and preview-axis.js bind it while theirs run, so it precedes them —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/forecast-span-hours.js'),
   // A stripe cell's level on its metric's own scale (window.StripeLevels): the table the
   // bake shades every stripe by, which the forecast and radar previews shade their cells
   // by and forecast-hints.js' stripe hints are written from. It reads nothing at load, and its
@@ -99,6 +112,11 @@ var APP_FILES = [
   // preview-stripe.js publishes window.PreviewStripe (the stripe cell look), read by
   // the forecast and radar previews below.
   path.join(ROOT, 'src/pkjs/settings/preview-stripe.js'),
+  // preview-axis.js publishes window.PreviewAxis (the watch's temperature axis and hour
+  // marks, mirrored), read by the forecast preview below. It binds window.ForecastSpanHours
+  // while its own body runs, so it follows forecast-span-hours.js —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/settings/preview-axis.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-forecast.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-radar.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-diagnostics.js'),

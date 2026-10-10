@@ -12,6 +12,7 @@
 
 var settings = require('./settings');
 var KEYS = require('./storage-keys');
+var statusCatalog = require('./status-line-catalog.js');
 
 var STORAGE_KEY = 'clay-settings';
 
@@ -252,6 +253,29 @@ function getDefaults(colors) {
 }
 
 /**
+ * The value seedDefaults backfills into an EXISTING install that lacks a key whose
+ * shipped default changed after the key first shipped: the look that install had
+ * before the key existed, not the new default. A changed default is meant for a fresh
+ * install and a reset (2.2.0: Bluetooth vibrate on; wind and gusts on the Both pair
+ * without a unit), never to rearrange an upgrader's watch. The unit toggles' legacy
+ * values live in the catalog's UNIT_TOGGLES (the same table the baker reads an absent
+ * key by), so the two can never disagree.
+ * @returns {Object} settings key -> backfill value
+ */
+function upgradeBackfill() {
+    var out = {
+        vibe: false,
+        windSlotDisplay: 'current',
+        gustSlotDisplay: 'current'
+    };
+    var toggles = statusCatalog.UNIT_TOGGLES;
+    for (var i = 0; i < toggles.length; i++) {
+        if (typeof toggles[i].legacy === 'boolean') { out[toggles[i].key] = toggles[i].legacy; }
+    }
+    return out;
+}
+
+/**
  * Seed defaults on first run and backfill any missing keys on later runs.
  * Clay only considers `defaultValue` on first startup, but we need defaults
  * set even if the user has not made a custom config.
@@ -283,12 +307,16 @@ function seedDefaults(colors) {
         return;
     }
 
+    // An existing install backfills a changed default's old value (upgradeBackfill),
+    // every other missing key the shipped default.
+    var legacy = upgradeBackfill();
     for (prop in defaults) {
         if (
             Object.prototype.hasOwnProperty.call(defaults, prop) &&
             !Object.prototype.hasOwnProperty.call(persistClay, prop)
         ) {
-            persistClay[prop] = defaults[prop];
+            persistClay[prop] = Object.prototype.hasOwnProperty.call(legacy, prop)
+                ? legacy[prop] : defaults[prop];
         }
     }
     // A settings save between the reset and this boot leaves a non-empty blob, so
@@ -421,6 +449,7 @@ module.exports = {
     hasStored: hasStored,
     getDefaults: getDefaults,
     seedDefaults: seedDefaults,
+    upgradeBackfill: upgradeBackfill,
     applyDevConfig: applyDevConfig,
     applyFixtureSettings: applyFixtureSettings
 };

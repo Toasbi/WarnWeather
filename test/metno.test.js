@@ -336,3 +336,42 @@ test('withProviderData populates dewTrend and windDirTrend, numEntries long', ()
     assert.ok(d >= 0 && d < 360, `${d} is outside [0, 360)`);
   });
 });
+
+// A 48-hour window (a window past 24 that stays under PEAK_HOURS, so no hourlyTail): Met.no is
+// hourly to about 60 h. Emery's long span (68) is test/metno-tail.test.js.
+test('48 h: mapResponse maps 48 contiguous hours; the default stays 24', () => {
+  const mapped = metno.mapResponse(forecastBody(60, HOUR0), NOW, 48);
+  ['tempTrend', 'precipTrend', 'rainTrend', 'pressureTrend', 'cloudTrend', 'feelsTrend', 'dewTrend',
+    'windDirTrend'].forEach((k) => assert.equal(mapped[k].length, 48, k));
+  assert.equal(mapped.uvTrend.length, PEAK_HOURS, 'the day-max series keep PEAK_HOURS');
+  assert.equal(metno.mapResponse(forecastBody(60, HOUR0), NOW).tempTrend.length, 24);
+});
+
+test('48 h: a feed going 6-hourly at +40 h maps 41 hours', () => {
+  const body = forecastBody(41, HOUR0);
+  body.properties.timeseries.push(forecastBody(1, HOUR0 + 46 * HOUR).properties.timeseries[0]);
+  const mapped = metno.mapResponse(body, NOW, 48);
+  assert.equal(mapped.tempTrend.length, 41);
+  assert.equal(mapped.rainTrend.length, 41);
+});
+
+test('48 h: a bucket without a temperature past hour 24 ends the window; inside 24 it fails', () => {
+  const late = metno.mapResponse(forecastBody(60, HOUR0, { 35: { dropInstantFields: ['air_temperature'] } }),
+    NOW, 48);
+  assert.ok(late, 'not a failed fetch');
+  ['tempTrend', 'precipTrend', 'rainTrend', 'feelsTrend', 'dewTrend'].forEach((k) =>
+    assert.equal(late[k].length, 35, k));
+  assert.equal(metno.mapResponse(forecastBody(60, HOUR0, { 10: { dropInstantFields: ['air_temperature'] } }),
+    NOW, 48), null, 'a hole inside the base window still fails');
+});
+
+test('48 h: withProviderData maps the span from the fetch options', () => {
+  responder = function(url, type, onSuccess) { onSuccess(JSON.stringify(forecastBody(60, HOUR0))); };
+  const p = new metno.MetnoProvider();
+  p.options = fetchOptions.defaults({ forecastHours: 48 });
+  withMockedNow(NOW, () => {
+    p.withProviderData(59.91, 10.75, true, () => {}, () => { throw new Error('must not fail'); });
+  });
+  assert.equal(p.tempTrend.length, 48);
+  assert.equal(p.getPayload().NUM_ENTRIES, 48);
+});

@@ -157,6 +157,20 @@ typedef struct {
     // A config blob never crosses installs, so the per-platform sizeof(Config) is safe.
     bool view_double_flick;
 #endif
+    // --- forecast left axis, BETA (v2.2, emery only): bits 1-7 of the CLAY_LARGE_GRAPH_FONT
+    // graph-options word as sent (GRAPH_OPT_* below); 0 = every option at its default, today's
+    // graph. Appended at the END (append-only persist offsets). It fills the struct's former
+    // tail pad, so sizeof(Config) stays 56 B on emery (test/c/config_size_test.c) and an
+    // upgrader's stored blob, the full 56 B since emery's Config reached that size, DOES reach
+    // this byte: it reads 0 because every stored Config was memset-zeroed, pad included, before
+    // its fields were filled (config_parse_wire, persist_set_config's "callers must memset"
+    // contract). Only an older, shorter blob does not reach it and keeps the seeded 0. A new
+    // writer of a Config must keep that memset, or its stack garbage here reads back as axis
+    // options after an upgrade. PBL_PLATFORM_EMERY-guarded for large_graph_font's reason above;
+    // a config blob never crosses installs.
+#if defined(PBL_PLATFORM_EMERY)
+    uint8_t forecast_axis;
+#endif
 } Config;
 
 // Read-only view of the loaded config. Non-NULL from config_load() until
@@ -175,6 +189,35 @@ static inline bool config_large_graph_font(void) {
     return config_get()->large_graph_font;
 #else
     return false;
+#endif
+}
+
+// The CLAY_LARGE_GRAPH_FONT graph-options word, which only emery reads (every other watch
+// skips the key): bit 0 Larger graph fonts (Config.large_graph_font); bits 1-7 the forecast's
+// left axis (BETA), kept as sent in Config.forecast_axis. Bits 2-3 are one code: 00 the hi/lo
+// numbers on the axis (beside the axis line, left of the graph: today), 01 on the graph, 10
+// off (11 reads as off: any nonzero code takes the whole left axis away -- no strip, no axis
+// line -- and only exactly 01 draws numbers on the graph). The axis line and the numbers'
+// outline are implied by that code (the line iff on the axis, the outline iff on the graph):
+// bits 1 and 4, their retired options (a dev build's "Axis line" off and "Number outline"
+// off), are reserved -- never sent, never read -- and the other bits keep their places, so a
+// dev watch's stored Config reads right. Bits 6-7 are reserved (sent 0). Lockstep with
+// src/pkjs/forecast-axis.js BIT / AXIS_MASK, pinned by test/forecast-axis.test.js.
+#define GRAPH_OPT_LARGE_FONT    0x01
+#define GRAPH_OPT_NUMS_MASK     0x0C   // the hi/lo numbers' code
+#define GRAPH_OPT_NUMS_GRAPH    0x04   // ...on the graph, under / over the points they name
+#define GRAPH_OPT_NUMS_OFF      0x08   // ...off
+#define GRAPH_OPT_SCALE_NUMS    0x20   // the numbers name the temperature scale's ends
+#define GRAPH_OPT_AXIS_MASK     0xFE   // bits 1-7: Config.forecast_axis
+
+// The left-axis options, the config_large_graph_font pattern: constant 0 (every option at its
+// default, today's graph) off emery, so call-site branches fold away there.
+static inline uint8_t config_forecast_axis(void) {
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the only platform with the field (and the settings rows).
+    return config_get()->forecast_axis;
+#else
+    return 0;
 #endif
 }
 

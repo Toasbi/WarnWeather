@@ -2379,11 +2379,11 @@ test('resetStatusSlots reverts every bar\'s On demand ticks, and leaves the item
   assert.strictEqual(S.showQt, false);
   // aplite: no On demand, and the Watch Status Bar's own rows are in the card.
   const A = scrambledSlotState();
-  Object.assign(A, { batteryLowOnly: false, showQt: false, vibe: true, btIcons: 'none' });
+  Object.assign(A, { batteryLowOnly: false, showQt: false, vibe: false, btIcons: 'none' });
   PC.actions.resetStatusSlots(null, A, Object.assign({}, ENV, { onDemand: false }), defaultOf);
   assert.strictEqual(A.batteryLowOnly, true);
   assert.strictEqual(A.showQt, true);
-  assert.strictEqual(A.vibe, false);
+  assert.strictEqual(A.vibe, true, 'vibrate on disconnect ships on (2.2.0)');
   assert.equal(A.btIcons, 'disconnected');
 });
 
@@ -2392,7 +2392,7 @@ test('resetOnDemand reverts the items\' settings and where each shows — not th
   const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], ENV);
   const S = { threshUvWarn: '7', threshUvDanger: '9', threshUvOn: true, rainCountdownHorizon: '120',
     statusTopOnDemandRightItems: 'rain', rainAlertDisplay: 'icon', uvSlotNextDayMark: 'star',
-    batteryLowLevel: '25', batteryLowDisplay: 'value', btIcons: 'none', vibe: true,
+    batteryLowLevel: '25', batteryLowDisplay: 'value', btIcons: 'none', vibe: false,
     threshUvWarnLook: 'outline' };
   ALERT_STEMS.forEach(stem => {
     S['alert' + stem + 'Display'] = 'icon';
@@ -2411,7 +2411,7 @@ test('resetOnDemand reverts the items\' settings and where each shows — not th
   assert.equal(S.batteryLowLevel, '10');
   assert.equal(S.batteryLowDisplay, 'icon');
   assert.equal(S.btIcons, 'disconnected');
-  assert.strictEqual(S.vibe, false);
+  assert.strictEqual(S.vibe, true, 'vibrate on disconnect ships on (2.2.0)');
   assert.ok(!('alertRain' in S), 'no rain switch key');
   assert.equal(S.threshUvWarn, '7', 'the levels keep their own reset');
   assert.equal(S.threshUvWarnLook, 'outline', 'and so do the warn looks');

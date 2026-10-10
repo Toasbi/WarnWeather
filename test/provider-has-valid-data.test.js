@@ -60,7 +60,7 @@ test('constructor default windTrend is a zero-filled numEntries array', () => {
 });
 
 // Locks the SUN_EVENTS wire encoding (leading sunrise/sunset byte + LE Int32
-// epoch-seconds per event) so the encodeSunEvents extraction can't drift it.
+// epoch-seconds per event) so the encodeSunEvents helper (sun-events.js) can't drift it.
 test('getPayload encodes SUN_EVENTS as [startByte, ...LE int32 epoch seconds]', () => {
   const p = makeProvider({
     numEntries: 3,
