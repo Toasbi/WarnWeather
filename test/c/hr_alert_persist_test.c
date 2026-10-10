@@ -2,7 +2,7 @@
 // persist_set_hr_alert() / persist_get_hr_alert(), the flash side of emery's
 // heart-rate alert (CLAY_HR_ALERT_UINT8, layout in hr_alert.h). hr_alert_test.c pins
 // the decoders and the RAM cache over a faked getter; this runs the real accessors
-// over a faked flash, the night_light_persist_test.c pattern:
+// over the faked flash in fake_persist.h, as night_light_persist_test.c does:
 //   1. the slot number (59, appended after RADAR_NOTICE) — the enum is append-only
 //      because its numbers are the on-flash slots;
 //   2. the change gating: a re-save of identical bytes performs no flash write and
@@ -17,6 +17,7 @@
 
 #include "c/appendix/persist.h"
 #include "c/appendix/hr_alert.h"
+#include "fake_persist.h"
 
 #if !defined(PBL_PLATFORM_EMERY)
 #error "hr_alert_persist_test.c must be built with -DPBL_PLATFORM_EMERY"
@@ -32,70 +33,6 @@ static void expect(const char *name, int got, int want) {
         printf("FAIL %s: got %d want %d\n", name, got, want);
         s_failures++;
     }
-}
-
-// --- Fake persistent storage --------------------------------------------------
-// A RAM map keyed by slot, with the firmware's return conventions: reads answer
-// E_DOES_NOT_EXIST for an unset key, and persist_read_data copies at most
-// buffer_size bytes and returns how many it copied.
-#define FAKE_KEYS 64u
-#define FAKE_MAX 64u
-
-static bool s_present[FAKE_KEYS];
-static uint8_t s_blob[FAKE_KEYS][FAKE_MAX];
-static size_t s_len[FAKE_KEYS];
-static int s_data_writes;
-
-static void flash_reset(void) {
-    memset(s_present, 0, sizeof(s_present));
-    memset(s_blob, 0, sizeof(s_blob));
-    memset(s_len, 0, sizeof(s_len));
-    s_data_writes = 0;
-}
-
-static void flash_seed(uint32_t key, const uint8_t *bytes, size_t len) {
-    s_present[key] = true;
-    memcpy(s_blob[key], bytes, len);
-    s_len[key] = len;
-}
-
-bool persist_exists(const uint32_t key) {
-    return key < FAKE_KEYS && s_present[key];
-}
-
-int persist_get_size(const uint32_t key) {
-    if (!persist_exists(key)) { return E_DOES_NOT_EXIST; }
-    return (int) s_len[key];
-}
-
-int persist_read_data(const uint32_t key, void *buffer, const size_t buffer_size) {
-    if (!persist_exists(key)) { return E_DOES_NOT_EXIST; }
-    size_t n = s_len[key] < buffer_size ? s_len[key] : buffer_size;
-    memcpy(buffer, s_blob[key], n);
-    return (int) n;
-}
-
-int persist_write_data(const uint32_t key, const void *data, const size_t size) {
-    s_data_writes++;
-    s_present[key] = true;
-    memcpy(s_blob[key], data, size);
-    s_len[key] = size;
-    return (int) size;
-}
-
-// Declared by the stub because persist.c's other accessors name them; the
-// heart-rate path never reaches any of these.
-bool persist_read_bool(const uint32_t key) { (void) key; return false; }
-int32_t persist_read_int(const uint32_t key) { (void) key; return 0; }
-status_t persist_write_bool(const uint32_t key, const bool value) {
-    (void) key; (void) value; return 0;
-}
-status_t persist_write_int(const uint32_t key, const int32_t value) {
-    (void) key; (void) value; return 0;
-}
-status_t persist_delete(const uint32_t key) {
-    if (key < FAKE_KEYS) { s_present[key] = false; s_len[key] = 0; }
-    return 0;
 }
 
 // --- Helpers ------------------------------------------------------------------

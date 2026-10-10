@@ -7,6 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const lives = require('./helpers/pkjs-lives.js');
+const { decodeLine } = require('./helpers/status-line-bytes.js');
 
 const MIN = 60 * 1000;
 
@@ -16,13 +17,14 @@ const MIN = 60 * 1000;
  * @returns {?string} The forecast line's right slot (pinned to AQI).
  */
 function aqiText(dict) {
-  return dict.STATUS_LINE_1_UINT8 ? lives.decodeLine(dict.STATUS_LINE_1_UINT8)[2].text : null;
+  return dict.STATUS_LINE_1_UINT8 ? decodeLine(dict.STATUS_LINE_1_UINT8)[2].text : null;
 }
 
 /**
  * A story over one store: each life() boots PKJS at `now`, lets its startup fetch
- * run, and tears it down. `waqi` is what the station reports this life (a number
- * or '-'); `answer` how the watch answers a message carrying the AQI slot.
+ * run, and tears it down, failing if a response callback threw (the harness
+ * catches those). `waqi` is what the station reports this life (a number or '-');
+ * `answer` how the watch answers a message carrying the AQI slot.
  * @param {Object} t node:test context.
  * @returns {{life: Function, watch: Function, store: Object}} The story's handles.
  */
@@ -48,6 +50,7 @@ function story(t) {
       h.start();
       h.advance(8000);
       h.teardown();
+      assert.deepEqual(h.uncaught, [], 'no response callback threw');
       return h;
     }
   };
