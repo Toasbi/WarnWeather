@@ -528,6 +528,29 @@ function batteryLevelRow(step, showWhen) {
         showWhen: showWhen
     };
 }
+// The end of the Battery and Heart rate Looks' value hint: their value gives way where an
+// alert's does (the make-room order drops the values only after the status slot on its
+// side and the middle one have hidden), so the hint says it in the alert Look's words.
+var LOOK_TAIL = ' On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it drop to just the icon.';
+/**
+ * The Look row of the Battery and Heart rate items: the icon alone, or the icon with the
+ * value after it. The icon-only look needs no hint; the value look's hint names the value
+ * with a sample, then says when it gives way on a crowded bar (LOOK_TAIL).
+ * @param {string} messageKey The item's Display key.
+ * @param {string} dflt The contract's default (on-demand.js DEFAULTS).
+ * @param {string} valueHint The value look's first sentence: the value and a sample.
+ * @returns {Object} Schema item.
+ */
+function valueLookRow(messageKey, dflt, valueHint) {
+    return {
+        type: 'segmented',
+        messageKey: messageKey,
+        label: 'Look',
+        defaultValue: dflt,
+        options: [['Icon', 'icon'], ['Icon + value', 'value']],
+        hintByValue: {value: valueHint + LOOK_TAIL}
+    };
+}
 /**
  * The Battery item's sheet (sheetId odBattery): its Shows on grid and note, its warn level
  * and its Look. No colours: the icon's fill follows the charge like the Watch battery
@@ -550,19 +573,8 @@ function batterySheet() {
             {type: 'subheader', text: 'Alert'},
             batteryLevelRow(5, FINE_BATTERY_WHEN),
             batteryLevelRow(10, {not: FINE_BATTERY_WHEN}),
-            {
-                type: 'segmented',
-                messageKey: 'batteryLowDisplay',
-                label: 'Look',
-                defaultValue: ON_DEMAND.DEFAULTS.batteryLowDisplay,
-                options: [['Icon', 'icon'], ['Icon + value', 'value']],
-                // Its value gives way where an alert's does (the make-room order drops the
-                // values only after the status slot on its side and the middle one have
-                // hidden), so the hint says it in the alert Look's words.
-                hintByValue: {
-                    value: 'Adds the charge after the icon, like 8%. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it drop to just the icon.'
-                }
-            }
+            valueLookRow('batteryLowDisplay', ON_DEMAND.DEFAULTS.batteryLowDisplay,
+                'Adds the charge after the icon, like 8%.')
         ])
     };
 }
@@ -599,18 +611,9 @@ function hrAlertSheet() {
                 unit: 'bpm',
                 defaultValue: ON_DEMAND.DEFAULTS.hrAlertLevel,
                 hint: 'The icon shows at this heart rate or above.'
-            }, {
-                type: 'segmented',
-                messageKey: 'hrAlertDisplay',
-                label: 'Look',
-                defaultValue: ON_DEMAND.DEFAULTS.hrAlertDisplay,
-                options: [['Icon', 'icon'], ['Icon + value', 'value']],
-                // In the alert Look's and the Battery Look's words: the value gives way
-                // where theirs does.
-                hintByValue: {
-                    value: 'Adds your heart rate after the icon, like 132. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it drop to just the icon.'
-                }
-            }
+            },
+            valueLookRow('hrAlertDisplay', ON_DEMAND.DEFAULTS.hrAlertDisplay,
+                'Adds your heart rate after the icon, like 132.')
         ])
     };
 }

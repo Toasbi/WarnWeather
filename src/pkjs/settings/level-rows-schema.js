@@ -149,30 +149,18 @@ var GOAL_VOICE = {
 // switch, which rides its header like the Goals switch, and the heart rate has no alert
 // icon to style, so the intro speaks of the slot alone and 'none' points at the Bold row
 // above it.
-var HR_VOICE = {
+var HR_VOICE = Object.assign({}, ALERT_VOICE, {
     header: 'Alert highlighting',
-    rangeLabel: ALERT_VOICE.rangeLabel,
     // Aria-only: the switch rides the group header, whose intro carries the meaning.
     switchLabel: 'Alert highlighting',
     intro: 'Warn and danger levels for your heart rate. The switch highlights the heart rate slot: '
         + 'reaching warn draws the warn look below, reaching danger fills the slot and prints it bold.',
-    lookLabel: ALERT_VOICE.lookLabel,
-    colorLabels: ALERT_VOICE.colorLabels,
-    colorDefault: ALERT_VOICE.colorDefault,
-    boldWarnLabel: ALERT_VOICE.boldWarnLabel,
-    boldHints: ALERT_VOICE.boldHints,
-    chips: ALERT_VOICE.chips,
-    look: {
-        base: {
-            none: 'No box at warn — bold text still follows the Bold row above.',
-            outline: ALERT_VOICE.look.base.outline,
-            fill: ALERT_VOICE.look.base.fill
-        },
-        bw: ALERT_VOICE.look.bw,
-        night: ALERT_VOICE.look.night,
-        sameColor: ALERT_VOICE.look.sameColor
-    }
-};
+    look: Object.assign({}, ALERT_VOICE.look, {
+        base: Object.assign({}, ALERT_VOICE.look.base, {
+            none: 'No box at warn — bold text still follows the Bold row above.'
+        })
+    })
+});
 /**
  * The next-day mark options — the day-max slots' "Tomorrow's peak mark" and each metric
  * alert's "Tomorrow's mark", one list so the two cannot drift — labelled on a sample
