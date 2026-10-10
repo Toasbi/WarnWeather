@@ -456,6 +456,9 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     // Each side's active items, nearest the side's own slot first: the item order is
     // the priority.
     memset(pass->sides, 0, sizeof(pass->sides));
+#if defined(PBL_PLATFORM_EMERY)
+    int hr_keep = -1;   // emery: the side whose own slot the Heart rate item gives way to
+#endif
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         if (!s->active[item]) { continue; }
         int16_t w[OD_LANES];
@@ -471,6 +474,14 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         if (item == alert_set_item(status_threshold_kind_for_slot(own->kind, own->icon))) {
             side->merged = (uint8_t)(i + 1);
         }
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: the heart rate slot at warn or danger on the Heart rate item's side keeps
+        // its highlight: where the item would hide it, the item gives way (od_layout_hr).
+        if (item == OD_HR && own->kind == SLOT_LIVE_HR   // THRESH_HR's one slot kind
+                && own->level >= THRESH_LEVEL_WARN) {
+            hr_keep = d;
+        }
+#endif
         side->rank[i] = (uint8_t)item;
         for (int lane = 0; lane < OD_LANES; lane++) { side->w[lane][i] = w[lane]; }
     }
@@ -491,16 +502,6 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         if (od_slot_shows_battery(slots[i].kind)) { battery_slots |= (uint8_t)(1 << i); }
     }
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: the heart rate slot at warn or danger on the Heart rate item's side keeps
-    // its highlight: where the item would hide it, the item gives way (od_layout_hr).
-    int hr_keep = -1;
-    if (s->active[OD_HR]) {
-        const int d = s->side[OD_HR] == OD_SIDE_LEFT ? 0 : 1;
-        if (slots[2 * d].kind == SLOT_LIVE_HR   // THRESH_HR's one slot kind
-                && hr_alert_slot_level(hr_alert_get(), s->hr_bpm) >= THRESH_LEVEL_WARN) {
-            hr_keep = d;
-        }
-    }
     od_layout_hr(content_w, f.in, pass->sides, bleed, battery_slots, hr_keep, &pass->layout);
 #else
     od_layout(content_w, f.in, pass->sides, bleed, battery_slots, &pass->layout);

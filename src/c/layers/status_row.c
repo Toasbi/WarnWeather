@@ -814,7 +814,11 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         od_slots[i] = (StatusOnDemandSlot) { slots[i].slot.kind, slots[i].slot.icon,
                                              slots[i].font, slots[i].text,
-                                             sizeof(slots[i].text) };
+                                             sizeof(slots[i].text)
+#if defined(PBL_PLATFORM_EMERY)
+                                             , slots[i].level   // emery: for the Heart rate item
+#endif
+                                           };
     }
     StatusSlotPlace places[STATUS_SLOT_COUNT];
     status_on_demand_layout(&row->od, &s_od_pass, &od_env, od_slots, measures, places,

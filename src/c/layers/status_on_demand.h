@@ -116,6 +116,9 @@ typedef struct {
     GFont font;             // the font it measures and draws in
     char *text;             // its full text; the layout writes the member it drew
     size_t cap;             // over it, in a buffer of this size
+#if defined(PBL_PLATFORM_EMERY)
+    uint8_t level;          // emery: its ThreshLevel, as the row resolved it
+#endif
 } StatusOnDemandSlot;
 
 // The entries and item states one pass resolves.

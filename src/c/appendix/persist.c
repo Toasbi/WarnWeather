@@ -188,10 +188,11 @@ static bool write_sized_data_if_changed(const uint32_t key, const void *data,
     return true;
 }
 
-#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND) || defined(WW_THRESHOLD_HIGHLIGHT)
+#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND) || defined(WW_THRESHOLD_HIGHLIGHT) \
+    || defined(PBL_PLATFORM_EMERY)
 // A blob stored only while it has content (the radar's sky rows, the weather alert
 // entries): a read gives its bytes, 0 while it is absent; an empty write deletes it.
-// The thresholds blob is read the same way.
+// The thresholds blob and emery's heart-rate alert tuple are read the same way.
 static int read_present_blob(const uint32_t key, uint8_t *out, const size_t cap) {
     if (!persist_exists(key)) { return 0; }
     const int n = persist_read_data(key, out, cap);
@@ -873,12 +874,8 @@ bool persist_set_hr_alert(const uint8_t *bytes) {
 }
 
 void persist_get_hr_alert(uint8_t *out) {
-    memset(out, 0, HR_ALERT_BYTES);
-    if (!persist_exists(HR_ALERT_SETTINGS)) { return; }
-    uint8_t stored[HR_ALERT_BYTES];
-    if (persist_read_data(HR_ALERT_SETTINGS, stored, sizeof(stored)) < (int) sizeof(stored)) {
-        return;
+    if (read_present_blob(HR_ALERT_SETTINGS, out, HR_ALERT_BYTES) < HR_ALERT_BYTES) {
+        memset(out, 0, HR_ALERT_BYTES);
     }
-    memcpy(out, stored, sizeof(stored));
 }
 #endif
