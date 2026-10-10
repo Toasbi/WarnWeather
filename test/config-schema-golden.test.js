@@ -47,7 +47,9 @@ test('the level rows resolve on every platform exactly as the golden records', (
 test('the golden covers every level kind: a slider and a warn look each, on every platform', () => {
   // A kind that stopped reaching the resolvers (a lost rangeFrom or hintFrom) would
   // otherwise shrink both sides of the byte check alike on the next rewrite.
-  const stems = ['Steps', 'Sleep', 'Distance', 'Uv', 'Wind', 'Gust', 'Aqi', 'Pollen'];
+  // Hr: emery's heart rate slot's Alert highlighting (the rows exist on every platform's
+  // schema; only an emery shows them).
+  const stems = ['Steps', 'Sleep', 'Distance', 'Uv', 'Wind', 'Gust', 'Aqi', 'Pollen', 'Hr'];
   golden.PLATFORMS.forEach((p) => {
     assert.deepEqual(Object.keys(SNAPSHOT.levelRows[p]).sort(),
       stems.reduce((all, s) => all.concat(['thresh' + s + 'Warn', 'thresh' + s + 'WarnLook']), []).sort(), p);

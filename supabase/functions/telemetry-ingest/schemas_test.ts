@@ -95,6 +95,29 @@ Deno.test("onDemand, batteryLowLevel and batteryLowDisplay are accepted and kept
   }
 });
 
+// The heart-rate alert's fields (2.2.0, emery) survive the strip step; a level past a
+// byte, which no phone sends, is refused.
+Deno.test("the seven heart-rate alert fields are accepted and kept", () => {
+  const settings = {
+    onDemandHr: "R--L",
+    hrAlertLevel: 120,
+    hrAlertDisplay: "value",
+    hrHighlight: true,
+    hrHighlightWarn: 120,
+    hrHighlightDanger: 150,
+    hrHighlightWarnLook: "fill",
+  };
+  const parsed = telemetryPayloadSchema.safeParse({ ...LEGACY, settings });
+  assert(parsed.success);
+  for (const [k, v] of Object.entries(settings)) {
+    assertEquals((parsed.data.settings as Record<string, unknown>)[k], v, k);
+  }
+  const bad = [{ hrAlertLevel: 300 }, { hrHighlightWarn: -1 }, { hrHighlightDanger: 150.5 }];
+  for (const b of bad) {
+    assert(!telemetryPayloadSchema.safeParse({ ...LEGACY, settings: b }).success, JSON.stringify(b));
+  }
+});
+
 // Draw from / Bars from (1.24.0, src/pkjs/draw-from.js) survive the strip step; a value
 // a later build might add is kept, not a 400 (z.string, the Show precedent).
 Deno.test("the six Draw from / Bars from fields are accepted and kept", () => {

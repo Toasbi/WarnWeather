@@ -23,6 +23,8 @@
 #include "../appendix/status_threshold.h"
 #include "../appendix/theme.h"
 #include "../services/watch_services.h"
+#include "../services/health_summary.h"
+#include "../appendix/hr_alert.h"
 
 #if defined(WW_ON_DEMAND)
 
@@ -31,7 +33,11 @@
 // plus the drop bucket, so drizzle -> rain swaps the glyph.
 #define RAIN_KEY_FLAG 0x80
 // Quiet time, one Bluetooth variant, rain and the five metric kinds.
+#if defined(PBL_PLATFORM_EMERY)
+#define GLYPH_SLOTS 9   // emery: + the Heart rate item's heart
+#else
 #define GLYPH_SLOTS 8
+#endif
 
 struct StatusOnDemandCache {
     GDrawCommandImage *images[GLYPH_SLOTS];
@@ -178,11 +184,32 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SE
     s->charge = bs.charge_percent;
     s->charging = bs.is_charging || bs.is_plugged;
     int assigned = 0;   // bit 0: an item sits on this bar; bit 1: a metric item does
-    for (int item = 0; item < OD_ITEM_COUNT; item++) {
+    for (int item = 0; item < OD_BLOB_ITEM_COUNT; item++) {
         s->side[item] = (uint8_t)status_threshold_on_demand_side(blob, bar, item);
         s->active[item] = false;
         if (s->side[item] != OD_SIDE_NONE) { assigned |= item >= OD_GUST ? 3 : 1; }
     }
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the Heart rate item. Its cells ride CLAY_HR_ALERT_UINT8 (hr_alert.h), not
+    // the blob; it reads no entries (bit 0 only) and is active while the held HR
+    // (health_summary, polled each minute while it is on a visible bar) is at or above
+    // its level.
+    {
+        const uint8_t *hr = hr_alert_get();
+        s->side[OD_HR] = (uint8_t)hr_alert_side(hr, bar);
+        s->active[OD_HR] = false;
+        s->hr_bpm = 0;
+        s->hr_value = false;
+        if (s->side[OD_HR] != OD_SIDE_NONE) {
+            assigned |= 1;
+            const Config *cfg = config_get();
+            int bpm = (cfg && cfg->health_mode != HEALTH_OFF) ? health_summary_hr_bpm() : 0;
+            s->hr_bpm = (int16_t)(bpm < 0 ? 0 : bpm > 999 ? 999 : bpm);
+            s->hr_value = hr_alert_shows_value(hr);
+            s->active[OD_HR] = hr_alert_item_active(hr, s->hr_bpm);
+        }
+    }
+#endif
     if (s->side[OD_BATTERY] != OD_SIDE_NONE) {
         s->battery_value = status_threshold_battery_value(blob);
         s->active[OD_BATTERY] = status_threshold_battery_low(s->charge,
@@ -208,7 +235,7 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SE
     if (!(assigned & 2)) { return assigned - 1; }   // no metric item: 0, or -1 for none
     const int n = persist_get_alert_entries(s->bytes, sizeof(s->bytes));   // >= 0
     alert_set_parse(s->bytes, (size_t)n, &s->set);
-    for (int item = OD_GUST; item < OD_ITEM_COUNT; item++) {
+    for (int item = OD_GUST; item < OD_BLOB_ITEM_COUNT; item++) {
         s->active[item] = s->side[item] != OD_SIDE_NONE && item_entry(s, item);
     }
     return n;
@@ -230,6 +257,12 @@ static GFont item_text(const StatusOnDemandState *s, int item, int lane,
         if (s->battery_value && values) { snprintf(buf, cap, "%d%%", s->charge); }
         return env->font;
     }
+#if defined(PBL_PLATFORM_EMERY)
+    if (item == OD_HR) {   // emery: the bpm after the heart with the Look Icon + value
+        if (s->hr_value && values) { snprintf(buf, cap, "%d", s->hr_bpm); }
+        return env->font;
+    }
+#endif
     if (item == OD_RAIN) {
         if (rd != THRESH_RAIN_DISPLAY_ICON) {
             alert_set_rain_text(&s->rain, rd == THRESH_RAIN_DISPLAY_MINUTES, buf, cap);
@@ -251,6 +284,9 @@ static uint8_t item_key(const StatusOnDemandState *s, int item) {
         case OD_BLUETOOTH:  return s->bt_key;
         case OD_QUIET_TIME: return STATUS_ROW_ICON_QUIET;
         case OD_RAIN:       return (uint8_t)(RAIN_KEY_FLAG | s->rain.bucket);
+#if defined(PBL_PLATFORM_EMERY)
+        case OD_HR:         return STATUS_ICON_HR;   // emery: the HR slot's heart
+#endif
         default: {
             const AlertEntry *e = item_entry(s, item);
             return e ? alert_set_icon(e->kind) : 0;
@@ -287,6 +323,14 @@ static void measure(const StatusOnDemandState *s, const StatusOnDemandRow *row,
         int16_t tw = lane_text_w(buf, font);
         int16_t fw = od_item_footprint(icon_w, tw, od_item_boxed(item),
                                        STATUS_ON_DEMAND_BOX_PAD_X);
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: the heart inks a column past its bounds (OD_GLYPH_INK_OVERHANG); with
+        // no text after it that column is the unboxed item's edge, so it is measured
+        // in, or the air beside the next item is 1 px short.
+        if (item == OD_HR && tw == 0 && icon_w > 0) {
+            fw = (int16_t)(fw + OD_GLYPH_INK_OVERHANG);
+        }
+#endif
         // A lane with nothing left to draw keeps the lane before's width: it can give
         // nothing more.
         if (fw <= 0 && lane > 0) { fw = w[lane - 1]; }
@@ -303,6 +347,9 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
     StatusOnDemandState s;
     const int n = collect(&s, bar, blob);
     row->assigned = n >= 0;
+#if defined(PBL_PLATFORM_EMERY)
+    row->hr_placed = s.side[OD_HR] != OD_SIDE_NONE;   // emery: the minute HR poll
+#endif
     if (n < 0) {
         // Nothing can draw here: give the glyphs back now rather than at teardown.
         status_on_demand_release(row);
@@ -318,6 +365,13 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
                          rain ? s.rain.tier : 0, text ? s.rain.mins : 0,
                          (uint8_t)(text && s.rain.raining) };
     sig = sig_fold(sig, live, sizeof(live));
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the Heart rate item — whether it shows, and its bpm only while it prints it.
+    const bool hr = s.active[OD_HR];
+    const int hv = hr && s.hr_value ? s.hr_bpm : 0;
+    const uint8_t live_hr[3] = { (uint8_t)hr, (uint8_t)hv, (uint8_t)(hv >> 8) };
+    sig = sig_fold(sig, live_hr, sizeof(live_hr));
+#endif
     return sig_fold(sig, s.bytes, (size_t)n);
 }
 
@@ -436,7 +490,21 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     for (int i = 0; i < 3 && s->active[OD_BATTERY]; i++) {
         if (od_slot_shows_battery(slots[i].kind)) { battery_slots |= (uint8_t)(1 << i); }
     }
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the heart rate slot at warn or danger on the Heart rate item's side keeps
+    // its highlight: where the item would hide it, the item gives way (od_layout_hr).
+    int hr_keep = -1;
+    if (s->active[OD_HR]) {
+        const int d = s->side[OD_HR] == OD_SIDE_LEFT ? 0 : 1;
+        if (slots[2 * d].kind == SLOT_LIVE_HR   // THRESH_HR's one slot kind
+                && hr_alert_slot_level(hr_alert_get(), s->hr_bpm) >= THRESH_LEVEL_WARN) {
+            hr_keep = d;
+        }
+    }
+    od_layout_hr(content_w, f.in, pass->sides, bleed, battery_slots, hr_keep, &pass->layout);
+#else
     od_layout(content_w, f.in, pass->sides, bleed, battery_slots, &pass->layout);
+#endif
     // Each slot draws the member the layout picked: its measure (the boxes and the
     // paint read it) and its text, derived again as measure_family() derived it and
     // written over the full one.

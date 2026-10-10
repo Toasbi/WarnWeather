@@ -130,11 +130,14 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   Before spending weather-message bytes, ask whether the value is settings-derived — if
   it is, it belongs on the Clay message —
   but the Clay message ships to aplite too and is tight (the heaviest Clay message is
-  522 B — the thresholds blob grew 34 -> 48 B in 1.24.0 for the rain alert's look, the
-  On demand Battery item, the per-kind warn look and the ten On demand cells, paid for
-  by `CLAY_BATTERY_LOW_ONLY` riding a known aplite's bundle alone — sized
-  against aplite's 536 B inbox as the conservative floor, and the test enforces a 10 B
-  headroom floor on each bundle), so check `test/inbox-size.test.js` either way.
+  522 B on any watch but a known emery — basalt, chalk and the unknown platform; diorite
+  and flint 498 B, aplite 401 B — the thresholds blob grew 34 -> 48 B in 1.24.0 for the
+  rain alert's look, the On demand Battery item, the per-kind warn look and the ten On
+  demand cells, paid for by `CLAY_BATTERY_LOW_ONLY` riding a known aplite's bundle alone
+  — sized against aplite's 536 B inbox as the conservative floor; a known emery's also
+  carries the heart-rate alert's `CLAY_HR_ALERT_UINT8` (2.2.0, 7 B header + 7 B → 536 B),
+  measured against emery's own 1024 B inbox; the test enforces a 10 B headroom floor on
+  each bundle), so check `test/inbox-size.test.js` either way.
 - **Message boundary: settings ride the settings (Clay) message; weather data rides the
   weather message.** Config-derived values — colour palettes, formatting/display toggles,
   the holiday mask — belong in `sendClaySettings` (`outbox.sendClay`). The weather payload

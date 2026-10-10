@@ -27,12 +27,13 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Alert icons at a status bar's edge, next to the status slot there, that show only when they reach their warn level or are active right now (low battery, Bluetooth disconnected, rain coming, a high UV or wind forecast), and stay hidden the rest of the time. The *Alerts* tab lists them. Open one to set it up and to choose which status bars show it, Left or Right (one side per bar). The Status bars tab shows, under each bar's *Alerts*, the icons placed there. The items and how they show:
   * System info — the watch battery at or below a warn level you set (the icon, or the icon and the charge), Bluetooth when it disconnects (or connects, or both), quiet time while it is on, and a sleep icon during the Battery saver hours
   * Weather alerts — rain falling or on its way, or wind gusts, UV index, air quality, pollen (with DWD) or wind speed reaching your warn level today (later hours included) or, once nothing left today does, tomorrow; each metric alert can print its value next to its icon and can stick to today or also look ahead to tomorrow, marking a tomorrow alert with `»` or a mark you pick (`>`, `+`, `*` or none); the rain alert shows as the rain icon, the minutes until it starts (or, while it rains, how long it keeps falling), or the full countdown text
-  * On by default: Bluetooth, quiet time, sleep and the rain alert on the left of the Watch Status Bar (the top bar), and the battery with the wind gust, UV index, air quality and wind speed alerts on its right; the pollen alert is off, and every other bar starts with no alerts
+  * Health alerts *(Pebble Time 2)* — heart rate: the heart icon (or the icon and your heart rate) while your heart rate is at or above a level you set; it is on no status bar until you place it, and is the first item to drop on a crowded bar
+  * On by default: Bluetooth, quiet time, sleep and the rain alert on the left of the Watch Status Bar (the top bar), and the battery with the wind gust, UV index, air quality and wind speed alerts on its right; the pollen and heart rate alerts are off, and every other bar starts with no alerts
   * The battery item stays out while a slot of the same bar already shows the watch battery, and stands in once that slot has to hide
   * A weather alert (UV index, wind speed, wind gusts, air quality, pollen) on the side whose status slot shows the same value goes into that slot: the slot shows its own value and the alert's once (`3/8`, `4/»9`) in the alert's colors, and the alert icon shows only once that slot has to hide
   * When a bar runs short of room, its slots switch to short forms — a four-digit year to `'26` (`26` after a dot or slash), a city abbreviating its shorter words (`N. York`, `Frankfurt a. M.`) and then cut with `…`, sleep to `7h`, steps to `12k`, units and spaces dropped (`12°` → `12`, `12 / 30kph` → `12/30`) — then the slot beside the items hides, then the middle slot leaves the centre and hides, and only then do the alert values and the rain text shorten, and last the lowest-priority items drop; the date shortens no further than its year, and a battery number, sunrise/sunset and the calendar week never shorten: they show whole or hide
 * Alert levels: a warn and a danger level for each weather alert (wind gusts, UV index, air quality, pollen, wind speed), set in its dialog on the *Alerts* tab, with its own colors on color watches
-* Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or danger level you set (its Alert levels)
+* Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or danger level you set (its Alert levels); on Pebble Time 2 also the heart rate slot, at warn and danger heart rates set in its dialog (Status bars tab)
 * Graph lines on Alert (Visible values: All | Alert): a wind speed, wind gust or UV index line draws every value, or only where it reaches your warn level (its Alert levels), its scale then starting at that level, so the small graph stays empty until it matters (Graphs tab › Forecast, in the metric's dialog)
 
 **Forecast**
@@ -57,6 +58,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
 * Health status for steps, sleep, distance, and heart rate
 * Last-24h health chart with steps per hour, heart rate on a scale you set, and a sleep band
+* Heart rate alert and heart rate slot highlighting (Pebble Time 2; see **Alerts** above)
 
 **Calendar**
 * Multi-week calendar with current-day highlight

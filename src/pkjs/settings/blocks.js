@@ -256,7 +256,10 @@ if (typeof require !== 'undefined') {
         Distance: {
             km: {min: 0, max: 20, step: 0.5, unit: 'km'},
             mi: {min: 0, max: 12, step: 0.5, unit: 'mi'}
-        }
+        },
+        // The heart rate slot's Alert highlighting (emery). The floor stays above the
+        // watch's 30 bpm, below which it never highlights (hr_alert.h HR_ALERT_BPM_MIN).
+        Hr: {'': {min: 40, max: 220, step: 5, unit: 'bpm', fixedMax: true}}
     };
 
     /**
@@ -448,21 +451,21 @@ if (typeof require !== 'undefined') {
     PConf.actions = PConf.actions || {};
     PConf.actions.resetThresholds = function (stem, S, env, defaultOf) {
         if (!stem || !S || !THRESHOLD_RANGES[stem] || !defaultOf) { return false; }
-        var goal = thresholds.isGoalKind(stem);
         // Every key with a schema default lands on it THROUGH the engine's resolver —
         // mirrored literals drift when the schema changes (see resetStatusSlots
-        // below). The result is exactly a fresh install: a goal kind's stored
-        // toggle OFF (its switch rides this group's header, so resetting the goals
-        // switches it off too), the blank pair (= the kind's seed, resolved live — a
-        // wind pair follows windUnits again), the cleared Max, the goal-vs-weather
-        // colours and the platform's warn look are all schema defaults. A weather
-        // colour's default is unset, which the pickers and zones already show as
-        // what the watch draws (thresholdDisplayColor), and the next open's heal
-        // stores. A weather kind's highlight switch is NOT in this group — it is
-        // the slot sheet's Highlight row — so its levels reset leaves it alone, as
-        // it leaves Bold.
+        // below). The result is exactly a fresh install: the stored toggle OFF of a
+        // group that owns its switch (thresholds.ownsGroupSwitch: a goal kind's Goals,
+        // the heart rate slot's Alert highlighting — the switch rides this group's
+        // header, so resetting the group switches it off too), the blank pair (= the
+        // kind's seed, resolved live — a wind pair follows windUnits again), the
+        // cleared Max, the goal-vs-weather colours and the platform's warn look are
+        // all schema defaults. A weather colour's default is unset, which the pickers
+        // and zones already show as what the watch draws (thresholdDisplayColor), and
+        // the next open's heal stores. A weather kind's highlight switch is NOT in this
+        // group — it is the slot sheet's Highlight row — so its levels reset leaves it
+        // alone, as it leaves Bold.
         var keys = ['Warn', 'Danger', 'Max', 'WarnColor', 'DangerColor', 'WarnLook'];
-        if (goal) { keys.unshift('On'); }
+        if (thresholds.ownsGroupSwitch(stem)) { keys.unshift('On'); }
         for (var d = 0; d < keys.length; d++) {
             S['thresh' + stem + keys[d]] = defaultOf('thresh' + stem + keys[d]);
         }
@@ -714,7 +717,8 @@ if (typeof require !== 'undefined') {
     // intro — schema-gates.js linkRow, alerts-schema.js cardSections): the items' own settings back to their
     // schema defaults, via the engine's resolver like resetStatusSlots above — the Battery
     // item's warn level and Look, the Bluetooth item's Show and vibration, the rain alert's
-    // window and look, each metric alert's Look, Days and tomorrow mark (the contract's
+    // window and look, the Heart rate item's level and Look (emery), each metric alert's
+    // Look, Days and tomorrow mark (the contract's
     // ALERT_KINDS, the five the tab lists) — and where each item shows: the eight side
     // lists its sheets' Shows on grids write (the Status bars reset restores those too, as
     // its bars' Alerts rows show them). Deliberately untouched: the levels, warn looks and
@@ -731,7 +735,7 @@ if (typeof require !== 'undefined') {
     PConf.actions.resetOnDemand = function (arg, S, env, defaultOf) {
         if (!S || !defaultOf) { return false; }
         var keys = ['batteryLowLevel', 'batteryLowDisplay', 'btIcons', 'vibe',
-            'rainCountdownHorizon', 'rainAlertDisplay'];
+            'rainCountdownHorizon', 'rainAlertDisplay', 'hrAlertLevel', 'hrAlertDisplay'];
         for (var k = 0; k < thresholds.ALERT_KINDS.length; k++) {
             var stem = thresholds.ALERT_KINDS[k].key;
             keys.push('alert' + stem + 'Display', 'alert' + stem + 'Days',
@@ -791,7 +795,10 @@ if (typeof require !== 'undefined') {
      */
     function penStateForKind(S, env, kindIndex) {
         var key = thresholds.KINDS[kindIndex].key;
-        var enabled = thresholds.kindConfig(S, kindIndex).enabled;
+        // The heart rate slot's pair rides its own tuple, on emery alone (hrHighlight).
+        var enabled = thresholds.KINDS[kindIndex].tuplePair
+            ? Boolean(env && env.platform === 'emery' && thresholds.hrHighlight(S, env.color).enabled)
+            : thresholds.kindConfig(S, kindIndex).enabled;
         // EFFECTIVE always-bold, not the stored ladder alone: the Status bars
         // tab's master row packs every kind's bold cell as always at wire time
         // (status-wire.js buildSettingsBlob) without touching the stored

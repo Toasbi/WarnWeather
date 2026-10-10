@@ -154,7 +154,7 @@ static void normalize_tests(void) {
                                          (size_t)(THRESH_WARN_LOOK_OFFSET - lens[i])), 0);
         expect("norm.short_looks", memcmp(b + THRESH_WARN_LOOK_OFFSET, derived, 2), 0);
         expect("norm.short_cells", memcmp(b + THRESH_ON_DEMAND_OFFSET,
-                                          none + THRESH_ON_DEMAND_OFFSET, OD_ITEM_COUNT), 0);
+                                          none + THRESH_ON_DEMAND_OFFSET, OD_BLOB_ITEM_COUNT), 0);
     }
 }
 
@@ -337,7 +337,7 @@ static void bold_tests(void) {
     expect("bold.battery_byte_follows", THRESH_BATTERY_OFFSET, THRESH_ALERTS_OFFSET + 1);
     expect("bold.warn_look_follows", THRESH_WARN_LOOK_OFFSET, THRESH_BATTERY_OFFSET + 1);
     expect("bold.cells_follow", THRESH_ON_DEMAND_OFFSET, THRESH_WARN_LOOK_OFFSET + 2);
-    expect("bold.cells_end_blob", THRESH_ON_DEMAND_OFFSET + OD_ITEM_COUNT, THRESH_SETTINGS_BYTES);
+    expect("bold.cells_end_blob", THRESH_ON_DEMAND_OFFSET + OD_BLOB_ITEM_COUNT, THRESH_SETTINGS_BYTES);
     expect("bold.byte33_full", THRESH_KIND_COUNT % 4, 0);
 
     // Degrade safely: the reserved wire value, a bad blob, a kind past the last and

@@ -61,11 +61,13 @@
 //                       the alert icon alike — 0 none, 1 outline, 2 fill (3
 //                       reserved, reads as outline).
 //      [38 + item]      the On demand cells (THRESH_ON_DEMAND_OFFSET): one byte
-//                       per OdItem (on_demand.h, the priority order), 2 bits per
-//                       bar at bits 2 * bar (ThreshBar): 0 none, 1 left, 2 right
-//                       (OdSide), 3 reserved (reads as none). The phone writes
-//                       effective values only — a ticked item on a bar that
-//                       exists — so a bar the modes remove is simply zeros.
+//                       per OdItem below OD_BLOB_ITEM_COUNT (on_demand.h, the
+//                       priority order), 2 bits per bar at bits 2 * bar
+//                       (ThreshBar): 0 none, 1 left, 2 right (OdSide), 3 reserved
+//                       (reads as none). The phone writes effective values only —
+//                       a ticked item on a bar that exists — so a bar the modes
+//                       remove is simply zeros. Emery's Heart rate item (OD_HR) has
+//                       no byte here: its cell rides CLAY_HR_ALERT_UINT8 (hr_alert.h).
 //    One widening per release that shipped a new length, each on top of the
 //    29-byte pre-bold layout:
 //      - 1.11.0: 33 B, the bold area for kinds 0..15 (bytes 29..32).
@@ -178,8 +180,8 @@ _Static_assert(THRESH_BATTERY_OFFSET == THRESH_ALERTS_OFFSET + 1
 _Static_assert(THRESH_ON_DEMAND_OFFSET
                == THRESH_WARN_LOOK_OFFSET + (THRESH_PAIRED_KIND_COUNT + 3) / 4,
                "a paired kind past 7 needs a third warn-look byte (layout change)");
-// One cell byte per On demand item ends the blob, and a byte holds every bar.
-_Static_assert(THRESH_SETTINGS_BYTES == THRESH_ON_DEMAND_OFFSET + OD_ITEM_COUNT,
+// One cell byte per blob On demand item ends the blob, and a byte holds every bar.
+_Static_assert(THRESH_SETTINGS_BYTES == THRESH_ON_DEMAND_OFFSET + OD_BLOB_ITEM_COUNT,
                "an On demand item past the tenth needs a new cell byte (layout change)");
 // At 48 B the blob exactly fills persist's no-op-write compare buffer
 // (write_sized_data_if_changed): one byte more and every save would skip the compare

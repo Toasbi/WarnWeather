@@ -111,9 +111,10 @@ bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
 // Bluetooth, Quiet time, Sleep, Rain; right Battery, Wind gusts, UV index, Air
 // quality, Wind speed; Pollen on no side. Every other bar has no item. The Watch
 // Status Bar's cell is bits 0-1, so each side is its item's whole cell byte: these
-// are bytes 38..47 of a blob without the cells.
+// are bytes 38..47 of a blob without the cells. Emery's Heart rate item has no cell
+// here (OD_BLOB_ITEM_COUNT): its absent tuple reads as on no bar (hr_alert.h).
 _Static_assert(THRESH_BAR_TOP == 0, "OD_DEFAULT_TOP's sides are the cell bytes as they stand");
-static const uint8_t OD_DEFAULT_TOP[OD_ITEM_COUNT] = {
+static const uint8_t OD_DEFAULT_TOP[OD_BLOB_ITEM_COUNT] = {
     [OD_BATTERY]    = OD_SIDE_RIGHT,
     [OD_BLUETOOTH]  = OD_SIDE_LEFT,
     [OD_QUIET_TIME] = OD_SIDE_LEFT,
@@ -148,7 +149,7 @@ void status_threshold_normalize(uint8_t blob[THRESH_SETTINGS_BYTES], int stored_
         }
     }
     blob[THRESH_BATTERY_OFFSET] = THRESH_BATTERY_LEVEL_DEFAULT;   // 10 %, Icon
-    memcpy(blob + THRESH_ON_DEMAND_OFFSET, OD_DEFAULT_TOP, OD_ITEM_COUNT);
+    memcpy(blob + THRESH_ON_DEMAND_OFFSET, OD_DEFAULT_TOP, OD_BLOB_ITEM_COUNT);
 }
 
 // Kind k's 2-bit cell in an area of 4-per-byte cells starting at `offset` (the bold
@@ -198,7 +199,7 @@ int status_threshold_rain_display(const uint8_t blob[THRESH_SETTINGS_BYTES]) {
 
 OdSide status_threshold_on_demand_side(const uint8_t blob[THRESH_SETTINGS_BYTES], int bar,
                                        int item) {
-    if (bar < 0 || bar >= THRESH_BAR_COUNT || item < 0 || item >= OD_ITEM_COUNT) {
+    if (bar < 0 || bar >= THRESH_BAR_COUNT || item < 0 || item >= OD_BLOB_ITEM_COUNT) {
         return OD_SIDE_NONE;
     }
     int cell = (blob[THRESH_ON_DEMAND_OFFSET + item] >> (2 * bar)) & 3;

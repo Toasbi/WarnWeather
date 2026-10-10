@@ -16,7 +16,9 @@
 //
 // Which items sit on which side of which bar is the thresholds blob's On demand cells
 // (status_threshold_on_demand_side — the compiled defaults until the phone sends
-// them). An item draws while it is active:
+// them), and on emery the Heart rate item's cell byte in CLAY_HR_ALERT_UINT8
+// (hr_alert_side; on no bar until the phone sends it). An item draws while it is
+// active:
 //  - Battery      the charge is at or below the Battery item's warn level; the
 //                 procedural battery (battery_item.c), "8%" beside it with the Look
 //                 Icon + value. While a slot of the bar shows the watch battery (the
@@ -36,6 +38,15 @@
 //                 slot shows it instead (alert_set_merge): the phone baked both
 //                 values into its text, the row draws it at the entry's level, and
 //                 the item stands in only where the layout hides the slot.
+//  - Heart rate   emery only: the held live HR (health_summary, polled each minute
+//                 while the item is on a visible bar or the strip) is at or above
+//                 the item's level (hr_alert_item_active): the HR slot's heart in
+//                 the theme ink, "132" beside it with the Look Icon + value, in the
+//                 row's regular font. Drawn like Battery: never boxed. Beside the
+//                 HR slot on its side both show, the same bpm twice, except that a
+//                 slot at warn or danger never hides for it: where the two do not
+//                 fit, the item gives way to that slot (od_layout_hr). It ranks
+//                 last, so it sits innermost and drops first.
 // Each metric alert draws as a MINI STATUS SLOT, `[icon][gap][text?]`, styled like a
 // highlighted slot of its kind at the entry's level (status_threshold_look) — the
 // kind's warn look at WARN (none, outline or fill), filled at DANGER with the glyph
@@ -57,12 +68,15 @@ typedef struct StatusOnDemandCache StatusOnDemandCache;
 // A status row's On demand state, embedded in the row.
 typedef struct {
     // The glyph cache (Quiet time, one Bluetooth variant, rain and the five metric
-    // glyphs): created by the first draw with an item to show, freed by
-    // status_on_demand_release() — when a refresh finds nothing assigned to the bar,
-    // and with the row. Its glyphs come and go with their items, so an idle bar keeps
-    // only the cache struct.
+    // glyphs; emery adds the heart): created by the first draw with an item to show,
+    // freed by status_on_demand_release() — when a refresh finds nothing assigned to
+    // the bar, and with the row. Its glyphs come and go with their items, so an idle
+    // bar keeps only the cache struct.
     StatusOnDemandCache *cache;
     bool assigned;   // an item sits on a side of this bar, as of the last refresh
+#if defined(PBL_PLATFORM_EMERY)
+    bool hr_placed;  // emery: the Heart rate item sits on this bar (the minute HR poll)
+#endif
 } StatusOnDemandRow;
 
 // Free the glyph cache and every glyph it holds; a row without one is left as is.
@@ -116,6 +130,11 @@ typedef struct {
     uint8_t charge;                            // the watch's charge in %
     bool charging;                             // charging or plugged in
     bool battery_value;                        // Look Icon + value
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the Heart rate item — the held bpm (0: none) and its Look Icon + value.
+    int16_t hr_bpm;
+    bool hr_value;
+#endif
 } StatusOnDemandState;
 
 // One draw's On demand pass, filled by status_on_demand_layout() and read by

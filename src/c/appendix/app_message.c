@@ -17,17 +17,16 @@
 #include "rain_countdown.h"
 #include "memory_log.h"
 #include "status_line.h"
-// Unguarded on purpose: declarations only (nothing is emitted), and waf's dependency
-// scanner cannot see an include inside a -D guard (night_light.c). Only the
-// handler below is WW_ON_DEMAND-guarded.
+// Unguarded on purpose: declarations only (nothing is emitted), and waf's dependency scanner
+// cannot see an include inside a -D guard (night_light.c). Only their handlers are guarded.
 #include "alert_set.h"
+#include "hr_alert.h"
 #if defined(WW_THRESHOLD_HIGHLIGHT)
 #include "status_threshold.h"
 #endif
 #if defined(WW_COLOR_BACKLIGHT)
-// Only for night_light_refresh() at the dirty checkpoint below — the wire side
-// (NIGHT_LIGHT_BYTES, night_light_wire_ok) comes from persist.h and is compiled
-// on every platform. Guarded like status_threshold.h above.
+// Only for night_light_refresh() at the dirty checkpoint below: the wire side (NIGHT_LIGHT_BYTES,
+// night_light_wire_ok) comes from persist.h on every platform. Guarded like status_threshold.h.
 #include "night_light.h"
 #endif
 // Last: the MESSAGE_KEY_* ids as constants (wscript generates it into build/include),
@@ -57,6 +56,7 @@ typedef enum {
     BAD_CURVE_INSETS,    // bytes
     BAD_LINE_STYLE,      // bytes
     BAD_NIGHT_LIGHT,     // bytes
+    BAD_HR_ALERT,        // bytes (emery)
 } BadTuple;
 
 // One log call and one format string for every skip below. noinline: aplite has only
@@ -218,11 +218,10 @@ static bool handle_thresholds(DictionaryIterator *iterator, bool *status_dirty) 
 #endif  // WW_THRESHOLD_HIGHLIGHT
 
 #if defined(WW_ON_DEMAND)
-// The weather alerts' metric entries — On demand's alert items. They ride the
-// weather message's status category next to the levels (the phone judges the
-// alerts; the watch has no raw values).
-// An empty array means nothing is alerting and clears the stored entries; a
-// malformed one is dropped and the last good entries stay.
+// The weather alerts' metric entries — On demand's alert items. They ride the weather message's
+// status category next to the levels (the phone judges the alerts; the watch has no raw values).
+// An empty array means nothing is alerting and clears the stored entries; a malformed one is
+// dropped and the last good entries stay.
 static bool handle_alert_entries(DictionaryIterator *iterator, bool *status_dirty) {
     Tuple *tuple = dict_find(iterator, MESSAGE_KEY_ALERT_ENTRIES_UINT8);
     if (!tuple) { return false; }
@@ -392,15 +391,13 @@ static bool handle_palette(DictionaryIterator *iterator, bool *forecast_dirty,
 }
 
 #if defined(WW_CURVE_INSET)
-// Per-series forecast curve insets — settings-derived, so the tuple rides the
-// Clay message (see clay-payload.js). The phone sends five render-ready px
-// values, one per series in SeriesId order ([FIRST, SECOND, THIRD, FOURTH,
-// FIFTH]: temp's inset, which a temperature-axis metric line — feels-like or
-// dew point — shares; every other metric 0); the watch stays metric-agnostic
-// and just persists them for load_dataset. The phone JS and this handler ship
-// in one .pbw, so any other length is malformed — no short-tuple fallback.
-// aplite keeps its frozen constant insets, so the handler compiles out there
-// (mirrors the threshold handlers above).
+// Per-series forecast curve insets — settings-derived, so the tuple rides the Clay message (see
+// clay-payload.js). The phone sends five render-ready px values, one per series in SeriesId order
+// ([FIRST, SECOND, THIRD, FOURTH, FIFTH]: temp's inset, which a temperature-axis metric line —
+// feels-like or dew point — shares; every other metric 0); the watch stays metric-agnostic and
+// just persists them for load_dataset. The phone JS and this handler ship in one .pbw, so any
+// other length is malformed — no short-tuple fallback. aplite keeps its frozen constant insets,
+// so the handler compiles out there (mirrors the threshold handlers above).
 static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dirty) {
     Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_CURVE_INSET_UINT8);
     if (!tuple) { return false; }
@@ -607,6 +604,9 @@ static bool handle_holidays(DictionaryIterator *iterator, bool *calendar_dirty) 
     return true;
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+static bool handle_hr_alert(DictionaryIterator *iterator, bool *status_dirty);  // emery: at the end
+#endif
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
     APP_LOG(APP_LOG_LEVEL_DEBUG, "Inbox received: %u bytes",
             (unsigned) dict_size(iterator));
@@ -654,6 +654,9 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // never sends it the tuple.
     handled |= handle_alert_entries(iterator, &status_dirty);
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+    handled |= handle_hr_alert(iterator, &status_dirty);   // emery: the heart-rate alert
+#endif
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
 #if defined(WW_RAIN_RADAR)
     // aplite has no radar layer (--gc-sections reaps rain_radar_layer.c), so it
@@ -689,17 +692,14 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         radar_avail_before != main_window_radar_has_data();
 #endif
 
-    // Release the radar-snooze latch whenever we're awake. Runs after every
-    // handler so it can't race the IS_SLEEPING tuple in the same payload.
-    // persist_set_radar_snooze is idempotent, so this only does work on the
-    // actual wake transition. The latch must NOT be gated on a fresh radar
-    // payload: the outbox dedupes the radar category independently, so when
-    // the post-wake radar is a dry, merely time-shifted window it is
-    // suppressed (overlap matches + tail dry) and no releasing payload ever
-    // arrives — which used to leave the snooze screen latched forever. The
-    // cached chart is safe to reveal regardless: rain_radar_layer_tick
-    // self-advances the window every minute during sleep, so it already
-    // holds exactly the data PKJS would (re)send.
+    // Release the radar-snooze latch whenever we're awake. Runs after every handler so it can't
+    // race the IS_SLEEPING tuple in the same payload. persist_set_radar_snooze is idempotent, so
+    // this only does work on the actual wake transition. The latch must NOT be gated on a fresh
+    // radar payload: the outbox dedupes the radar category independently, so when the post-wake
+    // radar is a dry, merely time-shifted window it is suppressed (overlap matches + tail dry) and
+    // no releasing payload ever arrives — which used to leave the snooze screen latched forever.
+    // The cached chart is safe to reveal regardless: rain_radar_layer_tick self-advances the
+    // window every minute during sleep, so it already holds exactly the data PKJS would (re)send.
     if (!persist_get_is_sleeping()) {
         radar_dirty |= persist_set_radar_snooze(false);
     }
@@ -883,3 +883,22 @@ void app_message_init() {
     app_message_open(inbox_size, outbox_size);
     MEMORY_LOG_HEAP("after_app_message_open");
 }
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the heart-rate alert (CLAY_HR_ALERT_UINT8, hr_alert.h). Down here, below the file's
+// last APP_LOG, so no other platform's __LINE__ immediates move (their images stay identical).
+static bool handle_hr_alert(DictionaryIterator *iterator, bool *status_dirty) {
+    Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_HR_ALERT_UINT8);
+    if (!tuple) { return false; }
+    if (tuple->type != TUPLE_BYTE_ARRAY
+            || !hr_alert_wire_ok(tuple->value->data, tuple->length)) {
+        warn_bad(BAD_HR_ALERT, tuple->length, 0, 0);
+        return true;
+    }
+    if (persist_set_hr_alert(tuple->value->data)) {
+        hr_alert_reload();
+        *status_dirty = true;
+    }
+    return true;
+}
+#endif

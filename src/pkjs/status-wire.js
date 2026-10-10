@@ -8,15 +8,18 @@
  *    and the On demand cells;
  *  - the weather kinds' levels (STATUS_LEVELS_UINT8, packWeatherLevels) and the
  *    weather alerts' metric entries (ALERT_ENTRIES_UINT8, bakeAlerts), both judged at
- *    weather-bake time.
+ *    weather-bake time;
+ *  - the heart-rate alert (CLAY_HR_ALERT_UINT8, buildHrAlertBytes, emery only): the
+ *    Heart rate On demand item and the heart rate slot's Alert highlighting.
  *
  * Phone-only: plain CommonJS, and NOT in the settings page's APP_FILES
  * (scripts/build-config-page.js). The page reads the model (status-thresholds.js,
  * on-demand.js) and never packs a byte, so none of this ships in it.
  *
  * LOCKSTEP: the blob layout mirrors src/c/appendix/status_threshold.h, the alert
- * entries alert_set.h; test/status-thresholds-contract.test.js and
- * test/alert-entries-contract.test.js enforce it. ES5 only (aplite PKJS).
+ * entries alert_set.h, the heart-rate alert hr_alert.h;
+ * test/status-thresholds-contract.test.js, test/alert-entries-contract.test.js and
+ * test/hr-alert-contract.test.js enforce it. ES5 only (aplite PKJS).
  */
 var thresholds = require('./status-thresholds.js');
 var onDemand = require('./on-demand.js');
@@ -68,8 +71,10 @@ var BATTERY_VALUE_BIT = 0x40;
 // byte WARN_LOOK_OFFSET + (k >> 2), bits 2 * (k & 3) — bytes 36..37. The 2-bit
 // values are WARN_LOOKS (status-thresholds.js).
 var WARN_LOOK_OFFSET = 36;
-// The On demand cells: one byte per item (on-demand.js ITEMS, the watch's OdItem
-// order), 2 bits per bar (on-demand.js BARS, its ThreshBar order) — bytes 38..47.
+// The On demand cells: one byte per blob item (the first on-demand.js BLOB_ITEM_COUNT
+// ITEMS, the watch's OdItem order up to OD_WIND), 2 bits per bar (on-demand.js BARS, its
+// ThreshBar order) — bytes 38..47. emery's Heart rate item has its cells on its own tuple
+// (buildHrAlertBytes).
 var ON_DEMAND_OFFSET = 38;
 
 /**
@@ -148,19 +153,32 @@ function buildSettingsBlob(settings, env) {
   blob[ALERTS_OFFSET] = RAIN_DISPLAY[rainAlert(settings).look];
   blob[BATTERY_OFFSET] = onDemand.batteryLevel(settings, env)
     | (onDemand.batteryShowsValue(settings) ? BATTERY_VALUE_BIT : 0);
-  // The On demand cells: one byte per item in ITEMS order, 2 bits per bar at bits
-  // 2 * bar (BARS order) — 0 none, 1 left, 2 right (the SIDES index + 1). Effective
-  // values only (sideOf), so a bar the modes remove and a watch without On demand are
-  // zeros.
-  for (i = 0; i < onDemand.ITEMS.length; i++) {
-    var cell = 0;
-    for (var b = 0; b < onDemand.BARS.length; b++) {
-      var side = onDemand.sideOf(settings, onDemand.BARS[b].bar, onDemand.ITEMS[i].code, env);
-      if (side !== null) { cell |= (onDemand.SIDES.indexOf(side) + 1) << (2 * b); }
-    }
-    blob[ON_DEMAND_OFFSET + i] = cell;
+  // The On demand cells: one byte per blob item in ITEMS order (BLOB_ITEM_COUNT, NOT
+  // ITEMS.length: the Heart rate item past them would grow the blob to 49 B on every
+  // watch), each onDemandCell.
+  for (i = 0; i < onDemand.BLOB_ITEM_COUNT; i++) {
+    blob[ON_DEMAND_OFFSET + i] = onDemandCell(settings, onDemand.ITEMS[i].code, env);
   }
   return blob;
+}
+
+/**
+ * One On demand item's cell byte: 2 bits per bar at bits 2 * bar (BARS order) — 0 none,
+ * 1 left, 2 right (the SIDES index + 1). Effective values only (sideOf), so a bar the
+ * modes remove and a watch without On demand are zeros (and the Heart rate item off
+ * hrAvailable).
+ * @param {Object} settings Clay settings blob
+ * @param {string} code An on-demand.js ITEMS code.
+ * @param {Object} [env] platform env (absent = capable, see sideOf)
+ * @returns {number} 0..255
+ */
+function onDemandCell(settings, code, env) {
+  var cell = 0;
+  for (var b = 0; b < onDemand.BARS.length; b++) {
+    var side = onDemand.sideOf(settings, onDemand.BARS[b].bar, code, env);
+    if (side !== null) { cell |= (onDemand.SIDES.indexOf(side) + 1) << (2 * b); }
+  }
+  return cell;
 }
 
 // ── the weather levels (STATUS_LEVELS_UINT8) ─────────────────────────────────
@@ -483,6 +501,56 @@ function bakeAlerts(payload, settings) {
   return packAlerts(bakedAlerts(payload, settings));
 }
 
+// ── the heart-rate alert (CLAY_HR_ALERT_UINT8, emery only) ───────────────────
+
+// The layout is CANONICAL in src/c/appendix/hr_alert.h (and stored verbatim in the
+// watch's HR_ALERT_SETTINGS persist slot); test/hr-alert-contract.test.js pins these to
+// it. Seven bytes: [0] the Heart rate item's cells (a cell byte, onDemandCell), [1] its
+// level in bpm (on-demand.js hrLevel), [2] the flags, [3] / [4] the heart rate slot's
+// warn / danger bpm, [5] / [6] its warn / danger colours as GColor8 argb bytes.
+var HR_ALERT_BYTES = 7;
+var HR_ALERT_CELLS_OFFSET = 0;
+var HR_ALERT_LEVEL_OFFSET = 1;
+var HR_ALERT_FLAGS_OFFSET = 2;
+var HR_ALERT_WARN_OFFSET = 3;
+var HR_ALERT_DANGER_OFFSET = 4;
+var HR_ALERT_WARN_COLOR_OFFSET = 5;
+var HR_ALERT_DANGER_COLOR_OFFSET = 6;
+// The flags byte: bit 0 the item's Look is Icon + value; bit 1 the slot's Alert
+// highlighting is on (its switch AND an ordered pair); bits 2-3 the slot's warn look
+// (WARN_LOOKS); bits 4-7 reserved, written 0.
+var HR_ALERT_VALUE_BIT = 0x01;
+var HR_ALERT_HIGHLIGHT_BIT = 0x02;
+var HR_ALERT_LOOK_SHIFT = 2;
+
+/**
+ * Build the CLAY_HR_ALERT_UINT8 tuple (layout: src/c/appendix/hr_alert.h): the Heart
+ * rate On demand item's cells, level and Look, and the heart rate slot's Alert
+ * highlighting (status-thresholds.js hrHighlight). The cells are effective values only
+ * (onDemandCell, through sideOf's hrAvailable gate), so a bar that does not exist and a
+ * watch without a heart rate to show write 0. Only a KNOWN emery is sent it
+ * (clay-payload.js).
+ * @param {Object} settings Clay settings blob
+ * @param {Object} [env] platform env (config-ui platform.js computeEnv); absent = a
+ *     colour watch on which the item cannot show
+ * @returns {number[]} HR_ALERT_BYTES-long array
+ */
+function buildHrAlertBytes(settings, env) {
+  var isColor = !env || env.color !== false;
+  var hl = thresholds.hrHighlight(settings, isColor);
+  var bytes = [];
+  bytes[HR_ALERT_CELLS_OFFSET] = onDemandCell(settings, 'hr', env);
+  bytes[HR_ALERT_LEVEL_OFFSET] = onDemand.hrLevel(settings);
+  bytes[HR_ALERT_FLAGS_OFFSET] = (onDemand.hrShowsValue(settings) ? HR_ALERT_VALUE_BIT : 0)
+    | (hl.enabled ? HR_ALERT_HIGHLIGHT_BIT : 0)
+    | (WARN_LOOKS[hl.warnLook] << HR_ALERT_LOOK_SHIFT);
+  bytes[HR_ALERT_WARN_OFFSET] = hl.warn;
+  bytes[HR_ALERT_DANGER_OFFSET] = hl.danger;
+  bytes[HR_ALERT_WARN_COLOR_OFFSET] = rainTier.rgbToGColor8(hl.warnColor);
+  bytes[HR_ALERT_DANGER_COLOR_OFFSET] = rainTier.rgbToGColor8(hl.dangerColor);
+  return bytes;
+}
+
 module.exports = {
   SETTINGS_BYTES: SETTINGS_BYTES,
   COLORS_OFFSET: COLORS_OFFSET,
@@ -502,5 +570,17 @@ module.exports = {
   ALERT_ENTRIES_MAX_BYTES: ALERT_ENTRIES_MAX_BYTES,
   bakedAlerts: bakedAlerts,
   packAlerts: packAlerts,
-  bakeAlerts: bakeAlerts
+  bakeAlerts: bakeAlerts,
+  HR_ALERT_BYTES: HR_ALERT_BYTES,
+  HR_ALERT_CELLS_OFFSET: HR_ALERT_CELLS_OFFSET,
+  HR_ALERT_LEVEL_OFFSET: HR_ALERT_LEVEL_OFFSET,
+  HR_ALERT_FLAGS_OFFSET: HR_ALERT_FLAGS_OFFSET,
+  HR_ALERT_WARN_OFFSET: HR_ALERT_WARN_OFFSET,
+  HR_ALERT_DANGER_OFFSET: HR_ALERT_DANGER_OFFSET,
+  HR_ALERT_WARN_COLOR_OFFSET: HR_ALERT_WARN_COLOR_OFFSET,
+  HR_ALERT_DANGER_COLOR_OFFSET: HR_ALERT_DANGER_COLOR_OFFSET,
+  HR_ALERT_VALUE_BIT: HR_ALERT_VALUE_BIT,
+  HR_ALERT_HIGHLIGHT_BIT: HR_ALERT_HIGHLIGHT_BIT,
+  HR_ALERT_LOOK_SHIFT: HR_ALERT_LOOK_SHIFT,
+  buildHrAlertBytes: buildHrAlertBytes
 };

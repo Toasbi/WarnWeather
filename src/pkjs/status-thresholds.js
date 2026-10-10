@@ -104,7 +104,12 @@
     { code: 'week',      key: 'Week', boldOnly: true },
     { code: 'city',      key: 'City', boldOnly: true },
     { code: 'countdown', key: 'Countdown', boldOnly: true },
-    { code: 'hr',        key: 'Hr', boldOnly: true },
+    // Heart rate: bold-only in the blob (kind 15's bold cell is all it has there), but
+    // on emery its slot also owns a warn/danger pair, a warn look and two colours, which
+    // ride CLAY_HR_ALERT_UINT8 (status-wire.js buildHrAlertBytes; the blob has no room)
+    // and resolve through hrHighlight. Its switch, thresh<Key>On, rides its level
+    // group's header like a goal kind's (ownsGroupSwitch).
+    { code: 'hr',        key: 'Hr', boldOnly: true, tuplePair: true },
     // Battery % (kind 16, appended): unlike the GLYPH battery slot — still
     // kind-less, a drawn glyph has no text run to bold — the % slot renders
     // text, so it owns a bold cell: the first one in byte 33.
@@ -211,7 +216,9 @@
     Aqi: {us: {warn: 100, danger: 150}, eu: {warn: 60, danger: 80}},
     Steps: {'': {warn: 8000, danger: 10000}},
     Sleep: {'': {warn: 6.5, danger: 7.5}},
-    Distance: {km: {warn: 4, danger: 5}, mi: {warn: 2.5, danger: 3}}
+    Distance: {km: {warn: 4, danger: 5}, mi: {warn: 2.5, danger: 3}},
+    // The heart rate slot's Alert highlighting (emery, hrHighlight), in bpm.
+    Hr: {'': {warn: 120, danger: 150}}
   };
 
   /**
@@ -638,6 +645,60 @@
     };
   }
 
+  /**
+   * A level as the one byte the heart-rate tuple carries it in: rounded, clamped to
+   * 0..255; anything not finite reads 0.
+   * @param {*} v A level in bpm (a resolved pair's number).
+   * @returns {number} 0..255
+   */
+  function bpmByte(v) {
+    var n = Math.round(Number(v));
+    if (!isFinite(n)) { return 0; }
+    return n < 0 ? 0 : (n > 255 ? 255 : n);
+  }
+
+  /**
+   * The heart rate slot's Alert highlighting (emery), resolved the way kindConfig
+   * resolves a weather kind's: the pair is resolvedPair('Hr') (the stored pair when it
+   * is ordered, else the seed 120 / 150), enabled is the stored switch threshHrOn ===
+   * true AND an ordered pair, the warn look warnLookFor, and both colours
+   * thresholdColor's weather-style autos (the theme's text colour, red). THE reading
+   * the packer (status-wire.js buildHrAlertBytes), the slot's Edit badge and telemetry
+   * share.
+   * @param {Object} settings Clay settings blob
+   * @param {boolean} [isColor] Whether the watch has a colour display (the warn look's
+   *     default, see warnLookDefault).
+   * @returns {{enabled: boolean, warn: number, danger: number, warnLook: string,
+   *     warnColor: number, dangerColor: number}} warn and danger as bpmByte bytes
+   */
+  function hrHighlight(settings, isColor) {
+    var pair = resolvedPair('Hr', settings);
+    return {
+      enabled: Boolean(settings) && settings.threshHrOn === true && pairOrdered(pair.warn, pair.danger),
+      warn: bpmByte(pair.warn),
+      danger: bpmByte(pair.danger),
+      warnLook: warnLookFor(settings, 'Hr', isColor),
+      warnColor: thresholdColor(settings, 'Hr', 'Warn'),
+      dangerColor: thresholdColor(settings, 'Hr', 'Danger')
+    };
+  }
+
+  /**
+   * Whether a kind's level group carries its own switch (thresh<Stem>On on the group's
+   * header), so the group's reset turns it off too: the goal kinds' Goals switch and
+   * the heart rate slot's Alert highlighting (a tuplePair kind). A weather kind's switch
+   * lives in its slot sheet, outside the group.
+   * @param {string} keyStem Kind key stem, e.g. 'Steps'.
+   * @returns {boolean}
+   */
+  function ownsGroupSwitch(keyStem) {
+    if (isGoalKind(keyStem)) { return true; }
+    for (var i = 0; i < KINDS.length; i += 1) {
+      if (KINDS[i].key === keyStem) { return Boolean(KINDS[i].tuplePair); }
+    }
+    return false;
+  }
+
   var api = {
     KINDS: KINDS,
     WARN_LOOKS: WARN_LOOKS,
@@ -669,6 +730,9 @@
     thresholdColor: thresholdColor,
     isAutoColor: isAutoColor,
     kindConfig: kindConfig,
+    bpmByte: bpmByte,
+    hrHighlight: hrHighlight,
+    ownsGroupSwitch: ownsGroupSwitch,
     computeLevel: computeLevel,
     DEFAULT_DANGER_COLOR: DEFAULT_DANGER_COLOR,
     DEFAULT_DANGER_HEX: DEFAULT_DANGER_HEX

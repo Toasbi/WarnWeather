@@ -607,7 +607,8 @@ static void item_decisions(void) {
     expect("battery_slot.pct", od_slot_shows_battery(SLOT_LIVE_BATTERY_PCT), 1);
     expect("battery_slot.text", od_slot_shows_battery(SLOT_TEXT), 0);
 
-    // The metric alerts are boxed; rain and the system items never.
+    // The metric alerts are boxed; rain, the system items and emery's Heart rate item
+    // (past OD_WIND, in the emery build) never.
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         char name[32];
         snprintf(name, sizeof(name), "boxed.item%d", item);

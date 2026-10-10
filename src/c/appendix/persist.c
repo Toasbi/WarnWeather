@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "persist.h"
+#include "hr_alert.h"
 #include "config.h"
 #include "status_line.h"
 #include "theme.h"
@@ -119,7 +120,13 @@ enum key {
     // bool above, whose slot stays listed (append-only) and is never read again: a
     // notice that was up across the upgrade comes back with the source's next answer.
     // Radar-only, so aplite never reads or writes it (the radar callers drop out there).
-    RADAR_NOTICE                  // 58 — <= RADAR_NOTICE_BUF_BYTES text + NUL, absent = no notice
+    RADAR_NOTICE,                 // 58 — <= RADAR_NOTICE_BUF_BYTES text + NUL, absent = no notice
+    // Appended: the heart-rate alert (CLAY_HR_ALERT_UINT8, layout in hr_alert.h), stored
+    // verbatim — the Heart rate On demand item's cells, level and Look, and the heart
+    // rate slot's highlight pair, warn look and colours. Emery only, so no other
+    // platform reads or writes it, but the ID stays listed on every platform: the enum
+    // is append-only because the numbers are the on-flash slots.
+    HR_ALERT_SETTINGS,            // 59 — HR_ALERT_BYTES, absent or short = all zeros
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -858,3 +865,20 @@ void persist_get_night_light(uint8_t out[NIGHT_LIGHT_BYTES]) {
     memcpy(out, stored, sizeof(stored));
 }
 #endif  // NIGHT_LIGHT_SUPPORTED
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the heart-rate alert tuple, verbatim (hr_alert.h).
+bool persist_set_hr_alert(const uint8_t *bytes) {
+    return write_data_if_changed(HR_ALERT_SETTINGS, bytes, HR_ALERT_BYTES);
+}
+
+void persist_get_hr_alert(uint8_t *out) {
+    memset(out, 0, HR_ALERT_BYTES);
+    if (!persist_exists(HR_ALERT_SETTINGS)) { return; }
+    uint8_t stored[HR_ALERT_BYTES];
+    if (persist_read_data(HR_ALERT_SETTINGS, stored, sizeof(stored)) < (int) sizeof(stored)) {
+        return;
+    }
+    memcpy(out, stored, sizeof(stored));
+}
+#endif

@@ -1665,6 +1665,13 @@ const BOLD_SHEET_EXTRA_ROWS = {
   Countdown: ['countdownSlotUnit'],
   Date: ['dateSlotMonthFormat', 'dateSlotFullFormat']
 };
+// Rows a bold-only sheet carries BELOW its Bold row: emery's heart rate slot adds its
+// Alert highlighting group there (the level kinds' order — Bold, then the levels), gated
+// to an emery reading health, so every other watch still sees Bold alone.
+const BOLD_SHEET_TRAILING_ROWS = {
+  Hr: [undefined, 'threshHrOn', 'threshHrWarn', 'threshHrDanger', 'threshHrMax', 'threshHrWarnLook',
+    'threshHrWarnColor', 'threshHrDangerColor']
+};
 
 // Bold is the last row before any group card on EVERY slot sheet — the bold-only
 // ones, where it follows the kind's extras, the alert kinds', where it sits right above
@@ -1901,7 +1908,7 @@ test('the Bold-last pin covers the slot sheets only (its /^thresh/ filter)', () 
   assert.ok(ids.every(id => /^thresh/.test(id)), 'no alert sheet among the slot sheets');
 });
 
-test('every bold-only kind gets a sheet whose Bold row is its LAST control', () => {
+test('every bold-only kind gets a sheet whose Bold row is its LAST control (emery\'s heart rate alone adds levels)', () => {
   const titles = {
     Temp: 'Temperature slot', Pressure: 'Air pressure (hPa) slot',
     Sun: 'Sunrise/sunset slot', Date: 'Date slot', Week: 'Calendar week slot',
@@ -1918,11 +1925,12 @@ test('every bold-only kind gets a sheet whose Bold row is its LAST control', () 
     // phone-baked unit kinds their "Show unit" toggle. Naming the extra rows per stem
     // rather than counting them keeps this a real guard: a row added later has to be
     // declared here, and it cannot be declared in the wrong sheet or below the Bold row.
-    assert.deepEqual(s.items.slice(0, -1).map(it => it.messageKey),
-      BOLD_SHEET_EXTRA_ROWS[stem] || [], stem + ' rows above Bold');
     const bold = boldFor(stem);
-    assert.equal(s.items[s.items.length - 1], bold,
-      stem + ' Bold row must close the sheet');
+    const at = s.items.indexOf(bold);
+    assert.deepEqual(s.items.slice(0, at).map(it => it.messageKey),
+      BOLD_SHEET_EXTRA_ROWS[stem] || [], stem + ' rows above Bold');
+    assert.deepEqual(s.items.slice(at + 1).map(it => it.messageKey),
+      BOLD_SHEET_TRAILING_ROWS[stem] || [], stem + ' rows below Bold (none but emery\'s heart rate levels)');
     assert.equal(bold.type, 'segmented');
     assert.equal(bold.label, 'Bold');
     assert.equal(bold.joinPrevious, undefined, stem + ' Bold is a row of its own');
@@ -1967,6 +1975,121 @@ test('the Hr sheet row mirrors the hr slot availability (health + sensor)', () =
   BOLD_STEMS.filter(stem => stem !== 'Hr').forEach(stem => {
     assert.equal(boldFor(stem).showWhen, undefined, stem + ' needs no gate');
   });
+});
+
+// --- emery's heart rate slot: Alert highlighting (CLAY_HR_ALERT_UINT8) ---------------
+
+const HR_ALERT_GATE = { all: [{ env: 'health' }, { key: 'healthMode', ne: 'off' }, { env: 'hr' },
+  { env: 'platform', eq: 'emery' }] };
+const EMERY_ENV = require('../src/pkjs/config-ui/lib/platform.js').computeEnv({ platform: 'emery' });
+const DIORITE_ENV = require('../src/pkjs/config-ui/lib/platform.js').computeEnv({ platform: 'diorite' });
+
+test('the Hr sheet: Bold, then emery\'s Alert highlighting group (switch, levels, look, colours)', () => {
+  const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
+  const items = sheetFor('Hr').items;
+  const head = items[1];
+  assert.equal(head.type, 'subheader');
+  assert.equal(head.text, 'Alert highlighting');
+  assert.equal(head.toggleKey, 'threshHrOn', 'the group header carries the switch');
+  assert.deepEqual(head.labelAction, { action: 'resetThresholds', arg: 'Hr', label: 'Reset to defaults' });
+  assert.equal(head.intro, 'Warn and danger levels for your heart rate. The switch highlights the heart rate'
+    + ' slot: reaching warn draws the warn look below, reaching danger fills the slot and prints it bold.');
+  const on = items[2];
+  assert.equal(on.messageKey, 'threshHrOn');
+  assert.equal(on.type, 'toggle');
+  assert.equal(on.defaultValue, false, 'ships off');
+  const range = items[3];
+  assert.equal(range.messageKey, 'threshHrWarn');
+  assert.equal(range.dangerKey, 'threshHrDanger');
+  assert.equal(range.maxKey, 'threshHrMax');
+  assert.equal(range.rangeFrom.resolver, 'thresholdRange');
+  assert.equal(range.rangeFrom.args.keyStem, 'Hr');
+  assert.equal(range.disabledWhen, undefined, 'the levels stay live while the switch is off');
+  [head, on, range].forEach((it) => assert.deepEqual(it.showWhen, HR_ALERT_GATE, (it.messageKey || it.text)));
+  ['threshHrWarnLook', 'threshHrWarnColor', 'threshHrDangerColor'].forEach((k) => {
+    const it = items.find((i) => i.messageKey === k);
+    assert.deepEqual(it.disabledWhen, { not: { key: 'threshHrOn' } }, k + ' mutes while the switch is off');
+    assert.ok(JSON.stringify(it.showWhen).indexOf(JSON.stringify(HR_ALERT_GATE)) !== -1, k + ' is emery-gated');
+  });
+  assert.equal(items.find((i) => i.messageKey === 'threshHrWarnLook').hintByValue.none,
+    'No box at warn — bold text still follows the Bold row above.');
+  // Only an emery reading health draws the group; every other watch keeps the Bold row alone.
+  const visible = (env, healthMode) => items.filter((i) => i.type !== 'hidden'
+    && showWhen.isVisible(i, { env, healthMode, theme: 'dark' })).map((i) => i.messageKey || i.text);
+  assert.deepEqual(visible(EMERY_ENV, 'status'), ['threshHrBoldMode', 'Alert highlighting', 'threshHrOn',
+    'threshHrWarn', 'threshHrWarnLook', 'threshHrWarnColor', 'threshHrDangerColor']);
+  assert.deepEqual(visible(EMERY_ENV, 'off'), [], 'health off: no heart rate slot at all');
+  ['basalt', 'chalk', 'diorite', 'flint'].forEach((p) => {
+    const env = require('../src/pkjs/config-ui/lib/platform.js').computeEnv({ platform: p });
+    assert.deepEqual(visible(env, 'status').filter((k) => k !== 'threshHrBoldMode'), [], p + ': Bold alone');
+  });
+});
+
+test('the Hr range: 40..220 bpm in 5s, seeded 120 / 150, no scale-max editor', () => {
+  const cfg = B.thresholdRangeCfg({}, EMERY_ENV, { keyStem: 'Hr' });
+  assert.equal(cfg.min, 40);
+  assert.equal(cfg.max, 220);
+  assert.equal(cfg.step, 5);
+  assert.equal(cfg.unit, 'bpm');
+  assert.equal(cfg.dir, 'above');
+  assert.equal(cfg.seedWarn, 120);
+  assert.equal(cfg.seedDanger, 150);
+  assert.equal(cfg.maxEditable, false, 'a fixed track');
+  assert.equal(cfg.minSpan, cfg.step);
+  // The seeds are the packer's (status-thresholds.js SEEDS, hrHighlight's fallback).
+  const hl = thresholds.hrHighlight({}, true);
+  assert.deepEqual([hl.warn, hl.danger], [cfg.seedWarn, cfg.seedDanger]);
+  // Their colours are the weather kinds' autos: the theme's text colour, then red.
+  assert.equal(cfg.warnColor, '#FFFFFF');
+  assert.equal(cfg.dangerColor, '#FF0000');
+});
+
+test('the Hr reset lands on a fresh install: levels on the seed AND the switch off, Bold untouched', () => {
+  const S = { theme: 'dark', threshHrOn: true, threshHrWarn: '60', threshHrDanger: '70', threshHrMax: '200',
+    threshHrWarnLook: 'none', threshHrWarnColor: '#00AAFF', threshHrDangerColor: '#5500FF',
+    threshHrBoldMode: 'always' };
+  PC.actions.resetThresholds('Hr', S, EMERY_ENV, SCHEMA_DEFAULT_OF);
+  assert.strictEqual(S.threshHrOn, false, 'the switch rides the group\'s header, so its reset turns it off');
+  assert.equal(S.threshHrWarn, '');
+  assert.equal(S.threshHrDanger, '');
+  assert.equal(S.threshHrMax, '');
+  assert.equal(S.threshHrWarnLook, 'fill', 'the colour watch\'s default look');
+  assert.equal(S.threshHrWarnColor, '');
+  assert.equal(S.threshHrDangerColor, '');
+  assert.equal(S.threshHrBoldMode, 'always', 'reset must not touch Bold');
+  assert.equal(thresholds.hrHighlight(S, true).enabled, false);
+  assert.equal(thresholds.ownsGroupSwitch('Hr'), true);
+});
+
+test('the Hr slot\'s Edit badge: dots on an emery with the switch on; never on another watch', () => {
+  const resolver = PC.badgeResolvers.get('thresholdPenState');
+  const args = { messageKey: 'statusHealthLeft' };
+  const S = { statusHealthLeft: 'hr', healthMode: 'status', threshHrOn: true };
+  assert.deepEqual(resolver(S, EMERY_ENV, args),
+    { label: 'Edit', ariaNote: 'highlighting on', bold: false, dots: [{ color: '#FFFFFF' }, { color: '#FF0000' }] });
+  assert.deepEqual(resolver(Object.assign({}, S, { threshHrWarnLook: 'outline', threshHrWarnColor: '#00AAFF' }),
+    EMERY_ENV, args).dots, [{ color: '#00AAFF', ring: true }, { color: '#FF0000' }]);
+  const none = { label: 'Edit', ariaNote: '', bold: false, dots: [] };
+  assert.deepEqual(resolver(Object.assign({}, S, { threshHrOn: false }), EMERY_ENV, args), none, 'switch off');
+  // diorite has the sensor but no Alert highlighting in its image: the switch reads off.
+  assert.deepEqual(resolver(S, DIORITE_ENV, args), none, 'diorite');
+  assert.deepEqual(resolver(Object.assign({}, S, { threshHrBoldMode: 'always' }), DIORITE_ENV, args),
+    { label: 'Edit', ariaNote: 'always bold', bold: true, dots: [] }, 'diorite keeps its Bold badge');
+});
+
+test('the on-open heal seeds the Hr colours, and never changes the tuple the watch receives', () => {
+  const S = {};
+  onbuild.onLoad({ env: { platform: 'emery' }, get: k => S[k], set: (k, v) => { S[k] = v; }, getInitial: k => S[k] });
+  assert.equal(S.threshHrWarnColor, '#FFFFFF', 'an unset warn → the theme\'s text colour');
+  assert.equal(S.threshHrDangerColor, '#FF0000', 'an unset danger → red');
+  ['dark', 'light', 'bw', 'bw-light'].forEach((theme) => [undefined, '', '#000000', '#ffffff', '#00AAFF', 'garbage']
+    .forEach((v) => {
+      const T = { theme, threshHrOn: true, healthMode: 'status' };
+      if (v !== undefined) { T.threshHrWarnColor = v; T.threshHrDangerColor = v; }
+      const before = wire.buildHrAlertBytes(Object.assign({}, T), EMERY_ENV);
+      onbuild.onLoad({ env: { platform: 'emery' }, get: k => T[k], set: (k, x) => { T[k] = x; }, getInitial: k => T[k] });
+      assert.deepEqual(wire.buildHrAlertBytes(T, EMERY_ENV), before, theme + ' ' + JSON.stringify(v));
+    }));
 });
 
 test('battery GLYPH has NO sheet (draws a glyph, not text); battery % has one', () => {

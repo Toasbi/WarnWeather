@@ -15,6 +15,7 @@
 #include "status_on_demand.h"
 #include "status_sig.h"
 #include "paint_scratch.h"
+#include "../appendix/hr_alert.h"
 #if defined(PBL_HEALTH)
 #include "../services/health_summary.h"
 #include "../services/health.h"
@@ -24,9 +25,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Never compiled on aplite — wscript builds status_row_aplite.c in its place — and
-// every other platform has both features, so nothing below is guarded on them, nor
-// on PBL_PLATFORM_APLITE.
+// Never compiled on aplite (wscript builds status_row_aplite.c in its place), and every other
+// platform has both features, so nothing below is guarded on them, nor on PBL_PLATFORM_APLITE.
 #if !defined(WW_ON_DEMAND) || !defined(WW_THRESHOLD_HIGHLIGHT)
 #error "status_row.c needs WW_ON_DEMAND and WW_THRESHOLD_HIGHLIGHT; aplite builds its twin"
 #endif
@@ -375,11 +375,10 @@ static int load_pass(uint8_t line_id, StatusSlotView out[STATUS_SLOT_COUNT]) {
     return len;
 }
 
-// The live reading a slot of `kind` (a ThreshKind, -1 = no threshold-capable
-// content) is judged against, in the blob's wire units (steps / minutes / 100 m) —
-// or -1 for every non-health kind and on a watch without HealthService. The half of
-// the slot's level that needs health_summary, which the host-compiled
-// status_threshold_slot_level() must not call.
+// The live reading a slot of `kind` (a ThreshKind, -1 = no threshold-capable content) is judged
+// against, in the blob's wire units (steps / minutes / 100 m) — or -1 for every non-health kind
+// and on a watch without HealthService. The half of the slot's level that needs health_summary,
+// which the host-compiled status_threshold_slot_level() must not call.
 static int slot_health_value(int kind) {
 #if defined(PBL_HEALTH)
     if (status_threshold_is_health_kind(kind)) {
@@ -392,18 +391,15 @@ static int slot_health_value(int kind) {
     return -1;
 }
 
-// One slot resolved to everything a pass needs that does NOT depend on
-// measurement. The refresh pass signs these fields (the font and look through the
-// blob they are read from), the draw pass measures and paints them — one
-// resolution, every consumer. They used to be three hand-copied resolutions on
-// eight parallel arrays, and one copy (the retired right-slot width query) silently
-// omitted the threshold load (see load_pass).
-//
-// NO measurement here, deliberately: measure_slot() reads row->glyphs[i], which is
-// only valid after ensure_glyphs(), and a resolver that measured would drag PDC
-// glyph loads onto every minute tick's refresh. Each DRAWING caller runs
-// ensure_glyphs() and then measures with this struct's `font` — the same font it
-// goes on to draw with, which is the whole reason the font is resolved here.
+// One slot resolved to everything a pass needs that does NOT depend on measurement. The refresh
+// pass signs these fields (the font and look through the blob they are read from), the draw pass
+// measures and paints them — one resolution, every consumer. They used to be three hand-copied
+// resolutions on eight parallel arrays, and one copy (the retired right-slot width query) silently
+// omitted the threshold load (see load_pass). NO measurement here, deliberately: measure_slot()
+// reads row->glyphs[i], which is only valid after ensure_glyphs(), and a resolver that measured
+// would drag PDC glyph loads onto every minute tick's refresh. Each DRAWING caller runs
+// ensure_glyphs() and then measures with this struct's `font` — the same font it goes on to draw
+// with, which is the whole reason the font is resolved here.
 typedef struct {
     StatusSlotView slot;                    // the packed slot
     GFont          font;                    // regular, or the bold companion
@@ -413,11 +409,10 @@ typedef struct {
     ThreshLook look;                        // box, bold bit, RAW accent byte at `level`
 } ResolvedSlot;
 
-// Resolve one slot of an already-loaded pass (load_pass filled `view`). `base` is
-// the row's regular font; a slot whose bold verdict is set takes the bold
-// companion instead. `i` is the slot's position in a draw (0 left, 1 middle, 2
-// right), after status_on_demand_collect(), so it can take the level of a weather
-// alert it merged; -1 outside a draw.
+// Resolve one slot of an already-loaded pass (load_pass filled `view`). `base` is the row's
+// regular font; a slot whose bold verdict is set takes the bold companion instead. `i` is the
+// slot's position in a draw (0 left, 1 middle, 2 right), after status_on_demand_collect(), so it
+// can take the level of a weather alert it merged; -1 outside a draw.
 static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView *view,
                          ResolvedSlot *out, int i) {
     out->slot = *view;
@@ -427,26 +422,31 @@ static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView 
     // two loops, which is why the first cut made it a field.)
     const int thresh_kind = status_threshold_kind_for_slot(out->slot.kind,
                                                               out->slot.icon);
-    // NORMAL while the kind's Highlight switch is off; weather kinds read the
-    // phone-computed levels word (the watch has no raw AQI/wind ints), health kinds
-    // compare the live reading against the Clay-sent pair. A slot that merged a
-    // weather alert takes the alert's level instead, today's or tomorrow's, whatever
-    // its own switch says: it shows the alert in the alert icon's place, and the look
-    // below is the one that icon would have drawn (the same kind, the same level).
-    // Never on the refresh path: what a merge depends on (the entries, the cells, the
-    // slot) is signed there already.
+    // NORMAL while the kind's Highlight switch is off; weather kinds read the phone-computed
+    // levels word (the watch has no raw AQI/wind ints), health kinds compare the live reading
+    // against the Clay-sent pair. A slot that merged a weather alert takes the alert's level
+    // instead, today's or tomorrow's, whatever its own switch says: it shows the alert in the
+    // alert icon's place, and the look below is the one that icon would have drawn (the same kind,
+    // the same level). Never on the refresh path: what a merge depends on (the entries, the cells,
+    // the slot) is signed there already.
     const uint8_t merged = i < 0 ? 0 : status_on_demand_merge(&s_od_pass, i, thresh_kind);
     out->level = merged ? merged : (uint8_t)status_threshold_slot_level(s_thresh_scratch,
         s_levels_word, thresh_kind, slot_health_value(thresh_kind));
-    // The box (none at NORMAL, filled at DANGER, the kind's warn look at WARN), the
-    // bold bit and the accent byte — the function the alert icon of the same kind
-    // asks at its level, so the two cannot disagree. Bold is its own per-kind
-    // setting, NOT a function of the level alone: "always" bolds the normal zone
-    // too, even for a kind whose thresholds are switched off entirely. ALWAYS
-    // resolved, for every slot and every level: an accent nobody paints costs one
-    // blob read, while one left unwritten on some paths is the uninitialised-read
-    // bug this struct exists to make impossible.
+    // The box (none at NORMAL, filled at DANGER, the kind's warn look at WARN), the bold bit and
+    // the accent byte — the function the alert icon of the same kind asks at its level, so the two
+    // cannot disagree. Bold is its own per-kind setting, NOT a function of the level alone:
+    // "always" bolds the normal zone too, even for a kind whose thresholds are switched off
+    // entirely. ALWAYS resolved, for every slot and every level: an accent nobody paints costs one
+    // blob read, while one left unwritten on some paths is the uninitialised-read bug this struct
+    // exists to make impossible.
     out->look = status_threshold_look(s_thresh_scratch, thresh_kind, out->level);
+#if defined(PBL_PLATFORM_EMERY)
+    if (thresh_kind == THRESH_HR) {   // emery: its pair, look, colours in CLAY_HR_ALERT_UINT8
+        const uint8_t *hr = hr_alert_get();
+        out->level = (uint8_t)hr_alert_slot_level(hr, health_summary_hr_bpm());
+        out->look = hr_alert_look(s_thresh_scratch, hr, out->level);
+    }
+#endif
     // A crossed slot renders BOLD — the calendar's today-highlight pattern applied
     // to slots. The bold Gothic shares its regular sibling's metrics, so only
     // glyph WIDTHS change, which is why the font has to travel with the slot:
@@ -510,6 +510,12 @@ bool status_row_uses_live_health(const StatusRow *row) {
     return row && row->uses_live_health;
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+bool status_row_uses_live_hr(const StatusRow *row) {
+    return row && row->od.hr_placed;   // emery: the Heart rate item sits on this bar
+}
+#endif
+
 bool status_row_uses_on_demand(const StatusRow *row) {
     return row && row->od.assigned;
 }
@@ -549,6 +555,11 @@ bool status_row_refresh(StatusRow *row) {
     // The items' entries tuple and live state. Also where row->od.assigned is derived.
     sig = status_on_demand_fold(&row->od, sig, status_threshold_bar_of_line(row->line_id),
                                 s_thresh_scratch);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the heart-rate alert tuple, whole (the item's cells, level and Look, the HR
+    // slot's highlight pair, look and colours): a save that changes any of it repaints.
+    sig = sig_fold(sig, hr_alert_get(), HR_ALERT_BYTES);
+#endif
     // All three slots, always — including the ones On demand may move, shorten or
     // hide at paint time: how the slots make room is a paint decision (it depends on
     // measured widths), not a content rule, and a signature describing only part of

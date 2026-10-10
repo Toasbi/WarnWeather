@@ -415,23 +415,38 @@ function buildHeaviestClayMessage(watchInfo) {
   // costs 7 + 4, so the five would be 55 B instead of 12 B.
   assert.equal(payload.CLAY_NIGHT_LIGHT_UINT8.length, 5,
     'the Dim backlight tuple must stay 5 bytes — the budget below is recorded with it');
+  // emery's heart-rate alert (CLAY_HR_ALERT_UINT8, src/c/appendix/hr_alert.h): a known
+  // emery's bundle alone, 7 B header + 7 B whatever the settings say, so the fixture
+  // needs no hr keys to be the worst case.
+  if (Object.prototype.hasOwnProperty.call(payload, 'CLAY_HR_ALERT_UINT8')) {
+    assert.equal(payload.CLAY_HR_ALERT_UINT8.length, 7,
+      'the heart-rate alert tuple must stay 7 bytes — the budget below is recorded with it');
+  }
   return payload;
 }
 
 test('Clay settings message (with palette) fits the watch inbox', function() {
-  // The line-style tuple ships to every watch, aplite included: size it
-  // against the smallest inbox.
-  const inbox = readInboxSize('aplite');
-  const size = dictSize(buildHeaviestClayMessage());
-  assert.ok(
-    size <= inbox,
-    'Clay message is ' + size + ' B but inbox_size is only ' + inbox + ' B — bump inbox_size.');
+  // The line-style tuple ships to every watch, aplite included: size the capable shape
+  // (basalt's, and an unknown platform's) against the smallest inbox. A known emery's
+  // bundle also carries the heart-rate alert tuple, and is sized against its own inbox.
+  [['emery', { platform: 'emery' }], ['basalt', { platform: 'basalt' }], ['aplite', null]].forEach(([inboxOf, info]) => {
+    const inbox = readInboxSize(inboxOf);
+    const size = dictSize(buildHeaviestClayMessage(info));
+    assert.ok(
+      size <= inbox,
+      JSON.stringify(info) + ': Clay message is ' + size + ' B but inbox_size is only ' + inbox + ' B — bump inbox_size.');
+  });
 });
 
 test('Clay settings message keeps its recorded size (and headroom)', () => {
-  const size = dictSize(buildHeaviestClayMessage());
+  // The capable non-emery shape (basalt's, the unknown platform's), against aplite's
+  // 536 B inbox as the conservative floor; emery's below, against its own.
+  const size = dictSize(buildHeaviestClayMessage({ platform: 'basalt' }));
   const inbox = readInboxSize('aplite');
   console.log(`heaviest Clay message: ${size} B of ${inbox} B (headroom ${inbox - size})`);
+  const emerySize = dictSize(buildHeaviestClayMessage());
+  const emeryInbox = readInboxSize('emery');
+  console.log(`heaviest emery Clay message: ${emerySize} B of ${emeryInbox} B (headroom ${emeryInbox - emerySize})`);
   // Recorded exactly, like the weather bundle above: the Clay message grows key by key
   // (the palette, then the threshold blob), so the next task that adds one has to see the
   // running total move instead of silently eating the remaining headroom.
@@ -483,8 +498,15 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // the weather message (ALERT_ENTRIES_UINT8, recorded above). Headroom 17 -> 14 B.
   // 522 unchanged when Double flick joined: bit 8 of CLAY_VIEW_RESET_MIN, 0 B (a tuple
   // of its own would be 11 B -> 533 B, under the 10 B floor).
+  // 522 -> 536 on emery alone in 2.2.0 when the heart-rate alert joined
+  // (CLAY_HR_ALERT_UINT8: 7 B header + 7 B), measured against emery's own 1024 B inbox;
+  // every other bundle, the unknown platform's included, unchanged (522 B against
+  // aplite's 536 B, headroom 14 B).
   assert.equal(size, 522,'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
+  assert.equal(emerySize, 536, 'update the recorded emery Clay message size when its wire contract changes');
+  assert.equal(emerySize, size + 14, 'emery: the capable shape plus the heart-rate alert tuple alone');
+  assert.ok(emeryInbox - emerySize >= 10, `emery headroom ${emeryInbox - emerySize} B is below the 10 B floor`);
 });
 
 // The tuple split that pays for the On demand cells: CLAY_BATTERY_LOW_ONLY rides a known
@@ -493,17 +515,21 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
 // session — the accepted trade-off), so the capable bundles all stay at their recorded
 // size, and aplite's is unchanged by On demand.
 test('CLAY_BATTERY_LOW_ONLY rides aplite\'s Clay bundle only; the per-platform sizes', () => {
-  const sizes = { emery: 522, basalt: 522, chalk: 522, diorite: 498, flint: 498, aplite: 401 };
+  const sizes = { emery: 536, basalt: 522, chalk: 522, diorite: 498, flint: 498, aplite: 401 };
   Object.keys(sizes).forEach((platform) => {
     const payload = buildHeaviestClayMessage({ platform });
     assert.equal(dictSize(payload), sizes[platform], platform);
     assert.equal(Object.prototype.hasOwnProperty.call(payload, 'CLAY_BATTERY_LOW_ONLY'), platform === 'aplite',
       platform + ': the takeover tuple rides aplite alone');
+    assert.equal(Object.prototype.hasOwnProperty.call(payload, 'CLAY_HR_ALERT_UINT8'), platform === 'emery',
+      platform + ': the heart-rate alert tuple rides a known emery alone');
     assert.ok(readInboxSize(platform) - dictSize(payload) >= 10, platform + ': the 10 B floor');
   });
   const unknown = buildHeaviestClayMessage(null);
   assert.equal(dictSize(unknown), 522, 'an unknown platform: the capable shape');
   assert.equal(Object.prototype.hasOwnProperty.call(unknown, 'CLAY_BATTERY_LOW_ONLY'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(unknown, 'CLAY_HR_ALERT_UINT8'), false,
+    'an unknown platform goes without the heart-rate alert tuple (it would leave 536 B: no headroom)');
   // Measured against the smallest inbox, aplite's 536 B, as the conservative floor.
   assert.ok(readInboxSize('aplite') - dictSize(unknown) >= 10, 'unknown: the 10 B floor against 536 B');
 });

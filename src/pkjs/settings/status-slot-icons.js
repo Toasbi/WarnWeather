@@ -20,6 +20,10 @@
 //   bluetooth -> STATUS_BT.pdc      (the Bluetooth rune)
 //   quiet     -> STATUS_QUIET.pdc   (a muted speaker, struck through)
 //   snooze    -> snooze_draw        (two Z's, the Battery saver hours' glyph)
+// and the Health alerts card's Heart rate row (emery; the eleventh ITEMS icon):
+//   heart     -> HEALTH_HEART.pdc   (Tabler's heart, the heart rate slot's glyph). Named
+//                'heart', not 'hr', so the status-bars preview's slot lead, which looks
+//                icons up by catalog code, is unchanged.
 // The outlines follow Tabler Icons (https://tabler.io/icons), MIT License,
 // Copyright (c) 2020-2024 Pawel Kuna — the same family the watch glyphs were
 // converted from (credited in scripts/gen-status-pdc.py). Everything is drawn in
@@ -89,7 +93,9 @@
             + '<path d="M4 4l16 16"/>'),
         snooze: svg24(OUTLINE,
             '<path d="M4 12h6l-6 8h6"/>'
-            + '<path d="M14 4h6l-6 8h6"/>')
+            + '<path d="M14 4h6l-6 8h6"/>'),
+        heart: svg24(OUTLINE,
+            '<path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/>')
     };
 
     // Register into the engine's icon registry when it is there: always on the page
@@ -110,6 +116,7 @@
         P.icons.register('bluetooth', ICONS.bluetooth);
         P.icons.register('quiet', ICONS.quiet);
         P.icons.register('snooze', ICONS.snooze);
+        P.icons.register('heart', ICONS.heart);
     }
 
     if (typeof module !== 'undefined' && module.exports) {

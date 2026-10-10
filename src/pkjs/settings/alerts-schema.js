@@ -1,8 +1,8 @@
 // src/pkjs/settings/alerts-schema.js — ES5, PKJS-parsed. The Alerts tab's part of the
 // settings schema, split out of schema.js: the About alerts card (its intro, its reset
 // link row and the Default view note) and the item rows under it, the sheet behind every
-// row (Battery, Bluetooth, Quiet time, Sleep, Rain and the five metric alerts, each leading
-// with its Shows on grid), the alert-level cards, the eight side lists' hidden items, and
+// row (Battery, Bluetooth, Quiet time, Sleep, Rain, the five metric alerts and, on emery,
+// Heart rate, each leading with its Shows on grid), the alert-level cards, the eight side lists' hidden items, and
 // the pieces the other tabs show: a bar's Alerts row (Status bars tab), the rain alert's
 // 'Rain alert only' note (Watchface › Views), and the Bluetooth icon's choices (aplite's
 // Watch Status Bar). schema.js's alert slot sheets
@@ -17,6 +17,7 @@ var ON_DEMAND = require('../on-demand.js');
 var gates = require('./schema-gates.js');
 var ON_DEMAND_WHEN = gates.ON_DEMAND_WHEN;
 var FINE_BATTERY_WHEN = gates.FINE_BATTERY_WHEN;
+var HR_ALERT_WHEN = gates.HR_ALERT_WHEN;
 var tabLink = gates.tabLink;
 var linkRow = gates.linkRow;
 var levelRowsSchema = require('./level-rows-schema.js');
@@ -566,6 +567,54 @@ function batterySheet() {
     };
 }
 /**
+ * The Heart rate item's sheet (sheetId odHeartRate, emery only): its Shows on grid and
+ * note, its level and its Look — the Battery sheet's shape, the item drawn like the
+ * Battery item (never boxed). The level and Look defaults are the contract's
+ * (on-demand.js DEFAULTS / HR_LEVEL_*), so the page hydrating a key and the packer
+ * reading it absent never disagree. The slot's own Alert highlighting is set in the
+ * heart rate slot's dialog (schema.js hrSlotSheet), which the intro points to.
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function hrAlertSheet() {
+    return {
+        sheetOnly: true,
+        sheetId: 'odHeartRate',
+        showWhen: HR_ALERT_WHEN,
+        title: 'Heart rate',
+        // The watch reads the heart rate it last measured once a minute while a bar with
+        // the item is on screen (main_window.c minute_handler, health_summary_refresh_hr).
+        intro: 'Shows the heart icon at the edge of a status bar while your heart rate is at or above '
+            + 'the alert level, checked once a minute. To color the heart rate slot itself, turn on '
+            + 'Alert highlighting in that slot’s dialog (Status bars tab).',
+        items: showsOnRows('hr').concat([
+            {type: 'subheader', text: 'Alert'},
+            {
+                type: 'range',
+                single: true,
+                messageKey: 'hrAlertLevel',
+                label: 'Alert level',
+                min: ON_DEMAND.HR_LEVEL_MIN,
+                max: ON_DEMAND.HR_LEVEL_MAX,
+                step: ON_DEMAND.HR_LEVEL_STEP,
+                unit: 'bpm',
+                defaultValue: ON_DEMAND.DEFAULTS.hrAlertLevel,
+                hint: 'The icon shows at this heart rate or above.'
+            }, {
+                type: 'segmented',
+                messageKey: 'hrAlertDisplay',
+                label: 'Look',
+                defaultValue: ON_DEMAND.DEFAULTS.hrAlertDisplay,
+                options: [['Icon', 'icon'], ['Icon + value', 'value']],
+                // In the alert Look's and the Battery Look's words: the value gives way
+                // where theirs does.
+                hintByValue: {
+                    value: 'Adds your heart rate after the icon, like 132. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it drop to just the icon.'
+                }
+            }
+        ])
+    };
+}
+/**
  * The Bluetooth item's sheet (sheetId odBluetooth): its Shows on grid and note, when the
  * icon shows, and the vibration on disconnect. The keys are the ones the Watch Status Bar
  * held (aplite keeps its own copies of both rows there).
@@ -652,13 +701,15 @@ function onDemandSheetRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFro
 // Each Alerts-tab row's on-demand.js ITEMS code, by the sheet it opens.
 var ON_DEMAND_CODES = {odBattery: 'battery', odBluetooth: 'bt', odQuiet: 'qt', odSleep: 'snooze',
     alertRain: 'rain', alertGust: 'gust', alertUv: 'uv', alertAqi: 'aqi', alertPollen: 'pollen',
-    alertWind: 'wind'};
+    alertWind: 'wind', odHeartRate: 'hr'};
 /**
  * The Alerts tab's item rows, under the About alerts card: System info (Battery,
- * Bluetooth, Quiet time and Sleep) and Weather alerts (Rain, then the five metric alerts),
- * every row opening its item's sheet, which leads with where the item shows (its Shows on
- * grid). Every row prints its item's live state. Each sub-header opens a card of its own
- * (engine.js splits the section at it), so each group is one card.
+ * Bluetooth, Quiet time and Sleep), Weather alerts (Rain, then the five metric alerts)
+ * and, on emery, Health alerts (Heart rate), every row opening its item's sheet, which
+ * leads with where the item shows (its Shows on grid). Every row prints its item's live
+ * state. Each sub-header opens a card of its own (engine.js splits the section at it), so
+ * each group is one card; a hidden sub-header opens none, so Health alerts is simply gone
+ * on every other watch.
  * @returns {Object[]} The section's items, in order.
  */
 function onDemandCardItems() {
@@ -683,7 +734,11 @@ function onDemandCardItems() {
         return onDemandSheetRow('alert' + k.keyStem, k.label, k.icon, k.gate || null,
             {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem, days: ALERT_DAYS_OPTIONS}},
             {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}});
-    }));
+    }), [
+        {type: 'subheader', text: 'Health alerts', showWhen: HR_ALERT_WHEN},
+        onDemandSheetRow('odHeartRate', 'Heart rate', 'heart', HR_ALERT_WHEN,
+            {resolver: 'onDemandHrText'}, null)
+    ]);
 }
 // The About alerts card's intro (the owner's wording, 2026-10-01; its last sentence the
 // owner's of 2026-10-02): when an alert shows, then examples, then where they are placed
@@ -734,8 +789,8 @@ function cardSections() {
  * The sections behind the card's rows, in the card's order: the eight side lists' hidden
  * items (onDemandListsSection), then one sheet per item: Battery, Bluetooth, Quiet time,
  * Sleep, Rain, then one per metric alert kind (ALERT_KINDS) holding its Shows on grid,
- * levels, Look and Days (the levels' one home). schema.js ends the Alerts tab's section
- * list with them, after the cards (cardSections).
+ * levels, Look and Days (the levels' one home), then Heart rate (emery). schema.js ends
+ * the Alerts tab's section list with them, after the cards (cardSections).
  * @returns {Object[]} Schema sections (sheetOnly).
  */
 function sheetSections() {
@@ -746,7 +801,7 @@ function sheetSections() {
             'Shows the sleep icon at the edge of a status bar during the Battery saver hours (Watchface › Theme & night).'),
         rainAlertSheet()].concat(ALERT_KINDS.map(function (k) {
         return alertSheet(k.keyStem, k.title, k.subject, k.iconName, k.hint || '', k.coda || '', k.why);
-    }));
+    }), [hrAlertSheet()]);
 }
 
 module.exports = {

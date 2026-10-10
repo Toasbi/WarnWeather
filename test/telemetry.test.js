@@ -271,6 +271,46 @@ test('snapshot reports onDemand, batteryLowLevel and batteryLowDisplay', () => {
   assert.equal(battery.batteryLowDisplay, 'value');
 });
 
+// The heart-rate alert (emery, where the watch reads health): the Heart rate item's four
+// letters (on-demand.js telemetryHrCode), its level and look while it is placed, and the
+// slot's Alert highlighting (status-thresholds.js hrHighlight) with its pair and look
+// while that is on. Every other watch, an unknown one and an emery with health off
+// report none of them.
+const HR_FIELDS = ['onDemandHr', 'hrAlertLevel', 'hrAlertDisplay', 'hrHighlight', 'hrHighlightWarn',
+  'hrHighlightDanger', 'hrHighlightWarnLook'];
+test('snapshot reports the heart-rate alert on an emery reading health, and only there', () => {
+  const EMERY = { platform: 'emery' };
+  const fresh = buildSettingsSnapshot({ healthMode: 'status' }, EMERY);
+  assert.strictEqual(fresh.onDemandHr, '----', 'on no bar by default');
+  assert.strictEqual(fresh.hrAlertLevel, undefined, 'placed nowhere: no level');
+  assert.strictEqual(fresh.hrAlertDisplay, undefined);
+  assert.strictEqual(fresh.hrHighlight, false, 'the highlight ships off');
+  assert.strictEqual(fresh.hrHighlightWarn, undefined, 'off: no pair');
+  assert.strictEqual(fresh.hrHighlightWarnLook, undefined);
+  // The telemetry onDemand code keeps its 40 letters with the item ticked.
+  const placed = buildSettingsSnapshot({ healthMode: 'all', statusTopOnDemandRightItems: 'battery,hr',
+    statusHealthOnDemandLeftItems: 'hr', hrAlertLevel: '205', hrAlertDisplay: 'icon',
+    threshHrOn: true, threshHrWarn: '100', threshHrDanger: '130', threshHrWarnLook: 'none' }, EMERY);
+  assert.strictEqual(placed.onDemandHr, 'R--L', 'top right, health left (the BARS order)');
+  assert.strictEqual(placed.onDemand.length, 40);
+  assert.strictEqual(placed.hrAlertLevel, 120, 'out of range: the level the watch draws with');
+  assert.strictEqual(placed.hrAlertDisplay, 'icon');
+  assert.strictEqual(placed.hrHighlight, true);
+  assert.strictEqual(placed.hrHighlightWarn, 100);
+  assert.strictEqual(placed.hrHighlightDanger, 130);
+  assert.strictEqual(placed.hrHighlightWarnLook, 'none');
+  // A bar the view leaves out reports lower case (the onDemand code's rule).
+  assert.strictEqual(buildSettingsSnapshot({ healthMode: 'slot', statusHealthOnDemandLeftItems: 'hr' }, EMERY)
+    .onDemandHr, '---l');
+  const all = { healthMode: 'all', statusTopOnDemandRightItems: 'hr', threshHrOn: true };
+  [{ platform: 'basalt' }, { platform: 'diorite' }, { platform: 'aplite' }, undefined].forEach((watchInfo) => {
+    const snap = buildSettingsSnapshot(all, watchInfo);
+    HR_FIELDS.forEach((k) => assert.strictEqual(snap[k], undefined, k + ' on ' + JSON.stringify(watchInfo)));
+  });
+  const off = buildSettingsSnapshot(Object.assign({}, all, { healthMode: 'off' }), EMERY);
+  HR_FIELDS.forEach((k) => assert.strictEqual(off[k], undefined, k + ' on an emery with health off'));
+});
+
 test('buildSettingsSnapshot includes radarMode (default graph)', () => {
   assert.strictEqual(buildSettingsSnapshot({ radarMode: 'status' }).radarMode, 'status');
   assert.strictEqual(buildSettingsSnapshot({}).radarMode, 'graph');
@@ -441,6 +481,11 @@ const HEAVIEST_SETTINGS = {
   // The Battery item on its longest look (the onDemand code is 40 letters whatever is
   // ticked on this emery).
   batteryLowLevel: '25', batteryLowDisplay: 'value',
+  // emery's heart-rate alert at its heaviest: the item placed (on the Health Status Bar,
+  // which healthMode 'status' draws) at a three-digit level printing its value, and the
+  // slot's Alert highlighting on with a three-digit pair and the longest look.
+  statusHealthOnDemandLeftItems: 'hr', hrAlertLevel: '200', hrAlertDisplay: 'value',
+  threshHrOn: true, threshHrWarn: '200', threshHrDanger: '220', threshHrWarnLook: 'outline',
   sleepEndHour: '7',
   // The Nighttime card at its heaviest: every one of the three features on, each
   // reporting its own window. Theme switching is on 'manual' because that is its
@@ -915,7 +960,10 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // longer value false) is 20 B: batch header 3188 of 4096, headroom 908. The forecast's
 // time span (forecastHours, 2.2.0, an int, the option: 48) is 19 B: 3207 of 4096, headroom 889. The
 // forecast's left axis options (forecastAxisNumbers, forecastAxisScale; 2.2.0, BETA, emery
-// only; 'graph' / false the longer values) are 56 B: 3263 of 4096, headroom 833.
+// only; 'graph' / false the longer values) are 56 B: 3263 of 4096, headroom 833. The
+// heart-rate alert's seven fields (onDemandHr, hrAlertLevel, hrAlertDisplay, hrHighlight,
+// hrHighlightWarn, hrHighlightDanger, hrHighlightWarnLook; 2.2.0, emery only, the item
+// placed and the highlight on) are 161 B: 3424 of 4096, headroom 672.
 test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');

@@ -188,6 +188,13 @@ function buildSettingsSnapshot(settings, watchInfo) {
     var dimOn = Boolean(hasColorBacklight && boolDefaultOn(safe.backlightDim));
     // The left axis options' watch (forecast-axis.js isEmery: a KNOWN emery).
     var isEmery = forecastAxis.isEmery(env);
+    // The heart-rate alert (emery), resolved as the packer resolves it
+    // (status-wire.js buildHrAlertBytes): whether it can show at all (hrAvailable, which
+    // checks for the emery itself), whether its item is placed, and the slot's Alert
+    // highlighting.
+    var hrOk = onDemand.hrAvailable(safe, env);
+    var hrPlaced = hrOk && onDemand.placedAnywhere(safe, 'hr', env);
+    var hrHl = hrOk ? statusThresholds.hrHighlight(safe, env.color !== false) : null;
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
@@ -301,6 +308,19 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),
         batteryLowDisplay: safe.batteryLowDisplay,
+        // The heart-rate alert (emery, where hrAvailable): onDemandHr is the Heart rate
+        // item's 4 letters, one per bar in onDemand's order (on-demand.js telemetryHrCode;
+        // onDemand above keeps its 40). Its level and Look only while it is placed, the
+        // slot's highlighting switch wherever the alert can show, and the slot's pair and
+        // warn look only while that is on: the "value in effect" rule. Every number is
+        // already a byte (hrLevel, bpmByte). Lockstep with handler.ts -- deploy it first.
+        onDemandHr: onDemand.telemetryHrCode(safe, env),
+        hrAlertLevel: hrPlaced ? onDemand.hrLevel(safe) : undefined,
+        hrAlertDisplay: hrPlaced ? (onDemand.hrShowsValue(safe) ? 'value' : 'icon') : undefined,
+        hrHighlight: hrOk ? hrHl.enabled : undefined,
+        hrHighlightWarn: (hrHl && hrHl.enabled) ? hrHl.warn : undefined,
+        hrHighlightDanger: (hrHl && hrHl.enabled) ? hrHl.danger : undefined,
+        hrHighlightWarnLook: (hrHl && hrHl.enabled) ? hrHl.warnLook : undefined,
         topViewMode: safe.topViewMode,
         layoutPreset: safe.layoutPreset,
         // Lockstep with the Deno telemetry-ingest .strip() schema — deploy the

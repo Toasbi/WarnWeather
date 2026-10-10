@@ -122,3 +122,27 @@ test('CLAY_THRESHOLDS_UINT8 is byte-identical to the recorded packer over 4000 g
   const digest = crypto.createHash('sha256').update(JSON.stringify(blobs)).digest('hex');
   assert.equal(digest, GOLDEN_SHA256);
 });
+
+// emery's Heart rate item and the heart rate slot's Alert highlighting ride their own
+// tuple (CLAY_HR_ALERT_UINT8, status-wire.js buildHrAlertBytes), never this blob: 'hr'
+// ticked on every list the combo stores and every hr key set leave the 48 B as they were,
+// for every env the combos draw and for an emery reading health.
+test('the heart-rate alert never moves a byte of the blob', () => {
+  const rnd = prng(0x4852);
+  const EMERY = { platform: 'emery', color: true, health: true, hr: true, fineBattery: true };
+  for (let i = 0; i < 500; i++) {
+    const c = combo(rnd);
+    const withHr = Object.assign({}, c.settings, { hrAlertLevel: '150', hrAlertDisplay: 'icon', threshHrOn: true,
+      threshHrWarn: '60', threshHrDanger: '70', threshHrWarnLook: 'outline', threshHrWarnColor: '#00AAFF',
+      threshHrDangerColor: '#5500FF' });
+    OD.BARS.forEach((b) => OD.SIDES.forEach((side) => {
+      const key = OD.itemsKey(b.bar, side);
+      if (typeof withHr[key] === 'string') { withHr[key] = withHr[key] ? withHr[key] + ',hr' : 'hr'; }
+    }));
+    [c.env, EMERY].forEach((env) => {
+      const blob = wire.buildSettingsBlob(withHr, env);
+      assert.equal(blob.length, wire.SETTINGS_BYTES);
+      assert.deepEqual(blob, wire.buildSettingsBlob(c.settings, env), 'combo ' + i + ' ' + JSON.stringify(env));
+    });
+  }
+});

@@ -43,6 +43,7 @@ var HEALTH_BAR_WHEN = gates.HEALTH_BAR_WHEN;
 var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 var LINE_STYLES_WHEN = gates.LINE_STYLES_WHEN;
 var EMERY_WHEN = gates.EMERY_WHEN;
+var HR_ALERT_WHEN = gates.HR_ALERT_WHEN;
 var gateAll = gates.gateAll;
 var tabLink = gates.tabLink;
 var linkRow = gates.linkRow;
@@ -53,6 +54,7 @@ var levelRowsSchema = require('./level-rows-schema.js');
 var BOLD_ALWAYS_HINT = levelRowsSchema.BOLD_ALWAYS_HINT;
 var ALERT_VOICE = levelRowsSchema.ALERT_VOICE;
 var GOAL_VOICE = levelRowsSchema.GOAL_VOICE;
+var HR_VOICE = levelRowsSchema.HR_VOICE;
 var nextDayMarkOptions = levelRowsSchema.nextDayMarkOptions;
 var levelRows = levelRowsSchema.levelRows;
 // The Alerts tab's schema (settings/alerts-schema.js): its card and sheets, plus what the
@@ -690,6 +692,19 @@ function boldSection(title, keyStem, gate, extraItems) {
     // shape what the slot shows come first, then how boldly it prints.
     var items = (extraItems || []).concat([bold]);
     return sheetOf(keyStem, title, gateAll(items, gate));
+}
+// The heart rate slot's dialog: its Bold row (boldSection, on every watch with the
+// sensor), then on emery its Alert highlighting group (HR_VOICE): the switch on the
+// group's header, the warn · danger slider, the warn look and the two colours, which
+// ride CLAY_HR_ALERT_UINT8 (status-wire.js buildHrAlertBytes). The look and colour rows
+// go inert while the switch is off, like a goal kind's; the slider stays live.
+/**
+ * @returns {Object} Schema section (sheetOnly), sheetId threshHr.
+ */
+function hrSlotSheet() {
+    var sec = boldSection('Heart rate', 'Hr', HR_SLOT_WHEN);
+    sec.items = sec.items.concat(levelRows('Hr', HR_VOICE, '', HR_ALERT_WHEN, {not: {key: 'threshHrOn'}}));
+    return sec;
 }
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
 var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
@@ -1883,7 +1898,7 @@ module.exports = {
         // dropping it buys a character back on a crowded bar.
         boldSection('Date countdown', 'Countdown', null,
             [unitRow('countdownSlotUnit', '5d', '5')]),
-        boldSection('Heart rate', 'Hr', HR_SLOT_WHEN),
+        hrSlotSheet(),
         boldSection('Battery percentage', 'BatteryPct'),
         // Dew point shares temperature's degree sign and its reasoning.
         boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', '12°', '12')]),

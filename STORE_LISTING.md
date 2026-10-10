@@ -27,6 +27,8 @@ information only when it's important.
 - System info/alerts: low watch battery, Bluetooth disconnected, quiet time, and a
   sleep icon during the Battery saver hours
 - Weather alerts: rain, wind gusts, UV index, air quality, pollen (DWD) and wind speed
+- Heart rate alert (Pebble Time 2): a heart icon while your heart rate is at or above
+  your level, and warn/danger colors for the heart rate slot
 - Graph lines on Alert: show a wind, gust or UV line only where it reaches your warn
   level, so the graph stays clean until it matters (e.g. UV index only above 5, so you
   know exactly which hours you need sunscreen)
@@ -42,6 +44,7 @@ RAIN RADAR
 HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
 - Health status for steps, sleep, distance and heart rate
 - Last-24h health chart with steps per hour, heart rate on a scale you set, and a sleep band
+- Heart rate alert and heart rate slot highlighting (Pebble Time 2; see ALERTS)
 
 CALENDAR
 - Multi-week calendar with current-day highlight

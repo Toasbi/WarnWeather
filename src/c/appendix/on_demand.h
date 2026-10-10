@@ -6,7 +6,8 @@
 
 // On demand: the items a status bar shows at its left and right edges only while
 // they matter — Battery, Bluetooth, Quiet time and Sleep (System info), then the
-// weather alerts (rain, gusts, UV, AQI, pollen, wind). This is the pure half: the
+// weather alerts (rain, gusts, UV, AQI, pollen, wind), and on emery the Heart rate
+// item (hr_alert.h). This is the pure half: the
 // two-side layout and its make-room ladder, which decides how a bar's three slots
 // give way to the items. Deliberately no <pebble.h>, so the module host-compiles
 // (scripts/test-c.sh) with the row layout it places slots through. The SDK half —
@@ -19,8 +20,12 @@
 
 // The items, in priority order, which is also the wire order of the thresholds
 // blob's item cells (status_threshold.h, THRESH_ON_DEMAND_OFFSET) and the order the
-// phone's item list keeps. Inside a side the items run in this order from the side's
-// own slot inward, and the last one drops first.
+// phone's item list keeps (src/pkjs/on-demand.js ITEMS). Inside a side the items run in
+// this order from the side's own slot inward, and the last one drops first. The blob
+// has a cell for the first OD_BLOB_ITEM_COUNT items only: emery's Heart rate item,
+// past them, takes its cells from its own tuple (CLAY_HR_ALERT_UINT8, hr_alert.h), so
+// the blob stays 48 B on every platform. Loop to OD_BLOB_ITEM_COUNT over the cells and
+// to OD_ITEM_COUNT over the items.
 typedef enum {
     OD_BATTERY = 0,
     OD_BLUETOOTH = 1,
@@ -32,8 +37,17 @@ typedef enum {
     OD_AQI = 7,
     OD_POLLEN = 8,
     OD_WIND = 9,
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the Heart rate item (hr_alert.h), last: never boxed, cells on CLAY_HR_ALERT_UINT8
+    OD_HR = 10,
+    OD_ITEM_COUNT = 11,
+#else
     OD_ITEM_COUNT = 10,
+#endif
 } OdItem;
+// The items with a cell byte in the thresholds blob (bytes 38..47): every one but
+// emery's OD_HR. Equal to OD_ITEM_COUNT off emery.
+#define OD_BLOB_ITEM_COUNT (OD_WIND + 1)
 
 // The form a slot takes. Numerically ordered by how much it gives up, so the
 // harsher of two requests is the larger value.
@@ -69,9 +83,15 @@ typedef enum { OD_SIDE_NONE = 0, OD_SIDE_LEFT = 1, OD_SIDE_RIGHT = 2 } OdSide;
 // its calls cost what they did there, and here so the host tests pin them.
 
 // A metric alert is boxed at its level, so its padding is part of its footprint;
-// rain and the system items are never boxed.
+// rain, the system items and emery's Heart rate item (drawn like Battery) are never
+// boxed.
 static inline bool od_item_boxed(int item) {
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the Heart rate item ranks after the alerts but is never boxed.
+    return item >= OD_GUST && item != OD_HR;
+#else
     return item >= OD_GUST;
+#endif
 }
 
 // The Rain item's look — bits 0-1 of the thresholds blob's alerts byte
@@ -214,3 +234,15 @@ typedef struct {
 // sides merge an alert and the bar without either hides both slots.
 void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[2],
                const int8_t bleed[2], uint8_t battery_slots, OdLayout *out);
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: od_layout(), then once more where side `keep` (0 left, 1 right; -1 none) ends
+// with its own slot hidden while its last item is the Heart rate item — this time with
+// that item merged into the slot (OdSideIn.merged, set in `sides`): out while the slot
+// shows, standing in only where the slot hides without it. status_on_demand.c passes
+// `keep` only for the side whose own slot is the heart rate slot at warn or danger, so
+// the item still shows beside that slot wherever both fit, and where they do not it
+// gives way to the slot instead of taking its place, unhighlighted.
+void od_layout_hr(int16_t content_w, const OdSlotIn slots[3], OdSideIn sides[2],
+                  const int8_t bleed[2], uint8_t battery_slots, int keep, OdLayout *out);
+#endif

@@ -17,7 +17,8 @@ var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 // A kind's level group speaks in one of two voices, and the CALLER picks it: the
 // weather kinds rise to ALERT LEVELS (ALERT_VOICE, in the kind's alert sheet on the
 // Alerts tab); the health kinds work toward GOALS (GOAL_VOICE, in their slot
-// sheet) — same rises-toward-the-pair machinery, friendlier words. A voice record
+// sheet) — same rises-toward-the-pair machinery, friendlier words. The heart rate
+// slot's Alert highlighting (emery) speaks a variant of the first (HR_VOICE, below). A voice record
 // carries every word the group, its slider's chips (the thresholdRange resolver,
 // blocks.js) and the slot's Bold row (schema.js boldRow) say, so the builders hold no
 // copy and never ask which kind they build.
@@ -140,6 +141,36 @@ var GOAL_VOICE = {
         },
         sameColor: 'Close and goal use the same color, so this looks like ' +
             'a reached goal — pick a different close color.'
+    }
+};
+// The heart rate slot's Alert highlighting (emery: its pair, look and colours ride
+// CLAY_HR_ALERT_UINT8, status-thresholds.js hrHighlight), in the slot's own dialog
+// below its Bold row (schema.js hrSlotSheet). ALERT_VOICE's words, except: the group has a
+// switch, which rides its header like the Goals switch, and the heart rate has no alert
+// icon to style, so the intro speaks of the slot alone and 'none' points at the Bold row
+// above it.
+var HR_VOICE = {
+    header: 'Alert highlighting',
+    rangeLabel: ALERT_VOICE.rangeLabel,
+    // Aria-only: the switch rides the group header, whose intro carries the meaning.
+    switchLabel: 'Alert highlighting',
+    intro: 'Warn and danger levels for your heart rate. The switch highlights the heart rate slot: '
+        + 'reaching warn draws the warn look below, reaching danger fills the slot and prints it bold.',
+    lookLabel: ALERT_VOICE.lookLabel,
+    colorLabels: ALERT_VOICE.colorLabels,
+    colorDefault: ALERT_VOICE.colorDefault,
+    boldWarnLabel: ALERT_VOICE.boldWarnLabel,
+    boldHints: ALERT_VOICE.boldHints,
+    chips: ALERT_VOICE.chips,
+    look: {
+        base: {
+            none: 'No box at warn — bold text still follows the Bold row above.',
+            outline: ALERT_VOICE.look.base.outline,
+            fill: ALERT_VOICE.look.base.fill
+        },
+        bw: ALERT_VOICE.look.bw,
+        night: ALERT_VOICE.look.night,
+        sameColor: ALERT_VOICE.look.sameColor
     }
 };
 /**
@@ -363,6 +394,7 @@ module.exports = {
     BOLD_ALWAYS_HINT: BOLD_ALWAYS_HINT,
     ALERT_VOICE: ALERT_VOICE,
     GOAL_VOICE: GOAL_VOICE,
+    HR_VOICE: HR_VOICE,
     nextDayMarkOptions: nextDayMarkOptions,
     levelLead: levelLead,
     levelLook: levelLook,

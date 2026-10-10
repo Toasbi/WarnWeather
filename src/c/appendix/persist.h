@@ -338,6 +338,15 @@ bool persist_set_night_light(const uint8_t bytes[NIGHT_LIGHT_BYTES]);
 void persist_get_night_light(uint8_t out[NIGHT_LIGHT_BYTES]);
 #endif  // NIGHT_LIGHT_SUPPORTED
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the heart-rate alert tuple (CLAY_HR_ALERT_UINT8; layout and acceptance in
+// hr_alert.h), HR_ALERT_BYTES of it. Set stores them verbatim and reports whether the
+// slot actually moved; Get always fills out[], with all zeros (the item on no bar,
+// highlighting off) while the slot is unset or short. hr_alert_get() caches it in RAM.
+bool persist_set_hr_alert(const uint8_t *bytes);
+void persist_get_hr_alert(uint8_t *out);
+#endif
+
 bool persist_set_notice_text(const char *text);
 int  persist_get_notice_text(char *buffer, size_t buffer_size);
 

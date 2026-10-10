@@ -61,9 +61,9 @@ __attribute__((noinline)) static int sum_today(HealthMetric metric) {
    after the first was answered from that copy, so the answer stayed yes (bar a no
    at exactly 00:00:00, when the range from midnight to now is empty). The latch
    keeps that yes for the app's life without the read: while health is on,
-   main_window.c asks through health_renderable() twice per minute tick, about four
-   times per flick and about five times per settings apply. A no is asked again on
-   the next call. */
+   main_window.c asks through health_renderable() twice per minute tick (on emery once
+   more while the Heart rate item is placed), about four times per flick and about
+   five times per settings apply. A no is asked again on the next call. */
 bool health_available(void) {
     static bool s_available;
     if (!s_available) {
