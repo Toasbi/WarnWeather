@@ -81,10 +81,6 @@ void status_bar_refresh_all(void);
 // writer, and each of its callers pairs it with main_window_refresh() ->
 // status_bar_refresh_all()) re-resolves the row then. Constant-false on aplite.
 bool status_bar_any_visible_uses_live_health(const ViewSpec *spec);
-#if defined(PBL_PLATFORM_EMERY)
-// emery: a bar visible in `spec` carries the Heart rate On demand item.
-bool status_bar_any_visible_uses_live_hr(const ViewSpec *spec);
-#endif
 
 // Repaint the VISIBLE bars whose content depends on live health: those whose
 // packed line holds a live health slot, plus the health-source bar itself (its

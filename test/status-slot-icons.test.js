@@ -1,5 +1,5 @@
 // test/status-slot-icons.test.js — the settings page's status-slot row glyphs
-// (src/pkjs/settings/status-slot-icons.js): eleven 24×24 fragments in currentColor,
+// (src/pkjs/settings/status-slot-icons.js): ten 24×24 fragments in currentColor,
 // registered into the config-ui icon registry when the engine is loaded.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -9,10 +9,9 @@ require('../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
 const ICONS = require('../src/pkjs/settings/status-slot-icons.js');
 
-// The six weather glyphs, the Alert settings card's four System info glyphs and emery's
-// Heart rate glyph (also the Status slots tab's read-only Alerts rows, by on-demand.js
-// ITEMS icon).
-const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze', 'heart'];
+// The six weather glyphs and the Alert settings card's four System info glyphs (also the
+// Status slots tab's read-only Alerts rows, by on-demand.js ITEMS icon).
+const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze'];
 
 test('every glyph is a 24x24 svg drawn in currentColor', () => {
   IDS.forEach((id) => {
@@ -58,5 +57,5 @@ test('every Alerts item names a registered glyph (an unknown id would print noth
     assert.equal(global.PConf.icons.get(item.icon), ICONS[item.icon], item.code + ': registered');
   });
   assert.deepEqual(OD.ITEMS.map((i) => i.icon), ['battery', 'bluetooth', 'quiet', 'snooze', 'rain', 'gust', 'uv',
-    'aqi', 'pollen', 'wind', 'heart']);
+    'aqi', 'pollen', 'wind']);
 });

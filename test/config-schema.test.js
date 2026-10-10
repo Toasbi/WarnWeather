@@ -34,12 +34,7 @@ const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distan
 const ALERT_STEMS = ['Gust', 'Uv', 'Aqi', 'Pollen', 'Wind'];
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
   acc.concat(suffixes.map((suffix) => 'thresh' + stem + suffix)), []);
-// The heart rate slot is bold-only on every watch but emery, whose sheet adds the Alert
-// highlighting rows (the hr KINDS entry's tuplePair: its levels and colours ride
-// CLAY_HR_ALERT_UINT8, not the blob's pair table) — the same keys a threshold kind has.
-const HR_ALERT_KEYS = ['On', 'WarnLook', 'Warn', 'Danger', 'Max'].map((suffix) => 'threshHr' + suffix);
-const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor'])
-  .concat(['threshHrWarnColor', 'threshHrDangerColor']);
+const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
 // The bold-only slot kinds (wire ids 8..19 in status-thresholds.js) add ONE key
 // each: a Bold row is their whole sheet (Temp additionally carries the
 // tempSlotDisplay row and the rows shaping its Both pair — listed with the plain
@@ -54,7 +49,6 @@ const BOLD_ONLY_KEYS = BOLD_ONLY_STEMS.map((stem) => 'thresh' + stem + 'BoldMode
 const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnLook', 'Warn', 'Danger', 'Max'])
   .concat(THRESH_COLOR_KEYS)
   .concat(BOLD_ONLY_KEYS)
-  .concat(HR_ALERT_KEYS)
   // Per-kind display rows that ride a threshold sheet: the wind/gust direction arrows,
   // their "Show unit" toggles, the UV slot's display mode with the rows shaping its
   // Both pair and its tomorrow mark (Temp's tempSlotDisplay and pair rows are listed
@@ -163,8 +157,6 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   ALERT_STEMS.forEach((stem) => ['On', 'Warn', 'Danger', 'Max', 'WarnLook', 'WarnColor', 'DangerColor']
     .forEach((suffix) => assert.equal(counts['thresh' + stem + suffix], 1,
       'thresh' + stem + suffix + ' appears once (the alert sheet)')));
-  ['On', 'Warn', 'Danger', 'Max', 'WarnLook', 'WarnColor', 'DangerColor'].forEach((suffix) =>
-    assert.equal(counts['threshHr' + suffix], 1, 'threshHr' + suffix + ' appears once (the heart rate slot\'s sheet)'));
   assert.equal(counts.windScale, 12, 'windScale appears in twelve slots (4 pickers × 3 units)');
   assert.equal(counts.pressureScale, 4, 'pressureScale appears in four slots (one per metric picker)');
   assert.equal(counts.theme, 2, 'theme appears in two slots (color / B&W env)');
@@ -712,7 +704,7 @@ test('the Alerts tab: between Status bars and Graphs, hidden on aplite, holding 
   // Everything else on the tab is a dialog the items' rows open.
   assert.deepEqual(tab.sections.filter((s) => s.sheetOnly).map((s) => s.sheetId),
     ['odLists', 'odBattery', 'odBluetooth', 'odQuiet', 'odSleep', 'alertRain']
-      .concat(ALERT_STEMS.map((stem) => 'alert' + stem)).concat(['odHeartRate']));
+      .concat(ALERT_STEMS.map((stem) => 'alert' + stem)));
 });
 
 test('the Theme & night card sits between Layout and Time, and opens on the theme pickers', () => {
@@ -2481,8 +2473,7 @@ const colorGatedWithSection = () => {
 // met: every env fact a section needs, the health/radar/bars views on, the holiday
 // calendar on, every forecast line drawn. Only the theme can hide a row under it.
 const COLOR_ROW_CTX = {
-  env: { color: true, health: true, hr: true, thresholds: true, onDemand: true, radar: true, lineStyles: true,
-    platform: 'emery', hrAlert: true },
+  env: { color: true, health: true, hr: true, thresholds: true, onDemand: true, radar: true, lineStyles: true },
   healthMode: 'all', radarMode: 'graph', barSource: 'rain', radarProvider: 'dwd', holidaysEnabled: true,
   secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'cloud', fifthLine: 'wind',
 };
@@ -2717,7 +2708,7 @@ test('Status bars tab (id watch): the All status bars card, the four bars in wat
     .map((s) => s.title).filter(Boolean);
   assert.deepEqual(alertTitles,
     ['Battery', 'Bluetooth', 'Quiet time', 'Sleep', 'Rain alert', 'Wind gusts alert', 'UV index alert',
-      'Air quality (AQI) alert', 'Pollen alert', 'Wind speed alert', 'Heart rate'],
+      'Air quality (AQI) alert', 'Pollen alert', 'Wind speed alert'],
     'the item sheets close the Alerts tab, in the card\'s order');
   // Time and Calendar close the Watchface tab (order Time, Calendar) — the Status bars
   // tab holds nothing but slot config.
@@ -2740,10 +2731,6 @@ test('Status bars tab (id watch): the All status bars card, the four bars in wat
 // --- Alerts: each bar's Alerts row, the side lists' hidden items, the Alerts tab's cards and
 // their item sheets with their Shows on grids ---
 const ON_DEMAND_WHEN = { env: 'onDemand' };
-// emery's Heart rate item: a health slot's gate (the watch reads health, healthMode not
-// off, a heart-rate sensor) on a watch whose image draws it, env.hrAlert (schema-gates.js).
-const HR_ALERT_WHEN = { all: [{ env: 'health' }, { key: 'healthMode', ne: 'off' }, { env: 'hr' },
-  { env: 'hrAlert' }] };
 const RADAR_BAR = { all: [{ env: 'radar' }, { key: 'radarMode', in: ['status', 'graph'] }] };
 const HEALTH_BAR = { all: [{ env: 'health' }, { key: 'healthMode', in: ['status', 'all'] }] };
 const OD = require('../src/pkjs/on-demand.js');
@@ -2900,7 +2887,7 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
   const it = rowsSec.items;
   assert.deepEqual(it.map((i) => i.sheetId || i.label || i.text || i.type), [
     'System info', 'odBattery', 'odBluetooth', 'odQuiet', 'odSleep', 'Weather alerts',
-    'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind', 'Health alerts', 'odHeartRate']);
+    'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind']);
   // A row whose alert is on no bar reads dimmed: its summary goes faint while the item is
   // placed nowhere.
   const faint = (code) => ({ not: placedWhenOf(code) });
@@ -2940,18 +2927,6 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
     assert.deepEqual(it[7 + k], row, stem + ' row');
     assert.deepEqual(it[7 + k].hintFrom.args.days, byKey('alert' + stem + 'Days').options, stem);
   });
-  // emery's Health alerts group closes the card: its sub-header and the Heart rate row, both
-  // gated to a watch that draws the item.
-  assert.deepEqual(it[12], { type: 'subheader', text: 'Health alerts', showWhen: HR_ALERT_WHEN });
-  assert.deepEqual(it[13], { type: 'sheet', sheetId: 'odHeartRate', label: 'Heart rate', icon: 'heart',
-    hintFrom: { resolver: 'onDemandHrText' }, summaryFaintFrom: faint('hr'), showWhen: HR_ALERT_WHEN });
-  assert.deepEqual(require('../src/pkjs/settings/schema-gates.js').HR_ALERT_WHEN, HR_ALERT_WHEN);
-  const hrShown = (p, healthMode) => showWhen.isVisible(it[13],
-    { healthMode, env: platform.computeEnv(p === null ? null : { platform: p }) });
-  assert.equal(hrShown('emery', 'status'), true, 'shown on emery');
-  assert.equal(hrShown('emery', 'off'), false, 'hidden on emery while the watch reads no health');
-  ['aplite', 'basalt', 'chalk', 'diorite', 'flint', null].forEach((p) =>
-    assert.equal(hrShown(p, 'all'), false, 'hidden on ' + p));
   assert.ok(!sec.items.concat(it).some((r) => r.messageKey), 'no control on the cards: every row reads or opens a sheet');
 });
 
@@ -3136,12 +3111,9 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   const odSheets = schema.tabs.find((t) => t.id === 'alerts').sections.filter((s) => s.sheetOnly);
   assert.deepEqual(odSheets.map((s) => s.sheetId),
     ['odLists', 'odBattery', 'odBluetooth', 'odQuiet', 'odSleep',
-      'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind', 'odHeartRate']);
+      'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind']);
   odSheets.forEach((s) => {
-    // The Heart rate sheet's gate is narrower still: an emery reading health (which has
-    // On demand).
-    assert.deepEqual(s.showWhen, s.sheetId === 'odHeartRate' ? HR_ALERT_WHEN : { env: 'onDemand' },
-      s.sheetId + ' is On demand-gated');
+    assert.deepEqual(s.showWhen, { env: 'onDemand' }, s.sheetId + ' is On demand-gated');
     assert.equal(showWhen.isVisible(s, { radarMode: 'graph', healthMode: 'all',
       env: platform.computeEnv({ platform: 'aplite' }) }), false, s.sheetId + ' hidden on aplite');
   });

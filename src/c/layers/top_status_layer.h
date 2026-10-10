@@ -25,7 +25,3 @@ void top_status_layer_destroy();
 
 // Whether the active packed line(s) contain a live health slot.
 bool top_status_layer_uses_live_health(void);
-#if defined(PBL_PLATFORM_EMERY)
-// emery: the strip carries the Heart rate On demand item (status_row_uses_live_hr).
-bool top_status_layer_uses_live_hr(void);
-#endif

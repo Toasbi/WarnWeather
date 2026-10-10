@@ -168,26 +168,12 @@ static int16_t pick_short(const Pass *p, int i, const Fit *f, uint8_t *variant) 
     return (int16_t)best;
 }
 
-// The air before item b of side s, after the drawn item before it: less beside a boxed
-// alert, whose padding is already in its footprint. Ranks rise along a side and the
-// alerts rank last among the blob's items (od_item_boxed), so off emery b is boxed
-// wherever b - 1 is.
-#if defined(PBL_PLATFORM_EMERY)
-// emery: the unboxed Heart rate item ranks after the boxed alerts, so the gap reads
-// both drawn neighbours: b, and the one before it (b - 2 where b - 1 is the skipped
-// merged alert, `skip` = 1 + its index; 0 none). Only taken after a drawn item, so
-// that neighbour always exists.
-__attribute__((noinline)) static int16_t item_gap(const OdSideIn *s, int b, int skip) {
-    const int prev = b - 1 - (b == skip);
-    return (od_item_boxed(s->rank[b]) || od_item_boxed(s->rank[prev])) ? OD_PADDED_GAP : OD_ITEM_GAP;
-}
-#define ITEM_GAP(s, b, skip) item_gap((s), (b), (skip))
-#else
+// The air before item b of side s, after item b - 1: less beside a boxed alert, whose
+// padding is already in its footprint. Ranks rise along a side and the alerts rank
+// last (od_item_boxed), so b is boxed wherever b - 1 is.
 static int16_t item_gap(const OdSideIn *s, int b) {
     return od_item_boxed(s->rank[b]) ? OD_PADDED_GAP : OD_ITEM_GAP;
 }
-#define ITEM_GAP(s, b, skip) item_gap((s), (b))
-#endif
 
 // The width of side d's run at `lane`: every item `c` puts in, and the gaps between.
 // Kept out of line: inlined at its calls it costs more image bytes than the calls, and
@@ -199,7 +185,7 @@ __attribute__((noinline)) static int16_t span_w(const Pass *p, const Conf *c, in
     const int end = c->first[d] + c->n[d] + (c->skip[d] != 0);
     for (int i = c->first[d]; i < end; i++) {
         if (i + 1 == c->skip[d]) { continue; }
-        if (w) { w += ITEM_GAP(s, i, c->skip[d]); }
+        if (w) { w += item_gap(s, i); }
         w += s->w[lane][i];
     }
     return (int16_t)w;
@@ -399,7 +385,7 @@ static void place(const Pass *p, const Geom *g, OdLayout *out) {
             const int end = c->first[d] + out->n[d];
             for (int k = c->first[d]; k < end; k++) {
                 if (k + 1 == c->skip[d]) { continue; }
-                if (u != u0) { u += ITEM_GAP(s, k, c->skip[d]); }
+                if (u != u0) { u += item_gap(s, k); }
                 const int wk = s->w[c->lane[d]][k];
                 out->item_x[d][k] = (int16_t)(d ? W - u - wk : u);
                 u += wk;
@@ -762,21 +748,5 @@ void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[
         p.allow = more;
     }
 }
-
-#if defined(PBL_PLATFORM_EMERY)
-// emery: the Heart rate item beside a highlighted heart rate slot (on_demand.h). The
-// item is the side's last (OD_HR ranks last), so merged = n; the side's own slot shows
-// heart rate, so no weather alert merged there (alert_set_item has no HR kind).
-void od_layout_hr(int16_t content_w, const OdSlotIn slots[3], OdSideIn sides[2],
-                  const int8_t bleed[2], uint8_t battery_slots, int keep, OdLayout *out) {
-    od_layout(content_w, slots, sides, bleed, battery_slots, out);
-    if (keep < 0) { return; }
-    OdSideIn *s = &sides[keep];
-    if (!out->place[OWN(keep)].visible && s->n && s->rank[s->n - 1] == OD_HR && !s->merged) {
-        s->merged = s->n;
-        od_layout(content_w, slots, sides, bleed, battery_slots, out);
-    }
-}
-#endif
 
 #endif

@@ -80,12 +80,8 @@ function hintOf(html, needle) {
 
 // Each item's dialog, the one its Alerts-tab row opens.
 const SHEET = { battery: 'odBattery', bt: 'odBluetooth', qt: 'odQuiet', snooze: 'odSleep', rain: 'alertRain',
-  gust: 'alertGust', uv: 'alertUv', aqi: 'alertAqi', pollen: 'alertPollen', wind: 'alertWind',
-  hr: 'odHeartRate' };
+  gust: 'alertGust', uv: 'alertUv', aqi: 'alertAqi', pollen: 'alertPollen', wind: 'alertWind' };
 const CODES = OD.ITEMS.map((i) => i.code);
-// The items every watch with Alerts draws: all but emery's Heart rate, whose dialog only an
-// emery reading health opens (on-demand.js hrAvailable).
-const COMMON_CODES = CODES.filter((c) => c !== 'hr');
 // The grid's rows by their short names, in the page's order (the Status bars tab's).
 const BAR_NAMES = { top: 'Watch bar', forecast: 'Forecast bar', health: 'Health bar', radar: 'Radar bar' };
 // The same bars as the Status bars tab titles their cards.
@@ -284,14 +280,11 @@ const MERGE = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air qualit
   pollen: 'the pollen index', wind: 'the wind speed' };
 // Where the defaults put each item on the Watch Status Bar ('none': Pollen).
 const TOP_SIDE = { battery: 'right', bt: 'left', qt: 'left', snooze: 'left', rain: 'left', gust: 'right',
-  uv: 'right', aqi: 'right', pollen: 'none', wind: 'right', hr: 'none' };
+  uv: 'right', aqi: 'right', pollen: 'none', wind: 'right' };
 
 test('every item dialog opens on its Shows on card: a row per status bar, a Left and a Right tick, then the note', () => {
-  const basalt = alertsTab();
-  // The Heart rate dialog on an emery reading health, the one watch that opens it.
-  const emery = alertsTab({ healthMode: 'status' }, 'emery');
+  const page = alertsTab();
   CODES.forEach((code) => {
-    const page = code === 'hr' ? emery : basalt;
     page.openEditSheet(SHEET[code]);
     const sheet = page.modal.innerHTML;
     assert.equal(sheet.indexOf('info-q'), -1, code + ': no \'?\' by default: the intro and the note are in view');
@@ -395,22 +388,8 @@ OD.BARS.forEach((b) => OD.SIDES.forEach((side) => LIST_KEYS.push(OD.itemsKey(b.b
 
 test('300 seeded tick sequences through the grids store what on-demand.js tickOn / untickFrom store', () => {
   // All four bars exist (radar Graph, health All) and nothing is blocked (DWD, radar on).
-  // basalt runs the 300 over every item it opens; an emery runs 60 more with the Heart
-  // rate item among them.
-  tickSequences(alertsTab({ radarMode: 'graph', healthMode: 'all' }), COMMON_CODES, 300, 0);
-  tickSequences(alertsTab({ radarMode: 'graph', healthMode: 'all' }, 'emery'), CODES, 60, 1000);
-});
-
-/**
- * Seeded random tick sequences through the open page's grids, each step checked against
- * on-demand.js tickOn / untickFrom (the oracle) and the one-side-per-bar rule.
- * @param {Object} page the page-harness handle
- * @param {string[]} codes the items to tick (those whose dialog the watch opens)
- * @param {number} count how many sequences
- * @param {number} seed0 the first sequence's seed offset
- */
-function tickSequences(page, codes, count, seed0) {
-  for (let s = seed0; s < seed0 + count; s++) {
+  const page = alertsTab({ radarMode: 'graph', healthMode: 'all' });
+  for (let s = 0; s < 300; s++) {
     const rnd = mulberry32(s + 1);
     const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
     // The defaults first, then random canonical states: each item on neither side, the
@@ -421,13 +400,13 @@ function tickSequences(page, codes, count, seed0) {
       OD.ITEMS.forEach((it) => { const r = rnd(); if (r < 1 / 3) { sides.left.push(it.code); } else if (r < 2 / 3) { sides.right.push(it.code); } });
       OD.SIDES.forEach((side) => {
         const key = OD.itemsKey(b.bar, side);
-        start[key] = s === seed0 ? OD.DEFAULTS[key] : OD.canonical(sides[side]);
+        start[key] = s === 0 ? OD.DEFAULTS[key] : OD.canonical(sides[side]);
       });
     });
     Object.assign(page.S, start);
     const oracle = Object.assign({}, start);
     for (let i = 0; i < 12; i++) {
-      const bar = pick(OD.BARS).bar, side = pick(OD.SIDES), code = pick(codes);
+      const bar = pick(OD.BARS).bar, side = pick(OD.SIDES), code = pick(CODES);
       const key = OD.itemsKey(bar, side);
       if (OD.parse(oracle[key]).indexOf(code) >= 0) { OD.untickFrom(oracle, key, [code]); } else { OD.tickOn(oracle, bar, side, code); }
       place(page, bar, side, code);
@@ -441,7 +420,7 @@ function tickSequences(page, codes, count, seed0) {
       });
     }
   }
-}
+});
 
 const RADAR_OFF_BOX = 'The rain alert needs the rain radar. Turn it on in <button type="button" class="txt-link"'
   + ' data-goto-tab="watchface">Watchface › Views</button>.';
@@ -753,91 +732,6 @@ test('the Alerts row\'s icons, resolver by resolver', () => {
   assert.equal(icons(right(''), ENV.basalt, args), NONE, 'nothing placed: the schema\'s word for it');
   assert.equal(icons(state({ statusForecastOnDemandRightItems: 'aqi' }), ENV.basalt, { bar: 'forecast', where: NONE }),
     iconRun('right', ['aqi']), 'each bar reads its own lists');
-});
-
-// --- emery's Heart rate item ---------------------------------------------------------
-const HR_ON_EMERY = { healthMode: 'status' };
-
-test('Heart rate: its row closes the Alerts tab on an emery reading health, and nowhere else', () => {
-  const html = alertsTab(HR_ON_EMERY, 'emery').scroll.innerHTML;
-  const r = rowOf(html, 'data-edit-sheet="odHeartRate"');
-  assert.match(r, /^<div class="row nav" data-edit-sheet="odHeartRate" role="button"/, 'a nav row opening its dialog');
-  assert.ok(r.indexOf('<span class="lbl-ico" aria-hidden="true">' + ICONS.heart + '</span>Heart rate') !== -1,
-    'the heart leads the label');
-  assert.ok(r.indexOf('<div class="hint faint">Not in any status bar</div>') !== -1, 'on no bar by default: ' + r);
-  // A card of its own, titled by its sub-header (the System info / Weather alerts shape).
-  const ttl = html.lastIndexOf('<span class="ttl">', html.indexOf('data-edit-sheet="odHeartRate"'));
-  assert.equal(html.slice(ttl + '<span class="ttl">'.length, html.indexOf('</span>', ttl)), 'Health alerts',
-    'in its own Health alerts card');
-  assert.ok(html.indexOf('data-edit-sheet="odHeartRate"') > html.indexOf('data-edit-sheet="alertWind"'),
-    'the last row, below the weather alerts');
-  [['emery', { healthMode: 'off' }], ['basalt', HR_ON_EMERY], ['diorite', HR_ON_EMERY], ['chalk', HR_ON_EMERY],
-    ['flint', HR_ON_EMERY]].forEach(([p, cfg]) => {
-    const other = alertsTab(cfg, p).scroll.innerHTML;
-    assert.equal(other.indexOf('odHeartRate'), -1, p + ' ' + cfg.healthMode + ': no Heart rate row');
-    assert.equal(other.indexOf('Health alerts'), -1, p + ' ' + cfg.healthMode + ': no Health alerts sub-header');
-  });
-});
-
-test('Heart rate: the dialog — its intro, the Shows on card, the alert level in bpm and the Look', () => {
-  const page = alertsTab(HR_ON_EMERY, 'emery');
-  page.openEditSheet('odHeartRate');
-  const sheet = page.modal.innerHTML;
-  assert.ok(sheet.indexOf('id="esheet-ttl-odHeartRate">Heart rate</span>') !== -1, 'the title');
-  assert.ok(sheet.indexOf('<div class="intro">Shows the heart icon at the edge of a status bar while your heart rate'
-    + ' is at or above the alert level, checked once a minute.') !== -1, 'the intro');
-  assert.ok(sheet.indexOf('<div class="rng single" data-range="hrAlertLevel" data-v="120"><div class="rng-val">120 bpm'
-    + '</div>') !== -1, 'the Alert level slider, on the default');
-  assert.ok(sheet.indexOf('aria-valuemin="60" aria-valuemax="200"') !== -1, '60..200');
-  assert.ok(sheet.indexOf('data-k="hrAlertDisplay"') !== -1, 'the Look');
-  const level = SCHEMA.tabs.find((t) => t.id === 'alerts').sections.find((s) => s.sheetId === 'odHeartRate')
-    .items.find((i) => i.messageKey === 'hrAlertLevel');
-  assert.deepEqual([level.min, level.max, level.step, level.unit, level.defaultValue],
-    [OD.HR_LEVEL_MIN, OD.HR_LEVEL_MAX, OD.HR_LEVEL_STEP, 'bpm', String(OD.HR_LEVEL_DEFAULT)]);
-  assert.deepEqual([OD.HR_LEVEL_MIN, OD.HR_LEVEL_MAX, OD.HR_LEVEL_STEP, OD.HR_LEVEL_DEFAULT], [60, 200, 5, 120]);
-  // Onto the Health Status Bar's left.
-  tick(page, OD.itemsKey('health', 'left'), 'hr');
-  assert.equal(page.S.statusHealthOnDemandLeftItems, 'hr');
-  assert.equal(OD.sideOf(page.S, 'health', 'hr', ENV.emery), 'left');
-});
-
-test('Heart rate: the row\'s text — the level, the Look, where it shows', () => {
-  const t = hint('onDemandHrText');
-  const emery = ENV.emery;
-  const on = (S) => state(Object.assign({ healthMode: 'status' }, S));
-  assert.equal(t(on({}), emery), 'Not in any status bar', 'on no bar by default');
-  assert.equal(t(on({ statusTopOnDemandRightItems: 'battery,hr' }), emery),
-    'At 120 bpm or above · Icon + value' + TOP_RIGHT);
-  assert.equal(t(on({ statusTopOnDemandRightItems: 'hr', hrAlertDisplay: 'icon', hrAlertLevel: '150' }), emery),
-    'At 150 bpm or above' + TOP_RIGHT);
-  assert.equal(t(on({ statusHealthOnDemandLeftItems: 'hr', hrAlertLevel: '55' }), emery),
-    'At 120 bpm or above · Icon + value · Health bar, left', 'an out-of-range level reads the default');
-  // Wherever the watch would not draw it, it is on no bar.
-  assert.equal(t(state({ healthMode: 'off', statusTopOnDemandRightItems: 'hr' }), emery), 'Not in any status bar');
-  assert.equal(t(on({ statusTopOnDemandRightItems: 'hr' }), ENV.basalt), 'Not in any status bar');
-});
-
-test('Heart rate: the Alerts nav row shows the heart on an emery and drops it everywhere else', () => {
-  const icons = hint('onDemandBarIcons');
-  const args = { bar: 'top', where: NONE };
-  const S = state({ healthMode: 'status', statusTopOnDemandLeftItems: '', statusTopOnDemandRightItems: 'wind,hr' });
-  assert.equal(icons(S, ENV.emery, args), iconRun('right', ['wind', 'hr']));
-  assert.equal(icons(S, ENV.basalt, args), iconRun('right', ['wind']), 'basalt draws no Heart rate item');
-  assert.equal(icons(state({ healthMode: 'status', statusTopOnDemandLeftItems: '', statusTopOnDemandRightItems: 'hr' }),
-    ENV.basalt, args), 'None of the alerts placed here can show.', 'a side holding only the heart');
-  assert.equal(icons(Object.assign({}, S, { healthMode: 'off' }), ENV.emery, args), iconRun('right', ['wind']),
-    'emery with health off');
-});
-
-test('Heart rate: the card\'s reset restores its level and Look and takes it off every bar', () => {
-  const page = alertsTab(Object.assign({ hrAlertLevel: '180', hrAlertDisplay: 'icon',
-    statusHealthOnDemandLeftItems: 'hr', statusTopOnDemandRightItems: 'battery,gust,uv,aqi,wind,hr' }, HR_ON_EMERY),
-  'emery');
-  act(page, 'resetOnDemand');
-  assert.equal(page.S.hrAlertLevel, '120');
-  assert.equal(page.S.hrAlertDisplay, 'value');
-  LIST_KEYS.forEach((k) => assert.equal(page.S[k], OD.DEFAULTS[k], k + ': back where the defaults put it'));
-  assert.equal(OD.placedAnywhere(page.S, 'hr', ENV.emery), false, 'on no bar');
 });
 
 test('the Battery sheet renders one Warn level slider per platform, a stored 15 at the watch\'s step', () => {

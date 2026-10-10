@@ -141,12 +141,6 @@ bool top_status_layer_uses_live_health(void) {
     return s_row && status_row_uses_live_health(s_row);
 }
 
-#if defined(PBL_PLATFORM_EMERY)
-bool top_status_layer_uses_live_hr(void) {
-    return s_row && status_row_uses_live_hr(s_row);   // emery: the Heart rate item
-}
-#endif
-
 void top_status_layer_destroy() {
     MEMORY_LOG_HEAP("top_status_layer_destroy:before");
     connection_service_unsubscribe();

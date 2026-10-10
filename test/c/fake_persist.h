@@ -4,14 +4,14 @@
 #include <stdint.h>
 #include <string.h>
 
-// The fake flash night_light_persist_test.c and hr_alert_persist_test.c run
-// appendix/persist.c's real accessors over: the bodies of the persistent-storage
-// syscalls test/c/stub/pebble.h declares. A RAM map keyed by slot, with the real
-// firmware's return conventions (applib/persist.h): the reads answer
-// E_DOES_NOT_EXIST for an unset key, and persist_read_data copies at most
-// buffer_size bytes and returns how many it copied — so a stored blob SHORTER than
-// the buffer returns short, which is the case the getters' short-read guards exist
-// for. Each test is one translation unit, so each gets its own flash.
+// The fake flash night_light_persist_test.c runs appendix/persist.c's real accessors
+// over: the bodies of the persistent-storage syscalls test/c/stub/pebble.h declares.
+// A RAM map keyed by slot, with the real firmware's return conventions
+// (applib/persist.h): the reads answer E_DOES_NOT_EXIST for an unset key, and
+// persist_read_data copies at most buffer_size bytes and returns how many it
+// copied — so a stored blob SHORTER than the buffer returns short, which is the
+// case the getters' short-read guards exist for. Each test is one translation
+// unit, so each gets its own flash.
 // radar_notice_persist_test.c keeps a fake of its own: it stores bools and counts
 // every write and every delete.
 #define FAKE_KEYS 64u
@@ -62,7 +62,7 @@ int persist_write_data(const uint32_t key, const void *data, const size_t size) 
 }
 
 // Declared by the stub because persist.c's other accessors name them; the
-// night-light and heart-rate paths never reach any of these.
+// night-light path never reaches any of these.
 bool persist_read_bool(const uint32_t key) { (void) key; return false; }
 int32_t persist_read_int(const uint32_t key) { (void) key; return 0; }
 status_t persist_write_bool(const uint32_t key, const bool value) {

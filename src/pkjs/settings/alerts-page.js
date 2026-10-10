@@ -273,13 +273,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Each icon carries its item's name (role img), so a screen reader reads "Left
      * Bluetooth Rain Right Battery".
      * Blocked items (Rain with the radar off, Pollen off DWD) are left out, as the watch
-     * leaves them out, and so is a Heart rate tick where the item cannot show at all
-     * (on-demand.js hrAvailable: off emery, or with health off); when every placed item
-     * is left out the row says so. With nothing placed, args.where alone ("None"). The
-     * names are on-demand.js ITEMS constants, never settings: the engine prints a hint as
-     * raw HTML.
+     * leaves them out; when every placed item is blocked the row says so. With nothing
+     * placed, args.where alone ("None"). The names are on-demand.js ITEMS constants, never
+     * settings: the engine prints a hint as raw HTML.
      * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (the Heart rate item's hrAvailable).
+     * @param {Object} env Platform env (unused).
      * @param {{bar: string, where: string}} args The bar (an on-demand.js BARS bar) and the
      *     schema's text for a bar with nothing placed.
      * @returns {string} The hint HTML.
@@ -291,7 +289,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             onDemand.parse((S || {})[onDemand.itemsKey(args.bar, side)]).forEach(function (code) {
                 placed = true;
                 if (onDemandBlocked(S, code) !== null) { return; }
-                if (code === 'hr' && !onDemand.hrAvailable(S, env)) { return; }
                 var item = onDemand.ITEMS[onDemand.itemIndex(code)];
                 var svg = PConf.icons ? PConf.icons.get(item.icon) : null;
                 if (svg) {
@@ -380,23 +377,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return onDemand.placedAnywhere(S, args.code, env) ? withPlacement(args.text, S, args.code, env) : NOT_PLACED;
     }
     PConf.hintResolvers.register('onDemandPlainText', onDemandPlainText);
-
-    /**
-     * The Heart rate row's live text (emery): "At 120 bpm or above" (the level the watch is
-     * sent — on-demand.js hrLevel), " · Icon + value" for that Look, then where it shows;
-     * "Not in any status bar" while it is placed nowhere it can show.
-     * @param {Object} S Live settings state.
-     * @param {Object} env Platform env.
-     * @returns {string} The hint.
-     */
-    function onDemandHrText(S, env) {
-        var st = S || {};
-        if (!onDemand.placedAnywhere(st, 'hr', env)) { return NOT_PLACED; }
-        var text = 'At ' + onDemand.hrLevel(st) + ' bpm or above';
-        if (onDemand.hrShowsValue(st)) { text += ' · Icon + value'; }
-        return withPlacement(text, st, 'hr', env);
-    }
-    PConf.hintResolvers.register('onDemandHrText', onDemandHrText);
 
     /**
      * @param {*} hour A stored hour ('0'..'23').

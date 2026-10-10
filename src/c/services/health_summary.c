@@ -44,16 +44,4 @@ int health_summary_distance_m(void) {
 int health_summary_sleep_seconds(void) { return s_sleep_sec; }
 int health_summary_hr_bpm(void)        { return s_hr; }
 
-#if defined(PBL_PLATFORM_EMERY)
-// emery: the HR alone, for the Heart rate On demand item while nothing on screen asks
-// for the full summary: one accessibility probe and one peek (health_hr_current, which
-// releases the HealthService cache), no steps/sleep/distance sums.
-bool health_summary_refresh_hr(void) {
-    const int hr = health_hr_current();
-    const bool changed = hr != s_hr;
-    s_hr = hr;
-    return changed;
-}
-#endif
-
 #endif  // PBL_HEALTH

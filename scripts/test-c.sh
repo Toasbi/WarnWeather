@@ -41,10 +41,6 @@ cc $CFLAGS test/c/health_test.c src/c/services/health.c -o build/host/health_tes
 build/host/health_test
 cc $CFLAGS test/c/health_summary_test.c src/c/services/health_summary.c -o build/host/health_summary_test
 build/host/health_summary_test
-# Again for emery: health_summary_refresh_hr, the Heart rate On demand item's HR-only poll.
-cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/health_summary_test.c src/c/services/health_summary.c \
-   -o build/host/health_summary_test_emery
-build/host/health_summary_test_emery
 # WW_HOST_FAKE_TIME reroutes time(NULL) inside health_cache.c to the test's
 # controllable clock (see test/c/stub/pebble.h).
 cc $CFLAGS -DWW_HOST_FAKE_TIME test/c/health_cache_test.c src/c/services/health_cache.c src/c/services/health_build.c -o build/host/health_cache_test
@@ -60,15 +56,6 @@ build/host/status_threshold_test
 cc $CFLAGS test/c/status_threshold_on_demand_test.c src/c/appendix/status_threshold.c \
    -o build/host/status_threshold_on_demand_test
 build/host/status_threshold_on_demand_test
-# Both again for emery, where OD_ITEM_COUNT is 11 (the Heart rate item, OD_HR) but the
-# blob keeps its ten cells (OD_BLOB_ITEM_COUNT): the 48-B layout and its reads must not
-# move, and OD_HR must read none from it.
-cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_threshold_test.c src/c/appendix/status_threshold.c \
-   -o build/host/status_threshold_test_emery
-build/host/status_threshold_test_emery
-cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_threshold_on_demand_test.c src/c/appendix/status_threshold.c \
-   -o build/host/status_threshold_on_demand_test_emery
-build/host/status_threshold_on_demand_test_emery
 # The weather alerts' pure half (the entries' parse, item map and text lanes, and the
 # rain alert's text).
 # Its body sits behind WW_ON_DEMAND (wscript: every platform but aplite), so the flag
@@ -79,9 +66,6 @@ build/host/status_threshold_on_demand_test_emery
 cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT test/c/alert_set_test.c src/c/appendix/alert_set.c \
    src/c/appendix/status_threshold.c -o build/host/alert_set_test
 build/host/alert_set_test
-cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT -DPBL_PLATFORM_EMERY test/c/alert_set_test.c \
-   src/c/appendix/alert_set.c src/c/appendix/status_threshold.c -o build/host/alert_set_test_emery
-build/host/alert_set_test_emery
 # A tomorrow alert and a slot showing tomorrow's peak print the same mark: dump every
 # metric text lane the watch builds (per day code, value and values flag) and check
 # each against the phone's slot text (scripts/check-alert-lane-lockstep.js).
@@ -124,19 +108,6 @@ build/host/on_demand_merge_test
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_short_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_short_test
 build/host/on_demand_short_test
-# All five again for emery, whose OdItem has the Heart rate item (OD_HR, OD_SIDE_MAX 11)
-# and whose item_gap reads both drawn neighbours: every layout the other platforms pin
-# must come out the same there. Then the item's own pins (on_demand_hr_test.c, emery
-# only): its constants, the gaps beside it (a merged alert stepped over) and that a
-# crowded side drops it first.
-cc $CFLAGS -DPBL_PLATFORM_EMERY -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_ladder_test.c \
-   src/c/layers/status_row_layout.c -o build/host/on_demand_ladder_test_emery
-build/host/on_demand_ladder_test_emery
-for t in sides battery merge short hr; do
-  cc $CFLAGS -DPBL_PLATFORM_EMERY -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_${t}_test.c \
-     src/c/appendix/on_demand.c src/c/layers/status_row_layout.c -o build/host/on_demand_${t}_test_emery
-  build/host/on_demand_${t}_test_emery
-done
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
 build/host/hr_scale_test
 # The health graph's step scale (header-only, step_scale.h): every mark it picks draws,
@@ -304,17 +275,3 @@ build/host/radar_limit_test
 cc $CFLAGS test/c/radar_notice_persist_test.c src/c/appendix/persist.c \
    -o build/host/radar_notice_persist_test
 build/host/radar_notice_persist_test
-
-# Emery's heart-rate alert (CLAY_HR_ALERT_UINT8, layout in appendix/hr_alert.h): the pure
-# decoders the Heart rate On demand item and the heart rate slot's highlighting read —
-# the tuple's acceptance, the item's side / level / Look, the slot's level and look over
-# status_threshold_look — and the RAM cache in front of the persist slot (one flash read
-# until hr_alert_reload). The module's body is emery-only, so it is built for emery alone.
-cc $CFLAGS -DPBL_PLATFORM_EMERY -DWW_THRESHOLD_HIGHLIGHT test/c/hr_alert_test.c src/c/appendix/hr_alert.c \
-   src/c/appendix/status_threshold.c -o build/host/hr_alert_test
-build/host/hr_alert_test
-# Its persist slot, run for real over a faked flash (the night_light_persist_test pattern):
-# slot 59, the change gating, and absent / short / longer stored tuples.
-cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR test/c/hr_alert_persist_test.c src/c/appendix/persist.c \
-   -o build/host/hr_alert_persist_test
-build/host/hr_alert_persist_test

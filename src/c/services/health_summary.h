@@ -32,9 +32,4 @@ int health_summary_sleep_seconds(void);
 /** Most recent live heart rate in BPM (0 if none). */
 int health_summary_hr_bpm(void);
 
-#if defined(PBL_PLATFORM_EMERY)
-// emery: the HR alone (one probe, one peek); true iff the held HR changed.
-bool health_summary_refresh_hr(void);
-#endif
-
 #endif  // PBL_HEALTH

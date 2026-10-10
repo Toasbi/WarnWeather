@@ -48,9 +48,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var theme = ctx.get('theme');
         for (var i = 0; i < thresholds.KINDS.length; i++) {
             var kind = thresholds.KINDS[i];
-            // No colours to heal, except the heart rate slot's (tuplePair: its pair and
-            // colours ride their own tuple on emery; storage only on any other watch).
-            if (kind.boldOnly && !kind.tuplePair) { continue; }
+            if (kind.boldOnly) { continue; }   // no colours to heal
             for (var r = 0; r < COLOR_ROLES.length; r++) {
                 var key = 'thresh' + kind.key + COLOR_ROLES[r] + 'Color';
                 var raw = ctx.get(key);

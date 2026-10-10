@@ -285,19 +285,6 @@ function buildClayPayload(settings, watchInfo, now) {
         payload.CLAY_DATE_FORMAT_UINT8 = dateFormat.buildDateFormatBytes(settings);
     }
 
-    // The heart-rate alert (emery only): the Heart rate On demand item and the heart rate
-    // slot's Alert highlighting, seven bytes (status-wire.js buildHrAlertBytes; layout
-    // src/c/appendix/hr_alert.h). Sent only to a KNOWN emery (env.hrAlert), the
-    // CLAY_BATTERY_LOW_ONLY precedent above, so the 14 B stay out of every other Clay
-    // bundle. NOT ungated like CLAY_LARGE_GRAPH_FONT below: an unknown platform's bundle is
-    // held to aplite's 536 B inbox with a 10 B floor (test/inbox-size.test.js), which 14
-    // more bytes would break.
-    // An emery whose platform the phone cannot read keeps the tuple it last stored for
-    // that session; the change-detector resends it next time, its key set differing.
-    if (env.hrAlert) {
-        payload.CLAY_HR_ALERT_UINT8 = statusWire.buildHrAlertBytes(settings, env);
-    }
-
     // Custom radar empty-state text — settings-derived, so it rides the Clay
     // message. Trimmed, then truncated to 24 UTF-8 BYTES (the watch persists it
     // in a 25 B buffer incl. NUL). An empty text rides the wire as such: the user

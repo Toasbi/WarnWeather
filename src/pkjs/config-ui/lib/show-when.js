@@ -36,10 +36,9 @@ PConf.showWhen = (function () {
     // `env` reads a capability fact rather than a setting value. The fact names are
     // owned by lib/platform.js computeEnv() (the platform SoT) — `color`, `round`,
     // `platform`, `health`, `radar`, `themePolarity`, `hr`, `thresholds`, `lineStyles`,
-    // `onDemand`, `fineBattery`, `forecastSpan` (emery's 12 h / 24 h / long forecast),
-    // `hrAlert` (emery's heart-rate alert) and `colorBacklight` (emery's RGB backlight
-    // LED) — plus whatever the host app overlays at generateUrl() time for facts about
-    // the PHONE (e.g. phoneBattery).
+    // `onDemand`, `fineBattery`, `forecastSpan` (emery's 12 h / 24 h / long forecast) and
+    // `colorBacklight` (emery's RGB backlight LED) — plus whatever the host app
+    // overlays at generateUrl() time for facts about the PHONE (e.g. phoneBattery).
     // A fact the host never supplied reads as undefined, so a bare { env: 'x' } gate
     // fails closed: an unrecognized watch is never offered hardware it may not have.
     var subject = has(pred, 'env') ? (ctx.env ? ctx.env[pred.env] : undefined) : ctx[pred.key];

@@ -17,8 +17,7 @@ var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 // A kind's level group speaks in one of two voices, and the CALLER picks it: the
 // weather kinds rise to ALERT LEVELS (ALERT_VOICE, in the kind's alert sheet on the
 // Alerts tab); the health kinds work toward GOALS (GOAL_VOICE, in their slot
-// sheet) — same rises-toward-the-pair machinery, friendlier words. The heart rate
-// slot's Alert highlighting (emery) speaks a variant of the first (HR_VOICE, below). A voice record
+// sheet) — same rises-toward-the-pair machinery, friendlier words. A voice record
 // carries every word the group, its slider's chips (the thresholdRange resolver,
 // blocks.js) and the slot's Bold row (schema.js boldRow) say, so the builders hold no
 // copy and never ask which kind they build.
@@ -143,24 +142,6 @@ var GOAL_VOICE = {
             'a reached goal — pick a different close color.'
     }
 };
-// The heart rate slot's Alert highlighting (emery: its pair, look and colours ride
-// CLAY_HR_ALERT_UINT8, status-wire.js buildHrAlertBytes), in the slot's own dialog
-// below its Bold row (schema.js hrSlotSheet). ALERT_VOICE's words, except: the group has a
-// switch, which rides its header like the Goals switch, and the heart rate has no alert
-// icon to style, so the intro speaks of the slot alone and 'none' points at the Bold row
-// above it.
-var HR_VOICE = Object.assign({}, ALERT_VOICE, {
-    header: 'Alert highlighting',
-    // Aria-only: the switch rides the group header, whose intro carries the meaning.
-    switchLabel: 'Alert highlighting',
-    intro: 'Warn and danger levels for your heart rate. The switch highlights the heart rate slot: '
-        + 'reaching warn draws the warn look below, reaching danger fills the slot and prints it bold.',
-    look: Object.assign({}, ALERT_VOICE.look, {
-        base: Object.assign({}, ALERT_VOICE.look.base, {
-            none: 'No box at warn — bold text still follows the Bold row above.'
-        })
-    })
-});
 /**
  * The next-day mark options — the day-max slots' "Tomorrow's peak mark" and each metric
  * alert's "Tomorrow's mark", one list so the two cannot drift — labelled on a sample
@@ -382,7 +363,6 @@ module.exports = {
     BOLD_ALWAYS_HINT: BOLD_ALWAYS_HINT,
     ALERT_VOICE: ALERT_VOICE,
     GOAL_VOICE: GOAL_VOICE,
-    HR_VOICE: HR_VOICE,
     nextDayMarkOptions: nextDayMarkOptions,
     levelLead: levelLead,
     levelLook: levelLook,

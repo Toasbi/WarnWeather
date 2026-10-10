@@ -95,24 +95,6 @@ test('onDemandPlaced is on-demand.js placedAnywhere: on a bar that exists, on a 
   assert.equal(WR.onDemandPlaced(states[6], BASALT, { code: 'uv' }), false);
 });
 
-// emery's Heart rate item: placed only on an emery reading health (on-demand.js
-// hrAvailable), whatever its lists hold; every other watch reads it as on no bar.
-test('onDemandPlaced: the Heart rate item is placed on an emery alone', () => {
-  const EMERY = platform.computeEnv({ platform: 'emery' });
-  const DIORITE = platform.computeEnv({ platform: 'diorite' });
-  const UNKNOWN = platform.computeEnv(null);
-  const S = Object.assign({}, OD.DEFAULTS, { statusTopOnDemandRightItems: 'battery,hr', healthMode: 'status' });
-  [[EMERY, true], [BASALT, false], [DIORITE, false], [APLITE, false], [UNKNOWN, false]].forEach(([env, want]) => {
-    assert.equal(OD.placedAnywhere(S, 'hr', env), want, String(env.platform));
-    assert.equal(WR.onDemandPlaced(S, env, { code: 'hr' }), want, String(env.platform));
-    assert.equal(showWhen.evaluate({ when: 'onDemandPlaced', args: { code: 'hr' } }, Object.assign({ env }, S)), want);
-  });
-  assert.equal(WR.onDemandPlaced(Object.assign({}, S, { healthMode: 'off' }), EMERY, { code: 'hr' }), false,
-    'an emery with health off');
-  assert.equal(WR.onDemandPlaced(Object.assign({}, S, { statusTopOnDemandRightItems: 'battery' }), EMERY,
-    { code: 'hr' }), false, 'an emery with it on no list');
-});
-
 test('defaultViewLacksOnDemand: the Default view the watch runs has no strip and no bar with an item', () => {
   assert.equal(global.PConf.whenResolvers.get('defaultViewLacksOnDemand'), WR.defaultViewLacksOnDemand);
   const lacks = (over, env) => WR.defaultViewLacksOnDemand(Object.assign({}, OD.DEFAULTS, over), env || BASALT);

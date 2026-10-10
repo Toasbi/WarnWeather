@@ -207,20 +207,6 @@ bool status_bar_any_visible_uses_live_health(const ViewSpec *spec) {
     return false;
 }
 
-#if defined(PBL_PLATFORM_EMERY)
-// emery: status_bar_any_visible_uses_live_health's twin for the Heart rate item, which
-// needs only the held HR (main_window.c's minute handler then polls it alone).
-bool status_bar_any_visible_uses_live_hr(const ViewSpec *spec) {
-    for (int i = 0; i < STATUS_BAR_COUNT; i++) {
-        if (status_row_uses_live_hr(s_bars[i].row)
-                && layout_status_visible(spec, bar_source((StatusBarId) i))) {
-            return true;
-        }
-    }
-    return false;
-}
-#endif
-
 void status_bar_refresh_live_health(const ViewSpec *spec) {
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
         StatusBar *b = &s_bars[i];
@@ -229,12 +215,7 @@ void status_bar_refresh_live_health(const ViewSpec *spec) {
         // See status_bar.h: VISIBLE bars only — those carrying a live health slot,
         // plus the health-source bar itself.
         if (layout_status_visible(spec, src)
-                && (status_row_uses_live_health(b->row) || src == STATUS_SRC_HEALTH
-#if defined(PBL_PLATFORM_EMERY)
-                    // emery: a bar carrying the Heart rate item repaints when the HR moves
-                    || status_row_uses_live_hr(b->row)
-#endif
-                    )) {
+                && (status_row_uses_live_health(b->row) || src == STATUS_SRC_HEALTH)) {
             refresh_row((StatusBarId) i);
         }
     }

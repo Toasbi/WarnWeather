@@ -87,41 +87,6 @@ test('CLAY_BATTERY_LOW_ONLY reflects the batteryLowOnly setting (default false),
   });
 });
 
-// emery's heart-rate alert (src/c/appendix/hr_alert.h): the tuple rides a known emery's
-// bundle alone, and every other watch's payload is byte-identical whatever the hr keys say.
-// The same watch without them: the heart rate item on no list, no hr key set.
-const HR_BASE = { healthMode: 'status', statusTopOnDemandRightItems: 'battery', statusHealthOnDemandLeftItems: '' };
-const HR_SET = Object.assign({}, HR_BASE, { statusTopOnDemandRightItems: 'battery,hr', statusHealthOnDemandLeftItems: 'hr',
-  hrAlertLevel: '150', hrAlertDisplay: 'icon', threshHrOn: true, threshHrWarn: '60', threshHrDanger: '70',
-  threshHrMax: '200', threshHrWarnLook: 'outline', threshHrWarnColor: '#00AAFF', threshHrDangerColor: '#5500FF' });
-test('CLAY_HR_ALERT_UINT8 rides a known emery alone, 7 bytes, the packer\'s reading', () => {
-  const statusWire = require('../src/pkjs/status-wire');
-  const platform = require('../src/pkjs/config-ui/lib/platform');
-  const s = Object.assign(baseSettings(), HR_SET);
-  const emery = buildClayPayload(s, { platform: 'emery' }, NOW);
-  assert.equal(emery.CLAY_HR_ALERT_UINT8.length, 7);
-  assert.deepEqual(emery.CLAY_HR_ALERT_UINT8, statusWire.buildHrAlertBytes(s, platform.computeEnv({ platform: 'emery' })));
-  // Cells: top right (2 << 0) and health left (1 << 6); level 150; flags: Icon (bit 0 clear),
-  // highlight on (bit 1), outline (1 << 2); the pair 60 / 70; #00AAFF and #5500FF as GColor8.
-  assert.deepEqual(emery.CLAY_HR_ALERT_UINT8, [0x42, 150, 0x06, 60, 70, 0xCB, 0xD3]);
-  // Fresh: on no bar, the default level, Icon + value, highlight off with the seed pair.
-  assert.deepEqual(buildClayPayload(baseSettings(), { platform: 'emery' }, NOW).CLAY_HR_ALERT_UINT8,
-    [0, 120, 0x09, 120, 150, 0xFF, 0xF0]);
-  [{ platform: 'aplite' }, { platform: 'basalt' }, { platform: 'chalk' }, { platform: 'diorite' },
-    { platform: 'flint' }, null, {}].forEach((wi) => {
-    const withHr = buildClayPayload(s, wi, NOW);
-    assert.equal(Object.prototype.hasOwnProperty.call(withHr, 'CLAY_HR_ALERT_UINT8'), false, JSON.stringify(wi));
-    assert.deepEqual(withHr, buildClayPayload(Object.assign(baseSettings(), HR_BASE), wi, NOW),
-      JSON.stringify(wi) + ': the hr keys change no byte');
-  });
-  // A known emery: the hr keys change that tuple and nothing else.
-  const without = Object.assign({}, emery);
-  delete without.CLAY_HR_ALERT_UINT8;
-  const fresh = buildClayPayload(Object.assign(baseSettings(), HR_BASE), { platform: 'emery' }, NOW);
-  delete fresh.CLAY_HR_ALERT_UINT8;
-  assert.deepEqual(without, fresh, 'emery: the tuple alone differs');
-});
-
 test('buildClayPayload includes the rain/radar palette tuples', function() {
   const p = buildClayPayload(baseSettings(), { platform: 'emery' }, NOW);
   assert.ok(Array.isArray(p.BAR_PALETTE_UINT8));

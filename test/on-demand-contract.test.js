@@ -20,8 +20,7 @@ const thresholdC = read('src/c/appendix/status_threshold.c');
 
 const C_ITEMS = {
   battery: 'OD_BATTERY', bt: 'OD_BLUETOOTH', qt: 'OD_QUIET_TIME', snooze: 'OD_SLEEP',
-  rain: 'OD_RAIN', gust: 'OD_GUST', uv: 'OD_UV', aqi: 'OD_AQI', pollen: 'OD_POLLEN', wind: 'OD_WIND',
-  hr: 'OD_HR'
+  rain: 'OD_RAIN', gust: 'OD_GUST', uv: 'OD_UV', aqi: 'OD_AQI', pollen: 'OD_POLLEN', wind: 'OD_WIND'
 };
 
 /**
@@ -40,13 +39,7 @@ test('ITEMS is the watch\'s OdItem order (the priority and the cell order)', () 
   OD.ITEMS.forEach((item, i) => {
     assert.equal(cEnum(onDemandH, C_ITEMS[item.code]), i, item.code + ' is OdItem ' + i);
   });
-  // emery alone compiles the Heart rate item (OD_HR, the last); every other image stops
-  // at Wind speed. The blob's cells cover the ten items every platform has.
-  assert.match(onDemandH, new RegExp('#if defined\\(PBL_PLATFORM_EMERY\\)[\\s\\S]*?OD_HR = 10,\\s*\\n\\s*OD_ITEM_COUNT = '
-    + OD.ITEMS.length + ',[\\s\\S]*?#else[\\s\\S]*?OD_ITEM_COUNT = ' + OD.BLOB_ITEM_COUNT + ','));
-  assert.equal(OD.ITEMS[OD.ITEMS.length - 1].code, 'hr', 'the emery-only item comes last');
-  assert.match(onDemandH, /#define OD_BLOB_ITEM_COUNT \(OD_WIND \+ 1\)/);
-  assert.equal(OD.BLOB_ITEM_COUNT, cEnum(onDemandH, 'OD_WIND') + 1);
+  assert.match(onDemandH, new RegExp('OD_ITEM_COUNT = ' + OD.ITEMS.length));
 });
 
 test('the cell layout: a byte per item from byte 38, 2 bits per bar, 1 left / 2 right', () => {
@@ -62,12 +55,11 @@ test('the cell layout: a byte per item from byte 38, 2 bits per bar, 1 left / 2 
 });
 
 test('the compiled Watch Status Bar defaults are the phone\'s DEFAULTS', () => {
-  const table = thresholdC.match(/OD_DEFAULT_TOP\[OD_BLOB_ITEM_COUNT\] = \{([\s\S]*?)\};/);
+  const table = thresholdC.match(/OD_DEFAULT_TOP\[OD_ITEM_COUNT\] = \{([\s\S]*?)\};/);
   assert.ok(table, 'OD_DEFAULT_TOP not found in status_threshold.c');
   const sideOfC = {};
   table[1].replace(/\[(OD_\w+)\]\s*=\s*(OD_SIDE_\w+)/g, (m, item, side) => { sideOfC[item] = side; });
-  // The table covers the blob's items; the Heart rate item has no default side anywhere.
-  OD.ITEMS.slice(0, OD.BLOB_ITEM_COUNT).forEach((item) => {
+  OD.ITEMS.forEach((item) => {
     const phone = OD.sideOf({}, 'top', item.code);
     const want = phone === 'left' ? 'OD_SIDE_LEFT' : phone === 'right' ? 'OD_SIDE_RIGHT' : 'OD_SIDE_NONE';
     assert.equal(sideOfC[C_ITEMS[item.code]], want, item.code + ' on the Watch Status Bar');
@@ -75,10 +67,8 @@ test('the compiled Watch Status Bar defaults are the phone\'s DEFAULTS', () => {
   // Every other bar has no item on either side, on the watch (a blob without the
   // cells takes OD_DEFAULT_TOP's sides as its cell bytes whole, and the top bar's cell
   // is bits 0-1, so every other bar's reads none) and on the phone.
-  assert.match(thresholdC, /memcpy\(blob \+ THRESH_ON_DEMAND_OFFSET, OD_DEFAULT_TOP, OD_BLOB_ITEM_COUNT\)/);
+  assert.match(thresholdC, /memcpy\(blob \+ THRESH_ON_DEMAND_OFFSET, OD_DEFAULT_TOP, OD_ITEM_COUNT\)/);
   assert.match(thresholdC, /_Static_assert\(THRESH_BAR_TOP == 0,/);
-  assert.equal(OD.sideOf({}, 'top', 'hr', {platform: 'emery', health: true, hr: true}), null,
-    'the Heart rate item starts on no bar');
   ['forecast', 'radar', 'health'].forEach((bar) => {
     OD.ITEMS.forEach((item) => {
       assert.equal(OD.sideOf({radarMode: 'graph', healthMode: 'all'}, bar, item.code), null, bar + ' ' + item.code);

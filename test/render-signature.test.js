@@ -654,24 +654,6 @@ test('the rain alert\'s placement stays OUT of the render signature (Clay)', () 
   assert.equal(renderSignature({ statusForecastOnDemandRightItems: 'rain,bt' }), base, 'nor on another bar');
 });
 
-// emery's heart-rate alert reads the watch's own heart rate and rides the Clay message
-// (CLAY_HR_ALERT_UINT8): placing the Heart rate item, its level and Look, and the heart
-// rate slot's Alert highlighting fetch and bake nothing, so none of them signs.
-test('the heart-rate alert stays OUT of the render signature (it rides Clay)', () => {
-  const HR_KEYS = { hrAlertLevel: '150', hrAlertDisplay: 'icon', threshHrOn: true, threshHrWarn: '60',
-    threshHrDanger: '70', threshHrMax: '200', threshHrWarnLook: 'outline', threshHrWarnColor: '#00AAFF',
-    threshHrDangerColor: '#5500FF', healthMode: 'status' };
-  const base = renderSignature(NOTHING_PLACED);
-  assert.equal(renderSignature(placedOnly(['hr'])), base, 'the item placed');
-  assert.equal(renderSignature(placedOnly(['hr'], HR_KEYS)), renderSignature(placedOnly([], { healthMode: 'status' })),
-    'the item placed with every hr key set');
-  assert.equal(renderSignature(Object.assign({}, NOTHING_PLACED, HR_KEYS, { healthMode: undefined })), base,
-    'every hr key, nothing placed');
-  const placed = renderSignature(placedOnly(['uv']));
-  assert.equal(renderSignature(placedOnly(['uv', 'hr'], { hrAlertDisplay: 'icon' })), placed,
-    'beside a placed metric alert, the heart changes nothing');
-});
-
 // The forecast's time span (forecast-span.js) changes how many hours are fetched and baked
 // on an emery, so a flip forces a refetch. '' for the default and an absent key alike, so the
 // page hydrating forecastHours forces no fetch.

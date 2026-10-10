@@ -104,12 +104,7 @@
     { code: 'week',      key: 'Week', boldOnly: true },
     { code: 'city',      key: 'City', boldOnly: true },
     { code: 'countdown', key: 'Countdown', boldOnly: true },
-    // Heart rate: bold-only in the blob (kind 15's bold cell is all it has there), but
-    // on emery its slot also owns a warn/danger pair, a warn look and two colours, which
-    // ride CLAY_HR_ALERT_UINT8 (status-wire.js buildHrAlertBytes; the blob has no room).
-    // tuplePair: kindConfig resolves them as it resolves a paired kind's. Its switch,
-    // thresh<Key>On, rides its level group's header like a goal kind's (ownsGroupSwitch).
-    { code: 'hr',        key: 'Hr', boldOnly: true, tuplePair: true },
+    { code: 'hr',        key: 'Hr', boldOnly: true },
     // Battery % (kind 16, appended): unlike the GLYPH battery slot — still
     // kind-less, a drawn glyph has no text run to bold — the % slot renders
     // text, so it owns a bold cell: the first one in byte 33.
@@ -131,10 +126,6 @@
     { code: 'phoneBattery', key: 'PhoneBattery', boldOnly: true },
     { code: 'phoneBatteryPlain', key: 'PhoneBattery', boldOnly: true }
   ];
-  // The heart rate slot's kind, KINDS' one tuplePair entry: kindConfig resolves the
-  // switch, pair, warn look and colours that CLAY_HR_ALERT_UINT8 carries.
-  var HR_KIND = 0;
-  while (!KINDS[HR_KIND].tuplePair) { HR_KIND++; }
 
   /**
    * @param {*} v raw settings field ('' = unset; comma decimals accepted)
@@ -220,10 +211,7 @@
     Aqi: {us: {warn: 100, danger: 150}, eu: {warn: 60, danger: 80}},
     Steps: {'': {warn: 8000, danger: 10000}},
     Sleep: {'': {warn: 6.5, danger: 7.5}},
-    Distance: {km: {warn: 4, danger: 5}, mi: {warn: 2.5, danger: 3}},
-    // The heart rate slot's Alert highlighting (emery, status-wire.js buildHrAlertBytes),
-    // in bpm.
-    Hr: {'': {warn: 120, danger: 150}}
+    Distance: {km: {warn: 4, danger: 5}, mi: {warn: 2.5, danger: 3}}
   };
 
   /**
@@ -425,9 +413,7 @@
    * (plus the goal u16s, zeroed when off): a weather kind's level is packed
    * regardless (status-wire.js packWeatherLevels).
    * warnLook is the resolved look (warnLookFor); warnColor is null exactly when
-   * it is 'none'. A tuplePair kind (heart rate) resolves all of this too, though the
-   * blob packs only its bold cell (status-wire.js buildSettingsBlob); the rest rides
-   * its own tuple (buildHrAlertBytes).
+   * it is 'none'.
    * @param {Object} settings Clay settings blob
    * @param {number} kindIndex wire kind id (0..THRESH_KIND_COUNT - 1)
    * @param {boolean} [isColor] Whether the watch has a colour display (the warn
@@ -438,7 +424,7 @@
    */
   function kindConfig(settings, kindIndex, isColor) {
     var k = KINDS[kindIndex];
-    if (k.boldOnly && !k.tuplePair) {
+    if (k.boldOnly) {
       // Bold-only kinds own no thresholds, colors, or health pair — boldMode is
       // the only meaningful field. The DEFAULT_BOLD_MODE 'warn' packs 0, and a
       // level-less kind only ever resolves THRESH_LEVEL_NORMAL on the watch, so
@@ -652,25 +638,8 @@
     };
   }
 
-  /**
-   * Whether a kind's level group carries its own switch (thresh<Stem>On on the group's
-   * header), so the group's reset turns it off too: the goal kinds' Goals switch and
-   * the heart rate slot's Alert highlighting (a tuplePair kind). A weather kind's switch
-   * lives in its slot sheet, outside the group.
-   * @param {string} keyStem Kind key stem, e.g. 'Steps'.
-   * @returns {boolean}
-   */
-  function ownsGroupSwitch(keyStem) {
-    if (isGoalKind(keyStem)) { return true; }
-    for (var i = 0; i < KINDS.length; i += 1) {
-      if (KINDS[i].key === keyStem) { return Boolean(KINDS[i].tuplePair); }
-    }
-    return false;
-  }
-
   var api = {
     KINDS: KINDS,
-    HR_KIND: HR_KIND,
     WARN_LOOKS: WARN_LOOKS,
     warnLookDefault: warnLookDefault,
     warnLookFor: warnLookFor,
@@ -700,7 +669,6 @@
     thresholdColor: thresholdColor,
     isAutoColor: isAutoColor,
     kindConfig: kindConfig,
-    ownsGroupSwitch: ownsGroupSwitch,
     computeLevel: computeLevel,
     DEFAULT_DANGER_COLOR: DEFAULT_DANGER_COLOR,
     DEFAULT_DANGER_HEX: DEFAULT_DANGER_HEX

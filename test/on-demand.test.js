@@ -6,16 +6,14 @@ const assert = require('node:assert');
 const OD = require('../src/pkjs/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
-const CODES = ['battery', 'bt', 'qt', 'snooze', 'rain', 'gust', 'uv', 'aqi', 'pollen', 'wind', 'hr'];
+const CODES = ['battery', 'bt', 'qt', 'snooze', 'rain', 'gust', 'uv', 'aqi', 'pollen', 'wind'];
 
-test('ITEMS: the eleven items in priority order, system info first, emery\'s Heart rate last', () => {
+test('ITEMS: the ten items in priority order, system info first', () => {
   assert.deepEqual(OD.ITEMS.map((i) => i.code), CODES);
   assert.deepEqual(OD.ITEMS.map((i) => i.group),
-    ['system', 'system', 'system', 'system', 'weather', 'weather', 'weather', 'weather', 'weather', 'weather',
-      'health']);
+    ['system', 'system', 'system', 'system', 'weather', 'weather', 'weather', 'weather', 'weather', 'weather']);
   assert.deepEqual(OD.ITEMS.map((i) => i.label), ['Battery', 'Bluetooth', 'Quiet time', 'Sleep', 'Rain',
-    'Wind gusts', 'UV index', 'Air quality', 'Pollen', 'Wind speed', 'Heart rate']);
-  assert.equal(OD.BLOB_ITEM_COUNT, 10, 'the blob carries a cell for the first ten only');
+    'Wind gusts', 'UV index', 'Air quality', 'Pollen', 'Wind speed']);
   assert.deepEqual(OD.BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health']);
   assert.deepEqual(OD.SIDES, ['left', 'right']);
   assert.equal(OD.itemsKey('top', 'left'), 'statusTopOnDemandLeftItems');
@@ -30,9 +28,7 @@ test('DEFAULTS: the Watch Status Bar carries the defaults, every other bar is em
   }));
   assert.equal(OD.DEFAULTS.batteryLowLevel, '10');
   assert.equal(OD.DEFAULTS.batteryLowDisplay, 'icon');
-  assert.equal(OD.DEFAULTS.hrAlertLevel, '120');
-  assert.equal(OD.DEFAULTS.hrAlertDisplay, 'value');
-  assert.equal(Object.keys(OD.DEFAULTS).length, 12, 'the eight side lists + the two Battery keys + the two Heart rate keys');
+  assert.equal(Object.keys(OD.DEFAULTS).length, 10, 'the eight side lists + the two Battery keys');
 });
 
 test('parse: canonical order, unknown codes and duplicates dropped', () => {

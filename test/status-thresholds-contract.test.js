@@ -140,20 +140,8 @@ test('the Battery byte and the On demand cells close the 48-B blob', () => {
     assert.match(onDemand, new RegExp(name + '\\s*=\\s*' + i + ','), name + ' is item ' + i);
   });
   assert.match(onDemand, /OD_ITEM_COUNT = 10/);
-  // The cells stop at Wind: emery's Heart rate item (OD_HR, past the last cell) rides
-  // its own tuple, CLAY_HR_ALERT_UINT8 (hr_alert.h), so the blob is 48 B everywhere.
-  assert.match(onDemand, /#define OD_BLOB_ITEM_COUNT \(OD_WIND \+ 1\)/);
-  assert.match(header, /_Static_assert\(THRESH_SETTINGS_BYTES == THRESH_ON_DEMAND_OFFSET \+ OD_BLOB_ITEM_COUNT/);
+  assert.match(header, /_Static_assert\(THRESH_SETTINGS_BYTES == THRESH_ON_DEMAND_OFFSET \+ OD_ITEM_COUNT/);
   assert.match(header, /_Static_assert\(THRESH_SETTINGS_BYTES <= STATUS_LINE_MAX_BYTES/);
-});
-
-// The heart rate slot is the one kind whose pair and colours ride a tuple of their own
-// (emery's CLAY_HR_ALERT_UINT8): it stays bold-only on the blob, which never carries them.
-test('tuplePair marks the heart rate kind alone, still bold-only on the blob', () => {
-  assert.deepEqual(th.KINDS.filter((k) => k.tuplePair).map((k) => k.code), ['hr']);
-  const hr = th.KINDS.find((k) => k.code === 'hr');
-  assert.equal(hr.key, 'Hr');
-  assert.equal(hr.boldOnly, true, 'no pair, look or colour bytes in the 48-B blob');
 });
 
 // The alert entries name their kind by ThreshKind in 3 bits (alert_set.h,

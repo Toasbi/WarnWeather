@@ -17,11 +17,11 @@ static void on_demand_cell_tests(void) {
     int n = sizeof(blob);
     expect("cells.offset_pinned", THRESH_ON_DEMAND_OFFSET, 38);
     expect("cells.bars", THRESH_BAR_COUNT, 4);
-    expect("cells.items", OD_BLOB_ITEM_COUNT, 10);
+    expect("cells.items", OD_ITEM_COUNT, 10);
     expect("cells.side_values", OD_SIDE_NONE * 100 + OD_SIDE_LEFT * 10 + OD_SIDE_RIGHT, 12);
     // All zero: nothing anywhere, the Watch Status Bar too.
     for (int bar = 0; bar < THRESH_BAR_COUNT; bar++) {
-        for (int item = 0; item < OD_BLOB_ITEM_COUNT; item++) {
+        for (int item = 0; item < OD_ITEM_COUNT; item++) {
             expect("cells.zero_none", side_of(blob, n, bar, item), OD_SIDE_NONE);
         }
     }
@@ -45,45 +45,24 @@ static void on_demand_cell_tests(void) {
     expect("cells.oob_bar_neg", side_of(blob, n, -1, OD_RAIN), OD_SIDE_NONE);
     expect("cells.oob_bar", side_of(blob, n, THRESH_BAR_COUNT, OD_RAIN), OD_SIDE_NONE);
     expect("cells.oob_item_neg", side_of(blob, n, THRESH_BAR_TOP, -1), OD_SIDE_NONE);
-    expect("cells.oob_item", side_of(blob, n, THRESH_BAR_TOP, OD_BLOB_ITEM_COUNT), OD_SIDE_NONE);
+    expect("cells.oob_item", side_of(blob, n, THRESH_BAR_TOP, OD_ITEM_COUNT), OD_SIDE_NONE);
     // The warn-look and Battery bytes never leak into the cells, nor they into them.
     memset(blob, 0, sizeof(blob));
     blob[THRESH_WARN_LOOK_OFFSET + 1] = 0xFF;
     blob[THRESH_BATTERY_OFFSET] = 0xFF;
     expect("cells.no_alias_from_look", side_of(blob, n, THRESH_BAR_TOP, OD_BATTERY), OD_SIDE_NONE);
     memset(blob, 0, sizeof(blob));
-    memset(blob + THRESH_ON_DEMAND_OFFSET, 0xFF, OD_BLOB_ITEM_COUNT);
+    memset(blob + THRESH_ON_DEMAND_OFFSET, 0xFF, OD_ITEM_COUNT);
     expect("cells.no_alias_into_look", warn_look_of(blob, n, THRESH_UV), THRESH_WARN_LOOK_NONE);
     expect("cells.no_alias_into_battery", battery_level_of(blob, n), THRESH_BATTERY_LEVEL_DEFAULT);
     expect("cells.all_reserved_none", side_of(blob, n, THRESH_BAR_RADAR, OD_UV), OD_SIDE_NONE);
-#if defined(PBL_PLATFORM_EMERY)
-    // emery: the Heart rate item has no cell in the blob (its side rides
-    // CLAY_HR_ALERT_UINT8, hr_alert.h): none on every bar, never a read of byte 48.
-    expect("cells.hr_past_blob", OD_HR, OD_BLOB_ITEM_COUNT);
-    memset(blob, 0xFF, sizeof(blob));
-    for (int bar = 0; bar < THRESH_BAR_COUNT; bar++) {
-        expect("cells.hr_none", side_of(blob, n, bar, OD_HR), OD_SIDE_NONE);
-    }
-    // The bound itself: a byte 48 that reads LEFT on every bar, past a blob whose own
-    // cells (all 0xFF) read none. Only a read past the blob (a bound of OD_ITEM_COUNT
-    // in place of OD_BLOB_ITEM_COUNT) could answer LEFT.
-    {
-        uint8_t guarded[THRESH_SETTINGS_BYTES + 1];
-        memcpy(guarded, load(blob, n), THRESH_SETTINGS_BYTES);
-        guarded[THRESH_SETTINGS_BYTES] = 0x55;
-        for (int bar = 0; bar < THRESH_BAR_COUNT; bar++) {
-            expect("cells.hr_no_byte_48",
-                   status_threshold_on_demand_side(guarded, bar, OD_HR), OD_SIDE_NONE);
-        }
-    }
-#endif
 }
 
 // A blob without the cells — the 1.23.2 shapes 34/33/29, an invalid length (the
 // never-shipped 38 among them), none stored — reads the compiled defaults: the
 // phone's defaults for the Watch Status Bar, and nothing on any other bar.
 static void on_demand_default_tests(void) {
-    static const int TOP[OD_BLOB_ITEM_COUNT] = {
+    static const int TOP[OD_ITEM_COUNT] = {
         [OD_BATTERY] = OD_SIDE_RIGHT, [OD_BLUETOOTH] = OD_SIDE_LEFT,
         [OD_QUIET_TIME] = OD_SIDE_LEFT, [OD_SLEEP] = OD_SIDE_LEFT,
         [OD_RAIN] = OD_SIDE_LEFT, [OD_GUST] = OD_SIDE_RIGHT, [OD_UV] = OD_SIDE_RIGHT,
@@ -99,7 +78,7 @@ static void on_demand_default_tests(void) {
     int lens[] = { THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_SETTINGS_BYTES_PRE_KIND16,
                    THRESH_SETTINGS_BYTES_PRE_BOLD, 47, 38, 35, 27, 0, -1 };
     for (size_t i = 0; i < sizeof(lens) / sizeof(lens[0]); i++) {
-        for (int item = 0; item < OD_BLOB_ITEM_COUNT; item++) {
+        for (int item = 0; item < OD_ITEM_COUNT; item++) {
             expect("defaults.top", side_of(blob, lens[i], THRESH_BAR_TOP, item), TOP[item]);
             for (int bar = THRESH_BAR_FORECAST; bar < THRESH_BAR_COUNT; bar++) {
                 expect("defaults.others_none", side_of(blob, lens[i], bar, item), OD_SIDE_NONE);

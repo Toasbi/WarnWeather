@@ -170,22 +170,6 @@ const settingsSchema = z
     // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
     batteryLowLevel: z.number().int().min(0).max(100).optional(),
     batteryLowDisplay: z.string().optional(),
-    // The heart-rate alert (2.2.0, emery only, src/pkjs/telemetry-settings.js):
-    // onDemandHr is the Heart rate On demand item's 4 letters, one per bar in onDemand's
-    // bar order, with onDemand's letters (it rides apart so onDemand keeps its 40); its
-    // level in bpm and Look ('icon' / 'value') while it is placed; the heart rate slot's
-    // Alert highlighting switch, and its warn / danger bpm and warn look while that is on.
-    // The phone sends every number as a byte (0..255), so the bounds can never 400 a
-    // batch; the strings are z.string(), never enums, per onDemand's rule above.
-    // DEPLOY-ORDERING: ship this function before the app release that sends these, or the
-    // strip step drops them silently.
-    onDemandHr: z.string().optional(),
-    hrAlertLevel: z.number().int().min(0).max(255).optional(),
-    hrAlertDisplay: z.string().optional(),
-    hrHighlight: z.boolean().optional(),
-    hrHighlightWarn: z.number().int().min(0).max(255).optional(),
-    hrHighlightDanger: z.number().int().min(0).max(255).optional(),
-    hrHighlightWarnLook: z.string().optional(),
     topViewMode: z.enum(['full', 'compact', 'none']).optional(),
     // DEPLOY ORDERING: a value missing from this enum fails the WHOLE batch (400), so a
     // new preset (1.23.0: 'weatherOnly') must be deployed here BEFORE the watch build

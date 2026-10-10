@@ -75,13 +75,6 @@ var FINE_BATTERY_PLATFORMS = { emery: true };
 // span's 68-hour bundle (test/inbox-size.test.js). Unknown platforms get 24 h (fail closed,
 // the colorBacklight precedent: never send more hours to a watch that may drop the message).
 var FORECAST_SPAN_PLATFORMS = { emery: true };
-// Platforms whose watch carries the heart-rate alert (the Heart rate On demand item and the
-// heart rate slot's Alert highlighting, sent as CLAY_HR_ALERT_UINT8): emery (Pebble Time 2)
-// only. Keep in lockstep with the C `#if defined(PBL_PLATFORM_EMERY)` guard of
-// src/c/appendix/hr_alert.h, off which the watch declares neither half. Unknown platforms are
-// treated as lacking it (fail closed: an unknown watch's Clay bundle is held to aplite's
-// 536 B inbox, which the tuple's 14 B would overflow; test/inbox-size.test.js).
-var HR_ALERT_PLATFORMS = { emery: true };
 /**
  * Whether a Pebble platform has a color display (false for the B/W platforms).
  * @param {string} platform Platform name (e.g. 'basalt', 'aplite', 'chalk').
@@ -165,19 +158,12 @@ function isFineBatteryPlatform(platform) { return Boolean(FINE_BATTERY_PLATFORMS
  */
 function isForecastSpanPlatform(platform) { return Boolean(FORECAST_SPAN_PLATFORMS[platform]); }
 /**
- * Whether a Pebble platform's watch carries the heart-rate alert (emery only).
- * Unknown platforms are treated as lacking it.
- * @param {string} platform Platform name (e.g. 'emery', 'basalt').
- * @returns {boolean} True if the platform draws the Heart rate item and the HR slot's highlighting.
- */
-function isHrAlertPlatform(platform) { return Boolean(HR_ALERT_PLATFORMS[platform]); }
-/**
  * Derive the config-UI environment facts from a Pebble watchInfo object.
  * @param {Object} watchInfo Pebble watchInfo; its .platform names the model.
- * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean, lineStyles: boolean, onDemand: boolean, fineBattery: boolean, forecastSpan: boolean, hrAlert: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, RGB-backlight-LED support, third-metric-line + per-line-style support, On demand support, 5 % battery-charge steps, the 12 h / 24 h / long forecast span, and the heart-rate alert.
+ * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean, lineStyles: boolean, onDemand: boolean, fineBattery: boolean, forecastSpan: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, RGB-backlight-LED support, third-metric-line + per-line-style support, On demand support, 5 % battery-charge steps, and the 12 h / 24 h / long forecast span.
  */
 function computeEnv(watchInfo) {
   var p = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p), lineStyles: isLineStylePlatform(p), onDemand: isOnDemandPlatform(p), fineBattery: isFineBatteryPlatform(p), forecastSpan: isForecastSpanPlatform(p), hrAlert: isHrAlertPlatform(p) };
+  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p), lineStyles: isLineStylePlatform(p), onDemand: isOnDemandPlatform(p), fineBattery: isFineBatteryPlatform(p), forecastSpan: isForecastSpanPlatform(p) };
 }
-module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, isLineStylePlatform: isLineStylePlatform, isOnDemandPlatform: isOnDemandPlatform, isFineBatteryPlatform: isFineBatteryPlatform, isForecastSpanPlatform: isForecastSpanPlatform, isHrAlertPlatform: isHrAlertPlatform, computeEnv: computeEnv };
+module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, isLineStylePlatform: isLineStylePlatform, isOnDemandPlatform: isOnDemandPlatform, isFineBatteryPlatform: isFineBatteryPlatform, isForecastSpanPlatform: isForecastSpanPlatform, computeEnv: computeEnv };

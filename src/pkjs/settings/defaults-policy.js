@@ -36,8 +36,8 @@
 //   thresholds /         (config-ui/lib/platform.js). Missing env reads as
 //   color / round /      "not capable", which is the safe direction: it can only
 //   themePolarity /      withhold a default, never place a dead one. Keep this
-//   colorBacklight /     set in step with computeEnv: a fact it reports and this
-//   hrAlert              vocabulary omits is a condition that cannot be written,
+//   colorBacklight       set in step with computeEnv: a fact it reports and this
+//                        vocabulary omits is a condition that cannot be written,
 //                        and an omission is not visible until someone tries.
 //   platform: 'basalt' | ['chalk', 'basalt']      one name or a list
 //   platformNot: 'aplite' | ['aplite']            the complement of the above
@@ -249,9 +249,6 @@
         // rule uses it yet; it is here because the vocabulary above promises to
         // mirror computeEnv, and the alternative is a rule that throws.
         colorBacklight: envFlag('colorBacklight'),
-        // emery's heart-rate alert (the Heart rate On demand item and the HR slot's
-        // Alert highlighting): here for the same reason, and no rule uses it yet either.
-        hrAlert: envFlag('hrAlert'),
         platform: function (wanted, ctx) {
             return matchesOneOf(ctx && ctx.env ? ctx.env.platform : undefined, wanted);
         },

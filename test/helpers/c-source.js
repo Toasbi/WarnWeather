@@ -1,7 +1,7 @@
 // test/helpers/c-source.js — the C sources as the JS↔C lockstep tests read them: a
-// source's text, the value of one of its #defines, and whether a line sits on the emery
-// side of its platform guards. One #define reader, so every pinned constant parses the same
-// way: decimal or hex, the name matched whole, and a missing name failing its assert.
+// source's text and the value of one of its #defines. One #define reader, so every pinned
+// constant parses the same way: decimal or hex, the name matched whole, and a missing name
+// failing its assert.
 'use strict';
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -32,30 +32,4 @@ function cDefine(src, name) {
   return Number(m[1]);
 }
 
-/**
- * Whether every line of a C source holding `needle` sits inside an
- * `#if defined(PBL_PLATFORM_EMERY)` (or `#ifdef PBL_PLATFORM_EMERY`) branch, not its #else.
- * @param {string} src C source text.
- * @param {string} needle The text to find.
- * @returns {number} how many lines hold it (each one checked)
- */
-function onlyUnderEmery(src, needle) {
-  const stack = [];
-  let hits = 0;
-  src.split('\n').forEach((line, i) => {
-    const t = line.trim();
-    if (/^#\s*if/.test(t)) {
-      stack.push(/^#\s*if\s+defined\s*\(\s*PBL_PLATFORM_EMERY\s*\)\s*$|^#\s*ifdef\s+PBL_PLATFORM_EMERY\s*$/.test(t));
-    } else if (/^#\s*(else|elif)/.test(t)) {
-      stack[stack.length - 1] = false;
-    } else if (/^#\s*endif/.test(t)) {
-      stack.pop();
-    } else if (line.indexOf(needle) !== -1) {
-      hits += 1;
-      assert.ok(stack.indexOf(true) !== -1, needle + ' outside an emery branch at line ' + (i + 1) + ': ' + t);
-    }
-  });
-  return hits;
-}
-
-module.exports = { readC, cDefine, onlyUnderEmery };
+module.exports = { readC, cDefine };

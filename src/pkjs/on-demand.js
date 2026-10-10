@@ -16,10 +16,8 @@
  * LOCKSTEP: ITEMS is the watch's OdItem order (src/c/appendix/on_demand.h: the priority
  * order and the wire order of the cells), BARS its ThreshBar order, and DEFAULTS for the
  * Watch Status Bar the compiled defaults in status_threshold.c;
- * test/on-demand-contract.test.js reads the C sources to pin all three. ITEMS[0..9]
- * (BLOB_ITEM_COUNT) have a cell byte in the thresholds blob; 'hr', past them, is emery's
- * OD_HR, whose cells ride CLAY_HR_ALERT_UINT8 (status-wire.js buildHrAlertBytes,
- * src/c/appendix/hr_alert.h). ES5 only (aplite PKJS and the settings webview).
+ * test/on-demand-contract.test.js reads the C sources to pin all three. ES5 only (aplite
+ * PKJS and the settings webview).
  */
 (function () {
   // view-cycle.js requires nothing, so there is no cycle. In the flat settings page it is
@@ -27,9 +25,8 @@
   var VC = (typeof require !== 'undefined') ? require('./view-cycle.js') : window.VIEW_CYCLE;
 
   // The items, in priority order: nearest the side's status slot first, and the last
-  // drops first when a bar runs short of room. The index is the watch's OdItem and, for
-  // the first BLOB_ITEM_COUNT, the cell byte's offset. The Heart rate item is emery's
-  // alone (hrAvailable): sideOf never places it on any other watch.
+  // drops first when a bar runs short of room. The index is the watch's OdItem and the
+  // cell byte's offset.
   // `label` is the page's name for the item (the icons' spoken names on the Status slots
   // tab's read-only Alerts rows); `icon` its glyph's
   // PConf.icons id on the page (status-slot-icons.js: those rows draw the placed items by
@@ -44,14 +41,8 @@
     {code: 'uv', group: 'weather', label: 'UV index', icon: 'uv'},
     {code: 'aqi', group: 'weather', label: 'Air quality', icon: 'aqi'},
     {code: 'pollen', group: 'weather', label: 'Pollen', icon: 'pollen'},
-    {code: 'wind', group: 'weather', label: 'Wind speed', icon: 'wind'},
-    {code: 'hr', group: 'health', label: 'Heart rate', icon: 'heart'}
+    {code: 'wind', group: 'weather', label: 'Wind speed', icon: 'wind'}
   ];
-
-  // The items whose cells ride the thresholds blob (CLAY_THRESHOLDS_UINT8 bytes 38..47):
-  // ITEMS up to Wind speed, the watch's OD_BLOB_ITEM_COUNT. The Heart rate item's cells
-  // ride its own tuple, so the blob stays 48 B on every watch.
-  var BLOB_ITEM_COUNT = 10;
 
   // The status bars, in the watch's ThreshBar order (the 2-bit cell order in a cell byte).
   var BARS = [
@@ -113,15 +104,13 @@
   // Bluetooth, Quiet time, Sleep and the rain alert on its left, and the battery with the
   // weather alerts Wind gusts, UV index, Air quality and Wind speed on its right (Pollen
   // off; the battery takes the place of the old top-right low-battery warning); every
-  // other bar starts with nothing ticked, and the Heart rate item is on no bar until it
-  // is placed. seedDefaults writes these into every install, upgraded ones included.
+  // other bar starts with nothing ticked. seedDefaults writes these into every install,
+  // upgraded ones included.
   var DEFAULTS = {
     statusTopOnDemandLeftItems: 'bt,qt,snooze,rain',
     statusTopOnDemandRightItems: 'battery,gust,uv,aqi,wind',
     batteryLowLevel: '10',
-    batteryLowDisplay: 'icon',
-    hrAlertLevel: '120',
-    hrAlertDisplay: 'value'
+    batteryLowDisplay: 'icon'
   };
   (function () {
     for (var b = 1; b < BARS.length; b++) {
@@ -137,14 +126,6 @@
   var BATTERY_LEVEL_MAX = 30;
   var BATTERY_LEVEL_DEFAULT = 10;
   var BATTERY_DISPLAYS = ['icon', 'value'];
-
-  // The Heart rate item's level in bpm: what a stored level may be, the page's slider
-  // step, and what anything else reads as. The watch takes a wider 30..250
-  // (hr_alert.h HR_ALERT_BPM_MIN/MAX), so a wider range here later still reads there.
-  var HR_LEVEL_MIN = 60;
-  var HR_LEVEL_MAX = 200;
-  var HR_LEVEL_STEP = 5;
-  var HR_LEVEL_DEFAULT = 120;
 
   /**
    * @param {*} code Candidate item code.
@@ -195,10 +176,10 @@
     if (/OnDemand(Left|Right)Items$/.test(key)) {
       return typeof v === 'string' ? parse(v).join(',') : DEFAULTS[key];
     }
-    if (key === 'batteryLowLevel' || key === 'hrAlertLevel') {
+    if (key === 'batteryLowLevel') {
       return (typeof v === 'string' || typeof v === 'number') ? v : DEFAULTS[key];
     }
-    if (key === 'batteryLowDisplay' || key === 'hrAlertDisplay') {
+    if (key === 'batteryLowDisplay') {
       return BATTERY_DISPLAYS.indexOf(v) >= 0 ? v : DEFAULTS[key];
     }
     return v === undefined ? DEFAULTS[key] : v;
@@ -242,26 +223,9 @@
   }
 
   /**
-   * Whether the watch can show the Heart rate item at all: a watch whose image carries it
-   * (env.hrAlert, a KNOWN emery) with health and a heart-rate sensor, while healthMode
-   * is not 'off'. Unlike facts(), an omitted env fails closed, and an absent healthMode
-   * reads 'off', the wire's reading (clay-payload.js CLAY_HEALTH_MODE). sideOf applies
-   * it, so every reader of the item's placement (the packer, the page, telemetry) leaves
-   * a stored 'hr' tick out on any other watch.
-   * @param {Object} S Settings blob.
-   * @param {Object} [env] Platform env (omitted = not available).
-   * @returns {boolean}
-   */
-  function hrAvailable(S, env) {
-    var e = env || {};
-    return e.hrAlert === true && e.hr === true && e.health !== false
-      && ((S && S.healthMode) || 'off') !== 'off';
-  }
-
-  /**
    * The side of `bar` the watch shows an item on: the watch draws On demand, the bar
-   * exists and the item is ticked there (the Heart rate item only where hrAvailable).
-   * Left wins an overlap, which only a hand-edited blob can hold.
+   * exists and the item is ticked there. Left wins an overlap, which only a hand-edited
+   * blob can hold.
    * @param {Object} S Settings blob.
    * @param {string} bar A BARS bar.
    * @param {string} code An ITEMS code.
@@ -270,7 +234,6 @@
    */
   function sideOf(S, bar, code, env) {
     if (!facts(env).onDemand || prefixOf(bar) === null || !barExists(S, bar, env)) { return null; }
-    if (code === 'hr' && !hrAvailable(S, env)) { return null; }
     for (var s = 0; s < SIDES.length; s++) {
       if (parse(read(S, itemsKey(bar, SIDES[s]))).indexOf(code) >= 0) { return SIDES[s]; }
     }
@@ -385,47 +348,10 @@
   function batteryShowsValue(S) { return read(S, 'batteryLowDisplay') === 'value'; }
 
   /**
-   * The Heart rate item's level, THE rule for the page's slider, the card's live text and
-   * the tuple's LEVEL byte: the stored level (hrAlertLevel) as an integer, 120 when it is
-   * not a number or outside 60..200. The stored string is never rewritten.
-   * @param {Object} S Settings blob.
-   * @returns {number} 60..200
-   */
-  function hrLevel(S) {
-    var v = parseInt(read(S, 'hrAlertLevel'), 10);
-    return (isNaN(v) || v < HR_LEVEL_MIN || v > HR_LEVEL_MAX) ? HR_LEVEL_DEFAULT : v;
-  }
-
-  /**
-   * @param {Object} S Settings blob.
-   * @returns {boolean} whether the Heart rate item's Look is Icon + value
-   */
-  function hrShowsValue(S) { return read(S, 'hrAlertDisplay') === 'value'; }
-
-  /**
-   * One item's telemetry letter on one bar: 'L'/'R' ticked on a side of a bar that
-   * exists, 'l'/'r' ticked on a bar the modes remove, '-' not ticked.
-   * @param {Object} S Settings blob.
-   * @param {string} bar A BARS bar.
-   * @param {string} code An ITEMS code.
-   * @param {boolean} exists Whether the bar exists (barExists).
-   * @returns {string} one letter
-   */
-  function tickLetter(S, bar, code, exists) {
-    for (var s = 0; s < SIDES.length; s++) {
-      if (parse(read(S, itemsKey(bar, SIDES[s]))).indexOf(code) >= 0) {
-        var ch = SIDES[s] === 'left' ? 'l' : 'r';
-        return exists ? ch.toUpperCase() : ch;
-      }
-    }
-    return '-';
-  }
-
-  /**
-   * The telemetry code: 40 characters, the bars in BARS order and within a bar the ten
-   * blob items (BLOB_ITEM_COUNT) in ITEMS order, each a tickLetter. An untouched install
-   * reads 'RLLLLRRR-R' followed by 30 '-'. The Heart rate item reports on its own
-   * (telemetryHrCode), so the code keeps the length the dashboards decode.
+   * The telemetry code: 40 characters, the bars in BARS order and within a bar the items
+   * in ITEMS order. 'L'/'R' = ticked on a side of an existing bar, 'l'/'r' = ticked on a
+   * bar the modes remove, '-' = not ticked. An untouched install reads 'RLLLLRRR-R'
+   * followed by 30 '-'.
    * @param {Object} S Settings blob.
    * @param {Object} [env] Platform env (omitted = capable).
    * @returns {(string|undefined)} undefined on a watch without On demand (aplite)
@@ -435,25 +361,16 @@
     var out = '';
     for (var b = 0; b < BARS.length; b++) {
       var exists = barExists(S, BARS[b].bar, env);
-      for (var i = 0; i < BLOB_ITEM_COUNT; i++) {
-        out += tickLetter(S, BARS[b].bar, ITEMS[i].code, exists);
+      for (var i = 0; i < ITEMS.length; i++) {
+        var ch = '-';
+        for (var s = 0; s < SIDES.length && ch === '-'; s++) {
+          if (parse(read(S, itemsKey(BARS[b].bar, SIDES[s]))).indexOf(ITEMS[i].code) >= 0) {
+            ch = SIDES[s] === 'left' ? 'l' : 'r';
+            if (exists) { ch = ch.toUpperCase(); }
+          }
+        }
+        out += ch;
       }
-    }
-    return out;
-  }
-
-  /**
-   * The Heart rate item's telemetry code: 4 letters, one per bar in BARS order, each a
-   * tickLetter.
-   * @param {Object} S Settings blob.
-   * @param {Object} [env] Platform env (omitted = not available).
-   * @returns {(string|undefined)} undefined where the item cannot show (hrAvailable)
-   */
-  function telemetryHrCode(S, env) {
-    if (!hrAvailable(S, env)) { return undefined; }
-    var out = '';
-    for (var b = 0; b < BARS.length; b++) {
-      out += tickLetter(S, BARS[b].bar, 'hr', barExists(S, BARS[b].bar, env));
     }
     return out;
   }
@@ -466,11 +383,6 @@
     BATTERY_LEVEL_MIN: BATTERY_LEVEL_MIN,
     BATTERY_LEVEL_MAX: BATTERY_LEVEL_MAX,
     BATTERY_LEVEL_DEFAULT: BATTERY_LEVEL_DEFAULT,
-    BLOB_ITEM_COUNT: BLOB_ITEM_COUNT,
-    HR_LEVEL_MIN: HR_LEVEL_MIN,
-    HR_LEVEL_MAX: HR_LEVEL_MAX,
-    HR_LEVEL_STEP: HR_LEVEL_STEP,
-    HR_LEVEL_DEFAULT: HR_LEVEL_DEFAULT,
     itemIndex: itemIndex,
     prefixOf: prefixOf,
     itemsKey: itemsKey,
@@ -488,11 +400,7 @@
     placeRainForCountdown: placeRainForCountdown,
     batteryLevel: batteryLevel,
     batteryShowsValue: batteryShowsValue,
-    hrAvailable: hrAvailable,
-    hrLevel: hrLevel,
-    hrShowsValue: hrShowsValue,
-    telemetryCode: telemetryCode,
-    telemetryHrCode: telemetryHrCode
+    telemetryCode: telemetryCode
   };
 
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

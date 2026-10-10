@@ -311,11 +311,7 @@ static void health_cache_repaint(void) {
     if (health_summary_refresh()) {
         ViewSpec spec = current_view_spec();
         status_bar_refresh_live_health(&spec);
-        if (top_status_layer_uses_live_health()
-#if defined(PBL_PLATFORM_EMERY)
-                || top_status_layer_uses_live_hr()   // emery: the Heart rate item
-#endif
-                ) { top_status_layer_refresh(); }
+        if (top_status_layer_uses_live_health()) { top_status_layer_refresh(); }
     }
 }
 #endif
@@ -340,12 +336,6 @@ static void health_warm_for_incoming_view(void) {
         health_summary_refresh();
         if (nv.health_graph) { health_graph_layer_refresh(); }
     }
-#if defined(PBL_PLATFORM_EMERY)
-    // emery: a bar with the Heart rate item reads the held HR alone.
-    else if (status_bar_any_visible_uses_live_hr(&ns)) {
-        health_summary_refresh_hr();
-    }
-#endif
 }
 #endif
 
@@ -566,22 +556,9 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
         if (av.health_graph) { health_graph_layer_refresh(); }
         if (health_summary_refresh()) {
             status_bar_refresh_live_health(&aspec);
-            if (top_needs_health
-#if defined(PBL_PLATFORM_EMERY)
-                    || top_status_layer_uses_live_hr()   // emery: the Heart rate item
-#endif
-                    ) { top_status_layer_refresh(); }
+            if (top_needs_health) { top_status_layer_refresh(); }
         }
     }
-#if defined(PBL_PLATFORM_EMERY)
-    // emery: the Heart rate On demand item reads only the held HR. Its placement (RAM)
-    // is asked first, so health_renderable() probes again only while the item is placed.
-    else if ((top_status_layer_uses_live_hr() || status_bar_any_visible_uses_live_hr(&aspec))
-            && health_renderable() && health_summary_refresh_hr()) {
-        status_bar_refresh_live_health(&aspec);
-        if (top_status_layer_uses_live_hr()) { top_status_layer_refresh(); }
-    }
-#endif
 #endif
 #if defined(WW_VIEW_CYCLE)
     // Auto-return to the default view once view_reset_min minutes of real time have

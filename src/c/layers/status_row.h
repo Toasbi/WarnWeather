@@ -17,11 +17,6 @@ bool status_row_refresh(StatusRow *row);
 // row (tier push); the resolver reads only row state.
 void status_row_set_full_date(StatusRow *row, bool full_date);
 bool status_row_uses_live_health(const StatusRow *row);
-#if defined(PBL_PLATFORM_EMERY)
-// emery: whether the Heart rate On demand item sits on this row's bar, as of its last
-// refresh — the minute handler then polls the held HR for it (main_window.c).
-bool status_row_uses_live_hr(const StatusRow *row);
-#endif
 #if !defined(WW_ON_DEMAND)
 // Aplite only (its lean twin, status_row_aplite.c): when active, the row's right
 // slot (index 2) draws the battery glyph in place of its packed content — the top
