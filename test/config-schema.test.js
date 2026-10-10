@@ -2482,7 +2482,7 @@ const colorGatedWithSection = () => {
 // calendar on, every forecast line drawn. Only the theme can hide a row under it.
 const COLOR_ROW_CTX = {
   env: { color: true, health: true, hr: true, thresholds: true, onDemand: true, radar: true, lineStyles: true,
-    platform: 'emery' },
+    platform: 'emery', hrAlert: true },
   healthMode: 'all', radarMode: 'graph', barSource: 'rain', radarProvider: 'dwd', holidaysEnabled: true,
   secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'cloud', fifthLine: 'wind',
 };
@@ -2741,9 +2741,9 @@ test('Status bars tab (id watch): the All status bars card, the four bars in wat
 // their item sheets with their Shows on grids ---
 const ON_DEMAND_WHEN = { env: 'onDemand' };
 // emery's Heart rate item: a health slot's gate (the watch reads health, healthMode not
-// off, a heart-rate sensor) on an emery, the one image that draws it (schema-gates.js).
+// off, a heart-rate sensor) on a watch whose image draws it, env.hrAlert (schema-gates.js).
 const HR_ALERT_WHEN = { all: [{ env: 'health' }, { key: 'healthMode', ne: 'off' }, { env: 'hr' },
-  { env: 'platform', eq: 'emery' }] };
+  { env: 'hrAlert' }] };
 const RADAR_BAR = { all: [{ env: 'radar' }, { key: 'radarMode', in: ['status', 'graph'] }] };
 const HEALTH_BAR = { all: [{ env: 'health' }, { key: 'healthMode', in: ['status', 'all'] }] };
 const OD = require('../src/pkjs/on-demand.js');

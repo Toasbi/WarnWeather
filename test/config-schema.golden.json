@@ -7559,8 +7559,7 @@
                       "env": "hr"
                     },
                     {
-                      "env": "platform",
-                      "eq": "emery"
+                      "env": "hrAlert"
                     }
                   ]
                 }
@@ -7583,8 +7582,7 @@
                       "env": "hr"
                     },
                     {
-                      "env": "platform",
-                      "eq": "emery"
+                      "env": "hrAlert"
                     }
                   ]
                 }
@@ -7620,8 +7618,7 @@
                       "env": "hr"
                     },
                     {
-                      "env": "platform",
-                      "eq": "emery"
+                      "env": "hrAlert"
                     }
                   ]
                 }
@@ -7701,8 +7698,7 @@
                       "env": "hr"
                     },
                     {
-                      "env": "platform",
-                      "eq": "emery"
+                      "env": "hrAlert"
                     }
                   ]
                 },
@@ -7746,8 +7742,7 @@
                               "env": "hr"
                             },
                             {
-                              "env": "platform",
-                              "eq": "emery"
+                              "env": "hrAlert"
                             }
                           ]
                         },
@@ -7806,8 +7801,7 @@
                           "env": "hr"
                         },
                         {
-                          "env": "platform",
-                          "eq": "emery"
+                          "env": "hrAlert"
                         }
                       ]
                     },
@@ -8304,8 +8298,7 @@
                       "env": "hr"
                     },
                     {
-                      "env": "platform",
-                      "eq": "emery"
+                      "env": "hrAlert"
                     }
                   ]
                 }
@@ -8339,8 +8332,7 @@
                       "env": "hr"
                     },
                     {
-                      "env": "platform",
-                      "eq": "emery"
+                      "env": "hrAlert"
                     }
                   ]
                 }
@@ -10407,8 +10399,7 @@
                   "env": "hr"
                 },
                 {
-                  "env": "platform",
-                  "eq": "emery"
+                  "env": "hrAlert"
                 }
               ]
             },

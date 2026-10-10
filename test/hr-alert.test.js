@@ -2,7 +2,7 @@
 // test/hr-alert.test.js — emery's heart-rate alert on the phone: the Heart rate On demand
 // item's readings (src/pkjs/on-demand.js: hrAvailable, hrLevel, hrShowsValue, its sides
 // and its telemetry letters), the heart rate slot's Alert highlighting
-// (src/pkjs/status-thresholds.js hrHighlight) and the tuple both ride,
+// (src/pkjs/status-thresholds.js kindConfig of the tuplePair kind) and the tuple both ride,
 // CLAY_HR_ALERT_UINT8 (src/pkjs/status-wire.js buildHrAlertBytes). The byte layout
 // itself is pinned against the C header in test/hr-alert-contract.test.js.
 const test = require('node:test');
@@ -13,6 +13,8 @@ const wire = require('../src/pkjs/status-wire.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const PLATFORMS = ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint'];
+// The heart rate slot's kind (KINDS' tuplePair entry), as the packer finds it.
+const HR = wire.HR_KIND;
 const ENV = {};
 PLATFORMS.forEach((p) => { ENV[p] = platform.computeEnv({ platform: p }); });
 const UNKNOWN = platform.computeEnv(null);
@@ -94,41 +96,41 @@ test('telemetryCode keeps its 40 letters with the item ticked; telemetryHrCode r
 
 // --- status-thresholds.js -------------------------------------------------------------
 
-test('hrHighlight: the seed pair, a stored ordered pair, the switch', () => {
-  const fresh = th.hrHighlight({}, true);
+test('the heart rate kind is KINDS\' one tuplePair entry, bold-only in the blob', () => {
+  assert.equal(th.KINDS[HR].key, 'Hr');
+  assert.equal(th.KINDS[HR].boldOnly, true);
+  assert.deepEqual(th.KINDS.filter((k) => k.tuplePair).map((k) => k.key), ['Hr']);
+});
+
+test('kindConfig of the heart rate kind: the seed pair, a stored ordered pair, the switch', () => {
+  const fresh = th.kindConfig({}, HR, true);
   assert.deepEqual(fresh, { enabled: false, warn: 120, danger: 150, warnLook: 'fill', warnColor: 0xFFFFFF,
-    dangerColor: 0xFF0000 });
-  assert.equal(th.hrHighlight({ threshHrOn: true }, true).enabled, true, 'on, over the seed pair');
-  assert.equal(th.hrHighlight({ threshHrOn: 'true' }, true).enabled, false, 'only a real true switches it on');
-  assert.equal(th.hrHighlight(null, true).enabled, false);
-  const stored = th.hrHighlight({ threshHrOn: true, threshHrWarn: '100', threshHrDanger: '130' }, true);
+    dangerColor: 0xFF0000, boldMode: 'warn' });
+  assert.equal(th.kindConfig({ threshHrOn: true }, HR, true).enabled, true, 'on, over the seed pair');
+  assert.equal(th.kindConfig({ threshHrOn: 'true' }, HR, true).enabled, false, 'only a real true switches it on');
+  assert.equal(th.kindConfig(null, HR, true).enabled, false);
+  const stored = th.kindConfig({ threshHrOn: true, threshHrWarn: '100', threshHrDanger: '130' }, HR, true);
   assert.deepEqual([stored.enabled, stored.warn, stored.danger], [true, 100, 130]);
-  const inverted = th.hrHighlight({ threshHrOn: true, threshHrWarn: '150', threshHrDanger: '120' }, true);
+  const inverted = th.kindConfig({ threshHrOn: true, threshHrWarn: '150', threshHrDanger: '120' }, HR, true);
   assert.deepEqual([inverted.warn, inverted.danger], [120, 150], 'an inverted pair reads the seed');
-  const half = th.hrHighlight({ threshHrOn: true, threshHrWarn: '100', threshHrDanger: '' }, true);
+  const half = th.kindConfig({ threshHrOn: true, threshHrWarn: '100', threshHrDanger: '' }, HR, true);
   assert.deepEqual([half.warn, half.danger], [120, 150], 'a half pair reads the seed');
 });
 
-test('hrHighlight: the warn look per screen, and the weather kinds\' auto colours', () => {
-  assert.equal(th.hrHighlight({}, true).warnLook, 'fill', 'a colour screen fills at warn');
-  assert.equal(th.hrHighlight({}, false).warnLook, 'outline', 'a B&W screen outlines');
-  assert.equal(th.hrHighlight({}).warnLook, 'fill', 'an unknown screen reads as colour');
+test('kindConfig of the heart rate kind: the warn look per screen, and the weather kinds\' auto colours', () => {
+  assert.equal(th.kindConfig({}, HR, true).warnLook, 'fill', 'a colour screen fills at warn');
+  assert.equal(th.kindConfig({}, HR, false).warnLook, 'outline', 'a B&W screen outlines');
+  assert.equal(th.kindConfig({}, HR).warnLook, 'fill', 'an unknown screen reads as colour');
   ['none', 'outline', 'fill'].forEach((look) =>
-    assert.equal(th.hrHighlight({ threshHrWarnLook: look }, false).warnLook, look));
-  assert.equal(th.hrHighlight({ threshHrWarnLook: 'bogus' }, true).warnLook, 'fill');
-  const light = th.hrHighlight({ theme: 'light' }, true);
+    assert.equal(th.kindConfig({ threshHrWarnLook: look }, HR, false).warnLook, look));
+  assert.equal(th.kindConfig({ threshHrWarnLook: 'bogus' }, HR, true).warnLook, 'fill');
+  const light = th.kindConfig({ theme: 'light' }, HR, true);
   assert.deepEqual([light.warnColor, light.dangerColor], [0x000000, 0xFF0000], 'the light theme\'s text colour');
-  const picked = th.hrHighlight({ threshHrWarnColor: '#00AAFF', threshHrDangerColor: 0x5500FF }, true);
+  const picked = th.kindConfig({ threshHrWarnColor: '#00AAFF', threshHrDangerColor: 0x5500FF }, HR, true);
   assert.deepEqual([picked.warnColor, picked.dangerColor], [0x00AAFF, 0x5500FF]);
 });
 
-test('bpmByte clamps to one byte; ownsGroupSwitch names the kinds whose group carries the switch', () => {
-  assert.equal(th.bpmByte('300'), 255);
-  assert.equal(th.bpmByte(-5), 0);
-  assert.equal(th.bpmByte('120.6'), 121);
-  assert.equal(th.bpmByte('x'), 0);
-  assert.equal(th.bpmByte(undefined), 0);
-  assert.equal(th.hrHighlight({ threshHrOn: true, threshHrWarn: '200', threshHrDanger: '300' }, true).danger, 255);
+test('ownsGroupSwitch names the kinds whose group carries the switch', () => {
   ['Steps', 'Sleep', 'Distance', 'Hr'].forEach((k) => assert.equal(th.ownsGroupSwitch(k), true, k));
   ['Uv', 'Wind', 'Gust', 'Aqi', 'Pollen', 'City', 'Temp', 'Nope'].forEach((k) =>
     assert.equal(th.ownsGroupSwitch(k), false, k));
@@ -158,6 +160,20 @@ test('buildHrAlertBytes: the flags — Look, highlight switch, each warn look', 
   const hl = wire.buildHrAlertBytes({ threshHrOn: true, threshHrWarn: '60', threshHrDanger: '70',
     threshHrWarnColor: '#00AAFF', threshHrDangerColor: '#5500FF' }, ENV.emery);
   assert.deepEqual(hl.slice(3), [60, 70, 0xCB, 0xD3], 'the pair, then both colours as GColor8');
+});
+
+test('buildHrAlertBytes: the levels as one byte each (clampByte), and the look none\'s real warn colour', () => {
+  const levels = (S) => wire.buildHrAlertBytes(Object.assign({ threshHrOn: true }, S), ENV.emery)
+    .slice(wire.HR_ALERT_WARN_OFFSET, wire.HR_ALERT_DANGER_OFFSET + 1);
+  assert.deepEqual(levels({ threshHrWarn: '200', threshHrDanger: '300' }), [200, 255], 'over a byte: 255');
+  assert.deepEqual(levels({ threshHrWarn: '-5', threshHrDanger: '130' }), [0, 130], 'below 0: 0');
+  assert.deepEqual(levels({ threshHrWarn: '120.6', threshHrDanger: '150,4' }), [121, 150], 'rounded');
+  assert.deepEqual(levels({ threshHrWarn: 'x', threshHrDanger: '130' }), [120, 150], 'junk reads the seed');
+  // kindConfig nulls the warn colour for the look 'none' (the blob's no-outline
+  // sentinel); the tuple carries the look in its flags and keeps the real colour.
+  const none = { threshHrOn: true, threshHrWarnLook: 'none', threshHrWarnColor: '#00AAFF' };
+  assert.equal(th.kindConfig(none, HR, true).warnColor, null);
+  assert.equal(wire.buildHrAlertBytes(none, ENV.emery)[wire.HR_ALERT_WARN_COLOR_OFFSET], 0xCB);
 });
 
 test('buildHrAlertBytes: the cells — every bar and side, a bar that does not exist, health off', () => {

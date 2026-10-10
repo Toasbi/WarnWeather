@@ -106,9 +106,9 @@
     { code: 'countdown', key: 'Countdown', boldOnly: true },
     // Heart rate: bold-only in the blob (kind 15's bold cell is all it has there), but
     // on emery its slot also owns a warn/danger pair, a warn look and two colours, which
-    // ride CLAY_HR_ALERT_UINT8 (status-wire.js buildHrAlertBytes; the blob has no room)
-    // and resolve through hrHighlight. Its switch, thresh<Key>On, rides its level
-    // group's header like a goal kind's (ownsGroupSwitch).
+    // ride CLAY_HR_ALERT_UINT8 (status-wire.js buildHrAlertBytes; the blob has no room).
+    // tuplePair: kindConfig resolves them as it resolves a paired kind's. Its switch,
+    // thresh<Key>On, rides its level group's header like a goal kind's (ownsGroupSwitch).
     { code: 'hr',        key: 'Hr', boldOnly: true, tuplePair: true },
     // Battery % (kind 16, appended): unlike the GLYPH battery slot — still
     // kind-less, a drawn glyph has no text run to bold — the % slot renders
@@ -217,7 +217,8 @@
     Steps: {'': {warn: 8000, danger: 10000}},
     Sleep: {'': {warn: 6.5, danger: 7.5}},
     Distance: {km: {warn: 4, danger: 5}, mi: {warn: 2.5, danger: 3}},
-    // The heart rate slot's Alert highlighting (emery, hrHighlight), in bpm.
+    // The heart rate slot's Alert highlighting (emery, status-wire.js buildHrAlertBytes),
+    // in bpm.
     Hr: {'': {warn: 120, danger: 150}}
   };
 
@@ -420,7 +421,9 @@
    * (plus the goal u16s, zeroed when off): a weather kind's level is packed
    * regardless (status-wire.js packWeatherLevels).
    * warnLook is the resolved look (warnLookFor); warnColor is null exactly when
-   * it is 'none'.
+   * it is 'none'. A tuplePair kind (heart rate) resolves all of this too, though the
+   * blob packs only its bold cell (status-wire.js buildSettingsBlob); the rest rides
+   * its own tuple (buildHrAlertBytes).
    * @param {Object} settings Clay settings blob
    * @param {number} kindIndex wire kind id (0..THRESH_KIND_COUNT - 1)
    * @param {boolean} [isColor] Whether the watch has a colour display (the warn
@@ -431,7 +434,7 @@
    */
   function kindConfig(settings, kindIndex, isColor) {
     var k = KINDS[kindIndex];
-    if (k.boldOnly) {
+    if (k.boldOnly && !k.tuplePair) {
       // Bold-only kinds own no thresholds, colors, or health pair — boldMode is
       // the only meaningful field. The DEFAULT_BOLD_MODE 'warn' packs 0, and a
       // level-less kind only ever resolves THRESH_LEVEL_NORMAL on the watch, so
@@ -646,44 +649,6 @@
   }
 
   /**
-   * A level as the one byte the heart-rate tuple carries it in: rounded, clamped to
-   * 0..255; anything not finite reads 0.
-   * @param {*} v A level in bpm (a resolved pair's number).
-   * @returns {number} 0..255
-   */
-  function bpmByte(v) {
-    var n = Math.round(Number(v));
-    if (!isFinite(n)) { return 0; }
-    return n < 0 ? 0 : (n > 255 ? 255 : n);
-  }
-
-  /**
-   * The heart rate slot's Alert highlighting (emery), resolved the way kindConfig
-   * resolves a weather kind's: the pair is resolvedPair('Hr') (the stored pair when it
-   * is ordered, else the seed 120 / 150), enabled is the stored switch threshHrOn ===
-   * true AND an ordered pair, the warn look warnLookFor, and both colours
-   * thresholdColor's weather-style autos (the theme's text colour, red). THE reading
-   * the packer (status-wire.js buildHrAlertBytes), the slot's Edit badge and telemetry
-   * share.
-   * @param {Object} settings Clay settings blob
-   * @param {boolean} [isColor] Whether the watch has a colour display (the warn look's
-   *     default, see warnLookDefault).
-   * @returns {{enabled: boolean, warn: number, danger: number, warnLook: string,
-   *     warnColor: number, dangerColor: number}} warn and danger as bpmByte bytes
-   */
-  function hrHighlight(settings, isColor) {
-    var pair = resolvedPair('Hr', settings);
-    return {
-      enabled: Boolean(settings) && settings.threshHrOn === true && pairOrdered(pair.warn, pair.danger),
-      warn: bpmByte(pair.warn),
-      danger: bpmByte(pair.danger),
-      warnLook: warnLookFor(settings, 'Hr', isColor),
-      warnColor: thresholdColor(settings, 'Hr', 'Warn'),
-      dangerColor: thresholdColor(settings, 'Hr', 'Danger')
-    };
-  }
-
-  /**
    * Whether a kind's level group carries its own switch (thresh<Stem>On on the group's
    * header), so the group's reset turns it off too: the goal kinds' Goals switch and
    * the heart rate slot's Alert highlighting (a tuplePair kind). A weather kind's switch
@@ -730,8 +695,6 @@
     thresholdColor: thresholdColor,
     isAutoColor: isAutoColor,
     kindConfig: kindConfig,
-    bpmByte: bpmByte,
-    hrHighlight: hrHighlight,
     ownsGroupSwitch: ownsGroupSwitch,
     computeLevel: computeLevel,
     DEFAULT_DANGER_COLOR: DEFAULT_DANGER_COLOR,

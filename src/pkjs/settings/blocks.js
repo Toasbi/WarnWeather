@@ -795,10 +795,10 @@ if (typeof require !== 'undefined') {
      */
     function penStateForKind(S, env, kindIndex) {
         var key = thresholds.KINDS[kindIndex].key;
-        // The heart rate slot's pair rides its own tuple, on emery alone (hrHighlight).
-        var enabled = thresholds.KINDS[kindIndex].tuplePair
-            ? Boolean(env && env.platform === 'emery' && thresholds.hrHighlight(S, env.color).enabled)
-            : thresholds.kindConfig(S, kindIndex).enabled;
+        // The heart rate slot's pair rides its own tuple, sent only where the watch
+        // carries the heart-rate alert (env.hrAlert, a known emery).
+        var enabled = thresholds.kindConfig(S, kindIndex).enabled
+            && (!thresholds.KINDS[kindIndex].tuplePair || Boolean(env && env.hrAlert));
         // EFFECTIVE always-bold, not the stored ladder alone: the Status bars
         // tab's master row packs every kind's bold cell as always at wire time
         // (status-wire.js buildSettingsBlob) without touching the stored

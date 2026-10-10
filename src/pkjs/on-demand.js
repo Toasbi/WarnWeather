@@ -242,20 +242,19 @@
   }
 
   /**
-   * Whether the watch can show the Heart rate item at all: a KNOWN emery (the one watch
-   * whose image carries it, forecast-axis.js isEmery's reading) with health and a
-   * heart-rate sensor, while healthMode is not 'off'. Unlike facts(), an omitted env
-   * fails closed, and an absent healthMode reads 'off', the wire's reading
-   * (clay-payload.js CLAY_HEALTH_MODE). sideOf applies it, so every reader of the
-   * item's placement (the packer, the page, telemetry) leaves a stored 'hr' tick out
-   * on any other watch.
+   * Whether the watch can show the Heart rate item at all: a watch whose image carries it
+   * (env.hrAlert, a KNOWN emery) with health and a heart-rate sensor, while healthMode
+   * is not 'off'. Unlike facts(), an omitted env fails closed, and an absent healthMode
+   * reads 'off', the wire's reading (clay-payload.js CLAY_HEALTH_MODE). sideOf applies
+   * it, so every reader of the item's placement (the packer, the page, telemetry) leaves
+   * a stored 'hr' tick out on any other watch.
    * @param {Object} S Settings blob.
    * @param {Object} [env] Platform env (omitted = not available).
    * @returns {boolean}
    */
   function hrAvailable(S, env) {
     var e = env || {};
-    return e.platform === 'emery' && e.hr === true && e.health !== false
+    return e.hrAlert === true && e.hr === true && e.health !== false
       && ((S && S.healthMode) || 'off') !== 'off';
   }
 

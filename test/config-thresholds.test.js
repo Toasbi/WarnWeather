@@ -1980,7 +1980,7 @@ test('the Hr sheet row mirrors the hr slot availability (health + sensor)', () =
 // --- emery's heart rate slot: Alert highlighting (CLAY_HR_ALERT_UINT8) ---------------
 
 const HR_ALERT_GATE = { all: [{ env: 'health' }, { key: 'healthMode', ne: 'off' }, { env: 'hr' },
-  { env: 'platform', eq: 'emery' }] };
+  { env: 'hrAlert' }] };
 const EMERY_ENV = require('../src/pkjs/config-ui/lib/platform.js').computeEnv({ platform: 'emery' });
 const DIORITE_ENV = require('../src/pkjs/config-ui/lib/platform.js').computeEnv({ platform: 'diorite' });
 
@@ -2036,8 +2036,8 @@ test('the Hr range: 40..220 bpm in 5s, seeded 120 / 150, no scale-max editor', (
   assert.equal(cfg.seedDanger, 150);
   assert.equal(cfg.maxEditable, false, 'a fixed track');
   assert.equal(cfg.minSpan, cfg.step);
-  // The seeds are the packer's (status-thresholds.js SEEDS, hrHighlight's fallback).
-  const hl = thresholds.hrHighlight({}, true);
+  // The seeds are the packer's (status-thresholds.js SEEDS, kindConfig's fallback).
+  const hl = thresholds.kindConfig({}, wire.HR_KIND, true);
   assert.deepEqual([hl.warn, hl.danger], [cfg.seedWarn, cfg.seedDanger]);
   // Their colours are the weather kinds' autos: the theme's text colour, then red.
   assert.equal(cfg.warnColor, '#FFFFFF');
@@ -2057,7 +2057,7 @@ test('the Hr reset lands on a fresh install: levels on the seed AND the switch o
   assert.equal(S.threshHrWarnColor, '');
   assert.equal(S.threshHrDangerColor, '');
   assert.equal(S.threshHrBoldMode, 'always', 'reset must not touch Bold');
-  assert.equal(thresholds.hrHighlight(S, true).enabled, false);
+  assert.equal(thresholds.kindConfig(S, wire.HR_KIND, true).enabled, false);
   assert.equal(thresholds.ownsGroupSwitch('Hr'), true);
 });
 

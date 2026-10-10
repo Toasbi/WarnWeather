@@ -146,7 +146,7 @@ function packViewReset(settings, env) {
  */
 function graphOptionsWord(settings, env) {
     var large = Boolean(settings.largeGraphFont);
-    var bits = forecastAxis.carried(env) ? forecastAxis.wireBits(settings, env) : 0;
+    var bits = forecastAxis.wireBits(settings, env);
     return bits ? ((large ? forecastAxis.BIT.LARGE_FONT : 0) | bits) : large;
 }
 
@@ -287,13 +287,14 @@ function buildClayPayload(settings, watchInfo, now) {
 
     // The heart-rate alert (emery only): the Heart rate On demand item and the heart rate
     // slot's Alert highlighting, seven bytes (status-wire.js buildHrAlertBytes; layout
-    // src/c/appendix/hr_alert.h). Sent only to a KNOWN emery, the CLAY_BATTERY_LOW_ONLY
-    // precedent above, so the 14 B stay out of every other Clay bundle. NOT ungated like
-    // CLAY_LARGE_GRAPH_FONT below: an unknown platform's bundle is held to aplite's 536 B
-    // inbox with a 10 B floor (test/inbox-size.test.js), which 14 more bytes would break.
+    // src/c/appendix/hr_alert.h). Sent only to a KNOWN emery (env.hrAlert), the
+    // CLAY_BATTERY_LOW_ONLY precedent above, so the 14 B stay out of every other Clay
+    // bundle. NOT ungated like CLAY_LARGE_GRAPH_FONT below: an unknown platform's bundle is
+    // held to aplite's 536 B inbox with a 10 B floor (test/inbox-size.test.js), which 14
+    // more bytes would break.
     // An emery whose platform the phone cannot read keeps the tuple it last stored for
     // that session; the change-detector resends it next time, its key set differing.
-    if (env.platform === 'emery') {
+    if (env.hrAlert) {
         payload.CLAY_HR_ALERT_UINT8 = statusWire.buildHrAlertBytes(settings, env);
     }
 

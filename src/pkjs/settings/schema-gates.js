@@ -77,11 +77,11 @@ var LINE_STYLES_WHEN = {env: 'lineStyles'};
 // (the forecast's Left axis (Beta) card, src/pkjs/forecast-axis.js). Fails closed: an
 // unknown platform (no watchInfo) hides them, like largeGraphFont's row.
 var EMERY_WHEN = {env: 'platform', eq: 'emery'};
-// "The heart-rate alert can show" — HR_SLOT_WHEN on an emery, the one watch whose image
-// carries the Heart rate On demand item and the heart rate slot's Alert highlighting
-// (src/c/appendix/hr_alert.h). The page's mirror of on-demand.js hrAvailable, which the
-// packer and the Alerts tab's summaries read.
-var HR_ALERT_WHEN = {all: HR_SLOT_WHEN.all.concat([EMERY_WHEN])};
+// "The heart-rate alert can show" — HR_SLOT_WHEN on a watch whose image carries the Heart
+// rate On demand item and the heart rate slot's Alert highlighting (env.hrAlert, platform.js:
+// a known emery, src/c/appendix/hr_alert.h). The page's mirror of on-demand.js hrAvailable,
+// which the packer and the Alerts tab's summaries read.
+var HR_ALERT_WHEN = {all: HR_SLOT_WHEN.all.concat([{env: 'hrAlert'}])};
 
 /**
  * Gate every item that has no showWhen of its own — the sheet and group

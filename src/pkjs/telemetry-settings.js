@@ -9,16 +9,22 @@
 // batch. test/telemetry.test.js holds the two key sets and their types equal. Deploy the
 // ingest BEFORE the app that sends a new field ships.
 var statusCatalog = require('./status-line-catalog.js');
+// unitEnabled — a Show unit toggle, read like the bake prints the slot.
+var slotText = require('./slot-text.js');
 var configUi = require('./config-ui');          // intToHex, computeEnv
 // renderContextFor / graphColorKey / graphColorIsDefault — the module that resolves the
 // graph colours for the WIRE, so this snapshot reports what the watch actually paints
 // instead of a second opinion about it.
 var lineStyle = require('./line-style.js');
 var viewCycle = require('./view-cycle.js');
-// enabledAlerts, rainAlert and warnLookFor — the bake's and the packer's own reading
-// of the weather alerts and the warn looks, so the report and the watch cannot
-// disagree on what is on or how it looks.
+// enabledAlerts, rainAlert, warnLookFor and kindConfig — the bake's and the packer's own
+// reading of the weather alerts, the warn looks and the heart rate slot's highlighting, so
+// the report and the watch cannot disagree on what is on or how it looks.
 var statusThresholds = require('./status-thresholds.js');
+// HR_KIND — the heart rate slot's kind, as the packer (buildHrAlertBytes) resolves it.
+var statusWire = require('./status-wire.js');
+// clampByte — the heart rate slot's levels as the bytes the tuple carries.
+var wireUnits = require('./wire-units.js');
 // telemetryCode — where each On demand item is ticked, read like the bake reads it.
 var onDemand = require('./on-demand.js');
 // showOf — a graph line's Show choice, read like the bake reads it.
@@ -42,11 +48,11 @@ function toIntOrUndefined(value) {
 }
 
 /**
- * Read a boolean setting that ships ON, reporting the shipped state when the key is
- * absent. The catalog's true-default unit toggles ship ON (settings/schema.js), and
- * `Boolean(undefined)` would read as a deliberate "off" — a whole fleet of installs
- * looking like they turned kph off. seedDefaults backfills these keys at boot, so the
- * absent case should never reach here; this keeps the column honest if it ever does.
+ * Read a boolean setting that ships ON (backlightDim), reporting the shipped state when
+ * the key is absent: `Boolean(undefined)` would read as a deliberate "off" — a whole
+ * fleet of installs looking like they turned it off. seedDefaults backfills the key at
+ * boot, so the absent case should never reach here; this keeps the column honest if it
+ * ever does.
  *
  * @param {*} value Raw setting value.
  * @returns {boolean} The stored boolean, or true when the setting is absent.
@@ -190,11 +196,12 @@ function buildSettingsSnapshot(settings, watchInfo) {
     var isEmery = forecastAxis.isEmery(env);
     // The heart-rate alert (emery), resolved as the packer resolves it
     // (status-wire.js buildHrAlertBytes): whether it can show at all (hrAvailable, which
-    // checks for the emery itself), whether its item is placed, and the slot's Alert
+    // checks env.hrAlert itself), whether its item is placed, and the slot's Alert
     // highlighting.
     var hrOk = onDemand.hrAvailable(safe, env);
     var hrPlaced = hrOk && onDemand.placedAnywhere(safe, 'hr', env);
-    var hrHl = hrOk ? statusThresholds.hrHighlight(safe, env.color !== false) : null;
+    var hrHl = hrOk
+        ? statusThresholds.kindConfig(safe, statusWire.HR_KIND, env.color !== false) : null;
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
@@ -313,13 +320,13 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // onDemand above keeps its 40). Its level and Look only while it is placed, the
         // slot's highlighting switch wherever the alert can show, and the slot's pair and
         // warn look only while that is on: the "value in effect" rule. Every number is
-        // already a byte (hrLevel, bpmByte). Lockstep with handler.ts -- deploy it first.
+        // already a byte (hrLevel, clampByte). Lockstep with handler.ts -- deploy it first.
         onDemandHr: onDemand.telemetryHrCode(safe, env),
         hrAlertLevel: hrPlaced ? onDemand.hrLevel(safe) : undefined,
         hrAlertDisplay: hrPlaced ? (onDemand.hrShowsValue(safe) ? 'value' : 'icon') : undefined,
         hrHighlight: hrOk ? hrHl.enabled : undefined,
-        hrHighlightWarn: (hrHl && hrHl.enabled) ? hrHl.warn : undefined,
-        hrHighlightDanger: (hrHl && hrHl.enabled) ? hrHl.danger : undefined,
+        hrHighlightWarn: (hrHl && hrHl.enabled) ? wireUnits.clampByte(hrHl.warn) : undefined,
+        hrHighlightDanger: (hrHl && hrHl.enabled) ? wireUnits.clampByte(hrHl.danger) : undefined,
         hrHighlightWarnLook: (hrHl && hrHl.enabled) ? hrHl.warnLook : undefined,
         topViewMode: safe.topViewMode,
         layoutPreset: safe.layoutPreset,
@@ -411,13 +418,11 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // the watch renders. Defaults pinned by test/telemetry.test.js. A new key
     // here must also join the Deno .strip() schema or it is silently dropped
     // (supabase/functions/telemetry-ingest/handler.ts).
-    // An absent key reports what it renders (unitToggleAbsent: the look from before
-    // the toggle existed), not a fresh install's default.
+    // An absent key reports what it renders (slot-text.js unitEnabled: the look from
+    // before the toggle existed), not a fresh install's default.
     var toggles = statusCatalog.UNIT_TOGGLES;
     for (var i = 0; i < toggles.length; i++) {
-        snapshot[toggles[i].key] = statusCatalog.unitToggleAbsent(toggles[i].key)
-            ? boolDefaultOn(safe[toggles[i].key])
-            : Boolean(safe[toggles[i].key]);
+        snapshot[toggles[i].key] = slotText.unitEnabled(safe, toggles[i].key);
     }
     // The graph colours, one field per painted ELEMENT, carrying the value for the polarity
     // this watch ACTUALLY RENDERS. Every platform/theme judgement comes from line-style's

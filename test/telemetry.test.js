@@ -187,14 +187,13 @@ test('snapshot includes the six Show unit toggles as real booleans', () => {
   });
 });
 
-// Drift guard for the fallbacks above: the snapshot's absent-key value is a SECOND copy
-// of each toggle's shipped default, and the settings schema owns the first. Pin them
-// together so flipping a default in schema.js can never leave telemetry reporting the
-// old one.
+// Drift guard for the fallbacks above: the snapshot reads an absent key as the bake does
+// (slot-text.js unitEnabled, over the catalog's UNIT_TOGGLES table, which the settings
+// schema's rows also default from), so flipping a default can never leave telemetry
+// reporting the old one.
 test('an absent Show unit key reports what it renders, not false', () => {
   const schema = require('../src/pkjs/settings/schema.js');
   const catalog = require('../src/pkjs/status-line-catalog.js');
-  const slotText = require('../src/pkjs/slot-text.js');
   const items = [];
   schema.tabs.forEach((t) => t.sections.forEach((s) => s.items.forEach((i) => items.push(i))));
   const snap = buildSettingsSnapshot({});
@@ -203,9 +202,8 @@ test('an absent Show unit key reports what it renders, not false', () => {
   unitItems.forEach((item) => {
     // The bake's own reading of an absent key: the legacy look where a default changed
     // after the key shipped (wind and gusts), else the schema default.
-    assert.strictEqual(snap[item.messageKey], slotText.unitEnabled({}, item.messageKey),
+    assert.strictEqual(snap[item.messageKey], catalog.unitToggleAbsent(item.messageKey),
       item.messageKey + ' must report what the slot renders');
-    assert.strictEqual(snap[item.messageKey], catalog.unitToggleAbsent(item.messageKey));
   });
 });
 
@@ -273,8 +271,8 @@ test('snapshot reports onDemand, batteryLowLevel and batteryLowDisplay', () => {
 
 // The heart-rate alert (emery, where the watch reads health): the Heart rate item's four
 // letters (on-demand.js telemetryHrCode), its level and look while it is placed, and the
-// slot's Alert highlighting (status-thresholds.js hrHighlight) with its pair and look
-// while that is on. Every other watch, an unknown one and an emery with health off
+// slot's Alert highlighting (status-thresholds.js kindConfig, as the packer resolves it)
+// with its pair and look while that is on. Every other watch, an unknown one and an emery with health off
 // report none of them.
 const HR_FIELDS = ['onDemandHr', 'hrAlertLevel', 'hrAlertDisplay', 'hrHighlight', 'hrHighlightWarn',
   'hrHighlightDanger', 'hrHighlightWarnLook'];
@@ -310,6 +308,36 @@ test('snapshot reports the heart-rate alert on an emery reading health, and only
   const off = buildSettingsSnapshot(Object.assign({}, all, { healthMode: 'off' }), EMERY);
   HR_FIELDS.forEach((k) => assert.strictEqual(off[k], undefined, k + ' on an emery with health off'));
 });
+
+// The highlight's fields across its switch and the watch's screen, against the bytes the
+// packer sends (status-wire.js buildHrAlertBytes): the same switch, levels and look. No
+// B&W watch carries the alert, so the B&W rows stub computeEnv's colour fact.
+test('snapshot reports the heart rate slot\'s highlighting as the tuple carries it, on and off, colour and B&W',
+  (t) => {
+    const configUi = require('../src/pkjs/config-ui');
+    const wire = require('../src/pkjs/status-wire.js');
+    const realEnv = configUi.computeEnv;
+    t.after(() => { configUi.computeEnv = realEnv; });
+    const EMERY = { platform: 'emery' };
+    [true, false].forEach((color) => {
+      configUi.computeEnv = (info) => Object.assign(realEnv(info), { color });
+      [true, false].forEach((on) => {
+        const S = { healthMode: 'all', threshHrOn: on, threshHrWarn: '200', threshHrDanger: '300' };
+        const snap = buildSettingsSnapshot(S, EMERY);
+        const b = wire.buildHrAlertBytes(S, configUi.computeEnv(EMERY));
+        const tag = (color ? 'colour' : 'B&W') + (on ? ', on' : ', off');
+        assert.strictEqual(snap.hrHighlight, on, tag);
+        assert.strictEqual(snap.hrHighlight, Boolean(b[wire.HR_ALERT_FLAGS_OFFSET] & wire.HR_ALERT_HIGHLIGHT_BIT),
+          tag + ': the tuple\'s switch');
+        assert.deepEqual([snap.hrHighlightWarn, snap.hrHighlightDanger, snap.hrHighlightWarnLook],
+          on ? [200, 255, color ? 'fill' : 'outline'] : [undefined, undefined, undefined], tag);
+        if (on) {
+          assert.deepEqual([snap.hrHighlightWarn, snap.hrHighlightDanger],
+            [b[wire.HR_ALERT_WARN_OFFSET], b[wire.HR_ALERT_DANGER_OFFSET]], tag + ': the tuple\'s bytes');
+        }
+      });
+    });
+  });
 
 test('buildSettingsSnapshot includes radarMode (default graph)', () => {
   assert.strictEqual(buildSettingsSnapshot({ radarMode: 'status' }).radarMode, 'status');

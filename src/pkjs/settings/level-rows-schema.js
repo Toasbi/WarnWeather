@@ -144,7 +144,7 @@ var GOAL_VOICE = {
     }
 };
 // The heart rate slot's Alert highlighting (emery: its pair, look and colours ride
-// CLAY_HR_ALERT_UINT8, status-thresholds.js hrHighlight), in the slot's own dialog
+// CLAY_HR_ALERT_UINT8, status-wire.js buildHrAlertBytes), in the slot's own dialog
 // below its Bold row (schema.js hrSlotSheet). ALERT_VOICE's words, except: the group has a
 // switch, which rides its header like the Goals switch, and the heart rate has no alert
 // icon to style, so the intro speaks of the slot alone and 'none' points at the Bold row

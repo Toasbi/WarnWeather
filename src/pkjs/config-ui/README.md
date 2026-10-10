@@ -548,12 +548,14 @@ env = {
   lineStyles:    true,       // false for aplite (no WW_LINE_STYLE — third metric line + per-line marker styles)
   onDemand:      true,       // false for aplite (no WW_ON_DEMAND — the Alerts at the status bars' edges)
   fineBattery:   false,      // true only for emery (battery charge reported in 5 % steps)
-  forecastSpan:  false       // true only for emery (the 12 h / 24 h / long forecast time span)
+  forecastSpan:  false,      // true only for emery (the 12 h / 24 h / long forecast time span)
+  hrAlert:       false       // true only for emery (the heart-rate alert: Heart rate item + HR slot highlighting)
 }
 // Fallback when watchInfo is unavailable:
 // { color: true, round: false, platform: '', health: true, radar: true,
 //   themePolarity: true, hr: false, thresholds: true, colorBacklight: false,
-//   lineStyles: true, onDemand: true, fineBattery: false, forecastSpan: false }
+//   lineStyles: true, onDemand: true, fineBattery: false, forecastSpan: false,
+//   hrAlert: false }
 ```
 
 The host app may contribute additional facts by passing them as `generateUrl`'s `env`: the
@@ -565,12 +567,13 @@ does) — because the library derives env from `watchInfo` alone and never reads
 The set of known 1-bit platforms (`aplite`, `diorite`, `flint`), the no-health/no-radar/
 no-theme-polarity/no-threshold/no-on-demand platform (`aplite`), the heart-rate-capable platforms
 (`emery`, `diorite`), the colour-backlight platform (`emery`), the 5 %-battery-step platform
-(`emery`) and the forecast-time-span platform (`emery`) are Pebble facts owned by the library in
-`lib/platform.js`. Every fallback except `hr`, `colorBacklight`, `fineBattery` and `forecastSpan`
-is conservative (show the controls if the platform is unknown); those four default to `false` so
-an unrecognized watch isn't offered a permanently-empty slot, hardware (the RGB backlight LED) it
-probably doesn't have, a battery warn level its firmware cannot resolve, or a long forecast its
-AppMessage inbox would drop. `colorBacklight` is a fact about the BACKLIGHT, not the screen: basalt and chalk
+(`emery`), the forecast-time-span platform (`emery`) and the heart-rate-alert platform (`emery`)
+are Pebble facts owned by the library in `lib/platform.js`. Every fallback except `hr`,
+`colorBacklight`, `fineBattery`, `forecastSpan` and `hrAlert` is conservative (show the controls
+if the platform is unknown); those five default to `false` so an unrecognized watch isn't offered
+a permanently-empty slot, hardware (the RGB backlight LED) it probably doesn't have, a battery
+warn level its firmware cannot resolve, or a long forecast or a heart-rate tuple its AppMessage
+inbox would drop. `colorBacklight` is a fact about the BACKLIGHT, not the screen: basalt and chalk
 are `color: true` but `colorBacklight: false`, because only emery's board carries the LED driver
 `light_set_color_rgb888()` needs. `env.round` is exposed for forward-compatibility; the rest are
 load-bearing values gating real shipped features.
