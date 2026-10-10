@@ -24,6 +24,7 @@ require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');
 const FC = require('../src/pkjs/settings/preview-forecast.js');
 const PA = require('../src/pkjs/settings/preview-axis.js');
+const { cDefine } = require('./helpers/c-source.js');
 
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -105,7 +106,6 @@ function zeroLine(svg) {
 const near = (a, b) => Math.abs(a - b) < 1e-9;
 const preview = (over, env) => FC.forecastPreview(Object.assign({}, NONE, over), env || COLOR);
 const HEADER = read('src/c/appendix/temp_axis_pad.h');
-const define = (name) => Number(new RegExp('#define ' + name + ' (\\d+)').exec(HEADER)[1]);
 /**
  * The flat eighth of a plot `units` preview units tall (the floor), in units.
  * @param {number} units Plot height in preview units (an integer, as PB - MT always is).
@@ -121,7 +121,7 @@ const eighth = (units) => Math.floor(units / 8);
  */
 const curve = (units) => {
   const rows = Math.floor(units * 7 / 12);
-  return Math.floor(rows * rows / define('TEMP_AXIS_PAD_SQ_DIV')) * 12 / 7;
+  return Math.floor(rows * rows / cDefine(HEADER, 'TEMP_AXIS_PAD_SQ_DIV')) * 12 / 7;
 };
 /**
  * An anchored edge's share: the larger of the eighth and the curve.
@@ -131,13 +131,13 @@ const curve = (units) => {
 const share = (units) => Math.max(eighth(units), curve(units));
 
 test('the curve, the label gap and the inset: one number each, the watch\'s', () => {
-  assert.equal(PA.TEMP_AXIS_PAD_SQ_DIV, define('TEMP_AXIS_PAD_SQ_DIV'));
+  assert.equal(PA.TEMP_AXIS_PAD_SQ_DIV, cDefine(HEADER, 'TEMP_AXIS_PAD_SQ_DIV'));
   assert.equal(PA.TEMP_AXIS_PAD_SQ_DIV, 512,
     'owner, 2026-10-02: "with more space in larger graphs, the padding to top and bottom can be larger than the 1/8"');
-  assert.equal(PA.TEMP_LABEL_MIN_INK_GAP, define('TEMP_LABEL_MIN_INK_GAP'));
+  assert.equal(PA.TEMP_LABEL_MIN_INK_GAP, cDefine(HEADER, 'TEMP_LABEL_MIN_INK_GAP'));
   assert.equal(PA.CURVE_INSET_PREV, 12, 'the scale the curve is taken at: 12 units to the inset');
   assert.equal(PA.WATCH_INSET_PX,
-    Number(/#define BOTTOM_VIEW_PRIMARY_LINE_INSET_Y (\d+)/.exec(read('src/c/appendix/bottom_view.h'))[1]));
+    cDefine(read('src/c/appendix/bottom_view.h'), 'BOTTOM_VIEW_PRIMARY_LINE_INSET_Y'));
   assert.equal(PA.WATCH_INSET_PX, Number(/var CURVE_INSET_PX = (\d+);/.exec(read('src/pkjs/clay-payload.js'))[1]));
 });
 
@@ -448,8 +448,8 @@ const underlaysIn = (svg) => [...svg.matchAll(UNDERLAY)].map((m) => ({ x: Number
 const ALL_AXIS = { forecastAxisNumbers: 'graph', forecastAxisScale: true };
 
 test('the numbers\' gaps: one number each, the watch\'s', () => {
-  assert.equal(PA.TEMP_LABEL_POINT_GAP, define('TEMP_LABEL_POINT_GAP'));
-  assert.equal(PA.TEMP_LABEL_PART_GAP, define('TEMP_LABEL_PART_GAP'));
+  assert.equal(PA.TEMP_LABEL_POINT_GAP, cDefine(HEADER, 'TEMP_LABEL_POINT_GAP'));
+  assert.equal(PA.TEMP_LABEL_PART_GAP, cDefine(HEADER, 'TEMP_LABEL_PART_GAP'));
   assert.equal(FC.PX0_AXIS, 20, 'On axis: the label strip\'s 20 units');
   assert.equal(FC.PX0_NO_AXIS, 0, 'no left axis: the frame\'s left edge');
 });
@@ -620,21 +620,21 @@ const hourLabels = (svg) => [...svg.matchAll(HOUR_TEXT)].map((m) => m[2]);
 const TICK = /<line x1="([\d.]+)" y1="94" x2="[\d.]+" y2="(98|96)"/g;
 const ticks = (svg) => [...svg.matchAll(TICK)].map((m) => (m[2] === '98' ? 'big' : 'small'));
 const SPAN_HEADER = read('src/c/appendix/forecast_span.h');
-const spanDefine = (name) => Number(new RegExp('#define ' + name + '\\s+(\\d+)').exec(SPAN_HEADER)[1]);
 
 test('hour axis: the marks are forecast_span.h\'s, the long span\'s clock marks at its 3 px pitch', () => {
-  assert.equal(PA.MARK_NONE, spanDefine('FORECAST_MARK_NONE'));
-  assert.equal(PA.MARK_TICK, spanDefine('FORECAST_MARK_TICK'));
-  assert.equal(PA.MARK_LABEL, spanDefine('FORECAST_MARK_LABEL'));
+  assert.equal(PA.MARK_NONE, cDefine(SPAN_HEADER, 'FORECAST_MARK_NONE'));
+  assert.equal(PA.MARK_TICK, cDefine(SPAN_HEADER, 'FORECAST_MARK_TICK'));
+  assert.equal(PA.MARK_LABEL, cDefine(SPAN_HEADER, 'FORECAST_MARK_LABEL'));
   const span = (h, env) => PA.axisCadence({ forecastHours: h }, env || EMERY);
   assert.deepEqual(span('12'), { labelEvery: 2, tickEvery: 1, byClock: false });
   assert.deepEqual(span('24'), { labelEvery: 3, tickEvery: 1, byClock: false });
   assert.deepEqual(span(undefined), { labelEvery: 3, tickEvery: 1, byClock: false });
   // The long span at the default plot's 3 px pitch: 3 hours are 9 px, under the 18 px a
   // 3-hourly label needs, so a label every 6 clock hours and a small tick between.
-  assert.ok(spanDefine('FORECAST_SPAN_CLOCK_TICK_H') * 3 < spanDefine('FORECAST_SPAN_LABEL_MIN_PX'));
-  assert.deepEqual(span('48'), { labelEvery: spanDefine('FORECAST_SPAN_CLOCK_LABEL_H'),
-    tickEvery: spanDefine('FORECAST_SPAN_CLOCK_TICK_H'), byClock: true });
+  assert.ok(cDefine(SPAN_HEADER, 'FORECAST_SPAN_CLOCK_TICK_H') * 3
+    < cDefine(SPAN_HEADER, 'FORECAST_SPAN_LABEL_MIN_PX'));
+  assert.deepEqual(span('48'), { labelEvery: cDefine(SPAN_HEADER, 'FORECAST_SPAN_CLOCK_LABEL_H'),
+    tickEvery: cDefine(SPAN_HEADER, 'FORECAST_SPAN_CLOCK_TICK_H'), byClock: true });
   // Every watch but emery draws 24 h, whatever is stored.
   assert.deepEqual(span('48', BASALT), span('24'));
   assert.deepEqual(span('12', platform.computeEnv(null)), span('24'));

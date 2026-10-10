@@ -18,24 +18,13 @@ const forecastAxis = require('../src/pkjs/forecast-axis.js');
 const hourlyWindow = require('../src/pkjs/weather/hourly-window.js');
 const schema = require('../src/pkjs/settings/schema.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
+const { cDefine } = require('./helpers/c-source.js');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const C_TEST = read('test/c/forecast_span_test.c');
 const DUMP = read('test/c/forecast_span_dump.c');
 const SPAN_H = read('src/c/appendix/forecast_span.h');
-
-/**
- * The integer a `#define NAME value` line gives, in `src`.
- * @param {string} src C source.
- * @param {string} name Macro name.
- * @returns {number} Its value.
- */
-function define(src, name) {
-  const m = new RegExp('#define ' + name + '\\s+(\\d+)\\b').exec(src);
-  assert.ok(m, name + ' is a numeric #define');
-  return Number(m[1]);
-}
 
 // emery's settings-page env (config-ui platform.js computeEnv): health and custom layouts.
 const EMERY = platform.computeEnv({ platform: 'emery' });
@@ -47,9 +36,9 @@ const SHARED_VIEW = {
 };
 
 // The lockstep's plot widths (test/c/forecast_span_dump.c W_MIN .. W_MAX) and emery's screen.
-const W_MIN = define(DUMP, 'W_MIN');
-const W_MAX = define(DUMP, 'W_MAX');
-const SCREEN_W = define(C_TEST, 'EMERY_SCREEN_W');
+const W_MIN = cDefine(DUMP, 'W_MIN');
+const W_MAX = cDefine(DUMP, 'W_MAX');
+const SCREEN_W = cDefine(C_TEST, 'EMERY_SCREEN_W');
 
 test('the lockstep covers every plot width the page computes', () => {
   // Each numbers place and font, with and without the health graph, and with it beside the
@@ -66,11 +55,11 @@ test('the lockstep covers every plot width the page computes', () => {
 test('the geometry is the watch\'s', () => {
   assert.equal(spanHours.FULL_HOURS, hourlyWindow.MAX_FORECAST_HOURS);
   assert.equal(spanHours.SCREEN_W, SCREEN_W);
-  assert.equal(spanHours.LAYER_W, define(C_TEST, 'EMERY_W'));
+  assert.equal(spanHours.LAYER_W, cDefine(C_TEST, 'EMERY_W'));
   const bottomViewH = read('src/c/appendix/bottom_view.h');
-  assert.equal(spanHours.STRIP_MIN_W, define(bottomViewH, 'BOTTOM_VIEW_LABEL_STRIP_MIN_W'));
-  assert.equal(spanHours.STRIP_GAP, define(bottomViewH, 'BOTTOM_VIEW_LABEL_GAP'));
-  assert.equal(spanHours.LABEL_PAD, define(read('src/c/layers/forecast_layer.c'), 'TEMP_LABEL_PAD'));
+  assert.equal(spanHours.STRIP_MIN_W, cDefine(bottomViewH, 'BOTTOM_VIEW_LABEL_STRIP_MIN_W'));
+  assert.equal(spanHours.STRIP_GAP, cDefine(bottomViewH, 'BOTTOM_VIEW_LABEL_GAP'));
+  assert.equal(spanHours.LABEL_PAD, cDefine(read('src/c/layers/forecast_layer.c'), 'TEMP_LABEL_PAD'));
   // The hi/lo labels' font: GOTHIC_24 with Larger graph fonts, else GOTHIC_18; GOTHIC_18's
   // digit advance is the one the hour labels use with Larger graph fonts.
   assert.match(read('src/c/appendix/bottom_view.c'),
@@ -95,10 +84,10 @@ test('the geometry is the watch\'s', () => {
   assert.match(read('src/c/layers/forecast_layer.c'),
     /graph_left = \(axis_on \|\| bottom_view_other_consumer_shown\(layer\)\)\s*\? bottom_view_graph_inset\(\) : screen_left;/);
   // The long class's pitch.
-  assert.equal(spanHours.SLOT_ONE, 1 << define(read('src/c/appendix/slot_x.h'), 'SLOT_X_Q'));
-  assert.equal(spanHours.PITCH_MIN, define(SPAN_H, 'FORECAST_SPAN_LONG_PITCH_MIN'));
-  assert.equal(spanHours.PITCH_MAX, define(SPAN_H, 'FORECAST_SPAN_LONG_PITCH_MAX'));
-  assert.equal(spanHours.PAD_FROM, define(SPAN_H, 'FORECAST_SPAN_LONG_PAD_FROM'));
+  assert.equal(spanHours.SLOT_ONE, 1 << cDefine(read('src/c/appendix/slot_x.h'), 'SLOT_X_Q'));
+  assert.equal(spanHours.PITCH_MIN, cDefine(SPAN_H, 'FORECAST_SPAN_LONG_PITCH_MIN'));
+  assert.equal(spanHours.PITCH_MAX, cDefine(SPAN_H, 'FORECAST_SPAN_LONG_PITCH_MAX'));
+  assert.equal(spanHours.PAD_FROM, cDefine(SPAN_H, 'FORECAST_SPAN_LONG_PAD_FROM'));
 });
 
 test('plotWidth: the whole screen with no left axis, else the layer less a two-digit label strip', () => {
