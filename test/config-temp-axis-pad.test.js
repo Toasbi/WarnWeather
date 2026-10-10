@@ -106,6 +106,27 @@ function zeroLine(svg) {
 const near = (a, b) => Math.abs(a - b) < 1e-9;
 const preview = (over, env) => FC.forecastPreview(Object.assign({}, NONE, over), env || COLOR);
 const HEADER = read('src/c/appendix/temp_axis_pad.h');
+
+/**
+ * The curve's lowest (under) or highest y over the columns [l, r], half its 2.2 stroke round
+ * it: its vertices and the straight stretches between them, as the watch draws its line.
+ * @param {number[][]} v tempVertices.
+ * @param {number} l Left edge.
+ * @param {number} r Right edge.
+ * @param {boolean} under The lowest, else the highest.
+ * @returns {number}
+ */
+function curveReach(v, l, r, under) {
+  const hw = 1.1, ys = [];
+  v.forEach((p, i) => {
+    if (p[0] >= l - hw && p[0] <= r + hw) { ys.push(p[1]); }
+    const q = v[i + 1];
+    if (!q) { return; }
+    const c0 = Math.max(p[0], l - hw), c1 = Math.min(q[0], r + hw);
+    if (c0 <= c1) { [c0, c1].forEach((c) => ys.push(p[1] + (q[1] - p[1]) * (c - p[0]) / (q[0] - p[0]))); }
+  });
+  return under ? Math.max(...ys) + hw : Math.min(...ys) - hw;
+}
 /**
  * The flat eighth of a plot `units` preview units tall (the floor), in units.
  * @param {number} units Plot height in preview units (an integer, as PB - MT always is).
@@ -436,7 +457,7 @@ test('alignLabels: off today\'s reach only, inward only, the minimum gap, else t
 
 // --- THE NUMBERS ON THE GRAPH (left axis BETA, emery only) -------------------------------
 // The forecast preview mirrors the watch's left axis options (forecast-axis.js resolved):
-// on the axis (today), on the graph (each number beside the point it names), or off; On graph
+// on the axis (today), on the graph (the hi number under the point it names, the lo over its own), or off; On graph
 // and Off draw no left axis, so the graph starts at the frame's left edge. temp_axis_pad.h pins
 // the watch's half on the host.
 const EMERY = platform.computeEnv({ platform: 'emery' });
@@ -472,7 +493,7 @@ test('the left axis options change no preview off a known emery, nor emery\'s at
   assert.equal(preview({ forecastAxisScale: true }, EMERY), preview({}, EMERY), 'no feels-like / dew point line');
 });
 
-test('On graph: no left axis, the graph from the left edge; each number beside the point it names', () => {
+test('On graph: no left axis, the graph from the left edge; the hi number under its point, the lo over its own', () => {
   const svg = preview({ forecastAxisNumbers: 'graph' }, EMERY);
   assert.ok(svg.indexOf('<text x="3"') === -1, 'no number in the strip');
   assert.match(svg, /<line x1="0" y1="94" x2="197" y2="94"/, 'the zero line starts at the left edge');
@@ -481,18 +502,19 @@ test('On graph: no left axis, the graph from the left edge; each number beside t
   const nums = numbersIn(svg);
   assert.deepEqual(nums.map((n) => n.t), ['24', '14']);
   const U = PA.CURVE_INSET_PREV / PA.WATCH_INSET_PX;
-  const gap = PA.TEMP_LABEL_POINT_GAP * U;
-  // The hi number: hour 0 (the first of two 24s), right of its vertex (the first hour
-  // prefers right), its ink centred on the vertex's row.
+  const gap = PA.TEMP_LABEL_POINT_GAP * U, w = 3 * PA.NUMBER_CHAR_W;
+  // The hi number: hour 0 (the first of two 24s) at the left edge, so held on the plot's first
+  // column (in by the ring); its ink the gap under the curve over its width and ring.
   const hi = nums[0];
-  assert.ok(near(hi.x, v[0][0] + 1.1 + gap), 'right of the curve\'s ink (2.2 wide) by the gap');
-  assert.ok(near(hi.base - PA.LABEL_CAP / 2, v[0][1]), 'ink centred on the vertex');
-  // The lo number: hour 7 (the first 14), left of it (its right neighbour is level, its left
-  // one falls away: the side away from the nearer neighbour).
+  assert.ok(near(hi.x, U), 'held on the plot\'s first column');
+  assert.ok(near(hi.base - PA.LABEL_CAP, curveReach(v, hi.x - U, hi.x + w + U, true) + gap),
+    'clear under the curve');
+  assert.ok(hi.base - PA.LABEL_CAP > v[0][1], 'under its vertex');
+  // The lo number: hour 7 (the first 14), centred over it, its ink the gap over the curve.
   const lo = nums[1];
-  assert.equal(PA.numberSide(v.map((p) => p[1]), 7), -1);
-  assert.ok(near(lo.x + 3 * PA.NUMBER_CHAR_W, v[7][0] - 1.1 - gap), 'left of its vertex by the gap');
-  assert.ok(near(lo.base - PA.LABEL_CAP / 2, v[7][1]), 'ink centred on the vertex');
+  assert.ok(near(lo.x + w / 2, v[7][0]), 'centred on its vertex');
+  assert.ok(near(lo.base, curveReach(v, lo.x - U, lo.x + w + U, false) - gap), 'clear over the curve');
+  assert.ok(lo.base < v[7][1], 'over its vertex');
   // The outline: an underlay in the background colour, just before each number.
   const under = underlaysIn(svg);
   assert.equal(under.length, 2);
@@ -525,9 +547,12 @@ test('Include feels-like & dew point: the numbers name the scale\'s ends, beside
   assert.deepEqual(strip, ['24', String(Math.round(Math.min.apply(null, dew)))]);
   const graph = preview({ secondaryLine: 'dew', forecastAxisScale: true, forecastAxisNumbers: 'graph' }, EMERY);
   assert.deepEqual(numbersIn(graph).map((n) => n.t), ['24', '12']);
-  // The lo number sits at the dew trough's first hour (7), on the bottom margin row.
+  // The lo number sits over the dew trough's first hour (7), on the bottom margin row, its ink
+  // at least the gap over it.
   const lo = numbersIn(graph)[1];
-  assert.ok(near(lo.base - PA.LABEL_CAP / 2, PB - 12), 'ink centred on the bottom margin row');
+  const U = PA.CURVE_INSET_PREV / PA.WATCH_INSET_PX;
+  assert.ok(near(lo.x + 3 * PA.NUMBER_CHAR_W / 2, tempVertices(graph)[7][0]), 'centred on the trough');
+  assert.ok(lo.base <= PB - 12 - PA.TEMP_LABEL_POINT_GAP * U, 'over the trough, clear of it');
   // Off a known emery the option changes nothing: the strip names the air.
   const basalt = preview({ secondaryLine: 'dew', forecastAxisScale: true }, BASALT);
   assert.equal(basalt, preview({ secondaryLine: 'dew' }, BASALT));
@@ -536,32 +561,33 @@ test('Include feels-like & dew point: the numbers name the scale\'s ends, beside
     forecastAxisNumbers: 'graph' }, EMERY)).map((n) => n.t), ['24', '13']);
 });
 
-test('numberSide / numberBeside / numbersPart: the header\'s rules, in preview units', () => {
-  // Side: away from the nearer neighbour; a missing reading is open space; ends and ties.
-  assert.equal(PA.numberSide([20, 28, 30, 25, 26].map((v) => -v), 2), 1);
-  assert.equal(PA.numberSide([20, 22, 30, 29, 26].map((v) => -v), 2), -1);
-  assert.equal(PA.numberSide([20, 22, 30], 0), 1);
-  assert.equal(PA.numberSide([20, 22, 30], 2), -1);
-  assert.equal(PA.numberSide([null, 30, 29], 1), -1);
-  assert.equal(PA.numberSide([26, 30, 26], 1), 1);
+test('lineReach / numberCentred / numberClear / numbersPart: the header\'s rules, in preview units', () => {
   const U = PA.CURVE_INSET_PREV / PA.WATCH_INSET_PX;
   const gap = PA.TEMP_LABEL_POINT_GAP * U, cap = PA.LABEL_CAP;
   const area = { left: 9, right: 197, top: 4, bottom: 93 };
-  // Beside: the preferred side, else the other, else held; the ink centred, else held.
-  let b = PA.numberBeside(100, 102, 50, 1, 10, area);
-  assert.ok(near(b.x, 102 + gap) && near(b.base, 50 + cap / 2));
-  b = PA.numberBeside(100, 102, 50, -1, 10, area);
-  assert.ok(near(b.x, 100 - gap - 10));
-  b = PA.numberBeside(190, 192, 50, 1, 10, area);
-  assert.ok(near(b.x, 190 - gap - 10), 'right does not fit: left');
-  b = PA.numberBeside(9, 11, 50, -1, 10, area);
-  assert.ok(near(b.x, 11 + gap), 'left does not fit: right');
-  b = PA.numberBeside(90, 92, 50, 1, 200, area);
-  assert.ok(near(b.x, area.left), 'fits nowhere: held inside');
-  b = PA.numberBeside(50, 52, 2, 1, 10, area);
-  assert.ok(near(b.base - cap, area.top), 'held under the top');
-  b = PA.numberBeside(50, 52, 95, 1, 10, area);
-  assert.ok(near(b.base, area.bottom), 'held over the bottom');
+  // Reach: a polyline's points and straight stretches over the columns grown by half its
+  // stroke (1 here: ticks every 10 units, a 2-unit stroke); over 14..26 a peak at 20.
+  const xAt = (i) => [i * 10 - 1, i * 10 + 1];
+  const ys = [50, 40, 30, 40, 50];
+  assert.ok(near(PA.lineReach(ys, xAt, false, 1, 15, 25, 30, true), 36 + 1), 'under: its lowest y');
+  assert.ok(near(PA.lineReach(ys, xAt, false, 1, 15, 25, 30, false), 30 - 1), 'over: its highest y');
+  // A missing reading draws no stretch to or from it: only the point's own y is left.
+  assert.ok(near(PA.lineReach(ys, xAt, false, 1, 5, 15, 30, true), 46 + 1));
+  assert.ok(near(PA.lineReach([50, null, 30], xAt, false, 1, 5, 15, 30, true), 30 + 1));
+  // Marks: only the boxes that meet the columns (hour 1's, 12..18).
+  const mAt = (i) => [i * 10 + 2, i * 10 + 8];
+  assert.ok(near(PA.lineReach([50, 40, 30], mAt, true, 3, 9, 13, 35, true), 40 + 3));
+  assert.ok(near(PA.lineReach([50, 40, 30], mAt, true, 3, 9, 13, 35, false), 35 - 3));
+  // Centred on the point's ink, else held inside.
+  assert.ok(near(PA.numberCentred(100, 102, 10, area), 96));
+  assert.ok(near(PA.numberCentred(5, 7, 10, area), area.left), 'held on the left');
+  assert.ok(near(PA.numberCentred(195, 197, 10, area) + 10, area.right), 'held on the right');
+  // Clear: the ink the gap under (its top) or over (its baseline) the line; else held inside,
+  // touching it.
+  assert.ok(near(PA.numberClear(40, true, area), 40 + gap + cap));
+  assert.ok(near(PA.numberClear(40, false, area), 40 - gap));
+  assert.ok(near(PA.numberClear(90, true, area), area.bottom), 'no room under: held over the bottom');
+  assert.ok(near(PA.numberClear(5, false, area) - cap, area.top), 'no room over: held under the top');
   // Part: apart untouched; overlapping, lo under hi; at the floor, hi lifted; no room: false.
   const pg = PA.TEMP_LABEL_PART_GAP * U;
   let hi = { x: 20, base: 50 }, lo = { x: 150, base: 50 };
@@ -573,8 +599,8 @@ test('numberSide / numberBeside / numbersPart: the header\'s rules, in preview u
   hi = { x: 50, base: 90 }; lo = { x: 52, base: 92 };
   assert.equal(PA.numbersPart(hi, 10, lo, 10, area), true);
   assert.ok(near(lo.base, area.bottom) && near(hi.base, area.bottom - cap - pg));
-  // No room for both: the lo number is left out, and the hi number keeps numberBeside's
-  // place, inside the area (never lifted over its top).
+  // No room for both: the lo number is left out, and the hi number keeps its first place,
+  // inside the area (never lifted over its top).
   const tiny = { left: 9, right: 197, top: 4, bottom: 14 };
   hi = { x: 50, base: 12 }; lo = { x: 50, base: 12 };
   assert.equal(PA.numbersPart(hi, 10, lo, 10, tiny), false);
@@ -588,12 +614,11 @@ test('numbersArea: the plot\'s edges, between the bands, shrunk by the outline\'
   // edge, the top band, the plot's right edge and the zero line.
   const o = PA.numbersArea(0, 197, 4, 94);
   assert.ok(near(o.left, U) && near(o.right, 197 - U) && near(o.top, 4 + U) && near(o.bottom, 93 - U));
-  // A number held at the area's corners (a 120-unit number fits on neither side of its
-  // point) sits in by the ring.
-  let held = PA.numberBeside(100, 102, 0, -1, 120, o);
-  assert.ok(near(held.x, U) && near(held.base - PA.LABEL_CAP, 4 + U), 'held top-left, in by the ring');
-  held = PA.numberBeside(100, 102, 200, 1, 120, o);
-  assert.ok(near(held.x + 120, 197 - U) && near(held.base, 93 - U), 'held bottom-right, in by the ring');
+  // A number held at the area's edges sits in by the ring.
+  assert.ok(near(PA.numberCentred(-5, -3, 20, o), U), 'held left, in by the ring');
+  assert.ok(near(PA.numberCentred(200, 202, 20, o) + 20, 197 - U), 'held right, in by the ring');
+  assert.ok(near(PA.numberClear(0, false, o) - PA.LABEL_CAP, 4 + U), 'held on top, in by the ring');
+  assert.ok(near(PA.numberClear(200, true, o), 93 - U), 'held at the bottom, in by the ring');
 });
 
 test('bothNumbers: a flat range draws one number; else both, apart', () => {

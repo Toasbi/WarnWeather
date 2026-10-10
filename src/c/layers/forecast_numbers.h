@@ -85,13 +85,52 @@ static int number_point_x(const Series *s, int i, int graph_left, const ChartDef
     return tx - w / 2;
 }
 
-// emery: the numbers On graph, each beside its point (hour e.hi_i of hi_s, e.lo_i of lo_s; n,
-// e, hi_s and lo_s as forecast_numbers_extremes gave them), inside the plot's content rows
-// (temp_axis_pad.h THE NUMBERS ON THE GRAPH): from graph_left, the plot's left edge, to
-// screen_w, and from top, under the top stripe band, down to zero_y, the plot's baseline. hi
-// and lo are the label texts, hs and ls their sizes.
+// emery: the row series s's ink reaches over screen columns [l, r], from its point's row `row`
+// on: its lowest (`under`) or highest, over hours [0, n). A solid line: its points and the
+// stretches between two readings (chart_render_line), grown by half its stroke. A dot or x
+// mark: its box where its columns meet [l, r] (chart_draw_bar_marks: a dot reaches at most 2
+// rows over and under its row, an x its arm).
+static int number_line_reach(const Series *s, const ChartDef *grid, int n, int graph_left,
+                             int zero_y, int l, int r, int row, bool under) {
+    const int16_t *const v = s->line.values;
+    const int gaps = s->line.floating;   // a floating line's 0 is a missing reading
+    const bool solid = s->line.style == CHART_LINE_SOLID;
+    const int hw = (solid || s->line.style == CHART_LINE_X) ? s->line.width / 2 : 2;
+    int top = row, bot = row;
+    for (int i = 0; i < n; ++i) {
+        const int y = zero_y - v[i];
+        if (solid) {
+            if (v[i] < gaps) { continue; }
+            const int x = graph_left + chart_def_slot_x(grid, i);
+            if (x >= l - hw && x <= r + hw) {   // a lone reading's square too
+                if (y < top) { top = y; }
+                if (y > bot) { bot = y; }
+            }
+            if (i + 1 < n && v[i + 1] >= gaps) {
+                temp_line_rows(x, y, graph_left + chart_def_slot_x(grid, i + 1),
+                               zero_y - v[i + 1], l - hw, r + hw, &top, &bot);
+            }
+            continue;
+        }
+        if (v[i] <= 0) { continue; }   // a mark's 0 is never drawn
+        int x1;
+        const int x0 = number_point_x(s, i, graph_left, grid, &x1);
+        if (x0 <= r && x1 >= l) {
+            if (y < top) { top = y; }
+            if (y > bot) { bot = y; }
+        }
+    }
+    return under ? bot + hw : top - hw;
+}
+
+// emery: the numbers On graph (temp_axis_pad.h THE NUMBERS ON THE GRAPH): the hi number under
+// its point (hour e.hi_i of hi_s), the lo number over its point (hour e.lo_i of lo_s), each
+// centred on it and clear of its line (e, hi_s and lo_s as forecast_numbers_extremes gave
+// them), inside the plot's content rows: from graph_left, the plot's left edge, to screen_w,
+// and from top, under the top stripe band, down to zero_y, the plot's baseline. hi and lo are
+// the label texts, hs and ls their sizes.
 static void forecast_numbers_on_graph(GContext *ctx, const ForecastDataset *ds,
-                                      const ChartDef *grid, int n, TempAxisExtremes e,
+                                      const ChartDef *grid, TempAxisExtremes e,
                                       const Series *hi_s, const Series *lo_s, int16_t zero_y,
                                       int top, int graph_left, int screen_w,
                                       const char *hi, GSize hs, const char *lo, GSize ls) {
@@ -101,17 +140,20 @@ static void forecast_numbers_on_graph(GContext *ctx, const ForecastDataset *ds,
     // graph) to the screen's right edge, shrunk by the outline: a number and its ring never
     // touch a band, the zero line, the hour labels or the screen's edges.
     const TempLabelArea a = { graph_left + o, screen_w - 1 - o, top + o, zero_y - 1 - o };
+    const int all = ds->num_entries;   // the line runs on past the hours the numbers name
     int x1;
     int x0 = number_point_x(hi_s, e.hi_i, graph_left, grid, &x1);
-    TempLabelBox hb = temp_label_beside(x0, x1, zero_y - e.hi,
-                                        temp_label_side(hi_s->line.values, n, e.hi_i,
-                                                        hi_s->line.floating),
-                                        hs.w, hs.h, a);
+    TempLabelBox hb;
+    hb.x = temp_label_centred_x(x0, x1, hs.w, a);
+    hb.y = temp_label_clear_y(number_line_reach(hi_s, grid, all, graph_left, zero_y, hb.x - o,
+                                                hb.x + hs.w - 1 + o, zero_y - e.hi, true),
+                              true, hs.h, a);
     x0 = number_point_x(lo_s, e.lo_i, graph_left, grid, &x1);
-    TempLabelBox lb = temp_label_beside(x0, x1, zero_y - e.lo,
-                                        temp_label_side(lo_s->line.values, n, e.lo_i,
-                                                        lo_s->line.floating),
-                                        ls.w, ls.h, a);
+    TempLabelBox lb;
+    lb.x = temp_label_centred_x(x0, x1, ls.w, a);
+    lb.y = temp_label_clear_y(number_line_reach(lo_s, grid, all, graph_left, zero_y, lb.x - o,
+                                                lb.x + ls.w - 1 + o, zero_y - e.lo, false),
+                              false, ls.h, a);
     // One number for a flat range (equal texts), else both, apart.
     const bool both = strcmp(hi, lo) != 0 && temp_labels_part(&hb, hs.w, &lb, ls.w, hs.h, a);
     // The boxes get 2 px of slack: a box only content-sized can drop the text's last row

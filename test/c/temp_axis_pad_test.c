@@ -1183,7 +1183,8 @@ static void test_scale_labels(void) {
 
 // --- THE NUMBERS ON THE GRAPH (owner, 2026-10-09; BETA, emery only) -------------------------
 //
-// emery's left-axis options: the hi/lo numbers beside the points they name (On graph), or no
+// emery's left-axis options: the hi number under the point it names and the lo number over its
+// own (On graph), or no
 // numbers (Off), the label strip given to the plot either way. forecast_layer.c
 // draw_axis_numbers and forecast_numbers.h are SDK-bound; the rules they read are pinned here.
 
@@ -1222,92 +1223,112 @@ static void test_numbers_extremes(void) {
     assert(g.hi == 48 && g.hi_i == 3 && g.lo == 7 && g.lo_i == 0);
 }
 
-// The side: away from the nearer neighbour (the line falls away faster on the other side), a
-// missing reading open space, the first hour right, the last left, a tie right.
-static void test_numbers_side(void) {
-    int16_t c[5] = { 20, 28, 30, 25, 26 };
-    assert(temp_label_side(c, 5, 2, false) == 1);    // right falls 5, left 2: right
-    int16_t c2[5] = { 20, 22, 30, 29, 26 };
-    assert(temp_label_side(c2, 5, 2, false) == -1);  // left falls 8, right 1: left
-    assert(temp_label_side(c2, 5, 0, false) == 1);   // the first hour: right
-    assert(temp_label_side(c2, 5, 4, false) == -1);  // the last hour: left
-    int16_t g[3] = { 0, 30, 29 };
-    assert(temp_label_side(g, 3, 1, true) == -1);    // no reading on the left: open space
-    assert(temp_label_side(g, 3, 1, false) == -1);   // the temperature's 0 is a row: 30 away
-    int16_t tie[3] = { 26, 30, 26 };
-    assert(temp_label_side(tie, 3, 1, false) == 1);  // a tie: right
-    int16_t one[1] = { 30 };
-    assert(temp_label_side(one, 1, 0, false) == 1);  // no neighbour at all: right
+// A line's rows over a number's columns: a straight stretch takes its extremes on the shared
+// columns' first and last, each between the two whole rows round it; it only widens; no shared
+// column, no rows.
+static void test_numbers_line_rows(void) {
+    // Falling 10 rows over 10 columns from (100, 30): columns 103..106 take rows 33..36.
+    int top = 30, bot = 30;
+    temp_line_rows(100, 30, 110, 40, 103, 106, &top, &bot);
+    assert(top == 30 && bot == 36);   // widened, never narrowed
+    top = bot = 50;
+    temp_line_rows(100, 30, 110, 40, 103, 106, &top, &bot);
+    assert(top == 33 && bot == 50);
+    // Between two rows: 5 rows over 10 columns, column 103 lies on 31.5, rows 31 and 32.
+    top = 100; bot = -100;
+    temp_line_rows(100, 30, 110, 35, 103, 103, &top, &bot);
+    assert(top == 31 && bot == 32);
+    // Rising the same way: column 103 lies on 38.5, rows 38 and 39.
+    top = 100; bot = -100;
+    temp_line_rows(100, 40, 110, 35, 103, 103, &top, &bot);
+    assert(top == 38 && bot == 39);
+    // The columns past the stretch's ends: its ends' rows.
+    top = 100; bot = -100;
+    temp_line_rows(100, 30, 110, 40, 90, 120, &top, &bot);
+    assert(top == 30 && bot == 40);
+    // No shared column: unchanged.
+    top = 7; bot = 9;
+    temp_line_rows(100, 30, 110, 40, 111, 120, &top, &bot);
+    temp_line_rows(100, 30, 110, 40, 80, 99, &top, &bot);
+    assert(top == 7 && bot == 9);
 }
 
-// Beside its point: TEMP_LABEL_POINT_GAP columns clear of the point's ink, the ink centred on
-// the point's row (THE LABELS' centre), held inside the area. emery's default view: plot
-// columns 10..197 (a plot starting at column 9, its first column clear, the screen's last
-// column 197 of the 198 px band), content rows 0..61.
-static void test_numbers_beside(void) {
+// A number centred on its point's ink columns, held inside the area's columns. emery's default
+// view: plot columns 10..197 (a plot starting at column 9, its first column clear, the
+// screen's last column 197 of the 198 px band), content rows 0..61.
+static void test_numbers_centred(void) {
     const TempLabelArea a = { 10, 197, 0, EMERY_COMPACTCAL - 1 };
-    // GOTHIC_24, cap 14: ink rows row - 7 .. row + 6.
-    TempLabelBox b = temp_label_beside(100, 102, 30, 1, 20, G24_H, a);
-    assert(b.x == 102 + 1 + TEMP_LABEL_POINT_GAP && b.y == 30 - 17);
-    assert(num_ink_top(b, G24_H) == 30 - 7 && num_ink_bottom(b, G24_H) == 30 + 6);
-    // GOTHIC_18, cap 11: ink rows row - 5 .. row + 5.
-    b = temp_label_beside(100, 102, 30, 1, 16, G18_H, a);
-    assert(b.x == 105 && b.y == 30 - 12);
-    assert(num_ink_top(b, G18_H) == 30 - 5 && num_ink_bottom(b, G18_H) == 30 + 5);
-    // Left: its last ink column TEMP_LABEL_POINT_GAP + 1 left of the point's first.
-    b = temp_label_beside(100, 102, 30, -1, 20, G24_H, a);
-    assert(b.x + 20 - 1 == 100 - 1 - TEMP_LABEL_POINT_GAP);
-    // Right does not fit at the screen's edge: left.
-    b = temp_label_beside(190, 192, 30, 1, 20, G24_H, a);
-    assert(b.x == 190 - TEMP_LABEL_POINT_GAP - 20);
-    // Left does not fit at the plot's edge: right.
-    b = temp_label_beside(10, 12, 30, -1, 20, G24_H, a);
-    assert(b.x == 15);
-    // Neither fits (a number wider than either side): the preferred side, held inside.
-    b = temp_label_beside(90, 92, 30, 1, 120, G24_H, a);
-    assert(b.x == a.right - 120 + 1);
-    b = temp_label_beside(90, 92, 30, -1, 120, G24_H, a);
-    assert(b.x == a.left);
-    // The hi point on the top margin row (7): its ink just reaches row 0. A point higher
-    // still (a held line, row 3): the ink held on row 0, never above the plot.
-    b = temp_label_beside(10, 12, 7, 1, 20, G24_H, a);
-    assert(num_ink_top(b, G24_H) == 0 && b.y == -10);
-    b = temp_label_beside(10, 12, 3, 1, 20, G24_H, a);
-    assert(num_ink_top(b, G24_H) == 0 && b.y == -10);
-    // The lo point on the bottom margin row (58 from the top): left does not fit, so right,
-    // and the ink held on the plot's last content row.
-    b = temp_label_beside(10, 12, 58, -1, 20, G24_H, a);
-    assert(b.x == 15 && num_ink_bottom(b, G24_H) == a.bottom && b.y == 38);
-    // GOTHIC_18 on the same rows.
-    b = temp_label_beside(10, 12, 3, 1, 16, G18_H, a);
-    assert(num_ink_top(b, G18_H) == 0);
-    b = temp_label_beside(10, 12, 60, 1, 16, G18_H, a);
-    assert(num_ink_bottom(b, G18_H) == a.bottom);
-    // The outline's ring takes a column and a row on every side: the area shrinks by one, so
-    // the ink holds on row 1 (its ring on row 0), never on the stripe band or the axis column.
+    // A 3-column point (100..102, centre 101): a 21-column number on 91..111; a 20-column one
+    // on 92..111, its odd column to the right.
+    assert(temp_label_centred_x(100, 102, 21, a) == 91);
+    assert(temp_label_centred_x(100, 102, 20, a) == 92);
+    // A 2-column point (a solid 3 px stroke: 99..101 is 3; a 2 px one 100..101).
+    assert(temp_label_centred_x(100, 101, 20, a) == 91);
+    // At the plot's left edge, held on its first column; at the screen's right, on its last.
+    assert(temp_label_centred_x(10, 12, 20, a) == a.left);
+    assert(temp_label_centred_x(195, 197, 20, a) + 20 - 1 == a.right);
+    // Wider than the area: held on its first column.
+    assert(temp_label_centred_x(100, 102, 300, a) == a.left);
+}
+
+// Clear of its line: the hi number's ink TEMP_LABEL_POINT_GAP rows under the line's lowest row
+// over its columns, the lo number's that far over the highest; held inside the area's rows,
+// where it then touches the line.
+static void test_numbers_clear(void) {
+    const TempLabelArea a = { 10, 197, 0, EMERY_COMPACTCAL - 1 };
+    TempLabelBox b = { 50, 0 };
+    // GOTHIC_24, cap 14. Under a line reaching row 20: the ink on rows 23..36.
+    b.y = temp_label_clear_y(20, true, G24_H, a);
+    assert(num_ink_top(b, G24_H) == 20 + 1 + TEMP_LABEL_POINT_GAP && b.y == 13);
+    // Over a line reaching row 40: the ink on rows 24..37.
+    b.y = temp_label_clear_y(40, false, G24_H, a);
+    assert(num_ink_bottom(b, G24_H) == 40 - 1 - TEMP_LABEL_POINT_GAP && b.y == 14);
+    // GOTHIC_18, cap 11, the same gaps.
+    b.y = temp_label_clear_y(20, true, G18_H, a);
+    assert(num_ink_top(b, G18_H) == 23);
+    b.y = temp_label_clear_y(40, false, G18_H, a);
+    assert(num_ink_bottom(b, G18_H) == 37);
+    // No room under the line (the cap would end on row 71): held on the plot's last content
+    // row, touching it. No room over it: held on row 0.
+    b.y = temp_label_clear_y(55, true, G24_H, a);
+    assert(num_ink_bottom(b, G24_H) == a.bottom);
+    b.y = temp_label_clear_y(5, false, G24_H, a);
+    assert(num_ink_top(b, G24_H) == a.top);
+    // Exactly room: under a line on row 45, the 14-row cap ends on the last row, 61.
+    b.y = temp_label_clear_y(45, true, G24_H, a);
+    assert(num_ink_top(b, G24_H) == 48 && num_ink_bottom(b, G24_H) == a.bottom);
+    // The outline's ring takes a row on every side: the area shrinks by one, so the ink holds
+    // on row 1 (its ring on row 0), never on the stripe band or the zero line.
     const TempLabelArea o = { 11, 196, 1, EMERY_COMPACTCAL - 2 };
-    b = temp_label_beside(10, 12, 7, 1, 20, G24_H, o);
+    b.y = temp_label_clear_y(-6, false, G24_H, o);
     assert(num_ink_top(b, G24_H) == 1);
-    b = temp_label_beside(180, 182, 58, 1, 20, G24_H, o);
-    assert(b.x + 20 - 1 <= 196 && num_ink_bottom(b, G24_H) == EMERY_COMPACTCAL - 2);
-    // Every row of every plot emery lays out: the ink always inside the area.
+    b.y = temp_label_clear_y(70, true, G24_H, o);
+    assert(num_ink_bottom(b, G24_H) == EMERY_COMPACTCAL - 2);
+    // Every reach on and off every plot emery lays out: the ink always inside the area.
     const int plots[3] = { EMERY_FULLCAL, EMERY_COMPACTCAL, EMERY_NOCAL };
+    const int hs[2] = { G18_H, G24_H };
     for (int p = 0; p < 3; ++p) {
         const TempLabelArea pa = { 10, 197, 0, plots[p] - 1 };
-        for (int row = 0; row < plots[p]; ++row) {
-            for (int x0 = 10; x0 < 198; x0 += 3) {
-                for (int side = -1; side <= 1; side += 2) {
-                    const int hs[2] = { G18_H, G24_H };
-                    for (int k = 0; k < 2; ++k) {
-                        const TempLabelBox q = temp_label_beside(x0, x0 + 2, row, side, 20, hs[k], pa);
-                        assert(q.x >= pa.left && q.x + 20 - 1 <= pa.right);
-                        assert(num_ink_top(q, hs[k]) >= pa.top);
-                        assert(num_ink_bottom(q, hs[k]) <= pa.bottom);
-                    }
+        for (int reach = -8; reach < plots[p] + 8; ++reach) {
+            for (int k = 0; k < 2; ++k) {
+                for (int under = 0; under <= 1; ++under) {
+                    b.y = temp_label_clear_y(reach, under, hs[k], pa);
+                    assert(num_ink_top(b, hs[k]) >= pa.top);
+                    assert(num_ink_bottom(b, hs[k]) <= pa.bottom);
                 }
             }
         }
     }
+}
+
+// A number's box at column x, its ink centred on `row` (THE LABELS' centre), held inside the
+// area's rows: the boxes the parting rule is pinned on.
+static TempLabelBox box_at(int x, int row, int h, TempLabelArea a) {
+    const int cap = status_cap_h(h);
+    int y = row - (h - (cap + 1) / 2);
+    if (y + h - cap < a.top) { y = a.top - (h - cap); }
+    if (y + h - 1 > a.bottom) { y = a.bottom - (h - 1); }
+    return (TempLabelBox){ x, y };
 }
 
 // Two numbers apart: untouched when their ink does not meet; else the lo number under the hi;
@@ -1317,35 +1338,35 @@ static void test_numbers_part(void) {
     const TempLabelArea a = { 10, 197, 0, EMERY_COMPACTCAL - 1 };
     const int cap = status_cap_h(G24_H);
     // Apart, side by side on one row: untouched.
-    TempLabelBox hb = temp_label_beside(20, 22, 30, 1, 20, G24_H, a);
-    TempLabelBox lb = temp_label_beside(150, 152, 30, 1, 20, G24_H, a);
+    TempLabelBox hb = box_at(25, 30, G24_H, a);
+    TempLabelBox lb = box_at(155, 30, G24_H, a);
     const TempLabelBox lb0 = lb, hb0 = hb;
     assert(temp_labels_part(&hb, 20, &lb, 20, G24_H, a));
     assert(lb.x == lb0.x && lb.y == lb0.y && hb.x == hb0.x && hb.y == hb0.y);
     // Apart, one over the other with exactly TEMP_LABEL_PART_GAP rows between: untouched.
-    hb = temp_label_beside(50, 52, 20, 1, 20, G24_H, a);
+    hb = box_at(55, 20, G24_H, a);
     lb = (TempLabelBox){ hb.x, hb.y + cap + TEMP_LABEL_PART_GAP };
     TempLabelBox keep = lb;
     assert(temp_labels_part(&hb, 20, &lb, 20, G24_H, a) && lb.y == keep.y);
     // Overlapping (a flat range in the middle): the lo ink right under the hi ink.
-    hb = temp_label_beside(50, 52, 30, 1, 20, G24_H, a);
-    lb = temp_label_beside(50, 52, 31, 1, 20, G24_H, a);
+    hb = box_at(55, 30, G24_H, a);
+    lb = box_at(55, 31, G24_H, a);
     const int hi_y = hb.y;
     assert(temp_labels_part(&hb, 20, &lb, 20, G24_H, a));
     assert(hb.y == hi_y && lb.y == hb.y + cap + TEMP_LABEL_PART_GAP);
     assert(num_ink_top(lb, G24_H) == num_ink_bottom(hb, G24_H) + 1 + TEMP_LABEL_PART_GAP);
     // Near the floor: the lo number held on the last rows, the hi number lifted over it.
-    hb = temp_label_beside(50, 52, 55, 1, 20, G24_H, a);
-    lb = temp_label_beside(50, 52, 57, 1, 20, G24_H, a);
+    hb = box_at(55, 55, G24_H, a);
+    lb = box_at(55, 57, G24_H, a);
     assert(temp_labels_part(&hb, 20, &lb, 20, G24_H, a));
     assert(num_ink_bottom(lb, G24_H) == a.bottom);
     assert(num_ink_bottom(hb, G24_H) == num_ink_top(lb, G24_H) - 1 - TEMP_LABEL_PART_GAP);
     assert(num_ink_top(hb, G24_H) >= a.top);
     // A 21-row area cannot hold two 14-row caps 3 rows apart: the lo number is left out, and
-    // the hi number keeps temp_label_beside's place, inside the area (never lifted over it).
+    // the hi number keeps its first place, inside the area (never lifted over it).
     const TempLabelArea tiny = { 10, 197, 0, 20 };
-    hb = temp_label_beside(50, 52, 10, 1, 20, G24_H, tiny);
-    lb = temp_label_beside(50, 52, 10, 1, 20, G24_H, tiny);
+    hb = box_at(55, 10, G24_H, tiny);
+    lb = box_at(55, 10, G24_H, tiny);
     const TempLabelBox tiny_hb = hb;
     assert(!temp_labels_part(&hb, 20, &lb, 20, G24_H, tiny));
     assert(hb.x == tiny_hb.x && hb.y == tiny_hb.y);
@@ -1354,18 +1375,18 @@ static void test_numbers_part(void) {
     // two top stripes and two bottom ones leave the content rows 12..36 (25 rows, under the
     // 2 * 14 + 3 the pair needs), the hi at hour 10 and the lo at hour 11, one column on. At
     // every pair of rows in the area: either both fit apart inside it, or the hi number stays
-    // exactly where temp_label_beside put it, inside the area, and only the lo one goes.
+    // exactly where it was first put, inside the area, and only the lo one goes.
     const TempLabelArea storm = { 12, 198, 12, 36 };
     for (int hr = storm.top; hr <= storm.bottom; ++hr) {
         for (int lr = storm.top; lr <= storm.bottom; ++lr) {
-            hb = temp_label_beside(100, 102, hr, 1, 20, G24_H, storm);
-            lb = temp_label_beside(107, 109, lr, 1, 20, G24_H, storm);
-            const TempLabelBox hb_beside = hb;
+            hb = box_at(105, hr, G24_H, storm);
+            lb = box_at(112, lr, G24_H, storm);
+            const TempLabelBox hb_first = hb;
             if (temp_labels_part(&hb, 20, &lb, 20, G24_H, storm)) {
                 assert(num_ink_top(hb, G24_H) >= storm.top);
                 assert(num_ink_bottom(lb, G24_H) <= storm.bottom);
             } else {
-                assert(hb.x == hb_beside.x && hb.y == hb_beside.y);
+                assert(hb.x == hb_first.x && hb.y == hb_first.y);
             }
             assert(num_ink_top(hb, G24_H) >= storm.top);
             assert(num_ink_bottom(hb, G24_H) <= storm.bottom);
@@ -1377,8 +1398,8 @@ static void test_numbers_part(void) {
         for (int o = 0; o <= 1; ++o) {
             const TempLabelArea s = { 10 + o, 197 - o, o, EMERY_FULLCAL - 1 - o };
             for (int row = 0; row < EMERY_FULLCAL; ++row) {
-                hb = temp_label_beside(50, 52, row, 1, 20, hs[k], s);
-                lb = temp_label_beside(50, 52, row, 1, 20, hs[k], s);
+                hb = box_at(55, row, hs[k], s);
+                lb = box_at(55, row, hs[k], s);
                 assert(temp_labels_part(&hb, 20, &lb, 20, hs[k], s));
                 assert(num_ink_top(hb, hs[k]) >= s.top && num_ink_bottom(lb, hs[k]) <= s.bottom);
                 assert(num_ink_top(lb, hs[k]) - num_ink_bottom(hb, hs[k]) - 1
@@ -1400,10 +1421,6 @@ static void test_numbers_scale_points(void) {
     assert(e.hi == BASALT_COMPACTCAL - INSET && e.hi_i == 2 && e.lo == 18 && e.lo_i == 0);
     assert(temp_axis_extremes_widen(&e, dew, 4, true) == 2);
     assert(e.lo == m.bottom && e.lo_i == 2 && e.hi_i == 2);
-    // The trough's next hour has no reading: open space, so the lo number goes right.
-    assert(temp_label_side(dew, 4, e.lo_i, true) == 1);
-    // The air's high has equal neighbours: right.
-    assert(temp_label_side(t2, 4, e.hi_i, false) == 1);
     // Without the option only the temperature is scanned: its own low, hour 0.
     TempAxisExtremes air = TEMP_AXIS_EXTREMES_NONE;
     temp_axis_extremes_widen(&air, t2, 4, false);
@@ -1488,8 +1505,9 @@ int main(void) {
     test_scale_flat();
     test_scale_labels();
     test_numbers_extremes();
-    test_numbers_side();
-    test_numbers_beside();
+    test_numbers_line_rows();
+    test_numbers_centred();
+    test_numbers_clear();
     test_numbers_part();
     test_numbers_scale_points();
     test_screen_edge();

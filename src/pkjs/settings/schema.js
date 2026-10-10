@@ -2024,10 +2024,10 @@ module.exports = {
             }]
         }, {
             // Left axis (Beta), emery only (owner, 2026-10-09): where the high / low numbers go
-            // (On axis: beside the axis line on the left, today's look; On graph: next to the
-            // points they name; Off: none; the last two draw no left axis at all, so the graph
-            // starts at the screen's left edge) and whether they name the whole temperature
-            // scale. The axis line and the numbers' outline follow the place (the 2.2.0 betas
+            // (On axis: beside the axis line on the left, today's look; On graph: the high one
+            // under its point, the low one over its own; Off: none; the last two draw no left
+            // axis at all, so the graph starts at the screen's left edge) and whether they name
+            // the whole temperature scale. The axis line and the numbers' outline follow the place (the 2.2.0 betas
             // had a row each; a beta's stored 'beside' reads as 'axis', the default).
             // src/pkjs/forecast-axis.js is the one reading (wire bits on the
             // CLAY_LARGE_GRAPH_FONT word, the scale bake, the 24 h span's 26 hours, the
@@ -2050,8 +2050,8 @@ module.exports = {
                     ['Off', FORECAST_AXIS.OFF]],
                 hintByValue: {
                     axis: 'The forecast\'s highest and lowest temperature, beside the axis line on the left.',
-                    graph: 'Each number sits next to the point it names. No axis: the graph starts at '
-                        + 'the left edge.',
+                    graph: 'The high number sits under the highest point, the low one over the lowest. No '
+                        + 'axis: the graph starts at the left edge.',
                     off: 'No numbers and no axis: the graph starts at the left edge.'
                 },
                 more: true,

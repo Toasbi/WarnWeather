@@ -205,7 +205,7 @@ static inline bool config_large_graph_font(void) {
 // src/pkjs/forecast-axis.js BIT / AXIS_MASK, pinned by test/forecast-axis.test.js.
 #define GRAPH_OPT_LARGE_FONT    0x01
 #define GRAPH_OPT_NUMS_MASK     0x0C   // the hi/lo numbers' code
-#define GRAPH_OPT_NUMS_GRAPH    0x04   // ...on the graph, beside the points they name
+#define GRAPH_OPT_NUMS_GRAPH    0x04   // ...on the graph, under / over the points they name
 #define GRAPH_OPT_NUMS_OFF      0x08   // ...off
 #define GRAPH_OPT_SCALE_NUMS    0x20   // the numbers name the temperature scale's ends
 #define GRAPH_OPT_AXIS_MASK     0xFE   // bits 1-7: Config.forecast_axis

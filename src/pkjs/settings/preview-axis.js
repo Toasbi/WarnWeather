@@ -26,7 +26,7 @@
     // The preview's curve inset in units: 12 units stand for the watch's WATCH_INSET_PX.
     var CURVE_INSET_PREV = 12;
     // The numbers on the graph (left axis BETA; temp_axis_pad.h THE NUMBERS ON THE GRAPH,
-    // mirrored): watch px from a point's ink to its number's ink, and between the two
+    // mirrored): watch px from a line's ink to its number's ink, and between the two
     // numbers' ink (test/config-temp-axis-pad.test.js holds both equal to the header's),
     // scaled to preview units like the label gap (CURVE_INSET_PREV units a WATCH_INSET_PX).
     var TEMP_LABEL_POINT_GAP = 2;
@@ -97,55 +97,96 @@
     }
 
     /**
-     * The side a number prefers beside sample i: +1 right, -1 left — temp_axis_pad.h
-     * temp_label_side, mirrored. The side whose neighbour lies further from the point (a
-     * missing reading, null, is open space, the furthest); a tie goes right; the first sample
-     * prefers right and the last left.
+     * The y a line's ink reaches over the columns [l, r] — forecast_numbers.h
+     * number_line_reach, mirrored: its lowest (under) or highest, from its point's y on. A
+     * polyline: its points and the stretches between two readings, grown by half its stroke.
+     * Marks: each mark's box where its columns meet [l, r].
      * @param {Array.<?number>} ys The line's y per sample (null: no reading).
-     * @param {number} i The point's sample.
-     * @returns {number} 1 or -1.
+     * @param {function(number): Array.<number>} xAt A sample's ink edges [x0, x1] (a
+     *   polyline's point is their middle, its tick).
+     * @param {boolean} marks Whether the line draws marks, not a polyline.
+     * @param {number} hw Half its ink's height round its y (a polyline: half its stroke).
+     * @param {number} l The number's columns and its ring's, left edge.
+     * @param {number} r Their right edge.
+     * @param {number} y The point's y.
+     * @param {boolean} under The lowest (the hi number goes under it), else the highest.
+     * @returns {number} The y.
      */
-    function numberSide(ys, i) {
-        var dp = -1, dn = -1;
-        if (i > 0) { dp = ys[i - 1] === null ? Infinity : Math.abs(ys[i - 1] - ys[i]); }
-        if (i + 1 < ys.length) { dn = ys[i + 1] === null ? Infinity : Math.abs(ys[i + 1] - ys[i]); }
-        return dn >= dp ? 1 : -1;
+    function lineReach(ys, xAt, marks, hw, l, r, y, under) {
+        var top = y, bot = y;
+        /**
+         * Widens [top, bot] by one y.
+         * @param {number} v The y.
+         */
+        function widen(v) {
+            if (v < top) { top = v; }
+            if (v > bot) { bot = v; }
+        }
+        for (var i = 0; i < ys.length; i += 1) {
+            if (ys[i] === null) { continue; }
+            var e = xAt(i);
+            if (marks) {
+                if (e[0] <= r && e[1] >= l) { widen(ys[i]); }
+                continue;
+            }
+            var x = (e[0] + e[1]) / 2;
+            if (x >= l - hw && x <= r + hw) { widen(ys[i]); }
+            if (i + 1 < ys.length && ys[i + 1] !== null) {
+                var ne = xAt(i + 1), nx = (ne[0] + ne[1]) / 2;
+                var c0 = Math.max(x, l - hw), c1 = Math.min(nx, r + hw);
+                if (c0 <= c1) {
+                    widen(ys[i] + (ys[i + 1] - ys[i]) * (c0 - x) / (nx - x));
+                    widen(ys[i] + (ys[i + 1] - ys[i]) * (c1 - x) / (nx - x));
+                }
+            }
+        }
+        return under ? bot + hw : top - hw;
     }
 
     /**
-     * One number beside its point — temp_axis_pad.h temp_label_beside, mirrored: its ink
-     * TEMP_LABEL_POINT_GAP watch px clear of the point's ink on the preferred side if it fits,
-     * else the other, else the preferred one; held inside the area; its ink (LABEL_CAP over
-     * the baseline) centred on the point's y and held inside the area's rows.
+     * A number centred on its point — temp_axis_pad.h temp_label_centred_x, mirrored: held
+     * inside the area's columns.
      * @param {number} x0 The point's ink, left edge.
      * @param {number} x1 The point's ink, right edge.
-     * @param {number} y The point's y.
-     * @param {number} side 1 right, -1 left (numberSide).
      * @param {number} w The number's width.
      * @param {{left: number, right: number, top: number, bottom: number}} area Where its ink
      *   may go.
-     * @returns {{x: number, base: number}} The text's left edge and baseline.
+     * @returns {number} The text's left edge.
      */
-    function numberBeside(x0, x1, y, side, w, area) {
-        var gap = TEMP_LABEL_POINT_GAP * CURVE_INSET_PREV / WATCH_INSET_PX;
-        var right = x1 + gap, left = x0 - gap - w;
-        var fitsR = right + w <= area.right, fitsL = left >= area.left;
-        var x = side > 0 ? ((fitsR || !fitsL) ? right : left) : ((fitsL || !fitsR) ? left : right);
+    function numberCentred(x0, x1, w, area) {
+        var x = (x0 + x1 - w) / 2;
         if (x + w > area.right) { x = area.right - w; }
         if (x < area.left) { x = area.left; }
-        var base = y + LABEL_CAP / 2;
+        return x;
+    }
+
+    /**
+     * A number clear of its line — temp_axis_pad.h temp_label_clear_y, mirrored: its ink
+     * (LABEL_CAP over the baseline) TEMP_LABEL_POINT_GAP watch px under the line's lowest y
+     * (under, the hi number) or over its highest (the lo one), held inside the area's rows,
+     * where it may then touch the line.
+     * @param {number} reach The line's lowest (under) or highest y over the number's columns
+     *   (lineReach).
+     * @param {boolean} under Under the line, else over it.
+     * @param {{left: number, right: number, top: number, bottom: number}} area Where its ink
+     *   may go.
+     * @returns {number} The text's baseline.
+     */
+    function numberClear(reach, under, area) {
+        var gap = TEMP_LABEL_POINT_GAP * CURVE_INSET_PREV / WATCH_INSET_PX;
+        var base = under ? reach + gap + LABEL_CAP : reach - gap;
         if (base - LABEL_CAP < area.top) { base = area.top + LABEL_CAP; }
         if (base > area.bottom) { base = area.bottom; }
-        return { x: x, base: base };
+        return base;
     }
 
     /**
      * The two numbers apart — temp_axis_pad.h temp_labels_part, mirrored (mutates both):
      * untouched when their ink, grown by TEMP_LABEL_PART_GAP, does not meet; else the lo
      * number right under the hi one; else the lo number on the area's last row and the hi
-     * one right over it. When even that does not fit, the hi number keeps numberBeside's
+     * one right over it. When even that does not fit, the hi number keeps numberClear's
      * place, inside the area.
-     * @param {{x: number, base: number}} hi The hi number (numberBeside).
+     * @param {{x: number, base: number}} hi The hi number (numberCentred, numberClear).
      * @param {number} wHi Its width.
      * @param {{x: number, base: number}} lo The lo number.
      * @param {number} wLo Its width.
@@ -191,7 +232,7 @@
      * so only the tests reach that case.
      * @param {string} hiText The hi number's text.
      * @param {string} loText The lo number's text.
-     * @param {{x: number, base: number}} hi The hi number (numberBeside; numbersPart may move it).
+     * @param {{x: number, base: number}} hi The hi number (numbersPart may move it).
      * @param {number} wHi Its width.
      * @param {{x: number, base: number}} lo The lo number (numbersPart may move it).
      * @param {number} wLo Its width.
@@ -300,8 +341,9 @@
         axisCadence: axisCadence,
         axisMark: axisMark,
         axisLabelFits: axisLabelFits,
-        numberSide: numberSide,
-        numberBeside: numberBeside,
+        lineReach: lineReach,
+        numberCentred: numberCentred,
+        numberClear: numberClear,
         numbersPart: numbersPart,
         numbersArea: numbersArea,
         bothNumbers: bothNumbers,

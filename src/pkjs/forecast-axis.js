@@ -9,8 +9,9 @@
 // feels-like and dew point lines too).
 //   forecastAxisNumbers 'axis' | 'graph' | 'off'
 //                       the hi/lo temperature numbers: On axis, in the label strip beside the
-//                       axis line on the left (today); On graph, beside the points they name,
-//                       outlined in the background colour, with no axis; Off, none and no
+//                       axis line on the left (today); On graph, the hi one under the point
+//                       it names and the lo one over its own, outlined in the background
+//                       colour, with no axis; Off, none and no
 //                       axis. On graph and Off draw no left axis at all: the graph starts at
 //                       the screen's left edge (src/c/layers/forecast_layer.c).
 //   forecastAxisScale   true | false       the numbers name the temperature SCALE's ends: the

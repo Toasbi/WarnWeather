@@ -53,7 +53,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         NUMBER_CHAR_W = previewAxis.NUMBER_CHAR_W, MARK_NONE = previewAxis.MARK_NONE,
         MARK_LABEL = previewAxis.MARK_LABEL, axisCadence = previewAxis.axisCadence,
         axisMark = previewAxis.axisMark, axisLabelFits = previewAxis.axisLabelFits,
-        numberSide = previewAxis.numberSide, numberBeside = previewAxis.numberBeside,
+        lineReach = previewAxis.lineReach, numberCentred = previewAxis.numberCentred,
+        numberClear = previewAxis.numberClear,
         numbersArea = previewAxis.numbersArea, bothNumbers = previewAxis.bothNumbers,
         anchorShare = previewAxis.anchorShare, alignLabels = previewAxis.alignLabels,
         tempAxisRange = previewAxis.tempAxisRange;
@@ -903,27 +904,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
         /**
          * The hi/lo numbers on the graph (left axis BETA, On graph): forecast_numbers.h
-         * forecast_numbers_on_graph (via forecast_layer.c draw_axis_numbers), mirrored. Each
-         * sits beside the point it names — the temperature
-         * curve's highest and lowest sample or, with ax.scale, the highest and lowest of the
-         * curve and every drawn feels-like / dew point line (the curve first, then line order:
-         * a strictly higher or lower value replaces, so the earliest wins a tie) — at the
-         * point's y, on numberSide's side, held inside the plot's content rows; numbersPart
-         * keeps them apart, and equal texts draw one. The outline is an underlay <text> in the
-         * background colour stroked 2 units wide (no paint-order: an old WebView ignores it),
-         * the watch's 1 px ring in theme_bg.
+         * forecast_numbers_on_graph (via forecast_layer.c draw_axis_numbers), mirrored. The hi
+         * number sits under the point it names and the lo number over its own — the
+         * temperature curve's highest and lowest sample or, with ax.scale, the highest and
+         * lowest of the curve and every drawn feels-like / dew point line (the curve first,
+         * then line order: a strictly higher or lower value replaces, so the earliest wins a
+         * tie) — centred on it, clear of its line over the number's width (lineReach), held
+         * inside the plot's content rows; numbersPart keeps them apart, and equal texts draw
+         * one. The outline is an underlay <text> in the background colour stroked 2 units wide
+         * (no paint-order: an old WebView ignores it), the watch's 1 px ring in theme_bg.
          * @returns {string} SVG markup.
          */
         function drawNumbersOnGraph() {
             // The candidate series: their samples, their y per sample (null: no point there)
             // and each point's ink edges.
             var cands = [{ vals: temps, x: function (i) { return [tickX(i) - tempW / 2, tickX(i) + tempW / 2]; },
-                marks: false }];
+                marks: false, hw: tempW / 2 }];
             if (ax.scale) {
                 axisLines.forEach(function (a) {
                     var marks = a.line.style === 'dots' || a.line.style === 'x';
                     var w = a.line.style === 'bold' ? boldW : mainW;
-                    cands.push({ vals: a.samples, marks: marks,
+                    // A mark's ink round its y: a dot's half cap (2), an x's arm and stroke (3).
+                    cands.push({ vals: a.samples, marks: marks, hw: marks ? 3 : w / 2,
                         x: marks ? function (i) { return [gapCenter(i) - bw / 2, gapCenter(i) + bw / 2]; }
                             : function (i) { return [tickX(i) - w / 2, tickX(i) + w / 2]; } });
                 });
@@ -944,13 +946,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var area = numbersArea(PX0, PX1, PTL, PB);
             var hiText = tLabelMax + '°', loText = tLabelMin + '°';
             var wHi = hiText.length * NUMBER_CHAR_W, wLo = loText.length * NUMBER_CHAR_W;
-            var hx = hi.c.x(hi.i), lx = lo.c.x(lo.i);
-            var hb = numberBeside(hx[0], hx[1], hi.c.ys[hi.i], numberSide(hi.c.ys, hi.i), wHi, area);
-            var lb = numberBeside(lx[0], lx[1], lo.c.ys[lo.i], numberSide(lo.c.ys, lo.i), wLo, area);
+            var ring = CURVE_INSET_PREV / WATCH_INSET_PX;   // the outline's, one watch px
+            /**
+             * One number centred on its point, under (the hi one) or over its line.
+             * @param {{i: number, c: Object}} p The point (its sample and series).
+             * @param {number} w The number's width.
+             * @param {boolean} under Under the line, else over it.
+             * @returns {{x: number, base: number}} Where.
+             */
+            function place(p, w, under) {
+                var e = p.c.x(p.i), x = numberCentred(e[0], e[1], w, area);
+                var reach = lineReach(p.c.ys, p.c.x, p.c.marks, p.c.hw, x - ring, x + w + ring,
+                    p.c.ys[p.i], under);
+                return { x: x, base: numberClear(reach, under, area) };
+            }
+            var hb = place(hi, wHi, true), lb = place(lo, wLo, false);
             var both = bothNumbers(hiText, loText, hb, wHi, lb, wLo, area);
             /**
              * One number, over its outline (the background colour: On graph always draws it).
-             * @param {{x: number, base: number}} b Where (numberBeside).
+             * @param {{x: number, base: number}} b Where (place).
              * @param {string} t The text.
              * @returns {string} SVG markup.
              */

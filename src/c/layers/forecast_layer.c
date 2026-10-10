@@ -358,11 +358,11 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
 // emery: the hi/lo numbers under the left axis's options (config.h GRAPH_OPT_*), after
 // everything the plot drew. On axis (today): the strip, draw_left_axis, its numbers lined up
 // with the rows they name: the curve's extremes, or with GRAPH_OPT_SCALE_NUMS the scale's (a
-// feels-like or dew point line's too). On the graph: each number beside its point
-// (forecast_numbers.h). Off: none. On the graph and Off leave no strip, and the plot starts at
-// the screen's left edge, unless a health graph shares the screen: then the plot keeps the
-// shared strip, which is masked as On axis masks it. noinline: its locals stay off
-// forecast_update_proc's frame while chart_draw runs (fit_temp_axis' reason).
+// feels-like or dew point line's too). On the graph: the hi number under its point, the lo
+// number over its own (forecast_numbers.h). Off: none. On the graph and Off leave no strip,
+// and the plot starts at the screen's left edge, unless a health graph shares the screen: then
+// the plot keeps the shared strip, which is masked as On axis masks it. noinline: its locals
+// stay off forecast_update_proc's frame while chart_draw runs (fit_temp_axis' reason).
 static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const ForecastDataset *ds,
                                                          const ChartDef *grid, int h,
                                                          int16_t zero_y, int top,
@@ -391,7 +391,7 @@ static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const For
         graphics_fill_rect(ctx, GRect(0, 0, graph_left, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
     }
     if (mode == GRAPH_OPT_NUMS_GRAPH) {
-        forecast_numbers_on_graph(ctx, ds, grid, n, e, hi_s, lo_s, zero_y, top, graph_left,
+        forecast_numbers_on_graph(ctx, ds, grid, e, hi_s, lo_s, zero_y, top, graph_left,
                                   screen_w, s_buffer_hi, temp_label_string_size(s_buffer_hi),
                                   s_buffer_lo, temp_label_string_size(s_buffer_lo));
     }
