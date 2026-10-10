@@ -656,7 +656,7 @@ test('custom layouts report customViewExt0-2 = packExt per view; presets report 
 });
 
 test('snapshot reports the forecast span option this watch draws, as an int: 12 / 24 / 48, not the hours sent', () => {
-  // Categorical (forecast-span.js option()): 48 is the long span, labelled "58 h", which is
+  // Categorical (forecast-span.js option()): 48 is the long span, whatever its label, which is
   // sent 68 hours; 12 is sent 14. Same values as before 2.2.0's long span, so handler.ts holds.
   assert.strictEqual(buildSettingsSnapshot({ forecastHours: '48' }, { platform: 'emery' }).forecastHours, 48);
   assert.strictEqual(buildSettingsSnapshot({ forecastHours: '12' }, { platform: 'emery' }).forecastHours, 12);

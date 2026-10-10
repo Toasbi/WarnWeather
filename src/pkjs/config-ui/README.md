@@ -548,7 +548,7 @@ env = {
   lineStyles:    true,       // false for aplite (no WW_LINE_STYLE — third metric line + per-line marker styles)
   onDemand:      true,       // false for aplite (no WW_ON_DEMAND — the Alerts at the status bars' edges)
   fineBattery:   false,      // true only for emery (battery charge reported in 5 % steps)
-  forecastSpan:  false       // true only for emery (the 12 / 24 / 58 h forecast time span)
+  forecastSpan:  false       // true only for emery (the 12 h / 24 h / long forecast time span)
 }
 // Fallback when watchInfo is unavailable:
 // { color: true, round: false, platform: '', health: true, radar: true,
@@ -632,9 +632,9 @@ blocks, registering an id twice overwrites it, and an unregistered id renders no
 
 ### Options-resolver registry — PConf.optionsResolvers
 
-A `select`, `searchSelect`, or `radio` item with an `optionsFrom: { resolver: id, args }` field
-resolves its option list dynamically instead of using a static `options` array — mirrors the block
-registry above:
+A `select`, `searchSelect`, `radio` or `segmented` item with an `optionsFrom: { resolver: id,
+args }` field resolves its option list dynamically instead of using a static `options` array —
+mirrors the block registry above:
 
 ```js
 // Returns [[label, value], …]

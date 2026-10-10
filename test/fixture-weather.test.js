@@ -513,7 +513,7 @@ test('forecast-long.json: 68 hours on an emery set to the long span, 24 on 24 an
   const fx = loadFixture('forecast-long.json');
   assert.equal(fx.weather.temps.length, 68, 'premise: 68 hourly entries');
   assert.equal(fx.weather.temps.length, MAX_FORECAST_HOURS, 'premise: a full long-span feed');
-  assert.equal(fx.claySettings.forecastHours, '48', 'the long span\'s token ("58 h")');
+  assert.equal(fx.claySettings.forecastHours, '48', 'the long span\'s token');
   const emery = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform: 'emery' });
   assert.equal(emery.NUM_ENTRIES, 68);
   TRENDS.forEach((k) => assert.equal(emery[k].length, 68, 'emery ' + k));

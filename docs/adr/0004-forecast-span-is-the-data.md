@@ -61,7 +61,8 @@ for the long span, with 2 px rain bars as the floor.
 - **The phone sends 14 / 24 / 65 hours** (`forecast-span.js` `hours()`), on emery only. The
   long span keeps its stored token '48' (no settings migration, and `signature()` is unchanged,
   so the upgrade forces no refetch) but is labelled **"58 h"**: the whole hours the default
-  layout shows (a 174 px plot at 3 px). Telemetry reports the option (12 / 24 / 48), not the
+  layout shows (a 174 px plot at 3 px; Amendment 4: the label now follows the provider and the
+  layout). Telemetry reports the option (12 / 24 / 48), not the
   hours sent (`option()`). 65 = ceil(190 / 3) + 1, the widest plot at the floor pitch plus the
   vertex past the edge; 14 gives the 12 h grid its partial column past the edge.
 - **The watch fits the window to its own plot width W** (`forecast_span.h`): 2..14 hours the
@@ -204,3 +205,38 @@ a little on the right side etc".
   clip (Amendment 2's No left axis). Every non-emery image is byte-identical (objdump), and no
   weather payload, Clay message or provider URL changes; the settings hint for the long span
   names the 48-hour feeds' fit.
+
+## Amendment 4 (2.2.0): the long option is labelled with the hours it shows
+
+The owner: "I want the label of the long range to just show the actual value, depending of the
+provider".
+
+- **The label follows the provider and the layout** (`src/pkjs/forecast-span-hours.js`, the
+  settings page's `forecastSpanOptions` resolver). The long option names the whole hours the
+  watch will show for the picked provider's feed on the plot the layout leaves.
+  - The feed: OpenWeatherMap 48 hours, Weather Underground 49 (the hour in progress and its
+    48), every other adapter the full 68.
+  - The plot: On axis the 198 px layer less the shared label strip and its gap. The strip is
+    the wider of a two-digit hi/lo label and, while the health graph is in the view cycle
+    (Health Status + Graph, the default), its one-decimal step mark ("0.5"), in the graph label
+    font: 174 px with Larger graph fonts (GOTHIC_24, the mark's 22 px), 179 px without
+    (GOTHIC_18, 17 px); 176 / 180 px when no view carries the health graph. With the High / low
+    numbers On graph or Off the whole 200 px screen, unless a custom layout seats the health
+    graph beside the forecast: the forecast then keeps the health mark's strip (174 / 179 px).
+    The views can disagree there, so the label reads the forecast's first view in the cycle,
+    the Default view when that one shows it: the view the watch returns to.
+  - So "58 h" at the default layout, "59 h" without Larger graph fonts (60 with no health
+    graph) and "66 h" with no left axis; "47 h" with OpenWeatherMap and "48 h" with Weather
+    Underground on every layout.
+- **One rule, held to one table.** The count is the watch's `forecast_span_whole` (the hours
+  whose bar ends on screen). No drawing code calls it, so every watch image stays
+  byte-identical. The JS mirrors it, and both are held to `test/c/forecast_span_test.c`
+  `SPAN_WHOLE_HOURS`: every feed of 27..68 hours on every plot width 145..200 px.
+- **The watch still decides what is visible.** The phone does not see the watch's plot: a
+  one-digit, negative or three-digit temperature, a step mark of whole thousands ("2") or of
+  10k steps and more ("10.5"), or a watch without health data (Pebble Health off) moves W by a
+  few px and the count by an hour or so (a "10.5" mark: three); the short feeds' 47 / 48 never
+  move. The label names the common case.
+- **Nothing on the wire moves.** The stored value stays '48', so no migration and no fetch,
+  signature, telemetry or payload change. The settings engine's `optionsFrom` now feeds a
+  segmented row as it does a select (`engine.js` `resolveRowItem`, `snapShownOptions`).

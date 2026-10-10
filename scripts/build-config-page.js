@@ -87,6 +87,12 @@ var APP_FILES = [
   // preview-forecast.js and when-resolvers.js bind it while theirs run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/forecast-axis.js'),
+  // The long time span's whole hours (window.ForecastSpanHours): the Time span row's label,
+  // by forecast-hints.js' forecastSpanOptions resolver. It binds window.ForecastAxis and
+  // window.VIEW_CYCLE while its own body runs, so it follows forecast-axis.js and view-cycle.js,
+  // and forecast-hints.js binds it while its own runs, so it precedes that —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/forecast-span-hours.js'),
   // A stripe cell's level on its metric's own scale (window.StripeLevels): the table the
   // bake shades every stripe by, which the forecast and radar previews shade their cells
   // by and forecast-hints.js' stripe hints are written from. It reads nothing at load, and its

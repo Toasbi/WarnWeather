@@ -1,6 +1,7 @@
 // test/forecast-span.test.js
 // The forecast graph's time span (src/pkjs/forecast-span.js): the stored 12/24/48 ('48' is the
-// long span's token, labelled "58 h"), the hours the phone sends a watch (14 / 24 / 68 on emery
+// long span's token, labelled by the whole hours it shows: forecast-span-hours.js), the hours
+// the phone sends a watch (14 / 24 / 68 on emery
 // only, 26 for 24 h with no left axis, 24 everywhere else and on an unknown watch), the option
 // telemetry reports, the inbox budget's span, the render signature's part, and the lockstep
 // pins: the C buffers and class bounds (src/c/appendix/forecast_span.h FORECAST_MAX_ENTRIES,
@@ -13,6 +14,7 @@ const forecastSpan = require('../src/pkjs/forecast-span.js');
 const hourlyWindow = require('../src/pkjs/weather/hourly-window.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const schema = require('../src/pkjs/settings/schema.js');
+const forecastSpanHours = require('../src/pkjs/forecast-span-hours.js');
 
 const env = (p) => platform.computeEnv(p ? { platform: p } : null);
 const OTHERS = ['basalt', 'chalk', 'diorite', 'flint', 'aplite'];
@@ -138,29 +140,35 @@ test('lockstep: the schema\'s forecastHours options are CHOICES, its default 24'
     if (it.messageKey === 'forecastHours') { item = it; }
   })));
   assert.ok(item, 'the schema has the forecastHours row');
-  assert.deepEqual(item.options.map((o) => o[1]), forecastSpan.CHOICES);
+  // The options are forecast-span-hours.js spanOptions (the forecastSpanOptions resolver):
+  // whatever the provider and layout, the values are CHOICES; only the long span's label moves.
+  assert.deepEqual(item.optionsFrom, { resolver: 'forecastSpanOptions' });
+  assert.deepEqual([forecastSpanHours.VALUES.half, forecastSpanHours.VALUES.day,
+    forecastSpanHours.VALUES.long], forecastSpan.CHOICES);
+  [{}, { provider: 'openweathermap' }, { provider: 'wunderground', forecastAxisNumbers: 'off' },
+    { provider: 'metno', largeGraphFont: true }].forEach((s) => {
+    assert.deepEqual(forecastSpanHours.spanOptions(s).map((o) => o[1]), forecastSpan.CHOICES,
+      JSON.stringify(s));
+  });
   assert.equal(item.defaultValue, String(forecastSpan.DEFAULT_HOURS));
   assert.deepEqual(Object.keys(item.hintByValue).sort(), forecastSpan.CHOICES.slice().sort());
-  // The long span is labelled by the hours the default emery layout shows; its token stays '48'.
-  assert.deepEqual(item.options, [['12 h', '12'], ['24 h', '24'], ['58 h', '48']]);
-  assert.match(item.hintByValue['48'], /^About 58 hours/);
-  // The real counts: 66 whole hours on the screen-wide plot (floor(200 / 3)); a 48-hour feed
-  // is fitted to the plot (forecast_span.h, test/c/forecast_span_test.c), its last hour's vertex
-  // on the last column whatever the width: OWM's 48 entries show 47 whole, WU's 49 (the
-  // hour in progress and its 48) show 48.
-  assert.match(item.hintByValue['48'], /up to 66 with the High \/ low numbers On graph or Off/);
-  assert.equal(Math.floor(200 / 3), 66);
-  assert.match(item.hintByValue['48'],
-    /their columns widen to fill the graph \(47 whole hours with OpenWeatherMap, 48 with Weather Underground\)/);
 });
 
-test('the "58 h" label is the default emery layout\'s whole hours at the 3 px pitch', () => {
-  // The default graph_left is 24: the G24 two-digit hi/lo labels plus the health graph's "0.x"
-  // step-mark claim on the shared label strip (22 px + 2), so the plot is 198 - 24 = 174 px
-  // wide. A change to the default fonts or the strip moves this (forecast_span.h, bottom_view.c).
-  const DEFAULT_GRAPH_LEFT = 24;
+test('a full feed at the default emery layout is labelled 58 h, its whole hours at the 3 px pitch', () => {
+  // The page's plot (forecast-span-hours.js plotWidth) is the watch's: the default Health
+  // (Status + Graph) puts the health graph's "0.5" step mark (22 px in GOTHIC_24) on the shared
+  // strip, graph_left 24, 198 - 24 = 174 px; without the health graph the two-digit hi/lo
+  // labels' 20 px strip leaves 176. 58 either way, a full feed held at the 3 px floor and
+  // running past the edge.
   const PITCH = 3;
-  assert.equal(Math.floor((198 - DEFAULT_GRAPH_LEFT) / PITCH), 58, 'whole hours');
-  assert.equal(Math.ceil((198 - DEFAULT_GRAPH_LEFT) / PITCH), 58);
-  assert.ok(hourlyWindow.MAX_FORECAST_HOURS * PITCH >= 198 - DEFAULT_GRAPH_LEFT, 'a full feed reaches the edge');
+  const page = forecastSpanHours.plotWidth({ largeGraphFont: true, healthMode: 'all' });
+  assert.equal(page, 174);
+  assert.equal(forecastSpanHours.plotWidth({ largeGraphFont: true, healthMode: 'off' }), 176);
+  [page, 176].forEach((w) => {
+    assert.equal(Math.floor(w / PITCH), 58, 'whole hours at ' + w);
+    assert.equal(forecastSpanHours.wholeHours(hourlyWindow.MAX_FORECAST_HOURS, w), 58, 'at ' + w);
+    assert.ok(hourlyWindow.MAX_FORECAST_HOURS * PITCH >= w, 'a full feed reaches the edge at ' + w);
+  });
+  assert.equal(forecastSpanHours.longHours({ provider: 'openmeteo', largeGraphFont: true,
+    healthMode: 'all' }), 58);
 });

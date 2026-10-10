@@ -175,7 +175,7 @@ test('a placed alert fetches its metric AND its day peaks with no slot showing i
 
 test('forecastHours: the hours the stored span sends an emery (14 / 24 or 26 / 68), 24 on every other watch and an unknown one', () => {
   const emery = { platform: 'emery' };
-  assert.equal(fetchOptions.build({ forecastHours: '48' }, emery).forecastHours, 68, 'the long span ("58 h")');
+  assert.equal(fetchOptions.build({ forecastHours: '48' }, emery).forecastHours, 68, 'the long span');
   assert.equal(fetchOptions.build({ forecastHours: '12' }, emery).forecastHours, 14);
   assert.equal(fetchOptions.build({ forecastHours: '24' }, emery).forecastHours, 24);
   assert.equal(fetchOptions.build({}, emery).forecastHours, 24, 'absent reads the default');

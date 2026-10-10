@@ -21,8 +21,8 @@ var HOUR_SECONDS = 60 * 60;
 // these back to the hours it sends (WeatherProvider#payloadEntries). The day-max series
 // read on to the graph's window when that is longer (reachHours).
 var PEAK_HOURS = 2 * FORECAST_HOURS + 1;
-// The longest forecast the graph is sent: emery's long span (forecast-span.js, labelled
-// "58 h"). ceil(200 / 3) + 1: the widest plot (the whole 200 px screen: the hi/lo numbers On
+// The longest forecast the graph is sent: emery's long span (forecast-span.js; its label,
+// forecast-span-hours.js, names the hours shown). ceil(200 / 3) + 1: the widest plot (the whole 200 px screen: the hi/lo numbers On
 // graph or Off draw no left axis) at the 3 px pitch, plus the hour whose vertex lies past the
 // right edge. The watch picks what it shows (src/c/appendix/forecast_span.h). Lockstep with
 // FORECAST_MAX_ENTRIES there (test/forecast-span.test.js reads both).

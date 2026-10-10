@@ -1006,7 +1006,7 @@ var LAYOUT_INTRO = 'How the watchface is arranged, and what a wrist-flick reveal
     + 'preview. What a metric means or how it\'s coloured lives in Graphs.';
 var STATUS_INTRO = 'Every view has its own status bar — one row with a left, middle, and right slot you can '
     + 'fill with weather, time, health, and more. Choose what each view shows below.';
-var FORECAST_INTRO = 'The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or about 58: '
+var FORECAST_INTRO = 'The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or up to 66: '
     + 'Time span below). Temperature is always drawn; the metrics and rain bars you pick below join it.';
 var GRAPH_COLORS_INTRO = 'One row per metric, plus the night shading. Each row’s colours are remembered '
     + 'separately for the Dark and the Light theme.';
@@ -2004,9 +2004,13 @@ module.exports = {
             // Time span (emery only): how many hours the forecast graph looks ahead. The phone
             // fetches and sends 14, 24 (26 with no left axis) or 68 hourly points
             // (src/pkjs/forecast-span.js); the watch's grid follows the count it receives and
-            // fills the plot's width, so the
-            // hours on screen follow the layout (src/c/appendix/forecast_span.h). '48' is the
-            // long span's stored token, labelled '58 h': the hours the default layout shows.
+            // fills the plot's width, so the hours on screen follow the layout
+            // (src/c/appendix/forecast_span.h). '48' is the long span's stored token. Its label
+            // names the whole hours the watch will show for the picked weather provider and the
+            // layout (forecastSpanOptions, src/pkjs/forecast-span-hours.js: '58 h' at the
+            // default layout, '59 h' without Larger graph fonts, '66 h' with the High / low
+            // numbers On graph or Off, '47 h' with OpenWeatherMap, '48 h' with Weather
+            // Underground); the stored value never moves.
             // Every other watch keeps 24 h: the 640 B / 536 B inboxes cannot take the long
             // span's 68-hour bundle and the 64 KB images have no room. A changed span
             // re-fetches (render-signature.js). Not `more`: the span frames the whole graph.
@@ -2022,12 +2026,11 @@ module.exports = {
                 hintByValue: {
                     '12': 'The next 12 hours, in wider columns.',
                     '24': 'The next 24 hours.',
-                    '48': 'About 58 hours in narrow columns; up to 66 with the High / low numbers '
-                        + 'On graph or Off. Weather Underground and OpenWeatherMap stop at 48 hours: '
-                        + 'their columns widen to fill the graph (47 whole hours with '
-                        + 'OpenWeatherMap, 48 with Weather Underground).'
+                    '48': 'As far ahead as your weather provider\'s hourly forecast reaches and the '
+                        + 'graph fits, in narrow columns. How many hours depends on the provider and '
+                        + 'the graph\'s layout.'
                 },
-                options: [['12 h', '12'], ['24 h', '24'], ['58 h', '48']],
+                optionsFrom: {resolver: 'forecastSpanOptions'},
                 showWhen: FORECAST_SPAN_WHEN
             }]
         }, {

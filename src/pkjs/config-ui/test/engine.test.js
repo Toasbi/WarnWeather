@@ -653,6 +653,36 @@ test('optionsFrom.resolver derives options via the registry (multi-key + env) an
   assert.equal(html.indexOf('value="a"'), -1, 'the excluded option is not rendered');
 });
 
+test('a segmented row renders its optionsFrom list: labels follow the settings, values stay; a dropped value snaps', () => {
+  // The forecast Time span's shape: the third option's LABEL is derived from other keys
+  // while its value never moves, so the row relabels on a re-render and nothing is rewritten.
+  PConf.optionsResolvers.register('testSegmented', function (S) {
+    var out = [['12 h', '12'], ['24 h', '24'], [(S.feed === 'short' ? '47' : '58') + ' h', '48']];
+    return S.feed === 'none' ? out.slice(0, 2) : out;
+  });
+  const item = { type: 'segmented', messageKey: 'span', label: 'Hours ahead', defaultValue: '24',
+    optionsFrom: { resolver: 'testSegmented' } };
+  const schema = { appName: 'X', versionLabel: '', tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [item] }] }] };
+  const render = (S) => {
+    const cx = { S: S, ENV: {}, USERDATA: {}, openColor: null, collapsed: {}, evalCtx: Object.assign({ env: {} }, S) };
+    return { html: E.renderBody(schema, 't', cx), S: cx.S };
+  };
+  let r = render({ feed: 'full', span: '48' });
+  assert.ok(r.html.indexOf('data-v="48">58 h</button>') >= 0, 'the derived label, on the stored value');
+  assert.ok(/class="on" data-k="span" data-v="48"/.test(r.html), 'the stored option is the selected one');
+  assert.equal(r.S.span, '48');
+  r = render({ feed: 'short', span: '48' });
+  assert.ok(r.html.indexOf('data-v="48">47 h</button>') >= 0, 'relabelled from the other key');
+  assert.equal(r.html.indexOf('58 h'), -1);
+  assert.equal(r.S.span, '48', 'a relabel never rewrites the stored value');
+  // A value the derived list drops snaps to the default, on screen and off it.
+  r = render({ feed: 'none', span: '48' });
+  assert.equal(r.S.span, '24', 'snapped to the default');
+  const S = { feed: 'none', span: '48' };
+  E.snapShownOptions(schema, S, {});
+  assert.equal(S.span, '24', 'snapShownOptions snaps a segmented row too');
+});
+
 test('renderSelectModal materializes an optionsFrom select into pickable option rows (and has no search box)', () => {
   const schema = { appName: 'X', versionLabel: '', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
     { type: 'select', messageKey: 'iv', defaultValue: '15', options: [['15 minutes','15']] },

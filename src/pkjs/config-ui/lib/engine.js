@@ -77,8 +77,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // Draw with currentColor so the glyph follows the label chrome's colour and the theme.
   PConf.icons = makeRegistry();
 
-  // --- options-resolver registry --- a select/searchSelect/radio item opts into a
-  // multi-key derived option list by name (item.optionsFrom.resolver: id) without the
+  // --- options-resolver registry --- a select/searchSelect/radio/segmented item opts into
+  // a multi-key derived option list by name (item.optionsFrom.resolver: id) without the
   // engine knowing what the derivation logic is.
   // fn(S, env, args) returns [[label, value], ...]; see resolveOptionsFrom below.
   PConf.optionsResolvers = makeRegistry();
@@ -1396,9 +1396,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return html ? '<div class="blockrow' + (sticky ? ' sticky' : '') + '">' + html + '</div>' : '';
   }
 
-  // Resolve a select/searchSelect/radio's concrete options and normalize its stored value.
-  // For an optionsFrom item this materializes the derived options and, when the stored
-  // value is no longer among them (e.g. the interval they depend on was raised, or a
+  // The single-value pickers an optionsFrom list can feed: the value is one of the options,
+  // so a derived list that drops it snaps it (resolveRowItem, snapShownOptions). A checklist
+  // is not one: its rows are its options and it has no value of its own.
+  var SINGLE_PICK_TYPES = { select: true, searchSelect: true, radio: true, segmented: true };
+
+  // Resolve a select/searchSelect/radio/segmented's concrete options and normalize its
+  // stored value. For an optionsFrom item this materializes the derived options and, when
+  // the stored value is no longer among them (e.g. the interval they depend on was raised, or a
   // preset was hidden for the current mode), snaps both view.value and cx.S into a valid
   // option so the rendered control and stored state stay in lockstep — preferring the
   // item's resolved default (via resolveDefaultFrom, which is env-aware and may be
@@ -1424,9 +1429,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       return item.optionsFrom
         ? Object.assign({}, item, { options: resolveOptionsFrom(item, cx.S, cx.ENV) }) : item;
     }
-    if ((item.type !== 'select' && item.type !== 'searchSelect' && item.type !== 'radio') || !item.optionsFrom) {
-      return item;
-    }
+    if (!SINGLE_PICK_TYPES[item.type] || !item.optionsFrom) { return item; }
     var derived = resolveOptionsFrom(item, cx.S, cx.ENV);
     if (derived.length && !optionHasValue(derived, view.value)) {
       var dflt = resolveDefaultFrom(item, cx.ENV);
@@ -1446,10 +1449,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * Snap every shown optionsFrom select / radio into its derived options, wherever its row
-   * sits: on another tab, in a dialog, or behind a card's More options. resolveRowItem
-   * does it for the rows on screen; this does it for the rest, so the stored state never
-   * depends on which rows happen to be drawn. A choice in one row that takes an option
+   * Snap every shown optionsFrom select / radio / segmented into its derived options,
+   * wherever its row sits: on another tab, in a dialog, or behind a card's More options.
+   * resolveRowItem does it for the rows on screen; this does it for the rest, so the
+   * stored state never depends on which rows happen to be drawn. A choice in one row that takes an option
    * away from another (the forecast lines: a later line may not repeat an earlier line's
    * metric) clears it at once even when the two rows sit in different dialogs, as it did
    * when they shared a tab. Same rules as resolveRowItem: the item's default when it is
@@ -1477,7 +1480,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (sec.pane && tab.panes && !paneShown[sec.pane]) { return; }
         (sec.items || []).forEach(function (item) {
           if (!item.optionsFrom || item.uiOnly || !item.messageKey) { return; }
-          if (item.type !== 'select' && item.type !== 'searchSelect' && item.type !== 'radio') { return; }
+          if (!SINGLE_PICK_TYPES[item.type]) { return; }
           if (!sw.isVisible(item, ctx)) { return; }
           var derived = resolveOptionsFrom(item, S, env);
           var stored = S[item.messageKey];

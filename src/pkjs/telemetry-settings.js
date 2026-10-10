@@ -336,8 +336,8 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // .strip() schema (handler.ts); ships OFF, so aplite's constant false is the default.
         doubleFlick: Boolean(safe.doubleFlick),
         largeGraphFont: Boolean(safe.largeGraphFont),
-        // The forecast's time span, the option: 12 / 24 / 48 (48 = the long span, labelled
-        // 58 h) on an emery, 24 on every other watch whatever is stored. Categorical, not the
+        // The forecast's time span, the option: 12 / 24 / 48 (48 = the long span, whatever
+        // its label) on an emery, 24 on every other watch whatever is stored. Categorical, not the
         // hours sent (forecast-span.js option()). Lockstep with handler.ts.
         forecastHours: forecastSpan.option(safe, env),
         // The forecast's left axis options (BETA), emery only (the one watch that offers

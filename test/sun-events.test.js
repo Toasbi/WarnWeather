@@ -258,9 +258,8 @@ test('a year at polar and ordinary latitudes: always a pair the watch accepts, s
 
 // ---------------------------------------------------------------------------
 // Emery's forecast span (forecast-span.js): 14, 24 (26 with no left axis) or the long span's 68
-// hours ("58 h"). The
-// watch repeats the pair a day back and up to two days on, keeps only the nights its chart
-// meets (at most FORECAST_NIGHTS_MAX = 4), and shades from the last sunset listed to the
+// hours. The watch repeats the pair a day back and up to two days on, keeps only the nights its
+// chart meets (at most FORECAST_NIGHTS_MAX = 4), and shades from the last sunset listed to the
 // graph's end (forecast_layer.c compute_night_segments, the PBL_PLATFORM_EMERY arm); the
 // polar pair reaches a day further past 24 h (26 and 48) and two at 68.
 // ---------------------------------------------------------------------------

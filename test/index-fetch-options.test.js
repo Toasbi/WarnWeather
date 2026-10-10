@@ -94,7 +94,7 @@ test('an AQI slot asks the AQI feed in the stored source and scale', (t) => {
 });
 
 // The forecast's time span (forecast-span.js) reaches the provider through the same
-// options: on an emery set to the long span (stored '48', labelled "58 h") the Open-Meteo
+// options: on an emery set to the long span (stored '48') the Open-Meteo
 // main and aux calls ask for four days and the weather message carries 68 hours; set to
 // 12 h, it carries 14 on today's requests; at 24 h with no left axis (the hi/lo numbers On
 // graph or Off) it carries 26. Any other watch keeps today's requests and 24 hours, whatever

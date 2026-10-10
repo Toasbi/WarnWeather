@@ -118,7 +118,7 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     // Before adopting: adoptMapped zero-fills an absent rain/wind/gust series to
     // numEntries. The fixture's own hours, up to the hours this watch is sent with these
     // settings (forecast-span.js hours(): 14 / 24 / 26 / 68): the 68-hour forecast-long
-    // fixture sends 68 only on an emery set to the long span ("58 h"; the 48-hour fixture is a
+    // fixture sends 68 only on an emery set to the long span (stored '48'; the 48-hour fixture is a
     // short feed there), and a longer fixture (the 39-hour time-lapse) sends the 24 every
     // other watch takes, never more than its inbox holds.
     var span = forecastSpan.hours(settings, platformLib.computeEnv(watchInfo));

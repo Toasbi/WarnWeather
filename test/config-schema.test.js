@@ -1834,16 +1834,33 @@ test('forecastHours: the Time span section sits after Bars & shading, emery only
   const it = byKey('forecastHours');
   assert.equal(it.type, 'segmented');
   assert.equal(it.defaultValue, '24');
-  assert.deepEqual(it.options.map((o) => o[1]), forecastSpan.CHOICES, 'the stored values are CHOICES');
-  // The long span keeps its '48' token and is labelled by the hours the default emery layout
-  // shows; its hint gives the real counts: 66 on the screen-wide plot (no left axis), and a
-  // 48-hour provider's feed fitted to the plot (forecast_span.h: its last hour's vertex on the
-  // last column, at every plot width; OWM's 48 entries show 47 whole, WU's 49 show 48).
-  assert.deepEqual(it.options.map((o) => o[0]), ['12 h', '24 h', '58 h']);
-  assert.equal(it.hintByValue['48'], 'About 58 hours in narrow columns; up to 66 with the High / low '
-    + 'numbers On graph or Off. Weather Underground and OpenWeatherMap stop at 48 hours: '
-    + 'their columns widen to fill the graph (47 whole hours with OpenWeatherMap, 48 with '
-    + 'Weather Underground).');
+  // The options are the forecastSpanOptions resolver's (forecast-hints.js): the stored values
+  // are CHOICES whatever the settings, and the long span keeps its '48' token while its label
+  // names the whole hours the watch will show for the provider and the layout
+  // (forecast-span-hours.js, test/forecast-span-hours.test.js).
+  assert.equal(it.options, undefined, 'no static list: the label follows the settings');
+  assert.deepEqual(it.optionsFrom, { resolver: 'forecastSpanOptions' });
+  const resolve = global.PConf.optionsResolvers.get('forecastSpanOptions');
+  assert.equal(typeof resolve, 'function', 'forecast-hints.js registers forecastSpanOptions');
+  const emery = platform.computeEnv({ platform: 'emery' });
+  const labels = (over) => resolve(Object.assign({}, settings.getDefaults(), over), emery, {});
+  assert.deepEqual(labels({}).map((o) => o[1]), forecastSpan.CHOICES, 'the stored values are CHOICES');
+  assert.deepEqual(labels({}), [['12 h', '12'], ['24 h', '24'], ['48 h', '48']],
+    'a fresh install: Weather Underground\'s 48 hours');
+  assert.deepEqual(labels({ provider: 'openmeteo' }).map((o) => o[0]), ['12 h', '24 h', '58 h']);
+  assert.deepEqual(labels({ provider: 'openweathermap' }).map((o) => o[0]), ['12 h', '24 h', '47 h']);
+  assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'off' }).map((o) => o[0]),
+    ['12 h', '24 h', '66 h']);
+  // The default Health (Status + Graph) puts the health graph in the cycle: its "0.5" step
+  // mark widens the shared strip past GOTHIC_18's two-digit hi/lo label (59, not 60); without
+  // the graph the label goes back to 60.
+  assert.deepEqual(labels({ provider: 'openmeteo', largeGraphFont: false }).map((o) => o[0]),
+    ['12 h', '24 h', '59 h']);
+  assert.deepEqual(labels({ provider: 'openmeteo', largeGraphFont: false, healthMode: 'status' })
+    .map((o) => o[0]), ['12 h', '24 h', '60 h']);
+  assert.equal(it.hintByValue['48'], 'As far ahead as your weather provider\'s hourly forecast '
+    + 'reaches and the graph fits, in narrow columns. How many hours depends on the provider and '
+    + 'the graph\'s layout.');
   assert.equal(it.hintByValue['12'], 'The next 12 hours, in wider columns.');
   assert.equal(it.hintByValue['24'], 'The next 24 hours.');
   assert.deepEqual(it.showWhen, { env: 'forecastSpan' });

@@ -161,6 +161,33 @@ test('the left axis module is bundled after line-style.js and before its readers
     'nothing assigns window.ForecastAxis in the generated page');
 });
 
+// forecast-span-hours.js (window.ForecastSpanHours, the long time span's whole hours) binds
+// window.ForecastAxis and window.VIEW_CYCLE while its own body runs, and forecast-hints.js binds
+// window.ForecastSpanHours while its own does: out of order, the page throws at boot on a real
+// phone while every Node test passes through require(). Its resolver, forecastSpanOptions,
+// is the Time span row's, registered by forecast-hints.js's own part of the page.
+test('the span hours module is bundled after view-cycle.js and forecast-axis.js, before forecast-hints.js', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('pkjs/forecast-axis.js') < idx('pkjs/forecast-span-hours.js'),
+    'forecast-axis.js must precede forecast-span-hours.js');
+  assert.ok(idx('pkjs/view-cycle.js') < idx('pkjs/forecast-span-hours.js'),
+    'view-cycle.js must precede forecast-span-hours.js');
+  assert.ok(idx('pkjs/forecast-span-hours.js') < idx('settings/forecast-hints.js'),
+    'forecast-span-hours.js must precede forecast-hints.js');
+  const src = page();
+  assert.ok(src.indexOf('window.ForecastSpanHours = api') !== -1,
+    'nothing assigns window.ForecastSpanHours in the generated page');
+  const from = src.indexOf('/* app: forecast-hints.js */');
+  const part = src.slice(from, src.indexOf('/* app: ', from + 1));
+  assert.ok(part.indexOf("PConf.optionsResolvers.register('forecastSpanOptions'") !== -1,
+    'forecast-hints.js does not register the forecastSpanOptions resolver in the generated page');
+});
+
 // when-resolvers.js answers the schema's { when } leaves. It binds window.LineStyle,
 // window.DrawFrom, window.OnDemand, window.ForecastAxis and VIEW_CYCLE while its own body
 // runs, so it follows all five. Out of the page, nothing throws: an unregistered leaf reads false, so the

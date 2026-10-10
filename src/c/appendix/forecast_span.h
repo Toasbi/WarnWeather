@@ -6,13 +6,15 @@
 // into the chart engine's ChartDef and its hour axis.
 //
 // THE SPAN IS THE DATA. The phone decides how many hours it sends (Graphs > Forecast > Time
-// span, emery only; src/pkjs/forecast-span.js: 14, 24 or 68 for the 12 h, 24 h and "58 h"
+// span, emery only; src/pkjs/forecast-span.js: 14, 24 or 68 for the 12 h, 24 h and long
 // options, and 26 for 24 h when the hi/lo numbers sit On graph or Off) and the NUM_ENTRIES
 // tuple carries the count, so the watch reads its grid off the hours it holds: no setting of
 // its own, no wire bits. THE VISIBLE WINDOW IS THE WATCH'S: every grid fills the plot to its
 // right edge and clips the hours past it, so how many hours show depends on the plot's width
 // (the label strip, or none: the numbers On graph or Off start the plot at the screen's left
-// edge), which only the watch knows (docs/adr/0004-forecast-span-is-the-data.md, Amendments).
+// edge), which only the watch measures (docs/adr/0004-forecast-span-is-the-data.md,
+// Amendments). The settings page names the long option by the whole hours it expects for the
+// provider's feed and the layout (forecast_span_whole; src/pkjs/forecast-span-hours.js).
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -192,6 +194,16 @@ static inline int forecast_span_laid_out(ForecastSpan s, int n, int visible_w) {
     const int pq = forecast_span_pitch_q(s);
     const bool day = !s.by_clock && pq == SLOT_X_PITCH_Q(FORECAST_SPAN_DAY_PITCH);
     return slot_x_count(pq, n, day ? visible_w : visible_w - 1 - s.bar_pad);
+}
+
+// emery: the whole hours on screen: the n slots whose bar ends on the `visible_w` columns,
+// slot_x(i) + bar_pad + bar_w <= visible_w - 1. The settings page labels the long span with
+// this count (src/pkjs/forecast-span-hours.js wholeHours; the two are held to one table,
+// test/c/forecast_span_test.c SPAN_WHOLE_HOURS). Under the edge rule the last hour is cut at
+// its point, so a feed the rule widens shows n - 1 whole hours; a full feed at the 3 px floor,
+// floor(visible_w / 3). The drawing reads forecast_span_drawn and _laid_out, never this.
+static inline int forecast_span_whole(ForecastSpan s, int n, int visible_w) {
+    return slot_x_count(forecast_span_pitch_q(s), n, visible_w - s.bar_pad - s.bar_w);
 }
 
 // emery: what the hour axis draws on one slot. The values are chart.h's ChartTickKind

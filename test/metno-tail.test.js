@@ -1,5 +1,5 @@
 // test/metno-tail.test.js
-// Met.no on emery's long span (forecast-span.js, labelled "58 h": 68 hours sent). /complete
+// Met.no on emery's long span (forecast-span.js: 68 hours sent). /complete
 // is hourly only to a fixed model time (57 to 63 hours from the anchor in recorded
 // responses), then 6-hourly; hourlyTail makes that tail hourly so the long payload reaches
 // 68 and the watch keeps its 3 px pitch. Every other window maps the response as 1fb8bb9

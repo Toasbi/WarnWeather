@@ -1,6 +1,6 @@
 // src/pkjs/forecast-span.js — ES5. The forecast graph's time span (Graphs > Forecast >
 // Time span): how many hours the phone fetches, bakes and sends (14 / 24 / 68 for the 12 h,
-// 24 h and "58 h" options, and 26 for 24 h when the graph has no left axis); the watch fits its
+// 24 h and long options, and 26 for 24 h when the graph has no left axis); the watch fits its
 // grid to them (src/c/appendix/forecast_span.h) and shows as many as its plot's width holds.
 // Emery only (config-ui/lib/platform.js isForecastSpanPlatform, the env.forecastSpan fact):
 // every other watch, and an unknown one, gets today's 24 hours whatever the stored value says.
@@ -18,7 +18,8 @@ var forecastAxis = require('./forecast-axis.js');
 var DEFAULT_HOURS = hourlyWindow.FORECAST_HOURS;
 // The stored values, the schema's options (test/forecast-span.test.js pins both). '48' is the
 // long span's token: the first cut stored the long span as '48', so the token stays and
-// nothing migrates. The schema labels it "58 h", the hours the default emery layout shows.
+// nothing migrates. The settings page labels it with the whole hours the watch will show for
+// the provider's feed and the layout (forecast-span-hours.js: "58 h" at the default layout).
 var CHOICES = ['12', '24', '48'];
 // The 12 h span sends 14: the 13th column (partly on screen at most widths) and the vertex
 // past it carry data (forecast_span.h FORECAST_SPAN_HALF_SENT, lockstep).
@@ -59,7 +60,7 @@ function hours(settings, env) {
 
 /**
  * The option this watch draws, for telemetry: categorical, not the hours sent. The stored
- * 12 / 24 / 48 on a span watch (48 = the long span, labelled "58 h"), else 24.
+ * 12 / 24 / 48 on a span watch (48 = the long span, whatever its label), else 24.
  * @param {?Object} settings Clay settings.
  * @param {?Object} env config-ui/lib/platform.js computeEnv() result.
  * @returns {number} 12, 24 or 48.
