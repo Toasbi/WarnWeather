@@ -45,10 +45,18 @@ function entryEpoch(entry) {
 
 /**
  * @param {Object} entry A locationforecast timeseries bucket.
+ * @returns {?Object} Its instant details, or null when it has none.
+ */
+function instantOf(entry) {
+    return (entry && entry.data && entry.data.instant && entry.data.instant.details) || null;
+}
+
+/**
+ * @param {Object} entry A locationforecast timeseries bucket.
  * @returns {number} Its clear-sky UV index, 0 when unreported.
  */
 function entryUv(entry) {
-    var instant = entry.data && entry.data.instant && entry.data.instant.details;
+    var instant = instantOf(entry);
     return (instant && typeof instant.ultraviolet_index_clear_sky === 'number')
         ? instant.ultraviolet_index_clear_sky : 0;
 }
@@ -58,7 +66,7 @@ function entryUv(entry) {
  * @returns {number} Its wind speed in km/h, 0 when unreported.
  */
 function entryWindKmh(entry) {
-    var instant = entry.data && entry.data.instant && entry.data.instant.details;
+    var instant = instantOf(entry);
     return msToKmh((instant && instant.wind_speed) || 0);
 }
 
@@ -80,7 +88,7 @@ function entryWindKmh(entry) {
  */
 function followingGust(timeseries, i) {
     var next = timeseries[i + 1];
-    var details = next && next.data && next.data.instant && next.data.instant.details;
+    var details = instantOf(next);
     if (!details || entryEpoch(next) !== entryEpoch(timeseries[i]) + HOUR_SECONDS) {
         return 0;
     }
@@ -89,14 +97,6 @@ function followingGust(timeseries, i) {
 
 // The widest step hourlyTail fills: /complete turns 6-hourly past its hourly run.
 var TAIL_MAX_STEP_HOURS = 6;
-
-/**
- * @param {Object} entry A locationforecast timeseries bucket.
- * @returns {?Object} Its instant details, or null when it has none.
- */
-function instantOf(entry) {
-    return (entry && entry.data && entry.data.instant && entry.data.instant.details) || null;
-}
 
 /**
  * @param {Object} entry A locationforecast timeseries bucket.
@@ -339,7 +339,7 @@ function mapResponse(json, nowEpoch, hours) {
     var count = hourlyWindow.hourlyRun(timeseries, anchor, hours || FORECAST_HOURS, entryEpoch);
     for (i = anchor; i < anchor + count; i += 1) {
         entry = timeseries[i];
-        instant = entry.data && entry.data.instant && entry.data.instant.details;
+        instant = instantOf(entry);
         next1 = entry.data && entry.data.next_1_hours && entry.data.next_1_hours.details;
         if (!instant || typeof instant.air_temperature !== 'number') {
             // Past the base 24 hours (the long span) a bucket without a temperature
