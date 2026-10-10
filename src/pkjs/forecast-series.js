@@ -256,9 +256,9 @@ function pressurePermille(arr, scale) {
  * temperature axis: the Main and Second metric lines (secondaryLine/thirdLine) on
  * every non-aplite watch, the Third and Fourth metric lines (fourthLine/fifthLine)
  * only where the watch compiles them (configUi.isLineStylePlatform — the same gate
- * applyForecastSeries puts on their wire keys). "Effective" is line-style.js'
- * effectiveLineMetric: an off line, or one repeating an earlier line's pick, draws
- * nothing and so widens nothing.
+ * applyForecastSeries puts on their wire keys). line-style.js firstDrawnLine walks
+ * them by effectiveLineMetric: an off line, or one repeating an earlier line's pick,
+ * draws nothing and so widens nothing.
  *
  * Never on aplite: such a curve only lines up with the temp curve when both share
  * a band AND a pixel inset, and aplite compiles the configurable inset out (no
@@ -277,13 +277,8 @@ function pressurePermille(arr, scale) {
 function tempAxisLineDrawn(settings, watchInfo, metric) {
     var platform = watchInfo && watchInfo.platform ? watchInfo.platform : '';
     if (platform === 'aplite') { return false; }
-    var lineStylePlatform = configUi.isLineStylePlatform(platform);
-    for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
-        var key = lineStyle.FORECAST_LINES[i].key;
-        var drawnHere = (key === 'secondaryLine' || key === 'thirdLine') || lineStylePlatform;
-        if (drawnHere && lineStyle.effectiveLineMetric(settings, key) === metric) { return true; }
-    }
-    return false;
+    return lineStyle.firstDrawnLine(settings, configUi.isLineStylePlatform(platform),
+        function (m) { return m === metric; }) !== null;
 }
 
 // Where each temperature-axis metric's series rides: its transient payload key
@@ -708,9 +703,8 @@ module.exports = {
     needsPollen: needsPollen,
     permilleToByte: permilleToByte,
     tempTrendToBytes: tempTrendToBytes,
-    // The left axis's scale bake (BETA) and the drawn-line gate it shares, for the tests.
+    // The left axis's scale bake (BETA), for the tests.
     tempScaleRange: tempScaleRange,
-    tempAxisLineDrawn: tempAxisLineDrawn,
     // Re-exported from line-style.js, which owns them now: settings/preview-palette.js
     // and the colour tests read them through this module.
     PRESSURE_SCALE_CURVE_HPA: PRESSURE_SCALE_CURVE_HPA,

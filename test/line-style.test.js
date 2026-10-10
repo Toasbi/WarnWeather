@@ -532,3 +532,42 @@ test('effectiveLineMetric: every forecast line may carry a temperature-axis metr
   assert.equal(lineStyle.effectiveLineMetric({ fourthLine: 'off' }, 'fourthLine'), null, 'off is off');
   assert.equal(lineStyle.effectiveLineMetric({}, 'fifthLine'), null, 'unset is off');
 });
+
+// THE one walk for "which forecast line draws metric X": forecast-axis.js' feels-like /
+// dew point gate, forecast-series.js' bake gate and the settings page's hostLine ask it.
+test('firstDrawnLine: the first line drawing a metric that passes, lines 3-4 only with allLines', () => {
+  const temp = lineStyle.isTempAxisMetric;
+  const is = (metric) => (m) => m === metric;
+  // [settings, allLines, test, the line it names]
+  const cases = [
+    [{}, true, () => true, null],
+    [{ secondaryLine: 'off', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' }, true, () => true, null],
+    [{ secondaryLine: 'wind', thirdLine: 'feels', fourthLine: 'dew' }, true, temp, 'thirdLine'],
+    [{ secondaryLine: 'wind', thirdLine: 'uv', fourthLine: 'dew' }, true, temp, 'fourthLine'],
+    [{ secondaryLine: 'wind', thirdLine: 'uv', fourthLine: 'dew' }, false, temp, null],
+    [{ secondaryLine: 'dew', thirdLine: 'dew' }, true, is('dew'), 'secondaryLine'],
+    [{ secondaryLine: 'off', fourthLine: 'uv', fifthLine: 'uv' }, true, is('uv'), 'fourthLine'],
+    [{ secondaryLine: 'off', fifthLine: 'gust' }, true, is('gust'), 'fifthLine'],
+    [{ secondaryLine: 'off', fifthLine: 'gust' }, false, is('gust'), null],
+    [{ secondaryLine: 'cloud', thirdLine: 'wind' }, true, (m) => ['wind', 'gust'].indexOf(m) >= 0, 'thirdLine']
+  ];
+  cases.forEach(([s, allLines, t, want]) => {
+    assert.equal(lineStyle.firstDrawnLine(s, allLines, t), want, JSON.stringify([s, allLines]));
+  });
+  lineStyle.FORECAST_LINES.forEach((line, i) => {
+    const s = {};
+    s[line.key] = 'cloud';
+    assert.equal(lineStyle.firstDrawnLine(s, true, is('cloud')), line.key, line.key);
+    assert.equal(lineStyle.firstDrawnLine(s, false, is('cloud')), i < 2 ? line.key : null, line.key + ' frozen');
+  });
+  // The test sees only what a line draws: never off, an unset line or a repeat of an
+  // earlier pick, and nothing of lines 3-4 without allLines.
+  const seen = (allLines) => {
+    const asked = [];
+    lineStyle.firstDrawnLine({ secondaryLine: 'off', thirdLine: 'cloud', fourthLine: 'cloud', fifthLine: 'uv' },
+      allLines, (m) => { asked.push(m); return false; });
+    return asked;
+  };
+  assert.deepEqual(seen(true), ['cloud', 'uv']);
+  assert.deepEqual(seen(false), ['cloud']);
+});

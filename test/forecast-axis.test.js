@@ -8,7 +8,6 @@ const fs = require('fs');
 const path = require('path');
 
 const forecastAxis = require('../src/pkjs/forecast-axis.js');
-const forecastSeries = require('../src/pkjs/forecast-series.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const env = (p) => platform.computeEnv(p === null ? null : { platform: p });
@@ -68,21 +67,6 @@ test('tempAxisLineDrawn: a drawn feels-like or dew point line, lines 3-4 only wi
   // A repeated pick draws only its earliest copy, which still counts.
   assert.equal(forecastAxis.tempAxisLineDrawn({ secondaryLine: 'dew', thirdLine: 'dew' }, styles), true);
   assert.equal(forecastAxis.tempAxisLineDrawn({ secondaryLine: 'off', fifthLine: 'feels' }, styles), true);
-});
-
-test('tempAxisLineDrawn agrees with the bake\'s own gate (forecast-series.js)', () => {
-  const states = [{}, { secondaryLine: 'feels' }, { thirdLine: 'dew' }, { fourthLine: 'dew' },
-    { fifthLine: 'feels' }, { secondaryLine: 'wind', fifthLine: 'dew' }, { secondaryLine: 'off' },
-    { secondaryLine: 'dew', thirdLine: 'dew' }];
-  // aplite never draws one (the bake's own extra gate); every other watch, and an unknown
-  // one, agrees line for line.
-  ['emery', 'basalt', 'diorite', null].forEach((p) => {
-    states.forEach((s) => {
-      const bake = forecastSeries.tempAxisLineDrawn(s, p ? { platform: p } : null, 'feels')
-        || forecastSeries.tempAxisLineDrawn(s, p ? { platform: p } : null, 'dew');
-      assert.equal(forecastAxis.tempAxisLineDrawn(s, env(p)), bake, p + ' ' + JSON.stringify(s));
-    });
-  });
 });
 
 test('resolved: the stored options on a known emery, the defaults everywhere else', () => {

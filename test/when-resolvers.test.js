@@ -149,24 +149,24 @@ test('defaultViewLacksOnDemand: the Default view the watch runs has no strip and
     Object.assign({ env: BASALT }, OD.DEFAULTS, custom)), true);
 });
 
-// The Left axis card's 'Include feels-like & dew point' gate asks forecast-axis.js, the
-// module the wire and the bake read it through.
-test('tempAxisLineDrawn is registered and agrees with forecast-axis.js', () => {
+// The Left axis card's 'Include feels-like & dew point' gate is forecast-axis.js' own
+// function, the one the wire and the bake read it through, registered as is.
+test('tempAxisLineDrawn is forecast-axis.js\' own reading, and a leaf asks it', () => {
   const forecastAxis = require('../src/pkjs/forecast-axis.js');
-  assert.equal(global.PConf.whenResolvers.get('tempAxisLineDrawn'), WR.tempAxisLineDrawn);
+  assert.equal(global.PConf.whenResolvers.get('tempAxisLineDrawn'), forecastAxis.tempAxisLineDrawn);
   const EMERY = platform.computeEnv({ platform: 'emery' });
   const UNKNOWN = platform.computeEnv(null);
+  const leaf = (S, env) => showWhen.evaluate({ when: 'tempAxisLineDrawn' }, Object.assign({ env }, S));
   const states = [{}, { secondaryLine: 'feels' }, { thirdLine: 'dew' }, { fourthLine: 'dew' },
     { fifthLine: 'feels' }, { secondaryLine: 'wind', thirdLine: 'uv' }, { secondaryLine: 'dew', thirdLine: 'dew' }];
   let shown = 0;
   [EMERY, BASALT, APLITE, UNKNOWN].forEach((env) => {
     states.forEach((S) => {
       const want = forecastAxis.tempAxisLineDrawn(S, env);
-      assert.equal(WR.tempAxisLineDrawn(S, env), want, JSON.stringify([env.platform, S]));
-      assert.equal(showWhen.evaluate({ when: 'tempAxisLineDrawn' }, Object.assign({ env }, S)), want);
+      assert.equal(leaf(S, env), want, JSON.stringify([env.platform, S]));
       if (want) { shown += 1; }
     });
   });
   assert.ok(shown > 0, 'premise: some state draws one');
-  assert.equal(WR.tempAxisLineDrawn({ fifthLine: 'dew' }, APLITE), false, 'aplite draws no Fourth metric line');
+  assert.equal(leaf({ fifthLine: 'dew' }, APLITE), false, 'aplite draws no Fourth metric line');
 });

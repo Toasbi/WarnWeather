@@ -411,6 +411,28 @@
         return null;
     }
 
+    /**
+     * The first forecast line the watch draws whose metric passes `test`: THE one walk
+     * for "which line draws metric X" (forecast-axis.js, forecast-series.js and the
+     * settings page's when-resolvers.js hostLine). A line draws its effectiveLineMetric;
+     * the Third and Fourth metric lines (fourthLine / fifthLine) count only with
+     * `allLines`, where the watch draws them (WW_LINE_STYLE). It takes that fact as a
+     * boolean because each caller reads it its own way.
+     * @param {Object} settings Clay settings blob.
+     * @param {boolean} allLines Whether the watch draws all four lines.
+     * @param {function(string): boolean} test Asked with each drawn metric.
+     * @returns {?string} secondaryLine|thirdLine|fourthLine|fifthLine, or null.
+     */
+    function firstDrawnLine(settings, allLines, test) {
+        for (var i = 0; i < FORECAST_LINES.length; i++) {
+            if (i >= 2 && !allLines) { break; }
+            var key = FORECAST_LINES[i].key;
+            var m = effectiveLineMetric(settings, key);
+            if (m !== null && test(m)) { return key; }
+        }
+        return null;
+    }
+
     // --- Per-line marker styles (wire bytes [11..13]) -----------------------
     // One setting per configurable line, six values: 'line' (thin solid),
     // 'bold' (thick solid), 'dots' (square dots), 'x' (little x marks), and
@@ -796,6 +818,7 @@
         TEMP_AXIS_METRIC_IDS: TEMP_AXIS_METRIC_IDS,
         isTempAxisMetric: isTempAxisMetric,
         effectiveLineMetric: effectiveLineMetric,
+        firstDrawnLine: firstDrawnLine,
         LINE_STYLE_DEFAULTS: LINE_STYLE_DEFAULTS,
         STRIPE_METRIC_IDS: STRIPE_METRIC_IDS,
         metricAllowsStripe: metricAllowsStripe,

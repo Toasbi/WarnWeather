@@ -96,9 +96,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // plot the layout leaves: where the High / low numbers sit, Larger graph fonts and the
     // health graph's labels (forecast-span-hours.js spanOptions). The values stay '12', '24'
     // and '48', so a relabel never touches the stored setting.
-    PConf.optionsResolvers.register('forecastSpanOptions', function (S, env) {
-        return forecastSpanHours.spanOptions(S, env);
-    });
+    PConf.optionsResolvers.register('forecastSpanOptions', forecastSpanHours.spanOptions);
 
     // ---- The forecast line hints: how a metric's value reads on the graph ----
     // The scale lives on the LINE-STYLE picker, because the style decides how a value

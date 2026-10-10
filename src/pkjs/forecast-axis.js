@@ -109,22 +109,17 @@
 
     /**
      * Whether a feels-like or dew point line is drawn: one of the forecast lines draws a
-     * temperature-axis metric (line-style.js effectiveLineMetric). The Third and Fourth metric
-     * lines (fourthLine / fifthLine) count only where the watch draws them (env.lineStyles:
-     * when-resolvers.js hostLine's rule), so the settings gate, the wire and the preview agree.
+     * temperature-axis metric (line-style.js firstDrawnLine). The Third and Fourth metric
+     * lines (fourthLine / fifthLine) count only where the watch draws them (env.lineStyles,
+     * read truthy as when-resolvers.js hostLine reads it), so the settings gate, the wire and
+     * the preview agree.
      * @param {?Object} s Clay settings.
      * @param {?Object} env computeEnv() result (only its lineStyles is read).
      * @returns {boolean}
      */
     function tempAxisLineDrawn(s, env) {
-        var lines = lineStyle.FORECAST_LINES;
-        var styles = Boolean(env && env.lineStyles);
-        for (var i = 0; i < lines.length; i++) {
-            if (i >= 2 && !styles) { continue; }
-            var m = lineStyle.effectiveLineMetric(s, lines[i].key);
-            if (m && lineStyle.isTempAxisMetric(m)) { return true; }
-        }
-        return false;
+        return lineStyle.firstDrawnLine(s, Boolean(env && env.lineStyles),
+            lineStyle.isTempAxisMetric) !== null;
     }
 
     /**
