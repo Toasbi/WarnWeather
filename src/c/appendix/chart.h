@@ -319,11 +319,3 @@ void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
 // shared look of the forecast's stripe style and the radar's sky rows.
 void chart_stripe_fill_cell(GContext *ctx, GRect cell, GColor color, int level);
 #endif
-
-#if defined(PBL_PLATFORM_EMERY)
-// emery: the hour labels' font, GOTHIC_14, or GOTHIC_18 with Larger graph fonts: the one source
-// for the tier chart_axis_label draws them in and forecast_layer.c measures the collapsed plot
-// edge by (the left axis's numbers on the graph or off). Fresh on every call: the setting
-// flips without a relaunch.
-GFont chart_axis_font(void);
-#endif

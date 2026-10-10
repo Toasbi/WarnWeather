@@ -3,7 +3,7 @@
 // so the host suite pins it (test/c/forecast_span_test.c). Every x the forecast computes from
 // an hour's index or from a time goes through it: the chart engine's ticks, bars, marks, line
 // and area vertices and stripe cells (chart.h chart_slot_tick_x), the hour axis's ticks and
-// labels (forecast_grid.c), the night bands (forecast_layer.c graph_x_for_time), the frame's
+// labels (forecast_grid.c), the night bands (forecast_night.h graph_x_for_time), the frame's
 // zero line, the numbers On graph, and the count of hours on screen (slot_x_count). So a
 // fractional pitch (the long span's, forecast_span.h) cannot drift between them.
 //

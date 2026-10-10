@@ -197,10 +197,10 @@ static inline void temp_axis_range_widen(TempAxisRange *r, const int16_t *values
 // emery: byte b of a temperature-axis line read back to whole degrees, on the straight line
 // through the global extremes g (every hour sent) and the phone's TEMP_MIN / TEMP_MAX (lo,
 // hi), rounded half up; the ends exact. The 12 h and long grids name the hours on screen
-// with it (forecast_layer.c relabel_visible). The phone encodes b = round((t - Jlo) * 250 /
-// S) on the joint band S (forecast-series.js tempTrendToBytes), so the read is exact for the
-// air alone at any span up to 250 and for a joint band up to about 127 degrees, +-1 beyond
-// (test/c/temp_axis_pad_test.c). b lies in [g.lo, g.hi], so no sign fix-up.
+// with it (forecast_numbers.h forecast_numbers_relabel). The phone encodes b = round((t -
+// Jlo) * 250 / S) on the joint band S (forecast-series.js tempTrendToBytes), so the read is
+// exact for the air alone at any span up to 250 and for a joint band up to about 127 degrees,
+// +-1 beyond (test/c/temp_axis_pad_test.c). b lies in [g.lo, g.hi], so no sign fix-up.
 static inline int temp_axis_byte_temp(int b, TempAxisRange g, int lo, int hi) {
     if (b >= g.hi) { return hi; }
     if (b <= g.lo) { return lo; }

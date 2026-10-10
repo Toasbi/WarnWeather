@@ -1185,7 +1185,7 @@ static void test_scale_labels(void) {
 //
 // emery's left-axis options: the hi/lo numbers beside the points they name (On graph), or no
 // numbers (Off), the label strip given to the plot either way. forecast_layer.c
-// draw_axis_numbers is SDK-bound; the rules it reads are pinned here.
+// draw_axis_numbers and forecast_numbers.h are SDK-bound; the rules they read are pinned here.
 
 // The emery label fonts' boxes (bottom_view_label_font: GOTHIC_18, GOTHIC_24 with Larger graph
 // fonts) and their caps (status_metrics.h: h / 2 + 2).

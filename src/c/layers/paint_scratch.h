@@ -32,6 +32,14 @@ typedef struct {
     Series series[SERIES_COUNT];
 } ForecastDataset;
 
+// The hours the scale and the labels cover: `n`, every hour sent (the caller's
+// ds->num_entries), off emery.
+#if defined(PBL_PLATFORM_EMERY)
+#define FORECAST_FIT_N(ds, n) ((ds)->fit_entries)   // emery: the hours on screen
+#else
+#define FORECAST_FIT_N(ds, n) (n)
+#endif
+
 // forecast_update_proc: the dataset, its layer list (the plot's, then each stripe
 // band's), the area fill's exported contour, the hour axis, the night bands and the
 // rain bars' palette rescaled to the wire range.
@@ -40,7 +48,7 @@ typedef struct {
     ChartLayer      layers[SERIES_COUNT + 6];
     GPoint          area_pts[FORECAST_MAX_ENTRIES + 2];
     ChartAxisSlot   axis_slots[FORECAST_MAX_ENTRIES];
-    ChartBand       night_bands[FORECAST_NIGHTS_MAX];   // forecast_layer.c NightSegments' cap
+    ChartBand       night_bands[FORECAST_NIGHTS_MAX];   // forecast_night.h NightSegments' cap
     ChartColorStop  scaled_bar_stops[PALETTE_MAX_STOPS];
 } ForecastPaint;
 

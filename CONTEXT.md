@@ -155,8 +155,9 @@ graph is in the view cycle, its "0.5" step mark in the shared strip
 (`forecast_span_whole`, mirrored by `src/pkjs/forecast-span-hours.js`). 24 h shows 21, or 25 with no left axis
 (sent 26; until those arrive, its 24 hours widen to reach the edge, 23 whole).
 The temperature scale and the hi/lo labels fit the visible hours, not every
-hour sent (`forecast_layer.c` fit_entries, relabel_visible); the stripe bands
-and the curve's anchored edges read the hours whose bar starts on screen. The
+hour sent (`forecast_layer.c` fit_entries, `forecast_numbers.h`
+forecast_numbers_relabel); the stripe bands and the curve's anchored edges
+read the hours whose bar starts on screen. The
 hour axis labels only what is whole on screen: a label either edge would cut is
 dropped (its tick stays), and with no left axis the current hour (slot 0) is
 never labelled; each label names its slot's own local hour, across a

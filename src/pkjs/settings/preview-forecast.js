@@ -276,7 +276,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     }
 
     /**
-     * Where the numbers' ink may go — forecast_layer.c draw_axis_numbers' TempLabelArea,
+     * Where the numbers' ink may go — forecast_numbers_on_graph's TempLabelArea,
      * mirrored: the plot's left edge (no axis On graph) to its right edge, from the first
      * content row under the top stripe band to the row over the zero line, shrunk on every side
      * by the outline's ring (one watch px), so the ring never crosses an edge, a band or the
@@ -293,10 +293,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     }
 
     /**
-     * Whether the lo number is drawn too — draw_axis_numbers' rule, mirrored: a flat range
-     * (equal texts) draws the hi number alone; else both, kept apart by numbersPart, which
-     * may still leave the lo one out. The preview's own sample never has a flat range, so
-     * only the tests reach that case.
+     * Whether the lo number is drawn too — forecast_numbers_on_graph's rule, mirrored: a flat
+     * range (equal texts) draws the hi number alone; else both, kept apart by numbersPart,
+     * which may still leave the lo one out. The preview's own sample never has a flat range,
+     * so only the tests reach that case.
      * @param {string} hiText The hi number's text.
      * @param {string} loText The lo number's text.
      * @param {{x: number, base: number}} hi The hi number (numberBeside; numbersPart may move it).

@@ -38,7 +38,7 @@ const TROMSO = [69.65, 18.96];
 const BERLIN = [52.52, 13.40];
 
 /**
- * JS twin of forecast_layer.c: get_valid_sun_events + compute_night_segments.
+ * JS twin of forecast_night.h: get_valid_sun_events + compute_night_segments.
  * The watch repeats the pair a day either side, sorts the six events and
  * shades every sunset -> sunrise span (at most three).
  * @param {{type: string, date: Date}[]} pair The two SUN_EVENTS events.
@@ -260,13 +260,13 @@ test('a year at polar and ordinary latitudes: always a pair the watch accepts, s
 // Emery's forecast span (forecast-span.js): 14, 24 (26 with no left axis) or the long span's 68
 // hours. The watch repeats the pair a day back and up to two days on, keeps only the nights its
 // chart meets (at most FORECAST_NIGHTS_MAX = 4), and shades from the last sunset listed to the
-// graph's end (forecast_layer.c compute_night_segments, the PBL_PLATFORM_EMERY arm); the
+// graph's end (forecast_night.h compute_night_segments, the PBL_PLATFORM_EMERY arm); the
 // polar pair reaches a day further past 24 h (26 and 48) and two at 68.
 // ---------------------------------------------------------------------------
 const EMERY_NIGHTS_MAX = 4;
 
 /**
- * JS twin of forecast_layer.c's emery arm: offsets -1..2, the nights the graph meets, at most
+ * JS twin of forecast_night.h's emery arm: offsets -1..2, the nights the graph meets, at most
  * four, then the trailing close from the last sunset listed to the graph's end.
  * @param {{type: string, date: Date}[]} pair The two SUN_EVENTS events.
  * @param {number} gstart Graph start, epoch seconds.
@@ -450,31 +450,41 @@ test('WeatherProvider#withSunEvents passes the fetch\'s span to the polar pair',
   });
 });
 
-// The JS twin above (emeryNightSegments) stands in for forecast_layer.c's emery arm, which has
-// no host test (its night code stays in the SDK-bound layer: extracting it costs bytes off
-// emery). Pin the facts the twin copies to the C source, so neither side drifts alone.
-test('the JS night twin matches forecast_layer.c\'s emery night arm', () => {
-  const src = require('fs').readFileSync(
-    require('path').join(__dirname, '../src/c/layers/forecast_layer.c'), 'utf8');
-  const span = require('fs').readFileSync(
-    require('path').join(__dirname, '../src/c/appendix/forecast_span.h'), 'utf8');
-  // The pair repeats on day offsets -1..2 on emery (8 events), -1..1 elsewhere.
-  assert.match(src, /#if defined\(PBL_PLATFORM_EMERY\)\n(?:[ \t]*\/\/[^\n]*\n)*[ \t]*SunEvent events\[8\];\n#define NIGHT_LAST_DAY_OFFSET 2\n#else\n[ \t]*SunEvent events\[6\];\n#define NIGHT_LAST_DAY_OFFSET 1\n#endif/);
-  assert.match(src, /for \(int day_offset = -1; day_offset <= NIGHT_LAST_DAY_OFFSET; \+\+day_offset\)/);
+// The JS twin above (emeryNightSegments) stands in for the emery arm of forecast_night.h, which
+// has no host test (a fragment of the SDK-bound forecast_layer.c, compiled in its translation
+// unit: in one of its own it would cost bytes). Pin the facts the twin copies to the C source,
+// so neither side drifts alone.
+test('the JS night twin matches forecast_night.h\'s emery night arm', () => {
+  const read = (file) => require('fs').readFileSync(
+    require('path').join(__dirname, '..', file), 'utf8');
+  const src = read('src/c/layers/forecast_night.h');
+  const layer = read('src/c/layers/forecast_layer.c');
+  const span = read('src/c/appendix/forecast_span.h');
+  /**
+   * A define's value in forecast_span.h's emery arm and in its #else arm.
+   * @param {string} name The macro.
+   * @returns {number[]} [emery, elsewhere].
+   */
+  const arms = (name) => {
+    const m = span.match(new RegExp('#if defined\\(PBL_PLATFORM_EMERY\\)[\\s\\S]*?#define ' + name
+      + ' (\\d+)[\\s\\S]*?#else[\\s\\S]*?#define ' + name + ' (\\d+)'));
+    assert.ok(m, 'forecast_span.h keeps its emery / else ' + name + ' arms');
+    return [Number(m[1]), Number(m[2])];
+  };
+  // The pair repeats on day offsets -1..FORECAST_NIGHT_LAST_DAY: 2 on emery (the twin's, 8
+  // events), 1 elsewhere (6).
+  assert.match(src, /SunEvent events\[2 \* \(FORECAST_NIGHT_LAST_DAY \+ 2\)\];/);
+  assert.match(src, /for \(int day_offset = -1; day_offset <= FORECAST_NIGHT_LAST_DAY; \+\+day_offset\)/);
+  assert.deepEqual(arms('FORECAST_NIGHT_LAST_DAY'), [2, 1]);
   // Only the nights the graph meets take one of the slots (emery only).
   assert.match(src, /#if defined\(PBL_PLATFORM_EMERY\)\n(?:[ \t]*\/\/[^\n]*\n)*[ \t]*if \(event_end\.timestamp <= graph_start \|\| event_start\.timestamp >= graph_end\)/);
   // The slots: FORECAST_NIGHTS_MAX, 4 on emery (the twin's EMERY_NIGHTS_MAX), 3 elsewhere.
   assert.match(src, /NightSegment segments\[FORECAST_NIGHTS_MAX\];/);
-  const nights = span.match(/#if defined\(PBL_PLATFORM_EMERY\)[\s\S]*?#define FORECAST_NIGHTS_MAX (\d+)\s*#else[\s\S]*?#define FORECAST_NIGHTS_MAX (\d+)/);
-  assert.ok(nights, 'forecast_span.h keeps its emery / else FORECAST_NIGHTS_MAX arms');
-  assert.equal(Number(nights[1]), EMERY_NIGHTS_MAX);
-  assert.equal(Number(nights[2]), 3);
+  assert.deepEqual(arms('FORECAST_NIGHTS_MAX'), [EMERY_NIGHTS_MAX, 3]);
   // The trailing close (emery only): the last event listed, a sunset, runs to the graph's end.
   assert.match(src, /#if defined\(PBL_PLATFORM_EMERY\)\n(?:[ \t]*\/\/[^\n]*\n)*[ \t]*if \(event_count > 0 && events\[event_count - 1\]\.type == 1\)\n[ \t]*\{\n[ \t]*night_segments_add\(&night_segments, events\[event_count - 1\]\.timestamp, graph_end\);\n[ \t]*\}\n#endif/);
   // The graph's end is num_entries hours on (emery), num_entries - 1 elsewhere: the twin's
   // emeryChartShading shades `hours` h of an `hours`-entry chart.
-  const emeryEnd = src.indexOf('#define NIGHT_HOURS(n) (n)\n');
-  const otherEnd = src.indexOf('#define NIGHT_HOURS(n) ((n) - 1)\n');
-  assert.ok(emeryEnd !== -1 && otherEnd > emeryEnd, 'the emery arm first, then #else');
-  assert.match(src, /forecast_start\s*\+ NIGHT_HOURS\(ds->num_entries\) \* BOTTOM_VIEW_STEP_SECONDS/);
+  assert.deepEqual(arms('FORECAST_NIGHT_PAST_LAST'), [1, 0]);
+  assert.match(layer, /forecast_start\s*\+ \(ds->num_entries - 1 \+ FORECAST_NIGHT_PAST_LAST\)\s*\* BOTTOM_VIEW_STEP_SECONDS/);
 });

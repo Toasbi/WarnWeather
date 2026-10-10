@@ -32,9 +32,23 @@
 // emery: the nights a 68 h graph can meet (night k + 4 starts 96 h after night k starts; a
 // night is under a day long).
 #define FORECAST_NIGHTS_MAX 4
+// emery: a long graph runs up to two days past the sun-event pair, so the pair repeats on day
+// offsets -1..FORECAST_NIGHT_LAST_DAY (forecast_night.h compute_night_segments; its trailing
+// close covers the night the last repeat opens).
+#define FORECAST_NIGHT_LAST_DAY 2
+// emery: the night shading runs on through the last hour's column, to the frame's end on slot
+// num_entries' tick, which every grid runs to or past the screen's right edge (the edge rule,
+// forecast_span below; 24 h is pixel-identical): the graph's end lies num_entries - 1 + this
+// many hours past its start. Past the last vertex the fill's re-shade follows the fill's own
+// outline, not the last value held flat: it also reads the area's closing vertex,
+// area_pts[n] (chart.c; the colour fill's diagonal to the zero row, the bw checkerboard's
+// straight drop at the last vertex), so its contour runs num_entries + this many points.
+#define FORECAST_NIGHT_PAST_LAST 1
 #else
 #define FORECAST_MAX_ENTRIES 24
 #define FORECAST_NIGHTS_MAX 3
+#define FORECAST_NIGHT_LAST_DAY 1    // the pair repeats a day back and a day on
+#define FORECAST_NIGHT_PAST_LAST 0   // the graph ends on the last hour's tick
 #endif
 
 #if defined(PBL_PLATFORM_EMERY)

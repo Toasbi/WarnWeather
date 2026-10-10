@@ -118,9 +118,9 @@ outline rows went with it: both are implied by where the numbers go.
   = ceil(200 / 8) + 1 on a known emery with the numbers On graph or Off, else 24 (so the On
   axis payload stays today's); 12 h keeps 14, its pitch now up to 16 px so 12 columns cover
   200 px. The watch's classes: 2..14 the 12 h grid, 15..26 the 24 h grid (n > 24 through
-  fit_entries / relabel_visible like the long span), 27..68 the long one. The render signature
-  changes at 24 h for a numbers move between On axis and the other two, never at 12 h or the
-  long span, and never for Larger graph fonts.
+  fit_entries / forecast_numbers_relabel like the long span), 27..68 the long one. The render
+  signature changes at 24 h for a numbers move between On axis and the other two, never at
+  12 h or the long span, and never for Larger graph fonts.
 - **Whole hour labels only** (`forecast_span.h` `forecast_span_label_fits`, host-tested): a label
   either screen edge would cut is dropped and its tick stays, in every class; with no left axis
   slot 0 (the current hour) is never labelled. With the numbers On axis the default 24 h graph
@@ -152,7 +152,7 @@ a little on the right side etc".
   or a time goes through it, so a fractional pitch cannot drift between them:
   - the bars, marks, line and area vertices and stripe cells (`chart.h` `chart_slot_tick_x`)
   - the hour ticks and labels, and the drop of a label either edge would cut
-  - the night bands (`forecast_layer.c` `graph_x_for_time`)
+  - the night bands (`forecast_night.h` `graph_x_for_time`)
   - the frame and its zero line, which end on slot n's tick
   - the numbers On graph (`number_point_x`)
   - the count of hours on screen (`slot_x_count`: fit_entries), and of the hours whose bar

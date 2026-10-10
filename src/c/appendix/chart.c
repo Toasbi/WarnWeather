@@ -99,8 +99,10 @@ typedef struct {
 } ChartAxisLabel;
 
 #ifdef PBL_PLATFORM_EMERY
-// emery: chart.h. The tier chart_axis_label's box geometry below is derived for.
-GFont chart_axis_font(void) {
+// emery: the hour labels' font, GOTHIC_14, or GOTHIC_18 with Larger graph fonts: the tier
+// chart_axis_label's box geometry below is derived for. Fresh on every call: the setting flips
+// without a relaunch.
+static GFont chart_axis_font(void) {
     return fonts_get_system_font(config_large_graph_font() ? FONT_KEY_GOTHIC_18
                                                            : FONT_KEY_GOTHIC_14);
 }
