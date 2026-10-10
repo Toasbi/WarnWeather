@@ -13,7 +13,7 @@
 // right edge and clips the hours past it, so how many hours show depends on the plot's width
 // (the label strip, or none: the numbers On graph or Off start the plot at the screen's left
 // edge), which only the watch measures (docs/adr/0004-forecast-span-is-the-data.md,
-// Amendments). The settings page names the long option by the whole hours it expects for the
+// Decision). The settings page names the long option by the whole hours it expects for the
 // provider's feed and the layout (forecast_span_whole; src/pkjs/forecast-span-hours.js).
 #include <stdbool.h>
 #include <stdint.h>

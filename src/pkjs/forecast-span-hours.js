@@ -46,8 +46,8 @@
 // What only the watch knows moves W a little: a one-digit, negative or three-digit temperature,
 // a step mark of whole thousands ("2") or of 10k steps and more ("10.5"), health data the watch
 // does not have (Pebble Health off). Each moves the count by an hour or so (a "10.5" mark:
-// three), never the short feeds' 47 / 48 (docs/adr/0004-forecast-span-is-the-data.md
-// Amendment 4).
+// three), never the short feeds' 47 / 48 (docs/adr/0004-forecast-span-is-the-data.md,
+// "The long option names the hours it shows").
 //
 // Dual-context: a CommonJS module on the phone and in the tests, a plain concatenated
 // <script> in the settings-page webview (scripts/build-config-page.js' APP_FILES, after

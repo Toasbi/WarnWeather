@@ -221,7 +221,11 @@ function buildHeaviestBundleWithNotice(platform) {
   return bundle;
 }
 
-// Every platform's heaviest bundle, recorded exactly (bytes), against that platform's inbox.
+// Every platform's heaviest bundle, recorded exactly (bytes), against that platform's inbox:
+// the one place the sizes are asserted. Update a figure here when its wire contract changes
+// (the git log of this file holds how each grew). aplite's is basalt's less both extra line
+// trends (2 × 31 B), the STATUS_LEVELS_UINT8 threshold tuple aplite compiles out, the alert
+// entries and the radar sky rows; emery's carries its long span's 68 hours (below).
 const WEATHER_BUNDLES = { emery: 867, basalt: 603, chalk: 603, diorite: 603, flint: 603, aplite: 473 };
 const INBOXES = { emery: 1024, basalt: 640, chalk: 640, diorite: 640, flint: 640, aplite: 536 };
 
@@ -237,50 +241,13 @@ test('heaviest bundled payload (DWD + wind) fits the watch inbox, per platform',
 });
 
 test('aplite keeps its 536 B inbox and a bundle without the extra metric lines', () => {
-  const inbox = readInboxSize('aplite');
-  const size = dictSize(buildHeaviestBundle('aplite'));
-  console.log(`heaviest aplite weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
-  assert.equal(inbox, 536, 'aplite\'s inbox comes out of its tiny heap — do not grow it');
-  // MEASURED: the full 24 h bundle (basalt's) less both extra line trends (2 × 31 B),
-  // the STATUS_LEVELS_UINT8 threshold tuple aplite compiles out, the alert entries and
-  // the radar sky rows.
-  assert.equal(size, 473, 'aplite ships neither FOURTH_ nor FIFTH_LINE_TREND_UINT8');
-  // Nor the weather alerts' entries: aplite has no On demand (WW_ON_DEMAND) and no handler.
-  assert.equal(Object.prototype.hasOwnProperty.call(buildHeaviestBundle('aplite'),
-    'ALERT_ENTRIES_UINT8'), false, 'aplite never receives ALERT_ENTRIES_UINT8');
-  assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
-});
-
-test('weather bundle keeps explicit headroom below the watch inbox', () => {
-  const size = dictSize(buildHeaviestBundle('basalt'));
-  const inbox = readInboxSize('basalt');
-  console.log(`heaviest weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
-  // 525 -> 526 when STATUS_LEVELS_UINT8 widened to 2 bytes (UV thresholds).
-  // Headroom then sat EXACTLY on the 10 B floor.
-  // 526 -> 482 when the four settings-derived line-style tuples moved to the
-  // Clay message (SECONDARY_LINE_COLOR / _FILL / _FILL_COLOR / THIRD_LINE_COLOR,
-  // 4 x 11 B = 7 B tuple header + 4 B int32/bool each). Headroom 10 -> 54 B.
-  // 482 -> 513 when the third-metric line joined (FOURTH_LINE_TREND_UINT8:
-  // 7 B tuple header + 24 B trend). Headroom 54 -> 23 B. Never sent to aplite.
-  // 513 -> 544 when the fourth-metric line joined (FIFTH_LINE_TREND_UINT8:
-  // 7 B tuple header + 24 B trend), with inbox_size split per platform: 600 B
-  // off aplite (headroom 56 B), aplite unchanged at 536 B (it never gets the
-  // line — see the aplite test above).
-  // 544 -> 576 when the radar's sky rows joined (RADAR_SKY_UINT8: 7 B tuple
-  // header + 25 B blob). Headroom 56 -> 24 B. Never sent to aplite.
-  // 576 -> 603 when the Alerts row's entries joined (ALERT_ENTRIES_UINT8: 7 B
-  // tuple header + the 20 B cap), with the non-aplite inbox_size raised 600 ->
-  // 640 B for it. Headroom 24 -> 37 B. Never sent to aplite.
-  // 603 -> 747 on emery when the 48 h forecast span joined (2.2.0; 6 x +24 B: the
-  // temperature, four metric lines and the rain bars at 48 hours); emery inbox
-  // 640 -> 1024, emery only. 747 -> 849 when the long span (65 hours, labelled
-  // "58 h") replaced 48 h (6 x +17 B); 849 -> 867 when the numbers On graph or Off gave
-  // the graph the whole 200 px screen and the long span grew to 68 hours (6 x +3 B).
-  // Every other watch is never sent more than 24
-  // hours (forecast-span.js) and keeps 603 B of 640 (the per-platform table below).
-  assert.equal(inbox, 640, 'the 24 h platforms\' inbox');
-  assert.equal(size, 603, 'update the recorded realistic bundle size when its wire contract changes');
-  assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
+  assert.equal(readInboxSize('aplite'), 536, 'aplite\'s inbox comes out of its tiny heap — do not grow it');
+  // aplite draws neither extra metric line, and has no On demand (WW_ON_DEMAND) and no
+  // handler for the weather alerts' entries. Its size is WEATHER_BUNDLES.aplite's.
+  const bundle = buildHeaviestBundle('aplite');
+  ['FOURTH_LINE_TREND_UINT8', 'FIFTH_LINE_TREND_UINT8', 'ALERT_ENTRIES_UINT8'].forEach(function(key) {
+    assert.equal(Object.prototype.hasOwnProperty.call(bundle, key), false, 'aplite never receives ' + key);
+  });
 });
 
 test('each platform\'s heaviest weather bundle and inbox, recorded', () => {

@@ -127,11 +127,10 @@ _Avoid_: provider flags, per-fetch knobs.
 The forecast graph's time span option: 12 h, 24 h or the long span on emery
 (Graphs › Forecast › Time span; stored '12' / '24' / '48', '48' being the long
 span's token, its label the whole hours the watch will show for the provider's
-feed and the layout: `src/pkjs/forecast-span-hours.js`, 58 h at the default
-layout), 24 h everywhere else and on an unknown watch
-(`src/pkjs/forecast-span.js`). The phone decides the hours it sends for it,
-14 / 24 / 68, and 26 for 24 h when the graph has no left axis (the high/low
-numbers On graph or Off on a known emery) (`hours()`;
+feed and the layout: `src/pkjs/forecast-span-hours.js`), 24 h everywhere else
+and on an unknown watch (`src/pkjs/forecast-span.js`). The phone decides the
+hours it sends for it, 14 / 24 / 68, and 26 for 24 h when the graph has no left
+axis (the high/low numbers On graph or Off on a known emery) (`hours()`;
 `WeatherProvider#payloadEntries`, fewer when a feed is shorter); the watch fits
 its grid to the count it receives (`NUM_ENTRIES`, `src/c/appendix/forecast_span.h`:
 2..14 the 12 h grid, 15..26 the 24 h grid, 27..68 the long one) and to its own
@@ -141,19 +140,15 @@ _Avoid_: a watch-side forecast hours setting; calling the sent hours the span.
 **Visible hours**:
 The hours the emery forecast draws on screen: the n hours sent whose tick column
 lies on the plot of width W, through the one slot→x mapping
-(`src/c/appendix/slot_x.h`, in 1/256 px: min(n, ceil(W · 256 / pitch_q))). W is
-174 px at the default layout, the whole 200 px screen with no left axis. Every
-grid runs the data to or past the right edge rather than leave a blank tail.
-The long grid's pitch is fractional: the smallest that puts the last hour's
-point on the plot's last column, held to 3..8 px. A full 68-hour feed stays at
-3 px, so the long option shows 58 whole hours at the default layout and 66
-with no left axis. OpenWeatherMap's 48-hour feed shows 47 whole hours and the
-48th's point on the edge at every width; Weather Underground's 49 entries (the
-hour in progress and its 48) show 48. The settings page labels the long option
-with these whole hours, taking a two-digit hi/lo label and, while the health
-graph is in the view cycle, its "0.5" step mark in the shared strip
-(`forecast_span_whole`, mirrored by `src/pkjs/forecast-span-hours.js`). 24 h shows 21, or 25 with no left axis
-(sent 26; until those arrive, its 24 hours widen to reach the edge, 23 whole).
+(`src/c/appendix/slot_x.h`, in 1/256 px: min(n, ceil(W · 256 / pitch_q))). W
+runs from the plot's left edge to the screen's right edge, so the label strip,
+or none with no left axis, sets it. Every grid runs the data to or past the
+right edge rather than leave a blank tail; the long grid's fractional pitch puts
+the last hour's point on the plot's last column. How many show for each class,
+feed and layout is `src/c/appendix/forecast_span.h`'s rule (see
+`docs/adr/0004-forecast-span-is-the-data.md`). The settings page labels the long
+option with the whole ones (`forecast_span_whole`, mirrored by
+`src/pkjs/forecast-span-hours.js`).
 The temperature scale and the hi/lo labels fit the visible hours, not every
 hour sent (`forecast_layer.c` fit_entries, `forecast_numbers.h`
 forecast_numbers_relabel); the stripe bands and the curve's anchored edges
