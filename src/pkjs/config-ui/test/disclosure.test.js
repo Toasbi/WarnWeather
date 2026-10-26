@@ -328,6 +328,19 @@ test('tab.pinThrough scopes the pinned header to the cards up to that section, t
   assert.equal(plain.indexOf('<div class="pin"><div class="pin-blk">'), 0);
 });
 
+test('a beforePin section renders first in the tab, above the pinned header, and only once', () => {
+  global.PConf.blocks.register('discLeadPin', () => '<b>lead preview</b>');
+  const card = (id, extra) => Object.assign({ id: id, title: id.toUpperCase(),
+    items: [{ type: 'toggle', messageKey: 'k' + id, label: 'K' + id }] }, extra || {});
+  const schema = { tabs: [{ id: 't', label: 'T', pinBlock: 'discLeadPin', pinThrough: 'b',
+    sections: [card('a'), card('n', { beforePin: true }), card('b')] }] };
+  const body = E.renderBody(schema, 't', cxFor({}));
+  const pin = body.indexOf('<div class="pin-scope"><div class="pin">');
+  assert.ok(body.indexOf('data-k="kn"') >= 0 && body.indexOf('data-k="kn"') < pin, 'the lead card precedes the pinned scope');
+  assert.equal(body.split('data-k="kn"').length - 1, 1, 'rendered once, not again in place');
+  assert.ok(pin < body.indexOf('data-k="ka"'), 'the other cards stay under the pin');
+});
+
 // ── page-only items ─────────────────────────────────────────────────────────
 
 test('every shown optionsFrom row snaps into its options, wherever it sits; hidden and dormant values stay', () => {

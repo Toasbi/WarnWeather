@@ -248,6 +248,7 @@ Schema
             ├─ titleFrom    {resolver, args?} (collapsed-header value; see Section fields)
             ├─ groupCard    string  (consecutive sections sharing an id merge into one card)
             ├─ pane         string  (renders only while its tab shows that pane)
+            ├─ beforePin    boolean (renders first in the tab, above its pinned header; scrolls away)
             ├─ sheetOnly / sheetId  (a full-screen dialog, not a card; see Dialogs)
             ├─ pinBlock     string  (sheetOnly only: block pinned under the dialog's header)
             └─ items[]

@@ -2183,13 +2183,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // tab.pinThrough (a section id) ends that stretch: the header and the sections up to
       // and including that one share a .pin-scope box, and a sticky element never leaves its
       // parent, so past that section the header scrolls away with the page.
+      // A section with beforePin renders into `lead` instead: above all of that, first in
+      // the tab, scrolling away with the page (the fetch-error notices: the news the page
+      // opens on).
       var pane = activePaneOf(t, cx);
       var scoped = Boolean(t.pinThrough), passedPin = false;
-      h += (scoped ? '<div class="pin-scope">' : '') + renderPin(t, pane, cx);
+      var lead = '', pin = renderPin(t, pane, cx), body = '';
       for (si = 0; si < t.sections.length; si++) {
         var sec = t.sections[si];
         if (scoped && passedPin) {
-          h += '</div>';
+          body += '</div>';
           scoped = false;
         }
         // Set before the skips below: a hidden or other-pane pinThrough still ends the stretch.
@@ -2198,6 +2201,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // its items still hydrate/serialize like any other, they just have no card.
         if (sec.sheetOnly) { continue; }
         if (sec.pane && pane && sec.pane !== pane.id) { continue; }
+        if (sec.beforePin) {
+          lead += renderSection(sec, cx, t.id + ':' + (sec.id || si));
+          continue;
+        }
         // Consecutive sections sharing a groupCard id render into one card (titles become
         // in-card sub-headers); everything else stays a card of its own.
         if (sec.groupCard) {
@@ -2206,12 +2213,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
             group.push(t.sections[si + 1]); si++;
             if (scoped && t.sections[si].id === t.pinThrough) { passedPin = true; }
           }
-          h += renderSectionGroup(group, cx);
+          body += renderSectionGroup(group, cx);
         } else {
-          h += renderSection(sec, cx, t.id + ':' + (sec.id || si));
+          body += renderSection(sec, cx, t.id + ':' + (sec.id || si));
         }
       }
-      if (scoped) { h += '</div>'; }
+      if (scoped) { body += '</div>'; }
+      h += lead + (t.pinThrough ? '<div class="pin-scope">' : '') + pin + body;
     }
     return h + '<div class="version">' + (schema.versionLabel || '') + '</div>';
   }
