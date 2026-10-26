@@ -1163,9 +1163,11 @@ module.exports = {
         // cards scroll under it; past Layout it scrolls away with the page (owner, 2026-10-04).
         id: 'watchface', label: 'Watchface', openDefault: true, pinBlock: 'layoutPreviewCombined',
         pinThrough: 'layout', sections: [{
-            // The fetch-error notices stay first: the panel draws nothing until a fetch
-            // fails, and then it is the news the page opens on.
+            // The fetch-error notices stay first, above the pinned layout preview: the
+            // panel draws nothing until a fetch fails, and then it is the news the page
+            // opens on.
             block: 'noticesPanel',
+            beforePin: true,
             items: [{
                 type: 'hidden',
                 messageKey: 'fetchNoticeAck',

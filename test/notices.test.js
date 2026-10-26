@@ -67,6 +67,58 @@ test('noticeForFailure classifies auth/ratelimit/other', function () {
   assert.strictEqual(notices.noticeForFailure(null, 'X', 1), null);
 });
 
+test('noticeForFailure: no location raises the location notice, its text by reason', function () {
+  var noFix = function (reason) {
+    return notices.noticeForFailure({ stage: 'coordinates', code: 'gps_1', reason: reason }, 'Met.no', 700);
+  };
+  var refused = noFix('refused');
+  assert.strictEqual(refused.key, 'location');
+  assert.strictEqual(refused.type, 'error');
+  assert.strictEqual(refused.whenStale, true, 'the watch keeps a fresh forecast');
+  assert.strictEqual(refused.since, 700);
+  assert.strictEqual(refused.watch, 'No location access');
+  assert.match(refused.html, /Allow all the time/);
+  assert.strictEqual(noFix('off').watch, 'Location unavailable');
+  assert.match(noFix('off').html, /battery saver/);
+  assert.strictEqual(noFix('timeout').watch, 'Location not found');
+  assert.match(noFix('timeout').html, /in time/);
+  assert.doesNotMatch(noFix('timeout').html, /Turn location on/);
+  ['refused', 'off', 'timeout'].forEach(function (reason) {
+    var n = noFix(reason);
+    assert.match(n.html, /^<b>No location:<\/b> .*Setup › Location\.$/, reason);
+    assert.ok(Buffer.byteLength(n.watch, 'utf8') <= notices.WATCH_TEXT_MAX_BYTES, n.watch);
+  });
+  // A coordinates failure with no GPS reason (runCycle's unknown_error) raises nothing.
+  assert.strictEqual(notices.noticeForFailure({ stage: 'coordinates', code: 'unknown_error' }, 'X', 1), null);
+  assert.strictEqual(noFix('toString'), null, 'only the table\'s own reasons');
+});
+
+test('applyFailure: adds the failure\'s notice and answers the watch line it calls for', function () {
+  global.localStorage.clear();
+  var ctx = function (fresh) {
+    return { providerName: 'OpenWeatherMap', watchName: 'OWM', failedUpdates: 0, now: 5, forecastFresh: fresh };
+  };
+  var gps = { stage: 'coordinates', code: 'gps_1', reason: 'refused' };
+  assert.strictEqual(notices.applyFailure(gps, ctx(true)), null, 'whenStale: a fresh forecast keeps the line back');
+  assert.deepStrictEqual(notices.list().map(function (n) { return n.key; }), ['location'], 'the panel has it');
+  assert.strictEqual(notices.applyFailure(gps, ctx(false)), 'No location access', 'a stale forecast: the line goes up');
+  assert.strictEqual(notices.applyFailure({ stage: 'provider_data', code: 'parse_error' }, ctx(true)), null,
+    'past the GPS step, no notice of its own, a fresh forecast: nothing on screen to take down');
+  assert.deepStrictEqual(notices.list(), [], 'the location notice is gone');
+
+  notices.applyFailure(gps, ctx(false));
+  assert.strictEqual(notices.applyFailure({ stage: 'forward_geocode', code: 'status_500' }, ctx(false)), '',
+    'a stale forecast: the location line comes down');
+  notices.applyFailure(gps, ctx(false));
+  assert.strictEqual(notices.applyFailure({ stage: 'fetch', code: 'watchdog_timeout' }, ctx(false)), null,
+    'the watchdog may be the GPS hanging: the notice stays');
+  assert.strictEqual(notices.applyFailure({ stage: 'provider_data', code: 'owm_status_401' }, ctx(true)),
+    'API key error', 'an error that is not whenStale shows at once, in place of the location line');
+  assert.deepStrictEqual(notices.list().map(function (n) { return n.key; }), ['auth']);
+  assert.strictEqual(notices.applyFailure({ stage: 'provider_data', code: 'owm_status_429' }, ctx(false)), null,
+    'an info notice has no watch line');
+});
+
 test('noticeForFailure raises nothing for a geocoder 401/403/429', function () {
   // The ArcGIS city lookup and the shared LocationIQ key report bare
   // status_<n> codes under their own stages. Neither is the weather provider,

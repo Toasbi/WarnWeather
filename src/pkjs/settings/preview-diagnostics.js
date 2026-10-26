@@ -27,6 +27,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         try { return JSON.parse(v); } catch (e) { return null; }
     }
 
+    // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app
+    // file): the last-fetch line prints stored names and the phone's own error message.
+    var esc = (typeof require !== 'undefined')
+        ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
+
     // The weather-message categories, in outbox.js WEATHER_CATEGORIES order (a test
     // pins the two lists together; requiring outbox.js here would drag its storage
     // and Pebble dependencies into the page). 'notice' rides alone -- an auth-failure
@@ -177,7 +182,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         if (lastFetchSuccess !== null) {
             date = new Date(lastFetchSuccess.time);
             lastFetchSuccessTime = date.getTime();
-            html += date.toLocaleDateString() + ' ' + date.toLocaleTimeString() + ' with ' + lastFetchSuccess.name;
+            html += date.toLocaleDateString() + ' ' + date.toLocaleTimeString() + ' with ' + esc(lastFetchSuccess.name);
         } else {
             html += 'Never';
         }
@@ -191,8 +196,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
                 if (shouldShowLastAttempt) {
                     attemptText = '<br>Last failed attempt:<br>';
-                    attemptText += attemptDate.toLocaleDateString() + ' ' + attemptDate.toLocaleTimeString() + ' with ' + lastFetchAttempt.name;
-                    attemptText += '<br>Error: ' + lastFetchAttempt.error.stage + ': ' + lastFetchAttempt.error.code;
+                    attemptText += attemptDate.toLocaleDateString() + ' ' + attemptDate.toLocaleTimeString() + ' with ' + esc(lastFetchAttempt.name);
+                    attemptText += '<br>Error: ' + esc(lastFetchAttempt.error.stage) + ': ' + esc(lastFetchAttempt.error.code);
+                    // The phone's own reason, when it gave one (a location error's message).
+                    if (typeof lastFetchAttempt.error.detail === 'string' && lastFetchAttempt.error.detail !== '') {
+                        attemptText += ' (' + esc(lastFetchAttempt.error.detail) + ')';
+                    }
                     html += attemptText;
                 }
             }

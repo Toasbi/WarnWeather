@@ -7,8 +7,10 @@
 // WeatherProvider; the withCoordinates/withGpsCoordinates/
 // withGeocodeCoordinates ORCHESTRATION (and its usedGpsCache/gpsErrorCode/
 // locationMode telemetry mirrors) stays on the provider, calling in here.
+// Also the reading of a phone geolocation error (gpsFailure).
 
 var storageKeys = require('../storage-keys.js');
+var failure = require('./http.js').failure;
 
 var GPS_CACHE_KEY = storageKeys.GPS_CACHE_KEY;
 var GPS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -305,8 +307,42 @@ function writeGpsCache(lat, lon) {
     }));
 }
 
+// The phone's own words for why it gave no location. The Core Devices app reports
+// every location error as code 1 ("Location permission not granted", "Location not
+// available"), so when a message is there it decides; the W3C code only stands in
+// when there is none.
+var GPS_REFUSED_PATTERN = /denied|permission|not granted|not allowed/i;
+var GPS_TIMEOUT_PATTERN = /time ?out|timed out/i;
+
+/**
+ * The fetch failure for a geolocation error the cached fix could not stand in for.
+ * `code` keeps the W3C number (gps_1 refused, gps_2 unavailable, gps_3 timeout) as
+ * telemetry has always had it; `reason` is what it means: a message reads as refused
+ * only when it says so, and any other message as no position, so an unforeseen
+ * wording never sends the user off to change permissions that are already right.
+ * `detail` is the phone's message, for the settings page and telemetry.
+ * @param {{code: *, message: *}} err The geolocation error.
+ * @returns {{stage: string, code: string, reason: string, detail?: string}} reason is
+ *   'refused', 'timeout' or 'off'.
+ */
+function gpsFailure(err) {
+    var codeNum = String(err && err.code);
+    var detail = (err && typeof err.message === 'string') ? err.message : '';
+    var lost = failure('coordinates', 'gps_' + codeNum);
+    if (detail ? GPS_REFUSED_PATTERN.test(detail) : codeNum === '1') {
+        lost.reason = 'refused';
+    } else if (codeNum === '3' || GPS_TIMEOUT_PATTERN.test(detail)) {
+        lost.reason = 'timeout';
+    } else {
+        lost.reason = 'off';
+    }
+    if (detail) { lost.detail = detail; }
+    return lost;
+}
+
 module.exports = {
     GPS_CACHE_MAX_AGE_MS: GPS_CACHE_MAX_AGE_MS,
+    gpsFailure: gpsFailure,
     readStoredJson: readStoredJson,
     normalizeLocationQuery: normalizeLocationQuery,
     parseLocationOverride: parseLocationOverride,

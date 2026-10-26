@@ -48,6 +48,7 @@ const radarSky = require('../src/pkjs/weather/radar-sky.js');
 const radarWire = require('../src/pkjs/weather/radar-wire.js');
 const authBackoff = require('../src/pkjs/auth-backoff.js');
 const notices = require('../src/pkjs/notices.js');
+const gpsFailure = require('../src/pkjs/weather/location.js').gpsFailure;
 const KEYS = require('../src/pkjs/storage-keys.js');
 
 // The radar seam: every radar HTTP request the cycle makes, with the
@@ -1137,7 +1138,7 @@ test('radar: switching from DWD to another radar source ends DWD\'s run of 404s'
         'radar off asked DWD nothing: picking DWD again shows no stale note');
 });
 
-test('coordinates: a failed fix is recorded and tracked, and starts no radar, forecast, send or sleep commit', () => {
+test('coordinates: a failed fix is recorded and tracked, and starts no radar, forecast or sleep commit', () => {
     resetStore();
     const settings = Object.assign(
         { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' },
@@ -1145,17 +1146,66 @@ test('coordinates: a failed fix is recorded and tracked, and starts no radar, fo
     const h = makeHarness({ settings: settings, watchInfo: BASALT });
     const p = h.provider;
     assert.equal(h.cycle.start(false), true);
-    const gps = { stage: 'coordinates', code: 'gps_1' };
+    const gps = gpsFailure({ code: 1, message: '' });
     p.noFix(gps);
     assert.deepEqual(readJson(KEYS.LAST_FETCH_ATTEMPT_KEY), recordFor(p, T0, gps), 'the failure exactly as reported');
     assert.equal(radarRequests.length, 0, 'no radar request');
     assert.equal(p.calls.fetchWithCoordinates.length, 0, 'no forecast request');
-    assert.equal(h.calls.sendWeather.length, 0, 'no radar answer to pass on, no notice');
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'No location access' }],
+        'no radar answer to pass on; the no-location line alone, as the watch has no forecast to keep');
     assert.equal(store[KEYS.LAST_IS_SLEEPING_KEY], undefined, 'no sleep commit');
     assert.equal(h.calls.telemetry.length, 1);
     assert.equal(h.calls.telemetry[0].success, false);
     assert.deepEqual(h.calls.telemetry[0].error, gps);
     assert.equal(h.cycle.start(false), true, 'settled: the next start is accepted');
+});
+
+test('coordinates: the no-location notice keeps its watch line back while the forecast is fresh', () => {
+    resetStore();
+    const h = makeHarness();
+    h.cycle.start(false);
+    h.provider.fix(52.52, 13.4);
+    h.provider.succeed();
+    h.calls.sendWeather.length = 0;
+    h.advance(HOUR);
+    h.cycle.start(true);
+    h.provider.noFix(gpsFailure({ code: 1, message: 'Location permission not granted' }));
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['location'], 'the settings panel shows it');
+    assert.equal(h.calls.sendWeather.length, 0, 'the watch keeps its hour-old forecast, no overlay over it');
+    h.cycle.start(true);
+    h.provider.fix(52.52, 13.4);
+    h.provider.succeed();
+    assert.deepEqual(notices.list(), [], 'a success clears it');
+});
+
+test('coordinates: a failure past the GPS step drops the no-location notice and takes its line off the watch', () => {
+    resetStore();
+    const h = makeHarness();
+    h.cycle.start(false);
+    h.provider.noFix(gpsFailure({ code: 1, message: 'Location permission not granted' }));
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'No location access' }], 'no forecast to keep: the line is up');
+    h.calls.sendWeather.length = 0;
+
+    // The user switched to a manual location and its geocode failed (no notice of its own).
+    h.cycle.start(true);
+    h.provider.noFix({ stage: 'forward_geocode', code: 'status_500' });
+    assert.deepEqual(notices.list(), [], 'the no-location notice no longer hides the real failure');
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: '' }], 'the watch line comes down');
+    h.calls.sendWeather.length = 0;
+
+    // The watchdog may be the GPS hanging: it leaves the notice up.
+    h.cycle.start(true);
+    h.provider.noFix(gpsFailure({ code: 3, message: '' }));
+    h.calls.sendWeather.length = 0;
+    h.cycle.start(true);
+    h.provider.noFix({ stage: 'fetch', code: 'watchdog_timeout' });
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['location']);
+    assert.equal(h.calls.sendWeather.length, 0);
+
+    // A provider failure with its own notice: that notice's line replaces the location line.
+    failOnce(h, { stage: 'provider_data', code: 'owm_status_401' });
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['auth']);
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'API key error' }]);
 });
 
 test('coordinates: a failure callback without a failure object records coordinates/unknown_error', () => {

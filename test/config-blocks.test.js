@@ -128,6 +128,11 @@ test('lastFetch formats success / Never / failed-attempt-with-error', () => {
     lastFetchAttempt: JSON.stringify({ time: Date.now(), name: 'Berlin', error: { stage: 'geocode', code: 401 } })
   });
   assert.ok(failed.indexOf('geocode') >= 0 && failed.indexOf('401') >= 0, 'shows error stage:code');
+  const noFix = DG.lastFetch({}, {}, {
+    lastFetchAttempt: JSON.stringify({ time: Date.now(), name: 'Met.no',
+      error: { stage: 'coordinates', code: 'gps_1', detail: 'Location <not> available' } })
+  });
+  assert.ok(noFix.indexOf('coordinates: gps_1 (Location &lt;not&gt; available)') >= 0, 'the phone\'s reason, escaped');
 });
 test('forecastPreview draws the secondary line per metric (solid, per-metric color)', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off' };

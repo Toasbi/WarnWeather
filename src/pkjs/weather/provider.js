@@ -474,7 +474,7 @@ WeatherProvider.prototype.withGpsCoordinates = function(callback, onFailure) {
             return;
         }
 
-        onFailure(failure('coordinates', 'gps_' + err.code));
+        onFailure(locationLib.gpsFailure(err));
     }
 
     navigator.geolocation.getCurrentPosition(success, error, options);

@@ -165,8 +165,30 @@ test('withGpsCoordinates reports failure when native GPS errors and no cache exi
     function (f) { failureArg = f; }
   );
 
-  assert.ok(failureArg);
+  assert.deepEqual(failureArg, { stage: 'coordinates', code: 'gps_1', reason: 'refused', detail: 'denied' },
+    'the phone\'s message rides along: the Core Devices app reports every location error as code 1');
   assert.equal(p.gpsErrorCode, 1);
+});
+
+test('gpsFailure reads the phone\'s message first, the W3C code only without one', () => {
+  var gpsFailure = require('../src/pkjs/weather/location.js').gpsFailure;
+  var reason = function (code, message) { return gpsFailure({ code: code, message: message }).reason; };
+  // The Core Devices app reports every location error as code 1: its message decides,
+  // and only a message that says so reads as refused.
+  assert.equal(reason(1, 'Location permission not granted'), 'refused');
+  assert.equal(reason(1, 'Location access denied'), 'refused', 'iOS wording');
+  assert.equal(reason(1, 'User denied Geolocation'), 'refused');
+  ['Location not available', 'Location not available, no suitable provider found',
+    'Location services are disabled', 'Something unforeseen'].forEach(function (m) {
+    assert.equal(reason(1, m), 'off', m);
+  });
+  assert.equal(reason(1, 'Location request timed out'), 'timeout');
+  // No message: the W3C code.
+  assert.equal(reason(1, ''), 'refused');
+  assert.equal(reason(2, ''), 'off');
+  assert.equal(reason(3, undefined), 'timeout');
+  assert.deepEqual(gpsFailure({ code: 2 }), { stage: 'coordinates', code: 'gps_2', reason: 'off' },
+    'no message, no detail');
 });
 
 // ---- Forced-refresh must clear the geocode backoff -----------------------

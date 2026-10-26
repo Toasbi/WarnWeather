@@ -14,6 +14,8 @@ var ROOT = path.join(__dirname, '..');
 var platformLib = require(path.join(ROOT, 'src/pkjs/config-ui/lib/platform.js'));
 var schema = require(path.join(ROOT, 'src/pkjs/settings/schema.js'));
 var previewPalette = require(path.join(ROOT, 'src/pkjs/settings/preview-palette.js'));
+var notices = require(path.join(ROOT, 'src/pkjs/notices.js'));
+var gpsFailure = require(path.join(ROOT, 'src/pkjs/weather/location.js')).gpsFailure;
 // The bundle IS the build's bundle: same files, same order. It used to be a
 // second copy of the list, which is exactly how the preview came to load the
 // Weather tab's stylesheet before the module whose settle curve it bakes in.
@@ -55,6 +57,28 @@ function envFor(platform) {
   return env;
 }
 
+// PREVIEW_NOTICES=1: the fetch-error notice card (Watchface tab) and the Advanced
+// tab's last-attempt line as a failing install sees them. The notices come from
+// notices.js's own noticeForFailure, so the copy is the phone's, not a mock-up. All
+// three location readings show at once, which a phone never does (they share one key,
+// so each replaces the last): the preview is for reviewing their copy side by side.
+function previewFailureData() {
+  if (process.env.PREVIEW_NOTICES !== '1') { return {}; }
+  var now = Date.now();
+  var gps = gpsFailure({ code: 1, message: 'Location permission not granted' });
+  var list = [
+    notices.noticeForFailure({ stage: 'provider_data', code: 'owm_status_401' }, 'OpenWeatherMap', now - 3 * 3600 * 1000),
+    notices.noticeForFailure(gpsFailure({ code: 3, message: '' }), 'Met.no', now - 3 * 3600 * 1000),
+    notices.noticeForFailure(gpsFailure({ code: 1, message: 'Location not available' }), 'Met.no', now - 2 * 3600 * 1000),
+    notices.noticeForFailure(gps, 'Met.no', now - 20 * 60 * 1000)
+  ];
+  return {
+    notices: JSON.stringify(list),
+    lastFetchSuccess: JSON.stringify({ time: new Date(now - 26 * 3600 * 1000), id: 'metno', name: 'Met.no' }),
+    lastFetchAttempt: JSON.stringify({ time: new Date(now - 20 * 60 * 1000), id: 'metno', name: 'Met.no', error: gps })
+  };
+}
+
 function run(opts) {
   opts = opts || {};
   return build.previewPage({
@@ -62,7 +86,7 @@ function run(opts) {
     schema: schema,
     env: envFor(opts.platform || 'basalt'),
     cfg: {},
-    userData: {
+    userData: Object.assign({
       palette: previewPalette.buildPreviewPalette(),
       // Weather-tab "Current" chip seed (Berlin). The graphs themselves fetch
       // live from the desktop browser — file:// pages get real CORS answers
@@ -91,7 +115,7 @@ function run(opts) {
         ],
         lastSeenId: 1
       })
-    },
+    }, previewFailureData()),
     returnTo: '#'
   });
 }

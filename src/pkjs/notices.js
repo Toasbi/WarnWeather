@@ -16,6 +16,8 @@ var GC_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // (NOTICE_TEXT_MAX, sized for this ~32 B cap + NUL) and clamps anything longer
 // mid-word, and the overlay's Gothic 18 holds about two short lines.
 var WATCH_TEXT_MAX_BYTES = 31;
+// The no-location notice's key (locationNotice; applyFailure removes it).
+var LOCATION_NOTICE_KEY = 'location';
 
 /**
  * @returns {Array<Object>} Parsed notice list (oldest→newest); [] when absent/corrupt.
@@ -70,6 +72,23 @@ function clearErrors() {
         if (list[i].type !== 'error') { kept.push(list[i]); }
     }
     writeList(kept);
+}
+
+/**
+ * Remove the notice with this key, if there is one.
+ * @param {string} key Notice key.
+ * @returns {boolean} True when a notice was removed.
+ */
+function remove(key) {
+    var list = readList();
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].key === key) {
+            list.splice(i, 1);
+            writeList(list);
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
@@ -176,12 +195,70 @@ function notAnsweringWatchText(label) {
     return label && utf8.byteLength(text) <= WATCH_TEXT_MAX_BYTES ? text : 'Weather not answering';
 }
 
+// The no-location notice's text per reason (location.js gpsFailure): the watch line
+// (within WATCH_TEXT_MAX_BYTES) and the panel's.
+var LOCATION_NOTICE_TEXT = {
+    refused: {
+        watch: 'No location access',
+        html: '<b>No location:</b> your phone refused the watchface its location, so the weather '
+            + 'cannot update. In the Pebble app, allow location for this watchface; in your phone\'s '
+            + 'settings, set the Pebble app\'s location access to “Allow all the time”. '
+            + 'Or enter a manual location in Setup › Location.'
+    },
+    off: {
+        watch: 'Location unavailable',
+        html: '<b>No location:</b> your phone had no position to give (location turned off, or '
+            + 'switched off by battery saver), so the weather cannot update. Turn location on. '
+            + 'Or enter a manual location in Setup › Location.'
+    },
+    timeout: {
+        watch: 'Location not found',
+        html: '<b>No location:</b> your phone could not find a position in time, so the weather '
+            + 'cannot update. It tries again at the next update; if this keeps happening, check '
+            + 'that location is on. Or enter a manual location in Setup › Location.'
+    }
+};
+
+/**
+ * The notice for a fetch that got no location: the phone's GPS failed and the
+ * cached fix was too old to stand in, so the weather cannot update. One key for
+ * every reason, so a new reason replaces the old one. `whenStale` like the
+ * provider's "not answering": the watch keeps its last forecast while it is fresh
+ * enough, and the line replaces the bare "No data :(" after it. applyFailure drops
+ * it once a fetch gets past the GPS step.
+ * @param {{reason?: string}} failure The coordinates failure (location.js gpsFailure).
+ * @param {number} now Timestamp (Date.now()).
+ * @returns {?{key: string, type: string, html: string, watch: string, whenStale: boolean, since: number}}
+ *   null for a coordinates failure with no GPS reason (e.g. unknown_error).
+ */
+function locationNotice(failure, now) {
+    var text = Object.prototype.hasOwnProperty.call(LOCATION_NOTICE_TEXT, failure.reason)
+        ? LOCATION_NOTICE_TEXT[failure.reason] : null;
+    if (!text) { return null; }
+    return { key: LOCATION_NOTICE_KEY, type: 'error', watch: text.watch, whenStale: true,
+        html: text.html, since: now };
+}
+
+/**
+ * Whether a failure may still be the GPS step's own: the coordinates stage, or the
+ * watchdog/a throw ('fetch'), which can be a geolocation call that never answered.
+ * Anything else (a manual location's geocode, the provider, the send) got past it.
+ * @param {?{stage: string}} failure Normalized fetch failure.
+ * @returns {boolean} True when the failure may be the GPS step's.
+ */
+function mayBeGpsStep(failure) {
+    return !failure || failure.stage === 'coordinates' || failure.stage === 'fetch';
+}
+
 /**
  * Build a notice for a fetch failure, or null when the failure is not
- * notice-worthy (GPS, parse errors and a first server failure raise nothing).
- * Every notice names the weather provider, so only its own `provider_data` stage
- * raises one: a geocoder's 401/403/429 (stages reverse_geocode / forward_geocode)
- * is neither the provider refusing nor a key the user can fix.
+ * notice-worthy (parse errors and a first server failure raise nothing).
+ * Two families, split up front:
+ * - Stage `coordinates`: no location (a GPS failure's reason), locationNotice. It
+ *   names no provider, so providerName, failedUpdates and watchName go unread.
+ * - Stage `provider_data`: every other notice. These name the weather provider, so
+ *   only its own stage raises one: a geocoder's 401/403/429 (stages reverse_geocode /
+ *   forward_geocode) is neither the provider refusing nor a key the user can fix.
  * - 401/403: the auth notice (watch overlay + panel): the user's key.
  * - 429: the rate-limit info (panel only).
  * - A failure the provider gives its own retry delay (failure.retryAfterMs: Weather
@@ -203,6 +280,7 @@ function notAnsweringWatchText(label) {
  * @returns {?{key: string, type: string, html: string, watch?: string, whenStale?: boolean, since: number}}
  */
 function noticeForFailure(failure, providerName, now, failedUpdates, watchName) {
+    if (failure && failure.stage === 'coordinates') { return locationNotice(failure, now); }
     if (!failure || failure.stage !== 'provider_data') { return null; }
     var code = typeof failure.code === 'string' ? failure.code : '';
     var name = providerName || 'The weather provider';
@@ -252,8 +330,31 @@ function noticeForFailure(failure, providerName, now, failedUpdates, watchName) 
     return null;
 }
 
+/**
+ * Everything a failed fetch does to the notice list, and the watch line it calls for.
+ * A failure past the GPS step means the location problem is gone (location works
+ * again, or a manual location took its place), so the no-location notice goes and
+ * cannot hide the new failure. Then the failure's own notice (noticeForFailure) is
+ * added. A watch line goes out when that notice shows on the watch (an error's line,
+ * a `whenStale` one only once the watch's forecast is stale), or when the location
+ * line may be on screen to take down (it, too, shows only on a stale forecast).
+ * @param {Object} failure Normalized fetch failure.
+ * @param {{providerName: string, watchName: string, failedUpdates: number, now: number,
+ *   forecastFresh: boolean}} ctx The provider's names, its run of server failures
+ *   (fetch-cycle.js), the time, and whether the watch may still show its forecast.
+ * @returns {?string} The NOTICE_TEXT to send ('' takes the overlay down), or null for none.
+ */
+function applyFailure(failure, ctx) {
+    var lowered = !mayBeGpsStep(failure) && remove(LOCATION_NOTICE_KEY) && !ctx.forecastFresh;
+    var notice = noticeForFailure(failure, ctx.providerName, ctx.now, ctx.failedUpdates, ctx.watchName);
+    if (notice) { add(notice); }
+    var shown = Boolean(notice && notice.watch) && !(notice.whenStale && ctx.forecastFresh);
+    return (lowered || shown) ? watchText() : null;
+}
+
 module.exports = {
     add: add,
+    applyFailure: applyFailure,
     clearErrors: clearErrors,
     dismissAll: dismissAll,
     list: list,

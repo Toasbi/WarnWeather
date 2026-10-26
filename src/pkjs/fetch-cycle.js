@@ -657,16 +657,17 @@ function createFetchCycle(deps) {
             // 429 → settings panel only; a provider not answering — a server failure
             // from the second update in a row, or its own retry delay → settings panel,
             // and the watch overlay only once the watch's forecast is too old to show,
-            // so it never covers a good one). Other failures raise nothing.
-            var serverRun = countServerFailure(provider.id, failure, deps.notices.isServerFailure);
-            var notice = deps.notices.noticeForFailure(failure, provider.name, +deps.now(), serverRun,
-                provider.shortName);
-            if (notice) {
-                deps.notices.add(notice);
-                if (notice.watch && !(notice.whenStale && watchMayShowForecast(+deps.now()))) {
-                    // Error notices push a plain-text overlay.
-                    failureSend.NOTICE_TEXT = deps.notices.watchText();
-                }
+            // so it never covers a good one; likewise no location: the phone's GPS failed
+            // with no recent fix to stand in). Other failures raise nothing.
+            var noticeText = deps.notices.applyFailure(failure, {
+                providerName: provider.name,
+                watchName: provider.shortName,
+                failedUpdates: countServerFailure(provider.id, failure, deps.notices.isServerFailure),
+                now: +deps.now(),
+                forecastFresh: watchMayShowForecast(+deps.now())
+            });
+            if (noticeText !== null) {
+                failureSend.NOTICE_TEXT = noticeText;
             }
             // A radar CLEAR (radar off, or a source that can never answer: no key or
             // endpoint, rejected key, missing proxy) must reach the watch even when
