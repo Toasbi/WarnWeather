@@ -12,9 +12,11 @@ test('ITEMS: the ten items in priority order, system info first', () => {
   assert.deepEqual(OD.ITEMS.map((i) => i.code), CODES);
   assert.deepEqual(OD.ITEMS.map((i) => i.group),
     ['system', 'system', 'system', 'system', 'weather', 'weather', 'weather', 'weather', 'weather', 'weather']);
-  assert.deepEqual(OD.ITEMS.map((i) => i.label), ['Battery', 'Bluetooth', 'Quiet time', 'Sleep', 'Rain',
+  assert.deepEqual(OD.ITEMS.map((i) => i.label), ['Battery', 'Bluetooth', 'Quiet time', 'Battery saver', 'Rain',
     'Wind gusts', 'UV index', 'Air quality', 'Pollen', 'Wind speed']);
   assert.deepEqual(OD.BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health']);
+  assert.deepEqual(OD.PAGE_BARS.map((b) => b.name),
+    ['Watch Status Bar', 'Forecast Status Bar', 'Health Status Bar', 'Radar Status Bar']);
   assert.deepEqual(OD.SIDES, ['left', 'right']);
   assert.equal(OD.itemsKey('top', 'left'), 'statusTopOnDemandLeftItems');
   assert.equal(OD.itemsKey('health', 'right'), 'statusHealthOnDemandRightItems');

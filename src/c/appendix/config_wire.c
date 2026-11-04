@@ -143,7 +143,7 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
 #if defined(PBL_PLATFORM_EMERY)
     if (clay_large_graph_font_tuple) {
         // emery: the graph-options word (config.h GRAPH_OPT_*): bit 0 Larger graph fonts,
-        // bits 1-7 the forecast's left axis (BETA), stored as sent. Read through the low half
+        // bits 1-7 the forecast's left axis, stored as sent. Read through the low half
         // like CLAY_VIEW_RESET_MIN: the bare boolean the phone sends while every axis option is
         // at its default (and sent before 2.2) reads as bit 0 alone.
         const uint16_t word = (uint16_t) clay_large_graph_font_tuple->value->int16;

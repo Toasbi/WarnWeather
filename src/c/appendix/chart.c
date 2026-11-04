@@ -533,18 +533,7 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
     const int16_t y_top               = c.origin.y;
     const int     zero                = CHART_ZERO(r);
     const int     dir                 = CHART_DIR(r);
-    // The boundary lines' far end: the row next to the zero row, h = 1 (standing: the
-    // plot's last row above the axis). A full-height layer must stand (chart.h from_top).
-    const int16_t y_base              = chart_flip_y(zero, dir, 1);
-#if defined(WW_LINE_STYLE)
-    // Where the full-height arm's boundary lines start: extend_top rows above the
-    // content when the caller carries the hatch up through a band over it.
-    const int16_t y_full_top          = y_top - hl->extend_top;
-#else
-    const int16_t y_full_top          = y_top;
-#endif
-
-    // 1) hatch fill (+ optional per-column underlay) ---------------------
+    // Hatch fill (+ optional per-column underlay).
     for (int i = 0; i < hl->num_bands; ++i) {
         const int16_t x0 = hl->bands[i].x0;
         const int16_t x1 = hl->bands[i].x1;
@@ -558,7 +547,7 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
             // the content's hatch below. No B&W backing: nothing lies under these
             // rows yet, and the backing run under the last row would reach one row
             // into the content, over a fill the layers before this one drew there.
-            hatch_fill_rect_raw(ctx, GRect(x0, y_full_top, x1 - x0, hl->extend_top),
+            hatch_fill_rect_raw(ctx, GRect(x0, y_top - hl->extend_top, x1 - x0, hl->extend_top),
                                 hl->hatch_color, hl->spacing);
 #endif
             hatch_fill_rect(ctx, GRect(x0, y_top, x1 - x0, c.size.h),
@@ -585,27 +574,6 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
             }
             hatch_fill_rect(ctx, col, hl->hatch_color, hl->spacing);
         }
-    }
-
-    // 2) boundary lines at real (in-window) edges ------------------------
-    // From the contour (or the top) to the zero row's neighbour: hanging, a
-    // zero-height edge draws 1 px on the plot's first row, the mirror of the 1 px it
-    // draws above the axis standing.
-    graphics_context_set_stroke_color(ctx, hl->boundary_color);
-    graphics_context_set_stroke_width(ctx, 1);
-    // Each band's two edges in turn, its start (x0) before its end (x1).
-    for (int e = 0; e < 2 * hl->num_bands; ++e) {
-        const ChartBand *b = &hl->bands[e >> 1];
-        if (!((e & 1) ? b->boundary1 : b->boundary0)) {
-            continue;
-        }
-        const int16_t x = (e & 1) ? b->x1 : b->x0;
-        int16_t yt = y_full_top;
-        if (hl->contour) {
-            yt = chart_contour_y_for_x(hl->contour, hl->contour_count, x);
-            if (yt < y_top) yt = y_top;
-        }
-        graphics_draw_line(ctx, GPoint(x, yt), GPoint(x, y_base));
     }
 }
 

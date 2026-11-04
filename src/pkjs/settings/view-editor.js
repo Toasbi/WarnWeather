@@ -16,6 +16,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     'use strict';
     var viewCycleLib = (typeof require !== 'undefined')
         ? require('../view-cycle.js') : window.VIEW_CYCLE;
+    var onDemand = (typeof require !== 'undefined') ? require('../on-demand.js') : window.OnDemand;
+    var WATCH_BAR_NAME = onDemand.PAGE_BARS[0].name;
 
     // ── Pure core ───────────────────────────────────────────────────────────
     // Band letters match view-cycle.js STACK_ORDERS: T = top band (calendar/radar/graph),
@@ -436,7 +438,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function addableElements(S, i) {
         var out = [];
         var pres = presence(S, i);
-        if (S[k('StripOff', i)]) { out.push(['Top bar (battery, date & alerts)', 'topbar']); }
+        if (S[k('StripOff', i)]) { out.push([WATCH_BAR_NAME, 'topbar']); }
         // 'Top area', not 'Calendar': it lands as a calendar, but it is the seat — its
         // content is picked (calendar, radar, a graph) on the row once it is added.
         if (!pres.T) { out.push(['Top area', 'top']); }
@@ -901,7 +903,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // Every view may drop its top bar — the Default view too; only its clock
             // is fixed.
             body += rowHtml({
-                label: 'Top bar', value: 'battery · date · alerts', fixed: true, del: 'topbar'
+                label: WATCH_BAR_NAME, fixed: true, del: 'topbar'
             });
         }
         var j;

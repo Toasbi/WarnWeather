@@ -117,7 +117,3 @@ test('buildPalette: multicolor passes through untouched regardless of theme', ()
   assert.deepEqual(dark, light);
   assert.equal(dark.rgb.length, 5);
 });
-
-test('buildPalette: theme omitted defaults to dark (backward compatible with preview-palette.js)', () => {
-  assert.deepEqual(rainTier.buildPalette('basalt', 'white'), { from: [0], rgb: [0xFFFFFF] });
-});

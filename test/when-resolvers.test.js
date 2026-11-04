@@ -131,7 +131,7 @@ test('defaultViewLacksOnDemand: the Default view the watch runs has no strip and
     Object.assign({ env: BASALT }, OD.DEFAULTS, custom)), true);
 });
 
-// The Left axis card's 'Include feels-like & dew point' gate is forecast-axis.js' own
+// The Left axis card's 'High/low includes feels-like & dew point' gate is forecast-axis.js' own
 // function, the one the wire and the bake read it through, registered as is.
 test('tempAxisLineDrawn is forecast-axis.js\' own reading, and a leaf asks it', () => {
   const forecastAxis = require('../src/pkjs/forecast-axis.js');

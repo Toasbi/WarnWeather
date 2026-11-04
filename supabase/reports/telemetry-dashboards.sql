@@ -197,7 +197,7 @@ flags as (
                                            or (l.settings_json ->> 'graphFillColor')     <> 'default'
                                            or (l.settings_json ->> 'graphSecondColor')   <> 'default'
                                            or (l.settings_json ->> 'nightHatchColor')    <> 'default'
-                                           or (l.settings_json ->> 'nightBoundaryColor') <> 'default'
+                                           or (l.settings_json ->> 'nightDayLineColor')  <> 'default'
                                            or (l.settings_json ->> 'nightFillColor')     <> 'default', false) end),
     ('view_auto_reset',    (l.settings_json ->> 'viewResetMin') <> '0'),
     ('view_double_flick',  (l.settings_json ->> 'doubleFlick') = 'true'),
@@ -437,7 +437,7 @@ cross join lateral (
     --     line colour of whichever metric is the secondary line, so blending wind's yellow
     --     with uv's magenta into one ranking would answer no question anyone has.
     --     graphSecondColor belongs to thirdLine, graphThirdColor to fourthLine and
-    --     graphFourthColor to fifthLine. The two night-band colours (hatch, dusk/dawn
+    --     graphFourthColor to fifthLine. The two night-band colours (hatch, day
     --     line) belong to no metric and stay unkeyed.
     -- Ordered by watches desc, so the top row per element is the popular choice. 'default'
     -- will usually be that top row — that is the useful baseline (how many never touched
@@ -455,7 +455,7 @@ cross join lateral (
       when f.key = 'graphFourthColor'
         then f.key || '@' || coalesce(l.settings_json ->> 'fifthLine', 'unknown')
                    || '@' || coalesce(l.settings_json ->> 'theme', 'unknown')
-      when f.key in ('nightHatchColor', 'nightBoundaryColor',
+      when f.key in ('nightHatchColor', 'nightDayLineColor',
                      'colorTime', 'colorToday', 'colorSunday', 'colorSaturday', 'colorUSFederal')
         then f.key || '@' || coalesce(l.settings_json ->> 'theme', 'unknown')
       else f.key

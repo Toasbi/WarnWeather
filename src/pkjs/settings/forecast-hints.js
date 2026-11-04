@@ -3,7 +3,7 @@
 // lineStyleOptions) and the hints of every row a forecast line carries — the scale copy
 // under its metric and style pickers (forecastMetricHint, lineStyleHint), its Visible
 // values row (lineShowHint), the Wind graph scale row while a line shows Alert
-// (windScaleHint) and its Draw from row (lineFromHint) — and the Time span row's options
+// (windScaleHint) and its Draw from row (lineFromHint) — and the Forecast length row's options
 // (forecastSpanOptions: the long span named by the hours it shows).
 //
 // It reads only the contract modules the bake reads (line-style.js, line-alert.js,
@@ -37,7 +37,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var drawFrom = (typeof require !== 'undefined')
         ? require('../draw-from.js') : window.DrawFrom;
     // The long time span's whole hours for the picked provider and layout
-    // (forecast-span-hours.js): the Time span row's third label.
+    // (forecast-span-hours.js): the Forecast length row's third label.
     var forecastSpanHours = (typeof require !== 'undefined')
         ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
 
@@ -91,9 +91,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return out;
     });
 
-    // The Time span row's options (emery only): 12 h, 24 h and the long span labelled with
+    // The Forecast length row's options (emery only): 12 h, 24 h and the long span labelled with
     // the whole hours the watch will show, which follow the weather provider's feed and the
-    // plot the layout leaves: where the High / low numbers sit, Larger graph fonts and the
+    // plot the layout leaves: where the Left axis values sit, Larger graph fonts and the
     // health graph's labels (forecast-span-hours.js spanOptions). The values stay '12', '24'
     // and '48', so a relabel never touches the stored setting.
     PConf.optionsResolvers.register('forecastSpanOptions', forecastSpanHours.spanOptions);
@@ -163,9 +163,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     };
     // What the metric picker says whatever the style.
     var METRIC_NOTES = {
-        cloud: 'Not available with Yandex.',
         gust: 'The hourly peak.',
         dew: 'The closer it runs to the temperature, the more humid it feels.'
+    };
+    // The metrics a weather provider doesn't send: the picker says so while it is the
+    // provider. Met.no sends rain chance and gusts for the Nordics only.
+    var PROVIDER_GAPS = {
+        yandex: { metrics: ['cloud', 'pressure', 'dew'], note: 'Not available with Yandex.' },
+        metno: { metrics: ['precip_prob', 'gust'], note: 'Not available with Met.no outside the Nordics.' }
     };
     // What the style adds after its line's scale. Thin and Thick say it all.
     var STYLE_NOTES = {
@@ -265,7 +270,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} The hint, '' for none.
      */
     function forecastMetricHint(metric, env, S) {
-        var note = copyOf(METRIC_NOTES, metric);
+        var gap = PROVIDER_GAPS[(S || {}).provider];
+        var note = joinHint([copyOf(METRIC_NOTES, metric),
+            gap && gap.metrics.indexOf(metric) >= 0 ? gap.note : '']);
         if (env && env.lineStyles) { return note; }
         return joinHint([note,
             alertScaleCopy(metric, false, S, env) || copyOf(HEIGHT_SCALE, metric)]);

@@ -1529,16 +1529,10 @@ test('radar throttle: an unusable record does not throttle', () => {
         const rec = readJson(RB_KEY);
         assert.deepEqual([rec.id, rec.at], ['rainbow', RB_T0 + 5 * MIN], c[0] + ': recorded afresh');
     });
-    // The control: the same slot's usable record does throttle — the current {id, at}
-    // shape, and an earlier dev build's record that also carried lat/lon.
-    [
-        ['{id, at}', { id: 'rainbow', at: RB_T0 }],
-        ['{id, at, lat, lon}', { id: 'rainbow', at: RB_T0, lat: 52.5, lon: 13.4 }]
-    ].forEach(function (c) {
-        resetStore();
-        store[RB_KEY] = JSON.stringify(c[1]);
-        assert.equal(rbCycle(rbHarness(), RB_T0 + 5 * MIN).requested, false, c[0] + ': a usable record throttles');
-    });
+    // The control: the same slot's usable record does throttle.
+    resetStore();
+    store[RB_KEY] = JSON.stringify({ id: 'rainbow', at: RB_T0 });
+    assert.equal(rbCycle(rbHarness(), RB_T0 + 5 * MIN).requested, false, 'a usable record throttles');
 });
 
 test('radar throttle: the sky rows are not throttled — they ride a throttled cycle without radar keys', () => {
@@ -1750,19 +1744,6 @@ test('radar throttle: a forced fetch after a move still asks, for the new positi
         { lat: 48.137, lon: 11.575, start: radarWire.slotZeroEpochFor(RB_T0 + 10 * MIN) }, 'for the new position');
     assert.equal(rbCycle(h, RB_T0 + 20 * MIN).requested, false,
         'its request holds the slot, even back at the first position');
-});
-
-test('radar throttle: a record an earlier dev build kept with lat/lon still throttles, wherever the fix is', () => {
-    resetStore();
-    const first = rbCycle(rbHarness(), RB_T0);
-    const W = radarKeysOf(first.extras);
-    store[RB_KEY] = JSON.stringify(Object.assign(readJson(RB_KEY), { lat: 52.5, lon: 13.4 }));
-    const h = rbHarness({ now: RB_T0 + 5 * MIN });
-    const far = rbCycle(h, RB_T0 + 5 * MIN, { fix: [40.713, -74.006] });
-    assert.equal(far.requested, false, 'its lat/lon are ignored');
-    assert.deepEqual(radarKeysOf(far.extras), W, 'and its window is re-served');
-    assert.equal(rbCycle(h, RB_T0 + 30 * MIN, { fix: [40.713, -74.006] }).requested, true, 'the next slot asks');
-    assert.deepEqual(Object.keys(readJson(RB_KEY)).sort(), ['at', 'id', 'tuples'], 'and records it without a position');
 });
 
 test('radar throttle: the record keeps no position', () => {

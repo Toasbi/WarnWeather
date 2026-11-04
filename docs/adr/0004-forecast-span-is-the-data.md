@@ -1,7 +1,7 @@
 # The forecast span is the data: emery's 12 / 24 / 58 h graph follows NUM_ENTRIES
 
 The forecast graph on a Pebble Time 2 (emery) looks 12 or 24 hours ahead, or as far as the
-weather provider's hourly feed reaches, up to 68 hours (Graphs › Forecast › Time span). The long
+weather provider's hourly feed reaches, up to 68 hours (Graphs › Forecast › Other › Forecast length). The long
 option is labelled with the whole hours it shows: "58 h" at the default layout. Every other
 watch, and an unknown one, keeps 24 hours. Ships in 2.2.0, with the left axis options that give
 the graph the whole screen.
@@ -108,7 +108,7 @@ setting, wire bit, persist key or message key for the span on the watch.
     on the plot's last column, so it takes no band and anchors no edge. The 24 h grid at its
     whole 8 px counts its started columns, as it always has.
   - The status slots, day max and alerts are unchanged.
-- **No left axis**: the High / low numbers are On axis, On graph or Off (`forecast-axis.js`,
+- **No left axis**: the Left axis values are On axis, On graph or Off (`forecast-axis.js`,
   stored 'axis' / 'graph' / 'off'; a beta's 'beside' and junk read 'axis'). On graph or Off
   draws no label strip and no axis line. On emery the forecast layer then draws unclipped
   inside a clip layer of its own rows that reaches the screen's left edge, so W = 200 px. The

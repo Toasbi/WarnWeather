@@ -347,7 +347,7 @@ static void test_visible(void) {
     }
 }
 
-// The long option's label (Graphs > Forecast > Time span): the whole hours a feed of n hours
+// The long option's label (Graphs > Forecast > Forecast length): the whole hours a feed of n hours
 // shows in a plot w px wide (forecast_span_whole) are the bars counted whole, for every feed
 // the long class lays out (FORECAST_SPAN_DAY_SENT + 1..FORECAST_MAX_ENTRIES hours: OWM's 48,
 // WU's 49, a full 68) on every W. src/pkjs/forecast-span-hours.js computes the same count on

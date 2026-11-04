@@ -170,7 +170,6 @@ const settingsSchema = z
     // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
     batteryLowLevel: z.number().int().min(0).max(100).optional(),
     batteryLowDisplay: z.string().optional(),
-    topViewMode: z.enum(['full', 'compact', 'none']).optional(),
     // DEPLOY ORDERING: a value missing from this enum fails the WHOLE batch (400), so a
     // new preset (1.23.0: 'weatherOnly') must be deployed here BEFORE the watch build
     // that can send it ships.
@@ -278,7 +277,7 @@ const settingsSchema = z
     graphThirdColor: z.string().optional(),
     graphFourthColor: z.string().optional(),
     nightHatchColor: z.string().optional(),
-    nightBoundaryColor: z.string().optional(),
+    nightDayLineColor: z.string().optional(),
     nightFillColor: z.string().optional(),
   })
   .strip();

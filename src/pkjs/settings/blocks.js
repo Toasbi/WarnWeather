@@ -1226,22 +1226,34 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The Bars row's info text: what the bars show, then how they scale — the colour
-     * note on a colour theme, the B&W legend otherwise (args, schema.js SCALE_NOTE /
-     * BW_LEGEND). Only while the bars are on; null (the row's hintByValue) otherwise.
+     * A row's static hint plus the sentence for how the page draws: colorNote on a colour
+     * theme, bwNote otherwise. A note can be left out, and a value with no static hint
+     * gets none (null).
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
-     * @param {{value: string, colorNote: string, bwNote: string}} args The row's value
-     *     and the two notes.
+     * @param {{staticHint: string, colorNote: string, bwNote: string}} args The row's hint
+     *     and its notes.
      * @returns {?string} The hint, or null.
      */
-    function barScaleHint(S, env, args) {
-        var a = args || {};
-        if (a.value !== 'rain') { return null; }
-        return 'Adds bars that represent the rain amount in one hour. '
-            + (colorThemeOn(S, env) ? a.colorNote : a.bwNote);
+    function colorNoteHint(S, env, args) {
+        var note = colorThemeOn(S, env) ? args.colorNote : args.bwNote;
+        return args.staticHint && note ? args.staticHint + ' ' + note : null;
     }
-    PConf.hintResolvers.register('barScaleHint', barScaleHint);
+    PConf.hintResolvers.register('colorNoteHint', colorNoteHint);
+
+    /**
+     * A row's hint on a watch without a heart-rate sensor: args.byValue's copy, which leaves
+     * heart rate out. With a sensor, null (the row's hintByValue).
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{value: string, byValue: Object<string, string>}} args The row's value and
+     *     the copy per value.
+     * @returns {?string} The hint, or null.
+     */
+    function noHeartRateHint(S, env, args) {
+        return (env && env.hr) ? null : (args.byValue[args.value] || null);
+    }
+    PConf.hintResolvers.register('noHeartRateHint', noHeartRateHint);
 
     /**
      * The Radar color row's info text: the colour's own words (args.staticHint, the row's
@@ -1291,7 +1303,6 @@ if (typeof require !== 'undefined') {
             lineSwatch: lineSwatch,
             lineColorSheet: lineColorSheet,
             lineColorLabel: lineColorLabel,
-            barScaleHint: barScaleHint,
             radarColorHint: radarColorHint,
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
             tomorrowioUsageLine: tomorrowioUsageLine,

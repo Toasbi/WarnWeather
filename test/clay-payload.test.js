@@ -108,11 +108,6 @@ test('maps healthMode to CLAY_HEALTH_MODE', () => {
     assert.strictEqual(buildClayPayload({ healthMode: 'slot' }, null, new Date()).CLAY_HEALTH_MODE, 3);
 });
 
-test('CLAY_DUAL_STATUS is no longer emitted (dual/single now folded into the packed view cycle)', () => {
-    const p = buildClayPayload({ healthMode: 'status' }, null, new Date());
-    assert.strictEqual(Object.prototype.hasOwnProperty.call(p, 'CLAY_DUAL_STATUS'), false);
-});
-
 test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {
   const base = baseSettings();
   base.radarMode = 'graph';
@@ -472,7 +467,7 @@ test('the Clay message carries the graph line styling', function() {
   });
   const p = buildClayPayload(s, { platform: 'emery' }, NOW);
   assert.ok(Array.isArray(p.CLAY_LINE_STYLE_UINT8));
-  assert.equal(p.CLAY_LINE_STYLE_UINT8.length, 16);
+  assert.equal(p.CLAY_LINE_STYLE_UINT8.length, 14);
   // Packed by the one graph packer (weather/graph-wire.js, over the resolver both the
   // wire and the render read), so the Clay tuple can't drift from what the graph
   // builder assumes.
@@ -483,16 +478,16 @@ test('the Clay message carries the graph line styling', function() {
 test('aplite gets the line styling too (it has the forecast graph)', function() {
   // Unlike the threshold blob / no-rain text / curve insets, nothing about the
   // graph's line colours is compiled out on aplite — it draws the same two metric
-  // lines — so this tuple is NOT platform-gated. The full 16 bytes ship there too:
+  // lines — so this tuple is NOT platform-gated. The full 14 bytes ship there too:
   // aplite parses [0..3] and ignores the tail blocks it has no arms for (the same
   // way pre-feature watches ignore bytes they postdate), which is cheaper than a
   // per-platform pack.
   const s = Object.assign(baseSettings(), {
     secondaryLine: 'wind', thirdLine: 'off', theme: 'dark'
   });
-  assert.equal(buildClayPayload(s, { platform: 'aplite' }, NOW).CLAY_LINE_STYLE_UINT8.length, 16);
+  assert.equal(buildClayPayload(s, { platform: 'aplite' }, NOW).CLAY_LINE_STYLE_UINT8.length, 14);
   // ... and an unknown watchInfo never drops it either.
-  assert.equal(buildClayPayload(s, null, NOW).CLAY_LINE_STYLE_UINT8.length, 16);
+  assert.equal(buildClayPayload(s, null, NOW).CLAY_LINE_STYLE_UINT8.length, 14);
 });
 
 // Draw from / Bars from ride bits of tuples the Clay message already carries (the line
@@ -513,8 +508,8 @@ test('Draw from / Bars from: aplite\'s payload is byte-identical on Top; basalt\
     }
   });
   const flip = (b, at, bit) => { const out = b.slice(); out[at] |= bit; return out; };
-  // The Main metric (rain chance, [11]) and the Second (wind, [12]) hang; [13], [15] are off.
-  assert.deepEqual(hung.CLAY_LINE_STYLE_UINT8, flip(flip(plain.CLAY_LINE_STYLE_UINT8, 11, 0x20), 12, 0x20));
+  // The Main metric (rain chance, [9]) and the Second (wind, [10]) hang; [11], [13] are off.
+  assert.deepEqual(hung.CLAY_LINE_STYLE_UINT8, flip(flip(plain.CLAY_LINE_STYLE_UINT8, 9, 0x20), 10, 0x20));
   assert.deepEqual(hung.BAR_PALETTE_UINT8, flip(plain.BAR_PALETTE_UINT8, 1, 0x80));
   assert.deepEqual(hung.RADAR_PALETTE_UINT8, flip(plain.RADAR_PALETTE_UINT8, 1, 0x80));
 });
@@ -568,7 +563,7 @@ test('CLAY_LARGE_GRAPH_FONT: the defaults keep the bare boolean on every platfor
   });
 });
 
-// The left axis options (BETA, forecast-axis.js) ride bits 2, 3 and 5 of the same word on emery
+// The left axis options (forecast-axis.js) ride bits 2, 3 and 5 of the same word on emery
 // (src/c/appendix/config.h GRAPH_OPT_*; bits 1 and 4 retired), canonical: a dormant value packs
 // nothing.
 test('CLAY_LARGE_GRAPH_FONT: emery carries the left axis options in bits 2, 3 and 5', () => {
@@ -647,7 +642,7 @@ test('forecastHours adds nothing to the Clay message', () => {
 
 test('CLAY_NIGHT_LIGHT_UINT8 is the five bytes night-light.js packs', () => {
   const s = Object.assign(baseSettings(), {
-    backlightDim: true, backlightDimMode: 'custom',
+    backlightDim: true,
     backlightDimStartHour: '22', backlightDimEndHour: '6',
     backlightDimColor: '96,0,0'
   });
@@ -671,12 +666,6 @@ test('the Dim backlight window on the wire is the feature own hours, always', ()
   });
   assert.deepEqual(buildClayPayload(s, { platform: 'emery' }, NOW).CLAY_NIGHT_LIGHT_UINT8,
     [96, 0, 0, 22, 6]);
-  // A leftover backlightDimMode from a dev build of this branch decides nothing.
-  ['custom', 'night', 'wat'].forEach((mode) => {
-    const stale = Object.assign({}, s, { backlightDimMode: mode });
-    assert.deepEqual(buildClayPayload(stale, { platform: 'emery' }, NOW).CLAY_NIGHT_LIGHT_UINT8,
-      [96, 0, 0, 22, 6], 'stale backlightDimMode ' + mode + ' must not move the window');
-  });
 });
 
 test('the Dim backlight switch OFF rides the wire as the zeroed tuple', () => {
@@ -720,15 +709,6 @@ test('every Dim backlight key moves the Clay payload (so the outbox re-sends it)
     assert.notEqual(JSON.stringify(buildClayPayload(s, { platform: 'emery' }, NOW)), packed,
       key + ' must dirty the Clay payload');
   });
-  // ...and the mirror image: a key the Nighttime card no longer has must leave the
-  // payload byte-identical, or a stale value in storage buys a needless send.
-  ['backlightDimMode', 'sleepNightMode', 'sleepNightStartHour', 'sleepNightEndHour']
-    .forEach((key) => {
-      const s = base();
-      s[key] = 'custom';
-      assert.equal(JSON.stringify(buildClayPayload(s, { platform: 'emery' }, NOW)), packed,
-        key + ' is retired and must not dirty the Clay payload');
-    });
 });
 
 // ── Custom layout wire branch ──────────────────────────────────────────────

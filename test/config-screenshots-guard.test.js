@@ -3,10 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const build = require('../scripts/build-config-page.js');
 
-test('build-config-page exposes assertScreenshots', () => {
-  assert.equal(typeof build.assertScreenshots, 'function');
-});
-
 test('assertScreenshots passes with the committed asset', () => {
   assert.doesNotThrow(function () { build.assertScreenshots(); });
 });

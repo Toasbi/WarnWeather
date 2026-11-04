@@ -3,7 +3,7 @@
 // hours a feed shows. Reads the lines test/c/forecast_span_dump.c prints — the whole hours
 // src/c/appendix/forecast_span.h forecast_span_whole counts for every feed the long class lays
 // out on every plot width — and checks each against src/pkjs/forecast-span-hours.js
-// wholeHours, the count the Time span row's long option is labelled with. The dump's range is
+// wholeHours, the count the Forecast length row's long option is labelled with. The dump's range is
 // checked too, so a shrunken loop cannot pass:
 //   N_MIN   the long class's first feed: forecast-span.js DAY_WIDE_HOURS + 1;
 //   N_MAX   emery's FORECAST_MAX_ENTRIES: hourly-window.js MAX_FORECAST_HOURS;

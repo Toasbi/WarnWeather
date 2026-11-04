@@ -234,7 +234,6 @@ test('the contract no longer carries a day-max pick of its own: the slot reads w
   // The warn-level hold is gone (decision A): the slot text, its arrow and the
   // highlight all read wire-units' dayMaxShown directly, so no pair or toggle can
   // move which peak a slot shows.
-  assert.equal(th.shownDayMax, undefined);
   const p = { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [70, 90, 80] };
   ['6', '7', '8'].forEach((warn) => {
     assert.equal(statusLines.formatValue('uv', p, { uvSlotDisplay: 'max', threshUvWarn: warn,

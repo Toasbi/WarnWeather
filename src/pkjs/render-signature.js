@@ -97,7 +97,7 @@ function renderSignature(settings) {
         // windUnits, the resolved pairs below) are signed on their own...
         lineAlert.signature(settings),
         settings.barSource, settings.windScale, settings.pressureScale,
-        // ...the left axis's 'Include feels-like & dew point' (BETA, forecast-axis.js): it
+        // ...the left axis's 'High/low includes feels-like & dew point' (forecast-axis.js): it
         // changes what TEMP_MIN/TEMP_MAX hold, so it signs while a feels-like or dew point
         // line is drawn. The numbers' place is Clay-only, but at 24 h it sets the hours sent
         // (forecast-span.js signature, below)...

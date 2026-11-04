@@ -1,5 +1,5 @@
-// src/pkjs/forecast-span-hours.js — ES5. The Time span row's stored option and the long time
-// span's label (Graphs > Forecast > Time span, emery only).
+// src/pkjs/forecast-span-hours.js — ES5. The Forecast length row's stored option and the long time
+// span's label (Graphs > Forecast > Other > Forecast length, emery only).
 //
 // THE STORED OPTION (CHOICES, storedHours, option): '12', '24' or '48'. One reading for the
 // hours sent, the render signature and telemetry (forecast-span.js re-exports it), the Time
@@ -8,7 +8,7 @@
 //
 // THE LABEL: the whole hours the watch will show for the picked weather provider and the
 // graph's layout. "47 h" with OpenWeatherMap, "48 h" with Weather Underground, "58 h" with
-// a full feed at the default layout, "66 h" with the High / low numbers On graph or Off. Only
+// a full feed at the default layout, "66 h" with the Left axis values On graph or Off. Only
 // the label moves: the option's stored value stays '48' (CHOICES), so the wire, the fetch,
 // telemetry and storage are unchanged.
 //
@@ -238,7 +238,7 @@
     }
 
     /**
-     * The Time span row's options: 12 h, 24 h and the long span named by its whole hours.
+     * The Forecast length row's options: 12 h, 24 h and the long span named by its whole hours.
      * @param {?Object} settings Clay settings.
      * @param {?Object} [env] Platform env.
      * @returns {Array.<Array.<string>>} [label, value] pairs.

@@ -29,7 +29,7 @@ var lineAlert = require('./line-alert.js');
 var drawFrom = require('./draw-from.js');
 // The forecast's time span option this watch draws (12/24/48 on emery, 24 elsewhere).
 var forecastSpan = require('./forecast-span.js');
-// The forecast's left axis options (BETA, emery only), read as the wire reads them.
+// The forecast's left axis options (emery only), read as the wire reads them.
 var forecastAxis = require('./forecast-axis.js');
 
 /**
@@ -303,7 +303,6 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),
         batteryLowDisplay: safe.batteryLowDisplay,
-        topViewMode: safe.topViewMode,
         layoutPreset: safe.layoutPreset,
         // Lockstep with the Deno telemetry-ingest .strip() schema — deploy the
         // function BEFORE the app ships, or these fields are silently dropped.
@@ -322,7 +321,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // its label) on an emery, 24 on every other watch whatever is stored. Categorical, not the
         // hours sent (forecast-span.js option()). Lockstep with handler.ts.
         forecastHours: forecastSpan.option(safe, env),
-        // The forecast's left axis options (BETA), emery only (the one watch that offers
+        // The forecast's left axis options, emery only (the one watch that offers
         // them), as chosen (forecast-axis.js readers: absent or junk reads the default, a
         // beta's 'beside' included), the Draw from precedent below: whether the scale applies
         // at all is the numbers and line fields. Lockstep with handler.ts -- deploy it first.
@@ -442,12 +441,12 @@ function buildSettingsSnapshot(settings, watchInfo) {
     snapshot.graphFourthColor = (cx.isColor && Boolean(safe.fifthLine) && safe.fifthLine !== 'off')
         ? graphColorReport(safe, safe.fifthLine, 'Line', cx.suffix) : undefined;
     // The night tint belongs to the secondary metric (it is the base of that metric's night
-    // area); the hatch and the dusk/dawn line are the band's own, under the 'night' scope.
+    // area); the hatch and the day line are the band's own, under the 'night' scope.
     snapshot.nightFillColor = cx.isColor
         ? graphColorReport(safe, secMetric, 'Night', cx.suffix) : undefined;
     snapshot.nightHatchColor = cx.isColor
         ? graphColorReport(safe, 'night', 'Hatch', cx.suffix) : undefined;
-    snapshot.nightBoundaryColor = cx.isColor
+    snapshot.nightDayLineColor = cx.isColor
         ? graphColorReport(safe, 'night', 'Boundary', cx.suffix) : undefined;
     return snapshot;
 }

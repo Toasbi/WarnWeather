@@ -728,7 +728,7 @@ WeatherProvider.prototype.getPayload = function() {
     // TEMP_MIN/TEMP_MAX carry the ACTUAL air range either way: the watch reads
     // them only for the hi/lo labels; the scaling band travels in the bytes. (One
     // exception, made later in applyForecastSeries: a known emery with the left
-    // axis's 'Include feels-like & dew point' option on gets the temperature
+    // axis's 'High/low includes feels-like & dew point' option on gets the temperature
     // scale's ends instead -- forecast-axis.js bakesScale.)
     // They are whole °F int32s, so for °C the watch's f_to_c rounds them a second
     // time — a label can sit a degree off the single-rounded temp slot.

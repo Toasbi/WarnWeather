@@ -121,8 +121,8 @@ static NightSegments compute_night_segments(time_t graph_start, time_t graph_end
         // emery: only the nights the graph shows take one of the FORECAST_NIGHTS_MAX slots. A
         // 68 h window meets at most four (night k + 4 starts 96 h after night k: a real night
         // is under a day long); the repeats outside it would otherwise crowd one out.
-        // Pixel-neutral at 24 h: a night outside the window used to become a zero-width band
-        // with no boundary, which draws nothing.
+        // Pixel-neutral at 24 h: a night outside the window used to become a zero-width band,
+        // which draws nothing.
         if (event_end.timestamp <= graph_start || event_start.timestamp >= graph_end)
         {
             continue;
@@ -166,7 +166,7 @@ static int16_t graph_x_for_time(time_t timestamp, time_t graph_start, time_t gra
 }
 
 // emery: night time-segments as plot-x bands through graph_x_for_time (which clamps them to the
-// graph); each edge flagged a real boundary when its sun event lies strictly inside the window.
+// graph).
 static int build_night_bands(ChartBand *out, int max, const NightSegments *seg,
                              int16_t graph_left, int pitch_q, time_t gstart, time_t gend) {
     if (!seg) return 0;
@@ -174,8 +174,6 @@ static int build_night_bands(ChartBand *out, int max, const NightSegments *seg,
     for (int i = 0; i < seg->count && n < max; ++i) {
         out[n].x0 = graph_x_for_time(seg->segments[i].start, gstart, gend, graph_left, pitch_q);
         out[n].x1 = graph_x_for_time(seg->segments[i].end,   gstart, gend, graph_left, pitch_q);
-        out[n].boundary0 = seg->segments[i].start > gstart && seg->segments[i].start < gend;
-        out[n].boundary1 = seg->segments[i].end   > gstart && seg->segments[i].end   < gend;
         ++n;
     }
     return n;
@@ -205,8 +203,7 @@ static int16_t graph_x_for_time(time_t timestamp, time_t graph_start, time_t gra
 }
 
 // Convert night time-segments into absolute plot-x bands. Clamps x to the
-// plot like the old draw_night_* loops; flags each edge as a "real" boundary
-// (a sun event strictly inside the window) vs a clamped edge.
+// plot like the old draw_night_* loops.
 static int build_night_bands(ChartBand *out, int max,
                              const NightSegments *seg, GRect plot_rect,
                              time_t gstart, time_t gend) {
@@ -221,8 +218,6 @@ static int build_night_bands(ChartBand *out, int max,
         if (x1 > gr) x1 = gr;
         out[n].x0 = x0;
         out[n].x1 = x1;
-        out[n].boundary0 = seg->segments[i].start > gstart && seg->segments[i].start < gend;
-        out[n].boundary1 = seg->segments[i].end   > gstart && seg->segments[i].end   < gend;
         ++n;
     }
     return n;

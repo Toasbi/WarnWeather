@@ -22,15 +22,3 @@ test('palette rain tiers come from rain-tier.buildPalette', () => {
   });
   assert.equal(P.rainTiers[2].color, '#00FF00'); // green
 });
-
-test('temp curve mirrors the C constant GColorRed', () => {
-  assert.equal(buildPreviewPalette().temp, '#FF0000');
-});
-
-test('the palette no longer snapshots the graph line/fill colours', () => {
-  const P = buildPreviewPalette();
-  assert.equal(P.line, undefined,
-    'a page-open snapshot of the line colours would freeze the preview on the colours ' +
-    'the page opened with — preview-forecast.js resolves them from `state` instead');
-  assert.equal(P.fill, undefined, 'same for the fill colours');
-});

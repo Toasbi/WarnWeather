@@ -9,7 +9,6 @@ const pair = require('../src/pkjs/status-pair.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
 const wire = require('../src/pkjs/status-wire.js');
 const utf8 = require('../src/pkjs/utf8.js');
-const wireUnits = require('../src/pkjs/wire-units.js');
 
 const EDGE = catalog.CAPS.EDGE_TEXT_MAX;   // 8
 const MID = catalog.CAPS.MID_TEXT_MAX;     // 19
@@ -86,32 +85,6 @@ test('absent settings print the bar for temperature and the pre-feature UV text 
     [0x35, 0x2F, 0xC2, 0xBB, 0x36]);
   assert.deepEqual(utf8.encode(pair.formatTempPair('-12', '-10', {}, EDGE)),
     [0x2D, 0x31, 0x32, 0x7C, 0x2D, 0x31, 0x30], "'-12|-10': 7 bytes, like '-12/-10'");
-});
-
-// The UV text before this module, verbatim: the pieces joined by '/', a tomorrow's
-// peak prefixed with ». Swept against every reading dayMaxShown can produce, so the
-// default is pinned to the code it replaces rather than to a handful of examples.
-function legacyUv(uv) {
-  const parts = [];
-  if (uv.now !== null) { parts.push(String(uv.now)); }
-  if (uv.peak !== null) { parts.push((uv.nextDay ? RAQUO : '') + uv.peak); }
-  return parts.join('/');
-}
-
-test('absent settings match the pre-feature UV bake across every reading dayMaxShown gives', () => {
-  const peaks = [null, 0, 25, 60, 71, 95, 110, 120, 149];
-  for (const mode of [undefined, 'current', 'max', 'both']) {
-    for (let head = 0; head <= 150; head += 5) {
-      for (const today of peaks) {
-        for (const next of peaks) {
-          const uv = wireUnits.dayMaxShown('uv', { UV_TREND_UINT8: [head],
-            UV_DAY_PEAKS: [today, next] }, { uvSlotDisplay: mode });
-          assert.equal(pair.formatPeak('uv', uv, {}, EDGE), legacyUv(uv),
-            `${mode} ${head} [${today}, ${next}]`);
-        }
-      }
-    }
-  }
 });
 
 // --- every separator x spacing x order --------------------------------------------

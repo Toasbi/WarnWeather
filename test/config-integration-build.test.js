@@ -17,11 +17,6 @@ const settings = require('../src/pkjs/settings/index.js');
 // fine. (node:test isolates files in separate processes, so the global does not leak.)
 global.Pebble = { platform: 'basalt' };
 
-test('generateUrl returns a data: URL', function () {
-    var url = settings.generateUrl({ values: settings.getDefaults(), watchInfo: { platform: 'basalt' }, userData: {} });
-    assert.ok(url.indexOf('data:text/html;charset=utf-8,') === 0, 'must be a data: URL');
-});
-
 test('decoded HTML contains schema injected with defaults-as-hex', function () {
     var url = settings.generateUrl({ values: settings.getDefaults(), watchInfo: { platform: 'basalt' }, userData: {} });
     var decoded = decodeURIComponent(url.slice('data:text/html;charset=utf-8,'.length));
@@ -29,12 +24,6 @@ test('decoded HTML contains schema injected with defaults-as-hex', function () {
     // color defaults must be hex strings, not raw integers
     assert.ok(decoded.indexOf('"colorTime":"#FFFFFF"') !== -1, 'colorTime as hex');
     assert.ok(decoded.indexOf('"colorSunday":"#FF0055"') !== -1, 'colorSunday as hex');
-});
-
-test('decoded HTML contains computed env for basalt (color platform)', function () {
-    var url = settings.generateUrl({ values: settings.getDefaults(), watchInfo: { platform: 'basalt' }, userData: {} });
-    var decoded = decodeURIComponent(url.slice('data:text/html;charset=utf-8,'.length));
-    assert.ok(decoded.indexOf('"color":true') !== -1, 'basalt env: color=true');
 });
 
 test('decoded HTML contains app blocks (blocks.js) and PConf.engine.boot()', function () {

@@ -1,8 +1,8 @@
 # The graph's colours are derived built-ins with per-polarity overrides
 
 Every colour the forecast graph paints — the two metric lines, the area fill, and the
-five night colours — is resolved by `src/pkjs/line-style.js` from the settings blob
-alone, packed into one ten-byte Clay tuple, and read back by
+four night colours — is resolved by `src/pkjs/line-style.js` from the settings blob
+alone, packed into one Clay tuple, and read back by
 `src/c/layers/forecast_layer.c`. This document is the design log that used to live
 inside that module, where it had grown to roughly 60% of the file and had started to
 drift (a "9 bytes" note for a ten-byte tuple, a pointer to a function that no longer
@@ -33,7 +33,7 @@ Built by `graphColorKey(scope, role, suffix)`.
 - **scope**: a metric id from `GRAPH_METRICS`, or the pseudo-scope `'night'` for the
   full-height band.
 - **role**: `Line` / `Fill` / `Night` for a metric; `Hatch` / `Boundary` for `'night'`.
-  `Night` is the night **fill tint** — the base of the area triple.
+  `Night` is the night **fill tint** — the base of the area pair.
 - **polarity**: `Dark` / `Light`, read off the *folded* theme so an aplite install
   never looks up a Light colour it cannot paint.
 
@@ -65,7 +65,7 @@ telemetry's `default` vs `#RRGGBB` report.
 
 | role | source |
 |---|---|
-| `night` / `Hatch`, `Boundary` | `NIGHT_HATCH_DEFAULT`, `NIGHT_BOUNDARY_DEFAULT` |
+| `night` / `Hatch`, `Boundary` | `NIGHT_HATCH_DEFAULT`, `NIGHT_DAY_LINE_DEFAULT` |
 | metric / `Night` | `nightAreaColorsFor(scope, null).base` |
 | metric / `Fill` | `fillColorFor(scope, true, theme)` |
 | anything else | `lineColorFor(scope, settings, true, theme)` |
@@ -126,7 +126,7 @@ built-in — neither has moved                       -> null
 ```
 
 `null` rather than the base is deliberate: `nightAreaColorsFor` answers `null` with the
-hand-tuned triple verbatim, while a concrete base runs the derive recipe (§5).
+hand-tuned pair verbatim, while a concrete base runs the derive recipe (§5).
 
 A stored tint now means exactly one thing — someone picked it — so `graphColorIsPicked`
 is `!graphColorIsDefault`, and the settings page is a pure editor again.
@@ -177,34 +177,33 @@ Two rules the code carries comments about, both of which were bugs first:
   NACKed", and taking that shortcut strands the install on the old colours until someone
   opens and saves the settings page.
 
-## 5. The night area triple
+## 5. The night area pair
 
-For **dark** polarity: six hand-tuned `{base, hatch, boundary}` triples, keyed by
+For **dark** polarity: hand-tuned `{base, hatch}` pairs, keyed by
 **metric** (`NIGHT_AREA_COLORS`). They moved here from `forecast_layer.c`, which keyed
 on the *day fill colour* with `gcolor_equal` — which is exactly what made an unlisted
 metric render precip-blue (pressure shipped that way; measured on emery). A
 user-selectable fill would have sent every custom pick down that same fall-through.
 
-For an **arbitrary** pick the triples cannot cover, `nightAreaColorsFor` derives one via
-`deriveNightTriple`: one Pebble level brighter per layer (`lighten`). This is **not** the
-recipe the six were built with — feed their bases back through it and only `feels`
-matches. The other five were tuned per hue (precip and uv keep a saturated channel at
-`0x00` instead of lifting it; wind, gust and pressure collapse boundary onto hatch a
-level earlier). The six stay verbatim; the recipe exists only for picks, where a
+For an **arbitrary** pick the pairs cannot cover, `nightAreaColorsFor` derives one via
+`deriveNightPair`: the hatch one Pebble level above its base (`lighten`). This is **not** the
+recipe the built-ins were made with — feed their bases back through it and precip, wind,
+uv and pressure come out different (they keep a saturated channel at `0x00` instead of
+lifting it). The built-ins stay verbatim; the recipe exists only for picks, where a
 plausible member of the same family beats a matching one.
 
-For **light** polarity: a **base per metric**, not a triple (`NIGHT_AREA_LIGHT_BASE`),
-whose hatch and boundary come from `deriveNightTriple`. The asymmetry is deliberate and
+For **light** polarity: a **base per metric**, not a pair (`NIGHT_AREA_LIGHT_BASE`),
+whose hatch comes from `deriveNightPair`. The asymmetry is deliberate and
 is about provenance, not about taste. The five light bases were tuned on hardware in the
 light theme by picking them *in the settings sheet* — i.e. as stored tints, which is the
 path that derives. Deriving is therefore what reproduces what was signed off; a
-hand-written triple here would repaint it. A metric absent from the light table (only
-`feels`, which never fills) keeps its dark triple in both polarities.
+hand-written pair here would repaint it. A metric absent from the light table (only
+`feels`, which never fills) keeps its dark pair in both polarities.
 
 Both tables are read through the same `nightAreaColorsFor(metric, tint, theme)`, and the
 "tint equals the built-in base" short-circuit compares against the base of *the polarity
 in hand*. `NIGHT_AREA_COLORS` entries are handed back by reference, so they are kept as
-pure triples — an extra key on one would ride out into a caller's result.
+pure pairs — an extra key on one would ride out into a caller's result.
 
 `colorPick` snaps every stored value onto the Pebble-64 grid at the parse boundary, so
 `lighten`'s level arithmetic is exact. The snap changes no pixel — `rgbToGColor8`
@@ -245,9 +244,8 @@ magenta, wind yellow, pressure orange, gust the greys, cloud a grey-blue.
   metric with no light line variant — Orange holds on white as-is.
 - **cloud** (added after 1.21.0) sits between precip's blue and the greys: BabyBlueEyes
   on dark, Liberty on light, so a cloud line next to a rain-chance line still reads as
-  two. Its dark night triple (OxfordBlue / Liberty / BabyBlueEyes) happens to be the
-  derive recipe's own output, so it is the one hand-listed triple a pick of its base
-  reproduces exactly. Its most common use is the stripe style. A stripe cell's tint
+  two. Its dark night pair (OxfordBlue / Liberty) happens to be the derive recipe's own
+  output, so a pick of its base reproduces it exactly. Its most common use is the stripe style. A stripe cell's tint
   blends from the background toward the line colour per 2-bit channel (`chart_stripe.h`),
   and with only four levels per channel neighbouring tints can round to the same colour
   (a light ground toward a dark line) or alternate hue (grey vs. blue). So the tint is
@@ -259,54 +257,43 @@ magenta, wind yellow, pressure orange, gust the greys, cloud a grey-blue.
   the values happen to have, **not a formula** — every light cell was tuned metric by
   metric on hardware in the light (alpha) theme, and they do not sit at a uniform
   distance from their dark counterparts. Do not "restore symmetry" with a dark
-  neighbour or re-derive one from a recipe; the literal table in
-  `test/line-style.test.js` (`EXPECTED_DEFAULTS`) is the contract, and it is meant to
-  break when someone tries. Note `0x55FFFF` is `GColorElectricBlue`; the constant named
+  neighbour or re-derive one from a recipe. Note `0x55FFFF` is `GColorElectricBlue`; the constant named
   `GColorCyan` is `0x00FFFF` and is precip's light night base.
 
 ## 7. The wire
 
-Ten bytes on `CLAY_LINE_STYLE_UINT8` as shipped (sixteen since, see *The style tail and
+Ten bytes on `CLAY_LINE_STYLE_UINT8` as shipped (fourteen now, see *The style tail and
 Draw from* below), on the **Clay settings message** — these are
 settings-derived, never weather-derived, so per `AGENTS.md`'s message-boundary rule
 they must not ride every weather send. (They replaced four scalar tuples that did: 44 B
-per weather send, 17 B once here. The Clay message sits at 490 B of its 536 B inbox.)
+per weather send, 17 B once here.)
 
 ```
 [0] main line   [1] area fill   [2] second line   [3] line flags (bit 0 = fill on)
-[4] night hatch [5] dusk/dawn   [6] area base     [7] area hatch  [8] area boundary
-[9] night flags (bit 0 = tint is an explicit pick)
+[4] night hatch [5] day line    [6] area base     [7] area hatch
 ```
 
-Bytes `[4..9]` are **byte-for-byte** the watch's `NIGHT_COLORS` persist blob
-(`persist.h`, `NIGHT_COLOR_BYTES = 6`); `app_message.c` stores the tail straight
-through with no repacking. That is the whole reason the night flag sits in its own byte
-`[9]` rather than beside the fill flag in `[3]` — one bit, one name, one offset, both
-ends, no translation step in the C. It cost one byte and is worth it.
+Bytes `[4..7]` are **byte-for-byte** the watch's `NIGHT_COLORS` persist blob
+(`persist.h`, `NIGHT_COLOR_BYTES = 4`); `app_message.c` stores the tail straight
+through with no repacking.
 
 **Growing the tuple:** `LINE_STYLE_BYTES` is a *minimum* length. Append a new block
 with its own `length >= offset + size` check; widening the minimum would start
-rejecting the shorter tuples older senders still emit.
+rejecting shorter tuples. Removing a byte moves the blocks after it, which is safe only
+because the phone and watch ship in one `.pbw`.
 
-`byte[9]` bit 0 says the night-area tint is an **explicit user pick**. It *was* the
-light-polarity opt-in: `forecast_layer.c` skipped the night re-shade on colour + light
-polarity, because the built-in triples were tuned for dark grounds, and this bit was
-what made a deliberate Light tint paint there. Once `NIGHT_AREA_LIGHT_BASE` gave light
-its own hardware-tuned arm (§5) that reason was gone, the skip was deleted, and **no
-watch reads the bit any more**.
-
-It is still sent, and still computed honestly rather than pinned true, for two reasons:
-the blob would otherwise change length for the sake of one dead byte (bytes `[4..9]` are
-`NIGHT_COLORS` verbatim), and it is the same "did the user pick this?" answer telemetry
-reports — the wire and telemetry disagreeing about intent is the bug §8 exists to
-prevent.
+The tuple once carried two more night bytes, the filled area's dusk/dawn line and a flag
+saying the tint was an explicit pick. Nothing read the flag once light got its own tuned
+arm (§5), and the area line went when the day line replaced the dusk/dawn lines, so 2.3.0
+deleted both. The blob's four bytes are the first four of the old six, so a stored blob
+still reads; telemetry takes "is this a pick?" from `graphColorIsPicked` directly.
 
 ### No B&W arm in the night tail
 
 Every one of these bytes reaches the render through `theme_pick(colour_arm, bw_arm)`,
 and the underlay through `has_underlay = !theme_is_bw()`. A B&W watch or a bw/bw-light
-theme discards all five and paints `theme_fg()` over a LightGray underlay from its own
-constants. Sending a "B&W-honest" set was five bytes of ceremony no watch ever read.
+theme discards all four and paints `theme_fg()` over a LightGray underlay from its own
+constants. Sending a "B&W-honest" set was bytes of ceremony no watch ever read.
 
 Consequence, accepted: on a bw theme these bytes carry whatever the user picked for
 that polarity. The wire is not lying — it is describing colours this render mode
@@ -314,20 +301,20 @@ ignores.
 
 ### The style tail and Draw from
 
-The tuple has since grown to sixteen bytes by two more tail blocks, each behind its own
-length check as the growth rule above asks: `[10]` the third-metric line colour,
-`[11..13]` the per-line style bytes (byte-for-byte the watch's `LINE_STYLES` persist
-blob), `[14]` the fourth-metric line colour and `[15]` its style byte (`FIFTH_LINE_STYLE`).
+The tuple has since grown to fourteen bytes by two more tail blocks, each behind its own
+length check as the growth rule above asks: `[8]` the third-metric line colour,
+`[9..11]` the per-line style bytes (byte-for-byte the watch's `LINE_STYLES` persist
+blob), `[12]` the fourth-metric line colour and `[13]` its style byte (`FIFTH_LINE_STYLE`).
 `buildLineStyleBytes` (`weather/graph-wire.js`, the phone-only packer of the graph's Clay
 tuples) carries the full layout and `persist.h`'s `LINE_STYLES` comment the canonical
-layout of a style byte. The watch parses `[10..15]`
+layout of a style byte. The watch parses `[8..13]`
 only under `WW_LINE_STYLE`, so aplite ignores them.
 
 A style byte packs `kind | (field << 2)`: the kind (0–3) in bits 0–1, the field (a solid
 line's width, a stripe's edge) in bits 2–4. The encoder never reaches bit 5 (its largest
 bytes are `0x0C`, bold, and `0x07`, stripeTop), so **Draw from: Top** (1.24.0) rides
 there: bit 5 (`0x20`; `graph-wire.js` `LINE_BIT`, `persist.h` `LINE_STYLE_FROM_TOP`) of
-`[11]`, `[12]`, `[13]` and `[15]` says that line hangs from the plot's top — its stroke
+`[9]`, `[10]`, `[11]` and `[13]` says that line hangs from the plot's top — its stroke
 or marks, and, for the Main metric, its Area fill with it. Bit 6 (`FLOAT_BIT`, `persist.h`
 `LINE_STYLE_FLOATING`) marks a drawn line that anchors no edge (pressure, feels-like, dew
 point); bit 7 is reserved at 0. `draw-from.js` is the reading behind both bits.
@@ -337,7 +324,7 @@ point); bit 7 is reserved at 0. `draw-from.js` is the reading behind both bits.
   there (`0x04` thin, `0x0C` bold), so reusing the stripe decode would hang every solid
   line. The phone never sets bit 5 on a stripe byte, nor for aplite (`computeEnv` →
   `lineStyles: false`), whatever is stored.
-- **No storage of its own.** `[11..13]` are stored verbatim and `[15]` as an int, so a
+- **No storage of its own.** `[9..11]` are stored verbatim and `[13]` as an int, so a
   flip changes the stored value, dirties the forecast and repaints it.
 
 **Bars from: Top cannot ride in this tuple:** `handle_line_style` dirties only the

@@ -35,7 +35,7 @@
     {code: 'battery', group: 'system', label: 'Battery', icon: 'battery'},
     {code: 'bt', group: 'system', label: 'Bluetooth', icon: 'bluetooth'},
     {code: 'qt', group: 'system', label: 'Quiet time', icon: 'quiet'},
-    {code: 'snooze', group: 'system', label: 'Sleep', icon: 'snooze'},
+    {code: 'snooze', group: 'system', label: 'Battery saver', icon: 'snooze'},
     {code: 'rain', group: 'weather', label: 'Rain', icon: 'rain'},
     {code: 'gust', group: 'weather', label: 'Wind gusts', icon: 'gust'},
     {code: 'uv', group: 'weather', label: 'UV index', icon: 'uv'},
@@ -45,12 +45,15 @@
   ];
 
   // The status bars, in the watch's ThreshBar order (the 2-bit cell order in a cell byte).
+  // `name` is the page's name for the bar, page-only.
   var BARS = [
-    {bar: 'top', prefix: 'statusTop'},
-    {bar: 'forecast', prefix: 'statusForecast'},
-    {bar: 'radar', prefix: 'statusRadar'},
-    {bar: 'health', prefix: 'statusHealth'}
+    {bar: 'top', prefix: 'statusTop', name: 'Watch Status Bar'},
+    {bar: 'forecast', prefix: 'statusForecast', name: 'Forecast Status Bar'},
+    {bar: 'radar', prefix: 'statusRadar', name: 'Radar Status Bar'},
+    {bar: 'health', prefix: 'statusHealth', name: 'Health Status Bar'}
   ];
+  // The same bars in the page's order, the Status bars tab's (the owner, 2026-10-01).
+  var PAGE_BARS = [BARS[0], BARS[1], BARS[3], BARS[2]];
 
   // The sides; the index + 1 is the cell's wire value (OdSide: 1 left, 2 right).
   var SIDES = ['left', 'right'];
@@ -378,6 +381,7 @@
   var api = {
     ITEMS: ITEMS,
     BARS: BARS,
+    PAGE_BARS: PAGE_BARS,
     SIDES: SIDES,
     DEFAULTS: DEFAULTS,
     BATTERY_LEVEL_MIN: BATTERY_LEVEL_MIN,

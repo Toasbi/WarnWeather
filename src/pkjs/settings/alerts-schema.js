@@ -32,14 +32,6 @@ var RAIN_WINDOW_OPTIONS = [['Within 30 min', '30'], ['Within 60 min', '60'], ['W
 var RAIN_WINDOW_SEGMENTS = [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']];
 var RAIN_LOOK_OPTIONS = [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']];
 
-// On demand (the Alerts): each status bar's two sides and the items on them
-// (src/pkjs/on-demand.js, the one reading the phone and this page share). The bars' names
-// as their sub-headers print them.
-var OD_BAR_NAMES = {top: 'Watch bar', forecast: 'Forecast bar',
-    radar: 'Radar bar', health: 'Health bar'};
-// The bars in the page's order, the Status bars tab's (the owner, 2026-10-01): the rows
-// of every Shows on grid. on-demand.js BARS keeps the wire's ThreshBar order.
-var OD_PAGE_BARS = ['top', 'forecast', 'health', 'radar'];
 // The note under every Shows on grid: the two side rules a user can act on (one side per
 // bar; the make-room order drops the lowest-priority item first, and on-demand.js ITEMS
 // priority is the Alerts tab's row order). The per-bar Alerts sheet's intro said
@@ -74,7 +66,7 @@ function showsOnRows(code, merge, notes) {
         check: code,
         writeWith: 'onDemandTick',
         columns: [{label: 'Left'}, {label: 'Right'}],
-        optionsFrom: {resolver: 'onDemandBars', args: {code: code, bars: OD_PAGE_BARS, names: OD_BAR_NAMES}}
+        optionsFrom: {resolver: 'onDemandBars', args: {code: code}}
     }, defaultViewNote()]);
 }
 /**
@@ -674,7 +666,7 @@ var ON_DEMAND_CODES = {odBattery: 'battery', odBluetooth: 'bt', odQuiet: 'qt', o
  * @returns {Object[]} The section's items, in order.
  */
 function onDemandCardItems() {
-    // Every row's summary ends on where its alert shows ("Watch bar, left"), or reads
+    // Every row's summary ends on where its alert shows ("Watch Status Bar, left"), or reads
     // "Not in any status bar" (dimmed) — alerts-page.js appends it to each resolver's text.
     return [
         {type: 'subheader', text: 'System info'},
@@ -682,11 +674,11 @@ function onDemandCardItems() {
             {resolver: 'onDemandBatteryText'}, null),
         onDemandSheetRow('odBluetooth', 'Bluetooth', 'bluetooth', null,
             {resolver: 'onDemandBluetoothText'}, null),
-        // Quiet time and Sleep have no settings of their own; their sheets place them
+        // Quiet time and Battery saver have no settings of their own; their sheets place them
         // (the owner, 2026-10-02: "you need a sheet for them then too").
         onDemandSheetRow('odQuiet', 'Quiet time', 'quiet', null,
             {resolver: 'onDemandPlainText', args: {code: 'qt', text: 'While Quiet Time is on'}}, null),
-        onDemandSheetRow('odSleep', 'Sleep', 'snooze', null,
+        onDemandSheetRow('odSleep', 'Battery saver', 'snooze', null,
             {resolver: 'onDemandSleepText'}, null),
         {type: 'subheader', text: 'Weather alerts'},
         onDemandSheetRow('alertRain', 'Rain', 'rain', null,
@@ -754,7 +746,7 @@ function sheetSections() {
     return [onDemandListsSection(), batterySheet(), bluetoothSheet(),
         placementSheet('odQuiet', 'Quiet time', 'qt',
             'Shows the quiet time icon at the edge of a status bar while Quiet Time is on.'),
-        placementSheet('odSleep', 'Sleep', 'snooze',
+        placementSheet('odSleep', 'Battery saver', 'snooze',
             'Shows the sleep icon at the edge of a status bar during the Battery saver hours (Watchface › Theme & night).'),
         rainAlertSheet()].concat(ALERT_KINDS.map(function (k) {
         return alertSheet(k.keyStem, k.title, k.subject, k.iconName, k.hint || '', k.coda || '', k.why);

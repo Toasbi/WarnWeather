@@ -81,13 +81,13 @@ var APP_FILES = [
   // readers bind it while theirs run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/draw-from.js'),
-  // The forecast's left axis options, BETA (window.ForecastAxis): the numbers' place and the
+  // The forecast's left axis options (window.ForecastAxis): the numbers' place and the
   // scale option, for the forecast preview and the Left axis card's when-resolver. It binds
   // window.LineStyle while its own body runs, so it follows line-style.js, and
   // preview-forecast.js and when-resolvers.js bind it while theirs run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/forecast-axis.js'),
-  // The long time span's whole hours (window.ForecastSpanHours): the Time span row's label,
+  // The long Forecast length's whole hours (window.ForecastSpanHours): that row's label,
   // by forecast-hints.js' forecastSpanOptions resolver, and the span option the forecast
   // preview's hour axis reads (preview-axis.js). It binds window.ForecastAxis and
   // window.VIEW_CYCLE while its own body runs, so it follows forecast-axis.js and view-cycle.js,

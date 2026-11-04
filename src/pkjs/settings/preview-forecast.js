@@ -41,7 +41,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // read as the wire reads it (in the page bundle ahead of this file).
     var drawFrom = (typeof require !== 'undefined')
         ? require('../draw-from.js') : window.DrawFrom;
-    // The forecast's left axis options (BETA, emery): where the hi/lo numbers go and what
+    // The forecast's left axis options (emery): where the hi/lo numbers go and what
     // they name, read as the wire reads them (in the page bundle ahead of this file).
     var forecastAxis = (typeof require !== 'undefined')
         ? require('../forecast-axis.js') : window.ForecastAxis;
@@ -436,7 +436,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var TOP_BAND_GAP = 2;
         var topBand = topStripes
             ? topStripes * STRIPE_H + (topStripes - 1) * STRIPE_GAP + TOP_BAND_GAP : 0;
-        // The left axis options (BETA, forecast-axis.js resolved: every default off a known
+        // The left axis options (forecast-axis.js resolved: every default off a known
         // emery, so every other preview is unchanged whatever is stored). With the numbers On
         // graph or Off there is no left axis: the graph starts at the frame's left edge
         // (PX0_NO_AXIS), and the zero line, the ticks and the vertices follow PX0; the legend
@@ -481,7 +481,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         });
         var tLabelMin = Math.min.apply(null, temps), tLabelMax = Math.max.apply(null, temps);
         var axisRange = tempAxisRange(temps, axisLines.map(function (a) { return a.samples; }));
-        // 'Include feels-like & dew point' (left axis BETA): the numbers name the scale's ends,
+        // 'High/low includes feels-like & dew point' (left axis): the numbers name the scale's ends,
         // as the bake puts them in TEMP_MIN / TEMP_MAX (forecast-series.js tempScaleRange).
         // ax.scale already asks for such a line (forecast-axis.js tempAxisLineDrawn); where none
         // is drawn here, the range is the temperature's own whole degrees, the labels' anyway.
@@ -559,19 +559,35 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // watch hatches with there.
         var nightHatchStroke = nightPicksApply ? hexColor(gc.night.hatch) : ink.rgba('0.30');
         /**
-         * The night band: the hatch and its dusk/dawn lines, from the top of the graph
-         * (PT) down to the zero line — up through a top stripe band too, as the watch's
-         * night hatch runs on through it (forecast_layer.c's extend_top). The stripe
-         * cells are drawn later and are opaque (preview-stripe.js cell), so the shading
-         * shows only in a stripe's empty hours and its gaps.
+         * The night band: the hatch, from the top of the graph (PT) down to the zero line —
+         * up through a top stripe band too, as the watch's night hatch runs on through it
+         * (forecast_layer.c's extend_top). The stripe cells are drawn later and are opaque
+         * (preview-stripe.js cell), so the shading shows only in a stripe's empty hours and
+         * its gaps.
          * @returns {string} SVG markup, or '' with the shading off.
          */
         function drawNightShading() {
             if (!state.dayNightShading) { return ''; }
-            var boundary = nightPicksApply ? hexColor(gc.night.boundary) : ink.rgba('0.45');
-            return '<rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>'
-                + '<line x1="' + n0 + '" y1="' + PT + '" x2="' + n0 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>'
-                + '<line x1="' + n1 + '" y1="' + PT + '" x2="' + n1 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>';
+            return '<rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>';
+        }
+        /**
+         * The day line: a line on each midnight's hour tick, from the top of the graph down
+         * to the zero line, part of the night shading (forecast_layer.c day_lines_draw). The
+         * first tick is the graph's own edge, never a line. The shorter samples end at 23:00,
+         * before any midnight: there one line stands in the middle of the sample's night, so
+         * the colour still shows.
+         * @returns {string} SVG markup, or '' with the shading off.
+         */
+        function drawDayLine() {
+            if (!state.dayNightShading) { return ''; }
+            var stroke = nightPicksApply ? hexColor(gc.night.dayLine) : ink.rgba('0.45');
+            var xs = [];
+            for (var i = 1; i < n; i += 1) {
+                if ((12 + i) % 24 === 0) { xs.push(tickX(i)); }
+            }
+            return (xs.length ? xs : [(n0 + n1) / 2]).map(function (x) {
+                return '<line x1="' + x + '" y1="' + PT + '" x2="' + x + '" y2="' + PB + '" stroke="' + stroke + '" stroke-width="0.7"></line>';
+            }).join('');
         }
         function drawTempCurve() {
             return '<path d="' + smooth(temps.map(function (t, i) { return [tickX(i), yT(t)]; }))
@@ -738,8 +754,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var area = areaPathFor(state.secondaryLine);
             if (!area) { return ''; }
             // areaBase is the metric's hand-tuned night base, or the user's tint verbatim
-            // once moved off it (nightAreaColorsFor); areaHatch/areaBoundary are the
-            // watch's derived overlay, which the preview does not model.
+            // once moved off it (nightAreaColorsFor); areaHatch is the watch's derived
+            // overlay, which the preview does not model.
             return '<path d="' + area + '" fill="' + hexColor(gc.night.areaBase)
                 + '" fill-opacity="0.25" clip-path="url(#nightclip)"></path>';
         }
@@ -903,7 +919,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
 
         /**
-         * The hi/lo numbers on the graph (left axis BETA, On graph): forecast_numbers.h
+         * The hi/lo numbers on the graph (left axis, On graph): forecast_numbers.h
          * forecast_numbers_on_graph (via forecast_layer.c draw_axis_numbers), mirrored. The hi
          * number sits under the point it names and the lo number over its own — the
          * temperature curve's highest and lowest sample or, with ax.scale, the highest and
@@ -1119,6 +1135,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // The night tint sits on top of the day fill and under the bars — the watch's
         // night-area underlay, which re-shades the filled area during the night hours.
         e += nightTint;
+        // The day line crosses the fill and its tint, behind the bars and lines.
+        e += drawDayLine();
         // Stripes: in their own band above the plot (top), over the night shading that
         // runs up through it — each cell that draws covers it — or in their own band
         // below the zero line (bottom) — forecast_layer.c's CHART_LAYER_STRIPE slots.
@@ -1159,7 +1177,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // reaches past it (yT). The one exception is emery's left axis option 'Include
         // feels-like & dew point' (ax.scale): then they name the scale's ends, which the
         // bake puts in TEMP_MIN/TEMP_MAX.
-        // Where they go is the left axis option (BETA, ax.numbers): on the axis (today), on
+        // Where they go is the left axis option (ax.numbers): on the axis (today), on
         // the graph (drawNumbersOnGraph) or nowhere.
         // On axis: where there is space each label's ink sits level with the curve's extreme
         // it names (alignLabels; never previewing aplite, whose labels are frozen). Today's

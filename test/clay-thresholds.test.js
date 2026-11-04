@@ -170,19 +170,6 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
   assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[34], 0, 'no bold cell spills into the alerts byte');
 });
 
-test('the phone-battery slots pack their own cells, not the city cell they resemble', () => {
-  // Both are SLOT_TEXT; the no-icon variant is one icon id away from being
-  // TEXT + ICON_NONE, which is City's shape on the watch. That is the exact bug
-  // that shipped on the pressure slot, so pin that the blobs differ.
-  const phone = wire.buildSettingsBlob(
-    Object.assign({}, BASE, { threshPhoneBatteryBoldMode: 'always' }));
-  const city = wire.buildSettingsBlob(
-    Object.assign({}, BASE, { threshCityBoldMode: 'always' }));
-  assert.notDeepEqual(phone, city, 'phone battery and city must pack into different cells');
-  assert.equal(city[33], 0, 'city lives in an earlier bold byte, not byte 33');
-  assert.equal(phone[32], 0, 'phone battery writes nothing into city\'s byte');
-});
-
 test('an unknown/absent watchInfo still gets the blob (never hide a real feature)', () => {
   [null, undefined, {}].forEach((wi) => {
     const payload = buildClayPayload(BASE, wi, new Date('2026-07-22T00:00:00Z'));

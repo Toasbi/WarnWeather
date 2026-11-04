@@ -186,5 +186,9 @@
   "2.2.0": {
     "title": "Longer forecast on Pebble Time 2",
     "body": "On Pebble Time 2 the forecast graph can look 12 hours or up to 66 hours ahead, depending on your weather provider (Graphs tab, Forecast, Time span), and its high and low numbers can move onto the graph."
+  },
+  "2.3.0": {
+    "title": "Day line on the forecast graph",
+    "body": "Added a line at midnight that marks each new day. Removed the lines at dusk and dawn. It follows Day / night shading; set its color in the Graphs tab, under Graph colors, Night shading."
   }
 }

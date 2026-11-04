@@ -5,10 +5,6 @@ const { WEATHER_CATEGORIES } = require('../src/pkjs/outbox');
 const forecastCategory = WEATHER_CATEGORIES.find(function(c) { return c.name === 'forecast'; });
 const statusCategory = WEATHER_CATEGORIES.find(function(c) { return c.name === 'status'; });
 
-test('WEATHER_CATEGORIES has a forecast category', function() {
-    assert.ok(forecastCategory, 'forecast category must exist');
-});
-
 test('status category carries the four packed status lines, the levels and the alert entries', function() {
     assert.deepEqual(statusCategory.keys, [
         'STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8',
@@ -35,12 +31,6 @@ test('forecast category carries the temp uint8 trend + min/max label keys', func
     assert.ok(forecastCategory.keys.includes('TEMP_TREND_UINT8'));
     assert.ok(forecastCategory.keys.includes('TEMP_MIN'));
     assert.ok(forecastCategory.keys.includes('TEMP_MAX'));
-    assert.ok(!forecastCategory.keys.includes('TEMP_TREND_INT16'));
-});
-
-test('WEATHER_CATEGORIES has no palette category (palette rides the Clay message)', function() {
-    const palette = WEATHER_CATEGORIES.find(function(c) { return c.name === 'palette'; });
-    assert.equal(palette, undefined);
 });
 
 test('no weather category carries palette keys', function() {

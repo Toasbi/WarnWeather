@@ -25,7 +25,7 @@
     var LABEL_CAP = 5.6;
     // The preview's curve inset in units: 12 units stand for the watch's WATCH_INSET_PX.
     var CURVE_INSET_PREV = 12;
-    // The numbers on the graph (left axis BETA; temp_axis_pad.h THE NUMBERS ON THE GRAPH,
+    // The numbers on the graph (left axis; temp_axis_pad.h THE NUMBERS ON THE GRAPH,
     // mirrored): watch px from a line's ink to its number's ink, and between the two
     // numbers' ink (test/config-temp-axis-pad.test.js holds both equal to the header's),
     // scaled to preview units like the label gap (CURVE_INSET_PREV units a WATCH_INSET_PX).

@@ -422,49 +422,50 @@ static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dir
 #endif  // WW_CURVE_INSET
 
 // Forecast line styling — settings-derived, so the tuple rides the Clay message
-// (see clay-payload.js) instead of costing 44 B on every weather send: four
-// int32 scalars (SECONDARY_LINE_COLOR / _FILL_COLOR / _FILL, THIRD_LINE_COLOR)
-// became one 4-byte array. It writes exactly the persist slots handle_forecast
-// used to write — no new persist keys. NOT compiled out on aplite: every
+// (see clay-payload.js) instead of costing 44 B on every weather send, packed
+// as one array. NOT compiled out on aplite: every
 // platform renders the forecast graph, so every platform needs the colours.
 //
 // Head (always present): [0] main-metric line, [1] area fill,
 // [2] second-metric line, [3] line flags (bit 0 = fill on).
-// Tail (optional): bytes [4..9] ARE the NIGHT_COLORS persist blob, byte for
+// Tail (optional): bytes [4..7] ARE the NIGHT_COLORS persist blob, byte for
 // byte — layout in persist.h. Nothing is repacked or translated on the way
-// through, which is the whole reason the night-fill-explicit bit sits in its own
-// byte [9] instead of riding byte [3]: one name, one position, both ends.
-// Second tail (optional): [10] the third-metric line colour, then bytes
-// [11..13] ARE the LINE_STYLES persist blob (per-line marker styles), byte for
+// through.
+// Second tail (optional): [8] the third-metric line colour, then bytes
+// [9..11] ARE the LINE_STYLES persist blob (per-line marker styles), byte for
 // byte — layout in persist.h. The block is WW_LINE_STYLE-guarded on the
 // consuming side, so aplite stores neither and simply ignores the trailing bytes.
 //
 // CONTRACT for growing this tuple: LINE_STYLE_BYTES is a MINIMUM length, not an
 // exact one, and everything past it is an optional tail guarded by its own
-// `length >= <offset> + <size>` check. A shorter tuple (an older phone bundle, a
-// stale fixture) is still applied in full and each absent tail block keeps its
-// last good persisted value. Append a new block plus its own length check;
-// widening LINE_STYLE_BYTES instead would start REJECTING the tuples those
-// shorter senders still emit.
+// `length >= <offset> + <size>` check. A shorter tuple (a stale fixture) is still
+// applied in full and each absent tail block keeps its last good persisted value.
+// Append a new block plus its own length check; widening LINE_STYLE_BYTES instead
+// would start REJECTING those shorter tuples. Removing a byte moves the blocks after
+// it (2.3.0 did), which is safe only because the phone and watch ship in one .pbw.
 #define LINE_STYLE_BYTES 4
 #define LINE_STYLE_FLAG_SECONDARY_FILL 0x01
 // Where the NIGHT_COLORS blob starts. Unguarded: the wire layout is the same on
 // every platform — only the CONSUMPTION of the tail is colour-only, since B&W
 // builds have no persist accessors for it (persist.h) and never paint it.
 #define LINE_STYLE_NIGHT_OFFSET 4
-// Second appended tail block, ONE unit: [10] the third-metric line colour,
-// then bytes [11..13] ARE the LINE_STYLES persist blob (per-line marker
+// Second appended tail block, ONE unit: [8] the third-metric line colour,
+// then bytes [9..11] ARE the LINE_STYLES persist blob (per-line marker
 // styles), byte for byte — layout in persist.h. The phone only ever appends
 // these four bytes together (weather/graph-wire.js), so one length check guards the
 // block. Offsets unguarded like the night offset above; the CONSUMING arm is
 // WW_LINE_STYLE-guarded, so aplite ignores the trailing bytes it may still
 // receive.
-#define LINE_STYLE_EXT_OFFSET 10
+#define LINE_STYLE_EXT_OFFSET 8
 #define LINE_STYLE_EXT_BYTES 4
-// Third appended tail block: [14] the fourth-metric line colour, [15] its
+#if defined(PBL_COLOR)
+_Static_assert(LINE_STYLE_EXT_OFFSET == LINE_STYLE_NIGHT_OFFSET + NIGHT_COLOR_BYTES,
+               "the style block starts where the night colours end");
+#endif
+// Third appended tail block: [12] the fourth-metric line colour, [13] its
 // style byte (kind | field, as a LINE_STYLES byte). Own length check, per the
 // growth contract; WW_LINE_STYLE-guarded like the block above.
-#define LINE_STYLE_FIFTH_OFFSET 14
+#define LINE_STYLE_FIFTH_OFFSET 12
 #define LINE_STYLE_FIFTH_BYTES 2
 
 static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty) {

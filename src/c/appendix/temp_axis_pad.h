@@ -310,12 +310,12 @@ static inline void temp_labels_align_to_curve(int *hi_y, int *lo_y, int h,
     temp_labels_align(hi_y, lo_y, h, zero_y - r.hi, zero_y - r.lo);
 }
 
-// THE NUMBERS ON THE GRAPH (owner, 2026-10-09; BETA, emery only: config.h GRAPH_OPT_*). The
+// THE NUMBERS ON THE GRAPH (owner, 2026-10-09; emery only: config.h GRAPH_OPT_*). The
 // left axis's options can take the hi/lo numbers off the label strip: "On graph" puts the hi
 // number under the point it names and the lo number over its point, "Off" draws none, and
 // either way the left axis goes: no strip, no axis line, and the plot starts at the screen's
 // left edge (or, with the health graph on the same screen, at the shared edge: bottom_view.h).
-// The point is the temperature curve's highest and lowest vertex or, with "Include feels-like
+// The point is the temperature curve's highest and lowest vertex or, with "High/low includes feels-like
 // & dew point" (GRAPH_OPT_SCALE_NUMS), the highest and lowest of every line on the
 // temperature's scale (THE SCALE: the feels-like and dew point lines too), over every hour
 // sent, as the numbers' values are. A number's ink is centred on its point's columns, held

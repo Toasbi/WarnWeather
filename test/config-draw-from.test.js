@@ -234,7 +234,7 @@ test('Bars from: one row per chart, while its bars are drawn, never on aplite', 
     assert.equal(it.joinPrevious, undefined);
     assert.deepEqual(it.hintByValue, { top: BARS_HINT }, 'only Top has a hint');
   });
-  // Placement: right under Bar color (the Bars & shading card's other More option); the
+  // Placement: right under Bar color (the Rain bars card's other More option); the
   // radar card's only More option, after Radar color.
   assert.equal(barItems[barItems.indexOf(rain) - 1].messageKey, 'rainBarColor');
   assert.equal(barItems[barItems.indexOf(rain) - 1].more, true, 'Bar color is a More option too');

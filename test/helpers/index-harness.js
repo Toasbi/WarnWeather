@@ -298,4 +298,4 @@ function bootIndex(t, opts) {
   return h;
 }
 
-module.exports = { HARNESS_NOW, HOUR, bootIndex, healthyNetwork, isWeatherMessage, openMeteoMain, openMeteoAux };
+module.exports = { HARNESS_NOW, HOUR, bootIndex, healthyNetwork, isWeatherMessage };

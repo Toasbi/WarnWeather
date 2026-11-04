@@ -654,7 +654,7 @@ test('optionsFrom.resolver derives options via the registry (multi-key + env) an
 });
 
 test('a segmented row renders its optionsFrom list: labels follow the settings, values stay; a dropped value snaps', () => {
-  // The forecast Time span's shape: the third option's LABEL is derived from other keys
+  // The forecast Forecast length's shape: the third option's LABEL is derived from other keys
   // while its value never moves, so the row relabels on a re-render and nothing is rewritten.
   PConf.optionsResolvers.register('testSegmented', function (S) {
     var out = [['12 h', '12'], ['24 h', '24'], [(S.feed === 'short' ? '47' : '58') + ' h', '48']];

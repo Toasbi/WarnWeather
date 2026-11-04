@@ -1,4 +1,4 @@
-// The forecast's left axis options (BETA, emery only): src/pkjs/forecast-axis.js, the one
+// The forecast's left axis options (emery only): src/pkjs/forecast-axis.js, the one
 // reading of the two settings for the wire, the bake, the hours sent, the render signature,
 // telemetry, the settings gate and the preview; its wire bits held equal to
 // src/c/appendix/config.h.

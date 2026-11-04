@@ -26,21 +26,6 @@ test('presetContents falls back to compactCal for an unrecognised preset key', (
         LY.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }));
 });
 
-test('presetContents migrates legacy layoutPreset/topViewMode settings via view-cycle.js', () => {
-    // classic/radarLast/healthFirst -> compactCal; forecast -> noCal; fullCal unchanged.
-    const compactCal = LY.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' });
-    assert.deepEqual(LY.presetContents({ layoutPreset: 'classic', healthMode: 'off', radarMode: 'off' }), compactCal);
-    assert.deepEqual(LY.presetContents({ layoutPreset: 'radarLast', healthMode: 'off', radarMode: 'off' }), compactCal);
-    assert.deepEqual(LY.presetContents({ layoutPreset: 'healthFirst', healthMode: 'off', radarMode: 'off' }), compactCal);
-    assert.deepEqual(LY.presetContents({ layoutPreset: 'forecast', healthMode: 'off', radarMode: 'off' }),
-        LY.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }));
-    assert.deepEqual(LY.presetContents({ topViewMode: 'full', healthMode: 'off', radarMode: 'off' }),
-        LY.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarMode: 'off' }), 'topViewMode full -> fullCal');
-    assert.deepEqual(LY.presetContents({ topViewMode: 'none', healthMode: 'off', radarMode: 'off' }),
-        LY.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }), 'topViewMode none -> noCal');
-    assert.deepEqual(LY.presetContents({ healthMode: 'off', radarMode: 'off' }), compactCal, 'nothing set -> compactCal');
-});
-
 test('presetContents reads healthMode/radarMode off state to grow/shrink the cycle', () => {
     assert.equal(LY.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }).length, 1);
     assert.equal(LY.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' }).length, 2, 'radar adds a slot');

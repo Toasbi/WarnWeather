@@ -742,7 +742,7 @@ test('the weather bake follows forecastHours on emery only', () => {
   }
 });
 
-// The left axis's 'Include feels-like & dew point' (BETA, forecast-axis.js) changes what the
+// The left axis's 'High/low includes feels-like & dew point' (forecast-axis.js) changes what the
 // bake puts in TEMP_MIN/TEMP_MAX on emery, so it signs while a feels-like or dew point line is
 // drawn; absent and false sign alike (hydrating the default forces nothing).
 test('forecastAxisScale joins the signature only with a feels-like or dew point line', () => {

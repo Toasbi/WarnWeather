@@ -808,21 +808,20 @@ void persist_get_curve_insets(uint8_t out[CURVE_INSET_BYTES]) {
 #endif  // WW_CURVE_INSET
 
 #if defined(PBL_COLOR)
+// The prefix compare is safe here: an older build's 6 B blob reads by its first four bytes.
 bool persist_set_night_colors(const uint8_t colors[NIGHT_COLOR_BYTES]) {
     return write_data_if_changed(NIGHT_COLORS, colors, NIGHT_COLOR_BYTES);
 }
 
 void persist_get_night_colors(uint8_t out[NIGHT_COLOR_BYTES]) {
     // Default = the pre-feature look for the default metric: DarkGray full-height
-    // hatch and dusk/dawn line, the precip night triple, no explicit tint pick.
+    // hatch and day line, the precip night pair.
     // (.argb on the SDK's GColor constants, not the GColor*ARGB8 macros — the
     // field access does not depend on the macro spelling.)
     out[0] = GColorDarkGray.argb;
     out[1] = GColorDarkGray.argb;
     out[2] = GColorDukeBlue.argb;
     out[3] = GColorBlue.argb;
-    out[4] = GColorVividCerulean.argb;
-    out[5] = 0;
     if (!persist_exists(NIGHT_COLORS)) { return; }
     // Read into a scratch first: a short read must not scribble on the
     // already-defaulted out[] bytes.

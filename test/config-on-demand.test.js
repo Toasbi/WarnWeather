@@ -82,11 +82,8 @@ function hintOf(html, needle) {
 const SHEET = { battery: 'odBattery', bt: 'odBluetooth', qt: 'odQuiet', snooze: 'odSleep', rain: 'alertRain',
   gust: 'alertGust', uv: 'alertUv', aqi: 'alertAqi', pollen: 'alertPollen', wind: 'alertWind' };
 const CODES = OD.ITEMS.map((i) => i.code);
-// The grid's rows by their short names, in the page's order (the Status bars tab's).
-const BAR_NAMES = { top: 'Watch bar', forecast: 'Forecast bar', health: 'Health bar', radar: 'Radar bar' };
-// The same bars as the Status bars tab titles their cards.
-const BAR_TITLES = { top: 'Watch Status Bar', forecast: 'Forecast Status Bar', health: 'Health Status Bar',
-  radar: 'Radar Status Bar' };
+// The grid's rows by name, in the page's order (the Status bars tab's).
+const BAR_NAMES = { top: 'Watch Status Bar', forecast: 'Forecast Status Bar', health: 'Health Status Bar', radar: 'Radar Status Bar' };
 const PAGE_BARS = ['top', 'forecast', 'health', 'radar'];
 // The Alerts nav row's summary while nothing is placed on its bar.
 const NONE = 'None';
@@ -437,7 +434,7 @@ test('Rain with the radar off: the grid goes inert and keeps its ticks, and a bo
   });
   // The radar bar keeps its row, inert, with the reason its view gives.
   assert.equal(ticksOf(sheet, 'radar').length, 2, 'the radar bar keeps its row with the radar off');
-  assert.ok(sheet.indexOf('<span class="lbl">Radar bar</span><span class="hint">Radar view is off</span>') !== -1,
+  assert.ok(sheet.indexOf('<span class="lbl">Radar Status Bar</span><span class="hint">Radar view is off</span>') !== -1,
     'and says why it cannot show');
   assert.equal(ticked(sheet, 'top'), 'left', 'Rain keeps its tick');
   const box = sheet.indexOf('<div class="static info"><div class="info-box">' + RADAR_OFF_BOX + '</div></div>');
@@ -474,9 +471,9 @@ test('Pollen off DWD: no Alerts-tab row (so no dialog to open there), and the Al
 test('the grid\'s live rows are exactly the bars whose Alerts row the Status bars tab shows, in its order', () => {
   const bars = PC.optionsResolvers.get('onDemandBars');
   const watch = SCHEMA.tabs.find((t) => t.id === 'watch');
-  const sections = PAGE_BARS.map((bar) => watch.sections.find((s) => s.title === BAR_TITLES[bar]));
+  const sections = PAGE_BARS.map((bar) => watch.sections.find((s) => s.title === BAR_NAMES[bar]));
   const rows = sections.map((sec) => sec.items.find((i) => i.type === 'button' && i.label === 'Alerts'));
-  const args = { code: 'uv', bars: PAGE_BARS, names: BAR_NAMES };
+  const args = { code: 'uv' };
   // Why a bar the watch can draw is not drawn (blocks.js barOffReason).
   const reason = (bar, S) => (bar === 'radar'
     ? (S.radarMode === 'off' ? 'Radar view is off' : 'Rain alert only has no radar bar')
@@ -511,12 +508,12 @@ test('the grid\'s live rows are exactly the bars whose Alerts row the Status bar
   // A blocked item: every row inert. The states as the page holds them, the health mode
   // hydrated (its default All), so every bar is drawn and only the item can make a row inert.
   const rain = (radarMode) => bars({ radarMode, healthMode: 'all', provider: 'dwd' }, env,
-    { code: 'rain', bars: PAGE_BARS, names: BAR_NAMES });
+    { code: 'rain' });
   assert.equal(rain('status').length, 4, 'all four bars');
   assert.ok(rain('status').every((o) => o[2].disabled === undefined), 'Rain with the radar on: live');
   assert.ok(rain('off').every((o) => o[2].disabled === true), 'Rain with the radar off: inert');
   assert.ok(bars({ radarMode: 'graph', healthMode: 'all', provider: 'metno' }, env,
-    { code: 'pollen', bars: PAGE_BARS, names: BAR_NAMES }).every((o) => o[2].disabled === true), 'Pollen off DWD: inert');
+    { code: 'pollen' }).every((o) => o[2].disabled === true), 'Pollen off DWD: inert');
 });
 
 // --- the Alerts tab -----------------------------------------------------------------
@@ -591,15 +588,15 @@ test('the Alerts tab rows: each opens its item\'s dialog, with an icon, a live t
   };
   // basalt's default top-right slot is the Watch battery glyph, so the item stands in.
   row('odBattery', 'battery', 'Battery', 'At 10% or below · Hidden while a battery slot shows the charge'
-    + ' · Watch bar, right');
+    + ' · Watch Status Bar, right');
   // Vibrate on disconnect ships on (2.2.0), so the row names it.
-  row('odBluetooth', 'bluetooth', 'Bluetooth', 'When disconnected · Vibrates on disconnect · Watch bar, left');
+  row('odBluetooth', 'bluetooth', 'Bluetooth', 'When disconnected · Vibrates on disconnect · Watch Status Bar, left');
   // Quiet time and Sleep have a dialog that places them (the owner, 2026-10-02).
-  row('odQuiet', 'quiet', 'Quiet time', 'While Quiet Time is on · Watch bar, left');
-  row('odSleep', 'snooze', 'Sleep', 'During the Battery saver hours, 0:00–7:00 · Watch bar, left');
-  row('alertRain', 'rain', 'Rain', 'Within 60 min · Text · Watch bar, left');
-  row('alertUv', 'uv', 'UV index', 'Warn 6 · Danger 8 · Watch bar, right');
-  row('alertGust', 'gust', 'Wind gusts', 'Warn 65 kph · Danger 90 kph · Watch bar, right');
+  row('odQuiet', 'quiet', 'Quiet time', 'While Quiet Time is on · Watch Status Bar, left');
+  row('odSleep', 'snooze', 'Battery saver', 'During the Battery saver hours, 0:00–7:00 · Watch Status Bar, left');
+  row('alertRain', 'rain', 'Rain', 'Within 60 min · Text · Watch Status Bar, left');
+  row('alertUv', 'uv', 'UV index', 'Warn 6 · Danger 8 · Watch Status Bar, right');
+  row('alertGust', 'gust', 'Wind gusts', 'Warn 65 kph · Danger 90 kph · Watch Status Bar, right');
   row('alertPollen', 'pollen', 'Pollen', 'Not in any status bar', true);
   // Each group is a card of its own, titled by its old sub-header.
   const cardOf = (sheetId) => {
@@ -618,7 +615,7 @@ test('the Alerts tab rows: each opens its item\'s dialog, with an icon, a live t
 test('the Quiet time and Sleep dialogs: their intro, then the Shows on card alone', () => {
   const page = alertsTab();
   [['odQuiet', 'qt', 'Quiet time', 'Shows the quiet time icon at the edge of a status bar while Quiet Time is on.'],
-    ['odSleep', 'snooze', 'Sleep', 'Shows the sleep icon at the edge of a status bar during the Battery saver hours'
+    ['odSleep', 'snooze', 'Battery saver', 'Shows the sleep icon at the edge of a status bar during the Battery saver hours'
       + ' (Watchface › Theme & night).']].forEach(([id, code, title, intro]) => {
     page.openEditSheet(id);
     const sheet = page.modal.innerHTML;
@@ -646,8 +643,8 @@ const ENV = { basalt: platform.computeEnv({ platform: 'basalt' }), emery: platfo
 const state = (S) => Object.assign({}, OD.DEFAULTS, S);
 
 // Where the defaults put an item, as each row's text ends.
-const TOP_RIGHT = ' · Watch bar, right';
-const TOP_LEFT = ' · Watch bar, left';
+const TOP_RIGHT = ' · Watch Status Bar, right';
+const TOP_LEFT = ' · Watch Status Bar, left';
 
 test('Battery: the warn level on the watch\'s step, the Look, where it shows, and "Not in any status bar"', () => {
   const t = hint('onDemandBatteryText');
@@ -662,7 +659,7 @@ test('Battery: the warn level on the watch\'s step, the Look, where it shows, an
     'At 30% or below' + TOP_RIGHT, 'an unknown watch reads the 10 % steps');
   assert.equal(t(state(Object.assign({ statusTopOnDemandRightItems: 'rain' }, empty)), ENV.basalt), 'Not in any status bar');
   assert.equal(t(state(Object.assign({ statusForecastOnDemandRightItems: 'battery' }, empty)), ENV.basalt),
-    'At 10% or below · Watch bar, right · Forecast bar, right', 'every bar edge it sits on, in the page\'s order');
+    'At 10% or below · Watch Status Bar, right · Forecast Status Bar, right', 'every bar edge it sits on, in the page\'s order');
 });
 
 // W7 (revised 2026-09-30): a bar that shows the watch battery in a slot leaves the item
@@ -682,14 +679,14 @@ test('Battery: "Hidden while a battery slot shows the charge" only where the ite
   // The item placed on another bar than the battery slot's: nothing to hide it.
   const elsewhere = state({ statusTopRight: 'battery', statusTopOnDemandRightItems: 'rain',
     statusForecastOnDemandLeftItems: 'battery' });
-  assert.equal(t(elsewhere, ENV.basalt), 'At 10% or below · Forecast bar, left');
+  assert.equal(t(elsewhere, ENV.basalt), 'At 10% or below · Forecast Status Bar, left');
   // A battery slot the catalog cannot place (the glyph is the top-right corner's alone)
   // resolves to Empty, so it silences nothing.
   assert.equal(t(state({ statusTopRight: 'sun', statusTopLeft: 'battery' }), ENV.basalt),
     'At 10% or below' + TOP_RIGHT);
   // The item on both bars: the top bar's slot silences it.
   assert.equal(t(Object.assign({}, elsewhere, { statusTopOnDemandRightItems: 'battery' }), ENV.basalt),
-    'At 10% or below' + SUFFIX + TOP_RIGHT + ' · Forecast bar, left');
+    'At 10% or below' + SUFFIX + TOP_RIGHT + ' · Forecast Status Bar, left');
 });
 
 test('Bluetooth, Quiet time and Sleep: their rules, the vibration, the Battery saver', () => {
@@ -941,7 +938,7 @@ test('the rain notes: the Views card\'s in Rain alert only, with a link; the Rai
   assert.ok(box > sheet.indexOf('<span class="ttl">Shows on</span>') && box < sheet.indexOf('aria-label="Shows on"'),
     'the box: in the Shows on card, above the grid');
   PAGE_BARS.forEach((bar) => assert.equal(ticked(sheet, bar), 'none', bar));
-  assert.ok(sheet.indexOf('<span class="lbl">Radar bar</span><span class="hint">Rain alert only has no radar bar</span>')
+  assert.ok(sheet.indexOf('<span class="lbl">Radar Status Bar</span><span class="hint">Rain alert only has no radar bar</span>')
     !== -1, 'the radar bar\'s row is inert in this mode, and says why');
   // A tick places Rain, and the box goes.
   tick(page, 'statusTopOnDemandLeftItems', 'rain');

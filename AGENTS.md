@@ -119,8 +119,8 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   sizes exactly per platform; keep them in sync). That headroom was 10 B until the settings-derived
   tuples were moved off this message: the rain-bar and radar palettes first, then the
   forecast line styling (line colours + fill flag, 4 × 11 B of scalars → one
-  `CLAY_LINE_STYLE_UINT8` array, since grown to 16 B so it also carries the five night
-  colours and their flag byte, the third- and fourth-metric line colours and the four
+  `CLAY_LINE_STYLE_UINT8` array, since grown to 14 B so it also carries the four night
+  colours, the third- and fourth-metric line colours and the four
   per-line marker-style bytes), both of which now ride the Clay/settings message.
   `test/inbox-size.test.js` guards both the weather and Clay
   bundles; when you grow the worst-case bundle, update its `buildHeaviestBundle()`, and
@@ -130,7 +130,7 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   Before spending weather-message bytes, ask whether the value is settings-derived — if
   it is, it belongs on the Clay message —
   but the Clay message ships to aplite too and is tight (the heaviest Clay message is
-  522 B — the thresholds blob grew 34 -> 48 B in 1.24.0 for the rain alert's look, the
+  520 B — the thresholds blob grew 34 -> 48 B in 1.24.0 for the rain alert's look, the
   On demand Battery item, the per-kind warn look and the ten On demand cells, paid for
   by `CLAY_BATTERY_LOW_ONLY` riding a known aplite's bundle alone — sized
   against aplite's 536 B inbox as the conservative floor, and the test enforces a 10 B

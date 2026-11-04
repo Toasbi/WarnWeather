@@ -1,5 +1,5 @@
-// src/pkjs/forecast-axis.js — ES5. The forecast graph's left axis options (BETA, emery only;
-// Graphs > Forecast > Left axis (Beta)): THE one reading of the two settings, for the wire
+// src/pkjs/forecast-axis.js — ES5. The forecast graph's left axis options (emery only;
+// Graphs > Forecast > Left axis): THE one reading of the two settings, for the wire
 // (clay-payload.js graphOptionsWord), the bake (forecast-series.js: the numbers' values), the
 // hours sent (forecast-span.js: 24 h on the whole screen), the render signature, telemetry,
 // the settings page's gate (when-resolvers.js tempAxisLineDrawn) and the forecast preview, so

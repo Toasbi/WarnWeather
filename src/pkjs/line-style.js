@@ -30,13 +30,13 @@
     // colour depends on rainBarColor, so lineColorFor resolves it. Rationale for each
     // hue, and why feels goes Black on light: ADR-0003 §6.
     var LINE_COLORS = {
-        precip_prob: { color: COLORS.GColorPictonBlue, light: COLORS.GColorDukeBlue,       bw: COLORS.GColorWhite },
-        cloud:       { color: COLORS.GColorBabyBlueEyes, light: COLORS.GColorLiberty,      bw: COLORS.GColorWhite },
-        wind:        { color: COLORS.GColorYellow,     light: COLORS.GColorChromeYellow,   bw: COLORS.GColorWhite },
-        uv:          { color: COLORS.GColorMagenta,    light: COLORS.GColorPurple,         bw: COLORS.GColorWhite },
-        pressure:    { color: COLORS.GColorOrange,     bw: COLORS.GColorWhite },
-        feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorBlack,          bw: COLORS.GColorWhite },
-        dew:         { color: COLORS.GColorCadetBlue,  light: COLORS.GColorMidnightGreen,  bw: COLORS.GColorWhite }
+        precip_prob: { color: COLORS.GColorPictonBlue, light: COLORS.GColorDukeBlue },
+        cloud:       { color: COLORS.GColorBabyBlueEyes, light: COLORS.GColorLiberty },
+        wind:        { color: COLORS.GColorYellow,     light: COLORS.GColorChromeYellow },
+        uv:          { color: COLORS.GColorMagenta,    light: COLORS.GColorPurple },
+        pressure:    { color: COLORS.GColorOrange },
+        feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorBlack },
+        dew:         { color: COLORS.GColorCadetBlue,  light: COLORS.GColorMidnightGreen }
     };
     // Metric → area-fill colour per platform class. Colour fills are a darker shade of the
     // line so the line always reads brighter; the `light` arm is a BRIGHTER tint instead,
@@ -100,36 +100,33 @@
         return Math.min((v >> 6) + 1, 3) * 0x55;
     }
 
-    // Night base/hatch/boundary for the FILLED area on DARK polarity: six hand-tuned
-    // triples, keyed by METRIC. Keying on the day fill colour instead is what made an
+    // Night base/hatch for the FILLED area on DARK polarity: hand-tuned pairs, keyed by
+    // METRIC. Keying on the day fill colour instead is what made an
     // unlisted metric render precip-blue in the C. Hand-tuned per hue, NOT products of
-    // lighten() — ADR-0003 §5. Kept as pure triples: nightAreaColorsFor hands an entry
-    // straight back, so an extra key here would ride out into a caller's triple.
+    // lighten() — ADR-0003 §5. Kept as pure pairs: nightAreaColorsFor hands an entry
+    // straight back, so an extra key here would ride out into a caller's pair.
     var NIGHT_AREA_COLORS = {
-        precip_prob: { base: COLORS.GColorDukeBlue,       hatch: COLORS.GColorBlue,      boundary: COLORS.GColorVividCerulean },
-        cloud:       { base: COLORS.GColorOxfordBlue,     hatch: COLORS.GColorLiberty,   boundary: COLORS.GColorBabyBlueEyes },
-        wind:        { base: COLORS.GColorArmyGreen,      hatch: COLORS.GColorLimerick,  boundary: COLORS.GColorLimerick },
-        uv:          { base: COLORS.GColorImperialPurple, hatch: COLORS.GColorPurple,    boundary: COLORS.GColorVividViolet },
-        gust:        { base: COLORS.GColorDarkGray,       hatch: COLORS.GColorLightGray, boundary: COLORS.GColorLightGray },
-        pressure:    { base: COLORS.GColorWindsorTan,     hatch: COLORS.GColorOrange,    boundary: COLORS.GColorOrange },
-        feels:       { base: COLORS.GColorLightGray,      hatch: COLORS.GColorWhite,     boundary: COLORS.GColorWhite },
-        dew:         { base: COLORS.GColorMidnightGreen,  hatch: COLORS.GColorCadetBlue, boundary: COLORS.GColorCadetBlue }
+        precip_prob: { base: COLORS.GColorDukeBlue,       hatch: COLORS.GColorBlue },
+        cloud:       { base: COLORS.GColorOxfordBlue,     hatch: COLORS.GColorLiberty },
+        wind:        { base: COLORS.GColorArmyGreen,      hatch: COLORS.GColorLimerick },
+        uv:          { base: COLORS.GColorImperialPurple, hatch: COLORS.GColorPurple },
+        gust:        { base: COLORS.GColorDarkGray,       hatch: COLORS.GColorLightGray },
+        pressure:    { base: COLORS.GColorWindsorTan,     hatch: COLORS.GColorOrange },
+        feels:       { base: COLORS.GColorLightGray,      hatch: COLORS.GColorWhite },
+        dew:         { base: COLORS.GColorMidnightGreen,  hatch: COLORS.GColorCadetBlue }
     };
-    // The same night area on LIGHT polarity — a BASE per metric, not a triple, because the
-    // hatch and boundary come from deriveNightTriple. That is deliberate: these five were
+    // The same night area on LIGHT polarity — a BASE per metric, not a pair, because the
+    // hatch comes from deriveNightPair. That is deliberate: these five were
     // eyeballed on hardware as *stored tints*, which is the path that derives, so deriving
-    // is what reproduces what was signed off. A hand-written triple here would repaint it.
-    // A metric absent from this table keeps its dark triple in both polarities; feels and
+    // is what reproduces what was signed off. A hand-written pair here would repaint it.
+    // A metric absent from this table keeps its dark pair in both polarities; feels and
     // dew are absent because they never fill, so no light base of its own is reachable. ADR-0003 §5.
     //
-    // ACCEPTED, do not "fix": deriveNightTriple saturates at white, so several of these
-    // lose layer separation at the top — gust collapses hatch AND boundary onto white
-    // over its LightGray underlay, and wind/uv/pressure land a white boundary. Every one
-    // of these five bases was chosen on hardware WITH that consequence on screen, so the
-    // collapse is what was signed off, not an oversight in the recipe. Four of the six
-    // hand-tuned DARK triples collapse boundary onto hatch too (see the table above), so
-    // it is a shape this design already has. Changing a base to separate the layers means
-    // changing a colour the user approved — ask first.
+    // ACCEPTED, do not "fix": deriveNightPair saturates at white, so gust's hatch lands on
+    // white over its LightGray underlay. Every one of these five bases was chosen on
+    // hardware WITH that consequence on screen, so it is what was signed off, not an
+    // oversight in the recipe. Changing a base means changing a colour the user approved —
+    // ask first.
     var NIGHT_AREA_LIGHT_BASE = {
         precip_prob: COLORS.GColorCyan,
         cloud:       COLORS.GColorBabyBlueEyes,
@@ -138,10 +135,10 @@
         gust:        COLORS.GColorLightGray,
         pressure:    COLORS.GColorRajah
     };
-    // Full-height night hatch / dusk-dawn line. The boundary's polarity swap lives in its
-    // B&W arm (forecast_layer.c), so both polarities send DarkGray from here.
+    // Full-height night hatch / day line. The day line's polarity swap lives in its B&W arm
+    // (forecast_layer.c), so both polarities send DarkGray from here.
     var NIGHT_HATCH_DEFAULT = COLORS.GColorDarkGray;
-    var NIGHT_BOUNDARY_DEFAULT = COLORS.GColorDarkGray;
+    var NIGHT_DAY_LINE_DEFAULT = COLORS.GColorDarkGray;
 
     // --- The graph-colour key vocabulary: 'gc' + slug + role + polarity ---------
     // Concrete per-polarity values, no "auto" sentinel. ADR-0003 §1-§2.
@@ -175,9 +172,10 @@
         return typeof metric === 'string'
             && Object.prototype.hasOwnProperty.call(TEMP_AXIS_METRICS, metric);
     }
-    // 'Night' is the night FILL TINT — the base nightAreaColorsFor derives the triple from.
+    // 'Night' is the night FILL TINT — the base nightAreaColorsFor derives the pair from.
     var METRIC_ROLES = ['Line', 'Fill', 'Night'];
-    // What the full-height band owns, under the pseudo-scope 'night'.
+    // What the full-height band owns, under the pseudo-scope 'night'. 'Boundary' is the day
+    // line: the name its stored gcNightBoundary* keys keep from the dusk/dawn lines before it.
     var NIGHT_ROLES = ['Hatch', 'Boundary'];
 
     // Metric-id membership set. Built from GRAPH_METRICS so a new metric is a one-line
@@ -271,7 +269,7 @@
     function graphColorDefault(scope, role, suffix, settings) {
         var theme = suffix === 'Light' ? 'light' : 'dark';
         if (scope === 'night' && (role === 'Hatch' || role === 'Boundary')) {
-            return role === 'Hatch' ? NIGHT_HATCH_DEFAULT : NIGHT_BOUNDARY_DEFAULT;
+            return role === 'Hatch' ? NIGHT_HATCH_DEFAULT : NIGHT_DAY_LINE_DEFAULT;
         }
         if (isGraphMetric(scope) && role === 'Night') { return nightAreaColorsFor(scope, null, theme).base; }
         if (isGraphMetric(scope) && role === 'Fill') { return fillColorFor(scope, true, theme); }
@@ -348,9 +346,8 @@
     }
 
     /**
-     * Did the user CHOOSE this colour, as opposed to being handed it? The single authority
-     * behind the two consumers that must agree about intent: the wire's night-fill flag
-     * (byte [9] bit 0) and telemetry's 'default' vs '#RRGGBB' report.
+     * Did the user CHOOSE this colour, as opposed to being handed it? Telemetry's 'default'
+     * vs '#RRGGBB' report reads this.
      *
      * There is exactly one way a stored colour is not a choice — being the built-in. Now
      * that the cascade resolves rather than writes, a value in a tint key got there because
@@ -433,7 +430,7 @@
         return null;
     }
 
-    // --- Per-line marker styles (wire bytes [11..13]) -----------------------
+    // --- Per-line marker styles (wire bytes [9..11]) -----------------------
     // One setting per configurable line, six values: 'line' (thin solid),
     // 'bold' (thick solid), 'dots' (square dots), 'x' (little x marks), and
     // 'stripeTop' / 'stripeBottom' (a thin band of hourly cells along that edge
@@ -662,18 +659,18 @@
     }
 
     /**
-     * The night base/hatch/boundary for the filled area under the night hours.
+     * The night base/hatch for the filled area under the night hours.
      *
-     * A tint equal to the metric's built-in base returns that polarity's built-in triple
-     * VERBATIM rather than re-deriving it: five of the six DARK triples do not survive a
-     * round-trip through deriveNightTriple, so re-deriving would repaint blobs nobody has
+     * A tint equal to the metric's built-in base returns that polarity's built-in pair
+     * VERBATIM rather than re-deriving it: half of the DARK pairs do not survive a
+     * round-trip through deriveNightPair, so re-deriving would repaint blobs nobody has
      * touched. (The light built-ins are derived by construction, so there the two agree.)
      *
      * @param {string} metric The secondary line's metric (precip_prob|wind|gust|uv|pressure|feels|dew).
      * @param {number|null} tint The 0xRRGGBB night-fill tint, or null for the built-in.
      * @param {string} [theme] 'dark'|'light'|'bw'|'bw-light'; defaults to 'dark' (the
-     *   hand-tuned triples) when omitted.
-     * @returns {{base: number, hatch: number, boundary: number}} Three 0xRRGGBB colours.
+     *   hand-tuned pairs) when omitted.
+     * @returns {{base: number, hatch: number}} Two 0xRRGGBB colours.
      */
     function nightAreaColorsFor(metric, tint, theme) {
         // TOTAL: an unknown metric (a blob naming a metric this build dropped) takes the
@@ -682,39 +679,33 @@
         var has = Object.prototype.hasOwnProperty;
         var key = has.call(NIGHT_AREA_COLORS, metric) ? metric : 'precip_prob';
         // Presence, not truthiness — a light base of GColorBlack is 0x000000. The light
-        // built-in IS deriveNightTriple applied to its base, so the short-circuit below
+        // built-in IS deriveNightPair applied to its base, so the short-circuit below
         // compares against the base the polarity in hand actually paints.
         var builtin = (isLightPolarity(theme || 'dark') && has.call(NIGHT_AREA_LIGHT_BASE, key))
-            ? deriveNightTriple(NIGHT_AREA_LIGHT_BASE[key])
+            ? deriveNightPair(NIGHT_AREA_LIGHT_BASE[key])
             : NIGHT_AREA_COLORS[key];
         if (tint === null || tint === undefined || tint === builtin.base) { return builtin; }
-        return deriveNightTriple(tint);
+        return deriveNightPair(tint);
     }
 
     /**
-     * The night triple for an arbitrary tint: one Pebble level per layer, so the hatch
-     * reads above its underlay and the boundary above the hatch. This is NOT the recipe
-     * the six DARK built-ins came from — five of them do not survive a round-trip through
-     * it, which is why nightAreaColorsFor returns those verbatim. ADR-0003 §5.
+     * The night pair for an arbitrary tint: the hatch one Pebble level above its underlay.
+     * This is NOT the recipe the DARK built-ins came from — half of them do not survive a
+     * round-trip through it, which is why nightAreaColorsFor returns those verbatim.
+     * ADR-0003 §5.
      * @param {number} tint 0xRRGGBB base, on the Pebble-64 grid.
-     * @returns {{base: number, hatch: number, boundary: number}} Three 0xRRGGBB colours.
+     * @returns {{base: number, hatch: number}} Two 0xRRGGBB colours.
      */
-    function deriveNightTriple(tint) {
-        var hatch = lighten(tint);
-        return { base: tint, hatch: hatch, boundary: lighten(hatch) };
+    function deriveNightPair(tint) {
+        return { base: tint, hatch: lighten(tint) };
     }
 
     /**
-     * Resolve the five night colours (plus the explicit-tint flag) for the wire.
+     * Resolve the four night colours for the wire.
      *
      * No B&W arm and no isColor gate, deliberately: a B&W watch or bw/bw-light theme
-     * discards all five and paints from its own constants, so a "B&W-honest" set was five
+     * discards all four and paints from its own constants, so a "B&W-honest" set was
      * bytes no watch ever read. These bytes describe colours that render mode ignores.
-     *
-     * `fillExplicit` is the only one on the wire (byte [9]). No watch reads it now — see
-     * weather/graph-wire.js FLAG_NIGHT_FILL_EXPLICIT — but it stays honest rather than
-     * pinned true: it is the same "is this a pick?" answer telemetry reports, and the wire
-     * and telemetry disagreeing about intent is the bug §8 exists to prevent. ADR-0003 §4, §7.
      *
      * @param {Object} settings Clay settings blob (the gcNightHatch / gcNightBoundary keys
      *   and the gc&lt;Metric&gt;Night / gc&lt;Metric&gt;Fill pair, both polarities).
@@ -722,19 +713,16 @@
      *   suffix and theme are read from the FOLDED theme, so an aplite light install looks
      *   up the Dark colours it can paint.
      * @param {string} metric The secondary line's metric, which keys the night area.
-     * @returns {{hatch: number, boundary: number, areaBase: number, areaHatch: number,
-     *   areaBoundary: number, fillExplicit: boolean}} Five 0xRRGGBB colours plus the flag
-     *   saying the area tint has been moved off its built-in.
+     * @returns {{hatch: number, dayLine: number, areaBase: number, areaHatch: number}}
+     *   Four 0xRRGGBB colours.
      */
     function resolveNightColors(settings, cx, metric) {
         var area = nightAreaColorsFor(metric, graphNightTint(settings, metric, cx.suffix), cx.theme);
         return {
             hatch: graphColorResolve(settings, 'night', 'Hatch', cx.suffix),
-            boundary: graphColorResolve(settings, 'night', 'Boundary', cx.suffix),
+            dayLine: graphColorResolve(settings, 'night', 'Boundary', cx.suffix),
             areaBase: area.base,
-            areaHatch: area.hatch,
-            areaBoundary: area.boundary,
-            fillExplicit: graphColorIsPicked(settings, metric, 'Night', cx.suffix)
+            areaHatch: area.hatch
         };
     }
 

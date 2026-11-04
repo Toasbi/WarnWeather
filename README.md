@@ -27,7 +27,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Alert icons at a status bar's edge, next to the status slot there, that show only when they reach their warn level or are active right now (low battery, Bluetooth disconnected, rain coming, a high UV or wind forecast), and stay hidden the rest of the time. The *Alerts* tab lists them. Open one to set it up and to choose which status bars show it, Left or Right (one side per bar). The Status bars tab shows, under each bar's *Alerts*, the icons placed there. The items and how they show:
   * System info — the watch battery at or below a warn level you set (the icon, or the icon and the charge), Bluetooth when it disconnects (or connects, or both), quiet time while it is on, and a sleep icon during the Battery saver hours
   * Weather alerts — rain falling or on its way, or wind gusts, UV index, air quality, pollen (with DWD) or wind speed reaching your warn level today (later hours included) or, once nothing left today does, tomorrow; each metric alert can print its value next to its icon and can stick to today or also look ahead to tomorrow, marking a tomorrow alert with `»` or a mark you pick (`>`, `+`, `*` or none); the rain alert shows as the rain icon, the minutes until it starts (or, while it rains, how long it keeps falling), or the full countdown text
-  * On by default: Bluetooth, quiet time, sleep and the rain alert on the left of the Watch Status Bar (the top bar), and the battery with the wind gust, UV index, air quality and wind speed alerts on its right; the pollen alert is off, and every other bar starts with no alerts
+  * On by default: Bluetooth, quiet time, battery saver and the rain alert on the left of the Watch Status Bar (the top bar), and the battery with the wind gust, UV index, air quality and wind speed alerts on its right; the pollen alert is off, and every other bar starts with no alerts
   * The battery item stays out while a slot of the same bar already shows the watch battery, and stands in once that slot has to hide
   * A weather alert (UV index, wind speed, wind gusts, air quality, pollen) on the side whose status slot shows the same value goes into that slot: the slot shows its own value and the alert's once (`3/8`, `4/»9`) in the alert's colors, and the alert icon shows only once that slot has to hide
   * When a bar runs short of room, its slots switch to short forms — a four-digit year to `'26` (`26` after a dot or slash), a city abbreviating its shorter words (`N. York`, `Frankfurt a. M.`) and then cut with `…`, sleep to `7h`, steps to `12k`, units and spaces dropped (`12°` → `12`, `12 / 30kph` → `12/30`) — then the slot beside the items hides, then the middle slot leaves the centre and hides, and only then do the alert values and the rain text shorten, and last the lowest-priority items drop; the date shortens no further than its year, and a battery number, sunrise/sunset and the calendar week never shorten: they show whole or hide
@@ -36,12 +36,12 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Graph lines on Alert (Visible values: All | Alert): a wind speed, wind gust or UV index line draws every value, or only where it reaches your warn level (its Alert levels), its scale then starting at that level, so the small graph stays empty until it matters (Graphs tab › Forecast, in the metric's dialog)
 
 **Forecast**
-* 24-hour forecast with a temperature line and configurable, battery-friendly updates (on Pebble Time 2: 12, 24 or up to 66 hours, the option naming the hours your weather provider and layout show, Graphs tab › Forecast › Time span); a shorter forecast, such as OpenWeatherMap's 48 hours, widens its columns to fill the graph; on the longer span the hour axis marks the clock (a label every 6 hours, a tick at 12, 15, 18, 21 and so on)
+* 24-hour forecast with a temperature line and configurable, battery-friendly updates (on Pebble Time 2: 12, 24 or up to 66 hours, the option naming the hours your weather provider and layout show, Graphs tab › Forecast › Other › Forecast length); a shorter forecast, such as OpenWeatherMap's 48 hours, widens its columns to fill the graph; on the longer span the hour axis marks the clock (a label every 6 hours, a tick at 12, 15, 18, 21 and so on)
 * Configurable metrics such as precipitation, cloud cover, UV index, gusts, wind, air pressure, feels-like temperature and dew point (both drawn on the temperature scale)
 * Up to four metric lines at once, each in its own style — thin or thick line, square dots, little x marks, or (for precipitation, cloud cover, UV, wind and gusts) a shaded stripe along the top of the graph or below its zero line, whose colour strengthens with the value (third and fourth metric and style selection on watches with enough memory, not Pebble Classic/Steel)
 * Draw from: Bottom | Top: the precipitation, cloud cover, wind, gust and UV index lines, and with *Bars from* the rain bars of the forecast and of the radar graph, can hang from the top of the graph instead of standing on its bottom, a bigger value reaching further down, so they cover the temperature curve less (wind and gusts move together, and a main metric's area fill hangs with its line; not on Pebble Classic/Steel)
-* Optional day/night shading
-* Left axis options on Pebble Time 2 (beta): the high and low numbers on the axis, on the graph (the high one under the highest point, the low one over the lowest), or off; on the graph or off there is no left axis and the graph starts at the screen's left edge. The numbers can include the feels-like and dew point lines (Graphs tab › Forecast › Left axis, under More options)
+* Optional day/night shading, with a line at midnight where the next day starts
+* Left axis options on Pebble Time 2: the high and low values on the axis, on the graph (the high one under the highest point, the low one over the lowest), or off; on the graph or off there is no left axis and the graph starts at the screen's left edge. Left axis › More options can add the feels-like and dew point lines to the values (Graphs tab › Forecast)
 * Recolor the forecast graph per metric
 * Multiple weather providers, including regional and worldwide sources
 
@@ -76,7 +76,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 **Watch**
 * Custom color, 12h/24h, optional AM/PM
 * Smooth, anti-aliased clock digits on color watches (Roboto and Bitham fonts)
-* Battery, Bluetooth, quiet time and sleep indicators that show only when needed, as Alerts you place per status bar (see **Alerts** above), plus vibrate on disconnect (Pebble Classic/Steel keeps its fixed indicators)
+* Battery, Bluetooth, quiet time and battery saver indicators that show only when needed, as Alerts you place per status bar (see **Alerts** above), plus vibrate on disconnect (Pebble Classic/Steel keeps its fixed indicators)
 * Battery saver (pause updates to the watch between hours you set, to save battery)
 * Dim backlight on Pebble Time 2: when the backlight comes on between hours you set it glows a color you pick instead of white — it never switches the backlight on by itself
 
@@ -94,7 +94,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 Two things that both involve rain over time, but answer different questions:
 
 - **Forecast graph** — the hourly prediction, looking up to 24 hours ahead (on Pebble Time 2,
-  12, 24 or up to 66 — Time span). Temperature is always shown; on top of it you choose what to
+  12, 24 or up to 66 — Forecast length). Temperature is always shown; on top of it you choose what to
   add — precipitation %, cloud cover % (every
   provider except Yandex), wind speed, wind gusts, UV index, air pressure (sea-level, in hPa,
   with a Narrow/Mid/Wide graph scale), feels-like temperature or dew point (both drawn on the

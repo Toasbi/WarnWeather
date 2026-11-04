@@ -146,13 +146,13 @@ void persist_get_curve_insets(uint8_t out[CURVE_INSET_BYTES]);
 // The fourth line's trend is existence-keyed like the third's (an empty send
 // deletes the key) and read/written only through the persist_series_* SeriesId
 // dispatchers — no per-name accessors. Colour defaults to the theme foreground
-// when the slot is absent — the phone sends the resolved colour on byte [10]
+// when the slot is absent — the phone sends the resolved colour on byte [8]
 // of CLAY_LINE_STYLE_UINT8 whenever the line is configured.
 GColor persist_get_fourth_line_color(void);
 bool persist_set_fourth_line_color(GColor color);
 // The fourth selectable metric line (SERIES_FIFTH): colour + its own style
 // byte (same kind | field layout as a LINE_STYLES byte, below), both off the
-// third tail block of CLAY_LINE_STYLE_UINT8 (bytes [14..15]). The style
+// third tail block of CLAY_LINE_STYLE_UINT8 (bytes [12..13]). The style
 // defaults to x marks when unset.
 GColor persist_get_fifth_line_color(void);
 bool persist_set_fifth_line_color(GColor color);
@@ -160,7 +160,7 @@ uint8_t persist_get_fifth_line_style(void);
 bool persist_set_fifth_line_style(uint8_t style);
 
 // CANONICAL layout of the LINE_STYLES blob — the per-line marker styles the
-// phone resolved, copied verbatim off bytes [11..13] of CLAY_LINE_STYLE_UINT8
+// phone resolved, copied verbatim off bytes [9..11] of CLAY_LINE_STYLE_UINT8
 // (weather/graph-wire.js packs them; app_message.c stores the block straight through):
 //   [0] main-metric line   [1] second-metric line   [2] third-metric line
 // Each byte packs kind | (field << LINE_STYLE_WIDTH_SHIFT). The kind bits ARE
@@ -173,7 +173,7 @@ bool persist_set_fifth_line_style(uint8_t style);
 // never sets it on a stripe byte and the watch ignores it there. Bit 6
 // (LINE_STYLE_FLOATING) of a NON-stripe byte: the line anchors no edge of the plot (the
 // phone never sets it on a stripe byte either). Bit 7 is reserved (0). The fourth
-// line's FIFTH_LINE_STYLE byte (wire [15]) is the same layout. Get always fills out[],
+// line's FIFTH_LINE_STYLE byte (wire [13]) is the same layout. Get always fills out[],
 // defaulting to the pre-feature look — solid 1 px, dots, x — when the slot is
 // unset/short.
 #define LINE_STYLE_STYLE_BYTES 3
@@ -227,23 +227,15 @@ static inline bool line_style_top_edge(uint8_t b) {
 // NIGHT_COLORS key ID stays in persist.c's append-only enum on every platform.
 #if defined(PBL_COLOR)
 // CANONICAL layout of the NIGHT_COLORS blob — the night colours the phone
-// resolved, copied verbatim off the tail of CLAY_LINE_STYLE_UINT8 (bytes 4..9;
-// app_message.c). Five packed GColor8 argb bytes then a flags byte:
-//   [0] full-height night hatch     [3] night-area hatch
-//   [1] full-height dusk/dawn line  [4] night-area dusk/dawn line
-//   [2] night-area underlay base    [5] flags
-// forecast_layer.c names these six indices in its `enum night_ink`. Get always
-// fills out[], defaulting to the pre-feature look (DarkGray hatch + dusk/dawn
-// line, the precip night triple, no explicit pick) when unset/short.
-#define NIGHT_COLOR_BYTES 6
-// The ONLY name for this bit, and the only position it ever has: byte [5] of
-// the blob, which is also byte [9] of the wire tuple. Set when the night-area
-// tint was picked by the user rather than inherited from the metric. NOTHING
-// READS IT any more: it opted the light theme back into a night re-shade the
-// watch used to skip, and light now re-shades unconditionally (forecast_layer.c).
-// The byte stays so the blob keeps its length — shrinking NIGHT_COLOR_BYTES to
-// reclaim it would be a persist-layout change for one dead byte.
-#define NIGHT_FLAG_FILL_EXPLICIT 0x01
+// resolved, copied verbatim off the tail of CLAY_LINE_STYLE_UINT8 (bytes 4..7;
+// app_message.c). Four packed GColor8 argb bytes:
+//   [0] full-height night hatch     [2] night-area underlay base
+//   [1] the day line at midnight    [3] night-area hatch
+// forecast_layer.c names these indices in its `enum night_ink`. Get always fills
+// out[], defaulting to the pre-feature look (DarkGray hatch and day line, the
+// precip night pair) when unset/short. A blob stored by an older build is six
+// bytes; these four are its first four, so it reads as is.
+#define NIGHT_COLOR_BYTES 4
 bool persist_set_night_colors(const uint8_t colors[NIGHT_COLOR_BYTES]);
 void persist_get_night_colors(uint8_t out[NIGHT_COLOR_BYTES]);
 #endif

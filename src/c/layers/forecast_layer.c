@@ -35,16 +35,16 @@
 #define NIGHT_HATCH_SPACING(plot_h) \
     hatch_stride_scaled(theme_is_bw() ? 7 : 6, HATCH_BASE_PLOT_H, (plot_h))
 #endif
-// Every night colour — the full-height hatch and dusk/dawn line as well as the
-// filled area's base/hatch/boundary triple — is resolved PHONE-side now
+// Every night colour — the full-height hatch and the day line as well as the
+// filled area's base and hatch — is resolved PHONE-side now
 // (line-style.js resolveNightColors) and reaches the watch as the NIGHT_COLORS
 // blob (layout in persist.h), read into s_night_ink below. Left on Auto the
 // phone sends exactly what this file used to hardcode, so the render is
 // unchanged. The B&W arms still live here, in the theme_pick() calls at the two
 // call sites: B&W has no range, so the night-area path draws the theme fg over
-// the LightGray fill (has_underlay gated to colour), and the full-height
-// dusk/dawn line keeps its polarity swap (bw-dark LightGray; bw-light DarkGray —
-// a LightGray boundary reads too faint against a white bw-light background).
+// the LightGray fill (has_underlay gated to colour), and the day line keeps
+// its polarity swap (bw-dark LightGray; bw-light DarkGray — a LightGray line
+// reads too faint against a white bw-light background).
 #define FORECAST_TREND_FULL_SCALE 250  // uint8 wire range (PKJS sends 0..250)
 
 // Named indices into the NIGHT_COLORS blob the phone resolved (canonical layout
@@ -55,11 +55,9 @@
 // image bytes, so naming these costs aplite nothing.
 enum night_ink {
     NIGHT_INK_HATCH = 0,      // full-height night hatch
-    NIGHT_INK_BOUNDARY,       // full-height dusk/dawn line
+    NIGHT_INK_DAY_LINE,       // the line at midnight
     NIGHT_INK_AREA_BASE,      // filled area's night underlay
-    NIGHT_INK_AREA_HATCH,     // filled area's night hatch
-    NIGHT_INK_AREA_BOUNDARY,  // filled area's dusk/dawn line
-    NIGHT_INK_FLAGS           // bit 0 = NIGHT_FLAG_FILL_EXPLICIT — no longer read
+    NIGHT_INK_AREA_HATCH      // filled area's night hatch
 };
 
 // B&W builds never read the blob — theme_pick() is the macro `(bw_arm)` there
@@ -295,6 +293,36 @@ static char s_buffer_hi[12];
 // The night shading (forecast_night.h): a fragment of this file, included here, in place.
 #include "forecast_night.h"
 
+// The day line: a vertical line where each new day starts, part of the night shading, behind
+// the bars and lines.
+//
+// On the first slot of each new calendar day, by the slot's own wall-clock date, so a midnight
+// that a clock change skips or repeats still draws once. Off emery the hour labels count on from
+// the first one, so across a clock change the line can sit a tick from where they put midnight.
+// Slot 0 is the graph's edge, never a line. From the graph's top row (through a top stripe band,
+// as the night shading runs) to the zero row's neighbour.
+static void day_lines_draw(const ChartRender *r, void *user) {
+    const ForecastDataset *const ds = user;
+    const int16_t y_base = chart_flip_y(CHART_ZERO(r), CHART_DIR(r), 1);
+    graphics_context_set_stroke_color(r->ctx, theme_pick(NIGHT_C(NIGHT_INK_DAY_LINE),
+        theme_is_light() ? GColorDarkGray : GColorLightGray));
+    graphics_context_set_stroke_width(r->ctx, 1);
+    int day = 0;   // no date's tm_mday: slot 0 sets it
+    const int n = FORECAST_FIT_N(ds, ds->num_entries);   // emery: only the hours on screen
+    time_t t = ds->forecast_start;
+    for (int i = 0; i < n; ++i, t += BOTTOM_VIEW_STEP_SECONDS) {
+        const int slot_day = localtime(&t)->tm_mday;
+        if (slot_day != day) {
+            if (i > 0) {
+                const int16_t x = chart_slot_tick_x(&r->geo, i);
+                // Row 0 is the plot's top, a top stripe band included: the grid has no top inset.
+                graphics_draw_line(r->ctx, GPoint(x, 0), GPoint(x, y_base));
+            }
+            day = slot_day;
+        }
+    }
+}
+
 static GSize temp_label_string_size(const char *text);
 
 // curve[0..count): the temperature curve as its layer draws it, rows out from baseline_y
@@ -443,7 +471,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     MEMORY_LOG_HEAP("forecast_update:enter");
     GRect bounds = layer_get_bounds(layer);
     const bool night_on = config_get()->day_night_shading;
-    // The left axis's options (config.h GRAPH_OPT_*, BETA; 0 off emery, so axis_on is true
+    // The left axis's options (config.h GRAPH_OPT_*; 0 off emery, so axis_on is true
     // there). The numbers On axis (today) draw the left axis: the label strip and the axis line
     // along the plot's left edge. On graph or Off draw no left axis at all (owner, 2026-10-09:
     // "the complete left axis should not be drawn, and the graph should start as much on the
@@ -680,12 +708,13 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // overwrites curve/area pixels at the border columns. Line/bars are gated on
     // what PKJS sent; the fill + its night re-hatch only exist with the line.
     ChartLayer *const layers = paint->layers; // largest redraw array — scratch, not stack.
-                                  // Max reachable is SERIES_COUNT + 5: one layer per present
-                                  // series (a stripe replaces its line, never adds one), plus
-                                  // the area fill, two night hatches, frame and axis. +6
-                                  // keeps one slot of defensive headroom — 10 on aplite, 11
-                                  // with the third-metric line, from the enum instead of a
-                                  // hand-maintained platform pair.
+                                  // Max reachable is SERIES_COUNT + 6, the array's exact
+                                  // size: one layer per present series (a stripe replaces
+                                  // its line, never adds one), plus the area fill, two night
+                                  // hatches, the day line, frame and axis. A new layer has
+                                  // to grow it — 10 on aplite, 11 with the third-metric
+                                  // line, from the enum instead of a hand-maintained
+                                  // platform pair.
     int n = 0;
     // "Draw from: Top" of the Main metric: its fill, the fill's night re-shade and its
     // line or marks all hang.
@@ -698,7 +727,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
     // night_under re-shades the filled area, so it needs the AREA layer's
     // exported contour and only runs when the fill is present. Both polarities
-    // re-shade: light used to skip this entirely, because the built-in triples
+    // re-shade: light used to skip this entirely, because the built-in pairs
     // were tuned for dark grounds and re-shading a light fill with them muddied
     // it. line-style.js now carries a light arm of NIGHT_AREA_COLORS tuned on
     // hardware, so the reason for the skip is gone and light paints like dark.
@@ -708,20 +737,18 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .from_top = second_top, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
             .hatch_color    = theme_pick(NIGHT_C(NIGHT_INK_AREA_HATCH), theme_fg()),
-            .boundary_color = theme_pick(NIGHT_C(NIGHT_INK_AREA_BOUNDARY), theme_fg()),
             .spacing        = night_hatch_spacing,
             .underlay_color = NIGHT_C(NIGHT_INK_AREA_BASE),
             .has_underlay   = !theme_is_bw(),
             .contour        = area_pts,
             .contour_count  = ds->num_entries + FORECAST_NIGHT_PAST_LAST } };
     }
-    // night_over is the full-height day/night hatch — independent of line/bars.
+    // night_over is the full-height day/night hatch, then the day line over it, behind the
+    // bars and lines — independent of line/bars.
     if (night_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
             .hatch_color    = theme_pick(NIGHT_C(NIGHT_INK_HATCH), theme_fg()),
-            .boundary_color = theme_pick(NIGHT_C(NIGHT_INK_BOUNDARY),
-                                         theme_is_light() ? GColorDarkGray : GColorLightGray),
             .spacing        = night_hatch_spacing,
 #if defined(WW_LINE_STYLE)
             // Up through the top stripe band too (0 without one): the shading reaches
@@ -731,6 +758,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .extend_top     = top_band,
 #endif
             .contour        = NULL } };
+        layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM, .custom = {
+            .fn = day_lines_draw, .user = ds } };
     }
     // Attach the scaled rain-tier palette to the BARS series (computed above).
     bars->bars.stops     = scaled_bar_stops;
@@ -834,7 +863,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 
     // hi/lo temp strip: chart-adjacent chrome, not a chart layer
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: beside the graph, on it or off, naming the curve or the scale (left axis, BETA).
+    // emery: beside the graph, on it or off, naming the curve or the scale (left axis).
     draw_axis_numbers(ctx, ds, grid, h, plot_axis_y, top_band, graph_left, bounds.size.w,
                       axis_opts);
 #else

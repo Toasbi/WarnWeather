@@ -15,7 +15,7 @@ var platformLib = require('./config-ui/lib/platform.js');
 var lineStyle = require('./line-style.js');
 var dateFormat = require('./date-format.js');
 var nightLight = require('./night-light.js');
-// The forecast's left axis options (BETA, emery): bits of the CLAY_LARGE_GRAPH_FONT word.
+// The forecast's left axis options (emery): bits of the CLAY_LARGE_GRAPH_FONT word.
 var forecastAxis = require('./forecast-axis.js');
 
 // The radar's built-in no-rain text — the schema's radarNoRainText default and the
@@ -132,7 +132,7 @@ function packViewReset(settings, env) {
 /**
  * The CLAY_LARGE_GRAPH_FONT tuple, emery's graph-options word (src/c/appendix/config.h
  * GRAPH_OPT_*): bit 0 Larger graph fonts, bits 2, 3 and 5 the forecast's left axis options
- * (BETA, forecast-axis.js wireBits; bits 1 and 4 are retired). While every axis option draws
+ * (forecast-axis.js wireBits; bits 1 and 4 are retired). While every axis option draws
  * today's graph (those bits all 0, as always for a KNOWN non-emery watch, whose C never reads
  * the key) it is today's bare boolean,
  * so a payload with the defaults is exactly what it always was on every platform and an
@@ -336,7 +336,7 @@ function buildClayPayload(settings, watchInfo, now) {
     payload.CLAY_VIEW_RESET_MIN = packViewReset(settings, env);
 
     // emery's graph-options word (graphOptionsWord): the axis-font step-up (Layout tab) in
-    // bit 0, the forecast's left axis options (BETA) above it. The simple Boolean() on
+    // bit 0, the forecast's left axis options above it. The simple Boolean() on
     // largeGraphFont is provably safe: engine.js seeds toggles from defaultValue and flips
     // them with !S[key], so a stored value is a strict boolean or absent -- and absent
     // collapsing to false IS the default. A default-TRUE toggle would need the

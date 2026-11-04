@@ -1,6 +1,6 @@
 // test/graph-wire.test.js — the graph's three Clay tuples (src/pkjs/weather/graph-wire.js):
 // the forecast's and the radar's bar palettes, each with its Bars from flag, and the
-// sixteen bytes of line styling: colours, fill and night flags, the style bytes and their
+// fourteen bytes of line styling: colours, the fill flag, the style bytes and their
 // Draw from and float bits. The readings they encode are pinned in line-style.test.js and
 // draw-from.test.js.
 const test = require('node:test');
@@ -50,11 +50,6 @@ test('buildPaletteTuples: bw theme collapses both channels to a single black sto
   const t = graphWire.buildPaletteTuples({ rainBarColor: 'multicolor', radarColor: 'multicolor', theme: 'bw' }, { platform: 'emery' });
   assert.equal(t.BAR_PALETTE_UINT8.length, 3, 'one packed stop = 3 bytes');
   assert.equal(t.RADAR_PALETTE_UINT8.length, 3);
-});
-
-test('buildPaletteTuples: theme omitted defaults to dark (unchanged behavior)', () => {
-  const t = graphWire.buildPaletteTuples({ rainBarColor: 'multicolor' }, { platform: 'emery' });
-  assert.equal(t.BAR_PALETTE_UINT8.length, 15, 'five multicolor stops = 15 bytes, unchanged');
 });
 
 test('an absent bar colour resolves to the polarity default, not always multicolor', function() {
@@ -151,53 +146,46 @@ test('Bars from: never on aplite, which ignores incoming palettes anyway', () =>
   assert.deepEqual(top, plain);
 });
 
-// --- The line styling: CLAY_LINE_STYLE_UINT8, sixteen bytes ----------------------------
+// --- The line styling: CLAY_LINE_STYLE_UINT8, fourteen bytes ----------------------------
 
-test('packs sixteen bytes: five line colours, a line flag byte, five night colours, a night flag byte, four style bytes', () => {
+test('packs fourteen bytes: five line colours, a line flag byte, five night colours, a night flag byte, four style bytes', () => {
   const bytes = graphWire.buildLineStyleBytes(
     { secondaryLine: 'wind', thirdLine: 'gust', fifthLine: 'cloud', secondaryLineFill: false, theme: 'dark' }, emery);
-  assert.equal(bytes.length, 16);
-  assert.equal(bytes[15], 0x02, 'the fourth metric debuts as x marks');
-  [0, 1, 2, 4, 5, 6, 7, 8, 10, 14].forEach(
+  assert.equal(bytes.length, 14);
+  assert.equal(bytes[13], 0x02, 'the fourth metric debuts as x marks');
+  [0, 1, 2, 4, 5, 6, 7, 8, 12].forEach(
     (i) => assert.ok(bytes[i] >= 0xC0 && bytes[i] <= 0xFF, `byte ${i} (${bytes[i]}) is not a GColor8`));
   assert.equal(bytes[3], 0, 'fill off');
-  assert.equal(bytes[9], 0, 'night fill still on its built-in tint');
 });
 
-// The two flag bytes' bits, pinned to what the watch reads: app_message.c tests byte [3]
-// against LINE_STYLE_FLAG_SECONDARY_FILL (0x01). Byte [9]'s bit rides the NIGHT_COLORS blob
-// unread (see FLAG_NIGHT_FILL_EXPLICIT in graph-wire.js), so only its packing is pinned.
+// The flag byte's bit, pinned to what the watch reads: app_message.c tests byte [3] against
+// LINE_STYLE_FLAG_SECONDARY_FILL (0x01).
 test('the line flag byte\'s fill bit is the one the watch reads', () => {
   assert.equal(graphWire.FLAG_SECONDARY_FILL, 0x01, 'app_message.c LINE_STYLE_FLAG_SECONDARY_FILL');
-  assert.equal(graphWire.FLAG_NIGHT_FILL_EXPLICIT, 0x01);
 });
 
-// Bytes 4..9 are the watch's NIGHT_COLORS persist blob verbatim (persist.h's
-// NIGHT_COLOR_BYTES = 6), which is the whole reason the night-fill bit lives in byte
-// [9] instead of byte [3]: app_message.c stores the tail straight through, so the two
-// ends cannot pick different bits or offsets for it. The bytes appended since ([10]
-// third-metric colour, [11..13] the LINE_STYLES blob, also stored straight through)
-// sit BEHIND the night block, so its offsets never moved.
-test('the night block is a contiguous six-byte block at [4..9], flag included', () => {
+// Bytes 4..7 are the watch's NIGHT_COLORS persist blob verbatim (persist.h's
+// NIGHT_COLOR_BYTES = 4): app_message.c stores the tail straight through. The bytes behind
+// it ([8] third-metric colour, [9..11] the LINE_STYLES blob, also stored straight through)
+// follow the night block.
+test('the night block is a contiguous four-byte block at [4..7]', () => {
   const bytes = graphWire.buildLineStyleBytes({
     secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark',
     gcWindNightDark: '#550055'
   }, emery);
-  assert.equal(bytes.length, 16, 'night block [4..9] + ext block [10..13] + fifth block [14..15]');
-  assert.equal(bytes[9] & graphWire.FLAG_NIGHT_FILL_EXPLICIT, graphWire.FLAG_NIGHT_FILL_EXPLICIT);
-  assert.equal(bytes[3], graphWire.FLAG_SECONDARY_FILL,
-    'the line flag byte carries the fill bit and nothing else — the night flag left byte [3] entirely');
+  assert.equal(bytes.length, 14, 'night block [4..7] + ext block [8..11] + fifth block [12..13]');
+  assert.equal(bytes[3], graphWire.FLAG_SECONDARY_FILL, 'the line flag byte carries the fill bit and nothing else');
 });
 
-// Bytes [11..13] are the watch's LINE_STYLES persist blob verbatim (persist.h's
+// Bytes [9..11] are the watch's LINE_STYLES persist blob verbatim (persist.h's
 // LINE_STYLE_STYLE_BYTES = 3): kind | (stroke_width << 2), kind bits shared with
 // chart.h's ChartLineStyle (0 solid, 1 dots, 2 x).
 test('the style bytes pack kind and width, defaults reproducing the pre-feature look', () => {
   const bytes = graphWire.buildLineStyleBytes(
     { secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: false, theme: 'dark' }, emery);
-  assert.equal(bytes[11], 0 | (1 << 2), 'main line: solid, 1 px');
-  assert.equal(bytes[12], 1, 'second line: dots');
-  assert.equal(bytes[13], 2, 'third-metric line: x');
+  assert.equal(bytes[9], 0 | (1 << 2), 'main line: solid, 1 px');
+  assert.equal(bytes[10], 1, 'second line: dots');
+  assert.equal(bytes[11], 2, 'third-metric line: x');
 });
 
 test('a stored style pick moves its byte; an unknown value falls back to the default', () => {
@@ -205,16 +193,16 @@ test('a stored style pick moves its byte; an unknown value falls back to the def
     secondaryLine: 'wind', thirdLine: 'gust', theme: 'dark',
     secondaryLineStyle: 'bold', thirdLineStyle: 'x', fourthLineStyle: 'nonsense'
   }, emery);
-  assert.equal(bytes[11], 0 | (3 << 2), 'main line: solid, 3 px');
-  assert.equal(bytes[12], 2, 'second line: x');
-  assert.equal(bytes[13], 2, 'unknown value → the line\'s built-in (x)');
+  assert.equal(bytes[9], 0 | (3 << 2), 'main line: solid, 3 px');
+  assert.equal(bytes[10], 2, 'second line: x');
+  assert.equal(bytes[11], 2, 'unknown value → the line\'s built-in (x)');
 });
 
-test('byte [10] is the third-metric line colour, resolved like the others', () => {
+test('byte [8] is the third-metric line colour, resolved like the others', () => {
   const settings = { secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'uv', theme: 'dark' };
   const resolved = resolve(settings, emery);
   const bytes = graphWire.buildLineStyleBytes(settings, emery);
-  assert.equal(bytes[10], rainTier.rgbToGColor8(resolved.fourth));
+  assert.equal(bytes[8], rainTier.rgbToGColor8(resolved.fourth));
 });
 
 test('the fill flag follows secondaryLineFill', () => {
@@ -253,13 +241,12 @@ test('the full-height night hatch and boundary default to DarkGray in both polar
   });
 });
 
-test('the seeded default sends the metric triple on bytes 6..8', () => {
+test('the seeded default sends the metric pair on bytes 6..7', () => {
   const bytes = graphWire.buildLineStyleBytes(
     { secondaryLine: 'uv', thirdLine: 'off', secondaryLineFill: true, theme: 'dark' }, emery);
   const uv = lineStyle.nightAreaColorsFor('uv', null);
   assert.equal(bytes[6], rainTier.rgbToGColor8(uv.base));
   assert.equal(bytes[7], rainTier.rgbToGColor8(uv.hatch));
-  assert.equal(bytes[8], rainTier.rgbToGColor8(uv.boundary));
 });
 
 // --- The user's picks --------------------------------------------------------
@@ -297,7 +284,7 @@ test('a pick stored as an int reads the same as the hex string the page writes',
 // THE appearance contract. seedDefaults writes every one of the 42 keys into a fresh
 // blob, so "a blob carrying all the defaults" is what a real install looks like — and it
 // has to pack exactly what a blob with no graph keys at all (a 1.14.1 install) packs.
-test('a blob seeded with every default packs the same ten bytes as a blob with no graph keys', () => {
+test('a blob seeded with every default packs the same fourteen bytes as a blob with no graph keys', () => {
   const keys = lineStyle.graphColorKeys();
   ['dark', 'light'].forEach((theme) => {
     ['precip_prob', 'cloud', 'wind', 'uv', 'gust', 'pressure', 'feels'].forEach((metric) => {
@@ -354,10 +341,9 @@ test('aplite ignores the line picks and folds a light theme back to dark polarit
   assert.deepEqual(bytes.slice(4), graphWire.buildLineStyleBytes(
     { secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark' },
     { platform: 'aplite' }).slice(4));
-  assert.equal(bytes[9] & graphWire.FLAG_NIGHT_FILL_EXPLICIT, 0);
 });
 
-test('the night picks reach bytes 4..8', () => {
+test('the night picks reach bytes 4..7', () => {
   const bytes = graphWire.buildLineStyleBytes({
     secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark',
     gcNightHatchDark: '#00AA00', gcNightBoundaryDark: '#FFFF00', gcWindNightDark: '#550055'
@@ -367,35 +353,22 @@ test('the night picks reach bytes 4..8', () => {
   assert.equal(bytes[5], rainTier.rgbToGColor8(0xFFFF00));
   assert.equal(bytes[6], rainTier.rgbToGColor8(derived.base));
   assert.equal(bytes[7], rainTier.rgbToGColor8(derived.hatch));
-  assert.equal(bytes[8], rainTier.rgbToGColor8(derived.boundary));
 });
 
-// No watch reads the flag any more (both polarities re-shade unconditionally), but it is
-// still the wire's answer to "did the user pick this?", and telemetry reports the same
-// answer — so it must stay clear while the tint sits on its built-in, including when that
-// built-in is STORED, which is what every seeded install looks like. Each polarity has its
-// OWN built-in base now, so the seeded value differs between the two arms.
-test('the night-fill flag is set only when the tint differs from the built-in, in either polarity', () => {
-  const flag = graphWire.FLAG_NIGHT_FILL_EXPLICIT;
-  const dark = { secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark' };
-  const light = Object.assign({}, dark, { theme: 'light' });
+// Telemetry's "did the user pick this?" must stay clear while the tint sits on its built-in,
+// including when that built-in is STORED, which is what every seeded install looks like.
+// Each polarity has its OWN built-in base, so the seeded value differs between the two arms.
+test('a night tint counts as a pick only when it differs from the built-in, in either polarity', () => {
+  const picked = (blob, sfx) => lineStyle.graphColorIsPicked(blob, 'wind', 'Night', sfx);
   const darkBase = lineStyle.nightAreaColorsFor('wind', null, 'dark').base;
   const lightBase = lineStyle.nightAreaColorsFor('wind', null, 'light').base;
   assert.notEqual(darkBase, lightBase, 'the two polarities are tuned apart — else this proves nothing');
-  assert.equal(graphWire.buildLineStyleBytes(dark, emery)[9] & flag, 0, 'dark, key absent');
-  assert.equal(graphWire.buildLineStyleBytes(light, emery)[9] & flag, 0, 'light, key absent');
-  assert.equal(
-    graphWire.buildLineStyleBytes(Object.assign({ gcWindNightDark: darkBase }, dark), emery)[9] & flag,
-    0, 'dark, the built-in stored explicitly');
-  assert.equal(
-    graphWire.buildLineStyleBytes(Object.assign({ gcWindNightLight: lightBase }, light), emery)[9] & flag,
-    0, 'light, the built-in stored explicitly');
-  assert.equal(
-    graphWire.buildLineStyleBytes(Object.assign({ gcWindNightDark: '#550055' }, dark), emery)[9] & flag,
-    flag, 'dark pick');
-  assert.equal(
-    graphWire.buildLineStyleBytes(Object.assign({ gcWindNightLight: '#550055' }, light), emery)[9] & flag,
-    flag, 'light pick');
+  assert.equal(picked({}, 'Dark'), false, 'dark, key absent');
+  assert.equal(picked({}, 'Light'), false, 'light, key absent');
+  assert.equal(picked({ gcWindNightDark: darkBase }, 'Dark'), false, 'dark, the built-in stored explicitly');
+  assert.equal(picked({ gcWindNightLight: lightBase }, 'Light'), false, 'light, the built-in stored explicitly');
+  assert.equal(picked({ gcWindNightDark: '#550055' }, 'Dark'), true, 'dark pick');
+  assert.equal(picked({ gcWindNightLight: '#550055' }, 'Light'), true, 'light pick');
 });
 
 // --- The fill -> night-tint cascade on the wire ------------------------------------
@@ -403,8 +376,7 @@ test('the night-fill flag is set only when the tint differs from the built-in, i
 // is no pick) and why it is resolved rather than written: line-style.test.js, beside
 // graphNightTint. Here: the bytes it lands on.
 
-test('an untouched night tint cascades from the fill and claims no explicit pick', () => {
-  const flag = graphWire.FLAG_NIGHT_FILL_EXPLICIT;
+test('an untouched night tint cascades from the fill', () => {
   const pick = 0x00AA55;
   const bytes = graphWire.buildLineStyleBytes({
     secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark',
@@ -413,11 +385,8 @@ test('an untouched night tint cascades from the fill and claims no explicit pick
   const derived = lineStyle.nightAreaColorsFor('wind', pick);
   assert.equal(bytes[1], rainTier.rgbToGColor8(pick), 'the day fill is the pick');
   assert.equal(bytes[6], rainTier.rgbToGColor8(derived.base),
-    'and the night band re-shades in that same colour instead of the built-in triple');
+    'and the night band re-shades in that same colour instead of the built-in pair');
   assert.equal(bytes[7], rainTier.rgbToGColor8(derived.hatch));
-  assert.equal(bytes[8], rainTier.rgbToGColor8(derived.boundary));
-  assert.equal(bytes[9] & flag, 0,
-    'a carried tint is not a night choice — the light polarity keeps skipping the re-shade');
 });
 
 // Nothing latches: the tint key is never written, so every later fill pick is carried by
@@ -425,7 +394,6 @@ test('an untouched night tint cascades from the fill and claims no explicit pick
 // only happened on the onChange, so any path that set a fill without firing it stranded
 // the tint on the previous colour.)
 test('the cascade tracks a second and a third fill pick, on both polarities', () => {
-  const flag = graphWire.FLAG_NIGHT_FILL_EXPLICIT;
   const base = { secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true };
   ['#00AA55', '#FF0000', '#0000AA'].forEach((pick) => {
     [['dark', 'gcWindFillDark'], ['light', 'gcWindFillLight']].forEach(([theme, key]) => {
@@ -434,13 +402,11 @@ test('the cascade tracks a second and a third fill pick, on both polarities', ()
       const bytes = graphWire.buildLineStyleBytes(blob, emery);
       const derived = lineStyle.nightAreaColorsFor('wind', parseInt(pick.slice(1), 16));
       assert.equal(bytes[6], rainTier.rgbToGColor8(derived.base), `${theme} ${pick} base`);
-      assert.equal(bytes[9] & flag, 0, `${theme} ${pick} claims no pick`);
     });
   });
 });
 
 test('a night tint deliberately picked EQUAL to its fill is a real pick, not a hand-me-down', () => {
-  const flag = graphWire.FLAG_NIGHT_FILL_EXPLICIT;
   const pick = 0x00AA55;
   ['dark', 'light'].forEach((theme) => {
     const sfx = theme === 'light' ? 'Light' : 'Dark';
@@ -448,11 +414,9 @@ test('a night tint deliberately picked EQUAL to its fill is a real pick, not a h
     blob[`gcWindFill${sfx}`] = '#00AA55';
     blob[`gcWindNight${sfx}`] = '#00AA55';
     const bytes = graphWire.buildLineStyleBytes(blob, emery);
-    // The five night bytes are identical to the carried case above — only the intent differs.
+    // The night bytes are identical to the carried case above — only the intent differs.
     assert.equal(bytes[6], rainTier.rgbToGColor8(lineStyle.nightAreaColorsFor('wind', pick).base),
       `${theme}: the same colour paints either way`);
-    assert.equal(bytes[9] & flag, flag,
-      `${theme}: but a chosen tint opts the light-polarity re-shade in`);
     assert.equal(lineStyle.graphColorIsPicked(blob, 'wind', 'Night', sfx), true,
       `${theme}: and telemetry reports it as a pick, not 'default'`);
   });
@@ -460,34 +424,30 @@ test('a night tint deliberately picked EQUAL to its fill is a real pick, not a h
 
 // resolveGraphColors is TOTAL over secondaryLine: 'off', absent, and an unknown id all
 // have to answer something. They land on the metric-less arm of nightAreaColorsFor — the
-// precip triple for the polarity in hand, verbatim — rather than running the lighten
+// precip pair for the polarity in hand, verbatim — rather than running the lighten
 // recipe over the theme foreground. Nothing renders it (forecast_layer.c gates the
 // underlay on a present, filled second line), but the bytes have to be stable, so they are
 // pinned here. bw/bw-light follow their polarity like any other theme: the watch discards
-// all five night bytes in B&W, so the only requirement is that they stay deterministic.
-test('an off, absent or unknown secondary metric packs the metric-less night triple', () => {
+// all four night bytes in B&W, so the only requirement is that they stay deterministic.
+test('an off, absent or unknown secondary metric packs the metric-less night pair', () => {
   ['off', undefined, 'foo'].forEach((secondaryLine) => {
     ['dark', 'light', 'bw', 'bw-light'].forEach((theme) => {
-      const triple = lineStyle.nightAreaColorsFor('nope', null, theme);
+      const pair = lineStyle.nightAreaColorsFor('nope', null, theme);
       const bytes = graphWire.buildLineStyleBytes(
         { secondaryLine, thirdLine: 'off', secondaryLineFill: true, theme }, emery);
       const where = `${secondaryLine} / ${theme}`;
-      assert.equal(bytes[6], rainTier.rgbToGColor8(triple.base), `${where} base`);
-      assert.equal(bytes[7], rainTier.rgbToGColor8(triple.hatch), `${where} hatch`);
-      assert.equal(bytes[8], rainTier.rgbToGColor8(triple.boundary), `${where} boundary`);
-      assert.equal(bytes[9] & graphWire.FLAG_NIGHT_FILL_EXPLICIT, 0, `${where} flag`);
+      assert.equal(bytes[6], rainTier.rgbToGColor8(pair.base), `${where} base`);
+      assert.equal(bytes[7], rainTier.rgbToGColor8(pair.hatch), `${where} hatch`);
     });
   });
 });
 
-test('a night tint off BOTH its built-in and the fill still opts the light polarity in', () => {
-  const flag = graphWire.FLAG_NIGHT_FILL_EXPLICIT;
+test('a night tint off BOTH its built-in and the fill paints', () => {
   const bytes = graphWire.buildLineStyleBytes({
     secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'light',
     gcWindFillLight: '#00AA55', gcWindNightLight: '#550055'
   }, emery);
   assert.equal(bytes[6], rainTier.rgbToGColor8(0x550055), 'the deliberate tint paints');
-  assert.equal(bytes[9] & flag, flag, 'and opts the light re-shade in');
 });
 
 test('a Light night-fill pick paints on the light polarity too', () => {
@@ -499,11 +459,11 @@ test('a Light night-fill pick paints on the light polarity too', () => {
 });
 
 // The three LINE bytes are painted on every render mode, so a B&W render must resolve
-// them through the B&W arms. The five NIGHT bytes are not: every night colour reaches
+// them through the B&W arms. The four NIGHT bytes are not: every night colour reaches
 // the render through theme_pick(colour_arm, bw_arm) and the underlay through
 // has_underlay = !theme_is_bw() (forecast_layer.c), so a bw theme discards all of them
 // and paints theme_fg() over LightGray from its own constants. They are therefore left
-// unpinned here — deliberately, since pinning them was five bytes of ceremony no watch
+// unpinned here — deliberately, since pinning them was bytes of ceremony no watch
 // ever read — and simply carry the polarity's picks.
 test('a B&W theme takes the B&W line arms; its night tail is discarded, not special-cased', () => {
   const picks = {
@@ -529,25 +489,25 @@ test('a B&W theme takes the B&W line arms; its night tail is discarded, not spec
 });
 
 // --- Draw from: Top in bit 5 of each line's style byte (LINE_BIT) ---------------
-// Bytes [11], [12], [13], [15] carry their line's flag (persist.h LINE_STYLE_FROM_TOP,
+// Bytes [9], [10], [11], [13] carry their line's flag (persist.h LINE_STYLE_FROM_TOP,
 // 0x20). Every other byte is untouched, and with every key on Bottom (or absent, or
-// junk) the sixteen bytes are the ones the build before Draw from sent: pinned per
+// junk) the fourteen bytes are the ones the build before Draw from sent: pinned per
 // platform below, captured from that build.
 const DRAW_FROM_PLATFORMS = ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint'];
 const DRAW_FROM_KEYS = ['precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom', 'radarBarFrom'];
-const STYLE_BYTE_OF = { secondaryLine: 11, thirdLine: 12, fourthLine: 13, fifthLine: 15 };
+const STYLE_BYTE_OF = { secondaryLine: 9, thirdLine: 10, fourthLine: 11, fifthLine: 13 };
 // The shipped look (rain chance filled, UV dots) and four amount lines in four styles.
 const PRE_DRAW_FROM = {
   look: {
     settings: { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'off', fifthLine: 'off',
       secondaryLineFill: true, theme: 'dark', rainBarColor: 'multicolor' },
     bytes: {
-      aplite: [255, 234, 255, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2],
-      basalt: [219, 198, 243, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2],
-      chalk: [219, 198, 243, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2],
-      diorite: [255, 234, 255, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2],
-      emery: [219, 198, 243, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2],
-      flint: [255, 234, 255, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2]
+      aplite: [255, 234, 255, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2],
+      basalt: [219, 198, 243, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2],
+      chalk: [219, 198, 243, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2],
+      diorite: [255, 234, 255, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2],
+      emery: [219, 198, 243, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2],
+      flint: [255, 234, 255, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2]
     }
   },
   amounts: {
@@ -555,17 +515,17 @@ const PRE_DRAW_FROM = {
       secondaryLineStyle: 'bold', thirdLineStyle: 'dots', fourthLineStyle: 'x', fifthLineStyle: 'line',
       secondaryLineFill: true, theme: 'light', rainBarColor: 'white' },
     bytes: {
-      aplite: [255, 234, 255, 1, 213, 213, 212, 232, 232, 0, 255, 12, 1, 2, 255, 4],
-      basalt: [248, 252, 192, 1, 213, 213, 249, 254, 255, 0, 214, 12, 1, 2, 226, 4],
-      chalk: [248, 252, 192, 1, 213, 213, 249, 254, 255, 0, 214, 12, 1, 2, 226, 4],
-      diorite: [192, 234, 192, 1, 213, 213, 249, 254, 255, 0, 192, 12, 1, 2, 192, 4],
-      emery: [248, 252, 192, 1, 213, 213, 249, 254, 255, 0, 214, 12, 1, 2, 226, 4],
-      flint: [192, 234, 192, 1, 213, 213, 249, 254, 255, 0, 192, 12, 1, 2, 192, 4]
+      aplite: [255, 234, 255, 1, 213, 213, 212, 232, 255, 12, 1, 2, 255, 4],
+      basalt: [248, 252, 192, 1, 213, 213, 249, 254, 214, 12, 1, 2, 226, 4],
+      chalk: [248, 252, 192, 1, 213, 213, 249, 254, 214, 12, 1, 2, 226, 4],
+      diorite: [192, 234, 192, 1, 213, 213, 249, 254, 192, 12, 1, 2, 192, 4],
+      emery: [248, 252, 192, 1, 213, 213, 249, 254, 214, 12, 1, 2, 226, 4],
+      flint: [192, 234, 192, 1, 213, 213, 249, 254, 192, 12, 1, 2, 192, 4]
     }
   }
 };
 
-test('Draw from on Bottom, absent or junk: the sixteen bytes the build before it sent', () => {
+test('Draw from on Bottom, absent or junk: the fourteen bytes the build before it sent', () => {
   Object.keys(PRE_DRAW_FROM).forEach((name) => {
     const { settings, bytes } = PRE_DRAW_FROM[name];
     DRAW_FROM_PLATFORMS.forEach((platform) => {
@@ -594,7 +554,7 @@ test('Draw from: Top sets bit 5 on exactly the matching line\'s style byte', () 
     });
   });
   // An unknown watch reads basalt: it hangs too.
-  assert.equal(graphWire.buildLineStyleBytes(Object.assign({ uvLineFrom: 'top' }, settings), null)[15], 0x24);
+  assert.equal(graphWire.buildLineStyleBytes(Object.assign({ uvLineFrom: 'top' }, settings), null)[13], 0x24);
 });
 
 test('Draw from: never on aplite, a stripe, a line not drawn, or a line without the setting', () => {
@@ -610,22 +570,22 @@ test('Draw from: never on aplite, a stripe, a line not drawn, or a line without 
   // A stripe keeps its own edge: 0x07 (stripeTop) and 0x03 (stripeBottom) stay.
   const stripes = graphWire.buildLineStyleBytes(Object.assign({ secondaryLine: 'uv', thirdLine: 'cloud',
     secondaryLineStyle: 'stripeTop', thirdLineStyle: 'stripeBottom', theme: 'dark' }, allTop), emeryAt);
-  assert.equal(stripes[11], 0x07);
-  assert.equal(stripes[12], 0x03);
+  assert.equal(stripes[9], 0x07);
+  assert.equal(stripes[10], 0x03);
   // Feels, dew and pressure never hang.
   const temps = graphWire.buildLineStyleBytes(Object.assign({ secondaryLine: 'feels', thirdLine: 'dew',
     fourthLine: 'pressure', fifthLine: 'off', theme: 'dark' }, allTop), emeryAt);
-  [11, 12, 13, 15].forEach((i) => assert.equal(temps[i] & 0x20, 0, 'byte ' + i));
+  [9, 10, 11, 13].forEach((i) => assert.equal(temps[i] & 0x20, 0, 'byte ' + i));
   // A line that is off, or repeats an earlier pick, sends no flag.
   const off = graphWire.buildLineStyleBytes(Object.assign({ secondaryLine: 'precip_prob', thirdLine: 'precip_prob',
     fourthLine: 'off', fifthLine: 'off', theme: 'dark' }, allTop), emeryAt);
-  assert.equal(off[11] & 0x20, 0x20, 'the drawn rain-chance line hangs');
-  [12, 13, 15].forEach((i) => assert.equal(off[i] & 0x20, 0, 'byte ' + i));
+  assert.equal(off[9] & 0x20, 0x20, 'the drawn rain-chance line hangs');
+  [10, 11, 13].forEach((i) => assert.equal(off[i] & 0x20, 0, 'byte ' + i));
   // Bit 7 stays reserved at 0, every byte above. Bit 6 (the float bit) is set on exactly the
   // drawn feels, dew and pressure lines: never on a stripe, an amount line or a line not drawn.
-  [stripes, temps, off].forEach((b) => [11, 12, 13, 15].forEach((i) => assert.equal(b[i] & 0x80, 0)));
-  [stripes, off].forEach((b) => [11, 12, 13, 15].forEach((i) => assert.equal(b[i] & 0x40, 0, 'byte ' + i)));
-  assert.deepEqual([11, 12, 13, 15].map((i) => temps[i] & 0x40), [0x40, 0x40, 0x40, 0]);
+  [stripes, temps, off].forEach((b) => [9, 10, 11, 13].forEach((i) => assert.equal(b[i] & 0x80, 0)));
+  [stripes, off].forEach((b) => [9, 10, 11, 13].forEach((i) => assert.equal(b[i] & 0x40, 0, 'byte ' + i)));
+  assert.deepEqual([9, 10, 11, 13].map((i) => temps[i] & 0x40), [0x40, 0x40, 0x40, 0]);
 });
 
 // --- The float bit: bit 6 of each line's style byte (FLOAT_BIT) -----------------------
@@ -657,17 +617,17 @@ test('the float bit: never on an amount line, a stripe, a line not drawn, or on 
     [{}, { precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top', uvLineFrom: 'top' }].forEach((from) => {
       const b = graphWire.buildLineStyleBytes(Object.assign({ secondaryLine: metric, thirdLine: 'off',
         fourthLine: 'off', fifthLine: 'off', theme: 'dark' }, from), emeryAt);
-      assert.equal(b[11] & 0x40, 0, metric);
+      assert.equal(b[9] & 0x40, 0, metric);
     });
   });
   // A repeat of an earlier pick is not drawn: no bit.
   const repeat = graphWire.buildLineStyleBytes({ secondaryLine: 'pressure', thirdLine: 'pressure',
     fourthLine: 'off', fifthLine: 'off', theme: 'dark' }, emeryAt);
-  assert.deepEqual([11, 12, 13, 15].map((i) => repeat[i] & 0x40), [0x40, 0, 0, 0]);
+  assert.deepEqual([9, 10, 11, 13].map((i) => repeat[i] & 0x40), [0x40, 0, 0, 0]);
   // aplite: the PRE_DRAW_FROM bytes, a pressure Main line or not.
   const pressure = Object.assign({}, PRE_DRAW_FROM.look.settings, { thirdLine: 'pressure' });
   const ap = graphWire.buildLineStyleBytes(pressure, { platform: 'aplite' });
-  [11, 12, 13, 15].forEach((i) => assert.equal(ap[i] & 0x40, 0, 'aplite byte ' + i));
+  [9, 10, 11, 13].forEach((i) => assert.equal(ap[i] & 0x40, 0, 'aplite byte ' + i));
 });
 
 // --- One packer: the Clay send and the fixture send ------------------------------------
@@ -707,7 +667,7 @@ test('an unknown watch packs the basalt bytes', () => {
       graphWire.buildGraphTuples(settings, { platform: 'basalt' }), JSON.stringify(watchInfo) + ' #' + n)));
   // ...which hangs, where aplite would not.
   const hung = graphWire.buildGraphTuples(GRAPH_SETTINGS[1], null);
-  assert.equal(hung.CLAY_LINE_STYLE_UINT8[11] & graphWire.LINE_BIT, graphWire.LINE_BIT);
+  assert.equal(hung.CLAY_LINE_STYLE_UINT8[9] & graphWire.LINE_BIT, graphWire.LINE_BIT);
   assert.equal(hung.BAR_PALETTE_UINT8[1] & graphWire.PALETTE_BIT, graphWire.PALETTE_BIT);
 });
 

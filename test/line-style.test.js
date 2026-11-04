@@ -1,6 +1,6 @@
 // test/line-style.test.js — the graph colours' and line styles' reading (src/pkjs/
 // line-style.js): the built-ins, the picks, the night area, the cascade, the stripe rules
-// and the style-byte encoding. The sixteen wire bytes it resolves into are pinned in
+// and the style-byte encoding. The fourteen wire bytes it resolves into are pinned in
 // graph-wire.test.js (src/pkjs/weather/graph-wire.js packs them).
 const test = require('node:test');
 const assert = require('node:assert');
@@ -73,41 +73,40 @@ test('a B&W display resolves every line pick away, whatever the theme says', () 
 // forecast_layer.c's hand-tuned table byte for byte — otherwise every existing
 // install's night shading changes hue on upgrade.
 
-test('the night-area triples are the six the watch hand-tuned', () => {
+test('the night-area pairs are the six the watch hand-tuned', () => {
   const expected = {
-    precip_prob: { base: 0x0000AA, hatch: 0x0000FF, boundary: 0x00AAFF },  // DukeBlue/Blue/VividCerulean
-    wind:        { base: 0x555500, hatch: 0xAAAA00, boundary: 0xAAAA00 },  // ArmyGreen/Limerick/Limerick
-    uv:          { base: 0x550055, hatch: 0xAA00AA, boundary: 0xAA00FF },  // ImperialPurple/Purple/VividViolet
-    gust:        { base: 0x555555, hatch: 0xAAAAAA, boundary: 0xAAAAAA },  // DarkGray/LightGray/LightGray
-    pressure:    { base: 0xAA5500, hatch: 0xFF5500, boundary: 0xFF5500 },  // WindsorTan/Orange/Orange
-    feels:       { base: 0xAAAAAA, hatch: 0xFFFFFF, boundary: 0xFFFFFF }   // LightGray/White/White
+    precip_prob: { base: 0x0000AA, hatch: 0x0000FF },  // DukeBlue/Blue/VividCerulean
+    wind:        { base: 0x555500, hatch: 0xAAAA00 },  // ArmyGreen/Limerick/Limerick
+    uv:          { base: 0x550055, hatch: 0xAA00AA },  // ImperialPurple/Purple/VividViolet
+    gust:        { base: 0x555555, hatch: 0xAAAAAA },  // DarkGray/LightGray/LightGray
+    pressure:    { base: 0xAA5500, hatch: 0xFF5500 },  // WindsorTan/Orange/Orange
+    feels:       { base: 0xAAAAAA, hatch: 0xFFFFFF }   // LightGray/White/White
   };
   Object.keys(expected).forEach((metric) => {
     assert.deepEqual(lineStyle.nightAreaColorsFor(metric, null), expected[metric], metric);
   });
 });
 
-test('an unknown metric falls through to the precip triple (the C default arm)', () => {
+test('an unknown metric falls through to the precip pair (the C default arm)', () => {
   assert.deepEqual(lineStyle.nightAreaColorsFor('off', null),
                    lineStyle.nightAreaColorsFor('precip_prob', null));
 });
 
-// Guards the comment on nightAreaColorsFor: the derivation is NOT the recipe the six
-// triples were built with, so the table can never be "simplified" into a call to it.
-// Run each hand-tuned base through the formula by hand and only `feels` comes out
-// matching. This is also why nightAreaColorsFor short-circuits on a tint EQUAL to the
-// base: the stored night tint now DEFAULTS to that base, so re-deriving would hand five
-// of the six metrics a new hatch and boundary on a blob nobody has touched.
-test('the hand-tuned triples are not formula-derived — five of the six differ', () => {
+// Guards the comment on nightAreaColorsFor: the derivation is NOT the recipe the pairs
+// were built with, so the table can never be "simplified" into a call to it. Run each
+// hand-tuned base through the formula by hand and precip, wind, uv and pressure come out
+// different. This is also why nightAreaColorsFor short-circuits on a tint EQUAL to the
+// base: the stored night tint now DEFAULTS to that base, so re-deriving would hand those
+// metrics a new hatch on a blob nobody has touched.
+test('the hand-tuned pairs are not formula-derived — four of the six differ', () => {
   const metrics = ['precip_prob', 'wind', 'uv', 'gust', 'pressure', 'feels'];
   const same = metrics.filter((metric) => {
     const hand = lineStyle.nightAreaColorsFor(metric, null);
-    const hatch = lineStyle.lighten(hand.base);
-    return hatch === hand.hatch && lineStyle.lighten(hatch) === hand.boundary;
+    return lineStyle.lighten(hand.base) === hand.hatch;
   });
-  assert.deepEqual(same, ['feels'],
-    'only feels happens to sit on the formula; the other five are hand-tuned per hue');
-  // …so storing the base must return the hand-tuned triple, not the formula's.
+  assert.deepEqual(same, ['gust', 'feels'],
+    'only gust and feels happen to sit on the formula; the other four are hand-tuned per hue');
+  // …so storing the base must return the hand-tuned pair, not the formula's.
   metrics.forEach((metric) => {
     const hand = lineStyle.nightAreaColorsFor(metric, null);
     assert.deepEqual(lineStyle.nightAreaColorsFor(metric, hand.base), hand, metric);
@@ -132,17 +131,10 @@ test('colorPick snaps a pick onto the Pebble-64 grid and leaves palette values a
     (v) => assert.equal(lineStyle.colorPick(v), null, `${String(v)} stores no colour`));
 });
 
-test('a night-fill tint moved off the built-in derives hatch and boundary one Pebble step apart', () => {
+test('a night-fill tint moved off the built-in derives its hatch one Pebble step up', () => {
   const derived = lineStyle.nightAreaColorsFor('wind', 0x550055);
   assert.equal(derived.base, 0x550055);
   assert.equal(derived.hatch, lineStyle.lighten(0x550055));
-  assert.equal(derived.boundary, lineStyle.lighten(lineStyle.lighten(0x550055)));
-});
-
-test('a LightGray night-fill pick collapses boundary onto hatch, like four of the hand triples', () => {
-  const derived = lineStyle.nightAreaColorsFor('gust', 0xAAAAAA);
-  assert.equal(derived.hatch, 0xFFFFFF);
-  assert.equal(derived.boundary, derived.hatch);
 });
 
 // --- The fill -> night-tint cascade ------------------------------------------
@@ -199,94 +191,10 @@ test('the light-polarity built-in is black; on B&W the flip still does that work
   assert.equal(picked.secondary, COLORS.GColorWhite, 'a deliberate white pick is not flipped');
 });
 
-// --- The concrete defaults ---------------------------------------------------
-//
-// THE appearance contract of this feature. The DARK column is the colour 1.14.1 rendered
-// for that metric, so seeding those keys changes no pixel. The LIGHT column is no longer
-// 1.14.1's: it was tuned metric-by-metric on hardware in the light (alpha) theme, so it
-// intentionally repaints. Each Light cell is a colour that was eyeballed on a watch — do
-// NOT "fix" one to restore symmetry with its Dark neighbour or to follow a recipe.
-//
-// graphColorDefault DERIVES each cell from LINE_COLORS / FILL_COLORS / NIGHT_AREA_COLORS
-// (+ NIGHT_AREA_LIGHT_BASE) rather than transcribing them, so asserting it against those
-// same resolvers would be a tautology. These are therefore LITERAL 0xRRGGBB values: a
-// tweak to any of the tables repaints somebody's graph and has to break the build here
-// first. A literal table belongs in a test — not in a second copy in production.
-const EXPECTED_DEFAULTS = {
-  precip_prob: {
-    Line:     { Dark: 0x55AAFF, Light: 0x0000AA },  // PictonBlue / DukeBlue
-    Fill:     { Dark: 0x0055AA, Light: 0x55FFFF },  // CobaltBlue / ElectricBlue
-    Night:    { Dark: 0x0000AA, Light: 0x00FFFF }   // DukeBlue / Cyan
-  },
-  // Cloud cover postdates 1.14.1: these are its debut built-ins, pinned the same way.
-  cloud: {
-    Line:     { Dark: 0xAAAAFF, Light: 0x5555AA },  // BabyBlueEyes / Liberty
-    Fill:     { Dark: 0x5555AA, Light: 0xAAAAFF },  // Liberty / BabyBlueEyes
-    Night:    { Dark: 0x000055, Light: 0xAAAAFF }   // OxfordBlue / BabyBlueEyes
-  },
-  wind: {
-    Line:     { Dark: 0xFFFF00, Light: 0xFFAA00 },  // Yellow / ChromeYellow
-    Fill:     { Dark: 0x555500, Light: 0xFFFF00 },  // ArmyGreen / Yellow
-    Night:    { Dark: 0x555500, Light: 0xFFAA55 }   // ArmyGreen / Rajah
-  },
-  uv: {
-    Line:     { Dark: 0xFF00FF, Light: 0xAA00AA },  // Magenta / Purple
-    Fill:     { Dark: 0xAA00AA, Light: 0xFF55FF },  // Purple / ShockingPink
-    Night:    { Dark: 0x550055, Light: 0xFF55FF }   // ImperialPurple / ShockingPink
-  },
-  gust: {
-    Line:     { Dark: 0xFFFFFF, Light: 0x000000 },  // White (multi bars) / Black
-    Fill:     { Dark: 0x555555, Light: 0xAAAAAA },  // DarkGray / LightGray
-    Night:    { Dark: 0x555555, Light: 0xAAAAAA }   // DarkGray / LightGray
-  },
-  pressure: {
-    Line:     { Dark: 0xFF5500, Light: 0xFF5500 },  // Orange
-    Fill:     { Dark: 0xAA5500, Light: 0xFFAA55 },  // WindsorTan / Rajah
-    Night:    { Dark: 0xAA5500, Light: 0xFFAA55 }   // WindsorTan / Rajah
-  },
-  feels: {
-    Line:     { Dark: 0xAAAAAA, Light: 0x000000 },  // LightGray / Black
-    Fill:     { Dark: 0xAAAAAA, Light: 0xAAAAAA },  // LightGray — keyless, still resolved
-    Night:    { Dark: 0xAAAAAA, Light: 0xAAAAAA }   // LightGray — keyless, still resolved
-  },
-  dew: {
-    Line:     { Dark: 0x55AAAA, Light: 0x005555 },  // CadetBlue / MidnightGreen
-    Fill:     { Dark: 0x55AAAA, Light: 0x55AAAA },  // CadetBlue — keyless, still resolved
-    Night:    { Dark: 0x005555, Light: 0x005555 }   // MidnightGreen — keyless, still resolved
-  },
-  night: {
-    Hatch:    { Dark: 0x555555, Light: 0x555555 },  // DarkGray — forecast_layer.c NIGHT_HATCH_COLOR
-    Boundary: { Dark: 0x555555, Light: 0x555555 }   // DarkGray — forecast_layer.c NIGHT_BOUNDARY_COLOR
-  }
-};
-
-test('every built-in default is the exact colour 1.14.1 painted for that metric and polarity', () => {
-  Object.keys(EXPECTED_DEFAULTS).forEach((scope) => {
-    Object.keys(EXPECTED_DEFAULTS[scope]).forEach((role) => {
-      ['Dark', 'Light'].forEach((suffix) => {
-        assert.equal(lineStyle.graphColorDefault(scope, role, suffix, {}),
-          EXPECTED_DEFAULTS[scope][role][suffix], `${scope} ${role} ${suffix}`);
-      });
-    });
-  });
-  // Every key the schema builds a row for has an expectation above, so a new metric or
-  // role cannot slip in unpinned. feels' Fill/Night carry no key but are still resolved
-  // (resolveGraphColors asks for them), which is why the table is wider than the key list.
-  lineStyle.graphColorKeys().forEach((key) => {
-    const m = /^gc([A-Z][a-z]+)([A-Z][a-z]+)(Dark|Light)$/.exec(key);
-    const scope = { Precip: 'precip_prob', Cloud: 'cloud', Wind: 'wind', Uv: 'uv', Gust: 'gust',
-      Pressure: 'pressure', Feels: 'feels', Dew: 'dew', Night: 'night' }[m[1]];
-    assert.ok(EXPECTED_DEFAULTS[scope] && EXPECTED_DEFAULTS[scope][m[2]],
-      `${key} has no pinned expectation`);
-  });
-});
-
 // gust's dark line is the ONE built-in that reads another live setting: it takes the
 // achromatic slot, so it has to dodge whichever grey the rain bars use. graphColorDefault
 // reaches that through lineColorFor, which owns the rainBarColor rule, and
-// graphColorIsDefault accepts EITHER value as untouched. These two assertions are the only
-// place the coupling is pinned to concrete colours — the EXPECTED_DEFAULTS row above
-// covers the multicolour half only.
+// graphColorIsDefault accepts EITHER value as untouched.
 test("gust's dark line default follows rainBarColor, in both bar modes", () => {
   assert.equal(lineStyle.graphColorDefault('gust', 'Line', 'Dark', { rainBarColor: 'multi' }),
     COLORS.GColorWhite);
@@ -403,10 +311,10 @@ test('the style-byte encoding matches the C headers, decoded with their own cons
   assert.equal(byteFor('stripeTop'), 0x07);
   // The wire's style block is exactly the persist blob the watch stores.
   const bytes = graphWire.buildLineStyleBytes({ secondaryLine: 'wind', thirdLine: 'gust', fifthLine: 'cloud', theme: 'dark' }, { platform: 'emery' });
-  assert.equal(bytes.length - 11 - 2, STYLE_BYTES, 'bytes [11..13] are LINE_STYLE_STYLE_BYTES');
-  // The fourth metric's style byte ([15]) rides its own persist slot, same layout —
+  assert.equal(bytes.length - 9 - 2, STYLE_BYTES, 'bytes [9..11] are LINE_STYLE_STYLE_BYTES');
+  // The fourth metric's style byte ([13]) rides its own persist slot, same layout —
   // x marks by default, the kind persist.c's unset-slot default returns too.
-  assert.equal(decodeKind(bytes[15]), KIND.x);
+  assert.equal(decodeKind(bytes[13]), KIND.x);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'appendix', 'persist.c'), 'utf8'),
     /FIFTH_LINE_STYLE\)\) \{[^}]*return \(uint8_t\) CHART_LINE_X;/,
     "persist.c's unset fourth-line style mirrors LINE_STYLE_DEFAULTS.fifthLineStyle ('x')");
@@ -497,9 +405,9 @@ test('a stored stripe on a metric that cannot be one resolves to the line\'s non
   const bytes = graphWire.buildLineStyleBytes({ secondaryLine: 'pressure', thirdLine: 'feels', fourthLine: 'dew',
     fifthLine: 'off', secondaryLineStyle: 'stripeTop', thirdLineStyle: 'stripeBottom',
     fourthLineStyle: 'stripeTop', fifthLineStyle: 'stripeBottom', theme: 'dark' }, emery);
-  [11, 12, 13, 15].forEach((i) => assert.notEqual(bytes[i] & 0x03, 3, 'byte ' + i + ' is no stripe'));
+  [9, 10, 11, 13].forEach((i) => assert.notEqual(bytes[i] & 0x03, 3, 'byte ' + i + ' is no stripe'));
   // Drawn as lines then, all three float (bit 6: no zero to stand on, graph-wire.js FLOAT_BIT).
-  assert.deepEqual([bytes[11], bytes[12], bytes[13]], [
+  assert.deepEqual([bytes[9], bytes[10], bytes[11]], [
     lineStyle.lineStyleByte({ secondaryLineStyle: 'line' }, 'secondaryLineStyle') | 0x40,
     lineStyle.lineStyleByte({ thirdLineStyle: 'dots' }, 'thirdLineStyle') | 0x40,
     lineStyle.lineStyleByte({ fourthLineStyle: 'x' }, 'fourthLineStyle') | 0x40
@@ -514,7 +422,7 @@ test('cloud cover resolves its own line and fill colours, like every graph metri
   const light = resolve(Object.assign({}, s, { theme: 'light' }), { platform: 'basalt' });
   assert.equal(light.secondary, COLORS.GColorLiberty);
   assert.deepEqual(lineStyle.nightAreaColorsFor('cloud', null, 'dark'),
-    { base: COLORS.GColorOxfordBlue, hatch: COLORS.GColorLiberty, boundary: COLORS.GColorBabyBlueEyes });
+    { base: COLORS.GColorOxfordBlue, hatch: COLORS.GColorLiberty });
 });
 
 test('effectiveLineMetric: every forecast line may carry a temperature-axis metric; off and repeats draw nothing', () => {

@@ -51,15 +51,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // What every Alerts-tab row reads while its item is ticked on no side of a bar that
     // exists (on-demand.js placedAnywhere): the item cannot show anywhere.
     var NOT_PLACED = 'Not in any status bar';
-    // The bars by their short names, in the page's order (the Status bars tab's): the
-    // rows' "where it shows" and the Shows on grids.
-    var PAGE_BARS = [['top', 'Watch bar'], ['forecast', 'Forecast bar'], ['health', 'Health bar'],
-        ['radar', 'Radar bar']];
-
     /**
      * Where an alert shows, for its Alerts-tab row: each bar edge it sits on, in the
-     * page's bar order — "Watch bar, left", "Watch bar, left · Forecast bar, right" — read
-     * the way the watch places it (on-demand.js sideOf: a tick on a bar that exists).
+     * page's bar order — "Watch Status Bar, left", "Watch Status Bar, left · Forecast Status
+     * Bar, right" — read the way the watch places it (on-demand.js sideOf: a tick on a bar
+     * that exists).
      * @param {Object} S Live settings state.
      * @param {string} code An on-demand.js ITEMS code.
      * @param {Object} env Platform env.
@@ -67,9 +63,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function placementText(S, code, env) {
         var out = [];
-        PAGE_BARS.forEach(function (b) {
-            var side = onDemand.sideOf(S || {}, b[0], code, env);
-            if (side) { out.push(b[1] + ', ' + side); }
+        onDemand.PAGE_BARS.forEach(function (b) {
+            var side = onDemand.sideOf(S || {}, b.bar, code, env);
+            if (side) { out.push(b.name + ', ' + side); }
         });
         return out.join(' · ');
     }
@@ -116,7 +112,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * The Alerts-tab row's summary for a metric alert: "Not in any status bar" while its
      * item is ticked on no bar, else the kind's levels and where it shows, e.g. "Warn 40
-     * kph · Danger 60 kph · Forecast bar, right" (args.levelsOnly: the levels alone, for
+     * kph · Danger 60 kph · Forecast Status Bar, right" (args.levelsOnly: the levels alone, for
      * a slot dialog's row). The pair is the resolved one (the stored pair, else the seed — what the
      * watch judges with), in the unit the kind's slider shows, so the row reads the
      * numbers its sheet opens on. A Days other than the default follows by the label its
@@ -218,15 +214,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * row (so its sheet) is gone off DWD.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
-     * @param {{code: string, bars: string[], names: Object<string, string>}} args The item,
-     *     the bars in the page's order and their names.
+     * @param {{code: string}} args The item.
      * @returns {Array<Array>} [label, value, meta] options.
      */
     function onDemandBars(S, env, args) {
-        var a = args || {};
-        var inert = onDemandBlocked(S, a.code) !== null;
+        var inert = onDemandBlocked(S, args.code) !== null;
         var out = [];
-        (a.bars || []).forEach(function (bar) {
+        onDemand.PAGE_BARS.forEach(function (b) {
+            var bar = b.bar;
             var reason = null;
             if (!onDemand.barExists(S, bar, env)) {
                 // A bar this watch can never draw (no radar or health on aplite-class
@@ -238,7 +233,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var meta = {keys: onDemand.SIDES.map(function (side) { return onDemand.itemsKey(bar, side); })};
             if (inert || reason) { meta.disabled = true; }
             if (reason) { meta.desc = reason; }
-            out.push([(a.names || {})[bar] || bar, bar, meta]);
+            out.push([b.name, bar, meta]);
         });
         return out;
     }

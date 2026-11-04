@@ -18,8 +18,6 @@ var APLITE = fs.readFileSync(
 test('the base strip keeps no fixed indicators; the Sleep item draws the Z\'s', function() {
   assert.doesNotMatch(BASE, /top_status_indicators/);
   assert.doesNotMatch(BASE, /snooze/);
-  assert.doesNotMatch(BASE, /RESOURCE_ID_IMAGE_(MUTE|BT_CONNECT|BT_DISCONNECT)/);
-  assert.doesNotMatch(BASE, /ICON_SLOT_|s_last_qt_active|update_battery_override/);
   var items = fs.readFileSync(path.join(ROOT, 'src/c/layers/status_on_demand.c'), 'utf8');
   assert.match(items, /#include "\.\.\/appendix\/snooze\.h"/);
   assert.match(items, /s->active\[OD_SLEEP\] = persist_get_is_sleeping\(\)/);
@@ -36,7 +34,6 @@ test('aplite top-status resolves snooze but draws it as cheap text', function() 
   assert.match(APLITE,
     /TOP_STATUS_INDICATOR_SNOOZE[\s\S]*graphics_draw_text/);
   assert.doesNotMatch(APLITE, /snooze_draw/);
-  assert.doesNotMatch(APLITE, /ICON_SLOT_3/);
 });
 
 // The strip's rain text takeover is gone: the rain alert is an On demand item
@@ -47,8 +44,6 @@ test('the strip has one paint path and no rain takeover', function() {
   // The pattern names a live symbol, so the check above cannot pass vacuously.
   var items = fs.readFileSync(path.join(ROOT, 'src/c/layers/status_on_demand.c'), 'utf8');
   assert.match(items, /rain_countdown_get\(/);
-  assert.doesNotMatch(BASE, /status_row_set_suppress_edges|status_row_right_slot_width/);
-  assert.doesNotMatch(BASE, /draw_indicators|s_rain_alert|rain_glyph/);
   var proc = BASE.slice(BASE.indexOf('static void top_status_update_proc'),
     BASE.indexOf('void top_status_layer_create'));
   assert.equal(proc.split('status_row_draw(').length - 1, 1, 'one row paint');

@@ -328,4 +328,4 @@ function bootGeneratedPage(cfg, platformName, opts) {
   };
 }
 
-module.exports = { bootGeneratedPage, makeEl };
+module.exports = { bootGeneratedPage };

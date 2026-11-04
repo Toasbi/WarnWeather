@@ -75,7 +75,7 @@ parse problem there can't take the whole config down.
 
 **Graph-options word (emery)**:
 The `CLAY_LARGE_GRAPH_FONT` int read as bits on emery: bit 0 *Larger graph
-fonts*, bits 2, 3 and 5 the forecast's left axis options (BETA, Graphs › Forecast ›
+fonts*, bits 2, 3 and 5 the forecast's left axis options (Graphs › Forecast ›
 Left axis): high/low numbers on the graph, numbers off, numbers naming the
 temperature scale. Bits 1 and 4 (the 2.2.0 betas' axis line off and outline off)
 are retired and reserved: the axis line is drawn exactly when the numbers are on
@@ -124,8 +124,8 @@ its own fallback.
 _Avoid_: provider flags, per-fetch knobs.
 
 **Forecast span**:
-The forecast graph's time span option: 12 h, 24 h or the long span on emery
-(Graphs › Forecast › Time span; stored '12' / '24' / '48', '48' being the long
+The forecast graph's Forecast length option: 12 h, 24 h or the long span on emery
+(Graphs › Forecast › Other › Forecast length; stored '12' / '24' / '48', '48' being the long
 span's token, its label the whole hours the watch will show for the provider's
 feed and the layout: `src/pkjs/forecast-span-hours.js`), 24 h everywhere else
 and on an unknown watch (`src/pkjs/forecast-span.js`). The phone decides the

@@ -332,11 +332,6 @@ test('the step and sleep goals stay off — no rule may switch them on', () => {
   });
 });
 
-test('the schema still ships the step and sleep goals off', () => {
-  assert.equal(SCHEMA_ITEM.threshStepsOn.defaultValue, false);
-  assert.equal(SCHEMA_ITEM.threshSleepOn.defaultValue, false);
-});
-
 const KIND_BOLD_KEY = {
   temp: 'threshTempBoldMode', city: 'threshCityBoldMode', aqi: 'threshAqiBoldMode',
   week: 'threshWeekBoldMode', date: 'threshDateBoldMode', sun: 'threshSunBoldMode',

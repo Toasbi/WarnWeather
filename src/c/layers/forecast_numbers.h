@@ -1,6 +1,6 @@
 #pragma once
 // The forecast's hi/lo numbers off today's places (emery only; the left axis's options,
-// config.h GRAPH_OPT_*, BETA): the extremes they name, the numbers On graph and the labels for
+// config.h GRAPH_OPT_*): the extremes they name, the numbers On graph and the labels for
 // the hours on screen. A source fragment, not a public header: forecast_layer.c includes it
 // once, in place, ahead of draw_axis_numbers, which picks the numbers' place from the options.
 // forecast_layer.c owns the label texts (text_labels_refresh) and the strip (draw_left_axis);

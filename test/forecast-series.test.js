@@ -37,15 +37,15 @@ const phoneBattery = require('../src/pkjs/phone-battery.js');
  * @param {Object} raw Raw provider series.
  * @param {Object} settings Clay settings.
  * @param {Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
- * @returns {Object} Wire series fields plus SECONDARY_/THIRD_LINE colour fields.
+ * @returns {Object} Wire series fields plus the resolved line colours.
  */
 function buildForecastSeries(raw, settings, watchInfo) {
   const style = lineStyle.resolveGraphColors(settings, platform.computeEnv(watchInfo));
   return Object.assign(buildSeriesValues(raw, settings), {
-    SECONDARY_LINE_COLOR: style.secondary,
-    SECONDARY_LINE_FILL: style.fillOn,
-    SECONDARY_LINE_FILL_COLOR: style.fill,
-    THIRD_LINE_COLOR: style.third
+    secondaryColor: style.secondary,
+    fillOn: style.fillOn,
+    fillColor: style.fill,
+    thirdColor: style.third
   });
 }
 
@@ -55,57 +55,57 @@ const RAW = { precips: [0, 50, 100], rains: [0, 5, 20], winds: [0, 25, 50], gust
 test('secondary precip: line + fill + fill color, plus rain bars', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'off', secondaryLineFill: true, barSource: 'rain' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // %*10 → permille → byte
-  assert.equal(out.SECONDARY_LINE_FILL, true);
-  assert.equal(out.SECONDARY_LINE_COLOR, 0x55AAFF);      // GColorPictonBlue
-  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0x0055AA); // GColorCobaltBlue
+  assert.equal(out.fillOn, true);
+  assert.equal(out.secondaryColor, 0x55AAFF);      // GColorPictonBlue
+  assert.equal(out.fillColor, 0x0055AA); // GColorCobaltBlue
   assert.deepEqual(out.BAR_TREND_UINT8, [0, 85, 140]);   // rainPermille(0,5,20) → byte
 });
 
 test('secondary wind: km/h scaled to ceiling, now fillable, yellow line + army-green fill', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'off', windScale: 'mid', secondaryLineFill: true, barSource: 'off' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // 0/25/50 @50 ceiling
-  assert.equal(out.SECONDARY_LINE_FILL, true);                     // fill now works for every metric
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFF00);               // GColorYellow
-  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0x555500);         // GColorArmyGreen
+  assert.equal(out.fillOn, true);                     // fill now works for every metric
+  assert.equal(out.secondaryColor, 0xFFFF00);               // GColorYellow
+  assert.equal(out.fillColor, 0x555500);         // GColorArmyGreen
 });
 
 test('per-metric fill colours on a colour watch', () => {
   const base = { thirdLine: 'off', windScale: 'mid', secondaryLineFill: true, barSource: 'off' };
-  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'precip_prob' }, base)).SECONDARY_LINE_FILL_COLOR, 0x0055AA); // CobaltBlue
-  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'wind' }, base)).SECONDARY_LINE_FILL_COLOR, 0x555500);        // ArmyGreen
-  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'uv' }, base)).SECONDARY_LINE_FILL_COLOR, 0xAA00AA);          // Purple
-  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'gust' }, base)).SECONDARY_LINE_FILL_COLOR, 0x555555);        // DarkGray
+  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'precip_prob' }, base)).fillColor, 0x0055AA); // CobaltBlue
+  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'wind' }, base)).fillColor, 0x555500);        // ArmyGreen
+  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'uv' }, base)).fillColor, 0xAA00AA);          // Purple
+  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'gust' }, base)).fillColor, 0x555555);        // DarkGray
 });
 
 test('B&W watch: every metric line is white and every fill is light gray', () => {
   const bw = { platform: 'diorite' };
   ['precip_prob', 'wind', 'uv', 'gust'].forEach(function(m) {
     const out = buildForecastSeries(RAW, { secondaryLine: m, thirdLine: 'off', windScale: 'mid', secondaryLineFill: true, barSource: 'rain', rainBarColor: 'multicolor' }, bw);
-    assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF, m + ' line white on B&W');          // GColorWhite
-    assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA, m + ' fill light gray on B&W'); // GColorLightGray
+    assert.equal(out.secondaryColor, 0xFFFFFF, m + ' line white on B&W');          // GColorWhite
+    assert.equal(out.fillColor, 0xAAAAAA, m + ' fill light gray on B&W'); // GColorLightGray
   });
 });
 
 test('B&W watch: third line is white too', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'off' }, { platform: 'flint' });
-  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF); // GColorWhite on B&W
+  assert.equal(out.thirdColor, 0xFFFFFF); // GColorWhite on B&W
 });
 
 test('secondary gust: white with colored (multicolor) rain bars, scaled like wind', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'gust', thirdLine: 'off', windScale: 'mid', barSource: 'rain', rainBarColor: 'multicolor' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 250, 250]); // 0/50/100 @50 ceiling, clamped
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF);               // colored bars → white gust
+  assert.equal(out.secondaryColor, 0xFFFFFF);               // colored bars → white gust
 });
 
 test('gust goes light gray when the rain bars are white (so it does not clash with them)', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'gust', thirdLine: 'off', windScale: 'mid', barSource: 'rain', rainBarColor: 'white' });
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xAAAAAA);              // white bars → GColorLightGray
+  assert.equal(out.secondaryColor, 0xAAAAAA);              // white bars → GColorLightGray
 });
 
 test('secondary uv: scaled against UV 11.0 (110 tenths), magenta', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'uv', thirdLine: 'off', barSource: 'off' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // 0/55/110 tenths @110 ceiling
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFF00FF);                // GColorMagenta
+  assert.equal(out.secondaryColor, 0xFF00FF);                // GColorMagenta
 });
 
 test('third line off: empty third trend', () => {
@@ -117,14 +117,14 @@ test('third line gust over secondary wind: both present, gust dots white with co
   const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'rain', rainBarColor: 'multicolor' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // wind
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 250, 250]);    // gust, same ceiling
-  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF);                  // colored bars → white gust
+  assert.equal(out.thirdColor, 0xFFFFFF);                  // colored bars → white gust
 });
 
 test('achromatic lines go black on a light theme, and never match the rain bars', () => {
   const basalt = { platform: 'basalt' };
   const line = (metric, theme, bars) => buildForecastSeries(RAW,
     { secondaryLine: metric, thirdLine: 'off', windScale: 'mid', barSource: 'rain',
-      rainBarColor: bars, theme }, basalt).SECONDARY_LINE_COLOR;
+      rainBarColor: bars, theme }, basalt).secondaryColor;
   // Dark: gust is white over coloured bars, LightGray over white ones so it never
   // reads as a bar; feels is LightGray against the temp curve.
   assert.equal(line('gust', 'dark', 'multicolor'), 0xFFFFFF);
@@ -150,7 +150,7 @@ test('achromatic lines go black on a light theme, and never match the rain bars'
   // Same resolution on the dotted third-line path.
   assert.equal(buildForecastSeries(RAW,
     { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'rain',
-      rainBarColor: 'white', theme: 'light' }, basalt).THIRD_LINE_COLOR, 0x000000);
+      rainBarColor: 'white', theme: 'light' }, basalt).thirdColor, 0x000000);
 });
 
 test('a BLACK light-variant is honoured (0x000000 is falsy — presence, not truthiness)', () => {
@@ -161,20 +161,20 @@ test('a BLACK light-variant is honoured (0x000000 is falsy — presence, not tru
   assert.equal(LINE_COLORS.feels.light, 0x000000, 'the fixture for this bug');
   assert.equal(buildForecastSeries(RAW,
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off', theme: 'light' },
-    { platform: 'basalt' }).SECONDARY_LINE_COLOR, 0x000000,
+    { platform: 'basalt' }).secondaryColor, 0x000000,
     'must be black, not the dark-theme LightGray');
 });
 
 test('gust dots go light gray when the rain bars are white (third-line path)', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'rain', rainBarColor: 'white' });
-  assert.equal(out.THIRD_LINE_COLOR, 0xAAAAAA);                 // white bars → GColorLightGray
+  assert.equal(out.thirdColor, 0xAAAAAA);                 // white bars → GColorLightGray
 });
 
 test('third line uv over secondary precip: independent scales', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'uv', secondaryLineFill: true, barSource: 'off' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // precip %
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 125, 250]);    // uv tenths @110
-  assert.equal(out.THIRD_LINE_COLOR, 0xFF00FF);                   // GColorMagenta (uv per-metric color)
+  assert.equal(out.thirdColor, 0xFF00FF);                   // GColorMagenta (uv per-metric color)
 });
 
 test('third line equal to secondary is treated as off (defensive: engine excludes it)', () => {
@@ -291,28 +291,6 @@ test('applyForecastSeries bakes all status lines before deleting trends and lega
   assert.equal('CITY' in out, false);
   assert.equal(out.WIND_TREND_UINT8, undefined);
   assert.equal(out.STATUS_LINE_1_UINT8[2], 5); // "17kph" (5 bytes; was 6 for "17km/h" pre-kph label)
-});
-
-// The four settings-derived styling keys moved to the Clay settings message
-// (line-style.js -> clay-payload.js's CLAY_LINE_STYLE_UINT8), recovering 44 B on
-// every weather send. Nothing about them depends on the weather data, so a weather
-// payload that still carried them would be paying 44 B a fetch to re-send settings.
-test('line colours no longer ride the weather message', () => {
-  const payload = {
-    TEMP_RAW_TREND: [10, 20, 30], TEMP_MIN: 10, TEMP_MAX: 30, NUM_ENTRIES: 3,
-    PRECIP_TREND_UINT8: [0, 50, 100], RAIN_TREND_UINT8: [0, 5, 20],
-    WIND_TREND_UINT8: [0, 25, 50], GUST_TREND_UINT8: [0, 50, 100]
-  };
-  applyForecastSeries(payload,
-    { secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: true,
-      windScale: 'mid', barSource: 'rain', theme: 'dark' },
-    { platform: 'emery' });
-  ['SECONDARY_LINE_COLOR', 'SECONDARY_LINE_FILL', 'SECONDARY_LINE_FILL_COLOR',
-   'THIRD_LINE_COLOR'].forEach((k) =>
-    assert.ok(!(k in payload), k + ' must ride the Clay message now'));
-  // The series themselves are untouched — only the styling left.
-  assert.deepEqual(payload.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
-  assert.deepEqual(payload.THIRD_LINE_TREND_UINT8, [0, 250, 250]);
 });
 
 test('needsUv: line selections; radar-left defaults to uv', () => {
@@ -576,46 +554,25 @@ test('tempTrendToBytes: empty input → empty bytes, zero min/max', () => {
   assert.deepEqual(tempTrendToBytes([]), { bytes: [], min: 0, max: 0 });
 });
 
-test('buildForecastSeries: bw theme on color watch resolves colors as if it were B&W hardware', () => {
-  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'off', barSource: 'off', theme: 'bw' }, { platform: 'basalt' });
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF, 'basalt + bw theme uses the same white line a real B&W watch gets');
-});
-
-test('buildForecastSeries: bw-light theme on color watch also resolves as B&W hardware (effective color false)', () => {
-  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'off', barSource: 'off', theme: 'bw-light' }, { platform: 'basalt' });
-  assert.equal(out.SECONDARY_LINE_COLOR, 0x000000, 'basalt + bw-light theme: white B&W line flips to black (light polarity)');
-});
-
 test('buildForecastSeries: light theme flips the third-line white fallback to black', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'wind', barSource: 'off', theme: 'light' }, { platform: 'diorite' });
-  assert.equal(out.THIRD_LINE_COLOR, 0x000000, 'B&W hardware + light theme: third-line white fallback flips to black');
+  assert.equal(out.thirdColor, 0x000000, 'B&W hardware + light theme: third-line white fallback flips to black');
 });
 
 test('buildForecastSeries: bw-light theme flips the third-line white fallback to black too', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'wind', barSource: 'off', theme: 'bw-light' }, { platform: 'diorite' });
-  assert.equal(out.THIRD_LINE_COLOR, 0x000000, 'B&W hardware + bw-light theme: third-line white fallback flips to black');
-});
-
-// aplite has the light polarity compiled out (no WW_THEME_POLARITY — theme.h pins
-// theme_is_light() to false), so it renders the classic white-on-black regardless of
-// the stored theme byte. The phone must mirror that freeze: a light / bw-light theme
-// must NOT flip the line colors to black on aplite, or the secondary line + third-line
-// dots ride black-on-black (the reported bug). diorite/flint keep the flip (they ship
-// the polarity and render a real white background).
-test('buildForecastSeries: aplite + light theme does NOT flip the secondary line to black (polarity frozen to dark)', () => {
-  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'off', barSource: 'off', theme: 'light' }, { platform: 'aplite' });
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF, 'aplite renders white-on-black even in the light theme: secondary line stays white');
+  assert.equal(out.thirdColor, 0x000000, 'B&W hardware + bw-light theme: third-line white fallback flips to black');
 });
 
 test('buildForecastSeries: aplite + light theme keeps the third-line dots white (the reported bug)', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'wind', barSource: 'off', theme: 'light' }, { platform: 'aplite' });
-  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF, 'aplite third-line dots stay white in the light theme');
+  assert.equal(out.thirdColor, 0xFFFFFF, 'aplite third-line dots stay white in the light theme');
 });
 
 test('buildForecastSeries: aplite + bw-light theme also stays white (bw-light folds to bw on aplite)', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'wind', barSource: 'off', theme: 'bw-light' }, { platform: 'aplite' });
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF, 'aplite + bw-light: secondary line stays white');
-  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF, 'aplite + bw-light: third-line dots stay white');
+  assert.equal(out.secondaryColor, 0xFFFFFF, 'aplite + bw-light: secondary line stays white');
+  assert.equal(out.thirdColor, 0xFFFFFF, 'aplite + bw-light: third-line dots stay white');
 });
 
 // ---- Air pressure metric -------------------------------------------------
@@ -634,8 +591,8 @@ test('secondary pressure: scaled against the mid band, orange line', () => {
   // byte 81), 1040 in the high shoulder (850 + 15*150/35 = 914pm -> byte 229). No
   // clamping anywhere -- that is the point of the piecewise curve.
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [23, 81, 229]);
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFF5500);        // GColorOrange
-  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xAA5500);   // GColorWindsorTan
+  assert.equal(out.secondaryColor, 0xFF5500);        // GColorOrange
+  assert.equal(out.fillColor, 0xAA5500);   // GColorWindsorTan
 });
 
 test('pressure clamps only past the curve ends (940/1060), floor as a non-zero byte', () => {
@@ -730,15 +687,7 @@ test('pressure works as the third line (dots) over a precip main line', () => {
     { secondaryLine: 'precip_prob', thirdLine: 'pressure', pressureScale: 'mid' }, null);
   // Mid curve: 1010 -> 325pm (byte 81), 1040 -> 914pm (byte 229) — see the secondary test.
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [81, 229]);
-  assert.equal(out.THIRD_LINE_COLOR, 0xFF5500);
-});
-
-test('B&W watch: pressure line is white', () => {
-  const out = buildForecastSeries(
-    { pressures: [1010] },
-    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' },
-    { platform: 'aplite' });
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF);
+  assert.equal(out.thirdColor, 0xFF5500);
 });
 
 test('PRESSURE_SCALE_CURVE_HPA exposes the three curves', () => {
@@ -998,20 +947,19 @@ test('feels colors: LightGray line (BLACK in light theme, white on B&W), LightGr
   // METRIC in line-style.js now, so this assertion is about the DAY fill alone.)
   assert.equal(LINE_COLORS.feels.color, 0xAAAAAA);  // GColorLightGray
   assert.equal(LINE_COLORS.feels.light, 0x000000);  // GColorBlack — a gray is invisible at 1px on white
-  assert.equal(LINE_COLORS.feels.bw, 0xFFFFFF);     // GColorWhite
   assert.equal(FILL_COLORS.feels.color, 0xAAAAAA);  // GColorLightGray — the C key
   const raw = { feels: [50, 60], tempBand: { min: 50, max: 60 } };
   const dark = buildForecastSeries(raw,
     { secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: true, barSource: 'off' });
-  assert.equal(dark.SECONDARY_LINE_COLOR, 0xAAAAAA);
-  assert.equal(dark.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA);
+  assert.equal(dark.secondaryColor, 0xAAAAAA);
+  assert.equal(dark.fillColor, 0xAAAAAA);
   const light = buildForecastSeries(raw,
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off', theme: 'light' }, { platform: 'basalt' });
-  assert.equal(light.SECONDARY_LINE_COLOR, 0x000000, 'light theme goes black for the white background');
+  assert.equal(light.secondaryColor, 0x000000, 'light theme goes black for the white background');
   const bw = buildForecastSeries(raw,
     { secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: true, barSource: 'off' }, { platform: 'diorite' });
-  assert.equal(bw.SECONDARY_LINE_COLOR, 0xFFFFFF);
-  assert.equal(bw.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA);
+  assert.equal(bw.secondaryColor, 0xFFFFFF);
+  assert.equal(bw.fillColor, 0xAAAAAA);
 });
 
 // Feels-like maps against the temp∪feels band, not 0..max, so "the area below the
@@ -1023,19 +971,19 @@ test('feels never fills, even with secondaryLineFill stored true', () => {
   const raw = { feels: [50, 60], tempBand: { min: 50, max: 60 } };
   const out = buildForecastSeries(raw,
     { secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: true, barSource: 'off' });
-  assert.equal(out.SECONDARY_LINE_FILL, false, 'stale stored true must not reach the watch');
+  assert.equal(out.fillOn, false, 'stale stored true must not reach the watch');
   // The colour key still rides along (the wire shape is unchanged); only the flag is forced.
-  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA);
+  assert.equal(out.fillColor, 0xAAAAAA);
 });
 
 test('feels fill gate is metric-scoped: every other metric still honours the toggle', () => {
   const base = { thirdLine: 'off', windScale: 'mid', secondaryLineFill: true, barSource: 'off' };
   ['precip_prob', 'wind', 'gust', 'uv'].forEach(function (m) {
-    assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: m }, base)).SECONDARY_LINE_FILL,
+    assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: m }, base)).fillOn,
       true, m + ' still fills');
   });
   assert.equal(buildForecastSeries({ feels: [50, 60], tempBand: { min: 50, max: 60 } },
-    Object.assign({ secondaryLine: 'feels' }, base)).SECONDARY_LINE_FILL, false);
+    Object.assign({ secondaryLine: 'feels' }, base)).fillOn, false);
 });
 
 test('feels as the THIRD line does not disturb the secondary metric fill', () => {
@@ -1043,7 +991,7 @@ test('feels as the THIRD line does not disturb the secondary metric fill', () =>
   const out = buildForecastSeries(
     Object.assign({ feels: [50, 60, 70], tempBand: { min: 50, max: 70 } }, RAW),
     { secondaryLine: 'precip_prob', thirdLine: 'feels', secondaryLineFill: true, barSource: 'off' });
-  assert.equal(out.SECONDARY_LINE_FILL, true, 'precip keeps its fill while feels rides the third line');
+  assert.equal(out.fillOn, true, 'precip keeps its fill while feels rides the third line');
 });
 
 // --- the byte-0 wire invariant ------------------------------------------------
@@ -1403,7 +1351,7 @@ test('a 48-hour payload bakes 48-byte wire trends on every line, stripes and ale
   });
 });
 
-// ---- The left axis's 'Include feels-like & dew point' (BETA, emery) -----------------------
+// ---- The left axis's 'High/low includes feels-like & dew point' (emery) -----------------------
 // On a KNOWN emery with forecastAxisScale on, TEMP_MIN/TEMP_MAX name the temperature scale's
 // ends: the air and every drawn feels-like / capped dew point value (forecast-axis.js
 // bakesScale, forecast-series.js tempScaleRange). The trend bytes never change.

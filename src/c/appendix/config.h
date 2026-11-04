@@ -157,7 +157,7 @@ typedef struct {
     // A config blob never crosses installs, so the per-platform sizeof(Config) is safe.
     bool view_double_flick;
 #endif
-    // --- forecast left axis, BETA (v2.2, emery only): bits 1-7 of the CLAY_LARGE_GRAPH_FONT
+    // --- forecast left axis (v2.2, emery only): bits 1-7 of the CLAY_LARGE_GRAPH_FONT
     // graph-options word as sent (GRAPH_OPT_* below); 0 = every option at its default, today's
     // graph. Appended at the END (append-only persist offsets). It fills the struct's former
     // tail pad, so sizeof(Config) stays 56 B on emery (test/c/config_size_test.c) and an
@@ -194,7 +194,7 @@ static inline bool config_large_graph_font(void) {
 
 // The CLAY_LARGE_GRAPH_FONT graph-options word, which only emery reads (every other watch
 // skips the key): bit 0 Larger graph fonts (Config.large_graph_font); bits 1-7 the forecast's
-// left axis (BETA), kept as sent in Config.forecast_axis. Bits 2-3 are one code: 00 the hi/lo
+// left axis, kept as sent in Config.forecast_axis. Bits 2-3 are one code: 00 the hi/lo
 // numbers on the axis (beside the axis line, left of the graph: today), 01 on the graph, 10
 // off (11 reads as off: any nonzero code takes the whole left axis away -- no strip, no axis
 // line -- and only exactly 01 draws numbers on the graph). The axis line and the numbers'

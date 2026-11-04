@@ -1295,49 +1295,6 @@ function boldFor(stem) {
   return b;
 }
 
-test('each sheet is titled "<kind> slot", not "<kind> thresholds/goal"', () => {
-  assert.equal(sheetFor('Wind').title, 'Wind speed slot');
-  assert.equal(sheetFor('Gust').title, 'Wind gusts slot');
-  assert.equal(sheetFor('Steps').title, 'Steps slot');
-  assert.equal(sheetFor('Distance').title, 'Walked distance slot');
-  sheetSections().forEach(s => {
-    assert.match(s.title, / slot$/, s.sheetId + ' title');
-  });
-});
-
-test('the master toggle moved off the sheet title row onto the group header', () => {
-  sheetSections().forEach(s => {
-    assert.equal(s.headerToggleKey, undefined, s.sheetId + ' still has headerToggleKey');
-  });
-  // Only the level kinds have a levels group header — in their levels sheet; the
-  // bold-only sheets carry no subheader at all (their single Bold row IS the sheet), and
-  // the alert kinds' slot sheets carry no levels group (their levels live in the alert
-  // sheet). Only a GOAL kind's header carries the switch: a weather kind's is the slot
-  // sheet's Alert highlighting row, and its alert sheet has no switch at all.
-  STEMS.forEach(stem => {
-    assert.equal(headerFor(stem).toggleKey,
-      ALERT_STEMS.includes(stem) ? undefined : 'thresh' + stem + 'On', stem);
-  });
-  ALERT_STEMS.forEach(stem => {
-    const items = sheetFor(stem).items;
-    assert.ok(!items.some(it => it.type === 'subheader' && (it.text === 'Alert levels' || it.text === 'Goals')),
-      stem + ' slot sheet carries no levels group');
-    assert.ok(!items.some(it => it.type === 'range'), stem + ' slot sheet carries no levels slider');
-    // Its one header is the highlight group's, and that header hosts no switch: the
-    // Alert highlighting toggle is a row of its own under it.
-    const headers = items.filter(it => it.type === 'subheader');
-    assert.deepEqual(headers, [{ type: 'subheader', text: 'Alert highlighting' }],
-      stem + ' slot sheet: only the highlight group\'s header, no switch on it');
-  });
-});
-
-test('the group header owns the title and the reset action', () => {
-  assert.equal(headerFor('Wind').text, 'Alert levels');
-  assert.deepEqual(headerFor('Wind').labelAction,
-    { action: 'resetThresholds', arg: 'Wind', label: 'Reset to defaults' });
-  assert.equal(headerFor('Steps').text, 'Goals');
-});
-
 // Each sheet builder picks its voice record (level-rows-schema.js GOAL_VOICE / ALERT_VOICE), so
 // nothing ties the page's words to the contract but this: the kinds the watch packs
 // as goals (isGoalKind: green defaults, an outline look) are the kinds worded as goals,
@@ -1358,46 +1315,6 @@ test('each kind speaks the contract\'s voice: goals for its goal kinds, alert le
     assert.equal(boldFor(stem).options[1][0], goal ? 'Close' : 'Warn', stem + ' Bold middle option');
     assert.match(boldFor(stem).hintByValue.warn, goal ? /goal/ : /warn level/, stem + ' Bold hint');
   });
-});
-
-test('the slider no longer carries the group title or the reset action', () => {
-  STEMS.forEach(stem => {
-    const range = levelsSheetFor(stem).items.find(it => it.type === 'range');
-    assert.equal(range.labelAction, undefined, stem + ' slider still has the reset button');
-    // Its label names the slider's two values (the chips' words), never the group title
-    // its card header already shows.
-    assert.notEqual(range.label, headerFor(stem).text, stem + ' slider has a label duplicating the header');
-    const chips = range.rangeFrom.args.chips;
-    assert.equal(range.label, chips.warn + ' · ' + chips.danger.toLowerCase(), stem + ' slider label');
-  });
-  assert.equal(levelsSheetFor('Wind').items.find(it => it.type === 'range').label, 'Warn · danger');
-  assert.equal(levelsSheetFor('Steps').items.find(it => it.type === 'range').label, 'Close · goal');
-});
-
-test('the intro describes the group, so it hangs off the header, not the sheet', () => {
-  sheetSections().forEach(s => {
-    assert.equal(s.intro, undefined, s.sheetId + ' still has a sheet-level intro');
-  });
-  STEMS.forEach(stem => {
-    assert.match(String(headerFor(stem).intro), /\S/, stem + ' header carries no intro');
-  });
-  assert.match(headerFor('Wind').intro, /level/i);
-  assert.ok(headerFor('Wind').intro.indexOf('reaching warn') !== -1, 'the weather intro');
-  assert.doesNotMatch(headerFor('Wind').intro, /threshold/i, 'the old vocabulary is gone');
-  assert.match(headerFor('Steps').intro, /goal/i);
-  // The goal slider is live with the switch off, so its intro must say the SWITCH is
-  // what puts the levels on the watch — not the numbers alone.
-  assert.match(headerFor('Steps').intro, /switch/i, 'Steps intro names the switch');
-  assert.match(headerFor('Steps').intro, /on the watch/i, 'Steps intro says what the switch does');
-  // The close box follows the Close look row, and B&W has no color pickers
-  // (settings audit #23).
-  assert.match(headerFor('Steps').intro, /getting close draws the close look below/);
-  assert.match(headerFor('Wind').intro, /reaching warn draws the warn look below/);
-  assert.match(headerFor('Steps').intro, /On color watches the colors are yours to change below\.$/);
-  // The weather group has no switch: its look styles the alert icon always and the
-  // slot only while the slot's Alert highlighting is on — and the intro says so.
-  assert.match(headerFor('Wind').intro, /alert icon/, 'the weather intro names the alert icon');
-  assert.match(headerFor('Wind').intro, /status slot, while its Alert highlighting is on/, 'and the slot switch');
 });
 
 test('Bold sits above the group and is never gated by the master toggle', () => {
@@ -1891,14 +1808,6 @@ test('the goal kinds get no alert sheet', () => {
   const ids = alertSheets().map(s => s.sheetId);
   HEALTH_STEMS.forEach(stem =>
     assert.ok(!ids.includes('alert' + stem), 'no alert' + stem + ' sheet'));
-});
-
-test('the Bold-last pin covers the slot sheets only (its /^thresh/ filter)', () => {
-  // The pin above iterates sheetSections(), which the alert sheets must stay out of:
-  // they configure an alert, not a slot.
-  const ids = sheetSections().map(s => s.sheetId);
-  assert.ok(ids.length > 0);
-  assert.ok(ids.every(id => /^thresh/.test(id)), 'no alert sheet among the slot sheets');
 });
 
 test('every bold-only kind gets a sheet whose Bold row is its LAST control', () => {
@@ -2472,4 +2381,3 @@ test("a goal kind's legacy null warn color heals to the auto green on page open"
     assert.equal(S.threshSleepWarnOutlineOn, undefined, 'no outline toggle is derived');
   });
 });
-

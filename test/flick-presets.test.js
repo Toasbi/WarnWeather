@@ -42,14 +42,6 @@ test('compactDense off + radar graph → dense default AND dense radar flick', (
     [0x249, 0x269, 0]);   // flick keeps the dense pair: radar upper, forecast lower, chart body
 });
 
-test('legacy layoutPreset migrates (classic → compactCal)', () => {
-  assert.deepStrictEqual(views({ layoutPreset: 'classic', radarMode: 'graph' }), [0x244, 0x268, 0]);
-});
-
-test('legacy pre-preset topViewMode=none → noCal', () => {
-  assert.deepStrictEqual(views({ topViewMode: 'none', radarMode: 'off' }), [0x104, 0, 0]);
-});
-
 test('viewResetMin maps straight through', () => {
   const p = buildClayPayload({ layoutPreset: 'compactCal', viewResetMin: '5' }, null, new Date(0));
   assert.strictEqual(p.CLAY_VIEW_RESET_MIN, 5);
@@ -111,11 +103,6 @@ test('the double-flick bit is one number on both sides of the wire', () => {
     'config_wire.c decodes the flag with the shared constant');
   assert.ok(c.indexOf('(uint8_t) clay_view_reset_tuple->value->int16') >= 0,
     'the minutes stay a uint8 cast, which drops the flag bit');
-});
-
-test('no CLAY_DUAL_STATUS key is emitted', () => {
-  const p = buildClayPayload({ layoutPreset: 'compactDense', healthMode: 'status' }, null, new Date(0));
-  assert.strictEqual(Object.prototype.hasOwnProperty.call(p, 'CLAY_DUAL_STATUS'), false);
 });
 
 // radarMode='status' keeps the schema.js-documented behavior ("Adds the Radar Status Bar

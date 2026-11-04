@@ -71,16 +71,6 @@ test('snapshot includes rainCountdownHorizon as an int', () => {
   assert.strictEqual(buildSettingsSnapshot({}).rainCountdownHorizon, undefined);
 });
 
-test('snapshot includes topViewMode as a string', () => {
-  assert.strictEqual(buildSettingsSnapshot({ topViewMode: 'none' }).topViewMode, 'none');
-  assert.strictEqual(buildSettingsSnapshot({}).topViewMode, undefined);
-});
-
-test('snapshot omits the retired dualStatus field', () => {
-  const snap = buildSettingsSnapshot({});
-  assert.strictEqual(Object.prototype.hasOwnProperty.call(snap, 'dualStatus'), false);
-});
-
 test('snapshot includes layoutPreset as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({ layoutPreset: 'radarLast' }).layoutPreset, 'radarLast');
   assert.strictEqual(buildSettingsSnapshot({}).layoutPreset, undefined);
@@ -392,20 +382,6 @@ test('Dim backlight sub-settings follow the switch, with no mode to gate them', 
   });
 });
 
-// Retired Nighttime keys stay out of the snapshot (and so, through the lockstep test
-// below, out of the ingest). The first four are settings the schema no longer has;
-// sleepNightEnabled is a live setting that is reported through the PRESENCE of
-// sleepStartHour, as it always was.
-test('the Nighttime card reports no retired key and no saver switch of its own', () => {
-  const snap = buildSettingsSnapshot({ sleepNightEnabled: true, backlightDimMode: 'night' }, EMERY);
-  ['sleepNightMode', 'sleepNightStartHour', 'sleepNightEndHour', 'backlightDimMode',
-    'sleepNightEnabled'
-  ].forEach(function (key) {
-    assert.ok(!Object.prototype.hasOwnProperty.call(snap, key),
-      key + ' must not be in the watch-side snapshot');
-  });
-});
-
 // --- the ingest lockstep -----------------------------------------------------
 // The heaviest realistic snapshot: every reported setting on its longest realistic
 // option, on a light-polarity colour theme so all the graph colours report (bw would
@@ -450,9 +426,9 @@ const HEAVIEST_SETTINGS = {
   themeAutoStartHour: '23', themeAutoEndHour: '7',
   axisTimeFormat: 'h12', timeFont: 'bitham', timeLeadingZero: true,
   timeShowAmPm: true, weekStartDay: 'monday', firstWeek: 'iso', showQt: true,
-  batteryLowOnly: true, topViewMode: 'compact', layoutPreset: 'compactDense',
+  batteryLowOnly: true, layoutPreset: 'compactDense',
   viewResetMin: '15', largeGraphFont: true, forecastHours: '48', vibe: true, btIcons: 'both',
-  // The forecast's left axis options (BETA, emery: this fixture's watch) on their longer
+  // The forecast's left axis options (emery: this fixture's watch) on their longer
   // values: false for the toggle, 'graph' for the numbers.
   forecastAxisNumbers: 'graph', forecastAxisScale: false,
   doubleFlick: false,  // false: the longer JSON value
@@ -619,7 +595,7 @@ test('snapshot reports the forecast span option this watch draws, as an int: 12 
   assert.strictEqual(buildSettingsSnapshot({}, { platform: 'emery' }).forecastHours, 24);
 });
 
-// The left axis options (BETA): emery only, as chosen (forecast-axis.js readers: absent or
+// The left axis options: emery only, as chosen (forecast-axis.js readers: absent or
 // junk reads the default), the Draw from precedent; every other watch, and an unknown one,
 // reports nothing.
 test('snapshot reports the left axis options on emery only, as chosen', () => {
@@ -675,7 +651,7 @@ test('snapshot includes doubleFlick as a real boolean', () => {
 // pressureScale above: the watch snapshot AND the Deno .strip() schema, or it is
 // silently dropped.
 const GRAPH_COLOR_FIELDS = ['graphMainColor', 'graphFillColor', 'graphSecondColor',
-                            'nightHatchColor', 'nightBoundaryColor', 'nightFillColor'];
+                            'nightHatchColor', 'nightDayLineColor', 'nightFillColor'];
 
 test('graph colours report as #RRGGBB, and default while still on the built-in', () => {
   const snap = buildSettingsSnapshot({
@@ -693,7 +669,7 @@ test('graph colours report as #RRGGBB, and default while still on the built-in',
   assert.strictEqual(snap.graphFillColor, 'default');
   assert.strictEqual(snap.graphSecondColor, 'default');
   assert.strictEqual(snap.nightHatchColor, '#00AAFF');
-  assert.strictEqual(snap.nightBoundaryColor, 'default');
+  assert.strictEqual(snap.nightDayLineColor, 'default');
   assert.strictEqual(snap.nightFillColor, 'default');
   // Never a number and never null on the wire: the ingest types these z.string(), and a
   // number-typed field would fail safeParse and 400 the WHOLE event, with no retry.
@@ -1299,7 +1275,7 @@ test('a clock-step durationMs queues as null; a real one as-is', () => {
 // never undefined: the code comes from the alert bake's own calls (a placed alert is on,
 // read for THIS watch) and the look resolves like the blob byte, so an absent key
 // reports the default in effect.
-const { NOTHING_PLACED, placedOnly } = require('./helpers/on-demand.js');
+const { placedOnly } = require('./helpers/on-demand.js');
 
 test('the weather alerts report alerts and rainAlertDisplay', () => {
   const fresh = buildSettingsSnapshot({});

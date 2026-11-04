@@ -85,6 +85,5 @@ test('settings open hands the page the key results and the last success as store
   listeners.showConfiguration({});
   const ud = userDataOf(opened[1]);
   assert.equal(ud.keyResults, results, 'the answers exactly as stored');
-  ['authBackoff', 'radarKeyResult'].forEach((gone) =>
-    assert.equal(Object.prototype.hasOwnProperty.call(ud, gone), false, gone + ' is not handed over'));
+  assert.equal(Object.prototype.hasOwnProperty.call(ud, 'authBackoff'), false, 'authBackoff is not handed over');
 });

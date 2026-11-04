@@ -140,7 +140,7 @@ test('the Draw from module is bundled after line-style.js and before its readers
     'nothing registers the Draw from row\'s hint in the generated page');
 });
 
-// forecast-axis.js (window.ForecastAxis, the forecast's left axis options, BETA) binds
+// forecast-axis.js (window.ForecastAxis, the forecast's left axis options) binds
 // window.LineStyle while its own body runs, and preview-forecast.js and when-resolvers.js bind
 // window.ForecastAxis while theirs do: out of order, the forecast preview and the Left axis
 // card's gate throw on a real phone while every Node test passes through require().
@@ -165,7 +165,7 @@ test('the left axis module is bundled after line-style.js and before its readers
 // window.ForecastAxis and window.VIEW_CYCLE while its own body runs, and forecast-hints.js binds
 // window.ForecastSpanHours while its own does: out of order, the page throws at boot on a real
 // phone while every Node test passes through require(). Its resolver, forecastSpanOptions,
-// is the Time span row's, registered by forecast-hints.js's own part of the page.
+// is the Forecast length row's, registered by forecast-hints.js's own part of the page.
 test('the span hours module is bundled after view-cycle.js and forecast-axis.js, before forecast-hints.js', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {

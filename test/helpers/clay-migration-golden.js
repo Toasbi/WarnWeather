@@ -134,4 +134,4 @@ function runScenario(store, claySettings, clayMigrations, scenario) {
     });
 }
 
-module.exports = { SCENARIOS, runScenario, BLOB_1_23_1, THROUGH_1_23_1, AFTER_GOLDEN };
+module.exports = { SCENARIOS, runScenario, BLOB_1_23_1, THROUGH_1_23_1 };

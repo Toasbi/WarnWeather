@@ -32,14 +32,18 @@
     var dateFormat = NODE ? require('../date-format.js') : window.DateFormat;
     var VC = NODE ? require('../view-cycle.js') : VIEW_CYCLE;
 
-    // The bars in the page's order, their slot-key prefixes, names and the view-cycle
-    // status source that seats them (the Watch bar is the top strip, src: null).
-    var BARS = [
-        {bar: 'top', prefix: 'statusTop', name: 'Watch', src: null},
-        {bar: 'forecast', prefix: 'statusForecast', name: 'Forecast', src: VC.STATUS_SRC_FORECAST},
-        {bar: 'health', prefix: 'statusHealth', name: 'Health', src: VC.STATUS_SRC_HEALTH},
-        {bar: 'radar', prefix: 'statusRadar', name: 'Radar', src: VC.STATUS_SRC_RADAR}
-    ];
+    // Each bar's short name here and the view-cycle status source that seats it (the Watch
+    // bar is the top strip, src: null).
+    var BAR_SEATS = {
+        top: {name: 'Watch', src: null},
+        forecast: {name: 'Forecast', src: VC.STATUS_SRC_FORECAST},
+        health: {name: 'Health', src: VC.STATUS_SRC_HEALTH},
+        radar: {name: 'Radar', src: VC.STATUS_SRC_RADAR}
+    };
+    // The bars in the page's order, with their slot-key prefixes.
+    var BARS = onDemand.PAGE_BARS.map(function (b) {
+        return {bar: b.bar, prefix: b.prefix, name: BAR_SEATS[b.bar].name, src: BAR_SEATS[b.bar].src};
+    });
     // [key suffix, position, byte cap]: the middle slot holds 19 bytes, the edges 8
     // (status-line-catalog.js CAPS) — the room the unit and pair fit rules measure.
     var POSITIONS = [['Left', 'left', catalog.CAPS.EDGE_TEXT_MAX],

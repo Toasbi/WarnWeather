@@ -52,11 +52,6 @@ function mapIn(store) {
 
 test.afterEach(() => { delete global.localStorage; });
 
-test('the storage key is its own, and the dev builds\' radar-only record is not reused', () => {
-  assert.equal(KEYS.KEY_RESULTS_KEY, 'keyResults');
-  Object.keys(KEYS).forEach((name) => assert.notEqual(KEYS[name], 'radarKeyResult', name));
-});
-
 // --- the module -------------------------------------------------------------------------------
 
 test('classify: 2xx and 429 say the key works, 401/403 that it is refused, anything else nothing', () => {

@@ -234,7 +234,7 @@ cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR test/c/night_light_persist_test.c sr
    -o build/host/night_light_persist_test_emery
 build/host/night_light_persist_test_emery
 
-# The LINE_STYLES byte decode (per-line marker styles, wire bytes [11..13] of
+# The LINE_STYLES byte decode (per-line marker styles, wire bytes [9..11] of
 # CLAY_LINE_STYLE_UINT8): header-only static inlines in persist.h, mirrored
 # against the JS packer's pins in test/line-style.test.js so the two wire ends
 # cannot drift. Built with WW_LINE_STYLE — the only configuration that declares

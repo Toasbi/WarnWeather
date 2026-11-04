@@ -298,11 +298,8 @@ test('persist boundary carries the full levels word (UV rides bits 8-9)', () => 
     'persist_set_status_levels must take int — uint8_t truncates the UV bits');
 });
 
-test('directions match the C module: the JS axis is retired, the C stub is false', () => {
-  // The goal flag covers exactly the health trio (the C module returns false for
-  // every kind — see status_threshold_below_is_worse; the JS contract retired
-  // its side of the axis entirely); UV (appended after them) is a plain weather
-  // kind.
+test('the goal flag covers exactly the health trio', () => {
+  // UV (appended after them) is a plain weather kind.
   th.KINDS.forEach((k, i) => {
     assert.equal(Boolean(k.goal),
       i >= cEnum('THRESH_STEPS') && i <= cEnum('THRESH_DISTANCE'),

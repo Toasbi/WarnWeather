@@ -362,7 +362,7 @@ function buildHeaviestClayMessage(watchInfo) {
     // Double flick on: bit 8 of CLAY_VIEW_RESET_MIN's int (clay-payload.js
     // packViewReset), no byte of its own, so the recorded sizes hold.
     viewResetMin: '10', doubleFlick: true,
-    // The forecast's left axis options (BETA, emery) at their busiest: bits 2 and 5 of the
+    // The forecast's left axis options (emery) at their busiest: bits 2 and 5 of the
     // CLAY_LARGE_GRAPH_FONT int (forecast-axis.js), no byte of their own, so the recorded
     // sizes hold.
     forecastAxisNumbers: 'graph', forecastAxisScale: true, secondaryLine: 'dew',
@@ -450,7 +450,9 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // the weather message (ALERT_ENTRIES_UINT8, recorded above). Headroom 17 -> 14 B.
   // 522 unchanged when Double flick joined: bit 8 of CLAY_VIEW_RESET_MIN, 0 B (a tuple
   // of its own would be 11 B -> 533 B, under the 10 B floor).
-  assert.equal(size, 522,'update the recorded Clay message size when its wire contract changes');
+  // 522 -> 520 when CLAY_LINE_STYLE_UINT8 shrank 16 -> 14: the filled area's night line
+  // went with the dusk/dawn lines, and the night-fill flag had no reader.
+  assert.equal(size, 520,'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
@@ -460,7 +462,7 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
 // session — the accepted trade-off), so the capable bundles all stay at their recorded
 // size, and aplite's is unchanged by On demand.
 test('CLAY_BATTERY_LOW_ONLY rides aplite\'s Clay bundle only; the per-platform sizes', () => {
-  const sizes = { emery: 522, basalt: 522, chalk: 522, diorite: 498, flint: 498, aplite: 401 };
+  const sizes = { emery: 520, basalt: 520, chalk: 520, diorite: 496, flint: 496, aplite: 399 };
   Object.keys(sizes).forEach((platform) => {
     const payload = buildHeaviestClayMessage({ platform });
     assert.equal(dictSize(payload), sizes[platform], platform);
@@ -469,7 +471,7 @@ test('CLAY_BATTERY_LOW_ONLY rides aplite\'s Clay bundle only; the per-platform s
     assert.ok(readInboxSize(platform) - dictSize(payload) >= 10, platform + ': the 10 B floor');
   });
   const unknown = buildHeaviestClayMessage(null);
-  assert.equal(dictSize(unknown), 522, 'an unknown platform: the capable shape');
+  assert.equal(dictSize(unknown), 520, 'an unknown platform: the capable shape');
   assert.equal(Object.prototype.hasOwnProperty.call(unknown, 'CLAY_BATTERY_LOW_ONLY'), false);
   // Measured against the smallest inbox, aplite's 536 B, as the conservative floor.
   assert.ok(readInboxSize('aplite') - dictSize(unknown) >= 10, 'unknown: the 10 B floor against 536 B');

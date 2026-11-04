@@ -13,7 +13,6 @@ const FC = require('../src/pkjs/settings/preview-forecast.js');
 const RD = require('../src/pkjs/settings/preview-radar.js');
 const DG = require('../src/pkjs/settings/preview-diagnostics.js');
 const RAIN = require('../src/pkjs/settings/preview-rain.js');
-const budgetLib = require('../src/pkjs/settings/tomorrowio-budget.js');
 // The graph-colour key vocabulary and its built-in table — the preview resolves through
 // it, so the graph-colour cases below derive their keys and defaults from it too.
 const lineStyle = require('../src/pkjs/line-style.js');
@@ -319,6 +318,25 @@ test('thresholdPenState reports EFFECTIVE always-bold via badge.bold', () => {
     'aplite (no thresholds env) badges nothing, B included');
 });
 
+test('colorNoteHint adds the note for how the page draws to the row\'s hint', () => {
+  const hint = PConf.hintResolvers.get('colorNoteHint');
+  const args = { staticHint: 'What it does.', colorNote: 'In color.', bwNote: 'In B&W.' };
+  assert.equal(hint({ theme: 'dark' }, { color: true }, args), 'What it does. In color.');
+  assert.equal(hint({ theme: 'bw' }, { color: true }, args), 'What it does. In B&W.', 'a B&W theme');
+  assert.equal(hint({ theme: 'dark' }, { color: false }, args), 'What it does. In B&W.', 'a B&W watch');
+  assert.equal(hint({ theme: 'bw' }, { color: true }, { staticHint: 'What it does.', colorNote: 'In color.' }),
+    null, 'no B&W note: the row\'s own hint');
+  assert.equal(hint({ theme: 'dark' }, { color: true }, { colorNote: 'In color.' }), null, 'a value with no hint');
+});
+
+test('noHeartRateHint swaps the copy on a watch without a heart-rate sensor only', () => {
+  const hint = PConf.hintResolvers.get('noHeartRateHint');
+  const byValue = { status: 'No heart rate.' };
+  assert.equal(hint({}, { hr: false }, { value: 'status', byValue }), 'No heart rate.');
+  assert.equal(hint({}, { hr: true }, { value: 'status', byValue }), null, 'the row\'s own hint');
+  assert.equal(hint({}, { hr: false }, { value: 'off', byValue }), null, 'no Off hint');
+});
+
 // "Flick to health" is only true while a Health view exists in the Weather-only cycle:
 // healthMode 'status' / 'all' on a health watch. 'slot' and 'off' add no view.
 test('weatherOnlyHint promises a health flick only when a Health view exists', () => {
@@ -350,7 +368,7 @@ test('alertLevelsHint: "Not in any status bar" while unplaced, else the resolved
   const uv = { keyStem: 'Uv' };
   // The default ticks put the metric alerts on the Watch Status Bar's right side, and the
   // Alerts-tab row says so after the levels.
-  const WHERE = ' · Watch bar, right';
+  const WHERE = ' · Watch Status Bar, right';
   assert.equal(hint(UNPLACED, env, uv), 'Not in any status bar');
   assert.equal(hint(Object.assign({ threshUvOn: true }, UNPLACED), env, uv), 'Not in any status bar',
     'whatever the highlight says: the row describes the alert');
@@ -384,10 +402,14 @@ test('alertLevelsHint: "Not in any status bar" while unplaced, else the resolved
   assert.equal(hint(Object.assign({ alertUvDays: 'today' }, UNPLACED), env, uvDays), 'Not in any status bar',
     'an unplaced alert reads that only');
   assert.equal(hint({ statusForecastOnDemandLeftItems: 'pollen' }, env,
-    { keyStem: 'Pollen' }), 'Warn 2 · Danger 3 · Forecast bar, left', 'placed on another bar counts too');
+    { keyStem: 'Pollen' }), 'Warn 2 · Danger 3 · Forecast Status Bar, left', 'placed on another bar counts too');
   assert.equal(hint({ statusForecastOnDemandLeftItems: 'uv' }, env, uv),
-    'Warn 6 · Danger 8 · Watch bar, right · Forecast bar, left',
+    'Warn 6 · Danger 8 · Watch Status Bar, right · Forecast Status Bar, left',
     'every bar edge it sits on, in the page\'s bar order');
+  assert.equal(hint({ radarMode: 'graph', healthMode: 'all', statusHealthOnDemandRightItems: 'uv',
+    statusRadarOnDemandLeftItems: 'uv' }, env, uv),
+    'Warn 6 · Danger 8 · Watch Status Bar, right · Health Status Bar, right · Radar Status Bar, left',
+    'Health before Radar: the page\'s order, not the wire\'s');
   // A slot dialog's "Alert levels and colors" row (levelsOnly): the levels alone — no
   // placement, no Days, and no "Not in any status bar" (they drive the slot's highlight).
   const uvLevels = { keyStem: 'Uv', days, levelsOnly: true };
@@ -409,7 +431,7 @@ test('rainAlertHint: the radar first, then the placement, else its window, look 
     looks: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']]
   };
   // The default ticks put Rain on the Watch Status Bar's left side.
-  const WHERE = ' · Watch bar, left';
+  const WHERE = ' · Watch Status Bar, left';
   assert.equal(hint({}, {}, args), 'Within 60 min · Text' + WHERE, 'unset: the sheet\'s defaults, placed by default');
   assert.equal(hint({ rainCountdownHorizon: '120', rainAlertDisplay: 'minutes' }, {}, args),
     'Within 2 hours · Icon + minutes' + WHERE);
@@ -417,7 +439,7 @@ test('rainAlertHint: the radar first, then the placement, else its window, look 
     'a numeric window reads like its stored string');
   assert.equal(hint({ statusTopOnDemandLeftItems: 'bt' }, {}, args), 'Not in any status bar');
   assert.equal(hint({ statusTopOnDemandLeftItems: 'bt', statusForecastOnDemandRightItems: 'rain' }, {}, args),
-    'Within 60 min · Text · Forecast bar, right', 'placed on another bar: that bar\'s edge');
+    'Within 60 min · Text · Forecast Status Bar, right', 'placed on another bar: that bar\'s edge');
   assert.equal(hint({ radarMode: 'off' }, {}, args), 'Turn on the rain radar (Watchface › Views)');
   assert.equal(hint({ radarMode: 'off', statusTopOnDemandLeftItems: '' }, {}, args),
     'Turn on the rain radar (Watchface › Views)', 'the radar comes first: no tick helps while it is off');
@@ -664,6 +686,19 @@ test('forecast grid: temp line spans the first tick to the last tick (edge to ed
   const tokens = d.replace(/[MC]/g, ' ').trim().split(/\s+/);
   const lastX = parseFloat(tokens[tokens.length - 1].split(',')[0]);
   assert.equal(lastX, 197, 'temp line ends on the last tick (PX1=197); got ' + lastX);
+});
+
+test('forecastPreview draws the day line on midnight, in its colour, with the shading', () => {
+  const state = { barSource: 'off', secondaryLine: 'off', theme: 'dark' };
+  const lines = (over) => {
+    const svg = FC.forecastPreview(Object.assign({}, state, over), { color: true });
+    return svg.match(/<line x1="([\d.]+)" y1="4" x2="\1" y2="\d+"[^>]*><\/line>/g) || [];
+  };
+  assert.deepEqual(lines({ dayNightShading: false }), [], 'none without the shading');
+  const on = lines({ dayNightShading: true });
+  assert.equal(on.length, 1, 'the sample ends before midnight: one line stands in its night');
+  assert.match(on[0], /stroke="#555555"/);
+  assert.match(lines({ dayNightShading: true, gcNightBoundaryDark: '#FF0000' })[0], /stroke="#FF0000"/);
 });
 
 // The watch prints each axis digit through config_axis_hour (config.c), which folds the
@@ -1013,7 +1048,7 @@ test('forecastPreview: an untouched blob draws the built-in colours', () => {
   assert.ok(svg.indexOf('fill="#FF00FF"') >= 0, 'the uv dots are Magenta');
   assert.ok(/<pattern id="nh"[^>]*>[\s\S]*?stroke="#555555"/.test(svg),
     'the night hatch is DarkGray — the colour the watch paints, not a translucent stand-in');
-  assert.ok(/y1="4"[^>]*stroke="#555555" stroke-width="0\.7"/.test(svg), 'and so is the dusk/dawn line');
+  assert.ok(/y1="4"[^>]*stroke="#555555" stroke-width="0\.7"/.test(svg), 'and so is the day line');
 });
 
 test('forecastPreview: a tuned colour overrides the built-in line, fill and dot colours', () => {
@@ -1088,14 +1123,14 @@ test('forecastPreview: the fill colour paints the area only, the second-line col
   assert.ok(dots.indexOf('stroke="#FFFF00"') >= 0, 'and so is the main line');
 });
 
-test('forecastPreview: the night hatch and dusk/dawn colours reach the night shading', () => {
+test('forecastPreview: the night hatch and day line colours reach the night shading', () => {
   const svg = FC.forecastPreview(Object.assign({}, GC_BASE, {
     gcNightHatchDark: '#00AAFF', gcNightBoundaryDark: '#FF5500' }), { color: true });
   assert.ok(/<pattern id="nh"[^>]*>[\s\S]*?stroke="#00AAFF"/.test(svg),
     'the one hatch pattern carries the hatch colour');
   assert.equal(svg.indexOf('nhp'), -1, 'there is no second pattern to switch to any more');
   assert.ok(svg.indexOf('fill="url(#nh)"') >= 0, 'the night band paints with it');
-  assert.ok(/y1="4"[^>]*stroke="#FF5500"/.test(svg), 'the dusk/dawn verticals take theirs');
+  assert.ok(/y1="4"[^>]*stroke="#FF5500"/.test(svg), 'the day line takes its own');
   assert.equal(svg.indexOf('rgba(255,255,255,0.45)'), -1, 'the translucent ink is not used on colour');
   // B&W keeps the translucent ink: the watch discards all five night bytes there and
   // hatches in its own theme foreground, which this stands in for.
@@ -1645,7 +1680,7 @@ test('each pressure curve places the same reading at its own pinned height', () 
 // blocks.js holds no copy of it and cannot drift; the test hands it the same comma
 // list schema.js builds (its order is pinned in test/config-schema.test.js).
 const GRAPH_COLOR_KEYS = ['graphMainColor', 'graphFillColor', 'graphSecondColor',
-  'nightHatchColor', 'nightBoundaryColor', 'nightFillColor']
+  'nightHatchColor', 'nightDayLineColor', 'nightFillColor']
   .reduce((acc, stem) => acc.concat([stem + 'Dark', stem + 'Light']), []);
 // The engine's stored-shape resolver: '' is every picker's schema default (Auto).
 const graphDefaultOf = (key) => (GRAPH_COLOR_KEYS.indexOf(key) >= 0 ? '' : 'NOT-A-GRAPH-KEY');
@@ -1734,7 +1769,7 @@ test('forecastPreview: a 0 % hour leaves its stripe cell transparent', () => {
 });
 
 // The night shading runs on up through the top stripe band, as the watch's night hatch
-// does (forecast_layer.c's extend_top): the hatch and both dusk/dawn lines start at the
+// does (forecast_layer.c's extend_top): the hatch and the day line start at the
 // graph top (PT 4), not under the band, and the stripe cells — drawn later and opaque —
 // cover it where they draw, so it shows only in the empty hours and the gaps.
 const nightRect = (svg) => {
@@ -1753,10 +1788,10 @@ test('forecastPreview: the night shading runs up through the top stripe band, un
   assert.equal(n.y, 4, 'the hatch starts at the graph top, over the band');
   assert.deepEqual(nightRect(plain), Object.assign({}, n, { at: nightRect(plain).at }),
     'the same shading a graph without top stripes draws');
-  const boundaries = [...striped.matchAll(/<line x1="([0-9.]+)" y1="([0-9.]+)" x2="\1" y2="([0-9.]+)" stroke="#555555"/g)]
-    .filter((b) => +b[1] === n.x || +b[1] === n.x + n.w);   // not the hatch pattern's own stroke
-  assert.equal(boundaries.length, 2, 'dusk and dawn');
-  boundaries.forEach((b) => assert.equal(+b[2], 4, 'a dusk/dawn line reaches the graph top too'));
+  const dayLines = [...striped.matchAll(/<line x1="([0-9.]+)" y1="([0-9.]+)" x2="\1" y2="([0-9.]+)" stroke="#555555"/g)]
+    .filter((b) => +b[1] > n.x && +b[1] < n.x + n.w);   // not the hatch pattern's own stroke
+  assert.equal(dayLines.length, 1, 'the day line');
+  assert.equal(+dayLines[0][2], 4, 'it reaches the graph top too');
   // Every cell is drawn after the shading and starts with an opaque rect over its whole
   // area; the empty hour inside the night band draws nothing, so the shading shows there.
   const cells = stripeCells(striped);

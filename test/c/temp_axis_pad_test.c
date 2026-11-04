@@ -1409,7 +1409,7 @@ static void test_numbers_part(void) {
     }
 }
 
-// The scale's points (Include feels-like & dew point), test_scale_example's dew day fitted:
+// The scale's points (High/low includes feels-like & dew point), test_scale_example's dew day fitted:
 // the extremes take the air's high and the dew trough, which sits on the bottom margin row,
 // and the dew line's missing reading is no point.
 static void test_numbers_scale_points(void) {

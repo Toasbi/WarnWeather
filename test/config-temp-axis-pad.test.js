@@ -455,7 +455,7 @@ test('alignLabels: off today\'s reach only, inward only, the minimum gap, else t
   assert.deepEqual(PA.alignLabels(15, 93, 11, 82, -Infinity, 82), { hi: 15, lo: 93 });
 });
 
-// --- THE NUMBERS ON THE GRAPH (left axis BETA, emery only) -------------------------------
+// --- THE NUMBERS ON THE GRAPH (left axis, emery only) -------------------------------
 // The forecast preview mirrors the watch's left axis options (forecast-axis.js resolved):
 // on the axis (today), on the graph (the hi number under the point it names, the lo over its own), or off; On graph
 // and Off draw no left axis, so the graph starts at the frame's left edge. temp_axis_pad.h pins
@@ -540,7 +540,7 @@ test('Off: no numbers and no left axis, the graph from the left edge', () => {
   assert.equal(tempVertices(svg)[0][0], FC.PX0_NO_AXIS);
 });
 
-test('Include feels-like & dew point: the numbers name the scale\'s ends, beside or on the graph', () => {
+test('High/low includes feels-like & dew point: the numbers name the scale\'s ends, beside or on the graph', () => {
   const dew = [13, 14, 17, 18, 16, 14, 13, 12, 12, 12, 13, 13];   // preview-forecast.js' sample
   const beside = preview({ secondaryLine: 'dew', forecastAxisScale: true }, EMERY);
   const strip = [...beside.matchAll(/<text x="3" y="([\d.]+)"[^>]*>(-?\d+)°<\/text>/g)].map((m) => m[2]);

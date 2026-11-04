@@ -98,7 +98,7 @@ static inline void bottom_view_unregister_consumer(Layer *layer) { (void) layer;
 // under the other's width (or growing but staying under it, or moving inside the
 // floor) changes its stored value while the gutter both views draw against stays
 // exactly where it was.
-// emery: a forecast whose hi/lo numbers left the strip (the left axis BETA's On graph and
+// emery: a forecast whose hi/lo numbers left the strip (the left axis's On graph and
 // Off, config.h GRAPH_OPT_NUMS_MASK) reports 0. Alone on its screen it then draws from the
 // screen's left edge, with no axis (forecast_layer.c forecast_update_proc). The two graphs are not always
 // apart: a custom layout can seat one in the top band over the other in the body

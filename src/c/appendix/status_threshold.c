@@ -43,24 +43,9 @@ int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
     }
 }
 
-// Fixed severity direction. The health trio celebrates GOALS since the goal
-// rework: their value rises toward the pair like the weather kinds (warn-slot =
-// close -> outline, danger-slot = goal reached -> fill), so no shipped kind warns
-// downward. The hook stays for a future kind that does; the JS contract
-// (status-thresholds.js) retired its side of the axis entirely.
-static bool status_threshold_below_is_worse(int kind) {
-    (void)kind;
-    return false;
-}
-
 // Level for a value against an ordered threshold pair. Crossing is inclusive:
 // value == warn is already Warn; value == danger is already Danger.
-static int status_threshold_level(int value, int warn, int danger, bool below_is_worse) {
-    if (below_is_worse) {
-        if (value <= danger) { return THRESH_LEVEL_DANGER; }
-        if (value <= warn) { return THRESH_LEVEL_WARN; }
-        return THRESH_LEVEL_NORMAL;
-    }
+static int status_threshold_level(int value, int warn, int danger) {
     if (value >= danger) { return THRESH_LEVEL_DANGER; }
     if (value >= warn) { return THRESH_LEVEL_WARN; }
     return THRESH_LEVEL_NORMAL;
@@ -263,6 +248,5 @@ int status_threshold_slot_level(const uint8_t blob[THRESH_SETTINGS_BYTES], int l
     }
     if (health_value < 0) { return THRESH_LEVEL_NORMAL; }   // unavailable: never highlight
     return status_threshold_level(health_value, health_u16(blob, kind, 0),
-                                  health_u16(blob, kind, 1),
-                                  status_threshold_below_is_worse(kind));
+                                  health_u16(blob, kind, 1));
 }

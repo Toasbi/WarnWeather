@@ -68,7 +68,7 @@ var NO_ON_DEMAND_PLATFORMS = { aplite: true };
 // wrong guess then fires at most one 5 % step early on an emery, never late elsewhere).
 var FINE_BATTERY_PLATFORMS = { emery: true };
 // Platforms whose forecast graph offers a 12 h / 24 h / long time span (Graphs > Forecast >
-// Time span): emery (Pebble Time 2) only. Keep in lockstep with the C
+// Forecast length): emery (Pebble Time 2) only. Keep in lockstep with the C
 // `#if defined(PBL_PLATFORM_EMERY)` arm of src/c/appendix/forecast_span.h, which sizes the
 // watch's forecast buffers for 68 hours there and 24 everywhere else. Every other watch is
 // sent 24 hours whatever is stored: their 640 / 536 B AppMessage inboxes would drop the long

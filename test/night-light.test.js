@@ -120,10 +120,8 @@ test("the window is the feature's OWN hours, with no mode to pick between pairs"
 test("the battery saver's hours are never read, whatever else is stored", () => {
   // The regression guard for this branch's own defect: the dim window briefly fell
   // through to sleepStartHour/sleepEndHour, so the From/To under Dim backlight was
-  // ignored and the LED followed the battery saver's schedule instead. A leftover
-  // backlightDimMode from a dev build must not resurrect that path either.
-  [{}, { backlightDimMode: 'night' }, { backlightDimMode: 'custom' },
-    { backlightDimMode: 'wat' }, { sleepStartHour: '9', sleepEndHour: '17' },
+  // ignored and the LED followed the battery saver's schedule instead.
+  [{}, { sleepStartHour: '9', sleepEndHour: '17' },
     { sleepStartHour: undefined, sleepEndHour: undefined }].forEach((over) => {
     assert.deepEqual(resolveDimWindow(S(over)), { start: 22, end: 6 },
       'the dim window must stay its own for ' + JSON.stringify(over));
@@ -220,7 +218,7 @@ test('no OTHER Nighttime key moves the tuple (a settings-message no-op stays one
   // in the card.
   const packed = JSON.stringify(buildNightLightBytes(S()));
   [{ sleepStartHour: '21' }, { sleepEndHour: '3' }, { sleepNightEnabled: false },
-    { backlightDimMode: 'custom' }, { themeAutoMode: 'manual' }].forEach((over) => {
+    { themeAutoMode: 'manual' }].forEach((over) => {
     assert.equal(JSON.stringify(buildNightLightBytes(S(over))), packed,
       JSON.stringify(over) + ' must not move CLAY_NIGHT_LIGHT_UINT8');
   });

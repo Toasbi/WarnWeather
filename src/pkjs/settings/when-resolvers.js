@@ -9,7 +9,7 @@
 //  - defaultViewLacksOnDemand: the Default view shows no Alerts item at all (view-cycle.js
 //    and on-demand.js).
 //  - tempAxisLineDrawn: a feels-like or dew point line is drawn, the Left axis card's
-//    'Include feels-like & dew point' gate: forecast-axis.js' own function, registered as is.
+//    'High/low includes feels-like & dew point' gate: forecast-axis.js' own function, registered as is.
 // Each gets (S, env, args): S is the showWhen context, the settings plus their env.
 // Under Node, blocks.js requires this file, so requiring blocks.js registers these too;
 // the webview concatenates it ahead of blocks.js (scripts/build-config-page.js APP_FILES).

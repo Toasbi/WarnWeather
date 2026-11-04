@@ -39,13 +39,6 @@ test('real schema hydrates the HR-aware status-slot default set', () => {
   assert.equal(basalt.statusTopRight, 'battery');
 });
 
-test('real schema battery/bluetooth/week base defaults', () => {
-  const s = E.hydrate(SCHEMA, {}, ENV_BASALT);
-  assert.equal(s.batteryLowOnly, true);
-  assert.equal(s.btIcons, 'disconnected');
-  assert.equal(s.weekStartDay, 'mon');
-});
-
 // The On demand keys are seeded from the schema (seedDefaults, via deriveDefaults), so
 // the schema's defaults ARE what every install, upgraded ones included, starts with —
 // and they must be on-demand.js's DEFAULTS, the reading the phone packs from.

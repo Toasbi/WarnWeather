@@ -237,21 +237,18 @@ typedef struct {
 
 typedef struct {
     int16_t x0, x1;            // absolute plot-x pixels (already clamped by the caller)
-    bool    boundary0;         // draw a 1px boundary line at x0?
-    bool    boundary1;         // draw a 1px boundary line at x1?
 } ChartBand;
 
 typedef struct {
     const ChartBand *bands;
     int              num_bands;
     GColor           hatch_color;
-    GColor           boundary_color;
     int              spacing;            // hatch stride
     GColor           underlay_color;     // per-column solid fill before hatch (area re-shade)
     bool             has_underlay;
 #if defined(WW_LINE_STYLE)
     int16_t          extend_top;         // full-height bands only: rows ABOVE the content
-                                         // that the hatch and its boundary lines cover too
+                                         // that the hatch covers too
                                          // (the forecast's top stripe band), so the night
                                          // shading runs to the top of the graph. Sits in
                                          // padding; aplite compiles it out (no stripes).
@@ -290,11 +287,9 @@ typedef struct {
     uint8_t        from_top;   // nonzero: BARS, LINE, AREA and a contour HATCH (and a CUSTOM
                                // layer through CHART_ZERO/CHART_DIR) hang from the content's
                                // top instead of standing on its bottom (chart_flip.h).
-                               // FRAME, AXIS and STRIPE ignore it. A full-height HATCH must
-                               // keep it 0: its fill ignores it, but its boundary lines end
-                               // on the row next to the zero row, which hanging is the
-                               // content's first row. On every platform, in the short
-                               // enum's padding (ChartLayer stays 44 B):
+                               // FRAME, AXIS, STRIPE and a full-height HATCH ignore it. On
+                               // every platform, in the short enum's padding (ChartLayer
+                               // stays 44 B):
                                // rain_radar_layer.c still compiles on aplite, where nothing
                                // reads it.
     union {

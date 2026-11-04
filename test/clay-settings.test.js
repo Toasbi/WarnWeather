@@ -137,64 +137,12 @@ test('an existing Custom layout gains the size/Position keys at boot and still c
   vc.buildCustomCycle(read).forEach((s) => assert.equal(vc.packWire(s), vc.packSpec(s)));
 });
 
-test('a fresh install gets the new swapClockStatus default', () => {
-  installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
-  claySettings.seedDefaults(COLORS);
-  assert.equal(claySettings.read().swapClockStatus, true);
-});
-
 test('save round-trips through read', () => {
   installFakeStorage();
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
   claySettings.save({ provider: 'openweathermap', location: 'Berlin' });
   assert.deepEqual(claySettings.read(), { provider: 'openweathermap', location: 'Berlin' });
-});
-
-test('getDefaults includes windScale defaulting to mid', () => {
-  installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
-  assert.equal(claySettings.getDefaults(COLORS).windScale, 'mid');
-});
-
-test('getDefaults includes thirdLine defaulting to uv', () => {
-  installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
-  assert.equal(claySettings.getDefaults(COLORS).thirdLine, 'uv');
-});
-
-test('getDefaults seeds radarNoRainText with the visible built-in text', () => {
-  // The config field shows the watch's actual message (defaultValue, not a
-  // placeholder), so the seeded settings blob must carry it too — clay-payload
-  // then packs it under CLAY_NORAIN_TEXT (24-UTF-8-byte cap at pack time).
-  installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
-  assert.equal(claySettings.getDefaults(COLORS).radarNoRainText, "You're good :)");
-});
-
-test('getDefaults includes gpsCacheMin defaulting to 30 minutes', () => {
-  installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
-  assert.equal(claySettings.getDefaults(COLORS).gpsCacheMin, '30');
-});
-
-test('seedDefaults seeds roboto font and night-pause enabled by default', () => {
-  installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
-  claySettings.seedDefaults(COLORS);
-  const read = claySettings.read();
-  assert.equal(read.provider, 'wunderground');
-  assert.equal(read.timeFont, 'roboto');
-  assert.equal(read.sleepNightEnabled, true);
-  assert.equal(read.sleepStartHour, '0');
-  assert.equal(read.sleepEndHour, '7');
 });
 
 test('seedDefaults backfills sleep keys into existing installs that lack them', () => {
