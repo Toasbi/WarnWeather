@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "buildProfile": "{{buildProfile}}",
   "keywords": [
     "pebble-app",
