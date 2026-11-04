@@ -324,7 +324,7 @@ function wuRouter(liveKey, status) {
   responder = function(url, onSuccess, onError) {
     if (url.indexOf('www.wunderground.com') !== -1) {
       log.scrapes += 1;
-      onSuccess('<script>var u="/v3/wx/observations/current?apiKey=' + liveKey + '&x";</script>');
+      onSuccess('<script>{"SUN_API":"x","API_KEY":"' + liveKey + '","LANG":"en-US"}</script>');
       return;
     }
     var key = /apiKey=([a-z0-9]*)/.exec(url)[1];
@@ -406,24 +406,37 @@ test('a freshly scraped key that is refused too reports WU not answering, with a
   assert.equal(out.key, null, 'the refused key is dropped, so the retry scrapes afresh');
 });
 
-test('a forced fetch scrapes up front and does not scrape again on a refusal', () => {
+test('a forced fetch keeps a working cached key, without a scrape', () => {
   var log = wuRouter('livekey');
+  var out = runWuCycle('livekey', true);
+  assert.equal(out.ok, true, 'the cycle succeeds: ' + JSON.stringify(out.failures));
+  assert.equal(log.scrapes, 0);
+  assert.equal(out.key, 'livekey');
+});
+
+test('a forced fetch survives a page without a key while the cached key works', () => {
+  wuRouter('livekey');
   responder = (function(route) {
     return function(url, onSuccess, onError) {
-      if (url.indexOf('api.weather.com') !== -1) {
-        log.api.push('x');
-        onError({ code: 'status_403', detail: 'http_status' });
+      if (url.indexOf('www.wunderground.com') !== -1) {
+        onSuccess('<html>no key in here</html>');
         return;
       }
       route(url, onSuccess, onError);
     };
   }(responder));
-  var out = runWuCycle('oldkey', true);
-  assert.equal(out.failures.length, 1);
-  assert.equal(out.failures[0].code, 'wu_current_status_403');
-  assert.equal(out.failures[0].retryAfterMs, WundergroundProvider.UNAVAILABLE_RETRY_MS);
+  var out = runWuCycle('livekey', true);
+  assert.equal(out.ok, true, 'the cycle succeeds: ' + JSON.stringify(out.failures));
+  assert.equal(out.key, 'livekey');
+});
+
+test('a forced fetch re-scrapes a refused cached key once, like any other fetch', () => {
+  var log = wuRouter('freshkey');
+  var out = runWuCycle('revokedkey', true);
+  assert.equal(out.ok, true, 'the cycle succeeds: ' + JSON.stringify(out.failures));
   assert.equal(log.scrapes, 1);
-  assert.equal(log.api.length, 1, 'no second attempt');
+  assert.deepEqual(log.api, ['revokedkey', 'freshkey', 'freshkey']);
+  assert.equal(out.key, 'freshkey');
 });
 
 test('a scrape that is refused, or a page without a key, reports WU not answering too', () => {
@@ -437,6 +450,21 @@ test('a scrape that is refused, or a page without a key, reports WU not answerin
   var bare = runWuCycle(null, false);
   assert.deepEqual(bare.failures, [{ stage: 'provider_data', code: 'wu_api_key_not_found',
     retryAfterMs: WundergroundProvider.UNAVAILABLE_RETRY_MS }]);
+});
+
+test('the key is scraped from the page config JSON, or from an observations URL', () => {
+  var scrape = WundergroundProvider.scrapeApiKey;
+  var url = '"/v3/wx/observations/current?apiKey=urlkey&x"';
+  assert.equal(scrape('{"API_KEY":"jsonkey"}'), 'jsonkey');
+  assert.equal(scrape('{"API_KEY" : "jsonkey"}'), 'jsonkey');
+  assert.equal(scrape(url), 'urlkey');
+  assert.equal(scrape('{"API_KEY":""}' + url), 'urlkey', 'an empty config key falls back');
+  assert.equal(scrape(url + '{"API_KEY":"jsonkey"}'), 'jsonkey', 'the config key wins');
+  assert.equal(scrape('{"API_KEY":"MixedKey1"}'), 'MixedKey1');
+  assert.equal(scrape('/observations/current?apiKey=MixedKey1&x'), 'MixedKey1');
+  assert.equal(scrape('["API_KEY","IS_PROD"]{"MAPBOX_API_KEY":"pk.decoy"}{"API_KEY":"jsonkey"}'), 'jsonkey',
+    'the live page\'s other API_KEY strings are not the key');
+  assert.equal(scrape('<html>no key in here</html>'), null);
 });
 
 test('a cached WU key is kept on a failure that is not a key refusal', () => {
