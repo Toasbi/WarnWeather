@@ -227,6 +227,18 @@ function asUnavailable(failure) {
     };
 }
 
+/**
+ * Pull the API key out of the wunderground.com homepage. The page's config JSON
+ * carries it; older pages only had it in an observations URL.
+ * @param {string} page The page's HTML.
+ * @returns {?string} The key, or null when the page has none.
+ */
+function scrapeApiKey(page) {
+    var match = page.match(/"API_KEY"\s*:\s*"([a-zA-Z0-9]+)"/) ||
+        page.match(/observations\/current\?apiKey=([a-zA-Z0-9]+)/);
+    return match ? match[1] : null;
+}
+
 WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
     // callback(apiKey, scraped): scraped is true when the key was fetched from
     // wunderground.com just now, false when it came from the cache.
@@ -241,13 +253,12 @@ WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
             url,
             'GET',
             function(response) {
-                var match = response.match(/observations\/current\?apiKey=([a-z0-9]*)/);
-                if (!match || !match[1]) {
+                apiKey = scrapeApiKey(response);
+                if (apiKey === null) {
                     onFailure(failure('provider_data', 'wu_api_key_not_found'));
                     return;
                 }
 
-                apiKey = match[1];
                 localStorage.setItem(KEYS.WU_API_KEY, apiKey);
                 console.log('Fetched Weather Underground API key: ' + apiKey);
                 callback(apiKey, true);
@@ -266,12 +277,6 @@ WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
 
 WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
     // onSuccess expects that this.hasValidData() will be true
-
-    if (force) {
-        // In case the API key becomes invalid
-        console.log('Clearing Weather Underground API key for forced update');
-        this.clearApiKey();
-    }
 
     this.withKeyedData(lat, lon, onSuccess, (function(failure) {
         var reported = asUnavailable(failure);
@@ -340,6 +345,7 @@ WundergroundProvider.prototype.withKeyedData = function(lat, lon, onSuccess, onF
 
 // The pure mapper, exposed for the adapter-shape test (the MAPPED_KEYS vocabulary).
 WundergroundProvider.mapForecast = mapForecast;
+WundergroundProvider.scrapeApiKey = scrapeApiKey;
 WundergroundProvider.UNAVAILABLE_RETRY_MS = UNAVAILABLE_RETRY_MS;
 
 module.exports = WundergroundProvider;
