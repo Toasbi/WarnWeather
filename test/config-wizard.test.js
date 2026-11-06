@@ -525,14 +525,20 @@ function wizardDoneStep(saved) {
   return { ctx, dom, body: dom.body.innerHTML };
 }
 
-test('the tomorrow.io upsell shows the key row as before: "Tomorrow.io API key", its hint and Test', async () => {
+test('the tomorrow.io upsell shows the key row: "Tomorrow.io API key", its hint and Test', async () => {
   const hint = items => items.find((i) => i.messageKey === 'tomorrowioApiKey').hint;
   const copies = [];
   PConf.schemaWalk.eachItem(schema, (it) => { if (it.messageKey === 'tomorrowioApiKey') { copies.push(it); } });
   assert.equal(copies.length, 2, 'the weather provider\'s and the radar-only key sheet\'s copies');
   copies.forEach((it) => assert.equal(it.label, 'API key', 'each copy is labelled by its sheet\'s title'));
-  const field = '<div class="row stack"><div class="lbl">Tomorrow.io API key</div><div class="hint">' + hint(copies)
-    + '</div><div><div class="txt-act"><input type="text" data-k="tomorrowioApiKey" value="" placeholder="">'
+  // The settings sheets show the call budget under the key and the wizard doesn't, so its copy of
+  // the hint stops short of pointing at it. Pinned, so a later hint edit can't bring it back.
+  const sheetHint = hint(copies);
+  assert.ok(sheetHint.indexOf(' — see the call budget below.') !== -1, 'guard: the sheets\' hint still says it');
+  const wizardHint = sheetHint.replace(' — see the call budget below.', '.');
+  const field = '<div class="row stack"><div class="lbl">Tomorrow.io API key</div><div class="hint">' + wizardHint
+    + '</div><div><div class="txt-act"><input type="text" data-k="tomorrowioApiKey" value="" placeholder=""'
+    + ' aria-label="Tomorrow.io API key">'
     + '<button class="txt-act-btn" data-action="testTomorrowioKey">Test</button></div>'
     + '<div class="hint txt-act-result" data-action-result="tomorrowioApiKey"></div></div></div>';
   // Whatever the radar runs on: the upsell is the same field.
@@ -541,7 +547,8 @@ test('the tomorrow.io upsell shows the key row as before: "Tomorrow.io API key",
     const { body } = wizardDoneStep(saved);
     const at = body.indexOf('<div class="wiz-tio">');
     assert.ok(at !== -1, JSON.stringify(saved) + ': the upsell shows');
-    assert.ok(body.indexOf(field, at) !== -1, JSON.stringify(saved) + ': the key field, exactly as before');
+    assert.ok(body.indexOf(field, at) !== -1, JSON.stringify(saved) + ': the key field, exactly');
+    assert.equal(body.indexOf('call budget below'), -1, JSON.stringify(saved) + ': no pointer at a missing budget');
   });
   // Germany gets DWD: no upsell.
   assert.equal(wizardDoneStep({ holidayCountry: 'DE' }).body.indexOf('wiz-tio'), -1);

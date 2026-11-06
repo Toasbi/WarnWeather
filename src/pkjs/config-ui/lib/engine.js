@@ -1189,7 +1189,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // re-truncated UTF-8-safely phone-side at pack time; this is the soft UI cap.
     var ml = (item.attributes && item.attributes.maxlength)
       ? ' maxlength="' + esc(String(item.attributes.maxlength)) + '"' : '';
-    var input = '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '"' + ml + '>';
+    // Named after its row: the row's label is a plain <div>, not a <label for>.
+    var name = item.label ? ' aria-label="' + esc(item.label) + '"' : '';
+    var input = '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '"' + ml + name + '>';
     if (!item.suffixAction) { return input; }
     // Optional inline action button to the RIGHT of the input (e.g. "Test" a key),
     // plus an empty result line the action fills — targeted by
