@@ -41,8 +41,8 @@ const NOT_REQUESTED = {
 };
 
 /**
- * Every shipped JS file under src/pkjs: the phone-side code and the settings page's sources (the
- * generated page is built from them; tests are not shipped).
+ * Every shipped source under src/pkjs: the phone-side code and the settings page's sources, its
+ * HTML shell included (the generated page is built from them; tests are not shipped).
  * @returns {string[]} Paths.
  */
 function sources() {
@@ -51,7 +51,7 @@ function sources() {
     fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
       const p = path.join(dir, e.name);
       if (e.isDirectory()) { if (e.name !== 'test') { walk(p); } return; }
-      if (/\.js$/.test(e.name) && !/\.generated\.js$/.test(e.name)) { out.push(p); }
+      if (/\.(js|html)$/.test(e.name) && !/\.generated\.js$/.test(e.name)) { out.push(p); }
     });
   })(path.join(ROOT, 'src/pkjs'));
   return out;
