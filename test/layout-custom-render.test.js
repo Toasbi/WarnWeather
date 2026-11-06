@@ -57,8 +57,8 @@ function layoutBody(overrides, platformName) {
 
 test('the Layout card offers Custom on basalt and hides it on aplite', () => {
   const basalt = layoutBody({ layoutPreset: 'compactCal' }).card;
-  assert.ok(basalt.indexOf('data-k="layoutPreset" data-v="custom"><span>Custom</span>') >= 0,
-    'Custom option rendered in the Layout preset radio');
+  assert.match(basalt, /data-k="layoutPreset" data-v="custom">.*?<span class="pic-lbl">Custom<\/span><\/button>/,
+    'Custom option rendered in the Layout preset picker');
   const aplite = layoutBody({ layoutPreset: 'compactCal' }, 'aplite');
   assert.ok(aplite.card.indexOf('data-k="layoutPreset"') >= 0, 'premise: the preset radio renders on aplite');
   assert.equal(aplite.body.indexOf('data-k="layoutPreset" data-v="custom"'), -1, 'no Custom option on aplite');

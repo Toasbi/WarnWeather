@@ -14,6 +14,8 @@ require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
 require('../src/pkjs/settings/blocks.js');
+// The provider's pollen cleanup, which the wizard's country derivation runs (applyDerived).
+require('../src/pkjs/settings/reset-status-defaults.js');
 const schema = require('../src/pkjs/settings/schema.js');
 const OB = require('../src/pkjs/settings/onbuild.js');
 const W = require('../src/pkjs/settings/wizard.js');

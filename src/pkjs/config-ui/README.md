@@ -31,6 +31,7 @@ each consuming app supplies its schema, custom blocks, and hooks.
    - [Defaults-resolver registry — PConf.defaultsResolvers](#defaults-resolver-registry--pconfdefaultsresolvers)
    - [Display-resolver registry — PConf.displayResolvers](#display-resolver-registry--pconfdisplayresolvers)
    - [Hint-resolver registry — PConf.hintResolvers](#hint-resolver-registry--pconfhintresolvers)
+   - [Picture-resolver registry — PConf.pictureResolvers](#picture-resolver-registry--pconfpictureresolvers)
    - [Attention-resolver registry — PConf.attentionResolvers](#attention-resolver-registry--pconfattentionresolvers)
    - [When-resolver registry — PConf.whenResolvers](#when-resolver-registry--pconfwhenresolvers)
    - [Action registry — PConf.actions](#action-registry--pconfactions)
@@ -237,8 +238,11 @@ Schema
   └─ tabs[]
        ├─ id            string  (unique)
        ├─ label         string  (tab bar text)
+       ├─ short         string  (the bar's label on a phone too narrow for `label`, ≤ 340 px)
+       ├─ icon          string  (a registered icon id drawn over the label in the bar)
        ├─ showWhen      Predicate (false: no tab button, no body, no tab link lands there)
        ├─ pinBlock      string  (block id pinned at the top of the tab while its cards scroll)
+       ├─ pinBare       boolean (the pinned block draws its own cards: no card around it)
        ├─ panes         [{id, label, showWhen?, pinBlock?}] (a segmented switcher; see Panes)
        └─ sections[]
             ├─ title        string
@@ -265,7 +269,7 @@ titled by its text (see Progressive disclosure), so one section can hold a card 
 | `toggle` | Switch | `true`/`false` | `toggle` |
 | `select` | Dropdown | string | `select` |
 | `segmented` | Pill-row (new) | string | `select` (visual variant) |
-| `radio` | Stacked radio buttons | string | `radiogroup` |
+| `radio` | Stacked radio buttons, or picture cards with `pictureFrom` | string | `radiogroup` |
 | `color` | Color palette — the 64 Pebble swatches | hex string on wire; **int** in the persisted blob | `color` |
 | `text` | Text input | string | `input` |
 | `staticText` | Static HTML block; no key | — (not serialized) | `text` |
@@ -454,6 +458,10 @@ picking the shown swatch is what writes it.
 | `hintShown` | boolean | Keeps the row's hint in view even in the '?' mode (a live summary, not info text). |
 | `infoId` | string | The id the row's '?' is remembered under (default: `k:<messageKey>`, `s:<sheetId>`, `a:<action>`, `l:<label>`). |
 | `uiOnly` | boolean | A page-only control: hydrated from `initFrom`, never read from or written to the save blob, never seeded. |
+| `stamp` | boolean | A value the page writes on its own (the Weather tab's last-opened time): it is saved like any other, but its change never lights Save or shows Revert, and Revert leaves it as it is. |
+| `full` | boolean | `segmented` only: one equal segment per option across the row, a long label wrapping inside its own segment, the picked option's hint under it (the setup's pickers). |
+| `sheetTitle` | string | `select`/`searchSelect` only: the picker sheet's title, where the row's label alone would not name it (a row whose picker also opens from a preview). Default: the label. |
+| `pictureFrom` | `{ resolver, args }` | `radio` only: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry--pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). |
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
 | `groupLabel` | string | On the first member of an `inline` group: renders the group as ONE labelled row, the members side by side joined by a dash (a From–To row). |
 | `gotoTab` | string | `button` only: the row brings that tab to the front. |
@@ -613,6 +621,11 @@ Registering to the same `id` twice overwrites the first registration. Requesting
 `userData` carries whatever the app puts there — typically last-fetch timestamps, connection stats,
 or any other data that must travel from PKJS into the page without going through settings storage.
 
+A block pinned above a dialog (a `sheetOnly` section's `pinBlock`) gets a fourth argument,
+`{ dialog: true }`. A block whose parts open a sheet themselves (a `[data-select]` that opens a
+select's picker) draws them inert there: the dialog is the page's one sheet, so a picker cannot
+open over it. Everywhere else the fourth argument is absent.
+
 ### Icon registry — PConf.icons
 
 An item with an `icon: id` field gets a small glyph in front of its label. The registry holds
@@ -760,6 +773,28 @@ the Battery row's `onDemandBatteryText`) sit on keyless rows outside the sheet a
 render that closes it. The library keeps it for a hint that reads a slider in its own sheet
 (`test/hint-resolver.test.js` pins it). A hint that rendered empty (no element) and the row's
 wrap layout wait for the next full render.
+
+### Picture-resolver registry — PConf.pictureResolvers
+
+A `radio` item with a `pictureFrom: { resolver: id, args }` field draws its options as picture
+cards instead of a list: a radiogroup of cards, each its picture over its name, the picked one
+ringed in the accent with its name on the accent fill, and the picked option's hint under them.
+WarnWeather's Layout preset uses it: each preset is a card of the Default view it gives.
+
+```js
+// Returns ONE option's picture markup; '' draws the card without one.
+PConf.pictureResolvers.register('layoutPresetPicture', function (state, env, args, userData) {
+  // args carries the row's messageKey and the option's value, merged UNDER pictureFrom.args;
+  // userData is the page's (what a block gets)
+  return drawDefaultView(state, env, args.value, userData);
+});
+```
+
+The resolver runs once per option the row offers (an `optionsFrom` list is resolved first), at
+render time, like the hint resolver. Its markup is printed unescaped inside the card, so only
+page code registers here, as for a block. An unregistered resolver id leaves the radio as its
+plain list. A tap goes through the radio's own `[data-k][data-v]` path, so `onChange`,
+`dormantValues` and Save behave exactly as for the list.
 
 ### Attention-resolver registry — PConf.attentionResolvers
 

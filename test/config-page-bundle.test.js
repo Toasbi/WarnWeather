@@ -59,15 +59,47 @@ test('the On demand contract is bundled after view-cycle and before status-thres
     'nothing assigns window.OnDemand in the generated page');
 });
 
-test('defaults-policy is bundled BEFORE the wizard that consumes it', () => {
+test('defaults-policy is bundled BEFORE the wizard part that binds it', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => appFiles.findIndex((f) => f.endsWith(suffix));
   const policyAt = idx('settings/defaults-policy.js');
-  const wizardAt = idx('settings/wizard.js');
+  const finishAt = idx('settings/wizard-finish.js');
   assert.notEqual(policyAt, -1, 'defaults-policy.js is not in APP_FILES at all');
-  assert.notEqual(wizardAt, -1, 'wizard.js is not in APP_FILES at all');
-  assert.ok(policyAt < wizardAt,
-    'defaults-policy.js must be concatenated before wizard.js so the global exists when read');
+  assert.notEqual(finishAt, -1, 'wizard-finish.js is not in APP_FILES at all');
+  assert.ok(policyAt < finishAt,
+    'defaults-policy.js must be concatenated before wizard-finish.js, which binds it while its body runs');
+});
+
+// The wizard's parts are the same silent shape: wizard.js binds each one's window global while its
+// own body runs, and the forecast step binds the sample and the preview, so a part left out of
+// APP_FILES, or out of order, breaks setup on a real phone while every Node test (require())
+// passes. Pin each one's place and its global in the page.
+test('the setup wizard\'s parts reach the page ahead of wizard.js, each after what it binds', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  const wizard = idx('settings/wizard.js');
+  const parts = { 'settings/wizard-css.js': 'WizardCss', 'settings/wizard-flick.js': 'WizardFlick',
+    'settings/wizard-forecast.js': 'WizardForecast', 'settings/wizard-finish.js': 'WizardFinish',
+    'settings/wizard-upsell.js': 'WizardUpsell' };
+  Object.keys(parts).forEach((file) => {
+    assert.ok(idx(file) < wizard, file + ' must precede wizard.js');
+    assert.ok(page().indexOf('window.' + parts[file] + ' = api') !== -1, 'nothing assigns window.' + parts[file]);
+  });
+  ['pkjs/line-style.js', 'pkjs/draw-from.js', 'pkjs/forecast-axis.js', 'pkjs/resolve-ink.js', 'pkjs/theme-flip.js',
+    'pkjs/forecast-span-hours.js', 'settings/forecast-sample.js', 'settings/preview-forecast.js'].forEach((file) => {
+    assert.ok(idx(file) < idx('settings/wizard-forecast.js'), file + ' must precede wizard-forecast.js');
+  });
+  assert.ok(idx('pkjs/view-cycle.js') < idx('settings/wizard-flick.js'));
+  assert.ok(idx('pkjs/status-line-catalog.js') < idx('settings/wizard-finish.js'));
+  assert.ok(idx('settings/country-defaults.js') < idx('settings/wizard-upsell.js'));
+  ['ForecastSample', 'PreviewForecast'].forEach((name) => {
+    assert.ok(page().indexOf('window.' + name + ' = api') !== -1,
+      'nothing assigns window.' + name + ': the forecast step would draw an empty card');
+  });
 });
 
 // The custom-layout editor is the same silent-no-op shape as the defaults policy:
@@ -196,7 +228,11 @@ const BINDS_AT_LOAD = {
   'preview-axis.js': ['window.ForecastSpanHours'],
   'preview-forecast.js': ['window.PreviewSvg', 'window.PreviewRain', 'window.LineStyle', 'window.LineAlert',
     'window.StripeLevels', 'window.DrawFrom', 'window.ForecastAxis', 'window.PreviewAxis', 'window.ResolveInk',
-    'window.PreviewStripe']
+    'window.PreviewStripe'],
+  // The Watchface tab's watch draws its bars and graphs through these (the radar and health
+  // previews it reads off the block registry when it draws, so they need no place here).
+  'preview-watch.js': ['window.PreviewSvg', 'window.ResolveInk', 'window.PreviewStatusBars', 'window.PreviewForecast',
+    'window.ForecastSample', 'window.ForecastSpanHours']
 };
 
 test('the forecast preview and its axis mirrors are bundled after every global they bind at load', () => {
@@ -379,7 +415,7 @@ test('the graph-colour resolver and its deps reach the generated settings page',
 // block id renders nothing and only warns, so the block would silently vanish from a
 // real phone's settings page while every Node test still passed through require().
 const PREVIEW_BLOCK_FILES = ['settings/preview-forecast.js', 'settings/preview-radar.js',
-  'settings/preview-diagnostics.js', 'settings/preview-layout.js', 'settings/preview-health.js'];
+  'settings/preview-diagnostics.js', 'settings/preview-watch.js', 'settings/preview-health.js'];
 
 test('the graph-colour modules and the preview kit are bundled in dependency order', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
@@ -441,7 +477,7 @@ test('the night-tint display rule reaches the generated page, after line-style',
 
 test('every preview block reaches the generated settings page', () => {
   const src = page();
-  ['forecastPreview', 'radarPreview', 'devStats', 'lastFetch', 'layoutPreviewCombined', 'statusBarsPreview',
+  ['forecastPreview', 'radarPreview', 'devStats', 'lastFetch', 'watchPreview', 'statusBarsPreview',
     'healthPreview']
     .forEach((id) => {
       assert.ok(src.indexOf("PConf.blocks.register('" + id + "'") !== -1,

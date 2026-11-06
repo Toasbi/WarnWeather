@@ -36,6 +36,12 @@ Remove build artifacts:
 mise clean
 ```
 
+Build the weather plugins' pbws (plugin-only, no Pebble SDK needed; see
+`plugins/README.md`). Name plugin folders to build only those, e.g. `mise build-plugins -- dwd`:
+```bash
+mise build-plugins
+```
+
 - `mise test-c` — host-compiled C tests (layout golden rects). Also runs inside
   `mise test`. `mise test-c -- dump` prints the actual rects for deliberate
   golden updates.
@@ -729,6 +735,7 @@ mise install
 | `release-notifications.json` | "What's new" toast copy keyed by version |
 | `supabase/schemas/` | Declarative DB schemas (source of truth) |
 | `supabase/functions/` | Edge functions |
+| `plugins/` | Weather plugins for the Pebble app, released separately from the watchface |
 | `screenshot/<version>/raw/` | Raw platform screenshots (last capture run) |
 | `screenshot/<version>/store/` | Per-platform store screenshots (5 configs each) |
 | `screenshot/<version>/composite/` | Composited README hero screenshots |

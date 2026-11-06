@@ -8,7 +8,7 @@ require('../src/pkjs/config-ui/lib/engine.js');
 const B = require('../src/pkjs/settings/blocks.js');
 // The block renderers live one file per concern; blocks.js keeps the threshold
 // machinery + small resolvers, and requiring it registers every block.
-// The layout-preview block has its own file — test/preview-layout.test.js.
+// The watch preview has its own files — test/preview-watch.test.js and test/watch-preview-cycle.test.js.
 const FC = require('../src/pkjs/settings/preview-forecast.js');
 const RD = require('../src/pkjs/settings/preview-radar.js');
 const DG = require('../src/pkjs/settings/preview-diagnostics.js');
@@ -270,7 +270,7 @@ test('forecastPreview never draws the second metric as the same metric as the ma
   assert.equal(svg.indexOf('fill="#FFFF00"'), -1, 'duplicate metric → no second-metric squares');
 });
 test('registers all preview/util blocks into PConf.blocks', () => {
-  ['forecastPreview','radarPreview','layoutPreviewCombined','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
+  ['forecastPreview','radarPreview','watchPreview','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
 });
 
 test('registers the statusSlot options resolver into PConf.optionsResolvers', () => {
@@ -2040,4 +2040,18 @@ test('lineSwatch: one dot (the line colour) on the nav row; the Graph colors row
     'the dialog\'s colours row and the Graph colors row preview one sheet the same way');
   assert.equal(B.lineSwatch(Object.assign({}, S, { theme: 'bw' }), env, { lineKey: 'secondaryLine', all: true }), null);
   assert.equal(B.lineSwatch({ secondaryLine: 'off' }, env, { lineKey: 'secondaryLine' }), null);
+});
+
+test('forecastPreview: a Fahrenheit watch reads its noon sample in °F, temperatures and their lines alike', () => {
+  // The bug: the Graphs tab's sample printed 24°/14° whatever the unit. The temperature-axis
+  // series convert as forecast-sample.js sample() converts the setup's: whole °F.
+  const c = FC.forecastPreview({ temperatureUnits: 'c' }, { color: true });
+  assert.ok(c.indexOf('>24°<') > -1 && c.indexOf('>14°<') > -1, 'Celsius: 24° and 14°');
+  const f = FC.forecastPreview({ temperatureUnits: 'f' }, { color: true });
+  assert.ok(f.indexOf('>75°<') > -1, '24 °C reads 75° (75.2)');
+  assert.ok(f.indexOf('>57°<') > -1, '14 °C reads 57° (57.2)');
+  assert.equal(f.indexOf('>24°<'), -1, 'no Celsius number left');
+  // With a dew point line the scale still widens to the converted dew low, unlabelled.
+  const dew = FC.forecastPreview({ temperatureUnits: 'f', secondaryLine: 'dew' }, { color: true });
+  assert.ok(dew.indexOf('>57°<') > -1 && dew.indexOf('>54°<') === -1, 'the dew low (12 °C, 54°) is not labelled');
 });

@@ -129,6 +129,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // left edge with them On graph or Off, which draw no left axis (forecast_layer.c: the plot
     // starts at the screen's left edge). The legend keeps LEGEND_X0_NO_AXIS units in then.
     var PX0_AXIS = 20;
+    // A bare frame's room under its hour axis (opts.bare): the labels hang 11 below it.
+    var BARE_FOOT = 13;
     var PX0_NO_AXIS = 0;
     var LEGEND_X0_NO_AXIS = 8;
     // The frame's edges (preview-svg.js svgFrame's viewBox is 200 units wide).
@@ -232,6 +234,55 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         return out;
     }
 
+    // The settings page's scenario: one coherent 12 points from noon (slot 0 = 12:00), in the
+    // shape forecast-sample.js gives the setup wizard. An afternoon shower that suppresses UV, UV
+    // gone overnight, temp dipping then rising toward dawn; the night from sunset at 21:00 (slot 9)
+    // on to the right edge.
+    var NOON = {
+        startHour: 12,
+        nights: [[9, 11]],
+        temps: [24, 24, 22, 20, 18, 16, 15, 14, 14, 15, 17, 19],
+        precip: [20, 55, 80, 85, 60, 35, 20, 15, 12, 10, 14, 22],
+        wind: [14, 16, 20, 24, 22, 19, 17, 16, 18, 22, 26, 24],
+        rain: [0, 0.5, 6, 12, 4, 1, 0.3, 0, 0, 0, 0, 0],
+        gust: [22, 25, 30, 34, 32, 28, 25, 24, 27, 31, 36, 33],
+        uv: [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3],
+        // Tracks temps a few degrees under through the shower (wind chill), then a degree
+        // under the calm night low: the gap between the two curves is the story it tells,
+        // and the night shows it dipping under the temperature's low.
+        feels: [21, 21, 19, 17, 15, 14, 13, 13, 13, 14, 15, 17],
+        // Climbs toward the temperature through the shower (the air saturates), then
+        // settles a few degrees under the cool night temps: the lowest of the three, so
+        // with a dew line on, its night low takes the bottom margin row and the temperature
+        // curve sits above it.
+        dew: [13, 14, 17, 18, 16, 14, 13, 12, 12, 12, 13, 13],
+        // Falls into the shower (slots 2-4), dips to a below-floor low at slot 4 (984 hPa,
+        // below the 'low' band's 990 floor — exercises the floor-clamp-not-skip dot
+        // behavior below), then recovers as it clears — the same weather story the other
+        // samples tell.
+        pressure: [1016, 1012, 1007, 1003, 984, 1004, 1007, 1010, 1012, 1013, 1014, 1015],
+        // Cloud cover (%): thickening into the shower, overcast through it, then
+        // breaking up overnight before the morning clouds return.
+        cloud: [35, 60, 90, 100, 95, 75, 45, 20, 10, 15, 40, 65]
+    };
+
+    /**
+     * NOON in the watch's temperature unit: on a Fahrenheit watch its temperature-axis series
+     * (temperature, feels like, dew point) in whole °F, as forecast-sample.js sample() converts
+     * the setup's sample; the other series and the hours as they are.
+     * @param {string} [units] The temperatureUnits setting, 'c' or 'f'.
+     * @returns {Object} NOON, or a °F copy of it.
+     */
+    function noonIn(units) {
+        if (units !== 'f') { return NOON; }
+        var out = {}, k;
+        for (k in NOON) { if (Object.prototype.hasOwnProperty.call(NOON, k)) { out[k] = NOON[k]; } }
+        ['temps', 'feels', 'dew'].forEach(function (series) {
+            out[series] = NOON[series].map(function (c) { return Math.round(c * 9 / 5 + 32); });
+        });
+        return out;
+    }
+
     /**
      * The forecast-graph preview block: temp curve, up to three metric lines — each
      * in its selected style (thin/thick line, square dots, x marks); the main one
@@ -241,9 +292,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * @param {Object} state Live settings (colours as hex strings).
      * @param {Object} env Config-UI environment facts ({ color, platform, … }).
      * @param {Object} [userData] Page userData; `palette` is the page-open snapshot.
+     * @param {{sample: Object, minHeight: number, bleed: boolean, bare: boolean, axisY: number}} [opts]
+     *   For the setup wizard and the Watchface tab's watch, which call this directly
+     *   (window.PreviewForecast); the settings page's block call passes none. `sample`: the
+     *   weather to draw in NOON's place, in its shape (forecast-sample.js sample), so a span draws
+     *   its own hours. `minHeight`: the frame's least height in viewBox units, the background
+     *   running on under the legend, so one height fits every look. `bleed: false`: the svg fills
+     *   its box instead of bleeding over a settings card's padding. `bare`: no legend, the frame
+     *   ending BARE_FOOT under the hour axis. `axisY`: where that axis sits (94 without), so the
+     *   plot takes the height of a band on the watch's screen.
      * @returns {string} SVG markup.
      */
-    function forecastPreview(state, env, userData) {
+    function forecastPreview(state, env, userData, opts) {
         // The graph's colours, resolved by the SAME function whose answer the watch's Clay
         // wire packs (weather/graph-wire.js, over the connected watch's computeEnv)
         // and read off `state` — the LIVE settings object render() hands every block —
@@ -278,31 +338,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // silhouette on top (BAR_OUTLINED is drawn in every theme but colour-dark).
         var barEdge = (isColor && isLightPolarity(cx.theme)) ? ink.fg : null;
 
-        // One coherent 12-point scenario starting at noon (slot 0 = 12:00): an afternoon
-        // shower that suppresses UV, UV gone overnight, temp dipping then rising toward dawn.
-        var temps  = [24, 24, 22, 20, 18, 16, 15, 14, 14, 15, 17, 19];
-        var precip = [20, 55, 80, 85, 60, 35, 20, 15, 12, 10, 14, 22];
-        var wind   = [14, 16, 20, 24, 22, 19, 17, 16, 18, 22, 26, 24];
-        var rain   = [0, 0.5, 6, 12, 4, 1, 0.3, 0, 0, 0, 0, 0];
-        var gust   = [22, 25, 30, 34, 32, 28, 25, 24, 27, 31, 36, 33];
-        var uv     = [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3];
-        // Tracks temps a few degrees under through the shower (wind chill), then a degree
-        // under the calm night low: the gap between the two curves is the story it tells,
-        // and the night shows it dipping under the temperature's low.
-        var feels  = [21, 21, 19, 17, 15, 14, 13, 13, 13, 14, 15, 17];
-        // Climbs toward the temperature through the shower (the air saturates), then
-        // settles a few degrees under the cool night temps: the lowest of the three, so
-        // with a dew line on, its night low takes the bottom margin row and the temperature
-        // curve sits above it.
-        var dew    = [13, 14, 17, 18, 16, 14, 13, 12, 12, 12, 13, 13];
-        // Falls into the shower (slots 2-4), dips to a below-floor low at slot 4 (984 hPa,
-        // below the 'low' band's 990 floor — exercises the floor-clamp-not-skip dot
-        // behavior below), then recovers as it clears — the same weather story the other
-        // samples tell.
-        var pressure = [1016, 1012, 1007, 1003, 984, 1004, 1007, 1010, 1012, 1013, 1014, 1015];
-        // Cloud cover (%): thickening into the shower, overcast through it, then
-        // breaking up overnight before the morning clouds return.
-        var cloud  = [35, 60, 90, 100, 95, 75, 45, 20, 10, 15, 40, 65];
+        // The weather drawn: the noon scenario above in the watch's temperature unit, or the
+        // caller's sample (the setup wizard's spans). Its nights are [from, to] slot positions.
+        var sample = (opts && opts.sample) || noonIn(state && state.temperatureUnits);
+        var temps = sample.temps, precip = sample.precip, wind = sample.wind, rain = sample.rain,
+            gust = sample.gust, uv = sample.uv, feels = sample.feels, dew = sample.dew,
+            pressure = sample.pressure, cloud = sample.cloud;
+        var startHour = sample.startHour, nights = sample.nights;
 
         // The frozen-styles gate: env.lineStyles is the WW_LINE_STYLE mirror
         // (platform.js). Previewing such a watch pins the pre-feature look —
@@ -421,7 +463,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         for (var bs = 0; bs < LINES.length; bs += 1) {
             if (LINES[bs].drawn && LINES[bs].style === 'stripeBottom') { bottomStripes += 1; }
         }
-        var AXIS_Y = 94;
+        // The Watchface tab's watch (opts.axisY) sets its own: the plot's height for the band
+        // the graph takes on the watch's screen.
+        var AXIS_Y = (opts && opts.axisY) || 94;
         var stripeBand = bottomStripes
             ? bottomStripes * STRIPE_H + (bottomStripes - 1) * STRIPE_GAP + 1 : 0;
         // Top stripes get a band of their own ABOVE the plot (forecast_layer.c's top_band):
@@ -532,8 +576,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var yT = function (t) {
             return holdT(tmax > tmin ? ybot - (t - tmin) / (tmax - tmin) * (ybot - ytop) : (ybot + ytop) / 2);
         };
-        var n0 = tickX(9), n1 = tickX(n - 1);       // night band: sunset 21:00 (slot 9) -> right edge
-        var bw = 9;                                  // rain-bar / dot width
+        // The night bands, [x0, x1] each: sunset to sunrise, held to the ticks drawn.
+        var nightXs = nights.map(function (nt) {
+            return [tickX(Math.max(0, nt[0])), tickX(Math.min(n - 1, nt[1]))];
+        });
+        // Rain-bar / dot width: 9, narrower only where a longer sample's columns are.
+        var bw = Math.min(9, pitch * 0.56);
 
         // The graph strokes, as SVG colours. Every rule that used to be restated
         // here — the effective-colour gate, the per-polarity colours, gust's coupling to
@@ -568,7 +616,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          */
         function drawNightShading() {
             if (!state.dayNightShading) { return ''; }
-            return '<rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>';
+            return nightXs.map(function (x) {
+                return '<rect x="' + x[0] + '" y="' + PT + '" width="' + (x[1] - x[0]) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>';
+            }).join('');
         }
         /**
          * The day line: a line on each midnight's hour tick, from the top of the graph down
@@ -583,9 +633,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var stroke = nightPicksApply ? hexColor(gc.night.dayLine) : ink.rgba('0.45');
             var xs = [];
             for (var i = 1; i < n; i += 1) {
-                if ((12 + i) % 24 === 0) { xs.push(tickX(i)); }
+                if ((startHour + i) % 24 === 0) { xs.push(tickX(i)); }
             }
-            return (xs.length ? xs : [(n0 + n1) / 2]).map(function (x) {
+            if (!xs.length && nightXs.length) { xs.push((nightXs[0][0] + nightXs[0][1]) / 2); }
+            return xs.map(function (x) {
                 return '<line x1="' + x + '" y1="' + PT + '" x2="' + x + '" y2="' + PB + '" stroke="' + stroke + '" stroke-width="0.7"></line>';
             }).join('');
         }
@@ -604,7 +655,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var cad = axisCadence(state, env);
             var out = '', prev = -1;
             for (var i = 0; i < n; i += 1) {
-                var hour = (12 + i) % 24;
+                var hour = (startHour + i) % 24;
                 var mark = axisMark(cad, i, hour, prev);
                 prev = hour;
                 if (mark === MARK_NONE) { continue; }
@@ -750,7 +801,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * @returns {string} SVG markup, or '' when nothing is tinted.
          */
         function nightFillTint() {
-            if (!nightPicksApply || !fillsArea) { return ''; }
+            if (!nightPicksApply || !fillsArea || !nightXs.length) { return ''; }
             var area = areaPathFor(state.secondaryLine);
             if (!area) { return ''; }
             // areaBase is the metric's hand-tuned night base, or the user's tint verbatim
@@ -841,7 +892,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var barXFor = function (metric, col) {
             var m = METRIC[metric];
             if (!m) { return ''; }
-            var out = '', arm = 2.4;
+            var out = '', arm = Math.min(2.4, bw / 2);
             for (var i = 0; i < n - 1; i += 1) {
                 var cy = metricY(m, i, true);
                 if (cy === null) { continue; }
@@ -1115,15 +1166,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var nightTint = nightFillTint();
         // Legend layout runs first: its row count sets the frame height, which the
         // background rect below needs before any chart markup is emitted.
-        var legend = drawLegend();
+        // opts.bare (the Watchface tab's watch): no legend, the frame ends under the hour labels.
+        var bare = Boolean(opts && opts.bare);
+        var legend = bare ? { height: AXIS_Y + BARE_FOOT, markup: '' } : drawLegend();
+        var frameH = Math.max(legend.height, (opts && opts.minHeight) || 0);
         var e = '';
-        e += rect(0, 0, 200, legend.height, ink.bg);
+        e += rect(0, 0, 200, frameH, ink.bg);
         e += '<defs>'
             + '<pattern id="nh" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="' + nightHatchStroke + '" stroke-width="0.7"></line></pattern>'
             + stripeDitherDefs()
             + '<pattern id="fillhatch" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect><rect x="1" y="1" width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect></pattern>'
             + (nightTint
-                ? '<clipPath id="nightclip"><rect x="' + n0 + '" y="' + PTL + '" width="' + (n1 - n0) + '" height="' + (PB - PTL) + '"></rect></clipPath>'
+                ? '<clipPath id="nightclip">' + nightXs.map(function (x) {
+                    return '<rect x="' + x[0] + '" y="' + PTL + '" width="' + (x[1] - x[0]) + '" height="' + (PB - PTL) + '"></rect>';
+                }).join('') + '</clipPath>'
                 : '')
             + '</defs>';
         e += drawNightShading();
@@ -1193,19 +1249,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         e += drawAxis();
         e += legend.markup;
-        return svgFrame(e, legend.height);
+        return svgFrame(e, frameH, { bleed: !(opts && opts.bleed === false) });
     }
 
     PConf.blocks.register('forecastPreview', forecastPreview);
 
+    var api = {
+        forecastPreview: forecastPreview,
+        PX0_AXIS: PX0_AXIS,
+        PX0_NO_AXIS: PX0_NO_AXIS,
+        alertSamples: alertSamples,
+        pressureCurves: PRESSURE_CURVES,
+        lineRuns: lineRuns
+    };
+    // Dual-context export: the setup wizard calls forecastPreview with its options directly
+    // (window.PreviewForecast), not through the block registry's three-argument contract.
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = {
-            forecastPreview: forecastPreview,
-            PX0_AXIS: PX0_AXIS,
-            PX0_NO_AXIS: PX0_NO_AXIS,
-            alertSamples: alertSamples,
-            pressureCurves: PRESSURE_CURVES,
-            lineRuns: lineRuns
-        };
+        module.exports = api;
+    }
+    if (typeof window !== 'undefined') {
+        window.PreviewForecast = api;
     }
 })();

@@ -19,7 +19,7 @@ const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
 const { deriveDefaults } = require('../src/pkjs/config-ui/lib/defaults.js');
 const { eachItem } = require('../src/pkjs/config-ui/lib/schema-walk.js');
 const policy = require('../src/pkjs/settings/defaults-policy.js');
-const W = require('../src/pkjs/settings/wizard.js');
+const FINISH = require('../src/pkjs/settings/wizard-finish.js');
 const report = require('../scripts/print-defaults.js');
 
 const OUT = report.render();
@@ -45,7 +45,7 @@ test('the wizard columns equal what the real wizard writes, on every platform', 
       // health pick, then press the finish button.
       const S = eng.hydrate(schema, {}, env);
       S.healthMode = sc.healthMode;
-      const written = W.applyWizardDefaults({ S: S, ENV: env, schema: schema }, 'save');
+      const written = FINISH.applyWizardDefaults({ S: S, ENV: env, schema: schema }, 'save');
       assert.deepEqual(report.policyOverrides(platform, sc), written,
         'overview disagrees with the wizard on ' + platform + ' / ' + sc.id);
     });

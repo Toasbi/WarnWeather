@@ -763,8 +763,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '#viewEditor .ve-line{display:flex;align-items:center;gap:10px}'
         + '#viewEditor .ve-size .ve-cap{flex:1;color:var(--muted);font:600 12px Inter,sans-serif}'
         + '#viewEditor .ve-over{margin:4px 2px 8px;color:#FA4A35;font:600 12.5px/1.35 Inter,sans-serif}'
-        // The live preview of the tab's view, centred above its element list.
-        + '#viewEditor .ve-preview{display:flex;justify-content:center;margin:0 0 12px}';
+        // The live preview of the tab's view, centred above its element list: the screen
+        // at the watch's own width, edge to edge on its own ground.
+        + '#viewEditor .ve-preview{display:flex;justify-content:center;margin:0 0 14px}'
+        + '#viewEditor .ve-scr{width:144px;border-radius:12px;overflow:hidden;'
+        + 'box-shadow:0 6px 16px rgba(0,0,0,.35),0 0 0 1px var(--card-line)}'
+        + 'body.light #viewEditor .ve-scr{box-shadow:0 4px 12px rgba(0,0,0,.16),0 0 0 1px var(--card-line)}'
+        + '#viewEditor .ve-scr svg{display:block;width:100%;height:auto}';
 
     function esc(s) {
         return (PConf.engine && PConf.engine.esc) ? PConf.engine.esc(s) : String(s);
@@ -866,17 +871,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The live preview of view `i` (preview-layout.js viewPreviewSvg): the schematic
-     * band column the Layout tab shows, redrawn on every edit. '' when the preview
-     * module is not on the page.
+     * The live preview of view `i` (preview-watch.js viewScreen): the view drawn on the
+     * watch's screen as the Watchface tab's pinned preview draws it, redrawn on every edit.
+     * '' when the preview module is not on the page.
      * @param {Object} S @param {number} i @returns {string} HTML
      */
     function previewHtml(S, i) {
-        var pl = (typeof require !== 'undefined') ? require('./preview-layout.js')
-            : (PConf.previewLayout || null);
-        if (!pl || !pl.viewPreviewSvg) { return ''; }
+        var pw = (typeof require !== 'undefined') ? require('./preview-watch.js')
+            : (window.PreviewWatch || null);
+        if (!pw || !pw.viewScreen) { return ''; }
         var env = (VE.ctx && VE.ctx.ENV) || {};
-        return '<div class="ve-preview">' + pl.viewPreviewSvg(S, env, i) + '</div>';
+        var scr = pw.viewScreen(S, env, i, (VE.ctx && VE.ctx.USERDATA) || {});
+        return '<div class="ve-preview" role="img" aria-label="' + esc('Preview: ' + scr.label) + '">'
+            + '<div class="ve-scr" style="background:' + esc(scr.bg) + '">' + scr.svg + '</div></div>';
     }
 
     function renderEditor() {

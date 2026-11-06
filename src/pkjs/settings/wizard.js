@@ -1,290 +1,231 @@
-// src/pkjs/settings/wizard.js — ES5, WebView. First-run onboarding wizard.
-// Pure helpers (top) are unit-tested via module.exports; the DOM controller (added later)
-// registers onReady + PConf.actions.startWizard and is exercised via `mise preview-config`.
-/* global PConf, Intl, navigator, document, console, INJECTED_SCHEMA, VIEW_CYCLE, COUNTRY_DEFAULTS */
+// src/pkjs/settings/wizard.js — ES5, WebView. The first-run setup wizard: its steps, the picker they
+// share and the overlay they run in. It opens by itself until onboarding is done (shouldShow), and
+// again from Setup › Misc › Run setup again. Its parts live beside it: the styles (wizard-css.js),
+// the flick demo and health copy (wizard-flick.js), the forecast step's looks and preview
+// (wizard-forecast.js), the finishing defaults (wizard-finish.js) and the Tomorrow.io card
+// (wizard-upsell.js). Driven in the tests through its real handlers on a fake DOM
+// (test/helpers/wizard-dom.js).
+//
+// Each step is one screen: a progress bar and Back on top, the step in the middle, one primary
+// button at the bottom. The layout, health and theme steps share a picker: the watch, large, showing
+// the selected option's real screenshot, with the options as a segmented control below it (a radio
+// group: tap, swipe the watch, or use the arrow keys). The forecast step's two pickers preview in the
+// live graph instead. Nothing is written until the user picks.
+/* global PConf, Intl, navigator, document, console, VIEW_CYCLE, COUNTRY_DEFAULTS */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
     : {};
 (function () {
-    // Node (tests): view-cycle.js is a real CommonJS module — require it. Webview: it is
-    // concatenated as a plain <script> before this file (scripts/build-config-page.js) and
-    // shares the top-level scope as VIEW_CYCLE. Same pattern as settings/blocks.js.
-    var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : VIEW_CYCLE;
-
-    // Country → recommended providers + locale units. Extracted to settings/country-defaults.js so the
-    // wizard's fresh-install picks and the Provider-settings "(Recommended)" dropdown hints share ONE
-    // mapping (no drift). Node require()s it; the webview reads the concatenated COUNTRY_DEFAULTS global
-    // (same dual-mode pattern as VIEW_CYCLE above). The local aliases keep the rest of this file + the
-    // module.exports unchanged.
-    var CD = (typeof require !== 'undefined') ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
-    var countryFromTimezone = CD.countryFromTimezone;
-    var countryFromLocale = CD.countryFromLocale;
-    var inferCountry = CD.inferCountry;
-    var mapCountry = CD.mapCountry;
+    // Dual-context (see line-style.js): CommonJS modules under Node, the globals of the files
+    // concatenated ahead of this one in the page (scripts/build-config-page.js APP_FILES).
+    var node = typeof require !== 'undefined';
+    var CD = node ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
+    var CSS = node ? require('./wizard-css.js') : window.WizardCss;
+    var FLICK = node ? require('./wizard-flick.js') : window.WizardFlick;
+    var FORECAST = node ? require('./wizard-forecast.js') : window.WizardForecast;
+    var FINISH = node ? require('./wizard-finish.js') : window.WizardFinish;
+    var UPSELL = node ? require('./wizard-upsell.js') : window.WizardUpsell;
 
     /**
-     * Ordered wizard step ids, filtered by platform env: health only where the platform
-     * has it, the flick demo only where there is a second view to flick to (env.radar
-     * — false on aplite, whose single view leaves nothing to demo), and the theme step
-     * only where the watch ships the light polarity (env.themePolarity — false on aplite,
-     * where WW_THEME_POLARITY is compiled out and a choice would be a silent no-op).
-     * layout and health are the selection steps that shape the cycle, so the demo comes
-     * after both and shows the user's real cycle.
-     * @param {{radar: boolean, health: boolean, themePolarity: boolean}} env Config-UI env facts.
-     * @returns {Array.<string>} Step ids in order.
+     * The steps. `when` names the env fact a step needs: health where the watch has it; the flick
+     * demo where there is a second view to flick to (radar, false on aplite, whose single view leaves
+     * nothing to demo); the theme where the watch ships the light polarity (themePolarity, compiled
+     * out on aplite); the forecast step where it draws the line styles its looks are made of
+     * (lineStyles, false on aplite). Layout and health shape the view cycle, so the demo follows
+     * both; the forecast step follows the theme, so its preview is drawn in it. `summary` gives the
+     * last step's rows.
+     */
+    var STEPS = [
+        { id: 'welcome', title: 'Welcome to WarnWeather', body: stepWelcome, summary: welcomeRows },
+        { id: 'layout', title: 'Choose your layout', body: stepLayout, summary: pickerRow('Layout', 'layoutPreset', 'layout') },
+        { id: 'health', when: 'health', title: 'Health on your watch', body: stepHealth,
+            summary: pickerRow('Health', 'healthMode', 'health') },
+        { id: 'flick', when: 'radar', title: 'Flick to switch views', body: stepFlick },
+        { id: 'theme', when: 'themePolarity', title: 'Choose a theme', body: stepTheme,
+            summary: pickerRow('Theme', 'theme', 'theme') },
+        { id: 'forecast', when: 'lineStyles', title: 'Choose your forecast', body: stepForecast, summary: forecastRow },
+        { id: 'done', title: 'You’re all set', body: stepDone }
+    ];
+    var STEP = {};
+    STEPS.forEach(function (step) { STEP[step.id] = step; });
+
+    /**
+     * The step ids this watch runs, in order.
+     * @param {Object} env Config-UI env facts.
+     * @returns {Array.<string>}
      */
     function buildSteps(env) {
-        env = env || {};
-        var steps = ['welcome', 'layout'];
-        if (env.health) { steps.push('health'); }
-        if (env.radar) { steps.push('flick'); }
-        if (env.themePolarity) { steps.push('theme'); }
-        steps.push('done');
-        return steps;
-    }
-
-    // Per-stop demo copy. The Default and radar captions are fixed (the radar copy stays
-    // provider-agnostic — no provider named; its "Rain in 15’" is the rain alert's default
-    // 'text' look, and Rain is ticked on the Watch Status Bar's left side by default); the
-    // health-status and health-graph captions vary with heart-rate availability (emery +
-    // diorite hardware) and are built from the shared item helpers below, so the health
-    // step and the flick demo can never drift.
-    var FLICK_CAPTION_DEFAULT = 'your calendar, the Forecast Status Bar, and the forecast.';
-    var FLICK_CAPTION_RADAR = 'a precise short-term rain forecast for the next 2 hours, in 5-minute frames. When rain’s on the way, the Watch Status Bar counts it down at its edge (“Rain in 15’”).';
-
-    /**
-     * Health status-line contents, with the heart-rate clause only where the hardware has a
-     * heart-rate sensor (emery). Shared by the health step and the flick demo.
-     * @param {boolean} hasHeartRate Whether the platform has a heart-rate sensor.
-     * @returns {string} e.g. "today’s steps, last night’s sleep and current heart rate".
-     */
-    function healthStatusItems(hasHeartRate) {
-        return hasHeartRate
-            ? 'today’s steps, last night’s sleep and current heart rate'
-            : 'today’s steps, last night’s sleep and walked distance';
-    }
-    /**
-     * Health-graph contents, with the heart-rate line only where the hardware has a
-     * heart-rate sensor (emery). Shared by the health step and the flick demo.
-     * @param {boolean} hasHeartRate Whether the platform has a heart-rate sensor.
-     * @returns {string} e.g. "step bars, a sleep band and a heart-rate line".
-     */
-    function healthGraphItems(hasHeartRate) {
-        return hasHeartRate ? 'step bars, a sleep band and a heart-rate line' : 'step bars and a sleep band';
+        return STEPS.filter(function (step) { return !step.when || env[step.when]; })
+            .map(function (step) { return step.id; });
     }
 
     /**
-     * Describe one cycle slot as a flick-demo stop: display label, caption, and the
-     * SHOTS screenshot key. shotGroup 'radar' flags the string-typed radar shot
-     * (SHOTS[platform].radar is a plain data URI, not a {val: uri} map).
-     * @param {{tier:number,top:number,body:number,statusUpper:number,statusLower:number}} viewSpec One ViewSpec slot.
-     * @param {boolean} isFirst True for cycle index 0 (the default view).
-     * @param {Object} state Wizard/Clay settings state.
-     * @param {boolean} hasHeartRate Whether the platform has a heart-rate sensor (emery).
-     * @returns {{label:string,caption:string,shotGroup:string,shotVal:string}} Stop descriptor.
-     */
-    function flickStop(viewSpec, isFirst, state, hasHeartRate) {
-        state = state || {};
-        if (viewSpec.body === VC.BODY_GRAPH) {
-            return { label: 'Health graph', caption: 'hourly ' + healthGraphItems(hasHeartRate) + '.', shotGroup: 'healthMode', shotVal: 'all' };
-        }
-        if (viewSpec.body === VC.BODY_RADAR) {
-            return { label: 'Radar', caption: FLICK_CAPTION_RADAR, shotGroup: 'radar', shotVal: '' };
-        }
-        if (!isFirst && (viewSpec.statusUpper === VC.STATUS_SRC_HEALTH || viewSpec.statusLower === VC.STATUS_SRC_HEALTH)) {
-            // Health-status flick stop: BODY_FC carrying a HEALTH status row, in either the
-            // upper (single-status) or lower (health-dense default's paired forecast row on
-            // top) slot — healthMode.status represents both.
-            return { label: 'Health Status Bar', caption: healthStatusItems(hasHeartRate) + ' on the Health Status Bar.', shotGroup: 'healthMode', shotVal: 'status' };
-        }
-        var pk = VC.resolvePresetKey(state);
-        if (pk === 'compactDense') { pk = 'compactCal'; } // no captured shot for compactDense; compactCal is the nearest (same 2-row calendar)
-        if (pk === 'weatherOnly') { pk = 'noCal'; }       // no captured shot for Weather only; No calendar is the nearest (no calendar, big forecast)
-        return { label: 'Default', caption: FLICK_CAPTION_DEFAULT, shotGroup: 'layoutPreset', shotVal: pk };
-    }
-
-    /**
-     * The flick-demo stop list for the current settings: the REAL view cycle
-     * (view-cycle.js — the same call preview-layout.js's presetContents makes) mapped to
-     * stop descriptors. 1–3 entries; radar, when present, is always last.
-     * @param {Object} state Wizard/Clay settings state.
-     * @param {boolean} hasHeartRate Whether the platform has a heart-rate sensor (emery).
-     * @returns {Array.<{label:string,caption:string,shotGroup:string,shotVal:string}>} Stops.
-     */
-    function flickStops(state, hasHeartRate) {
-        state = state || {};
-        var radarMode = state.radarMode || 'graph';
-        var cycle = VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarMode);
-        var stops = [], i;
-        for (i = 0; i < cycle.length; i += 1) { stops.push(flickStop(cycle[i], i === 0, state, hasHeartRate)); }
-        return stops;
-    }
-
-    /**
-     * Whether the wizard should auto-open: whenever onboarding hasn't been completed.
-     * Not "the config has no keys": PKJS seeds the full defaults blob on the first boot,
-     * before any settings page can open, so a fresh install never arrives empty. Existing
-     * installs are marked onboarded by a one-time phone-side migration
-     * (migrations/onboarding.js migrateExistingInstallOnboarded), so only a fresh
-     * install — or one just reset — still reads false here. An empty config (a reset,
-     * reopened in the same PKJS session) has no onboardingDone and opens it too.
+     * Whether the wizard should open by itself: whenever onboarding hasn't been completed. Not "the
+     * config has no keys": PKJS seeds the full defaults blob on the first boot, before any settings
+     * page can open, so a fresh install never arrives empty. Existing installs are marked onboarded
+     * by a one-time phone-side migration (migrations/onboarding.js), so only a fresh install, or one
+     * just reset, still reads false here.
      * @param {?Object} cfg Raw injected saved config.
-     * @returns {boolean} True to auto-open.
+     * @returns {boolean} True to open.
      */
     function shouldShow(cfg) {
-        cfg = cfg || {};
-        return !cfg.onboardingDone;
+        return !(cfg && cfg.onboardingDone);
     }
 
-    // ---- DOM controller (webview only; exercised via `mise preview-config`, not Node) ----
     var LAYOUT_OPTS = [['Full calendar', 'fullCal'], ['Compact', 'compactCal'], ['No calendar', 'noCal']];
-    // 'slot' (Status-slots-only) is intentionally NOT offered here: it's a main-settings-only mode with
-    // no dedicated Health view and no wizard screenshot, so the screenshot-driven onboarding carousel skips
-    // it. The full option set still lives on the Health tab (schema.js).
-    var HEALTH_OPTS = [['Off', 'off'], ['Health Status Bar', 'status'], ['Health Status Bar + Graph', 'all']];
-    var STEP_TITLES = {
-        welcome: 'Welcome to WarnWeather', layout: 'Choose your layout',
-        health: 'Health', flick: 'Flick to explore',
-        theme: 'Choose your theme', done: 'All set'
-    };
-    // Per-option copy shown under the carousel for the centered selection (fixes "text doesn't update").
-    // Bodies only — the carousel prepends the option's own label in bold (see cardHintHtml).
     var LAYOUT_DESC = {
-        fullCal: 'a three-row month grid with today highlighted, above the Forecast Status Bar and forecast.',
-        compactCal: 'a slim agenda row, leaving more room for the 24-hour forecast graph.',
-        noCal: 'a big clock and date with the Forecast Status Bar and full-screen forecast.'
+        fullCal: 'A three-row month grid with today highlighted, above the forecast.',
+        compactCal: 'A two-row calendar, leaving more room for the forecast.',
+        noCal: 'A big clock and date above a full-size forecast.'
     };
-    // status/all default to the no-heart-rate copy; openWizard upgrades them to the
-    // heart-rate variant on emery (the only platform with a heart-rate sensor).
-    /**
-     * healthMode captions, built at READ time so the heart-rate variant follows
-     * the live env (a module-level constant used to be patched in place by
-     * openWizard — a mutated "constant" footgun).
-     * @param {boolean} hasHr Whether the platform has a heart-rate sensor.
-     * @returns {{off: string, status: string, all: string}} Per-mode captions.
-     */
-    function healthDesc(hasHr) {
-        return {
-            off: 'no health information on the watchface.',
-            status: healthStatusItems(hasHr) + ' on the Health Status Bar.',
-            all: 'Health Status Bar plus an hourly graph: ' + healthGraphItems(hasHr) + '.'
-        };
-    }
-    // Watchface theme (messageKey 'theme'). Mirrors schema.js's two theme selects: color watches get
-    // 4 options, B&W hardware only dark/light. Chosen by env.color at render time.
-    var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']];
+    // 'slot' (Status-slots-only) is not offered: a main-settings-only mode with no Health view of
+    // its own and no screenshot. The full set lives on the Health tab (schema.js).
+    var HEALTH_OPTS = [['Off', 'off'], ['Status bar', 'status'], ['Status bar + graph', 'all']];
+    // schema.js' two theme selects: colour watches get four, black-and-white ones dark and light.
+    var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W inverted', 'bw-light']];
     var THEME_OPTS_BW = [['Dark', 'dark'], ['Light', 'light']];
     var THEME_DESC = {
-        dark: 'black background, white text and lines — the default, and the most tuned theme.',
-        light: 'white background, black text and lines.',
-        bw: 'simple and clean, with good contrast.',
-        'bw-light': 'inverted — simple and clean, with good contrast.'
+        dark: 'White text and lines on black. The default.',
+        light: 'Black text and lines on white.',
+        bw: 'Drawn like a black-and-white Pebble: white on black, patterns instead of colour.',
+        'bw-light': 'Drawn like a black-and-white Pebble: black on white, patterns instead of colour.'
     };
-    // Real watch screenshots, base64-inlined by `mise capture-wizard-screenshots` into
-    // wizard-screenshots.generated.js (which assigns PConf.screenshots when concatenated into the
-    // page). Empty {} in the Node harness — the controller runs only in the webview.
-    var SHOTS = (PConf && PConf.screenshots) ? PConf.screenshots : {};
 
-    // Overlay styles: use the app's CSS custom properties so the wizard follows body.light (theme).
-    // Brand red #FA4A35 / its gradient are intentionally hardcoded to match .hdr h1 / .saveBtn / .tab.on.
-    var WIZ_CSS =
-        '#wizard{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;'
-        + 'max-width:460px;margin:0 auto;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,sans-serif}'
-        + '#wizard .wiz-hd{padding:16px 18px 6px;flex:none}'
-        + '#wizard .wiz-hd h2{margin:0;color:#FA4A35;font-size:19px;font-weight:800}'
-        + '#wizard .wiz-body{flex:1;min-height:0;overflow-y:auto;padding:4px 18px 16px}'
-        + '#wizard .wiz-foot{flex:none;display:flex;gap:10px;padding:12px 18px;border-top:1px solid var(--card-line)}'
-        + '#wizard .wiz-head{font:700 12px Inter,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 0 8px}'
-        + '#wizard p{line-height:1.55}#wizard a{color:var(--link)}'
-        // tomorrow.io upsell callout on the "All set" step: a top-rule separates it from the intro
-        // paragraph; the embedded settings row renders full-width inside, as on the settings tab.
-        + '#wizard .wiz-tio{margin:12px 0 14px;padding-top:4px;border-top:1px solid var(--card-line)}'
-        + '#wizard .wiz-tio>p{margin:10px 0 6px}'
-        + '#wizard .wiz-car{position:relative;display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;'
-        + '-webkit-overflow-scrolling:touch;padding:6px calc(50% - 75px) 14px;scrollbar-width:none}'
-        + '#wizard .wiz-car::-webkit-scrollbar{display:none}'
-        + '#wizard .wiz-card{scroll-snap-align:center;flex:none;width:150px;background:var(--card);'
-        + 'border:1px solid var(--screen-line);border-radius:10px;padding:0;overflow:hidden;cursor:pointer;'
-        + 'opacity:.5;transform:scale(.94);transition:opacity .15s,border-color .15s,transform .15s}'
-        + '#wizard .wiz-card.on{opacity:1;border:2px solid #FA4A35;transform:scale(1)}'
-        + '#wizard .wiz-shot{display:block;max-width:100%;height:auto;margin:0 auto;image-rendering:pixelated}'
-        + '#wizard .wiz-card .cap{font:700 12px Inter,sans-serif;color:var(--muted);padding:7px 4px}'
-        + '#wizard .wiz-cardhint{line-height:1.5;color:var(--fg);min-height:2.6em;margin:2px 0 10px}'
-        + '#wizard .wiz-radar{display:table;max-width:100%;margin:0 auto;border:1px solid var(--screen-line);border-radius:10px;overflow:hidden;background:var(--card)}'
-        + '#wizard .wiz-nav{flex:1;padding:12px;border-radius:11px;font:700 14px Inter,sans-serif;cursor:pointer}'
-        + '#wizard .wiz-nav.pri{border:none;background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff}'
-        + '#wizard .wiz-nav.sec{border:1px solid var(--ctl-line);background:var(--ctl);color:var(--fg)}'
-        // Flick demo: watch bezel (reuses the screen-framing tokens: var(--screen-line) border,
-        // rounded corners, var(--card) background), tilt-and-snap keyframes with a faint motion
-        // arc (::after), cycle dots + label, primary button.
-        + '#wizard .wiz-flick{text-align:center;margin-top:14px}'
-        + '#wizard .wiz-flick-watch{position:relative;display:inline-block;cursor:pointer;transform-origin:50% 100%}'
-        + '#wizard .wiz-flick-watch.tilt{animation:wiz-tilt .45s ease-in-out}'
-        + '#wizard .wiz-flick-watch::after{content:"";position:absolute;top:-16px;left:50%;width:70px;height:34px;'
-        + 'margin-left:-35px;border:2px solid transparent;border-top-color:var(--muted);'
-        + 'border-radius:50% 50% 0 0/100% 100% 0 0;opacity:0;pointer-events:none}'
-        + '#wizard .wiz-flick-watch.tilt::after{animation:wiz-arc .45s ease-out}'
-        + '#wizard .wiz-flick-bezel{position:relative;width:150px;min-height:90px;border:1px solid var(--screen-line);'
-        + 'border-radius:12px;overflow:hidden;background:var(--card)}'
-        + '#wizard .wiz-flick-shot{opacity:0;transition:opacity .18s}'
-        + '#wizard .wiz-flick-shot.on{opacity:1}'
-        + '#wizard .wiz-flick-shot+.wiz-flick-shot{position:absolute;top:0;left:0;right:0}'
-        + '#wizard .wiz-flick-track{display:flex;align-items:center;justify-content:center;gap:9px;margin:12px 0 2px}'
-        + '#wizard .wiz-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted);'
-        + 'opacity:.35;margin:0 2px;vertical-align:middle}'
-        + '#wizard .wiz-dot.on{background:#FA4A35;opacity:1}'
-        + '#wizard .wiz-flick-label{font:700 13px Inter,sans-serif;color:var(--fg)}'
-        + '#wizard .wiz-flick-btn{display:block;margin:10px auto 2px;padding:11px 26px;border:none;border-radius:11px;'
-        + 'background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff;font:700 14px Inter,sans-serif;cursor:pointer}'
-        + '#wizard .wiz-flick-btn:focus-visible{outline:2px solid #FA4A35;outline-offset:2px}'
-        + '#wizard .wiz-flick-cap{margin-top:10px;text-align:left}'
-        + '@keyframes wiz-tilt{0%{transform:rotate(0)}30%{transform:rotate(14deg)}55%{transform:rotate(-5deg)}'
-        + '75%{transform:rotate(2deg)}100%{transform:rotate(0)}}'
-        + '@keyframes wiz-arc{0%{opacity:0}30%{opacity:.7}100%{opacity:0}}'
-        + '@media (prefers-reduced-motion:reduce){#wizard .wiz-flick-watch.tilt{animation:none}'
-        + '#wizard .wiz-flick-watch.tilt::after{animation:none}}';
-
-    // Live wizard state, captured from the onReady ctx when the wizard opens.
-    // flickIdx = current stop of the flick demo (reset to 0 whenever stepFlick renders).
-    // healthAtOpen = S.healthMode as the wizard opened (applyHealthModeChange).
-    var W = { ctx: null, steps: [], idx: 0, overlay: null, flickIdx: 0, healthAtOpen: null };
-
-    function esc(s) { return (PConf.engine && PConf.engine.esc) ? PConf.engine.esc(s) : String(s); }
-
-    function findItem(schema, key) {
-        var found = null;
-        if (PConf.schemaWalk && PConf.schemaWalk.eachItem) {
-            PConf.schemaWalk.eachItem(schema, function (it) { if (it.messageKey === key) { found = it; } });
+    /**
+     * The pickers. `options` and `desc` read the run; `selected` (the forecast look) is read off the
+     * settings; `nearest` names the option a stored value the picker lacks shows as (only a highlight:
+     * the stored value changes on a real pick alone); `write` replaces the plain write; `graph`
+     * previews in the forecast step's graph instead of a screenshot.
+     */
+    var PICKERS = {
+        layoutPreset: {
+            options: function () { return LAYOUT_OPTS; },
+            desc: function () { return LAYOUT_DESC; },
+            nearest: function (v) { return FLICK.NEAREST_LAYOUT[v] || 'compactCal'; }
+        },
+        healthMode: {
+            options: function () { return HEALTH_OPTS; },
+            desc: function () { return FLICK.healthDesc(shotsShowHeartRate()); },
+            // The health row's hook runs once as setup closes (wizard-finish.js), not per pick.
+            write: function (val) { run.ctx.S.healthMode = val; }
+        },
+        theme: {
+            options: function () { return run.env.color ? THEME_OPTS_COLOR : THEME_OPTS_BW; },
+            desc: function () { return THEME_DESC; },
+            write: pickTheme
+        },
+        forecastLook: {
+            options: function () { return run.looks.map(function (r) { return [r.label, r.id]; }); },
+            desc: function () {
+                var out = {};
+                run.looks.forEach(function (r) { out[r.id] = r.desc; });
+                return out;
+            },
+            selected: function () { return currentLook().id; },
+            write: function (id) { writeLook(lookById(id).values); },
+            graph: true
+        },
+        forecastHours: {
+            options: function () { return FORECAST.spanOptions(run.ctx.S, run.env); },
+            desc: function () { return FORECAST.SPAN_DESC; },
+            nearest: function () { return '24'; },
+            graph: true
         }
-        return found;
+    };
+
+    // Real watch screenshots, base64-inlined by `mise capture-wizard-screenshots` into
+    // wizard-screenshots.generated.js (PConf.screenshots, concatenated ahead of this file).
+    var SHOTS = PConf.screenshots || {};
+    // 1x1 transparent GIF, shown only if a flick stop unexpectedly has no screenshot:
+    // scripts/build-config-page.js fails the build on any missing wizard shot.
+    var BLANK_SHOT = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+
+    // The page around the wizard: its ready ctx, kept for "Run setup again".
+    var page = { ctx: null };
+    // One setup run, null while none is open (newRun).
+    var run = null;
+
+    /**
+     * A setup run's state, every field with its starting value.
+     * @param {Object} ctx The page's ready ctx.
+     * @param {boolean} fresh Opened by itself on a fresh install (else "Run setup again").
+     * @returns {Object} The run.
+     */
+    function newRun(ctx, fresh) {
+        return {
+            ctx: ctx, env: ctx.ENV, steps: buildSteps(ctx.ENV), idx: 0, overlay: null,
+            // The flick demo's stop (reset whenever its step renders).
+            flickIdx: 0,
+            // S.healthMode as setup opened (wizard-finish.js applyHealthModeChange).
+            healthAtOpen: ctx.S.healthMode,
+            // Where a swipe on the picker's preview started; the latest screenshot swap.
+            touch: null, shotSeq: 0,
+            // The summary has been shown (footer); a Tomorrow.io key was typed in this run.
+            reachedDone: false, tioTyped: false,
+            // Where focus goes when setup closes onto the page: the row that re-ran it.
+            returnFocus: fresh ? null : '[data-action="startWizard"]',
+            // The forecast step's looks, and "Your own"'s values (refreshLooks).
+            looks: null, own: null
+        };
     }
-    function optionsFor(schema, key) { var it = findItem(schema, key); return (it && it.options) || []; }
-    function optionHasCode(opts, code) {
-        var i; for (i = 0; i < opts.length; i += 1) { if (opts[i][1] === code) { return true; } }
-        return false;
-    }
+
+    function esc(s) { return PConf.engine.esc(s); }
     function indexOfCode(opts, code) {
-        var i; for (i = 0; i < opts.length; i += 1) { if (opts[i][1] === code) { return i; } }
+        for (var i = 0; i < opts.length; i += 1) { if (opts[i][1] === code) { return i; } }
         return 0;
+    }
+    function labelFor(opts, val) {
+        for (var i = 0; i < opts.length; i += 1) { if (opts[i][1] === val) { return opts[i][0]; } }
+        return '';
+    }
+    /**
+     * A setting's value as the settings page names it (the schema's own option label), so the
+     * summary reads like the tabs it points to: the first of the key's items that names it ('theme'
+     * has two selects, and only the colour one names bw / bw-light).
+     * @param {string} key Setting messageKey.
+     * @param {*} value Stored value.
+     * @returns {string} The label, or '' when the schema has none for it.
+     */
+    function settingLabel(key, value) {
+        var items = FINISH.itemsOf(run.ctx.schema, key), label = '';
+        for (var i = 0; i < items.length && !label; i += 1) {
+            label = labelFor(PConf.engine.resolveOptionsFrom(items[i], run.ctx.S) || [], value);
+        }
+        return label;
+    }
+    /**
+     * A picker's value as the picker named it (the summary repeats what was tapped), or for a stored
+     * value the picker doesn't offer (compactDense, custom, slot) the settings page's name.
+     * @param {string} group A picker.
+     * @returns {string} Label.
+     */
+    function pickedLabel(group) {
+        var v = run.ctx.S[group];
+        return labelFor(PICKERS[group].options(), v) || settingLabel(group, v);
+    }
+    /**
+     * Whether the phone asks for less motion: the preview then swaps without its fade.
+     * @returns {boolean} True under prefers-reduced-motion.
+     */
+    function reducedMotion() {
+        return Boolean(typeof window !== 'undefined' && window.matchMedia
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     }
 
     /**
-     * Derive country-dependent settings onto the shared state and run the
-     * provider cleanup hook just like the settings control does.
-     * @param {Object} S live settings state
+     * Derive the country's settings onto the shared state, running the provider's cleanup hook the
+     * way the settings control does.
+     * @param {Object} S Live settings.
      * @returns {void}
      */
     function applyDerived(S) {
-        var m = mapCountry(S.holidayCountry);
+        var m = CD.mapCountry(S.holidayCountry);
         var oldProvider = S.provider;
         S.provider = m.provider;
-        var cleanup = (PConf.onChange && PConf.onChange.get)
-            ? PConf.onChange.get('clearPollenForProvider') : null;
-        if (cleanup) { cleanup(S, oldProvider, m.provider); }
+        PConf.onChange.get('clearPollenForProvider')(S, oldProvider, m.provider);
         // The country's Rainbow pick is "Rainbow (limited)" ('rainbow'); a radar already on
-        // "Rainbow (own key)" ('rainbowkey') stays there, as it did when the own key was a
-        // switch beside the one Rainbow option.
+        // "Rainbow (own key)" ('rainbowkey') stays there.
         var ownKey = S.radarProvider === 'rainbowkey' && m.radarProvider === 'rainbow';
         S.radarProvider = ownKey ? 'rainbowkey' : m.radarProvider;
         S.temperatureUnits = m.temperatureUnits;
@@ -294,196 +235,267 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S.dateSlotFullFormat = m.dateSlotFullFormat;
     }
 
-    // --- screen 1: reuse the real settings searchSelect for country/region ---
-    // A clone of the schema item with its concrete options resolved (region derives from country),
-    // rendered through the engine's own row/control renderers so it looks + behaves like Settings.
-    function selectRow(schema, key) {
-        var item = findItem(schema, key);
-        if (!item) { return ''; }
-        var withOpts = Object.assign({}, item, { options: PConf.engine.resolveOptionsFrom(item, W.ctx.S) });
-        return PConf.engine.renderRow(withOpts, { value: W.ctx.S[key] });
-    }
-    function regionHasOptions(schema) {
-        var item = findItem(schema, 'holidayRegion');
-        return Boolean(item && PConf.engine.resolveOptionsFrom(item, W.ctx.S).length);
-    }
-    // --- screens 2 & 4: carousel of real screenshots ---
-    // Screenshots are keyed by platform (SHOTS[platform][group][val]) so each watch sees its own
-    // rendering. diorite isn't captured separately — it's a B&W watch with health+radar, same class
-    // as flint, so it reuses flint's shots.
+    // --- screenshots ---
+    // Keyed by platform (SHOTS[platform][group][val]). diorite isn't captured separately: a B&W watch
+    // with health and radar, the class of flint, so it shows flint's.
     function shotPlatform() {
-        var p = (W.ctx && W.ctx.ENV && W.ctx.ENV.platform) || 'basalt';
+        var p = run.env.platform || 'basalt';
         return (p === 'diorite') ? 'flint' : p;
     }
-    // Heart rate is available on emery (Time 2) and diorite (Pebble 2); env.hr (platform.js)
-    // is the single source. Other platforms lack the sensor, so the health copy drops the
-    // heart-rate clause there.
-    function hasHeartRate() {
-        return Boolean(W.ctx && W.ctx.ENV && W.ctx.ENV.hr);
+    // Whether the health copy may promise heart rate: the watch has the sensor (env.hr) AND its
+    // screenshots were captured on it, so the picture above the words shows it too. diorite borrows
+    // flint's, which show none (and a Pebble 2 SE, also 'diorite', has no sensor).
+    function shotsShowHeartRate() {
+        return Boolean(run.env.hr) && shotPlatform() === run.env.platform;
     }
-    function shotSet() { return SHOTS[shotPlatform()] || {}; }
-    function shotFor(group, val) { var s = shotSet(); return (s[group] && s[group][val]) || ''; }
-    function carCard(group, label, val, on) {
-        return '<button class="wiz-card' + (on ? ' on' : '') + '" data-wiz-idx-val="' + esc(val) + '">'
-            + '<img class="wiz-shot" src="' + esc(shotFor(group, val)) + '" alt="">'
-            + '<div class="cap">' + esc(label) + '</div></button>';
-    }
-    function labelFor(opts, val) {
-        var i; for (i = 0; i < opts.length; i += 1) { if (opts[i][1] === val) { return opts[i][0]; } }
-        return '';
-    }
-    // The selected option's name in bold, then its description — matching the bold-label bullets
-    // used elsewhere in the steps.
-    function cardHintHtml(label, body) { return '<b>' + esc(label) + '</b> — ' + esc(body || ''); }
-    function carousel(group, opts, selVal, desc) {
-        var h = '<div class="wiz-car" data-wiz-car="' + esc(group) + '">', i;
-        for (i = 0; i < opts.length; i += 1) { h += carCard(group, opts[i][0], opts[i][1], opts[i][1] === selVal); }
-        h += '</div><p class="wiz-cardhint">' + cardHintHtml(labelFor(opts, selVal), desc[selVal]) + '</p>';
-        return h;
-    }
-    function optsFor(group) {
-        if (group === 'layoutPreset') { return LAYOUT_OPTS; }
-        if (group === 'healthMode') { return HEALTH_OPTS; }
-        return (W.ctx.ENV && W.ctx.ENV.color) ? THEME_OPTS_COLOR : THEME_OPTS_BW;   // 'theme'
-    }
-    function descFor(group) {
-        if (group === 'layoutPreset') { return LAYOUT_DESC; }
-        if (group === 'healthMode') { return healthDesc(hasHeartRate()); }
-        return THEME_DESC;   // 'theme'
-    }
-    // Scroll the selected card to the horizontal center (offsetParent is the position:relative .wiz-car).
-    // The programmatic scroll must not COMMIT a selection: wireCar's snap handler would
-    // otherwise write the highlighted card's value into state on mere render — and when
-    // the highlight is only the carousel's nearest approximation of the stored value
-    // (compactDense -> compactCal), that silently replaces the user's setting. One-shot
-    // flag, armed only when the assignment will actually fire a scroll event; a real
-    // swipe fires a stream of events, so consuming one changes nothing for user scrolls.
-    function centerCar() {
-        var car = W.overlay.querySelector('.wiz-car'); if (!car) { return; }
-        var on = car.querySelector('.wiz-card.on'); if (!on) { return; }
-        var target = on.offsetLeft + on.offsetWidth / 2 - car.clientWidth / 2;
-        var before = car.scrollLeft;
-        // Armed BEFORE the assignment: engines may dispatch the scroll event
-        // synchronously from the setter, and the handler must already see it.
-        W.suppressCarSnap = (target !== before);
-        car.scrollLeft = target;
-        // A clamped or rounded-back assignment moves nothing and fires no
-        // scroll event — disarm, or the stale flag would eat the first event
-        // of the user's next real swipe.
-        if (car.scrollLeft === before) { W.suppressCarSnap = false; }
-    }
-    // Commit a carousel selection: update state, the .on highlight, and the description text in place
-    // (no full re-render, so a swipe isn't interrupted). recenter=true also scrolls it to center.
-    function selectCar(group, idx, recenter) {
-        var opts = optsFor(group);
-        idx = Math.max(0, Math.min(opts.length - 1, idx));
-        var newVal = opts[idx][1];
-        if (group === 'theme') {
-            var oldTheme = W.ctx.S.theme;
-            W.ctx.S.theme = newVal;
-            var conv = (PConf.onChange && PConf.onChange.get) ? PConf.onChange.get('themeConvert') : null;
-            if (conv) { conv(W.ctx.S, oldTheme, newVal); }
-        } else {
-            W.ctx.S[group] = newVal;
-        }
-        var car = W.overlay.querySelector('[data-wiz-car="' + group + '"]'); if (!car) { return; }
-        var cards = car.querySelectorAll('.wiz-card'), i;
-        for (i = 0; i < cards.length; i += 1) { cards[i].className = (i === idx) ? 'wiz-card on' : 'wiz-card'; }
-        var hint = car.parentNode.querySelector('.wiz-cardhint');
-        if (hint) { hint.innerHTML = cardHintHtml(opts[idx][0], descFor(group)[opts[idx][1]]); }
-        if (recenter && cards[idx]) { car.scrollLeft = cards[idx].offsetLeft + cards[idx].offsetWidth / 2 - car.clientWidth / 2; }
-    }
-    function nearestCard(car) {
-        var cards = car.querySelectorAll('.wiz-card'), mid = car.scrollLeft + car.clientWidth / 2;
-        var best = 0, bestd = 1e9, i, cc;
-        for (i = 0; i < cards.length; i += 1) {
-            cc = cards[i].offsetLeft + cards[i].offsetWidth / 2;
-            if (Math.abs(cc - mid) < bestd) { bestd = Math.abs(cc - mid); best = i; }
-        }
-        return best;
-    }
-    // On free scroll (swipe), select the card nearest the center without re-centering (don't fight the drag).
-    function wireCar() {
-        var car = W.overlay.querySelector('.wiz-car'); if (!car) { return; }
-        var group = car.getAttribute('data-wiz-car'), pending = false;
-        car.addEventListener('scroll', function () {
-            // centerCar's render-time centering is not a user selection — see there.
-            if (W.suppressCarSnap) { W.suppressCarSnap = false; return; }
-            if (pending) { return; }
-            pending = true;
-            setTimeout(function () { pending = false; selectCar(group, nearestCard(car), false); }, 90);
-        });
-    }
-
-    // --- flick demo (step 'flick'): interactive tilt-and-snap through the real cycle ---
-    // 1x1 transparent GIF, shown only if a stop unexpectedly has no screenshot. Stays unreachable
-    // because the Default stop clamps compactDense (the one preset with no captured shot) to
-    // compactCal, and scripts/build-config-page.js hard-fails the build on any other missing wizard
-    // shot — so the fallback stays a blank watch face (padded out by the bezel's min-height rather
-    // than collapsing to a sliver); the dots label + caption below still identify the stop.
-    var BLANK_SHOT = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
-
+    function shotFor(group, val) { var s = SHOTS[shotPlatform()] || {}; return (s[group] && s[group][val]) || ''; }
     /**
-     * Resolve a stop descriptor to its screenshot data URI. SHOTS[platform].radar is a
-     * plain string (no {val: uri} map), so the 'radar' group bypasses shotFor().
-     * @param {{shotGroup:string,shotVal:string}} stop Stop descriptor from flickStops().
-     * @returns {string} data: URI (BLANK_SHOT if missing).
+     * A flick stop's screenshot (SHOTS[platform].radar is a plain data URI).
+     * @param {{shotGroup: string, shotVal: string}} stop A wizard-flick.js stop.
+     * @returns {string} A data URI.
      */
     function stopShot(stop) {
-        var src = (stop.shotGroup === 'radar') ? (shotSet().radar || '') : shotFor(stop.shotGroup, stop.shotVal);
+        var src = (stop.shotGroup === 'radar') ? ((SHOTS[shotPlatform()] || {}).radar || '') : shotFor(stop.shotGroup, stop.shotVal);
         return src || BLANK_SHOT;
     }
     /**
-     * Cycle-position dots: one span per stop, the current one highlighted. A text label
-     * sits beside the dots in the markup, so position is never conveyed by color alone.
-     * @param {number} count Number of stops in the cycle.
-     * @param {number} idx Current stop index.
+     * A screenshot in the watch bezel.
+     * @param {string} inner The bezel's content (an <img>, or the flick demo's stack of two).
+     * @returns {string} HTML.
+     */
+    function watchHtml(inner) { return '<div class="wiz-watch">' + inner + '</div>'; }
+
+    // --- the forecast step ---
+    /**
+     * The forecast looks for the settings now: their values follow the theme (the bars' colour it
+     * starts on), so they are rebuilt when setup opens and when a theme is picked.
+     * @returns {void}
+     */
+    function refreshLooks() {
+        var S = run.ctx.S;
+        run.looks = FORECAST.looks(S, run.env, PConf.engine.themedDefaults(run.ctx.schema, S, run.env), run.own);
+    }
+    function lookById(id) {
+        for (var i = 0; i < run.looks.length; i += 1) { if (run.looks[i].id === id) { return run.looks[i]; } }
+        return run.looks[0];
+    }
+    /**
+     * The look the settings draw now. Setup's own writes always leave one (a theme pick lays the look
+     * on again), so the first record answers only a graph changed under it.
+     * @returns {Object} The record.
+     */
+    function currentLook() { return FORECAST.current(run.ctx.S, run.looks, run.env) || run.looks[0]; }
+    /**
+     * Write a look's values the way the settings page's controls do (their hooks run).
+     * @param {Object<string, *>} values messageKey -> value.
+     * @returns {void}
+     */
+    function writeLook(values) {
+        Object.keys(values).forEach(function (k) { run.ctx.setValue(k, values[k]); });
+    }
+    /**
+     * Pick a theme: its conversion runs (the colours, and the bars' colour it starts on), "Your own"
+     * converts along, and the look picked on the forecast step is laid on again if the conversion
+     * moved it off (Stripes' Solid bars back to multicolor on a dark theme).
+     * @param {string} theme The theme picked.
+     * @returns {void}
+     */
+    function pickTheme(theme) {
+        var S = run.ctx.S, before = run.looks ? currentLook().id : null, oldTheme = S.theme;
+        run.ctx.setValue('theme', theme);
+        if (!run.looks) { return; }
+        if (run.own) { FORECAST.followTheme(run.own, oldTheme, theme); }
+        refreshLooks();
+        var look = lookById(before);
+        if (!FORECAST.same(S, look.values, run.env)) { writeLook(look.values); }
+    }
+    function forecastLabel() {
+        var S = run.ctx.S, look = currentLook().label;
+        return run.env.forecastSpan ? look + ', ' + labelFor(PICKERS.forecastHours.options(), highlighted('forecastHours')) : look;
+    }
+    function graphLabel() { return 'Forecast preview: ' + forecastLabel(); }
+    function graphHtml() { return FORECAST.previewSvg(run.ctx.S, run.env, run.ctx.USERDATA); }
+    /**
+     * Redraw the forecast step's graph, and rename the long length, whose hours follow the look (the
+     * high and low on the graph widen its plot).
+     * @returns {void}
+     */
+    function refreshForecast() {
+        var graph = run.overlay.querySelector('[data-wiz-graph]');
+        if (graph) {
+            graph.innerHTML = graphHtml();
+            graph.setAttribute('aria-label', graphLabel());
+        }
+        var opts = PICKERS.forecastHours.options(), segs = run.overlay.querySelectorAll('[data-wiz-group="forecastHours"]');
+        for (var i = 0; i < segs.length; i += 1) { segs[i].textContent = labelFor(opts, segs[i].getAttribute('data-wiz-opt')); }
+    }
+    /**
+     * What the forecast graph draws from: its governed settings and its length. A pick that leaves
+     * it unchanged redraws nothing.
+     * @returns {string}
+     */
+    function graphState() { return JSON.stringify(FORECAST.snapshot(run.ctx.S, run.env)) + '|' + run.ctx.S.forecastHours; }
+
+    // --- the picker ---
+    function optsFor(group) { return PICKERS[group].options(); }
+    function descFor(group) { return PICKERS[group].desc(); }
+    /**
+     * The option a picker shows as selected: the stored value when the picker offers it, else its
+     * nearest (or first) option; the forecast look as the settings read.
+     * @param {string} group A picker.
+     * @returns {string} An option value.
+     */
+    function highlighted(group) {
+        var picker = PICKERS[group];
+        if (picker.selected) { return picker.selected(); }
+        var opts = picker.options(), stored = run.ctx.S[group];
+        if (labelFor(opts, stored)) { return stored; }
+        return picker.nearest ? picker.nearest(stored) : opts[0][1];
+    }
+    function commit(group, val) {
+        if (PICKERS[group].write) { PICKERS[group].write(val); } else { run.ctx.setValue(group, val); }
+    }
+    function optHtml(group, label, val, on) {
+        return '<button type="button" class="wiz-opt' + (on ? ' on' : '') + '" role="radio" aria-checked="'
+            + (on ? 'true' : 'false') + '" tabindex="' + (on ? '0' : '-1') + '" data-wiz-group="' + esc(group)
+            + '" data-wiz-opt="' + esc(val) + '">' + esc(label) + '</button>';
+    }
+    /**
+     * A picker's options as a segmented radio group, then the selected option's description
+     * (announced when it changes).
+     * @param {string} group The picker.
+     * @param {string} labelledBy The id of the heading that names the group.
+     * @returns {string} HTML.
+     */
+    function optsHtml(group, labelledBy) {
+        var opts = optsFor(group), sel = highlighted(group);
+        var h = '<div class="wiz-opts" role="radiogroup" aria-labelledby="' + esc(labelledBy) + '" data-wiz-pick="'
+            + esc(group) + '">';
+        opts.forEach(function (o) { h += optHtml(group, o[0], o[1], o[1] === sel); });
+        return h + '</div><p class="wiz-desc" data-wiz-desc="' + esc(group) + '" aria-live="polite">'
+            + esc(descFor(group)[sel] || '') + '</p>';
+    }
+    /**
+     * The picker: the watch showing the selected option, then its options.
+     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme'.
+     * @returns {string} HTML.
+     */
+    function pickerHtml(group) {
+        var sel = highlighted(group);
+        return '<div class="wiz-stage big" data-wiz-preview="' + esc(group) + '">'
+            + watchHtml('<img class="wiz-shot" data-wiz-shot src="' + esc(shotFor(group, sel)) + '" alt="'
+                + esc(labelFor(optsFor(group), sel) + ' preview') + '">')
+            + '</div>' + optsHtml(group, 'wiz-title');
+    }
+    /**
+     * Swap the picker's screenshot with a short fade (none under reduced motion). A newer swap wins
+     * over one still fading.
+     * @param {?Element} img The preview image.
+     * @param {string} src New screenshot.
+     * @param {string} alt Its alt text.
+     * @returns {void}
+     */
+    function swapShot(img, src, alt) {
+        if (!img) { return; }
+        img.alt = alt;
+        run.shotSeq += 1;
+        var seq = run.shotSeq;
+        if (img.getAttribute('src') === src) { img.className = 'wiz-shot'; return; }
+        if (reducedMotion()) { img.src = src; img.className = 'wiz-shot'; return; }
+        img.className = 'wiz-shot fade';
+        setTimeout(function () {
+            if (!run || seq !== run.shotSeq) { return; }
+            img.src = src;
+            img.className = 'wiz-shot';
+        }, 140);
+    }
+    /**
+     * Pick an option: commit it, then update its group's segments and description and the preview in
+     * place (no re-render, so focus and a swipe in progress are kept).
+     * @param {string} group A picker.
+     * @param {number} idx Option index (clamped).
+     * @param {boolean} focus Move keyboard focus to the picked segment (arrow keys).
+     * @returns {void}
+     */
+    function selectOption(group, idx, focus) {
+        var opts = optsFor(group);
+        var val = opts[Math.max(0, Math.min(opts.length - 1, idx))][1];
+        var graph = PICKERS[group].graph, before = graph ? graphState() : '';
+        commit(group, val);
+        var segs = run.overlay.querySelectorAll('[data-wiz-group="' + group + '"]');
+        for (var i = 0; i < segs.length; i += 1) {
+            var on = segs[i].getAttribute('data-wiz-opt') === val;
+            segs[i].className = on ? 'wiz-opt on' : 'wiz-opt';
+            segs[i].setAttribute('aria-checked', on ? 'true' : 'false');
+            segs[i].setAttribute('tabindex', on ? '0' : '-1');
+            if (on && focus) { segs[i].focus(); }
+        }
+        var desc = run.overlay.querySelector('[data-wiz-desc="' + group + '"]');
+        if (desc) { desc.textContent = descFor(group)[val] || ''; }
+        if (!graph) {
+            swapShot(run.overlay.querySelector('[data-wiz-shot]'), shotFor(group, val), labelFor(opts, val) + ' preview');
+        } else if (graphState() !== before) {
+            refreshForecast();
+        }
+    }
+
+    // --- the flick demo: tilt-and-snap through the real cycle ---
+    function flickStops() { return FLICK.flickStops(run.ctx.S, shotsShowHeartRate()); }
+    /**
+     * A stop's caption. Its name is already beside the dots, so only a screen reader hears it again
+     * here (the caption is the announced region).
+     * @param {{label: string, caption: string}} stop A stop.
+     * @returns {string} HTML.
+     */
+    function flickCaptionHtml(stop) {
+        return '<span class="sr-only">' + esc(stop.label) + ': </span>' + esc(stop.caption);
+    }
+    /**
+     * The cycle's dots, the current one highlighted; its name sits beside them, so the position is
+     * never told by colour alone.
+     * @param {number} count Stops.
+     * @param {number} idx Current stop.
      * @returns {string} HTML.
      */
     function flickDotsHtml(count, idx) {
-        var h = '', i;
-        for (i = 0; i < count; i += 1) { h += '<span class="wiz-dot' + (i === idx ? ' on' : '') + '"></span>'; }
+        var h = '';
+        for (var i = 0; i < count; i += 1) { h += '<span class="wiz-dot' + (i === idx ? ' on' : '') + '"></span>'; }
         return h;
     }
     /**
-     * Swap the demo to a stop: crossfade the screenshot (two stacked imgs; the CSS opacity
-     * transition does the fade), and rewrite dots, label and caption. Every lookup is
-     * guarded — the step may have been re-rendered or the wizard closed between the flick
-     * and the snap timeout.
-     * @param {{label:string,caption:string,shotGroup:string,shotVal:string}} stop Target stop.
-     * @param {number} idx The stop's index in the cycle.
-     * @param {number} count Total stops.
-     * @returns {undefined}
+     * Swap the demo to a stop: crossfade the two stacked screenshots (the CSS transition fades) and
+     * rewrite the dots, name and caption. The step may have changed, or setup closed, by the snap.
+     * @param {Object} stop The stop.
+     * @param {number} idx Its index.
+     * @param {number} count Stops.
+     * @returns {void}
      */
     function showFlickStop(stop, idx, count) {
-        if (!W.overlay) { return; }
-        var imgs = W.overlay.querySelectorAll('.wiz-flick-shot');
+        if (!run || !run.overlay) { return; }
+        var imgs = run.overlay.querySelectorAll('.wiz-flick-shot');
         if (imgs.length === 2) {
             var cur = (imgs[0].className.indexOf(' on') >= 0) ? 0 : 1, nxt = 1 - cur;
             imgs[nxt].src = stopShot(stop);
             imgs[cur].className = 'wiz-shot wiz-flick-shot';
             imgs[nxt].className = 'wiz-shot wiz-flick-shot on';
         }
-        var dots = W.overlay.querySelector('[data-wiz-flick-dots]');
+        var dots = run.overlay.querySelector('[data-wiz-flick-dots]');
         if (dots) { dots.innerHTML = flickDotsHtml(count, idx); }
-        var lbl = W.overlay.querySelector('[data-wiz-flick-label]');
+        var lbl = run.overlay.querySelector('[data-wiz-flick-label]');
         if (lbl) { lbl.textContent = stop.label; }
-        var cap = W.overlay.querySelector('[data-wiz-flick-cap]');
-        if (cap) { cap.innerHTML = cardHintHtml(stop.label, stop.caption); }
+        var cap = run.overlay.querySelector('[data-wiz-flick-cap]');
+        if (cap) { cap.innerHTML = flickCaptionHtml(stop); }
     }
     /**
-     * Advance the demo one stop (wrapping past the last back to Default), replay the
-     * tilt-and-snap animation on the watch, and swap the content on the snap (~150 ms in,
-     * mid-tilt of the 450 ms keyframe). Under prefers-reduced-motion the CSS suppresses
-     * the tilt and only the crossfade shows — no JS branch needed.
-     * @returns {undefined}
+     * Advance the demo one stop (wrapping to Default), replay the tilt on the watch and swap the
+     * picture on the snap (150 ms into the 450 ms tilt). Under reduced motion the CSS drops the tilt.
+     * @returns {void}
      */
     function advanceFlick() {
-        var stops = flickStops(W.ctx.S, hasHeartRate());
-        if (!stops.length) { return; }
-        W.flickIdx = (W.flickIdx + 1) % stops.length;
-        var stop = stops[W.flickIdx], idx = W.flickIdx;
-        var watch = W.overlay.querySelector('[data-wiz-flick-watch]');
+        var stops = flickStops();
+        run.flickIdx = (run.flickIdx + 1) % stops.length;
+        var stop = stops[run.flickIdx], idx = run.flickIdx;
+        var watch = run.overlay.querySelector('[data-wiz-flick-watch]');
         if (watch) {
             watch.className = 'wiz-flick-watch';    // restart the animation:
             void watch.offsetWidth;                 // force a reflow between the class flips
@@ -493,404 +505,438 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     // --- step bodies ---
+    function stepHead(id) {
+        return '<h2 class="wiz-title" id="wiz-title" data-wiz-title tabindex="-1">' + esc(STEP[id].title) + '</h2>';
+    }
+    // The country rows are the settings page's own searchSelects, their options resolved (the region
+    // derives from the country), so they look and behave like Settings.
+    function selectRow(key) {
+        var item = FINISH.findItem(run.ctx.schema, key);
+        var withOpts = Object.assign({}, item, { options: PConf.engine.resolveOptionsFrom(item, run.ctx.S) });
+        return PConf.engine.renderRow(withOpts, { value: run.ctx.S[key] });
+    }
     function stepWelcome() {
-        var schema = W.ctx.schema;
-        var h = '<p>Thanks for trying WarnWeather!</p>'
-            + '<p>With this quick setup we’ll apply the best settings for your country — you can change anything later. It’s optional, so skip it any time.</p>'
-            + '<div class="wiz-head">Choose your country</div>'
-            + selectRow(schema, 'holidayCountry');
-        if (regionHasOptions(schema)) { h += selectRow(schema, 'holidayRegion'); }
-        return h;
+        // aplite has no radar: no promise of one there.
+        var radar = Boolean(run.env.radar);
+        var lead = radar ? 'Forecast, rain radar and your calendar at a glance.' : 'Forecast and your calendar at a glance.';
+        var region = FINISH.findItem(run.ctx.schema, 'holidayRegion');
+        var h = '<div class="wiz-stage">'
+            + watchHtml('<img class="wiz-shot" src="' + esc(shotFor('layoutPreset', highlighted('layoutPreset')))
+                + '" alt="WarnWeather on your watch">')
+            + '</div>'
+            + stepHead('welcome')
+            + '<p class="wiz-lead">' + lead + ' Setup takes a minute, and you can change everything later.</p>'
+            + '<div class="wiz-card"><div class="wiz-card-hd">Your country</div>'
+            + selectRow('holidayCountry');
+        if (region && PConf.engine.resolveOptionsFrom(region, run.ctx.S).length) { h += selectRow('holidayRegion'); }
+        return h + '<p class="wiz-note">Picks the ' + (radar ? 'weather and radar service' : 'weather service')
+            + ' for your area, your units, holidays and first day of the week.</p></div>';
     }
     function stepLayout() {
-        // compactDense isn't offered in this carousel (LAYOUT_OPTS) — a persisted
-        // compactDense (set in full Settings) can't be represented here, so highlight
-        // compactCal (the nearest, same 2-row calendar) WITHOUT mutating the stored
-        // value (stepHealth's pattern below): the preset changes only on a real pick,
-        // and the flick demo clamps compactDense to the compactCal screenshot itself
-        // (flickStop), so the demo works against the untouched stored value too.
-        var sel = labelFor(LAYOUT_OPTS, W.ctx.S.layoutPreset) ? W.ctx.S.layoutPreset : 'compactCal';
-        return carousel('layoutPreset', LAYOUT_OPTS, sel, LAYOUT_DESC)
-            + '<div>'
-            + '<p><b>Forecast Status Bar</b> — shows your location, current temperature and air quality.</p>'
-            + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV dots and rain bars.</p></div>';
+        return stepHead('layout') + pickerHtml('layoutPreset')
+            + '<div class="wiz-legend">'
+            + '<p><b>Forecast Status Bar</b>: your location, the temperature and air quality.</p>'
+            + '<p><b>Forecast</b>: an hourly graph of the temperature, rain and more.</p></div>';
     }
-    function stepHealth() {
-        // If the stored mode isn't offered here (e.g. 'slot', set later via the Health tab), highlight
-        // 'off' rather than leave the carousel unhighlighted — without mutating the stored value, which
-        // only changes if the user actually picks a card.
-        var sel = labelFor(HEALTH_OPTS, W.ctx.S.healthMode) ? W.ctx.S.healthMode : 'off';
-        return carousel('healthMode', HEALTH_OPTS, sel, healthDesc(hasHeartRate()));
-    }
+    function stepHealth() { return stepHead('health') + pickerHtml('healthMode'); }
     function stepFlick() {
-        // Render always opens on stop 0 (the default view), so re-entering the step resets
-        // the demo — keeps W.flickIdx and the DOM trivially in sync.
-        W.flickIdx = 0;
-        var stops = flickStops(W.ctx.S, hasHeartRate());
-        var stop = stops[0];
-        var src = esc(stopShot(stop));
-        return '<p>Your watch shows one view at a time. Flick your wrist to peek at the rest — it returns to your default view on its own.</p>'
+        // The demo opens on its first stop (the default view) whenever the step renders.
+        run.flickIdx = 0;
+        var stops = flickStops(), stop = stops[0], src = esc(stopShot(stop));
+        return stepHead('flick')
+            + '<p class="wiz-lead">Flick your wrist for the next view. It goes back to the default by itself.</p>'
             + '<div class="wiz-flick">'
-            + '<div class="wiz-flick-watch" data-wiz-flick-watch data-wiz-flick>'
-            + '<div class="wiz-flick-bezel">'
-            + '<img class="wiz-shot wiz-flick-shot on" src="' + src + '" alt="">'
-            + '<img class="wiz-shot wiz-flick-shot" src="' + src + '" alt="">'
-            + '</div>'
-            + '</div>'
+            + '<div class="wiz-stage big"><div class="wiz-flick-watch" data-wiz-flick-watch data-wiz-flick>'
+            + watchHtml('<div class="wiz-flick-stack">'
+                + '<img class="wiz-shot wiz-flick-shot on" src="' + src + '" alt="">'
+                + '<img class="wiz-shot wiz-flick-shot" src="' + src + '" alt=""></div>')
+            + '</div></div>'
             + '<div class="wiz-flick-track">'
             + '<span data-wiz-flick-dots>' + flickDotsHtml(stops.length, 0) + '</span>'
             + '<span class="wiz-flick-label" data-wiz-flick-label>' + esc(stop.label) + '</span>'
             + '</div>'
-            + '<button class="wiz-flick-btn" data-wiz-flick>⟳&nbsp;&nbsp;Flick wrist</button>'
-            + '<p class="wiz-cardhint wiz-flick-cap" data-wiz-flick-cap>' + cardHintHtml(stop.label, stop.caption) + '</p>'
+            + '<button type="button" class="wiz-try" data-wiz-flick>' + CSS.ICON_FLICK + 'Try a flick</button>'
+            + '<p class="wiz-desc" data-wiz-flick-cap aria-live="polite">' + flickCaptionHtml(stop) + '</p>'
             + '</div>';
     }
+    // Colours can be changed where they draw: a colour watch on a colour theme.
+    function colourTheme() { return Boolean(run.env.color) && ['bw', 'bw-light'].indexOf(run.ctx.S.theme) === -1; }
     function stepTheme() {
-        return carousel('theme', optsFor('theme'), W.ctx.S.theme, THEME_DESC)
-            + '<div><p>The theme sets your watchface’s colours. You can fine-tune individual colours later in Settings.</p></div>';
+        return stepHead('theme') + pickerHtml('theme')
+            + (run.env.color ? '<p class="wiz-fine">You can fine-tune any colour later in Settings.</p>' : '');
     }
-    // The tomorrow.io upsell, shown between the first two "All set" paragraphs when the resulting
-    // weather provider isn't DWD or Met.no (i.e. outside their strong regions): a free tomorrow.io key
-    // unlocks the precise worldwide nowcast. Reuses the real settings field (renderRow) so the signup
-    // instructions, key input and Test button match the Tomorrow.io key sheets exactly. Entering a key
-    // switches the weather provider to tomorrow.io (see onTomorrowioKey), wired in openWizard.
-    // Both copies of the key's row (the weather provider's Tomorrow.io sheet and the radar-only one)
-    // are labelled just "API key" under a sheet titled "Tomorrow.io"; any copy will do (same hint,
-    // same Test), and the row here, with no sheet title above it, names the provider itself.
-    var TOMORROWIO_UPSELL_LABEL = 'Tomorrow.io API key';
-    function tomorrowioUpsell() {
-        var item = findItem(W.ctx.schema, 'tomorrowioApiKey');
-        if (!item) { return ''; }
-        var field = PConf.engine.renderRow(Object.assign({}, item, { label: TOMORROWIO_UPSELL_LABEL }),
-            { value: W.ctx.S.tomorrowioApiKey || '' });
-        return '<div class="wiz-tio">'
-            + '<p><b>Get the most precise forecast.</b> For your region, a free <b>Tomorrow.io</b> account unlocks a hyperlocal forecast anywhere in the world. Set it up below, or skip it to keep the auto-picked provider.</p>'
-            + field
-            + '</div>';
+    /**
+     * The forecast step: the graph, drawn live in the picked look (a swipe across it steps through the
+     * looks), the looks, and on emery the length.
+     * @returns {string} HTML.
+     */
+    function stepForecast() {
+        var h = stepHead('forecast')
+            + '<div class="wiz-stage" data-wiz-preview="forecastLook">'
+            + '<div class="wiz-graph" data-wiz-graph role="img" aria-label="' + esc(graphLabel()) + '">' + graphHtml() + '</div>'
+            + '</div>' + optsHtml('forecastLook', 'wiz-title');
+        if (run.env.forecastSpan) {
+            h += '<h3 class="wiz-sub" id="wiz-span">Forecast length</h3>' + optsHtml('forecastHours', 'wiz-span');
+        }
+        return h + '<p class="wiz-fine">Every line' + (colourTheme() ? ', its style and its colours' : ' and its style')
+            + ' can be changed later in Settings, on the Graphs tab.</p>';
+    }
+    function welcomeRows() {
+        var S = run.ctx.S, country = settingLabel('holidayCountry', S.holidayCountry);
+        var region = (S.holidayRegion && S.holidayRegion !== 'all') ? settingLabel('holidayRegion', S.holidayRegion) : '';
+        return [{ k: 'Country', v: region ? region + ', ' + country : country, step: 'welcome' },
+            { k: 'Weather', v: settingLabel('provider', S.provider), attr: 'data-wiz-sum-weather' }];
+    }
+    /**
+     * A picker step's summary row: the pick as the picker named it, with a Change link to the step.
+     * @param {string} k The row's name.
+     * @param {string} group The picker.
+     * @param {string} step The step it is on.
+     * @returns {function(): Array.<Object>} The summary function.
+     */
+    function pickerRow(k, group, step) {
+        return function () { return [{ k: k, v: pickedLabel(group), step: step }]; };
+    }
+    function forecastRow() { return [{ k: 'Forecast', v: forecastLabel(), step: 'forecast', attr: 'data-wiz-sum-forecast' }]; }
+    /**
+     * The last step's summary: what setup chose, each with a way back to the step that set it. The
+     * picks read as their pickers named them; country, region and weather as the settings tabs do.
+     * @returns {string} HTML.
+     */
+    function summaryHtml() {
+        var h = '<ul class="wiz-sum">';
+        run.steps.forEach(function (id) {
+            if (!STEP[id].summary) { return; }
+            STEP[id].summary().forEach(function (row) {
+                h += '<li><span class="k">' + esc(row.k) + '</span><span class="v"' + (row.attr ? ' ' + row.attr : '') + '>'
+                    + esc(row.v || '—') + '</span>'
+                    + (row.step ? '<button type="button" class="chg" data-wiz-goto="' + row.step + '" aria-label="Change '
+                        + esc(row.k.toLowerCase()) + '">Change</button>' : '')
+                    + '</li>';
+            });
+        });
+        return h + '</ul>';
     }
     function stepDone() {
-        // Show the tomorrow.io upsell only where DWD / Met.no don't apply — a REGION question, keyed off
-        // the selected country's recommended provider. NOT the current S.provider: that may not have been
-        // derived to dwd/metno yet (re-run wizard, undetected locale) and the upsell itself flips it to
-        // tomorrow.io once a key is entered, which must not change whether the upsell shows.
-        var countryProvider = mapCountry(W.ctx.S.holidayCountry).provider;
-        var upsell = (countryProvider !== 'dwd' && countryProvider !== 'metno') ? tomorrowioUpsell() : '';
-        return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs, and you can run this setup again any time from <b>Setup › Misc › Run setup again</b>.</p>'
-            + upsell
-            + '<p>If you enjoy WarnWeather, please ♥ it on the Pebble appstore — it really helps.</p>'
-            + '<p>Need help or have feedback? Open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>, or use the appstore’s “Message the developer” to reach me directly.</p>';
-    }
-    function stepBody(id) {
-        if (id === 'welcome') { return stepWelcome(); }
-        if (id === 'layout') { return stepLayout(); }
-        if (id === 'health') { return stepHealth(); }
-        if (id === 'flick') { return stepFlick(); }
-        if (id === 'theme') { return stepTheme(); }
-        return stepDone();
+        var item = FINISH.findItem(run.ctx.schema, 'tomorrowioApiKey');
+        return '<div class="wiz-badge">' + CSS.ICON_DONE + '</div>'
+            + stepHead('done')
+            + '<p class="wiz-lead">Save to send these settings to your watch. To run setup again later: '
+            + '<b>Setup&nbsp;›&nbsp;Misc&nbsp;›&nbsp;Run&nbsp;setup&nbsp;again</b>.</p>'
+            + summaryHtml()
+            + ((item && UPSELL.offered(run.ctx.S)) ? UPSELL.html(item, run.ctx.S) : '')
+            + '<p class="wiz-fine">Enjoying WarnWeather? A ♥ on the Pebble appstore helps a lot. Questions or ideas: '
+            + 'open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>, or use the '
+            + 'appstore’s “Message the developer”.</p>';
     }
 
-    // --- footer buttons ---
-    function navBtn(nav, label, primary) {
-        return '<button class="wiz-nav ' + (primary ? 'pri' : 'sec') + '" data-wiz-nav="' + nav + '">' + esc(label) + '</button>';
+    // --- top bar and bottom bar ---
+    function topHtml() {
+        var n = run.steps.length, h;
+        h = (run.idx > 0)
+            ? '<button type="button" class="wiz-back" data-wiz-nav="back" aria-label="Back">' + CSS.ICON_BACK + '</button>'
+            : '<span class="wiz-top-pad"></span>';
+        h += '<div class="wiz-progress" role="progressbar" aria-label="Setup progress" aria-valuemin="1" aria-valuemax="'
+            + n + '" aria-valuenow="' + (run.idx + 1) + '" aria-valuetext="Step ' + (run.idx + 1) + ' of ' + n + '">';
+        for (var i = 0; i < n; i += 1) {
+            h += '<span class="wiz-seg' + (i < run.idx ? ' done' : (i === run.idx ? ' on' : '')) + '"></span>';
+        }
+        return h + '</div><span class="wiz-top-pad"></span>';
+    }
+    function cta(nav, label) {
+        return '<button type="button" class="wiz-cta" data-wiz-nav="' + nav + '">' + esc(label) + '</button>';
+    }
+    function quiet(nav, label) {
+        return '<button type="button" class="wiz-link" data-wiz-nav="' + nav + '">' + esc(label) + '</button>';
     }
     function footer(id) {
-        if (id === 'welcome') { return navBtn('skip', 'Skip', false) + navBtn('next', 'Get started', true); }
-        if (id === 'done') { return navBtn('tweak', 'Continue tweaking', false) + navBtn('save', 'Save & close', true); }
-        return navBtn('back', 'Back', false) + navBtn('next', 'Next', true);
-    }
-
-    function renderStep() {
-        var id = W.steps[W.idx];
-        W.overlay.querySelector('[data-wiz-title]').textContent = STEP_TITLES[id] || '';
-        W.overlay.querySelector('[data-wiz-body]').innerHTML = stepBody(id);
-        W.overlay.querySelector('[data-wiz-foot]').innerHTML = footer(id);
-        wireCar();
-        centerCar();
-    }
-
-    // --- finishing: the situational defaults (settings/defaults-policy.js) ---
-    //
-    // applyDerived above answers "what suits this COUNTRY"; this answers "what suits a watch
-    // whose owner just finished setup". The rules — which slots, which bold modes and why —
-    // live in the policy table, not here; this code only decides whether a value may land on
-    // the live state, and writes it the way the settings page would.
-
-    // "Save & close" and "Continue tweaking" are the two buttons of the LAST step, so both
-    // mean the wizard was walked to the end. "Skip" (welcome step) means the user answered
-    // nothing, so nothing is derived for them.
-    var COMPLETING_NAVS = {save: true, tweak: true};
-
-    /**
-     * The conditional-defaults table. Resolved lazily, on purpose, so the flat settings
-     * page's file order never matters (unlike blocks.js, which binds the status-thresholds
-     * contract once at load and has its bundle position pinned by a test).
-     * WEBVIEW REQUIREMENT: the flat page has no require(), so settings/defaults-policy.js must
-     * be listed in scripts/build-config-page.js's APP_FILES for window.DefaultsPolicy to exist
-     * at all. Without it the wizard simply derives nothing — Node tests take the require()
-     * branch and would not notice, hence the log line in applyWizardDefaults.
-     * @returns {?Object} The defaults-policy module, or null when it isn't on the page.
-     */
-    function defaultsPolicy() {
-        return (typeof require !== 'undefined')
-            ? require('./defaults-policy.js')
-            : (typeof window !== 'undefined' ? window.DefaultsPolicy : null);
-    }
-    /**
-     * The status-line catalog, resolved the same lazy dual-context way.
-     * @returns {?Object} The catalog module, or null when it isn't on the page.
-     */
-    function statusCatalog() {
-        return (typeof require !== 'undefined')
-            ? require('../status-line-catalog.js')
-            : (typeof window !== 'undefined' ? window.StatusLineCatalog : null);
+        // Back from the summary (a Change link, or Back): one tap returns to it, and Skip, which would
+        // drop the finishing defaults, is no longer offered.
+        if (run.reachedDone && id !== 'done') { return cta('summary', 'Back to summary'); }
+        if (id === 'welcome') { return cta('next', 'Get started') + quiet('skip', 'Skip setup'); }
+        if (id === 'done') { return cta('save', 'Save to watch') + quiet('tweak', 'Keep customizing'); }
+        return cta('next', 'Continue');
     }
 
     /**
-     * Whether another slot of `key`'s own status row already shows `value` —
-     * the catalog's canonical siblingHolds, resolved dual-context.
-     * @param {Object} S Live settings state.
-     * @param {string} key Setting messageKey.
-     * @param {*} value The value the policy wants to write.
-     * @returns {boolean} True when a sibling slot of the same row already holds it.
+     * Render the current step into the overlay.
+     * @param {string} dir 'next' or 'open' (slides in from the right), 'back' (from the left), or 'stay':
+     *   re-render in place (a country picked), keeping the scroll position and focus.
+     * @returns {void}
      */
-    function rowSiblingHolds(S, key, value) {
-        var cat = statusCatalog();
-        return Boolean(cat && cat.siblingHolds && cat.siblingHolds(S, key, value));
+    function renderStep(dir) {
+        var id = run.steps[run.idx], stay = dir === 'stay';
+        if (id === 'done') { run.reachedDone = true; }
+        var top = run.overlay.querySelector('[data-wiz-top]');
+        if (top) { top.innerHTML = topHtml(); }
+        var body = run.overlay.querySelector('[data-wiz-body]');
+        body.innerHTML = '<div class="wiz-step' + (dir === 'back' ? ' back' : '') + (stay ? ' still' : '')
+            + (id === 'done' ? ' last' : '') + '">' + STEP[id].body() + '</div>';
+        run.overlay.querySelector('[data-wiz-foot]').innerHTML = footer(id);
+        if (stay) { return; }
+        body.scrollTop = 0;
+        // A screen reader starts each step at its title.
+        var title = run.overlay.querySelector('[data-wiz-title]');
+        if (title) { title.focus({ preventScroll: true }); }
     }
 
+    // --- opening and closing ---
     /**
-     * Whether the policy may write `key` — two conservative clauses, both spelling out
-     * "the user has not spoken here":
-     *   1. the stored value is still the one a fresh install of THIS watch resolves (the
-     *      schema's defaultValue, or its env-aware defaultFrom resolver). Anything else is
-     *      a deliberate choice — made in the wizard, or in Settings before re-running it —
-     *      and a first-run default must never overrule it. EXCEPT a key its rule declares
-     *      in `overrules`: there, finishing the wizard is itself the consent (the
-     *      health-slot promotion — see the rule), so the customized value gives way.
-     *   2. for a status slot, no sibling slot of the same row already shows the value. The
-     *      row already carries what the rule wanted to put there, so writing it would either
-     *      duplicate the reading or (through the page's dedupe hook) blank the slot the user
-     *      chose. Skipping is both safe and what the rule was after. This clause has no
-     *      overrules exemption — a duplicate reading is never what a rule was after.
-     * @param {Object} ctx onReady ctx ({S, ENV, schema}).
-     * @param {string} key Setting messageKey.
-     * @param {Object} meta The key's flattened rule meta from applyDefaults
-     *     ({value, dependsOn, overrules}).
-     * @returns {boolean} True when writing is safe.
+     * The settings page under the overlay: its top bar and its scroll area. Not the #modal sheet the
+     * country row opens, which shows above the wizard, nor the #toast.
+     * @returns {Array.<Element>} The elements that exist.
      */
-    function policyMayWrite(ctx, key, meta) {
-        var item = findItem(ctx.schema, key);
-        if (!item) { return false; }   // not a setting on this page — never invent one
-        if (!meta.overrules && ctx.S[key] !== resolvedDefaultAsStored(item, ctx.ENV)) { return false; }
-        return !rowSiblingHolds(ctx.S, key, meta.value);
+    function pageBehind() {
+        return [document.querySelector('.topbar'), document.getElementById('scroll')].filter(Boolean);
     }
-
     /**
-     * A schema item's default in the SAME representation hydrate() stores it in. Colour items
-     * declare a number but are stored as '#RRGGBB', so comparing the raw default against the
-     * stored value would report "the user changed this" on a completely untouched install --
-     * and a policy rule setting a colour would then silently never fire, with no test failing
-     * (no rule writes a colour today). Normalising here keeps the guard honest for the rules
-     * this table is meant to grow.
-     * @param {Object} item Schema item.
-     * @param {Object} env Platform env.
-     * @returns {*} The default, as it would be stored.
+     * Hide the page behind the wizard from screen readers and the keyboard (aria-modal alone doesn't
+     * in every WebView), or show it again.
+     * @param {boolean} hidden True while the wizard is up.
+     * @returns {void}
      */
-    function resolvedDefaultAsStored(item, env) {
-        var dv = PConf.engine.resolveDefaultFrom(item, env);
-        return (item.type === 'color' && typeof dv === 'number') ? PConf.color.intToHex(dv) : dv;
-    }
-
-    /**
-     * Write the situational defaults a FINISHED wizard earns onto the live state, so the
-     * existing save path persists them alongside everything else the wizard derived. A nav
-     * that doesn't finish the wizard (Skip, Back, Next) writes nothing.
-     *
-     * The execution semantics — flattening, `set` order, dependsOn anchoring — live in the
-     * policy module's applyDefaults, its one interpreter; this caller only contributes the
-     * guard deciding whether a value may land (policyMayWrite).
-     *
-     * @param {Object} ctx onReady ctx ({S, ENV, schema}).
-     * @param {string} nav The footer button pressed ('save'|'tweak'|'skip'|'next'|'back').
-     * @returns {Object} The messageKey -> value pairs actually written (empty when none).
-     */
-    function applyWizardDefaults(ctx, nav) {
-        if (!COMPLETING_NAVS[nav] || !ctx) { return {}; }
-        var policy = defaultsPolicy();
-        if (!policy) {
-            // Guarded: no other settings-page file assumes a console, and a missing one must
-            // not turn "no defaults derived" into a thrown error on the finish button.
-            if (typeof console !== 'undefined' && console.log) {
-                console.log('wizard: defaults-policy missing from the page — no setup defaults derived');
-            }
-            return {};
-        }
-        // The whole live state doubles as `choices`: every wizard pick and every stored
-        // setting is already in it, so a future rule keyed on any of them just works.
-        return policy.applyDefaults({wizard: true, env: ctx.ENV, choices: ctx.S}, {
-            mayWrite: function (key, meta) { return policyMayWrite(ctx, key, meta); }
+    function hidePageBehind(hidden) {
+        pageBehind().forEach(function (node) {
+            if (hidden) { node.setAttribute('aria-hidden', 'true'); } else { node.removeAttribute('aria-hidden'); }
+            node.inert = hidden;
         });
     }
-
     function closeWizard() {
-        if (W.overlay && W.overlay.parentNode) { W.overlay.parentNode.removeChild(W.overlay); }
-        W.overlay = null;
+        hidePageBehind(false);
+        if (run.overlay.parentNode) { run.overlay.parentNode.removeChild(run.overlay); }
+        run.overlay = null;
+    }
+    /**
+     * After the wizard closes onto the page, put focus back where it came from: the "Run setup again"
+     * row for a re-run, else the active tab at the top of the page.
+     * @returns {void}
+     */
+    function restoreFocus() {
+        var el = (run.returnFocus && document.querySelector(run.returnFocus)) || document.querySelector('.tab.on');
+        if (el) { el.focus(); }
     }
     // Keep the overlay up: save() flashes a toast then navigates back to the watch, which unloads
     // the page. Removing the overlay first would flash the settings menu before that navigation.
-    function finishSave() { W.ctx.set('onboardingDone', true); W.ctx.save(); }
-    function finishTweak() { W.ctx.set('onboardingDone', true); closeWizard(); W.ctx.render(); }
-
-    // The navs that close the wizard and hand its state to the page (and so to a save).
-    var EXIT_NAVS = {save: true, tweak: true, skip: true};
-
-    /**
-     * Run healthMode's own onChange hook (resetStatusHealth, declared on the schema item)
-     * ONCE, from the value the wizard opened with to the one it closes on — the same call
-     * the Health tab makes on every change. The carousel writes S.healthMode directly, and
-     * an off <-> on flip that skips the hook leaves the health row as the off state left it
-     * (all Empty: a blank Health Status Bar) or keeps health items stored in other rows
-     * after picking Off (blank slots). Deliberately not per selection: carousel swipes
-     * commit every card they pass, and resetting the row on a mere peek at "Off" would
-     * throw away a customized health row. A no-op when the enable state didn't flip.
-     * @param {Object} ctx onReady ctx ({S, ENV, schema}).
-     * @param {*} openedWith S.healthMode when the wizard opened.
-     * @returns {void}
-     */
-    function applyHealthModeChange(ctx, openedWith) {
-        var item = findItem(ctx.schema, 'healthMode');
-        var hook = (item && item.onChange && PConf.onChange && PConf.onChange.get)
-            ? PConf.onChange.get(item.onChange) : null;
-        if (!hook || openedWith === ctx.S.healthMode) { return; }
-        hook(ctx.S, openedWith, ctx.S.healthMode, ctx.ENV, 'healthMode');
-    }
+    function finishSave() { run.ctx.set('onboardingDone', true); run.ctx.save(); }
+    function finishTweak() { run.ctx.set('onboardingDone', true); closeWizard(); run.ctx.render(); restoreFocus(); }
 
     function onNav(nav) {
-        // Closing the wizard first reconciles the health pick with the status rows, BEFORE
-        // the finishing defaults: the policy's health-slot swap reads the health row, and
-        // after an off -> on pick that row must already be back at its defaults.
-        if (EXIT_NAVS[nav]) { applyHealthModeChange(W.ctx, W.healthAtOpen); }
-        // Every exit runs the situational defaults first — applyWizardDefaults itself decides
-        // which navs count as finishing the wizard, so the rule lives in one place — and does
-        // it BEFORE the exit, so the values ride the save (or show up on the settings page the
-        // user is dropped onto).
-        applyWizardDefaults(W.ctx, nav);
-        if (nav === 'back') { W.idx = Math.max(0, W.idx - 1); renderStep(); }
-        else if (nav === 'next') { W.idx = Math.min(W.steps.length - 1, W.idx + 1); renderStep(); }
+        // Closing reconciles the health pick with the status rows BEFORE the finishing defaults: the
+        // policy's health-slot swap reads the health row, which after an off -> on pick must already
+        // be back at its defaults. The defaults are applied BEFORE the exit, so they ride the save (or
+        // show on the settings page the user is dropped onto); applyWizardDefaults decides which navs
+        // finish setup.
+        if (FINISH.EXIT_NAVS[nav]) { FINISH.applyHealthModeChange(run.ctx, run.healthAtOpen); }
+        FINISH.applyWizardDefaults(run.ctx, nav);
+        if (nav === 'back') { run.idx = Math.max(0, run.idx - 1); renderStep('back'); }
+        else if (nav === 'next') { run.idx = Math.min(run.steps.length - 1, run.idx + 1); renderStep('next'); }
+        // Picks commit as they are made, so returning straight to the summary is safe.
+        else if (nav === 'summary') { run.idx = run.steps.indexOf('done'); renderStep('next'); }
         else if (nav === 'save') { finishSave(); }
-        // Skip closes the wizard onto the live settings page (same as "Continue tweaking"),
-        // rather than saving and navigating back to the watch.
+        // Skip closes onto the live settings page (as "Keep customizing" does) rather than saving.
         else if (nav === 'skip' || nav === 'tweak') { finishTweak(); }
     }
 
+    /**
+     * Jump back to a step from the summary's Change links. Walking forward from there returns to the
+     * summary, which then shows the new pick.
+     * @param {string} id Step id.
+     * @returns {void}
+     */
+    function goToStep(id) {
+        var at = run.steps.indexOf(id);
+        if (at === -1) { return; }
+        run.idx = at;
+        renderStep('back');
+    }
+
+    /**
+     * Open the folded Tomorrow.io card onto its key field, focusing its label so a screen reader
+     * starts at the instructions and the keyboard stays down until the field is tapped.
+     * @param {Element} button The card's "Add a Tomorrow.io key" button.
+     * @returns {void}
+     */
+    function openUpsell(button) {
+        var field = run.overlay.querySelector('[data-wiz-tio-field]');
+        if (!field) { return; }
+        field.removeAttribute('hidden');
+        if (button.parentNode) { button.parentNode.removeChild(button); }
+        var label = field.querySelector('.lbl');
+        if (label) { label.setAttribute('tabindex', '-1'); label.focus(); }
+    }
+
     function onClick(e) {
-        if (!e.target || !e.target.closest) { return; }
         var t;
         if ((t = e.target.closest('[data-wiz-nav]'))) { onNav(t.getAttribute('data-wiz-nav')); return; }
         if ((t = e.target.closest('[data-select]'))) {
-            // Open the shared bottom-sheet dialog (a showModal() top-layer dialog, so it renders
-            // above this overlay). The engine sets S[key] on pick; when a country was newly chosen,
-            // reset the region and re-derive the country defaults, then re-render the step.
-            var sk = t.getAttribute('data-select'), before = W.ctx.S[sk];
-            W.ctx.openSheet(sk, function () {
-                if (sk === 'holidayCountry' && W.ctx.S.holidayCountry !== before) {
-                    W.ctx.S.holidayRegion = 'all'; applyDerived(W.ctx.S);
+            // The shared bottom-sheet dialog (a showModal() top-layer dialog, above this overlay). The
+            // engine sets S[key] on pick; a new country resets the region and re-derives the
+            // country's settings, then the step re-renders in place.
+            var sk = t.getAttribute('data-select'), before = run.ctx.S[sk];
+            run.ctx.openSheet(sk, function () {
+                if (sk === 'holidayCountry' && run.ctx.S.holidayCountry !== before) {
+                    run.ctx.S.holidayRegion = 'all';
+                    applyDerived(run.ctx.S);
+                    // A key typed in this run keeps Tomorrow.io wherever the new country still offers it.
+                    if (run.tioTyped && UPSELL.offered(run.ctx.S)) { onTomorrowioKey(run.ctx.S.tomorrowioApiKey); }
                 }
-                renderStep();
+                renderStep('stay');
+                var again = run.overlay.querySelector('[data-select="' + sk + '"]');
+                if (again) { again.focus(); }
             });
             return;
         }
-        if ((t = e.target.closest('[data-wiz-idx-val]'))) {
-            var group = t.parentNode.getAttribute('data-wiz-car');
-            selectCar(group, indexOfCode(optsFor(group), t.getAttribute('data-wiz-idx-val')), true); return;
+        if ((t = e.target.closest('[data-wiz-opt]'))) {
+            var group = t.getAttribute('data-wiz-group');
+            selectOption(group, indexOfCode(optsFor(group), t.getAttribute('data-wiz-opt')), false);
+            return;
         }
+        if ((t = e.target.closest('[data-wiz-goto]'))) { goToStep(t.getAttribute('data-wiz-goto')); return; }
+        if ((t = e.target.closest('[data-wiz-tio-open]'))) { openUpsell(t); return; }
         if ((t = e.target.closest('[data-wiz-flick]'))) { advanceFlick(); return; }
-        // Embedded settings-field controls (the tomorrow.io upsell on the "All set" step): the copy
-        // button in the key hint and the Test button both live in the overlay, outside #scroll, so
-        // the engine's own delegated handlers never see them — dispatch them here instead.
-        if ((t = e.target.closest('[data-copy]'))) { if (PConf.copyText) { PConf.copyText(t.getAttribute('data-copy')); } return; }
-        if ((t = e.target.closest('[data-action]'))) { var act = t.getAttribute('data-action'); if (PConf.actions[act]) { PConf.actions[act](); } return; }
+        // The settings row embedded in the Tomorrow.io card: its copy button and Test button live in
+        // the overlay, outside #scroll, where the engine's own delegated handlers never see them.
+        if ((t = e.target.closest('[data-copy]'))) { PConf.copyText(t.getAttribute('data-copy')); return; }
+        if ((t = e.target.closest('[data-action]'))) {
+            var act = PConf.actions[t.getAttribute('data-action')];
+            if (act) { act(); }
+        }
     }
 
-    // Text input inside the overlay (the tomorrow.io key field). Mirror the value into shared state
-    // like the engine's #scroll input handler does; the country searchSelect's search box lives in the
-    // top-layer #modal (engine-wired), not here, so this only ever sees embedded settings fields.
+    // A radio group moves its selection with the arrow keys (wrapping), Home and End. Older
+    // WebViews name the arrows without the "Arrow" prefix.
+    var KEY_STEP = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1, Right: 1, Down: 1, Left: -1, Up: -1 };
+    function onKeydown(e) {
+        var t = e.target.closest('[data-wiz-opt]');
+        if (!t) { return; }
+        var group = t.getAttribute('data-wiz-group'), opts = optsFor(group);
+        var at = indexOfCode(opts, t.getAttribute('data-wiz-opt')), to = null;
+        if (KEY_STEP[e.key]) { to = (at + KEY_STEP[e.key] + opts.length) % opts.length; }
+        else if (e.key === 'Home') { to = 0; }
+        else if (e.key === 'End') { to = opts.length - 1; }
+        if (to === null) { return; }
+        e.preventDefault();
+        selectOption(group, to, true);
+    }
+
+    // A sideways swipe across the picker's preview steps to the neighbouring option (no wrap).
+    // Mostly-vertical drags are scrolls, and left alone.
+    var SWIPE_MIN_PX = 40;
+    function onTouchStart(e) {
+        var t = e.target.closest('[data-wiz-preview]');
+        run.touch = (t && e.touches && e.touches.length === 1)
+            ? { group: t.getAttribute('data-wiz-preview'), x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+    }
+    function onTouchEnd(e) {
+        var start = run.touch;
+        run.touch = null;
+        if (!start || !e.changedTouches || !e.changedTouches.length) { return; }
+        var dx = e.changedTouches[0].clientX - start.x, dy = e.changedTouches[0].clientY - start.y;
+        if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) { return; }
+        var to = indexOfCode(optsFor(start.group), highlighted(start.group)) + (dx < 0 ? 1 : -1);
+        if (to < 0 || to >= optsFor(start.group).length) { return; }
+        selectOption(start.group, to, false);
+    }
+
+    // Text typed into the overlay (the Tomorrow.io key field): mirrored into the shared state the way
+    // the engine's #scroll input handler does. The country searchSelect's box lives in the top-layer
+    // #modal (engine-wired), so this only sees embedded settings fields.
     function onInput(e) {
-        var inp = e.target && e.target.closest && e.target.closest('input[type=text][data-k]');
+        var inp = e.target.closest('input[type=text][data-k]');
         if (!inp) { return; }
         var k = inp.getAttribute('data-k');
-        W.ctx.S[k] = inp.value;
-        if (k === 'tomorrowioApiKey') { onTomorrowioKey(inp.value); }
+        run.ctx.S[k] = inp.value;
+        if (k === 'tomorrowioApiKey') { run.tioTyped = true; onTomorrowioKey(inp.value); }
     }
 
-    // A non-empty key makes tomorrow.io the weather provider (the upsell's whole point); clearing it
-    // reverts to the country-derived provider. We don't re-render on keystrokes (would drop input
-    // focus), and it isn't needed: the upsell's visibility gate is the COUNTRY's recommended provider
-    // (see stepDone), so flipping S.provider here never changes whether the upsell shows. Runs the same
-    // pollen cleanup the provider picker + applyDerived do.
-    function onTomorrowioKey(val) {
-        var oldProvider = W.ctx.S.provider;
-        var hasKey = Boolean(String(val || '').replace(/\s/g, ''));
-        var next = hasKey ? 'tomorrowio' : mapCountry(W.ctx.S.holidayCountry).provider;
-        if (next === oldProvider) { return; }
-        W.ctx.S.provider = next;
-        var cleanup = PConf.onChange && PConf.onChange.get && PConf.onChange.get('clearPollenForProvider');
-        if (cleanup) { cleanup(W.ctx.S, oldProvider, next); }
+    /**
+     * A key typed into the Tomorrow.io card: a key makes Tomorrow.io the weather provider, clearing
+     * it goes back to the country's (wizard-upsell.js providerFor), written with the provider's own
+     * hook (the pollen cleanup). No re-render on keystrokes (focus would drop); the summary's Weather
+     * and Forecast lines, whose long span is named by the provider's feed, update in place.
+     * @param {*} key The key.
+     * @returns {void}
+     */
+    function onTomorrowioKey(key) {
+        var next = UPSELL.providerFor(run.ctx.S, key);
+        if (next === run.ctx.S.provider) { return; }
+        run.ctx.setValue('provider', next);
+        var weather = run.overlay.querySelector('[data-wiz-sum-weather]');
+        if (weather) { weather.textContent = settingLabel('provider', next) || '—'; }
+        var forecast = run.overlay.querySelector('[data-wiz-sum-forecast]');
+        if (forecast) { forecast.textContent = forecastLabel(); }
     }
 
     function ensureStyle() {
         if (document.getElementById('wiz-style')) { return; }
         var st = document.createElement('style');
         st.id = 'wiz-style';
-        st.textContent = WIZ_CSS;
+        st.textContent = CSS.CSS;
         document.head.appendChild(st);
     }
 
+    /**
+     * Open setup: a new run over the page's ctx, replacing one already up ("Run setup again" while it
+     * shows never stacks two).
+     * @param {Object} ctx The page's ready ctx.
+     * @param {boolean} fresh Opened by itself on a fresh install: the country is detected and derived.
+     * @returns {void}
+     */
     function openWizard(ctx, fresh) {
-        W.ctx = ctx; W.steps = buildSteps(ctx.ENV); W.idx = 0;
-        W.healthAtOpen = ctx.S.healthMode;   // see applyHealthModeChange
+        if (run && run.overlay) { closeWizard(); }
+        run = newRun(ctx, fresh);
         if (fresh) {
-            // An undetected country, or one the holiday list doesn't offer (IN, AE, …), is
-            // 'none' — NOT the schema default 'DE', which would derive the Germany-only DWD
-            // weather + radar and German holidays and show "Germany" as if it were detected.
-            // mapCountry('none') is the "everyone else" row: Open-Meteo + Rainbow, metric.
-            var cc = inferCountry();
-            var cOpts = optionsFor(ctx.schema, 'holidayCountry');
-            ctx.S.holidayCountry = (cc && optionHasCode(cOpts, cc)) ? cc : 'none';
+            // An undetected country, or one the holiday list doesn't offer (IN, AE, …), is 'none', NOT
+            // the schema default 'DE', which would derive Germany's DWD weather and radar and German
+            // holidays as if detected. mapCountry('none') is the "everyone else" row: Open-Meteo and
+            // Rainbow, metric.
+            var cc = CD.inferCountry();
+            var country = FINISH.findItem(ctx.schema, 'holidayCountry');
+            ctx.S.holidayCountry = (cc && labelFor(country.options, cc)) ? cc : 'none';
             ctx.S.holidayRegion = 'all';
             applyDerived(ctx.S);
+        }
+        if (run.steps.indexOf('forecast') !== -1) {
+            // A graph set up in Settings, none of the looks: kept as "Your own", first.
+            refreshLooks();
+            if (!FORECAST.current(ctx.S, run.looks, run.env)) {
+                run.own = FORECAST.snapshot(ctx.S, run.env);
+                refreshLooks();
+            }
         }
         ensureStyle();
         var overlay = document.createElement('div');
         overlay.id = 'wizard';
-        overlay.innerHTML =
-            '<div class="wiz-hd"><h2 data-wiz-title></h2></div>'
-            + '<div class="wiz-body" data-wiz-body></div>'
+        // emery's screenshots are 200 px wide, the others 144: the CSS sizes each by its own width.
+        overlay.className = shotPlatform() === 'emery' ? 'w200' : '';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'wiz-title');
+        overlay.innerHTML = '<div class="wiz-top" data-wiz-top></div><div class="wiz-body" data-wiz-body></div>'
             + '<div class="wiz-foot" data-wiz-foot></div>';
         document.body.appendChild(overlay);
-        W.overlay = overlay;
+        run.overlay = overlay;
         overlay.addEventListener('click', onClick);
         overlay.addEventListener('input', onInput);
-        renderStep();
+        overlay.addEventListener('keydown', onKeydown);
+        overlay.addEventListener('touchstart', onTouchStart);
+        overlay.addEventListener('touchend', onTouchEnd);
+        renderStep('open');
+        // After focus is inside the overlay, so it never sits in a subtree being hidden.
+        hidePageBehind(true);
     }
 
-    // Registration (guarded so requiring this file in Node tests is a no-op).
+    // Registration (a no-op where the engine isn't loaded).
     if (PConf.hooks && PConf.hooks.onReady) {
         PConf.hooks.onReady(function (ctx) {
-            W.ctx = ctx;
+            page.ctx = ctx;
             if (shouldShow(ctx.cfg)) { openWizard(ctx, true); }
         });
     }
     PConf.actions = PConf.actions || {};
-    PConf.actions.startWizard = function () { if (W.ctx) { openWizard(W.ctx, false); } };
+    PConf.actions.startWizard = function () { if (page.ctx) { openWizard(page.ctx, false); } };
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = {
-            countryFromTimezone: countryFromTimezone, countryFromLocale: countryFromLocale,
-            inferCountry: inferCountry, mapCountry: mapCountry, applyDerived: applyDerived,
-            applyWizardDefaults: applyWizardDefaults,
-            buildSteps: buildSteps, shouldShow: shouldShow,
-            flickStops: flickStops
-        };
+        module.exports = { buildSteps: buildSteps, shouldShow: shouldShow, applyDerived: applyDerived };
     }
 })();

@@ -1138,7 +1138,7 @@ function bootWithCapturedListeners(schema, env, opts) {
     + '\nPConf.hooks.onReady(function (ctx) {'
     + ' module.exports.openSheet = ctx.openSheet;'
     + ' module.exports.activeTab = ctx.activeTab;'
-    + ' module.exports.getValue = ctx.get; });'
+    + ' module.exports.getValue = ctx.get; module.exports.setValue = ctx.set; });'
     + '\nPConf.engine.boot();';
   const listeners = {};
   const modalListeners = {};
@@ -1176,7 +1176,19 @@ function bootWithCapturedListeners(schema, env, opts) {
   // scrollLeft — for the tab-reveal tests; without it the reveal finds no tab and no-ops.
   const tabs = Object.assign({ innerHTML: '', addEventListener: (type, fn) => { tabsListeners[type] = fn; } },
     (opts && opts.tabs) || {});
-  const ids = { scroll, modal, tabs, save: generic(), appTitle: generic(), toast: generic() };
+  // The header's Save and Revert: Save records its classes (the .idle look), each records
+  // its click listener, so a test can watch the quiet state and press either.
+  const headerListeners = { save: {}, revert: {} };
+  const saveClasses = new Set();
+  const save = Object.assign(generic(), {
+    classes: saveClasses,
+    classList: { add: (c) => { saveClasses.add(c); }, remove: (c) => { saveClasses.delete(c); },
+      contains: (c) => saveClasses.has(c) },
+    addEventListener: (type, fn) => { headerListeners.save[type] = fn; }
+  });
+  const revert = Object.assign(generic(), { hidden: true,
+    addEventListener: (type, fn) => { headerListeners.revert[type] = fn; } });
+  const ids = { scroll, modal, tabs, save, revert, appTitle: generic(), toast: generic() };
   // Resolve the selectors boot() issues against `document`: live-search lists and the fresh
   // select/date/edit-sheet triggers that closeModal() may restore focus to after render.
   const document = {
@@ -1194,17 +1206,119 @@ function bootWithCapturedListeners(schema, env, opts) {
       return null;
     }
   };
+  // opts.docQueryAll: the page's querySelectorAll, for the tests that tell twin triggers
+  // apart (a key shown in the tab's pinned preview and in its row).
+  if (opts && opts.docQueryAll) { document.querySelectorAll = opts.docQueryAll; }
   const fn = new Function('document', 'INJECTED_SCHEMA', 'INJECTED_ENV', 'INJECTED_CFG',
     'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', BUNDLE);
   const mod = { exports: {} };
   fn(document, schema, env, {}, {}, 'pebblejs://close#', mod);
   return {
     listeners, modalListeners, tabsListeners, scroll, modal, tabs, sselList, focusCounts,
+    save, revert, headerListeners,
     onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv,
-    openSheet: mod.exports.openSheet, getValue: mod.exports.getValue,
+    openSheet: mod.exports.openSheet, getValue: mod.exports.getValue, setValue: mod.exports.setValue,
     activeTab: mod.exports.activeTab
   };
 }
+
+/**
+ * A tap on one option of a segmented control in the tab body (the engine's [data-v] path).
+ * @param {Object} result A bootWithCapturedListeners result.
+ * @param {string} key The control's key.
+ * @param {string} value The option's value.
+ */
+function tapSegment(result, key, value) {
+  const t = { getAttribute: (n) => (n === 'data-k' ? key : (n === 'data-v' ? value : null)),
+    closest: (sel) => (sel === '[data-v]' ? t : null) };
+  result.listeners.click({ target: t });
+}
+
+/**
+ * A tap on one of the confirm dialog's buttons.
+ * @param {Object} result A bootWithCapturedListeners result.
+ * @param {string} which 'action' | 'save' (the second button).
+ */
+function tapConfirm(result, which) {
+  const btn = { getAttribute: (n) => (n === 'data-confirm' ? which : null) };
+  result.modalListeners.click({ target: { closest: (sel) => (sel === '[data-confirm]' ? btn : null) } });
+}
+
+test('boot(): Save stays quiet until a setting changes; Revert asks, then undoes every change', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'a', options: [['A', 'a'], ['B', 'b']] },
+    { type: 'segmented', messageKey: 'size', label: 'Size', defaultValue: 's', options: [['S', 's'], ['L', 'l']] }
+  ] }] }] };
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true });
+  assert.ok(r.save.classes.has('idle'), 'nothing changed: Save is quiet');
+  assert.equal(r.revert.hidden, true, 'and Revert is hidden');
+  tapSegment(r, 'mode', 'b');
+  tapSegment(r, 'size', 'l');
+  assert.ok(!r.save.classes.has('idle'), 'a change lights Save');
+  assert.equal(r.revert.hidden, false, 'and shows Revert');
+  r.headerListeners.revert.click({});
+  assert.match(r.modal.innerHTML, /Undo your changes\?/, 'Revert asks first');
+  assert.match(r.modal.innerHTML, /data-confirm="action">Undo changes</);
+  assert.match(r.modal.innerHTML, /data-confirm="save">Keep editing</);
+  tapConfirm(r, 'save');
+  assert.equal(r.getValue('mode'), 'b', 'Keep editing keeps the changes');
+  assert.equal(r.revert.hidden, false);
+  r.headerListeners.revert.click({});
+  tapConfirm(r, 'action');
+  assert.equal(r.getValue('mode'), 'a', 'Undo changes puts every setting back');
+  assert.equal(r.getValue('size'), 's');
+  assert.ok(r.save.classes.has('idle'), 'and Save is quiet again');
+  assert.equal(r.revert.hidden, true);
+  tapSegment(r, 'mode', 'b');
+  tapSegment(r, 'mode', 'a');
+  assert.ok(r.save.classes.has('idle'), 'a change taken back by hand is no change');
+});
+
+test('boot(): a value the page stamps itself (item.stamp) never lights Save, and Revert keeps it', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'hidden', messageKey: 'seenAt', defaultValue: 0, stamp: true },
+    { type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'a', options: [['A', 'a'], ['B', 'b']] }
+  ] }] }] };
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true });
+  // A block stamps while it renders (the Weather tab's last-opened time); a tap repaints.
+  r.setValue('seenAt', 123);
+  tapSegment(r, 'mode', 'a');
+  assert.ok(r.save.classes.has('idle'), 'a new stamp alone is no change');
+  assert.equal(r.revert.hidden, true);
+  tapSegment(r, 'mode', 'b');
+  r.setValue('seenAt', 456);
+  r.headerListeners.revert.click({});
+  tapConfirm(r, 'action');
+  assert.equal(r.getValue('mode'), 'a', 'the pick goes back');
+  assert.equal(r.getValue('seenAt'), 456, 'the stamp stays as the page last wrote it');
+});
+
+test('renderTabBar: a short label rides beside the whole one, for the CSS to pick on a narrow phone', () => {
+  assert.match(E.renderTabBar({ tabs: [{ id: 'w', label: 'Status bars', short: 'Status', sections: [] }] }, 'w'),
+    /<span class="tab-lbl"><span class="tab-full">Status bars<\/span><span class="tab-short">Status<\/span><\/span>/);
+});
+
+test('renderTabBar: a tab with an icon draws it over its label, the attention dot on its corner', () => {
+  const P = global.PConf;
+  P.icons.register('t-ico', '<svg viewBox="0 0 24 24"><path d="M1 1"/></svg>');
+  const schema = { tabs: [{ id: 'a', label: 'Alpha', icon: 't-ico', sections: [] },
+    { id: 'b', label: 'Beta', icon: 'no-such-icon', sections: [] }] };
+  const bar = E.renderTabBar(schema, 'a');
+  assert.match(bar, /^<button class="tab on" data-tab="a" type="button" aria-current="page">/);
+  assert.match(bar, /<span class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M1 1"\/><\/svg><\/span><span class="tab-lbl">Alpha<\/span>/);
+  assert.match(bar, /data-tab="b" type="button"><span class="tab-lbl">Beta<\/span><\/button>$/,
+    'an unregistered icon drops out: the label alone');
+});
+
+test('renderRow: a full segmented control spans its row, the picked option\'s hint under it', () => {
+  const item = { type: 'segmented', full: true, messageKey: 'm', label: 'Mode',
+    options: [['Off', 'off'], ['Rain alert only', 'countdown']], hintByValue: { countdown: 'Fetches for the alert.' } };
+  const html = E.renderRow(item, { value: 'countdown' });
+  assert.match(html, /^<div class="row stack segfull"><div class="lbl">Mode<\/div><div><div class="seg full">/);
+  assert.match(html, /<\/div><\/div><div class="hint">Fetches for the alert\.<\/div><\/div>$/, 'the hint follows the control');
+  assert.doesNotMatch(E.renderRow(Object.assign({}, item, { full: false, options: item.options.concat([['A', 'a'], ['B', 'b']]) }),
+    { value: 'off' }), /segfull/, 'without full a long one stays the wide inline row');
+});
 
 test('date helpers use local YYYY-MM-DD and clamp invalid days', () => {
   assert.equal(E.formatDateValue(new Date(2028, 1, 29, 23, 30)), '2028-02-29');
@@ -1508,6 +1622,37 @@ test('boot(): closing a directly opened select restores focus to its fresh trigg
     }
   });
   assert.equal(result.focusCounts.select.theme, 1);
+});
+
+test('boot(): a select hands focus back to the trigger that opened it, in the pinned preview or its row', () => {
+  // A status slot's key has two triggers: the slot in the tab's pinned preview and the row
+  // in its card. Closing its picker focuses the one that opened it, whichever comes first.
+  const focused = [];
+  const node = (where) => ({ closest: (s) => (s === '.pin' && where === 'pin' ? {} : null),
+    focus: () => { focused.push(where); } });
+  const pinned = node('pin'), row = node('row');
+  const result = bootWithCapturedListeners(THEME_SCHEMA, {},
+    { docQueryAll: (sel) => (sel === '[data-select="theme"]' ? [pinned, row] : []) });
+  const open = (where) => result.listeners.click({ target: { closest: (s) => (s === '[data-select]'
+    ? { getAttribute: (n) => (n === 'data-select' ? 'theme' : null), closest: node(where).closest } : null) } });
+  const close = () => result.modalListeners.click({ target: { closest: (s) => (s === '[data-select-close]' ? {} : null) } });
+  open('row'); close();
+  open('pin'); close();
+  assert.deepEqual(focused, ['row', 'pin']);
+});
+
+test('renderSelectModal: the sheet takes item.sheetTitle over the row label', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [
+    { type: 'select', messageKey: 'mid', label: 'Middle slot', sheetTitle: 'Forecast bar · Middle slot',
+      defaultValue: 'a', options: [['A', 'a'], ['B', 'b']] },
+    { type: 'select', messageKey: 'plain', label: 'Plain', defaultValue: 'a', options: [['A', 'a']] }
+  ] }] }] };
+  const S = E.hydrate(SCH, {});
+  const cx = (key) => ({ S: S, ENV: {}, USERDATA: {}, openSelect: key, selectQuery: '', collapsed: {},
+    evalCtx: Object.assign({}, S, { env: {} }) });
+  assert.match(E.renderSelectModal(SCH, cx('mid')), /id="ssel-ttl-mid">Forecast bar · Middle slot</);
+  assert.match(E.renderSelectModal(SCH, cx('mid')), /aria-label="Forecast bar · Middle slot options"/);
+  assert.match(E.renderSelectModal(SCH, cx('plain')), /id="ssel-ttl-plain">Plain</);
 });
 
 test('boot(): external openSheet close skips underlying trigger focus and calls onClose once', () => {
@@ -2710,7 +2855,7 @@ test('boot(): a [data-goto-tab] link in the tab body brings its tab to the front
     'the link is the copy\'s own markup');
   goTo(r.listeners.click, 'b');
   assert.equal(r.activeTab(), 'b');
-  assert.match(r.tabs.innerHTML, /<button class="tab on" data-tab="b">/, 'the bar marks the new tab');
+  assert.match(r.tabs.innerHTML, /<button class="tab on" data-tab="b"/, 'the bar marks the new tab');
   assert.match(r.scroll.innerHTML, /data-k="tb"/, 'the new tab\'s body renders');
   assert.doesNotMatch(r.scroll.innerHTML, /data-k="ta"/, 'the old one is gone');
 });

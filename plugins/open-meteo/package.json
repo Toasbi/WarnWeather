@@ -1,0 +1,40 @@
+{
+  "name": "open-meteo-weather",
+  "author": "Toasbi",
+  "version": "1.0.0",
+  "private": true,
+  "pebble": {
+    "displayName": "Open-Meteo Weather",
+    "uuid": "24ea078a-a2c4-4161-a5fa-b61fca7163c8",
+    "sdkVersion": "3",
+    "projectType": "plugin",
+    "usesPermissions": [
+      "Location",
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.open-meteo.com"
+          ]
+        }
+      }
+    ],
+    "plugin": {
+      "description": "Weather for your weather locations (the phone's position for the current one) from Open-Meteo, worldwide and without a key, in your units: now, every hour for four days and every day for a week, with sunrise and sunset. Besides the standard weather readings it serves hourly rain chance and amount, wind, gusts, UV, pressure, cloud cover, humidity and dew point. Enough to be the watch's weather provider (Settings > Weather). Weather data by Open-Meteo.com (CC BY 4.0), ECMWF IFS model; UV from NOAA GFS.",
+      "script": "plugin.js",
+      "sources": [
+        {
+          "category": "weather",
+          "items": [
+            "location"
+          ],
+          "callerPermissions": [
+            "Location"
+          ],
+          "supportsMultiple": true,
+          "suggestedRefreshIntervalSec": 1800
+        }
+      ]
+    }
+  }
+}

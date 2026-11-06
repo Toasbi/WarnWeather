@@ -96,6 +96,16 @@
     var PITCH_MIN = 3;
     var PITCH_MAX = 8;
     var PAD_FROM = 6;
+    // forecast_span.h's 24 h class on emery: a fixed 8 px pitch (tick 1, pad 1, bar 5, pad 1:
+    // FORECAST_SPAN_DAY_*), 24 slots for 24 hours and one per hour past them, of the 24 the phone
+    // sends or the 26 with no left axis (forecast-span.js DAY_WIDE_HOURS). Its 12 h class fits
+    // FORECAST_SPAN_HALF_SLOTS whole columns to any plot.
+    var DAY = { pitch: 8, sent: 24, wideSent: 26 };
+    var HALF_SLOTS = 12;
+    // The 144 px watches' one grid (forecast_grid.h FORECAST_GRID_DEF at DISPLAY_WIDTH_144): pitch
+    // 7 (tick 1, pad 1, bar 4, pad 1) over the plot right of the label strip, which is never
+    // narrower than STRIP_MIN_W: the 142 px layer less the strip and its gap.
+    var SMALL = { pitch: 7, plot: 142 - STRIP_MIN_W - STRIP_GAP };
     // The stored values, the schema's options (test/forecast-span.test.js pins both). '48' is the
     // long span's token: the first cut stored the long span as '48', so the token stays and
     // nothing migrates. The row labels it with the whole hours the watch will show (spanOptions:
@@ -145,6 +155,37 @@
         // slot_x_count over the columns a bar can start its pad on and still end on screen.
         var shown = Math.floor(((w - pad - bar) * SLOT_ONE + pq - 1) / pq);
         return Math.min(shown, n);
+    }
+
+    /**
+     * The hours a fixed-pitch grid spans: of `n` hourly slots in a plot `w` px wide, the plot's
+     * width in hours to the nearest one. The line runs on to the screen's edge, so the last column
+     * shows in part: 21.75 hours in emery's 174 px plot read as 22.
+     * @param {number} n Hours the watch holds.
+     * @param {number} w Plot width in px.
+     * @param {{pitch: number}} grid The grid.
+     * @returns {number} Hours on screen.
+     */
+    function gridHours(n, w, grid) {
+        return Math.min(n, Math.round(w / grid.pitch));
+    }
+
+    /**
+     * The hours the forecast graph shows with these settings on this watch: the long span's whole
+     * hours for its feed and layout (longHours), 12 at 12 h, and at 24 h what the plot spans at the
+     * grid's fixed pitch: 22 beside emery's left axis, 25 with the high and low on the graph or off,
+     * 18 on the 144 px watches. The setup's preview draws these hours.
+     * @param {?Object} settings Clay settings.
+     * @param {?Object} [env] Platform env.
+     * @returns {number} Hours on screen.
+     */
+    function shownHours(settings, env) {
+        var span = option(settings, env);
+        if (span === 48) { return longHours(settings, env); }
+        if (span === 12) { return HALF_SLOTS; }
+        if (!(env && env.forecastSpan)) { return gridHours(DEFAULT_HOURS, SMALL.plot, SMALL); }
+        var wide = forecastAxis.numbers(settings) !== forecastAxis.AXIS;
+        return gridHours(wide ? DAY.wideSent : DAY.sent, plotWidth(settings, env), DAY);
     }
 
     /**
@@ -274,6 +315,7 @@
         healthGraph: healthGraph,
         plotWidth: plotWidth,
         longHours: longHours,
+        shownHours: shownHours,
         spanOptions: spanOptions
     };
 

@@ -156,8 +156,8 @@ test('the block sizes each slot by its position: the middle slot has room for th
   const S = { statusForecastLeft: 'temp', statusForecastMid: 'temp', statusForecastRight: 'empty',
     tempSlotDisplay: 'both', tempSlotUnit: true };
   const html = preview.statusBarsPreview(S, {});
-  assert.ok(html.indexOf('sbp-left">18|16<') !== -1, html);
-  assert.ok(html.indexOf('sbp-mid">18' + DEG + '|16' + DEG + '<') !== -1, html);
+  assert.match(html, /sbp-left" data-select="statusForecastLeft"[^>]*>18\|16</);
+  assert.ok(new RegExp('sbp-mid" data-select="statusForecastMid"[^>]*>18' + DEG + '\\|16' + DEG + '<').test(html), html);
 });
 
 test('a calendar shows only for a calendar top with rows', () => {
@@ -222,4 +222,31 @@ test('two-value temperature pairs keep the user\'s separator when the degree can
   const S = { tempSlotDisplay: 'both', tempSlotUnit: true, tempSlotSeparator: 'dot',
     tempSlotSeparatorSpaced: true };
   assert.equal(sample('temp', S, { cap: EDGE }), '18 · 16', 'bare, never a narrowed 18°·16°');
+});
+
+test('on the tab each slot is a button that opens its picker, named by bar, slot and item', () => {
+  const S = { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery',
+    statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi',
+    layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' };
+  const html = preview.statusBarsPreview(S, {});
+  assert.match(html, /^<div class="sbp tap" role="group" aria-label="Status bars"/);
+  const slots = html.match(/<button type="button" class="sbp-v [^"]*" data-select="[^"]*" aria-label="[^"]*">/g) || [];
+  assert.deepEqual(slots.map((b) => /data-select="([^"]*)"/.exec(b)[1]),
+    ['statusTopLeft', 'statusTopMid', 'statusTopRight', 'statusForecastLeft', 'statusForecastMid', 'statusForecastRight'],
+    'every slot of every shown bar, by its own key');
+  assert.ok(html.indexOf('data-select="statusTopLeft" aria-label="Watch bar, left slot: Empty">'
+    + '<span class="sbp-hole" aria-hidden="true"></span></button>') !== -1, 'an empty slot shows a hole to tap');
+  assert.ok(html.indexOf('aria-label="Forecast bar, middle slot: City">Berlin</button>') !== -1, html);
+  assert.ok(html.indexOf('class="sbp-v sbp-left sbp-empty"') !== -1, 'the empty one is marked');
+});
+
+test('above a slot\'s dialog the bars are the picture alone: nothing to tap', () => {
+  const S = { statusTopLeft: 'empty', statusForecastMid: 'city', layoutPreset: 'compactCal',
+    healthMode: 'off', radarMode: 'off' };
+  const html = preview.statusBarsPreview(S, {}, {}, { dialog: true });
+  assert.match(html, /^<div class="sbp" role="img" aria-label="Status bars preview"/);
+  assert.equal(html.indexOf('<button'), -1, 'no buttons');
+  assert.equal(html.indexOf('data-select'), -1, 'no picker to open');
+  assert.equal(html.indexOf('sbp-hole'), -1, 'an empty slot is blank, as on the watch');
+  assert.ok(html.indexOf('<span class="sbp-v sbp-mid">Berlin</span>') !== -1, html);
 });

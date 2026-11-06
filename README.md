@@ -63,7 +63,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
 **Status bars**
-* Configurable status slots on every view: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more
+* Configurable status slots on every view: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more; in the settings page, tap a slot in the bars at the top of the Status bars tab to change it
 * Selectable date format for the date slot — German/European, US, ISO, and spelled-out-month styles, chosen separately for calendar views (month + year) and no-calendar views (full date)
 * Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
 * Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set (not on Pebble Classic/Steel)
@@ -81,11 +81,11 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Dim backlight on Pebble Time 2: when the backlight comes on between hours you set it glows a color you pick instead of white — it never switches the backlight on by itself
 
 **Layout customization**
-* Multiple layout presets, with flick-to-cycle between views (or a double flick, to reduce accidental view switches) and optional auto-return — including *Weather only*: no top bar, just the rain radar, clock, weather and a big forecast (not on Pebble Classic/Steel)
+* Multiple layout presets, picked from pictures of the view each one gives, with flick-to-cycle between views (or a double flick, to reduce accidental view switches) and optional auto-return — including *Weather only*: no top bar, just the rain radar, clock, weather and a big forecast (not on Pebble Classic/Steel)
 * Fully custom layouts (not on Pebble Classic/Steel): build each view yourself — pick, remove and reorder the calendar, clock and status bars per view; any view can drop its top bar, and flick views also the clock, for a true full-screen radar or graph
-* Light/Dark settings page in six tabs — Weather, Watchface, Status bars, Alerts, Graphs, Setup (no Alerts tab on Pebble Classic/Steel) — with a pinned live preview, an explanation under each setting (or, with *Hide info text* in Setup › Misc, behind a ? you tap), rarely-changed settings under *More options*, and full-screen dialogs (× discards, Done keeps)
+* Light/Dark settings page in six tabs — Weather, Watchface, Status bars, Alerts, Graphs, Setup (no Alerts tab on Pebble Classic/Steel), all in view in a tab bar at the bottom — with a pinned live preview (on the Watchface tab your watch itself, every view drawn as you set it up), Save that lights up once something changes and Revert to undo every change, an explanation under each setting (or, with *Hide info text* in Setup › Misc, behind a ? you tap), rarely-changed settings under *More options*, and full-screen dialogs (× discards, Done keeps)
 * Weather tab in the settings page: live graphs — temperature & precipitation, wind & gusts, humidity & dew point, pressure, sun & moon — plus a 5-day forecast, for your current location or up to three saved places, with its own switchable data source (never touches the watchface's provider or location); refreshes only on demand — pull down or tap Refresh, which also re-reads your phone's location; it leads the tab bar, and a Setup › Misc toggle makes it the tab the page opens on
-* First-run setup wizard that picks sensible defaults for your country and watch — it bolds the rows you read first, highlights air quality from its warn level, and puts steps on the top row when your watch has health
+* First-run setup that shows your own watch as you pick its layout, health view and theme, offers three looks for the forecast graph (Classic, Stripes, Clean; not on Pebble Classic/Steel) and on the Pebble Time 2 its length, drawn live as you pick, then sums up your choices; it picks sensible defaults for your country and watch — it bolds the rows you read first, highlights air quality from its warn level, and puts steps on the top row when your watch has health
 
 *Weather and radar data from [MET Norway](https://www.met.no/) is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*
 

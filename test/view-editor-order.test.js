@@ -5,8 +5,8 @@
 // The editor used to list the stored letters, so a view seeded from Full calendar or
 // No calendar showed its status bar above the clock while the preview and the watch
 // drew it below — and no arrow sequence could put it where the list claimed it was.
-// preview-layout.js contentBands mirrors the watch's placement (layout.c) and is the
-// reference here.
+// The watch preview's layout (preview-watch.js layoutView, on view-cycle.js stackSeats)
+// mirrors the watch's placement (layout.c) and is the reference here.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -14,7 +14,7 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-const PL = require('../src/pkjs/settings/preview-layout.js');
+const PW = require('../src/pkjs/settings/preview-watch.js');
 const ve = require('../src/pkjs/settings/view-editor.js');
 const vc = require('../src/pkjs/view-cycle.js');
 const schema = require('../src/pkjs/settings/schema.js');
@@ -56,8 +56,8 @@ function editorKinds(S, i) {
  * @returns {string[]} kinds top to bottom, the Watch Status strip and the body left out
  */
 function watchKinds(S, i) {
-  const bands = PL.contentBands(vc.buildCustomCycle(S)[i]);
-  return bands.filter((b) => b.kind !== 'strip' && b.kind !== 'body').map((b) => b.kind);
+  const kind = { T: 'top', C: 'clock', A: 'status', B: 'status' };
+  return PW.layoutView(vc.buildCustomCycle(S)[i], 0).bands.map((b) => kind[b.band]).filter(Boolean);
 }
 
 /**
@@ -234,15 +234,19 @@ test('the Graph row carries a ✕ on every tab; the Alignment row shows only wit
 
 test('each tab shows a live preview of its view that follows the edits', () => {
   const S = state({ viewBody1: 'none', viewAlign1: 'top' });
-  const preview = (h) => (/<div class="ve-preview">(<svg[\s\S]*?<\/svg>)<\/div>/.exec(h) || [])[1];
+  // The view on the watch's screen (preview-watch.js viewScreen), its bands spoken.
+  const preview = (h) => {
+    const m = /<div class="ve-preview" role="img" aria-label="Preview: ([^"]*)"><div class="ve-scr" style="background:#[0-9A-F]{6}">(<svg[\s\S]*?<\/svg>)<\/div><\/div>/.exec(h);
+    return m ? { bands: m[1], svg: m[2] } : null;
+  };
   const top = preview(editorHtml(S, 1));
-  assert.ok(top, 'a preview SVG heads the tab');
-  assert.match(top, />Clock</, 'it draws this view\'s bands');
-  assert.doesNotMatch(top, />Forecast</, 'no graph band for a graphless view');
+  assert.ok(top, 'the screen heads the tab');
+  assert.equal(top.bands, 'Watch Status, Calendar (2 rows), Forecast Status, Clock', 'it draws this view\'s bands');
+  assert.match(top.svg, /viewBox="-9 -9 162 186"/, 'on the watch\'s own grid, framed in its ground');
   S.viewAlign1 = 'bottom';
-  assert.notEqual(preview(editorHtml(S, 1)), top, 'an alignment tap moves the preview');
+  assert.notEqual(preview(editorHtml(S, 1)).svg, top.svg, 'an alignment tap moves the preview');
   S.viewBody1 = 'forecast';
-  assert.match(preview(editorHtml(S, 1)), />Forecast</, 'a re-added graph shows up');
+  assert.match(preview(editorHtml(S, 1)).bands, /, Forecast$/, 'a re-added graph shows up');
 });
 
 test('the last element keeps no ✕', () => {

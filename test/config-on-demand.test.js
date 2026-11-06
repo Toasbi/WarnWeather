@@ -210,7 +210,7 @@ test('each bar ends on one Alerts nav row: the icons on each side, a tap brings 
   assert.ok(q.indexOf('class="info-q"') !== -1, 'premise: the \'?\' mode draws its buttons');
   assert.equal(barRow(q, 'Watch Status Bar').indexOf('info-q'), -1, 'the Alerts row has no \'?\' in that mode');
   assert.equal(barHint(q, 'Watch Status Bar'), TOP_HINT, 'and keeps its summary in view');
-  assert.match(rowOf(html, 'data-select="statusTopRight"'), /^<div class="row slot">/,
+  assert.match(rowOf(html, 'class="sel-wrap" data-select="statusTopRight"'), /^<div class="row slot">/,
     'a row of its own: the slot above no longer joins it');
   assert.equal(barHint(html, 'Forecast Status Bar'), NONE, 'nothing placed: None');
   ['Health Status Bar', 'Radar Status Bar'].forEach((title) =>
@@ -529,7 +529,7 @@ test('the Alerts tab sits between Status bars and Graphs: About alerts, then the
   const page = alertsTab();
   assert.deepEqual((page.tabs.innerHTML.match(/data-tab="[^"]*"/g) || []).map((a) => a.slice(10, -1)),
     ['weather', 'watchface', 'watch', 'alerts', 'graphs', 'setup']);
-  assert.match(page.tabs.innerHTML, /<button class="tab on" data-tab="alerts">Alerts<\/button>/);
+  assert.match(page.tabs.innerHTML, /<button class="tab on" data-tab="alerts"[^>]*>.*?<span class="tab-lbl">Alerts<\/span><\/button>/);
   const html = page.scroll.innerHTML;
   const about = html.indexOf('<span class="ttl">About alerts</span>');
   assert.ok(about !== -1, 'a titled card');
@@ -567,7 +567,7 @@ test('the intro\'s graph link opens Graphs on its Forecast pane, whichever pane 
   const attrs = { 'data-goto-tab': 'graphs', 'data-goto-pane': 'forecast' };
   const t = { getAttribute: (n) => attrs[n] || null, closest: (sel) => (sel === '[data-goto-tab]' ? t : null) };
   page.scroll.dispatch('click', { target: t });
-  assert.match(page.tabs.innerHTML, /<button class="tab on" data-tab="graphs">/, 'the Graphs tab is in front');
+  assert.match(page.tabs.innerHTML, /<button class="tab on" data-tab="graphs"/, 'the Graphs tab is in front');
   assert.ok(paneOn('forecast'), 'on its Forecast pane');
   assert.ok(!paneOn('radar'), 'not the pane it showed last');
 });
@@ -978,8 +978,7 @@ test('the Rain dialog holds the one rain window; picking Rain alert only in View
   const page = onTab('watchface', { radarMode: 'graph', statusTopOnDemandLeftItems: 'bt' });
   page.openAllMore('scroll');
   assert.equal(page.scroll.innerHTML.indexOf('data-k="rainCountdownHorizon"'), -1, 'no copy in Views');
-  page.openSelect('radarMode');
-  page.pickOption('radarMode', 'countdown');
+  pickSegment(page.scroll, 'radarMode', 'countdown');
   assert.equal(page.S.radarMode, 'countdown');
   assert.equal(page.S.statusTopOnDemandLeftItems, 'bt,rain', 'Rain on the Watch Status Bar\'s left');
   page.clickTab('alerts');

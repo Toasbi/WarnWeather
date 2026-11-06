@@ -181,9 +181,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * @param {Object} state Live settings (colours as hex strings).
      * @param {Object} env Config-UI environment facts ({ color, platform, … }).
      * @param {Object} [userData] Page userData; `palette` is the page-open snapshot.
+     * @param {{bare: boolean}} [opts] `bare` (the Watchface tab's watch, preview-watch.js):
+     *   the time axis, the sky rows and the plot only, the frame ending under the plot.
      * @returns {string} SVG markup.
      */
-    function radarPreview(state, env, userData) {
+    function radarPreview(state, env, userData, opts) {
         // Effective color: a color display renders as color only when the theme isn't
         // Black & White — a bw/bw-light theme reuses the exact preview a B&W watch gets.
         var isColor = drawsColor(env, state.theme);
@@ -285,6 +287,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             e += rainBars(local[i], x, bw, anchor, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg, ink.bg,
                 radarBarEdge, barsTop);
         }
+        // A bare frame stops here: no legend, and no Watch Status Bar mock (the watch's own
+        // top bar is drawn in its band).
+        if (opts && opts.bare) { return svgFrame(e, PB + 3); }
         // Rain legend (one row): the exact-spot swatch (tier gradient on color, solid
         // theme-fg on B&W) + label, then a hollow grey "nearby" box + label. The nearby
         // box is a fixed grey outline (not tier-coloured), so it reads the same on
