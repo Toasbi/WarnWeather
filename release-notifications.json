@@ -194,5 +194,9 @@
   "2.4.0": {
     "title": "New first-run setup",
     "body": "Setup now shows your watch as you go and sums up your choices at the end. On most watches it also lets you pick a look for the forecast graph. Run it from the Setup tab, under Misc, Run setup again."
+  },
+  "2.5.0": {
+    "title": "Your watch in the settings",
+    "body": "The settings page now draws your watch as you set it up. Pick layouts and clock fonts from pictures, tap a slot on the Status bars tab to change it, and undo your changes with Revert. The tabs are now at the bottom."
   }
 }

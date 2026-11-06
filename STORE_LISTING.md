@@ -72,6 +72,7 @@ STATUS LINES
       - watch battery icon
       - watch battery percentage
       - phone battery
+- Tap a slot in the settings page's picture of your status bars to change it
 - Bold status values to make them stand out or easier to read
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
 - Threshold highlighting: bold, outline, or fill a status slot when its value crosses a
