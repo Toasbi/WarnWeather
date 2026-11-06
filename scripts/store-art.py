@@ -342,9 +342,10 @@ BAND_FROM = {'emery': 'emery', 'basalt': 'basalt', 'diorite': 'basalt', 'flint':
 BAND_OF = {'cal-full': 'band-full'}
 
 
-def scene_manifest():
-    """The scenes (scripts/gen-store-art-fixtures.js --manifest): id, mode, moment, platforms."""
-    out = subprocess.run(['node', os.path.join(ROOT, 'scripts', 'gen-store-art-fixtures.js'), '--manifest'],
+def scene_manifest(what='--manifest'):
+    """The scenes (scripts/gen-store-art-fixtures.js --manifest): id, mode, moment, platforms;
+    or with '--calm' each watch's calm run (its frames in order: scene id and moment)."""
+    out = subprocess.run(['node', os.path.join(ROOT, 'scripts', 'gen-store-art-fixtures.js'), what],
                          cwd=ROOT, check=True, capture_output=True, text=True).stdout
     return json.loads(out)
 
@@ -353,9 +354,10 @@ class Screens:
     """The captured watch screens of one version, per platform and scene, and the day's frames
     in order."""
 
-    def __init__(self, version, manifest):
+    def __init__(self, version, manifest, calm):
         self.dir = os.path.join(ROOT, 'screenshot', version, 'store-art', 'frames')
         self.scenes = {s['id']: s for s in manifest}
+        self.calm = calm
         self.day = [s['id'] for s in manifest if s['mode'] == 'day']
         self.intro = [s['id'] for s in manifest if s['mode'] == 'intro']
         self.cache = {}
@@ -660,16 +662,22 @@ RUN_TICKS = 4             # a day frame, as the day runs (its first tick half th
 MORNING_TICKS = 8         # the same in the first run, the day's view read before the first card
 INTRO_FIRST = 25          # Pebble Time 2's opening: its first frame, held
 INTRO_TICKS = 12          # each next frame of it
-INTRO_SWITCH = 16         # its last frame redrawn as the day's view of the same moment
+INTRO_SWITCH = 24         # its last frame redrawn as the day's view of the same moment
 INTRO_REST = 15           # the day's view, held before the day runs on
-OPEN = 9                  # a card unfolding
-STEP = 12                 # a step to the next: the selection slides, the screen redraws
-CLOSE = 10                # a card folding back into the clock
+OPEN = 10                 # a card unfolding
+STEP = 20                 # a step to the next: the selection slides, the screen changes with it
+CLOSE = 12                # a card folding back into the clock
 CHIP = 5                  # a layout coming in, its label after it
 END_TICKS = 62            # the wordmark, held
 FIRST_EXTRA = 5           # a card's first step: its name is read with it
 SETTLE = 6                # the day stopped at a frame, before the card unfolds
 LOOP = 9                  # into the wordmark, and from it into the first frame
+# The calm run (no words): an hour a frame, a setting changed now and then.
+CALM_TICKS = 14           # an hour
+CALM_SETTLE = 10          # a step's moment, held before its setting changes
+CALM_CHANGE = 30          # the setting changing
+CALM_AFTER = 14           # the changed screen, held before the run goes on
+CALM_FADE = 18            # the last hour into black and black into the first, at the loop
 
 
 # ---------------------------------------------------------------------------------------
@@ -693,47 +701,64 @@ LOOP = 9                  # into the wordmark, and from it into the first frame
 # A line is its words, or (long, short) where a 144 px watch needs the short one; a '\n' marks
 # where a caption breaks when it takes two lines. `mark` puts the ring on 'top' (the Watch
 # Status Bar), 'slot' (the UV slot: the forecast row's right slot under the card) or
-# 'calendar' (between the Watch Status Bar and the card), 'holiday' (the holiday's cell in the
-# calendar: its highlight colour), or nowhere (None). The numbers are the day's
-# (gen-store-art-fixtures.js): UV 7 at 11:00 with 8 to come, 3 the next day; Whit Monday in the
-# calendar, Ascension in its three weeks; the rain 15 minutes away at 08:45 on Sunday, the gusts
-# up to 59 km/h at noon.
+# 'calendar' (between the Watch Status Bar and the card), 'holiday' (the holiday cells in the
+# calendar: their highlight colour), or nowhere (None). A '{name}' in a line is one of the days'
+# numbers (story_numbers: the UV now and the day's max at 11:00 on Labour Day, Friday's
+# strongest gust), read from the scenes' fixtures, so the words say what the watch shows. The
+# days (gen-store-art-fixtures.js): Labour Day calm and sunny, 8 May (a Berlin holiday) and
+# Easter Monday in the calendar, Friday's storm front just after 18:00, its rain from 19:00.
 NOT_APLITE = ('emery', 'basalt', 'diorite', 'flint')
 STORY = (
     ('open', 'day-0-0500', 30),
     ('run', 'day-0-1100', MORNING_TICKS),
     ('stop', ('setting', 'UV index slot', ('Now', 'Day max', 'Both'), (
-        ('day-0-1100', 2, ('Now and today\'s max: 7/8', 'Now / today\'s max'), 'slot'),
-        ('uv-now', 0, ('The UV index now: 7', 'UV index now: 7'), 'slot'),
-        ('uv-max', 1, ('Highest UV left today: 8', 'Max left today: 8'), 'slot')))),
-    ('run', 'day-0-1200'),
-    ('stop', ('moment', 'Graph lines', (
-        ('day-0-1200', 'Rain chance and amount', None),
-        ('lines-wind', 'Wind and gusts', None),
-        ('lines-mix', 'Up to four lines at once', None)))),
+        ('day-0-1100', 2, ('Now and today\'s max: {uv_now}/{uv_max}', 'Now / today\'s max'), 'slot'),
+        ('uv-now', 0, ('The UV index now: {uv_now}', 'UV index now: {uv_now}'), 'slot'),
+        ('uv-max', 1, ('Highest UV left today: {uv_max}', 'Max left today: {uv_max}'), 'slot')))),
     ('run', 'day-0-1400'),
     ('stop', ('setting', 'Forecast length', None, (
         ('day-0-1400', 1, 'The next 24 hours', None),
-        ('span-long', 2, 'Up to 60 hours ahead', None))),
+        ('span-long', 2, 'Up to 66 hours ahead', None))),
      ('setting', 'Left axis values', ('On axis', 'On graph', 'Off'), (
-         ('day-0-1400', 0, 'High and low on the axis', None),
-         ('axis-off', 2, 'No axis, a wider graph', None)))),
-    ('run', 'day-0-1800'),
-    ('stop', ('moment', 'Calendar', (
-        ('day-0-1800', ('Holidays stand out:\nWhit Monday', 'Holidays stand out'), 'holiday'),
-        ('cal-full', ('Three weeks in view,\nAscension too', 'Three weeks in view'), 'calendar')))),
+         ('day-0-1400', 2, 'No axis: the graph\'s full width', None),
+         ('axis-graph', 1, 'High and low on the graph', None),
+         ('axis-on', 0, 'High and low beside the axis', None)))),
     ('run', 'day-0-2200'),
     ('stop', ('moment', 'UV index slot', (
         ('day-0-2200', ('After sunset: » marks\ntomorrow\'s max', '» is tomorrow\'s max'), 'slot'),))),
-    ('run', 'day-1-0845'),
+    ('run', 'day-1-0800'),
+    ('stop', ('moment', 'Calendar', (
+        ('day-1-0800', ('Holidays stand out:\nLabour Day, and 8 May\nin Berlin', 'Holidays stand out'), 'holiday'),
+        ('cal-full', ('Three weeks in view,\nEaster Monday too', 'Three weeks in view'), 'calendar')))),
+    ('run', 'day-1-1200'),
+    ('stop', ('setting', 'Forecast look', ('Classic', 'Stripes', 'Clean'), (
+        ('day-1-1200', 0, 'Temperature, UV and rain', None),
+        ('look-stripes', 1, ('Clouds on top, rain\nhanging from them', 'Clouds and rain on top'), None),
+        ('look-clean', 2, 'Just the essentials', None)), NOT_APLITE),
+     ('moment', 'Graph lines', (
+         ('day-1-1200', 'Temperature and rain', None),
+         ('uv-line', 'The UV index as a line', None)), ('aplite',))),
+    ('run', 'day-1-1845'),
     ('stop', ('moment', 'Weather alerts', (
-        ('day-1-0845', ('Rain in 15 minutes,\ngusts up to 59 today', 'Rain soon, gusts 59'), 'top'),),
+        ('day-1-1845', ('Rain in 15 minutes,\ngusts up to {gust} today', 'Rain soon, gusts {gust}'), 'top'),),
         NOT_APLITE)),
-    ('run', 'day-1-1400'),
+    ('run', 'day-1-2100'),
     ('layouts', ('layout-weather', 'Weather only'), ('layout-light', 'Light theme'), ('view-health', 'Health view'),
      ('layout-nocal', 'No calendar')),
     ('end',),
 )
+# The days' numbers as the captures show them (checked by eye against the frames: the UV slot at
+# 11:00 on Labour Day, the gust alert at 18:45 on Friday).
+NUMBERS = {'uv_now': 0, 'uv_max': 0, 'gust': 79}
+
+
+def numbered(line):
+    """A step's words (or its (long, short) pair) with the days' numbers in."""
+    if isinstance(line, tuple):
+        return tuple(numbered(part) for part in line)
+    return line.format(**NUMBERS) if line else line
+
+
 WORDMARK = ('Warn', 'Weather')
 SLOGAN = 'The forecast at a glance,\nalerts when it matters.'
 
@@ -765,6 +790,107 @@ def wipe(a, b, t, feather=18):
     return Image.composite(b, a, row.resize((w, h), Image.NEAREST))
 
 
+ROW_MAX = 30                # px: a changed part this high or less is a row of words, not stretched
+
+
+def segments(a, b):
+    """How screen a turns into screen b row by row. The rows the two share, in order (the
+    longest such alignment; a row of one colour counts for little, so the blank rows between
+    the parts don't decide it), as runs (kind 'run'); between them, the rows only one of them
+    has or that changed, as gaps ('gap'). Each (kind, a0, a1, b0, b1), y1 exclusive."""
+    w, h = a.size
+    da, db, table = a.tobytes(), b.tobytes(), {}
+    ra = [table.setdefault(da[y * w * 3:(y + 1) * w * 3], len(table)) for y in range(h)]
+    rb = [table.setdefault(db[y * w * 3:(y + 1) * w * 3], len(table)) for y in range(h)]
+    plain = {i for row, i in table.items() if row == row[:3] * w}
+    weight = [1 if r in plain else 4 for r in ra]
+    best = [[0] * (h + 1) for _ in range(h + 1)]
+    for i in range(h - 1, -1, -1):
+        bi, bn = best[i], best[i + 1]
+        for j in range(h - 1, -1, -1):
+            v = bn[j] if bn[j] >= bi[j + 1] else bi[j + 1]
+            if ra[i] == rb[j] and bn[j + 1] + weight[i] > v:
+                v = bn[j + 1] + weight[i]
+            bi[j] = v
+    pairs, i, j = [], 0, 0
+    while i < h and j < h:
+        if ra[i] == rb[j] and best[i][j] == best[i + 1][j + 1] + weight[i]:
+            pairs.append((i, j))
+            i, j = i + 1, j + 1
+        elif best[i + 1][j] >= best[i][j + 1]:
+            i += 1
+        else:
+            j += 1
+    out, ai, bj, k = [], 0, 0, 0
+    while k < len(pairs):
+        i, j = pairs[k]
+        if i > ai or j > bj:
+            out.append(('gap', ai, i, bj, j))
+        k2 = k
+        while k2 + 1 < len(pairs) and pairs[k2 + 1] == (pairs[k2][0] + 1, pairs[k2][1] + 1):
+            k2 += 1
+        out.append(('run', i, pairs[k2][0] + 1, j, pairs[k2][1] + 1))
+        ai, bj, k = pairs[k2][0] + 1, pairs[k2][1] + 1, k2 + 1
+    if ai < h or bj < h:
+        out.append(('gap', ai, h, bj, h))
+    return out
+
+
+def background(image):
+    """A screen's most common colour: its background."""
+    return max(image.getcolors(1 << 16))[1]
+
+
+def morph(a, b, segs, t):
+    """Screen a turned into screen b, t of the way, by its rows (segments): the rows the two
+    share slide to their new places; rows only one has scroll with the rows under them, out
+    from under the rows above them or back in, fading; a part that changed (the graph, its
+    labels) stretches to its new height while it turns into its new self."""
+    w, h = a.size
+    bg = background(a)
+    out = Image.new('RGB', (w, h), bg)
+    y = 0.0
+    for kind, a0, a1, b0, b1 in segs:
+        size = (a1 - a0) + ((b1 - b0) - (a1 - a0)) * t
+        y0, y1 = int(y + 0.5), int(y + size + 0.5)
+        y += size
+        hh = y1 - y0
+        if hh <= 0:
+            continue
+        if kind == 'run':
+            out.paste(a.crop((0, a0, w, a1)), (0, y0))
+            continue
+        if a1 > a0 and b1 > b0:
+            pa, pb = a.crop((0, a0, w, a1)), b.crop((0, b0, w, b1))
+            if max(pa.height, pb.height) <= ROW_MAX:
+                # A row of words: each at its own size, centred, the one turning into the other.
+                ca, cb = Image.new('RGB', (w, hh), bg), Image.new('RGB', (w, hh), bg)
+                ca.paste(pa, (0, (hh - pa.height) // 2))
+                cb.paste(pb, (0, (hh - pb.height) // 2))
+                pa, pb = ca, cb
+            else:
+                if pa.height != hh:
+                    pa = pa.resize((w, hh), Image.BILINEAR)
+                if pb.height != hh:
+                    pb = pb.resize((w, hh), Image.BILINEAR)
+            out.paste(Image.blend(pa, pb, t), (0, y0))
+            continue
+        src, top, full, seen = (a, a0, a1 - a0, 1 - t) if a1 > a0 else (b, b0, b1 - b0, t)
+        strip = src.crop((0, top + full - hh, w, top + full))
+        out.paste(Image.blend(Image.new('RGB', (w, hh), bg), strip, ease(seen)), (0, y0))
+    return out
+
+
+def moves(segs, h):
+    """Whether a change moves the layout (rows the screens share sit elsewhere, or a part
+    changes height), with enough of the screen shared for the motion to read: else it is
+    redrawn in place (a value, a line, the graph, the theme)."""
+    shared = sum(a1 - a0 for kind, a0, a1, _, _ in segs if kind == 'run')
+    shifted = any(kind == 'run' and a0 != b0 for kind, a0, _, b0, _ in segs)
+    resized = any(a1 - a0 != b1 - b0 for _, a0, a1, b0, b1 in segs)
+    return shared >= 0.3 * h and (shifted or resized)
+
+
 class Moment:
     """What the screen shows at a tick: a scene, maybe a card over its band and a ring, maybe a
     layout's label."""
@@ -780,12 +906,23 @@ class Showcase:
         self.watch, self.screens = watch, screens
         self.reel = Reel(watch)
         self.at = None      # the day frame the run has reached
+        self.changes = {}   # (scene, scene) -> how the one turns into the other
 
     def has(self, scene):
         return self.screens.has(self.watch.name, scene)
 
     def shot(self, scene):
         return self.screens.shot(self.watch.name, scene)
+
+    def change(self, sa, sb, t):
+        """Scene sa's screen turned into scene sb's, t of the way: its rows moving where the
+        layout moves (morph), else redrawn from left to right (wipe)."""
+        a, b = self.shot(sa), self.shot(sb)
+        if (sa, sb) not in self.changes:
+            segs = segments(a, b)
+            self.changes[(sa, sb)] = segs if moves(segs, a.height) else None
+        segs = self.changes[(sa, sb)]
+        return morph(a, b, segs, t) if segs else wipe(a, b, t, feather=28)
 
     def mark(self, kind, scene, band):
         """Where a step's ring goes (see STORY): 'top', the Watch Status Bar (the first inked rows);
@@ -826,7 +963,7 @@ class Showcase:
         elif t <= 0:
             image = self.shot(a.scene).copy()
         else:
-            image = wipe(self.shot(a.scene), self.shot(b.scene), ease(t))
+            image = self.change(a.scene, b.scene, ease(t))
         self.render_card(image, a.card, b.card, t, texts)
         self.render_ring(image, a.ring, b.ring, t)
         self.render_chip(image, a.chip, b.chip, t, texts)
@@ -983,7 +1120,7 @@ class Showcase:
                 scene = step[0]
                 band = self.screens.band(self.watch.name, scene)
                 picked = step[1] if kind == 'setting' else None
-                line, mark = step[-2], step[-1]
+                line, mark = numbered(step[-2]), step[-1]
                 card = Card(self.watch, kind, title, options, picked, line, band)
                 moments.append(Moment(scene, card, self.mark(mark, scene, band)))
             out.append(moments)
@@ -1080,7 +1217,7 @@ class Showcase:
             self.reel.add(self.draw_end(i / 16)[0], fading=True)
         self.reel.add(rest, END_TICKS)
         self.reel.holds.append(('end: ' + SLOGAN.replace('\n', ' '), END_TICKS * TICK_MS))
-        first = self.shot(STORY[0][1])
+        first = self.reel.frames[0]['image']
         for i in range(1, LOOP):
             self.reel.add(Image.blend(rest, first, ease(i / LOOP)), fading=True)
 
@@ -1102,6 +1239,39 @@ class Showcase:
                 self.layouts(beat[1:])
             elif beat[0] == 'end':
                 self.end()
+        return self.reel
+
+
+class Calm(Showcase):
+    """One watch's calm showcase: the days hour by hour, no words; at a step the run holds its
+    moment while the setting changes (the layout moving, or the graph redrawn), then goes on;
+    at the end the last hour fades to black and black into the first."""
+
+    def build(self):
+        run = self.screens.calm[self.watch.name]
+        last = None
+        for frame in run:
+            scene = frame['id']
+            if not self.has(scene):
+                raise SystemExit('%s: the calm run\'s %s is not captured there' % (self.watch.name, scene))
+            if last is None:
+                self.reel.add(self.shot(scene), CALM_TICKS)
+            elif frame['at'] == last['at']:
+                self.reel.add(self.shot(last['id']), CALM_SETTLE)
+                for i in range(1, CALM_CHANGE):
+                    self.reel.add(self.change(last['id'], scene, ease(i / CALM_CHANGE)), fading=True)
+                self.reel.add(self.shot(scene), CALM_AFTER)
+            else:
+                self.reel.add(Image.blend(self.shot(last['id']), self.shot(scene), 0.5), fading=True)
+                self.reel.add(self.shot(scene), CALM_TICKS - 1)
+            last = frame
+        end, first = self.shot(last['id']), self.shot(run[0]['id'])
+        black = Image.new('RGB', end.size, BLACK)
+        for i in range(1, CALM_FADE):
+            self.reel.add(Image.blend(end, black, ease(i / CALM_FADE)), fading=True)
+        self.reel.add(black, 4)
+        for i in range(1, CALM_FADE):
+            self.reel.add(Image.blend(black, first, ease(i / CALM_FADE)), fading=True)
         return self.reel
 
 
@@ -1332,19 +1502,19 @@ def contact_sheet(images, path, every=8, cols=8):
 # ({platform: headline, None: the others'}): only Pebble Time 2's health view shows a heart rate.
 SCREENS = {
     'default': (
-        ('2-forecast', ('The forecast', 'at a glance'), 'day-0-1400', 'bottom', None),
-        ('3-alerts', ('Alerts when', 'it matters'), 'day-1-0845', 'top', 'alerts'),
+        ('2-forecast', ('The forecast', 'at a glance'), 'day-1-1200', 'bottom', None),
+        ('3-alerts', ('Alerts when', 'it matters'), 'day-1-1845', 'top', 'alerts'),
         ('4-health', {'emery': ('Steps, sleep', 'and heart rate'), None: ('Steps and sleep', 'on your wrist')},
          'view-health', 'bottom', None),
         ('5-max', ('Now, today', 'and tomorrow'), 'card', None, None),
         ('6-layouts', ('Your layout,', 'your way'), 'layout-weather', 'top', None),
     ),
     'aplite': (
-        ('2-forecast', ('The forecast', 'at a glance'), 'day-0-1400', 'bottom', None),
-        ('3-lines', ('Rain, wind', 'or UV'), 'lines-wind', 'bottom', None),
+        ('2-forecast', ('The forecast', 'at a glance'), 'day-1-1200', 'bottom', None),
+        ('3-uv', ('The UV index', 'hour by hour'), 'uv-line', 'bottom', None),
         ('4-max', ('Now, today', 'and tomorrow'), 'card', None, None),
         ('5-calendar', ('Three weeks', 'at a glance'), 'cal-full', 'top', None),
-        ('6-uv', ('The UV index', 'hour by hour'), 'uv-line', 'bottom', None),
+        ('6-layouts', ('Your layout,', 'your way'), 'layout-nocal', 'top', None),
     ),
 }
 # The UV slot's card: each value selection, the slot as the watch shows it then, and what it
@@ -1479,19 +1649,22 @@ def bundle(folder, path):
 
 
 def build_platform(screens, platform, out, sheets, gif=True):
-    """One watch's set: the showcase GIF and its five store screens."""
+    """One watch's set: the two showcase GIFs and its five store screens."""
     watch = WATCHES[platform]
     folder = os.path.join(out, platform)
     os.makedirs(folder, exist_ok=True)
     if gif:
-        reel = Showcase(watch, screens).build()
-        check_holds(reel)
-        ticks = per_tick(reel.frames)
-        flashes = check_flashes(ticks, watch)
-        path = os.path.join(folder, '1-showcase.gif')
-        written = save_gif(reel.frames, path)
-        log(check_gif(path, written, watch) + ', ' + flashes)
-        contact_sheet(per_tick(written), os.path.join(sheets, 'contact-sheet-%s.png' % platform))
+        for name, kind in (('1-showcase.gif', Showcase), ('1-showcase-calm.gif', Calm)):
+            reel = kind(watch, screens).build()
+            if kind is Showcase:
+                check_holds(reel)
+            ticks = per_tick(reel.frames)
+            flashes = check_flashes(ticks, watch)
+            path = os.path.join(folder, name)
+            written = save_gif(reel.frames, path)
+            log(check_gif(path, written, watch) + ', ' + flashes)
+            contact_sheet(per_tick(written), os.path.join(sheets, 'contact-sheet-%s%s.png'
+                                                          % (platform, '' if kind is Showcase else '-calm')))
     images = []
     specs = SCREENS['aplite' if platform == 'aplite' else 'default']
     for spec in specs:
@@ -1511,7 +1684,7 @@ def main():
     parser.add_argument('--platforms', default=' '.join(PLATFORMS), help='which watches (default: all five)')
     parser.add_argument('--screens-only', action='store_true', help='only the store screens, no GIF')
     args = parser.parse_args()
-    screens = Screens(args.version, scene_manifest())
+    screens = Screens(args.version, scene_manifest(), scene_manifest('--calm'))
     out = os.path.join(ROOT, 'screenshot', args.version, 'store-art')
     os.makedirs(BUILD, exist_ok=True)
     for platform in args.platforms.split():

@@ -150,6 +150,7 @@ function buildPackedPalette(platform, colorMode, theme) {
 }
 
 module.exports = {
+    tierOfTenths: tierOfTenths,
     rainPermille: rainPermille,
     buildPalette: buildPalette,
     rgbToGColor8: rgbToGColor8,

@@ -65,16 +65,17 @@ Store listing copy lives in [STORE_LISTING.md](STORE_LISTING.md).
 
 ### Build the store set
 
-The listing shows, per platform: the showcase GIF, five store screens, then the real-day
-time-lapse GIFs already there (keep those). Build the first six with:
+The listing shows, per platform: a showcase GIF (the one with cards or the calm one), five
+store screens, then the real-day time-lapse GIFs already there (keep those). Build them with:
 
 ```sh
-scripts/capture-store-art.sh <version>      # every scene on all five watches (~70 min)
+scripts/capture-store-art.sh <version>      # every scene on all five watches (~2.5 h)
 python3 -I scripts/store-art.py <version>   # → screenshot/<version>/store-art/<platform>/
 ```
 
 Upload each platform's `screenshot/<version>/store-art/<platform>/` files in file order
-(`1-showcase.gif` first), replacing the old reel and single screenshots. The whole set is also
+(`1-showcase.gif` or `1-showcase-calm.gif` first), replacing the old reel and single
+screenshots. The whole set is also
 zipped as `build/store-art/warnweather-store-<version>.zip`. See DEV.md, Store art.
 
 ### Capture the curated screenshots (README composites)

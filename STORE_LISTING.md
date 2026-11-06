@@ -114,29 +114,33 @@ https://www.buymeacoffee.com/toaster2.
 
 Each platform's listing shows, in this order:
 
-1. `1-showcase.gif`: the showcase, about a minute on Pebble Time 2 and less where a watch has
-   fewer settings: a day and a half on the watch as a time-lapse over the Whitsun weekend, from
-   a calm Saturday (on Pebble Time 2 opening in the long forecast span without the left axis)
-   to Sunday's thunderstorm, stopping to explain what the screen shows (the UV slot's Now / Day
-   max / Both, the graph's lines, the forecast length and the left axis on Pebble Time 2, the
-   calendar's holidays, tomorrow's `»` at night, the alerts before the storm), then the
-   layouts and the wordmark.
+1. One of the two showcase GIFs, both a time-lapse of two real days in Berlin (Labour Day,
+   1 May 2025, calm and sunny, and the Friday after it, with a storm front in the evening):
+   - `1-showcase.gif`, about a minute on Pebble Time 2 and less where a watch has fewer
+     settings: on Pebble Time 2 it opens in the long forecast span, and it stops to explain
+     what the screen shows (the UV slot's Now / Day max / Both, the forecast length and the
+     left axis on Pebble Time 2, tomorrow's `»` at night, the calendar's holidays, the setup's
+     forecast looks, the alerts before the storm), then the layouts and the wordmark.
+   - `1-showcase-calm.gif`, the calm one, without words: the days hour by hour while the
+     settings change one at a time, from the three-week calendar to none, through the setup's
+     forecast looks (Classic, Stripes with its rain bars from the top, Clean) and on Pebble
+     Time 2 the long span.
 2. `2-…png` to `6-…png`: five store screens, a headline over the watch's screen: the forecast,
-   the alerts, the health view, the UV slot's values, Weather only (aplite: the forecast, its
-   graph lines, the UV slot's values, the calendar, the UV graph).
+   the alerts, the health view, the UV slot's values, Weather only (aplite: the forecast, the
+   UV graph, the UV slot's values, the calendar, No calendar).
 3. The real-day time-lapse GIFs already on the listing (a day of real weather, frame by
    frame), kept as they are.
 
 The old promo reel and the single screenshots are replaced by 1 and 2. Build the set with:
 
 ```
-scripts/capture-store-art.sh v2.3.0       # every scene on all five watches
-python3 -I scripts/store-art.py v2.3.0    # the GIFs and store screens
+scripts/capture-store-art.sh v2.5.0       # every scene on all five watches
+python3 -I scripts/store-art.py v2.5.0    # the GIFs and store screens
 ```
 
-Output lands in `screenshot/v2.3.0/store-art/<platform>/` (also zipped as
-`build/store-art/warnweather-store-v2.3.0.zip`). Upload each platform's folder to that
-platform in file order. See DEV.md, Store art.
+Output lands in `screenshot/v2.5.0/store-art/<platform>/` (also zipped as
+`build/store-art/warnweather-store-v2.5.0.zip`). Upload each platform's folder to that
+platform in file order, one showcase GIF first. See DEV.md, Store art.
 
 The five curated configs `scripts/capture-store-shots.sh` captures
 (`screenshot/<version>/store/<platform>/<label>.png`) are no longer uploaded; they still feed

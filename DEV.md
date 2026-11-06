@@ -442,55 +442,72 @@ automatic: aplite has no themes chapter and no radar/health frames; flint shows 
 committed) for manual upload. Re-assemble a single reel without recapturing with
 `scripts/assemble-reel.sh <version> <platform> [fps]`.
 
-#### Store art (the appstore's showcase GIF and five store screens)
+#### Store art (the appstore's showcase GIFs and five store screens)
 
-The appstore set per platform: `1-showcase.gif` (about a minute on Pebble Time 2, less
-where a watch has fewer settings: a time-lapse of a day and a half in Berlin over the Whitsun
-weekend — Saturday's calm, the night, Sunday's thunderstorm — that opens, on Pebble Time 2, in
-the long forecast span without the left axis, and stops now and then while a card in the
-clock's place explains what the screen shows: the UV slot's Now / Day max / Both, the graph's
-lines, the forecast length and the left axis on Pebble Time 2, the calendar's holidays (Whit
-Monday, Ascension in three weeks), tomorrow's `»` at night, the alerts before the storm; then
-the layouts and the wordmark) and five store screens (`2-…png` to `6-…png`: a headline over the
-watch's screen). It replaces the promo reel and the single screenshots on the listing; the
-real-day time-lapse GIFs stay.
+The appstore set per platform: two showcase GIFs to choose from and five store screens
+(`2-…png` to `6-…png`: a headline over the watch's screen). Both GIFs are a time-lapse of two
+real days in Berlin: Labour Day, Thursday 1 May 2025, calm and sunny, and Friday 2 May, hot
+until a storm front with 78 km/h gusts and rain in the evening.
+
+- `1-showcase.gif` (about a minute on Pebble Time 2, less where a watch has fewer settings)
+  opens, on Pebble Time 2, in the long forecast span, and stops now and then while a card in
+  the clock's place explains what the screen shows: the UV slot's Now / Day max / Both, the
+  forecast length and the left axis on Pebble Time 2, tomorrow's `»` at night, the calendar's
+  holidays (Labour Day and Berlin's 8 May; Easter Monday in three weeks), the setup's forecast
+  looks, the alerts before the storm; then the layouts and the wordmark.
+- `1-showcase-calm.gif` is the calm one, without words: the same days hour by hour, a setting
+  changed now and then, one at a time, from the three-week calendar to none, through the
+  setup's forecast looks (Classic, Stripes with its rain bars from the top, Clean) and, on
+  Pebble Time 2, the long span.
+
+They replace the promo reel and the single screenshots on the listing; the real-day time-lapse
+GIFs stay.
 
 ```bash
-scripts/capture-store-art.sh <version>             # every scene on all five watches (~70 min)
-scripts/capture-store-art.sh <version> day-1-0845  # just these scenes
+python3 -I scripts/fetch-store-art-weather.py       # the real weather, once (network)
+scripts/capture-store-art.sh <version>             # every scene on all five watches (~2.5 h)
+scripts/capture-store-art.sh <version> day-1-1845  # just these scenes
 python3 -I scripts/store-art.py <version>           # the GIFs and store screens (needs Pillow)
 ```
 
+- The weather is real and nothing is filled in by hand: `fetch-store-art-weather.py` writes
+  `fixtures/data/berlin-2025-05.json` from the app's own sources (DWD's hourly records for
+  Berlin as Bright Sky serves them, Open-Meteo's archived GFS UV, Nager.Date's holidays).
+  DWD's records carry no chance of rain, which the app reads as 0 %, so no frame draws one.
 - The scenes live in `scripts/gen-store-art-fixtures.js` (fixtures `art-*.json`, regenerated
-  on every capture, guarded by `test/store-art-fixtures.test.js`): the day's frames (`day-<d>-<hhmm>`,
-  the real DWD forecast of `fixtures/berlin-timelapse.json` moved onto the Whitsun weekend, with
-  the hours around it and the UV index filled in by hand, and Germany's holidays of 2026 in a
+  on every capture, guarded by `test/store-art-fixtures.test.js`): the days' frames
+  (`day-<d>-<hhmm>`, each read from the records the way the app's DWD provider reads Bright Sky;
+  the sun times SunCalc's; the rain alert the records' own rain; Berlin's holidays in a
   `holidays` block), Pebble Time 2's opening (`intro-0-<hhmm>`), the variants a stop changes a
-  setting to, and two `band` scenes,
-  a frame with the clock drawn in black, which tell `store-art.py` where the clock is (the
-  black and white watches, which ignore the clock colour, take basalt's: the same layout).
-  The rain alert is baked per frame from its countdown block; gusts alert from 50 km/h on the
-  day itself, so Saturday stays quiet and Sunday's 59 km/h shows. No scene shows the rain radar.
+  setting to, the calm run's frames (`calm-<state>-<d>-<hhmm>`; `--calm` prints each watch's
+  run), and two `band` scenes, a frame with the clock drawn in black, which tell
+  `store-art.py` where the clock is (the black and white watches, which ignore the clock
+  colour, take basalt's: the same layout). The day's graph has no left axis on Pebble Time 2;
+  gusts alert from 50 km/h on the day itself, so Labour Day stays quiet and Friday's 78 km/h
+  shows. No scene shows the rain radar.
 - `capture-store-art.sh` captures a platform's scenes on one running emulator: its first on a
   fresh phone (the app's pypkjs localStorage and pypkjs's cached copy of the last build
   deleted, or the last run's settings would carry over), the rest as plain installs. A
   fixture's settings are merged into the stored ones, so every scene names every key any scene
   changes. Frames land in `screenshot/<version>/store-art/frames/<platform>/<scene>.png`
   (committed).
-- `store-art.py` owns the storyboard and the copy (`STORY`, `SCREENS`) and draws in the watch
-  screen's own colours (black, white, its greys and its red; black and white on a black and
-  white watch) in Poppins (`screenshot/fonts/`, SIL Open Font License), anti-aliased: a card is
-  a black panel with a 2 px edge and its name in a bar along its top; it unfolds from the
-  clock's middle and folds back into it, the selection slides, words move up out and in, a
-  changed setting redraws the screen from left to right. It checks the captures
-  against the screenshot's colour-corrected palette, and fails on a text that doesn't fit, a
-  step held under 1.8 s, a GIF frame that doesn't decode to the frame it was written from,
-  anything flashing more than 3 times a second, or a GIF of 1.5 MB or more. It writes
-  `screenshot/<version>/store-art/<platform>/` (committed) and, to judge them,
-  `build/store-art/contact-sheet-<platform>.png` and `screens-<platform>.png`, plus the
-  whole set in `build/store-art/warnweather-store-<version>.zip`.
-- Upload each platform's folder in file order (`1-showcase.gif` first). diorite and flint
-  come out nearly the same (their own screens differ in a few pixels: each is its own
+- `store-art.py` owns the storyboards and the copy (`STORY`, `SCREENS`, and `NUMBERS`, the
+  days' numbers as the captures show them) and draws in the watch screen's own colours (black,
+  white, its greys and its red; black and white on a black and white watch) in Poppins
+  (`screenshot/fonts/`, SIL Open Font License), anti-aliased: a card is a black panel with a
+  2 px edge and its name in a bar along its top; it unfolds from the clock's middle and folds
+  back into it, the selection slides, words move up out and in. A changed setting changes the
+  screen in place: where the layout moves, the rows the two screens share slide to their new
+  places, rows that go scroll away under the rows above them and a part that changes height
+  stretches into its new self; where it stays, the screen redraws from left to right. It
+  checks the captures against the screenshot's colour-corrected palette, and fails on a text
+  that doesn't fit, a step held under 1.8 s, a GIF frame that doesn't decode to the frame it
+  was written from, anything flashing more than 3 times a second, or a GIF of 1.5 MB or more.
+  It writes `screenshot/<version>/store-art/<platform>/` (committed) and, to judge them,
+  `build/store-art/contact-sheet-<platform>[-calm].png` and `screens-<platform>.png`, plus
+  the whole set in `build/store-art/warnweather-store-<version>.zip`.
+- Upload each platform's folder in file order, one of the two showcase GIFs first. diorite and
+  flint come out nearly the same (their own screens differ in a few pixels: each is its own
   capture).
 
 ### Package generation
