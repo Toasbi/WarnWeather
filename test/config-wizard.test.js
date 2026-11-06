@@ -199,9 +199,10 @@ test("flickStops: 'slot' health mode adds no health flick stop (matches off)", (
 // The Forecast row is bolded everywhere; the strip beside the clock only on emery,
 // the one display whose strip ships three readings (status-line-catalog.js). The
 // table itself pins that split — here it decides which keys each context expects.
-const BOLD_FORECAST_KEYS = ['threshTempBoldMode', 'threshCityBoldMode', 'threshAqiBoldMode'];
-const BOLD_TOP_KEYS = ['threshWeekBoldMode', 'threshDateBoldMode', 'threshSunBoldMode'];
-const BOLD_KEYS = BOLD_FORECAST_KEYS.concat(BOLD_TOP_KEYS);
+// The headline rows' kinds. Setup sets none of their Bold modes (the owner, 2026-11-06: it
+// made the status bars bold), so each keeps its own Bold row's default.
+const BOLD_KEYS = ['threshTempBoldMode', 'threshCityBoldMode', 'threshAqiBoldMode',
+  'threshWeekBoldMode', 'threshDateBoldMode', 'threshSunBoldMode', 'threshStepsBoldMode'];
 
 /**
  * A stand-in for the engine's onReady ctx: the real schema, hydrated the way boot() does.
@@ -214,43 +215,37 @@ function wizCtx(over) {
   return { S: eng.hydrate(schema, o.saved || {}, ENV), ENV, schema };
 }
 
-test('finishing the wizard on emery bolds the Watch + Forecast rows and hands AQI a warn signal', () => {
+test('finishing the wizard on emery promotes steps, hands AQI a warn signal and leaves Bold alone', () => {
   const ctx = wizCtx({ platform: 'emery' });
-  BOLD_KEYS.forEach((k) => assert.notEqual(ctx.S[k], 'always', k + ' starts at its schema default'));
+  const before = {};
+  BOLD_KEYS.forEach((k) => { before[k] = ctx.S[k]; });
 
   const written = FINISH.applyWizardDefaults(ctx, 'save');
 
-  BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], 'always', k));
+  BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], before[k], k + ' keeps its own default'));
   assert.equal(ctx.S.threshAqiOn, true, 'AQI highlighting on');
   assert.equal(ctx.S.threshAqiWarnLook, 'fill', 'AQI warn box: the colour watch\'s default look');
-  // threshStepsBoldMode rides with the slot swap: steps replaces sunrise/sunset in
-  // the top row, so it has to be bold like the rest of that row.
-  assert.equal(ctx.S.threshStepsBoldMode, 'always', 'the promoted steps slot is bold too');
-  assert.deepEqual(Object.keys(written).sort(),
-    BOLD_KEYS.concat(['threshAqiOn', 'statusTopRight',
-      'statusHealthLeft', 'threshStepsBoldMode']).sort(),
+  assert.equal(ctx.S.statusTopRight, 'steps');
+  assert.deepEqual(Object.keys(written).sort(), ['statusHealthLeft', 'statusTopRight', 'threshAqiOn'],
     'the report names exactly the keys it wrote');
 });
 
-test('finishing the wizard on a narrow watch bolds the Forecast row and fills the free left slot', () => {
-  // The strip beside the clock ships date + battery here, so nothing in it is bolded
-  // and steps is promoted into its EMPTY left slot rather than into the battery corner.
+test('finishing the wizard on a narrow watch fills the free left slot and leaves Bold alone', () => {
+  // The strip beside the clock ships date + battery here, so steps is promoted into its
+  // EMPTY left slot rather than into the battery corner.
   const ctx = wizCtx();
   assert.equal(ctx.S.statusTopLeft, 'empty', 'guard: the narrow strip ships that slot free');
   assert.equal(ctx.S.statusTopRight, 'battery', 'guard: and the battery in the corner');
+  const before = {};
+  BOLD_KEYS.forEach((k) => { before[k] = ctx.S[k]; });
 
   const written = FINISH.applyWizardDefaults(ctx, 'save');
 
-  BOLD_FORECAST_KEYS.forEach((k) => assert.equal(ctx.S[k], 'always', k));
-  BOLD_TOP_KEYS.forEach((k) => assert.notEqual(ctx.S[k], 'always', k + ' stays light'));
+  BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], before[k], k + ' keeps its own default'));
   assert.equal(ctx.S.statusTopLeft, 'steps');
   assert.equal(ctx.S.statusTopRight, 'battery', 'the battery keeps its corner');
   assert.equal(ctx.S.statusHealthLeft, 'distance', 'the eviction rides along');
-  assert.notEqual(ctx.S.threshStepsBoldMode, 'always',
-    'and no bold rides along — it would be the only heavy value in that strip');
-  assert.deepEqual(Object.keys(written).sort(),
-    BOLD_FORECAST_KEYS.concat(['threshAqiOn', 'statusTopLeft',
-      'statusHealthLeft']).sort(),
+  assert.deepEqual(Object.keys(written).sort(), ['statusHealthLeft', 'statusTopLeft', 'threshAqiOn'],
     'the report names exactly the keys it wrote');
 });
 
@@ -300,20 +295,20 @@ test('the health slots move only where health can actually report', () => {
   FINISH.applyWizardDefaults(off, 'save');
   assert.equal(off.S.statusTopLeft, 'empty', 'health off leaves the top row alone');
   assert.equal(off.S.statusHealthLeft, 'steps', 'health off leaves the health row alone');
-  assert.equal(off.S.threshTempBoldMode, 'always', 'the bold rules still apply with health off');
+  assert.equal(off.S.threshAqiOn, true, 'the AQI rule still applies with health off');
 
-  // aplite has no health at all; the bold/AQI keys are still written (inert there by design).
+  // aplite has no health at all; the AQI key is still written (inert there by design).
   const aplite = wizCtx({ platform: 'aplite' });
   FINISH.applyWizardDefaults(aplite, 'save');
   assert.equal(aplite.S.statusTopLeft, 'empty');
   assert.equal(aplite.S.statusHealthLeft, 'steps');
-  assert.equal(aplite.S.threshAqiBoldMode, 'always');
+  assert.equal(aplite.S.threshAqiOn, true);
 });
 
 test('"Keep customizing" (nav tweak) finishes the wizard too — Skip and the step buttons do not', () => {
   const tweak = wizCtx();
   assert.notEqual(Object.keys(FINISH.applyWizardDefaults(tweak, 'tweak')).length, 0);
-  assert.equal(tweak.S.threshTempBoldMode, 'always');
+  assert.equal(tweak.S.threshAqiOn, true);
 
   ['skip', 'next', 'back'].forEach((nav) => {
     const ctx = wizCtx();
@@ -324,25 +319,25 @@ test('"Keep customizing" (nav tweak) finishes the wizard too — Skip and the st
 });
 
 test('a key the user changed by hand survives the policy', () => {
-  // threshAqiBoldMode ships 'warn'; 'off' below is therefore a real choice, not a
+  // statusHealthLeft ships 'steps'; 'sleep' below is therefore a real choice, not a
   // default that happens to match. (The steps promotion is the ONE declared
   // exception to this clause — the next test.)
-  const ctx = wizCtx({ saved: { threshAqiBoldMode: 'off' } });
+  const ctx = wizCtx({ saved: { statusHealthLeft: 'sleep' } });
 
   const written = FINISH.applyWizardDefaults(ctx, 'save');
 
-  assert.equal(ctx.S.threshAqiBoldMode, 'off', 'an explicit Bold choice is not overwritten');
-  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'threshAqiBoldMode'));
-  assert.equal(ctx.S.threshCityBoldMode, 'always', 'the untouched keys still get their default');
-  assert.equal(ctx.S.threshAqiOn, true, 'a sibling key of the same rule is unaffected');
+  assert.equal(ctx.S.statusHealthLeft, 'sleep', 'an explicit slot choice is not overwritten');
+  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
+  assert.equal(ctx.S.statusTopLeft, 'steps', 'the untouched keys still get their default');
+  assert.equal(ctx.S.threshAqiOn, true, 'another rule is unaffected');
 });
 
 test('the steps promotion overrules even a hand-picked slot', () => {
   // emery: statusTopRight ships 'sun', so 'battery' is a real choice — a user parked
   // another slot top-right, then completed setup with health on. Completing setup IS
   // the consent to the promised health layout (the rule declares the promotion in
-  // `overrules`), so steps takes the slot anyway, and the eviction and bold ride
-  // along — the swap stays all-or-nothing.
+  // `overrules`), so steps takes the slot anyway, and the eviction rides along — the
+  // swap stays all-or-nothing.
   const ctx = wizCtx({ platform: 'emery', saved: { statusTopRight: 'battery' } });
 
   const written = FINISH.applyWizardDefaults(ctx, 'save');
@@ -350,7 +345,7 @@ test('the steps promotion overrules even a hand-picked slot', () => {
   assert.equal(ctx.S.statusTopRight, 'steps', 'the promotion wins over the custom slot');
   assert.equal(written.statusTopRight, 'steps');
   assert.equal(ctx.S.statusHealthLeft, 'distance', 'the eviction rides along');
-  assert.equal(ctx.S.threshStepsBoldMode, 'always', 'so does the promoted slot\'s bold');
+  assert.notEqual(ctx.S.threshStepsBoldMode, 'always', 'and no Bold with it');
 
   // The narrow sibling rule overrules its own slot the same way. It bites far less
   // often: that slot ships EMPTY, so only a value parked there before re-running
@@ -372,8 +367,6 @@ test('the overrule stops at the promotion: a customized health row still survive
   assert.equal(ctx.S.statusTopRight, 'steps');
   assert.equal(ctx.S.statusHealthLeft, 'empty', 'the hand-picked health slot survives');
   assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
-  assert.equal(ctx.S.threshStepsBoldMode, 'always',
-    'the bold hangs off the promotion, not the eviction');
 
   const narrow = wizCtx({ saved: { statusTopLeft: 'week', statusHealthLeft: 'empty' } });
   FINISH.applyWizardDefaults(narrow, 'save');
