@@ -7,8 +7,8 @@ const os = require('os');
 const path = require('path');
 
 const {
-  generateStoreArtFixtures, manifest, SCENES, FRAMES, PLATFORMS, EMERY, NOT_APLITE, COLOUR, DAY_CLAY, dayBase,
-  settled, dayId,
+  generateStoreArtFixtures, manifest, SCENES, FRAMES, INTRO, PLATFORMS, EMERY, NOT_APLITE, COLOUR, DAY_CLAY,
+  INTRO_CLAY, HOLIDAYS, dayBase, settled, dayId,
 } = require('../scripts/gen-store-art-fixtures');
 
 /**
@@ -45,12 +45,12 @@ test('the day runs forward: each frame later than the last, its clock and foreca
   for (const [day, time] of FRAMES) {
     const frame = fx['art-' + dayId(day, time)];
     const [hour, minute] = time.split(':').map(Number);
-    assert.deepEqual(frame.watch.now, { year: 2026, month: 6, day: 20 + day, hour, minute, second: 0 }, time);
+    assert.deepEqual(frame.watch.now, { year: 2026, month: 5, day: 23 + day, hour, minute, second: 0 }, time);
     const at = day * 24 * 60 + hour * 60 + minute;
     assert.ok(at > last, time + ' after the frame before it');
     last = at;
     // The forecast starts at the frame's hour, the current temperature between it and the next.
-    const index = day * 24 + hour - 8;
+    const index = day * 24 + hour - 5;
     assert.equal(frame.weather.startHour, hour);
     assert.deepEqual(frame.weather.temps.slice(0, 3), base.weather.temps.slice(index, index + 3));
     const [a, b] = base.weather.temps.slice(index, index + 2);
@@ -59,9 +59,9 @@ test('the day runs forward: each frame later than the last, its clock and foreca
     assert.equal(frame.weather.uvIndex.length, frame.weather.temps.length);
     // The sun event next after the clock.
     const next = frame.weather.sunEvents[0];
-    if (hour * 60 + minute < 4 * 60 + 44) {
+    if (hour * 60 + minute < 4 * 60 + 54) {
       assert.equal(next.type, 'sunrise');
-    } else if (hour * 60 + minute < 21 * 60 + 33) {
+    } else if (hour * 60 + minute < 21 * 60 + 11) {
       assert.equal(next.type, 'sunset');
     } else {
       assert.equal(next.type, 'sunrise');
@@ -73,17 +73,18 @@ test('the real forecast sits in the day where it starts, the filled-in hours aro
   const real = JSON.parse(fs.readFileSync(path.join('fixtures', 'berlin-timelapse.json'), 'utf8'));
   const base = dayBase();
   for (const key of ['temps', 'precipPct', 'rainMm', 'windKmh', 'gustKmh']) {
-    assert.deepEqual(base.weather[key].slice(3, 3 + real.weather[key].length), real.weather[key], key);
+    assert.deepEqual(base.weather[key].slice(6, 6 + real.weather[key].length), real.weather[key], key);
   }
-  // The long forecast span from 14:00 on Saturday reaches its 60 hours.
-  assert.ok(base.weather.temps.length - 6 >= 62);
+  // The long forecast span reaches its hours from 14:00 on Saturday (60) and in the opening (66).
+  assert.ok(base.weather.temps.length - 9 >= 62);
+  assert.ok(base.weather.temps.length - 3 >= 68);
 });
 
-test('the story\'s numbers: UV 5 now and 8 to come on Saturday morning, 3 the next day, the storm on Sunday', () => {
+test('the story\'s numbers: UV 7 now and 8 to come on Saturday morning, 3 the next day, the storm on Sunday', () => {
   const fx = generate();
-  const morning = fx['art-day-0-1000'].weather;
-  assert.equal(Math.round(morning.uvIndex[0]), 5);
-  assert.equal(Math.max(...morning.uvIndex.slice(0, 14)), 8);
+  const morning = fx['art-day-0-1100'].weather;
+  assert.equal(Math.round(morning.uvIndex[0]), 7);
+  assert.equal(Math.max(...morning.uvIndex.slice(0, 13)), 8);
   const night = fx['art-day-0-2200'].weather;
   assert.equal(Math.round(night.uvIndex[0]), 0);
   assert.equal(Math.round(Math.max(...night.uvIndex.slice(2, 26))), 3);
@@ -158,6 +159,12 @@ test('the manifest: where each scene is captured, the forecast length labels, th
     assert.deepEqual(byId[id].platforms, NOT_APLITE, id);
   }
   for (const id of ['band-compact', 'band-full']) { assert.deepEqual(byId[id].platforms, COLOUR, id); }
+  for (const [day, time] of INTRO) {
+    const intro = byId['intro-' + day + '-' + time.replace(':', '')];
+    assert.equal(intro.mode, 'intro');
+    assert.deepEqual(intro.platforms, EMERY);
+    assert.deepEqual(intro.spanLabels, ['12 h', '24 h', '66 h']);
+  }
   assert.deepEqual(byId['uv-line'].platforms, ['aplite']);
   assert.deepEqual(byId['day-0-0800'].platforms, PLATFORMS);
   assert.equal(byId['day-0-0800'].mode, 'day');
@@ -168,4 +175,17 @@ test('the manifest: where each scene is captured, the forecast length labels, th
   const fx = generate();
   assert.equal(fx['art-view-health-emery'].claySettings.statusHealthRight, 'hr');
   assert.equal(fx['art-view-health'].claySettings.statusHealthRight, 'sleep');
+});
+
+test('Pebble Time 2 opens on the long span without the left axis; every scene carries the holidays', () => {
+  const fx = generate();
+  for (const [day, time] of INTRO) {
+    const clay = fx['art-intro-' + day + '-' + time.replace(':', '')].claySettings;
+    assert.equal(clay.forecastHours, INTRO_CLAY.forecastHours);
+    assert.equal(clay.forecastAxisNumbers, 'off');
+  }
+  assert.equal(fx['art-day-0-0800'].claySettings.forecastHours, '24');
+  for (const slug of Object.keys(fx)) { assert.deepEqual(fx[slug].holidays, HOLIDAYS, slug); }
+  // Whit Monday, after the Whitsun weekend the day runs over.
+  assert.ok(HOLIDAYS.days.some(([md, regions]) => md === '05-25' && regions === null));
 });

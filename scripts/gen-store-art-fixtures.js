@@ -6,14 +6,17 @@
 // (art-<id>.json, plus art-<id>-<platform>.json for a platform variant), shot by
 // scripts/capture-store-art.sh into screenshot/<version>/store-art/frames/<platform>/<id>.png.
 //
-// THE DAY. The showcase is a time-lapse of a day and a half in Berlin, Saturday 20 and Sunday
-// 21 June 2026: a hot, calm afternoon, the evening and the night, then Sunday's thunderstorm.
-// The weather is the DWD forecast in berlin-timelapse.json (Brightsky, from 11:00 on the 20th
-// for 39 hours), with what it lacks filled in by hand (DAY_EXTRA): the three morning hours
-// before it, the hours after it that the later frames' graphs reach (to the long forecast
-// span), and the UV index (clear on Saturday, low under Sunday's storm). The clock's time is
-// compile-time, so every frame is a scene ('day', day-<d>-<hhmm>): half-hourly through
-// Saturday, hourly through the night, every quarter hour as the storm comes.
+// THE DAY. The showcase is a time-lapse of a day and a half in Berlin over the Whitsun weekend,
+// Saturday 23 and Sunday 24 May 2026: a hot, calm Saturday, the evening and the night, then
+// Sunday's thunderstorm, with Whit Monday ahead in the calendar (a holiday: HOLIDAYS). The
+// weather is a real DWD forecast, berlin-timelapse.json's (Brightsky, 39 hours from 11:00 on
+// 20 June 2026, its hours moved onto the weekend's), with what it lacks filled in by hand
+// (DAY_EXTRA): the six morning hours before it, the hours after it that the later frames'
+// graphs reach (to the long forecast span), and the UV index (clear on Saturday, low under
+// Sunday's storm). The clock's time is compile-time, so every frame is a scene ('day',
+// day-<d>-<hhmm>): half-hourly through Saturday, hourly through the night, every quarter hour
+// as the storm comes. Pebble Time 2 opens on its own frames ('intro', intro-0-<hhmm>): the same
+// morning in the long forecast span without the left axis, the look the old store reel had.
 //
 // THE PAUSES. At some frames the time-lapse stops and a setting changes: a 'variant' is the
 // frame's moment with that setting changed (the UV slot's value, the graph's lines, the forecast
@@ -48,18 +51,18 @@ const EMERY = ['emery'];
 const COLOUR = ['emery', 'basalt'];
 
 const REAL = path.join('fixtures', 'berlin-timelapse.json');
-// The day's first frame and the series' first hour: Saturday 20 June 2026, 08:00. The real
-// forecast starts three hours later (REAL_OFFSET).
-const DAY = { year: 2026, month: 6, day: 20 };
-const FIRST_HOUR = 8;
-const REAL_OFFSET = 3;
-// Filled in by hand (plausible for Berlin in June), around the real forecast: the morning
-// before it (08:00 to 10:00 on the 20th) and the hours after it (from 02:00 on the 22nd), in the
-// fixture's units (°F, %, mm, km/h); and the UV index for every hour from 08:00 on the 20th.
+// The day's first frame and the series' first hour: Saturday 23 May 2026, 05:00. The real
+// forecast starts six hours later (REAL_OFFSET).
+const DAY = { year: 2026, month: 5, day: 23 };
+const FIRST_HOUR = 5;
+const REAL_OFFSET = 6;
+// Filled in by hand (plausible for Berlin in late spring), around the real forecast: the morning
+// before it (05:00 to 10:00 on Saturday) and the hours after it (from 02:00 on Monday), in the
+// fixture's units (°F, %, mm, km/h); and the UV index for every hour from 05:00 on Saturday.
 const DAY_EXTRA = {
   before: {
-    temps: [74, 78, 81], precipPct: [0, 0, 0], rainMm: [0, 0, 0], windKmh: [14, 17, 20],
-    gustKmh: [24, 28, 32],
+    temps: [62, 65, 70, 74, 78, 81], precipPct: [0, 0, 0, 0, 0, 0], rainMm: [0, 0, 0, 0, 0, 0],
+    windKmh: [8, 10, 12, 14, 17, 20], gustKmh: [14, 17, 20, 24, 28, 32],
   },
   after: {
     temps: [68, 67, 66, 65, 66, 68, 71, 73, 75, 77, 78, 79, 80, 80, 79, 78, 76, 74, 72, 70, 69, 68,
@@ -73,8 +76,8 @@ const DAY_EXTRA = {
       11, 10, 10, 10, 11, 13, 17, 21, 24, 26, 28, 30, 30, 29, 27, 25],
   },
   uvIndex: [
-    // Saturday from 08:00: clear, 8 at 13:00.
-    2.6, 4.0, 5.2, 6.6, 7.5, 8.0, 7.6, 6.5, 5.0, 3.5, 2.1, 1.0, 0.3, 0, 0, 0,
+    // Saturday from 05:00: clear, 8 at 13:00.
+    0.1, 0.5, 1.4, 2.6, 4.0, 5.2, 6.6, 7.5, 8.0, 7.6, 6.5, 5.0, 3.5, 2.1, 1.0, 0.3, 0, 0, 0,
     // Sunday: the storm keeps it low, 3 in the afternoon's clearing.
     0, 0, 0, 0, 0, 0.1, 0.4, 0.9, 1.4, 1.2, 0.9, 0.7, 0.6, 1.3, 2.4, 3.3, 3.0, 2.2, 1.3, 0.6, 0.2, 0, 0, 0,
     // Monday and Tuesday: clear again.
@@ -84,14 +87,22 @@ const DAY_EXTRA = {
 };
 // The series DAY_EXTRA fills (every other key of the real forecast's weather is kept).
 const SERIES = ['temps', 'precipPct', 'rainMm', 'windKmh', 'gustKmh'];
-// Berlin's sun on the 20th and 21st (berlin-timelapse.json).
-const SUNRISE = { hour: 4, minute: 44 };
-const SUNSET = { hour: 21, minute: 33 };
+// Berlin's sun on 23 and 24 May.
+const SUNRISE = { hour: 4, minute: 54 };
+const SUNSET = { hour: 21, minute: 11 };
+// Germany's nationwide holidays of 2026 (Nager.Date's, in nager-source.js' cache shape), which
+// the fixture hands the phone (fixture-holidays.js): Ascension on the 14th and Whit Monday on
+// the 25th are in the calendar's weeks.
+const HOLIDAYS = {
+  country: 'DE', year: 2026,
+  days: [['01-01', null], ['04-03', null], ['04-06', null], ['05-01', null], ['05-14', null],
+    ['05-25', null], ['10-03', null], ['12-25', null], ['12-26', null]],
+};
 
-// The frames: Saturday half-hourly from 08:00, the night hourly, Sunday's storm by the quarter
-// hour, to 14:00 on Sunday.
+// The frames: Saturday half-hourly from 05:00, the night hourly, Sunday's storm by the quarter
+// hour, to 14:00 on Sunday; Pebble Time 2's opening, Saturday from 05:00 to 08:00.
 const FRAMES = [].concat(
-  halfHours(0, 8, 24).map((t) => [0, t]),
+  halfHours(0, 5, 24).map((t) => [0, t]),
   ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '07:30', '08:00', '08:15',
     '08:30', '08:45', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00',
     '13:30', '14:00'].map((t) => [1, t]));
@@ -110,6 +121,10 @@ const COUNTDOWN = {
   '14:00': { mins: 75, raining: true, tier: 2 },
 };
 const RADAR_SLOTS = 24;   // rain_countdown.c RC_NUM_SLOTS: two hours of 5-minute slots
+
+const INTRO = halfHours(0, 5, 8).concat('08:00').map((t) => [0, t]);
+// The opening's look: the long forecast span, the left axis' values off (the graph's full width).
+const INTRO_CLAY = { forecastHours: '48', forecastAxisNumbers: 'off' };
 
 // The day's settings, every scene's: the dark theme, the Roboto clock, the compact calendar,
 // the forecast's rain chance and rain bars over 24 hours, the forecast row's temperature, city
@@ -149,11 +164,13 @@ const HEALTH_VIEW = {
 // 'band'; `platforms` where it is captured (all five when absent); `clay` its settings over
 // DAY_CLAY; `theme` a theme flip (withTheme); `variants` per-platform settings over the scene's.
 const SCENES = [].concat(
+  INTRO.map(([day, time]) => ({ id: 'intro-' + day + '-' + time.replace(':', ''), mode: 'intro', at: [day, time],
+    platforms: EMERY, clay: INTRO_CLAY })),
   FRAMES.map(([day, time]) => ({ id: dayId(day, time), mode: 'day', at: [day, time] })),
   [
-    // 10:00 on Saturday (UV 5 now, 8 at 13:00): the UV slot's Now and Day max ("Both" is the day's).
-    { id: 'uv-now', mode: 'variant', at: [0, '10:00'], clay: { uvSlotDisplay: 'current' } },
-    { id: 'uv-max', mode: 'variant', at: [0, '10:00'], clay: { uvSlotDisplay: 'max' } },
+    // 11:00 on Saturday (UV 7 now, 8 at 13:00): the UV slot's Now and Day max ("Both" is the day's).
+    { id: 'uv-now', mode: 'variant', at: [0, '11:00'], clay: { uvSlotDisplay: 'current' } },
+    { id: 'uv-max', mode: 'variant', at: [0, '11:00'], clay: { uvSlotDisplay: 'max' } },
     { id: 'band-compact', mode: 'band', at: [0, '10:00'], platforms: COLOUR, clay: { colorTime: 0 } },
     // Noon on Saturday: the graph's lines.
     { id: 'lines-wind', mode: 'variant', at: [0, '12:00'], clay: LINES_WIND },
@@ -166,9 +183,9 @@ const SCENES = [].concat(
     { id: 'span-long', mode: 'variant', at: [0, '14:00'], platforms: EMERY, clay: { forecastHours: '48' } },
     { id: 'axis-graph', mode: 'variant', at: [0, '14:00'], platforms: EMERY, clay: { forecastAxisNumbers: 'graph' } },
     { id: 'axis-off', mode: 'variant', at: [0, '14:00'], platforms: EMERY, clay: { forecastAxisNumbers: 'off' } },
-    // Midnight: the three-week calendar.
-    { id: 'cal-full', mode: 'variant', at: [1, '00:00'], clay: { layoutPreset: 'fullCal' } },
-    { id: 'band-full', mode: 'band', at: [1, '00:00'], platforms: COLOUR,
+    // 18:00 on Saturday: the three-week calendar (Ascension and Whit Monday highlighted).
+    { id: 'cal-full', mode: 'variant', at: [0, '18:00'], clay: { layoutPreset: 'fullCal' } },
+    { id: 'band-full', mode: 'band', at: [0, '18:00'], platforms: COLOUR,
       clay: { layoutPreset: 'fullCal', colorTime: 0 } },
     // 14:00 on Sunday, the storm passing: the layouts. Weather only without the radar (radar
     // Off: clock, weather row, big graph), the Light theme, the health view (steps, sleep and,
@@ -378,6 +395,7 @@ function settled(base) {
 function buildScene(scene, base, keys, variantClay) {
   const fx = weatherAt(base, scene.at);
   fx.claySettings = Object.assign({}, keys, sceneClay(base, scene, variantClay));
+  fx.holidays = clone(HOLIDAYS);
   return fx;
 }
 
@@ -467,5 +485,5 @@ if (require.main === module) {
   }
 }
 
-module.exports = { generateStoreArtFixtures, manifest, SCENES, FRAMES, PLATFORMS, NOT_APLITE, EMERY, COLOUR,
-  DAY_CLAY, scenePlatforms, fixtureFor, weatherAt, dayBase, settled, nextSunEvents, dayId };
+module.exports = { generateStoreArtFixtures, manifest, SCENES, FRAMES, INTRO, PLATFORMS, NOT_APLITE, EMERY, COLOUR,
+  DAY_CLAY, INTRO_CLAY, HOLIDAYS, scenePlatforms, fixtureFor, weatherAt, dayBase, settled, nextSunEvents, dayId };

@@ -25,6 +25,7 @@ var fixtureWeather = require('./fixture-weather.js');
 var holidayMask = require('./holidays/holiday-mask.js');
 var nagerSource = require('./holidays/nager-source.js');
 var buildClayPayload = require('./clay-payload.js').buildClayPayload;
+var fixtureHolidays = require('./fixture-holidays.js');
 var effectiveHolidayCountry = require('./clay-payload.js').effectiveHolidayCountry;
 var holidayWindowOpts = require('./clay-payload.js').holidayWindowOpts;
 var providerFactory = require('./provider-factory.js');
@@ -398,6 +399,8 @@ Pebble.addEventListener('ready',
         });
         claySettings.applyDevConfig(app.devConfig);
         claySettings.applyFixtureSettings(activeFixture, pebbleColors);
+        // A fixture's own holidays (fixture builds only; none without a `holidays` block).
+        fixtureHolidays.seedHolidays(activeFixture, localStorage, Date.now());
         console.log('PebbleKit JS ready!');
         app.settings = claySettings.read();
         devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
@@ -713,7 +716,8 @@ function isNightForTheme() {
  */
 function sendClaySettings(onSuccess, onFailure) {
     var effective = themeSchedule.effectiveSettings(app.settings, isNightForTheme());
-    var payload = buildClayPayload(effective, app.watchInfo);
+    // A fixture's watch runs on the fixture's date: its holiday window is built for that day.
+    var payload = buildClayPayload(effective, app.watchInfo, fixtureHolidays.fixtureDate(activeFixture) || undefined);
     outbox.sendClay(payload, onSuccess, onFailure);
 }
 

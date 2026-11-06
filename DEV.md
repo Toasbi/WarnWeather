@@ -438,14 +438,16 @@ committed) for manual upload. Re-assemble a single reel without recapturing with
 
 #### Store art (the appstore's showcase GIF and five store screens)
 
-The appstore set per platform: `1-showcase.gif` (about 50 s on Pebble Time 2, less where a
-watch has fewer settings: a time-lapse of a day and a half in Berlin — Saturday's calm, the
-night, Sunday's thunderstorm — that stops now and then while a card in the clock's place
-explains what the screen shows: the UV slot's Now / Day max / Both, the graph's lines, the
-forecast length and the left axis on Pebble Time 2, tomorrow's `»` at night, the calendar at
-midnight, the alerts before the storm; then the layouts and the wordmark) and five store
-screens (`2-…png` to `6-…png`: a headline over the watch's screen). It replaces the promo reel
-and the single screenshots on the listing; the real-day time-lapse GIFs stay.
+The appstore set per platform: `1-showcase.gif` (about a minute on Pebble Time 2, less
+where a watch has fewer settings: a time-lapse of a day and a half in Berlin over the Whitsun
+weekend — Saturday's calm, the night, Sunday's thunderstorm — that opens, on Pebble Time 2, in
+the long forecast span without the left axis, and stops now and then while a card in the
+clock's place explains what the screen shows: the UV slot's Now / Day max / Both, the graph's
+lines, the forecast length and the left axis on Pebble Time 2, the calendar's holidays (Whit
+Monday, Ascension in three weeks), tomorrow's `»` at night, the alerts before the storm; then
+the layouts and the wordmark) and five store screens (`2-…png` to `6-…png`: a headline over the
+watch's screen). It replaces the promo reel and the single screenshots on the listing; the
+real-day time-lapse GIFs stay.
 
 ```bash
 scripts/capture-store-art.sh <version>             # every scene on all five watches (~70 min)
@@ -455,8 +457,10 @@ python3 -I scripts/store-art.py <version>           # the GIFs and store screens
 
 - The scenes live in `scripts/gen-store-art-fixtures.js` (fixtures `art-*.json`, regenerated
   on every capture, guarded by `test/store-art-fixtures.test.js`): the day's frames (`day-<d>-<hhmm>`,
-  the real DWD forecast of `fixtures/berlin-timelapse.json` with the hours around it and the
-  UV index filled in by hand), the variants a stop changes a setting to, and two `band` scenes,
+  the real DWD forecast of `fixtures/berlin-timelapse.json` moved onto the Whitsun weekend, with
+  the hours around it and the UV index filled in by hand, and Germany's holidays of 2026 in a
+  `holidays` block), Pebble Time 2's opening (`intro-0-<hhmm>`), the variants a stop changes a
+  setting to, and two `band` scenes,
   a frame with the clock drawn in black, which tell `store-art.py` where the clock is (the
   black and white watches, which ignore the clock colour, take basalt's: the same layout).
   The rain alert is baked per frame from its countdown block; gusts alert from 50 km/h on the
@@ -469,9 +473,10 @@ python3 -I scripts/store-art.py <version>           # the GIFs and store screens
   (committed).
 - `store-art.py` owns the storyboard and the copy (`STORY`, `SCREENS`) and draws in the watch
   screen's own colours (black, white, its greys and its red; black and white on a black and
-  white watch) in Poppins (`screenshot/fonts/`, SIL Open Font License), anti-aliased: cards
-  unfold from the clock's middle and fold back into it, the selection slides, words move up
-  out and in, a changed setting redraws the screen from left to right. It checks the captures
+  white watch) in Poppins (`screenshot/fonts/`, SIL Open Font License), anti-aliased: a card is
+  a black panel with a 2 px edge and its name in a bar along its top; it unfolds from the
+  clock's middle and folds back into it, the selection slides, words move up out and in, a
+  changed setting redraws the screen from left to right. It checks the captures
   against the screenshot's colour-corrected palette, and fails on a text that doesn't fit, a
   step held under 1.8 s, a GIF frame that doesn't decode to the frame it was written from,
   anything flashing more than 3 times a second, or a GIF of 1.5 MB or more. It writes
@@ -531,6 +536,8 @@ Fields supported in `fixtures/<name>.json`:
 - `weather.sky` — optional radar sky rows: `{ cloudPct, sunPct, lightning }`, one entry per 15-minute slot from the quarter hour holding the radar start (percent of what each row draws: cloud cover and sun strength against a clear sky, each shaded on its row's own scale in `src/pkjs/stripe-levels.js`: under 10 % draws nothing, 10–29 / 30–59 / 60–89 % the three lighter steps, 90 % and up full colour; lightning 0/1); sent as `RADAR_SKY_UINT8` with the radar
 - `weather.radarStartEpoch` — optional Unix-seconds anchor for the radar window (defaults to the forecast start; the time-lapse uses it to scroll radar independently of the forecast)
 - `weather.sunEvents` — next two sun events, authored as local fields `{ type, dayOffset, hour, minute }` and normalized to `{ type, epoch }`
+- `countdown` — optional rain alert numbers `{ mins, raining, tier }`, baked into the build (the wscript's `WW_FIXTURE_COUNTDOWN_*`, `rain_countdown_fixture.c`)
+- `holidays` — optional holidays `{ country, year, days: [["MM-DD", null or [regions]], …] }` (nager-source.js' cache shape, `null` for nationwide): seeded into the holiday cache, and the settings' holiday window is built for `watch.now` instead of the phone's date (`src/pkjs/fixture-holidays.js`), so the calendar highlights them as a phone on that date would
 
 ## Debug Flags (`src/pkjs/dev-config.js`)
 

@@ -56,7 +56,7 @@ FONTS = os.path.join(ROOT, 'screenshot', 'fonts')
 
 TICK_MS = 40                # 25 frames a second
 PLATFORMS = ('emery', 'basalt', 'diorite', 'flint', 'aplite')
-LOOP_S = (14.0, 62.0)       # the showcase's length, s
+LOOP_S = (14.0, 70.0)       # the showcase's length, s
 GIF_BUDGET = 1536 * 1024    # bytes (the store took the old 41 s reel at 945 KB; it states no limit)
 
 BLACK = (0, 0, 0)
@@ -293,12 +293,14 @@ def check_palette(image, what, colour=True):
 # how far words travel as they come and go.
 TYPE = {
     'big': dict(
-        inset=3, margin=8, card_r=8, track=22, track_r=7, pad=2, pill_r=5, gap=4, ring=1.5, rise=6,
-        label=('medium', 12), option=('semibold', 12), hint=('regular', 13), caption=('medium', 15),
+        inset=3, margin=8, card_r=8, track=20, track_r=7, pad=2, pill_r=5, gap=3, ring=2, rise=6, border=2,
+        bar_pad=2, body_pad=2, line_gap=3,
+        label=('medium', 12), option=('semibold', 12), hint=('regular', 12), caption=('medium', 15),
         chip=('medium', 13), wordmark=('semibold', 24), slogan=('regular', 13), headline=('semibold', 19),
         head_pad=9, row_name=('semibold', 13), row_note=('regular', 12), note=('regular', 12), screen_r=10),
     'small': dict(
-        inset=2, margin=6, card_r=6, track=16, track_r=5, pad=2, pill_r=4, gap=3, ring=1.5, rise=4,
+        inset=2, margin=6, card_r=6, track=13, track_r=5, pad=2, pill_r=4, gap=2, ring=2, rise=4, border=2,
+        bar_pad=1, body_pad=1, line_gap=2,
         label=('medium', 10), option=('semibold', 10), hint=('regular', 10), caption=('medium', 12),
         chip=('medium', 11), wordmark=('semibold', 17), slogan=('regular', 10), headline=('semibold', 15),
         head_pad=6, row_name=('semibold', 11), row_note=('regular', 10), note=('regular', 10), screen_r=7),
@@ -315,7 +317,8 @@ class Watch:
         self.k = TYPE[kind]
         self.accent = RED if colour else WHITE          # the picked option, the ring
         self.on_accent = WHITE if colour else BLACK      # words on the accent
-        self.line = DARK_GREY if colour else WHITE       # a card's edge, a control's track
+        self.line = DARK_GREY if colour else WHITE       # a card's bar and edge, a control's track
+        self.on_line = WHITE if colour else BLACK        # words on the bar
         self.muted = GREY if colour else WHITE           # a card's name, an option not picked
         self.second = RED if colour else GREY            # a headline's second line
 
@@ -354,6 +357,7 @@ class Screens:
         self.dir = os.path.join(ROOT, 'screenshot', version, 'store-art', 'frames')
         self.scenes = {s['id']: s for s in manifest}
         self.day = [s['id'] for s in manifest if s['mode'] == 'day']
+        self.intro = [s['id'] for s in manifest if s['mode'] == 'intro']
         self.cache = {}
 
     def has(self, platform, scene):
@@ -452,10 +456,18 @@ def draw_ring(image, watch, box, alpha=1.0):
 # ---------------------------------------------------------------------------------------
 # The card: what a stop explains, over the clock's band.
 
+def intersect(a, b):
+    """Two boxes' overlap (or the one given, the other None)."""
+    if a is None or b is None:
+        return a or b
+    return max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3])
+
+
 class Card:
     """A stop's card in a band: a setting (its name, its options with the picked one, what it
-    does) or a moment (its name, a caption of up to two lines). Its words are fitted on creation:
-    a line is its words or (long, short), the long one where it fits."""
+    does) or a moment (its name, a caption of up to two lines). Its name rides a bar along its
+    top, the rest sits in its body. Its words are fitted on creation: a line is its words or
+    (long, short), the long one where it fits."""
 
     def __init__(self, watch, kind, title, options, picked, line, band):
         self.watch, self.kind, self.title, self.options, self.picked, self.band = (
@@ -466,6 +478,10 @@ class Card:
         room = x1 - x0
         what = '%s %s card' % (watch.name, title)
         fit(watch.f('label'), title, room, what)
+        # The bar, every card's alike: as tall as the name's capitals and its low letters (a
+        # tall letter rides up into the bar's top edge, its colour).
+        self.title_ink = ink(watch.f('label'), 'Hg')
+        self.bar_h = k['border'] + 2 * k['bar_pad'] + self.title_ink[1] - self.title_ink[0]
         if kind == 'setting':
             f = watch.f('hint')
             text = pick_copy(line, lambda t: width(f, t) <= room)
@@ -476,10 +492,10 @@ class Card:
             most = self.caption_room()
             text = pick_copy(line, lambda t: wraps(f, t, room, most))
             self.lines = wrap(f, text, room, most, what)
-        self.need = self.layout()[0]
-        if self.need > band[1] - band[0] - 2:
+        self.need = self.bar_h + 2 * k['body_pad'] + self.content()[0] + k['border']
+        if self.need > band[1] - band[0]:
             raise SystemExit('%s: the %s card needs %d rows, its band has %d' % (watch.name, title, self.need,
-                                                                                band[1] - band[0] - 2))
+                                                                                band[1] - band[0]))
 
     def span(self):
         """Where its words and control go across the screen: x0, x1 (exclusive)."""
@@ -487,35 +503,47 @@ class Card:
         return k['inset'] + k['margin'], self.watch.w - k['inset'] - k['margin']
 
     def caption_room(self):
-        """How many caption lines the band holds: two where they fit, else one."""
+        """How many caption lines the body holds: two where they fit, else one."""
         k, f = self.watch.k, self.watch.f('caption')
-        lab_t, lab_b = ink(self.watch.f('label'), self.title)
         t, b = ink(f)
-        rows = self.band[1] - self.band[0] - 2
-        return 2 if lab_b - lab_t + k['gap'] - t + (f.size + 3) + b <= rows else 1
+        rows = self.band[1] - self.band[0] - self.bar_h - 2 * k['body_pad'] - k['border']
+        return 2 if -t + (f.size + k['line_gap']) + b <= rows else 1
 
-    def layout(self):
-        """Its rows by their ink, from its content's top: (height, label baseline, control top,
-        first line's baseline, line pitch). The name by its own letters (it stays while the
-        card's lines change), the lines by the tallest and lowest any line can have, so they
+    def content(self):
+        """Its body's rows by their ink, from their top: (height, control top, first line's
+        baseline, line pitch). The lines by the tallest and lowest any line can have, so they
         keep their row from step to step."""
         k = self.watch.k
-        lab_t, lab_b = ink(self.watch.f('label'), self.title)
-        y = lab_b - lab_t + k['gap']
-        control = None
+        y, control = 0, None
         if self.kind == 'setting':
-            control = y
-            y += k['track'] + k['gap']
+            control = 0
+            y = k['track'] + k['gap']
             f = self.watch.f('hint')
         else:
             f = self.watch.f('caption')
         t, b = ink(f)
-        pitch = f.size + 3
-        return y - t + (len(self.lines) - 1) * pitch + b, -lab_t, control, y - t, pitch
+        pitch = f.size + k['line_gap']
+        return y - t + (len(self.lines) - 1) * pitch + b, control, y - t, pitch
 
-    def top(self, box):
-        """Its content's top row in a box (the card's, as it moves)."""
-        return box[1] + (box[3] - box[1] - self.need) / 2
+    def title_baseline(self, box):
+        """The name's baseline in a box (the card's, as it moves): in the middle of its bar."""
+        return box[1] + self.watch.k['border'] + self.watch.k['bar_pad'] - self.title_ink[0]
+
+    def body_top(self, box):
+        """Its body's content top in a box: in the middle of what is under the bar."""
+        k = self.watch.k
+        top, bottom = box[1] + self.bar_h, box[3] - k['border']
+        return top + (bottom - top - self.content()[0]) / 2
+
+    def bar_clip(self, box):
+        """Where the name may show: the bar, its top edge with it."""
+        k = self.watch.k
+        return box[0] + k['border'], box[1], box[2] - k['border'], box[1] + self.bar_h
+
+    def body_clip(self, box):
+        """Where the body's words and control may show: under the bar, inside the edge."""
+        k = self.watch.k
+        return box[0] + k['border'], box[1] + self.bar_h, box[2] - k['border'], box[3] - k['border']
 
     def spans(self):
         """The options across the control's track: each one's (x0, x1), floats, sharing the
@@ -540,18 +568,22 @@ class Card:
         return other is not None and self.kind == other.kind == 'setting' and self.options == other.options
 
 
-def draw_card_box(image, watch, box, alpha=1.0):
-    """The card itself: black over the clock, a hairline edge in the watch's dark grey."""
-    k = watch.k
-    round_rect(image, box, k['card_r'], BLACK, alpha=alpha)
-    round_rect(image, box, k['card_r'], watch.line, ring=1, alpha=alpha)
+def draw_card_box(image, card, box, alpha=1.0, clip=None):
+    """The card itself, shown inside `clip`: black over the clock, its name's bar and its edge
+    in the watch's dark grey (white on a black and white watch)."""
+    watch, k = card.watch, card.watch.k
+    round_rect(image, box, k['card_r'], BLACK, alpha=alpha, clip=clip)
+    bar = (box[0], box[1], box[2], box[1] + card.bar_h)
+    round_rect(image, box, k['card_r'], watch.line, alpha=alpha, clip=intersect(bar, clip))
+    round_rect(image, box, k['card_r'], watch.line, ring=k['border'], alpha=alpha, clip=clip)
 
 
 def draw_title(image, card, box, alpha=1.0, dy=0.0, texts=None, clip=None):
-    """The card's name, muted, laid out in `box` and shown inside `clip` (the box's inside)."""
+    """The card's name in its bar, in white on the dark grey (black on the white of a black and
+    white watch), laid out in `box` and shown inside `clip`."""
     x0, _ = card.span()
-    say(image, card.watch.f('label'), x0, round(card.top(box) + card.layout()[1] + dy), card.title,
-        card.watch.muted, alpha, clip or inner(card, box), texts)
+    say(image, card.watch.f('label'), x0, round(card.title_baseline(box) + dy), card.title, card.watch.on_line,
+        alpha, intersect(card.bar_clip(box), clip), texts)
 
 
 def draw_control(image, card, box, pill, alpha=1.0, texts=None, clip=None):
@@ -559,8 +591,8 @@ def draw_control(image, card, box, pill, alpha=1.0, texts=None, clip=None):
     words in the accent's ink as far as the selection covers them."""
     watch, k = card.watch, card.watch.k
     x0, x1 = card.span()
-    y = card.top(box) + card.layout()[2]
-    clip = clip or inner(card, box)
+    y = card.body_top(box)
+    clip = intersect(card.body_clip(box), clip)
     round_rect(image, (x0, y, x1, y + k['track']), k['track_r'], watch.line, ring=1, alpha=alpha, clip=clip)
     a, b = pill
     round_rect(image, (a, y + k['pad'], b, y + k['track'] - k['pad']), k['pill_r'], watch.accent, alpha=alpha,
@@ -577,22 +609,23 @@ def draw_control(image, card, box, pill, alpha=1.0, texts=None, clip=None):
 def draw_lines(image, card, box, alpha=1.0, dy=0.0, texts=None, clip=None):
     """The card's line (a setting's, in white) or caption (a moment's, in white, a little bigger)."""
     x0, _ = card.span()
-    _, _, _, line_y, pitch = card.layout()
+    _, _, line_y, pitch = card.content()
     f = card.watch.f('hint' if card.kind == 'setting' else 'caption')
-    top = card.top(box)
+    top = card.body_top(box)
     for i, line in enumerate(card.lines):
-        say(image, f, x0, round(top + line_y + i * pitch + dy), line, WHITE, alpha, clip or inner(card, box),
-            texts)
+        say(image, f, x0, round(top + line_y + i * pitch + dy), line, WHITE, alpha,
+            intersect(card.body_clip(box), clip), texts)
 
 
 def inner(card, box):
     """Where a card's words may show in its box: inside its edge."""
-    return box[0] + 1, box[1] + 1, box[2] - 1, box[3] - 1
+    k = card.watch.k
+    return box[0] + k['border'], box[1] + k['border'], box[2] - k['border'], box[3] - k['border']
 
 
 def draw_card(image, card, box, texts=None):
     """A card at rest: its box, name, control and line."""
-    draw_card_box(image, card.watch, box)
+    draw_card_box(image, card, box)
     draw_title(image, card, box, texts=texts)
     if card.kind == 'setting':
         draw_control(image, card, box, card.spans()[card.picked], texts=texts)
@@ -600,7 +633,7 @@ def draw_card(image, card, box, texts=None):
 
 
 # ---------------------------------------------------------------------------------------
-# A layout's label: a small chip at the bottom of the screen.
+# A layout's label: a small chip at the bottom of the screen, in the card's bar colours.
 
 def chip_box(watch, text):
     """A chip's box for its text, centred at the screen's bottom."""
@@ -612,14 +645,13 @@ def chip_box(watch, text):
 
 
 def draw_chip(image, watch, text, box, alpha=1.0, text_alpha=None, dy=0.0, texts=None):
-    """A chip: black, the watch's dark grey edge, its words in white."""
+    """A chip: the card's bar, its words in the bar's ink."""
     fit(watch.f('chip'), text, watch.w - 4 * watch.k['margin'], '%s chip' % watch.name)
-    round_rect(image, box, (box[3] - box[1]) / 2, BLACK, alpha=alpha)
-    round_rect(image, box, (box[3] - box[1]) / 2, watch.line, ring=1, alpha=alpha)
+    round_rect(image, box, (box[3] - box[1]) / 2, watch.line, alpha=alpha)
     f = watch.f('chip')
     x = int(round((box[0] + box[2] - width(f, text)) / 2))
     baseline = round((box[1] + box[3] + cap(f)) / 2 + dy)
-    say(image, f, x, baseline, text, WHITE, alpha if text_alpha is None else text_alpha,
+    say(image, f, x, baseline, text, watch.on_line, alpha if text_alpha is None else text_alpha,
         (box[0] + 1, box[1] + 1, box[2] - 1, box[3] - 1), texts)
 
 
@@ -629,7 +661,9 @@ def draw_chip(image, watch, text, box, alpha=1.0, text_alpha=None, dy=0.0, texts
 # watch is left out there, a setting card needs two steps, and a card can name its watches, so
 # every watch shows only what it can do.
 #
-# ('open', scene, ticks)                 the first frame, held
+# ('open', scene, ticks)                 the first frame, held; on a watch with an opening (the
+#                                        manifest's 'intro' scenes: Pebble Time 2's long span
+#                                        without the left axis) that instead, then the day's view
 # ('run', scene)                         on through the day's frames to this one
 # ('stop', card, ...)                    a stop at the frame the run reached; each card:
 #     ('setting', title, options, steps[, platforms])   options None: the scene's span labels;
@@ -641,16 +675,18 @@ def draw_chip(image, watch, text, box, alpha=1.0, text_alpha=None, dy=0.0, texts
 # A line is its words, or (long, short) where a 144 px watch needs the short one; a '\n' marks
 # where a caption breaks when it takes two lines. `mark` puts the ring on 'top' (the Watch
 # Status Bar), 'slot' (the UV slot: the forecast row's right slot under the card) or
-# 'calendar' (between the Watch Status Bar and the card), or nowhere (None). The numbers are
-# the day's (gen-store-art-fixtures.js): UV 5 at 10:00 with 8 to come, 3 the next day; the rain
-# 15 minutes away at 08:45 on Sunday, the gusts up to 59 km/h at noon.
+# 'calendar' (between the Watch Status Bar and the card), 'holiday' (the holiday's cell in the
+# calendar: its highlight colour), or nowhere (None). The numbers are the day's
+# (gen-store-art-fixtures.js): UV 7 at 11:00 with 8 to come, 3 the next day; Whit Monday in the
+# calendar, Ascension in its three weeks; the rain 15 minutes away at 08:45 on Sunday, the gusts
+# up to 59 km/h at noon.
 NOT_APLITE = ('emery', 'basalt', 'diorite', 'flint')
 STORY = (
-    ('open', 'day-0-0800', 30),
-    ('run', 'day-0-1000'),
+    ('open', 'day-0-0500', 30),
+    ('run', 'day-0-1100'),
     ('stop', ('setting', 'UV index slot', ('Now', 'Day max', 'Both'), (
-        ('day-0-1000', 2, ('Now and today\'s max: 5/8', 'Now / today\'s max'), 'slot'),
-        ('uv-now', 0, ('The UV index now: 5', 'UV index now: 5'), 'slot'),
+        ('day-0-1100', 2, ('Now and today\'s max: 7/8', 'Now / today\'s max'), 'slot'),
+        ('uv-now', 0, ('The UV index now: 7', 'UV index now: 7'), 'slot'),
         ('uv-max', 1, ('Highest UV left today: 8', 'Max left today: 8'), 'slot')))),
     ('run', 'day-0-1200'),
     ('stop', ('moment', 'Graph lines', (
@@ -664,13 +700,13 @@ STORY = (
      ('setting', 'Left axis values', ('On axis', 'On graph', 'Off'), (
          ('day-0-1400', 0, 'High and low on the axis', None),
          ('axis-off', 2, 'No axis, a wider graph', None)))),
+    ('run', 'day-0-1800'),
+    ('stop', ('moment', 'Calendar', (
+        ('day-0-1800', ('Holidays stand out:\nWhit Monday', 'Holidays stand out'), 'holiday'),
+        ('cal-full', ('Three weeks in view,\nAscension too', 'Three weeks in view'), 'calendar')))),
     ('run', 'day-0-2200'),
     ('stop', ('moment', 'UV index slot', (
         ('day-0-2200', ('After sunset: » marks\ntomorrow\'s max', '» is tomorrow\'s max'), 'slot'),))),
-    ('run', 'day-1-0000'),
-    ('stop', ('moment', 'Calendar', (
-        ('day-1-0000', ('Midnight: on to Sunday', 'On to Sunday'), 'calendar'),
-        ('cal-full', ('Or three weeks at a glance', 'Or three weeks'), 'calendar')))),
     ('run', 'day-1-0845'),
     ('stop', ('moment', 'Weather alerts', (
         ('day-1-0845', ('Rain in 15 minutes,\ngusts up to 59 today', 'Rain soon, gusts 59'), 'top'),),
@@ -683,7 +719,11 @@ STORY = (
 WORDMARK = ('Warn', 'Weather')
 SLOGAN = 'The forecast at a glance,\nalerts when it matters.'
 
-RUN_TICKS = 3             # a day frame, as the day runs (its first tick half the last frame)
+RUN_TICKS = 4             # a day frame, as the day runs (its first tick half the last frame)
+INTRO_FIRST = 25          # Pebble Time 2's opening: its first frame, held
+INTRO_TICKS = 12          # each next frame of it
+INTRO_SWITCH = 16         # its last frame redrawn as the day's view of the same moment
+INTRO_REST = 15           # the day's view, held before the day runs on
 OPEN = 9                  # a card unfolding
 STEP = 12                 # a step to the next: the selection slides, the screen redraws
 CLOSE = 10                # a card folding back into the clock
@@ -759,6 +799,17 @@ class Showcase:
             strip_end = ink_rows_from(shot, 0)[1]
             x0, y0, x1, y1 = shot.crop((0, strip_end, self.watch.w, band[0])).getbbox()
             return ring_box(self.watch, (x0, y0 + strip_end, x1 - 1, y1 - 1 + strip_end))
+        if kind == 'holiday':
+            # The cells in the holiday colour (its default, Blue Moon) of the colour capture: a
+            # black and white watch draws a holiday bold, in basalt's place (the same layout).
+            src = self.screens.shot(BAND_FROM[self.watch.name], scene)
+            blue = CORRECT[(0, 85, 255)]
+            px = src.load()
+            cells = [(x, y) for y in range(0, band[0]) for x in range(src.width) if px[x, y] == blue]
+            if not cells:
+                raise SystemExit('%s/%s: no holiday in the calendar' % (self.watch.name, scene))
+            xs, ys = [c[0] for c in cells], [c[1] for c in cells]
+            return ring_box(self.watch, (min(xs) - 1, min(ys) - 1, max(xs) + 1, max(ys) + 1))
         raise SystemExit('unknown mark %r' % kind)
 
     # -- drawing a tick ------------------------------------------------------------------
@@ -795,7 +846,9 @@ class Showcase:
             if half < 1:
                 return
             box = (x0, cy - half, x1, cy + half)
-            draw_card_box(image, self.watch, box)
+            # The card as it will stand, shown as far as the box has opened, and the box's edge.
+            draw_card_box(image, card, card.box, clip=box)
+            round_rect(image, box, self.watch.k['card_r'], self.watch.line, ring=self.watch.k['border'])
             clip = inner(card, box)
             dy = rise * (1 - words)
             draw_title(image, card, card.box, words, dy, clip=clip)
@@ -808,7 +861,7 @@ class Showcase:
             return
         e = ease(t)
         box = lerp(a.box, b.box, e)
-        draw_card_box(image, self.watch, box)
+        draw_card_box(image, b, box)
         out_t, in_t = ease(part(t, 0, 0.55)), ease(part(t, 0.45, 1))
         if a.title == b.title:
             draw_title(image, b, box)
@@ -881,7 +934,7 @@ class Showcase:
     def check_words(self, texts, moment):
         """Every word at rest inside its card or its label."""
         if moment.card is not None:
-            box = inner(moment.card, moment.card.box)
+            box = moment.card.box
         elif moment.chip is not None:
             box = chip_box(self.watch, moment.chip)
         else:
@@ -930,6 +983,18 @@ class Showcase:
                 moments.append(Moment(scene, card, self.mark(mark, scene, band)))
             out.append(moments)
         return out
+
+    def opening(self, intro):
+        """A watch's own opening: its frames run (a soft cut a frame), then the last redrawn as
+        the day's view of the same moment, held, the day running on from it."""
+        self.reel.add(self.shot(intro[0]), INTRO_FIRST)
+        for last, scene in zip(intro, intro[1:]):
+            self.reel.add(Image.blend(self.shot(last), self.shot(scene), 0.5), fading=True)
+            self.reel.add(self.shot(scene), INTRO_TICKS - 1)
+        at = self.screens.scenes[intro[-1]]['at']
+        day = next(s for s in self.screens.day if self.screens.scenes[s]['at'] == at)
+        self.go(Moment(intro[-1]), Moment(day), INTRO_SWITCH, INTRO_REST)
+        self.at = day
 
     def stop(self, specs):
         """A stop at the frame the run reached: the first card unfolds over it, each step goes on
@@ -1018,8 +1083,12 @@ class Showcase:
         """The whole loop: the day with its stops, the layouts, the wordmark, and back."""
         for beat in STORY:
             if beat[0] == 'open':
-                self.at = beat[1]
-                self.reel.add(self.shot(beat[1]), beat[2])
+                intro = [s for s in self.screens.intro if self.has(s)]
+                if intro:
+                    self.opening(intro)
+                else:
+                    self.at = beat[1]
+                    self.reel.add(self.shot(beat[1]), beat[2])
             elif beat[0] == 'run':
                 self.run(beat[1])
             elif beat[0] == 'stop':
