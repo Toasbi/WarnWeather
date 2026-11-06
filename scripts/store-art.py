@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """WarnWeather's appstore set, per platform: the showcase GIF and five store screens.
 
-    python3 -I scripts/store-art.py <version> [--refresh]
+    python3 -I scripts/store-art.py <version> [--platforms "emery basalt"]
 
 Reads the watch screens scripts/capture-store-art.sh captured from the scenes of
 scripts/gen-store-art-fixtures.js (screenshot/<version>/store-art/frames/<platform>/<scene>.png)
@@ -10,85 +10,75 @@ and writes each platform's set in the order it is uploaded:
     screenshot/<version>/store-art/<platform>/1-showcase.gif
     screenshot/<version>/store-art/<platform>/2-forecast.png .. 6-layouts.png
 
-and, to judge them, build/store-art/contact-sheet-<platform>.png (every 4th frame of the GIF)
-and build/store-art/screens-<platform>.png (the five screens at 2x), and the whole set in one
-file to hand over, build/store-art/warnweather-store-<version>.zip. The store's time-lapse GIFs
-(a real day of weather, frame by frame) stay on the listing as they are; this set replaces the
-old reel and the single screenshots.
+and, to judge them, build/store-art/contact-sheet-<platform>.png (the GIF every 8th tick) and
+build/store-art/screens-<platform>.png (the five screens at 2x), and the whole set in one file
+to hand over, build/store-art/warnweather-store-<version>.zip. The store's time-lapse GIFs (a
+real day of weather, frame by frame) stay on the listing as they are; this set replaces the old
+reel and the single screenshots.
 
-THE SHOWCASE (about 30 s on emery, less where a watch has fewer settings, looping): the
+THE SHOWCASE (about 30 s on Pebble Time 2, less where a watch has fewer settings, looping): the
 watchface as the watch draws it, then a tour of what it can do. In a tour scene the big clock
-steps aside and its band shows the setting being changed, drawn as the settings page draws it
-(a section header and the setting's options, the picked one in WarnWeather's coral, then a
-line of what it does, typed), while the rest of the screen is the watch's own capture of that
-setting: graph lines, forecast length and the left axis (Pebble Time 2 only), the alerts, the
-UV slot's Now / Day max / Both (and tomorrow's max, marked with a »), the calendar; then the
-views and layouts whole, and an end card. Scenes change with the glitch of Shapeshifter's
-showcase (rows torn and shoved sideways, scan lines, a red ghost); a changed setting re-renders
-only the screen around the panel.
+makes room for a card in the settings page's look (the setting's name, its segmented control
+with the picked option in the page's coral, and what it does), while the rest of the screen is
+the watch's own capture of that setting: graph lines, forecast length and the left axis
+(Pebble Time 2 only), the weather alerts, the UV slot's Now / Day max / Both and tomorrow's max
+(marked with a »), the calendar; then views and layouts whole, and the wordmark. Scenes
+cross-fade; a changed option slides the control's selection while the screen around the card
+fades to the new capture. A thin coral ring shows where to look.
 
-THE STORE SCREENS: a two-line headline over the watch's screen, like a Play Store carousel
-(the forecast, the alerts, the rain radar, the UV slot's values, the layouts), each at the
+THE STORE SCREENS: a two-line headline on the banner's charcoal over the watch's screen (the
+forecast, the alerts, the health view, the UV slot's values, Weather only), each at the
 platform's own screenshot size.
 
-The look follows Shapeshifter's store art (github.com/Toasbi/face-switcher, design/), in
-WarnWeather's colours: its coral (#FF5555, the banner's "Warn" and the settings page's accent on
-Pebble's palette), white, and the headline's ghosts in rain blue and red. Only Pebble's 64
-colours (black and white on diorite, flint and aplite), no anti-aliasing: Pebble's own Gothic
-fonts (fetched from PebbleOS at a fixed commit, checked by sha256), the canvas and the GIF
-writer as Shapeshifter's. Every text is measured and the build fails on one that doesn't fit;
-nothing flashes more than 3 times a second; every GIF frame decodes to the frame it was written
-from. The same frames give the same bytes.
+The look is the banner's (resources/banner-*.png: its charcoal, white and the "Warn" coral, in
+Poppins) and the settings page's (src/pkjs/config-ui/lib/shell.html: its cards, segmented
+controls and coral), anti-aliased and the same on every watch; the watch's own screens stay as
+captured, black and white where the watch is. Every text is measured and the build fails on one
+that doesn't fit; nothing flashes more than 3 times a second; every GIF frame decodes to the
+frame it was written from. The same frames give the same bytes.
 
-Needs Python 3 with Pillow, Node (for the scene list) and, on its first run, the network (the
-fonts land in build/store-art/src/; --refresh fetches them again).
+Needs Python 3 with Pillow, and Node for the scene list. The type is Poppins
+(screenshot/fonts/, SIL Open Font License: screenshot/fonts/Poppins-OFL.txt).
 """
 import argparse
 import hashlib
 import json
 import os
-import random
 import struct
 import subprocess
 import sys
-import urllib.request
 import zipfile
+from collections import Counter
 
-from PIL import Image, ImageChops, ImageDraw, ImageStat
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageStat
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD = os.path.join(ROOT, 'build', 'store-art')
-SRC = os.path.join(BUILD, 'src')
-
-# Pebble's system fonts, from PebbleOS at a fixed commit (as Shapeshifter's store art pins
-# them): name -> the resource set it lives in, its sha256. Fetched, not kept here: PebbleOS is
-# Apache-2.0, but its Gothic fonts' own licence isn't stated.
-PEBBLEOS = ('https://raw.githubusercontent.com/coredevices/PebbleOS/6768a9c34610995def6e864f817338f0f3ce0632/'
-            'resources/')
-SYSTEM_FONTS = {
-    'GOTHIC_14': ('common', 'a8e82f9182d61198dbf52190c8192c678bec37acc5cd392a64765eeada30c224'),
-    'GOTHIC_14_BOLD': ('normal', '2a177a0f20a7cbf01c0af6e523514ff3773070525a89d5bf72b4ec19a9f30584'),
-    'GOTHIC_18': ('normal', '8beeca139ad28f24cde3feaeaedbd6fe73b8f443f32bf4d6088c9ac536b43339'),
-    'GOTHIC_18_BOLD': ('common', 'f7ce213bf3d29018ed1168d47e3469f2c71438d4309d6281db9582aca84bd9da'),
-    'GOTHIC_24_BOLD': ('normal', 'b5332e573999b539cf6dcfcabc8dfb4766b852f1355d50829e7d1f404fcfdc11'),
-    'GOTHIC_28_BOLD': ('normal', '471dfa583b81e43c1747b2ecb7e31efea90f7d0e0e2cbb11a0ac651cf4c315fd'),
-}
+FONTS = os.path.join(ROOT, 'screenshot', 'fonts')
 
 TICK_MS = 40                # 25 frames a second
-LEVELS = (0, 85, 170, 255)  # Pebble's colour channels
+PLATFORMS = ('emery', 'basalt', 'diorite', 'flint', 'aplite')
+LOOP_S = (14.0, 34.0)       # the showcase's length, s
+GIF_BUDGET = 1 << 20        # bytes; the store took the old 41 s reel at 945 KB
+
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-GREY = (170, 170, 170)
-DARK_GREY = (85, 85, 85)
-CORAL = (255, 85, 85)       # WarnWeather's coral: the banner's "Warn", the settings page's accent
-DIM_CORAL = (170, 85, 85)
-RULE = (255, 0, 0)          # a header's rule and its tick
-GHOST_RED = (255, 0, 0)
-GHOST_BLUE = (0, 170, 255)  # the rain bars' blue
+# The banner (resources/banner-*.png): its charcoal, blue-grey at the top left and warmer to the
+# bottom right, the "Warn" coral, and the grey of its line under the name.
+CHARCOAL = (41, 45, 54)
+CHARCOAL_WARM = (50, 34, 38)
+WARN = (255, 90, 60)
+SUBTITLE = (212, 218, 226)
+# The settings page, dark (src/pkjs/config-ui/lib/shell.html): a card, a control's track, the
+# accent (the picked option, a switch that is on), text and muted text.
+CARD = (58, 59, 63)
+TRACK = (70, 71, 76)
+ACCENT = (250, 74, 53)
+TEXT = (240, 242, 246)
+MUTED = (182, 186, 194)
+RULE = (66, 69, 77)         # a hairline between rows, on the charcoal
 
-PLATFORMS = ('emery', 'basalt', 'diorite', 'flint', 'aplite')
-LOOP_S = (14.0, 33.0)       # the showcase's length, s
-GIF_BUDGET = 1 << 20        # bytes; the store took the old 41 s reel at 945 KB
+SS = 4                      # shapes are drawn 4x and scaled down: their anti-aliasing
 
 
 def log(*parts):
@@ -97,163 +87,142 @@ def log(*parts):
 
 
 # ---------------------------------------------------------------------------------------
-# Pebble's fonts and a canvas of Pebble pixels (Shapeshifter's design/watch_pixels.py).
+# Type and shapes.
 
-def sha256_of(path):
-    """A file's sha256, in hex."""
-    with open(path, 'rb') as f:
-        return hashlib.sha256(f.read()).hexdigest()
+POPPINS = {'regular': 'Poppins-Regular.ttf', 'medium': 'Poppins-Medium.ttf', 'semibold': 'Poppins-SemiBold.ttf'}
+_FONTS = {}
 
 
-def fetch(url, path, pin):
-    """The file at url, kept at path: downloaded once and kept only if its sha256 is `pin`; a
-    kept one is checked again each time."""
-    if not os.path.exists(path):
-        log('fetching', url)
-        request = urllib.request.Request(url, headers={'User-Agent': 'warnweather-store-art'})
-        with urllib.request.urlopen(request, timeout=60) as response:
-            data = response.read()
-        if hashlib.sha256(data).hexdigest() != pin:
-            raise SystemExit('%s: its sha256 is %s, not the pinned %s' % (url, hashlib.sha256(data).hexdigest(), pin))
-        with open(path + '.part', 'wb') as f:
-            f.write(data)
-        os.replace(path + '.part', path)
-    elif sha256_of(path) != pin:
-        raise SystemExit('%s: its sha256 is not the pinned %s: --refresh fetches it again' % (path, pin))
-    return path
+def font(spec):
+    """Poppins at a weight and a pixel size, spec (weight, size). Laid out by FreeType alone: its
+    whole-pixel advances keep a word space open at these sizes, where the shaped layout's
+    fractional ones close it up."""
+    if spec not in _FONTS:
+        weight, size = spec
+        _FONTS[spec] = ImageFont.truetype(os.path.join(FONTS, POPPINS[weight]), size,
+                                          layout_engine=ImageFont.Layout.BASIC)
+    return _FONTS[spec]
 
 
-class PebbleFont:
-    """A firmware font (.pbf, version 3, uncompressed): its glyphs and its line height."""
-
-    def __init__(self, path):
-        data = open(path, 'rb').read()
-        version, self.height, count, wildcard, table, cp_bytes, size, features = struct.unpack_from('<BBHHBBBB', data)
-        if version != 3 or features & 2:
-            raise SystemExit('%s: not an uncompressed version 3 font' % path)
-        entry = '<' + ('L' if cp_bytes == 4 else 'H') + ('H' if features & 1 else 'L')
-        entry_size = struct.calcsize(entry)
-        offsets = size + 4 * table
-        self.data, self.glyphs, self.wildcard = data, offsets + entry_size * count, wildcard
-        self.index, self.cache = {}, {}
-        for i in range(table):
-            _, n, offset = struct.unpack_from('<BBH', data, size + 4 * i)
-            for k in range(n):
-                codepoint, glyph = struct.unpack_from(entry, data, offsets + offset + k * entry_size)
-                self.index[codepoint] = glyph
-
-    def glyph(self, char):
-        """(left, top, advance, inked pixels) of a character, or of the wildcard."""
-        codepoint = ord(char) if ord(char) in self.index else self.wildcard
-        if codepoint not in self.cache:
-            at = self.glyphs + self.index[codepoint]
-            w, h, left, top, advance = struct.unpack_from('<BBbbb', self.data, at)
-            bits = self.data[at + 5:at + 5 + (w * h + 7) // 8]
-            pixels = [(i % w, i // w) for i in range(w * h) if bits[i >> 3] >> (i & 7) & 1]
-            self.cache[codepoint] = (left, top, advance, pixels)
-        return self.cache[codepoint]
-
-    def width(self, text):
-        """The text's advance: what the firmware measures a line by."""
-        return sum(self.glyph(c)[2] for c in text)
-
-    def origins(self, text, x):
-        """Each character's origin on a line that starts at x, and where the next one would go."""
-        out = []
-        for c in text:
-            out.append(x)
-            x += self.glyph(c)[2]
-        return out, x
-
-    def ink_rows(self, text):
-        """The first and last rows the text inks, from the line's top."""
-        rows = [top + y for left, top, adv, pixels in map(self.glyph, text) for x, y in pixels]
-        return min(rows), max(rows)
+def ink(f, text='Hg'):
+    """The rows a text inks around its baseline: (top, bottom), top negative."""
+    _, top, _, bottom = f.getbbox(text, anchor='ls')
+    return top, bottom
 
 
-def system_fonts(refresh=False):
-    """Pebble's Gothic fonts, fetched once into build/store-art/src/."""
-    os.makedirs(SRC, exist_ok=True)
-    fonts = {}
-    for name, (where, pin) in SYSTEM_FONTS.items():
-        path = os.path.join(SRC, name + '.pbf')
-        if refresh and os.path.exists(path):
-            os.remove(path)
-        fonts[name] = PebbleFont(fetch('%s%s/base/pbf/%s.pbf' % (PEBBLEOS, where, name), path, pin))
-    return fonts
+def cap(f):
+    """A font's cap height."""
+    return -ink(f, 'H')[0]
 
 
-class Canvas:
-    """An RGB image drawn pixel by pixel inside a clip box (x0, y0, x1, y1; x1 and y1 exclusive).
-    Every text drawn is kept in `inked` (its pixels' box and its words), for the checks."""
-
-    def __init__(self, image):
-        self.image = image.convert('RGB').copy()
-        self.px = self.image.load()
-        self.w, self.h = self.image.size
-        self.clip = (0, 0, self.w, self.h)
-        self.inked = []
-
-    def set(self, x, y, colour):
-        if self.clip[0] <= x < self.clip[2] and self.clip[1] <= y < self.clip[3]:
-            self.px[x, y] = colour
-
-    def fill(self, x0, y0, x1, y1, colour):
-        """A filled box, its corners included."""
-        for y in range(max(y0, self.clip[1]), min(y1 + 1, self.clip[3])):
-            for x in range(max(x0, self.clip[0]), min(x1 + 1, self.clip[2])):
-                self.px[x, y] = colour
-
-    def hline(self, x0, x1, y, colour):
-        self.fill(min(x0, x1), y, max(x0, x1), y, colour)
-
-    def vline(self, x, y0, y1, colour):
-        self.fill(x, min(y0, y1), x, max(y0, y1), colour)
-
-    def round_box(self, x0, y0, x1, y1, colour, fill=None):
-        """A 1 px outline with its corners cut by a pixel (the settings page's rounded controls),
-        filled inside with `fill`."""
-        if fill is not None:
-            self.fill(x0 + 1, y0 + 1, x1 - 1, y1 - 1, fill)
-        self.hline(x0 + 1, x1 - 1, y0, colour)
-        self.hline(x0 + 1, x1 - 1, y1, colour)
-        self.vline(x0, y0 + 1, y1 - 1, colour)
-        self.vline(x1, y0 + 1, y1 - 1, colour)
-
-    def text(self, font, x, y, text, colour):
-        """One line of text, its line box's top at y and its origin at x; returns the x after it."""
-        start = x
-        for c in text:
-            left, top, advance, inked = font.glyph(c)
-            for px, py in inked:
-                self.set(x + left + px, y + top + py, colour)
-            x += advance
-        if text.strip():
-            lo, hi = font.ink_rows(text)
-            self.inked.append((start, y + lo, x - 1, y + hi, text))
-        return x
+def width(f, text):
+    """A line's advance, in whole pixels."""
+    return int(round(f.getlength(text)))
 
 
-def fit(font, text, width, what):
-    """The text's width, failing when it is over `width`."""
-    px = font.width(text)
-    if px > width:
-        raise SystemExit('%s: %r is %d px, over its %d px' % (what, text, px, width))
+def fit(f, text, room, what):
+    """The line's width, failing when it is over `room`."""
+    px = width(f, text)
+    if px > room:
+        raise SystemExit('%s: %r is %d px, over its %d px' % (what, text, px, room))
     return px
 
 
-def centred(canvas, font, box, text, colour, what):
-    """One line centred in box (x, y, w) that must fit. Returns its x and width."""
-    x, y, w = box
-    px = fit(font, text, w, what)
-    canvas.text(font, x + (w - px) // 2, y, text, colour)
-    return x + (w - px) // 2, px
+def wrap(f, text, room, most, what):
+    """Words broken into lines that each fit `room` px, at most `most` of them. A text that
+    doesn't fit one line breaks at its '\n' where it has one, else greedily, and two lines are
+    broken where their longer one is shortest, so the second isn't a word left over."""
+    words = text.split()
+    if width(f, ' '.join(words)) > room and '\n' in text:
+        lines = text.split('\n')
+        for line in lines:
+            fit(f, line, room, what)
+        if len(lines) > most:
+            raise SystemExit('%s: %r takes %d lines, it has %d' % (what, text, len(lines), most))
+        return lines
+    lines, line = [], ''
+    for word in words:
+        trial = (line + ' ' + word).strip()
+        if width(f, trial) <= room or not line:
+            line = trial
+        else:
+            lines.append(line)
+            line = word
+    lines.append(line)
+    if len(lines) == 2:
+        splits = [(' '.join(words[:i]), ' '.join(words[i:])) for i in range(1, len(words))]
+        lines = list(min(splits, key=lambda ab: (max(width(f, ab[0]), width(f, ab[1])), -width(f, ab[0]))))
+    for line in lines:
+        fit(f, line, room, what)
+    if len(lines) > most:
+        raise SystemExit('%s: %r takes %d lines, it has %d' % (what, text, len(lines), most))
+    return lines
+
+
+def pick_copy(copy, fits):
+    """The copy itself, or of (long, short) the first that `fits`; the short one's fit check
+    reports a line that fits neither."""
+    if isinstance(copy, str):
+        return copy
+    return copy[0] if fits(copy[0]) else copy[1]
+
+
+def say(image, texts, f, x, baseline, text, colour):
+    """One line of text, its origin at x on the baseline; kept in `texts` (its inked box and its
+    words) for the checks."""
+    d = ImageDraw.Draw(image)
+    d.text((x, baseline), text, font=f, fill=colour, anchor='ls')
+    texts.append((d.textbbox((x, baseline), text, font=f, anchor='ls'), text))
+
+
+def say_centred(image, texts, f, cx, baseline, text, colour):
+    """One line centred on x = cx."""
+    say(image, texts, f, int(round(cx - width(f, text) / 2)), baseline, text, colour)
+
+
+def round_rect(image, box, radius, colour, ring=None):
+    """A box with round corners (x0, y0, x1, y1, its far edges at x1 and y1, fractions allowed),
+    anti-aliased: filled, or, with `ring`, only that many px of it inside its edge."""
+    x0, y0, x1, y1 = box
+    left, top, right, bottom = int(x0), int(y0), -int(-x1), -int(-y1)
+    w, h = right - left, bottom - top
+    if w <= 0 or h <= 0:
+        return
+    mask = Image.new('L', (w * SS, h * SS), 0)
+    d = ImageDraw.Draw(mask)
+
+    def scaled(a, b, c, e):
+        return ((a - left) * SS, (b - top) * SS, (c - left) * SS - 1, (e - top) * SS - 1)
+
+    r = min(radius, (x1 - x0) / 2, (y1 - y0) / 2)
+    d.rounded_rectangle(scaled(x0, y0, x1, y1), r * SS, fill=255)
+    if ring:
+        d.rounded_rectangle(scaled(x0 + ring, y0 + ring, x1 - ring, y1 - ring), max(0, r - ring) * SS, fill=0)
+    image.paste(colour, (left, top, right, bottom), mask.resize((w, h), Image.BOX))
+
+
+def mix(a, b, t):
+    """Colour a, t of the way to colour b."""
+    return tuple(int(round(p + (q - p) * t)) for p, q in zip(a, b))
+
+
+def charcoal(w, h):
+    """The banner's background at w x h: its charcoal, from blue-grey at the top left to warm at
+    the bottom right, in 12 steps (a GIF frame keeps few colours)."""
+    image = Image.new('RGB', (w, h))
+    px = image.load()
+    for y in range(h):
+        for x in range(w):
+            t = round(12 * (0.7 * x / (w - 1) + 0.3 * y / (h - 1))) / 12
+            px[x, y] = mix(CHARCOAL, CHARCOAL_WARM, t)
+    return image
 
 
 # What `pebble screenshot` shows of each of Pebble's 64 colours (pebble-tool's
 # commands/screenshot.py, _correct_colours: the display's own colours, applied unless
-# --no-correction). The captures are corrected so, and so is everything drawn here, so a panel's
-# coral sits in the same palette as the watch's own colours.
+# --no-correction). The captures are checked against it: a capture in other colours was taken
+# some other way.
+LEVELS = (0, 85, 170, 255)
 _LEVELS4 = [(r, g, b) for r in LEVELS for g in LEVELS for b in LEVELS]
 _SHOWN = (
     (0, 0, 0), (0, 30, 65), (0, 67, 135), (0, 104, 202), (43, 74, 44), (39, 81, 79), (22, 99, 141),
@@ -283,41 +252,44 @@ def check_palette(image, what, colour=True):
 # ---------------------------------------------------------------------------------------
 # The watches, and the watch screens captured for them.
 
+# Two sets of sizes: Pebble Time 2's 200 px and the 144 px of the others. `inset` is the card's
+# gap to the screen's side, `margin` its words' gap to the card's side; `track` is a segmented
+# control's height and `pad` its selection's inset; `gap` the rows between a card's parts.
+TYPE = {
+    'big': dict(
+        inset=3, margin=8, card_r=9, track=22, track_r=8, pad=2, pill_r=6, gap=5, ring=1.5,
+        label=('medium', 12), option=('semibold', 12), hint=('regular', 12), caption=('medium', 15),
+        title=('semibold', 18), line=('regular', 13), wordmark=('semibold', 24), slogan=('regular', 13),
+        headline=('semibold', 19), head_pad=9, row_name=('semibold', 13), row_note=('regular', 12),
+        note=('regular', 12), screen_r=10),
+    'small': dict(
+        inset=2, margin=6, card_r=7, track=17, track_r=6, pad=2, pill_r=5, gap=3, ring=1.5,
+        label=('medium', 10), option=('semibold', 10), hint=('regular', 10), caption=('medium', 12),
+        title=('semibold', 15), line=('regular', 11), wordmark=('semibold', 17), slogan=('regular', 10),
+        headline=('semibold', 15), head_pad=6, row_name=('semibold', 11), row_note=('regular', 10),
+        note=('regular', 10), screen_r=7),
+}
+
+
 class Watch:
-    """A platform the set is made for: its screenshot size, colour or black and white, the type
-    of its panels (header, options, hint), of its captions and headlines, and the line its
-    words take (x0 to x1, exclusive)."""
+    """A platform the set is made for: its screenshot size, colour or black and white, and the
+    sizes its type and cards take (TYPE)."""
 
-    def __init__(self, name, size, colour, header, option, hint, caption, headline, margin):
+    def __init__(self, name, size, colour, kind):
         self.name, (self.w, self.h), self.colour = name, size, colour
-        self.header, self.option, self.hint, self.caption, self.headline = header, option, hint, caption, headline
-        self.x0, self.x1 = margin, size[0] - margin
+        self.k = TYPE[kind]
 
-    def ink(self, colour):
-        """One of Pebble's colours as this watch's screenshot shows it: corrected on a colour
-        watch, white in black and white."""
-        return CORRECT[colour] if self.colour else WHITE
-
-    def fill_ink(self, colour):
-        """A filled block's colour: in black and white, white."""
-        return self.ink(colour)
-
-    def on_fill(self):
-        """Text on a filled block."""
-        return WHITE if self.colour else BLACK
+    def f(self, role):
+        """The font a role takes on this watch."""
+        return font(self.k[role])
 
 
-# Pebble Time 2 (emery) takes the bigger sizes; the 144 px watches the smaller ones (the
-# captions in regular weight: the bold ones run over the 134 px line), and black and white
-# draws all of it white.
-SMALL = ('GOTHIC_14_BOLD', 'GOTHIC_14_BOLD', 'GOTHIC_14', 'GOTHIC_14', 'GOTHIC_24_BOLD', 5)
 WATCHES = {
-    'emery': Watch('emery', (200, 228), True, 'GOTHIC_18_BOLD', 'GOTHIC_18_BOLD', 'GOTHIC_18', 'GOTHIC_18_BOLD',
-                   'GOTHIC_28_BOLD', 6),
-    'basalt': Watch('basalt', (144, 168), True, *SMALL),
-    'diorite': Watch('diorite', (144, 168), False, *SMALL),
-    'flint': Watch('flint', (144, 168), False, *SMALL),
-    'aplite': Watch('aplite', (144, 168), False, *SMALL),
+    'emery': Watch('emery', (200, 228), True, 'big'),
+    'basalt': Watch('basalt', (144, 168), True, 'small'),
+    'diorite': Watch('diorite', (144, 168), False, 'small'),
+    'flint': Watch('flint', (144, 168), False, 'small'),
+    'aplite': Watch('aplite', (144, 168), False, 'small'),
 }
 # Where a black and white watch takes a panel scene's band from: its layout is basalt's (the
 # same 144 x 168 geometry), and only a colour watch draws its clock in black.
@@ -366,9 +338,8 @@ class Screens:
             raise SystemExit('%s is a full scene: it has no band' % scene)
         image = self.shot(BAND_FROM[platform], scene)
         w, h = image.size
-        bg = BLACK
         rows = image.tobytes()
-        blank = [rows[y * w * 3:(y + 1) * w * 3] == bytes(bg) * w for y in range(h)]
+        blank = [rows[y * w * 3:(y + 1) * w * 3] == bytes(3 * w) for y in range(h)]
         best, y = (0, 0), 0
         while y < h:
             if blank[y]:
@@ -383,132 +354,6 @@ class Screens:
             raise SystemExit('%s/%s: no clock band (the longest blank run is %d rows)' % (platform, scene,
                                                                                       best[1] - best[0]))
         return best
-
-
-# ---------------------------------------------------------------------------------------
-# The panel: the settings page's look in Pebble pixels, in the clock's band.
-
-def header(canvas, fonts, watch, y, title, typed=None):
-    """A section header: '//', the title in coral, and a rule (with a tick at its start)
-    through the middle of the capitals to the right edge. `typed` cuts the title (and hides the
-    rule) while it is being typed. Returns the row under it."""
-    font = fonts[watch.header]
-    text = title if typed is None else title[:typed]
-    fit(font, '// ' + title, watch.x1 - watch.x0 - 14, '%s header' % watch.name)
-    x = canvas.text(font, watch.x0, y, '//', watch.ink(DIM_CORAL))
-    x = canvas.text(font, x + 4, y, text, watch.ink(CORAL))
-    if typed is None or typed >= len(title):
-        lo, hi = font.ink_rows('H')
-        mid = y + (lo + hi) // 2
-        canvas.hline(x + 6, watch.x1 - 1, mid, watch.ink(RULE))
-        canvas.vline(x + 6, mid - 2, mid + 2, watch.ink(RULE))
-    return y + font.height
-
-
-def segmented(canvas, fonts, watch, y, options, picked):
-    """The settings page's segmented control: one box split into the options, the picked one
-    filled in coral. The options share the line in proportion to their words. Returns the row
-    under it."""
-    font = fonts[watch.option]
-    lo, hi = font.ink_rows('Hgy')
-    h = hi - lo + 1 + 6
-    widths = [font.width(o) for o in options]
-    room = watch.x1 - watch.x0 - 1
-    pad = (room - sum(widths)) // len(options)
-    if pad < 6:
-        raise SystemExit('%s: the options %s need %d px of %d' % (watch.name, options, sum(widths) + 6 * len(options),
-                                                                  room))
-    xs, x = [], watch.x0
-    for i, wd in enumerate(widths):
-        right = watch.x1 - 1 if i == len(options) - 1 else x + wd + pad
-        xs.append((x, right))
-        x = right
-    canvas.round_box(watch.x0, y, watch.x1 - 1, y + h - 1, watch.ink(DARK_GREY) if watch.colour else WHITE)
-    for i, ((a, b), option) in enumerate(zip(xs, options)):
-        if i == picked:
-            canvas.fill(a + (1 if i == 0 else 0), y + 1, b - (1 if i == len(options) - 1 else 0), y + h - 2,
-                        watch.fill_ink(CORAL))
-            colour = watch.on_fill()
-        else:
-            colour = WHITE
-            if i and i - 1 != picked:
-                canvas.vline(a, y + 3, y + h - 4, watch.ink(DARK_GREY) if watch.colour else WHITE)
-        tx = a + (b - a + 1 - widths[i]) // 2
-        canvas.text(font, tx, y + 3 - lo, option, colour)
-    return y + h
-
-
-def typed_line(canvas, font, watch, y, text, typed, colour, cursor, centre=False):
-    """A line typed on from the left (or centred where it will stand whole), the page's cursor
-    after it while `cursor`. Returns the row under it."""
-    width = fit(font, text, watch.x1 - watch.x0 - font.width('_'), '%s line' % watch.name)
-    x = watch.x0 + ((watch.x1 - watch.x0 - width) // 2 if centre else 0)
-    origins, end = font.origins(text, x)
-    shown = text[:typed]
-    canvas.text(font, x, y, shown, colour)
-    if cursor:
-        cx = origins[typed] if typed < len(text) else end
-        canvas.text(font, cx, y, '_', watch.ink(CORAL))
-    return y + font.height
-
-
-GAP = 3   # rows between a panel's header, its control and its line
-
-
-def panel_layout(fonts, watch, kind):
-    """A panel's content by its ink: the header's (its title's capitals and the '//'), the
-    control's box, the line's (with its descenders), each `GAP` apart. Returns the rows it takes
-    and, from its top, where each part's line box starts: (height, header_y, control_y, line_y)."""
-    head = fonts[watch.header]
-    h_lo, h_hi = head.ink_rows('//H')
-    text = fonts[watch.hint if kind == 'setting' else watch.caption]
-    t_lo, t_hi = text.ink_rows('Hgy')
-    header_y = -h_lo
-    y = h_hi - h_lo + 1 + GAP
-    control_y = None
-    if kind == 'setting':
-        o_lo, o_hi = fonts[watch.option].ink_rows('Hgy')
-        control_y = y
-        y += o_hi - o_lo + 7 + GAP
-    line_y = y - t_lo
-    return y + t_hi - t_lo + 1, header_y, control_y, line_y
-
-
-def draw_panel(canvas, fonts, watch, band, state):
-    """The panel over the clock's band: black, then its content centred in the band by its ink.
-    `state`: kind ('setting' or 'steps'), title, the header typed so far, the options and the
-    picked one, the line under them and how much of it is typed, the cursor."""
-    y0, y1 = band
-    canvas.fill(0, y0, watch.w - 1, y1 - 1, BLACK)
-    need, header_y, control_y, line_y = panel_layout(fonts, watch, state['kind'])
-    if need > y1 - y0:
-        raise SystemExit('%s: the %s panel needs %d rows, its band has %d (%d to %d)'
-                         % (watch.name, state['title'], need, y1 - y0, y0, y1))
-    top = y0 + (y1 - y0 - need) // 2
-    title_typed = state.get('title_typed')
-    header(canvas, fonts, watch, top + header_y, state['title'], title_typed)
-    done = title_typed is None or title_typed >= len(state['title'])
-    if not done or not state.get('line'):
-        return
-    if state['kind'] == 'setting':
-        segmented(canvas, fonts, watch, top + control_y, state['options'], state['picked'])
-        typed_line(canvas, fonts[watch.hint], watch, top + line_y, state['line'], state['typed'], watch.ink(GREY),
-                   state.get('cursor', False))
-    else:
-        typed_line(canvas, fonts[watch.caption], watch, top + line_y, state['line'], state['typed'], WHITE,
-                   state.get('cursor', False))
-
-
-def brackets(canvas, watch, box, colour=CORAL):
-    """Corner brackets locked on to a box (x0, y0, x1, y1, inclusive), 2 px thick, just outside
-    it and inside the screen."""
-    x0, y0 = max(0, box[0] - 2), max(0, box[1] - 2)
-    x1, y1 = min(watch.w - 1, box[2] + 2), min(watch.h - 1, box[3] + 2)
-    arm = 6 if watch.w > 144 else 4
-    ink = watch.ink(colour)
-    for cx, cy, sx, sy in ((x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)):
-        canvas.fill(min(cx, cx + sx * arm), min(cy, cy + sy), max(cx, cx + sx * arm), max(cy, cy + sy), ink)
-        canvas.fill(min(cx, cx + sx), min(cy, cy + sy * arm), max(cx, cx + sx), max(cy, cy + sy * arm), ink)
 
 
 def ink_rows_from(image, y):
@@ -528,14 +373,9 @@ def ink_rows_from(image, y):
     return y, end
 
 
-def blank_row(image, y):
-    """Whether a row is all black."""
-    return image.crop((0, y, image.width, y + 1)).getbbox() is None
-
-
 def next_blank(image, y):
     """The first all-black row at or below row y."""
-    while y < image.height and not blank_row(image, y):
+    while y < image.height and image.crop((0, y, image.width, y + 1)).getbbox() is not None:
         y += 1
     return y
 
@@ -556,80 +396,130 @@ def right_slot(image, rows, gap=5):
     return x0, y0, x1, y1 - 1
 
 
+def focus_ring(image, watch, box):
+    """A thin coral ring round a box (x0, y0, x1, y1, inclusive), 2 px out from it and kept on
+    the screen: where to look."""
+    k = watch.k
+    x0, y0 = max(0, box[0] - 3), max(0, box[1] - 3)
+    x1, y1 = min(watch.w, box[2] + 4), min(watch.h, box[3] + 4)
+    round_rect(image, (x0, y0, x1, y1), 4, ACCENT, ring=k['ring'])
+
+
 # ---------------------------------------------------------------------------------------
-# The glitch (Shapeshifter's showcase: a screen torn off row by row, rows shoved sideways,
-# scan lines, a red ghost pushed out).
+# The card: the settings page in the clock's band.
 
-def glitch(watch, under, over, strength, rng, rows):
-    """`over` torn off `under` inside the row bands `rows` ((y0, y1), ...): each row of `over`
-    gone (more often the stronger, showing `under`), shoved sideways or kept; every 4th row a
-    scan line (its colours dimmed; in black and white cut to black); in colour a red ghost of
-    the torn ink pushed out to the right."""
-    w, h = over.size
-    out = under.copy()
-    ink = Image.new('L', (w, h), 0)
-    for y0, y1 in rows:
-        for y in range(y0, y1):
-            roll = rng.random()
-            if roll < strength * strength:
-                continue
-            dx = rng.choice((-1, 1)) * rng.randint(2, 4 + int(14 * strength)) if roll < strength * 1.6 else 0
-            row = over.crop((0, y, w, y + 1))
-            line = Image.new('RGB', (w, 1), BLACK)
-            line.paste(row, (dx, 0))
-            out.paste(line, (0, y))
-            ink.paste(line.convert('L').point(lambda v: 255 if v else 0), (0, y))
-        start = y0 + rng.randrange(4)
-        px = out.load()
-        for y in range(start, y1, 4):
-            for x in range(w):
-                px[x, y] = DIMMED.get(px[x, y], BLACK) if watch.colour else BLACK
-    if watch.colour:
-        shift = 2 + round(4 * strength)
-        ghost = Image.new('L', (w, h), 0)
-        ghost.paste(ink, (shift, 0))
-        ghost = ImageChops.subtract(ghost, ink)
-        out.paste(Image.new('RGB', (w, h), watch.ink(GHOST_RED)), (0, 0), ghost)
-    return out
+def card_box(watch, band):
+    """The card's box in a band: the band less a row above and below, inset from the sides."""
+    k = watch.k
+    return k['inset'], band[0] + 1, watch.w - k['inset'], band[1] - 1
 
 
-# A scan line: each colour's Pebble channels halved (as the watch's own glitch halves its
-# clock's rows) and shown as the screenshot shows that colour; black and white cuts the row to
-# black.
-DIMMED = {CORRECT[c]: CORRECT[tuple(LEVELS[LEVELS.index(v) >> 1] for v in c)] for c in _LEVELS4}
+def content_span(watch):
+    """Where a card's words and controls go across the screen: x0, x1 (exclusive)."""
+    k = watch.k
+    return k['inset'] + k['margin'], watch.w - k['inset'] - k['margin']
 
 
-class Reel:
-    """The GIF's frames, a 40 ms tick each until merged, and the holds the checks look at."""
+def option_spans(watch, options):
+    """The segmented control's options across its track: each one's (x0, x1), floats. The options
+    share the track in proportion to their words, as the page's buttons do."""
+    k = watch.k
+    f = watch.f('option')
+    x0, x1 = content_span(watch)
+    inner = x1 - x0 - 2 * k['pad']
+    widths = [width(f, o) for o in options]
+    extra = (inner - sum(widths)) / len(options)
+    if extra < 8:
+        raise SystemExit('%s: the options %s need %d px of %d' % (watch.name, options, sum(widths) + 8 * len(options),
+                                                                  inner))
+    spans, x = [], x0 + k['pad']
+    for wd in widths:
+        spans.append((x, x + wd + extra))
+        x += wd + extra
+    return spans
 
-    def __init__(self, watch):
-        self.watch, self.frames, self.holds = watch, [], []
 
-    def add(self, image, ticks=1):
-        self.frames.append({'image': image, 'ms': TICK_MS * ticks})
+def caption_room(watch, band):
+    """How many caption lines a step's card holds in a band: two where they fit, else one."""
+    k = watch.k
+    lab_t, lab_b = ink(watch.f('label'))
+    f = watch.f('caption')
+    t, b = ink(f)
+    rows = band[1] - band[0] - 2 - 4
+    return 2 if lab_b - lab_t + k['gap'] - t + (f.size + 3) + b <= rows else 1
 
-    def last(self):
-        return self.frames[-1]['image']
 
-    def cut(self, image, rng, ticks=4):
-        """The screen torn off into the next: the last frame torn harder over the next, then the
-        next torn in over the last."""
-        a, h = self.last(), self.watch.h
-        for k in range(ticks):
-            if k < ticks // 2:
-                self.add(glitch(self.watch, image, a, 0.45 + 0.4 * k, rng, ((0, h),)))
-            else:
-                self.add(glitch(self.watch, a, image, 0.85 - 0.4 * (k - ticks // 2), rng, ((0, h),)))
-        self.add(image)
+def card_lines(watch, card):
+    """A card's lines under its label, fitted: a setting's one hint line, a step's caption in as
+    many lines as its band holds (two at most). Where a line is (long, short), the long one when
+    it fits."""
+    x0, x1 = content_span(watch)
+    room = x1 - x0
+    what = '%s %s card' % (watch.name, card['title'])
+    fit(watch.f('label'), card['title'], room, what)
+    if card['kind'] == 'setting':
+        f = watch.f('hint')
+        line = pick_copy(card['line'], lambda text: width(f, text) <= room)
+        fit(f, line, room, what)
+        return [line]
+    f = watch.f('caption')
+    most = caption_room(watch, card['band'])
+    line = pick_copy(card['line'], lambda text: len(wrap(f, text, room, 9, what)) <= most)
+    return wrap(f, line, room, most, what)
 
-    def rerender(self, image, band, rng, ticks=2):
-        """A changed setting: the screen around the panel torn off into the new one, the panel
-        whole."""
-        a, h = self.last(), self.watch.h
-        rows = ((0, band[0]), (band[1], h))
-        for k in range(ticks):
-            self.add(glitch(self.watch, image, a, 0.75 - 0.3 * k, rng, rows))
-        self.add(image)
+
+def card_layout(watch, card):
+    """A card's rows by their ink, from its content's top: (height, label baseline, control top,
+    first line's baseline, line pitch)."""
+    k = watch.k
+    lab_t, lab_b = ink(watch.f('label'))
+    y = lab_b - lab_t + k['gap']
+    control = None
+    if card['kind'] == 'setting':
+        control = y
+        y += k['track'] + k['gap']
+        f = watch.f('hint')
+    else:
+        f = watch.f('caption')
+    t, b = ink(f)
+    pitch = f.size + 3
+    n = len(card_lines(watch, card))
+    return y - t + (n - 1) * pitch + b, -lab_t, control, y - t, pitch
+
+
+def draw_card(image, texts, watch, card, pill=None):
+    """The card over the clock's band: the setting's (or the tour step's) name; for a setting its
+    segmented control, the selection at `pill` (x0, x1; the picked option's span by default) and
+    each option's words white as far as the selection covers them; then its line."""
+    k = watch.k
+    box = card_box(watch, card['band'])
+    round_rect(image, box, k['card_r'], CARD)
+    need, label_y, control_y, line_y, pitch = card_layout(watch, card)
+    if need > box[3] - box[1] - 4:
+        raise SystemExit('%s: the %s card needs %d rows, its band has %d' % (watch.name, card['title'], need,
+                                                                              box[3] - box[1] - 4))
+    top = box[1] + (box[3] - box[1] - need) // 2
+    x0, x1 = content_span(watch)
+    say(image, texts, watch.f('label'), x0, top + label_y, card['title'], MUTED)
+    if card['kind'] == 'setting':
+        f = watch.f('option')
+        y = top + control_y
+        round_rect(image, (x0, y, x1, y + k['track']), k['track_r'], TRACK)
+        spans = option_spans(watch, card['options'])
+        a, b = pill if pill is not None else spans[card['picked']]
+        round_rect(image, (a, y + k['pad'], b, y + k['track'] - k['pad']), k['pill_r'], ACCENT)
+        baseline = y + (k['track'] + cap(f) + 1) // 2
+        for option, (sa, sb) in zip(card['options'], spans):
+            wd = width(f, option)
+            tx = int(round((sa + sb - wd) / 2))
+            covered = max(0.0, min(b, tx + wd) - max(a, tx)) / wd
+            say(image, texts, f, tx, baseline, option, mix(MUTED, WHITE, covered))
+        f, colour = watch.f('hint'), SUBTITLE
+    else:
+        f, colour = watch.f('caption'), TEXT
+    for i, line in enumerate(card_lines(watch, card)):
+        say(image, texts, f, x0, top + line_y + i * pitch, line, colour)
+    return box
 
 
 # ---------------------------------------------------------------------------------------
@@ -638,81 +528,95 @@ class Reel:
 # is), so every watch shows only what it can do.
 #
 # ('open', scene)                     the watchface, whole
-# ('steps', title, steps)             a caption per step: (scene, line, marks)
-# ('setting', title, options, steps)  the options (None: the manifest's span labels), the picked one per step:
-#                                     (scene, picked, line, marks)
-# ('gallery', title, line, scenes)    a card, then the screens whole
+# ('steps', title, steps)             a caption per step: (scene, line, mark)
+# ('setting', title, options, steps)  the options (None: the manifest's span labels), the picked
+#                                     one per step: (scene, picked, line, mark)
+# ('gallery', title, line, scenes)    a title card, then the screens whole
 # ('end',)                            the wordmark and what it does
 #
-# `marks` names where the brackets lock on: 'top' (the Watch Status Bar), 'slot' (the UV slot,
-# the status bar's right slot under the panel), 'calendar' (the calendar over the panel), or None.
+# A line is its words, or (long, short) where a 144 px watch needs the short one; a '\n' marks
+# where a caption breaks when it takes two lines. `mark` puts
+# the ring on 'top' (the Watch Status Bar), 'slot' (the UV slot: the status bar under the card,
+# its right slot) or 'calendar' (between the Watch Status Bar and the card), or nowhere (None).
 # The UV slot's lines name its numbers: the morning's UV 3 now and 8 at noon, the evening's 0
 # and tomorrow's 7 (forecast-long.json's UV through gen-store-art-fixtures.js' windows).
 STORY = (
     ('open', 'hero'),
-    ('steps', 'GRAPH LINES', (
+    ('steps', 'Graph lines', (
         ('lines-rain', 'Rain chance and amount', None),
         ('lines-wind', 'Wind and gusts', None),
-        ('lines-mix', 'Up to four at once', None))),
-    ('setting', 'FORECAST LENGTH', None, (
+        ('lines-mix', 'Up to four lines at once', None))),
+    ('setting', 'Forecast length', None, (
         ('span-12', 0, 'The next 12 hours', None),
         ('span-long', 2, 'Up to 66 hours ahead', None))),
-    ('setting', 'LEFT AXIS', ('On axis', 'On graph', 'Off'), (
+    ('setting', 'Left axis values', ('On axis', 'On graph', 'Off'), (
         ('axis-axis', 0, 'High and low on the axis', None),
         ('axis-graph', 1, 'High and low on the graph', None),
-        ('axis-off', 2, 'No axis: the full width', None))),
-    ('steps', 'ALERTS', (
-        ('alerts-calm', 'Out of sight until needed', None),
-        ('alerts-on', 'Rain soon, UV and gusts', 'top'),
-        ('alerts-line', 'UV line only from 5 up', None))),
-    ('setting', 'UV INDEX SLOT', ('Now', 'Day max', 'Both'), (
-        ('max-now', 0, '3 is the UV index now', 'slot'),
-        ('max-day', 1, '8 is the max left today', 'slot'),
-        ('max-both', 2, 'Now and today\'s max', 'slot'),
-        ('max-tomorrow', 2, '» marks tomorrow\'s max', 'slot'))),
-    ('steps', 'CALENDAR', (
-        ('calendar', 'Three weeks at a glance', 'calendar'),)),
-    ('gallery', 'VIEWS & LAYOUTS', 'Flick for radar and health. Layouts and themes too.', (
-        'view-radar', 'view-health', 'layout-weather', 'layout-light')),
-    ('gallery', 'LAYOUTS', 'Calendar or a big graph', ('layout-full', 'layout-nocal')),
+        ('axis-off', 2, 'No axis, a wider graph', None))),
+    ('steps', 'Weather alerts', (
+        ('alerts-calm', ('Out of sight while all is calm', 'Hidden until needed'), None),
+        ('alerts-on', ('Rain soon,\nhigh UV and gusts', 'Rain soon, UV, gusts'), 'top'),
+        ('alerts-line', ('The UV line only from 5 up', 'UV line from 5 up'), None))),
+    ('setting', 'UV index slot', ('Now', 'Day max', 'Both'), (
+        ('max-now', 0, 'UV index now: 3', 'slot'),
+        ('max-day', 1, ('Highest UV left today: 8', 'Max left today: 8'), 'slot'),
+        ('max-both', 2, ('Now and today\'s max: 3/8', 'Now / today\'s max'), 'slot'),
+        ('max-tomorrow', 2, ('Evening: » is tomorrow\'s max', '» is tomorrow\'s max'), 'slot'))),
+    ('steps', 'Calendar', (
+        ('calendar', ('Three weeks at a glance', 'Three weeks in view'), 'calendar'),)),
+    ('gallery', 'Views and layouts', 'Health, Weather only and a light theme', (
+        'view-health', 'layout-weather', 'layout-light')),
+    ('gallery', 'Layouts', 'The calendar or a big graph', ('layout-full', 'layout-nocal')),
     ('end',),
 )
 WORDMARK = ('Warn', 'Weather')
-SLOGAN = 'The forecast at a glance, alerts when it matters.'
+SLOGAN = 'The forecast at a glance,\nalerts when it matters.'
 
-OPEN_TICKS = 30           # the watchface whole, before the tour (1.2 s)
-HEADER_RATE = 4           # characters a tick
-LINE_RATE = 5
-STEP_TICKS = {'steps': 26, 'setting': 25}   # a step held once its line is typed
-SLOT_TICKS = 30           # the UV slot's steps, which carry the most to read
-CARD_TICKS = 25
-GALLERY_TICKS = 20
-END_TICKS = 44
-BLINK = 12                # the cursor: on 12 ticks, off 12
+FADE = 6                  # ticks a cross-fade takes (its last tick is the scene it fades to)
+OPEN_TICKS = 40           # the watchface whole, before the tour (1.6 s)
+STEP_TICKS = 29           # a tour step, held once faded in
+SLOT_TICKS = 36           # the UV slot's steps, which carry the most to read
+CARD_TICKS = 29
+GALLERY_TICKS = 31
+END_TICKS = 50
 
 
-def wrap(font, text, width):
-    """Words broken into lines that each fit `width` px (the firmware's measure)."""
-    lines, line = [], ''
-    for word in text.split():
-        trial = (line + ' ' + word).strip()
-        if font.width(trial) <= width or not line:
-            line = trial
-        else:
-            lines.append(line)
-            line = word
-    lines.append(line)
-    for line in lines:
-        fit(font, line, width, 'a wrapped line')
-    return lines
+def ease(t):
+    """A fade's progress at t (0 to 1): slow out, slow in."""
+    return t * t * (3 - 2 * t)
+
+
+class Reel:
+    """The GIF's frames, each a whole number of 40 ms ticks, and the holds the checks look at."""
+
+    def __init__(self, watch):
+        self.watch, self.frames, self.holds = watch, [], []
+
+    def add(self, image, ticks=1, fading=False):
+        self.frames.append({'image': image, 'ms': TICK_MS * ticks, 'fading': fading})
+
+    def last(self):
+        return self.frames[-1]['image']
+
+    def fade(self, target, ticks, what=None, between=None):
+        """A cross-fade from the last frame to `target`, which then holds `ticks` (0: not added).
+        `between(e)` gives the fade's frame at e (0 to 1) where one image to the next isn't
+        enough (a sliding selection); `what` names the words the hold shows, for the checks."""
+        a = self.last()
+        for i in range(1, FADE):
+            e = ease(i / FADE)
+            self.add(between(e) if between else Image.blend(a, target, e), fading=True)
+        if ticks:
+            self.add(target, ticks)
+            if what:
+                self.holds.append((what, ticks * TICK_MS))
 
 
 class Showcase:
     """One watch's showcase GIF, beat by beat."""
 
-    def __init__(self, watch, screens, fonts, seed):
-        self.watch, self.screens, self.fonts = watch, screens, fonts
-        self.rng = random.Random(seed)
+    def __init__(self, watch, screens):
+        self.watch, self.screens = watch, screens
         self.reel = Reel(watch)
 
     def has(self, scene):
@@ -721,28 +625,28 @@ class Showcase:
     def shot(self, scene):
         return self.screens.shot(self.watch.name, scene)
 
-    def compose(self, scene, state, marks=()):
-        """A scene's capture with the panel over its clock's band and the brackets on."""
-        canvas = Canvas(self.shot(scene))
-        draw_panel(canvas, self.fonts, self.watch, state['band'], state)
-        for box in marks:
-            brackets(canvas, self.watch, box)
-        y0, y1 = state['band']
-        for x0, ty0, x1, ty1, text in canvas.inked:
-            if not (0 <= x0 and x1 < self.watch.w and y0 <= ty0 and ty1 < y1):
-                raise SystemExit('%s: %r runs out of its panel' % (self.watch.name, text))
-        return canvas.image
+    def compose(self, scene, card, ring=(), pill=None):
+        """A scene's capture with the card over its clock's band and the ring on."""
+        image = self.shot(scene).copy()
+        texts = []
+        x0, y0, x1, y1 = draw_card(image, texts, self.watch, card, pill)
+        for box in ring:
+            focus_ring(image, self.watch, box)
+        for (tx0, ty0, tx1, ty1), text in texts:
+            if not (x0 <= tx0 and tx1 <= x1 and y0 <= ty0 and ty1 <= y1):
+                raise SystemExit('%s: %r runs out of its card' % (self.watch.name, text))
+        return image
 
     def band(self, scenes):
-        """The rows the panel takes through a beat: the band every step's capture leaves."""
+        """The rows the card takes through a beat: the band every step's capture leaves."""
         bands = [self.screens.band(self.watch.name, s) for s in scenes]
         return max(b[0] for b in bands), min(b[1] for b in bands)
 
-    def marks(self, kind, scenes, i, band):
-        """Where a step's brackets lock on (see STORY): 'top', the Watch Status Bar (the first
-        inked rows); 'slot', the right slot of the status bar under the panel; 'calendar', all
-        that is between the Watch Status Bar and the panel."""
-        shot = self.shot(scenes[i])
+    def marks(self, kind, scene, band):
+        """Where a step's ring goes (see STORY): 'top', the Watch Status Bar (the first inked rows);
+        'slot', the right slot of the status bar under the card; 'calendar', all that is between
+        the Watch Status Bar and the card."""
+        shot = self.shot(scene)
         if kind == 'top':
             y0, y1 = ink_rows_from(shot, 0)
             return ((0, y0, self.watch.w - 1, y1 - 1),)
@@ -755,8 +659,9 @@ class Showcase:
         return ()
 
     def beat(self, kind, title, options, steps):
-        """A tour beat: the panel's header typed in, then each step: its capture (the setting
-        changed: the screen around the panel re-rendered), its line typed, held."""
+        """A tour beat: its first step faded in, then each next one: for a setting the selection
+        slides to the picked option while the screen around the card and the line fade to the
+        step's own; for a step the card's caption and the screen fade."""
         steps = [s for s in steps if self.has(s[0])]
         if not steps or kind == 'setting' and len(steps) < 2:
             return
@@ -764,88 +669,97 @@ class Showcase:
         band = self.band(scenes)
         if options is None:
             options = self.screens.scenes[scenes[0]]['spanLabels']
-        base = {'kind': kind, 'title': title, 'band': band, 'options': options}
-        self.reel.cut(self.compose(scenes[0], dict(base, title_typed=0)), self.rng)
-        for k in range(HEADER_RATE, len(title) + HEADER_RATE, HEADER_RATE):
-            self.reel.add(self.compose(scenes[0], dict(base, title_typed=min(k, len(title)))))
-        for i, step in enumerate(steps):
-            scene, line, mark = (step[0], step[-2], step[-1])
-            state = dict(base, picked=step[1] if kind == 'setting' else None, line=line, typed=0, cursor=True)
-            first = self.compose(scene, state)
-            if i:
-                self.reel.rerender(first, band, self.rng)
-            else:
-                self.reel.add(first)
-            for k in range(LINE_RATE, len(line) + LINE_RATE, LINE_RATE):
-                self.reel.add(self.compose(scene, dict(state, typed=min(k, len(line)))))
-            marks = self.marks(mark, scenes, i, band) if mark else ()
-            hold = SLOT_TICKS if mark == 'slot' else STEP_TICKS[kind]
-            typed_at = len(self.reel.frames)
-            for t in range(hold):
-                self.reel.add(self.compose(scene, dict(state, typed=len(line), cursor=(t // BLINK) % 2 == 0), marks))
-            self.reel.holds.append((title, line, typed_at, len(self.reel.frames)))
+        spans = option_spans(self.watch, options) if kind == 'setting' else None
+        before = None
+        for scene, *rest in steps:
+            picked = rest[0] if kind == 'setting' else None
+            line, mark = rest[-2], rest[-1]
+            card = {'kind': kind, 'title': title, 'band': band, 'options': options, 'picked': picked,
+                    'line': line}
+            ring = self.marks(mark, scene, band) if mark else ()
+            target = self.compose(scene, card, ring)
+            hold = SLOT_TICKS if mark == 'slot' else STEP_TICKS
+            what = '%s: %s' % (title, card_lines(self.watch, card)[0])
+            if before and kind == 'setting':
+                was_scene, was_card, was_ring = before
+                (a0, a1), (b0, b1) = spans[was_card['picked']], spans[picked]
 
-    def card(self, title, line, typed, cursor):
-        """A gallery's card: the header and its line, typed, in the middle of a black screen."""
+                def between(e, was_scene=was_scene, was_card=was_card, was_ring=was_ring, a0=a0, a1=a1, b0=b0,
+                            b1=b1, scene=scene, card=card, ring=ring):
+                    pill = (a0 + (b0 - a0) * e, a1 + (b1 - a1) * e)
+                    return Image.blend(self.compose(was_scene, was_card, was_ring, pill),
+                                       self.compose(scene, card, ring, pill), e)
+
+                self.reel.fade(target, hold, what, between)
+            else:
+                self.reel.fade(target, hold, what)
+            before = (scene, card, ring)
+
+    def title_card(self, title, line):
+        """A gallery's title card: the title and its line, centred on the banner's charcoal."""
         w = self.watch
-        canvas = Canvas(Image.new('RGB', (w.w, w.h), BLACK))
-        font = self.fonts[w.caption]
-        lines = wrap(font, line, w.x1 - w.x0 - font.width('_'))
-        y = (w.h - self.fonts[w.header].height - 4 - font.height * len(lines)) // 2
-        y = header(canvas, self.fonts, w, y, title, typed[0]) + 4
-        left = typed[1]
-        for k, text in enumerate(lines):
-            last = k == len(lines) - 1 or left <= len(text)
-            typed_line(canvas, font, w, y, text, min(left, len(text)), WHITE, cursor and last and left >= 0)
-            if last:
-                break
-            left -= len(text)
-            y += font.height
-        return canvas.image
+        image = charcoal(w.w, w.h)
+        texts = []
+        room = w.w - 2 * (w.k['inset'] + w.k['margin'])
+        tf, lf = w.f('title'), w.f('line')
+        titles = wrap(tf, title, room, 2, '%s title' % w.name)
+        lines = wrap(lf, line, room, 3, '%s title card' % w.name)
+        t_pitch, l_pitch = tf.size + 4, lf.size + 5
+        t_top, _ = ink(tf)
+        _, l_bottom = ink(lf)
+        height = -t_top + (len(titles) - 1) * t_pitch + w.k['gap'] * 2 + lf.size + (len(lines) - 1) * l_pitch + \
+            l_bottom
+        y = (w.h - height) // 2 - t_top
+        for text in titles:
+            say_centred(image, texts, tf, w.w / 2, y, text, TEXT)
+            y += t_pitch
+        y += w.k['gap'] * 2 + lf.size - t_pitch + 4
+        for text in lines:
+            say_centred(image, texts, lf, w.w / 2, y, text, SUBTITLE)
+            y += l_pitch
+        self.inside(texts, 'title card')
+        return image
+
+    def inside(self, texts, what):
+        """Every text on the screen, clear of its edges by the card's margin."""
+        m = self.watch.k['margin']
+        for (x0, y0, x1, y1), text in texts:
+            if x0 < m or y0 < m or x1 > self.watch.w - m or y1 > self.watch.h - m:
+                raise SystemExit('%s %s: %r runs off the screen' % (self.watch.name, what, text))
 
     def gallery(self, title, line, scenes):
-        """A card, then each screen whole."""
+        """A title card, then each screen whole."""
         scenes = [s for s in scenes if self.has(s)]
         if not scenes:
             return
-        n = len(line.replace(' ', '')) + line.count(' ')
-        self.reel.cut(self.card(title, line, (0, 0), False), self.rng)
-        for k in range(HEADER_RATE, len(title) + HEADER_RATE, HEADER_RATE):
-            self.reel.add(self.card(title, line, (min(k, len(title)), 0), False))
-        for k in range(LINE_RATE, n + LINE_RATE, LINE_RATE):
-            self.reel.add(self.card(title, line, (None, min(k, n)), True))
-        typed_at = len(self.reel.frames)
-        for t in range(CARD_TICKS):
-            self.reel.add(self.card(title, line, (None, n), (t // BLINK) % 2 == 0))
-        self.reel.holds.append((title, line, typed_at, len(self.reel.frames)))
+        self.reel.fade(self.title_card(title, line), CARD_TICKS, '%s: %s' % (title, line))
         for scene in scenes:
-            self.reel.cut(self.shot(scene), self.rng)
-            self.reel.add(self.shot(scene), GALLERY_TICKS - 1)
+            self.reel.fade(self.shot(scene), GALLERY_TICKS)
 
-    def end_card(self, typed, cursor):
-        """The wordmark (Warn in coral, Weather in white, the headline's ghosts behind it) and
-        what WarnWeather does, typed under it."""
+    def end_card(self):
+        """The wordmark as the banner has it (Warn in coral, Weather in white) and what
+        WarnWeather does under it, on the banner's charcoal."""
         w = self.watch
-        canvas = Canvas(Image.new('RGB', (w.w, w.h), BLACK))
-        mark = self.fonts[w.headline]
-        font = self.fonts[w.caption]
-        lines = wrap(font, SLOGAN, w.x1 - w.x0 - font.width('_'))
-        total = mark.height + 6 + font.height * len(lines)
-        y = (w.h - total) // 2 - 4
-        width = fit(mark, ''.join(WORDMARK), w.x1 - w.x0, '%s wordmark' % w.name)
-        x = (w.w - width) // 2
-        ghosted(canvas, mark, w, x, y, WORDMARK)
-        y += mark.height + 6
-        left = typed
-        for k, text in enumerate(lines):
-            last = k == len(lines) - 1 or left <= len(text)
-            typed_line(canvas, font, w, y, text, min(left, len(text)), WHITE if k < len(lines) - 1 else
-                       w.ink(CORAL), cursor and last, centre=True)
-            if last:
-                break
-            left -= len(text)
-            y += font.height
-        return canvas.image, sum(len(t) for t in lines)
+        image = charcoal(w.w, w.h)
+        texts = []
+        mark, sf = w.f('wordmark'), w.f('slogan')
+        room = w.w - 2 * (w.k['inset'] + w.k['margin'])
+        lines = wrap(sf, SLOGAN, room, 3, '%s slogan' % w.name)
+        name = ''.join(WORDMARK)
+        fit(mark, name, room, '%s wordmark' % w.name)
+        m_top, _ = ink(mark, name)
+        pitch = sf.size + 5
+        height = -m_top + w.k['gap'] * 3 + sf.size + (len(lines) - 1) * pitch
+        y = (w.h - height) // 2 - m_top
+        x = int(round((w.w - width(mark, name)) / 2))
+        say(image, texts, mark, x, y, WORDMARK[0], WARN)
+        say(image, texts, mark, x + width(mark, WORDMARK[0]), y, WORDMARK[1], WHITE)
+        y += w.k['gap'] * 3 + sf.size
+        for text in lines:
+            say_centred(image, texts, sf, w.w / 2, y, text, SUBTITLE)
+            y += pitch
+        self.inside(texts, 'end card')
+        return image
 
     def build(self):
         """The whole loop: the watchface, the tour, the end card, and back into the watchface."""
@@ -859,45 +773,47 @@ class Showcase:
             elif beat[0] == 'gallery':
                 self.gallery(beat[1], beat[2], beat[3])
             elif beat[0] == 'end':
-                image, n = self.end_card(0, False)
-                self.reel.cut(image, self.rng)
-                for k in range(LINE_RATE, n + LINE_RATE, LINE_RATE):
-                    self.reel.add(self.end_card(min(k, n), True)[0])
-                typed_at = len(self.reel.frames)
-                for t in range(END_TICKS):
-                    self.reel.add(self.end_card(n, (t // BLINK) % 2 == 0)[0])
-                self.reel.holds.append(('end', SLOGAN, typed_at, len(self.reel.frames)))
-        self.reel.cut(self.shot(STORY[0][1]), self.rng)
-        # The loop's last frame is the watchface the first one shows: drop it, the first holds.
-        self.reel.frames.pop()
+                self.reel.fade(self.end_card(), END_TICKS, 'end: ' + SLOGAN.replace('\n', ' '))
+        # Back into the watchface the loop opens on: the fade's frames, then the first frame.
+        self.reel.fade(self.shot(STORY[0][1]), 0)
         return self.reel
 
 
-def ghosted(canvas, font, watch, x, y, parts):
-    """A line in `parts` (the first in coral, the rest white) with the clock's ghosts a pixel
-    either way on a colour watch: rain blue to the left, red to the right."""
-    text = ''.join(parts)
-    if watch.colour:
-        canvas.text(font, x - 1, y, text, watch.ink(GHOST_BLUE))
-        canvas.text(font, x + 1, y, text, watch.ink(GHOST_RED))
-    for i, part in enumerate(parts):
-        x = canvas.text(font, x, y, part, watch.ink(CORAL) if i == 0 and watch.colour else WHITE)
-    return x
-
-
 # ---------------------------------------------------------------------------------------
-# The GIF (Shapeshifter's writer: one table of the colours used and a transparent one, codes
-# as narrow as that allows, each frame after the first the box that changed).
+# The GIF: a table of the colours most frames use, and a frame's own table where it needs other
+# colours (a cross-fade's blends); each frame after the first only the box that changed, with
+# what didn't change inside it transparent where that is smaller. Codes as narrow as the table
+# allows.
 
 def merge(frames):
-    """Consecutive identical frames as one, their delays added."""
+    """Consecutive identical frames as one, their delays added (a fade's only while all of it
+    is)."""
     out = []
     for f in frames:
         if out and out[-1]['image'].tobytes() == f['image'].tobytes():
-            out[-1] = dict(out[-1], ms=out[-1]['ms'] + f['ms'])
+            out[-1] = dict(out[-1], ms=out[-1]['ms'] + f['ms'], fading=out[-1]['fading'] and f['fading'])
         else:
             out.append(dict(f))
     return out
+
+
+def colours_of(image):
+    """The colours an image uses, sorted."""
+    return sorted(c for _, c in image.getcolors(1 << 16))
+
+
+FADE_COLOURS = 128          # a fade's frame, on screen for 40 ms, in at most this many colours
+
+
+def limit_colours(frames):
+    """A fade's frames cut to FADE_COLOURS colours and any other over 255 to 255, by median cut,
+    without dither: what is written is what is checked. A fade's blends are most of the GIF's
+    bytes, and fewer colours make them smaller."""
+    for f in frames:
+        most = FADE_COLOURS if f['fading'] else 255
+        if len(f['image'].getcolors(1 << 16)) > most:
+            f['image'] = f['image'].quantize(most, method=Image.Quantize.MEDIANCUT,
+                                             dither=Image.Dither.NONE).convert('RGB')
 
 
 def gif_lzw(data, m):
@@ -907,7 +823,7 @@ def gif_lzw(data, m):
     clear, end = 1 << m, (1 << m) + 1
     out = bytearray()
     acc, nbits = clear, m + 1
-    width, nxt, table = m + 1, end + 1, {}
+    width_, nxt, table = m + 1, end + 1, {}
     prefix = data[0]
     for c in data[1:]:
         key = prefix << 8 | c
@@ -916,62 +832,91 @@ def gif_lzw(data, m):
             prefix = code
             continue
         acc |= prefix << nbits
-        nbits += width
+        nbits += width_
         if nxt < 4096:
             table[key] = nxt
             nxt += 1
-            if nxt > 1 << width and width < 12:
-                width += 1
+            if nxt > 1 << width_ and width_ < 12:
+                width_ += 1
         else:
             acc |= clear << nbits
-            nbits += width
-            width, nxt, table = m + 1, end + 1, {}
+            nbits += width_
+            width_, nxt, table = m + 1, end + 1, {}
         while nbits >= 8:
             out.append(acc & 0xFF)
             acc >>= 8
             nbits -= 8
         prefix = c
     acc |= prefix << nbits
-    nbits += width
-    if nxt < 4096 and nxt >= 1 << width and width < 12:
-        width += 1
+    nbits += width_
+    if nxt < 4096 and nxt >= 1 << width_ and width_ < 12:
+        width_ += 1
     acc |= end << nbits
-    nbits += width
+    nbits += width_
     out += acc.to_bytes((nbits + 7) // 8, 'little')
     return b''.join(bytes([len(out[i:i + 255])]) + out[i:i + 255] for i in range(0, len(out), 255)) + b'\0'
 
 
+def table_bits(n):
+    """The bits a colour table of n colours and a transparent entry takes (2 at least)."""
+    return max(2, n.bit_length())
+
+
+def indexed(image, table):
+    """An image as indices into a colour table holding all its colours (an 'L' image). Mapped
+    colour by colour: Pillow's own conversion to a palette looks colours up 6 bits a channel, and
+    a fade's neighbouring shades would share an entry."""
+    lut = {bytes(c): i for i, c in enumerate(table)}
+    data = image.tobytes()
+    return Image.frombytes('L', image.size, bytes(lut[data[i:i + 3]] for i in range(0, len(data), 3)))
+
+
+def changed_mask(cur, prev):
+    """255 where two RGB images differ, 0 where they don't."""
+    r, g, b = ImageChops.difference(cur, prev).split()
+    return ImageChops.lighter(ImageChops.lighter(r, g), b).point(lambda v: 255 if v else 0)
+
+
 def save_gif(frames, path):
-    """The frames, identical ones merged, as a looping GIF. Returns the merged frames."""
+    """The frames, identical ones merged and a fade's frames cut to 255 colours, as a looping GIF.
+    Returns the frames as written."""
     frames = merge(frames)
+    limit_colours(frames)
     w, h = frames[0]['image'].size
-    used = sorted({c for f in frames for _, c in f['image'].getcolors(1 << 16)})
-    if len(used) > 255:
-        raise SystemExit('%s: %d colours' % (path, len(used)))
-    palette = Image.new('P', (1, 1))
-    flat = [v for c in used for v in c]
-    # Padded with a colour no frame uses, so every pixel maps to its own entry, never past them.
-    palette.putpalette(flat + [1, 2, 3] * (256 - len(used)))
-    transparent = len(used)
-    m = max(2, transparent.bit_length())
-    out = bytearray(struct.pack('<6sHHBBB', b'GIF89a', w, h, 0xF0 | (m - 1), 0, 0))
-    out += bytes(flat + [0] * (3 * (1 << m) - len(flat)))
+    count = Counter()
+    for f in frames:
+        count.update(colours_of(f['image']))
+    shared = sorted(c for c, _ in sorted(count.items(), key=lambda kv: (-kv[1], kv[0]))[:255])
+    shared_set = set(shared)
+    mg = table_bits(len(shared))
+    out = bytearray(struct.pack('<6sHHBBB', b'GIF89a', w, h, 0xF0 | (mg - 1), 0, 0))
+    out += bytes([v for c in shared for v in c] + [0] * (3 * ((1 << mg) - len(shared))))
     out += b'\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00'
     prev = None
     for f in frames:
-        q = f['image'].quantize(palette=palette, dither=Image.Dither.NONE)
-        cur = Image.frombytes('L', (w, h), q.tobytes())
+        cur = f['image']
         if prev is None:
-            box, data = (0, 0, w, h), gif_lzw(cur.tobytes(), m)
+            box, mask = (0, 0, w, h), Image.new('L', (w, h), 255)
         else:
-            changed = ImageChops.difference(cur, prev).point(lambda v: 255 if v else 0)
-            box = changed.getbbox() or (0, 0, 1, 1)
-            crop = cur.crop(box)
-            clear = Image.composite(crop, Image.new('L', crop.size, transparent), changed.crop(box))
-            data = min(gif_lzw(crop.tobytes(), m), gif_lzw(clear.tobytes(), m), key=len)
+            mask = changed_mask(cur, prev)
+            box = mask.getbbox() or (0, 0, 1, 1)
+        crop, keep = cur.crop(box), mask.crop(box)
+        colours = colours_of(crop)
+        local = not set(colours) <= shared_set
+        table = colours if local else shared
+        m = table_bits(len(table)) if local else mg
+        transparent = len(table)
+        idx = indexed(crop, table)
+        data = gif_lzw(idx.tobytes(), m)
+        if prev is not None:
+            clear = Image.composite(idx, Image.new('L', idx.size, transparent), keep)
+            data = min(data, gif_lzw(clear.tobytes(), m), key=len)
         x0, y0, x1, y1 = box
-        out += struct.pack('<BBBBHBB', 0x21, 0xF9, 4, 1 << 2 | (prev is not None), f['ms'] // 10, transparent, 0)
-        out += struct.pack('<BHHHHBB', 0x2C, x0, y0, x1 - x0, y1 - y0, 0, m) + data
+        out += struct.pack('<BBBBHBB', 0x21, 0xF9, 4, 1 << 2 | 1, f['ms'] // 10, transparent, 0)
+        out += struct.pack('<BHHHHB', 0x2C, x0, y0, x1 - x0, y1 - y0, (0x80 | (m - 1)) if local else 0)
+        if local:
+            out += bytes([v for c in table for v in c] + [0] * (3 * ((1 << m) - len(table))))
+        out += bytes([m]) + data
         prev = cur
     with open(path, 'wb') as fp:
         fp.write(out + b';')
@@ -979,8 +924,8 @@ def save_gif(frames, path):
 
 
 def check_gif(path, frames, watch):
-    """Size, length, frames and colours of a written GIF, as a line; fails on a wrong one and on
-    a frame that doesn't decode to the frame it was written from."""
+    """Size, length and frames of a written GIF, as a line; fails on a wrong one and on a frame
+    that doesn't decode to the frame it was written from."""
     gif = Image.open(path)
     total, colours = 0, set()
     if gif.n_frames != len(frames):
@@ -993,14 +938,11 @@ def check_gif(path, frames, watch):
             raise SystemExit('%s: frame %d does not decode to the frame it was written from' % (path, i))
         colours.update(c for _, c in image.getcolors(1 << 16))
     length = os.path.getsize(path)
-    bad = sorted(colours - (PALETTE if watch.colour else {BLACK, WHITE}))
     long_enough = LOOP_S[0] * 1000 <= total <= LOOP_S[1] * 1000
-    if gif.size != (watch.w, watch.h) or bad or length >= GIF_BUDGET or not long_enough:
-        raise SystemExit('%s: %s, %d bytes, %d ms, colours off the palette %s'
-                         % (path, gif.size, length, total, bad[:6]))
-    return '%s: %dx%d, %d frames, %.2f s, %d KB, %s' % (
-        watch.name, gif.size[0], gif.size[1], gif.n_frames, total / 1000, length // 1024,
-        '%d colours' % len(colours) if watch.colour else 'black and white')
+    if gif.size != (watch.w, watch.h) or length >= GIF_BUDGET or not long_enough:
+        raise SystemExit('%s: %s, %d bytes, %d ms' % (path, gif.size, length, total))
+    return '%s: %dx%d, %d frames, %.2f s, %d KB, %d colours' % (
+        watch.name, gif.size[0], gif.size[1], gif.n_frames, total / 1000, length // 1024, len(colours))
 
 
 def per_tick(frames):
@@ -1034,14 +976,14 @@ def check_flashes(images, watch):
 
 
 def check_holds(reel):
-    """Every line held whole, once typed, long enough to read: a second at least."""
-    for title, line, typed, cut in reel.holds:
-        if (cut - typed) * TICK_MS < 1000:
-            raise SystemExit('%s: %r held %d ms once typed' % (title, line, (cut - typed) * TICK_MS))
+    """Every line held whole, once faded in, long enough to read: a second at least."""
+    for what, ms in reel.holds:
+        if ms < 1000:
+            raise SystemExit('%s: %r held %d ms' % (reel.watch.name, what, ms))
 
 
-def contact_sheet(images, path, every=4, cols=8):
-    """Every 4th tick at 1:1, labelled with its time."""
+def contact_sheet(images, path, every=8, cols=8):
+    """Every 8th tick at 1:1, labelled with its time."""
     w, h = images[0].size
     picks = list(range(0, len(images), every))
     cell_w, cell_h = w + 8, h + 20
@@ -1055,58 +997,60 @@ def contact_sheet(images, path, every=4, cols=8):
 
 
 # ---------------------------------------------------------------------------------------
-# The store screens: a headline over the watch's screen (Shapeshifter's store screens).
+# The store screens: a headline on the banner's charcoal over the watch's screen.
 #
-# Each is (file, headline, what, place, marks): `what` a scene shown whole under the headline,
+# Each is (file, headline, what, place, mark): `what` a scene shown whole under the headline,
 # or 'card' (the UV slot's values); `place` 'top' (the screen from its top row down, its
-# bottom under the frame) or 'bottom' (from its bottom row up, its top under the headline);
-# `marks` 'alerts' locks the brackets on to the alerts in the Watch Status Bar.
+# bottom cut) or 'bottom' (from its bottom row up, its top under the headline); `mark` 'alerts'
+# puts the ring on the alerts in the Watch Status Bar. The headline's first line is white, its
+# second in the banner's coral; a headline can differ per watch ({platform: headline, None: the
+# others'}): only Pebble Time 2's health view shows a heart rate.
 SCREENS = {
     'default': (
-        ('2-forecast', ('THE FORECAST', 'AT A GLANCE'), 'hero', 'bottom', None),
-        ('3-alerts', ('ALERTS WHEN', 'IT MATTERS'), 'alerts-full', 'top', 'alerts'),
-        ('4-radar', ('RAIN RADAR', '2 HOURS AHEAD'), 'view-radar', 'bottom', None),
-        ('5-max', ('NOW, TODAY', 'AND TOMORROW'), 'card', None, None),
-        ('6-layouts', ('YOUR LAYOUT,', 'YOUR WAY'), 'layout-weather', 'top', None),
+        ('2-forecast', ('The forecast', 'at a glance'), 'hero', 'bottom', None),
+        ('3-alerts', ('Alerts when', 'it matters'), 'alerts-full', 'top', 'alerts'),
+        ('4-health', {'emery': ('Steps, sleep', 'and heart rate'), None: ('Steps and sleep', 'on your wrist')},
+         'view-health', 'bottom', None),
+        ('5-max', ('Now, today', 'and tomorrow'), 'card', None, None),
+        ('6-layouts', ('Your layout,', 'your way'), 'layout-weather', 'top', None),
     ),
     'aplite': (
-        ('2-forecast', ('THE FORECAST', 'AT A GLANCE'), 'hero', 'bottom', None),
-        ('3-lines', ('RAIN, WIND', 'OR UV'), 'layout-nocal', 'bottom', None),
-        ('4-max', ('NOW, TODAY', 'AND TOMORROW'), 'card', None, None),
-        ('5-calendar', ('THREE WEEKS', 'AT A GLANCE'), 'layout-full', 'top', None),
-        ('6-uv', ('THE UV INDEX', 'HOUR BY HOUR'), 'aplite-uv', 'bottom', None),
+        ('2-forecast', ('The forecast', 'at a glance'), 'hero', 'bottom', None),
+        ('3-lines', ('Rain, wind', 'or UV'), 'layout-nocal', 'bottom', None),
+        ('4-max', ('Now, today', 'and tomorrow'), 'card', None, None),
+        ('5-calendar', ('Three weeks', 'at a glance'), 'layout-full', 'top', None),
+        ('6-uv', ('The UV index', 'hour by hour'), 'aplite-uv', 'bottom', None),
     ),
 }
 # The UV slot's card: each value selection, the slot as the watch shows it then, and what it
-# means. The same numbers as STORY's lines.
-CARD_ROWS = (('NOW', 'max-now', 'UV now'), ('DAY MAX', 'max-day', 'max left today'),
-             ('BOTH', 'max-both', 'now / max'), ('EVENING', 'max-tomorrow', '» tomorrow\'s max'))
+# means (or (long, short), as STORY's lines). The same numbers as STORY's lines.
+CARD_ROWS = (('Now', 'max-now', 'UV now'), ('Day max', 'max-day', 'Max left today'),
+             ('Both', 'max-both', 'Now / max'), ('Evening', 'max-tomorrow', ('» tomorrow\'s max', '» tomorrow')))
 CARD_NOTE = 'Wind, gusts and AQI too.'
-# The headline: font, first line's top, second line's top, the rule's row.
-HEADLINES = {200: ('GOTHIC_28_BOLD', 0, 24, 18), 144: ('GOTHIC_24_BOLD', -5, 13, 11)}
 STORE_CORNER = {200: 12, 144: 9}   # px of a corner the store rounds off
 
 
-def headline(canvas, fonts, watch, first, second):
-    """Two lines: the first white with its ghosts (rain blue left, red right) on the rule, the
-    second in coral. Returns the row under them."""
-    name, top, second_top, rule = HEADLINES[watch.w]
-    font = fonts[name]
-    canvas.hline(0, watch.w - 1, rule, watch.ink(RULE))
-    width = fit(font, first, watch.x1 - watch.x0, '%s headline' % watch.name)
-    x = (watch.w - width) // 2
-    canvas.fill(x - 6, rule, x + width + 5, rule, BLACK)
-    ghosted(canvas, font, watch, x, top, ('', first))
-    centred(canvas, font, (watch.x0, second_top, watch.x1 - watch.x0), second, watch.ink(CORAL),
-            '%s headline' % watch.name)
-    return second_top + font.ink_rows(second)[1] + 4
+def headline(image, texts, watch, first, second):
+    """The headline's two lines, centred: the first white, the second in coral. Returns the row
+    under it, where the screen starts."""
+    k = watch.k
+    f = watch.f('headline')
+    room = watch.w - 2 * k['margin']
+    for line in (first, second):
+        fit(f, line, room, '%s headline' % watch.name)
+    _, bottom = ink(f)
+    baseline = k['head_pad'] + cap(f)
+    pitch = f.size + 4
+    say_centred(image, texts, f, watch.w / 2, baseline, first, TEXT)
+    say_centred(image, texts, f, watch.w / 2, baseline + pitch, second, WARN)
+    return baseline + pitch + bottom + k['head_pad']
 
 
-def check_corners(canvas, watch, what):
+def check_corners(texts, watch, what):
     """No word in the corners the store rounds off."""
     r = STORE_CORNER[watch.w]
-    for x0, y0, x1, y1, text in canvas.inked:
-        for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1)):
+    for (x0, y0, x1, y1), text in texts:
+        for x, y in ((x0, y0), (x1 - 1, y0), (x0, y1 - 1), (x1 - 1, y1 - 1)):
             cx = r if x < r else watch.w - 1 - r if x > watch.w - 1 - r else x
             cy = r if y < r else watch.h - 1 - r if y > watch.h - 1 - r else y
             if (x - cx) ** 2 + (y - cy) ** 2 > r * r:
@@ -1119,60 +1063,72 @@ def uv_slot(screens, watch, scene):
     return right_slot(shot, ink_rows_from(shot, screens.band(watch.name, scene)[1]))
 
 
-def uv_card(canvas, fonts, screens, watch, top):
-    """The UV slot's values: a row each (its name, what it means under it, and the slot as the
-    watch shows it then), under a header on Pebble Time 2, and a note."""
+def uv_card(image, texts, screens, watch, top):
+    """The UV slot's values, a row each: its name, what it means under it, and the slot as the
+    watch shows it then, in a black screen of its own; a note under them."""
+    k = watch.k
     crops = []
     for name, scene, means in CARD_ROWS:
         x0, y0, x1, y1 = uv_slot(screens, watch, scene)
-        crops.append(screens.shot(watch.name, scene).crop((x0 - 1, y0 - 1, x1 + 2, y1 + 2)))
-    y = top
-    if watch.w > 144:
-        y = header(canvas, fonts, watch, y, 'UV INDEX SLOT') + 2
-    label, note = fonts[watch.option], fonts[watch.hint]
-    pitch = label.height + note.height - (4 if watch.w > 144 else 3)
-    for (name, scene, means), crop in zip(CARD_ROWS, crops):
-        cx = watch.x1 - crop.width
-        fit(label, name, cx - watch.x0 - 4, '%s card' % watch.name)
-        fit(note, means, watch.x1 - watch.x0, '%s card' % watch.name)
-        canvas.text(label, watch.x0, y, name, watch.ink(CORAL))
-        canvas.text(note, watch.x0, y + label.height - 2, means, watch.ink(GREY))
-        canvas.image.paste(crop, (cx, y + (pitch - crop.height) // 2))
-        canvas.px = canvas.image.load()
-        y += pitch
-    for line in wrap(note, CARD_NOTE, watch.x1 - watch.x0):
-        canvas.text(note, watch.x0, y, line, WHITE)
-        y += note.height
-    if y > watch.h - 2:
-        raise SystemExit('%s: the UV card runs %d px past the screen' % (watch.name, y - watch.h + 2))
+        crops.append(screens.shot(watch.name, scene).crop((x0 - 2, y0 - 2, x1 + 3, y1 + 3)))
+    nf, mf, notef = watch.f('row_name'), watch.f('row_note'), watch.f('note')
+    left, right = k['margin'] + 2, watch.w - k['margin'] - 2
+    note_top = watch.h - k['margin'] - notef.size - 2
+    pitch = (note_top - top) // len(CARD_ROWS)
+    n_top, _ = ink(nf)
+    _, m_bottom = ink(mf)
+    text_h = -n_top + 2 + mf.size + m_bottom - 2
+    for i, ((name, scene, means), crop) in enumerate(zip(CARD_ROWS, crops)):
+        y = top + i * pitch
+        sw, sh = crop.width + 6, crop.height + 4
+        sx, sy = right - sw, y + (pitch - sh) // 2
+        round_rect(image, (sx, sy, sx + sw, sy + sh), 4, BLACK)
+        image.paste(crop, (sx + 3, sy + 2))
+        room = sx - left - 6
+        means = pick_copy(means, lambda text: width(mf, text) <= room)
+        fit(nf, name, room, '%s card' % watch.name)
+        fit(mf, means, room, '%s card' % watch.name)
+        base = y + (pitch - text_h) // 2 - n_top
+        say(image, texts, nf, left, base, name, TEXT)
+        say(image, texts, mf, left, base + mf.size + 2, means, MUTED)
+        if i:
+            ImageDraw.Draw(image).line((left, y, right - 1, y), fill=RULE)
+    say(image, texts, notef, left, note_top + cap(notef), CARD_NOTE, MUTED)
+    fit(notef, CARD_NOTE, right - left, '%s card' % watch.name)
 
 
-def store_screen(screens, fonts, watch, spec):
-    """One store screen: the headline over a watch screen or the UV card."""
-    name, (first, second), what, place, marks = spec
-    canvas = Canvas(Image.new('RGB', (watch.w, watch.h), BLACK))
-    top = HEADLINES[watch.w][2] + fonts[HEADLINES[watch.w][0]].height + 4
+def store_screen(screens, watch, spec):
+    """One store screen: the headline over a watch screen (its top corners rounded, as the
+    settings page's preview has them) or the UV card."""
+    name, words, what, place, mark = spec
+    first, second = words.get(watch.name, words[None]) if isinstance(words, dict) else words
+    image = charcoal(watch.w, watch.h)
+    texts = []
+    top = headline(image, texts, watch, first, second)
     if what == 'card':
-        uv_card(canvas, fonts, screens, watch, top)
+        uv_card(image, texts, screens, watch, top)
     else:
         shot = screens.shot(watch.name, what)
         if screens.scenes[what]['mode'] != 'full':
             raise SystemExit('%s: %s is a panel scene, its clock is blank' % (name, what))
         dy = top if place == 'top' else 0
+        screen = Image.new('RGB', (watch.w, watch.h), BLACK)
         # From its bottom up, the screen starts at the first blank row under the headline, so
         # no element shows cut in half there.
         start = top if place == 'top' else next_blank(shot, top)
-        visible = shot.crop((0, start - dy, watch.w, watch.h - dy))
-        canvas.image.paste(visible, (0, start))
-        canvas.px = canvas.image.load()
-        if marks == 'alerts':
+        screen.paste(shot.crop((0, start - dy, watch.w, watch.h - dy)), (0, start))
+        if mark == 'alerts':
             y0, y1 = ink_rows_from(shot, 0)
-            brackets(canvas, watch, (0, y0 + dy, watch.w - 1, y1 - 1 + dy))
-    canvas.fill(0, 0, watch.w - 1, top - 1, BLACK)
-    headline(canvas, fonts, watch, first, second)
-    check_corners(canvas, watch, name)
-    check_palette(canvas.image, '%s %s' % (watch.name, name), watch.colour)
-    return name + '.png', canvas.image
+            focus_ring(screen, watch, (0, y0 + dy, watch.w - 1, y1 - 1 + dy))
+        shape = Image.new('L', (watch.w * SS, (watch.h - top + watch.k['screen_r']) * SS), 0)
+        ImageDraw.Draw(shape).rounded_rectangle((0, 0, watch.w * SS - 1, shape.height - 1),
+                                                watch.k['screen_r'] * SS, fill=255)
+        shape = shape.resize((watch.w, watch.h - top + watch.k['screen_r']), Image.BOX)
+        mask = Image.new('L', (watch.w, watch.h), 0)
+        mask.paste(shape, (0, top))
+        image.paste(screen, (0, 0), mask)
+    check_corners(texts, watch, name)
+    return name + '.png', image
 
 
 # ---------------------------------------------------------------------------------------
@@ -1197,49 +1153,44 @@ def bundle(folder, path):
                     z.writestr(info, f.read())
 
 
-def build_platform(screens, fonts, platform, out, sheets):
+def build_platform(screens, platform, out, sheets):
     """One watch's set: the showcase GIF and its five store screens."""
     watch = WATCHES[platform]
     folder = os.path.join(out, platform)
     os.makedirs(folder, exist_ok=True)
-    seed = int(hashlib.sha256(platform.encode()).hexdigest()[:8], 16)
-    reel = Showcase(watch, screens, fonts, seed).build()
+    reel = Showcase(watch, screens).build()
     check_holds(reel)
-    for f in reel.frames:
-        check_palette(f['image'], '%s showcase' % platform, watch.colour)
     ticks = per_tick(reel.frames)
     flashes = check_flashes(ticks, watch)
     gif = os.path.join(folder, '1-showcase.gif')
     written = save_gif(reel.frames, gif)
     log(check_gif(gif, written, watch) + ', ' + flashes)
-    contact_sheet(ticks, os.path.join(sheets, 'contact-sheet-%s.png' % platform))
+    contact_sheet(per_tick(written), os.path.join(sheets, 'contact-sheet-%s.png' % platform))
     images = []
-    for spec in SCREENS['aplite' if platform == 'aplite' else 'default']:
-        name, image = store_screen(screens, fonts, watch, spec)
+    specs = SCREENS['aplite' if platform == 'aplite' else 'default']
+    for spec in specs:
+        name, image = store_screen(screens, watch, spec)
         image.save(os.path.join(folder, name), optimize=True)
         images.append(image)
     sheet = Image.new('RGB', (len(images) * (watch.w * 2 + 8) + 8, watch.h * 2 + 16), (32, 32, 32))
     for i, image in enumerate(images):
         sheet.paste(image.resize((watch.w * 2, watch.h * 2), Image.NEAREST), (8 + i * (watch.w * 2 + 8), 8))
     sheet.save(os.path.join(sheets, 'screens-%s.png' % platform))
-    log('%s: %s' % (platform, ', '.join(spec[0] + '.png' for spec in SCREENS['aplite' if platform == 'aplite'
-                                                                             else 'default'])))
+    log('%s: %s' % (platform, ', '.join(spec[0] + '.png' for spec in specs)))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('version', help='the screenshot folder, e.g. v2.3.0')
     parser.add_argument('--platforms', default=' '.join(PLATFORMS), help='which watches (default: all five)')
-    parser.add_argument('--refresh', action='store_true', help='fetch the fonts again')
     args = parser.parse_args()
-    fonts = system_fonts(args.refresh)
     screens = Screens(args.version, scene_manifest())
     out = os.path.join(ROOT, 'screenshot', args.version, 'store-art')
     os.makedirs(BUILD, exist_ok=True)
     for platform in args.platforms.split():
         if platform not in WATCHES:
             raise SystemExit('unknown platform %s' % platform)
-        build_platform(screens, fonts, platform, out, BUILD)
+        build_platform(screens, platform, out, BUILD)
     path = os.path.join(BUILD, 'warnweather-store-%s.zip' % args.version)
     bundle(out, path)
     log('wrote', os.path.relpath(path, ROOT))

@@ -113,12 +113,12 @@ https://www.buymeacoffee.com/toaster2.
 Each platform's listing shows, in this order:
 
 1. `1-showcase.gif`: the showcase, about 30 s on Pebble Time 2 and less where a watch has
-   fewer settings: the watchface, then a tour in which the clock's band turns into the setting
-   being changed while the rest of the screen shows its effect (graph lines, forecast length
-   and the left axis on Pebble Time 2, the alerts, the UV slot's Now / Day max / Both and
-   tomorrow's `»`, the calendar), the views and layouts, and an end card.
+   fewer settings: the watchface, then a tour in which a card in the settings page's look takes
+   the clock's place while the rest of the screen shows the setting's effect (graph lines,
+   forecast length and the left axis on Pebble Time 2, the weather alerts, the UV slot's Now /
+   Day max / Both and tomorrow's `»`, the calendar), the views and layouts, and the wordmark.
 2. `2-…png` to `6-…png`: five store screens, a headline over the watch's screen: the forecast,
-   the alerts, the rain radar, the UV slot's values, the layouts (aplite: the forecast, its
+   the alerts, the health view, the UV slot's values, Weather only (aplite: the forecast, its
    graph lines, the UV slot's values, the calendar, the UV graph).
 3. The real-day time-lapse GIFs already on the listing (a day of real weather, frame by
    frame), kept as they are.

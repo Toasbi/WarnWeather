@@ -52,9 +52,10 @@ const SERIES = ['temps', 'precipPct', 'rainMm', 'uvIndex', 'pressureHpa', 'windK
 const SUNRISE = { hour: 4, minute: 46 };
 const SUNSET = { hour: 21, minute: 29 };
 
-// Rain on its way in 15 minutes: a shower that builds to a downpour and tapers off over the
-// next 75 minutes, what the radar graph shows; the rain alert's text is canned to match (tier
-// 3, "Rain in 15'": the wscript bakes it from the countdown block).
+// Rain on its way in 15 minutes, behind the alerts scenes' rain alert (no scene shows the radar
+// itself): a shower that builds to a downpour and tapers off over the next 75 minutes; the
+// alert's text is canned to match (tier 3, "Rain in 15'": the wscript bakes it from the
+// countdown block).
 const RAIN_SOON = {
   exact: [0, 0, 0, 0.4, 0.9, 1.6, 2.4, 3.6, 4.8, 4.1, 3.2, 2.6, 1.9, 1.4, 1.0, 0.7, 0.5, 0.3, 0.2, 0.1, 0, 0, 0, 0],
   area: [0, 0, 0.2, 0.7, 1.3, 2.1, 3.0, 4.4, 5.6, 5.0, 4.0, 3.3, 2.5, 1.9, 1.4, 1.0, 0.7, 0.5, 0.3, 0.2, 0.1, 0, 0, 0],
@@ -141,34 +142,31 @@ const SCENES = [
       secondaryLine: 'uv', secondaryLineFill: true, secondaryLineStyle: 'line', uvLineShow: 'alert',
       thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'off' }) },
   // The UV slot's value selection, at 08:00 (UV 3 now, 8 at noon) and at 20:00 (today's sun
-  // is gone, tomorrow peaks at 7): Now, Day max, Both, and Both rolled on to tomorrow.
+  // is gone, tomorrow peaks at 7): Now, Day max, Both, and Both rolled on to tomorrow. On the
+  // no-calendar layout, whose clock band holds the settings card on a 144 px watch too.
   { id: 'max-now', mode: 'panel', base: 'long', window: { start: 17, hours: 51 },
-    clay: Object.assign({}, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'current' }) },
+    clay: Object.assign({ layoutPreset: 'noCal' }, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'current' }) },
   { id: 'max-day', mode: 'panel', base: 'long', window: { start: 17, hours: 51 },
-    clay: Object.assign({}, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'max' }) },
+    clay: Object.assign({ layoutPreset: 'noCal' }, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'max' }) },
   { id: 'max-both', mode: 'panel', base: 'long', window: { start: 17, hours: 51 },
-    clay: Object.assign({}, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'both' }) },
+    clay: Object.assign({ layoutPreset: 'noCal' }, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'both' }) },
   { id: 'max-tomorrow', mode: 'panel', base: 'long', window: { start: 29, hours: 39 },
-    clay: Object.assign({}, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'both' }) },
+    clay: Object.assign({ layoutPreset: 'noCal' }, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'both' }) },
   // The three-week calendar.
   { id: 'calendar', mode: 'panel', clay: Object.assign({ layoutPreset: 'fullCal' }, LINES_RAIN) },
-  // Views and layouts, whole: the radar view and the health view (the compact calendar's radar
-  // flick and the no-calendar health flick, set up as a custom layout's first view: the same
-  // view with no flick to time, since the radar view is a flick target only once the radar
-  // data has arrived), Weather only, and the Light theme.
-  { id: 'view-radar', mode: 'full', platforms: NOT_APLITE,
-    clay: Object.assign({}, LINES_RAIN, { radarProvider: 'dwd', radarMode: 'graph', radarColor: 'multicolor',
-      rainCountdownHorizon: '60' }, CUSTOM_ONE, { viewTop0: 'cal', viewTopSize0: '2', viewBody0: 'radar',
-      viewUpper0: 'radar', viewLower0: 'off' }),
-    radar: RAIN_SOON, countdown: RAIN_SOON_ALERT },
+  // Views and layouts, whole: the health view (No calendar's health flick, set up as a custom
+  // layout's first view: the same view with no flick to time), Weather only without the rain
+  // radar (radar Off: the clock, the weather row and the big graph), and the Light theme.
   { id: 'view-health', mode: 'full', platforms: NOT_APLITE,
     clay: Object.assign({ healthMode: 'all', hrScale: '50-100' }, LINES_RAIN, CUSTOM_ONE, {
       viewTop0: 'none', viewBody0: 'health', viewUpper0: 'health', viewLower0: 'off' }),
-    variants: { emery: { statusHealthMid: 'sleep', statusHealthRight: 'hr' } } },
+    // Steps, sleep and the heart rate on Pebble Time 2; Pebble 2's own defaults would show its
+    // heart rate too, as '--' (the emulator measures none), so it shows steps and sleep as the
+    // watches without a heart rate sensor do.
+    variants: { emery: { statusHealthMid: 'sleep', statusHealthRight: 'hr' },
+      diorite: { statusHealthMid: 'empty', statusHealthRight: 'sleep' } } },
   { id: 'layout-weather', mode: 'full', platforms: NOT_APLITE,
-    clay: Object.assign({ layoutPreset: 'weatherOnly', radarProvider: 'dwd', radarMode: 'graph',
-      radarColor: 'multicolor', rainCountdownHorizon: '60' }, LINES_WIND),
-    radar: RAIN_SOON, countdown: RAIN_SOON_ALERT },
+    clay: Object.assign({ layoutPreset: 'weatherOnly', radarMode: 'off' }, LINES_WIND) },
   { id: 'layout-light', mode: 'full', platforms: NOT_APLITE, theme: 'light',
     clay: Object.assign({ layoutPreset: 'noCal' }, LINES_RAIN) },
   // aplite's own layouts: the three-week calendar and the big forecast, whole.

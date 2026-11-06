@@ -439,11 +439,12 @@ committed) for manual upload. Re-assemble a single reel without recapturing with
 #### Store art (the appstore's showcase GIF and five store screens)
 
 The appstore set per platform: `1-showcase.gif` (about 30 s on Pebble Time 2: the
-watchface, then a tour in which the clock's band turns into the setting being changed —
-graph lines, forecast length and the left axis on Pebble Time 2, the alerts, the UV slot's
-Now / Day max / Both and tomorrow's `»`, the calendar — then views and layouts, and an end
-card) and five store screens (`2-…png` to `6-…png`: a headline over the watch's screen). It
-replaces the promo reel and the single screenshots on the listing; the real-day time-lapse
+watchface, then a tour in which a card in the settings page's look takes the clock's place
+while the rest of the screen shows the setting's effect — graph lines, forecast length and
+the left axis on Pebble Time 2, the weather alerts, the UV slot's Now / Day max / Both and
+tomorrow's `»`, the calendar — then views and layouts, and the wordmark) and five store
+screens (`2-…png` to `6-…png`: a headline on the banner's charcoal over the watch's screen).
+It replaces the promo reel and the single screenshots on the listing; the real-day time-lapse
 GIFs stay.
 
 ```bash
@@ -456,24 +457,27 @@ python3 -I scripts/store-art.py <version>        # the GIFs and store screens (n
   on every capture, guarded by `test/store-art-fixtures.test.js`). A `panel` scene draws its
   clock in black so its band comes out empty on a colour watch; the black and white watches,
   which ignore the clock colour, take the band from basalt's capture (the same layout). The
-  radar and health views are set up as a custom layout's first view rather than reached by a
-  flick: the same view, with no flick to time (the radar view is a flick target only once the
-  radar data has arrived).
+  health view is set up as a custom layout's first view rather than reached by a flick: the
+  same view, with no flick to time. No scene shows the rain radar: Weather only runs with the
+  radar Off, and the radar data is there only for the alerts scenes' rain alert.
 - `capture-store-art.sh` boots every scene on a fresh emulator with a fresh phone: a fixture's
   settings are merged into the stored ones, so it deletes the app's pypkjs localStorage and
   pypkjs's cached copy of the last build (whose JS, with the last scene's fixture, would run as
   the watch boots), or the last scene's settings would carry into the next. Frames land in
   `screenshot/<version>/store-art/frames/<platform>/<scene>.png` (committed).
-- `store-art.py` owns the storyboard and the copy (`STORY`, `SCREENS`), draws in Pebble's own
-  Gothic fonts (fetched from PebbleOS at a fixed commit, sha256-checked, into
-  `build/store-art/src/`) and in the screenshot's colour-corrected palette, and fails on a text
-  that doesn't fit, a colour off the palette, a GIF frame that doesn't decode to the frame it
-  was written from, or anything flashing more than 3 times a second. It writes
+- `store-art.py` owns the storyboard and the copy (`STORY`, `SCREENS`) and draws in
+  WarnWeather's look: the banner's charcoal, white and coral, the settings page's cards and
+  segmented controls, Poppins (`screenshot/fonts/`, SIL Open Font License), anti-aliased, with
+  cross-fades between scenes and a sliding selection between options. It checks the captures
+  against the screenshot's colour-corrected palette, and fails on a text that doesn't fit, a
+  GIF frame that doesn't decode to the frame it was written from, anything flashing more than
+  3 times a second, or a GIF of 1 MB or more. It writes
   `screenshot/<version>/store-art/<platform>/` (committed) and, to judge them,
   `build/store-art/contact-sheet-<platform>.png` and `screens-<platform>.png`, plus the
   whole set in `build/store-art/warnweather-store-<version>.zip`.
 - Upload each platform's folder in file order (`1-showcase.gif` first). diorite and flint
-  come out the same.
+  come out nearly the same (their own screens differ in a few pixels: each is its own
+  capture).
 
 ### Package generation
 

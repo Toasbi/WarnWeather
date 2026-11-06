@@ -93,7 +93,7 @@ test('the manifest: platforms, Pebble Time 2 alone for its own settings, the spa
   for (const id of ['span-12', 'span-long', 'axis-axis', 'axis-graph', 'axis-off']) {
     assert.deepEqual(byId[id].platforms, EMERY, id);
   }
-  for (const id of ['alerts-calm', 'alerts-on', 'alerts-line', 'view-radar', 'view-health']) {
+  for (const id of ['alerts-calm', 'alerts-on', 'alerts-line', 'view-health', 'layout-weather']) {
     assert.deepEqual(byId[id].platforms, NOT_APLITE, id);
   }
   assert.deepEqual(byId.hero.platforms, PLATFORMS);
@@ -101,4 +101,17 @@ test('the manifest: platforms, Pebble Time 2 alone for its own settings, the spa
   assert.equal(byId.hero.spanLabels, null);
   assert.equal(byId['view-health'].fixtures.emery, 'art-view-health-emery');
   assert.equal(byId['view-health'].fixtures.basalt, 'art-view-health');
+  assert.equal(byId['view-health'].fixtures.diorite, 'art-view-health-diorite');
+});
+
+test('no scene shows the rain radar: Weather only runs with it Off', () => {
+  const fx = generate();
+  assert.ok(!manifest().some((s) => s.id === 'view-radar'));
+  const weather = fx['art-layout-weather'].claySettings;
+  assert.equal(weather.layoutPreset, 'weatherOnly');
+  assert.equal(weather.radarMode, 'off');
+  // The radar runs only behind the rain alert, on the compact calendar (no radar in its view).
+  const radar = Object.keys(fx).filter((slug) => fx[slug].claySettings.radarProvider !== 'disabled');
+  assert.deepEqual(radar.sort(), ['art-alerts-full', 'art-alerts-on']);
+  for (const slug of radar) { assert.equal(fx[slug].claySettings.layoutPreset, 'compactCal', slug); }
 });
