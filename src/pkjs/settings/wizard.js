@@ -309,12 +309,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '#wizard .wiz-opt.on{background:' + ACCENT_FILL + ';color:#FFFFFF;box-shadow:0 3px 10px rgba(250,74,53,.35)}'
         + '#wizard .wiz-desc{min-height:3.1em;margin:12px 0 0;text-align:center;font-size:14.5px;line-height:1.5;'
         + 'color:var(--fg)}'
-        // the forecast step: the settings page's own graph preview, drawn live from sample weather, and
-        // the second picker's heading. The box keeps the tallest graph's shape (two legend rows, 200 x
-        // 128), so a look with fewer never moves the controls under it; the screen colour fills the
-        // rest. Its svg fills the width, not the settings card's padding (preview-svg.js svgFrame).
-        + '#wizard .wiz-graph{width:300px;width:min(320px,calc(100vw - 78px));aspect-ratio:200/128;'
-        + 'border-radius:5px;overflow:hidden}'
+        // the forecast step: the settings page's own graph preview, drawn live from sample weather, as a
+        // rounded card it fills to the edge (its corners clip it a little), and the second picker's
+        // heading. The card keeps the tallest graph's shape (two legend rows, 200 x 128), so a look with
+        // fewer never moves the controls under it; the screen colour fills the rest. Its svg fills the
+        // width, not the settings card's padding (preview-svg.js svgFrame).
+        + '#wizard .wiz-graph{width:100%;max-width:380px;aspect-ratio:200/128;border-radius:18px;overflow:hidden;'
+        + 'box-shadow:0 14px 34px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.08)}'
+        + 'body.light #wizard .wiz-graph{box-shadow:0 12px 28px rgba(0,0,0,.24),0 0 0 1px rgba(0,0,0,.08)}'
         + '#wizard .wiz-graph svg{width:100%!important;margin:0!important;animation:wiz-fade .22s ease both}'
         + '#wizard .wiz-sub{margin:26px 0 0;text-align:center;font:800 11.5px ' + FONT + ';letter-spacing:.1em;'
         + 'text-transform:uppercase;color:var(--ttl)}'
@@ -390,7 +392,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // short screens (small phones, a keyboard up): a smaller watch keeps the options in view
         + '@media (max-height:700px){#wizard .wiz-stage.big .wiz-shot{width:180px}'
         + '#wizard.w200 .wiz-stage.big .wiz-shot,#wizard .wiz-flick .wiz-stage.big .wiz-shot{width:auto}'
-        + '#wizard .wiz-graph{width:260px}#wizard .wiz-title{font-size:22px}}'
+        + '#wizard .wiz-graph{max-width:290px}#wizard .wiz-title{font-size:22px}}'
         + '@media (prefers-reduced-motion:reduce){#wizard .wiz-step,#wizard .wiz-badge,#wizard .wiz-flick-watch.tilt,'
         + '#wizard .wiz-graph svg{animation:none}#wizard .wiz-shot,#wizard .wiz-seg,#wizard .wiz-flick-shot'
         + '{transition:none}}';
@@ -996,8 +998,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var light = W.ctx.S.theme === 'light' || W.ctx.S.theme === 'bw-light';
         var h = stepHead('forecast')
             + '<div class="wiz-stage" data-wiz-preview="forecastLook">'
-            + watchHtml('<div class="wiz-graph" data-wiz-graph role="img" aria-label="' + esc(graphLabel())
-                + '" style="background:' + (light ? '#FFFFFF' : '#000000') + '">' + graphHtml() + '</div>')
+            + '<div class="wiz-graph" data-wiz-graph role="img" aria-label="' + esc(graphLabel())
+                + '" style="background:' + (light ? '#FFFFFF' : '#000000') + '">' + graphHtml() + '</div>'
             + '</div>' + optsHtml('forecastLook', 'wiz-title');
         if (hasSpan()) {
             h += '<h3 class="wiz-sub" id="wiz-span">Forecast length</h3>' + optsHtml('forecastHours', 'wiz-span');
