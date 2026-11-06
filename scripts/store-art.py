@@ -93,7 +93,10 @@ def font(spec):
     return _FONTS[spec]
 
 
-def ink(f, text='Hg'):
+TALL = 'Hbdfhiklt\'gjpqy'   # a line's tallest and lowest letters: where any line's ink can reach
+
+
+def ink(f, text=TALL):
     """The rows a text inks around its baseline: (top, bottom), top negative."""
     _, top, _, bottom = f.getbbox(text, anchor='ls')
     return top, bottom
@@ -142,6 +145,15 @@ def wrap(f, text, room, most, what):
     if len(lines) > most:
         raise SystemExit('%s: %r takes %d lines, it has %d' % (what, text, len(lines), most))
     return lines
+
+
+def wraps(f, text, room, most):
+    """Whether a text wraps into at most `most` lines that each fit `room` px."""
+    try:
+        wrap(f, text, room, most, '')
+    except SystemExit:
+        return False
+    return True
 
 
 def pick_copy(copy, fits):
@@ -462,7 +474,7 @@ class Card:
         else:
             f = watch.f('caption')
             most = self.caption_room()
-            text = pick_copy(line, lambda t: len(wrap(f, t, room, 9, what)) <= most)
+            text = pick_copy(line, lambda t: wraps(f, t, room, most))
             self.lines = wrap(f, text, room, most, what)
         self.need = self.layout()[0]
         if self.need > band[1] - band[0] - 2:
@@ -477,16 +489,18 @@ class Card:
     def caption_room(self):
         """How many caption lines the band holds: two where they fit, else one."""
         k, f = self.watch.k, self.watch.f('caption')
-        lab_t, lab_b = ink(self.watch.f('label'))
+        lab_t, lab_b = ink(self.watch.f('label'), self.title)
         t, b = ink(f)
         rows = self.band[1] - self.band[0] - 2
         return 2 if lab_b - lab_t + k['gap'] - t + (f.size + 3) + b <= rows else 1
 
     def layout(self):
         """Its rows by their ink, from its content's top: (height, label baseline, control top,
-        first line's baseline, line pitch)."""
+        first line's baseline, line pitch). The name by its own letters (it stays while the
+        card's lines change), the lines by the tallest and lowest any line can have, so they
+        keep their row from step to step."""
         k = self.watch.k
-        lab_t, lab_b = ink(self.watch.f('label'))
+        lab_t, lab_b = ink(self.watch.f('label'), self.title)
         y = lab_b - lab_t + k['gap']
         control = None
         if self.kind == 'setting':
