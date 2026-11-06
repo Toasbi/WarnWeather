@@ -108,32 +108,32 @@ https://www.buymeacoffee.com/toaster2.
 
 ```
 
-## Screenshots 
+## Screenshots
 
-The store wants at least one screenshot per supported platform, so we capture all five
-configs on **every** platform (aplite, basalt, diorite, emery, flint) — 5 shots × 5
-platforms = 25 files, grouped per platform for upload.
+Each platform's listing shows, in this order:
 
-Each config is a fixture bundling its own settings + weather/radar data:
+1. `1-showcase.gif`: the showcase, about 30 s on Pebble Time 2 and less where a watch has
+   fewer settings: the watchface, then a tour in which the clock's band turns into the setting
+   being changed while the rest of the screen shows its effect (graph lines, forecast length
+   and the left axis on Pebble Time 2, the alerts, the UV slot's Now / Day max / Both and
+   tomorrow's `»`, the calendar), the views and layouts, and an end card.
+2. `2-…png` to `6-…png`: five store screens, a headline over the watch's screen: the forecast,
+   the alerts, the rain radar, the UV slot's values, the layouts (aplite: the forecast, its
+   graph lines, the UV slot's values, the calendar, the UV graph).
+3. The real-day time-lapse GIFs already on the listing (a day of real weather, frame by
+   frame), kept as they are.
 
-| Label | Config | Fixture |
-| ----- | ------ | ------- |
-| `1-calendar` | Calendar view, white rain bars, precipitation line, fill off | `store-calendar` |
-| `2-radar-multicolor` | Radar view, multicolor radar + rain bars | `berlin` |
-| `3-wind-gust` | Wind speed line with dotted gust line | `windy` |
-| `4-radar-white-wind` | Radar view (white radar) + yellow wind line with dotted gust | `store-wind-radar` |
-| `5-precip-uv` | Precipitation line (filled) with dotted UV index line, multicolor rain bars | `precip-uv` |
-
-`berlin` and `store-wind-radar` auto-tap into the radar view; the others stay on the
-calendar/forecast view. On the black-and-white platforms (aplite, diorite, flint) the
-multicolor/yellow settings render in B&W — expected.
-
-Capture everything in one go:
+The old promo reel and the single screenshots are replaced by 1 and 2. Build the set with:
 
 ```
-scripts/capture-store-shots.sh v1.0.0
+scripts/capture-store-art.sh v2.3.0       # every scene on all five watches
+python3 -I scripts/store-art.py v2.3.0    # the GIFs and store screens
 ```
 
-Output lands in `screenshot/v1.0.0/store/<platform>/<label>.png` — e.g.
-`store/emery/1-calendar.png`. Upload each platform's five files to that platform in the
-store listing.
+Output lands in `screenshot/v2.3.0/store-art/<platform>/` (also zipped as
+`build/store-art/warnweather-store-v2.3.0.zip`). Upload each platform's folder to that
+platform in file order. See DEV.md, Store art.
+
+The five curated configs `scripts/capture-store-shots.sh` captures
+(`screenshot/<version>/store/<platform>/<label>.png`) are no longer uploaded; they still feed
+the README's framed hero shots (`mise composite`).

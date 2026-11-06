@@ -368,4 +368,4 @@ if (require.main === module) {
 }
 
 module.exports = { generateShowcaseFixtures, SCENES, BASE_PATH, RADAR_SLOTS, SHOWCASE_PLATFORMS,
-  COLOUR_PLATFORMS, scenePlatforms, sceneIdsFor };
+  COLOUR_PLATFORMS, scenePlatforms, sceneIdsFor, withTheme };

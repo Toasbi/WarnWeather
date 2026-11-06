@@ -63,7 +63,21 @@ See `AGENTS.md`'s "Commits & releases" section for the style guide for both.
 
 Store listing copy lives in [STORE_LISTING.md](STORE_LISTING.md).
 
-### Capture the store screenshots
+### Build the store set
+
+The listing shows, per platform: the showcase GIF, five store screens, then the real-day
+time-lapse GIFs already there (keep those). Build the first six with:
+
+```sh
+scripts/capture-store-art.sh <version>      # every scene on all five watches (~45 min)
+python3 -I scripts/store-art.py <version>   # → screenshot/<version>/store-art/<platform>/
+```
+
+Upload each platform's `screenshot/<version>/store-art/<platform>/` files in file order
+(`1-showcase.gif` first), replacing the old reel and single screenshots. The whole set is also
+zipped as `build/store-art/warnweather-store-<version>.zip`. See DEV.md, Store art.
+
+### Capture the curated screenshots (README composites)
 
 Capture the five curated configs on every platform, filed per platform under
 `screenshot/<version>/store/<platform>/<config>.png`:
@@ -73,8 +87,7 @@ scripts/capture-store-shots.sh <version>        # all five rounds
 scripts/capture-store-shots.sh <version> 5      # resume from round 5 (after a crash)
 ```
 
-The appstore wants at least one screenshot per supported platform, so upload each
-platform's five raw PNGs from `screenshot/<version>/store/<platform>/` to that platform.
+They feed the README composites below; the store gets the store set above instead.
 
 ### Composite the README hero shots
 
