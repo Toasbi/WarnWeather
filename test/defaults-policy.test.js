@@ -406,7 +406,7 @@ test('the wind arrow is a plain schema default, not a rule in this table', () =>
 });
 
 test('dependsOn always names a key of the same rule\'s set — a typo must not silently strand its dependents', () => {
-  // The consumer (wizard.js applyWizardDefaults) skips a dependent key whenever its
+  // The consumer (wizard-finish.js applyWizardDefaults) skips a dependent key whenever its
   // anchor does not hold the rule's value; an anchor name that matches nothing would
   // make the dependents unconditionally dead with no error anywhere. Same philosophy
   // as ruleApplies throwing on an unknown `when` condition.

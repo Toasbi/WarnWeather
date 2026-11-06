@@ -87,14 +87,13 @@ function buildPaletteTuples(settings, watchInfo) {
     var platform = watchInfo ? watchInfo.platform : 'basalt';
     var resolved = settings || {};
     var theme = resolved.theme || 'dark';
-    var fallback = resolveInk.barColorDefault(theme);
     var env = configUi.computeEnv(watchInfo);
     return {
         BAR_PALETTE_UINT8: markPalette(
-            rainTier.buildPackedPalette(platform, resolved.rainBarColor || fallback, theme),
+            rainTier.buildPackedPalette(platform, resolveInk.barColorMode(resolved.rainBarColor, theme), theme),
             drawFrom.barsFromTop(resolved, 'rain', env)),
         RADAR_PALETTE_UINT8: markPalette(
-            rainTier.buildPackedPalette(platform, resolved.radarColor || fallback, theme),
+            rainTier.buildPackedPalette(platform, resolveInk.barColorMode(resolved.radarColor, theme), theme),
             drawFrom.barsFromTop(resolved, 'radar', env))
     };
 }

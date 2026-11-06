@@ -177,13 +177,20 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/night-hours.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),
-  // defaults-policy.js assigns window.DefaultsPolicy and must precede wizard.js, which
-  // resolves the rule table on the wizard's finish button. Omitting it does not throw --
-  // the wizard degrades to applying nothing -- so the whole feature would silently be a
-  // no-op on a real phone while every Node test passed (those take the require() branch).
-  // test/config-page-bundle.test.js pins every rule id into the generated page for exactly
-  // that reason.
+  // defaults-policy.js assigns window.DefaultsPolicy, which wizard-finish.js binds while its
+  // own body runs, so it comes first. test/config-page-bundle.test.js pins every rule id into
+  // the generated page: a Node test takes the require() branch and would not notice it missing.
   path.join(ROOT, 'src/pkjs/settings/defaults-policy.js'),
+  // The setup wizard's parts, each publishing a window global that wizard.js binds while its own
+  // body runs (test/config-page-bundle.test.js pins them ahead of it): its styles, the flick demo
+  // (reads VIEW_CYCLE), the forecast step (reads the line, Draw from, axis, ink, theme-flip, span
+  // and sample modules and preview-forecast.js, all above), the finishing defaults (reads
+  // DefaultsPolicy and StatusLineCatalog) and the Tomorrow.io card (reads COUNTRY_DEFAULTS).
+  path.join(ROOT, 'src/pkjs/settings/wizard-css.js'),
+  path.join(ROOT, 'src/pkjs/settings/wizard-flick.js'),
+  path.join(ROOT, 'src/pkjs/settings/wizard-forecast.js'),
+  path.join(ROOT, 'src/pkjs/settings/wizard-finish.js'),
+  path.join(ROOT, 'src/pkjs/settings/wizard-upsell.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard.js'),
   // The Custom-layout editor overlay. After view-cycle.js (reads window.VIEW_CYCLE
   // at load) and beside the wizard, whose overlay pattern it shares.

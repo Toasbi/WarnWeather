@@ -30,8 +30,23 @@ test('every series is 68 hours, enough for the long span\'s full feed', () => {
   const all = FS.sample(68);
   FS.SERIES.forEach((k) => assert.equal(all[k].length, 68, k));
   assert.ok(all.precip.every((v) => v >= 0 && v <= 100) && all.cloud.every((v) => v >= 0 && v <= 100));
-  assert.ok(all.feels.every((v, i) => v <= all.temps[i]), 'a summer wind chill: feels-like never above the air');
+  assert.ok(all.feels.every((v, i) => v < all.temps[i]),
+    'a summer wind chill, a degree or more under the air: its line never hides under the curve');
   assert.ok(all.dew.every((v, i) => v < all.temps[i]), 'the dew point stays under the air');
+});
+
+test('the fixture\'s seven series are its own, the temperatures in °C, the nights its sun events', () => {
+  const fixture = require('../fixtures/forecast-long.json').weather;
+  const all = FS.sample(68);
+  assert.deepEqual(all.temps, fixture.temps.map((f) => Math.round((f - 32) * 5 / 9)));
+  [['precip', 'precipPct'], ['rain', 'rainMm'], ['uv', 'uvIndex'], ['wind', 'windKmh'], ['gust', 'gustKmh'],
+    ['pressure', 'pressureHpa']].forEach(([ours, theirs]) => assert.deepEqual(all[ours], fixture[theirs], ours));
+  assert.equal(all.startHour, fixture.startHour);
+  const at = (e) => e.hour + e.minute / 60;
+  const set = at(fixture.sunEvents.find((e) => e.type === 'sunset'));
+  const rise = at(fixture.sunEvents.find((e) => e.type === 'sunrise'));
+  assert.deepEqual(all.nights, [0, 1, 2].map((d) => [set - fixture.startHour + 24 * d, rise + 24 - fixture.startHour + 24 * d]
+    .map((x) => Math.round(x * 100) / 100)));
 });
 
 test('sample(n) slices every series to n points and clips the nights to them', () => {
@@ -61,12 +76,12 @@ test('without a sample the preview draws its 12-point noon scenario, as the sett
 });
 
 test('with a sample the preview draws its hours from its first hour, a night band per night', () => {
-  const day = FC.forecastPreview(S0, EMERY, {}, FS.sample(25));
+  const day = FC.forecastPreview(S0, EMERY, {}, { sample: FS.sample(25) });
   assert.deepEqual(hourLabels(day), [15, 18, 21, 0, 3, 6, 9, 12], '24 h: a label every third hour');
   assert.equal(nightBands(day), 1);
-  const half = FC.forecastPreview(Object.assign({}, S0, { forecastHours: '12' }), EMERY, {}, FS.sample(13));
+  const half = FC.forecastPreview(Object.assign({}, S0, { forecastHours: '12' }), EMERY, {}, { sample: FS.sample(13) });
   assert.deepEqual(hourLabels(half), [15, 17, 19, 21, 23, 1, 3], '12 h: every second hour');
-  const long = FC.forecastPreview(Object.assign({}, S0, { forecastHours: '48' }), EMERY, {}, FS.sample(61));
+  const long = FC.forecastPreview(Object.assign({}, S0, { forecastHours: '48' }), EMERY, {}, { sample: FS.sample(61) });
   assert.equal(nightBands(long), 3);
   assert.ok(hourLabels(long).every((h) => h % 6 === 0), 'the long span: the clock\'s six-hour marks');
   // A day line on each midnight's tick (there are two in 60 hours from 15:00).
@@ -83,8 +98,8 @@ test('a longer sample draws narrower bars, never wider than the 12-point scenari
    */
   const barWidths = (S, sample) => {
     const rects = (svg) => svg.match(/<rect [^>]*><\/rect>/g) || [];
-    const off = new Set(rects(FC.forecastPreview(Object.assign({}, S, { barSource: 'off' }), EMERY, {}, sample)));
-    const bars = rects(FC.forecastPreview(Object.assign({}, S, { barSource: 'rain' }), EMERY, {}, sample))
+    const off = new Set(rects(FC.forecastPreview(Object.assign({}, S, { barSource: 'off' }), EMERY, {}, sample && { sample })));
+    const bars = rects(FC.forecastPreview(Object.assign({}, S, { barSource: 'rain' }), EMERY, {}, sample && { sample }))
       .filter((r) => !off.has(r) && !/fill="url/.test(r) && Number(/ y="([\d.-]+)"/.exec(r)[1]) < 94);
     return Array.from(new Set(bars.map((r) => Number(/width="([\d.]+)"/.exec(r)[1]))));
   };
@@ -94,4 +109,18 @@ test('a longer sample draws narrower bars, never wider than the 12-point scenari
   const long = barWidths(Object.assign({}, S0, { forecastHours: '48' }), FS.sample(61));
   assert.equal(long.length, 1);
   assert.ok(long[0] < 2, 'columns of about three units hold a bar under two');
+});
+
+test('minHeight keeps one frame height whatever the legend; bleed: false fills the box', () => {
+  const two = { secondaryLine: 'uv', secondaryLineStyle: 'dots', thirdLine: 'cloud', thirdLineStyle: 'stripeTop',
+    fourthLine: 'precip_prob', fourthLineStyle: 'stripeTop', fifthLine: 'feels', fifthLineStyle: 'line' };
+  const frame = (S, opts) => /viewBox="0 0 200 ([\d.]+)"/.exec(FC.forecastPreview(S, EMERY, {}, opts))[1];
+  assert.notEqual(frame(S0), frame(Object.assign({}, S0, two)), 'a second legend row grows the frame');
+  const opts = { sample: FS.sample(23), minHeight: 128 };
+  assert.equal(frame(S0, opts), '128');
+  assert.equal(frame(Object.assign({}, S0, two), opts), '128');
+  const fitted = FC.forecastPreview(S0, EMERY, {}, Object.assign({ bleed: false }, opts));
+  assert.match(fitted, /^<svg viewBox="0 0 200 128" style="aspect-ratio:200\/128;display:block;width:100%">/);
+  assert.match(fitted, /<rect x="0" y="0" width="200" height="128" fill="#000000">/, 'the screen runs on under the legend');
+  assert.match(FC.forecastPreview(S0, EMERY, {}), /margin:-12px -16px -14px/, 'the settings card still bleeds');
 });

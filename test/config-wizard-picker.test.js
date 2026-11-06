@@ -17,59 +17,29 @@ require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');
 require('../src/pkjs/settings/blocks.js');
 require('../src/pkjs/settings/reset-status-defaults.js');
-// The forecast step draws the settings page's own graph block.
-require('../src/pkjs/settings/preview-forecast.js');
-const schema = require('../src/pkjs/settings/schema.js');
-const eng = require('../src/pkjs/config-ui/lib/engine.js');
-const platform = require('../src/pkjs/config-ui/lib/platform.js');
+// The Theme row's real conversion: the looks' defaults follow it (the bars' colour a theme starts on).
+require('../src/pkjs/settings/theme-convert.js');
 // The real screenshots, as the page concatenates them before wizard.js (which reads them at load).
 require('../src/pkjs/settings/wizard-screenshots.generated.js');
 require('../src/pkjs/settings/wizard.js');
-const { fakeWizardDom } = require('./helpers/wizard-dom.js');
+const FORECAST = require('../src/pkjs/settings/wizard-forecast.js');
+const platform = require('../src/pkjs/config-ui/lib/platform.js');
+const { openSetup } = require('./helpers/wizard-dom.js');
 const PConf = global.PConf;
-
-/**
- * "Run setup again" on an onboarded install, through the real hooks.
- * @param {Object} [over] {platform, saved}.
- * @returns {{ctx: Object, dom: Object, calls: Object}} The live state, the fake DOM and what the
- *   wizard asked the page to do (save / render).
- */
-function openSetup(over) {
-  const o = over || {};
-  const dom = fakeWizardDom();
-  const ENV = platform.computeEnv({ platform: o.platform || 'basalt' });
-  const calls = { save: 0, render: 0 };
-  const ctx = {
-    S: eng.hydrate(schema, Object.assign({ onboardingDone: true }, o.saved), ENV),
-    ENV,
-    schema,
-    cfg: { onboardingDone: true },
-    set: (k, v) => { ctx.S[k] = v; },
-    save: () => { calls.save += 1; },
-    render: () => { calls.render += 1; },
-    openSheet: (key, onClose) => { onClose(); }
-  };
-  PConf.hooks.runReady(ctx);
-  PConf.actions.startWizard();
-  return { ctx, dom, calls };
-}
 
 /**
  * Walk forward to the step whose picker is `group`.
  * @param {Object} dom Fake DOM.
- * @param {string} group 'layoutPreset' | 'healthMode' | 'theme'.
+ * @param {string} group 'layoutPreset' | 'healthMode' | 'theme' | 'forecastLook'.
  * @returns {void}
  */
-function walkTo(dom, group) {
-  for (let i = 0; i < 10 && !(dom.picker() && dom.picker().group === group); i += 1) { dom.nav('next'); }
-  assert.equal((dom.picker() || {}).group, group, 'guard: on the ' + group + ' step');
-}
+const walkTo = (dom, group) => dom.walkTo(group);
 
 test('the picker shows a stored value it lacks as its nearest option, and never writes it', () => {
   const { ctx, dom } = openSetup({ saved: { layoutPreset: 'weatherOnly', healthMode: 'slot' } });
   walkTo(dom, 'layoutPreset');
   assert.deepEqual(dom.picker().options, ['fullCal', 'compactCal', 'noCal']);
-  assert.equal(dom.picker().selected, 'compactCal');
+  assert.equal(dom.picker().selected, 'noCal', 'Weather only has no calendar either: No calendar is the nearest');
   walkTo(dom, 'healthMode');
   assert.equal(dom.picker().selected, 'off');
   assert.equal(ctx.S.layoutPreset, 'weatherOnly');
@@ -78,13 +48,19 @@ test('the picker shows a stored value it lacks as its nearest option, and never 
 
 test('a tap writes the option; a theme pick converts the colours like the Theme setting does', () => {
   const converted = [];
-  PConf.onChange.register('themeConvert', (S, from, to) => converted.push(from + '>' + to));
-  const { ctx, dom } = openSetup({ saved: { theme: 'dark' } });
-  walkTo(dom, 'theme');
-  assert.deepEqual(dom.picker().options, ['dark', 'light', 'bw', 'bw-light'], 'a colour watch gets four themes');
-  dom.pick('theme', 'light');
-  assert.equal(ctx.S.theme, 'light');
-  assert.deepEqual(converted, ['dark>light']);
+  const real = PConf.onChange.get('themeConvert');
+  PConf.onChange.register('themeConvert', (S, from, to) => { converted.push([S, from + '>' + to]); real(S, from, to); });
+  try {
+    const { ctx, dom } = openSetup({ saved: { theme: 'dark' } });
+    walkTo(dom, 'theme');
+    assert.deepEqual(dom.picker().options, ['dark', 'light', 'bw', 'bw-light'], 'a colour watch gets four themes');
+    dom.pick('theme', 'light');
+    assert.equal(ctx.S.theme, 'light');
+    // The live settings convert once (the forecast looks' defaults convert on their own blob).
+    assert.deepEqual(converted.filter((c) => c[0] === ctx.S).map((c) => c[1]), ['dark>light']);
+  } finally {
+    PConf.onChange.register('themeConvert', real);
+  }
 });
 
 test('a black-and-white watch offers only dark and light', () => {
@@ -298,12 +274,13 @@ test('opening the Tomorrow.io card shows its field and starts at its instruction
   const button = dom.openUpsell();
   assert.equal(field.hidden, false);
   assert.equal(button.removed, true, 'the "Add a key" button makes way');
-  assert.equal(document.activeElement, field.label, 'focus on the label, so the instructions come first');
-  assert.equal(field.label.getAttribute('tabindex'), '-1');
-  assert.notEqual(document.activeElement, field.input, 'and no keyboard until the field is tapped');
+  const label = field.querySelector('.lbl');
+  assert.ok(label, 'the settings row\'s label');
+  assert.equal(document.activeElement, label, 'focus on the label, so the instructions come first');
+  assert.equal(label.getAttribute('tabindex'), '-1');
+  assert.notEqual(document.activeElement, field.querySelector('input[type=text]'), 'and no keyboard until the field is tapped');
 
-  const input = { value: 'my-key', getAttribute: (n) => (n === 'data-k' ? 'tomorrowioApiKey' : null) };
-  dom.fire('input', { 'input[type=text][data-k]': input });
+  dom.type('tomorrowioApiKey', 'my-key');
   assert.equal(ctx.S.provider, 'tomorrowio');
   assert.equal(dom.find('[data-wiz-sum-weather]').textContent, 'Tomorrow.io');
 });
@@ -312,8 +289,7 @@ test('a key typed in this run keeps Tomorrow.io through a later country change; 
   [['GB', 'tomorrowio'], ['DE', 'dwd']].forEach(([country, provider]) => {
     const { ctx, dom } = openSetup({ saved: { holidayCountry: 'US' } });
     while (!/data-wiz-nav="save"/.test(dom.foot.innerHTML)) { dom.nav('next'); }
-    const input = { value: 'my-key', getAttribute: (n) => (n === 'data-k' ? 'tomorrowioApiKey' : null) };
-    dom.fire('input', { 'input[type=text][data-k]': input });
+    dom.type('tomorrowioApiKey', 'my-key');
     dom.goto('welcome');
     ctx.openSheet = (key, onClose) => { ctx.S.holidayCountry = country; onClose(); };
     dom.fire('click', { '[data-select]': { 'data-select': 'holidayCountry' } });
@@ -361,14 +337,8 @@ test('closing returns focus: to "Run setup again" after a re-run, to the active 
   rerun.dom.nav('skip');
   assert.equal(document.activeElement, rerun.dom.page.setupRow);
 
-  const dom = fakeWizardDom();
-  const ENV = platform.computeEnv({ platform: 'basalt' });
-  const ctx = {
-    S: eng.hydrate(schema, { onboardingDone: false }, ENV), ENV, schema, cfg: { onboardingDone: false },
-    set: (k, v) => { ctx.S[k] = v; }, save: () => {}, render: () => {}, openSheet: (k, cb) => cb()
-  };
-  PConf.hooks.runReady(ctx);   // a fresh install: the wizard opens by itself
-  while (!/data-wiz-nav="tweak"/.test(dom.foot.innerHTML)) { dom.nav('next'); }
+  const { dom } = openSetup({ fresh: true });   // a fresh install: the wizard opens by itself
+  dom.walkToSummary();
   dom.nav('tweak');
   assert.equal(document.activeElement, dom.page.activeTab);
 });
@@ -401,10 +371,8 @@ test('the copy follows the watch: no radar promise on aplite, no heart rate wher
 
 // --- the forecast step: the graph's look, and on emery its length, previewed live ---
 
-// The graph settings a look governs (wizard.js LOOK_KEYS), without emery's Left axis values.
-const LOOK_KEYS = ['secondaryLine', 'secondaryLineStyle', 'secondaryLineFill', 'thirdLine', 'thirdLineStyle',
-  'fourthLine', 'fourthLineStyle', 'fifthLine', 'fifthLineStyle', 'barSource', 'rainBarColor',
-  'precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom'];
+// The graph settings a look governs on a basalt (wizard-forecast.js governed: no Left axis values).
+const LOOK_KEYS = FORECAST.governed(platform.computeEnv({ platform: 'basalt' }));
 /**
  * The graph settings of a state, by LOOK_KEYS.
  * @param {Object} S Settings.
@@ -423,8 +391,9 @@ test('the forecast step offers three looks; a fresh install\'s graph is Classic'
   const graph = dom.find('[data-wiz-graph]');
   assert.match(graph.innerHTML, /^<svg viewBox="0 0 200 /, 'the settings page\'s graph, drawn here');
   assert.equal(graph.getAttribute('aria-label'), 'Forecast preview: Classic');
-  assert.equal(graph.getAttribute('style'), 'background:#000000', 'the dark screen under a short graph');
-  assert.match(dom.find('[data-wiz-desc="forecastLook"]').textContent, /chance of rain as a shaded area/);
+  assert.match(graph.innerHTML, /<rect x="0" y="0" width="200" height="128" fill="#000000">/,
+    'one frame height for every look, the dark screen running on under a short legend');
+  assert.match(dom.find('[data-wiz-desc="forecastLook"]').textContent, /rain chance as a shaded area/);
 });
 
 test('a look writes the whole graph it stands for and redraws the preview in place', () => {
@@ -546,11 +515,11 @@ test('the preview draws in the watch\'s temperature unit', () => {
   assert.match(metric.dom.find('[data-wiz-graph]').innerHTML, />24°</);
 });
 
-test('a light theme fills the graph\'s box white, as the preview draws its screen', () => {
+test('a light theme draws the graph\'s whole card white', () => {
   ['light', 'bw-light'].forEach((theme) => {
     const { dom } = openSetup({ saved: { theme } });
     walkTo(dom, 'forecastLook');
-    assert.equal(dom.find('[data-wiz-graph]').getAttribute('style'), 'background:#FFFFFF', theme);
+    assert.match(dom.find('[data-wiz-graph]').innerHTML, /<rect x="0" y="0" width="200" height="128" fill="#FFFFFF">/, theme);
   });
 });
 
@@ -579,8 +548,6 @@ test('Stripes hangs Solid bars in every theme; Classic gives them back the colou
 });
 
 test('a look holds through a theme picked after it, the bars converted as the theme converts them', () => {
-  // The real conversion (an earlier test registered a recorder under the same name).
-  PConf.onChange.register('themeConvert', require('../src/pkjs/theme-flip.js').applyThemeConvert);
   const { ctx, dom } = openSetup({ saved: { theme: 'light', rainBarColor: 'white' } });
   walkTo(dom, 'forecastLook');
   dom.pick('forecastLook', 'stripes');
@@ -597,4 +564,78 @@ test('a look holds through a theme picked after it, the bars converted as the th
   assert.equal(ctx.S.rainBarColor, 'white', 'the theme converted Classic\'s bars to the light start');
   dom.nav('next');
   assert.equal(dom.picker().selected, 'classic');
+});
+
+// --- the review's fixes ---
+
+/** The hour labels a graph's SVG draws on its axis, in order. */
+const hourLabels = (svg) => (svg.match(/font-size="7\.5"[^>]*>(\d+)<\/text>/g) || []).map((t) => Number(/>(\d+)</.exec(t)[1]));
+
+test('the preview draws the hours the watch shows: 18 on the 144 px watches, 22 or 25 at 24 h on emery', () => {
+  const basalt = openSetup();
+  basalt.dom.walkTo('forecastLook');
+  assert.deepEqual(hourLabels(basalt.dom.find('[data-wiz-graph]').innerHTML), [15, 18, 21, 0, 3, 6, 9],
+    'basalt: 15:00 to 09:00, the 18 hours its 7 px grid fits');
+  const emery = openSetup({ platform: 'emery', saved: { provider: 'dwd' } });
+  emery.dom.walkTo('forecastLook');
+  const labels = () => hourLabels(emery.dom.find('[data-wiz-graph]').innerHTML);
+  assert.equal(labels()[labels().length - 1], 12, 'emery beside the axis: 22 hours, to 13:00');
+  emery.dom.pick('forecastLook', 'clean');
+  assert.deepEqual(labels(), [18, 21, 0, 3, 6, 9, 12, 15], 'no axis: 25 hours, to 16:00 (the first label needs the axis)');
+});
+
+test('a Tomorrow.io key renames the summary\'s long span along with the provider', () => {
+  const { dom } = openSetup({ platform: 'emery', saved: { holidayCountry: 'US', provider: 'openweathermap', forecastHours: '48' } });
+  dom.walkToSummary();
+  const row = dom.find('[data-wiz-sum-forecast]');
+  assert.equal(row.textContent, 'Classic, 47 h', 'OpenWeatherMap\'s 48-hour feed');
+  dom.type('tomorrowioApiKey', 'key');
+  assert.equal(dom.find('[data-wiz-sum-weather]').textContent, 'Tomorrow.io');
+  assert.equal(row.textContent, 'Classic, 58 h', 'Tomorrow.io\'s full feed');
+});
+
+test('the forecast step promises colours only where they draw', () => {
+  const fine = (over) => {
+    const { dom } = openSetup(over);
+    dom.walkTo('forecastLook');
+    return /<p class="wiz-fine">([^<]*)<\/p>/.exec(dom.body.innerHTML)[1];
+  };
+  assert.match(fine({}), /its style and its colours/);
+  assert.match(fine({ platform: 'diorite' }), /^Every line and its style can be changed/, 'a B&W watch');
+  assert.match(fine({ saved: { theme: 'bw' } }), /^Every line and its style can be changed/, 'a B&W theme');
+});
+
+test('"Your own" follows a theme picked after it, as the settings do', () => {
+  const { ctx, dom } = openSetup({ saved: { theme: 'dark', secondaryLine: 'wind' } });
+  dom.walkTo('theme');
+  dom.pick('theme', 'light');
+  assert.equal(ctx.S.rainBarColor, 'white', 'guard: the theme moved the bars to its own start');
+  dom.nav('next');
+  assert.equal(dom.picker().selected, 'own', 'still the user\'s own graph');
+  dom.pick('forecastLook', 'stripes');
+  dom.pick('forecastLook', 'own');
+  assert.equal(ctx.S.secondaryLine, 'wind');
+  assert.equal(ctx.S.rainBarColor, 'white', 'in the light theme\'s colour, not the dark one it opened with');
+});
+
+test('a dormant Draw from or a junk style is no part of the graph: it still reads as its look, and stays', () => {
+  [{ cloudLineFrom: 'top' }, { uvLineFrom: 'top', thirdLine: 'off' }, { secondaryLineStyle: 'junk' }].forEach((saved) => {
+    const { ctx, dom } = openSetup({ saved });
+    dom.walkTo('forecastLook');
+    assert.deepEqual(dom.picker().options, ['classic', 'stripes', 'clean'], JSON.stringify(saved) + ': no "Your own"');
+    dom.pick('forecastLook', 'stripes');
+    dom.pick('forecastLook', 'classic');
+    if (saved.cloudLineFrom) { assert.equal(ctx.S.cloudLineFrom, 'top', 'a dormant Top waits for its line'); }
+  });
+});
+
+test('a pick that changes nothing redraws nothing', () => {
+  const { dom } = openSetup();
+  dom.walkTo('forecastLook');
+  const graph = dom.find('[data-wiz-graph]');
+  graph.innerHTML = 'untouched';
+  dom.pick('forecastLook', 'classic');
+  assert.equal(graph.innerHTML, 'untouched');
+  dom.pick('forecastLook', 'clean');
+  assert.match(graph.innerHTML, /^<svg/);
 });

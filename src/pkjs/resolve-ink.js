@@ -99,6 +99,18 @@
     }
 
     /**
+     * A stored bar color as the bars draw it (weather/graph-wire.js packs this): Solid for the
+     * exact 'white', the theme's starting mode for an absent or empty value, else multicolor.
+     * @param {*} value The stored rainBarColor / radarColor.
+     * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
+     * @returns {string} 'multicolor' or 'white'.
+     */
+    function barColorMode(value, theme) {
+        if (!value) { return barColorDefault(theme); }
+        return value === BAR_COLOR_SOLID ? BAR_COLOR_SOLID : BAR_COLOR_MULTI;
+    }
+
+    /**
      * The theme a target watch will actually render, given whether its platform ships
      * the light polarity. Platforms without WW_THEME_POLARITY (aplite) have the light
      * polarity compiled out — theme.h pins theme_is_light() to false, so a stored
@@ -125,6 +137,7 @@
         drawsColor: drawsColor,
         effectiveTheme: effectiveTheme,
         barColorDefault: barColorDefault,
+        barColorMode: barColorMode,
         BAR_COLOR_KEYS: BAR_COLOR_KEYS
     };
 

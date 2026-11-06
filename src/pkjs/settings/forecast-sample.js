@@ -8,7 +8,9 @@
 // day. Its temperatures are converted to °C; the fixture has no cloud cover, feels-like or dew
 // point, so those three are derived from it here once (cloud from the chance of rain, a little
 // morning haze and clearer nights; feels-like as a wind chill past 10 km/h and a degree more in
-// heavy rain; dew point a few degrees under the air, closer at night and in rain). Nights run from
+// heavy rain, and never less than a degree under the air, so its line stays clear of the
+// temperature curve; dew point a few degrees under the air, closer at night and in rain).
+// test/forecast-sample.test.js holds the seven series the fixture has to it. Nights run from
 // the fixture's sunset (21:29) to its sunrise (04:46), as slot positions from the first hour.
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings-page
@@ -20,9 +22,9 @@
         temps: [24, 24, 24, 23, 21, 19, 18, 17, 16, 15, 14, 14, 13, 13, 14, 15, 16, 17, 18, 19, 21, 21,
             22, 22, 23, 23, 23, 22, 21, 19, 17, 16, 15, 14, 13, 13, 12, 12, 13, 14, 15, 17, 18, 19, 20, 21,
             21, 22, 24, 24, 24, 23, 22, 20, 18, 17, 16, 15, 14, 14, 13, 13, 14, 15, 16, 18, 19, 20],
-        feels: [22, 22, 22, 21, 19, 18, 17, 16, 15, 15, 14, 14, 13, 13, 14, 15, 16, 17, 18, 19, 21, 20,
-            21, 21, 22, 21, 21, 18, 17, 15, 14, 15, 14, 13, 13, 13, 12, 12, 13, 14, 15, 17, 18, 18, 19, 20,
-            20, 20, 22, 22, 22, 19, 18, 16, 15, 15, 14, 14, 13, 13, 12, 13, 14, 15, 16, 18, 18, 19],
+        feels: [22, 22, 22, 21, 19, 18, 17, 16, 15, 14, 13, 13, 12, 12, 13, 14, 15, 16, 17, 18, 20, 20,
+            21, 21, 22, 21, 21, 18, 17, 15, 14, 15, 14, 13, 12, 12, 11, 11, 12, 13, 14, 16, 17, 18, 19,
+            20, 20, 20, 22, 22, 22, 19, 18, 16, 15, 15, 14, 14, 13, 13, 12, 12, 13, 14, 15, 17, 18, 19],
         dew: [15, 15, 15, 16, 16, 16, 15, 14, 13, 12, 11, 11, 10, 10, 11, 11, 12, 13, 12, 13, 12, 12, 13,
             13, 14, 14, 14, 20, 19, 17, 14, 13, 12, 11, 10, 10, 9, 9, 10, 10, 11, 13, 12, 13, 11, 12, 12,
             13, 15, 15, 15, 16, 20, 18, 16, 14, 13, 12, 11, 11, 10, 10, 11, 11, 12, 14, 13, 14],
@@ -82,7 +84,6 @@
     }
 
     var api = {
-        START_HOUR: START_HOUR,
         MAX_POINTS: MAX_POINTS,
         SERIES: SERIES,
         sample: sample
