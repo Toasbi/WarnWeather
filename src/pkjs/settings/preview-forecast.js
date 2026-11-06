@@ -129,6 +129,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // left edge with them On graph or Off, which draw no left axis (forecast_layer.c: the plot
     // starts at the screen's left edge). The legend keeps LEGEND_X0_NO_AXIS units in then.
     var PX0_AXIS = 20;
+    // A bare frame's room under its hour axis (opts.bare): the labels hang 11 below it.
+    var BARE_FOOT = 13;
     var PX0_NO_AXIS = 0;
     var LEGEND_X0_NO_AXIS = 8;
     // The frame's edges (preview-svg.js svgFrame's viewBox is 200 units wide).
@@ -273,12 +275,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * @param {Object} state Live settings (colours as hex strings).
      * @param {Object} env Config-UI environment facts ({ color, platform, … }).
      * @param {Object} [userData] Page userData; `palette` is the page-open snapshot.
-     * @param {{sample: Object, minHeight: number, bleed: boolean}} [opts] For the setup wizard,
-     *   which calls this directly (window.PreviewForecast); the settings page's block call passes
-     *   none. `sample`: the weather to draw in NOON's place, in its shape (forecast-sample.js
-     *   sample), so a span draws its own hours. `minHeight`: the frame's least height in viewBox
-     *   units, the background running on under the legend, so one height fits every look.
-     *   `bleed: false`: the svg fills its box instead of bleeding over a settings card's padding.
+     * @param {{sample: Object, minHeight: number, bleed: boolean, bare: boolean, axisY: number}} [opts]
+     *   For the setup wizard and the Watchface tab's watch, which call this directly
+     *   (window.PreviewForecast); the settings page's block call passes none. `sample`: the
+     *   weather to draw in NOON's place, in its shape (forecast-sample.js sample), so a span draws
+     *   its own hours. `minHeight`: the frame's least height in viewBox units, the background
+     *   running on under the legend, so one height fits every look. `bleed: false`: the svg fills
+     *   its box instead of bleeding over a settings card's padding. `bare`: no legend, the frame
+     *   ending BARE_FOOT under the hour axis. `axisY`: where that axis sits (94 without), so the
+     *   plot takes the height of a band on the watch's screen.
      * @returns {string} SVG markup.
      */
     function forecastPreview(state, env, userData, opts) {
@@ -441,7 +446,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         for (var bs = 0; bs < LINES.length; bs += 1) {
             if (LINES[bs].drawn && LINES[bs].style === 'stripeBottom') { bottomStripes += 1; }
         }
-        var AXIS_Y = 94;
+        // The Watchface tab's watch (opts.axisY) sets its own: the plot's height for the band
+        // the graph takes on the watch's screen.
+        var AXIS_Y = (opts && opts.axisY) || 94;
         var stripeBand = bottomStripes
             ? bottomStripes * STRIPE_H + (bottomStripes - 1) * STRIPE_GAP + 1 : 0;
         // Top stripes get a band of their own ABOVE the plot (forecast_layer.c's top_band):
@@ -1142,7 +1149,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var nightTint = nightFillTint();
         // Legend layout runs first: its row count sets the frame height, which the
         // background rect below needs before any chart markup is emitted.
-        var legend = drawLegend();
+        // opts.bare (the Watchface tab's watch): no legend, the frame ends under the hour labels.
+        var bare = Boolean(opts && opts.bare);
+        var legend = bare ? { height: AXIS_Y + BARE_FOOT, markup: '' } : drawLegend();
         var frameH = Math.max(legend.height, (opts && opts.minHeight) || 0);
         var e = '';
         e += rect(0, 0, 200, frameH, ink.bg);

@@ -76,11 +76,25 @@
             + ';display:block;' + fit + '">' + inner + '</svg>';
     }
 
+    /**
+     * Take a preview svgFrame drew apart again: its frame height and its body, for a
+     * picture that places the preview inside one of its own boxes (the Watchface tab's
+     * watch draws each graph band from its preview). Kept beside svgFrame so the two
+     * cannot drift (test/preview-svg.test.js round-trips them).
+     * @param {string} svg One svgFrame result.
+     * @returns {?{h: number, inner: string}} null for anything svgFrame did not draw.
+     */
+    function unframe(svg) {
+        var m = /^<svg viewBox="0 0 200 ([0-9.]+)" style="[^"]*">([\s\S]*)<\/svg>$/.exec(String(svg || ''));
+        return m ? { h: Number(m[1]), inner: m[2] } : null;
+    }
+
     var api = {
         rect: rect,
         txt: txt,
         previewInk: previewInk,
-        svgFrame: svgFrame
+        svgFrame: svgFrame,
+        unframe: unframe
     };
 
     // Dual-context export — mirrors the tail of src/pkjs/status-thresholds.js.

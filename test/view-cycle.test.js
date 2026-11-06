@@ -883,3 +883,34 @@ test('resolveViewCycle: custom compiles the view keys, except on aplite; presets
     vc.buildViewCycle('compactCal', 'off', 'graph', true));
   assert.deepEqual(vc.resolveViewCycle(null), vc.buildViewCycle('compactCal', 'off', 'graph', false));
 });
+
+// stackSeats is the walk stackNeed sums (the Watchface tab's watch draws its seats): every
+// stack's need is its lead under the top bar plus each band's rows and the clearance it owes
+// the next, and exactly the band that fills is marked so.
+test('stackSeats: the seats stackNeed sums, the filling band marked', () => {
+  const specs = [];
+  ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((preset) => {
+    vc.resolveViewCycle({ layoutPreset: preset, radarMode: 'graph', healthMode: 'all' },
+      { platform: 'basalt', color: true, health: true }).forEach((s) => { if (s) { specs.push(s); } });
+  });
+  // Every stacked order over a three-row top, the clock, two rows and a sized body.
+  for (let order = 0; order < vc.STACK_ORDERS.length; order++) {
+    specs.push(Object.assign(vc.cloneSpec(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC,
+      vc.STATUS_SRC_HEALTH, vc.STATUS_SRC_FORECAST)), { order: order }));
+  }
+  specs.forEach((s, i) => {
+    [0, 1].forEach((f) => {
+      const st = vc.stackSeats(s, f), need = vc.stackNeed(s, f);
+      const sum = st.seats.reduce((n, seat) => n + seat.pitch + seat.gap, st.lead);
+      assert.equal(sum, need.need, 'spec ' + i + ' family ' + f + ': the seats sum to the need');
+      assert.equal(st.need, need.need);
+      assert.equal(st.avail, need.avail);
+      assert.equal(st.seats[st.seats.length - 1].gap, 0, 'the last band owes nothing');
+      assert.ok(st.seats.filter((seat) => seat.fill).length <= 1, 'one band fills at most');
+    });
+  });
+  const compact = vc.stackSeats(vc.cloneSpec(Object.assign(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC,
+    vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE), { order: 0 })), 0);
+  assert.deepEqual(compact.seats.map((seat) => seat.band + seat.pitch + (seat.fill ? 'F' : '')),
+    ['T30', 'A15', 'C45', 'G45F'], 'compactCal: the 2-row calendar, its freed row, the clock, the filling forecast');
+});

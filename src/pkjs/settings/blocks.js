@@ -21,6 +21,7 @@ if (typeof require !== 'undefined') {
     require('./preview-radar.js');
     require('./preview-diagnostics.js');
     require('./preview-layout.js');
+    require('./preview-watch.js');
     require('./when-resolvers.js');
     require('./forecast-hints.js');
 }

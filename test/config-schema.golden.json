@@ -8,6 +8,7 @@
       {
         "id": "weather",
         "label": "Weather",
+        "icon": "tab-weather",
         "openWhen": {
           "key": "startOnWeatherTab",
           "eq": true
@@ -70,7 +71,8 @@
               {
                 "type": "hidden",
                 "messageKey": "weatherTabSeenAt",
-                "defaultValue": 0
+                "defaultValue": 0,
+                "stamp": true
               }
             ]
           }
@@ -79,8 +81,9 @@
       {
         "id": "watchface",
         "label": "Watchface",
+        "icon": "tab-watchface",
         "openDefault": true,
-        "pinBlock": "layoutPreviewCombined",
+        "pinBlock": "watchPreview",
         "pinThrough": "layout",
         "sections": [
           {
@@ -100,7 +103,8 @@
             "intro": "A view is one screen of the watchface. The Default view shows the forecast graph; Rain radar and Health can each add a view of their own. Flick your wrist to switch views. The layout decides how they're arranged, and each graph is set up in Graphs.",
             "items": [
               {
-                "type": "select",
+                "type": "segmented",
+                "full": true,
                 "messageKey": "radarMode",
                 "label": "Rain radar",
                 "defaultValue": "graph",
@@ -157,7 +161,8 @@
                 }
               },
               {
-                "type": "select",
+                "type": "segmented",
+                "full": true,
                 "messageKey": "healthMode",
                 "label": "Health",
                 "defaultValue": "all",
@@ -4058,6 +4063,8 @@
       {
         "id": "watch",
         "label": "Status bars",
+        "short": "Status",
+        "icon": "tab-status",
         "pinBlock": "statusBarsPreview",
         "sections": [
           {
@@ -7664,6 +7671,7 @@
       {
         "id": "alerts",
         "label": "Alerts",
+        "icon": "tab-alerts",
         "showWhen": {
           "env": "onDemand"
         },
@@ -9940,6 +9948,7 @@
       {
         "id": "graphs",
         "label": "Graphs",
+        "icon": "tab-graphs",
         "panes": [
           {
             "id": "forecast",
@@ -14287,6 +14296,7 @@
       {
         "id": "setup",
         "label": "Setup",
+        "icon": "tab-setup",
         "sections": [
           {
             "id": "location",

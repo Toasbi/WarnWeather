@@ -404,7 +404,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + '" data-toggle="1"' + (ariaLabel ? ' aria-label="' + esc(ariaLabel) + '"' : '')
       + (disabled ? ' disabled' : '') + '><i></i></button>';
   }
-  function renderSegmented(item, v, off) { return '<div class="seg">' + optionButtons(item, v, false, off) + '</div>'; }
+  // item.full: the setup's picker — one equal segment per option across the row's width, a
+  // long label wrapping inside its own segment (renderRow gives it its own row shape).
+  function renderSegmented(item, v, off) {
+    return '<div class="seg' + (item.full ? ' full' : '') + '">' + optionButtons(item, v, false, off) + '</div>';
+  }
   function renderRadio(item, v, off) { return '<div class="radio">' + optionButtons(item, v, true, off) + '</div>'; }
   // Format a minute count as a human label for interval-derived option lists.
   // 1440 is checked first because it is also a multiple of 60.
@@ -1307,7 +1311,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // inline/float layouts). It gets its own flex row (.segwide): the control keeps the
     // label's line and the label wraps into the width the control leaves, then the hint
     // drops to a full-width line below.
-    var wideSegmented = item.type === 'segmented' && item.options && item.options.length > 3;
+    var wideSegmented = item.type === 'segmented' && item.options && item.options.length > 3 && !item.full;
     var stacked = item.type === 'text' || item.type === 'radio' || item.type === 'range'
       || item.type === 'rgb' || item.type === 'checklist'
       || (item.type === 'color' && view.openColor === item.messageKey);
@@ -1362,6 +1366,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (stacked) {
       return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div>'
         + inlineList + '</div>';
+    }
+    // A full-width segmented (item.full) reads as the setup's pickers do: the label, the
+    // options across the row, then what the picked one does.
+    if (item.type === 'segmented' && item.full) {
+      return '<div class="' + rowCls + ' stack segfull">' + label + '<div>' + renderControl(item, view) + '</div>'
+        + hintHtml + '</div>';
     }
     // A resolved edit sheet splits its two affordances around the control: the passive
     // colour swatch leads, the Edit button trails. The control cell is right-aligned and
@@ -2148,16 +2158,33 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    *   false against cx.evalCtx are skipped and attention dots are drawn.
    * @returns {string} Tab-bar buttons HTML.
    */
+  /**
+   * A tab's label in the bar: with a `short` one, both, the CSS showing the short label
+   * on a phone too narrow for the whole one (a screen reader hears the one shown).
+   * @param {Object} tab Schema tab.
+   * @returns {string} HTML.
+   */
+  function tabLabelHtml(tab) {
+    if (!tab.short) { return esc(tab.label); }
+    return '<span class="tab-full">' + esc(tab.label) + '</span><span class="tab-short">' + esc(tab.short) + '</span>';
+  }
+
   function renderTabBar(schema, activeTab, cx) {
-    var h = '', i, tab, att, aria;
+    var h = '', i, tab, att, aria, svg, dot;
     for (i = 0; i < schema.tabs.length; i++) {
       tab = schema.tabs[i];
       if (cx && !PConf.showWhen.isVisible(tab, cx.evalCtx)) { continue; }
       att = cx ? findAttention(schema, cx, tab.id) : null;
       aria = (att && att.attention.note)
         ? ' aria-label="' + esc(String(tab.label) + ' (' + String(att.attention.note) + ')') + '"' : '';
-      h += '<button class="tab' + (activeTab === tab.id ? ' on' : '') + '" data-tab="' + esc(tab.id) + '"' + aria + '>'
-        + esc(tab.label) + (att ? '<span class="tab-dot" aria-hidden="true"></span>' : '') + '</button>';
+      // The tab's glyph (tab.icon, a registered icon id) over its label; the attention dot
+      // rides the glyph's corner, or follows the label of a tab without one.
+      svg = tab.icon ? PConf.icons.get(tab.icon) : '';
+      dot = att ? '<span class="tab-dot' + (svg ? '' : ' solo') + '" aria-hidden="true"></span>' : '';
+      h += '<button class="tab' + (activeTab === tab.id ? ' on' : '') + '" data-tab="' + esc(tab.id) + '" type="button"'
+        + (activeTab === tab.id ? ' aria-current="page"' : '') + aria + '>'
+        + (svg ? '<span class="tab-ico" aria-hidden="true">' + svg + dot + '</span>' : '')
+        + '<span class="tab-lbl">' + tabLabelHtml(tab) + (svg ? '' : dot) + '</span></button>';
     }
     return h;
   }
@@ -2620,7 +2647,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (!closing) { return; }
       // By key, never a node captured at open time: render() replaced the old trigger.
       var selector = (noFocus || closing.focusBack === false) ? null
-        : closing.kind === 'confirm' ? '#save'
+        : closing.kind === 'confirm' ? (closing.confirm && closing.confirm.revert ? '#revert' : '#save')
         : '[' + TRIGGER_ATTR[closing.kind] + '="' + (rootKey || closing.key) + '"]';
       var trigger = selector ? document.querySelector(selector) : null;
       if (trigger) { trigger.focus(); }
@@ -2807,6 +2834,87 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       syncDialog();
       document.getElementById('scroll').className = 'scroll' + (sheet ? ' locked' : '');
       applyTheme();
+      paintSave();
+    }
+
+    // Save and Revert follow whether a Save would send anything new: the blob Save would
+    // send, against the one the page held once it was ready (its ready hooks' own writes,
+    // the setup wizard's among them, count as where the page started). Until then the
+    // page has no baseline and Save keeps its full look.
+    var readySnap = null, readyBlob = null, stampKeys = [];
+    eachItem(SCHEMA, function (it) { if (it.stamp && it.messageKey) { stampKeys.push(it.messageKey); } });
+    /**
+     * The settings blob a Save would send for a state, as a string to compare — without the
+     * values the page stamps on its own (item.stamp: the Weather tab's last-opened time),
+     * which are no one's change.
+     * @param {Object} state A settings state (S or a snapshot of it).
+     * @returns {string} JSON of serialize(SCHEMA, state, ENV), stamps left out.
+     */
+    function blobOf(state) {
+      var blob = serialize(SCHEMA, state, ENV), i;
+      for (i = 0; i < stampKeys.length; i++) { delete blob[stampKeys[i]]; }
+      return JSON.stringify(blob);
+    }
+    /**
+     * Does the page hold a change a Save would send (any setting off the ready baseline)?
+     * @returns {boolean} False before the baseline is taken.
+     */
+    function hasChanges() { return Boolean(readyBlob) && blobOf(S) !== readyBlob; }
+    /**
+     * Paint Save quiet (.idle) while it would send nothing new, and show Revert only
+     * once something has changed. A no-op until the page is ready.
+     * @returns {void}
+     */
+    function paintSave() {
+      if (!readyBlob) { return; }
+      var changed = hasChanges();
+      var saveEl = document.getElementById('save');
+      var revertEl = document.getElementById('revert');
+      if (saveEl && saveEl.classList) {
+        if (changed) { saveEl.classList.remove('idle'); } else { saveEl.classList.add('idle'); }
+      }
+      if (revertEl) { revertEl.hidden = !changed; }
+    }
+    /**
+     * The Revert button: ask first, in the shared confirm dialog, whose action undoes every
+     * change since the page was ready (confirmChoice) and whose second button keeps editing.
+     * @returns {void}
+     */
+    function requestRevert() {
+      var dlg = document.getElementById('modal');
+      if (!hasChanges()) { return; }
+      if (!dlg || typeof dlg.showModal !== 'function') { revertAll(); return; }
+      expanded = null;
+      sheet = { kind: 'confirm', confirm: {
+        revert: true,
+        title: 'Undo your changes?',
+        body: 'Every setting goes back to how it was when you opened this page.',
+        actionLabel: 'Undo changes',
+        confirmLabel: 'Keep editing'
+      } };
+      render();
+      focusInModal(['[data-confirm="save"]']);
+    }
+    /**
+     * Put every setting back as the page held it once ready (restoreState keeps S the same
+     * object), stamps aside, repaint, and say so.
+     * @returns {void}
+     */
+    function revertAll() {
+      // A stamp keeps its newest value: it records what the page did, not a pick to undo.
+      var stamps = {}, i;
+      for (i = 0; i < stampKeys.length; i++) { stamps[stampKeys[i]] = S[stampKeys[i]]; }
+      restoreState(readySnap);
+      for (i = 0; i < stampKeys.length; i++) {
+        if (stamps[stampKeys[i]] !== undefined) { S[stampKeys[i]] = stamps[stampKeys[i]]; }
+      }
+      render();
+      var el = document.getElementById('toast');
+      if (el && el.classList) {
+        el.textContent = 'Changes undone';
+        el.classList.add('show');
+        setTimeout(function () { el.classList.remove('show'); }, 1600);
+      }
     }
 
     // Each tab keeps its own scroll offset (in-memory only, per page load) so
@@ -2906,7 +3014,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var textPreEdit = {};
     function liveTextInput(e) {
       var inp = e.target.closest && e.target.closest('input[type=text]');
-      if (inp && inp.getAttribute('data-k') != null) { S[inp.getAttribute('data-k')] = inp.value; }
+      if (inp && inp.getAttribute('data-k') != null) { S[inp.getAttribute('data-k')] = inp.value; paintSave(); }
     }
     // The pre-edit value has to be sampled on focusin, because `input` has already
     // overwritten S[key] by the time `change` fires (so oldValue would be the new value).
@@ -3475,6 +3583,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      */
     function confirmChoice(which) {
       var cf = sheet.confirm;
+      // Revert's dialog: its action undoes every change, its second button keeps editing.
+      if (cf.revert) {
+        closeModal(which === 'action');
+        if (which === 'action') { revertAll(); }
+        return;
+      }
       if (which === 'save') {
         closeModal(true);
         save();
@@ -3488,6 +3602,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
     function wireSave() {
       document.getElementById('save').addEventListener('click', requestSave);
+      var revertEl = document.getElementById('revert');
+      if (revertEl && revertEl.addEventListener) { revertEl.addEventListener('click', requestRevert); }
     }
 
     document.getElementById('appTitle').textContent = SCHEMA.appName;
@@ -3525,6 +3641,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         render(); focusModal();
       }
     });
+    // The page is ready: what it holds now is where Revert goes back to.
+    readySnap = Object.assign({}, S);
+    readyBlob = blobOf(S);
+    paintSave();
 
     if (SCHEMA.themeKey && typeof window !== 'undefined' && window.matchMedia) {
       var mqLight = window.matchMedia('(prefers-color-scheme: light)');

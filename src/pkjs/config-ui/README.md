@@ -237,6 +237,8 @@ Schema
   └─ tabs[]
        ├─ id            string  (unique)
        ├─ label         string  (tab bar text)
+       ├─ short         string  (the bar's label on a phone too narrow for `label`, ≤ 340 px)
+       ├─ icon          string  (a registered icon id drawn over the label in the bar)
        ├─ showWhen      Predicate (false: no tab button, no body, no tab link lands there)
        ├─ pinBlock      string  (block id pinned at the top of the tab while its cards scroll)
        ├─ panes         [{id, label, showWhen?, pinBlock?}] (a segmented switcher; see Panes)
@@ -454,6 +456,8 @@ picking the shown swatch is what writes it.
 | `hintShown` | boolean | Keeps the row's hint in view even in the '?' mode (a live summary, not info text). |
 | `infoId` | string | The id the row's '?' is remembered under (default: `k:<messageKey>`, `s:<sheetId>`, `a:<action>`, `l:<label>`). |
 | `uiOnly` | boolean | A page-only control: hydrated from `initFrom`, never read from or written to the save blob, never seeded. |
+| `stamp` | boolean | A value the page writes on its own (the Weather tab's last-opened time): it is saved like any other, but its change never lights Save or shows Revert, and Revert leaves it as it is. |
+| `full` | boolean | `segmented` only: one equal segment per option across the row, a long label wrapping inside its own segment, the picked option's hint under it (the setup's pickers). |
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
 | `groupLabel` | string | On the first member of an `inline` group: renders the group as ONE labelled row, the members side by side joined by a dash (a From–To row). |
 | `gotoTab` | string | `button` only: the row brings that tab to the front. |

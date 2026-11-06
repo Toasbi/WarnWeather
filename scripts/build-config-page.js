@@ -145,6 +145,11 @@ var APP_FILES = [
   // an unregistered icon id just prints no glyph — so
   // test/config-page-bundle.test.js pins its register() calls into the page.
   path.join(ROOT, 'src/pkjs/settings/status-slot-icons.js'),
+  // The tab bar's glyphs (tab.icon), into the same registry.
+  path.join(ROOT, 'src/pkjs/settings/tab-icons.js'),
+  // The Watchface tab's watch: every view as the watch draws it, from the layout's seats
+  // (view-cycle.js), the status bars' slots and the graph previews above.
+  path.join(ROOT, 'src/pkjs/settings/preview-watch.js'),
   // The schema's when resolvers (PConf.whenResolvers: lineRow, onDemandPlaced,
   // defaultViewLacksOnDemand). They bind window.LineStyle, window.DrawFrom,
   // window.OnDemand and VIEW_CYCLE while their own body runs, so they follow all four;

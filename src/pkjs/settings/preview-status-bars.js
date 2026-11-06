@@ -226,6 +226,32 @@
     }
 
     /**
+     * One bar's three slots as the watch prints them: the item each holds (the catalog's
+     * resolution — defaults and availability included), its sample text and whether the
+     * wind arrow follows it. The Status bars tab's rows and the Watchface tab's watch
+     * (preview-watch.js) both read their slots here.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {string} bar 'top' | 'forecast' | 'health' | 'radar'.
+     * @param {boolean} fullDate Whether the view drawing the bar shows no calendar (the
+     *     date slot prints the full date there).
+     * @param {Date} [now] Today (absent = the clock's).
+     * @returns {Array<{pos: string, code: string, text: string, arrow: boolean}>} The left,
+     *     middle and right slots (pos 'left' | 'mid' | 'right'); [] for an unknown bar.
+     */
+    function barSlots(S, env, bar, fullDate, now) {
+        var st = S || {}, when = now || new Date(), b = null, i;
+        for (i = 0; i < BARS.length; i++) { if (BARS[i].bar === bar) { b = BARS[i]; } }
+        if (!b) { return []; }
+        return POSITIONS.map(function (p) {
+            var key = b.prefix + p[0];
+            var code = catalog.resolveSelection(st[key], st, env, {slotKey: key, position: p[1]});
+            var text = sample(code, st, {cap: p[2], env: env, now: when, fullDate: fullDate, slotKey: key});
+            return {pos: p[1], code: code, text: text, arrow: arrowShown(code, text, st, env, p[2])};
+        });
+    }
+
+    /**
      * The block: one row per bar the watch draws now, its name and three sample slots.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
@@ -247,15 +273,10 @@
             // anywhere). An empty cycle (no layout module) keeps every bar.
             var view = barView(views, b);
             if (!view && views.length && !optional) { return; }
-            var fullDate = !calendarShown(view);
-            var cells = POSITIONS.map(function (p) {
-                var key = b.prefix + p[0];
-                var code = catalog.resolveSelection(st[key], st, env, {slotKey: key, position: p[1]});
-                var text = sample(code, st, {cap: p[2], env: env, now: now, fullDate: fullDate, slotKey: key});
-                var arrow = arrowShown(code, text, st, env, p[2])
-                    ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
-                var body = code === 'empty' ? '' : lead(code, env) + esc(text) + arrow;
-                return '<span class="sbp-v sbp-' + p[1] + '">' + body + '</span>';
+            var cells = barSlots(st, env, b.bar, !calendarShown(view), now).map(function (c) {
+                var arrow = c.arrow ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
+                var body = c.code === 'empty' ? '' : lead(c.code, env) + esc(c.text) + arrow;
+                return '<span class="sbp-v sbp-' + c.pos + '">' + body + '</span>';
             }).join('');
             rows += '<div class="sbp-row"><span class="sbp-n">' + esc(b.name) + '</span>' + cells + '</div>';
         });
@@ -304,8 +325,9 @@
     }
 
     if (PConf && PConf.blocks) { PConf.blocks.register('statusBarsPreview', statusBarsPreview); }
-    if (typeof module !== 'undefined' && module.exports) {
-        module.exports = {statusBarsPreview: statusBarsPreview, sample: sample, arrowDue: arrowDue,
-            arrowShown: arrowShown, calendarShown: calendarShown};
-    }
+    var api = {statusBarsPreview: statusBarsPreview, sample: sample, arrowDue: arrowDue,
+        arrowShown: arrowShown, calendarShown: calendarShown, barSlots: barSlots};
+    if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
+    // The page: the Watchface tab's watch reads the slots too (preview-watch.js).
+    if (typeof window !== 'undefined') { window.PreviewStatusBars = api; }
 })();

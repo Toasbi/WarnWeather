@@ -228,7 +228,11 @@ const BINDS_AT_LOAD = {
   'preview-axis.js': ['window.ForecastSpanHours'],
   'preview-forecast.js': ['window.PreviewSvg', 'window.PreviewRain', 'window.LineStyle', 'window.LineAlert',
     'window.StripeLevels', 'window.DrawFrom', 'window.ForecastAxis', 'window.PreviewAxis', 'window.ResolveInk',
-    'window.PreviewStripe']
+    'window.PreviewStripe'],
+  // The Watchface tab's watch draws its bars and graphs through these (the radar and health
+  // previews it reads off the block registry when it draws, so they need no place here).
+  'preview-watch.js': ['window.PreviewSvg', 'window.ResolveInk', 'window.PreviewStatusBars', 'window.PreviewForecast',
+    'window.ForecastSample', 'window.ForecastSpanHours']
 };
 
 test('the forecast preview and its axis mirrors are bundled after every global they bind at load', () => {

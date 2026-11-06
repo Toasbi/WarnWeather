@@ -1111,7 +1111,7 @@ module.exports = {
         // touch the watch's provider/location or any AppMessage.
         // FIRST in the bar, but not what the page opens on: that stays
         // Watchface unless the user asks for this tab in Setup › Misc.
-        id: 'weather', label: 'Weather', openWhen: {key: 'startOnWeatherTab', eq: true}, sections: [{
+        id: 'weather', label: 'Weather', icon: 'tab-weather', openWhen: {key: 'startOnWeatherTab', eq: true}, sections: [{
             // Collapsed by default (collapsible sections start closed); the
             // header paints the current pick via titleFrom so the closed card
             // reads "PROVIDER · DWD" without opening it.
@@ -1154,7 +1154,8 @@ module.exports = {
                 // Blob-only: stamped by the graphs block whenever it renders and
                 // carried back by the next Save, so the phone knows the tab is in
                 // use and keeps its data for the day (weather-tab-cache.js).
-                type: 'hidden', messageKey: 'weatherTabSeenAt', defaultValue: 0
+                // A stamp (item.stamp): it never lights Save, and Revert leaves it be.
+                type: 'hidden', messageKey: 'weatherTabSeenAt', defaultValue: 0, stamp: true
             }]
         }]
     }, {
@@ -1162,7 +1163,7 @@ module.exports = {
         // out, the theme and what changes at night, the time and the calendar. The page
         // opens here. The layout preview stays pinned at the top while the Views and Layout
         // cards scroll under it; past Layout it scrolls away with the page (owner, 2026-10-04).
-        id: 'watchface', label: 'Watchface', openDefault: true, pinBlock: 'layoutPreviewCombined',
+        id: 'watchface', label: 'Watchface', icon: 'tab-watchface', openDefault: true, pinBlock: 'watchPreview',
         pinThrough: 'layout', sections: [{
             // The fetch-error notices stay first, above the pinned layout preview: the
             // panel draws nothing until a fetch fails, and then it is the news the page
@@ -1181,7 +1182,8 @@ module.exports = {
             title: 'Views',
             intro: VIEWS_INTRO,
             items: [{
-                type: 'select',
+                type: 'segmented',
+                full: true,
                 messageKey: 'radarMode',
                 label: 'Rain radar',
                 defaultValue: 'graph',
@@ -1201,7 +1203,8 @@ module.exports = {
                 // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined).
                 showWhen: {env: 'radar'}
             }, rainAlertUnshownNote(), {
-                type: 'select',
+                type: 'segmented',
+                full: true,
                 messageKey: 'healthMode',
                 label: 'Health',
                 defaultValue: 'all',
@@ -1674,7 +1677,7 @@ module.exports = {
         // Status bars — only the bars and their slots (the id stays 'watch': links and
         // tests key on it). Where alerts sit at a bar's edges is the Alerts tab's; each
         // bar's Alerts row shows them and opens it. All active bars stay pinned at the top.
-        id: 'watch', label: 'Status bars', pinBlock: 'statusBarsPreview', sections: [{
+        id: 'watch', label: 'Status bars', short: 'Status', icon: 'tab-status', pinBlock: 'statusBarsPreview', sections: [{
             id: 'statusAll',
             title: 'All status bars',
             intro: STATUS_INTRO,
@@ -1931,13 +1934,13 @@ module.exports = {
         // (defaultAsStored) and a searchSelect's options. So these dialogs' copies own the
         // two keys. The copies agree on both today, so the order binds nothing yet; check
         // findItem's readers before moving this tab ahead of the Status bars tab.
-        id: 'alerts', label: 'Alerts', showWhen: ON_DEMAND_WHEN,
+        id: 'alerts', label: 'Alerts', icon: 'tab-alerts', showWhen: ON_DEMAND_WHEN,
         sections: alertsSchema.cardSections().concat(alertsSchema.sheetSections())
     }, {
         // Graphs — the forecast graph, the rain radar and the health graph behind one
         // switch, the matching live preview pinned under it. Every graph dialog repeats
         // the preview at its top so colour and style edits show as they are made.
-        id: 'graphs', label: 'Graphs', panes: [
+        id: 'graphs', label: 'Graphs', icon: 'tab-graphs', panes: [
             {id: 'forecast', label: 'Forecast', pinBlock: 'forecastPreview'},
             // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined).
             {id: 'radar', label: 'Rain radar', pinBlock: 'radarPreview', showWhen: {env: 'radar'}},
@@ -2401,7 +2404,7 @@ module.exports = {
     }, {
         // Setup — what is set once: location, weather data, units, and the Misc and
         // Advanced items.
-        id: 'setup', label: 'Setup', sections: [{
+        id: 'setup', label: 'Setup', icon: 'tab-setup', sections: [{
             id: 'location',
             title: 'Location',
             items: [{

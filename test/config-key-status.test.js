@@ -377,7 +377,7 @@ test('page: a missing key — the key row reads "No key", the amber note, a dot 
   assert.ok(body.indexOf('data-select="provider"') < body.indexOf('Needs an API key') &&
     body.indexOf('Needs an API key') < body.indexOf('data-edit-sheet="providerKeyOwm"'),
     'the picker, its note, then the key row');
-  assert.match(tabButton(page, 'setup'), /aria-label="Setup \(OpenWeatherMap has no API key\)">Setup<span class="tab-dot" aria-hidden="true"><\/span>/);
+  assert.match(tabButton(page, 'setup'), /aria-label="Setup \(OpenWeatherMap has no API key\)"><span class="tab-ico" aria-hidden="true"><svg[\s\S]*?<\/svg><span class="tab-dot" aria-hidden="true"><\/span><\/span><span class="tab-lbl">Setup<\/span>/);
   ['weather', 'watchface', 'watch', 'alerts', 'graphs'].forEach((id) =>
     assert.doesNotMatch(tabButton(page, id), /tab-dot/, id));
 });
