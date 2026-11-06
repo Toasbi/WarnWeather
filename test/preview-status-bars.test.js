@@ -238,6 +238,10 @@ test('on the tab each slot is a button that opens its picker, named by bar, slot
     + '<span class="sbp-hole" aria-hidden="true"></span></button>') !== -1, 'an empty slot shows a hole to tap');
   assert.ok(html.indexOf('aria-label="Forecast bar, middle slot: City">Berlin</button>') !== -1, html);
   assert.ok(html.indexOf('class="sbp-v sbp-left sbp-empty"') !== -1, 'the empty one is marked');
+  // The bars say a tap changes a slot (the owner, 2026-11-06: it was not obvious), once,
+  // under the last bar, for sighted users only: each button carries its own name.
+  assert.equal(html.match(/<div class="sbp-tip" aria-hidden="true">Tap a slot to change it<\/div>/g).length, 1);
+  assert.ok(/<\/div><div class="sbp-tip"[^>]*>[^<]*<\/div><\/div>$/.test(html), 'the tip closes the bars');
 });
 
 test('above a slot\'s dialog the bars are the picture alone: nothing to tap', () => {
@@ -248,5 +252,6 @@ test('above a slot\'s dialog the bars are the picture alone: nothing to tap', ()
   assert.equal(html.indexOf('<button'), -1, 'no buttons');
   assert.equal(html.indexOf('data-select'), -1, 'no picker to open');
   assert.equal(html.indexOf('sbp-hole'), -1, 'an empty slot is blank, as on the watch');
+  assert.equal(html.indexOf('sbp-tip'), -1, 'and no tip to tap');
   assert.ok(html.indexOf('<span class="sbp-v sbp-mid">Berlin</span>') !== -1, html);
 });

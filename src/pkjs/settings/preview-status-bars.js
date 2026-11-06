@@ -312,6 +312,9 @@
             rows += '<div class="sbp-row"><span class="sbp-n">' + esc(b.name) + '</span>' + cells + '</div>';
         });
         if (!rows) { return ''; }
+        // On the tab, a line under the bars says the slots can be tapped (their chips show
+        // which); assistive tech hears each slot's button instead.
+        if (tappable) { rows += '<div class="sbp-tip" aria-hidden="true">Tap a slot to change it</div>'; }
         ensureStyle();
         // The watch draws the bars in its theme's ink (status_row.c: theme_fg() on the
         // theme's background), so a light theme previews black on white — except on a
@@ -319,7 +322,8 @@
         var ink = previewInk(env && env.themePolarity === false ? 'dark' : st.theme);
         return '<div class="sbp' + (tappable ? ' tap' : '') + '" role="' + (tappable ? 'group' : 'img')
             + '" aria-label="' + (tappable ? 'Status bars' : 'Status bars preview') + '" style="--sbp-bg:' + ink.bg
-            + ';--sbp-fg:' + ink.fg + ';--sbp-dim:' + ink.rgba('0.5') + ';--sbp-line:' + ink.rgba('0.12') + '">'
+            + ';--sbp-fg:' + ink.fg + ';--sbp-dim:' + ink.rgba('0.5') + ';--sbp-line:' + ink.rgba('0.12')
+            + ';--sbp-chip:' + ink.rgba('0.1') + '">'
             + rows + '</div>';
     }
 
@@ -345,13 +349,23 @@
         + '.sbp-arr{margin-left:1px}'
         // On the tab each slot is a button: the row's height and a little to each side are
         // its tap area (the negative margins keep the watch's spacing), a press shades it,
-        // and an empty slot shows a dashed hole to tap.
-        + 'button.sbp-v{-webkit-appearance:none;appearance:none;min-width:40px;margin:-7px -4px;padding:7px 4px;'
-        + 'border:none;border-radius:7px;background:none;cursor:pointer}'
+        // and an empty slot shows a dashed hole to tap. A filled one sits on a faint chip
+        // (its ::before, inside the tap area so rows never touch), so every slot reads as
+        // something to tap; the line under the bars says what a tap does.
+        + 'button.sbp-v{-webkit-appearance:none;appearance:none;min-width:40px;margin:-7px -4px;padding:7px 6px;'
+        + 'border:none;border-radius:7px;background:none;cursor:pointer;position:relative;z-index:0}'
+        + 'button.sbp-v:not(.sbp-empty):before{content:"";position:absolute;top:3px;bottom:3px;left:0;right:0;'
+        + 'z-index:-1;border-radius:6px;background:rgba(255,255,255,.1);background:var(--sbp-chip,rgba(255,255,255,.1))}'
+        // Each chip hugs its value (the middle one centred, as the watch centres it), so
+        // chips never meet across the narrow column gap.
+        + 'button.sbp-left{justify-self:start}button.sbp-mid{justify-self:center}button.sbp-right{justify-self:end}'
+        + 'button.sbp-v{text-align:center}'
         + 'button.sbp-v:active{background:var(--sbp-line,#1C1C1E)}'
         + 'button.sbp-v:focus-visible{outline:2px solid var(--sbp-fg,#FFFFFF);outline-offset:-2px}'
         + '.sbp-hole{display:inline-block;width:30px;height:15px;border:1px dashed var(--sbp-dim,#7C808A);'
-        + 'border-radius:4px;vertical-align:middle}';
+        + 'border-radius:4px;vertical-align:middle}'
+        + '.sbp-tip{padding:6px 0 3px;border-top:1px solid #1C1C1E;border-top-color:var(--sbp-line,#1C1C1E);'
+        + 'text-align:center;font:600 11px Inter,sans-serif;color:#7C808A;color:var(--sbp-dim,#7C808A)}';
     /**
      * Inject the preview's stylesheet (id 'sbp-style') once; nothing outside a DOM or when
      * it is already there.
