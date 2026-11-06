@@ -161,8 +161,9 @@ watchface with their own UUID, version and CHANGELOG. The watchface doesn't read
   XMLHttpRequest. No npm packages: `plugins/scripts/build.js` bundles relative requires only.
   Don't require watchface code (`src/pkjs/`) from a plugin, since the two ship separately.
 - **Declare every shape a plugin sends:** the Pebble app silently drops a shape the manifest
-  doesn't declare. `plugins/lib/vocabulary.js` is the table, and a plugin's `package.json`
-  `properties` block must equal `vocabulary.declare(SERVES)` (`plugins/test/manifest.test.js`).
+  doesn't declare. `plugins/lib/vocabulary.js` is the table; list what a plugin sends in its
+  `src/source.js` `SERVES`, and the build writes the pbw's `properties` from it (no copy in
+  `package.json`; `plugins/test/manifest.test.js`).
 - **Keep plugin commits inside `plugins/`:** the release-please root package excludes that
   path, so such commits never bump the watchface. A commit that also touches app files does.
   Release a plugin by bumping its `package.json` version and adding a `## <version>` section
