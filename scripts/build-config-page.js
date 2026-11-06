@@ -108,6 +108,9 @@ var APP_FILES = [
   // warns) while every Node test still passes through the require() branch —
   // test/config-page-bundle.test.js pins each of them into the generated page.
   path.join(ROOT, 'src/pkjs/settings/preview-svg.js'),
+  // The screen pictures' shared frame: ahead of preview-watch.js and wizard.js, which bind
+  // window.ScreenFrame while their bodies run.
+  path.join(ROOT, 'src/pkjs/settings/screen-frame.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-rain.js'),
   // preview-stripe.js publishes window.PreviewStripe (the stripe cell look), read by
   // the forecast and radar previews below.

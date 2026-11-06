@@ -41,19 +41,23 @@
         + 'outline:none}'
         + '#wizard .wiz-lead{margin:0 0 6px;font-size:15px;line-height:1.55;color:var(--muted)}'
         + '#wizard p{line-height:1.55}#wizard a{color:var(--link)}'
-        // the watch: a dark bezel around a real screenshot, on a soft red glow
+        // the watch, on a soft red glow: a card of its real screenshot in the frame every screen
+        // picture shares (screen-frame.js, as on the Watchface tab), a margin of the screen's own
+        // black or white all round, so the card's corners clip only that margin
         + '#wizard .wiz-stage{display:flex;justify-content:center;padding:14px 0 8px;'
         + 'background:radial-gradient(closest-side,rgba(250,74,53,.2),rgba(250,74,53,0))}'
-        + '#wizard .wiz-watch{display:inline-block;padding:9px;border-radius:24px;'
-        + 'background:linear-gradient(160deg,#34353A,#141518);'
-        + 'box-shadow:0 14px 34px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.08)}'
-        + 'body.light #wizard .wiz-watch{box-shadow:0 12px 28px rgba(0,0,0,.24),inset 0 0 0 1px rgba(255,255,255,.08)}'
-        // Screenshots are never drawn smaller than they are: a pixelated downscale drops rows. They
-        // show at their own size (144 px wide; emery's 200, #wizard.w200) or larger.
-        + '#wizard .wiz-shot{display:block;width:auto;height:auto;border-radius:5px;image-rendering:pixelated;'
-        + 'transition:opacity .16s}'
-        + '#wizard .wiz-stage.big .wiz-shot{width:252px;width:min(62vw,252px)}'
-        + '#wizard.w200 .wiz-stage.big .wiz-shot{width:260px}'
+        + '#wizard .wiz-watch{display:inline-block;border-radius:20px;overflow:hidden;'
+        + 'box-shadow:0 14px 34px rgba(0,0,0,.45),0 0 0 1px var(--card-line)}'
+        + 'body.light #wizard .wiz-watch{box-shadow:0 12px 28px rgba(0,0,0,.24),0 0 0 1px var(--card-line)}'
+        // The frame is the screen plus its margin (162 px wide for a 144 px screen, 224 for emery's
+        // 200, #wizard.w200), and the screenshot is never drawn smaller than it is: a pixelated
+        // downscale drops rows. So each width below is the screen's width x 1.125 (emery 1.12): its
+        // own size, or 252 px (emery 260) on the big stage.
+        + '#wizard .wiz-scr{display:block;width:162px;height:auto}'
+        + '#wizard.w200 .wiz-scr{width:224px}'
+        + '#wizard .wiz-stage.big .wiz-scr{width:283.5px;width:min(69.75vw,283.5px)}'
+        + '#wizard.w200 .wiz-stage.big .wiz-scr{width:291px;width:min(85vw,291px)}'
+        + '#wizard .wiz-shot{image-rendering:pixelated;transition:opacity .16s}'
         + '#wizard .wiz-shot.fade{opacity:0}'
         // the options: a segmented control under the watch (a radio group), one row whatever the count;
         // a long label wraps inside its own segment
@@ -68,9 +72,10 @@
         + '#wizard .wiz-desc{min-height:3.1em;margin:12px 0 0;text-align:center;font-size:14.5px;line-height:1.5;'
         + 'color:var(--fg)}'
         // the forecast step: the settings page's own graph preview, drawn live from sample weather, as a
-        // rounded card it fills to the edge (its corners clip it a little), and the second picker's
-        // heading. The preview draws one frame height for every look (wizard-forecast.js FRAME_H), so
-        // a look never moves the controls under it.
+        // rounded card of it in the screen pictures' frame (a margin of its own ground, so the corners
+        // clip none of it), and the second picker's heading. The preview draws one frame height for
+        // every look (wizard-forecast.js FRAME_H), so a look never moves the controls under it.
+        + '#wizard .wiz-graph-scr{display:block;width:100%;height:auto}'
         + '#wizard .wiz-graph{width:100%;max-width:380px;border-radius:18px;overflow:hidden;'
         + 'box-shadow:0 14px 34px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.08)}'
         + 'body.light #wizard .wiz-graph{box-shadow:0 12px 28px rgba(0,0,0,.24),0 0 0 1px rgba(0,0,0,.08)}'
@@ -92,10 +97,9 @@
         + '#wizard .wiz-flick{text-align:center}'
         + '#wizard .wiz-flick-watch{display:inline-block;cursor:pointer;transform-origin:50% 100%}'
         + '#wizard .wiz-flick-watch.tilt{animation:wiz-tilt .45s ease-in-out}'
-        + '#wizard .wiz-flick-stack{position:relative}'
+        // the two screenshots lie on one another in the frame; the one shown is .on
         + '#wizard .wiz-flick-shot{opacity:0;transition:opacity .18s}'
         + '#wizard .wiz-flick-shot.on{opacity:1}'
-        + '#wizard .wiz-flick-shot+.wiz-flick-shot{position:absolute;top:0;left:0}'
         + '#wizard .wiz-flick-track{display:flex;align-items:center;justify-content:center;margin:12px 0 0}'
         + '#wizard .wiz-dot{display:inline-block;width:7px;height:7px;margin:0 3px;border-radius:50%;'
         + 'background:var(--muted);opacity:.35;vertical-align:middle;transition:opacity .2s,background .2s}'
@@ -147,8 +151,9 @@
         + '@keyframes wiz-tilt{0%{transform:rotate(0)}30%{transform:rotate(14deg)}55%{transform:rotate(-5deg)}'
         + '75%{transform:rotate(2deg)}100%{transform:rotate(0)}}'
         // short screens (small phones, a keyboard up): a smaller watch keeps the options in view
-        + '@media (max-height:700px){#wizard .wiz-stage.big .wiz-shot{width:180px}'
-        + '#wizard.w200 .wiz-stage.big .wiz-shot,#wizard .wiz-flick .wiz-stage.big .wiz-shot{width:auto}'
+        // (the screen at 180 px; at its own size on emery and in the flick demo, emery last: same specificity)
+        + '@media (max-height:700px){#wizard .wiz-stage.big .wiz-scr{width:202.5px}'
+        + '#wizard .wiz-flick .wiz-stage.big .wiz-scr{width:162px}#wizard.w200 .wiz-stage.big .wiz-scr{width:224px}'
         + '#wizard .wiz-graph{max-width:290px}#wizard .wiz-title{font-size:22px}}'
         + '@media (prefers-reduced-motion:reduce){#wizard .wiz-step,#wizard .wiz-badge,#wizard .wiz-flick-watch.tilt,'
         + '#wizard .wiz-graph svg{animation:none}#wizard .wiz-shot,#wizard .wiz-seg,#wizard .wiz-flick-shot'

@@ -102,6 +102,22 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
   });
 });
 
+// preview-watch.js and wizard.js bind window.ScreenFrame while their bodies run: out of order, or
+// missing, every screen picture on the page throws on a real phone while Node (require()) passes.
+test('the screen pictures\' frame reaches the page ahead of the watch preview and the wizard', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('settings/screen-frame.js') < idx('settings/preview-watch.js'),
+    'screen-frame.js must precede preview-watch.js');
+  assert.ok(idx('settings/screen-frame.js') < idx('settings/wizard.js'),
+    'screen-frame.js must precede wizard.js');
+  assert.ok(page().indexOf('window.ScreenFrame = api') !== -1, 'nothing assigns window.ScreenFrame');
+});
+
 // The custom-layout editor is the same silent-no-op shape as the defaults policy:
 // its one consumer, the Edit button's [data-action] dispatch, guards its absence, so
 // dropping view-editor.js from APP_FILES keeps every Node test green while the shipped

@@ -34,6 +34,8 @@
     var spanHours = node ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
     var forecastSample = node ? require('./forecast-sample.js') : window.ForecastSample;
     var previewForecast = node ? require('./preview-forecast.js') : window.PreviewForecast;
+    var svgLib = node ? require('./preview-svg.js') : window.PreviewSvg;
+    var screenFrame = node ? require('./screen-frame.js') : window.ScreenFrame;
 
     // The governed keys, named by the modules that own them.
     var FILL = 'secondaryLineFill';
@@ -212,7 +214,9 @@
 
     /**
      * The preview: the settings page's forecast graph, drawn from the sample weather over the
-     * hours the watch shows (a span of N hours, N + 1 points), at one frame height, filling its card.
+     * hours the watch shows (a span of N hours, N + 1 points), at one frame height, in the frame
+     * every screen picture shares (screen-frame.js): a margin of the graph's own ground all round,
+     * so its card's round corners clip none of it.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {?Object} userData Page userData (the palette snapshot).
@@ -220,8 +224,13 @@
      */
     function previewSvg(S, env, userData) {
         var hours = spanHours.shownHours(S, env);
-        return previewForecast.forecastPreview(S, env, userData, {
+        var drawn = previewForecast.forecastPreview(S, env, userData, {
             sample: forecastSample.sample(hours + 1, S.temperatureUnits), minHeight: FRAME_H, bleed: false });
+        var body = svgLib.unframe(drawn);
+        // The graph's ground is the one its own background rect paints (preview-forecast.js
+        // forecastPreview: the picked theme's, a light one white).
+        return body ? screenFrame.svg(200, body.h, svgLib.previewInk(S.theme || 'dark').bg, body.inner, 'wiz-graph-scr')
+            : drawn;
     }
 
     var api = {

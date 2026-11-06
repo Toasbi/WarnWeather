@@ -29,6 +29,8 @@
     var clockGlyphs = NODE ? require('./clock-glyphs.generated.js') : window.ClockGlyphs;
     var dateFormat = NODE ? require('../date-format.js') : window.DateFormat;
     var esc = NODE ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
+    // The frame every screen picture sits in: the screen on its own ground, with a margin of it.
+    var screenFrame = NODE ? require('./screen-frame.js') : window.ScreenFrame;
 
     /**
      * The radar and health previews, which register as blocks only.
@@ -501,26 +503,18 @@
         return out.join(', ');
     }
 
-    // The ground each screen picture keeps around the screen, in the screen's own pixels (about
-    // 6 % of its width): the card's round corners clip only that, never a slot or label on the
-    // screen's edge rows, and it is the screen's own background, so the card reads as one black
-    // (or white) screen.
-    var SCREEN_MARGIN = [9, 12];
-
     /**
-     * A screen picture's <svg>: the screen's grid, the watch's ground all round it (SCREEN_MARGIN).
-     * @param {number} f Screen family.
-     * @param {number} w The drawing's width (the screen's, or a band's).
-     * @param {number} h Its height.
+     * A screen picture's <svg>: the screen's grid in the frame every screen picture shares
+     * (screen-frame.js), the watch's ground all round it, so the card's round corners clip only
+     * that margin.
+     * @param {number} w The drawing's width (the screen's).
+     * @param {number} h Its height (the screen's, or a band's).
      * @param {string} bg The watch's background.
      * @param {string} inner What is drawn on it, in the screen's coordinates.
      * @returns {string} SVG markup.
      */
-    function framedSvg(f, w, h, bg, inner) {
-        var m = SCREEN_MARGIN[f], vw = w + 2 * m, vh = h + 2 * m;
-        return '<svg class="wpv-scr" viewBox="' + (-m) + ' ' + (-m) + ' ' + vw + ' ' + vh + '" aria-hidden="true" focusable="false">'
-            + '<rect x="' + (-m) + '" y="' + (-m) + '" width="' + vw + '" height="' + vh + '" fill="' + bg + '"></rect>'
-            + inner + '</svg>';
+    function framedSvg(w, h, bg, inner) {
+        return screenFrame.svg(w, h, bg, inner, 'wpv-scr');
     }
 
     /**
@@ -563,7 +557,7 @@
                 }
             }
         });
-        return { svg: framedSvg(f, sc.w, sc.h, ink.bg, e), label: describe(spec, lay), bg: ink.bg };
+        return { svg: framedSvg(sc.w, sc.h, ink.bg, e), label: describe(spec, lay), bg: ink.bg };
     }
 
     // One card per view, on the page (the tab pins the block bare, schema pinBare): the card is
@@ -634,7 +628,7 @@
         var spec = VC.resolveViewCycle(st, env)[i] || null;
         if (spec) { return screenSvg(spec, i, st, env, userData || {}, f, new Date(), 've' + i + '-'); }
         var ink = svgLib.previewInk(themeOf(st, env));
-        return { svg: framedSvg(f, sc.w, sc.h, ink.bg,
+        return { svg: framedSvg(sc.w, sc.h, ink.bg,
             text(sc.w / 2, sc.h / 2 + 4, f ? 15 : 12, ink.rgba('0.6'), 'middle', 600, 'Nothing to show')),
             bg: ink.bg,
             label: 'Nothing to show' };
@@ -694,7 +688,7 @@
         var theme = themeOf(st, env), ink = svgLib.previewInk(theme);
         var f = env && env.platform === 'emery' ? 1 : 0, w = SCREEN[f].w, h = f ? 64 : 49;
         var cx = { fg: ink.fg, color: resolveInk.drawsColor(env, theme), bw: Boolean(env && env.color === false), f: f };
-        return framedSvg(f, w, h, ink.bg,
+        return framedSvg(w, h, ink.bg,
             clockBand(st, { x: 0, y: 0, w: w, h: h }, cx, 'tf' + String(args.value).replace(/[^A-Za-z0-9]/g, '') + '-'));
     }
 

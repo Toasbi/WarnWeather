@@ -212,18 +212,42 @@ test('a pick updates the segments, the description and the watch in place', () =
     const { dom } = openSetup({ saved: { layoutPreset: 'compactCal' } });
     walkTo(dom, 'layoutPreset');
     const shot = dom.find('[data-wiz-shot]');
-    const compactSrc = shot.src;
+    const compactSrc = shot.getAttribute('href');
+    assert.ok(compactSrc.indexOf('data:image/png;base64,') === 0, 'the screenshot, as the frame\'s <image>');
+    assert.equal(shot.getAttribute('xlink:href'), compactSrc, 'in both href forms');
     dom.pick('layoutPreset', 'fullCal');
     assert.deepEqual(dom.picker().selected, 'fullCal');
     const segs = dom.findAll('[data-wiz-opt]');
     assert.deepEqual(segs.map((x) => [x.getAttribute('aria-checked'), x.getAttribute('tabindex'), x.className]),
       [['true', '0', 'wiz-opt on'], ['false', '-1', 'wiz-opt'], ['false', '-1', 'wiz-opt']]);
     assert.match(dom.find('[data-wiz-desc="layoutPreset"]').textContent, /three-row month grid/);
-    assert.equal(shot.className, 'wiz-shot fade', 'the old picture fades out first');
+    assert.equal(shot.getAttribute('class'), 'wiz-shot fade', 'the old picture fades out first');
     mock.timers.tick(150);
-    assert.notEqual(shot.src, compactSrc);
-    assert.equal(shot.className, 'wiz-shot');
-    assert.equal(shot.alt, 'Full calendar preview');
+    assert.notEqual(shot.getAttribute('href'), compactSrc);
+    assert.equal(shot.getAttribute('class'), 'wiz-shot');
+    assert.equal(dom.find('[data-wiz-watch]').getAttribute('aria-label'), 'Full calendar preview');
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('the watch is its screenshot in the screen pictures\' frame, on the shot\'s own ground', () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const { dom } = openSetup({ saved: { theme: 'dark' } });
+    walkTo(dom, 'theme');
+    const watch = dom.find('[data-wiz-watch]');
+    const ground = () => watch.querySelector('rect').getAttribute('fill');
+    assert.match(watch.innerHTML, /^<svg class="wiz-scr" viewBox="-9 -9 162 186" aria-hidden="true" focusable="false">/,
+      'the 144 x 168 screen with a 9 px margin, as the Watchface tab frames it');
+    assert.equal(ground(), '#000000', 'Dark\'s shot is on black');
+    assert.equal(watch.getAttribute('role'), 'img');
+    dom.pick('theme', 'light');
+    mock.timers.tick(150);
+    assert.equal(ground(), '#FFFFFF', 'Light\'s shot is on white, and its margin with it');
+    dom.pick('theme', 'dark');
+    mock.timers.tick(150);
+    assert.equal(ground(), '#000000');
   } finally {
     mock.timers.reset();
   }
@@ -235,13 +259,13 @@ test('two quick picks end on the second one\'s watch (A, B, back to A before the
     const { dom } = openSetup({ saved: { layoutPreset: 'compactCal' } });
     walkTo(dom, 'layoutPreset');
     const shot = dom.find('[data-wiz-shot]');
-    const compactSrc = shot.src;
+    const compactSrc = shot.getAttribute('href');
     dom.pick('layoutPreset', 'fullCal');
     mock.timers.tick(60);
     dom.pick('layoutPreset', 'compactCal');
     mock.timers.tick(200);
-    assert.equal(shot.src, compactSrc, 'the watch shows the selected option');
-    assert.equal(shot.className, 'wiz-shot', 'and is not left faded out');
+    assert.equal(shot.getAttribute('href'), compactSrc, 'the watch shows the selected option');
+    assert.equal(shot.getAttribute('class'), 'wiz-shot', 'and is not left faded out');
     assert.equal(dom.picker().selected, 'compactCal');
   } finally {
     mock.timers.reset();
@@ -389,7 +413,10 @@ test('the forecast step offers three looks; a fresh install\'s graph is Classic'
   assert.equal(dom.picker().selected, 'classic');
   assert.equal(dom.picker('forecastHours'), null, 'only emery picks a length');
   const graph = dom.find('[data-wiz-graph]');
-  assert.match(graph.innerHTML, /^<svg viewBox="0 0 200 /, 'the settings page\'s graph, drawn here');
+  assert.match(graph.innerHTML, /^<svg class="wiz-graph-scr" viewBox="-12 -12 224 152" /,
+    'the settings page\'s graph, drawn here in the screen pictures\' frame');
+  assert.match(graph.innerHTML, /^<svg[^>]*><rect x="-12" y="-12" width="224" height="152" fill="#000000"><\/rect>/,
+    'a margin of its own dark ground all round, so the card\'s corners clip none of it');
   assert.equal(graph.getAttribute('aria-label'), 'Forecast preview: Classic');
   assert.match(graph.innerHTML, /<rect x="0" y="0" width="200" height="128" fill="#000000">/,
     'one frame height for every look, the dark screen running on under a short legend');

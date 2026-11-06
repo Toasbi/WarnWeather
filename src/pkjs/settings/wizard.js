@@ -26,6 +26,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var FORECAST = node ? require('./wizard-forecast.js') : window.WizardForecast;
     var FINISH = node ? require('./wizard-finish.js') : window.WizardFinish;
     var UPSELL = node ? require('./wizard-upsell.js') : window.WizardUpsell;
+    // The frame every screen picture sits in (the Watchface tab's too): the screen on its own ground.
+    var FRAME = node ? require('./screen-frame.js') : window.ScreenFrame;
 
     /**
      * The steps. `when` names the env fact a step needs: health where the watch has it; the flick
@@ -250,6 +252,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     function shotFor(group, val) { var s = SHOTS[shotPlatform()] || {}; return (s[group] && s[group][val]) || ''; }
     /**
+     * A screenshot's ground: the background of the theme it was captured on. The light themes'
+     * shots are on white; every other one is captured on Dark (scripts/gen-wizard-fixtures.js).
+     * test/wizard-shot-ground.test.js reads each shot's corners against this.
+     * @param {string} group SHOTS group.
+     * @param {string} val Its value.
+     * @returns {string} '#FFFFFF' | '#000000'.
+     */
+    function shotGround(group, val) {
+        return (group === 'theme' && (val === 'light' || val === 'bw-light')) ? '#FFFFFF' : '#000000';
+    }
+    /**
      * A flick stop's screenshot (SHOTS[platform].radar is a plain data URI).
      * @param {{shotGroup: string, shotVal: string}} stop A wizard-flick.js stop.
      * @returns {string} A data URI.
@@ -258,12 +271,33 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var src = (stop.shotGroup === 'radar') ? ((SHOTS[shotPlatform()] || {}).radar || '') : shotFor(stop.shotGroup, stop.shotVal);
         return src || BLANK_SHOT;
     }
+    function stopGround(stop) { return stop.shotGroup === 'radar' ? '#000000' : shotGround(stop.shotGroup, stop.shotVal); }
+    // The screen the screenshots were captured on: 144 x 168, emery's 200 x 228.
+    function shotScreen() { return shotPlatform() === 'emery' ? { w: 200, h: 228 } : { w: 144, h: 168 }; }
     /**
-     * A screenshot in the watch bezel.
-     * @param {string} inner The bezel's content (an <img>, or the flick demo's stack of two).
+     * One screenshot, at its screen's own size, for watchHtml.
+     * @param {string} src The screenshot.
+     * @param {string} cls Its class.
+     * @param {boolean} [hook] The picker's swappable shot (data-wiz-shot).
+     * @returns {string} SVG markup.
+     */
+    function shotImage(src, cls, hook) {
+        var sc = shotScreen();
+        return FRAME.image(sc.w, sc.h, esc(src), 'class="' + cls + '"' + (hook ? ' data-wiz-shot' : ''));
+    }
+    /**
+     * The watch: its screen in the frame every screen picture shares (screen-frame.js), a margin of
+     * the screenshots' own ground all round, so the card's round corners clip nothing on it.
+     * @param {string} shots The screen: one shotImage, or the flick demo's two.
+     * @param {string} bg Their ground.
+     * @param {string} [label] What it shows, for assistive tech (none: the caption beside it says).
      * @returns {string} HTML.
      */
-    function watchHtml(inner) { return '<div class="wiz-watch">' + inner + '</div>'; }
+    function watchHtml(shots, bg, label) {
+        var sc = shotScreen();
+        return '<div class="wiz-watch" data-wiz-watch' + (label ? ' role="img" aria-label="' + esc(label) + '"' : '') + '>'
+            + FRAME.svg(sc.w, sc.h, bg, shots, 'wiz-scr') + '</div>';
+    }
 
     // --- the forecast step ---
     /**
@@ -383,30 +417,36 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function pickerHtml(group) {
         var sel = highlighted(group);
         return '<div class="wiz-stage big" data-wiz-preview="' + esc(group) + '">'
-            + watchHtml('<img class="wiz-shot" data-wiz-shot src="' + esc(shotFor(group, sel)) + '" alt="'
-                + esc(labelFor(optsFor(group), sel) + ' preview') + '">')
+            + watchHtml(shotImage(shotFor(group, sel), 'wiz-shot', true), shotGround(group, sel),
+                labelFor(optsFor(group), sel) + ' preview')
             + '</div>' + optsHtml(group, 'wiz-title');
     }
     /**
      * Swap the picker's screenshot with a short fade (none under reduced motion). A newer swap wins
-     * over one still fading.
-     * @param {?Element} img The preview image.
-     * @param {string} src New screenshot.
-     * @param {string} alt Its alt text.
+     * over one still fading. The ground follows the new shot as it lands (a light theme's is white).
+     * The shot is an SVG <image>: its class is an attribute (className is no string on SVG).
+     * @param {string} group The picker.
+     * @param {string} val The picked option.
      * @returns {void}
      */
-    function swapShot(img, src, alt) {
-        if (!img) { return; }
-        img.alt = alt;
+    function swapShot(group, val) {
+        var watch = run.overlay.querySelector('[data-wiz-watch]'), img = run.overlay.querySelector('[data-wiz-shot]');
+        if (!watch || !img) { return; }
+        var src = shotFor(group, val), bg = shotGround(group, val);
+        watch.setAttribute('aria-label', labelFor(optsFor(group), val) + ' preview');
         run.shotSeq += 1;
         var seq = run.shotSeq;
-        if (img.getAttribute('src') === src) { img.className = 'wiz-shot'; return; }
-        if (reducedMotion()) { img.src = src; img.className = 'wiz-shot'; return; }
-        img.className = 'wiz-shot fade';
+        function land() {
+            FRAME.setImage(img, src);
+            FRAME.setGround(watch, bg);
+            img.setAttribute('class', 'wiz-shot');
+        }
+        if (img.getAttribute('href') === src) { img.setAttribute('class', 'wiz-shot'); return; }
+        if (reducedMotion()) { land(); return; }
+        img.setAttribute('class', 'wiz-shot fade');
         setTimeout(function () {
             if (!run || seq !== run.shotSeq) { return; }
-            img.src = src;
-            img.className = 'wiz-shot';
+            land();
         }, 140);
     }
     /**
@@ -433,7 +473,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var desc = run.overlay.querySelector('[data-wiz-desc="' + group + '"]');
         if (desc) { desc.textContent = descFor(group)[val] || ''; }
         if (!graph) {
-            swapShot(run.overlay.querySelector('[data-wiz-shot]'), shotFor(group, val), labelFor(opts, val) + ' preview');
+            swapShot(group, val);
         } else if (graphState() !== before) {
             refreshForecast();
         }
@@ -474,10 +514,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!run || !run.overlay) { return; }
         var imgs = run.overlay.querySelectorAll('.wiz-flick-shot');
         if (imgs.length === 2) {
-            var cur = (imgs[0].className.indexOf(' on') >= 0) ? 0 : 1, nxt = 1 - cur;
-            imgs[nxt].src = stopShot(stop);
-            imgs[cur].className = 'wiz-shot wiz-flick-shot';
-            imgs[nxt].className = 'wiz-shot wiz-flick-shot on';
+            var cur = ((imgs[0].getAttribute('class') || '').indexOf(' on') >= 0) ? 0 : 1, nxt = 1 - cur;
+            FRAME.setImage(imgs[nxt], stopShot(stop));
+            FRAME.setGround(run.overlay.querySelector('[data-wiz-watch]'), stopGround(stop));
+            imgs[cur].setAttribute('class', 'wiz-shot wiz-flick-shot');
+            imgs[nxt].setAttribute('class', 'wiz-shot wiz-flick-shot on');
         }
         var dots = run.overlay.querySelector('[data-wiz-flick-dots]');
         if (dots) { dots.innerHTML = flickDotsHtml(count, idx); }
@@ -520,9 +561,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var radar = Boolean(run.env.radar);
         var lead = radar ? 'Forecast, rain radar and your calendar at a glance.' : 'Forecast and your calendar at a glance.';
         var region = FINISH.findItem(run.ctx.schema, 'holidayRegion');
+        var layout = highlighted('layoutPreset');
         var h = '<div class="wiz-stage">'
-            + watchHtml('<img class="wiz-shot" src="' + esc(shotFor('layoutPreset', highlighted('layoutPreset')))
-                + '" alt="WarnWeather on your watch">')
+            + watchHtml(shotImage(shotFor('layoutPreset', layout), 'wiz-shot'), shotGround('layoutPreset', layout),
+                'WarnWeather on your watch')
             + '</div>'
             + stepHead('welcome')
             + '<p class="wiz-lead">' + lead + ' Setup takes a minute, and you can change everything later.</p>'
@@ -542,14 +584,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function stepFlick() {
         // The demo opens on its first stop (the default view) whenever the step renders.
         run.flickIdx = 0;
-        var stops = flickStops(), stop = stops[0], src = esc(stopShot(stop));
+        var stops = flickStops(), stop = stops[0], src = stopShot(stop);
         return stepHead('flick')
             + '<p class="wiz-lead">Flick your wrist for the next view. It goes back to the default by itself.</p>'
             + '<div class="wiz-flick">'
             + '<div class="wiz-stage big"><div class="wiz-flick-watch" data-wiz-flick-watch data-wiz-flick>'
-            + watchHtml('<div class="wiz-flick-stack">'
-                + '<img class="wiz-shot wiz-flick-shot on" src="' + src + '" alt="">'
-                + '<img class="wiz-shot wiz-flick-shot" src="' + src + '" alt=""></div>')
+            + watchHtml(shotImage(src, 'wiz-shot wiz-flick-shot on') + shotImage(src, 'wiz-shot wiz-flick-shot'),
+                stopGround(stop))
             + '</div></div>'
             + '<div class="wiz-flick-track">'
             + '<span data-wiz-flick-dots>' + flickDotsHtml(stops.length, 0) + '</span>'
@@ -937,6 +978,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.actions.startWizard = function () { if (page.ctx) { openWizard(page.ctx, false); } };
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { buildSteps: buildSteps, shouldShow: shouldShow, applyDerived: applyDerived };
+        module.exports = { buildSteps: buildSteps, shouldShow: shouldShow, applyDerived: applyDerived,
+            shotGround: shotGround };
     }
 })();
