@@ -16,7 +16,7 @@
 /* global PConf, VIEW_CYCLE */
 // The `.whenResolvers` test: under Node, config-ui's lib files attach their own shards to
 // global.PConf, so it can exist without the registries until engine.js has run (see the
-// same guard in preview-layout.js).
+// same guard in preview-watch.js).
 var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenResolvers)
     ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf

@@ -8,6 +8,7 @@
       {
         "id": "weather",
         "label": "Weather",
+        "icon": "tab-weather",
         "openWhen": {
           "key": "startOnWeatherTab",
           "eq": true
@@ -70,7 +71,8 @@
               {
                 "type": "hidden",
                 "messageKey": "weatherTabSeenAt",
-                "defaultValue": 0
+                "defaultValue": 0,
+                "stamp": true
               }
             ]
           }
@@ -79,8 +81,10 @@
       {
         "id": "watchface",
         "label": "Watchface",
+        "icon": "tab-watchface",
         "openDefault": true,
-        "pinBlock": "layoutPreviewCombined",
+        "pinBlock": "watchPreview",
+        "pinBare": true,
         "pinThrough": "layout",
         "sections": [
           {
@@ -100,7 +104,8 @@
             "intro": "A view is one screen of the watchface. The Default view shows the forecast graph; Rain radar and Health can each add a view of their own. Flick your wrist to switch views. The layout decides how they're arranged, and each graph is set up in Graphs.",
             "items": [
               {
-                "type": "select",
+                "type": "segmented",
+                "full": true,
                 "messageKey": "radarMode",
                 "label": "Rain radar",
                 "defaultValue": "graph",
@@ -157,7 +162,8 @@
                 }
               },
               {
-                "type": "select",
+                "type": "segmented",
+                "full": true,
                 "messageKey": "healthMode",
                 "label": "Health",
                 "defaultValue": "all",
@@ -232,6 +238,9 @@
                 },
                 "optionsFrom": {
                   "resolver": "layoutPresetOptions"
+                },
+                "pictureFrom": {
+                  "resolver": "layoutPresetPicture"
                 },
                 "dormantValues": [
                   "compactDense",
@@ -2402,7 +2411,7 @@
                 "defaultValue": false
               },
               {
-                "type": "segmented",
+                "type": "radio",
                 "messageKey": "timeFont",
                 "label": "Clock font",
                 "defaultValue": "roboto",
@@ -2419,7 +2428,10 @@
                     "Bitham",
                     "bitham"
                   ]
-                ]
+                ],
+                "pictureFrom": {
+                  "resolver": "timeFontPicture"
+                }
               },
               {
                 "type": "toggle",
@@ -4058,6 +4070,8 @@
       {
         "id": "watch",
         "label": "Status bars",
+        "short": "Status",
+        "icon": "tab-status",
         "pinBlock": "statusBarsPreview",
         "sections": [
           {
@@ -4106,6 +4120,7 @@
                 "type": "select",
                 "messageKey": "statusTopLeft",
                 "label": "Left slot",
+                "sheetTitle": "Watch bar · Left slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4144,6 +4159,7 @@
                 "type": "select",
                 "messageKey": "statusTopMid",
                 "label": "Middle slot",
+                "sheetTitle": "Watch bar · Middle slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4183,6 +4199,7 @@
                 "type": "select",
                 "messageKey": "statusTopRight",
                 "label": "Right slot",
+                "sheetTitle": "Watch bar · Right slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4308,6 +4325,7 @@
                 "type": "select",
                 "messageKey": "statusForecastLeft",
                 "label": "Left slot",
+                "sheetTitle": "Forecast bar · Left slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4346,6 +4364,7 @@
                 "type": "select",
                 "messageKey": "statusForecastMid",
                 "label": "Middle slot",
+                "sheetTitle": "Forecast bar · Middle slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4385,6 +4404,7 @@
                 "type": "select",
                 "messageKey": "statusForecastRight",
                 "label": "Right slot",
+                "sheetTitle": "Forecast bar · Right slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4460,6 +4480,7 @@
                 "type": "select",
                 "messageKey": "statusHealthLeft",
                 "label": "Left slot",
+                "sheetTitle": "Health bar · Left slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4530,6 +4551,7 @@
                 "type": "select",
                 "messageKey": "statusHealthMid",
                 "label": "Middle slot",
+                "sheetTitle": "Health bar · Middle slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4601,6 +4623,7 @@
                 "type": "select",
                 "messageKey": "statusHealthRight",
                 "label": "Right slot",
+                "sheetTitle": "Health bar · Right slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4726,6 +4749,7 @@
                 "type": "select",
                 "messageKey": "statusRadarLeft",
                 "label": "Left slot",
+                "sheetTitle": "Radar bar · Left slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4796,6 +4820,7 @@
                 "type": "select",
                 "messageKey": "statusRadarMid",
                 "label": "Middle slot",
+                "sheetTitle": "Radar bar · Middle slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4867,6 +4892,7 @@
                 "type": "select",
                 "messageKey": "statusRadarRight",
                 "label": "Right slot",
+                "sheetTitle": "Radar bar · Right slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -7664,6 +7690,7 @@
       {
         "id": "alerts",
         "label": "Alerts",
+        "icon": "tab-alerts",
         "showWhen": {
           "env": "onDemand"
         },
@@ -9940,6 +9967,7 @@
       {
         "id": "graphs",
         "label": "Graphs",
+        "icon": "tab-graphs",
         "panes": [
           {
             "id": "forecast",
@@ -14287,6 +14315,7 @@
       {
         "id": "setup",
         "label": "Setup",
+        "icon": "tab-setup",
         "sections": [
           {
             "id": "location",

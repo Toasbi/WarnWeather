@@ -235,7 +235,7 @@ test('page: "Rainbow (own key)" without a key — the key row reads "No key", th
   assert.ok(body.indexOf('data-select="radarProvider"') < body.indexOf('Needs an API key') &&
     body.indexOf('Needs an API key') < body.indexOf('data-edit-sheet="radarKeyRainbow"'),
     'the picker, its note, then the key row');
-  assert.match(tabButton(page, 'graphs'), /aria-label="Graphs \(Rainbow has no API key\)">Graphs<span class="tab-dot" aria-hidden="true"><\/span>/);
+  assert.match(tabButton(page, 'graphs'), /aria-label="Graphs \(Rainbow has no API key\)"><span class="tab-ico" aria-hidden="true"><svg[\s\S]*?<\/svg><span class="tab-dot" aria-hidden="true"><\/span><\/span><span class="tab-lbl">Graphs<\/span>/);
   ['weather', 'watchface', 'watch', 'alerts', 'setup'].forEach((id) =>
     assert.doesNotMatch(tabButton(page, id), /tab-dot/, id));
 });
@@ -515,7 +515,7 @@ test('page: radar-only Tomorrow.io without a key — the key row reads "No key",
     '<div class="hint"><span class="hint-faint">No key</span></div></div>');
   assert.match(body, /<div class="static join info"><div class="info-box">Needs an API key\. Without one, the watch gets no rain radar\.<\/div><\/div>/);
   assert.equal(body.indexOf('data-k="tomorrowioApiKey"'), -1, 'the key field left the page for the sheet');
-  assert.match(tabButton(page, 'graphs'), /aria-label="Graphs \(Tomorrow\.io has no API key\)">Graphs<span class="tab-dot" aria-hidden="true"><\/span>/);
+  assert.match(tabButton(page, 'graphs'), /aria-label="Graphs \(Tomorrow\.io has no API key\)"><span class="tab-ico" aria-hidden="true"><svg[\s\S]*?<\/svg><span class="tab-dot" aria-hidden="true"><\/span><\/span><span class="tab-lbl">Graphs<\/span>/);
   ['weather', 'watchface', 'watch', 'alerts', 'setup'].forEach((id) =>
     assert.doesNotMatch(tabButton(page, id), /tab-dot/, id));
 });

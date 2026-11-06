@@ -1,8 +1,8 @@
 // test/layout-flick-preview.test.js
-// The Watchface tab pins one combined preview at its top: one column per slot of the
-// resolved preset's adaptive view cycle (Default, Flick 1, Flick 2). Drive the real
-// engine over the Watchface tab and assert the columns track the cycle — a disabled
-// radar/health slot simply isn't in the cycle, so there's no column to dim.
+// The Watchface tab pins the watch preview at its top: one card per view of the resolved
+// preset's adaptive view cycle (Default, Flick 1, Flick 2). Drive the real engine over the
+// Watchface tab and assert the cards track the cycle — a disabled radar/health view simply
+// isn't in the cycle, so there's no card to dim.
 // Also covers the engine capability that a staticText item may host a blockBefore.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -12,7 +12,7 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 const eng = require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js'); // registers layoutPreviewCombined
+require('../src/pkjs/settings/blocks.js'); // registers watchPreview
 const plat = require('../src/pkjs/config-ui/lib/platform.js');
 const schema = require('../src/pkjs/settings/schema.js');
 const onbuild = require('../src/pkjs/settings/onbuild.js');
@@ -22,7 +22,7 @@ const onbuild = require('../src/pkjs/settings/onbuild.js');
  * @param {Object} overrides Stored values over the hydrated defaults.
  * @param {string} [platformName] Platform (basalt by default).
  * @returns {{body: string, pin: string}} The whole tab body and its pinned header (the
- *   combined layout preview, which sits above every card).
+ *   watch preview, which sits above every card).
  */
 function watchfaceTab(overrides, platformName) {
   const S = Object.assign(eng.hydrate(schema, {}), overrides);
@@ -46,7 +46,7 @@ function watchfaceTab(overrides, platformName) {
 }
 
 /**
- * The combined layout preview the Watchface tab pins above its cards.
+ * The watch preview the Watchface tab pins above its cards.
  * @param {Object} overrides Stored values over the hydrated defaults.
  * @param {string} [platformName] Platform (basalt by default).
  * @returns {string} The pinned header's HTML.
@@ -55,32 +55,41 @@ function layoutBody(overrides, platformName) {
   return watchfaceTab(overrides, platformName).pin;
 }
 
-test('compactCal + radar shows a Default and a Flick column (radar view present)', () => {
-  const body = layoutBody({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' });
+/**
+ * Each pinned card's spoken description: its name, then its bands.
+ * @param {string} pin The pinned header's HTML.
+ * @returns {string[]}
+ */
+function views(pin) {
+  return (pin.match(/class="wpv-v" role="img" aria-label="[^"]*"/g) || []).map((m) => /aria-label="([^"]*)"/.exec(m)[1]);
+}
+
+test('compactCal + radar shows a Default and a Flick card (radar view present)', () => {
+  const body = layoutBody({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off', swapClockStatus: false });
   assert.ok(body.indexOf('<svg') >= 0, 'preview SVG renders');
-  assert.ok(body.indexOf('Default') >= 0 && body.indexOf('Flick 1') >= 0, 'two columns');
-  assert.ok(body.indexOf('Radar') >= 0, 'radar view present in the cycle');
+  assert.deepEqual(views(body), [
+    'Default: Watch Status, Calendar (2 rows), Forecast Status, Clock, Forecast',
+    'Flick 1: Watch Status, Calendar (2 rows), Radar Status, Clock, Radar'
+  ], 'two cards, the second the radar view');
 });
 
-test('compactCal with radar disabled has no radar column', () => {
+test('compactCal with radar disabled has no radar card', () => {
   const body = layoutBody({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' });
-  assert.ok(body.indexOf('Default') >= 0, 'default column renders');
-  assert.strictEqual(body.indexOf('Radar'), -1, 'no radar column when radar is disabled');
+  assert.equal(views(body).length, 1, 'the Default view alone');
+  assert.strictEqual(body.indexOf('Radar'), -1, 'no radar card when radar is disabled');
 });
 
-test('compactDense all + radar shows three columns incl. Health graph', () => {
-  const body = layoutBody({ layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' });
-  assert.ok(body.indexOf('Flick 2') >= 0, 'three columns');
-  assert.ok(body.indexOf('Health graph') >= 0, 'graph flick present');
+test('compactDense all + radar shows three cards incl. Health graph', () => {
+  const v = views(layoutBody({ layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' }));
+  assert.deepEqual(v.map((d) => d.split(':')[0]), ['Default', 'Flick 1', 'Flick 2'], 'three cards');
+  assert.ok(v.some((d) => /Health graph$/.test(d)), 'graph flick present');
 });
 
 test('aplite normalizes stale enabled settings to a single Default view', () => {
   const stale = { layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' };
   const tab = watchfaceTab(stale, 'aplite');
   const body = tab.pin;
-  assert.ok(body.indexOf('Default') >= 0, 'default column renders');
-  assert.equal(body.indexOf('Flick 1'), -1, 'no first flick column');
-  assert.equal(body.indexOf('Flick 2'), -1, 'no second flick column');
+  assert.deepEqual(views(body).map((d) => d.split(':')[0]), ['Default'], 'the Default card alone');
   // The reset control (a Layout card More option, open here) is hidden on aplite; on
   // basalt the same state shows it.
   assert.equal(tab.body.indexOf('View reset time'), -1, 'reset control is hidden');

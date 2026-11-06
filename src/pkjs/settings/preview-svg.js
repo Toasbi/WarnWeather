@@ -2,8 +2,8 @@
 // settings preview draws with: two element emitters (rect/txt), the 200-wide
 // frame they are wrapped in, and the theme ink they are coloured from. Every
 // member here has more than one caller across preview-forecast.js,
-// preview-radar.js and preview-layout.js — a helper used by exactly one of them
-// lives in that file instead. Registers nothing; it is a library, not a block.
+// preview-radar.js, preview-health.js and preview-watch.js — a helper used by
+// exactly one of them lives in that file instead. Registers nothing; it is a library, not a block.
 (function () {
     // Dual-context pattern (see line-style.js): a CommonJS module under Node, a
     // concatenated <script> exposing window.ResolveInk in the webview, where the
@@ -76,11 +76,25 @@
             + ';display:block;' + fit + '">' + inner + '</svg>';
     }
 
+    /**
+     * Take a preview svgFrame drew apart again: its frame height and its body, for a
+     * picture that places the preview inside one of its own boxes (the Watchface tab's
+     * watch draws each graph band from its preview). Kept beside svgFrame so the two
+     * cannot drift (test/preview-svg.test.js round-trips them).
+     * @param {string} svg One svgFrame result.
+     * @returns {?{h: number, inner: string}} null for anything svgFrame did not draw.
+     */
+    function unframe(svg) {
+        var m = /^<svg viewBox="0 0 200 ([0-9.]+)" style="[^"]*">([\s\S]*)<\/svg>$/.exec(String(svg || ''));
+        return m ? { h: Number(m[1]), inner: m[2] } : null;
+    }
+
     var api = {
         rect: rect,
         txt: txt,
         previewInk: previewInk,
-        svgFrame: svgFrame
+        svgFrame: svgFrame,
+        unframe: unframe
     };
 
     // Dual-context export — mirrors the tail of src/pkjs/status-thresholds.js.

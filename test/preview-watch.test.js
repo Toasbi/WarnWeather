@@ -1,0 +1,285 @@
+// test/preview-watch.test.js — the Watchface tab's watch (settings/preview-watch.js): every
+// view of the cycle drawn on its screen's grid, its bands on the seats the watch gives them
+// (view-cycle.js stackSeats), in the theme's colours, with the status bars' slots and the
+// graph previews in their bands.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+// The engine's registries first (the icons the status rows draw), as the page loads them.
+require('../src/pkjs/config-ui/lib/schema-walk.js');
+require('../src/pkjs/config-ui/lib/color.js');
+require('../src/pkjs/config-ui/lib/show-when.js');
+const eng = require('../src/pkjs/config-ui/lib/engine.js');
+require('../src/pkjs/settings/blocks.js');
+require('../src/pkjs/settings/status-slot-icons.js');
+const VC = require('../src/pkjs/view-cycle.js');
+const plat = require('../src/pkjs/config-ui/lib/platform.js');
+const schema = require('../src/pkjs/settings/schema.js');
+const pw = require('../src/pkjs/settings/preview-watch.js');
+const onbuild = require('../src/pkjs/settings/onbuild.js');
+
+/**
+ * Settings as a fresh install holds them, with overrides.
+ * @param {Object} [over] Stored values over the hydrated defaults.
+ * @returns {Object} S.
+ */
+function settings(over) {
+  return Object.assign(eng.hydrate(schema, {}), over || {});
+}
+
+/**
+ * The view cycle a state resolves to, and the platform's env.
+ * @param {Object} S Settings.
+ * @param {string} platform Platform name.
+ * @returns {{views: !Array, env: !Object}}
+ */
+function cycle(S, platform) {
+  const env = plat.computeEnv({ platform: platform });
+  return { views: VC.resolveViewCycle(S, env), env: env };
+}
+
+/**
+ * Each view's spoken description, as the block labels it.
+ * @param {string} html The block.
+ * @returns {string[]}
+ */
+function labels(html) {
+  return (html.match(/class="wpv-v" role="img" aria-label="[^"]*"/g) || []).map((m) => /aria-label="([^"]*)"/.exec(m)[1]);
+}
+
+test('every preset\'s views sit on the watch\'s seats, the filling graph running to the screen\'s foot', () => {
+  ['basalt', 'emery'].forEach((platform) => {
+    const f = platform === 'emery' ? 1 : 0, sc = pw.SCREEN[f];
+    ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((preset) => {
+      const c = cycle(settings({ layoutPreset: preset, radarMode: 'graph', healthMode: 'all' }), platform);
+      c.views.forEach((spec, i) => {
+        if (!spec) { return; }
+        const lay = pw.layoutView(spec, f), at = preset + ' ' + platform + ' view ' + i;
+        assert.equal(lay.strip, spec.stripOff ? 0 : sc.floor - VC.FIT_PX.availStrip[f], at + ': the top bar');
+        const walk = VC.isStacked(spec) ? spec : Object.assign(VC.cloneSpec(spec),
+          { order: spec.tier === VC.TIER_COMPACT ? 0 : 1 });
+        const seats = VC.stackSeats(walk, f).seats;
+        assert.deepEqual(lay.bands.map((b) => b.band), seats.map((s) => s.band), at + ': the bands, in order');
+        for (let j = 1; j < lay.bands.length; j++) {
+          assert.equal(lay.bands[j].y, lay.bands[j - 1].y + lay.bands[j - 1].h + seats[j - 1].gap,
+            at + ': band ' + j + ' follows the one above');
+        }
+        const last = lay.bands[lay.bands.length - 1];
+        if (seats.some((s) => s.fill)) {
+          assert.equal(last.y + last.h, sc.h, at + ': the graph fills to the foot');
+        } else {
+          assert.ok(last.y + last.h <= sc.h, at + ': it fits');
+        }
+      });
+    });
+  });
+});
+
+test('each view is named and spoken band by band, in the Layout card\'s words', () => {
+  const S = settings({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'all' });
+  const env = plat.computeEnv({ platform: 'basalt' });
+  assert.deepEqual(labels(pw.watchPreview(S, env, {})), [
+    'Default: Watch Status, Calendar (2 rows), Clock, Forecast Status, Forecast',
+    'Flick 1: Watch Status, Clock, Health Status, Health graph',
+    'Flick 2: Watch Status, Clock, Radar Status, Radar'
+  ]);
+  assert.deepEqual(labels(pw.watchPreview(settings({ layoutPreset: 'fullCal', radarMode: 'off', healthMode: 'off' }), env, {})),
+    ['Default: Watch Status, Calendar (3 rows), Clock, Forecast Status, Forecast'], 'one view, one screen');
+  assert.match(pw.watchPreview(S, env, {}), /^<div class="wpv n3" role="group" aria-label="Your watch">/);
+});
+
+test('each view is a card of its own, the screen edge to edge on its own background, pinned bare', () => {
+  const env = plat.computeEnv({ platform: 'basalt' });
+  const cards = (S) => pw.watchPreview(S, env, {}).match(/<div class="wpv-card" style="background:([^"]*)"><svg class="wpv-scr"/g) || [];
+  const dark = cards(settings({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'all' }));
+  assert.equal(dark.length, 3, 'three cards');
+  dark.forEach((c) => assert.match(c, /background:#000000/, 'a dark watch: black cards'));
+  cards(settings({ layoutPreset: 'compactCal', theme: 'light' })).forEach((c) => assert.match(c, /background:#FFFFFF/));
+  const watchface = schema.tabs.find((t) => t.id === 'watchface');
+  assert.equal(watchface.pinBare, true, 'the tab pins the block without a card of its own');
+  const body = eng.renderBody(schema, 'watchface', { S: settings(), ENV: env, USERDATA: {}, collapsed: {},
+    evalCtx: Object.assign({}, settings(), { env: env }), schema: schema, moreOpen: {} });
+  assert.match(body, /<div class="pin-blk bare"><div class="wpv /);
+});
+
+test('aplite draws a single Default view; emery its own 200×228 screen', () => {
+  const S = settings({ layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' });
+  // The page's load normalises what aplite cannot draw, as it does before any block renders.
+  const apliteEnv = plat.computeEnv({ platform: 'aplite' });
+  const onAplite = Object.assign({}, S);
+  onbuild.onLoad({ env: apliteEnv, get: (k) => onAplite[k], set: (k, v) => { onAplite[k] = v; },
+    getInitial: (k) => onAplite[k] });
+  const aplite = pw.watchPreview(onAplite, apliteEnv, {});
+  assert.equal(labels(aplite).length, 1);
+  assert.match(labels(aplite)[0], /^Default: /);
+  assert.match(aplite, /viewBox="-9 -9 162 186"/);
+  assert.match(pw.watchPreview(S, plat.computeEnv({ platform: 'emery' }), {}), /viewBox="-12 -12 224 252"/);
+});
+
+test('the calendar: its week as Start week on says, today in its cell, Auto taking the weekday\'s colour', () => {
+  const env = plat.computeEnv({ platform: 'basalt' });
+  const c = cycle(settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }), 'basalt');
+  const friday = new Date(2026, 10, 6), sunday = new Date(2026, 10, 8);
+  const draw = (over, now) => pw.screenSvg(c.views[0], 0, settings(Object.assign({ layoutPreset: 'compactCal' }, over)),
+    env, {}, 0, now).svg;
+  const todayCell = (svg) => /<rect x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" rx="2" fill="([^"]*)"><\/rect><text[^>]*fill="([^"]*)"[^>]*>(\d+)</.exec(svg);
+  // A Monday start puts Friday the 6th fifth in its row; a Sunday start sixth.
+  const firstRow = (svg) => (svg.match(/>(\d+)<\/text>/g) || []).slice(0, 7).map((t) => t.replace(/\D/g, ''));
+  assert.deepEqual(firstRow(draw({ weekStartDay: 'mon' }, friday)), ['2', '3', '4', '5', '6', '7', '8']);
+  assert.deepEqual(firstRow(draw({ weekStartDay: 'sun' }, friday)), ['1', '2', '3', '4', '5', '6', '7']);
+  let cell = todayCell(draw({ colorToday: '#000000' }, friday));
+  assert.deepEqual([cell[1], cell[2], cell[3]], ['#FFFFFF', '#000000', '6'], 'Auto on a weekday: the ink, the date legible over it');
+  cell = todayCell(draw({ colorToday: '#000000', colorSunday: '#FF0055' }, sunday));
+  assert.equal(cell[1], '#FF0055', 'Auto on a Sunday: the Sunday colour');
+  cell = todayCell(draw({ colorToday: '#00AAFF' }, friday));
+  assert.equal(cell[1], '#00AAFF', 'a picked colour');
+  const bw = pw.screenSvg(c.views[0], 0, settings({ layoutPreset: 'compactCal', colorToday: '#00AAFF', colorSunday: '#FF0055' }),
+    plat.computeEnv({ platform: 'diorite' }), {}, 0, sunday).svg;
+  assert.equal(todayCell(bw)[1], '#FFFFFF', 'a black-and-white watch draws today in its ink');
+  assert.doesNotMatch(bw, /#FF0055/, 'and no weekday colours');
+});
+
+test('the clock: the samples\' 15:00 in the time colour and the picked face\'s weight', () => {
+  const env = plat.computeEnv({ platform: 'basalt' });
+  const c = cycle(settings({ layoutPreset: 'noCal', radarMode: 'off', healthMode: 'off' }), 'basalt');
+  const svg = (over) => pw.screenSvg(c.views[0], 0, settings(Object.assign({ layoutPreset: 'noCal' }, over)), env, {}, 0, new Date()).svg;
+  // Roboto and Bitham: the watch's glyph images, tinted (test/clock-glyphs-page.test.js has the seating).
+  const tint = (over) => (/<feFlood flood-color="([^"]*)">/.exec(svg(over)) || [])[1];
+  assert.equal(tint({ colorTime: '#FFFFFF', timeFont: 'roboto' }), '#FFFFFF');
+  assert.equal(tint({ colorTime: '#FFAA00', timeFont: 'bitham' }), '#FFAA00');
+  assert.equal((svg({ timeFont: 'bitham' }).match(/<image /g) || []).length, 5);
+  // LECO: the watch's system font, tinted the same way.
+  assert.equal(tint({ colorTime: '#FFAA00', timeFont: 'leco' }), '#FFAA00');
+  assert.equal((svg({ timeFont: 'leco' }).match(/<image /g) || []).length, 5);
+  assert.equal(svg({ timeFont: 'leco' }).indexOf('>15:00</text>'), -1, 'no stand-in text');
+});
+
+test('a light theme draws black on white, the status rows print the Status bars tab\'s slots', () => {
+  const env = plat.computeEnv({ platform: 'basalt' });
+  const S = settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off', theme: 'light',
+    statusForecastLeft: 'city', statusForecastMid: 'empty', statusForecastRight: 'empty' });
+  const html = pw.watchPreview(S, env, {});
+  assert.match(html, /<rect x="-9" y="-9" width="162" height="186" fill="#FFFFFF"><\/rect>/);
+  assert.match(html, /fill="#000000" text-anchor="start" font-weight="700"[^>]*>Berlin<\/text>/, 'the city in the left slot');
+});
+
+test('a graph\'s pattern and clip ids carry its band\'s suffix, so two graphs never share one', () => {
+  const env = plat.computeEnv({ platform: 'basalt' });
+  const html = pw.watchPreview(settings({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'all',
+    dayNightShading: true }), env, {});
+  const ids = (html.match(/ id="[^"]*"/g) || []).map((m) => m.slice(5, -1));
+  assert.ok(ids.length > 0, 'the graphs define patterns');
+  ids.forEach((id) => assert.match(id, /-w\d+$/, id + ' carries a band suffix'));
+  assert.equal(new Set(ids).size, ids.length, 'no id twice');
+  (html.match(/url\(#[^)]*\)/g) || []).forEach((u) => assert.ok(ids.indexOf(u.slice(5, -1)) !== -1, u + ' points at a defined id'));
+});
+
+// The Layout card's preset picker (picture resolver 'layoutPresetPicture'): each preset as
+// its Default view, drawn as the pinned preview draws it, with the settings as they are.
+
+/**
+ * The picture the picker draws for a preset.
+ * @param {Object} S Settings.
+ * @param {!Object} env Platform env.
+ * @param {string} value The preset.
+ * @returns {string} SVG.
+ */
+function picture(S, env, value) {
+  return global.PConf.pictureResolvers.get('layoutPresetPicture')(S, env, { messageKey: 'layoutPreset', value: value }, {});
+}
+
+/**
+ * The tab body the engine renders for the Watchface tab.
+ * @param {Object} S Settings.
+ * @param {!Object} env Platform env.
+ * @returns {string} HTML.
+ */
+function watchfaceBody(S, env) {
+  onbuild.onLoad({ env: env, get: (k) => S[k], set: (k, v) => { S[k] = v; }, getInitial: (k) => S[k] });
+  return eng.renderBody(schema, 'watchface', { S: S, ENV: env, USERDATA: {}, collapsed: {},
+    evalCtx: Object.assign({}, S, { env: env }) });
+}
+
+test('each preset\'s picture is its Default view, as the pinned preview draws it', () => {
+  ['basalt', 'emery', 'diorite'].forEach((platform) => {
+    const env = plat.computeEnv({ platform: platform }), f = platform === 'emery' ? 1 : 0;
+    [['graph', 'all'], ['status', 'off'], ['off', 'status'], ['countdown', 'off']].forEach((modes) => {
+      const S = settings({ layoutPreset: 'compactCal', radarMode: modes[0], healthMode: modes[1] });
+      ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((value) => {
+        const st = Object.assign({}, S, { layoutPreset: value });
+        const want = pw.screenSvg(VC.resolveViewCycle(st, env)[0], 0, st, env, {}, f, new Date(), 'lp' + value + '-').svg;
+        assert.equal(picture(S, env, value), want, platform + ' ' + modes.join('/') + ' ' + value);
+      });
+    });
+  });
+});
+
+test('Custom shows the custom Default view, or the one a first pick would seed, with a pencil', () => {
+  const env = plat.computeEnv({ platform: 'basalt' });
+  const unprefix = (svg) => svg.replace(/lp(custom|noCal)-/g, 'lp-');
+  const pencil = /<circle [^>]*fill="#FA4A35"[^>]*><\/circle><path [^>]*><\/path><\/svg>$/;
+  // Never picked: the seed of the preset in use, so the card is that preset's, plus the pencil.
+  const S = settings({ layoutPreset: 'noCal', radarMode: 'graph', healthMode: 'all', customLayoutSeeded: false });
+  const before = JSON.stringify(S);
+  const custom = picture(S, env, 'custom');
+  assert.match(custom, pencil, 'the pencil closes the picture');
+  assert.equal(unprefix(custom.replace(pencil, '</svg>')), unprefix(picture(S, env, 'noCal')),
+    'an unseeded Custom draws the preset in use');
+  assert.equal(JSON.stringify(S), before, 'drawing it seeds nothing');
+  // Built: the custom keys' own Default view (here a radar over the clock, no top bar).
+  const built = settings({ layoutPreset: 'noCal', radarMode: 'graph', healthMode: 'all', customLayoutSeeded: true,
+    viewCount: '1', viewTop0: 'radar', viewBody0: 'none', viewUpper0: 'off', viewLower0: 'off', viewStripOff0: true });
+  const st = Object.assign({}, built, { layoutPreset: 'custom' });
+  const want = pw.screenSvg(VC.resolveViewCycle(st, env)[0], 0, st, env, {}, 0, new Date(), 'lpcustom-').svg;
+  assert.equal(picture(built, env, 'custom').replace(pencil, '</svg>'), want);
+  assert.notEqual(unprefix(want), unprefix(picture(built, env, 'noCal')), 'premise: the built view is not the preset\'s');
+});
+
+test('the Layout card draws a card per offered preset, the shown one checked, no id shared on the tab', () => {
+  [['basalt', 6], ['emery', 6], ['diorite', 6], ['aplite', 3]].forEach((p) => {
+    const env = plat.computeEnv({ platform: p[0] });
+    const html = watchfaceBody(settings({ layoutPreset: 'fullCal', radarMode: 'graph', healthMode: 'all' }), env);
+    const cards = html.match(/<button type="button" class="pic( on)?" role="radio" aria-checked="(true|false)" data-k="layoutPreset" data-v="[^"]*">/g) || [];
+    assert.equal(cards.length, p[1], p[0] + ': one card per offered preset');
+    assert.deepEqual(cards.filter((c) => / on"/.test(c)).map((c) => /data-v="([^"]*)"/.exec(c)[1]), ['fullCal'],
+      p[0] + ': the stored preset is the checked card');
+    const ids = (html.match(/ id="[^"]*"/g) || []).map((m) => m.slice(5, -1));
+    assert.equal(new Set(ids).size, ids.length, p[0] + ': no id twice on the tab');
+  });
+});
+
+test('the calendar marks the holidays the phone holds for the picked country, in the holiday colour', () => {
+  const env = plat.computeEnv({ platform: 'basalt' });
+  const now = new Date(2026, 10, 6);   // a Friday
+  const holidays = { country: 'DE', years: { 2026: [['11-03', null], ['11-11', ['DE-BY']]] } };
+  const cal = (over, ud) => {
+    const S = settings(Object.assign({ layoutPreset: 'fullCal', radarMode: 'off', healthMode: 'off',
+      holidayCountry: 'DE', holidayRegion: 'all', weekStartDay: 'mon', colorUSFederal: '#0055FF' }, over));
+    return pw.screenSvg(VC.resolveViewCycle(S, env)[0], 0, S, env, ud === undefined ? { holidays: holidays } : ud, 0, now).svg;
+  };
+  const day = (svg, n) => (new RegExp('fill="([^"]*)" text-anchor="middle" font-weight="(\\d+)"[^>]*>' + n + '</text>').exec(svg) || []).slice(1);
+  assert.deepEqual(day(cal({}), 3), ['#0055FF', '700'], 'a nationwide holiday: its colour, bold');
+  assert.deepEqual(day(cal({}), 11), ['#FFFFFF', '400'], 'a regional one is not the whole country\'s');
+  assert.deepEqual(day(cal({ holidayRegion: 'DE-BY' }), 11), ['#0055FF', '700'], 'but is its region\'s');
+  assert.deepEqual(day(cal({ holidayCountry: 'AT' }), 3), ['#FFFFFF', '400'], 'another country: nothing held');
+  assert.deepEqual(day(cal({ holidaysEnabled: false }), 3), ['#FFFFFF', '400'], 'Holiday highlight off');
+  assert.deepEqual(day(cal({}, {}), 3), ['#FFFFFF', '400'], 'nothing cached');
+  assert.deepEqual(day(cal({ theme: 'bw' }), 3), ['#FFFFFF', '700'], 'a B/W theme: the ink, still bold');
+});
+
+test('each screen sits in a margin of its own ground, so a card\'s round corners clip nothing on it', () => {
+  // The owner, 2026-11-06: the corners cut the top bar's edge slots (W45, 19:14). The ground
+  // runs on round the screen, about 6 % of its width, and the card is that colour throughout.
+  [['basalt', 144, 168, 9], ['emery', 200, 228, 12]].forEach((p) => {
+    const env = plat.computeEnv({ platform: p[0] });
+    const S = settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off', theme: 'light' });
+    const svg = pw.screenSvg(VC.resolveViewCycle(S, env)[0], 0, S, env, {}, p[0] === 'emery' ? 1 : 0, new Date()).svg;
+    const m = p[3], vb = [-m, -m, p[1] + 2 * m, p[2] + 2 * m].join(' ');
+    assert.ok(svg.indexOf('<svg class="wpv-scr" viewBox="' + vb + '"') === 0, p[0] + ': ' + svg.slice(0, 70));
+    assert.ok(svg.indexOf('<rect x="' + (-m) + '" y="' + (-m) + '" width="' + (p[1] + 2 * m) + '" height="'
+      + (p[2] + 2 * m) + '" fill="#FFFFFF"></rect>') > 0, p[0] + ': the ground fills the margin');
+    assert.ok(m / p[1] >= 0.06, p[0] + ': a card 90 px wide keeps over 5 px of it, past a 12 px corner\'s reach');
+  });
+  const html = pw.watchPreview(settings({ theme: 'light' }), plat.computeEnv({ platform: 'basalt' }), {});
+  assert.match(html, /<div class="wpv-card" style="background:#FFFFFF">/, 'the card is the screen\'s white');
+});

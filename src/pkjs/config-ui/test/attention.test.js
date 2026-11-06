@@ -87,13 +87,17 @@ test('attentionFrom: a dot on the tab holding the row, its note in the tab\'s ar
   const fine = E.renderTabBar(SCHEMA, 'a', cxFor({ pick: 'ok', pickB: 'ok', hideB: false }));
   assert.doesNotMatch(fine, /tab-dot|aria-label/);
   const bar = E.renderTabBar(SCHEMA, 'a', cxFor({ pick: 'bad', pickB: 'ok', hideB: false }));
-  assert.equal(bar, '<button class="tab on" data-tab="a" aria-label="Alpha (Needs a fix)">Alpha'
-    + '<span class="tab-dot" aria-hidden="true"></span></button><button class="tab" data-tab="b">Beta</button>');
+  // A tab without an icon carries the dot after its label (.solo); one with an icon on it.
+  assert.equal(bar, '<button class="tab on" data-tab="a" type="button" aria-current="page"'
+    + ' aria-label="Alpha (Needs a fix)"><span class="tab-lbl">Alpha'
+    + '<span class="tab-dot solo" aria-hidden="true"></span></span></button>'
+    + '<button class="tab" data-tab="b" type="button"><span class="tab-lbl">Beta</span></button>');
   assert.match(E.renderTabBar(SCHEMA, 'a', cxFor({ pick: 'ok', pickB: 'bad', hideB: false })),
-    /data-tab="b" aria-label="Beta \(Needs a fix\)">Beta<span class="tab-dot"/, 'another tab\'s row dots that tab');
+    /data-tab="b" type="button" aria-label="Beta \(Needs a fix\)"><span class="tab-lbl">Beta<span class="tab-dot solo"/,
+    'another tab\'s row dots that tab');
   assert.doesNotMatch(E.renderTabBar(SCHEMA, 'a', cxFor({ pick: 'ok', pickB: 'bad', hideB: true })), /tab-dot/,
     'a row in a hidden section asks for nothing');
-  assert.match(E.renderTabBar(SCHEMA, 'a', cxFor({ pick: 'ok', pickC: 'bad', showC: true })), /data-tab="b"[^>]*>Beta<span class="tab-dot"/,
+  assert.match(E.renderTabBar(SCHEMA, 'a', cxFor({ pick: 'ok', pickC: 'bad', showC: true })), /data-tab="b"[^>]*><span class="tab-lbl">Beta<span class="tab-dot solo"/,
     'a row in a sheet counts for the tab the sheet belongs to');
   assert.doesNotMatch(E.renderTabBar(SCHEMA, 'a', cxFor({ pick: 'ok', pickC: 'bad', showC: false })), /tab-dot/,
     'a hidden row asks for nothing');

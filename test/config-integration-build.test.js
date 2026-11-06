@@ -37,10 +37,10 @@ test('decoded HTML contains app blocks (blocks.js) and PConf.engine.boot()', fun
 // ONE plain <script> (no CommonJS `require` in that context — see build-page.js). A block
 // that only worked via blocks.js's `require('../view-cycle.js')` branch would pass every
 // test that loads blocks.js as its own Node module (require() exists there) while silently
-// throwing in the real webview the moment a user opened the Layout tab. Execute the ACTUAL
+// throwing in the real webview the moment a user opened the Watchface tab. Execute the ACTUAL
 // generated script in a sandbox with no `require`, the way the webview runs it, and drive
-// the Layout tab's preview block for real.
-test('generated page renders the Layout tab preview without require() (webview has none)', function () {
+// the Watchface tab's watch preview and the Layout card's preset pictures for real.
+test('generated page renders the Watchface tab preview without require() (webview has none)', function () {
     var vm = require('vm');
     var url = settings.generateUrl({ values: settings.getDefaults(), watchInfo: { platform: 'basalt' }, userData: {} });
     var decoded = decodeURIComponent(url.slice('data:text/html;charset=utf-8,'.length));
@@ -55,10 +55,16 @@ test('generated page renders the Layout tab preview without require() (webview h
     sandbox.navigator = {};
     vm.createContext(sandbox);
     vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
-    var fn = sandbox.PConf.blocks.get('layoutPreviewCombined');
-    assert.ok(fn, 'layoutPreviewCombined is registered');
-    var out = fn({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }, {}, {});
+    var fn = sandbox.PConf.blocks.get('watchPreview');
+    assert.ok(fn, 'watchPreview is registered');
+    var S = { layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'graph' };
+    var out = fn(S, { platform: 'basalt', color: true }, {});
+    assert.equal((out.match(/class="wpv-v"/g) || []).length, 3, 'one card per view: Default and two flicks');
     assert.ok(out.indexOf('<svg') >= 0, 'renders real SVG content, not a thrown error');
+    var pic = sandbox.PConf.pictureResolvers.get('layoutPresetPicture');
+    assert.ok(pic, 'layoutPresetPicture is registered');
+    assert.ok(pic(S, { platform: 'basalt', color: true }, { value: 'weatherOnly' }, {}).indexOf('<svg') === 0,
+      'a preset picture renders');
 });
 
 test('generated page registers PConf.actions.startWizard (wizard.js concatenated + shimmed)', function () {

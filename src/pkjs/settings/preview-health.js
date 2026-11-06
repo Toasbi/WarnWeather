@@ -1,7 +1,7 @@
 // src/pkjs/settings/preview-health.js — ES5, WebView. The health-graph preview block
 // ('healthPreview'), pinned over the Graphs tab's Health pane: a sample day drawn the way
-// health_graph_layer.c draws the real one — hourly step bars, last night's sleep band
-// along the bottom (deep and light sleep), and the heart-rate line on the Heart-rate
+// health_graph_layer.c draws the real one — hourly step bars standing on the axis, over
+// last night's sleep band along the bottom (deep and light sleep), and the heart-rate line on the Heart-rate
 // scale the pane sets, with an off-scale hour as a dot on the edge the line left
 // through. The scale is the one setting here, so the sample is built to cross it: a
 // resting night near 50 bpm and a workout near 160 bpm.
@@ -58,22 +58,24 @@
         var PX0 = 20, PX1 = 180, PT = 8, PB = 94, STRIPE = 5, GAP = 4;
         var n = STEPS.length, pitch = (PX1 - PX0) / n, bw = pitch - 1.6;
         var e = rect(0, 0, 200, 112, ink.bg);
-        // Last night's sleep along the bottom of the plot.
+        // Last night's sleep along the bottom of the plot, under everything else
+        // (health_graph_layer.c's z-order: the stripe, the gridlines, the bars, the HR line).
         for (var i = 0; i < n; i++) {
             if (!SLEEP[i]) { continue; }
             var fill = SLEEP[i] === 2 ? (color ? '#0000FF' : ink.fg) : (color ? '#00AAFF' : '#AAAAAA');
             e += rect((PX0 + i * pitch).toFixed(1), PB - STRIPE, (pitch + 0.2).toFixed(1), STRIPE, fill);
         }
-        // Step bars, on their own scale (the peak hour reaches near the top): green on a
-        // colour theme, the background on B&W, and — on every theme but colour-dark — an
-        // outline in the ink round the top and sides (chart.c BAR_OUTLINED; the axis
-        // closes the bottom).
+        // Step bars, on their own scale from the axis (the peak hour reaches near the top),
+        // over the sleep stripe as the watch draws them (its BARS layer maps a value from
+        // the plot's bottom): green on a colour theme, the background on B&W, and — on
+        // every theme but colour-dark — an outline in the ink round the top and sides
+        // (chart.c BAR_OUTLINED; the axis closes the bottom).
         var peak = 0;
         STEPS.forEach(function (v) { if (v > peak) { peak = v; } });
-        var barTop = PT + 6, barSpan = PB - STRIPE - barTop;
+        var barTop = PT + 6, barSpan = PB - barTop;
         // The marks' dashed gridlines under the data, labelled in thousands on the left.
         stepMarks(peak).forEach(function (m) {
-            var gy = (PB - STRIPE - m / (peak * 1.1) * barSpan).toFixed(1);
+            var gy = (PB - m / (peak * 1.1) * barSpan).toFixed(1);
             e += '<line x1="' + PX0 + '" y1="' + gy + '" x2="' + PX1 + '" y2="' + gy + '" stroke="' + furniture
                 + '" stroke-width="0.8" stroke-dasharray="2 2"></line>';
             e += txt(PX0 - 3, (+gy + 2.5).toFixed(1), 7, ink.fg, 'end', 700, String(m / 1000));
@@ -82,7 +84,7 @@
         for (i = 0; i < n; i++) {
             if (!STEPS[i]) { continue; }
             var h = Math.max(1.5, STEPS[i] / (peak * 1.1) * barSpan);
-            var x0 = PX0 + i * pitch + 0.8, y0 = PB - STRIPE - h, x1 = x0 + bw, yb = PB - STRIPE;
+            var x0 = PX0 + i * pitch + 0.8, y0 = PB - h, x1 = x0 + bw, yb = PB;
             e += rect(x0.toFixed(1), y0.toFixed(1), bw.toFixed(1), h.toFixed(1), color ? '#00FF00' : ink.bg);
             if (outlined) {
                 e += '<path d="M' + x0.toFixed(1) + ' ' + yb + ' V' + y0.toFixed(1) + ' H' + x1.toFixed(1) + ' V' + yb

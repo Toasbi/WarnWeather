@@ -1,7 +1,7 @@
 // src/pkjs/view-cycle.js
 // Single source of truth for the layout-preset matrix and the packed per-slot
 // ViewSpec wire byte. ES5 only (required from clay-payload.js at watch runtime).
-// Also read by settings/preview-layout.js (config-UI preview) and the node tests.
+// Also read by the config UI's previews (settings/preview-watch.js and others) and the node tests.
 
 var TIER_OFF = 0, TIER_NONE = 1, TIER_COMPACT = 2, TIER_FULL = 3;
 // TOP_GRAPH (custom layouts only): a forecast or health graph in the top band; which
@@ -217,18 +217,24 @@ var FIT_PX = {
 };
 
 /**
- * Pixels a stack needs on one screen family, in the watch's walk order: the bands the
- * compiled spec shows (STACK_ORDERS[order] + the body), each on its SEAT (compute_layout's
- * row_seat rules), plus the clearance a band owes the next one. The status rows' tier
- * follows the top area's row count, like the watch (layout.c status_tier_for). A FILL band
- * is counted at its floor: 2 rows, or 3 for the forecast (its labels collide below that).
+ * The seats a stack's bands take on one screen family, in the watch's walk order: the
+ * bands the compiled spec shows (STACK_ORDERS[order] + the body), each on its SEAT
+ * (compute_layout's row_seat rules), with the clearance a band owes the next one. The
+ * status rows' tier follows the top area's row count, like the watch (layout.c
+ * status_tier_for). A FILL band is counted at its floor: 2 rows, or 3 for the forecast
+ * (its labels collide below that). The walk stackNeed sums, and the settings page's
+ * watch preview draws.
  * @param {!Object} s view spec as the watch lays it out (resolveForFit for a data state)
  * @param {number} f family index (0 = 144 px, 1 = emery)
- * @returns {{need: number, avail: number}}
+ * @returns {{seats: !Array<{band: string, pitch: number, gap: number, fill: boolean}>,
+ *     lead: number, tier: number, need: number, avail: number}} each present band
+ *     ('T' top, 'C' clock, 'A'/'B' status rows, 'G' body) with the rows it takes and the
+ *     clearance after it; `lead` the rows a row or graph leading under the top bar starts
+ *     below it; `tier` the rows' tier; `need` the whole stack, `avail` the screen's rows
  */
-function stackNeed(s, f) {
+function stackSeats(s, f) {
   var e = extFields(s);
-  var row = FIT_PX.row[f], slide = FIT_PX.slide[f];
+  var row = FIT_PX.row[f], slide = FIT_PX.slide[f], bodyFill = false;
   var fcTop = s.top === TOP_GRAPH && e.topKind === TOP_KIND_FORECAST;
   /** @param {number} code @param {number} dflt @param {boolean} fc @returns {number} rows, 0 = fill */
   function sizeRows(code, dflt, fc) {
@@ -256,11 +262,11 @@ function stackNeed(s, f) {
   var present = { T: s.top !== TOP_EMPTY && topRows > 0, C: !s.clockOff,
                   A: s.statusUpper !== STATUS_SRC_NONE, B: s.statusLower !== STATUS_SRC_NONE, G: bodyOn };
   for (j = 0; j < seq.length; j++) { if (present[seq.charAt(j)]) { list.push(seq.charAt(j)); } }
-  var need = 0, under = {};
+  var need = 0, under = {}, seats = [], lead = 0;
   var isRow = { A: true, B: true };
   // A status row or the graph leading under the top bar starts on the first row the bar
   // does not paint (2 rows past the reserve on the 144 px watches).
-  if (!s.stripOff && list.length && (list[0] === 'G' || isRow[list[0]])) { need += FIT_PX.stripInk[f]; }
+  if (!s.stripOff && list.length && (list[0] === 'G' || isRow[list[0]])) { lead = FIT_PX.stripInk[f]; need += lead; }
   for (j = 0; j < list.length; j++) {
     b = list[j];
     var prev = j > 0 ? list[j - 1] : null, next = j + 1 < list.length ? list[j + 1] : null;
@@ -280,6 +286,7 @@ function stackNeed(s, f) {
     } else if (b === 'G') {
       var br = sizeRows(e.bodySize, 0, s.body === BODY_FC);
       pitch = br ? br * row : (s.body === BODY_FC ? 3 : 2) * row;
+      bodyFill = !br;
     } else {
       // row_seat: the freed row above the clock, the reserve under it, else a plain band.
       if (prev === 'T' && next === 'C') {
@@ -296,8 +303,23 @@ function stackNeed(s, f) {
     }
     need += pitch;
     if (next) { need += g; }
+    seats.push({ band: b, pitch: pitch, gap: next ? g : 0,
+                 fill: (b === 'T' && topFill) || (b === 'G' && bodyFill) });
   }
-  return { need: need, avail: s.stripOff ? FIT_PX.availNoStrip[f] : FIT_PX.availStrip[f] };
+  return { seats: seats, lead: lead, tier: tier, need: need,
+           avail: s.stripOff ? FIT_PX.availNoStrip[f] : FIT_PX.availStrip[f] };
+}
+
+/**
+ * Pixels a stack needs on one screen family (stackSeats, summed), against the rows the
+ * screen has.
+ * @param {!Object} s view spec as the watch lays it out (resolveForFit for a data state)
+ * @param {number} f family index (0 = 144 px, 1 = emery)
+ * @returns {{need: number, avail: number}}
+ */
+function stackNeed(s, f) {
+  var st = stackSeats(s, f);
+  return { need: st.need, avail: st.avail };
 }
 
 /**
@@ -797,7 +819,7 @@ var LEGACY_PRESET = {
  * draw folded to the one its settings radio shows instead (the dormant value's
  * fallback, compactCal). aplite has no radar and no view without top bar, so a stored
  * Weather only runs — and previews — as Compact calendar there. The one fold the
- * payload (clay-payload.js) and the Layout preview (preview-layout.js) share.
+ * payload (clay-payload.js) and the settings page's watch preview (preview-watch.js) share.
  * @param {Object} state settings state
  * @param {?{platform: string}} env platform facts ('' / missing = capable)
  * @returns {string} preset key
@@ -825,7 +847,7 @@ function resolvePresetKey(state) {
 
 /**
  * The view cycle a watch runs for a settings state: THE one reading, for the Clay payload
- * (clay-payload.js), the Layout preview (settings/preview-layout.js) and the Alerts tab's
+ * (clay-payload.js), the settings page's watch preview (settings/preview-watch.js) and the Alerts tab's
  * About alerts Default-view note (settings/when-resolvers.js). layoutPreset 'custom' compiles the
  * per-view keys (buildCustomCycle), except on an APLITE watch, which folds custom to the
  * explicit compactCal preset: aplite is frozen-lean, its settings screen never offers
@@ -848,7 +870,7 @@ function resolveViewCycle(settings, env) {
 // Single public API object, defined once. As a CommonJS module (watch runtime, tests)
 // this is module.exports. When this file is instead concatenated as a plain <script> into
 // the config-UI webview (see scripts/build-config-page.js, which has no `module`),
-// settings/preview-layout.js reads this same VIEW_CYCLE object from the shared top-level scope
+// settings/preview-watch.js reads this same VIEW_CYCLE object from the shared top-level scope
 // rather than require()-ing it — one export list, no hand-copied duplicate to drift.
 var VIEW_CYCLE = {
   TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,
@@ -863,7 +885,7 @@ var VIEW_CYCLE = {
   STATUS_SRC_RADAR: STATUS_SRC_RADAR, STATUS_SRC_HEALTH: STATUS_SRC_HEALTH,
   spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
   packExt: packExt, packWire: packWire, unpackWire: unpackWire, hasFill: hasFill,
-  stackFits: stackFits, stackNeed: stackNeed, resolveForFit: resolveForFit, FIT_PX: FIT_PX,
+  stackFits: stackFits, stackNeed: stackNeed, stackSeats: stackSeats, resolveForFit: resolveForFit, FIT_PX: FIT_PX,
   swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
   STACK_ORDERS: STACK_ORDERS, orderCode: orderCode, isStacked: isStacked,
   RADAR_CHART_MODES: RADAR_CHART_MODES, RADAR_ROW_MODES: RADAR_ROW_MODES,

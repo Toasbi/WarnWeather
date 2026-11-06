@@ -1319,7 +1319,7 @@ test('layoutPreset offers the four adaptive presets', () => {
   const section = watchface.sections.find((s) => s.items.some((i) => i.messageKey === 'layoutPreset'));
   assert.ok(section, 'in a Watchface tab section');
   assert.equal(section.id, 'layout');
-  assert.equal(watchface.pinBlock, 'layoutPreviewCombined', 'the combined preview is pinned atop the tab');
+  assert.equal(watchface.pinBlock, 'watchPreview', 'the watch, every view of it, is pinned atop the tab');
   assert.equal(t.blockBefore, undefined, 'the preview is the tab\'s, not the row\'s');
   // Not in Setup's Misc card (the old More tab's Misc).
   const misc = schema.tabs.find((tab) => tab.id === 'setup').sections.find((s) => s.id === 'about');
@@ -1349,8 +1349,8 @@ test('hidden compactDense renders the compactCal fallback but stays in state', (
   S.radarMode = 'off';   // dense hidden in this mode
   const html = eng.renderBody(schema, 'watchface', cx(S));
   assert.equal(S.layoutPreset, 'compactDense', 'stored dense choice survives the render');
-  assert.match(html, /class="on" data-k="layoutPreset" data-v="compactCal"/,
-    'the radio shows compactCal selected as the display fallback');
+  assert.match(html, /class="pic on" role="radio" aria-checked="true" data-k="layoutPreset" data-v="compactCal"/,
+    'the picker shows compactCal selected as the display fallback');
 
   // The generic lockstep rule is untouched: an unknown value still snaps into state.
   S.layoutPreset = 'bogus';

@@ -150,6 +150,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // second one), merged UNDER hintFrom.args.
   PConf.hintResolvers = makeRegistry();
 
+  // --- picture-resolver registry --- a radio opts into a picture per option
+  // (item.pictureFrom: {resolver, args}); fn(S, env, args, userData) returns the markup of
+  // ONE option's picture, '' for none. args carries the row's messageKey and the option's
+  // value, merged UNDER pictureFrom.args. The radio then draws its options as picture cards
+  // (renderPictureRadio), and as its plain list while the resolver is unregistered. TRUST
+  // BOUNDARY: like a block's HTML the markup is printed UNESCAPED, so only page code
+  // registers here. Read at render time, like the hint resolver.
+  PConf.pictureResolvers = makeRegistry();
+
   // --- attention-resolver registry --- a row opts into "needs attention" by name
   // (item.attentionFrom: {resolver, args}); fn(S, env, args) returns null (nothing to
   // fix) or {note, title, body, actionLabel, confirmLabel?, sheet?}: something the user
@@ -404,8 +413,35 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + '" data-toggle="1"' + (ariaLabel ? ' aria-label="' + esc(ariaLabel) + '"' : '')
       + (disabled ? ' disabled' : '') + '><i></i></button>';
   }
-  function renderSegmented(item, v, off) { return '<div class="seg">' + optionButtons(item, v, false, off) + '</div>'; }
+  // item.full: the setup's picker — one equal segment per option across the row's width, a
+  // long label wrapping inside its own segment (renderRow gives it its own row shape).
+  function renderSegmented(item, v, off) {
+    return '<div class="seg' + (item.full ? ' full' : '') + '">' + optionButtons(item, v, false, off) + '</div>';
+  }
   function renderRadio(item, v, off) { return '<div class="radio">' + optionButtons(item, v, true, off) + '</div>'; }
+  /**
+   * A radio drawn as the setup's picker in pictures (item.pictureFrom): each option a card,
+   * its picture over its name, the picked one ringed in the accent with its name on the
+   * accent fill. A radiogroup of radios, so a screen reader hears which one is picked; the
+   * picture is decoration (the name says it).
+   * @param {Object} item Radio item, its options resolved.
+   * @param {*} v The shown value.
+   * @param {?Array} off Option values to render inert.
+   * @param {!Object} pictures Option value -> picture markup (resolvePictures).
+   * @returns {string} HTML.
+   */
+  function renderPictureRadio(item, v, off, pictures) {
+    var h = '<div class="pics" role="radiogroup"' + (item.label ? ' aria-label="' + esc(item.label) + '"' : '') + '>';
+    for (var i = 0; i < item.options.length; i++) {
+      var o = item.options[i], on = v === o[1];
+      var isOff = Boolean(off) && off.indexOf(o[1]) !== -1;
+      h += '<button type="button" class="pic' + (on ? ' on' : '') + '" role="radio" aria-checked="' + (on ? 'true' : 'false')
+        + '" data-k="' + esc(item.messageKey) + '" data-v="' + esc(o[1]) + '"' + (isOff ? ' disabled' : '') + '>'
+        + '<span class="pic-img" aria-hidden="true">' + (pictures[o[1]] || '') + '</span>'
+        + '<span class="pic-lbl">' + esc(o[0]) + '</span></button>';
+    }
+    return h + '</div>';
+  }
   // Format a minute count as a human label for interval-derived option lists.
   // 1440 is checked first because it is also a multiple of 60.
   function formatMinutesLabel(min) {
@@ -670,6 +706,30 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       staticHint: staticHintOf(item, value) }, item.hintFrom.args || {});
     var hint = fn(S, env, args);
     return hint == null ? undefined : String(hint);
+  }
+
+  /**
+   * A picture radio's pictures (item.pictureFrom): each option's markup from the named
+   * picture resolver, by option value. Null while the resolver is unregistered, so the
+   * radio keeps its plain list.
+   *
+   * @param {Object} item Radio item, its options resolved (resolveRowItem).
+   * @param {Object} S Live settings state.
+   * @param {Object} env Platform env.
+   * @param {Object} userData Page userData.
+   * @returns {?Object} Option value -> picture markup ('' for none), or null.
+   */
+  function resolvePictures(item, S, env, userData) {
+    var spec = item.pictureFrom;
+    var fn = spec && PConf.pictureResolvers.get(spec.resolver);
+    if (!fn || !item.options) { return null; }
+    var out = {}, i, v;
+    for (i = 0; i < item.options.length; i++) {
+      v = item.options[i][1];
+      out[v] = String(fn(S, env, Object.assign({ messageKey: item.messageKey, value: v }, spec.args || {}),
+        userData || {}) || '');
+    }
+    return out;
   }
 
   /**
@@ -1036,7 +1096,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var item = resolveRowItem(found, { value: cx.S[found.messageKey] }, cx);
     var key = esc(item.messageKey), value = cx.S[item.messageKey];
     var listId = 'ssel-list-' + key, titleId = 'ssel-ttl-' + key;
-    var title = esc(String(item.label || 'Selection'));
+    // item.sheetTitle names the picker where the row's label alone would not: a slot row
+    // reads "Middle slot" under its bar's card, and its picker also opens from a preview.
+    var title = esc(String(item.sheetTitle || item.label || 'Selection'));
     // The search box sits in a wrapper that owns the spacing as PADDING. A margin on the
     // input itself exposed the dialog's own box in the strips beside/under it, and a tap
     // there targets the <dialog> — which the click handler reads as a ::backdrop tap and
@@ -1112,8 +1174,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var introOpen = Boolean(sec.intro) && (!introId || Boolean(cx.infoOpen && cx.infoOpen[introId]));
     var pin = '';
     if (sec.pinBlock) {
+      // { dialog: true }: a block whose parts open sheets (the status bars' slots) draws
+      // them inert here, where the one shared sheet is this dialog.
       var fn = PConf.blocks.get(sec.pinBlock);
-      var ph = fn ? (fn(cx.S, cx.ENV, cx.USERDATA) || '') : '';
+      var ph = fn ? (fn(cx.S, cx.ENV, cx.USERDATA, { dialog: true }) || '') : '';
       if (ph) { pin = '<div class="' + pinClass(cx, 'dlg-pin') + '"><div class="pin-blk">' + ph + '</div></div>'; }
     }
     return dialogHeader(titleId, String(sec.title || 'Edit'), cx.editKicker || '', Boolean(cx.editNested),
@@ -1225,7 +1289,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var CONTROLS = {
     toggle: function (item, view) { return renderToggle(item, view.value); },
     segmented: function (item, view) { return renderSegmented(item, view.value, view.disabledOptions); },
-    radio: function (item, view) { return renderRadio(item, view.value, view.disabledOptions); },
+    radio: function (item, view) {
+      return view.pictures ? renderPictureRadio(item, view.value, view.disabledOptions, view.pictures)
+        : renderRadio(item, view.value, view.disabledOptions);
+    },
     select: function (item, view) { return renderSelectTrigger(item, view); },
     date: function (item, view) { return renderDateTrigger(item, view); },
     text: function (item, view) { return renderText(item, view.value); },
@@ -1307,7 +1374,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // inline/float layouts). It gets its own flex row (.segwide): the control keeps the
     // label's line and the label wraps into the width the control leaves, then the hint
     // drops to a full-width line below.
-    var wideSegmented = item.type === 'segmented' && item.options && item.options.length > 3;
+    var wideSegmented = item.type === 'segmented' && item.options && item.options.length > 3 && !item.full;
     var stacked = item.type === 'text' || item.type === 'radio' || item.type === 'range'
       || item.type === 'rgb' || item.type === 'checklist'
       || (item.type === 'color' && view.openColor === item.messageKey);
@@ -1359,9 +1426,21 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // configurable — but muted and inert (CSS pointer-events; the range handlers
       // also guard on .dis for keyboard focus that CSS can't block).
       + (view.disabled ? ' dis' : '');
+    // A picture radio (item.pictureFrom) reads as the setup's pickers do, as a full-width
+    // segmented does: the label, the pictures, then what the picked one does.
+    if (item.type === 'radio' && view.pictures) {
+      return '<div class="' + rowCls + ' picks">' + label + '<div>' + renderControl(item, view) + '</div>'
+        + hintHtml + '</div>';
+    }
     if (stacked) {
       return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div>'
         + inlineList + '</div>';
+    }
+    // A full-width segmented (item.full) reads as the setup's pickers do: the label, the
+    // options across the row, then what the picked one does.
+    if (item.type === 'segmented' && item.full) {
+      return '<div class="' + rowCls + ' stack segfull">' + label + '<div>' + renderControl(item, view) + '</div>'
+        + hintHtml + '</div>';
     }
     // A resolved edit sheet splits its two affordances around the control: the passive
     // colour swatch leads, the Edit button trails. The control cell is right-aligned and
@@ -1641,6 +1720,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // describes the value the row actually shows.
     if (item.hintFrom) {
       view.hint = resolveHint(item, cx.S, cx.ENV, view.value);
+    }
+    // pictureFrom: a radio draws its options as picture cards — from rowItem, so a derived
+    // list gets a picture per option it actually offers.
+    if (item.pictureFrom && item.type === 'radio') {
+      view.pictures = resolvePictures(rowItem, cx.S, cx.ENV, cx.USERDATA);
     }
     // A readout's hint IS the row (a live summary with no control), so it stays in view;
     // with the page's '?' buttons on, every other row's hint is info text behind its '?',
@@ -2148,16 +2232,33 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    *   false against cx.evalCtx are skipped and attention dots are drawn.
    * @returns {string} Tab-bar buttons HTML.
    */
+  /**
+   * A tab's label in the bar: with a `short` one, both, the CSS showing the short label
+   * on a phone too narrow for the whole one (a screen reader hears the one shown).
+   * @param {Object} tab Schema tab.
+   * @returns {string} HTML.
+   */
+  function tabLabelHtml(tab) {
+    if (!tab.short) { return esc(tab.label); }
+    return '<span class="tab-full">' + esc(tab.label) + '</span><span class="tab-short">' + esc(tab.short) + '</span>';
+  }
+
   function renderTabBar(schema, activeTab, cx) {
-    var h = '', i, tab, att, aria;
+    var h = '', i, tab, att, aria, svg, dot;
     for (i = 0; i < schema.tabs.length; i++) {
       tab = schema.tabs[i];
       if (cx && !PConf.showWhen.isVisible(tab, cx.evalCtx)) { continue; }
       att = cx ? findAttention(schema, cx, tab.id) : null;
       aria = (att && att.attention.note)
         ? ' aria-label="' + esc(String(tab.label) + ' (' + String(att.attention.note) + ')') + '"' : '';
-      h += '<button class="tab' + (activeTab === tab.id ? ' on' : '') + '" data-tab="' + esc(tab.id) + '"' + aria + '>'
-        + esc(tab.label) + (att ? '<span class="tab-dot" aria-hidden="true"></span>' : '') + '</button>';
+      // The tab's glyph (tab.icon, a registered icon id) over its label; the attention dot
+      // rides the glyph's corner, or follows the label of a tab without one.
+      svg = tab.icon ? PConf.icons.get(tab.icon) : '';
+      dot = att ? '<span class="tab-dot' + (svg ? '' : ' solo') + '" aria-hidden="true"></span>' : '';
+      h += '<button class="tab' + (activeTab === tab.id ? ' on' : '') + '" data-tab="' + esc(tab.id) + '" type="button"'
+        + (activeTab === tab.id ? ' aria-current="page"' : '') + aria + '>'
+        + (svg ? '<span class="tab-ico" aria-hidden="true">' + svg + dot + '</span>' : '')
+        + '<span class="tab-lbl">' + tabLabelHtml(tab) + (svg ? '' : dot) + '</span></button>';
     }
     return h;
   }
@@ -2288,7 +2389,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     // The switcher rides above the pinned header, not in it, so it scrolls away and the
     // pinned preview alone keeps the top of the screen (owner, 2026-10-04).
-    return seg + (block ? '<div class="' + pinClass(cx) + '"><div class="pin-blk">' + block + '</div></div>' : '');
+    // tab.pinBare: the block draws its own cards (the Watchface tab's watch, one card per view),
+    // so the pin gives it no card of its own.
+    return seg + (block ? '<div class="' + pinClass(cx) + '"><div class="pin-blk' + (tab.pinBare ? ' bare' : '') + '">'
+      + block + '</div></div>' : '');
   }
 
 
@@ -2607,6 +2711,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @param {boolean} [noFocus] Place no focus ("Save anyway": the page is leaving).
      * @returns {void}
      */
+    /**
+     * The trigger a closing sheet hands focus back to: of those carrying its key, the
+     * first in the pinned preview when that opened it, else the first outside it (a row),
+     * else the first of all.
+     * @param {NodeList} nodes The triggers carrying the sheet's key, in page order.
+     * @param {boolean} fromPin Whether the pinned preview opened the sheet.
+     * @returns {?Element} The trigger, or null for none.
+     */
+    function pickTrigger(nodes, fromPin) {
+      for (var i = 0; i < nodes.length; i++) {
+        if (Boolean(nodes[i].closest && nodes[i].closest('.pin')) === fromPin) { return nodes[i]; }
+      }
+      return nodes.length ? nodes[0] : null;
+    }
     function closeModal(noFocus) {
       var closing = sheet;
       dateWiring.flushPending();
@@ -2620,9 +2738,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (!closing) { return; }
       // By key, never a node captured at open time: render() replaced the old trigger.
       var selector = (noFocus || closing.focusBack === false) ? null
-        : closing.kind === 'confirm' ? '#save'
+        : closing.kind === 'confirm' ? (closing.confirm && closing.confirm.revert ? '#revert' : '#save')
         : '[' + TRIGGER_ATTR[closing.kind] + '="' + (rootKey || closing.key) + '"]';
-      var trigger = selector ? document.querySelector(selector) : null;
+      var trigger = !selector ? null
+        : (document.querySelectorAll && pickTrigger(document.querySelectorAll(selector), Boolean(closing.fromPin)))
+          || document.querySelector(selector);
       if (trigger) { trigger.focus(); }
       if (closing.onClose) { closing.onClose(); }
     }
@@ -2807,6 +2927,87 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       syncDialog();
       document.getElementById('scroll').className = 'scroll' + (sheet ? ' locked' : '');
       applyTheme();
+      paintSave();
+    }
+
+    // Save and Revert follow whether a Save would send anything new: the blob Save would
+    // send, against the one the page held once it was ready (its ready hooks' own writes,
+    // the setup wizard's among them, count as where the page started). Until then the
+    // page has no baseline and Save keeps its full look.
+    var readySnap = null, readyBlob = null, stampKeys = [];
+    eachItem(SCHEMA, function (it) { if (it.stamp && it.messageKey) { stampKeys.push(it.messageKey); } });
+    /**
+     * The settings blob a Save would send for a state, as a string to compare — without the
+     * values the page stamps on its own (item.stamp: the Weather tab's last-opened time),
+     * which are no one's change.
+     * @param {Object} state A settings state (S or a snapshot of it).
+     * @returns {string} JSON of serialize(SCHEMA, state, ENV), stamps left out.
+     */
+    function blobOf(state) {
+      var blob = serialize(SCHEMA, state, ENV), i;
+      for (i = 0; i < stampKeys.length; i++) { delete blob[stampKeys[i]]; }
+      return JSON.stringify(blob);
+    }
+    /**
+     * Does the page hold a change a Save would send (any setting off the ready baseline)?
+     * @returns {boolean} False before the baseline is taken.
+     */
+    function hasChanges() { return Boolean(readyBlob) && blobOf(S) !== readyBlob; }
+    /**
+     * Paint Save quiet (.idle) while it would send nothing new, and show Revert only
+     * once something has changed. A no-op until the page is ready.
+     * @returns {void}
+     */
+    function paintSave() {
+      if (!readyBlob) { return; }
+      var changed = hasChanges();
+      var saveEl = document.getElementById('save');
+      var revertEl = document.getElementById('revert');
+      if (saveEl && saveEl.classList) {
+        if (changed) { saveEl.classList.remove('idle'); } else { saveEl.classList.add('idle'); }
+      }
+      if (revertEl) { revertEl.hidden = !changed; }
+    }
+    /**
+     * The Revert button: ask first, in the shared confirm dialog, whose action undoes every
+     * change since the page was ready (confirmChoice) and whose second button keeps editing.
+     * @returns {void}
+     */
+    function requestRevert() {
+      var dlg = document.getElementById('modal');
+      if (!hasChanges()) { return; }
+      if (!dlg || typeof dlg.showModal !== 'function') { revertAll(); return; }
+      expanded = null;
+      sheet = { kind: 'confirm', confirm: {
+        revert: true,
+        title: 'Undo your changes?',
+        body: 'Every setting goes back to how it was when you opened this page.',
+        actionLabel: 'Undo changes',
+        confirmLabel: 'Keep editing'
+      } };
+      render();
+      focusInModal(['[data-confirm="save"]']);
+    }
+    /**
+     * Put every setting back as the page held it once ready (restoreState keeps S the same
+     * object), stamps aside, repaint, and say so.
+     * @returns {void}
+     */
+    function revertAll() {
+      // A stamp keeps its newest value: it records what the page did, not a pick to undo.
+      var stamps = {}, i;
+      for (i = 0; i < stampKeys.length; i++) { stamps[stampKeys[i]] = S[stampKeys[i]]; }
+      restoreState(readySnap);
+      for (i = 0; i < stampKeys.length; i++) {
+        if (stamps[stampKeys[i]] !== undefined) { S[stampKeys[i]] = stamps[stampKeys[i]]; }
+      }
+      render();
+      var el = document.getElementById('toast');
+      if (el && el.classList) {
+        el.textContent = 'Changes undone';
+        el.classList.add('show');
+        setTimeout(function () { el.classList.remove('show'); }, 1600);
+      }
     }
 
     // Each tab keeps its own scroll offset (in-memory only, per page load) so
@@ -2906,7 +3107,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var textPreEdit = {};
     function liveTextInput(e) {
       var inp = e.target.closest && e.target.closest('input[type=text]');
-      if (inp && inp.getAttribute('data-k') != null) { S[inp.getAttribute('data-k')] = inp.value; }
+      if (inp && inp.getAttribute('data-k') != null) { S[inp.getAttribute('data-k')] = inp.value; paintSave(); }
     }
     // The pre-edit value has to be sampled on focusin, because `input` has already
     // overwritten S[key] by the time `change` fires (so oldValue would be the new value).
@@ -3172,7 +3373,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           var sk = t.getAttribute('data-select');
           if (openKey('select') === sk) { closeModal(); return; }
           dateWiring.flushPending();
-          sheet = { kind: 'select', key: sk };
+          // fromPin: opened from the tab's pinned preview (a status slot), which shares the
+          // key with the row in its card; focus goes back to the one that opened it.
+          sheet = { kind: 'select', key: sk, fromPin: Boolean(t.closest && t.closest('.pin')) };
           selectQuery = '';
           render();
           focusModal();
@@ -3475,6 +3678,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      */
     function confirmChoice(which) {
       var cf = sheet.confirm;
+      // Revert's dialog: its action undoes every change, its second button keeps editing.
+      if (cf.revert) {
+        closeModal(which === 'action');
+        if (which === 'action') { revertAll(); }
+        return;
+      }
       if (which === 'save') {
         closeModal(true);
         save();
@@ -3488,6 +3697,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
     function wireSave() {
       document.getElementById('save').addEventListener('click', requestSave);
+      var revertEl = document.getElementById('revert');
+      if (revertEl && revertEl.addEventListener) { revertEl.addEventListener('click', requestRevert); }
     }
 
     document.getElementById('appTitle').textContent = SCHEMA.appName;
@@ -3525,6 +3736,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         render(); focusModal();
       }
     });
+    // The page is ready: what it holds now is where Revert goes back to.
+    readySnap = Object.assign({}, S);
+    readyBlob = blobOf(S);
+    paintSave();
 
     if (SCHEMA.themeKey && typeof window !== 'undefined' && window.matchMedia) {
       var mqLight = window.matchMedia('(prefers-color-scheme: light)');
@@ -3583,6 +3798,7 @@ if (typeof module !== 'undefined' && module.exports) {
     renderRgb: PConf.engine.renderRgb, paintRgb: PConf.engine.paintRgb,
     rangeResolvers: PConf.rangeResolvers, badgeResolvers: PConf.badgeResolvers,
     displayResolvers: PConf.displayResolvers, hintResolvers: PConf.hintResolvers,
+    pictureResolvers: PConf.pictureResolvers,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
     selectTriggerLabel: PConf.engine.selectTriggerLabel,

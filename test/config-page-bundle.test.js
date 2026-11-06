@@ -228,7 +228,11 @@ const BINDS_AT_LOAD = {
   'preview-axis.js': ['window.ForecastSpanHours'],
   'preview-forecast.js': ['window.PreviewSvg', 'window.PreviewRain', 'window.LineStyle', 'window.LineAlert',
     'window.StripeLevels', 'window.DrawFrom', 'window.ForecastAxis', 'window.PreviewAxis', 'window.ResolveInk',
-    'window.PreviewStripe']
+    'window.PreviewStripe'],
+  // The Watchface tab's watch draws its bars and graphs through these (the radar and health
+  // previews it reads off the block registry when it draws, so they need no place here).
+  'preview-watch.js': ['window.PreviewSvg', 'window.ResolveInk', 'window.PreviewStatusBars', 'window.PreviewForecast',
+    'window.ForecastSample', 'window.ForecastSpanHours']
 };
 
 test('the forecast preview and its axis mirrors are bundled after every global they bind at load', () => {
@@ -411,7 +415,7 @@ test('the graph-colour resolver and its deps reach the generated settings page',
 // block id renders nothing and only warns, so the block would silently vanish from a
 // real phone's settings page while every Node test still passed through require().
 const PREVIEW_BLOCK_FILES = ['settings/preview-forecast.js', 'settings/preview-radar.js',
-  'settings/preview-diagnostics.js', 'settings/preview-layout.js', 'settings/preview-health.js'];
+  'settings/preview-diagnostics.js', 'settings/preview-watch.js', 'settings/preview-health.js'];
 
 test('the graph-colour modules and the preview kit are bundled in dependency order', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
@@ -473,7 +477,7 @@ test('the night-tint display rule reaches the generated page, after line-style',
 
 test('every preview block reaches the generated settings page', () => {
   const src = page();
-  ['forecastPreview', 'radarPreview', 'devStats', 'lastFetch', 'layoutPreviewCombined', 'statusBarsPreview',
+  ['forecastPreview', 'radarPreview', 'devStats', 'lastFetch', 'watchPreview', 'statusBarsPreview',
     'healthPreview']
     .forEach((id) => {
       assert.ok(src.indexOf("PConf.blocks.register('" + id + "'") !== -1,
