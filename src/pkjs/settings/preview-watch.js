@@ -368,15 +368,14 @@
 
     /**
      * A slot's icon (status-slot-icons.js' copy of the watch's), placed on the row.
-     * @param {string} code The slot's item.
+     * @param {?string} svg The glyph (preview-status-bars.js slotIcon), null for none.
      * @param {number} x Left edge.
      * @param {number} mid The row's middle.
      * @param {number} size Icon size.
      * @param {string} fg Ink.
      * @returns {string} SVG markup, '' for an item without one.
      */
-    function iconAt(code, x, mid, size, fg) {
-        var svg = PConf && PConf.icons && PConf.icons.get ? PConf.icons.get(code) : null;
+    function iconAt(svg, x, mid, size, fg) {
         if (!svg || svg.indexOf('<svg ') !== 0) { return ''; }
         return '<svg x="' + r1(x) + '" y="' + r1(mid - size / 2) + '" width="' + r1(size) + '" height="' + r1(size)
             + '" color="' + fg + '" ' + svg.slice(5);
@@ -401,8 +400,8 @@
         }).map(function (c) {
             var label = c.text + (c.arrow ? '↗' : '');
             var glyph = c.code === 'battery' && !label;
-            var hasIcon = !glyph && Boolean(PConf && PConf.icons && PConf.icons.get && PConf.icons.get(c.code));
-            return { pos: c.pos, code: c.code, label: label, glyph: glyph, hasIcon: hasIcon };
+            var icon = glyph ? null : statusBars.slotIcon(c.code, env);
+            return { pos: c.pos, code: c.code, label: label, glyph: glyph, icon: icon, hasIcon: Boolean(icon) };
         });
         /** @param {Object} it @param {number} sz @returns {number} the item's ink width */
         function widthOf(it, sz) {
@@ -423,7 +422,7 @@
             else if (it.pos === 'right') { x0 = box.x + box.w - pad - w; }
             else { x0 = box.x + (box.w - w) / 2; }
             if (it.glyph) { e += batteryGlyph(x0, mid, size, cx.fg); }
-            else if (it.hasIcon) { e += iconAt(it.code, x0, mid, size, cx.fg); }
+            else if (it.hasIcon) { e += iconAt(it.icon, x0, mid, size, cx.fg); }
             if (it.label) { e += text(x0 + ico, base, size, cx.fg, 'start', 700, it.label); }
         });
         return e;

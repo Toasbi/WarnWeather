@@ -16,8 +16,8 @@
 // which bars exist is on-demand.js barExists, the rule the Status bars tab gates its
 // cards by — for the Watch and Forecast bars only where a view of the layout seats
 // them, for the Radar and Health bars whenever the Views card turns them on. The
-// watch draws an icon beside most items; the preview shows the page's copy of it
-// where one exists (status-slot-icons.js).
+// watch draws an icon beside most items; the preview shows the page's copy of each
+// (status-slot-icons.js) where the watch it draws for has one (slotIcon).
 /* global PConf, VIEW_CYCLE */
 (function () {
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
@@ -213,16 +213,33 @@
         }
     }
 
+    // The items aplite's lean status row draws a glyph for: its bitmap masks
+    // (status_row_aplite.c status_mask_for) and the drawn sun arrow. No dew drops,
+    // and its battery slot prints the charge as text.
+    var APLITE_GLYPHS = {temp: true, wind: true, gust: true, uv: true, aqi: true, pollen: true,
+        countdown: true, sun: true};
+
     /**
-     * The glyph a slot's text follows: the page's copy of the watch's icon where
-     * status-slot-icons.js has one. Aplite's battery slot is text, no glyph.
+     * The glyph a slot's text follows on this watch: the page's copy of the watch's icon
+     * (status-slot-icons.js), where the watch draws one. The Status bars tab's rows and the
+     * watch pictures (preview-watch.js) both ask here.
+     * @param {string} code The slot's item.
+     * @param {Object} [env] Platform env.
+     * @returns {?string} The glyph's <svg>, or null for none.
+     */
+    function slotIcon(code, env) {
+        if (env && env.platform === 'aplite' && !APLITE_GLYPHS[code]) { return null; }
+        return (PConf && PConf.icons && PConf.icons.get && PConf.icons.get(code)) || null;
+    }
+
+    /**
+     * The glyph a slot's text follows, as the row's leading icon.
      * @param {string} code The slot's item.
      * @param {Object} [env] Platform env.
      * @returns {string} HTML ('' for none).
      */
     function lead(code, env) {
-        if (code === 'battery' && env && env.platform === 'aplite') { return ''; }
-        var svg = PConf && PConf.icons && PConf.icons.get ? PConf.icons.get(code) : null;
+        var svg = slotIcon(code, env);
         return svg ? '<span class="sbp-ico" aria-hidden="true">' + svg + '</span>' : '';
     }
 
@@ -381,7 +398,7 @@
 
     if (PConf && PConf.blocks) { PConf.blocks.register('statusBarsPreview', statusBarsPreview); }
     var api = {statusBarsPreview: statusBarsPreview, sample: sample, arrowDue: arrowDue,
-        arrowShown: arrowShown, calendarShown: calendarShown, barSlots: barSlots};
+        arrowShown: arrowShown, calendarShown: calendarShown, barSlots: barSlots, slotIcon: slotIcon};
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     // The page: the Watchface tab's watch reads the slots too (preview-watch.js).
     if (typeof window !== 'undefined') { window.PreviewStatusBars = api; }
