@@ -8,10 +8,11 @@ const path = require('path');
 
 const {
   generateStoreArtFixtures, manifest, calmRuns, SCENES, FRAMES, INTRO, CALM_FRAMES, PLATFORMS, EMERY, NOT_APLITE,
-  COLOUR, DAY_CLAY, INTRO_CLAY, CLASSIC, STRIPES, CLEAN, realData, settled, countdownAt, dayId, minuteOf,
+  COLOUR, DAY_CLAY, INTRO_CLAY, CLASSIC, STRIPES, CLEAN, HOLIDAYS, FEED_HOURS, realData, settled, countdownAt, dayId,
+  minuteOf, epochOf,
 } = require('../scripts/gen-store-art-fixtures');
 const wizardForecast = require('../src/pkjs/settings/wizard-forecast.js');
-const { celsiusToFahrenheit } = require('../src/pkjs/wire-units.js');
+const { mphToKmh } = require('../src/pkjs/wire-units.js');
 
 let cache = null;
 /**
@@ -43,79 +44,71 @@ test('writes a fixture per scene and per platform variant', () => {
   }
 });
 
-test('the real weather: DWD\'s records for Berlin, nothing filled in, their chance of rain read as 0 %', () => {
+test('the real weather: the Berlin snapshot, read as the app reads One Call, nothing filled in by hand', () => {
   const data = realData();
-  assert.match(data.records.station, /^Berlin/);
-  assert.match(data.records.source, /^https:\/\/api\.brightsky\.dev\/weather\?/);
-  assert.equal(data.records.start, '2025-04-30T00:00:00+02:00');
-  for (const values of Object.values(data.records.hours)) {
-    assert.ok(values.every((v) => v !== null && v !== undefined));
-  }
+  assert.equal(data.hourly.length, 217);
+  assert.equal(data.radar.frame_count, data.radar.frames.length);
   const fx = generate();
   for (const slug of Object.keys(fx)) {
-    assert.ok(fx[slug].weather.precipPct.every((p) => p === 0), slug);
-    assert.equal(fx[slug].weather.precipPct.length, fx[slug].weather.temps.length, slug);
-    assert.equal(fx[slug].weather.rainRadarExactMm, undefined, slug);
+    const w = fx[slug].weather;
+    assert.equal(w.temps.length, FEED_HOURS, slug);
+    for (const key of ['feelsTemps', 'precipPct', 'rainMm', 'windKmh', 'gustKmh', 'uvIndex', 'cloudPct', 'dewPoint', 'pressureHpa']) {
+      assert.equal(w[key].length, FEED_HOURS, slug + ' ' + key);
+    }
+    assert.equal(w.rainRadarExactMm, undefined, slug);
   }
 });
 
-test('the day runs forward: each frame later than the last, read from the records as the app reads Bright Sky', () => {
+test('the day runs forward: each frame later than the last, its records from its own hour', () => {
   const fx = generate();
-  const h = realData().records.hours;
+  const data = realData();
   let last = -1;
   for (const [day, time] of FRAMES) {
     const frame = fx['art-' + dayId(day, time)];
     const [hour, minute] = time.split(':').map(Number);
-    assert.deepEqual(frame.watch.now, { year: 2025, month: 5, day: 1 + day, hour, minute, second: 0 }, time);
+    assert.deepEqual(frame.watch.now, { year: 2025, month: 6, day: 25 + day, hour, minute, second: 0 }, time);
     assert.ok(minuteOf([day, time]) > last, time + ' after the frame before it');
     last = minuteOf([day, time]);
-    // The records start at midnight on 30 April: the frame's hour is record i, its instants
-    // read from record i on, its hour totals (rain, gusts) from record i + 1 on.
-    const i = (1 + day) * 24 + hour;
+    const i = data.hourly.findIndex((r) => r.dt === epochOf([day, time]) - minute * 60);
+    const [r, next] = [data.hourly[i], data.hourly[i + 1]];
     const w = frame.weather;
     assert.equal(w.startHour, hour);
-    assert.equal(w.currentTemp, Math.round(celsiusToFahrenheit(h.temperature[i]) * 100) / 100);
-    assert.equal(w.temps[1], Math.round(celsiusToFahrenheit(h.temperature[i + 1]) * 100) / 100);
-    assert.deepEqual(w.rainMm.slice(0, 3), h.precipitation.slice(i + 1, i + 4));
-    assert.deepEqual(w.gustKmh.slice(0, 3), h.wind_gust_speed.slice(i + 1, i + 4));
-    assert.deepEqual(w.windKmh.slice(0, 3), h.wind_speed.slice(i, i + 3));
-    assert.deepEqual(w.cloudPct.slice(0, 3), h.cloud_cover.slice(i, i + 3));
-    assert.ok(w.temps.length >= 69, time + ' reaches the long span');
-    for (const key of ['feelsTemps', 'precipPct', 'rainMm', 'windKmh', 'gustKmh', 'cloudPct', 'dewPoint', 'pressureHpa']) {
-      assert.equal(w[key].length, w.temps.length, key);
-    }
+    assert.equal(w.temps[0], r.temp);
+    assert.equal(w.precipPct[1], Math.round(next.pop * 10000) / 100);
+    assert.equal(w.uvIndex[1], next.uvi);
+    assert.equal(w.gustKmh[0], Math.round(mphToKmh(r.wind_gust) * 100) / 100);
+    assert.equal(w.rainMm[0], Math.round(((r.rain && r.rain['1h']) || 0) * 100) / 100);
+    // The current temperature between the hours, at the 10-minute floor.
+    const step = Math.floor(minute / 10) * 10 / 60;
+    assert.equal(w.currentTemp, Math.round((r.temp + (next.temp - r.temp) * step) * 100) / 100);
   }
 });
 
-test('the sun events are SunCalc\'s for Berlin, the next two after the clock', () => {
+test('the sun events are the history\'s own, the next two after the clock', () => {
   const fx = generate();
-  assert.deepEqual(fx['art-day-0-0500'].weather.sunEvents,
-    [{ type: 'sunrise', dayOffset: 0, hour: 5, minute: 36 }, { type: 'sunset', dayOffset: 0, hour: 20, minute: 33 }]);
-  assert.deepEqual(fx['art-day-0-2100'].weather.sunEvents,
-    [{ type: 'sunrise', dayOffset: 1, hour: 5, minute: 34 }, { type: 'sunset', dayOffset: 1, hour: 20, minute: 34 }]);
+  assert.deepEqual(fx['art-day-0-1200'].weather.sunEvents.map((e) => e.type), ['sunset', 'sunrise']);
+  assert.equal(fx['art-day-0-1200'].weather.sunEvents[1].dayOffset, 1);
+  assert.deepEqual(fx['art-day-0-2200'].weather.sunEvents.map((e) => [e.type, e.dayOffset]), [['sunrise', 1], ['sunset', 1]]);
 });
 
-test('the storm: gusts of 78 km/h just after 18:00 on Friday, the rain alert counting down to 19:00', () => {
+test('the storm: gusts of 103 km/h at 18:00 on Thursday, the radar\'s downpour counted down to 18:15', () => {
   const fx = generate();
-  assert.equal(Math.round(fx['art-day-1-1800'].weather.gustKmh[0]), 79);
-  assert.ok(Math.max(...fx['art-day-0-0500'].weather.gustKmh.slice(0, 19)) < 50, 'Labour Day stays calm');
-  assert.deepEqual(fx['art-day-1-1800'].countdown, { mins: 60, raining: false, tier: 3 });
-  assert.deepEqual(fx['art-day-1-1845'].countdown, { mins: 15, raining: false, tier: 3 });
-  assert.deepEqual(fx['art-day-1-1900'].countdown, { mins: 100, raining: true, tier: 3 });
-  assert.deepEqual(fx['art-day-1-2100'].countdown, { mins: 60, raining: true, tier: 1 });
+  assert.equal(Math.round(fx['art-day-1-1800'].weather.gustKmh[0]), 103);
+  assert.ok(Math.max(...fx['art-day-0-1200'].weather.gustKmh.slice(0, 12)) < 65, 'Wednesday stays below the alert');
+  assert.deepEqual(fx['art-day-1-1715'].countdown, { mins: 60, raining: false, tier: 5 });
+  assert.deepEqual(fx['art-day-1-1800'].countdown, { mins: 15, raining: false, tier: 5 });
+  assert.deepEqual(fx['art-day-1-1815'].countdown, { mins: 10, raining: true, tier: 5 });
   for (const [day, time] of FRAMES) {
-    if (minuteOf([day, time]) < minuteOf([1, '18:00'])) {
+    if (minuteOf([day, time]) < minuteOf([1, '17:15'])) {
       assert.equal(fx['art-' + dayId(day, time)].countdown, undefined, day + ' ' + time);
     }
   }
 });
 
-test('the rain alert: minutes to the next wet hour within the hour, how long it rains within the radar\'s two hours', () => {
-  assert.equal(countdownAt([0, 0, 2, 0], 0), null);
-  assert.deepEqual(countdownAt([0, 2, 0, 0], 30), { mins: 30, raining: false, tier: 3 });
-  assert.deepEqual(countdownAt([0.3, 0, 0], 0), { mins: 60, raining: true, tier: 2 });
-  assert.deepEqual(countdownAt([0.3, 0.3, 0.3], 0), { mins: 100, raining: true, tier: 2 });
-  assert.deepEqual(countdownAt([12, 0.1, 0], 30), { mins: 90, raining: true, tier: 5 });
+test('the rain alert: no rain on the radar within the hour, no alert', () => {
+  const data = realData();
+  assert.equal(countdownAt(data.radar, epochOf([1, '12:00'])), null);
+  assert.deepEqual(countdownAt(data.radar, epochOf([0, '09:30'])), { mins: 15, raining: false, tier: 2 });
 });
 
 test('every scene names every key a scene changes, so one carries nothing over from another', () => {
@@ -127,7 +120,7 @@ test('every scene names every key a scene changes, so one carries nothing over f
   for (const slug of Object.keys(fx)) {
     for (const key of keys) { assert.ok(key in fx[slug].claySettings, slug + ' names ' + key); }
   }
-  const day = fx['art-day-0-1200'].claySettings;
+  const day = fx['art-day-0-1300'].claySettings;
   for (const key of Object.keys(DAY_CLAY)) { assert.deepEqual(day[key], DAY_CLAY[key], key); }
   assert.equal(fx['art-uv-now'].claySettings.uvSlotDisplay, 'current');
   assert.equal(fx['art-uv-max'].claySettings.uvSlotDisplay, 'max');
@@ -158,21 +151,19 @@ test('the graph: the setup\'s forecast looks, no left axis on Pebble Time 2 unle
   assert.equal(fx['art-look-stripes'].claySettings.rainBarFrom, 'top');
 });
 
-test('the alerts as the story needs them: gusts from 50 km/h on the day itself, beside the battery; Berlin\'s holidays', () => {
+test('the alerts as the story needs them: gusts at the app\'s levels on the day itself, beside the battery; Berlin\'s holidays', () => {
   const fx = generate();
   for (const slug of Object.keys(fx)) {
     const clay = fx[slug].claySettings;
     assert.equal(clay.statusTopOnDemandRightItems, 'battery,gust', slug);
-    assert.equal(clay.threshGustWarn, '50', slug);
+    assert.equal(clay.threshGustWarn, '65', slug);
+    assert.equal(clay.threshGustDanger, '90', slug);
     assert.equal(clay.alertGustDays, 'today', slug);
     assert.equal(clay.holidayRegion, 'DE-BE', slug);
-    assert.equal(fx[slug].holidays.country, 'DE');
-    assert.equal(fx[slug].holidays.year, 2025);
+    assert.deepEqual(fx[slug].holidays, HOLIDAYS, slug);
   }
-  const days = fx['art-day-0-0500'].holidays.days;
-  assert.deepEqual(days.find(([md]) => md === '05-01'), ['05-01', null]);
-  assert.deepEqual(days.find(([md]) => md === '05-08'), ['05-08', ['DE-BE']]);
-  assert.deepEqual(days.find(([md]) => md === '04-21'), ['04-21', null]);
+  assert.deepEqual(HOLIDAYS.days.find(([md]) => md === '06-09'), ['06-09', null]);
+  assert.deepEqual(HOLIDAYS.days.find(([md]) => md === '05-08'), ['05-08', ['DE-BE']]);
 });
 
 test('no scene shows the rain radar: the radar runs for the rain alert, Weather only with it Off', () => {
@@ -199,8 +190,8 @@ test('the manifest: where each scene is captured, the forecast length labels, th
   }
   assert.deepEqual(byId['span-long'].spanLabels, ['12 h', '24 h', '66 h']);
   assert.deepEqual(byId['uv-line'].platforms, ['aplite']);
-  assert.deepEqual(byId['day-0-0800'].platforms, PLATFORMS);
-  assert.equal(byId['day-0-0800'].spanLabels, null);
+  assert.deepEqual(byId['day-0-1300'].platforms, PLATFORMS);
+  assert.equal(byId['day-0-1300'].spanLabels, null);
   assert.equal(byId['view-health'].fixtures.emery, 'art-view-health-emery');
   assert.equal(byId['view-health'].fixtures.basalt, 'art-view-health');
   const fx = generate();
@@ -217,7 +208,7 @@ test('the calm run: hour by hour from the three-week calendar to none, one step 
   const fx = generate();
   for (const platform of PLATFORMS) {
     const run = runs[platform];
-    assert.equal(run[0].id, 'calm-full-0-0500', platform);
+    assert.equal(run[0].id, 'calm-full-0-1200', platform);
     assert.deepEqual(run[run.length - 1].at, CALM_FRAMES[CALM_FRAMES.length - 1], platform);
     let steps = 0;
     let since = 0;
@@ -249,7 +240,7 @@ test('every fixture\'s weather is a payload the app sends', () => {
   global.localStorage = global.localStorage || { getItem: () => null, setItem: () => {}, removeItem: () => {} };
   const fixtureWeather = require('../src/pkjs/fixture-weather.js');
   const fx = generate();
-  for (const slug of ['art-day-0-0500', 'art-intro-0-0500', 'art-calm-full-0-0500', 'art-day-1-1845']) {
+  for (const slug of ['art-day-0-1200', 'art-intro-0-1200', 'art-calm-full-0-1200', 'art-day-1-1800']) {
     const payload = fixtureWeather.getFixtureWeatherPayload(fx[slug], fx[slug].claySettings, { platform: 'emery' });
     assert.ok(payload, slug);
   }

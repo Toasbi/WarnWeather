@@ -446,15 +446,15 @@ committed) for manual upload. Re-assemble a single reel without recapturing with
 
 The appstore set per platform: two showcase GIFs to choose from and five store screens
 (`2-…png` to `6-…png`: a headline over the watch's screen). Both GIFs are a time-lapse of two
-real days in Berlin: Labour Day, Thursday 1 May 2025, calm and sunny, and Friday 2 May, hot
-until a storm front with 78 km/h gusts and rain in the evening.
+real days in Berlin: Wednesday 25 June 2025, dry from noon and windy, and Thursday 26 June,
+clear and hot until the evening storm (103 km/h gusts, a downpour, rain into the night).
 
 - `1-showcase.gif` (about a minute on Pebble Time 2, less where a watch has fewer settings)
   opens, on Pebble Time 2, in the long forecast span, and stops now and then while a card in
   the clock's place explains what the screen shows: the UV slot's Now / Day max / Both, the
-  forecast length and the left axis on Pebble Time 2, tomorrow's `»` at night, the calendar's
-  holidays (Labour Day and Berlin's 8 May; Easter Monday in three weeks), the setup's forecast
-  looks, the alerts before the storm; then the layouts and the wordmark.
+  forecast length and the left axis on Pebble Time 2, tomorrow's `»` at night, the compact and
+  full calendar, the UV slot's Now / Day max / Both, the setup's forecast looks, the alerts
+  before the storm; then the layouts and the wordmark.
 - `1-showcase-calm.gif` is the calm one, without words: the same days hour by hour, a setting
   changed now and then, one at a time, from the three-week calendar to none, through the
   setup's forecast looks (Classic, Stripes with its rain bars from the top, Clean) and, on
@@ -464,27 +464,29 @@ They replace the promo reel and the single screenshots on the listing; the real-
 GIFs stay.
 
 ```bash
-python3 -I scripts/fetch-store-art-weather.py       # the real weather, once (network)
 scripts/capture-store-art.sh <version>             # every scene on all five watches (~2.5 h)
 scripts/capture-store-art.sh <version> day-1-1845  # just these scenes
 python3 -I scripts/store-art.py <version>           # the GIFs and store screens (needs Pillow)
 ```
 
-- The weather is real and nothing is filled in by hand: `fetch-store-art-weather.py` writes
-  `fixtures/data/berlin-2025-05.json` from the app's own sources (DWD's hourly records for
-  Berlin as Bright Sky serves them, Open-Meteo's archived GFS UV, Nager.Date's holidays).
-  DWD's records carry no chance of rain, which the app reads as 0 %, so no frame draws one.
+- The weather is real and nothing is filled in by hand: `fixtures/data/berlin-owm-2025-06-25/`
+  is the offline snapshot recorded for the Berlin time-lapse (OpenWeather's hourly history with
+  the chance of rain and UV filled in from Open-Meteo as the app reads them, and DWD's 5-minute
+  radar; its `PROVENANCE.md` says how). The graph gets 68 hours of it, as a full-feed provider
+  sends them, so Pebble Time 2's long span shows 66 hours. Show the art with its credits:
+  Weather data © OpenWeather (ODbL), radar Deutscher Wetterdienst (CC BY 4.0), Open-Meteo.com
+  (CC BY 4.0).
 - The scenes live in `scripts/gen-store-art-fixtures.js` (fixtures `art-*.json`, regenerated
   on every capture, guarded by `test/store-art-fixtures.test.js`): the days' frames
-  (`day-<d>-<hhmm>`, each read from the records the way the app's DWD provider reads Bright Sky;
-  the sun times SunCalc's; the rain alert the records' own rain; Berlin's holidays in a
-  `holidays` block), Pebble Time 2's opening (`intro-0-<hhmm>`), the variants a stop changes a
+  (`day-<d>-<hhmm>`, each read from the history the way the app's OpenWeatherMap provider reads
+  One Call; the sun times the history's; the rain alert the recorded radar read as the app reads
+  its nowcast; Berlin's holidays in a `holidays` block), Pebble Time 2's opening (`intro-0-<hhmm>`), the variants a stop changes a
   setting to, the calm run's frames (`calm-<state>-<d>-<hhmm>`; `--calm` prints each watch's
   run), and two `band` scenes, a frame with the clock drawn in black, which tell
   `store-art.py` where the clock is (the black and white watches, which ignore the clock
   colour, take basalt's: the same layout). The day's graph has no left axis on Pebble Time 2;
-  gusts alert from 50 km/h on the day itself, so Labour Day stays quiet and Friday's 78 km/h
-  shows. No scene shows the rain radar.
+  gusts alert at the app's levels on the day itself, so Wednesday stays quiet and Thursday's
+  103 km/h shows from midnight. No scene shows the rain radar.
 - `capture-store-art.sh` captures a platform's scenes on one running emulator: its first on a
   fresh phone (the app's pypkjs localStorage and pypkjs's cached copy of the last build
   deleted, or the last run's settings would carry over), the rest as plain installs. A

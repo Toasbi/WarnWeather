@@ -114,13 +114,13 @@ https://www.buymeacoffee.com/toaster2.
 
 Each platform's listing shows, in this order:
 
-1. One of the two showcase GIFs, both a time-lapse of two real days in Berlin (Labour Day,
-   1 May 2025, calm and sunny, and the Friday after it, with a storm front in the evening):
+1. One of the two showcase GIFs, both a time-lapse of two real days in Berlin (25 and 26 June
+   2025: a windy Wednesday, then a hot Thursday with an evening storm):
    - `1-showcase.gif`, about a minute on Pebble Time 2 and less where a watch has fewer
      settings: on Pebble Time 2 it opens in the long forecast span, and it stops to explain
      what the screen shows (the UV slot's Now / Day max / Both, the forecast length and the
-     left axis on Pebble Time 2, tomorrow's `»` at night, the calendar's holidays, the setup's
-     forecast looks, the alerts before the storm), then the layouts and the wordmark.
+     left axis on Pebble Time 2, tomorrow's `»` at night, the calendar, the UV slot's values,
+     the setup's forecast looks, the alerts before the storm), then the layouts and the wordmark.
    - `1-showcase-calm.gif`, the calm one, without words: the days hour by hour while the
      settings change one at a time, from the three-week calendar to none, through the setup's
      forecast looks (Classic, Stripes with its rain bars from the top, Clean) and on Pebble
@@ -130,6 +130,10 @@ Each platform's listing shows, in this order:
    UV graph, the UV slot's values, the calendar, No calendar).
 3. The real-day time-lapse GIFs already on the listing (a day of real weather, frame by
    frame), kept as they are.
+
+Their weather is real (`fixtures/data/berlin-owm-2025-06-25/`): credit it where the GIFs and
+screens are shown, e.g. at the end of the description: "Showcase weather: Weather data ©
+OpenWeather (ODbL); radar: Deutscher Wetterdienst, CC BY 4.0; Open-Meteo.com, CC BY 4.0."
 
 The old promo reel and the single screenshots are replaced by 1 and 2. Build the set with:
 

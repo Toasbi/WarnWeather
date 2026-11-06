@@ -703,33 +703,33 @@ CALM_FADE = 18            # the last hour into black and black into the first, a
 # Status Bar), 'slot' (the UV slot: the forecast row's right slot under the card) or
 # 'calendar' (between the Watch Status Bar and the card), 'holiday' (the holiday cells in the
 # calendar: their highlight colour), or nowhere (None). A '{name}' in a line is one of the days'
-# numbers (story_numbers: the UV now and the day's max at 11:00 on Labour Day, Friday's
-# strongest gust), read from the scenes' fixtures, so the words say what the watch shows. The
-# days (gen-store-art-fixtures.js): Labour Day calm and sunny, 8 May (a Berlin holiday) and
-# Easter Monday in the calendar, Friday's storm front just after 18:00, its rain from 19:00.
+# numbers (NUMBERS: the UV now and the day's max at 10:00 on Thursday, the storm's gust), so the
+# words say what the watch shows. The days (gen-store-art-fixtures.js): Wednesday 25 June 2025,
+# dry from noon and windy; Thursday clear and hot, its storm at 18:00 (103 km/h, a downpour on the
+# radar at 18:15).
 NOT_APLITE = ('emery', 'basalt', 'diorite', 'flint')
 STORY = (
-    ('open', 'day-0-0500', 30),
-    ('run', 'day-0-1100', MORNING_TICKS),
-    ('stop', ('setting', 'UV index slot', ('Now', 'Day max', 'Both'), (
-        ('day-0-1100', 2, ('Now and today\'s max: {uv_now}/{uv_max}', 'Now / today\'s max'), 'slot'),
-        ('uv-now', 0, ('The UV index now: {uv_now}', 'UV index now: {uv_now}'), 'slot'),
-        ('uv-max', 1, ('Highest UV left today: {uv_max}', 'Max left today: {uv_max}'), 'slot')))),
-    ('run', 'day-0-1400'),
+    ('open', 'day-0-1200', 30),
+    ('run', 'day-0-1600', MORNING_TICKS),
     ('stop', ('setting', 'Forecast length', None, (
-        ('day-0-1400', 1, 'The next 24 hours', None),
+        ('day-0-1600', 1, 'The next 24 hours', None),
         ('span-long', 2, 'Up to 66 hours ahead', None))),
      ('setting', 'Left axis values', ('On axis', 'On graph', 'Off'), (
-         ('day-0-1400', 2, ('No axis, a wider graph', 'No axis'), None),
+         ('day-0-1600', 2, ('No axis, a wider graph', 'No axis'), None),
          ('axis-graph', 1, 'High and low on the graph', None),
          ('axis-on', 0, 'High and low on the axis', None)))),
     ('run', 'day-0-2200'),
     ('stop', ('moment', 'UV index slot', (
         ('day-0-2200', ('After sunset: » marks\ntomorrow\'s max', '» is tomorrow\'s max'), 'slot'),))),
     ('run', 'day-1-0800'),
-    ('stop', ('moment', 'Calendar', (
-        ('day-1-0800', ('Holidays stand out,\nBerlin\'s own too', 'Holidays stand out'), 'holiday'),
-        ('cal-full', ('Three weeks in view,\nEaster Monday too', 'Three weeks in view'), 'calendar')))),
+    ('stop', ('setting', 'Layout', ('Full calendar', 'Compact', 'No calendar'), (
+        ('day-1-0800', 1, ('Two weeks, a bigger graph', 'Two weeks'), None),
+        ('cal-full', 0, 'Three weeks in view', 'calendar')))),
+    ('run', 'day-1-1000'),
+    ('stop', ('setting', 'UV index slot', ('Now', 'Day max', 'Both'), (
+        ('day-1-1000', 2, ('Now and today\'s max: {uv_now}/{uv_max}', 'Now / today\'s max'), 'slot'),
+        ('uv-now', 0, ('The UV index now: {uv_now}', 'UV index now: {uv_now}'), 'slot'),
+        ('uv-max', 1, ('Highest UV left today: {uv_max}', 'Max left today: {uv_max}'), 'slot')))),
     ('run', 'day-1-1200'),
     ('stop', ('setting', 'Forecast look', ('Classic', 'Stripes', 'Clean'), (
         ('day-1-1200', 0, ('Temperature, UV and rain', 'Temperature and rain'), None),
@@ -738,9 +738,9 @@ STORY = (
      ('moment', 'Graph lines', (
          ('day-1-1200', 'Temperature and rain', None),
          ('uv-line', 'The UV index as a line', None)), ('aplite',))),
-    ('run', 'day-1-1845'),
+    ('run', 'day-1-1800'),
     ('stop', ('moment', 'Weather alerts', (
-        ('day-1-1845', ('Rain in 15 minutes,\ngusts up to {gust} today', 'Rain soon, gusts {gust}'), 'top'),),
+        ('day-1-1800', ('Rain in 15 minutes,\ngusts up to {gust} today', 'Rain soon, gusts {gust}'), 'top'),),
         NOT_APLITE)),
     ('run', 'day-1-2100'),
     ('layouts', ('layout-weather', 'Weather only'), ('layout-light', 'Light theme'), ('view-health', 'Health view'),
@@ -748,8 +748,8 @@ STORY = (
     ('end',),
 )
 # The days' numbers as the captures show them (checked by eye against the frames: the UV slot at
-# 11:00 on Labour Day, the gust alert at 18:45 on Friday).
-NUMBERS = {'uv_now': 0, 'uv_max': 0, 'gust': 79}
+# 10:00 on Thursday, the gust alert at 18:00).
+NUMBERS = {'uv_now': 5, 'uv_max': 7, 'gust': 103}
 
 
 def numbered(line):
@@ -1503,7 +1503,7 @@ def contact_sheet(images, path, every=8, cols=8):
 SCREENS = {
     'default': (
         ('2-forecast', ('The forecast', 'at a glance'), 'day-1-1200', 'bottom', None),
-        ('3-alerts', ('Alerts when', 'it matters'), 'day-1-1845', 'top', 'alerts'),
+        ('3-alerts', ('Alerts when', 'it matters'), 'day-1-1800', 'top', 'alerts'),
         ('4-health', {'emery': ('Steps, sleep', 'and heart rate'), None: ('Steps and sleep', 'on your wrist')},
          'view-health', 'bottom', None),
         ('5-max', ('Now, today', 'and tomorrow'), 'card', None, None),
@@ -1520,7 +1520,7 @@ SCREENS = {
 # The UV slot's card: each value selection, the slot as the watch shows it then, and what it
 # means (or (long, short), as STORY's lines). The same numbers as STORY's.
 CARD_ROWS = (('Now', 'uv-now', 'UV now'), ('Day max', 'uv-max', 'Max left today'),
-             ('Both', 'day-0-1100', 'Now / max'), ('Evening', 'day-0-2200', ('» tomorrow\'s max', '» tomorrow')))
+             ('Both', 'day-1-1000', 'Now / max'), ('Evening', 'day-0-2200', ('» tomorrow\'s max', '» tomorrow')))
 CARD_NOTE = 'Wind, gusts and AQI too.'
 STORE_CORNER = {200: 12, 144: 9}   # px of a corner the store rounds off
 

@@ -315,5 +315,8 @@ function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
 }
 
 module.exports = {
-    fetchRadarTuplesAt: fetchRadarTuplesAt
+    fetchRadarTuplesAt: fetchRadarTuplesAt,
+    // One frame's (exact, nearby) reading, for the store art's recorded radar
+    // (scripts/gen-store-art-fixtures.js), so its rain alert reads it as the app does.
+    sampleFrame: sampleFrame
 };
