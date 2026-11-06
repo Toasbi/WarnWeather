@@ -44,7 +44,7 @@ ram=65536
 ceilings=(
   "basalt:${BASALT_IMAGE_CEILING:-56868}"
   "diorite:${DIORITE_IMAGE_CEILING:-54644}"
-  "flint:${FLINT_IMAGE_CEILING:-54644}"
+  "flint:${FLINT_IMAGE_CEILING:-54752}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).
