@@ -164,6 +164,12 @@ pkg.waqi = {
   token: aqicnToken,
 };
 
+// The phone app lets the app's PebbleKit JS reach only the domains usesPermissions lists
+// (manifest version 2). The template lists the API hosts; the three endpoints above are
+// known only now (scripts/lib/uses-permissions.js).
+require('./scripts/lib/uses-permissions.js').addEndpointHosts(pkg.pebble,
+  [telemetryEndpoint, rainbowEndpoint, newsEndpoint]);
+
 // WW_BUILD_PLATFORMS (space/comma-separated) narrows the build to a subset of the
 // template's targetPlatforms — screenshot captures that shoot a single platform set it
 // so \`pebble build\` compiles just that one instead of all five. Unset → build every

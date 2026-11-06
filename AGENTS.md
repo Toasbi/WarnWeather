@@ -146,6 +146,13 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   `draw-from.js`' readings, and `clay-payload.js` sends them alongside the other settings.
   Colours pack as single `GColor8` argb bytes, not int32 hex: an array tuple costs 7 B + N,
   a scalar costs 7 B + 4, so packing several into one array is the cheap shape.)
+- **A new API host must be declared in `package.template.json`'s `usesPermissions`** (the
+  `Internet` permission's `domains`; each covers its subdomains). SDK 4.44 builds manifest
+  version 2 pbws: the phone app lets PKJS reach only the declared domains and asks before
+  `Location`. `test/uses-permissions.test.js` fails on a URL in `src/pkjs` that is neither
+  declared nor named there as a non-request (a link in a hint, a comment), and on a declared
+  domain nothing requests. The hosts of the endpoints `prepare-package.sh` injects (telemetry,
+  the Rainbow proxy, news) are added at build time (`scripts/lib/uses-permissions.js`).
 - **A new telemetry setting must be added in two places or it's silently dropped:** the
   watch-side snapshot in `src/pkjs/telemetry.js` AND the Deno `.strip()` schema in
   `supabase/functions/telemetry-ingest/handler.ts`.
