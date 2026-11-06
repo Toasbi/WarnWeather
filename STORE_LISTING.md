@@ -114,17 +114,19 @@ https://www.buymeacoffee.com/toaster2.
 
 Each platform's listing shows, in this order:
 
-1. One of the two showcase GIFs, both a time-lapse of two real days in Berlin (25 and 26 June
-   2025: a windy Wednesday, then a hot Thursday with an evening storm):
+1. One of the two showcase GIFs, both a time-lapse of real days in Berlin up to 25 and 26 June
+   2025 (a windy Wednesday, then a hot Thursday with an evening storm):
    - `1-showcase.gif`, about a minute on Pebble Time 2 and less where a watch has fewer
-     settings: on Pebble Time 2 it opens in the long forecast span, and it stops to explain
-     what the screen shows (the UV slot's Now / Day max / Both, the forecast length and the
-     left axis on Pebble Time 2, tomorrow's `»` at night, the calendar, the UV slot's values,
-     the setup's forecast looks, the alerts before the storm), then the layouts and the wordmark.
-   - `1-showcase-calm.gif`, the calm one, without words: the days hour by hour without a stop
-     while the settings change one at a time, from the three-week calendar to the dense one and
-     to none, through the setup's forecast looks (Classic, Stripes with its rain bars from the
-     top, Clean) and on Pebble Time 2 the long span.
+     settings: it opens on the three-week calendar (on Pebble Time 2 in the long forecast
+     span), which gives way to the dense look, and it stops to explain what the screen shows
+     (the forecast length and the left axis on Pebble Time 2, tomorrow's `»` at night, the
+     calendar, the UV slot's values, the setup's forecast looks, the alerts before the storm),
+     then the layouts and the wordmark.
+   - `1-showcase-calm.gif`, the calm one, without words: the days hour by hour from the calm
+     Saturday before, without a stop, while the settings change one at a time: the three-week
+     calendar (on Pebble Time 2 in the long span), the dense one, the setup's forecast looks
+     (Stripes with its rain bars from the top, Clean), Weather only, no calendar and the Bitham
+     clock.
 2. `2-…png` to `6-…png`: five store screens, a headline over the watch's screen: the forecast,
    the alerts, the health view, the UV slot's values, Weather only (aplite: the forecast, the
    UV graph, the UV slot's values, the calendar, No calendar).

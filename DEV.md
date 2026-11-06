@@ -445,23 +445,26 @@ committed) for manual upload. Re-assemble a single reel without recapturing with
 #### Store art (the appstore's showcase GIFs and five store screens)
 
 The appstore set per platform: two showcase GIFs to choose from and five store screens
-(`2-…png` to `6-…png`: a headline over the watch's screen). Both GIFs are a time-lapse of two
-real days in Berlin: Wednesday 25 June 2025, dry from noon and windy, and Thursday 26 June,
-clear and hot until the evening storm (94 km/h gusts, a downpour, rain into the night), in the
-current store showcase's dense look (a second status bar with the AQI, the wind and the gusts;
-the temperature with its feels-like).
+(`2-…png` to `6-…png`: a headline over the watch's screen). Both GIFs are a time-lapse of real
+days in Berlin, an hour a frame, up to Wednesday 25 June 2025, dry from noon and windy, and
+Thursday 26 June, clear and hot until the evening storm (94 km/h gusts, a downpour, rain into
+the night), mostly in the current store showcase's dense look (a second status bar with the AQI,
+the wind and the gusts; the temperature with its feels-like).
 
 - `1-showcase.gif` (about a minute on Pebble Time 2, less where a watch has fewer settings)
-  opens, on Pebble Time 2, in the long forecast span, and stops now and then while a card in
-  the clock's place explains what the screen shows: the UV slot's Now / Day max / Both, the
-  forecast length and the left axis on Pebble Time 2, tomorrow's `»` at night, the dense and
-  the full calendar, the UV slot's Now / Day max / Both, the setup's forecast looks, the alerts
-  before the storm; then the layouts and the wordmark.
-- `1-showcase-calm.gif` is the calm one, without words: the same days hour by hour without a
-  stop, a setting changed now and then (one at a time, as the clock moves on): from the
-  three-week calendar to the dense one and to none, through the setup's forecast looks
-  (Classic, Stripes with its rain bars from the top, Clean) and, on Pebble Time 2, the long
-  span.
+  opens on Wednesday's noon in the three-week calendar (on Pebble Time 2 in the long forecast
+  span), which gives way to the dense look (and on Pebble Time 2 the long span to 24 hours),
+  one change at a time. It stops now and then while a card in the clock's place explains what
+  the screen shows: the forecast length and the left axis on Pebble Time 2, tomorrow's `»` at
+  night, the dense and the full calendar, the UV slot's Now / Day max / Both, the setup's
+  forecast looks, the alerts before the storm; then the layouts and the wordmark.
+- `1-showcase-calm.gif` is the calm one, without words: the days hour by hour from the calm
+  Saturday before (21 June) to Thursday evening, without a stop, a setting changed now and then
+  (one at a time, as the clock moves on): the three-week calendar (on Pebble Time 2 in the long
+  span), the dense one, the setup's forecast looks (Stripes with its rain bars from the top,
+  then Clean), Weather only, no calendar and the Bitham clock. Aplite, without the looks, the
+  second status bar and Weather only, goes from its three-week calendar to its compact one, to
+  none and to Bitham.
 
 They replace the promo reel and the single screenshots on the listing; the real-day time-lapse
 GIFs stay.
@@ -480,11 +483,12 @@ python3 -I scripts/store-art.py <version>           # the GIFs and store screens
   (CC BY 4.0), Open-Meteo.com (CC BY 4.0), Copernicus Atmosphere Monitoring Service.
 - The scenes live in `scripts/gen-store-art-fixtures.js` (fixtures `art-*.json`, regenerated
   on every capture, guarded by `test/store-art-fixtures.test.js`): the days' frames
-  (`day-<d>-<hhmm>`, each read from the records the way the app's DWD provider reads Bright Sky;
-  the sun times SunCalc's; the rain alert the recorded radar read as the app reads its nowcast;
-  Berlin's holidays in a `holidays` block), Pebble Time 2's opening (`intro-0-<hhmm>`), the variants a stop changes a
-  setting to, the calm run's frames (`calm-<state>-<d>-<hhmm>`; `--calm` prints each watch's
-  run), and two `band` scenes, a frame with the clock drawn in black, which tell
+  (`day-<d>-<hhmm>`, on the hour, each read from the records the way the app's DWD provider
+  reads Bright Sky; the sun times SunCalc's; the rain alert the recorded radar read as the app
+  reads its nowcast; Berlin's holidays in a `holidays` block), the card GIF's opening
+  (`intro-full-0-<hhmm>`, the three-week calendar; then Pebble Time 2's `intro-0-<hhmm>`, the
+  long span), the variants a stop changes a setting to, the calm run's frames
+  (`calm-<state>-<MMDD>-<hhmm>`; `--calm` prints each watch's run), and two `band` scenes, a frame with the clock drawn in black, which tell
   `store-art.py` where the clock is (the black and white watches, which ignore the clock
   colour, take basalt's: the same layout). The day's graph has no left axis on Pebble Time 2;
   gusts alert at the app's levels on the day itself, so Wednesday stays quiet and Thursday's

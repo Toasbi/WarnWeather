@@ -34,15 +34,16 @@ read -ra platforms <<< "${PLATFORMS:-emery basalt diorite flint aplite}"
 node scripts/gen-store-art-fixtures.js
 manifest="$(node scripts/gen-store-art-fixtures.js --manifest)"
 
-# scene_rows: "<id> <platform> <slug>" for every capture, filtered by the scene args.
+# scene_rows: "<id> <platform> <slug>" for every capture, filtered by the scene args. The
+# manifest goes in on stdin: as an argument it outgrows the kernel's limit for one.
 scene_rows() {
-  node -e '
-    const m = JSON.parse(process.argv[1]);
-    const want = process.argv.slice(2);
+  printf '%s' "$manifest" | node -e '
+    const m = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const want = process.argv.slice(1);
     for (const s of m) {
       if (want.length && !want.includes(s.id)) { continue; }
       for (const p of s.platforms) { console.log([s.id, p, s.fixtures[p]].join(" ")); }
-    }' "$manifest" "${wanted[@]+"${wanted[@]}"}"
+    }' "${wanted[@]+"${wanted[@]}"}"
 }
 
 # Bound a command so a wedged emulator can't hang the run (-k: SIGKILL 10 s after SIGTERM).

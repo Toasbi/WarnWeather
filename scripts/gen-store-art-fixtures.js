@@ -6,7 +6,7 @@
 // (art-<id>.json, plus art-<id>-<platform>.json for a platform variant), shot by
 // scripts/capture-store-art.sh into screenshot/<version>/store-art/frames/<platform>/<id>.png.
 //
-// THE DAYS. Both showcases are a time-lapse of two real days in Berlin: Wednesday 25 June 2025,
+// THE DAYS. Both showcases are a time-lapse of real days in Berlin up to Wednesday 25 June 2025,
 // its wet morning dried up, a windy afternoon of broken sun, and Thursday 26 June, clear and hot
 // (32 °C) until the evening storm (gusts of 94 km/h at 18:00, a downpour on the radar at 18:15,
 // rain into the night). The weather is the offline snapshot recorded for the promo reel, the
@@ -18,10 +18,12 @@
 // alert reads the recorded radar the way the app does (countdownAt). DWD's feed reaches the full
 // 68 hours, so Pebble Time 2's long span shows its 66.
 //
-// The clock's time is compile-time, so every frame is a scene ('day', day-<d>-<hhmm>):
-// half-hourly through Wednesday, hourly through the night, every quarter hour as the storm
-// comes. Pebble Time 2 opens on its own frames ('intro', intro-0-<hhmm>): the same afternoon in
-// the long forecast span, the look the old store reel had.
+// The clock's time is compile-time, so every frame is a scene ('day', day-<d>-<hhmm>), an
+// hour apart, as in the calm run. Every watch opens on its own frames ('intro'): Wednesday from
+// noon in the three-week calendar (intro-full-0-<hhmm>; on Pebble Time 2 in the long forecast
+// span, the look the old store reel had), which gives way to the day's dense look at 13:00;
+// Pebble Time 2 keeps the long span on to 15:00 (intro-0-<hhmm>) before the day's 24 hours. One
+// change at a time.
 //
 // THE PAUSES (1-showcase.gif). At some frames the time-lapse stops and a setting changes: a
 // 'variant' is the frame's moment with that setting changed (the UV slot's value, the forecast
@@ -31,11 +33,12 @@
 // a pause's card can take its place (a black and white watch ignores the clock colour, and
 // takes basalt's: the same layout).
 //
-// THE CALM RUN (the second showcase, no words). The same days hour by hour, a setting changed
-// now and then, one at a time and each kept a while: from the three-week calendar to none,
-// through the setup's forecast looks (Classic, Stripes with its rain bars from the top, Clean)
-// and on Pebble Time 2 its long forecast span ('calm' scenes, calm-<state>-<d>-<hhmm>; a frame
-// in the day's own settings is the day's frame). CALM holds each watch's steps.
+// THE CALM RUN (the second showcase, no words). The days hour by hour from the calm Saturday
+// before (21 June), a setting changed now and then, one at a time and each kept a while: from
+// the three-week calendar to none, through the setup's forecast looks (Stripes with its rain
+// bars from the top, Clean), Weather only and the Bitham clock, on Pebble Time 2 in its long
+// forecast span ('calm' scenes, calm-<state>-<MMDD>-<hhmm>; a frame in the day's own settings
+// is the day's frame). CALM holds each watch's steps.
 //
 // The day's settings have no left axis on Pebble Time 2 (the owner's call: the graph looks
 // better at its full width), gusts alert at the app's levels judged on the day itself
@@ -91,18 +94,17 @@ const HOLIDAYS = {
     ['11-01', ['DE-BW', 'DE-BY', 'DE-NW', 'DE-RP', 'DE-SL']], ['11-19', ['DE-SN']], ['12-25', null], ['12-26', null]],
 };
 
-// The frames: Wednesday half-hourly from noon, the night hourly, Thursday half-hourly to the
-// storm, every quarter hour as it comes, and on to 21:00.
-const FRAMES = [].concat(
-  halfHours(12, 24).map((t) => [0, t]),
-  hours(0, 8).map((t) => [1, t]),
-  ['07:30'].concat(halfHours(8, 17)).map((t) => [1, t]),
-  ['17:00', '17:15', '17:30', '17:45', '18:00', '18:15', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00']
-    .map((t) => [1, t]));
+// The frames: on the hour, from Wednesday noon to Thursday 21:00, the storm passed.
+const FRAMES = [].concat(hours(12, 24).map((t) => [0, t]), hours(0, 22).map((t) => [1, t]));
 
-// Pebble Time 2's opening: Wednesday from noon to 15:00 in the long span.
-const INTRO = halfHours(12, 15).concat('15:00').map((t) => [0, t]);
-const INTRO_CLAY = { forecastHours: '48', forecastAxisNumbers: 'graph' };
+// Pebble Time 2's long forecast span, the high and low on the graph (no left axis).
+const LONG = { forecastHours: '48', forecastAxisNumbers: 'graph' };
+// Every watch's opening: Wednesday from noon to 13:00 in the three-week calendar (on Pebble Time
+// 2 in the long span), then on Pebble Time 2 the dense look in the long span to 15:00.
+const INTRO_FULL = hours(12, 14).map((t) => [0, t]);
+const INTRO_FULL_CLAY = { layoutPreset: 'fullCal' };
+const INTRO = hours(13, 16).map((t) => [0, t]);
+const INTRO_CLAY = LONG;
 
 // The setup's forecast looks (wizard-forecast.js), as it writes them on a Pebble Time 2 (the
 // other watches ignore the left axis and, in black and white, the bars' colour). Classic is a
@@ -151,7 +153,6 @@ const HEALTH_VIEW = {
 // as the reel opens), the dense one with its second status bar, the setup's Stripes look (its
 // rain bars from the top), Clean, Weather only, no calendar, and the Bitham clock. Aplite has no
 // looks, no second status bar and no Weather only: its calendar alone goes, then its clock.
-const LONG = { forecastHours: '48', forecastAxisNumbers: 'graph' };
 const CALM = {
   emery: [
     { from: [-4, '11:00'], name: 'full', clay: Object.assign({ layoutPreset: 'fullCal' }, LONG) },
@@ -190,6 +191,8 @@ const CALM_FRAMES = [].concat(
 // its settings over DAY_CLAY; `theme` a theme flip (withTheme); `variants` per-platform
 // settings over the scene's.
 const SCENES = [].concat(
+  INTRO_FULL.map(([day, time]) => ({ id: 'intro-full-' + day + '-' + hhmm(time), mode: 'intro', at: [day, time],
+    clay: INTRO_FULL_CLAY, variants: { emery: LONG } })),
   INTRO.map(([day, time]) => ({ id: 'intro-' + day + '-' + hhmm(time), mode: 'intro', at: [day, time],
     platforms: EMERY, clay: INTRO_CLAY })),
   FRAMES.map(([day, time]) => ({ id: dayId(day, time), mode: 'day', at: [day, time] })),
@@ -226,18 +229,6 @@ const SCENES = [].concat(
     { id: 'layout-nocal', mode: 'variant', at: [1, '21:00'], platforms: ['aplite'], clay: { layoutPreset: 'noCal' } },
   ],
   calmScenes().scenes);
-
-/**
- * Times from one hour to another, every half hour.
- * @param {number} from First hour.
- * @param {number} to Hour to stop before.
- * @returns {string[]} 'HH:MM' times.
- */
-function halfHours(from, to) {
-  const out = [];
-  for (let h = from; h < to; h++) { out.push(pad(h) + ':00', pad(h) + ':30'); }
-  return out;
-}
 
 /**
  * Times from one hour to another, on the hour.
@@ -596,7 +587,8 @@ function sceneClay(base, scene, variantClay) {
 /**
  * Every settings key some scene sets to something other than the day's, with the day's value:
  * what every scene names, so none keeps the last scene's (see the top). The day's value of a key
- * the day doesn't set is the settings' default.
+ * the day doesn't set is the settings' default. In key order, so a new scene leaves the other
+ * fixtures' files (and the builds stashed by their checksums) as they were.
  * @returns {Object} key -> the day's value.
  */
 function settled() {
@@ -619,7 +611,7 @@ function settled() {
       }
     }
   }
-  return out;
+  return Object.fromEntries(Object.keys(out).sort().map((key) => [key, out[key]]));
 }
 
 /**
@@ -734,7 +726,8 @@ if (require.main === module) {
   }
 }
 
-module.exports = { generateStoreArtFixtures, manifest, calmRuns, SCENES, FRAMES, INTRO, CALM, CALM_FRAMES,
-  PLATFORMS, NOT_APLITE, EMERY, SMALL, COLOUR, DAY_CLAY, INTRO_CLAY, CLASSIC, STRIPES, CLEAN, DATA, HOLIDAYS,
+module.exports = { generateStoreArtFixtures, manifest, calmRuns, SCENES, FRAMES, INTRO, INTRO_FULL, CALM,
+  CALM_FRAMES, PLATFORMS, NOT_APLITE, EMERY, SMALL, COLOUR, DAY_CLAY, INTRO_CLAY, INTRO_FULL_CLAY, LONG, CLASSIC,
+  STRIPES, CLEAN, DATA, HOLIDAYS,
   FEED_HOURS, scenePlatforms, fixtureFor, weatherAt, realData, settled, nextSunEvents, countdownAt, dayId, minuteOf,
   epochOf };

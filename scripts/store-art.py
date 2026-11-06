@@ -1,31 +1,37 @@
 #!/usr/bin/env python3
-"""WarnWeather's appstore set, per platform: the showcase GIF and five store screens.
+"""WarnWeather's appstore set, per platform: two showcase GIFs and five store screens.
 
     python3 -I scripts/store-art.py <version> [--platforms "emery basalt"]
 
 Reads the watch screens scripts/capture-store-art.sh captured from the scenes of
 scripts/gen-store-art-fixtures.js (screenshot/<version>/store-art/frames/<platform>/<scene>.png)
-and writes each platform's set in the order it is uploaded:
+and writes each platform's set in the order it is uploaded (one of the two GIFs first):
 
     screenshot/<version>/store-art/<platform>/1-showcase.gif
+    screenshot/<version>/store-art/<platform>/1-showcase-calm.gif
     screenshot/<version>/store-art/<platform>/2-forecast.png .. 6-layouts.png
 
-and, to judge them, build/store-art/contact-sheet-<platform>.png (the GIF every 8th tick) and
-build/store-art/screens-<platform>.png (the five screens at 2x), and the whole set in one file
-to hand over, build/store-art/warnweather-store-<version>.zip. The store's time-lapse GIFs (a
-real day of weather, frame by frame) stay on the listing as they are; this set replaces the old
-reel and the single screenshots.
+and, to judge them, build/store-art/contact-sheet-<platform>[-calm].png (a GIF every 8th tick)
+and build/store-art/screens-<platform>.png (the five screens at 2x), and the whole set in one
+file to hand over, build/store-art/warnweather-store-<version>.zip. The store's time-lapse GIFs
+(a real day of weather, frame by frame) stay on the listing as they are; this set replaces the
+old reel and the single screenshots.
 
-THE SHOWCASE: a time-lapse of a day and a half on the watch (Saturday's calm, the evening and the
-night, Sunday's thunderstorm), which stops now and then to show what the watchface can do and
-goes on. At a stop a card takes the big clock's place and explains what the screen shows: a
-setting (its segmented control, the picked option in the watch's red, what it does), changed
-in place while the rest of the screen redraws with it, or what the moment brings (the UV slot's
-tomorrow mark at night, the calendar at midnight, the alerts before the storm), a thin ring
-round where to look. It opens on the calm morning and brings in the alerts with the storm;
-then the layouts, and the wordmark. Cards unfold from the clock's middle and fold back into
-it, the selection slides, words move up out of view and the next ones up into it, and a
-setting's screen redraws from left to right.
+THE SHOWCASE (1-showcase.gif): a time-lapse of two real days in Berlin (Wednesday 25 June 2025,
+windy, and Thursday 26 June, hot until the evening storm), which stops now and then to show what
+the watchface can do and goes on. At a stop a card takes the big clock's place and explains what
+the screen shows: a setting (its segmented control, the picked option in the watch's red, what
+it does), changed in place while the rest of the screen redraws with it, or what the moment
+brings (the UV slot's tomorrow mark at night, the alerts before the storm), a thin ring round
+where to look. It opens on the three-week calendar (on Pebble Time 2 in the long forecast
+span), which gives way to the dense look, one change at a time, and brings in the alerts with
+the storm; then the layouts, and the wordmark. Cards unfold from the clock's middle and fold
+back into it, the selection slides, words move up out of view and the next ones up into it, and
+a changed screen moves its rows where the layout moves, else redraws from left to right.
+
+THE CALM SHOWCASE (1-showcase-calm.gif): the same days hour by hour from the calm Saturday
+before, without a stop and without words, a setting changed now and then, one at a time, while
+the clock moves on.
 
 THE STORE SCREENS: a two-line headline over the watch's screen (the forecast, the alerts, the
 health view, the UV slot's values, Weather only), each at the platform's own screenshot size.
@@ -658,12 +664,12 @@ def draw_chip(image, watch, text, box, alpha=1.0, text_alpha=None, dy=0.0, texts
 
 
 # The timing, in ticks of TICK_MS.
-RUN_TICKS = 3             # a day frame, as the day runs (its first tick half the last frame)
-MORNING_TICKS = 5         # the same in the first run, the day's view read before the first card
-INTRO_FIRST = 15          # Pebble Time 2's opening: its first frame, held
-INTRO_TICKS = 6           # each next frame of it
-INTRO_SWITCH = 10         # its last frame redrawn as the day's view of the same moment
-INTRO_REST = 8            # the day's view, held before the day runs on
+RUN_TICKS = 5             # an hour, as the day runs (its first tick half the last frame)
+MORNING_TICKS = 8         # the same in the first run, the day's view read before the first card
+INTRO_FIRST = 15          # a watch's opening: its first frame, held
+INTRO_TICKS = 8           # each next hour of it
+INTRO_SWITCH = 10         # a frame redrawn in the next settings (the last as the day's view)
+INTRO_REST = 8            # the new settings at the same moment, held before the run goes on
 OPEN = 6                  # a card unfolding
 STEP = 10                 # a step to the next: the selection slides, the screen changes with it
 CLOSE = 7                 # a card folding back into the clock
@@ -685,8 +691,10 @@ CALM_FADE = 10            # the last hour into black and black into the first, a
 # every watch shows only what it can do.
 #
 # ('open', scene, ticks)                 the first frame, held; on a watch with an opening (the
-#                                        manifest's 'intro' scenes: Pebble Time 2's long span
-#                                        without the left axis) that instead, then the day's view
+#                                        manifest's 'intro' scenes: the three-week calendar, on
+#                                        Pebble Time 2 in the long span without the left axis, then
+#                                        there the dense look in it) that instead, one setting
+#                                        changing at a time, then the day's view
 # ('run', scene[, ticks])                on through the day's frames to this one, each
 #                                        `ticks` on screen (RUN_TICKS)
 # ('stop', card, ...)                    a stop at the frame the run reached; each card:
@@ -1125,15 +1133,19 @@ class Showcase:
         return out
 
     def opening(self, intro):
-        """A watch's own opening: its frames run (a soft cut a frame), then the last redrawn as
-        the day's view of the same moment, held, the day running on from it."""
-        self.reel.add(self.shot(intro[0]), INTRO_FIRST)
-        for last, scene in zip(intro, intro[1:]):
-            self.reel.add(Image.blend(self.shot(last), self.shot(scene), 0.5), fading=True)
-            self.reel.add(self.shot(scene), INTRO_TICKS - 1)
+        """A watch's own opening: its frames run (a soft cut a frame); where two share a moment
+        the screen is redrawn in the next one's settings and held; the last is redrawn as the
+        day's view of the same moment, held, the day running on from it."""
         at = self.screens.scenes[intro[-1]]['at']
         day = next(s for s in self.screens.day if self.screens.scenes[s]['at'] == at)
-        self.go(Moment(intro[-1]), Moment(day), INTRO_SWITCH, INTRO_REST)
+        frames = intro + [day]
+        self.reel.add(self.shot(frames[0]), INTRO_FIRST)
+        for last, scene in zip(frames, frames[1:]):
+            if self.screens.scenes[last]['at'] == self.screens.scenes[scene]['at']:
+                self.go(Moment(last), Moment(scene), INTRO_SWITCH, INTRO_REST)
+            else:
+                self.reel.add(Image.blend(self.shot(last), self.shot(scene), 0.5), fading=True)
+                self.reel.add(self.shot(scene), INTRO_TICKS - 1)
         self.at = day
 
     def stop(self, specs):

@@ -7,9 +7,9 @@ const os = require('os');
 const path = require('path');
 
 const {
-  generateStoreArtFixtures, manifest, calmRuns, SCENES, FRAMES, INTRO, CALM_FRAMES, PLATFORMS, EMERY, NOT_APLITE,
-  COLOUR, DAY_CLAY, INTRO_CLAY, CLASSIC, STRIPES, CLEAN, HOLIDAYS, FEED_HOURS, realData, settled, countdownAt, dayId,
-  minuteOf, epochOf,
+  generateStoreArtFixtures, manifest, calmRuns, SCENES, FRAMES, INTRO, INTRO_FULL, CALM_FRAMES, PLATFORMS, EMERY,
+  NOT_APLITE, COLOUR, DAY_CLAY, INTRO_CLAY, LONG, CLASSIC, STRIPES, CLEAN, HOLIDAYS, FEED_HOURS, realData, settled,
+  countdownAt, dayId, minuteOf, epochOf,
 } = require('../scripts/gen-store-art-fixtures');
 const wizardForecast = require('../src/pkjs/settings/wizard-forecast.js');
 const { celsiusToFahrenheit } = require('../src/pkjs/wire-units.js');
@@ -59,7 +59,7 @@ test('the real weather: the reel\'s DWD snapshot, read as the app reads Bright S
   }
 });
 
-test('the day runs forward: each frame later than the last, its instants from its hour\'s record, its totals from the next', () => {
+test('the day runs forward: each frame an hour after the last, its instants from its hour\'s record, its totals from the next', () => {
   const fx = generate();
   const data = realData();
   let last = -1;
@@ -67,7 +67,7 @@ test('the day runs forward: each frame later than the last, its instants from it
     const frame = fx['art-' + dayId(day, time)];
     const [hour, minute] = time.split(':').map(Number);
     assert.deepEqual(frame.watch.now, { year: 2025, month: 6, day: 25 + day, hour, minute, second: 0 }, time);
-    assert.ok(minuteOf([day, time]) > last, time + ' after the frame before it');
+    if (last >= 0) { assert.equal(minuteOf([day, time]) - last, 60, time + ' an hour after the frame before it'); }
     last = minuteOf([day, time]);
     const t = epochOf([day, time]) - minute * 60;
     const [r, f] = [data.records.get(t), data.records.get(t + 3600)];
@@ -93,13 +93,15 @@ test('the sun events are SunCalc\'s for Berlin, the next two after the clock', (
 
 test('the storm: gusts of 94 km/h at 18:00 on Thursday, the radar\'s downpour counted down to 18:15', () => {
   const fx = generate();
+  const data = realData();
   assert.equal(Math.round(fx['art-day-1-1800'].weather.gustKmh[0]), 94);
   assert.ok(Math.max(...fx['art-day-0-1200'].weather.gustKmh.slice(0, 12)) < 65, 'Wednesday stays below the alert');
-  assert.deepEqual(fx['art-day-1-1715'].countdown, { mins: 60, raining: false, tier: 5 });
+  assert.deepEqual(countdownAt(data.radar, epochOf([1, '17:15'])), { mins: 60, raining: false, tier: 5 });
   assert.deepEqual(fx['art-day-1-1800'].countdown, { mins: 15, raining: false, tier: 5 });
-  assert.deepEqual(fx['art-day-1-1815'].countdown, { mins: 10, raining: true, tier: 5 });
+  assert.deepEqual(countdownAt(data.radar, epochOf([1, '18:15'])), { mins: 10, raining: true, tier: 5 });
+  // An hour a frame: the rain alert shows at the alerts' stop alone.
   for (const [day, time] of FRAMES) {
-    if (minuteOf([day, time]) < minuteOf([1, '17:15'])) {
+    if (dayId(day, time) !== 'day-1-1800') {
       assert.equal(fx['art-' + dayId(day, time)].countdown, undefined, day + ' ' + time);
     }
   }
@@ -206,6 +208,40 @@ test('the manifest: where each scene is captured, the forecast length labels, th
   }
 });
 
+test('the opening: every watch starts on the three-week calendar, then one setting changes at a time', () => {
+  const scenes = manifest();
+  const byId = Object.fromEntries(scenes.map((s) => [s.id, s]));
+  const fx = generate();
+  const settings = (id, platform) => fx[byId[id].fixtures[platform]].claySettings;
+  const changed = (a, b) => Object.keys(a).filter((key) => JSON.stringify(a[key]) !== JSON.stringify(b[key])).sort();
+  assert.deepEqual(INTRO_FULL.map((at) => at[1]), ['12:00', '13:00']);
+  for (const platform of PLATFORMS) {
+    const intro = scenes.filter((s) => s.mode === 'intro' && s.platforms.includes(platform)).map((s) => s.id);
+    const expected = INTRO_FULL.map(([day, time]) => 'intro-full-' + day + '-' + time.replace(':', ''));
+    if (platform === 'emery') { expected.push(...INTRO.map(([day, time]) => 'intro-' + day + '-' + time.replace(':', ''))); }
+    assert.deepEqual(intro, expected, platform);
+    const first = settings(intro[0], platform);
+    assert.equal(first.layoutPreset, 'fullCal', platform);
+    assert.equal(first.forecastHours, platform === 'emery' ? LONG.forecastHours : DAY_CLAY.forecastHours, platform);
+    // The run's frames in order, the day's view of the last moment after them: where two share a
+    // moment, the screen is redrawn with one setting changed.
+    const last = byId[intro[intro.length - 1]];
+    const frames = intro.concat(dayId(last.at[0], last.at[1]));
+    const switches = [];
+    for (let i = 1; i < frames.length; i++) {
+      const [a, b] = [byId[frames[i - 1]], byId[frames[i]]];
+      if (minuteOf(a.at) === minuteOf(b.at)) {
+        switches.push(a.at[1] + ' ' + changed(settings(a.id, platform), settings(b.id, platform)).join(','));
+      } else {
+        assert.equal(minuteOf(b.at) - minuteOf(a.at), 60, platform + ' runs an hour a frame');
+        assert.deepEqual(changed(settings(a.id, platform), settings(b.id, platform)), [], platform + ' ' + b.id);
+      }
+    }
+    assert.deepEqual(switches, platform === 'emery'
+      ? ['13:00 layoutPreset', '15:00 forecastAxisNumbers,forecastHours'] : ['13:00 layoutPreset'], platform);
+  }
+});
+
 test('the calm run: hour by hour from the calm Saturday, the three-week calendar to none, one step at a time', () => {
   const runs = calmRuns();
   const byId = Object.fromEntries(manifest().map((s) => [s.id, s]));
@@ -244,7 +280,8 @@ test('every fixture\'s weather is a payload the app sends', () => {
   global.localStorage = global.localStorage || { getItem: () => null, setItem: () => {}, removeItem: () => {} };
   const fixtureWeather = require('../src/pkjs/fixture-weather.js');
   const fx = generate();
-  for (const slug of ['art-day-0-1200', 'art-intro-0-1200', 'art-calm-full-66h-0621-1100', 'art-calm-nocal-clean-bitham-0626-2100', 'art-day-1-1800']) {
+  for (const slug of ['art-day-0-1200', 'art-intro-full-0-1200', 'art-intro-full-0-1200-emery', 'art-intro-0-1300',
+    'art-calm-full-66h-0621-1100', 'art-calm-nocal-clean-bitham-0626-2100', 'art-day-1-1800']) {
     const payload = fixtureWeather.getFixtureWeatherPayload(fx[slug], fx[slug].claySettings, { platform: 'emery' });
     assert.ok(payload, slug);
   }
