@@ -1365,7 +1365,7 @@ def store_screen(screens, watch, spec):
         screen = Image.new('RGB', (watch.w, watch.h), BLACK)
         # From its bottom up, the screen starts at the first blank row under the headline, so
         # no element shows cut in half there.
-        start = top + 2 if place == 'top' else next_blank(shot, top + 2)
+        start = top + 2 if place == 'top' else next_blank(shot, top + 1)
         screen.paste(shot.crop((0, start - dy, watch.w, watch.h - dy)), (0, start))
         if mark == 'alerts':
             y0, y1 = ink_rows_from(shot, 0)
