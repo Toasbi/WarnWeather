@@ -655,6 +655,23 @@ def draw_chip(image, watch, text, box, alpha=1.0, text_alpha=None, dy=0.0, texts
         (box[0] + 1, box[1] + 1, box[2] - 1, box[3] - 1), texts)
 
 
+# The timing, in ticks of TICK_MS.
+RUN_TICKS = 4             # a day frame, as the day runs (its first tick half the last frame)
+MORNING_TICKS = 8         # the same in the first run, the day's view read before the first card
+INTRO_FIRST = 25          # Pebble Time 2's opening: its first frame, held
+INTRO_TICKS = 12          # each next frame of it
+INTRO_SWITCH = 16         # its last frame redrawn as the day's view of the same moment
+INTRO_REST = 15           # the day's view, held before the day runs on
+OPEN = 9                  # a card unfolding
+STEP = 12                 # a step to the next: the selection slides, the screen redraws
+CLOSE = 10                # a card folding back into the clock
+CHIP = 5                  # a layout coming in, its label after it
+END_TICKS = 62            # the wordmark, held
+FIRST_EXTRA = 5           # a card's first step: its name is read with it
+SETTLE = 6                # the day stopped at a frame, before the card unfolds
+LOOP = 9                  # into the wordmark, and from it into the first frame
+
+
 # ---------------------------------------------------------------------------------------
 # The storyboard. The day runs frame by frame ('run' to a frame) and stops ('stop': cards,
 # each a setting or a moment with its steps). A step or a card whose scene isn't captured on a
@@ -664,7 +681,8 @@ def draw_chip(image, watch, text, box, alpha=1.0, text_alpha=None, dy=0.0, texts
 # ('open', scene, ticks)                 the first frame, held; on a watch with an opening (the
 #                                        manifest's 'intro' scenes: Pebble Time 2's long span
 #                                        without the left axis) that instead, then the day's view
-# ('run', scene)                         on through the day's frames to this one
+# ('run', scene[, ticks])                on through the day's frames to this one, each
+#                                        `ticks` on screen (RUN_TICKS)
 # ('stop', card, ...)                    a stop at the frame the run reached; each card:
 #     ('setting', title, options, steps[, platforms])   options None: the scene's span labels;
 #                                                        a step (scene, picked, line, mark)
@@ -683,7 +701,7 @@ def draw_chip(image, watch, text, box, alpha=1.0, text_alpha=None, dy=0.0, texts
 NOT_APLITE = ('emery', 'basalt', 'diorite', 'flint')
 STORY = (
     ('open', 'day-0-0500', 30),
-    ('run', 'day-0-1100'),
+    ('run', 'day-0-1100', MORNING_TICKS),
     ('stop', ('setting', 'UV index slot', ('Now', 'Day max', 'Both'), (
         ('day-0-1100', 2, ('Now and today\'s max: 7/8', 'Now / today\'s max'), 'slot'),
         ('uv-now', 0, ('The UV index now: 7', 'UV index now: 7'), 'slot'),
@@ -718,20 +736,6 @@ STORY = (
 )
 WORDMARK = ('Warn', 'Weather')
 SLOGAN = 'The forecast at a glance,\nalerts when it matters.'
-
-RUN_TICKS = 4             # a day frame, as the day runs (its first tick half the last frame)
-INTRO_FIRST = 25          # Pebble Time 2's opening: its first frame, held
-INTRO_TICKS = 12          # each next frame of it
-INTRO_SWITCH = 16         # its last frame redrawn as the day's view of the same moment
-INTRO_REST = 15           # the day's view, held before the day runs on
-OPEN = 9                  # a card unfolding
-STEP = 12                 # a step to the next: the selection slides, the screen redraws
-CLOSE = 10                # a card folding back into the clock
-CHIP = 5                  # a layout coming in, its label after it
-END_TICKS = 62            # the wordmark, held
-FIRST_EXTRA = 5           # a card's first step: its name is read with it
-SETTLE = 6                # the day stopped at a frame, before the card unfolds
-LOOP = 9                  # into the wordmark, and from it into the first frame
 
 
 def hold_ticks(text):
@@ -943,8 +947,9 @@ class Showcase:
             if x0 < box[0] or y0 < box[1] or x1 > box[2] or y1 > box[3]:
                 raise SystemExit('%s: %r runs out of its card or label' % (self.watch.name, text))
 
-    def run(self, to):
-        """On through the day's frames from the one reached to `to`, a soft cut a frame."""
+    def run(self, to, ticks=RUN_TICKS):
+        """On through the day's frames from the one reached to `to`, a soft cut a frame, each
+        on screen `ticks`."""
         day = self.screens.day
         i, j = day.index(self.at), day.index(to)
         for scene in day[i + 1:j + 1]:
@@ -952,7 +957,7 @@ class Showcase:
                 continue
             last = self.shot(self.at)
             self.reel.add(Image.blend(last, self.shot(scene), 0.5), fading=True)
-            self.reel.add(self.shot(scene), RUN_TICKS - 1)
+            self.reel.add(self.shot(scene), ticks - 1)
             self.at = scene
 
     def cards(self, specs):
@@ -1090,7 +1095,7 @@ class Showcase:
                     self.at = beat[1]
                     self.reel.add(self.shot(beat[1]), beat[2])
             elif beat[0] == 'run':
-                self.run(beat[1])
+                self.run(*beat[1:])
             elif beat[0] == 'stop':
                 self.stop(beat[1:])
             elif beat[0] == 'layouts':
@@ -1345,7 +1350,7 @@ SCREENS = {
 # The UV slot's card: each value selection, the slot as the watch shows it then, and what it
 # means (or (long, short), as STORY's lines). The same numbers as STORY's.
 CARD_ROWS = (('Now', 'uv-now', 'UV now'), ('Day max', 'uv-max', 'Max left today'),
-             ('Both', 'day-0-1000', 'Now / max'), ('Evening', 'day-0-2200', ('» tomorrow\'s max', '» tomorrow')))
+             ('Both', 'day-0-1100', 'Now / max'), ('Evening', 'day-0-2200', ('» tomorrow\'s max', '» tomorrow')))
 CARD_NOTE = 'Wind, gusts and AQI too.'
 STORE_CORNER = {200: 12, 144: 9}   # px of a corner the store rounds off
 
