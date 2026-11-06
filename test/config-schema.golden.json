@@ -239,9 +239,6 @@
                 "optionsFrom": {
                   "resolver": "layoutPresetOptions"
                 },
-                "pictureFrom": {
-                  "resolver": "layoutPresetPicture"
-                },
                 "dormantValues": [
                   "compactDense",
                   "weatherOnly",
@@ -4077,7 +4074,7 @@
           {
             "id": "statusAll",
             "title": "All status bars",
-            "intro": "Every view has its own status bar — one row with a left, middle, and right slot you can fill with weather, time, health, and more. Choose what each view shows below.",
+            "intro": "Each bar has a left, middle and right slot. Tap a slot above to change it.",
             "items": [
               {
                 "type": "segmented",

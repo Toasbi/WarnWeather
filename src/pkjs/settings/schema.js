@@ -997,8 +997,9 @@ var VIEW_FLICK_WHEN = {env: 'platform', ne: 'aplite'};
 var FORECAST_SPAN_WHEN = {env: 'forecastSpan'};
 var LAYOUT_INTRO = 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the '
     + 'preview. What a metric means or how it\'s coloured lives in Graphs.';
-var STATUS_INTRO = 'Every view has its own status bar — one row with a left, middle, and right slot you can '
-    + 'fill with weather, time, health, and more. Choose what each view shows below.';
+// The owner's text (2026-11-06). The tap is said twice on purpose: the bars' own line under
+// them (preview-status-bars.js) and here, because a tap on a picture was not obvious.
+var STATUS_INTRO = 'Each bar has a left, middle and right slot. Tap a slot above to change it.';
 // "up to 66": a full feed on the whole screen (the Left axis values On graph or Off).
 var FORECAST_INTRO = 'The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or up to '
     + String(spanHours.wholeHours(spanHours.FULL_HOURS, spanHours.SCREEN_W)) + ': '
@@ -1273,10 +1274,9 @@ module.exports = {
                 // 'custom' is dormant the same way on aplite (Custom is never offered
                 // there; the payload folds it to compactCal, matching the display).
                 // Picking custom seeds the per-view keys once (layoutPresetChanged).
+                // A list of names, not pictures (the owner, 2026-11-06): the pinned watch at
+                // the top of the tab already draws the views the picked preset gives.
                 optionsFrom: { resolver: 'layoutPresetOptions' },
-                // Each preset as a card of its Default view, drawn as the pinned preview
-                // draws it with the settings as they are (preview-watch.js presetPicture).
-                pictureFrom: { resolver: 'layoutPresetPicture' },
                 dormantValues: ['compactDense', 'weatherOnly', 'custom'],
                 onChange: 'layoutPresetChanged'
             },

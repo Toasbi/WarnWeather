@@ -1349,8 +1349,8 @@ test('hidden compactDense renders the compactCal fallback but stays in state', (
   S.radarMode = 'off';   // dense hidden in this mode
   const html = eng.renderBody(schema, 'watchface', cx(S));
   assert.equal(S.layoutPreset, 'compactDense', 'stored dense choice survives the render');
-  assert.match(html, /class="pic on" role="radio" aria-checked="true" data-k="layoutPreset" data-v="compactCal"/,
-    'the picker shows compactCal selected as the display fallback');
+  assert.match(html, /class="on" data-k="layoutPreset" data-v="compactCal"/,
+    'the radio shows compactCal selected as the display fallback');
 
   // The generic lockstep rule is untouched: an unknown value still snaps into state.
   S.layoutPreset = 'bogus';
@@ -1998,7 +1998,8 @@ test('Status bars tab (id watch): the All status bars card, the four bars in wat
   const intro = watch.sections[0];
   assert.equal(intro.id, 'statusAll');
   assert.equal(intro.title, 'All status bars', 'the tab opens on the card for every bar');
-  assert.ok(/status bar/i.test(intro.intro), 'general intro describes status bars once');
+  assert.ok(/\bbar\b/.test(intro.intro) && /Tap a slot/.test(intro.intro),
+    'general intro describes the bars once, and says a slot can be tapped');
   const titles = watch.sections.map((s) => s.title).filter(Boolean);
   // The owner's order (2026-10-01: "1: watch status bar 2 weather 3 health 4 radar"),
   // the page's only (it was Forecast, Radar, Health, Watch): on-demand.js BARS and the
@@ -2361,7 +2362,7 @@ test('the All status bars card carries the reset-status-bars link row, ungated',
   // owner, 2026-10-01: "the reset to default button should be an inline text button, like
   // the telemetry section"), dispatching blocks.js resetStatusSlots through the engine's
   // [data-action] handler. Its label covers slots + Bold and stays truthful on aplite.
-  assert.ok(intro.intro.endsWith('Choose what each view shows below.'), 'the intro ends on its own copy');
+  assert.ok(intro.intro.endsWith('Tap a slot above to change it.'), 'the intro ends on its own copy');
   assert.equal(intro.intro.indexOf('<button'), -1, 'no inline reset in the intro any more');
   assert.equal(intro.intro.indexOf('txt-act-btn'), -1, 'not the boxed chip either');
   // Owner, 2026-10-04: the reset moves under the card's More options, after Bold values.

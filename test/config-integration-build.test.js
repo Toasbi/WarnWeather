@@ -61,10 +61,10 @@ test('generated page renders the Watchface tab preview without require() (webvie
     var out = fn(S, { platform: 'basalt', color: true }, {});
     assert.equal((out.match(/class="wpv-v"/g) || []).length, 3, 'one card per view: Default and two flicks');
     assert.ok(out.indexOf('<svg') >= 0, 'renders real SVG content, not a thrown error');
-    var pic = sandbox.PConf.pictureResolvers.get('layoutPresetPicture');
-    assert.ok(pic, 'layoutPresetPicture is registered');
-    assert.ok(pic(S, { platform: 'basalt', color: true }, { value: 'weatherOnly' }, {}).indexOf('<svg') === 0,
-      'a preset picture renders');
+    var pic = sandbox.PConf.pictureResolvers.get('timeFontPicture');
+    assert.ok(pic, 'timeFontPicture is registered');
+    assert.ok(pic(S, { platform: 'basalt', color: true }, { value: 'bitham' }, {}).indexOf('<svg') === 0,
+      'a clock font picture renders');
 });
 
 test('generated page registers PConf.actions.startWizard (wizard.js concatenated + shimmed)', function () {

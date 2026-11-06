@@ -9,9 +9,9 @@
 // forecast, radar and health graphs as the
 // Graphs tab's previews draw them, laid into the band. It is a picture of the layout and
 // the look, not a pixel copy: the watch's Gothic text is the page's sans. Holidays are the
-// ones the phone has cached for the picked country (userData.holidays). The Layout card's
-// preset picker draws each preset's Default view the same way (picture resolver
-// 'layoutPresetPicture').
+// ones the phone has cached for the picked country (userData.holidays). The Time card's
+// Clock font picker draws each face's clock the same way (picture resolver
+// 'timeFontPicture').
 /* global VIEW_CYCLE */
 (function () {
     var NODE = typeof require !== 'undefined';
@@ -635,45 +635,6 @@
     }
 
     /**
-     * The Layout preset picker's picture of one preset (picture resolver
-     * 'layoutPresetPicture'): the Default view the preset gives with the settings as they
-     * are, drawn as the pinned preview draws it. Custom shows the custom Default view or,
-     * until a first pick of Custom has seeded the custom views, the one that pick would seed
-     * from the preset in use (view-cycle.js seedCustomKeys).
-     * @param {Object} S Live settings.
-     * @param {Object} env Platform env.
-     * @param {{value: string}} args The option's preset.
-     * @param {Object} [userData] Page userData (the palette).
-     * @returns {string} The <svg>, '' when the preset has no view to draw.
-     */
-    function presetPicture(S, env, args, userData) {
-        var custom = args.value === 'custom';
-        var st = Object.assign({}, S || {}, { layoutPreset: args.value });
-        if (custom && !st.customLayoutSeeded) { VC.seedCustomKeys(st, S && S.layoutPreset); }
-        var spec = VC.resolveViewCycle(st, env)[0];
-        if (!spec) { return ''; }
-        var f = env && env.platform === 'emery' ? 1 : 0;
-        var svg = screenSvg(spec, 0, st, env, userData || {}, f, new Date(),
-            'lp' + String(args.value).replace(/[^A-Za-z0-9]/g, '') + '-').svg;
-        // Custom's card carries a pencil: until views of your own are built it shows the
-        // preset in use, which would otherwise read as a second copy of that card.
-        return custom ? svg.replace(/<\/svg>$/, pencilBadge(SCREEN[f]) + '</svg>') : svg;
-    }
-
-    /**
-     * A round accent badge with a pencil, in a screen's bottom-right corner.
-     * @param {{w: number, h: number}} sc The screen.
-     * @returns {string} SVG markup.
-     */
-    function pencilBadge(sc) {
-        var r = sc.w > 150 ? 16 : 12, x = sc.w - r - 4, y = sc.h - r - 4, k = r / 20;
-        return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="#FA4A35" stroke="#FFFFFF" stroke-width="1.5"></circle>'
-            + '<path transform="translate(' + r1(x - 12 * k) + ' ' + r1(y - 12 * k) + ') scale(' + k + ')"'
-            + ' d="M16.5 4.5a2.1 2.1 0 0 1 3 3L8.5 18.5 4 20l1.5-4.5Z" fill="none" stroke="#FFFFFF" stroke-width="2.4"'
-            + ' stroke-linecap="round" stroke-linejoin="round"></path>';
-    }
-
-    /**
      * The Time card's Clock font picker's picture of one face (picture resolver
      * 'timeFontPicture'): the clock band alone, the samples' time in that face as the watch
      * draws it (clockBand), on the watch's ground in the time colour — so a face shows where
@@ -694,8 +655,7 @@
 
     if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }
     if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('timeFontPicture', fontPicture); }
-    if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('layoutPresetPicture', presetPicture); }
-    var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg, presetPicture: presetPicture,
+    var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg,
                 fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PreviewWatch = api; }
