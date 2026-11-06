@@ -673,11 +673,11 @@ RUN_TICKS = 3             # a day frame, as the day runs (its first tick half th
 OPEN = 9                  # a card unfolding
 STEP = 12                 # a step to the next: the selection slides, the screen redraws
 CLOSE = 10                # a card folding back into the clock
-CHIP = 9                  # a layout coming in, its label after it
+CHIP = 5                  # a layout coming in, its label after it
 END_TICKS = 62            # the wordmark, held
 FIRST_EXTRA = 5           # a card's first step: its name is read with it
 SETTLE = 6                # the day stopped at a frame, before the card unfolds
-LOOP = 12                 # the wordmark into the first frame
+LOOP = 9                  # into the wordmark, and from it into the first frame
 
 
 def hold_ticks(text):
