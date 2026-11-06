@@ -241,9 +241,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * @param {Object} state Live settings (colours as hex strings).
      * @param {Object} env Config-UI environment facts ({ color, platform, … }).
      * @param {Object} [userData] Page userData; `palette` is the page-open snapshot.
+     * @param {Object} [sample] Weather to draw instead of the 12-point scenario below: every
+     *   series of one length (temps, feels, dew, precip, cloud, rain, uv, wind, gust, pressure;
+     *   at least 2 points), slot 0's clock hour (startHour) and the nights as [from, to] slot
+     *   positions (forecast-sample.js sample). The setup wizard's previews pass one, so a span
+     *   draws its own hours; the settings page's block call never does.
      * @returns {string} SVG markup.
      */
-    function forecastPreview(state, env, userData) {
+    function forecastPreview(state, env, userData, sample) {
         // The graph's colours, resolved by the SAME function whose answer the watch's Clay
         // wire packs (weather/graph-wire.js, over the connected watch's computeEnv)
         // and read off `state` — the LIVE settings object render() hands every block —
@@ -303,6 +308,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // Cloud cover (%): thickening into the shower, overcast through it, then
         // breaking up overnight before the morning clouds return.
         var cloud  = [35, 60, 90, 100, 95, 75, 45, 20, 10, 15, 40, 65];
+        // Slot 0's clock hour, and the night: sunset at 21:00 (slot 9) on to the right edge.
+        var startHour = 12;
+        var nights = [[9, temps.length - 1]];
+        if (sample) {
+            temps = sample.temps; precip = sample.precip; wind = sample.wind; rain = sample.rain;
+            gust = sample.gust; uv = sample.uv; feels = sample.feels; dew = sample.dew;
+            pressure = sample.pressure; cloud = sample.cloud;
+            startHour = sample.startHour;
+            nights = sample.nights || [];
+        }
 
         // The frozen-styles gate: env.lineStyles is the WW_LINE_STYLE mirror
         // (platform.js). Previewing such a watch pins the pre-feature look —
@@ -532,8 +547,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var yT = function (t) {
             return holdT(tmax > tmin ? ybot - (t - tmin) / (tmax - tmin) * (ybot - ytop) : (ybot + ytop) / 2);
         };
-        var n0 = tickX(9), n1 = tickX(n - 1);       // night band: sunset 21:00 (slot 9) -> right edge
-        var bw = 9;                                  // rain-bar / dot width
+        // The night bands, [x0, x1] each: sunset to sunrise, held to the ticks drawn.
+        var nightXs = nights.map(function (nt) {
+            return [tickX(Math.max(0, nt[0])), tickX(Math.min(n - 1, nt[1]))];
+        });
+        // Rain-bar / dot width: 9, narrower only where a longer sample's columns are.
+        var bw = Math.min(9, pitch * 0.56);
 
         // The graph strokes, as SVG colours. Every rule that used to be restated
         // here — the effective-colour gate, the per-polarity colours, gust's coupling to
@@ -568,7 +587,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          */
         function drawNightShading() {
             if (!state.dayNightShading) { return ''; }
-            return '<rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>';
+            return nightXs.map(function (x) {
+                return '<rect x="' + x[0] + '" y="' + PT + '" width="' + (x[1] - x[0]) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>';
+            }).join('');
         }
         /**
          * The day line: a line on each midnight's hour tick, from the top of the graph down
@@ -583,9 +604,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var stroke = nightPicksApply ? hexColor(gc.night.dayLine) : ink.rgba('0.45');
             var xs = [];
             for (var i = 1; i < n; i += 1) {
-                if ((12 + i) % 24 === 0) { xs.push(tickX(i)); }
+                if ((startHour + i) % 24 === 0) { xs.push(tickX(i)); }
             }
-            return (xs.length ? xs : [(n0 + n1) / 2]).map(function (x) {
+            if (!xs.length && nightXs.length) { xs.push((nightXs[0][0] + nightXs[0][1]) / 2); }
+            return xs.map(function (x) {
                 return '<line x1="' + x + '" y1="' + PT + '" x2="' + x + '" y2="' + PB + '" stroke="' + stroke + '" stroke-width="0.7"></line>';
             }).join('');
         }
@@ -604,7 +626,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var cad = axisCadence(state, env);
             var out = '', prev = -1;
             for (var i = 0; i < n; i += 1) {
-                var hour = (12 + i) % 24;
+                var hour = (startHour + i) % 24;
                 var mark = axisMark(cad, i, hour, prev);
                 prev = hour;
                 if (mark === MARK_NONE) { continue; }
@@ -750,7 +772,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * @returns {string} SVG markup, or '' when nothing is tinted.
          */
         function nightFillTint() {
-            if (!nightPicksApply || !fillsArea) { return ''; }
+            if (!nightPicksApply || !fillsArea || !nightXs.length) { return ''; }
             var area = areaPathFor(state.secondaryLine);
             if (!area) { return ''; }
             // areaBase is the metric's hand-tuned night base, or the user's tint verbatim
@@ -841,7 +863,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var barXFor = function (metric, col) {
             var m = METRIC[metric];
             if (!m) { return ''; }
-            var out = '', arm = 2.4;
+            var out = '', arm = Math.min(2.4, bw / 2);
             for (var i = 0; i < n - 1; i += 1) {
                 var cy = metricY(m, i, true);
                 if (cy === null) { continue; }
@@ -1123,7 +1145,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             + stripeDitherDefs()
             + '<pattern id="fillhatch" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect><rect x="1" y="1" width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect></pattern>'
             + (nightTint
-                ? '<clipPath id="nightclip"><rect x="' + n0 + '" y="' + PTL + '" width="' + (n1 - n0) + '" height="' + (PB - PTL) + '"></rect></clipPath>'
+                ? '<clipPath id="nightclip">' + nightXs.map(function (x) {
+                    return '<rect x="' + x[0] + '" y="' + PTL + '" width="' + (x[1] - x[0]) + '" height="' + (PB - PTL) + '"></rect>';
+                }).join('') + '</clipPath>'
                 : '')
             + '</defs>';
         e += drawNightShading();

@@ -30,8 +30,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * only where the watch ships the light polarity (env.themePolarity — false on aplite,
      * where WW_THEME_POLARITY is compiled out and a choice would be a silent no-op).
      * layout and health are the selection steps that shape the cycle, so the demo comes
-     * after both and shows the user's real cycle.
-     * @param {{radar: boolean, health: boolean, themePolarity: boolean}} env Config-UI env facts.
+     * after both and shows the user's real cycle. The forecast step (the graph's look, and on
+     * emery its length) only where the watch draws the line styles its looks are made of
+     * (env.lineStyles — false on aplite), after the theme so its preview is drawn in it.
+     * @param {{radar: boolean, health: boolean, themePolarity: boolean, lineStyles: boolean}} env
+     *     Config-UI env facts.
      * @returns {Array.<string>} Step ids in order.
      */
     function buildSteps(env) {
@@ -40,6 +43,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (env.health) { steps.push('health'); }
         if (env.radar) { steps.push('flick'); }
         if (env.themePolarity) { steps.push('theme'); }
+        if (env.lineStyles) { steps.push('forecast'); }
         steps.push('done');
         return steps;
     }
@@ -159,14 +163,62 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Each step's title (the progress bar says where in setup it is).
     var STEP_TITLES = {
         welcome: 'Welcome to WarnWeather', layout: 'Choose your layout', health: 'Health on your watch',
-        flick: 'Flick to switch views', theme: 'Choose a theme', done: 'You’re all set'
+        flick: 'Flick to switch views', theme: 'Choose a theme', forecast: 'Choose your forecast',
+        done: 'You’re all set'
     };
 
     // The selected option's description under each picker: one sentence.
     var LAYOUT_DESC = {
         fullCal: 'A three-row month grid with today highlighted, above the forecast.',
-        compactCal: 'A two-row calendar, leaving more room for the 24‑hour forecast.',
+        compactCal: 'A two-row calendar, leaving more room for the forecast.',
         noCal: 'A big clock and date above a full-size forecast.'
+    };
+
+    // The forecast step's looks. Each is a full set of the graph settings it governs (LOOK_KEYS):
+    // the four lines' metrics and styles, the Main metric's fill, the rain bars, every Draw from,
+    // and on emery where the high and low go (Left axis values). Classic is the graph's defaults,
+    // a fresh install's graph; the others override some of them (LOOK_OVERRIDES). Stripes is the
+    // showcase look: cloud cover and the chance of rain as stripes along the top, feels-like as a
+    // second curve, UV as dots. Clean leaves out the UV dots and, on emery, writes the high and low
+    // on the graph instead of beside an axis, so the graph runs the screen's whole width.
+    var LOOK_KEYS = ['secondaryLine', 'secondaryLineStyle', 'secondaryLineFill', 'thirdLine', 'thirdLineStyle',
+        'fourthLine', 'fourthLineStyle', 'fifthLine', 'fifthLineStyle', 'barSource', 'precipLineFrom',
+        'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom', 'forecastAxisNumbers'];
+    var LOOK_OVERRIDES = {
+        classic: {},
+        stripes: { secondaryLine: 'uv', secondaryLineStyle: 'dots', secondaryLineFill: false,
+            thirdLine: 'cloud', thirdLineStyle: 'stripeTop', fourthLine: 'precip_prob',
+            fourthLineStyle: 'stripeTop', fifthLine: 'feels', fifthLineStyle: 'line' },
+        clean: { thirdLine: 'off', forecastAxisNumbers: 'graph' }
+    };
+    var LOOK_OPTS = [['Classic', 'classic'], ['Stripes', 'stripes'], ['Clean', 'clean']];
+    // A graph that is none of the looks when setup opens (set up in Settings): offered first, so
+    // trying a look never loses it.
+    var OWN_LOOK = ['Your own', 'own'];
+    // A line's style key -> its metric key: the style of a line that is Off is no part of a look.
+    var STYLE_LINE = { secondaryLineStyle: 'secondaryLine', thirdLineStyle: 'thirdLine',
+        fourthLineStyle: 'fourthLine', fifthLineStyle: 'fifthLine' };
+    /**
+     * The looks' descriptions, built at READ time: Clean says where the high and low go only where
+     * the watch draws them there (emery).
+     * @param {boolean} emery Whether the watch is an emery.
+     * @returns {Object<string, string>} Per-look descriptions.
+     */
+    function lookDesc(emery) {
+        return {
+            classic: 'The temperature, the chance of rain as a shaded area, UV as dots and rain as bars.',
+            stripes: 'Cloud cover and the chance of rain as stripes along the top, with feels-like and UV.',
+            clean: emery
+                ? 'The temperature, the chance of rain and rain bars, with the high and low on the graph.'
+                : 'Just the temperature, the chance of rain and rain bars.',
+            own: 'Your graph, as you set it up in Settings.'
+        };
+    }
+    // Forecast length (emery only): the schema's Graphs › Forecast › Other row, its hints shortened.
+    var SPAN_DESC = {
+        '12': 'The next 12 hours, in wider columns.',
+        '24': 'The next 24 hours.',
+        '48': 'As far ahead as your weather service forecasts and the graph fits, in narrow columns.'
     };
     /**
      * healthMode descriptions, built at READ time so the heart-rate variant follows the live env.
@@ -253,6 +305,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '#wizard .wiz-opt.on{background:' + ACCENT_FILL + ';color:#FFFFFF;box-shadow:0 3px 10px rgba(250,74,53,.35)}'
         + '#wizard .wiz-desc{min-height:3.1em;margin:12px 0 0;text-align:center;font-size:14.5px;line-height:1.5;'
         + 'color:var(--fg)}'
+        // the forecast step: the settings page's own graph preview, drawn live from sample weather, and
+        // the second picker's heading. The box keeps the tallest graph's shape (two legend rows, 200 x
+        // 128), so a look with fewer never moves the controls under it; the screen colour fills the
+        // rest. Its svg fills the width, not the settings card's padding (preview-svg.js svgFrame).
+        + '#wizard .wiz-graph{width:300px;width:min(320px,calc(100vw - 78px));aspect-ratio:200/128;'
+        + 'border-radius:5px;overflow:hidden}'
+        + '#wizard .wiz-graph svg{width:100%!important;margin:0!important;animation:wiz-fade .22s ease both}'
+        + '#wizard .wiz-sub{margin:26px 0 0;text-align:center;font:800 11.5px ' + FONT + ';letter-spacing:.1em;'
+        + 'text-transform:uppercase;color:var(--ttl)}'
+        + '#wizard .wiz-sub+.wiz-opts{margin-top:10px}'
         + '#wizard button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}'
         // cards: the country on the welcome step, the layout legend, the summary, the upsell
         + '#wizard .wiz-card,#wizard .wiz-legend,#wizard .wiz-sum,#wizard .wiz-tio{margin:18px 0 0;'
@@ -318,14 +380,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '@keyframes wiz-in-r{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:none}}'
         + '@keyframes wiz-in-l{from{opacity:0;transform:translateX(-22px)}to{opacity:1;transform:none}}'
         + '@keyframes wiz-pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}'
+        + '@keyframes wiz-fade{from{opacity:.4}to{opacity:1}}'
         + '@keyframes wiz-tilt{0%{transform:rotate(0)}30%{transform:rotate(14deg)}55%{transform:rotate(-5deg)}'
         + '75%{transform:rotate(2deg)}100%{transform:rotate(0)}}'
         // short screens (small phones, a keyboard up): a smaller watch keeps the options in view
         + '@media (max-height:700px){#wizard .wiz-stage.big .wiz-shot{width:180px}'
         + '#wizard.w200 .wiz-stage.big .wiz-shot,#wizard .wiz-flick .wiz-stage.big .wiz-shot{width:auto}'
-        + '#wizard .wiz-title{font-size:22px}}'
-        + '@media (prefers-reduced-motion:reduce){#wizard .wiz-step,#wizard .wiz-badge,#wizard .wiz-flick-watch.tilt'
-        + '{animation:none}#wizard .wiz-shot,#wizard .wiz-seg,#wizard .wiz-flick-shot{transition:none}}';
+        + '#wizard .wiz-graph{width:260px}#wizard .wiz-title{font-size:22px}}'
+        + '@media (prefers-reduced-motion:reduce){#wizard .wiz-step,#wizard .wiz-badge,#wizard .wiz-flick-watch.tilt,'
+        + '#wizard .wiz-graph svg{animation:none}#wizard .wiz-shot,#wizard .wiz-seg,#wizard .wiz-flick-shot'
+        + '{transition:none}}';
 
     // Live wizard state, captured from the onReady ctx when the wizard opens.
     // flickIdx = current stop of the flick demo (reset to 0 whenever stepFlick renders).
@@ -333,8 +397,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // touch = where a swipe on the picker's watch started; shotSeq = the latest preview swap.
     // reachedDone = the summary has been shown (footer); tioTyped = a Tomorrow.io key was typed in
     // this run (onClick); returnFocus = where focus goes when the wizard closes onto the page.
+    // ownLook = the graph settings as setup opened, when they are none of the looks (OWN_LOOK).
     var W = { ctx: null, steps: [], idx: 0, overlay: null, flickIdx: 0, healthAtOpen: null, touch: null, shotSeq: 0,
-        reachedDone: false, tioTyped: false, returnFocus: null };
+        reachedDone: false, tioTyped: false, returnFocus: null, ownLook: null };
 
     function esc(s) { return (PConf.engine && PConf.engine.esc) ? PConf.engine.esc(s) : String(s); }
     function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
@@ -461,28 +526,158 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function watchHtml(inner) { return '<div class="wiz-watch">' + inner + '</div>'; }
 
-    // --- the picker: layout, health and theme ---
+    // --- the forecast step's looks and length ---
+    // Resolved lazily, the defaultsPolicy() way: the page concatenates both ahead of this file
+    // (scripts/build-config-page.js APP_FILES), the tests require them.
+    function spanHoursLib() {
+        return (typeof require !== 'undefined') ? require('../forecast-span-hours.js')
+            : (typeof window !== 'undefined' ? window.ForecastSpanHours : null);
+    }
+    function sampleLib() {
+        return (typeof require !== 'undefined') ? require('./forecast-sample.js')
+            : (typeof window !== 'undefined' ? window.ForecastSample : null);
+    }
+    function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+    // Where the high and low go is emery's alone (forecast-axis.js isEmery), and so is the span
+    // (env.forecastSpan, platform.js): every other watch draws 24 hours beside an axis.
+    function isEmery() { return Boolean(W.ctx && W.ctx.ENV && W.ctx.ENV.platform === 'emery'); }
+    function hasSpan() { return Boolean(W.ctx && W.ctx.ENV && W.ctx.ENV.forecastSpan); }
+    /**
+     * The graph settings a look writes: every LOOK_KEYS default (as a fresh install of this watch
+     * stores it), the look's own values over them. Where the high and low go only on emery: the key
+     * is dormant everywhere else, and left as it is.
+     * @param {string} id 'classic' | 'stripes' | 'clean'.
+     * @returns {Object<string, *>} messageKey -> value.
+     */
+    function lookValues(id) {
+        var out = {}, over = LOOK_OVERRIDES[id] || {}, i, k, item;
+        for (i = 0; i < LOOK_KEYS.length; i += 1) {
+            k = LOOK_KEYS[i];
+            if (k === 'forecastAxisNumbers' && !isEmery()) { continue; }
+            item = findItem(W.ctx.schema, k);
+            if (item) { out[k] = has(over, k) ? over[k] : resolvedDefaultAsStored(item, W.ctx.ENV); }
+        }
+        return out;
+    }
+    /**
+     * The graph settings as they are now (OWN_LOOK's snapshot).
+     * @returns {Object<string, *>} messageKey -> value.
+     */
+    function lookSnapshot() {
+        var out = {}, i;
+        for (i = 0; i < LOOK_KEYS.length; i += 1) { out[LOOK_KEYS[i]] = W.ctx.S[LOOK_KEYS[i]]; }
+        return out;
+    }
+    /**
+     * One graph setting as the watch reads it, so two spellings of one graph compare equal: only
+     * 'top' hangs (draw-from.js), the fill is a flag, and junk numbers are On axis (forecast-axis.js).
+     * @param {string} k messageKey.
+     * @param {*} v Stored value.
+     * @returns {*} The value as read.
+     */
+    function lookValue(k, v) {
+        if (/From$/.test(k)) { return v === 'top' ? 'top' : 'bottom'; }
+        if (k === 'secondaryLineFill') { return Boolean(v); }
+        if (k === 'forecastAxisNumbers') { return (v === 'graph' || v === 'off') ? v : 'axis'; }
+        return v;
+    }
+    /**
+     * Whether the graph settings are a given set: every key alike, the style of an Off line aside.
+     * @param {Object<string, *>} want messageKey -> value (lookValues, or OWN_LOOK's snapshot).
+     * @returns {boolean}
+     */
+    function lookIs(want) {
+        var k;
+        for (k in want) {
+            if (!has(want, k) || (STYLE_LINE[k] && want[STYLE_LINE[k]] === 'off')) { continue; }
+            if (lookValue(k, W.ctx.S[k]) !== lookValue(k, want[k])) { return false; }
+        }
+        return true;
+    }
+    /**
+     * The look the graph settings are now: a look's id, 'own' for OWN_LOOK's snapshot, or '' for none.
+     * @returns {string}
+     */
+    function currentLook() {
+        var i;
+        for (i = 0; i < LOOK_OPTS.length; i += 1) {
+            if (lookIs(lookValues(LOOK_OPTS[i][1]))) { return LOOK_OPTS[i][1]; }
+        }
+        return (W.ownLook && lookIs(W.ownLook)) ? 'own' : '';
+    }
+    /**
+     * Forecast length's options, the long one named by the hours it shows for this provider and
+     * layout ('60 h'; forecast-span-hours.js spanOptions, the settings row's own resolver).
+     * @returns {Array.<Array.<string>>} [label, value] pairs.
+     */
+    function spanOpts() {
+        var lib = spanHoursLib();
+        return lib ? lib.spanOptions(W.ctx.S, W.ctx.ENV) : [['12 h', '12'], ['24 h', '24'], ['Long', '48']];
+    }
+    /**
+     * The hours the watch shows for the current settings: 12, 24 or the long span's on emery (the
+     * Forecast length row), 24 everywhere else.
+     * @returns {number}
+     */
+    function shownHours() {
+        var lib = spanHoursLib();
+        if (!lib) { return 24; }
+        var opt = lib.option(W.ctx.S, W.ctx.ENV);
+        return opt === 48 ? lib.longHours(W.ctx.S, W.ctx.ENV) : opt;
+    }
+    /**
+     * The forecast step's preview: the settings page's forecast graph block, drawn in the current
+     * settings from the sample weather over the hours the watch shows (a span of N hours, N + 1
+     * points). No screenshots, so every look, length and theme draws exactly.
+     * @returns {string} SVG markup ('' when the block or the sample is not on the page).
+     */
+    function graphHtml() {
+        var fn = (PConf.blocks && PConf.blocks.get) ? PConf.blocks.get('forecastPreview') : null;
+        var lib = sampleLib();
+        if (!fn || !lib) { return ''; }
+        return fn(W.ctx.S, W.ctx.ENV, W.ctx.USERDATA, lib.sample(shownHours() + 1, W.ctx.S.temperatureUnits)) || '';
+    }
+    /**
+     * The forecast step's summary: its look, and on emery its length ("Stripes, 24 h").
+     * @returns {string}
+     */
+    function forecastLabel() {
+        var s = labelFor(optsFor('forecastLook'), highlighted('forecastLook'));
+        return hasSpan() ? s + ', ' + labelFor(optsFor('forecastHours'), highlighted('forecastHours')) : s;
+    }
+
+    // --- the picker: layout, health and theme, and the forecast step's look and length ---
+    // The forecast step's groups preview in the live graph, the others in a screenshot.
+    var GRAPH_GROUPS = { forecastLook: true, forecastHours: true };
     function optsFor(group) {
         if (group === 'layoutPreset') { return LAYOUT_OPTS; }
         if (group === 'healthMode') { return HEALTH_OPTS; }
+        if (group === 'forecastLook') { return W.ownLook ? [OWN_LOOK].concat(LOOK_OPTS) : LOOK_OPTS; }
+        if (group === 'forecastHours') { return spanOpts(); }
         return (W.ctx.ENV && W.ctx.ENV.color) ? THEME_OPTS_COLOR : THEME_OPTS_BW;   // 'theme'
     }
     function descFor(group) {
         if (group === 'layoutPreset') { return LAYOUT_DESC; }
         if (group === 'healthMode') { return healthDesc(shotsShowHeartRate()); }
+        if (group === 'forecastLook') { return lookDesc(isEmery()); }
+        if (group === 'forecastHours') { return SPAN_DESC; }
         return THEME_DESC;   // 'theme'
     }
     /**
      * The option a picker shows as selected: the stored value when the picker offers it, else the
      * nearest one. Only a highlight — the stored value changes on a real pick alone. A stored
      * compactDense or weatherOnly (set in full Settings) shows as Compact, the nearest same-calendar
-     * layout; a health mode the picker lacks (e.g. 'slot', from the Health tab) as Off.
-     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme'.
+     * layout; a health mode the picker lacks (e.g. 'slot', from the Health tab) as Off. The look is
+     * read off the graph settings (currentLook): one is always there, OWN_LOOK when none of the others.
+     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme' | 'forecastLook' | 'forecastHours'.
      * @returns {string} An option value of the picker.
      */
     function highlighted(group) {
-        var opts = optsFor(group), stored = W.ctx.S[group];
+        var opts = optsFor(group);
+        if (group === 'forecastLook') { return currentLook() || opts[0][1]; }
+        var stored = W.ctx.S[group];
         if (labelFor(opts, stored)) { return stored; }
+        if (group === 'forecastHours') { return '24'; }
         return group === 'layoutPreset' ? 'compactCal' : opts[0][1];
     }
     function optHtml(group, label, val, on) {
@@ -491,24 +686,36 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '" data-wiz-opt="' + esc(val) + '">' + esc(label) + '</button>';
     }
     /**
-     * The picker: the watch showing the selected option, the options as a segmented radio group, and
-     * the selected option's description (announced when it changes).
+     * A picker's options as a segmented radio group, then the selected option's description
+     * (announced when it changes).
+     * @param {string} group The picker.
+     * @param {string} labelledBy The id of the heading that names the group.
+     * @returns {string} HTML.
+     */
+    function optsHtml(group, labelledBy) {
+        var opts = optsFor(group), sel = highlighted(group), i;
+        var h = '<div class="wiz-opts" role="radiogroup" aria-labelledby="' + esc(labelledBy) + '" data-wiz-pick="'
+            + esc(group) + '">';
+        for (i = 0; i < opts.length; i += 1) { h += optHtml(group, opts[i][0], opts[i][1], opts[i][1] === sel); }
+        return h + '</div><p class="wiz-desc" data-wiz-desc="' + esc(group) + '" aria-live="polite">'
+            + esc(descFor(group)[sel] || '') + '</p>';
+    }
+    /**
+     * The picker: the watch showing the selected option, then its options (optsHtml).
      * @param {string} group 'layoutPreset' | 'healthMode' | 'theme'.
      * @returns {string} HTML.
      */
     function pickerHtml(group) {
-        var opts = optsFor(group), sel = highlighted(group), i;
-        var h = '<div class="wiz-stage big" data-wiz-preview="' + esc(group) + '">'
+        var sel = highlighted(group);
+        return '<div class="wiz-stage big" data-wiz-preview="' + esc(group) + '">'
             + watchHtml('<img class="wiz-shot" data-wiz-shot src="' + esc(shotFor(group, sel)) + '" alt="'
-                + esc(labelFor(opts, sel) + ' preview') + '">')
-            + '</div><div class="wiz-opts" role="radiogroup" aria-labelledby="wiz-title" data-wiz-pick="'
-            + esc(group) + '">';
-        for (i = 0; i < opts.length; i += 1) { h += optHtml(group, opts[i][0], opts[i][1], opts[i][1] === sel); }
-        return h + '</div><p class="wiz-desc" data-wiz-desc aria-live="polite">' + esc(descFor(group)[sel] || '') + '</p>';
+                + esc(labelFor(optsFor(group), sel) + ' preview') + '">')
+            + '</div>' + optsHtml(group, 'wiz-title');
     }
     /**
-     * Write a picked option to the live state, the way the settings control would.
-     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme'.
+     * Write a picked option to the live state, the way the settings control would. A look writes
+     * every graph setting it governs (lookValues), or for OWN_LOOK the graph setup opened with.
+     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme' | 'forecastLook' | 'forecastHours'.
      * @param {string} val The option's value.
      * @returns {void}
      */
@@ -518,6 +725,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             W.ctx.S.theme = val;
             var conv = (PConf.onChange && PConf.onChange.get) ? PConf.onChange.get('themeConvert') : null;
             if (conv) { conv(W.ctx.S, oldTheme, val); }
+        } else if (group === 'forecastLook') {
+            var vals = (val === 'own' && W.ownLook) ? W.ownLook : lookValues(val), k;
+            for (k in vals) { if (has(vals, k)) { W.ctx.S[k] = vals[k]; } }
         } else {
             W.ctx.S[group] = val;
         }
@@ -545,9 +755,33 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }, 140);
     }
     /**
-     * Pick an option: commit it, then update the segments, the description and the watch in place (no
-     * re-render, so focus and a swipe in progress are kept).
-     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme'.
+     * The forecast preview's accessible name: what it shows ("Forecast preview: Stripes, 24 h").
+     * @returns {string}
+     */
+    function graphLabel() { return 'Forecast preview: ' + forecastLabel(); }
+    /**
+     * Redraw the forecast step's graph for the settings now, and rename the long length, whose
+     * hours follow the look (the high and low on the graph widen its plot).
+     * @returns {void}
+     */
+    function refreshForecast() {
+        var graph = W.overlay.querySelector('[data-wiz-graph]');
+        if (graph) {
+            graph.innerHTML = graphHtml();
+            graph.setAttribute('aria-label', graphLabel());
+        }
+        var opts = optsFor('forecastHours'), segs = W.overlay.querySelectorAll('[data-wiz-opt]'), i;
+        for (i = 0; i < segs.length; i += 1) {
+            if (segs[i].getAttribute('data-wiz-group') === 'forecastHours') {
+                segs[i].textContent = labelFor(opts, segs[i].getAttribute('data-wiz-opt'));
+            }
+        }
+    }
+    /**
+     * Pick an option: commit it, then update its group's segments and description and the preview in
+     * place (no re-render, so focus and a swipe in progress are kept): the watch's screenshot, or on
+     * the forecast step the graph.
+     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme' | 'forecastLook' | 'forecastHours'.
      * @param {number} idx Option index (clamped).
      * @param {boolean} focus Move keyboard focus to the picked segment (arrow keys).
      * @returns {void}
@@ -560,14 +794,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!W.overlay) { return; }
         var segs = W.overlay.querySelectorAll('[data-wiz-opt]'), i, on;
         for (i = 0; i < segs.length; i += 1) {
+            if (segs[i].getAttribute('data-wiz-group') !== group) { continue; }
             on = segs[i].getAttribute('data-wiz-opt') === val;
             segs[i].className = on ? 'wiz-opt on' : 'wiz-opt';
             segs[i].setAttribute('aria-checked', on ? 'true' : 'false');
             segs[i].setAttribute('tabindex', on ? '0' : '-1');
             if (on && focus && segs[i].focus) { segs[i].focus(); }
         }
-        var desc = W.overlay.querySelector('[data-wiz-desc]');
+        var desc = W.overlay.querySelector('[data-wiz-desc="' + group + '"]');
         if (desc) { desc.textContent = descFor(group)[val] || ''; }
+        if (GRAPH_GROUPS[group]) { refreshForecast(); return; }
         swapShot(W.overlay.querySelector('[data-wiz-shot]'), shotFor(group, val), opts[idx][0] + ' preview');
     }
 
@@ -682,7 +918,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return stepHead('layout') + pickerHtml('layoutPreset')
             + '<div class="wiz-legend">'
             + '<p><b>Forecast Status Bar</b>: your location, the temperature and air quality.</p>'
-            + '<p><b>Forecast</b>: a 24-hour graph of temperature, chance of rain, rain and UV.</p></div>';
+            + '<p><b>Forecast</b>: an hourly graph of the temperature, rain and more.</p></div>';
     }
     function stepHealth() { return stepHead('health') + pickerHtml('healthMode'); }
     function stepFlick() {
@@ -711,6 +947,26 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function stepTheme() {
         return stepHead('theme') + pickerHtml('theme')
             + '<p class="wiz-fine">You can fine-tune any colour later in Settings.</p>';
+    }
+    /**
+     * The forecast step: the graph, drawn live in the picked look (a swipe across it steps through
+     * the looks), the looks, and on emery the length.
+     * @returns {string} HTML.
+     */
+    function stepForecast() {
+        // The screen's colour under a graph shorter than its box: the preview's own (preview-svg.js
+        // previewInk). The theme is picked on an earlier step, so it holds while this one is up.
+        var light = W.ctx.S.theme === 'light' || W.ctx.S.theme === 'bw-light';
+        var h = stepHead('forecast')
+            + '<div class="wiz-stage" data-wiz-preview="forecastLook">'
+            + watchHtml('<div class="wiz-graph" data-wiz-graph role="img" aria-label="' + esc(graphLabel())
+                + '" style="background:' + (light ? '#FFFFFF' : '#000000') + '">' + graphHtml() + '</div>')
+            + '</div>' + optsHtml('forecastLook', 'wiz-title');
+        if (hasSpan()) {
+            h += '<h3 class="wiz-sub" id="wiz-span">Forecast length</h3>' + optsHtml('forecastHours', 'wiz-span');
+        }
+        return h + '<p class="wiz-fine">Every line, its style and its colours can be changed later in Settings, '
+            + 'on the Graphs tab.</p>';
     }
     // The tomorrow.io upsell, shown on the last step when the resulting weather provider isn't DWD or
     // Met.no (i.e. outside their strong regions): a free tomorrow.io key unlocks the precise worldwide
@@ -754,6 +1010,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         rows.push(['Layout', pickedLabel('layoutPreset'), 'layout', '']);
         if (W.steps.indexOf('health') !== -1) { rows.push(['Health', pickedLabel('healthMode'), 'health', '']); }
         if (W.steps.indexOf('theme') !== -1) { rows.push(['Theme', pickedLabel('theme'), 'theme', '']); }
+        if (W.steps.indexOf('forecast') !== -1) { rows.push(['Forecast', forecastLabel(), 'forecast', '']); }
         for (i = 0; i < rows.length; i += 1) {
             h += '<li><span class="k">' + esc(rows[i][0]) + '</span><span class="v"' + rows[i][3] + '>'
                 + esc(rows[i][1] || '—') + '</span>'
@@ -786,6 +1043,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (id === 'health') { return stepHealth(); }
         if (id === 'flick') { return stepFlick(); }
         if (id === 'theme') { return stepTheme(); }
+        if (id === 'forecast') { return stepForecast(); }
         return stepDone();
     }
 
@@ -1220,6 +1478,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             ctx.S.holidayRegion = 'all';
             applyDerived(ctx.S);
         }
+        // A graph set up in Settings, none of the looks: kept as the forecast step's first option.
+        W.ownLook = null;
+        if (W.steps.indexOf('forecast') !== -1 && !currentLook()) { W.ownLook = lookSnapshot(); }
         ensureStyle();
         var overlay = document.createElement('div');
         overlay.id = 'wizard';

@@ -117,6 +117,9 @@ var APP_FILES = [
   // while its own body runs, so it follows forecast-span-hours.js —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/settings/preview-axis.js'),
+  // The setup wizard's sample weather (window.ForecastSample, a leaf): the hours its forecast
+  // previews draw (forecastPreview's `sample`). wizard.js reads it when that step renders.
+  path.join(ROOT, 'src/pkjs/settings/forecast-sample.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-forecast.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-radar.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-diagnostics.js'),

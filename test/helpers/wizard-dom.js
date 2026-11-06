@@ -5,10 +5,11 @@
 // Every overlay the controller creates is its own object with its own listeners (so a second
 // "Run setup again" can be told apart from the first). Whatever HTML the controller writes into an
 // overlay's body is parsed back into element stubs for the selectors the controller queries (the
-// picker's segments, its description and watch, the Tomorrow.io card, the summary's Weather line,
-// the flick demo), so in-place updates are observable: picker() reads the segments' live
-// aria-checked, not the HTML of the last render. Events go to the current overlay's listeners, with
-// a target whose closest() answers the selectors a test names (a plain object with getAttribute).
+// pickers' segments, each picker's description, the watch, the forecast step's graph, the
+// Tomorrow.io card, the summary's Weather line, the flick demo), so in-place updates are
+// observable: picker() reads the segments' live aria-checked, not the HTML of the last render.
+// Events go to the current overlay's listeners, with a target whose closest() answers the selectors
+// a test names (a plain object with getAttribute).
 
 /**
  * An element stand-in: `spec` is either one already (it has getAttribute) or a map of attributes.
@@ -67,10 +68,12 @@ function fakeWizardDom() {
     while ((m = optRe.exec(html))) {
       all['[data-wiz-opt]'].push(stub(doc, {
         'aria-checked': m[2], tabindex: m[3], 'data-wiz-group': m[4], 'data-wiz-opt': m[5]
-      }, { className: m[1], label: m[6] }));
+      }, { className: m[1], label: m[6], textContent: m[6] }));
     }
-    if ((m = /<p class="wiz-desc" data-wiz-desc aria-live="polite">([^<]*)<\/p>/.exec(html))) {
-      one['[data-wiz-desc]'] = { textContent: m[1] };
+    const descRe = /<p class="wiz-desc" data-wiz-desc="([^"]+)" aria-live="polite">([^<]*)<\/p>/g;
+    while ((m = descRe.exec(html))) { one['[data-wiz-desc="' + m[1] + '"]'] = { textContent: m[2] }; }
+    if ((m = /<div class="wiz-graph" data-wiz-graph role="img" aria-label="([^"]*)" style="([^"]*)">([\s\S]*?)<\/div>/.exec(html))) {
+      one['[data-wiz-graph]'] = stub(doc, { role: 'img', 'aria-label': m[1], style: m[2] }, { innerHTML: m[3] });
     }
     if ((m = /<img class="wiz-shot" data-wiz-shot src="([^"]*)" alt="([^"]*)">/.exec(html))) {
       one['[data-wiz-shot]'] = stub(doc, {}, {
@@ -196,16 +199,23 @@ function fakeWizardDom() {
     find: (sel) => current().querySelector(sel),
     findAll: (sel) => current().querySelectorAll(sel),
     /**
-     * The current step's picker, read from its live segments.
-     * @returns {?{group: string, options: string[], selected: ?string}} Null on a step without one.
+     * One of the current step's pickers (the first one, or the one named), read from its live
+     * segments.
+     * @param {string} [group] The picker's group; the step's first picker when left out.
+     * @returns {?{group: string, options: string[], labels: string[], selected: ?string}} Null on a
+     *   step without it.
      */
-    picker() {
-      const segs = current().querySelectorAll('[data-wiz-opt]');
+    picker(group) {
+      const all = current().querySelectorAll('[data-wiz-opt]');
+      if (!all.length) { return null; }
+      const name = group || all[0].getAttribute('data-wiz-group');
+      const segs = all.filter((s) => s.getAttribute('data-wiz-group') === name);
       if (!segs.length) { return null; }
       const on = segs.filter((s) => s.getAttribute('aria-checked') === 'true');
       return {
-        group: segs[0].getAttribute('data-wiz-group'),
+        group: name,
         options: segs.map((s) => s.getAttribute('data-wiz-opt')),
+        labels: segs.map((s) => s.textContent),
         selected: on.length === 1 ? on[0].getAttribute('data-wiz-opt') : null
       };
     },

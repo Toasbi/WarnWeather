@@ -193,6 +193,6 @@
   },
   "2.4.0": {
     "title": "New first-run setup",
-    "body": "Setup now shows your watch as you pick its layout, health view and theme, and sums up your choices at the end. Run it from the Setup tab, under Misc, Run setup again."
+    "body": "Setup now shows your watch as you pick its layout, health view and theme, lets you pick a look for the forecast graph, and sums up your choices at the end. Run it from the Setup tab, under Misc, Run setup again."
   }
 }

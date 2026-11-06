@@ -100,6 +100,15 @@ test('buildSteps: health precedes the flick demo; flick and theme gated by env (
     ['welcome', 'layout', 'done']);
   assert.deepEqual(W.buildSteps({ radar: false, health: true, themePolarity: true }),
     ['welcome', 'layout', 'health', 'theme', 'done']);
+  // The forecast step wherever the watch draws line styles (the looks are made of them), after
+  // the theme its preview is drawn in.
+  assert.deepEqual(W.buildSteps({ radar: true, health: true, themePolarity: true, lineStyles: true }),
+    ['welcome', 'layout', 'health', 'flick', 'theme', 'forecast', 'done']);
+  const platform = require('../src/pkjs/config-ui/lib/platform.js');
+  ['basalt', 'diorite', 'emery', 'flint'].forEach((p) => {
+    assert.ok(W.buildSteps(platform.computeEnv({ platform: p })).includes('forecast'), p);
+  });
+  assert.deepEqual(W.buildSteps(platform.computeEnv({ platform: 'aplite' })), ['welcome', 'layout', 'done']);
 });
 
 test('shouldShow: gated on onboardingDone, not on an empty config', () => {
