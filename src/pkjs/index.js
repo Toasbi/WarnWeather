@@ -200,6 +200,10 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // data: URL past Android's 2 MiB cap at short update intervals (dev-stats.js).
         devStats: devStats.summarize(),
         palette: previewPalette.buildPreviewPalette(),
+        // The holidays the phone has cached for the stored country around today
+        // (nager-source.js forPage), or null: the Watchface tab's watch preview marks
+        // them in its calendar while that country stays picked.
+        holidays: nagerSource.forPage(effectiveHolidayCountry(values), new Date(nowMs)),
         newsEndpoint: (pkg.news && pkg.news.endpoint) || '',
         // The Rainbow proxy endpoint: the key Test button POSTs to its '/key-check' path ('' = no
         // endpoint in this build; the button then says the test isn't available).

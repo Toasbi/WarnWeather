@@ -86,4 +86,21 @@ test('settings open hands the page the key results and the last success as store
   const ud = userDataOf(opened[1]);
   assert.equal(ud.keyResults, results, 'the answers exactly as stored');
   assert.equal(Object.prototype.hasOwnProperty.call(ud, 'authBackoff'), false, 'authBackoff is not handed over');
+
+  // The holidays the phone has cached for the stored country (nager-source.js forPage): the
+  // Watchface tab's watch preview marks them in its calendar. None cached yet: null.
+  assert.equal(ud.holidays, null, 'nothing cached: null');
+  const year = new Date().getFullYear();
+  const cached = { US: [['01-01', null], ['07-04', null]], DE: [['10-03', null]] };
+  Object.keys(cached).forEach((c) => {
+    store[KEYS.HOLIDAY_CACHE_PREFIX + c + '_' + year] = JSON.stringify({ f: Date.now(), h: cached[c] });
+  });
+  listeners.showConfiguration({});
+  const withHolidays = userDataOf(opened[2]).holidays;
+  const html = decodeURIComponent(opened[2].slice('data:text/html;charset=utf-8,'.length));
+  const ctx = {};
+  vm.runInNewContext(html.split('\n').filter((l) => l.indexOf('INJECTED_SCHEMA=') === 0)[0], ctx);
+  const country = ctx.INJECTED_CFG.holidayCountry || 'US';
+  assert.equal(withHolidays.country, country, 'the stored country\'s holidays, not another\'s');
+  assert.deepEqual(withHolidays.years[year], cached[country], 'its cached entries, as stored');
 });

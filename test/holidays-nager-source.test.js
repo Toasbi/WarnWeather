@@ -133,3 +133,21 @@ test('ensure fetches each year across a year boundary and caches both', () => {
   assert.equal(nagerSource.isHoliday('DE', 'all', new Date(2026, 0, 1)), true);
   assert.equal(nagerSource.isHoliday('DE', 'all', new Date(2027, 0, 1)), true);
 });
+
+test('forPage hands the settings page the cached years around today, null without any', () => {
+  const KEYS = require('../src/pkjs/storage-keys.js');
+  const put = (country, year, h) => localStorage.setItem(KEYS.HOLIDAY_CACHE_PREFIX + country + '_' + year,
+    JSON.stringify({ f: NOW, h: h }));
+  assert.equal(nagerSource.forPage('DE', new Date(2026, 5, 25)), null, 'nothing cached');
+  put('DE', 2026, [['01-01', null]]);
+  put('DE', 2027, [['01-01', null], ['01-06', ['DE-BY']]]);
+  assert.deepEqual(nagerSource.forPage('DE', new Date(2026, 5, 25)),
+    { country: 'DE', years: { 2026: [['01-01', null]] } }, 'mid-year: this year alone');
+  assert.deepEqual(nagerSource.forPage('DE', new Date(2026, 11, 20)),
+    { country: 'DE', years: { 2026: [['01-01', null]], 2027: [['01-01', null], ['01-06', ['DE-BY']]] } },
+    'late December: the next year too, four weeks ahead');
+  assert.deepEqual(Object.keys(nagerSource.forPage('DE', new Date(2027, 0, 5)).years), ['2026', '2027'],
+    'early January: last year too, two weeks back');
+  assert.equal(nagerSource.forPage('none', new Date(2026, 5, 25)), null, 'no country, no holidays');
+  assert.equal(nagerSource.forPage('AT', new Date(2026, 5, 25)), null, 'another country holds nothing');
+});

@@ -5,10 +5,11 @@
 // compute_layout makes, presets in their tier's legacy order), in the theme's colours.
 // What fills the bands: the top bar and the status bars with the Status bars tab's sample
 // slots (preview-status-bars.js barSlots), the calendar around today in its weekday and
-// today colours, the clock at the samples' 15:00 in the picked face's weight, and the
-// forecast, radar and health graphs as the Graphs tab's previews draw them, laid into the
-// band. It is a picture of the layout and the look, not a pixel copy: the watch's own
-// fonts, holidays and the clock's anti-aliased glyphs are not modelled. The Layout card's
+// today colours, the clock at the samples' 15:00 in the watch's own digits, and the
+// forecast, radar and health graphs as the
+// Graphs tab's previews draw them, laid into the band. It is a picture of the layout and
+// the look, not a pixel copy: the watch's Gothic text is the page's sans. Holidays are the
+// ones the phone has cached for the picked country (userData.holidays). The Layout card's
 // preset picker draws each preset's Default view the same way (picture resolver
 // 'layoutPresetPicture').
 /* global VIEW_CYCLE */
@@ -24,6 +25,9 @@
     var previewForecast = NODE ? require('./preview-forecast.js') : window.PreviewForecast;
     var forecastSample = NODE ? require('./forecast-sample.js') : window.ForecastSample;
     var spanHours = NODE ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
+    // The watch's own clock digits (scripts/gen-clock-glyphs-page.js): Roboto and Bitham.
+    var clockGlyphs = NODE ? require('./clock-glyphs.generated.js') : window.ClockGlyphs;
+    var dateFormat = NODE ? require('../date-format.js') : window.DateFormat;
     var esc = NODE ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
 
     /**
@@ -204,14 +208,38 @@
     }
 
     /**
+     * Whether the watch marks a day as a holiday: Holiday highlight on, and the phone's
+     * cached holidays (userData.holidays, nager-source.js forPage) are those of the country
+     * the page has picked, with a nationwide entry that day or one for the picked region
+     * (nager-source.js isHoliday). A country the phone holds nothing for marks no day.
+     * @param {Object} S Settings.
+     * @param {?{country: string, years: Object}} holidays userData.holidays.
+     * @param {Date} d The day.
+     * @returns {boolean}
+     */
+    function isHoliday(S, holidays, d) {
+        if (S.holidaysEnabled === false || !holidays || !holidays.years) { return false; }
+        if (dateFormat.effectiveHolidayCountry(S) !== holidays.country) { return false; }
+        var list = holidays.years[d.getFullYear()] || [], region = S.holidayRegion || 'all', i;
+        var md = ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+        for (i = 0; i < list.length; i++) {
+            if (list[i][0] !== md) { continue; }
+            if (list[i][1] === null) { return true; }
+            if (region !== 'all' && list[i][1] && list[i][1].indexOf(region) !== -1) { return true; }
+        }
+        return false;
+    }
+
+    /**
      * The calendar: its rows of seven days around today (the previous week first on a
      * three-row calendar that starts there), today on a rounded cell in the today colour
-     * (Auto: its weekday's), Saturdays and Sundays in theirs and bold where they differ
-     * from the ink — all in the ink on a black-and-white watch or theme (calendar_layer.c).
+     * (Auto: its day's), holidays in the holiday colour and Saturdays and Sundays in theirs
+     * — all in the ink on a black-and-white watch or theme — and bold: today, a holiday,
+     * and a weekend day whose colour differs from the ink (calendar_layer.c).
      * @param {Object} S Settings.
      * @param {{x: number, y: number, w: number, h: number}} box The band.
      * @param {number} rows 2 | 3.
-     * @param {{fg: string, color: boolean, f: number, now: Date}} cx Draw context.
+     * @param {{fg: string, color: boolean, f: number, now: Date, holidays: ?Object}} cx Draw context.
      * @returns {string} SVG markup.
      */
     function calendarBand(S, box, rows, cx) {
@@ -220,17 +248,19 @@
         var col = startMon ? (cx.now.getDay() + 6) % 7 : cx.now.getDay();
         var todayAt = col + (rows === 3 && S.firstWeek !== 'curr' ? 7 : 0);
         var sun = hex(S.colorSunday, '#FF0055'), sat = hex(S.colorSaturday, '#FF0055');
+        var holidayInk = hex(S.colorUSFederal, '#0055FF');
         var size = cx.f ? 17 : 13;
-        /** @param {number} dow @returns {string} */
-        function dayColor(dow) {
+        /** @param {number} dow @param {boolean} holiday @returns {string} */
+        function dayColor(dow, holiday) {
             if (!cx.color) { return cx.fg; }
-            return dow === 0 ? sun : dow === 6 ? sat : cx.fg;
+            return holiday ? holidayInk : dow === 0 ? sun : dow === 6 ? sat : cx.fg;
         }
         for (i = 0; i < rows * 7; i++) {
             var d = new Date(cx.now.getFullYear(), cx.now.getMonth(), cx.now.getDate() + (i - todayAt));
             var dow = d.getDay(), x = box.x + (i % 7) * cw, y = box.y + Math.floor(i / 7) * rh;
-            var ink = dayColor(dow);
-            var bold = (dow === 0 && sun !== cx.fg) || (dow === 6 && sat !== cx.fg);
+            var holiday = isHoliday(S, cx.holidays, d);
+            var ink = dayColor(dow, holiday);
+            var bold = holiday || (dow === 0 && sun !== cx.fg) || (dow === 6 && sat !== cx.fg);
             if (i === todayAt) {
                 // Black is the Auto sentinel: today's cell takes its weekday's colour.
                 var pick = hex(S.colorToday, '#000000');
@@ -245,20 +275,75 @@
         return e;
     }
 
+    // The system font each time font draws from where the watch has no anti-aliased glyphs
+    // (clock_ink.h's table): LECO on every watch, and all three faces on the 144 px
+    // black-and-white ones.
+    var SYSTEM_CLOCK_FONT = {
+        0: { leco: 'LECO_42_NUMBERS' },
+        1: { leco: 'LECO_60_NUMBERS_AM_PM' },
+        bw: { roboto: 'ROBOTO_BOLD_SUBSET_49', leco: 'LECO_42_NUMBERS', bitham: 'BITHAM_42_MEDIUM_NUMBERS' }
+    };
+
     /**
-     * The clock: the samples' time, centred in its band in the time colour (the ink on a
-     * black-and-white watch or theme), in the picked face's weight.
+     * The clock's digits for a time font on this watch: the anti-aliased glyph images where the
+     * watch has them, else its system font's 1-bit digits, in one shape — each glyph [width,
+     * height, left bearing, top (rows below the set's line top), advance, PNG base64], and the
+     * digits' union ink rows (inkTop, inkH: the ink height the band seats, clock_ink.c's).
+     * @param {string} font 'roboto' | 'leco' | 'bitham'.
+     * @param {{bw: boolean, f: number}} cx Draw context.
+     * @returns {?{glyphs: !Array, inkTop: number, inkH: number}}
+     */
+    function clockSet(font, cx) {
+        if (!clockGlyphs) { return null; }
+        var name = (cx.bw ? SYSTEM_CLOCK_FONT.bw : SYSTEM_CLOCK_FONT[cx.f])[font];
+        if (name) { return clockGlyphs.system[name] || null; }
+        var aa = clockGlyphs.faces[cx.f] ? clockGlyphs.faces[cx.f][font] : null;
+        return aa ? { inkTop: 0, inkH: aa.inkH, glyphs: aa.glyphs.map(function (g) {
+            return [g[0], aa.inkH, g[1], 0, g[2], g[3]];
+        }) } : null;
+    }
+
+    /**
+     * The clock: the samples' time in the time colour (the ink on a black-and-white watch or
+     * theme), in the watch's own digits (clockSet), seated as time_layer.c seats them: the
+     * digits centred on the band by their advances (layout.h clock_seat_x), their first inked
+     * row where the band's ClockInk puts it (clock_ink_top_in_band), each glyph at its pen plus
+     * its left bearing. A filter tints them, the time colour flooded through each glyph's
+     * alpha, as the watch recolours the glyphs' palettes; a black-and-white theme or watch
+     * takes them crisp, every alpha cut at half coverage (clock_glyphs.c).
      * @param {Object} S Settings.
      * @param {{x: number, y: number, w: number, h: number}} box The band.
-     * @param {{fg: string, color: boolean, f: number}} cx Draw context.
+     * @param {{fg: string, color: boolean, bw: boolean, f: number}} cx Draw context.
+     * @param {string} tag The band's id suffix.
      * @returns {string} SVG markup.
      */
-    function clockBand(S, box, cx) {
-        var face = CLOCK_FACE[S.timeFont] || CLOCK_FACE.roboto;
-        var size = cx.f ? 60 : 45;
+    function clockBand(S, box, cx, tag) {
+        var font = S.timeFont === 'leco' || S.timeFont === 'bitham' ? S.timeFont : 'roboto';
         var fill = cx.color ? hex(S.colorTime, cx.fg) : cx.fg;
-        return text(box.x + box.w / 2, box.y + box.h / 2 + size * 0.36, size, fill, 'middle', face.weight,
-            CLOCK_TEXT, face);
+        var set = clockSet(font, cx);
+        if (!set) {
+            var face = CLOCK_FACE[font], size = cx.f ? 60 : 45;
+            return text(box.x + box.w / 2, box.y + box.h / 2 + size * 0.36, size, fill, 'middle', face.weight,
+                CLOCK_TEXT, face);
+        }
+        var ink = clockGlyphs.ink[cx.f][font], advance = 0, i;
+        var idx = CLOCK_TEXT.split('').map(function (c) { return c === ':' ? 10 : c.charCodeAt(0) - 48; });
+        for (i = 0; i < idx.length; i++) { advance += set.glyphs[idx[i]][4]; }
+        var pen = box.x + Math.floor(box.w / 2) - Math.floor(advance / 2);
+        var top = box.y + Math.floor(box.h / 2) + ink.centreOff - Math.floor(set.inkH / 2);
+        var id = 'ck-' + tag, imgs = '';
+        for (i = 0; i < idx.length; i++) {
+            var g = set.glyphs[idx[i]], uri = 'data:image/png;base64,' + g[5];
+            imgs += '<image x="' + (pen + g[2]) + '" y="' + (top + g[3] - set.inkTop) + '" width="' + g[0]
+                + '" height="' + g[1] + '" preserveAspectRatio="none" href="' + uri + '" xlink:href="' + uri + '"></image>';
+            pen += g[4];
+        }
+        var alpha = cx.color ? 'SourceAlpha' : 'cut';
+        return '<filter id="' + id + '" color-interpolation-filters="sRGB">'
+            + (cx.color ? '' : '<feComponentTransfer in="SourceAlpha" result="cut">'
+                + '<feFuncA type="discrete" tableValues="0 0 1 1"></feFuncA></feComponentTransfer>')
+            + '<feFlood flood-color="' + fill + '"></feFlood><feComposite in2="' + alpha + '" operator="in"></feComposite>'
+            + '</filter><g filter="url(#' + id + ')">' + imgs + '</g>';
     }
 
     /**
@@ -431,8 +516,9 @@
      */
     function screenSvg(spec, vi, S, env, userData, f, now, idPrefix) {
         var sc = SCREEN[f], theme = themeOf(S, env), ink = svgLib.previewInk(theme);
-        var cx = { fg: ink.fg, color: resolveInk.drawsColor(env, theme), f: f, now: now,
-                   fullDate: !statusBars.calendarShown(spec) };
+        var cx = { fg: ink.fg, color: resolveInk.drawsColor(env, theme), bw: Boolean(env && env.color === false),
+                   f: f, now: now, fullDate: !statusBars.calendarShown(spec),
+                   holidays: (userData && userData.holidays) || null };
         var lay = layoutView(spec, f), e = '<rect width="' + sc.w + '" height="' + sc.h + '" fill="' + ink.bg + '"></rect>';
         // The rows' tier (layout.c status_tier_for): the squeezed font on a FULL view.
         var rowFull = lay.tier === VC.TIER_FULL;
@@ -442,7 +528,7 @@
         lay.bands.forEach(function (b, bi) {
             var box = { x: 0, y: b.y, w: sc.w, h: b.h }, tag = (idPrefix || 'w' + vi) + bi;
             if (b.band === 'C') {
-                e += clockBand(S, box, cx);
+                e += clockBand(S, box, cx, tag);
             } else if (b.band === 'A' || b.band === 'B') {
                 var bar = BAR_OF_SRC[b.band === 'A' ? spec.statusUpper : spec.statusLower];
                 if (bar) { e += rowBand(S, env, bar, box, f ? (rowFull ? 16 : 18) : (rowFull ? 12 : 13.5), cx); }
@@ -569,10 +655,32 @@
             + ' stroke-linecap="round" stroke-linejoin="round"></path>';
     }
 
+    /**
+     * The Time card's Clock font picker's picture of one face (picture resolver
+     * 'timeFontPicture'): the clock band alone, the samples' time in that face as the watch
+     * draws it (clockBand), on the watch's ground in the time colour — so a face shows where
+     * it is picked, below the pinned preview's reach.
+     * @param {Object} S Live settings.
+     * @param {Object} env Platform env.
+     * @param {{value: string}} args The option's face.
+     * @returns {string} The <svg>.
+     */
+    function fontPicture(S, env, args) {
+        var st = Object.assign({}, S || {}, { timeFont: args.value });
+        var theme = themeOf(st, env), ink = svgLib.previewInk(theme);
+        var f = env && env.platform === 'emery' ? 1 : 0, w = SCREEN[f].w, h = f ? 64 : 49;
+        var cx = { fg: ink.fg, color: resolveInk.drawsColor(env, theme), bw: Boolean(env && env.color === false), f: f };
+        return '<svg class="wpv-scr" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true" focusable="false">'
+            + '<rect width="' + w + '" height="' + h + '" fill="' + ink.bg + '"></rect>'
+            + clockBand(st, { x: 0, y: 0, w: w, h: h }, cx, 'tf' + String(args.value).replace(/[^A-Za-z0-9]/g, '') + '-')
+            + '</svg>';
+    }
+
     if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }
+    if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('timeFontPicture', fontPicture); }
     if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('layoutPresetPicture', presetPicture); }
     var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg, presetPicture: presetPicture,
-                viewScreen: viewScreen, SCREEN: SCREEN };
+                fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PreviewWatch = api; }
 })();

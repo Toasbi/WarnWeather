@@ -1571,11 +1571,14 @@ module.exports = {
             title: 'Time', items: [{
                 type: 'toggle', messageKey: 'timeLeadingZero', label: 'Leading zero', defaultValue: false
             }, {
-                type: 'segmented',
+                // Each face as the watch draws the time in it (preview-watch.js fontPicture):
+                // the pinned preview has scrolled away by this card.
+                type: 'radio',
                 messageKey: 'timeFont',
                 label: 'Clock font',
                 defaultValue: 'roboto',
-                options: [['Roboto', 'roboto'], ['Leco', 'leco'], ['Bitham', 'bitham']]
+                options: [['Roboto', 'roboto'], ['Leco', 'leco'], ['Bitham', 'bitham']],
+                pictureFrom: { resolver: 'timeFontPicture' }
             }, {
                 type: 'toggle', messageKey: 'timeShowAmPm', label: 'Show AM / PM', defaultValue: false, more: true
             }, {

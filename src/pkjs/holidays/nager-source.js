@@ -200,4 +200,27 @@ function ensure(country, years, onUpdated, opts) {
     }
 }
 
-module.exports = { isHoliday: isHoliday, ensure: ensure };
+/**
+ * The cached holidays of a country around a day, for the settings page's watch preview
+ * (settings/preview-watch.js marks them in its calendar, as the watch does from the mask):
+ * the compact cache entries of each year the preview's calendar can reach, two weeks back
+ * and four weeks ahead of `now`. Only what is cached: the page cannot fetch, and a year
+ * still missing simply marks nothing.
+ * @param {string} country ISO-3166-1 alpha-2 code ('none' or '' for no holidays).
+ * @param {Date} now Today.
+ * @returns {?{country: string, years: Object<string, Array>}} The country and its cached
+ *     years' entries (year -> [["MM-DD", null | string[]], ...]), or null when none is cached.
+ */
+function forPage(country, now) {
+    if (!country || country === 'none') { return null; }
+    var from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14);
+    var to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 28);
+    var years = {}, any = false, y, data;
+    for (y = from.getFullYear(); y <= to.getFullYear(); y++) {
+        data = readCache(country, y);
+        if (data && data.h) { years[y] = data.h; any = true; }
+    }
+    return any ? { country: country, years: years } : null;
+}
+
+module.exports = { isHoliday: isHoliday, ensure: ensure, forPage: forPage };

@@ -2411,7 +2411,7 @@
                 "defaultValue": false
               },
               {
-                "type": "segmented",
+                "type": "radio",
                 "messageKey": "timeFont",
                 "label": "Clock font",
                 "defaultValue": "roboto",
@@ -2428,7 +2428,10 @@
                     "Bitham",
                     "bitham"
                   ]
-                ]
+                ],
+                "pictureFrom": {
+                  "resolver": "timeFontPicture"
+                }
               },
               {
                 "type": "toggle",

@@ -142,13 +142,16 @@ test('the calendar: its week as Start week on says, today in its cell, Auto taki
 test('the clock: the samples\' 15:00 in the time colour and the picked face\'s weight', () => {
   const env = plat.computeEnv({ platform: 'basalt' });
   const c = cycle(settings({ layoutPreset: 'noCal', radarMode: 'off', healthMode: 'off' }), 'basalt');
-  const clock = (over) => {
-    const svg = pw.screenSvg(c.views[0], 0, settings(Object.assign({ layoutPreset: 'noCal' }, over)), env, {}, 0, new Date()).svg;
-    return /<text [^>]*font-size="45" fill="([^"]*)"[^>]*font-weight="(\d+)"[^>]*>15:00<\/text>/.exec(svg);
-  };
-  assert.deepEqual(clock({ colorTime: '#FFFFFF', timeFont: 'roboto' }).slice(1), ['#FFFFFF', '700']);
-  assert.deepEqual(clock({ colorTime: '#FFAA00', timeFont: 'leco' }).slice(1), ['#FFAA00', '300']);
-  assert.deepEqual(clock({ timeFont: 'bitham' }).slice(2), ['900']);
+  const svg = (over) => pw.screenSvg(c.views[0], 0, settings(Object.assign({ layoutPreset: 'noCal' }, over)), env, {}, 0, new Date()).svg;
+  // Roboto and Bitham: the watch's glyph images, tinted (test/clock-glyphs-page.test.js has the seating).
+  const tint = (over) => (/<feFlood flood-color="([^"]*)">/.exec(svg(over)) || [])[1];
+  assert.equal(tint({ colorTime: '#FFFFFF', timeFont: 'roboto' }), '#FFFFFF');
+  assert.equal(tint({ colorTime: '#FFAA00', timeFont: 'bitham' }), '#FFAA00');
+  assert.equal((svg({ timeFont: 'bitham' }).match(/<image /g) || []).length, 5);
+  // LECO: the watch's system font, tinted the same way.
+  assert.equal(tint({ colorTime: '#FFAA00', timeFont: 'leco' }), '#FFAA00');
+  assert.equal((svg({ timeFont: 'leco' }).match(/<image /g) || []).length, 5);
+  assert.equal(svg({ timeFont: 'leco' }).indexOf('>15:00</text>'), -1, 'no stand-in text');
 });
 
 test('a light theme draws black on white, the status rows print the Status bars tab\'s slots', () => {
@@ -243,4 +246,23 @@ test('the Layout card draws a card per offered preset, the shown one checked, no
     const ids = (html.match(/ id="[^"]*"/g) || []).map((m) => m.slice(5, -1));
     assert.equal(new Set(ids).size, ids.length, p[0] + ': no id twice on the tab');
   });
+});
+
+test('the calendar marks the holidays the phone holds for the picked country, in the holiday colour', () => {
+  const env = plat.computeEnv({ platform: 'basalt' });
+  const now = new Date(2026, 10, 6);   // a Friday
+  const holidays = { country: 'DE', years: { 2026: [['11-03', null], ['11-11', ['DE-BY']]] } };
+  const cal = (over, ud) => {
+    const S = settings(Object.assign({ layoutPreset: 'fullCal', radarMode: 'off', healthMode: 'off',
+      holidayCountry: 'DE', holidayRegion: 'all', weekStartDay: 'mon', colorUSFederal: '#0055FF' }, over));
+    return pw.screenSvg(VC.resolveViewCycle(S, env)[0], 0, S, env, ud === undefined ? { holidays: holidays } : ud, 0, now).svg;
+  };
+  const day = (svg, n) => (new RegExp('fill="([^"]*)" text-anchor="middle" font-weight="(\\d+)"[^>]*>' + n + '</text>').exec(svg) || []).slice(1);
+  assert.deepEqual(day(cal({}), 3), ['#0055FF', '700'], 'a nationwide holiday: its colour, bold');
+  assert.deepEqual(day(cal({}), 11), ['#FFFFFF', '400'], 'a regional one is not the whole country\'s');
+  assert.deepEqual(day(cal({ holidayRegion: 'DE-BY' }), 11), ['#0055FF', '700'], 'but is its region\'s');
+  assert.deepEqual(day(cal({ holidayCountry: 'AT' }), 3), ['#FFFFFF', '400'], 'another country: nothing held');
+  assert.deepEqual(day(cal({ holidaysEnabled: false }), 3), ['#FFFFFF', '400'], 'Holiday highlight off');
+  assert.deepEqual(day(cal({}, {}), 3), ['#FFFFFF', '400'], 'nothing cached');
+  assert.deepEqual(day(cal({ theme: 'bw' }), 3), ['#FFFFFF', '700'], 'a B/W theme: the ink, still bold');
 });
