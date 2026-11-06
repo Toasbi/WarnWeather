@@ -293,7 +293,7 @@ def check_palette(image, what, colour=True):
 # how far words travel as they come and go.
 TYPE = {
     'big': dict(
-        inset=3, margin=8, card_r=8, track=20, track_r=7, pad=2, pill_r=5, gap=3, ring=2, rise=6, border=2,
+        inset=3, margin=8, card_r=8, track=18, track_r=7, pad=2, pill_r=5, gap=2, ring=2, rise=6, border=2,
         bar_pad=2, body_pad=2, line_gap=3,
         label=('medium', 12), option=('semibold', 12), hint=('regular', 12), caption=('medium', 15),
         chip=('medium', 13), wordmark=('semibold', 24), slogan=('regular', 13), headline=('semibold', 19),
