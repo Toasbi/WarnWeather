@@ -175,20 +175,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     };
 
     // The forecast step's looks. Each is a full set of the graph settings it governs (LOOK_KEYS):
-    // the four lines' metrics and styles, the Main metric's fill, the rain bars, every Draw from,
-    // and on emery where the high and low go (Left axis values). Classic is the graph's defaults,
-    // a fresh install's graph; the others override some of them (LOOK_OVERRIDES). Stripes is the
-    // showcase look: cloud cover and the chance of rain as stripes along the top, feels-like as a
-    // second curve, UV as dots. Clean leaves out the UV dots and, on emery, writes the high and low
-    // on the graph instead of beside an axis, so the graph runs the screen's whole width.
+    // the four lines' metrics and styles, the Main metric's fill, the rain bars and their colour,
+    // every Draw from, and on emery where the high and low go (Left axis values). Classic is the
+    // graph's defaults, a fresh install's graph, with the bars in the colour the theme starts on (the
+    // multicolor tiers on the dark themes, Solid on the light ones: resolve-ink.js barColorDefault);
+    // the others override some of them (LOOK_OVERRIDES). Stripes is the showcase look: cloud cover and
+    // the chance of rain as stripes along the top with Solid rain bars hanging from under them (Bars
+    // from: Top) in every theme, feels-like as a second curve, UV as dots. Clean leaves out the UV
+    // dots and, on emery, writes the high and low on the graph instead of beside an axis, so the
+    // graph runs the screen's whole width.
     var LOOK_KEYS = ['secondaryLine', 'secondaryLineStyle', 'secondaryLineFill', 'thirdLine', 'thirdLineStyle',
-        'fourthLine', 'fourthLineStyle', 'fifthLine', 'fifthLineStyle', 'barSource', 'precipLineFrom',
-        'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom', 'forecastAxisNumbers'];
+        'fourthLine', 'fourthLineStyle', 'fifthLine', 'fifthLineStyle', 'barSource', 'rainBarColor',
+        'precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom', 'forecastAxisNumbers'];
     var LOOK_OVERRIDES = {
         classic: {},
         stripes: { secondaryLine: 'uv', secondaryLineStyle: 'dots', secondaryLineFill: false,
             thirdLine: 'cloud', thirdLineStyle: 'stripeTop', fourthLine: 'precip_prob',
-            fourthLineStyle: 'stripeTop', fifthLine: 'feels', fifthLineStyle: 'line' },
+            fourthLineStyle: 'stripeTop', fifthLine: 'feels', fifthLineStyle: 'line', rainBarColor: 'white',
+            rainBarFrom: 'top' },
         clean: { thirdLine: 'off', forecastAxisNumbers: 'graph' }
     };
     var LOOK_OPTS = [['Classic', 'classic'], ['Stripes', 'stripes'], ['Clean', 'clean']];
@@ -207,7 +211,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function lookDesc(emery) {
         return {
             classic: 'The temperature, the chance of rain as a shaded area, UV as dots and rain as bars.',
-            stripes: 'Cloud cover and the chance of rain as stripes along the top, with feels-like and UV.',
+            stripes: 'Clouds and the chance of rain as stripes along the top, the rain bars hanging below.',
             clean: emery
                 ? 'The temperature, the chance of rain and rain bars, with the high and low on the graph.'
                 : 'Just the temperature, the chance of rain and rain bars.',
@@ -537,15 +541,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return (typeof require !== 'undefined') ? require('./forecast-sample.js')
             : (typeof window !== 'undefined' ? window.ForecastSample : null);
     }
+    function resolveInkLib() {
+        return (typeof require !== 'undefined') ? require('../resolve-ink.js')
+            : (typeof window !== 'undefined' ? window.ResolveInk : null);
+    }
+    /**
+     * The rain bars' colour the current theme starts on: the multicolor tiers on the dark themes,
+     * Solid ('white') on the light ones (resolve-ink.js barColorDefault, which the theme's own
+     * conversion flips between).
+     * @returns {string} 'multicolor' or 'white'.
+     */
+    function themeBarColor() {
+        var lib = resolveInkLib();
+        return lib ? lib.barColorDefault(W.ctx.S.theme) : 'multicolor';
+    }
     function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
     // Where the high and low go is emery's alone (forecast-axis.js isEmery), and so is the span
     // (env.forecastSpan, platform.js): every other watch draws 24 hours beside an axis.
     function isEmery() { return Boolean(W.ctx && W.ctx.ENV && W.ctx.ENV.platform === 'emery'); }
+    function colorWatch() { return Boolean(W.ctx && W.ctx.ENV && W.ctx.ENV.color); }
     function hasSpan() { return Boolean(W.ctx && W.ctx.ENV && W.ctx.ENV.forecastSpan); }
     /**
      * The graph settings a look writes: every LOOK_KEYS default (as a fresh install of this watch
-     * stores it), the look's own values over them. Where the high and low go only on emery: the key
-     * is dormant everywhere else, and left as it is.
+     * stores it; the bars' colour as the current theme starts it), the look's own values over them.
+     * Where the high and low go only on emery, and the bars' colour only on a colour watch: each is
+     * dormant everywhere else (a black-and-white watch outlines its bars), and left as it is.
      * @param {string} id 'classic' | 'stripes' | 'clean'.
      * @returns {Object<string, *>} messageKey -> value.
      */
@@ -553,11 +573,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var out = {}, over = LOOK_OVERRIDES[id] || {}, i, k, item;
         for (i = 0; i < LOOK_KEYS.length; i += 1) {
             k = LOOK_KEYS[i];
-            if (k === 'forecastAxisNumbers' && !isEmery()) { continue; }
+            if ((k === 'forecastAxisNumbers' && !isEmery()) || (k === 'rainBarColor' && !colorWatch())) { continue; }
             item = findItem(W.ctx.schema, k);
-            if (item) { out[k] = has(over, k) ? over[k] : resolvedDefaultAsStored(item, W.ctx.ENV); }
+            if (!item) { continue; }
+            if (has(over, k)) { out[k] = over[k]; }
+            else { out[k] = k === 'rainBarColor' ? themeBarColor() : resolvedDefaultAsStored(item, W.ctx.ENV); }
         }
         return out;
+    }
+    /**
+     * Write a set of graph settings to the live state.
+     * @param {Object<string, *>} vals messageKey -> value (lookValues, or OWN_LOOK's snapshot).
+     * @returns {void}
+     */
+    function writeLook(vals) {
+        var k;
+        for (k in vals) { if (has(vals, k)) { W.ctx.S[k] = vals[k]; } }
     }
     /**
      * The graph settings as they are now (OWN_LOOK's snapshot).
@@ -570,13 +601,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     /**
      * One graph setting as the watch reads it, so two spellings of one graph compare equal: only
-     * 'top' hangs (draw-from.js), the fill is a flag, and junk numbers are On axis (forecast-axis.js).
+     * 'top' hangs (draw-from.js), only 'white' is Solid (rain-tier.js), the fill is a flag, and junk
+     * numbers are On axis (forecast-axis.js).
      * @param {string} k messageKey.
      * @param {*} v Stored value.
      * @returns {*} The value as read.
      */
     function lookValue(k, v) {
         if (/From$/.test(k)) { return v === 'top' ? 'top' : 'bottom'; }
+        if (k === 'rainBarColor') { return v === 'white' ? 'white' : 'multicolor'; }
         if (k === 'secondaryLineFill') { return Boolean(v); }
         if (k === 'forecastAxisNumbers') { return (v === 'graph' || v === 'off') ? v : 'axis'; }
         return v;
@@ -721,13 +754,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function commit(group, val) {
         if (group === 'theme') {
+            // A look picked on the forecast step outlives a theme picked after it (Back, or a Change
+            // link): the theme's conversion moves the bars' colour between the two starting ones, so a
+            // look that no longer holds is laid on again, in the new theme.
+            var look = (W.steps.indexOf('forecast') !== -1) ? currentLook() : '';
             var oldTheme = W.ctx.S.theme;
             W.ctx.S.theme = val;
             var conv = (PConf.onChange && PConf.onChange.get) ? PConf.onChange.get('themeConvert') : null;
             if (conv) { conv(W.ctx.S, oldTheme, val); }
+            if (look && look !== 'own' && !lookIs(lookValues(look))) { writeLook(lookValues(look)); }
         } else if (group === 'forecastLook') {
-            var vals = (val === 'own' && W.ownLook) ? W.ownLook : lookValues(val), k;
-            for (k in vals) { if (has(vals, k)) { W.ctx.S[k] = vals[k]; } }
+            writeLook((val === 'own' && W.ownLook) ? W.ownLook : lookValues(val));
         } else {
             W.ctx.S[group] = val;
         }

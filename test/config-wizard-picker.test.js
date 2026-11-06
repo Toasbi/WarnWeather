@@ -403,8 +403,8 @@ test('the copy follows the watch: no radar promise on aplite, no heart rate wher
 
 // The graph settings a look governs (wizard.js LOOK_KEYS), without emery's Left axis values.
 const LOOK_KEYS = ['secondaryLine', 'secondaryLineStyle', 'secondaryLineFill', 'thirdLine', 'thirdLineStyle',
-  'fourthLine', 'fourthLineStyle', 'fifthLine', 'fifthLineStyle', 'barSource', 'precipLineFrom',
-  'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom'];
+  'fourthLine', 'fourthLineStyle', 'fifthLine', 'fifthLineStyle', 'barSource', 'rainBarColor',
+  'precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom'];
 /**
  * The graph settings of a state, by LOOK_KEYS.
  * @param {Object} S Settings.
@@ -437,8 +437,8 @@ test('a look writes the whole graph it stands for and redraws the preview in pla
   assert.deepEqual(graphOf(ctx.S), Object.assign({}, defaults, {
     secondaryLine: 'uv', secondaryLineStyle: 'dots', secondaryLineFill: false,
     thirdLine: 'cloud', thirdLineStyle: 'stripeTop', fourthLine: 'precip_prob', fourthLineStyle: 'stripeTop',
-    fifthLine: 'feels', fifthLineStyle: 'line'
-  }));
+    fifthLine: 'feels', fifthLineStyle: 'line', rainBarColor: 'white', rainBarFrom: 'top'
+  }), 'Solid rain bars hanging from under the stripes, in the dark theme too');
   assert.equal(dom.find('[data-wiz-graph]'), graph, 'redrawn in place, not re-rendered');
   assert.notEqual(graph.innerHTML, classic);
   assert.match(graph.innerHTML, />Cloud %</, 'the legend names the stripes');
@@ -552,4 +552,49 @@ test('a light theme fills the graph\'s box white, as the preview draws its scree
     walkTo(dom, 'forecastLook');
     assert.equal(dom.find('[data-wiz-graph]').getAttribute('style'), 'background:#FFFFFF', theme);
   });
+});
+
+test('Stripes hangs Solid bars in every theme; Classic gives them back the colour the theme starts on', () => {
+  [['dark', 'multicolor'], ['light', 'white'], ['bw', 'multicolor'], ['bw-light', 'white']].forEach(([theme, start]) => {
+    const { ctx, dom } = openSetup({ saved: { theme, rainBarColor: start } });
+    walkTo(dom, 'forecastLook');
+    assert.equal(dom.picker().selected, 'classic', theme + ': its own starting colour is Classic');
+    dom.pick('forecastLook', 'stripes');
+    assert.deepEqual([ctx.S.rainBarColor, ctx.S.rainBarFrom], ['white', 'top'], theme);
+    dom.pick('forecastLook', 'classic');
+    assert.deepEqual([ctx.S.rainBarColor, ctx.S.rainBarFrom], [start, 'bottom'], theme);
+  });
+  // Solid bars on a dark theme are a graph of the user's own, not Classic.
+  const solid = openSetup({ saved: { theme: 'dark', rainBarColor: 'white' } });
+  walkTo(solid.dom, 'forecastLook');
+  assert.equal(solid.dom.picker().selected, 'own');
+  // A black-and-white watch outlines its bars whatever the colour says: it is no part of a look there.
+  const bw = openSetup({ platform: 'diorite', saved: { theme: 'dark', rainBarColor: 'white' } });
+  walkTo(bw.dom, 'forecastLook');
+  assert.equal(bw.dom.picker().selected, 'classic');
+  bw.dom.pick('forecastLook', 'stripes');
+  assert.deepEqual([bw.ctx.S.rainBarColor, bw.ctx.S.rainBarFrom], ['white', 'top']);
+  bw.dom.pick('forecastLook', 'classic');
+  assert.equal(bw.ctx.S.rainBarColor, 'white', 'left as it was');
+});
+
+test('a look holds through a theme picked after it, the bars converted as the theme converts them', () => {
+  // The real conversion (an earlier test registered a recorder under the same name).
+  PConf.onChange.register('themeConvert', require('../src/pkjs/theme-flip.js').applyThemeConvert);
+  const { ctx, dom } = openSetup({ saved: { theme: 'light', rainBarColor: 'white' } });
+  walkTo(dom, 'forecastLook');
+  dom.pick('forecastLook', 'stripes');
+  dom.nav('back');
+  assert.equal(dom.picker().group, 'theme');
+  dom.pick('theme', 'dark');
+  assert.deepEqual([ctx.S.rainBarColor, ctx.S.rainBarFrom], ['white', 'top'], 'still Solid: still Stripes');
+  dom.nav('next');
+  assert.equal(dom.picker().selected, 'stripes');
+  dom.pick('forecastLook', 'classic');
+  assert.equal(ctx.S.rainBarColor, 'multicolor', 'Classic in the dark theme');
+  dom.nav('back');
+  dom.pick('theme', 'light');
+  assert.equal(ctx.S.rainBarColor, 'white', 'the theme converted Classic\'s bars to the light start');
+  dom.nav('next');
+  assert.equal(dom.picker().selected, 'classic');
 });
