@@ -4084,11 +4084,16 @@
                 "messageKey": "statusBoldAll",
                 "label": "Bold values",
                 "hintByValue": {
+                  "off": "No slot value prints bold, except at its danger level or a reached goal.",
                   "perSlot": "Each slot’s dialog has its own Bold row.",
                   "all": "Every slot value prints in heavier text."
                 },
                 "defaultValue": "perSlot",
                 "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
                   [
                     "Per slot",
                     "perSlot"
@@ -4098,7 +4103,6 @@
                     "all"
                   ]
                 ],
-                "more": true,
                 "showWhen": {
                   "env": "thresholds"
                 }
@@ -5208,7 +5212,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "optionDisabledWhen": {
                   "warn": {
@@ -5306,7 +5313,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "optionDisabledWhen": {
                   "warn": {
@@ -5583,7 +5593,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "optionDisabledWhen": {
                   "warn": {
@@ -5860,7 +5873,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "optionDisabledWhen": {
                   "warn": {
@@ -6123,7 +6139,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "optionDisabledWhen": {
                   "warn": {
@@ -6221,7 +6240,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "optionDisabledWhen": {
                   "warn": {
@@ -6527,7 +6549,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "optionDisabledWhen": {
                   "warn": {
@@ -6833,7 +6858,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "optionDisabledWhen": {
                   "warn": {
@@ -7265,7 +7293,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 }
               }
             ],
@@ -7306,7 +7337,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 }
               }
             ],
@@ -7340,7 +7374,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 }
               }
             ],
@@ -7413,7 +7450,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 }
               }
             ],
@@ -7447,7 +7487,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 }
               }
             ],
@@ -7481,7 +7524,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 }
               }
             ],
@@ -7522,7 +7568,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 }
               }
             ],
@@ -7556,7 +7605,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "showWhen": {
                   "all": [
@@ -7604,7 +7656,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 }
               }
             ],
@@ -7645,7 +7700,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 }
               }
             ],
@@ -7679,7 +7737,10 @@
                 ],
                 "disabledWhen": {
                   "key": "statusBoldAll",
-                  "eq": "all"
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 }
               }
             ],

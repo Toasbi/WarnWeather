@@ -98,10 +98,11 @@ function healthWire(kindIndex, v, settings) {
 
 /**
  * Build the CLAY_THRESHOLDS_UINT8 settings blob (layout: status_threshold.h).
- * The statusBoldAll master row ('all') overrides the PACKED bold cell of
- * every kind to BOLD_MODES.always at build time only — the stored
- * thresh<Kind>BoldMode values are never modified, so 'perSlot' restores
- * them on the next build. Enable bits, colors, and health u16s are
+ * The statusBoldAll master row overrides the PACKED bold cell of every kind
+ * at build time only — 'all' to BOLD_MODES.always, 'off' to BOLD_MODES.off
+ * (bold at danger or a reached goal only, as a slot's own Off) — and the
+ * stored thresh<Kind>BoldMode values are never modified, so 'perSlot'
+ * restores them on the next build. Enable bits, colors, and health u16s are
  * untouched by the master.
  * Byte ALERTS_OFFSET carries the rain alert's look (rainAlert's look); which
  * METRIC alerts are active never rides here — the phone bakes only the active
@@ -120,13 +121,14 @@ function healthWire(kindIndex, v, settings) {
 function buildSettingsBlob(settings, env) {
   var blob = [];
   var i;
-  var boldAll = Boolean(settings && settings.statusBoldAll === 'all');
+  var master = settings && settings.statusBoldAll;
+  var boldOver = (master === 'all') ? BOLD_MODES.always : (master === 'off') ? BOLD_MODES.off : null;
   var isColor = !env || env.color !== false;
   for (i = 0; i < SETTINGS_BYTES; i++) { blob.push(0); }
   for (var k = 0; k < KINDS.length; k++) {
     var cfg = kindConfig(settings, k, isColor);
     blob[BOLD_OFFSET + (k >> 2)] |=
-      (boldAll ? BOLD_MODES.always : BOLD_MODES[cfg.boldMode]) << (2 * (k & 3));
+      (boldOver !== null ? boldOver : BOLD_MODES[cfg.boldMode]) << (2 * (k & 3));
     // Bold-only kinds pack ONLY their bold cell: blob[0]'s 8 enable bits and
     // the color/health offsets belong to the paired kinds (0..7) alone.
     if (KINDS[k].boldOnly) { continue; }

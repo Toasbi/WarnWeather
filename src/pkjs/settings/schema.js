@@ -39,7 +39,7 @@ var HEALTH_SLOT_WHEN = gates.HEALTH_SLOT_WHEN;
 var HR_SLOT_WHEN = gates.HR_SLOT_WHEN;
 var THRESHOLD_WHEN = gates.THRESHOLD_WHEN;
 var ON_DEMAND_WHEN = gates.ON_DEMAND_WHEN;
-var BOLD_ALL_WHEN = gates.BOLD_ALL_WHEN;
+var BOLD_MASTER_WHEN = gates.BOLD_MASTER_WHEN;
 var RADAR_BAR_WHEN = gates.RADAR_BAR_WHEN;
 var HEALTH_BAR_WHEN = gates.HEALTH_BAR_WHEN;
 var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
@@ -532,7 +532,7 @@ function unitRow(key, withUnit, without) {
 // warn/close level, "Always" adds the normal zone too (status_threshold.h ThreshBold).
 // The row stays live while the kind's highlight is off, because "Always" needs no
 // levels to mean something; it mutes wholesale only under the Status bars tab's master row
-// (BOLD_ALL_WHEN), which overrides it at pack time. Only the middle option needs a
+// (BOLD_MASTER_WHEN), which overrides it at pack time. Only the middle option needs a
 // level — it goes inert (not away: removing it would let the options-snapping path
 // rewrite a stored 'warn' to 'off') while nothing gives the kind one, which the caller
 // states: the sheet knows where its kind's level comes from.
@@ -552,7 +552,7 @@ function boldRow(keyStem, voice, noLevelWhen) {
         hintByValue: voice.boldHints,
         defaultValue: 'warn',
         options: [['Off', 'off'], [voice.boldWarnLabel, 'warn'], ['Always', 'always']],
-        disabledWhen: BOLD_ALL_WHEN,
+        disabledWhen: BOLD_MASTER_WHEN,
         optionDisabledWhen: {warn: noLevelWhen}
     };
 }
@@ -687,7 +687,7 @@ function boldSection(title, keyStem, gate, extraItems) {
         hintByValue: {always: BOLD_ALWAYS_HINT},
         defaultValue: 'off',
         options: [['Off', 'off'], ['Always', 'always']],
-        disabledWhen: BOLD_ALL_WHEN
+        disabledWhen: BOLD_MASTER_WHEN
     };
     // Bold closes the sheet, as it does in the alert kinds' sheets: the rows that
     // shape what the slot shows come first, then how boldly it prints.
@@ -1694,24 +1694,26 @@ module.exports = {
             intro: STATUS_INTRO,
             items: [
                 // Master bold switch over EVERY slot kind: 'all' packs each kind's bold
-                // cell as always-bold when the threshold blob is built
-                // (status-thresholds.js) and leaves the stored per-kind modes untouched —
-                // the per-slot Bold rows mute via BOLD_ALL_WHEN meanwhile. A settings-store
-                // key only: it rides the packed blob, never an AppMessage key of its own.
-                // Same platform gate as the slot dialogs — aplite compiles the bold
-                // machinery out.
+                // cell as always-bold when the threshold blob is built, 'off' as Off
+                // (status-wire.js buildSettingsBlob), and both leave the stored per-kind
+                // modes untouched — the per-slot Bold rows mute via BOLD_MASTER_WHEN
+                // meanwhile. A settings-store key only: it rides the packed blob, never an
+                // AppMessage key of its own. Same platform gate as the slot dialogs —
+                // aplite compiles the bold machinery out. In view, not under More options
+                // (the owner, 2026-11-06), and in the order of the slots' own Bold ladder.
                 {
                     type: 'segmented',
                     messageKey: 'statusBoldAll',
                     label: 'Bold values',
                     // The selected option's meaning only; Per slot says where the choice is.
+                    // Off is a slot's own Off: the watch prints danger bold in its filled box.
                     hintByValue: {
+                        off: 'No slot value prints bold, except at its danger level or a reached goal.',
                         perSlot: 'Each slot’s dialog has its own Bold row.',
                         all: 'Every slot value prints in heavier text.'
                     },
                     defaultValue: 'perSlot',
-                    options: [['Per slot', 'perSlot'], ['All', 'all']],
-                    more: true,
+                    options: [['Off', 'off'], ['Per slot', 'perSlot'], ['All', 'all']],
                     showWhen: THRESHOLD_WHEN
                 },
                 // The reset reverts every slot AND the bold settings in one tap (blocks.js

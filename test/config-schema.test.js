@@ -2372,9 +2372,9 @@ test('the All status bars card carries the reset-status-bars link row, ungated',
   // machinery it must NOT be thresholds-gated (neither the section nor the row).
   assert.equal(intro.showWhen, undefined, 'the card carries no platform gate');
   assert.equal(reset.showWhen, undefined, 'the reset row carries no platform gate');
-  // Bold values (thresholds-gated, behind More options) is the card's one other row.
+  // Bold values (thresholds-gated, in view: the owner, 2026-11-06) is the card's one other row.
   assert.deepEqual(intro.items.slice(0, -1).map((i) => i.messageKey), ['statusBoldAll']);
-  assert.equal(byKey('statusBoldAll').more, true);
+  assert.equal(byKey('statusBoldAll').more, undefined, 'Bold values is not tucked under More options');
   assert.deepEqual(byKey('statusBoldAll').showWhen, { env: 'thresholds' });
 });
 

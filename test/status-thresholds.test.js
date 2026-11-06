@@ -739,6 +739,37 @@ test('buildSettingsBlob: statusBoldAll "all" packs always into every bold cell',
   assert.equal(blob[wire.ALERTS_OFFSET], 0, 'the rain look is not a bold cell');
 });
 
+// The master's Off is a slot's own Off in every cell: bold at danger or a reached goal only.
+test('buildSettingsBlob: statusBoldAll "off" packs off into every bold cell', () => {
+  const blob = wire.buildSettingsBlob({
+    statusBoldAll: 'off',
+    // Stored modes that would otherwise pack always (2) / warn (0) lanes.
+    threshAqiBoldMode: 'always', threshStepsBoldMode: 'warn', threshCityBoldMode: 'always'
+  });
+  const fullBytes = Math.floor(th.KINDS.length / 4);
+  const tailCells = th.KINDS.length % 4;
+  const expected = new Array(fullBytes).fill(0x55);   // 1 ('off') in every 2-bit lane
+  if (tailCells) {
+    let tail = 0;
+    for (let c = 0; c < tailCells; c += 1) { tail |= th.BOLD_MODES.off << (2 * c); }
+    expected.push(tail);
+  }
+  assert.deepEqual(blob.slice(wire.BOLD_OFFSET, wire.ALERTS_OFFSET), expected);
+  assert.equal(blob[wire.ALERTS_OFFSET], 0, 'the rain look is not a bold cell');
+});
+
+test('statusBoldAll "off" leaves everything below the bold area byte-identical, and the stored modes', () => {
+  const settings = {
+    threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '200', threshAqiBoldMode: 'always',
+    threshStepsOn: true, threshStepsWarn: '4000', threshStepsDanger: '8000'
+  };
+  const base = wire.buildSettingsBlob(settings);
+  const off = Object.assign({ statusBoldAll: 'off' }, settings);
+  assert.deepEqual(wire.buildSettingsBlob(off).slice(0, wire.BOLD_OFFSET), base.slice(0, wire.BOLD_OFFSET),
+    'enable bits, colors, and health u16s are untouched by the master');
+  assert.equal(off.threshAqiBoldMode, 'always', 'the stored mode is kept for Per slot');
+});
+
 test('statusBoldAll "all" leaves everything below the bold area byte-identical', () => {
   const settings = {
     threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '200',

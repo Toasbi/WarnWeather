@@ -314,6 +314,8 @@ test('thresholdPenState reports EFFECTIVE always-bold via badge.bold', () => {
     'the Watch-tab master forces every kind at pack time, so the badge shows it');
   assert.ok(state({ statusBoldAll: 'all' }).ariaNote.indexOf('always bold') !== -1,
     'the state is announced, not only drawn');
+  assert.equal(state({ statusBoldAll: 'off', threshDateBoldMode: 'always' }).bold, false,
+    'the master Off packs every kind as Off, the kind\'s own Always included, so no B');
   assert.equal(badge({ statusTopMid: 'date' }, { thresholds: false }, args), null,
     'aplite (no thresholds env) badges nothing, B included');
 });

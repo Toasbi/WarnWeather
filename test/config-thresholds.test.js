@@ -1357,7 +1357,7 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     assert.equal(bold.defaultValue, 'warn');
     // The row must stay live while the kind's thresholds are off (Always needs
     // none) — its only mute is the Status bars tab's master row's override.
-    assert.deepEqual(bold.disabledWhen, { key: 'statusBoldAll', eq: 'all' },
+    assert.deepEqual(bold.disabledWhen, { key: 'statusBoldAll', in: ['off', 'all'] },
       stem + ' bold row must mute only under the master Bold values row');
   });
 });
@@ -1839,7 +1839,7 @@ test('every bold-only kind gets a sheet whose Bold row is its LAST control', () 
     assert.deepEqual(bold.hintByValue, { always: 'Every status slot showing this value prints it in heavier text.' },
       stem + ' hint: Always only (Off, the default, needs none)');
     assert.equal(bold.hint, undefined, stem + ' no all-options hint');
-    assert.deepEqual(bold.disabledWhen, { key: 'statusBoldAll', eq: 'all' },
+    assert.deepEqual(bold.disabledWhen, { key: 'statusBoldAll', in: ['off', 'all'] },
       stem + ' row mutes only under the master Bold values row');
   });
 });
@@ -2111,8 +2111,8 @@ test('bold-only BoldMode keys hydrate their default and ride the save blob', () 
 });
 
 // --- the Status bars tab's master Bold row (statusBoldAll) --------------------
-// A settings-store key only — it has no AppMessage key of its own: 'all'
-// overrides the PACKED bold cell of every kind at blob-build time
+// A settings-store key only — it has no AppMessage key of its own: 'all' and 'off'
+// override the PACKED bold cell of every kind at blob-build time
 // (status-wire.js buildSettingsBlob), the stored per-kind modes stay
 // untouched, and the Clay change-detector resends because the blob content
 // changes.
@@ -2138,16 +2138,19 @@ test('the master Bold values row leads the slot selects, thresholds-gated', () =
     .test(String(it.messageKey))), 'a card that holds no bar\'s slots');
   const master = sections[masterIdx].items
     .find(it => it.messageKey === 'statusBoldAll');
-  assert.strictEqual(master.more, true, 'rarely changed: it waits under the card\'s More options');
+  assert.strictEqual(master.more, undefined, 'in view, not under the card\'s More options (the owner, 2026-11-06)');
   assert.equal(master.type, 'segmented');
   assert.equal(master.label, 'Bold values');
   assert.equal(master.defaultValue, 'perSlot');
-  assert.deepEqual(master.options, [['Per slot', 'perSlot'], ['All', 'all']]);
+  assert.deepEqual(master.options, [['Off', 'off'], ['Per slot', 'perSlot'], ['All', 'all']],
+    'the slots\' own Bold ladder, Off first');
   // Same platform gate as the sheets: aplite compiles the bold machinery out.
   assert.deepEqual(master.showWhen, { env: 'thresholds' },
     'the master row must be hidden on aplite');
   // One hint per selected option: All says what it does, Per slot where the choice is.
   assert.match(master.hintByValue.all, /heavier text/, 'All explains itself');
+  assert.match(master.hintByValue.off, /danger level or a reached goal/,
+    'Off says what still prints bold, as a slot\'s own Off does');
   // The sheets' row reads "Bold" since the rename; the hint names it as it reads.
   assert.match(master.hintByValue.perSlot, /\bBold row\b/, 'Per slot points at the per-slot row');
   assert.doesNotMatch(master.hintByValue.perSlot, /Bold value/,
@@ -2157,8 +2160,8 @@ test('the master Bold values row leads the slot selects, thresholds-gated', () =
 
 test('every per-slot Bold row carries the master-disable predicate', () => {
   STEMS.concat(BOLD_STEMS).forEach(stem => {
-    assert.deepEqual(boldFor(stem).disabledWhen, { key: 'statusBoldAll', eq: 'all' },
-      stem + ' bold row must mute while the master is "all"');
+    assert.deepEqual(boldFor(stem).disabledWhen, { key: 'statusBoldAll', in: ['off', 'all'] },
+      stem + ' bold row must mute while the master is "off" or "all"');
   });
 });
 
@@ -2182,8 +2185,15 @@ test('the sheets gray their Bold row out while the master is "all"', () => {
   page.openEditSheet('threshAqi');
   assert.match(rowClassFor(page.modal.innerHTML, 'threshAqiBoldMode'), /\bdis\b/,
     'the sheet Bold row is muted under the master override');
+  const off = bootGeneratedPage({ provider: 'dwd', statusBoldAll: 'off' });
+  off.clickTab('watch');
+  off.openEditSheet('threshAqi');
+  assert.match(rowClassFor(off.modal.innerHTML, 'threshAqiBoldMode'), /\bdis\b/,
+    'and under the master Off');
   const perSlot = bootGeneratedPage({ provider: 'dwd' });
   perSlot.clickTab('watch');
+  assert.ok(perSlot.scroll.innerHTML.indexOf('data-k="statusBoldAll"') !== -1,
+    'the master row is in view at its default too');
   perSlot.openEditSheet('threshAqi');
   assert.doesNotMatch(rowClassFor(perSlot.modal.innerHTML, 'threshAqiBoldMode'), /\bdis\b/,
     'the default perSlot leaves the Bold row live');
