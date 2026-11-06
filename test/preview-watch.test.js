@@ -88,6 +88,20 @@ test('each view is named and spoken band by band, in the Layout card\'s words', 
   assert.match(pw.watchPreview(S, env, {}), /^<div class="wpv n3" role="group" aria-label="Your watch">/);
 });
 
+test('each view is a card of its own, the screen edge to edge on its own background, pinned bare', () => {
+  const env = plat.computeEnv({ platform: 'basalt' });
+  const cards = (S) => pw.watchPreview(S, env, {}).match(/<div class="wpv-card" style="background:([^"]*)"><svg class="wpv-scr"/g) || [];
+  const dark = cards(settings({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'all' }));
+  assert.equal(dark.length, 3, 'three cards');
+  dark.forEach((c) => assert.match(c, /background:#000000/, 'a dark watch: black cards'));
+  cards(settings({ layoutPreset: 'compactCal', theme: 'light' })).forEach((c) => assert.match(c, /background:#FFFFFF/));
+  const watchface = schema.tabs.find((t) => t.id === 'watchface');
+  assert.equal(watchface.pinBare, true, 'the tab pins the block without a card of its own');
+  const body = eng.renderBody(schema, 'watchface', { S: settings(), ENV: env, USERDATA: {}, collapsed: {},
+    evalCtx: Object.assign({}, settings(), { env: env }), schema: schema, moreOpen: {} });
+  assert.match(body, /<div class="pin-blk bare"><div class="wpv /);
+});
+
 test('aplite draws a single Default view; emery its own 200×228 screen', () => {
   const S = settings({ layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' });
   // The page's load normalises what aplite cannot draw, as it does before any block renders.

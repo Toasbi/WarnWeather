@@ -1163,7 +1163,7 @@ module.exports = {
         // out, the theme and what changes at night, the time and the calendar. The page
         // opens here. The layout preview stays pinned at the top while the Views and Layout
         // cards scroll under it; past Layout it scrolls away with the page (owner, 2026-10-04).
-        id: 'watchface', label: 'Watchface', icon: 'tab-watchface', openDefault: true, pinBlock: 'watchPreview',
+        id: 'watchface', label: 'Watchface', icon: 'tab-watchface', openDefault: true, pinBlock: 'watchPreview', pinBare: true,
         pinThrough: 'layout', sections: [{
             // The fetch-error notices stay first, above the pinned layout preview: the
             // panel draws nothing until a fetch fails, and then it is the news the page

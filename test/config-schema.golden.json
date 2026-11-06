@@ -84,6 +84,7 @@
         "icon": "tab-watchface",
         "openDefault": true,
         "pinBlock": "watchPreview",
+        "pinBare": true,
         "pinThrough": "layout",
         "sections": [
           {

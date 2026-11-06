@@ -2315,7 +2315,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     // The switcher rides above the pinned header, not in it, so it scrolls away and the
     // pinned preview alone keeps the top of the screen (owner, 2026-10-04).
-    return seg + (block ? '<div class="' + pinClass(cx) + '"><div class="pin-blk">' + block + '</div></div>' : '');
+    // tab.pinBare: the block draws its own cards (the Watchface tab's watch, one card per view),
+    // so the pin gives it no card of its own.
+    return seg + (block ? '<div class="' + pinClass(cx) + '"><div class="pin-blk' + (tab.pinBare ? ' bare' : '') + '">'
+      + block + '</div></div>' : '');
   }
 
 

@@ -241,6 +241,7 @@ Schema
        ├─ icon          string  (a registered icon id drawn over the label in the bar)
        ├─ showWhen      Predicate (false: no tab button, no body, no tab link lands there)
        ├─ pinBlock      string  (block id pinned at the top of the tab while its cards scroll)
+       ├─ pinBare       boolean (the pinned block draws its own cards: no card around it)
        ├─ panes         [{id, label, showWhen?, pinBlock?}] (a segmented switcher; see Panes)
        └─ sections[]
             ├─ title        string

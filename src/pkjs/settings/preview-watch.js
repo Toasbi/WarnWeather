@@ -454,14 +454,16 @@
             + e + '</svg>', label: describe(spec, lay) };
     }
 
-    var CSS = '.wpv{display:flex;justify-content:center;align-items:flex-start;margin:-12px -16px -14px;'
-        + 'padding:16px 6px 12px;background:radial-gradient(closest-side,rgba(250,74,53,.16),rgba(250,74,53,0))}'
-        + '.wpv-v{flex:1 1 0;min-width:0;max-width:122px;margin:0 5px;text-align:center}'
-        + '.wpv.n1 .wpv-v{max-width:168px}.wpv.n2 .wpv-v{max-width:142px}'
-        + '.wpv-bezel{display:block;padding:5px;border-radius:15px;background:linear-gradient(160deg,#34353A,#141518);'
-        + 'box-shadow:0 8px 20px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.08)}'
-        + 'body.light .wpv-bezel{box-shadow:0 6px 16px rgba(0,0,0,.22),inset 0 0 0 1px rgba(255,255,255,.08)}'
-        + '.wpv-scr{display:block;width:100%;height:auto;border-radius:4px}'
+    // One card per view, on the page (the tab pins the block bare, schema pinBare): the card is
+    // its screen, edge to edge on the screen's own background, so no grey shows round the black
+    // or white (its round corners clip the screen a little), and its name under it.
+    var CSS = '.wpv{display:flex;justify-content:center;align-items:flex-start}'
+        + '.wpv-v{flex:1 1 0;min-width:0;max-width:150px;text-align:center}'
+        + '.wpv-v+.wpv-v{margin-left:10px}'
+        + '.wpv-card{display:block;border-radius:12px;overflow:hidden;'
+        + 'box-shadow:0 6px 16px rgba(0,0,0,.35),0 0 0 1px var(--card-line)}'
+        + 'body.light .wpv-card{box-shadow:0 4px 12px rgba(0,0,0,.16),0 0 0 1px var(--card-line)}'
+        + '.wpv-scr{display:block;width:100%;height:auto}'
         + '.wpv-cap{display:block;margin-top:7px;font:700 11.5px Inter,-apple-system,system-ui,sans-serif;color:var(--muted)}';
 
     /**
@@ -487,13 +489,14 @@
         var st = S || {};
         var views = VC.resolveViewCycle(st, env);
         var f = env && env.platform === 'emery' ? 1 : 0, now = new Date();
+        var bg = svgLib.previewInk(themeOf(st, env)).bg;
         var n = 0, figs = '';
         views.forEach(function (spec, i) {
             if (!spec) { return; }
             var name = NAMES[i] || 'View ' + (i + 1), scr = screenSvg(spec, i, st, env, userData || {}, f, now);
             n += 1;
             figs += '<div class="wpv-v" role="img" aria-label="' + esc(name + ': ' + scr.label) + '">'
-                + '<div class="wpv-bezel">' + scr.svg + '</div>'
+                + '<div class="wpv-card" style="background:' + bg + '">' + scr.svg + '</div>'
                 + '<span class="wpv-cap" aria-hidden="true">' + esc(name) + '</span></div>';
         });
         if (!figs) { return ''; }
