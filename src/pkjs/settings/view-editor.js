@@ -883,7 +883,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var env = (VE.ctx && VE.ctx.ENV) || {};
         var scr = pw.viewScreen(S, env, i, (VE.ctx && VE.ctx.USERDATA) || {});
         return '<div class="ve-preview" role="img" aria-label="' + esc('Preview: ' + scr.label) + '">'
-            + '<div class="ve-scr">' + scr.svg + '</div></div>';
+            + '<div class="ve-scr" style="background:' + esc(scr.bg) + '">' + scr.svg + '</div></div>';
     }
 
     function renderEditor() {

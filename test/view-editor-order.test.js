@@ -236,13 +236,13 @@ test('each tab shows a live preview of its view that follows the edits', () => {
   const S = state({ viewBody1: 'none', viewAlign1: 'top' });
   // The view on the watch's screen (preview-watch.js viewScreen), its bands spoken.
   const preview = (h) => {
-    const m = /<div class="ve-preview" role="img" aria-label="Preview: ([^"]*)"><div class="ve-scr">(<svg[\s\S]*?<\/svg>)<\/div><\/div>/.exec(h);
+    const m = /<div class="ve-preview" role="img" aria-label="Preview: ([^"]*)"><div class="ve-scr" style="background:#[0-9A-F]{6}">(<svg[\s\S]*?<\/svg>)<\/div><\/div>/.exec(h);
     return m ? { bands: m[1], svg: m[2] } : null;
   };
   const top = preview(editorHtml(S, 1));
   assert.ok(top, 'the screen heads the tab');
   assert.equal(top.bands, 'Watch Status, Calendar (2 rows), Forecast Status, Clock', 'it draws this view\'s bands');
-  assert.match(top.svg, /viewBox="0 0 144 168"/, 'on the watch\'s own grid');
+  assert.match(top.svg, /viewBox="-9 -9 162 186"/, 'on the watch\'s own grid, framed in its ground');
   S.viewAlign1 = 'bottom';
   assert.notEqual(preview(editorHtml(S, 1)).svg, top.svg, 'an alignment tap moves the preview');
   S.viewBody1 = 'forecast';

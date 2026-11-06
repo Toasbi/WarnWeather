@@ -172,10 +172,10 @@ test('sizes: a sized radar takes 2, 3 or 4 rows; a forecast is never under 3', (
 test('the screen follows the theme: white on black, black on white for both light themes', () => {
   ['light', 'bw-light'].forEach((theme) => {
     const html = pw.watchPreview({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off', theme: theme }, BASALT, {});
-    assert.ok(html.indexOf('<rect width="144" height="168" fill="#FFFFFF"></rect>') >= 0, theme);
+    assert.ok(html.indexOf('<rect x="-9" y="-9" width="162" height="186" fill="#FFFFFF"></rect>') >= 0, theme);
   });
   const dark = pw.watchPreview({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off', theme: 'dark' }, BASALT, {});
-  assert.ok(dark.indexOf('<rect width="144" height="168" fill="#000000"></rect>') >= 0);
+  assert.ok(dark.indexOf('<rect x="-9" y="-9" width="162" height="186" fill="#000000"></rect>') >= 0);
 });
 
 test('the custom layout editor\'s preview: one view on its own, or a blank screen for an empty slot', () => {
@@ -185,11 +185,11 @@ test('the custom layout editor\'s preview: one view on its own, or a blank scree
     viewClockOff1: true, viewStripOff1: true };
   const one = pw.viewScreen(S, BASALT, 1, {});
   assert.equal(one.label, 'Radar');
-  assert.match(one.svg, /^<svg class="wpv-scr" viewBox="0 0 144 168"/);
+  assert.match(one.svg, /^<svg class="wpv-scr" viewBox="-9 -9 162 186"/);
   const ids = (pw.viewScreen(S, BASALT, 0, {}).svg.match(/ id="[^"]*"/g) || []);
   assert.ok(ids.length > 0 && ids.every((m) => /-ve0-\d+"$/.test(m)), 'its graphs\' ids are its own: ' + ids.join(' '));
   const none = pw.viewScreen(S, BASALT, 2, {});
   assert.equal(none.label, 'Nothing to show');
   assert.match(none.svg, />Nothing to show<\/text><\/svg>$/);
-  assert.match(pw.viewScreen(S, { platform: 'emery', color: true }, 0, {}).svg, /viewBox="0 0 200 228"/);
+  assert.match(pw.viewScreen(S, { platform: 'emery', color: true }, 0, {}).svg, /viewBox="-12 -12 224 252"/);
 });

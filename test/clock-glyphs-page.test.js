@@ -113,10 +113,10 @@ test('the Clock font picker draws the time in each face, as the watch would', ()
   const basalt = { platform: 'basalt', color: true };
   const faces = ['roboto', 'leco', 'bitham'].map((f) => pic(f, basalt));
   faces.forEach((svg) => {
-    assert.match(svg, /^<svg class="wpv-scr" viewBox="0 0 144 49"/);
+    assert.match(svg, /^<svg class="wpv-scr" viewBox="-9 -9 162 67"/);
     assert.equal((svg.match(/<image /g) || []).length, 5);
     assert.match(svg, /flood-color="#FFAA00"/, 'in the time colour');
   });
   assert.equal(new Set(faces).size, 3, 'three different faces');
-  assert.match(pic('leco', { platform: 'emery', color: true }), /^<svg class="wpv-scr" viewBox="0 0 200 64"/);
+  assert.match(pic('leco', { platform: 'emery', color: true }), /^<svg class="wpv-scr" viewBox="-12 -12 224 88"/);
 });

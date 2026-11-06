@@ -501,6 +501,28 @@
         return out.join(', ');
     }
 
+    // The ground each screen picture keeps around the screen, in the screen's own pixels (about
+    // 6 % of its width): the card's round corners clip only that, never a slot or label on the
+    // screen's edge rows, and it is the screen's own background, so the card reads as one black
+    // (or white) screen.
+    var SCREEN_MARGIN = [9, 12];
+
+    /**
+     * A screen picture's <svg>: the screen's grid, the watch's ground all round it (SCREEN_MARGIN).
+     * @param {number} f Screen family.
+     * @param {number} w The drawing's width (the screen's, or a band's).
+     * @param {number} h Its height.
+     * @param {string} bg The watch's background.
+     * @param {string} inner What is drawn on it, in the screen's coordinates.
+     * @returns {string} SVG markup.
+     */
+    function framedSvg(f, w, h, bg, inner) {
+        var m = SCREEN_MARGIN[f], vw = w + 2 * m, vh = h + 2 * m;
+        return '<svg class="wpv-scr" viewBox="' + (-m) + ' ' + (-m) + ' ' + vw + ' ' + vh + '" aria-hidden="true" focusable="false">'
+            + '<rect x="' + (-m) + '" y="' + (-m) + '" width="' + vw + '" height="' + vh + '" fill="' + bg + '"></rect>'
+            + inner + '</svg>';
+    }
+
     /**
      * One view's screen.
      * @param {!Object} spec Its ViewSpec.
@@ -512,14 +534,15 @@
      * @param {Date} now Today.
      * @param {string} [idPrefix] What its graphs' ids start with ('w' + vi by default), so
      *     two screens on the page never share one.
-     * @returns {{svg: string, label: string}} The <svg>, and its bands as spoken (describe).
+     * @returns {{svg: string, label: string, bg: string}} The <svg> (framed: framedSvg), its bands
+     *     as spoken (describe), and the watch's background it is drawn on.
      */
     function screenSvg(spec, vi, S, env, userData, f, now, idPrefix) {
         var sc = SCREEN[f], theme = themeOf(S, env), ink = svgLib.previewInk(theme);
         var cx = { fg: ink.fg, color: resolveInk.drawsColor(env, theme), bw: Boolean(env && env.color === false),
                    f: f, now: now, fullDate: !statusBars.calendarShown(spec),
                    holidays: (userData && userData.holidays) || null };
-        var lay = layoutView(spec, f), e = '<rect width="' + sc.w + '" height="' + sc.h + '" fill="' + ink.bg + '"></rect>';
+        var lay = layoutView(spec, f), e = '';
         // The rows' tier (layout.c status_tier_for): the squeezed font on a FULL view.
         var rowFull = lay.tier === VC.TIER_FULL;
         if (lay.strip) {
@@ -540,13 +563,13 @@
                 }
             }
         });
-        return { svg: '<svg class="wpv-scr" viewBox="0 0 ' + sc.w + ' ' + sc.h + '" aria-hidden="true" focusable="false">'
-            + e + '</svg>', label: describe(spec, lay) };
+        return { svg: framedSvg(f, sc.w, sc.h, ink.bg, e), label: describe(spec, lay), bg: ink.bg };
     }
 
     // One card per view, on the page (the tab pins the block bare, schema pinBare): the card is
-    // its screen, edge to edge on the screen's own background, so no grey shows round the black
-    // or white (its round corners clip the screen a little), and its name under it.
+    // its screen on the screen's own background, black or white throughout, so no grey shows
+    // round it; the screen keeps a margin of that ground (framedSvg), so the card's round
+    // corners clip nothing on it. Its name under it.
     var CSS = '.wpv{display:flex;justify-content:center;align-items:flex-start}'
         + '.wpv-v{flex:1 1 0;min-width:0;max-width:150px;text-align:center}'
         + '.wpv-v+.wpv-v{margin-left:10px}'
@@ -603,16 +626,17 @@
      * @param {Object} env Platform env.
      * @param {number} i The view's place in the cycle (0 = Default).
      * @param {Object} [userData] Page userData (the palette).
-     * @returns {{svg: string, label: string}} The <svg>, and its bands as spoken.
+     * @returns {{svg: string, label: string, bg: string}} The <svg>, its bands as spoken, and the
+     *     watch's background.
      */
     function viewScreen(S, env, i, userData) {
         var st = S || {}, f = env && env.platform === 'emery' ? 1 : 0, sc = SCREEN[f];
         var spec = VC.resolveViewCycle(st, env)[i] || null;
         if (spec) { return screenSvg(spec, i, st, env, userData || {}, f, new Date(), 've' + i + '-'); }
         var ink = svgLib.previewInk(themeOf(st, env));
-        return { svg: '<svg class="wpv-scr" viewBox="0 0 ' + sc.w + ' ' + sc.h + '" aria-hidden="true" focusable="false">'
-            + '<rect width="' + sc.w + '" height="' + sc.h + '" fill="' + ink.bg + '"></rect>'
-            + text(sc.w / 2, sc.h / 2 + 4, f ? 15 : 12, ink.rgba('0.6'), 'middle', 600, 'Nothing to show') + '</svg>',
+        return { svg: framedSvg(f, sc.w, sc.h, ink.bg,
+            text(sc.w / 2, sc.h / 2 + 4, f ? 15 : 12, ink.rgba('0.6'), 'middle', 600, 'Nothing to show')),
+            bg: ink.bg,
             label: 'Nothing to show' };
     }
 
@@ -670,10 +694,8 @@
         var theme = themeOf(st, env), ink = svgLib.previewInk(theme);
         var f = env && env.platform === 'emery' ? 1 : 0, w = SCREEN[f].w, h = f ? 64 : 49;
         var cx = { fg: ink.fg, color: resolveInk.drawsColor(env, theme), bw: Boolean(env && env.color === false), f: f };
-        return '<svg class="wpv-scr" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true" focusable="false">'
-            + '<rect width="' + w + '" height="' + h + '" fill="' + ink.bg + '"></rect>'
-            + clockBand(st, { x: 0, y: 0, w: w, h: h }, cx, 'tf' + String(args.value).replace(/[^A-Za-z0-9]/g, '') + '-')
-            + '</svg>';
+        return framedSvg(f, w, h, ink.bg,
+            clockBand(st, { x: 0, y: 0, w: w, h: h }, cx, 'tf' + String(args.value).replace(/[^A-Za-z0-9]/g, '') + '-'));
     }
 
     if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }

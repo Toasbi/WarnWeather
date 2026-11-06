@@ -112,8 +112,8 @@ test('aplite draws a single Default view; emery its own 200×228 screen', () => 
   const aplite = pw.watchPreview(onAplite, apliteEnv, {});
   assert.equal(labels(aplite).length, 1);
   assert.match(labels(aplite)[0], /^Default: /);
-  assert.match(aplite, /viewBox="0 0 144 168"/);
-  assert.match(pw.watchPreview(S, plat.computeEnv({ platform: 'emery' }), {}), /viewBox="0 0 200 228"/);
+  assert.match(aplite, /viewBox="-9 -9 162 186"/);
+  assert.match(pw.watchPreview(S, plat.computeEnv({ platform: 'emery' }), {}), /viewBox="-12 -12 224 252"/);
 });
 
 test('the calendar: its week as Start week on says, today in its cell, Auto taking the weekday\'s colour', () => {
@@ -159,7 +159,7 @@ test('a light theme draws black on white, the status rows print the Status bars 
   const S = settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off', theme: 'light',
     statusForecastLeft: 'city', statusForecastMid: 'empty', statusForecastRight: 'empty' });
   const html = pw.watchPreview(S, env, {});
-  assert.match(html, /<rect width="144" height="168" fill="#FFFFFF"><\/rect>/);
+  assert.match(html, /<rect x="-9" y="-9" width="162" height="186" fill="#FFFFFF"><\/rect>/);
   assert.match(html, /fill="#000000" text-anchor="start" font-weight="700"[^>]*>Berlin<\/text>/, 'the city in the left slot');
 });
 
@@ -265,4 +265,21 @@ test('the calendar marks the holidays the phone holds for the picked country, in
   assert.deepEqual(day(cal({ holidaysEnabled: false }), 3), ['#FFFFFF', '400'], 'Holiday highlight off');
   assert.deepEqual(day(cal({}, {}), 3), ['#FFFFFF', '400'], 'nothing cached');
   assert.deepEqual(day(cal({ theme: 'bw' }), 3), ['#FFFFFF', '700'], 'a B/W theme: the ink, still bold');
+});
+
+test('each screen sits in a margin of its own ground, so a card\'s round corners clip nothing on it', () => {
+  // The owner, 2026-11-06: the corners cut the top bar's edge slots (W45, 19:14). The ground
+  // runs on round the screen, about 6 % of its width, and the card is that colour throughout.
+  [['basalt', 144, 168, 9], ['emery', 200, 228, 12]].forEach((p) => {
+    const env = plat.computeEnv({ platform: p[0] });
+    const S = settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off', theme: 'light' });
+    const svg = pw.screenSvg(VC.resolveViewCycle(S, env)[0], 0, S, env, {}, p[0] === 'emery' ? 1 : 0, new Date()).svg;
+    const m = p[3], vb = [-m, -m, p[1] + 2 * m, p[2] + 2 * m].join(' ');
+    assert.ok(svg.indexOf('<svg class="wpv-scr" viewBox="' + vb + '"') === 0, p[0] + ': ' + svg.slice(0, 70));
+    assert.ok(svg.indexOf('<rect x="' + (-m) + '" y="' + (-m) + '" width="' + (p[1] + 2 * m) + '" height="'
+      + (p[2] + 2 * m) + '" fill="#FFFFFF"></rect>') > 0, p[0] + ': the ground fills the margin');
+    assert.ok(m / p[1] >= 0.06, p[0] + ': a card 90 px wide keeps over 5 px of it, past a 12 px corner\'s reach');
+  });
+  const html = pw.watchPreview(settings({ theme: 'light' }), plat.computeEnv({ platform: 'basalt' }), {});
+  assert.match(html, /<div class="wpv-card" style="background:#FFFFFF">/, 'the card is the screen\'s white');
 });
