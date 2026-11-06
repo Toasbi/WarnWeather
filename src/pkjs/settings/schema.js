@@ -1269,6 +1269,9 @@ module.exports = {
                 // there; the payload folds it to compactCal, matching the display).
                 // Picking custom seeds the per-view keys once (layoutPresetChanged).
                 optionsFrom: { resolver: 'layoutPresetOptions' },
+                // Each preset as a card of its Default view, drawn as the pinned preview
+                // draws it with the settings as they are (preview-watch.js presetPicture).
+                pictureFrom: { resolver: 'layoutPresetPicture' },
                 dormantValues: ['compactDense', 'weatherOnly', 'custom'],
                 onChange: 'layoutPresetChanged'
             },

@@ -170,3 +170,77 @@ test('a graph\'s pattern and clip ids carry its band\'s suffix, so two graphs ne
   assert.equal(new Set(ids).size, ids.length, 'no id twice');
   (html.match(/url\(#[^)]*\)/g) || []).forEach((u) => assert.ok(ids.indexOf(u.slice(5, -1)) !== -1, u + ' points at a defined id'));
 });
+
+// The Layout card's preset picker (picture resolver 'layoutPresetPicture'): each preset as
+// its Default view, drawn as the pinned preview draws it, with the settings as they are.
+
+/**
+ * The picture the picker draws for a preset.
+ * @param {Object} S Settings.
+ * @param {!Object} env Platform env.
+ * @param {string} value The preset.
+ * @returns {string} SVG.
+ */
+function picture(S, env, value) {
+  return global.PConf.pictureResolvers.get('layoutPresetPicture')(S, env, { messageKey: 'layoutPreset', value: value }, {});
+}
+
+/**
+ * The tab body the engine renders for the Watchface tab.
+ * @param {Object} S Settings.
+ * @param {!Object} env Platform env.
+ * @returns {string} HTML.
+ */
+function watchfaceBody(S, env) {
+  onbuild.onLoad({ env: env, get: (k) => S[k], set: (k, v) => { S[k] = v; }, getInitial: (k) => S[k] });
+  return eng.renderBody(schema, 'watchface', { S: S, ENV: env, USERDATA: {}, collapsed: {},
+    evalCtx: Object.assign({}, S, { env: env }) });
+}
+
+test('each preset\'s picture is its Default view, as the pinned preview draws it', () => {
+  ['basalt', 'emery', 'diorite'].forEach((platform) => {
+    const env = plat.computeEnv({ platform: platform }), f = platform === 'emery' ? 1 : 0;
+    [['graph', 'all'], ['status', 'off'], ['off', 'status'], ['countdown', 'off']].forEach((modes) => {
+      const S = settings({ layoutPreset: 'compactCal', radarMode: modes[0], healthMode: modes[1] });
+      ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((value) => {
+        const st = Object.assign({}, S, { layoutPreset: value });
+        const want = pw.screenSvg(VC.resolveViewCycle(st, env)[0], 0, st, env, {}, f, new Date(), 'lp' + value + '-').svg;
+        assert.equal(picture(S, env, value), want, platform + ' ' + modes.join('/') + ' ' + value);
+      });
+    });
+  });
+});
+
+test('Custom shows the custom Default view, or the one a first pick would seed, with a pencil', () => {
+  const env = plat.computeEnv({ platform: 'basalt' });
+  const unprefix = (svg) => svg.replace(/lp(custom|noCal)-/g, 'lp-');
+  const pencil = /<circle [^>]*fill="#FA4A35"[^>]*><\/circle><path [^>]*><\/path><\/svg>$/;
+  // Never picked: the seed of the preset in use, so the card is that preset's, plus the pencil.
+  const S = settings({ layoutPreset: 'noCal', radarMode: 'graph', healthMode: 'all', customLayoutSeeded: false });
+  const before = JSON.stringify(S);
+  const custom = picture(S, env, 'custom');
+  assert.match(custom, pencil, 'the pencil closes the picture');
+  assert.equal(unprefix(custom.replace(pencil, '</svg>')), unprefix(picture(S, env, 'noCal')),
+    'an unseeded Custom draws the preset in use');
+  assert.equal(JSON.stringify(S), before, 'drawing it seeds nothing');
+  // Built: the custom keys' own Default view (here a radar over the clock, no top bar).
+  const built = settings({ layoutPreset: 'noCal', radarMode: 'graph', healthMode: 'all', customLayoutSeeded: true,
+    viewCount: '1', viewTop0: 'radar', viewBody0: 'none', viewUpper0: 'off', viewLower0: 'off', viewStripOff0: true });
+  const st = Object.assign({}, built, { layoutPreset: 'custom' });
+  const want = pw.screenSvg(VC.resolveViewCycle(st, env)[0], 0, st, env, {}, 0, new Date(), 'lpcustom-').svg;
+  assert.equal(picture(built, env, 'custom').replace(pencil, '</svg>'), want);
+  assert.notEqual(unprefix(want), unprefix(picture(built, env, 'noCal')), 'premise: the built view is not the preset\'s');
+});
+
+test('the Layout card draws a card per offered preset, the shown one checked, no id shared on the tab', () => {
+  [['basalt', 6], ['emery', 6], ['diorite', 6], ['aplite', 3]].forEach((p) => {
+    const env = plat.computeEnv({ platform: p[0] });
+    const html = watchfaceBody(settings({ layoutPreset: 'fullCal', radarMode: 'graph', healthMode: 'all' }), env);
+    const cards = html.match(/<button type="button" class="pic( on)?" role="radio" aria-checked="(true|false)" data-k="layoutPreset" data-v="[^"]*">/g) || [];
+    assert.equal(cards.length, p[1], p[0] + ': one card per offered preset');
+    assert.deepEqual(cards.filter((c) => / on"/.test(c)).map((c) => /data-v="([^"]*)"/.exec(c)[1]), ['fullCal'],
+      p[0] + ': the stored preset is the checked card');
+    const ids = (html.match(/ id="[^"]*"/g) || []).map((m) => m.slice(5, -1));
+    assert.equal(new Set(ids).size, ids.length, p[0] + ': no id twice on the tab');
+  });
+});

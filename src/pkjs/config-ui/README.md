@@ -31,6 +31,7 @@ each consuming app supplies its schema, custom blocks, and hooks.
    - [Defaults-resolver registry — PConf.defaultsResolvers](#defaults-resolver-registry--pconfdefaultsresolvers)
    - [Display-resolver registry — PConf.displayResolvers](#display-resolver-registry--pconfdisplayresolvers)
    - [Hint-resolver registry — PConf.hintResolvers](#hint-resolver-registry--pconfhintresolvers)
+   - [Picture-resolver registry — PConf.pictureResolvers](#picture-resolver-registry--pconfpictureresolvers)
    - [Attention-resolver registry — PConf.attentionResolvers](#attention-resolver-registry--pconfattentionresolvers)
    - [When-resolver registry — PConf.whenResolvers](#when-resolver-registry--pconfwhenresolvers)
    - [Action registry — PConf.actions](#action-registry--pconfactions)
@@ -268,7 +269,7 @@ titled by its text (see Progressive disclosure), so one section can hold a card 
 | `toggle` | Switch | `true`/`false` | `toggle` |
 | `select` | Dropdown | string | `select` |
 | `segmented` | Pill-row (new) | string | `select` (visual variant) |
-| `radio` | Stacked radio buttons | string | `radiogroup` |
+| `radio` | Stacked radio buttons, or picture cards with `pictureFrom` | string | `radiogroup` |
 | `color` | Color palette — the 64 Pebble swatches | hex string on wire; **int** in the persisted blob | `color` |
 | `text` | Text input | string | `input` |
 | `staticText` | Static HTML block; no key | — (not serialized) | `text` |
@@ -459,6 +460,7 @@ picking the shown swatch is what writes it.
 | `uiOnly` | boolean | A page-only control: hydrated from `initFrom`, never read from or written to the save blob, never seeded. |
 | `stamp` | boolean | A value the page writes on its own (the Weather tab's last-opened time): it is saved like any other, but its change never lights Save or shows Revert, and Revert leaves it as it is. |
 | `full` | boolean | `segmented` only: one equal segment per option across the row, a long label wrapping inside its own segment, the picked option's hint under it (the setup's pickers). |
+| `pictureFrom` | `{ resolver, args }` | `radio` only: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry--pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). |
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
 | `groupLabel` | string | On the first member of an `inline` group: renders the group as ONE labelled row, the members side by side joined by a dash (a From–To row). |
 | `gotoTab` | string | `button` only: the row brings that tab to the front. |
@@ -765,6 +767,28 @@ the Battery row's `onDemandBatteryText`) sit on keyless rows outside the sheet a
 render that closes it. The library keeps it for a hint that reads a slider in its own sheet
 (`test/hint-resolver.test.js` pins it). A hint that rendered empty (no element) and the row's
 wrap layout wait for the next full render.
+
+### Picture-resolver registry — PConf.pictureResolvers
+
+A `radio` item with a `pictureFrom: { resolver: id, args }` field draws its options as picture
+cards instead of a list: a radiogroup of cards, each its picture over its name, the picked one
+ringed in the accent with its name on the accent fill, and the picked option's hint under them.
+WarnWeather's Layout preset uses it: each preset is a card of the Default view it gives.
+
+```js
+// Returns ONE option's picture markup; '' draws the card without one.
+PConf.pictureResolvers.register('layoutPresetPicture', function (state, env, args, userData) {
+  // args carries the row's messageKey and the option's value, merged UNDER pictureFrom.args;
+  // userData is the page's (what a block gets)
+  return drawDefaultView(state, env, args.value, userData);
+});
+```
+
+The resolver runs once per option the row offers (an `optionsFrom` list is resolved first), at
+render time, like the hint resolver. Its markup is printed unescaped inside the card, so only
+page code registers here, as for a block. An unregistered resolver id leaves the radio as its
+plain list. A tap goes through the radio's own `[data-k][data-v]` path, so `onChange`,
+`dormantValues` and Save behave exactly as for the list.
 
 ### Attention-resolver registry — PConf.attentionResolvers
 

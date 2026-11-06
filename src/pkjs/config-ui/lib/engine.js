@@ -150,6 +150,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // second one), merged UNDER hintFrom.args.
   PConf.hintResolvers = makeRegistry();
 
+  // --- picture-resolver registry --- a radio opts into a picture per option
+  // (item.pictureFrom: {resolver, args}); fn(S, env, args, userData) returns the markup of
+  // ONE option's picture, '' for none. args carries the row's messageKey and the option's
+  // value, merged UNDER pictureFrom.args. The radio then draws its options as picture cards
+  // (renderPictureRadio), and as its plain list while the resolver is unregistered. TRUST
+  // BOUNDARY: like a block's HTML the markup is printed UNESCAPED, so only page code
+  // registers here. Read at render time, like the hint resolver.
+  PConf.pictureResolvers = makeRegistry();
+
   // --- attention-resolver registry --- a row opts into "needs attention" by name
   // (item.attentionFrom: {resolver, args}); fn(S, env, args) returns null (nothing to
   // fix) or {note, title, body, actionLabel, confirmLabel?, sheet?}: something the user
@@ -410,6 +419,29 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return '<div class="seg' + (item.full ? ' full' : '') + '">' + optionButtons(item, v, false, off) + '</div>';
   }
   function renderRadio(item, v, off) { return '<div class="radio">' + optionButtons(item, v, true, off) + '</div>'; }
+  /**
+   * A radio drawn as the setup's picker in pictures (item.pictureFrom): each option a card,
+   * its picture over its name, the picked one ringed in the accent with its name on the
+   * accent fill. A radiogroup of radios, so a screen reader hears which one is picked; the
+   * picture is decoration (the name says it).
+   * @param {Object} item Radio item, its options resolved.
+   * @param {*} v The shown value.
+   * @param {?Array} off Option values to render inert.
+   * @param {!Object} pictures Option value -> picture markup (resolvePictures).
+   * @returns {string} HTML.
+   */
+  function renderPictureRadio(item, v, off, pictures) {
+    var h = '<div class="pics" role="radiogroup"' + (item.label ? ' aria-label="' + esc(item.label) + '"' : '') + '>';
+    for (var i = 0; i < item.options.length; i++) {
+      var o = item.options[i], on = v === o[1];
+      var isOff = Boolean(off) && off.indexOf(o[1]) !== -1;
+      h += '<button type="button" class="pic' + (on ? ' on' : '') + '" role="radio" aria-checked="' + (on ? 'true' : 'false')
+        + '" data-k="' + esc(item.messageKey) + '" data-v="' + esc(o[1]) + '"' + (isOff ? ' disabled' : '') + '>'
+        + '<span class="pic-img" aria-hidden="true">' + (pictures[o[1]] || '') + '</span>'
+        + '<span class="pic-lbl">' + esc(o[0]) + '</span></button>';
+    }
+    return h + '</div>';
+  }
   // Format a minute count as a human label for interval-derived option lists.
   // 1440 is checked first because it is also a multiple of 60.
   function formatMinutesLabel(min) {
@@ -674,6 +706,30 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       staticHint: staticHintOf(item, value) }, item.hintFrom.args || {});
     var hint = fn(S, env, args);
     return hint == null ? undefined : String(hint);
+  }
+
+  /**
+   * A picture radio's pictures (item.pictureFrom): each option's markup from the named
+   * picture resolver, by option value. Null while the resolver is unregistered, so the
+   * radio keeps its plain list.
+   *
+   * @param {Object} item Radio item, its options resolved (resolveRowItem).
+   * @param {Object} S Live settings state.
+   * @param {Object} env Platform env.
+   * @param {Object} userData Page userData.
+   * @returns {?Object} Option value -> picture markup ('' for none), or null.
+   */
+  function resolvePictures(item, S, env, userData) {
+    var spec = item.pictureFrom;
+    var fn = spec && PConf.pictureResolvers.get(spec.resolver);
+    if (!fn || !item.options) { return null; }
+    var out = {}, i, v;
+    for (i = 0; i < item.options.length; i++) {
+      v = item.options[i][1];
+      out[v] = String(fn(S, env, Object.assign({ messageKey: item.messageKey, value: v }, spec.args || {}),
+        userData || {}) || '');
+    }
+    return out;
   }
 
   /**
@@ -1229,7 +1285,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var CONTROLS = {
     toggle: function (item, view) { return renderToggle(item, view.value); },
     segmented: function (item, view) { return renderSegmented(item, view.value, view.disabledOptions); },
-    radio: function (item, view) { return renderRadio(item, view.value, view.disabledOptions); },
+    radio: function (item, view) {
+      return view.pictures ? renderPictureRadio(item, view.value, view.disabledOptions, view.pictures)
+        : renderRadio(item, view.value, view.disabledOptions);
+    },
     select: function (item, view) { return renderSelectTrigger(item, view); },
     date: function (item, view) { return renderDateTrigger(item, view); },
     text: function (item, view) { return renderText(item, view.value); },
@@ -1363,6 +1422,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // configurable — but muted and inert (CSS pointer-events; the range handlers
       // also guard on .dis for keyboard focus that CSS can't block).
       + (view.disabled ? ' dis' : '');
+    // A picture radio (item.pictureFrom) reads as the setup's pickers do, as a full-width
+    // segmented does: the label, the pictures, then what the picked one does.
+    if (item.type === 'radio' && view.pictures) {
+      return '<div class="' + rowCls + ' picks">' + label + '<div>' + renderControl(item, view) + '</div>'
+        + hintHtml + '</div>';
+    }
     if (stacked) {
       return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div>'
         + inlineList + '</div>';
@@ -1651,6 +1716,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // describes the value the row actually shows.
     if (item.hintFrom) {
       view.hint = resolveHint(item, cx.S, cx.ENV, view.value);
+    }
+    // pictureFrom: a radio draws its options as picture cards — from rowItem, so a derived
+    // list gets a picture per option it actually offers.
+    if (item.pictureFrom && item.type === 'radio') {
+      view.pictures = resolvePictures(rowItem, cx.S, cx.ENV, cx.USERDATA);
     }
     // A readout's hint IS the row (a live summary with no control), so it stays in view;
     // with the page's '?' buttons on, every other row's hint is info text behind its '?',
@@ -3706,6 +3776,7 @@ if (typeof module !== 'undefined' && module.exports) {
     renderRgb: PConf.engine.renderRgb, paintRgb: PConf.engine.paintRgb,
     rangeResolvers: PConf.rangeResolvers, badgeResolvers: PConf.badgeResolvers,
     displayResolvers: PConf.displayResolvers, hintResolvers: PConf.hintResolvers,
+    pictureResolvers: PConf.pictureResolvers,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
     selectTriggerLabel: PConf.engine.selectTriggerLabel,

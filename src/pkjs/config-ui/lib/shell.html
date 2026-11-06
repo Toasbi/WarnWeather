@@ -330,6 +330,24 @@
   .radio .dot { flex: none; width: 18px; height: 18px; border-radius: 9px; border: 2px solid var(--line-strong); display: flex; align-items: center; justify-content: center; }
   .radio button.on .dot { border-color: #FF6A52; }
   .radio button.on .dot::after { content: ''; width: 8px; height: 8px; border-radius: 4px; background: #FF6A52; }
+  /* a picture radio (item.pictureFrom, engine renderPictureRadio): the setup's picker as
+     cards, three to a line. Each card is its picture edge to edge on its own ground (the
+     round corners clip it a little) with its name under it; the picked one is ringed in
+     the accent and its name sits on the accent fill. Margins, not flex gap, which old
+     Android WebViews do not lay out. */
+  .row.picks > .lbl + div { margin-top: 12px; }
+  .row.picks > div:last-child.hint { margin-top: 2px; }
+  .pics { display: flex; flex-wrap: wrap; justify-content: center; margin: 0 -5px; }
+  .pic { flex: 0 0 33.3333%; max-width: 33.3333%; display: flex; flex-direction: column; align-items: center; margin: 0 0 12px; padding: 3px 5px 0; border: none; background: none; color: var(--muted); font: inherit; text-align: center; cursor: pointer; -webkit-appearance: none; appearance: none; }
+  .pic-img { display: block; width: 100%; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px var(--card-line); transition: box-shadow .15s; }
+  .pic-img svg { display: block; width: 100%; height: auto; }
+  .pic-lbl { display: block; width: 100%; margin-top: 7px; padding: 4px 2px; border-radius: 8px; font: 600 11.5px/1.3 'Inter', sans-serif; letter-spacing: -.01em; transition: background .15s, color .15s; }
+  .pic.on { color: #FFFFFF; }
+  .pic.on .pic-img { box-shadow: 0 0 0 2.5px #FA4A35, 0 4px 12px rgba(250,74,53,0.3); }
+  .pic.on .pic-lbl { background: linear-gradient(135deg, #FA4A35, #D93A24); box-shadow: 0 2px 6px rgba(250,74,53,0.32); }
+  .pic[disabled] { cursor: not-allowed; opacity: .38; }
+  .pic:focus-visible { outline: none; }
+  .pic:focus-visible .pic-img { box-shadow: 0 0 0 2.5px var(--fg); }
   /* dual-thumb range (type: 'range'): a stacked, full-width control — readout above,
      track with two draggable thumbs, bound labels below. Thumbs are positioned by
      `left` percentage and pulled back half their width so they centre on their value;

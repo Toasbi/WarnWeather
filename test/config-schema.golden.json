@@ -239,6 +239,9 @@
                 "optionsFrom": {
                   "resolver": "layoutPresetOptions"
                 },
+                "pictureFrom": {
+                  "resolver": "layoutPresetPicture"
+                },
                 "dormantValues": [
                   "compactDense",
                   "weatherOnly",

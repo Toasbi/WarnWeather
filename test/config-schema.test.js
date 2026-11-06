@@ -1349,8 +1349,8 @@ test('hidden compactDense renders the compactCal fallback but stays in state', (
   S.radarMode = 'off';   // dense hidden in this mode
   const html = eng.renderBody(schema, 'watchface', cx(S));
   assert.equal(S.layoutPreset, 'compactDense', 'stored dense choice survives the render');
-  assert.match(html, /class="on" data-k="layoutPreset" data-v="compactCal"/,
-    'the radio shows compactCal selected as the display fallback');
+  assert.match(html, /class="pic on" role="radio" aria-checked="true" data-k="layoutPreset" data-v="compactCal"/,
+    'the picker shows compactCal selected as the display fallback');
 
   // The generic lockstep rule is untouched: an unknown value still snaps into state.
   S.layoutPreset = 'bogus';
