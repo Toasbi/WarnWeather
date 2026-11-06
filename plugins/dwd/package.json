@@ -1,0 +1,218 @@
+{
+  "name": "dwd-weather",
+  "author": "Toasbi",
+  "version": "1.0.0",
+  "private": true,
+  "pebble": {
+    "displayName": "DWD Weather (Bright Sky)",
+    "uuid": "8e297cbf-3863-4d4e-b26a-f4ea09d62574",
+    "sdkVersion": "3",
+    "projectType": "plugin",
+    "usesPermissions": [
+      "Location",
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.brightsky.dev"
+          ]
+        }
+      }
+    ],
+    "plugin": {
+      "description": "Weather from the Deutscher Wetterdienst (DWD) for your weather locations in Germany and the countries around it, through the Bright Sky API and without a key, in your units: observations for now and the hours already past today, DWD MOSMIX forecasts every hour for four days and every day for a week, sunrise and sunset. Besides the standard weather readings it serves hourly rain chance and amount, wind, gusts, pressure, cloud cover, humidity and dew point. Places outside that area are left to the Pebble app's own weather. Enough to be the watch's weather provider (Settings > Weather). Source: Deutscher Wetterdienst, via brightsky.dev.",
+      "script": "plugin.js",
+      "sources": [
+        {
+          "category": "weather",
+          "items": [
+            "location"
+          ],
+          "properties": {
+            "name": [
+              "shortText",
+              "longText"
+            ],
+            "temperature": [
+              "shortText",
+              "longText",
+              "numericValue"
+            ],
+            "feels_like": [
+              "shortText",
+              "longText",
+              "numericValue"
+            ],
+            "high": [
+              "shortText",
+              "longText",
+              "numericValue"
+            ],
+            "low": [
+              "shortText",
+              "longText",
+              "numericValue"
+            ],
+            "condition": [
+              "shortText",
+              "longText"
+            ],
+            "condition_code": [
+              "longText"
+            ],
+            "precipitation": [
+              "numericValue",
+              "shortText"
+            ],
+            "humidity": [
+              "numericValue",
+              "shortText"
+            ],
+            "wind_speed": [
+              "numericValue",
+              "shortText"
+            ],
+            "wind_direction": [
+              "numericValue",
+              "shortText"
+            ],
+            "utc_offset": [
+              "numericValue"
+            ],
+            "sunrise": [
+              "timestamp",
+              "shortText"
+            ],
+            "sunset": [
+              "timestamp",
+              "shortText"
+            ],
+            "hourly_temperature": [
+              "series.shortText",
+              "series.longText",
+              "series.numericValue"
+            ],
+            "hourly_condition": [
+              "series.shortText",
+              "series.longText"
+            ],
+            "hourly_condition_code": [
+              "series.longText"
+            ],
+            "daily_high": [
+              "series.shortText",
+              "series.longText",
+              "series.numericValue"
+            ],
+            "daily_low": [
+              "series.shortText",
+              "series.longText",
+              "series.numericValue"
+            ],
+            "daily_condition": [
+              "series.shortText",
+              "series.longText"
+            ],
+            "daily_condition_code": [
+              "series.longText"
+            ],
+            "daily_precipitation": [
+              "series.numericValue",
+              "series.shortText"
+            ],
+            "daily_sunrise": [
+              "series.timestamp",
+              "series.shortText"
+            ],
+            "daily_sunset": [
+              "series.timestamp",
+              "series.shortText"
+            ],
+            "dew_point": [
+              "shortText",
+              "longText",
+              "numericValue"
+            ],
+            "wind_gust": [
+              "numericValue",
+              "shortText"
+            ],
+            "pressure": [
+              "numericValue",
+              "shortText",
+              "longText"
+            ],
+            "cloud_cover": [
+              "numericValue",
+              "shortText"
+            ],
+            "precipitation_amount": [
+              "numericValue",
+              "shortText"
+            ],
+            "hourly_feels_like": [
+              "series.shortText",
+              "series.longText",
+              "series.numericValue"
+            ],
+            "hourly_dew_point": [
+              "series.shortText",
+              "series.longText",
+              "series.numericValue"
+            ],
+            "hourly_precipitation": [
+              "series.numericValue",
+              "series.shortText"
+            ],
+            "hourly_precipitation_amount": [
+              "series.numericValue",
+              "series.shortText"
+            ],
+            "hourly_humidity": [
+              "series.numericValue",
+              "series.shortText"
+            ],
+            "hourly_wind_speed": [
+              "series.numericValue",
+              "series.shortText"
+            ],
+            "hourly_wind_gust": [
+              "series.numericValue",
+              "series.shortText"
+            ],
+            "hourly_wind_direction": [
+              "series.numericValue",
+              "series.shortText"
+            ],
+            "hourly_pressure": [
+              "series.numericValue",
+              "series.shortText",
+              "series.longText"
+            ],
+            "hourly_cloud_cover": [
+              "series.numericValue",
+              "series.shortText"
+            ],
+            "daily_precipitation_amount": [
+              "series.numericValue",
+              "series.shortText"
+            ],
+            "daily_wind_speed": [
+              "series.numericValue",
+              "series.shortText"
+            ],
+            "daily_wind_gust": [
+              "series.numericValue",
+              "series.shortText"
+            ]
+          },
+          "callerPermissions": [
+            "Location"
+          ],
+          "supportsMultiple": true,
+          "suggestedRefreshIntervalSec": 1800
+        }
+      ]
+    }
+  }
+}
