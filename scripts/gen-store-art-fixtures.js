@@ -8,16 +8,15 @@
 //
 // THE DAYS. Both showcases are a time-lapse of two real days in Berlin: Wednesday 25 June 2025,
 // its wet morning dried up, a windy afternoon of broken sun, and Thursday 26 June, clear and hot
-// (32 °C) until the evening storm (gusts of 103 km/h at 18:00, rain from 18:00, 8 °C cooler in an
-// hour). The weather is the offline snapshot recorded for the Berlin time-lapse
-// (fixtures/data/berlin-owm-2025-06-25, see its PROVENANCE.md): OpenWeather's hourly history for
-// the point, with the chance of rain (ECMWF IFS) and UV (NOAA GFS) filled in from Open-Meteo as
-// the app reads them, and DWD's 5-minute radar. Nothing is filled in by hand: every series is
-// read the way the app's OpenWeatherMap provider reads One Call (weatherAt), the current
-// temperature between the hours as the time-lapse's replay serves it, the sun times are the
-// history's own, and the rain alert reads the recorded radar the way the app does (countdownAt).
-// The graph gets 68 hours of the history, as a provider with the full feed sends them (DWD, the
-// radar's), so Pebble Time 2's long span shows its 66 hours.
+// (32 °C) until the evening storm (gusts of 94 km/h at 18:00, a downpour on the radar at 18:15,
+// rain into the night). The weather is the offline snapshot recorded for the promo reel, the
+// current store showcase (fixtures/data/berlin-dwd-2025-06-26, see its PROVENANCE.md): DWD's
+// hourly station records for Berlin as Bright Sky serves them, the chance of rain filled in from
+// ECMWF as the app reads it, the UV (GFS) and the AQI (CAMS) the app takes from Open-Meteo, and
+// DWD's 5-minute radar. Nothing is filled in by hand: every series is read the way the app's DWD
+// provider reads Bright Sky (weatherAt), the sun times are SunCalc's (as the app's), and the rain
+// alert reads the recorded radar the way the app does (countdownAt). DWD's feed reaches the full
+// 68 hours, so Pebble Time 2's long span shows its 66.
 //
 // The clock's time is compile-time, so every frame is a scene ('day', day-<d>-<hhmm>):
 // half-hourly through Wednesday, hourly through the night, every quarter hour as the storm
@@ -40,7 +39,7 @@
 //
 // The day's settings have no left axis on Pebble Time 2 (the owner's call: the graph looks
 // better at its full width), gusts alert at the app's levels judged on the day itself
-// (Thursday's 103 km/h shows from midnight, Wednesday's 52 stay quiet), and the rain alert
+// (Thursday's 94 km/h shows from midnight, Wednesday's 55 stay quiet), and the rain alert
 // counts down to the storm. Every scene's
 // settings name every key that any scene changes (settled), so a capture on a running
 // emulator, where a fixture's settings are merged into the last scene's
@@ -53,8 +52,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const SunCalc = require('suncalc');
 const { withTheme } = require('./gen-showcase-fixtures');
-const { mphToKmh, normalizeBearing } = require('../src/pkjs/wire-units.js');
+const { celsiusToFahrenheit, normalizeBearing } = require('../src/pkjs/wire-units.js');
+const feelsLike = require('../src/pkjs/weather/feels-like.js');
 const wizardForecast = require('../src/pkjs/settings/wizard-forecast.js');
 
 const PLATFORMS = ['emery', 'basalt', 'diorite', 'flint', 'aplite'];
@@ -68,11 +69,12 @@ const SMALL = ['basalt', 'diorite', 'flint'];
 // The colour watches, whose clock a band scene draws in black (the others take basalt's band).
 const COLOUR = ['emery', 'basalt'];
 
-const DATA = path.join('fixtures', 'data', 'berlin-owm-2025-06-25');
+const DATA = path.join('fixtures', 'data', 'berlin-dwd-2025-06-26');
 // Day 0: Wednesday 25 June 2025. Berlin keeps summer time (UTC+2) over the snapshot.
 const DAY = { year: 2025, month: 6, day: 25 };
 const UTC_OFFSET_HOURS = 2;
-// The hours of history the graph is sent: a full feed's (forecast-span-hours.js FULL_HOURS).
+const BERLIN = { lat: 52.52, lon: 13.405 };
+// The hours the graph is sent: DWD's full feed (forecast-span-hours.js FULL_HOURS).
 const FEED_HOURS = 68;
 // Germany's public holidays of 2025, Nager.Date's (the app's holiday source), in
 // nager-source.js' cache shape: the nationwide ones, and the regions of the others. A Berlin user
@@ -100,7 +102,7 @@ const FRAMES = [].concat(
 
 // Pebble Time 2's opening: Wednesday from noon to 15:00 in the long span.
 const INTRO = halfHours(12, 15).concat('15:00').map((t) => [0, t]);
-const INTRO_CLAY = { forecastHours: '48' };
+const INTRO_CLAY = { forecastHours: '48', forecastAxisNumbers: 'graph' };
 
 // The setup's forecast looks (wizard-forecast.js), as it writes them on a Pebble Time 2 (the
 // other watches ignore the left axis and, in black and white, the bars' colour). Classic is a
@@ -111,18 +113,27 @@ const CLASSIC = LOOKS.classic;
 const STRIPES = LOOKS.stripes;
 const CLEAN = LOOKS.clean;
 
-// The day's settings, every scene's: the dark theme, the Roboto clock, the compact calendar,
-// the Classic graph over 24 hours without a left axis, the forecast row's temperature, city and
-// UV (now and the day's max), the rain alert from DWD's radar, gusts as an On demand alert
-// beside the battery at the app's own levels (65 and 90 km/h, judged on the day itself:
-// Wednesday's 52 stay quiet, Thursday's storm shows from midnight), Berlin's holidays.
+// The day's settings, every scene's: the current store showcase's dense look (the promo reel's
+// berlin-dense: the compact calendar with a second status bar above the clock for the AQI, the
+// wind and the gusts, each now and the day's peak, the wind with its direction; the Forecast
+// Status Bar's temperature with its feels-like, the city; the top bar's week, date and battery),
+// with the UV slot (now and the day's max) where the reel has the next sun event, in the dark
+// theme with the Roboto clock and the Classic graph over 24 hours without a left axis. Alerts
+// beside the battery: the rain alert from DWD's radar on the left, gusts on the right at the
+// app's levels judged on the day itself (Wednesday's 55 km/h stay quiet, Thursday's 94 shows
+// from midnight).
 const DAY_CLAY = Object.assign({
-  theme: 'dark', timeFont: 'roboto', layoutPreset: 'compactCal', dayNightShading: true,
+  theme: 'dark', timeFont: 'roboto', layoutPreset: 'compactDense', dayNightShading: true,
   forecastHours: '24', healthMode: 'off', hrScale: '50-100',
-  radarProvider: 'dwd', radarMode: 'countdown', radarColor: 'multicolor', rainCountdownHorizon: '60',
+  radarProvider: 'dwd', radarMode: 'status', radarColor: 'multicolor', rainCountdownHorizon: '60',
+  aqiSource: 'openmeteo', aqiScale: 'european', temperatureUnits: 'c', windUnits: 'kph',
+  statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'battery',
+  statusRadarLeft: 'aqi', statusRadarMid: 'wind', statusRadarRight: 'gust',
+  windSlotDisplay: 'both', windSlotDirection: true, gustSlotDisplay: 'both', windSlotUnit: true, gustSlotUnit: true,
   statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'uv', uvSlotDisplay: 'both',
+  tempSlotDisplay: 'both', tempSlotSeparator: 'bar', tempSlotUnit: false,
   statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep',
-  statusTopOnDemandRightItems: 'battery,gust',
+  statusTopOnDemandLeftItems: 'rain,bt,qt,snooze', statusTopOnDemandRightItems: 'battery,gust',
   threshGustOn: true, threshGustWarn: '65', threshGustDanger: '90', alertGustDays: 'today',
   alertGustDisplay: 'value', threshUvOn: false, holidayCountry: 'DE', holidayRegion: HOLIDAY_REGION,
 }, CLASSIC);
@@ -141,7 +152,7 @@ const HEALTH_VIEW = {
 const CALM = {
   emery: [
     { from: [0, '12:00'], name: 'full', clay: { layoutPreset: 'fullCal' } },
-    { from: [0, '17:00'], name: 'compact', clay: { layoutPreset: 'compactCal' } },
+    { from: [0, '17:00'], name: 'dense', clay: { layoutPreset: 'compactDense' } },
     { from: [0, '22:00'], name: 'long', clay: { forecastHours: '48' } },
     { from: [1, '03:00'], name: 'stripes', clay: STRIPES },
     { from: [1, '09:00'], name: 'clean', clay: CLEAN },
@@ -149,14 +160,15 @@ const CALM = {
   ],
   small: [
     { from: [0, '12:00'], name: 'full', clay: { layoutPreset: 'fullCal' } },
-    { from: [0, '17:00'], name: 'compact', clay: { layoutPreset: 'compactCal' } },
+    { from: [0, '17:00'], name: 'dense', clay: { layoutPreset: 'compactDense' } },
     { from: [0, '22:00'], name: 'stripes', clay: STRIPES },
     { from: [1, '06:00'], name: 'clean', clay: CLEAN },
     { from: [1, '13:00'], name: 'nocal', clay: { layoutPreset: 'noCal' } },
   ],
   aplite: [
     { from: [0, '12:00'], name: 'full', clay: { layoutPreset: 'fullCal' } },
-    { from: [0, '18:00'], name: 'compact', clay: { layoutPreset: 'compactCal' } },
+    // Aplite has no second status bar: its compact calendar is the dense look's (dormant there).
+    { from: [0, '18:00'], name: 'compact', clay: { layoutPreset: 'compactDense' } },
     { from: [1, '08:00'], name: 'nocal', clay: { layoutPreset: 'noCal' } },
   ],
 };
@@ -305,21 +317,22 @@ function lookValues() {
 }
 
 /**
- * The real weather (DATA): OpenWeather's hourly history for Berlin (filled), and DWD's radar.
- * @returns {{hourly: Object[], radar: Object}} The history's records (one an hour, ascending)
- *   and the radar window.
+ * The real weather (DATA): DWD's hourly records as Bright Sky serves them (filled), the GFS UV and
+ * the CAMS AQI as Open-Meteo answers them, each by its epoch second, and the radar window.
+ * @returns {{records: Map<number, Object>, uv: Map<number, number>, aqi: Map<number, number>,
+ *   radar: Object}} The data.
  */
 function realData() {
-  const history = JSON.parse(fs.readFileSync(path.join(DATA, 'owm-history.filled.json'), 'utf8'));
-  const radar = JSON.parse(fs.readFileSync(path.join(DATA, 'radar-dwd-yw-window.json'), 'utf8'));
-  const hourly = history.hourly;
-  if (history.units !== 'imperial' || history.timezone_offset !== UTC_OFFSET_HOURS * 3600) {
-    throw new Error(DATA + ': not imperial at UTC+' + UTC_OFFSET_HOURS);
-  }
-  for (let i = 1; i < hourly.length; i++) {
-    if (hourly[i].dt !== hourly[i - 1].dt + 3600) { throw new Error(DATA + ': a gap after ' + hourly[i - 1].dt); }
-  }
-  return { hourly, radar };
+  const read = (name) => JSON.parse(fs.readFileSync(path.join(DATA, name), 'utf8'));
+  const records = new Map(read('brightsky-weather.filled.json').weather
+    .map((r) => [Date.parse(r.timestamp) / 1000, r]));
+  const byTime = (json, key) => new Map(json.hourly.time.map((t, i) => [t, json.hourly[key][i]]));
+  return {
+    records,
+    uv: byTime(read('openmeteo-uv-gfs.json'), 'uv_index'),
+    aqi: byTime(read('air-quality.json'), 'european_aqi'),
+    radar: read('radar-dwd-yw-window.json'),
+  };
 }
 
 /**
@@ -333,22 +346,38 @@ function epochOf(at) {
 }
 
 /**
- * The next two sun events after a moment, the history's own (each record carries its day's
- * sunrise and sunset, as One Call's daily does), in the fixture's readable form, days counted
- * from the moment's.
- * @param {Object} data realData().
+ * A record's feels-like (°F), the way the app's DWD provider works it out (dwd.js hourFeels):
+ * Steadman from the humidity, else from the dew point, else the temperature.
+ * @param {Object} r A Bright Sky record.
+ * @returns {number} °F.
+ */
+function hourFeels(r) {
+  const tempF = celsiusToFahrenheit(r.temperature);
+  let feels = feelsLike.feelsLikeF(tempF, r.relative_humidity, r.wind_speed || 0);
+  if (feels === null && typeof r.dew_point === 'number') {
+    feels = feelsLike.feelsLikeFromDewF(tempF, celsiusToFahrenheit(r.dew_point), r.wind_speed || 0);
+  }
+  return feels === null ? tempF : feels;
+}
+
+/**
+ * The next two sun events after a moment, SunCalc's for Berlin (as the app's sun-events.js for
+ * DWD, whose records carry none), in the fixture's readable form, days counted from the moment's.
  * @param {[number, string]} at The moment.
  * @returns {{type: string, dayOffset: number, hour: number, minute: number}[]} Two events.
  */
-function nextSunEvents(data, at) {
+function nextSunEvents(at) {
   const now = epochOf(at);
   const day0 = epochOf([at[0], '00:00']);
-  const seen = new Map();
-  for (const r of data.hourly) {
-    seen.set(r.sunrise, 'sunrise');
-    seen.set(r.sunset, 'sunset');
+  const events = [];
+  for (let d = at[0]; d <= at[0] + 2; d++) {
+    const times = SunCalc.getTimes(new Date(Date.UTC(DAY.year, DAY.month - 1, DAY.day + d, 10)), BERLIN.lat, BERLIN.lon);
+    for (const type of ['sunrise', 'sunset']) {
+      const t = Math.floor(times[type].getTime() / 1000);
+      if (t > now) { events.push([t, type]); }
+    }
   }
-  return [...seen.entries()].filter(([t]) => t > now).sort((x, y) => x[0] - y[0]).slice(0, 2).map(([t, type]) => {
+  return events.sort((x, y) => x[0] - y[0]).slice(0, 2).map(([t, type]) => {
     const local = new Date((t + UTC_OFFSET_HOURS * 3600) * 1000);
     return { type, dayOffset: Math.floor((t - day0) / 86400), hour: local.getUTCHours(), minute: local.getUTCMinutes() };
   });
@@ -394,13 +423,13 @@ function countdownAt(radar, now, horizon = 60) {
 }
 
 /**
- * A moment's weather, read from the history the way the app's OpenWeatherMap provider reads One
- * Call (openweathermap.js mapOneCall): slot i the record of the hour starting i hours after the
- * moment's own, its temperature and feels-like (°F), chance of rain, rain and snow of the hour,
- * wind and gusts (mph to km/h), UV, pressure, cloud cover, dew point and bearing, FEED_HOURS of
- * them; the current temperature and feels-like between the moment's hour and the next at the
- * 10-minute floor, as the time-lapse's replay serves One Call's current; the clock, the sun
- * events after it and the rain alert at it.
+ * A moment's weather, read from the records the way the app's DWD provider reads Bright Sky
+ * (dwd.js slotRecords): slot i the hour starting i hours after the moment's own, its instants
+ * (temperature, wind, pressure, cloud cover, dew point, bearing, feels-like) from the record
+ * stamped at that hour, its hour totals (rain, its chance, gusts) and the UV (openmeteo.js mapUv)
+ * from the one stamped an hour on, the AQI (air-quality.js mapAqi) at the hour; FEED_HOURS of
+ * them. The current temperature is the moment's hour's record (the last one before it); the
+ * clock, the sun events after it and the rain alert at it.
  * @param {Object} data realData().
  * @param {[number, string]} at The moment.
  * @returns {Object} The fixture, before the scene's settings.
@@ -408,33 +437,38 @@ function countdownAt(radar, now, horizon = 60) {
 function weatherAt(data, at) {
   const [hour, minute] = at[1].split(':').map(Number);
   const now = epochOf(at);
-  const hourStart = now - minute * 60;
-  const i0 = data.hourly.findIndex((r) => r.dt === hourStart);
-  if (i0 < 0 || i0 + FEED_HOURS > data.hourly.length) { throw new Error('the history has no ' + FEED_HOURS + ' hours from ' + at); }
-  const rows = data.hourly.slice(i0, i0 + FEED_HOURS);
-  const between = (key) => {
-    const a = data.hourly[i0][key];
-    const b = data.hourly[i0 + 1][key];
-    return r2(a + (b - a) * (Math.floor(minute / 10) * 10) / 60);
-  };
-  const amount = (r, kind) => (r[kind] && typeof r[kind]['1h'] === 'number' ? r[kind]['1h'] : 0);
+  const start = now - minute * 60;
+  const own = [];
+  const next = [];
+  const uv = [];
+  const aqi = [];
+  for (let i = 0; i < FEED_HOURS; i++) {
+    const t = start + i * 3600;
+    const [r, f] = [data.records.get(t), data.records.get(t + 3600)];
+    if (!r || !f || !data.uv.has(t + 3600) || !data.aqi.has(t)) { throw new Error('the data has no hour ' + t + ' for ' + at); }
+    own.push(r);
+    next.push(f);
+    uv.push(data.uv.get(t + 3600));
+    aqi.push(data.aqi.get(t));
+  }
   const weather = {
     city: 'Berlin',
     startHour: hour,
-    currentTemp: between('temp'),
-    currentFeels: between('feels_like'),
-    temps: rows.map((r) => r.temp),
-    feelsTemps: rows.map((r) => r.feels_like),
-    precipPct: rows.map((r) => r2(r.pop * 100)),
-    rainMm: rows.map((r) => r2(amount(r, 'rain') + amount(r, 'snow'))),
-    windKmh: rows.map((r) => r2(mphToKmh(r.wind_speed))),
-    gustKmh: rows.map((r) => r2(mphToKmh(r.wind_gust))),
-    uvIndex: rows.map((r) => r.uvi),
-    windDirection: rows.map((r) => normalizeBearing(r.wind_deg)),
-    cloudPct: rows.map((r) => r.clouds),
-    dewPoint: rows.map((r) => r.dew_point),
-    pressureHpa: rows.map((r) => r.pressure),
-    sunEvents: nextSunEvents(data, at),
+    currentTemp: r2(celsiusToFahrenheit(own[0].temperature)),
+    currentFeels: r2(hourFeels(own[0])),
+    temps: own.map((r) => r2(celsiusToFahrenheit(r.temperature))),
+    feelsTemps: own.map((r) => r2(hourFeels(r))),
+    precipPct: next.map((r) => r.precipitation_probability || 0),
+    rainMm: next.map((r) => r.precipitation || 0),
+    windKmh: own.map((r) => r.wind_speed || 0),
+    gustKmh: next.map((r) => r.wind_gust_speed || 0),
+    uvIndex: uv,
+    aqi,
+    windDirection: own.map((r) => normalizeBearing(r.wind_direction)),
+    cloudPct: own.map((r) => r.cloud_cover || 0),
+    dewPoint: own.map((r) => r2(celsiusToFahrenheit(r.dew_point))),
+    pressureHpa: own.map((r) => r.pressure_msl || 0),
+    sunEvents: nextSunEvents(at),
   };
   const date = new Date(Date.UTC(DAY.year, DAY.month - 1, DAY.day + at[0], hour, minute));
   const fx = {

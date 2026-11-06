@@ -121,19 +121,20 @@ Each platform's listing shows, in this order:
      what the screen shows (the UV slot's Now / Day max / Both, the forecast length and the
      left axis on Pebble Time 2, tomorrow's `»` at night, the calendar, the UV slot's values,
      the setup's forecast looks, the alerts before the storm), then the layouts and the wordmark.
-   - `1-showcase-calm.gif`, the calm one, without words: the days hour by hour while the
-     settings change one at a time, from the three-week calendar to none, through the setup's
-     forecast looks (Classic, Stripes with its rain bars from the top, Clean) and on Pebble
-     Time 2 the long span.
+   - `1-showcase-calm.gif`, the calm one, without words: the days hour by hour without a stop
+     while the settings change one at a time, from the three-week calendar to the dense one and
+     to none, through the setup's forecast looks (Classic, Stripes with its rain bars from the
+     top, Clean) and on Pebble Time 2 the long span.
 2. `2-…png` to `6-…png`: five store screens, a headline over the watch's screen: the forecast,
    the alerts, the health view, the UV slot's values, Weather only (aplite: the forecast, the
    UV graph, the UV slot's values, the calendar, No calendar).
 3. The real-day time-lapse GIFs already on the listing (a day of real weather, frame by
    frame), kept as they are.
 
-Their weather is real (`fixtures/data/berlin-owm-2025-06-25/`): credit it where the GIFs and
-screens are shown, e.g. at the end of the description: "Showcase weather: Weather data ©
-OpenWeather (ODbL); radar: Deutscher Wetterdienst, CC BY 4.0; Open-Meteo.com, CC BY 4.0."
+Their weather is real (`fixtures/data/berlin-dwd-2025-06-26/`, the promo reel's): credit it
+where the GIFs and screens are shown, e.g. at the end of the description: "Showcase weather:
+Deutscher Wetterdienst (CC BY 4.0), Open-Meteo.com (CC BY 4.0), Copernicus Atmosphere Monitoring
+Service."
 
 The old promo reel and the single screenshots are replaced by 1 and 2. Build the set with:
 

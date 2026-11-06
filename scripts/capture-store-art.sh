@@ -98,12 +98,13 @@ fresh_phone() {
   fi
 }
 
-# Build phase: one build per fixture, skipping a stash whose fixture hasn't changed. The unit
+# Build phase: one build per fixture the platforms capture, skipping a stash whose fixture hasn't
+# changed. The unit
 # suites are skipped per build (run `mise test` before capturing); WW_HEALTH_FIXTURE=1 bakes
 # the canned health numbers the health view and slots show.
 export WW_SKIP_TESTS=1 WW_HEALTH_FIXTURE=1
 mkdir -p "$pbw_dir"
-for slug in $(scene_rows | awk '{print $3}' | sort -u); do
+for slug in $(scene_rows | awk -v ps=" ${platforms[*]} " 'index(ps, " " $2 " ") {print $3}' | sort -u); do
   sum="$(shasum -a 256 "fixtures/$slug.json" 2>/dev/null || sha256sum "fixtures/$slug.json")"
   sum="${sum%% *}"
   if [[ -f "$pbw_dir/$slug.pbw" && "$(cat "$pbw_dir/$slug.sha256" 2>/dev/null)" == "$sum" ]]; then

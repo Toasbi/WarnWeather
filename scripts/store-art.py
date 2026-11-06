@@ -56,7 +56,7 @@ FONTS = os.path.join(ROOT, 'screenshot', 'fonts')
 
 TICK_MS = 40                # 25 frames a second
 PLATFORMS = ('emery', 'basalt', 'diorite', 'flint', 'aplite')
-LOOP_S = (14.0, 70.0)       # the showcase's length, s
+LOOP_S = (14.0, 85.0)       # the showcase's length, s
 GIF_BUDGET = 1536 * 1024    # bytes (the store took the old 41 s reel at 945 KB; it states no limit)
 
 BLACK = (0, 0, 0)
@@ -658,8 +658,8 @@ def draw_chip(image, watch, text, box, alpha=1.0, text_alpha=None, dy=0.0, texts
 
 
 # The timing, in ticks of TICK_MS.
-RUN_TICKS = 4             # a day frame, as the day runs (its first tick half the last frame)
-MORNING_TICKS = 8         # the same in the first run, the day's view read before the first card
+RUN_TICKS = 6             # a day frame, as the day runs (its first tick half the last frame)
+MORNING_TICKS = 10        # the same in the first run, the day's view read before the first card
 INTRO_FIRST = 25          # Pebble Time 2's opening: its first frame, held
 INTRO_TICKS = 12          # each next frame of it
 INTRO_SWITCH = 24         # its last frame redrawn as the day's view of the same moment
@@ -673,10 +673,8 @@ FIRST_EXTRA = 5           # a card's first step: its name is read with it
 SETTLE = 6                # the day stopped at a frame, before the card unfolds
 LOOP = 9                  # into the wordmark, and from it into the first frame
 # The calm run (no words): an hour a frame, a setting changed now and then.
-CALM_TICKS = 14           # an hour
-CALM_SETTLE = 10          # a step's moment, held before its setting changes
-CALM_CHANGE = 30          # the setting changing
-CALM_AFTER = 14           # the changed screen, held before the run goes on
+CALM_TICKS = 18           # an hour
+CALM_CHANGE = 30          # an hour in which a setting changes, the screen changing with it
 CALM_FADE = 18            # the last hour into black and black into the first, at the loop
 
 
@@ -705,7 +703,7 @@ CALM_FADE = 18            # the last hour into black and black into the first, a
 # calendar: their highlight colour), or nowhere (None). A '{name}' in a line is one of the days'
 # numbers (NUMBERS: the UV now and the day's max at 10:00 on Thursday, the storm's gust), so the
 # words say what the watch shows. The days (gen-store-art-fixtures.js): Wednesday 25 June 2025,
-# dry from noon and windy; Thursday clear and hot, its storm at 18:00 (103 km/h, a downpour on the
+# dry from noon and windy; Thursday clear and hot, its storm at 18:00 (94 km/h, a downpour on the
 # radar at 18:15).
 NOT_APLITE = ('emery', 'basalt', 'diorite', 'flint')
 STORY = (
@@ -722,8 +720,8 @@ STORY = (
     ('stop', ('moment', 'UV index slot', (
         ('day-0-2200', ('After sunset: » marks\ntomorrow\'s max', '» is tomorrow\'s max'), 'slot'),))),
     ('run', 'day-1-0800'),
-    ('stop', ('setting', 'Layout', ('Full calendar', 'Compact', 'No calendar'), (
-        ('day-1-0800', 1, ('Two weeks, a bigger graph', 'Two weeks'), None),
+    ('stop', ('setting', 'Layout', ('Full', 'Dense', 'None'), (
+        ('day-1-0800', 1, ('Two status bars at once', 'Two status bars'), None),
         ('cal-full', 0, 'Three weeks in view', 'calendar')))),
     ('run', 'day-1-1000'),
     ('stop', ('setting', 'UV index slot', ('Now', 'Day max', 'Both'), (
@@ -749,7 +747,7 @@ STORY = (
 )
 # The days' numbers as the captures show them (checked by eye against the frames: the UV slot at
 # 10:00 on Thursday, the gust alert at 18:00).
-NUMBERS = {'uv_now': 5, 'uv_max': 7, 'gust': 103}
+NUMBERS = {'uv_now': 5, 'uv_max': 7, 'gust': 94}
 
 
 def numbered(line):
@@ -1243,29 +1241,31 @@ class Showcase:
 
 
 class Calm(Showcase):
-    """One watch's calm showcase: the days hour by hour, no words; at a step the run holds its
-    moment while the setting changes (the layout moving, or the graph redrawn), then goes on;
-    at the end the last hour fades to black and black into the first."""
+    """One watch's calm showcase: the days hour by hour without a stop and without words. At a
+    step the run goes from the hour before it, in the settings before, into the step's hour in
+    the new settings, the screen changing (its rows moving where the layout moves, else redrawn)
+    while the clock moves on; at the end the last hour fades to black and black into the first."""
 
     def build(self):
         run = self.screens.calm[self.watch.name]
-        last = None
-        for frame in run:
+        shown = None
+        for k, frame in enumerate(run):
             scene = frame['id']
             if not self.has(scene):
                 raise SystemExit('%s: the calm run\'s %s is not captured there' % (self.watch.name, scene))
-            if last is None:
+            if k + 1 < len(run) and run[k + 1]['at'] == frame['at']:
+                continue    # the step's hour in the settings before it: the run goes past it
+            if shown is None:
                 self.reel.add(self.shot(scene), CALM_TICKS)
-            elif frame['at'] == last['at']:
-                self.reel.add(self.shot(last['id']), CALM_SETTLE)
+            elif k > 0 and run[k - 1]['at'] == frame['at']:
                 for i in range(1, CALM_CHANGE):
-                    self.reel.add(self.change(last['id'], scene, ease(i / CALM_CHANGE)), fading=True)
-                self.reel.add(self.shot(scene), CALM_AFTER)
-            else:
-                self.reel.add(Image.blend(self.shot(last['id']), self.shot(scene), 0.5), fading=True)
+                    self.reel.add(self.change(shown, scene, ease(i / CALM_CHANGE)), fading=True)
                 self.reel.add(self.shot(scene), CALM_TICKS - 1)
-            last = frame
-        end, first = self.shot(last['id']), self.shot(run[0]['id'])
+            else:
+                self.reel.add(Image.blend(self.shot(shown), self.shot(scene), 0.5), fading=True)
+                self.reel.add(self.shot(scene), CALM_TICKS - 1)
+            shown = scene
+        end, first = self.shot(shown), self.shot(run[0]['id'])
         black = Image.new('RGB', end.size, BLACK)
         for i in range(1, CALM_FADE):
             self.reel.add(Image.blend(end, black, ease(i / CALM_FADE)), fading=True)

@@ -12,7 +12,7 @@ const {
   minuteOf, epochOf,
 } = require('../scripts/gen-store-art-fixtures');
 const wizardForecast = require('../src/pkjs/settings/wizard-forecast.js');
-const { mphToKmh } = require('../src/pkjs/wire-units.js');
+const { celsiusToFahrenheit } = require('../src/pkjs/wire-units.js');
 
 let cache = null;
 /**
@@ -44,22 +44,22 @@ test('writes a fixture per scene and per platform variant', () => {
   }
 });
 
-test('the real weather: the Berlin snapshot, read as the app reads One Call, nothing filled in by hand', () => {
+test('the real weather: the reel\'s DWD snapshot, read as the app reads Bright Sky, nothing filled in by hand', () => {
   const data = realData();
-  assert.equal(data.hourly.length, 217);
+  assert.ok(data.records.size > 500);
   assert.equal(data.radar.frame_count, data.radar.frames.length);
   const fx = generate();
   for (const slug of Object.keys(fx)) {
     const w = fx[slug].weather;
     assert.equal(w.temps.length, FEED_HOURS, slug);
-    for (const key of ['feelsTemps', 'precipPct', 'rainMm', 'windKmh', 'gustKmh', 'uvIndex', 'cloudPct', 'dewPoint', 'pressureHpa']) {
+    for (const key of ['feelsTemps', 'precipPct', 'rainMm', 'windKmh', 'gustKmh', 'uvIndex', 'aqi', 'cloudPct', 'dewPoint', 'pressureHpa']) {
       assert.equal(w[key].length, FEED_HOURS, slug + ' ' + key);
     }
     assert.equal(w.rainRadarExactMm, undefined, slug);
   }
 });
 
-test('the day runs forward: each frame later than the last, its records from its own hour', () => {
+test('the day runs forward: each frame later than the last, its instants from its hour\'s record, its totals from the next', () => {
   const fx = generate();
   const data = realData();
   let last = -1;
@@ -69,31 +69,31 @@ test('the day runs forward: each frame later than the last, its records from its
     assert.deepEqual(frame.watch.now, { year: 2025, month: 6, day: 25 + day, hour, minute, second: 0 }, time);
     assert.ok(minuteOf([day, time]) > last, time + ' after the frame before it');
     last = minuteOf([day, time]);
-    const i = data.hourly.findIndex((r) => r.dt === epochOf([day, time]) - minute * 60);
-    const [r, next] = [data.hourly[i], data.hourly[i + 1]];
+    const t = epochOf([day, time]) - minute * 60;
+    const [r, f] = [data.records.get(t), data.records.get(t + 3600)];
     const w = frame.weather;
     assert.equal(w.startHour, hour);
-    assert.equal(w.temps[0], r.temp);
-    assert.equal(w.precipPct[1], Math.round(next.pop * 10000) / 100);
-    assert.equal(w.uvIndex[1], next.uvi);
-    assert.equal(w.gustKmh[0], Math.round(mphToKmh(r.wind_gust) * 100) / 100);
-    assert.equal(w.rainMm[0], Math.round(((r.rain && r.rain['1h']) || 0) * 100) / 100);
-    // The current temperature between the hours, at the 10-minute floor.
-    const step = Math.floor(minute / 10) * 10 / 60;
-    assert.equal(w.currentTemp, Math.round((r.temp + (next.temp - r.temp) * step) * 100) / 100);
+    assert.equal(w.currentTemp, Math.round(celsiusToFahrenheit(r.temperature) * 100) / 100);
+    assert.equal(w.temps[0], w.currentTemp);
+    assert.equal(w.rainMm[0], f.precipitation);
+    assert.equal(w.precipPct[0], f.precipitation_probability);
+    assert.equal(w.gustKmh[0], f.wind_gust_speed);
+    assert.equal(w.windKmh[0], r.wind_speed);
+    assert.equal(w.uvIndex[0], data.uv.get(t + 3600));
+    assert.equal(w.aqi[0], data.aqi.get(t));
   }
 });
 
-test('the sun events are the history\'s own, the next two after the clock', () => {
+test('the sun events are SunCalc\'s for Berlin, the next two after the clock', () => {
   const fx = generate();
-  assert.deepEqual(fx['art-day-0-1200'].weather.sunEvents.map((e) => e.type), ['sunset', 'sunrise']);
-  assert.equal(fx['art-day-0-1200'].weather.sunEvents[1].dayOffset, 1);
+  assert.deepEqual(fx['art-day-0-1200'].weather.sunEvents,
+    [{ type: 'sunset', dayOffset: 0, hour: 21, minute: 34 }, { type: 'sunrise', dayOffset: 1, hour: 4, minute: 46 }]);
   assert.deepEqual(fx['art-day-0-2200'].weather.sunEvents.map((e) => [e.type, e.dayOffset]), [['sunrise', 1], ['sunset', 1]]);
 });
 
-test('the storm: gusts of 103 km/h at 18:00 on Thursday, the radar\'s downpour counted down to 18:15', () => {
+test('the storm: gusts of 94 km/h at 18:00 on Thursday, the radar\'s downpour counted down to 18:15', () => {
   const fx = generate();
-  assert.equal(Math.round(fx['art-day-1-1800'].weather.gustKmh[0]), 103);
+  assert.equal(Math.round(fx['art-day-1-1800'].weather.gustKmh[0]), 94);
   assert.ok(Math.max(...fx['art-day-0-1200'].weather.gustKmh.slice(0, 12)) < 65, 'Wednesday stays below the alert');
   assert.deepEqual(fx['art-day-1-1715'].countdown, { mins: 60, raining: false, tier: 5 });
   assert.deepEqual(fx['art-day-1-1800'].countdown, { mins: 15, raining: false, tier: 5 });
@@ -146,6 +146,10 @@ test('the graph: the setup\'s forecast looks, no left axis on Pebble Time 2 unle
   assert.equal(STRIPES.rainBarFrom, 'top');
   assert.equal(CLEAN.forecastAxisNumbers, 'graph');
   assert.equal(DAY_CLAY.forecastAxisNumbers, 'off');
+  // The current store showcase's dense status slots.
+  assert.equal(DAY_CLAY.layoutPreset, 'compactDense');
+  assert.deepEqual([DAY_CLAY.statusRadarLeft, DAY_CLAY.statusRadarMid, DAY_CLAY.statusRadarRight], ['aqi', 'wind', 'gust']);
+  assert.equal(DAY_CLAY.tempSlotDisplay, 'both');
   const fx = generate();
   assert.equal(fx['art-axis-on'].claySettings.forecastAxisNumbers, 'axis');
   assert.equal(fx['art-look-stripes'].claySettings.rainBarFrom, 'top');
@@ -166,10 +170,10 @@ test('the alerts as the story needs them: gusts at the app\'s levels on the day 
   assert.deepEqual(HOLIDAYS.days.find(([md]) => md === '05-08'), ['05-08', ['DE-BE']]);
 });
 
-test('no scene shows the rain radar: the radar runs for the rain alert, Weather only with it Off', () => {
+test('no scene shows the rain radar: the radar runs for the status bar and the rain alert, Weather only with it Off', () => {
   const fx = generate();
   for (const slug of Object.keys(fx)) {
-    assert.ok(['countdown', 'off'].includes(fx[slug].claySettings.radarMode), slug);
+    assert.ok(['status', 'off'].includes(fx[slug].claySettings.radarMode), slug);
   }
   assert.equal(fx['art-layout-weather'].claySettings.layoutPreset, 'weatherOnly');
   assert.equal(fx['art-layout-weather'].claySettings.radarMode, 'off');
