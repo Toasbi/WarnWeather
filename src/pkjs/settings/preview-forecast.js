@@ -267,6 +267,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     };
 
     /**
+     * NOON in the watch's temperature unit: on a Fahrenheit watch its temperature-axis series
+     * (temperature, feels like, dew point) in whole °F, as forecast-sample.js sample() converts
+     * the setup's sample; the other series and the hours as they are.
+     * @param {string} [units] The temperatureUnits setting, 'c' or 'f'.
+     * @returns {Object} NOON, or a °F copy of it.
+     */
+    function noonIn(units) {
+        if (units !== 'f') { return NOON; }
+        var out = {}, k;
+        for (k in NOON) { if (Object.prototype.hasOwnProperty.call(NOON, k)) { out[k] = NOON[k]; } }
+        ['temps', 'feels', 'dew'].forEach(function (series) {
+            out[series] = NOON[series].map(function (c) { return Math.round(c * 9 / 5 + 32); });
+        });
+        return out;
+    }
+
+    /**
      * The forecast-graph preview block: temp curve, up to three metric lines — each
      * in its selected style (thin/thick line, square dots, x marks); the main one
      * optionally filled — rain bars, night band, axis and legend — the same z-order
@@ -321,9 +338,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // silhouette on top (BAR_OUTLINED is drawn in every theme but colour-dark).
         var barEdge = (isColor && isLightPolarity(cx.theme)) ? ink.fg : null;
 
-        // The weather drawn: the noon scenario below, or the caller's sample (the setup wizard's
-        // spans). Its nights are [from, to] slot positions.
-        var sample = (opts && opts.sample) || NOON;
+        // The weather drawn: the noon scenario above in the watch's temperature unit, or the
+        // caller's sample (the setup wizard's spans). Its nights are [from, to] slot positions.
+        var sample = (opts && opts.sample) || noonIn(state && state.temperatureUnits);
         var temps = sample.temps, precip = sample.precip, wind = sample.wind, rain = sample.rain,
             gust = sample.gust, uv = sample.uv, feels = sample.feels, dew = sample.dew,
             pressure = sample.pressure, cloud = sample.cloud;
