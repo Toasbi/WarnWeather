@@ -206,13 +206,13 @@ test('the manifest: where each scene is captured, the forecast length labels, th
   }
 });
 
-test('the calm run: hour by hour from the three-week calendar to none, one step at a time, each a while', () => {
+test('the calm run: hour by hour from the calm Saturday, the three-week calendar to none, one step at a time', () => {
   const runs = calmRuns();
   const byId = Object.fromEntries(manifest().map((s) => [s.id, s]));
   const fx = generate();
   for (const platform of PLATFORMS) {
     const run = runs[platform];
-    assert.equal(run[0].id, 'calm-full-0-1200', platform);
+    assert.equal(run[0].id, platform === 'emery' ? 'calm-full-66h-0621-1100' : 'calm-full-0621-1100', platform);
     assert.deepEqual(run[run.length - 1].at, CALM_FRAMES[CALM_FRAMES.length - 1], platform);
     let steps = 0;
     let since = 0;
@@ -232,7 +232,7 @@ test('the calm run: hour by hour from the three-week calendar to none, one step 
     }
     const last = fx['art-' + run[run.length - 1].id].claySettings;
     assert.equal(last.layoutPreset, 'noCal', platform + ' ends without a calendar');
-    assert.equal(steps, { emery: 5, aplite: 2 }[platform] || 4, platform);
+    assert.equal(steps, platform === 'aplite' ? 3 : 6, platform);
   }
   assert.equal(fx['art-' + runs.emery[runs.emery.length - 1].id].claySettings.forecastHours, '48');
   const looks = runs.basalt.map((f) => fx['art-' + f.id].claySettings.rainBarFrom);
@@ -244,7 +244,7 @@ test('every fixture\'s weather is a payload the app sends', () => {
   global.localStorage = global.localStorage || { getItem: () => null, setItem: () => {}, removeItem: () => {} };
   const fixtureWeather = require('../src/pkjs/fixture-weather.js');
   const fx = generate();
-  for (const slug of ['art-day-0-1200', 'art-intro-0-1200', 'art-calm-full-0-1200', 'art-day-1-1800']) {
+  for (const slug of ['art-day-0-1200', 'art-intro-0-1200', 'art-calm-full-66h-0621-1100', 'art-calm-nocal-clean-bitham-0626-2100', 'art-day-1-1800']) {
     const payload = fixtureWeather.getFixtureWeatherPayload(fx[slug], fx[slug].claySettings, { platform: 'emery' });
     assert.ok(payload, slug);
   }

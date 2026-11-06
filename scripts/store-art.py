@@ -658,24 +658,24 @@ def draw_chip(image, watch, text, box, alpha=1.0, text_alpha=None, dy=0.0, texts
 
 
 # The timing, in ticks of TICK_MS.
-RUN_TICKS = 6             # a day frame, as the day runs (its first tick half the last frame)
-MORNING_TICKS = 10        # the same in the first run, the day's view read before the first card
-INTRO_FIRST = 25          # Pebble Time 2's opening: its first frame, held
-INTRO_TICKS = 12          # each next frame of it
-INTRO_SWITCH = 24         # its last frame redrawn as the day's view of the same moment
-INTRO_REST = 15           # the day's view, held before the day runs on
-OPEN = 10                 # a card unfolding
-STEP = 20                 # a step to the next: the selection slides, the screen changes with it
-CLOSE = 12                # a card folding back into the clock
-CHIP = 5                  # a layout coming in, its label after it
+RUN_TICKS = 3             # a day frame, as the day runs (its first tick half the last frame)
+MORNING_TICKS = 5         # the same in the first run, the day's view read before the first card
+INTRO_FIRST = 15          # Pebble Time 2's opening: its first frame, held
+INTRO_TICKS = 6           # each next frame of it
+INTRO_SWITCH = 10         # its last frame redrawn as the day's view of the same moment
+INTRO_REST = 8            # the day's view, held before the day runs on
+OPEN = 6                  # a card unfolding
+STEP = 10                 # a step to the next: the selection slides, the screen changes with it
+CLOSE = 7                 # a card folding back into the clock
+CHIP = 4                  # a layout coming in, its label after it
 END_TICKS = 62            # the wordmark, held
 FIRST_EXTRA = 5           # a card's first step: its name is read with it
-SETTLE = 6                # the day stopped at a frame, before the card unfolds
-LOOP = 9                  # into the wordmark, and from it into the first frame
+SETTLE = 3                # the day stopped at a frame, before the card unfolds
+LOOP = 7                  # into the wordmark, and from it into the first frame
 # The calm run (no words): an hour a frame, a setting changed now and then.
-CALM_TICKS = 18           # an hour
-CALM_CHANGE = 30          # an hour in which a setting changes, the screen changing with it
-CALM_FADE = 18            # the last hour into black and black into the first, at the loop
+CALM_TICKS = 5            # an hour
+CALM_CHANGE = 8           # an hour in which a setting changes, the screen changing with it
+CALM_FADE = 10            # the last hour into black and black into the first, at the loop
 
 
 # ---------------------------------------------------------------------------------------

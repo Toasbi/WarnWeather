@@ -11,9 +11,9 @@
 // (32 °C) until the evening storm (gusts of 94 km/h at 18:00, a downpour on the radar at 18:15,
 // rain into the night). The weather is the offline snapshot recorded for the promo reel, the
 // current store showcase (fixtures/data/berlin-dwd-2025-06-26, see its PROVENANCE.md): DWD's
-// hourly station records for Berlin as Bright Sky serves them, the chance of rain filled in from
-// ECMWF as the app reads it, the UV (GFS) and the AQI (CAMS) the app takes from Open-Meteo, and
-// DWD's 5-minute radar. Nothing is filled in by hand: every series is read the way the app's DWD
+// hourly station records for Berlin as Bright Sky serves them, ECMWF's chance of rain read as
+// the app reads it, the UV (GFS) and the AQI (CAMS) the app takes from Open-Meteo, and DWD's
+// 5-minute radar. Nothing is filled in by hand: every series is read the way the app's DWD
 // provider reads Bright Sky (weatherAt), the sun times are SunCalc's (as the app's), and the rain
 // alert reads the recorded radar the way the app does (countdownAt). DWD's feed reaches the full
 // 68 hours, so Pebble Time 2's long span shows its 66.
@@ -145,35 +145,45 @@ const HEALTH_VIEW = {
 };
 
 // The calm run's steps, per watch: from which frame, a name, and the settings it changes over
-// the steps before (the first over the day's). Each step stays a while, one change at a time:
-// the three-week calendar, the compact one (the day's settings), the long span on Pebble Time
-// 2, the Stripes look (its rain bars hang from the top once the storm is in view), Clean, and
-// no calendar for the storm. Aplite has no looks: its calendar alone goes.
+// the steps before (the first over the day's). It runs from the calm, hot Saturday 21 June (day
+// -4) into Thursday's storm, through the promo reel opening's modes one change at a time, each a
+// while: the three-week calendar (on Pebble Time 2 the long span, the high and low on the graph,
+// as the reel opens), the dense one with its second status bar, the setup's Stripes look (its
+// rain bars from the top), Clean, Weather only, no calendar, and the Bitham clock. Aplite has no
+// looks, no second status bar and no Weather only: its calendar alone goes, then its clock.
+const LONG = { forecastHours: '48', forecastAxisNumbers: 'graph' };
 const CALM = {
   emery: [
-    { from: [0, '12:00'], name: 'full', clay: { layoutPreset: 'fullCal' } },
-    { from: [0, '17:00'], name: 'dense', clay: { layoutPreset: 'compactDense' } },
-    { from: [0, '22:00'], name: 'long', clay: { forecastHours: '48' } },
-    { from: [1, '03:00'], name: 'stripes', clay: STRIPES },
-    { from: [1, '09:00'], name: 'clean', clay: CLEAN },
-    { from: [1, '14:00'], name: 'nocal', clay: { layoutPreset: 'noCal' } },
+    { from: [-4, '11:00'], name: 'full', clay: Object.assign({ layoutPreset: 'fullCal' }, LONG) },
+    { from: [-3, '03:00'], name: 'dense', clay: { layoutPreset: 'compactDense' } },
+    { from: [-3, '15:00'], name: 'stripes', clay: Object.assign({}, STRIPES, { forecastAxisNumbers: 'graph' }) },
+    { from: [-2, '06:00'], name: 'clean', clay: CLEAN },
+    { from: [-1, '00:00'], name: 'weather', clay: { layoutPreset: 'weatherOnly', radarMode: 'off' } },
+    { from: [0, '00:00'], name: 'nocal', clay: { layoutPreset: 'noCal', radarMode: 'status' } },
+    { from: [0, '15:00'], name: 'bitham', clay: { timeFont: 'bitham' } },
   ],
   small: [
-    { from: [0, '12:00'], name: 'full', clay: { layoutPreset: 'fullCal' } },
-    { from: [0, '17:00'], name: 'dense', clay: { layoutPreset: 'compactDense' } },
-    { from: [0, '22:00'], name: 'stripes', clay: STRIPES },
-    { from: [1, '06:00'], name: 'clean', clay: CLEAN },
-    { from: [1, '13:00'], name: 'nocal', clay: { layoutPreset: 'noCal' } },
+    { from: [-4, '11:00'], name: 'full', clay: { layoutPreset: 'fullCal' } },
+    { from: [-3, '03:00'], name: 'dense', clay: { layoutPreset: 'compactDense' } },
+    { from: [-3, '15:00'], name: 'stripes', clay: STRIPES },
+    { from: [-2, '06:00'], name: 'clean', clay: CLEAN },
+    { from: [-1, '00:00'], name: 'weather', clay: { layoutPreset: 'weatherOnly', radarMode: 'off' } },
+    { from: [0, '00:00'], name: 'nocal', clay: { layoutPreset: 'noCal', radarMode: 'status' } },
+    { from: [0, '15:00'], name: 'bitham', clay: { timeFont: 'bitham' } },
   ],
   aplite: [
-    { from: [0, '12:00'], name: 'full', clay: { layoutPreset: 'fullCal' } },
+    { from: [-4, '11:00'], name: 'full', clay: { layoutPreset: 'fullCal' } },
     // Aplite has no second status bar: its compact calendar is the dense look's (dormant there).
-    { from: [0, '18:00'], name: 'compact', clay: { layoutPreset: 'compactDense' } },
-    { from: [1, '08:00'], name: 'nocal', clay: { layoutPreset: 'noCal' } },
+    { from: [-3, '03:00'], name: 'compact', clay: { layoutPreset: 'compactDense' } },
+    { from: [-1, '00:00'], name: 'nocal', clay: { layoutPreset: 'noCal' } },
+    { from: [0, '15:00'], name: 'bitham', clay: { timeFont: 'bitham' } },
   ],
 };
-// The calm run's frames: on the hour, Wednesday from noon to the evening after the storm.
-const CALM_FRAMES = [].concat(hours(12, 24).map((t) => [0, t]), hours(0, 22).map((t) => [1, t]));
+// The calm run's frames: on the hour, from Saturday 11:00 to the evening after the storm.
+const CALM_FRAMES = [].concat(
+  hours(11, 24).map((t) => [-4, t]),
+  [-3, -2, -1, 0].flatMap((d) => hours(0, 24).map((t) => [d, t])),
+  hours(0, 22).map((t) => [1, t]));
 
 // The scenes. `at` is the moment ([day, 'HH:MM'], day 0 Wednesday 25 June); `mode` 'intro', 'day',
 // 'variant', 'band' or 'calm'; `platforms` where it is captured (all five when absent); `clay`
@@ -317,8 +327,9 @@ function lookValues() {
 }
 
 /**
- * The real weather (DATA): DWD's hourly records as Bright Sky serves them (filled), the GFS UV and
- * the CAMS AQI as Open-Meteo answers them, each by its epoch second, and the radar window.
+ * The real weather (DATA): DWD's hourly records as Bright Sky serves them (with ECMWF's chance of
+ * rain filled in, each hour's own), the GFS UV and the CAMS AQI as Open-Meteo answers them, each
+ * by its epoch second, and the radar window.
  * @returns {{records: Map<number, Object>, uv: Map<number, number>, aqi: Map<number, number>,
  *   radar: Object}} The data.
  */
@@ -445,7 +456,9 @@ function weatherAt(data, at) {
   for (let i = 0; i < FEED_HOURS; i++) {
     const t = start + i * 3600;
     const [r, f] = [data.records.get(t), data.records.get(t + 3600)];
-    if (!r || !f || !data.uv.has(t + 3600) || !data.aqi.has(t)) { throw new Error('the data has no hour ' + t + ' for ' + at); }
+    if (!r || !f || !data.uv.has(t + 3600) || !data.aqi.has(t)) {
+      throw new Error('the data has no hour ' + t + ' for ' + at);
+    }
     own.push(r);
     next.push(f);
     uv.push(data.uv.get(t + 3600));
@@ -504,10 +517,11 @@ function calmScenes() {
     let k = -1;
     let state = {};
     const frameAt = (at, st) => {
-      const id = calmId(at, st.clay, st.names);
+      const id = calmId(at, st.clay);
       if (id.startsWith('day-')) { return id; }
-      const key = id + ' ' + JSON.stringify(st.clay);
+      const key = minuteOf(at) + ' ' + JSON.stringify(st.clay);
       if (!byKey.has(key)) {
+        if ([...byKey.values()].some((other) => other.id === id)) { throw new Error('calm scene ' + id + ' means two things'); }
         byKey.set(key, { id, mode: 'calm', at, platforms: [], clay: st.clay });
       }
       const scene = byKey.get(key);
@@ -547,15 +561,23 @@ function calmState(steps) {
 }
 
 /**
- * A calm frame's scene id: the day's frame where the run is in the day's settings.
+ * A calm frame's scene id: the day's frame where the run is in the day's settings at one of the
+ * day's moments (FRAMES), else 'calm-<what it shows>-<MMDD>-<HHMM>', what it shows named by its
+ * settings: the layout, the forecast look (none for Classic), the long span, the clock font.
  * @param {[number, string]} at The moment.
  * @param {Object} clay Its settings over the day's.
- * @param {string[]} names The steps in effect.
- * @returns {string} e.g. 'calm-long-stripes-0-1700', or 'day-0-1000'.
+ * @returns {string} e.g. 'calm-dense-stripes-66h-0622-1500', or 'day-0-1300'.
  */
-function calmId(at, clay, names) {
-  if (!Object.keys(clay).length) { return dayId(at[0], at[1]); }
-  return 'calm-' + names.join('-') + '-' + at[0] + '-' + hhmm(at[1]);
+function calmId(at, clay) {
+  if (!Object.keys(clay).length && FRAMES.some((f) => f[0] === at[0] && f[1] === at[1])) {
+    return dayId(at[0], at[1]);
+  }
+  const c = Object.assign({}, DAY_CLAY, clay);
+  const layout = { fullCal: 'full', compactCal: 'compact', compactDense: 'dense', weatherOnly: 'weather', noCal: 'nocal' };
+  const look = c.thirdLine === STRIPES.thirdLine ? 'stripes' : c.thirdLine === CLEAN.thirdLine ? 'clean' : '';
+  const parts = [layout[c.layoutPreset], look, c.forecastHours === '48' ? '66h' : '', c.timeFont === 'roboto' ? '' : c.timeFont];
+  const date = new Date(Date.UTC(DAY.year, DAY.month - 1, DAY.day + at[0]));
+  return 'calm-' + parts.filter(Boolean).join('-') + '-' + pad(date.getUTCMonth() + 1) + pad(date.getUTCDate()) + '-' + hhmm(at[1]);
 }
 
 /**
