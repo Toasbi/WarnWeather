@@ -36,6 +36,8 @@ fixtures/reel-*.json
 !.agents
 node_modules
 package.json
+# …except the weather plugins' manifests, which are source, not generated (plugins/README.md).
+!/plugins/*/package.json
 !opencode.jsonc
 !AGENTS.md
 # Ignore everything under docs/ (brainstorming specs & plans stay untracked)…

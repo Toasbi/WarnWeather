@@ -34,10 +34,10 @@ contributor tool working in this repo. (Claude Code reads it through `CLAUDE.md`
 ## Tests
 
 - `mise test` regenerates `page.generated.js` first (a gitignored build artifact the
-  tests depend on transitively), then runs two Node test globs with Node's native runner
-  (`node --test` / `node:test` — not Jest or Mocha): `test/**/*.test.js` and
-  `src/pkjs/config-ui/test/**/*.test.js`, then `scripts/test-c.sh` (host-compiled C layout
-  tests).
+  tests depend on transitively), then runs three Node test globs with Node's native runner
+  (`node --test` / `node:test` — not Jest or Mocha): `test/**/*.test.js`,
+  `src/pkjs/config-ui/test/**/*.test.js` and `plugins/test/**/*.test.js` (the weather
+  plugins), then `scripts/test-c.sh` (host-compiled C layout tests).
 - Tests that touch storage must install a `global.localStorage` mock before the watch
   modules load (see `test/change-detector.test.js` for the pattern).
 
@@ -149,6 +149,26 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   `supabase/functions/telemetry-ingest/handler.ts`.
 - JSDoc (`@param`/`@returns`) on new JS functions — this project has no TypeScript.
 - Prefer `Boolean(value)` over `!!value`.
+
+## Weather plugins (`plugins/`)
+
+Plugin-only pbws for the Pebble app's plugin system (a preview), released separately from the
+watchface with their own UUID, version and CHANGELOG. The watchface doesn't read plugins yet.
+`plugins/README.md` has the layout, build and release steps.
+
+- **Not bound by the ES5 rule:** plugin code runs in the Pebble app's plugin engine, never on
+  aplite's JavaScriptCore, so syntax up to ES2017 is fine. It has `fetch`, not
+  XMLHttpRequest. No npm packages: `plugins/scripts/build.js` bundles relative requires only.
+  Don't require watchface code (`src/pkjs/`) from a plugin, since the two ship separately.
+- **Declare every shape a plugin sends:** the Pebble app silently drops a shape the manifest
+  doesn't declare. `plugins/lib/vocabulary.js` is the table, and a plugin's `package.json`
+  `properties` block must equal `vocabulary.declare(SERVES)` (`plugins/test/manifest.test.js`).
+- **Keep plugin commits inside `plugins/`:** the release-please root package excludes that
+  path, so such commits never bump the watchface. A commit that also touches app files does.
+  Release a plugin by bumping its `package.json` version and adding a `## <version>` section
+  to its `CHANGELOG.md`.
+- The weather APIs take coordinates in their URLs by design. Plugins round them to two
+  decimals and never log a URL.
 
 ## C watchface
 
@@ -280,6 +300,8 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   conventional commits to `main` opens/updates a release PR that bumps the version in
   `package.template.json` (`$.version`); merging that PR tags the release and uploads
   `build/warnweather.pbw`. The commit prefixes drive the version bump, so they matter.
+  The weather plugins are versioned on their own: release-please skips commits that touch
+  only `plugins/` (see Weather plugins above).
 - **A FEATURE release needs a `release-notifications.json` entry; a fix-only patch does
   not.** The entry is keyed by the exact new version string (e.g. `"1.4.0"`) with
   non-empty `title` + `body` — the upgrade "what's new" toast. It interrupts the user on
