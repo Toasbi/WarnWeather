@@ -460,6 +460,7 @@ picking the shown swatch is what writes it.
 | `uiOnly` | boolean | A page-only control: hydrated from `initFrom`, never read from or written to the save blob, never seeded. |
 | `stamp` | boolean | A value the page writes on its own (the Weather tab's last-opened time): it is saved like any other, but its change never lights Save or shows Revert, and Revert leaves it as it is. |
 | `full` | boolean | `segmented` only: one equal segment per option across the row, a long label wrapping inside its own segment, the picked option's hint under it (the setup's pickers). |
+| `sheetTitle` | string | `select`/`searchSelect` only: the picker sheet's title, where the row's label alone would not name it (a row whose picker also opens from a preview). Default: the label. |
 | `pictureFrom` | `{ resolver, args }` | `radio` only: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry--pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). |
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
 | `groupLabel` | string | On the first member of an `inline` group: renders the group as ONE labelled row, the members side by side joined by a dash (a From–To row). |
@@ -619,6 +620,11 @@ Registering to the same `id` twice overwrites the first registration. Requesting
 
 `userData` carries whatever the app puts there — typically last-fetch timestamps, connection stats,
 or any other data that must travel from PKJS into the page without going through settings storage.
+
+A block pinned above a dialog (a `sheetOnly` section's `pinBlock`) gets a fourth argument,
+`{ dialog: true }`. A block whose parts open a sheet themselves (a `[data-select]` that opens a
+select's picker) draws them inert there: the dialog is the page's one sheet, so a picker cannot
+open over it. Everywhere else the fourth argument is absent.
 
 ### Icon registry — PConf.icons
 

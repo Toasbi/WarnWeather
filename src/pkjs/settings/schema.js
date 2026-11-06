@@ -811,10 +811,15 @@ function countdownDateItem(slotKey, barWhen) {
  */
 function slotItem(slotKey, position, barWhen, joins) {
     var labels = {left: 'Left slot', mid: 'Middle slot', right: 'Right slot'};
+    var prefix = slotKey.replace(/(Left|Mid|Right)$/, '');
+    var bar = ON_DEMAND.PAGE_BARS.filter(function (b) { return b.prefix === prefix; })[0];
     var item = {
         type: 'select',
         messageKey: slotKey,
         label: labels[position],
+        // The picker names the bar too: it also opens from a tap on the slot in the
+        // tab's pinned preview (preview-status-bars.js), away from the bar's card.
+        sheetTitle: bar.name.replace(/ Status Bar$/, '') + ' bar · ' + labels[position],
         defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: slotKey}},
         onChange: 'dedupeStatusSlot',
         editSheetFrom: {resolver: 'statusSlotEditSheet'},

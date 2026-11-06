@@ -4117,6 +4117,7 @@
                 "type": "select",
                 "messageKey": "statusTopLeft",
                 "label": "Left slot",
+                "sheetTitle": "Watch bar · Left slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4155,6 +4156,7 @@
                 "type": "select",
                 "messageKey": "statusTopMid",
                 "label": "Middle slot",
+                "sheetTitle": "Watch bar · Middle slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4194,6 +4196,7 @@
                 "type": "select",
                 "messageKey": "statusTopRight",
                 "label": "Right slot",
+                "sheetTitle": "Watch bar · Right slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4319,6 +4322,7 @@
                 "type": "select",
                 "messageKey": "statusForecastLeft",
                 "label": "Left slot",
+                "sheetTitle": "Forecast bar · Left slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4357,6 +4361,7 @@
                 "type": "select",
                 "messageKey": "statusForecastMid",
                 "label": "Middle slot",
+                "sheetTitle": "Forecast bar · Middle slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4396,6 +4401,7 @@
                 "type": "select",
                 "messageKey": "statusForecastRight",
                 "label": "Right slot",
+                "sheetTitle": "Forecast bar · Right slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4471,6 +4477,7 @@
                 "type": "select",
                 "messageKey": "statusHealthLeft",
                 "label": "Left slot",
+                "sheetTitle": "Health bar · Left slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4541,6 +4548,7 @@
                 "type": "select",
                 "messageKey": "statusHealthMid",
                 "label": "Middle slot",
+                "sheetTitle": "Health bar · Middle slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4612,6 +4620,7 @@
                 "type": "select",
                 "messageKey": "statusHealthRight",
                 "label": "Right slot",
+                "sheetTitle": "Health bar · Right slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4737,6 +4746,7 @@
                 "type": "select",
                 "messageKey": "statusRadarLeft",
                 "label": "Left slot",
+                "sheetTitle": "Radar bar · Left slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4807,6 +4817,7 @@
                 "type": "select",
                 "messageKey": "statusRadarMid",
                 "label": "Middle slot",
+                "sheetTitle": "Radar bar · Middle slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4878,6 +4889,7 @@
                 "type": "select",
                 "messageKey": "statusRadarRight",
                 "label": "Right slot",
+                "sheetTitle": "Radar bar · Right slot",
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {

@@ -1206,6 +1206,9 @@ function bootWithCapturedListeners(schema, env, opts) {
       return null;
     }
   };
+  // opts.docQueryAll: the page's querySelectorAll, for the tests that tell twin triggers
+  // apart (a key shown in the tab's pinned preview and in its row).
+  if (opts && opts.docQueryAll) { document.querySelectorAll = opts.docQueryAll; }
   const fn = new Function('document', 'INJECTED_SCHEMA', 'INJECTED_ENV', 'INJECTED_CFG',
     'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', BUNDLE);
   const mod = { exports: {} };
@@ -1619,6 +1622,37 @@ test('boot(): closing a directly opened select restores focus to its fresh trigg
     }
   });
   assert.equal(result.focusCounts.select.theme, 1);
+});
+
+test('boot(): a select hands focus back to the trigger that opened it, in the pinned preview or its row', () => {
+  // A status slot's key has two triggers: the slot in the tab's pinned preview and the row
+  // in its card. Closing its picker focuses the one that opened it, whichever comes first.
+  const focused = [];
+  const node = (where) => ({ closest: (s) => (s === '.pin' && where === 'pin' ? {} : null),
+    focus: () => { focused.push(where); } });
+  const pinned = node('pin'), row = node('row');
+  const result = bootWithCapturedListeners(THEME_SCHEMA, {},
+    { docQueryAll: (sel) => (sel === '[data-select="theme"]' ? [pinned, row] : []) });
+  const open = (where) => result.listeners.click({ target: { closest: (s) => (s === '[data-select]'
+    ? { getAttribute: (n) => (n === 'data-select' ? 'theme' : null), closest: node(where).closest } : null) } });
+  const close = () => result.modalListeners.click({ target: { closest: (s) => (s === '[data-select-close]' ? {} : null) } });
+  open('row'); close();
+  open('pin'); close();
+  assert.deepEqual(focused, ['row', 'pin']);
+});
+
+test('renderSelectModal: the sheet takes item.sheetTitle over the row label', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [
+    { type: 'select', messageKey: 'mid', label: 'Middle slot', sheetTitle: 'Forecast bar · Middle slot',
+      defaultValue: 'a', options: [['A', 'a'], ['B', 'b']] },
+    { type: 'select', messageKey: 'plain', label: 'Plain', defaultValue: 'a', options: [['A', 'a']] }
+  ] }] }] };
+  const S = E.hydrate(SCH, {});
+  const cx = (key) => ({ S: S, ENV: {}, USERDATA: {}, openSelect: key, selectQuery: '', collapsed: {},
+    evalCtx: Object.assign({}, S, { env: {} }) });
+  assert.match(E.renderSelectModal(SCH, cx('mid')), /id="ssel-ttl-mid">Forecast bar · Middle slot</);
+  assert.match(E.renderSelectModal(SCH, cx('mid')), /aria-label="Forecast bar · Middle slot options"/);
+  assert.match(E.renderSelectModal(SCH, cx('plain')), /id="ssel-ttl-plain">Plain</);
 });
 
 test('boot(): external openSheet close skips underlying trigger focus and calls onClose once', () => {

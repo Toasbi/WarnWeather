@@ -1096,7 +1096,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var item = resolveRowItem(found, { value: cx.S[found.messageKey] }, cx);
     var key = esc(item.messageKey), value = cx.S[item.messageKey];
     var listId = 'ssel-list-' + key, titleId = 'ssel-ttl-' + key;
-    var title = esc(String(item.label || 'Selection'));
+    // item.sheetTitle names the picker where the row's label alone would not: a slot row
+    // reads "Middle slot" under its bar's card, and its picker also opens from a preview.
+    var title = esc(String(item.sheetTitle || item.label || 'Selection'));
     // The search box sits in a wrapper that owns the spacing as PADDING. A margin on the
     // input itself exposed the dialog's own box in the strips beside/under it, and a tap
     // there targets the <dialog> — which the click handler reads as a ::backdrop tap and
@@ -1172,8 +1174,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var introOpen = Boolean(sec.intro) && (!introId || Boolean(cx.infoOpen && cx.infoOpen[introId]));
     var pin = '';
     if (sec.pinBlock) {
+      // { dialog: true }: a block whose parts open sheets (the status bars' slots) draws
+      // them inert here, where the one shared sheet is this dialog.
       var fn = PConf.blocks.get(sec.pinBlock);
-      var ph = fn ? (fn(cx.S, cx.ENV, cx.USERDATA) || '') : '';
+      var ph = fn ? (fn(cx.S, cx.ENV, cx.USERDATA, { dialog: true }) || '') : '';
       if (ph) { pin = '<div class="' + pinClass(cx, 'dlg-pin') + '"><div class="pin-blk">' + ph + '</div></div>'; }
     }
     return dialogHeader(titleId, String(sec.title || 'Edit'), cx.editKicker || '', Boolean(cx.editNested),
@@ -2707,6 +2711,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @param {boolean} [noFocus] Place no focus ("Save anyway": the page is leaving).
      * @returns {void}
      */
+    /**
+     * The trigger a closing sheet hands focus back to: of those carrying its key, the
+     * first in the pinned preview when that opened it, else the first outside it (a row),
+     * else the first of all.
+     * @param {NodeList} nodes The triggers carrying the sheet's key, in page order.
+     * @param {boolean} fromPin Whether the pinned preview opened the sheet.
+     * @returns {?Element} The trigger, or null for none.
+     */
+    function pickTrigger(nodes, fromPin) {
+      for (var i = 0; i < nodes.length; i++) {
+        if (Boolean(nodes[i].closest && nodes[i].closest('.pin')) === fromPin) { return nodes[i]; }
+      }
+      return nodes.length ? nodes[0] : null;
+    }
     function closeModal(noFocus) {
       var closing = sheet;
       dateWiring.flushPending();
@@ -2722,7 +2740,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var selector = (noFocus || closing.focusBack === false) ? null
         : closing.kind === 'confirm' ? (closing.confirm && closing.confirm.revert ? '#revert' : '#save')
         : '[' + TRIGGER_ATTR[closing.kind] + '="' + (rootKey || closing.key) + '"]';
-      var trigger = selector ? document.querySelector(selector) : null;
+      var trigger = !selector ? null
+        : (document.querySelectorAll && pickTrigger(document.querySelectorAll(selector), Boolean(closing.fromPin)))
+          || document.querySelector(selector);
       if (trigger) { trigger.focus(); }
       if (closing.onClose) { closing.onClose(); }
     }
@@ -3353,7 +3373,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           var sk = t.getAttribute('data-select');
           if (openKey('select') === sk) { closeModal(); return; }
           dateWiring.flushPending();
-          sheet = { kind: 'select', key: sk };
+          // fromPin: opened from the tab's pinned preview (a status slot), which shares the
+          // key with the row in its card; focus goes back to the one that opened it.
+          sheet = { kind: 'select', key: sk, fromPin: Boolean(t.closest && t.closest('.pin')) };
           selectQuery = '';
           render();
           focusModal();

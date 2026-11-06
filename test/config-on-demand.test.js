@@ -210,7 +210,7 @@ test('each bar ends on one Alerts nav row: the icons on each side, a tap brings 
   assert.ok(q.indexOf('class="info-q"') !== -1, 'premise: the \'?\' mode draws its buttons');
   assert.equal(barRow(q, 'Watch Status Bar').indexOf('info-q'), -1, 'the Alerts row has no \'?\' in that mode');
   assert.equal(barHint(q, 'Watch Status Bar'), TOP_HINT, 'and keeps its summary in view');
-  assert.match(rowOf(html, 'data-select="statusTopRight"'), /^<div class="row slot">/,
+  assert.match(rowOf(html, 'class="sel-wrap" data-select="statusTopRight"'), /^<div class="row slot">/,
     'a row of its own: the slot above no longer joins it');
   assert.equal(barHint(html, 'Forecast Status Bar'), NONE, 'nothing placed: None');
   ['Health Status Bar', 'Radar Status Bar'].forEach((title) =>

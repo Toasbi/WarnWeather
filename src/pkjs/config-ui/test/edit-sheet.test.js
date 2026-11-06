@@ -549,3 +549,22 @@ test('a sheet renders a checklist in place: plain rows under its one header, a g
   assert.match(sheet, /aria-checked="false" aria-label="One, L" data-k="l1" data-check="c" data-write="pickTick">/);
   assert.match(sheet, /aria-checked="true" aria-label="Two, R" data-k="r2" data-check="c" data-write="pickTick" disabled aria-disabled="true">/);
 });
+
+test('a block pinned above a dialog gets { dialog: true }; the tab\'s pinned block gets no fourth argument', () => {
+  const seen = [];
+  E.blocks.register('pinProbe', function (S, env, userData, opts) {
+    seen.push(opts);
+    return '<i>probe</i>';
+  });
+  const PINNED = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', pinBlock: 'pinProbe', sections: [
+    { title: 'Main', items: [{ type: 'toggle', messageKey: 'flag', label: 'Flag', defaultValue: false }] },
+    { sheetOnly: true, sheetId: 'probeSheet', title: 'Probe', pinBlock: 'pinProbe', items: [
+      { type: 'toggle', messageKey: 'flag2', label: 'Flag 2', defaultValue: false }
+    ] }
+  ] }] };
+  const S = E.hydrate(PINNED, {});
+  E.renderBody(PINNED, 't', cxFor(S));
+  const html = E.renderEditModal(PINNED, cxFor(S, { openEdit: 'probeSheet' }));
+  assert.ok(html.indexOf('<i>probe</i>') !== -1, 'premise: the dialog pins the block');
+  assert.deepEqual(seen, [undefined, { dialog: true }]);
+});

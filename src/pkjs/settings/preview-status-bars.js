@@ -1,7 +1,8 @@
 // src/pkjs/settings/preview-status-bars.js — ES5, WebView (+ Node for tests). The Status
 // bars tab's pinned preview (block 'statusBarsPreview'): every bar the watch draws right
 // now, one line each, its three slots as sample values — left, middle and right — so a
-// slot pick shows where it lands before the main Save. Also pinned above every slot dialog.
+// slot pick shows where it lands before the main Save. A tap on a slot opens its picker.
+// Also pinned above every slot dialog, where the slots are the picture alone.
 //
 // The readings are SAMPLES (a fixed afternoon: 18°, wind 12 now / 30 at its peak, UV 3 …),
 // but the TEXT is the watch's: each sample goes through the code that prints the real
@@ -236,8 +237,9 @@
      * @param {boolean} fullDate Whether the view drawing the bar shows no calendar (the
      *     date slot prints the full date there).
      * @param {Date} [now] Today (absent = the clock's).
-     * @returns {Array<{pos: string, code: string, text: string, arrow: boolean}>} The left,
-     *     middle and right slots (pos 'left' | 'mid' | 'right'); [] for an unknown bar.
+     * @returns {Array<{pos: string, key: string, code: string, text: string, arrow: boolean}>}
+     *     The left, middle and right slots (pos 'left' | 'mid' | 'right', key the slot's
+     *     setting, e.g. 'statusTopLeft'); [] for an unknown bar.
      */
     function barSlots(S, env, bar, fullDate, now) {
         var st = S || {}, when = now || new Date(), b = null, i;
@@ -247,18 +249,50 @@
             var key = b.prefix + p[0];
             var code = catalog.resolveSelection(st[key], st, env, {slotKey: key, position: p[1]});
             var text = sample(code, st, {cap: p[2], env: env, now: when, fullDate: fullDate, slotKey: key});
-            return {pos: p[1], code: code, text: text, arrow: arrowShown(code, text, st, env, p[2])};
+            return {pos: p[1], key: key, code: code, text: text, arrow: arrowShown(code, text, st, env, p[2])};
         });
     }
 
+    // How a slot is named to a screen reader, after its bar's name.
+    var POS_NAME = {left: 'left slot', mid: 'middle slot', right: 'right slot'};
+
     /**
-     * The block: one row per bar the watch draws now, its name and three sample slots.
+     * One slot of a row. On the tab it is a button that opens the slot's picker (the
+     * engine's [data-select] path, as the slot's own row in its card does), an empty one
+     * marked so there is something to tap; above a slot's dialog, where a picker cannot
+     * open, it is the picture alone.
+     * @param {{pos: string, key: string, code: string, text: string, arrow: boolean}} c The
+     *     slot (barSlots).
+     * @param {string} barName The bar's short name.
+     * @param {Object} env Platform env.
+     * @param {boolean} tappable Whether the slot opens its picker.
+     * @returns {string} HTML.
+     */
+    function slotCell(c, barName, env, tappable) {
+        var arrow = c.arrow ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
+        var empty = c.code === 'empty';
+        var body = empty ? '' : lead(c.code, env) + esc(c.text) + arrow;
+        var cls = 'sbp-v sbp-' + c.pos;
+        if (!tappable) { return '<span class="' + cls + '">' + body + '</span>'; }
+        var item = catalog.byCode(c.code);
+        var name = barName + ' bar, ' + POS_NAME[c.pos] + ': ' + (item ? item.label : c.code);
+        return '<button type="button" class="' + cls + (empty ? ' sbp-empty' : '') + '" data-select="' + esc(c.key)
+            + '" aria-label="' + esc(name) + '">' + (empty ? '<span class="sbp-hole" aria-hidden="true"></span>' : body)
+            + '</button>';
+    }
+
+    /**
+     * The block: one row per bar the watch draws now, its name and three sample slots. On
+     * the tab a tap on a slot opens its picker; above a slot's dialog (opts.dialog) the rows
+     * are the picture alone.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
+     * @param {Object} [userData] Page userData (unused).
+     * @param {{dialog: boolean}} [opts] dialog: pinned above a dialog (engine renderEditModal).
      * @returns {string} HTML ('' when no bar exists).
      */
-    function statusBarsPreview(S, env) {
-        var st = S || {}, rows = '';
+    function statusBarsPreview(S, env, userData, opts) {
+        var st = S || {}, rows = '', tappable = !(opts && opts.dialog);
         var layout = NODE ? require('./preview-layout.js') : (PConf && PConf.previewLayout);
         var views = layout && layout.presetContents ? layout.presetContents(st, env) : [];
         var now = new Date();
@@ -274,9 +308,7 @@
             var view = barView(views, b);
             if (!view && views.length && !optional) { return; }
             var cells = barSlots(st, env, b.bar, !calendarShown(view), now).map(function (c) {
-                var arrow = c.arrow ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
-                var body = c.code === 'empty' ? '' : lead(c.code, env) + esc(c.text) + arrow;
-                return '<span class="sbp-v sbp-' + c.pos + '">' + body + '</span>';
+                return slotCell(c, b.name, env, tappable);
             }).join('');
             rows += '<div class="sbp-row"><span class="sbp-n">' + esc(b.name) + '</span>' + cells + '</div>';
         });
@@ -286,7 +318,8 @@
         // theme's background), so a light theme previews black on white — except on a
         // watch without the light polarity (aplite), which always draws white on black.
         var ink = previewInk(env && env.themePolarity === false ? 'dark' : st.theme);
-        return '<div class="sbp" role="img" aria-label="Status bars preview" style="--sbp-bg:' + ink.bg
+        return '<div class="sbp' + (tappable ? ' tap' : '') + '" role="' + (tappable ? 'group' : 'img')
+            + '" aria-label="' + (tappable ? 'Status bars' : 'Status bars preview') + '" style="--sbp-bg:' + ink.bg
             + ';--sbp-fg:' + ink.fg + ';--sbp-dim:' + ink.rgba('0.5') + ';--sbp-line:' + ink.rgba('0.12') + '">'
             + rows + '</div>';
     }
@@ -310,7 +343,16 @@
         + '.sbp-left{text-align:left}.sbp-mid{text-align:center}.sbp-right{text-align:right}'
         + '.sbp-ico{display:inline-block;width:12px;height:12px;margin-right:2px;vertical-align:-1px}'
         + '.sbp-ico svg{display:block;width:100%;height:100%}'
-        + '.sbp-arr{margin-left:1px}';
+        + '.sbp-arr{margin-left:1px}'
+        // On the tab each slot is a button: the row's height and a little to each side are
+        // its tap area (the negative margins keep the watch's spacing), a press shades it,
+        // and an empty slot shows a dashed hole to tap.
+        + 'button.sbp-v{-webkit-appearance:none;appearance:none;min-width:40px;margin:-7px -4px;padding:7px 4px;'
+        + 'border:none;border-radius:7px;background:none;cursor:pointer}'
+        + 'button.sbp-v:active{background:var(--sbp-line,#1C1C1E)}'
+        + 'button.sbp-v:focus-visible{outline:2px solid var(--sbp-fg,#FFFFFF);outline-offset:-2px}'
+        + '.sbp-hole{display:inline-block;width:30px;height:15px;border:1px dashed var(--sbp-dim,#7C808A);'
+        + 'border-radius:4px;vertical-align:middle}';
     /**
      * Inject the preview's stylesheet (id 'sbp-style') once; nothing outside a DOM or when
      * it is already there.
