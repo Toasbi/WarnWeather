@@ -1,7 +1,7 @@
 // src/pkjs/view-cycle.js
 // Single source of truth for the layout-preset matrix and the packed per-slot
 // ViewSpec wire byte. ES5 only (required from clay-payload.js at watch runtime).
-// Also read by settings/preview-layout.js (config-UI preview) and the node tests.
+// Also read by the config UI's previews (settings/preview-watch.js and others) and the node tests.
 
 var TIER_OFF = 0, TIER_NONE = 1, TIER_COMPACT = 2, TIER_FULL = 3;
 // TOP_GRAPH (custom layouts only): a forecast or health graph in the top band; which
@@ -819,7 +819,7 @@ var LEGACY_PRESET = {
  * draw folded to the one its settings radio shows instead (the dormant value's
  * fallback, compactCal). aplite has no radar and no view without top bar, so a stored
  * Weather only runs — and previews — as Compact calendar there. The one fold the
- * payload (clay-payload.js) and the Layout preview (preview-layout.js) share.
+ * payload (clay-payload.js) and the settings page's watch preview (preview-watch.js) share.
  * @param {Object} state settings state
  * @param {?{platform: string}} env platform facts ('' / missing = capable)
  * @returns {string} preset key
@@ -847,7 +847,7 @@ function resolvePresetKey(state) {
 
 /**
  * The view cycle a watch runs for a settings state: THE one reading, for the Clay payload
- * (clay-payload.js), the Layout preview (settings/preview-layout.js) and the Alerts tab's
+ * (clay-payload.js), the settings page's watch preview (settings/preview-watch.js) and the Alerts tab's
  * About alerts Default-view note (settings/when-resolvers.js). layoutPreset 'custom' compiles the
  * per-view keys (buildCustomCycle), except on an APLITE watch, which folds custom to the
  * explicit compactCal preset: aplite is frozen-lean, its settings screen never offers
@@ -870,7 +870,7 @@ function resolveViewCycle(settings, env) {
 // Single public API object, defined once. As a CommonJS module (watch runtime, tests)
 // this is module.exports. When this file is instead concatenated as a plain <script> into
 // the config-UI webview (see scripts/build-config-page.js, which has no `module`),
-// settings/preview-layout.js reads this same VIEW_CYCLE object from the shared top-level scope
+// settings/preview-watch.js reads this same VIEW_CYCLE object from the shared top-level scope
 // rather than require()-ing it — one export list, no hand-copied duplicate to drift.
 var VIEW_CYCLE = {
   TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,

@@ -14,7 +14,7 @@
 /* global VIEW_CYCLE */
 (function () {
     var NODE = typeof require !== 'undefined';
-    var PC = (typeof global !== 'undefined' && global.PConf && global.PConf.blocks) ? global.PConf
+    var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.blocks) ? global.PConf
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
         : null;
     var VC = NODE ? require('../view-cycle.js') : VIEW_CYCLE;
@@ -24,7 +24,7 @@
     var previewForecast = NODE ? require('./preview-forecast.js') : window.PreviewForecast;
     var forecastSample = NODE ? require('./forecast-sample.js') : window.ForecastSample;
     var spanHours = NODE ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
-    var esc = NODE ? require('../config-ui/lib/html.js').esc : PC.html.esc;
+    var esc = NODE ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
 
     /**
      * The radar and health previews, which register as blocks only.
@@ -36,7 +36,7 @@
             return id === 'radarPreview' ? require('./preview-radar.js').radarPreview
                 : require('./preview-health.js').healthPreview;
         }
-        return PC && PC.blocks ? PC.blocks.get(id) : null;
+        return PConf && PConf.blocks ? PConf.blocks.get(id) : null;
     }
 
     // Each screen family (view-cycle.js FIT_PX's index): its grid, and the row the top bar
@@ -289,7 +289,7 @@
      * @returns {string} SVG markup, '' for an item without one.
      */
     function iconAt(code, x, mid, size, fg) {
-        var svg = PC && PC.icons && PC.icons.get ? PC.icons.get(code) : null;
+        var svg = PConf && PConf.icons && PConf.icons.get ? PConf.icons.get(code) : null;
         if (!svg || svg.indexOf('<svg ') !== 0) { return ''; }
         return '<svg x="' + r1(x) + '" y="' + r1(mid - size / 2) + '" width="' + r1(size) + '" height="' + r1(size)
             + '" color="' + fg + '" ' + svg.slice(5);
@@ -314,7 +314,7 @@
         }).map(function (c) {
             var label = c.text + (c.arrow ? '↗' : '');
             var glyph = c.code === 'battery' && !label;
-            var hasIcon = !glyph && Boolean(PC && PC.icons && PC.icons.get && PC.icons.get(c.code));
+            var hasIcon = !glyph && Boolean(PConf && PConf.icons && PConf.icons.get && PConf.icons.get(c.code));
             return { pos: c.pos, code: c.code, label: label, glyph: glyph, hasIcon: hasIcon };
         });
         /** @param {Object} it @param {number} sz @returns {number} the item's ink width */
@@ -509,6 +509,28 @@
     }
 
     /**
+     * One view of the cycle on its own: the custom layout editor's live preview of the
+     * view being edited (view-editor.js), drawn as the pinned preview draws it. A view with
+     * nothing left on it (a disabled slot, which the watch skips) is its bare screen with a
+     * note.
+     * @param {Object} S Live settings.
+     * @param {Object} env Platform env.
+     * @param {number} i The view's place in the cycle (0 = Default).
+     * @param {Object} [userData] Page userData (the palette).
+     * @returns {{svg: string, label: string}} The <svg>, and its bands as spoken.
+     */
+    function viewScreen(S, env, i, userData) {
+        var st = S || {}, f = env && env.platform === 'emery' ? 1 : 0, sc = SCREEN[f];
+        var spec = VC.resolveViewCycle(st, env)[i] || null;
+        if (spec) { return screenSvg(spec, i, st, env, userData || {}, f, new Date(), 've' + i + '-'); }
+        var ink = svgLib.previewInk(themeOf(st, env));
+        return { svg: '<svg class="wpv-scr" viewBox="0 0 ' + sc.w + ' ' + sc.h + '" aria-hidden="true" focusable="false">'
+            + '<rect width="' + sc.w + '" height="' + sc.h + '" fill="' + ink.bg + '"></rect>'
+            + text(sc.w / 2, sc.h / 2 + 4, f ? 15 : 12, ink.rgba('0.6'), 'middle', 600, 'Nothing to show') + '</svg>',
+            label: 'Nothing to show' };
+    }
+
+    /**
      * The Layout preset picker's picture of one preset (picture resolver
      * 'layoutPresetPicture'): the Default view the preset gives with the settings as they
      * are, drawn as the pinned preview draws it. Custom shows the custom Default view or,
@@ -547,10 +569,10 @@
             + ' stroke-linecap="round" stroke-linejoin="round"></path>';
     }
 
-    if (PC && PC.blocks) { PC.blocks.register('watchPreview', watchPreview); }
-    if (PC && PC.pictureResolvers) { PC.pictureResolvers.register('layoutPresetPicture', presetPicture); }
+    if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }
+    if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('layoutPresetPicture', presetPicture); }
     var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg, presetPicture: presetPicture,
-                SCREEN: SCREEN };
+                viewScreen: viewScreen, SCREEN: SCREEN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PreviewWatch = api; }
 })();

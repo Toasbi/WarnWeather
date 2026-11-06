@@ -129,7 +129,7 @@
     /**
      * The first view of the cycle that seats a bar — the Watch bar any view whose top
      * strip shows, a status bar a view with it in a status row.
-     * @param {Array<?Object>} views The view cycle (preview-layout.js presetContents).
+     * @param {Array<?Object>} views The view cycle (view-cycle.js resolveViewCycle).
      * @param {{src: ?number}} b A BARS entry.
      * @returns {?Object} The ViewSpec, or null when no view shows the bar.
      */
@@ -293,8 +293,7 @@
      */
     function statusBarsPreview(S, env, userData, opts) {
         var st = S || {}, rows = '', tappable = !(opts && opts.dialog);
-        var layout = NODE ? require('./preview-layout.js') : (PConf && PConf.previewLayout);
-        var views = layout && layout.presetContents ? layout.presetContents(st, env) : [];
+        var views = VC.resolveViewCycle(st, env);
         var now = new Date();
         BARS.forEach(function (b) {
             var optional = b.bar === 'radar' || b.bar === 'health';
@@ -304,9 +303,9 @@
             // with the radar graph, or a custom layout that left the row out): their
             // slots are still the user's to set. The Watch and Forecast bars show only
             // where a view seats them (Weather only without health has no top strip
-            // anywhere). An empty cycle (no layout module) keeps every bar.
+            // anywhere).
             var view = barView(views, b);
-            if (!view && views.length && !optional) { return; }
+            if (!view && !optional) { return; }
             var cells = barSlots(st, env, b.bar, !calendarShown(view), now).map(function (c) {
                 return slotCell(c, b.name, env, tappable);
             }).join('');

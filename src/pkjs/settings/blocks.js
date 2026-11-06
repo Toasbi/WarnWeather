@@ -3,7 +3,7 @@
 // actions, the sheet/badge resolvers) and the small option/default/recommend
 // resolvers. The BLOCK RENDERERS live one file per concern —
 // preview-forecast.js, preview-radar.js, preview-diagnostics.js and
-// preview-layout.js, over the shared preview-svg.js / preview-rain.js; under Node
+// preview-watch.js, over the shared preview-svg.js / preview-rain.js; under Node
 // this file requires the four registering ones, so requiring blocks.js registers
 // every block and not just its own (the webview concatenates every file instead —
 // see scripts/build-config-page.js APP_FILES). It requires the schema's when resolvers
@@ -20,7 +20,6 @@ if (typeof require !== 'undefined') {
     require('./preview-forecast.js');
     require('./preview-radar.js');
     require('./preview-diagnostics.js');
-    require('./preview-layout.js');
     require('./preview-watch.js');
     require('./when-resolvers.js');
     require('./forecast-hints.js');

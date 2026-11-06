@@ -7,7 +7,7 @@ var build = require('../src/pkjs/config-ui/scripts/build-page.js');
 var ROOT = path.join(__dirname, '..');
 var OUT  = path.join(ROOT, 'src/pkjs/settings/page.generated.js');
 var APP_FILES = [
-  // view-cycle.js must precede preview-layout.js and status-line-catalog.js must
+  // view-cycle.js must precede preview-watch.js and status-line-catalog.js must
   // precede blocks.js: their VC / statusLineCatalog fallbacks (used when this page is a
   // flat concatenated <script>, not a Node module) read their declarations directly from
   // this shared top-level scope.
@@ -123,7 +123,6 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/preview-forecast.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-radar.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-diagnostics.js'),
-  path.join(ROOT, 'src/pkjs/settings/preview-layout.js'),
   // The slot-text chain the watch-runtime bake prints every phone-baked slot through
   // (window.Utf8 -> window.StatusPair -> window.SlotText, each reading the ones before
   // it, and StatusLineCatalog, at IIFE time) and the date slot's formats
@@ -134,7 +133,7 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/slot-text.js'),
   path.join(ROOT, 'src/pkjs/date-format.js'),
   // The Status bars tab's pinned preview (reads StatusLineCatalog, OnDemand, VIEW_CYCLE,
-  // PreviewSvg, the slot-text chain above, and preview-layout.js' view cycle at render).
+  // PreviewSvg and the slot-text chain above at render).
   path.join(ROOT, 'src/pkjs/settings/preview-status-bars.js'),
   // The Graphs tab's Health pane preview (reads PreviewSvg and ResolveInk).
   path.join(ROOT, 'src/pkjs/settings/preview-health.js'),

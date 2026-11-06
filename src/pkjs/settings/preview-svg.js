@@ -2,8 +2,8 @@
 // settings preview draws with: two element emitters (rect/txt), the 200-wide
 // frame they are wrapped in, and the theme ink they are coloured from. Every
 // member here has more than one caller across preview-forecast.js,
-// preview-radar.js and preview-layout.js — a helper used by exactly one of them
-// lives in that file instead. Registers nothing; it is a library, not a block.
+// preview-radar.js, preview-health.js and preview-watch.js — a helper used by
+// exactly one of them lives in that file instead. Registers nothing; it is a library, not a block.
 (function () {
     // Dual-context pattern (see line-style.js): a CommonJS module under Node, a
     // concatenated <script> exposing window.ResolveInk in the webview, where the

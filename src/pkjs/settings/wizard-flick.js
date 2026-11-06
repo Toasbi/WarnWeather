@@ -1,6 +1,6 @@
 // src/pkjs/settings/wizard-flick.js — ES5, WebView. The setup wizard's flick demo, as data: the
-// stops of the watch's real view cycle (view-cycle.js, the call preview-layout.js's presetContents
-// makes), each with its name, caption and screenshot key, and the health copy the demo shares with
+// stops of the watch's real view cycle (view-cycle.js resolveViewCycle, the call the Watchface
+// tab's watch preview makes), each with its name, caption and screenshot key, and the health copy the demo shares with
 // the health step, so the two can never drift. The DOM half (the tilt, the crossfade) is
 // wizard.js'.
 //

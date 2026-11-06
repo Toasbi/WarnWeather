@@ -8,7 +8,7 @@ require('../src/pkjs/config-ui/lib/engine.js');
 const B = require('../src/pkjs/settings/blocks.js');
 // The block renderers live one file per concern; blocks.js keeps the threshold
 // machinery + small resolvers, and requiring it registers every block.
-// The layout-preview block has its own file — test/preview-layout.test.js.
+// The watch preview has its own files — test/preview-watch.test.js and test/watch-preview-cycle.test.js.
 const FC = require('../src/pkjs/settings/preview-forecast.js');
 const RD = require('../src/pkjs/settings/preview-radar.js');
 const DG = require('../src/pkjs/settings/preview-diagnostics.js');
@@ -270,7 +270,7 @@ test('forecastPreview never draws the second metric as the same metric as the ma
   assert.equal(svg.indexOf('fill="#FFFF00"'), -1, 'duplicate metric → no second-metric squares');
 });
 test('registers all preview/util blocks into PConf.blocks', () => {
-  ['forecastPreview','radarPreview','layoutPreviewCombined','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
+  ['forecastPreview','radarPreview','watchPreview','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
 });
 
 test('registers the statusSlot options resolver into PConf.optionsResolvers', () => {
