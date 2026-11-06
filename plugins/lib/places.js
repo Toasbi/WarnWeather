@@ -6,6 +6,8 @@
 // alone. The instanceIds are the locations' keys, so a place means the same as it does for the
 // built-in weather plugin.
 
+const units = require('./units');
+
 const LOCATIONS_SOURCE = { category: 'preferences', item: 'weather_location' };
 
 const CURRENT_NAME = 'Current location';
@@ -13,7 +15,10 @@ const CURRENT_NAME = 'Current location';
 /** A position up to half an hour old is good enough for weather, and spares the GPS. */
 const POSITION_OPTIONS = { maximumAge: 30 * 60 * 1000, timeout: 20 * 1000, enableHighAccuracy: false };
 
-/** Two decimals (~1 km): plenty for a forecast, and two nearby places share one. */
+/**
+ * Two decimals (~1 km): plenty for a forecast, and two nearby places share one. Every request URL
+ * and the cache key write coordinates through coordText, so this is the one place that sets it.
+ */
 const COORD_DECIMALS = 2;
 
 /**
@@ -77,11 +82,20 @@ function booleanOf(property) {
  * @returns {{latitude: number, longitude: number}} Rounded coordinates.
  */
 function roundCoords(coords) {
-  const factor = Math.pow(10, COORD_DECIMALS);
   return {
-    latitude: Math.round(coords.latitude * factor) / factor + 0,
-    longitude: Math.round(coords.longitude * factor) / factor + 0,
+    latitude: units.round(coords.latitude, COORD_DECIMALS),
+    longitude: units.round(coords.longitude, COORD_DECIMALS),
   };
+}
+
+/**
+ * A coordinate as a request URL and the cache key write it: COORD_DECIMALS decimals.
+ *
+ * @param {number} value Latitude or longitude, already rounded (roundCoords).
+ * @returns {string} e.g. '47.99'.
+ */
+function coordText(value) {
+  return value.toFixed(COORD_DECIMALS);
 }
 
 /**
@@ -137,8 +151,7 @@ async function readPlaces() {
 
 module.exports = {
   LOCATIONS_SOURCE,
-  CURRENT_NAME,
-  POSITION_OPTIONS,
   roundCoords,
+  coordText,
   readPlaces,
 };

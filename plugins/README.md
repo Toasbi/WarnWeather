@@ -70,8 +70,9 @@ provider can't be reached, a forecast up to 6 hours old stands in and is retried
   forecast a provider produces). `weather-source.js` is the source handler itself.
 - `<plugin>/src/`: the provider (requests and mapping to a normalized forecast), `source.js` (what it
   serves) and `index.js` (the entry point).
-- `<plugin>/package.json`: the manifest. Its `properties` block must match `lib/vocabulary.js`
-  exactly (the Pebble app silently drops an undeclared shape); `test/manifest.test.js` checks it.
+- `<plugin>/package.json`: the manifest, without a `properties` block: the build writes each
+  source's from what `src/source.js` serves (`vocabulary.declare(SERVES)`), so the shapes the pbw
+  declares can't drift from the ones it sends (the Pebble app silently drops an undeclared shape).
 - `scripts/build.js`: bundles `src/index.js` with what it requires into `plugin.js` and zips it with
   `appinfo.json` (the manifest, marked `manifestVersion` 2) into the pbw. No Pebble SDK needed.
 - `test/`: Node tests against recorded answers, including a port of the Pebble app's shape
@@ -112,6 +113,5 @@ does.
 1. Copy a plugin folder and give it a new `uuid` and `name`.
 2. Write `src/<provider>.js`: `fetchForecast(coords, nowMs)` resolving to a normalized forecast (see
    the top of `lib/instance.js`). Keep the provider's quirks there.
-3. List what it serves in `src/source.js` (`SERVES`), and set the manifest's `properties` to
-   `vocabulary.declare(SERVES)`.
+3. List what it serves in `src/source.js` (`SERVES`). The build declares those shapes in the pbw.
 4. Record fixtures with its own request URLs and add a test like `test/open-meteo.test.js`.

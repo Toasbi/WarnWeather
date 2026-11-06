@@ -13,9 +13,12 @@
 
 const http = require('../../lib/http');
 const apparent = require('../../lib/apparent');
+const instance = require('../../lib/instance');
+const places = require('../../lib/places');
+const { isNumber, num, first } = require('../../lib/values');
 
 const BASE_URL = 'https://api.open-meteo.com/v1/forecast';
-const HOUR = 3600;
+const HOUR = instance.HOUR;
 const FORECAST_DAYS = 7;
 
 // The ensemble behind ECMWF's chance of rain steps every 3 hours, on 00, 03, 06 ... UTC.
@@ -69,21 +72,13 @@ const WMO = {
 };
 
 /**
- * @param {*} value Candidate.
- * @returns {number|null} The value when it is a finite number, else null.
- */
-function num(value) {
-  return apparent.isNumber(value) ? value : null;
-}
-
-/**
  * A WMO weather code as a condition.
  *
  * @param {*} code WMO code.
  * @returns {{code: string, short: string, long: string}|null} The condition, or null without a code.
  */
 function condition(code) {
-  if (!apparent.isNumber(code)) {
+  if (!isNumber(code)) {
     return null;
   }
   const entry = WMO[code];
@@ -100,8 +95,8 @@ function condition(code) {
  */
 function baseQuery(coords, model) {
   return BASE_URL
-    + '?latitude=' + coords.latitude.toFixed(2)
-    + '&longitude=' + coords.longitude.toFixed(2)
+    + '?latitude=' + places.coordText(coords.latitude)
+    + '&longitude=' + places.coordText(coords.longitude)
     + '&models=' + model
     + '&timezone=auto&timeformat=unixtime&forecast_days=' + FORECAST_DAYS;
 }
@@ -204,8 +199,7 @@ function normalize(main, uv) {
     const windSpeed = at('wind_speed_10m', time);
     const feelsLike = at('apparent_temperature', time);
     hourly.temperature.push(temperature);
-    hourly.feelsLike.push(feelsLike !== null ? feelsLike
-      : apparent.apparentTemperature(temperature, humidity, windSpeed));
+    hourly.feelsLike.push(first(feelsLike, apparent.apparentTemperature(temperature, humidity, windSpeed)));
     hourly.humidity.push(humidity);
     hourly.dewPoint.push(at('dew_point_2m', time));
     hourly.pressure.push(at('pressure_msl', time));
@@ -245,9 +239,8 @@ function normalize(main, uv) {
   const now = main.current || {};
   const current = {
     temperature: num(now.temperature_2m),
-    feelsLike: num(now.apparent_temperature) !== null ? num(now.apparent_temperature)
-      : apparent.apparentTemperature(num(now.temperature_2m), num(now.relative_humidity_2m),
-        num(now.wind_speed_10m)),
+    feelsLike: first(now.apparent_temperature, apparent.apparentTemperature(num(now.temperature_2m),
+      num(now.relative_humidity_2m), num(now.wind_speed_10m))),
     humidity: num(now.relative_humidity_2m),
     dewPoint: num(now.dew_point_2m),
     pressure: num(now.pressure_msl),
@@ -295,7 +288,6 @@ async function fetchForecast(coords) {
 }
 
 module.exports = {
-  BASE_URL,
   WMO,
   condition,
   forecastUrl,

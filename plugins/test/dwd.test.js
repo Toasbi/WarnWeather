@@ -3,7 +3,7 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const brightSky = require('../dwd/src/bright-sky');
 const source = require('../dwd/src/source');
-const manifest = require('../dwd/package.json');
+const build = require('../scripts/build');
 const weatherFixture = require('./fixtures/bright-sky-freiburg-weather.json');
 const currentFixture = require('./fixtures/bright-sky-freiburg-current.json');
 const instance = require('../lib/instance');
@@ -16,7 +16,8 @@ const HOUR = 3600;
 // The fixtures were recorded on 6 Nov 2026 (CET) for Freiburg, from local midnight for 7 days.
 const MIDNIGHT = Date.UTC(2026, 10, 5, 23) / 1000;
 const NOW_MS = (MIDNIGHT + 9.5 * HOUR) * 1000;
-const DECLARED = manifest.pebble.plugin.sources[0].properties;
+// The shapes the built pbw declares (the build writes them from the plugin's SERVES).
+const DECLARED = build.buildArtifacts('dwd').appinfo.plugin.sources[0].properties;
 const FREIBURG = weatherLocation('home', 'Freiburg', 47.99, 7.85);
 const C = brightSky.CONDITIONS;
 

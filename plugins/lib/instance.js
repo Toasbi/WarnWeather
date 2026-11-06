@@ -301,11 +301,7 @@ module.exports = {
   HOUR,
   DAY,
   HOURLY_HOURS,
-  DAILY_DAYS,
-  isPresent,
   localMidnight,
-  seriesWindow,
-  pointShapes,
   seriesShapes,
   buildInstance,
 };

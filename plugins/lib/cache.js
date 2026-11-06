@@ -12,9 +12,6 @@ const STORAGE_KEY = 'forecasts';
 /** Bumped whenever the normalized forecast changes shape: older entries are then dropped. */
 const VERSION = 1;
 
-/** A forecast older than a day is no use even as a fallback. */
-const KEEP_MS = 24 * 3600 * 1000;
-
 /** Places a user switches between: enough for every weather location and some travel. */
 const MAX_ENTRIES = 12;
 
@@ -36,15 +33,18 @@ function load() {
 }
 
 /**
- * Drop entries past KEEP_MS, then all but the MAX_ENTRIES newest.
+ * Drop the entries no request can be served from any more, then all but the MAX_ENTRIES newest.
+ * An entry is served while it is fresh (under the source's ttlMs) or, when a fetch fails, while it
+ * is younger than the source's staleMs (cached), so one older than that is never read again.
  *
  * @param {Object} entries Entries by key; changed in place.
  * @param {number} nowMs Now.
+ * @param {number} keepMs The source's staleMs.
  * @returns {Object} The same entries.
  */
-function prune(entries, nowMs) {
+function prune(entries, nowMs, keepMs) {
   Object.keys(entries).forEach((key) => {
-    if (!entries[key] || nowMs - entries[key].fetchedAt > KEEP_MS) {
+    if (!entries[key] || nowMs - entries[key].fetchedAt >= keepMs) {
       delete entries[key];
     }
   });
@@ -60,11 +60,12 @@ function prune(entries, nowMs) {
  *
  * @param {Object} entries Entries by key.
  * @param {number} nowMs Now.
+ * @param {number} keepMs The source's staleMs (prune).
  * @returns {void}
  */
-function save(entries, nowMs) {
+function save(entries, nowMs, keepMs) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: VERSION, entries: prune(entries, nowMs) }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: VERSION, entries: prune(entries, nowMs, keepMs) }));
   } catch (error) {
     // Full or unavailable: the next request fetches again.
   }
@@ -106,10 +107,8 @@ async function cached(entries, key, options) {
 module.exports = {
   STORAGE_KEY,
   VERSION,
-  KEEP_MS,
   MAX_ENTRIES,
   load,
-  prune,
   save,
   cached,
 };

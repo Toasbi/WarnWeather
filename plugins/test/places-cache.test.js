@@ -81,11 +81,13 @@ test('an entry stamped in the future (a clock change) counts as expired', async 
 test('entries round-trip through localStorage, pruned by age and count', () => {
   installHost({});
   const now = 100 * 24 * 3600 * 1000;
-  const entries = { old: { fetchedAt: now - cache.KEEP_MS - 1, expiresAt: 0, forecast: 1 } };
+  const staleMs = 6 * 3600 * 1000;
+  // Past the source's staleMs an entry can never be served again, not even when a fetch fails.
+  const entries = { old: { fetchedAt: now - staleMs, expiresAt: 0, forecast: 1 } };
   for (let i = 0; i < cache.MAX_ENTRIES + 3; i += 1) {
     entries['p' + i] = { fetchedAt: now - i * 1000, expiresAt: now, forecast: i };
   }
-  cache.save(entries, now);
+  cache.save(entries, now, staleMs);
   const loaded = cache.load();
   assert.equal(Object.keys(loaded).length, cache.MAX_ENTRIES);
   assert.equal(loaded.old, undefined);

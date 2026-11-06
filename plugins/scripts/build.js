@@ -13,6 +13,7 @@ const path = require('path');
 const vm = require('vm');
 const bundler = require('./bundle');
 const zipper = require('./zip');
+const vocabulary = require('../lib/vocabulary');
 
 const PLUGINS_DIR = path.join(__dirname, '..');
 
@@ -34,13 +35,40 @@ function pluginDirs() {
 }
 
 /**
+ * A source as the app reads it: its manifest entry with the shapes it declares (the Pebble app
+ * drops a shape no source declares), written after its items. The manifest itself never lists
+ * them; they come from what the plugin serves, so the two cannot drift.
+ *
+ * @param {Object} source A pebble.plugin.sources entry.
+ * @param {string[]} serves The plugin's SERVES (its src/source.js).
+ * @returns {Object} The entry with `properties`.
+ */
+function declaredSource(source, serves) {
+  const out = {};
+  Object.keys(source).forEach((key) => {
+    if (key === 'properties') {
+      return;
+    }
+    out[key] = source[key];
+    if (key === 'items') {
+      out.properties = vocabulary.declare(serves);
+    }
+  });
+  if (!out.properties) {
+    out.properties = vocabulary.declare(serves);
+  }
+  return out;
+}
+
+/**
  * The appinfo.json a plugin-only pbw carries, from its package.json: the `pebble` block with the
- * fields `pebble build` would add.
+ * fields `pebble build` would add and, given what the plugin serves, each source's declared shapes.
  *
  * @param {Object} pkg Parsed package.json.
+ * @param {string[]} [serves] The plugin's SERVES; without it the sources stay as the manifest has them.
  * @returns {Object} appinfo.
  */
-function appinfoFor(pkg) {
+function appinfoFor(pkg, serves) {
   const pebble = pkg.pebble || {};
   if (!UUID.test(pebble.uuid || '')) {
     throw new Error(pkg.name + ': the pebble block needs a uuid');
@@ -54,7 +82,7 @@ function appinfoFor(pkg) {
     throw new Error(pkg.name + ': version must be major.minor.patch');
   }
   const display = pebble.displayName || pkg.name;
-  return Object.assign({
+  const appinfo = Object.assign({
     shortName: display,
     longName: display,
     companyName: pkg.author || '',
@@ -63,6 +91,12 @@ function appinfoFor(pkg) {
     resources: { media: [] },
     watchapp: { watchface: false },
   }, pebble, { manifestVersion: MANIFEST_VERSION });
+  if (serves) {
+    appinfo.plugin = Object.assign({}, plugin, {
+      sources: plugin.sources.map((source) => declaredSource(source, serves)),
+    });
+  }
+  return appinfo;
 }
 
 /**
@@ -74,7 +108,7 @@ function appinfoFor(pkg) {
 function buildArtifacts(dir) {
   const project = path.join(PLUGINS_DIR, dir);
   const pkg = JSON.parse(fs.readFileSync(path.join(project, 'package.json'), 'utf8'));
-  const appinfo = appinfoFor(pkg);
+  const appinfo = appinfoFor(pkg, require(path.join(project, 'src', 'source.js')).SERVES);
   const bundled = bundler.bundle(path.join(project, 'src', 'index.js'), {
     root: PLUGINS_DIR,
     banner: '// ' + appinfo.longName + ' ' + pkg.version + ': bundled by plugins/scripts/build.js from '

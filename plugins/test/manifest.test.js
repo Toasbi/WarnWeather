@@ -43,9 +43,11 @@ PLUGINS.forEach((dir) => {
     assert.equal(pebble.watchapp, undefined, 'no watch binary');
   });
 
-  test(dir + ': declares exactly the shapes it serves (the app drops undeclared ones)', () => {
-    assert.deepEqual(source.properties, vocabulary.declare(serves),
-      'regenerate the properties block from plugins/lib/vocabulary.js');
+  test(dir + ': its pbw declares exactly the shapes it serves (the app drops undeclared ones)', () => {
+    const built = build.buildArtifacts(dir).appinfo.plugin.sources[0];
+    assert.deepEqual(built.properties, vocabulary.declare(serves));
+    assert.deepEqual(Object.keys(built).slice(0, 3), ['category', 'items', 'properties']);
+    assert.equal(source.properties, undefined, 'the build writes them: the manifest keeps no copy to drift');
   });
 
   test(dir + ': serves weather/location, guarded by Location like every weather source', () => {

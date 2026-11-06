@@ -5,7 +5,7 @@ const openMeteo = require('../open-meteo/src/open-meteo');
 const apparent = require('../lib/apparent');
 const units = require('../lib/units');
 const source = require('../open-meteo/src/source');
-const manifest = require('../open-meteo/package.json');
+const build = require('../scripts/build');
 const forecastFixture = require('./fixtures/open-meteo-freiburg-forecast.json');
 const uvFixture = require('./fixtures/open-meteo-freiburg-uv.json');
 const { installHost, uninstallHost, weatherLocation } = require('./helpers/host');
@@ -15,7 +15,8 @@ const HOUR = 3600;
 // The fixtures were recorded on 6 Nov 2026 for Freiburg (CET): local midnight is 23:00 UTC before.
 const MIDNIGHT = forecastFixture.hourly.time[0];
 const NOW_MS = (MIDNIGHT + 9.5 * HOUR) * 1000;
-const DECLARED = manifest.pebble.plugin.sources[0].properties;
+// The shapes the built pbw declares (the build writes them from the plugin's SERVES).
+const DECLARED = build.buildArtifacts('open-meteo').appinfo.plugin.sources[0].properties;
 const FREIBURG = weatherLocation('home', 'Freiburg', 47.99, 7.85);
 
 afterEach(() => uninstallHost());

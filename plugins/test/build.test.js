@@ -6,6 +6,7 @@ const os = require('os');
 const path = require('path');
 const vm = require('vm');
 const zlib = require('zlib');
+const vocabulary = require('../lib/vocabulary');
 const build = require('../scripts/build');
 const bundler = require('../scripts/bundle');
 const zipper = require('../scripts/zip');
@@ -62,6 +63,10 @@ test('appinfo: the package.json pebble block, marked manifestVersion 2', () => {
   assert.equal(appinfo.longName, 'X');
   assert.deepEqual(appinfo.watchapp, { watchface: false });
   assert.deepEqual(appinfo.plugin, pkg.pebble.plugin);
+  // Given what the plugin serves, each source declares those shapes.
+  const served = build.appinfoFor(pkg, vocabulary.ALL.slice(0, 2));
+  assert.deepEqual(served.plugin.sources[0].properties, vocabulary.declare(vocabulary.ALL.slice(0, 2)));
+  assert.equal(pkg.pebble.plugin.sources[0].properties, undefined, 'the manifest is left as it is');
   assert.throws(() => build.appinfoFor(Object.assign({}, pkg, { pebble: Object.assign({}, pkg.pebble, { uuid: 'nope' }) })), /uuid/);
   assert.throws(() => build.appinfoFor(Object.assign({}, pkg, { pebble: Object.assign({}, pkg.pebble, { plugin: {} }) })), /plugin/);
   assert.throws(() => build.appinfoFor(Object.assign({}, pkg, { version: '1.2' })), /version/);
@@ -105,7 +110,8 @@ build.pluginDirs().forEach((dir) => {
     const built = build.buildArtifacts(dir);
     const read = unzip(built.archive);
     assert.deepEqual(Object.keys(read), ['appinfo.json', 'plugin.js']);
-    assert.deepEqual(JSON.parse(read['appinfo.json']), build.appinfoFor(built.pkg));
+    const serves = require('../' + dir + '/src/source.js').SERVES;
+    assert.deepEqual(JSON.parse(read['appinfo.json']), build.appinfoFor(built.pkg, serves));
     assert.equal(read['plugin.js'].toString(), built.script);
     assert.deepEqual(build.buildArtifacts(dir).archive, built.archive);
   });

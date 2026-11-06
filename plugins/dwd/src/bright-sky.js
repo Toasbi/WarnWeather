@@ -17,10 +17,12 @@ const http = require('../../lib/http');
 const apparent = require('../../lib/apparent');
 const sun = require('../../lib/sun');
 const instance = require('../../lib/instance');
+const places = require('../../lib/places');
+const { isNumber, num, first } = require('../../lib/values');
 
 const BASE_URL = 'https://api.brightsky.dev';
-const HOUR = 3600;
-const DAY = 86400;
+const HOUR = instance.HOUR;
+const DAY = instance.DAY;
 const DAYS = 7;
 
 /** Bright Sky's own default: the nearest DWD station within 50 km. */
@@ -36,8 +38,6 @@ const AREA = { south: 45.5, north: 56.0, west: 5.0, east: 17.5 };
 
 /** The daytime hours a day's condition summarizes: 07:00 to 21:00 local. */
 const DAYTIME = [7, 21];
-
-const isNumber = apparent.isNumber;
 
 const CONDITIONS = {
   clear: { code: 'sun', short: 'Clear', long: 'Clear' },
@@ -58,29 +58,6 @@ const CONDITIONS = {
 // A day's condition: its most severe precipitation, else the sky most of its daytime hours had.
 const SEVERITY = ['heavy_rain', 'rain_and_snow', 'heavy_snow', 'light_snow', 'light_rain'];
 const SKIES = ['cloudy', 'partly_cloudy', 'sun'];
-
-/**
- * @param {*} value Candidate.
- * @returns {number|null} The value when it is a finite number, else null.
- */
-function num(value) {
-  return isNumber(value) ? value : null;
-}
-
-/**
- * The first finite number among the arguments.
- *
- * @param {...*} values Candidates.
- * @returns {number|null} The first number, or null.
- */
-function first() {
-  for (let i = 0; i < arguments.length; i += 1) {
-    if (isNumber(arguments[i])) {
-      return arguments[i];
-    }
-  }
-  return null;
-}
 
 /**
  * Whether Bright Sky serves a place here.
@@ -223,8 +200,8 @@ function extreme(values, pick, least) {
 function weatherUrl(coords, midnight) {
   const iso = (sec) => encodeURIComponent(new Date(sec * 1000).toISOString());
   return BASE_URL + '/weather'
-    + '?lat=' + coords.latitude.toFixed(2)
-    + '&lon=' + coords.longitude.toFixed(2)
+    + '?lat=' + places.coordText(coords.latitude)
+    + '&lon=' + places.coordText(coords.longitude)
     + '&date=' + iso(midnight)
     + '&last_date=' + iso(midnight + DAYS * DAY)
     + '&max_dist=' + MAX_DIST_M;
@@ -236,8 +213,8 @@ function weatherUrl(coords, midnight) {
  */
 function currentUrl(coords) {
   return BASE_URL + '/current_weather'
-    + '?lat=' + coords.latitude.toFixed(2)
-    + '&lon=' + coords.longitude.toFixed(2)
+    + '?lat=' + places.coordText(coords.latitude)
+    + '&lon=' + places.coordText(coords.longitude)
     + '&max_dist=' + MAX_DIST_M;
 }
 
@@ -254,8 +231,7 @@ function normalizeCurrent(record) {
   }
   const temperature = num(record.temperature);
   const dewPoint = num(record.dew_point);
-  const humidity = num(record.relative_humidity) !== null ? num(record.relative_humidity)
-    : apparent.humidityFromDewPoint(temperature, dewPoint);
+  const humidity = first(record.relative_humidity, apparent.humidityFromDewPoint(temperature, dewPoint));
   const windSpeed = first(record.wind_speed_10, record.wind_speed_30, record.wind_speed_60);
   let intensity = null;
   if (isNumber(record.precipitation_60)) {
@@ -324,8 +300,7 @@ function normalize(records, current, midnight, offsetMin, coords) {
     const next = byEpoch[time + HOUR] || null;
     const temperature = num(own && own.temperature);
     const dewPoint = num(own && own.dew_point);
-    const humidity = num(own && own.relative_humidity) !== null ? num(own.relative_humidity)
-      : apparent.humidityFromDewPoint(temperature, dewPoint);
+    const humidity = first(own && own.relative_humidity, apparent.humidityFromDewPoint(temperature, dewPoint));
     const windSpeed = num(own && own.wind_speed);
     const cloudCover = num(own && own.cloud_cover);
     const amount = num(next && next.precipitation);
@@ -402,7 +377,6 @@ async function fetchForecast(coords, nowMs) {
 }
 
 module.exports = {
-  BASE_URL,
   AREA,
   CONDITIONS,
   covers,

@@ -116,7 +116,7 @@ function createWeatherSource(options) {
         }
         covered += 1;
         const coords = places.roundCoords(place.coords);
-        const key = coords.latitude.toFixed(2) + ',' + coords.longitude.toFixed(2);
+        const key = places.coordText(coords.latitude) + ',' + places.coordText(coords.longitude);
         // Two places at one spot (the current location beside a saved one) share a fetch.
         if (!pending[key]) {
           pending[key] = cache.cached(entries, key, {
@@ -148,7 +148,7 @@ function createWeatherSource(options) {
       }));
 
       if (changed) {
-        cache.save(entries, nowMs);
+        cache.save(entries, nowMs, staleMs);
       }
       const served = instances.filter(Boolean);
       if (!served.length) {
@@ -167,9 +167,4 @@ function createWeatherSource(options) {
   };
 }
 
-module.exports = {
-  DEFAULT_TTL_MS,
-  DEFAULT_STALE_MS,
-  DEFAULT_RETRY_MS,
-  createWeatherSource,
-};
+module.exports = { createWeatherSource };

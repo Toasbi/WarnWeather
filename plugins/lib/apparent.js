@@ -7,13 +7,7 @@
 //   apparent temperature (Steadman):  AT = T + 0.33·e − 0.70·v − 4.00   (T in °C, v in m/s)
 //   vapour pressure (Magnus):         e  = (rh/100) · 6.105 · exp(17.27·T / (237.7 + T))
 
-/**
- * @param {*} value Candidate.
- * @returns {boolean} True for a finite number.
- */
-function isNumber(value) {
-  return typeof value === 'number' && isFinite(value);
-}
+const { isNumber } = require('./values');
 
 /**
  * Saturation vapour pressure (Magnus).
@@ -57,4 +51,4 @@ function apparentTemperature(tempC, humidity, windKmh) {
   return tempC + 0.33 * vaporPressure - 0.70 * windMs - 4.00;
 }
 
-module.exports = { isNumber, saturationVaporPressure, humidityFromDewPoint, apparentTemperature };
+module.exports = { saturationVaporPressure, humidityFromDewPoint, apparentTemperature };
