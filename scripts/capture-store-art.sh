@@ -7,10 +7,12 @@ set -euo pipefail
 # scripts/store-art.py to build the store's showcase GIF and five store screens from.
 #
 # watch.now is compile-time, so every scene is its own build: each fixture is built once into
-# build/store-art-pbw/ (all five platforms in one .pbw), then captured platform by platform,
-# each scene on a freshly booted emulator with a fresh phone (see fresh_phone). A stashed .pbw
-# is reused while its fixture is unchanged (its sha256 sits beside it); delete
-# build/store-art-pbw to rebuild them all, e.g. after a C change.
+# build/store-art-pbw/ (all five platforms in one .pbw), then captured platform by platform: a
+# platform's first scene on a freshly booted emulator with a fresh phone (see fresh_phone), the
+# rest installed on that running emulator (every scene's settings name every key a scene
+# changes, so none keeps the last one's: gen-store-art-fixtures.js). A stashed .pbw is reused
+# while its fixture is unchanged (its sha256 sits beside it); delete build/store-art-pbw to
+# rebuild them all, e.g. after a C change.
 #
 # Usage:   scripts/capture-store-art.sh <version> [scene ...]
 # Example: scripts/capture-store-art.sh v2.3.0                     # every scene
@@ -32,14 +34,14 @@ read -ra platforms <<< "${PLATFORMS:-emery basalt diorite flint aplite}"
 node scripts/gen-store-art-fixtures.js
 manifest="$(node scripts/gen-store-art-fixtures.js --manifest)"
 
-# scene_rows: "<id> <platform> <slug> <flicks>" for every capture, filtered by the scene args.
+# scene_rows: "<id> <platform> <slug>" for every capture, filtered by the scene args.
 scene_rows() {
   node -e '
     const m = JSON.parse(process.argv[1]);
     const want = process.argv.slice(2);
     for (const s of m) {
       if (want.length && !want.includes(s.id)) { continue; }
-      for (const p of s.platforms) { console.log([s.id, p, s.fixtures[p], s.flicks].join(" ")); }
+      for (const p of s.platforms) { console.log([s.id, p, s.fixtures[p]].join(" ")); }
     }' "$manifest" "${wanted[@]+"${wanted[@]}"}"
 }
 
@@ -70,15 +72,15 @@ kill_emulators() {
 }
 trap kill_emulators EXIT
 
-# Every scene starts from a fresh phone. A fixture's settings are merged into what the app's
-# localStorage holds (clay-settings.js applyFixtureSettings), so a scene would otherwise keep every
-# setting the scenes before it changed (a black clock, a left axis turned off, Alert levels). Two
-# things carry them over: the localStorage pypkjs keeps across installs, and pypkjs's cached copy
-# of the last build, whose JS it runs (with that build's fixture) when the booting watch reopens
-# the old watchface, before the new install lands. fresh_phone stops the emulator for good and
-# deletes both from pebble-tool's persist directory (pebble_tool/util get_persist_dir, per SDK and
-# platform); the next install boots the watch again, and the fresh phone sends it the fixture's
-# settings whole.
+# A platform's run starts from a fresh phone. A fixture's settings are merged into what the
+# app's localStorage holds (clay-settings.js applyFixtureSettings), so a scene keeps what the last
+# run left there unless it names it (the scenes name everything they change among themselves,
+# not what some other run set). Two things carry the last run's settings over: the localStorage
+# pypkjs keeps across installs, and pypkjs's cached copy of the last build, whose JS it runs
+# (with that build's fixture) when the booting watch reopens the old watchface, before the new
+# install lands. fresh_phone stops the emulator for good and deletes both from pebble-tool's
+# persist directory (pebble_tool/util get_persist_dir, per SDK and platform); the next install
+# boots the watch again, and the fresh phone sends it the fixture's settings whole.
 dev_uuid="$(node -p "require('./profiles/package.dev.json').uuid")"
 sdk_version="$(tr -d '\r\n' < pebble-sdk-version)"
 case "$(uname -s)" in
@@ -114,22 +116,25 @@ for slug in $(scene_rows | awk '{print $3}' | sort -u); do
   printf '%s\n' "$sum" > "$pbw_dir/$slug.sha256"
 done
 
-# capture <platform> <id> <slug> <flicks>: a fresh phone, install (which boots the watch),
-# settle, flick, screenshot; one retry from a wiped emulator when the install or the
-# screenshot wedges. WW_BOOT_WAIT overrides the settle (emery boots slowest).
+# capture <platform> <id> <slug> <fresh>: install the scene's build and screenshot it. A fresh
+# capture (a platform's first, or the next after one that failed) starts from a fresh phone and
+# boots the watch (WW_BOOT_WAIT, 8 s, 12 on emery, which boots slowest); the others install on
+# the running emulator and wait for the phone's send (WW_LIVE_WAIT, 5 s, 7 on emery). One retry
+# from a fresh phone when the install or the screenshot wedges.
 capture() {
-  local platform="$1" id="$2" slug="$3" flicks="$4" out attempt k wait
+  local platform="$1" id="$2" slug="$3" fresh="$4" out attempt wait boot live
   out="$frames_root/$platform/$id.png"
-  wait="${WW_BOOT_WAIT:-8}"
-  [[ "$platform" == "emery" && -z "${WW_BOOT_WAIT:-}" ]] && wait=12
+  boot="${WW_BOOT_WAIT:-8}" live="${WW_LIVE_WAIT:-5}"
+  if [[ "$platform" == "emery" ]]; then boot="${WW_BOOT_WAIT:-12}" live="${WW_LIVE_WAIT:-7}"; fi
   for attempt in 1 2; do
-    fresh_phone "$platform" || return 1
+    if [[ "$fresh" == 1 || "$attempt" == 2 ]]; then
+      fresh_phone "$platform" || return 1
+      wait="$boot"
+    else
+      wait="$live"
+    fi
     if run_bounded 120 pebble install "$pbw_dir/$slug.pbw" --emulator "$platform" > "$pbw_dir/install.log" 2>&1; then
       sleep "$wait"
-      for (( k = 0; k < flicks; k++ )); do
-        run_bounded 20 pebble emu-tap --emulator "$platform" >/dev/null 2>&1 || true
-        sleep 1.5
-      done
       if run_bounded 30 pebble screenshot "$out" --emulator "$platform" >/dev/null 2>&1; then
         printf '  %s\n' "$out"
         return 0
@@ -149,8 +154,10 @@ for platform in "${platforms[@]}"; do
   [[ -n "$rows" ]] || continue
   printf '\n######## %s ########\n' "$platform"
   mkdir -p "$frames_root/$platform"
-  while read -r id _ slug flicks; do
-    capture "$platform" "$id" "$slug" "$flicks" || failed+=("$platform/$id")
+  fresh=1
+  while read -r id _ slug; do
+    if capture "$platform" "$id" "$slug" "$fresh"; then fresh=0
+    else failed+=("$platform/$id"); fresh=1; fi
   done <<< "$rows"
   kill_emulators || true
 done

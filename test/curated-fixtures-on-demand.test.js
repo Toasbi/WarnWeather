@@ -9,7 +9,7 @@
 // rain alert among them): the look the scenes had before the metric alerts existed,
 // with the rain alert where the defaults put it, whatever the capture time. The generated
 // scenes inherit the pin from their base fixture (berlin.json, berlin-timelapse.json)
-// or carry it in their own (miami-*.json; the store art sets it in its COMMON). A scene that wants to show an alert ticks it
+// or carry it in their own (miami-*.json). A scene that wants to show an alert ticks it
 // in its own claySettings on purpose, and updates this test.
 
 const { test } = require('node:test');
@@ -132,17 +132,16 @@ test('every reel, wizard and time-lapse frame pins its On demand ticks', () => {
   files.forEach((file) => assertPinned(readFixture(file), path.basename(file)));
 });
 
-test('every store art scene pins its On demand ticks, but the alerts scenes, which tick UV and gusts', () => {
+test('every store art scene ticks gusts beside the battery on purpose: the storm\'s gust alert', () => {
   const { generateStoreArtFixtures } = require('../scripts/gen-store-art-fixtures');
   const written = generateStoreArtFixtures({ outDir: tmpDir('store-art') });
   assert.ok(written.length > 0, 'the store art was generated');
+  // The store art's day judges its gusts on the day itself (alertGustDays 'today'): the
+  // alert bakes from the fixture's own forecast, whatever the capture time.
   written.forEach((file) => {
-    const fx = readFixture(file);
+    const clay = readFixture(file).claySettings;
     const label = path.basename(file);
-    if (/^art-alerts-(on|full)\.json$/.test(label)) {
-      assert.equal(fx.claySettings.statusTopOnDemandRightItems, 'battery,uv,gust', label + ' shows its alerts');
-      return;
-    }
-    assertPinned(fx, label);
+    assert.equal(clay.statusTopOnDemandRightItems, 'battery,gust', label);
+    assert.equal(clay.alertGustDays, 'today', label);
   });
 });

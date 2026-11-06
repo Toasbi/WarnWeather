@@ -2,31 +2,37 @@
 'use strict';
 
 // Store art fixtures: the watch screens of the appstore set that scripts/store-art.py builds
-// (the showcase GIF and the five store screens, per platform). Each scene is one capture, a
-// fixture of its own (art-<id>.json, plus art-<id>-<platform>.json for a platform variant),
-// shot by scripts/capture-store-art.sh into screenshot/<version>/store-art/frames/<platform>/.
+// (the showcase GIF and the five store screens, per platform), each a fixture of its own
+// (art-<id>.json, plus art-<id>-<platform>.json for a platform variant), shot by
+// scripts/capture-store-art.sh into screenshot/<version>/store-art/frames/<platform>/<id>.png.
 //
-// Two kinds of scene:
-// - 'full': the watchface as the watch draws it, clock and all (the GIF's opening, its views
-//   and layouts, the store screens).
-// - 'panel': the same, with the clock drawn in black (colorTime 0). On a colour watch its
-//   band comes out empty, and store-art.py draws a settings row or a caption there while the
-//   rest of the screen stays the watch's own pixels. A black and white watch ignores the
-//   clock colour (theme_pick takes its black and white arm), so there the panel covers the
-//   clock: diorite, flint and aplite share basalt's 144 x 168 layout, and store-art.py takes
-//   the band from basalt's capture of the same scene.
+// THE DAY. The showcase is a time-lapse of a day and a half in Berlin, Saturday 20 and Sunday
+// 21 June 2026: a hot, calm afternoon, the evening and the night, then Sunday's thunderstorm.
+// The weather is the DWD forecast in berlin-timelapse.json (Brightsky, from 11:00 on the 20th
+// for 39 hours), with what it lacks filled in by hand (DAY_EXTRA): the three morning hours
+// before it, the hours after it that the later frames' graphs reach (to the long forecast
+// span), and the UV index (clear on Saturday, low under Sunday's storm). The clock's time is
+// compile-time, so every frame is a scene ('day', day-<d>-<hhmm>): half-hourly through
+// Saturday, hourly through the night, every quarter hour as the storm comes.
 //
-// The TABLE ORDER is the capture order only; store-art.py owns the storyboard and picks
-// scenes by id. `node scripts/gen-store-art-fixtures.js --manifest` prints the scenes, their
-// kind, flicks and platforms as JSON, which is how store-art.py and capture-store-art.sh
-// learn them: this table is the one list.
+// THE PAUSES. At some frames the time-lapse stops and a setting changes: a 'variant' is the
+// frame's moment with that setting changed (the UV slot's value, the graph's lines, the forecast
+// length and the left axis on Pebble Time 2, the three-week calendar, the layouts). A 'band'
+// scene is a moment with the clock drawn in black (colorTime 0): on a colour watch its band
+// comes out empty, and it tells store-art.py where the clock is, so a pause's card can take its
+// place (a black and white watch ignores the clock colour, and takes basalt's: the same layout).
 //
-// The weather is the Berlin base (berlin.json), or windows of the 68-hour forecast-long.json
-// (the forecast length scenes, and the UV slot's morning and evening), or stripes.json for
-// the cloud cover stripe. Every scene keeps the base's On demand pin (the Watch Status Bar's
-// right side ticks Battery alone; test/curated-fixtures-on-demand.test.js) except the one
-// that shows the weather alerts on purpose (alerts-on). The rain alert and the health
-// numbers are canned at build time (the countdown block, WW_HEALTH_FIXTURE=1).
+// The weather alerts are set the way the story needs them: gusts from 50 km/h judged on the day
+// itself (Sunday's storm brings 59 km/h at noon, Saturday's 35 stay quiet), and the rain alert
+// counting down to the storm (the countdown block: the wscript bakes it). The UV index is in the
+// forecast row's right slot, now and the day's max ("5/8"), not an On demand alert, so the
+// calm Saturday keeps its Watch Status Bar plain. Every scene's settings name every key that
+// any scene changes (SETTLED), so a capture on a running emulator, where a fixture's settings
+// are merged into the last scene's (clay-settings.js applyFixtureSettings), shows its own.
+//
+// `node scripts/gen-store-art-fixtures.js --manifest` prints the scenes (kind, moment,
+// platforms, fixtures, the forecast length labels) as JSON: how store-art.py and
+// capture-store-art.sh learn them. The TABLE ORDER is the capture order.
 
 const fs = require('fs');
 const path = require('path');
@@ -38,152 +44,176 @@ const PLATFORMS = ['emery', 'basalt', 'diorite', 'flint', 'aplite'];
 const NOT_APLITE = ['emery', 'basalt', 'diorite', 'flint'];
 // Pebble Time 2 alone has the forecast length and the left axis settings (schema.js).
 const EMERY = ['emery'];
+// The colour watches, whose clock a band scene draws in black (the others take basalt's band).
+const COLOUR = ['emery', 'basalt'];
 
-const BASES = {
-  berlin: path.join('fixtures', 'berlin.json'),
-  long: path.join('fixtures', 'forecast-long.json'),
-  stripes: path.join('fixtures', 'stripes.json'),
+const REAL = path.join('fixtures', 'berlin-timelapse.json');
+// The day's first frame and the series' first hour: Saturday 20 June 2026, 08:00. The real
+// forecast starts three hours later (REAL_OFFSET).
+const DAY = { year: 2026, month: 6, day: 20 };
+const FIRST_HOUR = 8;
+const REAL_OFFSET = 3;
+// Filled in by hand (plausible for Berlin in June), around the real forecast: the morning
+// before it (08:00 to 10:00 on the 20th) and the hours after it (from 02:00 on the 22nd), in the
+// fixture's units (°F, %, mm, km/h); and the UV index for every hour from 08:00 on the 20th.
+const DAY_EXTRA = {
+  before: {
+    temps: [74, 78, 81], precipPct: [0, 0, 0], rainMm: [0, 0, 0], windKmh: [14, 17, 20],
+    gustKmh: [24, 28, 32],
+  },
+  after: {
+    temps: [68, 67, 66, 65, 66, 68, 71, 73, 75, 77, 78, 79, 80, 80, 79, 78, 76, 74, 72, 70, 69, 68,
+      67, 66, 65, 64, 64, 64, 65, 67, 70, 72, 74, 76, 77, 78, 78, 77],
+    precipPct: [14, 12, 10, 9, 8, 7, 6, 6, 5, 5, 5, 6, 8, 10, 12, 12, 10, 8, 7, 6, 5, 5,
+      5, 5, 5, 5, 5, 6, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20],
+    rainMm: new Array(38).fill(0),
+    windKmh: [8, 7, 6, 6, 5, 6, 8, 10, 12, 13, 14, 15, 15, 14, 13, 12, 10, 9, 8, 7, 7, 6,
+      6, 5, 5, 5, 6, 7, 9, 11, 13, 14, 15, 16, 16, 15, 14, 13],
+    gustKmh: [14, 12, 11, 10, 10, 12, 15, 19, 23, 25, 27, 28, 28, 27, 25, 23, 20, 18, 16, 14, 13, 12,
+      11, 10, 10, 10, 11, 13, 17, 21, 24, 26, 28, 30, 30, 29, 27, 25],
+  },
+  uvIndex: [
+    // Saturday from 08:00: clear, 8 at 13:00.
+    2.6, 4.0, 5.2, 6.6, 7.5, 8.0, 7.6, 6.5, 5.0, 3.5, 2.1, 1.0, 0.3, 0, 0, 0,
+    // Sunday: the storm keeps it low, 3 in the afternoon's clearing.
+    0, 0, 0, 0, 0, 0.1, 0.4, 0.9, 1.4, 1.2, 0.9, 0.7, 0.6, 1.3, 2.4, 3.3, 3.0, 2.2, 1.3, 0.6, 0.2, 0, 0, 0,
+    // Monday and Tuesday: clear again.
+    0, 0, 0, 0, 0, 0.1, 0.5, 1.4, 2.8, 4.4, 5.9, 7.0, 7.7, 7.9, 7.4, 6.4, 5.0, 3.5, 2.1, 1.0, 0.3, 0, 0, 0,
+    0, 0, 0, 0, 0, 0.1, 0.5, 1.3, 2.6, 4.2, 5.7, 6.8, 7.4, 7.6, 7.1, 6.1,
+  ],
 };
+// The series DAY_EXTRA fills (every other key of the real forecast's weather is kept).
+const SERIES = ['temps', 'precipPct', 'rainMm', 'windKmh', 'gustKmh'];
+// Berlin's sun on the 20th and 21st (berlin-timelapse.json).
+const SUNRISE = { hour: 4, minute: 44 };
+const SUNSET = { hour: 21, minute: 33 };
 
-// The series a window slices (any the base carries).
-const SERIES = ['temps', 'precipPct', 'rainMm', 'uvIndex', 'pressureHpa', 'windKmh', 'gustKmh',
-  'cloudPct', 'feelsTemps', 'dewTemps'];
-// Berlin in June, as the bases have it (berlin.json, forecast-long.json).
-const SUNRISE = { hour: 4, minute: 46 };
-const SUNSET = { hour: 21, minute: 29 };
+// The frames: Saturday half-hourly from 08:00, the night hourly, Sunday's storm by the quarter
+// hour, to 14:00 on Sunday.
+const FRAMES = [].concat(
+  halfHours(0, 8, 24).map((t) => [0, t]),
+  ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '07:30', '08:00', '08:15',
+    '08:30', '08:45', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00',
+    '13:30', '14:00'].map((t) => [1, t]));
 
-// Rain on its way in 15 minutes, behind the alerts scenes' rain alert (no scene shows the radar
-// itself): a shower that builds to a downpour and tapers off over the next 75 minutes; the
-// alert's text is canned to match (tier 3, "Rain in 15'": the wscript bakes it from the
-// countdown block).
-const RAIN_SOON = {
-  exact: [0, 0, 0, 0.4, 0.9, 1.6, 2.4, 3.6, 4.8, 4.1, 3.2, 2.6, 1.9, 1.4, 1.0, 0.7, 0.5, 0.3, 0.2, 0.1, 0, 0, 0, 0],
-  area: [0, 0, 0.2, 0.7, 1.3, 2.1, 3.0, 4.4, 5.6, 5.0, 4.0, 3.3, 2.5, 1.9, 1.4, 1.0, 0.7, 0.5, 0.3, 0.2, 0.1, 0, 0, 0],
+// The rain alert on Sunday, as the countdown block bakes it: counting down to the storm's first
+// drops at 09:00, then raining on (past the radar's two hours: "+99'"), heaviest at noon
+// (tier 5: "Downpour" on Pebble Time 2, whose strip is wide enough), and easing to drizzle.
+const COUNTDOWN = {
+  '08:00': { mins: 60, raining: false, tier: 3 }, '08:15': { mins: 45, raining: false, tier: 3 },
+  '08:30': { mins: 30, raining: false, tier: 3 }, '08:45': { mins: 15, raining: false, tier: 4 },
+  '09:00': { mins: 100, raining: true, tier: 3 }, '09:30': { mins: 100, raining: true, tier: 3 },
+  '10:00': { mins: 100, raining: true, tier: 4 }, '10:30': { mins: 100, raining: true, tier: 4 },
+  '11:00': { mins: 100, raining: true, tier: 5 }, '11:30': { mins: 100, raining: true, tier: 5 },
+  '12:00': { mins: 100, raining: true, tier: 5 }, '12:30': { mins: 100, raining: true, tier: 5 },
+  '13:00': { mins: 100, raining: true, tier: 4 }, '13:30': { mins: 100, raining: true, tier: 3 },
+  '14:00': { mins: 75, raining: true, tier: 2 },
 };
-const RAIN_SOON_ALERT = { mins: 15, raining: false, tier: 3 };
+const RADAR_SLOTS = 24;   // rain_countdown.c RC_NUM_SLOTS: two hours of 5-minute slots
 
-// What every scene shares: the dark theme, the Roboto clock, no radar, health or alerts
-// unless the scene asks (the Watch Status Bar's right side pinned to Battery, as every curated
-// fixture is: test/curated-fixtures-on-demand.test.js), and the forecast's own slots.
-const COMMON = {
-  theme: 'dark', timeFont: 'roboto', healthMode: 'off', radarProvider: 'disabled',
-  rainCountdownHorizon: '0', layoutPreset: 'compactCal', dayNightShading: true, forecastHours: '24',
-  statusTopOnDemandRightItems: 'battery',
-  statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi',
-};
-// The forecast graph's lines, three looks: rain (the default look), wind, and the stripes.
-const LINES_RAIN = {
+// The day's settings, every scene's: the dark theme, the Roboto clock, the compact calendar,
+// the forecast's rain chance and rain bars over 24 hours, the forecast row's temperature, city
+// and UV (now and the day's max), the rain alert from DWD's radar, gusts as an On demand
+// alert beside the battery.
+const DAY_CLAY = {
+  theme: 'dark', timeFont: 'roboto', layoutPreset: 'compactCal', dayNightShading: true,
+  forecastHours: '24', forecastAxisNumbers: 'axis', healthMode: 'off', hrScale: '50-100',
+  radarProvider: 'dwd', radarMode: 'countdown', radarColor: 'multicolor', rainCountdownHorizon: '60',
+  statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'uv', uvSlotDisplay: 'both',
+  statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep',
+  statusTopOnDemandRightItems: 'battery,gust',
+  threshGustOn: true, threshGustWarn: '50', threshGustDanger: '70', alertGustDays: 'today',
+  alertGustDisplay: 'value', threshUvOn: false,
   secondaryLine: 'precip_prob', secondaryLineFill: true, secondaryLineStyle: 'line',
   thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'rain', rainBarColor: 'multicolor',
 };
+// The graph's other looks: wind with its gusts, and four lines at once (rain chance as a stripe
+// along the top, UV as dots, wind as a line, gusts as crosses, white rain bars).
 const LINES_WIND = {
   secondaryLine: 'wind', secondaryLineFill: true, secondaryLineStyle: 'line',
   thirdLine: 'gust', thirdLineStyle: 'x', fourthLine: 'off', fifthLine: 'off', barSource: 'off',
 };
-// stripes.json's data: rain chance and cloud cover as stripes along the top, UV as dots,
-// wind as a line, white rain bars.
 const LINES_MIX = {
   secondaryLine: 'precip_prob', secondaryLineFill: false, secondaryLineStyle: 'stripeTop',
   thirdLine: 'uv', thirdLineStyle: 'dots', fourthLine: 'wind', fourthLineStyle: 'line',
-  fifthLine: 'cloud', fifthLineStyle: 'stripeTop', barSource: 'rain', rainBarColor: 'white',
-  windScale: 'mid',
+  fifthLine: 'gust', fifthLineStyle: 'x', barSource: 'rain', rainBarColor: 'white', windScale: 'mid',
 };
-// A custom layout of one view, the clock under its top area (order T C A B); the scene names
-// its top area, graph and status bars.
-const CUSTOM_ONE = {
-  layoutPreset: 'custom', customLayoutSeeded: true, viewCount: '1', viewOrder0: 'TCAB',
-  viewBodySize0: 'fill', viewAlign0: 'clock', viewStripOff0: false,
-};
-// The weather alerts: UV and gusts with their levels, shown as their value; rain on the left.
-const ALERT_LEVELS = {
-  threshUvOn: true, threshUvWarn: '5', threshUvDanger: '8',
-  threshGustOn: true, threshGustWarn: '30', threshGustDanger: '60',
-  alertUvDisplay: 'value', alertGustDisplay: 'value',
+// The health view: a custom layout of one view, the clock over its health graph and row.
+const HEALTH_VIEW = {
+  healthMode: 'all', layoutPreset: 'custom', customLayoutSeeded: true, viewCount: '1', viewOrder0: 'TCAB',
+  viewBodySize0: 'fill', viewAlign0: 'clock', viewStripOff0: false, viewTop0: 'none', viewBody0: 'health',
+  viewUpper0: 'health', viewLower0: 'off',
 };
 
-// Scene table. `base` names a BASES entry (berlin when absent) and `window` cuts hours from
-// it: {start, hours}, start counting from the base's first hour. `mode` is 'full' or
-// 'panel' (see the top); `flicks` the wrist flicks before the screenshot; `platforms` where
-// it is captured (all five when absent); `variants` per-platform clay layered on the scene's.
-const SCENES = [
-  // The opening: the classic look. Compact calendar, the forecast with rain chance and the
-  // rain bars, the Watch Status Bar's own slots.
-  { id: 'hero', mode: 'full', clay: Object.assign({}, LINES_RAIN) },
-  // Graph lines, on the no-calendar layout's bigger graph.
-  { id: 'lines-rain', mode: 'panel', clay: Object.assign({ layoutPreset: 'noCal' }, LINES_RAIN) },
-  { id: 'lines-wind', mode: 'panel', clay: Object.assign({ layoutPreset: 'noCal' }, LINES_WIND) },
-  { id: 'lines-mix', mode: 'panel', base: 'stripes', platforms: NOT_APLITE,
-    clay: Object.assign({ layoutPreset: 'noCal' }, LINES_MIX) },
-  // Forecast length on 68 hours of data: 12 hours and the long span. The left axis is On
-  // graph, so the long span shows its most hours (66, forecast-span-hours.js).
-  { id: 'span-12', mode: 'panel', base: 'long', platforms: EMERY,
-    clay: Object.assign({ layoutPreset: 'noCal', forecastHours: '12', forecastAxisNumbers: 'graph' }, LINES_RAIN) },
-  { id: 'span-long', mode: 'panel', base: 'long', platforms: EMERY,
-    clay: Object.assign({ layoutPreset: 'noCal', forecastHours: '48', forecastAxisNumbers: 'graph' }, LINES_RAIN) },
-  // The left axis' values: on the axis, on the graph, off.
-  { id: 'axis-axis', mode: 'panel', platforms: EMERY,
-    clay: Object.assign({ layoutPreset: 'noCal', forecastAxisNumbers: 'axis' }, LINES_RAIN) },
-  { id: 'axis-graph', mode: 'panel', platforms: EMERY,
-    clay: Object.assign({ layoutPreset: 'noCal', forecastAxisNumbers: 'graph' }, LINES_RAIN) },
-  { id: 'axis-off', mode: 'panel', platforms: EMERY,
-    clay: Object.assign({ layoutPreset: 'noCal', forecastAxisNumbers: 'off' }, LINES_RAIN) },
-  // Alerts. Calm: nothing reaches a warn level, the bar shows its slots. On: rain in 15
-  // minutes on the left, UV and gusts past their warn levels on the right. Line: the UV line
-  // drawn only where it reaches its warn level.
-  { id: 'alerts-calm', mode: 'panel', platforms: NOT_APLITE,
-    clay: Object.assign({}, LINES_RAIN, ALERT_LEVELS) },
-  { id: 'alerts-on', mode: 'panel', platforms: NOT_APLITE,
-    clay: Object.assign({}, LINES_RAIN, ALERT_LEVELS, {
-      radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
-      statusTopOnDemandRightItems: 'battery,uv,gust' }),
-    radar: RAIN_SOON, countdown: RAIN_SOON_ALERT },
-  { id: 'alerts-line', mode: 'panel', platforms: NOT_APLITE,
-    clay: Object.assign({}, ALERT_LEVELS, {
-      secondaryLine: 'uv', secondaryLineFill: true, secondaryLineStyle: 'line', uvLineShow: 'alert',
-      thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'off' }) },
-  // The UV slot's value selection, at 08:00 (UV 3 now, 8 at noon) and at 20:00 (today's sun
-  // is gone, tomorrow peaks at 7): Now, Day max, Both, and Both rolled on to tomorrow. On the
-  // no-calendar layout, whose clock band holds the settings card on a 144 px watch too.
-  { id: 'max-now', mode: 'panel', base: 'long', window: { start: 17, hours: 51 },
-    clay: Object.assign({ layoutPreset: 'noCal' }, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'current' }) },
-  { id: 'max-day', mode: 'panel', base: 'long', window: { start: 17, hours: 51 },
-    clay: Object.assign({ layoutPreset: 'noCal' }, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'max' }) },
-  { id: 'max-both', mode: 'panel', base: 'long', window: { start: 17, hours: 51 },
-    clay: Object.assign({ layoutPreset: 'noCal' }, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'both' }) },
-  { id: 'max-tomorrow', mode: 'panel', base: 'long', window: { start: 29, hours: 39 },
-    clay: Object.assign({ layoutPreset: 'noCal' }, LINES_RAIN, { statusForecastRight: 'uv', uvSlotDisplay: 'both' }) },
-  // The three-week calendar.
-  { id: 'calendar', mode: 'panel', clay: Object.assign({ layoutPreset: 'fullCal' }, LINES_RAIN) },
-  // Views and layouts, whole: the health view (No calendar's health flick, set up as a custom
-  // layout's first view: the same view with no flick to time), Weather only without the rain
-  // radar (radar Off: the clock, the weather row and the big graph), and the Light theme.
-  { id: 'view-health', mode: 'full', platforms: NOT_APLITE,
-    clay: Object.assign({ healthMode: 'all', hrScale: '50-100' }, LINES_RAIN, CUSTOM_ONE, {
-      viewTop0: 'none', viewBody0: 'health', viewUpper0: 'health', viewLower0: 'off' }),
-    // Steps, sleep and the heart rate on Pebble Time 2; Pebble 2's own defaults would show its
-    // heart rate too, as '--' (the emulator measures none), so it shows steps and sleep as the
-    // watches without a heart rate sensor do.
-    variants: { emery: { statusHealthMid: 'sleep', statusHealthRight: 'hr' },
-      diorite: { statusHealthMid: 'empty', statusHealthRight: 'sleep' } } },
-  { id: 'layout-weather', mode: 'full', platforms: NOT_APLITE,
-    clay: Object.assign({ layoutPreset: 'weatherOnly', radarMode: 'off' }, LINES_WIND) },
-  { id: 'layout-light', mode: 'full', platforms: NOT_APLITE, theme: 'light',
-    clay: Object.assign({ layoutPreset: 'noCal' }, LINES_RAIN) },
-  // aplite's own layouts: the three-week calendar and the big forecast, whole.
-  { id: 'layout-full', mode: 'full', platforms: ['aplite'],
-    clay: Object.assign({ layoutPreset: 'fullCal' }, LINES_RAIN) },
-  { id: 'layout-nocal', mode: 'full', platforms: ['aplite'],
-    clay: Object.assign({ layoutPreset: 'noCal' }, LINES_WIND) },
-  // For the store screens, whole: the alerts as alerts-on shows them, and aplite's UV graph.
-  { id: 'alerts-full', mode: 'full', platforms: NOT_APLITE,
-    clay: Object.assign({}, LINES_RAIN, ALERT_LEVELS, {
-      radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
-      statusTopOnDemandRightItems: 'battery,uv,gust' }),
-    radar: RAIN_SOON, countdown: RAIN_SOON_ALERT },
-  { id: 'aplite-uv', mode: 'full', platforms: ['aplite'],
-    clay: { layoutPreset: 'noCal', secondaryLine: 'uv', secondaryLineFill: true, barSource: 'off',
-      statusForecastRight: 'uv', uvSlotDisplay: 'both' } },
-];
+// The scenes. `at` is the moment ([day, 'HH:MM'], day 0 the 20th); `mode` 'day', 'variant' or
+// 'band'; `platforms` where it is captured (all five when absent); `clay` its settings over
+// DAY_CLAY; `theme` a theme flip (withTheme); `variants` per-platform settings over the scene's.
+const SCENES = [].concat(
+  FRAMES.map(([day, time]) => ({ id: dayId(day, time), mode: 'day', at: [day, time] })),
+  [
+    // 10:00 on Saturday (UV 5 now, 8 at 13:00): the UV slot's Now and Day max ("Both" is the day's).
+    { id: 'uv-now', mode: 'variant', at: [0, '10:00'], clay: { uvSlotDisplay: 'current' } },
+    { id: 'uv-max', mode: 'variant', at: [0, '10:00'], clay: { uvSlotDisplay: 'max' } },
+    { id: 'band-compact', mode: 'band', at: [0, '10:00'], platforms: COLOUR, clay: { colorTime: 0 } },
+    // Noon on Saturday: the graph's lines.
+    { id: 'lines-wind', mode: 'variant', at: [0, '12:00'], clay: LINES_WIND },
+    { id: 'lines-mix', mode: 'variant', at: [0, '12:00'], platforms: NOT_APLITE, clay: LINES_MIX },
+    { id: 'uv-line', mode: 'variant', at: [0, '12:00'], platforms: ['aplite'],
+      clay: { secondaryLine: 'uv', secondaryLineFill: true, barSource: 'off' } },
+    // 14:00 on Saturday, Pebble Time 2: the forecast length (12 hours, the long span) and the left
+    // axis' values (on the graph, off).
+    { id: 'span-12', mode: 'variant', at: [0, '14:00'], platforms: EMERY, clay: { forecastHours: '12' } },
+    { id: 'span-long', mode: 'variant', at: [0, '14:00'], platforms: EMERY, clay: { forecastHours: '48' } },
+    { id: 'axis-graph', mode: 'variant', at: [0, '14:00'], platforms: EMERY, clay: { forecastAxisNumbers: 'graph' } },
+    { id: 'axis-off', mode: 'variant', at: [0, '14:00'], platforms: EMERY, clay: { forecastAxisNumbers: 'off' } },
+    // Midnight: the three-week calendar.
+    { id: 'cal-full', mode: 'variant', at: [1, '00:00'], clay: { layoutPreset: 'fullCal' } },
+    { id: 'band-full', mode: 'band', at: [1, '00:00'], platforms: COLOUR,
+      clay: { layoutPreset: 'fullCal', colorTime: 0 } },
+    // 14:00 on Sunday, the storm passing: the layouts. Weather only without the radar (radar
+    // Off: clock, weather row, big graph), the Light theme, the health view (steps, sleep and,
+    // on Pebble Time 2, the heart rate; Pebble 2 measures none in the emulator, so its row
+    // keeps the steps and sleep the watches without a heart rate sensor show); aplite's
+    // No calendar.
+    { id: 'layout-weather', mode: 'variant', at: [1, '14:00'], platforms: NOT_APLITE,
+      clay: { layoutPreset: 'weatherOnly', radarMode: 'off' } },
+    { id: 'layout-light', mode: 'variant', at: [1, '14:00'], platforms: NOT_APLITE, theme: 'light' },
+    { id: 'view-health', mode: 'variant', at: [1, '14:00'], platforms: NOT_APLITE, clay: HEALTH_VIEW,
+      variants: { emery: { statusHealthMid: 'sleep', statusHealthRight: 'hr' } } },
+    { id: 'layout-nocal', mode: 'variant', at: [1, '14:00'], platforms: ['aplite'], clay: { layoutPreset: 'noCal' } },
+  ]);
+
+/**
+ * Half-hour times from one hour to another.
+ * @param {number} _day Unused (keeps the call readable).
+ * @param {number} from First hour.
+ * @param {number} to Hour to stop before.
+ * @returns {string[]} 'HH:MM' times.
+ */
+function halfHours(_day, from, to) {
+  const out = [];
+  for (let h = from; h < to; h++) { out.push(pad(h) + ':00', pad(h) + ':30'); }
+  return out;
+}
+
+/**
+ * Two digits.
+ * @param {number} n A number under 100.
+ * @returns {string} It, zero-padded.
+ */
+function pad(n) {
+  return String(n).padStart(2, '0');
+}
+
+/**
+ * A day frame's scene id.
+ * @param {number} day 0 for the 20th, 1 for the 21st.
+ * @param {string} time 'HH:MM'.
+ * @returns {string} e.g. 'day-1-0845'.
+ */
+function dayId(day, time) {
+  return 'day-' + day + '-' + time.replace(':', '');
+}
 
 /**
  * Deep-copy JSON data.
@@ -192,6 +222,29 @@ const SCENES = [
  */
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+/**
+ * The day's weather base: the real forecast with DAY_EXTRA around it, its series from 08:00 on
+ * the 20th.
+ * @returns {Object} The base fixture (watch, weather, claySettings).
+ */
+function dayBase() {
+  const real = JSON.parse(fs.readFileSync(REAL, 'utf8'));
+  const fx = clone(real);
+  const w = fx.weather;
+  if (real.weather.startHour !== FIRST_HOUR + REAL_OFFSET) {
+    throw new Error('berlin-timelapse.json no longer starts at ' + (FIRST_HOUR + REAL_OFFSET) + ':00');
+  }
+  for (const key of SERIES) {
+    w[key] = DAY_EXTRA.before[key].concat(real.weather[key], DAY_EXTRA.after[key]);
+  }
+  w.uvIndex = DAY_EXTRA.uvIndex.slice();
+  for (const key of SERIES.concat('uvIndex')) {
+    if (w[key].length !== w.temps.length) { throw new Error('DAY_EXTRA: ' + key + ' is not as long as temps'); }
+  }
+  delete w.startDayOffset;
+  return fx;
 }
 
 /**
@@ -208,59 +261,123 @@ function nextSunEvents(nowMin) {
 }
 
 /**
- * A scene's weather from its base: the whole base at minute 0 of its hour, or a window of
- * it (`hours` hours from the base's `start`-th hour) with the clock, the current reading and
- * the sun events moved to the window's first hour.
- * @param {Object} base A parsed base fixture.
- * @param {?{start: number, hours: number}} window The window, or null for the whole base.
+ * Hours from the series' first hour to a moment, whole and in fractions.
+ * @param {[number, string]} at The moment.
+ * @returns {{index: number, hour: number, minute: number}} Its hour's index, its hour and minute.
+ */
+function momentOf(at) {
+  const [day, time] = at;
+  const [hour, minute] = time.split(':').map(Number);
+  return { index: day * 24 + hour - FIRST_HOUR, hour, minute };
+}
+
+/**
+ * The rain the radar shows over the next two hours from a moment, as the countdown says it
+ * comes: dry until it starts, then the hour's rain (from the forecast) slot by slot.
+ * @param {Object} weather The day's weather (rainMm from 08:00 on the 20th).
+ * @param {[number, string]} at The moment.
+ * @param {{mins: number, raining: boolean}} countdown Its countdown block.
+ * @returns {number[]} RADAR_SLOTS mm/h values.
+ */
+function radarAt(weather, at, countdown) {
+  const m = momentOf(at);
+  const startSlot = countdown.raining ? 0 : Math.round(countdown.mins / 5);
+  const out = [];
+  for (let s = 0; s < RADAR_SLOTS; s++) {
+    const hours = m.index + (m.minute + s * 5) / 60;
+    const a = weather.rainMm[Math.floor(hours)] || 0;
+    const b = weather.rainMm[Math.floor(hours) + 1] || 0;
+    const mm = a + (b - a) * (hours - Math.floor(hours));
+    out.push(s < startSlot ? 0 : Math.round(Math.max(mm, 0.6) * 10) / 10);
+  }
+  return out;
+}
+
+/**
+ * A moment's weather: the day's series from the moment's hour on, the clock at the moment, the
+ * current temperature between the hour's and the next, the sun events next after it, and on
+ * Sunday morning the rain alert and the radar behind it.
+ * @param {Object} base dayBase().
+ * @param {[number, string]} at The moment.
  * @returns {Object} The fixture, before the scene's settings.
  */
-function weatherFrom(base, window) {
+function weatherAt(base, at) {
   const fx = clone(base);
-  fx.watch.now = Object.assign({}, fx.watch.now, { minute: 0, second: 0 });
-  if (!window) { return fx; }
+  const m = momentOf(at);
   const w = fx.weather;
-  const now = base.watch.now;
-  const first = new Date(now.year, now.month - 1, now.day + (w.startDayOffset || 0), w.startHour + window.start);
-  for (const key of SERIES) {
-    if (!Array.isArray(w[key])) { continue; }
-    if (w[key].length < window.start + window.hours) {
-      throw new Error('the base\'s ' + key + ' ends before the window does');
-    }
-    w[key] = w[key].slice(window.start, window.start + window.hours);
+  for (const key of SERIES.concat('uvIndex')) { w[key] = w[key].slice(m.index); }
+  const date = new Date(DAY.year, DAY.month - 1, DAY.day + at[0], m.hour, m.minute);
+  fx.watch.now = { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate(),
+    hour: m.hour, minute: m.minute, second: 0 };
+  w.startHour = m.hour;
+  w.currentTemp = Math.round(w.temps[0] + (w.temps[1] - w.temps[0]) * m.minute / 60);
+  w.sunEvents = nextSunEvents(m.hour * 60 + m.minute);
+  const countdown = at[0] === 1 ? COUNTDOWN[at[1]] : null;
+  if (countdown) {
+    fx.countdown = Object.assign({}, countdown);
+    const radar = radarAt(base.weather, at, countdown);
+    w.rainRadarExactMm = radar;
+    w.rainRadarAreaMm = radar.map((v) => Math.round(v * 11) / 10);
+  } else {
+    delete w.rainRadarExactMm;
+    delete w.rainRadarAreaMm;
   }
-  fx.watch.now = { year: first.getFullYear(), month: first.getMonth() + 1, day: first.getDate(),
-    hour: first.getHours(), minute: 0, second: 0 };
-  w.startHour = first.getHours();
-  delete w.startDayOffset;
-  w.currentTemp = w.temps[0];
-  if (Array.isArray(w.feelsTemps)) { w.currentFeels = w.feelsTemps[0]; }
-  w.sunEvents = nextSunEvents(first.getHours() * 60);
   return fx;
+}
+
+/**
+ * A scene's settings before SETTLED: the base's, the day's, the scene's own and a platform
+ * variant's, with the scene's theme flip.
+ * @param {Object} base dayBase().
+ * @param {Object} scene A SCENES entry.
+ * @param {?Object} variantClay The platform variant's settings, or null.
+ * @returns {Object} claySettings.
+ */
+function sceneClay(base, scene, variantClay) {
+  const clay = Object.assign({}, base.claySettings, DAY_CLAY, scene.clay || {}, variantClay || {});
+  return scene.theme && scene.theme !== clay.theme ? withTheme(clay, scene.theme) : clay;
+}
+
+/**
+ * Every settings key some scene sets to something other than the day's, with the day's value:
+ * what every scene names, so none keeps the last scene's (see the top). The day's value of a key
+ * the day doesn't set is the settings' default.
+ * @param {Object} base dayBase().
+ * @returns {Object} key -> the day's value.
+ */
+function settled(base) {
+  const claySettings = require('../src/pkjs/clay-settings.js');
+  const pebbleColors = require('../src/pkjs/pebble-colors.js');
+  const defaults = claySettings.getDefaults({ white: pebbleColors.GColorWhite,
+    folly: pebbleColors.GColorFolly, holiday: pebbleColors.GColorBlueMoon });
+  const day = Object.assign({}, defaults, base.claySettings, DAY_CLAY);
+  const out = {};
+  for (const scene of SCENES) {
+    const variants = [null].concat(Object.values(scene.variants || {}));
+    for (const variant of variants) {
+      const clay = sceneClay(base, scene, variant);
+      for (const key of Object.keys(clay)) {
+        if (JSON.stringify(clay[key]) !== JSON.stringify(day[key])) {
+          if (!(key in day)) { throw new Error(scene.id + ' sets ' + key + ', which has no default'); }
+          out[key] = day[key];
+        }
+      }
+    }
+  }
+  return out;
 }
 
 /**
  * One scene's fixture for one platform (or its base fixture, without a variant).
  * @param {Object} scene A SCENES entry.
- * @param {Object} base The parsed base fixture.
+ * @param {Object} base dayBase().
+ * @param {Object} keys settled(base).
  * @param {?Object} variantClay The platform variant's settings, or null.
  * @returns {Object} The fixture.
  */
-function buildScene(scene, base, variantClay) {
-  const fx = weatherFrom(base, scene.window || null);
-  let clay = Object.assign({}, base.claySettings, COMMON, scene.clay, variantClay || {});
-  if (scene.mode === 'panel') { clay.colorTime = 0; }
-  if (scene.theme && scene.theme !== clay.theme) {
-    delete clay.theme;
-    clay = withTheme(Object.assign({ theme: 'dark' }, clay), scene.theme);
-  }
-  fx.claySettings = clay;
-  if (scene.radar) {
-    fx.weather.rainRadarExactMm = scene.radar.exact.slice();
-    fx.weather.rainRadarAreaMm = scene.radar.area.slice();
-  }
-  // Build-only (the phone ignores it): the wscript bakes the rain alert from it.
-  if (scene.countdown) { fx.countdown = Object.assign({}, scene.countdown); }
+function buildScene(scene, base, keys, variantClay) {
+  const fx = weatherAt(base, scene.at);
+  fx.claySettings = Object.assign({}, keys, sceneClay(base, scene, variantClay));
   return fx;
 }
 
@@ -294,19 +411,18 @@ function generateStoreArtFixtures(opts = {}) {
   for (const name of fs.readdirSync(outDir)) {
     if (/^art-.+\.json$/.test(name)) { fs.unlinkSync(path.join(outDir, name)); }
   }
-  const bases = {};
+  const base = dayBase();
+  const keys = settled(base);
   const written = [];
+  const write = (slug, fx) => {
+    const p = path.join(outDir, slug + '.json');
+    fs.writeFileSync(p, JSON.stringify(fx, null, 2) + '\n');
+    written.push(p);
+  };
   for (const scene of SCENES) {
-    const key = scene.base || 'berlin';
-    if (!bases[key]) { bases[key] = JSON.parse(fs.readFileSync(BASES[key], 'utf8')); }
-    const write = (slug, fx) => {
-      const p = path.join(outDir, slug + '.json');
-      fs.writeFileSync(p, JSON.stringify(fx, null, 2) + '\n');
-      written.push(p);
-    };
-    write('art-' + scene.id, buildScene(scene, bases[key], null));
+    write('art-' + scene.id, buildScene(scene, base, keys, null));
     for (const platform of Object.keys(scene.variants || {})) {
-      write('art-' + scene.id + '-' + platform, buildScene(scene, bases[key], scene.variants[platform]));
+      write('art-' + scene.id + '-' + platform, buildScene(scene, base, keys, scene.variants[platform]));
     }
   }
   return written;
@@ -317,21 +433,19 @@ function generateStoreArtFixtures(opts = {}) {
  * Pebble Time 2 (forecast-span-hours.js spanOptions: the long span named by the hours it
  * shows), or null for a scene that doesn't set the length.
  * @param {Object} scene A SCENES entry.
- * @returns {?string[]} The option labels, e.g. ['12 h', '24 h', '66 h'].
+ * @returns {?string[]} The option labels, e.g. ['12 h', '24 h', '58 h'].
  */
 function spanLabels(scene) {
-  if (!scene.clay.forecastHours) { return null; }
+  if (!scene.clay || !scene.clay.forecastHours) { return null; }
   const forecastSpanHours = require('../src/pkjs/forecast-span-hours.js');
-  const key = scene.base || 'berlin';
-  const base = JSON.parse(fs.readFileSync(BASES[key], 'utf8'));
-  const settings = Object.assign({}, base.claySettings, COMMON, scene.clay);
+  const settings = sceneClay(dayBase(), scene, null);
   return forecastSpanHours.spanOptions(settings, { platform: 'emery', forecastSpan: true, color: true })
     .map((option) => option[0]);
 }
 
 /**
  * The scenes as capture-store-art.sh and store-art.py read them.
- * @returns {{id: string, mode: string, flicks: number, platforms: string[], fixtures: Object,
+ * @returns {{id: string, mode: string, at: Array, platforms: string[], fixtures: Object,
  *   spanLabels: ?string[]}[]} One entry per scene; `fixtures` maps each platform to the slug it
  *   captures from.
  */
@@ -339,8 +453,8 @@ function manifest() {
   return SCENES.map((scene) => {
     const fixtures = {};
     for (const platform of scenePlatforms(scene)) { fixtures[platform] = fixtureFor(scene, platform); }
-    return { id: scene.id, mode: scene.mode, flicks: scene.flicks || 0, platforms: scenePlatforms(scene),
-      fixtures, spanLabels: spanLabels(scene) };
+    return { id: scene.id, mode: scene.mode, at: scene.at, platforms: scenePlatforms(scene), fixtures,
+      spanLabels: spanLabels(scene) };
   });
 }
 
@@ -353,5 +467,5 @@ if (require.main === module) {
   }
 }
 
-module.exports = { generateStoreArtFixtures, manifest, SCENES, PLATFORMS, NOT_APLITE, EMERY, scenePlatforms,
-  fixtureFor, weatherFrom, nextSunEvents };
+module.exports = { generateStoreArtFixtures, manifest, SCENES, FRAMES, PLATFORMS, NOT_APLITE, EMERY, COLOUR,
+  DAY_CLAY, scenePlatforms, fixtureFor, weatherAt, dayBase, settled, nextSunEvents, dayId };

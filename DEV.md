@@ -438,40 +438,43 @@ committed) for manual upload. Re-assemble a single reel without recapturing with
 
 #### Store art (the appstore's showcase GIF and five store screens)
 
-The appstore set per platform: `1-showcase.gif` (about 30 s on Pebble Time 2: the
-watchface, then a tour in which a card in the settings page's look takes the clock's place
-while the rest of the screen shows the setting's effect — graph lines, forecast length and
-the left axis on Pebble Time 2, the weather alerts, the UV slot's Now / Day max / Both and
-tomorrow's `»`, the calendar — then views and layouts, and the wordmark) and five store
-screens (`2-…png` to `6-…png`: a headline on the banner's charcoal over the watch's screen).
-It replaces the promo reel and the single screenshots on the listing; the real-day time-lapse
-GIFs stay.
+The appstore set per platform: `1-showcase.gif` (about 50 s on Pebble Time 2, less where a
+watch has fewer settings: a time-lapse of a day and a half in Berlin — Saturday's calm, the
+night, Sunday's thunderstorm — that stops now and then while a card in the clock's place
+explains what the screen shows: the UV slot's Now / Day max / Both, the graph's lines, the
+forecast length and the left axis on Pebble Time 2, tomorrow's `»` at night, the calendar at
+midnight, the alerts before the storm; then the layouts and the wordmark) and five store
+screens (`2-…png` to `6-…png`: a headline over the watch's screen). It replaces the promo reel
+and the single screenshots on the listing; the real-day time-lapse GIFs stay.
 
 ```bash
-scripts/capture-store-art.sh <version>          # every scene on all five watches (~45 min)
-scripts/capture-store-art.sh <version> max-both  # just these scenes
-python3 -I scripts/store-art.py <version>        # the GIFs and store screens (needs Pillow)
+scripts/capture-store-art.sh <version>             # every scene on all five watches (~70 min)
+scripts/capture-store-art.sh <version> day-1-0845  # just these scenes
+python3 -I scripts/store-art.py <version>           # the GIFs and store screens (needs Pillow)
 ```
 
 - The scenes live in `scripts/gen-store-art-fixtures.js` (fixtures `art-*.json`, regenerated
-  on every capture, guarded by `test/store-art-fixtures.test.js`). A `panel` scene draws its
-  clock in black so its band comes out empty on a colour watch; the black and white watches,
-  which ignore the clock colour, take the band from basalt's capture (the same layout). The
-  health view is set up as a custom layout's first view rather than reached by a flick: the
-  same view, with no flick to time. No scene shows the rain radar: Weather only runs with the
-  radar Off, and the radar data is there only for the alerts scenes' rain alert.
-- `capture-store-art.sh` boots every scene on a fresh emulator with a fresh phone: a fixture's
-  settings are merged into the stored ones, so it deletes the app's pypkjs localStorage and
-  pypkjs's cached copy of the last build (whose JS, with the last scene's fixture, would run as
-  the watch boots), or the last scene's settings would carry into the next. Frames land in
-  `screenshot/<version>/store-art/frames/<platform>/<scene>.png` (committed).
-- `store-art.py` owns the storyboard and the copy (`STORY`, `SCREENS`) and draws in
-  WarnWeather's look: the banner's charcoal, white and coral, the settings page's cards and
-  segmented controls, Poppins (`screenshot/fonts/`, SIL Open Font License), anti-aliased, with
-  cross-fades between scenes and a sliding selection between options. It checks the captures
+  on every capture, guarded by `test/store-art-fixtures.test.js`): the day's frames (`day-<d>-<hhmm>`,
+  the real DWD forecast of `fixtures/berlin-timelapse.json` with the hours around it and the
+  UV index filled in by hand), the variants a stop changes a setting to, and two `band` scenes,
+  a frame with the clock drawn in black, which tell `store-art.py` where the clock is (the
+  black and white watches, which ignore the clock colour, take basalt's: the same layout).
+  The rain alert is baked per frame from its countdown block; gusts alert from 50 km/h on the
+  day itself, so Saturday stays quiet and Sunday's 59 km/h shows. No scene shows the rain radar.
+- `capture-store-art.sh` captures a platform's scenes on one running emulator: its first on a
+  fresh phone (the app's pypkjs localStorage and pypkjs's cached copy of the last build
+  deleted, or the last run's settings would carry over), the rest as plain installs. A
+  fixture's settings are merged into the stored ones, so every scene names every key any scene
+  changes. Frames land in `screenshot/<version>/store-art/frames/<platform>/<scene>.png`
+  (committed).
+- `store-art.py` owns the storyboard and the copy (`STORY`, `SCREENS`) and draws in the watch
+  screen's own colours (black, white, its greys and its red; black and white on a black and
+  white watch) in Poppins (`screenshot/fonts/`, SIL Open Font License), anti-aliased: cards
+  unfold from the clock's middle and fold back into it, the selection slides, words move up
+  out and in, a changed setting redraws the screen from left to right. It checks the captures
   against the screenshot's colour-corrected palette, and fails on a text that doesn't fit, a
-  GIF frame that doesn't decode to the frame it was written from, anything flashing more than
-  3 times a second, or a GIF of 1 MB or more. It writes
+  step held under 1.8 s, a GIF frame that doesn't decode to the frame it was written from,
+  anything flashing more than 3 times a second, or a GIF of 1.5 MB or more. It writes
   `screenshot/<version>/store-art/<platform>/` (committed) and, to judge them,
   `build/store-art/contact-sheet-<platform>.png` and `screens-<platform>.png`, plus the
   whole set in `build/store-art/warnweather-store-<version>.zip`.

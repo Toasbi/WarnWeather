@@ -69,7 +69,7 @@ The listing shows, per platform: the showcase GIF, five store screens, then the 
 time-lapse GIFs already there (keep those). Build the first six with:
 
 ```sh
-scripts/capture-store-art.sh <version>      # every scene on all five watches (~45 min)
+scripts/capture-store-art.sh <version>      # every scene on all five watches (~70 min)
 python3 -I scripts/store-art.py <version>   # → screenshot/<version>/store-art/<platform>/
 ```
 
