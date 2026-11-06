@@ -720,20 +720,20 @@ STORY = (
         ('day-0-1400', 1, 'The next 24 hours', None),
         ('span-long', 2, 'Up to 66 hours ahead', None))),
      ('setting', 'Left axis values', ('On axis', 'On graph', 'Off'), (
-         ('day-0-1400', 2, 'No axis: the graph\'s full width', None),
+         ('day-0-1400', 2, ('No axis, a wider graph', 'No axis'), None),
          ('axis-graph', 1, 'High and low on the graph', None),
-         ('axis-on', 0, 'High and low beside the axis', None)))),
+         ('axis-on', 0, 'High and low on the axis', None)))),
     ('run', 'day-0-2200'),
     ('stop', ('moment', 'UV index slot', (
         ('day-0-2200', ('After sunset: » marks\ntomorrow\'s max', '» is tomorrow\'s max'), 'slot'),))),
     ('run', 'day-1-0800'),
     ('stop', ('moment', 'Calendar', (
-        ('day-1-0800', ('Holidays stand out:\nLabour Day, and 8 May\nin Berlin', 'Holidays stand out'), 'holiday'),
+        ('day-1-0800', ('Holidays stand out,\nBerlin\'s own too', 'Holidays stand out'), 'holiday'),
         ('cal-full', ('Three weeks in view,\nEaster Monday too', 'Three weeks in view'), 'calendar')))),
     ('run', 'day-1-1200'),
     ('stop', ('setting', 'Forecast look', ('Classic', 'Stripes', 'Clean'), (
-        ('day-1-1200', 0, 'Temperature, UV and rain', None),
-        ('look-stripes', 1, ('Clouds on top, rain\nhanging from them', 'Clouds and rain on top'), None),
+        ('day-1-1200', 0, ('Temperature, UV and rain', 'Temperature and rain'), None),
+        ('look-stripes', 1, ('Rain bars hang from the top', 'Rain from the top'), None),
         ('look-clean', 2, 'Just the essentials', None)), NOT_APLITE),
      ('moment', 'Graph lines', (
          ('day-1-1200', 'Temperature and rain', None),
