@@ -90,7 +90,7 @@ WATCH
 LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views (or a double flick, to reduce accidental view switches) and optional auto-return
 - Custom layout
-- First-run setup wizard that picks sensible defaults for your country and watch
+- First-run setup that previews your watch as you pick its layout, health view and theme, with sensible defaults for your country and watch
 
 WEATHER
 - Detailed 5-day weather forecast for multiple locations inside the settings app

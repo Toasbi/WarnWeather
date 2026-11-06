@@ -297,7 +297,7 @@ test('the health slots move only where health can actually report', () => {
   assert.equal(aplite.S.threshAqiBoldMode, 'always');
 });
 
-test('"Continue tweaking" finishes the wizard too — Skip and the step buttons do not', () => {
+test('"Keep customizing" (nav tweak) finishes the wizard too — Skip and the step buttons do not', () => {
   const tweak = wizCtx();
   assert.notEqual(Object.keys(W.applyWizardDefaults(tweak, 'tweak')).length, 0);
   assert.equal(tweak.S.threshTempBoldMode, 'always');
@@ -401,82 +401,16 @@ test('the policy never duplicates a code the user already placed in that row', (
 });
 
 // --- the wizard DOM controller: opening must never rewrite stored settings ------------
-// A minimal fake DOM: just enough surface for openWizard/renderStep/wireCar/centerCar.
-// scrollLeft assignment fires 'scroll' listeners synchronously here (real browsers fire
-// async, which only makes the shipped debounce MORE likely to commit).
-function fakeWizardDom() {
-  const listeners = { click: [] };
-  let car = null;
-
-  function makeCar(html) {
-    const cards = [];
-    const re = /class="wiz-card( on)?" data-wiz-idx-val="([^"]+)"/g;
-    let m;
-    while ((m = re.exec(html))) {
-      cards.push({ className: 'wiz-card' + (m[1] || ''), offsetLeft: cards.length * 162, offsetWidth: 150, val: m[2] });
-    }
-    const scrollFns = [];
-    let scrollLeft = 0;
-    const group = (/data-wiz-car="([^"]+)"/.exec(html) || [])[1];
-    const el = {
-      cards,
-      clientWidth: 178,
-      getAttribute: (n) => (n === 'data-wiz-car' ? group : null),
-      addEventListener: (ev, fn) => { if (ev === 'scroll') { scrollFns.push(fn); } },
-      querySelector: (sel) => (sel === '.wiz-card.on'
-        ? cards.find((c) => c.className.indexOf(' on') >= 0) || null : null),
-      querySelectorAll: (sel) => (sel === '.wiz-card' ? cards : []),
-      parentNode: { querySelector: () => null }
-    };
-    Object.defineProperty(el, 'scrollLeft', {
-      get: () => scrollLeft,
-      set: (v) => { const moved = v !== scrollLeft; scrollLeft = v; if (moved) { scrollFns.forEach((fn) => fn()); } }
-    });
-    return el;
-  }
-
-  const title = { textContent: '' };
-  const foot = { innerHTML: '' };
-  const body = {};
-  let bodyHtml = '';
-  Object.defineProperty(body, 'innerHTML', {
-    get: () => bodyHtml,
-    set: (h) => { bodyHtml = h; car = h.indexOf('data-wiz-car="') >= 0 ? makeCar(h) : null; }
-  });
-
-  const overlay = {
-    id: '',
-    innerHTML: '',
-    addEventListener: (ev, fn) => { (listeners[ev] = listeners[ev] || []).push(fn); },
-    querySelector: (sel) => {
-      if (sel === '[data-wiz-title]') { return title; }
-      if (sel === '[data-wiz-body]') { return body; }
-      if (sel === '[data-wiz-foot]') { return foot; }
-      if (sel === '.wiz-car' || sel.indexOf('data-wiz-car=') >= 0) { return car; }
-      return null;
-    },
-    querySelectorAll: () => [],
-    parentNode: null,
-    click: (closest) => (listeners.click || []).forEach((fn) => fn({ target: { closest } })),
-    // Any other overlay event (the upsell key field's 'input'), with the target given.
-    fire: (ev, target) => (listeners[ev] || []).forEach((fn) => fn({ target }))
-  };
-
-  global.document = {
-    getElementById: () => null,
-    createElement: (tag) => (tag === 'div' ? overlay : { id: '', textContent: '' }),
-    head: { appendChild: () => {} },
-    body: { appendChild: () => {} }
-  };
-  return { overlay, getCar: () => car };
-}
+// A minimal fake DOM (test/helpers/wizard-dom.js): the overlay's containers keep the HTML the
+// controller writes, and the step's picker is parsed back out of it.
+const { fakeWizardDom } = require('./helpers/wizard-dom.js');
 
 test('opening the wizard never rewrites a stored compactDense preset', async () => {
-  // compactDense isn't offered in the wizard's layout carousel; re-running setup (the
-  // only way an existing preset meets the wizard) must highlight the nearest card
-  // WITHOUT mutating stored state — the value changes only on a real pick. Regression:
-  // openWizard used to rewrite S.layoutPreset on entry, and the carousel's programmatic
-  // centering scroll used to commit the coerced card through the snap handler.
+  // compactDense isn't offered in the wizard's layout picker; re-running setup (the only way
+  // an existing preset meets the wizard) must highlight the nearest option WITHOUT mutating
+  // stored state — the value changes only on a real pick. Regression: openWizard used to
+  // rewrite S.layoutPreset on entry, and the old carousel's centering scroll committed the
+  // coerced card.
   const dom = fakeWizardDom();
   const ctx = Object.assign(wizCtx({ saved: { layoutPreset: 'compactDense', onboardingDone: true } }),
     { cfg: { onboardingDone: true } });
@@ -487,31 +421,25 @@ test('opening the wizard never rewrites a stored compactDense preset', async () 
   assert.equal(ctx.S.layoutPreset, 'compactDense',
     'opening the wizard must not rewrite the stored preset');
 
-  // Step forward to the layout carousel: its render centers the highlighted card, and
-  // that programmatic scroll must not commit a selection either.
-  dom.overlay.click((sel) => (sel === '[data-wiz-nav]' ? { getAttribute: () => 'next' } : null));
-  const car = dom.getCar();
-  assert.ok(car, 'the layout carousel rendered');
-  assert.equal((car.querySelector('.wiz-card.on') || {}).val, 'compactCal',
-    'the carousel highlights the nearest offered card');
-  await new Promise((r) => setTimeout(r, 150));   // ride out the snap debounce (90ms)
-  assert.equal(ctx.S.layoutPreset, 'compactDense',
-    'the centering scroll must not commit the coerced card');
+  dom.nav('next');
+  const picker = dom.picker();
+  assert.equal(picker.group, 'layoutPreset', 'the layout picker rendered');
+  assert.equal(picker.selected, 'compactCal', 'the picker highlights the nearest offered layout');
+  await drain();
+  assert.equal(ctx.S.layoutPreset, 'compactDense', 'rendering the picker must not commit the highlight');
 
-  // A real pick still lands: tap the fullCal card.
-  dom.overlay.click((sel) => (sel === '[data-wiz-idx-val]'
-    ? { getAttribute: () => 'fullCal', parentNode: { getAttribute: () => 'layoutPreset' } } : null));
-  assert.equal(ctx.S.layoutPreset, 'fullCal', 'an actual card tap commits normally');
-  await new Promise((r) => setTimeout(r, 150));   // let the recenter scroll's debounce drain
+  // A real pick still lands.
+  dom.pick('layoutPreset', 'fullCal');
+  assert.equal(ctx.S.layoutPreset, 'fullCal', 'an actual pick commits normally');
 });
 
 // --- the health pick runs the Health tab's own reset hook -------------------------------
-const drain = () => new Promise((r) => setTimeout(r, 150));   // the carousel snap debounce (90ms)
+const drain = () => new Promise((r) => setTimeout(r, 0));   // let any queued timer run
 /**
  * Re-run setup ("Run setup again") on `ctx`, pick `healthMode` on the health step, walk to
- * the last step and press Save & close — through the real click handlers.
+ * the last step and press Save to watch — through the real click handlers.
  * @param {Object} ctx wizCtx() state, already onboarded.
- * @param {string} healthMode Card value to tap on the health step.
+ * @param {string} healthMode Option value to pick on the health step.
  * @returns {Promise<void>} Resolves once the wizard has saved.
  */
 async function rerunWizardPickingHealth(ctx, healthMode) {
@@ -522,16 +450,14 @@ async function rerunWizardPickingHealth(ctx, healthMode) {
     save: () => {},
     render: () => {}
   });
-  const nav = (v) => dom.overlay.click((sel) => (sel === '[data-wiz-nav]' ? { getAttribute: () => v } : null));
   PConf.hooks.runReady(ctx);
   PConf.actions.startWizard();
-  nav('next'); nav('next');
-  assert.equal(dom.getCar().getAttribute('data-wiz-car'), 'healthMode', 'guard: on the health step');
-  dom.overlay.click((sel) => (sel === '[data-wiz-idx-val]'
-    ? { getAttribute: () => healthMode, parentNode: { getAttribute: () => 'healthMode' } } : null));
+  dom.nav('next'); dom.nav('next');
+  assert.equal(dom.picker().group, 'healthMode', 'guard: on the health step');
+  dom.pick('healthMode', healthMode);
   await drain();
-  while (!/data-wiz-nav="save"/.test(dom.overlay.querySelector('[data-wiz-foot]').innerHTML)) { nav('next'); }
-  nav('save');
+  while (!/data-wiz-nav="save"/.test(dom.foot.innerHTML)) { dom.nav('next'); }
+  dom.nav('save');
   await drain();
 }
 
@@ -592,12 +518,11 @@ function wizardDoneStep(saved) {
   const dom = fakeWizardDom();
   const ctx = wizCtx({ saved: Object.assign({ onboardingDone: true }, saved) });
   Object.assign(ctx, { cfg: { onboardingDone: true }, set: (k, v) => { ctx.S[k] = v; }, save: () => {}, render: () => {} });
-  const nav = (v) => dom.overlay.click((sel) => (sel === '[data-wiz-nav]' ? { getAttribute: () => v } : null));
   PConf.hooks.runReady(ctx);
   PConf.actions.startWizard();
   let guard = 0;
-  while (!/data-wiz-nav="save"/.test(dom.overlay.querySelector('[data-wiz-foot]').innerHTML) && guard++ < 20) { nav('next'); }
-  return { ctx, dom, body: dom.overlay.querySelector('[data-wiz-body]').innerHTML };
+  while (!/data-wiz-nav="save"/.test(dom.foot.innerHTML) && guard++ < 20) { dom.nav('next'); }
+  return { ctx, dom, body: dom.body.innerHTML };
 }
 
 test('the tomorrow.io upsell shows the key row as before: "Tomorrow.io API key", its hint and Test', async () => {
@@ -627,12 +552,11 @@ test('a key typed into the upsell makes tomorrow.io the weather provider; cleari
   const { ctx, dom } = wizardDoneStep({ holidayCountry: 'US', provider: 'dwd' });
   assert.equal(ctx.S.provider, 'dwd', 'a re-run keeps the stored provider');
   const inp = { value: 'tio-key', getAttribute: (n) => (n === 'data-k' ? 'tomorrowioApiKey' : null) };
-  inp.closest = (sel) => (sel === 'input[type=text][data-k]' ? inp : null);
-  dom.overlay.fire('input', inp);
+  dom.fire('input', { 'input[type=text][data-k]': inp });
   assert.equal(ctx.S.tomorrowioApiKey, 'tio-key');
   assert.equal(ctx.S.provider, 'tomorrowio');
   inp.value = '';
-  dom.overlay.fire('input', inp);
+  dom.fire('input', { 'input[type=text][data-k]': inp });
   assert.equal(ctx.S.provider, 'openmeteo');
   await drain();
 });

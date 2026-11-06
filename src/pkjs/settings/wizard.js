@@ -137,120 +137,206 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return !cfg.onboardingDone;
     }
 
-    // ---- DOM controller (webview only; exercised via `mise preview-config`, not Node) ----
+    // ---- DOM controller (webview only; exercised via `mise preview-config` and the fake DOMs in
+    // test/config-wizard*.test.js) ----
+    //
+    // Each step is one screen: a progress bar and Back on top, the step in the middle, one primary
+    // button at the bottom. The layout, health and theme steps share a picker: the watch, large,
+    // showing the selected option's real screenshot, with the options as a segmented control below
+    // it (a radio group: tap, swipe the watch, or use the arrow keys). Nothing is written until the
+    // user picks.
+
     var LAYOUT_OPTS = [['Full calendar', 'fullCal'], ['Compact', 'compactCal'], ['No calendar', 'noCal']];
     // 'slot' (Status-slots-only) is intentionally NOT offered here: it's a main-settings-only mode with
-    // no dedicated Health view and no wizard screenshot, so the screenshot-driven onboarding carousel skips
-    // it. The full option set still lives on the Health tab (schema.js).
-    var HEALTH_OPTS = [['Off', 'off'], ['Health Status Bar', 'status'], ['Health Status Bar + Graph', 'all']];
-    var STEP_TITLES = {
-        welcome: 'Welcome to WarnWeather', layout: 'Choose your layout',
-        health: 'Health', flick: 'Flick to explore',
-        theme: 'Choose your theme', done: 'All set'
+    // no dedicated Health view and no wizard screenshot, so the screenshot-driven picker skips it. The
+    // full option set still lives on the Health tab (schema.js).
+    var HEALTH_OPTS = [['Off', 'off'], ['Status bar', 'status'], ['Status bar + graph', 'all']];
+    // Watchface theme (messageKey 'theme'). Mirrors schema.js's two theme selects: color watches get
+    // 4 options, B&W hardware only dark/light. Chosen by env.color at render time.
+    var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W inverted', 'bw-light']];
+    var THEME_OPTS_BW = [['Dark', 'dark'], ['Light', 'light']];
+
+    // Each step's small label above its title, and the title.
+    var STEP_META = {
+        welcome: { eyebrow: '', title: 'Welcome to WarnWeather' },
+        layout: { eyebrow: 'Layout', title: 'Choose your layout' },
+        health: { eyebrow: 'Health', title: 'Health on your watch' },
+        flick: { eyebrow: 'Views', title: 'Flick to switch views' },
+        theme: { eyebrow: 'Theme', title: 'Choose a theme' },
+        done: { eyebrow: '', title: 'You’re all set' }
     };
-    // Per-option copy shown under the carousel for the centered selection (fixes "text doesn't update").
-    // Bodies only — the carousel prepends the option's own label in bold (see cardHintHtml).
+
+    // The selected option's description under each picker: one sentence.
     var LAYOUT_DESC = {
-        fullCal: 'a three-row month grid with today highlighted, above the Forecast Status Bar and forecast.',
-        compactCal: 'a slim agenda row, leaving more room for the 24-hour forecast graph.',
-        noCal: 'a big clock and date with the Forecast Status Bar and full-screen forecast.'
+        fullCal: 'A three-row month grid with today highlighted, above the forecast.',
+        compactCal: 'A slim agenda row, leaving more room for the 24-hour forecast.',
+        noCal: 'A big clock and date above a full-size forecast.'
     };
-    // status/all default to the no-heart-rate copy; openWizard upgrades them to the
-    // heart-rate variant on emery (the only platform with a heart-rate sensor).
     /**
-     * healthMode captions, built at READ time so the heart-rate variant follows
-     * the live env (a module-level constant used to be patched in place by
-     * openWizard — a mutated "constant" footgun).
+     * healthMode descriptions, built at READ time so the heart-rate variant follows the live env.
      * @param {boolean} hasHr Whether the platform has a heart-rate sensor.
-     * @returns {{off: string, status: string, all: string}} Per-mode captions.
+     * @returns {{off: string, status: string, all: string}} Per-mode descriptions.
      */
     function healthDesc(hasHr) {
         return {
-            off: 'no health information on the watchface.',
-            status: healthStatusItems(hasHr) + ' on the Health Status Bar.',
-            all: 'Health Status Bar plus an hourly graph: ' + healthGraphItems(hasHr) + '.'
+            off: 'No health information on the watchface.',
+            status: capitalize(healthStatusItems(hasHr)) + ' on the Health Status Bar.',
+            all: 'The Health Status Bar plus an hourly graph: ' + healthGraphItems(hasHr) + '.'
         };
     }
-    // Watchface theme (messageKey 'theme'). Mirrors schema.js's two theme selects: color watches get
-    // 4 options, B&W hardware only dark/light. Chosen by env.color at render time.
-    var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']];
-    var THEME_OPTS_BW = [['Dark', 'dark'], ['Light', 'light']];
     var THEME_DESC = {
-        dark: 'black background, white text and lines — the default, and the most tuned theme.',
-        light: 'white background, black text and lines.',
-        bw: 'simple and clean, with good contrast.',
-        'bw-light': 'inverted — simple and clean, with good contrast.'
+        dark: 'Black background with white text and lines. The default, and the most tuned theme.',
+        light: 'White background with black text and lines.',
+        bw: 'Black and white only: simple and clean, with good contrast.',
+        'bw-light': 'Black and white, inverted: simple and clean, with good contrast.'
     };
     // Real watch screenshots, base64-inlined by `mise capture-wizard-screenshots` into
     // wizard-screenshots.generated.js (which assigns PConf.screenshots when concatenated into the
     // page). Empty {} in the Node harness — the controller runs only in the webview.
     var SHOTS = (PConf && PConf.screenshots) ? PConf.screenshots : {};
 
-    // Overlay styles: use the app's CSS custom properties so the wizard follows body.light (theme).
-    // Brand red #FA4A35 / its gradient are intentionally hardcoded to match .hdr h1 / .saveBtn / .tab.on.
+    // Line icons, drawn in the text colour.
+    var ICON_BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '
+        + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>';
+    var ICON_DONE = '<svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" '
+        + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    var ICON_FLICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" '
+        + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>';
+
+    // Overlay styles: the app's CSS custom properties, so the wizard follows body.light (theme). The
+    // brand red #FA4A35 and its gradient are hardcoded to match .hdr h1 / .saveBtn / .tab.on.
+    var ACCENT_FILL = 'linear-gradient(135deg,#FA4A35,#D93A24)';
+    var FONT = 'Inter,-apple-system,system-ui,sans-serif';
     var WIZ_CSS =
         '#wizard{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;'
-        + 'max-width:460px;margin:0 auto;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,sans-serif}'
-        + '#wizard .wiz-hd{padding:16px 18px 6px;flex:none}'
-        + '#wizard .wiz-hd h2{margin:0;color:#FA4A35;font-size:19px;font-weight:800}'
-        + '#wizard .wiz-body{flex:1;min-height:0;overflow-y:auto;padding:4px 18px 16px}'
-        + '#wizard .wiz-foot{flex:none;display:flex;gap:10px;padding:12px 18px;border-top:1px solid var(--card-line)}'
-        + '#wizard .wiz-head{font:700 12px Inter,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 0 8px}'
+        + 'max-width:460px;margin:0 auto;background:var(--bg);color:var(--fg);font-family:' + FONT + '}'
+        + '#wizard [hidden]{display:none!important}'
+        // top bar: Back, the progress bar, and a spacer Back's width so the bar stays centred
+        + '#wizard .wiz-top{flex:none;display:flex;align-items:center;padding:10px 12px 2px}'
+        + '#wizard .wiz-back,#wizard .wiz-top-pad{flex:none;width:40px;height:40px}'
+        + '#wizard .wiz-back{display:flex;align-items:center;justify-content:center;padding:0;border:none;'
+        + 'border-radius:12px;background:transparent;color:var(--fg);cursor:pointer}'
+        + '#wizard .wiz-back svg{width:22px;height:22px}'
+        + '#wizard .wiz-back:active{background:var(--ctl)}'
+        + '#wizard .wiz-progress{flex:1;display:flex;margin:0 6px}'
+        + '#wizard .wiz-seg{flex:1;height:4px;margin:0 2px;border-radius:2px;background:var(--ctl-line);'
+        + 'transition:background .25s}'
+        + '#wizard .wiz-seg.done,#wizard .wiz-seg.on{background:#FA4A35}'
+        // the step
+        + '#wizard .wiz-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 20px 22px}'
+        + '#wizard .wiz-step{animation:wiz-in-r .32s cubic-bezier(.2,.7,.3,1) both}'
+        + '#wizard .wiz-step.back{animation-name:wiz-in-l}#wizard .wiz-step.still{animation:none}'
+        + '#wizard .wiz-eyebrow{margin:8px 0 2px;font:800 12px ' + FONT + ';letter-spacing:.09em;'
+        + 'text-transform:uppercase;color:var(--link)}'
+        + '#wizard .wiz-title{margin:0 0 8px;font:800 25px/1.2 ' + FONT + ';letter-spacing:-.02em;color:var(--fg);'
+        + 'outline:none}'
+        + '#wizard .wiz-lead{margin:0 0 6px;font-size:15px;line-height:1.55;color:var(--muted)}'
         + '#wizard p{line-height:1.55}#wizard a{color:var(--link)}'
-        // tomorrow.io upsell callout on the "All set" step: a top-rule separates it from the intro
-        // paragraph; the embedded settings row renders full-width inside, as on the settings tab.
-        + '#wizard .wiz-tio{margin:12px 0 14px;padding-top:4px;border-top:1px solid var(--card-line)}'
-        + '#wizard .wiz-tio>p{margin:10px 0 6px}'
-        + '#wizard .wiz-car{position:relative;display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;'
-        + '-webkit-overflow-scrolling:touch;padding:6px calc(50% - 75px) 14px;scrollbar-width:none}'
-        + '#wizard .wiz-car::-webkit-scrollbar{display:none}'
-        + '#wizard .wiz-card{scroll-snap-align:center;flex:none;width:150px;background:var(--card);'
-        + 'border:1px solid var(--screen-line);border-radius:10px;padding:0;overflow:hidden;cursor:pointer;'
-        + 'opacity:.5;transform:scale(.94);transition:opacity .15s,border-color .15s,transform .15s}'
-        + '#wizard .wiz-card.on{opacity:1;border:2px solid #FA4A35;transform:scale(1)}'
-        + '#wizard .wiz-shot{display:block;max-width:100%;height:auto;margin:0 auto;image-rendering:pixelated}'
-        + '#wizard .wiz-card .cap{font:700 12px Inter,sans-serif;color:var(--muted);padding:7px 4px}'
-        + '#wizard .wiz-cardhint{line-height:1.5;color:var(--fg);min-height:2.6em;margin:2px 0 10px}'
-        + '#wizard .wiz-radar{display:table;max-width:100%;margin:0 auto;border:1px solid var(--screen-line);border-radius:10px;overflow:hidden;background:var(--card)}'
-        + '#wizard .wiz-nav{flex:1;padding:12px;border-radius:11px;font:700 14px Inter,sans-serif;cursor:pointer}'
-        + '#wizard .wiz-nav.pri{border:none;background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff}'
-        + '#wizard .wiz-nav.sec{border:1px solid var(--ctl-line);background:var(--ctl);color:var(--fg)}'
-        // Flick demo: watch bezel (reuses the screen-framing tokens: var(--screen-line) border,
-        // rounded corners, var(--card) background), tilt-and-snap keyframes with a faint motion
-        // arc (::after), cycle dots + label, primary button.
-        + '#wizard .wiz-flick{text-align:center;margin-top:14px}'
-        + '#wizard .wiz-flick-watch{position:relative;display:inline-block;cursor:pointer;transform-origin:50% 100%}'
+        // the watch: a dark bezel around a real screenshot, on a soft red glow
+        + '#wizard .wiz-stage{display:flex;justify-content:center;padding:14px 0 8px;'
+        + 'background:radial-gradient(closest-side,rgba(250,74,53,.2),rgba(250,74,53,0))}'
+        + '#wizard .wiz-watch{display:inline-block;padding:9px;border-radius:24px;'
+        + 'background:linear-gradient(160deg,#34353A,#141518);'
+        + 'box-shadow:0 14px 34px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.08)}'
+        + 'body.light #wizard .wiz-watch{box-shadow:0 12px 28px rgba(0,0,0,.24),inset 0 0 0 1px rgba(255,255,255,.08)}'
+        + '#wizard .wiz-shot{display:block;width:150px;height:auto;border-radius:5px;image-rendering:pixelated;'
+        + 'transition:opacity .16s}'
+        + '#wizard .wiz-stage.big .wiz-shot{width:230px;width:min(62vw,252px)}'
+        + '#wizard .wiz-shot.fade{opacity:0}'
+        // the options: a segmented control under the watch (a radio group), one row whatever the count;
+        // a long label wraps inside its own segment
+        + '#wizard .wiz-opts{display:flex;margin:16px 0 0;padding:4px;border:1px solid var(--ctl-line);'
+        + 'border-radius:14px;background:var(--ctl)}'
+        + '#wizard .wiz-opt{flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;'
+        + 'min-height:44px;padding:6px 8px;border:none;border-radius:10px;background:transparent;color:var(--muted);'
+        + 'font:600 13.5px/1.25 ' + FONT + ';text-align:center;cursor:pointer;'
+        + 'transition:background .15s,color .15s,box-shadow .15s}'
+        + '#wizard .wiz-opt+.wiz-opt{margin-left:4px}'
+        + '#wizard .wiz-opt.on{background:' + ACCENT_FILL + ';color:#FFFFFF;box-shadow:0 3px 10px rgba(250,74,53,.35)}'
+        + '#wizard .wiz-desc{min-height:3.1em;margin:12px 0 0;text-align:center;font-size:14.5px;line-height:1.5;'
+        + 'color:var(--fg)}'
+        + '#wizard button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}'
+        // cards: the country on the welcome step, the layout legend, the summary, the upsell
+        + '#wizard .wiz-card,#wizard .wiz-legend,#wizard .wiz-sum,#wizard .wiz-tio{margin:18px 0 0;'
+        + 'border:1px solid var(--card-line);border-radius:16px;background:var(--card);overflow:hidden}'
+        + '#wizard .wiz-card-hd{padding:14px 16px 0;font:800 11.5px ' + FONT + ';letter-spacing:.1em;'
+        + 'text-transform:uppercase;color:var(--ttl)}'
+        + '#wizard .wiz-note{margin:0;padding:10px 16px 14px;font-size:13px;line-height:1.5;color:var(--hint)}'
+        + '#wizard .wiz-legend{padding:2px 16px}'
+        + '#wizard .wiz-legend p{margin:12px 0;font-size:13.5px;color:var(--muted)}'
+        + '#wizard .wiz-legend b{color:var(--fg)}'
+        // the flick demo
+        + '#wizard .wiz-flick{text-align:center}'
+        + '#wizard .wiz-flick-watch{display:inline-block;cursor:pointer;transform-origin:50% 100%}'
         + '#wizard .wiz-flick-watch.tilt{animation:wiz-tilt .45s ease-in-out}'
-        + '#wizard .wiz-flick-watch::after{content:"";position:absolute;top:-16px;left:50%;width:70px;height:34px;'
-        + 'margin-left:-35px;border:2px solid transparent;border-top-color:var(--muted);'
-        + 'border-radius:50% 50% 0 0/100% 100% 0 0;opacity:0;pointer-events:none}'
-        + '#wizard .wiz-flick-watch.tilt::after{animation:wiz-arc .45s ease-out}'
-        + '#wizard .wiz-flick-bezel{position:relative;width:150px;min-height:90px;border:1px solid var(--screen-line);'
-        + 'border-radius:12px;overflow:hidden;background:var(--card)}'
+        + '#wizard .wiz-flick-stack{position:relative}'
         + '#wizard .wiz-flick-shot{opacity:0;transition:opacity .18s}'
         + '#wizard .wiz-flick-shot.on{opacity:1}'
-        + '#wizard .wiz-flick-shot+.wiz-flick-shot{position:absolute;top:0;left:0;right:0}'
-        + '#wizard .wiz-flick-track{display:flex;align-items:center;justify-content:center;gap:9px;margin:12px 0 2px}'
-        + '#wizard .wiz-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted);'
-        + 'opacity:.35;margin:0 2px;vertical-align:middle}'
+        + '#wizard .wiz-flick-shot+.wiz-flick-shot{position:absolute;top:0;left:0}'
+        + '#wizard .wiz-flick-track{display:flex;align-items:center;justify-content:center;margin:12px 0 0}'
+        + '#wizard .wiz-dot{display:inline-block;width:7px;height:7px;margin:0 3px;border-radius:50%;'
+        + 'background:var(--muted);opacity:.35;vertical-align:middle;transition:opacity .2s,background .2s}'
         + '#wizard .wiz-dot.on{background:#FA4A35;opacity:1}'
-        + '#wizard .wiz-flick-label{font:700 13px Inter,sans-serif;color:var(--fg)}'
-        + '#wizard .wiz-flick-btn{display:block;margin:10px auto 2px;padding:11px 26px;border:none;border-radius:11px;'
-        + 'background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff;font:700 14px Inter,sans-serif;cursor:pointer}'
-        + '#wizard .wiz-flick-btn:focus-visible{outline:2px solid #FA4A35;outline-offset:2px}'
-        + '#wizard .wiz-flick-cap{margin-top:10px;text-align:left}'
+        + '#wizard .wiz-flick-label{margin-left:8px;font:700 13px ' + FONT + '}'
+        + '#wizard .wiz-try{display:inline-flex;align-items:center;min-height:44px;margin:14px 0 0;padding:10px 20px;'
+        + 'border:1px solid var(--ctl-line);border-radius:999px;background:var(--ctl);color:var(--fg);'
+        + 'font:700 14px ' + FONT + ';cursor:pointer}'
+        + '#wizard .wiz-try svg{width:18px;height:18px;margin-right:8px}'
+        // the last step
+        + '#wizard .wiz-step.last .wiz-title,#wizard .wiz-step.last .wiz-lead{text-align:center}'
+        + '#wizard .wiz-badge{display:flex;align-items:center;justify-content:center;width:68px;height:68px;'
+        + 'margin:20px auto 14px;border-radius:50%;background:' + ACCENT_FILL + ';'
+        + 'box-shadow:0 10px 26px rgba(250,74,53,.4);animation:wiz-pop .5s cubic-bezier(.2,.9,.3,1.25) both}'
+        + '#wizard .wiz-badge svg{width:34px;height:34px}'
+        + '#wizard .wiz-sum{margin-top:20px;padding:0;list-style:none}'
+        + '#wizard .wiz-sum li{display:flex;align-items:center;min-height:50px;padding:4px 6px 4px 16px;'
+        + 'border-bottom:1px solid var(--row-line)}'
+        + '#wizard .wiz-sum li:last-child{border-bottom:none}'
+        + '#wizard .wiz-sum .k{flex:none;width:84px;font-size:13px;color:var(--muted)}'
+        + '#wizard .wiz-sum .v{flex:1;min-width:0;font-size:14.5px;font-weight:600;overflow:hidden;'
+        + 'text-overflow:ellipsis;white-space:nowrap}'
+        + '#wizard .wiz-sum .chg{flex:none;min-height:40px;padding:0 10px;border:none;border-radius:10px;background:none;'
+        + 'color:var(--link);font:700 13.5px ' + FONT + ';cursor:pointer}'
+        // the optional Tomorrow.io key: a card that opens onto the settings page's own key row
+        + '#wizard .wiz-tio{padding:14px 16px}'
+        + '#wizard .wiz-tio-hd{display:flex;align-items:center;justify-content:space-between;font-weight:700}'
+        + '#wizard .wiz-tag{margin-left:10px;padding:3px 8px;border-radius:999px;background:var(--ctl);'
+        + 'color:var(--muted);font:700 11px ' + FONT + ';letter-spacing:.04em;text-transform:uppercase}'
+        + '#wizard .wiz-tio>p{margin:6px 0 12px;font-size:13.5px;color:var(--muted)}'
+        + '#wizard .wiz-tio-open{min-height:40px;padding:8px 14px;border:1px solid var(--ctl-line);border-radius:11px;'
+        + 'background:var(--ctl);color:var(--fg);font:700 13.5px ' + FONT + ';cursor:pointer}'
+        + '#wizard .wiz-tio-field{margin:0 -16px -14px}'
+        + '#wizard .wiz-tio-field .row{border-bottom:none}'
+        + '#wizard .wiz-fine{margin:16px 0 0;text-align:center;font-size:12.5px;line-height:1.55;color:var(--hint)}'
+        // the bottom bar: one primary button, sometimes a quiet second one
+        + '#wizard .wiz-foot{flex:none;display:flex;flex-direction:column;padding:12px 20px 14px;'
+        + 'padding-bottom:calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--card-line);'
+        + 'background:var(--bg)}'
+        + '#wizard .wiz-cta{width:100%;min-height:50px;border:none;border-radius:14px;background:' + ACCENT_FILL + ';'
+        + 'color:#FFFFFF;font:700 16px ' + FONT + ';cursor:pointer;box-shadow:0 6px 18px rgba(250,74,53,.35)}'
+        + '#wizard .wiz-cta:active{transform:translateY(1px)}'
+        + '#wizard .wiz-link{min-height:40px;margin-top:6px;border:none;border-radius:10px;background:none;'
+        + 'color:var(--muted);font:600 14px ' + FONT + ';cursor:pointer}'
+        + '@keyframes wiz-in-r{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:none}}'
+        + '@keyframes wiz-in-l{from{opacity:0;transform:translateX(-22px)}to{opacity:1;transform:none}}'
+        + '@keyframes wiz-pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}'
         + '@keyframes wiz-tilt{0%{transform:rotate(0)}30%{transform:rotate(14deg)}55%{transform:rotate(-5deg)}'
         + '75%{transform:rotate(2deg)}100%{transform:rotate(0)}}'
-        + '@keyframes wiz-arc{0%{opacity:0}30%{opacity:.7}100%{opacity:0}}'
-        + '@media (prefers-reduced-motion:reduce){#wizard .wiz-flick-watch.tilt{animation:none}'
-        + '#wizard .wiz-flick-watch.tilt::after{animation:none}}';
+        // short screens (small phones, a keyboard up): a smaller watch keeps the options in view
+        + '@media (max-height:700px){#wizard .wiz-stage.big .wiz-shot{width:190px;width:min(50vw,200px)}'
+        + '#wizard .wiz-shot{width:120px}#wizard .wiz-title{font-size:22px}}'
+        + '@media (prefers-reduced-motion:reduce){#wizard .wiz-step,#wizard .wiz-badge,#wizard .wiz-flick-watch.tilt'
+        + '{animation:none}#wizard .wiz-shot,#wizard .wiz-seg,#wizard .wiz-flick-shot{transition:none}}';
 
     // Live wizard state, captured from the onReady ctx when the wizard opens.
     // flickIdx = current stop of the flick demo (reset to 0 whenever stepFlick renders).
     // healthAtOpen = S.healthMode as the wizard opened (applyHealthModeChange).
-    var W = { ctx: null, steps: [], idx: 0, overlay: null, flickIdx: 0, healthAtOpen: null };
+    // touch = where a swipe on the picker's watch started; shotSeq = the latest preview swap.
+    var W = { ctx: null, steps: [], idx: 0, overlay: null, flickIdx: 0, healthAtOpen: null, touch: null, shotSeq: 0 };
 
     function esc(s) { return (PConf.engine && PConf.engine.esc) ? PConf.engine.esc(s) : String(s); }
+    function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
     function findItem(schema, key) {
         var found = null;
@@ -267,6 +353,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function indexOfCode(opts, code) {
         var i; for (i = 0; i < opts.length; i += 1) { if (opts[i][1] === code) { return i; } }
         return 0;
+    }
+    function labelFor(opts, val) {
+        var i; for (i = 0; i < opts.length; i += 1) { if (opts[i][1] === val) { return opts[i][0]; } }
+        return '';
+    }
+    /**
+     * A setting's value as the settings page names it (the schema's own option label), so the
+     * summary on the last step reads exactly like the tabs it points to.
+     * @param {string} key Setting messageKey.
+     * @param {*} value Stored value.
+     * @returns {string} The option's label, or '' when the schema has none for it.
+     */
+    function settingLabel(key, value) {
+        var item = findItem(W.ctx.schema, key);
+        if (!item) { return ''; }
+        var opts = (PConf.engine && PConf.engine.resolveOptionsFrom)
+            ? PConf.engine.resolveOptionsFrom(item, W.ctx.S) : item.options;
+        return labelFor(opts || [], value);
+    }
+    /**
+     * Whether the phone asks for less motion: the preview then swaps without its fade.
+     * @returns {boolean} True under prefers-reduced-motion.
+     */
+    function reducedMotion() {
+        return Boolean(typeof window !== 'undefined' && window.matchMedia
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     }
 
     /**
@@ -294,7 +406,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S.dateSlotFullFormat = m.dateSlotFullFormat;
     }
 
-    // --- screen 1: reuse the real settings searchSelect for country/region ---
+    // --- the welcome step reuses the real settings searchSelect for country/region ---
     // A clone of the schema item with its concrete options resolved (region derives from country),
     // rendered through the engine's own row/control renderers so it looks + behaves like Settings.
     function selectRow(schema, key) {
@@ -307,10 +419,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var item = findItem(schema, 'holidayRegion');
         return Boolean(item && PConf.engine.resolveOptionsFrom(item, W.ctx.S).length);
     }
-    // --- screens 2 & 4: carousel of real screenshots ---
-    // Screenshots are keyed by platform (SHOTS[platform][group][val]) so each watch sees its own
-    // rendering. diorite isn't captured separately — it's a B&W watch with health+radar, same class
-    // as flint, so it reuses flint's shots.
+
+    // --- screenshots ---
+    // Keyed by platform (SHOTS[platform][group][val]) so each watch sees its own rendering. diorite
+    // isn't captured separately — it's a B&W watch with health+radar, same class as flint, so it
+    // reuses flint's shots.
     function shotPlatform() {
         var p = (W.ctx && W.ctx.ENV && W.ctx.ENV.platform) || 'basalt';
         return (p === 'diorite') ? 'flint' : p;
@@ -323,24 +436,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     function shotSet() { return SHOTS[shotPlatform()] || {}; }
     function shotFor(group, val) { var s = shotSet(); return (s[group] && s[group][val]) || ''; }
-    function carCard(group, label, val, on) {
-        return '<button class="wiz-card' + (on ? ' on' : '') + '" data-wiz-idx-val="' + esc(val) + '">'
-            + '<img class="wiz-shot" src="' + esc(shotFor(group, val)) + '" alt="">'
-            + '<div class="cap">' + esc(label) + '</div></button>';
-    }
-    function labelFor(opts, val) {
-        var i; for (i = 0; i < opts.length; i += 1) { if (opts[i][1] === val) { return opts[i][0]; } }
-        return '';
-    }
-    // The selected option's name in bold, then its description — matching the bold-label bullets
-    // used elsewhere in the steps.
-    function cardHintHtml(label, body) { return '<b>' + esc(label) + '</b> — ' + esc(body || ''); }
-    function carousel(group, opts, selVal, desc) {
-        var h = '<div class="wiz-car" data-wiz-car="' + esc(group) + '">', i;
-        for (i = 0; i < opts.length; i += 1) { h += carCard(group, opts[i][0], opts[i][1], opts[i][1] === selVal); }
-        h += '</div><p class="wiz-cardhint">' + cardHintHtml(labelFor(opts, selVal), desc[selVal]) + '</p>';
-        return h;
-    }
+    /**
+     * A screenshot in the watch bezel.
+     * @param {string} inner The bezel's content (an <img>, or the flick demo's stack of two).
+     * @returns {string} HTML.
+     */
+    function watchHtml(inner) { return '<div class="wiz-watch">' + inner + '</div>'; }
+
+    // --- the picker: layout, health and theme ---
     function optsFor(group) {
         if (group === 'layoutPreset') { return LAYOUT_OPTS; }
         if (group === 'healthMode') { return HEALTH_OPTS; }
@@ -351,76 +454,110 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (group === 'healthMode') { return healthDesc(hasHeartRate()); }
         return THEME_DESC;   // 'theme'
     }
-    // Scroll the selected card to the horizontal center (offsetParent is the position:relative .wiz-car).
-    // The programmatic scroll must not COMMIT a selection: wireCar's snap handler would
-    // otherwise write the highlighted card's value into state on mere render — and when
-    // the highlight is only the carousel's nearest approximation of the stored value
-    // (compactDense -> compactCal), that silently replaces the user's setting. One-shot
-    // flag, armed only when the assignment will actually fire a scroll event; a real
-    // swipe fires a stream of events, so consuming one changes nothing for user scrolls.
-    function centerCar() {
-        var car = W.overlay.querySelector('.wiz-car'); if (!car) { return; }
-        var on = car.querySelector('.wiz-card.on'); if (!on) { return; }
-        var target = on.offsetLeft + on.offsetWidth / 2 - car.clientWidth / 2;
-        var before = car.scrollLeft;
-        // Armed BEFORE the assignment: engines may dispatch the scroll event
-        // synchronously from the setter, and the handler must already see it.
-        W.suppressCarSnap = (target !== before);
-        car.scrollLeft = target;
-        // A clamped or rounded-back assignment moves nothing and fires no
-        // scroll event — disarm, or the stale flag would eat the first event
-        // of the user's next real swipe.
-        if (car.scrollLeft === before) { W.suppressCarSnap = false; }
+    /**
+     * The option a picker shows as selected: the stored value when the picker offers it, else the
+     * nearest one. Only a highlight — the stored value changes on a real pick alone. A stored
+     * compactDense or weatherOnly (set in full Settings) shows as Compact, the nearest same-calendar
+     * layout; a health mode the picker lacks (e.g. 'slot', from the Health tab) as Off.
+     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme'.
+     * @returns {string} An option value of the picker.
+     */
+    function highlighted(group) {
+        var opts = optsFor(group), stored = W.ctx.S[group];
+        if (labelFor(opts, stored)) { return stored; }
+        return group === 'layoutPreset' ? 'compactCal' : opts[0][1];
     }
-    // Commit a carousel selection: update state, the .on highlight, and the description text in place
-    // (no full re-render, so a swipe isn't interrupted). recenter=true also scrolls it to center.
-    function selectCar(group, idx, recenter) {
-        var opts = optsFor(group);
-        idx = Math.max(0, Math.min(opts.length - 1, idx));
-        var newVal = opts[idx][1];
+    function optHtml(group, label, val, on) {
+        return '<button type="button" class="wiz-opt' + (on ? ' on' : '') + '" role="radio" aria-checked="'
+            + (on ? 'true' : 'false') + '" tabindex="' + (on ? '0' : '-1') + '" data-wiz-group="' + esc(group)
+            + '" data-wiz-opt="' + esc(val) + '">' + esc(label) + '</button>';
+    }
+    /**
+     * The picker: the watch showing the selected option, the options as a segmented radio group, and
+     * the selected option's description (announced when it changes).
+     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme'.
+     * @returns {string} HTML.
+     */
+    function pickerHtml(group) {
+        var opts = optsFor(group), sel = highlighted(group), i;
+        var h = '<div class="wiz-stage big" data-wiz-preview="' + esc(group) + '">'
+            + watchHtml('<img class="wiz-shot" data-wiz-shot src="' + esc(shotFor(group, sel)) + '" alt="'
+                + esc(labelFor(opts, sel) + ' preview') + '">')
+            + '</div><div class="wiz-opts" role="radiogroup" aria-labelledby="wiz-title" data-wiz-pick="'
+            + esc(group) + '">';
+        for (i = 0; i < opts.length; i += 1) { h += optHtml(group, opts[i][0], opts[i][1], opts[i][1] === sel); }
+        return h + '</div><p class="wiz-desc" data-wiz-desc aria-live="polite">' + esc(descFor(group)[sel] || '') + '</p>';
+    }
+    /**
+     * Write a picked option to the live state, the way the settings control would.
+     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme'.
+     * @param {string} val The option's value.
+     * @returns {void}
+     */
+    function commit(group, val) {
         if (group === 'theme') {
             var oldTheme = W.ctx.S.theme;
-            W.ctx.S.theme = newVal;
+            W.ctx.S.theme = val;
             var conv = (PConf.onChange && PConf.onChange.get) ? PConf.onChange.get('themeConvert') : null;
-            if (conv) { conv(W.ctx.S, oldTheme, newVal); }
+            if (conv) { conv(W.ctx.S, oldTheme, val); }
         } else {
-            W.ctx.S[group] = newVal;
+            W.ctx.S[group] = val;
         }
-        var car = W.overlay.querySelector('[data-wiz-car="' + group + '"]'); if (!car) { return; }
-        var cards = car.querySelectorAll('.wiz-card'), i;
-        for (i = 0; i < cards.length; i += 1) { cards[i].className = (i === idx) ? 'wiz-card on' : 'wiz-card'; }
-        var hint = car.parentNode.querySelector('.wiz-cardhint');
-        if (hint) { hint.innerHTML = cardHintHtml(opts[idx][0], descFor(group)[opts[idx][1]]); }
-        if (recenter && cards[idx]) { car.scrollLeft = cards[idx].offsetLeft + cards[idx].offsetWidth / 2 - car.clientWidth / 2; }
     }
-    function nearestCard(car) {
-        var cards = car.querySelectorAll('.wiz-card'), mid = car.scrollLeft + car.clientWidth / 2;
-        var best = 0, bestd = 1e9, i, cc;
-        for (i = 0; i < cards.length; i += 1) {
-            cc = cards[i].offsetLeft + cards[i].offsetWidth / 2;
-            if (Math.abs(cc - mid) < bestd) { bestd = Math.abs(cc - mid); best = i; }
+    /**
+     * Swap the picker's screenshot with a short fade (none under reduced motion). A newer swap wins
+     * over one still fading.
+     * @param {?Element} img The preview image.
+     * @param {string} src New screenshot.
+     * @param {string} alt Its alt text.
+     * @returns {void}
+     */
+    function swapShot(img, src, alt) {
+        if (!img) { return; }
+        img.alt = alt;
+        if (img.getAttribute && img.getAttribute('src') === src) { return; }
+        W.shotSeq += 1;
+        var seq = W.shotSeq;
+        if (reducedMotion()) { img.src = src; return; }
+        img.className = 'wiz-shot fade';
+        setTimeout(function () {
+            if (seq !== W.shotSeq) { return; }
+            img.src = src;
+            img.className = 'wiz-shot';
+        }, 140);
+    }
+    /**
+     * Pick an option: commit it, then update the segments, the description and the watch in place (no
+     * re-render, so focus and a swipe in progress are kept).
+     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme'.
+     * @param {number} idx Option index (clamped).
+     * @param {boolean} focus Move keyboard focus to the picked segment (arrow keys).
+     * @returns {void}
+     */
+    function selectOption(group, idx, focus) {
+        var opts = optsFor(group);
+        idx = Math.max(0, Math.min(opts.length - 1, idx));
+        var val = opts[idx][1];
+        commit(group, val);
+        if (!W.overlay) { return; }
+        var segs = W.overlay.querySelectorAll('[data-wiz-opt]'), i, on;
+        for (i = 0; i < segs.length; i += 1) {
+            on = segs[i].getAttribute('data-wiz-opt') === val;
+            segs[i].className = on ? 'wiz-opt on' : 'wiz-opt';
+            segs[i].setAttribute('aria-checked', on ? 'true' : 'false');
+            segs[i].setAttribute('tabindex', on ? '0' : '-1');
+            if (on && focus && segs[i].focus) { segs[i].focus(); }
         }
-        return best;
-    }
-    // On free scroll (swipe), select the card nearest the center without re-centering (don't fight the drag).
-    function wireCar() {
-        var car = W.overlay.querySelector('.wiz-car'); if (!car) { return; }
-        var group = car.getAttribute('data-wiz-car'), pending = false;
-        car.addEventListener('scroll', function () {
-            // centerCar's render-time centering is not a user selection — see there.
-            if (W.suppressCarSnap) { W.suppressCarSnap = false; return; }
-            if (pending) { return; }
-            pending = true;
-            setTimeout(function () { pending = false; selectCar(group, nearestCard(car), false); }, 90);
-        });
+        var desc = W.overlay.querySelector('[data-wiz-desc]');
+        if (desc) { desc.textContent = descFor(group)[val] || ''; }
+        swapShot(W.overlay.querySelector('[data-wiz-shot]'), shotFor(group, val), opts[idx][0] + ' preview');
     }
 
     // --- flick demo (step 'flick'): interactive tilt-and-snap through the real cycle ---
     // 1x1 transparent GIF, shown only if a stop unexpectedly has no screenshot. Stays unreachable
     // because the Default stop clamps compactDense (the one preset with no captured shot) to
     // compactCal, and scripts/build-config-page.js hard-fails the build on any other missing wizard
-    // shot — so the fallback stays a blank watch face (padded out by the bezel's min-height rather
-    // than collapsing to a sliver); the dots label + caption below still identify the stop.
+    // shot.
     var BLANK_SHOT = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 
     /**
@@ -433,6 +570,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var src = (stop.shotGroup === 'radar') ? (shotSet().radar || '') : shotFor(stop.shotGroup, stop.shotVal);
         return src || BLANK_SHOT;
     }
+    // The selected option's name in bold, then its description: the flick demo's caption.
+    function cardHintHtml(label, body) { return '<b>' + esc(label) + '</b> — ' + esc(body || ''); }
     /**
      * Cycle-position dots: one span per stop, the current one highlighted. A text label
      * sits beside the dots in the markup, so position is never conveyed by color alone.
@@ -493,35 +632,35 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     // --- step bodies ---
+    function stepHead(id) {
+        var meta = STEP_META[id] || {};
+        return (meta.eyebrow ? '<p class="wiz-eyebrow">' + esc(meta.eyebrow) + '</p>' : '')
+            + '<h2 class="wiz-title" id="wiz-title" data-wiz-title tabindex="-1">' + esc(meta.title || '') + '</h2>';
+    }
     function stepWelcome() {
         var schema = W.ctx.schema;
-        var h = '<p>Thanks for trying WarnWeather!</p>'
-            + '<p>With this quick setup we’ll apply the best settings for your country — you can change anything later. It’s optional, so skip it any time.</p>'
-            + '<div class="wiz-head">Choose your country</div>'
+        // aplite has no radar: don't promise one there.
+        var lead = (W.ctx.ENV && W.ctx.ENV.radar)
+            ? 'Forecast, rain radar and your calendar at a glance.' : 'Forecast and your calendar at a glance.';
+        var h = '<div class="wiz-stage">'
+            + watchHtml('<img class="wiz-shot" src="' + esc(shotFor('layoutPreset', highlighted('layoutPreset')))
+                + '" alt="WarnWeather on your watch">')
+            + '</div>'
+            + stepHead('welcome')
+            + '<p class="wiz-lead">' + lead + ' Setup takes a minute, and you can change everything later.</p>'
+            + '<div class="wiz-card"><div class="wiz-card-hd">Your country</div>'
             + selectRow(schema, 'holidayCountry');
         if (regionHasOptions(schema)) { h += selectRow(schema, 'holidayRegion'); }
-        return h;
+        return h + '<p class="wiz-note">Picks the weather and radar service for your area, your units, '
+            + 'holidays and first day of the week.</p></div>';
     }
     function stepLayout() {
-        // compactDense isn't offered in this carousel (LAYOUT_OPTS) — a persisted
-        // compactDense (set in full Settings) can't be represented here, so highlight
-        // compactCal (the nearest, same 2-row calendar) WITHOUT mutating the stored
-        // value (stepHealth's pattern below): the preset changes only on a real pick,
-        // and the flick demo clamps compactDense to the compactCal screenshot itself
-        // (flickStop), so the demo works against the untouched stored value too.
-        var sel = labelFor(LAYOUT_OPTS, W.ctx.S.layoutPreset) ? W.ctx.S.layoutPreset : 'compactCal';
-        return carousel('layoutPreset', LAYOUT_OPTS, sel, LAYOUT_DESC)
-            + '<div>'
-            + '<p><b>Forecast Status Bar</b> — shows your location, current temperature and air quality.</p>'
-            + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV dots and rain bars.</p></div>';
+        return stepHead('layout') + pickerHtml('layoutPreset')
+            + '<div class="wiz-legend">'
+            + '<p><b>Forecast Status Bar</b>: your location, the temperature and air quality.</p>'
+            + '<p><b>Forecast</b>: a 24-hour graph of temperature, chance of rain, rain and UV.</p></div>';
     }
-    function stepHealth() {
-        // If the stored mode isn't offered here (e.g. 'slot', set later via the Health tab), highlight
-        // 'off' rather than leave the carousel unhighlighted — without mutating the stored value, which
-        // only changes if the user actually picks a card.
-        var sel = labelFor(HEALTH_OPTS, W.ctx.S.healthMode) ? W.ctx.S.healthMode : 'off';
-        return carousel('healthMode', HEALTH_OPTS, sel, healthDesc(hasHeartRate()));
-    }
+    function stepHealth() { return stepHead('health') + pickerHtml('healthMode'); }
     function stepFlick() {
         // Render always opens on stop 0 (the default view), so re-entering the step resets
         // the demo — keeps W.flickIdx and the DOM trivially in sync.
@@ -529,31 +668,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var stops = flickStops(W.ctx.S, hasHeartRate());
         var stop = stops[0];
         var src = esc(stopShot(stop));
-        return '<p>Your watch shows one view at a time. Flick your wrist to peek at the rest — it returns to your default view on its own.</p>'
+        return stepHead('flick')
+            + '<p class="wiz-lead">Your watch shows one view at a time. Flick your wrist to see the next; '
+            + 'it goes back to your default view by itself.</p>'
             + '<div class="wiz-flick">'
-            + '<div class="wiz-flick-watch" data-wiz-flick-watch data-wiz-flick>'
-            + '<div class="wiz-flick-bezel">'
-            + '<img class="wiz-shot wiz-flick-shot on" src="' + src + '" alt="">'
-            + '<img class="wiz-shot wiz-flick-shot" src="' + src + '" alt="">'
-            + '</div>'
-            + '</div>'
+            + '<div class="wiz-stage big"><div class="wiz-flick-watch" data-wiz-flick-watch data-wiz-flick>'
+            + watchHtml('<div class="wiz-flick-stack">'
+                + '<img class="wiz-shot wiz-flick-shot on" src="' + src + '" alt="">'
+                + '<img class="wiz-shot wiz-flick-shot" src="' + src + '" alt=""></div>')
+            + '</div></div>'
             + '<div class="wiz-flick-track">'
             + '<span data-wiz-flick-dots>' + flickDotsHtml(stops.length, 0) + '</span>'
             + '<span class="wiz-flick-label" data-wiz-flick-label>' + esc(stop.label) + '</span>'
             + '</div>'
-            + '<button class="wiz-flick-btn" data-wiz-flick>⟳&nbsp;&nbsp;Flick wrist</button>'
-            + '<p class="wiz-cardhint wiz-flick-cap" data-wiz-flick-cap>' + cardHintHtml(stop.label, stop.caption) + '</p>'
+            + '<button type="button" class="wiz-try" data-wiz-flick>' + ICON_FLICK + 'Try a flick</button>'
+            + '<p class="wiz-desc" data-wiz-flick-cap aria-live="polite">' + cardHintHtml(stop.label, stop.caption) + '</p>'
             + '</div>';
     }
     function stepTheme() {
-        return carousel('theme', optsFor('theme'), W.ctx.S.theme, THEME_DESC)
-            + '<div><p>The theme sets your watchface’s colours. You can fine-tune individual colours later in Settings.</p></div>';
+        return stepHead('theme') + pickerHtml('theme')
+            + '<p class="wiz-fine">You can fine-tune any colour later in Settings.</p>';
     }
-    // The tomorrow.io upsell, shown between the first two "All set" paragraphs when the resulting
-    // weather provider isn't DWD or Met.no (i.e. outside their strong regions): a free tomorrow.io key
-    // unlocks the precise worldwide nowcast. Reuses the real settings field (renderRow) so the signup
-    // instructions, key input and Test button match the Tomorrow.io key sheets exactly. Entering a key
-    // switches the weather provider to tomorrow.io (see onTomorrowioKey), wired in openWizard.
+    // The tomorrow.io upsell, shown on the last step when the resulting weather provider isn't DWD or
+    // Met.no (i.e. outside their strong regions): a free tomorrow.io key unlocks the precise worldwide
+    // forecast. Folded to one line until asked for; it then opens onto the real settings field
+    // (renderRow) so the signup instructions, key input and Test button match the Tomorrow.io key
+    // sheets exactly. Entering a key switches the weather provider to tomorrow.io (onTomorrowioKey).
     // Both copies of the key's row (the weather provider's Tomorrow.io sheet and the radar-only one)
     // are labelled just "API key" under a sheet titled "Tomorrow.io"; any copy will do (same hint,
     // same Test), and the row here, with no sheet title above it, names the provider itself.
@@ -561,12 +701,40 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function tomorrowioUpsell() {
         var item = findItem(W.ctx.schema, 'tomorrowioApiKey');
         if (!item) { return ''; }
-        var field = PConf.engine.renderRow(Object.assign({}, item, { label: TOMORROWIO_UPSELL_LABEL }),
-            { value: W.ctx.S.tomorrowioApiKey || '' });
+        var key = W.ctx.S.tomorrowioApiKey || '';
+        var field = PConf.engine.renderRow(Object.assign({}, item, { label: TOMORROWIO_UPSELL_LABEL }), { value: key });
+        // Already holding a key (a re-run): open, so the key shows.
+        var open = Boolean(String(key).replace(/\s/g, ''));
         return '<div class="wiz-tio">'
-            + '<p><b>Get the most precise forecast.</b> For your region, a free <b>Tomorrow.io</b> account unlocks a hyperlocal forecast anywhere in the world. Set it up below, or skip it to keep the auto-picked provider.</p>'
-            + field
+            + '<div class="wiz-tio-hd"><span>More precise forecasts</span><span class="wiz-tag">Optional</span></div>'
+            + '<p>For your region, a free Tomorrow.io account unlocks a hyperlocal forecast anywhere in the world.</p>'
+            + (open ? '' : '<button type="button" class="wiz-tio-open" data-wiz-tio-open aria-expanded="false">'
+                + 'Add a Tomorrow.io key</button>')
+            + '<div class="wiz-tio-field" data-wiz-tio-field' + (open ? '' : ' hidden') + '>' + field + '</div>'
             + '</div>';
+    }
+    /**
+     * The last step's summary: what setup chose, each with a way back to the step that set it.
+     * Labels come from the schema, so each reads as it does on the settings tabs.
+     * @returns {string} HTML.
+     */
+    function summaryHtml() {
+        var S = W.ctx.S, rows = [], h = '<ul class="wiz-sum">', i, country, region;
+        country = settingLabel('holidayCountry', S.holidayCountry);
+        region = (S.holidayRegion && S.holidayRegion !== 'all') ? settingLabel('holidayRegion', S.holidayRegion) : '';
+        rows.push(['Country', region ? region + ', ' + country : country, 'welcome', '']);
+        rows.push(['Weather', settingLabel('provider', S.provider), '', ' data-wiz-sum-weather']);
+        rows.push(['Layout', settingLabel('layoutPreset', S.layoutPreset), 'layout', '']);
+        if (W.steps.indexOf('health') !== -1) { rows.push(['Health', settingLabel('healthMode', S.healthMode), 'health', '']); }
+        if (W.steps.indexOf('theme') !== -1) { rows.push(['Theme', settingLabel('theme', S.theme), 'theme', '']); }
+        for (i = 0; i < rows.length; i += 1) {
+            h += '<li><span class="k">' + esc(rows[i][0]) + '</span><span class="v"' + rows[i][3] + '>'
+                + esc(rows[i][1] || '—') + '</span>'
+                + (rows[i][2] ? '<button type="button" class="chg" data-wiz-goto="' + rows[i][2] + '" aria-label="Change '
+                    + esc(rows[i][0].toLowerCase()) + '">Change</button>' : '')
+                + '</li>';
+        }
+        return h + '</ul>';
     }
     function stepDone() {
         // Show the tomorrow.io upsell only where DWD / Met.no don't apply — a REGION question, keyed off
@@ -575,10 +743,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // tomorrow.io once a key is entered, which must not change whether the upsell shows.
         var countryProvider = mapCountry(W.ctx.S.holidayCountry).provider;
         var upsell = (countryProvider !== 'dwd' && countryProvider !== 'metno') ? tomorrowioUpsell() : '';
-        return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs, and you can run this setup again any time from <b>Setup › Misc › Run setup again</b>.</p>'
+        return '<div class="wiz-badge">' + ICON_DONE + '</div>'
+            + stepHead('done')
+            + '<p class="wiz-lead">Save to send it to your watch. You can change anything later, or run this '
+            + 'setup again from <b>Setup&nbsp;›&nbsp;Misc</b>.</p>'
+            + summaryHtml()
             + upsell
-            + '<p>If you enjoy WarnWeather, please ♥ it on the Pebble appstore — it really helps.</p>'
-            + '<p>Need help or have feedback? Open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>, or use the appstore’s “Message the developer” to reach me directly.</p>';
+            + '<p class="wiz-fine">Enjoying WarnWeather? A ♥ on the Pebble appstore helps a lot. Questions or ideas: '
+            + 'open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>, or use the '
+            + 'appstore’s “Message the developer”.</p>';
     }
     function stepBody(id) {
         if (id === 'welcome') { return stepWelcome(); }
@@ -589,23 +762,51 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return stepDone();
     }
 
-    // --- footer buttons ---
-    function navBtn(nav, label, primary) {
-        return '<button class="wiz-nav ' + (primary ? 'pri' : 'sec') + '" data-wiz-nav="' + nav + '">' + esc(label) + '</button>';
+    // --- top bar and bottom bar ---
+    function topHtml() {
+        var n = W.steps.length, h, i;
+        h = (W.idx > 0)
+            ? '<button type="button" class="wiz-back" data-wiz-nav="back" aria-label="Back">' + ICON_BACK + '</button>'
+            : '<span class="wiz-top-pad"></span>';
+        h += '<div class="wiz-progress" role="progressbar" aria-label="Setup progress" aria-valuemin="1" aria-valuemax="'
+            + n + '" aria-valuenow="' + (W.idx + 1) + '" aria-valuetext="Step ' + (W.idx + 1) + ' of ' + n + '">';
+        for (i = 0; i < n; i += 1) {
+            h += '<span class="wiz-seg' + (i < W.idx ? ' done' : (i === W.idx ? ' on' : '')) + '"></span>';
+        }
+        return h + '</div><span class="wiz-top-pad"></span>';
+    }
+    function cta(nav, label) {
+        return '<button type="button" class="wiz-cta" data-wiz-nav="' + nav + '">' + esc(label) + '</button>';
+    }
+    function quiet(nav, label) {
+        return '<button type="button" class="wiz-link" data-wiz-nav="' + nav + '">' + esc(label) + '</button>';
     }
     function footer(id) {
-        if (id === 'welcome') { return navBtn('skip', 'Skip', false) + navBtn('next', 'Get started', true); }
-        if (id === 'done') { return navBtn('tweak', 'Continue tweaking', false) + navBtn('save', 'Save & close', true); }
-        return navBtn('back', 'Back', false) + navBtn('next', 'Next', true);
+        if (id === 'welcome') { return cta('next', 'Get started') + quiet('skip', 'Skip setup'); }
+        if (id === 'done') { return cta('save', 'Save to watch') + quiet('tweak', 'Keep customizing'); }
+        return cta('next', 'Continue');
     }
 
-    function renderStep() {
+    /**
+     * Render the current step into the overlay.
+     * @param {string} dir 'next' or 'open' (slides in from the right), 'back' (from the left), or 'stay':
+     *   re-render in place (a country picked), keeping the scroll position and focus.
+     * @returns {void}
+     */
+    function renderStep(dir) {
         var id = W.steps[W.idx];
-        W.overlay.querySelector('[data-wiz-title]').textContent = STEP_TITLES[id] || '';
-        W.overlay.querySelector('[data-wiz-body]').innerHTML = stepBody(id);
+        var top = W.overlay.querySelector('[data-wiz-top]');
+        if (top) { top.innerHTML = topHtml(); }
+        var body = W.overlay.querySelector('[data-wiz-body]');
+        var stay = dir === 'stay';
+        body.innerHTML = '<div class="wiz-step' + (dir === 'back' ? ' back' : '') + (stay ? ' still' : '')
+            + (id === 'done' ? ' last' : '') + '">' + stepBody(id) + '</div>';
         W.overlay.querySelector('[data-wiz-foot]').innerHTML = footer(id);
-        wireCar();
-        centerCar();
+        if (stay) { return; }
+        if (typeof body.scrollTop === 'number') { body.scrollTop = 0; }
+        // A screen reader starts each step at its title.
+        var title = W.overlay.querySelector('[data-wiz-title]');
+        if (title && title.focus) { title.focus({ preventScroll: true }); }
     }
 
     // --- finishing: the situational defaults (settings/defaults-policy.js) ---
@@ -775,12 +976,39 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // it BEFORE the exit, so the values ride the save (or show up on the settings page the
         // user is dropped onto).
         applyWizardDefaults(W.ctx, nav);
-        if (nav === 'back') { W.idx = Math.max(0, W.idx - 1); renderStep(); }
-        else if (nav === 'next') { W.idx = Math.min(W.steps.length - 1, W.idx + 1); renderStep(); }
+        if (nav === 'back') { W.idx = Math.max(0, W.idx - 1); renderStep('back'); }
+        else if (nav === 'next') { W.idx = Math.min(W.steps.length - 1, W.idx + 1); renderStep('next'); }
         else if (nav === 'save') { finishSave(); }
-        // Skip closes the wizard onto the live settings page (same as "Continue tweaking"),
+        // Skip closes the wizard onto the live settings page (same as "Keep customizing"),
         // rather than saving and navigating back to the watch.
         else if (nav === 'skip' || nav === 'tweak') { finishTweak(); }
+    }
+
+    /**
+     * Jump back to a step from the summary's Change links. Walking forward from there returns to
+     * the summary, which then shows the new pick.
+     * @param {string} id Step id.
+     * @returns {void}
+     */
+    function goToStep(id) {
+        var at = W.steps.indexOf(id);
+        if (at === -1) { return; }
+        W.idx = at;
+        renderStep('back');
+    }
+
+    /**
+     * Open the folded Tomorrow.io card onto its key field.
+     * @param {?Element} button The card's "Add a Tomorrow.io key" button.
+     * @returns {void}
+     */
+    function openUpsell(button) {
+        var field = W.overlay && W.overlay.querySelector('[data-wiz-tio-field]');
+        if (!field) { return; }
+        field.removeAttribute('hidden');
+        if (button && button.parentNode) { button.parentNode.removeChild(button); }
+        var input = field.querySelector('input[type=text]');
+        if (input && input.focus) { input.focus(); }
     }
 
     function onClick(e) {
@@ -790,26 +1018,67 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if ((t = e.target.closest('[data-select]'))) {
             // Open the shared bottom-sheet dialog (a showModal() top-layer dialog, so it renders
             // above this overlay). The engine sets S[key] on pick; when a country was newly chosen,
-            // reset the region and re-derive the country defaults, then re-render the step.
+            // reset the region and re-derive the country defaults, then re-render the step in place.
             var sk = t.getAttribute('data-select'), before = W.ctx.S[sk];
             W.ctx.openSheet(sk, function () {
                 if (sk === 'holidayCountry' && W.ctx.S.holidayCountry !== before) {
                     W.ctx.S.holidayRegion = 'all'; applyDerived(W.ctx.S);
                 }
-                renderStep();
+                renderStep('stay');
+                var again = W.overlay && W.overlay.querySelector('[data-select="' + sk + '"]');
+                if (again && again.focus) { again.focus(); }
             });
             return;
         }
-        if ((t = e.target.closest('[data-wiz-idx-val]'))) {
-            var group = t.parentNode.getAttribute('data-wiz-car');
-            selectCar(group, indexOfCode(optsFor(group), t.getAttribute('data-wiz-idx-val')), true); return;
+        if ((t = e.target.closest('[data-wiz-opt]'))) {
+            var group = t.getAttribute('data-wiz-group');
+            selectOption(group, indexOfCode(optsFor(group), t.getAttribute('data-wiz-opt')), false);
+            return;
         }
+        if ((t = e.target.closest('[data-wiz-goto]'))) { goToStep(t.getAttribute('data-wiz-goto')); return; }
+        if ((t = e.target.closest('[data-wiz-tio-open]'))) { openUpsell(t); return; }
         if ((t = e.target.closest('[data-wiz-flick]'))) { advanceFlick(); return; }
-        // Embedded settings-field controls (the tomorrow.io upsell on the "All set" step): the copy
+        // Embedded settings-field controls (the tomorrow.io upsell on the last step): the copy
         // button in the key hint and the Test button both live in the overlay, outside #scroll, so
         // the engine's own delegated handlers never see them — dispatch them here instead.
         if ((t = e.target.closest('[data-copy]'))) { if (PConf.copyText) { PConf.copyText(t.getAttribute('data-copy')); } return; }
         if ((t = e.target.closest('[data-action]'))) { var act = t.getAttribute('data-action'); if (PConf.actions[act]) { PConf.actions[act](); } return; }
+    }
+
+    // The picker's keys: a radio group moves its selection with the arrow keys (wrapping), Home and
+    // End. Older WebViews name the arrows without the "Arrow" prefix.
+    var KEY_STEP = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1, Right: 1, Down: 1, Left: -1, Up: -1 };
+    function onKeydown(e) {
+        var t = e.target && e.target.closest ? e.target.closest('[data-wiz-opt]') : null;
+        if (!t) { return; }
+        var group = t.getAttribute('data-wiz-group'), opts = optsFor(group);
+        var at = indexOfCode(opts, t.getAttribute('data-wiz-opt')), to = null;
+        if (KEY_STEP[e.key]) { to = (at + KEY_STEP[e.key] + opts.length) % opts.length; }
+        else if (e.key === 'Home') { to = 0; }
+        else if (e.key === 'End') { to = opts.length - 1; }
+        if (to === null) { return; }
+        if (e.preventDefault) { e.preventDefault(); }
+        selectOption(group, to, true);
+    }
+
+    // A swipe across the picker's watch steps to the neighbouring option (no wrap): the gesture the
+    // old carousel taught. Mostly-vertical drags are scrolls, and left alone.
+    var SWIPE_MIN_PX = 40;
+    function onTouchStart(e) {
+        var t = e.target && e.target.closest ? e.target.closest('[data-wiz-preview]') : null;
+        W.touch = (t && e.touches && e.touches.length === 1)
+            ? { group: t.getAttribute('data-wiz-preview'), x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+    }
+    function onTouchEnd(e) {
+        var start = W.touch;
+        W.touch = null;
+        if (!start || !e.changedTouches || !e.changedTouches.length) { return; }
+        var dx = e.changedTouches[0].clientX - start.x, dy = e.changedTouches[0].clientY - start.y;
+        if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) { return; }
+        var opts = optsFor(start.group);
+        var to = indexOfCode(opts, highlighted(start.group)) + (dx < 0 ? 1 : -1);
+        if (to < 0 || to >= opts.length) { return; }
+        selectOption(start.group, to, false);
     }
 
     // Text input inside the overlay (the tomorrow.io key field). Mirror the value into shared state
@@ -827,7 +1096,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // reverts to the country-derived provider. We don't re-render on keystrokes (would drop input
     // focus), and it isn't needed: the upsell's visibility gate is the COUNTRY's recommended provider
     // (see stepDone), so flipping S.provider here never changes whether the upsell shows. Runs the same
-    // pollen cleanup the provider picker + applyDerived do.
+    // pollen cleanup the provider picker + applyDerived do, and updates the summary's Weather line.
     function onTomorrowioKey(val) {
         var oldProvider = W.ctx.S.provider;
         var hasKey = Boolean(String(val || '').replace(/\s/g, ''));
@@ -836,6 +1105,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         W.ctx.S.provider = next;
         var cleanup = PConf.onChange && PConf.onChange.get && PConf.onChange.get('clearPollenForProvider');
         if (cleanup) { cleanup(W.ctx.S, oldProvider, next); }
+        var weather = W.overlay && W.overlay.querySelector('[data-wiz-sum-weather]');
+        if (weather) { weather.textContent = settingLabel('provider', next) || '—'; }
     }
 
     function ensureStyle() {
@@ -847,6 +1118,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     function openWizard(ctx, fresh) {
+        if (W.overlay) { closeWizard(); }   // "Run setup again" while one is up: start over, never stack two
         W.ctx = ctx; W.steps = buildSteps(ctx.ENV); W.idx = 0;
         W.healthAtOpen = ctx.S.healthMode;   // see applyHealthModeChange
         if (fresh) {
@@ -863,15 +1135,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ensureStyle();
         var overlay = document.createElement('div');
         overlay.id = 'wizard';
+        if (overlay.setAttribute) {
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.setAttribute('aria-labelledby', 'wiz-title');
+        }
         overlay.innerHTML =
-            '<div class="wiz-hd"><h2 data-wiz-title></h2></div>'
+            '<div class="wiz-top" data-wiz-top></div>'
             + '<div class="wiz-body" data-wiz-body></div>'
             + '<div class="wiz-foot" data-wiz-foot></div>';
         document.body.appendChild(overlay);
         W.overlay = overlay;
         overlay.addEventListener('click', onClick);
         overlay.addEventListener('input', onInput);
-        renderStep();
+        overlay.addEventListener('keydown', onKeydown);
+        overlay.addEventListener('touchstart', onTouchStart);
+        overlay.addEventListener('touchend', onTouchEnd);
+        renderStep('open');
     }
 
     // Registration (guarded so requiring this file in Node tests is a no-op).
