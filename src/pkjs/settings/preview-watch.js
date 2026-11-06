@@ -454,16 +454,15 @@
             + e + '</svg>', label: describe(spec, lay) };
     }
 
-    // The card is the watch's own background (the block sets it, with its ink's caption and
-    // line colours): the screens run edge to edge across it and down to its foot (the card's
-    // round corners clip them a little), each view's name over it and a hairline between
-    // views, as the schematic had them. One or two views keep a screen's width, centred.
-    var CSS = '.wpv{display:flex;justify-content:center;margin:-12px -16px -14px}'
-        + '.wpv-v{flex:1 1 0;min-width:0;max-width:160px;display:flex;flex-direction:column}'
-        + '.wpv-v+.wpv-v{border-left:1px solid var(--wpv-line)}'
-        + '.wpv-cap{display:block;padding:7px 4px 6px;text-align:center;white-space:nowrap;overflow:hidden;'
-        + 'text-overflow:ellipsis;font:700 11px Inter,-apple-system,system-ui,sans-serif;color:var(--wpv-cap)}'
-        + '.wpv-scr{display:block;width:100%;height:auto}';
+    var CSS = '.wpv{display:flex;justify-content:center;align-items:flex-start;margin:-12px -16px -14px;'
+        + 'padding:16px 6px 12px;background:radial-gradient(closest-side,rgba(250,74,53,.16),rgba(250,74,53,0))}'
+        + '.wpv-v{flex:1 1 0;min-width:0;max-width:122px;margin:0 5px;text-align:center}'
+        + '.wpv.n1 .wpv-v{max-width:168px}.wpv.n2 .wpv-v{max-width:142px}'
+        + '.wpv-bezel{display:block;padding:5px;border-radius:15px;background:linear-gradient(160deg,#34353A,#141518);'
+        + 'box-shadow:0 8px 20px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.08)}'
+        + 'body.light .wpv-bezel{box-shadow:0 6px 16px rgba(0,0,0,.22),inset 0 0 0 1px rgba(255,255,255,.08)}'
+        + '.wpv-scr{display:block;width:100%;height:auto;border-radius:4px}'
+        + '.wpv-cap{display:block;margin-top:7px;font:700 11.5px Inter,-apple-system,system-ui,sans-serif;color:var(--muted)}';
 
     /**
      * Put the block's styles on the page once.
@@ -488,19 +487,18 @@
         var st = S || {};
         var views = VC.resolveViewCycle(st, env);
         var f = env && env.platform === 'emery' ? 1 : 0, now = new Date();
-        var ink = svgLib.previewInk(themeOf(st, env));
         var n = 0, figs = '';
         views.forEach(function (spec, i) {
             if (!spec) { return; }
             var name = NAMES[i] || 'View ' + (i + 1), scr = screenSvg(spec, i, st, env, userData || {}, f, now);
             n += 1;
             figs += '<div class="wpv-v" role="img" aria-label="' + esc(name + ': ' + scr.label) + '">'
-                + '<span class="wpv-cap" aria-hidden="true">' + esc(name) + '</span>' + scr.svg + '</div>';
+                + '<div class="wpv-bezel">' + scr.svg + '</div>'
+                + '<span class="wpv-cap" aria-hidden="true">' + esc(name) + '</span></div>';
         });
         if (!figs) { return ''; }
         ensureStyle();
-        return '<div class="wpv n' + n + '" role="group" aria-label="Your watch" style="background:' + ink.bg
-            + ';--wpv-cap:' + ink.rgba('0.6') + ';--wpv-line:' + ink.rgba('0.18') + '">' + figs + '</div>';
+        return '<div class="wpv n' + n + '" role="group" aria-label="Your watch">' + figs + '</div>';
     }
 
     if (PC && PC.blocks) { PC.blocks.register('watchPreview', watchPreview); }

@@ -85,8 +85,7 @@ test('each view is named and spoken band by band, in the Layout card\'s words', 
   ]);
   assert.deepEqual(labels(pw.watchPreview(settings({ layoutPreset: 'fullCal', radarMode: 'off', healthMode: 'off' }), env, {})),
     ['Default: Watch Status, Calendar (3 rows), Clock, Forecast Status, Forecast'], 'one view, one screen');
-  assert.match(pw.watchPreview(S, env, {}), /^<div class="wpv n3" role="group" aria-label="Your watch" style="background:#000000;/,
-    'the card takes the watch\'s background');
+  assert.match(pw.watchPreview(S, env, {}), /^<div class="wpv n3" role="group" aria-label="Your watch">/);
 });
 
 test('aplite draws a single Default view; emery its own 200×228 screen', () => {
