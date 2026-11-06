@@ -190,5 +190,9 @@
   "2.3.0": {
     "title": "Day line on the forecast graph",
     "body": "Added a line at midnight that marks each new day. Removed the lines at dusk and dawn. It follows Day / night shading; set its color in the Graphs tab, under Graph colors, Night shading."
+  },
+  "2.4.0": {
+    "title": "New first-run setup",
+    "body": "Setup now shows your watch as you go and sums up your choices at the end. On most watches it also lets you pick a look for the forecast graph. Run it from the Setup tab, under Misc, Run setup again."
   }
 }

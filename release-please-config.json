@@ -5,6 +5,7 @@
     ".": {
       "release-type": "go",
       "skip-changelog": true,
+      "exclude-paths": ["plugins"],
       "extra-files": [
         {
           "type": "json",

@@ -51,6 +51,10 @@ run = "scripts/build.sh"
 description = "Clean and rebuild PBW"
 run = "pebble clean && scripts/build.sh"
 
+[tasks.build-plugins]
+description = "Build the weather plugins' pbws into plugins/<dir>/build/ (no Pebble SDK needed; args: plugin dirs, default all)"
+run = "node plugins/scripts/build.js"
+
 [tasks.install-phone]
 description = "Build and install dev build on phone"
 alias = "install"
@@ -121,13 +125,14 @@ run = "node scripts/print-defaults.js"
 description = "Run the Node test suite"
 # Regenerate page.generated.js first: it's a gitignored build artifact, and
 # tests require it transitively (clay-settings -> settings -> page.generated).
-# Test globs are scoped to the two Node test trees explicitly: an unscoped
+# Test globs are scoped to the Node test trees explicitly (the third is the
+# weather plugins' suite, plugins/README.md): an unscoped
 # `node --test` also recurses into supabase/functions/**/*_test.ts (Deno
 # tests, e.g. rainbow-nowcast's handler_test.ts), which Node can't run (they
 # import Deno's @std/assert) — run those separately via `deno test`.
 run = [
   "node scripts/build-config-page.js",
-  "node --test 'test/**/*.test.js' 'src/pkjs/config-ui/test/**/*.test.js'",
+  "node --test 'test/**/*.test.js' 'src/pkjs/config-ui/test/**/*.test.js' 'plugins/test/**/*.test.js'",
   "scripts/test-c.sh",
 ]
 

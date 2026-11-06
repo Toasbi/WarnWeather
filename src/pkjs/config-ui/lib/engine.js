@@ -1189,7 +1189,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // re-truncated UTF-8-safely phone-side at pack time; this is the soft UI cap.
     var ml = (item.attributes && item.attributes.maxlength)
       ? ' maxlength="' + esc(String(item.attributes.maxlength)) + '"' : '';
-    var input = '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '"' + ml + '>';
+    // Named after its row: the row's label is a plain <div>, not a <label for>.
+    var name = item.label ? ' aria-label="' + esc(item.label) + '"' : '';
+    var input = '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '"' + ml + name + '>';
     if (!item.suffixAction) { return input; }
     // Optional inline action button to the RIGHT of the input (e.g. "Test" a key),
     // plus an empty result line the action fills — targeted by
@@ -3505,6 +3507,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     PConf.hooks.runReady({
       S: S, ENV: ENV, USERDATA: USERDATA, schema: SCHEMA, cfg: INJECTED_CFG || {},
       get: hookCtx.get, set: hookCtx.set, render: render, save: save,
+      // Write a value the way the page's own controls do: S, then the item's onChange hooks
+      // (with optOldV, as if it had moved from there). No render: the caller repaints.
+      setValue: setValue,
       // The id of the tab on screen right now. render() rebuilds only that tab, so a
       // block repainting from an async completion can skip a repaint no one would see
       // (and that would tear down a field the user is typing in on another tab).
@@ -3547,7 +3552,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     resolveTheme: resolveTheme, infoIconsOn: infoIconsOn, snapShownOptions: snapShownOptions,
     fitSelectPeek: fitSelectPeek,
     resolveStaticText: resolveStaticText, resolveAttention: resolveAttention,
-    findAttention: findAttention, renderConfirmModal: renderConfirmModal
+    findAttention: findAttention, renderConfirmModal: renderConfirmModal,
+    // Defaults as stored (storedDefault), and as a theme converts them (moreBaseline: the
+    // colours and bar mode a light theme starts on count as its defaults), for the setup
+    // wizard's forecast looks.
+    storedDefault: storedDefault, themedDefaults: moreBaseline
   };
 })();
 if (typeof module !== 'undefined' && module.exports) {

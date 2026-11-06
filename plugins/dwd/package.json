@@ -1,0 +1,40 @@
+{
+  "name": "dwd-weather",
+  "author": "Toasbi",
+  "version": "1.0.0",
+  "private": true,
+  "pebble": {
+    "displayName": "DWD Weather (Bright Sky)",
+    "uuid": "8e297cbf-3863-4d4e-b26a-f4ea09d62574",
+    "sdkVersion": "3",
+    "projectType": "plugin",
+    "usesPermissions": [
+      "Location",
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.brightsky.dev"
+          ]
+        }
+      }
+    ],
+    "plugin": {
+      "description": "Weather from the Deutscher Wetterdienst (DWD) for your weather locations in Germany and the countries around it, through the Bright Sky API and without a key, in your units: observations for now and the hours already past today, DWD MOSMIX forecasts every hour for four days and every day for a week, sunrise and sunset. Besides the standard weather readings it serves hourly rain chance and amount, wind, gusts, pressure, cloud cover, humidity and dew point. Places outside that area are left to the Pebble app's own weather. Enough to be the watch's weather provider (Settings > Weather). Source: Deutscher Wetterdienst, via brightsky.dev.",
+      "script": "plugin.js",
+      "sources": [
+        {
+          "category": "weather",
+          "items": [
+            "location"
+          ],
+          "callerPermissions": [
+            "Location"
+          ],
+          "supportsMultiple": true,
+          "suggestedRefreshIntervalSec": 1800
+        }
+      ]
+    }
+  }
+}

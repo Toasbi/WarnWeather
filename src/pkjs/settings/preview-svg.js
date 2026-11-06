@@ -62,15 +62,18 @@
     /**
      * Wrap a preview SVG body in the standard 200×h frame. The negative margins
      * cancel the engine .blockrow padding (12px 16px 14px) so the preview bleeds
-     * edge-to-edge.
+     * edge-to-edge; with `bleed: false` (a box of its own, the setup wizard's card) it
+     * just fills its box's width.
      * @param {string} inner The preview body markup.
      * @param {number} [h=120] Frame height in viewBox units.
+     * @param {{bleed: boolean}} [opts] `bleed: false` drops the margins.
      * @returns {string} SVG markup.
      */
-    function svgFrame(inner, h) {
+    function svgFrame(inner, h, opts) {
         h = h || 120;
+        var fit = (opts && opts.bleed === false) ? 'width:100%' : 'width:calc(100% + 32px);margin:-12px -16px -14px';
         return '<svg viewBox="0 0 200 ' + h + '" style="aspect-ratio:200/' + h
-            + ';display:block;width:calc(100% + 32px);margin:-12px -16px -14px">' + inner + '</svg>';
+            + ';display:block;' + fit + '">' + inner + '</svg>';
     }
 
     var api = {

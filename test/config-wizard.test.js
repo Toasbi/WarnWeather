@@ -14,31 +14,35 @@ require('../src/pkjs/settings/reset-status-defaults.js');
 const schema = require('../src/pkjs/settings/schema.js');
 const eng = require('../src/pkjs/config-ui/lib/engine.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
+require('../src/pkjs/settings/theme-convert.js');
 const W = require('../src/pkjs/settings/wizard.js');
+const CD = require('../src/pkjs/settings/country-defaults.js');
+const FLICK = require('../src/pkjs/settings/wizard-flick.js');
+const FINISH = require('../src/pkjs/settings/wizard-finish.js');
 
 test('countryFromTimezone: known zones map, unknown -> null', () => {
-  assert.equal(W.countryFromTimezone('Europe/Berlin'), 'DE');
-  assert.equal(W.countryFromTimezone('Europe/Oslo'), 'NO');
-  assert.equal(W.countryFromTimezone('America/New_York'), 'US');
-  assert.equal(W.countryFromTimezone('Antarctica/Troll'), null);
-  assert.equal(W.countryFromTimezone(null), null);
+  assert.equal(CD.countryFromTimezone('Europe/Berlin'), 'DE');
+  assert.equal(CD.countryFromTimezone('Europe/Oslo'), 'NO');
+  assert.equal(CD.countryFromTimezone('America/New_York'), 'US');
+  assert.equal(CD.countryFromTimezone('Antarctica/Troll'), null);
+  assert.equal(CD.countryFromTimezone(null), null);
 });
 
 test('countryFromLocale: region subtag or null', () => {
-  assert.equal(W.countryFromLocale('de-DE'), 'DE');
-  assert.equal(W.countryFromLocale('pt-BR'), 'BR');
-  assert.equal(W.countryFromLocale('en'), null);
-  assert.equal(W.countryFromLocale(''), null);
-  assert.equal(W.countryFromLocale(null), null);
+  assert.equal(CD.countryFromLocale('de-DE'), 'DE');
+  assert.equal(CD.countryFromLocale('pt-BR'), 'BR');
+  assert.equal(CD.countryFromLocale('en'), null);
+  assert.equal(CD.countryFromLocale(''), null);
+  assert.equal(CD.countryFromLocale(null), null);
 });
 
 test('mapCountry: providers + units + week-start + date format by country (US imperial, else metric)', () => {
-  assert.deepEqual(W.mapCountry('DE'), { provider: 'dwd', radarProvider: 'dwd', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon', dateSlotFullFormat: 'auto' });
-  assert.deepEqual(W.mapCountry('NO'), { provider: 'metno', radarProvider: 'metno', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon', dateSlotFullFormat: 'auto' });
-  assert.deepEqual(W.mapCountry('SE'), { provider: 'metno', radarProvider: 'metno', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon', dateSlotFullFormat: 'auto' });
-  assert.deepEqual(W.mapCountry('US'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'f', windUnits: 'mph', distanceUnits: 'imperial', weekStartDay: 'sun', dateSlotFullFormat: 'slash' });
-  assert.deepEqual(W.mapCountry('GB'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon', dateSlotFullFormat: 'auto' });
-  assert.deepEqual(W.mapCountry(null), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon', dateSlotFullFormat: 'auto' });
+  assert.deepEqual(CD.mapCountry('DE'), { provider: 'dwd', radarProvider: 'dwd', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon', dateSlotFullFormat: 'auto' });
+  assert.deepEqual(CD.mapCountry('NO'), { provider: 'metno', radarProvider: 'metno', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon', dateSlotFullFormat: 'auto' });
+  assert.deepEqual(CD.mapCountry('SE'), { provider: 'metno', radarProvider: 'metno', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon', dateSlotFullFormat: 'auto' });
+  assert.deepEqual(CD.mapCountry('US'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'f', windUnits: 'mph', distanceUnits: 'imperial', weekStartDay: 'sun', dateSlotFullFormat: 'slash' });
+  assert.deepEqual(CD.mapCountry('GB'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon', dateSlotFullFormat: 'auto' });
+  assert.deepEqual(CD.mapCountry(null), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon', dateSlotFullFormat: 'auto' });
 });
 
 test('applyDerived sets wind/distance units, week-start and date format from the country', () => {
@@ -100,6 +104,15 @@ test('buildSteps: health precedes the flick demo; flick and theme gated by env (
     ['welcome', 'layout', 'done']);
   assert.deepEqual(W.buildSteps({ radar: false, health: true, themePolarity: true }),
     ['welcome', 'layout', 'health', 'theme', 'done']);
+  // The forecast step wherever the watch draws line styles (the looks are made of them), after
+  // the theme its preview is drawn in.
+  assert.deepEqual(W.buildSteps({ radar: true, health: true, themePolarity: true, lineStyles: true }),
+    ['welcome', 'layout', 'health', 'flick', 'theme', 'forecast', 'done']);
+  const platform = require('../src/pkjs/config-ui/lib/platform.js');
+  ['basalt', 'diorite', 'emery', 'flint'].forEach((p) => {
+    assert.ok(W.buildSteps(platform.computeEnv({ platform: p })).includes('forecast'), p);
+  });
+  assert.deepEqual(W.buildSteps(platform.computeEnv({ platform: 'aplite' })), ['welcome', 'layout', 'done']);
 });
 
 test('shouldShow: gated on onboardingDone, not on an empty config', () => {
@@ -113,12 +126,12 @@ test('shouldShow: gated on onboardingDone, not on an empty config', () => {
 });
 
 test('flickStops: layout-only cycle -> Default + Radar; radar copy is provider-agnostic', () => {
-  const stops = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' });
+  const stops = FLICK.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' });
   assert.equal(stops.length, 2);
   assert.equal(stops[0].label, 'Default');
   assert.equal(stops[0].shotGroup, 'layoutPreset');
   assert.equal(stops[0].shotVal, 'compactCal');
-  assert.equal(stops[0].caption, 'your calendar, the Forecast Status Bar, and the forecast.');
+  assert.equal(stops[0].caption, 'Your calendar, the Forecast Status Bar, and the forecast.');
   assert.equal(stops[1].label, 'Radar');
   assert.equal(stops[1].shotGroup, 'radar');
   assert.match(stops[1].caption, /short-term rain forecast/);
@@ -128,52 +141,52 @@ test('flickStops: layout-only cycle -> Default + Radar; radar copy is provider-a
 });
 
 test('flickStops: health graph rides between default and radar; heart-rate line only with hasHeartRate', () => {
-  const withHR = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarMode: 'graph' }, true);
+  const withHR = FLICK.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarMode: 'graph' }, true);
   assert.deepEqual(withHR.map((s) => s.label), ['Default', 'Health graph', 'Radar']);
   assert.equal(withHR[0].shotVal, 'fullCal');
   assert.equal(withHR[1].shotGroup, 'healthMode');
   assert.equal(withHR[1].shotVal, 'all');
   assert.match(withHR[1].caption, /heart-rate line/);
-  const noHR = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarMode: 'graph' }, false);
+  const noHR = FLICK.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarMode: 'graph' }, false);
   assert.doesNotMatch(noHR[1].caption, /heart/);
   assert.match(noHR[1].caption, /step bars and a sleep band/);
 });
 
 test('flickStops: health-status flick maps to the healthMode.status shot; heart rate gated on hasHeartRate', () => {
-  const withHR = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarMode: 'graph' }, true);
+  const withHR = FLICK.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarMode: 'graph' }, true);
   assert.deepEqual(withHR.map((s) => s.label), ['Default', 'Health Status Bar', 'Radar']);
   assert.equal(withHR[1].shotGroup, 'healthMode');
   assert.equal(withHR[1].shotVal, 'status');
   assert.match(withHR[1].caption, /current heart rate/);
   assert.match(withHR[1].caption, /Health Status Bar/);
-  const noHR = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarMode: 'graph' }, false);
+  const noHR = FLICK.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarMode: 'graph' }, false);
   assert.doesNotMatch(noHR[1].caption, /heart/);
 });
 
 test('flickStops: fullCal/status health-dense middle stop (statusUpper=HEALTH) also maps to healthMode.status', () => {
-  const stops = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'status', radarMode: 'graph' });
+  const stops = FLICK.flickStops({ layoutPreset: 'fullCal', healthMode: 'status', radarMode: 'graph' });
   assert.deepEqual(stops.map((s) => s.label), ['Default', 'Health Status Bar', 'Radar']);
   assert.equal(stops[1].shotVal, 'status');
 });
 
 test('flickStops: compactDense (no screenshot) maps the Default stop to the compactCal shot', () => {
-  const stops = W.flickStops({ layoutPreset: 'compactDense', healthMode: 'all', radarMode: 'graph' });
+  const stops = FLICK.flickStops({ layoutPreset: 'compactDense', healthMode: 'all', radarMode: 'graph' });
   assert.equal(stops[0].label, 'Default');
   assert.equal(stops[0].shotGroup, 'layoutPreset');
   assert.equal(stops[0].shotVal, 'compactCal'); // clamped: compactDense has no captured shot
 });
 
 test('flickStops: disabled radar drops the radar stop; empty state resolves defaults', () => {
-  const noRadar = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'off' });
+  const noRadar = FLICK.flickStops({ layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'off' });
   assert.deepEqual(noRadar.map((s) => s.label), ['Default', 'Health graph']);
-  const fresh = W.flickStops({});
+  const fresh = FLICK.flickStops({});
   assert.equal(fresh[0].shotVal, 'compactCal');
   assert.deepEqual(fresh.map((s) => s.label), ['Default', 'Radar']);
 });
 
 test("flickStops: 'slot' health mode adds no health flick stop (matches off)", () => {
-  const off = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' });
-  const slot = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'slot', radarMode: 'graph' });
+  const off = FLICK.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' });
+  const slot = FLICK.flickStops({ layoutPreset: 'compactCal', healthMode: 'slot', radarMode: 'graph' });
   assert.deepEqual(slot.map((s) => s.label), off.map((s) => s.label));
 });
 
@@ -205,7 +218,7 @@ test('finishing the wizard on emery bolds the Watch + Forecast rows and hands AQ
   const ctx = wizCtx({ platform: 'emery' });
   BOLD_KEYS.forEach((k) => assert.notEqual(ctx.S[k], 'always', k + ' starts at its schema default'));
 
-  const written = W.applyWizardDefaults(ctx, 'save');
+  const written = FINISH.applyWizardDefaults(ctx, 'save');
 
   BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], 'always', k));
   assert.equal(ctx.S.threshAqiOn, true, 'AQI highlighting on');
@@ -226,7 +239,7 @@ test('finishing the wizard on a narrow watch bolds the Forecast row and fills th
   assert.equal(ctx.S.statusTopLeft, 'empty', 'guard: the narrow strip ships that slot free');
   assert.equal(ctx.S.statusTopRight, 'battery', 'guard: and the battery in the corner');
 
-  const written = W.applyWizardDefaults(ctx, 'save');
+  const written = FINISH.applyWizardDefaults(ctx, 'save');
 
   BOLD_FORECAST_KEYS.forEach((k) => assert.equal(ctx.S[k], 'always', k));
   BOLD_TOP_KEYS.forEach((k) => assert.notEqual(ctx.S[k], 'always', k + ' stays light'));
@@ -244,7 +257,7 @@ test('finishing the wizard on a narrow watch bolds the Forecast row and fills th
 test('the wizard\'s AQI highlight == a hand flip: the switch alone, the pair left blank', () => {
   const thresholds = require('../src/pkjs/status-thresholds.js');
   const ctx = wizCtx();
-  W.applyWizardDefaults(ctx, 'save');
+  FINISH.applyWizardDefaults(ctx, 'save');
 
   // What flipping the highlight switch by hand on the settings page produces: the
   // switch carries no hook, so the stored switch and nothing else.
@@ -273,39 +286,39 @@ test('the wizard\'s AQI highlight == a hand flip: the switch alone, the pair lef
 test('the health slots move only where health can actually report', () => {
   ['all', 'status', 'slot'].forEach((mode) => {
     const ctx = wizCtx({ saved: { healthMode: mode } });
-    W.applyWizardDefaults(ctx, 'save');
+    FINISH.applyWizardDefaults(ctx, 'save');
     assert.equal(ctx.S.statusTopLeft, 'steps', mode);
     assert.equal(ctx.S.statusHealthLeft, 'distance', mode);
 
     const emery = wizCtx({ platform: 'emery', saved: { healthMode: mode } });
-    W.applyWizardDefaults(emery, 'save');
+    FINISH.applyWizardDefaults(emery, 'save');
     assert.equal(emery.S.statusTopRight, 'steps', 'emery: ' + mode);
     assert.equal(emery.S.statusHealthLeft, 'distance', 'emery: ' + mode);
   });
 
   const off = wizCtx({ saved: { healthMode: 'off' } });
-  W.applyWizardDefaults(off, 'save');
+  FINISH.applyWizardDefaults(off, 'save');
   assert.equal(off.S.statusTopLeft, 'empty', 'health off leaves the top row alone');
   assert.equal(off.S.statusHealthLeft, 'steps', 'health off leaves the health row alone');
   assert.equal(off.S.threshTempBoldMode, 'always', 'the bold rules still apply with health off');
 
   // aplite has no health at all; the bold/AQI keys are still written (inert there by design).
   const aplite = wizCtx({ platform: 'aplite' });
-  W.applyWizardDefaults(aplite, 'save');
+  FINISH.applyWizardDefaults(aplite, 'save');
   assert.equal(aplite.S.statusTopLeft, 'empty');
   assert.equal(aplite.S.statusHealthLeft, 'steps');
   assert.equal(aplite.S.threshAqiBoldMode, 'always');
 });
 
-test('"Continue tweaking" finishes the wizard too — Skip and the step buttons do not', () => {
+test('"Keep customizing" (nav tweak) finishes the wizard too — Skip and the step buttons do not', () => {
   const tweak = wizCtx();
-  assert.notEqual(Object.keys(W.applyWizardDefaults(tweak, 'tweak')).length, 0);
+  assert.notEqual(Object.keys(FINISH.applyWizardDefaults(tweak, 'tweak')).length, 0);
   assert.equal(tweak.S.threshTempBoldMode, 'always');
 
   ['skip', 'next', 'back'].forEach((nav) => {
     const ctx = wizCtx();
     const before = JSON.stringify(ctx.S);
-    assert.deepEqual(W.applyWizardDefaults(ctx, nav), {}, nav + ' writes nothing');
+    assert.deepEqual(FINISH.applyWizardDefaults(ctx, nav), {}, nav + ' writes nothing');
     assert.equal(JSON.stringify(ctx.S), before, nav + ' leaves the state untouched');
   });
 });
@@ -316,7 +329,7 @@ test('a key the user changed by hand survives the policy', () => {
   // exception to this clause — the next test.)
   const ctx = wizCtx({ saved: { threshAqiBoldMode: 'off' } });
 
-  const written = W.applyWizardDefaults(ctx, 'save');
+  const written = FINISH.applyWizardDefaults(ctx, 'save');
 
   assert.equal(ctx.S.threshAqiBoldMode, 'off', 'an explicit Bold choice is not overwritten');
   assert.ok(!Object.prototype.hasOwnProperty.call(written, 'threshAqiBoldMode'));
@@ -332,7 +345,7 @@ test('the steps promotion overrules even a hand-picked slot', () => {
   // along — the swap stays all-or-nothing.
   const ctx = wizCtx({ platform: 'emery', saved: { statusTopRight: 'battery' } });
 
-  const written = W.applyWizardDefaults(ctx, 'save');
+  const written = FINISH.applyWizardDefaults(ctx, 'save');
 
   assert.equal(ctx.S.statusTopRight, 'steps', 'the promotion wins over the custom slot');
   assert.equal(written.statusTopRight, 'steps');
@@ -343,7 +356,7 @@ test('the steps promotion overrules even a hand-picked slot', () => {
   // often: that slot ships EMPTY, so only a value parked there before re-running
   // setup is replaced.
   const narrow = wizCtx({ saved: { statusTopLeft: 'week' } });
-  W.applyWizardDefaults(narrow, 'save');
+  FINISH.applyWizardDefaults(narrow, 'save');
   assert.equal(narrow.S.statusTopLeft, 'steps');
   assert.equal(narrow.S.statusHealthLeft, 'distance');
 });
@@ -354,7 +367,7 @@ test('the overrule stops at the promotion: a customized health row still survive
   // reading is lost — it was not in the health row to begin with.
   const ctx = wizCtx({ platform: 'emery', saved: { statusTopRight: 'battery', statusHealthLeft: 'empty' } });
 
-  const written = W.applyWizardDefaults(ctx, 'save');
+  const written = FINISH.applyWizardDefaults(ctx, 'save');
 
   assert.equal(ctx.S.statusTopRight, 'steps');
   assert.equal(ctx.S.statusHealthLeft, 'empty', 'the hand-picked health slot survives');
@@ -363,7 +376,7 @@ test('the overrule stops at the promotion: a customized health row still survive
     'the bold hangs off the promotion, not the eviction');
 
   const narrow = wizCtx({ saved: { statusTopLeft: 'week', statusHealthLeft: 'empty' } });
-  W.applyWizardDefaults(narrow, 'save');
+  FINISH.applyWizardDefaults(narrow, 'save');
   assert.equal(narrow.S.statusTopLeft, 'steps');
   assert.equal(narrow.S.statusHealthLeft, 'empty', 'same on the narrow rule');
 });
@@ -373,20 +386,20 @@ test('the whole health-slot swap is skipped when steps does not reach the top ro
   // anchor slot keeps its default (dedupe guard), steps is NOT in the promoted slot,
   // and the dependent writes stand down with it.
   const ctx = wizCtx({ saved: { statusTopMid: 'steps' } });
-  const written = W.applyWizardDefaults(ctx, 'save');
+  const written = FINISH.applyWizardDefaults(ctx, 'save');
   assert.equal(ctx.S.statusTopLeft, 'empty');
   assert.equal(ctx.S.statusHealthLeft, 'steps', 'no eviction without the promotion');
   assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
 
   const emery = wizCtx({ platform: 'emery', saved: { statusTopMid: 'steps' } });
-  W.applyWizardDefaults(emery, 'save');
+  FINISH.applyWizardDefaults(emery, 'save');
   assert.equal(emery.S.statusTopRight, 'sun');
   assert.equal(emery.S.statusHealthLeft, 'steps');
 
   // And when the promotion DOES land (default install), the swap completes —
   // pinned here as the counterpart so the dependency cannot overshoot.
   const clean = wizCtx();
-  W.applyWizardDefaults(clean, 'save');
+  FINISH.applyWizardDefaults(clean, 'save');
   assert.equal(clean.S.statusTopLeft, 'steps');
   assert.equal(clean.S.statusHealthLeft, 'distance');
 });
@@ -394,157 +407,57 @@ test('the whole health-slot swap is skipped when steps does not reach the top ro
 test('the policy never duplicates a code the user already placed in that row', () => {
   const ctx = wizCtx({ saved: { statusTopMid: 'steps' } });
 
-  W.applyWizardDefaults(ctx, 'save');
+  FINISH.applyWizardDefaults(ctx, 'save');
 
   assert.equal(ctx.S.statusTopMid, 'steps', 'the slot the user filled stays filled');
   assert.equal(ctx.S.statusTopLeft, 'empty', 'steps is already in that row, so the slot is left alone');
 });
 
 // --- the wizard DOM controller: opening must never rewrite stored settings ------------
-// A minimal fake DOM: just enough surface for openWizard/renderStep/wireCar/centerCar.
-// scrollLeft assignment fires 'scroll' listeners synchronously here (real browsers fire
-// async, which only makes the shipped debounce MORE likely to commit).
-function fakeWizardDom() {
-  const listeners = { click: [] };
-  let car = null;
+// Driven through its real handlers on a fake DOM (test/helpers/wizard-dom.js).
+const { openSetup } = require('./helpers/wizard-dom.js');
 
-  function makeCar(html) {
-    const cards = [];
-    const re = /class="wiz-card( on)?" data-wiz-idx-val="([^"]+)"/g;
-    let m;
-    while ((m = re.exec(html))) {
-      cards.push({ className: 'wiz-card' + (m[1] || ''), offsetLeft: cards.length * 162, offsetWidth: 150, val: m[2] });
-    }
-    const scrollFns = [];
-    let scrollLeft = 0;
-    const group = (/data-wiz-car="([^"]+)"/.exec(html) || [])[1];
-    const el = {
-      cards,
-      clientWidth: 178,
-      getAttribute: (n) => (n === 'data-wiz-car' ? group : null),
-      addEventListener: (ev, fn) => { if (ev === 'scroll') { scrollFns.push(fn); } },
-      querySelector: (sel) => (sel === '.wiz-card.on'
-        ? cards.find((c) => c.className.indexOf(' on') >= 0) || null : null),
-      querySelectorAll: (sel) => (sel === '.wiz-card' ? cards : []),
-      parentNode: { querySelector: () => null }
-    };
-    Object.defineProperty(el, 'scrollLeft', {
-      get: () => scrollLeft,
-      set: (v) => { const moved = v !== scrollLeft; scrollLeft = v; if (moved) { scrollFns.forEach((fn) => fn()); } }
-    });
-    return el;
-  }
-
-  const title = { textContent: '' };
-  const foot = { innerHTML: '' };
-  const body = {};
-  let bodyHtml = '';
-  Object.defineProperty(body, 'innerHTML', {
-    get: () => bodyHtml,
-    set: (h) => { bodyHtml = h; car = h.indexOf('data-wiz-car="') >= 0 ? makeCar(h) : null; }
-  });
-
-  const overlay = {
-    id: '',
-    innerHTML: '',
-    addEventListener: (ev, fn) => { (listeners[ev] = listeners[ev] || []).push(fn); },
-    querySelector: (sel) => {
-      if (sel === '[data-wiz-title]') { return title; }
-      if (sel === '[data-wiz-body]') { return body; }
-      if (sel === '[data-wiz-foot]') { return foot; }
-      if (sel === '.wiz-car' || sel.indexOf('data-wiz-car=') >= 0) { return car; }
-      return null;
-    },
-    querySelectorAll: () => [],
-    parentNode: null,
-    click: (closest) => (listeners.click || []).forEach((fn) => fn({ target: { closest } })),
-    // Any other overlay event (the upsell key field's 'input'), with the target given.
-    fire: (ev, target) => (listeners[ev] || []).forEach((fn) => fn({ target }))
-  };
-
-  global.document = {
-    getElementById: () => null,
-    createElement: (tag) => (tag === 'div' ? overlay : { id: '', textContent: '' }),
-    head: { appendChild: () => {} },
-    body: { appendChild: () => {} }
-  };
-  return { overlay, getCar: () => car };
-}
-
-test('opening the wizard never rewrites a stored compactDense preset', async () => {
-  // compactDense isn't offered in the wizard's layout carousel; re-running setup (the
-  // only way an existing preset meets the wizard) must highlight the nearest card
-  // WITHOUT mutating stored state — the value changes only on a real pick. Regression:
-  // openWizard used to rewrite S.layoutPreset on entry, and the carousel's programmatic
-  // centering scroll used to commit the coerced card through the snap handler.
-  const dom = fakeWizardDom();
-  const ctx = Object.assign(wizCtx({ saved: { layoutPreset: 'compactDense', onboardingDone: true } }),
-    { cfg: { onboardingDone: true } });
-  PConf.hooks.runReady(ctx);          // seeds the wizard's ctx; onboardingDone stops auto-open
-  assert.equal(ctx.S.layoutPreset, 'compactDense', 'precondition');
-
-  PConf.actions.startWizard();        // "Run setup again"
-  assert.equal(ctx.S.layoutPreset, 'compactDense',
-    'opening the wizard must not rewrite the stored preset');
-
-  // Step forward to the layout carousel: its render centers the highlighted card, and
-  // that programmatic scroll must not commit a selection either.
-  dom.overlay.click((sel) => (sel === '[data-wiz-nav]' ? { getAttribute: () => 'next' } : null));
-  const car = dom.getCar();
-  assert.ok(car, 'the layout carousel rendered');
-  assert.equal((car.querySelector('.wiz-card.on') || {}).val, 'compactCal',
-    'the carousel highlights the nearest offered card');
-  await new Promise((r) => setTimeout(r, 150));   // ride out the snap debounce (90ms)
-  assert.equal(ctx.S.layoutPreset, 'compactDense',
-    'the centering scroll must not commit the coerced card');
-
-  // A real pick still lands: tap the fullCal card.
-  dom.overlay.click((sel) => (sel === '[data-wiz-idx-val]'
-    ? { getAttribute: () => 'fullCal', parentNode: { getAttribute: () => 'layoutPreset' } } : null));
-  assert.equal(ctx.S.layoutPreset, 'fullCal', 'an actual card tap commits normally');
-  await new Promise((r) => setTimeout(r, 150));   // let the recenter scroll's debounce drain
+test('opening the wizard never rewrites a stored compactDense preset', () => {
+  // compactDense isn't offered in the wizard's layout picker; re-running setup (the only way an
+  // existing preset meets the wizard) must highlight the nearest option WITHOUT mutating stored
+  // state: the value changes only on a real pick. Regression: openWizard used to rewrite
+  // S.layoutPreset on entry, and the old carousel's centering scroll committed the coerced card.
+  const { ctx, dom } = openSetup({ saved: { layoutPreset: 'compactDense' } });
+  assert.equal(ctx.S.layoutPreset, 'compactDense', 'opening the wizard must not rewrite the stored preset');
+  dom.nav('next');
+  const picker = dom.picker();
+  assert.equal(picker.group, 'layoutPreset', 'the layout picker rendered');
+  assert.equal(picker.selected, 'compactCal', 'the picker highlights the nearest offered layout');
+  assert.equal(ctx.S.layoutPreset, 'compactDense', 'rendering the picker must not commit the highlight');
+  dom.pick('layoutPreset', 'fullCal');
+  assert.equal(ctx.S.layoutPreset, 'fullCal', 'an actual pick commits normally');
 });
 
 // --- the health pick runs the Health tab's own reset hook -------------------------------
-const drain = () => new Promise((r) => setTimeout(r, 150));   // the carousel snap debounce (90ms)
 /**
- * Re-run setup ("Run setup again") on `ctx`, pick `healthMode` on the health step, walk to
- * the last step and press Save & close — through the real click handlers.
- * @param {Object} ctx wizCtx() state, already onboarded.
- * @param {string} healthMode Card value to tap on the health step.
- * @returns {Promise<void>} Resolves once the wizard has saved.
+ * Re-run setup ("Run setup again"), pick `healthMode` on the health step, walk to the last step
+ * and press Save to watch, through the real click handlers.
+ * @param {Object} over openSetup's options (platform, saved, prepare).
+ * @param {string} healthMode Option value to pick on the health step.
+ * @returns {Object} The live settings state's ctx after the save.
  */
-async function rerunWizardPickingHealth(ctx, healthMode) {
-  const dom = fakeWizardDom();
-  Object.assign(ctx, {
-    cfg: { onboardingDone: true },
-    set: (k, v) => { ctx.S[k] = v; },
-    save: () => {},
-    render: () => {}
-  });
-  const nav = (v) => dom.overlay.click((sel) => (sel === '[data-wiz-nav]' ? { getAttribute: () => v } : null));
-  PConf.hooks.runReady(ctx);
-  PConf.actions.startWizard();
-  nav('next'); nav('next');
-  assert.equal(dom.getCar().getAttribute('data-wiz-car'), 'healthMode', 'guard: on the health step');
-  dom.overlay.click((sel) => (sel === '[data-wiz-idx-val]'
-    ? { getAttribute: () => healthMode, parentNode: { getAttribute: () => 'healthMode' } } : null));
-  await drain();
-  while (!/data-wiz-nav="save"/.test(dom.overlay.querySelector('[data-wiz-foot]').innerHTML)) { nav('next'); }
-  nav('save');
-  await drain();
+function rerunWizardPickingHealth(over, healthMode) {
+  const { ctx, dom } = openSetup(over);
+  dom.walkTo('healthMode');
+  dom.pick('healthMode', healthMode);
+  dom.walkToSummary();
+  dom.nav('save');
+  return ctx;
 }
 
-test('re-running setup with health turned back on restores the health row', async () => {
-  // Health was turned OFF on the Health tab earlier: its own hook emptied the health row.
-  const ctx = wizCtx({ saved: { onboardingDone: true } });
-  ctx.S.healthMode = 'off';
-  PConf.onChange.get('resetStatusHealth')(ctx.S, 'all', 'off', ctx.ENV, 'healthMode');
-  assert.deepEqual([ctx.S.statusHealthLeft, ctx.S.statusHealthMid, ctx.S.statusHealthRight],
-    ['empty', 'empty', 'empty'], 'guard: the off state left the row blank');
-
-  await rerunWizardPickingHealth(ctx, 'status');
-
+test('re-running setup with health turned back on restores the health row', () => {
+  const ctx = rerunWizardPickingHealth({ prepare: (c) => {
+    // Health was turned OFF on the Health tab earlier: its own hook emptied the health row.
+    c.S.healthMode = 'off';
+    PConf.onChange.get('resetStatusHealth')(c.S, 'all', 'off', c.ENV, 'healthMode');
+    assert.deepEqual([c.S.statusHealthLeft, c.S.statusHealthMid, c.S.statusHealthRight],
+      ['empty', 'empty', 'empty'], 'guard: the off state left the row blank');
+  } }, 'status');
   assert.equal(ctx.S.healthMode, 'status');
   // Row back at its defaults, then the finishing policy's steps promotion evicts steps.
   assert.deepEqual([ctx.S.statusHealthLeft, ctx.S.statusHealthMid, ctx.S.statusHealthRight],
@@ -552,24 +465,19 @@ test('re-running setup with health turned back on restores the health row', asyn
   assert.equal(ctx.S.statusTopLeft, 'steps');
 });
 
-test('re-running setup with health turned off snaps the promoted steps slot back', async () => {
+test('re-running setup with health turned off snaps the promoted steps slot back', () => {
   // emery: an earlier finished wizard promoted steps into the top-right corner.
-  const ctx = wizCtx({ platform: 'emery', saved: { onboardingDone: true } });
-  W.applyWizardDefaults(ctx, 'save');
-  assert.equal(ctx.S.statusTopRight, 'steps', 'guard: the earlier run promoted steps');
-
-  await rerunWizardPickingHealth(ctx, 'off');
-
+  const ctx = rerunWizardPickingHealth({ platform: 'emery', prepare: (c) => {
+    FINISH.applyWizardDefaults(c, 'save');
+    assert.equal(c.S.statusTopRight, 'steps', 'guard: the earlier run promoted steps');
+  } }, 'off');
   assert.equal(ctx.S.healthMode, 'off');
   assert.equal(ctx.S.statusTopRight, 'sun', 'the corner returns to its default, not a blank slot');
 });
 
-test('a health pick that keeps the enable state leaves a customized health row alone', async () => {
-  const ctx = wizCtx({ saved: { onboardingDone: true, healthMode: 'all',
-    statusHealthLeft: 'sleep', statusHealthMid: 'steps', statusHealthRight: 'empty' } });
-
-  await rerunWizardPickingHealth(ctx, 'status');
-
+test('a health pick that keeps the enable state leaves a customized health row alone', () => {
+  const ctx = rerunWizardPickingHealth({ saved: { healthMode: 'all',
+    statusHealthLeft: 'sleep', statusHealthMid: 'steps', statusHealthRight: 'empty' } }, 'status');
   assert.equal(ctx.S.healthMode, 'status');
   assert.deepEqual([ctx.S.statusHealthLeft, ctx.S.statusHealthMid, ctx.S.statusHealthRight],
     ['sleep', 'steps', 'empty']);
@@ -589,25 +497,25 @@ test('a health pick that keeps the enable state leaves a customized health row a
  *   last step's body HTML.
  */
 function wizardDoneStep(saved) {
-  const dom = fakeWizardDom();
-  const ctx = wizCtx({ saved: Object.assign({ onboardingDone: true }, saved) });
-  Object.assign(ctx, { cfg: { onboardingDone: true }, set: (k, v) => { ctx.S[k] = v; }, save: () => {}, render: () => {} });
-  const nav = (v) => dom.overlay.click((sel) => (sel === '[data-wiz-nav]' ? { getAttribute: () => v } : null));
-  PConf.hooks.runReady(ctx);
-  PConf.actions.startWizard();
-  let guard = 0;
-  while (!/data-wiz-nav="save"/.test(dom.overlay.querySelector('[data-wiz-foot]').innerHTML) && guard++ < 20) { nav('next'); }
-  return { ctx, dom, body: dom.overlay.querySelector('[data-wiz-body]').innerHTML };
+  const { ctx, dom } = openSetup({ saved });
+  dom.walkToSummary();
+  return { ctx, dom, body: dom.body.innerHTML };
 }
 
-test('the tomorrow.io upsell shows the key row as before: "Tomorrow.io API key", its hint and Test', async () => {
+test('the tomorrow.io upsell shows the key row: "Tomorrow.io API key", its hint and Test', () => {
   const hint = items => items.find((i) => i.messageKey === 'tomorrowioApiKey').hint;
   const copies = [];
   PConf.schemaWalk.eachItem(schema, (it) => { if (it.messageKey === 'tomorrowioApiKey') { copies.push(it); } });
   assert.equal(copies.length, 2, 'the weather provider\'s and the radar-only key sheet\'s copies');
   copies.forEach((it) => assert.equal(it.label, 'API key', 'each copy is labelled by its sheet\'s title'));
-  const field = '<div class="row stack"><div class="lbl">Tomorrow.io API key</div><div class="hint">' + hint(copies)
-    + '</div><div><div class="txt-act"><input type="text" data-k="tomorrowioApiKey" value="" placeholder="">'
+  // The settings sheets show the call budget under the key and the wizard doesn't, so its copy of
+  // the hint stops short of pointing at it. Pinned, so a later hint edit can't bring it back.
+  const sheetHint = hint(copies);
+  assert.ok(sheetHint.indexOf(' — see the call budget below.') !== -1, 'guard: the sheets\' hint still says it');
+  const wizardHint = sheetHint.replace(' — see the call budget below.', '.');
+  const field = '<div class="row stack"><div class="lbl">Tomorrow.io API key</div><div class="hint">' + wizardHint
+    + '</div><div><div class="txt-act"><input type="text" data-k="tomorrowioApiKey" value="" placeholder=""'
+    + ' aria-label="Tomorrow.io API key">'
     + '<button class="txt-act-btn" data-action="testTomorrowioKey">Test</button></div>'
     + '<div class="hint txt-act-result" data-action-result="tomorrowioApiKey"></div></div></div>';
   // Whatever the radar runs on: the upsell is the same field.
@@ -616,25 +524,21 @@ test('the tomorrow.io upsell shows the key row as before: "Tomorrow.io API key",
     const { body } = wizardDoneStep(saved);
     const at = body.indexOf('<div class="wiz-tio">');
     assert.ok(at !== -1, JSON.stringify(saved) + ': the upsell shows');
-    assert.ok(body.indexOf(field, at) !== -1, JSON.stringify(saved) + ': the key field, exactly as before');
+    assert.ok(body.indexOf(field, at) !== -1, JSON.stringify(saved) + ': the key field, exactly');
+    assert.equal(body.indexOf('call budget below'), -1, JSON.stringify(saved) + ': no pointer at a missing budget');
   });
   // Germany gets DWD: no upsell.
   assert.equal(wizardDoneStep({ holidayCountry: 'DE' }).body.indexOf('wiz-tio'), -1);
-  await drain();
 });
 
-test('a key typed into the upsell makes tomorrow.io the weather provider; clearing it reverts to the country\'s', async () => {
+test('a key typed into the upsell makes tomorrow.io the weather provider; clearing it reverts to the country\'s', () => {
   const { ctx, dom } = wizardDoneStep({ holidayCountry: 'US', provider: 'dwd' });
   assert.equal(ctx.S.provider, 'dwd', 'a re-run keeps the stored provider');
-  const inp = { value: 'tio-key', getAttribute: (n) => (n === 'data-k' ? 'tomorrowioApiKey' : null) };
-  inp.closest = (sel) => (sel === 'input[type=text][data-k]' ? inp : null);
-  dom.overlay.fire('input', inp);
+  dom.type('tomorrowioApiKey', 'tio-key');
   assert.equal(ctx.S.tomorrowioApiKey, 'tio-key');
   assert.equal(ctx.S.provider, 'tomorrowio');
-  inp.value = '';
-  dom.overlay.fire('input', inp);
+  dom.type('tomorrowioApiKey', '');
   assert.equal(ctx.S.provider, 'openmeteo');
-  await drain();
 });
 
 // --- the fresh-install country inference ------------------------------------------------
@@ -664,10 +568,7 @@ function withLocale(tz, lang, fn) {
  * @returns {Object} The wizard's settings state after opening.
  */
 function freshWizardState(tz, lang) {
-  fakeWizardDom();
-  const ctx = Object.assign(wizCtx({ saved: { onboardingDone: false } }), { cfg: { onboardingDone: false } });
-  withLocale(tz, lang, () => PConf.hooks.runReady(ctx));
-  return ctx.S;
+  return withLocale(tz, lang, () => openSetup({ fresh: true })).ctx.S;
 }
 
 test('an undetected or unlisted country falls back to None, never to the German defaults', () => {
@@ -697,7 +598,7 @@ test('a detected, listed country still drives the fresh-install defaults', () =>
 });
 
 test('flickStops: a stored Weather only shows the No calendar shot (no shot of its own)', () => {
-  const stops = W.flickStops({ layoutPreset: 'weatherOnly', healthMode: 'off', radarMode: 'graph' });
+  const stops = FLICK.flickStops({ layoutPreset: 'weatherOnly', healthMode: 'off', radarMode: 'graph' });
   assert.equal(stops[0].shotGroup, 'layoutPreset');
   assert.equal(stops[0].shotVal, 'noCal');
 });
