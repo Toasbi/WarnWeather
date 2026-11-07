@@ -2072,7 +2072,7 @@ const ITEM_SHEET = { battery: 'odBattery', bt: 'odBluetooth', qt: 'odQuiet', sno
 const SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.';
 const SUBJECT = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air quality index', pollen: 'the pollen index',
   wind: 'the wind speed' };
-const DEFAULT_VIEW_NOTE_TEXT = 'Your Default view has no Watch Status Bar. Tick another bar below.';
+const DEFAULT_VIEW_NOTE_TEXT = 'Your Default screen has no Watch Status Bar. Tick another bar below.';
 
 test('every item sheet opens on its Shows on card: the note, the grid, the Default view note; the grid stores nothing', () => {
   ALERT_CODES.forEach((code) => {
@@ -2154,8 +2154,8 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
   assert.equal(sec.items.length, 2);
   assert.equal(sec.items[1].type, 'staticText');
   assert.equal(sec.items[1].style, 'info');
-  assert.equal(sec.items[1].text, 'Your Default view has no Watch Status Bar, so Alerts won’t show there.'
-    + ' Open an alert and, under Shows on, pick another status bar that view shows.');
+  assert.equal(sec.items[1].text, 'Your Default screen has no Watch Status Bar, so Alerts won’t show there.'
+    + ' Open an alert and, under Shows on, pick another status bar that screen shows.');
   assert.equal(rowsSec.title, undefined, 'the rows\' card is untitled: its sub-headers name its groups');
   assert.deepEqual(rowsSec.showWhen, ON_DEMAND_WHEN);
   const it = rowsSec.items;

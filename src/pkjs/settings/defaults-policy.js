@@ -92,7 +92,7 @@
             // row ends up holding the same item twice — on a heart-rate watch too,
             // where that row reads distance / sleep / heart rate.
             why: 'Steps is the health number people glance at most, and the top row is '
-                + 'on screen in every view, so setup promotes steps into its right-hand '
+                + 'on every screen, so setup promotes steps into its right-hand '
                 + 'corner and sunrise/sunset gives up the spot. Walked distance takes '
                 + 'the place steps left in the health row, so no reading is lost.',
             set: {
@@ -127,7 +127,7 @@
             // the battery is the reason that corner exists — so steps takes the LEFT
             // slot, which the narrow default ships empty for exactly this.
             why: 'Steps is the health number people glance at most, and the strip beside '
-                + 'the clock is on screen in every view — but on these watches its '
+                + 'the clock is on every screen — but on these watches its '
                 + 'right-hand corner is the battery, so steps takes the free left slot '
                 + 'and the battery keeps its corner. Walked distance takes the place '
                 + 'steps left in the health row, so no reading is lost.',

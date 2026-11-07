@@ -198,5 +198,9 @@
   "2.5.0": {
     "title": "Your watch in the settings",
     "body": "The settings page now draws your watch as you set it up. Pick layouts and clock fonts from pictures, tap a slot on the Status bars tab to change it, and undo your changes with Revert. The tabs are now at the bottom."
+  },
+  "2.6.0": {
+    "title": "Edit your screens",
+    "body": "Each screen is now a list you change on the Watchface tab: add, remove and move its rows, or tap a screen on the pinned watch. Weather, rain radar and air quality share one Data sources card in Setup. (Screens: not on Pebble Classic/Steel.)"
   }
 }

@@ -1687,7 +1687,7 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     assert.equal(s.items[1].check, stem.toLowerCase(), s.sheetId + ': the Shows on grid first');
     assert.equal(s.items[1].captionsOnly, true, s.sheetId + ': its header row shows the column captions only');
     assert.equal(s.items[2].type, 'staticText', s.sheetId + ': then the Default view note');
-    assert.equal(s.items[2].text, 'Your Default view has no Watch Status Bar. Tick another bar below.');
+    assert.equal(s.items[2].text, 'Your Default screen has no Watch Status Bar. Tick another bar below.');
     assert.ok(s.items[2].showWhen, s.sheetId + ': only while that view has no On demand bar');
     const head = s.items[3];
     assert.equal(head.type, 'subheader', s.sheetId + ': the levels group follows');
@@ -1766,7 +1766,7 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
     'never doubled with the radar-off box');
   assert.equal(s.items[3].check, 'rain', 'then the grid');
   assert.equal(s.items[3].captionsOnly, true);
-  assert.equal(s.items[4].text, 'Your Default view has no Watch Status Bar. Tick another bar below.');
+  assert.equal(s.items[4].text, 'Your Default screen has no Watch Status Bar. Tick another bar below.');
   // Then the Alert card: rain's own row first, then its Look (the owner's order since
   // the restructure; it was the Look first).
   assert.deepEqual(s.items[5], { type: 'subheader', text: 'Alert' });

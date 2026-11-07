@@ -878,8 +878,8 @@ test('both resets restore where each item shows; the card\'s reset also the item
   LIST_KEYS.forEach((k) => assert.equal(slots.S[k], OD.DEFAULTS[k], k + ': the status card\'s reset too'));
 });
 
-const NO_TOP_NOTE = 'Your Default view has no Watch Status Bar, so Alerts won’t show there. Open an alert and, under'
-  + ' Shows on, pick another status bar that view shows.';
+const NO_TOP_NOTE = 'Your Default screen has no Watch Status Bar, so Alerts won’t show there. Open an alert and, under'
+  + ' Shows on, pick another status bar that screen shows.';
 
 test('no Watch Status Bar on the Default view and no Alerts on its bars: the card says so', () => {
   const shows = (cfg) => alertsTab(cfg).scroll.innerHTML.indexOf('<div class="info-box">' + NO_TOP_NOTE + '</div>') !== -1;

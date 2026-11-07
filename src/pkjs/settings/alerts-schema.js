@@ -77,7 +77,7 @@ function defaultViewNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'Your Default view has no Watch Status Bar. Tick another bar below.',
+        text: 'Your Default screen has no Watch Status Bar. Tick another bar below.',
         showWhen: {when: 'defaultViewLacksOnDemand'}
     };
 }
@@ -701,8 +701,8 @@ function cardSections() {
             // user: the note names the gap and the fix.
             type: 'staticText',
             style: 'info',
-            text: 'Your Default view has no Watch Status Bar, so Alerts won’t show there. Open an alert and, '
-                + 'under Shows on, pick another status bar that view shows.',
+            text: 'Your Default screen has no Watch Status Bar, so Alerts won’t show there. Open an alert and, '
+                + 'under Shows on, pick another status bar that screen shows.',
             showWhen: {when: 'defaultViewLacksOnDemand'}
         }]
     }, {
