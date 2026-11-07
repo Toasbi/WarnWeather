@@ -277,8 +277,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     var CSS = ''
         + '.scr-ic{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}'
+        // The list bleeds over the .blockrow's padding (12px 16px 14px) so its rows are the
+        // card's own rows: the text 16px in and the dividers edge to edge, like every card below.
+        + '.scr-list{margin:-12px -16px -14px}'
         + '.scr-row{display:flex;align-items:stretch;border-bottom:1px solid var(--row-line)}'
-        + '.scr-main{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:12px 8px 12px 16px;border:none;'
+        + '.scr-row:last-child{border-bottom:none}'
+        + '.scr-main{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:14px 8px 14px 16px;border:none;'
         + 'background:none;text-align:left;cursor:pointer;color:var(--lbl);font:inherit}'
         + '.scr-mid{flex:1;min-width:0;display:block}'
         + '.scr-t{display:block;font-size:14.5px;font-weight:700}'
@@ -287,9 +291,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.scr-x,.scr-xpad{flex:none;width:46px}'
         + '.scr-x{display:flex;align-items:center;justify-content:center;border:none;border-left:1px solid var(--row-line);'
         + 'background:none;color:var(--muted);cursor:pointer}'
-        + '.scr-add{display:block;width:100%;padding:13px 16px;border:none;background:none;text-align:left;color:var(--link);'
+        + '.scr-add{display:block;width:100%;padding:14px 16px;border:none;background:none;text-align:left;color:var(--link);'
         + 'font:700 13.5px Inter,system-ui,sans-serif;cursor:pointer}'
-        + '.scr-toast{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 12px 12px;'
+        + '.scr-toast{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 16px 14px;'
         + 'background:var(--ctl);border-radius:10px;padding:9px 12px;font-size:12.5px;color:var(--lbl)}'
         + '.scr-undo{flex:none;border:none;background:none;padding:2px 4px;color:var(--link);font:800 12.5px Inter,system-ui,sans-serif;cursor:pointer}'
         // The editor (a full-screen sheet, the wizard's pattern).
@@ -387,7 +391,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var t = UI.toast;
         var toast = t ? '<div class="scr-toast" role="status"><span>' + esc(t.text) + '</span>'
             + '<button type="button" class="scr-undo" data-action="undoDeleteScreen">Undo</button></div>' : '';
-        return rows + add + toast;
+        return '<div class="scr-list">' + rows + add + toast + '</div>';
     }
 
     /**
