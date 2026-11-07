@@ -46,10 +46,6 @@
 #define STEP_GRID_COLOR           theme_pick(theme_furniture(GColorDarkGray), theme_fg())
 #define STEP_GRID_DASH            4      // dash period px (draws a 2px dash each period)
 
-// Blank rows between the two step labels' ink (step_marks_shown): closer, the halfway line
-// and its label go.
-#define STEP_LABEL_GAP            2
-
 // Extra clearance the HR baseline keeps above the sleep stripe. Full top-view has a
 // shorter graph band, so it uses a tighter gap to avoid squashing the HR line.
 #define HR_STRIPE_GAP_FULL        2
@@ -132,12 +128,15 @@ static void sleep_stripe_draw(const ChartRender *r, void *user) {
     }
 }
 
+// The step marks a redraw labels (step_marks_shown): the first `n` of s_step_marks, and their
+// lines' content rows on the bars' scale, the one set of rows the dashed lines and their labels
+// both read.
+typedef struct { int16_t rows[2]; int n; } StepGrid;
+
 // CUSTOM layer: dashed horizontal gridline at each labeled step mark (see
 // step_scale_marks / step_marks_shown / draw_left_axis) — the marks are the ONLY
 // gridlines, so the left strip never carries an unlabeled line. Drawn under the bars so
-// data sits on top. `rows` are the lines' content rows on the bars' scale, worked out once
-// per redraw for the lines and their labels alike (step_marks_shown).
-typedef struct { const int16_t *rows; int n; } StepGrid;
+// data sits on top.
 
 static void step_grid_draw(const ChartRender *r, void *user) {
     const StepGrid *g = (const StepGrid *)user;
@@ -312,48 +311,26 @@ static void health_graph_compute(void) {
     bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
 }
 
-// Single-row step label centred on its gridline y: seat the INK centre on y + 1. Pebble
-// seats a digit's cap box on the BOTTOM of its measured content box
-// (layers/status_metrics.h), its ink centre status_glyph_below(content_h) above the
-// content bottom, so the box top solves to y + 1 - content_h + below. Fully font-derived --
-// whatever tier bottom_view_label_font() resolves, with no per-tier tuning: the same
-// expression seats GOTHIC_18 at today's shipped lift (11) and emery's large-font GOTHIC_24
-// at 16. (The retired "half the line height plus 2" guess hung the taller cap 3 px below its
-// gridline: the model centres the INK, not the content box.) Given here in ink terms, which
-// the two labels' spacing reads too: the ink's top row sits this many rows above its line.
-static int step_label_ink_lift(int content_h) {
-    return status_cap_h(content_h) - 1 - status_glyph_below(content_h);
-}
-
-// The label font's measured height (layers/layer_util.h status_content_h) without measuring
-// it: a Gothic line's content height is the font's nominal size, so this names
-// bottom_view_label_font()'s two tiers by theirs (test/health-step-labels.test.js holds the
-// two together). Constant off emery, whose font alone can change, so the labels' metrics fold
-// to constants there.
-static inline int step_label_font_h(void) {
-    return config_large_graph_font() ? 24 : 18;
-}
-
-// The marks' rows on the bars' scale into rows[], top first, and how many of them this plot
-// labels: both while the halfway line's label clears the top one's (step_scale_labels_clear,
-// in the label font's metrics), else the top line alone, its label with it, as every line
-// here is labeled. At draw time, not in health_graph_compute: the plot is the view's own (a
-// top band is shorter than a body), and a flick computes before render_active_view frames
-// the incoming view (main_window.c).
-static int step_marks_shown(int16_t rows[2], int axis_y) {
-    for (int i = 0; i < s_step_mark_n; ++i) {
-        rows[i] = (int16_t)step_scale_row(s_step_marks[i], s_step_hi, axis_y);
+// The marks this plot labels and their rows (StepGrid), top first: both while the halfway
+// line's label clears the top one's (step_scale_labels_clear), else the top line alone, its
+// label with it, as every line here is labeled. At draw time, not in health_graph_compute: the
+// plot is the view's own (a top band is shorter than a body), and a flick computes before
+// render_active_view frames the incoming view (main_window.c).
+static void step_marks_shown(StepGrid *g, int axis_y) {
+    g->n = s_step_mark_n;
+    for (int i = 0; i < g->n; ++i) {
+        g->rows[i] = (int16_t)step_scale_row(s_step_marks[i], s_step_hi, axis_y);
     }
-    if (s_step_mark_n < 2) { return s_step_mark_n; }
-    const int content_h = step_label_font_h();
-    return step_scale_labels_clear(rows[0], rows[1], status_cap_h(content_h),
-                                   step_label_ink_lift(content_h), STEP_LABEL_GAP) ? 2 : 1;
+    if (g->n == 2
+            && !step_scale_labels_clear(g->rows[0], g->rows[1], bottom_view_label_font_h())) {
+        g->n = 1;
+    }
 }
 
-// Left-axis strip: labels the first `n` dotted step marks, on their lines' `rows`
-// (step_marks_shown), as single-row numbers in thousands ("2", "0.5") — no "k" suffix. The
+// Left-axis strip: labels the marks of `g` (step_marks_shown) as single-row numbers in
+// thousands ("2", "0.5") — no "k" suffix — each seated by its ink (step_label_ink_y). The
 // vertical axis line itself is painted by the FRAME layer in chart_draw.
-static void draw_left_axis(GContext *ctx, int h, const int16_t *rows, int n) {
+static void draw_left_axis(GContext *ctx, int h, const StepGrid *g) {
     const int strip_w = bottom_view_label_strip_w();
     const int inset_w = bottom_view_graph_inset();
     const int axis_y  = h - BOTTOM_VIEW_AXIS_H;   // plot bottom; plot height == axis_y
@@ -364,21 +341,15 @@ static void draw_left_axis(GContext *ctx, int h, const int16_t *rows, int n) {
 
     graphics_context_set_text_color(ctx, theme_fg());
     const GFont font      = bottom_view_label_font();
-    const int   content_h = step_label_font_h();
-    const int   ink_lift  = step_label_ink_lift(content_h);
+    const int   content_h = bottom_view_label_font_h();
     const int   blank     = status_ink_top(content_h);   // the box's rows above the ink
     // The box needs content_h plus slack or graphics_draw_text drops the row entirely.
     const int   box_h     = content_h + 2;
-    for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < g->n; ++i) {
         char label[6];
         step_mark_label(s_step_marks[i], label, sizeof label);
-        // A line near the plot's top holds its label's INK on the layer's first row, the
-        // label then lower than its line; the box's blank rows may leave the layer above it.
-        // (Holding the BOX there pushed the top label down to 10 rows past its line with
-        // Larger graph fonts, into the halfway label under it.)
-        int ink = rows[i] - ink_lift;
-        if (ink < 0) { ink = 0; }
-        graphics_draw_text(ctx, label, font, GRect(0, ink - blank, strip_w, box_h),
+        graphics_draw_text(ctx, label, font,
+                           GRect(0, step_label_ink_y(g->rows[i], content_h) - blank, strip_w, box_h),
                            GTextOverflowModeFill, GTextAlignmentRight, NULL);
     }
 }
@@ -434,16 +405,14 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
                                   outer.origin.x, pitch,
                                   bounds.size.w, start_local);
 
-    // The step marks this plot labels apart and their rows, lines and labels alike
-    // (step_marks_shown). The plot's content rows are 0..axis_y: health_grid_def keeps
-    // FORECAST_GRID_DEF's insets, none on top and the frame's one at the bottom of `outer`.
-    int16_t   step_rows[2];
-    const int marks_n = step_marks_shown(step_rows, axis_y);
-
-    // CUSTOM-layer payloads.
+    // CUSTOM-layer payloads. The step marks this plot labels apart and their rows, the lines'
+    // and the labels' alike (step_marks_shown): the plot's content rows are 0..axis_y, as
+    // health_grid_def keeps FORECAST_GRID_DEF's insets (none on top, the frame's one at the
+    // bottom of `outer`).
     SleepStripe stripe = { .sleep = s_sleep, .count = visible_slots,
                            .height = SLEEP_STRIPE_H };
-    StepGrid    grid   = { .rows = step_rows, .n = marks_n };
+    StepGrid    grid;
+    step_marks_shown(&grid, axis_y);
 
     // Z-order = array order, bottom first.
     //  1. Sleep stripe (CUSTOM) — bottom band, drawn under everything else.
@@ -524,7 +493,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     chart_draw(ctx, &def, outer, layers, n);
 
     // "1"/"2" gridline labels — chart-adjacent chrome, not a chart layer.
-    draw_left_axis(ctx, h, step_rows, marks_n);
+    draw_left_axis(ctx, h, &grid);
 }
 
 void health_graph_layer_create(Layer *parent_layer, GRect frame) {

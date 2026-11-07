@@ -3,9 +3,10 @@
 #include "c/appendix/chart.h"   // TickSide
 #include "c/appendix/theme.h"
 
-// Shared config for the two mutually-exclusive bottom-region graphs (forecast +
-// health), which render on the same FORECAST_GRID_DEF so they line up
-// pixel-for-pixel. One source of truth for the geometry/chrome both views used to
+// Shared config for the two bottom-region graphs (forecast + health): the grid they both
+// start from (FORECAST_GRID_DEF; the health graph fits its own pitch to a full day,
+// health_graph_layer.c health_grid_def), their axis chrome, the left-axis label font and the
+// label strip they share. One source of truth for the geometry/chrome both views used to
 // hand-copy. This module is NOT PBL_HEALTH-gated: forecast (which always ships)
 // consumes it on every platform; only the health-side *calls* sit behind the
 // health guard. Paint-free; allocates zero heap (a few bytes of .bss only).
@@ -58,6 +59,21 @@ TickSide bottom_view_tick_style(void);
 // draw/measure, never cache it (same reason bottom_view_tick_style() is a function).
 GFont bottom_view_label_font(void);
 
+// The two tiers, each font key beside its measured content height. Nothing in C links a font
+// key to its size, so each height is the key's size transcribed by hand (a Gothic line measures
+// its nominal size: layers/layer_util.h status_content_h), and changing a face means changing
+// both lines (time_layer.c AM_PM_FONT_KEY's rule).
+#define BOTTOM_VIEW_LABEL_FONT_KEY        FONT_KEY_GOTHIC_18
+#define BOTTOM_VIEW_LABEL_FONT_H          18
+#define BOTTOM_VIEW_LABEL_FONT_KEY_LARGE  FONT_KEY_GOTHIC_24
+#define BOTTOM_VIEW_LABEL_FONT_H_LARGE    24
+
+// bottom_view_label_font()'s measured height, without measuring it: constant off emery, so the
+// metrics read from it fold to constants there.
+static inline int bottom_view_label_font_h(void) {
+    return config_large_graph_font() ? BOTTOM_VIEW_LABEL_FONT_H_LARGE : BOTTOM_VIEW_LABEL_FONT_H;
+}
+
 // --- Shared dynamic strip width: "wider of both" ---
 typedef enum {
     BOTTOM_VIEW_SRC_FORECAST = 0,
@@ -99,11 +115,7 @@ static inline void bottom_view_unregister_consumer(Layer *layer) { (void) layer;
 // floor) changes its stored value while the gutter both views draw against stays
 // exactly where it was.
 // emery: a forecast whose hi/lo numbers left the strip (the left axis's On graph and
-// Off, config.h GRAPH_OPT_NUMS_MASK) reports 0 and draws from the screen's left edge, with
-// no axis (forecast_layer.c forecast_update_proc). It does so on a screen it shares with the
-// health graph too (a custom layout seats one in the top band over the other in the body:
-// layout.c view_spec_resolve keeps one seat per graph KIND, and layout_visibility can raise
-// both), whose plot keeps the strip of its own labels.
+// Off, config.h GRAPH_OPT_NUMS_MASK) reports 0.
 void bottom_view_report_label_w(BottomViewSrc src, int content_w);
 
 // Effective strip width = max(forecast_reported, health_reported, MIN_W).

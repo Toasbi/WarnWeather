@@ -314,7 +314,7 @@ static inline void temp_labels_align_to_curve(int *hi_y, int *lo_y, int h,
 // left axis's options can take the hi/lo numbers off the label strip: "On graph" puts the hi
 // number under the point it names and the lo number over its point, "Off" draws none, and
 // either way the left axis goes: no strip, no axis line, and the plot starts at the screen's
-// left edge, with the health graph on the same screen too (bottom_view.h).
+// left edge, with the health graph on the same screen too (forecast_layer.c forecast_update_proc).
 // The point is the temperature curve's highest and lowest vertex or, with "High/low includes feels-like
 // & dew point" (GRAPH_OPT_SCALE_NUMS), the highest and lowest of every line on the
 // temperature's scale (THE SCALE: the feels-like and dew point lines too), over every hour

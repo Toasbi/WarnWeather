@@ -20,8 +20,8 @@ TickSide bottom_view_tick_style(void) {
 // See bottom_view.h. config_large_graph_font() is constant false off-emery (the only
 // platform whose settings UI offers the toggle), so this folds to GOTHIC_18 there.
 GFont bottom_view_label_font(void) {
-    return fonts_get_system_font(config_large_graph_font() ? FONT_KEY_GOTHIC_24
-                                                           : FONT_KEY_GOTHIC_18);
+    return fonts_get_system_font(config_large_graph_font() ? BOTTOM_VIEW_LABEL_FONT_KEY_LARGE
+                                                           : BOTTOM_VIEW_LABEL_FONT_KEY);
 }
 
 // Latest reported content width per source; 0 = "this source has not reported".

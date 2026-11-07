@@ -3,9 +3,9 @@
 #include <pebble.h>
 
 // Health graph layer: hourly green step bars + a fixed-height sleep stripe
-// along the bottom + a red dotted heart-rate line, drawn on the shared
-// forecast grid (FORECAST_GRID_DEF) so it lines up pixel-for-pixel with the
-// forecast view it swaps in for (Task 7 owns the toggle).
+// along the bottom + a red dotted heart-rate line, drawn on the forecast's grid
+// with a pitch fitted to a full day (health_graph_layer.c health_grid_def), with
+// the forecast's axis chrome and the label strip the two share (bottom_view.h).
 
 void health_graph_layer_create(Layer *parent_layer, GRect frame);
 

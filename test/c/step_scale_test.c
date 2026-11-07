@@ -68,11 +68,11 @@ static void test_rows(void) {
     assert(step_scale_row(1000, 2421, 46) == 27);
 }
 
-// A step label as health_graph_layer.c draws it, in a font whose measured height is
-// `content_h` (GOTHIC_18 or emery's Larger graph fonts' GOTHIC_24), told as the box Pebble
-// lays the text in: the box seats its ink centre on the line's row + 1 (status_metrics.h:
-// the cap at the box's bottom, status_ink_top blank rows over it), and is held no higher
-// than leaves the ink on row 0. [ink0, ink1) are the ink's rows.
+// A step label in a font whose measured height is `content_h` (GOTHIC_18, or emery's Larger
+// graph fonts' GOTHIC_24), told as the box Pebble lays the text in rather than by its ink, so it
+// checks step_label_ink_y from the other side: the box seats its ink centre on the line's row + 1
+// (status_metrics.h: the cap at the box's bottom, status_ink_top blank rows over it), and is held
+// no higher than leaves the ink on row 0. [ink0, ink1) are the ink's rows.
 typedef struct { int ink0, ink1; } LabelInk;
 
 static LabelInk drawn_label(int row, int content_h) {
@@ -83,14 +83,18 @@ static LabelInk drawn_label(int row, int content_h) {
     return (LabelInk){ box + ink_top, box + ink_top + status_cap_h(content_h) };
 }
 
-// Whether both labels draw, as step_marks_shown asks it (step_label_ink_lift; its gap:
-// STEP_LABEL_GAP).
-static bool both_drawn(int top_row, int mid_row, int content_h) {
-    return step_scale_labels_clear(top_row, mid_row, status_cap_h(content_h),
-                                   status_cap_h(content_h) - 1 - status_glyph_below(content_h), 2);
+// The seat health_graph_layer.c draws (step_label_ink_y) is the box's, on every row a plot can
+// give a line and in both fonts.
+static void test_ink_seat_is_the_box_seat(void) {
+    const int fonts[2] = { 18, 24 };
+    for (int f = 0; f < 2; ++f) {
+        for (int row = 0; row <= 140; ++row) {
+            assert(step_label_ink_y(row, fonts[f]) == drawn_label(row, fonts[f]).ink0);
+        }
+    }
 }
 
-// The plot keeps both lines exactly while the drawn labels' ink keeps 2 blank rows between,
+// The plot keeps both lines exactly while the drawn labels' ink keeps STEP_LABEL_GAP blank rows,
 // for every busy window on every plot from a short top band to a tall body, in both fonts:
 // two labels never touch, and the halfway line goes only when they would.
 static void test_both_labels_only_apart(void) {
@@ -106,7 +110,8 @@ static void test_both_labels_only_apart(void) {
                 const LabelInk top = drawn_label(top_row, fonts[f]);
                 const LabelInk mid = drawn_label(mid_row, fonts[f]);
                 assert(top.ink0 >= 0);   // no label's ink leaves the plot's top
-                assert(both_drawn(top_row, mid_row, fonts[f]) == (mid.ink0 >= top.ink1 + 2));
+                assert(step_scale_labels_clear(top_row, mid_row, fonts[f])
+                       == (mid.ink0 >= top.ink1 + STEP_LABEL_GAP));
             }
         }
     }
@@ -128,20 +133,20 @@ static void test_short_band(void) {
     assert(two.ink0 == 1 && two.ink1 == 15 && one.ink0 == 18);
     const int old_two_ink0 = 0 + status_ink_top(24);   // the box held on row 0
     assert(old_two_ink0 == 10 && old_two_ink0 + status_cap_h(24) - one.ink0 == 6);
-    assert(both_drawn(7, 24, 24));
+    assert(step_scale_labels_clear(7, 24, 24));
 
     assert(step_scale_marks(1200, m) == 2 && m[0] == 1000 && m[1] == 500);
     const int hi_day = step_scale_hi(1200);
     assert(step_scale_row(1000, hi_day, 40) == 9 && step_scale_row(500, hi_day, 40) == 25);
     assert(drawn_label(25, 24).ink0 - drawn_label(9, 24).ink1 == 2);
-    assert(both_drawn(9, 25, 24));
+    assert(step_scale_labels_clear(9, 25, 24));
 
     assert(step_scale_marks(1999, m) == 2 && m[0] == 1500 && m[1] == 1000);
     const int hi_close = step_scale_hi(1999);
     const int top_row = step_scale_row(1500, hi_close, 40), mid_row = step_scale_row(1000, hi_close, 40);
     assert(mid_row - top_row == 9);
-    assert(!both_drawn(top_row, mid_row, 24));
-    assert(!both_drawn(top_row, mid_row, 18));
+    assert(!step_scale_labels_clear(top_row, mid_row, 24));
+    assert(!step_scale_labels_clear(top_row, mid_row, 18));
 }
 
 int main(void) {
@@ -150,6 +155,7 @@ int main(void) {
     test_busier_windows_keep_their_scale();
     test_marks();
     test_rows();
+    test_ink_seat_is_the_box_seat();
     test_both_labels_only_apart();
     test_short_band();
     printf("step_scale_test: all passed\n");

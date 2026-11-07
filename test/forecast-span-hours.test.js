@@ -62,8 +62,10 @@ test('the geometry is the watch\'s', () => {
   assert.equal(spanHours.LABEL_PAD, cDefine(read('src/c/layers/forecast_layer.c'), 'TEMP_LABEL_PAD'));
   // The hi/lo labels' font: GOTHIC_24 with Larger graph fonts, else GOTHIC_18; GOTHIC_18's
   // digit advance is the one the hour labels use with Larger graph fonts.
+  assert.match(bottomViewH, /#define BOTTOM_VIEW_LABEL_FONT_KEY\s+FONT_KEY_GOTHIC_18\b/);
+  assert.match(bottomViewH, /#define BOTTOM_VIEW_LABEL_FONT_KEY_LARGE\s+FONT_KEY_GOTHIC_24\b/);
   assert.match(read('src/c/appendix/bottom_view.c'),
-    /config_large_graph_font\(\) \? FONT_KEY_GOTHIC_24\s*: FONT_KEY_GOTHIC_18/);
+    /config_large_graph_font\(\) \? BOTTOM_VIEW_LABEL_FONT_KEY_LARGE\s*: BOTTOM_VIEW_LABEL_FONT_KEY\)/);
   assert.match(SPAN_H, /#define FORECAST_LABEL_ADVANCE\(large\) \(\(large\) \? 7 : 6\)/);
   assert.equal(spanHours.DIGIT_W.small, 7);
   assert.equal(spanHours.DIGIT_W.large, 9);
