@@ -137,7 +137,7 @@ test('lockstep: FORECAST_MAX_ENTRIES in forecast_span.h is MAX_FORECAST_HOURS on
   assert.match(fact, /var FORECAST_SPAN_PLATFORMS = \{ emery: true \};/);
 });
 
-test('lockstep: the schema\'s forecastHours options are CHOICES, its default 24', () => {
+test('lockstep: the schema\'s forecastHours options are CHOICES, its default the long span', () => {
   let item = null;
   schema.tabs.forEach((t) => t.sections.forEach((s) => s.items.forEach((it) => {
     if (it.messageKey === 'forecastHours') { item = it; }
@@ -151,7 +151,10 @@ test('lockstep: the schema\'s forecastHours options are CHOICES, its default 24'
     assert.deepEqual(forecastSpanHours.spanOptions(s).map((o) => o[1]), forecastSpan.CHOICES,
       JSON.stringify(s));
   });
-  assert.equal(item.defaultValue, String(forecastSpan.DEFAULT_HOURS));
+  // A new install's Clean graph takes the long span (settings/wizard-forecast.js); DEFAULT_HOURS is
+  // what an absent value reads, the span an install from before the key keeps.
+  assert.equal(item.defaultValue, forecastSpan.CHOICES[2]);
+  assert.equal(forecastSpan.storedHours({}), forecastSpan.DEFAULT_HOURS);
   assert.deepEqual(Object.keys(item.hintByValue).sort(), forecastSpan.CHOICES.slice().sort());
 });
 

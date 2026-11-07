@@ -28,6 +28,7 @@ const SCREENS = require('../src/pkjs/settings/wizard-screens.js');
 const M = require('../src/pkjs/screens.js');
 const VC = require('../src/pkjs/view-cycle.js');
 const PW = require('../src/pkjs/settings/preview-watch.js');
+const spanHours = require('../src/pkjs/forecast-span-hours.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { openSetup } = require('./helpers/wizard-dom.js');
 const PConf = global.PConf;
@@ -608,10 +609,12 @@ test('a look writes the whole graph it stands for and redraws the preview in pla
   assert.notEqual(graph.innerHTML, clean);
   assert.equal(graph.getAttribute('aria-label'), 'Forecast preview: Stripes, on the Default screen');
   assert.equal(dom.picker().selected, 'stripes');
-  // Classic puts the UV dots back; off emery, the Left axis values stay as they are (dormant).
+  // Classic puts the UV dots back; off emery, the Left axis values and the length stay as they are
+  // (dormant).
   dom.pick('forecastLook', 'classic');
   assert.equal(ctx.S.thirdLine, 'uv');
   assert.equal(ctx.S.forecastAxisNumbers, 'graph', 'a 144 px watch keeps its axis whatever the key holds');
+  assert.equal(ctx.S.forecastHours, '48', 'and draws 24 hours whatever the key holds');
   dom.pick('forecastLook', 'clean');
   assert.deepEqual(graphOf(ctx.S), defaults, 'Clean is the defaults again');
   assert.equal(graph.innerHTML, clean);
@@ -634,7 +637,7 @@ test('the looks step with a swipe across the screen and with the arrow keys', ()
 test('on emery Clean and Stripes put the high and low on the graph, Classic beside the axis', () => {
   const { ctx, dom } = openSetup({ platform: 'emery', saved: { provider: 'dwd' } });
   walkTo(dom, 'forecastLook');
-  assert.equal(dom.picker('forecastHours'), null, 'no length to pick on emery either');
+  assert.equal(dom.picker('forecastHours'), null, 'no length to pick on emery either: the look sets it');
   assert.equal(dom.picker().selected, 'clean');
   assert.equal(ctx.S.forecastAxisNumbers, 'graph', 'a new install\'s Clean graph');
   const graph = dom.find('[data-wiz-graph]');
@@ -643,7 +646,30 @@ test('on emery Clean and Stripes put the high and low on the graph, Classic besi
   assert.equal(ctx.S.forecastAxisNumbers, 'axis');
   dom.pick('forecastLook', 'stripes');
   assert.equal(ctx.S.forecastAxisNumbers, 'graph');
-  assert.equal(ctx.S.forecastHours, '24', 'a look leaves the length alone');
+});
+
+test('on emery Clean looks as far ahead as the feed reaches, Classic and Stripes 24 hours', () => {
+  const { ctx, dom } = openSetup({ platform: 'emery', saved: { provider: 'dwd' } });
+  walkTo(dom, 'forecastLook');
+  const graph = dom.find('[data-wiz-graph]');
+  // The stored length, the hours the preview (and the watch) draws, and the preview's name.
+  const drawn = () => [ctx.S.forecastHours, spanHours.shownHours(ctx.S, ctx.ENV), graph.getAttribute('aria-label')];
+  assert.deepEqual(drawn(), ['48', 66, 'Forecast preview: Clean, 66 h, on the Default screen'],
+    'a new install\'s Clean graph: the long span, a full feed across the whole screen');
+  dom.pick('forecastLook', 'classic');
+  assert.deepEqual(drawn(), ['24', 22, 'Forecast preview: Classic, 24 h, on the Default screen'],
+    '24 hours, 22 of them beside the axis');
+  dom.pick('forecastLook', 'stripes');
+  assert.deepEqual(drawn(), ['24', 25, 'Forecast preview: Stripes, 24 h, on the Default screen']);
+  dom.pick('forecastLook', 'clean');
+  assert.deepEqual(drawn(), ['48', 66, 'Forecast preview: Clean, 66 h, on the Default screen']);
+  assert.match(dom.body.innerHTML,
+    /<p class="wiz-fine">Every line and the forecast length can be changed later on the Graphs tab\.<\/p>/);
+  // A new install opens on it too (its country's full feed).
+  const fresh = openSetup({ platform: 'emery', fresh: true });
+  walkTo(fresh.dom, 'forecastLook');
+  assert.equal(fresh.dom.picker().selected, 'clean');
+  assert.equal(fresh.ctx.S.forecastHours, '48');
 });
 
 test('a graph set up in Settings is kept as "Your own", first, and can be gone back to', () => {
@@ -663,13 +689,29 @@ test('a graph set up in Settings is kept as "Your own", first, and can be gone b
   walkTo(offStyle.dom, 'forecastLook');
   assert.deepEqual(offStyle.dom.picker().options, ['classic', 'clean', 'stripes']);
   assert.equal(offStyle.dom.picker().selected, 'clean');
-  // An upgraded install's graph (the UV dots, the high and low beside the axis) is Classic.
-  const upgraded = openSetup({ platform: 'emery', saved: { thirdLine: 'uv', forecastAxisNumbers: 'axis' } });
+  // An upgraded install's graph (the UV dots, the high and low beside the axis, 24 hours) is Classic.
+  const upgraded = openSetup({ platform: 'emery',
+    saved: { thirdLine: 'uv', forecastAxisNumbers: 'axis', forecastHours: '24' } });
   walkTo(upgraded.dom, 'forecastLook');
   assert.equal(upgraded.dom.picker().selected, 'classic');
+  // On the long span it is the user's own: Classic is 24 hours.
+  const long = openSetup({ platform: 'emery',
+    saved: { provider: 'dwd', thirdLine: 'uv', forecastAxisNumbers: 'axis', forecastHours: '48' } });
+  walkTo(long.dom, 'forecastLook');
+  assert.deepEqual(long.dom.picker().options, ['own', 'classic', 'clean', 'stripes']);
+  assert.equal(long.dom.find('[data-wiz-graph]').getAttribute('aria-label'),
+    'Forecast preview: Your own, 58 h, on the Default screen');
+  long.dom.pick('forecastLook', 'classic');
+  assert.equal(long.ctx.S.forecastHours, '24');
+  long.dom.pick('forecastLook', 'own');
+  assert.equal(long.ctx.S.forecastHours, '48', 'its own length back');
+  // So is a 2.6 install's Clean graph at 24 hours, the default it was seeded with.
+  const clean24 = openSetup({ platform: 'emery', saved: { forecastHours: '24' } });
+  walkTo(clean24.dom, 'forecastLook');
+  assert.equal(clean24.dom.picker().selected, 'own');
 });
 
-test('the summary names the forecast look; Change goes back to it', () => {
+test('the summary names the forecast look, and on emery its length; Change goes back to it', () => {
   const row = (body, k) => (new RegExp('<span class="k">' + k + '</span><span class="v"[^>]*>([^<]*)</span>').exec(body) || [])[1];
   const basalt = openSetup();
   walkTo(basalt.dom, 'forecastLook');
@@ -680,9 +722,17 @@ test('the summary names the forecast look; Change goes back to it', () => {
   assert.equal(basalt.dom.picker().group, 'forecastLook');
   assert.equal(basalt.dom.picker().selected, 'stripes');
 
-  const emery = openSetup({ platform: 'emery', saved: { forecastHours: '12' } });
-  while (!/data-wiz-nav="save"/.test(emery.dom.foot.innerHTML)) { emery.dom.nav('next'); }
-  assert.equal(row(emery.dom.body.innerHTML, 'Forecast'), 'Clean', 'the look alone: no length is picked here');
+  const emery = openSetup({ platform: 'emery', saved: { provider: 'dwd' } });
+  emery.dom.walkToSummary();
+  assert.equal(row(emery.dom.body.innerHTML, 'Forecast'), 'Clean, 66 h', 'the length the look set');
+  emery.dom.goto('forecast');
+  emery.dom.pick('forecastLook', 'stripes');
+  emery.dom.nav('summary');
+  assert.equal(row(emery.dom.body.innerHTML, 'Forecast'), 'Stripes, 24 h');
+
+  const own = openSetup({ platform: 'emery', saved: { forecastHours: '12' } });
+  own.dom.walkToSummary();
+  assert.equal(row(own.dom.body.innerHTML, 'Forecast'), 'Your own, 12 h', 'a length no look has: the graph is the user\'s');
 });
 
 test('the preview draws in the watch\'s temperature unit', () => {
@@ -747,14 +797,14 @@ test('a look holds through a theme picked after it, the bars converted as the th
   assert.equal(dom.picker().selected, 'classic');
 });
 
-test('a Tomorrow.io key renames the summary\'s weather provider; the look stays', () => {
+test('a Tomorrow.io key renames the summary\'s weather provider and its long span; the look stays', () => {
   const { dom } = openSetup({ platform: 'emery', saved: { holidayCountry: 'US', provider: 'openweathermap' } });
   dom.walkToSummary();
   const row = dom.find('[data-wiz-sum-forecast]');
-  assert.equal(row.textContent, 'Clean');
+  assert.equal(row.textContent, 'Clean, 47 h', 'OpenWeatherMap\'s 48-hour feed');
   dom.type('tomorrowioApiKey', 'key');
   assert.equal(dom.find('[data-wiz-sum-weather]').textContent, 'Tomorrow.io');
-  assert.equal(row.textContent, 'Clean');
+  assert.equal(row.textContent, 'Clean, 66 h', 'Tomorrow.io\'s full feed');
 });
 
 test('"Your own" follows a theme picked after it, as the settings do', () => {

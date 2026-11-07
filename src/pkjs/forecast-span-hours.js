@@ -111,8 +111,11 @@
     // nothing migrates. The row labels it with the whole hours the watch will show (spanOptions:
     // "58 h" at the default layout).
     var CHOICES = ['12', '24', '48'];
-    // The span every watch draws by default, and the only one off emery: hourly-window.js
-    // FORECAST_HOURS (test/forecast-span.test.js pins the two equal; the webview cannot read it).
+    // The span every watch but emery draws, and what an absent or unknown stored value reads
+    // as: an install from before the key, which keeps it (clay-settings.js upgradeBackfill). A
+    // new emery install starts on the long span, the schema's default (the Clean look's).
+    // hourly-window.js FORECAST_HOURS (test/forecast-span.test.js pins the two equal; the
+    // webview cannot read it).
     var DEFAULT_HOURS = 24;
 
     /**

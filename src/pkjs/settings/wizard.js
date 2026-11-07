@@ -314,10 +314,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!FORECAST.same(S, look.values, run.env)) { writeLook(look.values); }
     }
     /**
-     * The forecast look as its picker names it (the summary, the preview's label).
+     * The forecast look as its picker names it (the summary, the preview's label), and on emery,
+     * whose looks set it, the length as the Graphs tab names it: "Clean, 66 h".
      * @returns {string}
      */
-    function forecastLabel() { return currentLook().label; }
+    function forecastLabel() {
+        var length = FORECAST.lengthLabel(run.ctx.S, run.env);
+        return currentLook().label + (length ? ', ' + length : '');
+    }
     /**
      * The forecast step's picture: the first screen holding the forecast graph (the Default,
      * unless a screen of the user's own moved it) as the watch draws it, the look applied; with no
@@ -737,7 +741,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '<div class="' + (pic.onScreen ? 'wiz-watch wiz-look' : 'wiz-graph') + '" data-wiz-graph role="img" aria-label="'
             + esc(pic.label) + '">' + pic.svg + '</div>'
             + '</div>' + optsHtml('forecastLook', 'wiz-title')
-            + '<p class="wiz-fine">Every line can be changed later on the Graphs tab.</p>';
+            + '<p class="wiz-fine">Every line' + (run.env.forecastSpan ? ' and the forecast length' : '')
+            + ' can be changed later on the Graphs tab.</p>';
     }
     function welcomeRows() {
         var S = run.ctx.S, country = settingLabel('holidayCountry', S.holidayCountry);

@@ -9659,7 +9659,7 @@
                 "type": "segmented",
                 "messageKey": "forecastHours",
                 "label": "Forecast length",
-                "defaultValue": "24",
+                "defaultValue": "48",
                 "hintByValue": {
                   "12": "The next 12 hours, in wider columns.",
                   "24": "The next 24 hours.",

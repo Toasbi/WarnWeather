@@ -34,6 +34,10 @@ const CHANGED_222 = ['vibe', 'windSlotDisplay', 'gustSlotDisplay', 'windSlotUnit
 // 2.6.0 changed four more: a new install starts on the Default screen alone (the rain alert's
 // radar, no health) and the Clean graph (no third line, the high and low on the graph).
 const CHANGED_260 = ['radarMode', 'healthMode', 'thirdLine', 'forecastAxisNumbers'];
+// Then the Clean graph's length: a new install looks as far ahead as the feed reaches (emery's
+// long span; every other watch draws 24 hours whatever the key holds).
+const CHANGED_SPAN = ['forecastHours'];
+const CHANGED = CHANGED_222.concat(CHANGED_260, CHANGED_SPAN);
 
 test('a fresh install seeds the 2.2.0 defaults: vibrate on, wind and gusts on Both without a unit', () => {
   installFakeStorage();
@@ -64,7 +68,7 @@ test('an existing install missing a changed key backfills its old look, not the 
   assert.strictEqual(read.windSlotUnit, true, 'wind printed kph before the toggle');
   assert.strictEqual(read.gustSlotUnit, true);
   assert.strictEqual(read.pressureSlotUnit, true, 'an unchanged default backfills as before');
-  assert.deepEqual(Object.keys(claySettings.upgradeBackfill()).sort(), CHANGED_222.concat(CHANGED_260).sort(),
+  assert.deepEqual(Object.keys(claySettings.upgradeBackfill()).sort(), CHANGED.slice().sort(),
     'exactly the changed defaults backfill a legacy value');
 });
 
@@ -78,6 +82,7 @@ test('a fresh install starts on the Default screen alone, the rain alert on, and
   const read = claySettings.read();
   assert.deepEqual([read.radarMode, read.healthMode, read.thirdLine, read.forecastAxisNumbers],
     ['countdown', 'off', 'off', 'graph']);
+  assert.equal(read.forecastHours, '48', 'the Clean graph\'s long span (emery\'s; dormant elsewhere)');
   const env = { platform: 'basalt', radar: true, health: true, onDemand: true };
   assert.equal(VC.resolveViewCycle(read, env).length, 1, 'the Default screen alone');
   assert.deepEqual(M.screensOf(read, env), [[{ k: 'strip' }, { k: 'cal', rows: '2' }, { k: 'clock' }, { k: 'fcbar' },
@@ -97,6 +102,7 @@ test('an existing install that lacks the 2.6 keys keeps its three screens and it
   // What 2.5 shipped, and so what its seedDefaults wrote into a blob without them.
   assert.deepEqual([read.radarMode, read.healthMode, read.thirdLine, read.forecastAxisNumbers],
     ['graph', 'all', 'uv', 'axis']);
+  assert.equal(read.forecastHours, '24', 'the 24 hours it drew, not the Clean graph\'s long span');
   const env = { platform: 'basalt', radar: true, health: true, onDemand: true };
   assert.equal(VC.resolveViewCycle(read, env).length, 3, 'the Default, Health and Rain radar screens');
 });
@@ -106,11 +112,12 @@ test('an existing install that stores the changed keys keeps them either way', (
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
   const stored = { vibe: true, windSlotDisplay: 'max', gustSlotDisplay: 'both', windSlotUnit: false,
-    gustSlotUnit: true, radarMode: 'status', healthMode: 'slot', thirdLine: 'wind', forecastAxisNumbers: 'off' };
+    gustSlotUnit: true, radarMode: 'status', healthMode: 'slot', thirdLine: 'wind', forecastAxisNumbers: 'off',
+    forecastHours: '12' };
   store['clay-settings'] = JSON.stringify(stored);
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
-  CHANGED_222.concat(CHANGED_260).forEach((k) => assert.deepEqual(read[k], stored[k], k));
+  CHANGED.forEach((k) => assert.deepEqual(read[k], stored[k], k));
 });
 
 test('the backfilled legacy values are what a blob without the keys already renders', () => {

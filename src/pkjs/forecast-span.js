@@ -20,7 +20,8 @@ var spanHours = require('./forecast-span-hours.js');
 var CHOICES = spanHours.CHOICES;
 var storedHours = spanHours.storedHours;
 
-// The span every watch draws by default, and the only one off emery.
+// The span every watch but emery draws, and what an absent or unknown stored value reads as
+// (a new emery install starts on the long span: forecast-span-hours.js DEFAULT_HOURS).
 var DEFAULT_HOURS = hourlyWindow.FORECAST_HOURS;
 // The 12 h span sends 14: the 13th column (partly on screen at most widths) and the vertex
 // past it carry data (forecast_span.h FORECAST_SPAN_HALF_SENT, lockstep).
@@ -31,8 +32,8 @@ var HALF_SENT_HOURS = 14;
 // FORECAST_SPAN_DAY_SENT, lockstep). With the numbers On axis it sends 24, so that payload and
 // that screen stay today's (the temperature bytes are normalised over the hours sent).
 var DAY_WIDE_HOURS = 26;
-// The hours each signature() token fetches and sends: '' the 24 h default, '12', '26' (24 h
-// with no left axis) and '48' (the long span). The watch fits its grid to them.
+// The hours each signature() token fetches and sends: '' 24 h, '12', '26' (24 h with no left
+// axis) and '48' (the long span). The watch fits its grid to them.
 var SENT_HOURS = {
     '': DEFAULT_HOURS,
     '12': HALF_SENT_HOURS,
@@ -64,8 +65,8 @@ function maxHours(env) {
 }
 
 /**
- * The render signature's part (render-signature.js): '' for the default (absent and '24'
- * alike, so the settings page hydrating the key forces no fetch), else the stored option;
+ * The render signature's part (render-signature.js): '' for 24 h (absent and '24' alike: an
+ * absent key reads as the span from before it existed), else the stored option;
  * '26' for 24 h with the hi/lo numbers On graph or Off, the one place a numbers flip changes
  * the hours sent (hours()). Platform-free, like the stripe metrics: a stored 12 or 48 on a
  * 24 h watch, or a numbers flip on one, costs at most one redundant fetch when it changes.

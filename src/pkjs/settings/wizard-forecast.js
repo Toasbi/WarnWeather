@@ -5,23 +5,27 @@
 //
 // THE LOOKS. Each is a full set of the graph settings it governs (governed): the four lines'
 // metrics and styles, the Main metric's fill, the rain bars and their colour, every Draw from key,
-// and on emery where the high and low go. Clean is the graph's defaults as the theme starts them
-// (engine themedDefaults: the bars Solid on the light themes), a fresh install's graph since 2.6:
-// the temperature, the chance of rain and the rain bars, and on emery the high and low on the
-// graph instead of beside an axis, so the graph runs the screen's whole width. The others lay
-// their own values over those. Classic is the graph a 2.5 install had: UV as dots, the high and
-// low beside the axis. Stripes is the showcase look: cloud cover and the chance of rain as stripes
-// along the top, Solid rain bars hanging from under them, feels-like as a second curve, UV as dots,
-// the high and low on the graph (emery). A graph that is none of them when setup opens is kept as
-// one more record, "Your own", first. The 144 px watches keep the left axis in every look (the
-// owner's, 2026-11-07: emery's numbers On graph do not fit their image), so only emery's copy says
-// where the high and low go.
+// and on emery where the high and low go and how far ahead the graph looks (Forecast length).
+// Clean is the graph's defaults as the theme starts them (engine themedDefaults: the bars Solid on
+// the light themes), a fresh install's graph since 2.6: the temperature, the chance of rain and the
+// rain bars, and on emery the high and low on the graph instead of beside an axis, so the graph
+// runs the screen's whole width, over the long span (as far ahead as the feed reaches: 66 hours
+// with a full one). The others lay their own values over those. Classic is the graph a 2.5 install
+// had: UV as dots, the high and low beside the axis. Stripes is the showcase look: cloud cover and
+// the chance of rain as stripes along the top, Solid rain bars hanging from under them, feels-like
+// as a second curve, UV as dots, the high and low on the graph (emery). Both look 24 hours ahead
+// on emery (the owner's, 2026-11-07: only Clean takes the long span). A graph that is none of
+// them when setup opens is kept as one more record, "Your own", first. The 144 px watches keep the
+// left axis in every look (the owner's, 2026-11-07: emery's numbers On graph do not fit their
+// image), so only emery's copy says where the high and low go; they draw 24 hours whatever the
+// look (forecast-span.js), so the length is emery's alone too.
 //
 // HOW A GRAPH READS. Through the readings the watch's own modules give (reading): a line's style
 // only while the line draws, a Draw from key only while a drawn line reads it (draw-from.js
-// rowLine; a dormant Top is kept and never compared), the bars' edge only while they draw, and
-// the bars' colour, the fill and the Left axis values as the wire reads them. A look writes the
-// Draw from keys only of the lines it draws, so trying one never drops a dormant Top.
+// rowLine; a dormant Top is kept and never compared), the bars' edge only while they draw, the
+// bars' colour, the fill and the Left axis values as the wire reads them, and the length as the
+// phone reads it (forecast-span-hours.js option: an absent or unknown value is 24 hours). A look
+// writes the Draw from keys only of the lines it draws, so trying one never drops a dormant Top.
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings-page
 // webview (scripts/build-config-page.js' APP_FILES, after every module it binds below and ahead of
@@ -47,6 +51,8 @@
     var BAR_COLOR = 'rainBarColor';
     var BAR_FROM = drawFrom.BAR_KEYS.rain;
     var AXIS_NUMBERS = forecastAxis.KEYS.numbers;
+    // Forecast length (forecast-span-hours.js storedHours): '24', or '48', the long span's token.
+    var SPAN = 'forecastHours';
     var FROM_KEYS = drawFrom.ROWS.map(function (row) { return row.key; });
     // A line's style key -> its metric key.
     var LINE_OF_STYLE = {};
@@ -55,17 +61,18 @@
         LINE_OF_STYLE[line.styleKey] = line.key;
         KEYS.push(line.key, line.styleKey);
     });
-    KEYS = KEYS.concat([FILL, BARS, BAR_COLOR], FROM_KEYS, [BAR_FROM, AXIS_NUMBERS]);
+    KEYS = KEYS.concat([FILL, BARS, BAR_COLOR], FROM_KEYS, [BAR_FROM, AXIS_NUMBERS, SPAN]);
 
-    // In the picker's order, Clean, the one a new install has, in the middle.
+    // In the picker's order, Clean, the one a new install has, in the middle. On emery Clean looks
+    // as far ahead as the feed reaches (the long span) and the other two 24 hours.
     var LOOKS = [
-        { id: 'classic', label: 'Classic', over: { thirdLine: 'uv', forecastAxisNumbers: 'axis' } },
-        { id: 'clean', label: 'Clean', over: { thirdLine: 'off', forecastAxisNumbers: 'graph' } },
+        { id: 'classic', label: 'Classic', over: { thirdLine: 'uv', forecastAxisNumbers: 'axis', forecastHours: '24' } },
+        { id: 'clean', label: 'Clean', over: { thirdLine: 'off', forecastAxisNumbers: 'graph', forecastHours: '48' } },
         { id: 'stripes', label: 'Stripes', over: {
             secondaryLine: 'uv', secondaryLineStyle: 'dots', secondaryLineFill: false,
             thirdLine: 'cloud', thirdLineStyle: 'stripeTop', fourthLine: 'precip_prob', fourthLineStyle: 'stripeTop',
             fifthLine: 'feels', fifthLineStyle: 'line', rainBarColor: 'white', rainBarFrom: 'top',
-            forecastAxisNumbers: 'graph' } }
+            forecastAxisNumbers: 'graph', forecastHours: '24' } }
     ];
     var OWN = { id: 'own', label: 'Your own' };
 
@@ -97,13 +104,15 @@
 
     /**
      * The keys the looks govern on this watch: not where the high and low go off emery, nor the
-     * bars' colour on a black-and-white watch, which outlines its bars. Each is dormant there.
+     * length off the watch with a Forecast length (emery: env.forecastSpan), nor the bars' colour
+     * on a black-and-white watch, which outlines its bars. Each is dormant there.
      * @param {?Object} env Platform env.
      * @returns {string[]}
      */
     function governed(env) {
         return KEYS.filter(function (k) {
             if (k === AXIS_NUMBERS) { return forecastAxis.isEmery(env); }
+            if (k === SPAN) { return Boolean(env && env.forecastSpan); }
             if (k === BAR_COLOR) { return Boolean(env && env.color); }
             return true;
         });
@@ -124,6 +133,7 @@
         if (k === BAR_FROM) { return s[BARS] === 'rain' ? drawFrom.value(s[k]) : ''; }
         if (k === FILL) { return Boolean(s[k]); }
         if (k === AXIS_NUMBERS) { return forecastAxis.numbers(s); }
+        if (k === SPAN) { return spanHours.option(s, env); }
         if (k === BAR_COLOR) { return resolveInk.barColorMode(s[k], s.theme); }
         return s[k];
     }
@@ -190,6 +200,22 @@
     }
 
     /**
+     * How far ahead the graph looks, as the Graphs tab's Forecast length row names it: '24 h',
+     * or the long span by the hours it shows for the provider and the layout ('66 h' with a full
+     * feed and the numbers On graph). '' on a watch without the row (all but emery).
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {string}
+     */
+    function lengthLabel(S, env) {
+        if (!(env && env.forecastSpan)) { return ''; }
+        var stored = String(spanHours.storedHours(S));
+        var opts = spanHours.spanOptions(S, env);
+        for (var i = 0; i < opts.length; i += 1) { if (opts[i][1] === stored) { return opts[i][0]; } }
+        return '';
+    }
+
+    /**
      * The record the settings draw now.
      * @param {Object} S Settings.
      * @param {Array.<Object>} records looks().
@@ -244,6 +270,7 @@
         same: same,
         snapshot: snapshot,
         looks: looks,
+        lengthLabel: lengthLabel,
         current: current,
         followTheme: followTheme,
         previewSvg: previewSvg
