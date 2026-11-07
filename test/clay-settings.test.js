@@ -31,6 +31,9 @@ test('seedDefaults backfills missing keys without clobbering set ones', () => {
 // 2.2.0 changed four defaults: Bluetooth vibrate on, wind and gusts on the Both pair
 // without a unit. A fresh install takes them; an existing install keeps its look.
 const CHANGED_222 = ['vibe', 'windSlotDisplay', 'gustSlotDisplay', 'windSlotUnit', 'gustSlotUnit'];
+// 2.6.0 changed four more: a new install starts on the Default screen alone (the rain alert's
+// radar, no health) and the Clean graph (no third line, the high and low on the graph).
+const CHANGED_260 = ['radarMode', 'healthMode', 'thirdLine', 'forecastAxisNumbers'];
 
 test('a fresh install seeds the 2.2.0 defaults: vibrate on, wind and gusts on Both without a unit', () => {
   installFakeStorage();
@@ -61,8 +64,41 @@ test('an existing install missing a changed key backfills its old look, not the 
   assert.strictEqual(read.windSlotUnit, true, 'wind printed kph before the toggle');
   assert.strictEqual(read.gustSlotUnit, true);
   assert.strictEqual(read.pressureSlotUnit, true, 'an unchanged default backfills as before');
-  assert.deepEqual(Object.keys(claySettings.upgradeBackfill()).sort(), CHANGED_222.slice().sort(),
+  assert.deepEqual(Object.keys(claySettings.upgradeBackfill()).sort(), CHANGED_222.concat(CHANGED_260).sort(),
     'exactly the changed defaults backfill a legacy value');
+});
+
+test('a fresh install starts on the Default screen alone, the rain alert on, and the Clean graph', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  const VC = require('../src/pkjs/view-cycle.js');
+  const M = require('../src/pkjs/screens.js');
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  assert.deepEqual([read.radarMode, read.healthMode, read.thirdLine, read.forecastAxisNumbers],
+    ['countdown', 'off', 'off', 'graph']);
+  const env = { platform: 'basalt', radar: true, health: true, onDemand: true };
+  assert.equal(VC.resolveViewCycle(read, env).length, 1, 'the Default screen alone');
+  assert.deepEqual(M.screensOf(read, env), [[{ k: 'strip' }, { k: 'cal', rows: '2' }, { k: 'clock' }, { k: 'fcbar' },
+    { k: 'fc', size: 'fill' }]], 'today\'s compact calendar Default');
+  assert.deepEqual(M.deriveModes(read, env), { radarMode: 'countdown', healthMode: 'off' },
+    'the modes the screens work out are the shipped ones: Rain ticked on the Watch bar fetches the radar');
+});
+
+test('an existing install that lacks the 2.6 keys keeps its three screens and its graph', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  const VC = require('../src/pkjs/view-cycle.js');
+  store['clay-settings'] = JSON.stringify({ provider: 'dwd' });
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  // What 2.5 shipped, and so what its seedDefaults wrote into a blob without them.
+  assert.deepEqual([read.radarMode, read.healthMode, read.thirdLine, read.forecastAxisNumbers],
+    ['graph', 'all', 'uv', 'axis']);
+  const env = { platform: 'basalt', radar: true, health: true, onDemand: true };
+  assert.equal(VC.resolveViewCycle(read, env).length, 3, 'the Default, Health and Rain radar screens');
 });
 
 test('an existing install that stores the changed keys keeps them either way', () => {
@@ -70,11 +106,11 @@ test('an existing install that stores the changed keys keeps them either way', (
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
   const stored = { vibe: true, windSlotDisplay: 'max', gustSlotDisplay: 'both', windSlotUnit: false,
-    gustSlotUnit: true };
+    gustSlotUnit: true, radarMode: 'status', healthMode: 'slot', thirdLine: 'wind', forecastAxisNumbers: 'off' };
   store['clay-settings'] = JSON.stringify(stored);
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
-  CHANGED_222.forEach((k) => assert.deepEqual(read[k], stored[k], k));
+  CHANGED_222.concat(CHANGED_260).forEach((k) => assert.deepEqual(read[k], stored[k], k));
 });
 
 test('the backfilled legacy values are what a blob without the keys already renders', () => {

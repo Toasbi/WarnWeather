@@ -1974,7 +1974,9 @@ module.exports = {
                 type: 'segmented',
                 messageKey: FORECAST_AXIS.KEYS.numbers,
                 label: 'Left axis values',
-                defaultValue: FORECAST_AXIS.AXIS,
+                // On graph out of the box since 2.6 (the Clean graph). An existing install
+                // that lacks the key keeps its axis (clay-settings.js upgradeBackfill).
+                defaultValue: FORECAST_AXIS.GRAPH,
                 options: [['On axis', FORECAST_AXIS.AXIS], ['On graph', FORECAST_AXIS.GRAPH],
                     ['Off', FORECAST_AXIS.OFF]],
                 hintByValue: {
@@ -2091,7 +2093,10 @@ module.exports = {
                 type: 'select',
                 messageKey: 'thirdLine',
                 label: 'Metric',
-                defaultValue: 'uv',
+                // Off out of the box since 2.6: a new install starts on the Clean graph (the
+                // setup's middle look). An existing install that lacks the key keeps its UV
+                // dots (clay-settings.js upgradeBackfill).
+                defaultValue: 'off',
                 hintFrom: METRIC_HINT_FROM,
                 optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine']}}
             },

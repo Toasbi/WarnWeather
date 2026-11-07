@@ -82,9 +82,9 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
     return at;
   };
   const wizard = idx('settings/wizard.js');
-  const parts = { 'settings/wizard-css.js': 'WizardCss', 'settings/wizard-flick.js': 'WizardFlick',
+  const parts = { 'settings/wizard-css.js': 'WizardCss', 'settings/wizard-screens.js': 'WizardScreens',
     'settings/wizard-forecast.js': 'WizardForecast', 'settings/wizard-finish.js': 'WizardFinish',
-    'settings/wizard-upsell.js': 'WizardUpsell' };
+    'settings/wizard-upsell.js': 'WizardUpsell', 'settings/screens-page.js': 'ScreensPage' };
   Object.keys(parts).forEach((file) => {
     assert.ok(idx(file) < wizard, file + ' must precede wizard.js');
     assert.ok(page().indexOf('window.' + parts[file] + ' = api') !== -1, 'nothing assigns window.' + parts[file]);
@@ -93,7 +93,7 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
     'pkjs/forecast-span-hours.js', 'settings/forecast-sample.js', 'settings/preview-forecast.js'].forEach((file) => {
     assert.ok(idx(file) < idx('settings/wizard-forecast.js'), file + ' must precede wizard-forecast.js');
   });
-  assert.ok(idx('pkjs/view-cycle.js') < idx('settings/wizard-flick.js'));
+  assert.ok(idx('pkjs/screens.js') < idx('settings/wizard-screens.js'));
   assert.ok(idx('pkjs/status-line-catalog.js') < idx('settings/wizard-finish.js'));
   assert.ok(idx('settings/country-defaults.js') < idx('settings/wizard-upsell.js'));
   ['ForecastSample', 'PreviewForecast'].forEach((name) => {

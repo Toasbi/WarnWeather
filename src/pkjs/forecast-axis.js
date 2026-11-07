@@ -74,7 +74,9 @@
 
     /**
      * The numbers' setting: 'axis', 'graph' or 'off'; 'axis' for an absent or junk value (the
-     * betas' 'beside' included).
+     * betas' 'beside' included): the graph as it was before the key existed. A new install
+     * stores the shipped default, 'graph' since 2.6 (schema.js; seedDefaults writes it), and an
+     * existing install that lacks the key is backfilled 'axis' (clay-settings.js upgradeBackfill).
      * @param {?Object} s Clay settings.
      * @returns {string}
      */

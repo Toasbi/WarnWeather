@@ -58,14 +58,16 @@ test('every wizard screenshot sits on the ground its frame is drawn in', () => {
   let n = 0;
   Object.keys(SHOTS).forEach((platform) => {
     Object.keys(SHOTS[platform]).forEach((group) => {
-      const vals = typeof SHOTS[platform][group] === 'string' ? { _: SHOTS[platform][group] } : SHOTS[platform][group];
+      const vals = SHOTS[platform][group];
       Object.keys(vals).forEach((val) => {
         const png = Buffer.from(vals[val].split(',')[1], 'base64');
-        const want = group === 'radar' ? '#000000' : shotGround(group, val);
+        const want = shotGround(group, val);
         assert.deepEqual(corners(png), [want, want, want, want], platform + ' ' + group + ' ' + val);
         n += 1;
       });
     });
   });
-  assert.ok(n >= 30, 'read ' + n + ' shots');
+  // The Layout and Theme pickers' shots (gen-wizard-fixtures.js SHOTS): 3 layouts on 4 watches,
+  // dark and light on 3, B&W and B&W inverted on 2.
+  assert.equal(n, 22, 'read ' + n + ' shots');
 });

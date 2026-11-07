@@ -194,22 +194,23 @@ var APP_FILES = [
   // own body runs, so it comes first. test/config-page-bundle.test.js pins every rule id into
   // the generated page: a Node test takes the require() branch and would not notice it missing.
   path.join(ROOT, 'src/pkjs/settings/defaults-policy.js'),
+  // The Watchface tab's screens (the Screens card, the screen editor overlay, Setup's Rain
+  // radar picker, the modes worked out on Save). After screens.js and preview-watch.js
+  // (reads window.Screens and window.PreviewWatch at load), and ahead of the wizard, which
+  // writes its screens through it (window.ScreensPage) and shares its overlay pattern.
+  path.join(ROOT, 'src/pkjs/settings/screens-page.js'),
   // The setup wizard's parts, each publishing a window global that wizard.js binds while its own
-  // body runs (test/config-page-bundle.test.js pins them ahead of it): its styles, the flick demo
-  // (reads VIEW_CYCLE), the forecast step (reads the line, Draw from, axis, ink, theme-flip, span
-  // and sample modules and preview-forecast.js, all above), the finishing defaults (reads
-  // DefaultsPolicy and StatusLineCatalog) and the Tomorrow.io card (reads COUNTRY_DEFAULTS).
+  // body runs (test/config-page-bundle.test.js pins them ahead of it): its styles, the Screens
+  // step's data (reads window.Screens), the forecast step (reads the line, Draw from, axis, ink,
+  // theme-flip, span and sample modules and preview-forecast.js, all above), the finishing
+  // defaults (reads DefaultsPolicy and StatusLineCatalog) and the Tomorrow.io card (reads
+  // COUNTRY_DEFAULTS).
   path.join(ROOT, 'src/pkjs/settings/wizard-css.js'),
-  path.join(ROOT, 'src/pkjs/settings/wizard-flick.js'),
+  path.join(ROOT, 'src/pkjs/settings/wizard-screens.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard-forecast.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard-finish.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard-upsell.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard.js'),
-  // The Watchface tab's screens (the Screens card, the screen editor overlay, Setup's Rain
-  // radar picker, the modes worked out on Save). After screens.js and preview-watch.js
-  // (reads window.Screens and window.PreviewWatch at load) and beside the wizard, whose
-  // overlay pattern it shares.
-  path.join(ROOT, 'src/pkjs/settings/screens-page.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
   // key-test.js must precede its three consumers (window.KeyTest factory).
   path.join(ROOT, 'src/pkjs/settings/key-test.js'),

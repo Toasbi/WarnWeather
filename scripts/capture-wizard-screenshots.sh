@@ -7,7 +7,6 @@ set -euo pipefail
 version="${1:-wizard}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 stage="$here/screenshot/tmp/wizard"
-export WW_HEALTH_FIXTURE=1          # canned health values for the health shots
 # Each fixture carries its own platform set (see gen-wizard-fixtures.js). capture-screenshots.sh
 # defaults WW_SKIP_TESTS=1 and builds only the PLATFORMS it's shooting, so each fixture compiles
 # just its platforms with no tests.

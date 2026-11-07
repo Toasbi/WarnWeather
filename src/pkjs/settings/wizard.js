@@ -1,16 +1,18 @@
 // src/pkjs/settings/wizard.js — ES5, WebView. The first-run setup wizard: its steps, the picker they
 // share and the overlay they run in. It opens by itself until onboarding is done (shouldShow), and
 // again from Setup › Misc › Run setup again. Its parts live beside it: the styles (wizard-css.js),
-// the flick demo and health copy (wizard-flick.js), the forecast step's looks and preview
+// the Screens step's data (wizard-screens.js), the forecast step's looks and preview
 // (wizard-forecast.js), the finishing defaults (wizard-finish.js) and the Tomorrow.io card
 // (wizard-upsell.js). Driven in the tests through its real handlers on a fake DOM
 // (test/helpers/wizard-dom.js).
 //
 // Each step is one screen: a progress bar and Back on top, the step in the middle, one primary
-// button at the bottom. The layout, health and theme steps share a picker: the watch, large, showing
-// the selected option's real screenshot, with the options as a segmented control below it (a radio
-// group: tap, swipe the watch, or use the arrow keys). The forecast step's two pickers preview in the
-// live graph instead. Nothing is written until the user picks.
+// button at the bottom. The layout and theme steps share a picker: the watch, large, showing the
+// selected option's real screenshot, with the options as a segmented control below it (a radio
+// group: tap, swipe the watch, or use the arrow keys). The Screens and forecast steps draw the
+// watch's own screens live instead (preview-watch.js, as the Watchface tab does). Nothing is
+// written until the user picks. The layout picks the Default screen and the Screens step the flick
+// screens (screens-page.js writes both, as the Watchface tab's screen editor does).
 /* global PConf, Intl, navigator, document, console, VIEW_CYCLE, COUNTRY_DEFAULTS */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
@@ -22,28 +24,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var node = typeof require !== 'undefined';
     var CD = node ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
     var CSS = node ? require('./wizard-css.js') : window.WizardCss;
-    var FLICK = node ? require('./wizard-flick.js') : window.WizardFlick;
+    var SCREENS = node ? require('./wizard-screens.js') : window.WizardScreens;
     var FORECAST = node ? require('./wizard-forecast.js') : window.WizardForecast;
+    // The screens: their lists (screens.js), their writes (screens-page.js, the Watchface tab's),
+    // their compile (view-cycle.js) and their pictures (preview-watch.js).
+    var M = node ? require('../screens.js') : window.Screens;
+    var SP = node ? require('./screens-page.js') : window.ScreensPage;
+    var VC = node ? require('../view-cycle.js') : VIEW_CYCLE;
+    var PW = node ? require('./preview-watch.js') : window.PreviewWatch;
     var FINISH = node ? require('./wizard-finish.js') : window.WizardFinish;
     var UPSELL = node ? require('./wizard-upsell.js') : window.WizardUpsell;
     // The frame every screen picture sits in (the Watchface tab's too): the screen on its own ground.
     var FRAME = node ? require('./screen-frame.js') : window.ScreenFrame;
 
     /**
-     * The steps. `when` names the env fact a step needs: health where the watch has it; the flick
-     * demo where there is a second view to flick to (radar, false on aplite, whose single view leaves
-     * nothing to demo); the theme where the watch ships the light polarity (themePolarity, compiled
-     * out on aplite); the forecast step where it draws the line styles its looks are made of
-     * (lineStyles, false on aplite). Layout and health shape the view cycle, so the demo follows
-     * both; the forecast step follows the theme, so its preview is drawn in it. `summary` gives the
-     * last step's rows.
+     * The steps. `when` names the env fact a step needs: the Screens step where the watch has a
+     * screen to flick to (radar, false on aplite, whose one screen leaves nothing to add); the theme
+     * where the watch ships the light polarity (themePolarity, compiled out on aplite); the forecast
+     * step where it draws the line styles its looks are made of (lineStyles, false on aplite). The
+     * layout makes the Default screen the Screens and forecast steps draw; the forecast step follows
+     * the theme, so its preview is drawn in it. `summary` gives the last step's rows.
      */
     var STEPS = [
         { id: 'welcome', title: 'Welcome to WarnWeather', body: stepWelcome, summary: welcomeRows },
         { id: 'layout', title: 'Choose your layout', body: stepLayout, summary: pickerRow('Layout', 'layoutPreset', 'layout') },
-        { id: 'health', when: 'health', title: 'Health on your watch', body: stepHealth,
-            summary: pickerRow('Health', 'healthMode', 'health') },
-        { id: 'flick', when: 'radar', title: 'Flick to switch views', body: stepFlick },
+        { id: 'screens', when: 'radar', title: 'Flick to switch screens', body: stepScreens, summary: screensRows },
         { id: 'theme', when: 'themePolarity', title: 'Choose a theme', body: stepTheme,
             summary: pickerRow('Theme', 'theme', 'theme') },
         { id: 'forecast', when: 'lineStyles', title: 'Choose your forecast', body: stepForecast, summary: forecastRow },
@@ -81,9 +86,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         compactCal: 'A two-row calendar, leaving more room for the forecast.',
         noCal: 'A big clock and date above a full-size forecast.'
     };
-    // 'slot' (Status-slots-only) is not offered: a main-settings-only mode with no Health view of
-    // its own and no screenshot. The full set lives on the Health tab (schema.js).
-    var HEALTH_OPTS = [['Off', 'off'], ['Status bar', 'status'], ['Status bar + graph', 'all']];
     // schema.js' two theme selects: colour watches get four, black-and-white ones dark and light.
     var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W inverted', 'bw-light']];
     var THEME_OPTS_BW = [['Dark', 'dark'], ['Light', 'light']];
@@ -95,22 +97,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     };
 
     /**
-     * The pickers. `options` and `desc` read the run; `selected` (the forecast look) is read off the
-     * settings; `nearest` names the option a stored value the picker lacks shows as (only a highlight:
-     * the stored value changes on a real pick alone); `write` replaces the plain write; `graph`
-     * previews in the forecast step's graph instead of a screenshot.
+     * The pickers. `options` and `desc` read the run; `selected` is read off the settings (the
+     * layout from the Default screen, the forecast look from the graph): only a highlight, the
+     * settings change on a real pick alone; `write` replaces the plain write; `graph` previews in
+     * the forecast step's screen instead of a screenshot.
      */
     var PICKERS = {
         layoutPreset: {
             options: function () { return LAYOUT_OPTS; },
             desc: function () { return LAYOUT_DESC; },
-            nearest: function (v) { return FLICK.NEAREST_LAYOUT[v] || 'compactCal'; }
-        },
-        healthMode: {
-            options: function () { return HEALTH_OPTS; },
-            desc: function () { return FLICK.healthDesc(shotsShowHeartRate()); },
-            // The health row's hook runs once as setup closes (wizard-finish.js), not per pick.
-            write: function (val) { run.ctx.S.healthMode = val; }
+            selected: currentLayout,
+            write: pickLayout
         },
         theme: {
             options: function () { return run.env.color ? THEME_OPTS_COLOR : THEME_OPTS_BW; },
@@ -127,21 +124,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             selected: function () { return currentLook().id; },
             write: function (id) { writeLook(lookById(id).values); },
             graph: true
-        },
-        forecastHours: {
-            options: function () { return FORECAST.spanOptions(run.ctx.S, run.env); },
-            desc: function () { return FORECAST.SPAN_DESC; },
-            nearest: function () { return '24'; },
-            graph: true
         }
     };
 
     // Real watch screenshots, base64-inlined by `mise capture-wizard-screenshots` into
     // wizard-screenshots.generated.js (PConf.screenshots, concatenated ahead of this file).
     var SHOTS = PConf.screenshots || {};
-    // 1x1 transparent GIF, shown only if a flick stop unexpectedly has no screenshot:
-    // scripts/build-config-page.js fails the build on any missing wizard shot.
-    var BLANK_SHOT = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 
     // The page around the wizard: its ready ctx, kept for "Run setup again".
     var page = { ctx: null };
@@ -157,10 +145,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function newRun(ctx, fresh) {
         return {
             ctx: ctx, env: ctx.ENV, steps: buildSteps(ctx.ENV), idx: 0, overlay: null,
-            // The flick demo's stop (reset whenever its step renders).
-            flickIdx: 0,
-            // S.healthMode as setup opened (wizard-finish.js applyHealthModeChange).
-            healthAtOpen: ctx.S.healthMode,
+            // The screen the Screens step shows big (the Default when the step opens).
+            screenIdx: 0,
             // Where a swipe on the picker's preview started; the latest screenshot swap.
             touch: null, shotSeq: 0,
             // The summary has been shown (footer); a Tomorrow.io key was typed in this run.
@@ -197,14 +183,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return label;
     }
     /**
-     * A picker's value as the picker named it (the summary repeats what was tapped), or for a stored
-     * value the picker doesn't offer (compactDense, custom, slot) the settings page's name.
+     * A picker's value as the picker named it (the summary repeats what was tapped): the option it
+     * shows as picked, else, for a stored value it doesn't offer, the settings page's name.
      * @param {string} group A picker.
      * @returns {string} Label.
      */
     function pickedLabel(group) {
-        var v = run.ctx.S[group];
-        return labelFor(PICKERS[group].options(), v) || settingLabel(group, v);
+        var v = highlighted(group);
+        return labelFor(PICKERS[group].options(), v) || settingLabel(group, run.ctx.S[group]);
     }
     /**
      * Whether the phone asks for less motion: the preview then swaps without its fade.
@@ -244,12 +230,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var p = run.env.platform || 'basalt';
         return (p === 'diorite') ? 'flint' : p;
     }
-    // Whether the health copy may promise heart rate: the watch has the sensor (env.hr) AND its
-    // screenshots were captured on it, so the picture above the words shows it too. diorite borrows
-    // flint's, which show none (and a Pebble 2 SE, also 'diorite', has no sensor).
-    function shotsShowHeartRate() {
-        return Boolean(run.env.hr) && shotPlatform() === run.env.platform;
-    }
     function shotFor(group, val) { var s = SHOTS[shotPlatform()] || {}; return (s[group] && s[group][val]) || ''; }
     /**
      * A screenshot's ground: the background of the theme it was captured on. The light themes'
@@ -262,16 +242,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function shotGround(group, val) {
         return (group === 'theme' && (val === 'light' || val === 'bw-light')) ? '#FFFFFF' : '#000000';
     }
-    /**
-     * A flick stop's screenshot (SHOTS[platform].radar is a plain data URI).
-     * @param {{shotGroup: string, shotVal: string}} stop A wizard-flick.js stop.
-     * @returns {string} A data URI.
-     */
-    function stopShot(stop) {
-        var src = (stop.shotGroup === 'radar') ? ((SHOTS[shotPlatform()] || {}).radar || '') : shotFor(stop.shotGroup, stop.shotVal);
-        return src || BLANK_SHOT;
-    }
-    function stopGround(stop) { return stop.shotGroup === 'radar' ? '#000000' : shotGround(stop.shotGroup, stop.shotVal); }
     // The screen the screenshots were captured on: 144 x 168, emery's 200 x 228.
     function shotScreen() { return shotPlatform() === 'emery' ? { w: 200, h: 228 } : { w: 144, h: 168 }; }
     /**
@@ -288,7 +258,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * The watch: its screen in the frame every screen picture shares (screen-frame.js), a margin of
      * the screenshots' own ground all round, so the card's round corners clip nothing on it.
-     * @param {string} shots The screen: one shotImage, or the flick demo's two.
+     * @param {string} shots The screen: a shotImage.
      * @param {string} bg Their ground.
      * @param {string} [label] What it shows, for assistive tech (none: the caption beside it says).
      * @returns {string} HTML.
@@ -343,15 +313,34 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var look = lookById(before);
         if (!FORECAST.same(S, look.values, run.env)) { writeLook(look.values); }
     }
-    function forecastLabel() {
-        var S = run.ctx.S, look = currentLook().label;
-        return run.env.forecastSpan ? look + ', ' + labelFor(PICKERS.forecastHours.options(), highlighted('forecastHours')) : look;
-    }
-    function graphLabel() { return 'Forecast preview: ' + forecastLabel(); }
-    function graphHtml() { return FORECAST.previewSvg(run.ctx.S, run.env, run.ctx.USERDATA); }
+    function forecastLabel() { return currentLook().label; }
     /**
-     * Redraw the forecast step's graph, and rename the long length, whose hours follow the look (the
-     * high and low on the graph widen its plot).
+     * The screen the forecast step draws: the first screen holding the forecast graph (the
+     * Default, unless a screen of the user's own moved it), or -1 for none.
+     * @returns {number} Its slot.
+     */
+    function forecastScreen() {
+        var list = screens();
+        for (var i = 0; i < list.length; i += 1) {
+            for (var j = 0; j < list[i].length; j += 1) { if (list[i][j].k === 'fc') { return i; } }
+        }
+        return -1;
+    }
+    function graphLabel() {
+        var i = forecastScreen();
+        return 'Forecast preview: ' + forecastLabel() + (i >= 0 ? ', on the ' + SCREENS.nameOf(screens()[i], i) + ' screen' : '');
+    }
+    /**
+     * The forecast step's picture: that screen as the watch draws it, the look applied; with no
+     * screen showing the forecast graph, the graph on its own.
+     * @returns {string} SVG markup.
+     */
+    function graphHtml() {
+        var i = forecastScreen();
+        return i >= 0 ? screenPic(run.ctx.S, i, 'wf' + i + '-').svg : FORECAST.previewSvg(run.ctx.S, run.env, run.ctx.USERDATA);
+    }
+    /**
+     * Redraw the forecast step's picture.
      * @returns {void}
      */
     function refreshForecast() {
@@ -360,8 +349,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             graph.innerHTML = graphHtml();
             graph.setAttribute('aria-label', graphLabel());
         }
-        var opts = PICKERS.forecastHours.options(), segs = run.overlay.querySelectorAll('[data-wiz-group="forecastHours"]');
-        for (var i = 0; i < segs.length; i += 1) { segs[i].textContent = labelFor(opts, segs[i].getAttribute('data-wiz-opt')); }
     }
     /**
      * What the forecast graph draws from: its governed settings and its length. A pick that leaves
@@ -411,7 +398,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     /**
      * The picker: the watch showing the selected option, then its options.
-     * @param {string} group 'layoutPreset' | 'healthMode' | 'theme'.
+     * @param {string} group 'layoutPreset' | 'theme'.
      * @returns {string} HTML.
      */
     function pickerHtml(group) {
@@ -479,22 +466,69 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
     }
 
-    // --- the flick demo: tilt-and-snap through the real cycle ---
-    function flickStops() { return FLICK.flickStops(run.ctx.S, shotsShowHeartRate()); }
+    // --- the layout: the Default screen ---
     /**
-     * A stop's caption. Its name is already beside the dots, so only a screen reader hears it again
-     * here (the caption is the announced region).
-     * @param {{label: string, caption: string}} stop A stop.
-     * @returns {string} HTML.
+     * The layout the Layout picker shows as picked: what the Default screen reads as (its
+     * calendar's rows, or none) on a watch with screens; on aplite the stored layout, or the
+     * nearest the picker offers.
+     * @returns {string} 'fullCal' | 'compactCal' | 'noCal'
      */
-    function flickCaptionHtml(stop) {
-        return '<span class="sr-only">' + esc(stop.label) + ': </span>' + esc(stop.caption);
+    function currentLayout() {
+        if (SP.hasScreens(run.env)) { return SCREENS.layoutOf(screens()[0]); }
+        var v = run.ctx.S.layoutPreset;
+        return labelFor(LAYOUT_OPTS, v) ? v : (SCREENS.NEAREST_LAYOUT[v] || 'compactCal');
+    }
+    /**
+     * Pick a layout. On a watch with screens it makes the Default screen alone (the flick screens
+     * are the Screens step's): the preset's own Default view, the one its three-screen cycle starts
+     * with, compiled back to the per-view keys of slot 0 (view-cycle.js specToKeys), the other
+     * screens frozen first (screens-page.js ensureCustom). aplite keeps the preset.
+     * @param {string} layout 'fullCal' | 'compactCal' | 'noCal'.
+     * @returns {void}
+     */
+    function pickLayout(layout) {
+        var S = run.ctx.S;
+        if (!SP.hasScreens(run.env)) { run.ctx.setValue('layoutPreset', layout); return; }
+        SP.ensureCustom(S, run.env);
+        var keys = VC.specToKeys([VC.buildViewCycle(layout, 'off', 'off', S.swapClockStatus !== false)[0]]);
+        Object.keys(keys).forEach(function (k) { if (k !== 'viewCount') { S[k] = keys[k]; } });
+        SP.applyModes(S, run.env);
+    }
+
+    // --- the Screens step: the watch's own screens, drawn live ---
+    function screens() { return M.screensOf(run.ctx.S, run.env); }
+    /**
+     * One screen as the Watchface tab draws it, in the wizard's frame: its <svg> and its bands as
+     * spoken. A screen with nothing on it is its bare screen.
+     * @param {Object} S The settings it is drawn from (the live ones, or a copy with a screen in).
+     * @param {number} i Its slot.
+     * @param {string} prefix What its graphs' ids start with, unique on the page.
+     * @returns {{svg: string, label: string}}
+     */
+    function screenPic(S, i, prefix) {
+        var spec = VC.screensCycle(S, run.env)[i] || null;
+        var pic = spec ? PW.screenSvg(spec, i, S, run.env, run.ctx.USERDATA || {}, run.env.platform === 'emery' ? 1 : 0,
+            new Date(), prefix) : PW.viewScreen(S, run.env, i, run.ctx.USERDATA);
+        // The wizard's frame class, whose widths follow the screenshots' (wizard-css.js).
+        return { svg: pic.svg.replace('class="wpv-scr"', 'class="wiz-scr"'), label: pic.label };
+    }
+    /**
+     * The settings with a screen setup offers put in where it would go, to draw it before it is
+     * added (and the rain radar on, as adding the Rain radar screen turns it).
+     * @param {string} id A template.
+     * @returns {{S: Object, at: number}} The settings and the screen's slot.
+     */
+    function withTemplate(id) {
+        var S = JSON.parse(JSON.stringify(run.ctx.S)), at = SCREENS.insertAt(screens(), id);
+        if (id === 'radar') { S.radarEnabled = true; }
+        SP.insertScreen(S, at, M.copy(SCREENS.byId(id).list), run.env);
+        return { S: S, at: at };
     }
     /**
      * The cycle's dots, the current one highlighted; its name sits beside them, so the position is
      * never told by colour alone.
-     * @param {number} count Stops.
-     * @param {number} idx Current stop.
+     * @param {number} count Screens.
+     * @param {number} idx Current screen.
      * @returns {string} HTML.
      */
     function flickDotsHtml(count, idx) {
@@ -503,46 +537,126 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return h;
     }
     /**
-     * Swap the demo to a stop: crossfade the two stacked screenshots (the CSS transition fades) and
-     * rewrite the dots, name and caption. The step may have changed, or setup closed, by the snap.
-     * @param {Object} stop The stop.
-     * @param {number} idx Its index.
-     * @param {number} count Stops.
-     * @returns {void}
+     * The screen shown big, its dots and name, and Try a flick (off until there is a screen to
+     * flick to).
+     * @param {Array<Array<Object>>} list The screens.
+     * @returns {string} HTML.
      */
-    function showFlickStop(stop, idx, count) {
-        if (!run || !run.overlay) { return; }
-        var imgs = run.overlay.querySelectorAll('.wiz-flick-shot');
-        if (imgs.length === 2) {
-            var cur = ((imgs[0].getAttribute('class') || '').indexOf(' on') >= 0) ? 0 : 1, nxt = 1 - cur;
-            FRAME.setImage(imgs[nxt], stopShot(stop));
-            FRAME.setGround(run.overlay.querySelector('[data-wiz-watch]'), stopGround(stop));
-            imgs[cur].setAttribute('class', 'wiz-shot wiz-flick-shot');
-            imgs[nxt].setAttribute('class', 'wiz-shot wiz-flick-shot on');
-        }
-        var dots = run.overlay.querySelector('[data-wiz-flick-dots]');
-        if (dots) { dots.innerHTML = flickDotsHtml(count, idx); }
-        var lbl = run.overlay.querySelector('[data-wiz-flick-label]');
-        if (lbl) { lbl.textContent = stop.label; }
-        var cap = run.overlay.querySelector('[data-wiz-flick-cap]');
-        if (cap) { cap.innerHTML = flickCaptionHtml(stop); }
+    function bigScreenHtml(list) {
+        var i = run.screenIdx, many = list.length > 1, name = SCREENS.nameOf(list[i], i);
+        var pic = screenPic(run.ctx.S, i, 'wz' + i + '-');
+        return '<div class="wiz-stage big"><div class="wiz-flick-watch" data-wiz-flick-watch' + (many ? ' data-wiz-flick' : '') + '>'
+            + '<div class="wiz-watch" data-wiz-screen role="img" aria-label="' + esc(name + ': ' + pic.label) + '">'
+            + pic.svg + '</div></div></div>'
+            + '<div class="wiz-flick-track"><span data-wiz-flick-dots>' + flickDotsHtml(list.length, i) + '</span>'
+            + '<span class="wiz-flick-label" data-wiz-flick-label aria-live="polite">' + esc(name) + '</span></div>'
+            + '<button type="button" class="wiz-try" data-wiz-flick' + (many ? '' : ' disabled') + '>' + CSS.ICON_FLICK
+            + 'Try a flick</button>';
     }
     /**
-     * Advance the demo one stop (wrapping to Default), replay the tilt on the watch and swap the
+     * Every screen small: each in full, a ✕ on each flick screen; then each screen setup offers
+     * that the watch can show and has not got, dimmed, with a + that adds it, while there is room.
+     * @param {Array<Array<Object>>} list The screens.
+     * @returns {string} HTML.
+     */
+    function smallScreensHtml(list) {
+        var h = '';
+        list.forEach(function (scr, i) {
+            var name = SCREENS.nameOf(scr, i), pic = screenPic(run.ctx.S, i, 'ws' + i + '-');
+            h += '<div class="wiz-scr-it"><div class="wiz-watch sm" role="img" aria-label="' + esc(name + ': ' + pic.label)
+                + '">' + pic.svg + '</div>'
+                + (i > 0 ? '<button type="button" class="wiz-scr-x" data-wiz-scr-rm="' + i + '" aria-label="Remove the '
+                    + esc(name) + ' screen">' + CSS.ICON_X + '</button>' : '')
+                + '<span class="wiz-scr-n">' + esc(name) + '</span></div>';
+        });
+        if (list.length >= SCREENS.MAX_SCREENS) { return h; }
+        SCREENS.offered(run.env).forEach(function (t) {
+            if (SCREENS.slotOf(list, t.id) >= 0) { return; }
+            var w = withTemplate(t.id), pic = screenPic(w.S, w.at, 'wt' + t.id + '-');
+            h += '<button type="button" class="wiz-scr-it off" data-wiz-scr-add="' + t.id + '" aria-label="Add the '
+                + esc(t.name) + ' screen"><span class="wiz-watch sm" aria-hidden="true">' + pic.svg + '</span>'
+                + '<span class="wiz-scr-plus" aria-hidden="true">+</span><span class="wiz-scr-n">' + esc(t.name) + '</span></button>';
+        });
+        return h;
+    }
+    /**
+     * Repaint the step after a screen went in or out, the one shown big kept where it can be, and
+     * put focus on the control a tap there would want next.
+     * @param {Array<string>} focus Selectors, the first one rendered wins.
+     * @returns {void}
+     */
+    function repaintScreens(focus) {
+        renderStep('stay');
+        for (var i = 0; i < focus.length; i += 1) {
+            var el = run.overlay.querySelector(focus[i]);
+            if (el && !el.disabled) { el.focus(); return; }
+        }
+    }
+    /**
+     * Add a screen setup offers, where it goes (screens-page.js insertScreen, as + Add screen
+     * writes one), and show it big. The Rain radar screen turns the rain radar on.
+     * @param {string} id A template.
+     * @returns {void}
+     */
+    function addTemplate(id) {
+        var S = run.ctx.S, at = SCREENS.insertAt(screens(), id);
+        if (id === 'radar' && S.radarEnabled === false) {
+            S.radarEnabled = true;
+            S.radarSource = S.radarProvider || 'rainbow';
+        }
+        if (SP.insertScreen(S, at, M.copy(SCREENS.byId(id).list), run.env)) { run.screenIdx = at; }
+        repaintScreens(['[data-wiz-scr-rm="' + at + '"]', '[data-wiz-flick]']);
+    }
+    /**
+     * Remove a flick screen (screens-page.js deleteScreen: the ones after it move up).
+     * @param {number} i Its slot.
+     * @returns {void}
+     */
+    function removeScreen(i) {
+        var t = SCREENS.templateOf(screens()[i]);
+        if (SP.deleteScreen(run.ctx.S, i, run.env)) {
+            if (run.screenIdx === i) { run.screenIdx = 0; } else if (run.screenIdx > i) { run.screenIdx -= 1; }
+        }
+        repaintScreens((t ? ['[data-wiz-scr-add="' + t.id + '"]'] : []).concat(['[data-wiz-flick]', '[data-wiz-title]']));
+    }
+    /**
+     * Show a screen big: its picture, its dots and its name. The step may have changed, or setup
+     * closed, by the snap.
+     * @param {number} idx Its slot.
+     * @returns {void}
+     */
+    function showScreen(idx) {
+        if (!run || !run.overlay || run.steps[run.idx] !== 'screens') { return; }
+        var list = screens();
+        if (idx >= list.length) { return; }
+        var pic = screenPic(run.ctx.S, idx, 'wz' + idx + '-'), name = SCREENS.nameOf(list[idx], idx);
+        var scr = run.overlay.querySelector('[data-wiz-screen]');
+        if (scr) {
+            scr.innerHTML = pic.svg;
+            scr.setAttribute('aria-label', name + ': ' + pic.label);
+        }
+        var dots = run.overlay.querySelector('[data-wiz-flick-dots]');
+        if (dots) { dots.innerHTML = flickDotsHtml(list.length, idx); }
+        var lbl = run.overlay.querySelector('[data-wiz-flick-label]');
+        if (lbl) { lbl.textContent = name; }
+    }
+    /**
+     * Flick to the next screen (wrapping to the Default): replay the tilt on the watch and swap the
      * picture on the snap (150 ms into the 450 ms tilt). Under reduced motion the CSS drops the tilt.
      * @returns {void}
      */
     function advanceFlick() {
-        var stops = flickStops();
-        run.flickIdx = (run.flickIdx + 1) % stops.length;
-        var stop = stops[run.flickIdx], idx = run.flickIdx;
+        var count = screens().length;
+        if (count < 2) { return; }
+        run.screenIdx = (run.screenIdx + 1) % count;
+        var idx = run.screenIdx;
         var watch = run.overlay.querySelector('[data-wiz-flick-watch]');
         if (watch) {
             watch.className = 'wiz-flick-watch';    // restart the animation:
             void watch.offsetWidth;                 // force a reflow between the class flips
             watch.className = 'wiz-flick-watch tilt';
         }
-        setTimeout(function () { showFlickStop(stop, idx, stops.length); }, 150);
+        setTimeout(function () { showScreen(idx); }, 150);
     }
 
     // --- step bodies ---
@@ -580,47 +694,37 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '<p><b>Forecast Status Bar</b>: your location, the temperature and air quality.</p>'
             + '<p><b>Forecast</b>: an hourly graph of the temperature, rain and more.</p></div>';
     }
-    function stepHealth() { return stepHead('health') + pickerHtml('healthMode'); }
-    function stepFlick() {
-        // The demo opens on its first stop (the default view) whenever the step renders.
-        run.flickIdx = 0;
-        var stops = flickStops(), stop = stops[0], src = stopShot(stop);
-        return stepHead('flick')
-            + '<p class="wiz-lead">Flick your wrist for the next view. It goes back to the default by itself.</p>'
-            + '<div class="wiz-flick">'
-            + '<div class="wiz-stage big"><div class="wiz-flick-watch" data-wiz-flick-watch data-wiz-flick>'
-            + watchHtml(shotImage(src, 'wiz-shot wiz-flick-shot on') + shotImage(src, 'wiz-shot wiz-flick-shot'),
-                stopGround(stop))
-            + '</div></div>'
-            + '<div class="wiz-flick-track">'
-            + '<span data-wiz-flick-dots>' + flickDotsHtml(stops.length, 0) + '</span>'
-            + '<span class="wiz-flick-label" data-wiz-flick-label>' + esc(stop.label) + '</span>'
-            + '</div>'
-            + '<button type="button" class="wiz-try" data-wiz-flick>' + CSS.ICON_FLICK + 'Try a flick</button>'
-            + '<p class="wiz-desc" data-wiz-flick-cap aria-live="polite">' + flickCaptionHtml(stop) + '</p>'
-            + '</div>';
+    /**
+     * The Screens step: the screen shown big, the flick, then every screen small and the ones setup
+     * offers. The rain alert keeps its place on the Watch bar whatever is added.
+     * @returns {string} HTML.
+     */
+    function stepScreens() {
+        var list = screens();
+        if (run.screenIdx >= list.length) { run.screenIdx = 0; }
+        return stepHead('screens')
+            + '<p class="wiz-lead">Add screens to flick to. The watch goes back to Default by itself.</p>'
+            + '<div class="wiz-flick">' + bigScreenHtml(list) + '</div>'
+            + '<div class="wiz-scrs" role="group" aria-label="Your screens">' + smallScreensHtml(list) + '</div>'
+            + '<p class="wiz-fine">Rain alerts show on the Watch bar either way. Change screens later on the Watchface tab.</p>';
     }
-    // Colours can be changed where they draw: a colour watch on a colour theme.
-    function colourTheme() { return Boolean(run.env.color) && ['bw', 'bw-light'].indexOf(run.ctx.S.theme) === -1; }
     function stepTheme() {
         return stepHead('theme') + pickerHtml('theme')
             + (run.env.color ? '<p class="wiz-fine">You can fine-tune any colour later in Settings.</p>' : '');
     }
     /**
-     * The forecast step: the graph, drawn live in the picked look (a swipe across it steps through the
-     * looks), the looks, and on emery the length.
+     * The forecast step: the screen with the forecast graph (the Default), drawn live in the picked
+     * look (a swipe across it steps through the looks), then the looks.
      * @returns {string} HTML.
      */
     function stepForecast() {
-        var h = stepHead('forecast')
-            + '<div class="wiz-stage" data-wiz-preview="forecastLook">'
-            + '<div class="wiz-graph" data-wiz-graph role="img" aria-label="' + esc(graphLabel()) + '">' + graphHtml() + '</div>'
-            + '</div>' + optsHtml('forecastLook', 'wiz-title');
-        if (run.env.forecastSpan) {
-            h += '<h3 class="wiz-sub" id="wiz-span">Forecast length</h3>' + optsHtml('forecastHours', 'wiz-span');
-        }
-        return h + '<p class="wiz-fine">Every line' + (colourTheme() ? ', its style and its colours' : ' and its style')
-            + ' can be changed later in Settings, on the Graphs tab.</p>';
+        var onScreen = forecastScreen() >= 0;
+        return stepHead('forecast')
+            + '<div class="wiz-stage' + (onScreen ? ' big' : '') + '" data-wiz-preview="forecastLook">'
+            + '<div class="' + (onScreen ? 'wiz-watch wiz-look' : 'wiz-graph') + '" data-wiz-graph role="img" aria-label="'
+            + esc(graphLabel()) + '">' + graphHtml() + '</div>'
+            + '</div>' + optsHtml('forecastLook', 'wiz-title')
+            + '<p class="wiz-fine">Every line can be changed later on the Graphs tab.</p>';
     }
     function welcomeRows() {
         var S = run.ctx.S, country = settingLabel('holidayCountry', S.holidayCountry);
@@ -639,6 +743,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return function () { return [{ k: k, v: pickedLabel(group), step: step }]; };
     }
     function forecastRow() { return [{ k: 'Forecast', v: forecastLabel(), step: 'forecast', attr: 'data-wiz-sum-forecast' }]; }
+    function screensRows() {
+        var list = screens();
+        return [{ k: 'Screens', v: list.map(function (scr, i) { return SCREENS.nameOf(scr, i); }).join(', '), step: 'screens' }];
+    }
     /**
      * The last step's summary: what setup chose, each with a way back to the step that set it. The
      * picks read as their pickers named them; country, region and weather as the settings tabs do.
@@ -708,6 +816,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function renderStep(dir) {
         var id = run.steps[run.idx], stay = dir === 'stay';
         if (id === 'done') { run.reachedDone = true; }
+        // The Screens step opens on the Default; a repaint in place keeps the screen shown.
+        if (id === 'screens' && !stay) { run.screenIdx = 0; }
         var top = run.overlay.querySelector('[data-wiz-top]');
         if (top) { top.innerHTML = topHtml(); }
         var body = run.overlay.querySelector('[data-wiz-body]');
@@ -762,12 +872,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function finishTweak() { run.ctx.set('onboardingDone', true); closeWizard(); run.ctx.render(); restoreFocus(); }
 
     function onNav(nav) {
-        // Closing reconciles the health pick with the status rows BEFORE the finishing defaults: the
-        // policy's health-slot swap reads the health row, which after an off -> on pick must already
-        // be back at its defaults. The defaults are applied BEFORE the exit, so they ride the save (or
-        // show on the settings page the user is dropped onto); applyWizardDefaults decides which navs
-        // finish setup.
-        if (FINISH.EXIT_NAVS[nav]) { FINISH.applyHealthModeChange(run.ctx, run.healthAtOpen); }
+        // The finishing defaults are applied BEFORE the exit, so they ride the save (or show on the
+        // settings page the user is dropped onto); applyWizardDefaults decides which navs finish
+        // setup. Their health rule reads the health mode the screens gave (a Health screen added
+        // turns it on, screens-page.js applyModes).
         FINISH.applyWizardDefaults(run.ctx, nav);
         if (nav === 'back') { run.idx = Math.max(0, run.idx - 1); renderStep('back'); }
         else if (nav === 'next') { run.idx = Math.min(run.steps.length - 1, run.idx + 1); renderStep('next'); }
@@ -834,6 +942,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if ((t = e.target.closest('[data-wiz-goto]'))) { goToStep(t.getAttribute('data-wiz-goto')); return; }
         if ((t = e.target.closest('[data-wiz-tio-open]'))) { openUpsell(t); return; }
+        if ((t = e.target.closest('[data-wiz-scr-add]'))) { addTemplate(t.getAttribute('data-wiz-scr-add')); return; }
+        if ((t = e.target.closest('[data-wiz-scr-rm]'))) { removeScreen(Number(t.getAttribute('data-wiz-scr-rm'))); return; }
         if ((t = e.target.closest('[data-wiz-flick]'))) { advanceFlick(); return; }
         // The settings row embedded in the Tomorrow.io card: its copy button and Test button live in
         // the overlay, outside #scroll, where the engine's own delegated handlers never see them.

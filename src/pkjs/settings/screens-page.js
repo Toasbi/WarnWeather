@@ -176,6 +176,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Put a new screen in at a slot: the screens from that slot on move down one, keys and
+     * all, and the new one starts at the default position (a list has none, compileKeys
+     * leaves viewAlign as stored, and a slot a deleted screen left can still hold its).
+     * Mutates S.
+     * @param {Object} S Settings.
+     * @param {number} at View slot (1 or 2).
+     * @param {Array<Object>} list The screen.
+     * @param {?Object} env Platform env.
+     * @returns {boolean} whether it went in (no fourth screen, never before the Default)
+     */
+    function insertScreen(S, at, list, env) {
+        ensureCustom(S, env);
+        var n = parseInt(S.viewCount, 10) || 1;
+        if (n >= M.MAX_SCREENS || at < 1 || at > n) { return false; }
+        for (var j = n; j > at; j--) {
+            for (var s = 0; s < VIEW_STEMS.length; s++) {
+                S['view' + VIEW_STEMS[s] + j] = S['view' + VIEW_STEMS[s] + (j - 1)];
+            }
+        }
+        S['viewAlign' + at] = 'clock';
+        S.viewCount = String(n + 1);
+        writeScreen(S, at, list, env);
+        return true;
+    }
+
+    /**
      * Add a screen (the Watch bar and the Clock) after the others. Mutates S.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
@@ -183,10 +209,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function addScreen(S, env) {
         var n = screensOf(S, env).length;
-        if (n >= M.MAX_SCREENS) { return -1; }
-        writeScreen(S, n, M.copy(NEW_SCREEN), env);
-        S.viewCount = String(n + 1);
-        return n;
+        return insertScreen(S, n, M.copy(NEW_SCREEN), env) ? n : -1;
     }
 
     /**
@@ -814,6 +837,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         snapshot: snapshot,
         restore: restore,
         deleteScreen: deleteScreen,
+        insertScreen: insertScreen,
         addScreen: addScreen,
         contents: contents,
         drawnView: drawnView,

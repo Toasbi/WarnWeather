@@ -55,8 +55,13 @@ var storageSection = {
         {type: 'hidden', messageKey: 'customLayoutSeeded', defaultValue: false},
         // The modes the screens need (screens.js deriveModes): written on every screen edit
         // and on Save (screens-page.js), read by the phone, the watch and the page's gates.
-        {type: 'hidden', messageKey: 'radarMode', defaultValue: 'graph'},
-        {type: 'hidden', messageKey: 'healthMode', defaultValue: 'all'}
+        // A new install starts on the Default screen alone with the rain alert on its Watch
+        // bar (2.6): the rain alert's radar, no health. An existing install that lacks
+        // either key keeps the three screens it had (clay-settings.js upgradeBackfill:
+        // 'graph' and 'all'); the readers' absent radarMode is that same 'graph', the radar
+        // as it was before the key existed.
+        {type: 'hidden', messageKey: 'radarMode', defaultValue: 'countdown'},
+        {type: 'hidden', messageKey: 'healthMode', defaultValue: 'off'}
     ].concat(customViewItems(0), customViewItems(1), customViewItems(2))
 };
 

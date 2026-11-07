@@ -28,10 +28,12 @@
 //
 //   wizard: true|false   the first-run wizard is finishing. `false` is a real
 //                        condition, not "don't care": omit the key for that.
-//   health: true|false   the watch HAS health (env.health) AND the user has not
-//                        switched it off (choices.healthMode !== 'off'). Both
-//                        halves matter — aplite cannot do health at all, and on a
-//                        watch that can, 'off' means the slots would be dead.
+//   health: true|false   the watch HAS health (env.health) AND health shows on it
+//                        (choices.healthMode !== 'off': since 2.6 worked out from
+//                        the screens and the slots, so a Health screen added in
+//                        setup turns it on). Both halves matter — aplite cannot do
+//                        health at all, and on a watch that can, 'off' means the
+//                        slots would be dead.
 //   hr / radar /         plain env capability flags, as computeEnv reports them
 //   thresholds /         (config-ui/lib/platform.js). Missing env reads as
 //   color / round /      "not capable", which is the safe direction: it can only
@@ -54,10 +56,11 @@
 // same rule's set, so a typo fails loudly instead of silently stranding a
 // dependent or protecting nothing.
 (function () {
-    // healthMode's schema default (schema.js). Repeated here because an unset
-    // healthMode means "the user never touched it", which is health ON, and a
-    // rule asking `health: true` must agree with the settings page about that.
-    var HEALTH_MODE_DEFAULT = 'all';
+    // healthMode's schema default (custom-layout-schema.js). Repeated here because an
+    // unset healthMode means "the user never touched it", which since 2.6 is health
+    // OFF (a new install starts on the Default screen alone; health follows the
+    // screens), and a rule asking `health: true` must agree with the page about that.
+    var HEALTH_MODE_DEFAULT = 'off';
 
     var RULES = [
         {
@@ -172,8 +175,8 @@
 
     /**
      * Whether health items may be placed at all: the watch can report health AND
-     * the user has not switched it off. An unset healthMode is health ON, matching
-     * the settings page's own default.
+     * health shows on it. An unset healthMode is health OFF, matching the settings
+     * page's own default.
      * @param {Object} ctx Resolver context.
      * @returns {boolean} True when a health slot would show a live reading.
      */

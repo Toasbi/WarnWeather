@@ -165,14 +165,26 @@ test('the move is idempotent: a second run changes nothing', () => {
 });
 
 test('the ledger runs the move at boot with the watch\'s own platform', () => {
+  // A new install: the Default screen alone, the rain alert's radar, no health.
   Object.keys(STORE).forEach((k) => delete STORE[k]);
   claySettings.seedDefaults(COLORS);
   clayMigrations.runMigrations({ platform: 'basalt', knownPlatform: 'basalt', colors: COLORS,
     defaultRadarProvider: 'rainbow', hadExistingInstall: false }, { only: KEYS.SCREENS_MIGRATION_KEY });
-  const S = claySettings.read();
+  let S = claySettings.read();
   assert.equal(S.layoutPreset, 'custom');
-  assert.equal(S.viewCount, '3', 'today\'s defaults: the Default and two flick screens');
+  assert.equal(S.viewCount, '1', 'a new install: the Default screen alone');
+  assert.deepEqual([S.radarMode, S.healthMode], ['countdown', 'off']);
   assert.equal(STORE[KEYS.SCREENS_MIGRATION_KEY], '1');
+  // An existing install whose blob lacks the modes keeps today's three screens.
+  Object.keys(STORE).forEach((k) => delete STORE[k]);
+  STORE['clay-settings'] = JSON.stringify({ provider: 'dwd' });
+  claySettings.seedDefaults(COLORS);
+  clayMigrations.runMigrations({ platform: 'basalt', knownPlatform: 'basalt', colors: COLORS,
+    defaultRadarProvider: 'rainbow', hadExistingInstall: true }, { only: KEYS.SCREENS_MIGRATION_KEY });
+  S = claySettings.read();
+  assert.equal(S.layoutPreset, 'custom');
+  assert.equal(S.viewCount, '3', 'the Default and two flick screens');
+  assert.deepEqual([S.radarMode, S.healthMode], ['graph', 'all']);
   // A watch that did not say keeps the preset (it might be an aplite).
   Object.keys(STORE).forEach((k) => delete STORE[k]);
   claySettings.seedDefaults(COLORS);

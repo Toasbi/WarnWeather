@@ -726,16 +726,19 @@ test('the weather bake follows forecastHours on emery only', () => {
     };
     assert.notEqual(bake('emery', '48'), bake('emery', '24'), 'emery: the long span bakes the feed\'s 48 hours');
     assert.notEqual(bake('emery', '12'), bake('emery', '24'), 'emery: 12 h bakes 14 hours');
-    // 24 h with no left axis bakes 26 hours (the numbers' place, the signature's '26').
+    // 24 h with no left axis bakes 26 hours (the numbers' place, the signature's '26'); a new
+    // install's Clean graph (On graph) is one of those.
     const off = { forecastAxisNumbers: 'off' };
-    assert.notEqual(bake('emery', '24', off), bake('emery', '24'), 'emery: 24 h with no axis bakes 26 hours');
+    const axis = { forecastAxisNumbers: 'axis' };
+    assert.notEqual(bake('emery', '24', off), bake('emery', '24', axis), 'emery: 24 h with no axis bakes 26 hours');
     assert.equal(JSON.parse(bake('emery', '24', off)).NUM_ENTRIES, 26);
+    assert.equal(JSON.parse(bake('emery', '24', axis)).NUM_ENTRIES, 24);
     assert.equal(bake('emery', '24', off), bake('emery', '24', { forecastAxisNumbers: 'graph' }));
-    assert.equal(bake('emery', '48', off), bake('emery', '48'), 'the long span: the place bakes nothing');
+    assert.equal(bake('emery', '48', off), bake('emery', '48', axis), 'the long span: the place bakes nothing');
     ['basalt', 'diorite', 'aplite'].forEach((platform) => {
       assert.equal(bake(platform, '48'), bake(platform, '24'), platform + ': always 24');
       assert.equal(bake(platform, '12'), bake(platform, '24'), platform + ': always 24');
-      assert.equal(bake(platform, '24', off), bake(platform, '24'), platform + ': always 24');
+      assert.equal(bake(platform, '24', off), bake(platform, '24', axis), platform + ': always 24');
     });
   } finally {
     console.log = origLog;

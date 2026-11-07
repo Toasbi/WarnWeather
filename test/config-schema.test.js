@@ -420,6 +420,7 @@ test('radarNoRainText: visible default, 24-char UI cap, graph-only', () => {
   // visible default both land on the <input>.
   const eng = require('../src/pkjs/config-ui/lib/engine.js');
   const S = eng.hydrate(schema, {});
+  S.radarMode = 'graph';   // a screen shows the radar graph (a new install has none)
   const ENV = platform.computeEnv({ platform: 'basalt' });
   const body = eng.renderBody(schema, 'graphs', {
     S: S, ENV: ENV, USERDATA: {}, openColor: null, openSelect: null,
@@ -455,10 +456,12 @@ test('secondaryLine is a 8-metric dropdown with no Off (resolver-derived)', () =
   assert.equal(sec.defaultValue, 'precip_prob');
 });
 
-test('thirdLine derives options from secondaryLine, excluding it, with Off + default UV', () => {
+test('thirdLine derives options from secondaryLine, excluding it, with Off the default', () => {
   const third = byKey('thirdLine');
   assert.equal(third.type, 'select');
-  assert.equal(third.defaultValue, 'uv');
+  // Off since 2.6, the Clean graph; an existing install without the key keeps its UV dots.
+  assert.equal(third.defaultValue, 'off');
+  assert.equal(require('../src/pkjs/clay-settings.js').upgradeBackfill().thirdLine, 'uv');
   assert.equal(third.optionsFrom.resolver, 'forecastMetric');
   assert.deepEqual(third.optionsFrom.args, { off: true, exclude: ['secondaryLine'] });
   // Every secondary metric yields Off + the OTHER seven (never itself).
@@ -1452,17 +1455,21 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
   assert.deepEqual(labels({}).map((o) => o[1]), forecastSpan.CHOICES, 'the stored values are CHOICES');
   assert.deepEqual(labels({}), [['12 h', '12'], ['24 h', '24'], ['48 h', '48']],
     'a fresh install: Weather Underground\'s 48 hours');
-  assert.deepEqual(labels({ provider: 'openmeteo' }).map((o) => o[0]), ['12 h', '24 h', '58 h']);
-  assert.deepEqual(labels({ provider: 'openweathermap' }).map((o) => o[0]), ['12 h', '24 h', '47 h']);
+  // A new install's Clean graph draws the high and low on the graph: no left axis.
+  assert.deepEqual(labels({ provider: 'openmeteo' }).map((o) => o[0]), ['12 h', '24 h', '66 h']);
   assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'off' }).map((o) => o[0]),
     ['12 h', '24 h', '66 h']);
-  // The default Health (Status + Graph) puts the health graph in the cycle: its "0.5" step
-  // mark widens the shared strip past GOTHIC_18's two-digit hi/lo label (59, not 60); without
-  // the graph the label goes back to 60.
-  assert.deepEqual(labels({ provider: 'openmeteo', largeGraphFont: false }).map((o) => o[0]),
-    ['12 h', '24 h', '59 h']);
-  assert.deepEqual(labels({ provider: 'openmeteo', largeGraphFont: false, healthMode: 'status' })
-    .map((o) => o[0]), ['12 h', '24 h', '60 h']);
+  assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'axis' }).map((o) => o[0]),
+    ['12 h', '24 h', '58 h']);
+  assert.deepEqual(labels({ provider: 'openweathermap', forecastAxisNumbers: 'axis' }).map((o) => o[0]),
+    ['12 h', '24 h', '47 h']);
+  // A Health screen (Status + Graph) puts the health graph in the cycle: its "0.5" step mark
+  // widens the shared strip past GOTHIC_18's two-digit hi/lo label (59, not 60); with the
+  // Health bar alone the label goes back to 60.
+  assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'axis', largeGraphFont: false,
+    healthMode: 'all' }).map((o) => o[0]), ['12 h', '24 h', '59 h']);
+  assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'axis', largeGraphFont: false,
+    healthMode: 'status' }).map((o) => o[0]), ['12 h', '24 h', '60 h']);
   assert.equal(it.hintByValue['48'], 'As far ahead as your weather provider\'s hourly forecast '
     + 'reaches and the graph fits, in narrow columns. How many hours depends on the provider and '
     + 'the graph\'s layout.');
@@ -1506,18 +1513,21 @@ test('Left axis: Left axis values in the card, the scale and the font size under
   assert.equal(nums.label, 'Left axis values');
   assert.equal(scale.label, 'High/low includes feels-like & dew point');
   assert.equal(nums.type, 'segmented');
-  assert.equal(nums.defaultValue, 'axis');
+  // On graph since 2.6, the Clean graph a new install starts on.
+  assert.equal(nums.defaultValue, 'graph');
   assert.deepEqual(nums.options.map((o) => o[1]), forecastAxis.NUMBERS, 'the stored values are NUMBERS');
   assert.deepEqual(nums.options.map((o) => o[0]), ['On axis', 'On graph', 'Off']);
-  assert.deepEqual(Object.keys(nums.hintByValue).sort(), ['graph', 'off'], 'the default option has no hint');
+  assert.deepEqual(Object.keys(nums.hintByValue).sort(), ['graph', 'off'], 'On axis needs no hint');
   assert.match(nums.hintByValue.graph, /Disables the left axis/);
   assert.match(nums.hintByValue.off, /Disables the left axis/);
   assert.equal(scale.type, 'toggle');
   assert.equal(scale.defaultValue, false);
-  // Each key's default is the reader's default: an absent key draws today's graph; a beta's
-  // stored 'beside' reads the default.
-  assert.equal(forecastAxis.numbers({}), nums.defaultValue);
-  assert.equal(forecastAxis.numbers({ forecastAxisNumbers: 'beside' }), nums.defaultValue);
+  // An absent key reads as the graph from before the key existed, On axis, which is what an
+  // existing install without it is backfilled (a new install stores On graph); a beta's
+  // stored 'beside' reads the same.
+  assert.equal(forecastAxis.numbers({}), 'axis');
+  assert.equal(require('../src/pkjs/clay-settings.js').upgradeBackfill().forecastAxisNumbers, 'axis');
+  assert.equal(forecastAxis.numbers({ forecastAxisNumbers: 'beside' }), 'axis');
   assert.equal(forecastAxis.scale({}), scale.defaultValue);
 
   const vis = (it, p, S) => showWhen.isVisible(section, Object.assign({}, S || {}, {

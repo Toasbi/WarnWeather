@@ -24,15 +24,19 @@ const ICONS = require('../src/pkjs/settings/status-slot-icons.js');
 const onbuild = require('../src/pkjs/settings/onbuild.js');
 const PC = global.PConf;
 
+// An upgraded install's screens, the state these tests were written for: the Default, Health
+// and Rain radar screens, so every bar shows (a new install starts on the Default alone).
+const THREE_SCREENS = { radarMode: 'graph', healthMode: 'all' };
+
 /**
  * Boot the page on one tab.
  * @param {string} tab the tab's id
- * @param {Object} [cfg] stored settings (provider dwd unless given)
+ * @param {Object} [cfg] stored settings (provider dwd and three screens unless given)
  * @param {string} [platformName] Pebble platform (default basalt)
  * @returns {Object} the page-harness handle
  */
 function onTab(tab, cfg, platformName) {
-  const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, cfg || {}), platformName);
+  const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, THREE_SCREENS, cfg || {}), platformName);
   page.clickTab(tab);
   return page;
 }

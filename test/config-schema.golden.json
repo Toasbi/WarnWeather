@@ -222,12 +222,12 @@
               {
                 "type": "hidden",
                 "messageKey": "radarMode",
-                "defaultValue": "graph"
+                "defaultValue": "countdown"
               },
               {
                 "type": "hidden",
                 "messageKey": "healthMode",
-                "defaultValue": "all"
+                "defaultValue": "off"
               },
               {
                 "type": "hidden",
@@ -9687,7 +9687,7 @@
                 "type": "segmented",
                 "messageKey": "forecastAxisNumbers",
                 "label": "Left axis values",
-                "defaultValue": "axis",
+                "defaultValue": "graph",
                 "options": [
                   [
                     "On axis",
@@ -11603,7 +11603,7 @@
                 "type": "select",
                 "messageKey": "thirdLine",
                 "label": "Metric",
-                "defaultValue": "uv",
+                "defaultValue": "off",
                 "hintFrom": {
                   "resolver": "forecastMetricHint"
                 },

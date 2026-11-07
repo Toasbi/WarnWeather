@@ -22,7 +22,10 @@ const PC = global.PConf;
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 const APLITE = platform.computeEnv({ platform: 'aplite' });
 const b = (k, o) => Object.assign({ k }, o || {});
-// Today's default cycle (compactCal, health all, radar graph, swap on) as screens.
+// An upgraded install's three screens (compactCal, health all, radar graph, swap on): a new
+// install starts on the Default screen alone.
+const THREE = { provider: 'dwd', radarMode: 'graph', healthMode: 'all' };
+// The three screens as lists.
 const DEFAULT_SCREENS = [
   [b('strip'), b('cal', { rows: '2' }), b('clock'), b('fcbar'), b('fc', { size: 'fill' })],
   [b('strip'), b('clock'), b('healthbar'), b('health', { size: 'fill' })],
@@ -176,7 +179,7 @@ test('the Update interval says when the Battery saver pauses the updates', () =>
 // --- the page --------------------------------------------------------------------------
 
 test('the Watchface tab: the screens pinned on top, the Screens card, then Screen switching', () => {
-  const page = bootGeneratedPage({ provider: 'dwd' });
+  const page = bootGeneratedPage(THREE);
   const html = page.scroll.innerHTML;
   assert.deepEqual(cardRows(html), [
     ['Default', 'Calendar · Clock · Forecast bar · Forecast graph', false],
@@ -197,7 +200,7 @@ test('the Watchface tab: the screens pinned on top, the Screens card, then Scree
 
 test('a ✕ deletes a flick screen at once, and Undo puts it back', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const page = bootGeneratedPage({ provider: 'dwd' });
+  const page = bootGeneratedPage(THREE);
   page.tapAction('deleteScreen', 1);
   assert.deepEqual(cardRows(page.scroll.innerHTML).map((r) => r.slice(0, 2)), [
     ['Default', 'Calendar · Clock · Forecast bar · Forecast graph'],
@@ -215,8 +218,8 @@ test('a ✕ deletes a flick screen at once, and Undo puts it back', (t) => {
   assert.equal(page.scroll.innerHTML.indexOf('scr-toast'), -1, 'gone after five seconds');
 });
 
-test('+ Add screen opens the editor on the new screen: the Watch bar and the Clock', () => {
-  const page = bootGeneratedPage({ provider: 'dwd', radarMode: 'off', healthMode: 'off' });
+test('a new install: the Default screen alone; + Add screen opens the editor on the Watch bar and the Clock', () => {
+  const page = bootGeneratedPage({ provider: 'dwd' });   // the shipped defaults
   assert.deepEqual(cardRows(page.scroll.innerHTML).map((r) => r[0]), ['Default']);
   assert.equal(page.scroll.innerHTML.indexOf('Screen switching'), -1, 'one screen: nothing to switch');
   page.tapAction('addScreen');
@@ -235,7 +238,7 @@ test('+ Add screen opens the editor on the new screen: the Watch bar and the Clo
 });
 
 test('the editor: a row\'s option, its moves, a ✕ and + Add, each stored at once', () => {
-  const page = bootGeneratedPage({ provider: 'dwd' });
+  const page = bootGeneratedPage(THREE);
   page.tapAction('openScreen', 0);
   let ed = editorOf(page);
   assert.equal(ed.title, 'Default');
@@ -270,7 +273,7 @@ test('the editor: a row\'s option, its moves, a ✕ and + Add, each stored at on
 
 test('a drag by the handle moves a row; one that breaks a rule snaps back and says which', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const page = bootGeneratedPage({ provider: 'dwd' });
+  const page = bootGeneratedPage(THREE);
   page.tapAction('openScreen', 0);
   const ed = page.editor();
   // The list's rows as the browser lays them out: 40 px each, from the top.
@@ -302,7 +305,7 @@ test('a drag by the handle moves a row; one that breaks a rule snaps back and sa
 
 test('Delete screen at the foot of a flick screen\'s editor', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const page = bootGeneratedPage({ provider: 'dwd' });
+  const page = bootGeneratedPage(THREE);
   page.tapAction('openScreen', 2);
   page.tapEditor({ se: 'delscreen' });
   assert.equal(page.editor(), null, 'the editor closes');
@@ -311,7 +314,7 @@ test('Delete screen at the foot of a flick screen\'s editor', (t) => {
 });
 
 test('the radar off: the Rain radar row says so with a way back on, and the picture draws without it', () => {
-  const page = bootGeneratedPage({ provider: 'dwd' });
+  const page = bootGeneratedPage(THREE);
   page.clickTab('setup');
   page.openSelect('radarSource');
   page.pickOption('radarSource', 'off');
@@ -333,7 +336,7 @@ test('the radar off: the Rain radar row says so with a way back on, and the pict
 });
 
 test('Save writes the modes the screens work out, and the Rain radar picker\'s two keys', async () => {
-  const page = bootGeneratedPage({ provider: 'dwd' });
+  const page = bootGeneratedPage(THREE);
   page.tapAction('deleteScreen', 2);   // the Rain radar screen
   page.tapAction('deleteScreen', 1);   // the Health screen
   let blob = await page.save();
@@ -342,7 +345,7 @@ test('Save writes the modes the screens work out, and the Rain radar picker\'s t
     ['custom', '1', 'countdown', 'off']);
   assert.equal(blob.radarSource, undefined, 'the picker itself is page-only');
   // The radar off: no fetch, the source kept.
-  const off = bootGeneratedPage({ provider: 'dwd', radarProvider: 'dwd' });
+  const off = bootGeneratedPage(Object.assign({ radarProvider: 'dwd' }, THREE));
   off.clickTab('setup');
   off.openSelect('radarSource');
   off.pickOption('radarSource', 'off');
@@ -351,7 +354,7 @@ test('Save writes the modes the screens work out, and the Rain radar picker\'s t
 });
 
 test('aplite: the Layout card, no Screens card, no Rain radar row', () => {
-  const page = bootGeneratedPage({ provider: 'dwd' }, 'aplite');
+  const page = bootGeneratedPage(THREE, 'aplite');
   const html = page.scroll.innerHTML;
   assert.deepEqual((html.match(/data-k="layoutPreset" data-v="[^"]*"/g) || []).map((x) => /data-v="([^"]*)"/.exec(x)[1]),
     ['fullCal', 'compactCal', 'noCal']);

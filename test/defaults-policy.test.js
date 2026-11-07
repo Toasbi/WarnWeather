@@ -79,8 +79,8 @@ test("healthMode 'status', 'all' and 'slot' all count as health-enabled", () => 
   ['status', 'all', 'slot'].forEach((mode) => {
     assert.equal(policy.ruleApplies(rule, ctx({ choices: { healthMode: mode } })), true, mode);
   });
-  assert.equal(policy.ruleApplies(rule, ctx({ choices: {} })), true,
-    "an unset healthMode falls back to the schema default ('all'), which is on");
+  assert.equal(policy.ruleApplies(rule, ctx({ choices: {} })), false,
+    "an unset healthMode falls back to the schema default ('off' since 2.6: health follows the screens)");
 });
 
 test('health rules also need the platform capability (aplite has no health)', () => {

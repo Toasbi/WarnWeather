@@ -14,6 +14,8 @@
     var ICON_FLICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" '
         + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>';
+    var ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" '
+        + 'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
     // Overlay styles.
     var ACCENT_FILL = 'linear-gradient(135deg,#FA4A35,#D93A24)';
@@ -79,7 +81,7 @@
         + '#wizard .wiz-graph{width:100%;max-width:380px;border-radius:18px;overflow:hidden;'
         + 'box-shadow:0 14px 34px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.08)}'
         + 'body.light #wizard .wiz-graph{box-shadow:0 12px 28px rgba(0,0,0,.24),0 0 0 1px rgba(0,0,0,.08)}'
-        + '#wizard .wiz-graph svg{animation:wiz-fade .22s ease both}'
+        + '#wizard .wiz-graph svg,#wizard .wiz-look svg{animation:wiz-fade .22s ease both}'
         + '#wizard .wiz-sub{margin:26px 0 0;text-align:center;font:800 11.5px ' + FONT + ';letter-spacing:.1em;'
         + 'text-transform:uppercase;color:var(--ttl)}'
         + '#wizard .wiz-sub+.wiz-opts{margin-top:10px}'
@@ -93,13 +95,11 @@
         + '#wizard .wiz-legend{padding:2px 16px}'
         + '#wizard .wiz-legend p{margin:12px 0;font-size:13.5px;color:var(--muted)}'
         + '#wizard .wiz-legend b{color:var(--fg)}'
-        // the flick demo
+        // the Screens step: the screen shown, big, its dots and name, Try a flick
         + '#wizard .wiz-flick{text-align:center}'
-        + '#wizard .wiz-flick-watch{display:inline-block;cursor:pointer;transform-origin:50% 100%}'
+        + '#wizard .wiz-flick-watch{display:inline-block;transform-origin:50% 100%}'
+        + '#wizard .wiz-flick-watch[data-wiz-flick]{cursor:pointer}'
         + '#wizard .wiz-flick-watch.tilt{animation:wiz-tilt .45s ease-in-out}'
-        // the two screenshots lie on one another in the frame; the one shown is .on
-        + '#wizard .wiz-flick-shot{opacity:0;transition:opacity .18s}'
-        + '#wizard .wiz-flick-shot.on{opacity:1}'
         + '#wizard .wiz-flick-track{display:flex;align-items:center;justify-content:center;margin:12px 0 0}'
         + '#wizard .wiz-dot{display:inline-block;width:7px;height:7px;margin:0 3px;border-radius:50%;'
         + 'background:var(--muted);opacity:.35;vertical-align:middle;transition:opacity .2s,background .2s}'
@@ -109,6 +109,26 @@
         + 'border:1px solid var(--ctl-line);border-radius:999px;background:var(--ctl);color:var(--fg);'
         + 'font:700 14px ' + FONT + ';cursor:pointer}'
         + '#wizard .wiz-try svg{width:18px;height:18px;margin-right:8px}'
+        + '#wizard .wiz-try:disabled{opacity:.45;cursor:default}'
+        // ...then every screen small: each added one in full with a ✕, each one setup offers
+        // and the watch has not got dimmed, with a + that adds it
+        + '#wizard .wiz-scrs{display:flex;justify-content:center;align-items:flex-start;gap:14px;margin:22px 0 6px}'
+        + '#wizard .wiz-scr-it{position:relative;display:flex;flex-direction:column;align-items:center;'
+        + 'flex:0 1 96px;min-width:0;margin:0;padding:0;border:none;background:none;color:inherit;font:inherit}'
+        + '#wizard button.wiz-scr-it{cursor:pointer}'
+        + '#wizard .wiz-watch.sm{display:block;border-radius:11px;'
+        + 'box-shadow:0 6px 16px rgba(0,0,0,.35),0 0 0 1px var(--card-line)}'
+        + 'body.light #wizard .wiz-watch.sm{box-shadow:0 4px 12px rgba(0,0,0,.16),0 0 0 1px var(--card-line)}'
+        + '#wizard .wiz-watch.sm .wiz-scr{width:100%}'
+        + '#wizard .wiz-scr-it.off .wiz-watch{opacity:.38}'
+        + '#wizard .wiz-scr-plus{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);display:flex;'
+        + 'align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:'
+        + ACCENT_FILL + ';color:#FFFFFF;font:800 24px/1 ' + FONT + ';box-shadow:0 4px 12px rgba(250,74,53,.45)}'
+        + '#wizard .wiz-scr-x{position:absolute;top:-10px;right:-10px;display:flex;align-items:center;'
+        + 'justify-content:center;width:34px;height:34px;padding:0;border:1px solid var(--ctl-line);border-radius:50%;'
+        + 'background:var(--ctl);color:var(--fg);cursor:pointer}'
+        + '#wizard .wiz-scr-x svg{width:14px;height:14px}'
+        + '#wizard .wiz-scr-n{margin-top:8px;font:700 12px ' + FONT + ';color:var(--muted);text-align:center}'
         // the last step
         + '#wizard .wiz-step.last .wiz-title,#wizard .wiz-step.last .wiz-lead{text-align:center}'
         + '#wizard .wiz-badge{display:flex;align-items:center;justify-content:center;width:68px;height:68px;'
@@ -151,15 +171,14 @@
         + '@keyframes wiz-tilt{0%{transform:rotate(0)}30%{transform:rotate(14deg)}55%{transform:rotate(-5deg)}'
         + '75%{transform:rotate(2deg)}100%{transform:rotate(0)}}'
         // short screens (small phones, a keyboard up): a smaller watch keeps the options in view
-        // (the screen at 180 px; at its own size on emery and in the flick demo, emery last: same specificity)
+        // (the screen at 180 px; at its own size on emery and on the Screens step, emery last: same specificity)
         + '@media (max-height:700px){#wizard .wiz-stage.big .wiz-scr{width:202.5px}'
         + '#wizard .wiz-flick .wiz-stage.big .wiz-scr{width:162px}#wizard.w200 .wiz-stage.big .wiz-scr{width:224px}'
         + '#wizard .wiz-graph{max-width:290px}#wizard .wiz-title{font-size:22px}}'
         + '@media (prefers-reduced-motion:reduce){#wizard .wiz-step,#wizard .wiz-badge,#wizard .wiz-flick-watch.tilt,'
-        + '#wizard .wiz-graph svg{animation:none}#wizard .wiz-shot,#wizard .wiz-seg,#wizard .wiz-flick-shot'
-        + '{transition:none}}';
+        + '#wizard .wiz-graph svg,#wizard .wiz-look svg{animation:none}#wizard .wiz-shot,#wizard .wiz-seg{transition:none}}';
 
-    var api = { CSS: WIZ_CSS, ICON_BACK: ICON_BACK, ICON_DONE: ICON_DONE, ICON_FLICK: ICON_FLICK };
+    var api = { CSS: WIZ_CSS, ICON_BACK: ICON_BACK, ICON_DONE: ICON_DONE, ICON_FLICK: ICON_FLICK, ICON_X: ICON_X };
 
     // Dual-context export — mirrors the tail of src/pkjs/forecast-axis.js.
     if (typeof module !== 'undefined' && module.exports) {
