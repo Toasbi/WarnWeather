@@ -4,7 +4,7 @@ Quick-reference for commands, scripts, and config. See [CONTRIBUTING.md](CONTRIB
 
 ## Prerequisites
 
-Install all toolchain (Python, pebble-tool, Deno, Supabase CLI, resvg):
+Install all toolchain (Python, pebble-tool and the uv it builds the SDK with, Deno, Supabase CLI, resvg):
 ```bash
 mise install
 ```

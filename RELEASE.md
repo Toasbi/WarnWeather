@@ -9,6 +9,12 @@ Flow:
 3. Merge the release PR.
 4. The workflow creates a GitHub release and uploads `build/warnweather.pbw`.
 
+**If the `.pbw` build fails after the tag is cut,** the release is published without its `.pbw`,
+and running the failed job again builds nothing (release-please has already tagged it). Merge the
+fix to `main`, then run *Release Please* by hand on `main` (Actions → Release Please → Run
+workflow) with the release's tag, e.g. `v2.6.0`. That run builds `main` and uploads its `.pbw` to
+that release, and stops if `main` is at another version.
+
 **Supabase goes out before the app.** Any `supabase/` change a release depends on must be merged
 and deployed (the *Deploy Supabase* run on `main` green) before the `.pbw` is uploaded — by
 merging the release PR or to the appstore — since the app POSTs to the rainbow-nowcast proxy.
