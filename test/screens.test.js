@@ -38,12 +38,24 @@ function picture(spec, i, env) {
 }
 
 /**
+ * Every screen's keys, as the settings store them: the custom layout, the screen count,
+ * each screen's view keys (compileKeys).
+ * @param {Array<Array<Object>>} screens The screens, the Default first.
+ * @returns {Object} key -> value
+ */
+function compileAll(screens) {
+  const keys = { layoutPreset: 'custom', viewCount: String(screens.length) };
+  screens.forEach((list, i) => Object.assign(keys, M.compileKeys(list, i)));
+  return keys;
+}
+
+/**
  * The screens' views, compiled with every seat kind on (the modes follow the screens).
  * @param {Array<Array<Object>>} screens The screens.
  * @returns {Array<?Object>}
  */
 function compiled(screens) {
-  return vc.buildCustomCycle(Object.assign(M.compileAll(screens), { radarMode: 'graph', healthMode: 'all' }));
+  return vc.screensCycle(compileAll(screens));
 }
 
 test('the default screens compile to exactly today\'s default cycle, picture for picture', () => {
@@ -202,20 +214,16 @@ test('compileKeys: the per-view keys, the bars in list order, the first order th
   assert.equal(flick.viewOrder2, 'CATB', 'A T B (no clock): CATB is the first code reading so');
   assert.equal(M.orderFor('CT'), 'CTAB');
   assert.equal(M.orderFor(''), 'TCAB');
-  const all = M.compileAll([DEFAULT, HEALTH]);
-  assert.equal(all.layoutPreset, 'custom');
-  assert.equal(all.viewCount, '2');
-  assert.equal(all.customLayoutSeeded, true);
 });
 
 test('screensOf: a custom layout as its stored lists, a preset as its cycle', () => {
-  const S = Object.assign(M.compileAll([DEFAULT, HEALTH, RADAR]), { radarMode: 'off', healthMode: 'off' });
+  const S = Object.assign(compileAll([DEFAULT, HEALTH, RADAR]), { radarMode: 'off', healthMode: 'off' });
   // The modes do not fold the lists: they follow the screens.
   assert.deepEqual(M.screensOf(S, BASALT), [DEFAULT, HEALTH, RADAR]);
   assert.deepEqual(M.screensOf({ layoutPreset: 'fullCal', healthMode: 'all', radarMode: 'off' }, BASALT).map(kinds),
     [['strip', 'cal', 'clock', 'fcbar', 'fc'], ['strip', 'clock', 'healthbar', 'health']]);
   // A flick screen with nothing on it keeps its Watch bar as stored.
-  const empty = Object.assign(M.compileAll([DEFAULT, [b('strip')]]), {});
+  const empty = Object.assign(compileAll([DEFAULT, [b('strip')]]), {});
   assert.deepEqual(M.screensOf(empty, BASALT)[1], [b('strip')]);
   // aplite runs a custom layout as Compact calendar.
   assert.deepEqual(M.screensOf(S, APLITE).map(kinds), [['strip', 'cal', 'fcbar', 'clock', 'fc']]);
@@ -232,7 +240,7 @@ test('fits: a screen too tall for the watch in some data state is refused', () =
 });
 
 test('deriveModes: the radar and health modes the screens need', () => {
-  const S = (screens, over) => Object.assign({}, M.compileAll(screens), over || {});
+  const S = (screens, over) => Object.assign({}, compileAll(screens), over || {});
   const modes = (s, env) => M.deriveModes(s, env || BASALT);
   assert.deepEqual(modes(S([DEFAULT, HEALTH, RADAR])), { radarMode: 'graph', healthMode: 'all' });
   // The Radar bar alone; the Health bar alone.

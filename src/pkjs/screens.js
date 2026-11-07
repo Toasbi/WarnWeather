@@ -68,10 +68,6 @@
   BODY_KIND[VC.BODY_FC] = 'fc';
   BODY_KIND[VC.BODY_GRAPH] = 'health';
   BODY_KIND[VC.BODY_RADAR] = 'radar';
-  // Size codes (the ext word's, view-cycle.js SIZE_*) as a block's size: code 0 is the seat's
-  // default, 3 rows for a top and Fill for the body.
-  var TOP_SIZE = ['3', '2', '3', '4', 'fill'];
-  var BODY_SIZE = ['fill', '2', '3', '4', 'fill'];
 
   /**
    * @param {?Object} b A block.
@@ -345,26 +341,10 @@
   }
 
   /**
-   * Every screen's keys, as the settings store them: the custom layout, the screen count,
-   * each screen's view keys. The caller merges them into the settings.
-   * @param {Array<Array<Object>>} screens The screens, the Default first.
-   * @returns {Object} key -> value
-   */
-  function compileAll(screens) {
-    var keys = { layoutPreset: 'custom', customLayoutSeeded: true, viewCount: String(screens.length) };
-    screens.forEach(function (list, i) {
-      var k = compileKeys(list, i);
-      for (var n in k) {
-        if (Object.prototype.hasOwnProperty.call(k, n)) { keys[n] = k[n]; }
-      }
-    });
-    return keys;
-  }
-
-  /**
    * A compiled view read back as a screen: its bands in the order the watch draws them
    * (STACK_ORDERS[order] when it is stacked, else its tier's legacy order: a compact
-   * calendar's T A C B, every other T C A B), the Watch bar first and the body last.
+   * calendar's T A C B, every other T C A B), the Watch bar first and the body last. A size
+   * code reads as its seat's size name (view-cycle.js TOP_SIZE_NAME / BODY_SIZE_NAME).
    * @param {?Object} s A compiled view (null: a screen with nothing on it).
    * @param {boolean} stripOn Whether a null view's screen keeps its Watch bar.
    * @returns {Array<Object>} the screen
@@ -375,9 +355,9 @@
     if (s.top === VC.TOP_CAL) {
       bands.T = { k: 'cal', rows: s.tier === VC.TIER_FULL ? '3' : '2' };
     } else if (s.top === VC.TOP_RADAR) {
-      bands.T = { k: 'radar', size: TOP_SIZE[s.topSize || 0] };
+      bands.T = { k: 'radar', size: VC.TOP_SIZE_NAME[s.topSize || 0] };
     } else if (s.top === VC.TOP_GRAPH) {
-      bands.T = { k: s.topKind === VC.TOP_KIND_HEALTH ? 'health' : 'fc', size: TOP_SIZE[s.topSize || 0] };
+      bands.T = { k: s.topKind === VC.TOP_KIND_HEALTH ? 'health' : 'fc', size: VC.TOP_SIZE_NAME[s.topSize || 0] };
     }
     if (!s.clockOff) { bands.C = { k: 'clock' }; }
     if (ROW_KIND[s.statusUpper]) { bands.A = { k: ROW_KIND[s.statusUpper] }; }
@@ -388,33 +368,23 @@
     order.split('').forEach(function (ch) {
       if (bands[ch]) { out.push(bands[ch]); }
     });
-    if (BODY_KIND[s.body]) { out.push({ k: BODY_KIND[s.body], size: BODY_SIZE[s.bodySize || 0] }); }
+    if (BODY_KIND[s.body]) { out.push({ k: BODY_KIND[s.body], size: VC.BODY_SIZE_NAME[s.bodySize || 0] }); }
     return out;
   }
 
   /**
-   * The views the screens show, before the watch's data folds: a custom layout compiled
-   * with every seat kind on (its stored rows and graphs, whatever the modes say: the modes
-   * follow the screens), a preset as its cycle, and on aplite, which folds a custom layout to
-   * a preset, what aplite runs.
+   * Every screen of the settings, as lists (a preset's views too), read off the views the
+   * screens show (view-cycle.js screensCycle: a custom layout with every seat kind on, since
+   * the modes follow the screens).
    * @param {Object} S Settings.
    * @param {?Object} [env] Platform env.
-   * @returns {Array<?Object>} the views (null = a screen with nothing on it)
-   */
-  function shownCycle(S, env) {
-    return VC.screensCycle(S, env);
-  }
-
-  /**
-   * Every screen of the settings, as lists (a preset's views too).
-   * @param {Object} S Settings.
-   * @param {?Object} [env] Platform env.
+   * @param {Array<?Object>} [cycle] screensCycle(S, env), when the caller has it already.
    * @returns {Array<Array<Object>>} the screens, the Default first
    */
-  function screensOf(S, env) {
+  function screensOf(S, env, cycle) {
     var s = S || {};
     var custom = s.layoutPreset === 'custom';
-    return shownCycle(s, env).map(function (spec, i) {
+    return (cycle || VC.screensCycle(s, env)).map(function (spec, i) {
       return listFromSpec(spec, !(custom && s['viewStripOff' + i]));
     });
   }
@@ -428,75 +398,30 @@
    * @returns {boolean}
    */
   function fits(list, i, family) {
-    // This one view as slot i of an all-capable cycle (the slots before it read defaults).
+    // This one view as slot i of a custom layout, as the screens show it (every seat kind on;
+    // the slots before it read defaults).
     var S = compileKeys(list, i);
     S.viewCount = String(i + 1);
-    S.radarMode = 'graph';
-    S.healthMode = 'all';
-    return VC.stackFits(VC.buildCustomCycle(S)[i], family).fits;
+    S.layoutPreset = 'custom';
+    return VC.stackFits(VC.screensCycle(S)[i], family).fits;
   }
 
   /**
-   * What the views show, summed over every screen the watch stops on (a null view is
-   * skipped, so its Watch bar shows nowhere).
-   * @param {Array<?Object>} cycle shownCycle().
-   * @returns {{bars: {top: boolean, forecast: boolean, radar: boolean, health: boolean},
-   *   radarGraph: boolean, healthGraph: boolean}}
+   * The graphs the views show, over every screen the watch stops on (a null view is skipped).
+   * Their bars are view-cycle.js barsIn's.
+   * @param {Array<?Object>} cycle view-cycle.js screensCycle().
+   * @returns {{radar: boolean, health: boolean}}
    */
-  function shownParts(cycle) {
-    var out = { bars: { top: false, forecast: false, radar: false, health: false },
-                radarGraph: false, healthGraph: false };
-    var rowBar = {};
-    rowBar[VC.STATUS_SRC_FORECAST] = 'forecast';
-    rowBar[VC.STATUS_SRC_RADAR] = 'radar';
-    rowBar[VC.STATUS_SRC_HEALTH] = 'health';
+  function graphsIn(cycle) {
+    var out = { radar: false, health: false };
     cycle.forEach(function (v) {
       if (!v) { return; }
-      if (!v.stripOff) { out.bars.top = true; }
-      if (rowBar[v.statusUpper]) { out.bars[rowBar[v.statusUpper]] = true; }
-      if (rowBar[v.statusLower]) { out.bars[rowBar[v.statusLower]] = true; }
-      if (v.top === VC.TOP_RADAR || v.body === VC.BODY_RADAR) { out.radarGraph = true; }
+      if (v.top === VC.TOP_RADAR || v.body === VC.BODY_RADAR) { out.radar = true; }
       if ((v.top === VC.TOP_GRAPH && v.topKind === VC.TOP_KIND_HEALTH) || v.body === VC.BODY_GRAPH) {
-        out.healthGraph = true;
+        out.health = true;
       }
     });
     return out;
-  }
-
-  /**
-   * Whether an Alerts item is ticked on either side of a bar (on-demand.js' lists).
-   * @param {Object} S Settings.
-   * @param {string} bar An on-demand.js BARS bar.
-   * @param {string} code An on-demand.js ITEMS code.
-   * @returns {boolean}
-   */
-  function tickedOn(S, bar, code) {
-    for (var s = 0; s < onDemand.SIDES.length; s++) {
-      if (onDemand.parse(onDemand.read(S, onDemand.itemsKey(bar, onDemand.SIDES[s]))).indexOf(code) >= 0) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Whether a status slot of a bar holds a health item (status-line-catalog.js: an absent
-   * slot reads its default, as the bake does).
-   * @param {Object} S Settings.
-   * @param {string} bar A status-line-catalog.js LINES id.
-   * @param {?Object} env Platform env.
-   * @returns {boolean}
-   */
-  function holdsHealth(S, bar, env) {
-    for (var l = 0; l < catalog.LINES.length; l++) {
-      var line = catalog.LINES[l];
-      if (line.id !== bar) { continue; }
-      for (var s = 0; s < line.slots.length; s++) {
-        var item = catalog.byCode((S || {})[line.slots[s]] || catalog.slotDefault(line.slots[s], env));
-        if (item && item.needsHealth) { return true; }
-      }
-    }
-    return false;
   }
 
   /**
@@ -516,32 +441,34 @@
   function deriveModes(S, env) {
     var s = S || {};
     var e = env || {};
-    var shown = shownParts(shownCycle(s, env));
+    var cycle = VC.screensCycle(s, env);
+    var bars = VC.barsIn(cycle);
+    var graphs = graphsIn(cycle);
     var barNames = ['top', 'forecast', 'radar', 'health'];
     /** @param {function(string): boolean} pred @returns {boolean} whether a shown bar passes */
     function anyShownBar(pred) {
       for (var b = 0; b < barNames.length; b++) {
-        if (shown.bars[barNames[b]] && pred(barNames[b])) { return true; }
+        if (bars[barNames[b]] && pred(barNames[b])) { return true; }
       }
       return false;
     }
     var radarMode = 'off';
     if (e.radar !== false && s.radarEnabled !== false) {
-      if (shown.radarGraph) {
+      if (graphs.radar) {
         radarMode = 'graph';
-      } else if (shown.bars.radar) {
+      } else if (bars.radar) {
         radarMode = 'status';
-      } else if (e.onDemand !== false && anyShownBar(function (bar) { return tickedOn(s, bar, 'rain'); })) {
+      } else if (anyShownBar(function (bar) { return onDemand.sideOf(s, bar, 'rain', env) !== null; })) {
         radarMode = 'countdown';
       }
     }
     var healthMode = 'off';
     if (e.health !== false) {
-      if (shown.healthGraph) {
+      if (graphs.health) {
         healthMode = 'all';
-      } else if (shown.bars.health) {
+      } else if (bars.health) {
         healthMode = 'status';
-      } else if (anyShownBar(function (bar) { return holdsHealth(s, bar, env); })) {
+      } else if (anyShownBar(function (bar) { return catalog.healthSlots(s, bar, env).length > 0; })) {
         healthMode = 'slot';
       }
     }
@@ -573,13 +500,9 @@
     setOption: setOption,
     orderFor: orderFor,
     compileKeys: compileKeys,
-    compileAll: compileAll,
     listFromSpec: listFromSpec,
-    shownCycle: shownCycle,
     screensOf: screensOf,
     fits: fits,
-    shownParts: shownParts,
-    holdsHealth: holdsHealth,
     deriveModes: deriveModes
   };
 

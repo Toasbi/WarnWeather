@@ -486,6 +486,20 @@ test('adding the Rain radar screen turns the rain radar on, its source kept', ()
   assert.equal(ctx.S.radarMode, 'graph');
 });
 
+test('with the rain radar off, a Rain radar screen is drawn as the watch draws it: the screen editor\'s picture', () => {
+  const SP = require('../src/pkjs/settings/screens-page.js');
+  const base = openSetup().ctx;
+  const saved = Object.assign({ layoutPreset: 'custom', viewCount: '2', radarEnabled: false, radarProvider: 'dwd' },
+    M.compileKeys(M.screensOf(base.S, base.ENV)[0], 0), M.compileKeys(SCREENS.byId('radar').list, 1));
+  const { ctx, dom } = openSetup({ saved });
+  walkToTitle(dom, 'Flick to switch screens');
+  assert.deepEqual(screenNames(ctx), ['Default', 'Rain radar']);
+  const drawn = SP.screenPicture(ctx.S, 1, ctx.ENV, ctx.USERDATA, 'x').label;
+  assert.equal(drawn, 'Watch Status, Clock, Radar Status, Forecast', 'the radar graph folds to the forecast');
+  assert.ok(dom.body.innerHTML.indexOf('aria-label="Rain radar: ' + drawn + '"') >= 0, 'the small screen is that picture');
+  assert.equal(ctx.S.radarEnabled, false, 'drawing it turns nothing on');
+});
+
 test('a screen of the user\'s own keeps its place\'s name, and only what fits is offered', () => {
   const own = { layoutPreset: 'custom', customLayoutSeeded: true, viewCount: '2', viewTop0: 'cal', viewTopSize0: '2',
     viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewTop1: 'none', viewBody1: 'forecast',

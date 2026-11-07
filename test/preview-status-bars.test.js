@@ -202,8 +202,8 @@ test('the Radar and Health bars show while a screen shows them', () => {
   assert.ok(wo.indexOf('>Health<') !== -1, wo);
   // A custom layout lists the bars its screens hold, whatever the stored modes say: the
   // Radar bar without radar data too.
-  const custom = { layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph' };
-  VC.seedCustomKeys(custom, 'weatherOnly');
+  const custom = Object.assign({ layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph' },
+    VC.specToKeys(VC.buildViewCycle('weatherOnly', 'all', 'graph', false)));
   const none = preview.statusBarsPreview(custom, env);
   assert.equal(none.indexOf('>Radar<'), -1, 'no screen holds the Radar bar: ' + none);
   const seated = Object.assign({}, custom, { viewUpper0: 'radar', viewLower0: 'health', radarMode: 'off',

@@ -26,12 +26,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var CSS = node ? require('./wizard-css.js') : window.WizardCss;
     var SCREENS = node ? require('./wizard-screens.js') : window.WizardScreens;
     var FORECAST = node ? require('./wizard-forecast.js') : window.WizardForecast;
-    // The screens: their lists (screens.js), their writes (screens-page.js, the Watchface tab's),
-    // their compile (view-cycle.js) and their pictures (preview-watch.js).
+    // The screens: their lists (screens.js), their writes and pictures (screens-page.js, the
+    // Watchface tab's) and their compile (view-cycle.js).
     var M = node ? require('../screens.js') : window.Screens;
     var SP = node ? require('./screens-page.js') : window.ScreensPage;
     var VC = node ? require('../view-cycle.js') : VIEW_CYCLE;
-    var PW = node ? require('./preview-watch.js') : window.PreviewWatch;
     var FINISH = node ? require('./wizard-finish.js') : window.WizardFinish;
     var UPSELL = node ? require('./wizard-upsell.js') : window.WizardUpsell;
     // The frame every screen picture sits in (the Watchface tab's too): the screen on its own ground.
@@ -313,31 +312,27 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var look = lookById(before);
         if (!FORECAST.same(S, look.values, run.env)) { writeLook(look.values); }
     }
+    /**
+     * The forecast look as its picker names it (the summary, the preview's label).
+     * @returns {string}
+     */
     function forecastLabel() { return currentLook().label; }
     /**
-     * The screen the forecast step draws: the first screen holding the forecast graph (the
-     * Default, unless a screen of the user's own moved it), or -1 for none.
-     * @returns {number} Its slot.
-     */
-    function forecastScreen() {
-        var list = screens();
-        for (var i = 0; i < list.length; i += 1) {
-            for (var j = 0; j < list[i].length; j += 1) { if (list[i][j].k === 'fc') { return i; } }
-        }
-        return -1;
-    }
-    function graphLabel() {
-        var i = forecastScreen();
-        return 'Forecast preview: ' + forecastLabel() + (i >= 0 ? ', on the ' + SCREENS.nameOf(screens()[i], i) + ' screen' : '');
-    }
-    /**
-     * The forecast step's picture: that screen as the watch draws it, the look applied; with no
+     * The forecast step's picture: the first screen holding the forecast graph (the Default,
+     * unless a screen of the user's own moved it) as the watch draws it, the look applied; with no
      * screen showing the forecast graph, the graph on its own.
-     * @returns {string} SVG markup.
+     * @returns {{svg: string, label: string, onScreen: boolean}} Its SVG markup, its spoken name
+     *   and whether it is a screen.
      */
-    function graphHtml() {
-        var i = forecastScreen();
-        return i >= 0 ? screenPic(run.ctx.S, i, 'wf' + i + '-').svg : FORECAST.previewSvg(run.ctx.S, run.env, run.ctx.USERDATA);
+    function forecastPicture() {
+        var cycle = VC.screensCycle(run.ctx.S, run.env), list = screens(cycle), i = -1;
+        for (var j = 0; j < list.length && i < 0; j += 1) { if (M.idxOf(list[j], 'fc') >= 0) { i = j; } }
+        return {
+            svg: i >= 0 ? screenPic(run.ctx.S, i, 'wf' + i + '-', cycle).svg
+                : FORECAST.previewSvg(run.ctx.S, run.env, run.ctx.USERDATA),
+            label: 'Forecast preview: ' + forecastLabel() + (i >= 0 ? ', on the ' + SCREENS.nameOf(list[i], i) + ' screen' : ''),
+            onScreen: i >= 0
+        };
     }
     /**
      * Redraw the forecast step's picture.
@@ -346,23 +341,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function refreshForecast() {
         var graph = run.overlay.querySelector('[data-wiz-graph]');
         if (graph) {
-            graph.innerHTML = graphHtml();
-            graph.setAttribute('aria-label', graphLabel());
+            var pic = forecastPicture();
+            graph.innerHTML = pic.svg;
+            graph.setAttribute('aria-label', pic.label);
         }
     }
     /**
-     * What the forecast graph draws from: its governed settings and its length. A pick that leaves
-     * it unchanged redraws nothing.
+     * What the forecast graph draws from: its governed settings. A pick that leaves them unchanged
+     * redraws nothing.
      * @returns {string}
      */
-    function graphState() { return JSON.stringify(FORECAST.snapshot(run.ctx.S, run.env)) + '|' + run.ctx.S.forecastHours; }
+    function graphState() { return JSON.stringify(FORECAST.snapshot(run.ctx.S, run.env)); }
 
     // --- the picker ---
     function optsFor(group) { return PICKERS[group].options(); }
     function descFor(group) { return PICKERS[group].desc(); }
     /**
-     * The option a picker shows as selected: the stored value when the picker offers it, else its
-     * nearest (or first) option; the forecast look as the settings read.
+     * The option a picker shows as selected: what its `selected` reads off the settings, else the
+     * stored value when the picker offers it, else its first option.
      * @param {string} group A picker.
      * @returns {string} An option value.
      */
@@ -370,8 +366,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var picker = PICKERS[group];
         if (picker.selected) { return picker.selected(); }
         var opts = picker.options(), stored = run.ctx.S[group];
-        if (labelFor(opts, stored)) { return stored; }
-        return picker.nearest ? picker.nearest(stored) : opts[0][1];
+        return labelFor(opts, stored) ? stored : opts[0][1];
     }
     function commit(group, val) {
         if (PICKERS[group].write) { PICKERS[group].write(val); } else { run.ctx.setValue(group, val); }
@@ -496,30 +491,36 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     // --- the Screens step: the watch's own screens, drawn live ---
-    function screens() { return M.screensOf(run.ctx.S, run.env); }
     /**
-     * One screen as the Watchface tab draws it, in the wizard's frame: its <svg> and its bands as
-     * spoken. A screen with nothing on it is its bare screen.
+     * The watch's screens as lists (screens.js screensOf).
+     * @param {Array<?Object>} [cycle] VC.screensCycle of the live settings, when the caller has it.
+     * @returns {Array<Array<Object>>} The screens, the Default first.
+     */
+    function screens(cycle) { return M.screensOf(run.ctx.S, run.env, cycle); }
+    /**
+     * One screen as the screen editor draws it (screens-page.js screenPicture), in the wizard's
+     * frame: its <svg> and its bands as spoken. A screen with nothing on it is its bare screen.
      * @param {Object} S The settings it is drawn from (the live ones, or a copy with a screen in).
      * @param {number} i Its slot.
      * @param {string} prefix What its graphs' ids start with, unique on the page.
+     * @param {Array<?Object>} [cycle] VC.screensCycle(S), when the caller has it already.
      * @returns {{svg: string, label: string}}
      */
-    function screenPic(S, i, prefix) {
-        var spec = VC.screensCycle(S, run.env)[i] || null;
-        var pic = spec ? PW.screenSvg(spec, i, S, run.env, run.ctx.USERDATA || {}, run.env.platform === 'emery' ? 1 : 0,
-            new Date(), prefix) : PW.viewScreen(S, run.env, i, run.ctx.USERDATA);
+    function screenPic(S, i, prefix, cycle) {
+        var pic = SP.screenPicture(S, i, run.env, run.ctx.USERDATA, prefix, cycle);
         // The wizard's frame class, whose widths follow the screenshots' (wizard-css.js).
         return { svg: pic.svg.replace('class="wpv-scr"', 'class="wiz-scr"'), label: pic.label };
     }
     /**
      * The settings with a screen setup offers put in where it would go, to draw it before it is
-     * added (and the rain radar on, as adding the Rain radar screen turns it).
+     * added (and the rain radar on, as adding the Rain radar screen turns it). A shallow copy is
+     * enough: putting a screen in writes top-level keys only.
      * @param {string} id A template.
+     * @param {Array<Array<Object>>} list The watch's screens.
      * @returns {{S: Object, at: number}} The settings and the screen's slot.
      */
-    function withTemplate(id) {
-        var S = JSON.parse(JSON.stringify(run.ctx.S)), at = SCREENS.insertAt(screens(), id);
+    function withTemplate(id, list) {
+        var S = Object.assign({}, run.ctx.S), at = SCREENS.insertAt(list, id);
         if (id === 'radar') { S.radarEnabled = true; }
         SP.insertScreen(S, at, M.copy(SCREENS.byId(id).list), run.env);
         return { S: S, at: at };
@@ -540,11 +541,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * The screen shown big, its dots and name, and Try a flick (off until there is a screen to
      * flick to).
      * @param {Array<Array<Object>>} list The screens.
+     * @param {Array<?Object>} cycle Their views (VC.screensCycle).
      * @returns {string} HTML.
      */
-    function bigScreenHtml(list) {
+    function bigScreenHtml(list, cycle) {
         var i = run.screenIdx, many = list.length > 1, name = SCREENS.nameOf(list[i], i);
-        var pic = screenPic(run.ctx.S, i, 'wz' + i + '-');
+        var pic = screenPic(run.ctx.S, i, 'wz' + i + '-', cycle);
         return '<div class="wiz-stage big"><div class="wiz-flick-watch" data-wiz-flick-watch' + (many ? ' data-wiz-flick' : '') + '>'
             + '<div class="wiz-watch" data-wiz-screen role="img" aria-label="' + esc(name + ': ' + pic.label) + '">'
             + pic.svg + '</div></div></div>'
@@ -557,22 +559,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Every screen small: each in full, a ✕ on each flick screen; then each screen setup offers
      * that the watch can show and has not got, dimmed, with a + that adds it, while there is room.
      * @param {Array<Array<Object>>} list The screens.
+     * @param {Array<?Object>} cycle Their views (VC.screensCycle).
      * @returns {string} HTML.
      */
-    function smallScreensHtml(list) {
+    function smallScreensHtml(list, cycle) {
         var h = '';
         list.forEach(function (scr, i) {
-            var name = SCREENS.nameOf(scr, i), pic = screenPic(run.ctx.S, i, 'ws' + i + '-');
+            var name = SCREENS.nameOf(scr, i), pic = screenPic(run.ctx.S, i, 'ws' + i + '-', cycle);
             h += '<div class="wiz-scr-it"><div class="wiz-watch sm" role="img" aria-label="' + esc(name + ': ' + pic.label)
                 + '">' + pic.svg + '</div>'
                 + (i > 0 ? '<button type="button" class="wiz-scr-x" data-wiz-scr-rm="' + i + '" aria-label="Remove the '
                     + esc(name) + ' screen">' + CSS.ICON_X + '</button>' : '')
                 + '<span class="wiz-scr-n">' + esc(name) + '</span></div>';
         });
-        if (list.length >= SCREENS.MAX_SCREENS) { return h; }
+        if (list.length >= M.MAX_SCREENS) { return h; }
         SCREENS.offered(run.env).forEach(function (t) {
             if (SCREENS.slotOf(list, t.id) >= 0) { return; }
-            var w = withTemplate(t.id), pic = screenPic(w.S, w.at, 'wt' + t.id + '-');
+            var w = withTemplate(t.id, list), pic = screenPic(w.S, w.at, 'wt' + t.id + '-');
             h += '<button type="button" class="wiz-scr-it off" data-wiz-scr-add="' + t.id + '" aria-label="Add the '
                 + esc(t.name) + ' screen"><span class="wiz-watch sm" aria-hidden="true">' + pic.svg + '</span>'
                 + '<span class="wiz-scr-plus" aria-hidden="true">+</span><span class="wiz-scr-n">' + esc(t.name) + '</span></button>';
@@ -600,10 +603,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function addTemplate(id) {
         var S = run.ctx.S, at = SCREENS.insertAt(screens(), id);
-        if (id === 'radar' && S.radarEnabled === false) {
-            S.radarEnabled = true;
-            S.radarSource = S.radarProvider || 'rainbow';
-        }
+        if (id === 'radar' && S.radarEnabled === false) { SP.radarOn(S, run.env); }
         if (SP.insertScreen(S, at, M.copy(SCREENS.byId(id).list), run.env)) { run.screenIdx = at; }
         repaintScreens(['[data-wiz-scr-rm="' + at + '"]', '[data-wiz-flick]']);
     }
@@ -700,12 +700,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} HTML.
      */
     function stepScreens() {
-        var list = screens();
+        var cycle = VC.screensCycle(run.ctx.S, run.env), list = screens(cycle);
         if (run.screenIdx >= list.length) { run.screenIdx = 0; }
         return stepHead('screens')
             + '<p class="wiz-lead">Add screens to flick to. The watch goes back to Default by itself.</p>'
-            + '<div class="wiz-flick">' + bigScreenHtml(list) + '</div>'
-            + '<div class="wiz-scrs" role="group" aria-label="Your screens">' + smallScreensHtml(list) + '</div>'
+            + '<div class="wiz-flick">' + bigScreenHtml(list, cycle) + '</div>'
+            + '<div class="wiz-scrs" role="group" aria-label="Your screens">' + smallScreensHtml(list, cycle) + '</div>'
             + '<p class="wiz-fine">Rain alerts show on the Watch bar either way. Change screens later on the Watchface tab.</p>';
     }
     function stepTheme() {
@@ -718,11 +718,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} HTML.
      */
     function stepForecast() {
-        var onScreen = forecastScreen() >= 0;
+        var pic = forecastPicture();
         return stepHead('forecast')
-            + '<div class="wiz-stage' + (onScreen ? ' big' : '') + '" data-wiz-preview="forecastLook">'
-            + '<div class="' + (onScreen ? 'wiz-watch wiz-look' : 'wiz-graph') + '" data-wiz-graph role="img" aria-label="'
-            + esc(graphLabel()) + '">' + graphHtml() + '</div>'
+            + '<div class="wiz-stage' + (pic.onScreen ? ' big' : '') + '" data-wiz-preview="forecastLook">'
+            + '<div class="' + (pic.onScreen ? 'wiz-watch wiz-look' : 'wiz-graph') + '" data-wiz-graph role="img" aria-label="'
+            + esc(pic.label) + '">' + pic.svg + '</div>'
             + '</div>' + optsHtml('forecastLook', 'wiz-title')
             + '<p class="wiz-fine">Every line can be changed later on the Graphs tab.</p>';
     }
@@ -743,6 +743,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return function () { return [{ k: k, v: pickedLabel(group), step: step }]; };
     }
     function forecastRow() { return [{ k: 'Forecast', v: forecastLabel(), step: 'forecast', attr: 'data-wiz-sum-forecast' }]; }
+    /**
+     * The Screens step's summary row: the screens by name.
+     * @returns {Array.<Object>} The row.
+     */
     function screensRows() {
         var list = screens();
         return [{ k: 'Screens', v: list.map(function (scr, i) { return SCREENS.nameOf(scr, i); }).join(', '), step: 'screens' }];

@@ -82,9 +82,6 @@
         + 'box-shadow:0 14px 34px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.08)}'
         + 'body.light #wizard .wiz-graph{box-shadow:0 12px 28px rgba(0,0,0,.24),0 0 0 1px rgba(0,0,0,.08)}'
         + '#wizard .wiz-graph svg,#wizard .wiz-look svg{animation:wiz-fade .22s ease both}'
-        + '#wizard .wiz-sub{margin:26px 0 0;text-align:center;font:800 11.5px ' + FONT + ';letter-spacing:.1em;'
-        + 'text-transform:uppercase;color:var(--ttl)}'
-        + '#wizard .wiz-sub+.wiz-opts{margin-top:10px}'
         + '#wizard button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}'
         // cards: the country on the welcome step, the layout legend, the summary, the upsell
         + '#wizard .wiz-card,#wizard .wiz-legend,#wizard .wiz-sum,#wizard .wiz-tio{margin:18px 0 0;'

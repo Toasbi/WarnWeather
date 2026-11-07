@@ -45,7 +45,11 @@ function customViewItems(i) {
 // Custom-layout storage (see customViewItems above): sheetOnly keeps the
 // items out of the tab while their sheets stay openable and their values
 // hydrate/serialize with the blob. viewCount = how many views exist;
-// customLayoutSeeded latches the one-time preset copy.
+// customLayoutSeeded latched 2.5's one-time preset copy (its Custom entry seeded
+// the view keys from the preset left unless the latch was set). 2.6 reads it no
+// more, but still sets it wherever a preset turns custom (screens-page.js
+// ensureCustom, the 2.6 migration), so an install taken back to 2.5 keeps its
+// screens when it re-enters Custom.
 var storageSection = {
     sheetOnly: true,
     sheetId: 'viewEditKeys',

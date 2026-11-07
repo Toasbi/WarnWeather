@@ -636,31 +636,34 @@ var CUSTOM_SRC = {
 // 'status'|'all' ('slot' shows health only in the regular slot system, same as the
 // preset MATRIX's bucket rule). The radar status SOURCE (the Radar bar) needs no mode:
 // it is a status bar like the others and the watch draws it without radar data, so a
-// custom view keeps it whatever radarMode says. RADAR_ROW_MODES stays the PRESETS'
-// fact — the modes whose preset cycles draw the Radar bar (MATRIX's 'r' cycles) — read
-// by the 2.6 migration's 2.5 compile (migrations/screens.js legacyCycle).
+// custom view keeps it whatever radarMode says, and capabilities() has no seat for it.
+// RADAR_ROW_MODES stays the PRESETS' fact — the modes whose preset cycles draw the Radar
+// bar (MATRIX's 'r' cycles) — read by the 2.6 migration's 2.5 compile
+// (migrations/screens.js legacyCycle).
 var RADAR_CHART_MODES = ['graph'];
 var RADAR_ROW_MODES = ['status', 'graph'];
 var HEALTH_ROW_MODES = ['status', 'all'];
 var HEALTH_BODY_MODES = ['all'];
 
 /**
- * The capability booleans for a settings state — one per seat kind, derived
- * from the mode lists above (reads S.radarMode / S.healthMode). `radarRow` is the
- * presets' fact (a preset cycle draws the Radar bar); custom views keep the bar in
- * every mode.
+ * The capability booleans for a settings state — one per seat kind that folds, derived
+ * from the mode lists above (reads S.radarMode / S.healthMode). The Radar bar has none:
+ * custom views keep it in every mode.
  * @param {Object} S settings state
- * @returns {{radarChart:boolean,radarRow:boolean,healthRow:boolean,healthBody:boolean}}
+ * @returns {{radarChart:boolean,healthRow:boolean,healthBody:boolean}}
  */
 function capabilities(S) {
   S = S || {};
   return {
     radarChart: RADAR_CHART_MODES.indexOf(S.radarMode) >= 0,
-    radarRow: RADAR_ROW_MODES.indexOf(S.radarMode) >= 0,
     healthRow: HEALTH_ROW_MODES.indexOf(S.healthMode) >= 0,
     healthBody: HEALTH_BODY_MODES.indexOf(S.healthMode) >= 0
   };
 }
+
+// Every seat kind on: how the screens show a custom layout (screensCycle), whatever the
+// modes say, since 2.6 works the modes out from the screens.
+var ALL_CAPABLE = { radarChart: true, healthRow: true, healthBody: true };
 
 /**
  * Compile the custom per-view keys into a 1-3 slot cycle. Seats fold by
@@ -673,12 +676,14 @@ function capabilities(S) {
  * switched off in settings) compiles to null: a disabled slot the watch skips, instead
  * of a blank screen the flick would stop on.
  * @param {Object} S settings state
+ * @param {Object} [cap] the seats to keep, in place of capabilities(S) (screensCycle's
+ *   ALL_CAPABLE)
  * @returns {Array<?Object>} specs for packWire (length == viewCount, 1-3; null = disabled)
  */
-function buildCustomCycle(S) {
+function buildCustomCycle(S, cap) {
   var count = parseInt(S.viewCount, 10);
   if (!(count >= 1 && count <= 3)) { count = 1; }
-  var cap = capabilities(S);
+  cap = cap || capabilities(S);
   var cycle = [];
   for (var i = 0; i < count; i++) {
     // 'cal' is the calendar with its rows in viewTopSize ('2' → 2 rows, else 3); the
@@ -752,41 +757,21 @@ function buildCustomCycle(S) {
   return cycle;
 }
 
-/**
- * Seed the custom per-view keys from the preset the user is leaving — the ONE-TIME
- * copy when Custom mode is first entered (S.customLayoutSeeded latches it; preset
- * re-picks leave the keys dormant so custom work survives). Mutates S in place and
- * compiles back byte-identical, so entering Custom transmits nothing.
- * @param {Object} S settings state (S.layoutPreset is already 'custom' at hook time)
- * @param {string} oldPreset the layoutPreset value being left (may be legacy/undefined)
- * @returns {void}
- */
-function seedCustomKeys(S, oldPreset) {
-  if (S.customLayoutSeeded) { return; }
-  var presetKey = resolvePresetKey({ layoutPreset: oldPreset, topViewMode: S.topViewMode });
-  var cycle = buildViewCycle(presetKey, S.healthMode || 'off', S.radarMode || 'graph',
-                             Boolean(S.swapClockStatus));
-  var keys = specToKeys(cycle);
-  for (var k in keys) {
-    if (Object.prototype.hasOwnProperty.call(keys, k)) { S[k] = keys[k]; }
-  }
-  S.customLayoutSeeded = true;
-}
+// Size code → key value per seat (SIZE_CODE's inverse): code 0 is the seat default ('3'
+// rows for a top, 'fill' for the body), so both columns differ only in row 0.
+var TOP_SIZE_NAME = ['3', '2', '3', '4', 'fill'];
+var BODY_SIZE_NAME = ['fill', '2', '3', '4', 'fill'];
 
 /**
- * Invert a compiled cycle into the custom per-view keys — the one-time seed when the
- * user enters Custom mode, built so an untouched Custom session compiles back to
- * BYTE-IDENTICAL packed values (the zero-transmit upgrade proof, pinned by tests).
+ * Invert a compiled cycle into the custom per-view keys — how a preset becomes a custom
+ * layout (the 2.6 migration, the settings page's first edit), built so the keys compile
+ * back to BYTE-IDENTICAL packed values (the zero-transmit upgrade proof, pinned by tests).
  * @param {Array<Object>} cycle specs from buildViewCycle (post-transform)
  * @returns {Object} key/value map to merge into the settings state
  */
 function specToKeys(cycle) {
   var keys = { viewCount: String(cycle.length) };
   var srcName = ['off', 'weather', 'radar', 'health'];
-  // Size code → key value per seat: code 0 is the seat default ('3' rows for a top,
-  // 'fill' for the body), so both columns differ only in row 0.
-  var topSizeName = ['3', '2', '3', '4', 'fill'];
-  var bodySizeName = ['fill', '2', '3', '4', 'fill'];
   var alignName = ['clock', 'top', 'center', 'bottom'];
   for (var i = 0; i < cycle.length; i++) {
     var s = cycle[i];
@@ -804,8 +789,8 @@ function specToKeys(cycle) {
     keys['viewStripOff' + i] = Boolean(s.stripOff);
     // A calendar's size is its rows (the tier); a radar/graph top's is its ext code.
     keys['viewTopSize' + i] = (s.top === TOP_CAL) ? ((s.tier === TIER_FULL) ? '3' : '2')
-      : (topSizeName[s.topSize || 0] || '3');
-    keys['viewBodySize' + i] = bodySizeName[s.bodySize || 0] || 'fill';
+      : (TOP_SIZE_NAME[s.topSize || 0] || '3');
+    keys['viewBodySize' + i] = BODY_SIZE_NAME[s.bodySize || 0] || 'fill';
     keys['viewAlign' + i] = alignName[s.align || 0] || 'clock';
   }
   return keys;
@@ -888,7 +873,7 @@ function resolveViewCycle(settings, env) {
 function screensCycle(settings, env) {
   var s = settings || {};
   if (s.layoutPreset === 'custom' && !(env && env.platform === 'aplite')) {
-    return buildCustomCycle(Object.assign({}, s, { radarMode: 'graph', healthMode: 'all' }));
+    return buildCustomCycle(s, ALL_CAPABLE);
   }
   return resolveViewCycle(s, env);
 }
@@ -897,14 +882,23 @@ function screensCycle(settings, env) {
  * The status bars the screens show (screensCycle): the Watch bar on a screen the watch stops
  * on that keeps it, and each source's bar wherever a view seats its row. THE one reading of
  * "the bar is on the watch" for the Status bars tab, On demand (on-demand.js barExists) and
- * the modes the screens need.
+ * the modes the screens need (screens.js deriveModes, which has the cycle compiled already:
+ * barsIn).
  * @param {Object} settings settings state
  * @param {?{platform: string}} [env] platform facts
  * @returns {{top: boolean, forecast: boolean, radar: boolean, health: boolean}}
  */
 function barsShown(settings, env) {
+  return barsIn(screensCycle(settings, env));
+}
+
+/**
+ * barsShown over a cycle already compiled by screensCycle.
+ * @param {Array<?Object>} cycle the views (null = a screen the watch skips)
+ * @returns {{top: boolean, forecast: boolean, radar: boolean, health: boolean}}
+ */
+function barsIn(cycle) {
   var out = { top: false, forecast: false, radar: false, health: false };
-  var cycle = screensCycle(settings, env);
   for (var i = 0; i < cycle.length; i++) {
     var v = cycle[i];
     if (!v) { continue; }
@@ -930,7 +924,7 @@ var VIEW_CYCLE = {
   TOP_KIND_FORECAST: TOP_KIND_FORECAST, TOP_KIND_HEALTH: TOP_KIND_HEALTH,
   BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR, BODY_NONE: BODY_NONE,
   SIZE_DEFAULT: SIZE_DEFAULT, SIZE_2: SIZE_2, SIZE_3: SIZE_3, SIZE_4: SIZE_4, SIZE_FILL: SIZE_FILL,
-  SIZE_CODE: SIZE_CODE,
+  SIZE_CODE: SIZE_CODE, TOP_SIZE_NAME: TOP_SIZE_NAME, BODY_SIZE_NAME: BODY_SIZE_NAME,
   ALIGN_CLOCK: ALIGN_CLOCK, ALIGN_TOP: ALIGN_TOP, ALIGN_CENTER: ALIGN_CENTER,
   ALIGN_BOTTOM: ALIGN_BOTTOM, ALIGN_CODE: ALIGN_CODE,
   STATUS_SRC_NONE: STATUS_SRC_NONE, STATUS_SRC_FORECAST: STATUS_SRC_FORECAST,
@@ -944,9 +938,8 @@ var VIEW_CYCLE = {
   HEALTH_ROW_MODES: HEALTH_ROW_MODES, HEALTH_BODY_MODES: HEALTH_BODY_MODES,
   capabilities: capabilities,
   buildCustomCycle: buildCustomCycle, specToKeys: specToKeys,
-  seedCustomKeys: seedCustomKeys,
   buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey, presetKeyFor: presetKeyFor,
-  resolveViewCycle: resolveViewCycle, screensCycle: screensCycle, barsShown: barsShown
+  resolveViewCycle: resolveViewCycle, screensCycle: screensCycle, barsShown: barsShown, barsIn: barsIn
 };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = VIEW_CYCLE;

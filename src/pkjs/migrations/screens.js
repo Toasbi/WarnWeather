@@ -83,20 +83,15 @@ function keysOf(cycle, S) {
  * @returns {boolean} whether a slot changed
  */
 function emptyHealthSlots(blob, env) {
-    var bars = screens.shownParts(screens.shownCycle(blob, env)).bars;
+    var bars = VC.barsShown(blob, env);
     var changed = false;
-    for (var l = 0; l < catalog.LINES.length; l++) {
-        var line = catalog.LINES[l];
-        if (!bars[line.id]) { continue; }
-        for (var s = 0; s < line.slots.length; s++) {
-            var key = line.slots[s];
-            var item = catalog.byCode(blob[key] || catalog.slotDefault(key, env));
-            if (item && item.needsHealth) {
-                blob[key] = 'empty';
-                changed = true;
-            }
-        }
-    }
+    catalog.LINES.forEach(function (line) {
+        if (!bars[line.id]) { return; }
+        catalog.healthSlots(blob, line.id, env).forEach(function (key) {
+            blob[key] = 'empty';
+            changed = true;
+        });
+    });
     return changed;
 }
 
@@ -132,10 +127,7 @@ function migrateToScreens(blob, ctx) {
     var env = platformLib.computeEnv({ platform: platform });
     var wireBefore = wireOf(blob, env);
     var cycle = blob.layoutPreset === 'custom' ? legacyCycle(blob) : VC.resolveViewCycle(blob, env);
-    var keys = keysOf(cycle, blob);
-    for (var k in keys) {
-        if (Object.prototype.hasOwnProperty.call(keys, k)) { blob[k] = keys[k]; }
-    }
+    Object.assign(blob, keysOf(cycle, blob));
     blob.layoutPreset = 'custom';
     blob.customLayoutSeeded = true;
     if (oldHealth === 'off') { emptyHealthSlots(blob, env); }

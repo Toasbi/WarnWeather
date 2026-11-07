@@ -187,20 +187,14 @@ test("resolvePresetKey folds 'custom' to the EXPLICIT compactCal — legacy topV
   assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'custom', topViewMode: 'none' }), 'compactCal');
 });
 
-test('seedCustomKeys copies the leaving preset once and latches; preset re-picks leave keys dormant', () => {
-  const S = { healthMode: 'status', radarMode: 'graph', swapClockStatus: false, layoutPreset: 'custom' };
-  vc.seedCustomKeys(S, 'fullCal');
-  assert.equal(S.customLayoutSeeded, true);
+test("specToKeys turns a preset's cycle into custom keys that compile back byte for byte", () => {
+  const cycle = vc.buildViewCycle('fullCal', 'status', 'graph', false);
+  const S = Object.assign({ healthMode: 'status', radarMode: 'graph', layoutPreset: 'custom' }, vc.specToKeys(cycle));
   assert.equal(S.viewCount, '3', 'fullCal+status+graph compiles a 3-view cycle');
   assert.equal(S.viewTop0, 'cal', 'the calendar is one choice...');
   assert.equal(S.viewTopSize0, '3', '...its rows are the size');
-  // Seeded keys compile back byte-identical to the preset cycle (zero-transmit).
-  const preset = vc.buildViewCycle('fullCal', 'status', 'graph', false).map(vc.packSpec);
-  assert.deepStrictEqual(vc.buildCustomCycle(S).map(vc.packSpec), preset);
-  // Latched: a second entry (after the user customized) must NOT re-seed.
-  S.viewTop0 = 'none';
-  vc.seedCustomKeys(S, 'compactCal');
-  assert.equal(S.viewTop0, 'none', 'custom work survives re-entering Custom');
+  // The keys compile back byte-identical to the preset cycle (zero-transmit).
+  assert.deepStrictEqual(vc.buildCustomCycle(S).map(vc.packSpec), cycle.map(vc.packSpec));
 });
 
 // Weather only is the exception: its countdown Default view keeps the top bar, where the
@@ -540,8 +534,8 @@ test('a flick left with nothing on it compiles to a disabled slot', () => {
 
 test('a blob that predates the new keys compiles to ext 0 (the upgrade path)', () => {
   ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((p) => {
-    const S = { layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph' };
-    vc.seedCustomKeys(S, p);
+    const S = Object.assign({ layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph' },
+      vc.specToKeys(vc.buildViewCycle(p, 'all', 'graph', false)));
     for (let i = 0; i < 3; i++) {
       delete S['viewTopSize' + i]; delete S['viewBodySize' + i]; delete S['viewAlign' + i];
     }
@@ -812,16 +806,16 @@ test('capabilities: mode lists pinned, booleans derived per seat kind', () => {
   assert.deepEqual(vc.HEALTH_ROW_MODES, ['status', 'all']);
   assert.deepEqual(vc.HEALTH_BODY_MODES, ['all']);
   assert.deepEqual(vc.capabilities({ radarMode: 'graph', healthMode: 'all' }),
-    { radarChart: true, radarRow: true, healthRow: true, healthBody: true });
+    { radarChart: true, healthRow: true, healthBody: true });
   assert.deepEqual(vc.capabilities({ radarMode: 'status', healthMode: 'status' }),
-    { radarChart: false, radarRow: true, healthRow: true, healthBody: false });
+    { radarChart: false, healthRow: true, healthBody: false });
   assert.deepEqual(vc.capabilities({ radarMode: 'countdown', healthMode: 'slot' }),
-    { radarChart: false, radarRow: false, healthRow: false, healthBody: false },
+    { radarChart: false, healthRow: false, healthBody: false },
     'countdown shows no radar view; slot shows health only in the regular bars');
   assert.deepEqual(vc.capabilities({ radarMode: 'off', healthMode: 'off' }),
-    { radarChart: false, radarRow: false, healthRow: false, healthBody: false });
+    { radarChart: false, healthRow: false, healthBody: false });
   assert.deepEqual(vc.capabilities({}),
-    { radarChart: false, radarRow: false, healthRow: false, healthBody: false },
+    { radarChart: false, healthRow: false, healthBody: false },
     'absent modes gate closed');
   assert.deepEqual(vc.capabilities(null), vc.capabilities({}), 'null state is safe');
 });

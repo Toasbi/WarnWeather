@@ -21,6 +21,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : window.VIEW_CYCLE;
     var M = (typeof require !== 'undefined') ? require('../screens.js') : window.Screens;
     var PW = (typeof require !== 'undefined') ? require('./preview-watch.js') : window.PreviewWatch;
+    // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
+    var esc = (typeof require !== 'undefined') ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
 
     // The screens' names, the Default first.
     var NAMES = ['Default', 'Flick 1', 'Flick 2'];
@@ -44,16 +46,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The screens, as lists (screens.js screensOf).
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @returns {Array<Array<Object>>}
-     */
-    function screensOf(S, env) {
-        return M.screensOf(S, env);
-    }
-
-    /**
      * Turn a preset into the custom keys of its own cycle (view-cycle.js specToKeys, which
      * compiles back byte for byte), so a first edit moves nothing on the other screens.
      * Mutates S; a custom layout is left as it is.
@@ -63,10 +55,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function ensureCustom(S, env) {
         if (S.layoutPreset === 'custom') { return; }
-        var keys = VC.specToKeys(VC.resolveViewCycle(S, env));
-        for (var k in keys) {
-            if (Object.prototype.hasOwnProperty.call(keys, k)) { S[k] = keys[k]; }
-        }
+        Object.assign(S, VC.specToKeys(VC.resolveViewCycle(S, env)));
         S.layoutPreset = 'custom';
         S.customLayoutSeeded = true;
     }
@@ -98,10 +87,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function writeScreen(S, i, list, env) {
         ensureCustom(S, env);
-        var keys = M.compileKeys(list, i);
-        for (var k in keys) {
-            if (Object.prototype.hasOwnProperty.call(keys, k)) { S[k] = keys[k]; }
-        }
+        Object.assign(S, M.compileKeys(list, i));
         if ((parseInt(S.viewCount, 10) || 1) < i + 1) { S.viewCount = String(i + 1); }
         applyModes(S, env);
     }
@@ -130,10 +116,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function restore(S, snap, env) {
-        for (var k in snap) {
-            if (Object.prototype.hasOwnProperty.call(snap, k)) { S[k] = snap[k]; }
-        }
+        Object.assign(S, snap);
         applyModes(S, env);
+    }
+
+    /**
+     * Copy one slot's view keys onto another (a screen moving a slot up or down). Mutates S.
+     * @param {Object} S Settings.
+     * @param {number} from The slot copied.
+     * @param {number} to The slot written.
+     * @returns {void}
+     */
+    function copyView(S, from, to) {
+        for (var s = 0; s < VIEW_STEMS.length; s++) {
+            S['view' + VIEW_STEMS[s] + to] = S['view' + VIEW_STEMS[s] + from];
+        }
     }
 
     /**
@@ -147,11 +144,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ensureCustom(S, env);
         var n = parseInt(S.viewCount, 10) || 1;
         if (i < 1 || i >= n) { return false; }
-        for (var j = i; j < n - 1; j++) {
-            for (var s = 0; s < VIEW_STEMS.length; s++) {
-                S['view' + VIEW_STEMS[s] + j] = S['view' + VIEW_STEMS[s] + (j + 1)];
-            }
-        }
+        for (var j = i; j < n - 1; j++) { copyView(S, j + 1, j); }
         S.viewCount = String(n - 1);
         applyModes(S, env);
         return true;
@@ -190,11 +183,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ensureCustom(S, env);
         var n = parseInt(S.viewCount, 10) || 1;
         if (n >= M.MAX_SCREENS || at < 1 || at > n) { return false; }
-        for (var j = n; j > at; j--) {
-            for (var s = 0; s < VIEW_STEMS.length; s++) {
-                S['view' + VIEW_STEMS[s] + j] = S['view' + VIEW_STEMS[s] + (j - 1)];
-            }
-        }
+        for (var j = n; j > at; j--) { copyView(S, j - 1, j); }
         S['viewAlign' + at] = 'clock';
         S.viewCount = String(n + 1);
         writeScreen(S, at, list, env);
@@ -208,7 +197,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {number} its slot, or -1 with three screens already
      */
     function addScreen(S, env) {
-        var n = screensOf(S, env).length;
+        var n = M.screensOf(S, env).length;
         return insertScreen(S, n, M.copy(NEW_SCREEN), env) ? n : -1;
     }
 
@@ -227,17 +216,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The compiled view of a screen being edited, every seat kind on.
-     * @param {Object} S Settings.
-     * @param {number} i View slot.
-     * @param {?Object} env Platform env.
-     * @returns {?Object}
-     */
-    function viewOf(S, i, env) {
-        return VC.screensCycle(S, env)[i] || null;
-    }
-
-    /**
      * The view as the watch draws it now: with the rain radar off, the radar graph folds as
      * it does without radar data (the forecast or the calendar in its place) and the bars
      * stay (view-cycle.js resolveForFit).
@@ -251,6 +229,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * A screen's picture as the watch draws it now (drawnView), or its bare screen ("Nothing
+     * to show") when nothing is on it: the editor's, and the setup's Screens and Forecast steps'.
+     * @param {Object} S Settings.
+     * @param {number} i View slot.
+     * @param {?Object} env Platform env.
+     * @param {Object} [userData] Page userData (the palette).
+     * @param {string} prefix What its graphs' ids start with, unique on the page.
+     * @param {Array<?Object>} [cycle] VC.screensCycle(S, env), when the caller has it already.
+     * @returns {{svg: string, label: string}}
+     */
+    function screenPicture(S, i, env, userData, prefix, cycle) {
+        var spec = (cycle || VC.screensCycle(S, env))[i] || null;
+        if (!spec) { return PW.viewScreen(S, env, i, userData); }
+        return PW.screenSvg(drawnView(spec, S), i, S, env, userData || {}, env && env.platform === 'emery' ? 1 : 0,
+            new Date(), prefix);
+    }
+
+    /**
      * Does a screen fit the watch it is edited for?
      * @param {Array<Object>} list The screen.
      * @param {number} i View slot.
@@ -261,13 +257,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return M.fits(list, i, (env && env.platform) || '');
     }
 
-    // ── Escaping and icons ──────────────────────────────────────────────────
+    // ── Icons ──────────────────────────────────────────────────
 
-    function esc(s) {
-        return String(s).replace(/[&<>"']/g, function (c) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-        });
-    }
+    /**
+     * A line icon (the editor's and the card's).
+     * @param {string} d Its SVG path.
+     * @returns {string} SVG markup
+     */
     function ic(d) { return '<svg class="scr-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="' + d + '"/></svg>'; }
     var I_X = ic('M6 6l12 12M18 6L6 18');
     var I_GRIP = ic('M5 8.5h14M5 12h14M5 15.5h14');
@@ -377,7 +373,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function screensCard(S, env) {
         if (!hasScreens(env)) { return ''; }
         ensureStyle();
-        var lists = screensOf(S || {}, env);
+        var lists = M.screensOf(S || {}, env);
         var rows = lists.map(function (list, i) {
             return '<div class="scr-row"><button type="button" class="scr-main" data-action="openScreen" data-action-arg="' + i + '">'
                 + '<span class="scr-mid"><span class="scr-t">' + NAMES[i] + '</span><span class="scr-els">'
@@ -504,16 +500,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} HTML
      */
     function editorBody(S, env, userData) {
-        var i = ED.i, list = screensOf(S, env)[i] || [], spec = viewOf(S, i, env);
-        var note = !spec ? NOTHING_YET : !fitsWatch(list, i, env) ? TOO_TALL : '';
+        var i = ED.i, cycle = VC.screensCycle(S, env), list = M.screensOf(S, env, cycle)[i] || [];
+        var note = !cycle[i] ? NOTHING_YET : !fitsWatch(list, i, env) ? TOO_TALL : '';
         var adds = M.addable(list, env).filter(function (k) { return fitsWatch(M.add(list, k), i, env); });
-        var pic;
-        if (spec) {
-            var f = env && env.platform === 'emery' ? 1 : 0;
-            pic = PW.screenSvg(drawnView(spec, S), i, S, env, userData || {}, f, new Date(), 'se' + i + '-').svg;
-        } else {
-            pic = PW.viewScreen(S, env, i, userData).svg;   // its bare screen, "Nothing to show"
-        }
+        var pic = screenPicture(S, i, env, userData, 'se' + i + '-', cycle).svg;
         return '<div class="se-pic"><span class="se-pic-card" role="img" aria-label="' + esc(NAMES[i] + ': ' + contents(list, S))
             + '">' + pic + '</span></div>'
             + (note ? '<div class="se-note" role="status">' + note + '</div>' : '')
@@ -580,6 +570,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (UI.ctx) { UI.ctx.render(); }
     }
 
+    /**
+     * Escape folds an open row's options, else closes the editor (not under a dialog).
+     * @param {KeyboardEvent} e The key.
+     * @returns {void}
+     */
     function onKeydown(e) {
         if (e.key !== 'Escape') { return; }
         var modal = document.getElementById('modal');
@@ -589,23 +584,30 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Turn the rain radar back on from a screen's Rain radar row (its source as stored).
+     * Turn the rain radar back on (a screen's Rain radar row, the setup's Rain radar screen):
+     * its source as stored, which the Rain radar picker shows again (radarSourceValue).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {void}
      */
     function radarOn(S, env) {
         S.radarEnabled = true;
-        S.radarSource = S.radarProvider;
+        S.radarSource = radarSourceValue(S);
         applyModes(S, env);
     }
 
+    /**
+     * The editor's taps: close, open a row's options, remove, add, move, pick an option, turn
+     * the radar on, delete the screen. A tap a drag ends in is no tap.
+     * @param {MouseEvent} e The click.
+     * @returns {void}
+     */
     function onClick(e) {
         var t = e.target && e.target.closest ? e.target.closest('[data-se]') : null;
         if (!t || !UI.ctx || ED.drag) { return; }
         var ctx = UI.ctx, S = ctx.S, env = ctx.ENV;
         var act = t.getAttribute('data-se'), j = Number(t.getAttribute('data-j'));
-        var list = screensOf(S, env)[ED.i] || [];
+        var list = M.screensOf(S, env)[ED.i] || [];
         if (act === 'close') { closeEditor(); return; }
         if (act === 'expand') { ED.open = ED.open === j ? -1 : j; renderEditor(); return; }
         if (act === 'rm') { ED.open = -1; commit(M.remove(list, j)); return; }
@@ -637,8 +639,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
     }
 
-    // Drag by the handle: the row follows the pointer, the others make room, and a drop that
-    // breaks a rule snaps back with the reason.
+    /**
+     * Start a drag by a row's handle: the row follows the pointer, the others make room, and a
+     * drop that breaks a rule snaps back with the reason.
+     * @param {PointerEvent} e The press.
+     * @returns {void}
+     */
     function onPointerDown(e) {
         var g = e.target && e.target.closest ? e.target.closest('[data-grip]') : null;
         if (!g || (e.button !== undefined && e.button !== 0)) { return; }
@@ -653,6 +659,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         listEl.classList.add('dragging');
     }
 
+    /**
+     * Move the other rows out of the way of the dragged one's new place.
+     * @returns {void}
+     */
     function shiftRows() {
         var d = ED.drag, order = [], x;
         for (x = 0; x < d.rows.length; x++) { if (x !== d.j) { order.push(x); } }
@@ -667,6 +677,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         });
     }
 
+    /**
+     * The dragged row follows the pointer; its new place is the rows above its middle.
+     * @param {PointerEvent} e The move.
+     * @returns {void}
+     */
     function onPointerMove(e) {
         var d = ED.drag;
         if (!d || e.pointerId !== d.id) { return; }
@@ -679,6 +694,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (to !== d.to) { d.to = to; shiftRows(); }
     }
 
+    /**
+     * Drop: store the move, or snap back with the rule it breaks.
+     * @param {PointerEvent} e The release (or the cancel).
+     * @returns {void}
+     */
     function onPointerUp(e) {
         var d = ED.drag;
         if (!d || e.pointerId !== d.id) { return; }
@@ -688,7 +708,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // The click a drag ends in is not a tap on the row.
         setTimeout(function () { ED.drag = null; }, 0);
         if (d.to === d.j || !UI.ctx) { return; }
-        var list = screensOf(UI.ctx.S, UI.ctx.ENV)[ED.i] || [];
+        var list = M.screensOf(UI.ctx.S, UI.ctx.ENV)[ED.i] || [];
         var next = M.move(list, d.j, d.to), why = M.problem(next);
         if (why) { editorToast(why); renderEditor(); return; }
         ED.open = -1;
@@ -823,7 +843,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.hintResolvers) { PConf.hintResolvers.register('batterySaverPauseHint', batterySaverPauseHint); }
         if (PConf.whenResolvers) {
             PConf.whenResolvers.register('manyScreens', function (S, env) {
-                return hasScreens(env) && screensOf(S, env).length > 1;
+                return hasScreens(env) && M.screensOf(S, env).length > 1;
             });
         }
     }
@@ -845,6 +865,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         addScreen: addScreen,
         contents: contents,
         drawnView: drawnView,
+        screenPicture: screenPicture,
+        radarOn: radarOn,
         screensCard: screensCard,
         editorBody: editorBody,
         radarSourceValue: radarSourceValue,

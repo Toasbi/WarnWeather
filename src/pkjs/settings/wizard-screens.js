@@ -76,13 +76,8 @@
      * @returns {number} Its slot.
      */
     function insertAt(screens, id) {
-        if (id === 'health') {
-            for (var i = 1; i < screens.length; i += 1) {
-                var t = templateOf(screens[i]);
-                if (t && t.id === 'radar') { return i; }
-            }
-        }
-        return screens.length;
+        var radar = id === 'health' ? slotOf(screens, 'radar') : -1;
+        return radar > 0 ? radar : screens.length;
     }
 
     /**
@@ -106,16 +101,14 @@
      * @returns {string} 'fullCal' | 'compactCal' | 'noCal'
      */
     function layoutOf(list) {
-        for (var i = 0; i < (list || []).length; i += 1) {
-            if (list[i].k === 'cal') { return list[i].rows === '3' ? 'fullCal' : 'compactCal'; }
-        }
-        return 'noCal';
+        var c = M.idxOf(list || [], 'cal');
+        if (c < 0) { return 'noCal'; }
+        return list[c].rows === '3' ? 'fullCal' : 'compactCal';
     }
 
     var api = {
         NEAREST_LAYOUT: NEAREST_LAYOUT,
         TEMPLATES: TEMPLATES,
-        MAX_SCREENS: M.MAX_SCREENS,
         offered: offered,
         byId: byId,
         templateOf: templateOf,
