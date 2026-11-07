@@ -153,6 +153,30 @@ test('aplite and an unknown watch keep their preset; radarEnabled follows radarM
   }));
 });
 
+test('a watch that did not say keeps what 2.5 drew too: the health slots it hid, the seats its modes folded', () => {
+  // A preset stays one (it might be an aplite), and so do the modes; a health item 2.5 drew as
+  // an empty slot is stored as Empty, since 2.6 no longer hides it by healthMode.
+  const S = seeded({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph',
+    statusTopLeft: 'steps', statusHealthLeft: 'steps' });
+  const r = migrateToScreens(S, { knownPlatform: '' });
+  assert.equal(S.layoutPreset, 'compactCal');
+  assert.equal(S.statusTopLeft, 'empty');
+  assert.equal(S.statusHealthLeft, 'steps', 'a bar 2.5 did not draw keeps its slots');
+  assert.deepEqual([S.radarMode, S.healthMode], ['graph', 'off']);
+  assert.equal(r.send, false);
+  // A custom layout is rewritten to the views 2.5 drew: aplite never reads its keys.
+  const C = seeded({ layoutPreset: 'custom', customLayoutSeeded: true, radarMode: 'countdown', healthMode: 'all',
+    viewCount: '2', viewTop1: 'none', viewBody1: 'forecast', viewUpper1: 'radar', viewLower1: 'weather',
+    viewOrder1: 'TACB', viewClockOff1: false });
+  const drawn = legacyCycle(C).map((v) => vc.packWire(v || null));
+  const rc = migrateToScreens(C, { knownPlatform: '' });
+  assert.equal(C.layoutPreset, 'custom');
+  assert.equal(C.viewUpper1, 'weather', 'the Radar bar its radar mode hid stays hidden');
+  assert.deepEqual(words(C, 'basalt').slice(0, 2), drawn);
+  assert.deepEqual([C.radarMode, C.healthMode], ['countdown', 'all']);
+  assert.equal(rc.send, true, 'the current compiler would have kept the bar: a send is due');
+});
+
 test('the move is idempotent: a second run changes nothing', () => {
   COLOUR_WATCHES.forEach((platform) => PRESETS.forEach((layoutPreset) => {
     const S = seeded({ layoutPreset, healthMode: 'status', radarMode: 'countdown' });

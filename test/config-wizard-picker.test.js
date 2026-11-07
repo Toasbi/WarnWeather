@@ -486,6 +486,25 @@ test('adding the Rain radar screen turns the rain radar on, its source kept', ()
   assert.equal(ctx.S.radarMode, 'graph');
 });
 
+test('taking out the Rain radar screen setup added with the radar off turns the radar off again', () => {
+  const { ctx, dom } = openSetup({ saved: { radarEnabled: false, radarProvider: 'dwd' } });
+  walkToTitle(dom, 'Flick to switch screens');
+  addScreen(dom, 'radar');
+  assert.equal(ctx.S.radarEnabled, true);
+  removeScreen(dom, 1);
+  assert.deepEqual(screenNames(ctx), ['Default']);
+  assert.equal(ctx.S.radarEnabled, false, 'as it was');
+  assert.equal(ctx.S.radarSource, 'off', 'Setup\'s Rain radar picker reads Off');
+  assert.equal(ctx.S.radarProvider, 'dwd', 'the source kept');
+  assert.equal(ctx.S.radarMode, 'off');
+  // A Rain radar screen the radar was already on for leaves it on.
+  addScreen(dom, 'radar');
+  const own = openSetup({ saved: Object.assign({}, ctx.S, { radarEnabled: true, radarSource: 'dwd' }) });
+  walkToTitle(own.dom, 'Flick to switch screens');
+  removeScreen(own.dom, 1);
+  assert.equal(own.ctx.S.radarEnabled, true);
+});
+
 test('with the rain radar off, a Rain radar screen is drawn as the watch draws it: the screen editor\'s picture', () => {
   const SP = require('../src/pkjs/settings/screens-page.js');
   const base = openSetup().ctx;

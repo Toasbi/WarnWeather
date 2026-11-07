@@ -215,16 +215,17 @@
      * @param {Object} source The source.
      * @param {{state: string, tail: string, status: number}} st Its statusOf.
      * @param {Object} S Live settings state.
+     * @param {?Object} [env] Platform env, for the usage line.
      * @returns {string} The line (HTML-safe), or ''.
      */
-    function summaryLine(source, st, S) {
+    function summaryLine(source, st, S, env) {
         if (st.state === 'missing') { return ''; }
         var parts = ['Key ••••' + esc(st.tail)];
         if (st.state === 'ok') { parts.push('✓ works'); }
         else if (st.state === 'rejected') { parts.push('✗ rejected: ' + esc(reasonOf(source, st.status))); }
         else if (source.test) { parts.push('not tested yet'); }
         var usage = (st.state !== 'rejected' && source.usage && usageLines[source.usage])
-            ? usageLines[source.usage](S || {}) : '';
+            ? usageLines[source.usage](S || {}, env) : '';
         if (usage) { parts.push(esc(usage)); }
         return parts.join(' · ');
     }
@@ -261,7 +262,7 @@
      * keyRowSummary (hintFrom of the key row): the key's status line — "Key ••••1234 · ✓
      * works", its usage, a refusal's reason — or "No key" (dimmed) while it is missing.
      * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (unused).
+     * @param {Object} env Platform env (the usage line's).
      * @param {{picker: string}} args The picker whose key-sources.js table is read.
      * @returns {?string} The summary (HTML-safe), or null for a source without a key.
      */
@@ -271,7 +272,7 @@
         if (!source) { return null; }
         var st = statusOf(source, id, S);
         if (st.state === 'missing') { return '<span class="hint-faint">No key</span>'; }
-        return summaryLine(source, st, S);
+        return summaryLine(source, st, S, env);
     }
 
     /**

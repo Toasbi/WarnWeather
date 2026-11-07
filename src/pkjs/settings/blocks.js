@@ -881,6 +881,23 @@ if (typeof require !== 'undefined') {
     }
 
     /**
+     * The settings as the call budgets read them on the page: radarMode as Save will store it
+     * (screens-page.js radarModeToSave), so a read-out neither counts a radar call Save drops
+     * nor misses one it adds. A copy only while the stored mode lags. (Save's own fit,
+     * onbuild.js, reads the mode the screens page's onSubmit hook has written by then.)
+     * @param {Object} state Settings state.
+     * @param {?Object} env Platform env.
+     * @returns {Object} The state to read.
+     */
+    function budgetState(state, env) {
+        var S = state || {};
+        // screens-page.js loads after this file in the page: looked up at call time.
+        var SP = (typeof require !== 'undefined') ? require('./screens-page.js') : window.ScreensPage;
+        var mode = SP ? SP.radarModeToSave(S, env) : S.radarMode;
+        return mode === S.radarMode ? S : Object.assign({}, S, { radarMode: mode });
+    }
+
+    /**
      * The interval a budget read-out computes with: the one Save will store (interval-budget.js
      * fitInterval), not the raw stored value. With a "Fit update interval" guard on, a stored
      * interval the budget no longer affords (radar picked in Graphs › Rain radar, the interval
@@ -901,11 +918,12 @@ if (typeof require !== 'undefined') {
      * fetchIntervalMin / sleep window / provider / radarProvider / guard changes.
      *
      * @param {Object} state Settings state.
-     * @param {Object} env Platform env (unused).
+     * @param {Object} env Platform env.
      * @returns {string} Block HTML, or '' when no tomorrow.io budget is in play.
      */
     function tomorrowioBudgetBlock(state, env) {
         var B = tomorrowioBudget;
+        state = budgetState(state, env);
         var cpc = B.callsPerCycle(state);
         if (cpc === 0) { return ''; }
         var interval = readoutInterval(state);
@@ -942,10 +960,12 @@ if (typeof require !== 'undefined') {
      * the read-out's own figure, against the free plan's daily limit — "~96 of 500 calls a
      * day". A projection: the phone does not count the calls it makes.
      * @param {Object} state Settings state.
+     * @param {?Object} env Platform env.
      * @returns {?string} The line, or null when no tomorrow.io call is made.
      */
-    function tomorrowioUsageLine(state) {
+    function tomorrowioUsageLine(state, env) {
         var B = tomorrowioBudget;
+        state = budgetState(state, env);
         if (B.callsPerCycle(state) === 0) { return null; }
         return '~' + Math.round(B.dailyCalls(state, readoutInterval(state))) + ' of ' + B.LIMIT_DAY + ' calls a day';
     }
@@ -959,11 +979,12 @@ if (typeof require !== 'undefined') {
      * hourly heads-up (Rainbow documents no hourly limit). Recomputes on every render.
      *
      * @param {Object} state Settings state.
-     * @param {Object} env Platform env (unused).
+     * @param {Object} env Platform env.
      * @returns {string} Block HTML, or '' when no own-key Rainbow budget is in play.
      */
     function rainbowBudgetBlock(state, env) {
         var B = rainbowBudget;
+        state = budgetState(state, env);
         if (B.callsPerCycle(state) === 0) { return ''; }
         var interval = readoutInterval(state);
         var sleep = B.sleepHours(state);
@@ -987,10 +1008,12 @@ if (typeof require !== 'undefined') {
      * come to, the read-out's own figure, against the free plan's monthly limit — "~2,976
      * of 5,000 calls a month". A projection: the phone does not count the calls it makes.
      * @param {Object} state Settings state.
+     * @param {?Object} env Platform env.
      * @returns {?string} The line, or null when no call is billed to the user's key.
      */
-    function rainbowUsageLine(state) {
+    function rainbowUsageLine(state, env) {
         var B = rainbowBudget;
+        state = budgetState(state, env);
         if (B.callsPerCycle(state) === 0) { return null; }
         return '~' + withThousands(Math.round(B.monthlyCalls(state, readoutInterval(state))))
             + ' of ' + withThousands(B.LIMIT_MONTH) + ' calls a month';
@@ -1006,8 +1029,8 @@ if (typeof require !== 'undefined') {
     // row renders (Setup tab), so onbuild.js's onSubmit applies the same fit, from the
     // same interval-budget.js, at save time for a change made elsewhere (the screens, which
     // decide whether the radar is fetched, on the Watchface tab).
-    PConf.optionsResolvers.register('fetchIntervalBudget', function (S) {
-        return intervalBudget.fittingOptions(S || {});
+    PConf.optionsResolvers.register('fetchIntervalBudget', function (S, env) {
+        return intervalBudget.fittingOptions(budgetState(S, env));
     });
 
     // "(Recommended)" markers on the weather + radar provider dropdowns: the option matching the

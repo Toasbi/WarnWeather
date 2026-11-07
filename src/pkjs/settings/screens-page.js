@@ -7,9 +7,11 @@
 // The screens are read from and written to the custom layout's per-view keys (screens.js
 // screensOf / compileKeys), one screen at a time, so a screen the user does not touch keeps
 // its keys byte for byte. A preset install (one the 2.6 migration could not move: its watch
-// did not say what it is) turns custom at its first edit, through its own cycle's keys
+// did not say what it is) turns custom at its first screen edit, through its own cycle's keys
 // (view-cycle.js specToKeys), so nothing on it moves either. radarMode and healthMode follow
-// every edit and every Save (screens.js deriveModes), so each reader of them stays as it is.
+// every edit and every Save (screens.js deriveModes), so each reader of them stays as it is;
+// what reads them between Saves, where a tick on the Alerts tab can have moved them, reads
+// the ones Save will store (radarModeToSave).
 // aplite has no screens: its Watchface tab keeps a plain Layout choice.
 /* global PConf */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
@@ -62,16 +64,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Write the modes the screens need (screens.js deriveModes) into S. A preset's screens
-     * follow its modes, so it turns custom first (ensureCustom): a mode worked out from them
-     * can then never drop one (the radar turned off, then on again, keeps its screen).
-     * aplite keeps its own (its page sets both off as it opens, onbuild.js).
+     * follow its modes, so on a watch known to have screens it turns custom first
+     * (ensureCustom): a mode worked out from them can then never drop one (the radar turned
+     * off, then on again, keeps its screen). A watch that did not say what it is keeps its
+     * preset here, as the 2.6 migration does: it might be an aplite, which folds a custom
+     * layout to Compact calendar. Only a screen edit makes it custom there (writeScreen,
+     * deleteScreen, insertScreen). aplite keeps its own modes (its page sets both off as it
+     * opens, onbuild.js).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {void}
      */
     function applyModes(S, env) {
         if (!hasScreens(env)) { return; }
-        ensureCustom(S, env);
+        if (env && env.platform) { ensureCustom(S, env); }
         var m = M.deriveModes(S, env);
         S.radarMode = m.radarMode;
         S.healthMode = m.healthMode;
@@ -584,14 +590,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Turn the rain radar back on (a screen's Rain radar row, the setup's Rain radar screen):
-     * its source as stored, which the Rain radar picker shows again (radarSourceValue).
+     * Turn the rain radar on or off (Setup's Rain radar picker, a screen's Rain radar row, the
+     * setup's Rain radar screen): its source stays as stored, the Rain radar picker shows Off or
+     * that source (radarSourceValue), and the modes follow.
      * @param {Object} S Settings.
+     * @param {boolean} on On or off.
      * @param {?Object} env Platform env.
      * @returns {void}
      */
-    function radarOn(S, env) {
-        S.radarEnabled = true;
+    function setRadarEnabled(S, on, env) {
+        S.radarEnabled = on;
         S.radarSource = radarSourceValue(S);
         applyModes(S, env);
     }
@@ -630,7 +638,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             commit(M.setOption(list, j, t.getAttribute('data-key'), t.getAttribute('data-v')));
             return;
         }
-        if (act === 'radaron') { radarOn(S, env); renderEditor(); ctx.render(); return; }
+        if (act === 'radaron') { setRadarEnabled(S, true, env); renderEditor(); ctx.render(); return; }
         if (act === 'delscreen') {
             var i = ED.i;
             closeEditor();
@@ -766,13 +774,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function radarSourcePicked(S, oldValue, newValue, env) {
-        if (newValue === 'off') {
-            S.radarEnabled = false;
-        } else {
-            S.radarEnabled = true;
-            S.radarProvider = newValue;
-        }
-        applyModes(S, env);
+        if (newValue !== 'off') { S.radarProvider = newValue; }
+        setRadarEnabled(S, newValue !== 'off', env);
+    }
+
+    /**
+     * The radarMode Save stores for these settings (screens.js deriveModes, as the onSubmit hook
+     * below writes it): the page's one reading of whether the phone fetches the rain radar, for
+     * what asks between Saves (the radar key's check here, the call budgets in blocks.js). The
+     * stored radarMode can lag until Save (a rain tick on the Alerts tab moves it). Whether the
+     * radar is on at all is the switch, radarEnabled: the picker, the "turn it on" notes and
+     * the key rows read that, so a key can go in before a screen uses the radar.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {string} 'off' | 'countdown' | 'status' | 'graph'
+     */
+    function radarModeToSave(S, env) {
+        if (!hasScreens(env)) { return (S && S.radarMode) || 'graph'; }   // aplite: its own, as Save keeps it
+        return M.deriveModes(S || {}, env).radarMode;
     }
 
     /**
@@ -830,10 +849,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.displayResolvers) { PConf.displayResolvers.register('radarSourceValue', radarSourceValue); }
         if (PConf.attentionResolvers) {
             // The Rain radar picker's key check (key-status.js keyAttention, on radarProvider):
-            // nothing to ask while the radar is off, when no call is made.
+            // nothing to ask while no radar call is made (the radar off, or nothing on the
+            // screens and no rain alert on a shown bar needing it: radarModeToSave).
             PConf.attentionResolvers.register('radarKeyAttention', function (S, env) {
                 var fn = PConf.attentionResolvers.get('keyAttention');
-                return (!S || S.radarEnabled === false || !fn) ? null : fn(S, env, { picker: 'radarProvider' });
+                return (!S || !fn || radarModeToSave(S, env) === 'off') ? null : fn(S, env, { picker: 'radarProvider' });
             });
         }
         if (PConf.onChange) { PConf.onChange.register('radarSourcePicked', radarSourcePicked); }
@@ -866,7 +886,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         contents: contents,
         drawnView: drawnView,
         screenPicture: screenPicture,
-        radarOn: radarOn,
+        setRadarEnabled: setRadarEnabled,
+        radarModeToSave: radarModeToSave,
         screensCard: screensCard,
         editorBody: editorBody,
         radarSourceValue: radarSourceValue,

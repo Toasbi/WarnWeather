@@ -750,8 +750,9 @@ var TOMORROWIO_WEATHER_WHEN = {key: TOMORROWIO_SHARED.key, eq: TOMORROWIO_SHARED
 var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'radarEnabled', ne: false},
     {key: TOMORROWIO_SHARED.key, ne: TOMORROWIO_SHARED.eq}]};
 // "Rainbow (own key)" picked for a running radar: its key sheet's gate. The radarEnabled
-// clause keeps the sheet (and so the Save dialog's way into it) closed with the radar off
-// (Setup › Data sources), when no Rainbow call is made.
+// clause keeps the sheet closed with the radar off (Setup › Data sources); while it is on, a
+// key can go in before a screen uses the radar. The Save dialog asks for the key only while a
+// Rainbow call is made (screens-page.js radarKeyAttention).
 var RAINBOW_OWN_KEY_WHEN = {all: [{key: 'radarProvider', eq: 'rainbowkey'}, {key: 'radarEnabled', ne: false}]};
 // Setup's Rain radar picker: each source's "why", shown with the picked one. Rainbow's
 // terms ask for a "Powered by Rainbow.ai" link wherever its data shows, so both Rainbow

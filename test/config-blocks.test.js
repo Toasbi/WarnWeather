@@ -1427,7 +1427,10 @@ test('rainbowBudget block: empty unless Rainbow on the user\'s own key drives a 
   assert.equal(typeof block, 'function', 'the block is registered');
   assert.equal(block(rainbowState({ radarProvider: 'rainbow' }), {}), '', 'shared Rainbow bills nothing to the user');
   assert.equal(block(rainbowState({ radarProvider: 'dwd' }), {}), '', 'another radar source');
-  assert.equal(block(rainbowState({ radarMode: 'off' }), {}), '', 'radar off: no Rainbow call is made');
+  assert.equal(block(rainbowState({ radarEnabled: false }), {}), '', 'radar off: no Rainbow call is made');
+  // The read-out counts what Save will store, not a stored mode that lags: the rain alert on
+  // the Watch bar (its default tick) fetches the radar, whatever radarMode says until Save.
+  assert.notEqual(block(rainbowState({ radarMode: 'off' }), {}), '', 'the rain alert still needs the radar');
   assert.equal(B.rainbowBudgetBlock, block, 'the exported renderer is the registered one');
 });
 

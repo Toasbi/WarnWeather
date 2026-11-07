@@ -147,6 +147,52 @@ test('Rain radar Off keeps the source, and the radar\'s screen with it', () => {
   assert.equal(SP.radarSourceValue(S), 'dwd');
 });
 
+test('a watch that did not say what it is keeps its preset while only the modes move; a screen edit makes it custom', () => {
+  const UNKNOWN = platform.computeEnv({});
+  const S = preset({ layoutPreset: 'fullCal' });
+  SP.radarSourcePicked(S, 'rainbow', 'off', UNKNOWN);
+  assert.equal(S.layoutPreset, 'fullCal', 'it might be an aplite, which folds a custom layout to Compact calendar');
+  assert.equal(S.radarMode, 'off', 'no radar fetch all the same');
+  SP.radarSourcePicked(S, 'off', 'rainbow', UNKNOWN);
+  assert.equal(S.layoutPreset, 'fullCal');
+  // A screen edit is one the user asked for.
+  SP.writeScreen(S, 0, M.screensOf(S, UNKNOWN)[0], UNKNOWN);
+  assert.equal(S.layoutPreset, 'custom');
+});
+
+/**
+ * The Default screen alone as a custom layout, the rain alert ticked nowhere unless asked.
+ * @param {Object} [over] Keys to set.
+ * @returns {Object}
+ */
+function defaultOnly(over) {
+  return Object.assign(preset({ statusTopOnDemandLeftItems: 'bt,qt,snooze' }),
+    { layoutPreset: 'custom', viewCount: '1' }, M.compileKeys(DEFAULT_SCREENS[0], 0), over || {});
+}
+
+test('the radar key is asked for only while a radar call is made: the radar mode Save stores', () => {
+  const attention = PC.attentionResolvers.get('radarKeyAttention');
+  const S = defaultOnly({ radarProvider: 'rainbowkey', rainbowApiKey: '' });
+  assert.equal(SP.radarModeToSave(S, BASALT), 'off', 'on, but no screen and no rain alert needs it');
+  assert.equal(attention(S, BASALT), null);
+  S.statusTopOnDemandLeftItems = 'bt,qt,snooze,rain';
+  assert.equal(SP.radarModeToSave(S, BASALT), 'countdown', 'the rain alert on the Watch bar needs it');
+  assert.notEqual(attention(S, BASALT), null);
+  assert.equal(S.radarMode, 'graph', 'the stored mode lags until Save; the check does not');
+  assert.equal(attention(Object.assign({}, S, { radarEnabled: false }), BASALT), null, 'the radar off');
+});
+
+test('the call budgets count the radar calls Save will make, not a stored mode that lags', () => {
+  const block = PC.blocks.get('rainbowBudget');
+  const S = defaultOnly({ radarProvider: 'rainbowkey', rainbowApiKey: 'key', radarMode: 'countdown' });
+  assert.equal(block(S, BASALT), '', 'nothing needs the radar: no call billed');
+  Object.assign(S, { statusTopOnDemandLeftItems: 'bt,qt,snooze,rain', radarMode: 'off' });
+  assert.match(block(S, BASALT), /calls\/month/, 'the rain alert needs it: billed');
+  assert.deepEqual(PC.optionsResolvers.get('fetchIntervalBudget')(S, BASALT),
+    PC.optionsResolvers.get('fetchIntervalBudget')(Object.assign({}, S, { radarMode: 'countdown' }), BASALT),
+    'the interval choice reads it too');
+});
+
 test('a screen in a line, for its row on the Screens card: the Watch bar left out', () => {
   assert.equal(SP.contents(DEFAULT_SCREENS[0], {}), 'Calendar · Clock · Forecast bar · Forecast graph');
   assert.equal(SP.contents(DEFAULT_SCREENS[2], {}), 'Clock · Radar bar · Rain radar');

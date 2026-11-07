@@ -144,8 +144,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function newRun(ctx, fresh) {
         return {
             ctx: ctx, env: ctx.ENV, steps: buildSteps(ctx.ENV), idx: 0, overlay: null,
-            // The screen the Screens step shows big (the Default when the step opens).
-            screenIdx: 0,
+            // The screen the Screens step shows big (the Default when the step opens), and whether
+            // this run turned the rain radar on for the Rain radar screen it added (addTemplate).
+            screenIdx: 0, radarOnForScreen: false,
             // Where a swipe on the picker's preview started; the latest screenshot swap.
             touch: null, shotSeq: 0,
             // The summary has been shown (footer); a Tomorrow.io key was typed in this run.
@@ -597,18 +598,26 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     /**
      * Add a screen setup offers, where it goes (screens-page.js insertScreen, as + Add screen
-     * writes one), and show it big. The Rain radar screen turns the rain radar on.
+     * writes one), and show it big. The Rain radar screen turns the rain radar on (and taking
+     * it out again turns it back off: removeScreen).
      * @param {string} id A template.
      * @returns {void}
      */
     function addTemplate(id) {
         var S = run.ctx.S, at = SCREENS.insertAt(screens(), id);
-        if (id === 'radar' && S.radarEnabled === false) { SP.radarOn(S, run.env); }
-        if (SP.insertScreen(S, at, M.copy(SCREENS.byId(id).list), run.env)) { run.screenIdx = at; }
+        var turnOn = id === 'radar' && S.radarEnabled === false;
+        if (turnOn) { SP.setRadarEnabled(S, true, run.env); }
+        if (SP.insertScreen(S, at, M.copy(SCREENS.byId(id).list), run.env)) {
+            run.screenIdx = at;
+            if (turnOn) { run.radarOnForScreen = true; }
+        } else if (turnOn) {
+            SP.setRadarEnabled(S, false, run.env);
+        }
         repaintScreens(['[data-wiz-scr-rm="' + at + '"]', '[data-wiz-flick]']);
     }
     /**
-     * Remove a flick screen (screens-page.js deleteScreen: the ones after it move up).
+     * Remove a flick screen (screens-page.js deleteScreen: the ones after it move up). The Rain
+     * radar screen this run added with the rain radar off takes the radar off with it again.
      * @param {number} i Its slot.
      * @returns {void}
      */
@@ -616,6 +625,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var t = SCREENS.templateOf(screens()[i]);
         if (SP.deleteScreen(run.ctx.S, i, run.env)) {
             if (run.screenIdx === i) { run.screenIdx = 0; } else if (run.screenIdx > i) { run.screenIdx -= 1; }
+            if (t && t.id === 'radar' && run.radarOnForScreen) {
+                run.radarOnForScreen = false;
+                SP.setRadarEnabled(run.ctx.S, false, run.env);
+            }
         }
         repaintScreens((t ? ['[data-wiz-scr-add="' + t.id + '"]'] : []).concat(['[data-wiz-flick]', '[data-wiz-title]']));
     }
