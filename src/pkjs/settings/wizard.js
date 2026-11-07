@@ -97,9 +97,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The pickers. `options` and `desc` read the run; `selected` is read off the settings (the
-     * layout from the Default screen, the forecast look from the graph): only a highlight, the
-     * settings change on a real pick alone; `write` replaces the plain write; `graph` previews in
-     * the forecast step's screen instead of a screenshot.
+     * layout from the Default screen, the forecast look from the graph, the length as the phone
+     * reads it): only a highlight, the settings change on a real pick alone; `write` replaces the
+     * plain write; `graph` previews in the forecast step's screen instead of a screenshot.
      */
     var PICKERS = {
         layoutPreset: {
@@ -121,7 +121,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 return out;
             },
             selected: function () { return currentLook().id; },
-            write: function (id) { writeLook(lookById(id).values); },
+            write: pickLook,
+            graph: true
+        },
+        // emery only (the forecast step draws it where env.forecastSpan): the long span named by
+        // the hours it shows for the provider and the look.
+        forecastHours: {
+            options: function () { return FORECAST.spanOptions(run.ctx.S, run.env); },
+            desc: function () { return FORECAST.SPAN_DESC; },
+            selected: function () { return FORECAST.spanOf(run.ctx.S); },
             graph: true
         }
     };
@@ -153,8 +161,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             reachedDone: false, tioTyped: false,
             // Where focus goes when setup closes onto the page: the row that re-ran it.
             returnFocus: fresh ? null : '[data-action="startWizard"]',
-            // The forecast step's looks, and "Your own"'s values (refreshLooks).
-            looks: null, own: null
+            // The forecast step's looks, and "Your own"'s values and length (refreshLooks).
+            looks: null, own: null, ownSpan: null
         };
     }
 
@@ -277,7 +285,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function refreshLooks() {
         var S = run.ctx.S;
-        run.looks = FORECAST.looks(S, run.env, PConf.engine.themedDefaults(run.ctx.schema, S, run.env), run.own);
+        run.looks = FORECAST.looks(S, run.env, PConf.engine.themedDefaults(run.ctx.schema, S, run.env), run.own,
+            run.ownSpan);
     }
     function lookById(id) {
         for (var i = 0; i < run.looks.length; i += 1) { if (run.looks[i].id === id) { return run.looks[i]; } }
@@ -298,6 +307,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         Object.keys(values).forEach(function (k) { run.ctx.setValue(k, values[k]); });
     }
     /**
+     * Pick a look: its graph, and on emery, when it is another look than the one drawn, the length
+     * it starts on (Classic and Stripes 24 hours, Clean the long span, "Your own" its own). The
+     * look already drawn keeps a length picked under it.
+     * @param {string} id The look.
+     * @returns {void}
+     */
+    function pickLook(id) {
+        var look = lookById(id), anew = currentLook().id !== look.id;
+        writeLook(look.values);
+        if (anew && look.span) { run.ctx.setValue('forecastHours', look.span); }
+    }
+    /**
      * Pick a theme: its conversion runs (the colours, and the bars' colour it starts on), "Your own"
      * converts along, and the look picked on the forecast step is laid on again if the conversion
      * moved it off (Stripes' Solid bars back to multicolor on a dark theme).
@@ -314,13 +335,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!FORECAST.same(S, look.values, run.env)) { writeLook(look.values); }
     }
     /**
-     * The forecast look as its picker names it (the summary, the preview's label), and on emery,
-     * whose looks set it, the length as the Graphs tab names it: "Clean, 66 h".
+     * The forecast look as its picker names it (the summary, the preview's label), and on emery
+     * the length as its picker names it: "Clean, 66 h".
      * @returns {string}
      */
     function forecastLabel() {
-        var length = FORECAST.lengthLabel(run.ctx.S, run.env);
-        return currentLook().label + (length ? ', ' + length : '');
+        var look = currentLook().label;
+        return run.env.forecastSpan ? look + ', ' + pickedLabel('forecastHours') : look;
     }
     /**
      * The forecast step's picture: the first screen holding the forecast graph (the Default,
@@ -340,7 +361,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         };
     }
     /**
-     * Redraw the forecast step's picture.
+     * Redraw the forecast step's picture, and bring the length up to date: a look picked anew sets
+     * the length it starts on, and the long span's hours follow the look (the high and low on the
+     * graph widen its plot).
      * @returns {void}
      */
     function refreshForecast() {
@@ -350,13 +373,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             graph.innerHTML = pic.svg;
             graph.setAttribute('aria-label', pic.label);
         }
+        if (!run.env.forecastSpan) { return; }
+        var opts = optsFor('forecastHours'), segs = run.overlay.querySelectorAll('[data-wiz-group="forecastHours"]');
+        for (var i = 0; i < segs.length; i += 1) { segs[i].textContent = labelFor(opts, segs[i].getAttribute('data-wiz-opt')); }
+        markPicked('forecastHours', highlighted('forecastHours'), false);
     }
     /**
-     * What the forecast graph draws from: its governed settings. A pick that leaves them unchanged
-     * redraws nothing.
+     * What the forecast graph draws from: its governed settings and its length. A pick that leaves
+     * them unchanged redraws nothing.
      * @returns {string}
      */
-    function graphState() { return JSON.stringify(FORECAST.snapshot(run.ctx.S, run.env)); }
+    function graphState() { return JSON.stringify(FORECAST.snapshot(run.ctx.S, run.env)) + '|' + FORECAST.spanOf(run.ctx.S); }
 
     // --- the picker ---
     function optsFor(group) { return PICKERS[group].options(); }
@@ -449,6 +476,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var val = opts[Math.max(0, Math.min(opts.length - 1, idx))][1];
         var graph = PICKERS[group].graph, before = graph ? graphState() : '';
         commit(group, val);
+        markPicked(group, val, focus);
+        if (!graph) {
+            swapShot(group, val);
+        } else if (graphState() !== before) {
+            refreshForecast();
+        }
+    }
+    /**
+     * Show a picker's option as picked, in place: its segment on (and focused, for the arrow keys),
+     * the others off, and its description.
+     * @param {string} group A picker.
+     * @param {string} val The option.
+     * @param {boolean} focus Move keyboard focus to its segment.
+     * @returns {void}
+     */
+    function markPicked(group, val, focus) {
         var segs = run.overlay.querySelectorAll('[data-wiz-group="' + group + '"]');
         for (var i = 0; i < segs.length; i += 1) {
             var on = segs[i].getAttribute('data-wiz-opt') === val;
@@ -459,11 +502,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         var desc = run.overlay.querySelector('[data-wiz-desc="' + group + '"]');
         if (desc) { desc.textContent = descFor(group)[val] || ''; }
-        if (!graph) {
-            swapShot(group, val);
-        } else if (graphState() !== before) {
-            refreshForecast();
-        }
     }
 
     // --- the layout: the Default screen ---
@@ -735,7 +773,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     /**
      * The forecast step: the screen with the forecast graph (the Default), drawn live in the picked
-     * look (a swipe across it steps through the looks), then the looks.
+     * look (a swipe across it steps through the looks), then the looks, and on emery the length.
      * @returns {string} HTML.
      */
     function stepForecast() {
@@ -745,8 +783,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '<div class="' + (pic.onScreen ? 'wiz-watch wiz-look' : 'wiz-graph') + '" data-wiz-graph role="img" aria-label="'
             + esc(pic.label) + '">' + pic.svg + '</div>'
             + '</div>' + optsHtml('forecastLook', 'wiz-title')
-            + '<p class="wiz-fine">Every line' + (run.env.forecastSpan ? ' and the forecast length' : '')
-            + ' can be changed later on the Graphs tab.</p>';
+            + (run.env.forecastSpan ? '<h3 class="wiz-sub" id="wiz-span">Forecast length</h3>' + optsHtml('forecastHours', 'wiz-span') : '')
+            + '<p class="wiz-fine">Every line can be changed later on the Graphs tab.</p>';
     }
     function welcomeRows() {
         var S = run.ctx.S, country = settingLabel('holidayCountry', S.holidayCountry);
@@ -1078,6 +1116,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             refreshLooks();
             if (!FORECAST.current(ctx.S, run.looks, run.env)) {
                 run.own = FORECAST.snapshot(ctx.S, run.env);
+                run.ownSpan = FORECAST.spanOf(ctx.S);
                 refreshLooks();
             }
         }
