@@ -29,8 +29,8 @@ const SPAN_H = read('src/c/appendix/forecast_span.h');
 // emery's settings-page env (config-ui platform.js computeEnv): health and custom layouts.
 const EMERY = platform.computeEnv({ platform: 'emery' });
 // A custom layout of one view, the health graph in the top band over the forecast body: the
-// two share the screen, so the forecast keeps the health labels' strip with the numbers On
-// graph or Off (forecast_layer.c graph_left, bottom_view_other_consumer_shown).
+// two share the screen, and the forecast still starts at its edge with the numbers On graph
+// or Off (forecast_layer.c graph_left), the health graph's plot past its own labels' strip.
 const SHARED_VIEW = {
   layoutPreset: 'custom', healthMode: 'all', viewCount: '1', viewTop0: 'health', viewBody0: 'forecast'
 };
@@ -80,9 +80,10 @@ test('the geometry is the watch\'s', () => {
   assert.match(bottomViewC, /s_reported_w\[BOTTOM_VIEW_SRC_HEALTH\]\s+> w\) w = /);
   assert.equal(spanHours.DOT_W.large, 4);
   assert.equal(spanHours.DOT_W.small, 3);
-  // A forecast with no left axis keeps the shared strip while the other graph is on its screen.
+  // A forecast with no left axis starts at the screen's edge on every view, the health graph on
+  // its screen or not.
   assert.match(read('src/c/layers/forecast_layer.c'),
-    /graph_left = \(axis_on \|\| bottom_view_other_consumer_shown\(layer\)\)\s*\? bottom_view_graph_inset\(\) : screen_left;/);
+    /graph_left = axis_on \? bottom_view_graph_inset\(\) : screen_left;/);
   // The long class's pitch.
   assert.equal(spanHours.SLOT_ONE, 1 << cDefine(read('src/c/appendix/slot_x.h'), 'SLOT_X_Q'));
   assert.equal(spanHours.PITCH_MIN, cDefine(SPAN_H, 'FORECAST_SPAN_LONG_PITCH_MIN'));
@@ -117,7 +118,7 @@ test('plotWidth: the health graph\'s step mark widens the shared strip On axis',
   // Every preset carries it, Weather only too.
   ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((layoutPreset) => {
     const s = { layoutPreset: layoutPreset, healthMode: 'all', largeGraphFont: false };
-    assert.deepEqual(spanHours.healthGraph(s, EMERY), { shown: true, beside: false }, layoutPreset);
+    assert.equal(spanHours.healthGraphShown(s, EMERY), true, layoutPreset);
     assert.equal(spanHours.plotWidth(s, EMERY), 179, layoutPreset);
   });
   // A watch without health never draws it; no env (or no health fact) reads as capable.
@@ -132,50 +133,46 @@ test('plotWidth: the health graph\'s step mark widens the shared strip On axis',
   }));
 });
 
-test('plotWidth: a custom view seating the health graph beside the forecast keeps its strip', () => {
+test('plotWidth: with no left axis the forecast spans the screen beside a health graph too', () => {
   ['graph', 'off'].forEach((numbers) => {
     // Either band order: the health graph on top of the forecast, or under it.
     [SHARED_VIEW, Object.assign({}, SHARED_VIEW, { viewTop0: 'forecast', viewBody0: 'health' })]
       .forEach((layout) => {
         const s = (large) => Object.assign({ forecastAxisNumbers: numbers, largeGraphFont: large }, layout);
-        assert.deepEqual(spanHours.healthGraph(s(true), EMERY), { shown: true, beside: true });
-        assert.equal(spanHours.plotWidth(s(true), EMERY), 174, numbers + ' G24');
-        assert.equal(spanHours.plotWidth(s(false), EMERY), 179, numbers + ' G18');
-        assert.equal(spanHours.longHours(Object.assign({ provider: 'dwd' }, s(true)), EMERY), 58);
-        assert.equal(spanHours.longHours(Object.assign({ provider: 'dwd' }, s(false)), EMERY), 59);
-        // Without Status + Graph the compiler folds the health seat away: the screen again.
-        assert.equal(spanHours.plotWidth(Object.assign(s(true), { healthMode: 'status' }), EMERY), 200);
-        // A watch without health: the screen again.
-        assert.equal(spanHours.plotWidth(s(true), Object.assign({}, EMERY, { health: false })), 200);
+        assert.equal(spanHours.healthGraphShown(s(true), EMERY), true);
+        assert.equal(spanHours.plotWidth(s(true), EMERY), 200, numbers + ' G24');
+        assert.equal(spanHours.plotWidth(s(false), EMERY), 200, numbers + ' G18');
+        assert.equal(spanHours.longHours(Object.assign({ provider: 'dwd' }, s(true)), EMERY), 66);
+        assert.equal(spanHours.longHours(Object.assign({ provider: 'dwd' }, s(false)), EMERY), 66);
       });
-    // On axis the strip is the same on every view.
-    assert.equal(spanHours.plotWidth(Object.assign({ largeGraphFont: true }, SHARED_VIEW), EMERY), 174);
   });
-  // The views can disagree; the label takes the forecast's first view in the cycle, the
-  // Default view when it shows the forecast (the view the watch returns to). The
-  // custom-two-graphs fixture: the Default view's forecast alone (the whole screen), views 2
-  // and 3 beside the health graph (the strip).
+  // On axis the strip is the same on every view: the wider of the hi/lo label and the step mark.
+  assert.equal(spanHours.plotWidth(Object.assign({ largeGraphFont: true }, SHARED_VIEW), EMERY), 174);
+  // Without Status + Graph the compiler folds the health seat away, and a watch without health
+  // never draws it: no step mark On axis.
+  assert.equal(spanHours.healthGraphShown(Object.assign({}, SHARED_VIEW, { healthMode: 'status' }), EMERY), false);
+  assert.equal(spanHours.plotWidth(Object.assign({ largeGraphFont: true }, SHARED_VIEW, { healthMode: 'status' }),
+    EMERY), 176);
+  assert.equal(spanHours.healthGraphShown(SHARED_VIEW, Object.assign({}, EMERY, { health: false })), false);
+  // The custom-two-graphs fixture: the Default view's forecast alone, views 2 and 3 beside the
+  // health graph. Every view spans the screen with no left axis; On axis every view keeps the
+  // strip, the fixture's own font (GOTHIC_18): 59.
   const two = JSON.parse(read('fixtures/custom-two-graphs.json')).claySettings;
   assert.deepEqual([two.viewTop0, two.viewBody0, two.viewTop1, two.viewBody1, two.viewTop2, two.viewBody2],
     ['cal2', 'forecast', 'health', 'forecast', 'forecast', 'health']);
   const off = Object.assign({}, two, { forecastAxisNumbers: 'off', largeGraphFont: true });
-  assert.deepEqual(spanHours.healthGraph(off, EMERY), { shown: true, beside: false });
   assert.equal(spanHours.plotWidth(off, EMERY), 200);
   assert.equal(spanHours.longHours(off, EMERY), 66);
-  // Its Default view without the forecast: the first view that shows it is the shared one.
-  const noFirst = Object.assign({}, off, { viewBody0: 'none' });
-  assert.deepEqual(spanHours.healthGraph(noFirst, EMERY), { shown: true, beside: true });
-  assert.equal(spanHours.longHours(noFirst, EMERY), 58);
-  // On axis every view keeps the strip: the fixture's own font (GOTHIC_18), 59.
+  assert.equal(spanHours.longHours(Object.assign({}, off, { viewBody0: 'none' }), EMERY), 66);
   assert.equal(spanHours.longHours(two, EMERY), 59);
-  // A disabled flick view (null in the cycle: nothing left on it) is skipped: the first view
-  // that shows the forecast is then the third, the forecast's graph top over the health body.
-  const gap = Object.assign({}, noFirst, { viewClockOff1: true, viewStripOff1: true, viewTop1: 'none',
+  // A disabled flick view (null in the cycle: nothing left on it) seats nothing: the health
+  // graph still shows on the third view, so its mark still claims the strip On axis.
+  const gap = Object.assign({}, two, { viewClockOff1: true, viewStripOff1: true, viewTop1: 'none',
     viewBody1: 'none', viewUpper1: 'off', viewLower1: 'off' });
   const cycle = require('../src/pkjs/view-cycle.js').resolveViewCycle(gap, EMERY);
   assert.equal(cycle[1], null, 'the emptied flick view compiles to a disabled slot');
-  assert.deepEqual(spanHours.healthGraph(gap, EMERY), { shown: true, beside: true });
-  assert.equal(spanHours.longHours(gap, EMERY), 58);
+  assert.equal(spanHours.healthGraphShown(gap, EMERY), true);
+  assert.equal(spanHours.longHours(gap, EMERY), 59);
 });
 
 test('feedHours: OpenWeatherMap 48, Weather Underground 49, every other provider the full 68', () => {
@@ -211,8 +208,9 @@ test('longHours and spanOptions: the label for each provider and layout', () => 
     [{ largeGraphFont: true, forecastAxisNumbers: 'off' }, 66],
     [{ largeGraphFont: true, forecastAxisNumbers: 'off', healthMode: 'all' }, 66],
     [{ largeGraphFont: false, forecastAxisNumbers: 'off' }, 66],
-    [Object.assign({ largeGraphFont: true, forecastAxisNumbers: 'off' }, SHARED_VIEW), 58],
-    [Object.assign({ largeGraphFont: false, forecastAxisNumbers: 'graph' }, SHARED_VIEW), 59]
+    [Object.assign({ largeGraphFont: true, forecastAxisNumbers: 'off' }, SHARED_VIEW), 66],
+    [Object.assign({ largeGraphFont: false, forecastAxisNumbers: 'graph' }, SHARED_VIEW), 66],
+    [Object.assign({ largeGraphFont: true }, SHARED_VIEW), 58]
   ];
   layouts.forEach(([layout, full]) => {
     FULL.forEach((provider) => {

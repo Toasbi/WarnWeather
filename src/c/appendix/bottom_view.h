@@ -99,21 +99,12 @@ static inline void bottom_view_unregister_consumer(Layer *layer) { (void) layer;
 // floor) changes its stored value while the gutter both views draw against stays
 // exactly where it was.
 // emery: a forecast whose hi/lo numbers left the strip (the left axis's On graph and
-// Off, config.h GRAPH_OPT_NUMS_MASK) reports 0. Alone on its screen it then draws from the
-// screen's left edge, with no axis (forecast_layer.c forecast_update_proc). The two graphs are not always
-// apart: a custom layout can seat one in the top band over the other in the body
-// (layout.c view_spec_resolve keeps one seat per graph KIND, and layout_visibility can raise
-// both). On such a screen the forecast keeps the shared edge
-// (bottom_view_other_consumer_shown), which is then the health graph's labels' alone, so the
-// two still line up.
+// Off, config.h GRAPH_OPT_NUMS_MASK) reports 0 and draws from the screen's left edge, with
+// no axis (forecast_layer.c forecast_update_proc). It does so on a screen it shares with the
+// health graph too (a custom layout seats one in the top band over the other in the body:
+// layout.c view_spec_resolve keeps one seat per graph KIND, and layout_visibility can raise
+// both), whose plot keeps the strip of its own labels.
 void bottom_view_report_label_w(BottomViewSrc src, int content_w);
-
-#if defined(PBL_PLATFORM_EMERY)
-// emery: whether a registered strip consumer other than `self` is shown (its layer not
-// hidden): the other bottom-region graph on the same screen. Read at draw time, like the
-// strip width itself (render_active_view sets the hidden flags before the repaint).
-bool bottom_view_other_consumer_shown(const Layer *self);
-#endif
 
 // Effective strip width = max(forecast_reported, health_reported, MIN_W).
 int  bottom_view_label_strip_w(void);

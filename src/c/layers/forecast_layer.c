@@ -388,9 +388,9 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
 // with the rows they name: the curve's extremes, or with GRAPH_OPT_SCALE_NUMS the scale's (a
 // feels-like or dew point line's too). On the graph: the hi number under its point, the lo
 // number over its own (forecast_numbers.h). Off: none. On the graph and Off leave no strip,
-// and the plot starts at the screen's left edge, unless a health graph shares the screen: then
-// the plot keeps the shared strip, which is masked as On axis masks it. noinline: its locals
-// stay off forecast_update_proc's frame while chart_draw runs (fit_temp_axis' reason).
+// and the plot starts at the screen's left edge, a health graph on the screen or not.
+// noinline: its locals stay off forecast_update_proc's frame while chart_draw runs
+// (fit_temp_axis' reason).
 static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const ForecastDataset *ds,
                                                          const ChartDef *grid, int h,
                                                          int16_t zero_y, int top,
@@ -411,13 +411,7 @@ static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const For
         draw_left_axis(ctx, h, zero_y, ends, 2);
         return;
     }
-    // A strip left of the plot (a health graph's, shared): its mask (draw_left_axis's) hides
-    // the curve's left half-stroke as it always has. Alone the plot starts at the screen's
-    // left edge (graph_left <= 0): no strip, nothing to mask.
-    if (graph_left > 0) {
-        graphics_context_set_fill_color(ctx, theme_bg());
-        graphics_fill_rect(ctx, GRect(0, 0, graph_left, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
-    }
+    // The plot starts at the screen's left edge (graph_left <= 0): no strip, nothing to mask.
     if (mode == GRAPH_OPT_NUMS_GRAPH) {
         forecast_numbers_on_graph(ctx, ds, grid, e, hi_s, lo_s, zero_y, top, graph_left,
                                   screen_w, s_buffer_hi, temp_label_string_size(s_buffer_hi),
@@ -483,11 +477,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // emery: the screen's left edge is `screen_left` in the layer's coordinates (the layer sits
     // LAYOUT_PAD_X in, unclipped inside a clip that reaches that edge: forecast_layer_create).
     // The plot's right end stays the screen's right edge. A health graph sharing this screen (a
-    // custom layout's top band over the body) keeps the plot at the shared edge, the health
-    // labels' strip alone, so the two line up (bottom_view.h).
+    // custom layout's top band over the body) keeps its own strip: the forecast still starts at
+    // the screen's edge (the owner's, 2026-11-07), as the two never shared an hour column
+    // anyway (the health graph's past day at its own pitch, the forecast's hours ahead).
     const int screen_left = -layer_get_frame(layer).origin.x;
-    const int graph_left = (axis_on || bottom_view_other_consumer_shown(layer))
-                               ? bottom_view_graph_inset() : screen_left;
+    const int graph_left = axis_on ? bottom_view_graph_inset() : screen_left;
 #else
     const int graph_left = bottom_view_graph_inset();
 #endif
@@ -895,7 +889,7 @@ static void text_labels_refresh()
     // The left axis's numbers On graph or Off (emery's options; 0 elsewhere) claim no strip:
     // the forecast then draws from the screen's left edge (forecast_update_proc), so the health
     // graph's strip is its own labels' alone (main_window.c retires the health graph's claim
-    // the same way), and a forecast sharing its screen draws from that edge.
+    // the same way).
     if (config_forecast_axis() & GRAPH_OPT_NUMS_MASK) {
         bottom_view_report_label_w(BOTTOM_VIEW_SRC_FORECAST, 0);
         return;
