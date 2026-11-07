@@ -32,6 +32,7 @@ const PW = require('../src/pkjs/settings/preview-watch.js');
 const spanHours = require('../src/pkjs/forecast-span-hours.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { openSetup } = require('./helpers/wizard-dom.js');
+const { blankBar, slotsOf } = require('./helpers/status-slots.js');
 const PConf = global.PConf;
 
 /**
@@ -456,18 +457,18 @@ test('+ puts a screen in where it goes and shows it big; ✕ takes it out again'
 
 test('a screen setup adds brings its bar with the bar\'s default readings, not an empty row', () => {
   // A Health bar never set up: its slots stored Empty.
-  const { ctx, dom } = openSetup({ saved: { statusHealthLeft: 'empty', statusHealthMid: 'empty', statusHealthRight: 'empty' } });
+  const { ctx, dom } = openSetup({ saved: blankBar('health') });
   walkToTitle(dom, 'Flick to switch screens');
   assert.match(dom.find('[data-wiz-scr-add="health"]').innerHTML, />6\.2k</, 'the Health screen offered draws them');
   assert.equal(ctx.S.statusHealthLeft, 'empty', 'drawing it writes nothing');
   addScreen(dom, 'health');
-  assert.deepEqual(['Left', 'Mid', 'Right'].map((p) => ctx.S['statusHealth' + p]), ['steps', 'empty', 'sleep']);
+  assert.deepEqual(slotsOf(ctx.S, 'health'), ['steps', 'empty', 'sleep']);
   assert.match(dom.find('[data-wiz-screen]').innerHTML, />6\.2k</, 'shown big with them');
 });
 
 test('a layout that puts the Forecast bar back gives it its readings when it has none', () => {
   const { ctx, dom } = openSetup({
-    saved: { statusForecastLeft: 'empty', statusForecastMid: 'empty', statusForecastRight: 'empty' },
+    saved: blankBar('forecast'),
     // A Default screen without the Forecast bar.
     prepare: (c) => {
       const list = M.screensOf(c.S, c.ENV)[0];
@@ -478,7 +479,7 @@ test('a layout that puts the Forecast bar back gives it its readings when it has
   walkTo(dom, 'layoutPreset');
   dom.pick('layoutPreset', 'fullCal');
   assert.ok(M.idxOf(M.screensOf(ctx.S, ctx.ENV)[0], 'fcbar') >= 0, 'the layout\'s Default screen has it');
-  assert.deepEqual(['Left', 'Mid', 'Right'].map((p) => ctx.S['statusForecast' + p]), ['temp', 'city', 'aqi']);
+  assert.deepEqual(slotsOf(ctx.S, 'forecast'), ['temp', 'city', 'aqi']);
 });
 
 test('Try a flick steps through the screens and back to Default', () => {

@@ -1916,15 +1916,12 @@ module.exports = {
             // fills the plot's width, so the hours on screen follow the layout
             // (src/c/appendix/forecast_span.h). '48' is the long span's stored token. Its label
             // names the whole hours the watch will show for the picked weather provider and the
-            // layout (forecastSpanOptions, src/pkjs/forecast-span-hours.js: '66 h' with the
-            // Left axis values On graph or Off, as a new install has them, '58 h' On axis with
-            // Larger graph fonts and the health graph shown, '59 h' there without Larger graph
-            // fonts, '47 h' with OpenWeatherMap, '48 h' with Weather Underground); the stored
-            // value never moves.
-            // The default is the long span: the Clean look's (settings/wizard-forecast.js), a
-            // new install's graph, whose setup offers Classic and Stripes at 24 h. An existing
-            // install without the key keeps the 24 h it had (clay-settings.js upgradeBackfill),
-            // and an absent value still reads 24 h (forecast-span-hours.js storedHours).
+            // layout (forecastSpanOptions, src/pkjs/forecast-span-hours.js spanOptions); the
+            // stored value never moves.
+            // The default is the long span, a new install's; setup's Clean look, the defaults,
+            // starts on it too (settings/wizard-forecast.js). An existing install without the key
+            // keeps the 24 h it had (clay-settings.js upgradeBackfill), and an absent value still
+            // reads 24 h (forecast-span-hours.js storedHours).
             // Every other watch keeps 24 h, whatever the key holds: the 640 B / 536 B inboxes
             // cannot take the long span's 68-hour bundle and the 64 KB images have no room. A
             // changed span re-fetches (render-signature.js). Not `more`: the span frames the

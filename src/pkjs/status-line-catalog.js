@@ -96,10 +96,6 @@
     ['health', 'Health'], ['battery', 'Battery']
   ];
 
-  // A line's slots in order, as the slot context (resolveSelection, itemAvailable) names
-  // them: each LINES entry's slots[i] is at SLOT_POSITIONS[i].
-  var SLOT_POSITIONS = ['left', 'mid', 'right'];
-
   var LINES = [
     { id: 'forecast', wireKey: 'STATUS_LINE_1_UINT8',
       slots: ['statusForecastLeft', 'statusForecastMid', 'statusForecastRight'],
@@ -479,7 +475,7 @@
   }
 
   var api = {
-    KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES, SLOT_POSITIONS: SLOT_POSITIONS,
+    KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
     allSlotKeys: allSlotKeys, slotDefault: slotDefault,

@@ -25,6 +25,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : window.VIEW_CYCLE;
     var M = (typeof require !== 'undefined') ? require('../screens.js') : window.Screens;
     var PW = (typeof require !== 'undefined') ? require('./preview-watch.js') : window.PreviewWatch;
+    var PSB = (typeof require !== 'undefined')
+        ? require('./preview-status-bars.js') : window.PreviewStatusBars;
     var catalog = (typeof require !== 'undefined')
         ? require('../status-line-catalog.js') : window.StatusLineCatalog;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
@@ -89,9 +91,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Give a bar that has just come onto a screen its default slots (status-line-catalog.js
      * slotDefault, the ones a new install has) when it would show nothing: every slot Empty, or
-     * an item this watch cannot show. A bar never set up can be stored that way: the 2.6 move
-     * stored a health item as Empty where health was off. A bar with a reading of its own, or
-     * one a screen showed already, keeps its slots. Mutates S.
+     * an item this watch cannot show, as the screen's picture reads it (preview-status-bars.js
+     * barSlots). A bar never set up can be stored that way: the 2.6 move stored a health item
+     * as Empty where health was off. A bar with a reading of its own, or one a screen showed
+     * already, keeps its slots. Mutates S.
      * @param {Object} S Settings.
      * @param {{top: boolean, forecast: boolean, radar: boolean, health: boolean}} before
      *   view-cycle.js barsShown() before the change.
@@ -100,13 +103,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function fillNewBars(S, before, env) {
         var now = VC.barsShown(S, env);
-        catalog.LINES.forEach(function (line) {
-            if (!now[line.id] || before[line.id]) { return; }
-            var blank = line.slots.every(function (key, p) {
-                var slot = { slotKey: key, position: catalog.SLOT_POSITIONS[p] };
-                return catalog.resolveSelection(S[key], S, env, slot) === 'empty';
-            });
-            if (blank) { line.slots.forEach(function (key) { S[key] = catalog.slotDefault(key, env); }); }
+        Object.keys(now).forEach(function (bar) {
+            if (!now[bar] || before[bar]) { return; }
+            var slots = PSB.barSlots(S, env, bar);
+            var blank = slots.every(function (c) { return c.code === 'empty'; });
+            if (blank) { slots.forEach(function (c) { S[c.key] = catalog.slotDefault(c.key, env); }); }
         });
     }
 

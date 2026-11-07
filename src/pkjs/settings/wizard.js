@@ -309,16 +309,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         Object.keys(values).forEach(function (k) { run.ctx.setValue(k, values[k]); });
     }
     /**
-     * Pick a look: its graph, and on emery, when it is another look than the one drawn, the length
-     * it starts on (Classic and Stripes 24 hours, Clean the long span, "Your own" its own). The
-     * look already drawn keeps a length picked under it.
+     * Pick a look: its graph, and on emery, when the graph is not drawing it already, the length it
+     * starts on (its span). The look already drawn keeps a length picked under it.
      * @param {string} id The look.
      * @returns {void}
      */
     function pickLook(id) {
-        var look = lookById(id), anew = currentLook().id !== look.id;
+        var look = lookById(id), anew = !FORECAST.same(run.ctx.S, look.values, run.env);
         writeLook(look.values);
-        if (anew && look.span) { run.ctx.setValue('forecastHours', look.span); }
+        if (anew && run.env.forecastSpan) { run.ctx.setValue('forecastHours', look.span); }
     }
     /**
      * Pick a theme: its conversion runs (the colours, and the bars' colour it starts on), "Your own"
@@ -522,8 +521,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Pick a layout. On a watch with screens it makes the Default screen alone (the flick screens
      * are the Screens step's): the preset's own Default view, the one its three-screen cycle starts
      * with, compiled back to the per-view keys of slot 0 (view-cycle.js specToKeys), as a screen
-     * edit (screens-page.js editScreens: the other screens frozen first, a bar it brings on with
-     * nothing to show given its default slots). aplite keeps the preset.
+     * edit (screens-page.js editScreens). aplite keeps the preset.
      * @param {string} layout 'fullCal' | 'compactCal' | 'noCal'.
      * @returns {void}
      */

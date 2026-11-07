@@ -15,7 +15,7 @@ var cityLadder = require('./city-ladder.js');
 var onDemand = require('./on-demand.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
-var POSITIONS = catalog.SLOT_POSITIONS;
+var POSITIONS = ['left', 'mid', 'right'];
 
 // utf8.js owns the byte engine (clay-payload's string cap shares it). The
 // local names survive as aliases: encode for the wire byte arrays the watch

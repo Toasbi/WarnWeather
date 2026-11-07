@@ -128,13 +128,8 @@ static void sleep_stripe_draw(const ChartRender *r, void *user) {
     }
 }
 
-// The step marks a redraw labels (step_marks_shown): the first `n` of s_step_marks, and their
-// lines' content rows on the bars' scale, the one set of rows the dashed lines and their labels
-// both read.
-typedef struct { int16_t rows[2]; int n; } StepGrid;
-
 // CUSTOM layer: dashed horizontal gridline at each labeled step mark (see
-// step_scale_marks / step_marks_shown / draw_left_axis) — the marks are the ONLY
+// step_scale_marks / step_scale_grid / draw_left_axis) — the marks are the ONLY
 // gridlines, so the left strip never carries an unlabeled line. Drawn under the bars so
 // data sits on top.
 
@@ -296,7 +291,7 @@ static void health_graph_compute(void) {
     s_end_hour      = end_hour;
 
     // Measured over every mark, the halfway one too where its plot draws the top one alone
-    // (step_marks_shown, at draw time): the plot's height is the view's, and the strip the
+    // (step_scale_grid, at draw time): the plot's height is the view's, and the strip the
     // two graphs share stays where it is as the views change.
     const GFont font = bottom_view_label_font();
     const GRect box  = GRect(0, 0, 200, 40);
@@ -311,23 +306,7 @@ static void health_graph_compute(void) {
     bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
 }
 
-// The marks this plot labels and their rows (StepGrid), top first: both while the halfway
-// line's label clears the top one's (step_scale_labels_clear), else the top line alone, its
-// label with it, as every line here is labeled. At draw time, not in health_graph_compute: the
-// plot is the view's own (a top band is shorter than a body), and a flick computes before
-// render_active_view frames the incoming view (main_window.c).
-static void step_marks_shown(StepGrid *g, int axis_y) {
-    g->n = s_step_mark_n;
-    for (int i = 0; i < g->n; ++i) {
-        g->rows[i] = (int16_t)step_scale_row(s_step_marks[i], s_step_hi, axis_y);
-    }
-    if (g->n == 2
-            && !step_scale_labels_clear(g->rows[0], g->rows[1], bottom_view_label_font_h())) {
-        g->n = 1;
-    }
-}
-
-// Left-axis strip: labels the marks of `g` (step_marks_shown) as single-row numbers in
+// Left-axis strip: labels the marks of `g` (step_scale_grid) as single-row numbers in
 // thousands ("2", "0.5") — no "k" suffix — each seated by its ink (step_label_ink_y). The
 // vertical axis line itself is painted by the FRAME layer in chart_draw.
 static void draw_left_axis(GContext *ctx, int h, const StepGrid *g) {
@@ -406,13 +385,16 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
                                   bounds.size.w, start_local);
 
     // CUSTOM-layer payloads. The step marks this plot labels apart and their rows, the lines'
-    // and the labels' alike (step_marks_shown): the plot's content rows are 0..axis_y, as
+    // and the labels' alike (step_scale_grid): the plot's content rows are 0..axis_y, as
     // health_grid_def keeps FORECAST_GRID_DEF's insets (none on top, the frame's one at the
-    // bottom of `outer`).
+    // bottom of `outer`). At draw time, not in health_graph_compute: the plot is the view's own
+    // (a top band is shorter than a body), and a flick computes before render_active_view
+    // frames the incoming view (main_window.c).
     SleepStripe stripe = { .sleep = s_sleep, .count = visible_slots,
                            .height = SLEEP_STRIPE_H };
     StepGrid    grid;
-    step_marks_shown(&grid, axis_y);
+    step_scale_grid(&grid, s_step_marks, s_step_mark_n, s_step_hi, axis_y,
+                    bottom_view_label_font_h());
 
     // Z-order = array order, bottom first.
     //  1. Sleep stripe (CUSTOM) — bottom band, drawn under everything else.

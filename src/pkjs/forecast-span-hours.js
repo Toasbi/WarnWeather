@@ -38,8 +38,7 @@
 // graph in the cycle (Health Status + Graph, the default), 174 px with Larger graph fonts and
 // 179 px without, its mark the wider claim (22 px / 17 px); with none, 176 px / 180 px.
 // With the numbers On graph or Off the forecast claims no strip and spans the whole 200 px screen
-// on every view, one it shares with the health graph too (a custom layout's top band over the
-// body), whose plot keeps the strip of its own labels (forecast_layer.c forecast_update_proc).
+// on every view (forecast_layer.c forecast_update_proc).
 // What only the watch knows moves W a little: a one-digit, negative or three-digit temperature,
 // a step mark of whole thousands ("2") or of 10k steps and more ("10.5"), health data the watch
 // does not have (Pebble Health off). Each moves the count by an hour or so (a "10.5" mark:

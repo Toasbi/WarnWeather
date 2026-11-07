@@ -81,3 +81,23 @@ static inline bool step_scale_labels_clear(int top_row, int mid_row, int content
     return step_label_ink_y(mid_row, content_h)
            >= step_label_ink_y(top_row, content_h) + status_cap_h(content_h) + STEP_LABEL_GAP;
 }
+
+// The marks a plot labels and their rows, top first: the one set of rows the dashed lines and
+// their labels both read.
+typedef struct { int16_t rows[2]; int n; } StepGrid;
+
+// The grid of the first `n` of step_scale_marks' `marks` on a plot `plot_h` rows tall, scaled
+// to `hi`, its labels in a font `content_h` tall: both marks while the halfway line's label
+// clears the top one's (step_scale_labels_clear), else the top line alone, its label with it,
+// as every line is labeled. No marks (the graph before its first data, `hi` still 0) leave it
+// empty.
+static inline void step_scale_grid(StepGrid *g, const int marks[2], int n, int hi, int plot_h,
+                                   int content_h) {
+    g->n = n;
+    if (n < 1) { return; }
+    g->rows[0] = (int16_t)step_scale_row(marks[0], hi, plot_h);
+    if (n == 2) {
+        g->rows[1] = (int16_t)step_scale_row(marks[1], hi, plot_h);
+        if (!step_scale_labels_clear(g->rows[0], g->rows[1], content_h)) { g->n = 1; }
+    }
+}

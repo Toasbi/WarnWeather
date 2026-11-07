@@ -18,11 +18,10 @@
 // where the high and low go.
 //
 // THE LENGTH (emery, the one watch with a Forecast length). Each look starts on a length of its
-// own (span), which the step's Forecast length picker then changes (the owner's, 2026-11-07):
-// Classic and Stripes the next 24 hours, Clean the long span, as far ahead as the feed reaches (66
-// hours with a full one), the schema's default and so a fresh install's. "Your own" keeps the
-// length it was set up with. The length is no part of a look: any length reads as the look its
-// graph is.
+// own (LOOKS span), which the step's Forecast length picker then changes (the owner's,
+// 2026-11-07); Clean, the defaults, starts on the schema's, a fresh install's. "Your own" keeps
+// the length it was set up with. The length is no part of a look: any length reads as the look
+// its graph is.
 //
 // HOW A GRAPH READS. Through the readings the watch's own modules give (reading): a line's style
 // only while the line draws, a Draw from key only while a drawn line reads it (draw-from.js
@@ -65,10 +64,10 @@
     KEYS = KEYS.concat([FILL, BARS, BAR_COLOR], FROM_KEYS, [BAR_FROM, AXIS_NUMBERS]);
 
     // In the picker's order, Clean, the one a new install has, in the middle. `span` is the
-    // Forecast length a look starts on (emery): '24', or '48', the long span's token.
+    // Forecast length a look starts on (emery); Clean, with none, starts on the default's.
     var LOOKS = [
         { id: 'classic', label: 'Classic', span: '24', over: { thirdLine: 'uv', forecastAxisNumbers: 'axis' } },
-        { id: 'clean', label: 'Clean', span: '48', over: { thirdLine: 'off', forecastAxisNumbers: 'graph' } },
+        { id: 'clean', label: 'Clean', over: { thirdLine: 'off', forecastAxisNumbers: 'graph' } },
         { id: 'stripes', label: 'Stripes', span: '24', over: {
             secondaryLine: 'uv', secondaryLineStyle: 'dots', secondaryLineFill: false,
             thirdLine: 'cloud', thirdLineStyle: 'stripeTop', fourthLine: 'precip_prob', fourthLineStyle: 'stripeTop',
@@ -189,24 +188,22 @@
     }
 
     /**
-     * The step's looks as records the picker lists: "Your own" first when there is one. On emery
-     * each carries the Forecast length it starts on (span); null elsewhere.
+     * The step's looks as records the picker lists: "Your own" first when there is one. Each
+     * carries the Forecast length it starts on (span), which only emery has (wizard.js pickLook).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} defaults The defaults as the theme starts them.
      * @param {?{values: Object<string, *>, span: string}} own "Your own" (state() when setup
      *   opened), or null.
-     * @returns {Array.<{id: string, label: string, desc: string, values: Object, span: ?string}>}
+     * @returns {Array.<{id: string, label: string, desc: string, values: Object, span: string}>}
      */
     function looks(S, env, defaults, own) {
-        var spans = Boolean(env && env.forecastSpan);
         var out = LOOKS.map(function (look) {
             return { id: look.id, label: look.label, desc: describe(look.id, env), values: valuesOf(look, S, env, defaults),
-                span: spans ? look.span : null };
+                span: look.span || defaults.forecastHours };
         });
         if (own) {
-            out.unshift({ id: OWN.id, label: OWN.label, desc: describe(OWN.id, env), values: own.values,
-                span: spans ? own.span : null });
+            out.unshift({ id: OWN.id, label: OWN.label, desc: describe(OWN.id, env), values: own.values, span: own.span });
         }
         return out;
     }

@@ -346,8 +346,8 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
     // off the hour axis (forecast_update_proc) — it names the plot's floor.
     const int16_t axis_y = baseline_y;
 #ifdef PBL_PLATFORM_EMERY
-    // emery: pin the hi label's FIRST INK ROW where GOTHIC_18 has always put it (its
-    // box flush at 0, ink on row 7), whatever tier bottom_view_label_font() resolves: a
+    // emery: pin the hi label's FIRST INK ROW where the base tier's GOTHIC_18 has always put
+    // it (its box flush at 0, ink on row 7), whatever tier bottom_view_label_font() resolves: a
     // taller tier only carries more top whitespace (status_ink_top -- and hi_size.h IS
     // its content height, measured with the same font), so the box shifts up by the
     // difference and the on-screen ink row is pixel-identical. At GOTHIC_24 in the
@@ -356,7 +356,7 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
     // and the INK stays 11 rows apart. Deliberately NO band-height font fallback: 68 px
     // is the default view, so dropping back to GOTHIC_18 there would erase the feature
     // exactly where it is most seen.
-    int hi_y = status_ink_top(18) - status_ink_top(hi_size.h);
+    int hi_y = status_ink_top(BOTTOM_VIEW_LABEL_FONT_H) - status_ink_top(hi_size.h);
 #else
     int hi_y = -3;  // GOTHIC_18 top-whitespace pull-up
 #endif
@@ -387,8 +387,8 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
 // everything the plot drew. On axis (today): the strip, draw_left_axis, its numbers lined up
 // with the rows they name: the curve's extremes, or with GRAPH_OPT_SCALE_NUMS the scale's (a
 // feels-like or dew point line's too). On the graph: the hi number under its point, the lo
-// number over its own (forecast_numbers.h). Off: none. On the graph and Off leave no strip,
-// and the plot starts at the screen's left edge, a health graph on the screen or not.
+// number over its own (forecast_numbers.h). Off: none. On the graph and Off leave no strip:
+// the plot starts at the screen's left edge (forecast_update_proc).
 // noinline: its locals stay off forecast_update_proc's frame while chart_draw runs
 // (fit_temp_axis' reason).
 static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const ForecastDataset *ds,
@@ -411,7 +411,6 @@ static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const For
         draw_left_axis(ctx, h, zero_y, ends, 2);
         return;
     }
-    // The plot starts at the screen's left edge (graph_left <= 0): no strip, nothing to mask.
     if (mode == GRAPH_OPT_NUMS_GRAPH) {
         forecast_numbers_on_graph(ctx, ds, grid, e, hi_s, lo_s, zero_y, top, graph_left,
                                   screen_w, s_buffer_hi, temp_label_string_size(s_buffer_hi),
