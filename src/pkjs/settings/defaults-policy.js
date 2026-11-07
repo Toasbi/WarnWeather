@@ -28,10 +28,12 @@
 //
 //   wizard: true|false   the first-run wizard is finishing. `false` is a real
 //                        condition, not "don't care": omit the key for that.
-//   health: true|false   the watch HAS health (env.health) AND the user has not
-//                        switched it off (choices.healthMode !== 'off'). Both
-//                        halves matter — aplite cannot do health at all, and on a
-//                        watch that can, 'off' means the slots would be dead.
+//   health: true|false   the watch HAS health (env.health) AND health shows on it
+//                        (choices.healthMode !== 'off': since 2.6 worked out from
+//                        the screens and the slots, so a Health screen added in
+//                        setup turns it on). Both halves matter — aplite cannot do
+//                        health at all, and on a watch that can, 'off' means the
+//                        slots would be dead.
 //   hr / radar /         plain env capability flags, as computeEnv reports them
 //   thresholds /         (config-ui/lib/platform.js). Missing env reads as
 //   color / round /      "not capable", which is the safe direction: it can only
@@ -54,58 +56,21 @@
 // same rule's set, so a typo fails loudly instead of silently stranding a
 // dependent or protecting nothing.
 (function () {
-    // healthMode's schema default (schema.js). Repeated here because an unset
-    // healthMode means "the user never touched it", which is health ON, and a
-    // rule asking `health: true` must agree with the settings page about that.
-    var HEALTH_MODE_DEFAULT = 'all';
+    // healthMode's schema default (custom-layout-schema.js). Repeated here because an
+    // unset healthMode means "the user never touched it", which since 2.6 is health
+    // OFF (a new install starts on the Default screen alone; health follows the
+    // screens), and a rule asking `health: true` must agree with the page about that.
+    var HEALTH_MODE_DEFAULT = 'off';
 
     var RULES = [
         {
-            id: 'wizard-bold-forecast-row',
-            when: {wizard: true},
-            // The three kinds below are exactly the default contents of that row
-            // (status-line-catalog.js LINES: temp/city/aqi), and the four rows'
-            // defaults are disjoint — so on a default config this bolds that row and
-            // reaches no further. No capability gate: on a watch that cannot render
-            // highlighting the values are inert, and gating them would make the
-            // stored config depend on which watch happened to run setup.
-            why: 'The Forecast row — the one under the graph — is where a wearer looks '
-                + 'after the clock, so setup prints its values in the heavier weight '
-                + 'from the start. The Radar and Health rows keep the lighter weight, '
-                + 'which is what leaves the contrast meaning something.',
-            set: {
-                threshTempBoldMode: 'always',
-                threshCityBoldMode: 'always',
-                threshAqiBoldMode: 'always'
-            }
-        },
-        {
-            id: 'wizard-bold-top-row',
-            when: {wizard: true, platform: 'emery'},
-            // emery is the only platform whose strip beside the clock ships three
-            // readings (status-line-catalog.js's emeryDefaults — week/date/sun), and
-            // these three kinds are exactly those. Everywhere else that strip is the
-            // date alone with the battery in the corner: one heavy value in a row of
-            // one contrasts with nothing, so the narrow platforms leave the whole
-            // strip at the lighter weight and the Forecast row above stands alone as
-            // the bold one.
-            why: 'On the widest watch the strip beside the clock carries three '
-                + 'readings, which makes it the second row a wearer reads — so setup '
-                + 'bolds it too. The narrower watches show only the date up there, '
-                + 'and bolding a lone value would say nothing.',
-            set: {
-                threshWeekBoldMode: 'always',
-                threshDateBoldMode: 'always',
-                threshSunBoldMode: 'always'
-            }
-        },
-        {
             id: 'wizard-aqi-keeps-a-warn-signal',
             when: {wizard: true},
-            why: 'Permanent bold costs air quality its alarm: a reading that is always '
-                + 'heavy cannot get heavier when the air turns bad. Switching its '
-                + 'highlight on hands that reading back a signal the weight can no '
-                + 'longer carry.',
+            // Setup sets no Bold mode at all (the owner, 2026-11-06: every slot keeps its
+            // own Bold row's default), so this is the one emphasis it adds.
+            why: 'Air quality is the default reading that can turn unhealthy on an '
+                + 'ordinary day, so setup switches its highlight on: from its warn level '
+                + 'the slot is boxed, and at danger filled.',
             // The warn box is the kind's warn look, whose platform default (fill on
             // colour, outline on B&W) already draws one — nothing to set for it. Nor
             // for the levels: the pair stays blank, which means the AQI seed for the
@@ -127,40 +92,31 @@
             // row ends up holding the same item twice — on a heart-rate watch too,
             // where that row reads distance / sleep / heart rate.
             why: 'Steps is the health number people glance at most, and the top row is '
-                + 'on screen in every view, so setup promotes steps into its right-hand '
+                + 'on every screen, so setup promotes steps into its right-hand '
                 + 'corner and sunrise/sunset gives up the spot. Walked distance takes '
-                + 'the place steps left in the health row, so no reading is lost. Steps '
-                + 'is bolded with the rest of that row: the top-row bold above names the '
-                + 'kinds that row shows BY DEFAULT, and this rule is what changes one of '
-                + 'them — without it the promoted slot keeps its own default of "warn" '
-                + 'and sits unbolded between two bold neighbours.',
+                + 'the place steps left in the health row, so no reading is lost.',
             set: {
                 statusTopRight: 'steps',
-                statusHealthLeft: 'distance',
-                threshStepsBoldMode: 'always'
+                statusHealthLeft: 'distance'
             },
-            // These three writes are ONE move, not three: evicting steps from the
-            // health row is only safe while the top row actually shows it, and the
-            // bold exists to match the promoted slot to its row. Each key is still
+            // These two writes are ONE move, not two: evicting steps from the health
+            // row is only safe while the top row actually shows it. Each key is still
             // permission-checked on its own (policyMayWrite), so without this the
             // eviction could run while the promotion was blocked by a customized
             // top-right slot — deleting the steps reading from the face, the exact
             // loss the why-text above forbids. dependsOn: a key applies only while
             // the named sibling HOLDS this rule's value for it when its turn comes
             // (written this run, or already there from an earlier one).
-            dependsOn: {
-                statusHealthLeft: 'statusTopRight',
-                threshStepsBoldMode: 'statusTopRight'
-            },
+            dependsOn: {statusHealthLeft: 'statusTopRight'},
             // The promotion alone is exempt from the not-still-default guard:
             // completing setup with health on IS the consent to the layout this
             // rule promises, so steps takes the top-right slot even from a slot
             // the user picked by hand (observed live: a phone-battery slot
             // parked top-right silently blocked the whole swap). The row-sibling
             // dedupe guard still stands — steps already placed elsewhere in the
-            // top row stops the promotion, and the dependents with it — and the
-            // eviction and bold keep the normal protection: a customized health
-            // row or bold choice survives.
+            // top row stops the promotion, and the eviction with it — and the
+            // eviction keeps the normal protection: a customized health row
+            // survives.
             overrules: ['statusTopRight']
         },
         {
@@ -171,12 +127,10 @@
             // the battery is the reason that corner exists — so steps takes the LEFT
             // slot, which the narrow default ships empty for exactly this.
             why: 'Steps is the health number people glance at most, and the strip beside '
-                + 'the clock is on screen in every view — but on these watches its '
+                + 'the clock is on every screen — but on these watches its '
                 + 'right-hand corner is the battery, so steps takes the free left slot '
                 + 'and the battery keeps its corner. Walked distance takes the place '
-                + 'steps left in the health row, so no reading is lost. No bold rides '
-                + 'along: nothing in this strip is bolded on a narrow watch, and a lone '
-                + 'heavy value would contrast with nothing.',
+                + 'steps left in the health row, so no reading is lost.',
             set: {
                 statusTopLeft: 'steps',
                 statusHealthLeft: 'distance'
@@ -221,8 +175,8 @@
 
     /**
      * Whether health items may be placed at all: the watch can report health AND
-     * the user has not switched it off. An unset healthMode is health ON, matching
-     * the settings page's own default.
+     * health shows on it. An unset healthMode is health OFF, matching the settings
+     * page's own default.
      * @param {Object} ctx Resolver context.
      * @returns {boolean} True when a health slot would show a live reading.
      */

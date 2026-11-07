@@ -89,14 +89,24 @@ test('sideOf: empty sides, missing bars and a non-On-demand watch show nothing',
   assert.equal(OD.sideOf({statusTopOnDemandRightItems: 'bt'}, 'top', 'bt'), 'left');
 });
 
-test('barExists: top and forecast always, radar and health by mode and watch', () => {
+// The Radar and Health bars exist where a screen shows them (view-cycle.js barsShown) on a
+// watch that has them. A preset's screens follow its modes; a custom layout's are its keys.
+test('barExists: top and forecast always, radar and health where a screen shows them', () => {
   assert.equal(OD.barExists({}, 'top'), true);
   assert.equal(OD.barExists({}, 'forecast'), true);
   assert.equal(OD.barExists({radarMode: 'status'}, 'radar'), true);
   assert.equal(OD.barExists({radarMode: 'graph'}, 'radar', {radar: false}), false);
   assert.equal(OD.barExists({healthMode: 'all'}, 'health'), true);
   assert.equal(OD.barExists({healthMode: 'all'}, 'health', {health: false}), false);
-  assert.equal(OD.barExists({}, 'radar'), false, 'no stored mode draws no radar row');
+  assert.equal(OD.barExists({radarMode: 'countdown'}, 'radar'), false, 'Rain alert only has no radar screen');
+  assert.equal(OD.barExists({healthMode: 'slot'}, 'health'), false, 'Status slots only has no Health bar');
+  const custom = { layoutPreset: 'custom', viewCount: '1', viewTop0: 'none', viewBody0: 'forecast',
+    viewUpper0: 'radar', viewLower0: 'health', radarMode: 'off', healthMode: 'off' };
+  assert.equal(OD.barExists(custom, 'radar'), true, 'the Radar bar without radar data');
+  assert.equal(OD.barExists(custom, 'health'), true, 'the Health bar its screen holds, whatever the mode');
+  assert.equal(OD.barExists(Object.assign({}, custom, { viewUpper0: 'weather' }), 'radar'), false,
+    'no screen holds it');
+  assert.equal(OD.barExists(custom, 'radar', {radar: false}), false, 'a watch without the radar view');
 });
 
 test('tickOn: joins the side in the canonical order and leaves the other side', () => {

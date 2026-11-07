@@ -44,7 +44,7 @@ function cycle(S, platform) {
  * @returns {string[]}
  */
 function labels(html) {
-  return (html.match(/class="wpv-v" role="img" aria-label="[^"]*"/g) || []).map((m) => /aria-label="([^"]*)"/.exec(m)[1]);
+  return (html.match(/class="wpv-v[^"]*"[^>]*aria-label="[^"]*"/g) || []).map((m) => /aria-label="([^"]*)"/.exec(m)[1]);
 }
 
 test('every preset\'s views sit on the watch\'s seats, the filling graph running to the screen\'s foot', () => {
@@ -75,17 +75,28 @@ test('every preset\'s views sit on the watch\'s seats, the filling graph running
   });
 });
 
-test('each view is named and spoken band by band, in the Layout card\'s words', () => {
+test('each screen is named and spoken band by band, and a tap opens its editor', () => {
   const S = settings({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'all' });
   const env = plat.computeEnv({ platform: 'basalt' });
-  assert.deepEqual(labels(pw.watchPreview(S, env, {})), [
-    'Default: Watch Status, Calendar (2 rows), Clock, Forecast Status, Forecast',
-    'Flick 1: Watch Status, Clock, Health Status, Health graph',
-    'Flick 2: Watch Status, Clock, Radar Status, Radar'
+  const html = pw.watchPreview(S, env, {});
+  assert.deepEqual(labels(html), [
+    'Edit Default: Watch Status, Calendar (2 rows), Clock, Forecast Status, Forecast',
+    'Edit Flick 1: Watch Status, Clock, Health Status, Health graph',
+    'Edit Flick 2: Watch Status, Clock, Radar Status, Radar'
   ]);
+  // Each is a button that opens its screen's editor (screens-page.js openScreen).
+  assert.deepEqual((html.match(/<button type="button" class="wpv-v wpv-btn" data-action="openScreen" data-action-arg="\d"/g)
+    || []).map((b) => b.slice(-2, -1)), ['0', '1', '2']);
+  assert.match(html, /<\/div><span class="wpv-tap">Tap a screen to edit it<\/span>$/, 'and the pin says so');
   assert.deepEqual(labels(pw.watchPreview(settings({ layoutPreset: 'fullCal', radarMode: 'off', healthMode: 'off' }), env, {})),
-    ['Default: Watch Status, Calendar (3 rows), Clock, Forecast Status, Forecast'], 'one view, one screen');
-  assert.match(pw.watchPreview(S, env, {}), /^<div class="wpv n3" role="group" aria-label="Your watch">/);
+    ['Edit Default: Watch Status, Calendar (3 rows), Clock, Forecast Status, Forecast'], 'one view, one screen');
+  assert.match(html, /^<div class="wpv n3" role="group" aria-label="Your watch">/);
+  // aplite has no screen editor: its one screen is a picture.
+  const aplite = plat.computeEnv({ platform: 'aplite' });
+  const one = pw.watchPreview(settings({ layoutPreset: 'fullCal', radarMode: 'off', healthMode: 'off' }), aplite, {});
+  assert.equal(one.indexOf('data-action="openScreen"'), -1);
+  assert.equal(one.indexOf('wpv-tap'), -1);
+  assert.match(one, /class="wpv-v" role="img" aria-label="Default: /);
 });
 
 test('each view is a card of its own, the screen edge to edge on its own background, pinned bare', () => {
@@ -174,20 +185,6 @@ test('a graph\'s pattern and clip ids carry its band\'s suffix, so two graphs ne
   (html.match(/url\(#[^)]*\)/g) || []).forEach((u) => assert.ok(ids.indexOf(u.slice(5, -1)) !== -1, u + ' points at a defined id'));
 });
 
-// The Layout card's preset picker (picture resolver 'layoutPresetPicture'): each preset as
-// its Default view, drawn as the pinned preview draws it, with the settings as they are.
-
-/**
- * The picture the picker draws for a preset.
- * @param {Object} S Settings.
- * @param {!Object} env Platform env.
- * @param {string} value The preset.
- * @returns {string} SVG.
- */
-function picture(S, env, value) {
-  return global.PConf.pictureResolvers.get('layoutPresetPicture')(S, env, { messageKey: 'layoutPreset', value: value }, {});
-}
-
 /**
  * The tab body the engine renders for the Watchface tab.
  * @param {Object} S Settings.
@@ -200,52 +197,21 @@ function watchfaceBody(S, env) {
     evalCtx: Object.assign({}, S, { env: env }) });
 }
 
-test('each preset\'s picture is its Default view, as the pinned preview draws it', () => {
-  ['basalt', 'emery', 'diorite'].forEach((platform) => {
-    const env = plat.computeEnv({ platform: platform }), f = platform === 'emery' ? 1 : 0;
-    [['graph', 'all'], ['status', 'off'], ['off', 'status'], ['countdown', 'off']].forEach((modes) => {
-      const S = settings({ layoutPreset: 'compactCal', radarMode: modes[0], healthMode: modes[1] });
-      ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((value) => {
-        const st = Object.assign({}, S, { layoutPreset: value });
-        const want = pw.screenSvg(VC.resolveViewCycle(st, env)[0], 0, st, env, {}, f, new Date(), 'lp' + value + '-').svg;
-        assert.equal(picture(S, env, value), want, platform + ' ' + modes.join('/') + ' ' + value);
-      });
-    });
-  });
-});
-
-test('Custom shows the custom Default view, or the one a first pick would seed, with a pencil', () => {
-  const env = plat.computeEnv({ platform: 'basalt' });
-  const unprefix = (svg) => svg.replace(/lp(custom|noCal)-/g, 'lp-');
-  const pencil = /<circle [^>]*fill="#FA4A35"[^>]*><\/circle><path [^>]*><\/path><\/svg>$/;
-  // Never picked: the seed of the preset in use, so the card is that preset's, plus the pencil.
-  const S = settings({ layoutPreset: 'noCal', radarMode: 'graph', healthMode: 'all', customLayoutSeeded: false });
-  const before = JSON.stringify(S);
-  const custom = picture(S, env, 'custom');
-  assert.match(custom, pencil, 'the pencil closes the picture');
-  assert.equal(unprefix(custom.replace(pencil, '</svg>')), unprefix(picture(S, env, 'noCal')),
-    'an unseeded Custom draws the preset in use');
-  assert.equal(JSON.stringify(S), before, 'drawing it seeds nothing');
-  // Built: the custom keys' own Default view (here a radar over the clock, no top bar).
-  const built = settings({ layoutPreset: 'noCal', radarMode: 'graph', healthMode: 'all', customLayoutSeeded: true,
-    viewCount: '1', viewTop0: 'radar', viewBody0: 'none', viewUpper0: 'off', viewLower0: 'off', viewStripOff0: true });
-  const st = Object.assign({}, built, { layoutPreset: 'custom' });
-  const want = pw.screenSvg(VC.resolveViewCycle(st, env)[0], 0, st, env, {}, 0, new Date(), 'lpcustom-').svg;
-  assert.equal(picture(built, env, 'custom').replace(pencil, '</svg>'), want);
-  assert.notEqual(unprefix(want), unprefix(picture(built, env, 'noCal')), 'premise: the built view is not the preset\'s');
-});
-
-test('the Layout card draws a card per offered preset, the shown one checked, no id shared on the tab', () => {
-  [['basalt', 6], ['emery', 6], ['diorite', 6], ['aplite', 3]].forEach((p) => {
+// The Layout card's preset row is a list of names (the owner, 2026-11-06): the pinned watch at
+// the top of the tab already draws the views the picked preset gives. Only aplite has the card
+// now; every other watch edits its screens.
+test('only aplite has a Layout card: its three calendars by name, with no pictures', () => {
+  [['basalt', 0], ['emery', 0], ['diorite', 0], ['aplite', 3]].forEach((p) => {
     const env = plat.computeEnv({ platform: p[0] });
     const html = watchfaceBody(settings({ layoutPreset: 'fullCal', radarMode: 'graph', healthMode: 'all' }), env);
-    const cards = html.match(/<button type="button" class="pic( on)?" role="radio" aria-checked="(true|false)" data-k="layoutPreset" data-v="[^"]*">/g) || [];
-    assert.equal(cards.length, p[1], p[0] + ': one card per offered preset');
-    assert.deepEqual(cards.filter((c) => / on"/.test(c)).map((c) => /data-v="([^"]*)"/.exec(c)[1]), ['fullCal'],
-      p[0] + ': the stored preset is the checked card');
-    const ids = (html.match(/ id="[^"]*"/g) || []).map((m) => m.slice(5, -1));
-    assert.equal(new Set(ids).size, ids.length, p[0] + ': no id twice on the tab');
+    const opts = html.match(/data-k="layoutPreset" data-v="[^"]*"/g) || [];
+    assert.equal(opts.length, p[1], p[0] + ': one option per offered preset');
+    assert.ok(!/class="pic( on)?" role="radio" aria-checked="(true|false)" data-k="layoutPreset"/.test(html),
+      p[0] + ': no picture cards for the presets');
+    assert.ok(/class="pic( on)?" role="radio" aria-checked="(true|false)" data-k="timeFont"/.test(html),
+      p[0] + ': the Clock font row keeps its pictures');
   });
+  assert.equal(global.PConf.pictureResolvers.get('layoutPresetPicture'), undefined, 'no preset picture resolver');
 });
 
 test('the calendar marks the holidays the phone holds for the picked country, in the holiday colour', () => {

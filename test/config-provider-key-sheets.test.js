@@ -1,5 +1,5 @@
 // test/config-provider-key-sheets.test.js — a weather provider that needs a key gets a key
-// row ("<Name> API key") under the Weather provider dropdown (Setup tab, Weather data), and
+// row ("<Name> API key") under the Weather provider dropdown (Setup tab, Data sources), and
 // every key-related row lives in the sheet it opens: the key field with its Test button and
 // verdict line, the hint with its links and, for tomorrow.io, the call-budget read-out and
 // guard. The keys, their storage and the Save blob are the ones the card's rows carried.
@@ -17,7 +17,7 @@ const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 const PC = global.PConf;
 const setup = schema.tabs.find((t) => t.id === 'setup');
-const card = setup.sections.find((s) => s.id === 'weatherData');
+const card = setup.sections.find((s) => s.id === 'dataSources');
 const providerRow = card.items.find((i) => i.messageKey === 'provider');
 const noteItem = card.items[card.items.indexOf(providerRow) + 1];
 // The nav row under the picker (and its amber note) that opens the picked provider's key sheet.
@@ -53,13 +53,13 @@ function typeInSheet(page, key, value) {
 }
 
 /**
- * Open the Graphs tab's Rain radar pane (the radar's picker, key row and key sheets).
+ * Open the Setup tab, whose Data sources card holds the Rain radar picker, its key row and,
+ * behind it, the radar's key sheets.
  * @param {Object} page bootGeneratedPage handle.
  * @returns {void}
  */
-function openRadarPane(page) {
-  page.clickTab('graphs');
-  page.clickPane('graphs', 'radar');
+function openRadarPicker(page) {
+  page.clickTab('setup');
 }
 
 test('the keyed providers are exactly the options whose tag says they need a key', () => {
@@ -233,11 +233,11 @@ test('page: the key hint\'s copy button works inside the sheet', () => {
   assert.ok(page.modal.innerHTML.length > 0, 'the tap does not close the sheet');
 });
 
-test('page: the copy button in the Rain radar pane\'s Tomorrow.io sheet copies too', () => {
+test('page: the copy button in the radar\'s own Tomorrow.io sheet copies too', () => {
   const page = bootGeneratedPage({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'graph' });
   const copied = [];
   page.window.navigator.clipboard = { writeText: (text) => { copied.push(text); return { then() {} }; } };
-  openRadarPane(page);
+  openRadarPicker(page);
   page.openEditSheet('radarKeyTomorrowio');
   const url = 'https://app.tomorrow.io/development/keys';
   assert.ok(page.modal.innerHTML.indexOf('data-copy="' + url + '"') !== -1);
@@ -250,19 +250,18 @@ test('page: the copy button in the Rain radar pane\'s Tomorrow.io sheet copies t
   assert.ok(page.modal.innerHTML.length > 0, 'the tap does not close the sheet');
 });
 
-test('page: radar-only tomorrow.io keeps its key in the Rain radar pane\'s sheet, and no key row under the weather provider', () => {
+test('page: radar-only tomorrow.io keeps its key in the radar\'s own sheet, and no key row under the weather provider', () => {
   const page = bootGeneratedPage({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'graph' });
-  page.clickTab('setup');
-  assert.ok(page.scroll.innerHTML.indexOf('data-select="provider"') !== -1, 'premise: the weather provider\'s tab');
-  assert.doesNotMatch(page.scroll.innerHTML, /data-edit-sheet="providerKey/);
-  openRadarPane(page);
+  openRadarPicker(page);
   const tab = page.scroll.innerHTML;
-  assert.ok(new RegExp('data-select="radarProvider"[^]*?data-edit-sheet="radarKeyTomorrowio"').test(tab),
-    'the key row trails the Radar provider dropdown');
+  assert.ok(tab.indexOf('data-select="provider"') !== -1, 'premise: the weather provider\'s tab');
+  assert.doesNotMatch(tab, /data-edit-sheet="providerKey/);
+  assert.ok(new RegExp('data-select="radarSource"[^]*?data-edit-sheet="radarKeyTomorrowio"').test(tab),
+    'the key row trails the Rain radar dropdown');
   assert.ok(new RegExp('data-edit-sheet="radarKeyTomorrowio"[^>]*><div class="lft"><div class="lbl">Tomorrow\\.io API key</div>')
     .test(tab), 'labelled with the provider\'s name');
   ['tomorrowioApiKey', 'tomorrowioFitBudget'].forEach((k) =>
-    assert.equal(tab.indexOf('data-k="' + k + '"'), -1, k + ' is not on the Graphs tab\'s page'));
+    assert.equal(tab.indexOf('data-k="' + k + '"'), -1, k + ' is not on the Setup tab\'s page'));
   page.openEditSheet('radarKeyTomorrowio');
   const sheet = page.modal.innerHTML;
   assert.ok(sheet.indexOf('esheet-ttl-radarKeyTomorrowio">Tomorrow.io<') !== -1, 'titled Tomorrow.io');
@@ -288,15 +287,15 @@ test('the two tomorrow.io copies stay apart: findShownItem returns the one that 
     'providerKeyTomorrowio', key + ': both — still the weather provider\'s sheet, the one copy');
     assert.equal(sheetOf(PC.engine.findShownItem(schema, key,
       ctx({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'graph' }))),
-    'radarKeyTomorrowio', key + ': radar-only — the Rain radar pane\'s sheet');
+    'radarKeyTomorrowio', key + ': radar-only — the radar\'s own sheet');
   });
 });
 
 test('the setup wizard\'s tomorrow.io field: any copy of the key row, labelled with the provider\'s name', () => {
   // wizard.js tomorrowioUpsell renders findItem(schema, 'tomorrowioApiKey') — the last copy in
-  // walk order, now the Setup tab's weather-provider sheet's (Setup follows Graphs) — under its
-  // own label "Tomorrow.io API key" (the wizard has no sheet title naming the provider). Both
-  // copies render the same field.
+  // walk order, the radar's own sheet's (it follows the weather provider's on the Setup tab) —
+  // under its own label "Tomorrow.io API key" (the wizard has no sheet title naming the
+  // provider). Both copies render the same field.
   const copies = [];
   PC.schemaWalk.eachItem(schema, (it) => { if (it.messageKey === 'tomorrowioApiKey') { copies.push(it); } });
   assert.equal(copies.length, 2);

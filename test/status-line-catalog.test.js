@@ -112,7 +112,8 @@ test('availability gating', () => {
   assert.ok(catalog.itemAvailable(catalog.byCode('temp'), s, ENV_BASALT));
   assert.ok(catalog.itemAvailable(catalog.byCode('steps'), s, ENV_BASALT));
   assert.ok(!catalog.itemAvailable(catalog.byCode('steps'), s, ENV_APLITE));
-  assert.ok(!catalog.itemAvailable(catalog.byCode('steps'), { healthMode: 'off' }, ENV_BASALT));
+  // Not healthMode: since 2.6 it is worked out from the screens and the slots.
+  assert.ok(catalog.itemAvailable(catalog.byCode('steps'), { healthMode: 'off' }, ENV_BASALT));
   assert.ok(catalog.itemAvailable(catalog.byCode('hr'), s, ENV_EMERY));
   assert.ok(catalog.itemAvailable(catalog.byCode('hr'), s, ENV_DIORITE));
   assert.ok(!catalog.itemAvailable(catalog.byCode('hr'), s, ENV_BASALT));
@@ -463,9 +464,9 @@ test('the WATCH battery items are top-right only — there, and nowhere else', (
 });
 
 test('slotOptions omits headers whose category has no available item', () => {
-  const healthOff = catalog.slotOptions({ healthMode: 'off', radarProvider: 'rainbow', radarMode: 'graph' },
-    ENV_BASALT, { slotKey: 'statusForecastLeft', position: 'left' });
-  assert.ok(!healthOff.some(o => o[1] === '__hdr_health'), 'no orphan Health header');
+  const noHealth = catalog.slotOptions({ healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' },
+    ENV_APLITE, { slotKey: 'statusForecastLeft', position: 'left' });
+  assert.ok(!noHealth.some(o => o[1] === '__hdr_health'), 'no orphan Health header on a watch without Health');
   // aplite edge slot: date (middleOnly) is gone, but city and week (now available
   // on aplite as phone-baked text) remain, so the Date and location group DOES
   // get a header (it is not an orphan single-item collapse).
@@ -474,16 +475,17 @@ test('slotOptions omits headers whose category has no available item', () => {
   assert.ok(apliteEdge.some(o => o[1] === '__hdr_datelocation'), 'Date and location header present');
 });
 
-test("'slot' health mode keeps health items selectable (no dedicated Health view needed)", () => {
-  const slot = { healthMode: 'slot' };
-  ['steps', 'distance', 'sleep'].forEach((code) => {
-    assert.ok(catalog.itemAvailable(catalog.byCode(code), slot, ENV_BASALT),
-      code + " must be available under healthMode 'slot'");
+// A slot picks a health item in any health mode (no Health screen needed): the mode follows
+// the slots and the screens (screens.js deriveModes, 'slot' for a health item in a shown slot).
+test('health items are selectable in any health mode, on a watch with Health', () => {
+  ['off', 'slot', 'status', 'all', undefined].forEach((healthMode) => {
+    const S = { healthMode };
+    ['steps', 'distance', 'sleep'].forEach((code) => {
+      assert.ok(catalog.itemAvailable(catalog.byCode(code), S, ENV_BASALT), code + ' under healthMode ' + healthMode);
+      assert.ok(!catalog.itemAvailable(catalog.byCode(code), S, ENV_APLITE), code + ': never on aplite');
+    });
+    assert.ok(catalog.itemAvailable(catalog.byCode('hr'), S, ENV_EMERY), 'hr on a heart-rate watch, ' + healthMode);
   });
-  assert.ok(catalog.itemAvailable(catalog.byCode('hr'), slot, ENV_EMERY),
-    "hr must be available under 'slot' on a heart-rate watch");
-  // 'off' still hides them.
-  assert.ok(!catalog.itemAvailable(catalog.byCode('steps'), { healthMode: 'off' }, ENV_BASALT));
 });
 
 // --- Phone battery (Android-only, phone-baked TEXT) -------------------------

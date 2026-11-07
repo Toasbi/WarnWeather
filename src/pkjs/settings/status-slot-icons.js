@@ -20,6 +20,21 @@
 //   bluetooth -> STATUS_BT.pdc      (the Bluetooth rune)
 //   quiet     -> STATUS_QUIET.pdc   (a muted speaker, struck through)
 //   snooze    -> snooze_draw        (two Z's, the Battery saver hours' glyph)
+// and the rest of the slot items the watch draws a glyph for, so the watch pictures
+// (preview-watch.js) and the Status bars tab's preview show every one of them. These
+// are the PDCs' own polylines, points rounded to 0.1 px (the 25-unit health glyphs
+// fitted to the family's 20-unit ink, 22 wide at most, centred in the 24 frame):
+//   temp         -> STATUS_TEMP.pdc          (thermometer)
+//   dew          -> STATUS_DEW.pdc           (two drops)
+//   countdown    -> STATUS_COUNTDOWN.pdc     (a calendar page with day dots)
+//   phoneBattery -> STATUS_PHONE_BATTERY.pdc (a phone with a bolt; the phone bakes
+//                   the _CHG plug in while it charges, the samples never do)
+//   distance     -> STATUS_DISTANCE.pdc      (a route between two stops)
+//   steps        -> HEALTH_STEPS.pdc         (a shoe)
+//   sleep        -> HEALTH_SLEEP.pdc         (a pillow with a Z)
+//   hr           -> HEALTH_HEART.pdc         (the plain heart)
+//   sun          -> status_row.c ARROW_PATH_INFO (the drawn sunrise/sunset arrow, a stem
+//                   and a filled head, pointing down: the samples read a sunset)
 // The outlines follow Tabler Icons (https://tabler.io/icons), MIT License,
 // Copyright (c) 2020-2024 Pawel Kuna — the same family the watch glyphs were
 // converted from (credited in scripts/gen-status-pdc.py). Everything is drawn in
@@ -89,7 +104,55 @@
             + '<path d="M4 4l16 16"/>'),
         snooze: svg24(OUTLINE,
             '<path d="M4 12h6l-6 8h6"/>'
-            + '<path d="M14 4h6l-6 8h6"/>')
+            + '<path d="M14 4h6l-6 8h6"/>'),
+        // The slot glyphs the watch draws from its PDCs (see the header): their own
+        // polylines, so a slot in the preview shows the picture the watch puts there.
+        temp: svg24(OUTLINE,
+            '<path d="M10.5 2L13.5 2L15.1 3.5L15.1 14.2L16.6 15.9L16.6 20.5L15.1 22L8.9 22L7.4 20.5L7.4 15.9L8.9 14.2L8.9 3.5Z"/>'
+            + '<path d="M12 5.1L12 18.9"/>'
+            + '<path d="M10.5 15.9L10.5 18.9"/>'
+            + '<path d="M13.5 15.9L13.5 18.9"/>'),
+        dew: svg24(OUTLINE,
+            '<path d="M6.8 16L8.9 15.4L10.4 13.9L11 11.8L10.5 10L9.1 8.4L7.6 6.6L6.8 4.4L5.9 6.6L4.4 8.4L3 10L2.5 11.8L3.1 13.9L4.6 15.4L6.8 16Z"/>'
+            + '<path d="M12.6 5.8L13.5 4L14.1 2L15 4.6L16.4 6.9L18.4 8.9L20.1 10.6L21.1 12.6L21.5 14.6L21.1 17.1L19.9 19.2L18.1 20.9L15.8 21.9L13.4 22L11 21.4L8.9 19.9"/>'),
+        countdown: svg24(OUTLINE,
+            '<path d="M3.1 6.5L3.8 4.9L5.4 4.2L18.6 4.2L20.2 4.9L20.9 6.5L20.9 19.8L20.2 21.4L18.6 22L5.4 22L3.8 21.4L3.1 19.8L3.1 6.5"/>'
+            + '<path d="M16.5 2L16.5 6.5"/>'
+            + '<path d="M7.5 2L7.5 6.5"/>'
+            + '<path d="M3.1 10.9L20.9 10.9"/>'
+            + '<path d="M6.5 14.2h0"/>'
+            + '<path d="M9.8 14.2h0"/>'
+            + '<path d="M13.1 14.2h0"/>'
+            + '<path d="M16.5 14.2h0"/>'
+            + '<path d="M13.1 17.5h0"/>'
+            + '<path d="M6.5 17.5h0"/>'
+            + '<path d="M9.8 17.5h0"/>'),
+        phoneBattery: svg24(OUTLINE,
+            '<path d="M5.4 4.2L6 2.6L7.5 2L16.5 2L18 2.6L18.6 4.2L18.6 19.8L18 21.4L16.5 22L7.5 22L6 21.4L5.4 19.8L5.4 4.2"/>'
+            + '<path d="M10.9 3.1L13.1 3.1"/>'
+            + '<path d="M12 9.2L10.9 12L13.1 12L12 14.8"/>'),
+        distance: svg24(OUTLINE,
+            '<path d="M2 20L3.1 22L5.4 22L6.5 20L5.4 18.1L3.1 18.1L2 20"/>'
+            + '<path d="M20 6.5L22 5.4L22 3.1L20 2L18.1 3.1L18.1 5.4L20 6.5"/>'
+            + '<path d="M11 20L17.2 20L20 18.9L21.1 16.1L20 13.2L17.2 12.1L8.2 12.1L5.4 11L4.2 8.2L5.4 5.4L8.2 4.2L13.2 4.2"/>'),
+        steps: svg24(OUTLINE,
+            '<path d="M1 18.5L1 6.5L6 8.5L10 5.5L15 10.5L23 14.5L23 18.5Z"/>'
+            + '<path d="M10 10.5L12 8.5"/>'
+            + '<path d="M13 12.5L15 10.5"/>'
+            + '<path d="M1 14.5L15 15.5"/>'
+            + '<path d="M15 18.5L17 11.5"/>'),
+        sleep: svg24(OUTLINE,
+            '<path d="M3.9 22L3.9 18.2L2.6 17L2.6 5.8L6.4 2L17.6 2L21.4 5.8L21.4 17L17.6 20.8L6.4 20.8Z"/>'
+            + '<path d="M16.4 15.8L7.6 15.8"/>'
+            + '<path d="M16.4 7L7.6 7"/>'
+            + '<path d="M7.6 15.8L16.4 7"/>'),
+        hr: svg24(OUTLINE,
+            '<path d="M12 22L21.5 12.5L21.5 6.8L16.8 2L12 6.8L7.2 2L2.5 6.8L2.5 12.5L12 22Z"/>'),
+        // The drawn sunrise/sunset arrow (status_row.c ARROW_PATH_INFO, 8 px tall: a
+        // stem, a head 3 px tall and 2 px either side, outline and fill), at 2.5x.
+        sun: svg24(OUTLINE,
+            '<path d="M12 2v12.5"/>'
+            + '<path d="M7 14.5L12 22L17 14.5Z" fill="currentColor"/>')
     };
 
     // Register into the engine's icon registry when it is there: always on the page
@@ -110,6 +173,15 @@
         P.icons.register('bluetooth', ICONS.bluetooth);
         P.icons.register('quiet', ICONS.quiet);
         P.icons.register('snooze', ICONS.snooze);
+        P.icons.register('temp', ICONS.temp);
+        P.icons.register('dew', ICONS.dew);
+        P.icons.register('countdown', ICONS.countdown);
+        P.icons.register('phoneBattery', ICONS.phoneBattery);
+        P.icons.register('distance', ICONS.distance);
+        P.icons.register('steps', ICONS.steps);
+        P.icons.register('sleep', ICONS.sleep);
+        P.icons.register('hr', ICONS.hr);
+        P.icons.register('sun', ICONS.sun);
     }
 
     if (typeof module !== 'undefined' && module.exports) {

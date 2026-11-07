@@ -793,12 +793,13 @@ if (typeof require !== 'undefined') {
         var key = thresholds.KINDS[kindIndex].key;
         var enabled = thresholds.kindConfig(S, kindIndex).enabled;
         // EFFECTIVE always-bold, not the stored ladder alone: the Status bars
-        // tab's master row packs every kind's bold cell as always at wire time
-        // (status-wire.js buildSettingsBlob) without touching the stored
-        // per-kind values, and the badge previews what the watch will
-        // actually render — so the master lights every slot's B.
+        // tab's master row packs every kind's bold cell as always ('all') or as
+        // Off ('off') at wire time (status-wire.js buildSettingsBlob) without
+        // touching the stored per-kind values, and the badge previews what the
+        // watch will actually render — so All lights every slot's B and Off
+        // none.
         var boldAlways = (S.statusBoldAll === 'all'
-            || S['thresh' + key + 'BoldMode'] === 'always');
+            || (S.statusBoldAll !== 'off' && S['thresh' + key + 'BoldMode'] === 'always'));
         var notes = [];
         if (enabled) { notes.push('highlighting on'); }
         if (boldAlways) { notes.push('always bold'); }
@@ -827,71 +828,6 @@ if (typeof require !== 'undefined') {
             if (thresholds.KINDS[i].code === code) { return penStateForKind(S, env, i); }
         }
         return null;
-    });
-
-    /**
-     * The layout preset's hint for 'Weather only', whose Default view differs per radar
-     * mode (view-cycle.js buildViewCycle): the schema's text for the stored radarMode,
-     * an absent one read as the radio's default ('graph'). Every other preset answers
-     * null, so its row keeps the static hintByValue.
-     * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (unused).
-     * @param {{value: string, byRadar: Object}} args The row's shown preset + the
-     *     per-radarMode texts (schema.js).
-     * @returns {?string} The hint, or null for the static one.
-     */
-    function weatherOnlyHint(S, env, args) {
-        if (!args || args.value !== 'weatherOnly' || !args.byRadar) { return null; }
-        var mode = (S && S.radarMode) || 'graph';
-        var text = args.byRadar[mode];
-        if (!text) { return null; }
-        // "Flick to health" only while a Health view exists to flick to: the health
-        // bar or graph (healthMode 'status' / 'all', the schema default) on a watch
-        // with health sensors. 'slot' puts health in the status slots and adds no view,
-        // so the Weather-only cycle is then its Default view alone (view-cycle.js).
-        var healthMode = (S && S.healthMode) || 'all';
-        var flick = (healthMode === 'status' || healthMode === 'all')
-            && !(env && env.health === false);
-        return flick ? text + ' Flick to health.' : text;
-    }
-    PConf.hintResolvers.register('weatherOnlyHint', weatherOnlyHint);
-
-    var viewCycleLib = (typeof require !== 'undefined')
-        ? require('../view-cycle.js') : window.VIEW_CYCLE;
-
-    // layoutPreset options resolver: compactDense is offered once EITHER a health
-    // status row OR any radar view is capable — the same radarRow/healthRow gates the
-    // compiler, the editor and the sheet gates fold by (view-cycle.js capabilities;
-    // both radar modes build dense radar cycles since the CAL2_RF_D/CAL2_HR_D fold).
-    // Custom is offered on every non-aplite platform (aplite is frozen-lean and folds
-    // custom to compactCal on the wire; a stored 'custom' lies dormant there —
-    // dormantValues). Unknown platform ('' when watchInfo is missing) is treated as
-    // capable, matching the payload's own gate.
-    PConf.optionsResolvers.register('layoutPresetOptions', function (S, env) {
-        var base = [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal']];
-        var caps = viewCycleLib.capabilities(S);
-        if (caps.radarRow || caps.healthRow) {
-            base.push(['Compact calendar (dense)', 'compactDense']);
-        }
-        base.push(['No calendar', 'noCal']);
-        // Weather only and Custom need a view without top bar (and Weather only the
-        // radar): not on aplite, where a stored value lies dormant (dormantValues).
-        if (!env || env.platform !== 'aplite') {
-            base.push(['Weather only', 'weatherOnly']);
-            base.push(['Custom', 'custom']);
-        }
-        return base;
-    });
-
-    // Entering Custom seeds the per-view keys ONCE from the preset being left, so the
-    // editor opens showing exactly what the watch shows and an untouched session
-    // compiles back byte-identical (nothing transmits). Re-picking a preset later
-    // leaves the keys stored (dormant) — re-entering Custom restores the user's work.
-    // Seeding is ALL the pick does: the editor opens only through the dedicated "Edit
-    // views" row (the schema's openViewEditor button row), never automatically.
-    PConf.onChange.register('layoutPresetChanged', function (S, oldValue, newValue) {
-        if (newValue !== 'custom') { return; }
-        viewCycleLib.seedCustomKeys(S, oldValue);
     });
 
     // Platform-aware slot default (Approach A single-source): a status slot's fresh-install
@@ -945,10 +881,27 @@ if (typeof require !== 'undefined') {
     }
 
     /**
+     * The settings as the call budgets read them on the page: radarMode as Save will store it
+     * (screens-page.js radarModeToSave), so a read-out neither counts a radar call Save drops
+     * nor misses one it adds. A copy only while the stored mode lags. (Save's own fit,
+     * onbuild.js, reads the mode the screens page's onSubmit hook has written by then.)
+     * @param {Object} state Settings state.
+     * @param {?Object} env Platform env.
+     * @returns {Object} The state to read.
+     */
+    function budgetState(state, env) {
+        var S = state || {};
+        // screens-page.js loads after this file in the page: looked up at call time.
+        var SP = (typeof require !== 'undefined') ? require('./screens-page.js') : window.ScreensPage;
+        var mode = SP ? SP.radarModeToSave(S, env) : S.radarMode;
+        return mode === S.radarMode ? S : Object.assign({}, S, { radarMode: mode });
+    }
+
+    /**
      * The interval a budget read-out computes with: the one Save will store (interval-budget.js
      * fitInterval), not the raw stored value. With a "Fit update interval" guard on, a stored
      * interval the budget no longer affords (radar picked in Graphs › Rain radar, the interval
-     * set in Setup › Weather data) is replaced at Save; warning "over budget" about it would contradict the toggle.
+     * set in Setup › Data sources) is replaced at Save; warning "over budget" about it would contradict the toggle.
      *
      * @param {Object} state Settings state.
      * @returns {number} Minutes.
@@ -965,11 +918,12 @@ if (typeof require !== 'undefined') {
      * fetchIntervalMin / sleep window / provider / radarProvider / guard changes.
      *
      * @param {Object} state Settings state.
-     * @param {Object} env Platform env (unused).
+     * @param {Object} env Platform env.
      * @returns {string} Block HTML, or '' when no tomorrow.io budget is in play.
      */
     function tomorrowioBudgetBlock(state, env) {
         var B = tomorrowioBudget;
+        state = budgetState(state, env);
         var cpc = B.callsPerCycle(state);
         if (cpc === 0) { return ''; }
         var interval = readoutInterval(state);
@@ -1006,10 +960,12 @@ if (typeof require !== 'undefined') {
      * the read-out's own figure, against the free plan's daily limit — "~96 of 500 calls a
      * day". A projection: the phone does not count the calls it makes.
      * @param {Object} state Settings state.
+     * @param {?Object} env Platform env.
      * @returns {?string} The line, or null when no tomorrow.io call is made.
      */
-    function tomorrowioUsageLine(state) {
+    function tomorrowioUsageLine(state, env) {
         var B = tomorrowioBudget;
+        state = budgetState(state, env);
         if (B.callsPerCycle(state) === 0) { return null; }
         return '~' + Math.round(B.dailyCalls(state, readoutInterval(state))) + ' of ' + B.LIMIT_DAY + ' calls a day';
     }
@@ -1023,11 +979,12 @@ if (typeof require !== 'undefined') {
      * hourly heads-up (Rainbow documents no hourly limit). Recomputes on every render.
      *
      * @param {Object} state Settings state.
-     * @param {Object} env Platform env (unused).
+     * @param {Object} env Platform env.
      * @returns {string} Block HTML, or '' when no own-key Rainbow budget is in play.
      */
     function rainbowBudgetBlock(state, env) {
         var B = rainbowBudget;
+        state = budgetState(state, env);
         if (B.callsPerCycle(state) === 0) { return ''; }
         var interval = readoutInterval(state);
         var sleep = B.sleepHours(state);
@@ -1051,10 +1008,12 @@ if (typeof require !== 'undefined') {
      * come to, the read-out's own figure, against the free plan's monthly limit — "~2,976
      * of 5,000 calls a month". A projection: the phone does not count the calls it makes.
      * @param {Object} state Settings state.
+     * @param {?Object} env Platform env.
      * @returns {?string} The line, or null when no call is billed to the user's key.
      */
-    function rainbowUsageLine(state) {
+    function rainbowUsageLine(state, env) {
         var B = rainbowBudget;
+        state = budgetState(state, env);
         if (B.callsPerCycle(state) === 0) { return null; }
         return '~' + withThousands(Math.round(B.monthlyCalls(state, readoutInterval(state))))
             + ' of ' + withThousands(B.LIMIT_MONTH) + ' calls a month';
@@ -1068,10 +1027,10 @@ if (typeof require !== 'undefined') {
     // block shows the red warning instead. If the stored interval drops out, the
     // engine's resolveRowItem snaps it to the item default ('15') — but only while the
     // row renders (Setup tab), so onbuild.js's onSubmit applies the same fit, from the
-    // same interval-budget.js, at save time for a change made on another tab (the radar
-    // provider in Graphs › Rain radar, the radar mode in Watchface › Views).
-    PConf.optionsResolvers.register('fetchIntervalBudget', function (S) {
-        return intervalBudget.fittingOptions(S || {});
+    // same interval-budget.js, at save time for a change made elsewhere (the screens, which
+    // decide whether the radar is fetched, on the Watchface tab).
+    PConf.optionsResolvers.register('fetchIntervalBudget', function (S, env) {
+        return intervalBudget.fittingOptions(budgetState(S, env));
     });
 
     // "(Recommended)" markers on the weather + radar provider dropdowns: the option matching the
@@ -1242,20 +1201,6 @@ if (typeof require !== 'undefined') {
     PConf.hintResolvers.register('colorNoteHint', colorNoteHint);
 
     /**
-     * A row's hint on a watch without a heart-rate sensor: args.byValue's copy, which leaves
-     * heart rate out. With a sensor, null (the row's hintByValue).
-     * @param {Object} S Live settings state.
-     * @param {Object} env Platform env.
-     * @param {{value: string, byValue: Object<string, string>}} args The row's value and
-     *     the copy per value.
-     * @returns {?string} The hint, or null.
-     */
-    function noHeartRateHint(S, env, args) {
-        return (env && env.hr) ? null : (args.byValue[args.value] || null);
-    }
-    PConf.hintResolvers.register('noHeartRateHint', noHeartRateHint);
-
-    /**
      * The Radar color row's info text: the colour's own words (args.staticHint, the row's
      * hintByValue entry the engine hands every hint resolver), then the bar scale note.
      * @param {Object} S Live settings state.
@@ -1311,11 +1256,12 @@ if (typeof require !== 'undefined') {
             thresholdRangeCfg: thresholdRangeCfg
         };
     }
-    // Under Node, requiring this file registers the Alerts tab's resolvers too, as it does
-    // the preview blocks and the when resolvers (top of the file). Unlike those, they read
-    // PConf.thresholdLevels while their own body runs, so they load here, after it is set.
-    // The webview concatenates alerts-page.js right after this file instead.
+    // Under Node, requiring this file registers the Alerts tab's resolvers and the screens'
+    // (screens-page.js) too, as it does the preview blocks and the when resolvers (top of the
+    // file). Unlike those, the Alerts tab's read PConf.thresholdLevels while their own body
+    // runs, so they load here, after it is set. The webview concatenates both after this file.
     if (typeof require !== 'undefined') {
         require('./alerts-page.js');
+        require('./screens-page.js');
     }
 })();

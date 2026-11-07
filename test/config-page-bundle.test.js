@@ -82,9 +82,9 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
     return at;
   };
   const wizard = idx('settings/wizard.js');
-  const parts = { 'settings/wizard-css.js': 'WizardCss', 'settings/wizard-flick.js': 'WizardFlick',
+  const parts = { 'settings/wizard-css.js': 'WizardCss', 'settings/wizard-screens.js': 'WizardScreens',
     'settings/wizard-forecast.js': 'WizardForecast', 'settings/wizard-finish.js': 'WizardFinish',
-    'settings/wizard-upsell.js': 'WizardUpsell' };
+    'settings/wizard-upsell.js': 'WizardUpsell', 'settings/screens-page.js': 'ScreensPage' };
   Object.keys(parts).forEach((file) => {
     assert.ok(idx(file) < wizard, file + ' must precede wizard.js');
     assert.ok(page().indexOf('window.' + parts[file] + ' = api') !== -1, 'nothing assigns window.' + parts[file]);
@@ -93,7 +93,7 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
     'pkjs/forecast-span-hours.js', 'settings/forecast-sample.js', 'settings/preview-forecast.js'].forEach((file) => {
     assert.ok(idx(file) < idx('settings/wizard-forecast.js'), file + ' must precede wizard-forecast.js');
   });
-  assert.ok(idx('pkjs/view-cycle.js') < idx('settings/wizard-flick.js'));
+  assert.ok(idx('pkjs/screens.js') < idx('settings/wizard-screens.js'));
   assert.ok(idx('pkjs/status-line-catalog.js') < idx('settings/wizard-finish.js'));
   assert.ok(idx('settings/country-defaults.js') < idx('settings/wizard-upsell.js'));
   ['ForecastSample', 'PreviewForecast'].forEach((name) => {
@@ -102,26 +102,41 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
   });
 });
 
-// The custom-layout editor is the same silent-no-op shape as the defaults policy:
-// its one consumer, the Edit button's [data-action] dispatch, guards its absence, so
-// dropping view-editor.js from APP_FILES keeps every Node test green while the shipped
-// page's Edit button does nothing. Pin the ASSIGNMENT, not the bare name — the schema
-// itself never enters the page (build-page concatenates shell.html + APP_FILES only;
-// the schema is injected at runtime), but blocks.js mentions 'openViewEditor' in a
-// comment, so a bare-name search would stay green with the editor gutted.
-test('the custom-layout editor reaches the generated page, after view-cycle', () => {
+// preview-watch.js and wizard.js bind window.ScreenFrame while their bodies run: out of order, or
+// missing, every screen picture on the page throws on a real phone while Node (require()) passes.
+test('the screen pictures\' frame reaches the page ahead of the watch preview and the wizard', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('settings/screen-frame.js') < idx('settings/preview-watch.js'),
+    'screen-frame.js must precede preview-watch.js');
+  assert.ok(idx('settings/screen-frame.js') < idx('settings/wizard.js'),
+    'screen-frame.js must precede wizard.js');
+  assert.ok(page().indexOf('window.ScreenFrame = api') !== -1, 'nothing assigns window.ScreenFrame');
+});
+
+// The screens page is the same silent-no-op shape as the defaults policy: its consumers,
+// the screen buttons' and the Screens card's [data-action] dispatch, guard its absence, so
+// dropping screens-page.js from APP_FILES keeps every Node test green while the shipped
+// page's screens do nothing on a tap. Pin the ASSIGNMENTS, and the order: it binds
+// window.Screens and window.PreviewWatch while its IIFE runs.
+test('the screens page reaches the generated page, after the screens model and the watch picture', () => {
   const src = page();
-  assert.ok(src.indexOf('PConf.actions.openViewEditor =') !== -1,
-    'nothing assigns PConf.actions.openViewEditor — picking Custom would seed keys and render a dead Edit button');
-  assert.ok(src.indexOf('data-ve-save') !== -1,
-    'the editor overlay markup is missing from the page');
+  assert.ok(src.indexOf('PConf.actions.openScreen =') !== -1,
+    'nothing assigns PConf.actions.openScreen: a tap on a screen would do nothing');
+  assert.ok(src.indexOf("PConf.blocks.register('screensCard'") !== -1, 'the Screens card is missing from the page');
+  assert.ok(src.indexOf('window.Screens = api') !== -1, 'nothing assigns window.Screens');
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => appFiles.findIndex((f) => f.endsWith(suffix));
-  const vcAt = idx('pkjs/view-cycle.js');
-  const veAt = idx('settings/view-editor.js');
-  assert.notEqual(veAt, -1, 'view-editor.js is not in APP_FILES at all');
-  assert.ok(vcAt !== -1 && vcAt < veAt,
-    'view-cycle.js must precede view-editor.js — the editor binds window.VIEW_CYCLE while its IIFE runs');
+  const at = idx('settings/screens-page.js');
+  assert.notEqual(at, -1, 'screens-page.js is not in APP_FILES at all');
+  ['pkjs/view-cycle.js', 'pkjs/status-line-catalog.js', 'pkjs/on-demand.js'].forEach((dep) =>
+    assert.ok(idx(dep) !== -1 && idx(dep) < idx('pkjs/screens.js'), dep + ' must precede screens.js'));
+  assert.ok(idx('pkjs/screens.js') < at, 'screens.js must precede screens-page.js');
+  assert.ok(idx('settings/preview-watch.js') < at, 'preview-watch.js must precede screens-page.js');
 });
 
 // line-alert.js binds window.StatusThresholds and window.LineStyle while its own body
@@ -603,19 +618,20 @@ test('the Weather tab kit reaches the generated page in dependency order', () =>
 // unregistered id prints nothing, by design, so a status-slot-icons.js dropped from
 // APP_FILES would just leave the rows bare on a real phone. Pin the file and each of its
 // register() calls into the generated page.
-test('status-slot-icons.js reaches the generated page and registers all ten glyphs', () => {
+test('status-slot-icons.js reaches the generated page and registers every glyph', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const at = appFiles.findIndex((f) => f.endsWith('settings/status-slot-icons.js'));
   assert.notEqual(at, -1, 'status-slot-icons.js is not in APP_FILES');
   const src = page();
-  ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze'].forEach((id) => {
+  const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze',
+    'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun'];
+  IDS.forEach((id) => {
     assert.ok(src.indexOf("icons.register('" + id + "'") !== -1,
       'no register(\'' + id + '\' in page.generated.js — status-slot-icons.js did not reach the page');
   });
   // And what it registers is what the module exports (the map the tests read).
   const icons = require('../src/pkjs/settings/status-slot-icons.js');
-  assert.deepEqual(Object.keys(icons).sort(),
-    ['aqi', 'battery', 'bluetooth', 'gust', 'pollen', 'quiet', 'rain', 'snooze', 'uv', 'wind']);
+  assert.deepEqual(Object.keys(icons).sort(), IDS.slice().sort());
 });
 
 // The update-interval budget modules are the same silent-no-op shape: blocks.js and

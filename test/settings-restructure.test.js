@@ -26,10 +26,12 @@ test('the six tabs, in order; Watchface opens', () => {
   assert.equal(E.initialTab(schema, { startOnWeatherTab: true }), 'weather');
 });
 
-test('page-only keys are never stored: the Night hours and Separate hours', () => {
+test('page-only keys are never stored: the Night hours, Separate hours and the Rain radar picker', () => {
   const uiOnly = [];
   schema.tabs.forEach(t => t.sections.forEach(s => s.items.forEach(it => { if (it.uiOnly) { uiOnly.push(it.messageKey); } })));
-  assert.deepEqual(uiOnly.sort(), ['nightHoursFrom', 'nightHoursSeparate', 'nightHoursTo']);
+  // The Rain radar picker writes radarEnabled and radarProvider (screens-page.js), so its Off
+  // keeps the source.
+  assert.deepEqual(uiOnly.sort(), ['nightHoursFrom', 'nightHoursSeparate', 'nightHoursTo', 'radarSource']);
   const S = E.hydrate(schema, {}, platformLib.computeEnv({ platform: 'emery' }));
   const blob = E.serialize(schema, S);
   uiOnly.forEach(k => assert.equal(Object.prototype.hasOwnProperty.call(blob, k), false, k));

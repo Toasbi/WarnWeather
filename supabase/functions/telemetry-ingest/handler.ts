@@ -239,6 +239,7 @@ const settingsSchema = z
     rainBarColor: z.string().optional(),
     radarProvider: z.string().optional(),
     radarMode: z.enum(['off', 'countdown', 'status', 'graph']).optional(),
+    radarEnabled: z.boolean().optional(),
     radarColor: z.string().optional(),
     radarSky: z.boolean().optional(),
     devStatsEnabled: z.boolean().optional(),

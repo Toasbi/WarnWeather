@@ -314,7 +314,7 @@ function noticeForFailure(failure, providerName, now, failedUpdates, watchName) 
             type: 'error',
             watch: 'API key error',
             html: '<b>' + name + '</b> rejected the request (' + httpLabel(code)
-                + '). Your API key may be missing, wrong, or expired — check it in Setup › Weather data.',
+                + '). Your API key may be missing, wrong, or expired — check it in Setup › Data sources.',
             since: now
         };
     }

@@ -36,7 +36,7 @@ function openPickerRows(S) {
   const env = { color: true, radar: true, platform: 'basalt' };
   const state = Object.assign({ radarMode: 'graph', radarProvider: 'rainbow' }, S);
   const html = E.renderSelectModal(schema, {
-    S: state, ENV: env, openSelect: 'radarProvider', selectQuery: '',
+    S: Object.assign({ radarSource: state.radarProvider }, state), ENV: env, openSelect: 'radarSource', selectQuery: '',
     evalCtx: Object.assign({}, state, { env })
   });
   const rows = {};
@@ -52,23 +52,22 @@ function openPickerRows(S) {
  * @returns {{label: string, aria: string}} What the collapsed trigger says.
  */
 function trigger(html) {
-  const m = /data-select="radarProvider" aria-label="([^"]*)"[^>]*><span>([^<]*)<\/span>/.exec(html);
+  const m = /data-select="radarSource" aria-label="([^"]*)"[^>]*><span>([^<]*)<\/span>/.exec(html);
   assert.ok(m, 'the radar picker trigger is rendered');
   return { aria: m[1], label: m[2] };
 }
 
 /**
- * Open the Graphs tab's Rain radar pane (the Radar provider picker and its key row).
+ * Open the Setup tab (its Data sources card: the Rain radar picker and its key row).
  * @param {Object} page The page (page-harness).
  * @returns {void}
  */
 function openRadarPane(page) {
-  page.clickTab('graphs');
-  page.clickPane('graphs', 'radar');
+  page.clickTab('setup');
 }
 
 /**
- * A stored blob booted on the Graphs tab's Rain radar pane.
+ * A stored blob booted on the Setup tab.
  * @param {Object} stored The stored settings.
  * @param {string} [platform] The watch.
  * @returns {Object} The page (page-harness).
@@ -83,7 +82,8 @@ function radarPage(stored, platform) {
 
 test('the sheet lists both Rainbow options, each with its own desc', () => {
   const rows = openPickerRows({ holidayCountry: 'DE' });
-  assert.deepEqual(Object.keys(rows), ['dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio']);
+  assert.deepEqual(Object.keys(rows), ['off', 'dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio'],
+    'Off first, then the sources');
   assert.match(rows.rainbow, /ssel-opt-name">Rainbow \(limited\)<\/span><span class="ssel-opt-desc">Worldwide satellite \+ radar nowcast · no key, every 30 min</);
   assert.match(rows.rainbowkey, /ssel-opt-name">Rainbow \(own key\)<\/span><span class="ssel-opt-desc">Worldwide satellite \+ radar nowcast · needs a free key</);
 });
@@ -107,7 +107,7 @@ test('a fresh install opens on "Rainbow (limited)": no key row, no key fields', 
   const page = bootGeneratedPage({ provider: 'openmeteo' });
   openRadarPane(page);
   const tab = page.scroll.innerHTML;
-  assert.deepEqual(trigger(tab), { label: LIMITED, aria: 'Radar provider: ' + LIMITED });
+  assert.deepEqual(trigger(tab), { label: LIMITED, aria: 'Rain radar: ' + LIMITED });
   assert.equal(page.S.radarProvider, 'rainbow');
   assert.ok(!('rainbowOwnKey' in page.S), 'no switch behind the picker');
   assert.doesNotMatch(tab, /data-edit-sheet="radarKeyRainbow"/);
@@ -149,8 +149,8 @@ test('Save: every pick stores itself as radarProvider, with no switch beside it'
   for (const [stored, pick, provider, label] of cases) {
     const page = radarPage(stored);
     if (pick) {
-      page.openSelect('radarProvider');
-      page.pickOption('radarProvider', pick);
+      page.openSelect('radarSource');
+      page.pickOption('radarSource', pick);
       assert.equal(page.S.radarProvider, pick, label + ': the pick');
     }
     const saved = await page.save();
@@ -161,8 +161,8 @@ test('Save: every pick stores itself as radarProvider, with no switch beside it'
 
 test('Save keeps the key of either Rainbow option', async () => {
   const page = radarPage({ radarProvider: 'rainbowkey', rainbowApiKey: 'keep-me' });
-  page.openSelect('radarProvider');
-  page.pickOption('radarProvider', 'rainbow');
+  page.openSelect('radarSource');
+  page.pickOption('radarSource', 'rainbow');
   const saved = await page.save();
   assert.equal(saved.rainbowApiKey, 'keep-me', 'limited keeps the key for a later switch back');
 });

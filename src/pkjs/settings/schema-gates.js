@@ -52,17 +52,19 @@ function tabLink(tab, label, pane) {
 // level steps by 5 there and by 10 everywhere else.
 var FINE_BATTERY_WHEN = {env: 'fineBattery'};
 // "The Status bars tab's master Bold row overrides every slot" — statusBoldAll 'all' packs
-// the bold cell of EVERY kind as always-bold at blob-build time
-// (status-wire.js buildSettingsBlob) WITHOUT touching the stored per-kind
-// thresh<Stem>BoldMode values, so the per-slot Bold rows go inert (disabledWhen —
-// muted, not hidden) rather than lying about being in charge; flipping the master
-// back to 'perSlot' restores their stored choices.
-var BOLD_ALL_WHEN = {key: 'statusBoldAll', eq: 'all'};
+// the bold cell of EVERY kind as always-bold at blob-build time, and 'off' as Off (bold at
+// danger or a reached goal only, as a slot's own Off), both in status-wire.js
+// buildSettingsBlob and WITHOUT touching the stored per-kind thresh<Stem>BoldMode values,
+// so the per-slot Bold rows go inert (disabledWhen — muted, not hidden) rather than lying
+// about being in charge; flipping the master back to 'perSlot' restores their stored
+// choices.
+var BOLD_MASTER_WHEN = {key: 'statusBoldAll', in: ['off', 'all']};
 // The two capability gates the Radar/Health status bars share — named once
 // (the THRESHOLD_WHEN precedent) so a bar's visibility rule lives in one
 // constant instead of six inline copies across its slots and countdown rows.
-var RADAR_BAR_WHEN = {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]};
-var HEALTH_BAR_WHEN = {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]};
+// Whether a screen shows the bar: on-demand.js barExists (when-resolvers.js barShown).
+var RADAR_BAR_WHEN = {all: [{env: 'radar'}, {when: 'barShown', args: {bar: 'radar'}}]};
+var HEALTH_BAR_WHEN = {all: [{env: 'health'}, {when: 'barShown', args: {bar: 'health'}}]};
 // "The theme actually renders color choices" — inlined ~10 times before it had
 // a name. (The compound "effectively B&W" check is the BW_LEGEND rows' showWhen in
 // schema.js.)
@@ -114,7 +116,7 @@ module.exports = {
     THRESHOLD_WHEN: THRESHOLD_WHEN,
     ON_DEMAND_WHEN: ON_DEMAND_WHEN,
     FINE_BATTERY_WHEN: FINE_BATTERY_WHEN,
-    BOLD_ALL_WHEN: BOLD_ALL_WHEN,
+    BOLD_MASTER_WHEN: BOLD_MASTER_WHEN,
     RADAR_BAR_WHEN: RADAR_BAR_WHEN,
     HEALTH_BAR_WHEN: HEALTH_BAR_WHEN,
     COLOR_THEME_WHEN: COLOR_THEME_WHEN,

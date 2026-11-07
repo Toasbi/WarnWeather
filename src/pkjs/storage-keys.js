@@ -42,6 +42,9 @@ module.exports = {
     // 2.0.1: every install onto the alert defaults, a weather warn look filled and an
     // alert's Look Icon + value (migrations/alert-defaults.js migrateAlertDefaults).
     ALERT_DEFAULTS_MIGRATION_KEY: 'v2.0.1_alert_defaults_migration',
+    // 2.6.0: every install onto screens: the custom layout's keys, the modes worked out from
+    // them and radarEnabled (migrations/screens.js migrateToScreens).
+    SCREENS_MIGRATION_KEY: 'v2.6.0_screens_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',

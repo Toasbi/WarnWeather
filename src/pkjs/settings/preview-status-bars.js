@@ -15,9 +15,9 @@
 // (status-line-catalog.js resolveSelection — defaults and availability included), and
 // which bars exist is on-demand.js barExists, the rule the Status bars tab gates its
 // cards by — for the Watch and Forecast bars only where a view of the layout seats
-// them, for the Radar and Health bars whenever the Views card turns them on. The
-// watch draws an icon beside most items; the preview shows the page's copy of it
-// where one exists (status-slot-icons.js).
+// them, for the Radar and Health bars wherever a screen shows them. The
+// watch draws an icon beside most items; the preview shows the page's copy of each
+// (status-slot-icons.js) where the watch it draws for has one (slotIcon).
 /* global PConf, VIEW_CYCLE */
 (function () {
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
@@ -213,16 +213,33 @@
         }
     }
 
+    // The items aplite's lean status row draws a glyph for: its bitmap masks
+    // (status_row_aplite.c status_mask_for) and the drawn sun arrow. No dew drops,
+    // and its battery slot prints the charge as text.
+    var APLITE_GLYPHS = {temp: true, wind: true, gust: true, uv: true, aqi: true, pollen: true,
+        countdown: true, sun: true};
+
     /**
-     * The glyph a slot's text follows: the page's copy of the watch's icon where
-     * status-slot-icons.js has one. Aplite's battery slot is text, no glyph.
+     * The glyph a slot's text follows on this watch: the page's copy of the watch's icon
+     * (status-slot-icons.js), where the watch draws one. The Status bars tab's rows and the
+     * watch pictures (preview-watch.js) both ask here.
+     * @param {string} code The slot's item.
+     * @param {Object} [env] Platform env.
+     * @returns {?string} The glyph's <svg>, or null for none.
+     */
+    function slotIcon(code, env) {
+        if (env && env.platform === 'aplite' && !APLITE_GLYPHS[code]) { return null; }
+        return (PConf && PConf.icons && PConf.icons.get && PConf.icons.get(code)) || null;
+    }
+
+    /**
+     * The glyph a slot's text follows, as the row's leading icon.
      * @param {string} code The slot's item.
      * @param {Object} [env] Platform env.
      * @returns {string} HTML ('' for none).
      */
     function lead(code, env) {
-        if (code === 'battery' && env && env.platform === 'aplite') { return ''; }
-        var svg = PConf && PConf.icons && PConf.icons.get ? PConf.icons.get(code) : null;
+        var svg = slotIcon(code, env);
         return svg ? '<span class="sbp-ico" aria-hidden="true">' + svg + '</span>' : '';
     }
 
@@ -298,10 +315,8 @@
         BARS.forEach(function (b) {
             var optional = b.bar === 'radar' || b.bar === 'health';
             if (optional && !onDemand.barExists(st, b.bar, env)) { return; }
-            // The Radar and Health bars show while the Views card turns them on, as their
-            // cards on the tab do, whether or not the layout seats them (Weather only
-            // with the radar graph, or a custom layout that left the row out): their
-            // slots are still the user's to set. The Watch and Forecast bars show only
+            // The Radar and Health bars show while a screen shows them, as their cards on
+            // the tab do (on-demand.js barExists). The Watch and Forecast bars show only
             // where a view seats them (Weather only without health has no top strip
             // anywhere).
             var view = barView(views, b);
@@ -312,6 +327,9 @@
             rows += '<div class="sbp-row"><span class="sbp-n">' + esc(b.name) + '</span>' + cells + '</div>';
         });
         if (!rows) { return ''; }
+        // On the tab, a line under the bars says the slots can be tapped (their chips show
+        // which); assistive tech hears each slot's button instead.
+        if (tappable) { rows += '<div class="sbp-tip" aria-hidden="true">Tap a slot to change it</div>'; }
         ensureStyle();
         // The watch draws the bars in its theme's ink (status_row.c: theme_fg() on the
         // theme's background), so a light theme previews black on white — except on a
@@ -319,7 +337,8 @@
         var ink = previewInk(env && env.themePolarity === false ? 'dark' : st.theme);
         return '<div class="sbp' + (tappable ? ' tap' : '') + '" role="' + (tappable ? 'group' : 'img')
             + '" aria-label="' + (tappable ? 'Status bars' : 'Status bars preview') + '" style="--sbp-bg:' + ink.bg
-            + ';--sbp-fg:' + ink.fg + ';--sbp-dim:' + ink.rgba('0.5') + ';--sbp-line:' + ink.rgba('0.12') + '">'
+            + ';--sbp-fg:' + ink.fg + ';--sbp-dim:' + ink.rgba('0.5') + ';--sbp-line:' + ink.rgba('0.12')
+            + ';--sbp-chip:' + ink.rgba('0.1') + '">'
             + rows + '</div>';
     }
 
@@ -345,13 +364,23 @@
         + '.sbp-arr{margin-left:1px}'
         // On the tab each slot is a button: the row's height and a little to each side are
         // its tap area (the negative margins keep the watch's spacing), a press shades it,
-        // and an empty slot shows a dashed hole to tap.
-        + 'button.sbp-v{-webkit-appearance:none;appearance:none;min-width:40px;margin:-7px -4px;padding:7px 4px;'
-        + 'border:none;border-radius:7px;background:none;cursor:pointer}'
+        // and an empty slot shows a dashed hole to tap. A filled one sits on a faint chip
+        // (its ::before, inside the tap area so rows never touch), so every slot reads as
+        // something to tap; the line under the bars says what a tap does.
+        + 'button.sbp-v{-webkit-appearance:none;appearance:none;min-width:40px;margin:-7px -4px;padding:7px 6px;'
+        + 'border:none;border-radius:7px;background:none;cursor:pointer;position:relative;z-index:0}'
+        + 'button.sbp-v:not(.sbp-empty):before{content:"";position:absolute;top:3px;bottom:3px;left:0;right:0;'
+        + 'z-index:-1;border-radius:6px;background:rgba(255,255,255,.1);background:var(--sbp-chip,rgba(255,255,255,.1))}'
+        // Each chip hugs its value (the middle one centred, as the watch centres it), so
+        // chips never meet across the narrow column gap.
+        + 'button.sbp-left{justify-self:start}button.sbp-mid{justify-self:center}button.sbp-right{justify-self:end}'
+        + 'button.sbp-v{text-align:center}'
         + 'button.sbp-v:active{background:var(--sbp-line,#1C1C1E)}'
         + 'button.sbp-v:focus-visible{outline:2px solid var(--sbp-fg,#FFFFFF);outline-offset:-2px}'
         + '.sbp-hole{display:inline-block;width:30px;height:15px;border:1px dashed var(--sbp-dim,#7C808A);'
-        + 'border-radius:4px;vertical-align:middle}';
+        + 'border-radius:4px;vertical-align:middle}'
+        + '.sbp-tip{padding:6px 0 3px;border-top:1px solid #1C1C1E;border-top-color:var(--sbp-line,#1C1C1E);'
+        + 'text-align:center;font:600 11px Inter,sans-serif;color:#7C808A;color:var(--sbp-dim,#7C808A)}';
     /**
      * Inject the preview's stylesheet (id 'sbp-style') once; nothing outside a DOM or when
      * it is already there.
@@ -367,7 +396,7 @@
 
     if (PConf && PConf.blocks) { PConf.blocks.register('statusBarsPreview', statusBarsPreview); }
     var api = {statusBarsPreview: statusBarsPreview, sample: sample, arrowDue: arrowDue,
-        arrowShown: arrowShown, calendarShown: calendarShown, barSlots: barSlots};
+        arrowShown: arrowShown, calendarShown: calendarShown, barSlots: barSlots, slotIcon: slotIcon};
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     // The page: the Watchface tab's watch reads the slots too (preview-watch.js).
     if (typeof window !== 'undefined') { window.PreviewStatusBars = api; }

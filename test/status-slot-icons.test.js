@@ -1,6 +1,7 @@
 // test/status-slot-icons.test.js — the settings page's status-slot row glyphs
-// (src/pkjs/settings/status-slot-icons.js): ten 24×24 fragments in currentColor,
-// registered into the config-ui icon registry when the engine is loaded.
+// (src/pkjs/settings/status-slot-icons.js): 24×24 fragments in currentColor,
+// registered into the config-ui icon registry when the engine is loaded, and the one
+// lookup both previews draw them through (preview-status-bars.js slotIcon).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
@@ -9,9 +10,11 @@ require('../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
 const ICONS = require('../src/pkjs/settings/status-slot-icons.js');
 
-// The six weather glyphs and the Alert settings card's four System info glyphs (also the
-// Status slots tab's read-only Alerts rows, by on-demand.js ITEMS icon).
-const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze'];
+// The six weather glyphs, the Alert settings card's four System info glyphs (also the
+// Status slots tab's read-only Alerts rows, by on-demand.js ITEMS icon), and the rest of
+// the slot items the watch draws a glyph for.
+const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze',
+  'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun'];
 
 test('every glyph is a 24x24 svg drawn in currentColor', () => {
   IDS.forEach((id) => {
@@ -58,4 +61,39 @@ test('every Alerts item names a registered glyph (an unknown id would print noth
   });
   assert.deepEqual(OD.ITEMS.map((i) => i.icon), ['battery', 'bluetooth', 'quiet', 'snooze', 'rain', 'gust', 'uv',
     'aqi', 'pollen', 'wind']);
+});
+
+test('every slot item the watch draws a glyph for has the page copy, and no other item has one', () => {
+  // status-line-catalog.js names each item's watch glyph. NONE, PRESSURE and
+  // PHONE_BATTERY_PLAIN are text on the watch; everything else, the drawn sun arrow
+  // included, is a picture the previews must show too.
+  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const { slotIcon } = require('../src/pkjs/settings/preview-status-bars.js');
+  const C = catalog.ICONS, basalt = { platform: 'basalt' };
+  const TEXT = [C.NONE, C.PRESSURE, C.PHONE_BATTERY_PLAIN];
+  ['empty', 'temp', 'wind', 'gust', 'pressure', 'dew', 'uv', 'aqi', 'pollen', 'sun', 'date', 'week', 'city',
+    'countdown', 'steps', 'distance', 'hr', 'sleep', 'batteryPct', 'phoneBattery', 'phoneBatteryPlain'].forEach((code) => {
+    const item = catalog.byCode(code);
+    assert.ok(item, code + ' is a catalog item');
+    if (TEXT.indexOf(item.icon) === -1) {
+      assert.equal(slotIcon(code, basalt), ICONS[code], code + ': the watch draws a glyph, so the preview does');
+    } else {
+      assert.equal(slotIcon(code, basalt), null, code + ': text on the watch, text in the preview');
+    }
+  });
+  // The watch battery is its own drawn glyph on the bars (preview-watch.js batteryGlyph);
+  // its registered outline is the Alerts rows' and the Status bars tab's.
+  assert.equal(slotIcon('battery', basalt), ICONS.battery);
+});
+
+test('aplite draws only the glyphs of its lean row: the bitmap masks and the sun arrow', () => {
+  const { slotIcon } = require('../src/pkjs/settings/preview-status-bars.js');
+  const aplite = { platform: 'aplite' };
+  ['temp', 'wind', 'gust', 'uv', 'aqi', 'pollen', 'countdown', 'sun'].forEach((code) => {
+    assert.equal(slotIcon(code, aplite), ICONS[code], code + ' has a mask on aplite');
+  });
+  // No dew drops, the battery prints its charge, and health and the phone's battery are not there.
+  ['dew', 'battery', 'steps', 'distance', 'sleep', 'hr', 'phoneBattery'].forEach((code) => {
+    assert.equal(slotIcon(code, aplite), null, code + ' draws no glyph on aplite');
+  });
 });

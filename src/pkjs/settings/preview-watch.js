@@ -9,9 +9,9 @@
 // forecast, radar and health graphs as the
 // Graphs tab's previews draw them, laid into the band. It is a picture of the layout and
 // the look, not a pixel copy: the watch's Gothic text is the page's sans. Holidays are the
-// ones the phone has cached for the picked country (userData.holidays). The Layout card's
-// preset picker draws each preset's Default view the same way (picture resolver
-// 'layoutPresetPicture').
+// ones the phone has cached for the picked country (userData.holidays). The Time card's
+// Clock font picker draws each face's clock the same way (picture resolver
+// 'timeFontPicture').
 /* global VIEW_CYCLE */
 (function () {
     var NODE = typeof require !== 'undefined';
@@ -29,6 +29,8 @@
     var clockGlyphs = NODE ? require('./clock-glyphs.generated.js') : window.ClockGlyphs;
     var dateFormat = NODE ? require('../date-format.js') : window.DateFormat;
     var esc = NODE ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
+    // The frame every screen picture sits in: the screen on its own ground, with a margin of it.
+    var screenFrame = NODE ? require('./screen-frame.js') : window.ScreenFrame;
 
     /**
      * The radar and health previews, which register as blocks only.
@@ -49,7 +51,7 @@
         { w: 144, h: 168, floor: 168 },
         { w: 200, h: 228, floor: 222 }
     ];
-    // The views' names, as the Layout card calls them.
+    // The screens' names, as the Screens card calls them.
     var NAMES = ['Default', 'Flick 1', 'Flick 2'];
     // The watch's text in the page: a narrow system sans stands in for the watch's Gothic.
     var FONT = "Roboto, 'Helvetica Neue', Arial, sans-serif";
@@ -65,7 +67,7 @@
     BAR_OF_SRC[VC.STATUS_SRC_FORECAST] = 'forecast';
     BAR_OF_SRC[VC.STATUS_SRC_HEALTH] = 'health';
     BAR_OF_SRC[VC.STATUS_SRC_RADAR] = 'radar';
-    // What a band is called in a view's spoken description, in the Layout card's words.
+    // What a band is called in a screen's spoken description.
     var STATUS_NAME = { forecast: 'Forecast Status', health: 'Health Status', radar: 'Radar Status' };
     var GRAPH_NAME = { forecast: 'Forecast', radar: 'Radar', health: 'Health graph' };
 
@@ -366,15 +368,14 @@
 
     /**
      * A slot's icon (status-slot-icons.js' copy of the watch's), placed on the row.
-     * @param {string} code The slot's item.
+     * @param {?string} svg The glyph (preview-status-bars.js slotIcon), null for none.
      * @param {number} x Left edge.
      * @param {number} mid The row's middle.
      * @param {number} size Icon size.
      * @param {string} fg Ink.
      * @returns {string} SVG markup, '' for an item without one.
      */
-    function iconAt(code, x, mid, size, fg) {
-        var svg = PConf && PConf.icons && PConf.icons.get ? PConf.icons.get(code) : null;
+    function iconAt(svg, x, mid, size, fg) {
         if (!svg || svg.indexOf('<svg ') !== 0) { return ''; }
         return '<svg x="' + r1(x) + '" y="' + r1(mid - size / 2) + '" width="' + r1(size) + '" height="' + r1(size)
             + '" color="' + fg + '" ' + svg.slice(5);
@@ -399,8 +400,8 @@
         }).map(function (c) {
             var label = c.text + (c.arrow ? '↗' : '');
             var glyph = c.code === 'battery' && !label;
-            var hasIcon = !glyph && Boolean(PConf && PConf.icons && PConf.icons.get && PConf.icons.get(c.code));
-            return { pos: c.pos, code: c.code, label: label, glyph: glyph, hasIcon: hasIcon };
+            var icon = glyph ? null : statusBars.slotIcon(c.code, env);
+            return { pos: c.pos, code: c.code, label: label, glyph: glyph, icon: icon, hasIcon: Boolean(icon) };
         });
         /** @param {Object} it @param {number} sz @returns {number} the item's ink width */
         function widthOf(it, sz) {
@@ -421,7 +422,7 @@
             else if (it.pos === 'right') { x0 = box.x + box.w - pad - w; }
             else { x0 = box.x + (box.w - w) / 2; }
             if (it.glyph) { e += batteryGlyph(x0, mid, size, cx.fg); }
-            else if (it.hasIcon) { e += iconAt(it.code, x0, mid, size, cx.fg); }
+            else if (it.hasIcon) { e += iconAt(it.icon, x0, mid, size, cx.fg); }
             if (it.label) { e += text(x0 + ico, base, size, cx.fg, 'start', 700, it.label); }
         });
         return e;
@@ -501,26 +502,18 @@
         return out.join(', ');
     }
 
-    // The ground each screen picture keeps around the screen, in the screen's own pixels (about
-    // 6 % of its width): the card's round corners clip only that, never a slot or label on the
-    // screen's edge rows, and it is the screen's own background, so the card reads as one black
-    // (or white) screen.
-    var SCREEN_MARGIN = [9, 12];
-
     /**
-     * A screen picture's <svg>: the screen's grid, the watch's ground all round it (SCREEN_MARGIN).
-     * @param {number} f Screen family.
-     * @param {number} w The drawing's width (the screen's, or a band's).
-     * @param {number} h Its height.
+     * A screen picture's <svg>: the screen's grid in the frame every screen picture shares
+     * (screen-frame.js), the watch's ground all round it, so the card's round corners clip only
+     * that margin.
+     * @param {number} w The drawing's width (the screen's).
+     * @param {number} h Its height (the screen's, or a band's).
      * @param {string} bg The watch's background.
      * @param {string} inner What is drawn on it, in the screen's coordinates.
      * @returns {string} SVG markup.
      */
-    function framedSvg(f, w, h, bg, inner) {
-        var m = SCREEN_MARGIN[f], vw = w + 2 * m, vh = h + 2 * m;
-        return '<svg class="wpv-scr" viewBox="' + (-m) + ' ' + (-m) + ' ' + vw + ' ' + vh + '" aria-hidden="true" focusable="false">'
-            + '<rect x="' + (-m) + '" y="' + (-m) + '" width="' + vw + '" height="' + vh + '" fill="' + bg + '"></rect>'
-            + inner + '</svg>';
+    function framedSvg(w, h, bg, inner) {
+        return screenFrame.svg(w, h, bg, inner, 'wpv-scr');
     }
 
     /**
@@ -563,7 +556,7 @@
                 }
             }
         });
-        return { svg: framedSvg(f, sc.w, sc.h, ink.bg, e), label: describe(spec, lay), bg: ink.bg };
+        return { svg: framedSvg(sc.w, sc.h, ink.bg, e), label: describe(spec, lay), bg: ink.bg };
     }
 
     // One card per view, on the page (the tab pins the block bare, schema pinBare): the card is
@@ -577,7 +570,11 @@
         + 'box-shadow:0 6px 16px rgba(0,0,0,.35),0 0 0 1px var(--card-line)}'
         + 'body.light .wpv-card{box-shadow:0 4px 12px rgba(0,0,0,.16),0 0 0 1px var(--card-line)}'
         + '.wpv-scr{display:block;width:100%;height:auto}'
-        + '.wpv-cap{display:block;margin-top:7px;font:700 11.5px Inter,-apple-system,system-ui,sans-serif;color:var(--muted)}';
+        + '.wpv-cap{display:block;margin-top:7px;font:700 11.5px Inter,-apple-system,system-ui,sans-serif;color:var(--muted)}'
+        // A screen is a button that opens its editor (screens-page.js), on every watch but aplite.
+        + '.wpv-btn{border:none;background:none;padding:0;margin:0;cursor:pointer;font:inherit;color:inherit}'
+        + '.wpv-btn:focus-visible .wpv-card{box-shadow:0 0 0 2px var(--link)}'
+        + '.wpv-tap{display:block;margin-top:8px;text-align:center;font:500 11px Inter,-apple-system,system-ui,sans-serif;color:var(--faint)}';
 
     /**
      * Put the block's styles on the page once.
@@ -592,7 +589,10 @@
     }
 
     /**
-     * The block: every view of the cycle as the watch draws it, side by side and named.
+     * The block: every screen as the watch draws it, side by side and named. On every watch
+     * but aplite each is a button that opens its editor (screens-page.js openScreen), a
+     * screen with nothing on it too (its bare screen: the watch skips it); aplite draws its
+     * one screen.
      * @param {Object} S Live settings.
      * @param {Object} env Platform env.
      * @param {Object} [userData] Page userData.
@@ -601,25 +601,31 @@
     function watchPreview(S, env, userData) {
         var st = S || {};
         var views = VC.resolveViewCycle(st, env);
+        var editable = !(env && env.platform === 'aplite');
         var f = env && env.platform === 'emery' ? 1 : 0, now = new Date();
         var bg = svgLib.previewInk(themeOf(st, env)).bg;
         var n = 0, figs = '';
         views.forEach(function (spec, i) {
-            if (!spec) { return; }
-            var name = NAMES[i] || 'View ' + (i + 1), scr = screenSvg(spec, i, st, env, userData || {}, f, now);
+            if (!spec && !editable) { return; }
+            var name = NAMES[i] || 'View ' + (i + 1);
+            var scr = spec ? screenSvg(spec, i, st, env, userData || {}, f, now) : viewScreen(st, env, i, userData);
+            var inner = '<div class="wpv-card" style="background:' + bg + '">' + scr.svg + '</div>'
+                + '<span class="wpv-cap" aria-hidden="true">' + esc(name) + '</span>';
             n += 1;
-            figs += '<div class="wpv-v" role="img" aria-label="' + esc(name + ': ' + scr.label) + '">'
-                + '<div class="wpv-card" style="background:' + bg + '">' + scr.svg + '</div>'
-                + '<span class="wpv-cap" aria-hidden="true">' + esc(name) + '</span></div>';
+            figs += editable
+                ? '<button type="button" class="wpv-v wpv-btn" data-action="openScreen" data-action-arg="' + i
+                    + '" aria-label="' + esc('Edit ' + name + ': ' + scr.label) + '">' + inner + '</button>'
+                : '<div class="wpv-v" role="img" aria-label="' + esc(name + ': ' + scr.label) + '">' + inner + '</div>';
         });
         if (!figs) { return ''; }
         ensureStyle();
-        return '<div class="wpv n' + n + '" role="group" aria-label="Your watch">' + figs + '</div>';
+        return '<div class="wpv n' + n + '" role="group" aria-label="Your watch">' + figs + '</div>'
+            + (editable ? '<span class="wpv-tap">Tap a screen to edit it</span>' : '');
     }
 
     /**
-     * One view of the cycle on its own: the custom layout editor's live preview of the
-     * view being edited (view-editor.js), drawn as the pinned preview draws it. A view with
+     * One view of the cycle on its own, drawn as the pinned preview draws it (the screen
+     * editor's picture of a screen with nothing on it, screens-page.js). A view with
      * nothing left on it (a disabled slot, which the watch skips) is its bare screen with a
      * note.
      * @param {Object} S Live settings.
@@ -634,49 +640,10 @@
         var spec = VC.resolveViewCycle(st, env)[i] || null;
         if (spec) { return screenSvg(spec, i, st, env, userData || {}, f, new Date(), 've' + i + '-'); }
         var ink = svgLib.previewInk(themeOf(st, env));
-        return { svg: framedSvg(f, sc.w, sc.h, ink.bg,
+        return { svg: framedSvg(sc.w, sc.h, ink.bg,
             text(sc.w / 2, sc.h / 2 + 4, f ? 15 : 12, ink.rgba('0.6'), 'middle', 600, 'Nothing to show')),
             bg: ink.bg,
             label: 'Nothing to show' };
-    }
-
-    /**
-     * The Layout preset picker's picture of one preset (picture resolver
-     * 'layoutPresetPicture'): the Default view the preset gives with the settings as they
-     * are, drawn as the pinned preview draws it. Custom shows the custom Default view or,
-     * until a first pick of Custom has seeded the custom views, the one that pick would seed
-     * from the preset in use (view-cycle.js seedCustomKeys).
-     * @param {Object} S Live settings.
-     * @param {Object} env Platform env.
-     * @param {{value: string}} args The option's preset.
-     * @param {Object} [userData] Page userData (the palette).
-     * @returns {string} The <svg>, '' when the preset has no view to draw.
-     */
-    function presetPicture(S, env, args, userData) {
-        var custom = args.value === 'custom';
-        var st = Object.assign({}, S || {}, { layoutPreset: args.value });
-        if (custom && !st.customLayoutSeeded) { VC.seedCustomKeys(st, S && S.layoutPreset); }
-        var spec = VC.resolveViewCycle(st, env)[0];
-        if (!spec) { return ''; }
-        var f = env && env.platform === 'emery' ? 1 : 0;
-        var svg = screenSvg(spec, 0, st, env, userData || {}, f, new Date(),
-            'lp' + String(args.value).replace(/[^A-Za-z0-9]/g, '') + '-').svg;
-        // Custom's card carries a pencil: until views of your own are built it shows the
-        // preset in use, which would otherwise read as a second copy of that card.
-        return custom ? svg.replace(/<\/svg>$/, pencilBadge(SCREEN[f]) + '</svg>') : svg;
-    }
-
-    /**
-     * A round accent badge with a pencil, in a screen's bottom-right corner.
-     * @param {{w: number, h: number}} sc The screen.
-     * @returns {string} SVG markup.
-     */
-    function pencilBadge(sc) {
-        var r = sc.w > 150 ? 16 : 12, x = sc.w - r - 4, y = sc.h - r - 4, k = r / 20;
-        return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="#FA4A35" stroke="#FFFFFF" stroke-width="1.5"></circle>'
-            + '<path transform="translate(' + r1(x - 12 * k) + ' ' + r1(y - 12 * k) + ') scale(' + k + ')"'
-            + ' d="M16.5 4.5a2.1 2.1 0 0 1 3 3L8.5 18.5 4 20l1.5-4.5Z" fill="none" stroke="#FFFFFF" stroke-width="2.4"'
-            + ' stroke-linecap="round" stroke-linejoin="round"></path>';
     }
 
     /**
@@ -694,14 +661,13 @@
         var theme = themeOf(st, env), ink = svgLib.previewInk(theme);
         var f = env && env.platform === 'emery' ? 1 : 0, w = SCREEN[f].w, h = f ? 64 : 49;
         var cx = { fg: ink.fg, color: resolveInk.drawsColor(env, theme), bw: Boolean(env && env.color === false), f: f };
-        return framedSvg(f, w, h, ink.bg,
+        return framedSvg(w, h, ink.bg,
             clockBand(st, { x: 0, y: 0, w: w, h: h }, cx, 'tf' + String(args.value).replace(/[^A-Za-z0-9]/g, '') + '-'));
     }
 
     if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }
     if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('timeFontPicture', fontPicture); }
-    if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('layoutPresetPicture', presetPicture); }
-    var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg, presetPicture: presetPicture,
+    var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg,
                 fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PreviewWatch = api; }

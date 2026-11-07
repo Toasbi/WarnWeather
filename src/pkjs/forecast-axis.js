@@ -32,7 +32,10 @@
 //
 // THE WATCH. emery only. The wire bits ride the CLAY_LARGE_GRAPH_FONT int (bit 0 Larger graph
 // fonts, bits 2, 3 and 5 these; src/c/appendix/config.h GRAPH_OPT_*), which only emery's C
-// reads. Bits 1 and 4 (the betas' axis line off and outline off) are retired, reserved and
+// reads. The 144 px watches keep the left axis (the owner's call, 2026-11-07): emery's numbers
+// On graph (forecast_numbers.h and its callers) measured 2144 B of basalt's 64 KB image, and
+// basalt's lowest free heap would fall from about 5.0 KB to 2.8 KB, under its 4.5 KB gate
+// (scripts/check-64k-size.sh). Porting them waits for that much image to be reclaimed there. Bits 1 and 4 (the betas' axis line off and outline off) are retired, reserved and
 // never sent. An UNKNOWN platform (no watchInfo) is capable, as everywhere on the Clay message,
 // so a watchInfo hiccup cannot reset an emery's options; a KNOWN non-emery watch is sent
 // nothing of this. The scale bake (TEMP_MIN / TEMP_MAX) and the 24 h span's 26 hours change
@@ -71,7 +74,9 @@
 
     /**
      * The numbers' setting: 'axis', 'graph' or 'off'; 'axis' for an absent or junk value (the
-     * betas' 'beside' included).
+     * betas' 'beside' included): the graph as it was before the key existed. A new install
+     * stores the shipped default, 'graph' since 2.6 (schema.js; seedDefaults writes it), and an
+     * existing install that lacks the key is backfilled 'axis' (clay-settings.js upgradeBackfill).
      * @param {?Object} s Clay settings.
      * @returns {string}
      */

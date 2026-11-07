@@ -122,7 +122,8 @@ test('defaultViewLacksOnDemand: the Default view the watch runs has no strip and
   assert.equal(lacks(Object.assign({ healthMode: 'off' }, health)), true, 'a health seat folded away');
   const radar = Object.assign({}, custom, { viewUpper0: 'radar', statusRadarOnDemandLeftItems: 'rain' });
   assert.equal(lacks(Object.assign({ radarMode: 'status' }, radar)), false, 'a radar seat carrying items');
-  assert.equal(lacks(Object.assign({ radarMode: 'off' }, radar)), true, 'a radar seat folded away');
+  assert.equal(lacks(Object.assign({ radarMode: 'off' }, radar)), false,
+    'the Radar bar stays with the radar off, its items with it');
   // aplite runs Weather only and a custom layout as Compact calendar, strip and all.
   assert.equal(lacks({ layoutPreset: 'weatherOnly', radarMode: 'graph' }, APLITE), false);
   assert.equal(lacks(custom, APLITE), false);

@@ -266,7 +266,15 @@ function upgradeBackfill() {
     var out = {
         vibe: false,
         windSlotDisplay: 'current',
-        gustSlotDisplay: 'current'
+        gustSlotDisplay: 'current',
+        // 2.6: a new install starts on the Default screen alone and the Clean graph; an
+        // existing install keeps its three screens (the migration then moves them onto
+        // screens, migrations/screens.js) and its graph: the radar graph and the health
+        // views, the UV dots, the high and low beside the axis.
+        radarMode: 'graph',
+        healthMode: 'all',
+        thirdLine: 'uv',
+        forecastAxisNumbers: 'axis'
     };
     var toggles = statusCatalog.UNIT_TOGGLES;
     for (var i = 0; i < toggles.length; i++) {

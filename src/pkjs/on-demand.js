@@ -208,9 +208,9 @@
 
   /**
    * Whether a bar is on the watch at all: the Watch Status Bar and the forecast bar
-   * always; the radar bar while the watch has the radar and radarMode draws a radar row;
-   * the health bar while the watch has health and healthMode draws a health row
-   * (view-cycle's RADAR_ROW_MODES / HEALTH_ROW_MODES).
+   * always; the radar bar and the health bar while the watch has the radar / health and a
+   * screen shows the bar (view-cycle.js barsShown: since 2.6 the Radar bar shows without
+   * radar data and the modes follow the screens, so the screens decide).
    * @param {Object} S Settings blob.
    * @param {string} bar A BARS bar.
    * @param {Object} [env] Platform env (omitted = capable).
@@ -220,15 +220,15 @@
     var f = facts(env);
     var s = S || {};
     if (bar === 'top' || bar === 'forecast') { return true; }
-    if (bar === 'radar') { return f.radar && VC.RADAR_ROW_MODES.indexOf(s.radarMode) >= 0; }
-    if (bar === 'health') { return f.health && VC.HEALTH_ROW_MODES.indexOf(s.healthMode) >= 0; }
+    if (bar === 'radar') { return f.radar && VC.barsShown(s, env).radar; }
+    if (bar === 'health') { return f.health && VC.barsShown(s, env).health; }
     return false;
   }
 
   /**
-   * The side of `bar` the watch shows an item on: the watch draws On demand, the bar
-   * exists and the item is ticked there. Left wins an overlap, which only a hand-edited
-   * blob can hold.
+   * The side of `bar` the watch shows an item on: the watch draws On demand, the item is
+   * ticked there and the bar exists. Left wins an overlap, which only a hand-edited blob can
+   * hold. The ticks are read first: whether the bar exists compiles the screens (barExists).
    * @param {Object} S Settings blob.
    * @param {string} bar A BARS bar.
    * @param {string} code An ITEMS code.
@@ -236,9 +236,11 @@
    * @returns {?string} 'left' | 'right', or null when the item does not show on that bar
    */
   function sideOf(S, bar, code, env) {
-    if (!facts(env).onDemand || prefixOf(bar) === null || !barExists(S, bar, env)) { return null; }
+    if (!facts(env).onDemand || prefixOf(bar) === null) { return null; }
     for (var s = 0; s < SIDES.length; s++) {
-      if (parse(read(S, itemsKey(bar, SIDES[s]))).indexOf(code) >= 0) { return SIDES[s]; }
+      if (parse(read(S, itemsKey(bar, SIDES[s]))).indexOf(code) >= 0) {
+        return barExists(S, bar, env) ? SIDES[s] : null;
+      }
     }
     return null;
   }

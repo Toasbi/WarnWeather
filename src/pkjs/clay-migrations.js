@@ -41,9 +41,11 @@ function markAll(keys) {
 /**
  * Run every ledger entry whose marker is unset, in registry order.
  *
- * @param {{platform: string, colors: Object, defaultRadarProvider: string,
- *   hadExistingInstall: boolean}} opts The ctx every body gets.
- *   platform: watch platform, for the status-line health defaults; colors: the
+ * @param {{platform: string, knownPlatform: string, colors: Object,
+ *   defaultRadarProvider: string, hadExistingInstall: boolean}} opts The ctx every body gets.
+ *   platform: watch platform, for the status-line health defaults ('basalt' when the
+ *   watch did not say); knownPlatform: the platform the watch reported, '' when it did not
+ *   (the screens move, which must not guess an aplite away); colors: the
  *   DEFAULT_HOLIDAY_COLORS bundle; defaultRadarProvider: the radarMode move's
  *   fallback; hadExistingInstall: whether a settings blob was stored BEFORE this
  *   boot's seedDefaults (claySettings.hasStored()), the fresh-vs-existing signal.
@@ -74,6 +76,7 @@ function runMigrations(opts, filter) {
 
     var ctx = {
         platform: opts.platform,
+        knownPlatform: opts.knownPlatform || '',
         colors: opts.colors,
         defaultRadarProvider: opts.defaultRadarProvider,
         hadExistingInstall: Boolean(opts.hadExistingInstall)

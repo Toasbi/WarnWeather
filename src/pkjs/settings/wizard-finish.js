@@ -1,8 +1,7 @@
 // src/pkjs/settings/wizard-finish.js — ES5, WebView. What the setup wizard does as it closes: the
-// situational defaults a finished setup earns (settings/defaults-policy.js), and the health mode's
-// own hook run once from the mode setup opened with. Plus the one lookup of a schema item by its
-// key the wizard uses everywhere. Takes the page's ready ctx ({S, ENV, schema, setValue}) as an
-// argument and touches no DOM.
+// situational defaults a finished setup earns (settings/defaults-policy.js). Plus the one lookup of
+// a schema item by its key the wizard uses everywhere. Takes the page's ready ctx ({S, ENV, schema})
+// as an argument and touches no DOM.
 //
 // applyDerived in wizard.js answers "what suits this COUNTRY"; applyWizardDefaults answers "what
 // suits a watch whose owner just finished setup". The rules (which slots, which bold modes and why)
@@ -26,8 +25,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // the wizard was walked to the end. "Skip setup" (the welcome step) means the user answered
     // nothing, so nothing is derived for them.
     var COMPLETING_NAVS = { save: true, tweak: true };
-    // The navs that close the wizard and hand its state to the page (and so to a save).
-    var EXIT_NAVS = { save: true, tweak: true, skip: true };
 
     // The schema's items by messageKey, in schema order, built once per schema: one walk instead of
     // one per lookup (the forecast looks and the policy read dozens of keys a pick).
@@ -100,25 +97,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         });
     }
 
-    /**
-     * Run the health mode's own onChange (resetStatusHealth) ONCE, from the mode setup opened with
-     * to the one it closes on, the call the Health tab makes on every change. Not per pick: a peek
-     * at "Off" must not throw away a customized health row. A no-op when the mode didn't change.
-     * @param {Object} ctx Ready ctx ({S, setValue}).
-     * @param {*} openedWith S.healthMode when setup opened.
-     * @returns {void}
-     */
-    function applyHealthModeChange(ctx, openedWith) {
-        if (openedWith !== ctx.S.healthMode) { ctx.setValue('healthMode', ctx.S.healthMode, openedWith); }
-    }
-
     var api = {
         COMPLETING_NAVS: COMPLETING_NAVS,
-        EXIT_NAVS: EXIT_NAVS,
         itemsOf: itemsOf,
         findItem: findItem,
-        applyWizardDefaults: applyWizardDefaults,
-        applyHealthModeChange: applyHealthModeChange
+        applyWizardDefaults: applyWizardDefaults
     };
 
     // Dual-context export — mirrors the tail of src/pkjs/forecast-axis.js.

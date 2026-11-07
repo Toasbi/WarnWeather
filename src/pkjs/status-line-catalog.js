@@ -147,10 +147,9 @@
     if (!item) { return false; }
     if (item.middleOnly && (!slotCtx || slotCtx.position !== 'mid')) { return false; }
     if (item.topRightOnly && (!slotCtx || slotCtx.slotKey !== 'statusTopRight')) { return false; }
-    if (item.needsHealth) {
-      if (!env || !env.health) { return false; }
-      if (settings && settings.healthMode === 'off') { return false; }
-    }
+    // Health items need the watch's health. Not healthMode: since 2.6 it follows the screens
+    // and the slots (screens.js deriveModes), so a slot can pick a health item in any mode.
+    if (item.needsHealth && (!env || !env.health)) { return false; }
     if (item.needsHr && (!env || !env.hr)) { return false; }
     // The phone's battery is readable only where the PKJS host exposes the
     // Battery Status API — Android's Chromium WebView, never iOS's
@@ -357,6 +356,28 @@
   }
 
   /**
+   * The slots of a line that hold a health item, an absent slot read as its default (as
+   * the bake reads it): the 2.6 modes' 'slot' rule (screens.js deriveModes) and the
+   * migration's emptied slots (migrations/screens.js) ask this.
+   * @param {Object} S Settings.
+   * @param {string} lineId A LINES id.
+   * @param {?Object} [env] Platform env (slotDefault's).
+   * @returns {Array<string>} the slot keys
+   */
+  function healthSlots(S, lineId, env) {
+    var out = [];
+    for (var l = 0; l < LINES.length; l++) {
+      if (LINES[l].id !== lineId) { continue; }
+      for (var s = 0; s < LINES[l].slots.length; s++) {
+        var key = LINES[l].slots[s];
+        var item = byCode((S || {})[key] || slotDefault(key, env));
+        if (item && item.needsHealth) { out.push(key); }
+      }
+    }
+    return out;
+  }
+
+  /**
    * The per-kind "Show unit" toggles: settings key + shipped default, in ONE
    * table. Four consumers used to restate these pairs independently — the
    * baker's formatValue arms, schema.js's unitRow calls, resetStatusSlots'
@@ -458,7 +479,7 @@
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
     allSlotKeys: allSlotKeys, slotDefault: slotDefault,
-    lineOf: lineOf, siblingHolds: siblingHolds,
+    lineOf: lineOf, siblingHolds: siblingHolds, healthSlots: healthSlots,
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse

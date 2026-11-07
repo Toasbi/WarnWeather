@@ -314,6 +314,8 @@ test('thresholdPenState reports EFFECTIVE always-bold via badge.bold', () => {
     'the Watch-tab master forces every kind at pack time, so the badge shows it');
   assert.ok(state({ statusBoldAll: 'all' }).ariaNote.indexOf('always bold') !== -1,
     'the state is announced, not only drawn');
+  assert.equal(state({ statusBoldAll: 'off', threshDateBoldMode: 'always' }).bold, false,
+    'the master Off packs every kind as Off, the kind\'s own Always included, so no B');
   assert.equal(badge({ statusTopMid: 'date' }, { thresholds: false }, args), null,
     'aplite (no thresholds env) badges nothing, B included');
 });
@@ -327,34 +329,6 @@ test('colorNoteHint adds the note for how the page draws to the row\'s hint', ()
   assert.equal(hint({ theme: 'bw' }, { color: true }, { staticHint: 'What it does.', colorNote: 'In color.' }),
     null, 'no B&W note: the row\'s own hint');
   assert.equal(hint({ theme: 'dark' }, { color: true }, { colorNote: 'In color.' }), null, 'a value with no hint');
-});
-
-test('noHeartRateHint swaps the copy on a watch without a heart-rate sensor only', () => {
-  const hint = PConf.hintResolvers.get('noHeartRateHint');
-  const byValue = { status: 'No heart rate.' };
-  assert.equal(hint({}, { hr: false }, { value: 'status', byValue }), 'No heart rate.');
-  assert.equal(hint({}, { hr: true }, { value: 'status', byValue }), null, 'the row\'s own hint');
-  assert.equal(hint({}, { hr: false }, { value: 'off', byValue }), null, 'no Off hint');
-});
-
-// "Flick to health" is only true while a Health view exists in the Weather-only cycle:
-// healthMode 'status' / 'all' on a health watch. 'slot' and 'off' add no view.
-test('weatherOnlyHint promises a health flick only when a Health view exists', () => {
-  const hint = PConf.hintResolvers.get('weatherOnlyHint');
-  assert.equal(typeof hint, 'function', 'hint resolver registered');
-  const args = { value: 'weatherOnly', byRadar: { graph: 'Graph text.', off: 'Off text.' } };
-  const env = { health: true };
-  assert.equal(hint({ radarMode: 'graph', healthMode: 'all' }, env, args), 'Graph text. Flick to health.');
-  assert.equal(hint({ radarMode: 'graph', healthMode: 'status' }, env, args), 'Graph text. Flick to health.');
-  assert.equal(hint({ radarMode: 'graph' }, env, args), 'Graph text. Flick to health.',
-    'an absent healthMode reads as the schema default, all');
-  assert.equal(hint({ radarMode: 'graph', healthMode: 'slot' }, env, args), 'Graph text.',
-    'health in the status slots adds no view to flick to');
-  assert.equal(hint({ radarMode: 'off', healthMode: 'off' }, env, args), 'Off text.');
-  assert.equal(hint({ radarMode: 'graph', healthMode: 'all' }, { health: false }, args), 'Graph text.',
-    'a watch without health sensors has no Health view');
-  assert.equal(hint({ radarMode: 'graph' }, env, { value: 'noCal', byRadar: args.byRadar }), null,
-    'other presets keep their static hint');
 });
 
 // The Alert settings card's rows read an item's placement (on-demand.js placedAnywhere): a
@@ -440,9 +414,11 @@ test('rainAlertHint: the radar first, then the placement, else its window, look 
   assert.equal(hint({ statusTopOnDemandLeftItems: 'bt' }, {}, args), 'Not in any status bar');
   assert.equal(hint({ statusTopOnDemandLeftItems: 'bt', statusForecastOnDemandRightItems: 'rain' }, {}, args),
     'Within 60 min · Text · Forecast Status Bar, right', 'placed on another bar: that bar\'s edge');
-  assert.equal(hint({ radarMode: 'off' }, {}, args), 'Turn on the rain radar (Watchface › Views)');
-  assert.equal(hint({ radarMode: 'off', statusTopOnDemandLeftItems: '' }, {}, args),
-    'Turn on the rain radar (Watchface › Views)', 'the radar comes first: no tick helps while it is off');
+  assert.equal(hint({ radarEnabled: false }, {}, args), 'Turn on the rain radar (Setup › Data sources)');
+  assert.equal(hint({ radarEnabled: false, statusTopOnDemandLeftItems: '' }, {}, args),
+    'Turn on the rain radar (Setup › Data sources)', 'the radar comes first: no tick helps while it is off');
+  assert.equal(hint({ radarMode: 'off' }, {}, args), 'Within 60 min · Text' + WHERE,
+    'radarMode alone says nothing: it follows the screens and the ticks');
   assert.equal(hint({ rainCountdownHorizon: '0', rainAlertDisplay: 'bogus' }, {}, args),
     'Within 60 min · Text' + WHERE, 'a value outside the lists reads as the default');
 });
@@ -489,51 +465,6 @@ test('alertLevelBadge: the alert\'s colours while it is placed, no bold B', () =
   assert.equal(badge({}, env, { keyStem: 'Steps' }), null, 'a goal kind has no alert');
   assert.equal(badge({}, env, { keyStem: 'Rain' }), null, 'rain has its own resolver');
   assert.equal(badge({}, { thresholds: false }, uv), null, 'aplite');
-});
-
-test('layoutPresetOptions resolver: compactDense offered once health OR radar shows a status row', () => {
-  const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
-  assert.equal(typeof resolver, 'function', 'resolver registered');
-  const codes = (S) => resolver(S).map((o) => o[1]);
-  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal', 'weatherOnly', 'custom'],
-    'compactDense hidden when neither health nor radar shows a status row; custom always last');
-  // Custom is a colour-platform feature: aplite (frozen-lean) never offers it, and an
-  // UNKNOWN platform is treated as capable, matching the payload's own gate.
-  assert.equal(codes({ healthMode: 'off', radarMode: 'off' }).indexOf('custom') >= 0, true);
-  const apliteCodes = resolver({ healthMode: 'off', radarMode: 'off' }, { platform: 'aplite' })
-    .map((o) => o[1]);
-  assert.equal(apliteCodes.indexOf('custom'), -1, 'aplite never offers Custom');
-  assert.ok(codes({ healthMode: 'status', radarMode: 'off' }).indexOf('compactDense') >= 0, 'health=status offers compactDense');
-  assert.ok(codes({ healthMode: 'all', radarMode: 'off' }).indexOf('compactDense') >= 0, 'health=all offers compactDense');
-  assert.ok(codes({ healthMode: 'off', radarMode: 'status' }).indexOf('compactDense') >= 0, 'radar=status offers compactDense');
-  // radar=graph builds dense radar cycles too (CAL2_RF_D default + CAL2_HR_D flick),
-  // so the option must be reachable from it — it was not, and that hid the preset
-  // for health-off + radar="Status + Graph" users (reported on-watch).
-  assert.ok(codes({ healthMode: 'off', radarMode: 'graph' }).indexOf('compactDense') >= 0, 'radar=graph offers compactDense');
-});
-
-// Picking Custom must ONLY seed the per-view keys (seedCustomKeys); the editor is
-// opened solely through the dedicated Edit row's data-action. The hook used to call
-// PConf.actions.openViewEditor() itself — removed on maintainer request.
-test('layoutPresetChanged seeds the custom keys and does NOT auto-open the editor', () => {
-  const hook = global.PConf.onChange.get('layoutPresetChanged');
-  assert.equal(typeof hook, 'function', 'hook registered');
-  let opened = 0;
-  global.PConf.actions = global.PConf.actions || {};
-  const prev = global.PConf.actions.openViewEditor;
-  global.PConf.actions.openViewEditor = () => { opened += 1; };   // spy action
-  try {
-    const S = { healthMode: 'off', radarMode: 'off', swapClockStatus: false, layoutPreset: 'custom' };
-    hook(S, 'compactCal', 'custom');
-    assert.equal(S.customLayoutSeeded, true, 'seeding still latches');
-    assert.equal(S.viewCount, '1', 'per-view keys seeded from the preset being left');
-    assert.equal(S.viewTop0, 'cal', 'a seeded key holds the compactCal shape:');
-    assert.equal(S.viewTopSize0, '2', 'a 2-row calendar');
-    assert.equal(opened, 0, 'the Edit row is the sole way to open the editor');
-  } finally {
-    if (prev === undefined) { delete global.PConf.actions.openViewEditor; }
-    else { global.PConf.actions.openViewEditor = prev; }
-  }
 });
 
 test('preview-rain barPermille matches rain-tier.rainPermille byte-for-byte', () => {
@@ -1354,7 +1285,6 @@ test('forecastPreview: rainBarColor=Solid in the light theme uses DarkGray, not 
   assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black fill in the light theme');
 });
 
-
 // chart.c draws BAR_OUTLINED (the forecast rain bars and the radar bars alike) with a
 // theme_fg() top+side silhouette in every theme except colour-dark. So the light COLOUR
 // theme outlines its bars in black too — over the palette interior, not instead of it.
@@ -1497,7 +1427,10 @@ test('rainbowBudget block: empty unless Rainbow on the user\'s own key drives a 
   assert.equal(typeof block, 'function', 'the block is registered');
   assert.equal(block(rainbowState({ radarProvider: 'rainbow' }), {}), '', 'shared Rainbow bills nothing to the user');
   assert.equal(block(rainbowState({ radarProvider: 'dwd' }), {}), '', 'another radar source');
-  assert.equal(block(rainbowState({ radarMode: 'off' }), {}), '', 'radar off: no Rainbow call is made');
+  assert.equal(block(rainbowState({ radarEnabled: false }), {}), '', 'radar off: no Rainbow call is made');
+  // The read-out counts what Save will store, not a stored mode that lags: the rain alert on
+  // the Watch bar (its default tick) fetches the radar, whatever radarMode says until Save.
+  assert.notEqual(block(rainbowState({ radarMode: 'off' }), {}), '', 'the rain alert still needs the radar');
   assert.equal(B.rainbowBudgetBlock, block, 'the exported renderer is the registered one');
 });
 

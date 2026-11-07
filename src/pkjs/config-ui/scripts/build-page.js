@@ -56,9 +56,28 @@ function stripJs(src) {
   return out.join('\n');
 }
 
+/**
+ * Fill the shell's own font in: Inter's Latin variable face (lib/fonts, from
+ * @fontsource-variable/inter 5.3.0) as a base64 data URI in its @font-face, and the font's
+ * licence (SIL OFL 1.1, lib/fonts/OFL.txt) as a comment beside it, since every copy of the
+ * font carries its notice and licence. The page then requests no font from anywhere.
+ * @param {string} shell shell.html's text.
+ * @returns {string} The shell with the font and its licence in place.
+ */
+function inlineFont(shell) {
+  if (shell.indexOf('__PCONF_FONT_INTER__') === -1 || shell.indexOf('/*__PCONF_FONT_LICENSE__*/') === -1) {
+    throw new Error('shell.html missing the font markers (__PCONF_FONT_INTER__, /*__PCONF_FONT_LICENSE__*/)');
+  }
+  var font = fs.readFileSync(path.join(LIB, 'fonts', 'inter-latin-wght-normal.woff2')).toString('base64');
+  var licence = fs.readFileSync(path.join(LIB, 'fonts', 'OFL.txt'), 'utf8').trim().replace(/\*\//g, '* /');
+  return shell
+    .replace('/*__PCONF_FONT_LICENSE__*/', function () { return '/* ' + licence + ' */'; })
+    .replace('__PCONF_FONT_INTER__', function () { return font; });
+}
+
 function buildPage(opts) {
   opts = opts || {};
-  var shell = fs.readFileSync(path.join(LIB, 'shell.html'), 'utf8');
+  var shell = inlineFont(fs.readFileSync(path.join(LIB, 'shell.html'), 'utf8'));
   if (shell.indexOf('/*__PCONF_CONCAT__*/') === -1) { throw new Error('shell.html missing /*__PCONF_CONCAT__*/'); }
   var parts = LIB_PAGE_FILES.map(function (f) { return '/* ' + f + ' */\n' + stripJs(fs.readFileSync(path.join(LIB, f), 'utf8')); });
   (opts.appFiles || []).forEach(function (f) {

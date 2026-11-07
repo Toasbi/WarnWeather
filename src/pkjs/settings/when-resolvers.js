@@ -6,6 +6,7 @@
 //  - lineRow: the Forecast tab's rows that follow a metric from picker to picker (Draw
 //    from, Visible values, the Wind and the Pressure graph scales) sit under one picker.
 //  - onDemandPlaced: an Alerts item shows on a status bar (on-demand.js).
+//  - barShown: a screen shows a status bar (on-demand.js barExists).
 //  - defaultViewLacksOnDemand: the Default view shows no Alerts item at all (view-cycle.js
 //    and on-demand.js).
 //  - tempAxisLineDrawn: a feels-like or dew point line is drawn, the Left axis card's
@@ -80,6 +81,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
         return onDemand.placedAnywhere(S, args.code, env);
     }
 
+    /**
+     * barShown: a screen shows the bar, on a watch that draws it (on-demand.js barExists):
+     * the Status bars tab's Radar and Health bar cards.
+     * @param {Object} S Settings (the showWhen context).
+     * @param {?Object} env Platform env.
+     * @param {{bar: string}} args An on-demand.js BARS bar.
+     * @returns {boolean}
+     */
+    function barShown(S, env, args) {
+        return onDemand.barExists(S, args.bar, env);
+    }
+
     // A status row's source -> the bar it draws.
     var BAR_OF_SOURCE = {};
     BAR_OF_SOURCE[VC.STATUS_SRC_FORECAST] = 'forecast';
@@ -110,6 +123,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
 
     PConf.whenResolvers.register('lineRow', lineRow);
     PConf.whenResolvers.register('onDemandPlaced', onDemandPlaced);
+    PConf.whenResolvers.register('barShown', barShown);
     PConf.whenResolvers.register('defaultViewLacksOnDemand', defaultViewLacksOnDemand);
     PConf.whenResolvers.register('tempAxisLineDrawn', forecastAxis.tempAxisLineDrawn);
 

@@ -952,7 +952,11 @@ rename, so a concurrent reader never sees a half-written file), and returns `out
 `buildPage({ appFiles })`:
 
 1. Reads `lib/shell.html` (page skeleton, `Object.assign` polyfill, `INJECTED_*` variable
-   declarations, and two markers).
+   declarations, and two markers) and fills in the page's own font: Inter's Latin variable face
+   (`lib/fonts`, from `@fontsource-variable/inter` 5.3.0) as a base64 data URI in its
+   `@font-face`, its licence (SIL OFL 1.1, `lib/fonts/OFL.txt`) as a comment beside it. The page
+   requests no font, so it needs no font host in the app's permissions and draws the same
+   offline; a letter outside the Latin range falls back to the system font.
 2. At the `/*__PCONF_CONCAT__*/` marker, concatenates in order:
    - `lib/schema-walk.js` — single-source schema traversal (`PConf.schemaWalk`)
    - `lib/color.js` — int↔hex color conversion (`PConf.color`)

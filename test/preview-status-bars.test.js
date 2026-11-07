@@ -179,34 +179,41 @@ test('a bar no view of the layout seats is left out', () => {
   assert.ok(preview.statusBarsPreview({ layoutPreset: 'compactCal' }, {}).indexOf('>Watch<') !== -1);
 });
 
-test('the Radar and Health bars show while the Views card turns them on, seated or not', () => {
+test('the Radar and Health bars show while a screen shows them', () => {
   const VC = require('../src/pkjs/view-cycle.js');
   const env = { platform: 'basalt', health: true, radar: true };
+  // A preset's screens follow its modes (view-cycle.js barsShown); the bars follow the screens.
   const presets = ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'];
   presets.forEach((layoutPreset) => {
-    ['status', 'all'].forEach((healthMode) => {
-      ['status', 'graph'].forEach((radarMode) => {
+    ['off', 'slot', 'status', 'all'].forEach((healthMode) => {
+      ['off', 'countdown', 'status', 'graph'].forEach((radarMode) => {
         const S = { layoutPreset, healthMode, radarMode };
         const html = preview.statusBarsPreview(S, env);
+        const shown = VC.barsShown(S, env);
         const label = layoutPreset + '/' + healthMode + '/' + radarMode;
-        assert.ok(html.indexOf('>Radar<') !== -1, label + ': ' + html);
-        assert.ok(html.indexOf('>Health<') !== -1, label + ': ' + html);
+        assert.equal(html.indexOf('>Radar<') !== -1, shown.radar, label + ': ' + html);
+        assert.equal(html.indexOf('>Health<') !== -1, shown.health, label + ': ' + html);
       });
     });
   });
-  // Weather only with the radar graph seats no radar row on any view, yet the bar's
-  // card is on the tab, so its row stays — with or without health.
-  const wo = preview.statusBarsPreview({ layoutPreset: 'weatherOnly', healthMode: 'off', radarMode: 'graph' }, env);
-  assert.ok(wo.indexOf('>Radar<') !== -1, wo);
-  // A custom layout that leaves both rows out still lists them while they are on.
-  const custom = { layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph' };
-  VC.seedCustomKeys(custom, 'weatherOnly');
-  const html = preview.statusBarsPreview(custom, env);
+  // Weather only with the radar graph draws the radar on top and no Radar bar.
+  const wo = preview.statusBarsPreview({ layoutPreset: 'weatherOnly', healthMode: 'all', radarMode: 'graph' }, env);
+  assert.equal(wo.indexOf('>Radar<'), -1, wo);
+  assert.ok(wo.indexOf('>Health<') !== -1, wo);
+  // A custom layout lists the bars its screens hold, whatever the stored modes say: the
+  // Radar bar without radar data too.
+  const custom = Object.assign({ layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph' },
+    VC.specToKeys(VC.buildViewCycle('weatherOnly', 'all', 'graph', false)));
+  const none = preview.statusBarsPreview(custom, env);
+  assert.equal(none.indexOf('>Radar<'), -1, 'no screen holds the Radar bar: ' + none);
+  const seated = Object.assign({}, custom, { viewUpper0: 'radar', viewLower0: 'health', radarMode: 'off',
+    healthMode: 'off' });
+  const html = preview.statusBarsPreview(seated, env);
   assert.ok(html.indexOf('>Radar<') !== -1, html);
   assert.ok(html.indexOf('>Health<') !== -1, html);
 });
 
-test('the Radar and Health bars stay out while the Views card turns them off', () => {
+test('the Radar and Health bars stay out while no screen shows them', () => {
   const env = { platform: 'basalt', health: true, radar: true };
   const off = preview.statusBarsPreview({ layoutPreset: 'compactCal', healthMode: 'slot', radarMode: 'countdown' }, env);
   assert.equal(off.indexOf('>Radar<'), -1, off);
@@ -238,6 +245,10 @@ test('on the tab each slot is a button that opens its picker, named by bar, slot
     + '<span class="sbp-hole" aria-hidden="true"></span></button>') !== -1, 'an empty slot shows a hole to tap');
   assert.ok(html.indexOf('aria-label="Forecast bar, middle slot: City">Berlin</button>') !== -1, html);
   assert.ok(html.indexOf('class="sbp-v sbp-left sbp-empty"') !== -1, 'the empty one is marked');
+  // The bars say a tap changes a slot (the owner, 2026-11-06: it was not obvious), once,
+  // under the last bar, for sighted users only: each button carries its own name.
+  assert.equal(html.match(/<div class="sbp-tip" aria-hidden="true">Tap a slot to change it<\/div>/g).length, 1);
+  assert.ok(/<\/div><div class="sbp-tip"[^>]*>[^<]*<\/div><\/div>$/.test(html), 'the tip closes the bars');
 });
 
 test('above a slot\'s dialog the bars are the picture alone: nothing to tap', () => {
@@ -248,5 +259,6 @@ test('above a slot\'s dialog the bars are the picture alone: nothing to tap', ()
   assert.equal(html.indexOf('<button'), -1, 'no buttons');
   assert.equal(html.indexOf('data-select'), -1, 'no picker to open');
   assert.equal(html.indexOf('sbp-hole'), -1, 'an empty slot is blank, as on the watch');
+  assert.equal(html.indexOf('sbp-tip'), -1, 'and no tip to tap');
   assert.ok(html.indexOf('<span class="sbp-v sbp-mid">Berlin</span>') !== -1, html);
 });

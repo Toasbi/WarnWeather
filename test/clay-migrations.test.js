@@ -1903,7 +1903,8 @@ test('the ledger order and marker policies are pinned: a released entry never mo
     ['v1.24.0_warn_look_migration', 'now', true],
     ['v1.24.0_on_demand_migration', 'now', true],
     ['v1.24.0_rainbow_own_key_source_migration', 'now', true],
-    ['v2.0.1_alert_defaults_migration', 'now', true]
+    ['v2.0.1_alert_defaults_migration', 'now', true],
+    ['v2.6.0_screens_migration', 'now', false]
   ]);
 });
 

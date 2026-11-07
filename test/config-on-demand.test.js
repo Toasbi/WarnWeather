@@ -3,7 +3,7 @@
 // the REAL generated settings page (test/helpers/page-harness.js): the Alerts tab and its
 // rows (live texts ending on where each alert shows, item dialogs); each item dialog's Shows
 // on card (one row per status bar the watch can draw, a Left and a Right tick writing that
-// side's list through its writer, a bar whose view is off inert), checked against
+// side's list through its writer, a bar no screen shows inert), checked against
 // on-demand.js tickOn / untickFrom; each bar's Alerts nav row on the Status bars tab (the
 // placed items' icons per side; a tap brings the Alerts tab); the rain notes, the resets,
 // and the aplite page, which has none of it. The schema shape itself is pinned in
@@ -24,15 +24,19 @@ const ICONS = require('../src/pkjs/settings/status-slot-icons.js');
 const onbuild = require('../src/pkjs/settings/onbuild.js');
 const PC = global.PConf;
 
+// An upgraded install's screens, the state these tests were written for: the Default, Health
+// and Rain radar screens, so every bar shows (a new install starts on the Default alone).
+const THREE_SCREENS = { radarMode: 'graph', healthMode: 'all' };
+
 /**
  * Boot the page on one tab.
  * @param {string} tab the tab's id
- * @param {Object} [cfg] stored settings (provider dwd unless given)
+ * @param {Object} [cfg] stored settings (provider dwd and three screens unless given)
  * @param {string} [platformName] Pebble platform (default basalt)
  * @returns {Object} the page-harness handle
  */
 function onTab(tab, cfg, platformName) {
-  const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, cfg || {}), platformName);
+  const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, THREE_SCREENS, cfg || {}), platformName);
   page.clickTab(tab);
   return page;
 }
@@ -420,10 +424,10 @@ test('300 seeded tick sequences through the grids store what on-demand.js tickOn
 });
 
 const RADAR_OFF_BOX = 'The rain alert needs the rain radar. Turn it on in <button type="button" class="txt-link"'
-  + ' data-goto-tab="watchface">Watchface › Views</button>.';
+  + ' data-goto-tab="setup">Setup › Data sources</button>.';
 
 test('Rain with the radar off: the grid goes inert and keeps its ticks, and a box in the Shows on card says why', () => {
-  const page = alertsTab({ radarMode: 'off' });
+  const page = alertsTab({ radarEnabled: false });
   page.openEditSheet('alertRain');
   const sheet = page.modal.innerHTML;
   PAGE_BARS.forEach((bar) => {
@@ -432,10 +436,10 @@ test('Rain with the radar off: the grid goes inert and keeps its ticks, and a bo
     bar + ': inert');
     ticksOf(sheet, bar).forEach((b) => assert.match(b, / disabled aria-disabled="true">$/, bar + ' ' + b));
   });
-  // The radar bar keeps its row, inert, with the reason its view gives.
+  // The Radar bar shows without radar data, so its row stays, inert like the others, with no
+  // reason of its own: only the item cannot show.
   assert.equal(ticksOf(sheet, 'radar').length, 2, 'the radar bar keeps its row with the radar off');
-  assert.ok(sheet.indexOf('<span class="lbl">Radar Status Bar</span><span class="hint">Radar view is off</span>') !== -1,
-    'and says why it cannot show');
+  assert.ok(sheet.indexOf('<span class="lbl">Radar Status Bar</span></span>') !== -1, 'with no reason of its own');
   assert.equal(ticked(sheet, 'top'), 'left', 'Rain keeps its tick');
   const box = sheet.indexOf('<div class="static info"><div class="info-box">' + RADAR_OFF_BOX + '</div></div>');
   assert.ok(box > sheet.indexOf('<span class="ttl">Shows on</span>'), 'the box sits in the Shows on card');
@@ -446,7 +450,7 @@ test('Rain with the radar off: the grid goes inert and keeps its ticks, and a bo
   tick(page, 'statusTopOnDemandLeftItems', 'rain');
   assert.equal(page.S.statusTopOnDemandLeftItems, 'bt,qt,snooze,rain', 'a gated tap changes nothing');
   // The radar on: no box, and the rows are live.
-  const on = alertsTab({ radarMode: 'graph' });
+  const on = alertsTab({ radarEnabled: true });
   on.openEditSheet('alertRain');
   assert.equal(on.modal.innerHTML.indexOf(RADAR_OFF_BOX), -1, 'no box while the radar is on');
   assert.equal(on.modal.innerHTML.indexOf(' disabled'), -1, 'nothing inert');
@@ -465,19 +469,18 @@ test('Pollen off DWD: no Alerts-tab row (so no dialog to open there), and the Al
 });
 
 // The grid's live rows are the bars whose Alerts row the Status bars tab shows: the same
-// gates (on-demand.js barExists vs RADAR_BAR_WHEN / HEALTH_BAR_WHEN), for every radar and
-// health mode, on every watch with Alerts. A bar the watch can draw but whose view is off
-// keeps an inert row that says why; a bar the hardware never draws has none.
+// gates (on-demand.js barExists vs RADAR_BAR_WHEN / HEALTH_BAR_WHEN: a screen shows the bar),
+// for every radar and health mode a preset's screens follow, on every watch with Alerts. A bar
+// the watch can draw but no screen shows keeps an inert row that says so; a bar the hardware
+// never draws has none.
 test('the grid\'s live rows are exactly the bars whose Alerts row the Status bars tab shows, in its order', () => {
   const bars = PC.optionsResolvers.get('onDemandBars');
   const watch = SCHEMA.tabs.find((t) => t.id === 'watch');
   const sections = PAGE_BARS.map((bar) => watch.sections.find((s) => s.title === BAR_NAMES[bar]));
   const rows = sections.map((sec) => sec.items.find((i) => i.type === 'button' && i.label === 'Alerts'));
   const args = { code: 'uv' };
-  // Why a bar the watch can draw is not drawn (blocks.js barOffReason).
-  const reason = (bar, S) => (bar === 'radar'
-    ? (S.radarMode === 'off' ? 'Radar view is off' : 'Rain alert only has no radar bar')
-    : (S.healthMode === 'off' ? 'Health view is off' : 'Status slots only has no health bar'));
+  // Why a bar the watch can draw is not drawn (alerts-page.js barOffReason).
+  const reason = (bar) => (bar === 'radar' ? 'No screen shows the Radar bar' : 'No screen shows the Health bar');
   ['basalt', 'emery', 'diorite', 'chalk', 'flint'].forEach((p) => {
     const env = platform.computeEnv({ platform: p });
     // The hardware's own gate: a watch without the radar view or Health never draws that bar.
@@ -495,23 +498,24 @@ test('the grid\'s live rows are exactly the bars whose Alerts row the Status bar
       got.forEach((o) => {
         const keys = [OD.itemsKey(o[1], 'left'), OD.itemsKey(o[1], 'right')];
         assert.deepEqual(o[2], shown.indexOf(o[1]) >= 0 ? { keys }
-          : { keys, disabled: true, desc: reason(o[1], S) }, label + ' ' + o[1]);
+          : { keys, disabled: true, desc: reason(o[1]) }, label + ' ' + o[1]);
       });
     }));
   });
-  // Like those rows, the grid ignores the layout: 'Weather only' with the radar on Graph
-  // draws no radar bar on any view, yet both offer it (existing behaviour, pinned).
+  // Like those rows, the grid follows the screens: 'Weather only' with the radar on Graph
+  // draws its radar graph on top and no Radar bar, so neither offers it.
   const env = platform.computeEnv({ platform: 'basalt' });
   const S = { layoutPreset: 'weatherOnly', radarMode: 'graph', healthMode: 'off', provider: 'dwd' };
-  assert.ok(bars(S, env, args).some((o) => o[1] === 'radar' && !o[2].disabled), 'the Radar row stays live');
-  assert.equal(showWhen.isVisible(rows[3], Object.assign({ env }, S)), true, 'so does the Status bars row');
-  // A blocked item: every row inert. The states as the page holds them, the health mode
-  // hydrated (its default All), so every bar is drawn and only the item can make a row inert.
-  const rain = (radarMode) => bars({ radarMode, healthMode: 'all', provider: 'dwd' }, env,
-    { code: 'rain' });
-  assert.equal(rain('status').length, 4, 'all four bars');
-  assert.ok(rain('status').every((o) => o[2].disabled === undefined), 'Rain with the radar on: live');
-  assert.ok(rain('off').every((o) => o[2].disabled === true), 'Rain with the radar off: inert');
+  assert.deepEqual(bars(S, env, args).find((o) => o[1] === 'radar')[2], { keys: [OD.itemsKey('radar', 'left'),
+    OD.itemsKey('radar', 'right')], disabled: true, desc: 'No screen shows the Radar bar' }, 'the Radar row goes inert');
+  assert.equal(showWhen.isVisible(sections[3], Object.assign({ env }, S)), false, 'and the Status bars tab has none');
+  // A blocked item: every row inert. Radar mode Status draws every bar, so only the item can
+  // make a row inert: Rain while the radar is off (Setup › Data sources).
+  const rain = (over) => bars(Object.assign({ radarMode: 'status', healthMode: 'all', provider: 'dwd' }, over),
+    env, { code: 'rain' });
+  assert.equal(rain({}).length, 4, 'all four bars');
+  assert.ok(rain({}).every((o) => o[2].disabled === undefined), 'Rain with the radar on: live');
+  assert.ok(rain({ radarEnabled: false }).every((o) => o[2].disabled === true), 'Rain with the radar off: inert');
   assert.ok(bars({ radarMode: 'graph', healthMode: 'all', provider: 'metno' }, env,
     { code: 'pollen' }).every((o) => o[2].disabled === true), 'Pollen off DWD: inert');
 });
@@ -718,12 +722,12 @@ test('the Alerts row\'s icons, resolver by resolver', () => {
     iconRun('right', ['pollen', 'wind']));
   assert.equal(icons(right('pollen,wind', { provider: 'metno' }), ENV.basalt, args),
     iconRun('right', ['wind']), 'Pollen left out off DWD');
-  assert.equal(icons(right('rain', { radarMode: 'off' }), ENV.basalt, args),
+  assert.equal(icons(right('rain', { radarEnabled: false }), ENV.basalt, args),
     'None of the alerts placed here can show.', 'placed, but nothing that can show');
-  assert.equal(icons(right('rain,pollen', { radarMode: 'off', provider: 'metno' }), ENV.basalt, args),
+  assert.equal(icons(right('rain,pollen', { radarEnabled: false, provider: 'metno' }), ENV.basalt, args),
     'None of the alerts placed here can show.', 'every item blocked');
-  assert.equal(icons(state({ statusTopOnDemandLeftItems: 'rain', statusTopOnDemandRightItems: 'uv', radarMode: 'off' }),
-    ENV.basalt, args), iconRun('right', ['uv']), 'a side with nothing to show drops out');
+  assert.equal(icons(state({ statusTopOnDemandLeftItems: 'rain', statusTopOnDemandRightItems: 'uv',
+    radarEnabled: false }), ENV.basalt, args), iconRun('right', ['uv']), 'a side with nothing to show drops out');
   assert.equal(icons(state({ statusTopOnDemandLeftItems: 'snooze,bt', statusTopOnDemandRightItems: '' }),
     ENV.basalt, args), iconRun('left', ['bt', 'snooze']), 'the priority order');
   assert.equal(icons(right(''), ENV.basalt, args), NONE, 'nothing placed: the schema\'s word for it');
@@ -874,8 +878,8 @@ test('both resets restore where each item shows; the card\'s reset also the item
   LIST_KEYS.forEach((k) => assert.equal(slots.S[k], OD.DEFAULTS[k], k + ': the status card\'s reset too'));
 });
 
-const NO_TOP_NOTE = 'Your Default view has no Watch Status Bar, so Alerts won’t show there. Open an alert and, under'
-  + ' Shows on, pick another status bar that view shows.';
+const NO_TOP_NOTE = 'Your Default screen has no Watch Status Bar, so Alerts won’t show there. Open an alert and, under'
+  + ' Shows on, pick another status bar that screen shows.';
 
 test('no Watch Status Bar on the Default view and no Alerts on its bars: the card says so', () => {
   const shows = (cfg) => alertsTab(cfg).scroll.innerHTML.indexOf('<div class="info-box">' + NO_TOP_NOTE + '</div>') !== -1;
@@ -906,40 +910,19 @@ test('no Watch Status Bar on the Default view and no Alerts on its bars: the car
   assert.ok(shows(Object.assign({ healthMode: 'off' }, health)), 'a health seat folded away does not count');
 });
 
-const RADAR_NOTE = '‘Rain alert only’ fetches the radar for the rain icon, but Rain isn’t on any status bar ('
-  + '<button type="button" class="txt-link" data-goto-tab="alerts">Alerts › Rain</button>).';
 const RAIN_UNPLACED_BOX = 'Rain isn’t on any status bar yet, so the rain icon won’t show. Tick a side below.';
 
-test('the rain notes: the Views card\'s in Rain alert only, with a link; the Rain dialog\'s box and grid show it unplaced', () => {
-  const onViews = (cfg) => onTab('watchface', cfg).scroll.innerHTML.indexOf(RADAR_NOTE) !== -1;
-  const unplaced = { statusTopOnDemandLeftItems: 'bt' };
-  assert.ok(onViews(Object.assign({ radarMode: 'countdown' }, unplaced)), 'Views: Rain alert only, unplaced');
-  assert.ok(!onViews(Object.assign({ radarMode: 'graph' }, unplaced)), 'Views: another mode: hidden');
-  assert.ok(!onViews({ radarMode: 'countdown' }), 'Views: placed: hidden');
-  assert.ok(onViews(Object.assign({ radarMode: 'countdown',
-    statusRadarOnDemandLeftItems: 'rain' }, unplaced)), 'the radar bar never shows in this mode: it does not count');
-  assert.ok(!onViews(Object.assign({ radarMode: 'countdown', healthMode: 'status',
-    statusHealthOnDemandLeftItems: 'rain' }, unplaced)), 'the health bar shows it: hidden');
-  assert.ok(onViews(Object.assign({ radarMode: 'countdown', healthMode: 'off',
-    statusHealthOnDemandRightItems: 'rain' }, unplaced)), 'no health bar without its mode: it does not count');
-  // The note sits in the Views card, under the Rain radar picker.
-  const views = onTab('watchface', Object.assign({ radarMode: 'countdown' }, unplaced)).scroll.innerHTML;
-  const note = views.indexOf(RADAR_NOTE);
-  assert.ok(note > views.indexOf('data-select="radarMode"') && note > views.indexOf('<span class="ttl">Views</span>'),
-    'under the Rain radar picker in Views');
-  // Its link brings the Alerts tab to the front.
-  const page = onTab('watchface', Object.assign({ radarMode: 'countdown' }, unplaced));
-  followTabLink(page.scroll, 'alerts');
-  assert.equal(activeTab(page), 'alerts');
-  // The Rain dialog says it too, in its Shows on card, and its grid shows Rain on no bar.
+test('the Rain dialog\'s box and grid show Rain unplaced, and a tick places it', () => {
+  // Rain alert only (a preset's mode: its screens have no Radar bar) with Rain on no bar.
+  const page = alertsTab({ radarMode: 'countdown', statusTopOnDemandLeftItems: 'bt' });
   page.openEditSheet('alertRain');
   const sheet = page.modal.innerHTML;
   const box = sheet.indexOf('<div class="static info"><div class="info-box">' + RAIN_UNPLACED_BOX + '</div></div>');
   assert.ok(box > sheet.indexOf('<span class="ttl">Shows on</span>') && box < sheet.indexOf('aria-label="Shows on"'),
     'the box: in the Shows on card, above the grid');
   PAGE_BARS.forEach((bar) => assert.equal(ticked(sheet, bar), 'none', bar));
-  assert.ok(sheet.indexOf('<span class="lbl">Radar Status Bar</span><span class="hint">Rain alert only has no radar bar</span>')
-    !== -1, 'the radar bar\'s row is inert in this mode, and says why');
+  assert.ok(sheet.indexOf('<span class="lbl">Radar Status Bar</span><span class="hint">No screen shows the Radar bar</span>')
+    !== -1, 'the radar bar\'s row is inert while no screen shows it, and says why');
   // A tick places Rain, and the box goes.
   tick(page, 'statusTopOnDemandLeftItems', 'rain');
   assert.equal(page.S.statusTopOnDemandLeftItems, 'bt,rain');
@@ -960,8 +943,8 @@ function pickSegment(host, key, value) {
 }
 
 // The owner's of 2026-10-02: "Rain alert window can be removed from the radar tab.. Alerts
-// is enough". The window is the Rain dialog's row alone: neither Views (where the radar
-// mode is picked) nor the Graphs tab's Rain radar pane carries a copy, in any radar mode.
+// is enough". The window is the Rain dialog's row alone: neither the Watchface tab nor the
+// Graphs tab's Rain radar pane carries a copy, in any radar mode.
 test('no tab outside Alerts carries the rain window, in any radar mode', () => {
   ['off', 'countdown', 'status', 'graph'].forEach((mode) => {
     ['watchface', 'graphs'].forEach((tabId) => {
@@ -974,13 +957,10 @@ test('no tab outside Alerts carries the rain window, in any radar mode', () => {
   });
 });
 
-test('the Rain dialog holds the one rain window; picking Rain alert only in Views places Rain', () => {
+test('the Rain dialog holds the one rain window', () => {
   const page = onTab('watchface', { radarMode: 'graph', statusTopOnDemandLeftItems: 'bt' });
   page.openAllMore('scroll');
-  assert.equal(page.scroll.innerHTML.indexOf('data-k="rainCountdownHorizon"'), -1, 'no copy in Views');
-  pickSegment(page.scroll, 'radarMode', 'countdown');
-  assert.equal(page.S.radarMode, 'countdown');
-  assert.equal(page.S.statusTopOnDemandLeftItems, 'bt,rain', 'Rain on the Watch Status Bar\'s left');
+  assert.equal(page.scroll.innerHTML.indexOf('data-k="rainCountdownHorizon"'), -1, 'no copy on the Watchface tab');
   page.clickTab('alerts');
   page.openEditSheet('alertRain');
   assert.match(rowOf(page.modal.innerHTML, 'data-k="rainCountdownHorizon"'),

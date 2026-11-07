@@ -1,11 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  applyReset,
   clearPollenForProvider,
   dedupeStatusSlot,
   resetCountdownDate,
-  forceRainOnDemand,
   onDemandTick
 } = require('../src/pkjs/settings/reset-status-defaults.js');
 
@@ -14,10 +12,6 @@ function todayValue() {
   const pad2 = n => (n < 10 ? '0' : '') + n;
   return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
 }
-
-const ENV_BASALT = { color: true, round: false, platform: 'basalt', health: true, radar: true, hr: false };
-const ENV_EMERY = { color: true, round: false, platform: 'emery', health: true, radar: true, hr: true };
-const ENV_DIORITE = { color: false, round: false, platform: 'diorite', health: true, radar: true, hr: true };
 
 function blob(extra) {
   return Object.assign({
@@ -28,69 +22,6 @@ function blob(extra) {
     statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'distance'
   }, extra || {});
 }
-
-test('scan reset falls back to empty when the slot default is already a sibling pick', () => {
-  const S = blob({
-    radarMode: 'graph',
-    statusForecastLeft: 'precip_prob',
-    statusForecastMid: 'temp'                    // sibling already holds forecast-left's default
-  });
-  applyReset(S, 'radar', 'off', 'graph', ENV_BASALT);
-  assert.equal(S.statusForecastLeft, 'empty', 'default taken by sibling -> empty');
-});
-
-test('provider-to-provider change is not a flip: no reset', () => {
-  const S = blob({ radarProvider: 'dwd', statusRadarLeft: 'uv' });
-  applyReset(S, 'radar', 'rainbow', 'dwd', ENV_BASALT);
-  assert.equal(S.statusRadarLeft, 'uv', 'customization preserved');
-});
-
-test('mode-to-mode change (countdown <-> status <-> graph) is not a flip: no reset', () => {
-  const S = blob({ radarMode: 'status', statusRadarLeft: 'uv' });
-  applyReset(S, 'radar', 'countdown', 'status', ENV_BASALT);
-  assert.equal(S.statusRadarLeft, 'uv', 'customization preserved');
-});
-
-test('health off flip clears displaced health items everywhere', () => {
-  const S = blob({
-    healthMode: 'off',
-    statusForecastRight: 'sleep',                // health item outside the health line
-    statusHealthLeft: 'hr'                       // customized health line
-  });
-  applyReset(S, 'health', 'all', 'off', ENV_BASALT);
-  assert.equal(S.statusForecastRight, 'aqi', 'displaced health item -> slot default');
-  // own-line defaults are health items, unavailable while off -> empty
-  assert.equal(S.statusHealthLeft, 'empty');
-  assert.equal(S.statusHealthRight, 'empty');
-});
-
-test('health re-enable restores the health line defaults (emery flavor on emery)', () => {
-  const S = blob({ healthMode: 'all', statusHealthLeft: 'empty', statusHealthMid: 'empty', statusHealthRight: 'empty' });
-  applyReset(S, 'health', 'off', 'all', ENV_EMERY);
-  assert.equal(S.statusHealthLeft, 'steps');
-  assert.equal(S.statusHealthMid, 'sleep');
-  assert.equal(S.statusHealthRight, 'hr');
-});
-
-test('health re-enable restores hr on diorite (Pebble 2 is HR-capable)', () => {
-  const S = blob({ healthMode: 'all', statusHealthLeft: 'empty', statusHealthMid: 'empty', statusHealthRight: 'empty' });
-  applyReset(S, 'health', 'off', 'all', ENV_DIORITE);
-  assert.equal(S.statusHealthRight, 'hr');
-});
-
-test('health re-enable restores steps/empty/sleep on a non-HR platform', () => {
-  const S = blob({ healthMode: 'all', statusHealthLeft: 'empty', statusHealthMid: 'empty', statusHealthRight: 'empty' });
-  applyReset(S, 'health', 'off', 'all', ENV_BASALT);
-  assert.equal(S.statusHealthLeft, 'steps');
-  assert.equal(S.statusHealthMid, 'empty');
-  assert.equal(S.statusHealthRight, 'sleep');
-});
-
-test('status<->all is not a flip', () => {
-  const S = blob({ healthMode: 'status', statusHealthLeft: 'hr' });
-  applyReset(S, 'health', 'all', 'status', ENV_EMERY);
-  assert.equal(S.statusHealthLeft, 'hr');
-});
 
 test('switching to any non-DWD provider clears pollen from all 12 status slots', () => {
   const slotKeys = [
@@ -202,42 +133,6 @@ test('resetCountdownDate: already-countdown-to-countdown (no-op transition) leav
   const S = blob({ statusForecastLeft: 'countdown', statusForecastLeftCountdown: '2020-01-01' });
   resetCountdownDate(S, 'statusForecastLeft', 'countdown', 'countdown');
   assert.equal(S.statusForecastLeftCountdown, '2020-01-01');
-});
-
-// radarMode 'countdown' fetches the radar for the rain alert alone, so entering it with
-// Rain ticked on no bar that exists in that mode ticks it on the Watch Status Bar's left,
-// where the defaults put it.
-test('forceRainOnDemand: entering countdown mode ticks Rain on the Watch Status Bar\'s left side', () => {
-  // Rain ticked on no side, so it shows nowhere.
-  const S = { radarMode: 'countdown', rainCountdownHorizon: '30',
-    statusTopOnDemandLeftItems: 'bt,snooze', statusTopOnDemandRightItems: 'battery,uv' };
-  forceRainOnDemand(S, 'countdown', ENV_BASALT);
-  assert.equal(S.statusTopOnDemandLeftItems, 'bt,snooze,rain', 'ticked in the canonical order');
-  assert.equal(S.statusTopOnDemandRightItems, 'battery,uv', 'the right side keeps its ticks');
-  assert.equal(S.rainCountdownHorizon, '30', 'the window is left alone');
-});
-
-test('forceRainOnDemand: Rain already showing on a visible bar is left alone', () => {
-  const onForecast = { radarMode: 'countdown', statusTopOnDemandLeftItems: 'bt',
-    statusForecastOnDemandLeftItems: 'rain' };
-  forceRainOnDemand(onForecast, 'countdown', ENV_BASALT);
-  assert.equal(onForecast.statusTopOnDemandLeftItems, 'bt', 'the forecast bar shows it');
-  const defaults = { radarMode: 'countdown' };
-  forceRainOnDemand(defaults, 'countdown', ENV_BASALT);
-  assert.deepEqual(defaults, { radarMode: 'countdown' }, 'the default ticks already show it');
-  // The radar bar never shows in this mode, so a tick there does not count.
-  const onRadar = { radarMode: 'countdown', statusTopOnDemandLeftItems: '',
-    statusRadarOnDemandRightItems: 'rain' };
-  forceRainOnDemand(onRadar, 'countdown', ENV_BASALT);
-  assert.equal(onRadar.statusTopOnDemandLeftItems, 'rain');
-});
-
-test('forceRainOnDemand: any other mode leaves the ticks alone', () => {
-  ['off', 'status', 'graph'].forEach((mode) => {
-    const S = { radarMode: mode, statusTopOnDemandLeftItems: '' };
-    forceRainOnDemand(S, mode, ENV_BASALT);
-    assert.equal(S.statusTopOnDemandLeftItems, '', 'kept in radarMode ' + mode);
-  });
 });
 
 test('onDemandTick: a tick places the item on that side, off the bar\'s other side; an untick takes it off that side alone', () => {

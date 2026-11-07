@@ -12,7 +12,7 @@
 // Async shape: block renderers are synchronous string-returners re-run on
 // every settings change, so the weather data lives in module state; a fetch
 // completion patches state and asks the engine for a repaint via the ctx
-// captured at onReady (the news.js/view-editor.js pattern) — only while this
+// captured at onReady (the news.js/screens-page.js pattern) — only while this
 // tab is the one showing (repaintIfShown).
 //
 // Gesture shape (the app's): a horizontal drag on any chart pans EVERY

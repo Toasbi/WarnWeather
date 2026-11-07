@@ -581,6 +581,35 @@
       "configurable",
       "health"
     ],
+    "usesPermissions": [
+      "Location",
+      "Health",
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "air-quality-api.open-meteo.com",
+            "api.brightsky.dev",
+            "api.met.no",
+            "api.open-meteo.com",
+            "api.openweathermap.org",
+            "api.rainbow.ai",
+            "api.tomorrow.io",
+            "api.waqi.info",
+            "api.weather.com",
+            "api.weather.yandex.ru",
+            "appstore-api.rebble.io",
+            "appstore-api.repebble.com",
+            "date.nager.at",
+            "geocode.arcgis.com",
+            "geocoding-api.open-meteo.com",
+            "maps.dwd.de",
+            "us1.locationiq.com",
+            "www.wunderground.com"
+          ]
+        }
+      }
+    ],
     "messageKeys": [
       "TEMP_TREND_UINT8",
       "SECONDARY_LINE_TREND_UINT8",

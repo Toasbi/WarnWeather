@@ -152,17 +152,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var optionLabel = PConf.optionLabel;
 
     /**
-     * Whether the radar fetches nothing (radar mode 'off', the schema default 'graph'
-     * for an absent key): the rain alert then cannot show.
+     * Whether the rain radar is off (Setup › Data sources, radarEnabled): the rain alert then
+     * cannot show. Not radarMode: since 2.6 it follows the screens and the ticks (screens.js
+     * deriveModes), so it reads 'off' too while Rain is merely on no bar.
      * @param {Object} S Live settings state.
      * @returns {boolean}
      */
     function radarOff(S) {
-        return ((S && S.radarMode) || 'graph') === 'off';
+        return Boolean(S) && S.radarEnabled === false;
     }
 
     /**
-     * The Alerts tab's Rain row hint: "Turn on the rain radar (Watchface › Views)" while the
+     * The Alerts tab's Rain row hint: "Turn on the rain radar (Setup › Data sources)" while the
      * radar is off (that comes first: no tick helps then), "Not in any status bar" while
      * Rain is ticked on no bar, else its time window and look by the labels its sheet
      * offers them under, e.g. "Within 60 min · Text". The lists come from the schema
@@ -177,7 +178,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function rainAlertHint(S, env, args) {
         var st = S || {};
-        if (radarOff(st)) { return 'Turn on the rain radar (Watchface › Views)'; }
+        if (radarOff(st)) { return 'Turn on the rain radar (Setup › Data sources)'; }
         if (!onDemand.placedAnywhere(st, 'rain', env)) { return NOT_PLACED; }
         var rain = thresholds.rainAlert(st);
         var a = args || {};
@@ -197,7 +198,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {?string} Why it cannot show, or null when it can.
      */
     function onDemandBlocked(S, code) {
-        if (code === 'rain' && radarOff(S)) { return 'Needs the rain radar (Watchface › Views)'; }
+        if (code === 'rain' && radarOff(S)) { return 'Needs the rain radar (Setup › Data sources)'; }
         if (code === 'pollen' && (!S || S.provider !== 'dwd')) { return 'DWD provider only'; }
         return null;
     }
@@ -207,8 +208,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * status bar the watch draws (on-demand.js barExists, the rule the Status bars tab's
      * bar gates RADAR_BAR_WHEN / HEALTH_BAR_WHEN state), in the page's order. Each row
      * names its two side lists in meta.keys (Left, Right), the lists its ticks read and
-     * write (reset-status-defaults.js onDemandTick). Like those gates, it ignores the
-     * layout: a bar no view draws still gets its row. While the item
+     * write (reset-status-defaults.js onDemandTick). A bar no screen shows keeps an inert
+     * row that says so. While the item
      * cannot show at all (onDemandBlocked: Rain with the radar off, Pollen off DWD) the
      * rows go inert and keep their ticks; the Rain sheet's box says why, and Pollen's card
      * row (so its sheet) is gone off DWD.
@@ -239,22 +240,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Why a bar is not drawn, for its inert Shows on row: its view is off, or shows no
-     * bar in its mode. null for a bar this watch cannot draw at all (no row then).
+     * Why a bar is not drawn, for its inert Shows on row: no screen shows it. null for a bar
+     * this watch cannot draw at all (no row then).
      * @param {Object} S Live settings state.
      * @param {string} bar An on-demand.js BARS bar.
      * @param {Object} env Platform env.
      * @returns {?string} The reason.
      */
     function barOffReason(S, bar, env) {
-        var st = S || {};
         if (bar === 'radar') {
-            if (env && env.radar === false) { return null; }
-            return (st.radarMode || 'graph') === 'off' ? 'Radar view is off' : 'Rain alert only has no radar bar';
+            return (env && env.radar === false) ? null : 'No screen shows the Radar bar';
         }
         if (bar === 'health') {
-            if (env && env.health === false) { return null; }
-            return (st.healthMode || 'all') === 'off' ? 'Health view is off' : 'Status slots only has no health bar';
+            return (env && env.health === false) ? null : 'No screen shows the Health bar';
         }
         return null;
     }

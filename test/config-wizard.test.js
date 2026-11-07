@@ -17,7 +17,9 @@ const platform = require('../src/pkjs/config-ui/lib/platform.js');
 require('../src/pkjs/settings/theme-convert.js');
 const W = require('../src/pkjs/settings/wizard.js');
 const CD = require('../src/pkjs/settings/country-defaults.js');
-const FLICK = require('../src/pkjs/settings/wizard-flick.js');
+const SCREENS = require('../src/pkjs/settings/wizard-screens.js');
+const M = require('../src/pkjs/screens.js');
+const VC = require('../src/pkjs/view-cycle.js');
 const FINISH = require('../src/pkjs/settings/wizard-finish.js');
 
 test('countryFromTimezone: known zones map, unknown -> null', () => {
@@ -93,24 +95,18 @@ test('applyDerived leaves pollen intact when the wizard derives DWD', () => {
   assert.equal(S.statusForecastMid, 'wind');
 });
 
-test('buildSteps: health precedes the flick demo; flick and theme gated by env (both absent on aplite)', () => {
-  assert.deepEqual(W.buildSteps({ radar: true, health: true, themePolarity: true }),
-    ['welcome', 'layout', 'health', 'flick', 'theme', 'done']);
-  assert.deepEqual(W.buildSteps({ radar: true, health: false, themePolarity: true }),
-    ['welcome', 'layout', 'flick', 'theme', 'done']);
-  // aplite: no radar view to flick to AND no theme polarity to choose (WW_THEME_POLARITY
-  // compiled out) — the wizard skips both steps.
-  assert.deepEqual(W.buildSteps({ radar: false, health: false, themePolarity: false }),
-    ['welcome', 'layout', 'done']);
-  assert.deepEqual(W.buildSteps({ radar: false, health: true, themePolarity: true }),
-    ['welcome', 'layout', 'health', 'theme', 'done']);
-  // The forecast step wherever the watch draws line styles (the looks are made of them), after
-  // the theme its preview is drawn in.
+test('buildSteps: Welcome, Layout, Screens, Theme, Forecast, Done; each gated by what the watch has', () => {
   assert.deepEqual(W.buildSteps({ radar: true, health: true, themePolarity: true, lineStyles: true }),
-    ['welcome', 'layout', 'health', 'flick', 'theme', 'forecast', 'done']);
-  const platform = require('../src/pkjs/config-ui/lib/platform.js');
-  ['basalt', 'diorite', 'emery', 'flint'].forEach((p) => {
-    assert.ok(W.buildSteps(platform.computeEnv({ platform: p })).includes('forecast'), p);
+    ['welcome', 'layout', 'screens', 'theme', 'forecast', 'done']);
+  // No Health step any more: a Health screen is one the Screens step adds.
+  assert.deepEqual(W.buildSteps({ radar: true, health: false, themePolarity: true }),
+    ['welcome', 'layout', 'screens', 'theme', 'done']);
+  // aplite: one screen, nothing to flick to, AND no theme polarity to choose (WW_THEME_POLARITY
+  // compiled out) nor line styles — the wizard skips all three steps.
+  assert.deepEqual(W.buildSteps({ radar: false, health: false, themePolarity: false }), ['welcome', 'layout', 'done']);
+  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) => {
+    assert.deepEqual(W.buildSteps(platform.computeEnv({ platform: p })),
+      ['welcome', 'layout', 'screens', 'theme', 'forecast', 'done'], p);
   });
   assert.deepEqual(W.buildSteps(platform.computeEnv({ platform: 'aplite' })), ['welcome', 'layout', 'done']);
 });
@@ -125,71 +121,6 @@ test('shouldShow: gated on onboardingDone, not on an empty config', () => {
   assert.equal(W.shouldShow({ provider: 'wunderground', holidayCountry: 'DE', onboardingDone: false }), true);
 });
 
-test('flickStops: layout-only cycle -> Default + Radar; radar copy is provider-agnostic', () => {
-  const stops = FLICK.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' });
-  assert.equal(stops.length, 2);
-  assert.equal(stops[0].label, 'Default');
-  assert.equal(stops[0].shotGroup, 'layoutPreset');
-  assert.equal(stops[0].shotVal, 'compactCal');
-  assert.equal(stops[0].caption, 'Your calendar, the Forecast Status Bar, and the forecast.');
-  assert.equal(stops[1].label, 'Radar');
-  assert.equal(stops[1].shotGroup, 'radar');
-  assert.match(stops[1].caption, /short-term rain forecast/);
-  assert.match(stops[1].caption, /the Watch Status Bar counts it down at its edge/); // Rain's default side
-  assert.match(stops[1].caption, /Rain in 15’/); // the rain alert's default 'text' look
-  assert.doesNotMatch(stops[1].caption, /DWD|nearby/); // no provider named, kept general
-});
-
-test('flickStops: health graph rides between default and radar; heart-rate line only with hasHeartRate', () => {
-  const withHR = FLICK.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarMode: 'graph' }, true);
-  assert.deepEqual(withHR.map((s) => s.label), ['Default', 'Health graph', 'Radar']);
-  assert.equal(withHR[0].shotVal, 'fullCal');
-  assert.equal(withHR[1].shotGroup, 'healthMode');
-  assert.equal(withHR[1].shotVal, 'all');
-  assert.match(withHR[1].caption, /heart-rate line/);
-  const noHR = FLICK.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarMode: 'graph' }, false);
-  assert.doesNotMatch(noHR[1].caption, /heart/);
-  assert.match(noHR[1].caption, /step bars and a sleep band/);
-});
-
-test('flickStops: health-status flick maps to the healthMode.status shot; heart rate gated on hasHeartRate', () => {
-  const withHR = FLICK.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarMode: 'graph' }, true);
-  assert.deepEqual(withHR.map((s) => s.label), ['Default', 'Health Status Bar', 'Radar']);
-  assert.equal(withHR[1].shotGroup, 'healthMode');
-  assert.equal(withHR[1].shotVal, 'status');
-  assert.match(withHR[1].caption, /current heart rate/);
-  assert.match(withHR[1].caption, /Health Status Bar/);
-  const noHR = FLICK.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarMode: 'graph' }, false);
-  assert.doesNotMatch(noHR[1].caption, /heart/);
-});
-
-test('flickStops: fullCal/status health-dense middle stop (statusUpper=HEALTH) also maps to healthMode.status', () => {
-  const stops = FLICK.flickStops({ layoutPreset: 'fullCal', healthMode: 'status', radarMode: 'graph' });
-  assert.deepEqual(stops.map((s) => s.label), ['Default', 'Health Status Bar', 'Radar']);
-  assert.equal(stops[1].shotVal, 'status');
-});
-
-test('flickStops: compactDense (no screenshot) maps the Default stop to the compactCal shot', () => {
-  const stops = FLICK.flickStops({ layoutPreset: 'compactDense', healthMode: 'all', radarMode: 'graph' });
-  assert.equal(stops[0].label, 'Default');
-  assert.equal(stops[0].shotGroup, 'layoutPreset');
-  assert.equal(stops[0].shotVal, 'compactCal'); // clamped: compactDense has no captured shot
-});
-
-test('flickStops: disabled radar drops the radar stop; empty state resolves defaults', () => {
-  const noRadar = FLICK.flickStops({ layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'off' });
-  assert.deepEqual(noRadar.map((s) => s.label), ['Default', 'Health graph']);
-  const fresh = FLICK.flickStops({});
-  assert.equal(fresh[0].shotVal, 'compactCal');
-  assert.deepEqual(fresh.map((s) => s.label), ['Default', 'Radar']);
-});
-
-test("flickStops: 'slot' health mode adds no health flick stop (matches off)", () => {
-  const off = FLICK.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' });
-  const slot = FLICK.flickStops({ layoutPreset: 'compactCal', healthMode: 'slot', radarMode: 'graph' });
-  assert.deepEqual(slot.map((s) => s.label), off.map((s) => s.label));
-});
-
 // --- finishing the wizard applies the situational defaults (settings/defaults-policy.js) ---
 //
 // The table itself is tested in test/defaults-policy.test.js; these tests cover the WIRING:
@@ -199,58 +130,55 @@ test("flickStops: 'slot' health mode adds no health flick stop (matches off)", (
 // The Forecast row is bolded everywhere; the strip beside the clock only on emery,
 // the one display whose strip ships three readings (status-line-catalog.js). The
 // table itself pins that split — here it decides which keys each context expects.
-const BOLD_FORECAST_KEYS = ['threshTempBoldMode', 'threshCityBoldMode', 'threshAqiBoldMode'];
-const BOLD_TOP_KEYS = ['threshWeekBoldMode', 'threshDateBoldMode', 'threshSunBoldMode'];
-const BOLD_KEYS = BOLD_FORECAST_KEYS.concat(BOLD_TOP_KEYS);
+// The headline rows' kinds. Setup sets none of their Bold modes (the owner, 2026-11-06: it
+// made the status bars bold), so each keeps its own Bold row's default.
+const BOLD_KEYS = ['threshTempBoldMode', 'threshCityBoldMode', 'threshAqiBoldMode',
+  'threshWeekBoldMode', 'threshDateBoldMode', 'threshSunBoldMode', 'threshStepsBoldMode'];
 
 /**
- * A stand-in for the engine's onReady ctx: the real schema, hydrated the way boot() does.
+ * A stand-in for the engine's onReady ctx: the real schema, hydrated the way boot() does. Health
+ * is on unless `saved` says otherwise: the mode a Health screen added in setup gives (the health
+ * rules read the mode the screens work out; a new install's is off).
  * @param {Object} [over] {platform: string, saved: Object} — watch platform and stored settings.
  * @returns {{S: Object, ENV: Object, schema: Object}} Wizard context.
  */
 function wizCtx(over) {
   const o = over || {};
   const ENV = platform.computeEnv({ platform: o.platform || 'basalt' });
-  return { S: eng.hydrate(schema, o.saved || {}, ENV), ENV, schema };
+  return { S: eng.hydrate(schema, Object.assign({ healthMode: 'all' }, o.saved || {}), ENV), ENV, schema };
 }
 
-test('finishing the wizard on emery bolds the Watch + Forecast rows and hands AQI a warn signal', () => {
+test('finishing the wizard on emery promotes steps, hands AQI a warn signal and leaves Bold alone', () => {
   const ctx = wizCtx({ platform: 'emery' });
-  BOLD_KEYS.forEach((k) => assert.notEqual(ctx.S[k], 'always', k + ' starts at its schema default'));
+  const before = {};
+  BOLD_KEYS.forEach((k) => { before[k] = ctx.S[k]; });
 
   const written = FINISH.applyWizardDefaults(ctx, 'save');
 
-  BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], 'always', k));
+  BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], before[k], k + ' keeps its own default'));
   assert.equal(ctx.S.threshAqiOn, true, 'AQI highlighting on');
   assert.equal(ctx.S.threshAqiWarnLook, 'fill', 'AQI warn box: the colour watch\'s default look');
-  // threshStepsBoldMode rides with the slot swap: steps replaces sunrise/sunset in
-  // the top row, so it has to be bold like the rest of that row.
-  assert.equal(ctx.S.threshStepsBoldMode, 'always', 'the promoted steps slot is bold too');
-  assert.deepEqual(Object.keys(written).sort(),
-    BOLD_KEYS.concat(['threshAqiOn', 'statusTopRight',
-      'statusHealthLeft', 'threshStepsBoldMode']).sort(),
+  assert.equal(ctx.S.statusTopRight, 'steps');
+  assert.deepEqual(Object.keys(written).sort(), ['statusHealthLeft', 'statusTopRight', 'threshAqiOn'],
     'the report names exactly the keys it wrote');
 });
 
-test('finishing the wizard on a narrow watch bolds the Forecast row and fills the free left slot', () => {
-  // The strip beside the clock ships date + battery here, so nothing in it is bolded
-  // and steps is promoted into its EMPTY left slot rather than into the battery corner.
+test('finishing the wizard on a narrow watch fills the free left slot and leaves Bold alone', () => {
+  // The strip beside the clock ships date + battery here, so steps is promoted into its
+  // EMPTY left slot rather than into the battery corner.
   const ctx = wizCtx();
   assert.equal(ctx.S.statusTopLeft, 'empty', 'guard: the narrow strip ships that slot free');
   assert.equal(ctx.S.statusTopRight, 'battery', 'guard: and the battery in the corner');
+  const before = {};
+  BOLD_KEYS.forEach((k) => { before[k] = ctx.S[k]; });
 
   const written = FINISH.applyWizardDefaults(ctx, 'save');
 
-  BOLD_FORECAST_KEYS.forEach((k) => assert.equal(ctx.S[k], 'always', k));
-  BOLD_TOP_KEYS.forEach((k) => assert.notEqual(ctx.S[k], 'always', k + ' stays light'));
+  BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], before[k], k + ' keeps its own default'));
   assert.equal(ctx.S.statusTopLeft, 'steps');
   assert.equal(ctx.S.statusTopRight, 'battery', 'the battery keeps its corner');
   assert.equal(ctx.S.statusHealthLeft, 'distance', 'the eviction rides along');
-  assert.notEqual(ctx.S.threshStepsBoldMode, 'always',
-    'and no bold rides along — it would be the only heavy value in that strip');
-  assert.deepEqual(Object.keys(written).sort(),
-    BOLD_FORECAST_KEYS.concat(['threshAqiOn', 'statusTopLeft',
-      'statusHealthLeft']).sort(),
+  assert.deepEqual(Object.keys(written).sort(), ['statusHealthLeft', 'statusTopLeft', 'threshAqiOn'],
     'the report names exactly the keys it wrote');
 });
 
@@ -300,20 +228,20 @@ test('the health slots move only where health can actually report', () => {
   FINISH.applyWizardDefaults(off, 'save');
   assert.equal(off.S.statusTopLeft, 'empty', 'health off leaves the top row alone');
   assert.equal(off.S.statusHealthLeft, 'steps', 'health off leaves the health row alone');
-  assert.equal(off.S.threshTempBoldMode, 'always', 'the bold rules still apply with health off');
+  assert.equal(off.S.threshAqiOn, true, 'the AQI rule still applies with health off');
 
-  // aplite has no health at all; the bold/AQI keys are still written (inert there by design).
+  // aplite has no health at all; the AQI key is still written (inert there by design).
   const aplite = wizCtx({ platform: 'aplite' });
   FINISH.applyWizardDefaults(aplite, 'save');
   assert.equal(aplite.S.statusTopLeft, 'empty');
   assert.equal(aplite.S.statusHealthLeft, 'steps');
-  assert.equal(aplite.S.threshAqiBoldMode, 'always');
+  assert.equal(aplite.S.threshAqiOn, true);
 });
 
 test('"Keep customizing" (nav tweak) finishes the wizard too — Skip and the step buttons do not', () => {
   const tweak = wizCtx();
   assert.notEqual(Object.keys(FINISH.applyWizardDefaults(tweak, 'tweak')).length, 0);
-  assert.equal(tweak.S.threshTempBoldMode, 'always');
+  assert.equal(tweak.S.threshAqiOn, true);
 
   ['skip', 'next', 'back'].forEach((nav) => {
     const ctx = wizCtx();
@@ -324,25 +252,25 @@ test('"Keep customizing" (nav tweak) finishes the wizard too — Skip and the st
 });
 
 test('a key the user changed by hand survives the policy', () => {
-  // threshAqiBoldMode ships 'warn'; 'off' below is therefore a real choice, not a
+  // statusHealthLeft ships 'steps'; 'sleep' below is therefore a real choice, not a
   // default that happens to match. (The steps promotion is the ONE declared
   // exception to this clause — the next test.)
-  const ctx = wizCtx({ saved: { threshAqiBoldMode: 'off' } });
+  const ctx = wizCtx({ saved: { statusHealthLeft: 'sleep' } });
 
   const written = FINISH.applyWizardDefaults(ctx, 'save');
 
-  assert.equal(ctx.S.threshAqiBoldMode, 'off', 'an explicit Bold choice is not overwritten');
-  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'threshAqiBoldMode'));
-  assert.equal(ctx.S.threshCityBoldMode, 'always', 'the untouched keys still get their default');
-  assert.equal(ctx.S.threshAqiOn, true, 'a sibling key of the same rule is unaffected');
+  assert.equal(ctx.S.statusHealthLeft, 'sleep', 'an explicit slot choice is not overwritten');
+  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
+  assert.equal(ctx.S.statusTopLeft, 'steps', 'the untouched keys still get their default');
+  assert.equal(ctx.S.threshAqiOn, true, 'another rule is unaffected');
 });
 
 test('the steps promotion overrules even a hand-picked slot', () => {
   // emery: statusTopRight ships 'sun', so 'battery' is a real choice — a user parked
   // another slot top-right, then completed setup with health on. Completing setup IS
   // the consent to the promised health layout (the rule declares the promotion in
-  // `overrules`), so steps takes the slot anyway, and the eviction and bold ride
-  // along — the swap stays all-or-nothing.
+  // `overrules`), so steps takes the slot anyway, and the eviction rides along — the
+  // swap stays all-or-nothing.
   const ctx = wizCtx({ platform: 'emery', saved: { statusTopRight: 'battery' } });
 
   const written = FINISH.applyWizardDefaults(ctx, 'save');
@@ -350,7 +278,7 @@ test('the steps promotion overrules even a hand-picked slot', () => {
   assert.equal(ctx.S.statusTopRight, 'steps', 'the promotion wins over the custom slot');
   assert.equal(written.statusTopRight, 'steps');
   assert.equal(ctx.S.statusHealthLeft, 'distance', 'the eviction rides along');
-  assert.equal(ctx.S.threshStepsBoldMode, 'always', 'so does the promoted slot\'s bold');
+  assert.notEqual(ctx.S.threshStepsBoldMode, 'always', 'and no Bold with it');
 
   // The narrow sibling rule overrules its own slot the same way. It bites far less
   // often: that slot ships EMPTY, so only a value parked there before re-running
@@ -372,8 +300,6 @@ test('the overrule stops at the promotion: a customized health row still survive
   assert.equal(ctx.S.statusTopRight, 'steps');
   assert.equal(ctx.S.statusHealthLeft, 'empty', 'the hand-picked health slot survives');
   assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
-  assert.equal(ctx.S.threshStepsBoldMode, 'always',
-    'the bold hangs off the promotion, not the eviction');
 
   const narrow = wizCtx({ saved: { statusTopLeft: 'week', statusHealthLeft: 'empty' } });
   FINISH.applyWizardDefaults(narrow, 'save');
@@ -417,70 +343,65 @@ test('the policy never duplicates a code the user already placed in that row', (
 // Driven through its real handlers on a fake DOM (test/helpers/wizard-dom.js).
 const { openSetup } = require('./helpers/wizard-dom.js');
 
-test('opening the wizard never rewrites a stored compactDense preset', () => {
-  // compactDense isn't offered in the wizard's layout picker; re-running setup (the only way an
-  // existing preset meets the wizard) must highlight the nearest option WITHOUT mutating stored
-  // state: the value changes only on a real pick. Regression: openWizard used to rewrite
-  // S.layoutPreset on entry, and the old carousel's centering scroll committed the coerced card.
-  const { ctx, dom } = openSetup({ saved: { layoutPreset: 'compactDense' } });
+test('opening the wizard never rewrites a stored preset; a layout pick makes the Default screen alone', () => {
+  // Re-running setup over a preset (a watch the 2.6 migration could not move) must highlight the
+  // layout its Default screen reads as WITHOUT mutating stored state: the value changes only on a
+  // real pick. Regression: openWizard used to rewrite S.layoutPreset on entry, and the old
+  // carousel's centering scroll committed the coerced card.
+  const saved = { layoutPreset: 'compactDense', healthMode: 'status', radarMode: 'graph' };
+  const { ctx, dom } = openSetup({ saved });
   assert.equal(ctx.S.layoutPreset, 'compactDense', 'opening the wizard must not rewrite the stored preset');
   dom.nav('next');
   const picker = dom.picker();
   assert.equal(picker.group, 'layoutPreset', 'the layout picker rendered');
-  assert.equal(picker.selected, 'compactCal', 'the picker highlights the nearest offered layout');
+  assert.equal(picker.selected, 'compactCal', 'the Default screen\'s two-row calendar reads as Compact');
   assert.equal(ctx.S.layoutPreset, 'compactDense', 'rendering the picker must not commit the highlight');
+  const env = platform.computeEnv({ platform: 'basalt' });
+  const flicks = M.screensOf(ctx.S, env).slice(1);
   dom.pick('layoutPreset', 'fullCal');
-  assert.equal(ctx.S.layoutPreset, 'fullCal', 'an actual pick commits normally');
+  // A pick writes the Default screen alone: the preset's own Default view (the one its cycle
+  // starts with), the other screens frozen as they were.
+  assert.equal(ctx.S.layoutPreset, 'custom');
+  const after = M.screensOf(ctx.S, env);
+  assert.deepEqual(after[0], M.screensOf({ layoutPreset: 'fullCal', healthMode: 'off', radarMode: 'off' }, env)[0]);
+  assert.deepEqual(after.slice(1), flicks, 'the flick screens are the Screens step\'s');
+  assert.equal(VC.packWire(VC.resolveViewCycle(ctx.S, env)[0]),
+    VC.packWire(VC.buildViewCycle('fullCal', 'off', 'off', true)[0]), 'byte for byte the preset\'s Default');
+  // aplite has no screens: its pick is the preset.
+  const aplite = openSetup({ platform: 'aplite', saved: { layoutPreset: 'compactCal' } });
+  aplite.dom.nav('next');
+  aplite.dom.pick('layoutPreset', 'noCal');
+  assert.equal(aplite.ctx.S.layoutPreset, 'noCal');
 });
 
-// --- the health pick runs the Health tab's own reset hook -------------------------------
-/**
- * Re-run setup ("Run setup again"), pick `healthMode` on the health step, walk to the last step
- * and press Save to watch, through the real click handlers.
- * @param {Object} over openSetup's options (platform, saved, prepare).
- * @param {string} healthMode Option value to pick on the health step.
- * @returns {Object} The live settings state's ctx after the save.
- */
-function rerunWizardPickingHealth(over, healthMode) {
-  const { ctx, dom } = openSetup(over);
-  dom.walkTo('healthMode');
-  dom.pick('healthMode', healthMode);
-  dom.walkToSummary();
-  dom.nav('save');
-  return ctx;
-}
-
-test('re-running setup with health turned back on restores the health row', () => {
-  const ctx = rerunWizardPickingHealth({ prepare: (c) => {
-    // Health was turned OFF on the Health tab earlier: its own hook emptied the health row.
-    c.S.healthMode = 'off';
-    PConf.onChange.get('resetStatusHealth')(c.S, 'all', 'off', c.ENV, 'healthMode');
-    assert.deepEqual([c.S.statusHealthLeft, c.S.statusHealthMid, c.S.statusHealthRight],
-      ['empty', 'empty', 'empty'], 'guard: the off state left the row blank');
-  } }, 'status');
-  assert.equal(ctx.S.healthMode, 'status');
-  // Row back at its defaults, then the finishing policy's steps promotion evicts steps.
-  assert.deepEqual([ctx.S.statusHealthLeft, ctx.S.statusHealthMid, ctx.S.statusHealthRight],
-    ['distance', 'empty', 'sleep'], 'not a blank Health Status Bar');
-  assert.equal(ctx.S.statusTopLeft, 'steps');
+test('the Screens step\'s screens: Health and Rain radar where the watch draws them, in that order', () => {
+  const basalt = platform.computeEnv({ platform: 'basalt' });
+  assert.deepEqual(SCREENS.offered(basalt).map((t) => t.id), ['health', 'radar']);
+  assert.deepEqual(SCREENS.offered(platform.computeEnv({ platform: 'aplite' })), []);
+  const b = (k, o) => Object.assign({ k }, o || {});
+  assert.deepEqual(SCREENS.byId('health').list, [b('strip'), b('clock'), b('healthbar'), b('health', { size: 'fill' })]);
+  assert.deepEqual(SCREENS.byId('radar').list, [b('strip'), b('clock'), b('radarbar'), b('radar', { size: 'fill' })]);
+  // An upgraded install's flick screens ARE the two (today's Flick 1 and Flick 2).
+  const three = M.screensOf({ layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'graph' }, basalt);
+  assert.deepEqual(three.map((l, i) => SCREENS.nameOf(l, i)), ['Default', 'Health', 'Rain radar']);
+  assert.equal(SCREENS.nameOf([b('strip'), b('clock')], 2), 'Flick 2', 'a screen of the user\'s own: its place');
+  // Health goes in before a Rain radar screen, the Rain radar screen after the others.
+  assert.equal(SCREENS.insertAt([three[0], three[2]], 'health'), 1);
+  assert.equal(SCREENS.insertAt([three[0]], 'health'), 1);
+  assert.equal(SCREENS.insertAt([three[0], three[1]], 'radar'), 2);
+  assert.equal(SCREENS.slotOf(three, 'radar'), 2);
+  assert.equal(SCREENS.slotOf([three[0]], 'radar'), -1);
+  // The layout a Default screen reads as.
+  assert.equal(SCREENS.layoutOf(three[0]), 'compactCal');
+  assert.equal(SCREENS.layoutOf([b('strip'), b('cal', { rows: '3' }), b('clock')]), 'fullCal');
+  assert.equal(SCREENS.layoutOf([b('clock'), b('fc', { size: 'fill' })]), 'noCal');
 });
 
-test('re-running setup with health turned off snaps the promoted steps slot back', () => {
-  // emery: an earlier finished wizard promoted steps into the top-right corner.
-  const ctx = rerunWizardPickingHealth({ platform: 'emery', prepare: (c) => {
-    FINISH.applyWizardDefaults(c, 'save');
-    assert.equal(c.S.statusTopRight, 'steps', 'guard: the earlier run promoted steps');
-  } }, 'off');
-  assert.equal(ctx.S.healthMode, 'off');
-  assert.equal(ctx.S.statusTopRight, 'sun', 'the corner returns to its default, not a blank slot');
-});
-
-test('a health pick that keeps the enable state leaves a customized health row alone', () => {
-  const ctx = rerunWizardPickingHealth({ saved: { healthMode: 'all',
-    statusHealthLeft: 'sleep', statusHealthMid: 'steps', statusHealthRight: 'empty' } }, 'status');
-  assert.equal(ctx.S.healthMode, 'status');
-  assert.deepEqual([ctx.S.statusHealthLeft, ctx.S.statusHealthMid, ctx.S.statusHealthRight],
-    ['sleep', 'steps', 'empty']);
+test('finishing setup without a Health screen leaves the slots to the screens: a new install\'s health is off', () => {
+  const ctx = wizCtx({ saved: { healthMode: 'off' } });
+  FINISH.applyWizardDefaults(ctx, 'save');
+  assert.equal(ctx.S.statusTopLeft, 'empty', 'no steps on the Watch bar');
+  assert.equal(ctx.S.threshAqiOn, true, 'the AQI rule still applies');
 });
 
 // --- the tomorrow.io upsell on the "All set" step -----------------------------------------
@@ -597,8 +518,3 @@ test('a detected, listed country still drives the fresh-install defaults', () =>
   assert.equal(us.temperatureUnits, 'f');
 });
 
-test('flickStops: a stored Weather only shows the No calendar shot (no shot of its own)', () => {
-  const stops = FLICK.flickStops({ layoutPreset: 'weatherOnly', healthMode: 'off', radarMode: 'graph' });
-  assert.equal(stops[0].shotGroup, 'layoutPreset');
-  assert.equal(stops[0].shotVal, 'noCal');
-});

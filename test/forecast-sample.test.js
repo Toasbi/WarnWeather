@@ -17,7 +17,9 @@ const FS = require('../src/pkjs/settings/forecast-sample.js');
 const spanHours = require('../src/pkjs/forecast-span-hours.js');
 
 const EMERY = platform.computeEnv({ platform: 'emery' });
-const S0 = E.hydrate(schema, {}, EMERY);
+// The hours under emery's left axis, as an install that keeps it (a new install's Clean graph
+// draws the high and low on the graph instead, which drops slot 0's label).
+const S0 = Object.assign(E.hydrate(schema, {}, EMERY), { forecastAxisNumbers: 'axis' });
 /** The hour labels an SVG draws on its axis, in order. */
 const hourLabels = (svg) => (svg.match(/font-size="7\.5"[^>]*>(\d+)<\/text>/g) || [])
   .map((t) => Number(/>(\d+)</.exec(t)[1]));

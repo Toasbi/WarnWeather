@@ -9,10 +9,10 @@ const schema = require('../src/pkjs/settings/schema.js');
 
 const CLEAR = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0 };
 
-// The radar picker's option list: the static RADAR_PROVIDER_OPTIONS, one option per radar
-// source (the two Rainbow sources included).
+// The Rain radar picker's sources: its static options after Off (RADAR_PROVIDER_OPTIONS), one
+// option per radar source (the two Rainbow sources included).
 function radarPickerOptions(radarItem) {
-  return radarItem.options;
+  return radarItem.options.filter(function(o) { return o[1] !== 'off'; });
 }
 
 test("createRadarSource('dwd') routes to radar.fetchRadarTuplesAt with lat/lon/slot", () => {
@@ -99,10 +99,10 @@ test('isKnownRadarSource recognizes registered ids only', () => {
   assert.equal(radarFactory.DEFAULT_RADAR_ID, 'disabled');
 });
 
-test('schema radarProvider options are all registered factory ids; the registry also keeps the internal-only "disabled" id', () => {
-  // As of the radarMode tier, "disabled" is no longer a user-selectable radarProvider
-  // option (radarMode owns on/off) but the factory registry keeps it as the fallback
-  // for unknown/unset ids (see radar-factory.js DEFAULT_RADAR_ID) and as the id
+test('the Rain radar picker\'s sources are all registered factory ids; the registry also keeps the internal-only "disabled" id', () => {
+  // "disabled" is no user-selectable source: the picker's Off (Setup › Data sources) turns the
+  // radar off and keeps the source (radarEnabled), but the factory registry keeps the id as
+  // the fallback for unknown/unset ids (see radar-factory.js DEFAULT_RADAR_ID) and as the id
   // radar-fetch gating still routes to when radarMode is 'off'. "rainbowkey" is the picker
   // option and stored value of "Rainbow (own key)" (OWN_KEY_RADAR_ID).
   const items = [];
@@ -111,12 +111,13 @@ test('schema radarProvider options are all registered factory ids; the registry 
       sec.items.forEach(function(it) { items.push(it); });
     });
   });
-  const radarItem = items.filter(function(i) { return i.messageKey === 'radarProvider'; })[0];
-  assert.ok(radarItem, 'radarProvider item exists in the schema');
+  const radarItem = items.filter(function(i) { return i.messageKey === 'radarSource'; })[0];
+  assert.ok(radarItem, 'the Rain radar picker exists in the schema');
+  assert.equal(radarItem.options[0][1], 'off', 'Off first, a page-only pick over radarEnabled');
   const schemaIds = radarPickerOptions(radarItem).map(function(o) { return o[1]; }).sort();
   const registryIds = Object.keys(radarFactory.RADAR_FACTORIES).sort();
   assert.deepEqual(schemaIds, ['dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio'],
-    'radarProvider schema options offer every source but "disabled" (the radarMode radio owns on/off)');
+    'the picker offers every source but "disabled" (its Off keeps the source)');
   schemaIds.forEach(function(id) {
     assert.ok(registryIds.indexOf(id) >= 0, id + ' schema option must be a registered radar factory id');
   });
@@ -152,7 +153,7 @@ test("createRadarSource('tomorrowio') binds cfg.tomorrowioApiKey and routes to t
 test('radar picker offers tomorrowio', () => {
   const items = [];
   schema.tabs.forEach((t) => t.sections.forEach((s) => s.items.forEach((i) => items.push(i))));
-  const radarItem = items.filter((i) => i.messageKey === 'radarProvider')[0];
+  const radarItem = items.filter((i) => i.messageKey === 'radarSource')[0];
   assert.ok(radarPickerOptions(radarItem).map((o) => o[1]).includes('tomorrowio'));
   const tio = radarPickerOptions(radarItem).find((o) => o[1] === 'tomorrowio');
   assert.ok(tio[2] && tio[2].desc, 'has a dropdown description');
