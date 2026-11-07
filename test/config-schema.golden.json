@@ -502,15 +502,6 @@
                   ]
                 ],
                 "optionDisabledWhen": {
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "status",
-                        "graph"
-                      ]
-                    }
-                  },
                   "health": {
                     "not": {
                       "key": "healthMode",
@@ -542,15 +533,6 @@
                   ]
                 ],
                 "optionDisabledWhen": {
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "status",
-                        "graph"
-                      ]
-                    }
-                  },
                   "health": {
                     "not": {
                       "key": "healthMode",
@@ -687,15 +669,6 @@
                   ]
                 ],
                 "optionDisabledWhen": {
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "status",
-                        "graph"
-                      ]
-                    }
-                  },
                   "health": {
                     "not": {
                       "key": "healthMode",
@@ -727,15 +700,6 @@
                   ]
                 ],
                 "optionDisabledWhen": {
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "status",
-                        "graph"
-                      ]
-                    }
-                  },
                   "health": {
                     "not": {
                       "key": "healthMode",
@@ -877,15 +841,6 @@
                   ]
                 ],
                 "optionDisabledWhen": {
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "status",
-                        "graph"
-                      ]
-                    }
-                  },
                   "health": {
                     "not": {
                       "key": "healthMode",
@@ -917,15 +872,6 @@
                   ]
                 ],
                 "optionDisabledWhen": {
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "status",
-                        "graph"
-                      ]
-                    }
-                  },
                   "health": {
                     "not": {
                       "key": "healthMode",

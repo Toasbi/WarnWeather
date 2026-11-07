@@ -323,10 +323,12 @@ void view_spec_apply_ext(ViewSpec *s, uint16_t ext) {
     s->stacked = spec_is_stacked(s);
 }
 
-// Downgrade one status source to NONE when its capability is missing.
-static uint8_t resolve_source(uint8_t src, bool has_radar, bool has_health) {
+// Downgrade one status source to NONE when its capability is missing: a health row
+// without health. The Radar bar is a status bar like the others (its slots are the
+// phone's, baked into STATUS_LINE_2 on every weather fetch), so it stays without radar
+// data; only the radar GRAPH needs the radar (the top/body folds in view_spec_resolve).
+static uint8_t resolve_source(uint8_t src, bool has_health) {
     if (src == STATUS_SRC_HEALTH && !has_health) { return STATUS_SRC_NONE; }
-    if (src == STATUS_SRC_RADAR  && !has_radar)  { return STATUS_SRC_NONE; }
     return src;
 }
 
@@ -356,11 +358,11 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
         spec.body = BODY_NONE;
     }
     uint8_t upper_before = spec.status_upper;
-    spec.status_upper = resolve_source(spec.status_upper, has_radar, has_health);
-    spec.status_lower = resolve_source(spec.status_lower, has_radar, has_health);
+    spec.status_upper = resolve_source(spec.status_upper, has_health);
+    spec.status_lower = resolve_source(spec.status_lower, has_health);
     // A STRIPPED upper promotes the surviving lower row into its slot: a degraded dense
-    // view (e.g. compactDense's radar-upper + forecast-lower default before the first
-    // radar frame arrives) renders as the plain compact layout, not as the unrequested
+    // view (e.g. compactDense's health-upper + forecast-lower default while health is
+    // unavailable) renders as the plain compact layout, not as the unrequested
     // swap-clock/status layout — the clock keeps its seat, so nothing jumps when the
     // capability comes back. A CONFIGURED lone lower (the swap toggle's layout) has
     // upper_before == NONE and is left where the user put it. Mirrors the aplite twin's
@@ -901,7 +903,9 @@ bool view_slot_available(uint32_t word, bool has_radar, bool has_health) {
     // function inherits it, instead of a half-migrated copy silently disagreeing
     // and offering a cycle slot its layer set cannot render.
     LayerVisibility v = layout_visibility(&spec);
-    if ((v.radar || v.radar_status) && !has_radar) { return false; }
+    // Only the radar GRAPH needs radar data: a view whose radar content is the Radar bar
+    // stays a stop without it (the bar is a status bar like the others, resolve keeps it).
+    if (v.radar && !has_radar) { return false; }
     if ((v.health_graph || v.health_status) && !has_health) { return false; }
     // A custom view with nothing on it (no clock, top band, graph or status row — e.g.
     // its only row's source was switched off in settings) is never a flick stop: the

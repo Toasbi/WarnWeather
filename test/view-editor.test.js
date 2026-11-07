@@ -60,11 +60,12 @@ test('remove/add element round-trips; re-added elements land above the graph', (
   assert.equal(S.viewStripOff1, true);
   assert.equal(ve.removeElement(S, 1, 'T'), true);
   assert.equal(S.viewTop1, 'none');
-  // Source-aware ＋: the sibling row already shows weather and neither radar nor
-  // health is capable here, so a second status bar is NOT offered (it would only
-  // duplicate and fold away).
+  // Source-aware ＋: the sibling row already shows weather and health is not capable
+  // here, but the Radar bar is (it shows in every radarMode), so a second status bar is
+  // offered and would carry it.
   assert.deepEqual(ve.addableElements(S, 1).map((a) => a[1]).sort(),
-    ['clock', 'top', 'topbar'].sort());
+    ['clock', 'status', 'top', 'topbar'].sort());
+  assert.equal(ve.freeStatusSource(S, 1), 'radar');
   // Re-add the clock: it lands at the END of the drawn order (directly above the graph).
   // This view has no top bar, so the watch stacks even the legacy code literally (T A C B
   // minus the absent bands = A, C) — the legacy code already draws the clock last, and
@@ -74,8 +75,8 @@ test('remove/add element round-trips; re-added elements land above the graph', (
   const drawn = ve.displayOrder(S, 1).filter((b) => ve.presence(S, 1)[b]);
   assert.deepEqual(drawn, ['A', 'C'], 'clock re-added above the graph');
   assert.equal(S.viewOrder1, 'TACB', 'the legacy code already draws it there');
-  // With radar capable, the second status bar becomes addable and fills the free
-  // slot with the first NON-DUPLICATE capable source (radar — weather is taken).
+  // The second status bar fills the free slot with the first NON-DUPLICATE capable
+  // source (radar — weather is taken), whatever radarMode says.
   S.radarMode = 'graph';
   assert.ok(ve.addableElements(S, 1).map((a) => a[1]).indexOf('status') >= 0);
   assert.equal(ve.freeStatusSource(S, 1), 'radar');
@@ -205,14 +206,14 @@ test('addView copies the Default; removeView compacts so the last slot frees', (
 });
 
 test('a removal that would leave nothing on screen is refused, judged on the compiled view', () => {
-  // Flick 1 keeps a Graph and a Radar status bar whose source is switched off: the bar
+  // Flick 1 keeps a Graph and a Health status bar whose source is switched off: the bar
   // compiles away, so removing the Graph would leave the view blank.
-  const S = baseView({ radarMode: 'off', viewTop1: 'none', viewClockOff1: true,
-    viewUpper1: 'radar', viewBody1: 'forecast' });
+  const S = baseView({ healthMode: 'off', viewTop1: 'none', viewClockOff1: true,
+    viewUpper1: 'health', viewBody1: 'forecast' });
   assert.equal(ve.removalEmpties(S, 1, 'G'), true);
   assert.equal(ve.removeElement(S, 1, 'G'), false);
   assert.equal(S.viewBody1, 'forecast');
-  S.radarMode = 'status';                       // the bar shows again
+  S.healthMode = 'status';                      // the bar shows again
   assert.equal(ve.removeElement(S, 1, 'G'), true);
   assert.equal(ve.removeElement(S, 1, 'A'), false, 'the bar is now the last element');
 });

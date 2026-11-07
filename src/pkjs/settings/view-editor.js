@@ -402,7 +402,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         for (j = 0; j < candidates.length; j++) {
             c = candidates[j];
             if (c === sibling) { continue; }
-            if (c === 'radar' && !cap.radarRow) { continue; }
+            // The Radar bar is open in every radarMode (the compiler keeps it).
             if (c === 'health' && !cap.healthRow) { continue; }
             return c;
         }

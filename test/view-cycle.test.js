@@ -360,10 +360,15 @@ test('buildCustomCycle: capability folds mirror the watch resolve', () => {
   assert.equal(c[0].body, vc.BODY_FC);
   assert.equal(c[0].statusUpper, vc.STATUS_SRC_RADAR);
   assert.equal(c[0].statusLower, vc.STATUS_SRC_HEALTH);
-  // radarMode 'countdown': the radar row folds too; healthMode 'slot' folds health rows.
+  // radarMode 'countdown': the radar ROW still stays (the Radar bar is a status bar like
+  // the others; the watch draws it without radar data); healthMode 'slot' folds health rows.
   c = vc.buildCustomCycle(Object.assign({ radarMode: 'countdown', healthMode: 'slot' }, base));
-  assert.equal(c[0].statusUpper, vc.STATUS_SRC_NONE);
+  assert.equal(c[0].statusUpper, vc.STATUS_SRC_RADAR);
   assert.equal(c[0].statusLower, vc.STATUS_SRC_NONE);
+  // ...and radarMode 'off' keeps it too.
+  c = vc.buildCustomCycle(Object.assign({ radarMode: 'off', healthMode: 'all' }, base));
+  assert.equal(c[0].statusUpper, vc.STATUS_SRC_RADAR);
+  assert.equal(c[0].statusLower, vc.STATUS_SRC_HEALTH);
   // healthMode 'status': health graph body folds to forecast, health row survives.
   c = vc.buildCustomCycle({
     viewCount: '1', radarMode: 'off', healthMode: 'status',
@@ -377,7 +382,7 @@ test('buildCustomCycle: fold-promote only under the legacy order', () => {
   const mk = (order) => ({
     viewCount: '1', radarMode: 'off', healthMode: 'off',
     viewTop0: 'cal2', viewBody0: 'forecast',
-    viewUpper0: 'radar', viewLower0: 'weather', viewOrder0: order,
+    viewUpper0: 'health', viewLower0: 'weather', viewOrder0: order,
   });
   // Legacy order: folded upper promotes the surviving lower (dense degradation).
   const legacy = vc.buildCustomCycle(mk('TACB'))[0];
@@ -665,13 +670,21 @@ test('stackFits: legacy-order views always fit; the watch\'s no-data fallbacks a
     viewLower0: 'health', viewOrder0: 'TACB' });
   assert.deepEqual(vc.stackFits(fitsAll, 'basalt'), { fits: true, over: 0 });
   // A filling radar top folds to the calendar without radar data (the watch's
-  // CALENDAR fold): 150 as the calendar, 151 at the radar's fill floor — it fits both ways.
+  // CALENDAR fold): 150 as the calendar, 137 at the radar's fill floor — it fits both ways.
   const rf = view({ viewTop0: 'radar', viewTopSize0: 'fill', viewBodySize0: '4', viewUpper0: 'off',
-    viewLower0: 'radar', viewOrder0: 'TCAB' });
+    viewLower0: 'off', viewOrder0: 'TCAB' });
   assert.equal(vc.resolveForFit(rf, false, true).top, vc.TOP_CAL);
   assert.equal(vc.stackNeed(vc.resolveForFit(rf, false, true), 0).need, 150);
-  assert.equal(vc.stackNeed(vc.resolveForFit(rf, true, true), 0).need, 151);
+  assert.equal(vc.stackNeed(vc.resolveForFit(rf, true, true), 0).need, 137);
   assert.deepEqual(vc.stackFits(rf, 'basalt'), { fits: true, over: 0 });
+  // The Radar bar stays without radar data, so it is budgeted in the calendar fold too:
+  // the same view with the bar under the clock needs 164 there (151 with the radar).
+  const rfBar = view({ viewTop0: 'radar', viewTopSize0: 'fill', viewBodySize0: '4', viewUpper0: 'off',
+    viewLower0: 'radar', viewOrder0: 'TCAB' });
+  assert.equal(vc.resolveForFit(rfBar, false, true).statusLower, vc.STATUS_SRC_RADAR, 'the bar is kept');
+  assert.equal(vc.stackNeed(vc.resolveForFit(rfBar, false, true), 0).need, 164);
+  assert.equal(vc.stackNeed(vc.resolveForFit(rfBar, true, true), 0).need, 151);
+  assert.deepEqual(vc.stackFits(rfBar, 'basalt'), { fits: false, over: 9 });
   // Every state of every sizable shape is checked against the watch itself by
   // scripts/check-fit-lockstep.js (run from scripts/test-c.sh).
 });

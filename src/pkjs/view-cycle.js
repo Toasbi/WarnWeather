@@ -327,8 +327,10 @@ function stackNeed(s, f) {
  * view_spec_resolve, mirrored: without health a health top empties and a health body falls
  * back to the forecast (or empties under a forecast top); without radar a radar top becomes
  * the calendar of its rows (2 → 2-row, else 3-row) and a radar body the forecast; a graph
- * never shows twice; status rows of a missing source drop, and at order 0 a surviving lower
- * row takes the upper seat. The order rule stays the configured view's (the watch keeps it).
+ * never shows twice; a health row drops without health, and at order 0 a surviving lower
+ * row takes the upper seat. The Radar bar stays without radar data (it is a status bar like
+ * the others; only the radar GRAPH needs the radar). The order rule stays the configured
+ * view's (the watch keeps it).
  * @param {!Object} s compiled view spec
  * @param {boolean} hasRadar
  * @param {boolean} hasHealth
@@ -350,8 +352,7 @@ function resolveForFit(s, hasRadar, hasHealth) {
   }
   /** @param {number} src @returns {number} the source, or NONE when its data is missing */
   function keep(src) {
-    return ((src === STATUS_SRC_RADAR && !hasRadar) || (src === STATUS_SRC_HEALTH && !hasHealth))
-      ? STATUS_SRC_NONE : src;
+    return (src === STATUS_SRC_HEALTH && !hasHealth) ? STATUS_SRC_NONE : src;
   }
   var upBefore = r.statusUpper;
   r.statusUpper = keep(r.statusUpper);
@@ -380,7 +381,9 @@ function stackFits(s, family) {
   if (!s || !isStacked(s)) { return { fits: true, over: 0 }; }
   var fams = family === 'emery' ? [1] : family ? [0] : [0, 1];
   // Every data state the watch can meet — radar and health present or missing — laid out
-  // the way it folds them (resolveForFit): the view must fit in the worst one.
+  // the way it folds them (resolveForFit: without radar only the radar graph folds, the
+  // Radar bar stays; without health the health graph and row do): the view must fit in
+  // the worst one.
   var states = [[true, true], [false, true], [true, false], [false, false]];
   var over = 0, j, k, n;
   for (j = 0; j < fams.length; j++) {
@@ -629,9 +632,13 @@ var CUSTOM_SRC = {
 // declarative optionDisabledWhen gates from these very arrays, so the compiler,
 // the editor and the sheets can never disagree. Mirrors the watch's
 // view_spec_resolve: radar CHART seats (top strip / body) need radarMode 'graph';
-// the radar status SOURCE needs 'status'|'graph'; a health graph body needs
-// healthMode 'all'; a health status source needs 'status'|'all' ('slot' shows
-// health only in the regular slot system, same as the preset MATRIX's bucket rule).
+// a health graph body needs healthMode 'all'; a health status source needs
+// 'status'|'all' ('slot' shows health only in the regular slot system, same as the
+// preset MATRIX's bucket rule). The radar status SOURCE (the Radar bar) needs no mode:
+// it is a status bar like the others and the watch draws it without radar data, so a
+// custom view keeps it whatever radarMode says. RADAR_ROW_MODES stays the PRESETS'
+// fact — the modes whose preset cycles draw the Radar bar (MATRIX's 'r' cycles) — read
+// by the preset paths (blocks.js layoutPresetOptions, on-demand.js barExists).
 var RADAR_CHART_MODES = ['graph'];
 var RADAR_ROW_MODES = ['status', 'graph'];
 var HEALTH_ROW_MODES = ['status', 'all'];
@@ -639,7 +646,9 @@ var HEALTH_BODY_MODES = ['all'];
 
 /**
  * The capability booleans for a settings state — one per seat kind, derived
- * from the mode lists above (reads S.radarMode / S.healthMode).
+ * from the mode lists above (reads S.radarMode / S.healthMode). `radarRow` is the
+ * presets' fact (a preset cycle draws the Radar bar); custom views keep the bar in
+ * every mode.
  * @param {Object} S settings state
  * @returns {{radarChart:boolean,radarRow:boolean,healthRow:boolean,healthBody:boolean}}
  */
@@ -656,7 +665,8 @@ function capabilities(S) {
 /**
  * Compile the custom per-view keys into a 1-3 slot cycle. Seats fold by
  * capabilities(S) — the shared gate table above — so the previews and the wire
- * agree with the watch's view_spec_resolve. Under the legacy order a folded-away
+ * agree with the watch's view_spec_resolve; the Radar bar never folds (the watch
+ * draws it without radar data). Under the legacy order a folded-away
  * upper promotes the surviving lower (dense degradation, the watch's rule);
  * explicit stacked orders keep user-placed seats. A flick view left with NOTHING on
  * it (no clock, top band, graph or status row — e.g. its only status bar's source was
@@ -700,10 +710,9 @@ function buildCustomCycle(S) {
                                 || (t.kind === TOP_KIND_HEALTH && body === BODY_GRAPH))) {
       body = BODY_NONE;
     }
+    // A health row folds by healthMode; the Radar bar stays in every radarMode.
     var su = suRaw, sl = slRaw;
-    if (su === STATUS_SRC_RADAR && !cap.radarRow) { su = STATUS_SRC_NONE; }
     if (su === STATUS_SRC_HEALTH && !cap.healthRow) { su = STATUS_SRC_NONE; }
-    if (sl === STATUS_SRC_RADAR && !cap.radarRow) { sl = STATUS_SRC_NONE; }
     if (sl === STATUS_SRC_HEALTH && !cap.healthRow) { sl = STATUS_SRC_NONE; }
 
     var code = orderCode(S['viewOrder' + i] || 'TACB');

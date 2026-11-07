@@ -368,9 +368,9 @@ ViewSpec view_spec_unpack(uint16_t v);
 void view_spec_apply_ext(ViewSpec *s, uint16_t ext);
 #endif
 
-// Data-availability downgrades, pure. Each status source is downgraded to NONE when its
-// capability is missing (radar row without radar data, health row without health data);
-// the surviving row keeps its band. Without health data (aplite, or health off): a health
+// Data-availability downgrades, pure. A health row without health data is downgraded to
+// NONE; the surviving row keeps its band. The Radar bar is a status bar like the others
+// and stays without radar data. Without health data (aplite, or health off): a health
 // graph body -> forecast. Without radar data: a radar top band -> calendar, a radar body
 // -> forecast (radar-in-body is valid with a calendar).
 ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health);
@@ -448,8 +448,9 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics
 // in the low half, the custom-layout v2 ext word (view_spec_apply_ext) in the high half
 // — Config.view_spec2[i] | Config.view_ext[i] << 16.
 
-// Is a configured slot renderable right now? Disabled (wire tier 0) never; a radar band
-// needs radar data; a health band/row/graph needs health. Availability is
+// Is a configured slot renderable right now? Disabled (wire tier 0) never; the radar
+// graph (top or body) needs radar data, the Radar bar does not; a health band/row/graph
+// needs health. Availability is
 // caller-supplied. Decodes the whole word (unpack + apply_ext), so a graph the ext
 // word places — e.g. a health graph in the top band — gates the slot too.
 bool view_slot_available(uint32_t word, bool has_radar, bool has_health);

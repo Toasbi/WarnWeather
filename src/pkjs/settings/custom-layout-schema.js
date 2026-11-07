@@ -17,11 +17,11 @@ var viewCycle = require('../view-cycle.js');
 // visible-but-inert (optionDisabledWhen), mirroring the compiler's folds; the WHEN
 // predicates are built from view-cycle.js's mode lists (RADAR_CHART_MODES & co. —
 // the same arrays buildCustomCycle's capabilities() reads), so the sheets can
-// never drift from the compiler: chart seats need radarMode 'graph'; the radar
-// status source needs status|graph; a health graph body needs healthMode 'all';
-// health rows need status|all.
+// never drift from the compiler: chart seats need radarMode 'graph'; a health graph
+// body needs healthMode 'all'; health rows need status|all. The radar status source
+// (the Radar bar) is open in every radarMode: the compiler keeps it and the watch draws
+// it without radar data.
 var VIEW_RADAR_CHART_WHEN = {key: 'radarMode', in: viewCycle.RADAR_CHART_MODES};
-var VIEW_RADAR_ROW_WHEN = {key: 'radarMode', in: viewCycle.RADAR_ROW_MODES};
 var VIEW_HEALTH_ROW_WHEN = {key: 'healthMode', in: viewCycle.HEALTH_ROW_MODES};
 var VIEW_HEALTH_BODY_WHEN = {key: 'healthMode', in: viewCycle.HEALTH_BODY_MODES};
 // No 'Off' entry: removal is the editor row's ✕ button — a duplicate Off pick in
@@ -30,7 +30,6 @@ var VIEW_HEALTH_BODY_WHEN = {key: 'healthMode', in: viewCycle.HEALTH_BODY_MODES}
 var VIEW_SRC_OPTIONS = [['Weather', 'weather'],
                         ['Radar', 'radar'], ['Health', 'health']];
 var VIEW_SRC_GATES = {
-    radar: {not: VIEW_RADAR_ROW_WHEN},
     health: {not: VIEW_HEALTH_ROW_WHEN}
 };
 

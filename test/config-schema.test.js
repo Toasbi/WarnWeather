@@ -1461,8 +1461,8 @@ test('custom-layout gates reference view-cycle.js\'s mode lists (single source)'
     assert.strictEqual(body.optionDisabledWhen.health.not.in, vc.HEALTH_BODY_MODES,
       'viewBody' + i + ': the health body gates on HEALTH_BODY_MODES');
     [byKey('viewUpper' + i), byKey('viewLower' + i)].forEach((row) => {
-      assert.strictEqual(row.optionDisabledWhen.radar.not.in, vc.RADAR_ROW_MODES,
-        row.messageKey + ': the radar source gates on RADAR_ROW_MODES');
+      assert.equal(row.optionDisabledWhen.radar, undefined,
+        row.messageKey + ': the radar source (the Radar bar) is open in every radarMode');
       assert.strictEqual(row.optionDisabledWhen.health.not.in, vc.HEALTH_ROW_MODES,
         row.messageKey + ': the health source gates on HEALTH_ROW_MODES');
     });
