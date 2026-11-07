@@ -309,13 +309,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         Object.keys(values).forEach(function (k) { run.ctx.setValue(k, values[k]); });
     }
     /**
-     * Pick a look: its graph, and on emery, when the graph is not drawing it already, the length it
-     * starts on (its span). The look already drawn keeps a length picked under it.
+     * Pick a look: its graph, and on emery, when it is another look than the one the picker marks
+     * (currentLook), the length it starts on (its span). The look marked keeps a length picked
+     * under it, the first record too where a graph changed under setup draws none.
      * @param {string} id The look.
      * @returns {void}
      */
     function pickLook(id) {
-        var look = lookById(id), anew = !FORECAST.same(run.ctx.S, look.values, run.env);
+        var look = lookById(id), anew = currentLook().id !== look.id;
         writeLook(look.values);
         if (anew && run.env.forecastSpan) { run.ctx.setValue('forecastHours', look.span); }
     }

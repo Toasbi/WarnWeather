@@ -759,6 +759,23 @@ test('a graph set up in Settings is kept as "Your own", first, and can be gone b
   assert.equal(ownLength.ctx.S.forecastHours, '12');
 });
 
+test('a graph changed under setup: the look the picker marks keeps the length picked under it', () => {
+  const { ctx, dom } = openSetup({ platform: 'emery', saved: { provider: 'dwd' } });
+  walkTo(dom, 'forecastLook');
+  dom.pick('forecastHours', '12');
+  // A graph none of the looks draws, and no "Your own" (setup opened on Clean): the picker marks
+  // the first look.
+  ctx.S.thirdLine = 'gust';
+  dom.nav('back');
+  dom.nav('next');
+  assert.equal(dom.picker().selected, 'classic');
+  dom.pick('forecastLook', 'classic');
+  assert.equal(ctx.S.thirdLine, 'uv', 'the look drawn again');
+  assert.equal(ctx.S.forecastHours, '12', 'the look the picker marked keeps the length');
+  dom.pick('forecastLook', 'stripes');
+  assert.equal(ctx.S.forecastHours, '24', 'another look starts on its own');
+});
+
 test('a theme picked after the length keeps it: the look laid on again brings no length', () => {
   const { ctx, dom } = openSetup({ platform: 'emery', saved: { provider: 'dwd', theme: 'light' } });
   walkTo(dom, 'forecastLook');

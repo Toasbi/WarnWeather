@@ -92,9 +92,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Give a bar that has just come onto a screen its default slots (status-line-catalog.js
      * slotDefault, the ones a new install has) when it would show nothing: every slot Empty, or
      * an item this watch cannot show, as the screen's picture reads it (preview-status-bars.js
-     * barSlots). A bar never set up can be stored that way: the 2.6 move stored a health item
-     * as Empty where health was off. A bar with a reading of its own, or one a screen showed
-     * already, keeps its slots. Mutates S.
+     * barCodes, the slots without their sample text). A bar never set up can be stored that way:
+     * the 2.6 move stored a health item as Empty where health was off. A bar with a reading of
+     * its own, or one a screen showed already, keeps its slots. Mutates S.
      * @param {Object} S Settings.
      * @param {{top: boolean, forecast: boolean, radar: boolean, health: boolean}} before
      *   view-cycle.js barsShown() before the change.
@@ -105,7 +105,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var now = VC.barsShown(S, env);
         Object.keys(now).forEach(function (bar) {
             if (!now[bar] || before[bar]) { return; }
-            var slots = PSB.barSlots(S, env, bar);
+            var slots = PSB.barCodes(S, env, bar);
             var blank = slots.every(function (c) { return c.code === 'empty'; });
             if (blank) { slots.forEach(function (c) { S[c.key] = catalog.slotDefault(c.key, env); }); }
         });
