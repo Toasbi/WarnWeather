@@ -200,10 +200,6 @@ test('the summary names every theme on a colour watch, B&W ones included', () =>
     while (!/data-wiz-nav="save"/.test(dom.foot.innerHTML)) { dom.nav('next'); }
     assert.match(dom.body.innerHTML, new RegExp('<span class="k">Theme</span><span class="v">' + label + '</span>'), theme);
   });
-  // A stored value the picker doesn't offer reads as the settings page names it.
-  const { dom } = openSetup({ saved: { layoutPreset: 'compactDense' } });
-  while (!/data-wiz-nav="save"/.test(dom.foot.innerHTML)) { dom.nav('next'); }
-  assert.doesNotMatch(dom.body.innerHTML, /<span class="k">Layout<\/span><span class="v">—/);
 });
 
 test('a pick updates the segments, the description and the watch in place', () => {

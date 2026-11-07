@@ -51,7 +51,7 @@
         { w: 144, h: 168, floor: 168 },
         { w: 200, h: 228, floor: 222 }
     ];
-    // The views' names, as the Layout card calls them.
+    // The screens' names, as the Screens card calls them.
     var NAMES = ['Default', 'Flick 1', 'Flick 2'];
     // The watch's text in the page: a narrow system sans stands in for the watch's Gothic.
     var FONT = "Roboto, 'Helvetica Neue', Arial, sans-serif";
@@ -67,7 +67,7 @@
     BAR_OF_SRC[VC.STATUS_SRC_FORECAST] = 'forecast';
     BAR_OF_SRC[VC.STATUS_SRC_HEALTH] = 'health';
     BAR_OF_SRC[VC.STATUS_SRC_RADAR] = 'radar';
-    // What a band is called in a view's spoken description, in the Layout card's words.
+    // What a band is called in a screen's spoken description.
     var STATUS_NAME = { forecast: 'Forecast Status', health: 'Health Status', radar: 'Radar Status' };
     var GRAPH_NAME = { forecast: 'Forecast', radar: 'Radar', health: 'Health graph' };
 
@@ -570,7 +570,11 @@
         + 'box-shadow:0 6px 16px rgba(0,0,0,.35),0 0 0 1px var(--card-line)}'
         + 'body.light .wpv-card{box-shadow:0 4px 12px rgba(0,0,0,.16),0 0 0 1px var(--card-line)}'
         + '.wpv-scr{display:block;width:100%;height:auto}'
-        + '.wpv-cap{display:block;margin-top:7px;font:700 11.5px Inter,-apple-system,system-ui,sans-serif;color:var(--muted)}';
+        + '.wpv-cap{display:block;margin-top:7px;font:700 11.5px Inter,-apple-system,system-ui,sans-serif;color:var(--muted)}'
+        // A screen is a button that opens its editor (screens-page.js), on every watch but aplite.
+        + '.wpv-btn{border:none;background:none;padding:0;margin:0;cursor:pointer;font:inherit;color:inherit}'
+        + '.wpv-btn:focus-visible .wpv-card{box-shadow:0 0 0 2px var(--link)}'
+        + '.wpv-tap{display:block;margin-top:8px;text-align:center;font:500 11px Inter,-apple-system,system-ui,sans-serif;color:var(--faint)}';
 
     /**
      * Put the block's styles on the page once.
@@ -585,7 +589,10 @@
     }
 
     /**
-     * The block: every view of the cycle as the watch draws it, side by side and named.
+     * The block: every screen as the watch draws it, side by side and named. On every watch
+     * but aplite each is a button that opens its editor (screens-page.js openScreen), a
+     * screen with nothing on it too (its bare screen: the watch skips it); aplite draws its
+     * one screen.
      * @param {Object} S Live settings.
      * @param {Object} env Platform env.
      * @param {Object} [userData] Page userData.
@@ -594,25 +601,31 @@
     function watchPreview(S, env, userData) {
         var st = S || {};
         var views = VC.resolveViewCycle(st, env);
+        var editable = !(env && env.platform === 'aplite');
         var f = env && env.platform === 'emery' ? 1 : 0, now = new Date();
         var bg = svgLib.previewInk(themeOf(st, env)).bg;
         var n = 0, figs = '';
         views.forEach(function (spec, i) {
-            if (!spec) { return; }
-            var name = NAMES[i] || 'View ' + (i + 1), scr = screenSvg(spec, i, st, env, userData || {}, f, now);
+            if (!spec && !editable) { return; }
+            var name = NAMES[i] || 'View ' + (i + 1);
+            var scr = spec ? screenSvg(spec, i, st, env, userData || {}, f, now) : viewScreen(st, env, i, userData);
+            var inner = '<div class="wpv-card" style="background:' + bg + '">' + scr.svg + '</div>'
+                + '<span class="wpv-cap" aria-hidden="true">' + esc(name) + '</span>';
             n += 1;
-            figs += '<div class="wpv-v" role="img" aria-label="' + esc(name + ': ' + scr.label) + '">'
-                + '<div class="wpv-card" style="background:' + bg + '">' + scr.svg + '</div>'
-                + '<span class="wpv-cap" aria-hidden="true">' + esc(name) + '</span></div>';
+            figs += editable
+                ? '<button type="button" class="wpv-v wpv-btn" data-action="openScreen" data-action-arg="' + i
+                    + '" aria-label="' + esc('Edit ' + name + ': ' + scr.label) + '">' + inner + '</button>'
+                : '<div class="wpv-v" role="img" aria-label="' + esc(name + ': ' + scr.label) + '">' + inner + '</div>';
         });
         if (!figs) { return ''; }
         ensureStyle();
-        return '<div class="wpv n' + n + '" role="group" aria-label="Your watch">' + figs + '</div>';
+        return '<div class="wpv n' + n + '" role="group" aria-label="Your watch">' + figs + '</div>'
+            + (editable ? '<span class="wpv-tap">Tap a screen to edit it</span>' : '');
     }
 
     /**
-     * One view of the cycle on its own: the custom layout editor's live preview of the
-     * view being edited (view-editor.js), drawn as the pinned preview draws it. A view with
+     * One view of the cycle on its own, drawn as the pinned preview draws it (the screen
+     * editor's picture of a screen with nothing on it, screens-page.js). A view with
      * nothing left on it (a disabled slot, which the watch skips) is its bare screen with a
      * note.
      * @param {Object} S Live settings.

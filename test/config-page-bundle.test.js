@@ -118,26 +118,25 @@ test('the screen pictures\' frame reaches the page ahead of the watch preview an
   assert.ok(page().indexOf('window.ScreenFrame = api') !== -1, 'nothing assigns window.ScreenFrame');
 });
 
-// The custom-layout editor is the same silent-no-op shape as the defaults policy:
-// its one consumer, the Edit button's [data-action] dispatch, guards its absence, so
-// dropping view-editor.js from APP_FILES keeps every Node test green while the shipped
-// page's Edit button does nothing. Pin the ASSIGNMENT, not the bare name — the schema
-// itself never enters the page (build-page concatenates shell.html + APP_FILES only;
-// the schema is injected at runtime), but blocks.js mentions 'openViewEditor' in a
-// comment, so a bare-name search would stay green with the editor gutted.
-test('the custom-layout editor reaches the generated page, after view-cycle', () => {
+// The screens page is the same silent-no-op shape as the defaults policy: its consumers,
+// the screen buttons' and the Screens card's [data-action] dispatch, guard its absence, so
+// dropping screens-page.js from APP_FILES keeps every Node test green while the shipped
+// page's screens do nothing on a tap. Pin the ASSIGNMENTS, and the order: it binds
+// window.Screens and window.PreviewWatch while its IIFE runs.
+test('the screens page reaches the generated page, after the screens model and the watch picture', () => {
   const src = page();
-  assert.ok(src.indexOf('PConf.actions.openViewEditor =') !== -1,
-    'nothing assigns PConf.actions.openViewEditor — picking Custom would seed keys and render a dead Edit button');
-  assert.ok(src.indexOf('data-ve-save') !== -1,
-    'the editor overlay markup is missing from the page');
+  assert.ok(src.indexOf('PConf.actions.openScreen =') !== -1,
+    'nothing assigns PConf.actions.openScreen: a tap on a screen would do nothing');
+  assert.ok(src.indexOf("PConf.blocks.register('screensCard'") !== -1, 'the Screens card is missing from the page');
+  assert.ok(src.indexOf('window.Screens = api') !== -1, 'nothing assigns window.Screens');
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => appFiles.findIndex((f) => f.endsWith(suffix));
-  const vcAt = idx('pkjs/view-cycle.js');
-  const veAt = idx('settings/view-editor.js');
-  assert.notEqual(veAt, -1, 'view-editor.js is not in APP_FILES at all');
-  assert.ok(vcAt !== -1 && vcAt < veAt,
-    'view-cycle.js must precede view-editor.js — the editor binds window.VIEW_CYCLE while its IIFE runs');
+  const at = idx('settings/screens-page.js');
+  assert.notEqual(at, -1, 'screens-page.js is not in APP_FILES at all');
+  ['pkjs/view-cycle.js', 'pkjs/status-line-catalog.js', 'pkjs/on-demand.js'].forEach((dep) =>
+    assert.ok(idx(dep) !== -1 && idx(dep) < idx('pkjs/screens.js'), dep + ' must precede screens.js'));
+  assert.ok(idx('pkjs/screens.js') < at, 'screens.js must precede screens-page.js');
+  assert.ok(idx('settings/preview-watch.js') < at, 'preview-watch.js must precede screens-page.js');
 });
 
 // line-alert.js binds window.StatusThresholds and window.LineStyle while its own body

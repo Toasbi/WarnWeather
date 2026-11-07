@@ -17,7 +17,11 @@
 // after checking every combo against the previous packer with every switch forced on:
 // identical, and no byte outside the cells (38-47) moved. Re-recorded when the default
 // Rain tick moved to the Watch Status Bar's left: only the Rain cell (byte 42) moved,
-// and every combo equals the previous packer fed the new default lists.
+// and every combo equals the previous packer fed the new default lists. Re-recorded when
+// the Radar and Health bars began to exist by the screens (2.6, view-cycle.js barsShown)
+// rather than by radarMode / healthMode: only the 477 blobs that store no radarMode moved,
+// and only in the cells (bytes 38-47), since their compact calendar cycle seats the Radar
+// bar the watch is sent; fed the old mode rule, every combo equals the previous digest.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -27,7 +31,7 @@ const wire = require('../src/pkjs/status-wire.js');
 const OD = require('../src/pkjs/on-demand.js');
 
 const COMBOS = 4000;
-const GOLDEN_SHA256 = '36131cb0ee2d7f1668fc327f523ea03e71fde5abb30499c0bcde87276283bfae';
+const GOLDEN_SHA256 = 'a34e67c6e1ee2a38374a4a0eabcaa39b6fae1848af64fe19861c1506c7b5b39e';
 
 /**
  * mulberry32: a small deterministic PRNG, so the generated set never varies.

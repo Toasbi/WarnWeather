@@ -402,11 +402,7 @@
    * @returns {Array<?Object>} the views (null = a screen with nothing on it)
    */
   function shownCycle(S, env) {
-    var s = S || {};
-    if (s.layoutPreset === 'custom' && !(env && env.platform === 'aplite')) {
-      return VC.buildCustomCycle(Object.assign({}, s, { radarMode: 'graph', healthMode: 'all' }));
-    }
-    return VC.resolveViewCycle(s, env);
+    return VC.screensCycle(S, env);
   }
 
   /**

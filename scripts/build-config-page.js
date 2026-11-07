@@ -21,6 +21,9 @@ var APP_FILES = [
   // THAT body runs, so it sits after view-cycle.js and before status-thresholds.js —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/on-demand.js'),
+  // The screens as lists (window.Screens): reads VIEW_CYCLE, window.StatusLineCatalog and
+  // window.OnDemand while its body runs, so it follows all three.
+  path.join(ROOT, 'src/pkjs/screens.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
   // rainbow-budget.js reads PConf.tomorrowioBudget (ladder + night-pause rule) at load, and
   // interval-budget.js reads both; blocks.js reads all three at load — keep this order.
@@ -202,9 +205,11 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/wizard-finish.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard-upsell.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard.js'),
-  // The Custom-layout editor overlay. After view-cycle.js (reads window.VIEW_CYCLE
-  // at load) and beside the wizard, whose overlay pattern it shares.
-  path.join(ROOT, 'src/pkjs/settings/view-editor.js'),
+  // The Watchface tab's screens (the Screens card, the screen editor overlay, Setup's Rain
+  // radar picker, the modes worked out on Save). After screens.js and preview-watch.js
+  // (reads window.Screens and window.PreviewWatch at load) and beside the wizard, whose
+  // overlay pattern it shares.
+  path.join(ROOT, 'src/pkjs/settings/screens-page.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
   // key-test.js must precede its three consumers (window.KeyTest factory).
   path.join(ROOT, 'src/pkjs/settings/key-test.js'),

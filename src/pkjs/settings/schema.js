@@ -27,9 +27,8 @@ var spanHours = require('../forecast-span-hours.js');
 // key fields): the key sheets are built from it here, and the rows' key-status resolvers
 // read it in the page (key-status.js).
 var KEY_SOURCES = require('./key-sources.js');
-// The Custom-layout block (the per-view storage items, their sheetOnly section and
-// the "Edit views" row) lives in its own module so its capability gates are BUILT
-// from view-cycle.js's mode lists — the same table buildCustomCycle folds by.
+// The custom layout's storage (the per-view keys the screens are written to, in a
+// sheetOnly section, and the modes worked out from them) lives in its own module.
 var customLayout = require('./custom-layout-schema.js');
 // The gates and copy links the schema's modules share (settings/schema-gates.js): the
 // named capability and setting gates, the one-pass gateAll, the link that brings a tab to
@@ -69,7 +68,6 @@ var BT_ICON_OPTIONS = alertsSchema.BT_ICON_OPTIONS;
 var alertCodeOf = alertsSchema.alertCodeOf;
 var onDemandPlacedWhen = alertsSchema.onDemandPlacedWhen;
 var onDemandRow = alertsSchema.onDemandRow;
-var rainAlertUnshownNote = alertsSchema.rainAlertUnshownNote;
 // The Forecast tab's line rows (settings/forecast-lines-schema.js): the rows each metric
 // picker carries (Line style, Draw from, the graph scales, Visible values), the metric
 // pickers' derived hint and the two stripe styles the Area fill row reads.
@@ -718,22 +716,6 @@ var PROVIDER_WHY = {
     wunderground: 'A huge crowd-sourced network of 250,000+ personal weather stations — dense local readings, strongest across the US and Europe. No API key needed.',
     yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key.'
 };
-var RADAR_WHY = {
-    dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.',
-    metno: 'Precise weather radar — rain at your exact spot. Nordics only.',
-    // Rainbow's terms ask for a "Powered by Rainbow.ai" link wherever its data shows, so
-    // both Rainbow why-hints end on it.
-    // "Rainbow (limited)": why the shared radar is limited — the developer pays for the
-    // calls every user shares, and the rainbow-nowcast proxy caps that account at
-    // RAINBOW_MONTHLY_BUDGET upstream calls (DEV.md; default the free 5,000), so past it
-    // users get no fresh radar rather than a bill — and the option that lifts it.
-    rainbow: 'A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.',
-    // "Rainbow (own key)": the same nowcast on the user's own Rainbow account.
-    rainbowkey: 'A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. A key is free: Rainbow\'s free plan covers 5,000 calls a month. Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.',
-    // Without a key the amber note under the row says what goes missing, so the why-hint
-    // here only says whose key and whose budget.
-    tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key and counts against the same call budget.'
-};
 // The radar picker's options in order. desc (3rd tuple slot) = the short "what it's best at"
 // tag under each name in the dropdown, mirroring the weather picker. DWD/Met.no are real
 // radar; Rainbow/Tomorrow.io are model nowcasts (Tomorrow.io is the precise, worldwide one).
@@ -765,12 +747,35 @@ var RADAR_KEYS = KEY_SOURCES.radarProvider.sources;
 // Tomorrow.io is both is the one shown, and the other is gated off exactly then.
 var TOMORROWIO_SHARED = RADAR_KEYS.tomorrowio.sharedSheet;
 var TOMORROWIO_WEATHER_WHEN = {key: TOMORROWIO_SHARED.key, eq: TOMORROWIO_SHARED.eq};
-var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'radarMode', ne: 'off'},
+var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'radarEnabled', ne: false},
     {key: TOMORROWIO_SHARED.key, ne: TOMORROWIO_SHARED.eq}]};
-// "Rainbow (own key)" picked for a running radar: its key sheet's gate. The radarMode
-// clause keeps the sheet (and so the Save dialog's way into it) closed with radar off,
-// when no Rainbow call is made.
-var RAINBOW_OWN_KEY_WHEN = {all: [{key: 'radarProvider', eq: 'rainbowkey'}, {key: 'radarMode', ne: 'off'}]};
+// "Rainbow (own key)" picked for a running radar: its key sheet's gate. The radarEnabled
+// clause keeps the sheet (and so the Save dialog's way into it) closed with the radar off
+// (Setup › Data sources), when no Rainbow call is made.
+var RAINBOW_OWN_KEY_WHEN = {all: [{key: 'radarProvider', eq: 'rainbowkey'}, {key: 'radarEnabled', ne: false}]};
+// Setup's Rain radar picker: each source's "why", shown with the picked one. Rainbow's
+// terms ask for a "Powered by Rainbow.ai" link wherever its data shows, so both Rainbow
+// hints end on it. Off says nothing more than its own line ("No rain radar and no rain
+// alert"), so it has none.
+var RAINBOW_LINK = 'Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.';
+var RADAR_SOURCE_HINTS = {
+    dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.',
+    metno: 'Precise weather radar — rain at your exact spot. Nordics only.',
+    // "Rainbow (limited)": the calls every user shares are the developer's (the
+    // rainbow-nowcast proxy caps them at RAINBOW_MONTHLY_BUDGET upstream calls, DEV.md), so
+    // the shared radar refreshes at most every 30 minutes. "Rainbow (own key)" lifts it.
+    rainbow: 'Refreshes at most every 30 minutes. ' + RAINBOW_LINK,
+    // "Rainbow (own key)": the same nowcast on the user's own Rainbow account.
+    rainbowkey: 'A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at '
+        + 'every update. A key is free: Rainbow\'s free plan covers 5,000 calls a month. ' + RAINBOW_LINK,
+    // Without a key the amber note under the row says what goes missing, so the hint here
+    // only says whose key and whose budget.
+    tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key and counts against the same '
+        + 'call budget.'
+};
+// The radar's on-state rows (its key row and its coverage note) and the picker itself: a
+// watch with the radar (not aplite).
+var RADAR_ON_WHEN = {all: [{env: 'radar'}, {key: 'radarEnabled', ne: false}]};
 // A tap-to-copy button (copy icon) for use inside hint HTML: copies `url` via the engine's delegated
 // [data-copy] handler and flashes a "Copied" toast. Used instead of a plain link where tapping is
 // useless — e.g. a page that 404s on the mobile site, so users copy the URL and open it on desktop.
@@ -857,7 +862,7 @@ function barSlots(prefix, barWhen, leftJoins) {
 // the URL and open it in desktop-site mode. See copyBtn() + the engine's [data-copy] handler.
 var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b>' + copyBtn('https://app.tomorrow.io/development/keys', 'Copy the API-keys page link') + ', copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io\'s mobile site shows an error (404) on the API-keys page — tap the copy button, then open the link in your browser\'s desktop-site mode.</b>';
 var TOMORROWIO_BUDGET_HINT = 'Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.';
-// The rows of both Tomorrow.io key sheets, the weather provider's (Setup › Weather data) and
+// The rows of both Tomorrow.io key sheets, the weather provider's (Setup › Data sources) and
 // the radar-only one (Graphs › Rain radar): the key field with its Test button, then the
 // budget guard with the call-budget read-out between the two (blockBefore).
 // keySheetSection gives each sheet's copies that sheet's gate.
@@ -985,18 +990,13 @@ function hoursPair(startKey, endKey, startDefault, endDefault, when) {
 }
 
 // The tabs' and cards' intros.
-var VIEWS_INTRO = 'A view is one screen of the watchface. The Default view shows the forecast graph; '
-    + 'Rain radar and Health can each add a view of their own. Flick your wrist to switch views. '
-    + 'The layout decides how they\'re arranged, and each graph is set up in Graphs.';
-// The Layout card's two flick rows (Double flick, View reset time): aplite has no flick
-// cycle at all (WW_VIEW_CYCLE is compiled out), so both rows hide there together.
+// The screens and their switching: aplite has no flick cycle at all (WW_VIEW_CYCLE is
+// compiled out), so it keeps one screen and a plain Layout choice.
 var VIEW_FLICK_WHEN = {env: 'platform', ne: 'aplite'};
 // The forecast's Forecast length row: emery only (platform.js isForecastSpanPlatform, the
 // env.forecastSpan fact), hidden on an unknown watch (fail closed: the 640 / 536 B
 // inboxes of every other watch cannot take the long span's 68-hour bundle).
 var FORECAST_SPAN_WHEN = {env: 'forecastSpan'};
-var LAYOUT_INTRO = 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the '
-    + 'preview. What a metric means or how it\'s coloured lives in Graphs.';
 // The owner's text (2026-11-06). The tap is said twice on purpose: the bars' own line under
 // them (preview-status-bars.js) and here, because a tap on a picture was not obvious.
 var STATUS_INTRO = 'Each bar has a left, middle and right slot. Tap a slot above to change it.';
@@ -1165,12 +1165,12 @@ module.exports = {
             }]
         }]
     }, {
-        // Watchface — what decides how the face looks: which views exist, how they are laid
-        // out, the theme and what changes at night, the time and the calendar. The page
-        // opens here. The layout preview stays pinned at the top while the Views and Layout
-        // cards scroll under it; past Layout it scrolls away with the page (owner, 2026-10-04).
+        // Watchface — what decides how the face looks: the screens and how the watch switches
+        // them, the theme and what changes at night, the time and the calendar. The page opens
+        // here. The watch stays pinned at the top while the Screens and Screen switching cards
+        // scroll under it; past them it scrolls away with the page (owner, 2026-10-04).
         id: 'watchface', label: 'Watchface', icon: 'tab-watchface', openDefault: true, pinBlock: 'watchPreview', pinBare: true,
-        pinThrough: 'layout', sections: [{
+        pinThrough: 'screenSwitching', sections: [{
             // The fetch-error notices stay first, above the pinned layout preview: the
             // panel draws nothing until a fetch fails, and then it is the news the page
             // opens on.
@@ -1182,174 +1182,69 @@ module.exports = {
                 defaultValue: false
             }]
         }, {
-            // The two optional views, next to the layout they feed. aplite draws neither
-            // (each row is env-gated), so the card is gone there.
-            id: 'views',
-            title: 'Views',
-            intro: VIEWS_INTRO,
-            items: [{
-                type: 'segmented',
-                full: true,
-                messageKey: 'radarMode',
-                label: 'Rain radar',
-                defaultValue: 'graph',
-                // The selected option only, and only WHAT it turns on: no views, no places —
-                // the pinned layout preview shows where (owner, 2026-10-04). Off gets none.
-                hintByValue: {
-                    // No radar bar or graph in this mode: the rain icon's place is the Rain
-                    // dialog's Shows on grid (Alerts tab). Plain text: a per-value hint.
-                    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on the status bars picked in Alerts › Rain.',
-                    status: 'Adds the Radar Status Bar.',
-                    graph: 'Adds the Radar Status Bar and the rain radar graph.'
-                },
-                // 'Rain alert only' — the VALUE stays 'countdown' (stored + telemetry): the
-                // mode fetches radar solely for the rain alert, which an On demand side draws.
-                options: [['Off', 'off'], ['Rain alert only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
-                onChange: 'resetStatusRadar',
-                // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined).
-                showWhen: {env: 'radar'}
-            }, rainAlertUnshownNote(), {
-                type: 'segmented',
-                full: true,
-                messageKey: 'healthMode',
-                label: 'Health',
-                defaultValue: 'all',
-                // As the Rain radar row: what the selected option turns on, no views or
-                // places, no Off hint.
-                hintByValue: {
-                    slot: 'Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar.',
-                    status: 'Adds the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate.',
-                    all: 'Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line.'
-                },
-                // A watch without a heart-rate sensor reads the same hints without it.
-                hintFrom: {resolver: 'noHeartRateHint', args: {byValue: {
-                    slot: 'Lets you put health items (steps, sleep, walked distance) in any status bar.',
-                    status: 'Adds the Health Status Bar — today\'s steps and last night\'s sleep.',
-                    all: 'Adds the Health Status Bar and a health graph — hourly step bars and a sleep band.'
-                }}},
-                options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph', 'all']],
-                onChange: 'resetStatusHealth',
-                // aplite has no health sensors — the watch compiles the view out.
-                showWhen: {env: 'health'}
-            }]
+            // The screens (screens-page.js): one row per screen, what it shows, a ✕ on each
+            // flick screen and "+ Add screen". The pinned watch above draws them and opens
+            // each one's editor on a tap (preview-watch.js). aplite has no screens.
+            id: 'screens',
+            title: 'Screens',
+            block: 'screensCard',
+            showWhen: VIEW_FLICK_WHEN,
+            items: []
         }, {
+            // aplite keeps a plain Layout choice: its watch draws one screen, a preset (a
+            // stored custom layout or another preset runs as Compact calendar there,
+            // view-cycle.js presetKeyFor / resolveViewCycle, and displays as it).
             id: 'layout',
             title: 'Layout',
-            intro: LAYOUT_INTRO,
+            showWhen: {env: 'platform', eq: 'aplite'},
             items: [{
                 type: 'radio',
                 messageKey: 'layoutPreset',
-                label: 'Layout preset',
+                label: 'Layout',
                 defaultValue: 'compactCal',
                 hintByValue: {
-                    fullCal: '3-row calendar. Health and radar appear on wrist-flicks.',
-                    compactCal: '2-row calendar. Flick to radar and health as you enable them.',
-                    compactDense: 'Compact calendar with two status bars at once — health or radar above the clock, forecast below.',
-                    noCal: 'No calendar — a big forecast. Flick to radar and health.',
-                    weatherOnly: 'No calendar and no Watch Status Bar — the rain radar, clock, weather and a big forecast. Flick to health.',
-                    custom: 'Build each view yourself — pick its elements and graphs, then order, size and align them.'
+                    fullCal: '3-row calendar.',
+                    compactCal: '2-row calendar.',
+                    noCal: 'No calendar — a big forecast.'
                 },
-                // 'Weather only' draws a different Default view per radar mode
-                // (view-cycle.js buildViewCycle: WO_RADAR / WO_RADAR_S / NONE_FC_W /
-                // WO_PLAIN), so its hint follows radarMode; the static one above is the
-                // Graph text, the default mode's. Every other preset keeps hintByValue.
-                // The resolver appends " Flick to health." only while a Health view exists
-                // (healthMode status/all on a health watch) — without one the Weather-only
-                // cycle is its Default view alone.
-                hintFrom: {resolver: 'weatherOnlyHint', args: {byRadar: {
-                    graph: 'No calendar and no Watch Status Bar — the rain radar, clock, weather and a big forecast.',
-                    status: 'No calendar and no Watch Status Bar — the clock, the weather and radar status bars and a big forecast.',
-                    countdown: 'No calendar — the Watch Status Bar, where the rain icon shows by default, then the clock, weather and a big forecast.',
-                    off: 'No calendar and no Watch Status Bar — the clock, weather and a big forecast.'
-                }}},
-                // Compact-dense only differs from Compact when a health status row OR the
-                // radar status row is shown; with both off the two produce identical cycles,
-                // so it's hidden then. A stored compactDense lies DORMANT while hidden
-                // (dormantValues): the radio displays the compactCal fallback but the
-                // stored choice is kept, so it returns when a status row re-enables it —
-                // the wire compiles hidden-dense to the identical compactCal cycle, so the
-                // watch always matches the display. Order stays constant (compactDense
-                // between compactCal and noCal) so toggling health/radar doesn't reshuffle
-                // the list. See layoutPresetOptions in blocks.js + engine.resolveRowItem.
-                // 'custom' is dormant the same way on aplite (Custom is never offered
-                // there; the payload folds it to compactCal, matching the display).
-                // Picking custom seeds the per-view keys once (layoutPresetChanged).
-                // A list of names, not pictures (the owner, 2026-11-06): the pinned watch at
-                // the top of the tab already draws the views the picked preset gives.
-                optionsFrom: { resolver: 'layoutPresetOptions' },
-                dormantValues: ['compactDense', 'weatherOnly', 'custom'],
-                onChange: 'layoutPresetChanged'
-            },
-            // The Custom-layout "Edit views" row — custom-layout-schema.js.
-            customLayout.editRow,
-            {
-                type: 'toggle',
-                messageKey: 'largeGraphFont',
-                label: 'Larger graph fonts',
-                // ON out of the box: on emery's 200 px screen the taller tier is simply the
-                // more readable one at a glance, and it costs no band height (chart.c solves
-                // both tiers against the same ink floor). Only a FRESH install -- or an
-                // upgrade from before the setting existed, whose missing key seedDefaults
-                // backfills -- lands here; a v1.14.0 install already stores its own value,
-                // so this is deliberately not migrated.
-                defaultValue: true,
-                hint: 'Draw the graph axis labels in bigger type.',
-                more: true,
-                // Emery only: the 200 px screen is the only one with room for a font
-                // tier up, and on a 144 px watch the graph left axis is ALREADY drawn
-                // at the calendar size (both GOTHIC_18), so there is nothing to step.
-                // An unavailable watchInfo leaves env.platform '' and hides the row --
-                // fail-closed is right for an emery-only cosmetic toggle.
-                showWhen: {env: 'platform', eq: 'emery'}
+                // The three calendars (screens-page.js apliteLayouts). Derived only so the
+                // engine's dormant fallback applies: a stored compactDense, Weather only or
+                // custom layout, which aplite runs as Compact calendar (view-cycle.js
+                // presetKeyFor), shows as Compact calendar and stays stored.
+                optionsFrom: {resolver: 'apliteLayouts'},
+                dormantValues: ['compactDense', 'weatherOnly', 'custom']
             }, {
                 type: 'toggle',
                 messageKey: 'swapClockStatus',
                 label: 'Swap clock and status row',
                 // ON out of the box: beside the forecast the status row reads as part of the
-                // graph, and the clock keeps the top of the screen to itself. Only a FRESH
-                // install lands here — an existing one already stores its own value, so this
-                // is deliberately not migrated. Still gated to compactCal (showWhen below and
-                // view-cycle.js's bake); the other presets ignore it.
+                // graph, and the clock keeps the top of the screen to itself. Compact
+                // calendar only: the radio shows it for a dormant value too.
                 defaultValue: true,
                 hint: 'Move the status row below the clock, next to the forecast.',
                 more: true,
-                // Gated on the preset the radio SHOWS, not merely the stored one: a DORMANT
-                // value displays as compactCal (layoutPreset's dormantValues) and compiles
-                // as compactCal, swap included (view-cycle.js buildViewCycle, resolvePresetKey).
-                // That is a compactDense no status row makes dense — the complement of
-                // blocks.js layoutPresetOptions' dense predicate; keep the two in step — and
-                // a 'custom' or 'weatherOnly' on aplite, which offers neither.
-                showWhen: {any: [
-                    {key: 'layoutPreset', eq: 'compactCal'},
-                    {all: [{key: 'layoutPreset', eq: 'compactDense'},
-                           {key: 'healthMode', in: ['off', 'slot']},
-                           {key: 'radarMode', in: ['off', 'countdown']}]},
-                    {all: [{key: 'layoutPreset', eq: 'custom'}, {env: 'platform', eq: 'aplite'}]},
-                    {all: [{key: 'layoutPreset', eq: 'weatherOnly'}, {env: 'platform', eq: 'aplite'}]}
-                ]}
-            }, {
+                showWhen: {key: 'layoutPreset', nin: ['fullCal', 'noCal']}
+            }]
+        }, {
+            // How the watch switches screens, once there is a screen to flick to.
+            id: 'screenSwitching',
+            title: 'Screen switching',
+            showWhen: {all: [VIEW_FLICK_WHEN, {when: 'manyScreens'}]},
+            items: [{
                 type: 'toggle',
                 messageKey: 'doubleFlick',
-                label: 'Double flick to switch views',
+                label: 'Double flick to switch',
                 // OFF: one flick switches, as it always has. A fresh install lands here, and
                 // an upgrade too (seedDefaults backfills the missing key); off leaves
                 // CLAY_VIEW_RESET_MIN's word unchanged, so an upgrade resends nothing.
                 defaultValue: false,
-                hint: 'Switch views only on a second flick within a few seconds of the first, to reduce accidental view switches.',
-                more: true,
-                showWhen: VIEW_FLICK_WHEN
+                hint: 'Switch only on a second flick within a few seconds of the first.'
             }, {
-                // Last in the card deliberately, right below Double flick: the rows above
-                // shape what the layout LOOKS like; these two are about how it switches
-                // and when it snaps back.
                 type: 'segmented',
                 messageKey: 'viewResetMin',
-                label: 'View reset time',
+                label: 'Back to Default after',
                 defaultValue: '2',
-                hint: 'Automatically return to the default view after the selected time has passed.',
-                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
-                more: true,
-                showWhen: VIEW_FLICK_WHEN
+                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']]
             }]
         },
         // Custom-layout storage (sheetOnly per-view keys) — custom-layout-schema.js.
@@ -2101,6 +1996,21 @@ module.exports = {
                 more: true,
                 showWhen: {all: [EMERY_WHEN, {key: FORECAST_AXIS.KEYS.numbers, ne: FORECAST_AXIS.OFF},
                     {when: 'tempAxisLineDrawn'}]}
+            }, {
+                type: 'toggle',
+                messageKey: 'largeGraphFont',
+                label: 'Larger graph fonts',
+                // ON out of the box: on emery's 200 px screen the taller tier is simply the
+                // more readable one at a glance, and it costs no band height (chart.c solves
+                // both tiers against the same ink floor). Only a FRESH install -- or an
+                // upgrade from before the setting existed, whose missing key seedDefaults
+                // backfills -- lands here; a v1.14.0 install already stores its own value.
+                defaultValue: true,
+                hint: 'Draw the graph axis labels in bigger type.',
+                more: true,
+                // Emery only (the card's gate): on a 144 px watch the graph's left axis is
+                // already drawn at the calendar size, so there is nothing to step.
+                showWhen: {env: 'platform', eq: 'emery'}
             }]
         }, {
             // The Graph colors row, a card of its own: one dialog holding one row per graph
@@ -2242,12 +2152,19 @@ module.exports = {
             id: 'radar',
             showWhen: {env: 'radar'},
             items: [{
-                // With the radar view off there is nothing to set up here: say where it
-                // goes back on.
+                // With the radar off there is nothing to set up here: say where it goes back
+                // on (its source lives in Setup › Data sources).
                 type: 'staticText',
                 style: 'info',
-                text: 'The rain radar is off. Turn it on in ' + tabLink('watchface', 'Watchface › Views') + '.',
-                showWhen: {key: 'radarMode', eq: 'off'}
+                text: 'The rain radar is off. Turn it on in ' + tabLink('setup', 'Setup › Data sources') + '.',
+                showWhen: {key: 'radarEnabled', eq: false}
+            }, {
+                // On, but no screen shows the rain radar: its look has nothing to show yet.
+                type: 'staticText',
+                style: 'info',
+                text: 'No screen shows the rain radar. Add it to a screen on the '
+                    + tabLink('watchface', 'Watchface tab') + '.',
+                showWhen: {all: [{key: 'radarEnabled', ne: false}, {key: 'radarMode', ne: 'graph'}]}
             }, {
                 // The rain radar's Off, kept apart from its source (2.6): off, the phone fetches
                 // no radar and radarProvider stays the source a turn back on restores. radarMode
@@ -2257,43 +2174,12 @@ module.exports = {
                 messageKey: 'radarEnabled',
                 defaultValue: true
             }, {
-                type: 'select',
+                // The rain radar's source, stored on its own: Setup's Rain radar picker
+                // (radarSource, page-only) writes it, and Off leaves it as it is.
+                type: 'hidden',
                 messageKey: 'radarProvider',
-                label: 'Radar provider',
-                defaultValue: 'rainbow',
-                showWhen: {key: 'radarMode', ne: 'off'},
-                // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→
-                // "Rainbow (limited)"), the same map the wizard uses. See blocks.js recommend
-                // resolvers; the bracketed name moves the marker onto the desc line (engine.js).
-                recommendFrom: 'recommendedRadarProvider',
-                // Two Rainbow options, one per radar source (radar-factory.js): "Rainbow
-                // (limited)" ('rainbow') is the shared proxy, at most every 30 min (fetch-cycle.js
-                // throttle; builds without a proxy endpoint still offer it and clear the radar);
-                // "Rainbow (own key)" ('rainbowkey') is api.rainbow.ai directly on the user's
-                // key, at every update, which works without the endpoint. A changed source
-                // forces a fetch (index.js).
-                // The selected provider's fuller rationale is the row's info text.
-                hintByValue: RADAR_WHY,
-                // A key that is missing or known to be rejected puts a dot on this tab and a
-                // dialog in front of Save ("Add key" / "Save anyway"); the key's own row
-                // (keyRow, below the note) opens its dialog. Tomorrow.io's key is the
-                // weather provider's too: while Tomorrow.io is also the weather provider,
-                // that row opens Setup's Tomorrow.io dialog, the one copy of the key then.
-                attentionFrom: {resolver: 'keyAttention'},
-                options: RADAR_PROVIDER_OPTIONS
+                defaultValue: 'rainbow'
             }, {
-                // The own key's empty field, said where it cannot be missed: an amber note
-                // hugging the row while "Rainbow (own key)" or Tomorrow.io is picked with no
-                // key. For DWD and Met.no the same note says when the last update's location
-                // lies outside the picked source's area, or (DWD) inside it with no radar
-                // data from DWD, naming one that covers it (radar-coverage.js; the phone's
-                // record userData.radarCoverage). textFrom answers '' otherwise.
-                type: 'staticText',
-                style: 'info',
-                joinPrevious: true,
-                textFrom: {resolver: 'radarProviderNote', args: {picker: 'radarProvider'}},
-                showWhen: {key: 'radarMode', ne: 'off'}
-            }, keyRow('radarProvider', {key: 'radarMode', ne: 'off'}), {
                 type: 'segmented',
                 messageKey: 'radarColor',
                 label: 'Radar color',
@@ -2364,33 +2250,7 @@ module.exports = {
             // The rain alert's time window (rainCountdownHorizon) used to close this
             // section; it is set in the Rain alert dialog (Alerts › Rain) alone.
         },
-        // "Rainbow (own key)"'s key dialog, opened by its key row under the Radar provider
-        // and rendered nowhere else. The key, its trimming and refetch on Save
-        // (onbuild.js), its keeping through Reset (clay-settings.js PRESERVED_SETTING_KEYS)
-        // and the Test action are as before; the key never rides the watch wire.
-        keySheetSection(RADAR_KEYS.rainbowkey, RAINBOW_OWN_KEY_WHEN, [{
-            type: 'text',
-            messageKey: 'rainbowApiKey',
-            label: 'API key',
-            defaultValue: '',
-            suffixAction: 'testRainbowKey',
-            suffixLabel: 'Test',
-            hint: RAINBOW_KEY_HINT
-        }, {
-            type: 'toggle',
-            messageKey: 'rainbowFitBudget',
-            label: 'Fit update interval to rate limit',
-            defaultValue: true,
-            joinPrevious: 'loose',
-            // The monthly-usage read-out sits between the key field and this toggle.
-            blockBefore: 'rainbowBudget',
-            hint: RAINBOW_BUDGET_HINT
-        }]),
-        // Radar-only Tomorrow.io's key dialog: Setup's Tomorrow.io dialog's rows, same
-        // messageKeys, gated apart (TOMORROWIO_RADAR_ONLY_WHEN), so findShownItem keeps
-        // the two copies apart. While Tomorrow.io is also the weather provider this dialog
-        // is closed and Setup's holds the key.
-        keySheetSection(RADAR_KEYS.tomorrowio, TOMORROWIO_RADAR_ONLY_WHEN, TOMORROWIO_KEY_ROWS), {
+        {
             // ── Health pane ── the heart-rate line's scale (the health graph's one setting).
             pane: 'health',
             id: 'healthGraph',
@@ -2417,13 +2277,13 @@ module.exports = {
             }, {
                 type: 'staticText',
                 style: 'info',
-                text: 'The heart-rate line is part of the health graph. Pick “Status + Graph” for Health in '
-                    + tabLink('watchface', 'Watchface › Views') + '.',
+                text: 'The heart-rate line is part of the health graph. Add the Health graph to a screen on the '
+                    + tabLink('watchface', 'Watchface tab') + '.',
                 showWhen: {all: [{env: 'hr'}, {key: 'healthMode', ne: 'all'}]}
             }]
         }])
     }, {
-        // Setup — what is set once: location, weather data, units, and the Misc and
+        // Setup — what is set once: location, the data sources, units, and the Misc and
         // Advanced items.
         id: 'setup', label: 'Setup', icon: 'tab-setup', sections: [{
             id: 'location',
@@ -2451,12 +2311,14 @@ module.exports = {
                 hint: 'How long a GPS fix is reused before re-acquiring. Longer saves battery; shorter keeps your location fresher on the move. The lowest value matches your update interval.'
             }]
         }, {
-            id: 'weatherData',
-            title: 'Weather data',
+            // Where the data comes from: the weather, the rain radar, the air quality, and how
+            // often the phone asks.
+            id: 'dataSources',
+            title: 'Data sources',
             items: [{
                 type: 'select',
                 messageKey: 'provider',
-                label: 'Weather provider',
+                label: 'Weather',
                 defaultValue: 'wunderground',
                 onChange: 'clearPollenForProvider',
                 // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→Open-Meteo),
@@ -2491,24 +2353,58 @@ module.exports = {
                 joinPrevious: true,
                 textFrom: {resolver: 'keyMissingNote', args: {picker: 'provider'}}
             }, keyRow('provider', null), {
+                // The rain radar's source, or Off (screens-page.js): a page-only picker over
+                // radarEnabled and radarProvider, so Off keeps the source and turning the radar
+                // on again restores it. Flags the country-matched source "(Recommended)"
+                // (blocks.js recommend resolvers). A keyed source with a key missing or known
+                // to be rejected puts a dot on this tab and a dialog in front of Save (its key
+                // row, below the note, opens its dialog); with the radar off no call is made,
+                // so it asks nothing then. A changed source forces a fetch (index.js).
                 type: 'select',
-                messageKey: 'fetchIntervalMin',
-                label: 'Update interval',
-                defaultValue: '15',
-                hint: 'Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.',
-                optionsFrom: {resolver: 'fetchIntervalBudget'}
+                uiOnly: true,
+                messageKey: 'radarSource',
+                label: 'Rain radar',
+                defaultValue: 'rainbow',
+                initFrom: {resolver: 'radarSourceValue'},
+                onChange: 'radarSourcePicked',
+                recommendFrom: 'recommendedRadarProvider',
+                hintByValue: RADAR_SOURCE_HINTS,
+                attentionFrom: {resolver: 'radarKeyAttention'},
+                options: [['Off', 'off', {desc: 'No rain radar and no rain alert'}]].concat(RADAR_PROVIDER_OPTIONS),
+                showWhen: {env: 'radar'}
             }, {
+                // The own key's empty field, said where it cannot be missed: an amber note
+                // hugging the row while "Rainbow (own key)" or Tomorrow.io is picked with no
+                // key. For DWD and Met.no the same note says when the last update's location
+                // lies outside the picked source's area, or (DWD) inside it with no radar
+                // data from DWD, naming one that covers it (radar-coverage.js; the phone's
+                // record userData.radarCoverage). textFrom answers '' otherwise.
+                type: 'staticText',
+                style: 'info',
+                joinPrevious: true,
+                textFrom: {resolver: 'radarProviderNote', args: {picker: 'radarProvider'}},
+                showWhen: RADAR_ON_WHEN
+            }, keyRow('radarProvider', RADAR_ON_WHEN), {
                 type: 'select',
                 messageKey: 'aqiSource',
-                label: 'AQI provider',
+                label: 'Air quality',
                 defaultValue: 'waqi',
                 hintByValue: {
                     auto: 'Prefers WAQI and falls back to Open-Meteo when no nearby station is available.',
                     waqi: 'WAQI (aqicn.org) reads real monitoring stations — most accurate, but rural / under-monitored areas may have no nearby station and show "--".',
                     openmeteo: 'Open-Meteo is a global model with coverage everywhere.'
                 },
-                options: [['Auto', 'auto'], ['WAQI', 'waqi'], ['Open-Meteo', 'openmeteo']],
-                more: true
+                options: [['Auto', 'auto'], ['WAQI', 'waqi'], ['Open-Meteo', 'openmeteo']]
+            }, {
+                type: 'select',
+                messageKey: 'fetchIntervalMin',
+                label: 'Update interval',
+                defaultValue: '15',
+                hint: 'Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.',
+                // While the Battery saver is on (Watchface › Theme & night), its hours pause
+                // the updates: said here, from its hours (screens-page.js).
+                hintFrom: {resolver: 'batterySaverPauseHint'},
+                optionsFrom: {resolver: 'fetchIntervalBudget'}
             }]
         },
         // The keyed weather providers' key dialogs, opened by the key row under the Weather
@@ -2535,7 +2431,35 @@ module.exports = {
             label: 'API key',
             defaultValue: '',
             hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here.'
-        }]), {
+        }]),
+        // "Rainbow (own key)"'s key dialog, opened by its key row under the Rain radar picker
+        // (Data sources, above) and rendered nowhere else. The key, its trimming and refetch on Save
+        // (onbuild.js), its keeping through Reset (clay-settings.js PRESERVED_SETTING_KEYS)
+        // and the Test action are as before; the key never rides the watch wire.
+        keySheetSection(RADAR_KEYS.rainbowkey, RAINBOW_OWN_KEY_WHEN, [{
+            type: 'text',
+            messageKey: 'rainbowApiKey',
+            label: 'API key',
+            defaultValue: '',
+            suffixAction: 'testRainbowKey',
+            suffixLabel: 'Test',
+            hint: RAINBOW_KEY_HINT
+        }, {
+            type: 'toggle',
+            messageKey: 'rainbowFitBudget',
+            label: 'Fit update interval to rate limit',
+            defaultValue: true,
+            joinPrevious: 'loose',
+            // The monthly-usage read-out sits between the key field and this toggle.
+            blockBefore: 'rainbowBudget',
+            hint: RAINBOW_BUDGET_HINT
+        }]),
+        // Radar-only Tomorrow.io's key dialog: Setup's Tomorrow.io dialog's rows, same
+        // messageKeys, gated apart (TOMORROWIO_RADAR_ONLY_WHEN), so findShownItem keeps
+        // the two copies apart. While Tomorrow.io is also the weather provider this dialog
+        // is closed and Setup's holds the key.
+        keySheetSection(RADAR_KEYS.tomorrowio, TOMORROWIO_RADAR_ONLY_WHEN, TOMORROWIO_KEY_ROWS),
+        {
             id: 'units',
             title: 'Units', items: [{
                 type: 'segmented',

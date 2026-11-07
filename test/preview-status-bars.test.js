@@ -179,34 +179,41 @@ test('a bar no view of the layout seats is left out', () => {
   assert.ok(preview.statusBarsPreview({ layoutPreset: 'compactCal' }, {}).indexOf('>Watch<') !== -1);
 });
 
-test('the Radar and Health bars show while the Views card turns them on, seated or not', () => {
+test('the Radar and Health bars show while a screen shows them', () => {
   const VC = require('../src/pkjs/view-cycle.js');
   const env = { platform: 'basalt', health: true, radar: true };
+  // A preset's screens follow its modes (view-cycle.js barsShown); the bars follow the screens.
   const presets = ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'];
   presets.forEach((layoutPreset) => {
-    ['status', 'all'].forEach((healthMode) => {
-      ['status', 'graph'].forEach((radarMode) => {
+    ['off', 'slot', 'status', 'all'].forEach((healthMode) => {
+      ['off', 'countdown', 'status', 'graph'].forEach((radarMode) => {
         const S = { layoutPreset, healthMode, radarMode };
         const html = preview.statusBarsPreview(S, env);
+        const shown = VC.barsShown(S, env);
         const label = layoutPreset + '/' + healthMode + '/' + radarMode;
-        assert.ok(html.indexOf('>Radar<') !== -1, label + ': ' + html);
-        assert.ok(html.indexOf('>Health<') !== -1, label + ': ' + html);
+        assert.equal(html.indexOf('>Radar<') !== -1, shown.radar, label + ': ' + html);
+        assert.equal(html.indexOf('>Health<') !== -1, shown.health, label + ': ' + html);
       });
     });
   });
-  // Weather only with the radar graph seats no radar row on any view, yet the bar's
-  // card is on the tab, so its row stays — with or without health.
-  const wo = preview.statusBarsPreview({ layoutPreset: 'weatherOnly', healthMode: 'off', radarMode: 'graph' }, env);
-  assert.ok(wo.indexOf('>Radar<') !== -1, wo);
-  // A custom layout that leaves both rows out still lists them while they are on.
+  // Weather only with the radar graph draws the radar on top and no Radar bar.
+  const wo = preview.statusBarsPreview({ layoutPreset: 'weatherOnly', healthMode: 'all', radarMode: 'graph' }, env);
+  assert.equal(wo.indexOf('>Radar<'), -1, wo);
+  assert.ok(wo.indexOf('>Health<') !== -1, wo);
+  // A custom layout lists the bars its screens hold, whatever the stored modes say: the
+  // Radar bar without radar data too.
   const custom = { layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph' };
   VC.seedCustomKeys(custom, 'weatherOnly');
-  const html = preview.statusBarsPreview(custom, env);
+  const none = preview.statusBarsPreview(custom, env);
+  assert.equal(none.indexOf('>Radar<'), -1, 'no screen holds the Radar bar: ' + none);
+  const seated = Object.assign({}, custom, { viewUpper0: 'radar', viewLower0: 'health', radarMode: 'off',
+    healthMode: 'off' });
+  const html = preview.statusBarsPreview(seated, env);
   assert.ok(html.indexOf('>Radar<') !== -1, html);
   assert.ok(html.indexOf('>Health<') !== -1, html);
 });
 
-test('the Radar and Health bars stay out while the Views card turns them off', () => {
+test('the Radar and Health bars stay out while no screen shows them', () => {
   const env = { platform: 'basalt', health: true, radar: true };
   const off = preview.statusBarsPreview({ layoutPreset: 'compactCal', healthMode: 'slot', radarMode: 'countdown' }, env);
   assert.equal(off.indexOf('>Radar<'), -1, off);

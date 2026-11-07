@@ -147,10 +147,9 @@
     if (!item) { return false; }
     if (item.middleOnly && (!slotCtx || slotCtx.position !== 'mid')) { return false; }
     if (item.topRightOnly && (!slotCtx || slotCtx.slotKey !== 'statusTopRight')) { return false; }
-    if (item.needsHealth) {
-      if (!env || !env.health) { return false; }
-      if (settings && settings.healthMode === 'off') { return false; }
-    }
+    // Health items need the watch's health. Not healthMode: since 2.6 it follows the screens
+    // and the slots (screens.js deriveModes), so a slot can pick a health item in any mode.
+    if (item.needsHealth && (!env || !env.health)) { return false; }
     if (item.needsHr && (!env || !env.hr)) { return false; }
     // The phone's battery is readable only where the PKJS host exposes the
     // Battery Status API — Android's Chromium WebView, never iOS's

@@ -1,9 +1,9 @@
 // test/config-budget-save.test.js — the tomorrow.io and own-key Rainbow budget guards on
-// the REAL generated page, through its tab bar, pane switcher, select sheet, toggles and Save
-// button. fetchIntervalMin (Setup tab, Weather data) is snapped into its budget-fitting option
-// list only while that row renders, but the radar provider that doubles the call count is
-// picked on the Graphs tab's Rain radar pane — so a save that never visits Setup has to be
-// fitted by the submit hook (settings/onbuild.js).
+// the REAL generated page, through its tab bar, select sheet, toggles and Save button.
+// fetchIntervalMin and the Rain radar picker that doubles the call count share Setup's Data
+// sources card, so the interval row snaps into its budget-fitting option list as the pick
+// re-renders it; a change made elsewhere (the screens, which decide whether the radar is
+// fetched) is fitted by the submit hook (settings/onbuild.js).
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,16 +11,14 @@ const budget = require('../src/pkjs/settings/tomorrowio-budget.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 /**
- * Open the Graphs tab's Rain radar pane, where the Radar provider picker lives.
+ * Open the Setup tab, where the Rain radar picker and the update interval live.
  * @param {Object} page bootGeneratedPage handle.
  * @returns {void}
  */
 function openRadarPane(page) {
-  page.clickTab('graphs');
-  page.clickPane('graphs', 'radar');
-  assert.ok(page.scroll.innerHTML.indexOf('data-select="radarProvider"') !== -1, 'the Radar provider picker is drawn');
-  assert.equal(page.scroll.innerHTML.indexOf('data-select="fetchIntervalMin"'), -1,
-    'and the update interval is not (it lives in Setup)');
+  page.clickTab('setup');
+  assert.ok(page.scroll.innerHTML.indexOf('data-select="radarSource"') !== -1, 'the Rain radar picker is drawn');
+  assert.ok(page.scroll.innerHTML.indexOf('data-select="fetchIntervalMin"') !== -1, 'beside the update interval');
 }
 
 // Weather already on tomorrow.io at 5 min with no night pause: 1 call/cycle = 288/day, fits.
@@ -29,13 +27,13 @@ const STORED = {
   fetchIntervalMin: '5', sleepNightEnabled: false, tomorrowioFitBudget: true
 };
 
-test('picking Tomorrow.io radar on the Rain radar pane and saving stays within the free tier', async () => {
+test('picking Tomorrow.io radar in Setup and saving stays within the free tier', async () => {
   const page = bootGeneratedPage(STORED);
   assert.equal(page.S.fetchIntervalMin, '5', 'guard: 5 min fits the weather-only budget');
 
   openRadarPane(page);
-  page.openSelect('radarProvider');
-  page.pickOption('radarProvider', 'tomorrowio');
+  page.openSelect('radarSource');
+  page.pickOption('radarSource', 'tomorrowio');
   assert.equal(page.S.radarProvider, 'tomorrowio');
 
   const saved = await page.save();
@@ -47,8 +45,8 @@ test('picking Tomorrow.io radar on the Rain radar pane and saving stays within t
 test('with the guard off the page keeps the interval (it only warns)', async () => {
   const page = bootGeneratedPage(Object.assign({}, STORED, { tomorrowioFitBudget: false }));
   openRadarPane(page);
-  page.openSelect('radarProvider');
-  page.pickOption('radarProvider', 'tomorrowio');
+  page.openSelect('radarSource');
+  page.pickOption('radarSource', 'tomorrowio');
   assert.equal(page.S.radarProvider, 'tomorrowio');
   const saved = await page.save();
   assert.equal(saved.fetchIntervalMin, '5');
@@ -71,8 +69,8 @@ test('the own key\'s rows live in its key sheet, opened by its key row once "Rai
   assert.equal(tab.indexOf('data-k="rainbowApiKey"'), -1, 'no key field on the page');
   assert.equal(tab.indexOf('calls/month'), -1, 'and no monthly read-out');
 
-  page.openSelect('radarProvider');
-  page.pickOption('radarProvider', 'rainbowkey');
+  page.openSelect('radarSource');
+  page.pickOption('radarSource', 'rainbowkey');
   tab = page.scroll.innerHTML;
   assert.ok(/<div class="row nav indent" data-edit-sheet="radarKeyRainbow"[^>]*><div class="lft"><div class="lbl">Rainbow API key<\/div>/
     .test(tab), 'the key row follows the pick');
@@ -86,13 +84,13 @@ test('the own key\'s rows live in its key sheet, opened by its key row once "Rai
   assert.ok(sheet.indexOf('data-k="rainbowFitBudget"') !== -1, 'and the budget guard');
 });
 
-test('picking "Rainbow (own key)" on the Rain radar pane and saving stays within the free plan', async () => {
+test('picking "Rainbow (own key)" in Setup and saving stays within the free plan', async () => {
   const page = bootGeneratedPage(STORED_RB);
   assert.equal(page.S.fetchIntervalMin, '5', 'shared Rainbow: no guard, 5 min stays');
 
   openRadarPane(page);
-  page.openSelect('radarProvider');
-  page.pickOption('radarProvider', 'rainbowkey');
+  page.openSelect('radarSource');
+  page.pickOption('radarSource', 'rainbowkey');
   // The read-out in the key sheet shows what Save will store (Fit is on), not a red
   // "over budget" for the 5 min Save replaces.
   page.openEditSheet('radarKeyRainbow');
@@ -117,8 +115,8 @@ test('saving the shared Rainbow radar keeps it and leaves the interval alone', a
 test('with the Rainbow guard off the page keeps the interval (it only warns)', async () => {
   const page = bootGeneratedPage(Object.assign({}, STORED_RB, { rainbowFitBudget: false }));
   openRadarPane(page);
-  page.openSelect('radarProvider');
-  page.pickOption('radarProvider', 'rainbowkey');
+  page.openSelect('radarSource');
+  page.pickOption('radarSource', 'rainbowkey');
   page.openEditSheet('radarKeyRainbow');
   assert.ok(page.modal.innerHTML.indexOf('every 5 min, no night pause → '
     + '<b style="color:#FF6A52">~8,928 calls/month ✗ over budget</b>') !== -1, 'the page warns instead');

@@ -1,8 +1,8 @@
 // test/layout-flick-preview.test.js
-// The Watchface tab pins the watch preview at its top: one card per view of the resolved
-// preset's adaptive view cycle (Default, Flick 1, Flick 2). Drive the real engine over the
-// Watchface tab and assert the cards track the cycle — a disabled radar/health view simply
-// isn't in the cycle, so there's no card to dim.
+// The Watchface tab pins the watch preview at its top: one card per screen of the resolved
+// view cycle (Default, Flick 1, Flick 2), each a button that opens its editor off aplite.
+// Drive the real engine over the Watchface tab and assert the cards track the cycle — a
+// screen a preset's modes leave out simply isn't in the cycle, so there's no card to dim.
 // Also covers the engine capability that a staticText item may host a blockBefore.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -41,7 +41,7 @@ function watchfaceTab(overrides, platformName) {
   };
   const body = eng.renderBody(schema, 'watchface', cx);
   assert.equal(body.indexOf('<div class="pin-scope"><div class="pin">'), 0,
-    'the tab opens on its pinned preview, scoped to the cards through Layout');
+    'the tab opens on its pinned preview, scoped to the screens\' cards');
   return { body: body, pin: body.slice(0, body.indexOf('<div class="card')) };
 }
 
@@ -61,7 +61,8 @@ function layoutBody(overrides, platformName) {
  * @returns {string[]}
  */
 function views(pin) {
-  return (pin.match(/class="wpv-v" role="img" aria-label="[^"]*"/g) || []).map((m) => /aria-label="([^"]*)"/.exec(m)[1]);
+  return (pin.match(/class="wpv-v[^"]*"[^>]*aria-label="[^"]*"/g) || [])
+    .map((m) => /aria-label="(?:Edit )?([^"]*)"/.exec(m)[1]);
 }
 
 test('compactCal + radar shows a Default and a Flick card (radar view present)', () => {
@@ -90,10 +91,10 @@ test('aplite normalizes stale enabled settings to a single Default view', () => 
   const tab = watchfaceTab(stale, 'aplite');
   const body = tab.pin;
   assert.deepEqual(views(body).map((d) => d.split(':')[0]), ['Default'], 'the Default card alone');
-  // The reset control (a Layout card More option, open here) is hidden on aplite; on
-  // basalt the same state shows it.
-  assert.equal(tab.body.indexOf('View reset time'), -1, 'reset control is hidden');
-  assert.ok(watchfaceTab(stale).body.indexOf('>View reset time<') >= 0, 'premise: basalt shows the reset control');
+  // The Screen switching card (Back to Default after) is hidden on aplite; on basalt the
+  // same state, three screens, shows it.
+  assert.equal(tab.body.indexOf('Back to Default after'), -1, 'reset control is hidden');
+  assert.ok(watchfaceTab(stale).body.indexOf('>Back to Default after<') >= 0, 'premise: basalt shows the reset control');
 });
 
 test('engine renders a blockBefore hosted on a staticText item', () => {

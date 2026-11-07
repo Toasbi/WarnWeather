@@ -44,7 +44,7 @@ function cycle(S, platform) {
  * @returns {string[]}
  */
 function labels(html) {
-  return (html.match(/class="wpv-v" role="img" aria-label="[^"]*"/g) || []).map((m) => /aria-label="([^"]*)"/.exec(m)[1]);
+  return (html.match(/class="wpv-v[^"]*"[^>]*aria-label="[^"]*"/g) || []).map((m) => /aria-label="([^"]*)"/.exec(m)[1]);
 }
 
 test('every preset\'s views sit on the watch\'s seats, the filling graph running to the screen\'s foot', () => {
@@ -75,17 +75,28 @@ test('every preset\'s views sit on the watch\'s seats, the filling graph running
   });
 });
 
-test('each view is named and spoken band by band, in the Layout card\'s words', () => {
+test('each screen is named and spoken band by band, and a tap opens its editor', () => {
   const S = settings({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'all' });
   const env = plat.computeEnv({ platform: 'basalt' });
-  assert.deepEqual(labels(pw.watchPreview(S, env, {})), [
-    'Default: Watch Status, Calendar (2 rows), Clock, Forecast Status, Forecast',
-    'Flick 1: Watch Status, Clock, Health Status, Health graph',
-    'Flick 2: Watch Status, Clock, Radar Status, Radar'
+  const html = pw.watchPreview(S, env, {});
+  assert.deepEqual(labels(html), [
+    'Edit Default: Watch Status, Calendar (2 rows), Clock, Forecast Status, Forecast',
+    'Edit Flick 1: Watch Status, Clock, Health Status, Health graph',
+    'Edit Flick 2: Watch Status, Clock, Radar Status, Radar'
   ]);
+  // Each is a button that opens its screen's editor (screens-page.js openScreen).
+  assert.deepEqual((html.match(/<button type="button" class="wpv-v wpv-btn" data-action="openScreen" data-action-arg="\d"/g)
+    || []).map((b) => b.slice(-2, -1)), ['0', '1', '2']);
+  assert.match(html, /<\/div><span class="wpv-tap">Tap a screen to edit it<\/span>$/, 'and the pin says so');
   assert.deepEqual(labels(pw.watchPreview(settings({ layoutPreset: 'fullCal', radarMode: 'off', healthMode: 'off' }), env, {})),
-    ['Default: Watch Status, Calendar (3 rows), Clock, Forecast Status, Forecast'], 'one view, one screen');
-  assert.match(pw.watchPreview(S, env, {}), /^<div class="wpv n3" role="group" aria-label="Your watch">/);
+    ['Edit Default: Watch Status, Calendar (3 rows), Clock, Forecast Status, Forecast'], 'one view, one screen');
+  assert.match(html, /^<div class="wpv n3" role="group" aria-label="Your watch">/);
+  // aplite has no screen editor: its one screen is a picture.
+  const aplite = plat.computeEnv({ platform: 'aplite' });
+  const one = pw.watchPreview(settings({ layoutPreset: 'fullCal', radarMode: 'off', healthMode: 'off' }), aplite, {});
+  assert.equal(one.indexOf('data-action="openScreen"'), -1);
+  assert.equal(one.indexOf('wpv-tap'), -1);
+  assert.match(one, /class="wpv-v" role="img" aria-label="Default: /);
 });
 
 test('each view is a card of its own, the screen edge to edge on its own background, pinned bare', () => {
@@ -187,9 +198,10 @@ function watchfaceBody(S, env) {
 }
 
 // The Layout card's preset row is a list of names (the owner, 2026-11-06): the pinned watch at
-// the top of the tab already draws the views the picked preset gives.
-test('the Layout card lists the offered presets by name, with no pictures', () => {
-  [['basalt', 6], ['emery', 6], ['diorite', 6], ['aplite', 3]].forEach((p) => {
+// the top of the tab already draws the views the picked preset gives. Only aplite has the card
+// now; every other watch edits its screens.
+test('only aplite has a Layout card: its three calendars by name, with no pictures', () => {
+  [['basalt', 0], ['emery', 0], ['diorite', 0], ['aplite', 3]].forEach((p) => {
     const env = plat.computeEnv({ platform: p[0] });
     const html = watchfaceBody(settings({ layoutPreset: 'fullCal', radarMode: 'graph', healthMode: 'all' }), env);
     const opts = html.match(/data-k="layoutPreset" data-v="[^"]*"/g) || [];

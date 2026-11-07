@@ -1,22 +1,13 @@
 // src/pkjs/settings/reset-status-defaults.js — ES5, WebView. Registers the
-// config-ui engine's provider/status onChange hooks (see engine.js's
-// PConf.onChange) on provider, radarProvider, and healthMode.
-//
-// When radar or health flips its enable state (radar: off <-> countdown/
-// status/graph; health: off <-> status/all), two live resets keep the slot
-// dropdowns coherent before the user saves:
-//   1. the toggled feature's own status line returns to its catalog defaults
-//      (hrDefaults on a heart-rate-capable watch), and
-//   2. any slot on any line whose stored item just became unavailable (a
-//      health item after health-off, Precipitation % after radar-on) snaps
-//      back to that slot's default — or Empty when the default is already
-//      held by a sibling slot or itself unavailable.
-// Pack-time resolveSelection still maps stale/imported invalid codes to empty
-// (defense in depth); this hook exists so a user-driven toggle never leaves a
-// silently-empty slot behind. The radarMode hook also ticks the rain alert on the
-// Watch Status Bar when the mode that exists only for it is picked and no visible bar
-// shows it (forceRainOnDemand). It also registers the Shows on grids' writer
+// config-ui engine's status-slot onChange hooks (see engine.js's PConf.onChange):
+// pollen cleared off DWD (clearPollenForProvider), one item per line
+// (dedupeStatusSlot) and a fresh target date for a slot that turns Date countdown
+// (resetCountdownDate). It also registers the Shows on grids' writer
 // (PConf.checkWriters 'onDemandTick'), which stores each tick through on-demand.js.
+// Pack-time resolveSelection still maps stale/imported invalid codes to empty
+// (defense in depth). Since 2.6 the radar and health modes follow the screens
+// (screens.js deriveModes), so no mode flip resets a slot: a health item stays
+// selectable wherever the watch has Health, and Rain radar Off keeps every tick.
 /* global PConf, StatusLineCatalog */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
@@ -32,85 +23,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The On demand contract (on-demand.js), concatenated ahead of this file.
     var onDemand = (typeof require !== 'undefined')
         ? require('../on-demand.js') : window.OnDemand;
-    var POSITIONS = ['left', 'mid', 'right'];
-
-    /**
-     * Reset one line's slots to its catalog defaults. Mutates S.
-     * @param {Object} S live settings state
-     * @param {string} lineId 'radar' | 'health'
-     * @param {Object} env platform env
-     * @returns {void}
-     */
-    function resetOwnLine(S, lineId, env) {
-        for (var l = 0; l < catalog.LINES.length; l++) {
-            var line = catalog.LINES[l];
-            if (line.id !== lineId) { continue; }
-            for (var s = 0; s < line.slots.length; s++) {
-                // slotDefault owns the hrDefaults flavor — the same resolver a
-                // fresh install and resetStatusSlots go through.
-                S[line.slots[s]] = catalog.slotDefault(line.slots[s], env);
-            }
-        }
-    }
-
-    /**
-     * Scan every line; snap any now-unavailable stored item back to its slot
-     * default (or Empty when the default is unavailable or sibling-held).
-     * Mutates S.
-     * @param {Object} S live settings state
-     * @param {Object} env platform env
-     * @returns {void}
-     */
-    function resetUnavailable(S, env) {
-        for (var l = 0; l < catalog.LINES.length; l++) {
-            var line = catalog.LINES[l];
-            for (var s = 0; s < line.slots.length; s++) {
-                var key = line.slots[s];
-                var slotCtx = { slotKey: key, position: POSITIONS[s] };
-                var def = catalog.slotDefault(key, env);
-                var code = S[key] || def;
-                if (code === 'empty') { continue; }
-                var item = catalog.byCode(code);
-                if (item && catalog.itemAvailable(item, S, env, slotCtx)) { continue; }
-                var defItem = catalog.byCode(def);
-                if (def !== 'empty'
-                        && (!defItem
-                            || !catalog.itemAvailable(defItem, S, env, slotCtx)
-                            || catalog.siblingHolds(S, key, def))) {
-                    def = 'empty';
-                }
-                S[key] = def;
-            }
-        }
-    }
-
-    /**
-     * @param {string} kind 'radar' | 'health'
-     * @param {*} oldValue previous setting value
-     * @param {*} newValue new setting value
-     * @returns {boolean} true when the enable state flipped
-     */
-    function flipped(kind, oldValue, newValue) {
-        // radar and health share the 'off' sentinel now (radar off = radarMode 'off').
-        return (oldValue === 'off') !== (newValue === 'off');
-    }
-
-    /**
-     * onChange core: on an enable-state flip, reset the toggled feature's own
-     * line to defaults, then snap every displaced slot. Mutates S in place;
-     * no-op for non-flip changes (provider swaps, status<->all).
-     * @param {Object} S live settings state (engine's S; newValue already set)
-     * @param {string} kind 'radar' | 'health'
-     * @param {*} oldValue previous setting value
-     * @param {*} newValue new setting value
-     * @param {Object} env platform env
-     * @returns {void}
-     */
-    function applyReset(S, kind, oldValue, newValue, env) {
-        if (!flipped(kind, oldValue, newValue)) { return; }
-        resetOwnLine(S, kind, env);
-        resetUnavailable(S, env);
-    }
 
     /**
      * Clear DWD-only pollen selections after switching to another provider.
@@ -178,23 +90,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     });
 
     /**
-     * radarMode 'countdown' fetches the radar for the rain alert alone, so a rain
-     * alert ticked on no bar that exists in that mode (the Watch Status Bar, the
-     * forecast bar, the health bar while it exists — never the radar bar) would spend
-     * radar calls on nothing. Entering the mode then ticks Rain on the Watch Status
-     * Bar's left side (in the canonical order, unticked from its right):
-     * on-demand.js placeRainForCountdown, the rule the 1.24 migration shares. Mutates
-     * S.
-     * @param {Object} S live settings state (radarMode already set to newValue)
-     * @param {*} newValue new radarMode value
-     * @param {Object} [env] platform env
-     * @returns {void}
-     */
-    function forceRainOnDemand(S, newValue, env) {
-        if (newValue === 'countdown') { onDemand.placeRainForCountdown(S, env); }
-    }
-
-    /**
      * One tap in an item's Shows on grid (alerts-schema.js showsOnRows names this writer;
      * config-ui lib/checklist.js), stored by on-demand.js, the side lists' writer: a tick
      * places the item on that side of the bar in the priority order and takes it off the
@@ -212,13 +107,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (on) { onDemand.tickOn(S, at.bar, at.side, code); } else { onDemand.untickFrom(S, key, [code]); }
     }
 
-    PConf.onChange.register('resetStatusRadar', function (S, oldValue, newValue, env) {
-        applyReset(S, 'radar', oldValue, newValue, env);
-        forceRainOnDemand(S, newValue, env);
-    });
-    PConf.onChange.register('resetStatusHealth', function (S, oldValue, newValue, env) {
-        applyReset(S, 'health', oldValue, newValue, env);
-    });
     PConf.onChange.register('dedupeStatusSlot', function (S, oldValue, newValue, env, key) {
         resetCountdownDate(S, key, oldValue, newValue);
         dedupeStatusSlot(S, key);
@@ -227,11 +115,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
-            applyReset: applyReset,
             clearPollenForProvider: clearPollenForProvider,
             dedupeStatusSlot: dedupeStatusSlot,
             resetCountdownDate: resetCountdownDate,
-            forceRainOnDemand: forceRainOnDemand,
             onDemandTick: onDemandTick
         };
     }

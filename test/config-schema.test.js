@@ -292,41 +292,42 @@ test('the fill toggle hides for feels-like and stays visible for every other met
 
 // Radar-only Tomorrow.io: its key sheet's gate (Tomorrow.io drives a running radar but is not
 // the weather provider).
-const TOMORROWIO_RADAR_ONLY_WHEN = { all: [{ key: 'radarProvider', eq: 'tomorrowio' }, { key: 'radarMode', ne: 'off' },
+const TOMORROWIO_RADAR_ONLY_WHEN = { all: [{ key: 'radarProvider', eq: 'tomorrowio' }, { key: 'radarEnabled', ne: false },
   { key: 'provider', ne: 'tomorrowio' }] };
 
-test('tomorrow.io key renders under whichever picker uses it: the Setup tab\'s key sheet (weather) or the Graphs tab\'s (radar-only)', () => {
+test('tomorrow.io key renders under whichever picker uses it: the weather provider\'s key sheet or the radar\'s (radar-only)', () => {
   const keys = items.filter((i) => i.messageKey === 'tomorrowioApiKey');
   assert.equal(keys.length, 2, 'one instance per context (mutually exclusive)');
   const whens = keys.map((k) => JSON.stringify(k.showWhen));
   assert.ok(whens.includes(JSON.stringify({ key: 'provider', eq: 'tomorrowio' })),
     'weather-provider instance (the Setup tab\'s Tomorrow.io key sheet)');
   assert.ok(whens.includes(JSON.stringify(TOMORROWIO_RADAR_ONLY_WHEN)),
-    'radar-only instance (the Graphs tab\'s Tomorrow.io key sheet)');
+    'radar-only instance (the radar\'s Tomorrow.io key sheet)');
   const sheetOf = (tabId, sheetId) => schema.tabs.find((t) => t.id === tabId).sections.find((s) => s.sheetId === sheetId);
   assert.ok(sheetOf('setup', 'providerKeyTomorrowio').items.some((i) => i.messageKey === 'tomorrowioApiKey'
     && i.showWhen.key === 'provider'), 'the weather instance sits in Setup\'s key sheet');
-  assert.ok(sheetOf('graphs', 'radarKeyTomorrowio').items.some((i) => i.messageKey === 'tomorrowioApiKey'
+  assert.ok(sheetOf('setup', 'radarKeyTomorrowio').items.some((i) => i.messageKey === 'tomorrowioApiKey'
     && JSON.stringify(i.showWhen) === JSON.stringify(TOMORROWIO_RADAR_ONLY_WHEN)),
-    'the radar-only instance sits in the Graphs tab\'s key sheet');
+    'the radar-only instance sits in the radar\'s key sheet, on Setup too');
   keys.forEach((k) => assert.equal(k.suffixAction, 'testTomorrowioKey'));
   keys.forEach((k) => assert.equal(k.label, 'API key', 'each sheet\'s title names the provider'));
 });
 
-test('no key rows on the radar pane\'s page: every key lives in a key sheet that opens on its field', () => {
+test('no key rows on the Data sources card: every key lives in a key sheet that opens on its field', () => {
   // The weather providers' key rows, "Rainbow (own key)"'s and radar-only Tomorrow.io's all
-  // left the page for their key sheets.
-  const graphs = schema.tabs.find((t) => t.id === 'graphs');
-  const page = graphs.sections.find((s) => s.id === 'radar');
-  assert.equal(page.pane, 'radar', 'the radar card sits in the Graphs tab\'s radar pane');
-  ['tomorrowioApiKey', 'tomorrowioFitBudget', 'rainbowApiKey', 'rainbowFitBudget'].forEach((key) => {
-    assert.equal(page.items.some((i) => i.messageKey === key), false, key + ' is not on the radar pane\'s page');
-  });
+  // live in their key sheets, all on the Setup tab, which the key rows under the pickers open.
+  const setup = schema.tabs.find((t) => t.id === 'setup');
+  const card = setup.sections.find((s) => s.id === 'dataSources');
+  ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'rainbowApiKey', 'rainbowFitBudget']
+    .forEach((key) => {
+      assert.equal(card.items.some((i) => i.messageKey === key), false, key + ' is not on the card');
+    });
+  assert.equal(schema.tabs.find((t) => t.id === 'graphs').sections.some((s) => /^radarKey/.test(s.sheetId || '')), false,
+    'no key sheet left on the Graphs tab');
   // In a key sheet the key field is the first row, so it joins nothing; the tomorrow.io
   // and Rainbow budget guards below it keep the loose join to the field (the read-out
   // between them).
-  const sheets = schema.tabs.find((t) => t.id === 'setup').sections.filter((s) => /^providerKey/.test(s.sheetId || ''))
-    .concat(graphs.sections.filter((s) => /^radarKey/.test(s.sheetId || '')));
+  const sheets = setup.sections.filter((s) => /^(providerKey|radarKey)/.test(s.sheetId || ''));
   assert.deepEqual(sheets.map((s) => s.sheetId), ['providerKeyOwm', 'providerKeyTomorrowio', 'providerKeyYandex',
     'radarKeyRainbow', 'radarKeyTomorrowio'], 'five key sheets: three weather providers, Rainbow (own key), radar-only Tomorrow.io');
   sheets.forEach((sheet) => {
@@ -532,7 +533,7 @@ test('the Alerts tab: between Status bars and Graphs, hidden on aplite, holding 
       .concat(ALERT_STEMS.map((stem) => 'alert' + stem)));
 });
 
-test('the Theme & night card sits between Layout and Time, and opens on the theme pickers', () => {
+test('the Theme & night card sits between the screens\' cards and Time, and opens on the theme pickers', () => {
   const wf = schema.tabs.find((t) => t.id === 'watchface');
   const night = nightSection();
   assert.equal(night.title, 'Theme & night');
@@ -541,7 +542,8 @@ test('the Theme & night card sits between Layout and Time, and opens on the them
   // right below the card whose row opens it.
   const cards = wf.sections.filter((s) => !s.sheetOnly);
   const nightIndex = cards.indexOf(night);
-  assert.equal(cards[nightIndex - 1].id, 'layout', 'Layout is the card immediately above');
+  assert.deepEqual(cards.slice(1, nightIndex).map((c) => c.id), ['screens', 'layout', 'screenSwitching'],
+    'the Screens card (Layout on aplite) and Screen switching above it');
   assert.equal(cards[nightIndex + 1].id, 'time', 'Time follows Theme & night');
   // The theme pickers moved here from General's top card; the location rows did not.
   assert.deepEqual(night.items.slice(0, 2).map((i) => i.messageKey), ['theme', 'theme']);
@@ -1289,66 +1291,48 @@ test('startOnWeatherTab is a page-only toggle that defaults to Watchface', () =>
     'and a key the watch DOES receive shows up in it');
 });
 
-test('layoutPreset offers the four adaptive presets', () => {
-  const t = byKey('layoutPreset');
-  assert.ok(t, 'layoutPreset item exists');
+// aplite has no screens (no flick, no radar, no Health): its Watchface tab keeps a plain
+// Layout choice, the three calendars. Every other watch edits its screens instead.
+test('aplite\'s Layout card: Full calendar, Compact calendar, No calendar, the rest dormant', () => {
+  const watchface = schema.tabs.find((tab) => tab.id === 'watchface');
+  const section = watchface.sections.find((s) => s.id === 'layout');
+  assert.equal(section.title, 'Layout');
+  assert.deepEqual(section.showWhen, { env: 'platform', eq: 'aplite' }, 'aplite only');
+  const t = section.items[0];
+  assert.equal(t.messageKey, 'layoutPreset');
   assert.equal(t.type, 'radio');
   assert.equal(t.defaultValue, 'compactCal');
-  // Options derive from the layoutPresetOptions resolver (registered in blocks.js): Compact-dense
-  // is hidden unless health OR radar shows a status row (it only differs from Compact then),
-  // present otherwise. Order stays constant so toggling health/radar doesn't reshuffle the list.
-  assert.equal(t.options, undefined, 'options must be derived, not static');
-  assert.deepEqual(t.optionsFrom, { resolver: 'layoutPresetOptions' });
-  const resolver = global.PConf.optionsResolvers.get(t.optionsFrom.resolver);
-  assert.equal(typeof resolver, 'function', 'layoutPresetOptions resolver registered');
-  const codes = (S) => resolver(S).map((o) => o[1]);
-  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal', 'weatherOnly', 'custom']);
-  assert.deepEqual(codes({ healthMode: 'status', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly', 'custom']);
-  assert.deepEqual(codes({ healthMode: 'all', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly', 'custom']);
-  // Weather only sits right after No calendar; aplite (no radar, no view without top
-  // bar) never offers it, and a stored one lies dormant there.
-  assert.deepEqual(resolver({ healthMode: 'off', radarMode: 'off' }, { platform: 'aplite' }).map((o) => o[1]),
-    ['fullCal', 'compactCal', 'noCal']);
-  assert.ok(t.dormantValues.indexOf('weatherOnly') >= 0);
-  assert.ok(t.hintByValue.weatherOnly, 'Weather only has a hint');
-  // compactDense must be reachable from radar alone — even with health off — since the
-  // radar-status row also warrants the dense fold (bug #1/#2 fix; Task 9's whole point).
-  assert.ok(codes({ healthMode: 'off', radarMode: 'status' }).indexOf('compactDense') >= 0,
-    'compactDense offered for radarMode=status even with health off');
-  // Lives in the Watchface tab's Layout card, under the tab's pinned combined preview
-  // (the tab's pinBlock — the row no longer hosts it).
-  const watchface = schema.tabs.find((tab) => tab.id === 'watchface');
-  const section = watchface.sections.find((s) => s.items.some((i) => i.messageKey === 'layoutPreset'));
-  assert.ok(section, 'in a Watchface tab section');
-  assert.equal(section.id, 'layout');
-  assert.equal(watchface.pinBlock, 'watchPreview', 'the watch, every view of it, is pinned atop the tab');
-  assert.equal(t.blockBefore, undefined, 'the preview is the tab\'s, not the row\'s');
+  assert.equal(t.options, undefined, 'derived, so the engine\'s dormant fallback applies');
+  assert.deepEqual(t.optionsFrom, { resolver: 'apliteLayouts' });
+  assert.deepEqual(global.PConf.optionsResolvers.get('apliteLayouts')({}, platform.computeEnv({ platform: 'aplite' })),
+    [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal'], ['No calendar', 'noCal']]);
+  assert.deepEqual(t.hintByValue, { fullCal: '3-row calendar.', compactCal: '2-row calendar.',
+    noCal: 'No calendar — a big forecast.' });
+  // A stored value aplite runs as Compact calendar (view-cycle.js presetKeyFor: Weather only
+  // and a custom layout fold to it; compactDense draws it without a status row) lies dormant.
+  assert.deepEqual(t.dormantValues, ['compactDense', 'weatherOnly', 'custom']);
+  assert.equal(byKey('layoutPreset'), t, 'the one layoutPreset row');
+  assert.equal(watchface.pinBlock, 'watchPreview', 'the watch, every screen of it, is pinned atop the tab');
   // Not in Setup's Misc card (the old More tab's Misc).
   const misc = schema.tabs.find((tab) => tab.id === 'setup').sections.find((s) => s.id === 'about');
   assert.equal(misc.title, 'Misc');
   assert.ok(!misc.items.some((i) => i.messageKey === 'layoutPreset'), 'not in the Misc section');
-  // The preset now owns the 3-row-calendar decision, so "First week to display" is
-  // always shown (it only matters for the fullCal preset, which is acceptable to
-  // always expose rather than re-deriving preset membership here).
+  // "First week to display" only matters for a 3-row calendar; it is always shown.
   assert.equal(byKey('firstWeek').showWhen, undefined);
 });
 
-// A hidden compactDense must lie DORMANT, not be migrated away: rendering the Layout card
-// while neither health nor radar shows a status row displays the compactCal fallback but
-// leaves the stored choice untouched, so briefly disabling health+radar and saving does
-// not lose the dense preset — it comes back when a status row re-enables it. (The wire
-// compiles stored-dense-with-nothing-enabled to the identical compactCal cycle, swap
-// included, so the watch always matches what the radio shows — pinned in the swap test
-// below.) A truly invalid value still hard-snaps.
-test('hidden compactDense renders the compactCal fallback but stays in state', () => {
+// A dormant value must lie DORMANT, not be migrated away: the radio displays the Compact
+// calendar fallback and leaves the stored choice untouched. A truly invalid value still
+// hard-snaps.
+test('a dormant compactDense renders the compactCal fallback on aplite but stays in state', () => {
   const eng = require('../src/pkjs/config-ui/lib/engine.js');
-  const ENV = platform.computeEnv({ platform: 'basalt' });
+  const ENV = platform.computeEnv({ platform: 'aplite' });
   const cx = (S) => ({ S, ENV, USERDATA: {}, evalCtx: Object.assign({}, S, { env: ENV }) });
 
   const S = eng.hydrate(schema, {});
   S.layoutPreset = 'compactDense';
-  S.healthMode = 'off';
-  S.radarMode = 'off';   // dense hidden in this mode
+  S.healthMode = 'off';   // as aplite's page holds them (onbuild.js)
+  S.radarMode = 'off';
   const html = eng.renderBody(schema, 'watchface', cx(S));
   assert.equal(S.layoutPreset, 'compactDense', 'stored dense choice survives the render');
   assert.match(html, /class="on" data-k="layoutPreset" data-v="compactCal"/,
@@ -1360,116 +1344,61 @@ test('hidden compactDense renders the compactCal fallback but stays in state', (
   assert.equal(S.layoutPreset, 'compactCal', 'invalid values still hard-snap');
 });
 
-test('viewResetMin is hidden on aplite and carries its explanation as its own hint', () => {
-  const layout = schema.tabs.find((t) => t.id === 'watchface').sections.find((s) => s.id === 'layout');
-  const layoutItems = layout.items;
-  const reset = layoutItems.find((i) => i.messageKey === 'viewResetMin');
-  const nonAplite = { env: platform.computeEnv({ platform: 'basalt' }) };
-  const aplite = { env: platform.computeEnv({ platform: 'aplite' }) };
-
-  assert.equal(reset.type, 'segmented');
-  assert.equal(reset.defaultValue, '2');
-  assert.deepEqual(reset.options.map((o) => o[1]), ['0', '1', '2', '5', '10']);
-  assert.deepEqual(reset.showWhen, { env: 'platform', ne: 'aplite' });
-  assert.match(reset.hint, /return to the default view/);
-  assert.equal(showWhen.isVisible(reset, nonAplite), true);
-  assert.equal(showWhen.isVisible(reset, aplite), false);
-});
-
-test('doubleFlick is an OFF-by-default toggle, hidden on aplite like View reset time', () => {
-  const flick = byKey('doubleFlick');
+test('Screen switching: Double flick and Back to Default after, once there is a screen to flick to', () => {
+  const sec = schema.tabs.find((t) => t.id === 'watchface').sections.find((s) => s.id === 'screenSwitching');
+  assert.equal(sec.title, 'Screen switching');
+  assert.deepEqual(sec.items.map((i) => i.messageKey), ['doubleFlick', 'viewResetMin']);
+  const [flick, reset] = sec.items;
   assert.equal(flick.type, 'toggle');
+  assert.equal(flick.label, 'Double flick to switch');
   assert.equal(flick.defaultValue, false, 'one flick switches until the user opts in');
   // Not "quick": a second flick under the 500 ms debounce reads as the same flick, and
   // a BMI160 watch delivers none sooner than ~1.28 s (layout.h VIEW_FLICK_PAIR_MS).
-  assert.match(flick.hint, /second flick within a few seconds/);
-  assert.deepEqual(flick.showWhen, byKey('viewResetMin').showWhen, 'shown exactly where View reset time is');
+  assert.equal(flick.hint, 'Switch only on a second flick within a few seconds of the first.');
+  assert.equal(reset.type, 'segmented');
+  assert.equal(reset.label, 'Back to Default after');
+  assert.equal(reset.defaultValue, '2');
+  assert.deepEqual(reset.options, [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']]);
+  [flick, reset].forEach((i) => assert.equal(i.showWhen, undefined, i.messageKey + ': the card\'s gate alone'));
+  // Shown on a watch with flick screens while there are two screens or more (manyScreens).
+  const custom = (viewCount) => ({ layoutPreset: 'custom', customLayoutSeeded: true, viewCount,
+    viewTop1: 'none', viewBody1: 'forecast', viewUpper1: 'weather', viewLower1: 'off' });
+  const vis = (p, S) => showWhen.isVisible(sec, Object.assign({ env: platform.computeEnv({ platform: p }) }, S));
   ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) => {
-    assert.equal(showWhen.isVisible(flick, { env: platform.computeEnv({ platform: p }) }), true, p);
+    assert.equal(vis(p, custom('1')), false, p + ': the Default screen alone');
+    assert.equal(vis(p, custom('2')), true, p + ': a screen to flick to');
   });
-  assert.equal(showWhen.isVisible(flick, { env: platform.computeEnv({ platform: 'aplite' }) }), false,
-    'aplite has no flick');
+  assert.equal(vis('aplite', custom('2')), false, 'aplite has no flick');
 });
 
-test('swapClockStatus toggle exists, defaults ON, and is shown for compactCal on all platforms', () => {
+test('swapClockStatus: aplite\'s Layout card, applied exactly where the radio shows Compact calendar', () => {
   const it = byKey('swapClockStatus');
   assert.ok(it, 'swapClockStatus item exists');
   assert.equal(it.type, 'toggle');
   // A fresh install gets the swapped Compact layout: the status row reads better beside
-  // the forecast than above the clock. Existing installs already store an explicit value,
-  // so this only ever moves a NEW install (deliberately no migration).
+  // the forecast than above the clock.
   assert.equal(it.defaultValue, true);
   assert.match(it.hint, /status row below the clock/);
-  // aplite supports the forecast-only swap too (its lean twin carries a single lower band), so
-  // the toggle is offered on every platform for the compactCal preset — and hidden otherwise.
-  const aplite = { env: platform.computeEnv({ platform: 'aplite' }), layoutPreset: 'compactCal' };
-  const basalt = { env: platform.computeEnv({ platform: 'basalt' }), layoutPreset: 'compactCal' };
-  const basaltOtherPreset = { env: platform.computeEnv({ platform: 'basalt' }), layoutPreset: 'fullCal' };
-  assert.equal(showWhen.isVisible(it, aplite), true, 'shown on aplite when preset is compactCal');
-  assert.equal(showWhen.isVisible(it, basalt), true, 'shown on basalt when preset is compactCal');
-  assert.equal(showWhen.isVisible(it, basaltOtherPreset), false, 'hidden for other presets');
-});
-
-// The swap toggle follows the preset the radio DISPLAYS, and the wire follows the toggle.
-// A dormant compactDense (no status row makes it dense) shows as Compact calendar; so does
-// a stored 'custom' on aplite. Both must offer the swap AND apply it, or the display and
-// the watch disagree — the toggle hidden while the watch shows the swapped layout, or a
-// displayed Compact calendar that silently ignores its swap.
-test('swapClockStatus is offered and applied exactly where the radio shows Compact calendar', () => {
+  const layout = schema.tabs.find((t) => t.id === 'watchface').sections.find((s) => s.id === 'layout');
+  assert.ok(layout.items.indexOf(it) > 0, 'under the Layout radio (a screen\'s order says it elsewhere)');
+  // The toggle follows the preset the radio DISPLAYS (a dormant value shows as Compact
+  // calendar), and the wire follows the toggle, so the two never disagree.
   const vc = require('../src/pkjs/view-cycle.js');
-  const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
-  const swap = byKey('swapClockStatus');
-  ['basalt', 'aplite'].forEach((p) => {
-    const env = platform.computeEnv({ platform: p });
-    ['off', 'slot', 'status', 'all'].forEach((healthMode) => {
-      ['off', 'countdown', 'status', 'graph'].forEach((radarMode) => {
-        ['compactCal', 'compactDense', 'custom', 'fullCal', 'noCal', 'weatherOnly'].forEach((layoutPreset) => {
-          const S = { layoutPreset, healthMode, radarMode };
-          const offered = resolver(S, env).map((o) => o[1]);
-          // What the radio shows: the stored value when offered, else the dormant fallback.
-          const shown = offered.indexOf(layoutPreset) !== -1 ? layoutPreset : 'compactCal';
-          const label = [p, layoutPreset, healthMode, radarMode].join('/');
-          assert.equal(showWhen.isVisible(swap, Object.assign({ env }, S)), shown === 'compactCal',
-            label + ': toggle visible iff the radio shows Compact calendar');
-          if (layoutPreset === 'custom' && p !== 'aplite') { return; }   // compiles the custom keys
-          // presetKeyFor = what the payload compiles (Weather only folds on aplite).
-          const on = vc.buildViewCycle(vc.presetKeyFor(S, env), healthMode, radarMode, true);
-          const off = vc.buildViewCycle(vc.presetKeyFor(S, env), healthMode, radarMode, false);
-          const applied = JSON.stringify(on) !== JSON.stringify(off);
-          if (shown !== 'compactCal') {
-            assert.equal(applied, false, label + ': a hidden toggle changes nothing on the watch');
-          } else {
-            assert.deepEqual(on, vc.buildViewCycle('compactCal', healthMode, radarMode, true),
-              label + ': shown as Compact calendar, compiled as Compact calendar, swap included');
-          }
-        });
-      });
-    });
+  const radio = byKey('layoutPreset');
+  const env = platform.computeEnv({ platform: 'aplite' });
+  ['compactCal', 'compactDense', 'custom', 'fullCal', 'noCal', 'weatherOnly'].forEach((layoutPreset) => {
+    const S = { layoutPreset, healthMode: 'off', radarMode: 'off' };
+    const offered = global.PConf.optionsResolvers.get(radio.optionsFrom.resolver)(S, env);
+    const shown = offered.some((o) => o[1] === layoutPreset) ? layoutPreset : 'compactCal';
+    assert.equal(showWhen.isVisible(it, Object.assign({ env }, S)), shown === 'compactCal',
+      layoutPreset + ': toggle visible iff the radio shows Compact calendar');
+    const on = vc.resolveViewCycle(Object.assign({ swapClockStatus: true }, S), env);
+    const off = vc.resolveViewCycle(Object.assign({ swapClockStatus: false }, S), env);
+    assert.equal(JSON.stringify(on) !== JSON.stringify(off), shown === 'compactCal',
+      layoutPreset + ': applied iff shown');
   });
 });
 
-// The custom-layout capability gates are BUILT from view-cycle.js's mode lists
-// (custom-layout-schema.js) — assert the very same array instances, not equal
-// copies, so a re-typed literal can never silently drift from buildCustomCycle.
-test('custom-layout gates reference view-cycle.js\'s mode lists (single source)', () => {
-  const vc = require('../src/pkjs/view-cycle.js');
-  [0, 1, 2].forEach((i) => {
-    const top = byKey('viewTop' + i);
-    assert.strictEqual(top.optionDisabledWhen.radar.not.in, vc.RADAR_CHART_MODES,
-      'viewTop' + i + ': the radar chart seat gates on RADAR_CHART_MODES');
-    const body = byKey('viewBody' + i);
-    assert.strictEqual(body.optionDisabledWhen.radar.not.in, vc.RADAR_CHART_MODES,
-      'viewBody' + i + ': the radar body gates on RADAR_CHART_MODES');
-    assert.strictEqual(body.optionDisabledWhen.health.not.in, vc.HEALTH_BODY_MODES,
-      'viewBody' + i + ': the health body gates on HEALTH_BODY_MODES');
-    [byKey('viewUpper' + i), byKey('viewLower' + i)].forEach((row) => {
-      assert.equal(row.optionDisabledWhen.radar, undefined,
-        row.messageKey + ': the radar source (the Radar bar) is open in every radarMode');
-      assert.strictEqual(row.optionDisabledWhen.health.not.in, vc.HEALTH_ROW_MODES,
-        row.messageKey + ': the health source gates on HEALTH_ROW_MODES');
-    });
-  });
-});
 
 test('largeGraphFont is offered on emery only, and hidden when watchInfo is unavailable', () => {
   const it = byKey('largeGraphFont');
@@ -1548,7 +1477,7 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
 });
 
 // The forecast's left axis options (emery only; src/pkjs/forecast-axis.js).
-test('Left axis: Left axis values in the card and the scale under More, after Other, emery only', () => {
+test('Left axis: Left axis values in the card, the scale and the font size under More, after Other, emery only', () => {
   const forecastAxis = require('../src/pkjs/forecast-axis.js');
   const graphs = graphsTab();
   const ids = graphs.sections.filter((sec) => sec.pane === 'forecast' && !sec.sheetOnly).map((sec) => sec.id);
@@ -1561,7 +1490,14 @@ test('Left axis: Left axis values in the card and the scale under More, after Ot
   assert.deepEqual(section.showWhen, { env: 'platform', eq: 'emery' });
   assert.ok(!section.collapsible, 'no Forecast-pane section collapses');
   // The betas' Axis line and Number outline rows are gone: both follow where the numbers go.
-  assert.deepEqual(section.items.map((it) => it.messageKey), ['forecastAxisNumbers', 'forecastAxisScale']);
+  // Larger graph fonts joined it from the Views card (the owner's Screens plan): it sizes
+  // the axis labels.
+  assert.deepEqual(section.items.map((it) => it.messageKey), ['forecastAxisNumbers', 'forecastAxisScale',
+    'largeGraphFont']);
+  const font = byKey('largeGraphFont');
+  assert.equal(font.more, true, 'Larger graph fonts is behind More options');
+  assert.equal(font.label, 'Larger graph fonts');
+  assert.equal(font.defaultValue, true);
   assert.equal(byKey('forecastAxisLine'), undefined, 'no Axis line row');
   assert.equal(byKey('forecastAxisOutline'), undefined, 'no Number outline row');
   const nums = byKey('forecastAxisNumbers'), scale = byKey('forecastAxisScale');
@@ -1607,46 +1543,72 @@ test('Left axis: Left axis values in the card and the scale under More, after Ot
   assert.equal(vis(scale, 'emery', { secondaryLine: 'wind', thirdLine: 'uv' }), false, 'no temperature-axis line');
 });
 
-const radarItem = () => byKey('radarProvider');
+const radarItem = () => byKey('radarSource');
+const RADAR_ON_WHEN = { all: [{ env: 'radar' }, { key: 'radarEnabled', ne: false }] };
 
-test('radarProvider is a dropdown offering DWD/Met.no/Rainbow (limited)/Rainbow (own key)/Tomorrow.io (scope in desc/why; on/off lives in radarMode)', () => {
+test('the Rain radar picker (Setup › Data sources): Off, then DWD/Met.no/Rainbow (limited)/Rainbow (own key)/Tomorrow.io', () => {
   const item = radarItem();
   assert.equal(item.type, 'select', 'dropdown — the options carry a desc line each');
+  assert.equal(item.label, 'Rain radar');
   assert.equal(item.optionsFrom, undefined, 'a static list: each Rainbow option names its own source');
   assert.deepEqual(item.options.map((o) => [o[0], o[1]]), [
+    ['Off', 'off'],
     ['DWD', 'dwd'],
     ['Met.no', 'metno'],
     ['Rainbow (limited)', 'rainbow'],
     ['Rainbow (own key)', 'rainbowkey'],
     ['Tomorrow.io', 'tomorrowio']
-  ], 'Rainbow twice, one option per radar source (radar-factory.js)');
-  assert.ok(item.hintByValue && item.hintByValue.rainbow && item.hintByValue.rainbowkey,
-    'per-provider "why" lives in hintByValue on the picker, one per Rainbow option');
+  ], 'Off first, then Rainbow twice, one option per radar source (radar-factory.js)');
+  assert.deepEqual(item.options[0][2], { desc: 'No rain radar and no rain alert' });
   assert.equal(item.defaultValue, 'rainbow', 'a fresh install runs the radar that needs no key');
+  assert.deepEqual(item.showWhen, { env: 'radar' }, 'no Rain radar row on aplite');
+  assert.equal(item.recommendFrom, 'recommendedRadarProvider');
+  // Page-only over two stored keys, so Off keeps the source (screens-page.js): the picker
+  // opens on Off or the source, and a pick writes radarEnabled and, for a source, radarProvider.
+  assert.equal(item.uiOnly, true, 'never stored, never sent');
+  assert.deepEqual(item.initFrom, { resolver: 'radarSourceValue' });
+  assert.equal(item.onChange, 'radarSourcePicked');
+  const SP = require('../src/pkjs/settings/screens-page.js');
+  assert.equal(SP.radarSourceValue({ radarEnabled: false, radarProvider: 'dwd' }), 'off');
+  assert.equal(SP.radarSourceValue({ radarEnabled: true, radarProvider: 'dwd' }), 'dwd');
+  assert.equal(SP.radarSourceValue({}), 'rainbow', 'an absent source reads as the default');
+  // The two stored keys ride hidden rows on the Graphs tab's Rain radar pane, so Save writes them.
+  const pane = graphsTab().sections.find((sec) => sec.id === 'radar');
+  [['radarEnabled', true], ['radarProvider', 'rainbow']].forEach(([key, dflt]) => {
+    const row = pane.items.find((i) => i.messageKey === key);
+    assert.ok(row, key + ' is in the Rain radar pane');
+    assert.equal(row.type, 'hidden', key);
+    assert.equal(row.defaultValue, dflt, key);
+  });
 });
 
 // "Rainbow (own key)" is a keyed source of the radar picker, wired like a keyed weather
 // provider (settings/key-status.js): one table for every key-status resolver.
-const RAINBOW_OWN_KEY_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbowkey' }, { key: 'radarMode', ne: 'off' }] };
-const radarPickerSection = () => schema.tabs.reduce((found, t) => found
-  || t.sections.find((sec) => sec.items.some((i) => i.messageKey === 'radarProvider')), null);
+const RAINBOW_OWN_KEY_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbowkey' }, { key: 'radarEnabled', ne: false }] };
+const radarPickerSection = () => schema.tabs.find((t) => t.id === 'setup').sections.find((sec) => sec.id === 'dataSources');
+// Each key table's picker row: the Weather picker for provider, the Rain radar picker for
+// radarProvider (it writes radarProvider, so its key rows name that key as their picker).
+const PICKER_ROW = { provider: 'provider', radarProvider: 'radarSource' };
+const PICKER_ATTENTION = { provider: { resolver: 'keyAttention' }, radarProvider: { resolver: 'radarKeyAttention' } };
 
 // The key tables live in settings/key-sources.js, one per picker, by the picker's
 // messageKey. The rows' key-status resolvers read them in the page by the row's picker —
 // the picker row's own messageKey, the key row's args.picker — so no row hands them a table
 // (the schema does not carry the tables); the key sheets are built from them; and Setup's
 // Tomorrow.io sheet is gated on the radar source's sharedSheet condition, so the sheet the
-// Radar provider's key row opens while Tomorrow.io is both is the one that shows.
+// Rain radar's key row opens while Tomorrow.io is both is the one that shows.
 test('the provider and radar rows read their key tables from key-sources.js', () => {
   const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
   assert.deepEqual(Object.keys(KEY_SOURCES), ['provider', 'radarProvider']);
   Object.keys(KEY_SOURCES).forEach((picker) => {
-    const row = byKey(picker);
-    assert.deepEqual(row.attentionFrom, { resolver: 'keyAttention' },
-      picker + ': no args, the table is found by the row\'s messageKey');
+    const row = byKey(PICKER_ROW[picker]);
+    assert.deepEqual(row.attentionFrom, PICKER_ATTENTION[picker],
+      picker + ': no args, the table is found by the picker\'s messageKey');
     const section = schema.tabs.reduce((found, t) => found
       || t.sections.find((sec) => sec.items.indexOf(row) !== -1), null);
-    const keyRow = section.items.find((i) => i.type === 'sheet' && i.labelFrom && i.labelFrom.resolver === 'keyRowLabel');
+    assert.equal(section, radarPickerSection(), picker + ': on the Data sources card');
+    const keyRow = section.items.find((i) => i.type === 'sheet' && i.labelFrom && i.labelFrom.resolver === 'keyRowLabel'
+      && i.labelFrom.args.picker === picker);
     assert.ok(keyRow, picker + ': a key row under the picker');
     [keyRow.editSheetFrom, keyRow.labelFrom, keyRow.hintFrom].forEach((r) =>
       assert.deepEqual(r.args, { picker: picker }, picker + ': the key row names its picker, nothing more'));
@@ -1671,13 +1633,19 @@ test('the provider and radar rows read their key tables from key-sources.js', ()
 test('the radar picker and its key row read ONE key table for the row, its label, summary, note and Save dialog', () => {
   const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
   const item = radarItem();
-  // The picker lost its Edit button, badge and derived summary: the key row under it opens
-  // the key sheet, and the picker's info text is its RADAR_WHY copy alone.
+  // The picker has no Edit button, badge or derived summary: the key row under it opens
+  // the key sheet, and the picker's info text is its per-source copy alone.
   assert.equal(item.editSheetFrom, undefined, 'no Edit button on the picker');
   assert.equal(item.editBadgeFrom, undefined, 'no badge on the picker');
-  assert.equal(item.hintFrom, undefined, 'the picker\'s info text is its per-provider copy');
-  assert.ok(item.hintByValue.rainbow, 'RADAR_WHY');
-  assert.deepEqual(item.attentionFrom, { resolver: 'keyAttention' });
+  assert.equal(item.hintFrom, undefined, 'the picker\'s info text is its per-source copy');
+  assert.ok(item.hintByValue.rainbow, 'RADAR_SOURCE_HINTS');
+  // Its key check is keyAttention's on radarProvider, asked only while the radar runs.
+  assert.deepEqual(item.attentionFrom, { resolver: 'radarKeyAttention' });
+  const attention = global.PConf.attentionResolvers.get('radarKeyAttention');
+  assert.equal(attention({ radarEnabled: false, radarProvider: 'rainbowkey', rainbowApiKey: '' }, {}), null,
+    'the radar off: no call is made, so nothing to ask');
+  assert.notEqual(attention({ radarEnabled: true, radarProvider: 'rainbowkey', rainbowApiKey: '' }, {}), null,
+    'the radar on with no key: asked');
   const table = KEY_SOURCES.radarProvider;
   assert.equal(table.outcome, 'the watch gets no rain radar');
   assert.deepEqual(Object.keys(table.sources), ['rainbowkey', 'tomorrowio'], 'the own key and Tomorrow.io');
@@ -1685,7 +1653,7 @@ test('the radar picker and its key row read ONE key table for the row, its label
     test: true, usage: 'rainbow' });
   // Tomorrow.io's key is the weather provider's: the same entry (one key, one verdict: the
   // phone keeps both pickers' answers to it under the one id), only its own sheet differs, and
-  // while Tomorrow.io is the weather provider too the Setup tab's sheet holds the key.
+  // while Tomorrow.io is the weather provider too the weather provider's sheet holds the key.
   const weatherTio = KEY_SOURCES.provider.sources.tomorrowio;
   assert.deepEqual(table.sources.tomorrowio, Object.assign({}, weatherTio, { sheetId: 'radarKeyTomorrowio',
     sharedSheet: { key: 'provider', eq: 'tomorrowio', sheetId: 'providerKeyTomorrowio' } }));
@@ -1699,7 +1667,7 @@ test('the radar picker and its key row read ONE key table for the row, its label
   assert.equal(note.joinPrevious, true);
   assert.deepEqual(note.textFrom, { resolver: 'radarProviderNote', args: { picker: 'radarProvider' } },
     'a staticText has no messageKey, so its args name the picker');
-  assert.deepEqual(note.showWhen, { key: 'radarMode', ne: 'off' }, 'the picker\'s own gate');
+  assert.deepEqual(note.showWhen, RADAR_ON_WHEN, 'while the radar runs');
   // The key row: a nav row reading the very same table for its sheet, label and summary.
   const keyRow = section.items[at + 2];
   assert.equal(keyRow.type, 'sheet');
@@ -1708,10 +1676,10 @@ test('the radar picker and its key row read ONE key table for the row, its label
   assert.equal(keyRow.hintFrom.resolver, 'keyRowSummary');
   [keyRow.editSheetFrom.args, keyRow.labelFrom.args, keyRow.hintFrom.args].forEach((a) =>
     assert.deepEqual(a, { picker: 'radarProvider' }, 'the picker, whose key-sources.js table the resolvers read'));
-  assert.deepEqual(keyRow.showWhen, { key: 'radarMode', ne: 'off' }, 'the picker\'s own gate');
-  // The SCALE_NOTE staticText that hosted the radar preview is gone: the preview is the
-  // radar pane's pinned header, and the note rides the Radar color row's info text.
-  assert.equal(section.items[at + 3].messageKey, 'radarColor', 'the radar\'s look follows the key row');
+  assert.deepEqual(keyRow.showWhen, RADAR_ON_WHEN, 'while the radar runs');
+  assert.equal(section.items[at + 3].messageKey, 'aqiSource', 'Air quality follows the key row');
+  // The radar's preview is the Graphs tab's Rain radar pane's pinned header, and the scale
+  // note rides the Radar color row's info text there.
   assert.equal(items.filter((i) => i.blockBefore === 'radarPreview').length, 0, 'no row hosts the preview');
   assert.equal(graphsTab().panes.find((p) => p.id === 'radar').pinBlock, 'radarPreview');
   const colorHint = byKey('radarColor').hintFrom;
@@ -1720,29 +1688,29 @@ test('the radar picker and its key row read ONE key table for the row, its label
 });
 
 test('"Rainbow (own key)"\'s key sheet: the key field and the budget guard, only while it drives a running radar', () => {
-  const radar = graphsTab();
-  const sheet = radar.sections.find((s) => s.sheetId === 'radarKeyRainbow');
-  assert.ok(sheet, 'a sheet on the Graphs tab');
+  const setup = schema.tabs.find((t) => t.id === 'setup');
+  const sheet = setup.sections.find((s) => s.sheetId === 'radarKeyRainbow');
+  assert.ok(sheet, 'a sheet on the Setup tab, beside the picker whose key row opens it');
   assert.equal(sheet.sheetOnly, true, 'rendered only as a sheet');
   assert.equal(sheet.title, 'Rainbow', 'titled with the source\'s name');
   assert.deepEqual(sheet.showWhen, RAINBOW_OWN_KEY_WHEN);
   assert.deepEqual(sheet.items.map((i) => i.messageKey), ['rainbowApiKey', 'rainbowFitBudget']);
   sheet.items.forEach((i) => assert.deepEqual(i.showWhen, RAINBOW_OWN_KEY_WHEN, i.messageKey + ' shares the gate'));
-  assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbowkey', radarMode: 'graph' }), true);
-  assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbowkey', radarMode: 'countdown' }), true);
-  assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbowkey', radarMode: 'off' }), false,
+  assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbowkey', radarEnabled: true }), true);
+  assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbowkey' }), true, 'an absent switch reads as on');
+  assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbowkey', radarEnabled: false }), false,
     'radar off: no Rainbow call is made');
   ['dwd', 'metno', 'rainbow', 'tomorrowio'].forEach((p) => {
-    assert.equal(showWhen.isVisible(sheet, { radarProvider: p, radarMode: 'graph' }), false, 'closed for ' + p);
+    assert.equal(showWhen.isVisible(sheet, { radarProvider: p, radarEnabled: true }), false, 'closed for ' + p);
   });
 });
 
 test('radar-only Tomorrow.io\'s key sheet: the weather provider\'s Tomorrow.io rows, only while it drives a running radar alone', () => {
-  const radar = graphsTab();
-  const sheet = radar.sections.find((s) => s.sheetId === 'radarKeyTomorrowio');
-  const weather = schema.tabs.find((t) => t.id === 'setup').sections.find((s) => s.sheetId === 'providerKeyTomorrowio');
-  assert.ok(sheet, 'a sheet on the Graphs tab');
-  assert.equal(radar.sections.indexOf(sheet), radar.sections.findIndex((s) => s.sheetId === 'radarKeyRainbow') + 1,
+  const setup = schema.tabs.find((t) => t.id === 'setup');
+  const sheet = setup.sections.find((s) => s.sheetId === 'radarKeyTomorrowio');
+  const weather = setup.sections.find((s) => s.sheetId === 'providerKeyTomorrowio');
+  assert.ok(sheet, 'a sheet on the Setup tab');
+  assert.equal(setup.sections.indexOf(sheet), setup.sections.findIndex((s) => s.sheetId === 'radarKeyRainbow') + 1,
     'after "Rainbow (own key)"\'s, as in the picker');
   assert.equal(sheet.sheetOnly, true, 'rendered only as a sheet');
   assert.equal(sheet.title, 'Tomorrow.io', 'titled with the source\'s name, as the weather provider\'s');
@@ -1753,50 +1721,40 @@ test('radar-only Tomorrow.io\'s key sheet: the weather provider\'s Tomorrow.io r
   assert.deepEqual(sheet.items.map(strip), weather.items.map(strip), 'the same rows as the weather provider\'s sheet');
   const at = (S) => showWhen.isVisible(sheet, S);
   const both = (S) => [at(S), showWhen.isVisible(weather, S)];
-  assert.deepEqual(both({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'graph' }), [true, false], 'radar-only');
-  assert.deepEqual(both({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'countdown' }), [true, false]);
-  assert.deepEqual(both({ provider: 'tomorrowio', radarProvider: 'tomorrowio', radarMode: 'graph' }), [false, true],
+  assert.deepEqual(both({ provider: 'dwd', radarProvider: 'tomorrowio', radarEnabled: true }), [true, false], 'radar-only');
+  assert.deepEqual(both({ provider: 'tomorrowio', radarProvider: 'tomorrowio', radarEnabled: true }), [false, true],
     'both: the weather provider\'s sheet holds the one key');
-  assert.deepEqual(both({ provider: 'tomorrowio', radarProvider: 'rainbow', radarMode: 'graph' }), [false, true]);
-  assert.deepEqual(both({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'off' }), [false, false],
+  assert.deepEqual(both({ provider: 'tomorrowio', radarProvider: 'rainbow', radarEnabled: true }), [false, true]);
+  assert.deepEqual(both({ provider: 'dwd', radarProvider: 'tomorrowio', radarEnabled: false }), [false, false],
     'radar off: no Tomorrow.io call is made');
   ['dwd', 'metno', 'rainbow', 'rainbowkey'].forEach((p) =>
-    assert.equal(at({ provider: 'dwd', radarProvider: p, radarMode: 'graph' }), false, 'closed for ' + p));
+    assert.equal(at({ provider: 'dwd', radarProvider: p, radarEnabled: true }), false, 'closed for ' + p));
 });
 
-test('the Weather only hint follows the radar mode, each describing the Default view it compiles', () => {
-  // view-cycle.js buildViewCycle draws a different Default view per radarMode (settings
-  // audit #12): the rain radar only with Graph, the radar bar only with Status, the top
-  // bar kept in Rain alert only, and no radar at all with Off.
-  const env = platform.computeEnv({ platform: 'basalt' });
-  const hint = (S) => hintOf('layoutPreset', Object.assign({ layoutPreset: 'weatherOnly' }, S), env);
-  assert.match(hint({}), /no Watch Status Bar — the rain radar, clock/, 'absent radarMode reads as Graph, the default');
-  assert.equal(hint({ radarMode: 'graph' }), hint({}));
-  assert.match(hint({ radarMode: 'status' }), /no Watch Status Bar — the clock, the weather and radar status bars/);
-  assert.doesNotMatch(hint({ radarMode: 'status' }), /rain radar/);
-  assert.match(hint({ radarMode: 'countdown' }), /^No calendar — the Watch Status Bar, where the rain icon shows by default/);
-  assert.match(hint({ radarMode: 'off' }), /no Watch Status Bar — the clock, weather and a big forecast/);
-  assert.doesNotMatch(hint({ radarMode: 'off' }), /radar/);
-  // Every other preset keeps its static per-value hint: the resolver answers null, so
-  // resolveHint hands back undefined and the row falls back to hintByValue.
-  assert.strictEqual(hintOf('layoutPreset', { layoutPreset: 'noCal', radarMode: 'off' }, env), undefined);
-});
-
-test('radar provider hides when off; color and its B/W legend require the graph mode', () => {
-  assert.deepEqual(byKey('radarProvider').showWhen, { key: 'radarMode', ne: 'off' });
-
-  // The preview is no row's block any more: it is the radar pane's pinned header, which
-  // draws whatever the mode shows (a "Radar off" frame included).
+test('the Rain radar pane: why it draws nothing, then the look rows a screen showing the radar graph needs', () => {
+  const radarCard = graphsTab().sections.find((sec) => sec.id === 'radar');
+  // While the radar is off: a note with the way to Setup › Data sources.
+  assert.deepEqual(radarCard.items[0], { type: 'staticText', style: 'info',
+    text: 'The rain radar is off. Turn it on in <button type="button" class="txt-link" data-goto-tab="setup">'
+      + 'Setup › Data sources</button>.', showWhen: { key: 'radarEnabled', eq: false } });
+  // While it runs but no screen shows the radar graph (the worked-out mode is not Graph): a
+  // note with the way to the screens.
+  assert.equal(radarCard.items[1].type, 'staticText');
+  assert.equal(radarCard.items[1].text, 'No screen shows the rain radar. Add it to a screen on the <button type="button"'
+    + ' class="txt-link" data-goto-tab="watchface">Watchface tab</button>.');
+  assert.deepEqual(radarCard.items[1].showWhen, { all: [{ key: 'radarEnabled', ne: false }, { key: 'radarMode', ne: 'graph' }] });
+  // The preview is no row's block: it is the radar pane's pinned header, which draws
+  // whatever the mode shows (a "Radar off" frame included).
   assert.equal(items.filter((item) => item.blockBefore === 'radarPreview').length, 0, 'no row hosts the preview');
   assert.equal(graphsTab().panes.find((p) => p.id === 'radar').pinBlock, 'radarPreview');
-
   // The colour row and the B/W legend standing in for it: graph mode only.
-  const radarCard = graphsTab().sections.find((sec) => sec.id === 'radar');
   const legend = radarCard.items.find((i) => i.type === 'staticText' && i.hinted);
   [byKey('radarColor'), legend].forEach((item) => {
     assert.ok(item.showWhen.all.some((condition) =>
       condition.key === 'radarMode' && condition.eq === 'graph'));
   });
+  ['radarSky', 'radarNoRainText'].forEach((k) =>
+    assert.deepEqual(byKey(k).showWhen, { key: 'radarMode', eq: 'graph' }, k));
 });
 
 // Helper: the per-value "why" hint for a provider value (weather or radar picker) — the
@@ -1811,34 +1769,27 @@ test('each weather + radar provider has a per-value "why" hint on its picker', (
     assert.ok(typeof whyNote('provider', v) === 'string' && whyNote('provider', v).length > 0, v + ' weather why note');
   });
   ['dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio'].forEach((v) => {
-    assert.ok(typeof whyNote('radarProvider', v) === 'string' && whyNote('radarProvider', v).length > 0, v + ' radar why note');
+    assert.ok(typeof whyNote('radarSource', v) === 'string' && whyNote('radarSource', v).length > 0, v + ' radar why note');
   });
+  assert.equal(whyNote('radarSource', 'off'), undefined, 'Off says it in its own line');
   // Content spot-checks: the note carries the real "why".
   assert.match(whyNote('provider', 'wunderground'), /crowd-sourced|250,000/i);
   assert.match(whyNote('provider', 'dwd'), /Germany/);
-  assert.match(whyNote('radarProvider', 'tomorrowio'), /budget/i, 'radar Tomorrow.io keeps the key/budget caveat');
-  // "Rainbow (limited)"'s note, verbatim: why the shared radar is limited, and the option
-  // that lifts it.
-  assert.equal(whyNote('radarProvider', 'rainbow'),
-    'A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a '
-    + 'growing number of users I can only provide a limited number of them, so the shared radar refreshes at most '
-    + 'every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by '
+  assert.match(whyNote('radarSource', 'tomorrowio'), /budget/i, 'radar Tomorrow.io keeps the key/budget caveat');
+  // "Rainbow (limited)"'s note, verbatim: how often the shared radar refreshes.
+  assert.equal(whyNote('radarSource', 'rainbow'), 'Refreshes at most every 30 minutes. Powered by '
     + '<a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.');
-  assert.match(whyNote('radarProvider', 'rainbow'), /growing number of users/, 'names why the calls are limited');
-  const ownKeyLabel = byKey('radarProvider').options.find((o) => o[1] === 'rainbowkey')[0];
-  assert.ok(whyNote('radarProvider', 'rainbow').indexOf('“' + ownKeyLabel + '”') !== -1,
-    'points at the own-key option by its label');
   // "Rainbow (own key)"'s note, verbatim: what the own key gets, and what it costs.
-  assert.equal(whyNote('radarProvider', 'rainbowkey'),
+  assert.equal(whyNote('radarSource', 'rainbowkey'),
     'A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. '
     + 'A key is free: Rainbow\'s free plan covers 5,000 calls a month. Powered by '
     + '<a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.');
   // Rainbow's terms ask for a "Powered by Rainbow.ai" link, under both Rainbow options.
-  ['rainbow', 'rainbowkey'].forEach((v) => assert.match(whyNote('radarProvider', v),
+  ['rainbow', 'rainbowkey'].forEach((v) => assert.match(whyNote('radarSource', v),
     /Powered by <a target='_blank' href='https:\/\/rainbow\.ai'>Rainbow\.ai<\/a>\.$/, v));
   // The old showWhen-gated staticText notes are gone — the hint is the only copy.
   assert.ok(!items.some((i) => i.type === 'staticText' && i.showWhen
-    && (i.showWhen.key === 'provider' || i.showWhen.key === 'radarProvider')),
+    && (i.showWhen.key === 'provider' || i.showWhen.key === 'radarProvider' || i.showWhen.key === 'radarSource')),
     'no leftover per-provider staticText notes');
 });
 

@@ -30,7 +30,7 @@
 // tested or used. What a status says about a key is key-result.js's classify, for the
 // Test button and the phone's answers alike.
 //
-// What the page shows from it (the key row under a source picker, Setup › Weather data
+// What the page shows from it (the key row under a source picker, Setup › Data sources
 // and Graphs › Rain radar):
 //   keySheet         (sheetResolvers)     the dialog the key row opens: the sheet holding
 //                                         the picked source's key (sheetOf);

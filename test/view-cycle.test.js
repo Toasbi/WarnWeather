@@ -804,9 +804,8 @@ test('isStacked covers the new shapes: no body, a top graph, a non-default size'
   assert.equal(vc.isStacked(extSpec({ align: vc.ALIGN_BOTTOM })), false, 'align alone never dispatches');
 });
 
-// The capability gate table — THE single source: buildCustomCycle folds by it,
-// view-editor.js's freeStatusSource offers by it, and custom-layout-schema.js
-// builds its declarative optionDisabledWhen gates from the same arrays.
+// The capability gate table — THE single source: buildCustomCycle folds by it, and the
+// modes the screens work out (screens.js deriveModes) unlock what they hold.
 test('capabilities: mode lists pinned, booleans derived per seat kind', () => {
   assert.deepEqual(vc.RADAR_CHART_MODES, ['graph']);
   assert.deepEqual(vc.RADAR_ROW_MODES, ['status', 'graph']);

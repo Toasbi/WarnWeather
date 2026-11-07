@@ -85,7 +85,7 @@
         "openDefault": true,
         "pinBlock": "watchPreview",
         "pinBare": true,
-        "pinThrough": "layout",
+        "pinThrough": "screenSwitching",
         "sections": [
           {
             "block": "noticesPanel",
@@ -99,183 +99,41 @@
             ]
           },
           {
-            "id": "views",
-            "title": "Views",
-            "intro": "A view is one screen of the watchface. The Default view shows the forecast graph; Rain radar and Health can each add a view of their own. Flick your wrist to switch views. The layout decides how they're arranged, and each graph is set up in Graphs.",
-            "items": [
-              {
-                "type": "segmented",
-                "full": true,
-                "messageKey": "radarMode",
-                "label": "Rain radar",
-                "defaultValue": "graph",
-                "hintByValue": {
-                  "countdown": "Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on the status bars picked in Alerts › Rain.",
-                  "status": "Adds the Radar Status Bar.",
-                  "graph": "Adds the Radar Status Bar and the rain radar graph."
-                },
-                "options": [
-                  [
-                    "Off",
-                    "off"
-                  ],
-                  [
-                    "Rain alert only",
-                    "countdown"
-                  ],
-                  [
-                    "Status bar",
-                    "status"
-                  ],
-                  [
-                    "Status + Graph",
-                    "graph"
-                  ]
-                ],
-                "onChange": "resetStatusRadar",
-                "showWhen": {
-                  "env": "radar"
-                }
-              },
-              {
-                "type": "staticText",
-                "style": "info",
-                "text": "‘Rain alert only’ fetches the radar for the rain icon, but Rain isn’t on any status bar (<button type=\"button\" class=\"txt-link\" data-goto-tab=\"alerts\">Alerts › Rain</button>).",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarMode",
-                      "eq": "countdown"
-                    },
-                    {
-                      "env": "onDemand"
-                    },
-                    {
-                      "not": {
-                        "when": "onDemandPlaced",
-                        "args": {
-                          "code": "rain"
-                        }
-                      }
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "segmented",
-                "full": true,
-                "messageKey": "healthMode",
-                "label": "Health",
-                "defaultValue": "all",
-                "hintByValue": {
-                  "slot": "Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar.",
-                  "status": "Adds the Health Status Bar — today's steps, last night's sleep, and current heart rate.",
-                  "all": "Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line."
-                },
-                "hintFrom": {
-                  "resolver": "noHeartRateHint",
-                  "args": {
-                    "byValue": {
-                      "slot": "Lets you put health items (steps, sleep, walked distance) in any status bar.",
-                      "status": "Adds the Health Status Bar — today's steps and last night's sleep.",
-                      "all": "Adds the Health Status Bar and a health graph — hourly step bars and a sleep band."
-                    }
-                  }
-                },
-                "options": [
-                  [
-                    "Off",
-                    "off"
-                  ],
-                  [
-                    "Status slots only",
-                    "slot"
-                  ],
-                  [
-                    "Status bar",
-                    "status"
-                  ],
-                  [
-                    "Status + Graph",
-                    "all"
-                  ]
-                ],
-                "onChange": "resetStatusHealth",
-                "showWhen": {
-                  "env": "health"
-                }
-              }
-            ]
+            "id": "screens",
+            "title": "Screens",
+            "block": "screensCard",
+            "showWhen": {
+              "env": "platform",
+              "ne": "aplite"
+            },
+            "items": []
           },
           {
             "id": "layout",
             "title": "Layout",
-            "intro": "How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it's coloured lives in Graphs.",
+            "showWhen": {
+              "env": "platform",
+              "eq": "aplite"
+            },
             "items": [
               {
                 "type": "radio",
                 "messageKey": "layoutPreset",
-                "label": "Layout preset",
+                "label": "Layout",
                 "defaultValue": "compactCal",
                 "hintByValue": {
-                  "fullCal": "3-row calendar. Health and radar appear on wrist-flicks.",
-                  "compactCal": "2-row calendar. Flick to radar and health as you enable them.",
-                  "compactDense": "Compact calendar with two status bars at once — health or radar above the clock, forecast below.",
-                  "noCal": "No calendar — a big forecast. Flick to radar and health.",
-                  "weatherOnly": "No calendar and no Watch Status Bar — the rain radar, clock, weather and a big forecast. Flick to health.",
-                  "custom": "Build each view yourself — pick its elements and graphs, then order, size and align them."
-                },
-                "hintFrom": {
-                  "resolver": "weatherOnlyHint",
-                  "args": {
-                    "byRadar": {
-                      "graph": "No calendar and no Watch Status Bar — the rain radar, clock, weather and a big forecast.",
-                      "status": "No calendar and no Watch Status Bar — the clock, the weather and radar status bars and a big forecast.",
-                      "countdown": "No calendar — the Watch Status Bar, where the rain icon shows by default, then the clock, weather and a big forecast.",
-                      "off": "No calendar and no Watch Status Bar — the clock, weather and a big forecast."
-                    }
-                  }
+                  "fullCal": "3-row calendar.",
+                  "compactCal": "2-row calendar.",
+                  "noCal": "No calendar — a big forecast."
                 },
                 "optionsFrom": {
-                  "resolver": "layoutPresetOptions"
+                  "resolver": "apliteLayouts"
                 },
                 "dormantValues": [
                   "compactDense",
                   "weatherOnly",
                   "custom"
-                ],
-                "onChange": "layoutPresetChanged"
-              },
-              {
-                "type": "button",
-                "action": "openViewEditor",
-                "label": "Edit views",
-                "hint": "Choose what each view shows, where, and how big.",
-                "indent": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "layoutPreset",
-                      "eq": "custom"
-                    },
-                    {
-                      "env": "platform",
-                      "ne": "aplite"
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "largeGraphFont",
-                "label": "Larger graph fonts",
-                "defaultValue": true,
-                "hint": "Draw the graph axis labels in bigger type.",
-                "more": true,
-                "showWhen": {
-                  "env": "platform",
-                  "eq": "emery"
-                }
+                ]
               },
               {
                 "type": "toggle",
@@ -285,78 +143,42 @@
                 "hint": "Move the status row below the clock, next to the forecast.",
                 "more": true,
                 "showWhen": {
-                  "any": [
-                    {
-                      "key": "layoutPreset",
-                      "eq": "compactCal"
-                    },
-                    {
-                      "all": [
-                        {
-                          "key": "layoutPreset",
-                          "eq": "compactDense"
-                        },
-                        {
-                          "key": "healthMode",
-                          "in": [
-                            "off",
-                            "slot"
-                          ]
-                        },
-                        {
-                          "key": "radarMode",
-                          "in": [
-                            "off",
-                            "countdown"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "all": [
-                        {
-                          "key": "layoutPreset",
-                          "eq": "custom"
-                        },
-                        {
-                          "env": "platform",
-                          "eq": "aplite"
-                        }
-                      ]
-                    },
-                    {
-                      "all": [
-                        {
-                          "key": "layoutPreset",
-                          "eq": "weatherOnly"
-                        },
-                        {
-                          "env": "platform",
-                          "eq": "aplite"
-                        }
-                      ]
-                    }
+                  "key": "layoutPreset",
+                  "nin": [
+                    "fullCal",
+                    "noCal"
                   ]
                 }
-              },
+              }
+            ]
+          },
+          {
+            "id": "screenSwitching",
+            "title": "Screen switching",
+            "showWhen": {
+              "all": [
+                {
+                  "env": "platform",
+                  "ne": "aplite"
+                },
+                {
+                  "when": "manyScreens"
+                }
+              ]
+            },
+            "items": [
               {
                 "type": "toggle",
                 "messageKey": "doubleFlick",
-                "label": "Double flick to switch views",
+                "label": "Double flick to switch",
                 "defaultValue": false,
-                "hint": "Switch views only on a second flick within a few seconds of the first, to reduce accidental view switches.",
-                "more": true,
-                "showWhen": {
-                  "env": "platform",
-                  "ne": "aplite"
-                }
+                "hint": "Switch only on a second flick within a few seconds of the first."
               },
               {
                 "type": "segmented",
                 "messageKey": "viewResetMin",
-                "label": "View reset time",
+                "label": "Back to Default after",
                 "defaultValue": "2",
-                "hint": "Automatically return to the default view after the selected time has passed.",
                 "options": [
                   [
                     "Never",
@@ -378,12 +200,7 @@
                     "10m",
                     "10"
                   ]
-                ],
-                "more": true,
-                "showWhen": {
-                  "env": "platform",
-                  "ne": "aplite"
-                }
+                ]
               }
             ]
           },
@@ -403,146 +220,34 @@
                 "defaultValue": false
               },
               {
-                "type": "radio",
+                "type": "hidden",
+                "messageKey": "radarMode",
+                "defaultValue": "graph"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "healthMode",
+                "defaultValue": "all"
+              },
+              {
+                "type": "hidden",
                 "messageKey": "viewTop0",
-                "label": "Top area",
-                "defaultValue": "cal",
-                "options": [
-                  [
-                    "Calendar",
-                    "cal"
-                  ],
-                  [
-                    "Rain radar",
-                    "radar"
-                  ],
-                  [
-                    "Forecast graph",
-                    "forecast"
-                  ],
-                  [
-                    "Health graph",
-                    "health"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "graph"
-                      ]
-                    }
-                  },
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "all"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "cal"
               },
               {
-                "type": "radio",
+                "type": "hidden",
                 "messageKey": "viewBody0",
-                "label": "Graph",
-                "defaultValue": "forecast",
-                "options": [
-                  [
-                    "Forecast graph",
-                    "forecast"
-                  ],
-                  [
-                    "Health graph",
-                    "health"
-                  ],
-                  [
-                    "Rain radar",
-                    "radar"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "all"
-                      ]
-                    }
-                  },
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "graph"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "forecast"
               },
               {
-                "type": "radio",
+                "type": "hidden",
                 "messageKey": "viewUpper0",
-                "label": "Status bar",
-                "defaultValue": "weather",
-                "options": [
-                  [
-                    "Weather",
-                    "weather"
-                  ],
-                  [
-                    "Radar",
-                    "radar"
-                  ],
-                  [
-                    "Health",
-                    "health"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "status",
-                        "all"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "weather"
               },
               {
-                "type": "radio",
+                "type": "hidden",
                 "messageKey": "viewLower0",
-                "label": "Second status bar",
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Weather",
-                    "weather"
-                  ],
-                  [
-                    "Radar",
-                    "radar"
-                  ],
-                  [
-                    "Health",
-                    "health"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "status",
-                        "all"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "off"
               },
               {
                 "type": "hidden",
@@ -570,146 +275,24 @@
                 "defaultValue": false
               },
               {
-                "type": "radio",
+                "type": "hidden",
                 "messageKey": "viewTop1",
-                "label": "Top area",
-                "defaultValue": "cal",
-                "options": [
-                  [
-                    "Calendar",
-                    "cal"
-                  ],
-                  [
-                    "Rain radar",
-                    "radar"
-                  ],
-                  [
-                    "Forecast graph",
-                    "forecast"
-                  ],
-                  [
-                    "Health graph",
-                    "health"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "graph"
-                      ]
-                    }
-                  },
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "all"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "cal"
               },
               {
-                "type": "radio",
+                "type": "hidden",
                 "messageKey": "viewBody1",
-                "label": "Graph",
-                "defaultValue": "forecast",
-                "options": [
-                  [
-                    "Forecast graph",
-                    "forecast"
-                  ],
-                  [
-                    "Health graph",
-                    "health"
-                  ],
-                  [
-                    "Rain radar",
-                    "radar"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "all"
-                      ]
-                    }
-                  },
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "graph"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "forecast"
               },
               {
-                "type": "radio",
+                "type": "hidden",
                 "messageKey": "viewUpper1",
-                "label": "Status bar",
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Weather",
-                    "weather"
-                  ],
-                  [
-                    "Radar",
-                    "radar"
-                  ],
-                  [
-                    "Health",
-                    "health"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "status",
-                        "all"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "off"
               },
               {
-                "type": "radio",
+                "type": "hidden",
                 "messageKey": "viewLower1",
-                "label": "Second status bar",
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Weather",
-                    "weather"
-                  ],
-                  [
-                    "Radar",
-                    "radar"
-                  ],
-                  [
-                    "Health",
-                    "health"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "status",
-                        "all"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "off"
               },
               {
                 "type": "hidden",
@@ -742,146 +325,24 @@
                 "defaultValue": false
               },
               {
-                "type": "radio",
+                "type": "hidden",
                 "messageKey": "viewTop2",
-                "label": "Top area",
-                "defaultValue": "cal",
-                "options": [
-                  [
-                    "Calendar",
-                    "cal"
-                  ],
-                  [
-                    "Rain radar",
-                    "radar"
-                  ],
-                  [
-                    "Forecast graph",
-                    "forecast"
-                  ],
-                  [
-                    "Health graph",
-                    "health"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "graph"
-                      ]
-                    }
-                  },
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "all"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "cal"
               },
               {
-                "type": "radio",
+                "type": "hidden",
                 "messageKey": "viewBody2",
-                "label": "Graph",
-                "defaultValue": "forecast",
-                "options": [
-                  [
-                    "Forecast graph",
-                    "forecast"
-                  ],
-                  [
-                    "Health graph",
-                    "health"
-                  ],
-                  [
-                    "Rain radar",
-                    "radar"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "all"
-                      ]
-                    }
-                  },
-                  "radar": {
-                    "not": {
-                      "key": "radarMode",
-                      "in": [
-                        "graph"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "forecast"
               },
               {
-                "type": "radio",
+                "type": "hidden",
                 "messageKey": "viewUpper2",
-                "label": "Status bar",
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Weather",
-                    "weather"
-                  ],
-                  [
-                    "Radar",
-                    "radar"
-                  ],
-                  [
-                    "Health",
-                    "health"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "status",
-                        "all"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "off"
               },
               {
-                "type": "radio",
+                "type": "hidden",
                 "messageKey": "viewLower2",
-                "label": "Second status bar",
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Weather",
-                    "weather"
-                  ],
-                  [
-                    "Radar",
-                    "radar"
-                  ],
-                  [
-                    "Health",
-                    "health"
-                  ]
-                ],
-                "optionDisabledWhen": {
-                  "health": {
-                    "not": {
-                      "key": "healthMode",
-                      "in": [
-                        "status",
-                        "all"
-                      ]
-                    }
-                  }
-                }
+                "defaultValue": "off"
               },
               {
                 "type": "hidden",
@@ -4414,11 +3875,10 @@
                   "env": "health"
                 },
                 {
-                  "key": "healthMode",
-                  "in": [
-                    "status",
-                    "all"
-                  ]
+                  "when": "barShown",
+                  "args": {
+                    "bar": "health"
+                  }
                 }
               ]
             },
@@ -4454,11 +3914,10 @@
                       "env": "health"
                     },
                     {
-                      "key": "healthMode",
-                      "in": [
-                        "status",
-                        "all"
-                      ]
+                      "when": "barShown",
+                      "args": {
+                        "bar": "health"
+                      }
                     }
                   ]
                 }
@@ -4479,11 +3938,10 @@
                           "env": "health"
                         },
                         {
-                          "key": "healthMode",
-                          "in": [
-                            "status",
-                            "all"
-                          ]
+                          "when": "barShown",
+                          "args": {
+                            "bar": "health"
+                          }
                         }
                       ]
                     },
@@ -4525,11 +3983,10 @@
                       "env": "health"
                     },
                     {
-                      "key": "healthMode",
-                      "in": [
-                        "status",
-                        "all"
-                      ]
+                      "when": "barShown",
+                      "args": {
+                        "bar": "health"
+                      }
                     }
                   ]
                 },
@@ -4551,11 +4008,10 @@
                           "env": "health"
                         },
                         {
-                          "key": "healthMode",
-                          "in": [
-                            "status",
-                            "all"
-                          ]
+                          "when": "barShown",
+                          "args": {
+                            "bar": "health"
+                          }
                         }
                       ]
                     },
@@ -4597,11 +4053,10 @@
                       "env": "health"
                     },
                     {
-                      "key": "healthMode",
-                      "in": [
-                        "status",
-                        "all"
-                      ]
+                      "when": "barShown",
+                      "args": {
+                        "bar": "health"
+                      }
                     }
                   ]
                 },
@@ -4623,11 +4078,10 @@
                           "env": "health"
                         },
                         {
-                          "key": "healthMode",
-                          "in": [
-                            "status",
-                            "all"
-                          ]
+                          "when": "barShown",
+                          "args": {
+                            "bar": "health"
+                          }
                         }
                       ]
                     },
@@ -4661,11 +4115,10 @@
                           "env": "health"
                         },
                         {
-                          "key": "healthMode",
-                          "in": [
-                            "status",
-                            "all"
-                          ]
+                          "when": "barShown",
+                          "args": {
+                            "bar": "health"
+                          }
                         }
                       ]
                     }
@@ -4683,11 +4136,10 @@
                   "env": "radar"
                 },
                 {
-                  "key": "radarMode",
-                  "in": [
-                    "status",
-                    "graph"
-                  ]
+                  "when": "barShown",
+                  "args": {
+                    "bar": "radar"
+                  }
                 }
               ]
             },
@@ -4723,11 +4175,10 @@
                       "env": "radar"
                     },
                     {
-                      "key": "radarMode",
-                      "in": [
-                        "status",
-                        "graph"
-                      ]
+                      "when": "barShown",
+                      "args": {
+                        "bar": "radar"
+                      }
                     }
                   ]
                 }
@@ -4748,11 +4199,10 @@
                           "env": "radar"
                         },
                         {
-                          "key": "radarMode",
-                          "in": [
-                            "status",
-                            "graph"
-                          ]
+                          "when": "barShown",
+                          "args": {
+                            "bar": "radar"
+                          }
                         }
                       ]
                     },
@@ -4794,11 +4244,10 @@
                       "env": "radar"
                     },
                     {
-                      "key": "radarMode",
-                      "in": [
-                        "status",
-                        "graph"
-                      ]
+                      "when": "barShown",
+                      "args": {
+                        "bar": "radar"
+                      }
                     }
                   ]
                 },
@@ -4820,11 +4269,10 @@
                           "env": "radar"
                         },
                         {
-                          "key": "radarMode",
-                          "in": [
-                            "status",
-                            "graph"
-                          ]
+                          "when": "barShown",
+                          "args": {
+                            "bar": "radar"
+                          }
                         }
                       ]
                     },
@@ -4866,11 +4314,10 @@
                       "env": "radar"
                     },
                     {
-                      "key": "radarMode",
-                      "in": [
-                        "status",
-                        "graph"
-                      ]
+                      "when": "barShown",
+                      "args": {
+                        "bar": "radar"
+                      }
                     }
                   ]
                 },
@@ -4892,11 +4339,10 @@
                           "env": "radar"
                         },
                         {
-                          "key": "radarMode",
-                          "in": [
-                            "status",
-                            "graph"
-                          ]
+                          "when": "barShown",
+                          "args": {
+                            "bar": "radar"
+                          }
                         }
                       ]
                     },
@@ -4930,11 +4376,10 @@
                           "env": "radar"
                         },
                         {
-                          "key": "radarMode",
-                          "in": [
-                            "status",
-                            "graph"
-                          ]
+                          "when": "barShown",
+                          "args": {
+                            "bar": "radar"
+                          }
                         }
                       ]
                     }
@@ -8388,10 +7833,10 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "The rain alert needs the rain radar. Turn it on in <button type=\"button\" class=\"txt-link\" data-goto-tab=\"watchface\">Watchface › Views</button>.",
+                "text": "The rain alert needs the rain radar. Turn it on in <button type=\"button\" class=\"txt-link\" data-goto-tab=\"setup\">Setup › Data sources</button>.",
                 "showWhen": {
-                  "key": "radarMode",
-                  "eq": "off"
+                  "key": "radarEnabled",
+                  "eq": false
                 }
               },
               {
@@ -8401,8 +7846,8 @@
                 "showWhen": {
                   "all": [
                     {
-                      "key": "radarMode",
-                      "ne": "off"
+                      "key": "radarEnabled",
+                      "ne": false
                     },
                     {
                       "not": {
@@ -9084,7 +8529,7 @@
               "env": "onDemand"
             },
             "title": "Air quality (AQI) alert",
-            "intro": "Shows the air quality icon at the edge of a status bar when the air quality index reaches your warn level at any point left today, so an afternoon peak shows from the morning on. Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (Setup › Weather data): WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading.",
+            "intro": "Shows the air quality icon at the edge of a status bar when the air quality index reaches your warn level at any point left today, so an afternoon peak shows from the morning on. Looking ahead — later today and tomorrow — needs Open-Meteo for Air quality (Setup › Data sources): WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading.",
             "introNotes": [
               {
                 "showWhen": {
@@ -10287,6 +9732,18 @@
                       "when": "tempAxisLineDrawn"
                     }
                   ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "largeGraphFont",
+                "label": "Larger graph fonts",
+                "defaultValue": true,
+                "hint": "Draw the graph axis labels in bigger type.",
+                "more": true,
+                "showWhen": {
+                  "env": "platform",
+                  "eq": "emery"
                 }
               }
             ]
@@ -13895,10 +13352,27 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "The rain radar is off. Turn it on in <button type=\"button\" class=\"txt-link\" data-goto-tab=\"watchface\">Watchface › Views</button>.",
+                "text": "The rain radar is off. Turn it on in <button type=\"button\" class=\"txt-link\" data-goto-tab=\"setup\">Setup › Data sources</button>.",
                 "showWhen": {
-                  "key": "radarMode",
-                  "eq": "off"
+                  "key": "radarEnabled",
+                  "eq": false
+                }
+              },
+              {
+                "type": "staticText",
+                "style": "info",
+                "text": "No screen shows the rain radar. Add it to a screen on the <button type=\"button\" class=\"txt-link\" data-goto-tab=\"watchface\">Watchface tab</button>.",
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "radarEnabled",
+                      "ne": false
+                    },
+                    {
+                      "key": "radarMode",
+                      "ne": "graph"
+                    }
+                  ]
                 }
               },
               {
@@ -13907,104 +13381,9 @@
                 "defaultValue": true
               },
               {
-                "type": "select",
+                "type": "hidden",
                 "messageKey": "radarProvider",
-                "label": "Radar provider",
-                "defaultValue": "rainbow",
-                "showWhen": {
-                  "key": "radarMode",
-                  "ne": "off"
-                },
-                "recommendFrom": "recommendedRadarProvider",
-                "hintByValue": {
-                  "dwd": "Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.",
-                  "metno": "Precise weather radar — rain at your exact spot. Nordics only.",
-                  "rainbow": "A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
-                  "rainbowkey": "A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. A key is free: Rainbow's free plan covers 5,000 calls a month. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
-                  "tomorrowio": "A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key and counts against the same call budget."
-                },
-                "attentionFrom": {
-                  "resolver": "keyAttention"
-                },
-                "options": [
-                  [
-                    "DWD",
-                    "dwd",
-                    {
-                      "desc": "Best radar in Germany · exact spot + nearby"
-                    }
-                  ],
-                  [
-                    "Met.no",
-                    "metno",
-                    {
-                      "desc": "Best radar in the Nordics · exact spot"
-                    }
-                  ],
-                  [
-                    "Rainbow (limited)",
-                    "rainbow",
-                    {
-                      "desc": "Worldwide satellite + radar nowcast · no key, every 30 min"
-                    }
-                  ],
-                  [
-                    "Rainbow (own key)",
-                    "rainbowkey",
-                    {
-                      "desc": "Worldwide satellite + radar nowcast · needs a free key"
-                    }
-                  ],
-                  [
-                    "Tomorrow.io",
-                    "tomorrowio",
-                    {
-                      "desc": "Precise ML rain nowcast, worldwide · uses your key"
-                    }
-                  ]
-                ]
-              },
-              {
-                "type": "staticText",
-                "style": "info",
-                "joinPrevious": true,
-                "textFrom": {
-                  "resolver": "radarProviderNote",
-                  "args": {
-                    "picker": "radarProvider"
-                  }
-                },
-                "showWhen": {
-                  "key": "radarMode",
-                  "ne": "off"
-                }
-              },
-              {
-                "type": "sheet",
-                "label": "API key",
-                "indent": true,
-                "editSheetFrom": {
-                  "resolver": "keySheet",
-                  "args": {
-                    "picker": "radarProvider"
-                  }
-                },
-                "labelFrom": {
-                  "resolver": "keyRowLabel",
-                  "args": {
-                    "picker": "radarProvider"
-                  }
-                },
-                "hintFrom": {
-                  "resolver": "keyRowSummary",
-                  "args": {
-                    "picker": "radarProvider"
-                  }
-                },
-                "showWhen": {
-                  "key": "radarMode",
-                  "ne": "off"
-                }
+                "defaultValue": "rainbow"
               },
               {
                 "type": "segmented",
@@ -14138,140 +13517,6 @@
             ]
           },
           {
-            "sheetOnly": true,
-            "sheetId": "radarKeyRainbow",
-            "showWhen": {
-              "all": [
-                {
-                  "key": "radarProvider",
-                  "eq": "rainbowkey"
-                },
-                {
-                  "key": "radarMode",
-                  "ne": "off"
-                }
-              ]
-            },
-            "title": "Rainbow",
-            "items": [
-              {
-                "type": "text",
-                "messageKey": "rainbowApiKey",
-                "label": "API key",
-                "defaultValue": "",
-                "suffixAction": "testRainbowKey",
-                "suffixLabel": "Test",
-                "hint": "<b>How to get a key:</b><br>1. <a target='_blank' href='https://developer.rainbow.ai/signup/'>Sign up at developer.rainbow.ai</a>. Rainbow asks for a credit card, but the first 5,000 calls each month are free.<br>2. Open your <a target='_blank' href='https://developer.rainbow.ai/profile'>profile page</a><button type=\"button\" class=\"copybtn\" data-copy=\"https://developer.rainbow.ai/profile\" title=\"Copy the profile page link\" aria-label=\"Copy the profile page link\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V5a2 2 0 0 1 2-2h10\"/></svg></button>, copy the API key and paste it here.<br>3. Tap Test.<br>Keep \"Fit update interval to rate limit\" on and the watch stays within the free 5,000 calls.",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarProvider",
-                      "eq": "rainbowkey"
-                    },
-                    {
-                      "key": "radarMode",
-                      "ne": "off"
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "rainbowFitBudget",
-                "label": "Fit update interval to rate limit",
-                "defaultValue": true,
-                "joinPrevious": "loose",
-                "blockBefore": "rainbowBudget",
-                "hint": "Only offer update intervals that fit the free 5,000 calls a month. Turn off to pick any interval — Rainbow bills calls past 5,000 to your card at $0.10 per 1,000.",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarProvider",
-                      "eq": "rainbowkey"
-                    },
-                    {
-                      "key": "radarMode",
-                      "ne": "off"
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
-            "sheetId": "radarKeyTomorrowio",
-            "showWhen": {
-              "all": [
-                {
-                  "key": "radarProvider",
-                  "eq": "tomorrowio"
-                },
-                {
-                  "key": "radarMode",
-                  "ne": "off"
-                },
-                {
-                  "key": "provider",
-                  "ne": "tomorrowio"
-                }
-              ]
-            },
-            "title": "Tomorrow.io",
-            "items": [
-              {
-                "type": "text",
-                "messageKey": "tomorrowioApiKey",
-                "label": "API key",
-                "defaultValue": "",
-                "suffixAction": "testTomorrowioKey",
-                "suffixLabel": "Test",
-                "hint": "<a target='_blank' href='https://app.tomorrow.io/signup'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b><button type=\"button\" class=\"copybtn\" data-copy=\"https://app.tomorrow.io/development/keys\" title=\"Copy the API-keys page link\" aria-label=\"Copy the API-keys page link\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V5a2 2 0 0 1 2-2h10\"/></svg></button>, copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io's mobile site shows an error (404) on the API-keys page — tap the copy button, then open the link in your browser's desktop-site mode.</b>",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarProvider",
-                      "eq": "tomorrowio"
-                    },
-                    {
-                      "key": "radarMode",
-                      "ne": "off"
-                    },
-                    {
-                      "key": "provider",
-                      "ne": "tomorrowio"
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "tomorrowioFitBudget",
-                "label": "Fit update interval to rate limit",
-                "defaultValue": true,
-                "joinPrevious": "loose",
-                "blockBefore": "tomorrowioBudget",
-                "hint": "Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarProvider",
-                      "eq": "tomorrowio"
-                    },
-                    {
-                      "key": "radarMode",
-                      "ne": "off"
-                    },
-                    {
-                      "key": "provider",
-                      "ne": "tomorrowio"
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
             "pane": "health",
             "id": "healthGraph",
             "showWhen": {
@@ -14304,7 +13549,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "The heart-rate line is part of the health graph. Pick “Status + Graph” for Health in <button type=\"button\" class=\"txt-link\" data-goto-tab=\"watchface\">Watchface › Views</button>.",
+                "text": "The heart-rate line is part of the health graph. Add the Health graph to a screen on the <button type=\"button\" class=\"txt-link\" data-goto-tab=\"watchface\">Watchface tab</button>.",
                 "showWhen": {
                   "all": [
                     {
@@ -14390,13 +13635,13 @@
             ]
           },
           {
-            "id": "weatherData",
-            "title": "Weather data",
+            "id": "dataSources",
+            "title": "Data sources",
             "items": [
               {
                 "type": "select",
                 "messageKey": "provider",
-                "label": "Weather provider",
+                "label": "Weather",
                 "defaultValue": "wunderground",
                 "onChange": "clearPollenForProvider",
                 "recommendFrom": "recommendedWeatherProvider",
@@ -14501,18 +13746,133 @@
               },
               {
                 "type": "select",
-                "messageKey": "fetchIntervalMin",
-                "label": "Update interval",
-                "defaultValue": "15",
-                "hint": "Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.",
-                "optionsFrom": {
-                  "resolver": "fetchIntervalBudget"
+                "uiOnly": true,
+                "messageKey": "radarSource",
+                "label": "Rain radar",
+                "defaultValue": "rainbow",
+                "initFrom": {
+                  "resolver": "radarSourceValue"
+                },
+                "onChange": "radarSourcePicked",
+                "recommendFrom": "recommendedRadarProvider",
+                "hintByValue": {
+                  "dwd": "Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.",
+                  "metno": "Precise weather radar — rain at your exact spot. Nordics only.",
+                  "rainbow": "Refreshes at most every 30 minutes. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
+                  "rainbowkey": "A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. A key is free: Rainbow's free plan covers 5,000 calls a month. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
+                  "tomorrowio": "A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key and counts against the same call budget."
+                },
+                "attentionFrom": {
+                  "resolver": "radarKeyAttention"
+                },
+                "options": [
+                  [
+                    "Off",
+                    "off",
+                    {
+                      "desc": "No rain radar and no rain alert"
+                    }
+                  ],
+                  [
+                    "DWD",
+                    "dwd",
+                    {
+                      "desc": "Best radar in Germany · exact spot + nearby"
+                    }
+                  ],
+                  [
+                    "Met.no",
+                    "metno",
+                    {
+                      "desc": "Best radar in the Nordics · exact spot"
+                    }
+                  ],
+                  [
+                    "Rainbow (limited)",
+                    "rainbow",
+                    {
+                      "desc": "Worldwide satellite + radar nowcast · no key, every 30 min"
+                    }
+                  ],
+                  [
+                    "Rainbow (own key)",
+                    "rainbowkey",
+                    {
+                      "desc": "Worldwide satellite + radar nowcast · needs a free key"
+                    }
+                  ],
+                  [
+                    "Tomorrow.io",
+                    "tomorrowio",
+                    {
+                      "desc": "Precise ML rain nowcast, worldwide · uses your key"
+                    }
+                  ]
+                ],
+                "showWhen": {
+                  "env": "radar"
+                }
+              },
+              {
+                "type": "staticText",
+                "style": "info",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "radarProviderNote",
+                  "args": {
+                    "picker": "radarProvider"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "radar"
+                    },
+                    {
+                      "key": "radarEnabled",
+                      "ne": false
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "sheet",
+                "label": "API key",
+                "indent": true,
+                "editSheetFrom": {
+                  "resolver": "keySheet",
+                  "args": {
+                    "picker": "radarProvider"
+                  }
+                },
+                "labelFrom": {
+                  "resolver": "keyRowLabel",
+                  "args": {
+                    "picker": "radarProvider"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "keyRowSummary",
+                  "args": {
+                    "picker": "radarProvider"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "radar"
+                    },
+                    {
+                      "key": "radarEnabled",
+                      "ne": false
+                    }
+                  ]
                 }
               },
               {
                 "type": "select",
                 "messageKey": "aqiSource",
-                "label": "AQI provider",
+                "label": "Air quality",
                 "defaultValue": "waqi",
                 "hintByValue": {
                   "auto": "Prefers WAQI and falls back to Open-Meteo when no nearby station is available.",
@@ -14532,8 +13892,20 @@
                     "Open-Meteo",
                     "openmeteo"
                   ]
-                ],
-                "more": true
+                ]
+              },
+              {
+                "type": "select",
+                "messageKey": "fetchIntervalMin",
+                "label": "Update interval",
+                "defaultValue": "15",
+                "hint": "Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.",
+                "hintFrom": {
+                  "resolver": "batterySaverPauseHint"
+                },
+                "optionsFrom": {
+                  "resolver": "fetchIntervalBudget"
+                }
               }
             ]
           },
@@ -14616,6 +13988,140 @@
                 "showWhen": {
                   "key": "provider",
                   "eq": "yandex"
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "radarKeyRainbow",
+            "showWhen": {
+              "all": [
+                {
+                  "key": "radarProvider",
+                  "eq": "rainbowkey"
+                },
+                {
+                  "key": "radarEnabled",
+                  "ne": false
+                }
+              ]
+            },
+            "title": "Rainbow",
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "rainbowApiKey",
+                "label": "API key",
+                "defaultValue": "",
+                "suffixAction": "testRainbowKey",
+                "suffixLabel": "Test",
+                "hint": "<b>How to get a key:</b><br>1. <a target='_blank' href='https://developer.rainbow.ai/signup/'>Sign up at developer.rainbow.ai</a>. Rainbow asks for a credit card, but the first 5,000 calls each month are free.<br>2. Open your <a target='_blank' href='https://developer.rainbow.ai/profile'>profile page</a><button type=\"button\" class=\"copybtn\" data-copy=\"https://developer.rainbow.ai/profile\" title=\"Copy the profile page link\" aria-label=\"Copy the profile page link\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V5a2 2 0 0 1 2-2h10\"/></svg></button>, copy the API key and paste it here.<br>3. Tap Test.<br>Keep \"Fit update interval to rate limit\" on and the watch stays within the free 5,000 calls.",
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "radarProvider",
+                      "eq": "rainbowkey"
+                    },
+                    {
+                      "key": "radarEnabled",
+                      "ne": false
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "rainbowFitBudget",
+                "label": "Fit update interval to rate limit",
+                "defaultValue": true,
+                "joinPrevious": "loose",
+                "blockBefore": "rainbowBudget",
+                "hint": "Only offer update intervals that fit the free 5,000 calls a month. Turn off to pick any interval — Rainbow bills calls past 5,000 to your card at $0.10 per 1,000.",
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "radarProvider",
+                      "eq": "rainbowkey"
+                    },
+                    {
+                      "key": "radarEnabled",
+                      "ne": false
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "radarKeyTomorrowio",
+            "showWhen": {
+              "all": [
+                {
+                  "key": "radarProvider",
+                  "eq": "tomorrowio"
+                },
+                {
+                  "key": "radarEnabled",
+                  "ne": false
+                },
+                {
+                  "key": "provider",
+                  "ne": "tomorrowio"
+                }
+              ]
+            },
+            "title": "Tomorrow.io",
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "tomorrowioApiKey",
+                "label": "API key",
+                "defaultValue": "",
+                "suffixAction": "testTomorrowioKey",
+                "suffixLabel": "Test",
+                "hint": "<a target='_blank' href='https://app.tomorrow.io/signup'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b><button type=\"button\" class=\"copybtn\" data-copy=\"https://app.tomorrow.io/development/keys\" title=\"Copy the API-keys page link\" aria-label=\"Copy the API-keys page link\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V5a2 2 0 0 1 2-2h10\"/></svg></button>, copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io's mobile site shows an error (404) on the API-keys page — tap the copy button, then open the link in your browser's desktop-site mode.</b>",
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "radarProvider",
+                      "eq": "tomorrowio"
+                    },
+                    {
+                      "key": "radarEnabled",
+                      "ne": false
+                    },
+                    {
+                      "key": "provider",
+                      "ne": "tomorrowio"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "tomorrowioFitBudget",
+                "label": "Fit update interval to rate limit",
+                "defaultValue": true,
+                "joinPrevious": "loose",
+                "blockBefore": "tomorrowioBudget",
+                "hint": "Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.",
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "radarProvider",
+                      "eq": "tomorrowio"
+                    },
+                    {
+                      "key": "radarEnabled",
+                      "ne": false
+                    },
+                    {
+                      "key": "provider",
+                      "ne": "tomorrowio"
+                    }
+                  ]
                 }
               }
             ]

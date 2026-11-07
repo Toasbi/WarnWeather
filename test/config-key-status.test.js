@@ -1,6 +1,6 @@
 // test/config-key-status.test.js — the key status of a keyed weather provider (OpenWeatherMap,
 // Tomorrow.io, Yandex Weather; settings/key-status.js): the key row under the Weather
-// provider row (Setup › Weather data: "<Name> API key", its summary "Key ••••1234 · ✓ works"
+// provider row (Setup › Data sources: "<Name> API key", its summary "Key ••••1234 · ✓ works"
 // or a dimmed "No key"), the amber note while the key is missing, the dot on the tab and the
 // Save dialog while it is missing or known to be rejected. The states come from the Test
 // button's last result for that exact key and from the provider's last answer to it on the
@@ -21,7 +21,7 @@ const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 const PC = global.PConf;
 const setup = schema.tabs.find((t) => t.id === 'setup');
-const card = setup.sections.find((s) => s.id === 'weatherData');
+const card = setup.sections.find((s) => s.id === 'dataSources');
 const providerRow = card.items.find((i) => i.messageKey === 'provider');
 const noteItem = card.items[card.items.indexOf(providerRow) + 1];
 // The nav row under the note that opens the picked provider's key sheet.
@@ -354,7 +354,7 @@ function stubTabBarGeometry(page) {
 }
 
 /**
- * The Weather data card's key row (the nav row that opens a provider's key sheet).
+ * The Data sources card's key row (the nav row that opens a provider's key sheet).
  * @param {Object} page bootGeneratedPage handle, on the Setup tab.
  * @param {string} sheetId The key sheet it opens.
  * @returns {?string} Its markup, or null when it is not drawn.

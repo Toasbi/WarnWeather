@@ -536,7 +536,8 @@ function buildViewCycle(presetKey, healthMode, radarMode, swapClockStatus) {
   // DORMANT: the settings page hides the option and shows "Compact calendar" (and its
   // swap toggle) in its place. Its cycle is already compactCal's, so compile it AS
   // compactCal — swap included — or the watch would ignore the swap the page offers.
-  // Keep in step with blocks.js layoutPresetOptions and schema.js's swapClockStatus gate.
+  // Keep in step with schema.js's swapClockStatus gate (aplite's Layout card, the one
+  // place a preset is still picked).
   if (presetKey === 'compactDense' && mode === 'off' && !radarShowsView) {
     presetKey = 'compactCal';
   }
@@ -605,8 +606,8 @@ function orderCode(seq) {
 // (viewCount, viewTop{i}, viewBody{i}, viewUpper{i}, viewLower{i}, viewOrder{i},
 // viewClockOff{i}, viewStripOff{i}, viewTopSize{i}, viewBodySize{i}, viewAlign{i})
 // into the same spec objects packWire ships.
-// The key vocabulary is the editor's contract — settings/custom-layout-schema.js
-// and settings/view-editor.js speak these exact strings.
+// The key vocabulary is the screens' contract — settings/custom-layout-schema.js
+// stores these exact strings and screens.js compileKeys / listFromSpec speak them.
 
 // A graph in the top band compiles at tier NONE: no calendar rows, so the watch shows
 // the strip's full date. The status rows' font follows the top area's ROW count on the
@@ -627,10 +628,9 @@ var CUSTOM_SRC = {
 };
 
 // Capability gates, single-sourced: which radarMode/healthMode values unlock each
-// seat kind. THE one copy — buildCustomCycle folds by them, view-editor.js's
-// freeStatusSource offers by them, and settings/custom-layout-schema.js builds its
-// declarative optionDisabledWhen gates from these very arrays, so the compiler,
-// the editor and the sheets can never disagree. Mirrors the watch's
+// seat kind. THE one copy — buildCustomCycle folds by them, and the modes the page
+// writes are worked out from the screens (screens.js deriveModes), so a seat a screen
+// holds is always unlocked once saved. Mirrors the watch's
 // view_spec_resolve: radar CHART seats (top strip / body) need radarMode 'graph';
 // a health graph body needs healthMode 'all'; a health status source needs
 // 'status'|'all' ('slot' shows health only in the regular slot system, same as the
@@ -638,7 +638,7 @@ var CUSTOM_SRC = {
 // it is a status bar like the others and the watch draws it without radar data, so a
 // custom view keeps it whatever radarMode says. RADAR_ROW_MODES stays the PRESETS'
 // fact — the modes whose preset cycles draw the Radar bar (MATRIX's 'r' cycles) — read
-// by the preset paths (blocks.js layoutPresetOptions, on-demand.js barExists).
+// by the 2.6 migration's 2.5 compile (migrations/screens.js legacyCycle).
 var RADAR_CHART_MODES = ['graph'];
 var RADAR_ROW_MODES = ['status', 'graph'];
 var HEALTH_ROW_MODES = ['status', 'all'];
@@ -876,6 +876,49 @@ function resolveViewCycle(settings, env) {
     Boolean(s.swapClockStatus));
 }
 
+/**
+ * The views the screens show, before the watch's data folds (2.6: the modes follow the
+ * screens, settings/screens.js deriveModes): a custom layout compiled with every seat kind on,
+ * so its stored rows and graphs all count; a preset as its cycle; and on aplite, which folds
+ * a custom layout to a preset, what aplite runs (resolveViewCycle).
+ * @param {Object} settings settings state
+ * @param {?{platform: string}} [env] platform facts
+ * @returns {Array<?Object>} the views (null = a screen with nothing on it, which the watch skips)
+ */
+function screensCycle(settings, env) {
+  var s = settings || {};
+  if (s.layoutPreset === 'custom' && !(env && env.platform === 'aplite')) {
+    return buildCustomCycle(Object.assign({}, s, { radarMode: 'graph', healthMode: 'all' }));
+  }
+  return resolveViewCycle(s, env);
+}
+
+/**
+ * The status bars the screens show (screensCycle): the Watch bar on a screen the watch stops
+ * on that keeps it, and each source's bar wherever a view seats its row. THE one reading of
+ * "the bar is on the watch" for the Status bars tab, On demand (on-demand.js barExists) and
+ * the modes the screens need.
+ * @param {Object} settings settings state
+ * @param {?{platform: string}} [env] platform facts
+ * @returns {{top: boolean, forecast: boolean, radar: boolean, health: boolean}}
+ */
+function barsShown(settings, env) {
+  var out = { top: false, forecast: false, radar: false, health: false };
+  var cycle = screensCycle(settings, env);
+  for (var i = 0; i < cycle.length; i++) {
+    var v = cycle[i];
+    if (!v) { continue; }
+    if (!v.stripOff) { out.top = true; }
+    var rows = [v.statusUpper, v.statusLower];
+    for (var r = 0; r < rows.length; r++) {
+      if (rows[r] === STATUS_SRC_FORECAST) { out.forecast = true; }
+      if (rows[r] === STATUS_SRC_RADAR) { out.radar = true; }
+      if (rows[r] === STATUS_SRC_HEALTH) { out.health = true; }
+    }
+  }
+  return out;
+}
+
 // Single public API object, defined once. As a CommonJS module (watch runtime, tests)
 // this is module.exports. When this file is instead concatenated as a plain <script> into
 // the config-UI webview (see scripts/build-config-page.js, which has no `module`),
@@ -903,7 +946,7 @@ var VIEW_CYCLE = {
   buildCustomCycle: buildCustomCycle, specToKeys: specToKeys,
   seedCustomKeys: seedCustomKeys,
   buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey, presetKeyFor: presetKeyFor,
-  resolveViewCycle: resolveViewCycle
+  resolveViewCycle: resolveViewCycle, screensCycle: screensCycle, barsShown: barsShown
 };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = VIEW_CYCLE;

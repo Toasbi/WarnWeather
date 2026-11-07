@@ -443,30 +443,7 @@ function rerunWizardPickingHealth(over, healthMode) {
   return ctx;
 }
 
-test('re-running setup with health turned back on restores the health row', () => {
-  const ctx = rerunWizardPickingHealth({ prepare: (c) => {
-    // Health was turned OFF on the Health tab earlier: its own hook emptied the health row.
-    c.S.healthMode = 'off';
-    PConf.onChange.get('resetStatusHealth')(c.S, 'all', 'off', c.ENV, 'healthMode');
-    assert.deepEqual([c.S.statusHealthLeft, c.S.statusHealthMid, c.S.statusHealthRight],
-      ['empty', 'empty', 'empty'], 'guard: the off state left the row blank');
-  } }, 'status');
-  assert.equal(ctx.S.healthMode, 'status');
-  // Row back at its defaults, then the finishing policy's steps promotion evicts steps.
-  assert.deepEqual([ctx.S.statusHealthLeft, ctx.S.statusHealthMid, ctx.S.statusHealthRight],
-    ['distance', 'empty', 'sleep'], 'not a blank Health Status Bar');
-  assert.equal(ctx.S.statusTopLeft, 'steps');
-});
 
-test('re-running setup with health turned off snaps the promoted steps slot back', () => {
-  // emery: an earlier finished wizard promoted steps into the top-right corner.
-  const ctx = rerunWizardPickingHealth({ platform: 'emery', prepare: (c) => {
-    FINISH.applyWizardDefaults(c, 'save');
-    assert.equal(c.S.statusTopRight, 'steps', 'guard: the earlier run promoted steps');
-  } }, 'off');
-  assert.equal(ctx.S.healthMode, 'off');
-  assert.equal(ctx.S.statusTopRight, 'sun', 'the corner returns to its default, not a blank slot');
-});
 
 test('a health pick that keeps the enable state leaves a customized health row alone', () => {
   const ctx = rerunWizardPickingHealth({ saved: { healthMode: 'all',

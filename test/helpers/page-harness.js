@@ -138,6 +138,34 @@ function makeEl(id) {
   return el;
 }
 
+/**
+ * A node the page builds itself (document.createElement: the screen editor's overlay,
+ * screens-page.js): attributes, innerHTML, listeners it can be dispatched to, and the
+ * children querySelector answers, made on first ask and kept per selector so a test reads
+ * what the page wrote into them.
+ * @param {string} tag Its tag name.
+ * @returns {Object} The stub.
+ */
+function makeNode(tag) {
+  const handlers = {};
+  const attrs = {};
+  const found = {};
+  const node = {
+    tagName: String(tag).toUpperCase(), id: '', innerHTML: '', textContent: '', scrollTop: 0, style: {},
+    parentNode: null, children: [],
+    classList: { add() {}, remove() {}, contains() { return false; } },
+    setAttribute(n, v) { attrs[n] = String(v); },
+    getAttribute(n) { return Object.prototype.hasOwnProperty.call(attrs, n) ? attrs[n] : null; },
+    addEventListener(type, fn) { (handlers[type] = handlers[type] || []).push(fn); },
+    removeEventListener(type, fn) { handlers[type] = (handlers[type] || []).filter((f) => f !== fn); },
+    dispatch(type, ev) { (handlers[type] || []).slice().forEach((fn) => fn(ev)); },
+    appendChild(c) { c.parentNode = node; node.children.push(c); return c; },
+    removeChild(c) { node.children = node.children.filter((x) => x !== c); c.parentNode = null; return c; },
+    querySelector(sel) { return (found[sel] = found[sel] || makeNode('div')); }
+  };
+  return node;
+}
+
 /** Boot the real generated page in a vm sandbox with a fake DOM.
  * @param {Object} [cfg] stored settings to hydrate from (onboardingDone defaults to true)
  * @param {string} [platformName] Pebble platform for the injected env (default basalt)
@@ -166,13 +194,17 @@ function bootGeneratedPage(cfg, platformName, opts) {
   const src = html.match(/<script>([\s\S]*)<\/script>/)[1]
     .replace(/PConf\.engine\.boot\(\);\s*$/, '');   // boot explicitly, after wiring onReady
   const els = {};
-  const sandbox = { console, setTimeout };
+  const sandbox = { console, setTimeout, clearTimeout };
   sandbox.window = sandbox;
   sandbox.document = {
     getElementById(id) { return (els[id] = els[id] || makeEl(id)); },
     querySelector(sel) { return sel === '#save' ? sandbox.document.getElementById('save') : null; },
     querySelectorAll() { return []; },
-    addEventListener() {}
+    addEventListener() {},
+    removeEventListener() {},
+    // The screen editor's overlay is built by the page and appended to the body.
+    createElement: makeNode,
+    body: makeNode('body')
   };
   sandbox.navigator = {};
   sandbox.location = { href: '' };   // save() navigates to RETURN_TO + the saved blob
@@ -304,6 +336,29 @@ function bootGeneratedPage(cfg, platformName, opts) {
         closest: sel => (sel === '[data-select-pick]' ? t : null)
       };
       els.modal.dispatch('click', { target: t });
+    },
+    // Tap a [data-action] button in a host (the Screens card's rows, + Add screen, a ✕,
+    // Undo; the pinned watch's screens): the engine runs the action with its arg.
+    tapAction(action, arg, host) {
+      const h = els[host || 'scroll'];
+      const t = { getAttribute: n => (n === 'data-action' ? action : (n === 'data-action-arg' ? (arg === undefined ? null
+        : String(arg)) : null)), closest: sel => (sel === '[data-action]' ? t : null) };
+      h.dispatch('click', { target: t });
+    },
+    // The screen editor's overlay (screens-page.js), while it is open; else null.
+    editor() {
+      return sandbox.document.body.children.find((c) => c.id === 'screenEditor') || null;
+    },
+    // Tap a [data-se] control in the open screen editor, by its attributes (data-se, data-j,
+    // data-k, data-key, data-v; `disabled` for a disabled button).
+    tapEditor(attrs) {
+      const ed = this.editor();
+      assert.ok(ed, 'the screen editor is open');
+      const t = { disabled: Boolean(attrs.disabled), getAttribute: n => {
+        const k = n.replace(/^data-/, '');
+        return Object.prototype.hasOwnProperty.call(attrs, k) ? String(attrs[k]) : null;
+      }, closest: sel => (sel === '[data-se]' ? t : null) };
+      ed.dispatch('click', { target: t });
     },
     // Tap Save: the submit hooks run, the state serializes, and after the toast delay the
     // page navigates to RETURN_TO ('#') + the encoded blob. Resolves with that blob.

@@ -62,8 +62,9 @@ var BOLD_MASTER_WHEN = {key: 'statusBoldAll', in: ['off', 'all']};
 // The two capability gates the Radar/Health status bars share — named once
 // (the THRESHOLD_WHEN precedent) so a bar's visibility rule lives in one
 // constant instead of six inline copies across its slots and countdown rows.
-var RADAR_BAR_WHEN = {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]};
-var HEALTH_BAR_WHEN = {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]};
+// Whether a screen shows the bar: on-demand.js barExists (when-resolvers.js barShown).
+var RADAR_BAR_WHEN = {all: [{env: 'radar'}, {when: 'barShown', args: {bar: 'radar'}}]};
+var HEALTH_BAR_WHEN = {all: [{env: 'health'}, {when: 'barShown', args: {bar: 'health'}}]};
 // "The theme actually renders color choices" — inlined ~10 times before it had
 // a name. (The compound "effectively B&W" check is the BW_LEGEND rows' showWhen in
 // schema.js.)

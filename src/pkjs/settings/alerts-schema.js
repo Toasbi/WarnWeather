@@ -3,9 +3,8 @@
 // link row and the Default view note) and the item rows under it, the sheet behind every
 // row (Battery, Bluetooth, Quiet time, Sleep, Rain and the five metric alerts, each leading
 // with its Shows on grid), the alert-level cards, the eight side lists' hidden items, and
-// the pieces the other tabs show: a bar's Alerts row (Status bars tab), the rain alert's
-// 'Rain alert only' note (Watchface › Views), and the Bluetooth icon's choices (aplite's
-// Watch Status Bar). schema.js's alert slot sheets
+// the pieces the other tabs show: a bar's Alerts row (Status bars tab) and the Bluetooth
+// icon's choices (aplite's Watch Status Bar). schema.js's alert slot sheets
 // read the kinds, their contract codes and the placement leaf from here.
 // It reads the shared gates (schema-gates.js) and the level group (level-rows-schema.js),
 // never schema.js, so the dependency points one way. Plain CommonJS with an unguarded
@@ -92,27 +91,6 @@ function onDemandPlacedWhen(code) {
     return {when: 'onDemandPlaced', args: {code: code}};
 }
 /**
- * The note under the Rain radar row (Watchface › Views) in radar mode 'Rain alert only',
- * the mode that fetches the radar for the rain icon alone, while no side of a bar that
- * exists in it holds Rain, with a link to the Alerts tab, where the Rain sheet's Shows
- * on grid places it. Not in 'Status' or 'Graph' mode: a user there who took Rain off
- * every bar chose that. The radar bar
- * never shows in this mode, so on-demand.js placedAnywhere (onDemandPlacedWhen) leaves a
- * Rain ticked there out, as placeRainForCountdown does. The Rain sheet needs no note of
- * its own: its Shows on grid shows where Rain is. A fresh object per call, like every
- * item.
- * @returns {Object} The info-box staticText.
- */
-function rainAlertUnshownNote() {
-    return {
-        type: 'staticText',
-        style: 'info',
-        text: '‘Rain alert only’ fetches the radar for the rain icon, but Rain isn’t on any status bar ('
-            + tabLink('alerts', 'Alerts › Rain') + ').',
-        showWhen: {all: [{key: 'radarMode', eq: 'countdown'}, ON_DEMAND_WHEN, {not: onDemandPlacedWhen('rain')}]}
-    };
-}
-/**
  * The Rain sheet's box while the radar is off, right under its Shows on note: the rain
  * alert cannot show then (alerts-page.js onDemandBlocked), so the grid's rows go inert and
  * keep their ticks, and this says why. A fresh object per call, like every item.
@@ -122,8 +100,8 @@ function rainRadarOffNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'The rain alert needs the rain radar. Turn it on in ' + tabLink('watchface', 'Watchface › Views') + '.',
-        showWhen: {key: 'radarMode', eq: 'off'}
+        text: 'The rain alert needs the rain radar. Turn it on in ' + tabLink('setup', 'Setup › Data sources') + '.',
+        showWhen: {key: 'radarEnabled', eq: false}
     };
 }
 /**
@@ -190,7 +168,7 @@ function rainNotPlacedNote() {
         type: 'staticText',
         style: 'info',
         text: 'Rain isn’t on any status bar yet, so the rain icon won’t show. Tick a side below.',
-        showWhen: {all: [{key: 'radarMode', ne: 'off'}, {not: onDemandPlacedWhen('rain')}]}
+        showWhen: {all: [{key: 'radarEnabled', ne: false}, {not: onDemandPlacedWhen('rain')}]}
     };
 }
 // A metric alert's Days, named once: the sheet's row offers them and the card row's hint
@@ -440,10 +418,10 @@ var ALERT_KINDS = [
     // (AQI_DAY_PEAKS): WAQI — the default source, and Auto whenever a station answers
     // — has none, so alertReading judges the current reading and no tomorrow entry is
     // ever baked (wire-units dayMaxTomorrow reads null). The coda mirrors the slot
-    // sheet's source note, in Setup › Weather data's own labels ('AQI provider', 'Open-Meteo').
+    // sheet's source note, in Setup › Data sources' own labels ('Air quality', 'Open-Meteo').
     {keyStem: 'Aqi', label: 'Air quality', title: 'Air quality (AQI)', subject: 'the air quality index',
         iconName: 'air quality', icon: 'aqi', why: ALERT_LEVEL_CARDS.Aqi,
-        coda: ' Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (Setup › Weather data): '
+        coda: ' Looking ahead — later today and tomorrow — needs Open-Meteo for Air quality (Setup › Data sources): '
             + 'WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading.'},
     {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen index', iconName: 'pollen',
         icon: 'pollen', gate: {key: 'provider', eq: 'dwd'}, why: ALERT_LEVEL_CARDS.Pollen,
@@ -760,7 +738,6 @@ module.exports = {
     alertCodeOf: alertCodeOf,
     onDemandPlacedWhen: onDemandPlacedWhen,
     onDemandRow: onDemandRow,
-    rainAlertUnshownNote: rainAlertUnshownNote,
     cardSections: cardSections,
     sheetSections: sheetSections
 };

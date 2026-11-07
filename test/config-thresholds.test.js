@@ -1634,9 +1634,9 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     assert.deepEqual(s.showWhen, { env: 'onDemand' }, s.sheetId + ': gated to a watch with On demand');
     // AQI's look-ahead — later today and tomorrow — depends on its source (WAQI has no
     // forecast): its intro closes on the note the slot sheet carries too (settings
-    // audit #10), naming where the AQI provider is picked (Setup › Weather data).
-    const coda = stem === 'Aqi' ? ' Looking ahead — later today and tomorrow — needs the Open-Meteo AQI'
-      + ' provider (Setup › Weather data): WAQI, which Auto mostly reads, has no forecast, so the alert then judges'
+    // audit #10), naming where the air quality source is picked (Setup › Data sources).
+    const coda = stem === 'Aqi' ? ' Looking ahead — later today and tomorrow — needs Open-Meteo for Air'
+      + ' quality (Setup › Data sources): WAQI, which Auto mostly reads, has no forecast, so the alert then judges'
       + ' the current reading.' : '';
     assert.equal(s.intro, 'Shows the ' + ICON[stem] + ' icon at the edge of a status bar when '
       + SUBJECT[stem] + ' reaches your warn level at any point left today, so an afternoon peak shows'
@@ -1752,8 +1752,8 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
     intro: 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.' });
   assert.deepEqual(s.items[1], { type: 'staticText', style: 'info',
     text: 'The rain alert needs the rain radar. Turn it on in <button type="button" class="txt-link"'
-      + ' data-goto-tab="watchface">Watchface › Views</button>.',
-    showWhen: { key: 'radarMode', eq: 'off' } });
+      + ' data-goto-tab="setup">Setup › Data sources</button>.',
+    showWhen: { key: 'radarEnabled', eq: false } });
   assert.equal(s.items[2].text, 'Rain isn’t on any status bar yet, so the rain icon won’t show. Tick a side below.');
   const OD = require('../src/pkjs/on-demand.js');
   const odEnv = { onDemand: true, radar: true, health: true };
@@ -1762,7 +1762,7 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
   assert.equal(notPlaced({ radarMode: 'countdown' }), false, 'hidden while Rain is on a bar (the default)');
   assert.equal(notPlaced({ radarMode: 'countdown', statusTopOnDemandLeftItems: 'bt' }), true,
     'shown once Rain is on no bar');
-  assert.equal(notPlaced({ radarMode: 'off', statusTopOnDemandLeftItems: 'bt' }), false,
+  assert.equal(notPlaced({ radarEnabled: false, statusTopOnDemandLeftItems: 'bt' }), false,
     'never doubled with the radar-off box');
   assert.equal(s.items[3].check, 'rain', 'then the grid');
   assert.equal(s.items[3].captionsOnly, true);
