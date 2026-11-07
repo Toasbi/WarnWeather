@@ -2249,6 +2249,14 @@ module.exports = {
                 text: 'The rain radar is off. Turn it on in ' + tabLink('watchface', 'Watchface › Views') + '.',
                 showWhen: {key: 'radarMode', eq: 'off'}
             }, {
+                // The rain radar's Off, kept apart from its source (2.6): off, the phone fetches
+                // no radar and radarProvider stays the source a turn back on restores. radarMode
+                // follows the screens and this (screens.js deriveModes); the 2.6 migration sets it
+                // from the radarMode an install had (migrations/screens.js).
+                type: 'hidden',
+                messageKey: 'radarEnabled',
+                defaultValue: true
+            }, {
                 type: 'select',
                 messageKey: 'radarProvider',
                 label: 'Radar provider',

@@ -364,6 +364,9 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // without a field of its own (the Deno schema takes any string).
         radarProvider: safe.radarProvider,
         radarMode: safe.radarMode || 'graph',
+        // Setup's Rain radar Off (2.6), apart from the source above: on by default, so a
+        // missing key is on.
+        radarEnabled: safe.radarEnabled !== false,
         radarColor: safe.radarColor,
         radarSky: safe.radarSky !== false,   // on by default: a missing key is on
         devStatsEnabled: Boolean(safe.devStatsEnabled),

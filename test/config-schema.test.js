@@ -103,6 +103,8 @@ const EXPECTED_KEYS = [
   'hideInfoText','devStatsEnabled','devStatsClear','reset',
   // Custom-layout storage (sheetOnly section; see customViewItems in custom-layout-schema.js).
   'viewCount','customLayoutSeeded',
+  // The rain radar's Off, apart from its source (2.6; hidden until Setup's Data sources).
+  'radarEnabled',
   'viewTop0','viewBody0','viewUpper0','viewLower0','viewOrder0','viewStripOff0',
   'viewTop1','viewBody1','viewUpper1','viewLower1','viewOrder1','viewClockOff1','viewStripOff1',
   'viewTop2','viewBody2','viewUpper2','viewLower2','viewOrder2','viewClockOff2','viewStripOff2',

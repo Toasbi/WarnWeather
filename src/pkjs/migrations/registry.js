@@ -35,6 +35,7 @@ var lightTheme = require('./light-theme.js');
 var lineStyles = require('./line-styles.js');
 var v124 = require('./v1_24.js');
 var alertDefaults = require('./alert-defaults.js');
+var screens = require('./screens.js');
 
 module.exports = [
     // 1.20.0. Marks on every boot that finds it unset, fresh installs included (see the
@@ -121,5 +122,12 @@ module.exports = [
     // scheduler). Reset-safe: the next blob is seeded with these defaults, and a look the
     // page saves before the next boot is a pick.
     { key: KEYS.ALERT_DEFAULTS_MIGRATION_KEY, markOn: 'now', markOnReset: true,
-      run: alertDefaults.migrateAlertDefaults }
+      run: alertDefaults.migrateAlertDefaults },
+    // 2.6.0: screens (the custom layout's keys, the modes worked out from them,
+    // radarEnabled). After the On demand and alert-default moves: the modes it works out
+    // read the rain alert's ticks. Marks now though it can ask for a send (see
+    // clay-migrations.js on the scheduler). Not reset-safe: the blob a reset seeds holds a
+    // preset, which the next boot moves like any other.
+    { key: KEYS.SCREENS_MIGRATION_KEY, markOn: 'now', markOnReset: false,
+      run: screens.migrateToScreens }
 ];

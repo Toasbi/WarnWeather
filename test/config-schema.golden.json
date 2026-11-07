@@ -13902,6 +13902,11 @@
                 }
               },
               {
+                "type": "hidden",
+                "messageKey": "radarEnabled",
+                "defaultValue": true
+              },
+              {
                 "type": "select",
                 "messageKey": "radarProvider",
                 "label": "Radar provider",
