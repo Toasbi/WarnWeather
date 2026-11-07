@@ -128,7 +128,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // the hours it shows for the provider and the look.
         forecastHours: {
             options: function () { return FORECAST.spanOptions(run.ctx.S, run.env); },
-            desc: function () { return FORECAST.SPAN_DESC; },
+            desc: function () {
+                var hints = FINISH.findItem(run.ctx.schema, 'forecastHours').hintByValue;
+                return Object.assign({}, hints, FORECAST.SPAN_DESC);
+            },
             selected: function () { return FORECAST.spanOf(run.ctx.S); },
             graph: true
         }
@@ -161,8 +164,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             reachedDone: false, tioTyped: false,
             // Where focus goes when setup closes onto the page: the row that re-ran it.
             returnFocus: fresh ? null : '[data-action="startWizard"]',
-            // The forecast step's looks, and "Your own"'s values and length (refreshLooks).
-            looks: null, own: null, ownSpan: null
+            // The forecast step's looks, and "Your own" (its values and length: refreshLooks).
+            looks: null, own: null
         };
     }
 
@@ -285,8 +288,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function refreshLooks() {
         var S = run.ctx.S;
-        run.looks = FORECAST.looks(S, run.env, PConf.engine.themedDefaults(run.ctx.schema, S, run.env), run.own,
-            run.ownSpan);
+        run.looks = FORECAST.looks(S, run.env, PConf.engine.themedDefaults(run.ctx.schema, S, run.env), run.own);
     }
     function lookById(id) {
         for (var i = 0; i < run.looks.length; i += 1) { if (run.looks[i].id === id) { return run.looks[i]; } }
@@ -329,7 +331,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var S = run.ctx.S, before = run.looks ? currentLook().id : null, oldTheme = S.theme;
         run.ctx.setValue('theme', theme);
         if (!run.looks) { return; }
-        if (run.own) { FORECAST.followTheme(run.own, oldTheme, theme); }
+        if (run.own) { FORECAST.followTheme(run.own.values, oldTheme, theme); }
         refreshLooks();
         var look = lookById(before);
         if (!FORECAST.same(S, look.values, run.env)) { writeLook(look.values); }
@@ -361,9 +363,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         };
     }
     /**
-     * Redraw the forecast step's picture, and bring the length up to date: a look picked anew sets
-     * the length it starts on, and the long span's hours follow the look (the high and low on the
-     * graph widen its plot).
+     * Redraw the forecast step's picture and its length row: the long span's label follows the
+     * look (the high and low on the graph widen its plot, so it names more hours), and the
+     * length picked is marked (a look picked anew starts on its own: pickLook).
      * @returns {void}
      */
     function refreshForecast() {
@@ -383,7 +385,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * them unchanged redraws nothing.
      * @returns {string}
      */
-    function graphState() { return JSON.stringify(FORECAST.snapshot(run.ctx.S, run.env)) + '|' + FORECAST.spanOf(run.ctx.S); }
+    function graphState() { return JSON.stringify(FORECAST.state(run.ctx.S, run.env)); }
 
     // --- the picker ---
     function optsFor(group) { return PICKERS[group].options(); }
@@ -519,22 +521,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Pick a layout. On a watch with screens it makes the Default screen alone (the flick screens
      * are the Screens step's): the preset's own Default view, the one its three-screen cycle starts
-     * with, compiled back to the per-view keys of slot 0 (view-cycle.js specToKeys), the other
-     * screens frozen first (screens-page.js ensureCustom). A bar it brings on with nothing to show
-     * takes its default slots, as a screen edit gives them (screens-page.js fillNewBars). aplite
-     * keeps the preset.
+     * with, compiled back to the per-view keys of slot 0 (view-cycle.js specToKeys), as a screen
+     * edit (screens-page.js editScreens: the other screens frozen first, a bar it brings on with
+     * nothing to show given its default slots). aplite keeps the preset.
      * @param {string} layout 'fullCal' | 'compactCal' | 'noCal'.
      * @returns {void}
      */
     function pickLayout(layout) {
         var S = run.ctx.S;
         if (!SP.hasScreens(run.env)) { run.ctx.setValue('layoutPreset', layout); return; }
-        SP.ensureCustom(S, run.env);
-        var before = SP.barsShown(S, run.env);
         var keys = VC.specToKeys([VC.buildViewCycle(layout, 'off', 'off', S.swapClockStatus !== false)[0]]);
-        Object.keys(keys).forEach(function (k) { if (k !== 'viewCount') { S[k] = keys[k]; } });
-        SP.fillNewBars(S, before, run.env);
-        SP.applyModes(S, run.env);
+        SP.editScreens(S, run.env, function () {
+            Object.keys(keys).forEach(function (k) { if (k !== 'viewCount') { S[k] = keys[k]; } });
+            return true;
+        });
     }
 
     // --- the Screens step: the watch's own screens, drawn live ---
@@ -1115,8 +1115,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // A graph set up in Settings, none of the looks: kept as "Your own", first.
             refreshLooks();
             if (!FORECAST.current(ctx.S, run.looks, run.env)) {
-                run.own = FORECAST.snapshot(ctx.S, run.env);
-                run.ownSpan = FORECAST.spanOf(ctx.S);
+                run.own = FORECAST.state(ctx.S, run.env);
                 refreshLooks();
             }
         }

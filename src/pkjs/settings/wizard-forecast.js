@@ -77,10 +77,9 @@
     ];
     var OWN = { id: 'own', label: 'Your own' };
 
-    // Forecast length (emery only): the schema's Graphs › Forecast › Other row, its hints shortened.
+    // Forecast length (emery only): the schema's Graphs › Forecast › Other row. Setup shows its
+    // hints, the long span's shortened to this.
     var SPAN_DESC = {
-        '12': 'The next 12 hours, in wider columns.',
-        '24': 'The next 24 hours.',
         '48': 'As far ahead as your weather service forecasts and the graph fits, in narrow columns.'
     };
 
@@ -177,15 +176,16 @@
     }
 
     /**
-     * The graph settings as they are: the values of "Your own".
+     * The graph as the settings hold it: its governed settings and its Forecast length (spanOf).
+     * Setup keeps the one it opened on as "Your own" when it is none of the looks.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
-     * @returns {Object<string, *>}
+     * @returns {{values: Object<string, *>, span: string}}
      */
-    function snapshot(S, env) {
-        var out = {};
-        governed(env).forEach(function (k) { out[k] = S[k]; });
-        return out;
+    function state(S, env) {
+        var values = {};
+        governed(env).forEach(function (k) { values[k] = S[k]; });
+        return { values: values, span: spanOf(S) };
     }
 
     /**
@@ -194,19 +194,19 @@
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} defaults The defaults as the theme starts them.
-     * @param {?Object} own "Your own"'s values (snapshot), or null.
-     * @param {?string} [ownSpan] "Your own"'s length (spanOf when setup opened).
+     * @param {?{values: Object<string, *>, span: string}} own "Your own" (state() when setup
+     *   opened), or null.
      * @returns {Array.<{id: string, label: string, desc: string, values: Object, span: ?string}>}
      */
-    function looks(S, env, defaults, own, ownSpan) {
+    function looks(S, env, defaults, own) {
         var spans = Boolean(env && env.forecastSpan);
         var out = LOOKS.map(function (look) {
             return { id: look.id, label: look.label, desc: describe(look.id, env), values: valuesOf(look, S, env, defaults),
                 span: spans ? look.span : null };
         });
         if (own) {
-            out.unshift({ id: OWN.id, label: OWN.label, desc: describe(OWN.id, env), values: own,
-                span: spans && ownSpan ? ownSpan : null });
+            out.unshift({ id: OWN.id, label: OWN.label, desc: describe(OWN.id, env), values: own.values,
+                span: spans ? own.span : null });
         }
         return out;
     }
@@ -275,7 +275,7 @@
         FRAME_H: FRAME_H,
         governed: governed,
         same: same,
-        snapshot: snapshot,
+        state: state,
         looks: looks,
         spanOf: spanOf,
         spanOptions: spanHours.spanOptions,

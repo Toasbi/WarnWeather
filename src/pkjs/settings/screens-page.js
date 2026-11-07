@@ -8,8 +8,9 @@
 // screensOf / compileKeys), one screen at a time, so a screen the user does not touch keeps
 // its keys byte for byte. A preset install (one the 2.6 migration could not move: its watch
 // did not say what it is) turns custom at its first screen edit, through its own cycle's keys
-// (view-cycle.js specToKeys), so nothing on it moves either. A bar an edit brings onto the
-// screens with nothing to show (every slot Empty) takes its default slots (fillNewBars).
+// (view-cycle.js specToKeys), so nothing on it moves either. Every edit lands through
+// editScreens: a bar it brings onto the screens with nothing to show (every slot Empty) takes
+// its default slots there.
 // radarMode and healthMode follow every edit and every Save (screens.js deriveModes), so each
 // reader of them stays as it is; what reads them between Saves, where a tick on the Alerts
 // tab can have moved them, reads the ones Save will store (radarModeToSave).
@@ -71,9 +72,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * (ensureCustom): a mode worked out from them can then never drop one (the radar turned
      * off, then on again, keeps its screen). A watch that did not say what it is keeps its
      * preset here, as the 2.6 migration does: it might be an aplite, which folds a custom
-     * layout to Compact calendar. Only a screen edit makes it custom there (writeScreen,
-     * deleteScreen, insertScreen). aplite keeps its own modes (its page sets both off as it
-     * opens, onbuild.js).
+     * layout to Compact calendar. Only a screen edit makes it custom there (editScreens).
+     * aplite keeps its own modes (its page sets both off as it opens, onbuild.js).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {void}
@@ -86,19 +86,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S.healthMode = m.healthMode;
     }
 
-    // A bar's slots in their line's order (status-line-catalog.js LINES), as the catalog places them.
-    var SLOT_POSITIONS = ['left', 'mid', 'right'];
-
-    /**
-     * The bars the screens show (view-cycle.js barsIn; the Watch bar is 'top').
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @returns {{top: boolean, forecast: boolean, radar: boolean, health: boolean}}
-     */
-    function barsShown(S, env) {
-        return VC.barsIn(VC.screensCycle(S, env));
-    }
-
     /**
      * Give a bar that has just come onto a screen its default slots (status-line-catalog.js
      * slotDefault, the ones a new install has) when it would show nothing: every slot Empty, or
@@ -107,39 +94,65 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * one a screen showed already, keeps its slots. Mutates S.
      * @param {Object} S Settings.
      * @param {{top: boolean, forecast: boolean, radar: boolean, health: boolean}} before
-     *   barsShown() before the change.
+     *   view-cycle.js barsShown() before the change.
      * @param {?Object} env Platform env.
      * @returns {void}
      */
     function fillNewBars(S, before, env) {
-        var now = barsShown(S, env);
+        var now = VC.barsShown(S, env);
         catalog.LINES.forEach(function (line) {
             if (!now[line.id] || before[line.id]) { return; }
             var blank = line.slots.every(function (key, p) {
-                return catalog.resolveSelection(S[key], S, env, { slotKey: key, position: SLOT_POSITIONS[p] }) === 'empty';
+                var slot = { slotKey: key, position: catalog.SLOT_POSITIONS[p] };
+                return catalog.resolveSelection(S[key], S, env, slot) === 'empty';
             });
             if (blank) { line.slots.forEach(function (key) { S[key] = catalog.slotDefault(key, env); }); }
         });
     }
 
     /**
-     * Store one screen (its per-view keys) and the modes that follow; a bar it brings onto the
-     * screens with nothing to show takes its default slots (fillNewBars). Mutates S.
+     * Make one screen edit, the way every one lands: a preset turns custom first
+     * (ensureCustom), so the edit changes the very keys the watch runs; then a bar the edit
+     * brings onto the screens with nothing to show takes its default slots (fillNewBars), and
+     * the modes follow the screens (applyModes). Mutates S.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {function(): boolean} edit Writes the per-view keys; false when it declines
+     *   (writing nothing).
+     * @returns {boolean} whether the edit was made
+     */
+    function editScreens(S, env, edit) {
+        ensureCustom(S, env);
+        var before = VC.barsShown(S, env);
+        if (!edit()) { return false; }
+        fillNewBars(S, before, env);
+        applyModes(S, env);
+        return true;
+    }
+
+    /**
+     * Write one screen's per-view keys into its slot, the screen count growing to hold it.
+     * Mutates S.
+     * @param {Object} S Settings.
+     * @param {number} i View slot.
+     * @param {Array<Object>} list The screen.
+     * @returns {void}
+     */
+    function putScreen(S, i, list) {
+        Object.assign(S, M.compileKeys(list, i));
+        if ((parseInt(S.viewCount, 10) || 1) < i + 1) { S.viewCount = String(i + 1); }
+    }
+
+    /**
+     * Store one screen (a screen edit: editScreens). Mutates S.
      * @param {Object} S Settings.
      * @param {number} i View slot.
      * @param {Array<Object>} list The screen.
      * @param {?Object} env Platform env.
-     * @param {Object} [before] barsShown() before the change, from a caller that has moved the
-     *   other screens already (insertScreen); else read here.
      * @returns {void}
      */
-    function writeScreen(S, i, list, env, before) {
-        ensureCustom(S, env);
-        var was = before || barsShown(S, env);
-        Object.assign(S, M.compileKeys(list, i));
-        if ((parseInt(S.viewCount, 10) || 1) < i + 1) { S.viewCount = String(i + 1); }
-        fillNewBars(S, was, env);
-        applyModes(S, env);
+    function writeScreen(S, i, list, env) {
+        editScreens(S, env, function () { putScreen(S, i, list); return true; });
     }
 
     /**
@@ -191,13 +204,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {boolean} whether a screen went
      */
     function deleteScreen(S, i, env) {
-        ensureCustom(S, env);
-        var n = parseInt(S.viewCount, 10) || 1;
-        if (i < 1 || i >= n) { return false; }
-        for (var j = i; j < n - 1; j++) { copyView(S, j + 1, j); }
-        S.viewCount = String(n - 1);
-        applyModes(S, env);
-        return true;
+        return editScreens(S, env, function () {
+            var n = parseInt(S.viewCount, 10) || 1;
+            if (i < 1 || i >= n) { return false; }
+            for (var j = i; j < n - 1; j++) { copyView(S, j + 1, j); }
+            S.viewCount = String(n - 1);
+            return true;
+        });
     }
 
     /**
@@ -230,16 +243,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {boolean} whether it went in (no fourth screen, never before the Default)
      */
     function insertScreen(S, at, list, env) {
-        ensureCustom(S, env);
-        var n = parseInt(S.viewCount, 10) || 1;
-        if (n >= M.MAX_SCREENS || at < 1 || at > n) { return false; }
-        // Before the move: the slot past the last screen can hold a deleted screen's keys.
-        var before = barsShown(S, env);
-        for (var j = n; j > at; j--) { copyView(S, j - 1, j); }
-        S['viewAlign' + at] = 'clock';
-        S.viewCount = String(n + 1);
-        writeScreen(S, at, list, env, before);
-        return true;
+        return editScreens(S, env, function () {
+            var n = parseInt(S.viewCount, 10) || 1;
+            if (n >= M.MAX_SCREENS || at < 1 || at > n) { return false; }
+            for (var j = n; j > at; j--) { copyView(S, j - 1, j); }
+            S['viewAlign' + at] = 'clock';
+            S.viewCount = String(n + 1);
+            putScreen(S, at, list);
+            return true;
+        });
     }
 
     /**
@@ -923,8 +935,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         hasScreens: hasScreens,
         ensureCustom: ensureCustom,
         applyModes: applyModes,
-        barsShown: barsShown,
-        fillNewBars: fillNewBars,
+        editScreens: editScreens,
         writeScreen: writeScreen,
         snapshot: snapshot,
         restore: restore,
