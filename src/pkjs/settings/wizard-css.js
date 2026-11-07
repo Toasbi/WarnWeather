@@ -82,12 +82,16 @@
         + 'box-shadow:0 14px 34px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.08)}'
         + 'body.light #wizard .wiz-graph{box-shadow:0 12px 28px rgba(0,0,0,.24),0 0 0 1px rgba(0,0,0,.08)}'
         + '#wizard .wiz-graph svg,#wizard .wiz-look svg{animation:wiz-fade .22s ease both}'
+        + '#wizard .wiz-sub{margin:26px 0 0;text-align:center}'
+        + '#wizard .wiz-sub+.wiz-opts{margin-top:10px}'
         + '#wizard button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}'
         // cards: the country on the welcome step, the layout legend, the summary, the upsell
         + '#wizard .wiz-card,#wizard .wiz-legend,#wizard .wiz-sum,#wizard .wiz-tio{margin:18px 0 0;'
         + 'border:1px solid var(--card-line);border-radius:16px;background:var(--card);overflow:hidden}'
-        + '#wizard .wiz-card-hd{padding:14px 16px 0;font:800 11.5px ' + FONT + ';letter-spacing:.1em;'
+        // the small-caps headings: a card's, and a step's second picker's (wiz-sub)
+        + '#wizard .wiz-card-hd,#wizard .wiz-sub{font:800 11.5px ' + FONT + ';letter-spacing:.1em;'
         + 'text-transform:uppercase;color:var(--ttl)}'
+        + '#wizard .wiz-card-hd{padding:14px 16px 0}'
         + '#wizard .wiz-note{margin:0;padding:10px 16px 14px;font-size:13px;line-height:1.5;color:var(--hint)}'
         + '#wizard .wiz-legend{padding:2px 16px}'
         + '#wizard .wiz-legend p{margin:12px 0;font-size:13.5px;color:var(--muted)}'

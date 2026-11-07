@@ -112,8 +112,10 @@ setting, wire bit, persist key or message key for the span on the watch.
   stored 'axis' / 'graph' / 'off'; a beta's 'beside' and junk read 'axis'). On graph or Off
   draws no label strip and no axis line. On emery the forecast layer then draws unclipped
   inside a clip layer of its own rows that reaches the screen's left edge, so W = 200 px. The
-  rows above and below the frame stay clipped as they always were. With a health graph sharing
-  the view the shared strip stays (its step marks need it). The axis line is drawn exactly On
+  rows above and below the frame stay clipped as they always were. A health graph sharing the
+  view keeps its own strip (its step marks need it), and the forecast still starts at the
+  screen's edge (the owner, 2026-11-07; until then it kept that strip to line the two graphs
+  up, though they never shared an hour column). The axis line is drawn exactly On
   axis and the numbers' outline exactly On graph, so the betas' Axis line and Number outline
   rows went; their wire bits 1 and 4 of `CLAY_LARGE_GRAPH_FONT` are retired and reserved.
 - **Whole hour labels only** (`forecast_span_label_fits`, host-tested): a label either screen
@@ -142,11 +144,8 @@ setting, wire bit, persist key or message key for the span on the watch.
     (Health Status + Graph, the default), its one-decimal step mark ("0.5"), in the graph label
     font. That gives 174 px with Larger graph fonts (GOTHIC_24, the mark's 22 px) and 179 px
     without (GOTHIC_18, 17 px), or 176 / 180 px when no view carries the health graph. With
-    the numbers On graph or Off the plot is the whole 200 px screen, unless a custom layout
-    seats the health graph beside the forecast: the forecast then keeps the health mark's
-    strip (174 / 179 px). The views can disagree there, so the label reads the forecast's
-    first view in the cycle, the Default view when that one shows it: the view the watch
-    returns to.
+    the numbers On graph or Off the plot is the whole 200 px screen on every view, one a
+    custom layout shares with the health graph too.
   - So "58 h" at the default layout, "59 h" without Larger graph fonts (60 with no health
     graph) and "66 h" with no left axis. "47 h" with OpenWeatherMap and "48 h" with Weather
     Underground, on every layout.

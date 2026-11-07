@@ -37,12 +37,8 @@
 // the step mark as two digits and a '.' ("0.5", "1.5"): the common cases. So, with the health
 // graph in the cycle (Health Status + Graph, the default), 174 px with Larger graph fonts and
 // 179 px without, its mark the wider claim (22 px / 17 px); with none, 176 px / 180 px.
-// With the numbers On graph or Off the forecast claims no strip and spans the whole 200 px screen,
-// unless the health graph shares its view (a custom layout's top band over the body): it then
-// keeps the health labels' strip so the two line up (forecast_layer.c forecast_update_proc,
-// bottom_view_other_consumer_shown). The views can disagree there, so the label takes the
-// forecast's first view in the cycle (healthGraph's `beside`), the Default view when that one
-// shows it: the view the watch returns to.
+// With the numbers On graph or Off the forecast claims no strip and spans the whole 200 px screen
+// on every view (forecast_layer.c forecast_update_proc).
 // What only the watch knows moves W a little: a one-digit, negative or three-digit temperature,
 // a step mark of whole thousands ("2") or of 10k steps and more ("10.5"), health data the watch
 // does not have (Pebble Health off). Each moves the count by an hour or so (a "10.5" mark:
@@ -57,8 +53,8 @@
 (function () {
     var forecastAxis = (typeof require !== 'undefined')
         ? require('./forecast-axis.js') : window.ForecastAxis;
-    // The view cycle the watch runs (resolveViewCycle): which views seat the health graph and
-    // the forecast. view-cycle.js shares the webview's top-level scope as VIEW_CYCLE.
+    // The view cycle the watch runs (resolveViewCycle): which views seat the health graph.
+    // view-cycle.js shares the webview's top-level scope as VIEW_CYCLE.
     var viewCycle = (typeof require !== 'undefined')
         ? require('./view-cycle.js') : window.VIEW_CYCLE;
 
@@ -111,9 +107,11 @@
     // nothing migrates. The row labels it with the whole hours the watch will show (spanOptions:
     // "58 h" at the default layout).
     var CHOICES = ['12', '24', '48'];
-    // The span every watch draws by default, and the only one off emery: hourly-window.js
-    // FORECAST_HOURS (test/forecast-span.test.js pins the two equal; the webview cannot read it).
-    var DEFAULT_HOURS = 24;
+    // The 24 h span: the only one off emery, and what an absent or unknown stored value reads
+    // as (an install from before the key keeps it: clay-settings.js upgradeBackfill). It is
+    // hourly-window.js FORECAST_HOURS, which the webview cannot read
+    // (test/forecast-span.test.js pins the two equal).
+    var DAY_HOURS = 24;
 
     /**
      * The span the settings hold, whatever the watch: 12, 24 or 48 (the long span's token); 24
@@ -123,7 +121,7 @@
      */
     function storedHours(settings) {
         var v = settings && settings.forecastHours;
-        return CHOICES.indexOf(String(v)) !== -1 ? parseInt(v, 10) : DEFAULT_HOURS;
+        return CHOICES.indexOf(String(v)) !== -1 ? parseInt(v, 10) : DAY_HOURS;
     }
 
     /**
@@ -134,7 +132,7 @@
      * @returns {number} 12, 24 or 48.
      */
     function option(settings, env) {
-        return (env && env.forecastSpan) ? storedHours(settings) : DEFAULT_HOURS;
+        return (env && env.forecastSpan) ? storedHours(settings) : DAY_HOURS;
     }
 
     /**
@@ -183,7 +181,7 @@
         var span = option(settings, env);
         if (span === 48) { return longHours(settings, env); }
         if (span === 12) { return HALF_SLOTS; }
-        if (!(env && env.forecastSpan)) { return gridHours(DEFAULT_HOURS, SMALL.plot, SMALL); }
+        if (!(env && env.forecastSpan)) { return gridHours(DAY_HOURS, SMALL.plot, SMALL); }
         var wide = forecastAxis.numbers(settings) !== forecastAxis.AXIS;
         return gridHours(wide ? DAY.wideSent : DAY.sent, plotWidth(settings, env), DAY);
     }
@@ -201,71 +199,37 @@
     }
 
     /**
-     * Whether a compiled view seats the forecast graph: its body, or the top band's graph of
-     * the forecast kind (view-cycle.js resolveForFit reads a kindless graph top the same way).
-     * @param {?Object} spec A view of resolveViewCycle (null: a disabled slot).
-     * @returns {boolean} True if the forecast draws on this view.
-     */
-    function seatsForecast(spec) {
-        return Boolean(spec) && (spec.body === viewCycle.BODY_FC
-            || (spec.top === viewCycle.TOP_GRAPH && !spec.topKind));
-    }
-
-    /**
-     * Whether a compiled view seats the health graph: its body, or the top band's graph of
-     * the health kind.
-     * @param {?Object} spec A view of resolveViewCycle (null: a disabled slot).
-     * @returns {boolean} True if the health graph draws on this view.
-     */
-    function seatsHealth(spec) {
-        return Boolean(spec) && (spec.body === viewCycle.BODY_GRAPH
-            || (spec.top === viewCycle.TOP_GRAPH && spec.topKind === viewCycle.TOP_KIND_HEALTH));
-    }
-
-    /**
-     * Where the health graph stands to the forecast in the view cycle the watch runs for these
-     * settings (view-cycle.js resolveViewCycle, which folds a health seat away unless Health is
-     * Status + Graph): `shown`, some view seats it, so its step mark claims the shared strip
-     * (main_window.c health_graph_renderable); `beside`, it shares the forecast's first view,
-     * the Default view when that one shows the forecast.
+     * Whether the view cycle the watch runs for these settings seats the health graph on some
+     * view (view-cycle.js resolveViewCycle, which folds a health seat away unless Health is
+     * Status + Graph; graphsIn reads its seats): its step mark then claims the shared strip
+     * (main_window.c health_graph_renderable).
      * @param {?Object} settings Clay settings (the layout and healthMode keys).
      * @param {?Object} [env] Platform env (config-ui platform.js computeEnv): a watch without
      *   health (env.health false) never draws the graph; no env, or no health fact, reads as
      *   capable.
-     * @returns {{shown: boolean, beside: boolean}} The health graph's claim on the plot.
+     * @returns {boolean} True if some view shows the health graph.
      */
-    function healthGraph(settings, env) {
-        var out = { shown: false, beside: false };
-        if (env && env.health === false) { return out; }
-        var cycle = viewCycle.resolveViewCycle(settings || {}, env || null);
-        var home = null;
-        for (var i = 0; i < cycle.length; i++) {
-            if (seatsHealth(cycle[i])) { out.shown = true; }
-            if (!home && seatsForecast(cycle[i])) { home = cycle[i]; }
-        }
-        out.beside = Boolean(home) && seatsHealth(home);
-        return out;
+    function healthGraphShown(settings, env) {
+        if (env && env.health === false) { return false; }
+        return viewCycle.graphsIn(viewCycle.resolveViewCycle(settings || {}, env || null)).health;
     }
 
     /**
      * The forecast plot's width. On axis: the layer less the shared label strip, the wider of
      * a two-digit hi/lo label and, while the health graph is shown, its "0.5" step mark, in the
-     * graph label font. On graph or Off: the whole screen, or the health mark's strip alone
-     * when the health graph shares the forecast's view.
+     * graph label font. On graph or Off: the whole screen.
      * @param {?Object} settings Clay settings (reads forecastAxisNumbers, largeGraphFont,
      *   healthMode and the layout keys).
      * @param {?Object} [env] Platform env (reads health and platform).
      * @returns {number} Plot width in px.
      */
     function plotWidth(settings, env) {
+        if (forecastAxis.numbers(settings) !== forecastAxis.AXIS) { return SCREEN_W; }
         var large = Boolean((settings || {}).largeGraphFont);
         var digit = large ? DIGIT_W.large : DIGIT_W.small;
-        var health = healthGraph(settings, env);
-        var mark = health.shown ? MARK_DIGITS * digit + (large ? DOT_W.large : DOT_W.small) : 0;
-        var axis = forecastAxis.numbers(settings) === forecastAxis.AXIS;
-        if (!axis && !health.beside) { return SCREEN_W; }
-        var label = axis ? LABEL_DIGITS * digit + LABEL_PAD : 0;
-        return LAYER_W - Math.max(STRIP_MIN_W, label, mark) - STRIP_GAP;
+        var mark = healthGraphShown(settings, env)
+            ? MARK_DIGITS * digit + (large ? DOT_W.large : DOT_W.small) : 0;
+        return LAYER_W - Math.max(STRIP_MIN_W, LABEL_DIGITS * digit + LABEL_PAD, mark) - STRIP_GAP;
     }
 
     /**
@@ -307,12 +271,12 @@
         PITCH_MAX: PITCH_MAX,
         PAD_FROM: PAD_FROM,
         CHOICES: CHOICES,
-        DEFAULT_HOURS: DEFAULT_HOURS,
+        DAY_HOURS: DAY_HOURS,
         storedHours: storedHours,
         option: option,
         wholeHours: wholeHours,
         feedHours: feedHours,
-        healthGraph: healthGraph,
+        healthGraphShown: healthGraphShown,
         plotWidth: plotWidth,
         longHours: longHours,
         shownHours: shownHours,

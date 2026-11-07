@@ -262,3 +262,18 @@ test('above a slot\'s dialog the bars are the picture alone: nothing to tap', ()
   assert.equal(html.indexOf('sbp-tip'), -1, 'and no tip to tap');
   assert.ok(html.indexOf('<span class="sbp-v sbp-mid">Berlin</span>') !== -1, html);
 });
+
+test('barCodes reads each bar\'s slots as barSlots does, without the sample text', () => {
+  const basalt = require('../src/pkjs/config-ui/lib/platform.js').computeEnv({ platform: 'basalt' });
+  // Heart rate on a basalt reads as Empty, as the picture draws it.
+  const S = { statusHealthLeft: 'empty', statusHealthRight: 'hr', statusForecastMid: 'city' };
+  catalog.LINES.forEach((line) => {
+    const codes = preview.barCodes(S, basalt, line.id);
+    assert.deepEqual(codes.map((c) => c.key), line.slots, line.id);
+    assert.deepEqual(codes.map((c) => c.pos), catalog.SLOT_POSITIONS, line.id);
+    assert.deepEqual(codes, preview.barSlots(S, basalt, line.id).map((c) => ({ pos: c.pos, key: c.key, code: c.code })),
+      line.id);
+  });
+  assert.equal(preview.barCodes(S, basalt, 'health')[2].code, 'empty');
+  assert.deepEqual(preview.barCodes(S, basalt, 'unknown'), []);
+});

@@ -407,24 +407,6 @@
   }
 
   /**
-   * The graphs the views show, over every screen the watch stops on (a null view is skipped).
-   * Their bars are view-cycle.js barsIn's.
-   * @param {Array<?Object>} cycle view-cycle.js screensCycle().
-   * @returns {{radar: boolean, health: boolean}}
-   */
-  function graphsIn(cycle) {
-    var out = { radar: false, health: false };
-    cycle.forEach(function (v) {
-      if (!v) { return; }
-      if (v.top === VC.TOP_RADAR || v.body === VC.BODY_RADAR) { out.radar = true; }
-      if ((v.top === VC.TOP_GRAPH && v.topKind === VC.TOP_KIND_HEALTH) || v.body === VC.BODY_GRAPH) {
-        out.health = true;
-      }
-    });
-    return out;
-  }
-
-  /**
    * The modes the screens need, THE rule for Save and the 2.6 migration:
    *   radarMode — 'off' with the rain radar off (radarEnabled false) or on a watch without
    *     it; 'graph' when a screen shows the rain radar; 'status' when one shows the Radar bar
@@ -443,7 +425,7 @@
     var e = env || {};
     var cycle = VC.screensCycle(s, env);
     var bars = VC.barsIn(cycle);
-    var graphs = graphsIn(cycle);
+    var graphs = VC.graphsIn(cycle);
     var barNames = ['top', 'forecast', 'radar', 'health'];
     /** @param {function(string): boolean} pred @returns {boolean} whether a shown bar passes */
     function anyShownBar(pred) {

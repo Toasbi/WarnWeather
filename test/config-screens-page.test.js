@@ -17,6 +17,7 @@ const M = require('../src/pkjs/screens.js');
 const VC = require('../src/pkjs/view-cycle.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
+const { blankBar, slotsOf } = require('./helpers/status-slots.js');
 
 const PC = global.PConf;
 const BASALT = platform.computeEnv({ platform: 'basalt' });
@@ -113,6 +114,54 @@ test('Add screen: the Watch bar and the Clock after the others, three at most', 
   assert.equal(SP.addScreen(S, BASALT), 2);
   assert.equal(SP.addScreen(S, BASALT), -1, 'no fourth screen');
   assert.equal(S.viewCount, '3');
+});
+
+// Bars never set up (helpers/status-slots.js blankBar).
+const BLANK_HEALTH = blankBar('health');
+const BLANK_RADAR = blankBar('radar');
+const BLANK_FORECAST = blankBar('forecast');
+// No flick screens: the Default screen alone.
+const ONE = { radarMode: 'off', healthMode: 'off' };
+
+test('a bar an edit brings onto the screens with nothing to show takes its default slots', () => {
+  const S = preset(Object.assign({}, ONE, BLANK_HEALTH, BLANK_RADAR));
+  SP.writeScreen(S, SP.addScreen(S, BASALT), M.add(M.add(SP.NEW_SCREEN, 'healthbar'), 'radarbar'), BASALT);
+  assert.deepEqual(slotsOf(S, 'health'), ['steps', 'empty', 'sleep'], 'a new install\'s, no heart rate on a basalt');
+  assert.deepEqual(slotsOf(S, 'radar'), ['uv', 'wind', 'gust']);
+  assert.deepEqual([S.radarMode, S.healthMode], ['status', 'status'], 'the modes follow the bars');
+  // The watch's own defaults: emery's heart rate.
+  const EMERY = platform.computeEnv({ platform: 'emery' });
+  const E = preset(Object.assign({}, ONE, BLANK_HEALTH));
+  SP.writeScreen(E, SP.addScreen(E, EMERY), M.add(SP.NEW_SCREEN, 'healthbar'), EMERY);
+  assert.deepEqual(slotsOf(E, 'health'), ['steps', 'sleep', 'hr']);
+  // An item this watch cannot show is nothing to show either: heart rate on a basalt.
+  const hr = preset(Object.assign({}, ONE, BLANK_HEALTH, { statusHealthRight: 'hr' }));
+  SP.writeScreen(hr, SP.addScreen(hr, BASALT), M.add(SP.NEW_SCREEN, 'healthbar'), BASALT);
+  assert.deepEqual(slotsOf(hr, 'health'), ['steps', 'empty', 'sleep']);
+});
+
+test('a bar with a reading of its own, or one a screen shows already, keeps its slots', () => {
+  const own = preset(Object.assign({}, ONE, BLANK_HEALTH, { statusHealthMid: 'distance' }));
+  SP.writeScreen(own, SP.addScreen(own, BASALT), M.add(SP.NEW_SCREEN, 'healthbar'), BASALT);
+  assert.deepEqual(slotsOf(own, 'health'), ['empty', 'distance', 'empty']);
+  // The Default screen shows the Forecast bar Empty: a second screen with it changes nothing there.
+  const shown = preset(Object.assign({}, ONE, BLANK_FORECAST));
+  assert.ok(M.idxOf(M.screensOf(shown, BASALT)[0], 'fcbar') >= 0, 'premise: the Default screen shows the bar');
+  SP.writeScreen(shown, SP.addScreen(shown, BASALT), M.add(SP.NEW_SCREEN, 'fcbar'), BASALT);
+  assert.deepEqual(slotsOf(shown, 'forecast'), ['empty', 'empty', 'empty']);
+  // A move or an option on a screen already showing the bar fills nothing either.
+  const three = preset(BLANK_HEALTH);
+  SP.writeScreen(three, 1, M.move(DEFAULT_SCREENS[1], 2, 1), BASALT);
+  assert.deepEqual(slotsOf(three, 'health'), ['empty', 'empty', 'empty']);
+});
+
+test('a screen put in where a deleted one\'s keys still lie fills the bar it brings', () => {
+  // Flick 2 (the Rain radar screen) deleted: its keys stay in the slot past the last screen.
+  const S = preset(BLANK_RADAR);
+  assert.equal(SP.deleteScreen(S, 2, BASALT), true);
+  assert.equal(S.viewLower2, 'radar', 'premise: the deleted screen\'s Radar bar still in its keys');
+  assert.equal(SP.insertScreen(S, 2, M.copy(DEFAULT_SCREENS[2]), BASALT), true);
+  assert.deepEqual(slotsOf(S, 'radar'), ['uv', 'wind', 'gust']);
 });
 
 test('Delete a flick screen: the ones after it move up, and Undo puts every key back', () => {
@@ -281,6 +330,16 @@ test('a new install: the Default screen alone; + Add screen opens the editor on 
   assert.ok(ed.body.indexOf('data-se="delscreen">Delete screen<') !== -1);
   page.tapEditor({ se: 'close' });
   assert.ok(page.scroll.innerHTML.indexOf('<span class="ttl">Screen switching</span>') !== -1, 'two screens now');
+});
+
+test('+ Health bar on a new screen draws the bar\'s default readings, not an empty row', () => {
+  const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, BLANK_HEALTH));
+  page.tapAction('addScreen');
+  page.tapEditor({ se: 'add', k: 'healthbar' });
+  const pic = /<span class="se-pic-card"[\s\S]*?<\/span><\/div>/.exec(editorOf(page).body)[0];
+  assert.match(pic, />6\.2k</, 'steps');
+  assert.match(pic, />7h12</, 'sleep');
+  assert.deepEqual(slotsOf(page.S, 'health'), ['steps', 'empty', 'sleep']);
 });
 
 test('the editor: a row\'s option, its moves, a ✕ and + Add, each stored at once', () => {

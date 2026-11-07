@@ -130,8 +130,8 @@ function renderSignature(settings) {
         // neither belongs here...
         settings.sleepNightEnabled, settings.sleepStartHour, settings.sleepEndHour,
         // ...the forecast's time span (emery): how many hours are fetched and baked
-        // ('' for the default 24 and an absent key alike, so hydrating it forces no
-        // fetch; '26' for 24 h with the hi/lo numbers On graph or Off)...
+        // ('' for 24 h and an absent key alike; '26' for 24 h with the hi/lo numbers On
+        // graph or Off)...
         forecastSpan.signature(settings)];
     // ...the per-kind "Show unit" toggles (whether the phone bakes the unit
     // into the slot text at all — kph/hPa/d/°; same rule: without them here a

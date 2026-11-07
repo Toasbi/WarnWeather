@@ -41,14 +41,13 @@
         health: {name: 'Health', src: VC.STATUS_SRC_HEALTH},
         radar: {name: 'Radar', src: VC.STATUS_SRC_RADAR}
     };
-    // The bars in the page's order, with their slot-key prefixes.
+    // The bars in the page's order, with their short names and seats.
     var BARS = onDemand.PAGE_BARS.map(function (b) {
-        return {bar: b.bar, prefix: b.prefix, name: BAR_SEATS[b.bar].name, src: BAR_SEATS[b.bar].src};
+        return {bar: b.bar, name: BAR_SEATS[b.bar].name, src: BAR_SEATS[b.bar].src};
     });
-    // [key suffix, position, byte cap]: the middle slot holds 19 bytes, the edges 8
+    // Each slot's byte cap, left to right: the middle slot holds 19 bytes, the edges 8
     // (status-line-catalog.js CAPS) — the room the unit and pair fit rules measure.
-    var POSITIONS = [['Left', 'left', catalog.CAPS.EDGE_TEXT_MAX],
-        ['Mid', 'mid', catalog.CAPS.MID_TEXT_MAX], ['Right', 'right', catalog.CAPS.EDGE_TEXT_MAX]];
+    var SLOT_CAPS = [catalog.CAPS.EDGE_TEXT_MAX, catalog.CAPS.MID_TEXT_MAX, catalog.CAPS.EDGE_TEXT_MAX];
 
     // The sample readings, in the units the payload carries them in: temperatures in °F
     // (18° / feels 16° / dew 9° C), the day-max kinds as [now, today's peak] in each wind
@@ -244,10 +243,30 @@
     }
 
     /**
-     * One bar's three slots as the watch prints them: the item each holds (the catalog's
-     * resolution — defaults and availability included), its sample text and whether the
-     * wind arrow follows it. The Status bars tab's rows and the Watchface tab's watch
-     * (preview-watch.js) both read their slots here.
+     * The item each of one bar's three slots holds, the catalog's resolution (defaults and
+     * availability included), without the text barSlots draws for it. screens-page.js
+     * fillNewBars reads a bar's slots here to tell one that shows nothing.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {string} bar 'top' | 'forecast' | 'health' | 'radar'.
+     * @returns {Array<{pos: string, key: string, code: string}>} The left, middle and right
+     *     slots (pos from status-line-catalog.js SLOT_POSITIONS, key the slot's setting, e.g.
+     *     'statusTopLeft'); [] for an unknown bar.
+     */
+    function barCodes(S, env, bar) {
+        var st = S || {}, line = null, i;
+        for (i = 0; i < catalog.LINES.length; i++) { if (catalog.LINES[i].id === bar) { line = catalog.LINES[i]; } }
+        if (!line) { return []; }
+        return line.slots.map(function (key, p) {
+            var pos = catalog.SLOT_POSITIONS[p];
+            return {pos: pos, key: key, code: catalog.resolveSelection(st[key], st, env, {slotKey: key, position: pos})};
+        });
+    }
+
+    /**
+     * One bar's three slots as the watch prints them: the item each holds (barCodes), its
+     * sample text and whether the wind arrow follows it. The Status bars tab's rows and the
+     * Watchface tab's watch (preview-watch.js) both read their slots here.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @param {string} bar 'top' | 'forecast' | 'health' | 'radar'.
@@ -259,14 +278,10 @@
      *     setting, e.g. 'statusTopLeft'); [] for an unknown bar.
      */
     function barSlots(S, env, bar, fullDate, now) {
-        var st = S || {}, when = now || new Date(), b = null, i;
-        for (i = 0; i < BARS.length; i++) { if (BARS[i].bar === bar) { b = BARS[i]; } }
-        if (!b) { return []; }
-        return POSITIONS.map(function (p) {
-            var key = b.prefix + p[0];
-            var code = catalog.resolveSelection(st[key], st, env, {slotKey: key, position: p[1]});
-            var text = sample(code, st, {cap: p[2], env: env, now: when, fullDate: fullDate, slotKey: key});
-            return {pos: p[1], key: key, code: code, text: text, arrow: arrowShown(code, text, st, env, p[2])};
+        var st = S || {}, when = now || new Date();
+        return barCodes(st, env, bar).map(function (c, p) {
+            var text = sample(c.code, st, {cap: SLOT_CAPS[p], env: env, now: when, fullDate: fullDate, slotKey: c.key});
+            return {pos: c.pos, key: c.key, code: c.code, text: text, arrow: arrowShown(c.code, text, st, env, SLOT_CAPS[p])};
         });
     }
 
@@ -396,7 +411,8 @@
 
     if (PConf && PConf.blocks) { PConf.blocks.register('statusBarsPreview', statusBarsPreview); }
     var api = {statusBarsPreview: statusBarsPreview, sample: sample, arrowDue: arrowDue,
-        arrowShown: arrowShown, calendarShown: calendarShown, barSlots: barSlots, slotIcon: slotIcon};
+        arrowShown: arrowShown, calendarShown: calendarShown, barCodes: barCodes, barSlots: barSlots,
+        slotIcon: slotIcon};
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     // The page: the Watchface tab's watch reads the slots too (preview-watch.js).
     if (typeof window !== 'undefined') { window.PreviewStatusBars = api; }

@@ -63,7 +63,7 @@ var DEFAULTS = {
     // every watch but an emery set otherwise. The adapters map hourly-window.js windowHours()
     // of this (24, or 26 or 68 past it) and getPayload sends
     // WeatherProvider#payloadEntries() hours.
-    forecastHours: forecastSpan.DEFAULT_HOURS
+    forecastHours: forecastSpan.DAY_HOURS
 };
 // Shared and exported: frozen so no consumer can shift every later provider's
 // default by writing to it (Object.freeze is ES5).

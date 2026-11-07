@@ -256,7 +256,7 @@ test('after a wipe the items are still offered in EVERY slot, not just top-right
   catalog.LINES.forEach((line) => {
     line.slots.forEach((slotKey, i) => {
       const codes = catalog.slotOptions({}, env,
-        { slotKey: slotKey, position: ['left', 'mid', 'right'][i] }).map((o) => o[1]);
+        { slotKey: slotKey, position: catalog.SLOT_POSITIONS[i] }).map((o) => o[1]);
       assert.ok(codes.includes('phoneBattery'), slotKey + ' offers Phone battery');
       assert.ok(codes.includes('phoneBatteryPlain'), slotKey + ' offers the no-icon variant');
     });

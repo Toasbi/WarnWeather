@@ -913,6 +913,24 @@ function barsIn(cycle) {
   return out;
 }
 
+/**
+ * The graphs a cycle's views show, over every screen the watch stops on (a null view is
+ * skipped): the rain radar's, in the top area or the body, and the health graph's, as a
+ * health-kind graph top or the graph body. Their bars are barsIn's.
+ * @param {Array<?Object>} cycle the views (screensCycle, or the watch's resolveViewCycle)
+ * @returns {{radar: boolean, health: boolean}}
+ */
+function graphsIn(cycle) {
+  var out = { radar: false, health: false };
+  for (var i = 0; i < cycle.length; i++) {
+    var v = cycle[i];
+    if (!v) { continue; }
+    if (v.top === TOP_RADAR || v.body === BODY_RADAR) { out.radar = true; }
+    if ((v.top === TOP_GRAPH && v.topKind === TOP_KIND_HEALTH) || v.body === BODY_GRAPH) { out.health = true; }
+  }
+  return out;
+}
+
 // Single public API object, defined once. As a CommonJS module (watch runtime, tests)
 // this is module.exports. When this file is instead concatenated as a plain <script> into
 // the config-UI webview (see scripts/build-config-page.js, which has no `module`),
@@ -939,7 +957,8 @@ var VIEW_CYCLE = {
   capabilities: capabilities,
   buildCustomCycle: buildCustomCycle, specToKeys: specToKeys,
   buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey, presetKeyFor: presetKeyFor,
-  resolveViewCycle: resolveViewCycle, screensCycle: screensCycle, barsShown: barsShown, barsIn: barsIn
+  resolveViewCycle: resolveViewCycle, screensCycle: screensCycle, barsShown: barsShown, barsIn: barsIn,
+  graphsIn: graphsIn
 };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = VIEW_CYCLE;

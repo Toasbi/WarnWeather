@@ -1441,7 +1441,7 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
   const it = byKey('forecastHours');
   assert.equal(it.label, 'Forecast length');
   assert.equal(it.type, 'segmented');
-  assert.equal(it.defaultValue, '24');
+  assert.equal(it.defaultValue, '48', 'a new install\'s Clean graph looks as far ahead as the feed reaches');
   // The options are the forecastSpanOptions resolver's (forecast-hints.js): the stored values
   // are CHOICES whatever the settings, and the long span keeps its '48' token while its label
   // names the whole hours the watch will show for the provider and the layout
