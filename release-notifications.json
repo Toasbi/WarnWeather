@@ -201,6 +201,6 @@
   },
   "2.6.0": {
     "title": "Edit your screens",
-    "body": "Each screen is now a list you change on the Watchface tab: add, remove and move its rows, or tap a screen on the pinned watch. Weather, rain radar and air quality share one Data sources card in Setup. (Screens: not on Pebble Classic/Steel.)"
+    "body": "On the Watchface tab, tap a screen to add, remove and move its rows. Weather, rain radar and air quality now share one Data sources card in Setup. Screen editing isn't available on Pebble Classic or Steel."
   }
 }
