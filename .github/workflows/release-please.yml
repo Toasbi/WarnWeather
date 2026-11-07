@@ -4,7 +4,16 @@ on:
   push:
     branches:
       - main
+  # Run by hand with a tag to build and upload the .pbw of a release whose build failed after
+  # release-please cut the tag (RELEASE.md). It builds the commit it runs on, so run it on main
+  # once the fix is merged; it stops unless that commit's version is the tag's.
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and upload the .pbw for (e.g. v2.6.0). Leave empty to run release-please.
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: write
@@ -16,28 +25,53 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release
+        if: ${{ !inputs.tag }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      - name: Pick the release to build
+        id: target
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          if [[ -n "$INPUT_TAG" ]]; then
+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+          elif [[ "$RELEASE_CREATED" == "true" ]]; then
+            echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check out repository
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.target.outputs.tag }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Check the version is the tag's
+        if: ${{ steps.target.outputs.tag }}
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          version="$(jq -r .version package.template.json)"
+          if [[ "v$version" != "$TAG" ]]; then
+            echo "package.template.json is at $version, so this build is not $TAG" >&2
+            exit 1
+          fi
+
       - name: Set up mise toolchain
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.target.outputs.tag }}
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           install: true
           cache: true
 
       - name: Install Pebble SDK
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.target.outputs.tag }}
         run: scripts/ensure-pebble-sdk.sh
 
       - name: Build .pbw
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.target.outputs.tag }}
         env:
           TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT_RELEASE }}
           RAINBOW_PROXY_ENDPOINT: ${{ secrets.RAINBOW_PROXY_ENDPOINT_RELEASE }}
@@ -46,11 +80,12 @@ jobs:
         run: mise build release
 
       - name: Verify release asset exists
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.target.outputs.tag }}
         run: test -f build/warnweather.pbw
 
       - name: Upload .pbw to release
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.target.outputs.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ steps.release.outputs.tag_name }} build/warnweather.pbw --clobber
+          TAG: ${{ steps.target.outputs.tag }}
+        run: gh release upload "$TAG" build/warnweather.pbw --clobber
