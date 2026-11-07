@@ -482,7 +482,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Pick a layout. On a watch with screens it makes the Default screen alone (the flick screens
      * are the Screens step's): the preset's own Default view, the one its three-screen cycle starts
      * with, compiled back to the per-view keys of slot 0 (view-cycle.js specToKeys), the other
-     * screens frozen first (screens-page.js ensureCustom). aplite keeps the preset.
+     * screens frozen first (screens-page.js ensureCustom). A bar it brings on with nothing to show
+     * takes its default slots, as a screen edit gives them (screens-page.js fillNewBars). aplite
+     * keeps the preset.
      * @param {string} layout 'fullCal' | 'compactCal' | 'noCal'.
      * @returns {void}
      */
@@ -490,8 +492,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var S = run.ctx.S;
         if (!SP.hasScreens(run.env)) { run.ctx.setValue('layoutPreset', layout); return; }
         SP.ensureCustom(S, run.env);
+        var before = SP.barsShown(S, run.env);
         var keys = VC.specToKeys([VC.buildViewCycle(layout, 'off', 'off', S.swapClockStatus !== false)[0]]);
         Object.keys(keys).forEach(function (k) { if (k !== 'viewCount') { S[k] = keys[k]; } });
+        SP.fillNewBars(S, before, run.env);
         SP.applyModes(S, run.env);
     }
 

@@ -8,10 +8,11 @@
 // screensOf / compileKeys), one screen at a time, so a screen the user does not touch keeps
 // its keys byte for byte. A preset install (one the 2.6 migration could not move: its watch
 // did not say what it is) turns custom at its first screen edit, through its own cycle's keys
-// (view-cycle.js specToKeys), so nothing on it moves either. radarMode and healthMode follow
-// every edit and every Save (screens.js deriveModes), so each reader of them stays as it is;
-// what reads them between Saves, where a tick on the Alerts tab can have moved them, reads
-// the ones Save will store (radarModeToSave).
+// (view-cycle.js specToKeys), so nothing on it moves either. A bar an edit brings onto the
+// screens with nothing to show (every slot Empty) takes its default slots (fillNewBars).
+// radarMode and healthMode follow every edit and every Save (screens.js deriveModes), so each
+// reader of them stays as it is; what reads them between Saves, where a tick on the Alerts
+// tab can have moved them, reads the ones Save will store (radarModeToSave).
 // aplite has no screens: its Watchface tab keeps a plain Layout choice.
 /* global PConf */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
@@ -23,6 +24,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : window.VIEW_CYCLE;
     var M = (typeof require !== 'undefined') ? require('../screens.js') : window.Screens;
     var PW = (typeof require !== 'undefined') ? require('./preview-watch.js') : window.PreviewWatch;
+    var catalog = (typeof require !== 'undefined')
+        ? require('../status-line-catalog.js') : window.StatusLineCatalog;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
     var esc = (typeof require !== 'undefined') ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
 
@@ -83,18 +86,59 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S.healthMode = m.healthMode;
     }
 
+    // A bar's slots in their line's order (status-line-catalog.js LINES), as the catalog places them.
+    var SLOT_POSITIONS = ['left', 'mid', 'right'];
+
     /**
-     * Store one screen (its per-view keys) and the modes that follow. Mutates S.
+     * The bars the screens show (view-cycle.js barsIn; the Watch bar is 'top').
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {{top: boolean, forecast: boolean, radar: boolean, health: boolean}}
+     */
+    function barsShown(S, env) {
+        return VC.barsIn(VC.screensCycle(S, env));
+    }
+
+    /**
+     * Give a bar that has just come onto a screen its default slots (status-line-catalog.js
+     * slotDefault, the ones a new install has) when it would show nothing: every slot Empty, or
+     * an item this watch cannot show. A bar never set up can be stored that way: the 2.6 move
+     * stored a health item as Empty where health was off. A bar with a reading of its own, or
+     * one a screen showed already, keeps its slots. Mutates S.
+     * @param {Object} S Settings.
+     * @param {{top: boolean, forecast: boolean, radar: boolean, health: boolean}} before
+     *   barsShown() before the change.
+     * @param {?Object} env Platform env.
+     * @returns {void}
+     */
+    function fillNewBars(S, before, env) {
+        var now = barsShown(S, env);
+        catalog.LINES.forEach(function (line) {
+            if (!now[line.id] || before[line.id]) { return; }
+            var blank = line.slots.every(function (key, p) {
+                return catalog.resolveSelection(S[key], S, env, { slotKey: key, position: SLOT_POSITIONS[p] }) === 'empty';
+            });
+            if (blank) { line.slots.forEach(function (key) { S[key] = catalog.slotDefault(key, env); }); }
+        });
+    }
+
+    /**
+     * Store one screen (its per-view keys) and the modes that follow; a bar it brings onto the
+     * screens with nothing to show takes its default slots (fillNewBars). Mutates S.
      * @param {Object} S Settings.
      * @param {number} i View slot.
      * @param {Array<Object>} list The screen.
      * @param {?Object} env Platform env.
+     * @param {Object} [before] barsShown() before the change, from a caller that has moved the
+     *   other screens already (insertScreen); else read here.
      * @returns {void}
      */
-    function writeScreen(S, i, list, env) {
+    function writeScreen(S, i, list, env, before) {
         ensureCustom(S, env);
+        var was = before || barsShown(S, env);
         Object.assign(S, M.compileKeys(list, i));
         if ((parseInt(S.viewCount, 10) || 1) < i + 1) { S.viewCount = String(i + 1); }
+        fillNewBars(S, was, env);
         applyModes(S, env);
     }
 
@@ -189,10 +233,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ensureCustom(S, env);
         var n = parseInt(S.viewCount, 10) || 1;
         if (n >= M.MAX_SCREENS || at < 1 || at > n) { return false; }
+        // Before the move: the slot past the last screen can hold a deleted screen's keys.
+        var before = barsShown(S, env);
         for (var j = n; j > at; j--) { copyView(S, j - 1, j); }
         S['viewAlign' + at] = 'clock';
         S.viewCount = String(n + 1);
-        writeScreen(S, at, list, env);
+        writeScreen(S, at, list, env, before);
         return true;
     }
 
@@ -877,6 +923,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         hasScreens: hasScreens,
         ensureCustom: ensureCustom,
         applyModes: applyModes,
+        barsShown: barsShown,
+        fillNewBars: fillNewBars,
         writeScreen: writeScreen,
         snapshot: snapshot,
         restore: restore,
