@@ -54,8 +54,8 @@
 (function () {
     var forecastAxis = (typeof require !== 'undefined')
         ? require('./forecast-axis.js') : window.ForecastAxis;
-    // The view cycle the watch runs (resolveViewCycle): which views seat the health graph and
-    // the forecast. view-cycle.js shares the webview's top-level scope as VIEW_CYCLE.
+    // The view cycle the watch runs (resolveViewCycle): which views seat the health graph.
+    // view-cycle.js shares the webview's top-level scope as VIEW_CYCLE.
     var viewCycle = (typeof require !== 'undefined')
         ? require('./view-cycle.js') : window.VIEW_CYCLE;
 
@@ -108,12 +108,11 @@
     // nothing migrates. The row labels it with the whole hours the watch will show (spanOptions:
     // "58 h" at the default layout).
     var CHOICES = ['12', '24', '48'];
-    // The span every watch but emery draws, and what an absent or unknown stored value reads
-    // as: an install from before the key, which keeps it (clay-settings.js upgradeBackfill). A
-    // new emery install starts on the long span, the schema's default (the Clean look's).
-    // hourly-window.js FORECAST_HOURS (test/forecast-span.test.js pins the two equal; the
-    // webview cannot read it).
-    var DEFAULT_HOURS = 24;
+    // The 24 h span: the only one off emery, and what an absent or unknown stored value reads
+    // as (an install from before the key keeps it: clay-settings.js upgradeBackfill). It is
+    // hourly-window.js FORECAST_HOURS, which the webview cannot read
+    // (test/forecast-span.test.js pins the two equal).
+    var DAY_HOURS = 24;
 
     /**
      * The span the settings hold, whatever the watch: 12, 24 or 48 (the long span's token); 24
@@ -123,7 +122,7 @@
      */
     function storedHours(settings) {
         var v = settings && settings.forecastHours;
-        return CHOICES.indexOf(String(v)) !== -1 ? parseInt(v, 10) : DEFAULT_HOURS;
+        return CHOICES.indexOf(String(v)) !== -1 ? parseInt(v, 10) : DAY_HOURS;
     }
 
     /**
@@ -134,7 +133,7 @@
      * @returns {number} 12, 24 or 48.
      */
     function option(settings, env) {
-        return (env && env.forecastSpan) ? storedHours(settings) : DEFAULT_HOURS;
+        return (env && env.forecastSpan) ? storedHours(settings) : DAY_HOURS;
     }
 
     /**
@@ -183,7 +182,7 @@
         var span = option(settings, env);
         if (span === 48) { return longHours(settings, env); }
         if (span === 12) { return HALF_SLOTS; }
-        if (!(env && env.forecastSpan)) { return gridHours(DEFAULT_HOURS, SMALL.plot, SMALL); }
+        if (!(env && env.forecastSpan)) { return gridHours(DAY_HOURS, SMALL.plot, SMALL); }
         var wide = forecastAxis.numbers(settings) !== forecastAxis.AXIS;
         return gridHours(wide ? DAY.wideSent : DAY.sent, plotWidth(settings, env), DAY);
     }
@@ -201,21 +200,10 @@
     }
 
     /**
-     * Whether a compiled view seats the health graph: its body, or the top band's graph of
-     * the health kind.
-     * @param {?Object} spec A view of resolveViewCycle (null: a disabled slot).
-     * @returns {boolean} True if the health graph draws on this view.
-     */
-    function seatsHealth(spec) {
-        return Boolean(spec) && (spec.body === viewCycle.BODY_GRAPH
-            || (spec.top === viewCycle.TOP_GRAPH && spec.topKind === viewCycle.TOP_KIND_HEALTH));
-    }
-
-    /**
      * Whether the view cycle the watch runs for these settings seats the health graph on some
      * view (view-cycle.js resolveViewCycle, which folds a health seat away unless Health is
-     * Status + Graph): its step mark then claims the shared strip (main_window.c
-     * health_graph_renderable).
+     * Status + Graph; graphsIn reads its seats): its step mark then claims the shared strip
+     * (main_window.c health_graph_renderable).
      * @param {?Object} settings Clay settings (the layout and healthMode keys).
      * @param {?Object} [env] Platform env (config-ui platform.js computeEnv): a watch without
      *   health (env.health false) never draws the graph; no env, or no health fact, reads as
@@ -224,11 +212,7 @@
      */
     function healthGraphShown(settings, env) {
         if (env && env.health === false) { return false; }
-        var cycle = viewCycle.resolveViewCycle(settings || {}, env || null);
-        for (var i = 0; i < cycle.length; i++) {
-            if (seatsHealth(cycle[i])) { return true; }
-        }
-        return false;
+        return viewCycle.graphsIn(viewCycle.resolveViewCycle(settings || {}, env || null)).health;
     }
 
     /**
@@ -288,7 +272,7 @@
         PITCH_MAX: PITCH_MAX,
         PAD_FROM: PAD_FROM,
         CHOICES: CHOICES,
-        DEFAULT_HOURS: DEFAULT_HOURS,
+        DAY_HOURS: DAY_HOURS,
         storedHours: storedHours,
         option: option,
         wholeHours: wholeHours,

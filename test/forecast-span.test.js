@@ -115,10 +115,10 @@ test('lockstep: FORECAST_MAX_ENTRIES in forecast_span.h is MAX_FORECAST_HOURS on
   assert.ok(m, 'forecast_span.h keeps its emery / else FORECAST_MAX_ENTRIES arms');
   assert.equal(Number(m[1]), hourlyWindow.MAX_FORECAST_HOURS);
   assert.equal(Number(m[2]), hourlyWindow.FORECAST_HOURS);
-  assert.equal(forecastSpan.DEFAULT_HOURS, hourlyWindow.FORECAST_HOURS);
-  // The stored option's default (forecast-span-hours.js, which the webview loads and which
-  // cannot read hourly-window.js) is the same 24.
-  assert.equal(forecastSpanHours.DEFAULT_HOURS, hourlyWindow.FORECAST_HOURS);
+  assert.equal(forecastSpan.DAY_HOURS, hourlyWindow.FORECAST_HOURS);
+  // forecast-span-hours.js' 24 h span (the webview loads it, and it cannot read
+  // hourly-window.js) is the same 24.
+  assert.equal(forecastSpanHours.DAY_HOURS, hourlyWindow.FORECAST_HOURS);
   // 68 = ceil(200 / 3) + 1: the widest plot (the whole 200 px screen: the numbers On graph or
   // Off draw no left axis) at the 3 px pitch floor, plus the hour whose vertex lies past the
   // right edge.
@@ -151,10 +151,10 @@ test('lockstep: the schema\'s forecastHours options are CHOICES, its default the
     assert.deepEqual(forecastSpanHours.spanOptions(s).map((o) => o[1]), forecastSpan.CHOICES,
       JSON.stringify(s));
   });
-  // A new install's Clean graph takes the long span (settings/wizard-forecast.js); DEFAULT_HOURS is
+  // A new install's Clean graph takes the long span (settings/wizard-forecast.js); DAY_HOURS is
   // what an absent value reads, the span an install from before the key keeps.
   assert.equal(item.defaultValue, forecastSpan.CHOICES[2]);
-  assert.equal(forecastSpan.storedHours({}), forecastSpan.DEFAULT_HOURS);
+  assert.equal(forecastSpan.storedHours({}), forecastSpan.DAY_HOURS);
   assert.deepEqual(Object.keys(item.hintByValue).sort(), forecastSpan.CHOICES.slice().sort());
 });
 

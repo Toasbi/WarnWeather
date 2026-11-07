@@ -20,9 +20,8 @@ var spanHours = require('./forecast-span-hours.js');
 var CHOICES = spanHours.CHOICES;
 var storedHours = spanHours.storedHours;
 
-// The span every watch but emery draws, and what an absent or unknown stored value reads as
-// (a new emery install starts on the long span: forecast-span-hours.js DEFAULT_HOURS).
-var DEFAULT_HOURS = hourlyWindow.FORECAST_HOURS;
+// The 24 h span: the only one off emery, and what an absent or unknown stored value reads as.
+var DAY_HOURS = hourlyWindow.FORECAST_HOURS;
 // The 12 h span sends 14: the 13th column (partly on screen at most widths) and the vertex
 // past it carry data (forecast_span.h FORECAST_SPAN_HALF_SENT, lockstep).
 var HALF_SENT_HOURS = 14;
@@ -35,7 +34,7 @@ var DAY_WIDE_HOURS = 26;
 // The hours each signature() token fetches and sends: '' 24 h, '12', '26' (24 h with no left
 // axis) and '48' (the long span). The watch fits its grid to them.
 var SENT_HOURS = {
-    '': DEFAULT_HOURS,
+    '': DAY_HOURS,
     '12': HALF_SENT_HOURS,
     '26': DAY_WIDE_HOURS,
     '48': hourlyWindow.MAX_FORECAST_HOURS
@@ -52,7 +51,7 @@ var SENT_HOURS = {
  * @returns {number} 14, 24, 26 or 68.
  */
 function hours(settings, env) {
-    return (env && env.forecastSpan) ? SENT_HOURS[signature(settings)] : DEFAULT_HOURS;
+    return (env && env.forecastSpan) ? SENT_HOURS[signature(settings)] : DAY_HOURS;
 }
 
 /**
@@ -61,7 +60,7 @@ function hours(settings, env) {
  * @returns {number} 68 on a span watch, else 24.
  */
 function maxHours(env) {
-    return (env && env.forecastSpan) ? hourlyWindow.MAX_FORECAST_HOURS : DEFAULT_HOURS;
+    return (env && env.forecastSpan) ? hourlyWindow.MAX_FORECAST_HOURS : DAY_HOURS;
 }
 
 /**
@@ -77,12 +76,12 @@ function maxHours(env) {
  */
 function signature(settings) {
     var h = storedHours(settings);
-    if (h !== DEFAULT_HOURS) { return String(h); }
+    if (h !== DAY_HOURS) { return String(h); }
     return forecastAxis.numbers(settings) !== forecastAxis.AXIS ? String(DAY_WIDE_HOURS) : '';
 }
 
 module.exports = {
-    DEFAULT_HOURS: DEFAULT_HOURS,
+    DAY_HOURS: DAY_HOURS,
     CHOICES: CHOICES,
     HALF_SENT_HOURS: HALF_SENT_HOURS,
     DAY_WIDE_HOURS: DAY_WIDE_HOURS,
