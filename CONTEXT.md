@@ -123,6 +123,19 @@ span (hours, emery only). Every default lives there; nothing downstream carries
 its own fallback.
 _Avoid_: provider flags, per-fetch knobs.
 
+**Graph style**:
+A named set of the forecast graph's settings on emery: its four lines (metric,
+style, Draw from), the main metric's fill, the rain bars, Day / night shading,
+Forecast length, Left axis values and the graph colors (`src/pkjs/graph-styles.js`
+GOVERNED). Up to three: the first is the flat settings keys, the others live in
+the `graphStyles` item. Each screen's forecast graph names its style
+(`viewStyle{i}`); what shapes the data the phone bakes stays one setting for
+every style (SHARED). All the styles the screens show draw at most four series
+together, the weather message's four trend rows. Setup's forecast looks
+(Classic, Weathergraph, Stripes: `src/pkjs/settings/wizard-forecast.js` LOOKS)
+are what a new style starts from.
+_Avoid_: graph profile; calling a look a style (a look is where a style starts).
+
 **Forecast span**:
 The forecast graph's Forecast length option: 12 h, 24 h or the long span on emery
 (Graphs › Forecast › Other › Forecast length; stored '12' / '24' / '48', '48' being the long
@@ -134,7 +147,9 @@ axis (the high/low numbers On graph or Off on a known emery) (`hours()`;
 `WeatherProvider#payloadEntries`, fewer when a feed is shorter); the watch fits
 its grid to the count it receives (`NUM_ENTRIES`, `src/c/appendix/forecast_span.h`:
 2..14 the 12 h grid, 15..26 the 24 h grid, 27..68 the long one) and to its own
-plot width. See `docs/adr/0004-forecast-span-is-the-data.md`.
+plot width. Each graph style has its own: the phone sends the hours the longest
+style a shown screen uses needs, and each screen draws its own style's hours of them.
+See `docs/adr/0004-forecast-span-is-the-data.md`.
 _Avoid_: a watch-side forecast hours setting; calling the sent hours the span.
 
 **Visible hours**:

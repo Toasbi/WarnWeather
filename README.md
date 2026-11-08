@@ -43,6 +43,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Optional day/night shading, with a line at midnight where the next day starts
 * Left axis options on Pebble Time 2: the high and low values on the axis, on the graph (the high one under the highest point, the low one over the lowest), or off; on the graph or off there is no left axis and the graph starts at the screen's left edge. Left axis › More options can add the feels-like and dew point lines to the values (Graphs tab › Forecast)
 * Recolor the forecast graph per metric
+* Graph styles on Pebble Time 2: up to three named sets of the forecast graph's settings (its lines, rain bars, night shading, colors, Left axis values and Forecast length), and each screen's forecast graph picks one, so one screen can show the next 24 hours and another the long span. A new style starts from Classic, Weathergraph, Stripes or a copy of the one you are on; all styles together draw at most four lines and stripes (Graphs tab › Forecast › Graph style, or a screen's Forecast graph row in its editor)
 * Multiple weather providers, including regional and worldwide sources, picked with the rain radar's source and the air quality source in Setup › Data sources
 
 **Rain radar**
@@ -85,7 +86,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Edit each screen as a list, top to bottom: the Watch bar, Calendar (2 or 3 rows), Clock, the Forecast, Radar and Health bars, the Forecast graph, Rain radar and Health graph (2, 3 or 4 rows, or the rest of the screen); drag a row or move it up or down, remove it, or add one where it fits, with a live picture of the screen; a flick screen can drop the Watch bar and the clock for a full-screen radar or graph (Watchface › Screens, or tap a screen on the pinned watch; not on Pebble Classic/Steel)
 * Light/Dark settings page in six tabs — Weather, Watchface, Status bars, Alerts, Graphs, Setup (no Alerts tab on Pebble Classic/Steel), all in view in a tab bar at the bottom — with a pinned live preview (on the Watchface tab your watch itself, every screen drawn as you set it up, a tap opening its editor), Save that lights up once something changes and Revert to undo every change, an explanation under each setting (or, with *Hide info text* in Setup › Misc, behind a ? you tap), rarely-changed settings under *More options*, and full-screen dialogs (× discards, Done keeps)
 * Weather tab in the settings page: live graphs — temperature & precipitation, wind & gusts, humidity & dew point, pressure, sun & moon — plus a 5-day forecast, for your current location or up to three saved places, with its own switchable data source (never touches the watchface's provider or location); refreshes only on demand — pull down or tap Refresh, which also re-reads your phone's location; it leads the tab bar, and a Setup › Misc toggle makes it the tab the page opens on
-* First-run setup that shows your own watch as you pick its layout, add a Health or Rain radar screen to flick to and pick a theme, offers three looks for the forecast graph (Classic, Clean, Stripes; not on Pebble Classic/Steel) and on the Pebble Time 2 its length, drawn live on your Default screen, then sums up your choices; it picks sensible defaults for your country and watch — it highlights air quality from its warn level and puts steps on the top row when you add the Health screen
+* First-run setup that shows your own watch as you pick its layout, add a Health or Rain radar screen to flick to and pick a theme, offers three looks for the forecast graph (Classic, Weathergraph, Stripes; not on Pebble Classic/Steel) and on the Pebble Time 2 its length, drawn live on your Default screen, then sums up your choices; it picks sensible defaults for your country and watch — it highlights air quality from its warn level and puts steps on the top row when you add the Health screen
 
 *Weather and radar data from [MET Norway](https://www.met.no/) is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*
 
@@ -94,7 +95,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 Two things that both involve rain over time, but answer different questions:
 
 - **Forecast graph** — the hourly prediction, looking up to 24 hours ahead (on Pebble Time 2,
-  12, 24 or up to 66 — Forecast length). Temperature is always shown; on top of it you choose what to
+  12, 24 or up to 66 — Forecast length, which each graph style sets for the screens that use it). Temperature is always shown; on top of it you choose what to
   add — precipitation %, cloud cover % (every
   provider except Yandex), wind speed, wind gusts, UV index, air pressure (sea-level, in hPa,
   with a Narrow/Mid/Wide graph scale), feels-like temperature or dew point (both drawn on the
