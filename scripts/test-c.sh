@@ -130,6 +130,8 @@ cc $CFLAGS -DPBL_PLATFORM_BASALT test/c/forecast_span_test.c -o build/host/forec
 build/host/forecast_span_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/forecast_span_test.c -o build/host/forecast_span_test_emery
 build/host/forecast_span_test_emery
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/graph_style_test.c -o build/host/graph_style_test
+build/host/graph_style_test
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the
 # per-platform STATUS_STRIP_CAL_GAP.
 cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test

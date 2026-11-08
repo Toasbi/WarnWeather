@@ -16,6 +16,13 @@ bool palette_set_radar(const uint8_t *packed, int len);
 const ChartColorStop *palette_bar_stops(int *num_stops);
 const ChartColorStop *palette_radar_stops(int *num_stops);
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: parse a packed palette blob (the layout above) into `out`, PALETTE_MAX_STOPS at
+// most, without storing it: a graph style's own rain-bar palette (graph_style.h). Returns
+// the stop count, -1 for a malformed blob.
+int palette_parse_stops(const uint8_t *packed, int len, ChartColorStop *out);
+#endif
+
 // "Bars from: Top" for a chart, read off its own palette (stops from palette_bar_stops
 // or palette_radar_stops). The phone ORs 0x80 into the blob's byte [1], stop 0's
 // from_hi, which is always 0 otherwise, so stop 0's threshold turns negative

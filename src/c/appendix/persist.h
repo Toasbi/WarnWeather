@@ -365,6 +365,14 @@ bool persist_has_radar_notice(void);
 int  persist_get_radar_notice(char *buffer, size_t buffer_size);
 bool persist_set_radar_notice(const char *text);
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: graph style k's record (k 0..2, the view word's style; layout in graph_style.h),
+// stored as sent. Get: its length in bytes, 0 while absent. Set: len 0 deletes it; returns
+// whether the stored record changed.
+int  persist_get_graph_style(uint8_t k, uint8_t *buffer, size_t cap);
+bool persist_set_graph_style(uint8_t k, const uint8_t *data, size_t len);
+#endif
+
 bool persist_set_forecast_start(time_t val);
 
 bool persist_set_num_entries(int val);

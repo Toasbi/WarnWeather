@@ -236,8 +236,10 @@ static void render_active_view(void) {
     // there, else the body. (aplite keeps the plain body frames below — the helper
     // call measured +16 B of image there.)
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: the forecast layer sits in a clip of its own (forecast_layer.c), framed with it.
+    // emery: the forecast layer sits in a clip of its own (forecast_layer.c), framed with it,
+    // and draws the view's graph style (the view word's ext bits 9-10; graph_style.h).
     forecast_layer_set_frame(layout_forecast_frame(&spec, &L));
+    forecast_layer_set_style(view_ext_graph_style(config_get()->view_ext[s_view_index]));
 #else
     layer_set_frame(forecast_layer_get_root(), layout_forecast_frame(&spec, &L));
 #endif

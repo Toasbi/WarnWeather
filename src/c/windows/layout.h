@@ -366,6 +366,17 @@ ViewSpec view_spec_unpack(uint16_t v);
 // while nothing fills. Call after view_spec_unpack, before view_spec_resolve. ext 0 is
 // the identity, so a preset (or a pre-v2 phone) renders exactly as before.
 void view_spec_apply_ext(ViewSpec *s, uint16_t ext);
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the graph style a view's forecast graph draws (graph_style.h), ext bits 9-10
+// (view-cycle.js packExt): 0..2, the first style for an unknown code 3. Only a view with a
+// forecast graph carries one (extFields), and a view without one hides the forecast anyway,
+// so the spec needs no field: the window hands it to the forecast layer (main_window.c).
+static inline uint8_t view_ext_graph_style(uint16_t ext) {
+    const uint8_t k = (uint8_t) ((ext >> 9) & 3);
+    return k == 3 ? 0 : k;
+}
+#endif
 #endif
 
 // Data-availability downgrades, pure. A health row without health data is downgraded to

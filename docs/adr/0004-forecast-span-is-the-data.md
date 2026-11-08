@@ -228,3 +228,22 @@ Every step was within 2.2.0, before any release:
   count, which fills the plot.
 - The settings page shows a label the watch can miss by an hour or so on an unusual plot
   width (above).
+
+## Amendment (2026-11-08): graph styles
+
+From 2.7.0, by the owner's decision, each screen's forecast graph on a Pebble Time 2 draws one of
+up to three graph styles, and each style has its own length: 24 h on one screen, the long span
+on another. The phone still decides the hours. It sends the most hours a shown style needs, and
+each style's record (`src/c/appendix/graph_style.h`, `CLAY_GRAPH_STYLE_1..3_UINT8`) carries how
+many of them that style draws. The watch draws min(hours sent, the style's hours) and picks the
+grid class from that count, as above.
+
+- So the watch now has a wire byte and persist keys (59..61) that carry a span, which the
+  Decision above ruled out. The span is still the phone's choice. Without records (a single
+  style, and every watch but emery) nothing changed.
+- A view names its style in its view word's ext bits 9-10 (`view-cycle.js` `packExt`,
+  `layout.h` `view_ext_graph_style`).
+- The labels' readback reads every hour sent (`forecast_numbers.h`): a style that draws fewer
+  hours than were sent relabels its high and low over its own hours, on the 24-slot grid too.
+- The weather message keeps its shape: 14, 24, 26 or 68 hours and the six trends. The styles
+  share the four metric trends, and each record maps its lines onto them.

@@ -1946,6 +1946,23 @@ static void test_unpack_custom_bits(void) {
 }
 
 // ── Custom layout v2: the ext word (view_spec_apply_ext) ────────────────────
+#ifdef PBL_PLATFORM_EMERY
+// emery: a view's graph style rides ext bits 9-10 (view-cycle.js packExt); the other ext
+// fields decode unharmed beside it, and code 3 (no compiler emits it) reads as the first.
+static void graph_style_ext_tests(void) {
+    expect("graph_style.none", view_ext_graph_style(0) == 0, true);
+    expect("graph_style.second", view_ext_graph_style(1u << 9) == 1, true);
+    expect("graph_style.third", view_ext_graph_style(2u << 9) == 2, true);
+    expect("graph_style.code3_first", view_ext_graph_style(3u << 9) == 0, true);
+    const uint16_t ext = (uint16_t) (3u | (2u << 7) | (2u << 9));   // bodySize 4, align 2, style 3
+    expect("graph_style.beside_fields", view_ext_graph_style(ext) == 2, true);
+    ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
+    view_spec_apply_ext(&s, ext);
+    expect("graph_style.fields_unharmed", s.body_size == 3 && s.align == 2, true);
+    expect("graph_style.high_bits_ignored", view_ext_graph_style(0x7800) == 0, true);
+}
+#endif
+
 static void ext_decode_tests(void) {
     // ext 0 is the IDENTITY for every shape the goldens pin (presets and every custom
     // omission/order shape): no field moves, so no pre-v2 pixel can.
@@ -3745,6 +3762,9 @@ int main(int argc, char **argv) {
     if (!s_dump) test_unpack_positional();
     if (!s_dump) test_unpack_custom_bits();
     if (!s_dump) ext_decode_tests();
+#ifdef PBL_PLATFORM_EMERY
+    if (!s_dump) graph_style_ext_tests();
+#endif
     if (!s_dump) test_resolve_no_health_no_radar();
     if (!s_dump) viewspec_tests();
     if (!s_dump) peek_tests();

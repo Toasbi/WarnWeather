@@ -3,6 +3,7 @@
 #include "persist.h"
 #include "config.h"
 #include "status_line.h"
+#include "graph_style.h"
 #include "theme.h"
 
 #define TREND_ENCODING_VERSION_CURRENT 2
@@ -119,7 +120,15 @@ enum key {
     // bool above, whose slot stays listed (append-only) and is never read again: a
     // notice that was up across the upgrade comes back with the source's next answer.
     // Radar-only, so aplite never reads or writes it (the radar callers drop out there).
-    RADAR_NOTICE                  // 58 — <= RADAR_NOTICE_BUF_BYTES text + NUL, absent = no notice
+    RADAR_NOTICE,                 // 58 — <= RADAR_NOTICE_BUF_BYTES text + NUL, absent = no notice
+    // Appended: the graph styles' records (CLAY_GRAPH_STYLE_1..3_UINT8, layout in
+    // graph_style.h), stored as sent while a screen shows a style other than the first,
+    // absent otherwise (every screen then draws the look the other tuples carry). emery
+    // only, so no other platform reads or writes them, but the IDs stay listed on every
+    // platform: the enum is append-only because the numbers are the on-flash slots.
+    GRAPH_STYLE_1,                // 59 — <= GRAPH_STYLE_MAX_BYTES, absent = no record
+    GRAPH_STYLE_2,                // 60 — likewise
+    GRAPH_STYLE_3                 // 61 — likewise
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -181,7 +190,8 @@ static bool write_sized_data_if_changed(const uint32_t key, const void *data,
     return true;
 }
 
-#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND) || defined(WW_THRESHOLD_HIGHLIGHT)
+#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND) || defined(WW_THRESHOLD_HIGHLIGHT) \
+    || defined(PBL_PLATFORM_EMERY)
 // A blob stored only while it has content (the radar's sky rows, the weather alert
 // entries): a read gives its bytes, 0 while it is absent; an empty write deletes it.
 // The thresholds blob is read the same way.
@@ -192,7 +202,7 @@ static int read_present_blob(const uint32_t key, uint8_t *out, const size_t cap)
 }
 #endif
 
-#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND)
+#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND) || defined(PBL_PLATFORM_EMERY)
 static bool write_present_blob(const uint32_t key, const uint8_t *data, const size_t len) {
     if (len == 0) {
         if (!persist_exists(key)) { return false; }
@@ -583,6 +593,20 @@ bool persist_set_radar_notice(const char *text) {
     }
     return write_bounded_text(RADAR_NOTICE, text, RADAR_NOTICE_BUF_BYTES);
 }
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the records ride write_present_blob's compare buffer (write_sized_data_if_changed).
+_Static_assert(GRAPH_STYLE_MAX_BYTES <= STATUS_LINE_MAX_BYTES,
+               "a graph style record must fit the sized blob compare buffer");
+
+int persist_get_graph_style(uint8_t k, uint8_t *buffer, size_t cap) {
+    return k < GRAPH_STYLE_COUNT ? read_present_blob(GRAPH_STYLE_1 + k, buffer, cap) : 0;
+}
+
+bool persist_set_graph_style(uint8_t k, const uint8_t *data, size_t len) {
+    return k < GRAPH_STYLE_COUNT && write_present_blob(GRAPH_STYLE_1 + k, data, len);
+}
+#endif
 
 time_t persist_get_rain_radar_start() {
     return (time_t) persist_read_int(RAIN_RADAR_START);

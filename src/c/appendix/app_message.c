@@ -17,6 +17,7 @@
 #include "rain_countdown.h"
 #include "memory_log.h"
 #include "status_line.h"
+#include "graph_style.h"
 // Unguarded on purpose: declarations only (nothing is emitted), and waf's dependency
 // scanner cannot see an include inside a -D guard (night_light.c). Only the
 // handler below is WW_ON_DEMAND-guarded.
@@ -57,6 +58,7 @@ typedef enum {
     BAD_CURVE_INSETS,    // bytes
     BAD_LINE_STYLE,      // bytes
     BAD_NIGHT_LIGHT,     // bytes
+    BAD_GRAPH_STYLE,     // style (1-3), bytes
 } BadTuple;
 
 // One log call and one format string for every skip below. noinline: aplite has only
@@ -509,6 +511,32 @@ static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty
     return true;
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the graph styles' records (graph_style.h) — settings-derived, so they ride the
+// Clay message (clay-payload.js). One optional tuple per style: a record is stored as sent,
+// an empty tuple deletes it (no screen shows that style, or every screen shows the first).
+// A malformed record is refused whole, so the last good one stays. Unconditional like
+// handle_line_style: the fixture path bundles the settings onto the weather message.
+static bool handle_graph_styles(DictionaryIterator *iterator, bool *forecast_dirty) {
+    const uint32_t keys[GRAPH_STYLE_COUNT] = {
+        MESSAGE_KEY_CLAY_GRAPH_STYLE_1_UINT8, MESSAGE_KEY_CLAY_GRAPH_STYLE_2_UINT8,
+        MESSAGE_KEY_CLAY_GRAPH_STYLE_3_UINT8 };
+    bool handled = false;
+    for (uint8_t k = 0; k < GRAPH_STYLE_COUNT; ++k) {
+        Tuple *tuple = dict_find(iterator, keys[k]);
+        if (!tuple) { continue; }
+        handled = true;
+        const int len = (tuple->type == TUPLE_BYTE_ARRAY) ? (int) tuple->length : -1;
+        if (len != 0 && (len < 0 || !graph_style_valid(tuple->value->data, len))) {
+            warn_bad(BAD_GRAPH_STYLE, k + 1u, tuple->length, 0);
+            continue;
+        }
+        *forecast_dirty |= persist_set_graph_style(k, tuple->value->data, (size_t) len);
+    }
+    return handled;
+}
+#endif
+
 #if defined(NIGHT_LIGHT_SUPPORTED)
 // "Dim backlight" (the Nighttime card) — the tint the RGB backlight LED burns at
 // night and the window it burns it in. Settings-derived, so the tuple rides the Clay
@@ -675,6 +703,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // onto the weather message (fixture-weather.js), so this must not sit
     // behind a "settings message only" branch or fixtures render stale colors.
     handled |= handle_line_style(iterator, &forecast_dirty);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: each screen's graph style (graph_style.h).
+    handled |= handle_graph_styles(iterator, &forecast_dirty);
+#endif
 #if defined(NIGHT_LIGHT_SUPPORTED)
     // Called for every inbound message like handle_line_style above, not behind a
     // "settings message only" branch: the fixture path bundles claySettings onto the

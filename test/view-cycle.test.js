@@ -920,3 +920,29 @@ test('stackSeats: the seats stackNeed sums, the filling band marked', () => {
   assert.deepEqual(compact.seats.map((seat) => seat.band + seat.pitch + (seat.fill ? 'F' : '')),
     ['T30', 'A15', 'C45', 'G45F'], 'compactCal: the 2-row calendar, its freed row, the clock, the filling forecast');
 });
+
+test('packExt: the graph style rides bits 9-10, only on a view with a forecast graph', () => {
+  assert.equal(vc.packExt(extSpec({ graphStyle: 2 })), 2 << 9);
+  assert.equal(vc.packExt(extSpec({ graphStyle: 1, bodySize: vc.SIZE_4 })), 3 | (1 << 9));
+  const topForecast = extSpec({ tier: vc.TIER_NONE, top: vc.TOP_GRAPH,
+    topKind: vc.TOP_KIND_FORECAST, body: vc.BODY_NONE, graphStyle: 1 });
+  assert.equal(vc.packExt(topForecast) >> 9, 1, 'a forecast graph in the top band');
+  assert.equal(vc.packExt(extSpec({ body: vc.BODY_GRAPH, graphStyle: 2 })) >> 9, 0,
+    'a health graph body draws no forecast');
+  assert.equal(vc.packExt(extSpec({ body: vc.BODY_NONE, graphStyle: 2 })) >> 9, 0, 'no graph');
+  assert.equal(vc.packExt(extSpec({ tier: vc.TIER_NONE, top: vc.TOP_GRAPH,
+    topKind: vc.TOP_KIND_HEALTH, body: vc.BODY_NONE, graphStyle: 2 })) >> 9, 0,
+    'a health top graph');
+  assert.equal(vc.packExt(extSpec({ graphStyle: 3 })), 0, 'code 3 is no style');
+  assert.ok(vc.packExt(extSpec({ graphStyle: 2, bodySize: vc.SIZE_2, align: vc.ALIGN_BOTTOM }))
+    < 0x800, 'bits 11-15 stay clear');
+  const w = vc.packWire(extSpec({ graphStyle: 2, stripOff: true }));
+  assert.equal(vc.unpackWire(w).graphStyle, 2);
+  assert.equal(vc.packWire(vc.unpackWire(w)), w, 'round trip');
+  assert.equal(vc.unpackWire(vc.packSpec(extSpec({})) + (3 << 9) * 65536).graphStyle, undefined,
+    'code 3 reads as the first style, as on the watch');
+  assert.equal(vc.cloneSpec(extSpec({ graphStyle: 1 })).graphStyle, 1, 'cloneSpec keeps it');
+  assert.equal(vc.unpackWire(vc.packWire(extSpec({ body: vc.BODY_NONE, graphStyle: 2 })))
+    .graphStyle, undefined, 'dropped where no forecast graph is');
+  assert.equal(vc.packExt(extSpec({})), 0, 'no style → the word every watch had');
+});

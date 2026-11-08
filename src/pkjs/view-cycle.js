@@ -43,7 +43,7 @@ function spec(tier, top, body, statusUpper, statusLower) {
 
 /**
  * Clone a spec, preserving the custom-layout fields (clockOff/stripOff/order and the
- * ext word's topKind/topSize/bodySize/align) that the 5-arg spec() builder does not
+ * ext word's topKind/topSize/bodySize/align/graphStyle) that the 5-arg spec() builder does not
  * carry. Every cycle transform MUST clone through this helper — cloning via spec()
  * silently drops them (pinned by a test).
  * Canonical form: the fields are attached only when set (absent === off/0), so the
@@ -52,7 +52,7 @@ function spec(tier, top, body, statusUpper, statusLower) {
  * @param {{tier:number,top:number,body:number,statusUpper:number,statusLower:number,
  *          clockOff:(boolean|undefined),stripOff:(boolean|undefined),order:(number|undefined),
  *          topKind:(number|undefined),topSize:(number|undefined),bodySize:(number|undefined),
- *          align:(number|undefined)}} s
+ *          align:(number|undefined),graphStyle:(number|undefined)}} s
  * @returns {!Object} an independent copy with the same canonical fields
  */
 function cloneSpec(s) {
@@ -64,6 +64,7 @@ function cloneSpec(s) {
   if (s.topSize) { out.topSize = s.topSize; }
   if (s.bodySize) { out.bodySize = s.bodySize; }
   if (s.align) { out.align = s.align; }
+  if (s.graphStyle) { out.graphStyle = s.graphStyle; }
   return out;
 }
 
@@ -111,9 +112,12 @@ function unpackSpec(v) {
  * sizes → 0; explicit fill on the body and 3 rows on the top → 0 (their seat defaults);
  * sizes only on a radar/graph top and on a present body; topKind only on a graph top;
  * one fill per view (both → the body fills, the top takes its 3-row default); align only
- * while no band fills.
+ * while no band fills; a graph style (Pebble Time 2, src/pkjs/graph-styles.js) only on a view
+ * with a forecast graph, 1 or 2 (0 = the first style; the watch reads code 3 as 0 too,
+ * layout.h view_ext_graph_style).
  * @param {!Object} s view spec
- * @returns {{topKind:number,topSize:number,bodySize:number,align:number,fill:boolean}}
+ * @returns {{topKind:number,topSize:number,bodySize:number,align:number,graphStyle:number,
+ *            fill:boolean}}
  */
 function extFields(s) {
   var topKind = (s.topKind || 0) & 1;
@@ -128,22 +132,28 @@ function extFields(s) {
   if (bodyFills && topSize === SIZE_FILL) { topSize = SIZE_DEFAULT; }
   var fill = bodyFills || topSize === SIZE_FILL;
   if (fill) { align = ALIGN_CLOCK; }
-  return { topKind: topKind, topSize: topSize, bodySize: bodySize, align: align, fill: fill };
+  var forecastGraph = s.body === BODY_FC || (s.top === TOP_GRAPH && topKind === TOP_KIND_FORECAST);
+  var graphStyle = (s.graphStyle || 0) & 3;
+  if (graphStyle === 3 || !forecastGraph) { graphStyle = 0; }
+  return { topKind: topKind, topSize: topSize, bodySize: bodySize, align: align,
+           graphStyle: graphStyle, fill: fill };
 }
 
 /**
  * Pack a spec's ext fields into the 16-bit ext word — the HIGH half of the 32-bit
  * CLAY_VIEW_n tuple (the watch's config_wire.c reads it off the int32; aplite ignores
- * it). Bit layout (LSB→MSB): bodySize(0-2) | topSize(3-5) | topKind(6) | align(7-8);
- * 9-15 reserved (bit 15 stays clear so the whole wire word stays a positive int32).
+ * it). Bit layout (LSB→MSB): bodySize(0-2) | topSize(3-5) | topKind(6) | align(7-8) |
+ * graphStyle(9-10, Pebble Time 2: layout.h view_ext_graph_style); 11-15 reserved (bit 15
+ * stays clear so the whole wire word stays a positive int32).
  * Every field is 0 in its seat's default, so a preset (no fields) packs to 0.
  * @param {?Object} s view spec (null = disabled slot)
- * @returns {number} 0..0x1FF
+ * @returns {number} 0..0x7FF
  */
 function packExt(s) {
   if (!s) { return 0; }
   var e = extFields(s);
-  return (e.bodySize & 7) | ((e.topSize & 7) << 3) | ((e.topKind & 1) << 6) | ((e.align & 3) << 7);
+  return (e.bodySize & 7) | ((e.topSize & 7) << 3) | ((e.topKind & 1) << 6) | ((e.align & 3) << 7)
+       | ((e.graphStyle & 3) << 9);
 }
 
 /**
@@ -172,6 +182,8 @@ function unpackWire(v) {
   if ((ext >> 3) & 7) { s.topSize = (ext >> 3) & 7; }
   if ((ext >> 6) & 1) { s.topKind = 1; }
   if ((ext >> 7) & 3) { s.align = (ext >> 7) & 3; }
+  var graphStyle = (ext >> 9) & 3;
+  if (graphStyle === 1 || graphStyle === 2) { s.graphStyle = graphStyle; }
   return s;
 }
 
@@ -185,7 +197,7 @@ function unpackWire(v) {
  */
 function canonicalExt(s) {
   var e = extFields(s);
-  var names = ['topKind', 'topSize', 'bodySize', 'align'], j;
+  var names = ['topKind', 'topSize', 'bodySize', 'align', 'graphStyle'], j;
   for (j = 0; j < names.length; j++) {
     if (e[names[j]]) { s[names[j]] = e[names[j]]; } else { delete s[names[j]]; }
   }
