@@ -117,6 +117,11 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
         { SERIES_FOURTH, MESSAGE_KEY_FOURTH_LINE_TREND_UINT8    },
         { SERIES_FIFTH,  MESSAGE_KEY_FIFTH_LINE_TREND_UINT8     },
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: the graph styles' spare trend, sent only while the shown styles draw five
+        // series; a message without it deletes it (existence-keyed).
+        { SERIES_SPARE,  MESSAGE_KEY_SPARE_LINE_TREND_UINT8     },
+#endif
         { SERIES_BARS,   MESSAGE_KEY_BAR_TREND_UINT8            },
     };
     // Render-ready series (trend bytes only) — table-driven.

@@ -112,12 +112,30 @@ function buildWeatherOutboxPayload(payload) {
 // ALERT_ENTRIES_MAX_BYTES): the bundle budgets the tuple at it.
 const ALERT_ENTRIES_CAP = require('../src/pkjs/status-wire').ALERT_ENTRIES_MAX_BYTES;
 
+// Emery's graph styles at their heaviest on the weather message: three screens, each on a style
+// of its own, drawing six series between them. The first style's four lines take their rows,
+// style 2 adds the rain chance as a stripe (a fifth series: the spare row,
+// SPARE_LINE_TREND_UINT8) and style 3 cloud cover (a sixth, which no row is left for: dropped,
+// never sent). graph-styles.js assign.
+const HEAVIEST_GRAPHS = {
+  layoutPreset: 'custom', radarMode: 'graph', viewCount: '3',
+  viewTop0: 'cal', viewBody0: 'forecast', viewStyle0: '1',
+  viewTop1: 'none', viewBody1: 'forecast', viewStyle1: '2',
+  viewTop2: 'none', viewBody2: 'forecast', viewStyle2: '3',
+  forecastHours: '48',
+  graphStyles: JSON.stringify({ names: ['', '', ''], styles: [null,
+    { secondaryLine: 'gust', thirdLine: 'wind', fourthLine: 'precip_prob', fourthLineStyle: 'stripeTop',
+      fifthLine: 'uv', barSource: 'off', forecastHours: '24' },
+    { secondaryLine: 'uv', thirdLine: 'cloud', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
+      forecastHours: '12' }] }),
+};
+
 /**
  * Build the heaviest single AppMessage the phone can emit (DWD + wind).
  * @param {string} [platform] Watch platform; emery by default. aplite's bundle drops the
- *   lines it cannot draw (FOURTH/FIFTH), and emery's carries 68 forecast hours, so each is
- *   sized against its own inbox.
- * @param {Object} [over] Settings laid over the heaviest ones (the graph styles' test).
+ *   lines it cannot draw (FOURTH/FIFTH), and emery's carries 68 forecast hours and its graph
+ *   styles' spare row (HEAVIEST_GRAPHS), so each is sized against its own inbox.
+ * @param {Object} [over] Settings laid over the heaviest ones.
  * @returns {Object} The outgoing AppMessage payload.
  */
 function buildHeaviestBundle(platform, over) {
@@ -177,7 +195,8 @@ function buildHeaviestBundle(platform, over) {
     statusRadarLeft: 'city', statusRadarMid: 'city', statusRadarRight: 'city',
     statusTopLeft: 'city', statusTopMid: 'city', statusTopRight: 'city',
     statusHealthLeft: 'city', statusHealthMid: 'city', statusHealthRight: 'city'
-  }, alertSettings, over || {}), { platform: platform || 'emery' });
+  }, alertSettings, (platform || 'emery') === 'emery' ? HEAVIEST_GRAPHS : {}, over || {}),
+  { platform: platform || 'emery' });
 
   // The entry tuple (off aplite: the bake skips it there, like the levels). The
   // realistic heaviest bake — all five with values — stays under the cap; the
@@ -226,8 +245,9 @@ function buildHeaviestBundleWithNotice(platform) {
 // the one place the sizes are asserted. Update a figure here when its wire contract changes
 // (the git log of this file holds how each grew). aplite's is basalt's less both extra line
 // trends (2 × 31 B), the STATUS_LEVELS_UINT8 threshold tuple aplite compiles out, the alert
-// entries and the radar sky rows; emery's carries its long span's 68 hours (below).
-const WEATHER_BUNDLES = { emery: 867, basalt: 603, chalk: 603, diorite: 603, flint: 603, aplite: 473 };
+// entries and the radar sky rows; emery's carries its long span's 68 hours and the graph
+// styles' spare row (below).
+const WEATHER_BUNDLES = { emery: 942, basalt: 603, chalk: 603, diorite: 603, flint: 603, aplite: 473 };
 const INBOXES = { emery: 1024, basalt: 640, chalk: 640, diorite: 640, flint: 640, aplite: 536 };
 
 test('heaviest bundled payload (DWD + wind) fits the watch inbox, per platform', function() {
@@ -241,27 +261,19 @@ test('heaviest bundled payload (DWD + wind) fits the watch inbox, per platform',
   });
 });
 
-// Graph styles (emery, 2.7.0) add no weather byte: the shown styles' series share the four
-// metric rows (graph-styles.js assign), and a fifth is dropped, never sent.
-test('graph styles keep emery\'s heaviest weather bundle: the shown styles share the four rows', () => {
-  const styled = buildHeaviestBundle('emery', {
-    layoutPreset: 'custom', radarMode: 'graph', viewCount: '3',
-    viewTop0: 'cal', viewBody0: 'forecast', viewStyle0: '1',
-    viewTop1: 'none', viewBody1: 'forecast', viewStyle1: '2',
-    viewTop2: 'none', viewBody2: 'forecast', viewStyle2: '3',
-    forecastHours: '48',
-    graphStyles: JSON.stringify({ names: ['', '', ''], styles: [null,
-      // The first style's four lines again, reordered, plus the rain chance as a stripe: a
-      // fifth series, over the limit.
-      { secondaryLine: 'gust', thirdLine: 'wind', fourthLine: 'precip_prob', fourthLineStyle: 'stripeTop',
-        fifthLine: 'uv', barSource: 'off', forecastHours: '24' },
-      { secondaryLine: 'uv', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
-        forecastHours: '12' }] }),
-  });
+// Graph styles (emery, 2.7.0): the shown styles' series share the weather message's five metric
+// rows (graph-styles.js assign). A fifth series rides the spare row's trend, one more 68-hour
+// tuple (75 B); a sixth is dropped, never sent. One graph, or a union of four, sends no spare.
+test('graph styles: a fifth series rides the spare row, a sixth is never sent', () => {
+  const styled = buildHeaviestBundle('emery');
   assert.equal(dictSize(styled), WEATHER_BUNDLES.emery);
   ['SECONDARY_LINE_TREND_UINT8', 'THIRD_LINE_TREND_UINT8', 'FOURTH_LINE_TREND_UINT8',
-    'FIFTH_LINE_TREND_UINT8', 'BAR_TREND_UINT8'].forEach((key) =>
+    'FIFTH_LINE_TREND_UINT8', 'SPARE_LINE_TREND_UINT8', 'BAR_TREND_UINT8'].forEach((key) =>
     assert.equal(styled[key].length, forecastEntries('emery'), key));
+  const plain = buildHeaviestBundle('emery', { viewStyle1: '1', viewStyle2: '1' });
+  assert.equal(Object.prototype.hasOwnProperty.call(plain, 'SPARE_LINE_TREND_UINT8'), false,
+    'every screen on the first graph: no spare');
+  assert.equal(dictSize(plain), WEATHER_BUNDLES.emery - (7 + forecastEntries('emery')), 'the spare\'s 75 B');
 });
 
 test('aplite keeps its 536 B inbox and a bundle without the extra metric lines', () => {
@@ -289,11 +301,12 @@ test('each platform\'s heaviest weather bundle and inbox, recorded', () => {
     assert.equal(bundle.RAIN_RADAR_TREND_UINT8.length, RADAR_SLOTS, platform + ': the radar keeps 24 slots');
   });
   // emery's long span: six forecast trends (the temperature, four metric lines, the rain
-  // bars) grow by one byte an hour, 68 - 24 each, over the 24 h bundle.
-  assert.equal(WEATHER_BUNDLES.emery, WEATHER_BUNDLES.basalt + 6 * (68 - 24));
+  // bars) grow by one byte an hour, 68 - 24 each, over the 24 h bundle, and the graph styles'
+  // spare row adds a seventh trend, a whole 68-hour tuple (7 B header + 68 B).
+  assert.equal(WEATHER_BUNDLES.emery, WEATHER_BUNDLES.basalt + 6 * (68 - 24) + 7 + 68);
   // With a cleared notice riding along (the inbox ceiling test above): +8 B.
-  assert.equal(dictSize(buildHeaviestBundleWithNotice('emery')), 875);
-  assert.ok(INBOXES.emery - 875 >= 10, 'the cleared-notice bundle keeps the 10 B floor');
+  assert.equal(dictSize(buildHeaviestBundleWithNotice('emery')), 950);
+  assert.ok(INBOXES.emery - 950 >= 10, 'the cleared-notice bundle keeps the 10 B floor');
 });
 
 // The entries ride the status category, so the heaviest bundle carries them

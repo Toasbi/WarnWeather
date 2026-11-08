@@ -130,8 +130,10 @@ Forecast length, Left axis values and the graph colors (`src/pkjs/graph-styles.j
 GOVERNED). Up to three: the first is the flat settings keys, the others live in
 the `graphStyles` item. Each screen's forecast graph names its style
 (`viewStyle{i}`); what shapes the data the phone bakes stays one setting for
-every style (SHARED). All the styles the screens show draw at most four series
-together, the weather message's four trend rows. Setup's forecast looks
+every style (SHARED). All the styles the screens show draw at most five series
+together, the weather message's five trend rows: one per line and a spare row
+that no style's own line is (a style keeps its four lines; the spare has no
+picker, `src/pkjs/line-style.js` SPARE_LINE). Setup's forecast looks
 (Classic, Weathergraph, Stripes: `src/pkjs/settings/wizard-forecast.js` LOOKS)
 are what a new style starts from. The settings page calls a style a graph
 ("Your graphs"; "Graph 2" until it is renamed) and a look it starts from a

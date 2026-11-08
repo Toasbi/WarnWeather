@@ -1,8 +1,9 @@
 'use strict';
 // The graph styles' wire and storage contract (Pebble Time 2): three appended message keys,
 // three appended persist slots, the watch's handler behind PBL_PLATFORM_EMERY with its record
-// check before the write, and the view word's style bits read on the watch where the phone
-// packs them (src/c/appendix/graph_style.h, src/pkjs/view-cycle.js packExt).
+// check before the write, the view word's style bits read on the watch where the phone
+// packs them (src/c/appendix/graph_style.h, src/pkjs/view-cycle.js packExt), and the spare
+// row's appended key and slot (SPARE_LINE_TREND_UINT8, persist.c SPARE_LINE_TREND).
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -36,7 +37,23 @@ test('PERSIST GRAPH_STYLE_1..3 are appended after RADAR_NOTICE (59..61)', () => 
   assert.equal(names.indexOf('RADAR_NOTICE'), 58);
   assert.deepEqual([names.indexOf('GRAPH_STYLE_1'), names.indexOf('GRAPH_STYLE_2'),
     names.indexOf('GRAPH_STYLE_3')], [59, 60, 61]);
-  assert.equal(names[names.length - 1], 'GRAPH_STYLE_3');
+  assert.equal(names.indexOf('SPARE_LINE_TREND'), 62, 'the spare row\'s trend after them');
+  assert.equal(names[names.length - 1], 'SPARE_LINE_TREND');
+});
+
+test('the spare row: its key appended after the style keys, received and stored on emery only', () => {
+  const keys = template.pebble.messageKeys;
+  assert.equal(keys.indexOf('SPARE_LINE_TREND_UINT8'), keys.indexOf('CLAY_GRAPH_STYLE_3_UINT8') + 1);
+  assert.equal(keys[keys.length - 1], 'SPARE_LINE_TREND_UINT8');
+  const entry = appMessageC.indexOf('{ SERIES_SPARE,  MESSAGE_KEY_SPARE_LINE_TREND_UINT8');
+  assert.ok(entry !== -1, 'the trend table receives it');
+  const guard = appMessageC.lastIndexOf('#if defined(PBL_PLATFORM_EMERY)', entry);
+  assert.ok(guard !== -1 && appMessageC.indexOf('#endif', guard) > entry, 'behind PBL_PLATFORM_EMERY');
+  ['persist_series_present', 'persist_series_trend', 'persist_series_set_trend'].forEach((fn) => {
+    const start = persistC.indexOf(fn + '(SeriesId id');
+    const body = persistC.slice(start, persistC.indexOf('\n}\n', start));
+    assert.match(body, /case SERIES_SPARE:.*SPARE_LINE_TREND/, fn + ' stores the spare trend');
+  });
 });
 
 test('the watch checks a record before persisting it, on emery only', () => {

@@ -378,6 +378,15 @@
         { key: 'fourthLine', styleKey: 'fourthLineStyle' },
         { key: 'fifthLine', styleKey: 'fifthLineStyle' }
     ];
+    // The graph styles' spare row (Pebble Time 2, graph-styles.js THE UNION): the weather
+    // message's fifth metric row, which no graph's own line is. When the screens' graphs draw
+    // five series between them, the settings copy the weather bake reads (weather/
+    // graph-style-wire.js weatherSettings) names the fifth under this key. No settings item
+    // stores it, so the settings page never has it. The walks that ask what the bake draws
+    // (effectiveLineMetric, firstDrawnLine, line-alert.js drawnMetrics) read it after the four
+    // lines, as BAKE_LINES.
+    var SPARE_LINE = { key: 'spareLine' };
+    var BAKE_LINES = FORECAST_LINES.concat([SPARE_LINE]);
     // Style key -> the metric key of the line it styles.
     var LINE_OF_STYLE = {};
     (function () {
@@ -388,20 +397,21 @@
 
     /**
      * The metric one forecast line actually draws: its stored metric, or null
-     * when the line is off or repeating an earlier line's stored pick.
+     * when the line is off or repeating an earlier line's stored pick. The spare
+     * row (SPARE_LINE) reads the same way, after the four lines.
      * @param {Object} settings Clay settings blob.
-     * @param {string} key secondaryLine|thirdLine|fourthLine|fifthLine.
+     * @param {string} key secondaryLine|thirdLine|fourthLine|fifthLine|spareLine.
      * @returns {string|null} The drawn metric, or null for line-off.
      */
     function effectiveLineMetric(settings, key) {
         var s = settings || {};
-        for (var i = 0; i < FORECAST_LINES.length; i++) {
-            var line = FORECAST_LINES[i];
+        for (var i = 0; i < BAKE_LINES.length; i++) {
+            var line = BAKE_LINES[i];
             if (line.key !== key) { continue; }
             var m = s[key];
             if (!m || m === 'off') { return null; }
             for (var j = 0; j < i; j++) {
-                if (s[FORECAST_LINES[j].key] === m) { return null; }
+                if (s[BAKE_LINES[j].key] === m) { return null; }
             }
             return m;
         }
@@ -414,16 +424,17 @@
      * settings page's when-resolvers.js hostLine). A line draws its effectiveLineMetric;
      * the Third and Fourth metric lines (fourthLine / fifthLine) count only with
      * `allLines`, where the watch draws them (WW_LINE_STYLE). It takes that fact as a
-     * boolean because each caller reads it its own way.
+     * boolean because each caller reads it its own way. The bake's spare row (SPARE_LINE,
+     * set in the bake's settings copy only) counts after them, with `allLines` too.
      * @param {Object} settings Clay settings blob.
      * @param {boolean} allLines Whether the watch draws all four lines.
      * @param {function(string): boolean} test Asked with each drawn metric.
-     * @returns {?string} secondaryLine|thirdLine|fourthLine|fifthLine, or null.
+     * @returns {?string} secondaryLine|thirdLine|fourthLine|fifthLine|spareLine, or null.
      */
     function firstDrawnLine(settings, allLines, test) {
-        for (var i = 0; i < FORECAST_LINES.length; i++) {
+        for (var i = 0; i < BAKE_LINES.length; i++) {
             if (i >= 2 && !allLines) { break; }
-            var key = FORECAST_LINES[i].key;
+            var key = BAKE_LINES[i].key;
             var m = effectiveLineMetric(settings, key);
             if (m !== null && test(m)) { return key; }
         }
@@ -803,6 +814,8 @@
         graphNightTint: graphNightTint,
         graphColorIsPicked: graphColorIsPicked,
         FORECAST_LINES: FORECAST_LINES,
+        SPARE_LINE: SPARE_LINE,
+        BAKE_LINES: BAKE_LINES,
         TEMP_AXIS_METRIC_IDS: TEMP_AXIS_METRIC_IDS,
         isTempAxisMetric: isTempAxisMetric,
         effectiveLineMetric: effectiveLineMetric,

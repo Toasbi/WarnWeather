@@ -4,7 +4,7 @@
 // graph's values in the flat keys on Graphs › Forecast and the first graph's everywhere else, the
 // settings as Save stores them, the Your graphs card (a picture card per graph, New graph from a
 // template or as a copy, the Show on row, Rename, Delete with Undo), the screen editor's graph
-// card and picker, and the four-series limit. The module first, then the REAL generated page
+// card and picker, and the five-series limit. The module first, then the REAL generated page
 // (test/helpers/page-harness.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -144,19 +144,25 @@ test('the pickers\' graphs: each named with its length, where it shows under it'
   assert.deepEqual(GSP.styleOptions(full, EMERY, { screen: true }).map((o) => o[1]), ['1', '2', '3']);
 });
 
-test('the four-series limit: a pick that would make a fifth series is greyed out on a shown style only', () => {
-  // Style 1 draws rain chance and UV; style 2 rain chance, cloud and wind: four series between them.
+test('the five-series limit: a pick that would make a sixth series is greyed out on a shown style only', () => {
+  // Style 1 draws rain chance, UV and gusts; style 2 rain chance, cloud and wind: five series
+  // between them, the most the watch takes (four lines' rows and the spare).
   const S = layout(['1', '2'], {
-    secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLine: 'uv', fourthLine: 'off', fifthLine: 'off',
+    secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLine: 'uv', fourthLine: 'gust', fifthLine: 'off',
     graphStyles: stylesItem({ secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLine: 'cloud',
       thirdLineStyle: 'line', fourthLine: 'wind', fifthLine: 'off' })
   });
   const metric = PC.optionsResolvers.get('forecastMetric');
   const off = (opts) => opts.filter((o) => o[2] && o[2].disabled).map((o) => o[1]);
-  // The first style's fourth line: a metric another style draws is free, a new one is not.
-  const fourth = metric(S, EMERY, { key: 'fourthLine', off: true, exclude: ['secondaryLine', 'thirdLine'] });
-  assert.deepEqual(off(fourth), ['gust', 'pressure', 'feels', 'dew']);
-  assert.equal(fourth.find((o) => o[1] === 'gust')[2].desc, GSP.LIMIT);
+  // The first style's fifth line: a metric another style draws is free, a new one is not.
+  const lines = ['secondaryLine', 'thirdLine', 'fourthLine'];
+  const fifth = metric(S, EMERY, { key: 'fifthLine', off: true, exclude: lines });
+  assert.deepEqual(off(fifth), ['pressure', 'feels', 'dew']);
+  assert.equal(fifth.find((o) => o[1] === 'pressure')[2].desc, GSP.LIMIT);
+  assert.equal(GSP.LIMIT, 'That makes 6 lines and stripes on your screens; the watch can show 5.');
+  // Changing a line swaps one series for another, so the first style's gust line may become
+  // anything.
+  assert.deepEqual(off(metric(S, EMERY, { key: 'fourthLine', off: true, exclude: lines.slice(0, 2) })), []);
   // Its style: the rain chance as a stripe is a series of its own, while style 2 still draws its
   // line; UV as dots is the same series as UV as a line.
   const style = PC.optionsResolvers.get('lineStyleOptions');
@@ -166,35 +172,37 @@ test('the four-series limit: a pick that would make a fifth series is greyed out
   // watch without styles.
   assert.deepEqual(off(metric(S, EMERY, { key: 'thirdLine', off: true, exclude: ['secondaryLine'] })), []);
   const dormant = Object.assign({}, S, { viewStyle1: '1' });
-  assert.deepEqual(off(metric(dormant, EMERY, { key: 'fourthLine', off: true, exclude: ['secondaryLine', 'thirdLine'] })), []);
-  assert.deepEqual(off(metric(S, BASALT, { key: 'fourthLine', off: true, exclude: ['secondaryLine', 'thirdLine'] })), []);
+  assert.deepEqual(off(metric(dormant, EMERY, { key: 'fifthLine', off: true, exclude: lines })), []);
+  assert.deepEqual(off(metric(S, BASALT, { key: 'fifthLine', off: true, exclude: lines })), []);
   // While style 2 sits in the flat keys, its pickers count the first style's series: its empty
-  // fifth line may take UV (style 1 draws it), nothing new. Its wind line may become anything:
-  // wind's row is then free.
+  // fifth line may take UV or gusts (style 1 draws them), nothing new. Its wind line may become
+  // anything: wind's row is then free.
   const W = Object.assign({}, S);
   GSP.swapIn(W, 1);
-  const lines = ['secondaryLine', 'thirdLine', 'fourthLine'];
-  assert.deepEqual(off(metric(W, EMERY, { key: 'fifthLine', off: true, exclude: lines })), ['gust', 'pressure', 'feels', 'dew']);
+  assert.deepEqual(off(metric(W, EMERY, { key: 'fifthLine', off: true, exclude: lines })), ['pressure', 'feels', 'dew']);
   assert.deepEqual(off(metric(W, EMERY, { key: 'fourthLine', off: true, exclude: lines.slice(0, 2) })), []);
-  // The screen editor's picker: a style that would bring a fifth series onto the screens.
-  const busy = layout(['1', '1'], {
+  // The screen editor's picker: a style whose fifth series fits beside a graph of four, one
+  // whose sixth does not.
+  const fits = layout(['1', '1'], {
     secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust',
     graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' })
   });
+  assert.equal(GSP.screenOverflows(fits, EMERY, 1, 1), false, 'cloud: the fifth series, on the spare row');
+  const busy = Object.assign({}, fits, {
+    graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'pressure', fourthLine: 'off', fifthLine: 'off' }) });
   GSP.beginScreenPick(busy, 1, '1');
   const opts = GSP.styleOptions(busy, EMERY, { screen: true });
-  assert.equal(opts[1][2].disabled, true, 'cloud would be a fifth series');
-  assert.equal(opts[1][2].desc, 'Also needs Cloud cover %: that makes 5 lines and stripes on your screens; the watch can show 4.',
-    'what it adds, and the count');
+  assert.equal(opts[1][2].disabled, true, 'cloud and pressure would be a sixth series');
+  assert.equal(opts[1][2].desc, 'Also needs Cloud cover % and Air pressure (hPa): that makes 6 lines and stripes on your'
+    + ' screens; the watch can show 5.', 'what it adds, and the count');
   assert.equal(GSP.screenOverflows(busy, EMERY, 1, 0), false);
-  // A template that would bring a fifth series: Weathergraph's cloud stripe.
+  // The templates: Weathergraph's cloud stripe is a fifth series and fits; Stripes' cloud and
+  // rain-chance stripes would make six.
   const tpl = (o) => o.filter((x) => x[1].indexOf(GSP.NEW) === 0);
   assert.deepEqual(tpl(opts).map((o) => [o[1], Boolean(o[2].disabled)]),
-    [['new:classic', false], ['new:weathergraph', true], ['new:stripes', true]]);
-  assert.equal(tpl(opts)[1][2].desc,
-    'Also needs Cloud cover % (stripe): that makes 5 lines and stripes on your screens; the watch can show 4.');
+    [['new:classic', false], ['new:weathergraph', false], ['new:stripes', true]]);
   assert.equal(tpl(opts)[2][2].desc, 'Also needs Cloud cover % (stripe) and Precipitation % (stripe): that makes 6 lines'
-    + ' and stripes on your screens; the watch can show 4.', 'a line and a stripe of one metric are two');
+    + ' and stripes on your screens; the watch can show 5.', 'a line and a stripe of one metric are two');
 });
 
 /**
@@ -478,18 +486,19 @@ test('the page: Show on puts the picked graph on a screen or takes it off', asyn
   assert.equal(blob.viewStyle0, '2');
   assert.equal(blob.viewStyle1, '1');
   assert.equal(blob.forecastHours, '24', 'the first graph back in the flat keys');
-  // The limit: a screen that would make the screens draw a fifth series is greyed out.
+  // The limit: a screen that would make the screens draw a sixth series is greyed out.
   const busy = layout(['1', '1'], { provider: 'dwd',
     secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust',
-    graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' }) });
+    graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'pressure', fourthLine: 'off', fifthLine: 'off' }) });
   const q = bootGeneratedPage(busy, 'emery');
   q.clickTab('graphs');
   q.tapAction('pickGraph', 2);
-  // Graph 1 draws four series on the other screen, so Long's cloud would be a fifth on either.
+  // Graph 1 draws four series on the other screen, so Long's cloud and pressure would make six
+  // on either.
   assert.deepEqual(chips(q.scroll.innerHTML), [['Default', 'dim'], ['Flick 1', 'dim']]);
-  assert.ok(q.scroll.innerHTML.indexOf('The watch can show 4 lines and stripes across all your screens. In use: Precipitation %,'
-    + ' UV Index, Wind speed, Wind gusts. Long also needs Cloud cover %. To make room, turn off a line in one of your graphs.')
-    !== -1, 'the limit says why: what is in use, what Long adds, what to do');
+  assert.ok(q.scroll.innerHTML.indexOf('The watch can show 5 lines and stripes across all your screens. In use: Precipitation %,'
+    + ' UV Index, Wind speed, Wind gusts. Long also needs Cloud cover % and Air pressure (hPa). To make room, turn off a line'
+    + ' in one of your graphs.') !== -1, 'the limit says why: what is in use, what Long adds, what to do');
   q.tapAction('graphOnScreen', 0);
   assert.equal(q.S.viewStyle0, '1', 'a greyed-out chip does nothing');
 });

@@ -128,7 +128,12 @@ enum key {
     // platform: the enum is append-only because the numbers are the on-flash slots.
     GRAPH_STYLE_1,                // 59 — <= GRAPH_STYLE_MAX_BYTES, absent = no record
     GRAPH_STYLE_2,                // 60 — likewise
-    GRAPH_STYLE_3                 // 61 — likewise
+    GRAPH_STYLE_3,                // 61 — likewise
+    // Appended: the graph styles' spare trend (series.h SERIES_SPARE,
+    // SPARE_LINE_TREND_UINT8), the fifth metric row the shown styles' lines share while
+    // they draw five series between them. Existence-keyed like the THIRD..FIFTH trends:
+    // a weather message without it deletes it. emery only, listed everywhere (append-only).
+    SPARE_LINE_TREND              // 62 — uint8 trend bytes, absent = no spare row
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -271,6 +276,9 @@ bool persist_series_present(SeriesId id) {
         case SERIES_FOURTH: return persist_exists(FOURTH_LINE_TREND);
         case SERIES_FIFTH:  return persist_exists(FIFTH_LINE_TREND);
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+        case SERIES_SPARE:  return persist_exists(SPARE_LINE_TREND);   // emery: graph styles
+#endif
         case SERIES_BARS:   return persist_get_bar_count() > 0;
         default:            return false;  // FIRST: caller uses num_entries > 0
     }
@@ -285,6 +293,9 @@ int persist_series_trend(SeriesId id, int16_t *out, size_t n) {
         case SERIES_FOURTH: return read_trend_widened(FOURTH_LINE_TREND, out, n);
         case SERIES_FIFTH:  return read_trend_widened(FIFTH_LINE_TREND, out, n);
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+        case SERIES_SPARE:  return read_trend_widened(SPARE_LINE_TREND, out, n);   // emery
+#endif
         case SERIES_BARS:   return persist_get_bar_trend(out, n);
         default:            return 0;
     }
@@ -297,6 +308,9 @@ bool persist_series_set_trend(SeriesId id, uint8_t *data, size_t size) {
 #if defined(WW_LINE_STYLE)
         case SERIES_FOURTH: return set_existence_keyed_trend(FOURTH_LINE_TREND, data, size);
         case SERIES_FIFTH:  return set_existence_keyed_trend(FIFTH_LINE_TREND, data, size);
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+        case SERIES_SPARE:  return set_existence_keyed_trend(SPARE_LINE_TREND, data, size);   // emery
 #endif
         case SERIES_BARS:   return persist_set_bar_trend(data, size);
         default:            return false;  // FIRST/temp is handled bespoke

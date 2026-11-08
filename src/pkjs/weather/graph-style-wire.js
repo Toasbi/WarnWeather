@@ -13,9 +13,11 @@
 // pinned by test/graph-style-wire.test.js and test/c/graph_style_test.c:
 //   [0]      hours: the hours the style draws (forecast-span.js hours)
 //   [1]      flags: bit 0 Day / night shading; the Left axis bits (forecast-axis.js wireBits)
-//   [2]      the rows the phone baked TEMP_MIN / TEMP_MAX over, bit t + 1 for row t: every
-//            feels-like and dew point row of the union, while the scale option is on
-//   [3..6]   the row + 1 each line SECOND..FIFTH reads, 0 = off (graph-styles.js assign)
+//   [2]      the rows the phone baked TEMP_MIN / TEMP_MAX over, bit t + 1 for row t (the
+//            spare's bit 5): every feels-like and dew point row of the union, while the
+//            scale option is on
+//   [3..6]   the row + 1 each line SECOND..FIFTH reads, 0 = off, 5 = the spare row
+//            (graph-styles.js assign)
 //   [7..11]  the curve insets (graph-wire.js buildCurveInsetBytes)
 //   [12..25] the line styling (graph-wire.js buildLineStyleBytes)
 //   [26..]   the rain bars' palette (graph-wire.js buildPaletteTuples' BAR_PALETTE_UINT8),
@@ -23,12 +25,14 @@
 //
 // THE BAKE (weatherSettings). The weather message carries one set of rows for every screen.
 // While records ride, the bake reads a copy of the settings whose four lines are the union's
-// rows (graphStyleSlots names them, so a metric drawn as a line in one style and as a stripe in
-// another keeps both rows: forecast-series.js buildForecastSeries), whose rain bars are on
-// while any shown style draws them, and whose length is the longest shown style's (hoursSent).
-// Everything that reads the bake's settings reads that copy: applyForecastSeries, the fetch
-// options and the render signature, so a change to another style's metric, line or length
-// re-fetches as one to the first style's does. Without records it is the settings themselves.
+// first four rows and whose spare line (line-style.js SPARE_LINE) is its fifth, set only while
+// the union has a fifth series (graphStyleSlots names the rows, so a metric drawn as a line in
+// one style and as a stripe in another keeps both rows: forecast-series.js
+// buildForecastSeries), whose rain bars are on while any shown style draws them, and whose
+// length is the longest shown style's (hoursSent). Everything that reads the bake's settings
+// reads that copy: applyForecastSeries, the fetch options and the render signature, so a
+// change to another style's metric, line or length re-fetches as one to the first style's
+// does. Without records it is the settings themselves.
 var graphStyles = require('../graph-styles.js');
 var graphWire = require('./graph-wire.js');
 var forecastSpan = require('../forecast-span.js');
@@ -71,8 +75,9 @@ function nightShading(Sk) {
 
 /**
  * The settings the weather bake reads (see THE BAKE above): the settings themselves while no
- * record rides, else a copy with the union's rows in the four lines (graphStyleSlots), the rain
- * bars on while a shown style draws them, and the longest shown style's length.
+ * record rides, else a copy with the union's rows in the four lines and the spare line
+ * (graphStyleSlots), the rain bars on while a shown style draws them, and the longest shown
+ * style's length.
  * @param {Object} settings Clay settings.
  * @param {?Object} watchInfo Pebble.getActiveWatchInfo() result, or null.
  * @returns {Object}
@@ -87,6 +92,10 @@ function weatherSettings(settings, watchInfo) {
         out[line.key] = row ? row.metric : 'off';
         out[line.styleKey] = row && row.stripe ? STRIPE_STYLE : LINE_STYLE;
     });
+    // The spare row: named only while the union has a fifth series, so a union of four bakes,
+    // fetches and signs as it did before the spare.
+    var spare = u.rows[graphStyles.TRENDS];
+    if (spare) { out[lineStyle.SPARE_LINE.key] = spare.metric; }
     out.graphStyleSlots = u.rows;
     out.barSource = 'off';
     var most = -1;

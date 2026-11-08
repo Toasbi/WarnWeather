@@ -41,6 +41,20 @@ function stripeMetrics(settings) {
 }
 
 /**
+ * The graph styles' spare row as the bake draws it (emery): the union's fifth series, which
+ * the bake's settings name as line-style.js SPARE_LINE and keep in graphStyleSlots with its
+ * stripe flag. A stripe's bytes are level bytes (stripeMetrics above), so the flag signs too.
+ * @param {Object} settings The bake's settings (weather/graph-style-wire.js weatherSettings).
+ * @returns {string} e.g. 'cloud' or 'cloud stripe'; '' while the union has no fifth series
+ */
+function spareSignature(settings) {
+    var metric = settings[lineStyle.SPARE_LINE.key];
+    if (!metric) { return ''; }
+    var slot = (settings.graphStyleSlots || [])[lineStyle.FORECAST_LINES.length];
+    return metric + (slot && slot.stripe ? ' stripe' : '');
+}
+
+/**
  * @param {*} code A status item code.
  * @returns {boolean} whether a metric weather alert has that code (ALERT_KINDS)
  */
@@ -214,6 +228,10 @@ function renderSignature(settings, watchInfo) {
     // The one placement that does bake: an alert on the side whose slot shows its
     // metric, which merges into that slot's text (mergedSlots).
     parts.push(mergedSlots(settings));
+    // The graph styles' spare row (emery): the union's fifth series, which no line key holds.
+    // Signed only while there is one, so every other bake signs as it did before the spare.
+    var spare = spareSignature(settings);
+    if (spare) { parts.push(spare); }
     return parts.join('|');
 }
 

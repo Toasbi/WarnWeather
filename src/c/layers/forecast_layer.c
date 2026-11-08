@@ -107,9 +107,15 @@ static inline uint8_t forecast_axis_opts(void) {
 #endif
 
 #if defined(PBL_PLATFORM_EMERY)
+// emery: the SeriesId a graph style record's map value names (graph_style.h): SECOND..FIFTH
+// as they are, GS_TREND_SPARE the spare trend (series.h SERIES_SPARE: 5 is SERIES_BARS).
+static inline SeriesId graph_style_series(uint8_t t) {
+    return t == GS_TREND_SPARE ? SERIES_SPARE : (SeriesId) t;
+}
+
 // emery: the trend series s reads: its own, or the one its graph style's record names.
 #define SERIES_TREND(rec, s) (((rec) && (s) >= SERIES_SECOND && (s) <= SERIES_FIFTH) \
-                              ? (SeriesId) graph_style_trend((rec), (s)) : (s))
+                              ? graph_style_series(graph_style_trend((rec), (s))) : (s))
 #else
 #define SERIES_TREND(rec, s) (s)
 #endif
@@ -176,11 +182,11 @@ static void style_apply(ForecastDataset *ds, const uint8_t *rec) {
     apply_line_style(&ds->series[SERIES_THIRD].line, ls[GS_LS_STYLES + 1], 1);
     apply_line_style(&ds->series[SERIES_FOURTH].line, ls[GS_LS_STYLES + 2], 1);
     apply_line_style(&ds->series[SERIES_FIFTH].line, ls[GS_LS_FIFTH_STYLE], 1);
-    uint8_t drawn = 0;   // the scale's trends a line of this style draws
+    uint8_t drawn = 0;   // the scale's trends a line of this style draws, by map value
     for (int s = SERIES_SECOND; s <= SERIES_FIFTH; ++s) {
         const uint8_t t = graph_style_trend(rec, s);
         Series *const series = &ds->series[s];
-        series->present = t != 0 && persist_series_present((SeriesId) t);
+        series->present = t != 0 && persist_series_present(graph_style_series(t));
         if (series->present && series->line.inset_y) { drawn |= (uint8_t) (1u << t); }
     }
     ds->scale_undrawn = rec[GS_SCALE] & (uint8_t) ~drawn;

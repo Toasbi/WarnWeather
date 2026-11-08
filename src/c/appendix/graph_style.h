@@ -11,20 +11,23 @@
 // the left axis's bits of CLAY_LARGE_GRAPH_FONT) over every hour sent, exactly as before
 // graph styles. A screen whose style has no record draws that look too.
 //
-// The records share the weather message's four metric trends (the union of the shown
-// styles' lines, at most four): each line reads its trend through the record's map, so a
-// metric only one style draws costs the others nothing. The phone sends the most hours a
-// shown style draws (NUM_ENTRIES), and each style draws its own number of them.
+// The records share the weather message's five metric trends (the union of the shown
+// styles' lines, at most five): SECOND..FIFTH and the spare trend (series.h SERIES_SPARE),
+// which no line of its own draws and the phone sends only while the union needs it. Each
+// line reads its trend through the record's map, so a metric only one style draws costs the
+// others nothing. The phone sends the most hours a shown style draws (NUM_ENTRIES), and each
+// style draws its own number of them.
 //
 // A record, stored as sent (persist.h GRAPH_STYLE_1..3):
 //   [0]      hours: the most hours the style draws of the hours sent; 0 = every hour
 //   [1]      flags: bit 0 the day/night shading; bits 1-7 the left axis's options in place
 //            (config.h GRAPH_OPT_*, as CLAY_LARGE_GRAPH_FONT carries them)
-//   [2]      the trends on the temperature's scale, one bit per SeriesId (bits 1-4: SECOND
-//            to FIFTH): the feels-like and dew point lines of every shown style, which the
-//            phone baked TEMP_MIN / TEMP_MAX over (forecast-series.js tempScaleRange). The
-//            same byte in every record.
-//   [3..6]   the trend each line SECOND..FIFTH reads: a SeriesId SECOND..FIFTH; 0 = off
+//   [2]      the trends on the temperature's scale, one bit per map value (bits 1-4: SECOND
+//            to FIFTH, bit 5: the spare trend): the feels-like and dew point lines of every
+//            shown style, which the phone baked TEMP_MIN / TEMP_MAX over (forecast-series.js
+//            tempScaleRange). The same byte in every record.
+//   [3..6]   the trend each line SECOND..FIFTH reads: 1-4 a SeriesId SECOND..FIFTH,
+//            GS_TREND_SPARE the spare trend (forecast_layer.c graph_style_series); 0 = off
 //   [7..11]  the curve insets, CLAY_CURVE_INSET_UINT8's five bytes
 //   [12..25] the line styling, CLAY_LINE_STYLE_UINT8's fourteen bytes
 //   [26..]   the rain bars' palette, BAR_PALETTE_UINT8's bytes: 3 per stop, 1 to 5 stops;
@@ -52,7 +55,8 @@
 #define GS_FLAG_AXIS_MASK      0xFE // config.h GRAPH_OPT_AXIS_MASK
 #define GRAPH_STYLE_MIN_BYTES  GS_PALETTE   // no palette: the style draws no rain bars
 #define GRAPH_STYLE_MAX_BYTES  (GS_PALETTE + GS_STOP_BYTES * GS_MAX_STOPS)
-#define GS_TREND_MAX           4    // SERIES_FIFTH (series.h)
+#define GS_TREND_SPARE         5    // the spare trend (series.h SERIES_SPARE; 5 is SERIES_BARS)
+#define GS_TREND_MAX           GS_TREND_SPARE
 
 // The line styling's bytes in a record, from GS_LINE_STYLE (CLAY_LINE_STYLE_UINT8's layout,
 // weather/graph-wire.js buildLineStyleBytes; app_message.c handle_line_style stores the
@@ -69,8 +73,8 @@
 #define GS_LS_FILL_ON          0x01
 
 // emery: whether `len` bytes are a whole record: the fixed fields, 0 to 5 whole palette
-// stops, and each line's trend a SeriesId SECOND..FIFTH or 0. A malformed record is
-// refused whole (app_message.c), so the last good one stays.
+// stops, and each line's trend 1 to GS_TREND_MAX or 0. A malformed record is refused whole
+// (app_message.c), so the last good one stays.
 static inline bool graph_style_valid(const uint8_t *rec, int len) {
     if (len < GRAPH_STYLE_MIN_BYTES || len > GRAPH_STYLE_MAX_BYTES
             || (len - GS_PALETTE) % GS_STOP_BYTES != 0) {
@@ -88,8 +92,9 @@ static inline int graph_style_shown(int sent, int hours) {
     return (hours > 0 && hours < sent) ? hours : sent;
 }
 
-// emery: the trend line `line` (SERIES_SECOND = 1 .. SERIES_FIFTH = 4) reads, 0 while the
-// style draws no line there.
+// emery: the trend line `line` (SERIES_SECOND = 1 .. SERIES_FIFTH = 4) reads, as a map value
+// (forecast_layer.c graph_style_series names its SeriesId), 0 while the style draws no line
+// there.
 static inline uint8_t graph_style_trend(const uint8_t *rec, int line) {
     return rec[GS_MAP + line - 1];
 }

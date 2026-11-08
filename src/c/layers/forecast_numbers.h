@@ -192,10 +192,10 @@ static __attribute__((noinline)) void forecast_numbers_relabel(const ForecastDat
         if (!on_numbers_scale(s, first, scale)) { continue; }
         temp_axis_range_widen(&g, s->line.values + fit, n - fit, s->line.floating);
     }
-    for (int t = SERIES_SECOND; scale && t <= SERIES_FIFTH; ++t) {
+    for (int t = SERIES_SECOND; scale && t <= GS_TREND_MAX; ++t) {
         if (!(ds->scale_undrawn & (1u << t))) { continue; }
         // A feels-like or dew point trend: it floats, its 0 a missing reading.
-        const int got = persist_series_trend((SeriesId) t, scratch, (size_t) n);
+        const int got = persist_series_trend(graph_style_series((uint8_t) t), scratch, (size_t) n);
         if (got > 0) { temp_axis_range_widen(&g, scratch, got, true); }
     }
     const int t_lo = persist_get_temp_min(), t_hi = persist_get_temp_max();

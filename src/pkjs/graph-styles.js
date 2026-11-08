@@ -19,15 +19,17 @@
 // (SHARED): the wind and pressure scales, the lines' Show: All | Alert, the left axis's
 // scale option (it decides TEMP_MIN / TEMP_MAX) and Larger graph fonts, a watch-wide tier.
 //
-// THE UNION. The weather message carries four metric rows (the trends SECOND..FIFTH), so the
-// shown styles draw at most four series between them, a series being a metric drawn as a line
+// THE UNION. The weather message carries five metric rows (ROWS): the trends SECOND..FIFTH,
+// one per line, and a spare row no graph's own line is (line-style.js SPARE_LINE). So the
+// shown styles draw at most five series between them, a series being a metric drawn as a line
 // or as a stripe (the phone bakes a stripe's bytes differently, so a metric drawn both ways
-// takes two rows). assign() lays the shown styles' series into the rows, style by style and
-// line by line: a series another style draws too reuses its row, any other takes its own
-// line's row when that is free (so the first style keeps its own rows), else the first free
-// one. Each style's map then names the row each of its lines reads (src/c/appendix/
-// graph_style.h). A fifth series is dropped (map 0), the last style's last lines first: the
-// settings page keeps the shown styles within four.
+// takes two rows), while each style keeps its four lines (TRENDS). assign() lays the shown
+// styles' series into the rows, style by style and line by line: a series another style draws
+// too reuses its row, any other takes its own line's row when that is free (so the first style
+// keeps its own rows), else the first free one, the spare last. Each style's map then names
+// the row each of its lines reads (src/c/appendix/graph_style.h). A sixth series is dropped
+// (map 0), the last style's last lines first: the settings page keeps the shown styles within
+// five.
 //
 // ONLY WHAT IS SHOWN COUNTS. The styles the screens' forecast graphs draw (stylesShown, off the
 // views the watch runs) are the ones sent. While no screen shows a style other than the first,
@@ -47,8 +49,11 @@
 
     // At most three styles, one per screen at most.
     var MAX_STYLES = 3;
-    // The weather message's metric rows: the trends SECOND..FIFTH (src/c/appendix/series.h).
+    // A style's lines, each one of the trends SECOND..FIFTH (src/c/appendix/series.h).
     var TRENDS = lineStyle.FORECAST_LINES.length;
+    // The weather message's metric rows: the four lines' trends and the spare
+    // (src/c/appendix/graph_style.h GS_TREND_SPARE).
+    var ROWS = lineStyle.BAKE_LINES.length;
 
     // The keys a style holds, named by the modules that own them: the four lines' metric and
     // style keys, the Main metric's fill, the rain bars, the Draw from keys, the shading, the
@@ -347,7 +352,7 @@
 
     /**
      * How many of the weather message's rows the styles' series take between them (THE
-     * UNION): the distinct series their lines draw. More than TRENDS do not fit.
+     * UNION): the distinct series their lines draw. More than ROWS do not fit.
      * @param {Object[]} list The styles' settings (settingsFor), one per style.
      * @param {?Object} env Platform env.
      * @returns {number}
@@ -363,19 +368,20 @@
     }
 
     /**
-     * Lay the styles' series into the weather message's four rows (see THE UNION above), in
+     * Lay the styles' series into the weather message's five rows (see THE UNION above), in
      * the order given: the first style keeps its own rows when it is in the list.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number[]} styles Style indices, ascending.
      * @returns {{rows: Array<?{metric: string, stripe: boolean}>, maps: Object<string, number[]>}}
-     *   rows: the series each row carries (null: none); maps: by style index, the row + 1 each
-     *   of its lines SECOND..FIFTH reads, 0 for a line that is off or dropped.
+     *   rows: the series each row carries (null: none), ROWS of them, the spare last; maps: by
+     *   style index, the row + 1 each of its lines SECOND..FIFTH reads, 0 for a line that is
+     *   off or dropped.
      */
     function assign(S, env, styles) {
         var rows = [];
         var maps = {};
-        for (var t = 0; t < TRENDS; t++) { rows.push(null); }
+        for (var t = 0; t < ROWS; t++) { rows.push(null); }
         styles.forEach(function (k) {
             var series = seriesOf(settingsFor(S, k), env);
             maps[k] = series.map(function (s, j) {
@@ -384,7 +390,7 @@
                 // is free (so the first style's rows are its own), else the first free one.
                 var row = rowOf(rows, s);
                 if (row === -1) { row = rows[j] === null ? j : rows.indexOf(null); }
-                if (row === -1) { return 0; }   // a fifth series: dropped
+                if (row === -1) { return 0; }   // a sixth series: dropped
                 rows[row] = s;
                 return row + 1;
             });
@@ -395,6 +401,7 @@
     var api = {
         MAX_STYLES: MAX_STYLES,
         TRENDS: TRENDS,
+        ROWS: ROWS,
         GOVERNED: GOVERNED,
         SHARED: SHARED,
         parse: parse,

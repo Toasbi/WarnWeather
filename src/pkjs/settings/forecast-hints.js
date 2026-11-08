@@ -40,8 +40,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // (forecast-span-hours.js): the Forecast length row's third label.
     var forecastSpanHours = (typeof require !== 'undefined')
         ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
-    // Graph styles (graph-styles-page.js, Pebble Time 2): the shown styles draw at most four
-    // series between them, so a pick that would make a fifth is greyed out (limitOptions).
+    // Graph styles (graph-styles-page.js, Pebble Time 2): the shown styles draw at most five
+    // series between them, so a pick that would make a sixth is greyed out (limitOptions).
     var graphStylesPage = (typeof require !== 'undefined')
         ? require('./graph-styles-page.js') : window.GraphStylesPage;
 
@@ -74,7 +74,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (!taken) { out.push(opt); }
         }
         // args.key names the picker's line: with graph styles, a metric that would make the
-        // shown styles draw a fifth series is greyed out (graph-styles-page.js limitOptions).
+        // shown styles draw a sixth series is greyed out (graph-styles-page.js limitOptions).
         return a.key ? graphStylesPage.limitOptions(out, S, env, a.key) : out;
     });
 
@@ -87,7 +87,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // one (line-style.js metricAllowsStripe — the rule the bake resolves by), so the
     // engine's display-snap shows a stored stripe on any other metric as the style the
     // watch actually draws. args.metricKey names the metric picker it sits under.
-    // With graph styles a style that would make the shown styles draw a fifth series (a line
+    // With graph styles a style that would make the shown styles draw a sixth series (a line
     // turned stripe is a series of its own) is greyed out (graph-styles-page.js limitOptions).
     PConf.optionsResolvers.register('lineStyleOptions', function (S, env, args) {
         var metricKey = (args || {}).metricKey;

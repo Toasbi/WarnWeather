@@ -3,7 +3,7 @@
 // style): the Your graphs card at the top of Graphs › Forecast (a picture of each graph, New graph,
 // the screens the picked graph shows on, Rename, Delete with Undo), the swap that lets every row on
 // that pane edit the graph picked there, the screen editor's graph picker's options, and the
-// four-series limit the forecast pickers and that picker keep.
+// five-series limit the forecast pickers and that picker keep.
 //
 // TEMPLATES AND GRAPHS (the owner's pick, 2026-11-08). A template is one of the setup's forecast
 // looks (wizard-forecast.js LOOKS: Classic, Weathergraph, Stripes). New graph starts a graph from
@@ -22,13 +22,15 @@
 // and Save stores the edits. The swap state lives in S itself: whatever puts S back (Revert, a
 // dialog's ×) puts the swap back with the values it describes.
 //
-// THE LIMIT. The weather message carries four metric rows, so the graphs the screens show draw at
-// most four series between them (graph-styles.js THE UNION), a series being a metric drawn as a
-// line or as a stripe. A pick that would make a fifth is greyed out, and its words say why in the
-// page's terms, "lines and stripes": a forecast line's metric or style on a shown graph (LIMIT),
-// a screen of the Show on row (limitNote: the rule, what the screens use, what the graph adds)
-// and in the screen editor a graph or template that would join the screens (limitDesc). A graph
-// no screen shows is free.
+// THE LIMIT. The weather message carries five metric rows (graph-styles.js ROWS: one per line and
+// a spare), so the graphs the screens show draw at most five series between them (graph-styles.js
+// THE UNION), a series being a metric drawn as a line or as a stripe. A graph keeps its four lines:
+// the spare row has no picker (the owner's call, 2026-11-08: "only use for multiple graphs"). A
+// pick that would make a sixth is greyed out, and its words say why in the page's terms, "lines
+// and stripes": a forecast line's metric or style on a shown graph (LIMIT), a screen of the Show
+// on row (limitNote: the rule, what the screens use, what the graph adds) and in the screen
+// editor a graph or template that would join the screens (limitDesc). A graph no screen shows
+// is free.
 //
 // Dual-context: a CommonJS module in the tests; in the webview a concatenated <script> after
 // graph-styles.js and screens.js (scripts/build-config-page.js APP_FILES) and ahead of
@@ -61,7 +63,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var TAB = 'graphs';
     var PANE = 'forecast';
     // A line picker's greyed-out option (limitOptions): one change adds one series at most.
-    var LIMIT = 'That makes 5 lines and stripes on your screens; the watch can show 4.';
+    var LIMIT = 'That makes ' + (GS.ROWS + 1) + ' lines and stripes on your screens; the watch can show '
+        + GS.ROWS + '.';
     // New graph's copies: 'copy<n>', a copy of graph n. The screen editor's templates:
     // 'new:<template id>'. A picker's group header: GROUP (never a value anything stores).
     var COPY = 'copy';
@@ -337,12 +340,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return GS.rowsNeeded(shown.map(function (j) {
             var Sj = GS.settingsFor(N, j);
             return (j === k && over) ? Object.assign({}, Sj, over) : Sj;
-        }), env) > GS.TRENDS;
+        }), env) > GS.ROWS;
     }
 
     /**
      * A forecast picker's options with the limit applied (forecast-hints.js forecastMetric and
-     * lineStyleOptions): a choice that would make the shown styles draw a fifth series is
+     * lineStyleOptions): a choice that would make the shown styles draw a sixth series is
      * disabled with LIMIT. The style edited is the one in the flat keys; a style no screen shows
      * is free, and the current pick is never greyed out. With a single style nothing can be.
      * @param {Array} options The picker's options.
@@ -381,7 +384,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Would screen i drawing style k make the shown styles draw a fifth series?
+     * Would screen i drawing style k make the shown styles draw a sixth series?
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} i View slot.
@@ -462,7 +465,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var shown = GS.stylesShown(N, env);
         var extra = extraNames(N, env, k, shown.filter(function (j) { return j !== k; }));
         return (extra.length ? 'Also needs ' + andList(extra) + ': that makes ' : 'That makes ')
-            + seriesUnion(N, env, shown).length + ' lines and stripes on your screens; the watch can show 4.';
+            + seriesUnion(N, env, shown).length + ' lines and stripes on your screens; the watch can show '
+            + GS.ROWS + '.';
     }
 
     /**
@@ -476,7 +480,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function limitNote(S, env, k) {
         var N = normalize(S), shown = GS.stylesShown(N, env);
         var inUse = seriesUnion(N, env, shown).map(seriesName), extra = extraNames(N, env, k, shown);
-        return 'The watch can show 4 lines and stripes across all your screens.'
+        return 'The watch can show ' + GS.ROWS + ' lines and stripes across all your screens.'
             + (inUse.length ? ' In use: ' + inUse.join(', ') + '.' : '')
             + (extra.length ? ' ' + GS.name(S, k) + ' also needs ' + andList(extra) + '.' : '')
             + ' To make room, turn off a line in one of your graphs.';
@@ -960,7 +964,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * The Show on row for graph k (two graphs or more): a chip per screen, ticked where the
      * screen draws k, greyed out where it has no forecast graph or where k would make the
-     * screens draw a fifth series; a line under it says why.
+     * screens draw a sixth series; a line under it says why.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} k The picked graph.

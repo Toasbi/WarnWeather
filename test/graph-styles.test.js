@@ -162,19 +162,23 @@ test('assign: the first style keeps its rows, a shared series one row, a line an
   };
   const u = GS.assign(S, EMERY, [0, 1, 2]);
   assert.deepEqual(u.rows, [{ metric: 'precip_prob', stripe: false }, { metric: 'uv', stripe: false },
-    { metric: 'cloud', stripe: true }, { metric: 'precip_prob', stripe: true }]);
+    { metric: 'cloud', stripe: true }, { metric: 'precip_prob', stripe: true }, null], 'four series: no spare');
   assert.deepEqual(u.maps[0], [1, 2, 0, 0], 'the first style: its own rows');
   assert.deepEqual(u.maps[1], [3, 4, 2, 0], 'the rain chance as a stripe takes a row of its own');
   assert.deepEqual(u.maps[2], [2, 0, 0, 1], 'uv and the rain-chance line read the first style\'s rows');
   // Without the first style, style 2 keeps its own rows where they are free.
   const alone = GS.assign(S, EMERY, [1]);
   assert.deepEqual(alone.maps[1], [1, 2, 3, 0]);
-  // A fifth series is dropped: its line reads no row.
+  // A fifth series takes the spare row, no line's own; a sixth is dropped: its line reads no row.
   const five = Object.assign({}, S, { fourthLine: 'wind', fifthLine: 'gust' });
   const over = GS.assign(five, EMERY, [0, 1]);
   assert.deepEqual(over.maps[0], [1, 2, 3, 4]);
-  assert.deepEqual(over.maps[1], [0, 0, 2, 0], 'cloud and the rain-chance stripe find no row');
-  assert.equal(over.rows.length, GS.TRENDS);
+  assert.deepEqual(over.maps[1], [5, 0, 2, 0], 'the cloud stripe takes the spare, the rain-chance stripe finds no row');
+  assert.deepEqual(over.rows[4], { metric: 'cloud', stripe: true });
+  assert.equal(over.rows.length, GS.ROWS);
+  assert.equal(GS.ROWS, GS.TRENDS + 1, 'a row per line, and the spare');
+  // The spare is the last free row: a style keeps its own line's row while it is free.
+  assert.deepEqual(GS.assign(five, EMERY, [1]).maps[1], [1, 2, 3, 0], 'alone, style 2 needs no spare');
 });
 
 test('the write helpers: a style\'s values, the item written back, a free slot, delete with its screens', () => {
@@ -211,4 +215,6 @@ test('rowsNeeded: the distinct series the styles draw between them', () => {
   assert.equal(GS.rowsNeeded([a, b], EMERY), 3, 'the shared rain chance once');
   assert.equal(GS.rowsNeeded([a, Object.assign({}, b, { secondaryLineStyle: 'stripeTop' })], EMERY), 4,
     'a line and a stripe of one metric: two');
+  const full = { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust' };
+  assert.equal(GS.rowsNeeded([full, b], EMERY), GS.ROWS, 'four lines and another graph\'s cloud: the spare row\'s fifth');
 });

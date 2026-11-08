@@ -21,6 +21,10 @@ const { applyForecastSeries } = require('../src/pkjs/forecast-series.js');
 const { renderSignature } = require('../src/pkjs/render-signature.js');
 const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 const stripeLevels = require('../src/pkjs/stripe-levels.js');
+const lineAlert = require('../src/pkjs/line-alert.js');
+// Nothing placed on the bars: the default On demand ticks place the UV alert, which would
+// fetch UV whatever the lines draw.
+const { NOTHING_PLACED } = require('./helpers/on-demand.js');
 
 const HEADER = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'appendix', 'graph_style.h'), 'utf8');
 const EMERY = { platform: 'emery' };
@@ -40,7 +44,7 @@ function cDefine(name) {
 const GS = {
   HOURS: cDefine('GS_HOURS'), FLAGS: cDefine('GS_FLAGS'), SCALE: cDefine('GS_SCALE'),
   MAP: cDefine('GS_MAP'), INSETS: cDefine('GS_INSETS'), LINE_STYLE: cDefine('GS_LINE_STYLE'),
-  PALETTE: cDefine('GS_PALETTE'), MAX: 41
+  PALETTE: cDefine('GS_PALETTE'), SPARE: cDefine('GS_TREND_SPARE'), MAX: 41
 };
 
 /**
@@ -128,11 +132,11 @@ test('the scale rows: every feels-like and dew point row, while the scale option
   const on = styled(['1', '2'], two, null, { forecastAxisScale: true, fifthLine: 'dew' });
   const recs = wire.buildStyleTuples(on, EMERY);
   // Rows: precip line 0, uv 1, cloud stripe 2 (style 2's second line, on the first free row),
-  // dew 3 (the first style's fifth line); feels, style 2's third line, finds none (a fifth
-  // series, dropped).
-  assert.equal(recs.CLAY_GRAPH_STYLE_1_UINT8[GS.SCALE], 1 << 4, 'dew on row 3');
-  assert.equal(recs.CLAY_GRAPH_STYLE_2_UINT8[GS.SCALE], 1 << 4, 'the same byte in every record');
-  assert.deepEqual(recs.CLAY_GRAPH_STYLE_2_UINT8.slice(GS.MAP, GS.INSETS), [1, 3, 0, 0]);
+  // dew 3 (the first style's fifth line), feels 4 (style 2's third line: the spare row).
+  const both = (1 << 4) | (1 << 5);
+  assert.equal(recs.CLAY_GRAPH_STYLE_1_UINT8[GS.SCALE], both, 'dew on row 3, feels on the spare');
+  assert.equal(recs.CLAY_GRAPH_STYLE_2_UINT8[GS.SCALE], both, 'the same byte in every record');
+  assert.deepEqual(recs.CLAY_GRAPH_STYLE_2_UINT8.slice(GS.MAP, GS.INSETS), [1, 3, GS.SPARE, 0]);
   const off = styled(['1', '2'], two, null, { fifthLine: 'dew' });
   assert.equal(wire.buildStyleTuples(off, EMERY).CLAY_GRAPH_STYLE_1_UINT8[GS.SCALE], 0);
 });
@@ -191,4 +195,100 @@ test('the fetch and the render signature read the shown styles\' union', () => {
   const unshown = styled(['1', '1'], Object.assign({}, LONG, { fourthLine: 'dew' }));
   assert.equal(renderSignature(unshown, EMERY), renderSignature(styled(['1', '1'], LONG), EMERY),
     'a style no screen shows signs nothing');
+});
+
+// The spare row (graph-styles.js ROWS): the fifth series of a union, which no line of either
+// style is, rides SPARE_LINE_TREND_UINT8 and joins what reads the bake's settings.
+const FIFTH = Object.assign({}, LONG, { thirdLine: 'gust', thirdLineStyle: 'line', fourthLine: 'cloud' });
+const FOUR_LINES = { fourthLine: 'wind', fifthLine: 'off' };
+const RAW = {
+  TEMP_RAW_TREND: [10, 11, 12, 13, 14, 15], TEMP_MIN: 10, TEMP_MAX: 15,
+  PRECIP_TREND_UINT8: [0, 10, 40, 80, 100, 55], CLOUD_TREND: [0, 20, 40, 60, 80, 100],
+  RAIN_TREND_UINT8: [0, 0, 1, 2, 3, 0], WIND_TREND_UINT8: [10, 20, 30, 40, 50, 60],
+  GUST_TREND_UINT8: [20, 30, 40, 50, 60, 70], UV_TREND_UINT8: [0, 10, 20, 30, 40, 50]
+};
+
+/**
+ * The weather payload a fresh copy of RAW bakes to.
+ * @param {Object} S Settings.
+ * @param {?Object} watchInfo The watch.
+ * @returns {Object}
+ */
+function bake(S, watchInfo) {
+  return applyForecastSeries(JSON.parse(JSON.stringify(RAW)), S, watchInfo);
+}
+
+test('the spare row: a fifth series bakes into SPARE_LINE_TREND_UINT8, a union of four sends none', () => {
+  // The first style's precip, uv and wind take rows 0-2 (wind on its own fourth-line row);
+  // style 2's gust finds its own row taken and takes row 3, its cloud the spare.
+  const S = styled(['1', '2'], FIFTH, null, { fourthLine: 'wind' });
+  const W = wire.weatherSettings(S, EMERY);
+  assert.deepEqual(W.graphStyleSlots.map((r) => r && r.metric), ['precip_prob', 'uv', 'wind', 'gust', 'cloud']);
+  assert.equal(W.spareLine, 'cloud', 'the bake\'s settings name the spare');
+  assert.equal(S.spareLine, undefined, 'the settings themselves never do');
+  assert.deepEqual(wire.buildStyleTuples(S, EMERY).CLAY_GRAPH_STYLE_2_UINT8.slice(GS.MAP, GS.INSETS), [1, 4, GS.SPARE, 0]);
+  const payload = bake(S, EMERY);
+  assert.deepEqual(payload.SPARE_LINE_TREND_UINT8, RAW.CLOUD_TREND.map((c) => Math.round(c * 10 / 4)), 'cloud %');
+  assert.equal(payload.FIFTH_LINE_TREND_UINT8.length, RAW.GUST_TREND_UINT8.length, 'gusts on row 3');
+  // A stripe on the spare bakes level bytes, as a stripe line does.
+  const striped = bake(styled(['1', '2'], Object.assign({}, FIFTH, { fourthLineStyle: 'stripeTop' }), null,
+    { fourthLine: 'wind' }), EMERY);
+  assert.ok(striped.SPARE_LINE_TREND_UINT8.every((b) => stripeLevels.LEVEL_BYTES.includes(b)), 'levels');
+  assert.notDeepEqual(striped.SPARE_LINE_TREND_UINT8, payload.SPARE_LINE_TREND_UINT8);
+  // Four series between the styles: no spare, so the key is left out (the watch deletes its
+  // spare trend), as it is with one style shown and on every other watch.
+  const four = styled(['1', '2'], Object.assign({}, FIFTH, { fourthLine: 'off' }), null, FOUR_LINES);
+  assert.equal(wire.weatherSettings(four, EMERY).spareLine, undefined);
+  [[four, EMERY], [styled(['1', '1'], FIFTH, null, FOUR_LINES), EMERY], [S, { platform: 'basalt' }], [S, null]]
+    .forEach(([settings, watch], i) => assert.equal(
+      Object.prototype.hasOwnProperty.call(bake(settings, watch), 'SPARE_LINE_TREND_UINT8'), false, 'case ' + i));
+});
+
+test('the spare row joins the fetch, the left axis, the Show: Alert bands and the render signature', () => {
+  // UV on the spare alone still fetches UV: the first style draws precip, wind and cloud, style
+  // 2's gust takes row 3 and its uv the spare. No slot shows UV and no alert is placed, so
+  // the spare is what asks for it.
+  const uvSpare = styled(['1', '2'], Object.assign({}, FIFTH, { fourthLine: 'uv' }), null,
+    Object.assign({ thirdLine: 'wind', thirdLineStyle: 'line', fourthLine: 'cloud', statusRadarLeft: 'empty' },
+      NOTHING_PLACED));
+  assert.equal(wire.weatherSettings(uvSpare, EMERY).spareLine, 'uv');
+  assert.equal(fetchOptions.build(uvSpare, EMERY).fetchUv, true);
+  const noUv = styled(['1', '2'], Object.assign({}, FIFTH, { fourthLine: 'pressure' }), null,
+    Object.assign({ thirdLine: 'wind', thirdLineStyle: 'line', fourthLine: 'cloud', statusRadarLeft: 'empty' },
+      NOTHING_PLACED));
+  assert.equal(fetchOptions.build(noUv, EMERY).fetchUv, false, 'the control: nothing else asks for UV');
+  // Feels-like on the spare alone is fetched and, with the left axis naming the scale, widens
+  // its ends as a feels-like line does.
+  const feelsSpare = styled(['1', '2'], Object.assign({}, FIFTH, { fourthLine: 'feels' }), null,
+    { fourthLine: 'wind', forecastAxisScale: true });
+  assert.equal(wire.weatherSettings(feelsSpare, EMERY).spareLine, 'feels');
+  assert.equal(fetchOptions.build(feelsSpare, EMERY).fetchFeels, true);
+  const feels = applyForecastSeries(Object.assign(JSON.parse(JSON.stringify(RAW)),
+    { FEELS_TREND: [8, 9, 10, 11, 12, 20] }), feelsSpare, EMERY);
+  assert.equal(feels.SPARE_LINE_TREND_UINT8.length, 6);
+  assert.deepEqual([feels.TEMP_MIN, feels.TEMP_MAX], [8, 20], 'the scale\'s ends cover the spare\'s feels-like');
+  // A gust line on the spare drawn Show: Alert shares the wind line's band, so it bakes the
+  // bytes it would on a line of a graph that draws both.
+  const alert = {};
+  alert[lineAlert.settingKey('wind')] = 'alert';
+  alert[lineAlert.settingKey('gust')] = 'alert';
+  const lines = { thirdLine: 'uv', thirdLineStyle: 'line', fourthLine: 'wind' };
+  const gustSpare = styled(['1', '2'], Object.assign({}, LONG, { thirdLine: 'cloud', thirdLineStyle: 'line',
+    fourthLine: 'gust' }), null, Object.assign({}, lines, alert));
+  assert.equal(wire.weatherSettings(gustSpare, EMERY).spareLine, 'gust');
+  const own = styled(['1'], null, null, Object.assign({}, lines, { fifthLine: 'gust' }, alert));
+  assert.deepEqual(bake(gustSpare, EMERY).SPARE_LINE_TREND_UINT8, bake(own, EMERY).FIFTH_LINE_TREND_UINT8);
+  assert.ok(bake(gustSpare, EMERY).SPARE_LINE_TREND_UINT8.includes(0), 'gaps below the warn level');
+  // The render signature: the spare signs while there is one, its stripe too, and a union of
+  // four signs as it did before the spare.
+  const sig = renderSignature(uvSpare, EMERY);
+  assert.notEqual(renderSignature(noUv, EMERY), sig, 'another metric on the spare re-bakes');
+  const cloudLine = styled(['1', '2'], FIFTH, null, { fourthLine: 'wind' });
+  const cloudStripe = styled(['1', '2'], Object.assign({}, FIFTH, { fourthLineStyle: 'stripeTop' }), null,
+    { fourthLine: 'wind' });
+  assert.notEqual(renderSignature(cloudStripe, EMERY), renderSignature(cloudLine, EMERY), 'the spare as a stripe');
+  const four = styled(['1', '2'], Object.assign({}, FIFTH, { fourthLine: 'off' }), null, FOUR_LINES);
+  assert.equal(renderSignature(four, EMERY).split('|').length,
+    renderSignature(styled(['1', '1'], FIFTH, null, FOUR_LINES), EMERY).split('|').length, 'no spare: no extra part');
+  assert.equal(sig.split('|').length, renderSignature(four, EMERY).split('|').length + 1, 'the spare: one part');
 });

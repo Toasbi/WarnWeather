@@ -1,6 +1,6 @@
 // Host tests for graph_style.h (emery's graph style records): which records are whole, the
-// hours a style draws of the hours sent, the trend each line reads and whether it draws rain
-// bars. The record layout is in lockstep with src/pkjs/weather/graph-style-wire.js packRecord
+// hours a style draws of the hours sent, the trend each line reads (the spare trend among
+// them) and whether it draws rain bars. The record layout is in lockstep with src/pkjs/weather/graph-style-wire.js packRecord
 // (test/graph-style-wire.test.js pins the same offsets).
 // Build & run via scripts/test-c.sh (-DPBL_PLATFORM_EMERY).
 #include <stdio.h>
@@ -48,7 +48,10 @@ int main(void) {
     expect("valid.short", graph_style_valid(rec, GS_PALETTE - 1), 0);
     expect("valid.part_stop", graph_style_valid(rec, len - 1), 0);
     expect("valid.six_stops", graph_style_valid(rec, len + GS_STOP_BYTES), 0);
-    rec[GS_MAP + 3] = 5;   // past SERIES_FIFTH
+    rec[GS_MAP + 3] = GS_TREND_SPARE;   // the spare trend: the fifth row a line can read
+    expect("valid.spare_trend", graph_style_valid(rec, len), 1);
+    expect("layout.spare", GS_TREND_SPARE, 5);
+    rec[GS_MAP + 3] = GS_TREND_SPARE + 1;   // past the spare
     expect("valid.bad_trend", graph_style_valid(rec, len), 0);
     rec[GS_MAP + 3] = 0;   // off
     expect("valid.off_trend", graph_style_valid(rec, len), 1);
@@ -65,6 +68,8 @@ int main(void) {
     expect("trend.second", graph_style_trend(rec, 1), 1);
     expect("trend.third", graph_style_trend(rec, 2), 4);
     expect("trend.fourth_off", graph_style_trend(rec, 3), 0);
+    rec[GS_MAP + 2] = GS_TREND_SPARE;
+    expect("trend.fourth_spare", graph_style_trend(rec, 3), GS_TREND_SPARE);
 
     if (s_failures) { printf("%d graph style failure(s)\n", s_failures); return 1; }
     printf("graph style records OK\n");

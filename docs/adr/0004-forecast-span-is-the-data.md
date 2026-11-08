@@ -168,7 +168,9 @@ setting, wire bit, persist key or message key for the span on the watch.
 
 - **emery's inbox is 1024 B** (it was 640 B; the heap has the room in 128 KB). With the long
   span's six 68-byte trends its heaviest weather bundle is 867 B, and 875 B with a cleared
-  notice. `test/inbox-size.test.js` `WEATHER_BUNDLES` records every platform's bundle and is
+  notice (2.7.0: 942 B and 950 B, the graph styles' spare row adding a seventh 68-byte trend
+  while the screens' graphs draw five series). `test/inbox-size.test.js` `WEATHER_BUNDLES`
+  records every platform's bundle and is
   the one place the sizes are asserted. The span changes no other watch's bundle and no Clay
   message.
 
