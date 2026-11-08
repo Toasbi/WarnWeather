@@ -66,6 +66,18 @@ var BOLD_MASTER_WHEN = {key: 'statusBoldAll', in: ['off', 'all']};
 // keeps its card on the Status bars tab (it says so): any bar can go onto any screen.
 var RADAR_BAR_WHEN = {env: 'radar'};
 var HEALTH_BAR_WHEN = {env: 'health'};
+// "This watch has bars 4 to 6" (platform.js env.extraBars: the Pebble Time 2): New bar and the
+// made bars' cards. Fails closed for an unknown watch.
+var EXTRA_BARS_WHEN = {env: 'extraBars'};
+
+/**
+ * A bar 4 to 6's gate: the watch has them and New bar made this one (view-cycle.js barMade).
+ * @param {string} prefix The bar's key prefix, e.g. 'statusBar4'.
+ * @returns {Object} showWhen predicate
+ */
+function extraBarWhen(prefix) {
+    return {all: [EXTRA_BARS_WHEN, {key: prefix + 'Made', eq: true}]};
+}
 // "The theme actually renders color choices" — inlined ~10 times before it had
 // a name. (The compound "effectively B&W" check is the BW_LEGEND rows' showWhen in
 // schema.js.)
@@ -123,6 +135,8 @@ module.exports = {
     BOLD_MASTER_WHEN: BOLD_MASTER_WHEN,
     RADAR_BAR_WHEN: RADAR_BAR_WHEN,
     HEALTH_BAR_WHEN: HEALTH_BAR_WHEN,
+    EXTRA_BARS_WHEN: EXTRA_BARS_WHEN,
+    extraBarWhen: extraBarWhen,
     COLOR_THEME_WHEN: COLOR_THEME_WHEN,
     LINE_STYLES_WHEN: LINE_STYLES_WHEN,
     EMERY_WHEN: EMERY_WHEN,

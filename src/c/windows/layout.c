@@ -315,6 +315,19 @@ void view_spec_apply_ext(ViewSpec *s, uint16_t ext) {
     s->top_size  = (uint8_t)((ext >> 3) & 7);
     s->top_kind  = (uint8_t)((ext >> 6) & 1);
     s->align     = (uint8_t)((ext >> 7) & 3);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6 ride a row's source plus 3 (layout.h VIEW_EXT_UPPER_BAR_HI); on a
+    // row that is off the bit is ignored, so the row stays off. Applied once: unpack set
+    // the rows from the packed value, which never names a source above 3.
+    if ((ext & VIEW_EXT_UPPER_BAR_HI) && s->status_upper != STATUS_SRC_NONE
+            && s->status_upper <= STATUS_SRC_HEALTH) {
+        s->status_upper += 3;
+    }
+    if ((ext & VIEW_EXT_LOWER_BAR_HI) && s->status_lower != STATUS_SRC_NONE
+            && s->status_lower <= STATUS_SRC_HEALTH) {
+        s->status_lower += 3;
+    }
+#endif
     spec_normalise_ext(s);
     // A sized radar/graph top changes the top area's rows, and so the rows' tier.
     s->status_tier = status_tier_for(s);
@@ -887,9 +900,11 @@ bool view_slot_available(uint32_t word, bool has_radar, bool has_health) {
     if (v.health_graph && !has_health) { return false; }
     // A custom view with nothing on it (no clock, top band, graph or status row — e.g.
     // its only row's source was switched off in settings) is never a flick stop: the
-    // phone disables such a slot, and this belts a stale or hand-made wire value.
+    // phone disables such a slot, and this belts a stale or hand-made wire value. Any
+    // source counts as a row, bars 4 to 6 on emery too (LayerVisibility names three).
     if (spec.clock_off && !(v.calendar || v.radar || v.forecast || v.health_graph
-                            || v.weather_status || v.radar_status || v.health_status)) {
+                            || spec.status_upper != STATUS_SRC_NONE
+                            || spec.status_lower != STATUS_SRC_NONE)) {
         return false;
     }
     return true;

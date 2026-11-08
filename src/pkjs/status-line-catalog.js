@@ -7,6 +7,9 @@
  * test/status-line-contract.test.js enforces it. ES5 only (aplite PKJS).
  */
 (function() {
+  // view-cycle.js requires nothing, so there is no cycle; in the flat settings page it is
+  // concatenated ahead of this file (scripts/build-config-page.js APP_FILES).
+  var VC = (typeof require !== 'undefined') ? require('./view-cycle.js') : window.VIEW_CYCLE;
   var KINDS = {
     EMPTY: 0, TEXT: 1, LIVE_DATE: 2,
     LIVE_STEPS: 3, LIVE_HR: 4, LIVE_SLEEP: 5, LIVE_DISTANCE: 6, LIVE_WEEK: 7,
@@ -126,6 +129,20 @@
       defaults: { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' },
       hrDefaults: { statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'hr' } }
   ];
+
+  // Bars 4 to 6 (Pebble Time 2, 2.7.0's New bar: view-cycle.js EXTRA_BARS, whose prefixes they
+  // take): their lines (STATUS_LINE_5..7_UINT8), every slot empty until New bar writes its
+  // starting set. Kept out of LINES, so every reader of the first four (the twelve selections,
+  // telemetry, the 2.6 migration) stays as it is; the bake (status-lines.js) adds them for a
+  // made bar on a watch that has them, and a slot key's lookups walk ALL_LINES.
+  var EXTRA_LINES = VC.EXTRA_BARS.map(function (b, i) {
+    var slots = [b.prefix + 'Left', b.prefix + 'Mid', b.prefix + 'Right'];
+    var defaults = {};
+    slots.forEach(function (key) { defaults[key] = 'empty'; });
+    return { id: b.bar, wireKey: 'STATUS_LINE_' + (i + 5) + '_UINT8', slots: slots,
+             defaults: defaults, extra: true };
+  });
+  var ALL_LINES = LINES.concat(EXTRA_LINES);
 
   /**
    * @param {string} code catalog item code
@@ -259,14 +276,17 @@
    * needsUv / needsAqi / needsPollen) asking whether uv/aqi/pollen is on screen
    * anywhere, and no per-platform flavor moves those three, so an env would be a
    * parameter nothing could pass. Still routed through slotDefault rather than reading
-   * LINES[l].defaults, so there is one reader of the table.
+   * LINES[l].defaults, so there is one reader of the table. A made bar 4 to 6's three
+   * follow them (madeExtraLines, read env-free like the rest).
    * @param {Object} settings Clay settings blob
-   * @returns {string[]} the 12 effective slot codes (stored or line default)
+   * @returns {string[]} the 12 effective slot codes (stored or line default), then a made
+   *   bar 4 to 6's
    */
   function selectedCodes(settings) {
     var out = [];
-    for (var l = 0; l < LINES.length; l++) {
-      var line = LINES[l];
+    var lines = LINES.concat(madeExtraLines(settings));
+    for (var l = 0; l < lines.length; l++) {
+      var line = lines[l];
       for (var s = 0; s < line.slots.length; s++) {
         var key = line.slots[s];
         var v = settings && settings[key];
@@ -288,6 +308,25 @@
     var item = byCode(code);
     if (!item || !itemAvailable(item, settings, env, slotCtx)) { return 'empty'; }
     return code;
+  }
+
+  /** @returns {string[]} bars 4 to 6's nine slot settings keys, line order */
+  function extraSlotKeys() {
+    var out = [];
+    for (var l = 0; l < EXTRA_LINES.length; l++) { out = out.concat(EXTRA_LINES[l].slots); }
+    return out;
+  }
+
+  /**
+   * Bars 4 to 6's lines a watch carries: each made bar's (view-cycle.js barMade) on a watch
+   * that has them (env.extraBars). The bake sends exactly these (status-lines.js), and what
+   * reads its slots for the bake (the fetch gates, the render signature) reads them.
+   * @param {Object} settings Clay settings blob
+   * @param {?Object} [env] platform env (omitted: capable, view-cycle.js extraBarOn)
+   * @returns {Array<Object>} EXTRA_LINES entries
+   */
+  function madeExtraLines(settings, env) {
+    return EXTRA_LINES.filter(function (line) { return VC.extraBarOn(settings, line.id, env); });
   }
 
   /** @returns {string[]} the 12 configurable slot settings keys, line order */
@@ -317,8 +356,8 @@
    * @returns {string|undefined} default item code, or undefined for an unknown slotKey
    */
   function slotDefault(slotKey, env) {
-    for (var l = 0; l < LINES.length; l++) {
-      var line = LINES[l];
+    for (var l = 0; l < ALL_LINES.length; l++) {
+      var line = ALL_LINES[l];
       if (line.slots.indexOf(slotKey) === -1) { continue; }
       if (env && env.platform === 'emery' && line.emeryDefaults) {
         return line.emeryDefaults[slotKey];
@@ -331,11 +370,12 @@
 
   /**
    * @param {string} slotKey Slot messageKey.
-   * @returns {?Object} The LINES entry owning the slot, or null for non-slot keys.
+   * @returns {?Object} The LINES (or EXTRA_LINES) entry owning the slot, or null for
+   *   non-slot keys.
    */
   function lineOf(slotKey) {
-    for (var l = 0; l < LINES.length; l++) {
-      if (LINES[l].slots.indexOf(slotKey) !== -1) { return LINES[l]; }
+    for (var l = 0; l < ALL_LINES.length; l++) {
+      if (ALL_LINES[l].slots.indexOf(slotKey) !== -1) { return ALL_LINES[l]; }
     }
     return null;
   }
@@ -370,10 +410,10 @@
    */
   function healthSlots(S, lineId, env) {
     var out = [];
-    for (var l = 0; l < LINES.length; l++) {
-      if (LINES[l].id !== lineId) { continue; }
-      for (var s = 0; s < LINES[l].slots.length; s++) {
-        var key = LINES[l].slots[s];
+    for (var l = 0; l < ALL_LINES.length; l++) {
+      if (ALL_LINES[l].id !== lineId) { continue; }
+      for (var s = 0; s < ALL_LINES[l].slots.length; s++) {
+        var key = ALL_LINES[l].slots[s];
         var item = byCode((S || {})[key] || slotDefault(key, env));
         if (item && item.needsHealth) { out.push(key); }
       }
@@ -480,6 +520,8 @@
 
   var api = {
     KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES, SLOT_POSITIONS: SLOT_POSITIONS,
+    EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, extraSlotKeys: extraSlotKeys,
+    madeExtraLines: madeExtraLines,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
     allSlotKeys: allSlotKeys, slotDefault: slotDefault,

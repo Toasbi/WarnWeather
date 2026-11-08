@@ -276,9 +276,33 @@ typedef enum {
     THRESH_BAR_FORECAST = 1,
     THRESH_BAR_RADAR = 2,
     THRESH_BAR_HEALTH = 3,
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6 (status_line.h STATUS_LINE_BAR4..6). The blob's cell bytes are
+    // full, so their cells ride a second array (THRESH_OD_EXTRA_BYTES below).
+    THRESH_BAR_4 = 4,
+    THRESH_BAR_5 = 5,
+    THRESH_BAR_6 = 6,
+#endif
 } ThreshBar;
+// The bars with a cell in the blob's cell bytes.
 #define THRESH_BAR_COUNT 4
 _Static_assert(THRESH_BAR_COUNT * 2 <= 8, "one cell byte holds a 2-bit cell per bar");
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: bars 4 to 6's On demand cells (CLAY_OD_EXTRA_UINT8, the settings message): one
+// byte per OdItem like the blob's cells, 2 bits per bar at bits 2 * (bar - THRESH_BAR_4)
+// (bits 6-7 reserved, 0), the same values (OdSide; 3 reads as none). The phone writes
+// effective values only, so a bar that is not made, or that no screen shows, is zeros.
+#define THRESH_EXTRA_BAR_COUNT 3
+#define THRESH_OD_EXTRA_BYTES OD_ITEM_COUNT
+_Static_assert(THRESH_EXTRA_BAR_COUNT * 2 <= 8, "one extra cell byte holds a cell per extra bar");
+// What a status row loads its thresholds into (status_row.c): the blob, then bars 4 to
+// 6's cells right behind it, so status_threshold_on_demand_side() reads every bar's cell
+// off one pointer.
+#define THRESH_SCRATCH_BYTES (THRESH_SETTINGS_BYTES + THRESH_OD_EXTRA_BYTES)
+#else
+#define THRESH_SCRATCH_BYTES THRESH_SETTINGS_BYTES
+#endif
 
 // The bar a status line belongs to: its cell in the On demand bytes. A map, not a
 // cast, because neither order can move to make it an identity: ThreshBar is the
@@ -292,14 +316,20 @@ static inline int status_threshold_bar_of_line(int line_id) {
         case STATUS_LINE_FORECAST: return THRESH_BAR_FORECAST;
         case STATUS_LINE_RADAR:    return THRESH_BAR_RADAR;
         case STATUS_LINE_HEALTH:   return THRESH_BAR_HEALTH;
+#if defined(PBL_PLATFORM_EMERY)
+        case STATUS_LINE_BAR4:     return THRESH_BAR_4;   // emery: bars 4 to 6
+        case STATUS_LINE_BAR5:     return THRESH_BAR_5;
+        case STATUS_LINE_BAR6:     return THRESH_BAR_6;
+#endif
         default:                   return -1;
     }
 }
 
 // The side of `bar` (a ThreshBar) On demand item `item` (an OdItem) sits on. The
 // reserved cell value 3, an out-of-range bar and an out-of-range item answer
-// OD_SIDE_NONE.
-OdSide status_threshold_on_demand_side(const uint8_t blob[THRESH_SETTINGS_BYTES], int bar,
+// OD_SIDE_NONE. On emery `blob` is a row's whole scratch (THRESH_SCRATCH_BYTES): bars 4 to
+// 6 read their cells behind the blob.
+OdSide status_threshold_on_demand_side(const uint8_t blob[THRESH_SCRATCH_BYTES], int bar,
                                        int item);
 
 // The Battery item's warn level in %: it is active at or below it. Byte 35 as the

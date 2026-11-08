@@ -64,6 +64,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // edited on (the Status bars tab's id).
     var SCREEN_BAR = 'screenBar';
     var STATUS_TAB = 'watch';
+    // New bar's page-only pickers (Pebble Time 2): the Status bars tab's (schema.js barKeysSection)
+    // and the editor's + New bar (custom-layout-schema.js). In the editor's bar picker a set's
+    // value is BAR_NEW + its id; a picker's group header is BAR_GROUP (never a value anything
+    // stores).
+    var NEW_BAR = 'statusBarNew';
+    var SCREEN_NEW_BAR = 'screenNewBar';
+    var BAR_NEW = 'new:';
+    var BAR_GROUP = '__group';
+    var BARS_FULL = 'You have 6 bars, the most a watch can have. Delete one to make another.';
+    // A Delete bar's Undo while it shows (the New bar card).
+    var BARS_UI = { undo: null, timer: null };
     // What a preset brings, under Add a screen's cards: with graph styles, and on a watch with
     // one graph (screen-presets.js WHAT A PRESET BRINGS).
     var ADD_FINE = 'A preset brings its graph, or uses one of yours that matches. Your bars keep their slots.';
@@ -563,50 +574,160 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The bars this watch draws, in the Status bars tab's order (on-demand.js PAGE_BARS, the
-     * Watch bar left out), as their rows' kinds.
-     * @param {?Object} env Platform env.
-     * @returns {string[]} 'fcbar' | 'healthbar' | 'radarbar'
-     */
-    function barKinds(env) {
-        return onDemand.PAGE_BARS.map(function (b) { return M.KIND_OF_BAR[b.bar]; }).filter(function (k) {
-            return Boolean(k) && M.capable(k, env);
-        });
-    }
-
-    /**
-     * The editor's bar picker (options resolver 'screenBarOptions'): your bars by name, each
-     * with what it holds and where it shows; one the screen shows already (another row) is
-     * greyed out.
+     * The editor's bar picker (options resolver 'screenBarOptions'): your bars by name
+     * (screens.js yourBars), each with what it holds and where it shows; one the screen shows
+     * already (another row) is greyed out. While New bar can make one (Pebble Time 2), the sets
+     * follow under "New bar", a pick making one in this row.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {Array} [label, kind, meta]
      */
     function barOptions(S, env) {
         var list = M.screensOf(S || {}, env)[ED.i] || [], cur = list[ED.barRow] || {};
-        return barKinds(env).map(function (k) {
-            var bar = M.BAR_OF_KIND[k], here = k !== cur.k && M.idxOf(list, k) >= 0;
+        var out = M.yourBars(S, env).map(function (bar) {
+            var k = M.KIND_OF_BAR[bar], here = k !== cur.k && M.idxOf(list, k) >= 0;
             return [M.barName(S, bar), k, here ? { desc: 'Already on this screen', disabled: true }
                 : { desc: barHolds(S, env, bar) + ' · ' + barWhere(S, env, bar).replace(/^On/, 'on') }];
         });
+        if (!M.freeBar(S, env)) { return out; }
+        out.push(['New bar · ' + barCount(S, env), BAR_GROUP, { groupHeader: true, disabled: true }]);
+        return out.concat(M.barStarts(S, env).sets.map(function (st) {
+            return [st.name, BAR_NEW + st.from, { desc: codesText(st.codes) }];
+        }));
     }
 
     /**
      * The editor's bar pick (onChange 'screenBarPicked'): the row shows that bar instead, in
-     * its place.
+     * its place, or a bar New bar makes from the set picked ('new:<set>').
      * @param {Object} S Settings.
      * @param {*} oldValue The pick before.
-     * @param {string} kind The bar's kind ('fcbar' | 'radarbar' | 'healthbar').
+     * @param {string} kind The bar's kind ('fcbar' | 'radarbar' | 'healthbar' | 'bar4' ...), or
+     *   'new:<set>'.
      * @param {?Object} env Platform env.
      * @returns {void}
      */
     function screenBarPicked(S, oldValue, kind, env) {
-        if (!ED.overlay || !M.BAR_OF_KIND[kind]) { return; }
-        var list = M.screensOf(S, env)[ED.i] || [], j = ED.barRow;
-        if (!list[j] || !M.BAR_OF_KIND[list[j].k] || list[j].k === kind || M.idxOf(list, kind) >= 0) { return; }
+        if (!ED.overlay) { return; }
+        var list = M.screensOf(S, env)[ED.i] || [], j = ED.barRow, v = String(kind || '');
+        if (!list[j] || !M.BAR_OF_KIND[list[j].k]) { return; }
+        if (v.indexOf(BAR_NEW) === 0) {
+            var made = M.makeBar(S, env, v.slice(BAR_NEW.length));
+            S[SCREEN_BAR] = made || oldValue;
+            if (!made) { return; }
+            v = M.KIND_OF_BAR[made];
+        }
+        if (!M.BAR_OF_KIND[v] || list[j].k === v || M.idxOf(list, v) >= 0) { return; }
         var next = M.copy(list);
-        next[j] = { k: kind };
+        next[j] = { k: v };
         writeScreen(S, ED.i, next, env);
+    }
+
+    // ── New bar and Delete bar (Pebble Time 2) ──────────────────────────────
+
+    /**
+     * What a start's slots hold, by their items' names, the empty ones left out.
+     * @param {string[]} codes Slot codes.
+     * @returns {string}
+     */
+    function codesText(codes) {
+        var labels = codes.filter(function (c) { return c !== 'empty'; })
+            .map(function (c) { return (catalog.byCode(c) || {}).label || c; });
+        return labels.length ? labels.join(' · ') : 'Nothing in it yet';
+    }
+
+    /**
+     * How many of your bars there are, of the most a watch with bars 4 to 6 has: "4 of 6 bars".
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {string}
+     */
+    function barCount(S, env) {
+        return M.yourBars(S, env).length + ' of ' + M.MAX_BARS + ' bars';
+    }
+
+    /**
+     * New bar's picker (options resolver 'barStartOptions', the Status bars tab's New bar and
+     * the editor's + New bar): the sets, each with what it holds, then a copy of each of your
+     * bars.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {Array} [label, value, meta]
+     */
+    function barStartOptions(S, env) {
+        var starts = M.barStarts(S, env);
+        /** @param {Object} st A start. @returns {Array} its option */
+        function option(st) { return [st.name, st.from, { desc: codesText(st.codes) }]; }
+        return starts.sets.map(option)
+            .concat([['Or copy one of your bars', BAR_GROUP, { groupHeader: true, disabled: true }]])
+            .concat(starts.copies.map(option));
+    }
+
+    /**
+     * The Status bars tab's New bar pick (onChange 'barCreate'): the bar made, on no screen yet
+     * (its card says so); the picker cleared.
+     * @param {Object} S Settings.
+     * @param {*} oldValue The pick before.
+     * @param {string} from A set's id, or a copy's ('copy:<bar>').
+     * @param {?Object} env Platform env.
+     * @returns {void}
+     */
+    function barCreate(S, oldValue, from, env) {
+        S[NEW_BAR] = '';
+        M.makeBar(S, env, from);
+    }
+
+    /**
+     * The editor's + New bar pick (onChange 'screenNewBarPicked'): the bar made and put on the
+     * screen being edited, at a bar's place (screens.js add); the picker cleared.
+     * @param {Object} S Settings.
+     * @param {*} oldValue The pick before.
+     * @param {string} from A set's id, or a copy's ('copy:<bar>').
+     * @param {?Object} env Platform env.
+     * @returns {void}
+     */
+    function screenNewBarPicked(S, oldValue, from, env) {
+        S[SCREEN_NEW_BAR] = '';
+        if (!ED.overlay) { return; }
+        var made = M.makeBar(S, env, from);
+        if (!made) { return; }
+        var next = M.add(M.screensOf(S, env)[ED.i] || [], M.KIND_OF_BAR[made]);
+        ED.open = M.idxOf(next, M.KIND_OF_BAR[made]);
+        writeScreen(S, ED.i, next, env);
+    }
+
+    /**
+     * Delete bar (a made bar's card): the bar unmade and every screen's row that showed it off
+     * (screens.js unmakeBar), the modes worked out again, and an Undo shown in the New bar card
+     * for five seconds.
+     * @param {Object} S Settings.
+     * @param {string} bar 'bar4' | 'bar5' | 'bar6'
+     * @param {?Object} env Platform env.
+     * @returns {boolean} whether a bar went
+     */
+    function deleteBar(S, bar, env) {
+        var snap = { radarMode: S.radarMode, healthMode: S.healthMode }, name = M.barName(S, bar);
+        M.barKeys(bar).forEach(function (key) { snap[key] = S[key]; });
+        if (!M.unmakeBar(S, bar)) { return false; }
+        applyModes(S, env);
+        BARS_UI.undo = { text: name + ' deleted.', snap: snap };
+        if (BARS_UI.timer) { clearTimeout(BARS_UI.timer); }
+        BARS_UI.timer = setTimeout(function () {
+            BARS_UI.undo = null;
+            BARS_UI.timer = null;
+            if (UI.ctx) { UI.ctx.render(); }
+        }, 5000);
+        return true;
+    }
+
+    /**
+     * The Undo of a Delete bar (hint resolver 'barUndoNote', the New bar card's first line):
+     * "<name> deleted." and its Undo button, '' while there is none.
+     * @returns {string} HTML
+     */
+    function barUndoNote() {
+        var u = BARS_UI.undo;
+        return u ? '<span class="bar-undo">' + esc(u.text) + ' <button type="button" class="txt-link" '
+            + 'data-action="undoDeleteBar">Undo</button></span>' : '';
     }
 
     // ── Icons ──────────────────────────────────────────────────
@@ -1071,7 +1192,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function editorBody(S, env, userData) {
         var i = ED.i, cycle = VC.screensCycle(S, env), list = M.screensOf(S, env, cycle)[i] || [];
         var note = !cycle[i] ? NOTHING_YET : !fitsWatch(list, i, env) ? TOO_TALL : '';
-        var adds = M.addable(list, env).filter(function (k) { return fitsWatch(M.add(list, k), i, env); });
+        var adds = M.addable(list, env, S).filter(function (k) { return fitsWatch(M.add(list, k), i, env); });
+        // + New bar (Pebble Time 2): while a bar is free, a bar has room here (two at most) and
+        // one would fit.
+        var free = M.freeBar(S, env);
+        var newBar = Boolean(free) && list.filter(M.isBar).length < 2 && fitsWatch(M.add(list, free), i, env);
         var pic = screenPicture(S, i, env, userData, 'se' + i + '-', cycle).svg;
         return '<div class="se-pic"><span class="se-pic-card" role="img" aria-label="' + esc(M.nameOf(S, i) + ': ' + contents(list, S))
             + '">' + pic + '</span></div>'
@@ -1079,10 +1204,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '<div class="se-card"><div class="se-cardhd" id="seTtl">Top to bottom</div>'
             + '<div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
             + list.map(function (b, j) { return rowHtml(list, j, S, env); }).join('') + '</div>'
-            + (adds.length ? '<div class="se-adds"><span class="se-addlbl">Add</span>' + adds.map(function (k) {
+            + (adds.length || newBar ? '<div class="se-adds"><span class="se-addlbl">Add</span>' + adds.map(function (k) {
                 return '<button type="button" class="se-add" data-se="add" data-k="' + k + '">+ ' + esc(M.blockName({ k: k }, S))
                     + '</button>';
-            }).join('') + '</div>' : '')
+            }).join('') + (newBar ? '<button type="button" class="se-add" data-se="newbar">+ New bar</button>' : '')
+                + '</div>' : '')
             + '</div>'
             + (i > 0 ? '<button type="button" class="se-del" data-se="delscreen">Delete screen</button>' : '');
     }
@@ -1302,6 +1428,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             ED.barRow = j;
             S[SCREEN_BAR] = list[j] ? list[j].k : '';
             ctx.openSheet(SCREEN_BAR, function () { renderEditor(); });
+            return;
+        }
+        // + New bar: New bar's picker opens over the editor, its pick lands through
+        // screenNewBarPicked.
+        if (act === 'newbar') {
+            S[SCREEN_NEW_BAR] = '';
+            ctx.openSheet(SCREEN_NEW_BAR, function () { renderEditor(); });
             return;
         }
         // "Edit <bar> on the Status bars tab": the editor closes, the tab opens.
@@ -1596,6 +1729,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             deleteWithUndo(S, parseInt(arg, 10) || 0, env);
             return true;
         };
+        // New bar, Delete bar and its Undo (the Status bars tab, Pebble Time 2).
+        PConf.actions.newBar = function (arg, S) {
+            if (!UI.ctx) { return false; }
+            S[NEW_BAR] = '';
+            UI.ctx.openSheet(NEW_BAR, null);
+            return false;
+        };
+        PConf.actions.deleteBar = function (arg, S, env) { return deleteBar(S, String(arg || ''), env); };
+        PConf.actions.undoDeleteBar = function (arg, S, env) {
+            if (BARS_UI.undo) {
+                restore(S, BARS_UI.undo.snap, env);
+                BARS_UI.undo = null;
+                if (BARS_UI.timer) { clearTimeout(BARS_UI.timer); BARS_UI.timer = null; }
+            }
+            return true;
+        };
         PConf.actions.undoDeleteScreen = function (arg, S, env) {
             if (UI.toast) {
                 restore(S, UI.toast.snap, env);
@@ -1618,6 +1767,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             PConf.onChange.register('radarSourcePicked', radarSourcePicked);
             PConf.onChange.register('screenGraphStylePicked', screenStylePicked);
             PConf.onChange.register('screenBarPicked', screenBarPicked);
+            PConf.onChange.register('barCreate', barCreate);
+            PConf.onChange.register('screenNewBarPicked', screenNewBarPicked);
         }
         // Your bars by name (screens.js barName): the Status bars tab's card titles and slot
         // pickers' titles, and each Name row's hint, where the bar shows.
@@ -1630,15 +1781,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.optionsResolvers) {
             PConf.optionsResolvers.register('apliteLayouts', function () { return APLITE_LAYOUTS.slice(); });
             PConf.optionsResolvers.register('screenBarOptions', barOptions);
+            PConf.optionsResolvers.register('barStartOptions', barStartOptions);
         }
         if (PConf.hintResolvers) {
             PConf.hintResolvers.register('batterySaverPauseHint', batterySaverPauseHint);
             PConf.hintResolvers.register('barScreens', function (S, env, args) { return barWhere(S, env, args.bar); });
+            PConf.hintResolvers.register('barCount', barCount);
+            PConf.hintResolvers.register('barUndoNote', barUndoNote);
+            PConf.hintResolvers.register('barsFullNote', function (S, env) { return M.freeBar(S, env) ? '' : BARS_FULL; });
         }
         if (PConf.whenResolvers) {
             PConf.whenResolvers.register('manyScreens', function (S, env) {
                 return hasScreens(env) && M.screensOf(S, env).length > 1;
             });
+            PConf.whenResolvers.register('barFree', function (S, env) { return Boolean(M.freeBar(S, env)); });
         }
     }
 
@@ -1671,6 +1827,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         barHolds: barHolds,
         barOptions: barOptions,
         screenBarPicked: screenBarPicked,
+        BARS_FULL: BARS_FULL,
+        barCount: barCount,
+        barStartOptions: barStartOptions,
+        barCreate: barCreate,
+        screenNewBarPicked: screenNewBarPicked,
+        deleteBar: deleteBar,
+        barUndoNote: barUndoNote,
         contents: contents,
         drawnView: drawnView,
         screenPicture: screenPicture,

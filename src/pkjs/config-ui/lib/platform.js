@@ -82,6 +82,13 @@ var FORECAST_SPAN_PLATFORMS = { emery: true };
 // platforms have one style (fail closed, as FORECAST_SPAN_PLATFORMS: the records would cost
 // an aplite's 536 B inbox bytes it does not have).
 var GRAPH_STYLE_PLATFORMS = { emery: true };
+// Platforms with bars 4 to 6, three status bars beside the first three (Status bars > New bar;
+// src/pkjs/view-cycle.js EXTRA_BARS): emery (Pebble Time 2) only. Keep in lockstep with the C
+// `#if defined(PBL_PLATFORM_EMERY)` arms of src/c/appendix/status_line.h and
+// src/c/layers/status_bar.h, which give the watch the three more lines and layers. Every
+// other watch keeps three and is never sent their lines. Unknown platforms have three (fail
+// closed, as GRAPH_STYLE_PLATFORMS: the lines would cost inbox bytes a 640 B inbox lacks).
+var EXTRA_BARS_PLATFORMS = { emery: true };
 /**
  * Whether a Pebble platform has a color display (false for the B/W platforms).
  * @param {string} platform Platform name (e.g. 'basalt', 'aplite', 'chalk').
@@ -172,12 +179,19 @@ function isForecastSpanPlatform(platform) { return Boolean(FORECAST_SPAN_PLATFOR
  */
 function isGraphStylePlatform(platform) { return Boolean(GRAPH_STYLE_PLATFORMS[platform]); }
 /**
+ * Whether a Pebble platform has bars 4 to 6 (emery only). Unknown platforms are treated as
+ * having three bars.
+ * @param {string} platform Platform name (e.g. 'emery', 'basalt').
+ * @returns {boolean} True if the platform may be sent bars 4 to 6's lines and cells.
+ */
+function isExtraBarsPlatform(platform) { return Boolean(EXTRA_BARS_PLATFORMS[platform]); }
+/**
  * Derive the config-UI environment facts from a Pebble watchInfo object.
  * @param {Object} watchInfo Pebble watchInfo; its .platform names the model.
- * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean, lineStyles: boolean, onDemand: boolean, fineBattery: boolean, forecastSpan: boolean, graphStyles: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, RGB-backlight-LED support, third-metric-line + per-line-style support, On demand support, 5 % battery-charge steps, the 12 h / 24 h / long forecast span, and a graph style per screen.
+ * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean, lineStyles: boolean, onDemand: boolean, fineBattery: boolean, forecastSpan: boolean, graphStyles: boolean, extraBars: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, RGB-backlight-LED support, third-metric-line + per-line-style support, On demand support, 5 % battery-charge steps, the 12 h / 24 h / long forecast span, a graph style per screen, and bars 4 to 6.
  */
 function computeEnv(watchInfo) {
   var p = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p), lineStyles: isLineStylePlatform(p), onDemand: isOnDemandPlatform(p), fineBattery: isFineBatteryPlatform(p), forecastSpan: isForecastSpanPlatform(p), graphStyles: isGraphStylePlatform(p) };
+  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p), lineStyles: isLineStylePlatform(p), onDemand: isOnDemandPlatform(p), fineBattery: isFineBatteryPlatform(p), forecastSpan: isForecastSpanPlatform(p), graphStyles: isGraphStylePlatform(p), extraBars: isExtraBarsPlatform(p) };
 }
-module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, isLineStylePlatform: isLineStylePlatform, isOnDemandPlatform: isOnDemandPlatform, isFineBatteryPlatform: isFineBatteryPlatform, isForecastSpanPlatform: isForecastSpanPlatform, isGraphStylePlatform: isGraphStylePlatform, computeEnv: computeEnv };
+module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, isLineStylePlatform: isLineStylePlatform, isOnDemandPlatform: isOnDemandPlatform, isFineBatteryPlatform: isFineBatteryPlatform, isForecastSpanPlatform: isForecastSpanPlatform, isGraphStylePlatform: isGraphStylePlatform, isExtraBarsPlatform: isExtraBarsPlatform, computeEnv: computeEnv };

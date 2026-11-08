@@ -85,6 +85,20 @@ var storageSection = {
             dormantValues: [''],
             optionsFrom: {resolver: 'screenBarOptions'},
             onChange: 'screenBarPicked'
+        },
+        // The editor's "+ New bar" (Pebble Time 2): New bar's picker, its pick a bar made and put
+        // on the screen being edited (screens-page.js screenNewBarPicked). Page-only.
+        {
+            type: 'select',
+            messageKey: 'screenNewBar',
+            uiOnly: true,
+            label: 'New bar',
+            sheetTitle: 'New bar',
+            sheetLead: 'Start from a set of slots, or copy one of your bars. It goes onto this screen.',
+            defaultValue: '',
+            dormantValues: [''],
+            optionsFrom: {resolver: 'barStartOptions'},
+            onChange: 'screenNewBarPicked'
         }
     ].concat(customViewItems(0), customViewItems(1), customViewItems(2))
 };

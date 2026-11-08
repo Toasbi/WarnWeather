@@ -174,6 +174,14 @@ typedef enum {
     STATUS_SRC_FORECAST = 1,
     STATUS_SRC_RADAR = 2,
     STATUS_SRC_HEALTH = 3,
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6 (status_line.h STATUS_LINE_BAR4..6). The packed value's 2-bit row
+    // fields are full, so a row names one as FORECAST / RADAR / HEALTH there plus an ext
+    // bit that adds 3 (view_spec_apply_ext: bit 11 the upper row, bit 12 the lower).
+    STATUS_SRC_BAR4 = 4,
+    STATUS_SRC_BAR5 = 5,
+    STATUS_SRC_BAR6 = 6,
+#endif
 } StatusSource;
 
 typedef struct {
@@ -275,7 +283,8 @@ static inline LayoutTier layout_status_tier(uint8_t layout_tier, bool two_rows) 
 }
 
 // Is `src` on screen, in either status band? `src` must be a REAL source
-// (STATUS_SRC_FORECAST / _RADAR / _HEALTH): with STATUS_SRC_NONE this answers true for
+// (STATUS_SRC_FORECAST / _RADAR / _HEALTH, or a bar 4 to 6 on emery): with STATUS_SRC_NONE
+// this answers true for
 // a statusless spec, which is never the question being asked. The band-OCCUPANCY test
 // is the separate `spec->status_upper != STATUS_SRC_NONE` idiom — don't fold it in here.
 static inline bool layout_status_visible(const ViewSpec *spec, uint8_t src) {
@@ -364,8 +373,17 @@ ViewSpec view_spec_unpack(uint16_t v);
 // body, 3 rows for a top), sizes survive only on a radar/graph top and a present body,
 // top_kind only on a graph top, one band fills at most (both → the body), and align only
 // while nothing fills. Call after view_spec_unpack, before view_spec_resolve. ext 0 is
-// the identity, so a preset (or a pre-v2 phone) renders exactly as before.
+// the identity, so a preset (or a pre-v2 phone) renders exactly as before. On emery bits
+// 11 and 12 move the upper and the lower row to bars 4 to 6 (VIEW_EXT_UPPER_BAR_HI below).
 void view_spec_apply_ext(ViewSpec *s, uint16_t ext);
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the ext bits that name bars 4 to 6 (StatusSource above): set, they add 3 to the
+// row's source in the packed value (FORECAST -> BAR4, RADAR -> BAR5, HEALTH -> BAR6); on a
+// row that is off they mean nothing. view-cycle.js packExt sets them.
+#define VIEW_EXT_UPPER_BAR_HI (1u << 11)
+#define VIEW_EXT_LOWER_BAR_HI (1u << 12)
+#endif
 
 #if defined(PBL_PLATFORM_EMERY)
 // emery: the graph style a view's forecast graph draws (graph_style.h), ext bits 9-10

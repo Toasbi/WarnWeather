@@ -1,0 +1,224 @@
+'use strict';
+// test/extra-bars.test.js — bars 4 to 6 on the phone (Pebble Time 2, 2.7.0's New bar): the
+// screens compile a row naming one only while it is made on a watch that has them, the bake
+// sends a made bar's line, the Clay message its On demand cells, and the change detector
+// signs its slots. The C side's half of each contract: test/extra-bars-contract.test.js.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+// holiday-mask -> nager-source and phone-battery.js touch localStorage: install the mock
+// before any watch module loads (see change-detector.test.js for the pattern).
+global.localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
+
+const VC = require('../src/pkjs/view-cycle.js');
+const OD = require('../src/pkjs/on-demand.js');
+const catalog = require('../src/pkjs/status-line-catalog.js');
+const statusLines = require('../src/pkjs/status-lines.js');
+const statusWire = require('../src/pkjs/status-wire.js');
+const screens = require('../src/pkjs/screens.js');
+const platform = require('../src/pkjs/config-ui/lib/platform.js');
+const { buildClayPayload } = require('../src/pkjs/clay-payload.js');
+const { renderSignature } = require('../src/pkjs/render-signature.js');
+const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
+const { decodeLine } = require('./helpers/status-line-bytes.js');
+
+const EMERY = platform.computeEnv({ platform: 'emery' });
+const BASALT = platform.computeEnv({ platform: 'basalt' });
+const UNKNOWN = platform.computeEnv(null);
+const NOW = new Date('2026-06-26T00:00:00Z');
+
+/**
+ * One custom screen with a bar 4 to 6 (or any row value) in its upper row.
+ * @param {string} upper the row's value (viewUpper0)
+ * @param {Object} [over] settings laid over it
+ * @returns {Object} settings
+ */
+function oneScreen(upper, over) {
+  return Object.assign({ layoutPreset: 'custom', viewCount: '1', viewTop0: 'none', viewBody0: 'forecast',
+    viewUpper0: upper, viewLower0: 'weather' }, over || {});
+}
+
+test('the env fact: bars 4 to 6 on the Pebble Time 2 alone; an unknown watch has three bars', () => {
+  assert.equal(EMERY.extraBars, true);
+  ['aplite', 'basalt', 'chalk', 'diorite', 'flint'].forEach((p) =>
+    assert.equal(platform.computeEnv({ platform: p }).extraBars, false, p));
+  assert.equal(UNKNOWN.extraBars, false, 'fail closed');
+});
+
+test('a bar 4 to 6 exists once made, on a watch that has them; an omitted env is capable', () => {
+  const S = { statusBar5Made: true };
+  assert.deepEqual(VC.EXTRA_BARS.map((b) => VC.barMade(S, b.bar)), [false, true, false]);
+  assert.equal(VC.barMade({ statusBar5Made: 'true' }, 'bar5'), false, 'only a stored true makes one');
+  assert.equal(VC.barMade(S, 'top'), false, 'the four built-in bars are never "made"');
+  assert.equal(VC.extraBarOn(S, 'bar5', EMERY), true);
+  assert.equal(VC.extraBarOn(S, 'bar5', BASALT), false);
+  assert.equal(VC.extraBarOn(S, 'bar5', UNKNOWN), false);
+  assert.equal(VC.extraBarOn(S, 'bar5'), true, 'omitted env: capable');
+  assert.equal(VC.extraBarOn(S, 'bar4', EMERY), false, 'not made');
+});
+
+test('a row naming a bar 4 to 6 packs as the first three plus the ext bit, and unpacks back', () => {
+  VC.EXTRA_BARS.forEach((b, i) => {
+    const s = VC.spec(0, 0, VC.BODY_FC, b.src, b.src);
+    const wire = VC.packWire(s);
+    const low = wire & 0xFFFF, ext = wire >>> 16;
+    assert.equal((low >> 2) & 3, i + 1, b.bar + ': the upper row\'s 2-bit field');
+    assert.equal(low & 3, i + 1, b.bar + ': the lower row\'s');
+    assert.equal(ext & VC.EXT_UPPER_BAR_HI, VC.EXT_UPPER_BAR_HI, b.bar + ': upper ext bit');
+    assert.equal(ext & VC.EXT_LOWER_BAR_HI, VC.EXT_LOWER_BAR_HI, b.bar + ': lower ext bit');
+    const back = VC.unpackWire(wire);
+    assert.equal(back.statusUpper, b.src);
+    assert.equal(back.statusLower, b.src);
+    assert.equal(wire >>> 31, 0, 'bit 31 stays clear');
+  });
+  // One row a bar 4 to 6, the other a built-in bar: only its own bit.
+  const mixed = VC.packWire(VC.spec(0, 0, VC.BODY_FC, VC.STATUS_SRC_BAR6, VC.STATUS_SRC_RADAR)) >>> 16;
+  assert.equal(mixed & VC.EXT_UPPER_BAR_HI, VC.EXT_UPPER_BAR_HI);
+  assert.equal(mixed & VC.EXT_LOWER_BAR_HI, 0);
+  // An off row with the bit set stays off, as the watch reads it (layout.c apply_ext).
+  const stray = VC.packWire(VC.spec(0, 0, VC.BODY_FC, VC.STATUS_SRC_NONE, VC.STATUS_SRC_FORECAST))
+    | (VC.EXT_UPPER_BAR_HI << 16);
+  assert.equal(VC.unpackWire(stray).statusUpper, VC.STATUS_SRC_NONE);
+  assert.equal(VC.unpackWire(stray).statusLower, VC.STATUS_SRC_FORECAST);
+  // A view of the four built-in bars sets neither bit: every pre-2.7 word packs as before.
+  [VC.STATUS_SRC_NONE, VC.STATUS_SRC_FORECAST, VC.STATUS_SRC_RADAR, VC.STATUS_SRC_HEALTH].forEach((src) =>
+    assert.equal((VC.packWire(VC.spec(0, 0, VC.BODY_FC, src, src)) >>> 16) & (VC.EXT_UPPER_BAR_HI | VC.EXT_LOWER_BAR_HI), 0));
+});
+
+test('the compiler keeps a bar 4 to 6 row only while the bar is on the watch', () => {
+  const made = oneScreen('bar4', { statusBar4Made: true });
+  assert.equal(VC.resolveViewCycle(made, EMERY)[0].statusUpper, VC.STATUS_SRC_BAR4, 'made, on emery');
+  assert.equal(VC.resolveViewCycle(made, BASALT)[0].statusUpper, VC.STATUS_SRC_NONE, 'basalt folds it off');
+  assert.equal(VC.resolveViewCycle(made, UNKNOWN)[0].statusUpper, VC.STATUS_SRC_NONE, 'an unknown watch too');
+  assert.equal(VC.resolveViewCycle(oneScreen('bar4'), EMERY)[0].statusUpper, VC.STATUS_SRC_NONE,
+    'not made: off');
+  assert.equal(VC.rowSource({}, 'bogus', EMERY), VC.STATUS_SRC_NONE, 'an unknown value is off');
+  // A flick view holding nothing but a made bar is a screen; unmade, it is a skipped slot.
+  const flick = { layoutPreset: 'custom', viewCount: '2', viewTop0: 'cal2', viewBody0: 'forecast',
+    viewUpper0: 'weather', viewLower0: 'off', viewTop1: 'none', viewBody1: 'none', viewUpper1: 'bar6',
+    viewLower1: 'off', viewClockOff1: true, viewStripOff1: true };
+  assert.notEqual(VC.resolveViewCycle(Object.assign({ statusBar6Made: true }, flick), EMERY)[1], null);
+  assert.equal(VC.resolveViewCycle(flick, EMERY)[1], null);
+  // specToKeys names the row back.
+  const keys = VC.specToKeys(VC.resolveViewCycle(made, EMERY));
+  assert.equal(keys.viewUpper0, 'bar4');
+});
+
+test('barsShown: a made bar 4 to 6 on a screen; the Clay view words carry its ext bit on emery alone', () => {
+  const S = oneScreen('bar5', { statusBar5Made: true });
+  assert.equal(VC.barsShown(S, EMERY).bar5, true);
+  assert.equal(VC.barsShown(S, BASALT).bar5, false);
+  assert.equal(VC.barsShown(Object.assign({}, S, { statusBar5Made: false }), EMERY).bar5, false);
+  const emery = buildClayPayload(S, { platform: 'emery' }, NOW).CLAY_VIEW_0;
+  const basalt = buildClayPayload(S, { platform: 'basalt' }, NOW).CLAY_VIEW_0;
+  assert.equal(VC.unpackWire(emery).statusUpper, VC.STATUS_SRC_BAR5);
+  assert.equal(VC.unpackWire(basalt).statusUpper, VC.STATUS_SRC_NONE);
+});
+
+test('the catalog: three extra lines, their wire keys and slots, empty until New bar fills them', () => {
+  assert.deepEqual(catalog.EXTRA_LINES.map((l) => l.id), ['bar4', 'bar5', 'bar6']);
+  assert.deepEqual(catalog.EXTRA_LINES.map((l) => l.wireKey),
+    ['STATUS_LINE_5_UINT8', 'STATUS_LINE_6_UINT8', 'STATUS_LINE_7_UINT8']);
+  assert.deepEqual(catalog.EXTRA_LINES[0].slots, ['statusBar4Left', 'statusBar4Mid', 'statusBar4Right']);
+  assert.equal(catalog.extraSlotKeys().length, 9);
+  catalog.extraSlotKeys().forEach((k) => assert.equal(catalog.slotDefault(k, EMERY), 'empty', k));
+  assert.equal(catalog.lineOf('statusBar6Right').id, 'bar6');
+  assert.equal(catalog.allSlotKeys().length, 12, 'the twelve stay twelve (telemetry, the migration)');
+  const S = { statusBar4Made: true, statusBar6Made: true };
+  assert.deepEqual(catalog.madeExtraLines(S, EMERY).map((l) => l.id), ['bar4', 'bar6']);
+  assert.deepEqual(catalog.madeExtraLines(S, BASALT), []);
+});
+
+test('the bake sends a made bar\'s line on a Pebble Time 2 and nothing else', () => {
+  const S = { statusBar4Made: true, statusBar4Left: 'city', statusBar4Mid: 'empty', statusBar4Right: 'city',
+    statusTopLeft: 'city', statusTopMid: 'empty', statusTopRight: 'city' };
+  const bake = (settings, p) => {
+    const payload = { CITY: 'Bonn', CURRENT_TEMP: 20, SUN_EVENTS: [1, 0, 0, 0, 0] };
+    statusLines.buildStatusLines(payload, settings, { platform: p });
+    return payload;
+  };
+  const emery = bake(S, 'emery');
+  assert.ok(emery.STATUS_LINE_5_UINT8, 'bar 4\'s line');
+  assert.equal('STATUS_LINE_6_UINT8' in emery, false, 'bar 5 is not made');
+  assert.equal('STATUS_LINE_7_UINT8' in emery, false, 'bar 6 is not made');
+  assert.deepEqual(decodeLine(emery.STATUS_LINE_5_UINT8).map((s) => s.text), ['Bonn', '', 'Bonn']);
+  ['basalt', 'aplite'].forEach((p) => {
+    const other = bake(S, p);
+    assert.equal(Object.keys(other).some((k) => /^STATUS_LINE_[567]_/.test(k)), false, p);
+  });
+  // The fetch gates read a made bar's slots: a pollen slot there asks for pollen (no default
+  // slot of the twelve shows it).
+  assert.ok(catalog.selectedCodes({ statusBar4Made: true, statusBar4Left: 'pollen' }).indexOf('pollen') !== -1);
+  assert.equal(catalog.selectedCodes({ statusBar4Left: 'pollen' }).indexOf('pollen'), -1, 'not made: not read');
+});
+
+test('bars 4 to 6\'s On demand cells: CLAY_OD_EXTRA_UINT8 on a known emery alone, effective values only', () => {
+  // Bluetooth on bar 4's left and Quiet time on bar 6's right; bar 4 shows on a screen.
+  const S = placeOn(placeOn(Object.assign({}, NOTHING_PLACED, oneScreen('bar4', { viewLower0: 'bar6' }), {
+    statusBar4Made: true, statusBar6Made: true }), 'bar4', 'left', ['bt']), 'bar6', 'right', ['qt']);
+  const cells = buildClayPayload(S, { platform: 'emery' }, NOW).CLAY_OD_EXTRA_UINT8;
+  assert.equal(cells.length, OD.ITEMS.length);
+  const at = (code) => cells[OD.ITEMS.findIndex((i) => i.code === code)];
+  assert.equal(at('bt'), 1, 'bar 4 (bits 0-1): left');
+  assert.equal(at('qt'), 2 << 4, 'bar 6 (bits 4-5): right');
+  assert.equal(cells.filter(Boolean).length, 2, 'nothing else');
+  assert.deepEqual(statusWire.buildExtraCells(S, EMERY), cells);
+  // Bar 6 unmade: its cell clears; no screen shows bar 4: its cell clears.
+  assert.equal(statusWire.buildExtraCells(Object.assign({}, S, { statusBar6Made: false }), EMERY)
+    [OD.ITEMS.findIndex((i) => i.code === 'qt')], 0);
+  assert.equal(statusWire.buildExtraCells(Object.assign({}, S, { viewUpper0: 'weather', viewLower0: 'off' }), EMERY)
+    .filter(Boolean).length, 0);
+  // Sent on every known emery, zeros while no made bar shows; never on another watch.
+  assert.deepEqual(buildClayPayload({}, { platform: 'emery' }, NOW).CLAY_OD_EXTRA_UINT8,
+    new Array(OD.ITEMS.length).fill(0));
+  ['basalt', 'chalk', 'diorite', 'flint', 'aplite'].forEach((p) =>
+    assert.equal('CLAY_OD_EXTRA_UINT8' in buildClayPayload(S, { platform: p }, NOW), false, p));
+  assert.equal('CLAY_OD_EXTRA_UINT8' in buildClayPayload(S, null, NOW), false, 'an unknown watch');
+  // The blob's own cells never carry bars 4 to 6 (their bits would land on the first four's).
+  const blob = statusWire.buildSettingsBlob(S, EMERY);
+  assert.equal(blob.slice(statusWire.ON_DEMAND_OFFSET).filter(Boolean).length, 0);
+});
+
+test('on-demand.js: a bar 4 to 6 exists where a screen shows it, so an item placed there alone is placed', () => {
+  const S = placeOn(Object.assign({}, NOTHING_PLACED, oneScreen('bar4'), { statusBar4Made: true }),
+    'bar4', 'right', ['uv']);
+  assert.equal(OD.barExists(S, 'bar4', EMERY), true);
+  assert.equal(OD.barExists(S, 'bar4', BASALT), false);
+  assert.equal(OD.barExists(S, 'bar5', EMERY), false, 'not made, not shown');
+  assert.equal(OD.placedAnywhere(S, 'uv', EMERY), true);
+  assert.equal(OD.placedAnywhere(S, 'uv', BASALT), false);
+  assert.equal(OD.telemetryCode(S, EMERY).length, 40, 'telemetry keeps the four bars');
+  assert.deepEqual(OD.BLOB_BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health']);
+  assert.deepEqual(OD.PAGE_BARS.map((b) => b.name),
+    ['Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Bar 4', 'Bar 5', 'Bar 6']);
+});
+
+test('the render signature signs a made bar\'s slots on a Pebble Time 2, and only then', () => {
+  const S = { statusBar4Made: true, statusBar4Left: 'uv' };
+  const emery = (s) => renderSignature(s, { platform: 'emery' });
+  assert.notEqual(emery(S), emery(Object.assign({}, S, { statusBar4Left: 'wind' })), 'a slot edit re-bakes');
+  assert.equal(emery({ statusBar4Left: 'uv' }), emery({ statusBar4Left: 'wind' }), 'not made: nothing to bake');
+  assert.equal(emery({}), emery({ statusBar4Left: 'uv' }), 'and an unmade bar signs as before 2.7');
+  assert.equal(renderSignature(S, { platform: 'basalt' }),
+    renderSignature(Object.assign({}, S, { statusBar4Left: 'wind' }), { platform: 'basalt' }), 'basalt');
+  // A countdown signs its date while it is the slot's item.
+  const cd = { statusBar4Made: true, statusBar4Right: 'countdown', statusBar4RightCountdown: '2026-12-24' };
+  assert.notEqual(emery(cd), emery(Object.assign({}, cd, { statusBar4RightCountdown: '2026-12-31' })));
+});
+
+test('screens.js: a bar 4 to 6 is offered once made, on a watch that has them', () => {
+  const S = { statusBar4Made: true };
+  assert.equal(screens.capable('bar4', EMERY), true);
+  assert.equal(screens.capable('bar4', BASALT), false);
+  assert.equal(screens.offered('bar4', S, EMERY), true);
+  assert.equal(screens.offered('bar5', S, EMERY), false, 'not made');
+  assert.equal(screens.offered('bar4', S, BASALT), false);
+  const blank = [];
+  assert.ok(screens.addable(blank, EMERY, S).indexOf('bar4') !== -1);
+  assert.equal(screens.addable(blank, EMERY, {}).indexOf('bar4'), -1);
+  assert.equal(screens.addable(blank, EMERY).indexOf('bar4'), -1, 'no settings: none made');
+  // On a screen it compiles to its row value and back.
+  const list = screens.add(blank, 'bar4');
+  const keys = screens.compileKeys(list, 0);
+  assert.equal([keys.viewUpper0, keys.viewLower0].indexOf('bar4') !== -1, true, JSON.stringify(keys));
+});

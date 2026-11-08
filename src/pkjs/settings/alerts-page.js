@@ -244,15 +244,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Why a bar is not drawn, for its inert Shows on row: no screen shows it, by its name. null
-     * for a bar this watch cannot draw at all (no row then).
+     * for a bar this watch cannot draw at all, and a bar 4 to 6 not made (no row then: screens.js
+     * offered).
      * @param {Object} S Live settings state.
      * @param {string} bar An on-demand.js BARS bar.
      * @param {Object} env Platform env.
      * @returns {?string} The reason.
      */
     function barOffReason(S, bar, env) {
-        if (bar !== 'radar' && bar !== 'health') { return null; }
-        return (env && env[bar] === false) ? null : 'No screen shows ' + screens.barName(S, bar);
+        var kind = screens.KIND_OF_BAR[bar];
+        return kind && screens.offered(kind, S, env) ? 'No screen shows ' + screens.barName(S, bar) : null;
     }
     PConf.optionsResolvers.register('onDemandBars', onDemandBars);
 

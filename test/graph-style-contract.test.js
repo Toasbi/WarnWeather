@@ -38,13 +38,15 @@ test('PERSIST GRAPH_STYLE_1..3 are appended after RADAR_NOTICE (59..61)', () => 
   assert.deepEqual([names.indexOf('GRAPH_STYLE_1'), names.indexOf('GRAPH_STYLE_2'),
     names.indexOf('GRAPH_STYLE_3')], [59, 60, 61]);
   assert.equal(names.indexOf('SPARE_LINE_TREND'), 62, 'the spare row\'s trend after them');
-  assert.equal(names[names.length - 1], 'SPARE_LINE_TREND');
+  // Bars 4 to 6's slots come after it (test/extra-bars-contract.test.js).
+  assert.equal(names[63], 'STATUS_LINE_5');
 });
 
 test('the spare row: its key appended after the style keys, received and stored on emery only', () => {
   const keys = template.pebble.messageKeys;
   assert.equal(keys.indexOf('SPARE_LINE_TREND_UINT8'), keys.indexOf('CLAY_GRAPH_STYLE_3_UINT8') + 1);
-  assert.equal(keys[keys.length - 1], 'SPARE_LINE_TREND_UINT8');
+  // Bars 4 to 6's keys come after it (test/extra-bars-contract.test.js).
+  assert.equal(keys[keys.indexOf('SPARE_LINE_TREND_UINT8') + 1], 'STATUS_LINE_5_UINT8');
   const entry = appMessageC.indexOf('{ SERIES_SPARE,  MESSAGE_KEY_SPARE_LINE_TREND_UINT8');
   assert.ok(entry !== -1, 'the trend table receives it');
   const guard = appMessageC.lastIndexOf('#if defined(PBL_PLATFORM_EMERY)', entry);

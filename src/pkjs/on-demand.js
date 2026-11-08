@@ -46,15 +46,22 @@
 
   // The status bars, in the watch's ThreshBar order (the 2-bit cell order in a cell byte).
   // `name` is the page's name for the bar until the user names it (screens.js barName reads
-  // a bar's name), page-only.
+  // a bar's name), page-only. The first four have their cells in the thresholds blob
+  // (BLOB_BARS); bars 4 to 6 (`extra`, Pebble Time 2: view-cycle.js EXTRA_BARS, whose
+  // prefixes they take) in a second array of their own (status-wire.js buildExtraCells).
   var BARS = [
     {bar: 'top', prefix: 'statusTop', name: 'Watch bar'},
     {bar: 'forecast', prefix: 'statusForecast', name: 'Forecast bar'},
     {bar: 'radar', prefix: 'statusRadar', name: 'Radar bar'},
     {bar: 'health', prefix: 'statusHealth', name: 'Health bar'}
   ];
-  // The same bars in the page's order, the Status bars tab's (the owner, 2026-10-01).
-  var PAGE_BARS = [BARS[0], BARS[1], BARS[3], BARS[2]];
+  var BLOB_BARS = BARS.slice();
+  VC.EXTRA_BARS.forEach(function (b, i) {
+    BARS.push({bar: b.bar, prefix: b.prefix, name: 'Bar ' + (i + 4), extra: true});
+  });
+  // The same bars in the page's order, the Status bars tab's (the owner, 2026-10-01), bars 4
+  // to 6 last.
+  var PAGE_BARS = [BARS[0], BARS[1], BARS[3], BARS[2]].concat(BARS.slice(BLOB_BARS.length));
 
   // The sides; the index + 1 is the cell's wire value (OdSide: 1 left, 2 right).
   var SIDES = ['left', 'right'];
@@ -211,7 +218,9 @@
    * Whether a bar is on the watch at all: the Watch Status Bar and the forecast bar
    * always; the radar bar and the health bar while the watch has the radar / health and a
    * screen shows the bar (view-cycle.js barsShown: since 2.6 the Radar bar shows without
-   * radar data and the modes follow the screens, so the screens decide).
+   * radar data and the modes follow the screens, so the screens decide); a bar 4 to 6 while
+   * a screen shows it, which it does only once made, on a watch that has them (view-cycle.js
+   * extraBarOn).
    * @param {Object} S Settings blob.
    * @param {string} bar A BARS bar.
    * @param {Object} [env] Platform env (omitted = capable).
@@ -223,6 +232,7 @@
     if (bar === 'top' || bar === 'forecast') { return true; }
     if (bar === 'radar') { return f.radar && VC.barsShown(s, env).radar; }
     if (bar === 'health') { return f.health && VC.barsShown(s, env).health; }
+    if (VC.extraBar(bar)) { return VC.barsShown(s, env)[bar]; }
     return false;
   }
 
@@ -354,10 +364,10 @@
   function batteryShowsValue(S) { return read(S, 'batteryLowDisplay') === 'value'; }
 
   /**
-   * The telemetry code: 40 characters, the bars in BARS order and within a bar the items
-   * in ITEMS order. 'L'/'R' = ticked on a side of an existing bar, 'l'/'r' = ticked on a
-   * bar the modes remove, '-' = not ticked. An untouched install reads 'RLLLLRRR-R'
-   * followed by 30 '-'.
+   * The telemetry code: 40 characters, the first four bars in BARS order (bars 4 to 6 are
+   * not in it) and within a bar the items in ITEMS order. 'L'/'R' = ticked on a side of an
+   * existing bar, 'l'/'r' = ticked on a bar the modes remove, '-' = not ticked. An untouched
+   * install reads 'RLLLLRRR-R' followed by 30 '-'.
    * @param {Object} S Settings blob.
    * @param {Object} [env] Platform env (omitted = capable).
    * @returns {(string|undefined)} undefined on a watch without On demand (aplite)
@@ -365,12 +375,12 @@
   function telemetryCode(S, env) {
     if (!facts(env).onDemand) { return undefined; }
     var out = '';
-    for (var b = 0; b < BARS.length; b++) {
-      var exists = barExists(S, BARS[b].bar, env);
+    for (var b = 0; b < BLOB_BARS.length; b++) {
+      var exists = barExists(S, BLOB_BARS[b].bar, env);
       for (var i = 0; i < ITEMS.length; i++) {
         var ch = '-';
         for (var s = 0; s < SIDES.length && ch === '-'; s++) {
-          if (parse(read(S, itemsKey(BARS[b].bar, SIDES[s]))).indexOf(ITEMS[i].code) >= 0) {
+          if (parse(read(S, itemsKey(BLOB_BARS[b].bar, SIDES[s]))).indexOf(ITEMS[i].code) >= 0) {
             ch = SIDES[s] === 'left' ? 'l' : 'r';
             if (exists) { ch = ch.toUpperCase(); }
           }
@@ -384,6 +394,7 @@
   var api = {
     ITEMS: ITEMS,
     BARS: BARS,
+    BLOB_BARS: BLOB_BARS,
     PAGE_BARS: PAGE_BARS,
     SIDES: SIDES,
     DEFAULTS: DEFAULTS,

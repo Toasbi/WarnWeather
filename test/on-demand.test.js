@@ -14,9 +14,11 @@ test('ITEMS: the ten items in priority order, system info first', () => {
     ['system', 'system', 'system', 'system', 'weather', 'weather', 'weather', 'weather', 'weather', 'weather']);
   assert.deepEqual(OD.ITEMS.map((i) => i.label), ['Battery', 'Bluetooth', 'Quiet time', 'Battery saver', 'Rain',
     'Wind gusts', 'UV index', 'Air quality', 'Pollen', 'Wind speed']);
-  assert.deepEqual(OD.BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health']);
+  assert.deepEqual(OD.BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health', 'bar4', 'bar5', 'bar6']);
+  assert.deepEqual(OD.BLOB_BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health']);
   assert.deepEqual(OD.PAGE_BARS.map((b) => b.name),
-    ['Watch bar', 'Forecast bar', 'Health bar', 'Radar bar']);
+    ['Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Bar 4', 'Bar 5', 'Bar 6']);
+  assert.deepEqual(OD.BARS.map((b) => b.prefix).slice(4), ['statusBar4', 'statusBar5', 'statusBar6']);
   assert.deepEqual(OD.SIDES, ['left', 'right']);
   assert.equal(OD.itemsKey('top', 'left'), 'statusTopOnDemandLeftItems');
   assert.equal(OD.itemsKey('health', 'right'), 'statusHealthOnDemandRightItems');
@@ -25,12 +27,12 @@ test('ITEMS: the ten items in priority order, system info first', () => {
 test('DEFAULTS: the Watch bar carries the defaults, every other bar is empty', () => {
   assert.equal(OD.DEFAULTS.statusTopOnDemandLeftItems, 'bt,qt,snooze,rain');
   assert.equal(OD.DEFAULTS.statusTopOnDemandRightItems, 'battery,gust,uv,aqi,wind');
-  ['Forecast', 'Radar', 'Health'].forEach((bar) => ['Left', 'Right'].forEach((side) => {
+  ['Forecast', 'Radar', 'Health', 'Bar4', 'Bar5', 'Bar6'].forEach((bar) => ['Left', 'Right'].forEach((side) => {
     assert.equal(OD.DEFAULTS['status' + bar + 'OnDemand' + side + 'Items'], '', bar + side + 'Items');
   }));
   assert.equal(OD.DEFAULTS.batteryLowLevel, '10');
   assert.equal(OD.DEFAULTS.batteryLowDisplay, 'icon');
-  assert.equal(Object.keys(OD.DEFAULTS).length, 10, 'the eight side lists + the two Battery keys');
+  assert.equal(Object.keys(OD.DEFAULTS).length, 16, 'the fourteen side lists + the two Battery keys');
 });
 
 test('parse: canonical order, unknown codes and duplicates dropped', () => {

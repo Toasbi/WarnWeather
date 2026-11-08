@@ -457,7 +457,8 @@ function packLine(line, payload, settings, env, alerts) {
 }
 
 /**
- * Add STATUS_LINE_1..4_UINT8, the packed STATUS_LEVELS_UINT8 threshold bytes and
+ * Add STATUS_LINE_1..4_UINT8 (and a made bar 4 to 6's STATUS_LINE_5..7_UINT8 on a Pebble
+ * Time 2), the packed STATUS_LEVELS_UINT8 threshold bytes and
  * the weather alerts' ALERT_ENTRIES_UINT8 to the weather payload. Must run BEFORE
  * applyForecastSeries deletes the transient trend arrays (AQI_TREND,
  * WIND_TREND_UINT8, GUST_TREND_UINT8, PRESSURE_TREND, POLLEN_TODAY,
@@ -473,7 +474,7 @@ function buildStatusLines(payload, settings, watchInfo) {
   // The weather alerts' entries, judged before the lines: a slot showing an alert's
   // metric on the alert's side merges it (packLine). Only for a watch they ride to
   // (see below); null elsewhere, so aplite's lines bake exactly as before.
-  var alerts = env.thresholds ? statusWire.bakedAlerts(payload, settings) : null;
+  var alerts = env.thresholds ? statusWire.bakedAlerts(payload, settings, env) : null;
   // computeEnv derives WATCH facts from watchInfo and nothing else, but the two
   // phone-battery items are gated on a PHONE fact: whether this PKJS host
   // exposes the Battery Status API (Android's Chromium WebView only). The flag
@@ -483,8 +484,12 @@ function buildStatusLines(payload, settings, watchInfo) {
   // page threads the same flag into its own env through config-ui/index.js'
   // opts.env, so both sides answer from the one PHONE_BATTERY_SUPPORTED key.
   env.phoneBattery = phoneBatterySupported();
-  for (var l = 0; l < catalog.LINES.length; l++) {
-    var line = catalog.LINES[l];
+  // The four lines every watch has, then a made bar 4 to 6's on a watch that has them (Pebble
+  // Time 2: STATUS_LINE_5..7_UINT8, catalog madeExtraLines). A bar that is not made sends no
+  // line, so a watch without one is sent exactly the four.
+  var lines = catalog.LINES.concat(catalog.madeExtraLines(settings, env));
+  for (var l = 0; l < lines.length; l++) {
+    var line = lines[l];
     payload[line.wireKey] = packLine(line, payload, settings, env, alerts);
   }
   // Packed weather-kind threshold levels: computed here because the raw

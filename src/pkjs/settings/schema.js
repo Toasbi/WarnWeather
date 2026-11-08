@@ -41,6 +41,8 @@ var ON_DEMAND_WHEN = gates.ON_DEMAND_WHEN;
 var BOLD_MASTER_WHEN = gates.BOLD_MASTER_WHEN;
 var RADAR_BAR_WHEN = gates.RADAR_BAR_WHEN;
 var HEALTH_BAR_WHEN = gates.HEALTH_BAR_WHEN;
+var EXTRA_BARS_WHEN = gates.EXTRA_BARS_WHEN;
+var extraBarWhen = gates.extraBarWhen;
 var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 var LINE_STYLES_WHEN = gates.LINE_STYLES_WHEN;
 var EMERY_WHEN = gates.EMERY_WHEN;
@@ -883,6 +885,72 @@ function barSlots(prefix, barWhen, leftJoins) {
         onDemandRow(prefix, barWhen)
     ];
 }
+/**
+ * A bar 4 to 6's card on the Status bars tab (Pebble Time 2, made by New bar): its Name row, its
+ * slots and its Alerts row as the other bars' cards have them, then Delete bar (screens-page.js
+ * deleteBar: every screen that shows it drops the row; Undo puts it back).
+ * @param {Object} b Its on-demand.js BARS entry.
+ * @returns {Object} Schema section.
+ */
+function extraBarSection(b) {
+    var when = extraBarWhen(b.prefix);
+    return {
+        id: b.bar,
+        title: b.name,
+        titleBy: {resolver: 'barName', args: {bar: b.bar}},
+        showWhen: when,
+        items: [barNameRow(b.bar, when)].concat(barSlots(b.prefix, when, true), [{
+            type: 'button', style: 'link', action: 'deleteBar', actionArg: b.bar, label: 'Delete bar',
+            showWhen: when
+        }])
+    };
+}
+
+/**
+ * The New bar card after the bars (Pebble Time 2): its row opens New bar's picker (the sets and a
+ * copy of each of your bars, screens-page.js barStartOptions), its hint counts your bars, and
+ * once there are six a note says so in its place. Above it the Undo of a Delete bar.
+ * @returns {Object} Schema section.
+ */
+function newBarSection() {
+    return {
+        id: 'barNew',
+        showWhen: EXTRA_BARS_WHEN,
+        items: [
+            {type: 'staticText', textFrom: {resolver: 'barUndoNote'}},
+            {type: 'button', action: 'newBar', label: 'New bar', hintFrom: {resolver: 'barCount'},
+                showWhen: {when: 'barFree'}},
+            {type: 'staticText', hinted: true, textFrom: {resolver: 'barsFullNote'}}
+        ]
+    };
+}
+
+/**
+ * The made flags of bars 4 to 6 (<prefix>Made: New bar sets one, Delete bar clears it; the
+ * phone reads them, view-cycle.js barMade) and New bar's page-only picker, which the New bar
+ * card's row opens. Blob-only: sheetOnly keeps it off the tab.
+ * @returns {Object} Schema section (sheetOnly, never opened).
+ */
+function barKeysSection() {
+    return {
+        sheetOnly: true,
+        sheetId: 'barKeys',
+        items: ON_DEMAND.BARS.filter(function (b) { return b.extra; }).map(function (b) {
+            return {type: 'hidden', messageKey: b.prefix + 'Made', defaultValue: false};
+        }).concat([{
+            type: 'select',
+            messageKey: 'statusBarNew',
+            uiOnly: true,
+            label: 'New bar',
+            sheetTitle: 'New bar',
+            sheetLead: 'Start from a set of slots, or copy one of your bars. Then put it on a screen.',
+            defaultValue: '',
+            dormantValues: [''],
+            optionsFrom: {resolver: 'barStartOptions'},
+            onChange: 'barCreate'
+        }])
+    };
+}
 // The signup link opens in an external browser (target=_blank). The Development > API Keys page 404s on
 // tomorrow.io's MOBILE site, so it gets a copy button instead of a (useless-on-mobile) link — users copy
 // the URL and open it in desktop-site mode. See copyBtn() + the engine's [data-copy] handler.
@@ -1698,6 +1766,12 @@ module.exports = {
             showWhen: RADAR_BAR_WHEN,
             items: [barNameRow('radar', RADAR_BAR_WHEN)].concat(barSlots('statusRadar', RADAR_BAR_WHEN, true))
         },
+        // Bars 4 to 6 (Pebble Time 2): a card each once New bar made it, then New bar.
+        extraBarSection(ON_DEMAND.PAGE_BARS[4]),
+        extraBarSection(ON_DEMAND.PAGE_BARS[5]),
+        extraBarSection(ON_DEMAND.PAGE_BARS[6]),
+        newBarSection(),
+        barKeysSection(),
         // Slot dialogs (sheetOnly): reachable only through the Edit button next to a
         // status slot whose selected value has a dialog — never rendered as cards here.
         // Each keeps the bars pinned above it.

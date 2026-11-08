@@ -346,7 +346,14 @@ static void load_thresholds(void) {
     // Judge the blob ONCE per refresh/draw pass: the per-slot accessor calls below
     // all read the normalized full layout.
     status_threshold_normalize(s_thresh_scratch,
-        persist_get_threshold_settings(s_thresh_scratch, sizeof(s_thresh_scratch)));
+        persist_get_threshold_settings(s_thresh_scratch, THRESH_SETTINGS_BYTES));
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6's On demand cells, right behind the blob (THRESH_SCRATCH_BYTES),
+    // zeros (nothing ticked) for any byte not stored.
+    uint8_t *extra = s_thresh_scratch + THRESH_SETTINGS_BYTES;
+    const int n = persist_get_od_extra_cells(extra, THRESH_OD_EXTRA_BYTES);
+    memset(extra + n, 0, THRESH_OD_EXTRA_BYTES - n);
+#endif
     s_levels_word = persist_get_status_levels();
 }
 
@@ -545,7 +552,7 @@ bool status_row_refresh(StatusRow *row) {
     const bool has_line = load_pass(row->line_id, views) > 0;
     // The settings blob, whole: every look, cell and item setting the row paints is
     // read from it, so a save that changes any of them is a new paint.
-    sig = sig_fold(sig, s_thresh_scratch, THRESH_SETTINGS_BYTES);
+    sig = sig_fold(sig, s_thresh_scratch, THRESH_SCRATCH_BYTES);
     // The items' entries tuple and live state. Also where row->od.assigned is derived.
     sig = status_on_demand_fold(&row->od, sig, status_threshold_bar_of_line(row->line_id),
                                 s_thresh_scratch);

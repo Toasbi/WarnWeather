@@ -17,6 +17,7 @@ var forecastSpan = require('./forecast-span.js');
 var forecastAxis = require('./forecast-axis.js');
 // Graph styles (emery): the bake's settings while screens show several styles.
 var graphStyleWire = require('./weather/graph-style-wire.js');
+var platformLib = require('./config-ui/lib/platform.js');
 
 /**
  * The drawn metrics whose line is a stripe: a stripe line's bytes are level bytes on the
@@ -73,8 +74,10 @@ function isAlertCode(code) {
  */
 function mergedSlots(settings) {
     var out = [];
-    for (var l = 0; l < statusCatalog.LINES.length; l++) {
-        var line = statusCatalog.LINES[l];
+    // A made bar 4 to 6's too (Pebble Time 2: catalog madeExtraLines, read env-free).
+    var lines = statusCatalog.LINES.concat(statusCatalog.madeExtraLines(settings));
+    for (var l = 0; l < lines.length; l++) {
+        var line = lines[l];
         for (var s = 0; s < 3; s += 2) {
             var key = line.slots[s];
             var code = settings[key] || statusCatalog.slotDefault(key);
@@ -232,6 +235,16 @@ function renderSignature(settings, watchInfo) {
     // Signed only while there is one, so every other bake signs as it did before the spare.
     var spare = spareSignature(settings);
     if (spare) { parts.push(spare); }
+    // Bars 4 to 6 (Pebble Time 2): each line the bake sends (catalog madeExtraLines, the
+    // watch's), its id and then its slots signed as the twelve's are. Only while one is made,
+    // so every other bake signs as it did before them.
+    statusCatalog.madeExtraLines(settings, platformLib.computeEnv(watchInfo || null)).forEach(function (line) {
+        parts.push(line.id);
+        line.slots.forEach(function (slotKey) {
+            parts.push(settings[slotKey],
+                settings[slotKey] === 'countdown' ? settings[slotKey + 'Countdown'] : '');
+        });
+    });
     return parts.join('|');
 }
 

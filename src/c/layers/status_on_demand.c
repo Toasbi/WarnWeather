@@ -169,7 +169,7 @@ static const AlertEntry *item_entry(const StatusOnDemandState *s, int item) {
 // app_message.c has already checked it with alert_set_bytes_ok). Returns the tuple
 // bytes read into s->bytes: 0 when none is stored, or the bar has no metric item; -1
 // when the bar has no item at all.
-static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SETTINGS_BYTES]) {
+static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SCRATCH_BYTES]) {
     s->set.count = 0;
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
     s->bt_key = 0;
@@ -299,7 +299,7 @@ static void measure(const StatusOnDemandState *s, const StatusOnDemandRow *row,
 // active, and the minutes and whether it rains only while the rain look prints them,
 // or an idle Battery or an icon-only rain alert would repaint every minute for nothing.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
-                               const uint8_t blob[THRESH_SETTINGS_BYTES]) {
+                               const uint8_t blob[THRESH_SCRATCH_BYTES]) {
     StatusOnDemandState s;
     const int n = collect(&s, bar, blob);
     row->assigned = n >= 0;
@@ -371,7 +371,7 @@ static void measure_family(Families *f, int i, const StatusOnDemandSlot *slot,
 }
 
 void status_on_demand_collect(const StatusOnDemandRow *row, StatusOnDemandPass *pass,
-                              int bar, const uint8_t blob[THRESH_SETTINGS_BYTES]) {
+                              int bar, const uint8_t blob[THRESH_SCRATCH_BYTES]) {
     pass->state.set.count = 0;
     if (row->assigned && bar >= 0) { collect(&pass->state, bar, blob); }
 }

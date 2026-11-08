@@ -101,7 +101,7 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   (the AppMessage channel is half-duplex, so back-to-back sends collide), and commit the
   last-sent cache only in the ACK callback so a NACK retries next time.
 - **Keep the bundled message within the watch's inbox — `inbox_size` is 536 B on aplite,
-  1024 B on emery and 640 B everywhere else (`src/c/appendix/app_message.c`).** Because
+  1280 B on emery and 640 B everywhere else (`src/c/appendix/app_message.c`).** Because
   all changed categories ride in one send, a new or enlarged payload key has to keep the *heaviest*
   bundle under budget on every platform. On aplite the buffer is allocated from its
   already-tiny heap, so 536 B is a hard ceiling there — you can't just bump it; the other
@@ -113,11 +113,13 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   (`APP_MSG_BUFFER_OVERFLOW` → "Message dropped!"). Worst realistic case is DWD with all
   four metric lines active, the radar's sky rows on, City in every status slot and a
   full weather-alert entry tuple = 603 B of 640 B (37 B headroom);
-  emery's 1024 B was the owner's call for 2.2.0's forecast span (six trends of up to 68 B;
-  `src/pkjs/forecast-span.js`), its heaviest bundle 942 B of 1024 B since 2.7.0's graph
-  styles added a seventh trend (the spare row, `SPARE_LINE_TREND_UINT8`, sent only while the
-  screens' graphs draw five series between them), and every
-  other watch is never sent more than 24 hours, so it keeps 603 B of 640 B;
+  emery's inbox was the owner's call twice: 1024 B for 2.2.0's forecast span (six trends of
+  up to 68 B; `src/pkjs/forecast-span.js`), then 1280 B for 2.7.0's bars 4 to 6 (New bar:
+  `STATUS_LINE_5..7_UINT8`, one more status line per made bar, up to 51 B each). Its
+  heaviest bundle is 1095 B of 1280 B: the long span, the graph styles' seventh trend (the
+  spare row, `SPARE_LINE_TREND_UINT8`, sent only while the screens' graphs draw five series
+  between them) and three made bars full of City. Every
+  other watch is never sent more than 24 hours or a bar 4 to 6, so it keeps 603 B of 640 B;
   aplite's heaviest bundle, without the lines it cannot draw, is 473 B of 536 B (see
   `test/inbox-size.test.js` — the authoritative computation, which records the bundle
   sizes exactly per platform; keep them in sync). That headroom was 10 B until the settings-derived
@@ -130,7 +132,8 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   bundles; when you grow the worst-case bundle, update its `buildHeaviestBundle()`, and
   treat bumping `inbox_size` as a last resort (the 640 B step was the owner's call for
   a feature-sized tuple that has no settings-side home — the weather alerts' entries are
-  weather-derived — and it stays off aplite; so is emery's 1024 B, for forecast hours).
+  weather-derived — and it stays off aplite; so are emery's 1024 B, for forecast hours, and
+  its 1280 B, for bars 4 to 6).
   Before spending weather-message bytes, ask whether the value is settings-derived — if
   it is, it belongs on the Clay message —
   but the Clay message ships to aplite too and is tight (the heaviest Clay message is
@@ -138,8 +141,9 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   On demand Battery item, the per-kind warn look and the ten On demand cells, paid for
   by `CLAY_BATTERY_LOW_ONLY` riding a known aplite's bundle alone — sized
   against aplite's 536 B inbox as the conservative floor; a known emery's bundle alone also
-  carries the graph styles' records, `CLAY_GRAPH_STYLE_1..3_UINT8`, 664 B of its 1024 B at
-  their heaviest — and the test enforces a 10 B headroom floor on each bundle), so check
+  carries the graph styles' records, `CLAY_GRAPH_STYLE_1..3_UINT8`, and bars 4 to 6's On
+  demand cells, `CLAY_OD_EXTRA_UINT8`, 681 B of its 1280 B at their heaviest — and the test
+  enforces a 10 B headroom floor on each bundle), so check
   `test/inbox-size.test.js` either way.
 - **Message boundary: settings ride the settings (Clay) message; weather data rides the
   weather message.** Config-derived values — colour palettes, formatting/display toggles,

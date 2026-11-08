@@ -80,12 +80,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
         return onDemand.placedAnywhere(S, args.code, env);
     }
 
-    // A status row's source -> the bar it draws.
-    var BAR_OF_SOURCE = {};
-    BAR_OF_SOURCE[VC.STATUS_SRC_FORECAST] = 'forecast';
-    BAR_OF_SOURCE[VC.STATUS_SRC_RADAR] = 'radar';
-    BAR_OF_SOURCE[VC.STATUS_SRC_HEALTH] = 'health';
-
     /**
      * defaultViewLacksOnDemand: the Default view the watch runs (view-cycle.js
      * resolveViewCycle, slot 0) has no Watch Status Bar, and no bar in its status rows
@@ -99,7 +93,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
         if (!view || !view.stripOff) { return false; }
         var rows = [view.statusUpper, view.statusLower];
         for (var r = 0; r < rows.length; r++) {
-            var bar = BAR_OF_SOURCE[rows[r]];
+            var bar = VC.barOfSource(rows[r]);
             if (!bar) { continue; }
             for (var i = 0; i < onDemand.ITEMS.length; i++) {
                 if (onDemand.sideOf(S, bar, onDemand.ITEMS[i].code, env) !== null) { return false; }

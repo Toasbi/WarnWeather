@@ -539,6 +539,11 @@ test('STATUS_KEYS is exactly the outbox status category', () => {
     'the weather alerts\' entries re-bake with the lines');
 });
 
+// Bars 4 to 6's lines (Pebble Time 2) ride only once made: a basalt bake writes the six
+// other status keys.
+const EXTRA_LINE_KEYS = ['STATUS_LINE_5_UINT8', 'STATUS_LINE_6_UINT8', 'STATUS_LINE_7_UINT8'];
+const SIX_STATUS_KEYS = statusRebake.STATUS_KEYS.filter((k) => EXTRA_LINE_KEYS.indexOf(k) === -1);
+
 test('the micro-send carries the six status keys and nothing else', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr), settings: { temperatureUnits: 'c' } });
@@ -550,7 +555,7 @@ test('the micro-send carries the six status keys and nothing else', () => {
   mgr.setLevel(0.42);
   assert.equal(h.sends.length, 1);
   const sent = h.sends[0];
-  assert.deepEqual(Object.keys(sent).sort(), statusRebake.STATUS_KEYS.slice().sort(),
+  assert.deepEqual(Object.keys(sent).sort(), SIX_STATUS_KEYS.slice().sort(),
     'nothing outside the status category rides along');
   // Neither the snapshot's own weather keys nor a stray key the bake added.
   ['CITY', 'CURRENT_TEMP', 'TEMP_TREND_UINT8', 'NUM_ENTRIES', 'FORECAST_START',
@@ -589,7 +594,7 @@ test('the re-bake renders the live reading through the real status-line pipeline
     { CITY: 'Bonn', CURRENT_TEMP: 68, SUN_EVENTS: [1, 0, 0, 0, 0] }, { platform: 'basalt' });
 
   mgr.setLevel(0.42);
-  assert.deepEqual(Object.keys(h.sends[0]).sort(), statusRebake.STATUS_KEYS.slice().sort());
+  assert.deepEqual(Object.keys(h.sends[0]).sort(), SIX_STATUS_KEYS.slice().sort());
   let slot = decodeLine(h.sends[0].STATUS_LINE_1_UINT8)[0];
   assert.deepEqual(slot, { kind: catalog.KINDS.TEXT, icon: catalog.ICONS.PHONE_BATTERY, text: '42%' },
     'the send was triggered by the 40 bucket, but it carries 42%');
@@ -599,6 +604,22 @@ test('the re-bake renders the live reading through the real status-line pipeline
   assert.equal(h.sends.length, 2);
   slot = decodeLine(h.sends[1].STATUS_LINE_1_UINT8)[0];
   assert.deepEqual(slot, { kind: catalog.KINDS.TEXT, icon: catalog.ICONS.PHONE_BATTERY_CHG, text: '42%' });
+});
+
+test('on a Pebble Time 2 the re-bake carries a made bar 4 to 6 line too, and only a made one', () => {
+  const mgr = fakeManager(0.62, false);
+  const h = boot({ navigator: modernNavigator(mgr), realBake: true,
+                   settings: { temperatureUnits: 'c', axisTimeFormat: '24h',
+                               statusBar4Made: true, statusBar4Left: 'phoneBattery' } });
+  statusRebake.rememberBakeInputs(
+    { CITY: 'Bonn', CURRENT_TEMP: 68, SUN_EVENTS: [1, 0, 0, 0, 0] }, { platform: 'emery' });
+
+  mgr.setLevel(0.42);
+  assert.deepEqual(Object.keys(h.sends[0]).sort(), SIX_STATUS_KEYS.concat('STATUS_LINE_5_UINT8').sort(),
+    'bar 4 is made, bars 5 and 6 are not');
+  assert.deepEqual(decodeLine(h.sends[0].STATUS_LINE_5_UINT8)[0],
+    { kind: catalog.KINDS.TEXT, icon: catalog.ICONS.PHONE_BATTERY, text: '42%' },
+    'bar 4 carries the live reading');
 });
 
 // --- The reported bug: 31% displayed as 30% ---------------------------------

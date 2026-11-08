@@ -117,6 +117,10 @@ const EXPECTED_KEYS = [
   'viewName0','viewName1','viewName2',
   // The status bars' names (2.7): page-only too (screens.js barName).
   'statusForecastName','statusRadarName','statusHealthName',
+  // Bars 4 to 6 (Pebble Time 2, New bar): each one's made flag, name, slots and their
+  // countdown dates (its side lists are on-demand.js DEFAULTS', ALERT_KEYS).
+  ...['statusBar4', 'statusBar5', 'statusBar6'].reduce((all, p) => all.concat([p + 'Made', p + 'Name',
+    p + 'Left', p + 'LeftCountdown', p + 'Mid', p + 'MidCountdown', p + 'Right', p + 'RightCountdown']), []),
   'statusBoldAll',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
@@ -182,7 +186,11 @@ test('every status slot is immediately followed by its own conditional date cont
     'statusForecastLeft', 'statusForecastMid', 'statusForecastRight',
     'statusRadarLeft', 'statusRadarMid', 'statusRadarRight',
     'statusHealthLeft', 'statusHealthMid', 'statusHealthRight',
-    'statusTopLeft', 'statusTopMid', 'statusTopRight'
+    'statusTopLeft', 'statusTopMid', 'statusTopRight',
+    // Bars 4 to 6 (Pebble Time 2).
+    'statusBar4Left', 'statusBar4Mid', 'statusBar4Right',
+    'statusBar5Left', 'statusBar5Mid', 'statusBar5Right',
+    'statusBar6Left', 'statusBar6Mid', 'statusBar6Right'
   ];
   slotKeys.forEach((slotKey) => {
     const slot = byKey(slotKey);
@@ -199,7 +207,7 @@ test('every status slot is immediately followed by its own conditional date cont
     assert.match(JSON.stringify(date.showWhen),
       new RegExp('"' + slotKey + '".*"countdown"'));
   });
-  assert.equal(items.filter((item) => item.type === 'date').length, 12);
+  assert.equal(items.filter((item) => item.type === 'date').length, 21);
 });
 
 test('defaults match Clay/clay-settings (not the prototype drift)', () => {
@@ -1964,7 +1972,7 @@ test('bw-light hides every effective-color gate (color pickers, B/W legends, sca
   });
 });
 
-test('Status bars tab (id watch): the All status bars card, the four bars in watch/forecast/health/radar order, then the sheets', () => {
+test('Status bars tab (id watch): the All status bars card, the bars in watch/forecast/health/radar order, bars 4 to 6 and New bar, then the sheets', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
   // The label was renamed (Status slots → Status bars); the id stays 'watch' —
   // deep links and this very lookup key on it.
@@ -1979,22 +1987,41 @@ test('Status bars tab (id watch): the All status bars card, the four bars in wat
   // The owner's order (2026-10-01: "1: watch status bar 2 weather 3 health 4 radar"),
   // the page's only (it was Forecast, Radar, Health, Watch): on-demand.js BARS and the
   // wire keep their own order.
-  assert.deepEqual(titles.slice(0, 5),
-    ['All status bars', 'Watch bar', 'Forecast bar', 'Health bar', 'Radar bar'],
-    'the four status bars follow the All status bars card, in order');
-  assert.deepEqual(require('../src/pkjs/on-demand.js').BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health'],
-    'the contract\'s bar order stays');
+  // Bars 4 to 6 (Pebble Time 2) follow, each card shown once New bar made its bar, then the
+  // untitled New bar card.
+  assert.deepEqual(titles.slice(0, 8),
+    ['All status bars', 'Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Bar 4', 'Bar 5', 'Bar 6'],
+    'the status bars follow the All status bars card, in order');
+  assert.deepEqual(require('../src/pkjs/on-demand.js').BARS.map((b) => b.bar),
+    ['top', 'forecast', 'radar', 'health', 'bar4', 'bar5', 'bar6'], 'the contract\'s bar order stays');
   assert.ok(!watch.sections.some((s) => s.id === 'onDemand'), 'the Alert settings card is on the Alerts tab');
   // One card per bar now (no groupCard merging them into one status card).
   assert.deepEqual(watch.sections.filter((s) => !s.sheetOnly).map((s) => s.id),
-    ['statusAll', 'barTop', 'barForecast', 'barHealth', 'barRadar'], 'the tab\'s cards');
+    ['statusAll', 'barTop', 'barForecast', 'barHealth', 'barRadar', 'bar4', 'bar5', 'bar6', 'barNew'],
+    'the tab\'s cards');
+  ['bar4', 'bar5', 'bar6'].forEach((id, i) => {
+    const card = watch.sections.find((s) => s.id === id);
+    const prefix = 'statusBar' + (i + 4);
+    assert.deepEqual(card.showWhen, { all: [{ env: 'extraBars' }, { key: prefix + 'Made', eq: true }] },
+      id + ': once made, on a watch that has it');
+    assert.deepEqual(card.titleBy, { resolver: 'barName', args: { bar: id } });
+    assert.equal(card.items[0].messageKey, prefix + 'Name', id + ': its Name row first');
+    const del = card.items[card.items.length - 1];
+    assert.deepEqual([del.type, del.style, del.action, del.actionArg, del.label],
+      ['button', 'link', 'deleteBar', id, 'Delete bar'], id + ': Delete bar last');
+  });
+  const newBar = watch.sections.find((s) => s.id === 'barNew');
+  assert.deepEqual(newBar.showWhen, { env: 'extraBars' });
+  assert.deepEqual(newBar.items.map((i) => i.type), ['staticText', 'button', 'staticText'],
+    'the Undo line, the New bar row, the six-bars note');
+  assert.equal(newBar.items[1].action, 'newBar');
   watch.sections.forEach((s) => assert.equal(s.groupCard, undefined, (s.id || s.sheetId) + ': a card of its own'));
   // The per-slot edit sheets (sheetOnly, opened from a slot's Edit button — never
   // cards) follow in the sections array (see alertSlotSheet / goalSlotSheet). Each is
   // titled after the SLOT: it configures the slot's bold mode as well as its
   // thresholds/goals, so the goal-vs-threshold split lives on the group header inside,
   // not in the sheet title.
-  assert.deepEqual(titles.slice(5, 13),
+  assert.deepEqual(titles.slice(8, 16),
     ['Air quality (AQI) slot', 'Pollen slot', 'Wind speed slot',
       'Wind gusts slot', 'UV index slot', 'Steps slot', 'Sleep slot',
       'Walked distance slot'],
@@ -2003,7 +2030,7 @@ test('Status bars tab (id watch): the All status bars card, the four bars in wat
   // the contract's wire-id order (KINDS 8..19). 'Phone battery slot' is last and
   // serves BOTH phone-battery kinds (18 and 19) — they share key 'PhoneBattery',
   // so there are eleven sheets for twelve bold-only kinds.
-  assert.deepEqual(titles.slice(13),
+  assert.deepEqual(titles.slice(16),
     ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
       'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
@@ -2360,7 +2387,9 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // gate is section-level, and it composes with — not replaces — the per-item health
   // gate and the color pickers' COLOR-capability + non-B&W-theme rules.
   const watch = schema.tabs.find((t) => t.id === 'watch');
-  const sheets = watch.sections.filter((s) => s.sheetOnly);
+  // Bars 4 to 6's made flags and New bar's picker ride a sheetOnly section of their own, never
+  // opened as a sheet of its own (schema.js barKeysSection).
+  const sheets = watch.sections.filter((s) => s.sheetOnly && s.sheetId !== 'barKeys');
   assert.equal(sheets.length, 19,
     'one edit sheet per boldable slot kind (8 threshold + 11 bold-only)');
   assert.deepEqual(sheets.map((s) => s.sheetId),

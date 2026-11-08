@@ -76,10 +76,11 @@ typedef struct {
 } RadarPaint;
 
 // status_row.c's refresh and draw passes: the line's packed blob and the thresholds
-// settings blob (load_pass), and a draw's On demand pass.
+// settings blob (load_pass; on emery bars 4 to 6's On demand cells behind it), and a
+// draw's On demand pass.
 typedef struct {
     uint8_t            blob[STATUS_LINE_MAX_BYTES];
-    uint8_t            thresh[THRESH_SETTINGS_BYTES];
+    uint8_t            thresh[THRESH_SCRATCH_BYTES];
     StatusOnDemandPass od;
 } StatusRowPass;
 

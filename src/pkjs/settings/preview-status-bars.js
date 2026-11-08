@@ -44,6 +44,8 @@
         health: {name: 'Health', src: VC.STATUS_SRC_HEALTH},
         radar: {name: 'Radar', src: VC.STATUS_SRC_RADAR}
     };
+    // Bars 4 to 6 (Pebble Time 2, New bar): seated by their own sources.
+    VC.EXTRA_BARS.forEach(function (b) { BAR_SEATS[b.bar] = {name: b.bar, src: b.src}; });
     // The bars in the page's order, with their short names and seats.
     var BARS = onDemand.PAGE_BARS.map(function (b) {
         return {bar: b.bar, name: BAR_SEATS[b.bar].name, src: BAR_SEATS[b.bar].src};
@@ -251,14 +253,16 @@
      * fillNewBars reads a bar's slots here to tell one that shows nothing.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
-     * @param {string} bar 'top' | 'forecast' | 'health' | 'radar'.
+     * @param {string} bar 'top' | 'forecast' | 'health' | 'radar', or a bar 4 to 6.
      * @returns {Array<{pos: string, key: string, code: string}>} The left, middle and right
      *     slots (pos from status-line-catalog.js SLOT_POSITIONS, key the slot's setting, e.g.
      *     'statusTopLeft'); [] for an unknown bar.
      */
     function barCodes(S, env, bar) {
         var st = S || {}, line = null, i;
-        for (i = 0; i < catalog.LINES.length; i++) { if (catalog.LINES[i].id === bar) { line = catalog.LINES[i]; } }
+        for (i = 0; i < catalog.ALL_LINES.length; i++) {
+            if (catalog.ALL_LINES[i].id === bar) { line = catalog.ALL_LINES[i]; }
+        }
         if (!line) { return []; }
         return line.slots.map(function (key, p) {
             var pos = catalog.SLOT_POSITIONS[p];
@@ -331,10 +335,10 @@
         var views = VC.resolveViewCycle(st, env);
         var now = new Date();
         BARS.forEach(function (b) {
-            var optional = b.bar === 'radar' || b.bar === 'health';
+            var optional = b.bar !== 'top' && b.bar !== 'forecast';
             if (optional && !onDemand.barExists(st, b.bar, env)) { return; }
-            // The Radar and Health bars show while a screen shows them, as their cards on
-            // the tab do (on-demand.js barExists). The Watch and Forecast bars show only
+            // The Radar and Health bars (and a made bar 4 to 6) show while a screen shows
+            // them, as their cards on the tab do (on-demand.js barExists). The Watch and Forecast bars show only
             // where a view seats them (Weather only without health has no top strip
             // anywhere).
             var view = barView(views, b);

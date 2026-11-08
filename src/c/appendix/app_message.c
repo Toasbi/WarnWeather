@@ -48,7 +48,7 @@ typedef struct {
 // of warn_bad's log line. The comments name the three numbers that follow it.
 typedef enum {
     BAD_FORECAST = 1,    // trend, start and count tuples present (1/0)
-    BAD_STATUS_LINE,     // line number (1-4), bytes
+    BAD_STATUS_LINE,     // line number (1-4; 5-7 bars 4 to 6 on emery), bytes
     BAD_STATUS_LEVELS,   // bytes
     BAD_THRESHOLDS,      // bytes
     BAD_ALERT_ENTRIES,   // bytes
@@ -59,6 +59,7 @@ typedef enum {
     BAD_LINE_STYLE,      // bytes
     BAD_NIGHT_LIGHT,     // bytes
     BAD_GRAPH_STYLE,     // style (1-3), bytes
+    BAD_OD_EXTRA,        // bytes
 } BadTuple;
 
 // One log call and one format string for every skip below. noinline: aplite has only
@@ -165,6 +166,13 @@ static uint32_t status_line_key(int line_id) {
         case 0: return MESSAGE_KEY_STATUS_LINE_1_UINT8;
         case 1: return MESSAGE_KEY_STATUS_LINE_2_UINT8;
         case 2: return MESSAGE_KEY_STATUS_LINE_3_UINT8;
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: bars 4 to 6 (status_line.h STATUS_LINE_BAR4..6). The phone sends a bar's
+        // line only while the bar is made, so a watch without them reads no tuple.
+        case STATUS_LINE_BAR4: return MESSAGE_KEY_STATUS_LINE_5_UINT8;
+        case STATUS_LINE_BAR5: return MESSAGE_KEY_STATUS_LINE_6_UINT8;
+        case STATUS_LINE_BAR6: return MESSAGE_KEY_STATUS_LINE_7_UINT8;
+#endif
         default: return MESSAGE_KEY_STATUS_LINE_4_UINT8;
     }
 }
@@ -241,6 +249,22 @@ static bool handle_alert_entries(DictionaryIterator *iterator, bool *status_dirt
     *status_dirty |= persist_set_alert_entries(tuple->value->data, tuple->length);
     return true;
 }
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: bars 4 to 6's On demand cells (status_threshold.h THRESH_OD_EXTRA_BYTES), on the
+// Clay message beside the thresholds blob, whose cell bytes have no room for them. Any
+// length but the cells' is dropped, and the last good cells stay.
+static bool handle_od_extra(DictionaryIterator *iterator, bool *status_dirty) {
+    Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_OD_EXTRA_UINT8);
+    if (!tuple) { return false; }
+    if (tuple->type != TUPLE_BYTE_ARRAY || tuple->length != THRESH_OD_EXTRA_BYTES) {
+        warn_bad(BAD_OD_EXTRA, tuple->length, 0, 0);
+        return true;
+    }
+    *status_dirty |= persist_set_od_extra_cells(tuple->value->data, tuple->length);
+    return true;
+}
+#endif
 #endif  // WW_ON_DEMAND
 
 #if defined(WW_FETCH_NOTICE)
@@ -687,6 +711,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // aplite has no On demand (the lean status-row twin draws none) and the phone
     // never sends it the tuple.
     handled |= handle_alert_entries(iterator, &status_dirty);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6's On demand cells.
+    handled |= handle_od_extra(iterator, &status_dirty);
+#endif
 #endif
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
 #if defined(WW_RAIN_RADAR)
@@ -905,8 +933,10 @@ void app_message_init() {
 #elif defined(PBL_PLATFORM_EMERY)
     // emery: 1024 (was 640, 2.2.0): the long forecast span's six 68-byte trends make the
     // heaviest bundle 867 B, 875 B with a cleared notice (test/inbox-size.test.js); 128 KB of
-    // app RAM has the room. Every other watch is never sent more than 24 hours.
-    const int inbox_size = 1024;
+    // app RAM has the room. Every other watch is never sent more than 24 hours. 1280 (was
+    // 1024, 2.7.0): bars 4 to 6's lines ride the status category, up to 51 B each, so the
+    // heaviest bundle is 1095 B, 1103 B with a cleared notice.
+    const int inbox_size = 1280;
 #else
     // Every other platform carries the extra metric lines (test/inbox-size.test.js sizes each
     // platform's heaviest bundle against its own value here). Their heap is not spare either:

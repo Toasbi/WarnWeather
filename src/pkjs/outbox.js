@@ -56,8 +56,11 @@ var WEATHER_CATEGORIES = [
     {
         name: 'status',
         cacheKey: KEYS.LAST_SENT_STATUS_KEY,
+        // STATUS_LINE_5..7_UINT8: bars 4 to 6's lines (Pebble Time 2, status-lines.js),
+        // present only while the bar is made.
         keys: ['STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8',
                'STATUS_LINE_3_UINT8', 'STATUS_LINE_4_UINT8',
+               'STATUS_LINE_5_UINT8', 'STATUS_LINE_6_UINT8', 'STATUS_LINE_7_UINT8',
                'STATUS_LEVELS_UINT8', 'ALERT_ENTRIES_UINT8']
     },
     {

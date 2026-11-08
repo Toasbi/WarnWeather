@@ -1679,15 +1679,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var faint = item.summaryFaintFrom && cx
       && PConf.showWhen.evaluate(item.summaryFaintFrom, cx.evalCtx);
     var sub = summary ? '<div class="hint' + (faint ? ' faint' : '') + '">' + summary + '</div>' : '';
+    // An action row's argument (item.actionArg), handed to its action as data-action-arg.
+    var arg = attr === 'data-action' && item.actionArg != null
+      ? ' data-action-arg="' + esc(String(item.actionArg)) + '"' : '';
     // A link row (style: 'link'): the action as a line of link-coloured text, no chevron —
     // a reset or an outside link, which leads nowhere inside the page.
     if (item.style === 'link') {
       return '<div class="row linkrow' + nbClass(noDivider) + (item.indent ? ' indent' : '') + '">'
-        + '<button type="button" class="txt-link" ' + attr + '="' + esc(value) + '">' + esc(label) + '</button>'
+        + '<button type="button" class="txt-link" ' + attr + '="' + esc(value) + '"' + arg + '>' + esc(label) + '</button>'
         + '</div>';
     }
     return '<div class="row nav' + nbClass(noDivider) + (item.indent ? ' indent' : '') + '" ' + attr + '="'
-      + esc(value) + '" role="button" tabindex="0" style="cursor:pointer">'
+      + esc(value) + '"' + arg + ' role="button" tabindex="0" style="cursor:pointer">'
       + '<div class="lft"><div class="lbl">' + labelIconHtml(item) + esc(label) + '</div>' + sub
       + (ariaNote ? '<span class="sr-only">' + esc(String(ariaNote)) + '</span>' : '') + '</div>'
       + '<div class="rgt">' + (swatch || '') + (item.navNote ? '<span class="nav-note">' + esc(item.navNote) + '</span>' : '')

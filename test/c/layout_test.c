@@ -1961,6 +1961,68 @@ static void graph_style_ext_tests(void) {
     expect("graph_style.fields_unharmed", s.body_size == 3 && s.align == 2, true);
     expect("graph_style.high_bits_ignored", view_ext_graph_style(0x7800) == 0, true);
 }
+
+static bool same_rect(GRect a, GRect b) {
+    return a.origin.x == b.origin.x && a.origin.y == b.origin.y
+        && a.size.w == b.size.w && a.size.h == b.size.h;
+}
+
+// emery: bars 4 to 6 ride a row's source plus 3 when the row's ext bit is set (bit 11 the
+// upper row, bit 12 the lower; view-cycle.js packExt), and a row that is off stays off. They
+// are status rows like the others: the same bands and tier, no Health bar nudge, a flick
+// stop on their own, and resolve keeps them.
+static void extra_bars_ext_tests(void) {
+    const uint16_t dual = pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_HEALTH);
+    ViewSpec s = unpack_ext(dual, VIEW_EXT_UPPER_BAR_HI);
+    expect("bars.upper_bar4",
+           s.status_upper == STATUS_SRC_BAR4 && s.status_lower == STATUS_SRC_HEALTH, true);
+    s = unpack_ext(dual, VIEW_EXT_LOWER_BAR_HI);
+    expect("bars.lower_bar6",
+           s.status_upper == STATUS_SRC_FORECAST && s.status_lower == STATUS_SRC_BAR6, true);
+    s = unpack_ext(pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_NONE),
+                   VIEW_EXT_UPPER_BAR_HI | VIEW_EXT_LOWER_BAR_HI);
+    expect("bars.upper_bar5_lower_off",
+           s.status_upper == STATUS_SRC_BAR5 && s.status_lower == STATUS_SRC_NONE, true);
+    // Beside the other ext fields, each unharmed.
+    const uint16_t ext = (uint16_t)(ext_word(BAND_SIZE_2, 0, 0, ALIGN_TOP) | (2u << 9)
+                                    | VIEW_EXT_UPPER_BAR_HI);
+    s = unpack_ext(dual, ext);
+    expect("bars.fields_unharmed", s.body_size == BAND_SIZE_2 && s.align == ALIGN_TOP
+           && view_ext_graph_style(ext) == 2 && s.status_upper == STATUS_SRC_BAR4, true);
+
+    ViewSpec bars = unpack_ext(dual, VIEW_EXT_UPPER_BAR_HI | VIEW_EXT_LOWER_BAR_HI);
+    ViewSpec base = view_spec_unpack(dual);
+    expect("bars.both", bars.status_upper == STATUS_SRC_BAR4
+           && bars.status_lower == STATUS_SRC_BAR6, true);
+    expect("bars.same_tier", bars.status_tier == base.status_tier
+           && bars.stacked == base.stacked, true);
+    MainLayout Lbars = layout_compute_spec(BOUNDS, &bars, MET(FC_BAND_H, INK));
+    MainLayout Lbase = layout_compute_spec(BOUNDS, &base, MET(FC_BAND_H, INK));
+    expect("bars.same_geometry", memcmp(&Lbars, &Lbase, sizeof(Lbars)) == 0, true);
+    expect("bars.visible", layout_status_visible(&bars, STATUS_SRC_BAR4)
+           && layout_status_visible(&bars, STATUS_SRC_BAR6), true);
+    expect("bars.not_the_first_three", layout_status_visible(&bars, STATUS_SRC_FORECAST)
+           || layout_status_visible(&bars, STATUS_SRC_RADAR)
+           || layout_status_visible(&bars, STATUS_SRC_HEALTH), false);
+    expect("bars.upper_band", same_rect(layout_status_band(&bars, &Lbars, STATUS_SRC_BAR4),
+                                        Lbars.status), true);
+    // The Health bar's dual-row nudge stays the Health bar's: bar 6 takes the band as it is.
+    expect("bars.lower_band_no_nudge",
+           same_rect(layout_status_band(&bars, &Lbars, STATUS_SRC_BAR6), Lbars.status_lower), true);
+    ViewSpec r = view_spec_resolve(bars, false, false);
+    expect("bars.resolve_keeps", r.status_upper == STATUS_SRC_BAR4
+           && r.status_lower == STATUS_SRC_BAR6, true);
+    // A flick view with only a bar 4 to 6 on it is a stop, as one with only a Forecast bar is.
+    const uint32_t lone = (uint32_t) pack_custom(pack(1, 0, 3, STATUS_SRC_FORECAST,
+                                                      STATUS_SRC_NONE), 1, 1, 0)
+                        | ((uint32_t) VIEW_EXT_UPPER_BAR_HI << 16);
+    expect("bars.lone_bar_is_a_stop", view_slot_available(lone, true, true), true);
+    const uint32_t lone_lower = (uint32_t) pack_custom(pack(1, 0, 3, STATUS_SRC_NONE,
+                                                            STATUS_SRC_RADAR), 1, 1, 0)
+                              | ((uint32_t) VIEW_EXT_LOWER_BAR_HI << 16);
+    expect("bars.lone_lower_bar_is_a_stop", view_slot_available(lone_lower, true, true), true);
+    printf("extra_bars_ext OK\n");
+}
 #endif
 
 static void ext_decode_tests(void) {
@@ -3757,6 +3819,7 @@ int main(int argc, char **argv) {
     if (!s_dump) ext_decode_tests();
 #ifdef PBL_PLATFORM_EMERY
     if (!s_dump) graph_style_ext_tests();
+    if (!s_dump) extra_bars_ext_tests();
 #endif
     if (!s_dump) test_resolve_no_health_no_radar();
     if (!s_dump) viewspec_tests();

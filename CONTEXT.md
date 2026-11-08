@@ -61,14 +61,25 @@ the clock does not fit (`src/pkjs/settings/screens-page.js` moveScreen).
 _Avoid_: view (the watch's word for what it draws).
 
 **Status bar (named)**:
-One of the three bars a screen can show besides the Watch bar: the Forecast, Radar and Health bars
-(`on-demand.js` BARS, `STATUS_LINE_1`/`_2`/`_4`), each holding what its three slots hold, whatever
-its kind. It has a name, the page's own (`<prefix>Name`: never compiled, sent or in telemetry; ''
-reads as its kind's, `screens.js` barName); the Watch bar keeps its name. Any screen shows any of
-them, and the watch draws each without radar or health data (`layout.c` view_spec_resolve), so on
-a custom layout the radar and health modes follow what the shown bars hold, not which bar shows
-(`screens.js` deriveModes).
+One of the bars a screen can show besides the Watch bar ("your bars"): the Forecast, Radar and
+Health bars (`on-demand.js` BARS, `STATUS_LINE_1`/`_2`/`_4`), and on emery bars 4 to 6 once New
+bar made them (`STATUS_LINE_5..7`), each holding what its three slots hold, whatever its kind. It
+has a name, the page's own (`<prefix>Name`: never compiled, sent or in telemetry; '' reads as its
+kind's, `screens.js` barName); the Watch bar keeps its name. Any screen shows any of them, and the
+watch draws each without radar or health data (`layout.c` view_spec_resolve), so on a custom layout
+the radar and health modes follow what the shown bars hold, not which bar shows (`screens.js`
+deriveModes).
 _Avoid_: naming a bar by its source ("the radar row") where its name is meant.
+
+**Made bar (bars 4 to 6)**:
+One of the three extra bars of emery (`view-cycle.js` EXTRA_BARS: `bar4`..`bar6`, prefixes
+`statusBar4`..`6`), which exist once New bar made them (`<prefix>Made` true, `view-cycle.js`
+barMade; `screens.js` makeBar from a set or as a copy of one of your bars) and stop at Delete bar
+(`screens.js` unmakeBar: every screen's row naming it goes off). The phone bakes a made bar's line
+and sends its On demand cells (`CLAY_OD_EXTRA_UINT8`) to a known emery alone; a screen row names it
+with an ext bit over the first three bars' sources (`view-cycle.js` packExt, `layout.h`
+VIEW_EXT_UPPER_BAR_HI), and every other watch, an unknown one too, folds such a row off.
+_Avoid_: calling bars 4 to 6 "custom bars" or "user bars"; they are your bars like the first three.
 
 **Screen preset**:
 A screen Add screen offers after Blank (the Watch bar and the clock): Classic, Weathergraph,

@@ -264,6 +264,10 @@ function buildClayPayload(settings, watchInfo, now) {
     // (env computed at the top of this function, beside the cycle branch.)
     if (env.thresholds) {
         payload.CLAY_THRESHOLDS_UINT8 = statusWire.buildSettingsBlob(settings, env);
+        // Bars 4 to 6's On demand cells (Pebble Time 2, status-wire.js buildExtraCells): the
+        // blob's cell bytes have no room for them. Known emery only, like the graph styles'
+        // records below; zeros while no made bar shows.
+        if (env.extraBars) { payload.CLAY_OD_EXTRA_UINT8 = statusWire.buildExtraCells(settings, env); }
         // Date-slot formats [monthYear, fullDate] — settings-derived, so they ride
         // the Clay message. Gated with the threshold blob: the pickers live on the
         // Date slot's edit sheet, which shares this env gate, and an aplite watch

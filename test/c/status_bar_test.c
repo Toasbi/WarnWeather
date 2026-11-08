@@ -547,10 +547,68 @@ static void health_bar_refreshes_on_visibility(void) {
 }
 #endif
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: bars 4 to 6 are bars like the three: each its own layer and line, framed to the
+// band its source takes, hidden on a view that names none of it, drawn through its own
+// trampoline, in the live-health and On demand sets by the same rules — and the Health
+// bar's nudge stays the Health bar's.
+static void extra_bars_are_bars_too(void) {
+    Layer parent = {0};
+    GContext ctx = {0};
+    s_refresh_changed = true;
+    memset(s_live_health, 0, sizeof(s_live_health));
+    memset(s_draw_count, 0, sizeof(s_draw_count));
+
+    // Bar 4 above, bar 6 below, a dual at the full tier (the Health bar would nudge here).
+    ViewSpec spec = spec_of(2, STATUS_SRC_BAR4, STATUS_SRC_BAR6, LAYOUT_TIER_FULL);
+    MainLayout L = layout_of(GRect(0, 4, 200, 24), GRect(0, 120, 200, 24));
+    status_bar_create_all(&parent, &spec, &L);
+    const int b4 = STATUS_LINE_BAR4, b5 = STATUS_LINE_BAR5, b6 = STATUS_LINE_BAR6;
+    expect_int("extra.created", s_layer_of[b4] && s_layer_of[b5] && s_layer_of[b6], 1);
+    status_bar_apply_view(&spec, &L);
+    expect_int("extra.bar4_upper", s_layer_of[b4]->frame.origin.y, 4);
+    expect_int("extra.bar6_lower_no_nudge", s_layer_of[b6]->frame.origin.y, 120);
+    expect_int("extra.bar6_height", s_layer_of[b6]->frame.size.h, 24);
+    expect_int("extra.bar4_bar6_visible", !s_layer_of[b4]->hidden && !s_layer_of[b6]->hidden, 1);
+    expect_int("extra.bar5_hidden", s_layer_of[b5]->hidden, 1);
+    expect_int("extra.first_three_hidden", s_layer_of[STATUS_LINE_FORECAST]->hidden
+               && s_layer_of[STATUS_LINE_RADAR]->hidden && s_layer_of[STATUS_LINE_HEALTH]->hidden, 1);
+    // Each draws its own row.
+    s_layer_of[b5]->update_proc(s_layer_of[b5], &ctx);
+    expect_int("extra.bar5_draws_its_row", s_draw_count[b5] == 1 && s_draw_count[b4] == 0
+               && s_draw_count[b6] == 0, 1);
+    // Live health on bar 6: seen while shown, refreshed; on bar 5 (hidden) not seen.
+    s_live_health[b5] = true;
+    expect_int("extra.hidden_live_health_unseen", status_bar_any_visible_uses_live_health(&spec), 0);
+    s_live_health[b6] = true;
+    expect_int("extra.live_health_seen", status_bar_any_visible_uses_live_health(&spec), 1);
+    reset_records();
+    status_bar_refresh_live_health(&spec);
+    expect_int("extra.live_health_refreshed", s_refresh_count[b6] >= 1 && s_refresh_count[b5] == 0, 1);
+    // On demand: a shown bar with items refreshes on the tick, a hidden one does not.
+    s_uses_on_demand[b4] = true;
+    s_uses_on_demand[b5] = true;
+    reset_records();
+    status_bar_tick_on_demand();
+    expect_int("extra.on_demand_tick", s_refresh_count[b4] == 1 && s_refresh_count[b5] == 0, 1);
+    memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
+    // Bar 5 takes the lower band when a view puts it there.
+    ViewSpec five = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_BAR5, LAYOUT_TIER_FULL);
+    status_bar_apply_view(&five, &L);
+    expect_int("extra.bar5_lower", s_layer_of[b5]->frame.origin.y == 120 && !s_layer_of[b5]->hidden, 1);
+    expect_int("extra.bar4_hidden_again", s_layer_of[b4]->hidden && s_layer_of[b6]->hidden, 1);
+
+    status_bar_destroy_all();
+    memset(s_live_health, 0, sizeof(s_live_health));
+}
+#endif
+
 // The compact enum is the whole aplite story: without radar and health there is
 // exactly ONE bar, and every loop in status_bar.c folds to today's single-row code.
 static void bar_count_matches_platform(void) {
-#if defined(WW_RAIN_RADAR) && defined(PBL_HEALTH)
+#if defined(PBL_PLATFORM_EMERY)
+    expect_int("bar_count.emery", STATUS_BAR_COUNT, 6);
+#elif defined(WW_RAIN_RADAR) && defined(PBL_HEALTH)
     expect_int("bar_count.evolving", STATUS_BAR_COUNT, 3);
 #elif !defined(WW_RAIN_RADAR) && !defined(PBL_HEALTH)
     expect_int("bar_count.aplite", STATUS_BAR_COUNT, 1);
@@ -572,6 +630,9 @@ int main(void) {
 #if defined(PBL_HEALTH)
     health_nudge_moves_the_band_frame();
     health_bar_refreshes_on_visibility();
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+    extra_bars_are_bars_too();
 #endif
     if (s_failures) {
         printf("%d status_bar failure(s)\n", s_failures);

@@ -7,7 +7,8 @@
 // ── The band status rows ─────────────────────────────────────────────────────
 //
 // One owner for every status row that rides a LAYOUT BAND: the forecast row, the
-// radar row and the health row. Each is a Layer + StatusRow pair; this module owns
+// radar row and the health row, and on emery bars 4 to 6. Each is a Layer + StatusRow
+// pair; this module owns
 // the pair, the per-view facts pushed into it (render tier, full-date, the health
 // row's full-mode) and its band frame.
 //
@@ -43,6 +44,13 @@ typedef enum {
 #endif
 #if defined(PBL_HEALTH)
     STATUS_BAR_HEALTH,
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6 (status_line.h STATUS_LINE_BAR4..6), one layer each like the
+    // three above; hidden on every view that names none of them.
+    STATUS_BAR_4,
+    STATUS_BAR_5,
+    STATUS_BAR_6,
 #endif
     STATUS_BAR_COUNT
 } StatusBarId;

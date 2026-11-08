@@ -67,10 +67,6 @@
     };
     // The samples' time: the forecast and the status bars' readings are a fixed afternoon.
     var CLOCK_TEXT = '15:00';
-    var BAR_OF_SRC = {};
-    BAR_OF_SRC[VC.STATUS_SRC_FORECAST] = 'forecast';
-    BAR_OF_SRC[VC.STATUS_SRC_HEALTH] = 'health';
-    BAR_OF_SRC[VC.STATUS_SRC_RADAR] = 'radar';
     // What a band is called in a screen's spoken description (a status bar by its name,
     // screens.js barName).
     var GRAPH_NAME = { forecast: 'Forecast', radar: 'Radar', health: 'Health graph' };
@@ -493,7 +489,7 @@
         lay.bands.forEach(function (b) {
             if (b.band === 'C') { out.push('Clock'); return; }
             if (b.band === 'A' || b.band === 'B') {
-                var bar = BAR_OF_SRC[b.band === 'A' ? spec.statusUpper : spec.statusLower];
+                var bar = VC.barOfSource(b.band === 'A' ? spec.statusUpper : spec.statusLower);
                 if (bar) { out.push(screens.barName(S, bar)); }
                 return;
             }
@@ -554,7 +550,7 @@
             if (b.band === 'C') {
                 e += clockBand(S, box, cx, tag);
             } else if (b.band === 'A' || b.band === 'B') {
-                var bar = BAR_OF_SRC[b.band === 'A' ? spec.statusUpper : spec.statusLower];
+                var bar = VC.barOfSource(b.band === 'A' ? spec.statusUpper : spec.statusLower);
                 if (bar) { e += rowBand(S, env, bar, box, f ? (rowFull ? 16 : 18) : (rowFull ? 12 : 13.5), cx); }
             } else {
                 var kind = graphKind(spec, b.band);

@@ -246,6 +246,22 @@
                 "onChange": "screenBarPicked"
               },
               {
+                "type": "select",
+                "messageKey": "screenNewBar",
+                "uiOnly": true,
+                "label": "New bar",
+                "sheetTitle": "New bar",
+                "sheetLead": "Start from a set of slots, or copy one of your bars. It goes onto this screen.",
+                "defaultValue": "",
+                "dormantValues": [
+                  ""
+                ],
+                "optionsFrom": {
+                  "resolver": "barStartOptions"
+                },
+                "onChange": "screenNewBarPicked"
+              },
+              {
                 "type": "hidden",
                 "messageKey": "viewTop0",
                 "defaultValue": "cal"
@@ -4434,6 +4450,1030 @@
             ]
           },
           {
+            "id": "bar4",
+            "title": "Bar 4",
+            "titleBy": {
+              "resolver": "barName",
+              "args": {
+                "bar": "bar4"
+              }
+            },
+            "showWhen": {
+              "all": [
+                {
+                  "env": "extraBars"
+                },
+                {
+                  "key": "statusBar4Made",
+                  "eq": true
+                }
+              ]
+            },
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "statusBar4Name",
+                "label": "Name",
+                "defaultValue": "",
+                "attributes": {
+                  "placeholder": "Bar 4",
+                  "maxlength": 24
+                },
+                "hintFrom": {
+                  "resolver": "barScreens",
+                  "args": {
+                    "bar": "bar4"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar4Made",
+                      "eq": true
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4Left",
+                "label": "Left slot",
+                "sheetTitle": "Bar 4 · Left slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "bar4",
+                    "label": "Left slot"
+                  }
+                },
+                "defaultFrom": {
+                  "resolver": "statusSlotDefault",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                },
+                "onChange": "dedupeStatusSlot",
+                "editSheetFrom": {
+                  "resolver": "statusSlotEditSheet"
+                },
+                "editBadgeFrom": {
+                  "resolver": "thresholdPenState"
+                },
+                "optionsFrom": {
+                  "resolver": "statusSlot",
+                  "args": {
+                    "slotKey": "statusBar4Left",
+                    "position": "left"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar4Made",
+                      "eq": true
+                    }
+                  ]
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "date",
+                "messageKey": "statusBar4LeftCountdown",
+                "label": "Countdown date",
+                "defaultFrom": {
+                  "resolver": "todayDate"
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar4Made",
+                          "eq": true
+                        }
+                      ]
+                    },
+                    {
+                      "key": "statusBar4Left",
+                      "eq": "countdown"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4Mid",
+                "label": "Middle slot",
+                "sheetTitle": "Bar 4 · Middle slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "bar4",
+                    "label": "Middle slot"
+                  }
+                },
+                "defaultFrom": {
+                  "resolver": "statusSlotDefault",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                },
+                "onChange": "dedupeStatusSlot",
+                "editSheetFrom": {
+                  "resolver": "statusSlotEditSheet"
+                },
+                "editBadgeFrom": {
+                  "resolver": "thresholdPenState"
+                },
+                "optionsFrom": {
+                  "resolver": "statusSlot",
+                  "args": {
+                    "slotKey": "statusBar4Mid",
+                    "position": "mid"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar4Made",
+                      "eq": true
+                    }
+                  ]
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "date",
+                "messageKey": "statusBar4MidCountdown",
+                "label": "Countdown date",
+                "defaultFrom": {
+                  "resolver": "todayDate"
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar4Made",
+                          "eq": true
+                        }
+                      ]
+                    },
+                    {
+                      "key": "statusBar4Mid",
+                      "eq": "countdown"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4Right",
+                "label": "Right slot",
+                "sheetTitle": "Bar 4 · Right slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "bar4",
+                    "label": "Right slot"
+                  }
+                },
+                "defaultFrom": {
+                  "resolver": "statusSlotDefault",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                },
+                "onChange": "dedupeStatusSlot",
+                "editSheetFrom": {
+                  "resolver": "statusSlotEditSheet"
+                },
+                "editBadgeFrom": {
+                  "resolver": "thresholdPenState"
+                },
+                "optionsFrom": {
+                  "resolver": "statusSlot",
+                  "args": {
+                    "slotKey": "statusBar4Right",
+                    "position": "right"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar4Made",
+                      "eq": true
+                    }
+                  ]
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "date",
+                "messageKey": "statusBar4RightCountdown",
+                "label": "Countdown date",
+                "defaultFrom": {
+                  "resolver": "todayDate"
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar4Made",
+                          "eq": true
+                        }
+                      ]
+                    },
+                    {
+                      "key": "statusBar4Right",
+                      "eq": "countdown"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "button",
+                "label": "Alerts",
+                "gotoTab": "alerts",
+                "navNote": "Alerts",
+                "hintFrom": {
+                  "resolver": "onDemandBarIcons",
+                  "args": {
+                    "bar": "bar4",
+                    "where": "None"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "onDemand"
+                    },
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar4Made",
+                          "eq": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "button",
+                "style": "link",
+                "action": "deleteBar",
+                "actionArg": "bar4",
+                "label": "Delete bar",
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar4Made",
+                      "eq": true
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "bar5",
+            "title": "Bar 5",
+            "titleBy": {
+              "resolver": "barName",
+              "args": {
+                "bar": "bar5"
+              }
+            },
+            "showWhen": {
+              "all": [
+                {
+                  "env": "extraBars"
+                },
+                {
+                  "key": "statusBar5Made",
+                  "eq": true
+                }
+              ]
+            },
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "statusBar5Name",
+                "label": "Name",
+                "defaultValue": "",
+                "attributes": {
+                  "placeholder": "Bar 5",
+                  "maxlength": 24
+                },
+                "hintFrom": {
+                  "resolver": "barScreens",
+                  "args": {
+                    "bar": "bar5"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar5Made",
+                      "eq": true
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5Left",
+                "label": "Left slot",
+                "sheetTitle": "Bar 5 · Left slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "bar5",
+                    "label": "Left slot"
+                  }
+                },
+                "defaultFrom": {
+                  "resolver": "statusSlotDefault",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                },
+                "onChange": "dedupeStatusSlot",
+                "editSheetFrom": {
+                  "resolver": "statusSlotEditSheet"
+                },
+                "editBadgeFrom": {
+                  "resolver": "thresholdPenState"
+                },
+                "optionsFrom": {
+                  "resolver": "statusSlot",
+                  "args": {
+                    "slotKey": "statusBar5Left",
+                    "position": "left"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar5Made",
+                      "eq": true
+                    }
+                  ]
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "date",
+                "messageKey": "statusBar5LeftCountdown",
+                "label": "Countdown date",
+                "defaultFrom": {
+                  "resolver": "todayDate"
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar5Made",
+                          "eq": true
+                        }
+                      ]
+                    },
+                    {
+                      "key": "statusBar5Left",
+                      "eq": "countdown"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5Mid",
+                "label": "Middle slot",
+                "sheetTitle": "Bar 5 · Middle slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "bar5",
+                    "label": "Middle slot"
+                  }
+                },
+                "defaultFrom": {
+                  "resolver": "statusSlotDefault",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                },
+                "onChange": "dedupeStatusSlot",
+                "editSheetFrom": {
+                  "resolver": "statusSlotEditSheet"
+                },
+                "editBadgeFrom": {
+                  "resolver": "thresholdPenState"
+                },
+                "optionsFrom": {
+                  "resolver": "statusSlot",
+                  "args": {
+                    "slotKey": "statusBar5Mid",
+                    "position": "mid"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar5Made",
+                      "eq": true
+                    }
+                  ]
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "date",
+                "messageKey": "statusBar5MidCountdown",
+                "label": "Countdown date",
+                "defaultFrom": {
+                  "resolver": "todayDate"
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar5Made",
+                          "eq": true
+                        }
+                      ]
+                    },
+                    {
+                      "key": "statusBar5Mid",
+                      "eq": "countdown"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5Right",
+                "label": "Right slot",
+                "sheetTitle": "Bar 5 · Right slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "bar5",
+                    "label": "Right slot"
+                  }
+                },
+                "defaultFrom": {
+                  "resolver": "statusSlotDefault",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                },
+                "onChange": "dedupeStatusSlot",
+                "editSheetFrom": {
+                  "resolver": "statusSlotEditSheet"
+                },
+                "editBadgeFrom": {
+                  "resolver": "thresholdPenState"
+                },
+                "optionsFrom": {
+                  "resolver": "statusSlot",
+                  "args": {
+                    "slotKey": "statusBar5Right",
+                    "position": "right"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar5Made",
+                      "eq": true
+                    }
+                  ]
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "date",
+                "messageKey": "statusBar5RightCountdown",
+                "label": "Countdown date",
+                "defaultFrom": {
+                  "resolver": "todayDate"
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar5Made",
+                          "eq": true
+                        }
+                      ]
+                    },
+                    {
+                      "key": "statusBar5Right",
+                      "eq": "countdown"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "button",
+                "label": "Alerts",
+                "gotoTab": "alerts",
+                "navNote": "Alerts",
+                "hintFrom": {
+                  "resolver": "onDemandBarIcons",
+                  "args": {
+                    "bar": "bar5",
+                    "where": "None"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "onDemand"
+                    },
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar5Made",
+                          "eq": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "button",
+                "style": "link",
+                "action": "deleteBar",
+                "actionArg": "bar5",
+                "label": "Delete bar",
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar5Made",
+                      "eq": true
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "bar6",
+            "title": "Bar 6",
+            "titleBy": {
+              "resolver": "barName",
+              "args": {
+                "bar": "bar6"
+              }
+            },
+            "showWhen": {
+              "all": [
+                {
+                  "env": "extraBars"
+                },
+                {
+                  "key": "statusBar6Made",
+                  "eq": true
+                }
+              ]
+            },
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "statusBar6Name",
+                "label": "Name",
+                "defaultValue": "",
+                "attributes": {
+                  "placeholder": "Bar 6",
+                  "maxlength": 24
+                },
+                "hintFrom": {
+                  "resolver": "barScreens",
+                  "args": {
+                    "bar": "bar6"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar6Made",
+                      "eq": true
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6Left",
+                "label": "Left slot",
+                "sheetTitle": "Bar 6 · Left slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "bar6",
+                    "label": "Left slot"
+                  }
+                },
+                "defaultFrom": {
+                  "resolver": "statusSlotDefault",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                },
+                "onChange": "dedupeStatusSlot",
+                "editSheetFrom": {
+                  "resolver": "statusSlotEditSheet"
+                },
+                "editBadgeFrom": {
+                  "resolver": "thresholdPenState"
+                },
+                "optionsFrom": {
+                  "resolver": "statusSlot",
+                  "args": {
+                    "slotKey": "statusBar6Left",
+                    "position": "left"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar6Made",
+                      "eq": true
+                    }
+                  ]
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "date",
+                "messageKey": "statusBar6LeftCountdown",
+                "label": "Countdown date",
+                "defaultFrom": {
+                  "resolver": "todayDate"
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar6Made",
+                          "eq": true
+                        }
+                      ]
+                    },
+                    {
+                      "key": "statusBar6Left",
+                      "eq": "countdown"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6Mid",
+                "label": "Middle slot",
+                "sheetTitle": "Bar 6 · Middle slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "bar6",
+                    "label": "Middle slot"
+                  }
+                },
+                "defaultFrom": {
+                  "resolver": "statusSlotDefault",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                },
+                "onChange": "dedupeStatusSlot",
+                "editSheetFrom": {
+                  "resolver": "statusSlotEditSheet"
+                },
+                "editBadgeFrom": {
+                  "resolver": "thresholdPenState"
+                },
+                "optionsFrom": {
+                  "resolver": "statusSlot",
+                  "args": {
+                    "slotKey": "statusBar6Mid",
+                    "position": "mid"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar6Made",
+                      "eq": true
+                    }
+                  ]
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "date",
+                "messageKey": "statusBar6MidCountdown",
+                "label": "Countdown date",
+                "defaultFrom": {
+                  "resolver": "todayDate"
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar6Made",
+                          "eq": true
+                        }
+                      ]
+                    },
+                    {
+                      "key": "statusBar6Mid",
+                      "eq": "countdown"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6Right",
+                "label": "Right slot",
+                "sheetTitle": "Bar 6 · Right slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "bar6",
+                    "label": "Right slot"
+                  }
+                },
+                "defaultFrom": {
+                  "resolver": "statusSlotDefault",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                },
+                "onChange": "dedupeStatusSlot",
+                "editSheetFrom": {
+                  "resolver": "statusSlotEditSheet"
+                },
+                "editBadgeFrom": {
+                  "resolver": "thresholdPenState"
+                },
+                "optionsFrom": {
+                  "resolver": "statusSlot",
+                  "args": {
+                    "slotKey": "statusBar6Right",
+                    "position": "right"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar6Made",
+                      "eq": true
+                    }
+                  ]
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "date",
+                "messageKey": "statusBar6RightCountdown",
+                "label": "Countdown date",
+                "defaultFrom": {
+                  "resolver": "todayDate"
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar6Made",
+                          "eq": true
+                        }
+                      ]
+                    },
+                    {
+                      "key": "statusBar6Right",
+                      "eq": "countdown"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "button",
+                "label": "Alerts",
+                "gotoTab": "alerts",
+                "navNote": "Alerts",
+                "hintFrom": {
+                  "resolver": "onDemandBarIcons",
+                  "args": {
+                    "bar": "bar6",
+                    "where": "None"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "onDemand"
+                    },
+                    {
+                      "all": [
+                        {
+                          "env": "extraBars"
+                        },
+                        {
+                          "key": "statusBar6Made",
+                          "eq": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "button",
+                "style": "link",
+                "action": "deleteBar",
+                "actionArg": "bar6",
+                "label": "Delete bar",
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "extraBars"
+                    },
+                    {
+                      "key": "statusBar6Made",
+                      "eq": true
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "barNew",
+            "showWhen": {
+              "env": "extraBars"
+            },
+            "items": [
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "barUndoNote"
+                }
+              },
+              {
+                "type": "button",
+                "action": "newBar",
+                "label": "New bar",
+                "hintFrom": {
+                  "resolver": "barCount"
+                },
+                "showWhen": {
+                  "when": "barFree"
+                }
+              },
+              {
+                "type": "staticText",
+                "hinted": true,
+                "textFrom": {
+                  "resolver": "barsFullNote"
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "barKeys",
+            "items": [
+              {
+                "type": "hidden",
+                "messageKey": "statusBar4Made",
+                "defaultValue": false
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusBar5Made",
+                "defaultValue": false
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusBar6Made",
+                "defaultValue": false
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBarNew",
+                "uiOnly": true,
+                "label": "New bar",
+                "sheetTitle": "New bar",
+                "sheetLead": "Start from a set of slots, or copy one of your bars. Then put it on a screen.",
+                "defaultValue": "",
+                "dormantValues": [
+                  ""
+                ],
+                "optionsFrom": {
+                  "resolver": "barStartOptions"
+                },
+                "onChange": "barCreate"
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
             "sheetOnly": true,
             "sheetId": "threshAqi",
             "showWhen": {
@@ -7577,6 +8617,36 @@
               {
                 "type": "hidden",
                 "messageKey": "statusHealthOnDemandRightItems",
+                "defaultValue": ""
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusBar4OnDemandLeftItems",
+                "defaultValue": ""
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusBar4OnDemandRightItems",
+                "defaultValue": ""
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusBar5OnDemandLeftItems",
+                "defaultValue": ""
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusBar5OnDemandRightItems",
+                "defaultValue": ""
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusBar6OnDemandLeftItems",
+                "defaultValue": ""
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusBar6OnDemandRightItems",
                 "defaultValue": ""
               }
             ]

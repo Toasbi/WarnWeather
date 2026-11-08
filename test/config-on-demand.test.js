@@ -395,8 +395,10 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+// The four bars every watch has (bars 4 to 6 are Pebble Time 2 only and made on the page:
+// test/config-extra-bars.test.js).
 const LIST_KEYS = [];
-OD.BARS.forEach((b) => OD.SIDES.forEach((side) => LIST_KEYS.push(OD.itemsKey(b.bar, side))));
+OD.BLOB_BARS.forEach((b) => OD.SIDES.forEach((side) => LIST_KEYS.push(OD.itemsKey(b.bar, side))));
 
 test('300 seeded tick sequences through the grids store what on-demand.js tickOn / untickFrom store', () => {
   // All four bars exist (radar Graph, health All) and nothing is blocked (DWD, radar on).
@@ -407,7 +409,7 @@ test('300 seeded tick sequences through the grids store what on-demand.js tickOn
     // The defaults first, then random canonical states: each item on neither side, the
     // left or the right of each bar.
     const start = {};
-    OD.BARS.forEach((b) => {
+    OD.BLOB_BARS.forEach((b) => {
       const sides = { left: [], right: [] };
       OD.ITEMS.forEach((it) => { const r = rnd(); if (r < 1 / 3) { sides.left.push(it.code); } else if (r < 2 / 3) { sides.right.push(it.code); } });
       OD.SIDES.forEach((side) => {
@@ -418,14 +420,14 @@ test('300 seeded tick sequences through the grids store what on-demand.js tickOn
     Object.assign(page.S, start);
     const oracle = Object.assign({}, start);
     for (let i = 0; i < 12; i++) {
-      const bar = pick(OD.BARS).bar, side = pick(OD.SIDES), code = pick(CODES);
+      const bar = pick(OD.BLOB_BARS).bar, side = pick(OD.SIDES), code = pick(CODES);
       const key = OD.itemsKey(bar, side);
       if (OD.parse(oracle[key]).indexOf(code) >= 0) { OD.untickFrom(oracle, key, [code]); } else { OD.tickOn(oracle, bar, side, code); }
       place(page, bar, side, code);
       const got = {};
       LIST_KEYS.forEach((k) => { got[k] = page.S[k]; });
       assert.deepEqual(got, oracle, 'sequence ' + s + ', step ' + i + ': ' + [bar, side, code].join(' '));
-      OD.BARS.forEach((b) => {
+      OD.BLOB_BARS.forEach((b) => {
         const right = OD.parse(page.S[OD.itemsKey(b.bar, 'right')]);
         assert.ok(!OD.parse(page.S[OD.itemsKey(b.bar, 'left')]).some((c) => right.indexOf(c) >= 0),
           'sequence ' + s + ', step ' + i + ': ' + b.bar + ' holds an item on one side at most');

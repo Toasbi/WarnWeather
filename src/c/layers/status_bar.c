@@ -26,6 +26,11 @@ static StatusBar s_bars[STATUS_BAR_COUNT] = {
 #if defined(PBL_HEALTH)
     [STATUS_BAR_HEALTH]   = { .tier = LAYOUT_TIER_COMPACT },
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+    [STATUS_BAR_4]        = { .tier = LAYOUT_TIER_COMPACT },   // emery: bars 4 to 6
+    [STATUS_BAR_5]        = { .tier = LAYOUT_TIER_COMPACT },
+    [STATUS_BAR_6]        = { .tier = LAYOUT_TIER_COMPACT },
+#endif
 };
 
 // ── Per-bar identity ─────────────────────────────────────────────────────────
@@ -43,6 +48,11 @@ static inline uint8_t bar_line(StatusBarId id) {
 #if defined(PBL_HEALTH)
         case STATUS_BAR_HEALTH: return STATUS_LINE_HEALTH;
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+        case STATUS_BAR_4:      return STATUS_LINE_BAR4;   // emery: bars 4 to 6
+        case STATUS_BAR_5:      return STATUS_LINE_BAR5;
+        case STATUS_BAR_6:      return STATUS_LINE_BAR6;
+#endif
         default: return STATUS_LINE_FORECAST;
     }
 #else
@@ -59,6 +69,11 @@ static inline uint8_t bar_source(StatusBarId id) {
 #endif
 #if defined(PBL_HEALTH)
         case STATUS_BAR_HEALTH: return STATUS_SRC_HEALTH;
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+        case STATUS_BAR_4:      return STATUS_SRC_BAR4;   // emery: bars 4 to 6
+        case STATUS_BAR_5:      return STATUS_SRC_BAR5;
+        case STATUS_BAR_6:      return STATUS_SRC_BAR6;
 #endif
         default: return STATUS_SRC_FORECAST;
     }
@@ -89,6 +104,21 @@ static void bar_draw_health(Layer *layer, GContext *ctx) {
     status_row_draw(s_bars[STATUS_BAR_HEALTH].row, ctx);
 }
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+// emery: bars 4 to 6.
+static void bar_draw_4(Layer *layer, GContext *ctx) {
+    (void) layer;
+    status_row_draw(s_bars[STATUS_BAR_4].row, ctx);
+}
+static void bar_draw_5(Layer *layer, GContext *ctx) {
+    (void) layer;
+    status_row_draw(s_bars[STATUS_BAR_5].row, ctx);
+}
+static void bar_draw_6(Layer *layer, GContext *ctx) {
+    (void) layer;
+    status_row_draw(s_bars[STATUS_BAR_6].row, ctx);
+}
+#endif
 
 static inline LayerUpdateProc bar_proc(StatusBarId id) {
 #if defined(WW_RAIN_RADAR) || defined(PBL_HEALTH)
@@ -98,6 +128,11 @@ static inline LayerUpdateProc bar_proc(StatusBarId id) {
 #endif
 #if defined(PBL_HEALTH)
         case STATUS_BAR_HEALTH: return bar_draw_health;
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+        case STATUS_BAR_4:      return bar_draw_4;   // emery: bars 4 to 6
+        case STATUS_BAR_5:      return bar_draw_5;
+        case STATUS_BAR_6:      return bar_draw_6;
 #endif
         default: return bar_draw_forecast;
     }
