@@ -408,13 +408,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-mv{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--ctl-line);'
         + 'background:var(--bg);color:var(--lbl);border-radius:9px;padding:8px 6px;font:600 12px Inter,system-ui,sans-serif;cursor:pointer}'
         + '.se-mv .scr-ic{width:14px;height:14px}'
-        // The forecast row's graph (a watch with graph styles): a card that shows the graph and
-        // opens its picker, under the row whether it is open or not.
-        + '.se-graph{display:grid;grid-template-columns:76px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;'
-        + 'margin:0;padding:7px 10px 7px 7px;border:1px solid var(--ctl-line);border-radius:11px;background:var(--bg);'
+        // The forecast row's graph (a watch with graph styles): a card that names the graph and
+        // opens its picker, under the row whether it is open or not (the watch above draws it).
+        + '.se-graph{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;'
+        + 'margin:0;padding:9px 10px 9px 12px;border:1px solid var(--ctl-line);border-radius:11px;background:var(--bg);'
         + 'color:var(--lbl);text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
-        + '.se-gpic{display:block;border-radius:7px;overflow:hidden;line-height:0}'
-        + '.se-gpic svg{display:block;width:100%;height:auto}'
         + '.se-gtxt{display:grid;gap:2px;min-width:0}'
         + '.se-gname{font:700 13.5px/1.3 Inter,system-ui,sans-serif;color:var(--lbl);overflow-wrap:anywhere}'
         + '.se-ghint{font:600 11.5px/1.35 Inter,system-ui,sans-serif;color:var(--link)}'
@@ -554,22 +552,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * The forecast row's graph (a watch with graph styles: emery), shown under the row whether
      * its options are open or not, so the choice is in view as the graph is added: a card with
-     * the graph's picture, its name and length and what a tap does (the picker: another graph,
-     * or a new one from a template), and the link that edits the graph on the Graphs tab.
+     * the graph's name and length and what a tap does (the picker: another graph, or a new one
+     * from a template), and the link that edits the graph on the Graphs tab. No picture: the
+     * screen's picture above draws the graph (the owner's, 2026-11-08).
      * @param {Array<Object>} list The screen.
      * @param {number} j The row.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
-     * @param {Object} [userData] Page userData (the palette).
      * @returns {string} HTML
      */
-    function styleHtml(list, j, S, env, userData) {
+    function styleHtml(list, j, S, env) {
         var k = blockStyle(list[j], S), many = GS.count(S) > 1, free = GS.freeSlot(S) >= 0;
         var hint = many ? (free ? 'Tap to pick another graph or start a new one' : 'Tap to pick another graph')
             : 'Tap to give this screen a graph of its own';
         return '<div class="se-opt"><span class="se-cap">Graph</span>'
             + '<button type="button" class="se-graph" data-se="style" data-j="' + j + '" aria-haspopup="dialog">'
-            + '<span class="se-gpic" aria-hidden="true">' + GSP.graphPicture(GSP.styleSettings(S, k), env, userData, 'seg') + '</span>'
             + '<span class="se-gtxt"><span class="se-gname">' + esc(GSP.label(S, env, k)) + '</span>'
             + '<span class="se-ghint">' + hint + '</span></span>'
             + '<span class="se-chev" aria-hidden="true">›</span></button>'
@@ -583,10 +580,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {number} j The row.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
-     * @param {Object} [userData] Page userData (the palette).
      * @returns {string} HTML
      */
-    function rowHtml(list, j, S, env, userData) {
+    function rowHtml(list, j, S, env) {
         var b = list[j], K = M.KINDS[b.k], fixed = b.k === 'strip', open = ED.open === j && !fixed;
         var keepClock = ED.i === 0 && b.k === 'clock';
         var val = b.k === 'cal' ? b.rows + ' rows' : K.graph ? sizeLabel(b) : '';
@@ -603,7 +599,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 + '<button type="button" class="se-link" data-se="radaron">Turn on</button></div>';
         }
         // The forecast graph's own graph: first, and in view while the row is folded too.
-        var graph = b.k === 'fc' && env && env.graphStyles ? styleHtml(list, j, S, env, userData) : '';
+        var graph = b.k === 'fc' && env && env.graphStyles ? styleHtml(list, j, S, env) : '';
         if (open) {
             h += '<div class="se-sub se-more">' + graph;
             if (b.k === 'cal') { h += optHtml(list, j, 'Rows', 'rows', M.CAL_ROWS, env); }
@@ -635,7 +631,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + (note ? '<div class="se-note" role="status">' + note + '</div>' : '')
             + '<div class="se-card"><div class="se-cardhd" id="seTtl">Top to bottom</div>'
             + '<div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
-            + list.map(function (b, j) { return rowHtml(list, j, S, env, userData); }).join('') + '</div>'
+            + list.map(function (b, j) { return rowHtml(list, j, S, env); }).join('') + '</div>'
             + (adds.length ? '<div class="se-adds"><span class="se-addlbl">Add</span>' + adds.map(function (k) {
                 return '<button type="button" class="se-add" data-se="add" data-k="' + k + '">+ ' + M.KINDS[k].name + '</button>';
             }).join('') + '</div>' : '')

@@ -184,13 +184,17 @@ test('the four-series limit: a pick that would make a fifth series is greyed out
   GSP.beginScreenPick(busy, 1, '1');
   const opts = GSP.styleOptions(busy, EMERY, { screen: true });
   assert.equal(opts[1][2].disabled, true, 'cloud would be a fifth series');
-  assert.equal(opts[1][2].desc, GSP.LIMIT);
+  assert.equal(opts[1][2].desc, 'Also needs Cloud cover %: that makes 5 lines and stripes on your screens; the watch can show 4.',
+    'what it adds, and the count');
   assert.equal(GSP.screenOverflows(busy, EMERY, 1, 0), false);
   // A template that would bring a fifth series: Weathergraph's cloud stripe.
   const tpl = (o) => o.filter((x) => x[1].indexOf(GSP.NEW) === 0);
   assert.deepEqual(tpl(opts).map((o) => [o[1], Boolean(o[2].disabled)]),
     [['new:classic', false], ['new:weathergraph', true], ['new:stripes', true]]);
-  assert.equal(tpl(opts)[1][2].desc, GSP.LIMIT);
+  assert.equal(tpl(opts)[1][2].desc,
+    'Also needs Cloud cover % (stripe): that makes 5 lines and stripes on your screens; the watch can show 4.');
+  assert.equal(tpl(opts)[2][2].desc, 'Also needs Cloud cover % (stripe) and Precipitation % (stripe): that makes 6 lines'
+    + ' and stripes on your screens; the watch can show 4.', 'a line and a stripe of one metric are two');
 });
 
 /**
@@ -397,7 +401,7 @@ test('the screen editor: the forecast row shows its graph, folded or not; its pi
   const body = () => p.editor().querySelector('[data-se-body]').innerHTML;
   // Folded: the graph card is in view, first under the row.
   assert.match(body(), /Graph<\/span><button type="button" class="se-graph" data-se="style" data-j="\d+" aria-haspopup="dialog">/);
-  assert.match(body(), /<span class="se-gpic" aria-hidden="true"><svg class="wiz-graph-scr"/, 'its picture');
+  assert.equal(body().indexOf('se-gpic'), -1, 'no picture of its own: the screen\'s picture above draws the graph');
   assert.match(body(), /<span class="se-gname">Long · \d+ h<\/span>/, 'the screen\'s graph, named with its length');
   assert.match(body(), /Tap to pick another graph or start a new one/);
   assert.match(body(), /Edit Long on the Graphs tab ›/);
@@ -483,7 +487,9 @@ test('the page: Show on puts the picked graph on a screen or takes it off', asyn
   q.tapAction('pickGraph', 2);
   // Graph 1 draws four series on the other screen, so Long's cloud would be a fifth on either.
   assert.deepEqual(chips(q.scroll.innerHTML), [['Default', 'dim'], ['Flick 1', 'dim']]);
-  assert.ok(q.scroll.innerHTML.indexOf(GSP.LIMIT) !== -1, 'the limit says why');
+  assert.ok(q.scroll.innerHTML.indexOf('The watch can show 4 lines and stripes across all your screens. In use: Precipitation %,'
+    + ' UV Index, Wind speed, Wind gusts. Long also needs Cloud cover %. To make room, turn off a line in one of your graphs.')
+    !== -1, 'the limit says why: what is in use, what Long adds, what to do');
   q.tapAction('graphOnScreen', 0);
   assert.equal(q.S.viewStyle0, '1', 'a greyed-out chip does nothing');
 });

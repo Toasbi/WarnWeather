@@ -23,10 +23,12 @@
 // dialog's ×) puts the swap back with the values it describes.
 //
 // THE LIMIT. The weather message carries four metric rows, so the graphs the screens show draw at
-// most four series between them (graph-styles.js THE UNION). A pick that would make a fifth is
-// greyed out with LIMIT: a forecast line's metric or style on a shown graph, a screen of the Show
-// on row, and in the screen editor a graph or template that would join the screens. A graph no
-// screen shows is free.
+// most four series between them (graph-styles.js THE UNION), a series being a metric drawn as a
+// line or as a stripe. A pick that would make a fifth is greyed out, and its words say why in the
+// page's terms, "lines and stripes": a forecast line's metric or style on a shown graph (LIMIT),
+// a screen of the Show on row (limitNote: the rule, what the screens use, what the graph adds)
+// and in the screen editor a graph or template that would join the screens (limitDesc). A graph
+// no screen shows is free.
 //
 // Dual-context: a CommonJS module in the tests; in the webview a concatenated <script> after
 // graph-styles.js and screens.js (scripts/build-config-page.js APP_FILES) and ahead of
@@ -58,7 +60,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The pane the card and the swap belong to.
     var TAB = 'graphs';
     var PANE = 'forecast';
-    var LIMIT = 'Your graphs already draw 4 lines and stripes.';
+    // A line picker's greyed-out option (limitOptions): one change adds one series at most.
+    var LIMIT = 'That makes 5 lines and stripes on your screens; the watch can show 4.';
     // New graph's copies: 'copy<n>', a copy of graph n. The screen editor's templates:
     // 'new:<template id>'. A picker's group header: GROUP (never a value anything stores).
     var COPY = 'copy';
@@ -362,8 +365,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Would screen i drawing style k make the shown styles draw a fifth series? With `values`,
-     * k is a style still to be made with them (a template the screen editor's picker offers).
+     * The settings as stored, as they would be with screen i drawing style k. With `values`, k is
+     * a style still to be made with them (a template the screen editor's picker offers).
+     * @param {Object} S Settings.
+     * @param {number} i View slot.
+     * @param {number} k A style index.
+     * @param {?Object} [values] The governed values of the style to be made in slot k.
+     * @returns {Object} a copy
+     */
+    function withScreen(S, i, k, values) {
+        var N = Object.assign({}, normalize(S));
+        if (values) { N.graphStyles = GS.withStyle(N, k, values); }
+        N['viewStyle' + i] = String(k + 1);
+        return N;
+    }
+
+    /**
+     * Would screen i drawing style k make the shown styles draw a fifth series?
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} i View slot.
@@ -372,10 +390,96 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {boolean}
      */
     function screenOverflows(S, env, i, k, values) {
-        var N = Object.assign({}, normalize(S));
-        if (values) { N.graphStyles = GS.withStyle(N, k, values); }
-        N['viewStyle' + i] = String(k + 1);
+        var N = withScreen(S, i, k, values);
         return overflows(N, env, GS.stylesShown(N, env), -1, null);
+    }
+
+    /**
+     * A series as the limit's words name it: its metric as the Lines card's pickers name it
+     * (forecast-hints.js, PConf.forecastLineOptions), "(stripe)" after one drawn as a stripe.
+     * @param {{metric: string, stripe: boolean}} s A series (graph-styles.js seriesOf).
+     * @returns {string}
+     */
+    function seriesName(s) {
+        var table = (PConf && PConf.forecastLineOptions && PConf.forecastLineOptions.metrics) || [], name = s.metric;
+        for (var i = 0; i < table.length; i++) {
+            if (table[i][1] === s.metric) { name = table[i][0]; }
+        }
+        return name + (s.stripe ? ' (stripe)' : '');
+    }
+
+    /**
+     * The series some styles draw between them, each once, in the order they first draw them.
+     * @param {Object} N Settings as stored.
+     * @param {?Object} env Platform env.
+     * @param {number[]} ks Style indices.
+     * @returns {Array<{metric: string, stripe: boolean}>}
+     */
+    function seriesUnion(N, env, ks) {
+        var out = [];
+        ks.forEach(function (k) {
+            GS.seriesOf(GS.settingsFor(N, k), env).forEach(function (s) {
+                if (s && !hasSeries(out, s)) { out.push(s); }
+            });
+        });
+        return out;
+    }
+
+    /**
+     * @param {Array<{metric: string, stripe: boolean}>} list Series.
+     * @param {{metric: string, stripe: boolean}} s A series.
+     * @returns {boolean} whether the list holds s
+     */
+    function hasSeries(list, s) {
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].metric === s.metric && list[i].stripe === s.stripe) { return true; }
+        }
+        return false;
+    }
+
+    /**
+     * What style k draws that the other styles do not, by name ("Precipitation % (stripe)").
+     * @param {Object} N Settings as stored.
+     * @param {?Object} env Platform env.
+     * @param {number} k A style index.
+     * @param {number[]} others The other styles.
+     * @returns {string[]}
+     */
+    function extraNames(N, env, k, others) {
+        var have = seriesUnion(N, env, others);
+        return seriesUnion(N, env, [k]).filter(function (s) { return !hasSeries(have, s); }).map(seriesName);
+    }
+
+    /**
+     * Why the screen editor's picker greys out a graph or a template: what it would add to the
+     * graphs it would show beside, and how many lines and stripes the screens would then show.
+     * @param {Object} N The settings as stored, with the screen on style k (withScreen).
+     * @param {?Object} env Platform env.
+     * @param {number} k The style picked (or to be made).
+     * @returns {string}
+     */
+    function limitDesc(N, env, k) {
+        var shown = GS.stylesShown(N, env);
+        var extra = extraNames(N, env, k, shown.filter(function (j) { return j !== k; }));
+        return (extra.length ? 'Also needs ' + andList(extra) + ': that makes ' : 'That makes ')
+            + seriesUnion(N, env, shown).length + ' lines and stripes on your screens; the watch can show 4.';
+    }
+
+    /**
+     * The Show on row's note when the limit greys out a screen: the rule, the lines and stripes
+     * the screens use now, what graph k needs on top, and how to make room.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {number} k The picked graph (a graph no screen shows: one that does never adds).
+     * @returns {string}
+     */
+    function limitNote(S, env, k) {
+        var N = normalize(S), shown = GS.stylesShown(N, env);
+        var inUse = seriesUnion(N, env, shown).map(seriesName), extra = extraNames(N, env, k, shown);
+        return 'The watch can show 4 lines and stripes across all your screens.'
+            + (inUse.length ? ' In use: ' + inUse.join(', ') + '.' : '')
+            + (extra.length ? ' ' + GS.name(S, k) + ' also needs ' + andList(extra) + '.' : '')
+            + ' To make room, turn off a line in one of your graphs.';
     }
 
     /**
@@ -407,7 +511,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var out = existing(S || {}).map(function (k) {
             var v = String(k + 1), meta = { desc: whereText(S, env, k) };
             if (a.screen && v !== cur && screenOverflows(S, env, UI.screenSlot, k)) {
-                meta = { desc: LIMIT, disabled: true };
+                meta = { desc: limitDesc(withScreen(S, UI.screenSlot, k), env, k), disabled: true };
             }
             return [label(S, env, k), v, meta];
         });
@@ -417,7 +521,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         forecastLooks().LOOKS.forEach(function (look) {
             var values = templateValues(normalize(S), env, look.id);
             var full = screenOverflows(S, env, UI.screenSlot, slot, values);
-            out.push([look.label, NEW + look.id, full ? { desc: LIMIT, disabled: true }
+            out.push([look.label, NEW + look.id, full
+                ? { desc: limitDesc(withScreen(S, UI.screenSlot, slot, values), env, slot), disabled: true }
                 : { desc: templateLine(S, env, look.id) }]);
         });
         return out;
@@ -883,7 +988,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         } else if (none.length) {
             notes.push(andList(none) + (none.length > 1 ? ' have' : ' has') + ' no forecast graph.');
         }
-        if (full) { notes.push(LIMIT); }
+        if (full) { notes.push(limitNote(S, env, k)); }
         if (kept) { notes.push('A screen shows ' + GS.name(S, 0) + ' unless you give it another graph.'); }
         return '<div class="gc-show"><span class="gc-cap" id="gc-show-cap">Show on</span>'
             + '<div class="gc-chips" role="group" aria-labelledby="gc-show-cap">' + chips + '</div>'
@@ -977,6 +1082,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         cardLine: cardLine,
         limitOptions: limitOptions,
         screenOverflows: screenOverflows,
+        limitDesc: limitDesc,
+        limitNote: limitNote,
         beginScreenPick: beginScreenPick,
         styleOptions: styleOptions,
         cardHint: cardHint,
@@ -984,7 +1091,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         pickOnOpen: pickOnOpen,
         templateValues: templateValues,
         templateLine: templateLine,
-        graphPicture: graphPicture,
         optionPicture: optionPicture,
         startOptions: startOptions,
         createGraph: createGraph,
