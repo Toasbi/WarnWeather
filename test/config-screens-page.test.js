@@ -58,21 +58,22 @@ function words(S) {
  */
 function cardRows(html) {
   const out = [];
-  const re = /<div class="scr-row">[\s\S]*?<span class="scr-t">([^<]*)<\/span><span class="scr-els">([^<]*)<\/span>[\s\S]*?(<button type="button" class="scr-x"|<span class="scr-xpad")/g;
+  const re = /<div class="scr-row" data-scr-row="\d+">[\s\S]*?<span class="scr-t">([^<]*)(?:<span class="scr-pill">[^<]*<\/span>)?<\/span><span class="scr-els">([^<]*)<\/span>[\s\S]*?(<button type="button" class="scr-x"|<span class="scr-xpad")/g;
   let m;
   while ((m = re.exec(html))) { out.push([m[1], m[2], m[3].indexOf('scr-x"') !== -1]); }
   return out;
 }
 
 /**
- * The open editor's body and title.
+ * The open overlay's body and title (the title's text: the screen's name, or Add a screen).
  * @param {Object} page bootGeneratedPage handle.
- * @returns {{title: string, body: string}}
+ * @returns {{title: string, body: string, titleHtml: string}}
  */
 function editorOf(page) {
   const ed = page.editor();
   assert.ok(ed, 'the screen editor is open');
-  return { title: ed.querySelector('[data-se-title]').textContent, body: ed.querySelector('[data-se-body]').innerHTML };
+  const titleHtml = ed.querySelector('[data-se-title]').innerHTML;
+  return { title: titleHtml.replace(/<[^>]*>/g, ''), titleHtml, body: ed.querySelector('[data-se-body]').innerHTML };
 }
 
 /**
@@ -313,11 +314,14 @@ test('a ✕ deletes a flick screen at once, and Undo puts it back', (t) => {
   assert.equal(page.scroll.innerHTML.indexOf('scr-toast'), -1, 'gone after five seconds');
 });
 
-test('a new install: the Default screen alone; + Add screen opens the editor on the Watch bar and the Clock', () => {
+test('a new install: the Default screen alone; + Add screen\'s Blank opens the editor on the Watch bar and the Clock', () => {
   const page = bootGeneratedPage({ provider: 'dwd' });   // the shipped defaults
   assert.deepEqual(cardRows(page.scroll.innerHTML).map((r) => r[0]), ['Default']);
   assert.equal(page.scroll.innerHTML.indexOf('Screen switching'), -1, 'one screen: nothing to switch');
   page.tapAction('addScreen');
+  assert.equal(editorOf(page).title, 'Add a screen');
+  assert.equal(page.S.viewCount, '1', 'nothing added until a choice is picked');
+  page.tapEditor({ se: 'pick', id: 'blank' });
   assert.equal(page.S.viewCount, '2');
   assert.equal(page.S.layoutPreset, 'custom');
   const ed = editorOf(page);
@@ -335,6 +339,7 @@ test('a new install: the Default screen alone; + Add screen opens the editor on 
 test('+ Health bar on a new screen draws the bar\'s default readings, not an empty row', () => {
   const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, BLANK_HEALTH));
   page.tapAction('addScreen');
+  page.tapEditor({ se: 'pick', id: 'blank' });
   page.tapEditor({ se: 'add', k: 'healthbar' });
   const pic = /<span class="se-pic-card"[\s\S]*?<\/span><\/div>/.exec(editorOf(page).body)[0];
   assert.match(pic, />6\.2k</, 'steps');

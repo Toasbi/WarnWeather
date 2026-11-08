@@ -24,6 +24,10 @@ var APP_FILES = [
   // The screens as lists (window.Screens): reads VIEW_CYCLE, window.StatusLineCatalog and
   // window.OnDemand while its body runs, so it follows all three.
   path.join(ROOT, 'src/pkjs/screens.js'),
+  // The screens Add screen offers after Blank (window.ScreenPresets). It reads nothing at load;
+  // screens-page.js and wizard-screens.js bind it while their bodies run, so it precedes both —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/screen-presets.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
   // rainbow-budget.js reads PConf.tomorrowioBudget (ladder + night-pause rule) at load, and
   // interval-budget.js reads both; blocks.js reads all three at load — keep this order.

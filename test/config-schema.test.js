@@ -113,6 +113,8 @@ const EXPECTED_KEYS = [
   'viewTopSize2','viewBodySize2','viewAlign2',
   // Graph styles (Pebble Time 2): each screen's style and the extra styles' blob.
   'viewStyle0','viewStyle1','viewStyle2','graphStyles',
+  // The screens' names (2.7): page-only, never compiled or sent (screens.js nameOf).
+  'viewName0','viewName1','viewName2',
   'statusBoldAll',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',

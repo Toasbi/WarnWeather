@@ -22,6 +22,10 @@
 // (the bands in the order the watch draws them, the Watch bar first, the body last), and
 // screensOf reads every screen of a settings blob, a preset's too.
 //
+// THE NAMES. A screen's name is the page's own (viewName{i}, never compiled or sent): what the
+// user called it, else its place's (NAMES: Default, Flick 1, Flick 2), so a screen moved to
+// the top reads as the Default until it is named. nameOf is THE reading, for every label.
+//
 // THE MODES. radarMode and healthMode are no longer picked: deriveModes works them out from
 // the screens (on Save, and in the 2.6 migration, migrations/screens.js), so every reader of
 // the two keys stays as it is. radarEnabled (Setup's Rain radar Off) keeps radarProvider, so
@@ -52,8 +56,10 @@
   // The order "+ Add" offers them in.
   var ADD_ORDER = ['strip', 'cal', 'clock', 'fcbar', 'radarbar', 'healthbar', 'fc', 'radar', 'health'];
   var MAX_SCREENS = 3;
-  // The screens' names, the Default first (the Screens card, the editor, the graph styles).
+  // The places' names, the Default first: a screen's name until it is given one (nameOf).
   var NAMES = ['Default', 'Flick 1', 'Flick 2'];
+  // The longest name a screen keeps (graph-styles-page.js NAME_MAX for a graph's).
+  var NAME_MAX = 24;
   var CAL_ROWS = ['2', '3'];
   var GRAPH_SIZES = ['2', '3', '4', 'fill'];
 
@@ -71,6 +77,25 @@
   BODY_KIND[VC.BODY_FC] = 'fc';
   BODY_KIND[VC.BODY_GRAPH] = 'health';
   BODY_KIND[VC.BODY_RADAR] = 'radar';
+
+  /**
+   * A name as a screen keeps it: trimmed, at most NAME_MAX characters ('' for none).
+   * @param {*} text The name typed.
+   * @returns {string}
+   */
+  function cleanName(text) {
+    return String(text === undefined || text === null ? '' : text).replace(/^\s+|\s+$/g, '').slice(0, NAME_MAX);
+  }
+
+  /**
+   * A screen's name (THE NAMES above): its own, else its place's.
+   * @param {?Object} S Settings.
+   * @param {number} i View slot.
+   * @returns {string}
+   */
+  function nameOf(S, i) {
+    return cleanName(S && S['viewName' + i]) || NAMES[i] || '';
+  }
 
   /**
    * @param {?Object} b A block.
@@ -471,11 +496,14 @@
     ADD_ORDER: ADD_ORDER,
     MAX_SCREENS: MAX_SCREENS,
     NAMES: NAMES,
+    NAME_MAX: NAME_MAX,
     CAL_ROWS: CAL_ROWS,
     GRAPH_SIZES: GRAPH_SIZES,
     WATCH_BAR_FIRST: WATCH_BAR_FIRST,
     CAL_GRAPH_BOTTOM: CAL_GRAPH_BOTTOM,
     ONE_GRAPH_BOTTOM: ONE_GRAPH_BOTTOM,
+    cleanName: cleanName,
+    nameOf: nameOf,
     isGraph: isGraph,
     isBar: isBar,
     idxOf: idxOf,

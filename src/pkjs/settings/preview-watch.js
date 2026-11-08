@@ -55,7 +55,8 @@
         { w: 200, h: 228, floor: 222 }
     ];
     // The screens' names, as the Screens card calls them.
-    var NAMES = ['Default', 'Flick 1', 'Flick 2'];
+    // A screen's name (screens.js nameOf), the caption under its picture.
+    var screens = NODE ? require('../screens.js') : window.Screens;
     // The watch's text in the page: a narrow system sans stands in for the watch's Gothic.
     var FONT = "Roboto, 'Helvetica Neue', Arial, sans-serif";
     // The clock's three faces, by weight and spacing (the watch's own glyphs are bitmaps).
@@ -612,7 +613,7 @@
         var n = 0, figs = '';
         views.forEach(function (spec, i) {
             if (!spec && !editable) { return; }
-            var name = NAMES[i] || 'View ' + (i + 1);
+            var name = screens.nameOf(st, i) || 'View ' + (i + 1);
             var scr = spec ? screenSvg(spec, i, st, env, userData || {}, f, now) : viewScreen(st, env, i, userData);
             var inner = '<div class="wpv-card" style="background:' + bg + '">' + scr.svg + '</div>'
                 + '<span class="wpv-cap" aria-hidden="true">' + esc(name) + '</span>';

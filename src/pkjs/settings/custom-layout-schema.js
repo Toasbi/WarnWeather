@@ -36,7 +36,10 @@ function customViewItems(i) {
         // Position of a stack nothing fills: 'clock'|'top'|'center'|'bottom'.
         {type: 'hidden', messageKey: 'viewAlign' + i, defaultValue: 'clock'},
         // The forecast graph's graph style: '1'|'2'|'3' (Pebble Time 2; graph-styles.js).
-        {type: 'hidden', messageKey: 'viewStyle' + i, defaultValue: '1'}
+        {type: 'hidden', messageKey: 'viewStyle' + i, defaultValue: '1'},
+        // The screen's name ('' = its place's: Default, Flick 1, Flick 2). The page's own:
+        // never compiled, never sent to the watch, never in telemetry (screens.js nameOf).
+        {type: 'hidden', messageKey: 'viewName' + i, defaultValue: ''}
     ];
     // The Default view always keeps its clock; any view may drop its top bar.
     if (i > 0) { items.push({type: 'hidden', messageKey: 'viewClockOff' + i, defaultValue: false}); }

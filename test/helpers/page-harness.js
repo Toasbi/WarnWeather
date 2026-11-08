@@ -152,7 +152,9 @@ function makeNode(tag) {
   const found = {};
   const node = {
     tagName: String(tag).toUpperCase(), id: '', innerHTML: '', textContent: '', scrollTop: 0, style: {},
-    parentNode: null, children: [],
+    parentNode: null, children: [], value: '', focuses: 0,
+    focus() { node.focuses += 1; },
+    select() {},
     classList: { add() {}, remove() {}, contains() { return false; } },
     setAttribute(n, v) { attrs[n] = String(v); },
     getAttribute(n) { return Object.prototype.hasOwnProperty.call(attrs, n) ? attrs[n] : null; },
@@ -194,14 +196,16 @@ function bootGeneratedPage(cfg, platformName, opts) {
   const src = html.match(/<script>([\s\S]*)<\/script>/)[1]
     .replace(/PConf\.engine\.boot\(\);\s*$/, '');   // boot explicitly, after wiring onReady
   const els = {};
+  // The document's own listeners (the Screens card's ≡: its drag and arrow keys).
+  const docHandlers = {};
   const sandbox = { console, setTimeout, clearTimeout };
   sandbox.window = sandbox;
   sandbox.document = {
     getElementById(id) { return (els[id] = els[id] || makeEl(id)); },
     querySelector(sel) { return sel === '#save' ? sandbox.document.getElementById('save') : null; },
     querySelectorAll() { return []; },
-    addEventListener() {},
-    removeEventListener() {},
+    addEventListener(type, fn) { (docHandlers[type] = docHandlers[type] || []).push(fn); },
+    removeEventListener(type, fn) { docHandlers[type] = (docHandlers[type] || []).filter((f) => f !== fn); },
     // The screen editor's overlay is built by the page and appended to the body.
     createElement: makeNode,
     body: makeNode('body')
@@ -344,6 +348,11 @@ function bootGeneratedPage(cfg, platformName, opts) {
       const t = { getAttribute: n => (n === 'data-action' ? action : (n === 'data-action-arg' ? (arg === undefined ? null
         : String(arg)) : null)), closest: sel => (sel === '[data-action]' ? t : null) };
       h.dispatch('click', { target: t });
+    },
+    // Dispatch an event to the document's own listeners (the Screens card's ≡, the editor's
+    // Escape), e.g. { key: 'ArrowUp', target } for a key on a focused handle.
+    docDispatch(type, ev) {
+      (docHandlers[type] || []).slice().forEach((fn) => fn(ev));
     },
     // The screen editor's overlay (screens-page.js), while it is open; else null.
     editor() {

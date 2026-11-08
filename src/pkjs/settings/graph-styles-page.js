@@ -273,7 +273,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function screensOn(S, env, k) {
         var out = [];
         M.screensOf(S, env).forEach(function (list, i) {
-            if (drawnBy(S, list[M.idxOf(list, 'fc')]) === k) { out.push(M.NAMES[i]); }
+            if (drawnBy(S, list[M.idxOf(list, 'fc')]) === k) { out.push(M.nameOf(S, i)); }
         });
         return out;
     }
@@ -627,6 +627,30 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * The graph a screen preset brings (screen-presets.js, Pebble Time 2): the first graph of
+     * yours that reads as its template, look and length alike (wizard-forecast.js same,
+     * spanOf), else a new one from the template in the first free slot (values: what
+     * createGraph would give it). Null when neither is there: no graph reads as it and every
+     * slot is taken.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} id The template's id (wizard-forecast.js LOOKS).
+     * @returns {?{k: number, values: ?Object}} values null for a graph of yours
+     */
+    function presetGraph(S, env, id) {
+        var N = normalize(S), looks = forecastLooks();
+        var rec = looks.looks(N, env, themedDefaults(N, env), null).filter(function (r) { return r.id === id; })[0];
+        if (!rec) { return null; }
+        var mine = existing(N).filter(function (k) {
+            var Sk = GS.settingsFor(N, k);
+            return looks.same(Sk, rec.values, env) && looks.spanOf(Sk) === String(rec.span);
+        });
+        if (mine.length) { return { k: mine[0], values: null }; }
+        var k = GS.freeSlot(N);
+        return k < 0 ? null : { k: k, values: templateValues(N, env, id) };
+    }
+
+    /**
      * A template's line in the pickers: its length, then what it draws ("66 h · Clouds along the
      * top, solid rain bars").
      * @param {Object} S Settings.
@@ -973,8 +997,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function showOnHtml(S, env, k) {
         var lists = M.screensOf(S, env), none = [], full = false, kept = false;
         var chips = lists.map(function (list, i) {
-            var name = esc(M.NAMES[i]), drawn = drawnBy(S, list[M.idxOf(list, 'fc')]);
-            if (drawn < 0) { none.push(M.NAMES[i]); return '<button type="button" class="gc-chip" disabled>' + name + '</button>'; }
+            var name = esc(M.nameOf(S, i)), drawn = drawnBy(S, list[M.idxOf(list, 'fc')]);
+            if (drawn < 0) { none.push(M.nameOf(S, i)); return '<button type="button" class="gc-chip" disabled>' + name + '</button>'; }
             if (drawn === k) {
                 // The first graph's tick stays: a screen draws it unless it has another graph.
                 if (k === 0) { kept = true; }
@@ -1073,6 +1097,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         NEW: NEW,
         editing: editing,
         normalize: normalize,
+        // normalize by the name other modules call it by: a call spelt `.normalize(` reads as
+        // String.prototype.normalize to the ES5 check (test/config-es5.test.js).
+        asStored: normalize,
         settle: settle,
         swapIn: swapIn,
         pickIndex: pickIndex,
@@ -1094,6 +1121,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         sharedHint: sharedHint,
         pickOnOpen: pickOnOpen,
         templateValues: templateValues,
+        presetGraph: presetGraph,
         templateLine: templateLine,
         optionPicture: optionPicture,
         startOptions: startOptions,

@@ -140,6 +140,20 @@ test('the screens page reaches the generated page, after the screens model and t
   assert.ok(idx('settings/preview-watch.js') < at, 'preview-watch.js must precede screens-page.js');
 });
 
+// screen-presets.js publishes window.ScreenPresets, which screens-page.js and wizard-screens.js
+// bind while their bodies run: out of order (or dropped), Add screen's presets and setup's Health
+// screen throw on a real phone while every Node test passes through require().
+test('the screen presets are bundled ahead of the screens page and setup\'s screens', () => {
+  assert.ok(page().indexOf('window.ScreenPresets = api') !== -1, 'nothing assigns window.ScreenPresets');
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => appFiles.findIndex((f) => f.endsWith(suffix));
+  const at = idx('pkjs/screen-presets.js');
+  assert.notEqual(at, -1, 'screen-presets.js is not in APP_FILES');
+  assert.ok(at < idx('settings/screens-page.js'), 'screen-presets.js must precede screens-page.js');
+  assert.ok(at < idx('settings/wizard-screens.js'), 'screen-presets.js must precede wizard-screens.js');
+  assert.ok(idx('pkjs/screens.js') < idx('settings/wizard-screens.js'));
+});
+
 // line-alert.js binds window.StatusThresholds and window.LineStyle while its own body
 // runs, and forecast-hints.js and preview-forecast.js bind window.LineAlert while theirs do: out
 // of order, the Show row's hint and the preview of an Alert line throw on a real phone

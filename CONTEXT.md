@@ -51,6 +51,23 @@ Today the stops are hardcoded transitions; the à-la-carte plan makes them user
 data. With *Double flick* on, the cursor advances only on the second accepted
 flick within the pairing window (layout.h `view_flick_accept`).
 
+**Screen (settings page)**:
+One view of the flick cycle as the settings page edits it: a list of rows, top to bottom
+(`src/pkjs/screens.js`), compiled to the custom layout's per-view keys. It has a name, the
+page's own (`viewName{i}`: never compiled, sent or in telemetry; '' reads as its place, Default,
+Flick 1 or Flick 2), which moves with it. The top screen is the Default, the one the watch goes
+back to, and always shows the clock: a screen moved there gets it, or stays where it was when
+the clock does not fit (`src/pkjs/settings/screens-page.js` moveScreen).
+_Avoid_: view (the watch's word for what it draws).
+
+**Screen preset**:
+A screen Add screen offers after Blank (the Watch bar and the clock): Classic, Weathergraph,
+Clean, Stripes, Health + calendar and Health (`src/pkjs/screen-presets.js`), each only where the
+watch can draw it. On emery a forecast preset brings a graph: one of yours that reads as its
+template, else a new one from the template. It is one screen, unlike a layout preset
+(`layoutPreset`), which is a whole cycle.
+_Avoid_: calling it a layout preset, or a template (a template is where a graph starts).
+
 **Tier push**:
 Per-view layout facts (calendar rows, the date slot's full-date mode, graph gap,
 status tier and line id) flow one way: view spec → window → owning layer →

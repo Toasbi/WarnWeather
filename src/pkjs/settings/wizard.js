@@ -358,7 +358,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return {
             svg: i >= 0 ? screenPic(run.ctx.S, i, 'wf' + i + '-', cycle).svg
                 : FORECAST.previewSvg(run.ctx.S, run.env, run.ctx.USERDATA),
-            label: 'Forecast preview: ' + forecastLabel() + (i >= 0 ? ', on the ' + SCREENS.nameOf(list[i], i) + ' screen' : ''),
+            label: 'Forecast preview: ' + forecastLabel()
+                + (i >= 0 ? ', on the ' + SCREENS.nameOf(list[i], i, run.ctx.S) + ' screen' : ''),
             onScreen: i >= 0
         };
     }
@@ -591,7 +592,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} HTML.
      */
     function bigScreenHtml(list, cycle) {
-        var i = run.screenIdx, many = list.length > 1, name = SCREENS.nameOf(list[i], i);
+        var i = run.screenIdx, many = list.length > 1, name = SCREENS.nameOf(list[i], i, run.ctx.S);
         var pic = screenPic(run.ctx.S, i, 'wz' + i + '-', cycle);
         return '<div class="wiz-stage big"><div class="wiz-flick-watch" data-wiz-flick-watch' + (many ? ' data-wiz-flick' : '') + '>'
             + '<div class="wiz-watch" data-wiz-screen role="img" aria-label="' + esc(name + ': ' + pic.label) + '">'
@@ -611,7 +612,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function smallScreensHtml(list, cycle) {
         var h = '';
         list.forEach(function (scr, i) {
-            var name = SCREENS.nameOf(scr, i), pic = screenPic(run.ctx.S, i, 'ws' + i + '-', cycle);
+            var name = SCREENS.nameOf(scr, i, run.ctx.S), pic = screenPic(run.ctx.S, i, 'ws' + i + '-', cycle);
             h += '<div class="wiz-scr-it"><div class="wiz-watch sm" role="img" aria-label="' + esc(name + ': ' + pic.label)
                 + '">' + pic.svg + '</div>'
                 + (i > 0 ? '<button type="button" class="wiz-scr-x" data-wiz-scr-rm="' + i + '" aria-label="Remove the '
@@ -653,6 +654,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var turnOn = id === 'radar' && S.radarEnabled === false;
         if (turnOn) { SP.setRadarEnabled(S, true, run.env); }
         if (SP.insertScreen(S, at, M.copy(SCREENS.byId(id).list), run.env)) {
+            S['viewName' + at] = SCREENS.byId(id).name;
             run.screenIdx = at;
             if (turnOn) { run.radarOnForScreen = true; }
         } else if (turnOn) {
@@ -687,7 +689,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!run || !run.overlay || run.steps[run.idx] !== 'screens') { return; }
         var list = screens();
         if (idx >= list.length) { return; }
-        var pic = screenPic(run.ctx.S, idx, 'wz' + idx + '-'), name = SCREENS.nameOf(list[idx], idx);
+        var pic = screenPic(run.ctx.S, idx, 'wz' + idx + '-'), name = SCREENS.nameOf(list[idx], idx, run.ctx.S);
         var scr = run.overlay.querySelector('[data-wiz-screen]');
         if (scr) {
             scr.innerHTML = pic.svg;
@@ -808,7 +810,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function screensRows() {
         var list = screens();
-        return [{ k: 'Screens', v: list.map(function (scr, i) { return SCREENS.nameOf(scr, i); }).join(', '), step: 'screens' }];
+        return [{ k: 'Screens', v: list.map(function (scr, i) { return SCREENS.nameOf(scr, i, run.ctx.S); }).join(', '),
+            step: 'screens' }];
     }
     /**
      * The last step's summary: what setup chose, each with a way back to the step that set it. The

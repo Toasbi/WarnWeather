@@ -276,6 +276,11 @@
               },
               {
                 "type": "hidden",
+                "messageKey": "viewName0",
+                "defaultValue": ""
+              },
+              {
+                "type": "hidden",
                 "messageKey": "viewStripOff0",
                 "defaultValue": false
               },
@@ -323,6 +328,11 @@
                 "type": "hidden",
                 "messageKey": "viewStyle1",
                 "defaultValue": "1"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "viewName1",
+                "defaultValue": ""
               },
               {
                 "type": "hidden",
@@ -378,6 +388,11 @@
                 "type": "hidden",
                 "messageKey": "viewStyle2",
                 "defaultValue": "1"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "viewName2",
+                "defaultValue": ""
               },
               {
                 "type": "hidden",

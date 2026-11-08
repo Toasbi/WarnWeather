@@ -5,21 +5,23 @@
 // screens-page.js) is wizard.js'.
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings-page
-// webview (scripts/build-config-page.js' APP_FILES, after screens.js, which it reads at load as
-// window.Screens, and ahead of wizard.js), which has no require().
+// webview (scripts/build-config-page.js' APP_FILES, after screens.js and screen-presets.js, which it
+// reads at load as window.Screens and window.ScreenPresets, and ahead of wizard.js), which has no
+// require().
 (function () {
     var M = (typeof require !== 'undefined') ? require('../screens.js') : window.Screens;
+    var PRESETS = (typeof require !== 'undefined') ? require('../screen-presets.js') : window.ScreenPresets;
 
     // A stored layout the Layout picker doesn't offer -> the nearest one it does (aplite, whose
     // Layout is still a preset): Compact for the dense two-row calendar, No calendar for Weather
     // only (no calendar either, a big forecast). Neither has a screenshot of its own.
     var NEAREST_LAYOUT = { compactDense: 'compactCal', weatherOnly: 'noCal' };
 
-    // The flick screens setup offers, in the order they go in: the Health screen, then the Rain
-    // radar screen (today's Flick 1 and Flick 2). `env` names the watch's fact each needs.
+    // The flick screens setup offers, in the order they go in: the Health screen (Add screen's
+    // Health preset, screen-presets.js), then the Rain radar screen (today's Flick 1 and Flick 2).
+    // `env` names the watch's fact each needs. Each is named after its template as it goes in.
     var TEMPLATES = [
-        { id: 'health', name: 'Health', env: 'health',
-            list: [{ k: 'strip' }, { k: 'clock' }, { k: 'healthbar' }, { k: 'health', size: 'fill' }] },
+        { id: 'health', name: 'Health', env: 'health', list: M.copy(PRESETS.byId('health').list) },
         { id: 'radar', name: 'Rain radar', env: 'radar',
             list: [{ k: 'strip' }, { k: 'clock' }, { k: 'radarbar' }, { k: 'radar', size: 'fill' }] }
     ];
@@ -57,15 +59,19 @@
     }
 
     /**
-     * What the step calls a screen: Default, a template's name, else its place (Flick 1, Flick 2).
+     * What the step calls a screen: its own name (screens.js nameOf), else Default, a template's
+     * name (a screen added before screens had names), else its place (Flick 1, Flick 2).
      * @param {Array<Object>} list The screen.
      * @param {number} i Its place (0 = Default).
+     * @param {Object} [S] Settings (its stored name).
      * @returns {string}
      */
-    function nameOf(list, i) {
-        if (i === 0) { return 'Default'; }
+    function nameOf(list, i, S) {
+        var own = M.cleanName(S && S['viewName' + i]);
+        if (own) { return own; }
+        if (i === 0) { return M.NAMES[0]; }
         var t = templateOf(list);
-        return t ? t.name : 'Flick ' + i;
+        return t ? t.name : M.NAMES[i] || 'Flick ' + i;
     }
 
     /**

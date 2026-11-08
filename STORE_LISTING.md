@@ -94,6 +94,8 @@ WATCH
 LAYOUT CUSTOMIZATION
 - Up to three screens, switched with a wrist flick (or a double flick, to avoid accidental switches) and back to the Default screen after a time you set
 - Edit each screen as a simple list, top to bottom: drag a row, remove it or add one where it fits
+- Name your screens and drag them into the order you want; the top one is the Default
+- Add a screen from Blank or a preset: Classic, Weathergraph, Clean, Stripes, Health + calendar or Health, each drawn as it would look
 - First-run setup that previews your watch as you pick its layout, add a Health or Rain radar screen, pick a theme and a forecast look (Classic, Weathergraph or Stripes, and on the Pebble Time 2 its length), with sensible defaults for your country and watch
 - A settings page that draws your watch, every screen of it, as you change it, with Revert to undo your changes
 
