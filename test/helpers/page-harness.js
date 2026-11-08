@@ -32,6 +32,9 @@ const unescHtml = (s) => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').r
 // A derived (hintFrom) hint as engine.js renderRow writes it; group 2 is its row key,
 // group 4 its markup (no nested divs in any hint the harness drives).
 const HINT_RE = /(<div class="hint" data-hint-for=")([^"]*)(">)([\s\S]*?)(<\/div>)/g;
+// A card title that follows the settings (engine.js titleByAttr); group 2 is its section id,
+// group 4 its text.
+const TITLE_RE = /(<span class="ttl" data-title-by=")([^"]*)(">)([^<]*)(<\/span>)/g;
 
 /** A DOM-element stub for the handful of nodes boot() touches.
  *
@@ -45,6 +48,10 @@ const HINT_RE = /(<div class="hint" data-hint-for=")([^"]*)(">)([\s\S]*?)(<\/div
  * — the engine's in-place hint repaint after a keyboard nudge on a range thumb
  * (repaintDerivedHints). Its innerHTML writes are spliced back the same way and bump
  * `hintRepaints`, not `writes`.
+ *
+ * `querySelectorAll('.ttl[data-title-by]')` answers one stub per card title that follows the
+ * settings — the engine's in-place retitle after a text commit (retitleCards). Its
+ * textContent writes are spliced back the same way and bump `retitles`.
  *
  * `focuses` counts focus() calls; `document.querySelector('#save')` answers the Save
  * button's stub, so a test can see the Save dialog hand focus back to it.
@@ -106,13 +113,40 @@ function makeEl(id) {
     });
     return stub;
   }
+  // One card title, by its section id.
+  function findTitle(secId) {
+    TITLE_RE.lastIndex = 0;
+    let m;
+    while ((m = TITLE_RE.exec(raw))) { if (unescHtml(m[2]) === secId) { return m; } }
+    return null;
+  }
+  function titleStub(secId) {
+    const stub = { getAttribute: n => (n === 'data-title-by' ? secId : null) };
+    Object.defineProperty(stub, 'textContent', {
+      get() { const m = findTitle(secId); return m ? unescHtml(m[4]) : ''; },
+      set(v) {
+        const m = findTitle(secId);
+        if (!m) { return; }
+        raw = raw.slice(0, m.index) + m[1] + m[2] + m[3] + escHtml(v) + m[5] + raw.slice(m.index + m[0].length);
+        el.retitles += 1;
+      }
+    });
+    return stub;
+  }
   const el = {
-    id, className: '', textContent: '', writes: 0, relabels: 0, hintRepaints: 0, focuses: 0,
+    id, className: '', textContent: '', writes: 0, relabels: 0, hintRepaints: 0, retitles: 0, focuses: 0,
     addEventListener(type, fn) { (handlers[type] = handlers[type] || []).push(fn); },
     dispatch(type, ev) { (handlers[type] || []).forEach(fn => fn(ev)); },
     types() { return Object.keys(handlers); },
     querySelector() { return null; },
     querySelectorAll(sel) {
+      if (sel === '.ttl[data-title-by]') {
+        const ids = [];
+        TITLE_RE.lastIndex = 0;
+        let t;
+        while ((t = TITLE_RE.exec(raw))) { ids.push(unescHtml(t[2])); }
+        return ids.map(titleStub);
+      }
       if (sel === '.hint[data-hint-for]') {
         const hints = [];
         HINT_RE.lastIndex = 0;

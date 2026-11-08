@@ -824,9 +824,11 @@ function slotItem(slotKey, position, barWhen, joins) {
         type: 'select',
         messageKey: slotKey,
         label: labels[position],
-        // The picker names the bar too: it also opens from a tap on the slot in the
-        // tab's pinned preview (preview-status-bars.js), away from the bar's card.
-        sheetTitle: bar.name.replace(/ Status Bar$/, '') + ' bar · ' + labels[position],
+        // The picker names the bar too, by its name (screens.js barName): it also opens from a
+        // tap on the slot in the tab's pinned preview (preview-status-bars.js), away from the
+        // bar's card.
+        sheetTitle: bar.name + ' · ' + labels[position],
+        sheetTitleBy: {resolver: 'barSlotTitle', args: {bar: bar.bar, label: labels[position]}},
         defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: slotKey}},
         onChange: 'dedupeStatusSlot',
         editSheetFrom: {resolver: 'statusSlotEditSheet'},
@@ -835,6 +837,28 @@ function slotItem(slotKey, position, barWhen, joins) {
     };
     if (barWhen) { item.showWhen = barWhen; }
     if (joins) { item.joinPrevious = true; }
+    return item;
+}
+
+/**
+ * A status bar's Name row (screens.js THE NAMES): what the page calls the bar, '' for its own
+ * name (the placeholder), 24 characters at most; its hint says which screens show it. Page-only:
+ * never compiled or sent. The Watch bar has none (one for every screen, it keeps its name).
+ * @param {string} bar An on-demand.js BARS bar.
+ * @param {?Object} barWhen The bar's gate (null = always).
+ * @returns {Object} Text item.
+ */
+function barNameRow(bar, barWhen) {
+    var b = ON_DEMAND.BARS.filter(function (x) { return x.bar === bar; })[0];
+    var item = {
+        type: 'text',
+        messageKey: b.prefix + 'Name',
+        label: 'Name',
+        defaultValue: '',
+        attributes: {placeholder: b.name, maxlength: 24},
+        hintFrom: {resolver: 'barScreens', args: {bar: bar}}
+    };
+    if (barWhen) { item.showWhen = barWhen; }
     return item;
 }
 
@@ -1654,19 +1678,25 @@ module.exports = {
                 }
             ], {not: ON_DEMAND_WHEN}))
         }, {
+            // Your bars, each by its name (titleBy: screens.js barName), with a Name row on top
+            // whose hint says which screens show it; every one of them, a bar no screen shows
+            // too (it says so), so any bar can go onto any screen.
             id: 'barForecast',
             title: ON_DEMAND.PAGE_BARS[1].name,
-            items: barSlots('statusForecast', null)
+            titleBy: {resolver: 'barName', args: {bar: 'forecast'}},
+            items: [barNameRow('forecast', null)].concat(barSlots('statusForecast', null, true))
         }, {
             id: 'barHealth',
             title: ON_DEMAND.PAGE_BARS[2].name,
+            titleBy: {resolver: 'barName', args: {bar: 'health'}},
             showWhen: HEALTH_BAR_WHEN,
-            items: barSlots('statusHealth', HEALTH_BAR_WHEN)
+            items: [barNameRow('health', HEALTH_BAR_WHEN)].concat(barSlots('statusHealth', HEALTH_BAR_WHEN, true))
         }, {
             id: 'barRadar',
             title: ON_DEMAND.PAGE_BARS[3].name,
+            titleBy: {resolver: 'barName', args: {bar: 'radar'}},
             showWhen: RADAR_BAR_WHEN,
-            items: barSlots('statusRadar', RADAR_BAR_WHEN)
+            items: [barNameRow('radar', RADAR_BAR_WHEN)].concat(barSlots('statusRadar', RADAR_BAR_WHEN, true))
         },
         // Slot dialogs (sheetOnly): reachable only through the Edit button next to a
         // status slot whose selected value has a dialog — never rendered as cards here.

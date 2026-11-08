@@ -249,6 +249,7 @@ Schema
             ├─ intro        string  (HTML — the card's info text; behind its header's '?' in the '?' mode)
             ├─ block        string  (custom-block id — rendered below the items)
             ├─ collapsible  boolean (renders section as a collapsible card)
+            ├─ titleBy      {resolver, args?} (the header's title from the settings; see Section fields)
             ├─ titleFrom    {resolver, args?} (collapsed-header value; see Section fields)
             ├─ groupCard    string  (consecutive sections sharing an id merge into one card)
             ├─ pane         string  (renders only while its tab shows that pane)
@@ -425,6 +426,7 @@ picking the shown swatch is what writes it.
 | `intro` | string | HTML rendered above items |
 | `block` | string | Custom-block id rendered BELOW the items (see [Registries](#registries-and-hooks)). A block ABOVE the items is the item-level `blockBefore` on the section's first item — the engine has no section-level `blockBefore`; for a card that stacks several blocks, share a `groupCard` id across consecutive sections instead. |
 | `collapsible` | boolean | Collapses the section into an expandable card (collapsed by default; state is per page open) |
+| `titleBy` | `{resolver, args?}` | The card header's title itself follows the settings: a `PConf.displayResolvers` id whose `fn(S, env, args)` answer replaces `title` (escaped); `''` or no answer keeps `title`. The header marks it (`data-title-by`), so a text commit that skips the re-render retitles it in place (e.g. a status bar's Name row titling its card). |
 | `titleFrom` | `{resolver, args?}` | Collapsible sections only: a `PConf.displayResolvers` id whose `fn(S, env, args)` result is painted next to the title while the card is COLLAPSED (e.g. the current pick of a select inside), so a closed card still says what's selected. Open cards show the plain `title`. `args` pass through verbatim (no messageKey merge — sections have none). |
 | `groupCard` | string | Consecutive sections sharing a `groupCard` id render into ONE card: titles become in-card sub-headers, and each section's intro/items/`block` stack inside it. Empty sub-sections drop out cleanly. |
 | `items` | Item[] | The items to render |
@@ -461,6 +463,7 @@ picking the shown swatch is what writes it.
 | `stamp` | boolean | A value the page writes on its own (the Weather tab's last-opened time): it is saved like any other, but its change never lights Save or shows Revert, and Revert leaves it as it is. |
 | `full` | boolean | `segmented` only: one equal segment per option across the row, a long label wrapping inside its own segment, the picked option's hint under it (the setup's pickers). |
 | `sheetTitle` | string | `select`/`searchSelect` only: the picker sheet's title, where the row's label alone would not name it (a row whose picker also opens from a preview). Default: the label. |
+| `sheetTitleBy` | `{resolver, args?}` | `select` only: a `PConf.displayResolvers` id whose answer titles the picker sheet instead of `sheetTitle` (a slot picker named by its bar's name); `''` keeps `sheetTitle`. |
 | `sheetLead` | string | `select`/`searchSelect` only: one plain line under the picker sheet's title that says what the picker does (escaped). |
 | `pictureFrom` | `{ resolver, args }` | `radio`: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry--pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). `select`/`searchSelect`: each option's picture at the start of its row in the picker sheet. |
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
@@ -719,10 +722,11 @@ to `undefined`: the key stays unset.
 
 An item with a `displayFrom: { resolver: id, args }` field PAINTS a derived value while its
 stored value stays untouched — for a key whose effective value is computed elsewhere (a colour
-that cascades from a sibling key until the user pins it). Two consumers read the registry
+that cascades from a sibling key until the user pins it). Several consumers read the registry
 today: `color` items via `displayFrom` (args get the item's messageKey merged under them),
-and collapsible sections via `titleFrom` (the collapsed card header's value — args pass
-through verbatim, with NO messageKey merged in, since sections have none).
+collapsible sections via `titleFrom` (the collapsed card header's value — args pass
+through verbatim, with NO messageKey merged in, since sections have none), and the titles
+themselves via a section's `titleBy` and a select's `sheetTitleBy` (args verbatim too).
 
 ```js
 // Returns the value to display; return null/undefined for "use the stored value".

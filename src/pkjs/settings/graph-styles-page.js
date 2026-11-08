@@ -1109,6 +1109,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         label: label,
         drawnBy: drawnBy,
         screensOn: screensOn,
+        andList: andList,
         whereText: whereText,
         cardLine: cardLine,
         limitOptions: limitOptions,

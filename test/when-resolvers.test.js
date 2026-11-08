@@ -119,7 +119,8 @@ test('defaultViewLacksOnDemand: the Default view the watch runs has no strip and
   assert.equal(lacks(Object.assign({}, custom, { viewStripOff0: false })), false);
   const health = Object.assign({}, custom, { viewLower0: 'health', statusHealthOnDemandLeftItems: 'battery' });
   assert.equal(lacks(Object.assign({ healthMode: 'status' }, health)), false, 'a health seat carrying items');
-  assert.equal(lacks(Object.assign({ healthMode: 'off' }, health)), true, 'a health seat folded away');
+  assert.equal(lacks(Object.assign({ healthMode: 'off' }, health)), false,
+    'the Health bar stays without health (2.7.0), its items with it');
   const radar = Object.assign({}, custom, { viewUpper0: 'radar', statusRadarOnDemandLeftItems: 'rain' });
   assert.equal(lacks(Object.assign({ radarMode: 'status' }, radar)), false, 'a radar seat carrying items');
   assert.equal(lacks(Object.assign({ radarMode: 'off' }, radar)), false,

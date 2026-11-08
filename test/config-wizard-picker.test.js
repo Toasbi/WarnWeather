@@ -546,7 +546,7 @@ test('with the rain radar off, a Rain radar screen is drawn as the watch draws i
   walkToTitle(dom, 'Flick to switch screens');
   assert.deepEqual(screenNames(ctx), ['Default', 'Rain radar']);
   const drawn = SP.screenPicture(ctx.S, 1, ctx.ENV, ctx.USERDATA, 'x').label;
-  assert.equal(drawn, 'Watch Status, Clock, Radar Status, Forecast', 'the radar graph folds to the forecast');
+  assert.equal(drawn, 'Watch bar, Clock, Radar bar, Forecast', 'the radar graph folds to the forecast');
   assert.ok(dom.body.innerHTML.indexOf('aria-label="Rain radar: ' + drawn + '"') >= 0, 'the small screen is that picture');
   assert.equal(ctx.S.radarEnabled, false, 'drawing it turns nothing on');
 });

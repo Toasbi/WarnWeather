@@ -230,6 +230,22 @@
                 "defaultValue": "off"
               },
               {
+                "type": "select",
+                "messageKey": "screenBar",
+                "uiOnly": true,
+                "label": "Bar",
+                "sheetTitle": "Bar on this screen",
+                "sheetLead": "Your bars, by name. Fill them on the Status bars tab.",
+                "defaultValue": "",
+                "dormantValues": [
+                  ""
+                ],
+                "optionsFrom": {
+                  "resolver": "screenBarOptions"
+                },
+                "onChange": "screenBarPicked"
+              },
+              {
                 "type": "hidden",
                 "messageKey": "viewTop0",
                 "defaultValue": "cal"
@@ -3552,13 +3568,20 @@
           },
           {
             "id": "barTop",
-            "title": "Watch Status Bar",
+            "title": "Watch bar",
             "items": [
               {
                 "type": "select",
                 "messageKey": "statusTopLeft",
                 "label": "Left slot",
                 "sheetTitle": "Watch bar · Left slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "top",
+                    "label": "Left slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3598,6 +3621,13 @@
                 "messageKey": "statusTopMid",
                 "label": "Middle slot",
                 "sheetTitle": "Watch bar · Middle slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "top",
+                    "label": "Middle slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3638,6 +3668,13 @@
                 "messageKey": "statusTopRight",
                 "label": "Right slot",
                 "sheetTitle": "Watch bar · Right slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "top",
+                    "label": "Right slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3757,13 +3794,42 @@
           },
           {
             "id": "barForecast",
-            "title": "Forecast Status Bar",
+            "title": "Forecast bar",
+            "titleBy": {
+              "resolver": "barName",
+              "args": {
+                "bar": "forecast"
+              }
+            },
             "items": [
+              {
+                "type": "text",
+                "messageKey": "statusForecastName",
+                "label": "Name",
+                "defaultValue": "",
+                "attributes": {
+                  "placeholder": "Forecast bar",
+                  "maxlength": 24
+                },
+                "hintFrom": {
+                  "resolver": "barScreens",
+                  "args": {
+                    "bar": "forecast"
+                  }
+                }
+              },
               {
                 "type": "select",
                 "messageKey": "statusForecastLeft",
                 "label": "Left slot",
                 "sheetTitle": "Forecast bar · Left slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "forecast",
+                    "label": "Left slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3783,7 +3849,8 @@
                     "slotKey": "statusForecastLeft",
                     "position": "left"
                   }
-                }
+                },
+                "joinPrevious": true
               },
               {
                 "type": "date",
@@ -3803,6 +3870,13 @@
                 "messageKey": "statusForecastMid",
                 "label": "Middle slot",
                 "sheetTitle": "Forecast bar · Middle slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "forecast",
+                    "label": "Middle slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3843,6 +3917,13 @@
                 "messageKey": "statusForecastRight",
                 "label": "Right slot",
                 "sheetTitle": "Forecast bar · Right slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "forecast",
+                    "label": "Right slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3898,26 +3979,48 @@
           },
           {
             "id": "barHealth",
-            "title": "Health Status Bar",
+            "title": "Health bar",
+            "titleBy": {
+              "resolver": "barName",
+              "args": {
+                "bar": "health"
+              }
+            },
             "showWhen": {
-              "all": [
-                {
-                  "env": "health"
+              "env": "health"
+            },
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "statusHealthName",
+                "label": "Name",
+                "defaultValue": "",
+                "attributes": {
+                  "placeholder": "Health bar",
+                  "maxlength": 24
                 },
-                {
-                  "when": "barShown",
+                "hintFrom": {
+                  "resolver": "barScreens",
                   "args": {
                     "bar": "health"
                   }
+                },
+                "showWhen": {
+                  "env": "health"
                 }
-              ]
-            },
-            "items": [
+              },
               {
                 "type": "select",
                 "messageKey": "statusHealthLeft",
                 "label": "Left slot",
                 "sheetTitle": "Health bar · Left slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "health",
+                    "label": "Left slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3939,18 +4042,9 @@
                   }
                 },
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "health"
-                    },
-                    {
-                      "when": "barShown",
-                      "args": {
-                        "bar": "health"
-                      }
-                    }
-                  ]
-                }
+                  "env": "health"
+                },
+                "joinPrevious": true
               },
               {
                 "type": "date",
@@ -3963,17 +4057,7 @@
                 "showWhen": {
                   "all": [
                     {
-                      "all": [
-                        {
-                          "env": "health"
-                        },
-                        {
-                          "when": "barShown",
-                          "args": {
-                            "bar": "health"
-                          }
-                        }
-                      ]
+                      "env": "health"
                     },
                     {
                       "key": "statusHealthLeft",
@@ -3987,6 +4071,13 @@
                 "messageKey": "statusHealthMid",
                 "label": "Middle slot",
                 "sheetTitle": "Health bar · Middle slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "health",
+                    "label": "Middle slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4008,17 +4099,7 @@
                   }
                 },
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "health"
-                    },
-                    {
-                      "when": "barShown",
-                      "args": {
-                        "bar": "health"
-                      }
-                    }
-                  ]
+                  "env": "health"
                 },
                 "joinPrevious": true
               },
@@ -4033,17 +4114,7 @@
                 "showWhen": {
                   "all": [
                     {
-                      "all": [
-                        {
-                          "env": "health"
-                        },
-                        {
-                          "when": "barShown",
-                          "args": {
-                            "bar": "health"
-                          }
-                        }
-                      ]
+                      "env": "health"
                     },
                     {
                       "key": "statusHealthMid",
@@ -4057,6 +4128,13 @@
                 "messageKey": "statusHealthRight",
                 "label": "Right slot",
                 "sheetTitle": "Health bar · Right slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "health",
+                    "label": "Right slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4078,17 +4156,7 @@
                   }
                 },
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "health"
-                    },
-                    {
-                      "when": "barShown",
-                      "args": {
-                        "bar": "health"
-                      }
-                    }
-                  ]
+                  "env": "health"
                 },
                 "joinPrevious": true
               },
@@ -4103,17 +4171,7 @@
                 "showWhen": {
                   "all": [
                     {
-                      "all": [
-                        {
-                          "env": "health"
-                        },
-                        {
-                          "when": "barShown",
-                          "args": {
-                            "bar": "health"
-                          }
-                        }
-                      ]
+                      "env": "health"
                     },
                     {
                       "key": "statusHealthRight",
@@ -4140,17 +4198,7 @@
                       "env": "onDemand"
                     },
                     {
-                      "all": [
-                        {
-                          "env": "health"
-                        },
-                        {
-                          "when": "barShown",
-                          "args": {
-                            "bar": "health"
-                          }
-                        }
-                      ]
+                      "env": "health"
                     }
                   ]
                 }
@@ -4159,26 +4207,48 @@
           },
           {
             "id": "barRadar",
-            "title": "Radar Status Bar",
+            "title": "Radar bar",
+            "titleBy": {
+              "resolver": "barName",
+              "args": {
+                "bar": "radar"
+              }
+            },
             "showWhen": {
-              "all": [
-                {
-                  "env": "radar"
+              "env": "radar"
+            },
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "statusRadarName",
+                "label": "Name",
+                "defaultValue": "",
+                "attributes": {
+                  "placeholder": "Radar bar",
+                  "maxlength": 24
                 },
-                {
-                  "when": "barShown",
+                "hintFrom": {
+                  "resolver": "barScreens",
                   "args": {
                     "bar": "radar"
                   }
+                },
+                "showWhen": {
+                  "env": "radar"
                 }
-              ]
-            },
-            "items": [
+              },
               {
                 "type": "select",
                 "messageKey": "statusRadarLeft",
                 "label": "Left slot",
                 "sheetTitle": "Radar bar · Left slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "radar",
+                    "label": "Left slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4200,18 +4270,9 @@
                   }
                 },
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "radar"
-                    },
-                    {
-                      "when": "barShown",
-                      "args": {
-                        "bar": "radar"
-                      }
-                    }
-                  ]
-                }
+                  "env": "radar"
+                },
+                "joinPrevious": true
               },
               {
                 "type": "date",
@@ -4224,17 +4285,7 @@
                 "showWhen": {
                   "all": [
                     {
-                      "all": [
-                        {
-                          "env": "radar"
-                        },
-                        {
-                          "when": "barShown",
-                          "args": {
-                            "bar": "radar"
-                          }
-                        }
-                      ]
+                      "env": "radar"
                     },
                     {
                       "key": "statusRadarLeft",
@@ -4248,6 +4299,13 @@
                 "messageKey": "statusRadarMid",
                 "label": "Middle slot",
                 "sheetTitle": "Radar bar · Middle slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "radar",
+                    "label": "Middle slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4269,17 +4327,7 @@
                   }
                 },
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "radar"
-                    },
-                    {
-                      "when": "barShown",
-                      "args": {
-                        "bar": "radar"
-                      }
-                    }
-                  ]
+                  "env": "radar"
                 },
                 "joinPrevious": true
               },
@@ -4294,17 +4342,7 @@
                 "showWhen": {
                   "all": [
                     {
-                      "all": [
-                        {
-                          "env": "radar"
-                        },
-                        {
-                          "when": "barShown",
-                          "args": {
-                            "bar": "radar"
-                          }
-                        }
-                      ]
+                      "env": "radar"
                     },
                     {
                       "key": "statusRadarMid",
@@ -4318,6 +4356,13 @@
                 "messageKey": "statusRadarRight",
                 "label": "Right slot",
                 "sheetTitle": "Radar bar · Right slot",
+                "sheetTitleBy": {
+                  "resolver": "barSlotTitle",
+                  "args": {
+                    "bar": "radar",
+                    "label": "Right slot"
+                  }
+                },
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4339,17 +4384,7 @@
                   }
                 },
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "radar"
-                    },
-                    {
-                      "when": "barShown",
-                      "args": {
-                        "bar": "radar"
-                      }
-                    }
-                  ]
+                  "env": "radar"
                 },
                 "joinPrevious": true
               },
@@ -4364,17 +4399,7 @@
                 "showWhen": {
                   "all": [
                     {
-                      "all": [
-                        {
-                          "env": "radar"
-                        },
-                        {
-                          "when": "barShown",
-                          "args": {
-                            "bar": "radar"
-                          }
-                        }
-                      ]
+                      "env": "radar"
                     },
                     {
                       "key": "statusRadarRight",
@@ -4401,17 +4426,7 @@
                       "env": "onDemand"
                     },
                     {
-                      "all": [
-                        {
-                          "env": "radar"
-                        },
-                        {
-                          "when": "barShown",
-                          "args": {
-                            "bar": "radar"
-                          }
-                        }
-                      ]
+                      "env": "radar"
                     }
                   ]
                 }
@@ -7191,7 +7206,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default screen has no Watch Status Bar, so Alerts won’t show there. Open an alert and, under Shows on, pick another status bar that screen shows.",
+                "text": "Your Default screen has no Watch bar, so Alerts won’t show there. Open an alert and, under Shows on, pick another status bar that screen shows.",
                 "showWhen": {
                   "when": "defaultViewLacksOnDemand"
                 }
@@ -7604,7 +7619,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default screen has no Watch Status Bar. Tick another bar below.",
+                "text": "Your Default screen has no Watch bar. Tick another bar below.",
                 "showWhen": {
                   "when": "defaultViewLacksOnDemand"
                 }
@@ -7704,7 +7719,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default screen has no Watch Status Bar. Tick another bar below.",
+                "text": "Your Default screen has no Watch bar. Tick another bar below.",
                 "showWhen": {
                   "when": "defaultViewLacksOnDemand"
                 }
@@ -7794,7 +7809,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default screen has no Watch Status Bar. Tick another bar below.",
+                "text": "Your Default screen has no Watch bar. Tick another bar below.",
                 "showWhen": {
                   "when": "defaultViewLacksOnDemand"
                 }
@@ -7839,7 +7854,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default screen has no Watch Status Bar. Tick another bar below.",
+                "text": "Your Default screen has no Watch bar. Tick another bar below.",
                 "showWhen": {
                   "when": "defaultViewLacksOnDemand"
                 }
@@ -7914,7 +7929,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default screen has no Watch Status Bar. Tick another bar below.",
+                "text": "Your Default screen has no Watch bar. Tick another bar below.",
                 "showWhen": {
                   "when": "defaultViewLacksOnDemand"
                 }
@@ -8039,7 +8054,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default screen has no Watch Status Bar. Tick another bar below.",
+                "text": "Your Default screen has no Watch bar. Tick another bar below.",
                 "showWhen": {
                   "when": "defaultViewLacksOnDemand"
                 }
@@ -8317,7 +8332,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default screen has no Watch Status Bar. Tick another bar below.",
+                "text": "Your Default screen has no Watch bar. Tick another bar below.",
                 "showWhen": {
                   "when": "defaultViewLacksOnDemand"
                 }
@@ -8624,7 +8639,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default screen has no Watch Status Bar. Tick another bar below.",
+                "text": "Your Default screen has no Watch bar. Tick another bar below.",
                 "showWhen": {
                   "when": "defaultViewLacksOnDemand"
                 }
@@ -8902,7 +8917,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default screen has no Watch Status Bar. Tick another bar below.",
+                "text": "Your Default screen has no Watch bar. Tick another bar below.",
                 "showWhen": {
                   "when": "defaultViewLacksOnDemand"
                 }
@@ -9206,7 +9221,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default screen has no Watch Status Bar. Tick another bar below.",
+                "text": "Your Default screen has no Watch bar. Tick another bar below.",
                 "showWhen": {
                   "when": "defaultViewLacksOnDemand"
                 }

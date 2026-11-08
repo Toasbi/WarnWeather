@@ -2712,6 +2712,34 @@ test('titleFrom: a collapsed section header paints the resolved value; open/plai
   assert.equal(html.indexOf('ttlval'), -1);
 });
 
+test('titleBy / sheetTitleBy: a card header and a picker named by the settings; the static title otherwise', () => {
+  PConf.displayResolvers.register('namedTitle', function (S, env, args) {
+    return S.name ? S.name + (args.tail || '') : '';
+  });
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{
+    id: 'bar', title: 'Forecast bar', titleBy: { resolver: 'namedTitle' },
+    items: [{ type: 'select', messageKey: 'slot', label: 'Left slot', sheetTitle: 'Forecast bar · Left slot',
+      sheetTitleBy: { resolver: 'namedTitle', args: { tail: ' · Left slot' } }, defaultValue: 'a',
+      options: [['Alpha', 'a'], ['Bravo', 'b']] }]
+  }] }] };
+  const mkCx = (S) => ({ S, ENV: {}, USERDATA: {}, openColor: null, collapsed: {},
+    evalCtx: Object.assign({}, S, { env: {} }) });
+  // Named: the resolver's answer, escaped, marked for the in-place retitle after a text commit.
+  let html = E.renderBody(SCH, 't', mkCx({ name: 'Morning <b>', slot: 'a' }));
+  assert.match(html, /<span class="ttl" data-title-by="bar">Morning &lt;b&gt;<\/span>/);
+  let sheet = E.renderSelectModal(SCH, Object.assign(mkCx({ name: 'Morning <b>', slot: 'a' }), { openSelect: 'slot' }));
+  assert.match(sheet, /id="ssel-ttl-slot">Morning &lt;b&gt; · Left slot</);
+  // Unnamed (the resolver answers ''): the static title stands.
+  html = E.renderBody(SCH, 't', mkCx({ name: '', slot: 'a' }));
+  assert.match(html, /<span class="ttl" data-title-by="bar">Forecast bar<\/span>/);
+  sheet = E.renderSelectModal(SCH, Object.assign(mkCx({ slot: 'a' }), { openSelect: 'slot' }));
+  assert.match(sheet, /id="ssel-ttl-slot">Forecast bar · Left slot</);
+  // A section without titleBy is not marked.
+  const PLAIN = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{
+    id: 'p', title: 'Plain', items: [{ type: 'toggle', messageKey: 'x', defaultValue: false }] }] }] };
+  assert.match(E.renderBody(PLAIN, 't', mkCx({ x: false })), /<span class="ttl">Plain<\/span>/);
+});
+
 test('initialTab: a tab may claim the opening slot, order alone does not', () => {
   const bar = (tabs) => ({ appName: 'X', versionLabel: 'v0', tabs: tabs });
   const T = (id, extra) => Object.assign({ id: id, label: id, sections: [] }, extra || {});

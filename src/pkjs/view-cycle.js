@@ -342,10 +342,9 @@ function stackNeed(s, f) {
  * view_spec_resolve, mirrored: without health a health top empties and a health body falls
  * back to the forecast (or empties under a forecast top); without radar a radar top becomes
  * the calendar of its rows (2 → 2-row, else 3-row) and a radar body the forecast; a graph
- * never shows twice; a health row drops without health, and at order 0 a surviving lower
- * row takes the upper seat. The Radar bar stays without radar data (it is a status bar like
- * the others; only the radar GRAPH needs the radar). The order rule stays the configured
- * view's (the watch keeps it).
+ * never shows twice. The status rows always stay: the Radar bar and the Health bar are status
+ * bars like the others and stay without radar or health data (only the GRAPHS need their
+ * data). The order rule stays the configured view's (the watch keeps it).
  * @param {!Object} s compiled view spec
  * @param {boolean} hasRadar
  * @param {boolean} hasHealth
@@ -364,18 +363,6 @@ function resolveForFit(s, hasRadar, hasHealth) {
   if (r.top === TOP_GRAPH && ((!r.topKind && r.body === BODY_FC)
                               || (r.topKind === TOP_KIND_HEALTH && r.body === BODY_GRAPH))) {
     r.body = BODY_NONE;
-  }
-  /** @param {number} src @returns {number} the source, or NONE when its data is missing */
-  function keep(src) {
-    return (src === STATUS_SRC_HEALTH && !hasHealth) ? STATUS_SRC_NONE : src;
-  }
-  var upBefore = r.statusUpper;
-  r.statusUpper = keep(r.statusUpper);
-  r.statusLower = keep(r.statusLower);
-  if (!r.order && upBefore !== STATUS_SRC_NONE && r.statusUpper === STATUS_SRC_NONE
-      && r.statusLower !== STATUS_SRC_NONE) {
-    r.statusUpper = r.statusLower;
-    r.statusLower = STATUS_SRC_NONE;
   }
   return canonicalExt(r);
 }
@@ -396,9 +383,8 @@ function stackFits(s, family) {
   if (!s || !isStacked(s)) { return { fits: true, over: 0 }; }
   var fams = family === 'emery' ? [1] : family ? [0] : [0, 1];
   // Every data state the watch can meet — radar and health present or missing — laid out
-  // the way it folds them (resolveForFit: without radar only the radar graph folds, the
-  // Radar bar stays; without health the health graph and row do): the view must fit in
-  // the worst one.
+  // the way it folds them (resolveForFit: only the graphs fold, the status bars stay): the
+  // view must fit in the worst one.
   var states = [[true, true], [false, true], [true, false], [false, false]];
   var over = 0, j, k, n;
   for (j = 0; j < fams.length; j++) {
@@ -647,14 +633,14 @@ var CUSTOM_SRC = {
 // writes are worked out from the screens (screens.js deriveModes), so a seat a screen
 // holds is always unlocked once saved. Mirrors the watch's
 // view_spec_resolve: radar CHART seats (top strip / body) need radarMode 'graph';
-// a health graph body needs healthMode 'all'; a health status source needs
-// 'status'|'all' ('slot' shows health only in the regular slot system, same as the
-// preset MATRIX's bucket rule). The radar status SOURCE (the Radar bar) needs no mode:
-// it is a status bar like the others and the watch draws it without radar data, so a
-// custom view keeps it whatever radarMode says, and capabilities() has no seat for it.
-// RADAR_ROW_MODES stays the PRESETS' fact — the modes whose preset cycles draw the Radar
-// bar (MATRIX's 'r' cycles) — read by the 2.6 migration's 2.5 compile
-// (migrations/screens.js legacyCycle).
+// a health graph body needs healthMode 'all'. The status SOURCES need no mode: the Radar
+// bar and the Health bar are status bars like the others (they hold what their slots
+// hold, 2.7.0's named bars), and the watch draws them without radar or health data, so a
+// custom view keeps them whatever the modes say, and capabilities() has no seat for them.
+// RADAR_ROW_MODES and HEALTH_ROW_MODES stay the PRESETS' facts — the modes whose preset
+// cycles draw the Radar bar (MATRIX's 'r' cycles) and the Health bar (its 'status'/'all'
+// buckets) — read by the 2.6 migration's 2.5 compile (migrations/screens.js legacyCycle,
+// which folds the two bars outside them as 2.5 did).
 var RADAR_CHART_MODES = ['graph'];
 var RADAR_ROW_MODES = ['status', 'graph'];
 var HEALTH_ROW_MODES = ['status', 'all'];
@@ -662,34 +648,30 @@ var HEALTH_BODY_MODES = ['all'];
 
 /**
  * The capability booleans for a settings state — one per seat kind that folds, derived
- * from the mode lists above (reads S.radarMode / S.healthMode). The Radar bar has none:
- * custom views keep it in every mode.
+ * from the mode lists above (reads S.radarMode / S.healthMode). The status bars have none:
+ * custom views keep them in every mode.
  * @param {Object} S settings state
- * @returns {{radarChart:boolean,healthRow:boolean,healthBody:boolean}}
+ * @returns {{radarChart:boolean,healthBody:boolean}}
  */
 function capabilities(S) {
   S = S || {};
   return {
     radarChart: RADAR_CHART_MODES.indexOf(S.radarMode) >= 0,
-    healthRow: HEALTH_ROW_MODES.indexOf(S.healthMode) >= 0,
     healthBody: HEALTH_BODY_MODES.indexOf(S.healthMode) >= 0
   };
 }
 
 // Every seat kind on: how the screens show a custom layout (screensCycle), whatever the
 // modes say, since 2.6 works the modes out from the screens.
-var ALL_CAPABLE = { radarChart: true, healthRow: true, healthBody: true };
+var ALL_CAPABLE = { radarChart: true, healthBody: true };
 
 /**
  * Compile the custom per-view keys into a 1-3 slot cycle. Seats fold by
  * capabilities(S) — the shared gate table above — so the previews and the wire
- * agree with the watch's view_spec_resolve; the Radar bar never folds (the watch
- * draws it without radar data). Under the legacy order a folded-away
- * upper promotes the surviving lower (dense degradation, the watch's rule);
- * explicit stacked orders keep user-placed seats. A flick view left with NOTHING on
- * it (no clock, top band, graph or status row — e.g. its only status bar's source was
- * switched off in settings) compiles to null: a disabled slot the watch skips, instead
- * of a blank screen the flick would stop on.
+ * agree with the watch's view_spec_resolve; the status bars never fold (the watch
+ * draws them without radar or health data). A flick view left with NOTHING on
+ * it (no clock, top band, graph or status row) compiles to null: a disabled slot the
+ * watch skips, instead of a blank screen the flick would stop on.
  * @param {Object} S settings state
  * @param {Object} [cap] the seats to keep, in place of capabilities(S) (screensCycle's
  *   ALL_CAPABLE)
@@ -710,10 +692,10 @@ function buildCustomCycle(S, cap) {
       : (CUSTOM_TOP[topKey] || CUSTOM_TOP.cal2);
     var body = CUSTOM_BODY[S['viewBody' + i]];
     if (body === undefined) { body = BODY_FC; }
-    var suRaw = CUSTOM_SRC[S['viewUpper' + i]];
-    if (suRaw === undefined) { suRaw = STATUS_SRC_NONE; }
-    var slRaw = CUSTOM_SRC[S['viewLower' + i]];
-    if (slRaw === undefined) { slRaw = STATUS_SRC_NONE; }
+    var su = CUSTOM_SRC[S['viewUpper' + i]];
+    if (su === undefined) { su = STATUS_SRC_NONE; }
+    var sl = CUSTOM_SRC[S['viewLower' + i]];
+    if (sl === undefined) { sl = STATUS_SRC_NONE; }
 
     // A radar top without the radar chart falls back to a calendar — the 2-row one for a
     // 2-row radar top (the same height, like the watch's no-data fold), else 3 rows.
@@ -730,18 +712,7 @@ function buildCustomCycle(S, cap) {
                                 || (t.kind === TOP_KIND_HEALTH && body === BODY_GRAPH))) {
       body = BODY_NONE;
     }
-    // A health row folds by healthMode; the Radar bar stays in every radarMode.
-    var su = suRaw, sl = slRaw;
-    if (su === STATUS_SRC_HEALTH && !cap.healthRow) { su = STATUS_SRC_NONE; }
-    if (sl === STATUS_SRC_HEALTH && !cap.healthRow) { sl = STATUS_SRC_NONE; }
-
     var code = orderCode(S['viewOrder' + i] || 'TACB');
-    if (code === 0 && suRaw !== STATUS_SRC_NONE && su === STATUS_SRC_NONE
-        && sl !== STATUS_SRC_NONE) {
-      su = sl;
-      sl = STATUS_SRC_NONE;
-    }
-
     var s = spec(t.tier, t.top, body, su, sl);
     if (t.kind) { s.topKind = t.kind; }
     // The Default view always keeps its clock; any view may drop its top bar.

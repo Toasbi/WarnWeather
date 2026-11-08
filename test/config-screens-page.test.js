@@ -129,7 +129,10 @@ test('a bar an edit brings onto the screens with nothing to show takes its defau
   SP.writeScreen(S, SP.addScreen(S, BASALT), M.add(M.add(SP.NEW_SCREEN, 'healthbar'), 'radarbar'), BASALT);
   assert.deepEqual(slotsOf(S, 'health'), ['steps', 'empty', 'sleep'], 'a new install\'s, no heart rate on a basalt');
   assert.deepEqual(slotsOf(S, 'radar'), ['uv', 'wind', 'gust']);
-  assert.deepEqual([S.radarMode, S.healthMode], ['status', 'status'], 'the modes follow the bars');
+  // The modes follow what the shown bars hold (2.7.0): the Health bar's steps and sleep need
+  // health; the Radar bar's UV, wind and gusts need no radar (the rain alert on the Watch
+  // bar does).
+  assert.deepEqual([S.radarMode, S.healthMode], ['countdown', 'slot'], 'the modes follow what the bars hold');
   // The watch's own defaults: emery's heart rate.
   const EMERY = platform.computeEnv({ platform: 'emery' });
   const E = preset(Object.assign({}, ONE, BLANK_HEALTH));

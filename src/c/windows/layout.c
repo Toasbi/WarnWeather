@@ -323,15 +323,6 @@ void view_spec_apply_ext(ViewSpec *s, uint16_t ext) {
     s->stacked = spec_is_stacked(s);
 }
 
-// Downgrade one status source to NONE when its capability is missing: a health row
-// without health. The Radar bar is a status bar like the others (its slots are the
-// phone's, baked into STATUS_LINE_2 on every weather fetch), so it stays without radar
-// data; only the radar GRAPH needs the radar (the top/body folds in view_spec_resolve).
-static uint8_t resolve_source(uint8_t src, bool has_health) {
-    if (src == STATUS_SRC_HEALTH && !has_health) { return STATUS_SRC_NONE; }
-    return src;
-}
-
 ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
     // A health graph in the top band without health data: the band empties (the user
     // placed a graph, not a calendar — the tier is NONE, so there are no rows to show).
@@ -357,25 +348,11 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
                 || (spec.top_kind == TOP_GRAPH_HEALTH && spec.body == BODY_HEALTH_GRAPH))) {
         spec.body = BODY_NONE;
     }
-    uint8_t upper_before = spec.status_upper;
-    spec.status_upper = resolve_source(spec.status_upper, has_health);
-    spec.status_lower = resolve_source(spec.status_lower, has_health);
-    // A STRIPPED upper promotes the surviving lower row into its slot: a degraded dense
-    // view (e.g. compactDense's health-upper + forecast-lower default while health is
-    // unavailable) renders as the plain compact layout, not as the unrequested
-    // swap-clock/status layout — the clock keeps its seat, so nothing jumps when the
-    // capability comes back. A CONFIGURED lone lower (the swap toggle's layout) has
-    // upper_before == NONE and is left where the user put it. Mirrors the aplite twin's
-    // unpack collapse ("a clean single view, not an unrequested swap", layout_aplite.c).
-    // ORDER-GATED: under an explicit stacked order the A/B bands are user-placed
-    // positions, so a capability strip keeps the survivor exactly where it was put —
-    // promoting would move it to the other band's slot in the stack.
-    if (spec.order == 0
-        && upper_before != STATUS_SRC_NONE && spec.status_upper == STATUS_SRC_NONE
-        && spec.status_lower != STATUS_SRC_NONE) {
-        spec.status_upper = spec.status_lower;
-        spec.status_lower = STATUS_SRC_NONE;
-    }
+    // The status rows stay whatever data is missing: every bar is a status bar like the
+    // others (its slots are the phone's, baked into its STATUS_LINE_* on every weather
+    // fetch), so the Radar bar stays without radar data and, since 2.7.0's named bars, the
+    // Health bar without health (its health slots show their placeholders, as a health item
+    // on any bar does). Only the graphs need their data (the folds above).
     // The folds above can strip a seat (a radar top back to a calendar, …) and leave its
     // size behind; re-derive the canonical ext fields from what survived.
     spec_normalise_ext(&spec);
@@ -903,10 +880,11 @@ bool view_slot_available(uint32_t word, bool has_radar, bool has_health) {
     // function inherits it, instead of a half-migrated copy silently disagreeing
     // and offering a cycle slot its layer set cannot render.
     LayerVisibility v = layout_visibility(&spec);
-    // Only the radar GRAPH needs radar data: a view whose radar content is the Radar bar
-    // stays a stop without it (the bar is a status bar like the others, resolve keeps it).
+    // Only the GRAPHS need their data: a view whose radar or health content is the Radar
+    // bar or the Health bar stays a stop without it (each is a status bar like the others,
+    // resolve keeps it).
     if (v.radar && !has_radar) { return false; }
-    if ((v.health_graph || v.health_status) && !has_health) { return false; }
+    if (v.health_graph && !has_health) { return false; }
     // A custom view with nothing on it (no clock, top band, graph or status row — e.g.
     // its only row's source was switched off in settings) is never a flick stop: the
     // phone disables such a slot, and this belts a stale or hand-made wire value.

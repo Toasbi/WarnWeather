@@ -77,7 +77,7 @@ function defaultViewNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'Your Default screen has no Watch Status Bar. Tick another bar below.',
+        text: 'Your Default screen has no Watch bar. Tick another bar below.',
         showWhen: {when: 'defaultViewLacksOnDemand'}
     };
 }
@@ -695,13 +695,13 @@ function cardSections() {
         showWhen: ON_DEMAND_WHEN,
         intro: ON_DEMAND_INTRO,
         items: [linkRow('resetOnDemand', 'Reset alert settings to defaults'), {
-            // The Default view the watch runs has no Watch Status Bar and none of the bars
+            // The Default view the watch runs has no Watch bar and none of the bars
             // it does show carries an item, so no item is drawn there (settings/
             // when-resolvers.js defaultViewLacksOnDemand). Nothing moves the items for the
             // user: the note names the gap and the fix.
             type: 'staticText',
             style: 'info',
-            text: 'Your Default screen has no Watch Status Bar, so Alerts won’t show there. Open an alert and, '
+            text: 'Your Default screen has no Watch bar, so Alerts won’t show there. Open an alert and, '
                 + 'under Shows on, pick another status bar that screen shows.',
             showWhen: {when: 'defaultViewLacksOnDemand'}
         }]

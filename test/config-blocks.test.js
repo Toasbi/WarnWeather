@@ -340,9 +340,9 @@ test('alertLevelsHint: "Not in any status bar" while unplaced, else the resolved
   assert.equal(typeof hint, 'function', 'hint resolver registered');
   const env = { thresholds: true };
   const uv = { keyStem: 'Uv' };
-  // The default ticks put the metric alerts on the Watch Status Bar's right side, and the
+  // The default ticks put the metric alerts on the Watch bar's right side, and the
   // Alerts-tab row says so after the levels.
-  const WHERE = ' · Watch Status Bar, right';
+  const WHERE = ' · Watch bar, right';
   assert.equal(hint(UNPLACED, env, uv), 'Not in any status bar');
   assert.equal(hint(Object.assign({ threshUvOn: true }, UNPLACED), env, uv), 'Not in any status bar',
     'whatever the highlight says: the row describes the alert');
@@ -376,13 +376,13 @@ test('alertLevelsHint: "Not in any status bar" while unplaced, else the resolved
   assert.equal(hint(Object.assign({ alertUvDays: 'today' }, UNPLACED), env, uvDays), 'Not in any status bar',
     'an unplaced alert reads that only');
   assert.equal(hint({ statusForecastOnDemandLeftItems: 'pollen' }, env,
-    { keyStem: 'Pollen' }), 'Warn 2 · Danger 3 · Forecast Status Bar, left', 'placed on another bar counts too');
+    { keyStem: 'Pollen' }), 'Warn 2 · Danger 3 · Forecast bar, left', 'placed on another bar counts too');
   assert.equal(hint({ statusForecastOnDemandLeftItems: 'uv' }, env, uv),
-    'Warn 6 · Danger 8 · Watch Status Bar, right · Forecast Status Bar, left',
+    'Warn 6 · Danger 8 · Watch bar, right · Forecast bar, left',
     'every bar edge it sits on, in the page\'s bar order');
   assert.equal(hint({ radarMode: 'graph', healthMode: 'all', statusHealthOnDemandRightItems: 'uv',
     statusRadarOnDemandLeftItems: 'uv' }, env, uv),
-    'Warn 6 · Danger 8 · Watch Status Bar, right · Health Status Bar, right · Radar Status Bar, left',
+    'Warn 6 · Danger 8 · Watch bar, right · Health bar, right · Radar bar, left',
     'Health before Radar: the page\'s order, not the wire\'s');
   // A slot dialog's "Alert levels and colors" row (levelsOnly): the levels alone — no
   // placement, no Days, and no "Not in any status bar" (they drive the slot's highlight).
@@ -404,8 +404,8 @@ test('rainAlertHint: the radar first, then the placement, else its window, look 
     windows: [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
     looks: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']]
   };
-  // The default ticks put Rain on the Watch Status Bar's left side.
-  const WHERE = ' · Watch Status Bar, left';
+  // The default ticks put Rain on the Watch bar's left side.
+  const WHERE = ' · Watch bar, left';
   assert.equal(hint({}, {}, args), 'Within 60 min · Text' + WHERE, 'unset: the sheet\'s defaults, placed by default');
   assert.equal(hint({ rainCountdownHorizon: '120', rainAlertDisplay: 'minutes' }, {}, args),
     'Within 2 hours · Icon + minutes' + WHERE);
@@ -413,7 +413,7 @@ test('rainAlertHint: the radar first, then the placement, else its window, look 
     'a numeric window reads like its stored string');
   assert.equal(hint({ statusTopOnDemandLeftItems: 'bt' }, {}, args), 'Not in any status bar');
   assert.equal(hint({ statusTopOnDemandLeftItems: 'bt', statusForecastOnDemandRightItems: 'rain' }, {}, args),
-    'Within 60 min · Text · Forecast Status Bar, right', 'placed on another bar: that bar\'s edge');
+    'Within 60 min · Text · Forecast bar, right', 'placed on another bar: that bar\'s edge');
   assert.equal(hint({ radarEnabled: false }, {}, args), 'Turn on the rain radar (Setup › Data sources)');
   assert.equal(hint({ radarEnabled: false, statusTopOnDemandLeftItems: '' }, {}, args),
     'Turn on the rain radar (Setup › Data sources)', 'the radar comes first: no tick helps while it is off');
@@ -823,16 +823,16 @@ test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown 
   assert.ok(svg.indexOf('viewBox="0 0 200 95"') >= 0, 'frame grew by the 14px band height');
 });
 
-// Rain ticked on neither side of the Watch Status Bar: the strip shows no rain alert, so
+// Rain ticked on neither side of the Watch bar: the strip shows no rain alert, so
 // the preview drops the band with it.
-test('radarPreview hides the countdown band while the Watch Status Bar shows no rain', () => {
+test('radarPreview hides the countdown band while the Watch bar shows no rain', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
     statusTopOnDemandLeftItems: 'bt' }, { color: true });
   assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text with Rain unticked');
   assert.ok(svg.indexOf('viewBox="0 0 200 81"') >= 0, 'the frame keeps the no-band height');
   const elsewhere = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
     statusTopOnDemandLeftItems: 'bt', statusForecastOnDemandLeftItems: 'rain' }, { color: true });
-  assert.equal(elsewhere.indexOf("Rain in 15'"), -1, 'the band mocks the Watch Status Bar only');
+  assert.equal(elsewhere.indexOf("Rain in 15'"), -1, 'the band mocks the Watch bar only');
   const unset = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
   assert.ok(unset.indexOf("Rain in 15'") >= 0, 'the default ticks show it');
 });
@@ -866,7 +866,7 @@ function rainBand(svg) {
   return { x: Number(m[1]), text: t ? t[1] : null };
 }
 
-test('radarPreview draws the rain entry in its Look, at the side of the Watch Status Bar that ticks Rain', () => {
+test('radarPreview draws the rain entry in its Look, at the side of the Watch bar that ticks Rain', () => {
   const base = { radarProvider: 'dwd', radarColor: 'multicolor' };
   const at = (S) => rainBand(RD.radarPreview(Object.assign({}, base, S), { color: true }));
   assert.equal(at({}).text, "Rain in 15'", 'the default Look: the countdown text');

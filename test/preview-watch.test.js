@@ -80,16 +80,16 @@ test('each screen is named and spoken band by band, and a tap opens its editor',
   const env = plat.computeEnv({ platform: 'basalt' });
   const html = pw.watchPreview(S, env, {});
   assert.deepEqual(labels(html), [
-    'Edit Default: Watch Status, Calendar (2 rows), Clock, Forecast Status, Forecast',
-    'Edit Flick 1: Watch Status, Clock, Health Status, Health graph',
-    'Edit Flick 2: Watch Status, Clock, Radar Status, Radar'
+    'Edit Default: Watch bar, Calendar (2 rows), Clock, Forecast bar, Forecast',
+    'Edit Flick 1: Watch bar, Clock, Health bar, Health graph',
+    'Edit Flick 2: Watch bar, Clock, Radar bar, Radar'
   ]);
   // Each is a button that opens its screen's editor (screens-page.js openScreen).
   assert.deepEqual((html.match(/<button type="button" class="wpv-v wpv-btn" data-action="openScreen" data-action-arg="\d"/g)
     || []).map((b) => b.slice(-2, -1)), ['0', '1', '2']);
   assert.match(html, /<\/div><span class="wpv-tap">Tap a screen to edit it<\/span>$/, 'and the pin says so');
   assert.deepEqual(labels(pw.watchPreview(settings({ layoutPreset: 'fullCal', radarMode: 'off', healthMode: 'off' }), env, {})),
-    ['Edit Default: Watch Status, Calendar (3 rows), Clock, Forecast Status, Forecast'], 'one view, one screen');
+    ['Edit Default: Watch bar, Calendar (3 rows), Clock, Forecast bar, Forecast'], 'one view, one screen');
   assert.match(html, /^<div class="wpv n3" role="group" aria-label="Your watch">/);
   // aplite has no screen editor: its one screen is a picture.
   const aplite = plat.computeEnv({ platform: 'aplite' });

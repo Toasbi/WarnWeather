@@ -244,8 +244,18 @@ test('deriveModes: the radar and health modes the screens need', () => {
   const S = (screens, over) => Object.assign({}, compileAll(screens), over || {});
   const modes = (s, env) => M.deriveModes(s, env || BASALT);
   assert.deepEqual(modes(S([DEFAULT, HEALTH, RADAR])), { radarMode: 'graph', healthMode: 'all' });
-  // The Radar bar alone; the Health bar alone.
-  assert.deepEqual(modes(S([DEFAULT, [b('strip'), b('clock'), b('radarbar'), b('healthbar')]])),
+  // The Radar bar alone; the Health bar alone: on a custom layout a bar is what it holds
+  // (2.7.0's named bars), so they need the radar or health only for an item that does.
+  const bars = [DEFAULT, [b('strip'), b('clock'), b('radarbar'), b('healthbar')]];
+  assert.deepEqual(modes(S(bars, { statusTopOnDemandLeftItems: 'bt' })), { radarMode: 'off', healthMode: 'slot' },
+    'the Health bar\'s default slots hold steps and sleep; the Radar bar\'s UV, wind and gusts need no radar');
+  assert.deepEqual(modes(S(bars, { statusTopOnDemandLeftItems: 'bt', statusHealthLeft: 'temp',
+    statusHealthMid: 'empty', statusHealthRight: 'city' })), { radarMode: 'off', healthMode: 'off' },
+  'a Health bar holding weather reads no health');
+  assert.equal(modes(S(bars, { statusTopOnDemandLeftItems: '', statusRadarOnDemandLeftItems: 'rain' })).radarMode,
+    'countdown', 'the rain alert on the shown Radar bar fetches the radar');
+  // A preset's cycle is built from the modes, so its bars keep 'status'.
+  assert.deepEqual(M.deriveModes({ layoutPreset: 'compactDense', radarMode: 'status', healthMode: 'status' }, BASALT),
     { radarMode: 'status', healthMode: 'status' });
   // Nothing radar on the screens: the rain alert on a shown bar (the Watch bar's left by
   // default) still needs the radar.

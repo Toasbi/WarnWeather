@@ -60,6 +60,16 @@ back to, and always shows the clock: a screen moved there gets it, or stays wher
 the clock does not fit (`src/pkjs/settings/screens-page.js` moveScreen).
 _Avoid_: view (the watch's word for what it draws).
 
+**Status bar (named)**:
+One of the three bars a screen can show besides the Watch bar: the Forecast, Radar and Health bars
+(`on-demand.js` BARS, `STATUS_LINE_1`/`_2`/`_4`), each holding what its three slots hold, whatever
+its kind. It has a name, the page's own (`<prefix>Name`: never compiled, sent or in telemetry; ''
+reads as its kind's, `screens.js` barName); the Watch bar keeps its name. Any screen shows any of
+them, and the watch draws each without radar or health data (`layout.c` view_spec_resolve), so on
+a custom layout the radar and health modes follow what the shown bars hold, not which bar shows
+(`screens.js` deriveModes).
+_Avoid_: naming a bar by its source ("the radar row") where its name is meant.
+
 **Screen preset**:
 A screen Add screen offers after Blank (the Watch bar and the clock): Classic, Weathergraph,
 Clean, Stripes, Health + calendar and Health (`src/pkjs/screen-presets.js`), each only where the

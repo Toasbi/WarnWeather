@@ -71,8 +71,8 @@
     BAR_OF_SRC[VC.STATUS_SRC_FORECAST] = 'forecast';
     BAR_OF_SRC[VC.STATUS_SRC_HEALTH] = 'health';
     BAR_OF_SRC[VC.STATUS_SRC_RADAR] = 'radar';
-    // What a band is called in a screen's spoken description.
-    var STATUS_NAME = { forecast: 'Forecast Status', health: 'Health Status', radar: 'Radar Status' };
+    // What a band is called in a screen's spoken description (a status bar by its name,
+    // screens.js barName).
     var GRAPH_NAME = { forecast: 'Forecast', radar: 'Radar', health: 'Health graph' };
 
     /**
@@ -481,18 +481,20 @@
     }
 
     /**
-     * A view's bands, top to bottom, as a screen reader hears the picture.
+     * A view's bands, top to bottom, as a screen reader hears the picture: a status bar by its
+     * name (screens.js barName).
      * @param {!Object} spec The view.
      * @param {{strip: number, bands: !Array}} lay Its layout (layoutView).
-     * @returns {string} e.g. 'Watch Status, Calendar (2 rows), Clock, Forecast Status, Forecast'.
+     * @param {Object} S Settings (the bars' names).
+     * @returns {string} e.g. 'Watch bar, Calendar (2 rows), Clock, Forecast bar, Forecast'.
      */
-    function describe(spec, lay) {
-        var out = lay.strip ? ['Watch Status'] : [];
+    function describe(spec, lay, S) {
+        var out = lay.strip ? [screens.barName(S, 'top')] : [];
         lay.bands.forEach(function (b) {
             if (b.band === 'C') { out.push('Clock'); return; }
             if (b.band === 'A' || b.band === 'B') {
                 var bar = BAR_OF_SRC[b.band === 'A' ? spec.statusUpper : spec.statusLower];
-                if (bar) { out.push(STATUS_NAME[bar]); }
+                if (bar) { out.push(screens.barName(S, bar)); }
                 return;
             }
             var kind = graphKind(spec, b.band);
@@ -562,7 +564,7 @@
                 }
             }
         });
-        return { svg: framedSvg(sc.w, sc.h, ink.bg, e), label: describe(spec, lay), bg: ink.bg };
+        return { svg: framedSvg(sc.w, sc.h, ink.bg, e), label: describe(spec, lay, S), bg: ink.bg };
     }
 
     // One card per view, on the page (the tab pins the block bare, schema pinBare): the card is

@@ -31,6 +31,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ? require('./preview-status-bars.js') : window.PreviewStatusBars;
     var catalog = (typeof require !== 'undefined')
         ? require('../status-line-catalog.js') : window.StatusLineCatalog;
+    var onDemand = (typeof require !== 'undefined') ? require('../on-demand.js') : window.OnDemand;
     // Graph styles (Pebble Time 2): the forecast row's graph card and its picker
     // (graph-styles-page.js the options, pictures, labels, limit and writes; graph-styles.js the
     // model).
@@ -59,6 +60,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var ALREADY = 'Already one of yours.';
     var NO_GRAPH_ROOM = 'No room for its graph: you have 3 graphs. Delete one on the Graphs tab.';
     var REORDER_HINT = 'Drag ≡ to reorder. The top screen is the Default.';
+    // The editor's bar picker (custom-layout-schema.js: a page-only select) and the tab a bar is
+    // edited on (the Status bars tab's id).
+    var SCREEN_BAR = 'screenBar';
+    var STATUS_TAB = 'watch';
     // What a preset brings, under Add a screen's cards: with graph styles, and on a watch with
     // one graph (screen-presets.js WHAT A PRESET BRINGS).
     var ADD_FINE = 'A preset brings its graph, or uses one of yours that matches. Your bars keep their slots.';
@@ -458,15 +463,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * A screen's rows in a line, for its row on the Screens card: what it shows, the Watch
-     * bar left out (most screens keep it).
+     * A screen's rows in a line, for its row on the Screens card: what it shows, a bar by its
+     * name (screens.js blockName), the Watch bar left out (most screens keep it).
      * @param {Array<Object>} list The screen.
      * @param {Object} S Settings.
      * @returns {string}
      */
     function contents(list, S) {
         var names = list.filter(function (b) { return b.k !== 'strip'; }).map(function (b) {
-            return M.KINDS[b.k].name + (b.k === 'radar' && S.radarEnabled === false ? ' (off)' : '');
+            return M.blockName(b, S) + (b.k === 'radar' && S.radarEnabled === false ? ' (off)' : '');
         });
         return names.length ? names.join(' · ') : 'Nothing yet';
     }
@@ -511,6 +516,97 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function fitsWatch(list, i, env) {
         return M.fits(list, i, (env && env.platform) || '');
+    }
+
+    // ── Your bars (screens.js THE NAMES) ───────────────────────────────────
+
+    /**
+     * The places of the screens that show a status bar.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} bar An on-demand.js BARS bar.
+     * @returns {number[]}
+     */
+    function barPlaces(S, env, bar) {
+        var out = [];
+        M.screensOf(S, env).forEach(function (list, i) {
+            if (list.some(function (b) { return M.BAR_OF_KIND[b.k] === bar; })) { out.push(i); }
+        });
+        return out;
+    }
+
+    /**
+     * Where a bar shows, by the screens' names: "On Default and Steps", "On no screen" (its
+     * Name row's hint on the Status bars tab, its option in the editor's picker).
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} bar An on-demand.js BARS bar.
+     * @returns {string}
+     */
+    function barWhere(S, env, bar) {
+        var names = barPlaces(S || {}, env, bar).map(function (i) { return M.nameOf(S, i); });
+        return names.length ? 'On ' + GSP.andList(names) : 'On no screen';
+    }
+
+    /**
+     * What a bar holds, by its slots' items (preview-status-bars.js barCodes, as its picture
+     * reads them), the empty ones left out: "Temperature/feels like · City · Air quality (AQI)".
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} bar An on-demand.js BARS bar.
+     * @returns {string}
+     */
+    function barHolds(S, env, bar) {
+        var labels = PSB.barCodes(S || {}, env, bar).filter(function (c) { return c.code !== 'empty'; })
+            .map(function (c) { return (catalog.byCode(c.code) || {}).label || c.code; });
+        return labels.length ? labels.join(' · ') : 'Nothing in it yet';
+    }
+
+    /**
+     * The bars this watch draws, in the Status bars tab's order (on-demand.js PAGE_BARS, the
+     * Watch bar left out), as their rows' kinds.
+     * @param {?Object} env Platform env.
+     * @returns {string[]} 'fcbar' | 'healthbar' | 'radarbar'
+     */
+    function barKinds(env) {
+        return onDemand.PAGE_BARS.map(function (b) { return M.KIND_OF_BAR[b.bar]; }).filter(function (k) {
+            return Boolean(k) && M.capable(k, env);
+        });
+    }
+
+    /**
+     * The editor's bar picker (options resolver 'screenBarOptions'): your bars by name, each
+     * with what it holds and where it shows; one the screen shows already (another row) is
+     * greyed out.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {Array} [label, kind, meta]
+     */
+    function barOptions(S, env) {
+        var list = M.screensOf(S || {}, env)[ED.i] || [], cur = list[ED.barRow] || {};
+        return barKinds(env).map(function (k) {
+            var bar = M.BAR_OF_KIND[k], here = k !== cur.k && M.idxOf(list, k) >= 0;
+            return [M.barName(S, bar), k, here ? { desc: 'Already on this screen', disabled: true }
+                : { desc: barHolds(S, env, bar) + ' · ' + barWhere(S, env, bar).replace(/^On/, 'on') }];
+        });
+    }
+
+    /**
+     * The editor's bar pick (onChange 'screenBarPicked'): the row shows that bar instead, in
+     * its place.
+     * @param {Object} S Settings.
+     * @param {*} oldValue The pick before.
+     * @param {string} kind The bar's kind ('fcbar' | 'radarbar' | 'healthbar').
+     * @param {?Object} env Platform env.
+     * @returns {void}
+     */
+    function screenBarPicked(S, oldValue, kind, env) {
+        if (!ED.overlay || !M.BAR_OF_KIND[kind]) { return; }
+        var list = M.screensOf(S, env)[ED.i] || [], j = ED.barRow;
+        if (!list[j] || !M.BAR_OF_KIND[list[j].k] || list[j].k === kind || M.idxOf(list, kind) >= 0) { return; }
+        var next = M.copy(list);
+        next[j] = { k: kind };
+        writeScreen(S, ED.i, next, env);
     }
 
     // ── Icons ──────────────────────────────────────────────────
@@ -622,6 +718,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-gtxt{display:grid;gap:2px;min-width:0}'
         + '.se-gname{font:700 13.5px/1.3 Inter,system-ui,sans-serif;color:var(--lbl);overflow-wrap:anywhere}'
         + '.se-ghint{font:600 11.5px/1.35 Inter,system-ui,sans-serif;color:var(--link)}'
+        + '.se-ghold{font:500 12px/1.35 Inter,system-ui,sans-serif;color:var(--hint)}'
         + '.se-graph .se-chev{color:var(--faint);font-size:18px;line-height:1}'
         + '.se-opt .se-link{justify-self:start;margin-top:2px}'
         + '.se-mv:disabled{opacity:.4;cursor:default}'
@@ -809,7 +906,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // the row whose option is open, the snap-back message, the drag in progress, whether the
     // title is being renamed and its input while it is.
     var ED = { overlay: null, mode: 'edit', i: 0, open: -1, toast: '', toastTimer: null, drag: null, renaming: false,
-        nameEl: null };
+        nameEl: null, barRow: -1 };
 
     /**
      * A graph's size as its row reads it.
@@ -892,6 +989,39 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * The other screens a bar row's bar shows on, beside the row's name: "Also on Home".
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} bar An on-demand.js BARS bar.
+     * @returns {string} '' when this screen alone shows it
+     */
+    function alsoOn(S, env, bar) {
+        var others = barPlaces(S, env, bar).filter(function (i) { return i !== ED.i; });
+        return others.length ? 'Also on ' + GSP.andList(others.map(function (i) { return M.nameOf(S, i); })) : '';
+    }
+
+    /**
+     * An open bar row's Bar card: the bar's name and what it holds, a tap opening the picker of
+     * your bars (another one here instead), and the link that edits it on the Status bars tab.
+     * @param {number} j The row.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} bar An on-demand.js BARS bar.
+     * @returns {string} HTML
+     */
+    function barHtml(j, S, env, bar) {
+        var name = esc(M.barName(S, bar));
+        return '<div class="se-opt"><span class="se-cap">Bar</span>'
+            + '<button type="button" class="se-graph" data-se="bar" data-j="' + j + '" aria-haspopup="dialog">'
+            + '<span class="se-gtxt"><span class="se-gname">' + name + '</span>'
+            + '<span class="se-ghold">' + esc(barHolds(S, env, bar)) + '</span>'
+            + '<span class="se-ghint">Tap to show another of your bars here</span></span>'
+            + '<span class="se-chev" aria-hidden="true">›</span></button>'
+            + '<button type="button" class="se-link" data-se="editbar" data-j="' + j + '">Edit ' + name
+            + ' on the Status bars tab ›</button></div>';
+    }
+
+    /**
      * One row of the list.
      * @param {Array<Object>} list The screen.
      * @param {number} j The row.
@@ -901,16 +1031,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function rowHtml(list, j, S, env) {
         var b = list[j], K = M.KINDS[b.k], fixed = b.k === 'strip', open = ED.open === j && !fixed;
-        var keepClock = ED.i === 0 && b.k === 'clock';
-        var val = b.k === 'cal' ? b.rows + ' rows' : K.graph ? sizeLabel(b) : '';
+        var keepClock = ED.i === 0 && b.k === 'clock', name = esc(M.blockName(b, S)), bar = M.BAR_OF_KIND[b.k];
+        var val = b.k === 'cal' ? b.rows + ' rows' : K.graph ? sizeLabel(b) : bar ? alsoOn(S, env, bar) : '';
         var h = '<div class="se-row" role="listitem" data-j="' + j + '">';
         h += fixed ? '<span class="se-grip off" aria-hidden="true"></span>'
             : '<span class="se-grip" data-grip="' + j + '" title="Drag to move" aria-hidden="true">' + I_GRIP + '</span>';
-        h += fixed ? '<span class="se-main fixed"><span>' + K.name + '</span></span>'
+        h += fixed ? '<span class="se-main fixed"><span>' + name + '</span></span>'
             : '<button type="button" class="se-main" data-se="expand" data-j="' + j + '" aria-expanded="' + open + '"><span>'
-                + K.name + '</span>' + (val ? '<span class="se-val">' + val + '</span>' : '') + '</button>';
+                + name + '</span>' + (val ? '<span class="se-val">' + esc(val) + '</span>' : '') + '</button>';
         h += keepClock ? '<span class="se-x" aria-hidden="true"></span>'
-            : '<button type="button" class="se-x" data-se="rm" data-j="' + j + '" aria-label="Remove ' + K.name + '">' + I_X + '</button>';
+            : '<button type="button" class="se-x" data-se="rm" data-j="' + j + '" aria-label="Remove ' + name + '">' + I_X + '</button>';
         if (b.k === 'radar' && S.radarEnabled === false) {
             h += '<div class="se-sub se-off"><span>' + RADAR_OFF + '</span>'
                 + '<button type="button" class="se-link" data-se="radaron">Turn on</button></div>';
@@ -918,7 +1048,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // The forecast graph's own graph: first, and in view while the row is folded too.
         var graph = b.k === 'fc' && env && env.graphStyles ? styleHtml(list, j, S, env) : '';
         if (open) {
-            h += '<div class="se-sub se-more">' + graph;
+            h += '<div class="se-sub se-more">' + graph + (bar ? barHtml(j, S, env, bar) : '');
             if (b.k === 'cal') { h += optHtml(list, j, 'Rows', 'rows', M.CAL_ROWS, env); }
             if (K.graph) { h += optHtml(list, j, 'Size', 'size', M.GRAPH_SIZES, env); }
             h += '<div class="se-moves"><button type="button" class="se-mv" data-se="up" data-j="' + j + '"'
@@ -950,7 +1080,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '<div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
             + list.map(function (b, j) { return rowHtml(list, j, S, env); }).join('') + '</div>'
             + (adds.length ? '<div class="se-adds"><span class="se-addlbl">Add</span>' + adds.map(function (k) {
-                return '<button type="button" class="se-add" data-se="add" data-k="' + k + '">+ ' + M.KINDS[k].name + '</button>';
+                return '<button type="button" class="se-add" data-se="add" data-k="' + k + '">+ ' + esc(M.blockName({ k: k }, S))
+                    + '</button>';
             }).join('') + '</div>' : '')
             + '</div>'
             + (i > 0 ? '<button type="button" class="se-del" data-se="delscreen">Delete screen</button>' : '');
@@ -1163,6 +1294,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (act === 'style') {
             GSP.beginScreenPick(S, ED.i, String(blockStyle(list[j], S) + 1));
             ctx.openSheet(GSP.SCREEN_PICK, function () { renderEditor(); });
+            return;
+        }
+        // A bar row's Bar card: the picker of your bars opens over the editor, its pick lands
+        // through screenBarPicked.
+        if (act === 'bar') {
+            ED.barRow = j;
+            S[SCREEN_BAR] = list[j] ? list[j].k : '';
+            ctx.openSheet(SCREEN_BAR, function () { renderEditor(); });
+            return;
+        }
+        // "Edit <bar> on the Status bars tab": the editor closes, the tab opens.
+        if (act === 'editbar') {
+            closeEditor();
+            ctx.gotoTab(STATUS_TAB);
             return;
         }
         // "Edit <graph> on the Graphs tab": the editor closes, the Graphs tab opens on that graph.
@@ -1472,11 +1617,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.onChange) {
             PConf.onChange.register('radarSourcePicked', radarSourcePicked);
             PConf.onChange.register('screenGraphStylePicked', screenStylePicked);
+            PConf.onChange.register('screenBarPicked', screenBarPicked);
+        }
+        // Your bars by name (screens.js barName): the Status bars tab's card titles and slot
+        // pickers' titles, and each Name row's hint, where the bar shows.
+        if (PConf.displayResolvers) {
+            PConf.displayResolvers.register('barName', function (S, env, args) { return M.barName(S, args.bar); });
+            PConf.displayResolvers.register('barSlotTitle', function (S, env, args) {
+                return M.barName(S, args.bar) + ' · ' + args.label;
+            });
         }
         if (PConf.optionsResolvers) {
             PConf.optionsResolvers.register('apliteLayouts', function () { return APLITE_LAYOUTS.slice(); });
+            PConf.optionsResolvers.register('screenBarOptions', barOptions);
         }
-        if (PConf.hintResolvers) { PConf.hintResolvers.register('batterySaverPauseHint', batterySaverPauseHint); }
+        if (PConf.hintResolvers) {
+            PConf.hintResolvers.register('batterySaverPauseHint', batterySaverPauseHint);
+            PConf.hintResolvers.register('barScreens', function (S, env, args) { return barWhere(S, env, args.bar); });
+        }
         if (PConf.whenResolvers) {
             PConf.whenResolvers.register('manyScreens', function (S, env) {
                 return hasScreens(env) && M.screensOf(S, env).length > 1;
@@ -1509,6 +1667,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         sameRows: sameRows,
         addChoices: addChoices,
         addChosen: addChosen,
+        barWhere: barWhere,
+        barHolds: barHolds,
+        barOptions: barOptions,
+        screenBarPicked: screenBarPicked,
         contents: contents,
         drawnView: drawnView,
         screenPicture: screenPicture,

@@ -1687,7 +1687,7 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     assert.equal(s.items[1].check, stem.toLowerCase(), s.sheetId + ': the Shows on grid first');
     assert.equal(s.items[1].captionsOnly, true, s.sheetId + ': its header row shows the column captions only');
     assert.equal(s.items[2].type, 'staticText', s.sheetId + ': then the Default view note');
-    assert.equal(s.items[2].text, 'Your Default screen has no Watch Status Bar. Tick another bar below.');
+    assert.equal(s.items[2].text, 'Your Default screen has no Watch bar. Tick another bar below.');
     assert.ok(s.items[2].showWhen, s.sheetId + ': only while that view has no On demand bar');
     const head = s.items[3];
     assert.equal(head.type, 'subheader', s.sheetId + ': the levels group follows');
@@ -1766,7 +1766,7 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
     'never doubled with the radar-off box');
   assert.equal(s.items[3].check, 'rain', 'then the grid');
   assert.equal(s.items[3].captionsOnly, true);
-  assert.equal(s.items[4].text, 'Your Default screen has no Watch Status Bar. Tick another bar below.');
+  assert.equal(s.items[4].text, 'Your Default screen has no Watch bar. Tick another bar below.');
   // Then the Alert card: rain's own row first, then its Look (the owner's order since
   // the restructure; it was the Look first).
   assert.deepEqual(s.items[5], { type: 'subheader', text: 'Alert' });
@@ -2120,7 +2120,7 @@ test('bold-only BoldMode keys hydrate their default and ride the save blob', () 
 test('the master Bold values row leads the slot selects, thresholds-gated', () => {
   const watch = schema.tabs.find(t => t.id === 'watch');
   // The master governs EVERY bar, so it lives in the Status bars tab's first card, 'All
-  // status bars' — ABOVE the per-bar cards ("Watch Status Bar", "Forecast Status Bar",
+  // status bars' — ABOVE the per-bar cards ("Watch bar", "Forecast bar",
   // ...), not inside the first bar's own card.
   const sections = watch.sections.filter(s => !s.sheetOnly);
   const masterIdx = sections.findIndex(s =>
@@ -2296,7 +2296,7 @@ test('resetStatusSlots reverts every bar\'s On demand ticks, and leaves the item
   assert.equal(S.btIcons, 'both', 'the Bluetooth sheet\'s key is the Alert settings card\'s');
   assert.strictEqual(S.batteryLowOnly, false, 'aplite\'s rows are not in this card here');
   assert.strictEqual(S.showQt, false);
-  // aplite: no On demand, and the Watch Status Bar's own rows are in the card.
+  // aplite: no On demand, and the Watch bar's own rows are in the card.
   const A = scrambledSlotState();
   Object.assign(A, { batteryLowOnly: false, showQt: false, vibe: false, btIcons: 'none' });
   PC.actions.resetStatusSlots(null, A, Object.assign({}, ENV, { onDemand: false }), defaultOf);

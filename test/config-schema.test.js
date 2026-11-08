@@ -115,6 +115,8 @@ const EXPECTED_KEYS = [
   'viewStyle0','viewStyle1','viewStyle2','graphStyles',
   // The screens' names (2.7): page-only, never compiled or sent (screens.js nameOf).
   'viewName0','viewName1','viewName2',
+  // The status bars' names (2.7): page-only too (screens.js barName).
+  'statusForecastName','statusRadarName','statusHealthName',
   'statusBoldAll',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
@@ -340,14 +342,18 @@ test('no key rows on the Data sources card: every key lives in a key sheet that 
   });
 });
 
-test("Health Status Bar slots show only when a dedicated Health view is enabled", () => {
-  const env = { env: { health: true } };
-  ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'].forEach((k) => {
-    const item = byKey(k);
-    assert.equal(showWhen.isVisible(item, Object.assign({ healthMode: 'status' }, env)), true, k + ' visible for status');
-    assert.equal(showWhen.isVisible(item, Object.assign({ healthMode: 'all' }, env)), true, k + ' visible for all');
-    assert.equal(showWhen.isVisible(item, Object.assign({ healthMode: 'slot' }, env)), false, k + ' hidden for slot');
-    assert.equal(showWhen.isVisible(item, Object.assign({ healthMode: 'off' }, env)), false, k + ' hidden for off');
+test('your bars: the Health and Radar bars\' rows show on every watch that draws them, whatever the modes', () => {
+  // Since 2.7.0 the Status bars tab lists every bar, also one no screen shows (its Name row
+  // says so), so any bar can go onto any screen: the gate is the watch's alone.
+  [['statusHealth', 'health'], ['statusRadar', 'radar']].forEach(([prefix, cap]) => {
+    ['Name', 'Left', 'Mid', 'Right'].forEach((part) => {
+      const k = prefix + part, item = byKey(k);
+      ['off', 'slot', 'status', 'all'].forEach((healthMode) => ['off', 'countdown', 'status', 'graph'].forEach((radarMode) =>
+        assert.equal(showWhen.isVisible(item, { healthMode, radarMode, env: { health: true, radar: true } }), true,
+          k + ' ' + healthMode + ' ' + radarMode)));
+      assert.equal(showWhen.isVisible(item, { healthMode: 'all', radarMode: 'graph', env: { [cap]: false } }), false,
+        k + ': none on a watch without it');
+    });
   });
 });
 
@@ -1974,7 +1980,7 @@ test('Status bars tab (id watch): the All status bars card, the four bars in wat
   // the page's only (it was Forecast, Radar, Health, Watch): on-demand.js BARS and the
   // wire keep their own order.
   assert.deepEqual(titles.slice(0, 5),
-    ['All status bars', 'Watch Status Bar', 'Forecast Status Bar', 'Health Status Bar', 'Radar Status Bar'],
+    ['All status bars', 'Watch bar', 'Forecast bar', 'Health bar', 'Radar bar'],
     'the four status bars follow the All status bars card, in order');
   assert.deepEqual(require('../src/pkjs/on-demand.js').BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health'],
     'the contract\'s bar order stays');
@@ -2021,8 +2027,8 @@ test('Status bars tab (id watch): the All status bars card, the four bars in wat
   assert.deepEqual(wfTitles.slice(-2), ['Time', 'Calendar'],
     'the Watchface tab ends with Time then Calendar');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
-  const wsb = watch.sections.find((s) => s.title === 'Watch Status Bar').items;
-  assert.ok(!wsb.some((i) => i.type === 'staticText'), 'no note above the Watch Status Bar slots');
+  const wsb = watch.sections.find((s) => s.title === 'Watch bar').items;
+  assert.ok(!wsb.some((i) => i.type === 'staticText'), 'no note above the Watch bar slots');
   const rightIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRight');
   const countdownIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRightCountdown');
   const alertsIdx = wsb.findIndex((i) => i.type === 'button' && i.label === 'Alerts');
@@ -2078,7 +2084,7 @@ const ITEM_SHEET = { battery: 'odBattery', bt: 'odBluetooth', qt: 'odQuiet', sno
 const SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.';
 const SUBJECT = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air quality index', pollen: 'the pollen index',
   wind: 'the wind speed' };
-const DEFAULT_VIEW_NOTE_TEXT = 'Your Default screen has no Watch Status Bar. Tick another bar below.';
+const DEFAULT_VIEW_NOTE_TEXT = 'Your Default screen has no Watch bar. Tick another bar below.';
 
 test('every item sheet opens on its Shows on card: the note, the grid, the Default view note; the grid stores nothing', () => {
   ALERT_CODES.forEach((code) => {
@@ -2160,7 +2166,7 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
   assert.equal(sec.items.length, 2);
   assert.equal(sec.items[1].type, 'staticText');
   assert.equal(sec.items[1].style, 'info');
-  assert.equal(sec.items[1].text, 'Your Default screen has no Watch Status Bar, so Alerts won’t show there.'
+  assert.equal(sec.items[1].text, 'Your Default screen has no Watch bar, so Alerts won’t show there.'
     + ' Open an alert and, under Shows on, pick another status bar that screen shows.');
   assert.equal(rowsSec.title, undefined, 'the rows\' card is untitled: its sub-headers name its groups');
   assert.deepEqual(rowsSec.showWhen, ON_DEMAND_WHEN);
@@ -2266,8 +2272,8 @@ test('the Battery sheet: the warn level in the watch\'s charge steps, and the Lo
   }
 });
 
-test('aplite keeps the Watch Status Bar\'s own battery, quiet time and Bluetooth rows, and only it', () => {
-  const wsb = schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.title === 'Watch Status Bar').items;
+test('aplite keeps the Watch bar\'s own battery, quiet time and Bluetooth rows, and only it', () => {
+  const wsb = schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.title === 'Watch bar').items;
   const own = ['batteryLowOnly', 'showQt', 'vibe', 'btIcons'].map((k) => wsb.find((i) => i.messageKey === k));
   own.forEach((it) => assert.deepEqual(it.showWhen, { not: ON_DEMAND_WHEN }, it.messageKey));
   assert.equal(own[3].joinPrevious, 'loose', 'the two Bluetooth rows stay grouped');
@@ -2510,7 +2516,7 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
   // The rest of the Status bars tab is untouched on aplite. (Time/Calendar live
   // in the Watchface tab now, so probe an always-shown Watch-Status-Bar toggle.)
   assert.ok(apliteBody.indexOf('data-k="showQt"') !== -1,
-    'aplite keeps the Watch Status Bar toggles');
+    'aplite keeps the Watch bar toggles');
 });
 
 // The wind-direction arrow is a per-kind display option of the wind/gust slots (the

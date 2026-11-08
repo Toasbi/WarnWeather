@@ -1140,7 +1140,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var listId = 'ssel-list-' + key, titleId = 'ssel-ttl-' + key;
     // item.sheetTitle names the picker where the row's label alone would not: a slot row
     // reads "Middle slot" under its bar's card, and its picker also opens from a preview.
-    var title = esc(String(item.sheetTitle || item.label || 'Selection'));
+    var title = esc(String(resolvedTitle(item.sheetTitleBy, cx) || item.sheetTitle || item.label || 'Selection'));
     // The search box sits in a wrapper that owns the spacing as PADDING. A margin on the
     // input itself exposed the dialog's own box in the strips beside/under it, and a tap
     // there targets the <dialog> — which the click handler reads as a ::backdrop tap and
@@ -1247,6 +1247,24 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       return !n.showWhen || PConf.showWhen.isVisible(n, cx.evalCtx);
     }).map(function (n) { return '<p class="intro-more">' + n.text + '</p>'; }).join('');
     return '<div class="card nohdr dlg-intro"><div class="intro">' + sec.intro + notes + '</div></div>';
+  }
+
+  /**
+   * The section an id names (its id, else its title, as a card header marks it), on any tab;
+   * null when none does.
+   * @param {Object} schema Config schema.
+   * @param {string} id The section's id.
+   * @returns {?Object} The section.
+   */
+  function findSectionById(schema, id) {
+    var ti, si, tabs = schema.tabs || [], secs;
+    for (ti = 0; ti < tabs.length; ti++) {
+      secs = tabs[ti].sections || [];
+      for (si = 0; si < secs.length; si++) {
+        if ((secs[si].id || secs[si].title) === id) { return secs[si]; }
+      }
+    }
+    return null;
   }
 
   /**
@@ -1934,6 +1952,22 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * A title that follows the settings: a section's titleBy (its first card's header) or a
+   * select's sheetTitleBy (its picker's), a display resolver fn(S, env, args) answering the
+   * text (a status bar's name). '' when there is none, or it answers nothing: the caller's
+   * static title stands.
+   * @param {?{resolver: string, args: (Object|undefined)}} by The titleBy / sheetTitleBy.
+   * @param {Object} cx Render context.
+   * @returns {string}
+   */
+  function resolvedTitle(by, cx) {
+    if (!by || !cx) { return ''; }
+    var fn = PConf.displayResolvers.get(by.resolver);
+    var v = fn ? fn(cx.S, cx.ENV, by.args || {}) : null;
+    return v ? String(v) : '';
+  }
+
+  /**
    * A card's header: its title (uppercase, the section-title look), then — beside the
    * title — the '?' that opens the card's info text (its intro) and a reset action
    * (labelAction), and on the right a hosted master switch (a subheader's toggleKey), the
@@ -1946,6 +1980,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {Object} cx Render context.
    * @returns {string} Header HTML, or '' for an untitled, non-collapsible card.
    */
+  /**
+   * The mark on a card title that follows the settings (a section's titleBy): its section's
+   * id, so a text commit retitles it in place (boot's retitleCards).
+   * @param {{titleBy: boolean, secId: string}} h The header.
+   * @returns {string} The attribute, or ''.
+   */
+  function titleByAttr(h) {
+    return h.titleBy ? ' data-title-by="' + esc(h.secId) + '"' : '';
+  }
+
   function cardHeaderHtml(h, cx) {
     if (!(h.title || h.collapsible)) { return ''; }
     if (h.collapsible) {
@@ -1964,11 +2008,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       return '<button class="cardHdr coll" data-coll="' + esc(h.secId) + '" aria-expanded="'
         + (h.open ? 'true' : 'false') + '">'
-        + '<span class="ttlwrap"><span class="ttl">' + esc(h.title || '') + '</span></span>' + val
+        + '<span class="ttlwrap"><span class="ttl"' + titleByAttr(h) + '>' + esc(h.title || '') + '</span></span>' + val
         + '<span class="chev">' + (h.open ? '&#9662;' : '&#9656;') + '</span></button>';
     }
     return '<div class="cardHdr">'
-      + '<span class="ttlwrap"><span class="ttl">' + esc(h.title || '') + '</span>'
+      + '<span class="ttlwrap"><span class="ttl"' + titleByAttr(h) + '>' + esc(h.title || '') + '</span>'
       + (h.introId ? infoButtonHtml(h.introId, h.introOpen, h.title) : '')
       + (h.labelAction ? labelActionHtml({ labelAction: h.labelAction }) : '') + '</span>'
       + (h.toggle || '') + '</div>';
@@ -2164,8 +2208,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         head = { title: g.head.text || '', intro: g.head.intro || '', labelAction: g.head.labelAction || null,
           toggle: subheaderToggleHtml(g.head, sec, cx) };
       } else {
-        head = { title: untitled ? '' : (sec.title || ''), intro: untitled ? '' : (sec.intro || ''),
-          labelAction: untitled ? null : (sec.labelAction || null), toggle: '' };
+        head = { title: untitled ? '' : (resolvedTitle(sec.titleBy, cx) || sec.title || ''),
+          intro: untitled ? '' : (sec.intro || ''), labelAction: untitled ? null : (sec.labelAction || null),
+          toggle: '' };
       }
       var hasRows = mainR.controlCount + mainR.staticCount + moreCount > 0 || blockHtml !== '';
       // A card with no row to show drops out — its title and its '?' would say nothing on
@@ -2183,7 +2228,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var isOpen = isCollapsible ? !(cx.collapsed || {})[collId] : true;
       var hdr = cardHeaderHtml({ title: head.title, secId: collId, collapsible: isCollapsible, open: isOpen,
         introId: introId, introOpen: introOpen, labelAction: head.labelAction,
-        toggle: head.toggle, titleFrom: sec.titleFrom }, cx);
+        toggle: head.toggle, titleFrom: sec.titleFrom, titleBy: Boolean(sec.titleBy && !g.head && !untitled) }, cx);
       var body = intro + mainR.html + blockHtml;
       if (moreCount) {
         var mId = cardId + '#more';
@@ -3334,7 +3379,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (!inp || inp.getAttribute('data-k') == null) { return; }
       var tk = inp.getAttribute('data-k'), newV = inp.value;
       var tItem = findItem(tk);
-      if (!onChangeHooks(tItem).length) { S[tk] = newV; relabelSelectTriggers(); return; }
+      if (!onChangeHooks(tItem).length) { S[tk] = newV; relabelSelectTriggers(); retitleCards(); return; }
       // No focusin seen (programmatic value + change): fall back to the new value so a
       // revert is a no-op rather than restoring something that was never in the field.
       var oldV = Object.prototype.hasOwnProperty.call(textPreEdit, tk)
@@ -3349,6 +3394,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // the subtree's innerHTML detaches the node the click was about to land on.
       if (S[tk] !== newV) { render(); return; }
       relabelSelectTriggers();
+      retitleCards();
     }
 
     /**
@@ -3367,6 +3413,24 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      *
      * @returns {void}
      */
+    /**
+     * Re-resolve every card title that follows the settings (a section's titleBy, e.g. a status
+     * bar's name, which its Name row commits) IN PLACE, after a text commit that skips render()
+     * (commitTextChange, see relabelSelectTriggers below): only the title's text changes, so the
+     * tap the commit ran ahead of still lands.
+     * @returns {void}
+     */
+    function retitleCards() {
+      var host = document.getElementById('scroll');
+      var els = (host && host.querySelectorAll) ? host.querySelectorAll('.ttl[data-title-by]') : [];
+      var cx = { S: S, ENV: ENV }, i, sec, title;
+      for (i = 0; i < els.length; i++) {
+        sec = findSectionById(SCHEMA, els[i].getAttribute('data-title-by'));
+        title = sec ? (resolvedTitle(sec.titleBy, cx) || sec.title || '') : null;
+        if (title !== null && els[i].textContent !== title) { els[i].textContent = title; }
+      }
+    }
+
     function relabelSelectTriggers() {
       var hosts = [document.getElementById('scroll'), document.getElementById('modal')];
       var ctx = evalCtx(), h, i, trigs, item, label, span, aria;

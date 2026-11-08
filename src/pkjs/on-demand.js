@@ -45,12 +45,13 @@
   ];
 
   // The status bars, in the watch's ThreshBar order (the 2-bit cell order in a cell byte).
-  // `name` is the page's name for the bar, page-only.
+  // `name` is the page's name for the bar until the user names it (screens.js barName reads
+  // a bar's name), page-only.
   var BARS = [
-    {bar: 'top', prefix: 'statusTop', name: 'Watch Status Bar'},
-    {bar: 'forecast', prefix: 'statusForecast', name: 'Forecast Status Bar'},
-    {bar: 'radar', prefix: 'statusRadar', name: 'Radar Status Bar'},
-    {bar: 'health', prefix: 'statusHealth', name: 'Health Status Bar'}
+    {bar: 'top', prefix: 'statusTop', name: 'Watch bar'},
+    {bar: 'forecast', prefix: 'statusForecast', name: 'Forecast bar'},
+    {bar: 'radar', prefix: 'statusRadar', name: 'Radar bar'},
+    {bar: 'health', prefix: 'statusHealth', name: 'Health bar'}
   ];
   // The same bars in the page's order, the Status bars tab's (the owner, 2026-10-01).
   var PAGE_BARS = [BARS[0], BARS[1], BARS[3], BARS[2]];

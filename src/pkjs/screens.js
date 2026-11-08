@@ -24,7 +24,10 @@
 //
 // THE NAMES. A screen's name is the page's own (viewName{i}, never compiled or sent): what the
 // user called it, else its place's (NAMES: Default, Flick 1, Flick 2), so a screen moved to
-// the top reads as the Default until it is named. nameOf is THE reading, for every label.
+// the top reads as the Default until it is named. nameOf is THE reading, for every label. A
+// status bar's name is the page's own too (<prefix>Name, on-demand.js BARS' prefix): what the
+// user called it, else its kind's (Forecast bar, Radar bar, Health bar); barName reads it, and
+// blockName names any row by it. The Watch bar is one for every screen and keeps its name.
 //
 // THE MODES. radarMode and healthMode are no longer picked: deriveModes works them out from
 // the screens (on Save, and in the 2.6 migration, migrations/screens.js), so every reader of
@@ -95,6 +98,43 @@
    */
   function nameOf(S, i) {
     return cleanName(S && S['viewName' + i]) || NAMES[i] || '';
+  }
+
+  // Each status bar row's bar (on-demand.js BARS: its key prefix, so its slots and its name),
+  // and back.
+  var BAR_OF_KIND = { fcbar: 'forecast', radarbar: 'radar', healthbar: 'health' };
+  var KIND_OF_BAR = { forecast: 'fcbar', radar: 'radarbar', health: 'healthbar' };
+
+  /**
+   * The key a status bar's name is stored under (THE NAMES above): '<prefix>Name'.
+   * @param {string} bar An on-demand.js BARS bar.
+   * @returns {?string} null for the Watch bar (it keeps its name) and an unknown bar
+   */
+  function barNameKey(bar) {
+    var prefix = bar === 'top' ? null : onDemand.prefixOf(bar);
+    return prefix ? prefix + 'Name' : null;
+  }
+
+  /**
+   * A status bar's name (THE NAMES above): its own, else its kind's.
+   * @param {?Object} S Settings.
+   * @param {string} bar An on-demand.js BARS bar ('top' is the Watch bar).
+   * @returns {string}
+   */
+  function barName(S, bar) {
+    if (bar === 'top') { return KINDS.strip.name; }
+    var key = barNameKey(bar), kind = KINDS[KIND_OF_BAR[bar]];
+    return cleanName(S && key && S[key]) || (kind ? kind.name : '');
+  }
+
+  /**
+   * A row's name as the page shows it: a status bar's its bar's (barName), any other its kind's.
+   * @param {Object} b A block.
+   * @param {?Object} S Settings.
+   * @returns {string}
+   */
+  function blockName(b, S) {
+    return BAR_OF_KIND[b.k] ? barName(S, BAR_OF_KIND[b.k]) : KINDS[b.k].name;
   }
 
   /**
@@ -443,13 +483,16 @@
   /**
    * The modes the screens need, THE rule for Save and the 2.6 migration:
    *   radarMode — 'off' with the rain radar off (radarEnabled false) or on a watch without
-   *     it; 'graph' when a screen shows the rain radar; 'status' when one shows the Radar bar
-   *     (the mode whose readers ask for the bar: the Status bars tab and On demand); else
-   *     'countdown' when the rain alert is ticked on a bar a screen shows (the radar is
-   *     fetched for it alone); else 'off'.
-   *   healthMode — 'all' when a screen shows the health graph; 'status' when one shows the
-   *     Health bar; 'slot' when a status slot of a bar a screen shows holds a health item;
-   *     else 'off' (always on a watch without health).
+   *     it; 'graph' when a screen shows the rain radar; on a preset, 'status' when one shows
+   *     the Radar bar (a preset's cycle is built from the modes, view-cycle.js
+   *     buildViewCycle); else 'countdown' when the rain alert is ticked on a bar a screen
+   *     shows (the radar is fetched for it alone); else 'off'.
+   *   healthMode — 'all' when a screen shows the health graph; on a preset, 'status' when one
+   *     shows the Health bar; 'slot' when a status slot of a bar a screen shows holds a
+   *     health item; else 'off' (always on a watch without health).
+   * On a custom layout a bar is a status bar like the others (THE NAMES: a bar is what it
+   * holds, not its kind), so the Radar bar alone fetches no radar and the Health bar alone
+   * reads no health: what is on the shown bars decides.
    * @param {Object} S Settings.
    * @param {?Object} [env] Platform env (omitted = capable).
    * @returns {{radarMode: string, healthMode: string}}
@@ -461,6 +504,7 @@
     var bars = VC.barsIn(cycle);
     var graphs = VC.graphsIn(cycle);
     var barNames = ['top', 'forecast', 'radar', 'health'];
+    var preset = s.layoutPreset !== 'custom';
     /** @param {function(string): boolean} pred @returns {boolean} whether a shown bar passes */
     function anyShownBar(pred) {
       for (var b = 0; b < barNames.length; b++) {
@@ -472,7 +516,7 @@
     if (e.radar !== false && s.radarEnabled !== false) {
       if (graphs.radar) {
         radarMode = 'graph';
-      } else if (bars.radar) {
+      } else if (preset && bars.radar) {
         radarMode = 'status';
       } else if (anyShownBar(function (bar) { return onDemand.sideOf(s, bar, 'rain', env) !== null; })) {
         radarMode = 'countdown';
@@ -482,7 +526,7 @@
     if (e.health !== false) {
       if (graphs.health) {
         healthMode = 'all';
-      } else if (bars.health) {
+      } else if (preset && bars.health) {
         healthMode = 'status';
       } else if (anyShownBar(function (bar) { return catalog.healthSlots(s, bar, env).length > 0; })) {
         healthMode = 'slot';
@@ -502,8 +546,13 @@
     WATCH_BAR_FIRST: WATCH_BAR_FIRST,
     CAL_GRAPH_BOTTOM: CAL_GRAPH_BOTTOM,
     ONE_GRAPH_BOTTOM: ONE_GRAPH_BOTTOM,
+    BAR_OF_KIND: BAR_OF_KIND,
+    KIND_OF_BAR: KIND_OF_BAR,
     cleanName: cleanName,
     nameOf: nameOf,
+    barNameKey: barNameKey,
+    barName: barName,
+    blockName: blockName,
     isGraph: isGraph,
     isBar: isBar,
     idxOf: idxOf,

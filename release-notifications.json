@@ -204,7 +204,7 @@
     "body": "On the Watchface tab, tap a screen to add, remove and move its rows. Weather, rain radar and air quality now share one Data sources card in Setup. Screen editing isn't available on Pebble Classic or Steel."
   },
   "2.7.0": {
-    "title": "Screen presets and a graph per screen",
-    "body": "On the Watchface tab, add a screen from a preset, rename it and drag your screens into order. On the Pebble Time 2, each screen can also have its own forecast graph, such as 24 hours on one and up to 66 on another. Not on Pebble Classic or Steel."
+    "title": "Screen presets and named status bars",
+    "body": "On the Watchface tab, add a screen from a preset, rename it and drag your screens into order. Name your status bars on the Status bars tab and put any of them on any screen. On the Pebble Time 2, each screen can also have its own forecast graph, such as 24 hours on one and up to 66 on another. Not on Pebble Classic or Steel."
   }
 }

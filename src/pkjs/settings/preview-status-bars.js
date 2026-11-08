@@ -25,6 +25,9 @@
         : null;
     var NODE = typeof require !== 'undefined';
     var catalog = NODE ? require('../status-line-catalog.js') : window.StatusLineCatalog;
+    // A bar's name (screens.js barName), read when a row is drawn: screens.js loads after this
+    // file's dependencies and before the page draws.
+    var screens = NODE ? require('../screens.js') : window.Screens;
     var onDemand = NODE ? require('../on-demand.js') : window.OnDemand;
     var esc = NODE ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
     var previewInk = (NODE ? require('./preview-svg.js') : window.PreviewSvg).previewInk;
@@ -307,7 +310,7 @@
         var cls = 'sbp-v sbp-' + c.pos;
         if (!tappable) { return '<span class="' + cls + '">' + body + '</span>'; }
         var item = catalog.byCode(c.code);
-        var name = barName + ' bar, ' + POS_NAME[c.pos] + ': ' + (item ? item.label : c.code);
+        var name = barName + ', ' + POS_NAME[c.pos] + ': ' + (item ? item.label : c.code);
         return '<button type="button" class="' + cls + (empty ? ' sbp-empty' : '') + '" data-select="' + esc(c.key)
             + '" aria-label="' + esc(name) + '">' + (empty ? '<span class="sbp-hole" aria-hidden="true"></span>' : body)
             + '</button>';
@@ -336,10 +339,14 @@
             // anywhere).
             var view = barView(views, b);
             if (!view && !optional) { return; }
+            // Each row by its bar's name (screens.js barName), the label column without the
+            // trailing " bar" every default name has ("Forecast", a "Wind bar" as "Wind").
+            var name = screens.barName(st, b.bar);
             var cells = barSlots(st, env, b.bar, !calendarShown(view), now).map(function (c) {
-                return slotCell(c, b.name, env, tappable);
+                return slotCell(c, name, env, tappable);
             }).join('');
-            rows += '<div class="sbp-row"><span class="sbp-n">' + esc(b.name) + '</span>' + cells + '</div>';
+            rows += '<div class="sbp-row"><span class="sbp-n">' + esc(name.replace(/ bar$/i, '')) + '</span>' + cells
+                + '</div>';
         });
         if (!rows) { return ''; }
         // On the tab, a line under the bars says the slots can be tapped (their chips show

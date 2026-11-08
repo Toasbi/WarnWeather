@@ -16,13 +16,13 @@ test('ITEMS: the ten items in priority order, system info first', () => {
     'Wind gusts', 'UV index', 'Air quality', 'Pollen', 'Wind speed']);
   assert.deepEqual(OD.BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health']);
   assert.deepEqual(OD.PAGE_BARS.map((b) => b.name),
-    ['Watch Status Bar', 'Forecast Status Bar', 'Health Status Bar', 'Radar Status Bar']);
+    ['Watch bar', 'Forecast bar', 'Health bar', 'Radar bar']);
   assert.deepEqual(OD.SIDES, ['left', 'right']);
   assert.equal(OD.itemsKey('top', 'left'), 'statusTopOnDemandLeftItems');
   assert.equal(OD.itemsKey('health', 'right'), 'statusHealthOnDemandRightItems');
 });
 
-test('DEFAULTS: the Watch Status Bar carries the defaults, every other bar is empty', () => {
+test('DEFAULTS: the Watch bar carries the defaults, every other bar is empty', () => {
   assert.equal(OD.DEFAULTS.statusTopOnDemandLeftItems, 'bt,qt,snooze,rain');
   assert.equal(OD.DEFAULTS.statusTopOnDemandRightItems, 'battery,gust,uv,aqi,wind');
   ['Forecast', 'Radar', 'Health'].forEach((bar) => ['Left', 'Right'].forEach((side) => {

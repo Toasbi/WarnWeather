@@ -32,9 +32,10 @@ test('page-only keys are never stored: the Night hours, Separate hours and the R
   // The Rain radar picker writes radarEnabled and radarProvider (screens-page.js), so its Off
   // keeps the source.
   // The graph styles' pick, Rename's field and the two pickers without a row
-  // (graph-styles-page.js) write graphStyles and the screens' viewStyle keys.
+  // (graph-styles-page.js) write graphStyles and the screens' viewStyle keys; the screen
+  // editor's bar picker (screens-page.js) writes the screen's rows.
   assert.deepEqual(uiOnly.sort(), ['graphStyleName', 'graphStyleNewFrom', 'graphStylePick', 'nightHoursFrom',
-    'nightHoursSeparate', 'nightHoursTo', 'radarSource', 'screenGraphStyle']);
+    'nightHoursSeparate', 'nightHoursTo', 'radarSource', 'screenBar', 'screenGraphStyle']);
   const S = E.hydrate(schema, {}, platformLib.computeEnv({ platform: 'emery' }));
   const blob = E.serialize(schema, S);
   uiOnly.forEach(k => assert.equal(Object.prototype.hasOwnProperty.call(blob, k), false, k));

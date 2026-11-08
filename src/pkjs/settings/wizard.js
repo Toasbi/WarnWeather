@@ -751,7 +751,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function stepLayout() {
         return stepHead('layout') + pickerHtml('layoutPreset')
             + '<div class="wiz-legend">'
-            + '<p><b>Forecast Status Bar</b>: your location, the temperature and air quality.</p>'
+            + '<p><b>Forecast bar</b>: your location, the temperature and air quality.</p>'
             + '<p><b>Forecast</b>: an hourly graph of the temperature, rain and more.</p></div>';
     }
     /**

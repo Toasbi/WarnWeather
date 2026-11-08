@@ -70,7 +70,22 @@ var storageSection = {
         // 'graph' and 'all'); the readers' absent radarMode is that same 'graph', the radar
         // as it was before the key existed.
         {type: 'hidden', messageKey: 'radarMode', defaultValue: 'countdown'},
-        {type: 'hidden', messageKey: 'healthMode', defaultValue: 'off'}
+        {type: 'hidden', messageKey: 'healthMode', defaultValue: 'off'},
+        // The screen editor's bar picker (screens-page.js opens it over the editor from a bar
+        // row's Bar card): your bars by name, a pick showing that bar in the row instead.
+        // Page-only (uiOnly); '' is dormant, so the sheet opens on the row's own bar.
+        {
+            type: 'select',
+            messageKey: 'screenBar',
+            uiOnly: true,
+            label: 'Bar',
+            sheetTitle: 'Bar on this screen',
+            sheetLead: 'Your bars, by name. Fill them on the Status bars tab.',
+            defaultValue: '',
+            dormantValues: [''],
+            optionsFrom: {resolver: 'screenBarOptions'},
+            onChange: 'screenBarPicked'
+        }
     ].concat(customViewItems(0), customViewItems(1), customViewItems(2))
 };
 
