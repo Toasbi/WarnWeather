@@ -15,6 +15,8 @@ var onDemand = require('./on-demand.js');
 var lineAlert = require('./line-alert.js');
 var forecastSpan = require('./forecast-span.js');
 var forecastAxis = require('./forecast-axis.js');
+// Graph styles (emery): the bake's settings while screens show several styles.
+var graphStyleWire = require('./weather/graph-style-wire.js');
 
 /**
  * The drawn metrics whose line is a stripe: a stripe line's bytes are level bytes on the
@@ -75,10 +77,15 @@ function mergedSlots(settings) {
  * Join the render-affecting settings into a change-detection signature.
  *
  * @param {Object} settings Clay settings.
+ * @param {?Object} [watchInfo] The watch the data is baked for: while its screens show several
+ *   graph styles (emery), the graph's part signs the bake's settings, the shown styles' union
+ *   (weather/graph-style-wire.js weatherSettings), so another style's metric, line or length
+ *   re-fetches as the first style's does. Omitted: the settings as they are.
  * @returns {string} Pipe-joined signature, or '' when settings is falsy.
  */
-function renderSignature(settings) {
+function renderSignature(settings, watchInfo) {
     if (!settings) { return ''; }
+    settings = graphStyleWire.weatherSettings(settings, watchInfo || null);
     // Series selection and encoding — fourthLine/fifthLine change which series the phone
     // bakes (and fetches — UV), so it joins. NOT the theme or the area-fill toggle:
     // the line colours, the fill flag, the ...LineStyle keys and the

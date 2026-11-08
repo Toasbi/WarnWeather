@@ -135,8 +135,10 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   520 B — the thresholds blob grew 34 -> 48 B in 1.24.0 for the rain alert's look, the
   On demand Battery item, the per-kind warn look and the ten On demand cells, paid for
   by `CLAY_BATTERY_LOW_ONLY` riding a known aplite's bundle alone — sized
-  against aplite's 536 B inbox as the conservative floor, and the test enforces a 10 B
-  headroom floor on each bundle), so check `test/inbox-size.test.js` either way.
+  against aplite's 536 B inbox as the conservative floor; a known emery's bundle alone also
+  carries the graph styles' records, `CLAY_GRAPH_STYLE_1..3_UINT8`, 664 B of its 1024 B at
+  their heaviest — and the test enforces a 10 B headroom floor on each bundle), so check
+  `test/inbox-size.test.js` either way.
 - **Message boundary: settings ride the settings (Clay) message; weather data rides the
   weather message.** Config-derived values — colour palettes, formatting/display toggles,
   the holiday mask — belong in `sendClaySettings` (`outbox.sendClay`). The weather payload

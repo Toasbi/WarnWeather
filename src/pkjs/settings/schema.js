@@ -2045,6 +2045,15 @@ module.exports = {
             items: GRAPH_COLOR_ROWS.map(function (row) {
                 return graphColorRow(row, false);
             }).concat([linkRow('resetAllGraphColors', 'Reset graph colors to defaults')])
+        }, {
+            // Graph styles 2 and 3 (Pebble Time 2): their names and their values of the keys a
+            // style holds, one JSON string (src/pkjs/graph-styles.js parse). The flat keys are the
+            // first style, so an install without the key has one style and nothing migrates.
+            // Blob-only: sheetOnly keeps it off the tab; it hydrates and serializes with the blob.
+            sheetOnly: true,
+            sheetId: 'graphStyleKeys',
+            title: 'Graph styles',
+            items: [{type: 'hidden', messageKey: 'graphStyles', defaultValue: ''}]
         }].concat(GRAPH_COLOR_ROWS.map(function (row) {
             var sheet = graphColorSheet(row);
             sheet.pinBlock = 'forecastPreview';

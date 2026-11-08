@@ -15,6 +15,8 @@ var lineAlert = require('./line-alert.js');
 var stripeLevels = require('./stripe-levels.js');
 // The forecast's left axis options (emery): whether TEMP_MIN/TEMP_MAX name the scale.
 var forecastAxis = require('./forecast-axis.js');
+// Graph styles (emery): the settings the bake reads while screens show several styles.
+var graphStyleWire = require('./weather/graph-style-wire.js');
 
 /**
  * Quantize a permille value (0..1000) to a 0..250 byte for the wire.
@@ -381,7 +383,10 @@ function metricPermille(metric, raw, settings, band) {
  * Which metric each line actually draws — off and duplicate-of-an-earlier-line
  * rules included — is resolved by line-style.js' effectiveLineMetric, the one
  * home for the rule the settings preview and the pickers share. Only the
- * secondary line can fill.
+ * secondary line can fill. While screens show several graph styles (emery), the
+ * settings are weather/graph-style-wire.js weatherSettings' and graphStyleSlots names
+ * each line's series outright: the union may draw one metric twice, as a line and as
+ * a stripe, which effectiveLineMetric would read as a repeat.
  *
  * Values only: the lines' COLOURS and styles (and the fill flag) are
  * settings-derived, so they ride the Clay settings message instead — see
@@ -395,13 +400,14 @@ function metricPermille(metric, raw, settings, band) {
  * are those of a watch that draws every line and style and has Alert settings.
  *
  * @param {{precips:number[], clouds:number[], rains:number[], winds:number[], gusts:number[], uvs:number[], pressures:number[], feels:number[], dews:Array, tempBand:Object, alertBands:Object, lineStyles:boolean}} raw Raw series (+ the temp axis band the feels and dew metrics share, the Show: Alert lines' bands, line-alert.js alertBands, and whether the watch draws the line styles).
- * @param {{secondaryLine:string, thirdLine:string, fourthLine:string, fifthLine:string, windScale:string, barSource:string}} settings Settings.
+ * @param {{secondaryLine:string, thirdLine:string, fourthLine:string, fifthLine:string, windScale:string, barSource:string, graphStyleSlots:(Array|undefined)}} settings Settings.
  * @returns {Object} Wire fields (see module interface).
  */
 function buildForecastSeries(raw, settings) {
     var out = {};
     var bands = raw.alertBands || lineAlert.alertBands(settings, null);
     var stylesDrawn = raw.lineStyles !== false;
+    var slots = settings.graphStyleSlots || null;
 
     // One symmetric block per ordered line (line-style.js FORECAST_LINES).
     var LINE_TREND_KEYS = {
@@ -412,14 +418,15 @@ function buildForecastSeries(raw, settings) {
     };
     for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
         var key = lineStyle.FORECAST_LINES[i].key;
-        var metric = lineStyle.effectiveLineMetric(settings, key);
+        var slot = slots ? slots[i] : null;
+        var metric = slots ? (slot ? slot.metric : null) : lineStyle.effectiveLineMetric(settings, key);
         var band = (metric && Object.prototype.hasOwnProperty.call(bands, metric))
             ? bands[metric] : null;
         // Drawn as a stripe: the watch draws the styles and the line's effective style is
         // a stripe (lineStyleValue never resolves one on a metric that cannot be one, and
         // every metric that can has a scale: stripe-levels.js METRIC_SCALES, pinned equal).
-        var stripe = Boolean(metric) && stylesDrawn
-            && lineStyle.isStripeStyle(settings, lineStyle.FORECAST_LINES[i].styleKey);
+        var stripe = Boolean(metric) && stylesDrawn && (slots ? slot.stripe
+            : lineStyle.isStripeStyle(settings, lineStyle.FORECAST_LINES[i].styleKey));
         if (!metric) {
             out[LINE_TREND_KEYS[key]] = [];
         } else if (stripe) {
@@ -488,6 +495,10 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // Bake the packed status lines while the transient trend arrays are
     // still on the payload (they die a few lines below).
     statusLines.buildStatusLines(payload, settings, watchInfo);
+    // From here on the graph's settings: with screens showing several graph styles
+    // (emery), the shown styles' union (weather/graph-style-wire.js weatherSettings),
+    // else the settings themselves.
+    settings = graphStyleWire.weatherSettings(settings, watchInfo);
     // THE one temp encode: getPayload ships whole-degree temps (TEMP_RAW_TREND,
     // transient) and this is where they become wire bytes — with settings in
     // hand. Joint temp∪feels∪dew axis: the curves only read as one graph if they

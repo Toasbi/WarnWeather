@@ -26,6 +26,9 @@ var SIZE_CODE = { '2': SIZE_2, '3': SIZE_3, '4': SIZE_4, fill: SIZE_FILL };
 // 0 = the clock's ink centred on the screen midline (Middle when the view has no clock).
 var ALIGN_CLOCK = 0, ALIGN_TOP = 1, ALIGN_CENTER = 2, ALIGN_BOTTOM = 3;
 var ALIGN_CODE = { clock: ALIGN_CLOCK, top: ALIGN_TOP, center: ALIGN_CENTER, bottom: ALIGN_BOTTOM };
+// A screen's graph style (the viewStyle key: '1' | '2' | '3', Pebble Time 2,
+// src/pkjs/graph-styles.js) → the ext word's graphStyle field. '1', the first style, is code 0.
+var GRAPH_STYLE_CODE = { '2': 1, '3': 2 };
 
 /**
  * Build a view spec object.
@@ -755,6 +758,9 @@ function buildCustomCycle(S, cap) {
     if (body === BODY_FC && bs === '2') { bs = '3'; }
     if (SIZE_CODE[ts]) { s.topSize = SIZE_CODE[ts]; }
     if (SIZE_CODE[bs]) { s.bodySize = SIZE_CODE[bs]; }
+    // The forecast graph's style; canonicalExt drops it on a view without one. Whether the
+    // watch draws styles at all, and whether the style exists, graph-styles.js wireCycle says.
+    if (GRAPH_STYLE_CODE[S['viewStyle' + i]]) { s.graphStyle = GRAPH_STYLE_CODE[S['viewStyle' + i]]; }
     canonicalExt(s);
     // Alignment: only while no band fills (the watch zeroes it otherwise), and read
     // with its default so a blob that predates the key compiles to ext 0.
@@ -804,6 +810,7 @@ function specToKeys(cycle) {
       : (TOP_SIZE_NAME[s.topSize || 0] || '3');
     keys['viewBodySize' + i] = BODY_SIZE_NAME[s.bodySize || 0] || 'fill';
     keys['viewAlign' + i] = alignName[s.align || 0] || 'clock';
+    keys['viewStyle' + i] = String((s.graphStyle || 0) + 1);
   }
   return keys;
 }
@@ -955,6 +962,7 @@ var VIEW_CYCLE = {
   BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR, BODY_NONE: BODY_NONE,
   SIZE_DEFAULT: SIZE_DEFAULT, SIZE_2: SIZE_2, SIZE_3: SIZE_3, SIZE_4: SIZE_4, SIZE_FILL: SIZE_FILL,
   SIZE_CODE: SIZE_CODE, TOP_SIZE_NAME: TOP_SIZE_NAME, BODY_SIZE_NAME: BODY_SIZE_NAME,
+  GRAPH_STYLE_CODE: GRAPH_STYLE_CODE,
   ALIGN_CLOCK: ALIGN_CLOCK, ALIGN_TOP: ALIGN_TOP, ALIGN_CENTER: ALIGN_CENTER,
   ALIGN_BOTTOM: ALIGN_BOTTOM, ALIGN_CODE: ALIGN_CODE,
   STATUS_SRC_NONE: STATUS_SRC_NONE, STATUS_SRC_FORECAST: STATUS_SRC_FORECAST,

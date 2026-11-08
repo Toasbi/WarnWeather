@@ -4,8 +4,9 @@
 // the settings page's Graphs › Forecast pane that draws the graph: its lines and their
 // trends, its colours and line styles, the rain bars' palette, the night shading, the left
 // axis and its length. The phone sends one record per shown style while a screen shows a
-// style other than the first (CLAY_GRAPH_STYLE_1..3_UINT8, src/pkjs/graph-styles.js packs
-// them), and none otherwise: then every screen draws the look the other Clay tuples carry
+// style other than the first (CLAY_GRAPH_STYLE_1..3_UINT8, src/pkjs/weather/
+// graph-style-wire.js packs them), and empty tuples otherwise, which clear them: then every
+// screen draws the look the other Clay tuples carry
 // (CLAY_LINE_STYLE_UINT8, CLAY_CURVE_INSET_UINT8, BAR_PALETTE_UINT8, CLAY_DAY_NIGHT_SHADING,
 // the left axis's bits of CLAY_LARGE_GRAPH_FONT) over every hour sent, exactly as before
 // graph styles. A screen whose style has no record draws that look too.
@@ -26,9 +27,11 @@
 //   [3..6]   the trend each line SECOND..FIFTH reads: a SeriesId SECOND..FIFTH; 0 = off
 //   [7..11]  the curve insets, CLAY_CURVE_INSET_UINT8's five bytes
 //   [12..25] the line styling, CLAY_LINE_STYLE_UINT8's fourteen bytes
-//   [26..]   the rain bars' palette, BAR_PALETTE_UINT8's bytes: 3 per stop, 1 to 5 stops
-// Lockstep with src/pkjs/graph-styles.js (packRecord), pinned by test/graph-styles.test.js
-// and test/c/graph_style_test.c.
+//   [26..]   the rain bars' palette, BAR_PALETTE_UINT8's bytes: 3 per stop, 1 to 5 stops;
+//            none while the style draws no rain bars (another shown style may: the rain
+//            trend is shared)
+// Lockstep with src/pkjs/weather/graph-style-wire.js (packRecord), pinned by
+// test/graph-style-wire.test.js and test/c/graph_style_test.c.
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -47,7 +50,7 @@
 #define GS_MAX_STOPS           5    // palette.h PALETTE_MAX_STOPS
 #define GS_FLAG_NIGHT          0x01
 #define GS_FLAG_AXIS_MASK      0xFE // config.h GRAPH_OPT_AXIS_MASK
-#define GRAPH_STYLE_MIN_BYTES  (GS_PALETTE + GS_STOP_BYTES)
+#define GRAPH_STYLE_MIN_BYTES  GS_PALETTE   // no palette: the style draws no rain bars
 #define GRAPH_STYLE_MAX_BYTES  (GS_PALETTE + GS_STOP_BYTES * GS_MAX_STOPS)
 #define GS_TREND_MAX           4    // SERIES_FIFTH (series.h)
 
@@ -65,7 +68,7 @@
 #define GS_LS_FIFTH_STYLE      13
 #define GS_LS_FILL_ON          0x01
 
-// emery: whether `len` bytes are a whole record: the fixed fields, 1 to 5 whole palette
+// emery: whether `len` bytes are a whole record: the fixed fields, 0 to 5 whole palette
 // stops, and each line's trend a SeriesId SECOND..FIFTH or 0. A malformed record is
 // refused whole (app_message.c), so the last good one stays.
 static inline bool graph_style_valid(const uint8_t *rec, int len) {
@@ -89,5 +92,10 @@ static inline int graph_style_shown(int sent, int hours) {
 // style draws no line there.
 static inline uint8_t graph_style_trend(const uint8_t *rec, int line) {
     return rec[GS_MAP + line - 1];
+}
+
+// emery: whether a whole record of `len` bytes draws rain bars: it carries their palette.
+static inline bool graph_style_bars(int len) {
+    return len > GS_PALETTE;
 }
 #endif  // PBL_PLATFORM_EMERY

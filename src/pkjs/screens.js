@@ -5,7 +5,8 @@
 // THE LIST. A screen is an array of blocks { k: kind } in drawn order: the Watch bar
 // ('strip'), the Calendar ('cal', rows '2' | '3'), the Clock ('clock'), the three status bars
 // ('fcbar', 'radarbar', 'healthbar') and the three graphs ('fc', 'radar', 'health', size
-// '2' | '3' | '4' | 'fill'). Its rules:
+// '2' | '3' | '4' | 'fill'; the forecast graph also names its graph style, style '2' | '3',
+// absent for the first: Pebble Time 2, graph-styles.js). Its rules:
 //   - The Watch bar is always first. The Default screen keeps its Clock (the page offers no ✕
 //     there; the compiler and the watch keep it whatever the keys say).
 //   - At most two status bars, each kind once. Each graph kind once, at most two graphs.
@@ -298,8 +299,9 @@
    * One screen's per-view keys (settings/custom-layout-schema.js) for view slot i: no Watch
    * bar is viewStripOff, no Clock viewClockOff (a flick only: the Default keeps its clock);
    * the last row, if a graph, the body; the calendar (its rows) or the upper graph the top;
-   * the bars in list order the upper then the lower row; the order orderFor's. viewAlign is
-   * left as stored: the list has no Position.
+   * the bars in list order the upper then the lower row; the order orderFor's; the forecast
+   * graph's style viewStyle ('1' without one). viewAlign is left as stored: the list has no
+   * Position.
    * @param {Array<Object>} list A screen.
    * @param {number} i View slot (0 = Default, 1-2 = flicks).
    * @returns {Object} key -> value
@@ -309,6 +311,8 @@
     var seq = '';
     var bars = 0;
     var keys = {};
+    var fc = list[idxOf(list, 'fc')];
+    keys['viewStyle' + i] = (fc && fc.style) || '1';
     keys['viewTop' + i] = 'none';
     keys['viewTopSize' + i] = '3';
     keys['viewBody' + i] = bot ? KINDS[bot.k].graph : 'none';
@@ -344,7 +348,8 @@
    * A compiled view read back as a screen: its bands in the order the watch draws them
    * (STACK_ORDERS[order] when it is stacked, else its tier's legacy order: a compact
    * calendar's T A C B, every other T C A B), the Watch bar first and the body last. A size
-   * code reads as its seat's size name (view-cycle.js TOP_SIZE_NAME / BODY_SIZE_NAME).
+   * code reads as its seat's size name (view-cycle.js TOP_SIZE_NAME / BODY_SIZE_NAME), the
+   * forecast graph's style code as its viewStyle ('2' | '3'; none for the first style).
    * @param {?Object} s A compiled view (null: a screen with nothing on it).
    * @param {boolean} stripOn Whether a null view's screen keeps its Watch bar.
    * @returns {Array<Object>} the screen
@@ -369,6 +374,8 @@
       if (bands[ch]) { out.push(bands[ch]); }
     });
     if (BODY_KIND[s.body]) { out.push({ k: BODY_KIND[s.body], size: VC.BODY_SIZE_NAME[s.bodySize || 0] }); }
+    var fc = out[idxOf(out, 'fc')];
+    if (fc && s.graphStyle) { fc.style = String(s.graphStyle + 1); }
     return out;
   }
 

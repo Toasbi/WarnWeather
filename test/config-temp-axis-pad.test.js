@@ -159,7 +159,7 @@ test('the curve, the label gap and the inset: one number each, the watch\'s', ()
   assert.equal(PA.CURVE_INSET_PREV, 12, 'the scale the curve is taken at: 12 units to the inset');
   assert.equal(PA.WATCH_INSET_PX,
     cDefine(read('src/c/appendix/bottom_view.h'), 'BOTTOM_VIEW_PRIMARY_LINE_INSET_Y'));
-  assert.equal(PA.WATCH_INSET_PX, Number(/var CURVE_INSET_PX = (\d+);/.exec(read('src/pkjs/clay-payload.js'))[1]));
+  assert.equal(PA.WATCH_INSET_PX, require('../src/pkjs/weather/graph-wire.js').CURVE_INSET_PX);
 });
 
 test('nothing anchored: today\'s margins, 12 units at both edges', () => {

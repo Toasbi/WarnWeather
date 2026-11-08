@@ -297,6 +297,8 @@ static void load_dataset(ForecastDataset *ds) {
     if (rec) {
         style_apply(ds, rec);
         ds->num_entries = graph_style_shown(n, rec[GS_HOURS]);
+        // A style without a bar palette draws no rain bars, though another style may.
+        ds->series[SERIES_BARS].present &= graph_style_bars(s_style_len);
     }
 #endif
     if (n > 0) {

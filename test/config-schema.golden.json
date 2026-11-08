@@ -271,6 +271,11 @@
               },
               {
                 "type": "hidden",
+                "messageKey": "viewStyle0",
+                "defaultValue": "1"
+              },
+              {
+                "type": "hidden",
                 "messageKey": "viewStripOff0",
                 "defaultValue": false
               },
@@ -313,6 +318,11 @@
                 "type": "hidden",
                 "messageKey": "viewAlign1",
                 "defaultValue": "clock"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "viewStyle1",
+                "defaultValue": "1"
               },
               {
                 "type": "hidden",
@@ -363,6 +373,11 @@
                 "type": "hidden",
                 "messageKey": "viewAlign2",
                 "defaultValue": "clock"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "viewStyle2",
+                "defaultValue": "1"
               },
               {
                 "type": "hidden",
@@ -9895,6 +9910,18 @@
                 "style": "link",
                 "action": "resetAllGraphColors",
                 "label": "Reset graph colors to defaults"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "graphStyleKeys",
+            "title": "Graph styles",
+            "items": [
+              {
+                "type": "hidden",
+                "messageKey": "graphStyles",
+                "defaultValue": ""
               }
             ]
           },

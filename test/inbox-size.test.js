@@ -117,9 +117,10 @@ const ALERT_ENTRIES_CAP = require('../src/pkjs/status-wire').ALERT_ENTRIES_MAX_B
  * @param {string} [platform] Watch platform; emery by default. aplite's bundle drops the
  *   lines it cannot draw (FOURTH/FIFTH), and emery's carries 68 forecast hours, so each is
  *   sized against its own inbox.
+ * @param {Object} [over] Settings laid over the heaviest ones (the graph styles' test).
  * @returns {Object} The outgoing AppMessage payload.
  */
-function buildHeaviestBundle(platform) {
+function buildHeaviestBundle(platform, over) {
   const N = forecastEntries(platform);
   const range = Array.from({ length: N }, function(_, i) { return i; });
   const radarRange = Array.from({ length: RADAR_SLOTS }, function(_, i) { return i; });
@@ -176,7 +177,7 @@ function buildHeaviestBundle(platform) {
     statusRadarLeft: 'city', statusRadarMid: 'city', statusRadarRight: 'city',
     statusTopLeft: 'city', statusTopMid: 'city', statusTopRight: 'city',
     statusHealthLeft: 'city', statusHealthMid: 'city', statusHealthRight: 'city'
-  }, alertSettings), { platform: platform || 'emery' });
+  }, alertSettings, over || {}), { platform: platform || 'emery' });
 
   // The entry tuple (off aplite: the bake skips it there, like the levels). The
   // realistic heaviest bake — all five with values — stays under the cap; the
@@ -238,6 +239,29 @@ test('heaviest bundled payload (DWD + wind) fits the watch inbox, per platform',
       platform + ': bundled DWD+wind payload is ' + size + ' B but inbox_size is only ' + inbox +
       ' B — the message would be dropped (APP_MSG_BUFFER_OVERFLOW). Bump inbox_size.');
   });
+});
+
+// Graph styles (emery, 2.7.0) add no weather byte: the shown styles' series share the four
+// metric rows (graph-styles.js assign), and a fifth is dropped, never sent.
+test('graph styles keep emery\'s heaviest weather bundle: the shown styles share the four rows', () => {
+  const styled = buildHeaviestBundle('emery', {
+    layoutPreset: 'custom', radarMode: 'graph', viewCount: '3',
+    viewTop0: 'cal', viewBody0: 'forecast', viewStyle0: '1',
+    viewTop1: 'none', viewBody1: 'forecast', viewStyle1: '2',
+    viewTop2: 'none', viewBody2: 'forecast', viewStyle2: '3',
+    forecastHours: '48',
+    graphStyles: JSON.stringify({ names: ['', '', ''], styles: [null,
+      // The first style's four lines again, reordered, plus the rain chance as a stripe: a
+      // fifth series, over the limit.
+      { secondaryLine: 'gust', thirdLine: 'wind', fourthLine: 'precip_prob', fourthLineStyle: 'stripeTop',
+        fifthLine: 'uv', barSource: 'off', forecastHours: '24' },
+      { secondaryLine: 'uv', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
+        forecastHours: '12' }] }),
+  });
+  assert.equal(dictSize(styled), WEATHER_BUNDLES.emery);
+  ['SECONDARY_LINE_TREND_UINT8', 'THIRD_LINE_TREND_UINT8', 'FOURTH_LINE_TREND_UINT8',
+    'FIFTH_LINE_TREND_UINT8', 'BAR_TREND_UINT8'].forEach((key) =>
+    assert.equal(styled[key].length, forecastEntries('emery'), key));
 });
 
 test('aplite keeps its 536 B inbox and a bundle without the extra metric lines', () => {
@@ -334,13 +358,28 @@ test('the out-of-coverage and no-data answers are lighter than the radar window 
   });
 });
 
+// The graph styles at their heaviest (emery only): three screens, each on a style of its own,
+// every style with rain bars in multicolor (a 5-stop palette), so all three records ride at
+// their 41 B (src/c/appendix/graph_style.h GRAPH_STYLE_MAX_BYTES).
+const HEAVIEST_STYLES = {
+  layoutPreset: 'custom', radarMode: 'graph', viewCount: '3',
+  viewTop0: 'cal', viewBody0: 'forecast', viewStyle0: '1',
+  viewTop1: 'none', viewBody1: 'forecast', viewStyle1: '2',
+  viewTop2: 'none', viewBody2: 'forecast', viewStyle2: '3',
+  barSource: 'rain',
+  graphStyles: JSON.stringify({ names: ['', 'Long', 'Short'], styles: [null,
+    { barSource: 'rain', rainBarColor: 'multicolor', forecastHours: '48' },
+    { barSource: 'rain', rainBarColor: 'multicolor', forecastHours: '12' }] }),
+};
+
 /**
  * The heaviest Clay settings message (the palette tuples included).
  * @param {?Object} [watchInfo] The watch it is packed for; emery by default.
+ * @param {Object} [over] Settings laid over the heaviest ones (HEAVIEST_STYLES for emery's).
  * @returns {Object} The payload.
  */
-function buildHeaviestClayMessage(watchInfo) {
-  const payload = buildClayPayload({
+function buildHeaviestClayMessage(watchInfo, over) {
+  const payload = buildClayPayload(Object.assign({
     temperatureUnits: 'c', timeLeadingZero: true, axisTimeFormat: '12h',
     weekStartDay: 'mon', firstWeek: 'prev', timeFont: 'bitham', showQt: true,
     btIcons: 'both', vibe: true, timeShowAmPm: true, dayNightShading: true,
@@ -366,7 +405,7 @@ function buildHeaviestClayMessage(watchInfo) {
     // CLAY_LARGE_GRAPH_FONT int (forecast-axis.js), no byte of their own, so the recorded
     // sizes hold.
     forecastAxisNumbers: 'graph', forecastAxisScale: true, secondaryLine: 'dew',
-  }, watchInfo === undefined ? { platform: 'emery' } : watchInfo, new Date('2026-06-26T00:00:00Z'));
+  }, over || {}), watchInfo === undefined ? { platform: 'emery' } : watchInfo, new Date('2026-06-26T00:00:00Z'));
 
   // The Dim backlight tuple (CLAY_NIGHT_LIGHT_UINT8 = [r, g, b, startHour, endHour])
   // is REAL now: buildClayPayload packs it for every platform (night-light.js), so it
@@ -386,17 +425,21 @@ function buildHeaviestClayMessage(watchInfo) {
 }
 
 test('Clay settings message (with palette) fits the watch inbox', function() {
-  // The line-style tuple ships to every watch, aplite included: size it
-  // against the smallest inbox.
-  const inbox = readInboxSize('aplite');
-  const size = dictSize(buildHeaviestClayMessage());
-  assert.ok(
-    size <= inbox,
-    'Clay message is ' + size + ' B but inbox_size is only ' + inbox + ' B — bump inbox_size.');
+  // Each watch against its own inbox, emery with its graph styles at their heaviest; an
+  // unknown platform (the capable shape) against the smallest inbox, aplite's.
+  ['emery', 'basalt', 'chalk', 'diorite', 'flint', 'aplite', null].forEach((platform) => {
+    const inbox = readInboxSize(platform || 'aplite');
+    const size = dictSize(buildHeaviestClayMessage(platform ? { platform } : null,
+      platform === 'emery' ? HEAVIEST_STYLES : null));
+    assert.ok(size <= inbox, (platform || 'unknown') + ': the Clay message is ' + size
+      + ' B but inbox_size is only ' + inbox + ' B — bump inbox_size.');
+  });
 });
 
 test('Clay settings message keeps its recorded size (and headroom)', () => {
-  const size = dictSize(buildHeaviestClayMessage());
+  // The capable shape: an unknown platform, which every watch but a known aplite or emery
+  // matches byte for byte (the per-platform test below), sized against the smallest inbox.
+  const size = dictSize(buildHeaviestClayMessage(null));
   const inbox = readInboxSize('aplite');
   console.log(`heaviest Clay message: ${size} B of ${inbox} B (headroom ${inbox - size})`);
   // Recorded exactly, like the weather bundle above: the Clay message grows key by key
@@ -452,8 +495,34 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // of its own would be 11 B -> 533 B, under the 10 B floor).
   // 522 -> 520 when CLAY_LINE_STYLE_UINT8 shrank 16 -> 14: the filled area's night line
   // went with the dusk/dawn lines, and the night-fill flag had no reader.
+  // 520 unchanged when the graph styles joined (2.7.0): their records ride a known emery's
+  // bundle alone (below).
   assert.equal(size, 520,'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
+});
+
+// The graph styles' records (CLAY_GRAPH_STYLE_1..3_UINT8, 2.7.0) ride a known emery's Clay
+// bundle alone, measured against its own 1024 B inbox: three empty tuples (3 x 7 B) while the
+// first style alone is shown, which clear the watch's records, and at their heaviest three
+// records of 7 B header + 41 B (HEAVIEST_STYLES).
+test('the graph styles\' records ride emery\'s Clay bundle, at most 664 B of its 1024 B', () => {
+  const inbox = readInboxSize('emery');
+  const plain = buildHeaviestClayMessage({ platform: 'emery' });
+  assert.deepEqual([plain.CLAY_GRAPH_STYLE_1_UINT8, plain.CLAY_GRAPH_STYLE_2_UINT8,
+    plain.CLAY_GRAPH_STYLE_3_UINT8], [[], [], []], 'the first style alone: three empty tuples');
+  assert.equal(dictSize(plain), 520 + 3 * 7);
+  const styled = buildHeaviestClayMessage({ platform: 'emery' }, HEAVIEST_STYLES);
+  ['CLAY_GRAPH_STYLE_1_UINT8', 'CLAY_GRAPH_STYLE_2_UINT8', 'CLAY_GRAPH_STYLE_3_UINT8'].forEach((k) =>
+    assert.equal(styled[k].length, 41, k + ': a whole record with a 5-stop palette'));
+  const size = dictSize(styled);
+  console.log(`heaviest emery Clay message: ${size} B of ${inbox} B (headroom ${inbox - size})`);
+  assert.equal(size, 664, 'update the recorded size when the records change');
+  assert.ok(inbox - size >= 10, 'emery: the 10 B floor');
+  // Every other watch, and an unknown one, is never sent them.
+  ['basalt', 'chalk', 'diorite', 'flint', 'aplite', null].forEach((platform) => {
+    const payload = buildHeaviestClayMessage(platform ? { platform } : null, HEAVIEST_STYLES);
+    assert.equal(Object.keys(payload).some((k) => /^CLAY_GRAPH_STYLE_/.test(k)), false, String(platform));
+  });
 });
 
 // The tuple split that pays for the On demand cells: CLAY_BATTERY_LOW_ONLY rides a known
@@ -462,7 +531,8 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
 // session — the accepted trade-off), so the capable bundles all stay at their recorded
 // size, and aplite's is unchanged by On demand.
 test('CLAY_BATTERY_LOW_ONLY rides aplite\'s Clay bundle only; the per-platform sizes', () => {
-  const sizes = { emery: 520, basalt: 520, chalk: 520, diorite: 496, flint: 496, aplite: 399 };
+  // emery's 21 B more: the graph styles' three empty record tuples (the test above).
+  const sizes = { emery: 541, basalt: 520, chalk: 520, diorite: 496, flint: 496, aplite: 399 };
   Object.keys(sizes).forEach((platform) => {
     const payload = buildHeaviestClayMessage({ platform });
     assert.equal(dictSize(payload), sizes[platform], platform);

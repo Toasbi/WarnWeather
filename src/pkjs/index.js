@@ -262,7 +262,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // detect a change and force a resend. Colours are NOT here — rain/radar, graph lines
     // and fill, the theme itself: they ride the Clay message and the watch persists
     // them, so a colour or theme change needs no weather refetch.
-    var prevRender = renderSignature(app.settings);
+    var prevRender = renderSignature(app.settings, app.watchInfo);
     // fillFromPreserved: between a "Reset watchface" and the next boot the page
     // hydrates from an absent blob, so this response carries '' for every API key
     // the user did not retype — fill those from the parked copies (fill-only; a
@@ -328,7 +328,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
         radarProviderChanged: oldRadarProvider !== app.settings.radarProvider
             || oldRadarMode !== app.settings.radarMode
             || oldRadarSky !== (app.settings.radarSky !== false),
-        renderSettingsChanged: prevRender !== renderSignature(app.settings),
+        renderSettingsChanged: prevRender !== renderSignature(app.settings, app.watchInfo),
         fetchToggle: app.settings.fetch === true,
         acked: acked,
         hadWatchNotice: hadWatchNotice,

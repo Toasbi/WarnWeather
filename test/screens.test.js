@@ -203,7 +203,8 @@ test('compileKeys: the per-view keys, the bars in list order, the first order th
   const k = M.compileKeys(DEFAULT, 0);
   assert.deepEqual(k, {
     viewTop0: 'cal', viewTopSize0: '2', viewBody0: 'forecast', viewBodySize0: 'fill',
-    viewUpper0: 'weather', viewLower0: 'off', viewStripOff0: false, viewOrder0: 'TCAB'
+    viewUpper0: 'weather', viewLower0: 'off', viewStripOff0: false, viewOrder0: 'TCAB',
+    viewStyle0: '1'
   }, 'the Default keeps its clock: no viewClockOff0');
   const flick = M.compileKeys([b('healthbar'), b('fc', { size: '3' }), b('fcbar'), b('radar', { size: 'fill' })], 2);
   assert.equal(flick.viewClockOff2, true);

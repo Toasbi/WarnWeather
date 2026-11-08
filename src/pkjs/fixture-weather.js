@@ -7,8 +7,8 @@
 
 var WeatherProvider = require('./weather/provider.js');
 var fetchOptions = require('./weather/fetch-options.js');
-var forecastSpan = require('./forecast-span.js');
-var platformLib = require('./config-ui/lib/platform.js');
+// The hours this watch is sent: the longest shown graph style's (forecast-span.js hours).
+var graphStyleWire = require('./weather/graph-style-wire.js');
 var forecastSeries = require('./forecast-series.js');
 var wireUnits = require('./wire-units.js');
 var graphWire = require('./weather/graph-wire.js');
@@ -117,11 +117,11 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     provider.id = 'fixture';
     // Before adopting: adoptMapped zero-fills an absent rain/wind/gust series to
     // numEntries. The fixture's own hours, up to the hours this watch is sent with these
-    // settings (forecast-span.js hours(): 14 / 24 / 26 / 68): the 68-hour forecast-long
+    // settings (graph-style-wire.js hoursSent(): 14 / 24 / 26 / 68): the 68-hour forecast-long
     // fixture sends 68 only on an emery set to the long span (stored '48'; the 48-hour fixture is a
     // short feed there), and a longer fixture (the 39-hour time-lapse) sends the 24 every
     // other watch takes, never more than its inbox holds.
-    var span = forecastSpan.hours(settings, platformLib.computeEnv(watchInfo));
+    var span = graphStyleWire.hoursSent(settings, watchInfo);
     provider.numEntries = Array.isArray(weather.temps) ? Math.min(weather.temps.length, span) : 0;
     // A fixture sources every series it carries, whatever the settings select:
     // UV and feels-like always adopt (the fixture's feels ship verbatim, so the
