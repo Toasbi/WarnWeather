@@ -727,7 +727,7 @@ test('the weather bake follows forecastHours on emery only', () => {
     assert.notEqual(bake('emery', '48'), bake('emery', '24'), 'emery: the long span bakes the feed\'s 48 hours');
     assert.notEqual(bake('emery', '12'), bake('emery', '24'), 'emery: 12 h bakes 14 hours');
     // 24 h with no left axis bakes 26 hours (the numbers' place, the signature's '26'); a new
-    // install's Clean graph (On graph) is one of those.
+    // install's graph (On graph) is one of those.
     const off = { forecastAxisNumbers: 'off' };
     const axis = { forecastAxisNumbers: 'axis' };
     assert.notEqual(bake('emery', '24', off), bake('emery', '24', axis), 'emery: 24 h with no axis bakes 26 hours');

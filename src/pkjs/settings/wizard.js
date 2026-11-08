@@ -323,7 +323,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Pick a theme: its conversion runs (the colours, and the bars' colour it starts on), "Your own"
      * converts along, and the look picked on the forecast step is laid on again if the conversion
-     * moved it off (Stripes' Solid bars back to multicolor on a dark theme).
+     * moved it off (Weathergraph's Solid bars back to Multicolor on a dark theme).
      * @param {string} theme The theme picked.
      * @returns {void}
      */
@@ -338,7 +338,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     /**
      * The forecast look as its picker names it (the summary, the preview's label), and on emery
-     * the length as its picker names it: "Clean, 66 h".
+     * the length as its picker names it: "Weathergraph, 66 h".
      * @returns {string}
      */
     function forecastLabel() {
@@ -1111,11 +1111,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             applyDerived(ctx.S);
         }
         if (run.steps.indexOf('forecast') !== -1) {
-            // A graph set up in Settings, none of the looks: kept as "Your own", first.
             refreshLooks();
             if (!FORECAST.current(ctx.S, run.looks, run.env)) {
-                run.own = FORECAST.state(ctx.S, run.env);
-                refreshLooks();
+                if (fresh) {
+                    // A fresh install's graph is the defaults, none of the looks on emery (the long
+                    // span and the high and low on the graph, without the clouds' stripe): it starts
+                    // on the first-run look, nothing set up in Settings to keep as "Your own".
+                    pickLook(FORECAST.FIRST_RUN);
+                } else {
+                    // A graph set up in Settings, none of the looks: kept as "Your own", first.
+                    run.own = FORECAST.state(ctx.S, run.env);
+                    refreshLooks();
+                }
             }
         }
         ensureStyle();

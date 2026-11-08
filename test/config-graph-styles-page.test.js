@@ -238,16 +238,20 @@ test('the page: New style from a look or as a copy, picked at once; a fourth is 
   assert.match(p.modal.innerHTML, /Start the new style from/);
   assert.match(p.modal.innerHTML, /Copy of Graph style 1/);
   assert.equal(p.modal.innerHTML.indexOf('ssel-chk'), -1, 'nothing ticked');
-  p.pickOption('graphStyleNewFrom', 'classic');
+  assert.match(p.modal.innerHTML, />Classic<[\s\S]*>Weathergraph<[\s\S]*>Stripes<[\s\S]*>Copy of Graph style 1</,
+    'the setup looks, then the copy');
+  p.pickOption('graphStyleNewFrom', 'weathergraph');
   assert.equal(p.S.graphStylePick, '3', 'the new style takes the free slot and is picked');
-  assert.equal(GS.name(GSP.normalize(p.S), 2), 'Classic');
-  assert.equal(p.S.forecastHours, '24', 'the look\'s length, in the flat keys while it shows');
-  assert.equal(p.S.thirdLine, 'uv', 'the look\'s lines');
+  assert.equal(GS.name(GSP.normalize(p.S), 2), 'Weathergraph');
+  assert.equal(p.S.forecastHours, '48', 'the look\'s length, in the flat keys while it shows');
+  assert.deepEqual([p.S.thirdLine, p.S.thirdLineStyle, p.S.rainBarColor, p.S.forecastAxisNumbers, p.S.dayNightShading],
+    ['cloud', 'stripeTop', 'white', 'graph', true], 'the look\'s lines, bars, high and low and night shading');
   assert.equal(p.S.graphStyleNewFrom, '', 'the picker is cleared');
   assert.equal(p.scroll.innerHTML.indexOf('data-select="graphStyleNewFrom"'), -1, 'three styles: no New style');
   const blob = await p.save();
   assert.equal(GS.count(blob), 3);
   assert.equal(blob.thirdLine, 'off', 'the first style is untouched');
+  assert.equal(GS.settingsFor(blob, 2).thirdLine, 'cloud', 'the new style holds the look');
 });
 
 test('the page: Rename names the picked style; × keeps the old name', () => {

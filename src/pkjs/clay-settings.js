@@ -275,8 +275,8 @@ function upgradeBackfill() {
         healthMode: 'all',
         thirdLine: 'uv',
         forecastAxisNumbers: 'axis',
-        // A new install's Clean graph looks as far ahead as the feed reaches on emery (the
-        // long span); an existing install keeps the 24 hours it had.
+        // A new install's graph looks as far ahead as the feed reaches on emery (the long
+        // span, setup's Weathergraph look's too); an existing install keeps the 24 hours it had.
         forecastHours: '24'
     };
     var toggles = statusCatalog.UNIT_TOGGLES;

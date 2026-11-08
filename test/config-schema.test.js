@@ -461,7 +461,7 @@ test('secondaryLine is a 8-metric dropdown with no Off (resolver-derived)', () =
 test('thirdLine derives options from secondaryLine, excluding it, with Off the default', () => {
   const third = byKey('thirdLine');
   assert.equal(third.type, 'select');
-  // Off since 2.6, the Clean graph; an existing install without the key keeps its UV dots.
+  // Off since 2.6 (2.6's Clean graph); an existing install without the key keeps its UV dots.
   assert.equal(third.defaultValue, 'off');
   assert.equal(require('../src/pkjs/clay-settings.js').upgradeBackfill().thirdLine, 'uv');
   assert.equal(third.optionsFrom.resolver, 'forecastMetric');
@@ -1445,7 +1445,7 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
   const it = byKey('forecastHours');
   assert.equal(it.label, 'Forecast length');
   assert.equal(it.type, 'segmented');
-  assert.equal(it.defaultValue, '48', 'a new install\'s Clean graph looks as far ahead as the feed reaches');
+  assert.equal(it.defaultValue, '48', 'a new install looks as far ahead as the feed reaches');
   // The options are the forecastSpanOptions resolver's (forecast-hints.js): the stored values
   // are CHOICES whatever the settings, and the long span keeps its '48' token while its label
   // names the whole hours the watch will show for the provider and the layout
@@ -1459,7 +1459,7 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
   assert.deepEqual(labels({}).map((o) => o[1]), forecastSpan.CHOICES, 'the stored values are CHOICES');
   assert.deepEqual(labels({}), [['12 h', '12'], ['24 h', '24'], ['48 h', '48']],
     'a fresh install: Weather Underground\'s 48 hours');
-  // A new install's Clean graph draws the high and low on the graph: no left axis.
+  // A new install's graph draws the high and low on the graph: no left axis.
   assert.deepEqual(labels({ provider: 'openmeteo' }).map((o) => o[0]), ['12 h', '24 h', '66 h']);
   assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'off' }).map((o) => o[0]),
     ['12 h', '24 h', '66 h']);
@@ -1517,7 +1517,7 @@ test('Left axis: Left axis values in the card, the scale and the font size under
   assert.equal(nums.label, 'Left axis values');
   assert.equal(scale.label, 'High/low includes feels-like & dew point');
   assert.equal(nums.type, 'segmented');
-  // On graph since 2.6, the Clean graph a new install starts on.
+  // On graph since 2.6: a new install's graph.
   assert.equal(nums.defaultValue, 'graph');
   assert.deepEqual(nums.options.map((o) => o[1]), forecastAxis.NUMBERS, 'the stored values are NUMBERS');
   assert.deepEqual(nums.options.map((o) => o[0]), ['On axis', 'On graph', 'Off']);

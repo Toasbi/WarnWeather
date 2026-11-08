@@ -1955,8 +1955,9 @@ module.exports = {
             // names the whole hours the watch will show for the picked weather provider and the
             // layout (forecastSpanOptions, src/pkjs/forecast-span-hours.js spanOptions); the
             // stored value never moves.
-            // The default is the long span, a new install's; setup's Clean look, the defaults,
-            // starts on it too (settings/wizard-forecast.js). An existing install without the key
+            // The default is the long span, a new install's; setup starts a new install on the
+            // Weathergraph look, which takes it too (settings/wizard-forecast.js FIRST_RUN; the
+            // defaults are none of the looks on emery). An existing install without the key
             // keeps the 24 h it had (clay-settings.js upgradeBackfill), and an absent value still
             // reads 24 h (forecast-span-hours.js storedHours).
             // Every other watch keeps 24 h, whatever the key holds: the 640 B / 536 B inboxes
@@ -2015,8 +2016,9 @@ module.exports = {
                 type: 'segmented',
                 messageKey: FORECAST_AXIS.KEYS.numbers,
                 label: 'Left axis values',
-                // On graph out of the box since 2.6 (the Clean graph). An existing install
-                // that lacks the key keeps its axis (clay-settings.js upgradeBackfill).
+                // On graph out of the box since 2.6 (2.6's Clean graph; setup's Weathergraph
+                // look keeps it). An existing install that lacks the key keeps its axis
+                // (clay-settings.js upgradeBackfill).
                 defaultValue: FORECAST_AXIS.GRAPH,
                 options: [['On axis', FORECAST_AXIS.AXIS], ['On graph', FORECAST_AXIS.GRAPH],
                     ['Off', FORECAST_AXIS.OFF]],
@@ -2165,9 +2167,10 @@ module.exports = {
                 type: 'select',
                 messageKey: 'thirdLine',
                 label: 'Metric',
-                // Off out of the box since 2.6: a new install starts on the Clean graph (the
-                // setup's middle look). An existing install that lacks the key keeps its UV
-                // dots (clay-settings.js upgradeBackfill).
+                // Off out of the box since 2.6 (2.6's Clean graph: the rain chance alone; on
+                // emery setup then starts a new install on Weathergraph's cloud stripe). An
+                // existing install that lacks the key keeps its UV dots (clay-settings.js
+                // upgradeBackfill).
                 defaultValue: 'off',
                 hintFrom: METRIC_HINT_FROM,
                 optionsFrom: {resolver: 'forecastMetric', args: {key: 'thirdLine', off: true, exclude: ['secondaryLine']}}

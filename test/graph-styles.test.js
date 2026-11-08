@@ -49,6 +49,10 @@ test('the governed keys: setup\'s look keys, the shading, the length and every g
   wizardForecast.KEYS.forEach((k) => assert.ok(GS.GOVERNED.includes(k), k));
   ['dayNightShading', 'forecastHours'].forEach((k) => assert.ok(GS.GOVERNED.includes(k), k));
   lineStyle.graphColorKeys().forEach((k) => assert.ok(GS.GOVERNED.includes(k), k));
+  // Setup's looks set every governed key but the length (its own picker) and the colours.
+  assert.deepEqual(GS.GOVERNED.filter((k) => !wizardForecast.KEYS.includes(k)),
+    ['forecastHours'].concat(lineStyle.graphColorKeys()));
+  assert.ok(wizardForecast.KEYS.includes('dayNightShading'), 'the looks set the night shading');
   assert.equal(new Set(GS.GOVERNED).size, GS.GOVERNED.length, 'each once');
   GS.SHARED.forEach((k) => assert.equal(GS.GOVERNED.includes(k), false, k + ' is shared, not governed'));
   assert.deepEqual(GS.SHARED, ['windScale', 'pressureScale', 'windLineShow', 'gustLineShow', 'uvLineShow',

@@ -90,7 +90,8 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
     assert.ok(page().indexOf('window.' + parts[file] + ' = api') !== -1, 'nothing assigns window.' + parts[file]);
   });
   ['pkjs/line-style.js', 'pkjs/draw-from.js', 'pkjs/forecast-axis.js', 'pkjs/resolve-ink.js', 'pkjs/theme-flip.js',
-    'pkjs/forecast-span-hours.js', 'settings/forecast-sample.js', 'settings/preview-forecast.js'].forEach((file) => {
+    'pkjs/graph-styles.js', 'pkjs/forecast-span-hours.js', 'settings/forecast-sample.js',
+    'settings/preview-forecast.js'].forEach((file) => {
     assert.ok(idx(file) < idx('settings/wizard-forecast.js'), file + ' must precede wizard-forecast.js');
   });
   assert.ok(idx('pkjs/screens.js') < idx('settings/wizard-screens.js'));
