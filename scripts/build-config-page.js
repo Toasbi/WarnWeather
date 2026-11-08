@@ -97,6 +97,12 @@ var APP_FILES = [
   // and forecast-hints.js and preview-axis.js bind it while theirs run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/forecast-span-hours.js'),
+  // Graph styles (window.GraphStyles, the model) reads VIEW_CYCLE, LineStyle, LineAlert, DrawFrom
+  // and ForecastAxis while its body runs; its page module (window.GraphStylesPage) reads it,
+  // window.Screens and window.ForecastSpanHours, and forecast-hints.js and screens-page.js bind
+  // the page module while THEIRS run, so both sit here, ahead of all of those.
+  path.join(ROOT, 'src/pkjs/graph-styles.js'),
+  path.join(ROOT, 'src/pkjs/settings/graph-styles-page.js'),
   // A stripe cell's level on its metric's own scale (window.StripeLevels): the table the
   // bake shades every stripe by, which the forecast and radar previews shade their cells
   // by and forecast-hints.js' stripe hints are written from. It reads nothing at load, and its

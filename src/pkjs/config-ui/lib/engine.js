@@ -197,7 +197,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   PConf.checkWriters = makeRegistry();
 
   // --- hook registry ---
-  var loadFns = [], submitFns = [], readyFns = [];
+  var loadFns = [], submitFns = [], readyFns = [], renderFns = [], normalizeFns = [];
   PConf.hooks = {
     onLoad: function (fn) { loadFns.push(fn); },
     onSubmit: function (fn) { submitFns.push(fn); },
@@ -205,9 +205,24 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // exposes render()/save() so an overlay (e.g. the onboarding wizard) can push state
     // into the visible form or save-and-close.
     onReady: function (fn) { readyFns.push(fn); },
+    // onRender runs at the top of every render(), before anything reads the settings, with
+    // {S, env, tab, pane}: the tab on screen and its shown pane's id (null without panes).
+    // Every way to a tab or a pane ends in a render(), so a page module that holds some
+    // settings elsewhere while one pane shows (graph-styles-page.js: a graph style's values
+    // in the flat keys on Graphs › Forecast) moves them here, for every path at once.
+    onRender: function (fn) { renderFns.push(fn); },
+    // onNormalize: fn(state, env) returns the settings as Save stores them: the state itself
+    // when nothing is held elsewhere, else a copy (never the state changed). Save and Revert
+    // compare the normalized state (blobOf), so a value only moved for the screen never
+    // lights them, and save() settles S into it before the submit hooks run.
+    onNormalize: function (fn) { normalizeFns.push(fn); },
     runLoad: function (ctx) { loadFns.forEach(function (fn) { fn(ctx); }); },
     runSubmit: function (ctx) { submitFns.forEach(function (fn) { fn(ctx); }); },
-    runReady: function (ctx) { readyFns.forEach(function (fn) { fn(ctx); }); }
+    runReady: function (ctx) { readyFns.forEach(function (fn) { fn(ctx); }); },
+    runRender: function (ctx) { renderFns.forEach(function (fn) { fn(ctx); }); },
+    runNormalize: function (state, env) {
+      return normalizeFns.reduce(function (s, fn) { return fn(s, env) || s; }, state);
+    }
   };
 
   // --- action registry: type:'button' items dispatch here by their action id ---
@@ -706,6 +721,27 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       staticHint: staticHintOf(item, value) }, item.hintFrom.args || {});
     var hint = fn(S, env, args);
     return hint == null ? undefined : String(hint);
+  }
+
+  /**
+   * The hint a row shows, its tail included: the derived hint (resolveHint), and with
+   * item.hintTailFrom a sentence the live settings add after whatever hint the row has, the
+   * static one too (a hint resolver's answer; '' adds nothing) — e.g. "Every graph style
+   * shares this." under a setting every graph style shares, while there is more than one.
+   * undefined when the row has neither, so the caller falls back to the static hint.
+   * @param {Object} item Schema item.
+   * @param {Object} S Live settings state.
+   * @param {Object} env Platform env.
+   * @param {*} value The value the row shows.
+   * @returns {(string|undefined)} Hint HTML, or undefined.
+   */
+  function rowHint(item, S, env, value) {
+    var hint = resolveHint(item, S, env, value);
+    var fn = item.hintTailFrom && PConf.hintResolvers.get(item.hintTailFrom.resolver);
+    var tail = fn ? fn(S, env, Object.assign({ messageKey: item.messageKey }, item.hintTailFrom.args || {})) : '';
+    if (!tail) { return hint; }
+    var base = hint !== undefined ? hint : staticHintOf(item, value);
+    return base ? base + ' ' + String(tail) : String(tail);
   }
 
   /**
@@ -1718,8 +1754,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     // hintFrom: a hint derived from the live settings — after resolveRowItem, so it
     // describes the value the row actually shows.
-    if (item.hintFrom) {
-      view.hint = resolveHint(item, cx.S, cx.ENV, view.value);
+    if (item.hintFrom || item.hintTailFrom) {
+      view.hint = rowHint(item, cx.S, cx.ENV, view.value);
     }
     // pictureFrom: a radio draws its options as picture cards — from rowItem, so a derived
     // list gets a picture per option it actually offers.
@@ -2288,10 +2324,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // parent, so past that section the header scrolls away with the page.
       // A section with beforePin renders into `lead` instead: above all of that, first in
       // the tab, scrolling away with the page (the fetch-error notices: the news the page
-      // opens on).
+      // opens on). One with abovePin renders between the pane switcher and the pinned
+      // preview, scrolling away with the switcher (the Graph style card: which style the
+      // preview and the cards below show).
       var pane = activePaneOf(t, cx);
       var scoped = Boolean(t.pinThrough), passedPin = false;
-      var lead = '', pin = renderPin(t, pane, cx), body = '';
+      var head = '';
+      for (si = 0; si < t.sections.length; si++) {
+        var hs = t.sections[si];
+        if (!hs.abovePin || hs.sheetOnly || (hs.pane && pane && hs.pane !== pane.id)) { continue; }
+        head += renderSection(hs, cx, t.id + ':' + (hs.id || si));
+      }
+      var lead = '', pin = renderPin(t, pane, cx, head), body = '';
       for (si = 0; si < t.sections.length; si++) {
         var sec = t.sections[si];
         if (scoped && passedPin) {
@@ -2302,7 +2346,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (scoped && sec.id === t.pinThrough) { passedPin = true; }
         // A sheetOnly section renders only inside the edit-sheet dialog (renderEditModal);
         // its items still hydrate/serialize like any other, they just have no card.
-        if (sec.sheetOnly) { continue; }
+        if (sec.sheetOnly || sec.abovePin) { continue; }
         if (sec.pane && pane && sec.pane !== pane.id) { continue; }
         if (sec.beforePin) {
           lead += renderSection(sec, cx, t.id + ':' + (sec.id || si));
@@ -2360,14 +2404,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * A tab's header: its pane switcher (more than one shown pane), which scrolls with the
-   * page, then the sticky pinned preview block (the active pane's pinBlock, else the
-   * tab's). '' when it has neither.
+   * page, the abovePin sections' cards (`head`), which scroll with it too, then the sticky
+   * pinned preview block (the active pane's pinBlock, else the tab's). '' when it has none.
    * @param {Object} tab Schema tab.
    * @param {?Object} pane The active pane (activePaneOf).
    * @param {Object} cx Render context.
+   * @param {string} [head] The abovePin sections' HTML.
    * @returns {string} The header HTML.
    */
-  function renderPin(tab, pane, cx) {
+  function renderPin(tab, pane, cx, head) {
     var seg = '', shown = [], i;
     if (tab.panes) {
       shown = tab.panes.filter(function (p) { return !cx || PConf.showWhen.isVisible(p, cx.evalCtx); });
@@ -2391,7 +2436,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // pinned preview alone keeps the top of the screen (owner, 2026-10-04).
     // tab.pinBare: the block draws its own cards (the Watchface tab's watch, one card per view),
     // so the pin gives it no card of its own.
-    return seg + (block ? '<div class="' + pinClass(cx) + '"><div class="pin-blk' + (tab.pinBare ? ' bare' : '') + '">'
+    return seg + (head || '') + (block ? '<div class="' + pinClass(cx) + '"><div class="pin-blk' + (tab.pinBare ? ' bare' : '') + '">'
       + block + '</div></div>' : '');
   }
 
@@ -2867,7 +2912,25 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
     }
 
+    /**
+     * The id of the pane a tab shows now (activePaneOf), null for a tab without panes.
+     * @param {string} id Tab id.
+     * @returns {?string}
+     */
+    function shownPaneId(id) {
+      var tabs = SCHEMA.tabs || [], i, p;
+      for (i = 0; i < tabs.length; i++) {
+        if (tabs[i].id !== id) { continue; }
+        p = activePaneOf(tabs[i], { evalCtx: evalCtx(), activePane: activePane });
+        return p ? p.id : null;
+      }
+      return null;
+    }
+
     function render() {
+      // First: a page module may move settings for the tab and pane about to show
+      // (PConf.hooks.onRender), and everything below reads them.
+      PConf.hooks.runRender({ S: S, env: ENV, tab: activeTab, pane: shownPaneId(activeTab) });
       snapShownOptions(SCHEMA, S, ENV, INITIAL);
       // A palette reads `expanded` as openColor in the tab body and in the sheet (only a
       // palette: a pinned header lets go for it, pinClass); a select's list reads it as
@@ -2937,14 +3000,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var readySnap = null, readyBlob = null, stampKeys = [];
     eachItem(SCHEMA, function (it) { if (it.stamp && it.messageKey) { stampKeys.push(it.messageKey); } });
     /**
-     * The settings blob a Save would send for a state, as a string to compare — without the
-     * values the page stamps on its own (item.stamp: the Weather tab's last-opened time),
-     * which are no one's change.
+     * The settings blob a Save would send for a state, as a string to compare — the state as
+     * Save stores it (PConf.hooks.onNormalize), without the values the page stamps on its own
+     * (item.stamp: the Weather tab's last-opened time), which are no one's change.
      * @param {Object} state A settings state (S or a snapshot of it).
-     * @returns {string} JSON of serialize(SCHEMA, state, ENV), stamps left out.
+     * @returns {string} JSON of serialize(SCHEMA, normalized state, ENV), stamps left out.
      */
     function blobOf(state) {
-      var blob = serialize(SCHEMA, state, ENV), i;
+      var blob = serialize(SCHEMA, PConf.hooks.runNormalize(state, ENV), ENV), i;
       for (i = 0; i < stampKeys.length; i++) { delete blob[stampKeys[i]]; }
       return JSON.stringify(blob);
     }
@@ -3090,6 +3153,23 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       return false;
     }
+    /**
+     * A tab link's switch (a [data-goto-tab] link in copy, or an overlay's: the ready ctx's
+     * gotoTab): bring the tab to the front, closing whatever is open (switchTab), on a pane
+     * when one is named — from its top when it was showing another — and put focus on the
+     * tab. A tab the bar hides stays put.
+     * @param {string} id The tab.
+     * @param {?string} [pane] Its pane to show (data-goto-pane), or none.
+     * @returns {void}
+     */
+    function gotoTab(id, pane) {
+      if (!tabShown(id)) { return; }
+      var paneMoved = Boolean(pane) && activePane[id] !== pane;
+      if (paneMoved) { activePane[id] = pane; tabScroll[id] = 0; }
+      switchTab(id);
+      if (paneMoved) { document.getElementById('scroll').scrollTop = 0; }
+      focusActiveTab();
+    }
     // Tab bar: a tap switches to its tab.
     function wireTabBar() {
       document.getElementById('tabs').addEventListener('click', function (e) {
@@ -3218,14 +3298,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // A link that names a pane (data-goto-pane, e.g. Graphs › Forecast) opens the tab on
       // that pane, from its top when it was showing another.
       if ((t = e.target.closest('[data-goto-tab]'))) {
-        var gt = t.getAttribute('data-goto-tab'), gp = t.getAttribute('data-goto-pane');
-        if (tabShown(gt)) {
-          var paneMoved = Boolean(gp) && activePane[gt] !== gp;
-          if (paneMoved) { activePane[gt] = gp; tabScroll[gt] = 0; }
-          switchTab(gt);
-          if (paneMoved) { document.getElementById('scroll').scrollTop = 0; }
-          focusActiveTab();
-        }
+        gotoTab(t.getAttribute('data-goto-tab'), t.getAttribute('data-goto-pane'));
         return true;
       }
       if ((t = e.target.closest('[data-action]'))) {
@@ -3325,8 +3398,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         for (i = 0; i < els.length; i++) {
           key = els[i].getAttribute('data-hint-for');
           item = findShownItem(SCHEMA, key, ctx);
-          if (!item || !item.hintFrom) { continue; }
-          hint = resolveHint(item, S, ENV, S[key]);
+          if (!item || !(item.hintFrom || item.hintTailFrom)) { continue; }
+          hint = rowHint(item, S, ENV, S[key]);
           if (hint === undefined) { hint = staticHintOf(item, S[key]); }
           hint = hint == null ? '' : String(hint);
           if (els[i].innerHTML !== hint) { els[i].innerHTML = hint; }
@@ -3626,6 +3699,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // Save: run submit hooks, serialize, flash the toast, then return to the watch.
     function save() {
       snapShownOptions(SCHEMA, S, ENV, INITIAL);
+      // S as Save stores it (PConf.hooks.onNormalize), in place: the submit hooks and the blob
+      // read the stored settings, not what a pane holds for the screen.
+      var settled = PConf.hooks.runNormalize(S, ENV);
+      if (settled !== S) { restoreState(settled); }
       PConf.hooks.runSubmit(hookCtx);
       var blob = serialize(SCHEMA, S, ENV);
       var el = document.getElementById('toast');
@@ -3725,6 +3802,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // block repainting from an async completion can skip a repaint no one would see
       // (and that would tear down a field the user is typing in on another tab).
       activeTab: function () { return activeTab; },
+      // Bring a tab (and one of its panes) to the front, as a tab link does: an overlay's
+      // own link (the screen editor's "Edit <style> on the Graphs tab").
+      gotoTab: gotoTab,
       // Open a schema select/searchSelect in the shared bottom-sheet dialog. Used by the wizard,
       // which lives in its own overlay: the sheet is a showModal() top-layer dialog, so it renders
       // above that overlay. The engine sets S[key] on pick; onClose fires after any close.

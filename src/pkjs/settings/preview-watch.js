@@ -25,6 +25,9 @@
     var previewForecast = NODE ? require('./preview-forecast.js') : window.PreviewForecast;
     var forecastSample = NODE ? require('./forecast-sample.js') : window.ForecastSample;
     var spanHours = NODE ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
+    // Graph styles (Pebble Time 2): a screen's forecast graph draws its own style's settings
+    // (graph-styles-page.js screenSettings).
+    var graphStylesPage = NODE ? require('./graph-styles-page.js') : window.GraphStylesPage;
     // The watch's own clock digits (scripts/gen-clock-glyphs-page.js): Roboto and Bitham.
     var clockGlyphs = NODE ? require('./clock-glyphs.generated.js') : window.ClockGlyphs;
     var dateFormat = NODE ? require('../date-format.js') : window.DateFormat;
@@ -536,6 +539,10 @@
                    f: f, now: now, fullDate: !statusBars.calendarShown(spec),
                    holidays: (userData && userData.holidays) || null };
         var lay = layoutView(spec, f), e = '';
+        // The forecast graph draws the screen's graph style, as the watch does (the view's
+        // style, where the watch has styles and the style exists); every other band the
+        // settings as they are.
+        var graphS = graphStylesPage.screenSettings(S, env, spec);
         // The rows' tier (layout.c status_tier_for): the squeezed font on a FULL view.
         var rowFull = lay.tier === VC.TIER_FULL;
         if (lay.strip) {
@@ -550,7 +557,7 @@
                 if (bar) { e += rowBand(S, env, bar, box, f ? (rowFull ? 16 : 18) : (rowFull ? 12 : 13.5), cx); }
             } else {
                 var kind = graphKind(spec, b.band);
-                if (kind) { e += graphBand(kind, S, env, userData, box, tag); }
+                if (kind) { e += graphBand(kind, kind === 'forecast' ? graphS : S, env, userData, box, tag); }
                 else if (b.band === 'T' && spec.top === VC.TOP_CAL) {
                     e += calendarBand(S, box, spec.tier === VC.TIER_FULL ? 3 : 2, cx);
                 }

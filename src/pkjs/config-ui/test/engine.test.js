@@ -1138,7 +1138,10 @@ function bootWithCapturedListeners(schema, env, opts) {
     + '\nPConf.hooks.onReady(function (ctx) {'
     + ' module.exports.openSheet = ctx.openSheet;'
     + ' module.exports.activeTab = ctx.activeTab;'
-    + ' module.exports.getValue = ctx.get; module.exports.setValue = ctx.set; });'
+    + ' module.exports.getValue = ctx.get; module.exports.setValue = ctx.set;'
+    + ' module.exports.gotoTab = ctx.gotoTab; module.exports.S = ctx.S; module.exports.render = ctx.render; });'
+    // opts.prelude: page code registered ahead of boot (hooks, blocks, resolvers).
+    + '\n' + ((opts && opts.prelude) || '')
     + '\nPConf.engine.boot();';
   const listeners = {};
   const modalListeners = {};
@@ -1188,7 +1191,9 @@ function bootWithCapturedListeners(schema, env, opts) {
   });
   const revert = Object.assign(generic(), { hidden: true,
     addEventListener: (type, fn) => { headerListeners.revert[type] = fn; } });
-  const ids = { scroll, modal, tabs, save, revert, appTitle: generic(), toast: generic() };
+  // The toast takes classes (Save shows it before it leaves the page).
+  const toast = Object.assign(generic(), { classList: { add: () => {}, remove: () => {} } });
+  const ids = { scroll, modal, tabs, save, revert, appTitle: generic(), toast };
   // Resolve the selectors boot() issues against `document`: live-search lists and the fresh
   // select/date/edit-sheet triggers that closeModal() may restore focus to after render.
   const document = {
@@ -1209,16 +1214,19 @@ function bootWithCapturedListeners(schema, env, opts) {
   // opts.docQueryAll: the page's querySelectorAll, for the tests that tell twin triggers
   // apart (a key shown in the tab's pinned preview and in its row).
   if (opts && opts.docQueryAll) { document.querySelectorAll = opts.docQueryAll; }
+  // Save leaves the page through location.href (the blob in its hash).
+  const location = { href: '' };
   const fn = new Function('document', 'INJECTED_SCHEMA', 'INJECTED_ENV', 'INJECTED_CFG',
-    'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', BUNDLE);
+    'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', 'location', BUNDLE);
   const mod = { exports: {} };
-  fn(document, schema, env, {}, {}, 'pebblejs://close#', mod);
+  fn(document, schema, env, (opts && opts.cfg) || {}, {}, 'pebblejs://close#', mod, location);
   return {
     listeners, modalListeners, tabsListeners, scroll, modal, tabs, sselList, focusCounts,
-    save, revert, headerListeners,
+    save, revert, headerListeners, location,
     onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv,
     openSheet: mod.exports.openSheet, getValue: mod.exports.getValue, setValue: mod.exports.setValue,
-    activeTab: mod.exports.activeTab
+    activeTab: mod.exports.activeTab, gotoTab: mod.exports.gotoTab, S: mod.exports.S,
+    page: mod.exports
   };
 }
 
@@ -2984,4 +2992,110 @@ test('single range: the dual and threshold variants are untouched', () => {
   assert.equal(RCTL.isSingleItem({ type: 'range', single: true, rangeFrom: { resolver: 'x' } }), false);
   const dual = E.renderRange({ type: 'range', messageKey: 'r', min: 0, max: 10 }, { value: '2-8' });
   assert.match(dual, /data-lo="2" data-hi="8"/);
+});
+
+// ── Graph styles' engine hooks (src/pkjs/settings/graph-styles-page.js holds a style's values
+// in the flat keys while Graphs › Forecast shows it): abovePin, onRender, normalize, gotoTab.
+
+test('renderBody: an abovePin section sits between the pane switcher and the pinned preview, on its pane only', () => {
+  // The live registry: a booted page earlier in this file put a fresh PConf.blocks in place.
+  global.PConf.blocks.register('pinDemo', () => '<i>PIN</i>');
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 'g', label: 'G',
+    panes: [{ id: 'a', label: 'A', pinBlock: 'pinDemo' }, { id: 'b', label: 'B', pinBlock: 'pinDemo' }],
+    sections: [
+      { pane: 'a', id: 'body', title: 'Body card', items: [{ type: 'toggle', messageKey: 'f', label: 'F', defaultValue: false }] },
+      { pane: 'a', id: 'head', title: 'Head card', abovePin: true,
+        items: [{ type: 'toggle', messageKey: 'h', label: 'H', defaultValue: false }] },
+      { pane: 'b', id: 'other', title: 'Other card', items: [{ type: 'toggle', messageKey: 'o', label: 'O', defaultValue: false }] }
+    ] }] };
+  const S = E.hydrate(SCH, {});
+  const cx = (pane) => ({ S, ENV: {}, USERDATA: {}, collapsed: {}, activePane: { g: pane },
+    evalCtx: Object.assign({}, S, { env: {} }) });
+  const html = E.renderBody(SCH, 'g', cx('a'));
+  const at = (s) => html.indexOf(s);
+  assert.ok(at('pane-seg') >= 0 && at('pane-seg') < at('Head card'), 'the switcher first');
+  assert.ok(at('Head card') < at('<i>PIN</i>'), 'then the abovePin card');
+  assert.ok(at('<i>PIN</i>') < at('Body card'), 'then the pinned preview, then the cards');
+  assert.equal(html.split('Head card').length, 2, 'drawn once, not again among the cards');
+  assert.equal(E.renderBody(SCH, 'g', cx('b')).indexOf('Head card'), -1, 'another pane has none');
+});
+
+test('boot(): an onRender hook runs first in every render, told the tab and the pane on screen', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [
+    { id: 'g', label: 'G', panes: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }], sections: [
+      { pane: 'a', items: [{ type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'x',
+        options: [['X', 'x'], ['Y', 'y']] }] },
+      { pane: 'b', items: [{ type: 'segmented', messageKey: 'size', label: 'Size', defaultValue: 's',
+        options: [['S', 's'], ['L', 'l']] }] }
+    ] },
+    { id: 'h', label: 'H', sections: [{ items: [{ type: 'segmented', messageKey: 'other', label: 'Other',
+      defaultValue: 'n', options: [['N', 'n'], ['M', 'm']] }] }] }
+  ] };
+  // The hook moves a value for pane b and back elsewhere, as a page module would.
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true, prelude:
+    'PConf.hooks.onRender(function (c) {'
+    + ' (module.exports.seen = module.exports.seen || []).push(c.tab + ":" + c.pane);'
+    + ' c.S.size = c.pane === "b" ? "l" : "s"; });' });
+  assert.deepEqual(r.page.seen, ['g:a'], 'the first render: the first tab, its first pane');
+  const pane = { getAttribute: (n) => (n === 'data-pane' ? 'g:b' : null),
+    closest: (sel) => (sel === '[data-pane]' ? pane : null) };
+  r.listeners.click({ target: pane });
+  assert.equal(r.page.seen[r.page.seen.length - 1], 'g:b', 'a pane switch renders with its pane');
+  assert.equal(r.getValue('size'), 'l', 'and the body reads what the hook moved');
+  assert.match(r.scroll.innerHTML, /class="on" data-k="size" data-v="l"/, 'the hook runs before the body renders');
+  r.gotoTab('h');
+  assert.equal(r.page.seen[r.page.seen.length - 1], 'h:null', 'a tab without panes: no pane');
+  assert.equal(r.getValue('size'), 's', 'moved back off the pane');
+  assert.equal(r.activeTab(), 'h', 'gotoTab brings the tab to the front');
+  r.gotoTab('g', 'a');
+  assert.equal(r.page.seen[r.page.seen.length - 1], 'g:a', 'gotoTab with a pane shows that pane');
+});
+
+test('boot(): Save and Revert compare the normalized settings, and Save stores them', async () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'a', options: [['A', 'a'], ['B', 'b']] },
+    { type: 'segmented', messageKey: 'size', label: 'Size', defaultValue: 's', options: [['S', 's'], ['L', 'l']] }
+  ] }] }] };
+  // A value moved for the screen: `mode` shows 'b' while `_held` keeps the stored 'a'.
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true, prelude:
+    'PConf.hooks.onNormalize(function (st) {'
+    + ' if (!st._held) { return st; }'
+    + ' var o = Object.assign({}, st); o.mode = st._held; delete o._held; return o; });'
+    + 'PConf.hooks.onSubmit(function (ctx) {'
+    + ' module.exports.submitted = { mode: ctx.get("mode"), held: ctx.get("_held") }; });' });
+  r.S._held = 'a';
+  r.S.mode = 'b';
+  r.page.render();
+  assert.ok(r.save.classes.has('idle'), 'a value moved for the screen is no change');
+  assert.equal(r.revert.hidden, true);
+  tapSegment(r, 'size', 'l');
+  assert.ok(!r.save.classes.has('idle'), 'a real change lights Save');
+  r.headerListeners.save.click({});
+  assert.deepEqual(r.page.submitted, { mode: 'a', held: undefined }, 'the submit hooks see the stored settings');
+  assert.equal(r.getValue('mode'), 'a', 'S is settled in place');
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  const blob = JSON.parse(decodeURIComponent(r.location.href.split('#')[1]));
+  assert.equal(blob.mode, 'a', 'Save stores the normalized value');
+  assert.equal(blob.size, 'l');
+  assert.ok(!Object.prototype.hasOwnProperty.call(blob, '_held'), 'never a key of the schema\'s own');
+});
+
+test('boot(): Revert drops a value held for the screen with the rest', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'a', options: [['A', 'a'], ['B', 'b']] },
+    { type: 'segmented', messageKey: 'size', label: 'Size', defaultValue: 's', options: [['S', 's'], ['L', 'l']] }
+  ] }] }] };
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true, prelude:
+    'PConf.hooks.onNormalize(function (st) {'
+    + ' if (!st._held) { return st; }'
+    + ' var o = Object.assign({}, st); o.mode = st._held; delete o._held; return o; });' });
+  r.S._held = 'a';
+  r.S.mode = 'b';
+  tapSegment(r, 'size', 'l');
+  r.headerListeners.revert.click({});
+  tapConfirm(r, 'action');
+  assert.equal(r.getValue('mode'), 'a');
+  assert.equal(r.getValue('_held'), undefined, 'the held value goes: the page held none when it was ready');
+  assert.equal(r.getValue('size'), 's');
+  assert.ok(r.save.classes.has('idle'));
 });

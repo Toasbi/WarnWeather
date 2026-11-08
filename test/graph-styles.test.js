@@ -172,3 +172,39 @@ test('assign: the first style keeps its rows, a shared series one row, a line an
   assert.deepEqual(over.maps[1], [0, 0, 2, 0], 'cloud and the rain-chance stripe find no row');
   assert.equal(over.rows.length, GS.TRENDS);
 });
+
+test('the write helpers: a style\'s values, the item written back, a free slot, delete with its screens', () => {
+  const S = layout(['1', '2', '3'], { forecastHours: '24', thirdLine: 'uv',
+    graphStyles: stylesItem({ forecastHours: '48' }, { thirdLine: 'cloud' }, ['', 'Long', 'Cloudy']) });
+  const two = GS.valuesOf(S, 1);
+  assert.equal(two.forecastHours, '48');
+  assert.equal(two.thirdLine, 'uv', 'a key the style holds no value of: the first style\'s');
+  assert.deepEqual(Object.keys(two).filter((k) => !GS.GOVERNED.includes(k)), [], 'governed keys only');
+  assert.equal(GS.freeSlot(S), -1, 'three styles: no slot');
+  const moved = Object.assign({}, S);
+  assert.deepEqual(GS.deleteStyle(moved, 1), [1], 'the screen that drew it');
+  assert.equal(moved.viewStyle1, '1', 'draws the first style');
+  assert.equal(moved.viewStyle2, '3', 'style 3 keeps its slot');
+  assert.deepEqual(GS.parse(moved).names, ['', '', 'Cloudy'], 'the name goes with it');
+  assert.equal(GS.freeSlot(moved), 1);
+  assert.equal(GS.name(moved, 2), 'Cloudy');
+  assert.deepEqual(GS.deleteStyle(moved, 0), [], 'never the first style');
+  // The item written back: '' once it holds nothing, so an install that makes a style and
+  // deletes it again stores what it had.
+  GS.deleteStyle(moved, 2);
+  assert.equal(moved.graphStyles, '');
+  assert.equal(GS.withName({}, 0, 'Mine'), JSON.stringify({ names: ['Mine', '', ''], styles: [null, null, null] }),
+    'a name alone is kept');
+  const w = GS.withStyle({}, 2, { forecastHours: '12' });
+  assert.deepEqual(GS.parse({ graphStyles: w }).styles, [null, null, { forecastHours: '12' }]);
+  assert.equal(GS.withStyle({ graphStyles: w }, 0, { x: 1 }), w, 'the first style has no stored values');
+});
+
+test('rowsNeeded: the distinct series the styles draw between them', () => {
+  const a = { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'off', fifthLine: 'off' };
+  const b = { secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'off', fifthLine: 'off' };
+  assert.equal(GS.rowsNeeded([a], EMERY), 2);
+  assert.equal(GS.rowsNeeded([a, b], EMERY), 3, 'the shared rain chance once');
+  assert.equal(GS.rowsNeeded([a, Object.assign({}, b, { secondaryLineStyle: 'stripeTop' })], EMERY), 4,
+    'a line and a stripe of one metric: two');
+});

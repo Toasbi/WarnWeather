@@ -9465,6 +9465,55 @@
         "sections": [
           {
             "pane": "forecast",
+            "id": "graphStyle",
+            "abovePin": true,
+            "showWhen": {
+              "env": "graphStyles"
+            },
+            "items": [
+              {
+                "type": "select",
+                "messageKey": "graphStylePick",
+                "uiOnly": true,
+                "label": "Graph style",
+                "defaultValue": "1",
+                "initFrom": {
+                  "resolver": "graphStyleOnOpen"
+                },
+                "optionsFrom": {
+                  "resolver": "graphStyleOptions"
+                },
+                "hintFrom": {
+                  "resolver": "graphStyleHint"
+                }
+              }
+            ],
+            "block": "graphStyleActions"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "graphStyleRename",
+            "title": "Rename graph style",
+            "showWhen": {
+              "env": "graphStyles"
+            },
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "graphStyleName",
+                "uiOnly": true,
+                "label": "Name",
+                "defaultValue": "",
+                "attributes": {
+                  "maxlength": 24,
+                  "placeholder": "Graph style"
+                },
+                "onChange": "graphStyleRenamed"
+              }
+            ]
+          },
+          {
+            "pane": "forecast",
             "id": "lines",
             "title": "Lines",
             "intro": "The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or up to 66: Forecast length). Temperature is always drawn; the metrics and rain bars you pick below join it.",
@@ -9747,6 +9796,9 @@
                       "when": "tempAxisLineDrawn"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -9759,6 +9811,9 @@
                 "showWhen": {
                   "env": "platform",
                   "eq": "emery"
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               }
             ]
@@ -9922,6 +9977,35 @@
                 "type": "hidden",
                 "messageKey": "graphStyles",
                 "defaultValue": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "graphStyleNewFrom",
+                "uiOnly": true,
+                "label": "New style",
+                "sheetTitle": "Start the new style from",
+                "defaultValue": "",
+                "dormantValues": [
+                  ""
+                ],
+                "optionsFrom": {
+                  "resolver": "graphStyleStarts"
+                },
+                "onChange": "graphStyleCreate"
+              },
+              {
+                "type": "select",
+                "messageKey": "screenGraphStyle",
+                "uiOnly": true,
+                "label": "Graph style",
+                "defaultValue": "1",
+                "optionsFrom": {
+                  "resolver": "graphStyleOptions",
+                  "args": {
+                    "screen": true
+                  }
+                },
+                "onChange": "screenGraphStylePicked"
               }
             ]
           },
@@ -11023,7 +11107,10 @@
                   "resolver": "forecastMetricHint"
                 },
                 "optionsFrom": {
-                  "resolver": "forecastMetric"
+                  "resolver": "forecastMetric",
+                  "args": {
+                    "key": "secondaryLine"
+                  }
                 },
                 "onChange": "forecastMetricFill"
               },
@@ -11259,6 +11346,9 @@
                       "eq": "kph"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -11305,6 +11395,9 @@
                       "eq": "mph"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -11351,6 +11444,9 @@
                       "eq": "knots"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -11385,6 +11481,9 @@
                       "pressure"
                     ]
                   }
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -11423,6 +11522,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -11461,6 +11563,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -11499,6 +11604,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -11637,6 +11745,7 @@
                 "optionsFrom": {
                   "resolver": "forecastMetric",
                   "args": {
+                    "key": "thirdLine",
                     "off": true,
                     "exclude": [
                       "secondaryLine"
@@ -11837,6 +11946,9 @@
                       "eq": "kph"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -11883,6 +11995,9 @@
                       "eq": "mph"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -11929,6 +12044,9 @@
                       "eq": "knots"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -11963,6 +12081,9 @@
                       "pressure"
                     ]
                   }
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -12001,6 +12122,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -12039,6 +12163,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -12077,6 +12204,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -12215,6 +12345,7 @@
                 "optionsFrom": {
                   "resolver": "forecastMetric",
                   "args": {
+                    "key": "fourthLine",
                     "off": true,
                     "exclude": [
                       "secondaryLine",
@@ -12419,6 +12550,9 @@
                       "eq": "kph"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -12465,6 +12599,9 @@
                       "eq": "mph"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -12511,6 +12648,9 @@
                       "eq": "knots"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -12545,6 +12685,9 @@
                       "pressure"
                     ]
                   }
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -12583,6 +12726,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -12621,6 +12767,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -12659,6 +12808,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -12800,6 +12952,7 @@
                 "optionsFrom": {
                   "resolver": "forecastMetric",
                   "args": {
+                    "key": "fifthLine",
                     "off": true,
                     "exclude": [
                       "secondaryLine",
@@ -13005,6 +13158,9 @@
                       "eq": "kph"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -13051,6 +13207,9 @@
                       "eq": "mph"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -13097,6 +13256,9 @@
                       "eq": "knots"
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -13131,6 +13293,9 @@
                       "pressure"
                     ]
                   }
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -13169,6 +13334,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -13207,6 +13375,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {
@@ -13245,6 +13416,9 @@
                       }
                     }
                   ]
+                },
+                "hintTailFrom": {
+                  "resolver": "graphStyleShared"
                 }
               },
               {

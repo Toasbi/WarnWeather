@@ -44,6 +44,7 @@ var HEALTH_BAR_WHEN = gates.HEALTH_BAR_WHEN;
 var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 var LINE_STYLES_WHEN = gates.LINE_STYLES_WHEN;
 var EMERY_WHEN = gates.EMERY_WHEN;
+var GRAPH_STYLES_WHEN = gates.GRAPH_STYLES_WHEN;
 var gateAll = gates.gateAll;
 var tabLink = gates.tabLink;
 var linkRow = gates.linkRow;
@@ -1857,6 +1858,42 @@ module.exports = {
             // heart-rate watches have one (platform.js HR_PLATFORMS).
             {id: 'health', label: 'Health', pinBlock: 'healthPreview', showWhen: {all: [{env: 'health'}, {env: 'hr'}]}}
         ], sections: [{
+            // The Graph style card (Pebble Time 2; settings/graph-styles-page.js): the style the
+            // preview and every card below show (the page swaps its values into the flat keys
+            // while the pane shows it), and Rename, New style and Delete. Under the pane switcher,
+            // above the pinned preview (abovePin), so it scrolls away with the switcher.
+            pane: 'forecast',
+            id: 'graphStyle',
+            abovePin: true,
+            showWhen: GRAPH_STYLES_WHEN,
+            items: [{
+                type: 'select',
+                messageKey: 'graphStylePick',
+                uiOnly: true,
+                label: 'Graph style',
+                defaultValue: '1',
+                initFrom: {resolver: 'graphStyleOnOpen'},
+                optionsFrom: {resolver: 'graphStyleOptions'},
+                hintFrom: {resolver: 'graphStyleHint'}
+            }],
+            block: 'graphStyleActions'
+        }, {
+            // The card's Rename: the picked style's name (graph-styles-page.js keeps the field on
+            // it; the commit writes it into graphStyles). × puts the old name back.
+            sheetOnly: true,
+            sheetId: 'graphStyleRename',
+            title: 'Rename graph style',
+            showWhen: GRAPH_STYLES_WHEN,
+            items: [{
+                type: 'text',
+                messageKey: 'graphStyleName',
+                uiOnly: true,
+                label: 'Name',
+                defaultValue: '',
+                attributes: {maxlength: 24, placeholder: 'Graph style'},
+                onChange: 'graphStyleRenamed'
+            }]
+        }, {
             pane: 'forecast',
             id: 'lines',
             title: 'Lines',
@@ -2050,10 +2087,32 @@ module.exports = {
             // style holds, one JSON string (src/pkjs/graph-styles.js parse). The flat keys are the
             // first style, so an install without the key has one style and nothing migrates.
             // Blob-only: sheetOnly keeps it off the tab; it hydrates and serializes with the blob.
+            // With it the two page-only pickers that have no row of their own: New style's "Start
+            // from" (the card's New style button opens its sheet; a pick makes the style) and the
+            // screen editor's Graph style (screens-page.js opens it over the editor). Their ''
+            // and stale values are dormant, so the sheets open with nothing ticked.
             sheetOnly: true,
             sheetId: 'graphStyleKeys',
             title: 'Graph styles',
-            items: [{type: 'hidden', messageKey: 'graphStyles', defaultValue: ''}]
+            items: [{type: 'hidden', messageKey: 'graphStyles', defaultValue: ''}, {
+                type: 'select',
+                messageKey: 'graphStyleNewFrom',
+                uiOnly: true,
+                label: 'New style',
+                sheetTitle: 'Start the new style from',
+                defaultValue: '',
+                dormantValues: [''],
+                optionsFrom: {resolver: 'graphStyleStarts'},
+                onChange: 'graphStyleCreate'
+            }, {
+                type: 'select',
+                messageKey: 'screenGraphStyle',
+                uiOnly: true,
+                label: 'Graph style',
+                defaultValue: '1',
+                optionsFrom: {resolver: 'graphStyleOptions', args: {screen: true}},
+                onChange: 'screenGraphStylePicked'
+            }]
         }].concat(GRAPH_COLOR_ROWS.map(function (row) {
             var sheet = graphColorSheet(row);
             sheet.pinBlock = 'forecastPreview';
@@ -2067,7 +2126,7 @@ module.exports = {
                 label: 'Metric',
                 defaultValue: 'precip_prob',
                 hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric'},
+                optionsFrom: {resolver: 'forecastMetric', args: {key: 'secondaryLine'}},
                 onChange: 'forecastMetricFill'
             },
             lineStyleCopy('secondaryLine')
@@ -2111,7 +2170,7 @@ module.exports = {
                 // dots (clay-settings.js upgradeBackfill).
                 defaultValue: 'off',
                 hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine']}}
+                optionsFrom: {resolver: 'forecastMetric', args: {key: 'thirdLine', off: true, exclude: ['secondaryLine']}}
             },
             lineStyleCopy('thirdLine', true)
             ].concat(lineFromCopies('thirdLine'), [
@@ -2128,7 +2187,8 @@ module.exports = {
                 label: 'Metric',
                 defaultValue: 'off',
                 hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine']}},
+                optionsFrom: {resolver: 'forecastMetric', args: {key: 'fourthLine', off: true,
+                    exclude: ['secondaryLine', 'thirdLine']}},
                 // Only watches with enough memory carry a third metric line
                 // (LINE_STYLES_WHEN — the WW_LINE_STYLE mirror, fail-open for
                 // an unknown platform). Row-level hiding, not option-gating,
@@ -2151,7 +2211,8 @@ module.exports = {
                 label: 'Metric',
                 defaultValue: 'off',
                 hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine']}},
+                optionsFrom: {resolver: 'forecastMetric', args: {key: 'fifthLine', off: true,
+                    exclude: ['secondaryLine', 'thirdLine', 'fourthLine']}},
                 // Same row-level gate as the third metric (WW_LINE_STYLE mirror).
                 showWhen: LINE_STYLES_WHEN
             },
@@ -2607,3 +2668,13 @@ module.exports = {
         }]
     }]
 };
+
+// Every row of a key the graph styles share (graph-styles.js SHARED: what the phone bakes into
+// the weather data, and Larger graph fonts, a watch-wide tier) says so while more than one style
+// exists (graph-styles-page.js 'graphStyleShared'), wherever the row sits. One pass, so a row
+// added later cannot miss it.
+require('../config-ui/lib/schema-walk.js').eachItem(module.exports, function (item) {
+    if (require('../graph-styles.js').SHARED.indexOf(item.messageKey) !== -1) {
+        item.hintTailFrom = {resolver: 'graphStyleShared'};
+    }
+});

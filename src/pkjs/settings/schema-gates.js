@@ -79,6 +79,9 @@ var LINE_STYLES_WHEN = {env: 'lineStyles'};
 // (the forecast's Left axis card, src/pkjs/forecast-axis.js). Fails closed: an
 // unknown platform (no watchInfo) hides them, like largeGraphFont's row.
 var EMERY_WHEN = {env: 'platform', eq: 'emery'};
+// "This watch has graph styles" (platform.js env.graphStyles: emery) — the Graph style card,
+// its sheets and the screen editor's style picker (src/pkjs/graph-styles.js). Fails closed.
+var GRAPH_STYLES_WHEN = {env: 'graphStyles'};
 
 /**
  * Gate every item that has no showWhen of its own — the sheet and group
@@ -122,6 +125,7 @@ module.exports = {
     COLOR_THEME_WHEN: COLOR_THEME_WHEN,
     LINE_STYLES_WHEN: LINE_STYLES_WHEN,
     EMERY_WHEN: EMERY_WHEN,
+    GRAPH_STYLES_WHEN: GRAPH_STYLES_WHEN,
     gateAll: gateAll,
     tabLink: tabLink,
     linkRow: linkRow

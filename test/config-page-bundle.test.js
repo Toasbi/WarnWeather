@@ -312,9 +312,17 @@ test('the forecast line resolvers are bundled after the line modules they read',
     if (typeof node.resolver === 'string') { ids.add(node.resolver); }
     Object.keys(node).forEach((k) => collect(node[k]));
   })(lines);
+  // The tail on the rows every graph style shares is graph-styles-page.js's, which the pickers'
+  // limit binds as forecast-hints.js loads: it precedes forecast-hints.js and registers it.
+  assert.ok(ids.delete('graphStyleShared'), 'the shared rows carry the graph styles\' tail');
+  assert.ok(idx('settings/graph-styles-page.js') < idx('settings/forecast-hints.js'),
+    'graph-styles-page.js must precede forecast-hints.js');
   assert.deepEqual([...ids].sort(), ['forecastMetric', 'forecastMetricHint', 'lineFromHint', 'lineShowHint',
     'lineStyleHint', 'lineStyleOptions', 'windScaleHint'], 'the resolvers the forecast lines\' rows name');
   const src = page();
+  const gsFrom = src.indexOf('/* app: graph-styles-page.js */');
+  assert.notEqual(gsFrom, -1, 'graph-styles-page.js is not in the generated page');
+  assert.ok(src.slice(gsFrom, src.indexOf('/* app: ', gsFrom + 1)).indexOf("register('graphStyleShared'") !== -1);
   const from = src.indexOf('/* app: forecast-hints.js */');
   assert.notEqual(from, -1, 'forecast-hints.js is not in the generated page');
   const part = src.slice(from, src.indexOf('/* app: ', from + 1));

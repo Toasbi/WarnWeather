@@ -52,6 +52,8 @@
   // The order "+ Add" offers them in.
   var ADD_ORDER = ['strip', 'cal', 'clock', 'fcbar', 'radarbar', 'healthbar', 'fc', 'radar', 'health'];
   var MAX_SCREENS = 3;
+  // The screens' names, the Default first (the Screens card, the editor, the graph styles).
+  var NAMES = ['Default', 'Flick 1', 'Flick 2'];
   var CAL_ROWS = ['2', '3'];
   var GRAPH_SIZES = ['2', '3', '4', 'fill'];
 
@@ -468,6 +470,7 @@
     KINDS: KINDS,
     ADD_ORDER: ADD_ORDER,
     MAX_SCREENS: MAX_SCREENS,
+    NAMES: NAMES,
     CAL_ROWS: CAL_ROWS,
     GRAPH_SIZES: GRAPH_SIZES,
     WATCH_BAR_FIRST: WATCH_BAR_FIRST,

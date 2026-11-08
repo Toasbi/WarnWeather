@@ -465,7 +465,7 @@ test('thirdLine derives options from secondaryLine, excluding it, with Off the d
   assert.equal(third.defaultValue, 'off');
   assert.equal(require('../src/pkjs/clay-settings.js').upgradeBackfill().thirdLine, 'uv');
   assert.equal(third.optionsFrom.resolver, 'forecastMetric');
-  assert.deepEqual(third.optionsFrom.args, { off: true, exclude: ['secondaryLine'] });
+  assert.deepEqual(third.optionsFrom.args, { key: 'thirdLine', off: true, exclude: ['secondaryLine'] });
   // Every secondary metric yields Off + the OTHER seven (never itself).
   ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew'].forEach((sec) => {
     const vals = metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] })
@@ -1427,7 +1427,9 @@ test('largeGraphFont is offered on emery only, and hidden when watchInfo is unav
 test('the Other card: after Rain bars on every watch, shading, Forecast length', () => {
   const graphs = graphsTab();
   const ids = graphs.sections.filter((sec) => sec.pane === 'forecast' && !sec.sheetOnly).map((sec) => sec.id);
-  assert.deepEqual(ids.slice(0, 4), ['lines', 'bars', 'other', 'axis']);
+  // The Graph style card first: it renders above the pinned preview (abovePin), emery only.
+  assert.deepEqual(ids.slice(0, 5), ['graphStyle', 'lines', 'bars', 'other', 'axis']);
+  assert.equal(graphs.sections.find((sec) => sec.id === 'graphStyle').abovePin, true);
   const bars = graphs.sections.find((sec) => sec.id === 'bars');
   assert.equal(bars.title, 'Rain bars');
   assert.deepEqual(bars.items.map((it) => it.messageKey), ['barSource', 'rainBarColor', 'rainBarFrom'],

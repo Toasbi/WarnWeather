@@ -40,6 +40,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // (forecast-span-hours.js): the Forecast length row's third label.
     var forecastSpanHours = (typeof require !== 'undefined')
         ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
+    // Graph styles (graph-styles-page.js, Pebble Time 2): the shown styles draw at most four
+    // series between them, so a pick that would make a fifth is greyed out (limitOptions).
+    var graphStylesPage = (typeof require !== 'undefined')
+        ? require('./graph-styles-page.js') : window.GraphStylesPage;
 
     // The eight graph metrics in picker order — one list feeds every forecast picker.
     var FORECAST_METRICS = [
@@ -69,7 +73,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             if (!taken) { out.push(opt); }
         }
-        return out;
+        // args.key names the picker's line: with graph styles, a metric that would make the
+        // shown styles draw a fifth series is greyed out (graph-styles-page.js limitOptions).
+        return a.key ? graphStylesPage.limitOptions(out, S, env, a.key) : out;
     });
 
     // The six line styles in picker order — line-style.js' LINE_STYLE_KINDS vocabulary.
@@ -81,14 +87,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // one (line-style.js metricAllowsStripe — the rule the bake resolves by), so the
     // engine's display-snap shows a stored stripe on any other metric as the style the
     // watch actually draws. args.metricKey names the metric picker it sits under.
+    // With graph styles a style that would make the shown styles draw a fifth series (a line
+    // turned stripe is a series of its own) is greyed out (graph-styles-page.js limitOptions).
     PConf.optionsResolvers.register('lineStyleOptions', function (S, env, args) {
-        var metric = S ? S[(args || {}).metricKey] : undefined;
-        if (lineStyle.metricAllowsStripe(metric)) { return LINE_STYLE_OPTIONS.slice(); }
+        var metricKey = (args || {}).metricKey;
+        var metric = S ? S[metricKey] : undefined;
         var out = [];
         for (var i = 0; i < LINE_STYLE_OPTIONS.length; i += 1) {
-            if (!lineStyle.isStripeValue(LINE_STYLE_OPTIONS[i][1])) { out.push(LINE_STYLE_OPTIONS[i]); }
+            if (lineStyle.metricAllowsStripe(metric) || !lineStyle.isStripeValue(LINE_STYLE_OPTIONS[i][1])) {
+                out.push(LINE_STYLE_OPTIONS[i]);
+            }
         }
-        return out;
+        return metricKey ? graphStylesPage.limitOptions(out, S, env, metricKey + 'Style') : out;
     });
 
     // The Forecast length row's options (emery only): 12 h, 24 h and the long span labelled with

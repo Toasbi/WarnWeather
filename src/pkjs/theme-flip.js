@@ -116,6 +116,33 @@
             k = resolveInk.BAR_COLOR_KEYS[i];
             if (S[k] === oldBar) { S[k] = newBar; }
         }
+        convertGraphStyles(S, oldTheme, newTheme);
+    }
+
+    /**
+     * Graph styles 2 and 3 (graph-styles.js, Pebble Time 2) hold their own values of the
+     * graph's settings inside the graphStyles item, a JSON string: each style converts as the
+     * flat keys do (the rain bars' colour mode is the one such key), so a theme pick, and the
+     * auto switch's night copy, flips every style. The item is rewritten only when a style
+     * changed, so an untouched one stays byte for byte.
+     * @param {Object} S Settings state (mutated).
+     * @param {string} oldTheme The theme before.
+     * @param {string} newTheme The theme now.
+     * @returns {void}
+     */
+    function convertGraphStyles(S, oldTheme, newTheme) {
+        if (typeof S.graphStyles !== 'string' || !S.graphStyles) { return; }
+        var o = null, i, before, changed = false;
+        try { o = JSON.parse(S.graphStyles); } catch (e) { return; }
+        if (!o || Object.prototype.toString.call(o.styles) !== '[object Array]') { return; }
+        for (i = 1; i < o.styles.length; i += 1) {
+            if (o.styles[i] && typeof o.styles[i] === 'object') {
+                before = JSON.stringify(o.styles[i]);
+                applyThemeConvert(o.styles[i], oldTheme, newTheme);
+                if (JSON.stringify(o.styles[i]) !== before) { changed = true; }
+            }
+        }
+        if (changed) { S.graphStyles = JSON.stringify(o); }
     }
 
     /**

@@ -29,15 +29,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ? require('./preview-status-bars.js') : window.PreviewStatusBars;
     var catalog = (typeof require !== 'undefined')
         ? require('../status-line-catalog.js') : window.StatusLineCatalog;
+    // Graph styles (Pebble Time 2): the forecast row's Graph style picker (graph-styles-page.js
+    // the options, labels and limit; graph-styles.js the model).
+    var GSP = (typeof require !== 'undefined') ? require('./graph-styles-page.js') : window.GraphStylesPage;
+    var GS = (typeof require !== 'undefined') ? require('../graph-styles.js') : window.GraphStyles;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
     var esc = (typeof require !== 'undefined') ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
 
     // The screens' names, the Default first.
-    var NAMES = ['Default', 'Flick 1', 'Flick 2'];
+    var NAMES = M.NAMES;
     // A new screen: the Watch bar and the Clock.
     var NEW_SCREEN = [{ k: 'strip' }, { k: 'clock' }];
-    // The per-view keys a screen owns (custom-layout-schema.js customViewItems).
-    var VIEW_STEMS = ['Top', 'Body', 'Upper', 'Lower', 'Order', 'TopSize', 'BodySize', 'Align', 'ClockOff', 'StripOff'];
+    // The per-view keys a screen owns (custom-layout-schema.js customViewItems): a moved, deleted
+    // or restored screen takes all of them along, its graph style (viewStyle) too.
+    var VIEW_STEMS = ['Top', 'Body', 'Upper', 'Lower', 'Order', 'TopSize', 'BodySize', 'Align', 'ClockOff', 'StripOff',
+        'Style'];
     var TOO_TALL = 'Too tall for the watch. Remove a row or make a graph smaller.';
     var NOTHING_YET = 'Nothing on this screen yet, so the watch skips it.';
     var RADAR_OFF = 'The rain radar is off.';
@@ -401,6 +407,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-mv{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--ctl-line);'
         + 'background:var(--bg);color:var(--lbl);border-radius:9px;padding:8px 6px;font:600 12px Inter,system-ui,sans-serif;cursor:pointer}'
         + '.se-mv .scr-ic{width:14px;height:14px}'
+        // The forecast row's Graph style picker: a trigger like the page's selects.
+        + '.se-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:1px solid var(--ctl-line);'
+        + 'background:var(--bg);color:var(--lbl);border-radius:9px;padding:9px 10px;font:600 13px Inter,system-ui,sans-serif;'
+        + 'text-align:left;cursor:pointer}'
+        + '.se-pick .se-chev{color:var(--faint);font-size:16px;line-height:1}'
+        + '.se-opt .se-link{justify-self:start;margin-top:2px}'
         + '.se-mv:disabled{opacity:.4;cursor:default}'
         + '.se-adds{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
         + '.se-addlbl{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ttl);margin-right:2px}'
@@ -522,6 +534,35 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * The style a forecast block draws: its own while it exists, else the first.
+     * @param {Object} b The forecast block.
+     * @param {Object} S Settings.
+     * @returns {number} A style index.
+     */
+    function blockStyle(b, S) {
+        var k = (parseInt(b.style, 10) || 1) - 1;
+        return GS.exists(S, k) ? k : 0;
+    }
+
+    /**
+     * The forecast row's Graph style (a watch with styles: emery): the picker, its style named
+     * with its length, and the link that edits the style on the Graphs tab.
+     * @param {Array<Object>} list The screen.
+     * @param {number} j The row.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {string} HTML
+     */
+    function styleHtml(list, j, S, env) {
+        var k = blockStyle(list[j], S);
+        return '<div class="se-opt"><span class="se-cap">Graph style</span>'
+            + '<button type="button" class="se-pick" data-se="style" data-j="' + j + '" aria-haspopup="dialog">'
+            + '<span>' + esc(GSP.label(S, env, k)) + '</span><span class="se-chev" aria-hidden="true">›</span></button>'
+            + '<button type="button" class="se-link" data-se="editstyle" data-j="' + j + '">Edit '
+            + esc(GS.name(S, k)) + ' on the Graphs tab ›</button></div>';
+    }
+
+    /**
      * One row of the list.
      * @param {Array<Object>} list The screen.
      * @param {number} j The row.
@@ -549,6 +590,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             h += '<div class="se-sub se-more">';
             if (b.k === 'cal') { h += optHtml(list, j, 'Rows', 'rows', M.CAL_ROWS, env); }
             if (K.graph) { h += optHtml(list, j, 'Size', 'size', M.GRAPH_SIZES, env); }
+            if (b.k === 'fc' && env && env.graphStyles) { h += styleHtml(list, j, S, env); }
             h += '<div class="se-moves"><button type="button" class="se-mv" data-se="up" data-j="' + j + '"'
                 + (moveOk(list, j, j - 1) ? '' : ' disabled') + '>' + I_UP + 'Move up</button>'
                 + '<button type="button" class="se-mv" data-se="down" data-j="' + j + '"'
@@ -698,12 +740,44 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return;
         }
         if (act === 'radaron') { setRadarEnabled(S, true, env); renderEditor(); ctx.render(); return; }
+        // The forecast row's Graph style: its picker opens over the editor (the page's select
+        // sheet, a top-layer dialog), its pick lands through screenGraphStylePicked.
+        if (act === 'style') {
+            GSP.beginScreenPick(S, ED.i, String(blockStyle(list[j], S) + 1));
+            ctx.openSheet(GSP.SCREEN_PICK, function () { renderEditor(); });
+            return;
+        }
+        // "Edit <style> on the Graphs tab": the editor closes, the Graphs tab opens on that style.
+        if (act === 'editstyle') {
+            S[GSP.PICK] = String(blockStyle(list[j], S) + 1);
+            closeEditor();
+            ctx.gotoTab('graphs', 'forecast');
+            return;
+        }
         if (act === 'delscreen') {
             var i = ED.i;
             closeEditor();
             deleteWithUndo(S, i, env);
             ctx.render();
         }
+    }
+
+    /**
+     * The screen editor's Graph style pick (onChange 'screenGraphStylePicked'): the screen being
+     * edited draws that style. The first style is no field of the block (screens.js).
+     * @param {Object} S Settings.
+     * @param {*} oldValue The style before.
+     * @param {string} value '1' | '2' | '3'.
+     * @param {?Object} env Platform env.
+     * @returns {void}
+     */
+    function screenStylePicked(S, oldValue, value, env) {
+        if (!ED.overlay) { return; }
+        var list = M.screensOf(S, env)[ED.i] || [], j = M.idxOf(list, 'fc');
+        if (j < 0) { return; }
+        var next = M.copy(list);
+        if (value === '1') { delete next[j].style; } else { next[j].style = value; }
+        writeScreen(S, ED.i, next, env);
     }
 
     /**
@@ -915,7 +989,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 return (!S || !fn || radarModeToSave(S, env) === 'off') ? null : fn(S, env, { picker: 'radarProvider' });
             });
         }
-        if (PConf.onChange) { PConf.onChange.register('radarSourcePicked', radarSourcePicked); }
+        if (PConf.onChange) {
+            PConf.onChange.register('radarSourcePicked', radarSourcePicked);
+            PConf.onChange.register('screenGraphStylePicked', screenStylePicked);
+        }
         if (PConf.optionsResolvers) {
             PConf.optionsResolvers.register('apliteLayouts', function () { return APLITE_LAYOUTS.slice(); });
         }
@@ -952,6 +1029,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         editorBody: editorBody,
         radarSourceValue: radarSourceValue,
         radarSourcePicked: radarSourcePicked,
+        screenStylePicked: screenStylePicked,
         batterySaverPauseHint: batterySaverPauseHint,
         _test: { ED: ED, UI: UI, openEditor: openEditor, closeEditor: closeEditor }
     };

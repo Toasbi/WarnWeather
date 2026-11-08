@@ -270,6 +270,7 @@
         LOOKS: LOOKS,
         SPAN_DESC: SPAN_DESC,
         FRAME_H: FRAME_H,
+        describe: describe,
         governed: governed,
         same: same,
         state: state,

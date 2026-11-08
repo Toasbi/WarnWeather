@@ -75,6 +75,15 @@
     }
 
     /**
+     * @param {Object} o An object.
+     * @param {string} k A key.
+     * @returns {boolean} whether o holds k itself
+     */
+    function has(o, k) {
+        return Object.prototype.hasOwnProperty.call(o, k);
+    }
+
+    /**
      * The graphStyles item read: the three names ('' when unnamed) and the styles, the first
      * always null (the flat keys hold it), another null when it does not exist. A malformed
      * item reads as no extra styles.
@@ -147,9 +156,97 @@
     }
 
     /**
-     * @param {?Object} v A compiled view.
-     * @returns {boolean} whether it draws the forecast graph (its body, or a forecast graph top)
+     * A style's values of the governed keys, as it draws the graph (settingsFor): the values a
+     * copy of it starts from, and what the settings page compares a style against.
+     * @param {Object} S Settings.
+     * @param {number} k A style index.
+     * @returns {Object<string, *>} governed key -> value (keys S lacks left out)
      */
+    function valuesOf(S, k) {
+        var Sk = settingsFor(S, k), out = {};
+        GOVERNED.forEach(function (key) {
+            if (has(Sk, key)) { out[key] = Sk[key]; }
+        });
+        return out;
+    }
+
+    /**
+     * The graphStyles item as the settings store it: '' while it holds no extra style and no
+     * name (what an install without styles has, so making a style and deleting it again
+     * stores what was there before), else its JSON.
+     * @param {{names: string[], styles: Array<?Object>}} o parse()'s shape.
+     * @returns {string}
+     */
+    function stringify(o) {
+        var empty = true;
+        for (var k = 0; k < MAX_STYLES; k++) {
+            if (o.names[k] || (k > 0 && o.styles[k])) { empty = false; }
+        }
+        return empty ? '' : JSON.stringify({ names: o.names, styles: o.styles });
+    }
+
+    /**
+     * The graphStyles item with style k's values replaced: a copy of `values` (null deletes
+     * the style and its name). The first style has no stored values (the flat keys hold it).
+     * @param {?Object} S Settings.
+     * @param {number} k A style index, 1 or 2.
+     * @param {?Object} values Its governed values, or null.
+     * @returns {string} The item to store.
+     */
+    function withStyle(S, k, values) {
+        var o = parse(S);
+        if (k > 0 && k < MAX_STYLES) {
+            o.styles[k] = values ? Object.assign({}, values) : null;
+            if (!values) { o.names[k] = ''; }
+        }
+        return stringify(o);
+    }
+
+    /**
+     * The graphStyles item with style k's name replaced ('' for the default name).
+     * @param {?Object} S Settings.
+     * @param {number} k A style index.
+     * @param {string} label The name.
+     * @returns {string} The item to store.
+     */
+    function withName(S, k, label) {
+        var o = parse(S);
+        if (k >= 0 && k < MAX_STYLES) { o.names[k] = String(label || ''); }
+        return stringify(o);
+    }
+
+    /**
+     * @param {?Object} S Settings.
+     * @returns {number} the first style slot without a style (1 or 2), -1 with three styles
+     */
+    function freeSlot(S) {
+        var styles = parse(S).styles;
+        for (var k = 1; k < MAX_STYLES; k++) {
+            if (!styles[k]) { return k; }
+        }
+        return -1;
+    }
+
+    /**
+     * Delete style k: its values and name go, and every screen that drew it draws the first
+     * style. The other styles keep their slots (a later new style takes the free one).
+     * Mutates S.
+     * @param {Object} S Settings.
+     * @param {number} k A style index, 1 or 2.
+     * @returns {number[]} the view slots that drew it (for an Undo)
+     */
+    function deleteStyle(S, k) {
+        var moved = [];
+        if (!(k > 0 && k < MAX_STYLES)) { return moved; }
+        S.graphStyles = withStyle(S, k, null);
+        for (var i = 0; i < MAX_STYLES; i++) {
+            if (S['viewStyle' + i] === String(k + 1)) {
+                S['viewStyle' + i] = '1';
+                moved.push(i);
+            }
+        }
+        return moved;
+    }
     function hasForecast(v) {
         return Boolean(v) && (v.body === VC.BODY_FC
             || (v.top === VC.TOP_GRAPH && (v.topKind || 0) === VC.TOP_KIND_FORECAST));
@@ -239,6 +336,23 @@
     }
 
     /**
+     * How many of the weather message's rows the styles' series take between them (THE
+     * UNION): the distinct series their lines draw. More than TRENDS do not fit.
+     * @param {Object[]} list The styles' settings (settingsFor), one per style.
+     * @param {?Object} env Platform env.
+     * @returns {number}
+     */
+    function rowsNeeded(list, env) {
+        var rows = [];
+        list.forEach(function (Sk) {
+            seriesOf(Sk, env).forEach(function (s) {
+                if (s && rowOf(rows, s) === -1) { rows.push(s); }
+            });
+        });
+        return rows.length;
+    }
+
+    /**
      * Lay the styles' series into the weather message's four rows (see THE UNION above), in
      * the order given: the first style keeps its own rows when it is in the list.
      * @param {Object} S Settings.
@@ -278,11 +392,18 @@
         count: count,
         name: name,
         settingsFor: settingsFor,
+        valuesOf: valuesOf,
+        stringify: stringify,
+        withStyle: withStyle,
+        withName: withName,
+        freeSlot: freeSlot,
+        deleteStyle: deleteStyle,
         hasForecast: hasForecast,
         wireCycle: wireCycle,
         stylesShown: stylesShown,
         stylesSent: stylesSent,
         seriesOf: seriesOf,
+        rowsNeeded: rowsNeeded,
         assign: assign
     };
 
