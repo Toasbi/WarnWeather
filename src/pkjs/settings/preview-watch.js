@@ -458,9 +458,7 @@
         }
         var u = svgLib.unframe(frame);
         if (!u) { return ''; }
-        var inner = u.inner.replace(/id="([^"]+)"/g, 'id="$1-' + tag + '"')
-            .replace(/url\(#([^)]+)\)/g, 'url(#$1-' + tag + ')')
-            .replace(/href="#([^"]+)"/g, 'href="#$1-' + tag + '"');
+        var inner = svgLib.tagIds(u.inner, tag);
         return '<svg x="' + r1(box.x) + '" y="' + r1(box.y) + '" width="' + r1(box.w) + '" height="' + r1(box.h)
             + '" viewBox="0 0 200 ' + u.h + '" preserveAspectRatio="none">' + inner + '</svg>';
     }

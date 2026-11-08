@@ -89,12 +89,28 @@
         return m ? { h: Number(m[1]), inner: m[2] } : null;
     }
 
+    /**
+     * Give a drawing's ids a tag of their own, and every reference to them (url(#…), href="#…"),
+     * so several drawings on one page never share a pattern or a clip: a page that shows the same
+     * preview twice (the Watchface tab's graph bands, the graphs' pictures) would otherwise paint
+     * every copy with the first one's.
+     * @param {string} markup SVG markup.
+     * @param {string} tag The suffix, unique on the page (letters, digits and '-').
+     * @returns {string} The markup with every id "<id>-<tag>".
+     */
+    function tagIds(markup, tag) {
+        return String(markup || '').replace(/id="([^"]+)"/g, 'id="$1-' + tag + '"')
+            .replace(/url\(#([^)]+)\)/g, 'url(#$1-' + tag + ')')
+            .replace(/href="#([^"]+)"/g, 'href="#$1-' + tag + '"');
+    }
+
     var api = {
         rect: rect,
         txt: txt,
         previewInk: previewInk,
         svgFrame: svgFrame,
-        unframe: unframe
+        unframe: unframe,
+        tagIds: tagIds
     };
 
     // Dual-context export — mirrors the tail of src/pkjs/status-thresholds.js.

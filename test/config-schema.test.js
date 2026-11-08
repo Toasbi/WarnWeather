@@ -1427,7 +1427,7 @@ test('largeGraphFont is offered on emery only, and hidden when watchInfo is unav
 test('the Other card: after Rain bars on every watch, shading, Forecast length', () => {
   const graphs = graphsTab();
   const ids = graphs.sections.filter((sec) => sec.pane === 'forecast' && !sec.sheetOnly).map((sec) => sec.id);
-  // The Graph style card first: it renders above the pinned preview (abovePin), emery only.
+  // The Your graphs card first: it renders above the pinned preview (abovePin), emery only.
   assert.deepEqual(ids.slice(0, 5), ['graphStyle', 'lines', 'bars', 'other', 'axis']);
   assert.equal(graphs.sections.find((sec) => sec.id === 'graphStyle').abovePin, true);
   const bars = graphs.sections.find((sec) => sec.id === 'bars');

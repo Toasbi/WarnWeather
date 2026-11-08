@@ -133,7 +133,10 @@ the `graphStyles` item. Each screen's forecast graph names its style
 every style (SHARED). All the styles the screens show draw at most four series
 together, the weather message's four trend rows. Setup's forecast looks
 (Classic, Weathergraph, Stripes: `src/pkjs/settings/wizard-forecast.js` LOOKS)
-are what a new style starts from.
+are what a new style starts from. The settings page calls a style a graph
+("Your graphs"; "Graph 2" until it is renamed) and a look it starts from a
+template, which never changes and is never one of the graphs
+(`src/pkjs/settings/graph-styles-page.js`).
 _Avoid_: graph profile; calling a look a style (a look is where a style starts).
 
 **Forecast span**:

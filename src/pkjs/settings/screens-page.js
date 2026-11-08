@@ -29,8 +29,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ? require('./preview-status-bars.js') : window.PreviewStatusBars;
     var catalog = (typeof require !== 'undefined')
         ? require('../status-line-catalog.js') : window.StatusLineCatalog;
-    // Graph styles (Pebble Time 2): the forecast row's Graph style picker (graph-styles-page.js
-    // the options, labels and limit; graph-styles.js the model).
+    // Graph styles (Pebble Time 2): the forecast row's graph card and its picker
+    // (graph-styles-page.js the options, pictures, labels, limit and writes; graph-styles.js the
+    // model).
     var GSP = (typeof require !== 'undefined') ? require('./graph-styles-page.js') : window.GraphStylesPage;
     var GS = (typeof require !== 'undefined') ? require('../graph-styles.js') : window.GraphStyles;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
@@ -407,11 +408,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-mv{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--ctl-line);'
         + 'background:var(--bg);color:var(--lbl);border-radius:9px;padding:8px 6px;font:600 12px Inter,system-ui,sans-serif;cursor:pointer}'
         + '.se-mv .scr-ic{width:14px;height:14px}'
-        // The forecast row's Graph style picker: a trigger like the page's selects.
-        + '.se-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:1px solid var(--ctl-line);'
-        + 'background:var(--bg);color:var(--lbl);border-radius:9px;padding:9px 10px;font:600 13px Inter,system-ui,sans-serif;'
-        + 'text-align:left;cursor:pointer}'
-        + '.se-pick .se-chev{color:var(--faint);font-size:16px;line-height:1}'
+        // The forecast row's graph (a watch with graph styles): a card that shows the graph and
+        // opens its picker, under the row whether it is open or not.
+        + '.se-graph{display:grid;grid-template-columns:76px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;'
+        + 'margin:0;padding:7px 10px 7px 7px;border:1px solid var(--ctl-line);border-radius:11px;background:var(--bg);'
+        + 'color:var(--lbl);text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
+        + '.se-gpic{display:block;border-radius:7px;overflow:hidden;line-height:0}'
+        + '.se-gpic svg{display:block;width:100%;height:auto}'
+        + '.se-gtxt{display:grid;gap:2px;min-width:0}'
+        + '.se-gname{font:700 13.5px/1.3 Inter,system-ui,sans-serif;color:var(--lbl);overflow-wrap:anywhere}'
+        + '.se-ghint{font:600 11.5px/1.35 Inter,system-ui,sans-serif;color:var(--link)}'
+        + '.se-graph .se-chev{color:var(--faint);font-size:18px;line-height:1}'
         + '.se-opt .se-link{justify-self:start;margin-top:2px}'
         + '.se-mv:disabled{opacity:.4;cursor:default}'
         + '.se-adds{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
@@ -545,19 +552,27 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The forecast row's Graph style (a watch with styles: emery): the picker, its style named
-     * with its length, and the link that edits the style on the Graphs tab.
+     * The forecast row's graph (a watch with graph styles: emery), shown under the row whether
+     * its options are open or not, so the choice is in view as the graph is added: a card with
+     * the graph's picture, its name and length and what a tap does (the picker: another graph,
+     * or a new one from a template), and the link that edits the graph on the Graphs tab.
      * @param {Array<Object>} list The screen.
      * @param {number} j The row.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
+     * @param {Object} [userData] Page userData (the palette).
      * @returns {string} HTML
      */
-    function styleHtml(list, j, S, env) {
-        var k = blockStyle(list[j], S);
-        return '<div class="se-opt"><span class="se-cap">Graph style</span>'
-            + '<button type="button" class="se-pick" data-se="style" data-j="' + j + '" aria-haspopup="dialog">'
-            + '<span>' + esc(GSP.label(S, env, k)) + '</span><span class="se-chev" aria-hidden="true">›</span></button>'
+    function styleHtml(list, j, S, env, userData) {
+        var k = blockStyle(list[j], S), many = GS.count(S) > 1, free = GS.freeSlot(S) >= 0;
+        var hint = many ? (free ? 'Tap to pick another graph or start a new one' : 'Tap to pick another graph')
+            : 'Tap to give this screen a graph of its own';
+        return '<div class="se-opt"><span class="se-cap">Graph</span>'
+            + '<button type="button" class="se-graph" data-se="style" data-j="' + j + '" aria-haspopup="dialog">'
+            + '<span class="se-gpic" aria-hidden="true">' + GSP.graphPicture(GSP.styleSettings(S, k), env, userData, 'seg') + '</span>'
+            + '<span class="se-gtxt"><span class="se-gname">' + esc(GSP.label(S, env, k)) + '</span>'
+            + '<span class="se-ghint">' + hint + '</span></span>'
+            + '<span class="se-chev" aria-hidden="true">›</span></button>'
             + '<button type="button" class="se-link" data-se="editstyle" data-j="' + j + '">Edit '
             + esc(GS.name(S, k)) + ' on the Graphs tab ›</button></div>';
     }
@@ -568,9 +583,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {number} j The row.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
+     * @param {Object} [userData] Page userData (the palette).
      * @returns {string} HTML
      */
-    function rowHtml(list, j, S, env) {
+    function rowHtml(list, j, S, env, userData) {
         var b = list[j], K = M.KINDS[b.k], fixed = b.k === 'strip', open = ED.open === j && !fixed;
         var keepClock = ED.i === 0 && b.k === 'clock';
         var val = b.k === 'cal' ? b.rows + ' rows' : K.graph ? sizeLabel(b) : '';
@@ -586,15 +602,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             h += '<div class="se-sub se-off"><span>' + RADAR_OFF + '</span>'
                 + '<button type="button" class="se-link" data-se="radaron">Turn on</button></div>';
         }
+        // The forecast graph's own graph: first, and in view while the row is folded too.
+        var graph = b.k === 'fc' && env && env.graphStyles ? styleHtml(list, j, S, env, userData) : '';
         if (open) {
-            h += '<div class="se-sub se-more">';
+            h += '<div class="se-sub se-more">' + graph;
             if (b.k === 'cal') { h += optHtml(list, j, 'Rows', 'rows', M.CAL_ROWS, env); }
             if (K.graph) { h += optHtml(list, j, 'Size', 'size', M.GRAPH_SIZES, env); }
-            if (b.k === 'fc' && env && env.graphStyles) { h += styleHtml(list, j, S, env); }
             h += '<div class="se-moves"><button type="button" class="se-mv" data-se="up" data-j="' + j + '"'
                 + (moveOk(list, j, j - 1) ? '' : ' disabled') + '>' + I_UP + 'Move up</button>'
                 + '<button type="button" class="se-mv" data-se="down" data-j="' + j + '"'
                 + (moveOk(list, j, j + 1) ? '' : ' disabled') + '>' + I_DOWN + 'Move down</button></div></div>';
+        } else if (graph) {
+            h += '<div class="se-sub se-more">' + graph + '</div>';
         }
         return h + '</div>';
     }
@@ -616,7 +635,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + (note ? '<div class="se-note" role="status">' + note + '</div>' : '')
             + '<div class="se-card"><div class="se-cardhd" id="seTtl">Top to bottom</div>'
             + '<div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
-            + list.map(function (b, j) { return rowHtml(list, j, S, env); }).join('') + '</div>'
+            + list.map(function (b, j) { return rowHtml(list, j, S, env, userData); }).join('') + '</div>'
             + (adds.length ? '<div class="se-adds"><span class="se-addlbl">Add</span>' + adds.map(function (k) {
                 return '<button type="button" class="se-add" data-se="add" data-k="' + k + '">+ ' + M.KINDS[k].name + '</button>';
             }).join('') + '</div>' : '')
@@ -740,14 +759,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return;
         }
         if (act === 'radaron') { setRadarEnabled(S, true, env); renderEditor(); ctx.render(); return; }
-        // The forecast row's Graph style: its picker opens over the editor (the page's select
-        // sheet, a top-layer dialog), its pick lands through screenGraphStylePicked.
+        // The forecast row's graph: its picker opens over the editor (the page's select sheet, a
+        // top-layer dialog), its pick lands through screenGraphStylePicked.
         if (act === 'style') {
             GSP.beginScreenPick(S, ED.i, String(blockStyle(list[j], S) + 1));
             ctx.openSheet(GSP.SCREEN_PICK, function () { renderEditor(); });
             return;
         }
-        // "Edit <style> on the Graphs tab": the editor closes, the Graphs tab opens on that style.
+        // "Edit <graph> on the Graphs tab": the editor closes, the Graphs tab opens on that graph.
         if (act === 'editstyle') {
             S[GSP.PICK] = String(blockStyle(list[j], S) + 1);
             closeEditor();
@@ -763,21 +782,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The screen editor's Graph style pick (onChange 'screenGraphStylePicked'): the screen being
-     * edited draws that style. The first style is no field of the block (screens.js).
+     * The screen editor's graph pick (onChange 'screenGraphStylePicked'): the screen being edited
+     * draws that graph, or a new one made from the template picked (graph-styles-page.js
+     * pickForScreen). The first graph is no field of the block (screens.js).
      * @param {Object} S Settings.
-     * @param {*} oldValue The style before.
-     * @param {string} value '1' | '2' | '3'.
+     * @param {*} oldValue The graph before.
+     * @param {string} value '1' | '2' | '3' | 'new:<template id>'.
      * @param {?Object} env Platform env.
      * @returns {void}
      */
     function screenStylePicked(S, oldValue, value, env) {
         if (!ED.overlay) { return; }
-        var list = M.screensOf(S, env)[ED.i] || [], j = M.idxOf(list, 'fc');
-        if (j < 0) { return; }
-        var next = M.copy(list);
-        if (value === '1') { delete next[j].style; } else { next[j].style = value; }
-        writeScreen(S, ED.i, next, env);
+        GSP.pickForScreen(S, env, ED.i, value, oldValue);
     }
 
     /**

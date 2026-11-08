@@ -43,7 +43,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Optional day/night shading, with a line at midnight where the next day starts
 * Left axis options on Pebble Time 2: the high and low values on the axis, on the graph (the high one under the highest point, the low one over the lowest), or off; on the graph or off there is no left axis and the graph starts at the screen's left edge. Left axis › More options can add the feels-like and dew point lines to the values (Graphs tab › Forecast)
 * Recolor the forecast graph per metric
-* Graph styles on Pebble Time 2: up to three named sets of the forecast graph's settings (its lines, rain bars, night shading, colors, Left axis values and Forecast length), and each screen's forecast graph picks one, so one screen can show the next 24 hours and another the long span. A new style starts from Classic, Weathergraph, Stripes or a copy of the one you are on; all styles together draw at most four lines and stripes (Graphs tab › Forecast › Graph style, or a screen's Forecast graph row in its editor)
+* Up to three forecast graphs on Pebble Time 2, each with its own lines, rain bars, night shading, colors, Left axis values and Forecast length, and each screen shows one of them, so one screen can show the next 24 hours and another the long span. A new graph starts from a template (Classic, Weathergraph or Stripes) or as a copy of one of yours; the graphs on the screens together draw at most four lines and stripes (Graphs tab › Forecast › Your graphs, or the Graph card under a screen's Forecast graph row in its editor)
 * Multiple weather providers, including regional and worldwide sources, picked with the rain radar's source and the air quality source in Setup › Data sources
 
 **Rain radar**
@@ -95,7 +95,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 Two things that both involve rain over time, but answer different questions:
 
 - **Forecast graph** — the hourly prediction, looking up to 24 hours ahead (on Pebble Time 2,
-  12, 24 or up to 66 — Forecast length, which each graph style sets for the screens that use it). Temperature is always shown; on top of it you choose what to
+  12, 24 or up to 66 — Forecast length, which each of your graphs sets for the screens that show it). Temperature is always shown; on top of it you choose what to
   add — precipitation %, cloud cover % (every
   provider except Yandex), wind speed, wind gusts, UV index, air pressure (sea-level, in hPa,
   with a Narrow/Mid/Wide graph scale), feels-like temperature or dew point (both drawn on the

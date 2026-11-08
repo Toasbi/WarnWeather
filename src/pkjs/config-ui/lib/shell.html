@@ -490,6 +490,13 @@
   /* An option with a description stacks name over a muted one-liner (e.g. the weather-provider picker). */
   .ssel-opt-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .ssel-opt-desc { font: 500 12px 'Inter', sans-serif; color: var(--hint); line-height: 1.35; }
+  /* An option with a picture (engine renderSelectOptions, item.pictureFrom: the graph pickers)
+     draws it at its start, its name and line beside it, the tick at the end. */
+  .ssel-opt.has-pic { justify-content: flex-start; padding-top: 9px; padding-bottom: 9px; }
+  .ssel-pic { flex: none; width: 92px; border-radius: 8px; overflow: hidden; line-height: 0; box-shadow: 0 0 0 1px var(--card-line); }
+  .ssel-pic svg { display: block; width: 100%; height: auto; }
+  .ssel-opt.has-pic > span:not(.ssel-pic):not(.ssel-chk) { flex: 1 1 auto; min-width: 0; }
+  .ssel-opt.has-pic .ssel-chk { margin-left: auto; }
   .ssel-chk { flex: none; color: var(--link); font-weight: 700; }
   /* "(Recommended)" marker appended to a select option's name (recommendFrom resolver) */
   .ssel-rec { color: var(--link); font-weight: 800; white-space: nowrap; }
@@ -557,6 +564,8 @@
      leaves the dialog's own box showing, and a tap there hits the <dialog> itself — the
      same target a ::backdrop tap has — so it light-dismissed the sheet. */
   dialog#modal .ssel-search-wrap { flex: none; padding: 0 16px 10px; }
+  /* item.sheetLead: one line under the title (engine renderSelectModal). Padding only, no margin. */
+  dialog#modal .ssel-lead { flex: none; padding: 0 16px 12px; font: 500 13px/1.45 'Inter', sans-serif; color: var(--hint); }
   dialog#modal .ssel-search { margin: 0; width: 100%; }
   dialog#modal .ssel-list { flex: 1 1 auto; margin: 0; border: none; border-top: 1px solid var(--row-line); border-radius: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; }
   /* searchSelect: a little breathing room (just under one row) after the last option so it

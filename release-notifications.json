@@ -204,7 +204,7 @@
     "body": "On the Watchface tab, tap a screen to add, remove and move its rows. Weather, rain radar and air quality now share one Data sources card in Setup. Screen editing isn't available on Pebble Classic or Steel."
   },
   "2.7.0": {
-    "title": "Graph styles",
-    "body": "Give each screen its own forecast graph, such as 24 hours on one screen and up to 66 on another. Start a style from Classic, Weathergraph or Stripes on the Graphs tab, under Forecast, Graph style. Pebble Time 2 only."
+    "title": "A graph for each screen",
+    "body": "Give each screen its own forecast graph, such as 24 hours on one screen and up to 66 on another. On the Graphs tab under Forecast, tap New graph and start from a template. Pebble Time 2 only."
   }
 }

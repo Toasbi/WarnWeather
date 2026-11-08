@@ -848,6 +848,36 @@ test('renderSelectOptions renders meta.desc as a stacked description; plain opti
   assert.equal(html.indexOf('ssel-opt-txt"><span class="ssel-opt-name">Plain'), -1, 'plain option is not wrapped in the desc layout');
 });
 
+test('renderSelectModal: pictureFrom draws a picture at the start of each option; sheetLead a line under the title', () => {
+  E.pictureResolvers.register('testSelectPics', (S, env, args, userData) =>
+    (args.value === 'none' ? '' : '<svg data-pic="' + args.value + '" data-key="' + args.messageKey + '" data-ud="'
+      + (userData.tag || '') + '" data-arg="' + (args.extra || '') + '"></svg>'));
+  const schema = { appName: 'X', versionLabel: '', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
+    { type: 'select', messageKey: 'g', label: 'Graph', sheetLead: 'Start from a template & get a copy.', defaultValue: 'a',
+      options: [['A', 'a', { desc: 'First' }], ['B', 'b'], ['None', 'none']],
+      pictureFrom: { resolver: 'testSelectPics', args: { extra: 'x' } } },
+    { type: 'select', messageKey: 'p', label: 'Plain', defaultValue: 'a', options: [['A', 'a']] }
+  ] } ] } ] };
+  const cx = (key) => ({ S: { g: 'a', p: 'a' }, ENV: {}, USERDATA: { tag: 'ud' }, openColor: null, openSelect: key,
+    selectQuery: '', collapsed: {}, evalCtx: { g: 'a', p: 'a', env: {} } });
+  const html = E.renderSelectModal(schema, cx('g'));
+  // Each option with a picture draws it first in its row, with the resolver's args and userData.
+  assert.ok(/<button type="button" class="ssel-opt on has-pic"[^>]*data-select-pick="a"[^>]*><span class="ssel-pic"/.test(html), html);
+  assert.ok(html.indexOf('<span class="ssel-pic" aria-hidden="true"><svg data-pic="a" data-key="g" data-ud="ud" data-arg="x">'
+    + '</svg></span><span class="ssel-opt-txt">') >= 0, 'the picture, then the name and its line');
+  assert.ok(/class="ssel-opt has-pic"[^>]*data-select-pick="b"[^>]*><span class="ssel-pic"/.test(html), 'a plain option gets its picture too');
+  // An option whose picture is '' keeps the plain row.
+  assert.ok(/class="ssel-opt"[^>]*data-select-pick="none"[^>]*><span>None<\/span>/.test(html), 'no picture, no picture cell');
+  // The lead sits under the title, escaped, before the list.
+  const lead = html.indexOf('<div class="ssel-lead">Start from a template &amp; get a copy.</div>');
+  assert.ok(lead > 0 && lead < html.indexOf('class="ssel-list"'), 'lead line between the title and the list');
+  // A select without pictureFrom or sheetLead renders as before.
+  const plain = E.renderSelectModal(schema, cx('p'));
+  assert.equal(plain.indexOf('ssel-pic'), -1);
+  assert.equal(plain.indexOf('has-pic'), -1);
+  assert.equal(plain.indexOf('ssel-lead'), -1);
+});
+
 test('select trigger uses meta.short for the collapsed label; the sheet keeps the full name', () => {
   const item = { type: 'select', messageKey: 'p', label: 'Provider',
     options: [['Deutscher Wetterdienst', 'dwd', { short: 'DWD' }], ['Met.no', 'metno']] };

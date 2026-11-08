@@ -9466,34 +9466,28 @@
           {
             "pane": "forecast",
             "id": "graphStyle",
+            "title": "Your graphs",
             "abovePin": true,
             "showWhen": {
               "env": "graphStyles"
             },
             "items": [
               {
-                "type": "select",
+                "type": "hidden",
                 "messageKey": "graphStylePick",
                 "uiOnly": true,
-                "label": "Graph style",
                 "defaultValue": "1",
                 "initFrom": {
                   "resolver": "graphStyleOnOpen"
-                },
-                "optionsFrom": {
-                  "resolver": "graphStyleOptions"
-                },
-                "hintFrom": {
-                  "resolver": "graphStyleHint"
                 }
               }
             ],
-            "block": "graphStyleActions"
+            "block": "graphStyleCards"
           },
           {
             "sheetOnly": true,
             "sheetId": "graphStyleRename",
-            "title": "Rename graph style",
+            "title": "Rename graph",
             "showWhen": {
               "env": "graphStyles"
             },
@@ -9506,7 +9500,7 @@
                 "defaultValue": "",
                 "attributes": {
                   "maxlength": 24,
-                  "placeholder": "Graph style"
+                  "placeholder": "Graph name"
                 },
                 "onChange": "graphStyleRenamed"
               }
@@ -9982,8 +9976,9 @@
                 "type": "select",
                 "messageKey": "graphStyleNewFrom",
                 "uiOnly": true,
-                "label": "New style",
-                "sheetTitle": "Start the new style from",
+                "label": "New graph",
+                "sheetTitle": "New graph",
+                "sheetLead": "Start from a template. Templates never change: you get your own copy.",
                 "defaultValue": "",
                 "dormantValues": [
                   ""
@@ -9991,19 +9986,26 @@
                 "optionsFrom": {
                   "resolver": "graphStyleStarts"
                 },
+                "pictureFrom": {
+                  "resolver": "graphStylePicture"
+                },
                 "onChange": "graphStyleCreate"
               },
               {
                 "type": "select",
                 "messageKey": "screenGraphStyle",
                 "uiOnly": true,
-                "label": "Graph style",
+                "label": "Graph",
+                "sheetTitle": "Graph on this screen",
                 "defaultValue": "1",
                 "optionsFrom": {
                   "resolver": "graphStyleOptions",
                   "args": {
                     "screen": true
                   }
+                },
+                "pictureFrom": {
+                  "resolver": "graphStylePicture"
                 },
                 "onChange": "screenGraphStylePicked"
               }

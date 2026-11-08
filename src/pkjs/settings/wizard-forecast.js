@@ -6,7 +6,7 @@
 // THE LOOKS. Each is a full set of the graph settings it governs (governed): the four lines'
 // metrics and styles, the Main metric's fill, the rain bars and their colour, every Draw from key,
 // Day / night shading, and on emery where the high and low go. They are the owner's graph looks
-// (2026-11-08) and the graph styles' presets: New style starts from one of them
+// (2026-11-08) and the settings page's templates: New graph starts a graph from one of them
 // (graph-styles-page.js). Each lays its own values over the graph's defaults as the theme starts
 // them (engine themedDefaults), and each has the night shading on. Classic is the ForecasWatch2
 // graph: the rain chance as a thin line over a shaded area, the rain bars in the colour the theme

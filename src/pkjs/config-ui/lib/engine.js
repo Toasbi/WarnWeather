@@ -150,11 +150,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // second one), merged UNDER hintFrom.args.
   PConf.hintResolvers = makeRegistry();
 
-  // --- picture-resolver registry --- a radio opts into a picture per option
+  // --- picture-resolver registry --- a radio or a select opts into a picture per option
   // (item.pictureFrom: {resolver, args}); fn(S, env, args, userData) returns the markup of
   // ONE option's picture, '' for none. args carries the row's messageKey and the option's
   // value, merged UNDER pictureFrom.args. The radio then draws its options as picture cards
-  // (renderPictureRadio), and as its plain list while the resolver is unregistered. TRUST
+  // (renderPictureRadio), and as its plain list while the resolver is unregistered; a
+  // select's sheet draws each option's picture at the start of its row (renderSelectOptions). TRUST
   // BOUNDARY: like a block's HTML the markup is printed UNESCAPED, so only page code
   // registers here. Read at render time, like the hint resolver.
   PConf.pictureResolvers = makeRegistry();
@@ -539,9 +540,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // radio/segmented renderers got them via view.disabledOptions, but a select
   // opened AS A SHEET (openSheet — the custom-layout editor's only surface)
   // rendered every gated option fully pickable.
-  function renderSelectOptions(item, value, query, recommended, off) {
+  // `pictures` — option value -> picture markup (resolvePictures, item.pictureFrom), or
+  // null: an option with a picture draws it at its start, so a sheet of graphs shows each
+  // one as it draws (the graph styles' pickers). The picture is decoration; the name says it.
+  function renderSelectOptions(item, value, query, recommended, off, pictures) {
     var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, meta, gated, classes, labelCell, rec, recLead, shown = 0;
-    var offVals = off || [];
+    var offVals = off || [], pic;
     for (i = 0; i < item.options.length; i++) {
       o = item.options[i];
       lo = o[0].toLowerCase(); vo = o[1].toLowerCase();
@@ -578,12 +582,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // the disabled attribute against taps/keyboard. Muted inline — .ssel-opt
       // has no [disabled] rule of its own — mirroring .seg button[disabled].
       gated = meta.disabled || offVals.indexOf(o[1]) !== -1;
+      pic = pictures && pictures[o[1]] ? '<span class="ssel-pic" aria-hidden="true">' + pictures[o[1]] + '</span>' : '';
+      if (pic) { classes += ' has-pic'; }
       h += '<button type="button" class="' + classes + '" role="option" aria-selected="'
         + (value === o[1] ? 'true' : 'false') + '"'
         + (gated
           ? ' disabled aria-disabled="true" style="opacity:.38;cursor:not-allowed"'
           : ' data-select-pick="' + esc(o[1]) + '" data-k="' + esc(item.messageKey) + '"')
-        + '>' + labelCell
+        + '>' + pic + labelCell
         + (value === o[1] ? '<span class="ssel-chk">&#10003;</span>' : '') + '</button>';
       shown++;
     }
@@ -745,11 +751,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * A picture radio's pictures (item.pictureFrom): each option's markup from the named
-   * picture resolver, by option value. Null while the resolver is unregistered, so the
-   * radio keeps its plain list.
+   * A picture radio's or select's pictures (item.pictureFrom): each option's markup from the
+   * named picture resolver, by option value. Null while the resolver is unregistered (or the
+   * item has none), so the radio keeps its plain list and the select's sheet its text rows.
    *
-   * @param {Object} item Radio item, its options resolved (resolveRowItem).
+   * @param {Object} item Radio or select item, its options resolved (resolveRowItem).
    * @param {Object} S Live settings state.
    * @param {Object} env Platform env.
    * @param {Object} userData Page userData.
@@ -1144,15 +1150,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         + key + '" aria-controls="' + listId + '" placeholder="Search…" value="'
         + esc(cx.selectQuery || '') + '"></div>'
       : '';
+    // item.sheetLead: one plain line under the title that says what the picker does (New
+    // graph: what a template is). Padding only, like the search box's wrapper above.
+    var lead = item.sheetLead ? '<div class="ssel-lead">' + esc(String(item.sheetLead)) + '</div>' : '';
     // Inner content only — the host <dialog id="modal"> is the sheet, and its ::backdrop
     // replaces the old dim overlay. The dialog carries role/modal semantics natively;
     // boot() copies titleId onto the dialog's aria-labelledby when it opens.
     return sheetHeader(titleId, title)
+      + lead
       + search
       + '<div id="' + listId + '" class="ssel-list" role="listbox" aria-label="' + title
       + ' options" data-ssel-list="' + key + '">'
       + renderSelectOptions(item, value, cx.selectQuery, resolveRecommended(item, cx.S, cx.ENV),
-          disabledOptionValues(item, cx.evalCtx)) + '</div>';
+          disabledOptionValues(item, cx.evalCtx), resolvePictures(item, cx.S, cx.ENV, cx.USERDATA)) + '</div>';
   }
 
   /**
@@ -1174,7 +1184,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return '<div id="ssel-list-' + esc(item.messageKey) + '" class="isel-list" role="listbox" aria-label="'
       + title + ' options">'
       + renderSelectOptions(item, value, '', resolveRecommended(item, cx.S, cx.ENV),
-          disabledOptionValues(item, cx.evalCtx))
+          disabledOptionValues(item, cx.evalCtx), resolvePictures(item, cx.S, cx.ENV, cx.USERDATA))
       + '</div>';
   }
 
@@ -3613,7 +3623,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (list) {
           var item = resolveRowItem(findItem(sk), { value: S[sk] }, { S: S, ENV: ENV });
           list.innerHTML = renderSelectOptions(item, S[sk], selectQuery, resolveRecommended(item, S, ENV),
-            disabledOptionValues(item, evalCtx()));
+            disabledOptionValues(item, evalCtx()), resolvePictures(item, S, ENV, USERDATA));
         }
       });
       // The wheel settle/commit lives with the date picker (createDateWiring).

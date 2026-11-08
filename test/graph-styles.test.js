@@ -71,7 +71,7 @@ test('parse: the names and the styles, the first always the flat keys; a bad ite
   assert.equal(GS.count(S), 2);
   assert.equal(GS.count({ graphStyles: stylesItem(null, {}) }), 2, 'style 3 without style 2');
   assert.deepEqual([GS.exists(S, 0), GS.exists(S, 1), GS.exists(S, 2), GS.exists(S, 3)], [true, true, false, false]);
-  assert.deepEqual([GS.name(S, 0), GS.name(S, 1), GS.name(S, 2)], ['Mine', 'Long', 'Graph style 3']);
+  assert.deepEqual([GS.name(S, 0), GS.name(S, 1), GS.name(S, 2)], ['Mine', 'Long', 'Graph 3']);
 });
 
 test('settingsFor: the style\'s governed values over the flat keys; the first style is S itself', () => {

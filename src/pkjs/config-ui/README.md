@@ -461,7 +461,8 @@ picking the shown swatch is what writes it.
 | `stamp` | boolean | A value the page writes on its own (the Weather tab's last-opened time): it is saved like any other, but its change never lights Save or shows Revert, and Revert leaves it as it is. |
 | `full` | boolean | `segmented` only: one equal segment per option across the row, a long label wrapping inside its own segment, the picked option's hint under it (the setup's pickers). |
 | `sheetTitle` | string | `select`/`searchSelect` only: the picker sheet's title, where the row's label alone would not name it (a row whose picker also opens from a preview). Default: the label. |
-| `pictureFrom` | `{ resolver, args }` | `radio` only: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry--pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). |
+| `sheetLead` | string | `select`/`searchSelect` only: one plain line under the picker sheet's title that says what the picker does (escaped). |
+| `pictureFrom` | `{ resolver, args }` | `radio`: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry--pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). `select`/`searchSelect`: each option's picture at the start of its row in the picker sheet. |
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
 | `groupLabel` | string | On the first member of an `inline` group: renders the group as ONE labelled row, the members side by side joined by a dash (a From–To row). |
 | `gotoTab` | string | `button` only: the row brings that tab to the front. |
@@ -789,6 +790,10 @@ PConf.pictureResolvers.register('layoutPresetPicture', function (state, env, arg
   return drawDefaultView(state, env, args.value, userData);
 });
 ```
+
+A `select` with `pictureFrom` keeps its trigger and its sheet; the sheet draws each option's
+picture at the start of its row, its name and `desc` beside it (WarnWeather's graph pickers: each
+graph and template as it draws). An option whose picture is `''` keeps the plain row.
 
 The resolver runs once per option the row offers (an `optionsFrom` list is resolved first), at
 render time, like the hint resolver. Its markup is printed unescaped inside the card, so only

@@ -15,8 +15,9 @@ FORECAST
 - Optional day/night shading, with a line at midnight where the next day starts
 - Pebble Time 2: left axis options: high/low values on the axis, on the graph or off (no left
   axis: the graph uses the full width), values that include feels-like and dew point
-- Pebble Time 2: graph styles give each screen its own forecast graph, e.g. the next 24 hours
-  on one screen and 66 hours on another; start one from Classic, Weathergraph or Stripes
+- Pebble Time 2: up to three forecast graphs, so each screen can show its own, e.g. the next
+  24 hours on one screen and 66 hours on another; start one from the Classic, Weathergraph or
+  Stripes template
 - Fully customizable lines and colors
 - Multiple weather providers, including regional and worldwide sources, picked in one Data sources card
 

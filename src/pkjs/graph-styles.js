@@ -127,13 +127,23 @@
     }
 
     /**
-     * A style's name: its own, else "Graph style <n>".
+     * A style's name as the settings page shows it, where a style is "a graph": its own, else
+     * "Graph <n>" (defaultName).
      * @param {?Object} S Settings.
      * @param {number} k A style index.
      * @returns {string}
      */
     function name(S, k) {
-        return parse(S).names[k] || ('Graph style ' + (k + 1));
+        return parse(S).names[k] || defaultName(k);
+    }
+
+    /**
+     * The name a style has until it is renamed: "Graph <n>".
+     * @param {number} k A style index.
+     * @returns {string}
+     */
+    function defaultName(k) {
+        return 'Graph ' + (k + 1);
     }
 
     /**
@@ -391,6 +401,7 @@
         exists: exists,
         count: count,
         name: name,
+        defaultName: defaultName,
         settingsFor: settingsFor,
         valuesOf: valuesOf,
         stringify: stringify,

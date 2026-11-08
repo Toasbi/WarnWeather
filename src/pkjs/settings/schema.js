@@ -1858,31 +1858,31 @@ module.exports = {
             // heart-rate watches have one (platform.js HR_PLATFORMS).
             {id: 'health', label: 'Health', pinBlock: 'healthPreview', showWhen: {all: [{env: 'health'}, {env: 'hr'}]}}
         ], sections: [{
-            // The Graph style card (Pebble Time 2; settings/graph-styles-page.js): the style the
-            // preview and every card below show (the page swaps its values into the flat keys
-            // while the pane shows it), and Rename, New style and Delete. Under the pane switcher,
-            // above the pinned preview (abovePin), so it scrolls away with the switcher.
+            // The Your graphs card (Pebble Time 2; settings/graph-styles-page.js, where a graph is
+            // a graph style): a picture of each graph, the picked one the graph the preview and
+            // every card below show (the page swaps its values into the flat keys while the pane
+            // shows it), New graph, the screens it shows on, Rename and Delete. The pick is a
+            // page-only key the cards set (no row of its own). Under the pane switcher, above the
+            // pinned preview (abovePin), so it scrolls away with the switcher.
             pane: 'forecast',
             id: 'graphStyle',
+            title: 'Your graphs',
             abovePin: true,
             showWhen: GRAPH_STYLES_WHEN,
             items: [{
-                type: 'select',
+                type: 'hidden',
                 messageKey: 'graphStylePick',
                 uiOnly: true,
-                label: 'Graph style',
                 defaultValue: '1',
-                initFrom: {resolver: 'graphStyleOnOpen'},
-                optionsFrom: {resolver: 'graphStyleOptions'},
-                hintFrom: {resolver: 'graphStyleHint'}
+                initFrom: {resolver: 'graphStyleOnOpen'}
             }],
-            block: 'graphStyleActions'
+            block: 'graphStyleCards'
         }, {
-            // The card's Rename: the picked style's name (graph-styles-page.js keeps the field on
+            // The card's Rename: the picked graph's name (graph-styles-page.js keeps the field on
             // it; the commit writes it into graphStyles). × puts the old name back.
             sheetOnly: true,
             sheetId: 'graphStyleRename',
-            title: 'Rename graph style',
+            title: 'Rename graph',
             showWhen: GRAPH_STYLES_WHEN,
             items: [{
                 type: 'text',
@@ -1890,7 +1890,7 @@ module.exports = {
                 uiOnly: true,
                 label: 'Name',
                 defaultValue: '',
-                attributes: {maxlength: 24, placeholder: 'Graph style'},
+                attributes: {maxlength: 24, placeholder: 'Graph name'},
                 onChange: 'graphStyleRenamed'
             }]
         }, {
@@ -2089,10 +2089,11 @@ module.exports = {
             // style holds, one JSON string (src/pkjs/graph-styles.js parse). The flat keys are the
             // first style, so an install without the key has one style and nothing migrates.
             // Blob-only: sheetOnly keeps it off the tab; it hydrates and serializes with the blob.
-            // With it the two page-only pickers that have no row of their own: New style's "Start
-            // from" (the card's New style button opens its sheet; a pick makes the style) and the
-            // screen editor's Graph style (screens-page.js opens it over the editor). Their ''
-            // and stale values are dormant, so the sheets open with nothing ticked.
+            // With it the two page-only pickers that have no row of their own, each drawing its
+            // graphs and templates (pictureFrom): New graph (the card's New graph opens its sheet;
+            // a pick makes the graph) and the screen editor's graph (screens-page.js opens it over
+            // the editor). Their '' and stale values are dormant, so the sheets open with nothing
+            // ticked.
             sheetOnly: true,
             sheetId: 'graphStyleKeys',
             title: 'Graph styles',
@@ -2100,19 +2101,23 @@ module.exports = {
                 type: 'select',
                 messageKey: 'graphStyleNewFrom',
                 uiOnly: true,
-                label: 'New style',
-                sheetTitle: 'Start the new style from',
+                label: 'New graph',
+                sheetTitle: 'New graph',
+                sheetLead: 'Start from a template. Templates never change: you get your own copy.',
                 defaultValue: '',
                 dormantValues: [''],
                 optionsFrom: {resolver: 'graphStyleStarts'},
+                pictureFrom: {resolver: 'graphStylePicture'},
                 onChange: 'graphStyleCreate'
             }, {
                 type: 'select',
                 messageKey: 'screenGraphStyle',
                 uiOnly: true,
-                label: 'Graph style',
+                label: 'Graph',
+                sheetTitle: 'Graph on this screen',
                 defaultValue: '1',
                 optionsFrom: {resolver: 'graphStyleOptions', args: {screen: true}},
+                pictureFrom: {resolver: 'graphStylePicture'},
                 onChange: 'screenGraphStylePicked'
             }]
         }].concat(GRAPH_COLOR_ROWS.map(function (row) {

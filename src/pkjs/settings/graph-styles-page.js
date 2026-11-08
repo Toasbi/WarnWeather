@@ -1,27 +1,37 @@
-// src/pkjs/settings/graph-styles-page.js — ES5, WebView (+ Node for tests). Graph styles on the
-// settings page (Pebble Time 2; src/pkjs/graph-styles.js is the model): the Graph style card at the
-// top of Graphs › Forecast (a select of the styles, Rename, New style, Delete with Undo), the swap
-// that lets every row on that pane edit the style picked there, the screen editor's style picker's
-// options, and the four-series limit the forecast pickers and that picker keep.
+// src/pkjs/settings/graph-styles-page.js — ES5, WebView (+ Node for tests). The graphs on the
+// settings page (Pebble Time 2; src/pkjs/graph-styles.js is the model, which calls a graph a graph
+// style): the Your graphs card at the top of Graphs › Forecast (a picture of each graph, New graph,
+// the screens the picked graph shows on, Rename, Delete with Undo), the swap that lets every row on
+// that pane edit the graph picked there, the screen editor's graph picker's options, and the
+// four-series limit the forecast pickers and that picker keep.
+//
+// TEMPLATES AND GRAPHS (the owner's pick, 2026-11-08). A template is one of the setup's forecast
+// looks (wizard-forecast.js LOOKS: Classic, Weathergraph, Stripes). New graph starts a graph from
+// one, or as a copy of one of the graphs, and the screen editor's picker can start one for its
+// screen. A template never changes and is never one of the graphs: a graph made from one is
+// "Graph <n>" (graph-styles.js defaultName) until it is renamed, so it never reads as its template.
+// Every picker draws each graph and template as the setup draws its looks (graphPicture).
 //
 // THE SWAP. Every row, hint, resolver and the pinned preview on Graphs › Forecast reads the flat
-// keys, which hold the first style. While the pane shows another style k, its values sit in the
-// flat keys and the first style's wait in S[SWAP].held, so every row edits style k unchanged. The
-// invariant: off that pane the flat keys hold the first style. The engine's render hook
+// keys, which hold the first graph. While the pane shows another graph k, its values sit in the
+// flat keys and the first graph's wait in S[SWAP].held, so every row edits graph k unchanged. The
+// invariant: off that pane the flat keys hold the first graph. The engine's render hook
 // (PConf.hooks.onRender) swaps on every way to and from the pane; its normalize hook
-// (PConf.hooks.onNormalize) hands Save and Revert the settings as stored, style k written into
-// graphStyles and the first style back in the flat keys, so picking a style never lights Save
+// (PConf.hooks.onNormalize) hands Save and Revert the settings as stored, graph k written into
+// graphStyles and the first graph back in the flat keys, so picking a graph never lights Save
 // and Save stores the edits. The swap state lives in S itself: whatever puts S back (Revert, a
 // dialog's ×) puts the swap back with the values it describes.
 //
-// THE LIMIT. The weather message carries four metric rows, so the styles the screens show draw at
+// THE LIMIT. The weather message carries four metric rows, so the graphs the screens show draw at
 // most four series between them (graph-styles.js THE UNION). A pick that would make a fifth is
-// greyed out with LIMIT: a forecast line's metric or style on a shown style, and in the screen
-// editor a style that would join the screens. A style no screen shows is free.
+// greyed out with LIMIT: a forecast line's metric or style on a shown graph, a screen of the Show
+// on row, and in the screen editor a graph or template that would join the screens. A graph no
+// screen shows is free.
 //
 // Dual-context: a CommonJS module in the tests; in the webview a concatenated <script> after
 // graph-styles.js and screens.js (scripts/build-config-page.js APP_FILES) and ahead of
-// forecast-hints.js, which reads its limit, and screens-page.js, which reads its labels.
+// forecast-hints.js, which reads its limit, and screens-page.js, which reads its labels. What
+// loads after it (the setup's looks, the preview helpers, the screens' writer) it reads when asked.
 /* global PConf */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
@@ -39,7 +49,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The swap state in S: {k, held}, the style whose values sit in the flat keys and the
     // first style's values of the governed keys. Never a schema key, so never saved.
     var SWAP = '_graphStyleSwap';
-    // The page-only items (schema.js): the card's pick, Rename's field, New style's picker and
+    // The page-only items (schema.js): the card's pick, Rename's field, New graph's picker and
     // the screen editor's picker.
     var PICK = 'graphStylePick';
     var NAME = 'graphStyleName';
@@ -48,12 +58,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The pane the card and the swap belong to.
     var TAB = 'graphs';
     var PANE = 'forecast';
-    var LIMIT = 'Your graph styles already draw 4 lines and stripes.';
+    var LIMIT = 'Your graphs already draw 4 lines and stripes.';
+    // New graph's copies: 'copy<n>', a copy of graph n. The screen editor's templates:
+    // 'new:<template id>'. A picker's group header: GROUP (never a value anything stores).
     var COPY = 'copy';
+    var NEW = 'new:';
+    var GROUP = '__group';
     var NAME_MAX = 24;
+    // A template's line under its name in the pickers, after its length (its picture shows the rest).
+    var TEMPLATE_LINES = {
+        classic: 'Rain chance and rain bars',
+        weathergraph: 'Clouds along the top, solid rain bars',
+        stripes: 'Clouds and rain chance as stripes'
+    };
+    var I_PLUS = '<svg class="gc-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>';
+    var I_CHECK = '<svg class="gc-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
-    // The page's live state (onReady) and the card's Undo toast.
-    var UI = { ctx: null, toast: null, timer: null, screenSlot: 0 };
+    // The page's live state (onReady), the card's Undo toast, the screen the editor's picker is
+    // for, and the defaults a template starts from (themedDefaults), kept per theme.
+    var UI = { ctx: null, toast: null, timer: null, screenSlot: 0, defaults: null };
 
     /**
      * @param {Object} o An object.
@@ -211,7 +234,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * A style as its pickers list it: its name and length, "Weathergraph · 66 h".
+     * A graph as its pickers list it: its name and length, "Graph 2 · 66 h".
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} k A style index.
@@ -223,8 +246,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The screens whose forecast graph draws a style, as the Watchface tab lists them (a
-     * screen on a style that does not exist draws the first).
+     * The graph a screen's forecast graph draws: its own while it exists, else the first.
+     * @param {Object} S Settings.
+     * @param {?Object} fc The screen's forecast block (screens.js), or null.
+     * @returns {number} A style index, -1 for no forecast graph.
+     */
+    function drawnBy(S, fc) {
+        if (!fc) { return -1; }
+        var k = (parseInt(fc.style, 10) || 1) - 1;
+        return (k > 0 && GS.exists(S, k)) ? k : 0;
+    }
+
+    /**
+     * The screens whose forecast graph draws a graph, as the Watchface tab lists them.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} k A style index.
@@ -233,16 +267,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function screensOn(S, env, k) {
         var out = [];
         M.screensOf(S, env).forEach(function (list, i) {
-            var fc = list[M.idxOf(list, 'fc')];
-            var on = fc ? (parseInt(fc.style, 10) || 1) - 1 : -1;
-            if (on > 0 && !GS.exists(S, on)) { on = 0; }
-            if (on === k) { out.push(M.NAMES[i]); }
+            if (drawnBy(S, list[M.idxOf(list, 'fc')]) === k) { out.push(M.NAMES[i]); }
         });
         return out;
     }
 
     /**
-     * Where a style shows, for its option's second line: "On Default and Flick 1".
+     * Names as a sentence lists them: "Default", "Default and Flick 1", "Default, Flick 1 and
+     * Flick 2".
+     * @param {string[]} names At least one.
+     * @returns {string}
+     */
+    function andList(names) {
+        return names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
+    }
+
+    /**
+     * Where a graph shows, for its option's second line: "On Default and Flick 1".
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} k A style index.
@@ -250,8 +291,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function whereText(S, env, k) {
         var names = screensOn(S, env, k);
-        if (!names.length) { return 'On no screen'; }
-        return 'On ' + (names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0]);
+        return names.length ? 'On ' + andList(names) : 'On no screen';
+    }
+
+    /**
+     * A graph's card line: its length and where it shows, "66 h · Flick 1", "24 h · No screen".
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {number} k A style index.
+     * @returns {string}
+     */
+    function cardLine(S, env, k) {
+        var len = lengthLabel(styleSettings(S, k), env), names = screensOn(S, env, k);
+        return (len ? len + ' · ' : '') + (names.length ? names.join(', ') : 'No screen');
     }
 
     /**
@@ -310,22 +362,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Would screen i drawing style k make the shown styles draw a fifth series?
+     * Would screen i drawing style k make the shown styles draw a fifth series? With `values`,
+     * k is a style still to be made with them (a template the screen editor's picker offers).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} i View slot.
      * @param {number} k A style index.
+     * @param {?Object} [values] The governed values of the style to be made in slot k.
      * @returns {boolean}
      */
-    function screenOverflows(S, env, i, k) {
+    function screenOverflows(S, env, i, k, values) {
         var N = Object.assign({}, normalize(S));
+        if (values) { N.graphStyles = GS.withStyle(N, k, values); }
         N['viewStyle' + i] = String(k + 1);
         return overflows(N, env, GS.stylesShown(N, env), -1, null);
     }
 
     /**
-     * Get the screen editor's Graph style picker ready for screen i (screens-page.js opens it
-     * next): its value the screen's style, its limit worked out for that screen.
+     * Get the screen editor's graph picker ready for screen i (screens-page.js opens it next):
+     * its value the screen's graph, its limit worked out for that screen.
      * @param {Object} S Settings.
      * @param {number} i View slot.
      * @param {string} style The screen's style ('1' | '2' | '3').
@@ -337,52 +392,60 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The styles as the pickers list them (options resolver 'graphStyleOptions'): each named
+     * The graphs as the pickers list them (options resolver 'graphStyleOptions'): each named
      * with its length, where it shows under it. With args.screen (the screen editor's picker,
-     * for the screen beginScreenPick named) a style that would make the screens draw a fifth
-     * series is disabled with LIMIT.
+     * for the screen beginScreenPick named) a graph that would make the screens draw a fifth
+     * series is disabled with LIMIT, and while a slot is free the templates follow, a new graph
+     * from one put on the screen (pickForScreen).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {{screen: boolean}} [args] The picker.
-     * @returns {Array} [label, value, {desc, disabled}] per style
+     * @returns {Array} [label, value, {desc, disabled}] per graph
      */
     function styleOptions(S, env, args) {
         var a = args || {}, cur = S ? S[a.screen ? SCREEN_PICK : PICK] : null;
-        return existing(S || {}).map(function (k) {
+        var out = existing(S || {}).map(function (k) {
             var v = String(k + 1), meta = { desc: whereText(S, env, k) };
             if (a.screen && v !== cur && screenOverflows(S, env, UI.screenSlot, k)) {
                 meta = { desc: LIMIT, disabled: true };
             }
             return [label(S, env, k), v, meta];
         });
+        var slot = S ? GS.freeSlot(normalize(S)) : -1;
+        if (!a.screen || slot < 0) { return out; }
+        out.push(['New graph from a template', GROUP, { groupHeader: true, disabled: true }]);
+        forecastLooks().LOOKS.forEach(function (look) {
+            var values = templateValues(normalize(S), env, look.id);
+            var full = screenOverflows(S, env, UI.screenSlot, slot, values);
+            out.push([look.label, NEW + look.id, full ? { desc: LIMIT, disabled: true }
+                : { desc: templateLine(S, env, look.id) }]);
+        });
+        return out;
     }
 
     /**
-     * The card's hint: where the picked style shows, and what the card does.
+     * The card's hint under the graphs: what a tap does, or with one graph what New graph is for.
      * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
      * @returns {string}
      */
-    function cardHint(S, env) {
-        var k = pickIndex(S);
-        if (GS.count(S) < 2) { return whereText(S, env, k) + '. New style gives a screen its own graph.'; }
-        return whereText(S, env, k) + '. The settings below are this style\'s.';
+    function cardHint(S) {
+        return GS.count(S) < 2 ? 'New graph gives a screen a graph of its own.' : 'Tap a graph to change it below.';
     }
 
     /**
-     * The tail on every row of a key the styles share (hint resolver 'graphStyleShared',
-     * schema.js hintTailFrom): said while more than one style exists.
+     * The tail on every row of a key the graphs share (hint resolver 'graphStyleShared',
+     * schema.js hintTailFrom): said while more than one graph exists.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {string}
      */
     function sharedHint(S, env) {
-        return (on(env) && GS.count(S) > 1) ? 'Every graph style shares this.' : '';
+        return (on(env) && GS.count(S) > 1) ? 'Every graph shares this.' : '';
     }
 
     /**
      * The card's pick as the page opens (display resolver 'graphStyleOnOpen', initFrom): the
-     * style of the first screen with a forecast graph, else the first.
+     * graph of the first screen with a forecast graph, else the first.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {string} '1' | '2' | '3'
@@ -391,17 +454,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!on(env)) { return '1'; }
         var lists = M.screensOf(S, env);
         for (var i = 0; i < lists.length; i++) {
-            var fc = lists[i][M.idxOf(lists[i], 'fc')];
-            if (fc) { return GS.exists(S, (parseInt(fc.style, 10) || 1) - 1) ? String(parseInt(fc.style, 10) || 1) : '1'; }
+            var k = drawnBy(S, lists[i][M.idxOf(lists[i], 'fc')]);
+            if (k >= 0) { return String(k + 1); }
         }
         return '1';
     }
 
-    // ── New style, Rename, Delete ────────────────────────────────────────────
+    // ── The modules loaded after this one, read when asked ──────────────────
 
     /**
-     * The setup wizard's forecast looks (settings/wizard-forecast.js), read when asked: it loads
-     * after this file in the page.
+     * The setup's forecast looks, the templates (settings/wizard-forecast.js).
      * @returns {Object}
      */
     function forecastLooks() {
@@ -409,21 +471,132 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * New style's "Start from" (options resolver 'graphStyleStarts'): the forecast looks, then a
-     * copy of the style the card shows.
+     * The preview helpers (settings/preview-svg.js).
+     * @returns {Object}
+     */
+    function svgLib() {
+        return node ? require('./preview-svg.js') : window.PreviewSvg;
+    }
+
+    /**
+     * The screens' writer (settings/screens-page.js).
+     * @returns {Object}
+     */
+    function screensPage() {
+        return node ? require('./screens-page.js') : window.ScreensPage;
+    }
+
+    // ── Templates and pictures ──────────────────────────────────────────────
+
+    /**
+     * The graph's defaults as the theme starts them (engine themedDefaults, which reads the
+     * theme only), worked out once per theme; S itself under Node without the page.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {Object}
+     */
+    function themedDefaults(S, env) {
+        if (!(UI.ctx && PConf && PConf.engine && PConf.engine.themedDefaults)) { return S; }
+        if (!UI.defaults || UI.defaults.theme !== S.theme) {
+            UI.defaults = { theme: S.theme, values: PConf.engine.themedDefaults(UI.ctx.schema, S, env) };
+        }
+        return UI.defaults.values;
+    }
+
+    /**
+     * The values a graph made from a template starts with: the graph's defaults, the
+     * template's own values and its length over them.
+     * @param {Object} S Settings as stored (settled or normalize).
+     * @param {?Object} env Platform env.
+     * @param {string} id A template's id (wizard-forecast.js LOOKS).
+     * @returns {?Object} governed key -> value, or null for no such template
+     */
+    function templateValues(S, env, id) {
+        var defaults = themedDefaults(S, env);
+        var rec = forecastLooks().looks(S, env, defaults, null).filter(function (r) { return r.id === id; })[0];
+        return rec ? Object.assign(GS.valuesOf(defaults, 0), rec.values, { forecastHours: rec.span }) : null;
+    }
+
+    /**
+     * A template's line in the pickers: its length, then what it draws ("66 h · Clouds along the
+     * top, solid rain bars").
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} id A template's id.
+     * @returns {string}
+     */
+    function templateLine(S, env, id) {
+        var N = normalize(S), len = lengthLabel(Object.assign({}, N, templateValues(N, env, id)), env);
+        return (len ? len + ' · ' : '') + (TEMPLATE_LINES[id] || forecastLooks().describe(id, env));
+    }
+
+    /**
+     * A graph as the pickers and its card draw it: the setup's look preview (wizard-forecast.js
+     * previewSvg) of its settings, its ids tagged (preview-svg.js tagIds) so the pictures on one
+     * page never share a pattern.
+     * @param {Object} Sk The settings the graph draws.
+     * @param {?Object} env Platform env.
+     * @param {?Object} userData Page userData (the palette).
+     * @param {string} tag Unique on the page.
+     * @returns {string} SVG markup
+     */
+    function graphPicture(Sk, env, userData, tag) {
+        return svgLib().tagIds(forecastLooks().previewSvg(Sk, env, userData || {}), tag);
+    }
+
+    /**
+     * The settings a picker's option draws: a graph ('1'..'3'), a copy of one ('copy<n>'), or a
+     * template (its id, or 'new:<id>').
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} v The option's value.
+     * @returns {?Object} null for a value that names none (a group header)
+     */
+    function optionSettings(S, env, v) {
+        var N = normalize(S), k = /^[0-9]$/.test(v) ? parseInt(v, 10) - 1
+            : v.indexOf(COPY) === 0 ? parseInt(v.slice(COPY.length), 10) - 1 : -1;
+        if (k >= 0) { return GS.exists(N, k) ? GS.settingsFor(N, k) : null; }
+        var values = templateValues(N, env, v.indexOf(NEW) === 0 ? v.slice(NEW.length) : v);
+        return values ? Object.assign({}, N, values) : null;
+    }
+
+    /**
+     * A picker option's picture (picture resolver 'graphStylePicture', the pickers' pictureFrom).
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {{messageKey: string, value: string}} args The option.
+     * @param {?Object} userData Page userData.
+     * @returns {string} SVG markup, '' for none
+     */
+    function optionPicture(S, env, args, userData) {
+        var v = String(args.value || ''), Sk = optionSettings(S, env, v);
+        return Sk ? graphPicture(Sk, env, userData, 'gs-' + v.replace(/[^A-Za-z0-9]/g, '-')) : '';
+    }
+
+    // ── New graph, Rename, Delete ───────────────────────────────────────────
+
+    /**
+     * New graph's options (options resolver 'graphStyleStarts'): the templates, then a copy of
+     * each graph.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {Array} [label, value, {desc}]
      */
     function startOptions(S, env) {
-        var WF = forecastLooks();
-        var out = WF.LOOKS.map(function (look) { return [look.label, look.id, { desc: WF.describe(look.id, env) }]; });
-        out.push(['Copy of ' + GS.name(S, pickIndex(S)), COPY, { desc: 'Its lines, colors and length.' }]);
+        var N = normalize(S);
+        var out = forecastLooks().LOOKS.map(function (look) {
+            return [look.label, look.id, { desc: templateLine(S, env, look.id) }];
+        });
+        out.push(['Or copy one of your graphs', GROUP, { groupHeader: true, disabled: true }]);
+        existing(N).forEach(function (k) {
+            var len = lengthLabel(GS.settingsFor(N, k), env);
+            out.push(['Copy of ' + GS.name(N, k), COPY + (k + 1), { desc: (len ? len + ' · ' : '') + 'Its lines and colors' }]);
+        });
         return out;
     }
 
     /**
-     * A name no other style has: `base`, else "base 2", "base 3".
+     * A name no other graph has: `base`, else "base 2", "base 3".
      * @param {Object} S Settings.
      * @param {string} base The name wanted.
      * @returns {string}
@@ -436,44 +609,63 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Make a new style from a look or as a copy of the picked one (New style's onChange
-     * 'graphStyleCreate'), pick it, and clear the picker. A look starts from the graph's
-     * defaults as the theme starts them, with the look's own values and length over them;
-     * the copy from the picked style's values. Mutates S.
+     * The name a new graph in slot k stores: '' for its default name ("Graph <k+1>"), else, when
+     * another graph was renamed to that, the first "Graph <n>" no other graph has.
+     * @param {Object} S Settings.
+     * @param {number} k The new graph's slot.
+     * @returns {string}
+     */
+    function newName(S, k) {
+        var others = existing(S).filter(function (j) { return j !== k; }).map(function (j) { return GS.name(S, j); });
+        if (others.indexOf(GS.defaultName(k)) === -1) { return ''; }
+        for (var n = 0; others.indexOf(GS.defaultName(n)) !== -1; n++) { /* the first free number */ }
+        return GS.defaultName(n);
+    }
+
+    /**
+     * Make a graph from a template or as a copy of a graph, in the first free slot, called
+     * "Graph <n>" (newName). A template starts from the graph's defaults as the theme starts
+     * them, with its own values and length over them; a copy from the graph's values. Mutates S
+     * (settled first).
+     * @param {Object} S Settings.
+     * @param {string} from A template's id, or 'copy<n>'.
+     * @param {?Object} env Platform env.
+     * @returns {number} The new graph's index, -1 for none made (no free slot, no such source).
+     */
+    function createGraph(S, from, env) {
+        settle(S);
+        var k = GS.freeSlot(S), src = String(from || '');
+        if (k < 0 || !src) { return -1; }
+        var values = null;
+        if (src.indexOf(COPY) === 0) {
+            var j = parseInt(src.slice(COPY.length), 10) - 1;
+            if (GS.exists(S, j)) { values = GS.valuesOf(S, j); }
+        } else {
+            values = templateValues(S, env, src);
+        }
+        if (!values) { return -1; }
+        S.graphStyles = GS.withStyle(S, k, values);
+        S.graphStyles = GS.withName(S, k, newName(S, k));
+        return k;
+    }
+
+    /**
+     * New graph's pick (onChange 'graphStyleCreate'): the graph made (createGraph) and picked, so
+     * the pane shows it; the picker cleared.
      * @param {Object} S Settings (S[NEW_FROM] picked).
      * @param {*} oldValue The picker's value before.
-     * @param {string} from A look's id, or 'copy'.
+     * @param {string} from A template's id, or 'copy<n>'.
      * @param {?Object} env Platform env.
      * @returns {void}
      */
     function createStyle(S, oldValue, from, env) {
         S[NEW_FROM] = '';
-        settle(S);
-        var k = GS.freeSlot(S);
-        if (k < 0 || !from) { return; }
-        var values, title;
-        if (from === COPY) {
-            values = GS.valuesOf(S, pickIndex(S));
-            title = GS.name(S, pickIndex(S));
-        } else {
-            var WF = forecastLooks();
-            var look = null;
-            WF.LOOKS.forEach(function (l) { if (l.id === from) { look = l; } });
-            if (!look) { return; }
-            var defaults = (UI.ctx && PConf && PConf.engine && PConf.engine.themedDefaults)
-                ? PConf.engine.themedDefaults(UI.ctx.schema, S, env) : S;
-            values = GS.valuesOf(defaults, 0);
-            var rec = WF.looks(S, env, defaults, null).filter(function (r) { return r.id === from; })[0];
-            Object.assign(values, rec ? rec.values : {}, { forecastHours: rec ? rec.span : values.forecastHours });
-            title = look.label;
-        }
-        S.graphStyles = GS.withStyle(S, k, values);
-        S.graphStyles = GS.withName(S, k, freeName(S, title));
-        S[PICK] = String(k + 1);
+        var k = createGraph(S, from, env);
+        if (k > 0) { S[PICK] = String(k + 1); }
     }
 
     /**
-     * Rename's field committed (onChange 'graphStyleRenamed'): the picked style's name, '' for
+     * Rename's field committed (onChange 'graphStyleRenamed'): the picked graph's name, '' for
      * the default one. Written into the item as stored, so the swap keeps it.
      * @param {Object} S Settings.
      * @param {*} oldValue The name before.
@@ -482,12 +674,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function renameStyle(S, oldValue, value) {
         var k = pickIndex(S), name = String(value || '').replace(/^\s+|\s+$/g, '').slice(0, NAME_MAX);
-        S.graphStyles = GS.withName(S, k, name === 'Graph style ' + (k + 1) ? '' : name);
+        S.graphStyles = GS.withName(S, k, name === GS.defaultName(k) ? '' : name);
     }
 
     /**
-     * Delete the picked style (the card's Delete): the screens on it draw the first style, the
-     * card picks the first, and an Undo shows for five seconds. Never the first style.
+     * Delete the picked graph (the card's Delete): the screens on it draw the first graph, the
+     * card picks the first, and an Undo shows for five seconds. Never the first graph.
      * @param {Object} S Settings.
      * @returns {void}
      */
@@ -502,8 +694,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Undo a delete: the style back in its slot, with its name, on the screens that drew it,
-     * and picked. Only that style's slot and those screens move.
+     * Undo a delete: the graph back in its slot, with its name, on the screens that drew it,
+     * and picked. Only that graph's slot and those screens move.
      * @param {Object} S Settings.
      * @returns {void}
      */
@@ -544,7 +736,103 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         UI.timer = null;
     }
 
-    var CSS = '.gs-acts{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center}'
+    // ── The screens a graph shows on ────────────────────────────────────────
+
+    /**
+     * Put graph k on screen i's forecast graph (the Show on row, the screen editor's picker),
+     * through the screens' writer (screens-page.js writeScreen), with the swap undone first
+     * (the next render swaps the pane's graph back in). A screen without a forecast graph is
+     * left as it is.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {number} i View slot.
+     * @param {number} k A style index.
+     * @returns {void}
+     */
+    function setScreenGraph(S, env, i, k) {
+        settle(S);
+        var list = M.screensOf(S, env)[i] || [], j = M.idxOf(list, 'fc');
+        if (j < 0) { return; }
+        var next = M.copy(list);
+        if (k > 0) { next[j].style = String(k + 1); } else { delete next[j].style; }
+        screensPage().writeScreen(S, i, next, env);
+    }
+
+    /**
+     * A tap on a Show on chip (action 'graphOnScreen'): the picked graph onto screen i, or off
+     * it again (the screen then draws the first graph). The first graph's own chips do nothing:
+     * a screen draws it unless it has another graph. A chip the limit greys out does nothing.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {number} i View slot.
+     * @returns {void}
+     */
+    function toggleScreen(S, env, i) {
+        var k = pickIndex(S), list = M.screensOf(S, env)[i] || [];
+        var drawn = drawnBy(S, list[M.idxOf(list, 'fc')]);
+        if (drawn < 0) { return; }
+        if (drawn === k) {
+            if (k > 0) { setScreenGraph(S, env, i, 0); }
+            return;
+        }
+        if (!screenOverflows(S, env, i, k)) { setScreenGraph(S, env, i, k); }
+    }
+
+    /**
+     * The screen editor's pick (screens-page.js screenStylePicked): screen i draws the graph
+     * picked, or a new one made from the template picked ('new:<id>'), which the Graphs tab
+     * then picks too. A template with no free slot changes nothing.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {number} i View slot.
+     * @param {string} value '1' | '2' | '3' | 'new:<template id>'
+     * @param {*} oldValue The picker's value before.
+     * @returns {void}
+     */
+    function pickForScreen(S, env, i, value, oldValue) {
+        var v = String(value || ''), k;
+        if (v.indexOf(NEW) === 0) {
+            k = createGraph(S, v.slice(NEW.length), env);
+            if (k < 0) { S[SCREEN_PICK] = oldValue; return; }
+            S[PICK] = String(k + 1);
+        } else {
+            k = parseInt(v, 10) - 1;
+            if (!(k >= 0 && GS.exists(S, k))) { return; }
+        }
+        S[SCREEN_PICK] = String(k + 1);
+        setScreenGraph(S, env, i, k);
+    }
+
+    // ── The Your graphs card ────────────────────────────────────────────────
+
+    var CSS = '.gc-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}'
+        + '.gc{display:grid;gap:3px;align-content:start;min-width:0;margin:0;padding:6px 6px 8px;border:none;border-radius:12px;'
+        + 'background:var(--bg);box-shadow:0 0 0 1px var(--card-line);color:var(--lbl);text-align:left;font:inherit;'
+        + 'cursor:pointer;-webkit-appearance:none;appearance:none}'
+        + '.gc.on{box-shadow:0 0 0 2px #FA4A35}'
+        + '.gc-pic{display:block;border-radius:7px;overflow:hidden;line-height:0;margin-bottom:3px}'
+        + '.gc-pic svg{display:block;width:100%;height:auto}'
+        + '.gc-n{font:700 12px/1.25 Inter,system-ui,sans-serif;color:var(--lbl);overflow-wrap:anywhere}'
+        + '.gc.on .gc-n{color:var(--link)}'
+        + '.gc-d{font:500 10.5px/1.3 Inter,system-ui,sans-serif;color:var(--hint)}'
+        + '.gc.add{place-content:center;justify-items:center;gap:5px;background:transparent;box-shadow:none;'
+        + 'border:1.5px dashed var(--line-strong);color:var(--link);font:700 11.5px/1.2 Inter,system-ui,sans-serif;text-align:center}'
+        // The icons only: a graph's picture inherits nothing from here (an inherited stroke
+        // would outline every shape in it).
+        + '.gc-ic{fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}'
+        + '.gc.add .gc-ic{width:18px;height:18px}'
+        + '.gc-hint{margin-top:10px}'
+        + '.gc-show{display:grid;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--row-line)}'
+        + '.gc-cap{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ttl)}'
+        + '.gc-chips{display:flex;flex-wrap:wrap;gap:6px}'
+        + '.gc-chip{display:inline-flex;align-items:center;gap:5px;margin:0;padding:7px 11px;border:none;border-radius:999px;'
+        + 'background:var(--ctl);box-shadow:inset 0 0 0 1px var(--ctl-line);color:var(--lbl);'
+        + 'font:600 12.5px/1.2 Inter,system-ui,sans-serif;cursor:pointer;-webkit-appearance:none;appearance:none}'
+        + '.gc-chip.on{background:rgba(250,74,53,.14);box-shadow:inset 0 0 0 1.5px #FA4A35;color:var(--link)}'
+        + '.gc-chip[disabled]{opacity:.42;cursor:default}'
+        + '.gc-chip[aria-disabled="true"]{cursor:default}'
+        + '.gc-chip .gc-ic{width:13px;height:13px}'
+        + '.gs-acts{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;margin-top:12px}'
         + '.gs-act{border:none;background:none;padding:2px 0;color:var(--link);font:700 13px Inter,system-ui,sans-serif;'
         + 'cursor:pointer}'
         + '.gs-toast{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;'
@@ -565,20 +853,73 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The card's buttons (block 'graphStyleActions'): Rename, New style while fewer than three
-     * styles exist, Delete on a style but the first; the Undo after a delete.
+     * The Show on row for graph k (two graphs or more): a chip per screen, ticked where the
+     * screen draws k, greyed out where it has no forecast graph or where k would make the
+     * screens draw a fifth series; a line under it says why.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
-     * @returns {string} HTML ('' where the watch has no styles)
+     * @param {number} k The picked graph.
+     * @returns {string} HTML
      */
-    function actionsBlock(S, env) {
+    function showOnHtml(S, env, k) {
+        var lists = M.screensOf(S, env), none = [], full = false, kept = false;
+        var chips = lists.map(function (list, i) {
+            var name = esc(M.NAMES[i]), drawn = drawnBy(S, list[M.idxOf(list, 'fc')]);
+            if (drawn < 0) { none.push(M.NAMES[i]); return '<button type="button" class="gc-chip" disabled>' + name + '</button>'; }
+            if (drawn === k) {
+                // The first graph's tick stays: a screen draws it unless it has another graph.
+                if (k === 0) { kept = true; }
+                return '<button type="button" class="gc-chip on" aria-pressed="true"'
+                    + (k === 0 ? ' aria-disabled="true"' : ' data-action="graphOnScreen" data-action-arg="' + i + '"')
+                    + '>' + I_CHECK + name + '</button>';
+            }
+            if (screenOverflows(S, env, i, k)) { full = true; return '<button type="button" class="gc-chip" disabled>' + name + '</button>'; }
+            return '<button type="button" class="gc-chip" aria-pressed="false" data-action="graphOnScreen" data-action-arg="'
+                + i + '">' + name + '</button>';
+        }).join('');
+        var notes = [];
+        if (none.length === lists.length) {
+            notes.push('No screen has a forecast graph yet. Add one on the Watchface tab.');
+        } else if (none.length) {
+            notes.push(andList(none) + (none.length > 1 ? ' have' : ' has') + ' no forecast graph.');
+        }
+        if (full) { notes.push(LIMIT); }
+        if (kept) { notes.push('A screen shows ' + GS.name(S, 0) + ' unless you give it another graph.'); }
+        return '<div class="gc-show"><span class="gc-cap" id="gc-show-cap">Show on</span>'
+            + '<div class="gc-chips" role="group" aria-labelledby="gc-show-cap">' + chips + '</div>'
+            + (notes.length ? '<div>' + esc(notes.join(' ')) + '</div>' : '') + '</div>';
+    }
+
+    /**
+     * The Your graphs card (block 'graphStyleCards'): a picture card per graph, the picked one
+     * ringed (a tap picks another: the settings below then change it), New graph while a slot
+     * is free, the hint, the Show on row with two graphs or more, Rename, Delete on a graph but
+     * the first, and the Undo after a delete.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {?Object} userData Page userData (the palette).
+     * @returns {string} HTML ('' where the watch has no graph styles)
+     */
+    function cardsBlock(S, env, userData) {
         if (!on(env) || !S) { return ''; }
         ensureStyle();
-        var k = pickIndex(S);
-        var h = '<div class="gs-acts">'
-            + '<button type="button" class="gs-act" data-edit-sheet="graphStyleRename">Rename</button>'
-            + (GS.freeSlot(S) >= 0 ? '<button type="button" class="gs-act" data-select="' + NEW_FROM + '">New style</button>' : '')
-            + (k > 0 ? '<button type="button" class="gs-act" data-action="deleteGraphStyle">Delete</button>' : '')
+        var k = pickIndex(S), ks = existing(S);
+        var h = '<div class="gc-row" role="group" aria-label="Your graphs">' + ks.map(function (j) {
+            var picked = j === k, name = esc(GS.name(S, j));
+            return '<button type="button" class="gc' + (picked ? ' on' : '') + '" aria-pressed="' + picked
+                + '" data-action="pickGraph" data-action-arg="' + (j + 1) + '">'
+                + '<span class="gc-pic" aria-hidden="true">' + graphPicture(styleSettings(S, j), env, userData, 'gc' + j) + '</span>'
+                + '<span class="gc-n">' + name + '</span><span class="gc-d">' + esc(cardLine(S, env, j)) + '</span></button>';
+        }).join('')
+            + (GS.freeSlot(normalize(S)) >= 0 ? '<button type="button" class="gc add" data-select="' + NEW_FROM + '">'
+                + I_PLUS + '<span>New graph</span></button>' : '')
+            + '</div>'
+            + '<div class="gc-hint">' + esc(cardHint(S)) + '</div>';
+        if (ks.length > 1) { h += showOnHtml(S, env, k); }
+        var name = esc(GS.name(S, k));
+        h += '<div class="gs-acts">'
+            + '<button type="button" class="gs-act" data-edit-sheet="graphStyleRename" aria-label="Rename ' + name + '">Rename</button>'
+            + (k > 0 ? '<button type="button" class="gs-act" data-action="deleteGraphStyle" aria-label="Delete ' + name + '">Delete</button>' : '')
             + '</div>';
         var t = UI.toast;
         if (t) {
@@ -594,21 +935,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.hooks && PConf.hooks.onRender) { PConf.hooks.onRender(onRender); }
         if (PConf.hooks && PConf.hooks.onNormalize) { PConf.hooks.onNormalize(normalize); }
         if (PConf.hooks && PConf.hooks.onReady) { PConf.hooks.onReady(function (ctx) { UI.ctx = ctx; }); }
-        if (PConf.blocks) { PConf.blocks.register('graphStyleActions', actionsBlock); }
+        if (PConf.blocks) { PConf.blocks.register('graphStyleCards', cardsBlock); }
         if (PConf.optionsResolvers) {
             PConf.optionsResolvers.register('graphStyleOptions', styleOptions);
             PConf.optionsResolvers.register('graphStyleStarts', startOptions);
         }
-        if (PConf.hintResolvers) {
-            PConf.hintResolvers.register('graphStyleHint', cardHint);
-            PConf.hintResolvers.register('graphStyleShared', sharedHint);
-        }
+        if (PConf.hintResolvers) { PConf.hintResolvers.register('graphStyleShared', sharedHint); }
+        if (PConf.pictureResolvers) { PConf.pictureResolvers.register('graphStylePicture', optionPicture); }
         if (PConf.displayResolvers) { PConf.displayResolvers.register('graphStyleOnOpen', pickOnOpen); }
         if (PConf.onChange) {
             PConf.onChange.register('graphStyleCreate', createStyle);
             PConf.onChange.register('graphStyleRenamed', renameStyle);
         }
         PConf.actions = PConf.actions || {};
+        PConf.actions.pickGraph = function (arg, S) { S[PICK] = String(arg); return true; };
+        PConf.actions.graphOnScreen = function (arg, S, env) { toggleScreen(S, env, Number(arg)); return true; };
         PConf.actions.deleteGraphStyle = function (arg, S) { deletePicked(S); return true; };
         PConf.actions.undoDeleteGraphStyle = function (arg, S) { undoDelete(S); return true; };
     }
@@ -620,6 +961,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         NEW_FROM: NEW_FROM,
         SCREEN_PICK: SCREEN_PICK,
         LIMIT: LIMIT,
+        NEW: NEW,
         editing: editing,
         normalize: normalize,
         settle: settle,
@@ -629,8 +971,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         styleSettings: styleSettings,
         screenSettings: screenSettings,
         label: label,
+        drawnBy: drawnBy,
         screensOn: screensOn,
         whereText: whereText,
+        cardLine: cardLine,
         limitOptions: limitOptions,
         screenOverflows: screenOverflows,
         beginScreenPick: beginScreenPick,
@@ -638,12 +982,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         cardHint: cardHint,
         sharedHint: sharedHint,
         pickOnOpen: pickOnOpen,
+        templateValues: templateValues,
+        templateLine: templateLine,
+        graphPicture: graphPicture,
+        optionPicture: optionPicture,
         startOptions: startOptions,
+        createGraph: createGraph,
         createStyle: createStyle,
         renameStyle: renameStyle,
         deletePicked: deletePicked,
         undoDelete: undoDelete,
-        actionsBlock: actionsBlock,
+        setScreenGraph: setScreenGraph,
+        toggleScreen: toggleScreen,
+        pickForScreen: pickForScreen,
+        cardsBlock: cardsBlock,
         _test: { UI: UI }
     };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
