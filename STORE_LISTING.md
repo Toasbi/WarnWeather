@@ -4,19 +4,16 @@
 
 ```
 WarnWeather is a weather watchface for Pebble, based on the ForecasWatch2 watchface.
-It supports up to three screens which can be reached through a wrist flick.
+It supports multiple views which can be reached through a wrist flick.
 Highly customizable with a modern settings UI and previews.
 
 FORECAST
-- 24-hour forecast (12, 24 or up to 66 hours on Pebble Time 2; a shorter forecast fills the
-  graph) with a temperature line and configurable, battery-friendly updates
+- 12/24/66-hour forecast with a temperature line and configurable, battery-friendly updates
 - Up to four configurable metrics such as precipitation amount & probability, cloud cover, UV index, gusts,
   wind, air pressure, feels-like temperature and dew point
-- Optional day/night shading, with a line at midnight where the next day starts
-- Pebble Time 2: left axis options: high/low values on the axis, on the graph or off (no left
-  axis: the graph uses the full width), values that include feels-like and dew point
-- Fully customizable lines and colors
-- Multiple weather providers, including regional and worldwide sources, picked in one Data sources card
+- Optional day/night shading
+- Fully customizable line, colors and axis
+- Multiple weather providers, including regional and worldwide sources
 
 ALERTS
 Small screens fill up fast. Alerts reduce the clutter on your watchface by showing
@@ -33,12 +30,11 @@ information only when it's important.
   where on the screen it appears
 
 RAIN RADAR
-- 2-hour precipitation nowcast from regional and worldwide providers
+- 2-hour precipitation nowcast(based on radar for DWD) from regional and worldwide providers
 - Rain countdown telling you when rain starts (or stops)
-- Pick the radar's source or turn it off; show it as a radar graph or a radar status bar on any screen
-- Clouds, sun and lightning rows under the radar graph for the next 2 hours
+- Optional clouds, sun and lightning through open-meteo
 
-HEALTH SCREEN (requires a health-capable watch; heart rate needs a heart-rate sensor)
+HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
 - Health status for steps, sleep, distance and heart rate
 - Last-24h health chart with steps per hour, heart rate on a scale you set, and a sleep band
 
@@ -47,7 +43,7 @@ CALENDAR
 - Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
 STATUS LINES
-- Configurable status slots on every screen:
+- Configurable status slots on every view:
    - Weather:
       - feels-like temperature
       - dew point
@@ -72,7 +68,6 @@ STATUS LINES
       - watch battery icon
       - watch battery percentage
       - phone battery
-- Tap a slot in the settings page's picture of your status bars to change it
 - Bold status values to make them stand out or easier to read
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
 - Threshold highlighting: bold, outline, or fill a status slot when its value crosses a
@@ -89,10 +84,9 @@ WATCH
 - Night backlight dimming
 
 LAYOUT CUSTOMIZATION
-- Up to three screens, switched with a wrist flick (or a double flick, to avoid accidental switches) and back to the Default screen after a time you set
+- Up to three screens, switched with a wrist flick
 - Edit each screen as a simple list, top to bottom: drag a row, remove it or add one where it fits
-- First-run setup that previews your watch as you pick its layout, add a Health or Rain radar screen, pick a theme and a forecast look (and on the Pebble Time 2 its length), with sensible defaults for your country and watch
-- A settings page that draws your watch, every screen of it, as you change it, with Revert to undo your changes
+- First-run setup wizard that picks sensible defaults for your country and watch
 
 WEATHER
 - Detailed 5-day weather forecast for multiple locations inside the settings app
