@@ -30,6 +30,7 @@ const M = require('../src/pkjs/screens.js');
 const VC = require('../src/pkjs/view-cycle.js');
 const PW = require('../src/pkjs/settings/preview-watch.js');
 const spanHours = require('../src/pkjs/forecast-span-hours.js');
+const GS = require('../src/pkjs/graph-styles.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { openSetup } = require('./helpers/wizard-dom.js');
 const { blankBar, slotsOf } = require('./helpers/status-slots.js');
@@ -805,6 +806,39 @@ test('a graph set up in Settings is kept as "Your own", first, and can be gone b
   assert.equal(ownLength.ctx.S.forecastHours, '48');
   ownLength.dom.pick('forecastLook', 'own');
   assert.equal(ownLength.ctx.S.forecastHours, '12');
+});
+
+test('on emery the forecast step sets the graph the Default screen shows, also one of your other graphs', () => {
+  // The Default shows your second graph, Stripes at 24 hours; the first graph is Classic at 66.
+  const second = { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop', thirdLine: 'precip_prob',
+    thirdLineStyle: 'stripeTop', forecastHours: '24' };
+  const saved = Object.assign({ forecastHours: '48', layoutPreset: 'custom', viewCount: '1', viewTop0: 'none',
+    viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB', viewStyle0: '2',
+    graphStyles: JSON.stringify({ names: ['', 'Stripes', ''], styles: [null, second, null] }) }, EMERY_CLASSIC);
+  const { ctx, dom } = openSetup({ platform: 'emery', saved });
+  const first = graphOf(ctx.S);
+  const label = () => dom.find('[data-wiz-graph]').getAttribute('aria-label');
+  const secondGraph = () => GS.parse(ctx.S).styles[1];
+  walkTo(dom, 'forecastLook');
+  assert.equal(dom.picker().selected, 'stripes', 'the look of the graph the Default shows');
+  assert.equal(dom.picker('forecastHours').selected, '24', 'and its length');
+  assert.equal(label(), 'Forecast preview: Stripes, 24 h, on the Default screen');
+  dom.pick('forecastLook', 'classic');
+  assert.deepEqual([secondGraph().secondaryLine, secondGraph().thirdLine], ['precip_prob', 'off'],
+    'the pick lands in the graph the screen shows');
+  assert.equal(label(), 'Forecast preview: Classic, 24 h, on the Default screen');
+  dom.pick('forecastHours', '12');
+  assert.equal(secondGraph().forecastHours, '12', 'so does a length');
+  assert.equal(label(), 'Forecast preview: Classic, 12 h, on the Default screen');
+  assert.deepEqual(graphOf(ctx.S), first, 'the first graph, which no screen shows, is left as it was');
+  assert.equal(ctx.S.viewStyle0, '2');
+  // A screen that shows the first graph sets the first graph, as before.
+  const plain = openSetup({ platform: 'emery', saved: Object.assign({}, saved, { viewStyle0: '1' }) });
+  walkTo(plain.dom, 'forecastLook');
+  assert.equal(plain.dom.picker().selected, 'classic');
+  plain.dom.pick('forecastLook', 'stripes');
+  assert.equal(plain.ctx.S.secondaryLine, 'cloud');
+  assert.deepEqual(GS.parse(plain.ctx.S).styles[1], second, 'your second graph untouched');
 });
 
 test('a graph changed under setup: the look the picker marks keeps the length picked under it', () => {

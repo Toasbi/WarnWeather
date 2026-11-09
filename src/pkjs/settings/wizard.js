@@ -31,6 +31,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var M = node ? require('../screens.js') : window.Screens;
     var SP = node ? require('./screens-page.js') : window.ScreensPage;
     var VC = node ? require('../view-cycle.js') : VIEW_CYCLE;
+    // Your graphs (Pebble Time 2): the forecast step sets the one its picture draws.
+    var GS = node ? require('../graph-styles.js') : window.GraphStyles;
     var FINISH = node ? require('./wizard-finish.js') : window.WizardFinish;
     var UPSELL = node ? require('./wizard-upsell.js') : window.WizardUpsell;
     // The frame every screen picture sits in (the Watchface tab's too): the screen on its own ground.
@@ -127,12 +129,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // emery only (the forecast step draws it where env.forecastSpan): the long span named by
         // the hours it shows for the provider and the look.
         forecastHours: {
-            options: function () { return FORECAST.spanOptions(run.ctx.S, run.env); },
+            options: function () { return FORECAST.spanOptions(lookSettings(), run.env); },
             desc: function () {
                 var hints = FINISH.findItem(run.ctx.schema, 'forecastHours').hintByValue;
                 return Object.assign({}, hints, FORECAST.SPAN_DESC);
             },
-            selected: function () { return FORECAST.spanOf(run.ctx.S); },
+            selected: function () { return FORECAST.spanOf(lookSettings()); },
+            write: function (v) { writeGraph({ forecastHours: v }); },
             graph: true
         }
     };
@@ -282,12 +285,58 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // --- the forecast step ---
     /**
+     * Where the forecast step's picture is: the first screen holding the forecast graph (the
+     * Default, unless a screen of the user's own moved it).
+     * @returns {{cycle: Array<?Object>, list: Array<Array<Object>>, i: number}} The screens'
+     *   views and lists, and that screen's slot (-1 while no screen shows the forecast graph).
+     */
+    function forecastScreen() {
+        var cycle = VC.screensCycle(run.ctx.S, run.env), list = screens(cycle);
+        for (var i = 0; i < list.length; i += 1) {
+            if (M.idxOf(list[i], 'fc') >= 0) { return { cycle: cycle, list: list, i: i }; }
+        }
+        return { cycle: cycle, list: list, i: -1 };
+    }
+    /**
+     * The graph the forecast step sets: the one its picture draws. On the Pebble Time 2 that
+     * screen can show another of your graphs than the first (graph-styles.js); the step then
+     * reads and writes that one, so the picture and the watch follow a pick. Elsewhere, and with
+     * no screen showing the forecast graph, the first graph (the flat keys).
+     * @returns {number} A graph style index.
+     */
+    function lookStyle() {
+        var at = forecastScreen(), screen = at.i >= 0 ? at.list[at.i] : null;
+        var fc = screen ? screen[M.idxOf(screen, 'fc')] : null;
+        var k = fc && fc.style ? Number(fc.style) - 1 : 0;
+        return run.env.graphStyles && GS.exists(run.ctx.S, k) ? k : 0;
+    }
+    /**
+     * The settings as the forecast step's graph draws them (graph-styles.js settingsFor).
+     * @returns {Object}
+     */
+    function lookSettings() { return GS.settingsFor(run.ctx.S, lookStyle()); }
+    /**
+     * Write values of the forecast step's graph the way the settings page does: the first
+     * graph's through its own keys, as its controls write them (their hooks run), another
+     * graph's into its record, as the Graphs tab stores it.
+     * @param {Object<string, *>} values Graph setting -> value.
+     * @returns {void}
+     */
+    function writeGraph(values) {
+        var S = run.ctx.S, k = lookStyle();
+        if (!k) {
+            Object.keys(values).forEach(function (key) { run.ctx.setValue(key, values[key]); });
+            return;
+        }
+        run.ctx.setValue('graphStyles', GS.withStyle(S, k, Object.assign(GS.valuesOf(S, k), values)));
+    }
+    /**
      * The forecast looks for the settings now: their values follow the theme (the bars' colour it
      * starts on), so they are rebuilt when setup opens and when a theme is picked.
      * @returns {void}
      */
     function refreshLooks() {
-        var S = run.ctx.S;
+        var S = lookSettings();
         run.looks = FORECAST.looks(S, run.env, PConf.engine.themedDefaults(run.ctx.schema, S, run.env), run.own);
     }
     function lookById(id) {
@@ -295,19 +344,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return run.looks[0];
     }
     /**
-     * The look the settings draw now. Setup's own writes always leave one (a theme pick lays the look
+     * The look the graph draws now. Setup's own writes always leave one (a theme pick lays the look
      * on again), so the first record answers only a graph changed under it.
      * @returns {Object} The record.
      */
-    function currentLook() { return FORECAST.current(run.ctx.S, run.looks, run.env) || run.looks[0]; }
-    /**
-     * Write a look's values the way the settings page's controls do (their hooks run).
-     * @param {Object<string, *>} values messageKey -> value.
-     * @returns {void}
-     */
-    function writeLook(values) {
-        Object.keys(values).forEach(function (k) { run.ctx.setValue(k, values[k]); });
-    }
+    function currentLook() { return FORECAST.current(lookSettings(), run.looks, run.env) || run.looks[0]; }
     /**
      * Pick a look: its graph, and on emery, when it is another look than the one the picker marks
      * (currentLook), the length it starts on (its span). The look marked keeps a length picked
@@ -317,28 +358,27 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function pickLook(id) {
         var look = lookById(id), anew = currentLook().id !== look.id;
-        writeLook(look.values);
-        if (anew && run.env.forecastSpan) { run.ctx.setValue('forecastHours', look.span); }
+        writeGraph(anew && run.env.forecastSpan ? Object.assign({}, look.values, { forecastHours: look.span }) : look.values);
     }
     /**
      * Pick a theme: its conversion runs (the colours, and the bars' colour it starts on), "Your own"
      * converts along, and the look picked on the forecast step is laid on again if the conversion
-     * moved it off (Weathergraph's Solid bars back to Multicolor on a dark theme).
+     * moved it off (solid bars back to Multicolor on a dark theme).
      * @param {string} theme The theme picked.
      * @returns {void}
      */
     function pickTheme(theme) {
-        var S = run.ctx.S, before = run.looks ? currentLook().id : null, oldTheme = S.theme;
+        var before = run.looks ? currentLook().id : null, oldTheme = run.ctx.S.theme;
         run.ctx.setValue('theme', theme);
         if (!run.looks) { return; }
         if (run.own) { FORECAST.followTheme(run.own.values, oldTheme, theme); }
         refreshLooks();
         var look = lookById(before);
-        if (!FORECAST.same(S, look.values, run.env)) { writeLook(look.values); }
+        if (!FORECAST.same(lookSettings(), look.values, run.env)) { writeGraph(look.values); }
     }
     /**
      * The forecast look as its picker names it (the summary, the preview's label), and on emery
-     * the length as its picker names it: "Weathergraph, 66 h".
+     * the length as its picker names it: "Classic, 24 h".
      * @returns {string}
      */
     function forecastLabel() {
@@ -346,17 +386,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return run.env.forecastSpan ? look + ', ' + pickedLabel('forecastHours') : look;
     }
     /**
-     * The forecast step's picture: the first screen holding the forecast graph (the Default,
-     * unless a screen of the user's own moved it) as the watch draws it, the look applied; with no
-     * screen showing the forecast graph, the graph on its own.
+     * The forecast step's picture: the first screen holding the forecast graph (forecastScreen) as
+     * the watch draws it, the look applied; with no screen showing the forecast graph, the graph
+     * on its own.
      * @returns {{svg: string, label: string, onScreen: boolean}} Its SVG markup, its spoken name
      *   and whether it is a screen.
      */
     function forecastPicture() {
-        var cycle = VC.screensCycle(run.ctx.S, run.env), list = screens(cycle), i = -1;
-        for (var j = 0; j < list.length && i < 0; j += 1) { if (M.idxOf(list[j], 'fc') >= 0) { i = j; } }
+        var at = forecastScreen(), list = at.list, i = at.i;
         return {
-            svg: i >= 0 ? screenPic(run.ctx.S, i, 'wf' + i + '-', cycle).svg
+            svg: i >= 0 ? screenPic(run.ctx.S, i, 'wf' + i + '-', at.cycle).svg
                 : FORECAST.previewSvg(run.ctx.S, run.env, run.ctx.USERDATA),
             label: 'Forecast preview: ' + forecastLabel()
                 + (i >= 0 ? ', on the ' + SCREENS.nameOf(list[i], i, run.ctx.S) + ' screen' : ''),
@@ -386,7 +425,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * them unchanged redraws nothing.
      * @returns {string}
      */
-    function graphState() { return JSON.stringify(FORECAST.state(run.ctx.S, run.env)); }
+    function graphState() { return JSON.stringify(FORECAST.state(lookSettings(), run.env)); }
 
     // --- the picker ---
     function optsFor(group) { return PICKERS[group].options(); }
@@ -1115,7 +1154,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if (run.steps.indexOf('forecast') !== -1) {
             refreshLooks();
-            if (!FORECAST.current(ctx.S, run.looks, run.env)) {
+            if (!FORECAST.current(lookSettings(), run.looks, run.env)) {
                 if (fresh) {
                     // A fresh install's graph is the defaults, none of the looks on emery (the long
                     // span and the high and low on the graph, without the clouds' stripe): it starts
@@ -1123,7 +1162,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     pickLook(FORECAST.FIRST_RUN);
                 } else {
                     // A graph set up in Settings, none of the looks: kept as "Your own", first.
-                    run.own = FORECAST.state(ctx.S, run.env);
+                    run.own = FORECAST.state(lookSettings(), run.env);
                     refreshLooks();
                 }
             }
