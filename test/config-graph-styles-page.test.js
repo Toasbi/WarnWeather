@@ -27,6 +27,17 @@ const EMERY = platform.computeEnv({ platform: 'emery' });
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 
 /**
+ * Graph k's row on the Your graphs card (listRows).
+ * @param {Object} S Settings.
+ * @param {Object} env Platform env.
+ * @param {number} k A style index.
+ * @returns {Object}
+ */
+function row(S, env, k) {
+  return GSP.listRows(S, env).rows.filter((r) => r.k === k)[0];
+}
+
+/**
  * Custom-layout settings: one screen per entry, each a forecast-graph screen on that style
  * ('1' | '2' | '3').
  * @param {string[]} views One entry per screen.
@@ -109,6 +120,13 @@ test('onRender: a graph\'s dialog shows the picked style, anywhere else the firs
   assert.equal(GSP.graphShown(T, EMERY), false);
   assert.equal(GSP.graphShown(S, EMERY), true);
   assert.equal(GSP.graphShown(T, BASALT), true, 'a watch with one graph: its dialog always shows');
+  // The dialog and its gate read the pick alike: one that names no graph by its number is the
+  // first, which always exists.
+  ['0', '-1', 'x', ''].forEach((pick) => {
+    const P = Object.assign({}, TWO, { graphStylePick: pick });
+    assert.equal(GSP.pickIndex(P), 0, 'pick ' + JSON.stringify(pick));
+    assert.equal(GSP.graphShown(P, EMERY), true, 'pick ' + JSON.stringify(pick) + ': the first graph shows');
+  });
   // A watch without styles: nothing moves.
   const B = Object.assign({}, TWO, { graphStylePick: '2' });
   GSP.onRender({ S: B, env: BASALT, tab: 'graphs', pane: 'forecast', dialog: 'graph' });
@@ -118,14 +136,16 @@ test('onRender: a graph\'s dialog shows the picked style, anywhere else the firs
 
 test('the cards\' line: a graph\'s length and the screens it shows on', () => {
   // The cards' line: the length, then the screens.
-  assert.equal(GSP.cardLine(TWO, EMERY, 0), '24 h · Default');
-  assert.match(GSP.cardLine(TWO, EMERY, 1), /^\d+ h · Flick 1$/);
-  assert.notEqual(GSP.cardLine(TWO, EMERY, 1), '48 h · Flick 1', 'the long span by the hours it shows');
+  const line = (S, k) => row(S, EMERY, k).where;
+  assert.equal(line(TWO, 0), '24 h · Default');
+  assert.match(line(TWO, 1), /^\d+ h · Flick 1$/);
+  assert.notEqual(line(TWO, 1), '48 h · Flick 1', 'the long span by the hours it shows');
   const three = layout(['1', '2', '2'], { graphStyles: TWO.graphStyles, forecastHours: '24' });
-  assert.match(GSP.cardLine(three, EMERY, 1), /^\d+ h · Flick 1, Flick 2$/);
-  assert.match(GSP.cardLine(layout(['1'], { graphStyles: TWO.graphStyles }), EMERY, 1), /^\d+ h · No screen$/);
-  assert.deepEqual(GSP.screensOn(layout(['1', '3'], { graphStyles: TWO.graphStyles }), EMERY, 0), ['Default', 'Flick 1'],
+  assert.match(line(three, 1), /^\d+ h · Flick 1, Flick 2$/);
+  assert.match(line(layout(['1'], { graphStyles: TWO.graphStyles }), 1), /^\d+ h · No screen$/);
+  assert.equal(line(layout(['1', '3'], { graphStyles: TWO.graphStyles }), 0), '24 h · Default, Flick 1',
     'a screen on a style that does not exist draws the first');
+  assert.equal(row(TWO, BASALT, 0).where, '', 'one graph: no screens line');
 });
 
 test('the five-series limit: a pick that would make a sixth series is greyed out on a shown style only', () => {
@@ -288,18 +308,19 @@ test('a row\'s room: the graph\'s free lines, and on a graph the screens show no
   assert.equal(GS.linesDrawn(null), 4, 'an unknown watch reads as one that draws them all');
   const APLITE = platform.computeEnv({ platform: 'aplite' });
   assert.equal(GS.linesDrawn(APLITE), 2, 'aplite draws two lines');
-  assert.equal(GSP.roomText(layout(['1'], { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'uv' }), APLITE, 0),
+  const room = (S, env, k) => row(S, env, k).room;
+  assert.equal(room(layout(['1'], { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'uv' }), APLITE, 0),
     'Room for 1 more metric', 'a third line aplite does not draw leaves room in its two');
   // Graph 1 draws four metrics on the Default, Long the fifth on Flick 1.
   const four = layout(['1', '2'], { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust',
     graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' }) });
-  assert.equal(GSP.roomText(four, EMERY, 0), 'Full: 4 metrics', 'every line taken');
-  assert.equal(GSP.roomText(four, EMERY, 1), 'Full: the screens show 5 metrics', 'three lines free, the screens full');
-  assert.equal(GSP.roomText(Object.assign({}, four, { viewStyle1: '1' }), EMERY, 1), 'Room for 3 more metrics',
+  assert.equal(room(four, EMERY, 0), 'Full: 4 metrics', 'every line taken');
+  assert.equal(room(four, EMERY, 1), 'Full: the screens show 5 metrics', 'three lines free, the screens full');
+  assert.equal(room(Object.assign({}, four, { viewStyle1: '1' }), EMERY, 1), 'Room for 3 more metrics',
     'a graph no screen shows: its free lines');
   const three = Object.assign({}, four, { fifthLine: 'off' });
-  assert.equal(GSP.roomText(three, EMERY, 0), 'Room for 1 more metric');
-  assert.equal(GSP.roomText(three, EMERY, 1), 'Room for 1 more metric', 'the one the screens leave');
+  assert.equal(room(three, EMERY, 0), 'Room for 1 more metric');
+  assert.equal(room(three, EMERY, 1), 'Room for 1 more metric', 'the one the screens leave');
 });
 
 test('the page: a row opens its graph\'s dialog; its edits are that graph\'s, Done keeps them, × puts them back, Save stores them', async () => {
@@ -318,9 +339,13 @@ test('the page: a row opens its graph\'s dialog; its edits are that graph\'s, Do
   assert.ok(dlg.endsWith('</div></div></div></div><button type="button" class="ui-del" data-action="deleteGraphStyle">Delete Long'
     + '</button></div>'), 'Delete under the last card, by the graph\'s name');
   assert.equal(revert.hidden, true, 'opening a graph is no change');
+  const listBefore = rows(p.scroll.innerHTML);
+  assert.equal(listBefore.length, 2);
   p.tapSegment('forecastHours', '12', 'modal');
   assert.equal(p.S.forecastHours, '12');
   assert.equal(revert.hidden, false, 'an edit is');
+  assert.deepEqual(rows(p.scroll.innerHTML), listBefore,
+    'the list the dialog covers is not drawn again (no picture redrawn per tap); Done draws it afresh');
   p.asked.length = 0;
   p.doneDialog();
   assert.equal(p.modal.innerHTML, '', 'Done closes it');

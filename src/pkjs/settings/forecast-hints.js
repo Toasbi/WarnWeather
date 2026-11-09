@@ -474,9 +474,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     PConf.hintResolvers.register('lineFromHint', lineFromHint);
 
-    // The two picker vocabularies, for the Graphs tab's line summaries (blocks.js
-    // lineSummary, resetAllGraphColors), which load after this file.
-    PConf.forecastLineOptions = {metrics: FORECAST_METRICS, styles: LINE_STYLE_OPTIONS};
+    // The line styles' picker vocabulary, for the Graphs tab's line summaries (blocks.js
+    // lineSummary), which load after this file; the metrics' is forecast-metrics.js.
+    PConf.forecastLineOptions = {styles: LINE_STYLE_OPTIONS};
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {

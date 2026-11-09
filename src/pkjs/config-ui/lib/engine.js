@@ -2687,14 +2687,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var activeTab = initialTab(SCHEMA, S);
     // The one sheet open in the shared <dialog id="modal">, or null. An opener sets it
     // whole, so two sheets can never be open at once:
-    // - {kind: 'select', key, focusBack, focusSel, onClose}: a select/searchSelect's options
-    //   (key: its messageKey). openSheet() sets focusBack false unless it is given the page's
-    //   own trigger (focusSel), since the wizard's lives in its overlay, and an onClose to run
-    //   after any close.
+    // - {kind: 'select', key, close}: a select/searchSelect's options (key: its messageKey).
     // - {kind: 'date', key}: a date's wheels.
-    // - {kind: 'edit', key, focusBack, focusSel, onClose}: a sheetOnly section (key: its
-    //   sheetId); the close options as ctx.openDialog sets them, kept across its nested dialogs
-    //   (stackSheet).
+    // - {kind: 'edit', key, close}: a sheetOnly section (key: its sheetId). Its nested dialogs
+    //   share its close record, so it holds however the stack closes.
+    // close (optional): {onClose, focusTo} — onClose runs after any close; focusTo is where the
+    //   focus goes then: absent, the trigger that opened the sheet (closeModal); null, nowhere
+    //   (the wizard's trigger lives in its overlay, the screen editor keeps its own); a
+    //   selector, the page's own trigger (a graph's row, New graph). ctx.openSheet and
+    //   ctx.openDialog set it.
     // - {kind: 'confirm', confirm}: the Save button's dialog while a row needs attention
     //   (requestSave; confirm: {title, body, actionLabel, confirmLabel, tab, sheet}).
     var sheet = null;
@@ -2906,8 +2907,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * had expanded, which would otherwise come back expanded on reopen; a palette expanded
      * in the tab body stays, untouched by a select or date sheet closing over its card. The
      * page repaints, focus returns to the fresh trigger rendered in the old one's place (Save,
-     * for the Save dialog) unless the sheet's focusBack is false or the caller asks for none,
-     * and the sheet's onClose runs. A tab switch closes a sheet the same way (switchTab), but
+     * for the Save dialog) unless the sheet's close record sends it elsewhere (focusTo) or the
+     * caller asks for none, and the record's onClose runs. A tab switch closes a sheet the same way (switchTab), but
      * places no focus.
      * @param {boolean} [noFocus] Place no focus ("Save anyway": the page is leaving).
      * @returns {void}
@@ -2939,15 +2940,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       render();
       if (!closing) { return; }
       // By key, never a node captured at open time: render() replaced the old trigger.
-      var selector = (noFocus || closing.focusBack === false) ? null
-        : closing.focusSel ? closing.focusSel
+      var close = closing.close || {};
+      var selector = (noFocus || close.focusTo === null) ? null
+        : close.focusTo ? close.focusTo
         : closing.kind === 'confirm' ? (closing.confirm && closing.confirm.revert ? '#revert' : '#save')
         : '[' + TRIGGER_ATTR[closing.kind] + '="' + (rootKey || closing.key) + '"]';
       var trigger = !selector ? null
         : (document.querySelectorAll && pickTrigger(document.querySelectorAll(selector), Boolean(closing.fromPin)))
           || document.querySelector(selector);
       if (trigger) { trigger.focus(); }
-      if (closing.onClose) { closing.onClose(); }
+      if (close.onClose) { close.onClose(); }
     }
     /**
      * Put every setting back as the snapshot holds it, IN PLACE: S is shared by
@@ -2991,26 +2993,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       return tabLabel(activeTab);
     }
     /**
-     * The sheet of a dialog on the open stack, nested or stepped back to: it keeps the stack's
-     * close options (onClose, focusBack, focusSel: ctx.openDialog), which apply however the
-     * stack closes.
-     * @param {string} id The dialog's sheetId.
-     * @returns {Object} The sheet.
-     */
-    function stackSheet(id) {
-      var was = sheetIs('edit') ? sheet : {};
-      return { kind: 'edit', key: id, onClose: was.onClose || null, focusBack: was.focusBack, focusSel: was.focusSel || null };
-    }
-    /**
      * Open a full-screen dialog (a sheetOnly section). From a tab it becomes the root,
      * snapshotting the settings for its ×; from inside a dialog it stacks on top (its ‹
      * steps back, keeping what was changed), remembering where the parent was scrolled.
      * @param {string} id The sheetId.
      * @param {string} kicker Where it was opened from.
      * @param {boolean} nested Opened from inside the dialog on screen.
+     * @param {?{onClose: ?function(), focusTo: (?string|undefined)}} [close] A root's close
+     *   record (the sheet model), in place before its first render; a nested one shares its
+     *   root's.
      * @returns {void}
      */
-    function openDialog(id, kicker, nested) {
+    function openDialog(id, kicker, nested, close) {
       dateWiring.flushPending();
       // The dialog opens with nothing expanded. A palette left open in the tab body would
       // otherwise count as the dialog's own (it closes with it anyway, see closeModal):
@@ -3026,7 +3020,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       } else {
         editStack = [{ id: id, kicker: kicker, snap: Object.assign({}, S) }];
       }
-      sheet = stacked ? stackSheet(id) : { kind: 'edit', key: id };
+      sheet = { kind: 'edit', key: id, close: stacked ? sheet.close : close };
       nextEditScroll = 0;
       render();
       focusInModal(['.dlg-x']);
@@ -3043,7 +3037,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       expanded = null;
       renaming = null;
       var top = editStack[editStack.length - 1];
-      sheet = stackSheet(top.id);
+      sheet = { kind: 'edit', key: top.id, close: sheet.close };
       nextEditScroll = top.scrollTop || 0;
       render();
       focusInModal(left ? ['[data-edit-sheet="' + left.id + '"]', '.dlg-x'] : ['.dlg-x']);
@@ -3175,8 +3169,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         : editShown ? renderEditModal(SCHEMA, Object.assign({}, cx, { openInline: expanded }))
         : renderSelectModal(SCHEMA, cx);
       // A dialog whose section no longer shows (a status bar's, once Delete status bar took the bar)
-      // has nothing to show: it closes, as Done would, and render() runs again without it.
-      if (editShown && !modalHtml) { closeModal(true); return; }
+      // has nothing to show: it closes, as Done would, and render() runs again without it. The row
+      // that opened it went with what it showed, so focus goes to the Undo its Delete left
+      // (ui.js undoToast), if one shows, unless the dialog places none (focusTo null: one
+      // opened over the screen editor, which keeps focus).
+      if (editShown && !modalHtml) {
+        var gone = sheet.close || {};
+        closeModal(true);
+        var undo = (gone.focusTo !== null && document.querySelector) ? document.querySelector('#scroll .ui-undo') : null;
+        if (undo && undo.focus) { undo.focus(); }
+        return;
+      }
       // An open list lives only while its row renders live. A row hidden by its showWhen
       // or muted by its disabledWhen (one tap away, in the same sheet) draws no list, and
       // a key left open would keep .picking on, the scroll nudge hunting, and Escape's
@@ -3323,7 +3326,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       render();
       if (switching) { scroll.scrollTop = tabScroll[activeTab] || 0; }
       if (switching || !(closing && closing.kind === 'confirm')) { revealActiveTab(); }
-      if (closing && closing.onClose) { closing.onClose(); }
+      if (closing && closing.close && closing.close.onClose) { closing.close.onClose(); }
     }
     /**
      * A tab bar wider than the screen scrolls sideways with its scrollbar hidden, so a
@@ -4075,8 +4078,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // graph), else to nothing on the page (the wizard's trigger lives in its overlay).
       openSheet: function (key, onClose, focusSel) {
         dateWiring.flushPending();
-        sheet = { kind: 'select', key: key, focusBack: Boolean(focusSel), focusSel: focusSel || null,
-          onClose: onClose || null };
+        sheet = { kind: 'select', key: key, close: { onClose: onClose || null, focusTo: focusSel || null } };
         selectQuery = '';
         render(); focusModal();
       },
@@ -4089,11 +4091,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       openDialog: function (id, opts) {
         var o = opts || {};
         renaming = o.rename ? id : null;
-        openDialog(id, o.kicker || tabLabel(activeTab), false);
+        openDialog(id, o.kicker || tabLabel(activeTab), false,
+          { onClose: o.onClose || null, focusTo: o.overlay ? null : (o.focusBack || undefined) });
         if (!sheetIs('edit')) { return; }
-        sheet.onClose = o.onClose || null;
-        sheet.focusSel = o.focusBack || null;
-        if (o.overlay) { sheet.focusBack = false; }
         if (renaming) {
           var inp = document.getElementById('modal').querySelector('[data-dlg-rename-in]');
           if (inp && inp.focus) { inp.focus(); if (inp.select) { inp.select(); } }

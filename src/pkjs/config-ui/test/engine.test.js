@@ -3167,6 +3167,51 @@ test('boot(): ctx.openDialog: the render hook hears the root dialog, nested ones
   assert.deepEqual(focused, ['[data-action="newGraph"]']);
 });
 
+test('boot(): a dialog whose subject goes closes itself, the focus on the Undo its Delete left', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { items: [{ type: 'toggle', messageKey: 'alive', label: 'Alive', defaultValue: true }] },
+    { sheetOnly: true, sheetId: 'thing', title: 'Thing', showWhen: { when: 'alive' },
+      items: [{ type: 'toggle', messageKey: 'b', label: 'B', defaultValue: false }] }
+  ] }] };
+  const focused = [];
+  let undoShown = true;
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true,
+    docQuery: (sel) => ((sel !== '#scroll .ui-undo' || undoShown) ? { focus: () => { focused.push(sel); } } : null),
+    prelude: 'PConf.whenResolvers.register("alive", function (S) { return S.alive !== false; });' });
+  const tapDone = () => r.modalListeners.click({ target: { getAttribute: () => null,
+    closest: (q) => (q === '[data-dlg-done]' ? {} : null) } });
+  // Done: the focus goes back to the row that opened it.
+  r.page.openDialog('thing', { focusBack: '[data-action="row"]' });
+  r.setValue('b', true);
+  r.page.render();
+  assert.match(r.modal.innerHTML, /Thing/);
+  tapDone();
+  assert.deepEqual(focused, ['[data-action="row"]']);
+  // Its subject gone (a Delete in it): it closes and the focus goes to the Undo the Delete left.
+  focused.length = 0;
+  r.page.openDialog('thing', { focusBack: '[data-action="row"]' });
+  r.setValue('alive', false);
+  r.page.render();
+  assert.equal(r.modal.innerHTML, '', 'the dialog closed itself');
+  assert.deepEqual(focused, ['#scroll .ui-undo'], 'not the row that took the gone one\'s place');
+  // No Undo showing: focus goes nowhere. A dialog over the screen editor places none at all.
+  [{ focusBack: '[data-action="row"]' }, { overlay: true }].forEach((o, n) => {
+    focused.length = 0;
+    undoShown = n === 1;
+    r.setValue('alive', true);
+    r.page.openDialog('thing', o);
+    r.setValue('alive', false);
+    r.page.render();
+    assert.equal(r.modal.innerHTML, '');
+    assert.deepEqual(focused, [], n ? 'the overlay keeps the focus' : 'no Undo, no focus');
+  });
+  // One gone before it shows closes on its first render, and its onClose still runs.
+  let closed = 0;
+  r.page.openDialog('thing', { onClose: () => { closed++; } });
+  assert.equal(r.modal.innerHTML, '');
+  assert.equal(closed, 1, 'the close options are in place before the first render');
+});
+
 test('boot(): Save and Revert compare the normalized settings, and Save stores them', async () => {
   const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
     { type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'a', options: [['A', 'a'], ['B', 'b']] },

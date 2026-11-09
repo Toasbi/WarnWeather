@@ -503,5 +503,5 @@ test('the names everywhere: the pinned watch\'s captions, the delete toast and t
   assert.ok(page.scroll.innerHTML.indexOf('Rain deleted.') !== -1);
   // The Graphs tab names the screens a graph shows on by their names.
   const S = withScreens(EMERY, [M.screensOf(fresh(EMERY), EMERY)[0]], { viewName0: 'Home' });
-  assert.deepEqual(GSP.screensOn(S, EMERY, 0), ['Home']);
+  assert.match(GSP.listRows(S, EMERY).rows[0].where, / · Home$/);
 });

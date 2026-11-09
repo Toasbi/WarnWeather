@@ -525,7 +525,8 @@ stacks on top with ‹ instead of ×, stepping back to its parent and keeping it
 steps back like Done. The section's `pinBlock` stays pinned under the header; its items render
 as cards like a tab's. Edits only reach the watch with the main Save. Select pickers, the date
 wheel and the Save confirm stay bottom sheets. A dialog whose section renders nothing (its
-`showWhen` turned false, e.g. after a Delete inside it) closes itself.
+`showWhen` turned false, e.g. after a Delete inside it) closes itself, and the focus goes to the
+Undo the Delete left in the tab body (`kit.undoToast`), if one shows.
 
 A section with `rename` titles its dialog by a setting (`titleBy`) and lets the title rename
 it: the pencil opens a text field in the title's place and an OK button in Done's; OK, Enter or

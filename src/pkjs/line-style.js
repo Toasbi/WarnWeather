@@ -143,8 +143,9 @@
     // --- The graph-colour key vocabulary: 'gc' + slug + role + polarity ---------
     // Concrete per-polarity values, no "auto" sentinel. ADR-0003 §1-§2.
 
-    // Main/second-line metrics, in the order the settings page lists them
-    // (forecast-hints.js' FORECAST_METRICS).
+    // The graph metrics, the colour keys' scopes. The settings page names and orders them
+    // (settings/forecast-metrics.js, the same eight: test/line-style.test.js); no reader
+    // depends on this order.
     var GRAPH_METRICS = ['precip_prob', 'cloud', 'wind', 'uv', 'gust', 'pressure', 'feels', 'dew'];
     // Metric id -> the CamelCase key fragment. The ids are snake_case wire values and
     // would make unreadable key names ('gcPrecip_probLineDark').
@@ -790,18 +791,34 @@
             fourth: resolved(settings.fourthLine, 'Line'),
             fifth: resolved(settings.fifthLine, 'Line'),
             night: resolveNightColors(settings, cx, secMetric),
-            // THE authoritative gate on feels/dew never filling (ADR-0003 §6) — the config
-            // UI also hides and clears the toggle, but a blob stored before that landed, or
-            // any future caller, still cannot turn it on. A stripe-styled main line has
-            // no curve to fill below, so it never fills either.
-            fillOn: Boolean(settings.secondaryLineFill) && !isTempAxisMetric(secMetric)
-                && !(caps.lineStyles !== false && isStripeStyle(settings, 'secondaryLineStyle'))
+            fillOn: mainLineFills(settings, caps)
         };
+    }
+
+    /**
+     * Whether the Main metric's line fills the area under it: THE authoritative gate on
+     * feels/dew never filling (ADR-0003 §6) — the config UI also hides and clears the toggle,
+     * but a blob stored before that landed, or any future caller, still cannot turn it on. A
+     * stripe-styled main line has no curve to fill below, so it never fills either (only an
+     * explicit lineStyles false, aplite, ignores the stored style). The fill flag the wire
+     * packs (resolveGraphColors) and the words the settings page describes a graph with
+     * (settings/wizard-forecast.js) both read it.
+     * @param {Object} settings Clay settings (secondaryLine, secondaryLineFill,
+     *   secondaryLineStyle).
+     * @param {?{lineStyles: boolean}} caps computeEnv() facts; none reads as a watch that
+     *   draws the styles.
+     * @returns {boolean}
+     */
+    function mainLineFills(settings, caps) {
+        var styled = !(caps && caps.lineStyles === false);
+        return Boolean(settings.secondaryLineFill) && !isTempAxisMetric(settings.secondaryLine)
+            && !(styled && isStripeStyle(settings, 'secondaryLineStyle'));
     }
 
     var api = {
         renderContextFor: renderContextFor,
         resolveGraphColors: resolveGraphColors,
+        mainLineFills: mainLineFills,
         GRAPH_METRICS: GRAPH_METRICS,
         METRIC_SLUG: METRIC_SLUG,
         METRIC_ROLES: METRIC_ROLES,

@@ -2207,7 +2207,7 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
     + ' which status bars show it, on the left or the right.'
     + '<p class="intro-more">The warn level works on the graph too. Set the Visible values of a wind, gust or UV'
     + ' line to Alert (<button type="button" class="txt-link" data-goto-tab="graphs" data-goto-pane="forecast">'
-    + 'Graphs › Forecast</button>), and the line shows only in the hours that reach the warn level.</p>');
+    + 'Graphs › Forecast › a graph</button>), and the line shows only in the hours that reach the warn level.</p>');
   assert.equal(sec.intro.indexOf('data-action'), -1, 'no inline reset in the intro any more');
   const ctx = (p) => ({ env: platform.computeEnv({ platform: p }) });
   const rowsSec = onDemandItemsSection();

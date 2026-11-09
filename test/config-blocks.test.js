@@ -331,6 +331,24 @@ test('colorNoteHint adds the note for how the page draws to the row\'s hint', ()
   assert.equal(hint({ theme: 'dark' }, { color: true }, { colorNote: 'In color.' }), null, 'a value with no hint');
 });
 
+test('lineSummary names a line\'s metric by the one metric table, its style by its picker', () => {
+  const summary = PConf.hintResolvers.get('lineSummary');
+  const metrics = require('../src/pkjs/settings/forecast-metrics.js');
+  const styled = { lineStyles: true };
+  const main = { lineKey: 'secondaryLine', main: true };
+  assert.equal(summary({ secondaryLine: 'precip_prob', secondaryLineStyle: 'line', secondaryLineFill: true }, styled, main),
+    'Precipitation % · Thin line, filled');
+  assert.equal(summary({ secondaryLine: 'feels', secondaryLineStyle: 'line', secondaryLineFill: true }, styled, main),
+    'Feels-like temperature · Thin line', 'feels-like never fills');
+  metrics.METRICS.forEach((m) => {
+    assert.equal(summary({ thirdLine: m.id, thirdLineStyle: 'dots' }, styled, { lineKey: 'thirdLine' }),
+      m.label + ' · Square dots', m.id);
+    assert.equal(summary({ thirdLine: m.id }, { lineStyles: false }, { lineKey: 'thirdLine' }), m.label,
+      m.id + ': the metric alone where the watch draws no styles');
+  });
+  assert.equal(summary({ thirdLine: 'off' }, styled, { lineKey: 'thirdLine' }), 'Off');
+});
+
 // The Alert settings card's rows read an item's placement (on-demand.js placedAnywhere): a
 // partial settings blob reads the default ticks, so an empty right list unplaces UV.
 const UNPLACED = { statusTopOnDemandRightItems: '' };

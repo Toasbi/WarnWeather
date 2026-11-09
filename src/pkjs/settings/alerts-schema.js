@@ -673,13 +673,14 @@ function onDemandCardItems() {
 // (each item's sheet opens on its Shows on grid), with the card's reset (the items'
 // settings and where each shows; blocks.js resetOnDemand). Its second paragraph (the
 // owner, 2026-10-04) carries the warn level onto the graph: a wind, gust or UV line's
-// Visible values: Alert (forecast-lines-schema.js), set in the Graphs tab's metric dialogs.
+// Visible values: Alert (forecast-lines-schema.js), set in a graph's metric dialogs (Graphs ›
+// Forecast lists the graphs; a tap opens one).
 var ON_DEMAND_INTRO = 'An alert shows at the edge of a status bar only when it reaches its warn level or is '
     + 'active right now. The rest of the time it stays hidden. For example, the battery is low, Bluetooth is '
     + 'disconnected, rain is coming, or the UV or wind forecast reaches its warn level. Open an alert to choose '
     + 'which status bars show it, on the left or the right.'
     + '<p class="intro-more">The warn level works on the graph too. Set the Visible values of a wind, gust or UV '
-    + 'line to Alert (' + tabLink('graphs', 'Graphs › Forecast', 'forecast') + '), and the line shows only in the '
+    + 'line to Alert (' + tabLink('graphs', 'Graphs › Forecast › a graph', 'forecast') + '), and the line shows only in the '
     + 'hours that reach the warn level.</p>';
 /**
  * The Alerts tab's cards: About alerts (the intro behind its '?', the card's reset — the

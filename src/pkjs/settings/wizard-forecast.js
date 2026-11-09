@@ -133,51 +133,52 @@
             short: [' as a stripe at the bottom', ' as stripes at the bottom'] }
     ];
 
+    // The two ways the words name a look: setup's sentence (describe) names the temperature
+    // first and puts "the" before a metric; the template pickers' short line (summary) leaves
+    // both out and says less.
+    var SENTENCE = { seed: ['the temperature'], article: 'the ', form: 'long', barsTop: ' that hang from the top' };
+    var SHORT = { seed: null, article: '', form: 'short', barsTop: ' from the top' };
+
     /**
      * How a line of a look draws on this watch (HOW's ids), as the watch reads it: its style
      * (line-style.js lineStyleValue: a stripe on a metric that can't be one draws as a line),
-     * a thin line on a watch without line styles, and the Main metric's fill as a shaded area
-     * (feels-like and dew point never fill: resolveGraphColors).
+     * a thin line on a watch without line styles, and the Main metric's line as a shaded area
+     * where the watch fills it (line-style.js mainLineFills).
      * @param {Object<string, *>} over A look's values.
      * @param {{key: string, styleKey: string}} line A line (line-style.js FORECAST_LINES).
-     * @param {string} metric The metric it draws.
-     * @param {boolean} styled Whether the watch draws the line styles.
+     * @param {?Object} env Platform env.
      * @returns {string}
      */
-    function howOf(over, line, metric, styled) {
-        var style = styled ? lineStyle.lineStyleValue(over, line.styleKey) : 'line';
+    function howOf(over, line, env) {
+        var style = drawFrom.capable(env) ? lineStyle.lineStyleValue(over, line.styleKey) : 'line';
         var how = style === 'bold' ? 'line' : style;
-        var fills = line.key === 'secondaryLine' && Boolean(over[FILL]) && !lineStyle.isTempAxisMetric(metric);
-        return how === 'line' && fills ? 'area' : how;
+        return how === 'line' && line.key === 'secondaryLine' && lineStyle.mainLineFills(over, env) ? 'area' : how;
     }
 
     /**
-     * What a look draws on this watch, as the words name it: its lines by how they draw (HOW),
-     * then its rain bars. The sentence names the temperature first and puts "the" before a
-     * metric; the short line leaves both out. A line draws its effective metric (line-style.js
-     * effectiveLineMetric), and a watch without line styles draws the first two lines only.
+     * What a look draws on this watch, in these words (SENTENCE or SHORT): the series its lines
+     * draw (graph-styles.js seriesOf: each line's effective metric, the lines the watch draws)
+     * grouped by how they draw (HOW), then its rain bars.
      * @param {Object<string, *>} over A look's values.
      * @param {?Object} env Platform env.
-     * @param {boolean} short The short line's words.
+     * @param {Object} words SENTENCE or SHORT.
      * @returns {string[]} One phrase per way of drawing, then the bars'.
      */
-    function drawnPhrases(over, env, short) {
-        var styled = drawFrom.capable(env), groups = short ? {} : { line: ['the temperature'] };
-        lineStyle.FORECAST_LINES.forEach(function (line, i) {
-            var metric = lineStyle.effectiveLineMetric(over, line.key);
-            if (!metric || (i >= 2 && !styled)) { return; }
-            var how = howOf(over, line, metric, styled);
-            (groups[how] = groups[how] || []).push((short ? '' : 'the ') + metrics.words(metric));
+    function drawnPhrases(over, env, words) {
+        var groups = words.seed ? { line: words.seed.slice() } : {};
+        graphStyles.seriesOf(over, env).forEach(function (series, i) {
+            if (!series) { return; }
+            var how = howOf(over, lineStyle.FORECAST_LINES[i], env);
+            (groups[how] = groups[how] || []).push(words.article + metrics.words(series.metric));
         });
         var out = [];
         HOW.forEach(function (h) {
             var names = groups[h.id];
-            if (names) { out.push(html.andList(names) + ((short && h.short) || h.long)[names.length > 1 ? 1 : 0]); }
+            if (names) { out.push(html.andList(names) + (h[words.form] || h.long)[names.length > 1 ? 1 : 0]); }
         });
         if (over[BARS] === 'rain') {
-            var top = drawFrom.barsFromTop(over, 'rain', env);
             out.push((over[BAR_COLOR] === 'white' && env && env.color ? 'solid ' : '') + 'rain bars'
-                + (top ? (short ? ' from the top' : ' that hang from the top') : ''));
+                + (drawFrom.barsFromTop(over, 'rain', env) ? words.barsTop : ''));
         }
         return out;
     }
@@ -203,7 +204,7 @@
     function describe(id, env) {
         var look = lookOf(id);
         if (!look) { return 'Keeps your graph as it is now.'; }
-        var phrases = drawnPhrases(look.over, env, false);
+        var phrases = drawnPhrases(look.over, env, SENTENCE);
         // The last phrase after ", and": the sentence's own rhythm, as setup has always said it.
         var list = phrases.length < 2 ? phrases.join('')
             : phrases.slice(0, -1).join(', ') + ', and ' + phrases[phrases.length - 1];
@@ -241,7 +242,7 @@
     function summary(id, env) {
         var look = lookOf(id);
         if (!look) { return ''; }
-        return html.capitalize(drawnPhrases(look.over, env, true).join(', '));
+        return html.capitalize(drawnPhrases(look.over, env, SHORT).join(', '));
     }
 
     // The preview's frame height in viewBox units: the tallest legend's (two rows: the

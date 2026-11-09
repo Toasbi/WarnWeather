@@ -552,7 +552,7 @@ const ON_DEMAND_INTRO = 'An alert shows at the edge of a status bar only when it
   + ' rain is coming, or the UV or wind forecast reaches its warn level. Open an alert to choose which status bars'
   + ' show it, on the left or the right.<p class="intro-more">The warn level works on the graph too. Set the Visible'
   + ' values of a wind, gust or UV line to Alert (<button type="button" class="txt-link"'
-  + ' data-goto-tab="graphs" data-goto-pane="forecast">Graphs › Forecast</button>), and the line shows only in the'
+  + ' data-goto-tab="graphs" data-goto-pane="forecast">Graphs › Forecast › a graph</button>), and the line shows only in the'
   + ' hours that reach the warn level.</p>';
 
 test('the Alerts tab sits between Status bars and Graphs: About alerts, then the System info and Weather alerts cards', () => {
@@ -584,8 +584,9 @@ test('the Alerts tab sits between Status bars and Graphs: About alerts, then the
   });
 });
 
-// The intro's Graphs › Forecast link opens the Graphs tab on its Forecast pane, where the
-// metric dialogs hold Visible values, even when the tab showed another pane last.
+// The intro's Graphs › Forecast › a graph link opens the Graphs tab on its Forecast pane, the
+// list of graphs whose metric dialogs hold Visible values, even when the tab showed another pane
+// last.
 test('the intro\'s graph link opens Graphs on its Forecast pane, whichever pane showed last', () => {
   const page = onTab('graphs');
   page.clickPane('graphs', 'radar');

@@ -1170,13 +1170,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * The forecast graph's Add chips while there are several graphs (the owner's ask,
      * 2026-11-09: a chip per graph): each graph by its name, greyed out (off) where screen i
      * drawing it would make the screens show more metrics than the watch can
-     * (graph-styles-page.js screenOverflows, as Add a screen reads a preset's graph). null with
-     * one graph: the Forecast graph chip stands.
+     * (graph-styles-page.js screenOverflows, as Add a screen reads a preset's graph), with the
+     * settings that would make (W: a tap on it says why, addTap). null with one graph: the
+     * Forecast graph chip stands.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} i View slot.
      * @param {Array<Object>} list The screen (it has no forecast graph).
-     * @returns {?Array<{se: string, k: string, g: number, label: string, off: boolean}>}
+     * @returns {?Array<{se: string, k: string, g: number, label: string, off: boolean, W: Object}>}
      */
     function graphOffers(S, env, i, list) {
         if (!manyGraphs(S, env)) { return null; }
@@ -1185,9 +1186,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var W = Object.assign({}, N);
             ensureCustom(W, env);
             putScreen(W, i, withGraph(list, g));
-            var off = GSP.screenOverflows(W, env, i, g);
-            return { se: 'add', k: 'fc', g: g, label: GS.name(N, g), off: off,
-                why: off ? GSP.limitDesc(W, env, g, GS.name(N, g)) : '' };
+            return { se: 'add', k: 'fc', g: g, label: GS.name(N, g), off: GSP.screenOverflows(W, env, i, g), W: W };
         });
     }
 
@@ -1222,7 +1221,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {?Object} env Platform env.
      * @param {number} i View slot.
      * @param {Array<Object>} list The screen.
-     * @returns {Array<{se: string, label: string, off: boolean, k: (string|undefined), g: (number|undefined)}>}
+     * @returns {Array<{se: string, label: string, off: boolean, k: (string|undefined), g: (number|undefined),
+     *   W: (Object|undefined)}>} W: a graph chip's settings with it added (graphOffers)
      */
     function addOffers(S, env, i, list) {
         var out = [];
@@ -1242,19 +1242,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * The Add groups under the rows (ADD_GROUPS), each with its caption over a chip per offer
      * (addOffers). A greyed-out graph's chip still takes a tap, which says why (addTap): the
      * owner's, 2026-11-09, the Graphs tab explains the limit in full.
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
      * @param {Array<Object>} offers What the groups offer.
      * @returns {string} HTML ('' when they offer nothing)
      */
-    function addRowHtml(S, env, offers) {
+    function addRowHtml(offers) {
         var groups = ADD_GROUPS.map(function (grp) {
             var mine = offers.filter(function (o) { return addGroupOf(o) === grp.id; });
             if (!mine.length) { return ''; }
             var cap = grp.capOf ? grp.capOf(mine) : grp.cap;
             var chips = mine.map(function (o) {
-                return kit.chip(o.label, { 'data-se': o.se, 'data-k': o.k, 'data-g': o.g, 'aria-disabled': o.off ? 'true' : undefined },
-                    { icon: 'plus', dim: o.off });
+                return kit.chip(o.label, { 'data-se': o.se, 'data-k': o.k, 'data-g': o.g }, { icon: 'plus', dim: o.off });
             }).join('');
             return '<div class="se-add" role="group" aria-labelledby="seAdd-' + grp.id + '"><span class="ui-cap" id="seAdd-'
                 + grp.id + '">' + esc(cap) + '</span><div class="ui-chips">' + chips + '</div></div>';
@@ -1284,7 +1281,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '</span></div><div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
             + list.map(function (b, j) { return rowHtml(list, j, S, env); }).join('') + '</div>'
             + (movable > 1 ? '<div class="ui-foot se-hint">' + esc(ROWS_HINT) + '</div>' : '')
-            + addRowHtml(S, env, addOffers(S, env, i, list))
+            + addRowHtml(addOffers(S, env, i, list))
             + '</div>'
             + (i > 0 ? kit.deleteButton('Delete screen', { 'data-se': 'delscreen' }) : '');
     }
@@ -1500,7 +1497,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return o.se === se && (o.k || null) === k && (o.g === undefined ? null : String(o.g)) === g;
         })[0];
         if (!hit) { return; }
-        if (hit.off) { editorToast(hit.why, 5000); return; }
+        if (hit.off) { editorToast(GSP.limitDesc(hit.W, env, hit.g, hit.label), 5000); return; }
         if (se === 'newbar') { newBarHere(S, env, list); return; }
         commit(hit.g === undefined ? M.add(list, k) : withGraph(list, hit.g));
     }

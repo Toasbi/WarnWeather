@@ -328,7 +328,7 @@
      * @returns {number}
      */
     function linesDrawn(env) {
-        return !env || env.lineStyles !== false ? TRENDS : 2;
+        return drawFrom.capable(env) ? TRENDS : 2;
     }
 
     /**

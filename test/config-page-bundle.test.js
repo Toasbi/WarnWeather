@@ -119,9 +119,9 @@ test('the screen pictures\' frame reaches the page ahead of the watch preview an
   assert.ok(page().indexOf('window.ScreenFrame = api') !== -1, 'nothing assigns window.ScreenFrame');
 });
 
-// The metrics' names (forecast-metrics.js) are bound while graph-styles-page.js, forecast-hints.js and
-// wizard-forecast.js run: out of order, the metric pickers and the graph rows lose their names on
-// a real phone while Node (require()) passes.
+// The metrics' names (forecast-metrics.js) are bound while graph-styles-page.js, forecast-hints.js,
+// blocks.js and wizard-forecast.js run: out of order, the metric pickers, the line summaries and
+// the graph rows lose their names on a real phone while Node (require()) passes.
 test('the metrics\' names reach the page ahead of the modules that bind them', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
@@ -129,7 +129,8 @@ test('the metrics\' names reach the page ahead of the modules that bind them', (
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  ['settings/graph-styles-page.js', 'settings/forecast-hints.js', 'settings/wizard-forecast.js'].forEach((reader) =>
+  ['settings/graph-styles-page.js', 'settings/forecast-hints.js', 'settings/blocks.js', 'settings/wizard-forecast.js']
+    .forEach((reader) =>
     assert.ok(idx('settings/forecast-metrics.js') < idx(reader), 'forecast-metrics.js must precede ' + reader));
   assert.ok(page().indexOf('window.ForecastMetrics = api') !== -1, 'nothing assigns window.ForecastMetrics');
 });

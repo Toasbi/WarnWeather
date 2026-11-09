@@ -118,22 +118,14 @@ function sheetOf(keyStem, title, items) {
 }
 
 // The nine rows of the Graph colors dialog, each opening its own sheet. The eight metrics
-// come first, labelled and ordered exactly like the Main/Second metric pickers offer
-// them (forecast-hints.js' FORECAST_METRICS — a user reads the two lists together), then
-// the full-height night band. `scope` is line-style.js' vocabulary: a metric id or 'night'.
+// come first, labelled and ordered exactly like the metric pickers offer them
+// (forecast-metrics.js, their one table — a user reads the two lists together), then the
+// full-height night band. `scope` is line-style.js' vocabulary: a metric id or 'night'.
 // A row is NOT gated on the metric being selected — its colours are configurable before
 // it is picked, and the feels row simply has fewer pickers in its sheet.
-var GRAPH_COLOR_ROWS = [
-    {scope: 'precip_prob', sheetId: 'gcPrecip', label: 'Precipitation %'},
-    {scope: 'cloud', sheetId: 'gcCloud', label: 'Cloud cover %'},
-    {scope: 'wind', sheetId: 'gcWind', label: 'Wind speed'},
-    {scope: 'gust', sheetId: 'gcGust', label: 'Wind gusts'},
-    {scope: 'uv', sheetId: 'gcUv', label: 'UV Index'},
-    {scope: 'pressure', sheetId: 'gcPressure', label: 'Air pressure (hPa)'},
-    {scope: 'feels', sheetId: 'gcFeels', label: 'Feels-like temperature'},
-    {scope: 'dew', sheetId: 'gcDew', label: 'Dew point'},
-    {scope: 'night', sheetId: 'gcNight', label: 'Night shading'}
-];
+var GRAPH_COLOR_ROWS = require('./forecast-metrics.js').METRICS.map(function (m) {
+    return {scope: m.id, sheetId: 'gc' + lineStyle.METRIC_SLUG[m.id], label: m.label};
+}).concat([{scope: 'night', sheetId: 'gcNight', label: 'Night shading'}]);
 // What each role is called and explained as inside a sheet. Keyed by line-style.js'
 // role names, so a role it stops handing out simply stops being rendered.
 var GRAPH_ROLE_LABELS = {

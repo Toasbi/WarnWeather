@@ -107,8 +107,8 @@ var APP_FILES = [
   // the page module while THEIRS run, so both sit here, ahead of all of those.
   path.join(ROOT, 'src/pkjs/graph-styles.js'),
   // The forecast metrics' names (window.ForecastMetrics: a metric as its pickers name it and as
-  // a sentence does). It reads nothing at load; graph-styles-page.js, forecast-hints.js and
-  // wizard-forecast.js bind it while their bodies run, so it precedes all three.
+  // a sentence does). It reads nothing at load; graph-styles-page.js, forecast-hints.js,
+  // blocks.js and wizard-forecast.js bind it while their bodies run, so it precedes all four.
   path.join(ROOT, 'src/pkjs/settings/forecast-metrics.js'),
   path.join(ROOT, 'src/pkjs/settings/graph-styles-page.js'),
   // A stripe cell's level on its metric's own scale (window.StripeLevels): the table the

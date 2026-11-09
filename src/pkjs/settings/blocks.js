@@ -1070,10 +1070,12 @@ if (typeof require !== 'undefined') {
 
     // ---- The Graphs tab's line rows and dialogs ----
 
-    // The graph metrics and line styles in picker order, as the line pickers offer them
-    // (forecast-hints.js, which loads ahead of this file in both contexts): a line's
-    // summary names its metric and style by the labels its pickers show.
-    var FORECAST_METRICS = PConf.forecastLineOptions.metrics;
+    // The graph metrics (forecast-metrics.js, their one table, which loads ahead of this file)
+    // and the line styles in picker order, as the line pickers offer them (forecast-hints.js,
+    // ahead of this file too): a line's summary names its metric and style by the labels its
+    // pickers show.
+    var forecastMetrics = (typeof require !== 'undefined')
+        ? require('./forecast-metrics.js') : window.ForecastMetrics;
     var LINE_STYLE_OPTIONS = PConf.forecastLineOptions.styles;
 
     /**
@@ -1108,7 +1110,7 @@ if (typeof require !== 'undefined') {
         var st = S || {}, a = args || {};
         var metric = st[a.lineKey];
         if (!metric || metric === 'off') { return 'Off'; }
-        var name = optionLabel(FORECAST_METRICS, metric) || String(metric);
+        var name = forecastMetrics.label(metric);
         if (env && env.lineStyles === false) { return name; }
         var style = lineStyle.lineStyleValue(st, a.lineKey + 'Style');
         var text = name + ' · ' + (optionLabel(LINE_STYLE_OPTIONS, style) || style);
@@ -1228,7 +1230,7 @@ if (typeof require !== 'undefined') {
      */
     PConf.actions.resetAllGraphColors = function (arg, S, env, defaultOf) {
         if (!S || !defaultOf || !lineStyle) { return false; }
-        var scopes = FORECAST_METRICS.map(function (m) { return m[1]; }).concat(['night']);
+        var scopes = forecastMetrics.METRICS.map(function (m) { return m.id; }).concat(['night']);
         scopes.forEach(function (scope) {
             lineStyle.graphColorRoles(scope).forEach(function (role) {
                 ['Dark', 'Light'].forEach(function (sfx) {
