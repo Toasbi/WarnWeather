@@ -24,7 +24,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     pen: 'M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4',
     check: 'M5 12.5l4.5 4.5L19 7.5',
     x: 'M6 6l12 12M18 6L6 18',
-    grip: 'M5 8.5h14M5 12h14M5 15.5h14'
+    grip: 'M5 8.5h14M5 12h14M5 15.5h14',
+    swap: 'M5 8h13M14 4.5L18 8l-4 3.5M19 16H6M10 12.5L6 16l4 3.5'
   };
 
   /**

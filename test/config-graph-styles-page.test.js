@@ -611,6 +611,90 @@ test('the screen editor: a graph that would make the screens show a sixth metric
   assert.match(editorRows(body()).pop(), /^Sky · /);
 });
 
+/**
+ * The screen editor's Switch graph chips, as the page draws them: each label, "(off)" after a
+ * greyed-out one.
+ * @param {string} html The editor's body.
+ * @returns {string[]}
+ */
+function switchChips(html) {
+  const at = html.indexOf('<span class="ui-cap" id="seAdd-switch">Switch graph</span>');
+  if (at === -1) { return []; }
+  const group = html.slice(at, html.indexOf('</div></div>', at));
+  return Array.from(group.matchAll(/<button type="button" class="ui-chip( dim)?"[^>]*data-se="switch"[^>]*>[\s\S]*?<\/svg>([^<]*)<\/button>/g))
+    .map((m) => m[2] + (m[1] ? ' (off)' : ''));
+}
+
+test('the screen editor: with its forecast graph on, Switch graph offers the other graphs; a tap puts one in its place', () => {
+  const M = require('../src/pkjs/screens.js');
+  // Three graphs; Flick 1 draws Long over the calendar, its graph 3 rows.
+  const S = layout(['1', '2'], { provider: 'dwd', forecastHours: '24', secondaryLine: 'precip_prob', thirdLine: 'off',
+    viewTop1: 'cal', viewBodySize1: '3',
+    graphStyles: stylesItem({ forecastHours: '48', thirdLine: 'cloud', thirdLineStyle: 'stripeTop' },
+      { forecastHours: '12' }, ['', 'Long', 'Short']) });
+  const p = bootGeneratedPage(S, 'emery');
+  p.tapAction('openScreen', 1);
+  const body = () => p.editor().querySelector('[data-se-body]').innerHTML;
+  const screen = () => M.screensOf(p.S, EMERY)[1];
+  const before = editorRows(body());
+  assert.equal(before[M.idxOf(screen(), 'fc')], 'Long · 3 rows');
+  // The graphs it does not draw, each with the swap icon; no Add chip for the forecast graph.
+  assert.deepEqual(switchChips(body()), ['Graph 1', 'Short']);
+  assert.ok(body().indexOf(ui.chip('Short', { 'data-se': 'switch', 'data-k': 'fc', 'data-g': 2 }, { icon: 'swap' })) !== -1);
+  assert.equal(body().indexOf('data-se="add" data-k="fc"'), -1);
+  // A tap: Short in Long's place, the row where it was and as big.
+  p.tapEditor({ se: 'switch', k: 'fc', g: 2 });
+  assert.equal(p.S.viewStyle1, '3');
+  assert.deepEqual(editorRows(body()), before.map((r) => r.replace(/^Long · /, 'Short · ')));
+  assert.deepEqual(switchChips(body()), ['Graph 1', 'Long']);
+  // Back to the first graph: the block names no style.
+  p.tapEditor({ se: 'switch', k: 'fc', g: 0 });
+  assert.equal(p.S.viewStyle1, '1');
+  assert.equal(screen()[M.idxOf(screen(), 'fc')].style, undefined);
+  assert.deepEqual(switchChips(body()), ['Long', 'Short']);
+  // A graph the screen draws, or one that does not exist, is never switched to.
+  p.tapEditor({ se: 'switch', k: 'fc', g: 0 });
+  p.tapEditor({ se: 'switch', k: 'fc', g: 4 });
+  assert.equal(p.S.viewStyle1, '1');
+  // Without its forecast graph the screen gets the Add chips back, and no Switch graph.
+  p.tapEditor({ se: 'rm', j: M.idxOf(screen(), 'fc') });
+  assert.deepEqual(switchChips(body()), []);
+  assert.ok(editorAddChips(body()).indexOf('Short') !== -1);
+  // One graph, or a watch with one: nothing to switch to.
+  const one = bootGeneratedPage(layout(['1', '1'], { provider: 'dwd' }), 'emery');
+  one.tapAction('openScreen', 1);
+  assert.equal(one.editor().querySelector('[data-se-body]').innerHTML.indexOf('data-se="switch"'), -1);
+  const b = bootGeneratedPage(TWO, 'basalt');
+  b.tapAction('openScreen', 1);
+  assert.equal(b.editor().querySelector('[data-se-body]').innerHTML.indexOf('data-se="switch"'), -1);
+});
+
+test('the screen editor: a graph that would make the screens show a sixth metric is a greyed-out Switch graph chip', () => {
+  const M = require('../src/pkjs/screens.js');
+  // Default draws Graph 1's four series; Flick 1 draws Sky (cloud: the fifth). Long would make
+  // it cloud and pressure (six).
+  const S = layout(['1', '3'], { provider: 'dwd', viewTop1: 'cal',
+    secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust',
+    graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'pressure', fourthLine: 'off', fifthLine: 'off' },
+      { secondaryLine: 'cloud', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' }, ['', 'Long', 'Sky']) });
+  const p = bootGeneratedPage(S, 'emery');
+  p.tapAction('openScreen', 1);
+  const body = () => p.editor().querySelector('[data-se-body]').innerHTML;
+  assert.deepEqual(switchChips(body()), ['Graph 1', 'Long (off)']);
+  assert.ok(body().indexOf(ui.chip('Long', { 'data-se': 'switch', 'data-k': 'fc', 'data-g': 1, 'aria-disabled': 'true' },
+    { icon: 'swap', dim: true })) !== -1, 'greyed out, still a tap');
+  const toast = p.editor().querySelector('[data-se-toast]');
+  p.tapEditor({ se: 'switch', k: 'fc', g: 1 });
+  assert.equal(p.S.viewStyle1, '3', 'Sky stays');
+  // Sky leaves the screens with the switch, so Long needs its cloud cover too.
+  assert.equal(toast.textContent, 'Long also needs Cloud cover % and Air pressure (hPa): that makes 6 metrics on your'
+    + ' screens. The watch can show 5.');
+  // Graph 1 fits: its four series are the Default's.
+  p.tapEditor({ se: 'switch', k: 'fc', g: 0 });
+  assert.equal(p.S.viewStyle1, '1');
+  assert.match(editorRows(body())[M.idxOf(M.screensOf(p.S, EMERY)[1], 'fc')], /^Graph 1 · /);
+});
+
 test('the page: Show on in a graph\'s dialog puts the graph on a screen or takes it off', async () => {
   // Default and Flick 1 draw graph 1, Flick 2 has no forecast graph; Long is on no screen.
   const S = layout(['1', '1', '1'], { provider: 'dwd', forecastHours: '24', viewBody2: 'none', viewTop2: 'cal',

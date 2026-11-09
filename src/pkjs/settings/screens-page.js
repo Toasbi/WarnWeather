@@ -7,8 +7,9 @@
 // rows top to bottom, each by its name, dragged by its ≡ or moved with the arrow keys, the
 // calendar's rows and a graph's size as a dropdown that opens its picker; then the Add chips,
 // one per thing the screen can take: each of your status bars, New status bar, and with
-// several graphs each graph; and Delete screen under the card), the Status bars tab's Your
-// status bars card (each bar's
+// several graphs each graph, or, once the screen has its forecast graph, Switch graph's chip
+// per other graph, which puts that one in its place; and Delete screen under the card), the
+// Status bars tab's Your status bars card (each bar's
 // name, the screens that show it, the alerts placed on it and its picture, whose slots a tap
 // changes, the red arrow in the middle of the row; a tap on the name opens the bar's dialog,
 // schema.js barDialog, which pins the bar's picture; New status bar makes an empty bar and opens
@@ -76,11 +77,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var ROWS_HINT = 'Drag\u00a0≡ to change the order.';
     // The screen editor's Add groups, in the order they show (the owner's ask, 2026-11-09: the
     // chips grouped by what they add), each with its caption, or capOf, which writes it from the
-    // chips it holds ("Add the calendar or the clock").
-    var ADD_GROUPS = [{ id: 'bars', cap: 'Add a status bar' }, { id: 'graphs', cap: 'Add a graph' }, { id: 'rows',
-        capOf: function (offers) {
-            return 'Add ' + html.andList(offers.map(function (o) { return 'the ' + o.label.toLowerCase(); }), 'or');
-        } }];
+    // chips it holds ("Add the calendar or the clock"). Switch graph holds the graphs a screen
+    // with a forecast graph can draw in its place (the owner's ask, 2026-11-09: switchOffers).
+    var ADD_GROUPS = [{ id: 'bars', cap: 'Add a status bar' }, { id: 'graphs', cap: 'Add a graph' },
+        { id: 'switch', cap: 'Switch graph' }, { id: 'rows',
+            capOf: function (offers) {
+                return 'Add ' + html.andList(offers.map(function (o) { return 'the ' + o.label.toLowerCase(); }), 'or');
+            } }];
     // The editor's Rows and Size picker (custom-layout-schema.js: a page-only select), for the row
     // in ED.sizeRow: the calendar's rows, a graph's size; why it greys one out.
     var SCREEN_SIZE = 'screenRowSize';
@@ -1126,7 +1129,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Whether the screens pick among several graphs (graph styles, Pebble Time 2): then the
-     * forecast graph comes in by a chip per graph (graphOffers) and its row names its graph.
+     * forecast graph comes in by a chip per graph (graphOffers), switches by one (switchOffers)
+     * and its row names its graph.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {boolean}
@@ -1220,13 +1224,52 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * The screen with its forecast graph drawing graph g instead (a Switch graph chip): the row
+     * keeps its place and its size.
+     * @param {Array<Object>} list A screen with a forecast graph.
+     * @param {number} g A graph (a style index; the first is no field of the block).
+     * @returns {Array<Object>} the new screen
+     */
+    function switchedTo(list, g) {
+        var next = M.copy(list), fc = next[M.idxOf(next, 'fc')];
+        if (g > 0) { fc.style = String(g + 1); } else { delete fc.style; }
+        return next;
+    }
+
+    /**
+     * The Switch graph chips (the owner's ask, 2026-11-09: the other graphs stay offered once the
+     * screen has its forecast graph): with several graphs, a chip for each graph screen i does not
+     * draw, greyed out (off) where drawing it in its place would make the screens show more
+     * metrics than the watch can, with the settings that would make (W), as graphOffers reads
+     * an Add chip. None while the screen has no forecast graph: graphOffers' chips add one.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {number} i View slot.
+     * @param {Array<Object>} list The screen.
+     * @returns {Array<{se: string, k: string, g: number, label: string, off: boolean, W: Object}>}
+     */
+    function switchOffers(S, env, i, list) {
+        var at = M.idxOf(list, 'fc');
+        if (at < 0 || !manyGraphs(S, env)) { return []; }
+        var N = GSP.asStored(S), now = GSP.drawnBy(N, list[at]);
+        return GSP.existing(N).filter(function (g) { return g !== now; }).map(function (g) {
+            var W = Object.assign({}, N);
+            ensureCustom(W, env);
+            putScreen(W, i, switchedTo(list, g));
+            return { se: 'switch', k: 'fc', g: g, label: GS.name(N, g), off: GSP.screenOverflows(W, env, i, g), W: W };
+        });
+    }
+
+    /**
      * Which of the editor's Add groups (ADD_GROUPS) an offer's chip sits in: the status bars (the
-     * Watch bar and New status bar among them), the graphs, the calendar and the clock.
+     * Watch bar and New status bar among them), the graphs, the graphs to switch to, the calendar
+     * and the clock.
      * @param {{se: string, k: (string|undefined)}} o An offer (addOffers).
-     * @returns {string} 'bars' | 'graphs' | 'rows'
+     * @returns {string} 'bars' | 'graphs' | 'switch' | 'rows'
      */
     function addGroupOf(o) {
         var b = { k: o.k };
+        if (o.se === 'switch') { return 'switch'; }
         return o.se === 'newbar' || o.k === 'strip' || M.isBar(b) ? 'bars' : M.isGraph(b) ? 'graphs' : 'rows';
     }
 
@@ -1244,8 +1287,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * thing, no pickers): every row the screen can take and the watch has room for (screens.js
      * addable, fitsWatch), in their order, each status bar by its name; New status bar after the
      * bars while it can make one for the screen (Pebble Time 2); with several graphs a chip per
-     * graph in the forecast graph's place (graphOffers). The chips are drawn from it, each in its
-     * group (addGroupOf), and a tap is taken only when it matches one.
+     * graph in the forecast graph's place (graphOffers), or, while the screen has its forecast
+     * graph, a chip per graph to switch it to (switchOffers). The chips are drawn from it, each in
+     * its group (addGroupOf), and a tap is taken only when it matches one.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} i View slot.
@@ -1264,7 +1308,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (free && fitsWatch(M.add(list, M.KIND_OF_BAR[free]), i, env)) {
             out.push({ se: 'newbar', label: 'New status bar', off: false });
         }
-        return out;
+        return out.concat(switchOffers(S, env, i, list));
     }
 
     /**
@@ -1280,7 +1324,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (!mine.length) { return ''; }
             var cap = grp.capOf ? grp.capOf(mine) : grp.cap;
             var chips = mine.map(function (o) {
-                return kit.chip(o.label, { 'data-se': o.se, 'data-k': o.k, 'data-g': o.g }, { icon: 'plus', dim: o.off });
+                return kit.chip(o.label, { 'data-se': o.se, 'data-k': o.k, 'data-g': o.g },
+                    { icon: o.se === 'switch' ? 'swap' : 'plus', dim: o.off });
             }).join('');
             return '<div class="se-add" role="group" aria-labelledby="seAdd-' + grp.id + '"><span class="ui-cap" id="seAdd-'
                 + grp.id + '">' + esc(cap) + '</span><div class="ui-chips">' + chips + '</div></div>';
@@ -1572,7 +1617,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * A tap on an Add chip, taken only when it matches one the Add groups offer (addOffers): a
      * greyed-out one says why for five seconds and adds nothing; any other adds the row at its
      * place (screens.js add), a graph's chip drawing that graph (withGraph); + New status bar
-     * makes an empty bar for the screen (newBarHere).
+     * makes an empty bar for the screen (newBarHere); a Switch graph chip puts its graph in the
+     * forecast graph's place (switchedTo).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Array<Object>} list The screen being edited.
@@ -1587,6 +1633,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!hit) { return; }
         if (hit.off) { editorToast(GSP.limitDesc(hit.W, env, hit.g, hit.label), 5000); return; }
         if (se === 'newbar') { newBarHere(S, env, list); return; }
+        if (se === 'switch') { commit(switchedTo(list, hit.g)); return; }
         commit(hit.g === undefined ? M.add(list, k) : withGraph(list, hit.g));
     }
 
@@ -1652,7 +1699,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return;
         }
         if (act === 'rm') { commit(M.remove(list, j)); return; }
-        if (act === 'add' || act === 'newbar') { addTap(S, env, list, t); return; }
+        if (act === 'add' || act === 'newbar' || act === 'switch') { addTap(S, env, list, t); return; }
         if (act === 'radaron') { setRadarEnabled(S, true, env); renderEditor(); ctx.render(); return; }
         // A row's Rows or Size: its picker opens over the editor (the page's select sheet, a
         // top-layer dialog), its pick lands through screenRowSizePicked.
