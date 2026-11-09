@@ -52,7 +52,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         { id: 'screens', when: 'radar', title: 'Flick to switch screens', body: stepScreens, summary: screensRows },
         { id: 'theme', when: 'themePolarity', title: 'Choose a theme', body: stepTheme,
             summary: pickerRow('Theme', 'theme', 'theme') },
-        { id: 'forecast', when: 'lineStyles', title: 'Choose your forecast', body: stepForecast, summary: forecastRow },
+        { id: 'forecast', when: 'lineStyles', title: 'Choose a forecast graph', body: stepForecast, summary: forecastRow },
         { id: 'done', title: 'You’re all set', body: stepDone }
     ];
     var STEP = {};
@@ -83,18 +83,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     var LAYOUT_OPTS = [['Full calendar', 'fullCal'], ['Compact', 'compactCal'], ['No calendar', 'noCal']];
     var LAYOUT_DESC = {
-        fullCal: 'A three-row month grid with today highlighted, above the forecast.',
-        compactCal: 'A two-row calendar, leaving more room for the forecast.',
-        noCal: 'A big clock and date above a full-size forecast.'
+        fullCal: 'Shows a three-row calendar above the forecast, with today highlighted.',
+        compactCal: 'Shows a two-row calendar, which leaves more room for the forecast.',
+        noCal: 'Shows a big clock and the date above a full-size forecast.'
     };
     // schema.js' two theme selects: colour watches get four, black-and-white ones dark and light.
     var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W inverted', 'bw-light']];
     var THEME_OPTS_BW = [['Dark', 'dark'], ['Light', 'light']];
     var THEME_DESC = {
-        dark: 'White text and lines on black. The default.',
-        light: 'Black text and lines on white.',
-        bw: 'Drawn like a black-and-white Pebble: white on black, patterns instead of colour.',
-        'bw-light': 'Drawn like a black-and-white Pebble: black on white, patterns instead of colour.'
+        dark: 'Shows white text and lines on a black background. This is the default.',
+        light: 'Shows black text and lines on a white background.',
+        bw: 'Looks like a black-and-white Pebble: white on black, with patterns instead of colors.',
+        'bw-light': 'Looks like a black-and-white Pebble: black on white, with patterns instead of colors.'
     };
 
     /**
@@ -772,7 +772,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function stepWelcome() {
         // aplite has no radar: no promise of one there.
         var radar = Boolean(run.env.radar);
-        var lead = radar ? 'Forecast, rain radar and your calendar at a glance.' : 'Forecast and your calendar at a glance.';
+        var lead = radar ? 'This watchface shows the forecast, the rain radar and your calendar.'
+            : 'This watchface shows the forecast and your calendar.';
         var region = FINISH.findItem(run.ctx.schema, 'holidayRegion');
         var layout = highlighted('layoutPreset');
         var h = '<div class="wiz-stage">'
@@ -780,18 +781,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 'WarnWeather on your watch')
             + '</div>'
             + stepHead('welcome')
-            + '<p class="wiz-lead">' + lead + ' Setup takes a minute, and you can change everything later.</p>'
+            + '<p class="wiz-lead">' + lead + ' Setup takes a minute. You can change everything later.</p>'
             + '<div class="wiz-card"><div class="wiz-card-hd">Your country</div>'
             + selectRow('holidayCountry');
         if (region && PConf.engine.resolveOptionsFrom(region, run.ctx.S).length) { h += selectRow('holidayRegion'); }
-        return h + '<p class="wiz-note">Picks the ' + (radar ? 'weather and radar service' : 'weather service')
-            + ' for your area, your units, holidays and first day of the week.</p></div>';
+        return h + '<p class="wiz-note">Your country sets the ' + (radar ? 'weather and radar service' : 'weather service')
+            + ' for your area, your units, the holidays and the first day of the week.</p></div>';
     }
     function stepLayout() {
         return stepHead('layout') + pickerHtml('layoutPreset')
             + '<div class="wiz-legend">'
-            + '<p><b>Forecast bar</b>: your location, the temperature and air quality.</p>'
-            + '<p><b>Forecast</b>: an hourly graph of the temperature, rain and more.</p></div>';
+            + '<p>The <b>Forecast bar</b> shows your location, the temperature and the air quality.</p>'
+            + '<p>The <b>Forecast</b> graph shows the temperature, rain and more, hour by hour.</p></div>';
     }
     /**
      * The Screens step: the screen shown big, the flick, then every screen small and the ones setup
@@ -802,14 +803,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var cycle = VC.screensCycle(run.ctx.S, run.env), list = screens(cycle);
         if (run.screenIdx >= list.length) { run.screenIdx = 0; }
         return stepHead('screens')
-            + '<p class="wiz-lead">Add screens to flick to. The watch goes back to Default by itself.</p>'
+            + '<p class="wiz-lead">Add the screens you want to flick to. '
+            + 'The watch goes back to the Default screen by itself.</p>'
             + '<div class="wiz-flick">' + bigScreenHtml(list, cycle) + '</div>'
             + '<div class="wiz-scrs" role="group" aria-label="Your screens">' + smallScreensHtml(list, cycle) + '</div>'
-            + '<p class="wiz-fine">Rain alerts show on the Watch bar either way. Change screens later on the Watchface tab.</p>';
+            + '<p class="wiz-fine">Rain alerts stay on the Watch bar whichever screens you add. '
+            + 'You can change the screens later on the Watchface tab.</p>';
     }
     function stepTheme() {
         return stepHead('theme') + pickerHtml('theme')
-            + (run.env.color ? '<p class="wiz-fine">You can fine-tune any colour later in Settings.</p>' : '');
+            + (run.env.color ? '<p class="wiz-fine">You can change any color later in Settings.</p>' : '');
     }
     /**
      * The forecast step: the screen with the forecast graph (the Default), drawn live in the picked
@@ -824,7 +827,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + esc(pic.label) + '">' + pic.svg + '</div>'
             + '</div>' + optsHtml('forecastLook', 'wiz-title')
             + (run.env.forecastSpan ? '<h3 class="wiz-sub" id="wiz-span">Forecast length</h3>' + optsHtml('forecastHours', 'wiz-span') : '')
-            + '<p class="wiz-fine">Every line can be changed later on the Graphs tab.</p>';
+            + '<p class="wiz-fine">You can change every line of the graph later on the Graphs tab.</p>';
     }
     function welcomeRows() {
         var S = run.ctx.S, country = settingLabel('holidayCountry', S.holidayCountry);
@@ -875,13 +878,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var item = FINISH.findItem(run.ctx.schema, 'tomorrowioApiKey');
         return '<div class="wiz-badge">' + CSS.ICON_DONE + '</div>'
             + stepHead('done')
-            + '<p class="wiz-lead">Save to send these settings to your watch. To run setup again later: '
+            + '<p class="wiz-lead">Save to send these settings to your watch. To run setup again later, go to '
             + '<b>Setup&nbsp;›&nbsp;Misc&nbsp;›&nbsp;Run&nbsp;setup&nbsp;again</b>.</p>'
             + summaryHtml()
             + ((item && UPSELL.offered(run.ctx.S)) ? UPSELL.html(item, run.ctx.S) : '')
-            + '<p class="wiz-fine">Enjoying WarnWeather? A ♥ on the Pebble appstore helps a lot. Questions or ideas: '
-            + 'open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>, or use the '
-            + 'appstore’s “Message the developer”.</p>';
+            + '<p class="wiz-fine">If you like WarnWeather, a ♥ on the Pebble appstore helps a lot. For questions or ideas, '
+            + 'open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a> or use '
+            + '“Message the developer” in the appstore.</p>';
     }
 
     // --- top bar and bottom bar ---

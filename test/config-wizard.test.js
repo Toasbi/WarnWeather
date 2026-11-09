@@ -432,8 +432,9 @@ test('the tomorrow.io upsell shows the key row: "Tomorrow.io API key", its hint 
   // The settings sheets show the call budget under the key and the wizard doesn't, so its copy of
   // the hint stops short of pointing at it. Pinned, so a later hint edit can't bring it back.
   const sheetHint = hint(copies);
-  assert.ok(sheetHint.indexOf(' — see the call budget below.') !== -1, 'guard: the sheets\' hint still says it');
-  const wizardHint = sheetHint.replace(' — see the call budget below.', '.');
+  assert.ok(sheetHint.indexOf('The free plan is enough. See the call budget below.') !== -1,
+    'guard: the sheets\' hint still says it');
+  const wizardHint = sheetHint.replace(' See the call budget below.', '');
   const field = '<div class="row stack"><div class="lbl">Tomorrow.io API key</div><div class="hint">' + wizardHint
     + '</div><div><div class="txt-act"><input type="text" data-k="tomorrowioApiKey" value="" placeholder=""'
     + ' aria-label="Tomorrow.io API key">'

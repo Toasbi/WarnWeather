@@ -12,9 +12,9 @@ const EP = 'https://proxy.example/functions/v1/rainbow-nowcast';
 // The endpoint's root is the nowcast; the key check is its '/key-check' path.
 const KEY_CHECK = EP + '/key-check';
 const UNAVAILABLE = '✗ Key test isn’t available in this build. You can still save the key.';
-const COULDNT_CHECK = '✗ Couldn’t check the key right now — try again later.';
-const NOT_A_KEY = '✗ That doesn’t look like a Rainbow key — copy it again from your profile page on developer.rainbow.ai.';
-const NO_ANSWER = '✗ Rainbow didn’t answer — try again later.';
+const COULDNT_CHECK = '✗ Couldn’t check the key right now. Try again later.';
+const NOT_A_KEY = '✗ That doesn’t look like a Rainbow key. Copy it again from your profile page on developer.rainbow.ai.';
+const NO_ANSWER = '✗ Rainbow didn’t answer. Try again later.';
 
 /**
  * Register the Rainbow Test action on a fresh PConf over a fake field + result line,
@@ -97,11 +97,11 @@ test('Rainbow\'s own 401 / 403 / 429 read as verdicts on the key', () => {
   assert.match(verdictFor(200, '{"status":403}'), /Refused \(403\)/);
   assert.match(verdictFor(200, '{"status":429}'), /Rate limited \(429\)/);
   assert.equal(verdictFor(200, '{"status":401}'),
-    '✗ Rejected (401). The key is invalid — copy it again from your profile page on developer.rainbow.ai.');
+    '✗ Rejected (401). The key is invalid. Copy it again from your profile page on developer.rainbow.ai.');
   assert.equal(verdictFor(200, '{"status":403}'),
-    '✗ Refused (403). Rainbow won’t serve this key right now — check its plan and monthly allowance on developer.rainbow.ai.');
+    '✗ Refused (403). Rainbow won’t accept this key right now. Check its plan and monthly allowance on developer.rainbow.ai.');
   assert.equal(verdictFor(200, '{"status":429}'),
-    '✗ Rate limited (429). The key is valid but over its allowance right now — try again later.');
+    '✗ Rate limited (429). The key is valid but over its allowance right now. Try again later.');
 });
 
 test('any other upstream status falls through to the shared "Unexpected response"', () => {

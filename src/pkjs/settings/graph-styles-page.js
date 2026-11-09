@@ -63,7 +63,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var TAB = 'graphs';
     var PANE = 'forecast';
     // A line picker's greyed-out option (limitOptions): one change adds one series at most.
-    var LIMIT = 'That makes ' + (GS.ROWS + 1) + ' lines and stripes on your screens; the watch can show '
+    var LIMIT = 'That makes ' + (GS.ROWS + 1) + ' lines and stripes on your screens. The watch can show '
         + GS.ROWS + '.';
     // New graph's copies: 'copy<n>', a copy of graph n. The screen editor's templates:
     // 'new:<template id>'. A picker's group header: GROUP (never a value anything stores).
@@ -469,7 +469,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var shown = GS.stylesShown(N, env);
         var extra = extraNames(N, env, k, shown.filter(function (j) { return j !== k; }));
         return (extra.length ? 'Also needs ' + andList(extra) + ': that makes ' : 'That makes ')
-            + seriesUnion(N, env, shown).length + ' lines and stripes on your screens; the watch can show '
+            + seriesUnion(N, env, shown).length + ' lines and stripes on your screens. The watch can show '
             + GS.ROWS + '.';
     }
 

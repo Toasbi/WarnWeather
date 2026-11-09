@@ -118,8 +118,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // Daily rollup table — NOTE: no Clear button (now a schema toggle)
         html = '<div style="' + TITLE_STYLE + '">Daily summary</div>';
         html += '<div style="' + LEGEND_STYLE + '">'
-            + '✓ delivered · ✗ rejected · c cache-skip (nothing sent)<br>'
-            + 'per category: count● sent · count– cached · ntc watch notice</div>';
+            + '✓ delivered · ✗ rejected · c skipped (nothing changed)<br>'
+            + 'per category: count● sent · count– unchanged · ntc watch notice</div>';
         html += '<table class="dsTable" style="' + TABLE_STYLE + '">';
         html += headerRow(['Day', 'weather'].concat(CATEGORIES.map(categoryLabel)).concat(['setting']));
         days.forEach(function (bucket) {
@@ -137,7 +137,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         html += '<div style="' + TITLE_STYLE + '">Events</div>';
         html += '<div style="' + LEGEND_STYLE + '">'
             + 'ok: ✓ delivered · ✗ rejected · blank nothing sent<br>'
-            + 'category/setting: ● sent · – cached · blank not in payload</div>';
+            + 'category/setting: ● sent · – unchanged · blank not included</div>';
         html += '<table class="dsTable" style="' + TABLE_STYLE + '">';
         html += headerRow(['Time', 'ok'].concat(CATEGORIES.map(categoryLabel)).concat(['setting']));
         raw.forEach(function (ev) {

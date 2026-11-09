@@ -135,10 +135,10 @@
             return { ok: true, message: 'Sent ✓' };
         }
         if (status === 429) {
-            return { ok: false, message: 'Daily limit reached (10 replies/day) — try again tomorrow.' };
+            return { ok: false, message: 'Daily limit reached (10 replies/day). Try again tomorrow.' };
         }
         if (!status) {
-            return { ok: false, message: 'Couldn’t send — check your connection.' };
+            return { ok: false, message: 'Couldn’t send. Check your connection.' };
         }
         return { ok: false, message: 'Unexpected response (' + status + ').' };
     }
@@ -200,7 +200,7 @@
             + '<button class="news-close" data-news-close="1">✕</button></div>'
             + '<div class="news-scroll">';
         if (!items.length) {
-            html += '<div class="news-item news-empty">Nothing here yet — check back after the next update.</div>';
+            html += '<div class="news-item news-empty">Nothing here yet. Check back after the next update.</div>';
         }
         var i, it;
         for (i = 0; i < items.length; i += 1) {

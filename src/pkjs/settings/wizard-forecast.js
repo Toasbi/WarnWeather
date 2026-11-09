@@ -97,7 +97,7 @@
     // Forecast length (emery only): the schema's Graphs › Forecast › Other row. Setup shows its
     // hints, the long span's shortened to this.
     var SPAN_DESC = {
-        '48': 'As far ahead as your weather service forecasts and the graph fits, in narrow columns.'
+        '48': 'Shows as many hours as your weather service forecasts and the graph can fit, in narrow columns.'
     };
 
     /**
@@ -113,17 +113,18 @@
             ? ' The high and low go ' + (id === 'clean' ? 'on the graph.' : 'beside the axis.') : '';
         var solid = env && env.color ? 'solid ' : '';
         if (id === 'classic') {
-            return 'The ForecasWatch2 graph: the temperature, rain chance as a shaded area and rain bars.' + where;
+            return 'Draws the graph the way ForecasWatch2 does: the temperature, the rain chance as a shaded area, '
+                + 'and rain bars.' + where;
         }
         if (id === 'clean') {
-            return 'The temperature, rain chance as a shaded area, clouds as a stripe along the top and '
+            return 'Shows the temperature, the rain chance as a shaded area, the clouds as a stripe along the top, and '
                 + solid + 'rain bars.' + where;
         }
         if (id === 'stripes') {
-            return 'The temperature, with clouds and rain chance as stripes along the top, and ' + solid
+            return 'Shows the temperature, the clouds and the rain chance as stripes along the top, and ' + solid
                 + 'rain bars that hang from the top.' + where;
         }
-        return 'Your graph as it is now.';
+        return 'Keeps your graph as it is now.';
     }
 
     // The preview's frame height in viewBox units: the tallest legend's (two rows: the

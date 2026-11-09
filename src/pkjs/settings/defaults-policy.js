@@ -68,9 +68,9 @@
             when: {wizard: true},
             // Setup sets no Bold mode at all (the owner, 2026-11-06: every slot keeps its
             // own Bold row's default), so this is the one emphasis it adds.
-            why: 'Air quality is the default reading that can turn unhealthy on an '
-                + 'ordinary day, so setup switches its highlight on: from its warn level '
-                + 'the slot is boxed, and at danger filled.',
+            why: 'Of the readings shown by default, air quality is the one that can turn '
+                + 'unhealthy on an ordinary day, so setup turns on its Alert highlighting. '
+                + 'From the warn level the slot gets a box, and at danger it is filled.',
             // The warn box is the kind's warn look, whose platform default (fill on
             // colour, outline on B&W) already draws one — nothing to set for it. Nor
             // for the levels: the pair stays blank, which means the AQI seed for the
@@ -91,9 +91,9 @@
             // Steps vacates the health row's left slot, distance fills it, and no
             // row ends up holding the same item twice — on a heart-rate watch too,
             // where that row reads distance / sleep / heart rate.
-            why: 'Steps is the health number people glance at most, and the top row is '
-                + 'on every screen, so setup promotes steps into its right-hand '
-                + 'corner and sunrise/sunset gives up the spot. Walked distance takes '
+            why: 'Steps is the health number people look at most, and the top row is '
+                + 'on every screen. So setup moves steps into the top row’s right-hand '
+                + 'corner, in place of sunrise/sunset. Walked distance takes '
                 + 'the place steps left in the health row, so no reading is lost.',
             set: {
                 statusTopRight: 'steps',
@@ -126,10 +126,10 @@
             // row actually has free. Its right-hand corner is the battery here, and
             // the battery is the reason that corner exists — so steps takes the LEFT
             // slot, which the narrow default ships empty for exactly this.
-            why: 'Steps is the health number people glance at most, and the strip beside '
-                + 'the clock is on every screen — but on these watches its '
-                + 'right-hand corner is the battery, so steps takes the free left slot '
-                + 'and the battery keeps its corner. Walked distance takes the place '
+            why: 'Steps is the health number people look at most, and the strip beside '
+                + 'the clock is on every screen. On these watches its right-hand corner '
+                + 'shows the battery, so steps takes the free left slot and the battery '
+                + 'keeps its corner. Walked distance takes the place '
                 + 'steps left in the health row, so no reading is lost.',
             set: {
                 statusTopLeft: 'steps',

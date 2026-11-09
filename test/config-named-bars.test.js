@@ -173,7 +173,7 @@ test('the editor: an open bar row shows its Bar card; a tap picks another of you
   page.tapEditor({ se: 'bar', j });
   const sheet = page.modal.innerHTML;
   assert.equal(sheetTitle(page, 'screenBar'), 'Bar on this screen');
-  assert.match(sheet, /Your bars, by name\. Fill them on the Status bars tab\./);
+  assert.match(sheet, /Pick the bar this screen shows\. You set what each bar shows on the Status bars tab\./);
   assert.match(sheet, />Forecast bar<[\s\S]*Temperature[\s\S]*on Default/);
   assert.match(sheet, />Health bar<[\s\S]*Steps · Sleep · on Flick 1/);
   assert.match(sheet, />Wind<[\s\S]*UV index[\s\S]*on Flick 2/);

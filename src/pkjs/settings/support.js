@@ -63,7 +63,7 @@
         return '<div class="bmc-modal-hdr"><h2>Support me</h2>'
             + '<button class="bmc-close" data-bmc-close="1" aria-label="Close">✕</button></div>'
             + '<div class="bmc-body">'
-            + '<p>Thank you for using my watchface WarnWeather - it means a lot to me! '
+            + '<p>Thank you for using my watchface WarnWeather. It means a lot to me! '
             + 'If you want to support me, you can send me a cup of coffee through '
             // No target="_blank": a plain Android WebView with no onCreateWindow
             // hook discards _blank navigations, leaving the link inert on a phone.

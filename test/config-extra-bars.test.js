@@ -84,7 +84,7 @@ test('six bars: the New bar row gives way to a note', () => {
   const page = statusTab({ statusBar4Made: true, statusBar5Made: true, statusBar6Made: true });
   const html = page.scroll.innerHTML;
   assert.equal(html.indexOf('data-action="newBar"'), -1, 'no New bar row');
-  assert.ok(html.indexOf('You have 6 bars, the most a watch can have. Delete one to make another.') !== -1);
+  assert.ok(html.indexOf('That’s the most bars there can be: the Watch bar and 6 more. To make another, delete a bar you made.') !== -1);
 });
 
 test('Delete bar: the bar unmade, the screens that showed it drop the row, and Undo puts it all back', () => {

@@ -1393,13 +1393,13 @@ test('tomorrowioBudget block derives the unlock rule and the hourly heads-up', (
   // 5 min is locked at a 2 h pause -> rule names 5 minutes and >= 4 h
   const html = block(budgetState({ sleepEndHour: '2', fetchIntervalMin: '10' }), {});
   assert.match(html, /5-minute/);
-  assert.match(html, /≥ 4 h/);
+  assert.match(html, /at least 4 h/);
   // at 5 min + radar (24 of 25 calls/hour) the same-hour save note appears
   const busy = block(budgetState(), {});
-  assert.match(busy, /may delay one cycle/);
+  assert.match(busy, /can delay one update/);
   // at 10 min (12 calls/hour) the same-hour save note must not appear
   const quiet = block(budgetState({ fetchIntervalMin: '10' }), {});
-  assert.doesNotMatch(quiet, /may delay one cycle/);
+  assert.doesNotMatch(quiet, /can delay one update/);
 });
 
 test('fetchIntervalBudget resolver: filters when guard on, passes through when off or not tomorrow.io', () => {
@@ -1442,8 +1442,8 @@ test('rainbowBudget block states the monthly plan, the projected month and the v
   assert.ok(ok.indexOf('no night pause') !== -1, ok);
   assert.equal(ok,
     '<b>Free plan: 5,000 calls/month.</b> Your settings: every 15 min, no night pause → '
-    + '<b>~2,976 calls/month ✓</b>.<br>5-minute updates need a night pause of ≥ 11 h — '
-    + 'widen the pause to unlock faster updates.');
+    + '<b>~2,976 calls/month ✓</b>.<br>5-minute updates need a night pause of at least 11 h. '
+    + 'Make the pause longer to get faster updates.');
   // The worked copy example: every 15 min with the default 9 h pause.
   const pausedHtml = block(rainbowState({ sleepNightEnabled: true }), {});
   assert.ok(pausedHtml.indexOf('every 15 min, night pause 9 h → <b>~1,860 calls/month ✓</b>.') !== -1, pausedHtml);
@@ -1452,7 +1452,7 @@ test('rainbowBudget block states the monthly plan, the projected month and the v
   const over = block(rainbowState({ fetchIntervalMin: '5', rainbowFitBudget: false }), {});   // 8928
   assert.ok(over.indexOf('every 5 min, no night pause → '
     + '<b style="color:#FF6A52">~8,928 calls/month ✗ over budget</b>') !== -1, over);
-  assert.ok(over.indexOf('5-minute updates need a night pause of ≥ 11 h') !== -1, over);
+  assert.ok(over.indexOf('5-minute updates need a night pause of at least 11 h') !== -1, over);
 });
 
 test('rainbowBudget block writes its numbers with thousands commas, like the hints around it', () => {
@@ -1470,7 +1470,7 @@ test('rainbowBudget block reads the interval Save stores: Fit on replaces 5 min 
   const fitted = block(rainbowState({ fetchIntervalMin: '5' }), {});
   assert.ok(fitted.indexOf('every 15 min, no night pause → <b>~2,976 calls/month ✓</b>') !== -1, fitted);
   assert.doesNotMatch(fitted, /✗ over budget/);
-  assert.ok(fitted.indexOf('5-minute updates need a night pause of ≥ 11 h') !== -1, 'the unlock line stays');
+  assert.ok(fitted.indexOf('5-minute updates need a night pause of at least 11 h') !== -1, 'the unlock line stays');
   // Both guards on (weather on tomorrow.io too): the intersection's fit, 15.
   const both = block(rainbowState({ provider: 'tomorrowio', fetchIntervalMin: '5' }), {});
   assert.ok(both.indexOf('every 15 min') !== -1, both);
@@ -1492,7 +1492,7 @@ test('rainbowBudget block: bare content, no radar qualifier and no hourly heads-
     const html = block(s, {});
     assert.doesNotMatch(html, /class="static"/, 'no nested .static row inside the .blockrow');
     assert.doesNotMatch(html, /\/hour/, 'Rainbow has no hourly limit');
-    assert.doesNotMatch(html, /may delay one cycle/, 'no same-hour heads-up');
+    assert.doesNotMatch(html, /can delay one update/, 'no same-hour heads-up');
     assert.doesNotMatch(html, /with radar|incl\. radar/, 'every Rainbow call is a radar call');
   });
 });

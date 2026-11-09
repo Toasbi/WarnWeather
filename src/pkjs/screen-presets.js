@@ -40,11 +40,11 @@
     // What each card says under its name: with graph styles, and on a watch with one graph,
     // whose forecast presets keep that graph.
     var DESC = {
-        classic: 'ForecasWatch2\'s look, 24 h.',
-        weathergraph: '66 h, Health bar below.',
-        clean: 'Calendar and 66 h.',
-        stripes: 'Clouds and rain chance as stripes.',
-        healthCal: 'Calendar, Health bar and health graph.',
+        classic: '3-row calendar and a 24 h graph like ForecasWatch2.',
+        weathergraph: '66 h graph with the Health bar below it.',
+        clean: '2-row calendar and a 66 h graph.',
+        stripes: '2-row calendar and a graph with clouds and rain chance as stripes.',
+        healthCal: '2-row calendar, Health bar and health graph.',
         health: 'Health bar and health graph.'
     };
     var DESC_ONE_GRAPH = {

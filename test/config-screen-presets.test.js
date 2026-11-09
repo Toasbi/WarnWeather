@@ -194,7 +194,7 @@ test('the presets: the owner\'s six, each keeping the screens\' rules; each watc
 });
 
 test('a card\'s line: on a watch with one graph a forecast preset says it keeps yours', () => {
-  assert.equal(P.describe(P.byId('classic'), EMERY), 'ForecasWatch2\'s look, 24 h.');
+  assert.equal(P.describe(P.byId('classic'), EMERY), '3-row calendar and a 24 h graph like ForecasWatch2.');
   assert.equal(P.describe(P.byId('classic'), BASALT), '3-row calendar, Forecast bar and your graph.');
   assert.equal(P.describe(P.byId('health'), BASALT), 'Health bar and health graph.');
   assert.equal(P.byId('nope'), null);
@@ -289,7 +289,7 @@ test('no free graph slot, or a graph that would make too many lines: the preset 
     secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLine: 'wind', fourthLine: 'uv', fifthLine: 'gust'
   });
   const why = byId(busy).stripes;
-  assert.match(why, /^Also needs .*: that makes \d+ lines and stripes on your screens; the watch can show 5\.$/);
+  assert.match(why, /^Also needs .*: that makes \d+ lines and stripes on your screens. The watch can show 5\.$/);
   const kept = JSON.stringify(busy);
   assert.equal(SP.addChosen(busy, EMERY, 'stripes'), -1);
   assert.equal(JSON.stringify(busy), kept, 'no graph made');
@@ -424,7 +424,7 @@ test('+ Add screen opens Add a screen: Blank, then the presets with their pictur
     ['health', 'Health']]);
   assert.ok(body.indexOf('class="sa-card wide" data-se="pick" data-id="blank"') !== -1, 'Blank across the top');
   assert.equal((body.match(/<span class="sa-pic" aria-hidden="true"><svg/g) || []).length, 7, 'a picture each');
-  assert.ok(body.indexOf('A preset brings its graph, or uses one of yours that matches.') !== -1);
+  assert.ok(body.indexOf('A preset adds its own graph, or uses one of yours that looks the same.') !== -1);
   page.tapEditor({ se: 'pick', id: 'weathergraph' });
   assert.equal(page.S.viewName1, 'Weathergraph');
   assert.equal(page.S.viewStyle1, '2');
@@ -441,7 +441,7 @@ test('a greyed-out preset is a disabled card with its reason; a basalt says its 
   page.tapAction('addScreen');
   const body = page.editor().querySelector('[data-se-body]').innerHTML;
   assert.deepEqual(sheetCards(body).filter((c) => c[3]), [['stripes', 'Stripes', SP.ALREADY, true]]);
-  assert.ok(body.indexOf('A preset brings its rows. Your graph and your bars stay as they are.') !== -1);
+  assert.ok(body.indexOf('A preset adds its rows. Your graph and your bars stay as they are.') !== -1);
   page.tapEditor({ se: 'pick', id: 'stripes', disabled: true });
   assert.equal(page.S.viewCount, '1', 'nothing added');
   assert.equal(page.editor().querySelector('[data-se-title]').innerHTML, 'Add a screen', 'still open');

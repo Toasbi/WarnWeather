@@ -57,9 +57,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Why a move snaps back: the top screen always shows the clock (the watch keeps it).
     var NO_ROOM_FOR_CLOCK = ' has no room for the clock, which the top screen always shows.';
     // Why Add a screen greys out a preset.
-    var ALREADY = 'Already one of yours.';
-    var NO_GRAPH_ROOM = 'No room for its graph: you have 3 graphs. Delete one on the Graphs tab.';
-    var REORDER_HINT = 'Drag ≡ to reorder. The top screen is the Default.';
+    var ALREADY = 'You already have this screen.';
+    var NO_GRAPH_ROOM = 'It needs a new graph, and you have 3 already. Delete one on the Graphs tab.';
+    var REORDER_HINT = 'The watch starts on the top screen. Each flick shows the next one. Drag ≡ to change the order.';
     // The editor's bar picker (custom-layout-schema.js: a page-only select) and the tab a bar is
     // edited on (the Status bars tab's id).
     var SCREEN_BAR = 'screenBar';
@@ -72,13 +72,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var SCREEN_NEW_BAR = 'screenNewBar';
     var BAR_NEW = 'new:';
     var BAR_GROUP = '__group';
-    var BARS_FULL = 'You have ' + M.MAX_BARS + ' bars, the most a watch can have. Delete one to make another.';
+    var BARS_FULL = 'That’s the most bars there can be: the Watch bar and ' + M.MAX_BARS
+        + ' more. To make another, delete a bar you made.';
     // A Delete bar's Undo while it shows (the New bar card).
     var BAR_UNDO = { v: null, t: null };
     // What a preset brings, under Add a screen's cards: with graph styles, and on a watch with
     // one graph (screen-presets.js WHAT A PRESET BRINGS).
-    var ADD_FINE = 'A preset brings its graph, or uses one of yours that matches. Your bars keep their slots.';
-    var ADD_FINE_ONE_GRAPH = 'A preset brings its rows. Your graph and your bars stay as they are.';
+    var ADD_FINE = 'A preset adds its own graph, or uses one of yours that looks the same. Your bars keep what they show.';
+    var ADD_FINE_ONE_GRAPH = 'A preset adds its rows. Your graph and your bars stay as they are.';
     // aplite's Layout choice, its Watchface tab having no screens: the three calendars.
     var APLITE_LAYOUTS = [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal'], ['No calendar', 'noCal']];
 

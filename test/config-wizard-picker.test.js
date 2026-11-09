@@ -254,7 +254,7 @@ test('a pick updates the segments, the description and the watch in place', () =
     const segs = dom.findAll('[data-wiz-opt]');
     assert.deepEqual(segs.map((x) => [x.getAttribute('aria-checked'), x.getAttribute('tabindex'), x.className]),
       [['true', '0', 'wiz-opt on'], ['false', '-1', 'wiz-opt'], ['false', '-1', 'wiz-opt']]);
-    assert.match(dom.find('[data-wiz-desc="layoutPreset"]').textContent, /three-row month grid/);
+    assert.match(dom.find('[data-wiz-desc="layoutPreset"]').textContent, /three-row calendar/);
     assert.equal(shot.getAttribute('class'), 'wiz-shot fade', 'the old picture fades out first');
     mock.timers.tick(150);
     assert.notEqual(shot.getAttribute('href'), compactSrc);
@@ -396,10 +396,10 @@ test('starting setup again while it is open replaces it: one overlay, one set of
 
 test('the copy follows the watch: no radar promise on aplite', () => {
   const aplite = openSetup({ platform: 'aplite' });
-  assert.match(aplite.dom.body.innerHTML, /Picks the weather service for your area/);
+  assert.match(aplite.dom.body.innerHTML, /Your country sets the weather service for your area/);
   assert.doesNotMatch(aplite.dom.body.innerHTML, /radar/);
   const basalt = openSetup({ platform: 'basalt' });
-  assert.match(basalt.dom.body.innerHTML, /Picks the weather and radar service for your area/);
+  assert.match(basalt.dom.body.innerHTML, /Your country sets the weather and radar service for your area/);
 });
 
 // --- the Screens step: the watch's own screens, + and ✕, the flick ---
@@ -408,13 +408,13 @@ test('the Screens step on a new install: the Default alone, Try a flick off, Hea
   const { ctx, dom } = openSetup();
   walkToTitle(dom, 'Flick to switch screens');
   const body = dom.body.innerHTML;
-  assert.match(body, /<p class="wiz-lead">Add screens to flick to\. The watch goes back to Default by itself\.<\/p>/);
+  assert.match(body, /<p class="wiz-lead">Add the screens you want to flick to\. The watch goes back to the Default screen by itself\.<\/p>/);
   assert.equal(dom.find('[data-wiz-flick-label]').textContent, 'Default');
   assert.match(body, /<button type="button" class="wiz-try" data-wiz-flick disabled>/, 'nothing to flick to yet');
   assert.deepEqual(dom.findAll('[data-wiz-scr-add]').map((b) => b.getAttribute('data-wiz-scr-add')), ['health', 'radar']);
   assert.equal(dom.findAll('[data-wiz-scr-rm]').length, 0, 'the Default screen has no ✕');
   assert.match(body, /aria-label="Add the Health screen"/);
-  assert.match(body, /<p class="wiz-fine">Rain alerts show on the Watch bar either way\. Change screens later on the Watchface tab\.<\/p>/);
+  assert.match(body, /<p class="wiz-fine">Rain alerts stay on the Watch bar whichever screens you add\. You can change the screens later on the Watchface tab\.<\/p>/);
   // The big screen is the watch's own Default, drawn as the Watchface tab draws it.
   const pic = PW.screenSvg(VC.screensCycle(ctx.S, ctx.ENV)[0], 0, ctx.S, ctx.ENV, {}, 0, new Date(), 'wz0-');
   assert.equal(dom.find('[data-wiz-screen]').getAttribute('aria-label'), 'Default: ' + pic.label);
@@ -598,7 +598,7 @@ const EMERY_CLASSIC = { provider: 'dwd', forecastAxisNumbers: 'axis' };
 test('the forecast step offers Classic, Clean and Stripes; a 144 px watch\'s new graph is Classic', () => {
   const { ctx, dom } = openSetup();
   walkTo(dom, 'forecastLook');
-  assert.match(dom.body.innerHTML, />Choose your forecast</);
+  assert.match(dom.body.innerHTML, />Choose a forecast graph</);
   assert.deepEqual(dom.picker().options, LOOK_IDS);
   assert.deepEqual(dom.picker().labels, ['Classic', 'Clean', 'Stripes']);
   assert.equal(dom.picker().selected, 'classic', 'Classic preselected: the defaults on a 144 px watch');
@@ -610,8 +610,8 @@ test('the forecast step offers Classic, Clean and Stripes; a 144 px watch\'s new
   assert.equal(graph.innerHTML, pic.svg.replace('class="wpv-scr"', 'class="wiz-scr"'));
   assert.equal(graph.getAttribute('aria-label'), 'Forecast preview: Classic, on the Default screen');
   assert.equal(dom.find('[data-wiz-desc="forecastLook"]').textContent,
-    'The ForecasWatch2 graph: the temperature, rain chance as a shaded area and rain bars.');
-  assert.match(dom.body.innerHTML, /<p class="wiz-fine">Every line can be changed later on the Graphs tab\.<\/p>/);
+    'Draws the graph the way ForecasWatch2 does: the temperature, the rain chance as a shaded area, and rain bars.');
+  assert.match(dom.body.innerHTML, /<p class="wiz-fine">You can change every line of the graph later on the Graphs tab\.<\/p>/);
   // A new install opens on it too, its graph left as it was.
   const fresh = openSetup({ fresh: true });
   walkTo(fresh.dom, 'forecastLook');
@@ -639,16 +639,16 @@ test('each look\'s copy: the high and low on the graph only where the watch draw
     return dom.find('[data-wiz-desc="forecastLook"]').textContent;
   };
   assert.equal(desc('basalt', 'classic'),
-    'The ForecasWatch2 graph: the temperature, rain chance as a shaded area and rain bars.');
+    'Draws the graph the way ForecasWatch2 does: the temperature, the rain chance as a shaded area, and rain bars.');
   assert.equal(desc('basalt', 'clean'),
-    'The temperature, rain chance as a shaded area, clouds as a stripe along the top and solid rain bars.');
+    'Shows the temperature, the rain chance as a shaded area, the clouds as a stripe along the top, and solid rain bars.');
   assert.equal(desc('basalt', 'stripes'),
-    'The temperature, with clouds and rain chance as stripes along the top, and solid rain bars that hang from the top.');
+    'Shows the temperature, the clouds and the rain chance as stripes along the top, and solid rain bars that hang from the top.');
   assert.equal(desc('diorite', 'clean'),
-    'The temperature, rain chance as a shaded area, clouds as a stripe along the top and rain bars.',
+    'Shows the temperature, the rain chance as a shaded area, the clouds as a stripe along the top, and rain bars.',
     'a black-and-white watch outlines its bars');
   assert.equal(desc('diorite', 'stripes'),
-    'The temperature, with clouds and rain chance as stripes along the top, and rain bars that hang from the top.');
+    'Shows the temperature, the clouds and the rain chance as stripes along the top, and rain bars that hang from the top.');
   assert.equal(desc('emery', 'classic'), desc('basalt', 'classic') + ' The high and low go beside the axis.');
   assert.equal(desc('emery', 'clean'), desc('basalt', 'clean') + ' The high and low go on the graph.');
   assert.equal(desc('emery', 'stripes'), desc('basalt', 'stripes') + ' The high and low go beside the axis.');
@@ -729,7 +729,7 @@ test('on emery Forecast length picks the hours; each look starts on its own: Cle
   assert.equal(span().selected, '48');
   assert.deepEqual(drawn(), ['48', 66, 'Forecast preview: Clean, 66 h, on the Default screen'],
     'the long span, a full feed across the whole screen');
-  assert.match(dom.find('[data-wiz-desc="forecastHours"]').textContent, /^As far ahead as your weather service forecasts/);
+  assert.match(dom.find('[data-wiz-desc="forecastHours"]').textContent, /^Shows as many hours as your weather service forecasts/);
   // Another look starts on its own length, and the long span's hours follow its axis.
   dom.pick('forecastLook', 'classic');
   assert.deepEqual(drawn(), ['24', 22, 'Forecast preview: Classic, 24 h, on the Default screen'],
@@ -751,7 +751,7 @@ test('on emery Forecast length picks the hours; each look starts on its own: Cle
   assert.deepEqual(drawn(), ['48', 66, 'Forecast preview: Clean, 66 h, on the Default screen']);
   dom.key('forecastHours', '48', 'Home');
   assert.equal(ctx.S.forecastHours, '12', 'the arrow keys step through the lengths');
-  assert.match(dom.body.innerHTML, /<p class="wiz-fine">Every line can be changed later on the Graphs tab\.<\/p>/);
+  assert.match(dom.body.innerHTML, /<p class="wiz-fine">You can change every line of the graph later on the Graphs tab\.<\/p>/);
   // A new install's graph, the defaults, is none of the looks here (the long span and the high and
   // low on the graph, no clouds' stripe): setup starts it on Clean's, not as "Your own".
   const fresh = openSetup({ platform: 'emery', fresh: true });
@@ -770,7 +770,7 @@ test('a graph set up in Settings is kept as "Your own", first, and can be gone b
   assert.deepEqual(dom.picker().options, ['own'].concat(LOOK_IDS));
   assert.equal(dom.picker().labels[0], 'Your own');
   assert.equal(dom.picker().selected, 'own');
-  assert.equal(dom.find('[data-wiz-desc="forecastLook"]').textContent, 'Your graph as it is now.');
+  assert.equal(dom.find('[data-wiz-desc="forecastLook"]').textContent, 'Keeps your graph as it is now.');
   dom.pick('forecastLook', 'stripes');
   assert.equal(ctx.S.secondaryLine, 'cloud');
   dom.pick('forecastLook', 'own');

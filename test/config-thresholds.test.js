@@ -596,7 +596,7 @@ test('the sheets: the levels and look stay live whatever the slot Highlight, whi
     'the warn look is live while the slot highlight is off');
   assert.ok(page.modal.innerHTML.indexOf('Warn 100') !== -1,
     'the slider shows the seed values');
-  assert.ok(page.modal.innerHTML.indexOf('reaching warn') !== -1,
+  assert.ok(page.modal.innerHTML.indexOf('Set the warn and danger levels') !== -1,
     'the sheet carries the Alert levels intro');
   const sheet = page.modal.innerHTML;
   assert.ok(sheet.indexOf('data-zone="warn"') !== -1 && sheet.indexOf('data-zone="danger"') !== -1,
@@ -655,7 +655,7 @@ test('the page renders an alert sheet: its Shows on grid, the levels, then the L
   assert.ok(sheet.indexOf('UV index alert') !== -1, 'the sheet carries its title');
   assert.equal(sheet.indexOf('data-k="alertUv"'), -1, 'no switch: its Shows on grid places the alert');
   assert.equal(sheet.indexOf(cardTitle('Alert')), -1, 'and no Alert card');
-  assert.ok(sheet.indexOf('<div class="card nohdr dlg-intro"><div class="intro">Shows the UV icon at the edge of a status bar when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.<p class="intro-more">') !== -1,
+  assert.ok(sheet.indexOf('<div class="card nohdr dlg-intro"><div class="intro">Shows the UV icon at the edge of a status bar when the UV index reaches your warn level at any time in the rest of today, so an afternoon peak already shows in the morning.<p class="intro-more">') !== -1,
     'with its intro, in view');
   const at = (frag) => {
     const i = sheet.indexOf(frag);
@@ -664,7 +664,7 @@ test('the page renders an alert sheet: its Shows on grid, the levels, then the L
   };
   // The card on the default levels is a note under the intro, in the intro card
   // (owner, 2026-10-04), above the Shows on card; the slider has no info text of its own.
-  const card = '<p class="intro-more">By default, warn sits at 6';
+  const card = '<p class="intro-more">By default, warn is at 6';
   assert.ok(at(card) < at(cardTitle('Shows on')), 'the default-levels note, in the intro card');
   assert.ok(at(cardTitle('Shows on')) < at('aria-label="Shows on"'), 'the Shows on card');
   assert.ok(at('aria-label="Shows on"') < at(cardTitle('Alert levels')), 'the grid first');
@@ -1337,7 +1337,7 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     assert.deepEqual(items[n - 2], {
       type: 'toggle', messageKey: 'thresh' + stem + 'On', label: 'Alert highlighting',
       hintByValue: {
-        true: 'Fills this slot from the danger level on and draws the warn look from warn.'
+        true: 'Fills this slot when the value reaches the danger level, and draws the warn look when it reaches the warn level.'
       },
       defaultValue: false
     }, stem + ' the highlight group leads with its switch');
@@ -1383,14 +1383,14 @@ test('the Bold hint explains the selected step only, and when the level bold app
   // A weather kind's ladder also weights its alert's value (status_on_demand.c), so
   // its hints name both places.
   assert.deepEqual(boldFor('Wind').hintByValue, {
-    off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.',
-    warn: 'Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.',
-    always: 'Every status slot showing this value prints it in heavier text.'
+    off: 'At the danger level, the value still prints in bold: in the slot while Alert highlighting is on, and next to the alert icon.',
+    warn: 'Prints the value in bold from the warn level on: in the slot while Alert highlighting is on, and next to the alert icon.',
+    always: 'Every status slot that shows this value prints it in bold.'
   });
   assert.deepEqual(boldFor('Steps').hintByValue, {
-    off: 'A reached goal still prints bold while Goals are on.',
-    warn: 'Heavier text once you get close to the goal, while Goals are on.',
-    always: 'Every status slot showing this value prints it in heavier text.'
+    off: 'A reached goal still prints in bold while the Goals switch is on.',
+    warn: 'Prints the value in bold once you get close to the goal, while the Goals switch is on.',
+    always: 'Every status slot that shows this value prints it in bold.'
   });
 });
 
@@ -1635,12 +1635,12 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     // AQI's look-ahead — later today and tomorrow — depends on its source (WAQI has no
     // forecast): its intro closes on the note the slot sheet carries too (settings
     // audit #10), naming where the air quality source is picked (Setup › Data sources).
-    const coda = stem === 'Aqi' ? ' Looking ahead — later today and tomorrow — needs Open-Meteo for Air'
-      + ' quality (Setup › Data sources): WAQI, which Auto mostly reads, has no forecast, so the alert then judges'
-      + ' the current reading.' : '';
+    const coda = stem === 'Aqi' ? ' To look ahead to later today and tomorrow, pick Open-Meteo for Air'
+      + ' quality (Setup › Data sources). WAQI, which Auto mostly reads, has no forecast, so with it the alert'
+      + ' uses the current reading.' : '';
     assert.equal(s.intro, 'Shows the ' + ICON[stem] + ' icon at the edge of a status bar when '
-      + SUBJECT[stem] + ' reaches your warn level at any point left today, so an afternoon peak shows'
-      + ' from the morning on.' + coda, s.sheetId + ' intro');
+      + SUBJECT[stem] + ' reaches your warn level at any time in the rest of today, so an afternoon peak'
+      + ' already shows in the morning.' + coda, s.sheetId + ' intro');
     const lookAt = s.items.findIndex(it => it.messageKey === key + 'Display');
     assert.deepEqual(s.items.slice(lookAt, lookAt + 3), [{
       // Icon + value by default since 2.0.1 (status-thresholds.js enabledAlerts reads an
@@ -1651,8 +1651,9 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
       // slot on its side and the middle slot, the owner's order of 2026-09-30); the
       // icon look has no hint.
       hintByValue: {
-        value: 'Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its'
-          + ' side and the middle slot shorten and hide first; only then does the alert drop to just the icon.'
+        value: 'Adds the value that set off the alert after the icon. When the bar runs out of room, the status'
+          + ' slot on the alert’s side and the middle slot first shorten, then hide. Only then does the alert drop'
+          + ' to the icon alone.'
       }
     }, {
       // Days: "Today + tomorrow" by default (the contract's alertDays on an absent
@@ -1662,15 +1663,15 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
       options: [['Today', 'today'], ['Today + tomorrow', 'tomorrow']],
       more: true,
       hintByValue: {
-        tomorrow: 'When nothing left today reaches your warn level but tomorrow does, the alert is active'
-          + ' for tomorrow and its icon carries its Tomorrow’s mark.'
+        tomorrow: 'If nothing in the rest of today reaches your warn level but tomorrow does, the alert shows'
+          + ' for tomorrow, with the mark set in Tomorrow’s mark.'
       }
     }, {
       // The tomorrow mark: the slot's choices, the » by default, shown only while the
       // alert looks ahead (anything but a stored Today, as alertDays reads it).
       type: 'select', messageKey: key + 'NextDayMark', label: 'Tomorrow\'s mark', defaultValue: 'raquo',
       options: MARKS,
-      hintByValue: { none: 'An alert for tomorrow then looks just like one for today.' },
+      hintByValue: { none: 'An alert for tomorrow looks the same as one for today.' },
       joinPrevious: true,
       more: true,
       showWhen: { key: key + 'Days', ne: 'today' }
@@ -1681,13 +1682,14 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     // 'Shows on' card, the note its intro (where items drop first, and how the alert
     // merges into a slot showing the same value), and the Default view's warning follows it.
     assert.deepEqual(s.items[0], { type: 'subheader', text: 'Shows on',
-      intro: 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.'
-        + ' Where the status slot on that side shows ' + SUBJECT[stem] + ', the alert goes into that slot,'
-        + ' with its colors, instead of adding its alert icon.' }, s.sheetId + ': the Shows on card, its note as intro');
+      intro: 'On each bar, the alert can show on the left or the right, not both. When a bar runs out of'
+        + ' room, the alerts lower in the Alerts tab’s list are hidden first.'
+        + ' If the status slot on the same side shows ' + SUBJECT[stem] + ', the alert shows in that slot,'
+        + ' in the alert’s colors, instead of adding its icon.' }, s.sheetId + ': the Shows on card, its note as intro');
     assert.equal(s.items[1].check, stem.toLowerCase(), s.sheetId + ': the Shows on grid first');
     assert.equal(s.items[1].captionsOnly, true, s.sheetId + ': its header row shows the column captions only');
     assert.equal(s.items[2].type, 'staticText', s.sheetId + ': then the Default view note');
-    assert.equal(s.items[2].text, 'Your Default screen has no Watch bar. Tick another bar below.');
+    assert.equal(s.items[2].text, 'Your Default screen has no Watch bar, so this alert won’t show there. Tick a bar that screen shows.');
     assert.ok(s.items[2].showWhen, s.sheetId + ': only while that view has no On demand bar');
     const head = s.items[3];
     assert.equal(head.type, 'subheader', s.sheetId + ': the levels group follows');
@@ -1729,7 +1731,7 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
       s.sheetId + ': Shows on header + grid + note, levels header, slider, two companions, Look/Days/mark, the look rows');
   });
   assert.equal(itemsByKey().threshPollenWarn[0].hint,
-    'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.',
+    'The DWD pollen index runs 0–3, and a half level like "2-3" counts as 2.5. Works only with the DWD weather provider.',
     'Pollen\'s scale note rides its slider in the alert sheet');
 });
 
@@ -1742,14 +1744,15 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
   // Battery saver hours (rain_countdown.c; settings audit #14). rain_tint
   // (status_on_demand.c): the radar colour only under a colour theme on a colour watch.
   assert.equal(s.intro, 'Shows the rain icon at the edge of a status bar while it rains at your location'
-    + ' or rain is due within the time window. On a color watch the rain icon takes the radar’s rain color,'
-    + ' except with a B&W theme. Hidden during the Battery saver hours.');
+    + ' or when rain is due within the time window. On a color watch, the icon uses the radar’s rain color,'
+    + ' except with a B&W theme. The icon is hidden during the Battery saver hours.');
   assert.ok(!s.items.some(it => it.messageKey === 'alertRain'), 'no switch: its Shows on grid places Rain');
   // The Shows on card: its note as the card's intro (rain never merges into a slot, so no
   // merge sentence), then the boxes — the radar is off (a link to where it is turned on),
   // or Rain sits on no bar — then the grid they point at, then the Default view's warning.
   assert.deepEqual(s.items[0], { type: 'subheader', text: 'Shows on',
-    intro: 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.' });
+    intro: 'On each bar, the alert can show on the left or the right, not both. When a bar runs out of'
+      + ' room, the alerts lower in the Alerts tab’s list are hidden first.' });
   assert.deepEqual(s.items[1], { type: 'staticText', style: 'info',
     text: 'The rain alert needs the rain radar. Turn it on in <button type="button" class="txt-link"'
       + ' data-goto-tab="setup">Setup › Data sources</button>.',
@@ -1766,14 +1769,14 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
     'never doubled with the radar-off box');
   assert.equal(s.items[3].check, 'rain', 'then the grid');
   assert.equal(s.items[3].captionsOnly, true);
-  assert.equal(s.items[4].text, 'Your Default screen has no Watch bar. Tick another bar below.');
+  assert.equal(s.items[4].text, 'Your Default screen has no Watch bar, so this alert won’t show there. Tick a bar that screen shows.');
   // Then the Alert card: rain's own row first, then its Look (the owner's order since
   // the restructure; it was the Look first).
   assert.deepEqual(s.items[5], { type: 'subheader', text: 'Alert' });
   assert.deepEqual(s.items[6], {
     type: 'segmented', messageKey: 'rainCountdownHorizon', label: 'Time window', defaultValue: '60',
     options: [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']],
-    hint: 'Rain due further out doesn’t show the icon. Radar forecasts change often, so a shorter window'
+    hint: 'Rain due later than this doesn’t show the icon. Radar forecasts change often, so a shorter window'
       + ' gives fewer false alarms.'
   });
   assert.deepEqual(s.items[7], {
@@ -1785,11 +1788,11 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
     // default Text look too, because its name does not carry that. While it rains the
     // '+' number is the minutes until the rain stops (review set-7).
     hintByValue: {
-      minutes: 'The rain icon with the minutes until the rain starts or, while it rains, + the minutes'
-        + ' until it stops. On a crowded bar, the status slot on its side and the middle slot shorten and'
-        + ' hide first; only then is it just the icon.',
-      text: 'On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only'
-        + ' then does it shorten to the minutes, then to the rain icon alone.'
+      minutes: 'Shows the rain icon and the minutes until the rain starts. While it rains, it shows + and the'
+        + ' minutes until it stops. When the bar runs out of room, the status slot on the alert’s side and the'
+        + ' middle slot first shorten, then hide. Only then does it drop to the icon alone.',
+      text: 'When the bar runs out of room, the status slot on the alert’s side and the middle slot first'
+        + ' shorten, then hide. Only then does the text shorten to the minutes, and then to the rain icon alone.'
     }
   });
   assert.equal(s.items.length, 8);
@@ -1836,7 +1839,7 @@ test('every bold-only kind gets a sheet whose Bold row is its LAST control', () 
     assert.equal(bold.label, 'Bold');
     assert.equal(bold.joinPrevious, undefined, stem + ' Bold is a row of its own');
     assert.equal(bold.defaultValue, 'off', stem + ' defaults to off');
-    assert.deepEqual(bold.hintByValue, { always: 'Every status slot showing this value prints it in heavier text.' },
+    assert.deepEqual(bold.hintByValue, { always: 'Every status slot that shows this value prints it in bold.' },
       stem + ' hint: Always only (Off, the default, needs none)');
     assert.equal(bold.hint, undefined, stem + ' no all-options hint');
     assert.deepEqual(bold.disabledWhen, { key: 'statusBoldAll', in: ['off', 'all'] },
@@ -1904,10 +1907,10 @@ test('the Temp sheet leads with its Value selection, and Bold closes it', () => 
   // One hint per SELECTED mode; the measured temperature (the default) needs none.
   assert.equal(disp.hint, undefined, 'no all-options hint');
   assert.equal(disp.hintByValue.actual, undefined, 'the default mode has no hint');
-  assert.equal(disp.hintByValue.feels, 'What it feels like, by the formula set under Setup › Units.');
+  assert.equal(disp.hintByValue.feels, 'Shows the feels-like temperature, using the formula set under Setup › Units.');
   // Both shows the pair on the default separator and names the rows that shape it.
   assert.equal(disp.hintByValue.both,
-    'The temperature and what it feels like, like 12|10. Order and Separator shape the pair.');
+    'Shows the temperature and the feels-like temperature, like 12|10. Order and Separator set how the pair looks.');
   // No gate of its own: it inherits the sheet's THRESHOLD_WHEN, so aplite (which
   // has no Edit sheets) deliberately never reaches it — feels-like is left out
   // there entirely (slot mode AND graph metric, see the forecastMetric resolver).
@@ -1949,7 +1952,7 @@ test('the UV sheet: the Value selection group, Bold, then the highlight group', 
   assert.equal(items[9].sheetId, 'alertUv', 'the row into the alert sheet (Alerts tab) follows the switch');
   assert.equal(disp.disabledWhen, undefined, 'not muted by the highlight toggle or the master Bold row');
   // Tomorrow's peak mark explains its one value that needs it.
-  assert.deepEqual(items[5].hintByValue, { none: 'Tomorrow\'s peak then looks just like today\'s.' });
+  assert.deepEqual(items[5].hintByValue, { none: 'Tomorrow\'s peak then looks the same as today\'s.' });
 });
 
 // --- the Value selection hint: the SELECTED mode's copy, static by value ------------
@@ -1983,13 +1986,13 @@ test('dayMaxHint: Now gets no hint; Day max and Both each explain themselves alo
     assert.strictEqual(dayMaxHintOf(prefix, {}, 'current'), undefined, prefix + ' Now: no hint');
   });
   assert.equal(dayMaxHintOf('uv', {}, 'max'),
-    'The highest UV index left today, while that peak is still ahead or happening now. After'
-    + ' it, tomorrow\'s peak with Tomorrow\'s peak mark, or the reading when tomorrow\'s isn\'t'
-    + ' known. Tomorrow\'s peak never triggers Alert highlighting.');
+    'Shows the highest UV index left today while that peak is still ahead or happening now. After'
+    + ' it, the slot shows tomorrow\'s peak with Tomorrow\'s peak mark, or the current reading if'
+    + ' tomorrow\'s isn\'t known. Tomorrow\'s peak never triggers Alert highlighting.');
   assert.equal(dayMaxHintOf('uv', {}, 'both'),
-    'The UV index now and the highest left today, like 3/7, while that peak is still ahead or'
+    'Shows the UV index now and the highest left today, like 3/7, while that peak is still ahead or'
     + ' happening now. After it, tomorrow\'s peak takes its place with Tomorrow\'s peak'
-    + ' mark, or the reading shows alone when tomorrow\'s isn\'t known. Tomorrow\'s peak never'
+    + ' mark, or the current reading shows alone if tomorrow\'s isn\'t known. Tomorrow\'s peak never'
     + ' triggers Alert highlighting.');
 });
 
@@ -2000,9 +2003,9 @@ test('dayMaxHint: every day-max kind carries a static by-value hint on its own n
     assert.equal(item.label, 'Value selection', prefix);
     assert.deepEqual(item.options, [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']], prefix);
     assert.deepEqual(Object.keys(item.hintByValue).sort(), ['both', 'max'], prefix + ': Now needs none');
-    assert.ok(item.hintByValue.max.indexOf('The highest ' + copy.noun + ' left today, ') === 0,
+    assert.ok(item.hintByValue.max.indexOf('Shows the highest ' + copy.noun + ' left today while ') === 0,
       prefix + ' max: ' + item.hintByValue.max);
-    assert.ok(item.hintByValue.both.indexOf('The ' + copy.noun + ' now and the highest left today, like '
+    assert.ok(item.hintByValue.both.indexOf('Shows the ' + copy.noun + ' now and the highest left today, like '
       + copy.sample + ', ') === 0, prefix + ' both: ' + item.hintByValue.both);
     ['max', 'both'].forEach((mode) => {
       const h = item.hintByValue[mode];
@@ -2028,7 +2031,7 @@ test('dayMaxHint: AQI closes on its source note via the resolver, from the same 
     'one table: the resolver closes the static hint the engine hands it (args.staticHint)');
   assert.equal(item.hintFrom.args.keyStem, undefined, 'the resolver reads no levels');
   const waqi = ' Your AQI provider (WAQI) has no forecast, so the current reading shows.';
-  const auto = ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.';
+  const auto = ' Auto mostly reads WAQI, which has no forecast, so the current reading shows.';
   ['max', 'both'].forEach((mode) => {
     const full = item.hintByValue[mode];
     // An absent source reads as WAQI, the default.
@@ -2058,7 +2061,7 @@ test('dayMaxHint: the same text whatever the levels, the units or the switch', (
 test('dayMaxHint: the sheet renders the selected mode\'s hint', () => {
   const page = bootGeneratedPage({ provider: 'dwd', uvSlotDisplay: 'max' });
   page.openEditSheet('threshUv');
-  assert.ok(page.modal.innerHTML.indexOf('The highest UV index left today') !== -1, 'the Day max hint');
+  assert.ok(page.modal.innerHTML.indexOf('Shows the highest UV index left today') !== -1, 'the Day max hint');
   assert.equal(page.modal.innerHTML.indexOf('data-range="threshUvWarn"'), -1,
     'no slider here: the slot sheet only points at the alert sheet');
   const aqi = bootGeneratedPage({ provider: 'dwd', aqiSlotDisplay: 'both' });
@@ -2074,14 +2077,14 @@ test('dayMaxHint: picking Day max on a Now slot brings the hint in', () => {
   // Now renders no hint at all, so the pill click itself has to render the Day max hint.
   const page = bootGeneratedPage({ provider: 'dwd' });
   page.openEditSheet('threshUv');
-  assert.equal(page.modal.innerHTML.indexOf('The highest UV index'), -1, 'Now: no hint');
+  assert.equal(page.modal.innerHTML.indexOf('Shows the highest UV index'), -1, 'Now: no hint');
   const t = {
     getAttribute: n => (n === 'data-k' ? 'uvSlotDisplay' : (n === 'data-v' ? 'max' : null)),
     closest: sel => (sel === '[data-v]' ? t : null)
   };
   page.modal.dispatch('click', { target: t });
   assert.equal(page.S.uvSlotDisplay, 'max');
-  assert.ok(page.modal.innerHTML.indexOf('The highest UV index left today') !== -1,
+  assert.ok(page.modal.innerHTML.indexOf('Shows the highest UV index left today') !== -1,
     'the Day max hint renders');
 });
 

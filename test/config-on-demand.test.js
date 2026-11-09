@@ -261,7 +261,8 @@ test('a tap on the Alerts row brings the Alerts tab to the front', () => {
 
 // --- the Shows on grids -------------------------------------------------------------
 const CAPS = '<span class="chk-caps" aria-hidden="true"><span>Left</span><span>Right</span></span>';
-const NOTE = 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.';
+const NOTE = 'On each bar, the alert can show on the left or the right, not both. When a bar runs out of'
+  + ' room, the alerts lower in the Alerts tab’s list are hidden first.';
 // A metric alert's note adds the merge into the slot that shows its value.
 const MERGE = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air quality index',
   pollen: 'the pollen index', wind: 'the wind speed' };
@@ -301,8 +302,8 @@ test('every item dialog opens on its Shows on card: a row per status bar, a Left
     // The note is the card's intro, in view right above the grid: the merge sentence for a
     // metric alert alone.
     assert.ok(sheet.indexOf('<div class="intro">' + NOTE
-      + (MERGE[code] ? ' Where the status slot on that side shows ' + MERGE[code] + ', the alert goes into that'
-        + ' slot, with its colors, instead of adding its alert icon.' : '')
+      + (MERGE[code] ? ' If the status slot on the same side shows ' + MERGE[code] + ', the alert shows in that'
+        + ' slot, in the alert’s colors, instead of adding its icon.' : '')
       + '</div><div class="row stack chk-row">', card) !== -1, code + ': the note leads the grid');
   });
 });
@@ -518,12 +519,12 @@ test('the grid lists every bar the watch draws, live exactly where a screen show
 
 // --- the Alerts tab -----------------------------------------------------------------
 const ON_DEMAND_INTRO = 'An alert shows at the edge of a status bar only when it reaches its warn level or is active'
-  + ' right now, and stays hidden the rest of the time, so the watchface only shows what matters. For example: the'
-  + ' battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn level. Open an alert to'
-  + ' choose which status bars show it, left or right.<p class="intro-more">The warn level works on the graph too:'
-  + ' set a wind, gust or UV line’s Visible values to Alert (<button type="button" class="txt-link"'
-  + ' data-goto-tab="graphs" data-goto-pane="forecast">Graphs › Forecast</button>) and it shows only the hours'
-  + ' that reach it, so the graph stays empty until it matters.</p>';
+  + ' right now. The rest of the time it stays hidden. For example, the battery is low, Bluetooth is disconnected,'
+  + ' rain is coming, or the UV or wind forecast reaches its warn level. Open an alert to choose which status bars'
+  + ' show it, on the left or the right.<p class="intro-more">The warn level works on the graph too. Set the Visible'
+  + ' values of a wind, gust or UV line to Alert (<button type="button" class="txt-link"'
+  + ' data-goto-tab="graphs" data-goto-pane="forecast">Graphs › Forecast</button>), and the line shows only in the'
+  + ' hours that reach the warn level.</p>';
 
 test('the Alerts tab sits between Status bars and Graphs: About alerts, then the System info and Weather alerts cards', () => {
   const page = alertsTab();
@@ -962,7 +963,7 @@ test('the Rain dialog holds the one rain window', () => {
   page.clickTab('alerts');
   page.openEditSheet('alertRain');
   assert.match(rowOf(page.modal.innerHTML, 'data-k="rainCountdownHorizon"'),
-    /^<div class="row wrap"><div class="lbl">Time window<\/div><div class="rgt">[\s\S]*<div class="hint">Rain due further out/,
+    /^<div class="row wrap"><div class="lbl">Time window<\/div><div class="rgt">[\s\S]*<div class="hint">Rain due later than this/,
     'the Rain dialog\'s Time window, its hint in view');
   assert.equal((page.modal.innerHTML.match(/data-k="rainCountdownHorizon" data-v=/g) || []).length,
     3, 'its three windows');

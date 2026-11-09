@@ -1092,29 +1092,29 @@ const APLITE_ENV = platform.computeEnv({ platform: 'aplite' });
 const hintOf = (key, S, env) => engineLib.resolveHint(byKey(key), S, env, S[key]);
 
 const HEIGHT = {
-  precip_prob: 'Half height = 50% chance of rain, full height = 100%.',
-  cloud: 'Half height = half the sky covered, full height = overcast.',
-  wind: 'Scaled by the Wind graph scale setting.',
-  gust: 'Scaled by the Wind graph scale setting.',
-  uv: 'Half height = UV 5.5, full height = UV 11 (extreme).',
-  pressure: 'Sea-level pressure, scaled by the pressure graph scale below.',
-  feels: 'Drawn on the same scale as the temperature curve.',
-  dew: 'Drawn on the same scale as the temperature curve.'
+  precip_prob: 'Half height is a 50% chance of rain, full height is 100%.',
+  cloud: 'Half height is half the sky covered, full height is overcast.',
+  wind: 'The height follows the Wind graph scale setting.',
+  gust: 'The height follows the Wind graph scale setting.',
+  uv: 'Half height is UV 5.5, full height is UV 11 (extreme).',
+  pressure: 'Shows sea-level pressure. The height follows the Pressure graph scale below.',
+  feels: 'Uses the same scale as the temperature curve.',
+  dew: 'Uses the same scale as the temperature curve.'
 };
 // A stripe's colour steps on its metric's own scale (stripe-levels.js): rain chance
 // 1-10 / 11-30 / 31-60 / 61-100 %, cloud 10-29 / 30-59 / 60-89 / 90-100 %, and wind,
 // gusts and UV from 1, 30, 60 and 90 % up their scale (UV 11: 3.3, 6.6, 9.9).
 const STRIPE = {
-  precip_prob: 'Four colour steps: 1–10%, 11–30%, 31–60% and 61–100% chance of rain.',
-  cloud: 'Four colour steps: 10–29%, 30–59%, 60–89% and 90–100% of the sky covered.',
-  wind: 'Colour strength follows the Wind graph scale setting, full colour from 90% of its top.',
-  gust: 'Colour strength follows the Wind graph scale setting, full colour from 90% of its top.',
-  uv: 'Colour steps up at UV 3.3 and 6.6, full colour from UV 9.9.'
+  precip_prob: 'The color gets stronger in four steps: 1–10%, 11–30%, 31–60% and 61–100% chance of rain.',
+  cloud: 'The color gets stronger in four steps: 10–29%, 30–59%, 60–89% and 90–100% of the sky covered.',
+  wind: 'The color strength follows the Wind graph scale setting, with full color from 90% of its top.',
+  gust: 'The color strength follows the Wind graph scale setting, with full color from 90% of its top.',
+  uv: 'The color steps up at UV 3.3 and 6.6, with full color from UV 9.9.'
 };
 
 test('metric pickers keep only the notes that hold whatever the style', () => {
   const expected = {
-    precip_prob: '', cloud: '', wind: '', gust: 'The hourly peak.', uv: '',
+    precip_prob: '', cloud: '', wind: '', gust: 'Shows the hourly peak.', uv: '',
     pressure: '', feels: '', dew: 'The closer it runs to the temperature, the more humid it feels.', off: ''
   };
   LINE_KEYS.forEach((key) => {
@@ -1133,22 +1133,22 @@ test('a metric picker names a gap in the picked provider only', () => {
   assert.equal(pick('dew', 'yandex'),
     'The closer it runs to the temperature, the more humid it feels. ' + YANDEX, 'after the metric\'s note');
   assert.equal(pick('precip_prob', 'metno'), METNO);
-  assert.equal(pick('gust', 'metno'), 'The hourly peak. ' + METNO);
+  assert.equal(pick('gust', 'metno'), 'Shows the hourly peak. ' + METNO);
   assert.equal(pick('cloud', 'metno'), '', 'Met.no sends clouds');
   assert.equal(pick('precip_prob', 'dwd'), '', 'nothing for a provider without the gap');
 });
 
 test('without style pickers (aplite) the metric picker keeps the height scale after its note', () => {
   const expected = {
-    precip_prob: 'Half height = 50% chance of rain, full height = 100%.',
-    cloud: 'Half height = half the sky covered, full height = overcast.',
-    wind: 'Scaled by the Wind graph scale setting.',
-    gust: 'The hourly peak. Scaled by the Wind graph scale setting.',
-    uv: 'Half height = UV 5.5, full height = UV 11 (extreme).',
-    pressure: 'Sea-level pressure, scaled by the pressure graph scale below.',
-    feels: 'Drawn on the same scale as the temperature curve.',
+    precip_prob: 'Half height is a 50% chance of rain, full height is 100%.',
+    cloud: 'Half height is half the sky covered, full height is overcast.',
+    wind: 'The height follows the Wind graph scale setting.',
+    gust: 'Shows the hourly peak. The height follows the Wind graph scale setting.',
+    uv: 'Half height is UV 5.5, full height is UV 11 (extreme).',
+    pressure: 'Shows sea-level pressure. The height follows the Pressure graph scale below.',
+    feels: 'Uses the same scale as the temperature curve.',
     dew: 'The closer it runs to the temperature, the more humid it feels. '
-      + 'Drawn on the same scale as the temperature curve.'
+      + 'Uses the same scale as the temperature curve.'
   };
   GRAPH_METRIC_IDS.forEach((m) => {
     assert.equal(hintOf('secondaryLine', { secondaryLine: m }, APLITE_ENV), expected[m], 'aplite ' + m);
@@ -1185,9 +1185,10 @@ test('line-style hint: every metric x style reads height for curves and marks, c
     lineStyle.STRIPE_METRIC_IDS.slice().sort(), 'forecast-hints.js STRIPE_SCALE keys = STRIPE_METRIC_IDS');
   const expected = (m, st) => {
     if (st === 'line' || st === 'bold') { return HEIGHT[m]; }
-    if (st === 'dots' || st === 'x') { return HEIGHT[m] + ' Aligned to the rain bars.'; }
-    return STRIPE[m] + ' One cell per hour.'
-      + (st === 'stripeBottom' ? ' Below the zero line, where bars and lines never cover it.' : '');
+    if (st === 'dots') { return HEIGHT[m] + ' The dots line up with the rain bars.'; }
+    if (st === 'x') { return HEIGHT[m] + ' The marks line up with the rain bars.'; }
+    return STRIPE[m] + ' The stripe has one cell per hour.'
+      + (st === 'stripeBottom' ? ' It sits under the zero line, where bars and lines never cover it.' : '');
   };
   LINE_KEYS.forEach((key) => {
     GRAPH_METRIC_IDS.forEach((m) => {
@@ -1202,11 +1203,11 @@ test('line-style hint: every metric x style reads height for curves and marks, c
   });
   // Spelled out once, so the composed copy reads as written.
   const S = { secondaryLine: 'precip_prob', secondaryLineStyle: 'stripeBottom' };
-  assert.equal(hintOf('secondaryLineStyle', S, STYLED_ENV), 'Four colour steps: 1–10%, 11–30%, '
-    + '31–60% and 61–100% chance of rain. One cell per hour. Below the zero line, where bars '
+  assert.equal(hintOf('secondaryLineStyle', S, STYLED_ENV), 'The color gets stronger in four steps: 1–10%, 11–30%, '
+    + '31–60% and 61–100% chance of rain. The stripe has one cell per hour. It sits under the zero line, where bars '
     + 'and lines never cover it.');
   assert.equal(hintOf('secondaryLineStyle', { secondaryLine: 'uv', secondaryLineStyle: 'x' }, STYLED_ENV),
-    'Half height = UV 5.5, full height = UV 11 (extreme). Aligned to the rain bars.');
+    'Half height is UV 5.5, full height is UV 11 (extreme). The marks line up with the rain bars.');
 });
 
 test('forecast hints: no name echo, no colour, and the wind scale is named rather than placed', () => {
@@ -1234,7 +1235,7 @@ test('forecast hints: no name echo, no colour, and the wind scale is named rathe
   });
   // Pressure names sea level, so an altitude reading makes sense.
   assert.ok(hintOf('secondaryLineStyle', { secondaryLine: 'pressure', secondaryLineStyle: 'line' }, STYLED_ENV)
-    .includes('Sea-level'));
+    .includes('sea-level'));
 });
 
 test('each forecast line\'s dialog nests its style, fill and wind scale under the line that enables them', () => {
@@ -1327,8 +1328,8 @@ test('aplite\'s Layout card: Full calendar, Compact calendar, No calendar, the r
   assert.deepEqual(t.optionsFrom, { resolver: 'apliteLayouts' });
   assert.deepEqual(global.PConf.optionsResolvers.get('apliteLayouts')({}, platform.computeEnv({ platform: 'aplite' })),
     [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal'], ['No calendar', 'noCal']]);
-  assert.deepEqual(t.hintByValue, { fullCal: '3-row calendar.', compactCal: '2-row calendar.',
-    noCal: 'No calendar — a big forecast.' });
+  assert.deepEqual(t.hintByValue, { fullCal: 'Shows a calendar with 3 rows.', compactCal: 'Shows a calendar with 2 rows.',
+    noCal: 'No calendar, so the forecast graph is bigger.' });
   // A stored value aplite runs as Compact calendar (view-cycle.js presetKeyFor: Weather only
   // and a custom layout fold to it; compactDense draws it without a status row) lies dormant.
   assert.deepEqual(t.dormantValues, ['compactDense', 'weatherOnly', 'custom']);
@@ -1490,8 +1491,8 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
     healthMode: 'all' }).map((o) => o[0]), ['12 h', '24 h', '59 h']);
   assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'axis', largeGraphFont: false,
     healthMode: 'status' }).map((o) => o[0]), ['12 h', '24 h', '60 h']);
-  assert.equal(it.hintByValue['48'], 'As far ahead as your weather provider\'s hourly forecast '
-    + 'reaches and the graph fits, in narrow columns. How many hours depends on the provider and '
+  assert.equal(it.hintByValue['48'], 'As many hours as your weather provider\'s hourly forecast '
+    + 'covers and the graph can fit, in narrow columns. The number of hours depends on the provider and '
     + 'the graph\'s layout.');
   assert.equal(it.hintByValue['12'], 'The next 12 hours, in wider columns.');
   assert.equal(it.hintByValue['24'], 'The next 24 hours.');
@@ -1538,8 +1539,8 @@ test('Left axis: Left axis values in the card, the scale and the font size under
   assert.deepEqual(nums.options.map((o) => o[1]), forecastAxis.NUMBERS, 'the stored values are NUMBERS');
   assert.deepEqual(nums.options.map((o) => o[0]), ['On axis', 'On graph', 'Off']);
   assert.deepEqual(Object.keys(nums.hintByValue).sort(), ['graph', 'off'], 'On axis needs no hint');
-  assert.match(nums.hintByValue.graph, /Disables the left axis/);
-  assert.match(nums.hintByValue.off, /Disables the left axis/);
+  assert.match(nums.hintByValue.graph, /Removes the left axis/);
+  assert.match(nums.hintByValue.off, /Removes the left axis/);
   assert.equal(scale.type, 'toggle');
   assert.equal(scale.defaultValue, false);
   // An absent key reads as the graph from before the key existed, On axis, which is what an
@@ -1811,7 +1812,7 @@ test('each weather + radar provider has a per-value "why" hint on its picker', (
     + '<a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.');
   // "Rainbow (own key)"'s note, verbatim: what the own key gets, and what it costs.
   assert.equal(whyNote('radarSource', 'rainbowkey'),
-    'A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. '
+    'A worldwide nowcast from satellite and radar data. It uses your own Rainbow key, so it refreshes at every update. '
     + 'A key is free: Rainbow\'s free plan covers 5,000 calls a month. Powered by '
     + '<a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.');
   // Rainbow's terms ask for a "Powered by Rainbow.ai" link, under both Rainbow options.
@@ -2108,10 +2109,11 @@ test('the eight side lists: one plain hidden item each, ahead of the Alerts tab\
 const ALERT_CODES = ['battery', 'bt', 'qt', 'snooze', 'rain', 'gust', 'uv', 'aqi', 'pollen', 'wind'];
 const ITEM_SHEET = { battery: 'odBattery', bt: 'odBluetooth', qt: 'odQuiet', snooze: 'odSleep', rain: 'alertRain',
   gust: 'alertGust', uv: 'alertUv', aqi: 'alertAqi', pollen: 'alertPollen', wind: 'alertWind' };
-const SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.';
+const SHOWS_ON_NOTE = 'On each bar, the alert can show on the left or the right, not both. When a bar runs out of'
+  + ' room, the alerts lower in the Alerts tab’s list are hidden first.';
 const SUBJECT = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air quality index', pollen: 'the pollen index',
   wind: 'the wind speed' };
-const DEFAULT_VIEW_NOTE_TEXT = 'Your Default screen has no Watch bar. Tick another bar below.';
+const DEFAULT_VIEW_NOTE_TEXT = 'Your Default screen has no Watch bar, so this alert won’t show there. Tick a bar that screen shows.';
 
 test('every item sheet opens on its Shows on card: the note, the grid, the Default view note; the grid stores nothing', () => {
   ALERT_CODES.forEach((code) => {
@@ -2119,8 +2121,8 @@ test('every item sheet opens on its Shows on card: the note, the grid, the Defau
     assert.ok(sheet, code + ': its sheet');
     // The Shows on card: its sub-header carries the side rules as its intro.
     assert.deepEqual(sheet.items[0], { type: 'subheader', text: 'Shows on', intro: SHOWS_ON_NOTE
-      + (SUBJECT[code] ? ' Where the status slot on that side shows ' + SUBJECT[code] + ', the alert goes into'
-        + ' that slot, with its colors, instead of adding its alert icon.' : '') }, code + ': the card and its note');
+      + (SUBJECT[code] ? ' If the status slot on the same side shows ' + SUBJECT[code] + ', the alert shows in'
+        + ' that slot, in the alert’s colors, instead of adding its icon.' : '') }, code + ': the card and its note');
     // Rain's two notes on why it may not show sit between the header and the grid.
     const at = sheet.items.findIndex((i) => i.type === 'checklist');
     assert.equal(at, code === 'rain' ? 3 : 1, code + ': the grid follows the header (and Rain\'s notes)');
@@ -2173,13 +2175,12 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
   // Its second paragraph (the owner, 2026-10-04) carries the warn level onto the graph
   // lines, linking the Graphs tab's Forecast pane.
   assert.equal(sec.intro, 'An alert shows at the edge of a status bar only when it reaches its warn level or is'
-    + ' active right now, and stays hidden the rest of the time, so the watchface only shows what matters.'
-    + ' For example: the battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn level.'
-    + ' Open an alert to choose which status bars show it, left or right.'
-    + '<p class="intro-more">The warn level works on the graph too: set a wind, gust or UV line’s Visible values'
-    + ' to Alert (<button type="button" class="txt-link" data-goto-tab="graphs" data-goto-pane="forecast">'
-    + 'Graphs › Forecast</button>) and it shows only the hours that reach it, so the graph stays empty until'
-    + ' it matters.</p>');
+    + ' active right now. The rest of the time it stays hidden. For example, the battery is low, Bluetooth is'
+    + ' disconnected, rain is coming, or the UV or wind forecast reaches its warn level. Open an alert to choose'
+    + ' which status bars show it, on the left or the right.'
+    + '<p class="intro-more">The warn level works on the graph too. Set the Visible values of a wind, gust or UV'
+    + ' line to Alert (<button type="button" class="txt-link" data-goto-tab="graphs" data-goto-pane="forecast">'
+    + 'Graphs › Forecast</button>), and the line shows only in the hours that reach the warn level.</p>');
   assert.equal(sec.intro.indexOf('data-action'), -1, 'no inline reset in the intro any more');
   const ctx = (p) => ({ env: platform.computeEnv({ platform: p }) });
   const rowsSec = onDemandItemsSection();
@@ -2265,21 +2266,22 @@ test('the Battery sheet: the warn level in the watch\'s charge steps, and the Lo
   assert.equal(sheet.title, 'Battery');
   assert.deepEqual(sheet.showWhen, ON_DEMAND_WHEN);
   assert.equal(sheet.intro, 'Shows the battery icon at the edge of a status bar while the watch battery is'
-    + ' at or below the warn level. A bar that already shows the battery in a slot (Watch battery or Watch'
-    + ' battery percentage) leaves the icon out, and draws it only when that slot is hidden to make room.');
+    + ' at or below the warn level. If a bar already shows the battery in a status slot (Watch battery or Watch'
+    + ' battery percentage), the icon stays off that bar until that slot is hidden to make room.');
   // The Shows on card (header, grid, Default view note), then the Alert card.
   assert.deepEqual(sheet.items.slice(0, 3).map((i) => i.type), ['subheader', 'checklist', 'staticText']);
   assert.deepEqual(sheet.items[3], { type: 'subheader', text: 'Alert' });
   const row = (step, gate) => ({ type: 'range', single: true, messageKey: 'batteryLowLevel', label: 'Warn level',
-    min: step, max: 30, step, unit: '%', defaultValue: '10', hint: 'The icon shows at this charge or below.',
+    min: step, max: 30, step, unit: '%', defaultValue: '10',
+    hint: 'Shows the battery icon when the battery is at or below this level.',
     showWhen: gate });
   assert.deepEqual(sheet.items[4], row(5, { env: 'fineBattery' }), 'emery: 5..30 in 5s');
   assert.deepEqual(sheet.items[5], row(10, { not: { env: 'fineBattery' } }), 'every other watch: 10..30 in 10s');
   assert.deepEqual(sheet.items[6], {
     type: 'segmented', messageKey: 'batteryLowDisplay', label: 'Look', defaultValue: 'icon',
     options: [['Icon', 'icon'], ['Icon + value', 'value']],
-    hintByValue: { value: 'Adds the charge after the icon, like 8%. On a crowded bar, the status slot on its side'
-      + ' and the middle slot shorten and hide first; only then does it drop to just the icon.' }
+    hintByValue: { value: 'Adds the charge after the icon, like 8%. When the bar runs out of room, the status slot'
+      + ' on the alert’s side and the middle slot first shorten, then hide. Only then does it drop to the icon alone.' }
   });
   assert.equal(sheet.items.length, 7);
   // Exactly one Warn level row shows per platform; an unknown one reads the 10 % steps.
@@ -2511,7 +2513,7 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
     const who = i === 0 ? 'aplite' : 'basalt';
     THRESH_KEYS.forEach((k) => assert.equal(body.indexOf('data-k="' + k + '"'), -1,
       k + ' has no in-body control on ' + who + ' (sheet-only now)'));
-    assert.equal(body.indexOf('Warn and danger levels for this value'), -1,
+    assert.equal(body.indexOf('Set the warn and danger levels for this value'), -1,
       who + ' body has no Alert levels intro (it lives in the sheets)');
   });
   // The pencil: basalt's default AQI forecast slot offers its sheet; aplite offers none.
@@ -2534,7 +2536,7 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
   assert.equal(basaltSheet.indexOf('Alert levels and colors are set in the'), -1, 'the old pointer box is gone');
   assert.equal(basaltSheet.indexOf('data-range="threshAqiWarn"'), -1, 'no levels in the slot sheet');
   const alertSheet = eng.renderEditModal(schema, watchCx('basalt', 'alertAqi'));
-  ['data-k="alertAqiDisplay"', 'reaching warn', 'Alert levels', 'Air quality (AQI) alert',
+  ['data-k="alertAqiDisplay"', 'Set the warn and danger levels', 'Alert levels', 'Air quality (AQI) alert',
     'data-range="threshAqiWarn"'].forEach((frag) =>
     assert.ok(alertSheet.indexOf(frag) !== -1, 'basalt alert sheet carries ' + frag));
   assert.equal(alertSheet.indexOf('data-k="threshAqiOn"'), -1, 'no highlight switch in the alert sheet');
@@ -2576,7 +2578,7 @@ test('the wind and gust sheets carry the direction toggle', () => {
     // must name the direction: the arrow flies downwind, not along the reported bearing.
     assert.match(String(item.hint), /arrow/i, key + ' explains what it draws');
     assert.match(String(item.hint), /blowing/i, key + ' says which way the arrow points');
-    assert.match(String(item.hint), /Not while Day max shows a peak alone\.$/, key + ' names the mode');
+    assert.match(String(item.hint), /No arrow is drawn while Day max shows a peak on its own\.$/, key + ' names the mode');
     // The extra row follows the Value selection group as a row of its own (a divider
     // above it), above the highlight group: it configures the slot, not the highlight.
     // Bold closes the slot's own rows; the Alert highlighting card closes the sheet.
@@ -2668,7 +2670,7 @@ test('the six phone-baked slot kinds each carry a Show unit toggle', () => {
       assert.ok(String(item.hint).length > 20, row.key + ' still needs a real hint');
       // The unit gives way to the direction arrow in a narrow slot (status-lines.js
       // withUnit after the arrow byte), and the hint says so (settings audit #22).
-      assert.equal(item.hint, 'Prints the unit after the value when it fits — in a narrow left or'
+      assert.equal(item.hint, 'Prints the unit after the value when it fits. In a narrow left or'
         + ' right slot, a pair plus the direction arrow leaves no room for it.', row.key);
     }
     // Bold closes every slot sheet's own rows (see the sheet-shape tests above), so the
@@ -3041,7 +3043,7 @@ test('the Forecast pane carries ONE Graph colors card, always open, under an exp
   assert.equal(card.sheetOnly, undefined, 'the card itself is a normal tab section');
   // One nav row, labelled for what it opens: the Graph colors dialog, its rows counted.
   assert.deepEqual(card.items, [{ type: 'sheet', sheetId: 'graphColors', label: 'Graph colors',
-    hint: 'One row per metric, plus the night shading.', navNote: '9', capabilities: ['COLOR'] }]);
+    hint: 'Pick the colors of each metric and of the night shading.', navNote: '9', capabilities: ['COLOR'] }]);
   const dialog = graphColorsDialog();
   assert.equal(dialog.sheetOnly, true);
   assert.equal(dialog.title, 'Graph colors');
@@ -3267,12 +3269,12 @@ test('every day-max Value selection row carries its by-value hints; AQI adds its
   const byKey = (k) => items.find((i) => i.messageKey === k);
   const never = ' Tomorrow\'s peak never triggers Alert highlighting.';
   const hints = (noun, sample) => ({
-    max: 'The highest ' + noun + ' left today, while that peak is still ahead or happening now.'
-      + ' After it, tomorrow\'s peak with Tomorrow\'s peak mark, or the reading when tomorrow\'s'
-      + ' isn\'t known.' + never,
-    both: 'The ' + noun + ' now and the highest left today, like ' + sample + ', while that peak'
+    max: 'Shows the highest ' + noun + ' left today while that peak is still ahead or happening now.'
+      + ' After it, the slot shows tomorrow\'s peak with Tomorrow\'s peak mark, or the current reading'
+      + ' if tomorrow\'s isn\'t known.' + never,
+    both: 'Shows the ' + noun + ' now and the highest left today, like ' + sample + ', while that peak'
       + ' is still ahead or happening now. After it, tomorrow\'s peak takes its place with'
-      + ' Tomorrow\'s peak mark, or the reading shows alone when tomorrow\'s isn\'t known.' + never
+      + ' Tomorrow\'s peak mark, or the current reading shows alone if tomorrow\'s isn\'t known.' + never
   });
   assert.deepEqual(['uv', 'wind', 'gust', 'aqi'].map((p) => byKey(p + 'SlotDisplay').hintByValue), [
     hints('UV index', '3/7'), hints('wind', '12/30'), hints('gusts', '20/45'),
@@ -3288,7 +3290,7 @@ test('every day-max Value selection row carries its by-value hints; AQI adds its
         fallback: 'waqi',
         byValue: {
           waqi: ' Your AQI provider (WAQI) has no forecast, so the current reading shows.',
-          auto: ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.'
+          auto: ' Auto mostly reads WAQI, which has no forecast, so the current reading shows.'
         }
       }
     }

@@ -872,7 +872,7 @@ if (typeof require !== 'undefined') {
                 var need = B.minSleepHoursFor(state, min);
                 if (need !== null && need > sleep) {
                     return '<br>' + min + '-minute updates' + qualifier
-                        + ' need a night pause of ≥ ' + need + ' h — widen the pause to unlock faster updates.';
+                        + ' need a night pause of at least ' + need + ' h. Make the pause longer to get faster updates.';
                 }
                 return '';
             }
@@ -945,7 +945,7 @@ if (typeof require !== 'undefined') {
             + 'Your settings: ' + settingsBits + ' → ' + verdict + '.';
         html += unlockRuleHtml(B, state, sleep, radarOn ? ' with radar' : '');
         if (B.hourlyCalls(state, interval) >= B.LIMIT_HOUR - 1) {
-            html += '<br>At this rate a settings-save refetch in the same hour may delay one cycle — harmless.';
+            html += '<br>At this rate, the refetch after you save settings can delay one update in the same hour. This is harmless.';
         }
         // Return bare content: the engine's renderBlock wraps this in .blockrow, which
         // already supplies padding, colour and its own bottom divider. Wrapping in .static

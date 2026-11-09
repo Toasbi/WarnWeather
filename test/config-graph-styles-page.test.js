@@ -159,7 +159,7 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
   const fifth = metric(S, EMERY, { key: 'fifthLine', off: true, exclude: lines });
   assert.deepEqual(off(fifth), ['pressure', 'feels', 'dew']);
   assert.equal(fifth.find((o) => o[1] === 'pressure')[2].desc, GSP.LIMIT);
-  assert.equal(GSP.LIMIT, 'That makes 6 lines and stripes on your screens; the watch can show 5.');
+  assert.equal(GSP.LIMIT, 'That makes 6 lines and stripes on your screens. The watch can show 5.');
   // Changing a line swaps one series for another, so the first style's gust line may become
   // anything.
   assert.deepEqual(off(metric(S, EMERY, { key: 'fourthLine', off: true, exclude: lines.slice(0, 2) })), []);
@@ -194,7 +194,7 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
   const opts = GSP.styleOptions(busy, EMERY, { screen: true });
   assert.equal(opts[1][2].disabled, true, 'cloud and pressure would be a sixth series');
   assert.equal(opts[1][2].desc, 'Also needs Cloud cover % and Air pressure (hPa): that makes 6 lines and stripes on your'
-    + ' screens; the watch can show 5.', 'what it adds, and the count');
+    + ' screens. The watch can show 5.', 'what it adds, and the count');
   assert.equal(GSP.screenOverflows(busy, EMERY, 1, 0), false);
   // The templates: Clean's cloud stripe is a fifth series and fits; Stripes' cloud and
   // rain-chance stripes would make six.
@@ -202,7 +202,7 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
   assert.deepEqual(tpl(opts).map((o) => [o[1], Boolean(o[2].disabled)]),
     [['new:classic', false], ['new:clean', false], ['new:stripes', true]]);
   assert.equal(tpl(opts)[2][2].desc, 'Also needs Cloud cover % (stripe) and Precipitation % (stripe): that makes 6 lines'
-    + ' and stripes on your screens; the watch can show 5.', 'a line and a stripe of one metric are two');
+    + ' and stripes on your screens. The watch can show 5.', 'a line and a stripe of one metric are two');
 });
 
 /**
@@ -315,7 +315,7 @@ test('the page: New graph from a template, picked at once and called Graph <n>; 
   p.openSelect('graphStyleNewFrom');
   const sheet = p.modal.innerHTML;
   assert.match(sheet, /New graph/);
-  assert.ok(sheet.indexOf('<div class="ssel-lead">Start from a template. Templates never change: you get your own copy.</div>') !== -1);
+  assert.ok(sheet.indexOf('<div class="ssel-lead">Start from a template. You get your own copy, and the template stays as it is.</div>') !== -1);
   assert.equal(sheet.indexOf('ssel-chk'), -1, 'nothing ticked');
   assert.match(sheet, />Classic<[\s\S]*>Clean<[\s\S]*>Stripes<[\s\S]*Or copy one of your graphs[\s\S]*>Copy of Graph 1<[\s\S]*>Copy of Long</,
     'the templates, then a copy of each graph');
