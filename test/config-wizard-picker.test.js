@@ -637,8 +637,9 @@ test('the looks as the owner set them, pinned as written: each one\'s values, le
     classic: { span: '24', like: 'ForecasWatch2', over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
       secondaryLineFill: true, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
       dayNightShading: true, forecastAxisNumbers: 'axis' } },
+    // The owner's, 2026-11-09: no cloud cover (a user adds it).
     clean: { span: '48', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
-      secondaryLineFill: true, thirdLine: 'cloud', thirdLineStyle: 'stripeTop', fourthLine: 'off', fifthLine: 'off',
+      secondaryLineFill: true, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off',
       barSource: 'rain', rainBarColor: 'white', dayNightShading: true, forecastAxisNumbers: 'graph' } },
     // The owner's, 2026-11-09: the feels-like temperature as a thin line, the high and low on the graph.
     stripes: { span: '24', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop',
@@ -656,11 +657,11 @@ test('the looks as the owner set them, pinned as written: each one\'s values, le
   const EMERY = platform.computeEnv({ platform: 'emery' });
   assert.deepEqual(LOOK_IDS.map((id) => FORECAST.summary(id, EMERY)), [
     'Rain chance as a shaded area, rain bars',
-    'Rain chance as a shaded area, clouds as a stripe, solid rain bars',
+    'Rain chance as a shaded area, solid rain bars',
     'Feels-like temperature as a line, clouds and rain chance as stripes, solid rain bars from the top']);
   assert.deepEqual(LOOK_IDS.map((id) => FORECAST.summary(id, APLITE)), [
     'Rain chance as a shaded area, rain bars',
-    'Clouds as a line, rain chance as a shaded area, rain bars',
+    'Rain chance as a shaded area, rain bars',
     'Rain chance as a line, clouds as a shaded area, rain bars']);
 });
 
@@ -686,11 +687,11 @@ test('each look\'s copy: the high and low on the graph only where the watch draw
   assert.equal(desc('basalt', 'classic'),
     'Draws the graph the way ForecasWatch2 does: the temperature, the rain chance as a shaded area, and rain bars.');
   assert.equal(desc('basalt', 'clean'),
-    'Shows the temperature, the rain chance as a shaded area, the clouds as a stripe along the top, and solid rain bars.');
+    'Shows the temperature, the rain chance as a shaded area, and solid rain bars.');
   assert.equal(desc('basalt', 'stripes'), 'Shows the temperature and the feels-like temperature as lines, the clouds and'
     + ' the rain chance as stripes along the top, and solid rain bars that hang from the top.');
   assert.equal(desc('diorite', 'clean'),
-    'Shows the temperature, the rain chance as a shaded area, the clouds as a stripe along the top, and rain bars.',
+    'Shows the temperature, the rain chance as a shaded area, and rain bars.',
     'a black-and-white watch outlines its bars');
   assert.equal(desc('diorite', 'stripes'), 'Shows the temperature and the feels-like temperature as lines, the clouds and'
     + ' the rain chance as stripes along the top, and rain bars that hang from the top.');
@@ -728,7 +729,7 @@ test('the looks step with a swipe across the screen and with the arrow keys', ()
   walkTo(dom, 'forecastLook');
   dom.swipe('forecastLook', -80, 4);
   assert.equal(dom.picker().selected, 'clean');
-  assert.equal(ctx.S.thirdLine, 'cloud');
+  assert.equal(ctx.S.rainBarColor, 'white');
   dom.key('forecastLook', 'clean', 'ArrowRight');
   assert.equal(dom.picker().selected, 'stripes');
   dom.key('forecastLook', 'stripes', 'ArrowRight');
@@ -911,7 +912,7 @@ test('a theme picked after the length keeps it: the look laid on again brings no
   dom.pick('forecastHours', '12');
   dom.nav('back');
   dom.pick('theme', 'dark');
-  assert.deepEqual([ctx.S.rainBarColor, ctx.S.thirdLine], ['white', 'cloud'], 'Clean laid on again');
+  assert.deepEqual([ctx.S.rainBarColor, ctx.S.forecastAxisNumbers], ['white', 'graph'], 'Clean laid on again');
   assert.equal(ctx.S.forecastHours, '12');
   dom.nav('next');
   assert.equal(dom.picker('forecastHours').selected, '12');
@@ -978,10 +979,11 @@ test('Clean and Stripes hang Solid bars in every theme; Classic gives them back 
     dom.pick('forecastLook', 'classic');
     assert.deepEqual([ctx.S.rainBarColor, ctx.S.rainBarFrom], [start, 'bottom'], theme);
   });
-  // Solid bars on a dark theme are a graph of the user's own, not Classic.
+  // Solid bars on a dark theme are Clean, not Classic: off emery Clean is the rain chance and
+  // Solid bars (the owner's, 2026-11-09: no cloud cover).
   const solid = openSetup({ saved: { theme: 'dark', rainBarColor: 'white' } });
   walkTo(solid.dom, 'forecastLook');
-  assert.equal(solid.dom.picker().selected, 'own');
+  assert.equal(solid.dom.picker().selected, 'clean');
   // A black-and-white watch outlines its bars whatever the colour says: it is no part of a look there.
   const bw = openSetup({ platform: 'diorite', saved: { theme: 'dark', rainBarColor: 'white' } });
   walkTo(bw.dom, 'forecastLook');
@@ -990,7 +992,8 @@ test('Clean and Stripes hang Solid bars in every theme; Classic gives them back 
   walkTo(bwMulti.dom, 'forecastLook');
   bwMulti.dom.pick('forecastLook', 'clean');
   assert.equal(bwMulti.ctx.S.rainBarColor, 'multicolor', 'left as it was');
-  assert.equal(bwMulti.ctx.S.thirdLine, 'cloud');
+  // Clean draws as Classic there: the pick names which (the picker keeps the one picked).
+  assert.equal(bwMulti.dom.picker().selected, 'clean');
 });
 
 test('a look holds through a theme picked after it, the bars converted as the theme converts them', () => {
@@ -1000,7 +1003,7 @@ test('a look holds through a theme picked after it, the bars converted as the th
   dom.nav('back');
   assert.equal(dom.picker().group, 'theme');
   dom.pick('theme', 'dark');
-  assert.deepEqual([ctx.S.rainBarColor, ctx.S.thirdLine], ['white', 'cloud'], 'still Solid: still Clean');
+  assert.equal(ctx.S.rainBarColor, 'white', 'still Solid: still Clean, though Classic drew alike on the light theme');
   dom.nav('next');
   assert.equal(dom.picker().selected, 'clean');
   dom.pick('forecastLook', 'classic');
@@ -1014,7 +1017,7 @@ test('a look holds through a theme picked after it, the bars converted as the th
 
 test('a Tomorrow.io key renames the summary\'s weather provider and its long span; the look stays', () => {
   const { dom } = openSetup({ platform: 'emery', saved: { holidayCountry: 'US', provider: 'openweathermap',
-    thirdLine: 'cloud', thirdLineStyle: 'stripeTop', rainBarColor: 'white' } });
+    rainBarColor: 'white' } });
   dom.walkToSummary();
   const row = dom.find('[data-wiz-sum-forecast]');
   assert.equal(row.textContent, 'Clean, 47 h', 'OpenWeatherMap\'s 48-hour feed');

@@ -93,11 +93,12 @@
         // as 2.6's Classic), the high and low beside the axis.
         { id: 'classic', label: 'Classic', span: '24', like: 'ForecasWatch2',
             over: lookValues({ forecastAxisNumbers: 'axis' }) },
-        // The clouds as a stripe along the top, Solid bars in every theme, the high and low on the
-        // graph: the graph of the Clean and Weathergraph screens (screen-presets.js), and the look a
-        // fresh install's setup starts on where its graph is none of them (FIRST_RUN).
-        { id: 'clean', label: 'Clean', span: '48', over: lookValues({ thirdLine: 'cloud', thirdLineStyle: 'stripeTop',
-            rainBarColor: 'white', forecastAxisNumbers: 'graph' }) },
+        // The rain chance alone, Solid bars in every theme, the high and low on the graph (no cloud
+        // cover: the owner's, 2026-11-09, a user adds it): the graph of the Clean and Weathergraph
+        // screens (screen-presets.js), and the look a fresh install's setup starts on where its graph
+        // is none of them (FIRST_RUN).
+        { id: 'clean', label: 'Clean', span: '48', over: lookValues({ rainBarColor: 'white',
+            forecastAxisNumbers: 'graph' }) },
         // The clouds and the rain chance as stripes along the top (the rain chance moves from its
         // line into its stripe: a metric shows once per graph), Solid bars hanging from the top
         // (the owner's, 2026-11-09), the feels-like temperature as a thin line and the high and low

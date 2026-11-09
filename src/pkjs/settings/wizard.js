@@ -167,8 +167,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             reachedDone: false, tioTyped: false,
             // Where focus goes when setup closes onto the page: the row that re-ran it.
             returnFocus: fresh ? null : '[data-action="startWizard"]',
-            // The forecast step's looks, and "Your own" (its values and length: refreshLooks).
-            looks: null, own: null
+            // The forecast step's looks, and "Your own" (its values and length: refreshLooks). The
+            // look picked in this run, which the picker marks while the graph still draws it: two
+            // looks can draw alike on a watch (Clean and Classic on a light theme, where the theme
+            // starts the bars Solid, and on a black-and-white watch), and the pick names which.
+            looks: null, own: null, lookId: null
         };
     }
 
@@ -344,11 +347,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return run.looks[0];
     }
     /**
-     * The look the graph draws now. Setup's own writes always leave one (a theme pick lays the look
-     * on again), so the first record answers only a graph changed under it.
+     * The look the graph draws now: the one picked in this run while the graph still draws it, else
+     * the first that it draws. Setup's own writes always leave one (a theme pick lays the look on
+     * again), so the first record answers only a graph changed under it.
      * @returns {Object} The record.
      */
-    function currentLook() { return FORECAST.current(lookSettings(), run.looks, run.env) || run.looks[0]; }
+    function currentLook() {
+        var S = lookSettings();
+        var picked = run.lookId ? lookById(run.lookId) : null;
+        if (picked && picked.id === run.lookId && FORECAST.same(S, picked.values, run.env)) { return picked; }
+        return FORECAST.current(S, run.looks, run.env) || run.looks[0];
+    }
     /**
      * Pick a look: its graph, and on emery, when it is another look than the one the picker marks
      * (currentLook), the length it starts on (its span). The look marked keeps a length picked
@@ -358,6 +367,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function pickLook(id) {
         var look = lookById(id), anew = currentLook().id !== look.id;
+        run.lookId = look.id;
         writeGraph(anew && run.env.forecastSpan ? Object.assign({}, look.values, { forecastHours: look.span }) : look.values);
     }
     /**
@@ -1159,9 +1169,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             refreshLooks();
             if (!FORECAST.current(lookSettings(), run.looks, run.env)) {
                 if (fresh) {
-                    // A fresh install's graph is the defaults, none of the looks on emery (the long
-                    // span and the high and low on the graph, without the clouds' stripe): it starts
-                    // on the first-run look, nothing set up in Settings to keep as "Your own".
+                    // A fresh install's graph is the defaults, none of the looks where the theme
+                    // starts the bars Multicolor (on emery the long span and the high and low on the
+                    // graph): it starts on the first-run look, nothing set up in Settings to keep as
+                    // "Your own".
                     pickLook(FORECAST.FIRST_RUN);
                 } else {
                     // A graph set up in Settings, none of the looks: kept as "Your own", first.

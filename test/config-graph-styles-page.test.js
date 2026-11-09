@@ -411,7 +411,7 @@ test('the page: New graph from a template opens the new graph\'s dialog, its nam
   // Under each template, its length and what it draws, in the words setup writes from its values.
   assert.deepEqual([...sheet.matchAll(/<span class="ssel-opt-desc">([^<]*)<\/span>/g)].map((m) => m[1]).slice(0, 3), [
     '24 h · Rain chance as a shaded area, rain bars',
-    '66 h · Rain chance as a shaded area, clouds as a stripe, solid rain bars',
+    '66 h · Rain chance as a shaded area, solid rain bars',
     '24 h · Feels-like temperature as a line, clouds and rain chance as stripes, solid rain bars from the top']);
   p.pickOption('graphStyleNewFrom', 'clean');
   assert.equal(p.S.graphStylePick, '3', 'the new graph takes the free slot and is picked');
