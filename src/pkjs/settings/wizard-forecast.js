@@ -5,7 +5,10 @@
 //
 // THE LOOKS (LOOKS, the owner's graph looks) are the settings page's templates too: New graph
 // starts a graph from one of them (graph-styles-page.js), and a screen preset brings a graph that
-// is one (screen-presets.js). LOOKS is their one definition. Each look is a full set of the graph
+// is one (screen-presets.js). LOOKS is their one definition. Setup's picker offers the three
+// marked `setup` (Classic, Clean, Stripes: its picker is one row, setupLooks); the others,
+// which show what else the graph can draw (the owner's ask, 2026-11-09), are Add a screen's and
+// New graph's. Each look is a full set of the graph
 // settings it governs (governed): the four lines' metrics and styles, the Main metric's fill, the
 // rain bars and their colour, every Draw from key, Day / night shading, and on emery where the
 // high and low go. Each lays its own values over the graph's defaults as the theme starts them
@@ -24,7 +27,9 @@
 // THE LENGTH (emery, the one watch with a Forecast length). Each look starts on a length of its
 // own (LOOKS span: Classic and Stripes 24 hours, Clean the long span), which the step's
 // Forecast length picker then changes (the owner's, 2026-11-07). "Your own" keeps the length it
-// was set up with. The length is no part of a look: any length reads as the look its graph is.
+// was set up with. The length is no part of a look: any length reads as the look its graph is,
+// but for a look with `short` values, which it draws on 12 and 24 hours only (overAt: Outdoor's
+// feels-like line, the owner's, 2026-11-09).
 //
 // THE KEYS are the graph styles' (graph-styles.js GOVERNED, one list) less the length, which the
 // step's own picker sets, and the graph colours, which a look leaves as they are.
@@ -85,28 +90,53 @@
      * @returns {Object<string, *>}
      */
     function lookValues(own) { return Object.assign({}, BASE, own); }
-    // In the picker's order. `span` is the Forecast length a look starts on (emery): '48' is the
-    // long span's stored option ("66 h" with the high and low on the graph).
+    // In the pickers' order. `span` is the Forecast length a look starts on (emery): '48' is the
+    // long span's stored option ("66 h" with the high and low on the graph). `setup`: setup's
+    // picker offers it; `short`: values it draws on 12 and 24 hours only (THE LENGTH).
     var LOOKS = [
         // The ForecasWatch2 graph: the rain chance as a thin line over a shaded area, the rain bars
         // in the colour the theme starts them on (Multicolor on a dark theme, Solid on a light one,
         // as 2.6's Classic), the high and low beside the axis.
-        { id: 'classic', label: 'Classic', span: '24', like: 'ForecasWatch2',
+        { id: 'classic', label: 'Classic', span: '24', like: 'ForecasWatch2', setup: true,
             over: lookValues({ forecastAxisNumbers: 'axis' }) },
         // The rain chance alone, Solid bars in every theme, the high and low on the graph (no cloud
         // cover: the owner's, 2026-11-09, a user adds it): the graph of the Clean and Weathergraph
         // screens (screen-presets.js), and the look a fresh install's setup starts on where its graph
         // is none of them (FIRST_RUN).
-        { id: 'clean', label: 'Clean', span: '48', over: lookValues({ rainBarColor: 'white',
+        { id: 'clean', label: 'Clean', span: '48', setup: true, over: lookValues({ rainBarColor: 'white',
             forecastAxisNumbers: 'graph' }) },
         // The clouds and the rain chance as stripes along the top (the rain chance moves from its
         // line into its stripe: a metric shows once per graph), Solid bars hanging from the top
         // (the owner's, 2026-11-09), the feels-like temperature as a thin line and the high and low
         // on the graph (the owner's, 2026-11-09).
-        { id: 'stripes', label: 'Stripes', span: '24', over: lookValues({ secondaryLine: 'cloud',
+        { id: 'stripes', label: 'Stripes', span: '24', setup: true, over: lookValues({ secondaryLine: 'cloud',
             secondaryLineStyle: 'stripeTop', thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop', fourthLine: 'feels',
-            fourthLineStyle: 'line', rainBarColor: 'white', rainBarFrom: drawFrom.TOP, forecastAxisNumbers: 'graph' }) }
+            fourthLineStyle: 'line', rainBarColor: 'white', rainBarFrom: drawFrom.TOP, forecastAxisNumbers: 'graph' }) },
+        // Clean with its Solid bars hanging from the top and the UV index as a thin line from the
+        // bottom; on 12 and 24 hours the feels-like temperature as a thin line too (the owner's,
+        // 2026-11-09: rain from above, sun from below, for a day outside).
+        { id: 'outdoor', label: 'Outdoor', span: '48', over: lookValues({ thirdLine: 'uv', thirdLineStyle: 'line',
+            rainBarColor: 'white', rainBarFrom: drawFrom.TOP, forecastAxisNumbers: 'graph' }),
+            short: { fourthLine: 'feels', fourthLineStyle: 'line' } },
+        // The wind speed as the shaded area, the gusts as a thin line over it and the rain chance as
+        // dots.
+        { id: 'wind', label: 'Wind', span: '24', over: lookValues({ secondaryLine: 'wind', thirdLine: 'gust',
+            thirdLineStyle: 'line', fourthLine: 'precip_prob', fourthLineStyle: 'dots', forecastAxisNumbers: 'graph' }) },
+        // The cloud cover as the shaded area under the rain chance's thin line, Solid bars, the
+        // night shaded: whether the next nights stay clear.
+        { id: 'sky', label: 'Sky', span: '48', over: lookValues({ secondaryLine: 'cloud', thirdLine: 'precip_prob',
+            thirdLineStyle: 'line', rainBarColor: 'white', forecastAxisNumbers: 'graph' }) },
+        // Clean with the air pressure as a thick line: a front coming in.
+        { id: 'pressure', label: 'Pressure', span: '48', over: lookValues({ thirdLine: 'pressure', thirdLineStyle: 'bold',
+            rainBarColor: 'white', forecastAxisNumbers: 'graph' }) },
+        // The feels-like temperature as a thin line and the dew point as × marks beside the
+        // temperature: how muggy or raw the day feels.
+        { id: 'comfort', label: 'Comfort', span: '24', over: lookValues({ thirdLine: 'feels', thirdLineStyle: 'line',
+            fourthLine: 'dew', fourthLineStyle: 'x', forecastAxisNumbers: 'graph' }) }
     ];
+    // The long span's stored option (forecast-span-hours.js CHOICES): a look's `short` values are
+    // for every other length.
+    var LONG = '48';
     // The look a fresh install's setup starts on where its graph, the defaults, is none of them
     // (wizard.js openWizard).
     var FIRST_RUN = 'clean';
@@ -312,18 +342,30 @@
     }
 
     /**
-     * The settings a look writes: the defaults of every governed key with the look's own values
-     * over them, less the Draw from keys none of its drawn lines reads.
+     * A look's own values at a length (THE LENGTH): its `over`, with its `short` values over them
+     * on any length but the long span.
+     * @param {{over: Object, short: (Object|undefined), span: string}} look A LOOKS entry.
+     * @param {string} [span] '12' | '24' | '48'; the look's own without.
+     * @returns {Object<string, *>}
+     */
+    function overAt(look, span) {
+        return look.short && String(span || look.span) !== LONG ? Object.assign({}, look.over, look.short) : look.over;
+    }
+
+    /**
+     * The settings a look writes at a length: the defaults of every governed key with the look's
+     * own values there (overAt) over them, less the Draw from keys none of its drawn lines reads.
      * @param {{over: Object}} look A LOOKS entry.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} defaults The defaults as the theme starts them (engine themedDefaults).
+     * @param {string} [span] The length; the look's own without.
      * @returns {Object<string, *>}
      */
-    function valuesOf(look, S, env, defaults) {
-        var out = {};
+    function valuesOf(look, S, env, defaults, span) {
+        var out = {}, over = overAt(look, span);
         governed(env).forEach(function (k) {
-            out[k] = Object.prototype.hasOwnProperty.call(look.over, k) ? look.over[k] : defaults[k];
+            out[k] = Object.prototype.hasOwnProperty.call(over, k) ? over[k] : defaults[k];
         });
         var drawn = Object.assign({}, S, out);
         FROM_KEYS.forEach(function (k) {
@@ -364,6 +406,37 @@
             out.unshift({ id: OWN.id, label: OWN.label, desc: describe(OWN.id, env), values: own.values, span: own.span });
         }
         return out;
+    }
+
+    /**
+     * Setup's picker's records (looks): "Your own" when there is one, and the looks marked
+     * `setup`. A graph that reads as another template is "Your own" there.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Object} defaults The defaults as the theme starts them.
+     * @param {?{values: Object<string, *>, span: string}} own "Your own", or null.
+     * @returns {Array.<{id: string, label: string, desc: string, values: Object, span: string}>}
+     */
+    function setupLooks(S, env, defaults, own) {
+        return looks(S, env, defaults, own).filter(function (r) {
+            var look = lookOf(r.id);
+            return !look || Boolean(look.setup);
+        });
+    }
+
+    /**
+     * The settings a template writes at a length (valuesOf): what a graph made from it at that
+     * length draws, and what a graph of yours must read as to be it (graph-styles-page.js).
+     * @param {string} id A look's id.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Object} defaults The defaults as the theme starts them.
+     * @param {string} [span] The length; the look's own without.
+     * @returns {?Object<string, *>} null for no such look
+     */
+    function valuesAt(id, S, env, defaults, span) {
+        var look = lookOf(id);
+        return look ? valuesOf(look, S, env, defaults, span) : null;
     }
 
     /**
@@ -437,6 +510,8 @@
         same: same,
         state: state,
         looks: looks,
+        setupLooks: setupLooks,
+        valuesAt: valuesAt,
         spanOf: spanOf,
         spanOptions: spanHours.spanOptions,
         lookSpanOptions: lookSpanOptions,

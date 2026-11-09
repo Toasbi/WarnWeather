@@ -470,7 +470,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {{cal: string, span: string}}
      */
     function addStart(S, env, kind) {
-        return { cal: PRESETS.calOf(M.screensOf(S, env)[0]), span: PRESETS.spanOf(kind, env) };
+        return { cal: PRESETS.calendars(kind).length ? PRESETS.calOf(M.screensOf(S, env)[0]) : '',
+            span: PRESETS.spanOf(kind, env) };
     }
 
     /**
@@ -491,13 +492,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      *   list: Array<Object>, graph: ?{k: number, values: ?Object}, W: Object, n: number, why: string}}
      */
     function addChoice(N, env, lists, kind, cal, span) {
-        var n = lists.length, list = PRESETS.listOf(kind.graph, cal), why = '';
+        var n = lists.length, list = PRESETS.screenOf(kind, cal), why = '';
         var styled = Boolean(kind.look && env && env.graphStyles);
         var graph = styled ? GSP.presetGraph(N, env, kind.look, span) : null;
         if (graph && graph.k > 0) { list[M.idxOf(list, 'fc')].style = String(graph.k + 1); }
         var W = Object.assign({}, N);
         if (graph && graph.values) { W.graphStyles = GS.withStyle(W, graph.k, graph.values); }
-        if (kind.graph === 'radar') { W.radarEnabled = true; }
+        if (PRESETS.showsRadar(kind)) { W.radarEnabled = true; }
         ensureCustom(W, env);
         putScreen(W, n, list);
         W['viewAlign' + n] = 'clock';
@@ -552,7 +553,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (k < 0) { return -1; }
             if (k > 0) { list[j].style = String(k + 1); } else { delete list[j].style; }
         }
-        var turnOn = kind.graph === 'radar' && S.radarEnabled === false;
+        var turnOn = PRESETS.showsRadar(kind) && S.radarEnabled === false;
         if (turnOn) { setRadarEnabled(S, true, env); }
         if (!insertScreen(S, c.n, list, env)) {
             if (turnOn) { setRadarEnabled(S, false, env); }
@@ -857,6 +858,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-add{display:grid;gap:7px}'
         // Add a screen: the cards two by two, each with its picture; a picked one big, its rows
         // (a segmented control each) and Add screen under it.
+        + '.sa-group{display:grid;gap:8px}'
+        + '.sa-group+.sa-group{margin-top:14px}'
+        + '.sa-group>.ui-cap{padding:0 4px}'
         + '.sa-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}'
         + '.sa-card{display:grid;justify-items:center;align-content:start;gap:8px;min-width:0;margin:0;padding:12px 10px;'
         + 'border:none;border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--card-line);color:var(--lbl);'
@@ -1361,9 +1365,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Add a screen's body: its cards (addChoices), two by two, each with the picture of the
-     * screen it adds and what it shows; under them what a screen brings. With a card picked, the
-     * picked screen (addPickBody).
+     * Add a screen's body: its cards (addChoices) under their headings (screen-presets.js
+     * GROUPS), two by two, each with the picture of the screen it adds and what it shows; under
+     * them what a screen brings. With a card picked, the picked screen (addPickBody).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
@@ -1371,14 +1375,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function addBody(S, env, userData) {
         if (ED.pick) { return addPickBody(S, env, userData); }
-        var cards = addChoices(S, env).map(function (c) {
-            return '<button type="button" class="sa-card" data-se="pick" data-id="' + c.id + '">'
-                + '<span class="sa-pic" aria-hidden="true">' + screenPicture(c.W, c.n, env, userData, 'sa-' + c.id + '-').svg
-                + '</span><span class="sa-txt"><span class="sa-n">' + esc(c.name) + '</span><span class="sa-d">'
-                + esc(c.desc) + '</span></span></button>';
+        var choices = addChoices(S, env);
+        // Under each heading (screen-presets.js GROUPS) the cards of its group.
+        var groups = PRESETS.GROUPS.map(function (grp) {
+            var cards = choices.filter(function (c) { return PRESETS.byId(c.id).group === grp.id; }).map(function (c) {
+                return '<button type="button" class="sa-card" data-se="pick" data-id="' + c.id + '">'
+                    + '<span class="sa-pic" aria-hidden="true">' + screenPicture(c.W, c.n, env, userData, 'sa-' + c.id + '-').svg
+                    + '</span><span class="sa-txt"><span class="sa-n">' + esc(c.name) + '</span><span class="sa-d">'
+                    + esc(c.desc) + '</span></span></button>';
+            }).join('');
+            return cards ? '<div class="sa-group" role="group" aria-labelledby="saGrp-' + grp.id + '"><span class="ui-cap"'
+                + ' id="saGrp-' + grp.id + '">' + esc(grp.name) + '</span><div class="sa-grid">' + cards + '</div></div>' : '';
         }).join('');
-        return '<div class="sa-grid">' + cards + '</div><div class="sa-fine">' + esc(env && env.graphStyles ? ADD_FINE
-            : ADD_FINE_ONE_GRAPH) + '</div>';
+        return groups + '<div class="sa-fine">' + esc(env && env.graphStyles ? ADD_FINE : ADD_FINE_ONE_GRAPH) + '</div>';
     }
 
     /**
@@ -1414,9 +1423,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Add a screen's picked screen (the owner's ask, 2026-11-09): its picture big, on the Default
-     * screen's calendar to start; Calendar (None, Compact, Full) and, for a forecast screen on a
-     * watch with graph styles, Forecast length (12 h, 24 h, the long span by its hours); why it
-     * cannot be added, if it cannot; Add screen.
+     * screen's calendar to start; Calendar (None, Compact, Full; none on a screen of two graphs,
+     * screen-presets.js calendars) and, for a forecast screen on a watch with graph styles,
+     * Forecast length (12 h, 24 h, the long span by its hours); why it cannot be added, if it
+     * cannot; Add screen.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
@@ -1427,9 +1437,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!c) { return ''; }
         var pic = screenPicture(c.W, c.n, env, userData, 'sa-big-');
         var spans = c.span ? PRESETS.spanOptions(PRESETS.byId(c.id), env, GSP.asStored(S)) : [];
+        var cals = PRESETS.calendars(PRESETS.byId(c.id));
         return '<div class="sa-cfg"><div class="sa-big" role="img" aria-label="' + esc(c.name + ': ' + pic.label) + '">'
             + pic.svg + '</div><div class="sa-d sa-desc">' + esc(c.desc) + '</div>'
-            + segRow('Calendar', 'acal', PRESETS.CALENDARS, c.cal)
+            + (cals.length ? segRow('Calendar', 'acal', cals, c.cal) : '')
             + (spans.length ? segRow('Forecast length', 'aspan', spans, c.span) : '')
             + (c.why ? '<div class="sa-why" role="status">' + esc(c.why) + '</div>' : '')
             + '<button type="button" class="sa-add" data-se="addnow"' + (c.why ? ' disabled' : '') + '>Add screen</button></div>';

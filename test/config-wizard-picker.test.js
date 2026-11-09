@@ -717,12 +717,38 @@ test('the looks as the owner set them, pinned as written: each one\'s values, le
     stripes: { span: '24', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop',
       secondaryLineFill: true, thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop', fourthLine: 'feels',
       fourthLineStyle: 'line', fifthLine: 'off', barSource: 'rain', rainBarColor: 'white', rainBarFrom: 'top',
-      dayNightShading: true, forecastAxisNumbers: 'graph' } }
+      dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The owner's, 2026-11-09: Clean with its bars from the top and the UV index as a thin line,
+    // and on 12 and 24 hours the feels-like temperature too.
+    outdoor: { span: '48', like: undefined, short: { fourthLine: 'feels', fourthLineStyle: 'line' },
+      over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line', secondaryLineFill: true, thirdLine: 'uv',
+        thirdLineStyle: 'line', fourthLine: 'off', fifthLine: 'off', barSource: 'rain', rainBarColor: 'white',
+        rainBarFrom: 'top', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    wind: { span: '24', like: undefined, over: { secondaryLine: 'wind', secondaryLineStyle: 'line', secondaryLineFill: true,
+      thirdLine: 'gust', thirdLineStyle: 'line', fourthLine: 'precip_prob', fourthLineStyle: 'dots', fifthLine: 'off',
+      barSource: 'rain', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    sky: { span: '48', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'line', secondaryLineFill: true,
+      thirdLine: 'precip_prob', thirdLineStyle: 'line', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
+      rainBarColor: 'white', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    pressure: { span: '48', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: true, thirdLine: 'pressure', thirdLineStyle: 'bold', fourthLine: 'off', fifthLine: 'off',
+      barSource: 'rain', rainBarColor: 'white', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    comfort: { span: '24', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: true, thirdLine: 'feels', thirdLineStyle: 'line', fourthLine: 'dew', fourthLineStyle: 'x',
+      fifthLine: 'off', barSource: 'rain', dayNightShading: true, forecastAxisNumbers: 'graph' } }
   };
   assert.deepEqual(FORECAST.LOOKS.map((look) => look.id), Object.keys(pinned));
   FORECAST.LOOKS.forEach((look) => {
-    assert.deepEqual({ span: look.span, like: look.like, over: look.over }, pinned[look.id], look.id);
+    assert.deepEqual({ span: look.span, like: look.like, short: look.short, over: look.over },
+      Object.assign({ short: undefined }, pinned[look.id]), look.id);
+    assert.equal(Boolean(look.setup), LOOK_IDS.indexOf(look.id) !== -1, look.id + ': setup offers the first three');
   });
+  // Outdoor's feels-like line: on 12 and 24 hours, not over the long span.
+  ['12', '24', '48'].forEach((span) => assert.equal(FORECAST.valuesAt('outdoor', {}, null, {}, span).fourthLine,
+    span === '48' ? 'off' : 'feels', span));
+  assert.equal(FORECAST.valuesAt('outdoor', {}, null, {}).fourthLine, 'off', 'its own length is the long span');
+  assert.equal(FORECAST.valuesAt('wind', {}, null, {}, '48').fourthLine, 'precip_prob', 'a look without short values');
+  assert.equal(FORECAST.valuesAt('nothing', {}, null, {}, '24'), null);
   // The short lines New graph's sheet shows under them, on a colour watch and on aplite, which
   // draws neither stripes nor a third line and fills the Main metric's line.
   const APLITE = platform.computeEnv({ platform: 'aplite' });
@@ -735,12 +761,18 @@ test('the looks as the owner set them, pinned as written: each one\'s values, le
     'Rain chance as a shaded area, rain bars',
     'Rain chance as a shaded area, rain bars',
     'Rain chance as a line, clouds as a shaded area, rain bars']);
+  assert.deepEqual(['outdoor', 'wind', 'sky', 'pressure', 'comfort'].map((id) => FORECAST.summary(id, EMERY)), [
+    'UV index as a line, rain chance as a shaded area, solid rain bars from the top',
+    'Gusts as a line, wind as a shaded area, rain chance as dots, rain bars',
+    'Rain chance as a line, clouds as a shaded area, solid rain bars',
+    'Air pressure as a line, rain chance as a shaded area, solid rain bars',
+    'Feels-like temperature as a line, rain chance as a shaded area, dew point as \u00d7 marks, rain bars']);
 });
 
 test('every look has the night shading on, and the looks are the graph styles\' presets', () => {
   FORECAST.LOOKS.forEach((look) => assert.equal(look.over.dayNightShading, true, look.id));
-  assert.deepEqual(FORECAST.LOOKS.map((look) => look.id), LOOK_IDS);
-  assert.deepEqual(FORECAST.LOOKS.map((look) => look.span), ['24', '48', '24']);
+  assert.deepEqual(FORECAST.LOOKS.filter((look) => look.setup).map((look) => look.id), LOOK_IDS, 'setup\'s three');
+  assert.deepEqual(FORECAST.LOOKS.map((look) => look.span), ['24', '48', '24', '48', '24', '48', '48', '24']);
   assert.equal(FORECAST.FIRST_RUN, 'clean');
   const { ctx, dom } = openSetup({ saved: { dayNightShading: false } });
   walkTo(dom, 'forecastLook');

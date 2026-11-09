@@ -1,12 +1,17 @@
-// src/pkjs/screen-presets.js — ES5. The screens Add a screen offers (the owner's five, 2026-11-09):
-// Classic, Clean and Stripes, a forecast screen whose graph is that template (wizard-forecast.js
-// LOOKS: the Graphs tab's templates), then Health and Rain radar. Setup's Screens step adds its
-// screens from the same lists (settings/wizard-screens.js).
+// src/pkjs/screen-presets.js — ES5. The screens Add a screen offers (the owner's five, 2026-11-09,
+// then many more, to show what the watchface can draw): a forecast screen whose graph is a
+// template (wizard-forecast.js LOOKS: the Graphs tab's templates), Classic, Clean, Stripes,
+// Outdoor, Wind, Sky, Pressure and Comfort; then Health and Rain radar; then two graphs on one
+// screen, the health graph or the rain radar over the forecast. Setup's Screens step adds its
+// screens from the same lists (settings/wizard-screens.js). Each kind's `group` is the heading
+// Add a screen lists it under (GROUPS).
 //
 // A SCREEN'S ROWS (listOf): the Watch bar, a calendar of none, two or three rows (picked: Add a
 // screen starts on the Default screen's, setup on its Layout), the clock, the graph's bar and the
-// graph filling the rest (screens.js THE LIST). Every kind fits with every calendar on every
-// watch that is offered it (test/config-screen-presets.test.js).
+// graph filling the rest (screens.js THE LIST). A screen of two graphs has its upper graph,
+// three rows high, in the calendar's seat (screens.js: one row sits there), so it has no
+// calendar (calendars). Every kind fits with every calendar on every watch that is offered it
+// (test/config-screen-presets.test.js).
 //
 // WHAT A SCREEN BRINGS. Its rows, and on a watch with graph styles (Pebble Time 2) a forecast
 // screen's graph: a graph of yours that reads as its template at the length picked, else a new
@@ -16,8 +21,9 @@
 // screen, so it gets one forecast screen, Forecast, which brings its rows alone.
 //
 // WHICH ONES A WATCH GETS. Only the ones it can draw (offered): the templates on the Pebble Time 2,
-// Forecast on a watch with one graph, Health on a watch with health, Rain radar on one with the
-// rain radar. aplite has no screens.
+// Forecast on a watch with one graph, Health and Health + forecast on a watch with health, Rain
+// radar and Radar + forecast on one with the rain radar. A screen of two graphs keeps your
+// forecast graph, as Forecast does. aplite has no screens.
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings-page
 // webview (scripts/build-config-page.js' APP_FILES, after screens.js and ahead of the modules that
@@ -30,19 +36,34 @@
     var html = node ? require('./config-ui/lib/html.js') : window.PConf.html;
     // The rows' names (screens.js blockName).
     var M = node ? require('./screens.js') : window.Screens;
-    // In the order Add a screen lists them. `look` is the template a forecast screen's graph is;
-    // `graph` the graph the screen shows (screens.js kinds); `needs` names the env facts
-    // (config-ui/lib/platform.js computeEnv) the watch must have, `without` one it must not.
+    // In the order Add a screen lists them. `look` is the template a forecast screen's graph is
+    // (its name is the template's label); `graph` the graph the screen shows (screens.js kinds),
+    // `upper` the one over it on a screen of two graphs; `needs` names the env facts
+    // (config-ui/lib/platform.js computeEnv) the watch must have, `without` one it must not;
+    // `group` the heading it is listed under (GROUPS).
     var KINDS = [
-        { id: 'classic', name: 'Classic', look: 'classic', graph: 'fc', needs: ['graphStyles'] },
-        { id: 'clean', name: 'Clean', look: 'clean', graph: 'fc', needs: ['graphStyles'] },
-        { id: 'stripes', name: 'Stripes', look: 'stripes', graph: 'fc', needs: ['graphStyles'] },
-        { id: 'forecast', name: 'Forecast', look: null, graph: 'fc', needs: [], without: 'graphStyles' },
-        { id: 'health', name: 'Health', look: null, graph: 'health', needs: ['health'] },
-        { id: 'radar', name: 'Rain radar', look: null, graph: 'radar', needs: ['radar'] }
+        { id: 'classic', name: 'Classic', look: 'classic', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
+        { id: 'clean', name: 'Clean', look: 'clean', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
+        { id: 'stripes', name: 'Stripes', look: 'stripes', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
+        { id: 'outdoor', name: 'Outdoor', look: 'outdoor', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
+        { id: 'wind', name: 'Wind', look: 'wind', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
+        { id: 'sky', name: 'Sky', look: 'sky', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
+        { id: 'pressure', name: 'Pressure', look: 'pressure', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
+        { id: 'comfort', name: 'Comfort', look: 'comfort', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
+        { id: 'forecast', name: 'Forecast', look: null, graph: 'fc', needs: [], without: 'graphStyles', group: 'fc' },
+        { id: 'health', name: 'Health', look: null, graph: 'health', needs: ['health'], group: 'more' },
+        { id: 'radar', name: 'Rain radar', look: null, graph: 'radar', needs: ['radar'], group: 'more' },
+        { id: 'healthfc', name: 'Health + forecast', look: null, graph: 'fc', upper: 'health', needs: ['health'],
+            group: 'more' },
+        { id: 'radarfc', name: 'Radar + forecast', look: null, graph: 'fc', upper: 'radar', needs: ['radar'], group: 'more' }
     ];
+    // Add a screen's headings, in order, each over the kinds of its group.
+    var GROUPS = [{ id: 'fc', name: 'Forecast' }, { id: 'more', name: 'Health and radar' }];
     // Each graph's bar, the row over it.
     var BAR_OF = { fc: 'fcbar', health: 'healthbar', radar: 'radarbar' };
+    // An upper graph's rows, on a screen of two graphs: three, the forecast filling the rest under
+    // its bar on every watch (the fit test).
+    var UPPER_SIZE = '3';
     // A screen's calendar as Add a screen's Calendar names it: its rows ('' for none).
     var CALENDARS = [['None', ''], ['Compact', '2'], ['Full', '3']];
     // A screen with nothing but the Watch bar and the clock (screens-page.js addScreen).
@@ -84,13 +105,44 @@
     /**
      * A screen's rows (A SCREEN'S ROWS above).
      * @param {string} graph The graph it shows: 'fc' | 'health' | 'radar'.
-     * @param {string} cal Its calendar's rows: '' (none), '2' or '3'.
+     * @param {string} cal Its calendar's rows: '' (none), '2' or '3'; none under an upper graph.
+     * @param {string} [upper] The graph over it, on a screen of two graphs: 'health' | 'radar'.
      * @returns {Array<Object>} a new list
      */
-    function listOf(graph, cal) {
+    function listOf(graph, cal, upper) {
         var list = [{ k: 'strip' }];
-        if (cal) { list.push({ k: 'cal', rows: cal }); }
+        if (upper) { list.push({ k: upper, size: UPPER_SIZE }); } else if (cal) { list.push({ k: 'cal', rows: cal }); }
         return list.concat([{ k: 'clock' }, { k: BAR_OF[graph] }, { k: graph, size: 'fill' }]);
+    }
+
+    /**
+     * A kind's screen with a calendar (listOf): its upper graph, if it has one, in the
+     * calendar's seat.
+     * @param {Object} kind A KINDS entry.
+     * @param {string} cal Its calendar's rows: '' | '2' | '3'.
+     * @returns {Array<Object>} a new list
+     */
+    function screenOf(kind, cal) {
+        return listOf(kind.graph, kind.upper ? '' : cal, kind.upper);
+    }
+
+    /**
+     * The calendars a kind can have, as Add a screen's Calendar names them: every one, none on a
+     * screen of two graphs (its upper graph has the calendar's seat).
+     * @param {Object} kind A KINDS entry.
+     * @returns {Array<Array<string>>} [label, value] pairs
+     */
+    function calendars(kind) {
+        return kind.upper ? [] : CALENDARS;
+    }
+
+    /**
+     * Whether a kind's screen shows the rain radar (adding it turns the radar on).
+     * @param {Object} kind A KINDS entry.
+     * @returns {boolean}
+     */
+    function showsRadar(kind) {
+        return kind.graph === 'radar' || kind.upper === 'radar';
     }
 
     /**
@@ -174,8 +226,9 @@
     }
 
     /**
-     * A kind's card line on this watch: its bar by its name and its graph ("Forecast bar and 24 h
-     * Classic graph."). The calendar is picked once the card is.
+     * A kind's card line on this watch: its upper graph, its bar by its name and its graph
+     * ("Forecast bar and 24 h Classic graph.", "Health graph, Forecast bar and your graph."). The
+     * calendar is picked once the card is.
      * @param {Object} kind A KINDS entry.
      * @param {?Object} env Platform env.
      * @param {?Object} S The user's settings (the bars' names, the weather service).
@@ -183,19 +236,23 @@
      * @returns {string}
      */
     function describe(kind, env, S, span) {
-        var words = listOf(kind.graph, '').filter(function (b) { return b.k !== 'strip' && b.k !== 'clock'; })
+        var words = screenOf(kind, '').filter(function (b) { return b.k !== 'strip' && b.k !== 'clock'; })
             .map(function (b) { return b.k === 'fc' ? graphWords(kind, env, S, span) : M.blockName(b, S); });
         return html.capitalize(html.andList(words)) + '.';
     }
 
     var api = {
         KINDS: KINDS,
+        GROUPS: GROUPS,
         CALENDARS: CALENDARS,
         BLANK: BLANK,
         drawable: drawable,
         offered: offered,
         byId: byId,
         listOf: listOf,
+        screenOf: screenOf,
+        calendars: calendars,
+        showsRadar: showsRadar,
         calOf: calOf,
         graphOf: graphOf,
         spanOf: spanOf,

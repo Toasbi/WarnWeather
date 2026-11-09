@@ -9,8 +9,9 @@
 // the five-series limit the forecast pickers, the Show on card and the screen editor's graph
 // chips keep.
 //
-// TEMPLATES AND GRAPHS (the owner's pick, 2026-11-08). A template is one of the setup's forecast
-// looks (wizard-forecast.js LOOKS: Classic, Clean, Stripes). The Your graphs card's New graph starts
+// TEMPLATES AND GRAPHS (the owner's pick, 2026-11-08). A template is one of the forecast looks
+// (wizard-forecast.js LOOKS: Classic, Clean and Stripes, which setup offers too, then Outdoor,
+// Wind, Sky, Pressure and Comfort). The Your graphs card's New graph starts
 // a graph from one, or as a copy of one of the graphs; the screen editor adds one of the graphs
 // by its chip. A template never changes and is never one of the graphs:
 // a graph made from one is "Graph <n>" (graph-styles.js defaultName) until it is renamed, so it
@@ -578,16 +579,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The values a graph made from a template starts with: the graph's defaults, the
-     * template's own values and its length over them.
+     * template's own values at its length (wizard-forecast.js valuesAt: Outdoor draws its
+     * feels-like line on 12 and 24 hours only) and that length over them.
      * @param {Object} S Settings as stored (settled or normalize).
      * @param {?Object} env Platform env.
      * @param {string} id A template's id (wizard-forecast.js LOOKS).
+     * @param {string} [span] The length ('12' | '24' | '48'); the template's own without.
      * @returns {?Object} governed key -> value, or null for no such template
      */
-    function templateValues(S, env, id) {
-        var defaults = themedDefaults(S, env);
-        var rec = forecastLooks().looks(S, env, defaults, null).filter(function (r) { return r.id === id; })[0];
-        return rec ? Object.assign(GS.valuesOf(defaults, 0), rec.values, { forecastHours: rec.span }) : null;
+    function templateValues(S, env, id, span) {
+        var looks = forecastLooks(), look = looks.lookOf(id);
+        if (!look) { return null; }
+        var defaults = themedDefaults(S, env), len = String(span || look.span);
+        return Object.assign(GS.valuesOf(defaults, 0), looks.valuesAt(id, S, env, defaults, len), { forecastHours: len });
     }
 
     /**
@@ -603,17 +607,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {?{k: number, values: ?Object}} values null for a graph of yours
      */
     function presetGraph(S, env, id, span) {
-        var N = normalize(S), looks = forecastLooks();
-        var rec = looks.looks(N, env, themedDefaults(N, env), null).filter(function (r) { return r.id === id; })[0];
-        if (!rec) { return null; }
-        var len = String(span || rec.span);
+        var N = normalize(S), looks = forecastLooks(), look = looks.lookOf(id);
+        if (!look) { return null; }
+        var len = String(span || look.span), values = looks.valuesAt(id, N, env, themedDefaults(N, env), len);
         var mine = existing(N).filter(function (k) {
             var Sk = GS.settingsFor(N, k);
-            return looks.same(Sk, rec.values, env) && looks.spanOf(Sk) === len;
+            return looks.same(Sk, values, env) && looks.spanOf(Sk) === len;
         });
         if (mine.length) { return { k: mine[0], values: null }; }
         var k = GS.freeSlot(N);
-        return k < 0 ? null : { k: k, values: Object.assign(templateValues(N, env, id), { forecastHours: len }) };
+        return k < 0 ? null : { k: k, values: templateValues(N, env, id, len) };
     }
 
     /**
@@ -717,7 +720,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {Object} S Settings.
      * @param {string} from A template's id, or 'copy<n>'.
      * @param {?Object} env Platform env.
-     * @param {Object} [over] Values laid over the new graph's (Add a screen's length).
+     * @param {Object} [over] Values laid over the new graph's (Add a screen's length, at which a
+     *   template's values are read: templateValues).
      * @returns {number} The new graph's index, -1 for none made (no free slot, no such source).
      */
     function createGraph(S, from, env, over) {
@@ -729,7 +733,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var j = parseInt(src.slice(COPY.length), 10) - 1;
             if (GS.exists(S, j)) { values = GS.valuesOf(S, j); }
         } else {
-            values = templateValues(S, env, src);
+            values = templateValues(S, env, src, over && over.forecastHours);
         }
         if (!values) { return -1; }
         S.graphStyles = GS.withStyle(S, k, Object.assign(values, over || {}));

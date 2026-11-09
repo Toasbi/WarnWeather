@@ -365,7 +365,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function refreshLooks() {
         var S = lookSettings();
-        run.looks = FORECAST.looks(S, run.env, PConf.engine.themedDefaults(run.ctx.schema, S, run.env), run.own);
+        run.looks = FORECAST.setupLooks(S, run.env, PConf.engine.themedDefaults(run.ctx.schema, S, run.env), run.own);
     }
     function lookById(id) {
         for (var i = 0; i < run.looks.length; i += 1) { if (run.looks[i].id === id) { return run.looks[i]; } }
