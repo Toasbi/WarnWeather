@@ -47,7 +47,7 @@
   // The status bars, in the watch's ThreshBar order (the 2-bit cell order in a cell byte).
   // `name` is the page's name for the bar until the user names it (screens.js barName reads
   // a bar's name), page-only. The first four have their cells in the thresholds blob
-  // (BLOB_BARS); bars 4 to 6 (`extra`, Pebble Time 2: view-cycle.js EXTRA_BARS, whose
+  // (BLOB_BARS); bars 4 to 6 (EXTRA_BARS, Pebble Time 2: view-cycle.js EXTRA_BARS, whose
   // prefixes they take) in a second array of their own (status-wire.js buildExtraCells).
   var BARS = [
     {bar: 'top', prefix: 'statusTop', name: 'Watch bar'},
@@ -57,7 +57,7 @@
   ];
   var BLOB_BARS = BARS.slice();
   VC.EXTRA_BARS.forEach(function (b, i) {
-    BARS.push({bar: b.bar, prefix: b.prefix, name: 'Bar ' + (i + 4), extra: true});
+    BARS.push({bar: b.bar, prefix: b.prefix, name: 'Bar ' + (i + 4)});
   });
   var EXTRA_BARS = BARS.slice(BLOB_BARS.length);
   // The same bars in the page's order, the Status bars tab's (the owner, 2026-10-01), bars 4

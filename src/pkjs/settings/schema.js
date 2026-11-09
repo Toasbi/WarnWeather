@@ -65,6 +65,8 @@ var levelRows = levelRowsSchema.levelRows;
 // leaf).
 var alertsSchema = require('./alerts-schema.js');
 var ON_DEMAND = require('../on-demand.js');
+// The longest name a bar, a screen or a graph keeps (screens.js cleanName).
+var NAME_MAX = require('../screens.js').NAME_MAX;
 var ALERT_KINDS = alertsSchema.ALERT_KINDS;
 var ALERT_DAYS_OPTIONS = alertsSchema.ALERT_DAYS_OPTIONS;
 var BT_ICON_OPTIONS = alertsSchema.BT_ICON_OPTIONS;
@@ -844,21 +846,21 @@ function slotItem(slotKey, position, barWhen, joins) {
 
 /**
  * A status bar's Name row (screens.js THE NAMES): what the page calls the bar, '' for its own
- * name (the placeholder), 24 characters at most; its hint says which screens show it. Page-only:
- * never compiled or sent. The Watch bar has none (one for every screen, it keeps its name).
- * @param {string} bar An on-demand.js BARS bar.
+ * name (the placeholder), NAME_MAX characters at most; its hint says which screens show it.
+ * Page-only: never compiled or sent. The Watch bar has none (one for every screen, it keeps its
+ * name).
+ * @param {Object} b The bar's on-demand.js BARS entry.
  * @param {?Object} barWhen The bar's gate (null = always).
  * @returns {Object} Text item.
  */
-function barNameRow(bar, barWhen) {
-    var b = ON_DEMAND.BARS.filter(function (x) { return x.bar === bar; })[0];
+function barNameRow(b, barWhen) {
     var item = {
         type: 'text',
         messageKey: b.prefix + 'Name',
         label: 'Name',
         defaultValue: '',
-        attributes: {placeholder: b.name, maxlength: 24},
-        hintFrom: {resolver: 'barScreens', args: {bar: bar}}
+        attributes: {placeholder: b.name, maxlength: NAME_MAX},
+        hintFrom: {resolver: 'barScreens', args: {bar: b.bar}}
     };
     if (barWhen) { item.showWhen = barWhen; }
     return item;
@@ -886,24 +888,33 @@ function barSlots(prefix, barWhen, leftJoins) {
     ];
 }
 /**
- * A bar 4 to 6's card on the Status bars tab (Pebble Time 2, made by New bar): its Name row, its
- * slots and its Alerts row as the other bars' cards have them, then Delete bar (screens-page.js
- * deleteBar: every screen that shows it drops the row; Undo puts it back).
+ * A status bar's card on the Status bars tab, every bar's but the Watch bar's: titled by the
+ * bar's name (titleBy: screens.js barName), its Name row on top, whose hint says which screens
+ * show it, then its slots and its Alerts row, all behind the bar's gate.
+ * @param {string} id The card's id.
+ * @param {Object} b The bar's on-demand.js BARS entry.
+ * @param {?Object} when The bar's gate (null = always).
+ * @param {Array<Object>} [tail] Rows after the Alerts row.
+ * @returns {Object} Schema section.
+ */
+function barSection(id, b, when, tail) {
+    var sec = {id: id, title: b.name, titleBy: {resolver: 'barName', args: {bar: b.bar}}};
+    if (when) { sec.showWhen = when; }
+    sec.items = [barNameRow(b, when)].concat(barSlots(b.prefix, when, true), tail || []);
+    return sec;
+}
+
+/**
+ * A bar 4 to 6's card (Pebble Time 2, made by New bar): the other bars' card, then Delete bar
+ * (screens-page.js deleteBar: every screen that shows it drops the row; Undo puts it back).
  * @param {Object} b Its on-demand.js BARS entry.
  * @returns {Object} Schema section.
  */
 function extraBarSection(b) {
     var when = extraBarWhen(b.prefix);
-    return {
-        id: b.bar,
-        title: b.name,
-        titleBy: {resolver: 'barName', args: {bar: b.bar}},
-        showWhen: when,
-        items: [barNameRow(b.bar, when)].concat(barSlots(b.prefix, when, true), [{
-            type: 'button', style: 'link', action: 'deleteBar', actionArg: b.bar, label: 'Delete bar',
-            showWhen: when
-        }])
-    };
+    return barSection(b.bar, b, when, [{
+        type: 'button', style: 'link', action: 'deleteBar', actionArg: b.bar, label: 'Delete bar', showWhen: when
+    }]);
 }
 
 /**
@@ -935,7 +946,7 @@ function barKeysSection() {
     return {
         sheetOnly: true,
         sheetId: 'barKeys',
-        items: ON_DEMAND.BARS.filter(function (b) { return b.extra; }).map(function (b) {
+        items: ON_DEMAND.EXTRA_BARS.map(function (b) {
             return {type: 'hidden', messageKey: b.prefix + 'Made', defaultValue: false};
         }).concat([{
             type: 'select',
@@ -1745,27 +1756,12 @@ module.exports = {
                     options: BT_ICON_OPTIONS
                 }
             ], {not: ON_DEMAND_WHEN}))
-        }, {
-            // Your bars, each by its name (titleBy: screens.js barName), with a Name row on top
-            // whose hint says which screens show it; every one of them, a bar no screen shows
-            // too (it says so), so any bar can go onto any screen.
-            id: 'barForecast',
-            title: ON_DEMAND.PAGE_BARS[1].name,
-            titleBy: {resolver: 'barName', args: {bar: 'forecast'}},
-            items: [barNameRow('forecast', null)].concat(barSlots('statusForecast', null, true))
-        }, {
-            id: 'barHealth',
-            title: ON_DEMAND.PAGE_BARS[2].name,
-            titleBy: {resolver: 'barName', args: {bar: 'health'}},
-            showWhen: HEALTH_BAR_WHEN,
-            items: [barNameRow('health', HEALTH_BAR_WHEN)].concat(barSlots('statusHealth', HEALTH_BAR_WHEN, true))
-        }, {
-            id: 'barRadar',
-            title: ON_DEMAND.PAGE_BARS[3].name,
-            titleBy: {resolver: 'barName', args: {bar: 'radar'}},
-            showWhen: RADAR_BAR_WHEN,
-            items: [barNameRow('radar', RADAR_BAR_WHEN)].concat(barSlots('statusRadar', RADAR_BAR_WHEN, true))
         },
+        // Your bars, every one of them, a bar no screen shows too (its Name row says so), so any
+        // bar can go onto any screen.
+        barSection('barForecast', ON_DEMAND.PAGE_BARS[1], null),
+        barSection('barHealth', ON_DEMAND.PAGE_BARS[2], HEALTH_BAR_WHEN),
+        barSection('barRadar', ON_DEMAND.PAGE_BARS[3], RADAR_BAR_WHEN),
         // Bars 4 to 6 (Pebble Time 2): a card each once New bar made it, then New bar.
         extraBarSection(ON_DEMAND.PAGE_BARS[4]),
         extraBarSection(ON_DEMAND.PAGE_BARS[5]),
@@ -1994,7 +1990,7 @@ module.exports = {
                 uiOnly: true,
                 label: 'Name',
                 defaultValue: '',
-                attributes: {maxlength: 24, placeholder: 'Graph name'},
+                attributes: {maxlength: NAME_MAX, placeholder: 'Graph name'},
                 onChange: 'graphStyleRenamed'
             }]
         }, {

@@ -49,7 +49,7 @@ test('the cell layout: a byte per item from byte 38, 2 bits per bar, 1 left / 2 
 // Bars 4 to 6 (Pebble Time 2): their cells ride a second array (CLAY_OD_EXTRA_UINT8), one byte
 // per item behind the blob in the row's scratch, 2 bits per bar from bar 4 at bits 0-1.
 test('bars 4 to 6: ThreshBar 4 to 6, their cells behind the blob, 2 bits per bar from bit 0', () => {
-  const extra = OD.BARS.filter((b) => b.extra);
+  const extra = OD.EXTRA_BARS;
   assert.deepEqual(extra.map((b) => b.bar), ['bar4', 'bar5', 'bar6']);
   assert.deepEqual(OD.BARS.slice(0, 4), OD.BLOB_BARS, 'after the blob\'s four, in ThreshBar order');
   extra.forEach((b, i) => {
