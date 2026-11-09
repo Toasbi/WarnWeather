@@ -129,7 +129,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // emery only (the forecast step draws it where env.forecastSpan): the long span named by
         // the hours it shows for the provider and the look.
         forecastHours: {
-            options: function () { return FORECAST.spanOptions(lookSettings(), run.env); },
+            options: function () { return FORECAST.spanOptions(lookSettings()); },
             desc: function () {
                 var hints = FINISH.findItem(run.ctx.schema, 'forecastHours').hintByValue;
                 return Object.assign({}, hints, FORECAST.SPAN_DESC);

@@ -805,9 +805,6 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 #if defined(PBL_HEALTH)
         // A changed HR scale (or other graph-affecting setting) must re-derive from the
         // cache, not repaint the already-blanked/rescaled statics from before the save.
-        // After the refresh above on purpose: that refresh reports the FORECAST left-axis
-        // label width, and the health compute sizes its visible slots from the shared
-        // strip that width feeds (bottom_view.h, "wider of both").
         main_window_refresh_health_graph();
 #endif
         forecast_dirty = false;

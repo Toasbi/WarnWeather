@@ -17,8 +17,8 @@ the graph the whole screen.
 - Every hour sent past 24 adds a byte to each of the six forecast trends: the temperature, the
   four metric lines and the rain bars.
 - How many hours fit depends on the plot's width W, from its left edge to the screen's right
-  edge. The label strip sets it: the hi/lo numbers' place, the health graph's step mark and
-  Larger graph fonts. Only the watch measures it.
+  edge. The label strip sets it: the hi/lo numbers' place and Larger graph fonts (and, until
+  2026-11-09, the health graph's step mark). Only the watch measures it.
 
 ## Decision
 
@@ -139,26 +139,23 @@ setting, wire bit, persist key or message key for the span on the watch.
   watch will show for the picked provider's feed on the plot the layout leaves.
   - The feed: OpenWeatherMap 48 hours, Weather Underground 49, every other adapter the full
     68.
-  - The plot: On axis, the 198 px layer less the shared label strip and its gap. The strip is
-    the wider of a two-digit hi/lo label and, while the health graph is in the view cycle
-    (Health Status + Graph, the default), its one-decimal step mark ("0.5"), in the graph label
-    font. That gives 174 px with Larger graph fonts (GOTHIC_24, the mark's 22 px) and 179 px
-    without (GOTHIC_18, 17 px), or 176 / 180 px when no view carries the health graph. With
-    the numbers On graph or Off the plot is the whole 200 px screen on every view, one a
-    custom layout shares with the health graph too.
-  - So "58 h" at the default layout, "59 h" without Larger graph fonts (60 with no health
-    graph) and "66 h" with no left axis. "47 h" with OpenWeatherMap and "48 h" with Weather
-    Underground, on every layout.
+  - The plot: On axis, the 198 px layer less the forecast's label strip and its gap. The strip
+    fits a two-digit hi/lo label in the graph label font: 176 px with Larger graph fonts
+    (GOTHIC_24) and 180 px without (GOTHIC_18). The health graph has a strip of its own and never
+    widens the forecast's (the owner, 2026-11-09: until then the two shared the wider strip, so
+    the health graph's "0.5" step mark left the forecast 174 / 179 px, and a one-digit forecast
+    beside a "12.5" mark a wide empty gutter). With the numbers On graph or Off the plot is the
+    whole 200 px screen on every view, one a custom layout shares with the health graph too.
+  - So "58 h" at the default layout, "60 h" without Larger graph fonts and "66 h" with no left
+    axis. "47 h" with OpenWeatherMap and "48 h" with Weather Underground, on every layout.
 - **One rule, held in lockstep.** The count is the watch's `forecast_span_whole`, the hours
   whose bar ends on screen. No drawing code calls it, so every watch image stays
   byte-identical. The JS mirrors it, and `scripts/test-c.sh` holds the two to each other
   (`test/c/forecast_span_dump.c`, `scripts/check-forecast-span-lockstep.js`): every feed of
   27..68 hours on every plot width 145..200 px.
 - **The watch still decides what is visible.** The phone does not see the watch's plot. A
-  one-digit, negative or three-digit temperature, a step mark of whole thousands ("2") or of
-  10k steps and more ("10.5"), or a watch without health data (Pebble Health off) moves W by a
-  few px, and the count by an hour or so (a "10.5" mark: three). The short feeds' 47 / 48 never
-  move. The label names the common case.
+  one-digit, negative or three-digit temperature moves W by a few px, and the count by an hour
+  or so. The short feeds' 47 / 48 never move. The label names the common case.
 - **Nothing on the wire moves for the label.** The stored value stays '48', so there is no
   migration and no fetch, signature, telemetry or payload change. The settings engine's
   `optionsFrom` feeds a segmented row as it does a select (`engine.js` `resolveRowItem`,

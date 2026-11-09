@@ -240,11 +240,11 @@ test('the left axis module is bundled after line-style.js and before its readers
 });
 
 // forecast-span-hours.js (window.ForecastSpanHours, the long time span's whole hours) binds
-// window.ForecastAxis and window.VIEW_CYCLE while its own body runs, and forecast-hints.js binds
+// window.ForecastAxis while its own body runs, and forecast-hints.js binds
 // window.ForecastSpanHours while its own does: out of order, the page throws at boot on a real
 // phone while every Node test passes through require(). Its resolver, forecastSpanOptions,
 // is the Forecast length row's, registered by forecast-hints.js's own part of the page.
-test('the span hours module is bundled after view-cycle.js and forecast-axis.js, before forecast-hints.js', () => {
+test('the span hours module is bundled after forecast-axis.js, before forecast-hints.js', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
     const at = appFiles.findIndex((f) => f.endsWith(suffix));
@@ -253,8 +253,6 @@ test('the span hours module is bundled after view-cycle.js and forecast-axis.js,
   };
   assert.ok(idx('pkjs/forecast-axis.js') < idx('pkjs/forecast-span-hours.js'),
     'forecast-axis.js must precede forecast-span-hours.js');
-  assert.ok(idx('pkjs/view-cycle.js') < idx('pkjs/forecast-span-hours.js'),
-    'view-cycle.js must precede forecast-span-hours.js');
   assert.ok(idx('pkjs/forecast-span-hours.js') < idx('settings/forecast-hints.js'),
     'forecast-span-hours.js must precede forecast-hints.js');
   const src = page();

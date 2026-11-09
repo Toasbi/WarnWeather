@@ -428,8 +428,8 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
     // Mask anything drawn into the label strip. The vertical axis line
     // itself is painted by graph_frame_draw(cfg->frame, ...) earlier in
     // the update proc.
-    const int strip_w = bottom_view_label_strip_w();
-    const int inset_w = bottom_view_graph_inset();
+    const int strip_w = bottom_view_label_strip_w(BOTTOM_VIEW_SRC_FORECAST);
+    const int inset_w = bottom_view_graph_inset(BOTTOM_VIEW_SRC_FORECAST);
     graphics_context_set_fill_color(ctx, theme_bg());
     graphics_fill_rect(ctx, GRect(0, 0, inset_w, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
 
@@ -575,9 +575,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // the screen's edge (the owner's, 2026-11-07), as the two never shared an hour column
     // anyway (the health graph's past day at its own pitch, the forecast's hours ahead).
     const int screen_left = -layer_get_frame(layer).origin.x;
-    const int graph_left = axis_on ? bottom_view_graph_inset() : screen_left;
+    const int graph_left = axis_on ? bottom_view_graph_inset(BOTTOM_VIEW_SRC_FORECAST) : screen_left;
 #else
-    const int graph_left = bottom_view_graph_inset();
+    const int graph_left = bottom_view_graph_inset(BOTTOM_VIEW_SRC_FORECAST);
 #endif
     const GRect graph_bounds = GRect(graph_left, 0,
                                      bounds.size.w - graph_left,
@@ -999,9 +999,7 @@ static void text_labels_refresh()
     snprintf(s_buffer_hi, sizeof(s_buffer_hi), "%d", config_localize_temp(temp_hi));
     snprintf(s_buffer_lo, sizeof(s_buffer_lo), "%d", config_localize_temp(temp_lo));
     // The left axis's numbers On graph or Off (emery's options; 0 elsewhere) claim no strip:
-    // the forecast then draws from the screen's left edge (forecast_update_proc), so the health
-    // graph's strip is its own labels' alone (main_window.c retires the health graph's claim
-    // the same way).
+    // the forecast then draws from the screen's left edge (forecast_update_proc).
     if (forecast_axis_opts() & GRAPH_OPT_NUMS_MASK) {
         bottom_view_report_label_w(BOTTOM_VIEW_SRC_FORECAST, 0);
         return;
@@ -1015,8 +1013,8 @@ static void text_labels_refresh()
     }
     content_w += TEMP_LABEL_PAD;
 
-    // Report the measured content width (pre-floor); bottom_view applies the
-    // MIN_W floor and takes the max with health's reported width.
+    // Report the measured content width (pre-floor); bottom_view applies the MIN_W floor.
+    // The strip is the forecast's own: a health graph's wider step marks never widen it.
     bottom_view_report_label_w(BOTTOM_VIEW_SRC_FORECAST, content_w);
 }
 
@@ -1050,9 +1048,6 @@ void forecast_layer_create(Layer *parent_layer, GRect frame)
     s_forecast_layer = layer_create(frame);
 #endif
     layer_set_update_proc(s_forecast_layer, forecast_update_proc);
-    // Registered before the first report below, so a width change repaints this
-    // layer from then on (shared strip, bottom_view.h).
-    bottom_view_register_consumer(s_forecast_layer);
 #if defined(PBL_PLATFORM_EMERY)
     // emery: the first style until main_window renders a view (forecast_layer_set_style).
     s_style = 0;
@@ -1101,7 +1096,6 @@ void forecast_layer_refresh()
 void forecast_layer_destroy()
 {
     MEMORY_LOG_HEAP("forecast_layer_destroy:before");
-    bottom_view_unregister_consumer(s_forecast_layer);
     layer_destroy(s_forecast_layer);
 #if defined(PBL_PLATFORM_EMERY)
     layer_destroy(s_forecast_clip);   // emery: the clip, emptied above

@@ -51,10 +51,6 @@ static ViewFlickGate s_flick_gate;
 // Tracks the last-seen health_mode so an off->on flip (settings, boot)
 // triggers exactly one cache rebuild.
 static uint8_t s_health_mode_prev;
-// Whether the health GRAPH was reachable when the config was last applied — see
-// health_graph_renderable(). Drives the strip-width retirement in
-// main_window_apply_top_view().
-static bool s_health_graph_reachable;
 #endif
 
 // Radar data present? — the ONE availability predicate the ViewSpec resolves
@@ -92,8 +88,7 @@ static bool health_renderable(void) {
 // true (rows still resolve live health slots) while the phone compiles them to
 // cycles with no BODY_HEALTH_GRAPH view (view-cycle.js). Every
 // health_graph_layer_refresh() call site gates on THIS, so an unreachable graph
-// never reports a left-axis label width into the shared strip (bottom_view.h) —
-// a claim the visible forecast would keep a phantom gutter for.
+// never computes.
 static bool health_graph_renderable(void) {
     if (!health_renderable()) { return false; }
     for (int i = 0; i < 3; i++) {
@@ -312,13 +307,8 @@ static void quick_view_on_change(void) {
 // the next minute tick. Same read set as the minute handler's inline refresh, so
 // it is safe on the timer callback path.
 static void health_cache_repaint(void) {
-    // THE unbounded width case: a health OFF->ON flip resets the cache, so the
-    // settings save's own refresh reported no width (loading path) — the width
-    // only arrives here, when the sliced build finishes, off any user action,
-    // with the FORECAST typically the visible body. bottom_view owns that repaint
-    // now: a report that moves the shared strip marks both bottom-graph consumers
-    // dirty itself. The health_graph_renderable() gate keeps an unreachable graph
-    // (HEALTH_STATUS/SLOT — cache still warm for the rows) from reporting at all.
+    // The health_graph_renderable() gate keeps an unreachable graph
+    // (HEALTH_STATUS/SLOT — cache still warm for the rows) from computing at all.
     if (health_graph_renderable()) { health_graph_layer_refresh(); }
     if (!health_cache_ready()) { return; }   // loading frame: no new data for the rows
     if (health_summary_refresh()) {
@@ -451,7 +441,6 @@ static void main_window_load(Window *window) {
     // snapshot if we have one, so the graph doesn't reshow "Loading health data"
     // for a relaunch that changed little; otherwise a full build, as before.
     s_health_mode_prev = config_get()->health_mode;
-    s_health_graph_reachable = health_graph_renderable();
     if (config_get()->health_mode != HEALTH_OFF) {
         if (!health_cache_restore()) {
             health_cache_reset();
@@ -636,25 +625,6 @@ void main_window_apply_top_view() {
     if (config_get()->health_mode != HEALTH_OFF && s_health_mode_prev == HEALTH_OFF) {
         health_cache_reset();
     }
-    // When the GRAPH leaves the cycle, retire its claim on the SHARED left-axis
-    // strip. Keyed on graph REACHABILITY, not on a flip to HEALTH_OFF: switching
-    // "Status + graph" to "Status only" or "Status slots only" also removes the
-    // graph for good (the phone compiles those modes to cycles with no graph view)
-    // while health itself stays on — the flip this block once missed, leaving the
-    // forecast indented for a label that could never render again. Nothing else
-    // can retire it: health_graph_compute() is the only reporter and every path to
-    // it now gates on health_graph_renderable(), so once the graph is unreachable
-    // the last width it reported stays latched in the max for good — and the
-    // now-VISIBLE forecast keeps a gutter sized for a view that can no longer be
-    // shown (a 12.5k-step day leaves the forecast indented for a "12.5" label
-    // beside its own two digits). Report 0 to drop the claim; the strip is a max,
-    // so this only narrows it when health was the wider source, and bottom_view
-    // repaints the strip consumers itself when the width moves.
-    const bool graph_reachable = health_graph_renderable();
-    if (!graph_reachable && s_health_graph_reachable) {
-        bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, 0);
-    }
-    s_health_graph_reachable = graph_reachable;
     s_health_mode_prev = config_get()->health_mode;
 #endif
     // Re-apply the current view after radar availability or config changed. A radar/health
@@ -727,14 +697,13 @@ void main_window_refresh() {
 // incoming view actually shows it (tap_handler gates on nv.health_graph); peek and
 // auto-return do not touch the graph at all. Folding this in would put an unconditional
 // 24-bucket health compute plus its label measurements on all three — most visibly on
-// every wrist flick. No visibility gate on purpose: beyond the repaint, the compute
-// re-reports the left-axis label width that feeds the SHARED strip (bottom_view.h,
-// "wider of both"), and a settings apply that changed the label font must refresh that
-// even while the health view is hidden — bottom_view repaints the visible forecast
-// itself if the width moves. health_graph_renderable() gates it: an unreachable graph
-// (health off, no sensors, or no graph view in the configured cycle) must not report a
-// phantom width, and current_view_spec() resolves the graph away in exactly those
-// cases, so this can never skip a visible graph's repaint.
+// every wrist flick. No visibility gate on purpose: the compute re-measures the graph's
+// left-axis labels (its own strip, bottom_view.h), and a settings apply that changed the
+// label font must refresh that even while the health view is hidden; the repaint half is
+// free while hidden. health_graph_renderable() gates it: an unreachable graph (health
+// off, no sensors, or no graph view in the configured cycle) has nothing to compute, and
+// current_view_spec() resolves the graph away in exactly those cases, so this can never
+// skip a visible graph's repaint.
 void main_window_refresh_health_graph(void) {
     if (health_graph_renderable()) { health_graph_layer_refresh(); }
 }

@@ -228,7 +228,7 @@
     function spanLabel(id, env, S) {
         var look = lookOf(id);
         if (!look || !(env && env.forecastSpan)) { return ''; }
-        return spanHours.spanLabel(Object.assign({}, S, look.over, { forecastHours: look.span }), env);
+        return spanHours.spanLabel(Object.assign({}, S, look.over, { forecastHours: look.span }));
     }
 
     /**

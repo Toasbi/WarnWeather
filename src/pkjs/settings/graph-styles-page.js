@@ -297,12 +297,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * A graph's row line: its length and the screens it shows on (screenNames), "66 h · Flick 1",
      * "24 h · No screen".
      * @param {Object} Sk The graph's settings.
-     * @param {?Object} env Platform env.
      * @param {string[]} names The screens it shows on.
      * @returns {string}
      */
-    function cardLine(Sk, env, names) {
-        var len = spanHours.spanLabel(Sk, env);
+    function cardLine(Sk, names) {
+        var len = spanHours.spanLabel(Sk);
         return (len ? len + ' · ' : '') + (names.length ? names.join(', ') : 'No screen');
     }
 
@@ -688,7 +687,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         });
         out.push(['Or copy one of your graphs', GROUP, { groupHeader: true, disabled: true }]);
         existing(N).forEach(function (k) {
-            var len = spanHours.spanLabel(GS.settingsFor(N, k), env);
+            var len = spanHours.spanLabel(GS.settingsFor(N, k));
             out.push(['Copy of ' + GS.name(N, k), COPY + (k + 1), { desc: (len ? len + ' · ' : '') + 'Its lines and colors' }]);
         });
         return out;
@@ -884,7 +883,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             solo: solo,
             rows: (solo ? [0] : existing(N)).map(function (k) {
                 var Sk = GS.settingsFor(N, k), series = seriesIn([Sk], env);
-                return { k: k, Sk: Sk, name: graphName(N, env, k), where: solo ? '' : cardLine(Sk, env, names[k] || []),
+                return { k: k, Sk: Sk, name: graphName(N, env, k), where: solo ? '' : cardLine(Sk, names[k] || []),
                     metrics: series.length ? series.map(seriesName).join(', ') : 'No metrics',
                     room: roomText(series.length, shown.indexOf(k) !== -1, used, env) };
             })

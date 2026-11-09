@@ -29,34 +29,26 @@
 //
 // THE PLOT (plotWidth): W, from the plot's left edge to the screen's right edge. With the
 // numbers On axis the plot starts past the label strip: the 198 px layer less the strip and its
-// 2 px gap (bottom_view.h BOTTOM_VIEW_LABEL_STRIP_MIN_W / _LABEL_GAP). The strip is shared: the
-// wider of the hi/lo label plus TEMP_LABEL_PAD (forecast_layer.c text_labels_refresh) and, while
-// the health graph is in the view cycle, its widest step mark (health_graph_layer.c
-// health_graph_compute), both in the graph label font: GOTHIC_24 with Larger graph fonts, else
-// GOTHIC_18 (bottom_view.c bottom_view_label_font). The hi/lo labels are taken as two digits and
-// the step mark as two digits and a '.' ("0.5", "1.5"): the common cases. So, with the health
-// graph in the cycle (Health Status + Graph, the default), 174 px with Larger graph fonts and
-// 179 px without, its mark the wider claim (22 px / 17 px); with none, 176 px / 180 px.
-// With the numbers On graph or Off the forecast claims no strip and spans the whole 200 px screen
-// on every view (forecast_layer.c forecast_update_proc).
-// What only the watch knows moves W a little: a one-digit, negative or three-digit temperature,
-// a step mark of whole thousands ("2") or of 10k steps and more ("10.5"), health data the watch
-// does not have (Pebble Health off). Each moves the count by an hour or so (a "10.5" mark:
-// three), never the short feeds' 47 / 48 (docs/adr/0004-forecast-span-is-the-data.md,
-// "The long option names the hours it shows").
+// 2 px gap (bottom_view.h BOTTOM_VIEW_LABEL_STRIP_MIN_W / _LABEL_GAP). The strip is the
+// forecast's own: the wider of the hi/lo labels plus TEMP_LABEL_PAD (forecast_layer.c
+// text_labels_refresh), in the graph label font: GOTHIC_24 with Larger graph fonts, else
+// GOTHIC_18 (bottom_view.c bottom_view_label_font). A health graph's step marks size the health
+// graph's strip alone (bottom_view.h). The hi/lo labels are taken as two digits, the common
+// case: 176 px with Larger graph fonts, 180 px without. With the numbers On graph or Off the
+// forecast claims no strip and spans the whole 200 px screen on every view (forecast_layer.c
+// forecast_update_proc).
+// What only the watch knows moves W a little: a one-digit, negative or three-digit temperature
+// moves the count by an hour or so, never the short feeds' 47 / 48
+// (docs/adr/0004-forecast-span-is-the-data.md, "The long option names the hours it shows").
 //
 // Dual-context: a CommonJS module on the phone and in the tests, a plain concatenated
 // <script> in the settings-page webview (scripts/build-config-page.js' APP_FILES, after
-// view-cycle.js and forecast-axis.js, which it reads at load, and ahead of forecast-hints.js,
+// forecast-axis.js, which it reads at load, and ahead of forecast-hints.js,
 // whose forecastSpanOptions resolver reads window.ForecastSpanHours, and preview-axis.js, which
 // binds it at load), which has no require().
 (function () {
     var forecastAxis = (typeof require !== 'undefined')
         ? require('./forecast-axis.js') : window.ForecastAxis;
-    // The view cycle the watch runs (resolveViewCycle): which views seat the health graph.
-    // view-cycle.js shares the webview's top-level scope as VIEW_CYCLE.
-    var viewCycle = (typeof require !== 'undefined')
-        ? require('./view-cycle.js') : window.VIEW_CYCLE;
 
     // The long span's full feed: hourly-window.js MAX_FORECAST_HOURS (test/forecast-span-hours
     // .test.js pins the two equal; hourly-window.js is phone-only, so the webview cannot read it).
@@ -81,11 +73,6 @@
     // FORECAST_LABEL_ADVANCE(true)).
     var DIGIT_W = { large: 9, small: 7 };
     var LABEL_DIGITS = 2;
-    // The health graph's step mark (health_graph_layer.c step_mark_label): a '.' between two
-    // digits ("0.5", "1.5"), the '.' 4 px in GOTHIC_24 and 3 px in GOTHIC_18 (emery's system
-    // fonts). The mark reports no pad (health_graph_compute), so 22 px / 17 px.
-    var DOT_W = { large: 4, small: 3 };
-    var MARK_DIGITS = 2;
     // forecast_span.h's long class: the pitch in 1/256 px (slot_x.h SLOT_X_ONE), held to
     // FORECAST_SPAN_LONG_PITCH_MIN..MAX whole px, 1 px pads from FORECAST_SPAN_LONG_PAD_FROM.
     var SLOT_ONE = 256;
@@ -158,7 +145,7 @@
     /**
      * The hours a fixed-pitch grid spans: of `n` hourly slots in a plot `w` px wide, the plot's
      * width in hours to the nearest one. The line runs on to the screen's edge, so the last column
-     * shows in part: 21.75 hours in emery's 174 px plot read as 22.
+     * shows in part: 22.5 hours in emery's 180 px plot read as 23.
      * @param {number} n Hours the watch holds.
      * @param {number} w Plot width in px.
      * @param {{pitch: number}} grid The grid.
@@ -179,11 +166,11 @@
      */
     function shownHours(settings, env) {
         var span = option(settings, env);
-        if (span === 48) { return longHours(settings, env); }
+        if (span === 48) { return longHours(settings); }
         if (span === 12) { return HALF_SLOTS; }
         if (!(env && env.forecastSpan)) { return gridHours(DAY_HOURS, SMALL.plot, SMALL); }
         var wide = forecastAxis.numbers(settings) !== forecastAxis.AXIS;
-        return gridHours(wide ? DAY.wideSent : DAY.sent, plotWidth(settings, env), DAY);
+        return gridHours(wide ? DAY.wideSent : DAY.sent, plotWidth(settings), DAY);
     }
 
     /**
@@ -199,60 +186,36 @@
     }
 
     /**
-     * Whether the view cycle the watch runs for these settings seats the health graph on some
-     * view (view-cycle.js resolveViewCycle, which folds a health seat away unless Health is
-     * Status + Graph; graphsIn reads its seats): its step mark then claims the shared strip
-     * (main_window.c health_graph_renderable).
-     * @param {?Object} settings Clay settings (the layout and healthMode keys).
-     * @param {?Object} [env] Platform env (config-ui platform.js computeEnv): a watch without
-     *   health (env.health false) never draws the graph; no env, or no health fact, reads as
-     *   capable.
-     * @returns {boolean} True if some view shows the health graph.
-     */
-    function healthGraphShown(settings, env) {
-        if (env && env.health === false) { return false; }
-        return viewCycle.graphsIn(viewCycle.resolveViewCycle(settings || {}, env || null)).health;
-    }
-
-    /**
-     * The forecast plot's width. On axis: the layer less the shared label strip, the wider of
-     * a two-digit hi/lo label and, while the health graph is shown, its "0.5" step mark, in the
-     * graph label font. On graph or Off: the whole screen.
-     * @param {?Object} settings Clay settings (reads forecastAxisNumbers, largeGraphFont,
-     *   healthMode and the layout keys).
-     * @param {?Object} [env] Platform env (reads health and platform).
+     * The forecast plot's width. On axis: the layer less the forecast's own label strip, a
+     * two-digit hi/lo label in the graph label font. On graph or Off: the whole screen.
+     * @param {?Object} settings Clay settings (reads forecastAxisNumbers and largeGraphFont).
      * @returns {number} Plot width in px.
      */
-    function plotWidth(settings, env) {
+    function plotWidth(settings) {
         if (forecastAxis.numbers(settings) !== forecastAxis.AXIS) { return SCREEN_W; }
-        var large = Boolean((settings || {}).largeGraphFont);
-        var digit = large ? DIGIT_W.large : DIGIT_W.small;
-        var mark = healthGraphShown(settings, env)
-            ? MARK_DIGITS * digit + (large ? DOT_W.large : DOT_W.small) : 0;
-        return LAYER_W - Math.max(STRIP_MIN_W, LABEL_DIGITS * digit + LABEL_PAD, mark) - STRIP_GAP;
+        var digit = (settings || {}).largeGraphFont ? DIGIT_W.large : DIGIT_W.small;
+        return LAYER_W - Math.max(STRIP_MIN_W, LABEL_DIGITS * digit + LABEL_PAD) - STRIP_GAP;
     }
 
     /**
      * The long span's whole hours for these settings: the provider's feed in this layout.
      * @param {?Object} settings Clay settings.
-     * @param {?Object} [env] Platform env.
      * @returns {number} Whole hours on screen.
      */
-    function longHours(settings, env) {
-        return wholeHours(feedHours(settings), plotWidth(settings, env));
+    function longHours(settings) {
+        return wholeHours(feedHours(settings), plotWidth(settings));
     }
 
     /**
      * The Forecast length row's options: 12 h, 24 h and the long span named by its whole hours.
      * @param {?Object} settings Clay settings.
-     * @param {?Object} [env] Platform env.
      * @returns {Array.<Array.<string>>} [label, value] pairs.
      */
-    function spanOptions(settings, env) {
+    function spanOptions(settings) {
         return [
             ['12 h', CHOICES[0]],
             ['24 h', CHOICES[1]],
-            [longHours(settings, env) + ' h', CHOICES[2]]
+            [longHours(settings) + ' h', CHOICES[2]]
         ];
     }
 
@@ -260,11 +223,10 @@
      * The stored length as the Forecast length row names it (spanOptions): "12 h", "24 h", or the
      * long span by the hours it shows ("66 h", "47 h" with OpenWeatherMap).
      * @param {?Object} settings Clay settings.
-     * @param {?Object} [env] Platform env.
      * @returns {string}
      */
-    function spanLabel(settings, env) {
-        var want = String(storedHours(settings)), opts = spanOptions(settings, env);
+    function spanLabel(settings) {
+        var want = String(storedHours(settings)), opts = spanOptions(settings);
         for (var i = 0; i < opts.length; i++) {
             if (opts[i][1] === want) { return opts[i][0]; }
         }
@@ -280,7 +242,6 @@
         STRIP_GAP: STRIP_GAP,
         LABEL_PAD: LABEL_PAD,
         DIGIT_W: DIGIT_W,
-        DOT_W: DOT_W,
         SLOT_ONE: SLOT_ONE,
         PITCH_MIN: PITCH_MIN,
         PITCH_MAX: PITCH_MAX,
@@ -291,7 +252,6 @@
         option: option,
         wholeHours: wholeHours,
         feedHours: feedHours,
-        healthGraphShown: healthGraphShown,
         plotWidth: plotWidth,
         longHours: longHours,
         shownHours: shownHours,

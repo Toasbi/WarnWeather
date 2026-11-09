@@ -104,9 +104,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // The Forecast length row's options (emery only): 12 h, 24 h and the long span labelled with
     // the whole hours the watch will show, which follow the weather provider's feed and the
-    // plot the layout leaves: where the Left axis values sit, Larger graph fonts and the
-    // health graph's labels (forecast-span-hours.js spanOptions). The values stay '12', '24'
-    // and '48', so a relabel never touches the stored setting.
+    // plot the layout leaves: where the Left axis values sit and Larger graph fonts
+    // (forecast-span-hours.js spanOptions). The values stay '12', '24' and '48', so a relabel
+    // never touches the stored setting.
     PConf.optionsResolvers.register('forecastSpanOptions', forecastSpanHours.spanOptions);
 
     // ---- The forecast line hints: how a metric's value reads on the graph ----

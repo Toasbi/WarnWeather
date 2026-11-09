@@ -1495,11 +1495,10 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
     ['12 h', '24 h', '58 h']);
   assert.deepEqual(labels({ provider: 'openweathermap', forecastAxisNumbers: 'axis' }).map((o) => o[0]),
     ['12 h', '24 h', '47 h']);
-  // A Health screen (Status + Graph) puts the health graph in the cycle: its "0.5" step mark
-  // widens the shared strip past GOTHIC_18's two-digit hi/lo label (59, not 60); with the
-  // Health bar alone the label goes back to 60.
+  // A Health screen (Status + Graph) puts the health graph in the cycle, and its step marks
+  // never widen the forecast's strip: GOTHIC_18's two-digit hi/lo label leaves 60 either way.
   assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'axis', largeGraphFont: false,
-    healthMode: 'all' }).map((o) => o[0]), ['12 h', '24 h', '59 h']);
+    healthMode: 'all' }).map((o) => o[0]), ['12 h', '24 h', '60 h']);
   assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'axis', largeGraphFont: false,
     healthMode: 'status' }).map((o) => o[0]), ['12 h', '24 h', '60 h']);
   assert.equal(it.hintByValue['48'], 'As many hours as your weather provider\'s hourly forecast '

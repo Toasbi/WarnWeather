@@ -29,9 +29,8 @@ bool main_window_radar_has_data(void);
 // re-derives instead of rendering stale statics until the next minute tick. Runs
 // whenever the graph is REACHABLE (health renderable AND a graph view in the
 // configured cycle) — hidden view included, on purpose: the compute also
-// re-reports the left-axis label width feeding the SHARED strip (bottom_view.h
-// "wider of both"), and the repaint half is free while hidden (a mark_dirty on a
-// hidden layer is a no-op).
+// re-measures the graph's own left-axis strip (bottom_view.h), and the repaint
+// half is free while hidden (a mark_dirty on a hidden layer is a no-op).
 void main_window_refresh_health_graph(void);
 #endif
 

@@ -449,7 +449,7 @@ static void test_marks(void) {
     CHECK(slots[0].label[0] == '\0' && slots[0].tick == TICK_BIG, "slot 0: the tick alone");
     CHECK(strcmp(slots[3].label, "17") == 0 && strcmp(slots[24].label, "14") == 0
           && slots[25].tick == TICK_SMALL && slots[25].label[0] == '\0', "24 h / 26 labels");
-    // skip_first drops slot 0 even where it would be whole (a health graph's shared strip).
+    // skip_first drops slot 0 even where it would be whole (a plot past a wider label strip).
     forecast_grid_fill_axis_span(slots, s, t14, 24, SCREEN_L, SCREEN_R, false, true);
     CHECK(slots[0].label[0] == '\0' && slots[0].tick == TICK_BIG
           && strcmp(slots[3].label, "17") == 0, "skip_first");

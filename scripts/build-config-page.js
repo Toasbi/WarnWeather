@@ -96,10 +96,9 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/forecast-axis.js'),
   // The long Forecast length's whole hours (window.ForecastSpanHours): that row's label,
   // by forecast-hints.js' forecastSpanOptions resolver, and the span option the forecast
-  // preview's hour axis reads (preview-axis.js). It binds window.ForecastAxis and
-  // window.VIEW_CYCLE while its own body runs, so it follows forecast-axis.js and view-cycle.js,
-  // and forecast-hints.js and preview-axis.js bind it while theirs run, so it precedes them —
-  // test/config-page-bundle.test.js pins the order.
+  // preview's hour axis reads (preview-axis.js). It binds window.ForecastAxis while its own
+  // body runs, so it follows forecast-axis.js, and forecast-hints.js and preview-axis.js bind
+  // it while theirs run, so it precedes them — test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/forecast-span-hours.js'),
   // Graph styles (window.GraphStyles, the model) reads VIEW_CYCLE, LineStyle, LineAlert, DrawFrom
   // and ForecastAxis while its body runs; its page module (window.GraphStylesPage) reads it,
