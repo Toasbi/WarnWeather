@@ -131,8 +131,10 @@ test('the calendar: its week as Start week on says, today in its cell, Auto taki
   const env = plat.computeEnv({ platform: 'basalt' });
   const c = cycle(settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }), 'basalt');
   const friday = new Date(2026, 10, 6), sunday = new Date(2026, 10, 8);
-  const draw = (over, now) => pw.screenSvg(c.views[0], 0, settings(Object.assign({ layoutPreset: 'compactCal' }, over)),
-    env, {}, 0, now).svg;
+  // The strip's left slot emptied (its air quality is a number too): the first numbers drawn are
+  // the calendar's.
+  const draw = (over, now) => pw.screenSvg(c.views[0], 0,
+    settings(Object.assign({ layoutPreset: 'compactCal', statusTopLeft: 'empty' }, over)), env, {}, 0, now).svg;
   const todayCell = (svg) => /<rect x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" rx="2" fill="([^"]*)"><\/rect><text[^>]*fill="([^"]*)"[^>]*>(\d+)</.exec(svg);
   // A Monday start puts Friday the 6th fifth in its row; a Sunday start sixth.
   const firstRow = (svg) => (svg.match(/>(\d+)<\/text>/g) || []).slice(0, 7).map((t) => t.replace(/\D/g, ''));

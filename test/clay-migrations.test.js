@@ -74,6 +74,56 @@ test('holiday region keys: already-real subdivision preserved, old keys still dr
   assert.equal(L.store[KEYS.HOLIDAY_REGION_KEY_MIGRATION_KEY], '1', 'migration marked done');
 });
 
+test('2.7.0 slot defaults: an existing install keeps the slots it showed, a fresh one takes the new defaults', () => {
+  const L = loadLedger(null);
+  const key = KEYS.SLOT_DEFAULTS_2_7_MIGRATION_KEY;
+  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const SLOTS = ['statusForecastRight', 'statusTopLeft', 'statusTopRight'];
+  /**
+   * One unmarked run over `blob`.
+   * @param {Object} blob Stored settings.
+   * @param {Object} opts Runner options (knownPlatform, hadExistingInstall).
+   * @returns {Object} The three changed slots after the run (undefined where unset).
+   */
+  function runOn(blob, opts) {
+    L.claySettings.save(blob);
+    delete L.store[key];
+    const res = L.run(key, opts);
+    assert.equal(L.store[key], '1', JSON.stringify(opts) + ': marked either way');
+    assert.equal(res.clayRequired, false, 'never a send');
+    const read = L.read();
+    const out = {};
+    SLOTS.forEach((k) => { out[k] = read[k]; });
+    return out;
+  }
+  // The new defaults: sunrise/sunset in the Forecast bar, air quality in the top row.
+  const emery = { platform: 'emery' };
+  assert.equal(catalog.slotDefault('statusForecastRight', emery), 'sun');
+  assert.equal(catalog.slotDefault('statusTopRight', emery), 'aqi');
+  assert.equal(catalog.slotDefault('statusForecastRight', { platform: 'basalt' }), 'sun');
+  assert.equal(catalog.slotDefault('statusTopLeft', { platform: 'basalt' }), 'aqi');
+  assert.equal(catalog.slotDefault('statusTopRight', { platform: 'basalt' }), 'battery');
+  // An existing emery install that never saved the page keeps air quality in the Forecast
+  // bar and sunrise/sunset in the top row's corner; its week stays a default.
+  assert.deepEqual(runOn({ theme: 'dark' }, { knownPlatform: 'emery', hadExistingInstall: true }),
+    { statusForecastRight: 'aqi', statusTopLeft: undefined, statusTopRight: 'sun' });
+  // A narrow watch keeps its empty left slot (the battery corner was never a default change).
+  ['basalt', 'chalk', 'diorite', 'aplite', 'flint'].forEach((platform) => {
+    assert.deepEqual(runOn({ theme: 'dark' }, { knownPlatform: platform, hadExistingInstall: true }),
+      { statusForecastRight: 'aqi', statusTopLeft: 'empty', statusTopRight: undefined }, platform);
+  });
+  // A watch that did not say: only the slot whose old default was the same everywhere.
+  assert.deepEqual(runOn({ theme: 'dark' }, { knownPlatform: '', hadExistingInstall: true }),
+    { statusForecastRight: 'aqi', statusTopLeft: undefined, statusTopRight: undefined });
+  // A pick stays.
+  assert.deepEqual(runOn({ statusForecastRight: 'uv', statusTopRight: 'steps' },
+    { knownPlatform: 'emery', hadExistingInstall: true }),
+  { statusForecastRight: 'uv', statusTopLeft: undefined, statusTopRight: 'steps' });
+  // A fresh install takes the new defaults.
+  assert.deepEqual(runOn({ theme: 'dark' }, { knownPlatform: 'emery', hadExistingInstall: false }),
+    { statusForecastRight: undefined, statusTopLeft: undefined, statusTopRight: undefined });
+});
+
 test('status-line health defaults: emery upgrades the seeded triple once, without clobbering edits', () => {
   const L = loadLedger(null);
   const key = KEYS.STATUS_LINE_HEALTH_DEFAULTS_MIGRATION_KEY;
@@ -1162,7 +1212,8 @@ test('the owner\'s dev phone: the alert levels never re-run; On demand runs only
   const boot = (marked) => {
     const L = loadLedger(Object.assign({ alertRain: false, alertUv: true }, SAVED_ON_THE_1_24_PAGE));
     L.claySettings.seedDefaults(COLORS);
-    marked.forEach((k) => { L.store[k] = '1'; });
+    // The 2.7.0 slot defaults entry came long after these builds and has a test of its own.
+    marked.concat([KEYS.SLOT_DEFAULTS_2_7_MIGRATION_KEY]).forEach((k) => { L.store[k] = '1'; });
     const saved = L.read();
     L.saves.n = 0;
     const res = L.run(null, { platform: 'emery', hadExistingInstall: true });
@@ -1904,7 +1955,8 @@ test('the ledger order and marker policies are pinned: a released entry never mo
     ['v1.24.0_on_demand_migration', 'now', true],
     ['v1.24.0_rainbow_own_key_source_migration', 'now', true],
     ['v2.0.1_alert_defaults_migration', 'now', true],
-    ['v2.6.0_screens_migration', 'now', false]
+    ['v2.6.0_screens_migration', 'now', false],
+    ['v2.7.0_slot_defaults_migration', 'now', true]
   ]);
 });
 
@@ -1987,7 +2039,7 @@ test('every reset-safe entry, and no other, is marked by Reset watchface', () =>
   assert.deepEqual(clayMigrations.RESET_SAFE_MARKERS, ['v1.23.0_norain_default_text_migration',
     'v1.23.1_fifth_line_style_default_migration', 'v1.24.0_warn_look_migration',
     'v1.24.0_on_demand_migration', 'v1.24.0_rainbow_own_key_source_migration',
-    'v2.0.1_alert_defaults_migration']);
+    'v2.0.1_alert_defaults_migration', 'v2.7.0_slot_defaults_migration']);
   const L = loadLedger({ theme: 'dark' });
   L.claySettings.resetAll(L.clayMigrations.RESET_SAFE_MARKERS);
   REGISTRY.forEach((e) => assert.equal(L.store[e.key], e.markOnReset ? '1' : undefined, e.key));

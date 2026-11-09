@@ -280,8 +280,8 @@ test('fixtures/rain-countdown.json bakes UV danger 8 + wind warn 66 into ALERT_E
     // The status lines carry no entries: the top-left slot keeps its shipped default.
     const topLeft = decodeLine(out.STATUS_LINE_3_UINT8)[0];
     assert.notEqual(topLeft.kind, 11, platform + ': no alerts slot kind any more');
-    assert.equal(topLeft.kind, platform === 'emery' ? catalog.KINDS.LIVE_WEEK : catalog.KINDS.EMPTY,
-      platform + ': the shipped top-left default');
+    assert.equal(topLeft.kind, platform === 'emery' ? catalog.KINDS.LIVE_WEEK : catalog.KINDS.TEXT,
+      platform + ': the shipped top-left default (air quality, text, off emery)');
   });
 });
 

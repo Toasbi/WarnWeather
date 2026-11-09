@@ -1,6 +1,6 @@
 // src/pkjs/migrations/status-slots.js
 //
-// The 1.8.0 status-slot migrations. Registry bodies (migrations/registry.js):
+// The status-slot migrations (1.8.0, 2.7.0). Registry bodies (migrations/registry.js):
 // run(blob, ctx) -> {changed, send}, mutating the blob in place; the runner in
 // clay-migrations.js owns the marker, the save and the send.
 
@@ -46,7 +46,46 @@ function migrateStatusTopRightBattery(blob) {
     return { changed: true, send: false };
 }
 
+// The slots whose default 2.7.0 changed, each with the default it had before, per display
+// (status-line-catalog.js: the Forecast bar's right-hand slot everywhere; the top row's
+// right-hand corner on emery and its left slot on the narrow watches).
+var SLOT_DEFAULTS_BEFORE_2_7 = {
+    emery: { statusForecastRight: 'aqi', statusTopRight: 'sun' },
+    narrow: { statusForecastRight: 'aqi', statusTopLeft: 'empty' }
+};
+
+/**
+ * 2.7.0 swapped air quality and sunrise/sunset between the Forecast bar and the top row
+ * (the owner's, 2026-11-09). A slot nobody picked is stored nowhere (the settings page
+ * saves the slots, an install that never saved it holds none), so the bake reads such a
+ * slot's default, and the new defaults would move an upgrader's readings. This writes the
+ * old default into each changed slot an existing install leaves unset: a changed default
+ * is for a fresh install and a reset (clay-settings.js upgradeBackfill). A stored pick
+ * stays. On a watch that did not say its platform only the Forecast bar's slot is
+ * written: its old default was the same on every watch, the top row's was not.
+ *
+ * @param {Object} blob Stored settings, mutated in place.
+ * @param {{knownPlatform: string, hadExistingInstall: boolean}} ctx Runner context.
+ * @returns {{changed: boolean, send: boolean}}
+ */
+function keepSlotDefaults27(blob, ctx) {
+    if (!ctx || !ctx.hadExistingInstall) { return { changed: false, send: false }; }
+    var platform = ctx.knownPlatform || '';
+    var before = SLOT_DEFAULTS_BEFORE_2_7[platform === 'emery' ? 'emery' : 'narrow'];
+    var changed = false;
+    Object.keys(before).forEach(function (key) {
+        if (Object.prototype.hasOwnProperty.call(blob, key)) { return; }
+        if (!platform && key !== 'statusForecastRight') { return; }
+        blob[key] = before[key];
+        changed = true;
+    });
+    // No send: the slots now hold what the watch already shows.
+    return { changed: changed, send: false };
+}
+
 module.exports = {
     migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults,
-    migrateStatusTopRightBattery: migrateStatusTopRightBattery
+    migrateStatusTopRightBattery: migrateStatusTopRightBattery,
+    keepSlotDefaults27: keepSlotDefaults27,
+    SLOT_DEFAULTS_BEFORE_2_7: SLOT_DEFAULTS_BEFORE_2_7
 };

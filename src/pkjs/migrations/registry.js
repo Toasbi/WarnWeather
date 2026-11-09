@@ -129,5 +129,11 @@ module.exports = [
     // clay-migrations.js on the scheduler). Not reset-safe: the blob a reset seeds holds a
     // preset, which the next boot moves like any other.
     { key: KEYS.SCREENS_MIGRATION_KEY, markOn: 'now', markOnReset: false,
-      run: screens.migrateToScreens }
+      run: screens.migrateToScreens },
+    // 2.7.0: an existing install keeps the Forecast bar's and the top row's slots it
+    // showed when their defaults changed. Asks for no send (the watch already shows
+    // them). Reset-safe: after a reset the next boot is a fresh install, whose slots take
+    // the new defaults, and a blob the page saves before it holds the slots already.
+    { key: KEYS.SLOT_DEFAULTS_2_7_MIGRATION_KEY, markOn: 'now', markOnReset: true,
+      run: statusSlots.keepSlotDefaults27 }
 ];

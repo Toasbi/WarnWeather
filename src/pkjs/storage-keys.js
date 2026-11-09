@@ -45,6 +45,9 @@ module.exports = {
     // 2.6.0: every install onto screens: the custom layout's keys, the modes worked out from
     // them and radarEnabled (migrations/screens.js migrateToScreens).
     SCREENS_MIGRATION_KEY: 'v2.6.0_screens_migration',
+    // 2.7.0: an install from before keeps the slots it showed when the Forecast bar's and
+    // the top row's defaults changed (migrations/status-slots.js keepSlotDefaults27).
+    SLOT_DEFAULTS_2_7_MIGRATION_KEY: 'v2.7.0_slot_defaults_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',

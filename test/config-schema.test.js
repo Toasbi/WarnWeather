@@ -2522,7 +2522,7 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
   // the sheetOnly section in the shared dialog; aplite gets neither pencil nor sheet.
   const eng = require('../src/pkjs/config-ui/lib/engine.js');
   function watchCx(platformName, openEdit) {
-    // statusForecastRight defaults to 'aqi' (a threshold kind) on every platform.
+    // statusTopLeft defaults to 'aqi' (a threshold kind) on the narrow platforms.
     const S = Object.assign(eng.hydrate(schema, {}), { healthMode: 'status' });
     const ENV = platform.computeEnv({ platform: platformName });
     return {
@@ -2544,11 +2544,11 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
     assert.equal(body.indexOf('Set the warn and danger levels for this value'), -1,
       who + ' body has no Alert levels intro (it lives in the sheets)');
   });
-  // The pencil, in the Forecast bar's dialog (a tap on its name in Your status bars opens it):
-  // basalt's default AQI forecast slot offers its sheet; aplite offers none.
+  // The pencil, in the Watch bar's dialog (a tap on its name in Your status bars opens it):
+  // basalt's default AQI slot, the bar's left, offers its sheet; aplite offers none.
   const barDialogs = (p) => ['top', 'forecast'].map((bar) => eng.renderEditModal(schema, watchCx(p, 'bar-' + bar)));
-  assert.ok(barDialogs('basalt')[1].indexOf('data-edit-sheet="threshAqi"') !== -1,
-    'basalt renders a pencil for the AQI forecast slot');
+  assert.ok(barDialogs('basalt')[0].indexOf('data-edit-sheet="threshAqi"') !== -1,
+    'basalt renders a pencil for the AQI slot on the Watch bar');
   [apliteBody].concat(barDialogs('aplite')).forEach((html) => assert.equal(html.indexOf('data-edit-sheet="thresh'), -1,
     'aplite renders no pencil anywhere (env.thresholds is false)'));
   // The sheet itself: full on basalt (Bold row + Highlight switch + the pointer;

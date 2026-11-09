@@ -106,21 +106,25 @@
   var LINES = [
     { id: 'forecast', wireKey: 'STATUS_LINE_1_UINT8',
       slots: ['statusForecastLeft', 'statusForecastMid', 'statusForecastRight'],
-      defaults: { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi' } },
+      // Sunrise/sunset on the right (the owner's, 2026-11-09: it swapped places with the top
+      // row's air quality). An install from before keeps what it showed
+      // (migrations/status-slots.js keepSlotDefaults27).
+      defaults: { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun' } },
     { id: 'radar', wireKey: 'STATUS_LINE_2_UINT8',
       slots: ['statusRadarLeft', 'statusRadarMid', 'statusRadarRight'],
       defaults: { statusRadarLeft: 'uv', statusRadarMid: 'wind', statusRadarRight: 'gust' } },
     { id: 'top', wireKey: 'STATUS_LINE_3_UINT8',
       slots: ['statusTopLeft', 'statusTopMid', 'statusTopRight'],
-      // The strip beside the clock, and the one row on screen in EVERY view. emery's
-      // 200 px display is the only one with the width to carry three readings there,
-      // so it keeps the three-up row; on the 144/180 px platforms the strip ships the
-      // date alone with the battery in its corner (the corner that already reads as
-      // the battery — see the topRightOnly items). That leaves the left slot free,
-      // which is where the wizard's steps promotion lands on those platforms
-      // (defaults-policy.js wizard-health-slots-compact).
-      defaults: { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery' },
-      emeryDefaults: { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' } },
+      // The strip beside the clock, and the one row on screen in EVERY view. Air quality
+      // sits here, where every screen shows it (the owner's, 2026-11-09: it swapped places
+      // with the Forecast bar's sunrise/sunset). emery's 200 px display has the width for
+      // three readings: the week, the date and air quality in the right-hand corner. On
+      // the 144/180 px platforms that corner is the battery (it already reads as the
+      // battery: see the topRightOnly items), so air quality takes the left slot. An
+      // install from before keeps what it showed (migrations/status-slots.js
+      // keepSlotDefaults27).
+      defaults: { statusTopLeft: 'aqi', statusTopMid: 'date', statusTopRight: 'battery' },
+      emeryDefaults: { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'aqi' } },
     { id: 'health', wireKey: 'STATUS_LINE_4_UINT8',
       slots: ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'],
       // Non-HR platforms (basalt/chalk/aplite): leave the middle empty and show
@@ -271,14 +275,14 @@
 
   /**
    * The effective slot codes of every line the bake sends (bakedLines: the Watch bar's and
-   * each bar a screen shows), answering the FLAVOR-LESS line defaults for anything unset on
-   * every watch. Its callers are fetch gates (forecast-series.js's needsUv / needsAqi /
-   * needsPollen, dayMaxInUse) asking whether a code is on screen anywhere, and no
-   * per-platform flavor moves those, so a slot on a bar no screen shows fetches nothing.
-   * Still routed through slotDefault rather than reading LINES[l].defaults, so there is
-   * one reader of the table.
+   * each bar a screen shows), answering each unset slot with the default the bake packs for
+   * this watch (slotDefault with env: status-lines.js packLine). Its callers are fetch gates
+   * (forecast-series.js's needsUv / needsAqi / needsPollen, dayMaxInUse) asking whether a
+   * code is on screen anywhere, and a flavor moves one of those: air quality sits in the top
+   * row's corner on emery and in its left slot elsewhere. So a slot on a bar no screen shows
+   * fetches nothing, and an unset slot fetches what the watch draws in it.
    * @param {Object} settings Clay settings blob
-   * @param {?Object} [env] platform env (omitted: capable)
+   * @param {?Object} [env] platform env (omitted: capable, the base flavor)
    * @returns {string[]} the effective slot codes (stored or line default), three per line
    */
   function selectedCodes(settings, env) {
@@ -289,7 +293,7 @@
       for (var s = 0; s < line.slots.length; s++) {
         var key = line.slots[s];
         var v = settings && settings[key];
-        out.push(v || slotDefault(key));
+        out.push(v || slotDefault(key, env));
       }
     }
     return out;

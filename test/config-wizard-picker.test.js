@@ -482,7 +482,7 @@ test('a layout that puts the Forecast bar back gives it its readings when it has
   walkTo(dom, 'layoutPreset');
   dom.pick('layoutPreset', 'fullCal');
   assert.ok(M.idxOf(M.screensOf(ctx.S, ctx.ENV)[0], 'fcbar') >= 0, 'the layout\'s Default screen has it');
-  assert.deepEqual(slotsOf(ctx.S, 'forecast'), ['temp', 'city', 'aqi']);
+  assert.deepEqual(slotsOf(ctx.S, 'forecast'), ['temp', 'city', 'sun']);
 });
 
 test('Try a flick steps through the screens and back to Default', () => {
@@ -567,7 +567,7 @@ test('a screen of the user\'s own keeps its place\'s name, and only what fits is
   assert.equal(dom.findAll('[data-wiz-scr-add]').length, 0);
 });
 
-test('the Health screen added in setup earns the steps reading on the Watch bar as it finishes', () => {
+test('the Health screen added in setup keeps steps in the Health bar: the Watch bar keeps its own', () => {
   const finish = (add) => {
     const { ctx, dom } = openSetup();
     walkToTitle(dom, 'Flick to switch screens');
@@ -576,8 +576,10 @@ test('the Health screen added in setup earns the steps reading on the Watch bar 
     dom.nav('tweak');
     return ctx.S;
   };
-  assert.equal(finish(true).statusTopLeft, 'steps', 'health on: steps on the Watch bar');
-  assert.equal(finish(false).statusTopLeft, 'empty', 'a new install without it: health off');
+  const withHealth = finish(true);
+  assert.equal(withHealth.statusTopLeft, 'aqi', 'health on: the Watch bar keeps air quality');
+  assert.equal(withHealth.statusHealthLeft, 'steps', 'and the Health bar its steps');
+  assert.equal(finish(false).statusTopLeft, 'aqi', 'a new install without it: the same Watch bar');
 });
 
 // --- the forecast step: the graph's look, previewed live on the Default screen ---

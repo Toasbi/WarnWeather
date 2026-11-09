@@ -571,9 +571,9 @@ function openAlertSheet(page, stem) {
 test('the sheets: the levels and look stay live whatever the slot Highlight, which writes no numbers', () => {
   const page = bootGeneratedPage();
   page.clickTab('watch');
-  page.openEditSheet('bar-forecast');
+  page.openEditSheet('bar-top');
   assert.ok(page.modal.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
-    'the default AQI forecast slot renders its pencil, in the Forecast bar\'s dialog');
+    'the default AQI slot renders its pencil, in the Watch bar\'s dialog');
   page.doneDialog();
   // The AQI levels live in the kind's alert sheet (the Alerts tab), which has no switch
   // (its Shows on grid places the alert); the slot's Alert highlighting switch lives in
@@ -810,7 +810,7 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
     threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '100', threshAqiWarnLook: 'outline'
   });
   page.clickTab('watch');
-  page.openEditSheet('bar-forecast');
+  page.openEditSheet('bar-top');
   const html = page.modal.innerHTML;
   // Slice the whole control cell rather than a window around the Edit button: the
   // swatch LEADS the control and the button TRAILS it, so a window anchored on the
@@ -837,7 +837,7 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
     const p = bootGeneratedPage(Object.assign({ provider: 'dwd',
       threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '100' }, look));
     p.clickTab('watch');
-    p.openEditSheet('bar-forecast');
+    p.openEditSheet('bar-top');
     const h = p.modal.innerHTML;
     const a = h.indexOf('data-edit-sheet="threshAqi"');
     return h.slice(h.lastIndexOf('<div class="rgt has-pen">', a), a + 300);
@@ -851,7 +851,7 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
 
   const off = bootGeneratedPage();
   off.clickTab('watch');
-  off.openEditSheet('bar-forecast');
+  off.openEditSheet('bar-top');
   // The status bars' slot pencils only: the Alerts tab's Weather alerts card badges the
   // placed alerts' colours of its own (alertLevelBadge), and the bar's Alerts row (a link
   // to the Alerts tab) carries no badge.

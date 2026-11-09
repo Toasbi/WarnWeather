@@ -43,13 +43,13 @@ test('LINES describes 4 lines in wire order with three real slots each', () => {
 
 test('defaults + the two flavors are the shipped status-bar set', () => {
   assert.deepEqual(catalog.LINES[0].defaults,
-    { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi' });
+    { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun' });
   assert.deepEqual(catalog.LINES[1].defaults,
     { statusRadarLeft: 'uv', statusRadarMid: 'wind', statusRadarRight: 'gust' });
   assert.deepEqual(catalog.LINES[2].defaults,
-    { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery' });
+    { statusTopLeft: 'aqi', statusTopMid: 'date', statusTopRight: 'battery' });
   assert.deepEqual(catalog.LINES[2].emeryDefaults,
-    { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' });
+    { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'aqi' });
   assert.deepEqual(catalog.LINES[3].defaults,
     { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
   assert.deepEqual(catalog.LINES[3].hrDefaults,
@@ -61,11 +61,13 @@ test('slotDefault takes the emery and HR flavors; the other rows are flat', () =
   assert.equal(catalog.slotDefault('statusHealthRight', ENV_DIORITE), 'hr');
   assert.equal(catalog.slotDefault('statusHealthRight', ENV_BASALT), 'sleep');
   assert.equal(catalog.slotDefault('statusHealthRight', undefined), 'sleep');
-  assert.equal(catalog.slotDefault('statusForecastRight', ENV_EMERY), 'aqi');
-  // The top strip: three readings on emery, date + battery corner everywhere else.
+  assert.equal(catalog.slotDefault('statusForecastRight', ENV_EMERY), 'sun');
+  assert.equal(catalog.slotDefault('statusForecastRight', ENV_BASALT), 'sun');
+  // The top strip: three readings on emery, air quality in its corner; air quality, the
+  // date and the battery corner everywhere else.
   assert.equal(catalog.slotDefault('statusTopLeft', ENV_EMERY), 'week');
-  assert.equal(catalog.slotDefault('statusTopRight', ENV_EMERY), 'sun');
-  assert.equal(catalog.slotDefault('statusTopLeft', ENV_BASALT), 'empty');
+  assert.equal(catalog.slotDefault('statusTopRight', ENV_EMERY), 'aqi');
+  assert.equal(catalog.slotDefault('statusTopLeft', ENV_BASALT), 'aqi');
   assert.equal(catalog.slotDefault('statusTopRight', ENV_BASALT), 'battery');
   assert.equal(catalog.slotDefault('statusTopRight', ENV_DIORITE), 'battery',
     'the split is display width, not colour or heart rate');
@@ -166,25 +168,29 @@ test('selectedCodes falls back to line defaults for missing keys, over the bars 
   assert.equal(codes.length, 9, 'the default screens show the Forecast, Radar and Watch bars');
   assert.ok(codes.includes('wind'));  // stored value wins
   assert.ok(codes.includes('temp'));  // forecast-left default
-  assert.ok(codes.includes('battery'));
-  assert.ok(!codes.includes('sun'), 'it answers the flavor-less top row');
+  assert.ok(codes.includes('battery'), 'no env: the base flavor\'s battery corner');
+  assert.ok(codes.includes('sun'), 'the Forecast bar\'s sunrise/sunset');
   assert.ok(!codes.includes('steps'), 'the Health bar\'s defaults count only while a screen shows it');
   const all = catalog.selectedCodes({ statusRadarMid: 'wind', healthMode: 'status' });
   assert.equal(all.length, 12, 'with the Health bar on a screen');
   assert.ok(all.includes('steps'));
   assert.equal(catalog.selectedCodes({ radarMode: 'off', statusRadarMid: 'pollen' }).indexOf('pollen'), -1,
     'the radar off: no screen shows the Radar bar, so its slots fetch nothing');
-  // The codes answer the flavor-less defaults on every watch: its callers are fetch gates
-  // for uv/aqi/pollen, none of which a per-platform flavor moves. The env decides only
-  // which bars the watch draws (test/extra-bars.test.js). The emery flavor is pinned
-  // at its real source instead.
-  assert.deepEqual(catalog.selectedCodes({ statusRadarMid: 'wind' }, ENV_EMERY), codes,
-    'the env moves no default');
+  // The codes answer the defaults the bake packs for this watch (status-lines.js packLine):
+  // its callers are fetch gates, and air quality sits in the top row's corner on emery and
+  // in its left slot elsewhere. The env also decides which bars the watch draws
+  // (test/extra-bars.test.js).
+  const emery = catalog.selectedCodes({ statusRadarMid: 'wind' }, ENV_EMERY);
+  assert.deepEqual(emery.slice(6), ['week', 'date', 'aqi'], 'emery: its own top row');
+  assert.deepEqual(codes.slice(6), ['aqi', 'date', 'battery'], 'elsewhere: the base flavor');
+  assert.equal(catalog.selectedCodes({ statusRadarMid: 'wind', statusTopLeft: 'empty' }, ENV_EMERY)
+    .indexOf('aqi'), 8, 'emery\'s corner fetches air quality whatever the left slot holds');
+  assert.equal(catalog.selectedCodes({ statusRadarMid: 'wind', statusTopRight: 'sun' }, ENV_EMERY)
+    .indexOf('aqi'), -1, 'and a corner the user changed does not');
   // aplite draws neither the Radar bar nor the Health bar, whatever a settings blob from
   // another watch puts on its screens.
   assert.equal(catalog.selectedCodes({ statusRadarMid: 'wind', healthMode: 'status' }, ENV_APLITE).length, 6,
     'aplite: the Forecast and Watch bars');
-  assert.equal(catalog.slotDefault('statusTopRight', ENV_EMERY), 'sun');
 });
 
 test('resolveSelection maps invalid/unavailable to empty without touching storage', () => {
