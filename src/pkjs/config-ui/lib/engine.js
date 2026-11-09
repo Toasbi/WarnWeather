@@ -2026,6 +2026,35 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * A section's header note (noteFrom): a display resolver fn(S, env, args) answering a short
+   * text for the right of its card's header ("4/5"), the words a screen reader says for it
+   * (label) and the info text (HTML) its '?' shows at the top of the card. The '?' is drawn
+   * whatever the page's info mode (infoIconsOn): a note is kept short so it asks for little
+   * attention, and what it means always waits behind it.
+   * @param {Object} sec The section.
+   * @param {Object} cx Render context.
+   * @returns {?{text: string, label: string, info: string}} The note, or null for none.
+   */
+  function sectionNote(sec, cx) {
+    var by = sec.noteFrom;
+    var fn = by && cx && PConf.displayResolvers.get(by.resolver);
+    var v = fn ? fn(cx.S, cx.ENV, by.args || {}) : null;
+    if (!v || !v.text) { return null; }
+    return { text: String(v.text), label: String(v.label || v.text), info: v.info ? String(v.info) : '' };
+  }
+
+  /**
+   * A card header's note (sectionNote) on its right: the text for the eye, its label for a
+   * screen reader, then the '?' that shows its info text (buildCards draws the text).
+   * @param {{text: string, label: string, info: string, id: string, open: boolean}} n The note.
+   * @returns {string} HTML
+   */
+  function headerNoteHtml(n) {
+    return '<span class="hdr-note"><span aria-hidden="true">' + esc(n.text) + '</span><span class="sr-only">'
+      + esc(n.label) + '</span>' + (n.info ? infoButtonHtml(n.id, n.open, n.label) : '') + '</span>';
+  }
+
+  /**
    * The mark on a card title that follows the settings (a section's titleBy): its section's
    * id, so a text commit retitles it in place (boot's retitleCards).
    * @param {{titleBy: boolean, secId: string}} h The header.
@@ -2038,13 +2067,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   /**
    * A card's header: its title (uppercase, the section-title look), then — beside the
    * title — the '?' that opens the card's info text (its intro) and a reset action
-   * (labelAction), and on the right a hosted master switch (a subheader's toggleKey), the
-   * collapsed card's current pick (titleFrom) and the disclosure chevron. A collapsible
-   * card's header is one button (the whole bar toggles it); any other header is a plain
-   * bar, so the buttons inside it are real buttons of their own.
+   * (labelAction), and on the right a note with its own '?' (noteFrom: headerNoteHtml), a
+   * hosted master switch (a subheader's toggleKey), the collapsed card's current pick
+   * (titleFrom) and the disclosure chevron. A collapsible card's header is one button (the
+   * whole bar toggles it), so it carries no note; any other header is a plain bar, so the
+   * buttons inside it are real buttons of their own.
    * @param {{title: string, secId: string, collapsible: boolean, open: boolean,
    *   introId: ?string, introOpen: boolean, labelAction: ?Object, toggle: string,
-   *   titleFrom: ?Object}} h What the header shows.
+   *   titleFrom: ?Object, note: ?Object}} h What the header shows.
    * @param {Object} cx Render context.
    * @returns {string} Header HTML, or '' for an untitled, non-collapsible card.
    */
@@ -2073,7 +2103,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + '<span class="ttlwrap"><span class="ttl"' + titleByAttr(h) + '>' + esc(h.title || '') + '</span>'
       + (h.introId ? infoButtonHtml(h.introId, h.introOpen, h.title) : '')
       + (h.labelAction ? labelActionHtml({ labelAction: h.labelAction }) : '') + '</span>'
-      + (h.toggle || '') + '</div>';
+      + (h.note ? headerNoteHtml(h.note) : '') + (h.toggle || '') + '</div>';
   }
 
   /**
@@ -2291,8 +2321,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var isCollapsible = gi === 0 && Boolean(sec.collapsible) && !untitled;
       var collId = sec.id || sec.title;
       var isOpen = isCollapsible ? !(cx.collapsed || {})[collId] : true;
+      // The section's note (noteFrom) rides its own card's header; its info text shows at the
+      // top of the card while its '?' is on.
+      var note = !g.head && !untitled && !isCollapsible ? sectionNote(sec, cx) : null;
+      if (note) {
+        note.id = 'n:' + cardId;
+        note.open = Boolean(note.info && infoOpen[note.id]);
+        if (note.open) { intro += '<div class="intro">' + note.info + '</div>'; }
+      }
       var hdr = cardHeaderHtml({ title: head.title, secId: collId, collapsible: isCollapsible, open: isOpen,
-        introId: introId, introOpen: introOpen, labelAction: head.labelAction,
+        introId: introId, introOpen: introOpen, labelAction: head.labelAction, note: note,
         toggle: head.toggle, titleFrom: sec.titleFrom, titleBy: Boolean(sec.titleBy && !g.head && !untitled) }, cx);
       var body = intro + mainR.html + blockHtml;
       if (moreCount) {

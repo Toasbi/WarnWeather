@@ -2740,6 +2740,42 @@ test('titleBy / sheetTitleBy: a card header and a picker named by the settings; 
   assert.match(E.renderBody(PLAIN, 't', mkCx({ x: false })), /<span class="ttl">Plain<\/span>/);
 });
 
+test('noteFrom: a short note on the right of a card header, what it means behind a \'?\' that always shows', () => {
+  PConf.displayResolvers.register('countNote', function (S) {
+    return S.n ? { text: S.n + '/5', label: S.n + ' of 5 in use', info: S.info } : null;
+  });
+  const SCH = (extra) => ({ appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [Object.assign({
+    id: 'cnt', title: 'Counted', noteFrom: { resolver: 'countNote' },
+    items: [{ type: 'toggle', messageKey: 'x', defaultValue: false }]
+  }, extra || {})] }] });
+  const mkCx = (S, infoOpen, more) => Object.assign({ S, ENV: {}, USERDATA: {}, openColor: null, collapsed: {},
+    infoOpen: infoOpen || {}, evalCtx: Object.assign({}, S, { env: {} }) }, more || {});
+  const S = { n: 4, info: 'Four <b>of</b> five.' };
+  // After the title: the text for the eye, its label for a screen reader, its '?' closed. The info
+  // waits behind it.
+  const closed = '<span class="ttl">Counted</span></span><span class="hdr-note"><span aria-hidden="true">4/5</span>'
+    + '<span class="sr-only">4 of 5 in use</span><button type="button" class="info-q" data-info="n:t:cnt/0"'
+    + ' aria-expanded="false" aria-label="Info about 4 of 5 in use">?</button></span></div>';
+  let html = E.renderBody(SCH(), 't', mkCx(S));
+  assert.ok(html.indexOf(closed) !== -1, html);
+  assert.equal(html.indexOf('Four'), -1);
+  // Its '?' on: the info (HTML) first in the card.
+  html = E.renderBody(SCH(), 't', mkCx(S, { 'n:t:cnt/0': true }));
+  assert.match(html, /class="info-q on" data-info="n:t:cnt\/0" aria-expanded="true" aria-label="Hide info about 4 of 5 in use"/);
+  assert.ok(html.indexOf('</span></div><div><div class="intro">Four <b>of</b> five.</div>') !== -1, html);
+  // The page's '?' mode changes nothing: with every info text behind a '?' the note is the same.
+  assert.ok(E.renderBody(SCH(), 't', mkCx(S, {}, { infoIcons: true })).indexOf(closed) !== -1);
+  // No info: the note alone. Text escaped.
+  html = E.renderBody(SCH(), 't', mkCx({ n: '<i>' }));
+  assert.ok(html.indexOf('<span class="hdr-note"><span aria-hidden="true">&lt;i&gt;/5</span><span class="sr-only">&lt;i&gt; of'
+    + ' 5 in use</span></span>') !== -1, html);
+  assert.equal(html.indexOf('data-info'), -1);
+  // No answer, an unknown resolver, a collapsible card (its header is one button): no note.
+  assert.equal(E.renderBody(SCH(), 't', mkCx({ n: 0 })).indexOf('hdr-note'), -1);
+  assert.equal(E.renderBody(SCH({ noteFrom: { resolver: 'nope' } }), 't', mkCx(S)).indexOf('hdr-note'), -1);
+  assert.equal(E.renderBody(SCH({ collapsible: true }), 't', mkCx(S)).indexOf('hdr-note'), -1);
+});
+
 test('initialTab: a tab may claim the opening slot, order alone does not', () => {
   const bar = (tabs) => ({ appName: 'X', versionLabel: 'v0', tabs: tabs });
   const T = (id, extra) => Object.assign({ id: id, label: id, sections: [] }, extra || {});

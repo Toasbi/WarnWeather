@@ -1941,6 +1941,10 @@ module.exports = {
             title: 'Your graphs',
             abovePin: true,
             showWhen: GRAPH_STYLES_WHEN,
+            // "4/5" on the right of the header: how many of the watch's five metric rows the
+            // graphs on the screens use, with a '?' that lists them and says what counts
+            // (graph-styles-page.js metricsNote).
+            noteFrom: {resolver: 'graphMetricsNote'},
             items: [{
                 type: 'hidden',
                 messageKey: 'graphStylePick',

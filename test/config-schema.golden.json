@@ -10490,6 +10490,9 @@
             "showWhen": {
               "env": "graphStyles"
             },
+            "noteFrom": {
+              "resolver": "graphMetricsNote"
+            },
             "items": [
               {
                 "type": "hidden",

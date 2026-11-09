@@ -252,6 +252,7 @@ Schema
             ├─ collapsible  boolean (renders section as a collapsible card)
             ├─ titleBy      {resolver, args?} (the header's title from the settings; see Section fields)
             ├─ titleFrom    {resolver, args?} (collapsed-header value; see Section fields)
+            ├─ noteFrom     {resolver, args?} (a short note on the header's right, its '?'; see Section fields)
             ├─ groupCard    string  (consecutive sections sharing an id merge into one card)
             ├─ pane         string  (renders only while its tab shows that pane)
             ├─ beforePin    boolean (renders first in the tab, above its pinned header; scrolls away)
@@ -436,6 +437,7 @@ picking the shown swatch is what writes it.
 | `collapsible` | boolean | Collapses the section into an expandable card (collapsed by default; state is per page open). Its header ends on the red ▸, ▾ while open ([`ui.foldChev`](#shared-parts--pconfui)). |
 | `titleBy` | `{resolver, args?}` | The card header's title itself follows the settings: a `PConf.displayResolvers` id whose `fn(S, env, args)` answer replaces `title` (escaped); `''` or no answer keeps `title`. The header marks it (`data-title-by`), so a text commit that skips the re-render retitles it in place. A dialog's title follows it too (e.g. a status bar's name titling the bar's dialog). |
 | `titleFrom` | `{resolver, args?}` | Collapsible sections only: a `PConf.displayResolvers` id whose `fn(S, env, args)` result is painted next to the title while the card is COLLAPSED (e.g. the current pick of a select inside), so a closed card still says what's selected. Open cards show the plain `title`. `args` pass through verbatim (no messageKey merge — sections have none). |
+| `noteFrom` | `{resolver, args?}` | A short note on the right of the card's header (the Your graphs card's "4/5"): a `PConf.displayResolvers` id whose `fn(S, env, args)` answers `{text, label?, info?}` or null for none. `text` shows (escaped), `label` is what a screen reader says instead (else `text`), and `info` (HTML, like `intro`) waits behind a '?' after the note and shows first in the card while it is on. The '?' is drawn whatever the page's info mode, so the note asks for little attention and what it means is always a tap away. Not on a collapsible card: its header is one button. `args` pass through verbatim. |
 | `rename` | `{key, label, placeholder?, maxlength?}` | `sheetOnly` only: a pencil beside the dialog's title turns it into a text field for the setting `key` (`label` its accessible name, `placeholder` the name an empty field stands for, `maxlength` 40 unless given), with an OK button in Done's place. OK or Enter stores the text and fires the key's item `onChange`; Escape or × puts the title back. See Dialogs. |
 | `groupCard` | string | Consecutive sections sharing a `groupCard` id render into ONE card: titles become in-card sub-headers, and each section's intro/items/`block` stack inside it. Empty sub-sections drop out cleanly. |
 | `items` | Item[] | The items to render |
@@ -746,8 +748,9 @@ stored value stays untouched — for a key whose effective value is computed els
 that cascades from a sibling key until the user pins it). Several consumers read the registry
 today: `color` items via `displayFrom` (args get the item's messageKey merged under them),
 collapsible sections via `titleFrom` (the collapsed card header's value — args pass
-through verbatim, with NO messageKey merged in, since sections have none), and the titles
-themselves via a section's `titleBy` and a select's `sheetTitleBy` (args verbatim too).
+through verbatim, with NO messageKey merged in, since sections have none), the titles
+themselves via a section's `titleBy` and a select's `sheetTitleBy` (args verbatim too), and a
+section's header note via `noteFrom` (an object, `{text, label?, info?}`; args verbatim).
 
 ```js
 // Returns the value to display; return null/undefined for "use the stored value".

@@ -33,7 +33,8 @@
 // and stripes": a forecast line's metric or style on a shown graph (LIMIT), a screen of the Show
 // on row (limitNote: the rule, what the screens use, what the graph adds) and in the screen
 // editor a graph or template that would join the screens (limitDesc). A graph no screen shows
-// is free.
+// is free. The Your graphs card's header counts what the screens use, "4/5", with which ones and
+// what counts behind its '?' (metricsNote, the section's noteFrom).
 //
 // Dual-context: a CommonJS module in the tests; in the webview a concatenated <script> after
 // graph-styles.js and screens.js (scripts/build-config-page.js APP_FILES) and ahead of
@@ -478,6 +479,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return (extra.length ? 'Also needs ' + andList(extra) + ': that makes ' : 'That makes ')
             + seriesUnion(N, env, shown).length + ' lines and stripes on your screens. The watch can show '
             + GS.ROWS + '.';
+    }
+
+    /**
+     * The Your graphs card's note (section noteFrom 'graphMetricsNote'; the owner's pick,
+     * 2026-11-09: only the number, what it means behind a '?'): how many of the watch's five
+     * metric rows the graphs on the screens use between them, "4/5", and behind its '?' which
+     * ones and what counts (THE LIMIT), with how to make room once all five are in use.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {?{text: string, label: string, info: string}} null where the watch has no graph styles
+     */
+    function metricsNote(S, env) {
+        if (!on(env) || !S) { return null; }
+        var N = normalize(S), inUse = seriesUnion(N, env, GS.stylesShown(N, env)).map(seriesName);
+        var used = inUse.length;
+        return {
+            text: used + '/' + GS.ROWS,
+            label: used + ' of ' + GS.ROWS + ' metrics in use',
+            info: esc((used ? 'In use: ' + inUse.join(', ') + '.' : 'No screen shows a forecast graph yet.')
+                + (used >= GS.ROWS ? ' To make room, turn off a line in one of your graphs.' : ''))
+                + '<p class="intro-more">' + esc('The graphs on your screens can show ' + GS.ROWS + ' metrics between'
+                + ' them, up to ' + GS.TRENDS + ' in one graph. A metric in two graphs counts once, or twice when one'
+                + ' draws it as a line and the other as a stripe. Temperature, the rain bars and a graph no screen'
+                + ' shows don\'t count.') + '</p>'
+        };
     }
 
     /**
@@ -1102,7 +1128,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if (PConf.whenResolvers) { PConf.whenResolvers.register('graphDeletable', deletable); }
         if (PConf.pictureResolvers) { PConf.pictureResolvers.register('graphStylePicture', optionPicture); }
-        if (PConf.displayResolvers) { PConf.displayResolvers.register('graphStyleOnOpen', pickOnOpen); }
+        if (PConf.displayResolvers) {
+            PConf.displayResolvers.register('graphStyleOnOpen', pickOnOpen);
+            PConf.displayResolvers.register('graphMetricsNote', metricsNote);
+        }
         if (PConf.onChange) { PConf.onChange.register('graphStyleCreate', createStyle); }
         PConf.actions = PConf.actions || {};
         PConf.actions.pickGraph = function (arg, S) {
@@ -1155,6 +1184,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         screenOverflows: screenOverflows,
         limitDesc: limitDesc,
         limitNote: limitNote,
+        metricsNote: metricsNote,
         beginScreenPick: beginScreenPick,
         styleOptions: styleOptions,
         cardHint: cardHint,
