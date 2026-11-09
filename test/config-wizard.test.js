@@ -286,13 +286,27 @@ test('opening the wizard never rewrites a stored preset; a layout pick makes the
   assert.equal(aplite.ctx.S.layoutPreset, 'noCal');
 });
 
-test('the Screens step\'s screens: Health and Rain radar where the watch draws them, in that order', () => {
+test('the Screens step\'s screens: Long forecast, Health and Rain radar where the watch draws them, in that order', () => {
   const basalt = platform.computeEnv({ platform: 'basalt' });
   assert.deepEqual(SCREENS.offered(basalt).map((t) => t.id), ['health', 'radar']);
+  assert.deepEqual(SCREENS.offered(platform.computeEnv({ platform: 'emery' })).map((t) => t.id), ['long', 'health', 'radar'],
+    'the Pebble Time 2 adds a second graph over the long span');
   assert.deepEqual(SCREENS.offered(platform.computeEnv({ platform: 'aplite' })), []);
   const b = (k, o) => Object.assign({ k }, o || {});
-  assert.deepEqual(SCREENS.byId('health').list, [b('strip'), b('clock'), b('healthbar'), b('health', { size: 'fill' })]);
-  assert.deepEqual(SCREENS.byId('radar').list, [b('strip'), b('clock'), b('radarbar'), b('radar', { size: 'fill' })]);
+  assert.deepEqual(SCREENS.listOf(SCREENS.byId('health'), ''),
+    [b('strip'), b('clock'), b('healthbar'), b('health', { size: 'fill' })]);
+  assert.deepEqual(SCREENS.listOf(SCREENS.byId('radar'), ''),
+    [b('strip'), b('clock'), b('radarbar'), b('radar', { size: 'fill' })]);
+  assert.deepEqual(SCREENS.listOf(SCREENS.byId('health'), '3'),
+    [b('strip'), b('cal', { rows: '3' }), b('clock'), b('healthbar'), b('health', { size: 'fill' })], 'on the Layout\'s calendar');
+  // A screen reads as its template whatever its calendar; the Long forecast screen by a graph of its own.
+  assert.equal(SCREENS.templateOf(SCREENS.listOf(SCREENS.byId('radar'), '2')).id, 'radar');
+  const long = SCREENS.listOf(SCREENS.byId('long'), '');
+  assert.equal(SCREENS.templateOf(long), null, 'a forecast screen on the first graph is the user\'s own');
+  long[3].style = '2';
+  assert.equal(SCREENS.templateOf(long).id, 'long');
+  assert.equal(SCREENS.insertAt([[], long.slice(), SCREENS.listOf(SCREENS.byId('health'), '')], 'radar'), 3);
+  assert.equal(SCREENS.insertAt([[], SCREENS.listOf(SCREENS.byId('health'), '')], 'long'), 1, 'before the Health screen');
   // An upgraded install's flick screens ARE the two (today's Flick 1 and Flick 2).
   const three = M.screensOf({ layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'graph' }, basalt);
   assert.deepEqual(three.map((l, i) => SCREENS.nameOf(l, i)), ['Default', 'Health', 'Rain radar']);

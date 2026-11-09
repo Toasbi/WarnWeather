@@ -217,19 +217,35 @@
     }
 
     /**
-     * The length a look starts on, as the Forecast length picker names it on these settings
-     * (forecast-span-hours.js spanLabel): "24 h", or the long span by the hours it shows for the
-     * user's weather service and the look's Left axis values ("66 h", "47 h" with
-     * OpenWeatherMap). On a watch with a Forecast length (emery) only.
+     * The length a look starts on, or another length of its graph, as the Forecast length picker
+     * names it on these settings (forecast-span-hours.js spanLabel): "24 h", or the long span by
+     * the hours it shows for the user's weather service and the look's Left axis values ("66 h",
+     * "47 h" with OpenWeatherMap). On a watch with a Forecast length (emery) only.
      * @param {string} id A look's id.
      * @param {?Object} env Platform env.
      * @param {?Object} S The user's settings (the weather service and the layout).
+     * @param {string} [span] A length ('12' | '24' | '48'); the look's own without.
      * @returns {string} '' for no such look, or a watch without the length
      */
-    function spanLabel(id, env, S) {
+    function spanLabel(id, env, S, span) {
         var look = lookOf(id);
         if (!look || !(env && env.forecastSpan)) { return ''; }
-        return spanHours.spanLabel(Object.assign({}, S, look.over, { forecastHours: look.span }));
+        return spanHours.spanLabel(Object.assign({}, S, look.over, { forecastHours: span || look.span }));
+    }
+
+    /**
+     * A look's graph's lengths as the Forecast length picker names them on these settings
+     * (forecast-span-hours.js spanOptions: the long span by the hours the look shows): Add a
+     * screen's Forecast length. On a watch with a Forecast length (emery) only.
+     * @param {string} id A look's id.
+     * @param {?Object} env Platform env.
+     * @param {?Object} S The user's settings.
+     * @returns {Array<Array<string>>} [label, value] pairs; none for no such look or watch
+     */
+    function lookSpanOptions(id, env, S) {
+        var look = lookOf(id);
+        if (!look || !(env && env.forecastSpan)) { return []; }
+        return spanHours.spanOptions(Object.assign({}, S, look.over));
     }
 
     /**
@@ -423,6 +439,7 @@
         looks: looks,
         spanOf: spanOf,
         spanOptions: spanHours.spanOptions,
+        lookSpanOptions: lookSpanOptions,
         current: current,
         followTheme: followTheme,
         previewSvg: previewSvg

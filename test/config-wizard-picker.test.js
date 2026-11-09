@@ -438,15 +438,10 @@ test('+ puts a screen in where it goes and shows it big; ✕ takes it out again'
   assert.equal(ctx.S.healthMode, 'all');
   assert.equal(dom.findAll('[data-wiz-scr-add]').length, 0, 'three screens: nothing more to add');
   assert.deepEqual(dom.findAll('[data-wiz-scr-rm]').map((b) => b.getAttribute('data-wiz-scr-rm')), ['1', '2']);
-  // Today's Flick 1 and Flick 2: an upgraded install's screens, drawn the same (the screen editor's
-  // encoding: an explicit band order, where the preset leaves the tier's own).
-  const upgraded = Object.assign(JSON.parse(JSON.stringify(ctx.S)),
-    { layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'graph', swapClockStatus: true });
-  assert.deepEqual(M.screensOf(ctx.S, ctx.ENV), M.screensOf(upgraded, ctx.ENV));
-  const now = new Date(2026, 10, 6, 15);
-  [1, 2].forEach((i) => assert.equal(
-    PW.screenSvg(VC.resolveViewCycle(ctx.S, ctx.ENV)[i], i, ctx.S, ctx.ENV, {}, 0, now, 'x').svg,
-    PW.screenSvg(VC.resolveViewCycle(upgraded, ctx.ENV)[i], i, upgraded, ctx.ENV, {}, 0, now, 'x').svg, 'screen ' + i));
+  // Each on the Default screen's calendar (the Layout's, Compact on a new install: the owner's ask,
+  // 2026-11-09), Add a screen's screens.
+  assert.deepEqual(M.screensOf(ctx.S, ctx.ENV).slice(1), [SCREENS.listOf(SCREENS.byId('health'), '2'),
+    SCREENS.listOf(SCREENS.byId('radar'), '2')]);
   removeScreen(dom, 1);
   assert.deepEqual(screenNames(ctx), ['Default', 'Rain radar']);
   assert.equal(ctx.S.healthMode, 'off', 'no screen shows health');
@@ -456,6 +451,83 @@ test('+ puts a screen in where it goes and shows it big; ✕ takes it out again'
   assert.deepEqual(screenNames(ctx), ['Default']);
   assert.equal(ctx.S.radarMode, 'countdown', 'the rain alert on the Watch bar still fetches the radar');
   assert.equal(ctx.S.viewCount, '1');
+});
+
+test('the screens setup offers show the Layout\'s calendar; a layout picked later moves the ones it added', () => {
+  const { ctx, dom } = openSetup();
+  walkTo(dom, 'layoutPreset');
+  dom.pick('layoutPreset', 'noCal');
+  walkToTitle(dom, 'Flick to switch screens');
+  const offeredPic = dom.find('[data-wiz-scr-add="health"]').getAttribute('aria-label');
+  assert.equal(offeredPic, 'Add the Health screen');
+  addScreen(dom, 'health');
+  assert.deepEqual(M.screensOf(ctx.S, ctx.ENV)[1], SCREENS.listOf(SCREENS.byId('health'), ''), 'no calendar, as the Default');
+  dom.nav('back');
+  dom.pick('layoutPreset', 'fullCal');
+  assert.deepEqual(M.screensOf(ctx.S, ctx.ENV)[1], SCREENS.listOf(SCREENS.byId('health'), '3'), 'the full calendar now');
+  assert.equal(ctx.S.viewName1, 'Health', 'still named');
+  dom.pick('layoutPreset', 'compactCal');
+  assert.deepEqual(M.screensOf(ctx.S, ctx.ENV)[1], SCREENS.listOf(SCREENS.byId('health'), '2'));
+  // A screen of the user's own is left as it is.
+  const own = openSetup({ saved: Object.assign({ layoutPreset: 'custom', customLayoutSeeded: true, viewCount: '2' },
+    M.compileKeys(M.screensOf(ctx.S, ctx.ENV)[0], 0), M.compileKeys(SCREENS.listOf(SCREENS.byId('health'), ''), 1)) });
+  walkTo(own.dom, 'layoutPreset');
+  own.dom.pick('layoutPreset', 'fullCal');
+  assert.deepEqual(M.screensOf(own.ctx.S, own.ctx.ENV)[1], SCREENS.listOf(SCREENS.byId('health'), ''),
+    'a Health screen setup did not add keeps its calendar');
+});
+
+test('on emery Long forecast adds a second graph over the long span; the Default\'s goes to 24 hours', () => {
+  const { ctx, dom } = openSetup({ platform: 'emery', fresh: true });
+  walkToTitle(dom, 'Flick to switch screens');
+  assert.deepEqual(dom.findAll('[data-wiz-scr-add]').map((b) => b.getAttribute('data-wiz-scr-add')), ['long', 'health', 'radar']);
+  assert.equal(FORECAST.spanOf(ctx.S), '48', 'premise: a new install\'s graph shows the long span');
+  addScreen(dom, 'long');
+  assert.deepEqual(screenNames(ctx), ['Default', 'Long forecast']);
+  assert.equal(ctx.S.viewName1, 'Long forecast');
+  assert.equal(ctx.S.viewStyle1, '2', 'it draws a graph of its own');
+  assert.equal(GS.name(ctx.S, 1), 'Long forecast', 'named as the screen');
+  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48', 'over the long span');
+  assert.equal(ctx.S.forecastHours, '24', 'the Default\'s graph shows the next day now');
+  assert.deepEqual(GS.stylesShown(ctx.S, ctx.ENV), [0, 1]);
+  // Health goes in after it.
+  addScreen(dom, 'health');
+  assert.deepEqual(screenNames(ctx), ['Default', 'Long forecast', 'Health']);
+  // The forecast step's look shows on both; the Default keeps its 24 hours.
+  walkTo(dom, 'forecastLook');
+  const lookOf = (id) => FORECAST.looks(ctx.S, ctx.ENV, PConf.engine.themedDefaults(ctx.schema, ctx.S, ctx.ENV), null)
+    .filter((r) => r.id === id)[0];
+  dom.pick('forecastLook', 'stripes');
+  assert.ok(FORECAST.same(GS.settingsFor(ctx.S, 1), lookOf('stripes').values, ctx.ENV), 'the long graph draws Stripes too');
+  dom.pick('forecastLook', 'clean');
+  assert.equal(ctx.S.forecastHours, '24', 'a look picked keeps the Default\'s length beside the long one');
+  assert.ok(FORECAST.same(GS.settingsFor(ctx.S, 1), lookOf('clean').values, ctx.ENV), 'and Clean');
+  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48');
+  dom.nav('back');
+  dom.pick('theme', 'light');
+  assert.equal(ctx.S.theme, 'light');
+  assert.deepEqual(GS.valuesOf(ctx.S, 1), Object.assign(GS.valuesOf(ctx.S, 0), { forecastHours: '48' }),
+    'a theme picked after shows on both');
+  // Taken out again: its graph goes, and the Default's length comes back.
+  dom.nav('back');
+  removeScreen(dom, 1);
+  assert.deepEqual(screenNames(ctx), ['Default', 'Health']);
+  assert.equal(GS.count(ctx.S), 1, 'its graph went with it');
+  assert.equal(ctx.S.forecastHours, '48', 'the Default shows the long span again');
+});
+
+test('Long forecast beside a Default graph of 24 hours leaves the Default as it is', () => {
+  const { ctx, dom } = openSetup({ platform: 'emery', saved: { forecastHours: '24' } });
+  walkToTitle(dom, 'Flick to switch screens');
+  addScreen(dom, 'long');
+  assert.equal(ctx.S.forecastHours, '24');
+  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48');
+  removeScreen(dom, 1);
+  assert.equal(ctx.S.forecastHours, '24');
+  // Not on a watch with one graph.
+  const basalt = openSetup();
+  walkToTitle(basalt.dom, 'Flick to switch screens');
+  assert.equal(basalt.dom.findAll('[data-wiz-scr-add="long"]').length, 0);
 });
 
 test('a screen setup adds brings its bar with the bar\'s default readings, not an empty row', () => {
@@ -542,7 +614,7 @@ test('with the rain radar off, a Rain radar screen is drawn as the watch draws i
   const SP = require('../src/pkjs/settings/screens-page.js');
   const base = openSetup().ctx;
   const saved = Object.assign({ layoutPreset: 'custom', viewCount: '2', radarEnabled: false, radarProvider: 'dwd' },
-    M.compileKeys(M.screensOf(base.S, base.ENV)[0], 0), M.compileKeys(SCREENS.byId('radar').list, 1));
+    M.compileKeys(M.screensOf(base.S, base.ENV)[0], 0), M.compileKeys(SCREENS.listOf(SCREENS.byId('radar'), ''), 1));
   const { ctx, dom } = openSetup({ saved });
   walkToTitle(dom, 'Flick to switch screens');
   assert.deepEqual(screenNames(ctx), ['Default', 'Rain radar']);

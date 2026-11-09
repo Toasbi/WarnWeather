@@ -312,18 +312,25 @@ test('a ✕ deletes a flick screen at once, and Undo puts it back', (t) => {
   assert.equal(page.scroll.innerHTML.indexOf('ui-toast'), -1, 'gone after five seconds');
 });
 
-test('a new install: the Default screen alone; + Add screen\'s Blank opens the editor on the Watch bar and the Clock', () => {
+test('a new install: the Default screen alone; + Add screen adds a screen and opens its editor', () => {
   const page = bootGeneratedPage({ provider: 'dwd' });   // the shipped defaults
   assert.deepEqual(cardRows(page.scroll.innerHTML).map((r) => r[0]), ['Default']);
   assert.equal(page.scroll.innerHTML.indexOf('Screen switching'), -1, 'one screen: nothing to switch');
   page.tapAction('addScreen');
   assert.equal(editorOf(page).title, 'Add a screen');
-  assert.equal(page.S.viewCount, '1', 'nothing added until a choice is picked');
-  page.tapEditor({ se: 'pick', id: 'blank' });
+  page.tapEditor({ se: 'pick', id: 'health' });
+  page.tapEditor({ se: 'acal', v: '' });
+  assert.equal(page.S.viewCount, '1', 'nothing added until Add screen');
+  page.tapEditor({ se: 'addnow' });
   assert.equal(page.S.viewCount, '2');
   assert.equal(page.S.layoutPreset, 'custom');
-  const ed = editorOf(page);
-  assert.equal(ed.title, 'Flick 1');
+  let ed = editorOf(page);
+  assert.equal(ed.title, 'Health');
+  assert.deepEqual(editorRows(ed.body), ['Watch bar', 'Clock', 'Health bar', 'Health graph · Fill']);
+  // Its rows taken off one by one: the Watch bar and the Clock left.
+  page.tapEditor({ se: 'rm', j: 3 });
+  page.tapEditor({ se: 'rm', j: 2 });
+  ed = editorOf(page);
   assert.deepEqual(editorRows(ed.body), ['Watch bar', 'Clock']);
   assert.ok(editorRow(ed.body, 0).indexOf('<span class="se-grip off" aria-hidden="true"></span><div class="se-mid">'
     + '<span class="se-name">Watch bar</span></div>') !== -1, 'the Watch bar has no handle and nothing to pick');
@@ -371,7 +378,8 @@ test('the editor says how to reorder while two rows can move, and its calendar a
 test('+ Health bar on a new screen draws the bar\'s default readings, not an empty row', () => {
   const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, BLANK_HEALTH));
   page.tapAction('addScreen');
-  page.tapEditor({ se: 'pick', id: 'blank' });
+  page.tapEditor({ se: 'pick', id: 'radar' });
+  page.tapEditor({ se: 'addnow' });
   page.tapEditor({ se: 'add', k: 'healthbar' });
   const pic = /<span class="se-pic-card"[\s\S]*?<\/span><\/div>/.exec(editorOf(page).body)[0];
   assert.match(pic, />6\.2k</, 'steps');

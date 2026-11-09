@@ -591,27 +591,29 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The graph a screen preset brings (screen-presets.js, Pebble Time 2): the first graph of
-     * yours that reads as its template, look and length alike (wizard-forecast.js same,
-     * spanOf), else a new one from the template in the first free slot (values: what
-     * createGraph would give it). Null when neither is there: no graph reads as it and every
-     * slot is taken.
+     * The graph a forecast screen Add a screen adds brings (screen-presets.js, Pebble Time 2):
+     * the first graph of yours that reads as its template at the length picked, look and length
+     * alike (wizard-forecast.js same, spanOf), else a new one from the template at that length
+     * in the first free slot (values: what createGraph would give it). Null when neither is
+     * there: no graph reads as it and every slot is taken.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} id The template's id (wizard-forecast.js LOOKS).
+     * @param {string} [span] The length ('12' | '24' | '48'); the template's own without.
      * @returns {?{k: number, values: ?Object}} values null for a graph of yours
      */
-    function presetGraph(S, env, id) {
+    function presetGraph(S, env, id, span) {
         var N = normalize(S), looks = forecastLooks();
         var rec = looks.looks(N, env, themedDefaults(N, env), null).filter(function (r) { return r.id === id; })[0];
         if (!rec) { return null; }
+        var len = String(span || rec.span);
         var mine = existing(N).filter(function (k) {
             var Sk = GS.settingsFor(N, k);
-            return looks.same(Sk, rec.values, env) && looks.spanOf(Sk) === String(rec.span);
+            return looks.same(Sk, rec.values, env) && looks.spanOf(Sk) === len;
         });
         if (mine.length) { return { k: mine[0], values: null }; }
         var k = GS.freeSlot(N);
-        return k < 0 ? null : { k: k, values: templateValues(N, env, id) };
+        return k < 0 ? null : { k: k, values: Object.assign(templateValues(N, env, id), { forecastHours: len }) };
     }
 
     /**
@@ -715,9 +717,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {Object} S Settings.
      * @param {string} from A template's id, or 'copy<n>'.
      * @param {?Object} env Platform env.
+     * @param {Object} [over] Values laid over the new graph's (Add a screen's length).
      * @returns {number} The new graph's index, -1 for none made (no free slot, no such source).
      */
-    function createGraph(S, from, env) {
+    function createGraph(S, from, env, over) {
         settle(S);
         var k = GS.freeSlot(S), src = String(from || '');
         if (k < 0 || !src) { return -1; }
@@ -729,7 +732,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             values = templateValues(S, env, src);
         }
         if (!values) { return -1; }
-        S.graphStyles = GS.withStyle(S, k, values);
+        S.graphStyles = GS.withStyle(S, k, Object.assign(values, over || {}));
         S.graphStyles = GS.withName(S, k, newName(S, k));
         return k;
     }

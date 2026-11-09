@@ -1,17 +1,23 @@
-// src/pkjs/screen-presets.js — ES5. The screen presets: the screens Add screen offers after Blank
-// (the Watch bar and the clock), the owner's six (2026-11-08), each as the list of what it shows
-// (screens.js THE LIST) and, for a forecast screen, the template its graph is (wizard-forecast.js
-// LOOKS: the Graphs tab's templates).
+// src/pkjs/screen-presets.js — ES5. The screens Add a screen offers (the owner's five, 2026-11-09):
+// Classic, Clean and Stripes, a forecast screen whose graph is that template (wizard-forecast.js
+// LOOKS: the Graphs tab's templates), then Health and Rain radar. Setup's Screens step adds its
+// screens from the same lists (settings/wizard-screens.js).
 //
-// WHAT A PRESET BRINGS. Its rows, and on a watch with graph styles (Pebble Time 2) its graph: a
-// graph of yours that reads as its template, else a new one from the template
-// (screens-page.js). The bars it shows are yours: adding a screen changes no bar's slots (a bar
-// shown for the first time takes its default slots, as every screen edit does), and the Watch
-// bar stays as it is (the owner's: a preset sets it only in setup, for the first screen). A watch
-// with one graph keeps that graph on every screen, so there a forecast preset brings its rows.
+// A SCREEN'S ROWS (listOf): the Watch bar, a calendar of none, two or three rows (picked: Add a
+// screen starts on the Default screen's, setup on its Layout), the clock, the graph's bar and the
+// graph filling the rest (screens.js THE LIST). Every kind fits with every calendar on every
+// watch that is offered it (test/config-screen-presets.test.js).
 //
-// WHICH ONES A WATCH GETS. Only the ones it can draw (offered): Weathergraph and Clean need the
-// Pebble Time 2's long span, the Health ones a watch with health. aplite has no screens.
+// WHAT A SCREEN BRINGS. Its rows, and on a watch with graph styles (Pebble Time 2) a forecast
+// screen's graph: a graph of yours that reads as its template at the length picked, else a new
+// one from the template (screens-page.js). The bars it shows are yours: adding a screen changes
+// no bar's slots (a bar shown for the first time takes its default slots, as every screen edit
+// does), and the Watch bar stays as it is. A watch with one graph keeps that graph on every
+// screen, so it gets one forecast screen, Forecast, which brings its rows alone.
+//
+// WHICH ONES A WATCH GETS. Only the ones it can draw (offered): the templates on the Pebble Time 2,
+// Forecast on a watch with one graph, Health on a watch with health, Rain radar on one with the
+// rain radar. aplite has no screens.
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings-page
 // webview (scripts/build-config-page.js' APP_FILES, after screens.js and ahead of the modules that
@@ -24,62 +30,101 @@
     var html = node ? require('./config-ui/lib/html.js') : window.PConf.html;
     // The rows' names (screens.js blockName).
     var M = node ? require('./screens.js') : window.Screens;
-    // In the order Add screen lists them. `look` is the template a forecast screen's graph is;
-    // `needs` names the env facts (config-ui/lib/platform.js computeEnv) the watch must have.
-    var PRESETS = [
-        { id: 'classic', name: 'Classic', look: 'classic', needs: [],
-            list: [{ k: 'strip' }, { k: 'cal', rows: '3' }, { k: 'clock' }, { k: 'fcbar' }, { k: 'fc', size: 'fill' }] },
-        { id: 'weathergraph', name: 'Weathergraph', look: 'clean', needs: ['graphStyles', 'health'],
-            list: [{ k: 'strip' }, { k: 'clock' }, { k: 'fcbar' }, { k: 'fc', size: 'fill' }, { k: 'healthbar' }] },
-        { id: 'clean', name: 'Clean', look: 'clean', needs: ['graphStyles'],
-            list: [{ k: 'strip' }, { k: 'cal', rows: '2' }, { k: 'clock' }, { k: 'fcbar' }, { k: 'fc', size: 'fill' }] },
-        { id: 'stripes', name: 'Stripes', look: 'stripes', needs: [],
-            list: [{ k: 'strip' }, { k: 'cal', rows: '2' }, { k: 'clock' }, { k: 'fcbar' }, { k: 'fc', size: 'fill' }] },
-        { id: 'healthCal', name: 'Health + calendar', look: null, needs: ['health'],
-            list: [{ k: 'strip' }, { k: 'cal', rows: '2' }, { k: 'clock' }, { k: 'healthbar' }, { k: 'health', size: 'fill' }] },
-        { id: 'health', name: 'Health', look: null, needs: ['health'],
-            list: [{ k: 'strip' }, { k: 'clock' }, { k: 'healthbar' }, { k: 'health', size: 'fill' }] }
+    // In the order Add a screen lists them. `look` is the template a forecast screen's graph is;
+    // `graph` the graph the screen shows (screens.js kinds); `needs` names the env facts
+    // (config-ui/lib/platform.js computeEnv) the watch must have, `without` one it must not.
+    var KINDS = [
+        { id: 'classic', name: 'Classic', look: 'classic', graph: 'fc', needs: ['graphStyles'] },
+        { id: 'clean', name: 'Clean', look: 'clean', graph: 'fc', needs: ['graphStyles'] },
+        { id: 'stripes', name: 'Stripes', look: 'stripes', graph: 'fc', needs: ['graphStyles'] },
+        { id: 'forecast', name: 'Forecast', look: null, graph: 'fc', needs: [], without: 'graphStyles' },
+        { id: 'health', name: 'Health', look: null, graph: 'health', needs: ['health'] },
+        { id: 'radar', name: 'Rain radar', look: null, graph: 'radar', needs: ['radar'] }
     ];
-    // Blank: the Watch bar and the clock, the rest the user's.
+    // Each graph's bar, the row over it.
+    var BAR_OF = { fc: 'fcbar', health: 'healthbar', radar: 'radarbar' };
+    // A screen's calendar as Add a screen's Calendar names it: its rows ('' for none).
+    var CALENDARS = [['None', ''], ['Compact', '2'], ['Full', '3']];
+    // A screen with nothing but the Watch bar and the clock (screens-page.js addScreen).
     var BLANK = [{ k: 'strip' }, { k: 'clock' }];
 
-    // The rows every screen has (the Watch bar, the clock), which a card's line leaves out (describe).
-    var EVERY_SCREEN = ['strip', 'clock'];
-
     /**
-     * Whether a watch can draw a preset: it has every fact the preset needs. An unknown watch
-     * (no env) is capable, as the page reads one everywhere.
-     * @param {Object} preset A PRESETS entry.
+     * Whether a watch can draw a kind: it has every fact the kind needs, and not the one it is
+     * without. An unknown watch (no env) is capable, as the page reads one everywhere: it draws
+     * graph styles, so it gets the templates.
+     * @param {Object} kind A KINDS entry.
      * @param {?Object} env Platform env.
      * @returns {boolean}
      */
-    function drawable(preset, env) {
-        if (!env) { return true; }
-        return preset.needs.every(function (fact) { return Boolean(env[fact]); });
+    function drawable(kind, env) {
+        if (!env) { return !kind.without; }
+        return kind.needs.every(function (fact) { return Boolean(env[fact]); })
+            && !(kind.without && env[kind.without]);
     }
 
     /**
-     * The presets this watch can draw, in Add screen's order.
+     * The kinds this watch can draw, in Add a screen's order.
      * @param {?Object} env Platform env.
      * @returns {Array<Object>}
      */
     function offered(env) {
-        return PRESETS.filter(function (p) { return drawable(p, env); });
+        return KINDS.filter(function (kind) { return drawable(kind, env); });
     }
 
     /**
-     * A preset by its id.
-     * @param {string} id A preset's id.
+     * A kind by its id.
+     * @param {string} id A kind's id.
      * @returns {?Object}
      */
     function byId(id) {
-        for (var i = 0; i < PRESETS.length; i += 1) { if (PRESETS[i].id === id) { return PRESETS[i]; } }
+        for (var i = 0; i < KINDS.length; i += 1) { if (KINDS[i].id === id) { return KINDS[i]; } }
         return null;
     }
 
     /**
-     * The setup's looks, the templates a preset's graph is (settings/wizard-forecast.js LOOKS,
-     * their one definition), read when asked: they load after this file in the page.
+     * A screen's rows (A SCREEN'S ROWS above).
+     * @param {string} graph The graph it shows: 'fc' | 'health' | 'radar'.
+     * @param {string} cal Its calendar's rows: '' (none), '2' or '3'.
+     * @returns {Array<Object>} a new list
+     */
+    function listOf(graph, cal) {
+        var list = [{ k: 'strip' }];
+        if (cal) { list.push({ k: 'cal', rows: cal }); }
+        return list.concat([{ k: 'clock' }, { k: BAR_OF[graph] }, { k: graph, size: 'fill' }]);
+    }
+
+    /**
+     * A screen's calendar: its rows, '' without one.
+     * @param {?Array<Object>} list A screen.
+     * @returns {string} '' | '2' | '3'
+     */
+    function calOf(list) {
+        var c = M.idxOf(list || [], 'cal');
+        return c < 0 ? '' : (list[c].rows === '3' ? '3' : '2');
+    }
+
+    /**
+     * The graph a screen of these kinds shows, read off its rows (its calendar and its graph's
+     * style aside): '' for a screen of the user's own.
+     * @param {?Array<Object>} list A screen.
+     * @returns {string} 'fc' | 'health' | 'radar' | ''
+     */
+    function graphOf(list) {
+        /** @param {Array<Object>} l @returns {string} each row's kind and size, the calendar left out */
+        function bare(l) {
+            return l.filter(function (x) { return x.k !== 'cal'; })
+                .map(function (x) { return x.k + ':' + (x.size || ''); }).join('|');
+        }
+        var seen = bare(list || []);
+        for (var graph in BAR_OF) {
+            if (Object.prototype.hasOwnProperty.call(BAR_OF, graph) && bare(listOf(graph, '')) === seen) { return graph; }
+        }
+        return '';
+    }
+
+    /**
+     * The setup's looks, the templates a forecast screen's graph is (settings/wizard-forecast.js
+     * LOOKS, their one definition), read when asked: they load after this file in the page.
      * @returns {Object}
      */
     function looks() {
@@ -87,44 +132,74 @@
     }
 
     /**
-     * A preset's forecast graph as its card names it: on a watch with graph styles, the template
-     * it brings by its name and the length it starts on with the user's weather service ("24 h
-     * Classic graph", "47 h Clean graph" with OpenWeatherMap); on a watch with one graph, which
-     * the preset keeps, "your graph".
-     * @param {Object} preset A PRESETS entry with a look.
+     * The length a kind's graph starts on: its template's (Classic and Stripes 24 hours, Clean the
+     * long span), on a watch with graph styles; '' elsewhere, where every screen keeps your graph.
+     * @param {Object} kind A KINDS entry.
+     * @param {?Object} env Platform env.
+     * @returns {string} '12' | '24' | '48' | ''
+     */
+    function spanOf(kind, env) {
+        var look = kind.look && (!env || env.graphStyles) ? looks().lookOf(kind.look) : null;
+        return look ? look.span : '';
+    }
+
+    /**
+     * A kind's lengths as Add a screen's Forecast length names them (wizard-forecast.js
+     * lookSpanOptions: the long span by the hours its template shows): a forecast screen's on a
+     * watch with graph styles, none elsewhere.
+     * @param {Object} kind A KINDS entry.
+     * @param {?Object} env Platform env.
+     * @param {?Object} S The user's settings (the weather service).
+     * @returns {Array<Array<string>>} [label, value] pairs
+     */
+    function spanOptions(kind, env, S) {
+        return spanOf(kind, env) ? looks().lookSpanOptions(kind.look, env, S) : [];
+    }
+
+    /**
+     * A kind's forecast graph as its card names it: on a watch with graph styles, the template
+     * it brings by its name and the length (spanOf, or the one picked) with the user's weather
+     * service ("24 h Classic graph", "47 h Clean graph" with OpenWeatherMap); on a watch with one
+     * graph, which every screen keeps, "your graph".
+     * @param {Object} kind A KINDS entry with a forecast graph.
      * @param {?Object} env Platform env.
      * @param {?Object} S The user's settings.
+     * @param {string} [span] The length picked ('12' | '24' | '48'); the template's own without.
      * @returns {string}
      */
-    function graphWords(preset, env, S) {
-        if (env && !env.graphStyles) { return 'your graph'; }
-        var WF = looks(), look = WF.lookOf(preset.look), len = WF.spanLabel(preset.look, env, S);
+    function graphWords(kind, env, S, span) {
+        if (!kind.look) { return 'your graph'; }
+        var WF = looks(), look = WF.lookOf(kind.look), len = WF.spanLabel(kind.look, env, S, span);
         return (len ? len + ' ' : '') + (look ? look.label + ' ' : '') + 'graph';
     }
 
     /**
-     * A preset's card line on this watch, from its list: the calendar's rows, the bars by their
-     * names and the graphs it shows ("3-row calendar, Forecast bar and 24 h Classic graph.").
-     * @param {Object} preset A PRESETS entry.
+     * A kind's card line on this watch: its bar by its name and its graph ("Forecast bar and 24 h
+     * Classic graph."). The calendar is picked once the card is.
+     * @param {Object} kind A KINDS entry.
      * @param {?Object} env Platform env.
      * @param {?Object} S The user's settings (the bars' names, the weather service).
+     * @param {string} [span] The length picked, for a forecast graph.
      * @returns {string}
      */
-    function describe(preset, env, S) {
-        var words = preset.list.filter(function (b) { return EVERY_SCREEN.indexOf(b.k) === -1; }).map(function (b) {
-            if (b.k === 'cal') { return b.rows + '-row calendar'; }
-            if (b.k === 'fc') { return graphWords(preset, env, S); }
-            return M.blockName(b, S);
-        });
+    function describe(kind, env, S, span) {
+        var words = listOf(kind.graph, '').filter(function (b) { return b.k !== 'strip' && b.k !== 'clock'; })
+            .map(function (b) { return b.k === 'fc' ? graphWords(kind, env, S, span) : M.blockName(b, S); });
         return html.capitalize(html.andList(words)) + '.';
     }
 
     var api = {
-        PRESETS: PRESETS,
+        KINDS: KINDS,
+        CALENDARS: CALENDARS,
         BLANK: BLANK,
         drawable: drawable,
         offered: offered,
         byId: byId,
+        listOf: listOf,
+        calOf: calOf,
+        graphOf: graphOf,
+        spanOf: spanOf,
+        spanOptions: spanOptions,
         describe: describe
     };
 

@@ -205,6 +205,6 @@
   },
   "2.7.0": {
     "title": "Screen presets and named status bars",
-    "body": "On the Watchface tab, add a screen from a preset, rename it and drag your screens into order. Name your status bars on the Status bars tab and put any of them on any screen. On the Pebble Time 2, each screen can also have its own forecast graph, such as 24 hours on one and up to 66 on another, and you can have up to six status bars. Not on Pebble Classic or Steel."
+    "body": "On the Watchface tab, add a screen from a preset with the calendar you want, rename it and drag your screens into order. Name your status bars on the Status bars tab and put any of them on any screen. On the Pebble Time 2, each screen can also have its own forecast graph, such as 24 hours on one and up to 66 on another, and you can keep up to six graphs and six status bars. Not on Pebble Classic or Steel."
   }
 }

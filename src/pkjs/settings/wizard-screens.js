@@ -1,8 +1,10 @@
 // src/pkjs/settings/wizard-screens.js — ES5, WebView. The setup wizard's Screens step, as data: the
-// flick screens setup offers (Health and Rain radar, each where the watch draws it), which of them
-// a watch's screens already hold, where one goes in, what the step calls each screen, and the
-// layout a Default screen reads as. The DOM half (the pictures, the flick, the writes through
-// screens-page.js) is wizard.js'.
+// flick screens setup offers (Long forecast, Health and Rain radar, each where the watch draws it),
+// their rows on the calendar the Layout step picked (the owner's ask, 2026-11-09: a screen setup
+// adds shows the Default screen's calendar, none, two or three rows), which of them a watch's
+// screens already hold, where one goes in, what the step calls each screen, and the layout a
+// Default screen reads as. The DOM half (the pictures, the flick, the Long forecast screen's
+// graph, the writes through screens-page.js) is wizard.js'.
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings-page
 // webview (scripts/build-config-page.js' APP_FILES, after screens.js and screen-presets.js, which it
@@ -17,14 +19,19 @@
     // only (no calendar either, a big forecast). Neither has a screenshot of its own.
     var NEAREST_LAYOUT = { compactDense: 'compactCal', weatherOnly: 'noCal' };
 
-    // The flick screens setup offers, in the order they go in: the Health screen (Add screen's
-    // Health preset, screen-presets.js), then the Rain radar screen (today's Flick 1 and Flick 2).
-    // `env` names the watch's fact each needs. Each is named after its template as it goes in.
+    // The flick screens setup offers, in the order they go in: the Long forecast screen (Pebble Time
+    // 2: a second graph over the long span, the owner's ask, 2026-11-09; its graph is wizard.js'),
+    // the Health screen, then the Rain radar screen (today's Flick 1 and Flick 2): Add a screen's
+    // screens (screen-presets.js listOf). `env` names the watch's fact each needs, `graph` the
+    // graph it shows. Each is named after its template as it goes in.
     var TEMPLATES = [
-        { id: 'health', name: 'Health', env: 'health', list: M.copy(PRESETS.byId('health').list) },
-        { id: 'radar', name: 'Rain radar', env: 'radar',
-            list: [{ k: 'strip' }, { k: 'clock' }, { k: 'radarbar' }, { k: 'radar', size: 'fill' }] }
+        { id: 'long', name: 'Long forecast', env: 'graphStyles', graph: 'fc' },
+        { id: 'health', name: 'Health', env: 'health', graph: 'health' },
+        { id: 'radar', name: 'Rain radar', env: 'radar', graph: 'radar' }
     ];
+    // The length the Long forecast screen's graph shows: the long span's stored option
+    // (forecast-span-hours.js CHOICES).
+    var LONG_SPAN = '48';
 
     /**
      * The templates this watch can show.
@@ -46,14 +53,32 @@
     }
 
     /**
-     * The template a screen is, row for row, or null for a screen of the user's own.
+     * A template's screen on a calendar (screen-presets.js listOf). The Long forecast screen's
+     * graph is put on it as it goes in (wizard.js).
+     * @param {Object} t A TEMPLATES entry.
+     * @param {string} cal The calendar's rows: '' (none), '2' or '3'.
+     * @returns {Array<Object>} a new list
+     */
+    function listOf(t, cal) {
+        return PRESETS.listOf(t.graph, cal);
+    }
+
+    /**
+     * The template a screen is, its calendar aside (screen-presets.js graphOf): the Health and
+     * Rain radar screens by their rows, the Long forecast screen by its rows and a graph other
+     * than the first (a forecast screen on the first graph is the user's own). Null for a screen
+     * of the user's own.
      * @param {Array<Object>} list A screen.
      * @returns {?Object}
      */
     function templateOf(list) {
-        var seen = JSON.stringify(list || []);
+        var graph = PRESETS.graphOf(list);
+        if (graph === 'fc') {
+            var fc = list[M.idxOf(list, 'fc')];
+            return fc && fc.style && fc.style !== '1' ? byId('long') : null;
+        }
         for (var i = 0; i < TEMPLATES.length; i += 1) {
-            if (JSON.stringify(TEMPLATES[i].list) === seen) { return TEMPLATES[i]; }
+            if (graph && TEMPLATES[i].graph === graph) { return TEMPLATES[i]; }
         }
         return null;
     }
@@ -75,15 +100,20 @@
     }
 
     /**
-     * Where a template goes in among the screens: the Health screen before a Rain radar screen
-     * already there, so the two keep that order; else after the others.
+     * Where a template goes in among the screens: before the first screen of a template that comes
+     * after it (TEMPLATES' order: Long forecast, Health, Rain radar), so they keep that order;
+     * else after the others.
      * @param {Array<Array<Object>>} screens The screens, the Default first.
      * @param {string} id The template.
      * @returns {number} Its slot.
      */
     function insertAt(screens, id) {
-        var radar = id === 'health' ? slotOf(screens, 'radar') : -1;
-        return radar > 0 ? radar : screens.length;
+        var mine = TEMPLATES.indexOf(byId(id));
+        for (var i = 1; i < screens.length; i += 1) {
+            var t = templateOf(screens[i]);
+            if (t && TEMPLATES.indexOf(t) > mine) { return i; }
+        }
+        return screens.length;
     }
 
     /**
@@ -115,8 +145,10 @@
     var api = {
         NEAREST_LAYOUT: NEAREST_LAYOUT,
         TEMPLATES: TEMPLATES,
+        LONG_SPAN: LONG_SPAN,
         offered: offered,
         byId: byId,
+        listOf: listOf,
         templateOf: templateOf,
         nameOf: nameOf,
         insertAt: insertAt,

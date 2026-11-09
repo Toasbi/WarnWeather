@@ -30,6 +30,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Watchface tab's) and their compile (view-cycle.js).
     var M = node ? require('../screens.js') : window.Screens;
     var SP = node ? require('./screens-page.js') : window.ScreensPage;
+    // A screen's calendar (screen-presets.js calOf): the screens setup adds show the Default's.
+    var PRESETS = node ? require('../screen-presets.js') : window.ScreenPresets;
     var VC = node ? require('../view-cycle.js') : VIEW_CYCLE;
     // Your graphs (Pebble Time 2): the forecast step sets the one its picture draws.
     var GS = node ? require('../graph-styles.js') : window.GraphStyles;
@@ -161,6 +163,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // The screen the Screens step shows big (the Default when the step opens), and whether
             // this run turned the rain radar on for the Rain radar screen it added (addTemplate).
             screenIdx: 0, radarOnForScreen: false,
+            // The screens this run added (their template ids: a layout picked after follows them
+            // with its calendar), and the Long forecast screen's graph this run made: its index
+            // and the length the Default graph had before it (addTemplate, removeScreen).
+            added: [], long: null,
             // Where a swipe on the picker's preview started; the latest screenshot swap.
             touch: null, shotSeq: 0,
             // The summary has been shown (footer); a Tomorrow.io key was typed in this run.
@@ -329,9 +335,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var S = run.ctx.S, k = lookStyle();
         if (!k) {
             Object.keys(values).forEach(function (key) { run.ctx.setValue(key, values[key]); });
-            return;
+        } else {
+            run.ctx.setValue('graphStyles', GS.withStyle(S, k, Object.assign(GS.valuesOf(S, k), values)));
         }
-        run.ctx.setValue('graphStyles', GS.withStyle(S, k, Object.assign(GS.valuesOf(S, k), values)));
+        followLong();
+    }
+    /**
+     * The Long forecast screen's graph (made in this run) as the forecast step's graph draws it,
+     * over the long span: a look, a theme or a colour picked for the one shows on both.
+     * @returns {void}
+     */
+    function followLong() {
+        var S = run.ctx.S, k = run.long ? run.long.k : -1;
+        if (k < 1 || k === lookStyle() || !GS.exists(S, k)) { return; }
+        run.ctx.setValue('graphStyles', GS.withStyle(S, k, longValues(S)));
+    }
+    /**
+     * The Long forecast screen's graph's values: the forecast step's graph's, over the long span.
+     * @param {Object} S Settings.
+     * @returns {Object} governed key -> value
+     */
+    function longValues(S) {
+        return Object.assign(GS.valuesOf(S, lookStyle()), { forecastHours: SCREENS.LONG_SPAN });
     }
     /**
      * The forecast looks for the settings now: their values follow the theme (the bars' colour it
@@ -361,14 +386,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Pick a look: its graph, and on emery, when it is another look than the one the picker marks
      * (currentLook), the length it starts on (its span). The look marked keeps a length picked
-     * under it, the first record too where a graph changed under setup draws none.
+     * under it, the first record too where a graph changed under setup draws none; so does the
+     * graph beside a Long forecast screen this run added, which shows the long span itself.
      * @param {string} id The look.
      * @returns {void}
      */
     function pickLook(id) {
         var look = lookById(id), anew = currentLook().id !== look.id;
         run.lookId = look.id;
-        writeGraph(anew && run.env.forecastSpan ? Object.assign({}, look.values, { forecastHours: look.span }) : look.values);
+        writeGraph(anew && run.env.forecastSpan && !run.long ? Object.assign({}, look.values, { forecastHours: look.span })
+            : look.values);
     }
     /**
      * Pick a theme: its conversion runs (the colours, and the bars' colour it starts on), "Your own"
@@ -384,7 +411,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (run.own) { FORECAST.followTheme(run.own.values, oldTheme, theme); }
         refreshLooks();
         var look = lookById(before);
-        if (!FORECAST.same(lookSettings(), look.values, run.env)) { writeGraph(look.values); }
+        if (!FORECAST.same(lookSettings(), look.values, run.env)) { writeGraph(look.values); } else { followLong(); }
     }
     /**
      * The forecast look as its picker names it (the summary, the preview's label), and on emery
@@ -584,6 +611,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             Object.keys(keys).forEach(function (k) { if (k !== 'viewCount') { S[k] = keys[k]; } });
             return true;
         });
+        // The screens this run added show the Default's calendar too (the owner's ask, 2026-11-09).
+        var list = screens(), cal = PRESETS.calOf(list[0]);
+        list.forEach(function (scr, i) {
+            var t = i > 0 ? SCREENS.templateOf(scr) : null;
+            if (!t || run.added.indexOf(t.id) === -1 || PRESETS.calOf(scr) === cal) { return; }
+            var next = SCREENS.listOf(t, cal), fc = scr[M.idxOf(scr, 'fc')];
+            if (fc && fc.style) { next[M.idxOf(next, 'fc')].style = fc.style; }
+            SP.writeScreen(S, i, next, run.env);
+        });
     }
 
     // --- the Screens step: the watch's own screens, drawn live ---
@@ -608,6 +644,34 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return { svg: pic.svg.replace('class="wpv-scr"', 'class="wiz-scr"'), label: pic.label };
     }
     /**
+     * Put a screen setup offers in where it goes (screens-page.js insertScreen, as + Add screen
+     * writes one), on the Default screen's calendar (the Layout step's: the owner's ask,
+     * 2026-11-09), named after its template. The Long forecast screen draws a graph of its own,
+     * made here in the first free graph slot and named as the screen: the forecast step's graph
+     * over the long span (longValues). Writes top-level keys only, so a shallow copy of the
+     * settings takes it as the live ones do.
+     * @param {Object} S Settings (the live ones, or a copy to draw it).
+     * @param {string} id A template.
+     * @param {Array<Array<Object>>} list The watch's screens.
+     * @returns {number} Its slot; -1 when it did not go in (and nothing changed).
+     */
+    function putTemplate(S, id, list) {
+        var t = SCREENS.byId(id), at = SCREENS.insertAt(list, id), screen = SCREENS.listOf(t, PRESETS.calOf(list[0]));
+        var k = id === 'long' ? GS.freeSlot(S) : -1, before = S.graphStyles;
+        if (id === 'long') {
+            if (k < 1) { return -1; }
+            S.graphStyles = GS.withStyle(S, k, longValues(S));
+            S.graphStyles = GS.withName(S, k, t.name);
+            screen[M.idxOf(screen, 'fc')].style = String(k + 1);
+        }
+        if (!SP.insertScreen(S, at, screen, run.env)) {
+            S.graphStyles = before;
+            return -1;
+        }
+        S['viewName' + at] = t.name;
+        return at;
+    }
+    /**
      * The settings with a screen setup offers put in where it would go, to draw it before it is
      * added (and the rain radar on, as adding the Rain radar screen turns it). A shallow copy is
      * enough: putting a screen in writes top-level keys only.
@@ -616,10 +680,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {{S: Object, at: number}} The settings and the screen's slot.
      */
     function withTemplate(id, list) {
-        var S = Object.assign({}, run.ctx.S), at = SCREENS.insertAt(list, id);
+        var S = Object.assign({}, run.ctx.S);
         if (id === 'radar') { S.radarEnabled = true; }
-        SP.insertScreen(S, at, M.copy(SCREENS.byId(id).list), run.env);
-        return { S: S, at: at };
+        return { S: S, at: putTemplate(S, id, list) };
     }
     /**
      * The cycle's dots, the current one highlighted; its name sits beside them, so the position is
@@ -671,7 +734,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (list.length >= M.MAX_SCREENS) { return h; }
         SCREENS.offered(run.env).forEach(function (t) {
             if (SCREENS.slotOf(list, t.id) >= 0) { return; }
-            var w = withTemplate(t.id, list), pic = screenPic(w.S, w.at, 'wt' + t.id + '-');
+            var w = withTemplate(t.id, list);
+            if (w.at < 0) { return; }   // the Long forecast screen with every graph slot taken
+            var pic = screenPic(w.S, w.at, 'wt' + t.id + '-');
             h += '<button type="button" class="wiz-scr-it off" data-wiz-scr-add="' + t.id + '" aria-label="Add the '
                 + esc(t.name) + ' screen"><span class="wiz-watch sm" aria-hidden="true">' + pic.svg + '</span>'
                 + '<span class="wiz-scr-plus" aria-hidden="true">+</span><span class="wiz-scr-n">' + esc(t.name) + '</span></button>';
@@ -692,22 +757,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
     }
     /**
-     * Add a screen setup offers, where it goes (screens-page.js insertScreen, as + Add screen
-     * writes one), and show it big. The Rain radar screen turns the rain radar on (and taking
-     * it out again turns it back off: removeScreen).
+     * Add a screen setup offers (putTemplate) and show it big. The Rain radar screen turns the
+     * rain radar on (and taking it out again turns it back off: removeScreen). The Long forecast
+     * screen's graph shows the long span, so a Default graph that showed it too goes to 24 hours
+     * (taking the screen out again gives it back).
      * @param {string} id A template.
      * @returns {void}
      */
     function addTemplate(id) {
-        var S = run.ctx.S, at = SCREENS.insertAt(screens(), id);
-        var turnOn = id === 'radar' && S.radarEnabled === false;
+        var S = run.ctx.S, turnOn = id === 'radar' && S.radarEnabled === false;
         if (turnOn) { SP.setRadarEnabled(S, true, run.env); }
-        if (SP.insertScreen(S, at, M.copy(SCREENS.byId(id).list), run.env)) {
-            S['viewName' + at] = SCREENS.byId(id).name;
+        var at = putTemplate(S, id, screens());
+        if (at < 0) {
+            if (turnOn) { SP.setRadarEnabled(S, false, run.env); }
+        } else {
             run.screenIdx = at;
+            run.added.push(id);
             if (turnOn) { run.radarOnForScreen = true; }
-        } else if (turnOn) {
-            SP.setRadarEnabled(S, false, run.env);
+            if (id === 'long') {
+                var fc = screens()[at][M.idxOf(screens()[at], 'fc')], span = FORECAST.spanOf(lookSettings());
+                run.long = { k: Number(fc.style) - 1, span: span };
+                if (span === SCREENS.LONG_SPAN) { writeGraph({ forecastHours: '24' }); }
+            }
         }
         repaintScreens(['[data-wiz-scr-rm="' + at + '"]', '[data-wiz-flick]']);
     }
@@ -718,13 +789,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function removeScreen(i) {
-        var t = SCREENS.templateOf(screens()[i]);
-        if (SP.deleteScreen(run.ctx.S, i, run.env)) {
+        var S = run.ctx.S, scr = screens()[i], t = SCREENS.templateOf(scr), fc = scr[M.idxOf(scr, 'fc')];
+        if (SP.deleteScreen(S, i, run.env)) {
             if (run.screenIdx === i) { run.screenIdx = 0; } else if (run.screenIdx > i) { run.screenIdx -= 1; }
             if (t && t.id === 'radar' && run.radarOnForScreen) {
                 run.radarOnForScreen = false;
-                SP.setRadarEnabled(run.ctx.S, false, run.env);
+                SP.setRadarEnabled(S, false, run.env);
             }
+            // The Long forecast screen this run added takes its graph with it, and gives the
+            // Default graph back the length it had.
+            if (t && t.id === 'long' && run.long && fc && Number(fc.style) - 1 === run.long.k) {
+                var span = run.long.span;
+                GS.deleteStyle(S, run.long.k);
+                run.long = null;
+                if (span && span !== FORECAST.spanOf(lookSettings())) { writeGraph({ forecastHours: span }); }
+            }
+            if (t) { run.added = run.added.filter(function (id) { return id !== t.id; }); }
         }
         repaintScreens((t ? ['[data-wiz-scr-add="' + t.id + '"]'] : []).concat(['[data-wiz-flick]', '[data-wiz-title]']));
     }
