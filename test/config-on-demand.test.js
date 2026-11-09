@@ -140,7 +140,7 @@ function ticked(sheet, bar) {
 
 const BAR_OF = { 'Watch bar': 'top', 'Forecast bar': 'forecast', 'Health bar': 'health', 'Radar bar': 'radar' };
 /**
- * A bar's dialog (screens.js barSheet), the one its name in the Status bars tab's Your bars
+ * A bar's dialog (screens.js barSheet), the one its name in the Status bars tab's Your status bars
  * card opens: opened, read, then closed with Done.
  * @param {Object} page the page-harness handle
  * @param {string} title the bar's name, e.g. 'Watch bar'
@@ -222,7 +222,7 @@ test('each bar\'s dialog ends on one Alerts nav row: the icons on each side, a t
   assert.equal(html.indexOf('<div class="lbl">Alerts</div>'), -1, 'the tab itself draws no Alerts row');
 });
 
-test('Your bars shows the alerts on each bar\'s row, the icons its dialog\'s Alerts row shows; with none, no line', () => {
+test('Your status bars shows the alerts on each bar\'s row, the icons its dialog\'s Alerts row shows; with none, no line', () => {
   // The owner, 2026-11-09: "I also want to see right away if there are alarms set for the bar".
   const page = watchTab({ statusForecastOnDemandRightItems: 'uv' });
   const html = page.scroll.innerHTML;
@@ -240,7 +240,7 @@ test('Your bars shows the alerts on each bar\'s row, the icons its dialog\'s Ale
   ['health', 'radar'].forEach((bar) => assert.equal(nameOf(bar).indexOf('bl-al'), -1, bar + ': none placed, no line'));
 });
 
-test('the Status bars tab: Your bars in the owner\'s order, each name opening the bar\'s dialog, then the reset as a link row', () => {
+test('the Status bars tab: Your status bars in the owner\'s order, each name opening the bar\'s dialog, then the reset as a link row', () => {
   // The owner, 2026-10-01: "1: watch status bar 2 weather 3 health 4 radar" (the page only;
   // the wire keeps its order). The health bar needs a health mode with a status bar.
   const closed = watchTab({ healthMode: 'status' });
@@ -252,13 +252,13 @@ test('the Status bars tab: Your bars in the owner\'s order, each name opening th
   const at = (bar) => html.indexOf('<button type="button" class="bl-name" data-edit-sheet="bar-' + bar + '"');
   PAGE_BARS.forEach((bar) => assert.ok(at(bar) !== -1, bar + ': its name opens its dialog'));
   assert.deepEqual(PAGE_BARS.slice().sort((a, b) => at(a) - at(b)), PAGE_BARS, 'Watch, Forecast, Health, Radar');
-  PAGE_BARS.forEach((bar) => assert.ok(at(bar) > titleAt(html, 'Your bars'), bar + ': in the Your bars card'));
+  PAGE_BARS.forEach((bar) => assert.ok(at(bar) > titleAt(html, 'Your status bars'), bar + ': in the Your status bars card'));
   PAGE_BARS.forEach((bar) => assert.ok(barRow(page, BAR_NAMES[bar]) !== '', bar + ': its dialog\'s Alerts row'));
   assert.equal(html.indexOf('<div class="lbl">Alerts</div>'), -1, 'no Alerts row on the tab itself');
   const reset = html.indexOf('<div class="row linkrow"><button type="button" class="txt-link" '
     + 'data-action="resetStatusSlots">Reset status bars to defaults</button></div>');
   assert.ok(reset > titleAt(html, 'All status bars') && titleAt(html, 'All status bars') > at('radar'),
-    'the reset: a text-link row in the All status bars card, below Your bars');
+    'the reset: a text-link row in the All status bars card, below Your status bars');
   assert.ok(reset > html.indexOf('data-k="statusBoldAll"'), 'after Bold values, the last of the More options');
   assert.equal(html.indexOf('txt-act-btn'), -1, 'no boxed chip on the tab');
 });
@@ -507,7 +507,7 @@ test('the grid lists every bar the watch draws, live exactly where a screen show
       const S = { radarMode, healthMode, provider: 'dwd' };
       const ctx = Object.assign({ env }, S);
       const label = [p, radarMode, healthMode].join(' ');
-      // Your bars: the Status bars tab lists every bar the watch can draw, a screen showing it
+      // Your status bars: the Status bars tab lists every bar the watch can draw, a screen showing it
       // or not (its Name row says where it shows).
       const listed = PAGE_BARS.filter((bar, i) => showWhen.isVisible(sections[i], ctx) && showWhen.isVisible(rows[i], ctx));
       assert.deepEqual(listed, PAGE_BARS.filter((bar) => canDraw[bar]), label + ': the tab lists every bar it can draw');

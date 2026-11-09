@@ -117,7 +117,7 @@ const EXPECTED_KEYS = [
   'viewName0','viewName1','viewName2',
   // The status bars' names (2.7): page-only too (screens.js barName).
   'statusForecastName','statusRadarName','statusHealthName',
-  // Bars 4 to 6 (Pebble Time 2, New bar): each one's made flag, name, slots and their
+  // Bars 4 to 6 (Pebble Time 2, New status bar): each one's made flag, name, slots and their
   // countdown dates (its side lists are on-demand.js DEFAULTS', ALERT_KEYS).
   ...['statusBar4', 'statusBar5', 'statusBar6'].reduce((all, p) => all.concat([p + 'Made', p + 'Name',
     p + 'Left', p + 'LeftCountdown', p + 'Mid', p + 'MidCountdown', p + 'Right', p + 'RightCountdown']), []),
@@ -351,7 +351,7 @@ test('no key rows on the Data sources card: every key lives in a key sheet that 
 });
 
 test('your bars: the Health and Radar bars\' dialogs and slots show on every watch that draws them, whatever the modes', () => {
-  // Since 2.7.0 the Status bars tab lists every bar, also one no screen shows (the Your bars
+  // Since 2.7.0 the Status bars tab lists every bar, also one no screen shows (the Your status bars
   // card says "No screen"), so any bar can go onto any screen: the gate is the watch's alone.
   const watch = schema.tabs.find((t) => t.id === 'watch');
   [['statusHealth', 'health'], ['statusRadar', 'radar']].forEach(([prefix, cap]) => {
@@ -1978,16 +1978,16 @@ test('bw-light hides every effective-color gate (color pickers, B/W legends, sca
   });
 });
 
-test('Status bars tab (id watch): Your bars, the All status bars card, then each bar\'s dialog in watch/forecast/health/radar order, bars 4 to 6, then the slot dialogs', () => {
+test('Status bars tab (id watch): Your status bars, the All status bars card, then each bar\'s dialog in watch/forecast/health/radar order, bars 4 to 6, then the slot dialogs', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
   // The label was renamed (Status slots → Status bars); the id stays 'watch' —
   // deep links and this very lookup key on it.
   assert.equal(watch.label, 'Status bars', 'tab label renamed, id kept');
-  assert.equal(watch.pinBlock, undefined, 'nothing pinned atop the tab: Your bars draws each bar');
-  // Your bars (the owner's pick, 2026-11-09: a list of the bars, a dialog per bar).
+  assert.equal(watch.pinBlock, undefined, 'nothing pinned atop the tab: Your status bars draws each bar');
+  // Your status bars (the owner's pick, 2026-11-09: a list of the bars, a dialog per bar).
   const list = watch.sections[0];
-  assert.deepEqual([list.id, list.title, list.block, list.items.length], ['yourBars', 'Your bars', 'barsList', 0],
-    'the tab opens on the Your bars card, drawn by screens-page.js barsCard');
+  assert.deepEqual([list.id, list.title, list.block, list.items.length], ['yourBars', 'Your status bars', 'barsList', 0],
+    'the tab opens on the Your status bars card, drawn by screens-page.js barsCard');
   assert.ok(/\bbar\b/.test(list.intro) && /Tap a slot/.test(list.intro) && /bar’s name/.test(list.intro),
     'its intro describes the bars once: a slot can be tapped, and a bar\'s name');
   assert.deepEqual(watch.sections.filter((s) => !s.sheetOnly).map((s) => s.id), ['yourBars', 'statusAll'],
@@ -1995,10 +1995,10 @@ test('Status bars tab (id watch): Your bars, the All status bars card, then each
   const titles = watch.sections.map((s) => s.title).filter(Boolean);
   // The owner's order (2026-10-01: "1: watch status bar 2 weather 3 health 4 radar"),
   // the page's only (it was Forecast, Radar, Health, Watch): on-demand.js BARS and the
-  // wire keep their own order. Bars 4 to 6 (Pebble Time 2) follow, each shown once New bar
+  // wire keep their own order. Bars 4 to 6 (Pebble Time 2) follow, each shown once New status bar
   // made its bar.
   assert.deepEqual(titles.slice(0, 9),
-    ['Your bars', 'All status bars', 'Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Bar 4', 'Bar 5', 'Bar 6'],
+    ['Your status bars', 'All status bars', 'Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Bar 4', 'Bar 5', 'Bar 6'],
     'the bars\' dialogs follow the two cards, in order');
   assert.deepEqual(require('../src/pkjs/on-demand.js').BARS.map((b) => b.bar),
     ['top', 'forecast', 'radar', 'health', 'bar4', 'bar5', 'bar6'], 'the contract\'s bar order stays');
@@ -2015,7 +2015,7 @@ test('Status bars tab (id watch): Your bars, the All status bars card, then each
     assert.equal(sec.pinBlock, 'barPicture', sec.sheetId + ': its own picture pinned');
     assert.deepEqual(sec.items[0], { type: 'subheader', text: 'Slots' }, sec.sheetId + ': its Slots card first');
     assert.deepEqual(sec.rename, b.bar === 'top' ? undefined
-      : { key: b.prefix + 'Name', label: 'Bar name', placeholder: b.name, maxlength: SCREENS.NAME_MAX },
+      : { key: b.prefix + 'Name', label: 'Status bar name', placeholder: b.name, maxlength: SCREENS.NAME_MAX },
     sec.sheetId + ': the title renames the bar, the Watch bar\'s excepted');
   });
   ['bar4', 'bar5', 'bar6'].forEach((id, i) => {
@@ -2023,11 +2023,11 @@ test('Status bars tab (id watch): Your bars, the All status bars card, then each
     const prefix = 'statusBar' + (i + 4);
     assert.deepEqual(card.showWhen, { all: [{ env: 'extraBars' }, { key: prefix + 'Made', eq: true }] },
       id + ': once made, on a watch that has it');
-    // Delete bar: the page's one Delete (style 'delete'), drawn under the Slots card; no card
+    // Delete status bar: the page's one Delete (style 'delete'), drawn under the Slots card; no card
     // of its own (no empty subheader before it).
     const del = card.items[card.items.length - 1];
     assert.deepEqual([del.type, del.style, del.action, del.actionArg, del.label],
-      ['button', 'delete', 'deleteBar', id, 'Delete bar'], id + ': Delete bar last');
+      ['button', 'delete', 'deleteBar', id, 'Delete status bar'], id + ': Delete status bar last');
     assert.equal(card.items.filter((it) => it.type === 'subheader').length, 1, id + ': the Slots card alone');
   });
   // The made flags and the names: hidden keys of a section never opened.
@@ -2387,7 +2387,7 @@ test('the All status bars card carries the reset-status-bars link row, ungated',
   // owner, 2026-10-01: "the reset to default button should be an inline text button, like
   // the telemetry section"), dispatching blocks.js resetStatusSlots through the engine's
   // [data-action] handler. Its label covers slots + Bold and stays truthful on aplite.
-  // The tab's intro moved to the Your bars card above it, still without a button.
+  // The tab's intro moved to the Your status bars card above it, still without a button.
   assert.equal(intro.intro, undefined, 'no intro of its own');
   const list = watch.sections.find((s) => s.id === 'yourBars');
   assert.equal(list.intro.indexOf('<button'), -1, 'no inline reset in the tab\'s intro');
@@ -2540,7 +2540,7 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
     assert.equal(body.indexOf('Set the warn and danger levels for this value'), -1,
       who + ' body has no Alert levels intro (it lives in the sheets)');
   });
-  // The pencil, in the Forecast bar's dialog (a tap on its name in Your bars opens it):
+  // The pencil, in the Forecast bar's dialog (a tap on its name in Your status bars opens it):
   // basalt's default AQI forecast slot offers its sheet; aplite offers none.
   const barDialogs = (p) => ['top', 'forecast'].map((bar) => eng.renderEditModal(schema, watchCx(p, 'bar-' + bar)));
   assert.ok(barDialogs('basalt')[1].indexOf('data-edit-sheet="threshAqi"') !== -1,

@@ -1245,7 +1245,7 @@ test('the real generated page: threshold pencils + sheet on basalt, nothing on a
   const aplite = bootGeneratedPage({ provider: 'dwd' }, 'aplite');
   aplite.clickTab('watch');
   aplite.openAllMore('scroll');   // the master Bold row rides More options: look behind them too
-  // The tab and the Watch and Forecast bars' dialogs (Your bars opens them).
+  // The tab and the Watch and Forecast bars' dialogs (Your status bars opens them).
   const dialog = (bar) => {
     aplite.openEditSheet('bar-' + bar);
     const h = aplite.modal.innerHTML;
@@ -2135,13 +2135,13 @@ test('bold-only BoldMode keys hydrate their default and ride the save blob', () 
 test('the master Bold values row sits in the All status bars card, apart from every bar, thresholds-gated', () => {
   const watch = schema.tabs.find(t => t.id === 'watch');
   // The master governs EVERY bar, so it lives in the Status bars tab's 'All status bars'
-  // card, right under Your bars, never in a bar's own dialog ("Watch bar", "Forecast bar",
+  // card, right under Your status bars, never in a bar's own dialog ("Watch bar", "Forecast bar",
   // ...), which hold the slots.
   const sections = watch.sections.filter(s => !s.sheetOnly);
   const masterIdx = sections.findIndex(s =>
     (s.items || []).some(it => it.messageKey === 'statusBoldAll'));
   assert.ok(masterIdx !== -1, 'master row exists in the Status bars tab');
-  assert.equal(masterIdx, 1, 'in its second card, under Your bars');
+  assert.equal(masterIdx, 1, 'in its second card, under Your status bars');
   assert.equal(watch.sections.filter(s => (s.items || []).some(it => it.messageKey === 'statusBoldAll')).length, 1,
     'one row, in no bar\'s dialog');
   assert.equal(watch.sections.find(s => (s.items || []).some(it => it.messageKey === 'statusTopLeft')).sheetId,

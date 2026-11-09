@@ -1,6 +1,6 @@
 // src/pkjs/settings/preview-status-bars.js — ES5, WebView (+ Node for tests). The status bars'
 // pictures: one bar's three slots as sample values, left, middle and right (barPicture: the
-// Status bars tab's Your bars card draws each bar with it, a tap on a slot opening its picker,
+// Status bars tab's Your status bars card draws each bar with it, a tap on a slot opening its picker,
 // and a bar's dialog draws its bar large), and the preview pinned above every slot dialog
 // (block 'statusBarsPreview'): the bar the dialog was opened from, else every bar the watch
 // draws right now, one line each, the slots the picture alone.
@@ -335,7 +335,7 @@
 
     /**
      * One bar's picture: its three slots as the watch prints them (barSlots), the date slot as
-     * the first view showing the bar shows it. The Your bars card draws each bar with it, a tap
+     * the first view showing the bar shows it. The Your status bars card draws each bar with it, a tap
      * on a slot opening its picker (opts.tappable), dimmed while no screen shows the bar
      * (opts.dim); a bar's dialog draws its bar large (opts.big).
      * @param {Object} S Settings.

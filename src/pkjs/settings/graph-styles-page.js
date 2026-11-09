@@ -1004,7 +1004,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The Your graphs card (block 'graphStyleCards'; the owner's pick, 2026-11-09: a plain list
-     * like the Your bars card and the screen editor's pickers), in the page's shared parts (kit):
+     * like the Your status bars card and the screen editor's pickers), in the page's shared parts (kit):
      * what a tap does, then a row per graph, its name over its length and the screens that show
      * it, the picked one tinted and ticked (a tap picks another: the settings below then change
      * it) with a pencil that makes its name a field with OK; New graph while a slot is free, with

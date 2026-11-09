@@ -130,7 +130,7 @@ const HEAVIEST_GRAPHS = {
       forecastHours: '12' }] }),
 };
 
-// Emery's bars 4 to 6 at their heaviest: all three made (the New bar button), every slot a
+// Emery's bars 4 to 6 at their heaviest: all three made (the New status bar button), every slot a
 // full city like the other bars' below, and HEAVIEST_GRAPHS' three screens showing all six
 // bars between them: the bake sends only the lines of bars a screen shows
 // (status-line-catalog.js bakedLines). On another watch the rows mean nothing (no custom

@@ -73,7 +73,7 @@ var storageSection = {
         {type: 'hidden', messageKey: 'healthMode', defaultValue: 'off'},
         // The screen editor's bar picker (screens-page.js opens it over the editor from a bar
         // row's Bar picker): your bars by name, a pick showing that bar in the row instead, and
-        // New bar (Pebble Time 2), an empty bar made for the row. Page-only (uiOnly); '' is
+        // New status bar (Pebble Time 2), an empty bar made for the row. Page-only (uiOnly); '' is
         // dormant, so the sheet opens on the row's own bar.
         {
             type: 'select',

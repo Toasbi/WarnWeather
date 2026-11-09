@@ -3525,8 +3525,8 @@
         "sections": [
           {
             "id": "yourBars",
-            "title": "Your bars",
-            "intro": "Each bar has a left, middle and right slot. Tap a slot to change it, or tap a bar’s name for the rest of its settings.",
+            "title": "Your status bars",
+            "intro": "Each status bar has a left, middle and right slot. Tap a slot to change it, or tap a bar’s name for the rest of its settings.",
             "block": "barsList",
             "items": []
           },
@@ -3995,7 +3995,7 @@
             ],
             "rename": {
               "key": "statusForecastName",
-              "label": "Bar name",
+              "label": "Status bar name",
               "placeholder": "Forecast bar",
               "maxlength": 24
             }
@@ -4213,7 +4213,7 @@
             ],
             "rename": {
               "key": "statusHealthName",
-              "label": "Bar name",
+              "label": "Status bar name",
               "placeholder": "Health bar",
               "maxlength": 24
             },
@@ -4434,7 +4434,7 @@
             ],
             "rename": {
               "key": "statusRadarName",
-              "label": "Bar name",
+              "label": "Status bar name",
               "placeholder": "Radar bar",
               "maxlength": 24
             },
@@ -4713,12 +4713,12 @@
                 "style": "delete",
                 "action": "deleteBar",
                 "actionArg": "bar4",
-                "label": "Delete bar"
+                "label": "Delete status bar"
               }
             ],
             "rename": {
               "key": "statusBar4Name",
-              "label": "Bar name",
+              "label": "Status bar name",
               "placeholder": "Bar 4",
               "maxlength": 24
             },
@@ -5005,12 +5005,12 @@
                 "style": "delete",
                 "action": "deleteBar",
                 "actionArg": "bar5",
-                "label": "Delete bar"
+                "label": "Delete status bar"
               }
             ],
             "rename": {
               "key": "statusBar5Name",
-              "label": "Bar name",
+              "label": "Status bar name",
               "placeholder": "Bar 5",
               "maxlength": 24
             },
@@ -5297,12 +5297,12 @@
                 "style": "delete",
                 "action": "deleteBar",
                 "actionArg": "bar6",
-                "label": "Delete bar"
+                "label": "Delete status bar"
               }
             ],
             "rename": {
               "key": "statusBar6Name",
-              "label": "Bar name",
+              "label": "Status bar name",
               "placeholder": "Bar 6",
               "maxlength": 24
             },

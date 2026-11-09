@@ -866,7 +866,7 @@ function barSlots(prefix, barWhen, leftJoins) {
     ];
 }
 /**
- * A status bar's dialog (the owner's pick, 2026-11-09): the Status bars tab's Your bars card
+ * A status bar's dialog (the owner's pick, 2026-11-09): the Status bars tab's Your status bars card
  * lists the bars (screens-page.js barsCard) and a tap on a name opens the bar's dialog
  * (screens.js barSheet). Titled by the bar's name (titleBy: screens.js barName), which the
  * title renames (rename: an OK button stores it; the Watch bar keeps its name); the bar's
@@ -875,7 +875,7 @@ function barSlots(prefix, barWhen, leftJoins) {
  * @param {Object} b The bar's on-demand.js BARS entry.
  * @param {?Object} when The bar's gate (null = always).
  * @param {Array<Object>} [tail] Items after the Alerts row: aplite's Watch bar its icons card, a bar 4
- *   to 6 its Delete bar (drawn under the Slots card).
+ *   to 6 its Delete status bar (drawn under the Slots card).
  * @returns {Object} Schema section (sheetOnly).
  */
 function barDialog(b, when, tail) {
@@ -891,28 +891,28 @@ function barDialog(b, when, tail) {
     };
     // Each bar's name (screens.js THE NAMES): '' for its own, NAME_MAX characters at most, a
     // hidden item of the tab's (barKeysSection). Page-only: never compiled or sent.
-    if (b.bar !== 'top') { sec.rename = {key: b.prefix + 'Name', label: 'Bar name', placeholder: b.name, maxlength: NAME_MAX}; }
+    if (b.bar !== 'top') { sec.rename = {key: b.prefix + 'Name', label: 'Status bar name', placeholder: b.name, maxlength: NAME_MAX}; }
     if (when) { sec.showWhen = when; }
     return sec;
 }
 
 /**
- * A bar 4 to 6's dialog (Pebble Time 2, made by New bar): the other bars' dialog, then Delete bar
+ * A bar 4 to 6's dialog (Pebble Time 2, made by New status bar): the other bars' dialog, then Delete status bar
  * under its card, as the screen editor's Delete screen (style 'delete', engine buildCards;
- * screens-page.js deleteBar: every screen that shows it drops the row; the Your bars card's
+ * screens-page.js deleteBar: every screen that shows it drops the row; the Your status bars card's
  * Undo puts it back).
  * @param {Object} b Its on-demand.js BARS entry.
  * @returns {Object} Schema section (sheetOnly).
  */
 function extraBarDialog(b) {
     return barDialog(b, extraBarWhen(b.prefix), [{
-        type: 'button', style: 'delete', action: 'deleteBar', actionArg: b.bar, label: 'Delete bar'
+        type: 'button', style: 'delete', action: 'deleteBar', actionArg: b.bar, label: 'Delete status bar'
     }]);
 }
 
 /**
- * The bars' keys with no row of their own: the made flags of bars 4 to 6 (<prefix>Made: New bar
- * sets one, Delete bar clears it; the phone reads them, view-cycle.js barMade) and every bar's
+ * The bars' keys with no row of their own: the made flags of bars 4 to 6 (<prefix>Made: New status bar
+ * sets one, Delete status bar clears it; the phone reads them, view-cycle.js barMade) and every bar's
  * name but the Watch bar's (<prefix>Name, which a bar's dialog's title renames: screens-page.js
  * barRenamed cleans it). Blob-only: sheetOnly keeps it off the tab.
  * @returns {Object} Schema section (sheetOnly, never opened).
@@ -1070,7 +1070,7 @@ var VIEW_FLICK_WHEN = {env: 'platform', ne: 'aplite'};
 var FORECAST_SPAN_WHEN = {env: 'forecastSpan'};
 // The owner's text (2026-11-06). The tap is said twice on purpose: the bars' own line under
 // them (preview-status-bars.js) and here, because a tap on a picture was not obvious.
-var STATUS_INTRO = 'Each bar has a left, middle and right slot. Tap a slot to change it, or tap a bar’s name for '
+var STATUS_INTRO = 'Each status bar has a left, middle and right slot. Tap a slot to change it, or tap a bar’s name for '
     + 'the rest of its settings.';
 // "up to 66": a full feed on the whole screen (the Left axis values On graph or Off).
 var FORECAST_INTRO = 'The forecast graph shows up to 24 hours ahead. On Pebble Time 2 you can pick 12, 24 or up to '
@@ -1656,12 +1656,12 @@ module.exports = {
         // tests key on it). Where alerts sit at a bar's edges is the Alerts tab's; each
         // bar's Alerts row shows them and opens it. All active bars stay pinned at the top.
         id: 'watch', label: 'Status bars', short: 'Status', icon: 'tab-status', sections: [{
-            // Your bars (screens-page.js barsCard, the owner's pick, 2026-11-09): every bar the
+            // Your status bars (screens-page.js barsCard, the owner's pick, 2026-11-09): every bar the
             // watch has, a bar no screen shows too, so any bar can go onto any screen. Each is
             // its name, the screens that show it and its picture, a tap on a slot changing it and
-            // a tap on the name opening the bar's dialog (barDialog below); then New bar.
+            // a tap on the name opening the bar's dialog (barDialog below); then New status bar.
             id: 'yourBars',
-            title: 'Your bars',
+            title: 'Your status bars',
             intro: STATUS_INTRO,
             block: 'barsList',
             items: []
@@ -1700,7 +1700,7 @@ module.exports = {
             ]
         },
         // The bars' dialogs in the page's order (on-demand.js PAGE_BARS): Watch, Forecast,
-        // Health, Radar, then bars 4 to 6 (Pebble Time 2) once New bar made them; on-demand.js
+        // Health, Radar, then bars 4 to 6 (Pebble Time 2) once New status bar made them; on-demand.js
         // BARS, the wire and the keys keep theirs.
         // aplite has no On demand (ON_DEMAND_WHEN): the Watch bar's dialog keeps its fixed
         // battery, quiet-time and Bluetooth rows there, and only there. Everywhere else the

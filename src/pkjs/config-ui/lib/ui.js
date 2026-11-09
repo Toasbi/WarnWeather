@@ -58,7 +58,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * The red arrow at the end of anything that opens a screen of its own: a nav row (engine
-   * chevronRow), a list's row (the Screens card, Your bars).
+   * chevronRow), a list's row (the Screens card, Your status bars).
    * @returns {string} Markup
    */
   function navArrow() {
@@ -79,7 +79,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   /**
    * Delete: the last thing under what it deletes, outside its cards, centred in the accent (a
    * dialog's delete item, engine buildCards; the screen editor's Delete screen; Graphs' Delete).
-   * @param {string} label What it says ("Delete bar").
+   * @param {string} label What it says ("Delete status bar").
    * @param {Object} at Its attributes (what a tap does: data-action, data-se, …).
    * @returns {string} Markup
    */
@@ -101,8 +101,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   /**
    * A list's New row at its foot: the plus and what it makes in the accent, how many there are
    * on the right.
-   * @param {string} label What it makes ("New bar").
-   * @param {string} note How many there are ("4 of 6 bars"), '' for nothing.
+   * @param {string} label What it makes ("New status bar").
+   * @param {string} note How many there are ("4 of 6 status bars"), '' for nothing.
    * @param {Object} at Its attributes.
    * @returns {string} Markup
    */

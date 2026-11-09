@@ -588,7 +588,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       gated = meta.disabled || offVals.indexOf(o[1]) !== -1;
       pic = pictures && pictures[o[1]] ? '<span class="ssel-pic" aria-hidden="true">' + pictures[o[1]] + '</span>' : '';
       if (pic) { classes += ' has-pic'; }
-      // meta.add: the option makes something new (the screen editor's New bar and New graph):
+      // meta.add: the option makes something new (the screen editor's New status bar and New graph):
       // a plus at its start, its name in the link colour, after the things there are.
       if (meta.add) {
         classes += ' add';
@@ -2262,7 +2262,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     for (gi = 0; gi < groups.length; gi++) {
       g = groups[gi];
       main = []; more = []; dels = [];
-      // A Delete (a button with style 'delete': a status bar's Delete bar, Graphs' Delete) is
+      // A Delete (a button with style 'delete': a status bar's Delete status bar, Graphs' Delete) is
       // drawn under its card, outside it, as the screen editor's Delete screen is: the last
       // thing under what it deletes (ui.js deleteButton). It goes with its card.
       for (i = 0; i < g.items.length; i++) {
@@ -3135,7 +3135,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         : sheetIs('date') ? renderDateModal(SCHEMA, cx)
         : editShown ? renderEditModal(SCHEMA, Object.assign({}, cx, { openInline: expanded }))
         : renderSelectModal(SCHEMA, cx);
-      // A dialog whose section no longer shows (a status bar's, once Delete bar took the bar)
+      // A dialog whose section no longer shows (a status bar's, once Delete status bar took the bar)
       // has nothing to show: it closes, as Done would, and render() runs again without it.
       if (editShown && !modalHtml) { closeModal(true); return; }
       // An open list lives only while its row renders live. A row hidden by its showWhen

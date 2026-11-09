@@ -82,7 +82,7 @@ var FORECAST_SPAN_PLATFORMS = { emery: true };
 // platforms have one style (fail closed, as FORECAST_SPAN_PLATFORMS: the records would cost
 // an aplite's 536 B inbox bytes it does not have).
 var GRAPH_STYLE_PLATFORMS = { emery: true };
-// Platforms with bars 4 to 6, three status bars beside the first three (Status bars > New bar;
+// Platforms with bars 4 to 6, three status bars beside the first three (Status bars > New status bar;
 // src/pkjs/view-cycle.js EXTRA_BARS): emery (Pebble Time 2) only. Keep in lockstep with the C
 // `#if defined(PBL_PLATFORM_EMERY)` arms of src/c/appendix/status_line.h and
 // src/c/layers/status_bar.h, which give the watch the three more lines and layers. Every

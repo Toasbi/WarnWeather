@@ -1,5 +1,5 @@
 'use strict';
-// test/extra-bars.test.js — bars 4 to 6 on the phone (Pebble Time 2, 2.7.0's New bar): the
+// test/extra-bars.test.js — bars 4 to 6 on the phone (Pebble Time 2, 2.7.0's New status bar): the
 // screens compile a row naming one only while it is made on a watch that has them, the bake
 // sends its line while a screen shows it, the Clay message its On demand cells, and the
 // change detector signs its slots. The C side's half of each contract: test/extra-bars-contract.test.js.
@@ -116,7 +116,7 @@ test('barsShown: a made bar 4 to 6 on a screen; the Clay view words carry its ex
   assert.equal(VC.unpackWire(basalt).statusUpper, VC.STATUS_SRC_NONE);
 });
 
-test('the catalog: three extra lines, their wire keys and slots, empty until New bar fills them', () => {
+test('the catalog: three extra lines, their wire keys and slots, empty until New status bar fills them', () => {
   assert.deepEqual(catalog.EXTRA_LINES.map((l) => l.id), ['bar4', 'bar5', 'bar6']);
   assert.deepEqual(catalog.EXTRA_LINES.map((l) => l.wireKey),
     ['STATUS_LINE_5_UINT8', 'STATUS_LINE_6_UINT8', 'STATUS_LINE_7_UINT8']);
@@ -177,8 +177,8 @@ test('the bake sends the line of a bar 4 to 6 a screen shows, on a Pebble Time 2
   assert.equal(forecastSeries.needsPollen(made, { platform: 'basalt' }), false);
 });
 
-test('New bar makes the next free bar empty, called "Bar <n>" unless another bar has that name', () => {
-  // Stale values a hand-edited blob could hold: New bar clears them all.
+test('New status bar makes the next free bar empty, called "Bar <n>" unless another bar has that name', () => {
+  // Stale values a hand-edited blob could hold: New status bar clears them all.
   const S = { statusBar4Left: 'uv', statusBar4MidCountdown: '2026-12-24', statusBar4OnDemandLeftItems: 'bt' };
   assert.equal(screens.makeBar(S, EMERY), 'bar4');
   assert.equal(S.statusBar4Made, true);
@@ -205,7 +205,7 @@ test('each bar\'s dialog has a sheet id that names it, and back', () => {
   ['', null, 'bar-', 'bar-nope', 'forecast', 'threshUv'].forEach((id) => assert.equal(screens.barOfSheet(id), null, String(id)));
 });
 
-test('Delete bar stores a screen as the editor\'s Remove does: the bar below moves up, the dates go, Undo puts all back', () => {
+test('Delete status bar stores a screen as the editor\'s Remove does: the bar below moves up, the dates go, Undo puts all back', () => {
   const list = [{ k: 'strip' }, { k: 'cal', rows: '2' }, { k: 'bar4' }, { k: 'clock' }, { k: 'fcbar' },
     { k: 'fc', size: 'fill' }];
   const S = Object.assign({ layoutPreset: 'custom', viewCount: '1', statusBar4Made: true, statusBar4Name: 'Wind',

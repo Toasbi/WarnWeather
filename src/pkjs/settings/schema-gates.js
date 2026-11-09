@@ -66,12 +66,12 @@ var BOLD_MASTER_WHEN = {key: 'statusBoldAll', in: ['off', 'all']};
 // keeps its card on the Status bars tab (it says so): any bar can go onto any screen.
 var RADAR_BAR_WHEN = {env: 'radar'};
 var HEALTH_BAR_WHEN = {env: 'health'};
-// "This watch has bars 4 to 6" (platform.js env.extraBars: the Pebble Time 2): New bar and the
+// "This watch has bars 4 to 6" (platform.js env.extraBars: the Pebble Time 2): New status bar and the
 // made bars' cards. Fails closed for an unknown watch.
 var EXTRA_BARS_WHEN = {env: 'extraBars'};
 
 /**
- * A bar 4 to 6's gate: the watch has them and New bar made this one (view-cycle.js barMade).
+ * A bar 4 to 6's gate: the watch has them and New status bar made this one (view-cycle.js barMade).
  * @param {string} prefix The bar's key prefix, e.g. 'statusBar4'.
  * @returns {Object} showWhen predicate
  */

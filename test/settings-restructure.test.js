@@ -33,7 +33,7 @@ test('page-only keys are never stored: the Night hours, Separate hours and the R
   // keeps the source.
   // The graph styles' pick and the two pickers without a row (graph-styles-page.js) write
   // graphStyles and the screens' viewStyle keys; the screen editor's bar picker
-  // (screens-page.js) writes the screen's rows, and its New bar the bar it makes.
+  // (screens-page.js) writes the screen's rows, and its New status bar the bar it makes.
   assert.deepEqual(uiOnly.sort(), ['graphStyleNewFrom', 'graphStylePick', 'nightHoursFrom',
     'nightHoursSeparate', 'nightHoursTo', 'radarSource', 'screenBar', 'screenGraphStyle']);
   const S = E.hydrate(schema, {}, platformLib.computeEnv({ platform: 'emery' }));

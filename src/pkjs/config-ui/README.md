@@ -310,7 +310,7 @@ A `button` item is the same nav row, dispatching `action` (or, with `gotoTab: '<
 bringing that tab to the front like a tab link); with `style: 'link'` it is a single line of
 link-coloured text instead (a reset). With `style: 'delete'` it is **Delete**
 ([`ui.deleteButton`](#shared-parts--pconfui)): drawn under its card, outside it, centred in the
-accent, the last thing under what it deletes (a status bar's *Delete bar* under its dialog's
+accent, the last thing under what it deletes (a status bar's *Delete status bar* under its dialog's
 last card, Graphs' *Delete Graph 2* under Your graphs). `labelFrom` names it and `showWhen`
 hides it where there is nothing to delete; its card still needs another row to show. A status-slot select keeps its own per-value dialog
 behind an **Edit** button beside the dropdown (`editSheetFrom` on a value row).

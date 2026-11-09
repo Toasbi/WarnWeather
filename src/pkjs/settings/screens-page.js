@@ -6,10 +6,10 @@
 // header: the screen's name, which its pencil renames with an OK button, its picture and its
 // rows top to bottom, dragged or moved, each folding open on its red ▸ like a folding card to
 // show its option and its moves, a bar's and the forecast graph's a picker and an Edit button,
-// then the Add chips, and Delete screen under the card), the Status bars tab's Your bars card
+// then the Add chips, and Delete screen under the card), the Status bars tab's Your status bars card
 // (each bar's name, the screens that show it, the alerts placed on it and its picture, whose
 // slots a tap changes, the red arrow in the middle of the row; a tap on the name opens the bar's
-// dialog, schema.js barDialog, which pins the bar's picture; New bar makes an empty bar and
+// dialog, schema.js barDialog, which pins the bar's picture; New status bar makes an empty bar and
 // opens it), Setup's Rain radar picker (Off keeps the source) and the modes the page works out
 // from the screens. Every arrow, chevron, Delete, Undo, chip and header is the page's shared
 // part (config-ui/lib/ui.js).
@@ -72,18 +72,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var ALREADY = 'You already have this screen.';
     var NO_GRAPH_ROOM = 'It needs a new graph, and you have 3 already. Delete one on the Graphs tab.';
     var REORDER_HINT = 'The watch starts on the top screen. Each flick shows the next one. Drag ≡ to change the order.';
-    // The editor's bar picker (custom-layout-schema.js: a page-only select); its New bar row's
+    // The editor's bar picker (custom-layout-schema.js: a page-only select); its New status bar row's
     // value is NEW_BAR (never a kind).
     var SCREEN_BAR = 'screenBar';
     var NEW_BAR = 'new';
-    var BARS_FULL = 'That’s the most bars there can be: the Watch bar and ' + M.MAX_BARS
-        + ' more. To make another, delete a bar you made.';
-    // A Delete bar's Undo while it shows (the Your bars card).
+    var BARS_FULL = 'That’s the most status bars there can be: the Watch bar and ' + M.MAX_BARS
+        + ' more. To make another, delete one you made.';
+    // A Delete status bar's Undo while it shows (the Your status bars card).
     var BAR_UNDO = { v: null, t: null };
     // What a preset brings, under Add a screen's cards: with graph styles, and on a watch with
     // one graph (screen-presets.js WHAT A PRESET BRINGS).
-    var ADD_FINE = 'A preset adds its own graph, or uses one of yours that looks the same. Your bars keep what they show.';
-    var ADD_FINE_ONE_GRAPH = 'A preset adds its rows. Your graph and your bars stay as they are.';
+    var ADD_FINE = 'A preset adds its own graph, or uses one of yours that looks the same. Your status bars keep what they show.';
+    var ADD_FINE_ONE_GRAPH = 'A preset adds its rows. Your graph and your status bars stay as they are.';
     // aplite's Layout choice, its Watchface tab having no screens: the three calendars.
     var APLITE_LAYOUTS = [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal'], ['No calendar', 'noCal']];
 
@@ -243,8 +243,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
 
     /**
-     * New bar, wherever it is tapped (the Your bars card, the editor's + New bar, the bar
-     * picker): screens.js makeBar, and a Delete bar's Undo dropped, since the bar made can be
+     * New status bar, wherever it is tapped (the Your status bars card, the editor's + New status bar, the bar
+     * picker): screens.js makeBar, and a Delete status bar's Undo dropped, since the bar made can be
      * the deleted one's slot (freeBar), which the Undo would write the old bar over.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
@@ -258,7 +258,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Open a bar's dialog (schema.js barDialog) over whatever shows: the Status bars tab, or the
-     * screen editor, which repaints as it closes. A bar New bar just made opens with its name
+     * screen editor, which repaints as it closes. A bar New status bar just made opens with its name
      * field ready.
      * @param {string} bar An on-demand.js BARS bar.
      * @param {boolean} rename Whether the name field opens ready to type.
@@ -584,7 +584,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return M.fits(list, i, (env && env.platform) || '');
     }
 
-    // ── Your bars (screens.js THE NAMES) ───────────────────────────────────
+    // ── Your status bars (screens.js THE NAMES) ────────────────────────────
 
     /**
      * The places of the screens that show a status bar (the Watch bar: its strip).
@@ -628,7 +628,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * The editor's bar picker (options resolver 'screenBarOptions'): your bars by name
      * (screens.js yourBars), each with what it holds and where it shows; one the screen shows
-     * already (another row) is greyed out. While New bar can make one (Pebble Time 2), its row
+     * already (another row) is greyed out. While New status bar can make one (Pebble Time 2), its row
      * follows: an empty bar, made for this row.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
@@ -642,13 +642,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return [M.barName(S, bar), k, here ? { desc: 'Already on this screen', disabled: true }
                 : { desc: barHolds(S, env, bar) + ' · ' + barWhere(S, env, bar, cycle).replace(/^On/, 'on') }];
         });
-        if (M.freeBar(S, env)) { out.push(['New bar', NEW_BAR, { add: true, desc: 'An empty bar, for this screen' }]); }
+        if (M.freeBar(S, env)) { out.push(['New status bar', NEW_BAR, { add: true, desc: 'An empty status bar, for this screen' }]); }
         return out;
     }
 
     /**
      * The editor's bar pick (onChange 'screenBarPicked'): the row shows that bar instead, in
-     * its place. New bar makes an empty one for the row, whose dialog opens with its name field
+     * its place. New status bar makes an empty one for the row, whose dialog opens with its name field
      * ready once the picker has closed (ED.made, onClick's 'bar').
      * @param {Object} S Settings.
      * @param {*} oldValue The pick before.
@@ -674,7 +674,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         writeScreen(S, ED.i, next, env);
     }
 
-    // ── New bar and Delete bar (Pebble Time 2) ──────────────────────────────
+    // ── New status bar and Delete status bar (Pebble Time 2) ────────────────
 
     /**
      * What a bar's slots hold, by their items' names, the empty ones left out.
@@ -688,17 +688,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * How many of your bars there are, of the most a watch with bars 4 to 6 has: "4 of 6 bars".
+     * How many of your bars there are, of the most a watch with bars 4 to 6 has: "4 of 6 status bars".
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {string}
      */
     function barCount(S, env) {
-        return M.yourBars(S, env).length + ' of ' + M.MAX_BARS + ' bars';
+        return M.yourBars(S, env).length + ' of ' + M.MAX_BARS + ' status bars';
     }
 
     /**
-     * The editor's + New bar: an empty bar made (makeBar) and put on the screen being edited, at
+     * The editor's + New status bar: an empty bar made (makeBar) and put on the screen being edited, at
      * a bar's place (screens.js add), its row open; then its dialog, its name field ready.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
@@ -735,8 +735,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Delete bar (a made bar's dialog): the bar unmade and every screen's row that showed it off
-     * (screens.js unmakeBar), the modes worked out again, and an Undo shown in the Your bars card
+     * Delete status bar (a made bar's dialog): the bar unmade and every screen's row that showed it off
+     * (screens.js unmakeBar), the modes worked out again, and an Undo shown in the Your status bars card
      * for five seconds. The dialog closes with its bar gone (the engine closes a dialog whose
      * section no longer shows).
      * @param {Object} S Settings.
@@ -752,10 +752,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return true;
     }
 
-    // ── The Your bars card and a bar's dialog (the Status bars tab) ─────────
+    // ── The Your status bars card and a bar's dialog (the Status bars tab) ───
 
     /**
-     * The alerts placed on a bar, for its row on the Your bars card: the icons the bar's dialog's
+     * The alerts placed on a bar, for its row on the Your status bars card: the icons the bar's dialog's
      * Alerts row shows (alerts-page.js onDemandBarIcons: "Left" and "Right", each with its
      * icons), '' with none placed or on a watch without alerts (aplite).
      * @param {Object} S Live settings.
@@ -769,14 +769,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The Your bars card (block 'barsList', the owner's pick, 2026-11-09), in the page's shared
+     * The Your status bars card (block 'barsList', the owner's pick, 2026-11-09), in the page's shared
      * parts (kit): a line per bar, the Watch bar first and then your bars (screens.js yourBars),
      * each its name, the screens that show it (none on aplite, which has one) and the alerts
      * placed on it (barAlerts; the owner's ask, 2026-11-09: seen without opening the bar), a tap
      * opening the bar's dialog (schema.js barDialog); under it the bar's picture, where a tap on
      * a slot opens its picker, dimmed while no screen shows it; and the red arrow of a row that
-     * opens a screen of its own, in the middle of the whole row. Then New bar with how many bars
-     * there are (Pebble Time 2), or with six why there is none, and the Undo after a Delete bar.
+     * opens a screen of its own, in the middle of the whole row. Then New status bar with how many bars
+     * there are (Pebble Time 2), or with six why there is none, and the Undo after a Delete status bar.
      * @param {Object} S Live settings.
      * @param {?Object} env Platform env.
      * @returns {string} HTML
@@ -800,7 +800,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 + kit.navArrow() + '</button></div>';
         }).join('');
         if (M.freeBar(st, env)) {
-            h += kit.newRow('New bar', barCount(st, env), { 'data-action': 'newBar' });
+            h += kit.newRow('New status bar', barCount(st, env), { 'data-action': 'newBar' });
         } else if (env && env.extraBars) {
             h += '<div class="ui-row ui-foot">' + esc(BARS_FULL) + '</div>';
         }
@@ -855,7 +855,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.scr-grip:focus-visible{outline:2px solid var(--link);outline-offset:-6px;border-radius:12px}'
         + '.scr-pill{display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;background:var(--ctl);'
         + 'color:var(--muted);font:700 10.5px/1.3 Inter,system-ui,sans-serif;vertical-align:1px}'
-        // The Your bars card: a bar's name line and its alerts over its picture, and the red arrow
+        // The Your status bars card: a bar's name line and its alerts over its picture, and the red arrow
         // (its dialog) in a column of its own, in the middle of the whole row as on a nav row.
         + '.bl-bar{display:flex;align-items:stretch;gap:8px;padding:10px 16px 12px}'
         + '.bl-main{flex:1 1 auto;min-width:0}'
@@ -1204,7 +1204,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function barHtml(j, S, bar, also) {
         var name = M.barName(S, bar);
-        return pickerLine('Bar', 'bar', 'editbar', j, name, 'Edit ' + name) + (also ? '<div class="ui-d">' + esc(also) + '</div>' : '');
+        return pickerLine('Status bar', 'bar', 'editbar', j, name, 'Edit ' + name) + (also ? '<div class="ui-d">' + esc(also) + '</div>' : '');
     }
 
     /**
@@ -1264,13 +1264,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var i = ED.i, cycle = VC.screensCycle(S, env), list = M.screensOf(S, env, cycle)[i] || [];
         var note = !cycle[i] ? NOTHING_YET : !fitsWatch(list, i, env) ? TOO_TALL : '';
         var adds = M.addable(list, env, S).filter(function (k) { return fitsWatch(M.add(list, k), i, env); });
-        // + New bar (Pebble Time 2): while New bar can make a bar for this screen and it would fit.
+        // + New status bar (Pebble Time 2): while New status bar can make a bar for this screen and it would fit.
         var free = M.newBarFor(list, S, env);
         var newBar = Boolean(free) && fitsWatch(M.add(list, free), i, env);
         var pic = screenPicture(S, i, env, userData, 'se' + i + '-', cycle).svg;
         var chips = adds.map(function (k) {
             return kit.chip(M.blockName({ k: k }, S), { 'data-se': 'add', 'data-k': k }, { icon: 'plus' });
-        }).join('') + (newBar ? kit.chip('New bar', { 'data-se': 'newbar' }, { icon: 'plus' }) : '');
+        }).join('') + (newBar ? kit.chip('New status bar', { 'data-se': 'newbar' }, { icon: 'plus' }) : '');
         // The page's own card (the engine's .card and header), the Add chips under its rows, and
         // Delete screen under the card, as a dialog's Delete (kit.deleteButton).
         return '<div class="se-pic"><span class="se-pic-card" role="img" aria-label="' + esc(M.nameOf(S, i) + ': ' + contents(list, S))
@@ -1509,7 +1509,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return;
         }
         // A bar row's Bar picker: the picker of your bars opens over the editor, its pick lands
-        // through screenBarPicked; a bar New bar made there opens next, its name field ready.
+        // through screenBarPicked; a bar New status bar made there opens next, its name field ready.
         if (act === 'bar') {
             ED.barRow = j;
             ED.made = null;
@@ -1522,7 +1522,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             });
             return;
         }
-        // + New bar: an empty bar on this screen, its dialog next (newBarHere).
+        // + New status bar: an empty bar on this screen, its dialog next (newBarHere).
         if (act === 'newbar') { newBarHere(S, env); return; }
         // A bar row's Edit: the bar's dialog over the editor, which repaints as it closes.
         if (act === 'editbar') {
@@ -1816,11 +1816,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             deleteWithUndo(S, parseInt(arg, 10) || 0, env);
             return true;
         };
-        // New bar, Delete bar and its Undo (the Status bars tab, Pebble Time 2): New bar makes an
+        // New status bar, Delete status bar and its Undo (the Status bars tab, Pebble Time 2): New status bar makes an
         // empty bar and opens its dialog, its name field ready.
         PConf.actions.newBar = function (arg, S, env) {
             var made = makeBar(S, env);
-            if (made) { openBar(made, true, 'Your bars', null); }
+            if (made) { openBar(made, true, 'Your status bars', null); }
             return !made;
         };
         PConf.actions.deleteBar = function (arg, S, env) { return deleteBar(S, String(arg || ''), env); };
@@ -1842,7 +1842,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             PConf.onChange.register('screenBarPicked', screenBarPicked);
             PConf.onChange.register('barRenamed', barRenamed);
         }
-        // Your bars by name (screens.js barName): their dialogs' titles and their slot pickers'.
+        // Your status bars by name (screens.js barName): their dialogs' titles and their slot pickers'.
         if (PConf.displayResolvers) {
             PConf.displayResolvers.register('barName', function (S, env, args) { return M.barName(S, args.bar); });
             PConf.displayResolvers.register('barSlotTitle', function (S, env, args) {

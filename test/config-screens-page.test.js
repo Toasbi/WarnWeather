@@ -308,11 +308,11 @@ test('a ✕ deletes a flick screen at once, and Undo puts it back', (t) => {
     ['Default', 'Calendar · Clock · Forecast bar · Forecast graph'],
     ['Flick 1', 'Clock · Radar bar · Rain radar']
   ]);
-  // The page's one Undo (ui.js undoToast), as after a Delete bar or a deleted graph.
+  // The page's one Undo (ui.js undoToast), as after a Delete status bar or a deleted graph.
   assert.match(page.scroll.innerHTML, /<div class="ui-toast" role="status"><span>Flick 1 deleted\.<\/span><button type="button" class="ui-undo" data-action="undoDeleteScreen">Undo<\/button><\/div>/);
   assert.ok(page.scroll.innerHTML.indexOf('<button type="button" class="ui-row ui-new" data-action="addScreen"><svg class="ui-ic"')
     !== -1 && page.scroll.innerHTML.indexOf('<span class="ui-n">Add screen</span></button>') !== -1,
-  'room for one more: the New row, as New bar and New graph');
+  'room for one more: the New row, as New status bar and New graph');
   page.tapAction('undoDeleteScreen');
   assert.equal(cardRows(page.scroll.innerHTML).length, 3, 'Undo: all three again');
   assert.equal(page.scroll.innerHTML.indexOf('ui-toast'), -1, 'and the toast goes');

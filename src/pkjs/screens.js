@@ -4,7 +4,7 @@
 //
 // THE LIST. A screen is an array of blocks { k: kind } in drawn order: the Watch bar
 // ('strip'), the Calendar ('cal', rows '2' | '3'), the Clock ('clock'), the status bars
-// ('fcbar', 'radarbar', 'healthbar', and on a Pebble Time 2 the bars New bar makes, 'bar4',
+// ('fcbar', 'radarbar', 'healthbar', and on a Pebble Time 2 the bars New status bar makes, 'bar4',
 // 'bar5', 'bar6': view-cycle.js EXTRA_BARS) and the three graphs ('fc', 'radar', 'health', size
 // '2' | '3' | '4' | 'fill'; the forecast graph also names its graph style, style '2' | '3',
 // absent for the first: Pebble Time 2, graph-styles.js). Its rules:
@@ -249,7 +249,7 @@
 
   /**
    * Whether a kind can go onto a screen: the watch draws it (capable), and a bar 4 to 6 is
-   * made (view-cycle.js barMade: New bar makes one).
+   * made (view-cycle.js barMade: New status bar makes one).
    * @param {string} k A kind.
    * @param {?Object} S Settings.
    * @param {?Object} env Platform env.
@@ -582,11 +582,11 @@
     return { radarMode: radarMode, healthMode: healthMode };
   }
 
-  // ── YOUR BARS: New bar and Delete bar (Pebble Time 2) ─────────────────────────────────
-  // Your bars are the bars a screen can show besides the Watch bar: the Forecast, Radar and
-  // Health bars, and on a Pebble Time 2 bars 4 to 6 once New bar made them (view-cycle.js
-  // barMade), at most MAX_BARS. New bar makes the first of bars 4 to 6 not made yet, empty and
-  // called "Bar <n>" (the owner's, 2026-11-09: a bar is too simple for templates); Delete bar
+  // ── YOUR STATUS BARS: New status bar and Delete status bar (Pebble Time 2) ────────────
+  // Your status bars are the bars a screen can show besides the Watch bar: the Forecast, Radar and
+  // Health bars, and on a Pebble Time 2 bars 4 to 6 once New status bar made them (view-cycle.js
+  // barMade), at most MAX_BARS. New status bar makes the first of bars 4 to 6 not made yet, empty and
+  // called "Bar <n>" (the owner's, 2026-11-09: a bar is too simple for templates); Delete status bar
   // unmakes one, and every screen that showed it drops the row.
   // Every bar but the Watch bar.
   var MAX_BARS = onDemand.BARS.length - 1;
@@ -614,7 +614,7 @@
   }
 
   /**
-   * Your bars on this watch (YOUR BARS above), in the Status bars tab's order (on-demand.js
+   * Your status bars on this watch (YOUR STATUS BARS above), in the Status bars tab's order (on-demand.js
    * PAGE_BARS).
    * @param {?Object} S Settings.
    * @param {?Object} env Platform env.
@@ -627,7 +627,7 @@
   }
 
   /**
-   * The bar New bar makes next: the first of bars 4 to 6 not made yet.
+   * The bar New status bar makes next: the first of bars 4 to 6 not made yet.
    * @param {?Object} S Settings.
    * @param {?Object} env Platform env.
    * @returns {?string} 'bar4' | 'bar5' | 'bar6', null when all three are made or the watch
@@ -642,7 +642,7 @@
   }
 
   /**
-   * The bar + New bar puts on a screen: the one New bar makes next (freeBar), while the screen
+   * The bar + New status bar puts on a screen: the one New status bar makes next (freeBar), while the screen
    * has room for another bar (SCREEN_BARS, as addable offers bars).
    * @param {Array<Object>} list A screen.
    * @param {?Object} S Settings.
@@ -667,7 +667,7 @@
   }
 
   /**
-   * New bar: make the next of bars 4 to 6 (freeBar), empty (its slots' defaults: Empty), with
+   * New status bar: make the next of bars 4 to 6 (freeBar), empty (its slots' defaults: Empty), with
    * no countdown date and no alerts, and on no screen yet. It is called "Bar <n>" (its own name,
    * so '' is stored), unless another bar was renamed to that: then a name none of your bars has
    * (freeName). Mutates S.
@@ -691,7 +691,7 @@
   }
 
   /**
-   * Delete bar: a bar 4 to 6 unmade, its name, slots, countdown dates and alerts cleared, and
+   * Delete status bar: a bar 4 to 6 unmade, its name, slots, countdown dates and alerts cleared, and
    * every screen that showed it stored again without its row, as the editor's Remove stores
    * one (compileKeys: a bar below it moves up to the upper row). Mutates S; the page then works
    * the modes out again.

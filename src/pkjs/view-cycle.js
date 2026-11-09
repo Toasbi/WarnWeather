@@ -16,7 +16,7 @@ var TOP_KIND_FORECAST = 0, TOP_KIND_HEALTH = 1;
 var BODY_FC = 0, BODY_GRAPH = 1, BODY_RADAR = 2, BODY_NONE = 3;
 // Positional status sources: which content feeds the upper/lower status row.
 var STATUS_SRC_NONE = 0, STATUS_SRC_FORECAST = 1, STATUS_SRC_RADAR = 2, STATUS_SRC_HEALTH = 3;
-// Bars 4 to 6 (Pebble Time 2, 2.7.0's New bar; src/c/windows/layout.h StatusSource): the
+// Bars 4 to 6 (Pebble Time 2, 2.7.0's New status bar; src/c/windows/layout.h StatusSource): the
 // packed value's 2-bit row fields are full, so a row names one as FORECAST / RADAR / HEALTH
 // there plus an ext bit that adds 3 (packExt: bit 11 the upper row, bit 12 the lower).
 var STATUS_SRC_BAR4 = 4, STATUS_SRC_BAR5 = 5, STATUS_SRC_BAR6 = 6;
@@ -24,7 +24,7 @@ var EXT_UPPER_BAR_HI = 1 << 11, EXT_LOWER_BAR_HI = 1 << 12;
 // Each of them: the value a screen's row names it by (viewUpper / viewLower), its source and
 // its settings keys' prefix (statusBar4Left, statusBar4Name, statusBar4Made, ...;
 // on-demand.js BARS and status-line-catalog.js EXTRA_LINES take them from here). A bar
-// exists once New bar made it (<prefix>Made true), on a watch that has them (env.extraBars).
+// exists once New status bar made it (<prefix>Made true), on a watch that has them (env.extraBars).
 var EXTRA_BARS = [
   { bar: 'bar4', src: STATUS_SRC_BAR4, prefix: 'statusBar4' },
   { bar: 'bar5', src: STATUS_SRC_BAR5, prefix: 'statusBar5' },
@@ -102,7 +102,7 @@ function extraBar(bar) {
 }
 
 /**
- * Whether New bar made a bar 4 to 6 (its <prefix>Made is true). THE reading of "the bar is one
+ * Whether New status bar made a bar 4 to 6 (its <prefix>Made is true). THE reading of "the bar is one
  * of yours", whatever the watch: the compiler (rowSource), the bake (status-lines.js) and the
  * page ask it.
  * @param {?Object} S Settings.

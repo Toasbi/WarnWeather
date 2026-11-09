@@ -444,7 +444,7 @@ test('a greyed-out preset is a disabled card with its reason; a basalt says its 
   page.tapAction('addScreen');
   const body = page.editor().querySelector('[data-se-body]').innerHTML;
   assert.deepEqual(sheetCards(body).filter((c) => c[3]), [['stripes', 'Stripes', SP.ALREADY, true]]);
-  assert.ok(body.indexOf('A preset adds its rows. Your graph and your bars stay as they are.') !== -1);
+  assert.ok(body.indexOf('A preset adds its rows. Your graph and your status bars stay as they are.') !== -1);
   page.tapEditor({ se: 'pick', id: 'stripes', disabled: true });
   assert.equal(page.S.viewCount, '1', 'nothing added');
   assert.ok(page.editor().querySelector('[data-se-head]').innerHTML.indexOf('id="seTitle">Add a screen</span>') !== -1,
