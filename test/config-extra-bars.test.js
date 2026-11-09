@@ -49,8 +49,9 @@ function barLine(html, bar) {
   const at = html.indexOf('data-edit-sheet="bar-' + bar + '"');
   if (at === -1) { return ''; }
   const start = html.lastIndexOf('<div class="ui-row bl-bar">', at);
-  const ends = [html.indexOf('<div class="ui-row bl-bar">', at), html.indexOf('class="ui-row ui-new"', at)].filter((i) => i !== -1);
-  return html.slice(start, ends.length ? Math.min.apply(null, ends) : html.length);
+  // Its end: the red arrow's column closes the row.
+  const go = html.indexOf('<button type="button" class="bl-go" data-edit-sheet="bar-' + bar + '"', at);
+  return html.slice(start, html.indexOf('</button></div>', go) + '</button></div>'.length);
 }
 
 test('New bar on the Your bars card: an empty "Bar 4" at once, its dialog open with the name field ready', () => {

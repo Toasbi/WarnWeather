@@ -222,6 +222,24 @@ test('each bar\'s dialog ends on one Alerts nav row: the icons on each side, a t
   assert.equal(html.indexOf('<div class="lbl">Alerts</div>'), -1, 'the tab itself draws no Alerts row');
 });
 
+test('Your bars shows the alerts on each bar\'s row, the icons its dialog\'s Alerts row shows; with none, no line', () => {
+  // The owner, 2026-11-09: "I also want to see right away if there are alarms set for the bar".
+  const page = watchTab({ statusForecastOnDemandRightItems: 'uv' });
+  const html = page.scroll.innerHTML;
+  // A bar's name button, which carries its alerts under its name.
+  const nameOf = (bar) => {
+    const at = html.indexOf('<button type="button" class="bl-name" data-edit-sheet="bar-' + bar + '"');
+    assert.ok(at !== -1, bar + ' listed');
+    return html.slice(at, html.indexOf('</button>', at) + '</button>'.length);
+  };
+  const line = (hint) => '<span class="ui-d bl-al"><span class="bl-al-cap">Alerts</span><span class="bl-al-runs">' + hint
+    + '</span></span></button>';
+  assert.ok(nameOf('top').endsWith(line(TOP_HINT)), 'the Watch bar\'s: Left + its icons, Right + its icons');
+  assert.equal(barHint(page, 'Watch bar'), TOP_HINT, 'the same as its dialog\'s Alerts row');
+  assert.ok(nameOf('forecast').endsWith(line(iconRun('right', ['uv']))), 'one placed on the Forecast bar');
+  ['health', 'radar'].forEach((bar) => assert.equal(nameOf(bar).indexOf('bl-al'), -1, bar + ': none placed, no line'));
+});
+
 test('the Status bars tab: Your bars in the owner\'s order, each name opening the bar\'s dialog, then the reset as a link row', () => {
   // The owner, 2026-10-01: "1: watch status bar 2 weather 3 health 4 radar" (the page only;
   // the wire keeps its order). The health bar needs a health mode with a status bar.

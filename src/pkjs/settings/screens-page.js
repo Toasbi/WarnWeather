@@ -7,11 +7,12 @@
 // rows top to bottom, dragged or moved, each folding open on its red ▸ like a folding card to
 // show its option and its moves, a bar's and the forecast graph's a picker and an Edit button,
 // then the Add chips, and Delete screen under the card), the Status bars tab's Your bars card
-// (each bar's name, ending on the red arrow, the screens that show it and its picture, whose
-// slots a tap changes; a tap on the name opens the bar's dialog, schema.js barDialog, which pins
-// the bar's picture; New bar makes an empty bar and opens it), Setup's Rain radar picker (Off
-// keeps the source) and the modes the page works out from the screens. Every arrow, chevron,
-// Delete, Undo, chip and header is the page's shared part (config-ui/lib/ui.js).
+// (each bar's name, the screens that show it, the alerts placed on it and its picture, whose
+// slots a tap changes, the red arrow in the middle of the row; a tap on the name opens the bar's
+// dialog, schema.js barDialog, which pins the bar's picture; New bar makes an empty bar and
+// opens it), Setup's Rain radar picker (Off keeps the source) and the modes the page works out
+// from the screens. Every arrow, chevron, Delete, Undo, chip and header is the page's shared
+// part (config-ui/lib/ui.js).
 //
 // The screens are read from and written to the custom layout's per-view keys (screens.js
 // screensOf / compileKeys), one screen at a time, so a screen the user does not touch keeps
@@ -754,13 +755,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // ── The Your bars card and a bar's dialog (the Status bars tab) ─────────
 
     /**
+     * The alerts placed on a bar, for its row on the Your bars card: the icons the bar's dialog's
+     * Alerts row shows (alerts-page.js onDemandBarIcons: "Left" and "Right", each with its
+     * icons), '' with none placed or on a watch without alerts (aplite).
+     * @param {Object} S Live settings.
+     * @param {?Object} env Platform env.
+     * @param {string} bar An on-demand.js BARS bar.
+     * @returns {string} HTML
+     */
+    function barAlerts(S, env, bar) {
+        var icons = env && env.onDemand && PConf && PConf.hintResolvers ? PConf.hintResolvers.get('onDemandBarIcons') : null;
+        return icons ? icons(S, env, { bar: bar, where: '' }) : '';
+    }
+
+    /**
      * The Your bars card (block 'barsList', the owner's pick, 2026-11-09), in the page's shared
      * parts (kit): a line per bar, the Watch bar first and then your bars (screens.js yourBars),
-     * each its name, the screens that show it (none on aplite, which has one) and the red arrow
-     * of a row that opens a screen of its own, a tap opening the bar's dialog (schema.js
-     * barDialog); under it the bar's picture, where a tap on a slot opens its picker, dimmed
-     * while no screen shows it. Then New bar with how many bars there are (Pebble Time 2), or
-     * with six why there is none, and the Undo after a Delete bar.
+     * each its name, the screens that show it (none on aplite, which has one) and the alerts
+     * placed on it (barAlerts; the owner's ask, 2026-11-09: seen without opening the bar), a tap
+     * opening the bar's dialog (schema.js barDialog); under it the bar's picture, where a tap on
+     * a slot opens its picker, dimmed while no screen shows it; and the red arrow of a row that
+     * opens a screen of its own, in the middle of the whole row. Then New bar with how many bars
+     * there are (Pebble Time 2), or with six why there is none, and the Undo after a Delete bar.
      * @param {Object} S Live settings.
      * @param {?Object} env Platform env.
      * @returns {string} HTML
@@ -771,10 +787,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var name = M.barName(st, bar), places = cycle ? barPlaces(st, env, bar, cycle) : null;
             var where = !places ? '' : places.length ? places.map(function (i) { return M.nameOf(st, i); }).join(', ')
                 : 'No screen';
-            return '<div class="ui-row bl-bar"><button type="button" class="bl-name" data-edit-sheet="' + M.barSheet(bar) + '">'
-                + '<span class="ui-n">' + esc(name) + '</span>' + (where ? '<span class="ui-d">' + esc(where) + '</span>' : '')
-                + kit.navArrow() + '</button>'
-                + PSB.barPicture(st, env, bar, { tappable: true, dim: Boolean(places && !places.length) }) + '</div>';
+            var sheet = M.barSheet(bar), alerts = barAlerts(st, env, bar);
+            return '<div class="ui-row bl-bar"><div class="bl-main"><button type="button" class="bl-name" data-edit-sheet="' + sheet
+                + '"><span class="bl-line"><span class="ui-n">' + esc(name) + '</span>'
+                + (where ? '<span class="ui-d">' + esc(where) + '</span>' : '') + '</span>'
+                + (alerts ? '<span class="ui-d bl-al"><span class="bl-al-cap">Alerts</span><span class="bl-al-runs">' + alerts
+                    + '</span></span>' : '') + '</button>'
+                + PSB.barPicture(st, env, bar, { tappable: true, dim: Boolean(places && !places.length) }) + '</div>'
+                // The arrow's own column, a second way into the dialog for a tap beside the
+                // picture; the name above is the one a screen reader and the keyboard use.
+                + '<button type="button" class="bl-go" data-edit-sheet="' + sheet + '" tabindex="-1" aria-hidden="true">'
+                + kit.navArrow() + '</button></div>';
         }).join('');
         if (M.freeBar(st, env)) {
             h += kit.newRow('New bar', barCount(st, env), { 'data-action': 'newBar' });
@@ -832,12 +855,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.scr-grip:focus-visible{outline:2px solid var(--link);outline-offset:-6px;border-radius:12px}'
         + '.scr-pill{display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;background:var(--ctl);'
         + 'color:var(--muted);font:700 10.5px/1.3 Inter,system-ui,sans-serif;vertical-align:1px}'
-        // The Your bars card: a bar's name line (the red arrow: its dialog) over its picture.
-        + '.bl-bar{padding:10px 16px 12px}'
-        + '.bl-name{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 7px;padding:3px 0;border:none;background:none;'
+        // The Your bars card: a bar's name line and its alerts over its picture, and the red arrow
+        // (its dialog) in a column of its own, in the middle of the whole row as on a nav row.
+        + '.bl-bar{display:flex;align-items:stretch;gap:8px;padding:10px 16px 12px}'
+        + '.bl-main{flex:1 1 auto;min-width:0}'
+        + '.bl-name{display:block;width:100%;margin:0 0 7px;padding:3px 0;border:none;background:none;'
         + 'color:var(--lbl);text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
-        + '.bl-name .ui-n{flex:1 1 auto;min-width:0}'
-        + '.bl-name .ui-d{flex:0 1 auto;min-width:0;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+        + '.bl-line{display:flex;align-items:center;gap:8px}'
+        + '.bl-line .ui-n{flex:1 1 auto;min-width:0}'
+        + '.bl-line .ui-d{flex:0 1 auto;min-width:0;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+        // Alerts, then the sides' icon runs, a wrapped run lined up under the first.
+        + '.bl-al{display:flex;align-items:flex-start;gap:8px;margin-top:4px}'
+        + '.bl-al-cap{flex:none}'
+        + '.bl-al-runs{flex:1 1 auto;min-width:0}'
+        + '.bl-go{flex:none;display:flex;align-items:center;justify-content:flex-end;width:22px;margin:0;padding:0;border:none;'
+        + 'background:none;cursor:pointer;-webkit-appearance:none;appearance:none}'
         // A bar's dialog's picture: the bar, large, where it shows under it.
         + '.bl-pin{display:grid;gap:8px}'
         + '.bl-pin .ui-d{text-align:center}'

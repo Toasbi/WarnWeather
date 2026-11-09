@@ -15,6 +15,7 @@ global.localStorage = {
 };
 
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
+const ui = require('../src/pkjs/config-ui/lib/ui.js');
 const { editorBody: body } = require('./helpers/page-rows.js');
 const M = require('../src/pkjs/screens.js');
 const VC = require('../src/pkjs/view-cycle.js');
@@ -87,10 +88,9 @@ function barLine(html, bar) {
   const at = html.indexOf('data-edit-sheet="bar-' + bar + '"');
   assert.ok(at !== -1, bar + ' is listed');
   const start = html.lastIndexOf('<div class="ui-row bl-bar">', at);
-  const next = html.indexOf('<div class="ui-row bl-bar">', at);
-  const tail = html.indexOf('<button type="button" class="ui-row ui-new"', at);
-  const ends = [next, tail].filter((i) => i !== -1);
-  return html.slice(start, ends.length ? Math.min.apply(null, ends) : html.length);
+  // Its end: the red arrow's column closes the row.
+  const go = html.indexOf('<button type="button" class="bl-go" data-edit-sheet="bar-' + bar + '"', at);
+  return html.slice(start, html.indexOf('</button></div>', go) + '</button></div>'.length);
 }
 
 test('the Your bars card prints the screens\' names as text, not markup', () => {
@@ -110,10 +110,13 @@ test('the Your bars card: every bar by its name, where it shows and its slots; a
   [['forecast', 'Forecast bar', 'Default', 'statusForecast'], ['health', 'Health bar', 'Flick 1', 'statusHealth'],
     ['radar', 'Radar bar', 'Flick 2', 'statusRadar']].forEach(([bar, name, where, prefix]) => {
     const line = barLine(html, bar);
-    // Its name line: the name, where it shows and the red arrow of a row that opens a screen.
-    assert.ok(line.indexOf('<button type="button" class="bl-name" data-edit-sheet="bar-' + bar + '"><span class="ui-n">'
-      + name + '</span><span class="ui-d">' + where + '</span><span class="chev nav" aria-hidden="true">&#8250;</span>'
-      + '</button>') !== -1, bar + ': its name, where it shows, the red arrow');
+    // Its name line: the name and where it shows (no alerts placed on it: no alerts line).
+    assert.ok(line.indexOf('<button type="button" class="bl-name" data-edit-sheet="bar-' + bar + '"><span class="bl-line">'
+      + '<span class="ui-n">' + name + '</span><span class="ui-d">' + where + '</span></span></button>') !== -1,
+    bar + ': its name, where it shows');
+    // The red arrow of a row that opens a screen, in a column of its own: the middle of the row.
+    assert.ok(line.endsWith('<button type="button" class="bl-go" data-edit-sheet="bar-' + bar + '" tabindex="-1" aria-hidden="true">'
+      + ui.navArrow() + '</button></div>'), bar + ': the red arrow closes the row');
     ['Left', 'Mid', 'Right'].forEach((pos) => {
       assert.ok(line.indexOf('data-select="' + prefix + pos + '"') !== -1, bar + ': its ' + pos + ' slot opens its picker');
     });
@@ -156,11 +159,11 @@ test('aplite lists its two bars without screens, each with its dialog; no New ba
   const page = bootGeneratedPage({ provider: 'dwd' }, 'aplite');
   page.clickTab('watch');
   const html = page.scroll.innerHTML;
-  assert.deepEqual((html.match(/data-edit-sheet="bar-[a-z0-9]+"/g) || []), ['data-edit-sheet="bar-top"',
-    'data-edit-sheet="bar-forecast"'], 'the Watch and Forecast bars');
-  assert.equal(html.indexOf('class="ui-d"'), -1, 'one screen: no screens named');
-  assert.equal((html.match(/<span class="chev nav" aria-hidden="true">&#8250;<\/span><\/button>/g) || []).length, 2,
-    'each bar\'s name line ends on the red arrow');
+  assert.deepEqual((html.match(/class="bl-name" data-edit-sheet="bar-[a-z0-9]+"/g) || []), ['class="bl-name" data-edit-sheet="bar-top"',
+    'class="bl-name" data-edit-sheet="bar-forecast"'], 'the Watch and Forecast bars');
+  assert.equal(html.indexOf('class="ui-d'), -1, 'one screen: no screens named; no alerts on aplite');
+  assert.equal((html.match(/<span class="chev nav" aria-hidden="true">&#8250;<\/span><\/button><\/div>/g) || []).length, 2,
+    'each bar\'s row ends on the red arrow');
   assert.equal(html.indexOf('data-action="newBar"'), -1);
   page.openEditSheet('bar-top');
   const dlg = page.modal.innerHTML;
