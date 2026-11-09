@@ -113,15 +113,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   /**
    * A chip: an Add chip (the screen editor's Add row: the plus in the accent before what it
    * adds) or a toggle chip (Graphs' Show on: on, tinted and ticked). Its group carries the
-   * caption (a .ui-cap) and the role.
+   * caption (a .ui-cap) and the role. A disabled chip takes no tap; a dim one looks greyed out
+   * but still takes a tap (the screen editor's graph chip that says why it cannot be added).
    * @param {string} label What it says.
-   * @param {Object} at Its attributes (what a tap does, aria-pressed, disabled).
-   * @param {{icon: ?string, on: boolean}} [o] An icon before the label, and whether it is on.
+   * @param {Object} at Its attributes (what a tap does, aria-pressed, aria-disabled, disabled).
+   * @param {{icon: ?string, on: boolean, dim: boolean}} [o] An icon before the label, whether it
+   *   is on, and whether it looks greyed out.
    * @returns {string} Markup
    */
   function chip(label, at, o) {
     var opt = o || {};
-    return '<button type="button" class="ui-chip' + (opt.on ? ' on' : '') + '"' + attrs(at) + '>'
+    return '<button type="button" class="ui-chip' + (opt.on ? ' on' : '') + (opt.dim ? ' dim' : '') + '"' + attrs(at) + '>'
       + (opt.icon ? icon(opt.icon) : '') + esc(label) + '</button>';
   }
 

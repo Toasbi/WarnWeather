@@ -71,10 +71,14 @@ function editorAddChips(html) {
   const at = html.indexOf('<div class="se-adds">');
   if (at === -1) { return []; }
   const out = [];
-  const re = /<button type="button" class="ui-chip"([^>]*)><svg[\s\S]*?<\/svg>([^<]*)<\/button>/g;
+  const re = /<button type="button" class="ui-chip( dim)?"([^>]*)><svg[\s\S]*?<\/svg>([^<]*)<\/button>/g;
   const row = html.slice(at);
   let m;
-  while ((m = re.exec(row))) { out.push(m[2] + (/ disabled(?=\s|$)/.test(m[1]) ? ' (off)' : '')); }
+  while ((m = re.exec(row))) {
+    const off = Boolean(m[1]);
+    assert.equal(/ aria-disabled="true"/.test(m[2]), off, 'a greyed-out chip says so to a screen reader');
+    out.push(m[3] + (off ? ' (off)' : ''));
+  }
   return out;
 }
 
@@ -90,17 +94,6 @@ function editorAddGroups(html) {
     assert.ok(cap, 'each group has its caption');
     return [cap[1]].concat(editorAddChips('<div class="se-adds">' + g));
   });
-}
-
-/**
- * The line under the open screen editor's Add chips: why a graph's chip is greyed out
- * (graph-styles-page.js limitNote).
- * @param {string} html The editor's body.
- * @returns {string} '' for none
- */
-function editorAddNote(html) {
-  const m = /<div class="ui-d se-limit">([^<]*)<\/div>/.exec(html);
-  return m ? m[1] : '';
 }
 
 /**
@@ -148,5 +141,4 @@ function sheetOptions(page) {
   return out;
 }
 
-module.exports = { rowOf, hintOf, editorBody, editorRows, editorAddChips, editorAddGroups, editorAddNote, editorRow, sheetTitle,
-  sheetOptions };
+module.exports = { rowOf, hintOf, editorBody, editorRows, editorAddChips, editorAddGroups, editorRow, sheetTitle, sheetOptions };

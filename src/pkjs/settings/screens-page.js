@@ -830,8 +830,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-hint{border-top:1px solid var(--row-line)}'
         + '.se-adds{display:grid;gap:14px;padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
         + '.se-add{display:grid;gap:7px}'
-        // Why a graph's chip is greyed out, on a line of its own under its group's chips.
-        + '.se-add .se-limit{margin-top:1px}'
         // Add a screen: Blank across the top, the presets two by two, each with its picture.
         + '.sa-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}'
         + '.sa-card{display:grid;justify-items:center;align-content:start;gap:8px;min-width:0;margin:0;padding:12px 10px;'
@@ -1185,7 +1183,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var W = Object.assign({}, N);
             ensureCustom(W, env);
             putScreen(W, i, withGraph(list, g));
-            return { se: 'add', k: 'fc', g: g, label: GS.name(N, g), off: GSP.screenOverflows(W, env, i, g), grp: 'graphs' };
+            var off = GSP.screenOverflows(W, env, i, g);
+            return { se: 'add', k: 'fc', g: g, label: GS.name(N, g), off: off, grp: 'graphs',
+                why: off ? GSP.limitDesc(W, env, g, GS.name(N, g)) : '' };
         });
     }
 
@@ -1228,8 +1228,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The Add groups under the rows (ADD_GROUPS), each with its caption over a chip per offer
-     * (addOffers). A greyed-out graph has no action, and the line under its group's chips says
-     * why, as the Graphs tab's Show on card does (graph-styles-page.js limitNote).
+     * (addOffers). A greyed-out graph's chip still takes a tap, which says why (addTap): the
+     * owner's, 2026-11-09, the Graphs tab explains the limit in full.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Array<Object>} offers What the groups offer.
@@ -1241,13 +1241,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (!mine.length) { return ''; }
             var cap = grp.cap || 'Add ' + mine.map(function (o) { return 'the ' + o.label.toLowerCase(); }).join(' or ');
             var chips = mine.map(function (o) {
-                if (o.off) { return kit.chip(o.label, { disabled: true }, { icon: 'plus' }); }
-                return kit.chip(o.label, { 'data-se': o.se, 'data-k': o.k, 'data-g': o.g }, { icon: 'plus' });
+                return kit.chip(o.label, { 'data-se': o.se, 'data-k': o.k, 'data-g': o.g, 'aria-disabled': o.off ? 'true' : undefined },
+                    { icon: 'plus', dim: o.off });
             }).join('');
-            var off = mine.filter(function (o) { return o.off; }).map(function (o) { return o.g; });
             return '<div class="se-add" role="group" aria-labelledby="seAdd-' + grp.id + '"><span class="ui-cap" id="seAdd-'
-                + grp.id + '">' + esc(cap) + '</span><div class="ui-chips">' + chips + '</div>'
-                + (off.length ? '<div class="ui-d se-limit">' + esc(GSP.limitNote(S, env, off)) + '</div>' : '') + '</div>';
+                + grp.id + '">' + esc(cap) + '</span><div class="ui-chips">' + chips + '</div></div>';
         }).join('');
         return groups ? '<div class="se-adds">' + groups + '</div>' : '';
     }
@@ -1383,12 +1381,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Say why a move snapped back, for three seconds.
-     * @param {string} text The rule.
+     * Say why something did not happen in the editor (a move that snapped back, a greyed-out
+     * chip): the page's toast, shown at once, for three seconds unless asked for longer.
+     * @param {string} text Why.
+     * @param {number} [ms] How long it shows.
      * @returns {void}
      */
-    function editorToast(text) {
-        kit.flash(ED.toast, text, 3000, renderEditor);
+    function editorToast(text, ms) {
+        kit.flash(ED.toast, text, ms || 3000, renderEditor);
+        renderEditor();
     }
 
     /**
@@ -1428,7 +1429,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function editorMove(list, j, to) {
         var next = M.move(list, j, to), why = M.problem(next);
-        if (why) { editorToast(why); renderEditor(); return false; }
+        if (why) { editorToast(why); return false; }
         commit(next);
         return true;
     }
@@ -1471,9 +1472,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * A tap on an Add chip, taken only when it matches one the Add row offers and does not grey
-     * out (addOffers): the row at its place (screens.js add), a graph's chip drawing that graph
-     * (withGraph); + New status bar makes an empty bar for the screen (newBarHere).
+     * A tap on an Add chip, taken only when it matches one the Add groups offer (addOffers): a
+     * greyed-out one says why for five seconds and adds nothing; any other adds the row at its
+     * place (screens.js add), a graph's chip drawing that graph (withGraph); + New status bar
+     * makes an empty bar for the screen (newBarHere).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Array<Object>} list The screen being edited.
@@ -1483,9 +1485,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function addTap(S, env, list, t) {
         var se = t.getAttribute('data-se'), k = t.getAttribute('data-k'), g = t.getAttribute('data-g');
         var hit = addOffers(S, env, ED.i, list).filter(function (o) {
-            return !o.off && o.se === se && (o.k || null) === k && (o.g === undefined ? null : String(o.g)) === g;
+            return o.se === se && (o.k || null) === k && (o.g === undefined ? null : String(o.g)) === g;
         })[0];
         if (!hit) { return; }
+        if (hit.off) { editorToast(hit.why, 5000); return; }
         if (se === 'newbar') { newBarHere(S, env, list); return; }
         commit(hit.g === undefined ? M.add(list, k) : withGraph(list, hit.g));
     }

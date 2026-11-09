@@ -34,9 +34,9 @@
 // the spare row has no picker (the owner's call, 2026-11-08: "only use for multiple graphs"). A
 // pick that would make a sixth is greyed out, and its words say why in the page's terms,
 // "metrics" (a metric drawn as a line and as a stripe counting twice): a forecast line's metric or
-// style on a shown graph (LIMIT), a screen of the Show on card and a graph's Add chip in the
-// screen editor (limitNote: the rule, what the screens use, what the graph adds), and Add a
-// screen's preset whose graph would join the screens (limitDesc). A graph no screen shows is
+// style on a shown graph (LIMIT), a screen of the Show on card (limitNote: the rule, what the
+// screens use, what the graph adds), and a graph that would join the screens: Add a screen's
+// preset and, when tapped, the screen editor's graph chip (limitDesc). A graph no screen shows is
 // free. The Your graphs card's header counts what the screens use, "4/5 metrics active", with
 // which ones and what counts behind its '?' (metricsNote, the section's noteFrom), and each row
 // says how many more metrics its graph has room for (roomText).
@@ -430,19 +430,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Why Add a screen greys out a preset for its graph: what the graph would add to the
-     * graphs it would show beside, and how many metrics the screens would then show.
+     * Why a graph that would join the screens is greyed out: what it would add to the graphs it
+     * would show beside, and how many metrics the screens would then show. Add a screen says it
+     * under a preset's card; the screen editor says it, the graph named first, when its greyed-out
+     * chip is tapped ("Long also needs ...").
      * @param {Object} N The settings as stored, with the screen on style k (withScreen).
      * @param {?Object} env Platform env.
      * @param {number} k The style picked (or to be made).
+     * @param {string} [name] The graph's name, to start with.
      * @returns {string}
      */
-    function limitDesc(N, env, k) {
+    function limitDesc(N, env, k, name) {
         var shown = GS.stylesShown(N, env);
         var extra = extraNames(N, env, k, shown.filter(function (j) { return j !== k; }));
-        return (extra.length ? 'Also needs ' + andList(extra) + ': that makes ' : 'That makes ')
-            + seriesUnion(N, env, shown).length + ' metrics on your screens. The watch can show '
-            + GS.ROWS + '.';
+        var lead = extra.length ? (name ? name + ' also needs ' : 'Also needs ') + andList(extra) + ': that makes '
+            : (name ? name + ' makes ' : 'That makes ');
+        return lead + seriesUnion(N, env, shown).length + ' metrics on your screens. The watch can show ' + GS.ROWS + '.';
     }
 
     /**

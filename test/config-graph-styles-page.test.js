@@ -20,7 +20,7 @@ const GS = require('../src/pkjs/graph-styles.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const ui = require('../src/pkjs/config-ui/lib/ui.js');
-const { editorRows, editorRow, editorAddChips, editorAddNote } = require('./helpers/page-rows.js');
+const { editorRows, editorRow, editorAddChips } = require('./helpers/page-rows.js');
 
 const PC = global.PConf;
 const EMERY = platform.computeEnv({ platform: 'emery' });
@@ -531,7 +531,7 @@ test('the screen editor: with several graphs a chip per graph adds the forecast 
   assert.deepEqual(editorAddChips(body()), ['Forecast bar', 'Radar bar', 'Health bar', 'New status bar', 'Graph 1', 'Long',
     'Rain radar', 'Health graph', 'Calendar']);
   assert.ok(body().indexOf(ui.chip('Long', { 'data-se': 'add', 'data-k': 'fc', 'data-g': 1 }, { icon: 'plus' })) !== -1);
-  assert.equal(editorAddNote(body()), '', 'nothing greyed out, nothing to say');
+  assert.equal(body().indexOf('aria-disabled'), -1, 'nothing greyed out');
   // A tap puts that graph on the screen.
   p.tapEditor({ se: 'add', k: 'fc', g: 0 });
   assert.equal(p.S.viewStyle1, '1');
@@ -560,7 +560,7 @@ test('the screen editor: with several graphs a chip per graph adds the forecast 
   assert.equal(bBody.indexOf('data-g='), -1);
 });
 
-test('the screen editor: a graph that would make the screens show a sixth metric is a greyed-out chip, and the line under the chips says why', () => {
+test('the screen editor: a graph that would make the screens show a sixth metric is a greyed-out chip; a tap on it says why', () => {
   const M = require('../src/pkjs/screens.js');
   // Default draws Graph 1's four series; Flick 1 has no forecast graph. Long would add cloud and
   // pressure (six), Sky cloud alone (five, on the spare row).
@@ -572,18 +572,20 @@ test('the screen editor: a graph that would make the screens show a sixth metric
   p.tapAction('openScreen', 1);
   const body = () => p.editor().querySelector('[data-se-body]').innerHTML;
   assert.deepEqual(editorAddChips(body()).filter((c) => /^(Graph 1|Long|Sky)/.test(c)), ['Graph 1', 'Long (off)', 'Sky']);
-  assert.ok(body().indexOf(ui.chip('Long', { disabled: true }, { icon: 'plus' })) !== -1, 'no action on it');
-  assert.equal(editorAddNote(body()), 'The watch can show 5 metrics across all your screens. In use: Precipitation %,'
-    + ' UV Index, Wind speed, Wind gusts. Long also needs Cloud cover % and Air pressure (hPa). To make room, turn off a line'
-    + ' in one of your graphs.');
-  // A greyed-out graph is never put on, whatever asks for it.
+  assert.ok(body().indexOf(ui.chip('Long', { 'data-se': 'add', 'data-k': 'fc', 'data-g': 1, 'aria-disabled': 'true' },
+    { icon: 'plus', dim: true })) !== -1, 'greyed out, still a tap');
+  assert.equal(body().indexOf('The watch can show 5 metrics'), -1, 'no note under the chips: the Graphs tab explains the limit');
+  // A tap on it says why and adds nothing.
+  const toast = p.editor().querySelector('[data-se-toast]');
   p.tapEditor({ se: 'add', k: 'fc', g: 1 });
   assert.equal(M.idxOf(M.screensOf(p.S, EMERY)[1], 'fc'), -1);
+  assert.equal(toast.textContent, 'Long also needs Cloud cover % and Air pressure (hPa): that makes 6 metrics on your'
+    + ' screens. The watch can show 5.');
+  assert.equal(toast.className, 'toast show');
   // Sky fits: on it goes, the fifth series.
   p.tapEditor({ se: 'add', k: 'fc', g: 2 });
   assert.equal(p.S.viewStyle1, '3');
   assert.match(editorRows(body()).pop(), /^Sky · /);
-  assert.equal(editorAddNote(body()), '', 'no graph chips left, no note');
 });
 
 test('the page: Show on in a graph\'s dialog puts the graph on a screen or takes it off', async () => {
