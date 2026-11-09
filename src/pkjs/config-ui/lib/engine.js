@@ -2027,10 +2027,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * A section's header note (noteFrom): a display resolver fn(S, env, args) answering a short
-   * text for the right of its card's header ("4/5"), the words a screen reader says for it
-   * (label) and the info text (HTML) its '?' shows at the top of the card. The '?' is drawn
-   * whatever the page's info mode (infoIconsOn): a note is kept short so it asks for little
-   * attention, and what it means always waits behind it.
+   * text for the right of its card's header ("4/5 metrics active"), the words a screen reader
+   * says for it (label) and the info text (HTML) its '?' shows at the top of the card. The '?'
+   * is drawn whatever the page's info mode (infoIconsOn): a note is kept short so it asks for
+   * little attention, and what it means always waits behind it.
    * @param {Object} sec The section.
    * @param {Object} cx Render context.
    * @returns {?{text: string, label: string, info: string}} The note, or null for none.

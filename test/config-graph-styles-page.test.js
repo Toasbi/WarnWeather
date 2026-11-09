@@ -5,7 +5,7 @@
 // settings as Save stores them, the Your graphs card (a plain row per graph, renamed in place with
 // OK; New graph from a template or as a copy; the Show on row; Delete with Undo), the screen
 // editor's Graph dropdown and its sheet (your graphs, and a copy of the screen's), and the
-// five-series limit with its count in the card's header ("4/5" and its '?'). The module first,
+// five-series limit with its count in the card's header ("4/5 metrics active" and its '?'). The module first,
 // then the REAL generated page (test/helpers/page-harness.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -558,71 +558,73 @@ function headerNote(html) {
   return m ? { text: m[1], label: m[2], open: m[4] === 'true' } : null;
 }
 
-// What the note's '?' says after the metrics in use (metricsNote).
+// What the note's '?' says after the metrics active (metricsNote).
 const COUNTS = '<p class="intro-more">The graphs on your screens can show 5 metrics between them, up to 4 in one graph.'
   + ' A metric in two graphs counts once, or twice when one draws it as a line and the other as a stripe. Temperature,'
   + ' the rain bars and a graph no screen shows don&#39;t count.</p>';
 
-test('the page: Your graphs\' header counts the metrics the screens use, "2/5"; its \'?\' says which and what counts', () => {
+test('the page: Your graphs\' header counts the metrics the screens use, "2/5 metrics active"; its \'?\' says which', () => {
   // Graph 1 draws the rain chance on the Default; Long the rain chance too and the cloud stripe
   // on Flick 1: the rain chance counts once.
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
   let html = p.scroll.innerHTML;
-  // The number only, on the title's right (the owner's, 2026-11-09); what it means waits.
-  assert.deepEqual(headerNote(html), { text: '2/5', label: '2 of 5 metrics in use', open: false });
-  assert.equal(html.indexOf('In use:'), -1);
+  // The count and what it counts, on the title's right (the owner's, 2026-11-09); what it
+  // means waits behind the '?'.
+  assert.deepEqual(headerNote(html), { text: '2/5 metrics active', label: '2 of 5 metrics active', open: false });
+  assert.equal(html.indexOf('Active:'), -1);
   p.toggleInfo('n:graphs:graphStyle/0');
   html = p.scroll.innerHTML;
   assert.equal(headerNote(html).open, true);
-  const info = '<div class="intro">In use: Precipitation %, Cloud cover % (stripe).' + COUNTS + '</div>';
-  assert.ok(html.indexOf(info) !== -1, 'the metrics in use, then what counts');
+  const info = '<div class="intro">Active: Precipitation %, Cloud cover % (stripe).' + COUNTS + '</div>';
+  assert.ok(html.indexOf(info) !== -1, 'the metrics active, then what counts');
   assert.ok(html.indexOf(info) < html.indexOf('<div class="gl-lead">'), 'first in the card');
   p.toggleInfo('n:graphs:graphStyle/0');
-  assert.equal(p.scroll.innerHTML.indexOf('In use:'), -1, 'the \'?\' again hides it');
+  assert.equal(p.scroll.innerHTML.indexOf('Active:'), -1, 'the \'?\' again hides it');
   // It follows the screens: Long off Flick 1 draws Graph 1 there, and a graph no screen shows
   // does not count.
   p.tapAction('pickGraph', 2);
   p.tapAction('graphOnScreen', 1);
   assert.equal(p.S.viewStyle1, '1');
-  assert.equal(headerNote(p.scroll.innerHTML).text, '1/5');
+  assert.equal(headerNote(p.scroll.innerHTML).text, '1/5 metrics active');
   // And the lines: a third metric on Long while it is back on Flick 1.
   p.tapAction('graphOnScreen', 1);
   p.openEditSheet('lineThird');
   p.pickOption('fourthLine', 'gust');
   p.doneDialog();
   assert.equal(p.S.fourthLine, 'gust');
-  assert.equal(headerNote(p.scroll.innerHTML).text, '3/5');
+  assert.equal(headerNote(p.scroll.innerHTML).text, '3/5 metrics active');
   // The same on a page with every info text behind a '?' (Hide info text).
   const hidden = bootGeneratedPage(Object.assign({}, TWO, { hideInfoText: true }), 'emery');
   hidden.clickTab('graphs');
-  assert.deepEqual(headerNote(hidden.scroll.innerHTML), { text: '2/5', label: '2 of 5 metrics in use', open: false });
+  assert.deepEqual(headerNote(hidden.scroll.innerHTML), { text: '2/5 metrics active', label: '2 of 5 metrics active',
+    open: false });
   // A watch without graphs of its own has no card, so no count.
   const b = bootGeneratedPage(TWO, 'basalt');
   b.clickTab('graphs');
   assert.equal(b.scroll.innerHTML.indexOf('hdr-note'), -1);
 });
 
-test('the metrics count: a line and a stripe of one metric count twice; all five in use says how to make room', () => {
+test('the metrics count: a line and a stripe of one metric count twice; all five active says how to make room', () => {
   const note = PC.displayResolvers.get('graphMetricsNote');
   assert.equal(note, GSP.metricsNote, 'the Your graphs card\'s note');
   const both = layout(['1', '2'], { secondaryLine: 'cloud', secondaryLineStyle: 'line', thirdLine: 'off', fourthLine: 'off',
     fifthLine: 'off', graphStyles: stylesItem({ secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop' }) });
-  assert.deepEqual(note(both, EMERY), { text: '2/5', label: '2 of 5 metrics in use',
-    info: 'In use: Cloud cover %, Cloud cover % (stripe).' + COUNTS });
+  assert.deepEqual(note(both, EMERY), { text: '2/5 metrics active', label: '2 of 5 metrics active',
+    info: 'Active: Cloud cover %, Cloud cover % (stripe).' + COUNTS });
   const full = layout(['1', '2'], { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust',
     graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' }) });
-  assert.deepEqual(note(full, EMERY), { text: '5/5', label: '5 of 5 metrics in use',
-    info: 'In use: Precipitation %, UV Index, Wind speed, Wind gusts, Cloud cover %. To make room, turn off a line in one of'
+  assert.deepEqual(note(full, EMERY), { text: '5/5 metrics active', label: '5 of 5 metrics active',
+    info: 'Active: Precipitation %, UV Index, Wind speed, Wind gusts, Cloud cover %. To make room, turn off a line in one of'
       + ' your graphs.' + COUNTS });
-  // No screen with a forecast graph: nothing in use.
+  // No screen with a forecast graph: nothing active.
   const none = layout(['1'], { viewBody0: 'none' });
-  assert.deepEqual(note(none, EMERY), { text: '0/5', label: '0 of 5 metrics in use',
+  assert.deepEqual(note(none, EMERY), { text: '0/5 metrics active', label: '0 of 5 metrics active',
     info: 'No screen shows a forecast graph yet.' + COUNTS });
   // While the pane shows another graph (the swap), the count is the stored settings'.
   const W = Object.assign({}, full);
   GSP.swapIn(W, 1);
-  assert.equal(note(W, EMERY).text, '5/5');
+  assert.equal(note(W, EMERY).text, '5/5 metrics active');
   assert.equal(note(full, BASALT), null, 'a watch without graphs of its own');
 });
 

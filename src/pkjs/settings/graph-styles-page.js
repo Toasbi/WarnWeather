@@ -33,8 +33,8 @@
 // and stripes": a forecast line's metric or style on a shown graph (LIMIT), a screen of the Show
 // on row (limitNote: the rule, what the screens use, what the graph adds) and in the screen
 // editor a graph or template that would join the screens (limitDesc). A graph no screen shows
-// is free. The Your graphs card's header counts what the screens use, "4/5", with which ones and
-// what counts behind its '?' (metricsNote, the section's noteFrom).
+// is free. The Your graphs card's header counts what the screens use, "4/5 metrics active", with
+// which ones and what counts behind its '?' (metricsNote, the section's noteFrom).
 //
 // Dual-context: a CommonJS module in the tests; in the webview a concatenated <script> after
 // graph-styles.js and screens.js (scripts/build-config-page.js APP_FILES) and ahead of
@@ -482,10 +482,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The Your graphs card's note (section noteFrom 'graphMetricsNote'; the owner's pick,
-     * 2026-11-09: only the number, what it means behind a '?'): how many of the watch's five
-     * metric rows the graphs on the screens use between them, "4/5", and behind its '?' which
-     * ones and what counts (THE LIMIT), with how to make room once all five are in use.
+     * The Your graphs card's note (section noteFrom 'graphMetricsNote'; the owner's picks,
+     * 2026-11-09: the count with a word on what it counts, what it means behind a '?'): how
+     * many of the watch's five metric rows the graphs on the screens use between them, "4/5
+     * metrics active", and behind its '?' which ones and what counts (THE LIMIT), with how to
+     * make room once all five are active.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {?{text: string, label: string, info: string}} null where the watch has no graph styles
@@ -495,9 +496,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var N = normalize(S), inUse = seriesUnion(N, env, GS.stylesShown(N, env)).map(seriesName);
         var used = inUse.length;
         return {
-            text: used + '/' + GS.ROWS,
-            label: used + ' of ' + GS.ROWS + ' metrics in use',
-            info: esc((used ? 'In use: ' + inUse.join(', ') + '.' : 'No screen shows a forecast graph yet.')
+            text: used + '/' + GS.ROWS + ' metrics active',
+            label: used + ' of ' + GS.ROWS + ' metrics active',
+            info: esc((used ? 'Active: ' + inUse.join(', ') + '.' : 'No screen shows a forecast graph yet.')
                 + (used >= GS.ROWS ? ' To make room, turn off a line in one of your graphs.' : ''))
                 + '<p class="intro-more">' + esc('The graphs on your screens can show ' + GS.ROWS + ' metrics between'
                 + ' them, up to ' + GS.TRENDS + ' in one graph. A metric in two graphs counts once, or twice when one'
