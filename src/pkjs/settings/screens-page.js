@@ -71,7 +71,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var NO_ROOM_FOR_CLOCK = ' has no room for the clock, which the top screen always shows.';
     // Why Add a screen greys out a preset.
     var ALREADY = 'You already have this screen.';
-    var NO_GRAPH_ROOM = 'It needs a new graph, and you have 3 already. Delete one on the Graphs tab.';
+    var NO_GRAPH_ROOM = 'It needs a new graph, and you have ' + GS.MAX_STYLES + ' already. Delete one on the Graphs tab.';
     // How to reorder, under the Screens card's screens and the screen editor's rows; "Drag ≡" kept
     // on one line (a no-break space).
     var REORDER_HINT = 'Each flick shows the next one. Drag\u00a0≡ to change the order.';

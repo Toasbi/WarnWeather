@@ -179,7 +179,10 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // The v2 fields (sizes, top-graph kind, Position) ride their own ADDITIVE fields
     // (packExt, 0..0x7FFF) rather than widening customView*: an ingest that predates
     // them strips unknown keys, but a known field failing validation 400s the batch.
-    var customExt = customCycle ? customCycle.map(viewCycle.packExt) : null;
+    // The graph styles in the watch's slots (graph-styles.js wireCycle), as the watch is sent them.
+    var customExt = customCycle
+        ? graphStyles.wireCycle(safe, env, customCycle).map(function (v) { return viewCycle.packExt(v); })
+        : null;
     // --- the Nighttime card's gates, resolved once for the fields below ---------
     // Dim backlight is HARDWARE-gated, not only setting-gated: the red tint is
     // light_set_color_rgb888() and emery is the only watch with the LED

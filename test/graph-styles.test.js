@@ -59,14 +59,32 @@ test('the governed keys: setup\'s look keys, the shading, the length and every g
     'forecastAxisScale', 'largeGraphFont']);
 });
 
+/**
+ * @param {Array} head The first entries.
+ * @param {*} fill What the rest hold.
+ * @returns {Array} head, filled up to GS.MAX_STYLES entries
+ */
+function upToMax(head, fill) {
+  return head.concat(Array(GS.MAX_STYLES - head.length).fill(fill));
+}
+
 test('parse: the names and the styles, the first always the flat keys; a bad item is none', () => {
-  assert.deepEqual(GS.parse({}), { names: ['', '', ''], styles: [null, null, null] });
-  assert.deepEqual(GS.parse({ graphStyles: '{not json' }), { names: ['', '', ''], styles: [null, null, null] });
-  assert.deepEqual(GS.parse({ graphStyles: '[1,2]' }).styles, [null, null, null], 'an array is no item');
+  assert.equal(GS.MAX_STYLES, 6, 'six graphs to switch between');
+  const none = { names: upToMax([], ''), styles: upToMax([], null) };
+  assert.deepEqual(GS.parse({}), none);
+  assert.deepEqual(GS.parse({ graphStyles: '{not json' }), none);
+  assert.deepEqual(GS.parse({ graphStyles: '[1,2]' }).styles, none.styles, 'an array is no item');
   const S = { graphStyles: stylesItem({ forecastHours: '48' }, null, ['Mine', 'Long', 7]) };
-  assert.deepEqual(GS.parse(S), { names: ['Mine', 'Long', ''], styles: [null, { forecastHours: '48' }, null] });
-  assert.deepEqual(GS.parse({ graphStyles: { styles: [{ x: 1 }, 'no', { y: 2 }] } }).styles, [null, null, { y: 2 }],
-    'an object item reads too; the first slot is never a style of its own');
+  assert.deepEqual(GS.parse(S), { names: upToMax(['Mine', 'Long'], ''),
+    styles: upToMax([null, { forecastHours: '48' }], null) }, 'an item stored with three slots reads');
+  assert.deepEqual(GS.parse({ graphStyles: { styles: [{ x: 1 }, 'no', { y: 2 }] } }).styles,
+    upToMax([null, null, { y: 2 }], null), 'an object item reads too; the first slot is never a style of its own');
+  const six = { graphStyles: JSON.stringify({ names: upToMax([], ''),
+    styles: [null, {}, {}, {}, {}, { forecastHours: '12' }, { forecastHours: '24' }] }) };
+  assert.equal(GS.count(six), 6, 'six styles');
+  assert.equal(GS.exists(six, 5), true);
+  assert.equal(GS.exists(six, 6), false, 'none past the sixth');
+  assert.equal(GS.name(six, 5), 'Graph 6');
   assert.equal(GS.count({}), 1);
   assert.equal(GS.count(S), 2);
   assert.equal(GS.count({ graphStyles: stylesItem(null, {}) }), 2, 'style 3 without style 2');
@@ -98,6 +116,35 @@ test('wireCycle: a view keeps its style only on a watch with styles, where the s
   [BASALT, UNKNOWN].forEach((env) =>
     assert.deepEqual(GS.wireCycle(S, env, cycle).map((v) => v.graphStyle || 0), [0, 0, 0], env.platform));
   assert.equal(cycle[1].graphStyle, 1, 'the cycle itself is left as it was');
+});
+
+test('slotsFor: a shown style 1 to 3 keeps its slot, a style 4 to 6 takes a free one', () => {
+  assert.deepEqual(GS.slotsFor([0, 1, 2]), { 0: 0, 1: 1, 2: 2 }, 'three graphs or fewer: as before');
+  assert.deepEqual(GS.slotsFor([1]), { 1: 1 });
+  assert.deepEqual(GS.slotsFor([0, 4, 5]), { 0: 0, 4: 1, 5: 2 });
+  assert.deepEqual(GS.slotsFor([1, 3]), { 1: 1, 3: 0 }, 'the first slot is free');
+  assert.deepEqual(GS.slotsFor([2, 4, 5]), { 2: 2, 4: 0, 5: 1 });
+  assert.deepEqual(GS.slotsFor([3, 4, 5]), { 3: 0, 4: 1, 5: 2 });
+  assert.deepEqual(GS.slotsFor([0, 1, 2, 3]), { 0: 0, 1: 1, 2: 2 }, 'never more than the watch keeps');
+  assert.deepEqual(GS.slotsFor([]), {});
+});
+
+test('wireCycle: graphs 4 to 6 reach the watch in the slots the shown graphs leave free', () => {
+  const six = JSON.stringify({ names: ['', '', '', '', '', ''], styles: [null, {}, {}, {}, {}, {}] });
+  const S = layout(['1', '5', '6'], { graphStyles: six });
+  const cycle = VC.resolveViewCycle(S, EMERY);
+  assert.deepEqual(cycle.map((v) => v.graphStyle || 0), [0, 4, 5], 'the compiler carries the graph');
+  assert.deepEqual(GS.stylesShown(S, EMERY), [0, 4, 5], 'shown, by graph');
+  const wired = GS.wireCycle(S, EMERY, cycle);
+  assert.deepEqual(wired.map((v) => v.graphStyle || 0), [0, 1, 2], 'sent, by slot');
+  assert.deepEqual(wired.map((v) => VC.packExt(v) >> 9), [0, 1, 2], 'the view words name the slots');
+  assert.equal(cycle[1].graphStyle, 4, 'the cycle itself is left as it was');
+  const two = layout(['2', '4'], { graphStyles: six });
+  assert.deepEqual(GS.wireCycle(two, EMERY, VC.resolveViewCycle(two, EMERY)).map((v) => v.graphStyle || 0),
+    [1, 0], 'graph 4 takes the first slot, which no shown graph needs');
+  assert.deepEqual(GS.wireCycle(S, BASALT, VC.resolveViewCycle(S, BASALT)).map((v) => v.graphStyle || 0),
+    [0, 0, 0], 'no styles off emery');
+  assert.equal(VC.packExt(cycle[2]) >> 9, 0, 'a spec still naming graph 6 packs the first slot, never another');
 });
 
 test('the view word carries the style on emery only, and only on a view with the forecast', () => {
@@ -188,12 +235,14 @@ test('the write helpers: a style\'s values, the item written back, a free slot, 
   assert.equal(two.forecastHours, '48');
   assert.equal(two.thirdLine, 'uv', 'a key the style holds no value of: the first style\'s');
   assert.deepEqual(Object.keys(two).filter((k) => !GS.GOVERNED.includes(k)), [], 'governed keys only');
-  assert.equal(GS.freeSlot(S), -1, 'three styles: no slot');
+  assert.equal(GS.freeSlot(S), 3, 'three styles: the fourth is free');
+  const full = { graphStyles: JSON.stringify({ names: upToMax([], ''), styles: [null, {}, {}, {}, {}, {}] }) };
+  assert.equal(GS.freeSlot(full), -1, 'six styles: no slot');
   const moved = Object.assign({}, S);
   assert.deepEqual(GS.deleteStyle(moved, 1), [1], 'the screen that drew it');
   assert.equal(moved.viewStyle1, '1', 'draws the first style');
   assert.equal(moved.viewStyle2, '3', 'style 3 keeps its slot');
-  assert.deepEqual(GS.parse(moved).names, ['', '', 'Cloudy'], 'the name goes with it');
+  assert.deepEqual(GS.parse(moved).names, upToMax(['', '', 'Cloudy'], ''), 'the name goes with it');
   assert.equal(GS.freeSlot(moved), 1);
   assert.equal(GS.name(moved, 2), 'Cloudy');
   assert.deepEqual(GS.deleteStyle(moved, 0), [], 'never the first style');
@@ -201,10 +250,12 @@ test('the write helpers: a style\'s values, the item written back, a free slot, 
   // deletes it again stores what it had.
   GS.deleteStyle(moved, 2);
   assert.equal(moved.graphStyles, '');
-  assert.equal(GS.withName({}, 0, 'Mine'), JSON.stringify({ names: ['Mine', '', ''], styles: [null, null, null] }),
+  assert.equal(GS.withName({}, 0, 'Mine'), JSON.stringify({ names: upToMax(['Mine'], ''), styles: upToMax([], null) }),
     'a name alone is kept');
   const w = GS.withStyle({}, 2, { forecastHours: '12' });
-  assert.deepEqual(GS.parse({ graphStyles: w }).styles, [null, null, { forecastHours: '12' }]);
+  assert.deepEqual(GS.parse({ graphStyles: w }).styles, upToMax([null, null, { forecastHours: '12' }], null));
+  const w6 = GS.withStyle({}, 5, { forecastHours: '24' });
+  assert.deepEqual(GS.parse({ graphStyles: w6 }).styles[5], { forecastHours: '24' }, 'the sixth style is stored');
   assert.equal(GS.withStyle({ graphStyles: w }, 0, { x: 1 }), w, 'the first style has no stored values');
 });
 

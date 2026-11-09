@@ -281,7 +281,7 @@ test('the page: Your graphs lists each graph with its picture, where it shows, i
     assert.equal(html.indexOf(gone), -1, gone + ': the dialog\'s, not the list\'s'));
   assert.ok(html.indexOf('<button type="button" class="ui-row ui-new" data-action="newGraph">') !== -1,
     'New graph while a slot is free');
-  assert.ok(html.indexOf('<span class="ui-n">New graph</span><span class="ui-d">2 of 3 graphs</span>') !== -1, 'its count');
+  assert.ok(html.indexOf('<span class="ui-n">New graph</span><span class="ui-d">2 of 6 graphs</span>') !== -1, 'its count');
   // A watch without graphs of its own: its one graph, untitled, named Forecast graph.
   const b = bootGeneratedPage(TWO, 'basalt');
   b.clickTab('graphs');
@@ -293,13 +293,14 @@ test('the page: Your graphs lists each graph with its picture, where it shows, i
   one.clickTab('graphs');
   assert.equal(rows(one.scroll.innerHTML).length, 1);
   assert.ok(one.scroll.innerHTML.indexOf('<div class="gl-lead">New graph gives a screen a graph of its own.</div>') !== -1);
-  assert.ok(one.scroll.innerHTML.indexOf('<span class="ui-n">New graph</span><span class="ui-d">1 of 3 graphs</span>') !== -1);
-  // Three graphs: why there is no New graph.
-  const full = bootGeneratedPage(Object.assign({}, TWO, { graphStyles: stylesItem({ forecastHours: '48' }, { forecastHours: '12' }) }),
-    'emery');
+  assert.ok(one.scroll.innerHTML.indexOf('<span class="ui-n">New graph</span><span class="ui-d">1 of 6 graphs</span>') !== -1);
+  // Six graphs: why there is no New graph.
+  const full = bootGeneratedPage(Object.assign({}, TWO, { graphStyles: JSON.stringify({ names: [],
+    styles: [null, { forecastHours: '48' }, { forecastHours: '12' }, {}, {}, {}] }) }), 'emery');
   full.clickTab('graphs');
+  assert.equal(rows(full.scroll.innerHTML).length, 6, 'a row per graph');
   assert.equal(full.scroll.innerHTML.indexOf('ui-new'), -1);
-  assert.ok(full.scroll.innerHTML.indexOf('You have 3 graphs, the most there can be. Delete one to make another.') !== -1);
+  assert.ok(full.scroll.innerHTML.indexOf('You have 6 graphs, the most there can be. Delete one to make another.') !== -1);
 });
 
 test('a row\'s room: the graph\'s free lines, and on a graph the screens show no more than their five metrics leave', () => {
@@ -395,7 +396,7 @@ test('the page: Revert puts every graph back, the pick too', () => {
   assert.equal(p.S.graphStyles, TWO.graphStyles, 'Long as it was');
 });
 
-test('the page: New graph from a template opens the new graph\'s dialog, its name ready to type; a fourth is not offered', async () => {
+test('the page: New graph from a template opens the new graph\'s dialog, its name ready to type; a seventh is not offered', async () => {
   const WF = require('../src/pkjs/settings/wizard-forecast.js');
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
@@ -429,7 +430,8 @@ test('the page: New graph from a template opens the new graph\'s dialog, its nam
   assert.equal(GS.name(p.S, 2), 'Weekend', 'named as it is made');
   p.doneDialog();
   const html = p.scroll.innerHTML;
-  assert.equal(html.indexOf('data-action="newGraph"'), -1, 'three graphs: no New graph');
+  assert.ok(html.indexOf('<span class="ui-n">New graph</span><span class="ui-d">3 of 6 graphs</span>') !== -1,
+    'three graphs: room for three more');
   assert.deepEqual(rows(html).map((x) => x[1]), ['Graph 1', 'Long', 'Weekend']);
   assert.match(rows(html)[2][2], /^\d+ h · No screen$/, 'a new graph is on no screen yet');
   const blob = await p.save();
@@ -451,6 +453,8 @@ test('the page: New graph as a copy of a graph; a renamed graph keeps its defaul
   const S = layout(['1'], { graphStyles: stylesItem({ forecastHours: '48' }, null, ['', 'Graph 3', '']) });
   assert.equal(GSP.createGraph(S, 'classic', EMERY), 2);
   assert.equal(GS.name(S, 2), 'Graph 2');
+  assert.deepEqual([3, 4, 5].map(() => GSP.createGraph(S, 'classic', EMERY)), [3, 4, 5], 'up to six graphs');
+  assert.deepEqual([3, 4, 5].map((k) => GS.name(S, k)), ['Graph 4', 'Graph 5', 'Graph 6']);
   assert.equal(GSP.createGraph(S, 'classic', EMERY), -1, 'no free slot');
   assert.equal(GSP.createGraph(layout(['1']), 'nothing', EMERY), -1, 'no such template');
   assert.equal(GSP.createGraph(layout(['1']), 'copy3', EMERY), -1, 'no such graph');

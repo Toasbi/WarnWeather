@@ -120,7 +120,7 @@
     }
 
     /**
-     * Graph styles 2 and 3 (graph-styles.js, Pebble Time 2) hold their own values of the
+     * Graph styles 2 to 6 (graph-styles.js, Pebble Time 2) hold their own values of the
      * graph's settings inside the graphStyles item, a JSON string: each style converts as the
      * flat keys do (the rain bars' colour mode is the one such key), so a theme pick, and the
      * auto switch's night copy, flips every style. The item is rewritten only when a style

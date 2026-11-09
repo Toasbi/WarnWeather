@@ -283,10 +283,11 @@ test('a preset whose graph is one of yours already uses it; on the screen too, i
 });
 
 test('no free graph slot, or a graph that would make too many lines: the preset is greyed out with the reason', () => {
-  // Graphs 2 and 3 taken by graphs no preset reads as.
+  // Graphs 2 to 6 taken by graphs no preset reads as.
   const odd = { forecastHours: '12', secondaryLine: 'wind' };
   const full = withScreens(EMERY, [M.screensOf(fresh(EMERY), EMERY)[0]], {
-    graphStyles: JSON.stringify({ names: ['', '', ''], styles: [null, odd, Object.assign({}, odd, { thirdLine: 'uv' })] })
+    graphStyles: JSON.stringify({ names: [], styles: [null].concat(['uv', 'cloud', 'gust', 'dew_point', 'pressure']
+      .map((m) => Object.assign({}, odd, { thirdLine: m }))) })
   });
   const byId = (S) => SP.addChoices(S, EMERY).reduce((o, c) => { o[c.id] = c.why; return o; }, {});
   const whyFull = byId(full);

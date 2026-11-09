@@ -4,13 +4,23 @@
 //
 // THE MODEL. Style 1 is the flat keys every reader already reads (secondaryLine, barSource,
 // forecastHours, the gc* colours ...), so an install without styles has one, its own graph,
-// and nothing migrates. Styles 2 and 3 live in one hidden settings item, graphStyles, a JSON
+// and nothing migrates. Styles 2 to 6 live in one hidden settings item, graphStyles, a JSON
 // string: {"names": ["", "Long", ""], "styles": [null, {...}, null]}, each extra style
 // an object of the GOVERNED keys' values (style 1's slot is always null: the flat keys hold
-// it). A screen names its style in the per-view key viewStyle<i> ('1' | '2' | '3';
-// view-cycle.js buildCustomCycle puts it in the view word's ext bits 9-10, screens.js carries
-// it on the forecast block). settingsFor(S, k) is THE reading of a style: the settings with
-// style k's values laid over the flat keys, for every packer, preview and picture.
+// it). A screen names its style in the per-view key viewStyle<i> ('1' to '6';
+// view-cycle.js buildCustomCycle puts it on the view's spec as graphStyle, its index, and
+// screens.js carries it on the forecast block). settingsFor(S, k) is THE reading of a style:
+// the settings with style k's values laid over the flat keys, for every packer, preview and
+// picture.
+//
+// THE WATCH'S SLOTS. The watch keeps three styles (WATCH_SLOTS: three records, a 2-bit code
+// in the view word's ext bits 9-10), one per screen at most, while the phone keeps up to six
+// to switch between. Only the styles the screens show reach the watch (see ONLY WHAT IS SHOWN
+// COUNTS below), and three screens show three at most, so each gets a slot (slotsFor): a shown
+// style 1 to 3 keeps its own slot, so a setup with three graphs or fewer sends what it sent
+// before there could be more, and a shown style 4 to 6 takes a slot no shown style needs.
+// wireCycle writes the slots into the views the watch is sent; graph-style-wire.js sends each
+// record in its slot.
 //
 // WHAT A STYLE HOLDS (GOVERNED): everything in a graph's dialog (Graphs › Forecast) that draws
 // the graph — the four lines' metric and style, the Draw from keys, the Main metric's fill, the
@@ -47,8 +57,13 @@
     var drawFrom = node ? require('./draw-from.js') : window.DrawFrom;
     var forecastAxis = node ? require('./forecast-axis.js') : window.ForecastAxis;
 
-    // At most three styles, one per screen at most.
-    var MAX_STYLES = 3;
+    // At most six styles to switch between; the screens show three of them at most.
+    var MAX_STYLES = VC.GRAPH_STYLES;
+    // The watch's style slots: three records and the view word's codes 0 to 2 (src/c/windows/
+    // layout.h view_ext_graph_style), one per screen.
+    var WATCH_SLOTS = VC.GRAPH_STYLE_SLOTS;
+    // The view slots that name a style (viewStyle0..2: screens.js MAX_SCREENS).
+    var SCREENS = 3;
     // A style's lines, each one of the trends SECOND..FIFTH (src/c/appendix/series.h).
     var TRENDS = lineStyle.FORECAST_LINES.length;
     // The weather message's metric rows: the four lines' trends and the spare
@@ -89,9 +104,9 @@
     }
 
     /**
-     * The graphStyles item read: the three names ('' when unnamed) and the styles, the first
+     * The graphStyles item read: the six names ('' when unnamed) and the styles, the first
      * always null (the flat keys hold it), another null when it does not exist. A malformed
-     * item reads as no extra styles.
+     * item reads as no extra styles; an item stored before there were six reads its own.
      * @param {?Object} S Settings.
      * @returns {{names: string[], styles: Array<?Object>}}
      */
@@ -121,7 +136,7 @@
 
     /**
      * @param {?Object} S Settings.
-     * @returns {number} how many styles exist, 1 to 3
+     * @returns {number} how many styles exist, 1 to MAX_STYLES
      */
     function count(S) {
         var styles = parse(S).styles, n = 1;
@@ -204,7 +219,7 @@
      * The graphStyles item with style k's values replaced: a copy of `values` (null deletes
      * the style and its name). The first style has no stored values (the flat keys hold it).
      * @param {?Object} S Settings.
-     * @param {number} k A style index, 1 or 2.
+     * @param {number} k A style index, 1 to MAX_STYLES - 1.
      * @param {?Object} values Its governed values, or null.
      * @returns {string} The item to store.
      */
@@ -232,7 +247,8 @@
 
     /**
      * @param {?Object} S Settings.
-     * @returns {number} the first style slot without a style (1 or 2), -1 with three styles
+     * @returns {number} the first style index without a style (1 to MAX_STYLES - 1), -1 with
+     *   MAX_STYLES styles
      */
     function freeSlot(S) {
         var styles = parse(S).styles;
@@ -247,14 +263,14 @@
      * style. The other styles keep their slots (a later new style takes the free one).
      * Mutates S.
      * @param {Object} S Settings.
-     * @param {number} k A style index, 1 or 2.
+     * @param {number} k A style index, 1 to MAX_STYLES - 1.
      * @returns {number[]} the view slots that drew it (for an Undo)
      */
     function deleteStyle(S, k) {
         var moved = [];
         if (!(k > 0 && k < MAX_STYLES)) { return moved; }
         S.graphStyles = withStyle(S, k, null);
-        for (var i = 0; i < MAX_STYLES; i++) {
+        for (var i = 0; i < SCREENS; i++) {
             if (S['viewStyle' + i] === String(k + 1)) {
                 S['viewStyle' + i] = '1';
                 moved.push(i);
@@ -262,21 +278,25 @@
         }
         return moved;
     }
+    /**
+     * @param {?Object} v A compiled view.
+     * @returns {boolean} whether it draws the forecast graph (the body, or the top band's graph)
+     */
     function hasForecast(v) {
         return Boolean(v) && (v.body === VC.BODY_FC
             || (v.top === VC.TOP_GRAPH && (v.topKind || 0) === VC.TOP_KIND_FORECAST));
     }
 
     /**
-     * A view cycle with each view's graph style as the watch draws it: dropped on a watch
-     * without styles (only emery has them: env.graphStyles) and where the style does not exist.
-     * A view that changes is a copy; the rest are the cycle's own.
+     * A view cycle with each view's graph style as the watch draws it, still by style index:
+     * dropped on a watch without styles (only emery has them: env.graphStyles) and where the
+     * style does not exist. A view that changes is a copy; the rest are the cycle's own.
      * @param {?Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Array<?Object>} cycle view-cycle.js resolveViewCycle (or screensCycle) result.
      * @returns {Array<?Object>}
      */
-    function wireCycle(S, env, cycle) {
+    function drawnCycle(S, env, cycle) {
         var on = Boolean(env && env.graphStyles);
         var styles = parse(S).styles;
         return cycle.map(function (v) {
@@ -288,21 +308,70 @@
     }
 
     /**
+     * The styles a cycle's forecast graphs draw (drawnCycle's), ascending.
+     * @param {Array<?Object>} drawn drawnCycle's result.
+     * @returns {number[]}
+     */
+    function shownIn(drawn) {
+        var out = [];
+        drawn.forEach(function (v) {
+            if (!hasForecast(v)) { return; }
+            var k = v.graphStyle || 0;
+            if (out.indexOf(k) === -1) { out.push(k); }
+        });
+        return out.sort(function (a, b) { return a - b; });
+    }
+
+    /**
+     * The watch slot each shown style draws from (see THE WATCH'S SLOTS above): a style below
+     * WATCH_SLOTS keeps its own, the others take the free ones in order. A style past the
+     * slots (more shown than the watch keeps, which three screens cannot show) gets none.
+     * @param {number[]} shown The shown styles, ascending (stylesShown).
+     * @returns {Object<string, number>} style index -> slot
+     */
+    function slotsFor(shown) {
+        var out = {}, taken = [], next = 0;
+        shown.forEach(function (k) {
+            if (k < WATCH_SLOTS) { out[k] = k; taken.push(k); }
+        });
+        shown.forEach(function (k) {
+            if (k < WATCH_SLOTS) { return; }
+            while (taken.indexOf(next) !== -1) { next++; }
+            if (next < WATCH_SLOTS) { out[k] = next; taken.push(next); }
+        });
+        return out;
+    }
+
+    /**
+     * A view cycle as the watch is sent it: each view's graph style as the watch draws it
+     * (drawnCycle) in its watch slot (slotsFor), the first slot by no field at all. A view that
+     * changes is a copy; the rest are the cycle's own.
+     * @param {?Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Array<?Object>} cycle view-cycle.js resolveViewCycle (or screensCycle) result.
+     * @returns {Array<?Object>}
+     */
+    function wireCycle(S, env, cycle) {
+        var drawn = drawnCycle(S, env, cycle);
+        var slots = slotsFor(shownIn(drawn));
+        return drawn.map(function (v) {
+            if (!v || !v.graphStyle || slots[v.graphStyle] === v.graphStyle) { return v; }
+            var c = VC.cloneSpec(v);
+            if (slots[v.graphStyle]) { c.graphStyle = slots[v.graphStyle]; } else { delete c.graphStyle; }
+            return c;
+        });
+    }
+
+    /**
      * The styles the screens' forecast graphs draw, off the views the watch runs
-     * (resolveViewCycle, through wireCycle), ascending. [0] on a watch without styles while a
+     * (resolveViewCycle, through drawnCycle), ascending. [0] on a watch without styles while a
      * screen shows the forecast; [] while none does.
      * @param {?Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {number[]}
      */
     function stylesShown(S, env) {
-        var out = [];
-        wireCycle(S, env, VC.resolveViewCycle(S || {}, env)).forEach(function (v) {
-            if (!hasForecast(v)) { return; }
-            var k = v.graphStyle || 0;
-            if (out.indexOf(k) === -1) { out.push(k); }
-        });
-        return out.sort(function (a, b) { return a - b; });
+        return shownIn(drawnCycle(S, env, VC.resolveViewCycle(S || {}, env)));
     }
 
     /**
@@ -411,6 +480,7 @@
 
     var api = {
         MAX_STYLES: MAX_STYLES,
+        WATCH_SLOTS: WATCH_SLOTS,
         TRENDS: TRENDS,
         ROWS: ROWS,
         GOVERNED: GOVERNED,
@@ -428,6 +498,7 @@
         freeSlot: freeSlot,
         deleteStyle: deleteStyle,
         hasForecast: hasForecast,
+        slotsFor: slotsFor,
         wireCycle: wireCycle,
         stylesShown: stylesShown,
         stylesSent: stylesSent,

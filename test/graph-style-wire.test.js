@@ -127,6 +127,28 @@ test('another style\'s record: its own hours, look and rows, no palette without 
   assert.equal(rec.length, GS.PALETTE, 'no rain bars: no palette');
 });
 
+test('graphs 4 to 6: each shown graph\'s record rides in its view words\' slot', () => {
+  const S = styled(['1', '5', '6'], null, null, {
+    graphStyles: JSON.stringify({ names: ['', '', '', '', '', ''],
+      styles: [null, { forecastHours: '12' }, { forecastHours: '12' }, null, LONG, { forecastHours: '12' }] }) });
+  const payload = buildClayPayload(S, EMERY, NOW);
+  assert.deepEqual([payload.CLAY_VIEW_0, payload.CLAY_VIEW_1, payload.CLAY_VIEW_2]
+    .map((w) => (Math.floor(w / 65536) >> 9) & 3), [0, 1, 2], 'graphs 1, 5 and 6 in slots 1 to 3');
+  assert.equal(payload.CLAY_GRAPH_STYLE_1_UINT8[GS.HOURS], 24, 'the first graph: 24 h');
+  assert.equal(payload.CLAY_GRAPH_STYLE_2_UINT8[GS.HOURS], 68, 'graph 5 (LONG): the long span');
+  assert.equal(payload.CLAY_GRAPH_STYLE_3_UINT8[GS.HOURS], 14, 'graph 6: the 12 h option');
+  assert.deepEqual(payload.CLAY_GRAPH_STYLE_2_UINT8.slice(GS.MAP, GS.INSETS), [1, 3, 0, 0],
+    'graph 5\'s rows: the rain chance shared, cloud on a free row');
+  // Graphs 2 and 3 exist but no screen shows them: graph 4 alone beside the first.
+  const four = styled(['4', '1'], null, null, {
+    graphStyles: JSON.stringify({ names: [], styles: [null, {}, {}, LONG] }) });
+  const p4 = buildClayPayload(four, EMERY, NOW);
+  assert.equal((Math.floor(p4.CLAY_VIEW_0 / 65536) >> 9) & 3, 1, 'graph 4 in the slot the first graph leaves');
+  assert.equal(p4.CLAY_GRAPH_STYLE_2_UINT8[GS.HOURS], 68);
+  assert.equal(p4.CLAY_GRAPH_STYLE_1_UINT8[GS.HOURS], 24, 'the first graph in its own');
+  assert.deepEqual(p4.CLAY_GRAPH_STYLE_3_UINT8, [], 'a slot no shown graph takes is cleared');
+});
+
 test('the scale rows: every feels-like and dew point row, while the scale option is on', () => {
   const two = Object.assign({}, LONG, { fourthLine: 'feels' });
   const on = styled(['1', '2'], two, null, { forecastAxisScale: true, fifthLine: 'dew' });

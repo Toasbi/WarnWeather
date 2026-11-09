@@ -2,13 +2,15 @@
 // styles (Pebble Time 2, src/pkjs/graph-styles.js) on the wire: each shown style's record on
 // the Clay message, and the settings the weather bake reads, the shown styles' union.
 //
-// THE RECORDS (buildStyleTuples, CLAY_GRAPH_STYLE_1..3_UINT8). While a screen shows a style
-// other than the first, every shown style rides one packed tuple, its record: the look the
-// other Clay tuples carry for the first style, built by the same packers on the style's
-// settings (graph-wire.js), plus its hours and the row each of its lines reads. A style no
-// screen shows gets an empty tuple, which clears it on the watch; with only the first style
-// shown all three are empty, and the watch draws the flat tuples' look on every screen, as
-// before graph styles. Known emery only (env.graphStyles): an unknown watch could be an aplite,
+// THE RECORDS (buildStyleTuples, CLAY_GRAPH_STYLE_1..3_UINT8, the watch's three slots). While
+// a screen shows a style other than the first, every shown style rides one packed tuple, its
+// record, in the slot its screens' view words name (graph-styles.js slotsFor: a style 1 to 3
+// in its own, a style 4 to 6 in a slot no shown style needs): the look the other Clay tuples
+// carry for the first style, built by the same packers on the style's settings
+// (graph-wire.js), plus its hours and the row each of its lines reads. A slot no shown style
+// takes gets an empty tuple, which clears it on the watch; with only the first style shown
+// all three are empty, and the watch draws the flat tuples' look on every screen, as before
+// graph styles. Known emery only (env.graphStyles): an unknown watch could be an aplite,
 // whose 536 B inbox has no room for them. Layout in lockstep with src/c/appendix/graph_style.h,
 // pinned by test/graph-style-wire.test.js and test/c/graph_style_test.c:
 //   [0]      hours: the hours the style draws (forecast-span.js hours)
@@ -154,7 +156,8 @@ function packRecord(settings, k, u, watchInfo) {
 
 /**
  * The three record tuples for one watch (see THE RECORDS above): {} for a watch without
- * graph styles, else a record per style whose record rides and an empty tuple for the rest.
+ * graph styles, else the record of each style whose record rides in its slot and an empty
+ * tuple in the rest.
  * @param {Object} settings Clay settings.
  * @param {?Object} watchInfo Pebble.getActiveWatchInfo() result, or null.
  * @returns {Object<string, number[]>}
@@ -164,9 +167,13 @@ function buildStyleTuples(settings, watchInfo) {
     if (!env.graphStyles) { return {}; }
     var u = unionOf(settings, env);
     var out = {};
-    KEYS.forEach(function (key, k) {
-        out[key] = (u && u.styles.indexOf(k) !== -1) ? packRecord(settings, k, u, watchInfo) : [];
-    });
+    KEYS.forEach(function (key) { out[key] = []; });
+    if (u) {
+        var slots = graphStyles.slotsFor(u.styles);
+        u.styles.forEach(function (k) {
+            if (slots[k] !== undefined) { out[KEYS[slots[k]]] = packRecord(settings, k, u, watchInfo); }
+        });
+    }
     return out;
 }
 

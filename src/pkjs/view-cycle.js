@@ -44,9 +44,18 @@ var SIZE_CODE = { '2': SIZE_2, '3': SIZE_3, '4': SIZE_4, fill: SIZE_FILL };
 // 0 = the clock's ink centred on the screen midline (Middle when the view has no clock).
 var ALIGN_CLOCK = 0, ALIGN_TOP = 1, ALIGN_CENTER = 2, ALIGN_BOTTOM = 3;
 var ALIGN_CODE = { clock: ALIGN_CLOCK, top: ALIGN_TOP, center: ALIGN_CENTER, bottom: ALIGN_BOTTOM };
-// A screen's graph style (the viewStyle key: '1' | '2' | '3', Pebble Time 2,
-// src/pkjs/graph-styles.js) → the ext word's graphStyle field. '1', the first style, is code 0.
-var GRAPH_STYLE_CODE = { '2': 1, '3': 2 };
+// A screen's graph style (the viewStyle key: '1' to '6', Pebble Time 2,
+// src/pkjs/graph-styles.js MAX_STYLES) → the spec's graphStyle field, the style's index: '1',
+// the first style, is none. The view word carries the watch's slot for it instead (0..2, ext
+// bits 9-10), which graph-styles.js wireCycle writes into the specs the watch is sent.
+var GRAPH_STYLES = 6;
+var GRAPH_STYLE_CODE = {};
+(function () {
+  for (var k = 1; k < GRAPH_STYLES; k++) { GRAPH_STYLE_CODE[String(k + 1)] = k; }
+})();
+// The view word's codes for the watch's style slots (layout.h view_ext_graph_style: code 3
+// reads as the first).
+var GRAPH_STYLE_SLOTS = 3;
 
 /**
  * Build a view spec object.
@@ -194,8 +203,8 @@ function unpackSpec(v) {
  * sizes only on a radar/graph top and on a present body; topKind only on a graph top;
  * one fill per view (both → the body fills, the top takes its 3-row default); align only
  * while no band fills; a graph style (Pebble Time 2, src/pkjs/graph-styles.js) only on a view
- * with a forecast graph, 1 or 2 (0 = the first style; the watch reads code 3 as 0 too,
- * layout.h view_ext_graph_style).
+ * with a forecast graph, the style's index 1 to 5 (0 = the first style), or once wireCycle has
+ * put the watch's slot there, 1 or 2 (packExt sends a slot only).
  * @param {!Object} s view spec
  * @returns {{topKind:number,topSize:number,bodySize:number,align:number,graphStyle:number,
  *            fill:boolean}}
@@ -214,8 +223,8 @@ function extFields(s) {
   var fill = bodyFills || topSize === SIZE_FILL;
   if (fill) { align = ALIGN_CLOCK; }
   var forecastGraph = s.body === BODY_FC || (s.top === TOP_GRAPH && topKind === TOP_KIND_FORECAST);
-  var graphStyle = (s.graphStyle || 0) & 3;
-  if (graphStyle === 3 || !forecastGraph) { graphStyle = 0; }
+  var graphStyle = s.graphStyle || 0;
+  if (!(graphStyle > 0 && graphStyle < GRAPH_STYLES) || !forecastGraph) { graphStyle = 0; }
   return { topKind: topKind, topSize: topSize, bodySize: bodySize, align: align,
            graphStyle: graphStyle, fill: fill };
 }
@@ -224,7 +233,9 @@ function extFields(s) {
  * Pack a spec's ext fields into the 16-bit ext word — the HIGH half of the 32-bit
  * CLAY_VIEW_n tuple (the watch's config_wire.c reads it off the int32; aplite ignores
  * it). Bit layout (LSB→MSB): bodySize(0-2) | topSize(3-5) | topKind(6) | align(7-8) |
- * graphStyle(9-10, Pebble Time 2: layout.h view_ext_graph_style) | the upper row a bar 4 to
+ * graphStyle(9-10, Pebble Time 2: layout.h view_ext_graph_style, the watch's slot: a spec
+ * still naming a style past the slots packs the first, graph-styles.js wireCycle maps them)
+ * | the upper row a bar 4 to
  * 6 (11) | the lower row one (12) (Pebble Time 2: layout.h VIEW_EXT_UPPER_BAR_HI);
  * 13-15 reserved (bit 15 stays clear so the whole wire word stays a positive int32).
  * Every field is 0 in its seat's default, so a preset (no fields) packs to 0.
@@ -235,7 +246,7 @@ function packExt(s) {
   if (!s) { return 0; }
   var e = extFields(s);
   return (e.bodySize & 7) | ((e.topSize & 7) << 3) | ((e.topKind & 1) << 6) | ((e.align & 3) << 7)
-       | ((e.graphStyle & 3) << 9)
+       | ((e.graphStyle < GRAPH_STYLE_SLOTS ? e.graphStyle : 0) << 9)
        | (s.statusUpper > STATUS_SRC_HEALTH ? EXT_UPPER_BAR_HI : 0)
        | (s.statusLower > STATUS_SRC_HEALTH ? EXT_LOWER_BAR_HI : 0);
 }
@@ -1033,7 +1044,7 @@ var VIEW_CYCLE = {
   BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR, BODY_NONE: BODY_NONE,
   SIZE_DEFAULT: SIZE_DEFAULT, SIZE_2: SIZE_2, SIZE_3: SIZE_3, SIZE_4: SIZE_4, SIZE_FILL: SIZE_FILL,
   SIZE_CODE: SIZE_CODE, TOP_SIZE_NAME: TOP_SIZE_NAME, BODY_SIZE_NAME: BODY_SIZE_NAME,
-  GRAPH_STYLE_CODE: GRAPH_STYLE_CODE,
+  GRAPH_STYLE_CODE: GRAPH_STYLE_CODE, GRAPH_STYLES: GRAPH_STYLES, GRAPH_STYLE_SLOTS: GRAPH_STYLE_SLOTS,
   ALIGN_CLOCK: ALIGN_CLOCK, ALIGN_TOP: ALIGN_TOP, ALIGN_CENTER: ALIGN_CENTER,
   ALIGN_BOTTOM: ALIGN_BOTTOM, ALIGN_CODE: ALIGN_CODE,
   STATUS_SRC_NONE: STATUS_SRC_NONE, STATUS_SRC_FORECAST: STATUS_SRC_FORECAST,

@@ -246,3 +246,8 @@ grid class from that count, as above.
   hours than were sent relabels its high and low over its own hours, on the 24-slot grid too.
 - The weather message keeps its shape: 14, 24, 26 or 68 hours and the six trends. The styles
   share the four metric trends, and each record maps its lines onto them.
+- (2026-11-09, the owner's ask: more graphs to switch between) The phone keeps up to six styles.
+  The watch still keeps three slots, the records and the 2-bit view code: only the shown styles
+  are sent, three screens show three at most, and the phone puts each in a slot
+  (`graph-styles.js` `slotsFor`; a shown style 1 to 3 keeps its own, so three graphs or fewer
+  send what they did before). The watch side did not change.
