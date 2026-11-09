@@ -17,7 +17,7 @@ test('ITEMS: the ten items in priority order, system info first', () => {
   assert.deepEqual(OD.BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health', 'bar4', 'bar5', 'bar6']);
   assert.deepEqual(OD.BLOB_BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health']);
   assert.deepEqual(OD.PAGE_BARS.map((b) => b.name),
-    ['Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Bar 4', 'Bar 5', 'Bar 6']);
+    ['Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Status bar 4', 'Status bar 5', 'Status bar 6']);
   assert.deepEqual(OD.BARS.map((b) => b.prefix).slice(4), ['statusBar4', 'statusBar5', 'statusBar6']);
   assert.deepEqual(OD.SIDES, ['left', 'right']);
   assert.equal(OD.itemsKey('top', 'left'), 'statusTopOnDemandLeftItems');

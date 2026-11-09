@@ -57,7 +57,7 @@
   ];
   var BLOB_BARS = BARS.slice();
   VC.EXTRA_BARS.forEach(function (b, i) {
-    BARS.push({bar: b.bar, prefix: b.prefix, name: 'Bar ' + (i + 4)});
+    BARS.push({bar: b.bar, prefix: b.prefix, name: 'Status bar ' + (i + 4)});
   });
   var EXTRA_BARS = BARS.slice(BLOB_BARS.length);
   // The same bars in the page's order, the Status bars tab's (the owner, 2026-10-01), bars 4

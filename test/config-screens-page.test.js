@@ -20,7 +20,7 @@ const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const ui = require('../src/pkjs/config-ui/lib/ui.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const { blankBar, slotsOf } = require('./helpers/status-slots.js');
-const { editorRows, editorRow, sheetTitle, sheetOptions } = require('./helpers/page-rows.js');
+const { editorRows, editorAddChips, editorRow, sheetTitle, sheetOptions } = require('./helpers/page-rows.js');
 
 const PC = global.PConf;
 const BASALT = platform.computeEnv({ platform: 'basalt' });
@@ -328,9 +328,8 @@ test('a new install: the Default screen alone; + Add screen\'s Blank opens the e
   assert.ok(editorRow(ed.body, 0).indexOf('<span class="se-grip off" aria-hidden="true"></span><div class="se-mid">'
     + '<span class="se-name">Watch bar</span></div>') !== -1, 'the Watch bar has no handle and nothing to pick');
   assert.ok(ed.body.indexOf('aria-label="Remove Clock"') !== -1, 'a flick screen may drop its Clock');
-  assert.deepEqual((ed.body.match(/class="ui-chip" data-se="add" data-k="[^"]*"><svg[\s\S]*?<\/svg>[^<]*</g) || [])
-    .map((x) => x.replace(/^[\s\S]*<\/svg>|<$/g, '')),
-    ['Calendar', 'Forecast bar', 'Radar bar', 'Health bar', 'Forecast graph', 'Rain radar', 'Health graph']);
+  assert.deepEqual(editorAddChips(ed.body), ['Calendar', 'Status bar', 'Forecast graph', 'Rain radar', 'Health graph'],
+    'the bars through one chip, in their place');
   assert.ok(ed.body.endsWith('</div><button type="button" class="ui-del" data-se="delscreen">Delete screen</button>'),
     'Delete screen: the page\'s one Delete, last, under the card');
   page.tapEditor({ se: 'close' });
@@ -341,7 +340,8 @@ test('+ Health bar on a new screen draws the bar\'s default readings, not an emp
   const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, BLANK_HEALTH));
   page.tapAction('addScreen');
   page.tapEditor({ se: 'pick', id: 'blank' });
-  page.tapEditor({ se: 'add', k: 'healthbar' });
+  page.tapEditor({ se: 'addbar' });
+  page.pickOption('screenAddBar', 'healthbar');
   const pic = /<span class="se-pic-card"[\s\S]*?<\/span><\/div>/.exec(editorOf(page).body)[0];
   assert.match(pic, />6\.2k</, 'steps');
   assert.match(pic, />7h12</, 'sleep');
@@ -390,7 +390,8 @@ test('the editor: a row\'s dropdown opens its picker; a pick, a move, a ✕ and 
     'Forecast graph · 3 rows']);
   page.tapEditor({ se: 'rm', j: 2 });
   assert.deepEqual(editorRows(editorOf(page).body), ['Watch bar', 'Calendar · 3 rows', 'Clock', 'Forecast graph · 3 rows']);
-  page.tapEditor({ se: 'add', k: 'fcbar' });
+  page.tapEditor({ se: 'addbar' });
+  page.pickOption('screenAddBar', 'fcbar');
   assert.deepEqual(editorRows(editorOf(page).body), ['Watch bar', 'Calendar · 3 rows', 'Clock', 'Forecast bar',
     'Forecast graph · 3 rows'], 'at its natural place: above the bottom graph');
   // Each edit is on the page at once: the Screens card under the editor follows.
@@ -407,6 +408,36 @@ function grip(j) {
   g.closest = (sel) => (sel === '[data-grip]' ? g : null);
   return g;
 }
+
+test('+ Status bar: one Add chip opens the picker of your bars; a pick puts the bar at a bar\'s place', () => {
+  const page = bootGeneratedPage(THREE);
+  page.tapAction('openScreen', 1);
+  let body = editorOf(page).body;
+  // One chip for the bars, in their place: after the calendar, before the graphs.
+  assert.deepEqual(editorAddChips(body), ['Calendar', 'Status bar', 'Forecast graph', 'Rain radar']);
+  assert.ok(body.indexOf(ui.chip('Status bar', { 'data-se': 'addbar', 'aria-haspopup': 'dialog' }, { icon: 'plus' })) !== -1);
+  // The picker: your bars by name, what each holds and where it shows; the one this screen
+  // shows already greyed out. No New status bar on a watch without bars 4 to 6.
+  page.tapEditor({ se: 'addbar' });
+  assert.ok(page.editor(), 'the editor stays under the picker');
+  assert.equal(sheetTitle(page, 'screenAddBar'), 'Add a status bar');
+  const opts = sheetOptions(page);
+  assert.deepEqual(opts.map((o) => o.replace(/ \(.*$/, '')), ['Forecast bar', 'Health bar', 'Radar bar']);
+  assert.match(opts[0], /^Forecast bar \(.+ · on Default\)$/);
+  assert.equal(opts[1], 'Health bar (off: Already on this screen)');
+  assert.match(opts[2], /^Radar bar \(.+ · on Flick 2\)$/);
+  // A greyed-out bar is never taken, whatever asks for it.
+  page.pickOption('screenAddBar', 'healthbar');
+  assert.deepEqual(M.screensOf(page.S, BASALT)[1].map((x) => x.k), ['strip', 'clock', 'healthbar', 'health']);
+  // A pick: the bar above the bottom graph, the editor repainted as the picker closes.
+  page.tapEditor({ se: 'addbar' });
+  page.pickOption('screenAddBar', 'radarbar');
+  assert.deepEqual(M.screensOf(page.S, BASALT)[1].map((x) => x.k), ['strip', 'clock', 'healthbar', 'radarbar', 'health']);
+  body = editorOf(page).body;
+  assert.deepEqual(editorRows(body), ['Watch bar', 'Clock', 'Health bar', 'Radar bar', 'Health graph · Fill']);
+  // Two bars: a screen's most, so no chip.
+  assert.deepEqual(editorAddChips(body), ['Calendar', 'Forecast graph']);
+});
 
 test('the editor\'s rows, option B: what a row lets you pick is a dropdown, a bar has Edit; nothing folds or shows twice', () => {
   const page = bootGeneratedPage(THREE);

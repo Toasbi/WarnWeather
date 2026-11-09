@@ -27,7 +27,7 @@
 // user called it, else its place's (NAMES: Default, Flick 1, Flick 2), so a screen moved to
 // the top reads as the Default until it is named. nameOf is THE reading, for every label. A
 // status bar's name is the page's own too (<prefix>Name, on-demand.js BARS' prefix): what the
-// user called it, else its kind's (Forecast bar, Radar bar, Health bar, Bar 4 ...); barName reads
+// user called it, else its kind's (Forecast bar, Radar bar, Health bar, Status bar 4 ...); barName reads
 // it, and blockName names any row by it. The Watch bar is one for every screen and keeps its name.
 //
 // THE MODES. radarMode and healthMode are no longer picked: deriveModes works them out from

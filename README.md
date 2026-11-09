@@ -66,7 +66,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 **Status bars**
 * Configurable status slots on every screen: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more; in the settings page, tap a slot in a bar's picture on the Status bars tab to change it
 * Your status bars by name: besides the Watch bar, three status bars you fill and name as you like (Status bars tab › Your status bars, which also says which screens show each bar; tap a bar's name to rename it); put any of them on any screen, picked by name in the screen's editor (not on Pebble Classic/Steel)
-* Up to six status bars on Pebble Time 2: *New status bar* makes an empty one for you to fill and name, so every screen can have two of its own; delete one and the screens that showed it drop it (Status bars tab › New status bar, or *New status bar* in a screen's editor)
+* Up to six status bars on Pebble Time 2: *New status bar* makes an empty one for you to fill and name, so every screen can have two of its own; delete one and the screens that showed it drop it (Status bars tab › New status bar, or a screen's editor › + Status bar › New status bar)
 * Selectable date format for the date slot — German/European, US, ISO, and spelled-out-month styles, chosen separately for screens with a calendar (month + year) and without one (full date)
 * Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
 * Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set (not on Pebble Classic/Steel)

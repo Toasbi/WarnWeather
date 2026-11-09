@@ -16,7 +16,7 @@ global.localStorage = {
 
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const ui = require('../src/pkjs/config-ui/lib/ui.js');
-const { editorBody: body, editorRows, sheetTitle } = require('./helpers/page-rows.js');
+const { editorBody: body, editorRows, sheetTitle, sheetOptions } = require('./helpers/page-rows.js');
 const M = require('../src/pkjs/screens.js');
 const VC = require('../src/pkjs/view-cycle.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
@@ -221,15 +221,17 @@ test('the editor: a bar row reads by its name, with its Edit and nothing else be
   page.tapEditor({ se: 'close' });
   // The same bar on Flick 1 too: where else it shows is the Status bars tab's to say, not the row's.
   page.tapAction('openScreen', 1);
-  page.tapEditor({ se: 'add', k: 'fcbar' });
+  page.tapEditor({ se: 'addbar' });
+  page.pickOption('screenAddBar', 'fcbar');
   assert.ok(editorRows(body(page)).indexOf('Morning') !== -1, editorRows(body(page)).join(' | '));
   assert.equal(body(page).indexOf('Also on'), -1);
   page.tapEditor({ se: 'close' });
   page.tapAction('openScreen', 0);
   assert.equal(body(page).indexOf('Also on'), -1);
-  // "Add" offers each bar by its name, a calm chip with a plus.
+  // + Status bar's picker offers each bar by its name.
   page.tapEditor({ se: 'rm', j: 3 });
-  assert.match(body(page), /<button type="button" class="ui-chip" data-se="add" data-k="fcbar"><svg class="ui-ic"[^>]*>[\s\S]*?<\/svg>Morning<\/button>/);
+  page.tapEditor({ se: 'addbar' });
+  assert.deepEqual(sheetOptions(page).map((o) => o.replace(/ \(.*$/, '')), ['Morning', 'Health bar', 'Radar bar']);
 });
 
 test('the editor: a bar row\'s Edit opens the bar\'s dialog over the editor, which stays under it', () => {

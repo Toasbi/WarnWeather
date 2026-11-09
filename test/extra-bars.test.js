@@ -177,21 +177,21 @@ test('the bake sends the line of a bar 4 to 6 a screen shows, on a Pebble Time 2
   assert.equal(forecastSeries.needsPollen(made, { platform: 'basalt' }), false);
 });
 
-test('New status bar makes the next free bar empty, called "Bar <n>" unless another bar has that name', () => {
+test('New status bar makes the next free bar empty, called "Status bar <n>" unless another bar has that name', () => {
   // Stale values a hand-edited blob could hold: New status bar clears them all.
   const S = { statusBar4Left: 'uv', statusBar4MidCountdown: '2026-12-24', statusBar4OnDemandLeftItems: 'bt' };
   assert.equal(screens.makeBar(S, EMERY), 'bar4');
   assert.equal(S.statusBar4Made, true);
   assert.equal(S.statusBar4Name, '', 'its own name');
-  assert.equal(screens.barName(S, 'bar4'), 'Bar 4');
+  assert.equal(screens.barName(S, 'bar4'), 'Status bar 4');
   assert.deepEqual([S.statusBar4Left, S.statusBar4Mid, S.statusBar4Right], ['empty', 'empty', 'empty'], 'empty');
   assert.equal(S.statusBar4MidCountdown, undefined, 'no countdown date');
   assert.equal(S.statusBar4OnDemandLeftItems, '', 'no alerts');
   assert.ok(screens.screensOf(S, EMERY).every((l) => screens.idxOf(l, 'bar4') === -1), 'on no screen');
-  // Another bar called "Bar 5": the next one takes a number.
-  S.statusForecastName = 'Bar 5';
+  // Another bar called "Status bar 5": the next one takes a number.
+  S.statusForecastName = 'Status bar 5';
   assert.equal(screens.makeBar(S, EMERY), 'bar5');
-  assert.equal(S.statusBar5Name, 'Bar 5 2');
+  assert.equal(S.statusBar5Name, 'Status bar 5 2');
   assert.equal(screens.makeBar(S, EMERY), 'bar6');
   assert.equal(screens.makeBar(S, EMERY), null, 'six bars: none left');
   assert.equal(screens.makeBar({}, BASALT), null, 'a watch without bars 4 to 6');
@@ -259,7 +259,7 @@ test('on-demand.js: a bar 4 to 6 exists where a screen shows it, so an item plac
   assert.equal(OD.telemetryCode(S, EMERY).length, 40, 'telemetry keeps the four bars');
   assert.deepEqual(OD.BLOB_BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health']);
   assert.deepEqual(OD.PAGE_BARS.map((b) => b.name),
-    ['Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Bar 4', 'Bar 5', 'Bar 6']);
+    ['Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Status bar 4', 'Status bar 5', 'Status bar 6']);
 });
 
 test('the render signature signs the slots of a bar 4 to 6 a screen shows, on a Pebble Time 2', () => {

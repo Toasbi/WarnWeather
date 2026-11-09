@@ -8,7 +8,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
-const { editorBody } = require('./helpers/page-rows.js');
+const { editorBody, editorAddChips, sheetOptions } = require('./helpers/page-rows.js');
 
 // One custom screen, the Watch bar, the Clock, the Forecast bar and the forecast graph.
 const ONE_SCREEN = { provider: 'dwd', layoutPreset: 'custom', viewCount: '1', viewTop0: 'none',
@@ -41,7 +41,7 @@ function barLine(html, bar) {
   return html.slice(start, html.indexOf('</button></div>', go) + '</button></div>'.length);
 }
 
-test('New status bar on the Your status bars card: an empty "Bar 4" at once, its dialog open with the name field ready', () => {
+test('New status bar on the Your status bars card: an empty "Status bar 4" at once, its dialog open with the name field ready', () => {
   const page = statusTab();
   let html = page.scroll.innerHTML;
   assert.ok(html.indexOf('<button type="button" class="ui-row ui-new" data-action="newBar">') !== -1, 'the New status bar row');
@@ -49,20 +49,20 @@ test('New status bar on the Your status bars card: an empty "Bar 4" at once, its
   assert.equal(barLine(html, 'bar4'), '', 'no bar 4 before New status bar');
   page.tapAction('newBar');
   assert.equal(page.S.statusBar4Made, true, 'bar 4 made');
-  assert.equal(page.S.statusBar4Name, '', 'its own name: "Bar 4"');
+  assert.equal(page.S.statusBar4Name, '', 'its own name: "Status bar 4"');
   assert.deepEqual([page.S.statusBar4Left, page.S.statusBar4Mid, page.S.statusBar4Right], ['empty', 'empty', 'empty'],
     'empty: no templates');
   // Its dialog, the name field ready (OK where Done was).
   const dlg = page.modal.innerHTML;
-  assert.ok(dlg.indexOf('<span class="ssel-modal-ttl sr-only" id="esheet-ttl-bar-bar4">Bar 4</span>') !== -1, 'bar 4\'s dialog');
-  assert.ok(dlg.indexOf('aria-label="Status bar name" placeholder="Bar 4" value="Bar 4">') !== -1, 'the name field, ready');
+  assert.ok(dlg.indexOf('<span class="ssel-modal-ttl sr-only" id="esheet-ttl-bar-bar4">Status bar 4</span>') !== -1, 'bar 4\'s dialog');
+  assert.ok(dlg.indexOf('aria-label="Status bar name" placeholder="Status bar 4" value="Status bar 4">') !== -1, 'the name field, ready');
   assert.ok(dlg.indexOf('data-dlg-rename-ok>OK</button>') !== -1);
   // Delete status bar: the page's one Delete, under the Slots card as the editor's Delete screen.
   assert.ok(dlg.indexOf('</div></div><button type="button" class="ui-del" data-action="deleteBar" data-action-arg="bar4">'
     + 'Delete status bar</button>') !== -1, 'Delete status bar, under the card');
   // The list shows it at once, on no screen yet.
   html = page.scroll.innerHTML;
-  assert.ok(barLine(html, 'bar4').indexOf('<span class="ui-n">Bar 4</span><span class="ui-d">No screen</span>') !== -1);
+  assert.ok(barLine(html, 'bar4').indexOf('<span class="ui-n">Status bar 4</span><span class="ui-d">No screen</span>') !== -1);
   assert.ok(html.indexOf('<span class="ui-d">4 of 6 status bars</span>') !== -1, 'the count follows');
   // A name typed and OK: the bar is called that.
   page.typeName('[data-dlg-rename-in]', 'Commute');
@@ -73,13 +73,13 @@ test('New status bar on the Your status bars card: an empty "Bar 4" at once, its
   assert.ok(barLine(page.scroll.innerHTML, 'bar4').indexOf('<span class="ui-n">Commute</span>') !== -1, 'listed by it');
 });
 
-test('a new bar\'s name is its own "Bar <n>", unless another bar has it', () => {
-  const page = statusTab({ statusForecastName: 'Bar 4' });
+test('a new bar\'s name is its own "Status bar <n>", unless another bar has it', () => {
+  const page = statusTab({ statusForecastName: 'Status bar 4' });
   page.tapAction('newBar');
-  assert.equal(page.S.statusBar4Name, 'Bar 4 2', 'the Forecast bar is called Bar 4 already');
+  assert.equal(page.S.statusBar4Name, 'Status bar 4 2', 'the Forecast bar is called Status bar 4 already');
   page.doneDialog();
   page.tapAction('newBar');
-  assert.equal(page.S.statusBar5Name, '', 'Bar 5 is free');
+  assert.equal(page.S.statusBar5Name, '', 'Status bar 5 is free');
 });
 
 test('six bars: the New status bar row gives way to a note', () => {
@@ -134,33 +134,37 @@ test('a New status bar made while a Delete status bar\'s Undo shows drops the Un
   page.tapAction('newBar');
   page.doneDialog();
   assert.equal(page.S.statusBar4Made, true, 'New status bar takes the freed bar 4');
-  assert.equal(page.S.statusBar4Name, '', 'as Bar 4');
+  assert.equal(page.S.statusBar4Name, '', 'as Status bar 4');
   assert.equal(page.scroll.innerHTML.indexOf('Wind bar deleted.'), -1, 'the Undo line goes');
   page.tapAction('undoDeleteBar');
   assert.equal(page.S.statusBar4Name, '', 'a stale Undo changes nothing');
   assert.equal(page.S.statusBar4Left, 'empty');
 });
 
-test('the screen editor: + New status bar puts an empty bar on the screen and opens its dialog', () => {
+test('the screen editor: New status bar in + Status bar\'s picker puts an empty bar on the screen and opens its dialog', () => {
   const page = statusTab();
   page.tapAction('openScreen', 0);
   let ed = editorBody(page);
-  assert.match(ed, /<button type="button" class="ui-chip" data-se="newbar"><svg class="ui-ic"[^>]*>[\s\S]*?<\/svg>New status bar<\/button>/,
-    '+ New status bar, a calm chip');
-  page.tapEditor({ se: 'newbar' });
+  assert.ok(editorAddChips(ed).indexOf('Status bar') !== -1, '+ Status bar');
+  page.tapEditor({ se: 'addbar' });
+  const sheet = page.modal.innerHTML;
+  assert.match(sheet, /class="ssel-opt add" role="option" aria-selected="false" data-select-pick="new" data-k="screenAddBar">/,
+    'New status bar, a plus row, after your bars');
+  assert.equal(sheetOptions(page).pop(), '+ New status bar (An empty status bar, for this screen)');
+  page.pickOption('screenAddBar', 'new');
   assert.equal(page.S.statusBar4Made, true);
   assert.deepEqual([page.S.statusBar4Left, page.S.statusBar4Mid, page.S.statusBar4Right], ['empty', 'empty', 'empty']);
   assert.ok([page.S.viewUpper0, page.S.viewLower0].indexOf('bar4') !== -1, 'on the screen: '
     + page.S.viewUpper0 + '/' + page.S.viewLower0);
   let dlg = page.modal.innerHTML;
-  assert.ok(dlg.indexOf('value="Bar 4">') !== -1 && dlg.indexOf('data-dlg-rename-ok') !== -1, 'its dialog, name field ready');
+  assert.ok(dlg.indexOf('value="Status bar 4">') !== -1 && dlg.indexOf('data-dlg-rename-ok') !== -1, 'its dialog, name field ready');
   page.enterRename('Commute');
   assert.equal(page.S.statusBar4Name, 'Commute');
   page.doneDialog();
   assert.ok(page.editor(), 'back in the editor');
   ed = editorBody(page);
   assert.ok(ed.indexOf('<span class="se-name">Commute</span>') !== -1, 'the editor shows the new name');
-  assert.equal(ed.indexOf('data-se="newbar"'), -1, 'two bars on the screen: no room for a third');
+  assert.equal(ed.indexOf('data-se="addbar"'), -1, 'two bars on the screen: no room for a third');
   // A new bar's row is a bar's row: its name and its Edit.
   const j = page.window.Screens.screensOf(page.S)[0].findIndex((b) => b.k === 'bar4');
   assert.ok(ed.indexOf('aria-label="Edit Commute"') !== -1 && ed.indexOf('data-se="editbar" data-j="' + j + '"') !== -1);
@@ -194,7 +198,7 @@ test('the Alerts tab: a made bar no screen shows has an inert Shows on row; on a
   sheet = on.modal.innerHTML;
   assert.equal(sheet.indexOf('No screen shows Wind bar'), -1, 'live on a screen');
   // An unmade bar has no row at all.
-  assert.equal(sheet.indexOf('<span class="lbl">Bar 5</span>'), -1);
+  assert.equal(sheet.indexOf('<span class="lbl">Status bar 5</span>'), -1);
 });
 
 test('every other watch: no New status bar, no bar 4 to 6, nothing in the editor', () => {
@@ -204,7 +208,8 @@ test('every other watch: no New status bar, no bar 4 to 6, nothing in the editor
     assert.equal(html.indexOf('data-action="newBar"'), -1, p + ': no New status bar');
     assert.equal(barLine(html, 'bar4'), '', p + ': no bar 4, made or not');
     assert.equal(html.indexOf('That’s the most status bars'), -1, p + ': no note either');
-    page.tapAction('openScreen', 0);
-    assert.equal(editorBody(page).indexOf('data-se="newbar"'), -1, p + ': no + New status bar');
+    page.tapAction('openScreen', 1);
+    page.tapEditor({ se: 'addbar' });
+    assert.equal(page.modal.innerHTML.indexOf('data-select-pick="new"'), -1, p + ': no New status bar in + Status bar\'s picker');
   });
 });

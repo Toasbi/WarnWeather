@@ -7,7 +7,8 @@
 // rows top to bottom, each dragged by its ≡ or moved with the arrow keys, showing what it lets
 // you pick as a dropdown that opens its picker, the calendar's rows, a graph's size and the
 // forecast graph's graph, or a bar's Edit, which opens the bar's dialog; then the Add chips,
-// and Delete screen under the card), the Status bars tab's Your status bars card (each bar's
+// whose one + Status bar opens the picker of your bars and New status bar, and Delete screen
+// under the card), the Status bars tab's Your status bars card (each bar's
 // name, the screens that show it, the alerts placed on it and its picture, whose slots a tap
 // changes, the red arrow in the middle of the row; a tap on the name opens the bar's dialog,
 // schema.js barDialog, which pins the bar's picture; New status bar makes an empty bar and opens
@@ -79,6 +80,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var FC_TOO_SMALL = 'Too small for the high and low temperatures';
     var NO_ROOM = 'Too tall for the watch';
     var FILL = 'All the room the other rows leave';
+    // The editor's + Status bar picker (custom-layout-schema.js: a page-only select): your bars,
+    // then New status bar, whose value is NEW_BAR (never a kind).
+    var ADD_BAR = 'screenAddBar';
+    var NEW_BAR = 'new';
+    var ALREADY_HERE = 'Already on this screen';
     var BARS_FULL = 'That’s the most status bars there can be: the Watch bar and ' + M.MAX_BARS
         + ' more. To make another, delete one you made.';
     // A Delete status bar's Undo while it shows (the Your status bars card).
@@ -605,7 +611,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Where a bar shows, by the screens' names: "On Default and Steps", "On no screen" (under
-     * its picture in its dialog).
+     * its picture in its dialog, its option in + Status bar's picker).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} bar An on-demand.js BARS bar.
@@ -614,6 +620,66 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function barWhere(S, env, bar, cycle) {
         return GSP.onScreens(barPlaces(S, env, bar, cycle).map(function (i) { return M.nameOf(S, i); }));
+    }
+
+    /**
+     * What a bar holds, by its slots' items (preview-status-bars.js barCodes, as its picture
+     * reads them), the empty ones left out: "Temperature/feels like · City · Air quality (AQI)".
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} bar An on-demand.js BARS bar.
+     * @returns {string}
+     */
+    function barHolds(S, env, bar) {
+        var labels = PSB.barCodes(S || {}, env, bar).map(function (c) { return c.code; })
+            .filter(function (c) { return c !== 'empty'; })
+            .map(function (c) { return (catalog.byCode(c) || {}).label || c; });
+        return labels.length ? labels.join(' · ') : 'Nothing in it yet';
+    }
+
+    /**
+     * The editor's + Status bar picker (options resolver 'screenAddBarOptions'; the owner's ask,
+     * 2026-11-09: one Add status bar, then pick which): your bars by name (screens.js yourBars),
+     * each with what it holds and where it shows, one the screen shows already greyed out. While
+     * New status bar can make one for the screen (Pebble Time 2), it follows: an empty bar.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {Array} [label, kind, meta]
+     */
+    function addBarOptions(S, env) {
+        var cycle = VC.screensCycle(S || {}, env), list = M.screensOf(S || {}, env, cycle)[ED.i] || [];
+        var out = M.yourBars(S, env).map(function (bar) {
+            var k = M.KIND_OF_BAR[bar];
+            return [M.barName(S, bar), k, M.idxOf(list, k) >= 0 ? { desc: ALREADY_HERE, disabled: true }
+                : { desc: barHolds(S, env, bar) + ' · ' + barWhere(S, env, bar, cycle).replace(/^On/, 'on') }];
+        });
+        if (M.newBarFor(list, S, env)) { out.push(['New status bar', NEW_BAR, { add: true, desc: 'An empty status bar, for this screen' }]); }
+        return out;
+    }
+
+    /**
+     * + Status bar's pick (onChange 'screenAddBarPicked'): the bar goes onto the screen being
+     * edited, at a bar's place (screens.js add). New status bar makes an empty one first
+     * (makeBar), whose dialog opens with its name field ready once the picker has closed
+     * (ED.made, onClick's 'addbar'). A greyed-out bar is never taken.
+     * @param {Object} S Settings.
+     * @param {*} oldValue The pick before.
+     * @param {string} kind The bar's kind ('fcbar' | 'radarbar' | 'healthbar' | 'bar4' ...), or
+     *   NEW_BAR.
+     * @param {?Object} env Platform env.
+     * @returns {void}
+     */
+    function addBarPicked(S, oldValue, kind, env) {
+        if (!ED.overlay) { return; }
+        var k = String(kind || '');
+        if (!addBarOptions(S, env).some(function (o) { return o[1] === k && !o[2].disabled; })) { return; }
+        if (k === NEW_BAR) {
+            var made = makeBar(S, env);
+            if (!made) { return; }
+            ED.made = made;
+            k = M.KIND_OF_BAR[made];
+        }
+        writeScreen(S, ED.i, M.add(M.screensOf(S, env)[ED.i] || [], k), env);
     }
 
     // ── New status bar and Delete status bar (Pebble Time 2) ────────────────
@@ -626,20 +692,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function barCount(S, env) {
         return M.yourBars(S, env).length + ' of ' + M.MAX_BARS + ' status bars';
-    }
-
-    /**
-     * The editor's + New status bar: an empty bar made (makeBar) and put on the screen being
-     * edited, at a bar's place (screens.js add); then its dialog, its name field ready.
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @returns {void}
-     */
-    function newBarHere(S, env) {
-        var made = makeBar(S, env);
-        if (!made) { return; }
-        commit(M.add(M.screensOf(S, env)[ED.i] || [], M.KIND_OF_BAR[made]));
-        openBar(made, true, M.nameOf(S, ED.i), renderEditor);
     }
 
     /**
@@ -1005,8 +1057,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // The overlay's state: what it shows ('edit' a screen, or 'add': Add a screen), the slot,
     // the row whose Rows or Size picker is open, the snap-back message, the drag in progress,
-    // and the name's input while the title is being renamed.
-    var ED = { overlay: null, mode: 'edit', i: 0, sizeRow: -1, toast: { v: null, t: null }, drag: null, nameEl: null };
+    // the name's input while the title is being renamed, and the bar New status bar made in
+    // + Status bar's picker, whose dialog opens once the picker has closed.
+    var ED = { overlay: null, mode: 'edit', i: 0, sizeRow: -1, toast: { v: null, t: null }, drag: null, nameEl: null,
+        made: null };
 
     /**
      * A size as its dropdown and its picker read it: "2 rows", "Fill".
@@ -1153,13 +1207,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var i = ED.i, cycle = VC.screensCycle(S, env), list = M.screensOf(S, env, cycle)[i] || [];
         var note = !cycle[i] ? NOTHING_YET : !fitsWatch(list, i, env) ? TOO_TALL : '';
         var adds = M.addable(list, env, S).filter(function (k) { return fitsWatch(M.add(list, k), i, env); });
-        // + New status bar (Pebble Time 2): while New status bar can make a bar for this screen and it would fit.
+        // Your status bars come in through one chip, + Status bar, which opens their picker
+        // (addBarOptions), in the bars' place: after the Watch bar, the calendar and the clock,
+        // before the graphs. It shows while a bar of yours, or one New status bar would make
+        // (Pebble Time 2), has room on the screen.
         var free = M.newBarFor(list, S, env);
-        var newBar = Boolean(free) && fitsWatch(M.add(list, free), i, env);
-        var pic = screenPicture(S, i, env, userData, 'se' + i + '-', cycle).svg;
-        var chips = adds.map(function (k) {
+        var bars = adds.some(function (k) { return Boolean(M.BAR_OF_KIND[k]); })
+            || (Boolean(free) && fitsWatch(M.add(list, M.KIND_OF_BAR[free]), i, env));
+        var rest = adds.filter(function (k) { return !M.BAR_OF_KIND[k]; });
+        var chips = rest.map(function (k) {
             return kit.chip(M.blockName({ k: k }, S), { 'data-se': 'add', 'data-k': k }, { icon: 'plus' });
-        }).join('') + (newBar ? kit.chip('New status bar', { 'data-se': 'newbar' }, { icon: 'plus' }) : '');
+        });
+        if (bars) {
+            chips.splice(rest.filter(function (k) { return !M.isGraph({ k: k }); }).length, 0,
+                kit.chip('Status bar', { 'data-se': 'addbar', 'aria-haspopup': 'dialog' }, { icon: 'plus' }));
+        }
+        chips = chips.join('');
+        var pic = screenPicture(S, i, env, userData, 'se' + i + '-', cycle).svg;
         // The page's own card (the engine's .card and header), the Add chips under its rows, and
         // Delete screen under the card, as a dialog's Delete (kit.deleteButton).
         return '<div class="se-pic"><span class="se-pic-card" role="img" aria-label="' + esc(M.nameOf(S, i) + ': ' + contents(list, S))
@@ -1365,9 +1429,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The editor's taps: close, rename, Add a screen's pick, remove, add, a row's dropdown (its
-     * picker) or Edit, New status bar, turn the radar on, delete the screen. A tap a drag ends
-     * in is no tap.
+     * The editor's taps: close, rename, Add a screen's pick, remove, add (+ Status bar: its
+     * picker), a row's dropdown (its picker) or Edit, turn the radar on, delete the screen. A tap
+     * a drag ends in is no tap.
      * @param {MouseEvent} e The click.
      * @returns {void}
      */
@@ -1413,8 +1477,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             ctx.openSheet(GSP.SCREEN_PICK, function () { renderEditor(); });
             return;
         }
-        // + New status bar: an empty bar on this screen, its dialog next (newBarHere).
-        if (act === 'newbar') { newBarHere(S, env); return; }
+        // + Status bar: the picker of your bars opens over the editor, its pick lands through
+        // screenAddBarPicked; a bar New status bar made there opens next, its name field ready.
+        if (act === 'addbar') {
+            S[ADD_BAR] = '';
+            ED.made = null;
+            ctx.openSheet(ADD_BAR, function () {
+                renderEditor();
+                var made = ED.made;
+                ED.made = null;
+                if (made && ED.overlay) { openBar(made, true, M.nameOf(S, ED.i), renderEditor); }
+            });
+            return;
+        }
         // A bar row's Edit: the bar's dialog over the editor, which repaints as it closes.
         if (act === 'editbar') {
             if (list[j] && M.BAR_OF_KIND[list[j].k]) { openBar(M.BAR_OF_KIND[list[j].k], false, M.nameOf(S, ED.i), renderEditor); }
@@ -1720,6 +1795,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             PConf.onChange.register('radarSourcePicked', radarSourcePicked);
             PConf.onChange.register('screenGraphStylePicked', screenStylePicked);
             PConf.onChange.register('screenRowSizePicked', sizePicked);
+            PConf.onChange.register('screenAddBarPicked', addBarPicked);
             PConf.onChange.register('barRenamed', barRenamed);
         }
         // Your status bars by name (screens.js barName): their dialogs' titles and their slot pickers'.
@@ -1733,6 +1809,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.optionsResolvers) {
             PConf.optionsResolvers.register('apliteLayouts', function () { return APLITE_LAYOUTS.slice(); });
             PConf.optionsResolvers.register('screenRowSizeOptions', sizeOptions);
+            PConf.optionsResolvers.register('screenAddBarOptions', addBarOptions);
         }
         if (PConf.hintResolvers) { PConf.hintResolvers.register('batterySaverPauseHint', batterySaverPauseHint); }
         if (PConf.whenResolvers) {

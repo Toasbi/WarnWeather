@@ -85,6 +85,22 @@ var storageSection = {
             dormantValues: [''],
             optionsFrom: {resolver: 'screenRowSizeOptions'},
             onChange: 'screenRowSizePicked'
+        },
+        // The screen editor's + Status bar picker (screens-page.js opens it over the editor from
+        // the Add chips; the owner's ask, 2026-11-09): your bars by name, one the screen shows
+        // already greyed out, then New status bar (Pebble Time 2), an empty bar made for the
+        // screen. A pick puts the bar on the screen. Page-only (uiOnly); '' is dormant, so the
+        // sheet opens with nothing ticked.
+        {
+            type: 'select',
+            messageKey: 'screenAddBar',
+            uiOnly: true,
+            label: 'Status bar',
+            sheetTitle: 'Add a status bar',
+            defaultValue: '',
+            dormantValues: [''],
+            optionsFrom: {resolver: 'screenAddBarOptions'},
+            onChange: 'screenAddBarPicked'
         }
     ].concat(customViewItems(0), customViewItems(1), customViewItems(2))
 };

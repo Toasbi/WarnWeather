@@ -1998,7 +1998,7 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
   // wire keep their own order. Bars 4 to 6 (Pebble Time 2) follow, each shown once New status bar
   // made its bar.
   assert.deepEqual(titles.slice(0, 9),
-    ['Your status bars', 'All status bars', 'Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Bar 4', 'Bar 5', 'Bar 6'],
+    ['Your status bars', 'All status bars', 'Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Status bar 4', 'Status bar 5', 'Status bar 6'],
     'the bars\' dialogs follow the two cards, in order');
   assert.deepEqual(require('../src/pkjs/on-demand.js').BARS.map((b) => b.bar),
     ['top', 'forecast', 'radar', 'health', 'bar4', 'bar5', 'bar6'], 'the contract\'s bar order stays');

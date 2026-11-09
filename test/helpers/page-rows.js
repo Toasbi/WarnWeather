@@ -61,6 +61,17 @@ function editorRows(html) {
 }
 
 /**
+ * The open screen editor's Add chips, by what they say: a kind each, and one "Status bar" for
+ * the bars (its picker: + Status bar).
+ * @param {string} html The editor's body.
+ * @returns {Array<string>}
+ */
+function editorAddChips(html) {
+  return (html.match(/class="ui-chip" data-se="add(?:bar)?"[^>]*><svg[\s\S]*?<\/svg>[^<]*</g) || [])
+    .map((x) => x.replace(/^[\s\S]*<\/svg>|<$/g, ''));
+}
+
+/**
  * One editor row's markup, from its start to the next row's (to the body's end for the last).
  * @param {string} html The editor's body.
  * @param {number} j The row.
@@ -85,24 +96,25 @@ function sheetTitle(page, key) {
 }
 
 /**
- * The open select sheet's options (ones without a picture), a line each: the name, a ✓ on the
- * one picked, then the line under it in brackets, "off: " first on a greyed-out one:
- * "2 rows (off: Too small for the high and low temperatures)".
+ * The open select sheet's options (ones without a picture), a line each: "+ " first on one that
+ * makes something new, the name, a ✓ on the one picked, then the line under it in brackets,
+ * "off: " first on a greyed-out one: "2 rows (off: Too small for the high and low temperatures)".
  * @param {Object} page A bootGeneratedPage handle.
  * @returns {Array<string>}
  */
 function sheetOptions(page) {
   const out = [];
   const re = new RegExp('<button type="button" class="ssel-opt[^"]*" role="option" aria-selected="(true|false)"([^>]*)>'
+    + '(<svg class="ssel-add"[\\s\\S]*?</svg>)?'
     + '(?:<span class="ssel-opt-txt"><span class="ssel-opt-name">([^<]*)</span><span class="ssel-opt-desc">([^<]*)</span>'
     + '</span>|<span>([^<]*)</span>)', 'g');
   let m;
   while ((m = re.exec(page.modal.innerHTML))) {
     const off = / disabled/.test(m[2]);
-    const line = m[4] ? ' (' + (off ? 'off: ' : '') + m[4] + ')' : (off ? ' (off)' : '');
-    out.push((m[3] || m[5]) + (m[1] === 'true' ? ' ✓' : '') + line);
+    const line = m[5] ? ' (' + (off ? 'off: ' : '') + m[5] + ')' : (off ? ' (off)' : '');
+    out.push((m[3] ? '+ ' : '') + (m[4] || m[6]) + (m[1] === 'true' ? ' ✓' : '') + line);
   }
   return out;
 }
 
-module.exports = { rowOf, hintOf, editorBody, editorRows, editorRow, sheetTitle, sheetOptions };
+module.exports = { rowOf, hintOf, editorBody, editorRows, editorAddChips, editorRow, sheetTitle, sheetOptions };
