@@ -235,7 +235,7 @@
                 "uiOnly": true,
                 "label": "Bar",
                 "sheetTitle": "Bar on this screen",
-                "sheetLead": "Pick the bar this screen shows. You set what each bar shows on the Status bars tab.",
+                "sheetLead": "Pick the bar this screen shows. Its Edit button changes what the bar shows.",
                 "defaultValue": "",
                 "dormantValues": [
                   ""
@@ -244,22 +244,6 @@
                   "resolver": "screenBarOptions"
                 },
                 "onChange": "screenBarPicked"
-              },
-              {
-                "type": "select",
-                "messageKey": "screenNewBar",
-                "uiOnly": true,
-                "label": "New bar",
-                "sheetTitle": "New bar",
-                "sheetLead": "Start from a ready-made bar, or copy one of yours. The new bar goes on this screen.",
-                "defaultValue": "",
-                "dormantValues": [
-                  ""
-                ],
-                "optionsFrom": {
-                  "resolver": "barStartOptions"
-                },
-                "onChange": "screenNewBarPicked"
               },
               {
                 "type": "hidden",
@@ -3538,12 +3522,17 @@
         "label": "Status bars",
         "short": "Status",
         "icon": "tab-status",
-        "pinBlock": "statusBarsPreview",
         "sections": [
+          {
+            "id": "yourBars",
+            "title": "Your bars",
+            "intro": "Each bar has a left, middle and right slot. Tap a slot to change it, or tap a bar’s name for the rest of its settings.",
+            "block": "barsList",
+            "items": []
+          },
           {
             "id": "statusAll",
             "title": "All status bars",
-            "intro": "Each bar has a left, middle and right slot. Tap a slot above to change it.",
             "items": [
               {
                 "type": "segmented",
@@ -3583,9 +3572,22 @@
             ]
           },
           {
-            "id": "barTop",
+            "sheetOnly": true,
+            "sheetId": "bar-top",
+            "id": "bar-top",
             "title": "Watch bar",
+            "titleBy": {
+              "resolver": "barName",
+              "args": {
+                "bar": "top"
+              }
+            },
+            "pinBlock": "barPicture",
             "items": [
+              {
+                "type": "subheader",
+                "text": "Slots"
+              },
               {
                 "type": "select",
                 "messageKey": "statusTopLeft",
@@ -3743,6 +3745,15 @@
                 }
               },
               {
+                "type": "subheader",
+                "text": "Icons and vibration",
+                "showWhen": {
+                  "not": {
+                    "env": "onDemand"
+                  }
+                }
+              },
+              {
                 "type": "toggle",
                 "messageKey": "batteryLowOnly",
                 "label": "Show battery below 10%",
@@ -3809,7 +3820,9 @@
             ]
           },
           {
-            "id": "barForecast",
+            "sheetOnly": true,
+            "sheetId": "bar-forecast",
+            "id": "bar-forecast",
             "title": "Forecast bar",
             "titleBy": {
               "resolver": "barName",
@@ -3817,22 +3830,11 @@
                 "bar": "forecast"
               }
             },
+            "pinBlock": "barPicture",
             "items": [
               {
-                "type": "text",
-                "messageKey": "statusForecastName",
-                "label": "Name",
-                "defaultValue": "",
-                "attributes": {
-                  "placeholder": "Forecast bar",
-                  "maxlength": 24
-                },
-                "hintFrom": {
-                  "resolver": "barScreens",
-                  "args": {
-                    "bar": "forecast"
-                  }
-                }
+                "type": "subheader",
+                "text": "Slots"
               },
               {
                 "type": "select",
@@ -3865,8 +3867,7 @@
                     "slotKey": "statusForecastLeft",
                     "position": "left"
                   }
-                },
-                "joinPrevious": true
+                }
               },
               {
                 "type": "date",
@@ -3991,10 +3992,18 @@
                   "env": "onDemand"
                 }
               }
-            ]
+            ],
+            "rename": {
+              "key": "statusForecastName",
+              "label": "Bar name",
+              "placeholder": "Forecast bar",
+              "maxlength": 24
+            }
           },
           {
-            "id": "barHealth",
+            "sheetOnly": true,
+            "sheetId": "bar-health",
+            "id": "bar-health",
             "title": "Health bar",
             "titleBy": {
               "resolver": "barName",
@@ -4002,28 +4011,11 @@
                 "bar": "health"
               }
             },
-            "showWhen": {
-              "env": "health"
-            },
+            "pinBlock": "barPicture",
             "items": [
               {
-                "type": "text",
-                "messageKey": "statusHealthName",
-                "label": "Name",
-                "defaultValue": "",
-                "attributes": {
-                  "placeholder": "Health bar",
-                  "maxlength": 24
-                },
-                "hintFrom": {
-                  "resolver": "barScreens",
-                  "args": {
-                    "bar": "health"
-                  }
-                },
-                "showWhen": {
-                  "env": "health"
-                }
+                "type": "subheader",
+                "text": "Slots"
               },
               {
                 "type": "select",
@@ -4059,8 +4051,7 @@
                 },
                 "showWhen": {
                   "env": "health"
-                },
-                "joinPrevious": true
+                }
               },
               {
                 "type": "date",
@@ -4219,10 +4210,21 @@
                   ]
                 }
               }
-            ]
+            ],
+            "rename": {
+              "key": "statusHealthName",
+              "label": "Bar name",
+              "placeholder": "Health bar",
+              "maxlength": 24
+            },
+            "showWhen": {
+              "env": "health"
+            }
           },
           {
-            "id": "barRadar",
+            "sheetOnly": true,
+            "sheetId": "bar-radar",
+            "id": "bar-radar",
             "title": "Radar bar",
             "titleBy": {
               "resolver": "barName",
@@ -4230,28 +4232,11 @@
                 "bar": "radar"
               }
             },
-            "showWhen": {
-              "env": "radar"
-            },
+            "pinBlock": "barPicture",
             "items": [
               {
-                "type": "text",
-                "messageKey": "statusRadarName",
-                "label": "Name",
-                "defaultValue": "",
-                "attributes": {
-                  "placeholder": "Radar bar",
-                  "maxlength": 24
-                },
-                "hintFrom": {
-                  "resolver": "barScreens",
-                  "args": {
-                    "bar": "radar"
-                  }
-                },
-                "showWhen": {
-                  "env": "radar"
-                }
+                "type": "subheader",
+                "text": "Slots"
               },
               {
                 "type": "select",
@@ -4287,8 +4272,7 @@
                 },
                 "showWhen": {
                   "env": "radar"
-                },
-                "joinPrevious": true
+                }
               },
               {
                 "type": "date",
@@ -4447,10 +4431,21 @@
                   ]
                 }
               }
-            ]
+            ],
+            "rename": {
+              "key": "statusRadarName",
+              "label": "Bar name",
+              "placeholder": "Radar bar",
+              "maxlength": 24
+            },
+            "showWhen": {
+              "env": "radar"
+            }
           },
           {
-            "id": "bar4",
+            "sheetOnly": true,
+            "sheetId": "bar-bar4",
+            "id": "bar-bar4",
             "title": "Bar 4",
             "titleBy": {
               "resolver": "barName",
@@ -4458,44 +4453,11 @@
                 "bar": "bar4"
               }
             },
-            "showWhen": {
-              "all": [
-                {
-                  "env": "extraBars"
-                },
-                {
-                  "key": "statusBar4Made",
-                  "eq": true
-                }
-              ]
-            },
+            "pinBlock": "barPicture",
             "items": [
               {
-                "type": "text",
-                "messageKey": "statusBar4Name",
-                "label": "Name",
-                "defaultValue": "",
-                "attributes": {
-                  "placeholder": "Bar 4",
-                  "maxlength": 24
-                },
-                "hintFrom": {
-                  "resolver": "barScreens",
-                  "args": {
-                    "bar": "bar4"
-                  }
-                },
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "extraBars"
-                    },
-                    {
-                      "key": "statusBar4Made",
-                      "eq": true
-                    }
-                  ]
-                }
+                "type": "subheader",
+                "text": "Slots"
               },
               {
                 "type": "select",
@@ -4539,8 +4501,7 @@
                       "eq": true
                     }
                   ]
-                },
-                "joinPrevious": true
+                }
               },
               {
                 "type": "date",
@@ -4748,6 +4709,10 @@
                 }
               },
               {
+                "type": "subheader",
+                "text": ""
+              },
+              {
                 "type": "button",
                 "style": "link",
                 "action": "deleteBar",
@@ -4765,16 +4730,12 @@
                   ]
                 }
               }
-            ]
-          },
-          {
-            "id": "bar5",
-            "title": "Bar 5",
-            "titleBy": {
-              "resolver": "barName",
-              "args": {
-                "bar": "bar5"
-              }
+            ],
+            "rename": {
+              "key": "statusBar4Name",
+              "label": "Bar name",
+              "placeholder": "Bar 4",
+              "maxlength": 24
             },
             "showWhen": {
               "all": [
@@ -4782,38 +4743,28 @@
                   "env": "extraBars"
                 },
                 {
-                  "key": "statusBar5Made",
+                  "key": "statusBar4Made",
                   "eq": true
                 }
               ]
+            }
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "bar-bar5",
+            "id": "bar-bar5",
+            "title": "Bar 5",
+            "titleBy": {
+              "resolver": "barName",
+              "args": {
+                "bar": "bar5"
+              }
             },
+            "pinBlock": "barPicture",
             "items": [
               {
-                "type": "text",
-                "messageKey": "statusBar5Name",
-                "label": "Name",
-                "defaultValue": "",
-                "attributes": {
-                  "placeholder": "Bar 5",
-                  "maxlength": 24
-                },
-                "hintFrom": {
-                  "resolver": "barScreens",
-                  "args": {
-                    "bar": "bar5"
-                  }
-                },
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "extraBars"
-                    },
-                    {
-                      "key": "statusBar5Made",
-                      "eq": true
-                    }
-                  ]
-                }
+                "type": "subheader",
+                "text": "Slots"
               },
               {
                 "type": "select",
@@ -4857,8 +4808,7 @@
                       "eq": true
                     }
                   ]
-                },
-                "joinPrevious": true
+                }
               },
               {
                 "type": "date",
@@ -5066,6 +5016,10 @@
                 }
               },
               {
+                "type": "subheader",
+                "text": ""
+              },
+              {
                 "type": "button",
                 "style": "link",
                 "action": "deleteBar",
@@ -5083,16 +5037,12 @@
                   ]
                 }
               }
-            ]
-          },
-          {
-            "id": "bar6",
-            "title": "Bar 6",
-            "titleBy": {
-              "resolver": "barName",
-              "args": {
-                "bar": "bar6"
-              }
+            ],
+            "rename": {
+              "key": "statusBar5Name",
+              "label": "Bar name",
+              "placeholder": "Bar 5",
+              "maxlength": 24
             },
             "showWhen": {
               "all": [
@@ -5100,38 +5050,28 @@
                   "env": "extraBars"
                 },
                 {
-                  "key": "statusBar6Made",
+                  "key": "statusBar5Made",
                   "eq": true
                 }
               ]
+            }
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "bar-bar6",
+            "id": "bar-bar6",
+            "title": "Bar 6",
+            "titleBy": {
+              "resolver": "barName",
+              "args": {
+                "bar": "bar6"
+              }
             },
+            "pinBlock": "barPicture",
             "items": [
               {
-                "type": "text",
-                "messageKey": "statusBar6Name",
-                "label": "Name",
-                "defaultValue": "",
-                "attributes": {
-                  "placeholder": "Bar 6",
-                  "maxlength": 24
-                },
-                "hintFrom": {
-                  "resolver": "barScreens",
-                  "args": {
-                    "bar": "bar6"
-                  }
-                },
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "extraBars"
-                    },
-                    {
-                      "key": "statusBar6Made",
-                      "eq": true
-                    }
-                  ]
-                }
+                "type": "subheader",
+                "text": "Slots"
               },
               {
                 "type": "select",
@@ -5175,8 +5115,7 @@
                       "eq": true
                     }
                   ]
-                },
-                "joinPrevious": true
+                }
               },
               {
                 "type": "date",
@@ -5384,6 +5323,10 @@
                 }
               },
               {
+                "type": "subheader",
+                "text": ""
+              },
+              {
                 "type": "button",
                 "style": "link",
                 "action": "deleteBar",
@@ -5401,39 +5344,24 @@
                   ]
                 }
               }
-            ]
-          },
-          {
-            "id": "barNew",
-            "showWhen": {
-              "env": "extraBars"
+            ],
+            "rename": {
+              "key": "statusBar6Name",
+              "label": "Bar name",
+              "placeholder": "Bar 6",
+              "maxlength": 24
             },
-            "items": [
-              {
-                "type": "staticText",
-                "textFrom": {
-                  "resolver": "barUndoNote"
-                }
-              },
-              {
-                "type": "button",
-                "action": "newBar",
-                "label": "New bar",
-                "hintFrom": {
-                  "resolver": "barCount"
+            "showWhen": {
+              "all": [
+                {
+                  "env": "extraBars"
                 },
-                "showWhen": {
-                  "when": "barFree"
+                {
+                  "key": "statusBar6Made",
+                  "eq": true
                 }
-              },
-              {
-                "type": "staticText",
-                "hinted": true,
-                "textFrom": {
-                  "resolver": "barsFullNote"
-                }
-              }
-            ]
+              ]
+            }
           },
           {
             "sheetOnly": true,
@@ -5455,20 +5383,40 @@
                 "defaultValue": false
               },
               {
-                "type": "select",
-                "messageKey": "statusBarNew",
-                "uiOnly": true,
-                "label": "New bar",
-                "sheetTitle": "New bar",
-                "sheetLead": "Start from a ready-made bar, or copy one of yours. Then put it on a screen.",
+                "type": "hidden",
+                "messageKey": "statusForecastName",
                 "defaultValue": "",
-                "dormantValues": [
-                  ""
-                ],
-                "optionsFrom": {
-                  "resolver": "barStartOptions"
-                },
-                "onChange": "barCreate"
+                "onChange": "barRenamed"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusHealthName",
+                "defaultValue": "",
+                "onChange": "barRenamed"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusRadarName",
+                "defaultValue": "",
+                "onChange": "barRenamed"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusBar4Name",
+                "defaultValue": "",
+                "onChange": "barRenamed"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusBar5Name",
+                "defaultValue": "",
+                "onChange": "barRenamed"
+              },
+              {
+                "type": "hidden",
+                "messageKey": "statusBar6Name",
+                "defaultValue": "",
+                "onChange": "barRenamed"
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -10585,28 +10533,6 @@
             "block": "graphStyleCards"
           },
           {
-            "sheetOnly": true,
-            "sheetId": "graphStyleRename",
-            "title": "Rename graph",
-            "showWhen": {
-              "env": "graphStyles"
-            },
-            "items": [
-              {
-                "type": "text",
-                "messageKey": "graphStyleName",
-                "uiOnly": true,
-                "label": "Name",
-                "defaultValue": "",
-                "attributes": {
-                  "maxlength": 24,
-                  "placeholder": "Graph name"
-                },
-                "onChange": "graphStyleRenamed"
-              }
-            ]
-          },
-          {
             "pane": "forecast",
             "id": "lines",
             "title": "Lines",
@@ -11097,15 +11023,13 @@
                 "uiOnly": true,
                 "label": "Graph",
                 "sheetTitle": "Graph on this screen",
+                "sheetLead": "Pick the graph this screen shows. To start one from a template, use New graph on the Graphs tab.",
                 "defaultValue": "1",
                 "optionsFrom": {
                   "resolver": "graphStyleOptions",
                   "args": {
                     "screen": true
                   }
-                },
-                "pictureFrom": {
-                  "resolver": "graphStylePicture"
                 },
                 "onChange": "screenGraphStylePicked"
               }

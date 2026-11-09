@@ -585,20 +585,33 @@
   // ── YOUR BARS: New bar and Delete bar (Pebble Time 2) ─────────────────────────────────
   // Your bars are the bars a screen can show besides the Watch bar: the Forecast, Radar and
   // Health bars, and on a Pebble Time 2 bars 4 to 6 once New bar made them (view-cycle.js
-  // barMade), at most MAX_BARS. New bar makes the first of bars 4 to 6 not made yet, from a set
-  // (BAR_SETS) or as a copy of one of your bars, and names it after it; Delete bar unmakes one,
-  // and every screen that showed it drops the row.
-  // The sets: the three bars' default slots (status-line-catalog.js slotDefault), named for
-  // what they hold.
-  var BAR_SETS = [
-    { id: 'weather', name: 'Weather bar', from: 'forecast' },
-    { id: 'wind', name: 'Wind bar', from: 'radar' },
-    { id: 'activity', name: 'Activity bar', from: 'health' }
-  ];
-  // A copy's start: BAR_COPY and the bar it copies ('copy:forecast').
-  var BAR_COPY = 'copy:';
+  // barMade), at most MAX_BARS. New bar makes the first of bars 4 to 6 not made yet, empty and
+  // called "Bar <n>" (the owner's, 2026-11-09: a bar is too simple for templates); Delete bar
+  // unmakes one, and every screen that showed it drops the row.
   // Every bar but the Watch bar.
   var MAX_BARS = onDemand.BARS.length - 1;
+  // The settings page opens each bar in a dialog of its own (schema.js barDialog): its sheet id
+  // is BAR_SHEET + the bar ('bar-forecast').
+  var BAR_SHEET = 'bar-';
+
+  /**
+   * The sheet id of a bar's dialog on the settings page.
+   * @param {string} bar An on-demand.js BARS bar.
+   * @returns {string}
+   */
+  function barSheet(bar) {
+    return BAR_SHEET + bar;
+  }
+
+  /**
+   * The bar a dialog's sheet id names (barSheet turned round).
+   * @param {?string} id A sheet id.
+   * @returns {?string} the bar, null when the id names no bar's dialog
+   */
+  function barOfSheet(id) {
+    var s = String(id || ''), bar = s.indexOf(BAR_SHEET) === 0 ? s.slice(BAR_SHEET.length) : '';
+    return onDemand.prefixOf(bar) !== null || bar === 'top' ? bar : null;
+  }
 
   /**
    * Your bars on this watch (YOUR BARS above), in the Status bars tab's order (on-demand.js
@@ -641,54 +654,6 @@
   }
 
   /**
-   * The slots a start brings: a set's, its bar's default slots on this watch; a copy's, what
-   * the bar copied holds (its stored slots, else their defaults), with their countdown dates.
-   * @param {?Object} S Settings.
-   * @param {?Object} env Platform env.
-   * @param {string} from A BAR_SETS id, or BAR_COPY + one of your bars.
-   * @returns {?{name: string, codes: string[], dates: ?Array}} null for a start that names
-   *   nothing on this watch
-   */
-  function barStart(S, env, from) {
-    var src = String(from || ''), st = S || {}, i;
-    for (i = 0; i < BAR_SETS.length; i++) {
-      var set = BAR_SETS[i];
-      if (set.id !== src) { continue; }
-      if (!capable(KIND_OF_BAR[set.from], env)) { return null; }
-      return { name: set.name, dates: null, codes: catalog.lineById(set.from).slots.map(function (key) {
-        return catalog.slotDefault(key, env);
-      }) };
-    }
-    var of = src.indexOf(BAR_COPY) === 0 ? src.slice(BAR_COPY.length) : '';
-    if (!of || yourBars(st, env).indexOf(of) === -1) { return null; }
-    var slots = catalog.lineById(of).slots;
-    return {
-      name: cleanName('Copy of ' + barName(st, of)),
-      codes: slots.map(function (key) { return st[key] || catalog.slotDefault(key, env); }),
-      dates: slots.map(function (key) { return st[key + 'Countdown']; })
-    };
-  }
-
-  /**
-   * New bar's starts, in the order it offers them: the sets, then a copy of each of your bars.
-   * @param {?Object} S Settings.
-   * @param {?Object} env Platform env.
-   * @returns {{sets: Array<{from: string, name: string, codes: string[]}>,
-   *     copies: Array<{from: string, name: string, codes: string[]}>}}
-   */
-  function barStarts(S, env) {
-    /** @param {string} from A start. @returns {?Object} it, as offered */
-    function offer(from) {
-      var start = barStart(S, env, from);
-      return start ? { from: from, name: start.name, codes: start.codes } : null;
-    }
-    return {
-      sets: BAR_SETS.map(function (set) { return offer(set.id); }).filter(Boolean),
-      copies: yourBars(S, env).map(function (bar) { return offer(BAR_COPY + bar); }).filter(Boolean)
-    };
-  }
-
-  /**
    * A name none of `taken` is, as a name is kept (cleanName): `base`, else "base 2",
    * "base 3" (your bars' and your graphs' new names).
    * @param {string[]} taken The names in use.
@@ -702,24 +667,24 @@
   }
 
   /**
-   * New bar: make the next of bars 4 to 6 (freeBar) from a start (barStart), named after it
-   * (a name none of your other bars has, freeName), with no alerts on it. On no screen yet.
-   * Mutates S.
+   * New bar: make the next of bars 4 to 6 (freeBar), empty (its slots' defaults: Empty), with
+   * no countdown date and no alerts, and on no screen yet. It is called "Bar <n>" (its own name,
+   * so '' is stored), unless another bar was renamed to that: then a name none of your bars has
+   * (freeName). Mutates S.
    * @param {Object} S Settings.
    * @param {?Object} env Platform env.
-   * @param {string} from A BAR_SETS id, or BAR_COPY + one of your bars.
-   * @returns {?string} the bar made, null for none (all made, a watch without them, an
-   *   unknown start)
+   * @returns {?string} the bar made, null for none (all made, or a watch without them)
    */
-  function makeBar(S, env, from) {
-    var bar = freeBar(S, env), start = bar ? barStart(S, env, from) : null;
-    if (!start) { return null; }
+  function makeBar(S, env) {
+    var bar = freeBar(S, env);
+    if (!bar) { return null; }
     var taken = yourBars(S, env).map(function (other) { return barName(S, other); });
+    var own = KINDS[KIND_OF_BAR[bar]].name;
     S[VC.extraBar(bar).prefix + 'Made'] = true;
-    S[barNameKey(bar)] = freeName(taken, start.name);
-    catalog.lineById(bar).slots.forEach(function (key, p) {
-      S[key] = start.codes[p];
-      if (start.dates && start.dates[p] !== undefined) { S[key + 'Countdown'] = start.dates[p]; }
+    S[barNameKey(bar)] = taken.indexOf(own) === -1 ? '' : freeName(taken, own);
+    catalog.lineById(bar).slots.forEach(function (key) {
+      S[key] = catalog.slotDefault(key, env);
+      if (S[key + 'Countdown'] !== undefined) { S[key + 'Countdown'] = undefined; }
     });
     onDemand.SIDES.forEach(function (side) { S[onDemand.itemsKey(bar, side)] = ''; });
     return bar;
@@ -810,7 +775,8 @@
     yourBars: yourBars,
     freeBar: freeBar,
     newBarFor: newBarFor,
-    barStarts: barStarts,
+    barSheet: barSheet,
+    barOfSheet: barOfSheet,
     makeBar: makeBar,
     unmakeBar: unmakeBar
   };

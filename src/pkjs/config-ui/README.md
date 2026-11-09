@@ -256,6 +256,7 @@ Schema
             ├─ beforePin    boolean (renders first in the tab, above its pinned header; scrolls away)
             ├─ sheetOnly / sheetId  (a full-screen dialog, not a card; see Dialogs)
             ├─ pinBlock     string  (sheetOnly only: block pinned under the dialog's header)
+            ├─ rename       {key, label, placeholder?, maxlength?} (sheetOnly only: the title renames a setting; see Dialogs)
             └─ items[]
                  └─ (see Item fields below; blockBefore is ITEM-level)
 ```
@@ -326,8 +327,9 @@ its verdict line, and a hint's tap-to-copy `[data-copy]` button, included), with
 difference: a `select` row there expands its option list IN PLACE, under the row inside the
 sheet (the colour palette's pattern), instead of opening the select modal. The trigger stays where it was and reads as
 open (`aria-expanded="true"`, the row gains `isel-open`); the list reuses the modal's option
-rows, so the current value's check, a recommended option and gated (`meta.disabled` /
-`optionDisabledWhen`) options look and behave the same. A pick stores the value, fires the
+rows, so the current value's check, a recommended option, an option that makes something
+(`meta.add`: a plus and the link color) and gated (`meta.disabled` / `optionDisabledWhen`)
+options look and behave the same. A pick stores the value, fires the
 item's `onChange` once and collapses the list, leaving the sheet open with focus back on the
 trigger; a second tap on the trigger collapses it without a pick. One expander is open at a
 time: opening a list collapses an open palette and vice versa. Escape first collapses an open
@@ -426,8 +428,9 @@ picking the shown swatch is what writes it.
 | `intro` | string | HTML rendered above items |
 | `block` | string | Custom-block id rendered BELOW the items (see [Registries](#registries-and-hooks)). A block ABOVE the items is the item-level `blockBefore` on the section's first item — the engine has no section-level `blockBefore`; for a card that stacks several blocks, share a `groupCard` id across consecutive sections instead. |
 | `collapsible` | boolean | Collapses the section into an expandable card (collapsed by default; state is per page open) |
-| `titleBy` | `{resolver, args?}` | The card header's title itself follows the settings: a `PConf.displayResolvers` id whose `fn(S, env, args)` answer replaces `title` (escaped); `''` or no answer keeps `title`. The header marks it (`data-title-by`), so a text commit that skips the re-render retitles it in place (e.g. a status bar's Name row titling its card). |
+| `titleBy` | `{resolver, args?}` | The card header's title itself follows the settings: a `PConf.displayResolvers` id whose `fn(S, env, args)` answer replaces `title` (escaped); `''` or no answer keeps `title`. The header marks it (`data-title-by`), so a text commit that skips the re-render retitles it in place. A dialog's title follows it too (e.g. a status bar's name titling the bar's dialog). |
 | `titleFrom` | `{resolver, args?}` | Collapsible sections only: a `PConf.displayResolvers` id whose `fn(S, env, args)` result is painted next to the title while the card is COLLAPSED (e.g. the current pick of a select inside), so a closed card still says what's selected. Open cards show the plain `title`. `args` pass through verbatim (no messageKey merge — sections have none). |
+| `rename` | `{key, label, placeholder?, maxlength?}` | `sheetOnly` only: a pencil beside the dialog's title turns it into a text field for the setting `key` (`label` its accessible name, `placeholder` the name an empty field stands for, `maxlength` 40 unless given), with an OK button in Done's place. OK or Enter stores the text and fires the key's item `onChange`; Escape or × puts the title back. See Dialogs. |
 | `groupCard` | string | Consecutive sections sharing a `groupCard` id render into ONE card: titles become in-card sub-headers, and each section's intro/items/`block` stack inside it. Empty sub-sections drop out cleanly. |
 | `items` | Item[] | The items to render |
 
@@ -513,7 +516,16 @@ else the tab label) over the title with the dialog's '?' and `labelAction` besid
 stacks on top with ‹ instead of ×, stepping back to its parent and keeping its changes; Escape
 steps back like Done. The section's `pinBlock` stays pinned under the header; its items render
 as cards like a tab's. Edits only reach the watch with the main Save. Select pickers, the date
-wheel and the Save confirm stay bottom sheets.
+wheel and the Save confirm stay bottom sheets. A dialog whose section renders nothing (its
+`showWhen` turned false, e.g. after a Delete inside it) closes itself.
+
+A section with `rename` titles its dialog by a setting (`titleBy`) and lets the title rename
+it: the pencil opens a text field in the title's place and an OK button in Done's; OK, Enter or
+leaving the field stores the text (through the item's `onChange`, which may clean it), and
+Escape puts the old title back. A page module opens a dialog itself with the ready ctx's
+`openDialog(id, {rename, kicker, onClose, overlay})`: `rename` opens it with the field ready,
+`kicker` names where it opened from, `onClose` runs after it closes, and `overlay` marks one
+opened over the module's own overlay, so focus goes back to nothing on the page.
 
 ### showWhen predicate grammar
 
@@ -626,9 +638,11 @@ Registering to the same `id` twice overwrites the first registration. Requesting
 or any other data that must travel from PKJS into the page without going through settings storage.
 
 A block pinned above a dialog (a `sheetOnly` section's `pinBlock`) gets a fourth argument,
-`{ dialog: true }`. A block whose parts open a sheet themselves (a `[data-select]` that opens a
-select's picker) draws them inert there: the dialog is the page's one sheet, so a picker cannot
-open over it. Everywhere else the fourth argument is absent.
+`{ dialog: true, sheet, from }`: the open dialog's id, and the id of the dialog it was opened
+from (`null` for one opened from a tab), so one block can draw what its dialog is about (e.g. the
+bar a slot's dialog was opened from). A block whose parts open a sheet themselves (a
+`[data-select]` that opens a select's picker) draws them inert there: the dialog is the page's
+one sheet, so a picker cannot open over it. Everywhere else the fourth argument is absent.
 
 ### Icon registry — PConf.icons
 

@@ -332,7 +332,8 @@ test('a new install: the Default screen alone; + Add screen\'s Blank opens the e
   assert.deepEqual(editorRows(ed.body), ['Watch bar', 'Clock']);
   assert.ok(ed.body.indexOf('<span class="se-main fixed"><span>Watch bar</span></span>') !== -1, 'the Watch bar has no handle');
   assert.ok(ed.body.indexOf('aria-label="Remove Clock"') !== -1, 'a flick screen may drop its Clock');
-  assert.deepEqual((ed.body.match(/data-se="add" data-k="[^"]*">\+ [^<]*</g) || []).map((x) => x.replace(/.*">\+ |<$/g, '')),
+  assert.deepEqual((ed.body.match(/class="se-add" data-se="add" data-k="[^"]*"><svg[\s\S]*?<\/svg>[^<]*</g) || [])
+    .map((x) => x.replace(/^[\s\S]*<\/svg>|<$/g, '')),
     ['Calendar', 'Forecast bar', 'Radar bar', 'Health bar', 'Forecast graph', 'Rain radar', 'Health graph']);
   assert.ok(ed.body.indexOf('data-se="delscreen">Delete screen<') !== -1);
   page.tapEditor({ se: 'close' });

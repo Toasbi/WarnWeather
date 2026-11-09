@@ -584,6 +584,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       gated = meta.disabled || offVals.indexOf(o[1]) !== -1;
       pic = pictures && pictures[o[1]] ? '<span class="ssel-pic" aria-hidden="true">' + pictures[o[1]] + '</span>' : '';
       if (pic) { classes += ' has-pic'; }
+      // meta.add: the option makes something new (the screen editor's New bar and New graph):
+      // a plus at its start, its name in the link colour, after the things there are.
+      if (meta.add) {
+        classes += ' add';
+        pic = '<svg class="ssel-add" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>';
+      }
       h += '<button type="button" class="' + classes + '" role="option" aria-selected="'
         + (value === o[1] ? 'true' : 'false') + '"'
         + (gated
@@ -1221,13 +1227,23 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var pin = '';
     if (sec.pinBlock) {
       // { dialog: true }: a block whose parts open sheets (the status bars' slots) draws
-      // them inert here, where the one shared sheet is this dialog.
+      // them inert here, where the one shared sheet is this dialog. sheet names the dialog
+      // (one block can draw each status bar's), from the dialog it was opened from.
       var fn = PConf.blocks.get(sec.pinBlock);
-      var ph = fn ? (fn(cx.S, cx.ENV, cx.USERDATA, { dialog: true }) || '') : '';
+      var ph = fn ? (fn(cx.S, cx.ENV, cx.USERDATA, { dialog: true, sheet: cx.openEdit, from: cx.editParent || null }) || '')
+        : '';
       if (ph) { pin = '<div class="' + pinClass(cx, 'dlg-pin') + '"><div class="pin-blk">' + ph + '</div></div>'; }
     }
-    return dialogHeader(titleId, String(sec.title || 'Edit'), cx.editKicker || '', Boolean(cx.editNested),
-        introId ? infoButtonHtml(introId, introOpen, sec.title) : '', labelActionHtml(sec))
+    // The title: the section's titleBy answer (a status bar's name), else its title.
+    var title = sectionTitle(sec, cx) || 'Edit';
+    // sec.rename ({key, label, placeholder}): the title renames what the dialog is about, a
+    // pencil beside it turning it into a field with an OK button (cx.renaming: this dialog).
+    // The field opens on the name as the title shows it (a bar's own name while it has none).
+    var rename = sec.rename ? { key: sec.rename.key, label: sec.rename.label || 'Name', title: title,
+      maxlength: Number(sec.rename.maxlength) || 40, placeholder: sec.rename.placeholder || '', value: title,
+      editing: cx.renaming === cx.openEdit } : null;
+    return dialogHeader(titleId, title, cx.editKicker || '', Boolean(cx.editNested),
+        introId ? infoButtonHtml(introId, introOpen, title) : '', labelActionHtml(sec), rename)
       + '<div class="ssel-list esheet">' + pin
       + (introOpen ? dialogIntroHtml(sec, cx) : '')
       + body + '</div>';
@@ -1300,16 +1316,30 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {boolean} nested Opened from another dialog.
    * @param {string} [info] The title's '?' (infoButtonHtml), glued to its last word.
    * @param {string} [afterTitle] Markup after the title (a reset).
+   * @param {?{key: string, label: string, title: string, maxlength: number, placeholder: string,
+   *   value: string, editing: boolean}} [rename] A title that renames (renderEditModal): a pencil after it,
+   *   or while it is renamed a field holding the name and OK in Done's place (the title stays
+   *   for assistive tech, as the dialog's label).
    * @returns {string} Header HTML.
    */
-  function dialogHeader(titleId, title, kicker, nested, info, afterTitle) {
-    return '<div class="dlg-hdr">'
-      + (nested
-        ? '<button type="button" class="dlg-x" data-dlg-back aria-label="Back">&#8249;</button>'
-        : '<button type="button" class="dlg-x" data-dlg-close aria-label="Close and discard changes">&#215;</button>')
+  function dialogHeader(titleId, title, kicker, nested, info, afterTitle, rename) {
+    var way = nested
+      ? '<button type="button" class="dlg-x" data-dlg-back aria-label="Back">&#8249;</button>'
+      : '<button type="button" class="dlg-x" data-dlg-close aria-label="Close and discard changes">&#215;</button>';
+    if (rename && rename.editing) {
+      return '<div class="dlg-hdr renaming">' + way
+        + '<span class="ssel-modal-ttl sr-only" id="' + titleId + '">' + esc(title) + '</span>'
+        + '<input type="text" class="dlg-rn-in" data-dlg-rename-in maxlength="' + rename.maxlength + '" autocomplete="off" aria-label="'
+        + esc(rename.label) + '" placeholder="' + esc(rename.placeholder) + '" value="' + esc(rename.value) + '">'
+        + '<button type="button" class="dlg-done" data-dlg-rename-ok>OK</button></div>';
+    }
+    var pen = rename ? '<button type="button" class="dlg-rn" data-dlg-rename aria-label="Rename ' + esc(rename.title)
+      + '"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/>'
+      + '</svg></button>' : '';
+    return '<div class="dlg-hdr">' + way
       + '<div class="dlg-ttlwrap">' + (kicker ? '<span class="dlg-kick">' + esc(kicker) + '</span>' : '')
       + '<span class="dlg-ttlline"><span class="ssel-modal-ttl dlg-ttl" id="' + titleId + '">'
-      + labelWithInfo(title, info || '') + '</span>' + (afterTitle || '') + '</span></div>'
+      + labelWithInfo(title, info || '') + '</span>' + pen + (afterTitle || '') + '</span></div>'
       + '<button type="button" class="dlg-done" data-dlg-done>Done</button></div>';
   }
 
@@ -2637,6 +2667,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // render()'s scroll memory across dialogs: the dialog rendered last, and the offset to
     // land the next one on (0 for a dialog just opened, the parent's for a step back).
     var lastShownEdit = null, nextEditScroll = 0;
+    // The dialog whose title is a name field right now (sec.rename), null for none: a pencil
+    // tap or ctx.openDialog's rename sets it, OK, Enter, Escape, leaving the field or the
+    // dialog going clear it.
+    var renaming = null;
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
     /**
@@ -2849,6 +2883,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var rootKey = closing && closing.kind === 'edit' && editStack.length ? editStack[0].id : null;
       sheet = null;
       editStack = [];
+      renaming = null;
       if (closing && closing.kind === 'edit') { expanded = null; }
       render();
       if (!closing) { return; }
@@ -2895,7 +2930,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     function kickerFrom(trigger, nested) {
       if (nested && sheetIs('edit')) {
         var cur = findSheetSection(SCHEMA, sheet.key);
-        if (cur && cur.title) { return String(cur.title); }
+        var curTitle = cur ? sectionTitle(cur, { S: S, ENV: ENV }) : '';
+        if (curTitle) { return curTitle; }
       }
       var card = trigger && trigger.closest ? trigger.closest('.card') : null;
       var ttl = card && card.querySelector ? card.querySelector('.cardHdr .ttl') : null;
@@ -2918,6 +2954,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // Escape would spend its first press collapsing it and the dialog would open at the
       // raised .picking cap.
       expanded = null;
+      if (renaming !== id) { renaming = null; }
       if (nested && editStack.length) {
         var list = document.getElementById('modal').querySelector('.ssel-list');
         editStack[editStack.length - 1].scrollTop = list ? list.scrollTop : 0;
@@ -2940,6 +2977,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (editStack.length <= 1) { closeModal(); return; }
       var left = editStack.pop();
       expanded = null;
+      renaming = null;
       var top = editStack[editStack.length - 1];
       sheet = { kind: 'edit', key: top.id };
       nextEditScroll = top.scrollTop || 0;
@@ -2956,6 +2994,42 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var root = editStack[0];
       if (root && root.snap) { restoreState(root.snap); }
       closeModal();
+    }
+    /**
+     * Make the open dialog's title its name field (sec.rename), focused with the name selected.
+     * @param {string} id The dialog's sheetId.
+     * @returns {void}
+     */
+    function startRename(id) {
+      var sec = findSheetSection(SCHEMA, id);
+      if (!sec || !sec.rename) { return; }
+      renaming = id;
+      render();
+      var inp = document.getElementById('modal').querySelector('[data-dlg-rename-in]');
+      if (inp && inp.focus) { inp.focus(); if (inp.select) { inp.select(); } }
+    }
+    /**
+     * Store a name typed into the open dialog's title (its rename key, through setValue so the
+     * key's onChange cleans it). No repaint.
+     * @param {string} text The name typed.
+     * @returns {void}
+     */
+    function storeRename(text) {
+      var sec = sheetIs('edit') ? findSheetSection(SCHEMA, sheet.key) : null;
+      if (sec && sec.rename) { setValue(sec.rename.key, String(text == null ? '' : text)); }
+    }
+    /**
+     * OK (or Enter) in the open dialog's name field: the name stored, the title back, focus on
+     * its pencil.
+     * @param {string} [text] The name typed (Enter's field); absent: the field's, read (OK).
+     * @returns {void}
+     */
+    function commitRename(text) {
+      var inp = text === undefined ? document.getElementById('modal').querySelector('[data-dlg-rename-in]') : null;
+      if (text !== undefined) { storeRename(text); } else if (inp) { storeRename(inp.value); }
+      renaming = null;
+      render();
+      focusInModal(['[data-dlg-rename]', '.dlg-x']);
     }
     // evalCtx(): the {settings..., env} object showWhen predicates evaluate against.
     function evalCtx() { var c = Object.assign({}, S); c.env = ENV; return c; }
@@ -3014,7 +3088,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         INITIAL: INITIAL, MORE_BASE: MORE_BASE, infoOpen: infoOpen, infoIcons: infoIconsOn(SCHEMA, S), moreOpen: moreOpen,
         activePane: activePane, schema: SCHEMA,
         editKicker: editStack.length ? editStack[editStack.length - 1].kicker : '',
-        editNested: editStack.length > 1
+        editNested: editStack.length > 1,
+        editParent: editStack.length > 1 ? editStack[editStack.length - 2].id : null,
+        renaming: renaming
       };
       document.getElementById('tabs').innerHTML = renderTabBar(SCHEMA, activeTab, cx);
       document.getElementById('scroll').innerHTML = renderBody(SCHEMA, activeTab, cx);
@@ -3032,6 +3108,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         : sheetIs('date') ? renderDateModal(SCHEMA, cx)
         : editShown ? renderEditModal(SCHEMA, Object.assign({}, cx, { openInline: expanded }))
         : renderSelectModal(SCHEMA, cx);
+      // A dialog whose section no longer shows (a status bar's, once Delete bar took the bar)
+      // has nothing to show: it closes, as Done would, and render() runs again without it.
+      if (editShown && !modalHtml) { closeModal(true); return; }
       // An open list lives only while its row renders live. A row hidden by its showWhen
       // or muted by its disabledWhen (one tap away, in the same sheet) draws no list, and
       // a key left open would keep .picking on, the scroll nudge hunting, and Escape's
@@ -3168,6 +3247,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         activeTab = id;
       }
       expanded = null;
+      renaming = null;
       sheet = thenSheet || null;
       // A dialog opened over the tab (the Save dialog's fix) is a root dialog like one
       // opened from a row: its × puts back what it changed.
@@ -3607,8 +3687,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           confirmChoice(t.getAttribute('data-confirm'));
           return;
         }
-        // The full-screen dialog's header: Done and ‹ keep the changes, × discards them.
+        // The full-screen dialog's header: Done and ‹ keep the changes, × discards them. A
+        // title that renames: its pencil makes it a name field, OK stores the name.
         if (sheetIs('edit') && e.target.closest) {
+          if (e.target.closest('[data-dlg-rename-ok]')) { commitRename(); return; }
+          if (e.target.closest('[data-dlg-rename]')) { startRename(sheet.key); return; }
           if (e.target.closest('[data-dlg-done]') || e.target.closest('[data-dlg-back]')) { popDialog(); return; }
           if (e.target.closest('[data-dlg-close]')) { cancelDialog(); return; }
           // A row inside a dialog that opens another dialog (e.g. a slot's "Alert levels
@@ -3681,6 +3764,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // the next one closes the sheet.
       modal.addEventListener('cancel', function (e) {
         e.preventDefault();
+        // Escape in a name field keeps the old name: the title is back, the dialog stays.
+        if (renaming && sheetIs('edit')) {
+          renaming = null;
+          render();
+          focusInModal(['[data-dlg-rename]', '.dlg-x']);
+          return;
+        }
         if (collapseSheetExpander()) { return; }
         // In a full-screen dialog Escape steps back like Done: the old sheets kept every
         // change however they closed, and a key press is no place to lose them.
@@ -3691,6 +3781,23 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // pre-edit / commit path as #scroll's text rows; liveTextInput's data-k guard
       // keeps the searchSelect's search box out of S.
       modal.addEventListener('keydown', navRowKey);
+      // A dialog title's name field: Enter stores the name as OK does; leaving the field for
+      // anything but OK stores it too, without a repaint, so the tap that took the focus lands
+      // (its own repaint shows the title again).
+      modal.addEventListener('keydown', function (e) {
+        var inp = (e.key === 'Enter' || e.keyCode === 13) && e.target.closest && e.target.closest('[data-dlg-rename-in]');
+        if (inp) {
+          e.preventDefault();
+          commitRename(inp.value);
+        }
+      });
+      modal.addEventListener('focusout', function (e) {
+        var inp = e.target.closest && e.target.closest('[data-dlg-rename-in]');
+        var to = e.relatedTarget;
+        if (!inp || !renaming || (to && to.closest && to.closest('[data-dlg-rename-ok]'))) { return; }
+        storeRename(inp.value);
+        renaming = null;
+      });
       modal.addEventListener('input', liveTextInput);
       modal.addEventListener('focusin', captureTextPreEdit);
       modal.addEventListener('change', commitTextChange);
@@ -3904,6 +4011,22 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         sheet = { kind: 'select', key: key, focusBack: false, onClose: onClose || null };
         selectQuery = '';
         render(); focusModal();
+      },
+      // Open a full-screen dialog (a sheetOnly section) as one opened from a tab: its × puts
+      // back what it changed. opts.rename opens its title as the name field; opts.kicker says
+      // where it opened from; opts.onClose runs after it closes; opts.overlay: it opens over a
+      // page module's own overlay (the screen editor), so focus goes back to nothing on the page.
+      openDialog: function (id, opts) {
+        var o = opts || {};
+        renaming = o.rename ? id : null;
+        openDialog(id, o.kicker || tabLabel(activeTab), false);
+        if (!sheetIs('edit')) { return; }
+        sheet.onClose = o.onClose || null;
+        if (o.overlay) { sheet.focusBack = false; }
+        if (renaming) {
+          var inp = document.getElementById('modal').querySelector('[data-dlg-rename-in]');
+          if (inp && inp.focus) { inp.focus(); if (inp.select) { inp.select(); } }
+        }
       }
     });
     // The page is ready: what it holds now is where Revert goes back to.

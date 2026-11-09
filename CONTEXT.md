@@ -77,7 +77,8 @@ _Avoid_: naming a bar by its source ("the radar row") where its name is meant.
 **Made bar (bars 4 to 6)**:
 One of the three extra bars of emery (`view-cycle.js` EXTRA_BARS: `bar4`..`bar6`, prefixes
 `statusBar4`..`6`), which exist once New bar made them (`<prefix>Made` true, `view-cycle.js`
-barMade; `screens.js` makeBar from a set or as a copy of one of your bars) and stop at Delete bar
+barMade; `screens.js` makeBar: an empty bar, its slots off, named for its kind unless another
+bar has that name) and stop at Delete bar
 (`screens.js` unmakeBar: every screen's row naming it goes off). The phone bakes its line while a
 screen shows it and sends its On demand cells (`CLAY_OD_EXTRA_UINT8`), to a known emery alone; a
 screen row names it with an ext bit over the first three bars' sources (`view-cycle.js` packExt,

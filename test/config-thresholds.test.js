@@ -571,8 +571,10 @@ function openAlertSheet(page, stem) {
 test('the sheets: the levels and look stay live whatever the slot Highlight, which writes no numbers', () => {
   const page = bootGeneratedPage();
   page.clickTab('watch');
-  assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
-    'the default AQI forecast slot renders its pencil');
+  page.openEditSheet('bar-forecast');
+  assert.ok(page.modal.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
+    'the default AQI forecast slot renders its pencil, in the Forecast bar\'s dialog');
+  page.doneDialog();
   // The AQI levels live in the kind's alert sheet (the Alerts tab), which has no switch
   // (its Shows on grid places the alert); the slot's Alert highlighting switch lives in
   // the slot sheet.
@@ -808,7 +810,8 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
     threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '100', threshAqiWarnLook: 'outline'
   });
   page.clickTab('watch');
-  const html = page.scroll.innerHTML;
+  page.openEditSheet('bar-forecast');
+  const html = page.modal.innerHTML;
   // Slice the whole control cell rather than a window around the Edit button: the
   // swatch LEADS the control and the button TRAILS it, so a window anchored on the
   // button would have to reach backwards past the dropdown to find the dots.
@@ -834,7 +837,8 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
     const p = bootGeneratedPage(Object.assign({ provider: 'dwd',
       threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '100' }, look));
     p.clickTab('watch');
-    const h = p.scroll.innerHTML;
+    p.openEditSheet('bar-forecast');
+    const h = p.modal.innerHTML;
     const a = h.indexOf('data-edit-sheet="threshAqi"');
     return h.slice(h.lastIndexOf('<div class="rgt has-pen">', a), a + 300);
   };
@@ -847,12 +851,13 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
 
   const off = bootGeneratedPage();
   off.clickTab('watch');
+  off.openEditSheet('bar-forecast');
   // The status bars' slot pencils only: the Alerts tab's Weather alerts card badges the
-  // placed alerts' colours of its own (alertLevelBadge), and the bars' Alerts rows (links
-  // to the Alerts tab) carry no badge.
-  const statusCard = off.scroll.innerHTML;
-  assert.equal(statusCard.indexOf(cardTitle('Weather alerts')), -1, 'the Weather alerts card is not on this tab');
-  assert.ok(statusCard.indexOf('data-goto-tab="alerts"') !== -1, 'the bars\' Alerts rows are');
+  // placed alerts' colours of its own (alertLevelBadge), and the bar's Alerts row (a link
+  // to the Alerts tab) carries no badge.
+  const statusCard = off.modal.innerHTML;
+  assert.equal(statusCard.indexOf(cardTitle('Weather alerts')), -1, 'the Weather alerts card is not in the dialog');
+  assert.ok(statusCard.indexOf('data-goto-tab="alerts"') !== -1, 'the bar\'s Alerts row is');
   assert.ok(statusCard.indexOf('data-edit-sheet="threshAqi"') !== -1, 'the status card is in the slice');
   assert.equal(statusCard.indexOf('pen-dot'), -1,
     'no badge while every kind is disabled');
@@ -1240,8 +1245,15 @@ test('the real generated page: threshold pencils + sheet on basalt, nothing on a
   const aplite = bootGeneratedPage({ provider: 'dwd' }, 'aplite');
   aplite.clickTab('watch');
   aplite.openAllMore('scroll');   // the master Bold row rides More options: look behind them too
-  const apliteWatch = aplite.scroll.innerHTML;
-  assert.equal(apliteWatch.indexOf('data-edit-sheet'), -1,
+  // The tab and the Watch and Forecast bars' dialogs (Your bars opens them).
+  const dialog = (bar) => {
+    aplite.openEditSheet('bar-' + bar);
+    const h = aplite.modal.innerHTML;
+    aplite.doneDialog();
+    return h;
+  };
+  const apliteWatch = aplite.scroll.innerHTML + dialog('top') + dialog('forecast');
+  assert.equal(apliteWatch.indexOf('data-edit-sheet="thresh'), -1,
     'no threshold pencil on aplite (env.thresholds is false)');
   ['threshAqiOn', 'threshAqiWarn', 'threshWindOn', 'threshStepsOn',
     'threshAqiWarnColor', 'statusBoldAll'].forEach((k) =>
@@ -2120,20 +2132,20 @@ test('bold-only BoldMode keys hydrate their default and ride the save blob', () 
 // untouched, and the Clay change-detector resends because the blob content
 // changes.
 
-test('the master Bold values row leads the slot selects, thresholds-gated', () => {
+test('the master Bold values row sits in the All status bars card, apart from every bar, thresholds-gated', () => {
   const watch = schema.tabs.find(t => t.id === 'watch');
-  // The master governs EVERY bar, so it lives in the Status bars tab's first card, 'All
-  // status bars' — ABOVE the per-bar cards ("Watch bar", "Forecast bar",
-  // ...), not inside the first bar's own card.
+  // The master governs EVERY bar, so it lives in the Status bars tab's 'All status bars'
+  // card, right under Your bars, never in a bar's own dialog ("Watch bar", "Forecast bar",
+  // ...), which hold the slots.
   const sections = watch.sections.filter(s => !s.sheetOnly);
   const masterIdx = sections.findIndex(s =>
     (s.items || []).some(it => it.messageKey === 'statusBoldAll'));
-  const slotsIdx = sections.findIndex(s =>
-    (s.items || []).some(it => it.messageKey === 'statusTopLeft'));
   assert.ok(masterIdx !== -1, 'master row exists in the Status bars tab');
-  assert.equal(masterIdx, 0, 'in its first card');
-  assert.ok(masterIdx < slotsIdx,
-    'master row renders above the first status-bar card');
+  assert.equal(masterIdx, 1, 'in its second card, under Your bars');
+  assert.equal(watch.sections.filter(s => (s.items || []).some(it => it.messageKey === 'statusBoldAll')).length, 1,
+    'one row, in no bar\'s dialog');
+  assert.equal(watch.sections.find(s => (s.items || []).some(it => it.messageKey === 'statusTopLeft')).sheetId,
+    'bar-top', 'the slots live in the bars\' dialogs');
   assert.equal(sections[masterIdx].id, 'statusAll');
   assert.equal(sections[masterIdx].title, 'All status bars',
     'master row lives in the card for every bar, not under a bar header');

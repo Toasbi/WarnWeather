@@ -41,7 +41,6 @@ var ON_DEMAND_WHEN = gates.ON_DEMAND_WHEN;
 var BOLD_MASTER_WHEN = gates.BOLD_MASTER_WHEN;
 var RADAR_BAR_WHEN = gates.RADAR_BAR_WHEN;
 var HEALTH_BAR_WHEN = gates.HEALTH_BAR_WHEN;
-var EXTRA_BARS_WHEN = gates.EXTRA_BARS_WHEN;
 var extraBarWhen = gates.extraBarWhen;
 var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 var LINE_STYLES_WHEN = gates.LINE_STYLES_WHEN;
@@ -66,7 +65,8 @@ var levelRows = levelRowsSchema.levelRows;
 var alertsSchema = require('./alerts-schema.js');
 var ON_DEMAND = require('../on-demand.js');
 // The longest name a bar, a screen or a graph keeps (screens.js cleanName).
-var NAME_MAX = require('../screens.js').NAME_MAX;
+var SCREENS = require('../screens.js');
+var NAME_MAX = SCREENS.NAME_MAX;
 var ALERT_KINDS = alertsSchema.ALERT_KINDS;
 var ALERT_DAYS_OPTIONS = alertsSchema.ALERT_DAYS_OPTIONS;
 var BT_ICON_OPTIONS = alertsSchema.BT_ICON_OPTIONS;
@@ -845,28 +845,6 @@ function slotItem(slotKey, position, barWhen, joins) {
 }
 
 /**
- * A status bar's Name row (screens.js THE NAMES): what the page calls the bar, '' for its own
- * name (the placeholder), NAME_MAX characters at most; its hint says which screens show it.
- * Page-only: never compiled or sent. The Watch bar has none (one for every screen, it keeps its
- * name).
- * @param {Object} b The bar's on-demand.js BARS entry.
- * @param {?Object} barWhen The bar's gate (null = always).
- * @returns {Object} Text item.
- */
-function barNameRow(b, barWhen) {
-    var item = {
-        type: 'text',
-        messageKey: b.prefix + 'Name',
-        label: 'Name',
-        defaultValue: '',
-        attributes: {placeholder: b.name, maxlength: NAME_MAX},
-        hintFrom: {resolver: 'barScreens', args: {bar: b.bar}}
-    };
-    if (barWhen) { item.showWhen = barWhen; }
-    return item;
-}
-
-/**
  * A status bar's seven items — left/mid/right selects, each followed by its countdown
  * companion date row, then its read-only Alerts row (onDemandRow) — all sharing the bar's
  * gate. Mid, right and the Alerts row always join the row above; the left slot joins only when
@@ -888,58 +866,54 @@ function barSlots(prefix, barWhen, leftJoins) {
     ];
 }
 /**
- * A status bar's card on the Status bars tab, every bar's but the Watch bar's: titled by the
- * bar's name (titleBy: screens.js barName), its Name row on top, whose hint says which screens
- * show it, then its slots and its Alerts row, all behind the bar's gate.
- * @param {string} id The card's id.
+ * A status bar's dialog (the owner's pick, 2026-11-09): the Status bars tab's Your bars card
+ * lists the bars (screens-page.js barsCard) and a tap on a name opens the bar's dialog
+ * (screens.js barSheet). Titled by the bar's name (titleBy: screens.js barName), which the
+ * title renames (rename: an OK button stores it; the Watch bar keeps its name); the bar's
+ * picture pinned on top with where it shows (block 'barPicture'); then the Slots card, the three
+ * slots and the Alerts row, all behind the bar's gate.
  * @param {Object} b The bar's on-demand.js BARS entry.
  * @param {?Object} when The bar's gate (null = always).
- * @param {Array<Object>} [tail] Rows after the Alerts row.
- * @returns {Object} Schema section.
+ * @param {Array<Object>} [tail] Items after the Alerts row (a card of their own after a subheader).
+ * @returns {Object} Schema section (sheetOnly).
  */
-function barSection(id, b, when, tail) {
-    var sec = {id: id, title: b.name, titleBy: {resolver: 'barName', args: {bar: b.bar}}};
+function barDialog(b, when, tail) {
+    var sheet = SCREENS.barSheet(b.bar);
+    var sec = {
+        sheetOnly: true,
+        sheetId: sheet,
+        id: sheet,
+        title: b.name,
+        titleBy: {resolver: 'barName', args: {bar: b.bar}},
+        pinBlock: 'barPicture',
+        items: [{type: 'subheader', text: 'Slots'}].concat(barSlots(b.prefix, when), tail || [])
+    };
+    // Each bar's name (screens.js THE NAMES): '' for its own, NAME_MAX characters at most, a
+    // hidden item of the tab's (barKeysSection). Page-only: never compiled or sent.
+    if (b.bar !== 'top') { sec.rename = {key: b.prefix + 'Name', label: 'Bar name', placeholder: b.name, maxlength: NAME_MAX}; }
     if (when) { sec.showWhen = when; }
-    sec.items = [barNameRow(b, when)].concat(barSlots(b.prefix, when, true), tail || []);
     return sec;
 }
 
 /**
- * A bar 4 to 6's card (Pebble Time 2, made by New bar): the other bars' card, then Delete bar
- * (screens-page.js deleteBar: every screen that shows it drops the row; Undo puts it back).
+ * A bar 4 to 6's dialog (Pebble Time 2, made by New bar): the other bars' dialog, then Delete bar
+ * in a card of its own (screens-page.js deleteBar: every screen that shows it drops the row; the
+ * Your bars card's Undo puts it back).
  * @param {Object} b Its on-demand.js BARS entry.
- * @returns {Object} Schema section.
+ * @returns {Object} Schema section (sheetOnly).
  */
-function extraBarSection(b) {
+function extraBarDialog(b) {
     var when = extraBarWhen(b.prefix);
-    return barSection(b.bar, b, when, [{
+    return barDialog(b, when, [{type: 'subheader', text: ''}, {
         type: 'button', style: 'link', action: 'deleteBar', actionArg: b.bar, label: 'Delete bar', showWhen: when
     }]);
 }
 
 /**
- * The New bar card after the bars (Pebble Time 2): its row opens New bar's picker (the sets and a
- * copy of each of your bars, screens-page.js barStartOptions), its hint counts your bars, and
- * once there are six a note says so in its place. Above it the Undo of a Delete bar.
- * @returns {Object} Schema section.
- */
-function newBarSection() {
-    return {
-        id: 'barNew',
-        showWhen: EXTRA_BARS_WHEN,
-        items: [
-            {type: 'staticText', textFrom: {resolver: 'barUndoNote'}},
-            {type: 'button', action: 'newBar', label: 'New bar', hintFrom: {resolver: 'barCount'},
-                showWhen: {when: 'barFree'}},
-            {type: 'staticText', hinted: true, textFrom: {resolver: 'barsFullNote'}}
-        ]
-    };
-}
-
-/**
- * The made flags of bars 4 to 6 (<prefix>Made: New bar sets one, Delete bar clears it; the
- * phone reads them, view-cycle.js barMade) and New bar's page-only picker, which the New bar
- * card's row opens. Blob-only: sheetOnly keeps it off the tab.
+ * The bars' keys with no row of their own: the made flags of bars 4 to 6 (<prefix>Made: New bar
+ * sets one, Delete bar clears it; the phone reads them, view-cycle.js barMade) and every bar's
+ * name but the Watch bar's (<prefix>Name, which a bar's dialog's title renames: screens-page.js
+ * barRenamed cleans it). Blob-only: sheetOnly keeps it off the tab.
  * @returns {Object} Schema section (sheetOnly, never opened).
  */
 function barKeysSection() {
@@ -948,18 +922,9 @@ function barKeysSection() {
         sheetId: 'barKeys',
         items: ON_DEMAND.EXTRA_BARS.map(function (b) {
             return {type: 'hidden', messageKey: b.prefix + 'Made', defaultValue: false};
-        }).concat([{
-            type: 'select',
-            messageKey: 'statusBarNew',
-            uiOnly: true,
-            label: 'New bar',
-            sheetTitle: 'New bar',
-            sheetLead: 'Start from a ready-made bar, or copy one of yours. Then put it on a screen.',
-            defaultValue: '',
-            dormantValues: [''],
-            optionsFrom: {resolver: 'barStartOptions'},
-            onChange: 'barCreate'
-        }])
+        }).concat(ON_DEMAND.PAGE_BARS.filter(function (b) { return b.bar !== 'top'; }).map(function (b) {
+            return {type: 'hidden', messageKey: b.prefix + 'Name', defaultValue: '', onChange: 'barRenamed'};
+        }))
     };
 }
 // The signup link opens in an external browser (target=_blank). The Development > API Keys page 404s on
@@ -1104,7 +1069,8 @@ var VIEW_FLICK_WHEN = {env: 'platform', ne: 'aplite'};
 var FORECAST_SPAN_WHEN = {env: 'forecastSpan'};
 // The owner's text (2026-11-06). The tap is said twice on purpose: the bars' own line under
 // them (preview-status-bars.js) and here, because a tap on a picture was not obvious.
-var STATUS_INTRO = 'Each bar has a left, middle and right slot. Tap a slot above to change it.';
+var STATUS_INTRO = 'Each bar has a left, middle and right slot. Tap a slot to change it, or tap a bar’s name for '
+    + 'the rest of its settings.';
 // "up to 66": a full feed on the whole screen (the Left axis values On graph or Off).
 var FORECAST_INTRO = 'The forecast graph shows up to 24 hours ahead. On Pebble Time 2 you can pick 12, 24 or up to '
     + String(spanHours.wholeHours(spanHours.FULL_HOURS, spanHours.SCREEN_W)) + ' hours under Forecast length. '
@@ -1688,10 +1654,19 @@ module.exports = {
         // Status bars — only the bars and their slots (the id stays 'watch': links and
         // tests key on it). Where alerts sit at a bar's edges is the Alerts tab's; each
         // bar's Alerts row shows them and opens it. All active bars stay pinned at the top.
-        id: 'watch', label: 'Status bars', short: 'Status', icon: 'tab-status', pinBlock: 'statusBarsPreview', sections: [{
+        id: 'watch', label: 'Status bars', short: 'Status', icon: 'tab-status', sections: [{
+            // Your bars (screens-page.js barsCard, the owner's pick, 2026-11-09): every bar the
+            // watch has, a bar no screen shows too, so any bar can go onto any screen. Each is
+            // its name, the screens that show it and its picture, a tap on a slot changing it and
+            // a tap on the name opening the bar's dialog (barDialog below); then New bar.
+            id: 'yourBars',
+            title: 'Your bars',
+            intro: STATUS_INTRO,
+            block: 'barsList',
+            items: []
+        }, {
             id: 'statusAll',
             title: 'All status bars',
-            intro: STATUS_INTRO,
             items: [
                 // Master bold switch over EVERY slot kind: 'all' packs each kind's bold
                 // cell as always-bold when the threshold blob is built, 'off' as Off
@@ -1722,16 +1697,15 @@ module.exports = {
                 // bars" stays truthful there either way.
                 linkRow('resetStatusSlots', 'Reset status bars to defaults', true)
             ]
-        }, {
-            // The bars in the page's order (on-demand.js PAGE_BARS): Watch, Forecast, Health,
-            // Radar; on-demand.js BARS, the wire and the keys keep theirs.
-            id: 'barTop',
-            title: ON_DEMAND.PAGE_BARS[0].name,
-            // aplite has no On demand (ON_DEMAND_WHEN): it keeps the bar's fixed battery,
-            // quiet-time and Bluetooth rows, and only it. Everywhere else the Battery,
-            // Quiet time and Bluetooth items live on the Alerts tab, and vibe/btIcons in
-            // the Bluetooth dialog (the same keys, gated apart).
-            items: barSlots('statusTop', null).concat(gateAll([
+        },
+        // The bars' dialogs in the page's order (on-demand.js PAGE_BARS): Watch, Forecast,
+        // Health, Radar, then bars 4 to 6 (Pebble Time 2) once New bar made them; on-demand.js
+        // BARS, the wire and the keys keep theirs.
+        // aplite has no On demand (ON_DEMAND_WHEN): the Watch bar's dialog keeps its fixed
+        // battery, quiet-time and Bluetooth rows there, and only there. Everywhere else the
+        // Battery, Quiet time and Bluetooth items live on the Alerts tab, and vibe/btIcons in the
+        // Bluetooth dialog (the same keys, gated apart).
+        barDialog(ON_DEMAND.PAGE_BARS[0], null, gateAll([{type: 'subheader', text: 'Icons and vibration'}, 
                 {
                     type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',
                     defaultValue: true,
@@ -1755,18 +1729,13 @@ module.exports = {
                     joinPrevious: 'loose',
                     options: BT_ICON_OPTIONS
                 }
-            ], {not: ON_DEMAND_WHEN}))
-        },
-        // Your bars, every one of them, a bar no screen shows too (its Name row says so), so any
-        // bar can go onto any screen.
-        barSection('barForecast', ON_DEMAND.PAGE_BARS[1], null),
-        barSection('barHealth', ON_DEMAND.PAGE_BARS[2], HEALTH_BAR_WHEN),
-        barSection('barRadar', ON_DEMAND.PAGE_BARS[3], RADAR_BAR_WHEN),
-        // Bars 4 to 6 (Pebble Time 2): a card each once New bar made it, then New bar.
-        extraBarSection(ON_DEMAND.PAGE_BARS[4]),
-        extraBarSection(ON_DEMAND.PAGE_BARS[5]),
-        extraBarSection(ON_DEMAND.PAGE_BARS[6]),
-        newBarSection(),
+            ], {not: ON_DEMAND_WHEN})),
+        barDialog(ON_DEMAND.PAGE_BARS[1], null),
+        barDialog(ON_DEMAND.PAGE_BARS[2], HEALTH_BAR_WHEN),
+        barDialog(ON_DEMAND.PAGE_BARS[3], RADAR_BAR_WHEN),
+        extraBarDialog(ON_DEMAND.PAGE_BARS[4]),
+        extraBarDialog(ON_DEMAND.PAGE_BARS[5]),
+        extraBarDialog(ON_DEMAND.PAGE_BARS[6]),
         barKeysSection(),
         // Slot dialogs (sheetOnly): reachable only through the Edit button next to a
         // status slot whose selected value has a dialog — never rendered as cards here.
@@ -1924,8 +1893,10 @@ module.exports = {
         // needs no extra gate, because a slot that can't be chosen never opens it.
         boldSection('Phone battery', 'PhoneBattery')
         ].map(function (sec) {
-            // Every slot dialog keeps the bars pinned above its rows.
-            if (sec.sheetOnly) { sec.pinBlock = 'statusBarsPreview'; }
+            // Every slot dialog keeps the bars pinned above its rows: the bar it was opened
+            // from, a bar's dialog (preview-status-bars.js statusBarsPreview). The bars' own
+            // dialogs pin their bar (barDialog).
+            if (sec.sheetOnly && !sec.pinBlock) { sec.pinBlock = 'statusBarsPreview'; }
             return sec;
         })
     }, {
@@ -1959,11 +1930,11 @@ module.exports = {
             {id: 'health', label: 'Health', pinBlock: 'healthPreview', showWhen: {all: [{env: 'health'}, {env: 'hr'}]}}
         ], sections: [{
             // The Your graphs card (Pebble Time 2; settings/graph-styles-page.js, where a graph is
-            // a graph style): a picture of each graph, the picked one the graph the preview and
-            // every card below show (the page swaps its values into the flat keys while the pane
-            // shows it), New graph, the screens it shows on, Rename and Delete. The pick is a
-            // page-only key the cards set (no row of its own). Under the pane switcher, above the
-            // pinned preview (abovePin), so it scrolls away with the switcher.
+            // a graph style): a row per graph, the picked one the graph the preview and every card
+            // below show (the page swaps its values into the flat keys while the pane shows it),
+            // its name renamed in place; New graph, the screens it shows on and Delete. The pick
+            // is a page-only key the rows set (no row of its own). Under the pane switcher, above
+            // the pinned preview (abovePin), so it scrolls away with the switcher.
             pane: 'forecast',
             id: 'graphStyle',
             title: 'Your graphs',
@@ -1977,22 +1948,6 @@ module.exports = {
                 initFrom: {resolver: 'graphStyleOnOpen'}
             }],
             block: 'graphStyleCards'
-        }, {
-            // The card's Rename: the picked graph's name (graph-styles-page.js keeps the field on
-            // it; the commit writes it into graphStyles). × puts the old name back.
-            sheetOnly: true,
-            sheetId: 'graphStyleRename',
-            title: 'Rename graph',
-            showWhen: GRAPH_STYLES_WHEN,
-            items: [{
-                type: 'text',
-                messageKey: 'graphStyleName',
-                uiOnly: true,
-                label: 'Name',
-                defaultValue: '',
-                attributes: {maxlength: NAME_MAX, placeholder: 'Graph name'},
-                onChange: 'graphStyleRenamed'
-            }]
         }, {
             pane: 'forecast',
             id: 'lines',
@@ -2189,10 +2144,11 @@ module.exports = {
             // style holds, one JSON string (src/pkjs/graph-styles.js parse). The flat keys are the
             // first style, so an install without the key has one style and nothing migrates.
             // Blob-only: sheetOnly keeps it off the tab; it hydrates and serializes with the blob.
-            // With it the two page-only pickers that have no row of their own, each drawing its
-            // graphs and templates (pictureFrom): New graph (the card's New graph opens its sheet;
-            // a pick makes the graph) and the screen editor's graph (screens-page.js opens it over
-            // the editor). Their '' and stale values are dormant, so the sheets open with nothing
+            // With it the two page-only pickers that have no row of their own: New graph, which
+            // draws its templates and graphs (pictureFrom; the card's New graph opens its sheet, a
+            // pick makes the graph), and the screen editor's graph, a plain list of your graphs
+            // and a copy of the screen's (screens-page.js opens it over the editor; the owner's,
+            // 2026-11-09). Their '' and stale values are dormant, so the sheets open with nothing
             // ticked.
             sheetOnly: true,
             sheetId: 'graphStyleKeys',
@@ -2215,9 +2171,9 @@ module.exports = {
                 uiOnly: true,
                 label: 'Graph',
                 sheetTitle: 'Graph on this screen',
+                sheetLead: 'Pick the graph this screen shows. To start one from a template, use New graph on the Graphs tab.',
                 defaultValue: '1',
                 optionsFrom: {resolver: 'graphStyleOptions', args: {screen: true}},
-                pictureFrom: {resolver: 'graphStylePicture'},
                 onChange: 'screenGraphStylePicked'
             }]
         }].concat(GRAPH_COLOR_ROWS.map(function (row) {

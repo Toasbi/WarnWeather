@@ -77,7 +77,7 @@ STATUS LINES
       - phone battery
 - Tap a slot in the settings page's picture of your status bars to change it
 - Name your status bars and put any of them on any screen
-- Up to six status bars on Pebble Time 2: make a new one from a set of slots or as a copy
+- Up to six status bars on Pebble Time 2: add an empty one and fill its slots
 - Bold status values to make them stand out or easier to read
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
 - Threshold highlighting: bold, outline, or fill a status slot when its value crosses a

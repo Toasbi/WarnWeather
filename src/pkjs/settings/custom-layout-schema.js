@@ -72,33 +72,20 @@ var storageSection = {
         {type: 'hidden', messageKey: 'radarMode', defaultValue: 'countdown'},
         {type: 'hidden', messageKey: 'healthMode', defaultValue: 'off'},
         // The screen editor's bar picker (screens-page.js opens it over the editor from a bar
-        // row's Bar card): your bars by name, a pick showing that bar in the row instead.
-        // Page-only (uiOnly); '' is dormant, so the sheet opens on the row's own bar.
+        // row's Bar picker): your bars by name, a pick showing that bar in the row instead, and
+        // New bar (Pebble Time 2), an empty bar made for the row. Page-only (uiOnly); '' is
+        // dormant, so the sheet opens on the row's own bar.
         {
             type: 'select',
             messageKey: 'screenBar',
             uiOnly: true,
             label: 'Bar',
             sheetTitle: 'Bar on this screen',
-            sheetLead: 'Pick the bar this screen shows. You set what each bar shows on the Status bars tab.',
+            sheetLead: 'Pick the bar this screen shows. Its Edit button changes what the bar shows.',
             defaultValue: '',
             dormantValues: [''],
             optionsFrom: {resolver: 'screenBarOptions'},
             onChange: 'screenBarPicked'
-        },
-        // The editor's "+ New bar" (Pebble Time 2): New bar's picker, its pick a bar made and put
-        // on the screen being edited (screens-page.js screenNewBarPicked). Page-only.
-        {
-            type: 'select',
-            messageKey: 'screenNewBar',
-            uiOnly: true,
-            label: 'New bar',
-            sheetTitle: 'New bar',
-            sheetLead: 'Start from a ready-made bar, or copy one of yours. The new bar goes on this screen.',
-            defaultValue: '',
-            dormantValues: [''],
-            optionsFrom: {resolver: 'barStartOptions'},
-            onChange: 'screenNewBarPicked'
         }
     ].concat(customViewItems(0), customViewItems(1), customViewItems(2))
 };

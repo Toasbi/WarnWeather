@@ -177,6 +177,34 @@ test('the bake sends the line of a bar 4 to 6 a screen shows, on a Pebble Time 2
   assert.equal(forecastSeries.needsPollen(made, { platform: 'basalt' }), false);
 });
 
+test('New bar makes the next free bar empty, called "Bar <n>" unless another bar has that name', () => {
+  // Stale values a hand-edited blob could hold: New bar clears them all.
+  const S = { statusBar4Left: 'uv', statusBar4MidCountdown: '2026-12-24', statusBar4OnDemandLeftItems: 'bt' };
+  assert.equal(screens.makeBar(S, EMERY), 'bar4');
+  assert.equal(S.statusBar4Made, true);
+  assert.equal(S.statusBar4Name, '', 'its own name');
+  assert.equal(screens.barName(S, 'bar4'), 'Bar 4');
+  assert.deepEqual([S.statusBar4Left, S.statusBar4Mid, S.statusBar4Right], ['empty', 'empty', 'empty'], 'empty');
+  assert.equal(S.statusBar4MidCountdown, undefined, 'no countdown date');
+  assert.equal(S.statusBar4OnDemandLeftItems, '', 'no alerts');
+  assert.ok(screens.screensOf(S, EMERY).every((l) => screens.idxOf(l, 'bar4') === -1), 'on no screen');
+  // Another bar called "Bar 5": the next one takes a number.
+  S.statusForecastName = 'Bar 5';
+  assert.equal(screens.makeBar(S, EMERY), 'bar5');
+  assert.equal(S.statusBar5Name, 'Bar 5 2');
+  assert.equal(screens.makeBar(S, EMERY), 'bar6');
+  assert.equal(screens.makeBar(S, EMERY), null, 'six bars: none left');
+  assert.equal(screens.makeBar({}, BASALT), null, 'a watch without bars 4 to 6');
+});
+
+test('each bar\'s dialog has a sheet id that names it, and back', () => {
+  OD.PAGE_BARS.forEach((b) => {
+    assert.equal(screens.barOfSheet(screens.barSheet(b.bar)), b.bar, b.bar);
+  });
+  assert.equal(screens.barSheet('forecast'), 'bar-forecast');
+  ['', null, 'bar-', 'bar-nope', 'forecast', 'threshUv'].forEach((id) => assert.equal(screens.barOfSheet(id), null, String(id)));
+});
+
 test('Delete bar stores a screen as the editor\'s Remove does: the bar below moves up, the dates go, Undo puts all back', () => {
   const list = [{ k: 'strip' }, { k: 'cal', rows: '2' }, { k: 'bar4' }, { k: 'clock' }, { k: 'fcbar' },
     { k: 'fc', size: 'fill' }];
