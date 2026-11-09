@@ -27,19 +27,6 @@ function statusTab(cfg, platformName) {
 }
 
 /**
- * The values a select sheet offers (its pickable options, in order).
- * @param {string} sheet the open sheet's markup
- * @returns {string[]}
- */
-function offered(sheet) {
-  const out = [];
-  const re = /data-select-pick="([^"]*)"/g;
-  let m;
-  while ((m = re.exec(sheet))) { out.push(m[1]); }
-  return out;
-}
-
-/**
  * One bar's line on the Your status bars card (its name button and its picture), '' when not listed.
  * @param {string} html The tab's markup.
  * @param {string} bar An on-demand.js BARS bar.
@@ -154,7 +141,7 @@ test('a New status bar made while a Delete status bar\'s Undo shows drops the Un
   assert.equal(page.S.statusBar4Left, 'empty');
 });
 
-test('the screen editor: + New status bar puts an empty bar on the screen and opens its dialog; the bar picker\'s New status bar too', () => {
+test('the screen editor: + New status bar puts an empty bar on the screen and opens its dialog', () => {
   const page = statusTab();
   page.tapAction('openScreen', 0);
   let ed = editorBody(page);
@@ -172,33 +159,17 @@ test('the screen editor: + New status bar puts an empty bar on the screen and op
   page.doneDialog();
   assert.ok(page.editor(), 'back in the editor');
   ed = editorBody(page);
-  assert.ok(ed.indexOf('<span>Commute</span>') !== -1, 'the editor shows the new name');
+  assert.ok(ed.indexOf('<span class="se-name">Commute</span>') !== -1, 'the editor shows the new name');
   assert.equal(ed.indexOf('data-se="newbar"'), -1, 'two bars on the screen: no room for a third');
-  // The Forecast bar's row: its picker lists your bars, then New status bar.
-  const j = page.window.Screens.screensOf(page.S)[0].findIndex((b) => b.k === 'fcbar');
-  page.tapEditor({ se: 'expand', j });
-  page.tapEditor({ se: 'bar', j });
-  const sheet = page.modal.innerHTML;
-  assert.match(sheet, /class="ssel-opt add" role="option" aria-selected="false" data-select-pick="new" data-k="screenBar">/,
-    'New status bar, a plus row');
-  assert.ok(sheet.indexOf('<span class="ssel-opt-name">New status bar</span><span class="ssel-opt-desc">An empty status bar, for this screen</span>') !== -1);
-  assert.deepEqual(offered(sheet).filter((v) => v.indexOf('new') === 0), ['new'], 'no templates');
-  page.pickOption('screenBar', 'new');
-  assert.equal(page.S.statusBar5Made, true);
-  assert.equal(page.S.statusBar5Left, 'empty');
-  assert.ok([page.S.viewUpper0, page.S.viewLower0].indexOf('bar5') !== -1, 'bar 5 in the Forecast bar\'s place');
-  assert.ok([page.S.viewUpper0, page.S.viewLower0].indexOf('weather') === -1, 'the Forecast bar left the screen');
-  dlg = page.modal.innerHTML;
-  assert.ok(dlg.indexOf('id="esheet-ttl-bar-bar5">Bar 5</span>') !== -1 && dlg.indexOf('data-dlg-rename-ok') !== -1,
-    'bar 5\'s dialog opens once the picker has closed, its name field ready');
-  assert.ok(dlg.indexOf('<span class="dlg-kick">Default</span>') === -1, 'renaming: no kicker');
+  // A new bar's row is a bar's row: its name and its Edit.
+  const j = page.window.Screens.screensOf(page.S)[0].findIndex((b) => b.k === 'bar4');
+  assert.ok(ed.indexOf('aria-label="Edit Commute"') !== -1 && ed.indexOf('data-se="editbar" data-j="' + j + '"') !== -1);
 });
 
 test('the screen editor: Delete status bar in a bar\'s dialog over the editor takes the row off the screen', () => {
   const page = statusTab({ statusBar4Made: true, statusBar4Name: 'Wind bar', viewLower0: 'bar4' });
   page.tapAction('openScreen', 0);
   const j = page.window.Screens.screensOf(page.S)[0].findIndex((b) => b.k === 'bar4');
-  page.tapEditor({ se: 'expand', j });
   page.tapEditor({ se: 'editbar', j });
   assert.ok(page.modal.innerHTML.indexOf('id="esheet-ttl-bar-bar4">Wind bar</span>') !== -1);
   page.tapAction('deleteBar', 'bar4', 'modal');

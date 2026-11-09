@@ -959,22 +959,25 @@ Multiple `onLoad`/`onSubmit` registrations are allowed and fire in registration 
 block's list, a dialog and an app's own full-screen view read the same. The markup is built
 there and nowhere else; the look is in `shell.html` (the `.ui-*` rules, and the `.chev` and
 `.dlg-*` rules the engine's own parts share). The engine draws its nav rows, its folding cards,
-its dialogs' headers and their Delete with it; an app's page modules call it as
-`PConf.ui` in the page (`require('…/config-ui/lib/ui.js')` under Node). WarnWeather's
-`test/config-ui-parts.test.js` fails on a page file that writes one of these out by hand.
+its dropdowns, its Edit buttons, its dialogs' headers and their Delete with it; an app's page
+modules call it as `PConf.ui` in the page (`require('…/config-ui/lib/ui.js')` under Node).
+WarnWeather's `test/config-ui-parts.test.js` fails on a page file that writes one of these out
+by hand.
 
 | Builder | Draws |
 |---------|-------|
 | `navArrow()` | The red arrow (›) at the end of anything that opens a screen of its own: a nav row, a list row that opens a dialog or an editor. |
-| `foldChev(open)` | The red ▸ of anything that folds open in place, ▾ while open: a collapsible card's header, a row whose options open under it. The button that carries it says `aria-expanded`. |
+| `foldChev(open)` | The red ▸ of anything that folds open in place, ▾ while open: a collapsible card's header. The button that carries it says `aria-expanded`. |
 | `deleteButton(label, at)` | Delete: centred in the accent, under (outside) what it deletes. The `style: 'delete'` button item is this. |
 | `undoToast(text, at)` | The Undo after a delete, in the list the thing went from. `flash(box, v, ms, repaint)` keeps its text in `box` for `ms`, then repaints without it; `unflash(box)` takes it early. |
 | `newRow(label, note, at)` | A list's New row at its foot: the plus and what it makes in the accent, how many there are on the right. |
 | `chip(label, at, {icon, on})` | A chip: an Add chip (the plus first) or a toggle chip (tinted and ticked while on). |
+| `dropdown(label, at)` | A dropdown: what is picked, then the ▾ that opens its picker. A `select` row's trigger is this, and so is a value an app's own view picks through a sheet (`ctx.openSheet`). |
+| `editButton(label, at)` | An Edit button: the outlined text button beside a value that opens what changes it (a row's edit sheet, a dialog an app's own view opens). |
 | `penButton(name, at)`, `renameField(o)` | The pencil after a name that renames it, and the name field with OK beside it. |
 | `header(o)` | A full-screen view's header: the way out (× or ‹), the kicker over the title with its pencil, Done; while renamed, the name field with OK. |
 | `popupHeader(title, closeAt)` | A popup over the page: its title and the × that closes it, in a `.ui-pop` holding a `.ui-pop-card`. |
-| `note(text)`, `icon(name)`, `attrs(map)` | A note in the page's info look; a line icon (plus, pen, check, x, grip, up, down); a tag's attributes, each escaped. |
+| `note(text)`, `icon(name)`, `attrs(map)` | A note in the page's info look; a line icon (plus, pen, check, x, grip); a tag's attributes, each escaped. |
 
 `at` is always a tag's attributes as a map (what a tap does, `aria-*`), escaped by `attrs`:
 `true` gives a bare attribute, and `null`, `undefined` and `false` leave it out.

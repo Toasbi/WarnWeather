@@ -231,19 +231,20 @@
               },
               {
                 "type": "select",
-                "messageKey": "screenBar",
+                "messageKey": "screenRowSize",
                 "uiOnly": true,
-                "label": "Bar",
-                "sheetTitle": "Bar on this screen",
-                "sheetLead": "Pick the bar this screen shows. Its Edit button changes what the bar shows.",
+                "label": "Size",
+                "sheetTitleBy": {
+                  "resolver": "screenRowSizeTitle"
+                },
                 "defaultValue": "",
                 "dormantValues": [
                   ""
                 ],
                 "optionsFrom": {
-                  "resolver": "screenBarOptions"
+                  "resolver": "screenRowSizeOptions"
                 },
-                "onChange": "screenBarPicked"
+                "onChange": "screenRowSizePicked"
               },
               {
                 "type": "hidden",

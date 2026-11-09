@@ -1,10 +1,10 @@
 'use strict';
 // test/config-ui-parts.test.js — one copy of each of the settings page's shared parts. The
-// markup of the red arrow, the fold ▸/▾, Delete, the Undo after it, a list's New row, a chip,
-// the pencil, the name field and its OK, a note, the line icons, a full-screen view's header and
-// a popup's header lives in config-ui/lib/ui.js alone, and every other page file draws them
-// through it (the owner's ask, 2026-11-09: no copies of a part in the pages, the part in the
-// engine). A file that writes one out by hand fails here, by file and part. Only string
+// markup of the red arrow, the fold ▸/▾, Delete, the Undo after it, a list's New row, a chip, a
+// dropdown, an Edit button, the pencil, the name field and its OK, a note, the line icons, a
+// full-screen view's header and a popup's header lives in config-ui/lib/ui.js alone, and every
+// other page file draws them through it (the owner's ask, 2026-11-09: no copies of a part in the
+// pages, the part in the engine). A file that writes one out by hand fails here, by file and part. Only string
 // literals count: a comment may name a part.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -25,6 +25,8 @@ const PARTS = [
   [/class="ui-(?:toast|undo)"|>Undo</, 'the Undo after a delete: undoToast'],
   [/class="ui-row ui-new"/, 'a list\'s New row: newRow'],
   [/class="ui-chip(?![\w-])/, 'a chip: chip'],
+  [/class="sel-wrap"/, 'a dropdown: dropdown'],
+  [/class="thr-btn"/, 'an Edit button: editButton'],
   [/class="ui-pen"|aria-label="Rename /, 'the pencil: penButton'],
   [/class="ui-rn-in"|>OK<\/button>/, 'the name field and its OK: renameField'],
   [/class="ui-note"/, 'a note: note'],

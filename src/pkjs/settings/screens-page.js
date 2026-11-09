@@ -4,14 +4,15 @@
 // Undo on each other; "+ Add screen"), the Add a screen sheet (Blank, then the presets this
 // watch can draw: screen-presets.js), the screen editor (a full-screen view under a dialog's
 // header: the screen's name, which its pencil renames with an OK button, its picture and its
-// rows top to bottom, dragged or moved, each folding open on its red ▸ like a folding card to
-// show its option and its moves, a bar's and the forecast graph's a picker and an Edit button,
-// then the Add chips, and Delete screen under the card), the Status bars tab's Your status bars card
-// (each bar's name, the screens that show it, the alerts placed on it and its picture, whose
-// slots a tap changes, the red arrow in the middle of the row; a tap on the name opens the bar's
-// dialog, schema.js barDialog, which pins the bar's picture; New status bar makes an empty bar and
-// opens it), Setup's Rain radar picker (Off keeps the source) and the modes the page works out
-// from the screens. Every arrow, chevron, Delete, Undo, chip and header is the page's shared
+// rows top to bottom, each dragged by its ≡ or moved with the arrow keys, showing what it lets
+// you pick as a dropdown that opens its picker, the calendar's rows, a graph's size and the
+// forecast graph's graph, or a bar's Edit, which opens the bar's dialog; then the Add chips,
+// and Delete screen under the card), the Status bars tab's Your status bars card (each bar's
+// name, the screens that show it, the alerts placed on it and its picture, whose slots a tap
+// changes, the red arrow in the middle of the row; a tap on the name opens the bar's dialog,
+// schema.js barDialog, which pins the bar's picture; New status bar makes an empty bar and opens
+// it), Setup's Rain radar picker (Off keeps the source) and the modes the page works out from
+// the screens. Every arrow, dropdown, Edit, Delete, Undo, chip and header is the page's shared
 // part (config-ui/lib/ui.js).
 //
 // The screens are read from and written to the custom layout's per-view keys (screens.js
@@ -50,8 +51,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
     var esc = (typeof require !== 'undefined') ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
     // The page's shared parts (config-ui/lib/ui.js): the lists' rows, red arrows, New rows and
-    // Undo (with the timer that takes a message away: flash), the editor's header, its folding
-    // rows' chevrons, its chips and Delete screen, the icons.
+    // Undo (with the timer that takes a message away: flash), the editor's header, its rows'
+    // dropdowns and Edit buttons, its chips and Delete screen, the icons.
     var kit = (typeof require !== 'undefined') ? require('../config-ui/lib/ui.js') : PConf.ui;
 
     // The places' names, the Default first (a screen's own name: screens.js nameOf).
@@ -72,10 +73,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var ALREADY = 'You already have this screen.';
     var NO_GRAPH_ROOM = 'It needs a new graph, and you have 3 already. Delete one on the Graphs tab.';
     var REORDER_HINT = 'The watch starts on the top screen. Each flick shows the next one. Drag ≡ to change the order.';
-    // The editor's bar picker (custom-layout-schema.js: a page-only select); its New status bar row's
-    // value is NEW_BAR (never a kind).
-    var SCREEN_BAR = 'screenBar';
-    var NEW_BAR = 'new';
+    // The editor's Rows and Size picker (custom-layout-schema.js: a page-only select), for the row
+    // in ED.sizeRow: the calendar's rows, a graph's size; why it greys one out.
+    var SCREEN_SIZE = 'screenRowSize';
+    var FC_TOO_SMALL = 'Too small for the high and low temperatures';
+    var NO_ROOM = 'Too tall for the watch';
+    var FILL = 'All the room the other rows leave';
     var BARS_FULL = 'That’s the most status bars there can be: the Watch bar and ' + M.MAX_BARS
         + ' more. To make another, delete one you made.';
     // A Delete status bar's Undo while it shows (the Your status bars card).
@@ -602,7 +605,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Where a bar shows, by the screens' names: "On Default and Steps", "On no screen" (under
-     * its picture in its dialog, its option in the editor's picker).
+     * its picture in its dialog).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} bar An on-demand.js BARS bar.
@@ -613,79 +616,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return GSP.onScreens(barPlaces(S, env, bar, cycle).map(function (i) { return M.nameOf(S, i); }));
     }
 
-    /**
-     * What a bar holds, by its slots' items (preview-status-bars.js barCodes, as its picture
-     * reads them), the empty ones left out: "Temperature/feels like · City · Air quality (AQI)".
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @param {string} bar An on-demand.js BARS bar.
-     * @returns {string}
-     */
-    function barHolds(S, env, bar) {
-        return codesText(PSB.barCodes(S || {}, env, bar).map(function (c) { return c.code; }));
-    }
-
-    /**
-     * The editor's bar picker (options resolver 'screenBarOptions'): your bars by name
-     * (screens.js yourBars), each with what it holds and where it shows; one the screen shows
-     * already (another row) is greyed out. While New status bar can make one (Pebble Time 2), its row
-     * follows: an empty bar, made for this row.
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @returns {Array} [label, kind, meta]
-     */
-    function barOptions(S, env) {
-        var cycle = VC.screensCycle(S || {}, env);
-        var list = M.screensOf(S || {}, env, cycle)[ED.i] || [], cur = list[ED.barRow] || {};
-        var out = M.yourBars(S, env).map(function (bar) {
-            var k = M.KIND_OF_BAR[bar], here = k !== cur.k && M.idxOf(list, k) >= 0;
-            return [M.barName(S, bar), k, here ? { desc: 'Already on this screen', disabled: true }
-                : { desc: barHolds(S, env, bar) + ' · ' + barWhere(S, env, bar, cycle).replace(/^On/, 'on') }];
-        });
-        if (M.freeBar(S, env)) { out.push(['New status bar', NEW_BAR, { add: true, desc: 'An empty status bar, for this screen' }]); }
-        return out;
-    }
-
-    /**
-     * The editor's bar pick (onChange 'screenBarPicked'): the row shows that bar instead, in
-     * its place. New status bar makes an empty one for the row, whose dialog opens with its name field
-     * ready once the picker has closed (ED.made, onClick's 'bar').
-     * @param {Object} S Settings.
-     * @param {*} oldValue The pick before.
-     * @param {string} kind The bar's kind ('fcbar' | 'radarbar' | 'healthbar' | 'bar4' ...), or
-     *   NEW_BAR.
-     * @param {?Object} env Platform env.
-     * @returns {void}
-     */
-    function screenBarPicked(S, oldValue, kind, env) {
-        if (!ED.overlay) { return; }
-        var list = M.screensOf(S, env)[ED.i] || [], j = ED.barRow, v = String(kind || '');
-        if (!list[j] || !M.BAR_OF_KIND[list[j].k]) { return; }
-        if (v === NEW_BAR) {
-            var made = makeBar(S, env);
-            S[SCREEN_BAR] = made ? M.KIND_OF_BAR[made] : oldValue;
-            if (!made) { return; }
-            ED.made = made;
-            v = M.KIND_OF_BAR[made];
-        }
-        if (!M.BAR_OF_KIND[v] || list[j].k === v || M.idxOf(list, v) >= 0) { return; }
-        var next = M.copy(list);
-        next[j] = { k: v };
-        writeScreen(S, ED.i, next, env);
-    }
-
     // ── New status bar and Delete status bar (Pebble Time 2) ────────────────
-
-    /**
-     * What a bar's slots hold, by their items' names, the empty ones left out.
-     * @param {string[]} codes Slot codes.
-     * @returns {string}
-     */
-    function codesText(codes) {
-        var labels = codes.filter(function (c) { return c !== 'empty'; })
-            .map(function (c) { return (catalog.byCode(c) || {}).label || c; });
-        return labels.length ? labels.join(' · ') : 'Nothing in it yet';
-    }
 
     /**
      * How many of your bars there are, of the most a watch with bars 4 to 6 has: "4 of 6 status bars".
@@ -698,8 +629,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The editor's + New status bar: an empty bar made (makeBar) and put on the screen being edited, at
-     * a bar's place (screens.js add), its row open; then its dialog, its name field ready.
+     * The editor's + New status bar: an empty bar made (makeBar) and put on the screen being
+     * edited, at a bar's place (screens.js add); then its dialog, its name field ready.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {void}
@@ -707,9 +638,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function newBarHere(S, env) {
         var made = makeBar(S, env);
         if (!made) { return; }
-        var next = M.add(M.screensOf(S, env)[ED.i] || [], M.KIND_OF_BAR[made]);
-        ED.open = M.idxOf(next, M.KIND_OF_BAR[made]);
-        commit(next);
+        commit(M.add(M.screensOf(S, env)[ED.i] || [], M.KIND_OF_BAR[made]));
         openBar(made, true, M.nameOf(S, ED.i), renderEditor);
     }
 
@@ -883,39 +812,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-pic-card{display:block;width:148px;border-radius:13px;overflow:hidden;line-height:0;'
         + 'box-shadow:0 8px 20px rgba(0,0,0,.28),0 0 0 1px var(--card-line)}'
         + '.se-pic-card svg{display:block;width:100%;height:auto}'
-        // A row: its ≡, its name, what it shows while folded and the red ▸ (▾ while open), its ✕.
+        // A row: its ≡, its name and what it lets you pick (its dropdowns, a bar's Edit), its ✕.
+        // Where the name and the dropdowns do not fit side by side, the dropdowns go under it.
         + '.se-row{position:relative;display:grid;grid-template-columns:40px minmax(0,1fr) 44px;align-items:center;'
         + 'background:var(--card);transition:transform .16s ease}'
         + '.se-row+.se-row{border-top:1px solid var(--row-line)}'
         + '.se-row.lift{z-index:5;transition:none;background:var(--bg);border-radius:10px;'
         + 'box-shadow:0 12px 26px rgba(0,0,0,.3),0 0 0 1px var(--card-line)}'
         + '.se-list.dragging{-webkit-user-select:none;user-select:none}'
-        + '.se-grip{align-self:stretch;display:flex;align-items:center;justify-content:center;color:var(--faint);cursor:grab;touch-action:none}'
+        + '.se-grip{align-self:stretch;display:flex;align-items:center;justify-content:center;margin:0;padding:0;border:none;'
+        + 'background:none;color:var(--faint);cursor:grab;touch-action:none;-webkit-appearance:none;appearance:none}'
+        + '.se-grip:focus-visible{outline:2px solid var(--link);outline-offset:-6px;border-radius:12px}'
         + '.se-grip.off{cursor:default}'
-        + '.se-main{min-width:0;display:flex;align-items:center;gap:8px;padding:13px 2px 13px 0;'
-        + 'border:none;background:none;text-align:left;color:var(--lbl);font:600 14px Inter,system-ui,sans-serif;cursor:pointer}'
-        + '.se-main>span:first-child{flex:1 1 auto;min-width:0}'
-        + '.se-main.fixed{cursor:default}'
-        + '.se-val{flex:0 1 auto;min-width:0;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;'
-        + 'text-overflow:ellipsis}'
-        + '.se-main .chev{width:12px;text-align:center}'
+        + '.se-mid{min-width:0;min-height:52px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 0}'
+        + '.se-name{flex:1 1 auto;min-width:0;font:600 14px Inter,system-ui,sans-serif;color:var(--lbl);overflow-wrap:anywhere}'
+        + '.se-ctl{flex:0 1 auto;min-width:0;max-width:100%;display:flex;gap:6px;margin-left:auto}'
+        + '.se-ctl .sel-wrap{flex:0 1 auto;min-width:0}'
         + '.se-x{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:none;background:none;'
         + 'color:var(--muted);cursor:pointer}'
         + '.se-x .ui-ic{width:16px;height:16px}'
         + '.se-sub{grid-column:1/-1;padding:0 14px 12px 40px}'
         + '.se-off{font-size:12.5px;color:var(--lbl);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}'
         + '.se-link{border:none;background:none;padding:0;color:var(--link);font:700 12.5px Inter,system-ui,sans-serif;cursor:pointer}'
-        + '.se-more{display:grid;gap:4px}'
-        // An open row's options, a line each: the option's name, then its control (a picker
-        // and its Edit, as the page's rows have them, or the segments).
-        + '.se-opt{display:flex;align-items:center;gap:8px;min-height:42px}'
-        + '.se-cap{flex:1 1 auto;min-width:0;font:500 14px Inter,system-ui,sans-serif;color:var(--lbl)}'
-        + '.se-opt .sel-wrap{flex:0 1 auto;min-width:0}'
-        + '.se-moves{display:flex;gap:8px;margin-top:6px}'
-        + '.se-mv{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--ctl-line);'
-        + 'background:var(--bg);color:var(--lbl);border-radius:9px;padding:8px 6px;font:600 12px Inter,system-ui,sans-serif;cursor:pointer}'
-        + '.se-mv .ui-ic{width:14px;height:14px}'
-        + '.se-mv:disabled{opacity:.4;cursor:default}'
         // Add's chips under the rows, the caption first.
         + '.se-adds{padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
         + '.se-adds .ui-cap{margin-right:2px}'
@@ -1086,53 +1004,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // ── The editor ──────────────────────────────────────────────────────────
 
     // The overlay's state: what it shows ('edit' a screen, or 'add': Add a screen), the slot,
-    // the row whose option is open, the snap-back message, the drag in progress, and the name's
-    // input while the title is being renamed.
-    var ED = { overlay: null, mode: 'edit', i: 0, open: -1, toast: { v: null, t: null }, drag: null, nameEl: null,
-        barRow: -1, made: null };
+    // the row whose Rows or Size picker is open, the snap-back message, the drag in progress,
+    // and the name's input while the title is being renamed.
+    var ED = { overlay: null, mode: 'edit', i: 0, sizeRow: -1, toast: { v: null, t: null }, drag: null, nameEl: null };
 
     /**
-     * A graph's size as its row reads it.
-     * @param {Object} b A graph block.
+     * A size as its dropdown and its picker read it: "2 rows", "Fill".
+     * @param {string} v The calendar's rows or a graph's size ('2' | '3' | '4' | 'fill').
      * @returns {string}
      */
-    function sizeLabel(b) {
-        return b.size === 'fill' ? 'Fill' : b.size + ' rows';
-    }
-
-    /**
-     * Would a move keep the rules?
-     * @param {Array<Object>} list The screen.
-     * @param {number} j The row.
-     * @param {number} to Its new place.
-     * @returns {boolean}
-     */
-    function moveOk(list, j, to) {
-        return to >= 0 && to < list.length && !M.problem(M.move(list, j, to));
-    }
-
-    /**
-     * The option buttons of a row: the calendar's rows, a graph's size; a size the watch has
-     * no room for is disabled, and the forecast never takes 2 rows.
-     * @param {Array<Object>} list The screen.
-     * @param {number} j The row.
-     * @param {string} label The option's caption.
-     * @param {string} key 'rows' | 'size'
-     * @param {Array<string>} values Its values.
-     * @param {?Object} env Platform env.
-     * @returns {string} HTML
-     */
-    function optHtml(list, j, label, key, values, env) {
-        var cur = list[j][key];
-        return '<div class="se-opt"><span class="se-cap">' + label + '</span><div class="seg" role="group" aria-label="'
-            + label + '">' + values.map(function (v) {
-                var on = v === cur;
-                var off = !on && ((key === 'size' && list[j].k === 'fc' && v === '2')
-                    || !fitsWatch(M.setOption(list, j, key, v), ED.i, env));
-                return '<button type="button" class="' + (on ? 'on' : '') + '" data-se="opt" data-j="' + j + '" data-key="'
-                    + key + '" data-v="' + v + '" aria-pressed="' + on + '"' + (off ? ' disabled' : '') + '>'
-                    + (v === 'fill' ? 'Fill' : v) + '</button>';
-            }).join('') + '</div></div>';
+    function sizeLabel(v) {
+        return v === 'fill' ? 'Fill' : v + ' rows';
     }
 
     /**
@@ -1147,108 +1029,115 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * An open row's picker line (the owner's, 2026-11-09: as the page's own rows pick things):
-     * the option's name, a picker that names what the row shows (a tap opens the sheet), and
-     * Edit beside it.
-     * @param {string} cap The option's name.
-     * @param {string} pick The picker's data-se.
-     * @param {string} edit Edit's data-se.
-     * @param {number} j The row.
-     * @param {string} value What the row shows (plain text).
-     * @param {string} editLabel Edit's accessible name (plain text).
-     * @returns {string} HTML
+     * The option a row's Rows or Size picker sets: the calendar's rows, a graph's size.
+     * @param {Object} b A block.
+     * @returns {?{key: string, values: Array<string>, cap: string}} null for a row without one
      */
-    function pickerLine(cap, pick, edit, j, value, editLabel) {
-        return '<div class="se-opt"><span class="se-cap">' + cap + '</span>'
-            + '<button type="button" class="sel-wrap" data-se="' + pick + '" data-j="' + j + '" aria-haspopup="dialog"'
-            + ' aria-label="' + esc(cap + ': ' + value) + '"><span>' + esc(value) + '</span><i class="sel-chev"></i></button>'
-            + '<button type="button" class="thr-btn" data-se="' + edit + '" data-j="' + j + '" aria-label="' + esc(editLabel)
-            + '"><span>Edit</span></button></div>';
+    function sizeOf(b) {
+        if (b.k === 'cal') { return { key: 'rows', values: M.CAL_ROWS, cap: 'Rows' }; }
+        return M.isGraph(b) ? { key: 'size', values: M.GRAPH_SIZES, cap: 'Size' } : null;
     }
 
     /**
-     * The forecast row's Graph line (a watch with graph styles: emery): the picker of your
-     * graphs, by the graph's name and length, and Edit, which opens the graph on the Graphs tab.
+     * The row whose Rows or Size picker is open (ED.sizeRow) on the screen being edited.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {?{list: Array<Object>, j: number, b: Object, opt: Object}} null when the row is
+     *   gone or picks no size
+     */
+    function sizeRow(S, env) {
+        var list = M.screensOf(S || {}, env)[ED.i] || [], b = list[ED.sizeRow], opt = b ? sizeOf(b) : null;
+        return opt ? { list: list, j: ED.sizeRow, b: b, opt: opt } : null;
+    }
+
+    /**
+     * The Rows and Size picker's options (options resolver 'screenRowSizeOptions'): the
+     * calendar's 2 or 3 rows, a graph's 2, 3 or 4 rows or Fill. A size the watch has no room
+     * for is greyed out, and so is the forecast graph's 2 rows (its high and low would overlap:
+     * screens.js), each saying why.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {Array} [label, value, meta]
+     */
+    function sizeOptions(S, env) {
+        var r = sizeRow(S, env);
+        if (!r) { return []; }
+        return r.opt.values.map(function (v) {
+            var why = v === r.b[r.opt.key] ? ''
+                : r.b.k === 'fc' && v === '2' ? FC_TOO_SMALL
+                : !fitsWatch(M.setOption(r.list, r.j, r.opt.key, v), ED.i, env) ? NO_ROOM : '';
+            return [sizeLabel(v), v, why ? { desc: why, disabled: true } : v === 'fill' ? { desc: FILL } : {}];
+        });
+    }
+
+    /**
+     * The Rows and Size picker's title (display resolver 'screenRowSizeTitle'): "Calendar rows",
+     * "Forecast graph size".
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {string} '' with no row (the select's own label stands)
+     */
+    function sizeTitle(S, env) {
+        var r = sizeRow(S, env);
+        return r ? M.blockName(r.b, S) + ' ' + r.opt.cap.toLowerCase() : '';
+    }
+
+    /**
+     * A Rows or Size pick (onChange 'screenRowSizePicked'): the row takes it (screens.js
+     * setOption: a graph set to Fill turns a filling other into 3 rows). A greyed-out size is
+     * never taken.
+     * @param {Object} S Settings.
+     * @param {*} oldValue The pick before.
+     * @param {string} value The size picked.
+     * @param {?Object} env Platform env.
+     * @returns {void}
+     */
+    function sizePicked(S, oldValue, value, env) {
+        if (!ED.overlay) { return; }
+        var r = sizeRow(S, env), v = String(value || '');
+        var ok = sizeOptions(S, env).some(function (o) { return o[1] === v && !o[2].disabled; });
+        if (!r || !ok || r.b[r.opt.key] === v) { return; }
+        writeScreen(S, ED.i, M.setOption(r.list, r.j, r.opt.key, v), env);
+    }
+
+    /**
+     * One row of the list (option B, the owner's pick, 2026-11-09): its ≡, its name, what it
+     * lets you pick as a dropdown that opens its picker (the calendar's rows; the forecast
+     * graph's graph, on a watch with graph styles; a graph's size) or a bar's Edit (the bar's
+     * dialog), and its ✕. Nothing folds and nothing shows twice: the dropdown is the value. The
+     * ≡ drags the row, and the arrow keys move it while it has the focus. The Watch bar's row
+     * does not move; the Default screen's Clock has no ✕.
      * @param {Array<Object>} list The screen.
      * @param {number} j The row.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {string} HTML
      */
-    function styleHtml(list, j, S, env) {
-        var k = blockStyle(list[j], S);
-        return pickerLine('Graph', 'style', 'editstyle', j, GSP.label(S, env, k), 'Edit ' + GS.name(S, k) + ' on the Graphs tab');
-    }
-
-    /**
-     * The other screens a bar row's bar shows on, beside the row's name: "Also on Home".
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @param {string} bar An on-demand.js BARS bar.
-     * @returns {string} '' when this screen alone shows it
-     */
-    function alsoOn(S, env, bar, cycle) {
-        var others = barPlaces(S, env, bar, cycle).filter(function (i) { return i !== ED.i; });
-        return others.length ? 'Also on ' + GSP.andList(others.map(function (i) { return M.nameOf(S, i); })) : '';
-    }
-
-    /**
-     * An open bar row's Bar line: the picker of your bars, by the bar's name, and Edit, which
-     * opens the bar's dialog over the editor; under it the other screens that show the bar (the
-     * folded row says it beside its name).
-     * @param {number} j The row.
-     * @param {Object} S Settings.
-     * @param {string} bar An on-demand.js BARS bar.
-     * @param {string} also alsoOn's line ('' for none).
-     * @returns {string} HTML
-     */
-    function barHtml(j, S, bar, also) {
-        var name = M.barName(S, bar);
-        return pickerLine('Status bar', 'bar', 'editbar', j, name, 'Edit ' + name) + (also ? '<div class="ui-d">' + esc(also) + '</div>' : '');
-    }
-
-    /**
-     * One row of the list, folding as a collapsible card does (kit.foldChev): its ≡, its name,
-     * what it shows while it is folded ("Graph 2 · Fill", as a folded card's header says its
-     * pick) and the red ▸ of a row that opens in place, ▾ while its options show under it (the
-     * values among them); then its ✕. The Watch bar's row neither folds nor moves.
-     * @param {Array<Object>} list The screen.
-     * @param {number} j The row.
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @param {Array<?Array>} cycle The screens' cycle (view-cycle.js screensCycle).
-     * @returns {string} HTML
-     */
-    function rowHtml(list, j, S, env, cycle) {
-        var b = list[j], K = M.KINDS[b.k], fixed = b.k === 'strip', open = ED.open === j && !fixed;
-        var keepClock = ED.i === 0 && b.k === 'clock', name = esc(M.blockName(b, S)), bar = M.BAR_OF_KIND[b.k];
-        // The forecast graph's own graph (a watch with graph styles) beside its size, so the
-        // folded row names it too: "Graph 2 · Fill".
-        var styled = b.k === 'fc' && Boolean(env && env.graphStyles);
-        var also = bar ? alsoOn(S, env, bar, cycle) : '';
-        var val = open ? '' : b.k === 'cal' ? b.rows + ' rows' : styled ? GS.name(S, blockStyle(b, S)) + ' · ' + sizeLabel(b)
-            : K.graph ? sizeLabel(b) : also;
+    function rowHtml(list, j, S, env) {
+        var b = list[j], fixed = b.k === 'strip', keepClock = ED.i === 0 && b.k === 'clock';
+        var name = M.blockName(b, S), size = sizeOf(b), ctl = '';
+        if (b.k === 'fc' && env && env.graphStyles) {
+            var graph = GS.name(S, blockStyle(b, S));
+            ctl += kit.dropdown(graph, { 'data-se': 'style', 'data-j': j, 'aria-haspopup': 'dialog', 'aria-label': 'Graph: ' + graph });
+        }
+        if (size) {
+            var shown = sizeLabel(b[size.key]);
+            ctl += kit.dropdown(shown, { 'data-se': 'size', 'data-j': j, 'aria-haspopup': 'dialog',
+                'aria-label': size.cap + ': ' + shown });
+        }
+        if (M.BAR_OF_KIND[b.k]) { ctl = kit.editButton('Edit', { 'data-se': 'editbar', 'data-j': j, 'aria-label': 'Edit ' + name }); }
         var h = '<div class="se-row" role="listitem" data-j="' + j + '">';
         h += fixed ? '<span class="se-grip off" aria-hidden="true"></span>'
-            : '<span class="se-grip" data-grip="' + j + '" title="Drag to move" aria-hidden="true">' + kit.icon('grip') + '</span>';
-        h += fixed ? '<span class="se-main fixed"><span>' + name + '</span></span>'
-            : '<button type="button" class="se-main" data-se="expand" data-j="' + j + '" aria-expanded="' + open + '"><span>'
-                + name + '</span>' + (val ? '<span class="se-val">' + esc(val) + '</span>' : '') + kit.foldChev(open) + '</button>';
+            : '<button type="button" class="se-grip" data-grip="' + j + '" title="Drag to move" aria-label="Move ' + esc(name)
+                + ' (arrow keys)">' + kit.icon('grip') + '</button>';
+        h += '<div class="se-mid"><span class="se-name">' + esc(name) + '</span>' + (ctl ? '<span class="se-ctl">' + ctl + '</span>' : '')
+            + '</div>';
         h += keepClock ? '<span class="se-x" aria-hidden="true"></span>'
-            : '<button type="button" class="se-x" data-se="rm" data-j="' + j + '" aria-label="Remove ' + name + '">'
+            : '<button type="button" class="se-x" data-se="rm" data-j="' + j + '" aria-label="Remove ' + esc(name) + '">'
                 + kit.icon('x') + '</button>';
         if (b.k === 'radar' && S.radarEnabled === false) {
             h += '<div class="se-sub se-off"><span>' + RADAR_OFF + '</span>'
                 + '<button type="button" class="se-link" data-se="radaron">Turn on</button></div>';
-        }
-        if (open) {
-            h += '<div class="se-sub se-more">' + (styled ? styleHtml(list, j, S, env) : '') + (bar ? barHtml(j, S, bar, also) : '');
-            if (b.k === 'cal') { h += optHtml(list, j, 'Rows', 'rows', M.CAL_ROWS, env); }
-            if (K.graph) { h += optHtml(list, j, 'Size', 'size', M.GRAPH_SIZES, env); }
-            h += '<div class="se-moves"><button type="button" class="se-mv" data-se="up" data-j="' + j + '"'
-                + (moveOk(list, j, j - 1) ? '' : ' disabled') + '>' + kit.icon('up') + 'Move up</button>'
-                + '<button type="button" class="se-mv" data-se="down" data-j="' + j + '"'
-                + (moveOk(list, j, j + 1) ? '' : ' disabled') + '>' + kit.icon('down') + 'Move down</button></div></div>';
         }
         return h + '</div>';
     }
@@ -1278,7 +1167,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + (note ? kit.note(note) : '')
             + '<div class="card se-card"><div class="cardHdr"><span class="ttlwrap"><span class="ttl" id="seTtl">Top to bottom</span>'
             + '</span></div><div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
-            + list.map(function (b, j) { return rowHtml(list, j, S, env, cycle); }).join('') + '</div>'
+            + list.map(function (b, j) { return rowHtml(list, j, S, env); }).join('') + '</div>'
             + (chips ? '<div class="ui-chips se-adds"><span class="ui-cap">Add</span>' + chips + '</div>' : '')
             + '</div>'
             + (i > 0 ? kit.deleteButton('Delete screen', { 'data-se': 'delscreen' }) : '');
@@ -1424,16 +1313,40 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Escape folds an open row's options, else closes the editor (not under a dialog).
+     * Move a row (its drag, its arrow keys): stored, or put back with the rule the move would
+     * break, said for three seconds.
+     * @param {Array<Object>} list The screen.
+     * @param {number} j The row.
+     * @param {number} to Its new place.
+     * @returns {boolean} whether it moved
+     */
+    function editorMove(list, j, to) {
+        var next = M.move(list, j, to), why = M.problem(next);
+        if (why) { editorToast(why); renderEditor(); return false; }
+        commit(next);
+        return true;
+    }
+
+    /**
+     * The editor's keys (not under a dialog, nor while the name is renamed): Escape closes it;
+     * ArrowUp / ArrowDown on a focused ≡ move its row a place (editorMove), the ≡ keeping the
+     * focus.
      * @param {KeyboardEvent} e The key.
      * @returns {void}
      */
     function onKeydown(e) {
-        if (e.key !== 'Escape' || ED.nameEl) { return; }
+        if (ED.nameEl || !UI.ctx) { return; }
         var modal = document.getElementById('modal');
         if (modal && modal.open) { return; }
-        if (ED.open >= 0) { ED.open = -1; renderEditor(); return; }
-        closeEditor();
+        if (e.key === 'Escape') { closeEditor(); return; }
+        var g = e.target && e.target.closest ? e.target.closest('[data-grip]') : null;
+        if (!g || !ED.overlay || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) { return; }
+        e.preventDefault();
+        var j = Number(g.getAttribute('data-grip')), to = e.key === 'ArrowUp' ? j - 1 : j + 1;
+        var list = M.screensOf(UI.ctx.S, UI.ctx.ENV)[ED.i] || [];
+        if (to < 0 || to >= list.length) { return; }
+        var again = ED.overlay.querySelector('[data-grip="' + (editorMove(list, j, to) ? to : j) + '"]');
+        if (again) { again.focus(); }
     }
 
     /**
@@ -1452,8 +1365,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The editor's taps: close, open a row's options, remove, add, move, pick an option, turn
-     * the radar on, delete the screen. A tap a drag ends in is no tap.
+     * The editor's taps: close, rename, Add a screen's pick, remove, add, a row's dropdown (its
+     * picker) or Edit, New status bar, turn the radar on, delete the screen. A tap a drag ends
+     * in is no tap.
      * @param {MouseEvent} e The click.
      * @returns {void}
      */
@@ -1473,53 +1387,30 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             UI.toast.v = null;
             ED.mode = 'edit';
             ED.i = slot;
-            ED.open = -1;
             ED.overlay.querySelector('[data-se-body]').scrollTop = 0;
             renderEditor();
             ctx.render();
             return;
         }
-        if (act === 'expand') { ED.open = ED.open === j ? -1 : j; renderEditor(); return; }
-        if (act === 'rm') { ED.open = -1; commit(M.remove(list, j)); return; }
-        if (act === 'add') {
-            var k = t.getAttribute('data-k');
-            var next = M.add(list, k);
-            ED.open = k === 'strip' ? -1 : M.idxOf(next, k);
-            commit(next);
-            return;
-        }
-        if (act === 'up' || act === 'down') {
-            var to = act === 'up' ? j - 1 : j + 1;
-            if (!moveOk(list, j, to)) { return; }
-            ED.open = to;
-            commit(M.move(list, j, to));
-            return;
-        }
-        if (act === 'opt') {
-            if (t.disabled) { return; }
-            commit(M.setOption(list, j, t.getAttribute('data-key'), t.getAttribute('data-v')));
-            return;
-        }
+        if (act === 'rm') { commit(M.remove(list, j)); return; }
+        if (act === 'add') { commit(M.add(list, t.getAttribute('data-k'))); return; }
         if (act === 'radaron') { setRadarEnabled(S, true, env); renderEditor(); ctx.render(); return; }
-        // The forecast row's graph: its picker opens over the editor (the page's select sheet, a
-        // top-layer dialog), its pick lands through screenGraphStylePicked.
+        // A row's Rows or Size: its picker opens over the editor (the page's select sheet, a
+        // top-layer dialog), its pick lands through screenRowSizePicked.
+        if (act === 'size') {
+            var size = list[j] ? sizeOf(list[j]) : null;
+            if (!size) { return; }
+            ED.sizeRow = j;
+            S[SCREEN_SIZE] = list[j][size.key];
+            ctx.openSheet(SCREEN_SIZE, function () { renderEditor(); });
+            return;
+        }
+        // The forecast graph's graph: its picker opens over the editor the same way, its pick
+        // lands through screenGraphStylePicked.
         if (act === 'style') {
+            if (!list[j]) { return; }
             GSP.beginScreenPick(S, ED.i, String(blockStyle(list[j], S) + 1));
             ctx.openSheet(GSP.SCREEN_PICK, function () { renderEditor(); });
-            return;
-        }
-        // A bar row's Bar picker: the picker of your bars opens over the editor, its pick lands
-        // through screenBarPicked; a bar New status bar made there opens next, its name field ready.
-        if (act === 'bar') {
-            ED.barRow = j;
-            ED.made = null;
-            S[SCREEN_BAR] = list[j] ? list[j].k : '';
-            ctx.openSheet(SCREEN_BAR, function () {
-                renderEditor();
-                var made = ED.made;
-                ED.made = null;
-                if (made && ED.overlay) { openBar(made, true, M.nameOf(S, ED.i), renderEditor); }
-            });
             return;
         }
         // + New status bar: an empty bar on this screen, its dialog next (newBarHere).
@@ -1527,13 +1418,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // A bar row's Edit: the bar's dialog over the editor, which repaints as it closes.
         if (act === 'editbar') {
             if (list[j] && M.BAR_OF_KIND[list[j].k]) { openBar(M.BAR_OF_KIND[list[j].k], false, M.nameOf(S, ED.i), renderEditor); }
-            return;
-        }
-        // "Edit <graph> on the Graphs tab": the editor closes, the Graphs tab opens on that graph.
-        if (act === 'editstyle') {
-            S[GSP.PICK] = String(blockStyle(list[j], S) + 1);
-            closeEditor();
-            ctx.gotoTab('graphs', 'forecast');
             return;
         }
         if (act === 'delscreen') {
@@ -1660,11 +1544,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // The click a drag ends in is not a tap on the row.
         setTimeout(function () { ED.drag = null; }, 0);
         if (d.to === d.j || !UI.ctx) { return; }
-        var list = M.screensOf(UI.ctx.S, UI.ctx.ENV)[ED.i] || [];
-        var next = M.move(list, d.j, d.to), why = M.problem(next);
-        if (why) { editorToast(why); renderEditor(); return; }
-        ED.open = -1;
-        commit(next);
+        editorMove(M.screensOf(UI.ctx.S, UI.ctx.ENV)[ED.i] || [], d.j, d.to);
     }
 
     /**
@@ -1695,7 +1575,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ensureStyle();
         ED.mode = mode;
         ED.i = i;
-        ED.open = -1;
+        ED.sizeRow = -1;
         ED.toast.v = null;
         ED.nameEl = null;
         var overlay = document.createElement('div');
@@ -1839,7 +1719,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.onChange) {
             PConf.onChange.register('radarSourcePicked', radarSourcePicked);
             PConf.onChange.register('screenGraphStylePicked', screenStylePicked);
-            PConf.onChange.register('screenBarPicked', screenBarPicked);
+            PConf.onChange.register('screenRowSizePicked', sizePicked);
             PConf.onChange.register('barRenamed', barRenamed);
         }
         // Your status bars by name (screens.js barName): their dialogs' titles and their slot pickers'.
@@ -1848,10 +1728,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             PConf.displayResolvers.register('barSlotTitle', function (S, env, args) {
                 return M.barName(S, args.bar) + ' · ' + args.label;
             });
+            PConf.displayResolvers.register('screenRowSizeTitle', sizeTitle);
         }
         if (PConf.optionsResolvers) {
             PConf.optionsResolvers.register('apliteLayouts', function () { return APLITE_LAYOUTS.slice(); });
-            PConf.optionsResolvers.register('screenBarOptions', barOptions);
+            PConf.optionsResolvers.register('screenRowSizeOptions', sizeOptions);
         }
         if (PConf.hintResolvers) { PConf.hintResolvers.register('batterySaverPauseHint', batterySaverPauseHint); }
         if (PConf.whenResolvers) {

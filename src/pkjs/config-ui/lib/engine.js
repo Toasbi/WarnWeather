@@ -1012,11 +1012,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (!view.editSheet) { return ''; }
     var badge = view.editBadge;
     var label = (badge && badge.label) || 'Edit';
-    return '<button type="button" class="thr-btn" data-edit-sheet="' + esc(view.editSheet)
-      + '" aria-label="' + esc(label) + ' settings for the '
-      + esc(String(item.label || 'selected'))
-      + ' value' + esc((badge && badge.ariaNote) ? ' (' + String(badge.ariaNote) + ')' : '') + '">'
-      + '<span>' + esc(label) + '</span></button>';
+    return ui.editButton(label, { 'data-edit-sheet': view.editSheet, 'aria-label': label + ' settings for the '
+      + String(item.label || 'selected') + ' value' + ((badge && badge.ariaNote) ? ' (' + String(badge.ariaNote) + ')' : '') });
   }
 
   /**
@@ -1064,14 +1061,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {string} Trigger button HTML.
    */
   function renderSelectTrigger(item, view) {
-    var key = esc(item.messageKey), label = currentLabel(item, view.value);
-    var listId = 'ssel-list-' + key;
+    var label = currentLabel(item, view.value);
     var open = view.openSelect === item.messageKey || view.openInline === item.messageKey;
-    var accessibleLabel = selectTriggerAria(item, label);
-    return '<button type="button" class="sel-wrap" data-select="' + key
-      + '" aria-label="' + esc(accessibleLabel) + '" aria-haspopup="listbox" aria-expanded="'
-      + (open ? 'true' : 'false') + '" aria-controls="' + listId + '"><span>'
-      + esc(label) + '</span><i class="sel-chev"></i></button>';
+    return ui.dropdown(label, { 'data-select': item.messageKey, 'aria-label': selectTriggerAria(item, label),
+      'aria-haspopup': 'listbox', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': 'ssel-list-' + item.messageKey });
   }
 
   /**

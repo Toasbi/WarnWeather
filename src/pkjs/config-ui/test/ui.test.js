@@ -18,7 +18,7 @@ test('attrs: each value escaped, true a bare attribute, null, undefined and fals
 });
 
 test('the icons: a line drawing in the text colour, hidden from assistive tech; an unknown name draws nothing', () => {
-  ['plus', 'pen', 'check', 'x', 'grip', 'up', 'down'].forEach((name) => {
+  ['plus', 'pen', 'check', 'x', 'grip'].forEach((name) => {
     assert.match(ui.icon(name), /^<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M[^"]+"\/><\/svg>$/,
       name);
   });

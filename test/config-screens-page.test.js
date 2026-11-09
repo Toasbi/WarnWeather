@@ -1,10 +1,11 @@
 'use strict';
 // test/config-screens-page.test.js — the Watchface tab's screens (settings/screens-page.js):
 // the Screens card (a row per screen, a ✕ with Undo on each flick, "+ Add screen"), the
-// screen editor (its picture, the rows top to bottom, a row's option and moves, ✕ and
-// "+ Add", Delete screen, the radar-off row), Setup's Rain radar picker (Off keeps the
-// source) and the modes Save works out from the screens. The module first, then the REAL
-// generated page (test/helpers/page-harness.js), whose fake DOM carries the editor's overlay.
+// screen editor (its picture, the rows top to bottom, a row's dropdowns and their pickers, its
+// moves by drag and by key, ✕ and "+ Add", Delete screen, the radar-off row), Setup's Rain
+// radar picker (Off keeps the source) and the modes Save works out from the screens. The module
+// first, then the REAL generated page (test/helpers/page-harness.js), whose fake DOM carries the
+// editor's overlay.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
@@ -19,6 +20,7 @@ const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const ui = require('../src/pkjs/config-ui/lib/ui.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const { blankBar, slotsOf } = require('./helpers/status-slots.js');
+const { editorRows, editorRow, sheetTitle, sheetOptions } = require('./helpers/page-rows.js');
 
 const PC = global.PConf;
 const BASALT = platform.computeEnv({ platform: 'basalt' });
@@ -77,19 +79,6 @@ function editorOf(page) {
   const head = ed.querySelector('[data-se-head]').innerHTML;
   const m = /id="seTitle">([^<]*)<\/span>/.exec(head);
   return { title: m ? m[1] : '', head, body: ed.querySelector('[data-se-body]').innerHTML };
-}
-
-/**
- * The editor's rows, top to bottom: each row's name and its value ('' for none).
- * @param {string} body The editor's body.
- * @returns {Array<string>}
- */
-function editorRows(body) {
-  const out = [];
-  const re = /<div class="se-row" role="listitem" data-j="\d+">[\s\S]*?<span>([^<]*)<\/span>(?:<span class="se-val">([^<]*)<\/span>)?/g;
-  let m;
-  while ((m = re.exec(body))) { out.push(m[2] ? m[1] + ' · ' + m[2] : m[1]); }
-  return out;
 }
 
 // --- the module ----------------------------------------------------------------------
@@ -336,7 +325,8 @@ test('a new install: the Default screen alone; + Add screen\'s Blank opens the e
   const ed = editorOf(page);
   assert.equal(ed.title, 'Flick 1');
   assert.deepEqual(editorRows(ed.body), ['Watch bar', 'Clock']);
-  assert.ok(ed.body.indexOf('<span class="se-main fixed"><span>Watch bar</span></span>') !== -1, 'the Watch bar has no handle');
+  assert.ok(editorRow(ed.body, 0).indexOf('<span class="se-grip off" aria-hidden="true"></span><div class="se-mid">'
+    + '<span class="se-name">Watch bar</span></div>') !== -1, 'the Watch bar has no handle and nothing to pick');
   assert.ok(ed.body.indexOf('aria-label="Remove Clock"') !== -1, 'a flick screen may drop its Clock');
   assert.deepEqual((ed.body.match(/class="ui-chip" data-se="add" data-k="[^"]*"><svg[\s\S]*?<\/svg>[^<]*</g) || [])
     .map((x) => x.replace(/^[\s\S]*<\/svg>|<$/g, '')),
@@ -358,7 +348,7 @@ test('+ Health bar on a new screen draws the bar\'s default readings, not an emp
   assert.deepEqual(slotsOf(page.S, 'health'), ['steps', 'empty', 'sleep']);
 });
 
-test('the editor: a row\'s option, its moves, a ✕ and + Add, each stored at once', () => {
+test('the editor: a row\'s dropdown opens its picker; a pick, a move, a ✕ and + Add, each stored at once', () => {
   const page = bootGeneratedPage(THREE);
   page.tapAction('openScreen', 0);
   let ed = editorOf(page);
@@ -366,24 +356,36 @@ test('the editor: a row\'s option, its moves, a ✕ and + Add, each stored at on
   assert.deepEqual(editorRows(ed.body), ['Watch bar', 'Calendar · 2 rows', 'Clock', 'Forecast bar', 'Forecast graph · Fill']);
   assert.equal(ed.body.indexOf('aria-label="Remove Clock"'), -1, 'the Default screen keeps its Clock');
   assert.equal(ed.body.indexOf('Delete screen'), -1, 'nor can the Default screen go');
-  // The forecast graph's sizes: never 2 rows; the move buttons say where it cannot go.
-  page.tapEditor({ se: 'expand', j: 4 });
-  ed = editorOf(page);
-  assert.match(ed.body, /data-key="size" data-v="2" aria-pressed="false" disabled>2</);
-  assert.match(ed.body, /class="on" data-se="opt" data-j="4" data-key="size" data-v="fill" aria-pressed="true">Fill</);
-  assert.match(ed.body, /data-se="up" data-j="4" disabled>/, 'with a calendar, the graph stays at the bottom');
-  page.tapEditor({ se: 'opt', j: 4, key: 'size', v: '3' });
+  // The forecast graph's Size: its picker over the editor, titled by the row; never 2 rows (the
+  // high and low would overlap), each greyed-out size saying why, Fill said in words.
+  page.tapEditor({ se: 'size', j: 4 });
+  assert.ok(page.editor(), 'the editor stays under the picker');
+  assert.equal(sheetTitle(page, 'screenRowSize'), 'Forecast graph size');
+  assert.deepEqual(sheetOptions(page), ['2 rows (off: Too small for the high and low temperatures)', '3 rows', '4 rows',
+    'Fill ✓ (All the room the other rows leave)']);
+  page.pickOption('screenRowSize', '3');
   assert.deepEqual(M.screensOf(page.S, page.S.env)[0][4], b('fc', { size: '3' }));
   assert.equal(page.S.layoutPreset, 'custom', 'the first edit turned the preset custom');
+  assert.deepEqual(editorRows(editorOf(page).body)[4], 'Forecast graph · 3 rows', 'the editor repaints as the picker closes');
+  // A greyed-out size is never taken, whatever asks for it: not even into the stored key, which
+  // reads back as 3 rows (the watch clamps the forecast to 3).
+  assert.equal(page.S.viewBodySize0, '3', 'premise: the key the size is stored in');
+  page.tapEditor({ se: 'size', j: 4 });
+  page.pickOption('screenRowSize', '2');
+  assert.equal(page.S.viewBodySize0, '3');
   // The calendar's rows.
-  page.tapEditor({ se: 'expand', j: 1 });
-  page.tapEditor({ se: 'opt', j: 1, key: 'rows', v: '3' });
-  assert.match(editorOf(page).body, /class="on" data-se="opt" data-j="1" data-key="rows" data-v="3" aria-pressed="true">3</);
-  assert.deepEqual(editorRows(editorOf(page).body)[1], 'Calendar', 'open: the value is in its options');
-  page.tapEditor({ se: 'expand', j: 1 });
-  assert.deepEqual(editorRows(editorOf(page).body)[1], 'Calendar · 3 rows', 'folded: beside its name');
-  // Move the Forecast bar above the Clock, then remove it, then add it back.
-  page.tapEditor({ se: 'up', j: 3 });
+  page.tapEditor({ se: 'size', j: 1 });
+  assert.equal(sheetTitle(page, 'screenRowSize'), 'Calendar rows');
+  assert.deepEqual(sheetOptions(page), ['2 rows ✓', '3 rows']);
+  page.pickOption('screenRowSize', '3');
+  assert.deepEqual(editorRows(editorOf(page).body)[1], 'Calendar · 3 rows');
+  // Under the calendar's 3 rows, 4 rows of graph would not fit the watch: greyed out, saying why.
+  page.tapEditor({ se: 'size', j: 4 });
+  assert.deepEqual(sheetOptions(page), ['2 rows (off: Too small for the high and low temperatures)', '3 rows ✓',
+    '4 rows (off: Too tall for the watch)', 'Fill (All the room the other rows leave)']);
+  page.pickOption('screenRowSize', '3');
+  // Move the Forecast bar above the Clock (its ≡ and the arrow keys), then remove it, then add it back.
+  page.docDispatch('keydown', { key: 'ArrowUp', target: grip(3), preventDefault() {} });
   assert.deepEqual(editorRows(editorOf(page).body), ['Watch bar', 'Calendar · 3 rows', 'Forecast bar', 'Clock',
     'Forecast graph · 3 rows']);
   page.tapEditor({ se: 'rm', j: 2 });
@@ -396,47 +398,68 @@ test('the editor: a row\'s option, its moves, a ✕ and + Add, each stored at on
 });
 
 /**
- * One editor row's markup, from its start to the next row's (to the body's end for the last).
- * @param {string} body The editor's body.
+ * An editor row's ≡ as the browser hands it to the listeners.
  * @param {number} j The row.
- * @returns {string}
+ * @returns {Object}
  */
-function editorRow(body, j) {
-  const at = body.indexOf('<div class="se-row" role="listitem" data-j="' + j + '">');
-  assert.ok(at !== -1, 'row ' + j + ' drawn');
-  const next = body.indexOf('<div class="se-row"', at + 1);
-  return body.slice(at, next === -1 ? body.length : next);
+function grip(j) {
+  const g = { getAttribute: (n) => (n === 'data-grip' ? String(j) : null), setPointerCapture() {} };
+  g.closest = (sel) => (sel === '[data-grip]' ? g : null);
+  return g;
 }
 
-test('the editor\'s rows fold like a folding card: the red ▸ and the value folded, ▾ and the options open', () => {
+test('the editor\'s rows, option B: what a row lets you pick is a dropdown, a bar has Edit; nothing folds or shows twice', () => {
   const page = bootGeneratedPage(THREE);
   page.tapAction('openScreen', 0);
-  let body = editorOf(page).body;
-  // Folded: the name, the value beside it, the red ▸; the button says it is folded.
-  assert.ok(editorRow(body, 1).indexOf('<button type="button" class="se-main" data-se="expand" data-j="1" aria-expanded="false">'
-    + '<span>Calendar</span><span class="se-val">2 rows</span>' + ui.foldChev(false) + '</button>') !== -1, editorRow(body, 1));
-  assert.equal(editorRow(body, 1).indexOf('se-more'), -1, 'no options while folded');
-  // Every row but the Watch bar folds: one ▸ each, none open.
-  assert.equal(body.split(ui.foldChev(false)).length - 1, 4, 'Calendar, Clock, Forecast bar, Forecast graph');
-  assert.equal(body.indexOf(ui.foldChev(true)), -1);
-  // The Watch bar stays at the top with nothing to open: its name alone, no button, no arrow.
-  assert.ok(editorRow(body, 0).indexOf('<span class="se-main fixed"><span>Watch bar</span></span>') !== -1);
-  assert.equal(editorRow(body, 0).indexOf('class="chev'), -1);
-  // Open: ▾, the value moved into the options under it.
-  page.tapEditor({ se: 'expand', j: 1 });
-  body = editorOf(page).body;
-  assert.ok(editorRow(body, 1).indexOf('<button type="button" class="se-main" data-se="expand" data-j="1" aria-expanded="true">'
-    + '<span>Calendar</span>' + ui.foldChev(true) + '</button>') !== -1, editorRow(body, 1));
-  assert.match(editorRow(body, 1), /<div class="se-sub se-more">[\s\S]*data-key="rows" data-v="2" aria-pressed="true">2</);
-  // One row open at a time: opening another folds the first again.
-  page.tapEditor({ se: 'expand', j: 4 });
-  body = editorOf(page).body;
-  assert.match(editorRow(body, 1), /aria-expanded="false"><span>Calendar<\/span><span class="se-val">2 rows<\/span>/);
-  assert.match(editorRow(body, 4), /aria-expanded="true"><span>Forecast graph<\/span><span class="chev fold"/);
-  assert.equal(body.split(ui.foldChev(true)).length - 1, 1);
-  // A second tap folds it.
-  page.tapEditor({ se: 'expand', j: 4 });
-  assert.equal(editorOf(page).body.indexOf(ui.foldChev(true)), -1);
+  const body = editorOf(page).body;
+  // The Calendar: its name, its rows as the page's dropdown (which opens its picker), its ✕.
+  assert.ok(editorRow(body, 1).indexOf('<div class="se-mid"><span class="se-name">Calendar</span><span class="se-ctl">'
+    + ui.dropdown('2 rows', { 'data-se': 'size', 'data-j': 1, 'aria-haspopup': 'dialog', 'aria-label': 'Rows: 2 rows' })
+    + '</span></div>') !== -1, editorRow(body, 1));
+  // A graph: its size the same way (no graph picker on a watch with one graph).
+  assert.ok(editorRow(body, 4).indexOf('<span class="se-ctl">'
+    + ui.dropdown('Fill', { 'data-se': 'size', 'data-j': 4, 'aria-haspopup': 'dialog', 'aria-label': 'Size: Fill' })
+    + '</span>') !== -1, editorRow(body, 4));
+  // A bar: the page's Edit button and nothing else.
+  assert.ok(editorRow(body, 3).indexOf('<div class="se-mid"><span class="se-name">Forecast bar</span><span class="se-ctl">'
+    + ui.editButton('Edit', { 'data-se': 'editbar', 'data-j': 3, 'aria-label': 'Edit Forecast bar' }) + '</span></div>') !== -1,
+    editorRow(body, 3));
+  // The Clock: its name alone.
+  assert.ok(editorRow(body, 2).indexOf('<div class="se-mid"><span class="se-name">Clock</span></div>') !== -1);
+  // Nothing folds, nothing is said twice, no move buttons.
+  ['class="chev', 'aria-expanded', 'se-val', 'se-more', 'Also on', 'Move up', 'Move down'].forEach((gone) => {
+    assert.equal(body.indexOf(gone), -1, gone);
+  });
+  // The ≡ is a button the arrow keys move; the Watch bar has none.
+  assert.ok(editorRow(body, 1).indexOf('<button type="button" class="se-grip" data-grip="1" title="Drag to move" '
+    + 'aria-label="Move Calendar (arrow keys)">' + ui.icon('grip') + '</button>') !== -1, editorRow(body, 1));
+  assert.equal(editorRow(body, 0).indexOf('data-grip'), -1);
+});
+
+test('the editor\'s ≡ and the arrow keys: a row moves a place, keeps the focus, and a move that breaks a rule stays with why', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = bootGeneratedPage(THREE);
+  page.tapAction('openScreen', 0);
+  const ed = page.editor();
+  const key = (j, k) => page.docDispatch('keydown', { key: k, target: grip(j), preventDefault() {} });
+  key(2, 'ArrowDown');
+  assert.deepEqual(M.screensOf(page.S, BASALT)[0].map((x) => x.k), ['strip', 'cal', 'fcbar', 'clock', 'fc']);
+  assert.equal(ed.querySelector('[data-grip="3"]').focuses, 1, 'the ≡ keeps the focus at its new place');
+  // The graph above the bar: with a calendar it stays at the bottom, and the toast says so.
+  key(4, 'ArrowUp');
+  assert.deepEqual(M.screensOf(page.S, BASALT)[0].map((x) => x.k), ['strip', 'cal', 'fcbar', 'clock', 'fc'], 'nothing moved');
+  assert.equal(ed.querySelector('[data-se-toast]').textContent, 'With a calendar, the graph stays at the bottom.');
+  assert.equal(ed.querySelector('[data-grip="4"]').focuses, 1, 'the focus stays on the ≡ that did not move');
+  t.mock.timers.tick(3000);
+  assert.equal(ed.querySelector('[data-se-toast]').textContent, '');
+  // Nowhere to go below the last row; other keys do nothing.
+  key(4, 'ArrowDown');
+  key(1, 'Enter');
+  assert.deepEqual(M.screensOf(page.S, BASALT)[0].map((x) => x.k), ['strip', 'cal', 'fcbar', 'clock', 'fc']);
+  assert.ok(page.editor(), 'still open');
+  // Escape closes the editor.
+  page.docDispatch('keydown', { key: 'Escape' });
+  assert.equal(page.editor(), null);
 });
 
 test('the Screens card\'s rows open a screen of their own, so each ends on the red arrow', () => {
@@ -460,11 +483,6 @@ test('a drag by the handle moves a row; one that breaks a rule snaps back and sa
   // The list's rows as the browser lays them out: 40 px each, from the top.
   ed.querySelector('#seList').children = [0, 1, 2, 3, 4].map((j) => ({ style: {},
     classList: { add() {}, remove() {} }, getBoundingClientRect: () => ({ top: j * 40, height: 40 }) }));
-  const grip = (j) => {
-    const g = { getAttribute: (n) => (n === 'data-grip' ? String(j) : null), setPointerCapture() {} };
-    g.closest = (sel) => (sel === '[data-grip]' ? g : null);
-    return g;
-  };
   const drag = (j, from, to, id) => {
     ed.dispatch('pointerdown', { target: grip(j), clientY: from, pointerId: id, button: 0, preventDefault() {} });
     ed.dispatch('pointermove', { clientY: to, pointerId: id });

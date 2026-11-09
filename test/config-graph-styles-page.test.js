@@ -4,7 +4,7 @@
 // graph's values in the flat keys on Graphs › Forecast and the first graph's everywhere else, the
 // settings as Save stores them, the Your graphs card (a plain row per graph, renamed in place with
 // OK; New graph from a template or as a copy; the Show on row; Delete with Undo), the screen
-// editor's Graph picker and its sheet (your graphs, and a copy of the screen's), and the
+// editor's Graph dropdown and its sheet (your graphs, and a copy of the screen's), and the
 // five-series limit. The module first, then the REAL generated page (test/helpers/page-harness.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -17,6 +17,7 @@ const GSP = require('../src/pkjs/settings/graph-styles-page.js');
 const GS = require('../src/pkjs/graph-styles.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
+const { editorRows, editorRow } = require('./helpers/page-rows.js');
 
 const PC = global.PConf;
 const EMERY = platform.computeEnv({ platform: 'emery' });
@@ -440,21 +441,20 @@ test('the page: Delete moves its screens to the first style; Undo brings both ba
   assert.equal(p.scroll.innerHTML.indexOf('deleted.'), -1, 'the Undo is gone');
 });
 
-test('the screen editor: the forecast row names its graph; open, its Graph picker and Edit; the sheet lists your graphs and a copy', () => {
+test('the screen editor: the forecast row\'s Graph dropdown names its graph before its size; the sheet lists your graphs and a copy', () => {
   const M = require('../src/pkjs/screens.js');
   const p = bootGeneratedPage(TWO, 'emery');
   p.tapAction('openScreen', 1);
   const j = M.idxOf(M.screensOf(p.S, EMERY)[1], 'fc');
   const body = () => p.editor().querySelector('[data-se-body]').innerHTML;
-  // Folded: the row names its graph beside its size; no Graph line until it is open.
-  assert.match(body(), /<span>Forecast graph<\/span><span class="se-val">Long · (?:Fill|\d rows)<\/span>/);
-  assert.equal(body().indexOf('data-se="style"'), -1);
-  // Open: the Graph line first, above the size: the picker by the graph's name and length, Edit.
-  p.tapEditor({ se: 'expand', j });
-  const line = /<div class="se-opt"><span class="se-cap">Graph<\/span><button type="button" class="sel-wrap" data-se="style" data-j="(\d+)" aria-haspopup="dialog" aria-label="Graph: (Long · \d+ h)"><span>(Long · \d+ h)<\/span><i class="sel-chev"><\/i><\/button><button type="button" class="thr-btn" data-se="editstyle" data-j="\d+" aria-label="Edit Long on the Graphs tab"><span>Edit<\/span><\/button><\/div>/.exec(body());
-  assert.ok(line, 'the Graph line: ' + body());
-  assert.equal(Number(line[1]), j);
-  assert.ok(body().indexOf('data-se="style"') < body().indexOf('>Size<'), 'the graph before the size');
+  // The row: the graph's dropdown by its name, then its size's; no Edit (the Graphs tab edits a
+  // graph), no card.
+  const row = editorRow(body(), j);
+  assert.ok(row.indexOf('<span class="se-ctl"><button type="button" class="sel-wrap" data-se="style" data-j="' + j
+    + '" aria-haspopup="dialog" aria-label="Graph: Long"><span>Long</span><i class="sel-chev"></i></button>'
+    + '<button type="button" class="sel-wrap" data-se="size" data-j="' + j + '"') !== -1, row);
+  assert.match(editorRows(body())[j], /^Forecast graph · Long · (?:Fill|\d rows)$/);
+  assert.equal(row.indexOf('editstyle'), -1);
   assert.equal(body().indexOf('se-graph'), -1, 'no card');
   // The picker: the page's select sheet over the editor, your graphs alone, no pictures.
   p.tapEditor({ se: 'style', j });
@@ -469,7 +469,7 @@ test('the screen editor: the forecast row names its graph; open, its Graph picke
   assert.match(sheet, /class="ssel-opt add"[^>]*data-select-pick="new:copy2"[\s\S]*?>New graph<\/span><span class="ssel-opt-desc">A copy of Long, for this screen</);
   p.pickOption('screenGraphStyle', '1');
   assert.equal(p.S.viewStyle1, '1', 'Flick 1 draws the first graph');
-  assert.match(body(), /aria-label="Graph: Graph 1 · 24 h"/, 'the editor repaints');
+  assert.match(body(), /aria-label="Graph: Graph 1"/, 'the editor repaints');
   // New graph: a copy of the screen's graph, put on this screen and picked on the Graphs tab.
   p.tapEditor({ se: 'style', j });
   p.pickOption('screenGraphStyle', 'new:copy1');
@@ -479,33 +479,25 @@ test('the screen editor: the forecast row names its graph; open, its Graph picke
   const N = GSP.normalize(p.S);
   assert.deepEqual(GS.valuesOf(N, 2), GS.valuesOf(N, 0), 'Graph 1\'s values');
   assert.equal(GS.name(N, 2), 'Graph 3');
-  assert.match(body(), /aria-label="Graph: Graph 3 · 24 h"/);
+  assert.match(body(), /aria-label="Graph: Graph 3"/);
   p.tapEditor({ se: 'style', j });
   sheet = p.modal.innerHTML;
   assert.equal(sheet.indexOf('data-select-pick="new:'), -1, 'no free slot: no New graph');
   p.pickOption('screenGraphStyle', '2');
   assert.equal(p.S.viewStyle1, '2');
-  // Edit: the Graphs tab, on that graph.
-  p.tapEditor({ se: 'editstyle', j });
-  assert.equal(p.editor(), null, 'the editor closes');
-  assert.equal(p.S.graphStylePick, '2');
-  assert.equal(p.S.forecastHours, '48', 'Graphs › Forecast shows Long');
-  assert.deepEqual(rows(p.scroll.innerHTML).map((c) => c[1]), [false, true, false], 'on the Graphs tab, Long ticked');
   // One graph: its picker offers New graph, a copy of it.
   const one = bootGeneratedPage(layout(['1', '1'], { provider: 'dwd' }), 'emery');
   one.tapAction('openScreen', 0);
   const fc = M.idxOf(M.screensOf(one.S, EMERY)[0], 'fc');
-  one.tapEditor({ se: 'expand', j: fc });
   one.tapEditor({ se: 'style', j: fc });
   assert.match(one.modal.innerHTML, />Graph 1 · \d+ h<\/span><span class="ssel-opt-desc">Also on Flick 1</);
   assert.ok(one.modal.innerHTML.indexOf('data-select-pick="new:copy1"') !== -1);
-  // basalt: no Graph line.
+  // basalt: no Graph dropdown, the size alone.
   const b = bootGeneratedPage(TWO, 'basalt');
   b.tapAction('openScreen', 0);
-  assert.match(b.editor().querySelector('[data-se-body]').innerHTML, /<span>Forecast graph<\/span><span class="se-val">(?:Fill|\d rows)<\/span>/,
-    'folded: no graph named beside the size');
-  b.tapEditor({ se: 'expand', j: M.idxOf(M.screensOf(b.S, BASALT)[0], 'fc') });
-  assert.equal(b.editor().querySelector('[data-se-body]').innerHTML.indexOf('data-se="style"'), -1);
+  const bBody = b.editor().querySelector('[data-se-body]').innerHTML;
+  assert.match(editorRows(bBody)[M.idxOf(M.screensOf(b.S, BASALT)[0], 'fc')], /^Forecast graph · (?:Fill|\d rows)$/);
+  assert.equal(bBody.indexOf('data-se="style"'), -1);
 });
 
 test('the page: Show on puts the picked graph on a screen or takes it off', async () => {

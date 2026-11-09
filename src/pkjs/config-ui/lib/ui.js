@@ -3,13 +3,14 @@
 // same (the owner's ask, 2026-11-09: no copies of a part in the pages, the part in the engine).
 // The red arrow of anything that opens a screen of its own, the red ▸/▾ of anything that folds
 // open in place, Delete (the last thing under what it deletes), the Undo after it and the timer
-// that takes it away, a list's New row, a chip, the pencil that renames, the name field with its
-// OK, a note, the line icons, the header of a full-screen view (a dialog's, the screen
-// editor's) and the header of a popup over the page (News, Support).
+// that takes it away, a list's New row, a chip, a dropdown, an Edit button, the pencil that
+// renames, the name field with its OK, a note, the line icons, the header of a full-screen view
+// (a dialog's, the screen editor's) and the header of a popup over the page (News, Support).
 // Markup here, the look in shell.html (the .ui-* rules, and the engine's .chev and .dlg-* rules
 // these parts share). A leaf over html.js (esc): loaded after it and before engine.js in the
 // page concat (build-page.js LIB_PAGE_FILES); engine.js draws its nav rows, its folding cards,
-// its dialogs' headers and their Delete with it, and an app's page modules draw theirs with it.
+// its dropdowns, its Edit buttons, its dialogs' headers and their Delete with it, and an app's
+// page modules draw theirs with it.
 // Dual-context like the other lib files: PConf bridge in the concatenated page/test bundle,
 // module.exports under Node.
 var PConf = (typeof PConf !== 'undefined') ? PConf
@@ -23,9 +24,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     pen: 'M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4',
     check: 'M5 12.5l4.5 4.5L19 7.5',
     x: 'M6 6l12 12M18 6L6 18',
-    grip: 'M5 8.5h14M5 12h14M5 15.5h14',
-    up: 'M12 19V5M6 11l6-6 6 6',
-    down: 'M12 5v14M6 13l6 6 6-6'
+    grip: 'M5 8.5h14M5 12h14M5 15.5h14'
   };
 
   /**
@@ -67,8 +66,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * The red ▸ of anything that folds open in place, ▾ while it is open: a collapsible card's
-   * header (engine cardHeaderHtml), a screen editor row. What it opens says aria-expanded on the
-   * button that carries it.
+   * header (engine cardHeaderHtml). What it opens says aria-expanded on the button that carries
+   * it.
    * @param {boolean} open Whether it is open.
    * @returns {string} Markup
    */
@@ -124,6 +123,29 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var opt = o || {};
     return '<button type="button" class="ui-chip' + (opt.on ? ' on' : '') + '"' + attrs(at) + '>'
       + (opt.icon ? icon(opt.icon) : '') + esc(label) + '</button>';
+  }
+
+  /**
+   * A dropdown: what is picked, then the ▾ that says a tap opens its picker (an engine select's
+   * trigger; the screen editor's Rows, Size and Graph).
+   * @param {string} label What it shows.
+   * @param {Object} at Its attributes (what a tap does, its accessible name, aria-haspopup).
+   * @returns {string} Markup
+   */
+  function dropdown(label, at) {
+    return '<button type="button" class="sel-wrap"' + attrs(at) + '><span>' + esc(label)
+      + '</span><i class="sel-chev"></i></button>';
+  }
+
+  /**
+   * An Edit button: the outlined text button beside a value that opens what changes it (an
+   * engine row's edit sheet; a screen editor bar's dialog).
+   * @param {string} label What it says ("Edit").
+   * @param {Object} at Its attributes (what a tap does, its accessible name).
+   * @returns {string} Markup
+   */
+  function editButton(label, at) {
+    return '<button type="button" class="thr-btn"' + attrs(at) + '><span>' + esc(label) + '</span></button>';
   }
 
   /**
@@ -234,8 +256,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   PConf.ui = {
     attrs: attrs, icon: icon, navArrow: navArrow, foldChev: foldChev, deleteButton: deleteButton,
-    undoToast: undoToast, newRow: newRow, chip: chip, penButton: penButton, renameField: renameField, note: note,
-    header: header, popupHeader: popupHeader, flash: flash, unflash: unflash
+    undoToast: undoToast, newRow: newRow, chip: chip, dropdown: dropdown, editButton: editButton, penButton: penButton,
+    renameField: renameField, note: note, header: header, popupHeader: popupHeader, flash: flash, unflash: unflash
   };
   if (typeof module !== 'undefined' && module.exports) { module.exports = PConf.ui; }
 })();

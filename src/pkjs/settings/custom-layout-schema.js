@@ -71,21 +71,20 @@ var storageSection = {
         // as it was before the key existed.
         {type: 'hidden', messageKey: 'radarMode', defaultValue: 'countdown'},
         {type: 'hidden', messageKey: 'healthMode', defaultValue: 'off'},
-        // The screen editor's bar picker (screens-page.js opens it over the editor from a bar
-        // row's Bar picker): your bars by name, a pick showing that bar in the row instead, and
-        // New status bar (Pebble Time 2), an empty bar made for the row. Page-only (uiOnly); '' is
-        // dormant, so the sheet opens on the row's own bar.
+        // The screen editor's Rows and Size picker (screens-page.js opens it over the editor from
+        // a row's dropdown): the calendar's rows or a graph's size, titled by the row ("Calendar
+        // rows"), a size with no room greyed out. Page-only (uiOnly); '' is dormant, so the sheet
+        // opens on the row's own size.
         {
             type: 'select',
-            messageKey: 'screenBar',
+            messageKey: 'screenRowSize',
             uiOnly: true,
-            label: 'Bar',
-            sheetTitle: 'Bar on this screen',
-            sheetLead: 'Pick the bar this screen shows. Its Edit button changes what the bar shows.',
+            label: 'Size',
+            sheetTitleBy: {resolver: 'screenRowSizeTitle'},
             defaultValue: '',
             dormantValues: [''],
-            optionsFrom: {resolver: 'screenBarOptions'},
-            onChange: 'screenBarPicked'
+            optionsFrom: {resolver: 'screenRowSizeOptions'},
+            onChange: 'screenRowSizePicked'
         }
     ].concat(customViewItems(0), customViewItems(1), customViewItems(2))
 };

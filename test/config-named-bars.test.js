@@ -1,8 +1,8 @@
 // test/config-named-bars.test.js — 2.7.0's named status bars on the settings page: a bar's
 // name (screens.js barName, the page-only <prefix>Name keys), the Status bars tab's Your status bars
 // card and each bar's dialog, whose title renames it (a pencil, then a field and OK), the
-// screen editor's bar rows (Also on, the Bar picker and Edit, the picker of your bars), and the
-// names wherever the page speaks of a bar (the slot pickers, the Alerts tab, the previews).
+// screen editor's bar rows (the bar's name and its Edit), and the names wherever the page
+// speaks of a bar (the slot pickers, the Alerts tab, the previews).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -16,7 +16,7 @@ global.localStorage = {
 
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const ui = require('../src/pkjs/config-ui/lib/ui.js');
-const { editorBody: body } = require('./helpers/page-rows.js');
+const { editorBody: body, editorRows, sheetTitle } = require('./helpers/page-rows.js');
 const M = require('../src/pkjs/screens.js');
 const VC = require('../src/pkjs/view-cycle.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
@@ -26,30 +26,6 @@ const BASALT = platform.computeEnv({ platform: 'basalt' });
 // An upgraded install's three screens: Default (Forecast bar), Flick 1 (Health bar), Flick 2
 // (Radar bar).
 const THREE = { provider: 'dwd', radarMode: 'graph', healthMode: 'all' };
-
-/**
- * The open select sheet's title.
- * @param {Object} page bootGeneratedPage handle.
- * @param {string} key The select's key.
- * @returns {string}
- */
-function sheetTitle(page, key) {
-  const m = new RegExp('id="ssel-ttl-' + key + '"[^>]*>([^<]*)<').exec(page.modal.innerHTML);
-  return m ? m[1] : '';
-}
-
-/**
- * The editor's rows, top to bottom: each row's name and its value ('' for none).
- * @param {string} html The editor's body.
- * @returns {Array<string>}
- */
-function editorRows(html) {
-  const out = [];
-  const re = /<div class="se-row" role="listitem" data-j="\d+">[\s\S]*?<span>([^<]*)<\/span>(?:<span class="se-val">([^<]*)<\/span>)?/g;
-  let m;
-  while ((m = re.exec(html))) { out.push(m[2] ? m[1] + ' · ' + m[2] : m[1]); }
-  return out;
-}
 
 // --- the names --------------------------------------------------------------------
 
@@ -234,85 +210,42 @@ test('a bar\'s name: trimmed and cut, its own name stores none, another bar\'s t
 
 // --- the screen editor ----------------------------------------------------------------
 
-test('the editor: a bar row reads by its name, with the other screens that show it beside it', () => {
+test('the editor: a bar row reads by its name, with its Edit and nothing else beside it', () => {
   const S = Object.assign({ statusForecastName: 'Morning' }, THREE);
   const page = bootGeneratedPage(S);
   page.tapAction('openScreen', 0);
-  assert.deepEqual(editorRows(body(page)), ['Watch bar', 'Calendar · 2 rows', 'Clock', 'Morning', 'Forecast graph · Fill'],
-    'this screen alone shows it: nothing beside it');
+  assert.deepEqual(editorRows(body(page)), ['Watch bar', 'Calendar · 2 rows', 'Clock', 'Morning', 'Forecast graph · Fill']);
+  assert.ok(body(page).indexOf('<span class="se-name">Morning</span><span class="se-ctl">'
+    + ui.editButton('Edit', { 'data-se': 'editbar', 'data-j': 3, 'aria-label': 'Edit Morning' }) + '</span>') !== -1);
   assert.ok(body(page).indexOf('aria-label="Remove Morning"') !== -1);
   page.tapEditor({ se: 'close' });
-  // The same bar on Flick 1 too.
+  // The same bar on Flick 1 too: where else it shows is the Status bars tab's to say, not the row's.
   page.tapAction('openScreen', 1);
   page.tapEditor({ se: 'add', k: 'fcbar' });
-  // Added, the row is open: what it shows goes under its Bar picker (a folded row says it
-  // beside its name, as a folded card's header says its pick).
   assert.ok(editorRows(body(page)).indexOf('Morning') !== -1, editorRows(body(page)).join(' | '));
-  assert.ok(body(page).indexOf('aria-label="Edit Morning"><span>Edit</span></button></div><div class="ui-d">Also on Default</div>')
-    !== -1, 'open: the other screens under the picker');
+  assert.equal(body(page).indexOf('Also on'), -1);
   page.tapEditor({ se: 'close' });
   page.tapAction('openScreen', 0);
-  assert.ok(editorRows(body(page)).indexOf('Morning · Also on Flick 1') !== -1);
+  assert.equal(body(page).indexOf('Also on'), -1);
   // "Add" offers each bar by its name, a calm chip with a plus.
   page.tapEditor({ se: 'rm', j: 3 });
   assert.match(body(page), /<button type="button" class="ui-chip" data-se="add" data-k="fcbar"><svg class="ui-ic"[^>]*>[\s\S]*?<\/svg>Morning<\/button>/);
 });
 
-test('the editor: an open bar row shows its Bar picker and Edit; a pick shows another bar; Edit opens the bar\'s dialog over the editor', () => {
+test('the editor: a bar row\'s Edit opens the bar\'s dialog over the editor, which stays under it', () => {
   const page = bootGeneratedPage(Object.assign({ statusRadarName: 'Wind' }, THREE));
-  page.tapAction('openScreen', 1);
-  const j = M.idxOf(M.screensOf(page.S, BASALT)[1], 'healthbar');
-  page.tapEditor({ se: 'expand', j });
-  let html = body(page);
-  assert.ok(html.indexOf('<div class="se-opt"><span class="se-cap">Status bar</span><button type="button" class="sel-wrap" data-se="bar" '
-    + 'data-j="' + j + '" aria-haspopup="dialog" aria-label="Status bar: Health bar"><span>Health bar</span><i class="sel-chev"></i></button>'
-    + '<button type="button" class="thr-btn" data-se="editbar" data-j="' + j + '" aria-label="Edit Health bar"><span>Edit</span>'
-    + '</button></div>') !== -1, 'the picker names the bar; Edit beside it');
-  // The picker: your bars by name, what each holds and where it shows.
-  page.tapEditor({ se: 'bar', j });
-  const sheet = page.modal.innerHTML;
-  assert.equal(sheetTitle(page, 'screenBar'), 'Bar on this screen');
-  assert.match(sheet, /Pick the bar this screen shows\. Its Edit button changes what the bar shows\./);
-  assert.match(sheet, />Forecast bar<[\s\S]*Temperature[\s\S]*on Default/);
-  assert.match(sheet, />Health bar<[\s\S]*Steps · Sleep · on Flick 1/);
-  assert.match(sheet, />Wind<[\s\S]*UV index[\s\S]*on Flick 2/);
-  assert.equal(sheet.indexOf('New status bar'), -1, 'no New status bar on a watch without bars 4 to 6');
-  // A pick shows that bar in the row instead.
-  page.pickOption('screenBar', 'radarbar');
-  assert.deepEqual(M.screensOf(page.S, BASALT)[1].map((b) => b.k), ['strip', 'clock', 'radarbar', 'health']);
-  html = body(page);
-  assert.ok(editorRows(html).indexOf('Wind') !== -1, editorRows(html).join(' | '));
-  assert.ok(html.indexOf('<div class="ui-d">Also on Flick 2</div>') !== -1, 'the row stays open, the other screens under it');
-  page.tapEditor({ se: 'expand', j });
-  assert.ok(editorRows(body(page)).indexOf('Wind · Also on Flick 2') !== -1, 'folded: beside its name');
-  // Edit: the bar's dialog over the editor, which stays open under it.
+  page.tapAction('openScreen', 2);
+  const j = M.idxOf(M.screensOf(page.S, BASALT)[2], 'radarbar');
   page.tapEditor({ se: 'editbar', j });
   assert.ok(page.editor(), 'the editor stays');
   assert.ok(page.modal.innerHTML.indexOf('id="esheet-ttl-bar-radar">Wind</span>') !== -1, 'the bar\'s dialog');
-  assert.ok(page.modal.innerHTML.indexOf('<span class="dlg-kick">Flick 1</span>') !== -1, 'opened from the screen');
+  assert.ok(page.modal.innerHTML.indexOf('<span class="dlg-kick">Flick 2</span>') !== -1, 'opened from the screen');
   page.doneDialog();
   assert.ok(page.editor(), 'Done: back in the editor');
-});
-
-test('the bar picker greys out a bar this screen shows already', () => {
-  const page = bootGeneratedPage(THREE);
-  page.tapAction('openScreen', 1);
-  page.tapEditor({ se: 'add', k: 'fcbar' });
-  const list = M.screensOf(page.S, BASALT)[1];
-  page.tapEditor({ se: 'bar', j: M.idxOf(list, 'healthbar') });
-  const sheet = page.modal.innerHTML;
-  const opt = (name) => {
-    const at = sheet.indexOf('<span class="ssel-opt-name">' + name + '</span>');
-    assert.ok(at !== -1, name + ' offered');
-    return sheet.slice(sheet.lastIndexOf('<button', at), sheet.indexOf('</button>', at));
-  };
-  assert.match(opt('Forecast bar'), / disabled aria-disabled="true"/, 'the Forecast bar is on this screen already');
-  assert.match(opt('Forecast bar'), /Already on this screen/);
-  assert.match(opt('Radar bar'), /data-select-pick="radarbar"/);
-  assert.match(opt('Health bar'), /data-select-pick="healthbar"/, 'the row\'s own bar stays pickable');
-  // A pick of a bar the screen shows changes nothing.
-  page.pickOption('screenBar', 'fcbar');
-  assert.deepEqual(M.screensOf(page.S, BASALT)[1].map((b) => b.k), list.map((b) => b.k));
+  // A row that is not a bar opens nothing.
+  const writes = page.modal.writes;
+  page.tapEditor({ se: 'editbar', j: 1 });
+  assert.equal(page.modal.writes, writes);
 });
 
 // --- the names elsewhere --------------------------------------------------------------
