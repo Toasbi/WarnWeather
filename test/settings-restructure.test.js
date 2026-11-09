@@ -31,12 +31,11 @@ test('page-only keys are never stored: the Night hours, Separate hours and the R
   schema.tabs.forEach(t => t.sections.forEach(s => s.items.forEach(it => { if (it.uiOnly) { uiOnly.push(it.messageKey); } })));
   // The Rain radar picker writes radarEnabled and radarProvider (screens-page.js), so its Off
   // keeps the source.
-  // The graph styles' pick and the two pickers without a row (graph-styles-page.js) write
-  // graphStyles and the screens' viewStyle keys; the screen editor's Rows and Size picker and its
-  // + Status bar picker (screens-page.js) write the screen's rows, and New status bar the bar it
-  // makes.
+  // The graph styles' pick and New graph's picker (graph-styles-page.js) write graphStyles and
+  // the screens' viewStyle keys; the screen editor's Rows and Size picker (screens-page.js)
+  // writes the screen's rows.
   assert.deepEqual(uiOnly.sort(), ['graphStyleNewFrom', 'graphStylePick', 'nightHoursFrom',
-    'nightHoursSeparate', 'nightHoursTo', 'radarSource', 'screenAddBar', 'screenGraphStyle', 'screenRowSize']);
+    'nightHoursSeparate', 'nightHoursTo', 'radarSource', 'screenRowSize']);
   const S = E.hydrate(schema, {}, platformLib.computeEnv({ platform: 'emery' }));
   const blob = E.serialize(schema, S);
   uiOnly.forEach(k => assert.equal(Object.prototype.hasOwnProperty.call(blob, k), false, k));

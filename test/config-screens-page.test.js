@@ -2,7 +2,7 @@
 // test/config-screens-page.test.js — the Watchface tab's screens (settings/screens-page.js):
 // the Screens card (a row per screen, a ✕ with Undo on each flick, "+ Add screen"), the
 // screen editor (its picture, the rows top to bottom, a row's dropdowns and their pickers, its
-// moves by drag and by key, ✕ and "+ Add", Delete screen, the radar-off row), Setup's Rain
+// moves by drag and by key, ✕ and the Add chips, Delete screen, the radar-off row), Setup's Rain
 // radar picker (Off keeps the source) and the modes Save works out from the screens. The module
 // first, then the REAL generated page (test/helpers/page-harness.js), whose fake DOM carries the
 // editor's overlay.
@@ -328,8 +328,8 @@ test('a new install: the Default screen alone; + Add screen\'s Blank opens the e
   assert.ok(editorRow(ed.body, 0).indexOf('<span class="se-grip off" aria-hidden="true"></span><div class="se-mid">'
     + '<span class="se-name">Watch bar</span></div>') !== -1, 'the Watch bar has no handle and nothing to pick');
   assert.ok(ed.body.indexOf('aria-label="Remove Clock"') !== -1, 'a flick screen may drop its Clock');
-  assert.deepEqual(editorAddChips(ed.body), ['Calendar', 'Status bar', 'Forecast graph', 'Rain radar', 'Health graph'],
-    'the bars through one chip, in their place');
+  assert.deepEqual(editorAddChips(ed.body), ['Calendar', 'Forecast bar', 'Radar bar', 'Health bar', 'Forecast graph',
+    'Rain radar', 'Health graph'], 'a chip each, the bars in their place');
   assert.ok(ed.body.endsWith('</div><button type="button" class="ui-del" data-se="delscreen">Delete screen</button>'),
     'Delete screen: the page\'s one Delete, last, under the card');
   page.tapEditor({ se: 'close' });
@@ -340,8 +340,7 @@ test('+ Health bar on a new screen draws the bar\'s default readings, not an emp
   const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, BLANK_HEALTH));
   page.tapAction('addScreen');
   page.tapEditor({ se: 'pick', id: 'blank' });
-  page.tapEditor({ se: 'addbar' });
-  page.pickOption('screenAddBar', 'healthbar');
+  page.tapEditor({ se: 'add', k: 'healthbar' });
   const pic = /<span class="se-pic-card"[\s\S]*?<\/span><\/div>/.exec(editorOf(page).body)[0];
   assert.match(pic, />6\.2k</, 'steps');
   assert.match(pic, />7h12</, 'sleep');
@@ -390,8 +389,7 @@ test('the editor: a row\'s dropdown opens its picker; a pick, a move, a ✕ and 
     'Forecast graph · 3 rows']);
   page.tapEditor({ se: 'rm', j: 2 });
   assert.deepEqual(editorRows(editorOf(page).body), ['Watch bar', 'Calendar · 3 rows', 'Clock', 'Forecast graph · 3 rows']);
-  page.tapEditor({ se: 'addbar' });
-  page.pickOption('screenAddBar', 'fcbar');
+  page.tapEditor({ se: 'add', k: 'fcbar' });
   assert.deepEqual(editorRows(editorOf(page).body), ['Watch bar', 'Calendar · 3 rows', 'Clock', 'Forecast bar',
     'Forecast graph · 3 rows'], 'at its natural place: above the bottom graph');
   // Each edit is on the page at once: the Screens card under the editor follows.
@@ -409,37 +407,30 @@ function grip(j) {
   return g;
 }
 
-test('+ Status bar: one Add chip opens the picker of your bars; a pick puts the bar at a bar\'s place', () => {
-  const page = bootGeneratedPage(THREE);
+test('Add: a chip per status bar, by its name, in the bars\' place; a tap puts the bar there at once', () => {
+  const page = bootGeneratedPage(Object.assign({ statusRadarName: 'Sky' }, THREE));
   page.tapAction('openScreen', 1);
   let body = editorOf(page).body;
-  // One chip for the bars, in their place: after the calendar, before the graphs.
-  assert.deepEqual(editorAddChips(body), ['Calendar', 'Status bar', 'Forecast graph', 'Rain radar']);
-  assert.ok(body.indexOf(ui.chip('Status bar', { 'data-se': 'addbar', 'aria-haspopup': 'dialog' }, { icon: 'plus' })) !== -1);
-  // The picker: your bars by name, what each holds and where it shows; the one this screen
-  // shows already greyed out. No New status bar on a watch without bars 4 to 6.
-  page.tapEditor({ se: 'addbar' });
-  assert.ok(page.editor(), 'the editor stays under the picker');
-  assert.equal(sheetTitle(page, 'screenAddBar'), 'Add a status bar');
-  const opts = sheetOptions(page);
-  assert.deepEqual(opts.map((o) => o.replace(/ \(.*$/, '')), ['Forecast bar', 'Health bar', 'Radar bar']);
-  assert.match(opts[0], /^Forecast bar \(.+ · on Default\)$/);
-  assert.equal(opts[1], 'Health bar (off: Already on this screen)');
-  assert.match(opts[2], /^Radar bar \(.+ · on Flick 2\)$/);
-  // A greyed-out bar is never taken, whatever asks for it.
-  page.pickOption('screenAddBar', 'healthbar');
+  // Flick 1 shows the Health bar: the other two by their names, after the calendar and before
+  // the graphs. No picker, and no New status bar on a watch without bars 4 to 6.
+  assert.deepEqual(editorAddChips(body), ['Calendar', 'Forecast bar', 'Sky', 'Forecast graph', 'Rain radar']);
+  assert.ok(body.indexOf(ui.chip('Sky', { 'data-se': 'add', 'data-k': 'radarbar' }, { icon: 'plus' })) !== -1);
+  assert.equal(body.indexOf('data-se="newbar"'), -1);
+  // A bar the screen shows is never added again, whatever asks for it.
+  page.tapEditor({ se: 'add', k: 'healthbar' });
   assert.deepEqual(M.screensOf(page.S, BASALT)[1].map((x) => x.k), ['strip', 'clock', 'healthbar', 'health']);
-  // A pick: the bar above the bottom graph, the editor repainted as the picker closes.
-  page.tapEditor({ se: 'addbar' });
-  page.pickOption('screenAddBar', 'radarbar');
+  // A tap: the bar above the bottom graph, the editor repainted.
+  page.tapEditor({ se: 'add', k: 'radarbar' });
   assert.deepEqual(M.screensOf(page.S, BASALT)[1].map((x) => x.k), ['strip', 'clock', 'healthbar', 'radarbar', 'health']);
   body = editorOf(page).body;
-  assert.deepEqual(editorRows(body), ['Watch bar', 'Clock', 'Health bar', 'Radar bar', 'Health graph · Fill']);
-  // Two bars: a screen's most, so no chip.
+  assert.deepEqual(editorRows(body), ['Watch bar', 'Clock', 'Health bar', 'Sky', 'Health graph · Fill']);
+  // Two bars: a screen's most, so no bar chips, and a forged tap adds no third.
   assert.deepEqual(editorAddChips(body), ['Calendar', 'Forecast graph']);
+  page.tapEditor({ se: 'add', k: 'fcbar' });
+  assert.equal(M.screensOf(page.S, BASALT)[1].length, 5);
 });
 
-test('the editor\'s rows, option B: what a row lets you pick is a dropdown, a bar has Edit; nothing folds or shows twice', () => {
+test('the editor\'s rows: the calendar\'s rows and a graph\'s size are dropdowns, a bar its name alone; nothing folds or shows twice', () => {
   const page = bootGeneratedPage(THREE);
   page.tapAction('openScreen', 0);
   const body = editorOf(page).body;
@@ -451,14 +442,14 @@ test('the editor\'s rows, option B: what a row lets you pick is a dropdown, a ba
   assert.ok(editorRow(body, 4).indexOf('<span class="se-ctl">'
     + ui.dropdown('Fill', { 'data-se': 'size', 'data-j': 4, 'aria-haspopup': 'dialog', 'aria-label': 'Size: Fill' })
     + '</span>') !== -1, editorRow(body, 4));
-  // A bar: the page's Edit button and nothing else.
-  assert.ok(editorRow(body, 3).indexOf('<div class="se-mid"><span class="se-name">Forecast bar</span><span class="se-ctl">'
-    + ui.editButton('Edit', { 'data-se': 'editbar', 'data-j': 3, 'aria-label': 'Edit Forecast bar' }) + '</span></div>') !== -1,
+  // A bar: its name alone. Its Add chip picked which bar, and the Status bars tab edits it.
+  assert.ok(editorRow(body, 3).indexOf('<div class="se-mid"><span class="se-name">Forecast bar</span></div>') !== -1,
     editorRow(body, 3));
   // The Clock: its name alone.
   assert.ok(editorRow(body, 2).indexOf('<div class="se-mid"><span class="se-name">Clock</span></div>') !== -1);
-  // Nothing folds, nothing is said twice, no move buttons.
-  ['class="chev', 'aria-expanded', 'se-val', 'se-more', 'Also on', 'Move up', 'Move down'].forEach((gone) => {
+  // Nothing folds, nothing is said twice, no move buttons, no Edit, no graph picker.
+  ['class="chev', 'aria-expanded', 'se-val', 'se-more', 'Also on', 'Move up', 'Move down', 'thr-btn', 'data-se="editbar"',
+    'data-se="style"'].forEach((gone) => {
     assert.equal(body.indexOf(gone), -1, gone);
   });
   // The ≡ is a button the arrow keys move; the Watch bar has none.

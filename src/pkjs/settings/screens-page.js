@@ -4,17 +4,17 @@
 // Undo on each other; "+ Add screen"), the Add a screen sheet (Blank, then the presets this
 // watch can draw: screen-presets.js), the screen editor (a full-screen view under a dialog's
 // header: the screen's name, which its pencil renames with an OK button, its picture and its
-// rows top to bottom, each dragged by its ≡ or moved with the arrow keys, showing what it lets
-// you pick as a dropdown that opens its picker, the calendar's rows, a graph's size and the
-// forecast graph's graph, or a bar's Edit, which opens the bar's dialog; then the Add chips,
-// whose one + Status bar opens the picker of your bars and New status bar, and Delete screen
-// under the card), the Status bars tab's Your status bars card (each bar's
+// rows top to bottom, each by its name, dragged by its ≡ or moved with the arrow keys, the
+// calendar's rows and a graph's size as a dropdown that opens its picker; then the Add chips,
+// one per thing the screen can take: each of your status bars, New status bar, and with
+// several graphs each graph; and Delete screen under the card), the Status bars tab's Your
+// status bars card (each bar's
 // name, the screens that show it, the alerts placed on it and its picture, whose slots a tap
 // changes, the red arrow in the middle of the row; a tap on the name opens the bar's dialog,
 // schema.js barDialog, which pins the bar's picture; New status bar makes an empty bar and opens
 // it), Setup's Rain radar picker (Off keeps the source) and the modes the page works out from
-// the screens. Every arrow, dropdown, Edit, Delete, Undo, chip and header is the page's shared
-// part (config-ui/lib/ui.js).
+// the screens. Every arrow, dropdown, Delete, Undo, chip and header is the page's shared part
+// (config-ui/lib/ui.js).
 //
 // The screens are read from and written to the custom layout's per-view keys (screens.js
 // screensOf / compileKeys), one screen at a time, so a screen the user does not touch keeps
@@ -41,10 +41,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ? require('./preview-status-bars.js') : window.PreviewStatusBars;
     var catalog = (typeof require !== 'undefined')
         ? require('../status-line-catalog.js') : window.StatusLineCatalog;
-    var onDemand = (typeof require !== 'undefined') ? require('../on-demand.js') : window.OnDemand;
-    // Graph styles (Pebble Time 2): the forecast row's graph card and its picker
-    // (graph-styles-page.js the options, pictures, labels, limit and writes; graph-styles.js the
-    // model).
+    // Graph styles (Pebble Time 2): the graphs the Add chips offer and their names, and the limit
+    // (graph-styles-page.js; graph-styles.js the model).
     var GSP = (typeof require !== 'undefined') ? require('./graph-styles-page.js') : window.GraphStylesPage;
     var GS = (typeof require !== 'undefined') ? require('../graph-styles.js') : window.GraphStyles;
     // The screens Add screen offers after Blank.
@@ -53,7 +51,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var esc = (typeof require !== 'undefined') ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
     // The page's shared parts (config-ui/lib/ui.js): the lists' rows, red arrows, New rows and
     // Undo (with the timer that takes a message away: flash), the editor's header, its rows'
-    // dropdowns and Edit buttons, its chips and Delete screen, the icons.
+    // dropdowns, its chips and Delete screen, the icons.
     var kit = (typeof require !== 'undefined') ? require('../config-ui/lib/ui.js') : PConf.ui;
 
     // The places' names, the Default first (a screen's own name: screens.js nameOf).
@@ -80,11 +78,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var FC_TOO_SMALL = 'Too small for the high and low temperatures';
     var NO_ROOM = 'Too tall for the watch';
     var FILL = 'All the room the other rows leave';
-    // The editor's + Status bar picker (custom-layout-schema.js: a page-only select): your bars,
-    // then New status bar, whose value is NEW_BAR (never a kind).
-    var ADD_BAR = 'screenAddBar';
-    var NEW_BAR = 'new';
-    var ALREADY_HERE = 'Already on this screen';
     var BARS_FULL = 'That’s the most status bars there can be: the Watch bar and ' + M.MAX_BARS
         + ' more. To make another, delete one you made.';
     // A Delete status bar's Undo while it shows (the Your status bars card).
@@ -252,8 +245,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
 
     /**
-     * New status bar, wherever it is tapped (the Your status bars card, the editor's + New status bar, the bar
-     * picker): screens.js makeBar, and a Delete status bar's Undo dropped, since the bar made can be
+     * New status bar, wherever it is tapped (the Your status bars card, the editor's + New status
+     * bar): screens.js makeBar, and a Delete status bar's Undo dropped, since the bar made can be
      * the deleted one's slot (freeBar), which the Undo would write the old bar over.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
@@ -487,7 +480,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     || Boolean(graph && !graph.values && GSP.drawnBy(N, l[M.idxOf(l, 'fc')]) === graph.k));
             });
             if (mine) { why = ALREADY; } else if (styled && !graph) { why = NO_GRAPH_ROOM; } else if (graph
-                && GSP.screenOverflows(W, env, n, graph.k, null)) { why = GSP.limitDesc(W, env, graph.k); }
+                && GSP.screenOverflows(W, env, n, graph.k)) { why = GSP.limitDesc(W, env, graph.k); }
         }
         return { id: p ? p.id : BLANK, name: p ? p.name : 'Blank', desc: p ? PRESETS.describe(p, env)
             : 'Watch bar and clock. You add the rest.', look: p ? p.look : null, list: list, graph: graph, W: W, n: n, why: why };
@@ -512,8 +505,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Add the screen a choice stands for, after the others: its graph made first when it brings
-     * a new one (and picked on the Graphs tab, as the editor's picker picks a new graph), the
-     * screen named after its preset. Mutates S.
+     * a new one (and picked on the Graphs tab, which then shows it), the screen named after its
+     * preset. Mutates S.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} id 'blank' or a preset's id.
@@ -611,7 +604,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Where a bar shows, by the screens' names: "On Default and Steps", "On no screen" (under
-     * its picture in its dialog, its option in + Status bar's picker).
+     * its picture in its dialog).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} bar An on-demand.js BARS bar.
@@ -620,66 +613,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function barWhere(S, env, bar, cycle) {
         return GSP.onScreens(barPlaces(S, env, bar, cycle).map(function (i) { return M.nameOf(S, i); }));
-    }
-
-    /**
-     * What a bar holds, by its slots' items (preview-status-bars.js barCodes, as its picture
-     * reads them), the empty ones left out: "Temperature/feels like · City · Air quality (AQI)".
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @param {string} bar An on-demand.js BARS bar.
-     * @returns {string}
-     */
-    function barHolds(S, env, bar) {
-        var labels = PSB.barCodes(S || {}, env, bar).map(function (c) { return c.code; })
-            .filter(function (c) { return c !== 'empty'; })
-            .map(function (c) { return (catalog.byCode(c) || {}).label || c; });
-        return labels.length ? labels.join(' · ') : 'Nothing in it yet';
-    }
-
-    /**
-     * The editor's + Status bar picker (options resolver 'screenAddBarOptions'; the owner's ask,
-     * 2026-11-09: one Add status bar, then pick which): your bars by name (screens.js yourBars),
-     * each with what it holds and where it shows, one the screen shows already greyed out. While
-     * New status bar can make one for the screen (Pebble Time 2), it follows: an empty bar.
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @returns {Array} [label, kind, meta]
-     */
-    function addBarOptions(S, env) {
-        var cycle = VC.screensCycle(S || {}, env), list = M.screensOf(S || {}, env, cycle)[ED.i] || [];
-        var out = M.yourBars(S, env).map(function (bar) {
-            var k = M.KIND_OF_BAR[bar];
-            return [M.barName(S, bar), k, M.idxOf(list, k) >= 0 ? { desc: ALREADY_HERE, disabled: true }
-                : { desc: barHolds(S, env, bar) + ' · ' + barWhere(S, env, bar, cycle).replace(/^On/, 'on') }];
-        });
-        if (M.newBarFor(list, S, env)) { out.push(['New status bar', NEW_BAR, { add: true, desc: 'An empty status bar, for this screen' }]); }
-        return out;
-    }
-
-    /**
-     * + Status bar's pick (onChange 'screenAddBarPicked'): the bar goes onto the screen being
-     * edited, at a bar's place (screens.js add). New status bar makes an empty one first
-     * (makeBar), whose dialog opens with its name field ready once the picker has closed
-     * (ED.made, onClick's 'addbar'). A greyed-out bar is never taken.
-     * @param {Object} S Settings.
-     * @param {*} oldValue The pick before.
-     * @param {string} kind The bar's kind ('fcbar' | 'radarbar' | 'healthbar' | 'bar4' ...), or
-     *   NEW_BAR.
-     * @param {?Object} env Platform env.
-     * @returns {void}
-     */
-    function addBarPicked(S, oldValue, kind, env) {
-        if (!ED.overlay) { return; }
-        var k = String(kind || '');
-        if (!addBarOptions(S, env).some(function (o) { return o[1] === k && !o[2].disabled; })) { return; }
-        if (k === NEW_BAR) {
-            var made = makeBar(S, env);
-            if (!made) { return; }
-            ED.made = made;
-            k = M.KIND_OF_BAR[made];
-        }
-        writeScreen(S, ED.i, M.add(M.screensOf(S, env)[ED.i] || [], k), env);
     }
 
     // ── New status bar and Delete status bar (Pebble Time 2) ────────────────
@@ -864,7 +797,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-pic-card{display:block;width:148px;border-radius:13px;overflow:hidden;line-height:0;'
         + 'box-shadow:0 8px 20px rgba(0,0,0,.28),0 0 0 1px var(--card-line)}'
         + '.se-pic-card svg{display:block;width:100%;height:auto}'
-        // A row: its ≡, its name and what it lets you pick (its dropdowns, a bar's Edit), its ✕.
+        // A row: its ≡, its name, the calendar's rows or a graph's size (a dropdown), its ✕.
         // Where the name and the dropdowns do not fit side by side, the dropdowns go under it.
         + '.se-row{position:relative;display:grid;grid-template-columns:40px minmax(0,1fr) 44px;align-items:center;'
         + 'background:var(--card);transition:transform .16s ease}'
@@ -889,6 +822,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Add's chips under the rows, the caption first.
         + '.se-adds{padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
         + '.se-adds .ui-cap{margin-right:2px}'
+        // Why a graph's chip is greyed out, on a line of its own under the chips.
+        + '.se-adds .se-limit{flex:1 1 100%;margin-top:4px}'
         // Add a screen: Blank across the top, the presets two by two, each with its picture.
         + '.sa-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}'
         + '.sa-card{display:grid;justify-items:center;align-content:start;gap:8px;min-width:0;margin:0;padding:12px 10px;'
@@ -1057,10 +992,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // The overlay's state: what it shows ('edit' a screen, or 'add': Add a screen), the slot,
     // the row whose Rows or Size picker is open, the snap-back message, the drag in progress,
-    // the name's input while the title is being renamed, and the bar New status bar made in
-    // + Status bar's picker, whose dialog opens once the picker has closed.
-    var ED = { overlay: null, mode: 'edit', i: 0, sizeRow: -1, toast: { v: null, t: null }, drag: null, nameEl: null,
-        made: null };
+    // and the name's input while the title is being renamed.
+    var ED = { overlay: null, mode: 'edit', i: 0, sizeRow: -1, toast: { v: null, t: null }, drag: null, nameEl: null };
 
     /**
      * A size as its dropdown and its picker read it: "2 rows", "Fill".
@@ -1155,12 +1088,34 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * One row of the list (option B, the owner's pick, 2026-11-09): its ≡, its name, what it
-     * lets you pick as a dropdown that opens its picker (the calendar's rows; the forecast
-     * graph's graph, on a watch with graph styles; a graph's size) or a bar's Edit (the bar's
-     * dialog), and its ✕. Nothing folds and nothing shows twice: the dropdown is the value. The
-     * ≡ drags the row, and the arrow keys move it while it has the focus. The Watch bar's row
-     * does not move; the Default screen's Clock has no ✕.
+     * Whether the screens pick among several graphs (graph styles, Pebble Time 2): then the
+     * forecast graph comes in by a chip per graph (graphOffers) and its row names its graph.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {boolean}
+     */
+    function manyGraphs(S, env) {
+        return Boolean(env && env.graphStyles) && GS.count(S) > 1;
+    }
+
+    /**
+     * A row's name in the list: with several graphs the forecast graph's is its graph's ("Long"),
+     * as a status bar's is its bar's; any other row's is its kind's (screens.js blockName).
+     * @param {Object} b A block.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {string}
+     */
+    function rowName(b, S, env) {
+        return b.k === 'fc' && manyGraphs(S, env) ? GS.name(S, blockStyle(b, S)) : M.blockName(b, S);
+    }
+
+    /**
+     * One row of the list (the owner's picks, 2026-11-09): its ≡, its name, the calendar's rows
+     * or a graph's size as a dropdown that opens its picker, and its ✕. Which bar or graph a row
+     * is was picked by its Add chip, so nothing else sits on the row: the Status bars tab edits a
+     * bar, the Graphs tab a graph. The ≡ drags the row, and the arrow keys move it while it has
+     * the focus. The Watch bar's row does not move; the Default screen's Clock has no ✕.
      * @param {Array<Object>} list The screen.
      * @param {number} j The row.
      * @param {Object} S Settings.
@@ -1169,17 +1124,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function rowHtml(list, j, S, env) {
         var b = list[j], fixed = b.k === 'strip', keepClock = ED.i === 0 && b.k === 'clock';
-        var name = M.blockName(b, S), size = sizeOf(b), ctl = '';
-        if (b.k === 'fc' && env && env.graphStyles) {
-            var graph = GS.name(S, blockStyle(b, S));
-            ctl += kit.dropdown(graph, { 'data-se': 'style', 'data-j': j, 'aria-haspopup': 'dialog', 'aria-label': 'Graph: ' + graph });
-        }
+        var name = rowName(b, S, env), size = sizeOf(b), ctl = '';
         if (size) {
             var shown = sizeLabel(b[size.key]);
-            ctl += kit.dropdown(shown, { 'data-se': 'size', 'data-j': j, 'aria-haspopup': 'dialog',
+            ctl = kit.dropdown(shown, { 'data-se': 'size', 'data-j': j, 'aria-haspopup': 'dialog',
                 'aria-label': size.cap + ': ' + shown });
         }
-        if (M.BAR_OF_KIND[b.k]) { ctl = kit.editButton('Edit', { 'data-se': 'editbar', 'data-j': j, 'aria-label': 'Edit ' + name }); }
         var h = '<div class="se-row" role="listitem" data-j="' + j + '">';
         h += fixed ? '<span class="se-grip off" aria-hidden="true"></span>'
             : '<button type="button" class="se-grip" data-grip="' + j + '" title="Drag to move" aria-label="Move ' + esc(name)
@@ -1197,6 +1147,89 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * The screen with the forecast graph added at its place (screens.js add), drawing graph g.
+     * @param {Array<Object>} list A screen.
+     * @param {number} g A graph (a style index; the first is no field of the block).
+     * @returns {Array<Object>} the new screen
+     */
+    function withGraph(list, g) {
+        var next = M.add(list, 'fc');
+        if (g > 0) { next[M.idxOf(next, 'fc')].style = String(g + 1); }
+        return next;
+    }
+
+    /**
+     * The forecast graph's Add chips while there are several graphs (the owner's ask,
+     * 2026-11-09: a chip per graph): each graph by its name, greyed out (off) where screen i
+     * drawing it would make the screens draw more lines and stripes than the watch shows
+     * (graph-styles-page.js screenOverflows, as Add a screen reads a preset's graph). null with
+     * one graph: the Forecast graph chip stands.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {number} i View slot.
+     * @param {Array<Object>} list The screen (it has no forecast graph).
+     * @returns {?Array<{se: string, k: string, g: number, label: string, off: boolean}>}
+     */
+    function graphOffers(S, env, i, list) {
+        if (!manyGraphs(S, env)) { return null; }
+        var N = GSP.asStored(S);
+        return GSP.existing(N).map(function (g) {
+            var W = Object.assign({}, N);
+            ensureCustom(W, env);
+            putScreen(W, i, withGraph(list, g));
+            return { se: 'add', k: 'fc', g: g, label: GS.name(N, g), off: GSP.screenOverflows(W, env, i, g) };
+        });
+    }
+
+    /**
+     * What the editor's Add row offers screen i (the owner's ask, 2026-11-09: a chip for each
+     * thing, no pickers): every row the screen can take and the watch has room for (screens.js
+     * addable, fitsWatch), in their order, each status bar by its name; New status bar after the
+     * bars while it can make one for the screen (Pebble Time 2); with several graphs a chip per
+     * graph in the forecast graph's place (graphOffers). The chips are drawn from it, and a tap
+     * is taken only when it matches one that is not greyed out.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {number} i View slot.
+     * @param {Array<Object>} list The screen.
+     * @returns {Array<{se: string, label: string, off: boolean, k: (string|undefined), g: (number|undefined)}>}
+     */
+    function addOffers(S, env, i, list) {
+        var head = [], tail = [];
+        M.addable(list, env, S).forEach(function (k) {
+            if (!fitsWatch(M.add(list, k), i, env)) { return; }
+            var graphs = k === 'fc' ? graphOffers(S, env, i, list) : null;
+            if (graphs) { tail = tail.concat(graphs); return; }
+            (M.isGraph({ k: k }) ? tail : head).push({ se: 'add', k: k, label: M.blockName({ k: k }, S), off: false });
+        });
+        var free = M.newBarFor(list, S, env);
+        if (free && fitsWatch(M.add(list, M.KIND_OF_BAR[free]), i, env)) {
+            head.push({ se: 'newbar', label: 'New status bar', off: false });
+        }
+        return head.concat(tail);
+    }
+
+    /**
+     * The Add row: a chip per offer (addOffers). A greyed-out graph has no action, and the line
+     * under the chips says why, as the Graphs tab's Show on row does (graph-styles-page.js
+     * limitNote).
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Array<Object>} offers What the row offers.
+     * @returns {string} HTML ('' when it offers nothing)
+     */
+    function addRowHtml(S, env, offers) {
+        if (!offers.length) { return ''; }
+        var chips = offers.map(function (o) {
+            if (o.off) { return kit.chip(o.label, { disabled: true }, { icon: 'plus' }); }
+            return kit.chip(o.label, { 'data-se': o.se, 'data-k': o.k, 'data-g': o.g }, { icon: 'plus' });
+        }).join('');
+        var off = offers.filter(function (o) { return o.off; }).map(function (o) { return o.g; });
+        return '<div class="ui-chips se-adds"><span class="ui-cap">Add</span>' + chips
+            + (off.length ? '<div class="ui-d se-limit">' + esc(GSP.limitNote(S, env, off)) + '</div>' : '') + '</div>';
+    }
+
+    /**
      * The editor's body for the screen in ED.i.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
@@ -1206,23 +1239,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function editorBody(S, env, userData) {
         var i = ED.i, cycle = VC.screensCycle(S, env), list = M.screensOf(S, env, cycle)[i] || [];
         var note = !cycle[i] ? NOTHING_YET : !fitsWatch(list, i, env) ? TOO_TALL : '';
-        var adds = M.addable(list, env, S).filter(function (k) { return fitsWatch(M.add(list, k), i, env); });
-        // Your status bars come in through one chip, + Status bar, which opens their picker
-        // (addBarOptions), in the bars' place: after the Watch bar, the calendar and the clock,
-        // before the graphs. It shows while a bar of yours, or one New status bar would make
-        // (Pebble Time 2), has room on the screen.
-        var free = M.newBarFor(list, S, env);
-        var bars = adds.some(function (k) { return Boolean(M.BAR_OF_KIND[k]); })
-            || (Boolean(free) && fitsWatch(M.add(list, M.KIND_OF_BAR[free]), i, env));
-        var rest = adds.filter(function (k) { return !M.BAR_OF_KIND[k]; });
-        var chips = rest.map(function (k) {
-            return kit.chip(M.blockName({ k: k }, S), { 'data-se': 'add', 'data-k': k }, { icon: 'plus' });
-        });
-        if (bars) {
-            chips.splice(rest.filter(function (k) { return !M.isGraph({ k: k }); }).length, 0,
-                kit.chip('Status bar', { 'data-se': 'addbar', 'aria-haspopup': 'dialog' }, { icon: 'plus' }));
-        }
-        chips = chips.join('');
         var pic = screenPicture(S, i, env, userData, 'se' + i + '-', cycle).svg;
         // The page's own card (the engine's .card and header), the Add chips under its rows, and
         // Delete screen under the card, as a dialog's Delete (kit.deleteButton).
@@ -1232,7 +1248,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '<div class="card se-card"><div class="cardHdr"><span class="ttlwrap"><span class="ttl" id="seTtl">Top to bottom</span>'
             + '</span></div><div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
             + list.map(function (b, j) { return rowHtml(list, j, S, env); }).join('') + '</div>'
-            + (chips ? '<div class="ui-chips se-adds"><span class="ui-cap">Add</span>' + chips + '</div>' : '')
+            + addRowHtml(S, env, addOffers(S, env, i, list))
             + '</div>'
             + (i > 0 ? kit.deleteButton('Delete screen', { 'data-se': 'delscreen' }) : '');
     }
@@ -1429,9 +1445,44 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The editor's taps: close, rename, Add a screen's pick, remove, add (+ Status bar: its
-     * picker), a row's dropdown (its picker) or Edit, turn the radar on, delete the screen. A tap
-     * a drag ends in is no tap.
+     * A tap on an Add chip, taken only when it matches one the Add row offers and does not grey
+     * out (addOffers): the row at its place (screens.js add), a graph's chip drawing that graph
+     * (withGraph); + New status bar makes an empty bar for the screen (newBarHere).
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Array<Object>} list The screen being edited.
+     * @param {Element} t The chip.
+     * @returns {void}
+     */
+    function addTap(S, env, list, t) {
+        var se = t.getAttribute('data-se'), k = t.getAttribute('data-k'), g = t.getAttribute('data-g');
+        var hit = addOffers(S, env, ED.i, list).filter(function (o) {
+            return !o.off && o.se === se && (o.k || null) === k && (o.g === undefined ? null : String(o.g)) === g;
+        })[0];
+        if (!hit) { return; }
+        if (se === 'newbar') { newBarHere(S, env, list); return; }
+        commit(hit.g === undefined ? M.add(list, k) : withGraph(list, hit.g));
+    }
+
+    /**
+     * + New status bar in the editor (Pebble Time 2): an empty bar made (makeBar) and put on the
+     * screen at a bar's place, then its dialog opened over the editor with its name field ready.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Array<Object>} list The screen being edited.
+     * @returns {void}
+     */
+    function newBarHere(S, env, list) {
+        var made = makeBar(S, env);
+        if (!made) { return; }
+        commit(M.add(list, M.KIND_OF_BAR[made]));
+        openBar(made, true, M.nameOf(S, ED.i), renderEditor);
+    }
+
+    /**
+     * The editor's taps: close, rename, Add a screen's pick, remove, an Add chip (addTap), a
+     * row's dropdown (its picker), turn the radar on, delete the screen. A tap a drag ends in is
+     * no tap.
      * @param {MouseEvent} e The click.
      * @returns {void}
      */
@@ -1457,7 +1508,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return;
         }
         if (act === 'rm') { commit(M.remove(list, j)); return; }
-        if (act === 'add') { commit(M.add(list, t.getAttribute('data-k'))); return; }
+        if (act === 'add' || act === 'newbar') { addTap(S, env, list, t); return; }
         if (act === 'radaron') { setRadarEnabled(S, true, env); renderEditor(); ctx.render(); return; }
         // A row's Rows or Size: its picker opens over the editor (the page's select sheet, a
         // top-layer dialog), its pick lands through screenRowSizePicked.
@@ -1469,53 +1520,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             ctx.openSheet(SCREEN_SIZE, function () { renderEditor(); });
             return;
         }
-        // The forecast graph's graph: its picker opens over the editor the same way, its pick
-        // lands through screenGraphStylePicked.
-        if (act === 'style') {
-            if (!list[j]) { return; }
-            GSP.beginScreenPick(S, ED.i, String(blockStyle(list[j], S) + 1));
-            ctx.openSheet(GSP.SCREEN_PICK, function () { renderEditor(); });
-            return;
-        }
-        // + Status bar: the picker of your bars opens over the editor, its pick lands through
-        // screenAddBarPicked; a bar New status bar made there opens next, its name field ready.
-        if (act === 'addbar') {
-            S[ADD_BAR] = '';
-            ED.made = null;
-            ctx.openSheet(ADD_BAR, function () {
-                renderEditor();
-                var made = ED.made;
-                ED.made = null;
-                if (made && ED.overlay) { openBar(made, true, M.nameOf(S, ED.i), renderEditor); }
-            });
-            return;
-        }
-        // A bar row's Edit: the bar's dialog over the editor, which repaints as it closes.
-        if (act === 'editbar') {
-            if (list[j] && M.BAR_OF_KIND[list[j].k]) { openBar(M.BAR_OF_KIND[list[j].k], false, M.nameOf(S, ED.i), renderEditor); }
-            return;
-        }
         if (act === 'delscreen') {
             var i = ED.i;
             closeEditor();
             deleteWithUndo(S, i, env);
             ctx.render();
         }
-    }
-
-    /**
-     * The screen editor's graph pick (onChange 'screenGraphStylePicked'): the screen being edited
-     * draws that graph, or a new one made from the template picked (graph-styles-page.js
-     * pickForScreen). The first graph is no field of the block (screens.js).
-     * @param {Object} S Settings.
-     * @param {*} oldValue The graph before.
-     * @param {string} value '1' | '2' | '3' | 'new:<template id>'.
-     * @param {?Object} env Platform env.
-     * @returns {void}
-     */
-    function screenStylePicked(S, oldValue, value, env) {
-        if (!ED.overlay) { return; }
-        GSP.pickForScreen(S, env, ED.i, value, oldValue);
     }
 
     // ── Dragging a row (the editor's rows, the Screens card's screens) ─────
@@ -1793,9 +1803,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if (PConf.onChange) {
             PConf.onChange.register('radarSourcePicked', radarSourcePicked);
-            PConf.onChange.register('screenGraphStylePicked', screenStylePicked);
             PConf.onChange.register('screenRowSizePicked', sizePicked);
-            PConf.onChange.register('screenAddBarPicked', addBarPicked);
             PConf.onChange.register('barRenamed', barRenamed);
         }
         // Your status bars by name (screens.js barName): their dialogs' titles and their slot pickers'.
@@ -1809,7 +1817,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.optionsResolvers) {
             PConf.optionsResolvers.register('apliteLayouts', function () { return APLITE_LAYOUTS.slice(); });
             PConf.optionsResolvers.register('screenRowSizeOptions', sizeOptions);
-            PConf.optionsResolvers.register('screenAddBarOptions', addBarOptions);
         }
         if (PConf.hintResolvers) { PConf.hintResolvers.register('batterySaverPauseHint', batterySaverPauseHint); }
         if (PConf.whenResolvers) {
@@ -1852,7 +1859,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         editorBody: editorBody,
         radarSourceValue: radarSourceValue,
         radarSourcePicked: radarSourcePicked,
-        screenStylePicked: screenStylePicked,
         barRenamed: barRenamed,
         barsCard: barsCard,
         barDialogPicture: barDialogPicture,

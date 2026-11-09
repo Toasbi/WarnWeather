@@ -4,13 +4,13 @@
 // its name, length and screens, the picked one ticked and renamed in place with an OK button; New
 // graph; the screens the picked graph shows on; then, under the card, Delete with Undo, a schema
 // item the engine draws like every Delete: the page's shared parts, config-ui/lib/ui.js), the
-// swap that lets every row on that pane edit the graph picked there, the screen editor's graph
-// picker's options, and the five-series limit the forecast pickers and that picker keep.
+// swap that lets every row on that pane edit the graph picked there, and the five-series limit
+// the forecast pickers, the Show on row and the screen editor's graph chips keep.
 //
 // TEMPLATES AND GRAPHS (the owner's pick, 2026-11-08). A template is one of the setup's forecast
 // looks (wizard-forecast.js LOOKS: Classic, Clean, Stripes). The Your graphs card's New graph starts
-// a graph from one, or as a copy of one of the graphs; the screen editor's picker lists the graphs
-// and makes a copy of its screen's graph. A template never changes and is never one of the graphs:
+// a graph from one, or as a copy of one of the graphs; the screen editor adds one of the graphs
+// by its chip. A template never changes and is never one of the graphs:
 // a graph made from one is "Graph <n>" (graph-styles.js defaultName) until it is renamed, so it
 // never reads as its template. The templates sheet draws each one as the setup draws its looks
 // (graphPicture).
@@ -31,10 +31,11 @@
 // the spare row has no picker (the owner's call, 2026-11-08: "only use for multiple graphs"). A
 // pick that would make a sixth is greyed out, and its words say why in the page's terms, "lines
 // and stripes": a forecast line's metric or style on a shown graph (LIMIT), a screen of the Show
-// on row (limitNote: the rule, what the screens use, what the graph adds) and in the screen
-// editor a graph or template that would join the screens (limitDesc). A graph no screen shows
-// is free. The Your graphs card's header counts what the screens use, "4/5 metrics active", with
-// which ones and what counts behind its '?' (metricsNote, the section's noteFrom).
+// on row and a graph's Add chip in the screen editor (limitNote: the rule, what the screens use,
+// what the graph adds), and Add a screen's preset whose graph would join the screens
+// (limitDesc). A graph no screen shows is free. The Your graphs card's header counts what the
+// screens use, "4/5 metrics active", with which ones and what counts behind its '?'
+// (metricsNote, the section's noteFrom).
 //
 // Dual-context: a CommonJS module in the tests; in the webview a concatenated <script> after
 // graph-styles.js and screens.js (scripts/build-config-page.js APP_FILES) and ahead of
@@ -60,21 +61,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The swap state in S: {k, held}, the style whose values sit in the flat keys and the
     // first style's values of the governed keys. Never a schema key, so never saved.
     var SWAP = '_graphStyleSwap';
-    // The page-only items (schema.js): the card's pick, New graph's picker and the screen
-    // editor's picker.
+    // The page-only items (schema.js): the card's pick and New graph's picker.
     var PICK = 'graphStylePick';
     var NEW_FROM = 'graphStyleNewFrom';
-    var SCREEN_PICK = 'screenGraphStyle';
     // The pane the card and the swap belong to.
     var TAB = 'graphs';
     var PANE = 'forecast';
     // A line picker's greyed-out option (limitOptions): one change adds one series at most.
     var LIMIT = 'That makes ' + (GS.ROWS + 1) + ' lines and stripes on your screens. The watch can show '
         + GS.ROWS + '.';
-    // New graph's copies: 'copy<n>', a copy of graph n; the screen editor's New graph is NEW +
-    // one of them ('new:copy1'). A picker's group header: GROUP (never a value anything stores).
+    // New graph's copies: 'copy<n>', a copy of graph n. A picker's group header: GROUP (never a
+    // value anything stores).
     var COPY = 'copy';
-    var NEW = 'new:';
     var GROUP = '__group';
     // A template's line under its name in the pickers, after its length (its picture shows the rest).
     var TEMPLATE_LINES = {
@@ -85,10 +83,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Why the card has no New graph: every slot holds one.
     var FULL = 'You have ' + GS.MAX_STYLES + ' graphs, the most there can be. Delete one to make another.';
 
-    // The page's live state (onReady), the card's Undo (a flash: kit.flash), the screen the
-    // editor's picker is for, the defaults a template starts from (themedDefaults), kept per
-    // theme, and whether the picked graph's name is a field right now (the card's pencil).
-    var UI = { ctx: null, toast: { v: null, t: null }, screenSlot: 0, defaults: null, renaming: false };
+    // The page's live state (onReady), the card's Undo (a flash: kit.flash), the defaults a
+    // template starts from (themedDefaults), kept per theme, and whether the picked graph's name
+    // is a field right now (the card's pencil).
+    var UI = { ctx: null, toast: { v: null, t: null }, defaults: null, renaming: false };
 
     /**
      * @param {Object} o An object.
@@ -247,18 +245,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * A graph as its pickers list it: its name and length, "Graph 2 · 66 h".
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @param {number} k A style index.
-     * @returns {string}
-     */
-    function label(S, env, k) {
-        var N = normalize(S), len = lengthLabel(GS.settingsFor(N, k), env);
-        return GS.name(N, k) + (len ? ' · ' + len : '');
-    }
-
-    /**
      * The graph a screen's forecast graph draws: its own while it exists, else the first.
      * @param {Object} S Settings.
      * @param {?Object} fc The screen's forecast block (screens.js), or null.
@@ -299,17 +285,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function onScreens(names) {
         return names.length ? 'On ' + andList(names) : 'On no screen';
-    }
-
-    /**
-     * Where a graph shows, for its option's second line: "On Default and Flick 1".
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @param {number} k A style index.
-     * @returns {string}
-     */
-    function whereText(S, env, k) {
-        return onScreens(screensOn(S, env, k));
     }
 
     /**
@@ -380,17 +355,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The settings as stored, as they would be with screen i drawing style k. With `values`, k is
-     * a style still to be made with them (a template the screen editor's picker offers).
+     * The settings as stored, as they would be with screen i drawing style k.
      * @param {Object} S Settings.
      * @param {number} i View slot.
      * @param {number} k A style index.
-     * @param {?Object} [values] The governed values of the style to be made in slot k.
      * @returns {Object} a copy
      */
-    function withScreen(S, i, k, values) {
+    function withScreen(S, i, k) {
         var N = Object.assign({}, normalize(S));
-        if (values) { N.graphStyles = GS.withStyle(N, k, values); }
         N['viewStyle' + i] = String(k + 1);
         return N;
     }
@@ -401,11 +373,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {?Object} env Platform env.
      * @param {number} i View slot.
      * @param {number} k A style index.
-     * @param {?Object} [values] The governed values of the style to be made in slot k.
      * @returns {boolean}
      */
-    function screenOverflows(S, env, i, k, values) {
-        var N = withScreen(S, i, k, values);
+    function screenOverflows(S, env, i, k) {
+        var N = withScreen(S, i, k);
         return overflows(N, env, GS.stylesShown(N, env), -1, null);
     }
 
@@ -466,7 +437,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Why the screen editor's picker greys out a graph or a template: what it would add to the
+     * Why Add a screen greys out a preset for its graph: what the graph would add to the
      * graphs it would show beside, and how many lines and stripes the screens would then show.
      * @param {Object} N The settings as stored, with the screen on style k (withScreen).
      * @param {?Object} env Platform env.
@@ -508,76 +479,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The Show on row's note when the limit greys out a screen: the rule, the lines and stripes
-     * the screens use now, what graph k needs on top, and how to make room.
+     * Why the limit greys out a graph (the Show on row's note under a screen's chip, the screen
+     * editor's under a graph's Add chip): the rule, the lines and stripes the screens use now,
+     * what each graph greyed out needs on top, and how to make room.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
-     * @param {number} k The picked graph (a graph no screen shows: one that does never adds).
+     * @param {(number|number[])} ks The graph or graphs greyed out (graphs no screen shows: one
+     *   that does never adds).
      * @returns {string}
      */
-    function limitNote(S, env, k) {
+    function limitNote(S, env, ks) {
         var N = normalize(S), shown = GS.stylesShown(N, env);
-        var inUse = seriesUnion(N, env, shown).map(seriesName), extra = extraNames(N, env, k, shown);
+        var inUse = seriesUnion(N, env, shown).map(seriesName);
+        var needs = [].concat(ks).map(function (k) {
+            var extra = extraNames(N, env, k, shown);
+            return extra.length ? ' ' + GS.name(S, k) + ' also needs ' + andList(extra) + '.' : '';
+        }).join('');
         return 'The watch can show ' + GS.ROWS + ' lines and stripes across all your screens.'
             + (inUse.length ? ' In use: ' + inUse.join(', ') + '.' : '')
-            + (extra.length ? ' ' + GS.name(S, k) + ' also needs ' + andList(extra) + '.' : '')
-            + ' To make room, turn off a line in one of your graphs.';
-    }
-
-    /**
-     * Get the screen editor's graph picker ready for screen i (screens-page.js opens it next):
-     * its value the screen's graph, its limit worked out for that screen.
-     * @param {Object} S Settings.
-     * @param {number} i View slot.
-     * @param {string} style The screen's style ('1' | '2' | '3').
-     * @returns {void}
-     */
-    function beginScreenPick(S, i, style) {
-        UI.screenSlot = i;
-        S[SCREEN_PICK] = style;
-    }
-
-    /**
-     * The graphs as the pickers list them (options resolver 'graphStyleOptions'): each named
-     * with its length, where it shows under it. With args.screen (the screen editor's picker,
-     * for the screen beginScreenPick named; the owner's, 2026-11-09: your graphs only) the
-     * screen's own graph says where else it shows, a graph that would make the screens draw a
-     * sixth series is disabled with LIMIT, and while a slot is free New graph follows: a copy of
-     * the screen's graph, for the screen (pickForScreen). Templates stay on the Graphs tab.
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @param {{screen: boolean}} [args] The picker.
-     * @returns {Array} [label, value, {desc, disabled}] per graph
-     */
-    function styleOptions(S, env, args) {
-        var a = args || {}, cur = S ? S[a.screen ? SCREEN_PICK : PICK] : null;
-        var out = existing(S || {}).map(function (k) {
-            var v = String(k + 1), meta = { desc: whereText(S, env, k) };
-            if (a.screen && v === cur) { meta = { desc: alsoText(S, env, k) }; }
-            if (a.screen && v !== cur && screenOverflows(S, env, UI.screenSlot, k)) {
-                meta = { desc: limitDesc(withScreen(S, UI.screenSlot, k), env, k), disabled: true };
-            }
-            return [label(S, env, k), v, meta];
-        });
-        var mine = parseInt(cur, 10) - 1;
-        if (!a.screen || !S || GS.freeSlot(normalize(S)) < 0 || !GS.exists(S, mine)) { return out; }
-        out.push(['New graph', NEW + COPY + (mine + 1), { add: true,
-            desc: 'A copy of ' + GS.name(normalize(S), mine) + ', for this screen' }]);
-        return out;
-    }
-
-    /**
-     * Where else the screen editor's screen's own graph shows, for its option's line: "Also on
-     * Work", "Only on this screen".
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @param {number} k The screen's graph.
-     * @returns {string}
-     */
-    function alsoText(S, env, k) {
-        var others = M.placesWhere(S, env, function (list) { return drawnBy(S, list[M.idxOf(list, 'fc')]) === k; })
-            .filter(function (i) { return i !== UI.screenSlot; }).map(function (i) { return M.nameOf(S, i); });
-        return others.length ? 'Also on ' + andList(others) : 'Only on this screen';
+            + needs + ' To make room, turn off a line in one of your graphs.';
     }
 
     /**
@@ -727,7 +647,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The settings a picker's option draws: a graph ('1'..'3'), a copy of one ('copy<n>'), or a
-     * template (its id, or 'new:<id>').
+     * template (its id).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} v The option's value.
@@ -737,7 +657,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var N = normalize(S), k = /^[0-9]$/.test(v) ? parseInt(v, 10) - 1
             : v.indexOf(COPY) === 0 ? parseInt(v.slice(COPY.length), 10) - 1 : -1;
         if (k >= 0) { return GS.exists(N, k) ? GS.settingsFor(N, k) : null; }
-        var values = templateValues(N, env, v.indexOf(NEW) === 0 ? v.slice(NEW.length) : v);
+        var values = templateValues(N, env, v);
         return values ? Object.assign({}, N, values) : null;
     }
 
@@ -902,7 +822,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // ── The screens a graph shows on ────────────────────────────────────────
 
     /**
-     * Put graph k on screen i's forecast graph (the Show on row, the screen editor's picker),
+     * Put graph k on screen i's forecast graph (the Show on row),
      * through the screens' writer (screens-page.js writeScreen), with the swap undone first
      * (the next render swaps the pane's graph back in). A screen without a forecast graph is
      * left as it is.
@@ -939,31 +859,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return;
         }
         if (!screenOverflows(S, env, i, k)) { setScreenGraph(S, env, i, k); }
-    }
-
-    /**
-     * The screen editor's pick (screens-page.js screenStylePicked): screen i draws the graph
-     * picked, or New graph's copy of its graph ('new:copy<n>'), which the Graphs tab then picks
-     * too. With no free slot New graph changes nothing.
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @param {number} i View slot.
-     * @param {string} value '1' | '2' | '3' | 'new:copy<n>' (createGraph's source after NEW)
-     * @param {*} oldValue The picker's value before.
-     * @returns {void}
-     */
-    function pickForScreen(S, env, i, value, oldValue) {
-        var v = String(value || ''), k;
-        if (v.indexOf(NEW) === 0) {
-            k = createGraph(S, v.slice(NEW.length), env);
-            if (k < 0) { S[SCREEN_PICK] = oldValue; return; }
-            S[PICK] = String(k + 1);
-        } else {
-            k = parseInt(v, 10) - 1;
-            if (!(k >= 0 && GS.exists(S, k))) { return; }
-        }
-        S[SCREEN_PICK] = String(k + 1);
-        setScreenGraph(S, env, i, k);
     }
 
     // ── The Your graphs card ────────────────────────────────────────────────
@@ -1031,7 +926,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The Your graphs card (block 'graphStyleCards'; the owner's pick, 2026-11-09: a plain list
-     * like the Your status bars card and the screen editor's pickers), in the page's shared parts (kit):
+     * like the Your status bars card), in the page's shared parts (kit):
      * what a tap does, then a row per graph, its name over its length and the screens that show
      * it, the picked one tinted and ticked (a tap picks another: the settings below then change
      * it) with a pencil that makes its name a field with OK; New graph while a slot is free, with
@@ -1120,7 +1015,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if (PConf.blocks) { PConf.blocks.register('graphStyleCards', cardsBlock); }
         if (PConf.optionsResolvers) {
-            PConf.optionsResolvers.register('graphStyleOptions', styleOptions);
             PConf.optionsResolvers.register('graphStyleStarts', startOptions);
         }
         if (PConf.hintResolvers) {
@@ -1160,9 +1054,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         SWAP: SWAP,
         PICK: PICK,
         NEW_FROM: NEW_FROM,
-        SCREEN_PICK: SCREEN_PICK,
         LIMIT: LIMIT,
-        NEW: NEW,
         editing: editing,
         normalize: normalize,
         // normalize by the name other modules call it by: a call spelt `.normalize(` reads as
@@ -1174,11 +1066,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         onRender: onRender,
         styleSettings: styleSettings,
         screenSettings: screenSettings,
-        label: label,
+        existing: existing,
         drawnBy: drawnBy,
         screensOn: screensOn,
         andList: andList,
-        whereText: whereText,
         onScreens: onScreens,
         cardLine: cardLine,
         limitOptions: limitOptions,
@@ -1186,8 +1077,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         limitDesc: limitDesc,
         limitNote: limitNote,
         metricsNote: metricsNote,
-        beginScreenPick: beginScreenPick,
-        styleOptions: styleOptions,
         cardHint: cardHint,
         sharedHint: sharedHint,
         pickOnOpen: pickOnOpen,
@@ -1204,7 +1093,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         undoDelete: undoDelete,
         setScreenGraph: setScreenGraph,
         toggleScreen: toggleScreen,
-        pickForScreen: pickForScreen,
         cardsBlock: cardsBlock,
         deletable: deletable,
         deleteLabel: deleteLabel,

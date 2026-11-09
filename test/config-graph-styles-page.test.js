@@ -4,9 +4,9 @@
 // graph's values in the flat keys on Graphs › Forecast and the first graph's everywhere else, the
 // settings as Save stores them, the Your graphs card (a plain row per graph, renamed in place with
 // OK; New graph from a template or as a copy; the Show on row; Delete with Undo), the screen
-// editor's Graph dropdown and its sheet (your graphs, and a copy of the screen's), and the
-// five-series limit with its count in the card's header ("4/5 metrics active" and its '?'). The module first,
-// then the REAL generated page (test/helpers/page-harness.js).
+// editor's graph chips (a chip per graph, the row named after its graph), and the five-series
+// limit with its count in the card's header ("4/5 metrics active" and its '?'). The module
+// first, then the REAL generated page (test/helpers/page-harness.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
@@ -18,7 +18,8 @@ const GSP = require('../src/pkjs/settings/graph-styles-page.js');
 const GS = require('../src/pkjs/graph-styles.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
-const { editorRows, editorRow } = require('./helpers/page-rows.js');
+const ui = require('../src/pkjs/config-ui/lib/ui.js');
+const { editorRows, editorRow, editorAddChips, editorAddNote } = require('./helpers/page-rows.js');
 
 const PC = global.PConf;
 const EMERY = platform.computeEnv({ platform: 'emery' });
@@ -111,40 +112,19 @@ test('onRender: Graphs › Forecast shows the picked style, anywhere else the fi
   assert.equal(B[GSP.SWAP], undefined);
 });
 
-test('the pickers\' graphs: each named with its length, where it shows under it', () => {
-  const opts = GSP.styleOptions(TWO, EMERY);
-  assert.deepEqual(opts.map((o) => o[1]), ['1', '2']);
-  assert.equal(opts[0][0], 'Graph 1 · 24 h');
-  assert.match(opts[1][0], /^Long · \d+ h$/);
-  assert.notEqual(opts[1][0], 'Long · 48 h', 'the long span by the hours it shows');
-  assert.equal(opts[0][2].desc, 'On Default');
-  assert.equal(opts[1][2].desc, 'On Flick 1');
+test('the cards\' line: a graph\'s length and the screens it shows on; the page opens on the Default screen\'s graph', () => {
+  // The cards' line: the length, then the screens.
+  assert.equal(GSP.cardLine(TWO, EMERY, 0), '24 h · Default');
+  assert.match(GSP.cardLine(TWO, EMERY, 1), /^\d+ h · Flick 1$/);
+  assert.notEqual(GSP.cardLine(TWO, EMERY, 1), '48 h · Flick 1', 'the long span by the hours it shows');
   const three = layout(['1', '2', '2'], { graphStyles: TWO.graphStyles, forecastHours: '24' });
-  assert.equal(GSP.styleOptions(three, EMERY)[1][2].desc, 'On Flick 1 and Flick 2');
-  assert.equal(GSP.styleOptions(layout(['1'], { graphStyles: TWO.graphStyles }), EMERY)[1][2].desc, 'On no screen');
-  assert.equal(GSP.styleOptions(layout(['1', '3'], { graphStyles: TWO.graphStyles }), EMERY)[0][2].desc,
-    'On Default and Flick 1', 'a screen on a style that does not exist draws the first');
+  assert.match(GSP.cardLine(three, EMERY, 1), /^\d+ h · Flick 1, Flick 2$/);
+  assert.match(GSP.cardLine(layout(['1'], { graphStyles: TWO.graphStyles }), EMERY, 1), /^\d+ h · No screen$/);
+  assert.deepEqual(GSP.screensOn(layout(['1', '3'], { graphStyles: TWO.graphStyles }), EMERY, 0), ['Default', 'Flick 1'],
+    'a screen on a style that does not exist draws the first');
   assert.equal(GSP.pickOnOpen(TWO, EMERY), '1', 'the page opens on the Default screen\'s style');
   assert.equal(GSP.pickOnOpen(layout(['2', '1'], { graphStyles: TWO.graphStyles }), EMERY), '2');
   assert.equal(GSP.pickOnOpen(layout(['3'], { graphStyles: TWO.graphStyles }), EMERY), '1', 'a style that does not exist');
-  // The cards' line: the length, then the screens.
-  assert.equal(GSP.cardLine(TWO, EMERY, 0), '24 h · Default');
-  assert.match(GSP.cardLine(three, EMERY, 1), /^\d+ h · Flick 1, Flick 2$/);
-  assert.match(GSP.cardLine(layout(['1'], { graphStyles: TWO.graphStyles }), EMERY, 1), /^\d+ h · No screen$/);
-  // The screen editor's picker (the owner's, 2026-11-09): your graphs alone, the screen's own
-  // saying where else it shows; while a slot is free New graph, a copy of the screen's graph for
-  // it. Templates stay on the Graphs tab.
-  GSP.beginScreenPick(TWO, 1, '2');
-  const scr = GSP.styleOptions(TWO, EMERY, { screen: true });
-  assert.deepEqual(scr.map((o) => o[1]), ['1', '2', 'new:copy2']);
-  assert.equal(scr[0][2].desc, 'On Default');
-  assert.equal(scr[1][2].desc, 'Only on this screen', 'the screen\'s own graph');
-  assert.deepEqual(scr[2], ['New graph', 'new:copy2', { add: true, desc: 'A copy of Long, for this screen' }]);
-  GSP.beginScreenPick(three, 1, '2');
-  assert.equal(GSP.styleOptions(three, EMERY, { screen: true })[1][2].desc, 'Also on Flick 2');
-  const full = Object.assign({}, TWO, { graphStyles: stylesItem({ forecastHours: '48' }, { forecastHours: '12' }) });
-  GSP.beginScreenPick(full, 1, '2');
-  assert.deepEqual(GSP.styleOptions(full, EMERY, { screen: true }).map((o) => o[1]), ['1', '2', '3'], 'no free slot');
 });
 
 test('the five-series limit: a pick that would make a sixth series is greyed out on a shown style only', () => {
@@ -184,8 +164,8 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
   GSP.swapIn(W, 1);
   assert.deepEqual(off(metric(W, EMERY, { key: 'fifthLine', off: true, exclude: lines })), ['pressure', 'feels', 'dew']);
   assert.deepEqual(off(metric(W, EMERY, { key: 'fourthLine', off: true, exclude: lines.slice(0, 2) })), []);
-  // The screen editor's picker: a style whose fifth series fits beside a graph of four, one
-  // whose sixth does not.
+  // A screen's graph (the screen editor's graph chips, Add a screen's presets): a style whose
+  // fifth series fits beside a graph of four, one whose sixth does not.
   const fits = layout(['1', '1'], {
     secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust',
     graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' })
@@ -193,21 +173,28 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
   assert.equal(GSP.screenOverflows(fits, EMERY, 1, 1), false, 'cloud: the fifth series, on the spare row');
   const busy = Object.assign({}, fits, {
     graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'pressure', fourthLine: 'off', fifthLine: 'off' }) });
-  GSP.beginScreenPick(busy, 1, '1');
-  const opts = GSP.styleOptions(busy, EMERY, { screen: true });
-  assert.equal(opts[1][2].disabled, true, 'cloud and pressure would be a sixth series');
-  assert.equal(opts[1][2].desc, 'Also needs Cloud cover % and Air pressure (hPa): that makes 6 lines and stripes on your'
-    + ' screens. The watch can show 5.', 'what it adds, and the count');
+  assert.equal(GSP.screenOverflows(busy, EMERY, 1, 1), true, 'cloud and pressure would be a sixth series');
   assert.equal(GSP.screenOverflows(busy, EMERY, 1, 0), false);
-  // New graph, a copy of the screen's own graph, never adds a series: never greyed out.
-  assert.deepEqual(opts[2].slice(0, 2), ['New graph', 'new:copy1']);
-  assert.equal(opts[2][2].disabled, undefined);
+  // Why, as Add a screen says it under a preset: what the graph adds, and the count.
+  const onFlick = (T) => Object.assign({}, GSP.asStored(T), { viewStyle1: '2' });
+  assert.equal(GSP.limitDesc(onFlick(busy), EMERY, 1), 'Also needs Cloud cover % and Air pressure (hPa): that makes 6 lines'
+    + ' and stripes on your screens. The watch can show 5.');
   // A line and a stripe of one metric are two series.
   const stripes = Object.assign({}, fits, { graphStyles: stylesItem({ secondaryLine: 'cloud',
     secondaryLineStyle: 'stripeTop', thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop', fourthLine: 'off', fifthLine: 'off' }) });
-  GSP.beginScreenPick(stripes, 1, '1');
-  assert.equal(GSP.styleOptions(stripes, EMERY, { screen: true })[1][2].desc, 'Also needs Cloud cover % (stripe) and'
-    + ' Precipitation % (stripe): that makes 6 lines and stripes on your screens. The watch can show 5.');
+  assert.equal(GSP.screenOverflows(stripes, EMERY, 1, 1), true);
+  assert.equal(GSP.limitDesc(onFlick(stripes), EMERY, 1), 'Also needs Cloud cover % (stripe) and Precipitation % (stripe):'
+    + ' that makes 6 lines and stripes on your screens. The watch can show 5.');
+  // The note under the editor's chips names each graph greyed out and what it needs.
+  const two = Object.assign({}, fits, { graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'pressure',
+    fourthLine: 'off', fifthLine: 'off' }, { secondaryLine: 'dew', thirdLine: 'feels', fourthLine: 'off', fifthLine: 'off' },
+  ['', 'Long', 'Air']) });
+  const inUse = 'The watch can show 5 lines and stripes across all your screens. In use: Precipitation %, UV Index, Wind'
+    + ' speed, Wind gusts.';
+  assert.equal(GSP.limitNote(two, EMERY, [1, 2]), inUse + ' Long also needs Cloud cover % and Air pressure (hPa). Air also'
+    + ' needs Dew point and Feels-like temperature. To make room, turn off a line in one of your graphs.');
+  assert.equal(GSP.limitNote(two, EMERY, 2), inUse + ' Air also needs Dew point and Feels-like temperature. To make room,'
+    + ' turn off a line in one of your graphs.', 'one graph, as the Show on row asks');
 });
 
 /**
@@ -442,63 +429,76 @@ test('the page: Delete moves its screens to the first style; Undo brings both ba
   assert.equal(p.scroll.innerHTML.indexOf('deleted.'), -1, 'the Undo is gone');
 });
 
-test('the screen editor: the forecast row\'s Graph dropdown names its graph before its size; the sheet lists your graphs and a copy', () => {
+test('the screen editor: with several graphs a chip per graph adds the forecast graph, and its row is named after its graph', () => {
   const M = require('../src/pkjs/screens.js');
   const p = bootGeneratedPage(TWO, 'emery');
   p.tapAction('openScreen', 1);
-  const j = M.idxOf(M.screensOf(p.S, EMERY)[1], 'fc');
   const body = () => p.editor().querySelector('[data-se-body]').innerHTML;
-  // The row: the graph's dropdown by its name, then its size's; no Edit (the Graphs tab edits a
-  // graph), no card.
-  const row = editorRow(body(), j);
-  assert.ok(row.indexOf('<span class="se-ctl"><button type="button" class="sel-wrap" data-se="style" data-j="' + j
-    + '" aria-haspopup="dialog" aria-label="Graph: Long"><span>Long</span><i class="sel-chev"></i></button>'
-    + '<button type="button" class="sel-wrap" data-se="size" data-j="' + j + '"') !== -1, row);
-  assert.match(editorRows(body())[j], /^Forecast graph · Long · (?:Fill|\d rows)$/);
-  assert.equal(row.indexOf('editstyle'), -1);
-  assert.equal(body().indexOf('se-graph'), -1, 'no card');
-  // The picker: the page's select sheet over the editor, your graphs alone, no pictures.
-  p.tapEditor({ se: 'style', j });
-  let sheet = p.modal.innerHTML;
-  assert.match(sheet, /Graph on this screen/);
-  assert.ok(sheet.indexOf('<div class="ssel-lead">Pick the graph this screen shows. To start one from a template, use New graph'
-    + ' on the Graphs tab.</div>') !== -1, 'templates are on the Graphs tab');
-  assert.equal(sheet.indexOf('class="ssel-pic"'), -1, 'no pictures');
-  assert.equal(sheet.indexOf('>Classic<'), -1, 'no templates');
-  assert.match(sheet, />Graph 1 · 24 h<\/span><span class="ssel-opt-desc">On Default</);
-  assert.match(sheet, />Long · \d+ h<\/span><span class="ssel-opt-desc">Only on this screen</);
-  assert.match(sheet, /class="ssel-opt add"[^>]*data-select-pick="new:copy2"[\s\S]*?>New graph<\/span><span class="ssel-opt-desc">A copy of Long, for this screen</);
-  p.pickOption('screenGraphStyle', '1');
-  assert.equal(p.S.viewStyle1, '1', 'Flick 1 draws the first graph');
-  assert.match(body(), /aria-label="Graph: Graph 1"/, 'the editor repaints');
-  // New graph: a copy of the screen's graph, put on this screen and picked on the Graphs tab.
-  p.tapEditor({ se: 'style', j });
-  p.pickOption('screenGraphStyle', 'new:copy1');
-  assert.equal(GS.count(p.S), 3);
-  assert.equal(p.S.viewStyle1, '3', 'Flick 1 draws the new graph');
-  assert.equal(p.S.graphStylePick, '3');
-  const N = GSP.normalize(p.S);
-  assert.deepEqual(GS.valuesOf(N, 2), GS.valuesOf(N, 0), 'Graph 1\'s values');
-  assert.equal(GS.name(N, 2), 'Graph 3');
-  assert.match(body(), /aria-label="Graph: Graph 3"/);
-  p.tapEditor({ se: 'style', j });
-  sheet = p.modal.innerHTML;
-  assert.equal(sheet.indexOf('data-select-pick="new:'), -1, 'no free slot: no New graph');
-  p.pickOption('screenGraphStyle', '2');
+  const fc = () => M.idxOf(M.screensOf(p.S, EMERY)[1], 'fc');
+  // The row: its graph's name and its size's dropdown, nothing else (the Graphs tab edits a graph).
+  assert.deepEqual(editorRows(body()), ['Watch bar', 'Clock', 'Long · Fill']);
+  assert.ok(editorRow(body(), fc()).indexOf('<div class="se-mid"><span class="se-name">Long</span><span class="se-ctl">'
+    + ui.dropdown('Fill', { 'data-se': 'size', 'data-j': fc(), 'aria-haspopup': 'dialog', 'aria-label': 'Size: Fill' })
+    + '</span></div>') !== -1, editorRow(body(), fc()));
+  ['data-se="style"', 'editstyle', 'se-graph'].forEach((gone) => assert.equal(body().indexOf(gone), -1, gone));
+  // ✕ it: a chip per graph by its name, in the forecast graph's place.
+  p.tapEditor({ se: 'rm', j: fc() });
+  assert.deepEqual(editorAddChips(body()), ['Calendar', 'Forecast bar', 'Radar bar', 'Health bar', 'New status bar', 'Graph 1',
+    'Long', 'Rain radar', 'Health graph']);
+  assert.ok(body().indexOf(ui.chip('Long', { 'data-se': 'add', 'data-k': 'fc', 'data-g': 1 }, { icon: 'plus' })) !== -1);
+  assert.equal(editorAddNote(body()), '', 'nothing greyed out, nothing to say');
+  // A tap puts that graph on the screen.
+  p.tapEditor({ se: 'add', k: 'fc', g: 0 });
+  assert.equal(p.S.viewStyle1, '1');
+  assert.deepEqual(editorRows(body()), ['Watch bar', 'Clock', 'Graph 1 · Fill']);
+  p.tapEditor({ se: 'rm', j: fc() });
+  p.tapEditor({ se: 'add', k: 'fc', g: 1 });
   assert.equal(p.S.viewStyle1, '2');
-  // One graph: its picker offers New graph, a copy of it.
+  assert.deepEqual(editorRows(body()), ['Watch bar', 'Clock', 'Long · Fill']);
+  // A graph that does not exist is never put on, whatever asks for it.
+  p.tapEditor({ se: 'rm', j: fc() });
+  p.tapEditor({ se: 'add', k: 'fc', g: 2 });
+  assert.equal(fc(), -1);
+  // One graph: the Forecast graph chip, and the row says Forecast graph.
   const one = bootGeneratedPage(layout(['1', '1'], { provider: 'dwd' }), 'emery');
-  one.tapAction('openScreen', 0);
-  const fc = M.idxOf(M.screensOf(one.S, EMERY)[0], 'fc');
-  one.tapEditor({ se: 'style', j: fc });
-  assert.match(one.modal.innerHTML, />Graph 1 · \d+ h<\/span><span class="ssel-opt-desc">Also on Flick 1</);
-  assert.ok(one.modal.innerHTML.indexOf('data-select-pick="new:copy1"') !== -1);
-  // basalt: no Graph dropdown, the size alone.
+  one.tapAction('openScreen', 1);
+  const oneBody = () => one.editor().querySelector('[data-se-body]').innerHTML;
+  assert.match(editorRows(oneBody()).pop(), /^Forecast graph · (?:Fill|\d rows)$/);
+  one.tapEditor({ se: 'rm', j: M.idxOf(M.screensOf(one.S, EMERY)[1], 'fc') });
+  const oneChips = editorAddChips(oneBody());
+  assert.ok(oneChips.indexOf('Forecast graph') !== -1 && oneChips.indexOf('Graph 1') === -1, oneChips.join(' | '));
+  // basalt: no graph chips, the row says Forecast graph.
   const b = bootGeneratedPage(TWO, 'basalt');
   b.tapAction('openScreen', 0);
   const bBody = b.editor().querySelector('[data-se-body]').innerHTML;
   assert.match(editorRows(bBody)[M.idxOf(M.screensOf(b.S, BASALT)[0], 'fc')], /^Forecast graph · (?:Fill|\d rows)$/);
-  assert.equal(bBody.indexOf('data-se="style"'), -1);
+  assert.equal(bBody.indexOf('data-g='), -1);
+});
+
+test('the screen editor: a graph that would make the screens show a sixth metric is a greyed-out chip, and the line under the chips says why', () => {
+  const M = require('../src/pkjs/screens.js');
+  // Default draws Graph 1's four series; Flick 1 has no forecast graph. Long would add cloud and
+  // pressure (six), Sky cloud alone (five, on the spare row).
+  const S = layout(['1', '1'], { provider: 'dwd', viewBody1: 'none', viewTop1: 'cal',
+    secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust',
+    graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'pressure', fourthLine: 'off', fifthLine: 'off' },
+      { secondaryLine: 'cloud', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' }, ['', 'Long', 'Sky']) });
+  const p = bootGeneratedPage(S, 'emery');
+  p.tapAction('openScreen', 1);
+  const body = () => p.editor().querySelector('[data-se-body]').innerHTML;
+  assert.deepEqual(editorAddChips(body()).filter((c) => /^(Graph 1|Long|Sky)/.test(c)), ['Graph 1', 'Long (off)', 'Sky']);
+  assert.ok(body().indexOf(ui.chip('Long', { disabled: true }, { icon: 'plus' })) !== -1, 'no action on it');
+  assert.equal(editorAddNote(body()), 'The watch can show 5 lines and stripes across all your screens. In use: Precipitation %,'
+    + ' UV Index, Wind speed, Wind gusts. Long also needs Cloud cover % and Air pressure (hPa). To make room, turn off a line'
+    + ' in one of your graphs.');
+  // A greyed-out graph is never put on, whatever asks for it.
+  p.tapEditor({ se: 'add', k: 'fc', g: 1 });
+  assert.equal(M.idxOf(M.screensOf(p.S, EMERY)[1], 'fc'), -1);
+  // Sky fits: on it goes, the fifth series.
+  p.tapEditor({ se: 'add', k: 'fc', g: 2 });
+  assert.equal(p.S.viewStyle1, '3');
+  assert.match(editorRows(body()).pop(), /^Sky · /);
+  assert.equal(editorAddNote(body()), '', 'no graph chips left, no note');
 });
 
 test('the page: Show on puts the picked graph on a screen or takes it off', async () => {

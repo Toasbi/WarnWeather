@@ -588,12 +588,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       gated = meta.disabled || offVals.indexOf(o[1]) !== -1;
       pic = pictures && pictures[o[1]] ? '<span class="ssel-pic" aria-hidden="true">' + pictures[o[1]] + '</span>' : '';
       if (pic) { classes += ' has-pic'; }
-      // meta.add: the option makes something new (the screen editor's New status bar and New graph):
-      // a plus at its start, its name in the link colour, after the things there are.
-      if (meta.add) {
-        classes += ' add';
-        pic = '<svg class="ssel-add" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>';
-      }
       h += '<button type="button" class="' + classes + '" role="option" aria-selected="'
         + (value === o[1] ? 'true' : 'false') + '"'
         + (gated

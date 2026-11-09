@@ -127,7 +127,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * A dropdown: what is picked, then the ▾ that says a tap opens its picker (an engine select's
-   * trigger; the screen editor's Rows, Size and Graph).
+   * trigger; the screen editor's Rows and Size).
    * @param {string} label What it shows.
    * @param {Object} at Its attributes (what a tap does, its accessible name, aria-haspopup).
    * @returns {string} Markup
@@ -139,7 +139,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * An Edit button: the outlined text button beside a value that opens what changes it (an
-   * engine row's edit sheet; a screen editor bar's dialog).
+   * engine row's edit sheet).
    * @param {string} label What it says ("Edit").
    * @param {Object} at Its attributes (what a tap does, its accessible name).
    * @returns {string} Markup

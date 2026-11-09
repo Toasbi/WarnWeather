@@ -1,7 +1,7 @@
 // test/config-named-bars.test.js — 2.7.0's named status bars on the settings page: a bar's
 // name (screens.js barName, the page-only <prefix>Name keys), the Status bars tab's Your status bars
 // card and each bar's dialog, whose title renames it (a pencil, then a field and OK), the
-// screen editor's bar rows (the bar's name and its Edit), and the names wherever the page
+// screen editor's bar rows and Add chips (the bar's name), and the names wherever the page
 // speaks of a bar (the slot pickers, the Alerts tab, the previews).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -16,7 +16,7 @@ global.localStorage = {
 
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const ui = require('../src/pkjs/config-ui/lib/ui.js');
-const { editorBody: body, editorRows, sheetTitle, sheetOptions } = require('./helpers/page-rows.js');
+const { editorBody: body, editorRows, editorAddChips, sheetTitle } = require('./helpers/page-rows.js');
 const M = require('../src/pkjs/screens.js');
 const VC = require('../src/pkjs/view-cycle.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
@@ -210,44 +210,25 @@ test('a bar\'s name: trimmed and cut, its own name stores none, another bar\'s t
 
 // --- the screen editor ----------------------------------------------------------------
 
-test('the editor: a bar row reads by its name, with its Edit and nothing else beside it', () => {
+test('the editor: a bar\'s row and its Add chip read by its name; the row has nothing else beside it', () => {
   const S = Object.assign({ statusForecastName: 'Morning' }, THREE);
   const page = bootGeneratedPage(S);
   page.tapAction('openScreen', 0);
   assert.deepEqual(editorRows(body(page)), ['Watch bar', 'Calendar · 2 rows', 'Clock', 'Morning', 'Forecast graph · Fill']);
-  assert.ok(body(page).indexOf('<span class="se-name">Morning</span><span class="se-ctl">'
-    + ui.editButton('Edit', { 'data-se': 'editbar', 'data-j': 3, 'aria-label': 'Edit Morning' }) + '</span>') !== -1);
+  assert.ok(body(page).indexOf('<div class="se-mid"><span class="se-name">Morning</span></div>') !== -1);
   assert.ok(body(page).indexOf('aria-label="Remove Morning"') !== -1);
+  assert.equal(body(page).indexOf('Edit Morning'), -1, 'the Status bars tab edits a bar');
   page.tapEditor({ se: 'close' });
-  // The same bar on Flick 1 too: where else it shows is the Status bars tab's to say, not the row's.
+  // The same bar on Flick 1 too, by its chip: where else it shows is the Status bars tab's to
+  // say, not the row's.
   page.tapAction('openScreen', 1);
-  page.tapEditor({ se: 'addbar' });
-  page.pickOption('screenAddBar', 'fcbar');
+  assert.deepEqual(editorAddChips(body(page)), ['Calendar', 'Morning', 'Radar bar', 'Forecast graph', 'Rain radar']);
+  page.tapEditor({ se: 'add', k: 'fcbar' });
   assert.ok(editorRows(body(page)).indexOf('Morning') !== -1, editorRows(body(page)).join(' | '));
   assert.equal(body(page).indexOf('Also on'), -1);
   page.tapEditor({ se: 'close' });
   page.tapAction('openScreen', 0);
   assert.equal(body(page).indexOf('Also on'), -1);
-  // + Status bar's picker offers each bar by its name.
-  page.tapEditor({ se: 'rm', j: 3 });
-  page.tapEditor({ se: 'addbar' });
-  assert.deepEqual(sheetOptions(page).map((o) => o.replace(/ \(.*$/, '')), ['Morning', 'Health bar', 'Radar bar']);
-});
-
-test('the editor: a bar row\'s Edit opens the bar\'s dialog over the editor, which stays under it', () => {
-  const page = bootGeneratedPage(Object.assign({ statusRadarName: 'Wind' }, THREE));
-  page.tapAction('openScreen', 2);
-  const j = M.idxOf(M.screensOf(page.S, BASALT)[2], 'radarbar');
-  page.tapEditor({ se: 'editbar', j });
-  assert.ok(page.editor(), 'the editor stays');
-  assert.ok(page.modal.innerHTML.indexOf('id="esheet-ttl-bar-radar">Wind</span>') !== -1, 'the bar\'s dialog');
-  assert.ok(page.modal.innerHTML.indexOf('<span class="dlg-kick">Flick 2</span>') !== -1, 'opened from the screen');
-  page.doneDialog();
-  assert.ok(page.editor(), 'Done: back in the editor');
-  // A row that is not a bar opens nothing.
-  const writes = page.modal.writes;
-  page.tapEditor({ se: 'editbar', j: 1 });
-  assert.equal(page.modal.writes, writes);
 });
 
 // --- the names elsewhere --------------------------------------------------------------

@@ -2159,12 +2159,9 @@ module.exports = {
             // style holds, one JSON string (src/pkjs/graph-styles.js parse). The flat keys are the
             // first style, so an install without the key has one style and nothing migrates.
             // Blob-only: sheetOnly keeps it off the tab; it hydrates and serializes with the blob.
-            // With it the two page-only pickers that have no row of their own: New graph, which
-            // draws its templates and graphs (pictureFrom; the card's New graph opens its sheet, a
-            // pick makes the graph), and the screen editor's graph, a plain list of your graphs
-            // and a copy of the screen's (screens-page.js opens it over the editor; the owner's,
-            // 2026-11-09). Their '' and stale values are dormant, so the sheets open with nothing
-            // ticked.
+            // With it the page-only picker that has no row of its own: New graph, which draws its
+            // templates and graphs (pictureFrom; the card's New graph opens its sheet, a pick makes
+            // the graph). Its '' is dormant, so the sheet opens with nothing ticked.
             sheetOnly: true,
             sheetId: 'graphStyleKeys',
             title: 'Graph styles',
@@ -2180,16 +2177,6 @@ module.exports = {
                 optionsFrom: {resolver: 'graphStyleStarts'},
                 pictureFrom: {resolver: 'graphStylePicture'},
                 onChange: 'graphStyleCreate'
-            }, {
-                type: 'select',
-                messageKey: 'screenGraphStyle',
-                uiOnly: true,
-                label: 'Graph',
-                sheetTitle: 'Graph on this screen',
-                sheetLead: 'Pick the graph this screen shows. To start one from a template, use New graph on the Graphs tab.',
-                defaultValue: '1',
-                optionsFrom: {resolver: 'graphStyleOptions', args: {screen: true}},
-                onChange: 'screenGraphStylePicked'
             }]
         }].concat(GRAPH_COLOR_ROWS.map(function (row) {
             var sheet = graphColorSheet(row);

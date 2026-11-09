@@ -334,9 +334,8 @@ its verdict line, and a hint's tap-to-copy `[data-copy]` button, included), with
 difference: a `select` row there expands its option list IN PLACE, under the row inside the
 sheet (the colour palette's pattern), instead of opening the select modal. The trigger stays where it was and reads as
 open (`aria-expanded="true"`, the row gains `isel-open`); the list reuses the modal's option
-rows, so the current value's check, a recommended option, an option that makes something
-(`meta.add`: a plus and the link color) and gated (`meta.disabled` / `optionDisabledWhen`)
-options look and behave the same. A pick stores the value, fires the
+rows, so the current value's check, a recommended option and gated (`meta.disabled` /
+`optionDisabledWhen`) options look and behave the same. A pick stores the value, fires the
 item's `onChange` once and collapses the list, leaving the sheet open with focus back on the
 trigger; a second tap on the trigger collapses it without a pick. One expander is open at a
 time: opening a list collapses an open palette and vice versa. Escape first collapses an open

@@ -601,9 +601,3 @@ test('a dialog titled by the settings, whose title renames: a pencil, then a fie
   assert.equal(html.indexOf('data-dlg-rename-in'), -1);
 });
 
-test('an option that makes something new (meta.add) leads with a plus', () => {
-  const item = { type: 'select', messageKey: 'pick', options: [['One', '1'], ['New thing', 'new', { add: true, desc: 'Empty' }]] };
-  const html = E.renderSelectOptions(item, '1', '', null, [], null);
-  assert.match(html, /<button type="button" class="ssel-opt add" role="option" aria-selected="false" data-select-pick="new" data-k="pick"><svg class="ssel-add"/);
-  assert.ok(html.indexOf('<span class="ssel-opt-name">New thing</span><span class="ssel-opt-desc">Empty</span>') !== -1);
-});

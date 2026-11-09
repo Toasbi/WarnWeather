@@ -247,21 +247,6 @@
                 "onChange": "screenRowSizePicked"
               },
               {
-                "type": "select",
-                "messageKey": "screenAddBar",
-                "uiOnly": true,
-                "label": "Status bar",
-                "sheetTitle": "Add a status bar",
-                "defaultValue": "",
-                "dormantValues": [
-                  ""
-                ],
-                "optionsFrom": {
-                  "resolver": "screenAddBarOptions"
-                },
-                "onChange": "screenAddBarPicked"
-              },
-              {
                 "type": "hidden",
                 "messageKey": "viewTop0",
                 "defaultValue": "cal"
@@ -11002,22 +10987,6 @@
                   "resolver": "graphStylePicture"
                 },
                 "onChange": "graphStyleCreate"
-              },
-              {
-                "type": "select",
-                "messageKey": "screenGraphStyle",
-                "uiOnly": true,
-                "label": "Graph",
-                "sheetTitle": "Graph on this screen",
-                "sheetLead": "Pick the graph this screen shows. To start one from a template, use New graph on the Graphs tab.",
-                "defaultValue": "1",
-                "optionsFrom": {
-                  "resolver": "graphStyleOptions",
-                  "args": {
-                    "screen": true
-                  }
-                },
-                "onChange": "screenGraphStylePicked"
               }
             ]
           },

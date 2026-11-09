@@ -495,5 +495,4 @@ test('the names everywhere: the pinned watch\'s captions, the delete toast and t
   // The Graphs tab names the screens a graph shows on by their names.
   const S = withScreens(EMERY, [M.screensOf(fresh(EMERY), EMERY)[0]], { viewName0: 'Home' });
   assert.deepEqual(GSP.screensOn(S, EMERY, 0), ['Home']);
-  assert.equal(GSP.whereText(S, EMERY, 0), 'On Home');
 });
