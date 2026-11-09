@@ -119,6 +119,21 @@ test('the screen pictures\' frame reaches the page ahead of the watch preview an
   assert.ok(page().indexOf('window.ScreenFrame = api') !== -1, 'nothing assigns window.ScreenFrame');
 });
 
+// The metrics' names (forecast-metrics.js) are bound while graph-styles-page.js, forecast-hints.js and
+// wizard-forecast.js run: out of order, the metric pickers and the graph rows lose their names on
+// a real phone while Node (require()) passes.
+test('the metrics\' names reach the page ahead of the modules that bind them', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  ['settings/graph-styles-page.js', 'settings/forecast-hints.js', 'settings/wizard-forecast.js'].forEach((reader) =>
+    assert.ok(idx('settings/forecast-metrics.js') < idx(reader), 'forecast-metrics.js must precede ' + reader));
+  assert.ok(page().indexOf('window.ForecastMetrics = api') !== -1, 'nothing assigns window.ForecastMetrics');
+});
+
 // The screens page is the same silent-no-op shape as the defaults policy: its consumers,
 // the screen buttons' and the Screens card's [data-action] dispatch, guard its absence, so
 // dropping screens-page.js from APP_FILES keeps every Node test green while the shipped

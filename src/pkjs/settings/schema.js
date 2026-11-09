@@ -1348,19 +1348,23 @@ function graphDialog() {
         sheetOnly: true,
         sheetId: 'graph',
         id: 'graph',
+        // A graph that is gone (its Delete) has no dialog: it closes (graph-styles-page.js graphShown).
+        showWhen: {when: 'graphShown'},
         title: 'Forecast graph',
         titleBy: {resolver: 'graphName'},
         rename: {key: 'graphStyleName', label: 'Graph name', placeholderBy: {resolver: 'graphDefaultName'},
             maxlength: NAME_MAX, showWhen: GRAPH_STYLES_WHEN},
         pinBlock: 'forecastPreview',
         // The screens the graph shows on, in the last card (graph-styles-page.js showOnBlock).
+        // Each card's rows carry their own gates, and a card with none to show drops out (engine
+        // buildCards), so the subheaders need none.
         block: 'graphShowOn',
         items: [{type: 'subheader', text: 'Lines', intro: FORECAST_INTRO}].concat(GRAPH_LINES.map(lineRow),
             [{type: 'subheader', text: 'Rain bars'}], bars,
             [{type: 'subheader', text: 'Other'}], other,
-            [{type: 'subheader', text: 'Left axis', showWhen: EMERY_WHEN}], axis,
-            [{type: 'subheader', text: '', capabilities: ['COLOR'], showWhen: COLOR_THEME_WHEN}], colors,
-            [{type: 'subheader', text: 'Show on', showWhen: GRAPH_STYLES_WHEN}, {
+            [{type: 'subheader', text: 'Left axis'}], axis,
+            [{type: 'subheader', text: ''}], colors,
+            [{type: 'subheader', text: 'Show on'}, {
                 // Delete <the graph>, any but the first, under the card as the screen editor's
                 // Delete screen (style 'delete', engine buildCards): the dialog closes, and the
                 // Your graphs card's Undo puts the graph back (graph-styles-page.js deletePicked).
@@ -2137,7 +2141,7 @@ module.exports = {
             // picture, name, length and screens, the metrics it draws and the room left for more;
             // a tap opens its dialog (graphDialog). New graph and the Undo of a Delete under the
             // rows (Pebble Time 2). The pick is a page-only key the rows set: the graph the dialog
-            // shows, whose values the page swaps into the flat keys while the pane shows it.
+            // shows, whose values the page swaps into the flat keys while the dialog is open.
             pane: 'forecast',
             id: 'graphStyle',
             // "Your graphs" where a watch has several, no title where it has the one.
@@ -2147,13 +2151,7 @@ module.exports = {
             // metric rows the graphs on the screens use, with a '?' that lists them and says
             // what counts (graph-styles-page.js metricsNote).
             noteFrom: {resolver: 'graphMetricsNote'},
-            items: [{
-                type: 'hidden',
-                messageKey: 'graphStylePick',
-                uiOnly: true,
-                defaultValue: '1',
-                initFrom: {resolver: 'graphStyleOnOpen'}
-            }],
+            items: [{type: 'hidden', messageKey: 'graphStylePick', uiOnly: true, defaultValue: '1'}],
             block: 'graphList'
         }, graphDialog(), {
             sheetOnly: true,

@@ -1166,7 +1166,7 @@ function bootWithCapturedListeners(schema, env, opts) {
   const BUNDLE = LIB_PAGE_FILES.map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
     + '\nPConf.hooks.onLoad(function (ctx) { module.exports.loadEnv = ctx.env; });'
     + '\nPConf.hooks.onReady(function (ctx) {'
-    + ' module.exports.openSheet = ctx.openSheet;'
+    + ' module.exports.openSheet = ctx.openSheet; module.exports.openDialog = ctx.openDialog;'
     + ' module.exports.activeTab = ctx.activeTab;'
     + ' module.exports.getValue = ctx.get; module.exports.setValue = ctx.set;'
     + ' module.exports.gotoTab = ctx.gotoTab; module.exports.S = ctx.S; module.exports.render = ctx.render; });'
@@ -1238,7 +1238,8 @@ function bootWithCapturedListeners(schema, env, opts) {
           focusCounts[m[1]][m[2]] = (focusCounts[m[1]][m[2]] || 0) + 1;
         } };
       }
-      return null;
+      // opts.docQuery: any other selector (a page's own trigger a sheet hands focus back to).
+      return (opts && opts.docQuery) ? opts.docQuery(sel) : null;
     }
   };
   // opts.docQueryAll: the page's querySelectorAll, for the tests that tell twin triggers
@@ -3089,30 +3090,7 @@ test('single range: the dual and threshold variants are untouched', () => {
 });
 
 // ── Graph styles' engine hooks (src/pkjs/settings/graph-styles-page.js holds a style's values
-// in the flat keys while Graphs › Forecast shows it): abovePin, onRender, normalize, gotoTab.
-
-test('renderBody: an abovePin section sits between the pane switcher and the pinned preview, on its pane only', () => {
-  // The live registry: a booted page earlier in this file put a fresh PConf.blocks in place.
-  global.PConf.blocks.register('pinDemo', () => '<i>PIN</i>');
-  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 'g', label: 'G',
-    panes: [{ id: 'a', label: 'A', pinBlock: 'pinDemo' }, { id: 'b', label: 'B', pinBlock: 'pinDemo' }],
-    sections: [
-      { pane: 'a', id: 'body', title: 'Body card', items: [{ type: 'toggle', messageKey: 'f', label: 'F', defaultValue: false }] },
-      { pane: 'a', id: 'head', title: 'Head card', abovePin: true,
-        items: [{ type: 'toggle', messageKey: 'h', label: 'H', defaultValue: false }] },
-      { pane: 'b', id: 'other', title: 'Other card', items: [{ type: 'toggle', messageKey: 'o', label: 'O', defaultValue: false }] }
-    ] }] };
-  const S = E.hydrate(SCH, {});
-  const cx = (pane) => ({ S, ENV: {}, USERDATA: {}, collapsed: {}, activePane: { g: pane },
-    evalCtx: Object.assign({}, S, { env: {} }) });
-  const html = E.renderBody(SCH, 'g', cx('a'));
-  const at = (s) => html.indexOf(s);
-  assert.ok(at('pane-seg') >= 0 && at('pane-seg') < at('Head card'), 'the switcher first');
-  assert.ok(at('Head card') < at('<i>PIN</i>'), 'then the abovePin card');
-  assert.ok(at('<i>PIN</i>') < at('Body card'), 'then the pinned preview, then the cards');
-  assert.equal(html.split('Head card').length, 2, 'drawn once, not again among the cards');
-  assert.equal(E.renderBody(SCH, 'g', cx('b')).indexOf('Head card'), -1, 'another pane has none');
-});
+// in the flat keys while its dialog is open): onRender, normalize, gotoTab.
 
 test('boot(): an onRender hook runs first in every render, told the tab and the pane on screen', () => {
   const schema = { appName: 'X', versionLabel: 'v0', tabs: [
@@ -3143,6 +3121,50 @@ test('boot(): an onRender hook runs first in every render, told the tab and the 
   assert.equal(r.activeTab(), 'h', 'gotoTab brings the tab to the front');
   r.gotoTab('g', 'a');
   assert.equal(r.page.seen[r.page.seen.length - 1], 'g:a', 'gotoTab with a pane shows that pane');
+});
+
+test('boot(): ctx.openDialog: the render hook hears the root dialog, nested ones too; its close options outlive a nested dialog', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { items: [{ type: 'select', messageKey: 'pick', label: 'Pick', defaultValue: 'x', options: [['X', 'x'], ['Y', 'y']] }] },
+    { sheetOnly: true, sheetId: 'outer', title: 'Outer', items: [{ type: 'sheet', sheetId: 'inner', label: 'Inner' }] },
+    { sheetOnly: true, sheetId: 'inner', title: 'Inner',
+      items: [{ type: 'toggle', messageKey: 'b', label: 'B', defaultValue: false }] }
+  ] }] };
+  const focused = [];
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true,
+    docQuery: (sel) => ({ focus: () => { focused.push(sel); } }),
+    prelude: 'PConf.hooks.onRender(function (c) { (module.exports.dialogs = module.exports.dialogs || []).push(c.dialog); });' });
+  const last = () => r.page.dialogs[r.page.dialogs.length - 1];
+  const tap = (sel, attrs) => {
+    const t = { getAttribute: (n) => (attrs || {})[n] || null, closest: (q) => (q === sel ? t : null) };
+    r.modalListeners.click({ target: t });
+  };
+  assert.equal(last(), null, 'no dialog');
+  let closed = 0;
+  r.page.openDialog('outer', { onClose: () => { closed++; }, focusBack: '[data-action="row"][data-action-arg="2"]' });
+  assert.equal(last(), 'outer');
+  tap('[data-edit-sheet]', { 'data-edit-sheet': 'inner' });
+  assert.match(r.modal.innerHTML, /Inner/);
+  assert.equal(last(), 'outer', 'a nested dialog: the root it sits on');
+  tap('[data-dlg-back]');
+  assert.equal(closed, 0);
+  tap('[data-dlg-done]');
+  assert.equal(r.modal.innerHTML, '', 'Done closes it');
+  assert.equal(last(), null);
+  assert.equal(closed, 1, 'the root\'s onClose runs, a nested dialog opened in between');
+  assert.deepEqual(focused, ['[data-action="row"][data-action-arg="2"]'], 'and the focus goes back to the page\'s own trigger');
+  // An overlay's dialog (the screen editor's) keeps its no-focus through a nested dialog too.
+  focused.length = 0;
+  r.page.openDialog('outer', { onClose: () => { closed++; }, overlay: true });
+  tap('[data-edit-sheet]', { 'data-edit-sheet': 'inner' });
+  tap('[data-dlg-done]');
+  tap('[data-dlg-done]');
+  assert.equal(closed, 2);
+  assert.deepEqual(focused, [], 'nothing on the page takes the focus');
+  // openSheet() hands the focus back to the trigger it is given (New graph), else to nothing.
+  r.openSheet('pick', null, '[data-action="newGraph"]');
+  r.modalListeners.click({ target: { closest: (q) => (q === '[data-select-close]' ? {} : null) } });
+  assert.deepEqual(focused, ['[data-action="newGraph"]']);
 });
 
 test('boot(): Save and Revert compare the normalized settings, and Save stores them', async () => {

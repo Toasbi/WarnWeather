@@ -256,6 +256,21 @@
         ];
     }
 
+    /**
+     * The stored length as the Forecast length row names it (spanOptions): "12 h", "24 h", or the
+     * long span by the hours it shows ("66 h", "47 h" with OpenWeatherMap).
+     * @param {?Object} settings Clay settings.
+     * @param {?Object} [env] Platform env.
+     * @returns {string}
+     */
+    function spanLabel(settings, env) {
+        var want = String(storedHours(settings)), opts = spanOptions(settings, env);
+        for (var i = 0; i < opts.length; i++) {
+            if (opts[i][1] === want) { return opts[i][0]; }
+        }
+        return '';
+    }
+
     var api = {
         FULL_HOURS: FULL_HOURS,
         PROVIDER_HOURS: PROVIDER_HOURS,
@@ -280,7 +295,8 @@
         plotWidth: plotWidth,
         longHours: longHours,
         shownHours: shownHours,
-        spanOptions: spanOptions
+        spanOptions: spanOptions,
+        spanLabel: spanLabel
     };
 
     // Dual-context export — mirrors the tail of src/pkjs/forecast-axis.js.

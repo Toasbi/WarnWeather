@@ -629,6 +629,39 @@ test('the forecast step offers Classic, Clean and Stripes; a 144 px watch\'s new
   assert.deepEqual(graphOf(fresh.ctx.S), graphOf(ctx.S));
 });
 
+test('the looks as the owner set them, pinned as written: each one\'s values, length and words', () => {
+  // Literal, not read back from LOOKS: a wrong value there fails here.
+  const pinned = {
+    classic: { span: '24', like: 'ForecasWatch2', over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: true, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
+      dayNightShading: true, forecastAxisNumbers: 'axis' } },
+    clean: { span: '48', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: true, thirdLine: 'cloud', thirdLineStyle: 'stripeTop', fourthLine: 'off', fifthLine: 'off',
+      barSource: 'rain', rainBarColor: 'white', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The owner's, 2026-11-09: the feels-like temperature as a thin line, the high and low on the graph.
+    stripes: { span: '24', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop',
+      secondaryLineFill: true, thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop', fourthLine: 'feels',
+      fourthLineStyle: 'line', fifthLine: 'off', barSource: 'rain', rainBarColor: 'white', rainBarFrom: 'top',
+      dayNightShading: true, forecastAxisNumbers: 'graph' } }
+  };
+  assert.deepEqual(FORECAST.LOOKS.map((look) => look.id), Object.keys(pinned));
+  FORECAST.LOOKS.forEach((look) => {
+    assert.deepEqual({ span: look.span, like: look.like, over: look.over }, pinned[look.id], look.id);
+  });
+  // The short lines New graph's sheet shows under them, on a colour watch and on aplite, which
+  // draws neither stripes nor a third line and fills the Main metric's line.
+  const APLITE = platform.computeEnv({ platform: 'aplite' });
+  const EMERY = platform.computeEnv({ platform: 'emery' });
+  assert.deepEqual(LOOK_IDS.map((id) => FORECAST.summary(id, EMERY)), [
+    'Rain chance as a shaded area, rain bars',
+    'Rain chance as a shaded area, clouds as a stripe, solid rain bars',
+    'Feels-like temperature as a line, clouds and rain chance as stripes, solid rain bars from the top']);
+  assert.deepEqual(LOOK_IDS.map((id) => FORECAST.summary(id, APLITE)), [
+    'Rain chance as a shaded area, rain bars',
+    'Clouds as a line, rain chance as a shaded area, rain bars',
+    'Rain chance as a line, clouds as a shaded area, rain bars']);
+});
+
 test('every look has the night shading on, and the looks are the graph styles\' presets', () => {
   FORECAST.LOOKS.forEach((look) => assert.equal(look.over.dayNightShading, true, look.id));
   assert.deepEqual(FORECAST.LOOKS.map((look) => look.id), LOOK_IDS);

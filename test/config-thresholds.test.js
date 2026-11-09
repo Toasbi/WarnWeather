@@ -2090,11 +2090,7 @@ test('dayMaxHint: picking Day max on a Now slot brings the hint in', () => {
   const page = bootGeneratedPage({ provider: 'dwd' });
   page.openEditSheet('threshUv');
   assert.equal(page.modal.innerHTML.indexOf('Shows the highest UV index'), -1, 'Now: no hint');
-  const t = {
-    getAttribute: n => (n === 'data-k' ? 'uvSlotDisplay' : (n === 'data-v' ? 'max' : null)),
-    closest: sel => (sel === '[data-v]' ? t : null)
-  };
-  page.modal.dispatch('click', { target: t });
+  page.tapSegment('uvSlotDisplay', 'max', 'modal');
   assert.equal(page.S.uvSlotDisplay, 'max');
   assert.ok(page.modal.innerHTML.indexOf('Shows the highest UV index left today') !== -1,
     'the Day max hint renders');

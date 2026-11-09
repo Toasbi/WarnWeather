@@ -197,10 +197,16 @@ test('a card\'s line: its rows, its graph by its template and length; on a watch
   assert.equal(P.describe(P.byId('classic'), EMERY), '3-row calendar, Forecast bar and 24 h Classic graph.');
   assert.equal(P.describe(P.byId('weathergraph'), EMERY), 'Forecast bar, 66 h Clean graph and Health bar.');
   assert.equal(P.describe(P.byId('stripes'), EMERY), '2-row calendar, Forecast bar and 24 h Stripes graph.');
-  assert.equal(P.describe(P.byId('healthCal'), EMERY), '2-row calendar, Health bar and health graph.');
+  assert.equal(P.describe(P.byId('healthCal'), EMERY), '2-row calendar, Health bar and Health graph.');
   assert.equal(P.describe(P.byId('clean'), null), '2-row calendar, Forecast bar and Clean graph.', 'an unknown watch: no length');
   assert.equal(P.describe(P.byId('classic'), BASALT), '3-row calendar, Forecast bar and your graph.');
-  assert.equal(P.describe(P.byId('health'), BASALT), 'Health bar and health graph.');
+  assert.equal(P.describe(P.byId('health'), BASALT), 'Health bar and Health graph.');
+  // The long span by the hours it shows with your weather service, as New graph's sheet names it.
+  assert.equal(P.describe(P.byId('weathergraph'), EMERY, { provider: 'openweathermap' }),
+    'Forecast bar, 47 h Clean graph and Health bar.');
+  assert.match(GSP.templateLine({ provider: 'openweathermap' }, EMERY, 'clean'), /^47 h · /, 'New graph\'s sheet says the same');
+  // A bar by its name.
+  assert.equal(P.describe(P.byId('health'), BASALT, { statusHealthName: 'Steps' }), 'Steps and Health graph.');
   assert.equal(P.byId('nope'), null);
 });
 
@@ -240,7 +246,7 @@ test('adding a preset: its rows after the others, named after it; Blank keeps it
   assert.equal(JSON.stringify(T), kept);
 });
 
-test('a preset on a Pebble Time 2 brings its graph: a new one from its template, picked on the Graphs tab', () => {
+test('a preset on a Pebble Time 2 brings its graph: a new one from its template', () => {
   const S = fresh(EMERY);
   const c = SP.addChoices(S, EMERY).filter((x) => x.id === 'weathergraph')[0];
   assert.deepEqual([c.graph.k, Boolean(c.graph.values), c.why], [1, true, ''],
@@ -249,7 +255,6 @@ test('a preset on a Pebble Time 2 brings its graph: a new one from its template,
   assert.equal(GS.count(S), 2);
   assert.equal(GS.name(S, 1), 'Graph 2');
   assert.equal(S.viewStyle1, '2', 'the new screen draws it');
-  assert.equal(S[GSP.PICK], '2');
   assert.equal(S.viewName1, 'Weathergraph');
   assert.deepEqual(M.screensOf(S, EMERY)[1].map((x) => x.k), ['strip', 'clock', 'fcbar', 'fc', 'healthbar']);
   assert.equal(GS.settingsFor(S, 1).forecastHours, GSP.templateValues(S, EMERY, 'clean').forecastHours);

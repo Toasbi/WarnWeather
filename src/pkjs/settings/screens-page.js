@@ -48,7 +48,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The screens Add screen offers after Blank.
     var PRESETS = (typeof require !== 'undefined') ? require('../screen-presets.js') : window.ScreenPresets;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
-    var esc = (typeof require !== 'undefined') ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
+    var html = (typeof require !== 'undefined') ? require('../config-ui/lib/html.js') : PConf.html;
+    var esc = html.esc;
     // The page's shared parts (config-ui/lib/ui.js): the lists' rows, red arrows, New rows and
     // Undo (with the timer that takes a message away: flash), the editor's header, its rows'
     // dropdowns, its chips and Delete screen, the icons.
@@ -76,9 +77,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var REORDER_HINT = 'The watch starts on the top screen. Each flick shows the next one. Drag\u00a0≡ to change the order.';
     var ROWS_HINT = 'The watch shows these rows from top to bottom. Drag\u00a0≡ to change the order.';
     // The screen editor's Add groups, in the order they show (the owner's ask, 2026-11-09: the
-    // chips grouped by what they add), each with its caption; the calendar and the clock's names
-    // what it offers ("Add the calendar or the clock").
-    var ADD_GROUPS = [{ id: 'bars', cap: 'Add a status bar' }, { id: 'graphs', cap: 'Add a graph' }, { id: 'rows', cap: '' }];
+    // chips grouped by what they add), each with its caption, or capOf, which writes it from the
+    // chips it holds ("Add the calendar or the clock").
+    var ADD_GROUPS = [{ id: 'bars', cap: 'Add a status bar' }, { id: 'graphs', cap: 'Add a graph' }, { id: 'rows',
+        capOf: function (offers) {
+            return 'Add ' + html.andList(offers.map(function (o) { return 'the ' + o.label.toLowerCase(); }), 'or');
+        } }];
     // The editor's Rows and Size picker (custom-layout-schema.js: a page-only select), for the row
     // in ED.sizeRow: the calendar's rows, a graph's size; why it greys one out.
     var SCREEN_SIZE = 'screenRowSize';
@@ -489,7 +493,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (mine) { why = ALREADY; } else if (styled && !graph) { why = NO_GRAPH_ROOM; } else if (graph
                 && GSP.screenOverflows(W, env, n, graph.k)) { why = GSP.limitDesc(W, env, graph.k); }
         }
-        return { id: p ? p.id : BLANK, name: p ? p.name : 'Blank', desc: p ? PRESETS.describe(p, env)
+        return { id: p ? p.id : BLANK, name: p ? p.name : 'Blank', desc: p ? PRESETS.describe(p, env, N)
             : 'Watch bar and clock. You add the rest.', look: p ? p.look : null, list: list, graph: graph, W: W, n: n, why: why };
     }
 
@@ -512,8 +516,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Add the screen a choice stands for, after the others: its graph made first when it brings
-     * a new one (and picked on the Graphs tab, which then shows it), the screen named after its
-     * preset. Mutates S.
+     * a new one, the screen named after its preset. Mutates S.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} id 'blank' or a preset's id.
@@ -530,7 +533,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var k = GSP.createGraph(S, c.look, env), j = M.idxOf(list, 'fc');
             if (k < 0) { return -1; }
             if (k > 0) { list[j].style = String(k + 1); } else { delete list[j].style; }
-            S[GSP.PICK] = String(k + 1);
         }
         if (!insertScreen(S, c.n, list, env)) { return -1; }
         S['viewName' + c.n] = id === BLANK ? '' : c.name;
@@ -1129,7 +1131,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} HTML
      */
     function rowHtml(list, j, S, env) {
-        var b = list[j], fixed = b.k === 'strip', keepClock = ED.i === 0 && b.k === 'clock';
+        var b = list[j], fixed = !moves(b), keepClock = ED.i === 0 && b.k === 'clock';
         var name = rowName(b, S, env), size = sizeOf(b), ctl = '';
         if (size) {
             var shown = sizeLabel(b[size.key]);
@@ -1184,19 +1186,29 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             ensureCustom(W, env);
             putScreen(W, i, withGraph(list, g));
             var off = GSP.screenOverflows(W, env, i, g);
-            return { se: 'add', k: 'fc', g: g, label: GS.name(N, g), off: off, grp: 'graphs',
+            return { se: 'add', k: 'fc', g: g, label: GS.name(N, g), off: off,
                 why: off ? GSP.limitDesc(W, env, g, GS.name(N, g)) : '' };
         });
     }
 
     /**
-     * Which of the editor's Add groups (ADD_GROUPS) a kind's chip sits in: the status bars (the
-     * Watch bar among them), the graphs, the calendar and the clock.
-     * @param {string} k A kind.
+     * Which of the editor's Add groups (ADD_GROUPS) an offer's chip sits in: the status bars (the
+     * Watch bar and New status bar among them), the graphs, the calendar and the clock.
+     * @param {{se: string, k: (string|undefined)}} o An offer (addOffers).
      * @returns {string} 'bars' | 'graphs' | 'rows'
      */
-    function addGroupOf(k) {
-        return k === 'strip' || M.isBar({ k: k }) ? 'bars' : M.isGraph({ k: k }) ? 'graphs' : 'rows';
+    function addGroupOf(o) {
+        var b = { k: o.k };
+        return o.se === 'newbar' || o.k === 'strip' || M.isBar(b) ? 'bars' : M.isGraph(b) ? 'graphs' : 'rows';
+    }
+
+    /**
+     * Whether a row moves: every row but the Watch bar, which stays at the top.
+     * @param {Object} b A block.
+     * @returns {boolean}
+     */
+    function moves(b) {
+        return b.k !== 'strip';
     }
 
     /**
@@ -1204,24 +1216,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * thing, no pickers): every row the screen can take and the watch has room for (screens.js
      * addable, fitsWatch), in their order, each status bar by its name; New status bar after the
      * bars while it can make one for the screen (Pebble Time 2); with several graphs a chip per
-     * graph in the forecast graph's place (graphOffers). Each names its group (addGroupOf). The
-     * chips are drawn from it, and a tap is taken only when it matches one that is not greyed out.
+     * graph in the forecast graph's place (graphOffers). The chips are drawn from it, each in its
+     * group (addGroupOf), and a tap is taken only when it matches one.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} i View slot.
      * @param {Array<Object>} list The screen.
-     * @returns {Array<{se: string, label: string, off: boolean, grp: string, k: (string|undefined), g: (number|undefined)}>}
+     * @returns {Array<{se: string, label: string, off: boolean, k: (string|undefined), g: (number|undefined)}>}
      */
     function addOffers(S, env, i, list) {
         var out = [];
         M.addable(list, env, S).forEach(function (k) {
             if (!fitsWatch(M.add(list, k), i, env)) { return; }
             var graphs = k === 'fc' ? graphOffers(S, env, i, list) : null;
-            out = out.concat(graphs || [{ se: 'add', k: k, label: M.blockName({ k: k }, S), off: false, grp: addGroupOf(k) }]);
+            out = out.concat(graphs || [{ se: 'add', k: k, label: M.blockName({ k: k }, S), off: false }]);
         });
         var free = M.newBarFor(list, S, env);
         if (free && fitsWatch(M.add(list, M.KIND_OF_BAR[free]), i, env)) {
-            out.push({ se: 'newbar', label: 'New status bar', off: false, grp: 'bars' });
+            out.push({ se: 'newbar', label: 'New status bar', off: false });
         }
         return out;
     }
@@ -1237,9 +1249,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function addRowHtml(S, env, offers) {
         var groups = ADD_GROUPS.map(function (grp) {
-            var mine = offers.filter(function (o) { return o.grp === grp.id; });
+            var mine = offers.filter(function (o) { return addGroupOf(o) === grp.id; });
             if (!mine.length) { return ''; }
-            var cap = grp.cap || 'Add ' + mine.map(function (o) { return 'the ' + o.label.toLowerCase(); }).join(' or ');
+            var cap = grp.capOf ? grp.capOf(mine) : grp.cap;
             var chips = mine.map(function (o) {
                 return kit.chip(o.label, { 'data-se': o.se, 'data-k': o.k, 'data-g': o.g, 'aria-disabled': o.off ? 'true' : undefined },
                     { icon: 'plus', dim: o.off });
@@ -1264,7 +1276,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // The page's own card (the engine's .card and header), how to reorder under its rows while
         // two rows or more can move (as the Screens card says it), the Add groups, and Delete
         // screen under the card, as a dialog's Delete (kit.deleteButton).
-        var movable = list.filter(function (b) { return b.k !== 'strip'; }).length;
+        var movable = list.filter(moves).length;
         return '<div class="se-pic"><span class="se-pic-card" role="img" aria-label="' + esc(M.nameOf(S, i) + ': ' + contents(list, S))
             + '">' + pic + '</span></div>'
             + (note ? kit.note(note) : '')

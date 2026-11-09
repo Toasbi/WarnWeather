@@ -229,10 +229,11 @@ function makeNode(tag) {
  *   the page behaves like a webview with no <dialog>, and Save saves at once).
  * @returns {{S: Object, scroll: Object, modal: Object, tabs: Object, window: Object,
  *   clickTab: function, openEditSheet: function, clickModalToggle: function,
- *   clickToggle: function, typeText: function, openSelect: function, pickOption: function,
- *   save: function, tapSave: function, saved: function}}
+ *   clickToggle: function, tapSegment: function, typeText: function, openSelect: function, pickOption: function,
+ *   save: function, tapSave: function, saved: function, asked: string[]}}
  *   `window` is the sandbox's global, for a test that stubs a browser API the page
- *   reads at call time (navigator.clipboard).
+ *   reads at call time (navigator.clipboard). `asked` lists every selector the page asked the
+ *   document for (a closing dialog's focus target among them).
  */
 function bootGeneratedPage(cfg, platformName, opts) {
   opts = opts || {};
@@ -252,17 +253,21 @@ function bootGeneratedPage(cfg, platformName, opts) {
   const fields = {};
   // The document's own listeners (the Screens card's ≡: its drag and arrow keys).
   const docHandlers = {};
+  // Every selector the page asked the document for, in order (asked: e.g. the trigger a closing
+  // dialog hands the focus back to).
+  const asked = [];
   const sandbox = { console, setTimeout, clearTimeout };
   sandbox.window = sandbox;
   sandbox.document = {
     getElementById(id) { return (els[id] = els[id] || makeEl(id, fields)); },
     // The Save button; a name field in the page or the open dialog (the Your graphs card's).
     querySelector(sel) {
+      asked.push(sel);
       if (sel === '#save') { return sandbox.document.getElementById('save'); }
       return fieldStub(fields, sel, (els.scroll ? els.scroll.innerHTML : '') + (els.modal ? els.modal.innerHTML : ''),
         els.scroll || { focuses: 0 });
     },
-    querySelectorAll() { return []; },
+    querySelectorAll(sel) { asked.push(sel); return []; },
     addEventListener(type, fn) { (docHandlers[type] = docHandlers[type] || []).push(fn); },
     removeEventListener(type, fn) { docHandlers[type] = (docHandlers[type] || []).filter((f) => f !== fn); },
     // The screen editor's overlay is built by the page and appended to the body.
@@ -294,6 +299,7 @@ function bootGeneratedPage(cfg, platformName, opts) {
     modal: els.modal,
     tabs: els.tabs,
     window: sandbox,
+    asked,
     clickTab(tabId) {
       const t = { getAttribute: n => (n === 'data-tab' ? tabId : null), closest: sel => (sel === '[data-tab]' ? t : null) };
       els.tabs.dispatch('click', { target: t });
@@ -385,6 +391,18 @@ function bootGeneratedPage(cfg, platformName, opts) {
         closest: sel => (sel === '[data-toggle]' ? t : null)
       };
       els.scroll.dispatch('click', { target: t });
+    },
+    // Tap one segment of a segmented control (or one option of a radio), the engine's [data-v]
+    // path, in the page or ('modal') the open sheet.
+    tapSegment(key, value, where) {
+      const host = where === 'modal' ? els.modal : els.scroll;
+      assert.ok(host.innerHTML.indexOf('data-k="' + key + '" data-v="' + value + '"') !== -1,
+        key + ' ' + value + ' is rendered in the ' + (where === 'modal' ? 'open sheet' : 'page'));
+      const t = {
+        getAttribute: n => (n === 'data-k' ? key : (n === 'data-v' ? value : null)),
+        closest: sel => (sel === '[data-v]' ? t : null)
+      };
+      host.dispatch('click', { target: t });
     },
     // Type into a text field rendered in the page and commit it, the way a browser
     // reports it: focusin, one input (S follows per keystroke), then change (blur/Enter).

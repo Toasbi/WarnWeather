@@ -963,19 +963,6 @@ test('the Rain dialog\'s box and grid show Rain unplaced, and a tick places it',
   assert.equal(page.modal.innerHTML.indexOf(RAIN_UNPLACED_BOX), -1, 'placed: no box');
 });
 
-/**
- * Tap one segment of a segmented control (or one option of a radio), the engine's
- * [data-v] path.
- * @param {Object} host the element the control renders in (page.scroll or page.modal)
- * @param {string} key the control's messageKey
- * @param {string} value the segment's value
- */
-function pickSegment(host, key, value) {
-  const t = { getAttribute: n => (n === 'data-k' ? key : (n === 'data-v' ? value : null)),
-    closest: sel => (sel === '[data-v]' ? t : null) };
-  host.dispatch('click', { target: t });
-}
-
 // The owner's of 2026-10-02: "Rain alert window can be removed from the radar tab.. Alerts
 // is enough". The window is the Rain dialog's row alone: neither the Watchface tab nor the
 // Graphs tab's Rain radar pane carries a copy, in any radar mode.
@@ -1012,7 +999,7 @@ test('the Rain dialog reads the stored window, writes a pick, and Save carries i
   const page = alertsTab({ radarMode: 'countdown', rainCountdownHorizon: '30' });
   page.openEditSheet('alertRain');
   assert.equal(lit(page), '30', 'the stored window is the lit segment');
-  pickSegment(page.modal, 'rainCountdownHorizon', '120');
+  page.tapSegment('rainCountdownHorizon', '120', 'modal');
   assert.equal(page.S.rainCountdownHorizon, '120', 'the pick lands in the state');
   assert.equal(lit(page), '120', 'and lights its segment');
   assert.equal((await page.save()).rainCountdownHorizon, '120', 'Save carries the pick');

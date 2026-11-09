@@ -10481,10 +10481,7 @@
                 "type": "hidden",
                 "messageKey": "graphStylePick",
                 "uiOnly": true,
-                "defaultValue": "1",
-                "initFrom": {
-                  "resolver": "graphStyleOnOpen"
-                }
+                "defaultValue": "1"
               }
             ],
             "block": "graphList"
@@ -10493,6 +10490,9 @@
             "sheetOnly": true,
             "sheetId": "graph",
             "id": "graph",
+            "showWhen": {
+              "when": "graphShown"
+            },
             "title": "Forecast graph",
             "titleBy": {
               "resolver": "graphName"
@@ -10730,11 +10730,7 @@
               },
               {
                 "type": "subheader",
-                "text": "Left axis",
-                "showWhen": {
-                  "env": "platform",
-                  "eq": "emery"
-                }
+                "text": "Left axis"
               },
               {
                 "type": "segmented",
@@ -10807,17 +10803,7 @@
               },
               {
                 "type": "subheader",
-                "text": "",
-                "capabilities": [
-                  "COLOR"
-                ],
-                "showWhen": {
-                  "key": "theme",
-                  "nin": [
-                    "bw",
-                    "bw-light"
-                  ]
-                }
+                "text": ""
               },
               {
                 "type": "sheet",
@@ -10838,10 +10824,7 @@
               },
               {
                 "type": "subheader",
-                "text": "Show on",
-                "showWhen": {
-                  "env": "graphStyles"
-                }
+                "text": "Show on"
               },
               {
                 "type": "button",

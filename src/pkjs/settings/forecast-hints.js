@@ -36,6 +36,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // and the Visible values: Alert scale hint's "The graph top is" read it.
     var drawFrom = (typeof require !== 'undefined')
         ? require('../draw-from.js') : window.DrawFrom;
+    // Names as a sentence lists them (config-ui/lib/html.js, concatenated ahead of every app file).
+    var andList = (typeof require !== 'undefined')
+        ? require('../config-ui/lib/html.js').andList : PConf.html.andList;
     // The long time span's whole hours for the picked provider and layout
     // (forecast-span-hours.js): the Forecast length row's third label.
     var forecastSpanHours = (typeof require !== 'undefined')
@@ -45,12 +48,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var graphStylesPage = (typeof require !== 'undefined')
         ? require('./graph-styles-page.js') : window.GraphStylesPage;
 
-    // The eight graph metrics in picker order — one list feeds every forecast picker.
-    var FORECAST_METRICS = [
-        ['Precipitation %', 'precip_prob'], ['Cloud cover %', 'cloud'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
-        ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
-        ['Dew point', 'dew']
-    ];
+    // The eight graph metrics in picker order (forecast-metrics.js, their one table) — one list
+    // feeds every forecast picker.
+    var FORECAST_METRICS = ((typeof require !== 'undefined')
+        ? require('./forecast-metrics.js') : window.ForecastMetrics).options();
     // Metric picker options, shaped by self-describing args from the schema:
     // `off` leads with an Off row, `exclude` names the sibling picker keys
     // whose CURRENT pick is withheld (a collision left in a stored value is
@@ -140,7 +141,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         for (var i = 0; i < starts.length; i += 1) {
             parts.push(starts[i] + '–' + (i + 1 < starts.length ? starts[i + 1] - 1 : 100) + '%');
         }
-        return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+        return andList(parts);
     }
 
     /**

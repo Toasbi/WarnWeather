@@ -322,17 +322,28 @@
     }
 
     /**
-     * The series each line of a style draws: its effective metric (line-style.js
-     * effectiveLineMetric: an off line or a repeat of an earlier line's pick draws nothing) and
-     * whether it draws it as a stripe, which needs a watch that draws the line styles.
+     * How many of a graph's lines the watch draws: all TRENDS where it draws the line styles (an
+     * unknown watch too), else the first two (line-style.js firstDrawnLine's allLines).
+     * @param {?Object} env Platform env.
+     * @returns {number}
+     */
+    function linesDrawn(env) {
+        return !env || env.lineStyles !== false ? TRENDS : 2;
+    }
+
+    /**
+     * The series each line of a style draws on this watch: its effective metric (line-style.js
+     * effectiveLineMetric: an off line or a repeat of an earlier line's pick draws nothing; so
+     * does a line past the ones the watch draws, linesDrawn) and whether it draws it as a stripe,
+     * which needs a watch that draws the line styles.
      * @param {Object} Sk A style's settings (settingsFor).
      * @param {?Object} env Platform env.
      * @returns {Array<?{metric: string, stripe: boolean}>} one per line SECOND..FIFTH
      */
     function seriesOf(Sk, env) {
-        var styled = !env || env.lineStyles !== false;
-        return lineStyle.FORECAST_LINES.map(function (line) {
-            var metric = lineStyle.effectiveLineMetric(Sk, line.key);
+        var drawn = linesDrawn(env), styled = drawn === TRENDS;
+        return lineStyle.FORECAST_LINES.map(function (line, i) {
+            var metric = i < drawn ? lineStyle.effectiveLineMetric(Sk, line.key) : null;
             if (!metric) { return null; }
             return { metric: metric, stripe: styled && lineStyle.isStripeStyle(Sk, line.styleKey) };
         });
@@ -420,6 +431,7 @@
         wireCycle: wireCycle,
         stylesShown: stylesShown,
         stylesSent: stylesSent,
+        linesDrawn: linesDrawn,
         seriesOf: seriesOf,
         rowsNeeded: rowsNeeded,
         assign: assign

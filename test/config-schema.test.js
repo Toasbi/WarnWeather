@@ -1523,12 +1523,15 @@ test('Left axis: Left axis values in the card, the scale and the font size under
   assert.ok(at > 0, 'the card is in the graph dialog');
   assert.equal(titles[at - 1], 'Other', 'directly after Other');
   assert.equal(titles[at + 1], '', 'directly before the Graph colors card');
-  const section = { items: dialogCard(schema, 'Left axis').items };
-  assert.deepEqual(dialogCard(schema, 'Left axis').head.showWhen, { env: 'platform', eq: 'emery' });
+  const card = dialogCard(schema, 'Left axis');
+  // Emery only: each row carries the gate, and a card with no row to show drops out (engine
+  // buildCards), so its subheader needs none.
+  assert.equal(card.head.showWhen, undefined);
+  card.items.forEach((it) => assert.match(JSON.stringify(it.showWhen), /"eq":"emery"/, it.messageKey + ': emery only'));
   // The betas' Axis line and Number outline rows are gone: both follow where the numbers go.
   // Larger graph fonts joined it from the Views card (the owner's Screens plan): it sizes
   // the axis labels.
-  assert.deepEqual(section.items.map((it) => it.messageKey), ['forecastAxisNumbers', 'forecastAxisScale',
+  assert.deepEqual(card.items.map((it) => it.messageKey), ['forecastAxisNumbers', 'forecastAxisScale',
     'largeGraphFont']);
   const font = byKey('largeGraphFont');
   assert.equal(font.more, true, 'Larger graph fonts is behind More options');
@@ -1559,10 +1562,9 @@ test('Left axis: Left axis values in the card, the scale and the font size under
   assert.equal(forecastAxis.numbers({ forecastAxisNumbers: 'beside' }), 'axis');
   assert.equal(forecastAxis.scale({}), scale.defaultValue);
 
-  const vis = (it, p, S) => showWhen.isVisible(section, Object.assign({}, S || {}, {
-    env: platform.computeEnv(p ? { platform: p } : null) }))
-    && showWhen.isVisible(it, Object.assign({}, S || {}, { env: platform.computeEnv(p ? { platform: p } : null) }));
-  // The card and the numbers row: emery only, hidden without watchInfo (fail closed).
+  const vis = (it, p, S) => showWhen.isVisible(it, Object.assign({}, S || {}, {
+    env: platform.computeEnv(p ? { platform: p } : null) }));
+  // The numbers row: emery only, hidden without watchInfo (fail closed).
   assert.equal(vis(nums, 'emery'), true, 'numbers on emery');
   ['basalt', 'chalk', 'diorite', 'flint', 'aplite', null].forEach((p) =>
     assert.equal(vis(nums, p), false, 'numbers on ' + p));
@@ -3061,8 +3063,9 @@ test('a graph\'s dialog carries ONE Graph colors card, a row with no title above
   assert.equal(dialogCards(schema).filter((c) => c.items.some((it) => it.sheetId === 'graphColors')).length, 1, 'one card');
   // Its row is visible without a tap; nothing in the dialog folds away but More options.
   assert.equal(graphDialog(schema).collapsible, undefined);
-  // One nav row, labelled for what it opens: the Graph colors dialog, its rows counted; it and
-  // the card's subheader carry the theme gate, so a B&W theme leaves no empty card.
+  // One nav row, labelled for what it opens: the Graph colors dialog, its rows counted; it carries
+  // the theme gate, and a card with no row to show drops out (engine buildCards), so a B&W theme
+  // leaves no empty card under the plain subheader.
   assert.deepEqual(card.items, [{ type: 'sheet', sheetId: 'graphColors', label: 'Graph colors',
     hint: 'Pick the colors of each metric and of the night shading.', navNote: '9', capabilities: ['COLOR'],
     showWhen: { key: 'theme', nin: ['bw', 'bw-light'] } }]);
@@ -3072,7 +3075,8 @@ test('a graph\'s dialog carries ONE Graph colors card, a row with no title above
   assert.ok(dialog.intro, 'the dialog says what its rows are');
   assert.equal(dialog.pinBlock, 'forecastPreview', 'the forecast preview pinned atop it');
   assert.deepEqual(dialog.capabilities, ['COLOR']);
-  [card.head, card.items[0], dialog].forEach((sec) => {
+  assert.deepEqual(card.head, { type: 'subheader', text: '' });
+  [card.items[0], dialog].forEach((sec) => {
     assert.deepEqual(sec.capabilities, ['COLOR']);
     assert.deepEqual(sec.showWhen, { key: 'theme', nin: ['bw', 'bw-light'] });
     // Both gates, evaluated: a B&W theme or a B&W watch hides the whole card, header

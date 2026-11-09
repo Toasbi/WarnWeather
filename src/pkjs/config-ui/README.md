@@ -531,11 +531,16 @@ A section with `rename` titles its dialog by a setting (`titleBy`) and lets the 
 it: the pencil opens a text field in the title's place and an OK button in Done's; OK, Enter or
 leaving the field stores the text (through the item's `onChange`, which may clean it), and
 Escape puts the old title back. A page module opens a dialog itself with the ready ctx's
-`openDialog(id, {rename, kicker, onClose, overlay})`: `rename` opens it with the field ready,
-`kicker` names where it opened from, `onClose` runs after it closes, and `overlay` marks one
-opened over the module's own overlay, so focus goes back to nothing on the page. The ctx's
-`closeDialog()` closes the open dialog, nested ones too, keeping what they changed, as Done
-does: an action that takes away what the dialog is about (a graph's Delete) closes it.
+`openDialog(id, {rename, kicker, onClose, focusBack, overlay})`: `rename` opens it with the
+field ready, `kicker` names where it opened from, `onClose` runs after it closes, `focusBack` (a
+selector) names the module's own trigger the focus goes back to (a graph's row), and `overlay`
+marks one opened over the module's own overlay, so focus goes back to nothing on the page. These
+hold however the dialog closes, a dialog opened from inside it in between. `openSheet(key,
+onClose, focusSel)` opens a select's options the same way, the focus going back to `focusSel`
+when given. An action that takes away what a dialog is about (a graph's Delete) turns its
+section's `showWhen` false, and the dialog closes itself. The render hook
+(`PConf.hooks.onRender`) is told the dialog on screen (`dialog`: the root of the dialogs open,
+null for none) with the tab and the pane.
 
 ### showWhen predicate grammar
 

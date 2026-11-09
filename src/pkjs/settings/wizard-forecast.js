@@ -53,8 +53,11 @@
     var previewForecast = node ? require('./preview-forecast.js') : window.PreviewForecast;
     var svgLib = node ? require('./preview-svg.js') : window.PreviewSvg;
     var screenFrame = node ? require('./screen-frame.js') : window.ScreenFrame;
-    // Names as a sentence lists them (config-ui/lib/html.js, concatenated ahead of every app file).
-    var andList = node ? require('../config-ui/lib/html.js').andList : window.PConf.html.andList;
+    // A metric as a sentence names it (forecast-metrics.js, the metrics' one table).
+    var metrics = node ? require('./forecast-metrics.js') : window.ForecastMetrics;
+    // Names as a sentence lists them, a sentence's capital (config-ui/lib/html.js, concatenated
+    // ahead of every app file).
+    var html = node ? require('../config-ui/lib/html.js') : window.PConf.html;
 
     // The governed keys, named by the modules that own them.
     var FILL = 'secondaryLineFill';
@@ -116,16 +119,14 @@
 
     // ── THE WORDS ───────────────────────────────────────────────────────────
 
-    // A metric as the words name it.
-    var METRIC_WORDS = { precip_prob: 'rain chance', cloud: 'clouds', wind: 'wind', gust: 'gusts', uv: 'UV index',
-        pressure: 'air pressure', feels: 'feels-like temperature', dew: 'dew point' };
-    // How a line draws, in the order the words name them: [one, several] for the sentence and for
-    // the short line. 'line' joins the temperature (always a line) in the sentence.
+    // How a line draws, in the order the words name them: [one, several] for the sentence
+    // (long) and, where it says it shorter, the short line. The sentence's lines start with the
+    // temperature, which every graph draws as a line: alone it needs no "as lines".
     var HOW = [
-        { id: 'line', long: [' as lines', ' as lines'], short: [' as a line', ' as lines'] },
-        { id: 'area', long: [' as a shaded area', ' as shaded areas'], short: [' as a shaded area', ' as shaded areas'] },
-        { id: 'dots', long: [' as dots', ' as dots'], short: [' as dots', ' as dots'] },
-        { id: 'x', long: [' as \u00d7 marks', ' as \u00d7 marks'], short: [' as \u00d7 marks', ' as \u00d7 marks'] },
+        { id: 'line', long: ['', ' as lines'], short: [' as a line', ' as lines'] },
+        { id: 'area', long: [' as a shaded area', ' as shaded areas'] },
+        { id: 'dots', long: [' as dots', ' as dots'] },
+        { id: 'x', long: [' as \u00d7 marks', ' as \u00d7 marks'] },
         { id: 'stripeTop', long: [' as a stripe along the top', ' as stripes along the top'],
             short: [' as a stripe', ' as stripes'] },
         { id: 'stripeBottom', long: [' as a stripe along the bottom', ' as stripes along the bottom'],
@@ -133,34 +134,48 @@
     ];
 
     /**
-     * What a look draws, as the words name it: its lines by how they draw (HOW), then its rain
-     * bars. The sentence names the temperature first and puts "the" before a metric; the short
-     * line leaves both out.
+     * How a line of a look draws on this watch (HOW's ids), as the watch reads it: its style
+     * (line-style.js lineStyleValue: a stripe on a metric that can't be one draws as a line),
+     * a thin line on a watch without line styles, and the Main metric's fill as a shaded area
+     * (feels-like and dew point never fill: resolveGraphColors).
+     * @param {Object<string, *>} over A look's values.
+     * @param {{key: string, styleKey: string}} line A line (line-style.js FORECAST_LINES).
+     * @param {string} metric The metric it draws.
+     * @param {boolean} styled Whether the watch draws the line styles.
+     * @returns {string}
+     */
+    function howOf(over, line, metric, styled) {
+        var style = styled ? lineStyle.lineStyleValue(over, line.styleKey) : 'line';
+        var how = style === 'bold' ? 'line' : style;
+        var fills = line.key === 'secondaryLine' && Boolean(over[FILL]) && !lineStyle.isTempAxisMetric(metric);
+        return how === 'line' && fills ? 'area' : how;
+    }
+
+    /**
+     * What a look draws on this watch, as the words name it: its lines by how they draw (HOW),
+     * then its rain bars. The sentence names the temperature first and puts "the" before a
+     * metric; the short line leaves both out. A line draws its effective metric (line-style.js
+     * effectiveLineMetric), and a watch without line styles draws the first two lines only.
      * @param {Object<string, *>} over A look's values.
      * @param {?Object} env Platform env.
      * @param {boolean} short The short line's words.
      * @returns {string[]} One phrase per way of drawing, then the bars'.
      */
     function drawnPhrases(over, env, short) {
-        var groups = {};
-        lineStyle.FORECAST_LINES.forEach(function (line) {
-            var metric = over[line.key];
-            if (!metric || metric === 'off') { return; }
-            var style = over[line.styleKey] || lineStyle.LINE_STYLE_DEFAULTS[line.styleKey];
-            var how = style === 'bold' ? 'line' : style;
-            if (how === 'line' && line.key === 'secondaryLine' && over[FILL]) { how = 'area'; }
-            (groups[how] = groups[how] || []).push((short ? '' : 'the ') + (METRIC_WORDS[metric] || metric));
+        var styled = drawFrom.capable(env), groups = short ? {} : { line: ['the temperature'] };
+        lineStyle.FORECAST_LINES.forEach(function (line, i) {
+            var metric = lineStyle.effectiveLineMetric(over, line.key);
+            if (!metric || (i >= 2 && !styled)) { return; }
+            var how = howOf(over, line, metric, styled);
+            (groups[how] = groups[how] || []).push((short ? '' : 'the ') + metrics.words(metric));
         });
         var out = [];
-        if (!short && !groups.line) { out.push('the temperature'); }
         HOW.forEach(function (h) {
             var names = groups[h.id];
-            if (!names) { return; }
-            var all = (!short && h.id === 'line') ? ['the temperature'].concat(names) : names;
-            out.push(andList(all) + h[short ? 'short' : 'long'][all.length > 1 ? 1 : 0]);
+            if (names) { out.push(html.andList(names) + ((short && h.short) || h.long)[names.length > 1 ? 1 : 0]); }
         });
         if (over[BARS] === 'rain') {
-            var top = drawFrom.value(over[BAR_FROM]) === drawFrom.TOP;
+            var top = drawFrom.barsFromTop(over, 'rain', env);
             out.push((over[BAR_COLOR] === 'white' && env && env.color ? 'solid ' : '') + 'rain bars'
                 + (top ? (short ? ' from the top' : ' that hang from the top') : ''));
         }
@@ -200,19 +215,19 @@
     }
 
     /**
-     * The length a look starts on, as the Forecast length picker names it ("24 h", or the long
-     * span's hours with the look's own Left axis values and a full feed: "66 h"), on a watch
-     * with a Forecast length (emery).
+     * The length a look starts on, as the Forecast length picker names it on these settings
+     * (forecast-span-hours.js spanLabel): "24 h", or the long span by the hours it shows for the
+     * user's weather service and the look's Left axis values ("66 h", "47 h" with
+     * OpenWeatherMap). On a watch with a Forecast length (emery) only.
      * @param {string} id A look's id.
      * @param {?Object} env Platform env.
+     * @param {?Object} S The user's settings (the weather service and the layout).
      * @returns {string} '' for no such look, or a watch without the length
      */
-    function spanLabel(id, env) {
+    function spanLabel(id, env, S) {
         var look = lookOf(id);
         if (!look || !(env && env.forecastSpan)) { return ''; }
-        var hit = spanHours.spanOptions(Object.assign({}, look.over, { forecastHours: look.span }), env)
-            .filter(function (o) { return o[1] === look.span; })[0];
-        return hit ? hit[0] : '';
+        return spanHours.spanLabel(Object.assign({}, S, look.over, { forecastHours: look.span }), env);
     }
 
     /**
@@ -226,8 +241,7 @@
     function summary(id, env) {
         var look = lookOf(id);
         if (!look) { return ''; }
-        var text = drawnPhrases(look.over, env, true).join(', ');
-        return text.charAt(0).toUpperCase() + text.slice(1);
+        return html.capitalize(drawnPhrases(look.over, env, true).join(', '));
     }
 
     // The preview's frame height in viewBox units: the tallest legend's (two rows: the

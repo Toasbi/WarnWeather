@@ -16,10 +16,14 @@
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings-page
 // webview (scripts/build-config-page.js' APP_FILES, after screens.js and ahead of the modules that
 // bind window.ScreenPresets while their bodies run: screens-page.js and wizard-screens.js), which
-// has no require(). At load it reads only the page's html helpers (config-ui/lib/html.js).
+// has no require(). At load it reads the page's html helpers (config-ui/lib/html.js) and the
+// screens model (screens.js), both ahead of it.
 (function () {
+    var node = typeof require !== 'undefined';
     // Names as a sentence lists them (config-ui/lib/html.js, concatenated ahead of every app file).
-    var andList = typeof require !== 'undefined' ? require('./config-ui/lib/html.js').andList : window.PConf.html.andList;
+    var html = node ? require('./config-ui/lib/html.js') : window.PConf.html;
+    // The rows' names (screens.js blockName).
+    var M = node ? require('./screens.js') : window.Screens;
     // In the order Add screen lists them. `look` is the template a forecast screen's graph is;
     // `needs` names the env facts (config-ui/lib/platform.js computeEnv) the watch must have.
     var PRESETS = [
@@ -39,9 +43,8 @@
     // Blank: the Watch bar and the clock, the rest the user's.
     var BLANK = [{ k: 'strip' }, { k: 'clock' }];
 
-    // What a card's line names for a row of its list (describe); the rows every screen has (the
-    // Watch bar, the clock) it leaves out, and the calendar and the forecast graph it words itself.
-    var ROW_WORDS = { fcbar: 'Forecast bar', healthbar: 'Health bar', health: 'health graph' };
+    // The rows every screen has (the Watch bar, the clock), which a card's line leaves out (describe).
+    var EVERY_SCREEN = ['strip', 'clock'];
 
     /**
      * Whether a watch can draw a preset: it has every fact the preset needs. An unknown watch
@@ -80,38 +83,40 @@
      * @returns {Object}
      */
     function looks() {
-        return typeof require !== 'undefined' ? require('./settings/wizard-forecast.js') : window.WizardForecast;
+        return node ? require('./settings/wizard-forecast.js') : window.WizardForecast;
     }
 
     /**
      * A preset's forecast graph as its card names it: on a watch with graph styles, the template
-     * it brings by its name and the length it starts on ("24 h Classic graph"); on a watch with
-     * one graph, which the preset keeps, "your graph".
+     * it brings by its name and the length it starts on with the user's weather service ("24 h
+     * Classic graph", "47 h Clean graph" with OpenWeatherMap); on a watch with one graph, which
+     * the preset keeps, "your graph".
      * @param {Object} preset A PRESETS entry with a look.
      * @param {?Object} env Platform env.
+     * @param {?Object} S The user's settings.
      * @returns {string}
      */
-    function graphWords(preset, env) {
+    function graphWords(preset, env, S) {
         if (env && !env.graphStyles) { return 'your graph'; }
-        var WF = looks(), look = WF.lookOf(preset.look), len = WF.spanLabel(preset.look, env);
+        var WF = looks(), look = WF.lookOf(preset.look), len = WF.spanLabel(preset.look, env, S);
         return (len ? len + ' ' : '') + (look ? look.label + ' ' : '') + 'graph';
     }
 
     /**
-     * A preset's card line on this watch, from its list: the calendar's rows, the bars and the
-     * graphs it shows ("3-row calendar, Forecast bar and 24 h Classic graph.").
+     * A preset's card line on this watch, from its list: the calendar's rows, the bars by their
+     * names and the graphs it shows ("3-row calendar, Forecast bar and 24 h Classic graph.").
      * @param {Object} preset A PRESETS entry.
      * @param {?Object} env Platform env.
+     * @param {?Object} S The user's settings (the bars' names, the weather service).
      * @returns {string}
      */
-    function describe(preset, env) {
-        var words = preset.list.map(function (b) {
+    function describe(preset, env, S) {
+        var words = preset.list.filter(function (b) { return EVERY_SCREEN.indexOf(b.k) === -1; }).map(function (b) {
             if (b.k === 'cal') { return b.rows + '-row calendar'; }
-            if (b.k === 'fc') { return graphWords(preset, env); }
-            return ROW_WORDS[b.k] || '';
-        }).filter(Boolean);
-        var text = andList(words);
-        return text.charAt(0).toUpperCase() + text.slice(1) + '.';
+            if (b.k === 'fc') { return graphWords(preset, env, S); }
+            return M.blockName(b, S);
+        });
+        return html.capitalize(html.andList(words)) + '.';
     }
 
     var api = {

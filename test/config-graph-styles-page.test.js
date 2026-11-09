@@ -1,7 +1,7 @@
 'use strict';
 // test/config-graph-styles-page.test.js — graph styles on the settings page, where each is "a
 // graph" (src/pkjs/settings/graph-styles-page.js, Pebble Time 2): the swap that puts the picked
-// graph's values in the flat keys on Graphs › Forecast and the first graph's everywhere else, the
+// graph's values in the flat keys while its dialog is open and the first graph's otherwise, the
 // settings as Save stores them, the Your graphs card (a row per graph with its picture, its
 // screens, its metrics and the room left; New graph from a template or as a copy; the Undo of a
 // Delete), a graph's dialog behind its row (renamed in its title, its settings, Show on and
@@ -90,30 +90,33 @@ test('the swap: the picked style in the flat keys, the first style held; normali
   assert.equal(GSP.normalize(S), S, 'off the swap: S itself');
 });
 
-test('onRender: Graphs › Forecast shows the picked style, anywhere else the first', () => {
+test('onRender: a graph\'s dialog shows the picked style, anywhere else the first', () => {
   const S = Object.assign({}, TWO, { graphStylePick: '2' });
-  GSP.onRender({ S, env: EMERY, tab: 'graphs', pane: 'forecast' });
+  GSP.onRender({ S, env: EMERY, tab: 'graphs', pane: 'forecast', dialog: 'graph' });
   assert.equal(S.forecastHours, '48');
-  GSP.onRender({ S, env: EMERY, tab: 'graphs', pane: 'radar' });
-  assert.equal(S.forecastHours, '24', 'another pane: the first style');
-  GSP.onRender({ S, env: EMERY, tab: 'graphs', pane: 'forecast' });
+  GSP.onRender({ S, env: EMERY, tab: 'graphs', pane: 'forecast', dialog: null });
+  assert.equal(S.forecastHours, '24', 'the dialog closed: the first style, on the pane too');
+  GSP.onRender({ S, env: EMERY, tab: 'graphs', pane: 'forecast', dialog: 'graph' });
   S.thirdLine = 'wind';
-  GSP.onRender({ S, env: EMERY, tab: 'watchface', pane: null });
-  assert.equal(S.thirdLine, 'off', 'another tab: the first style');
+  GSP.onRender({ S, env: EMERY, tab: 'statusbars', pane: null, dialog: 'barWeather' });
+  assert.equal(S.thirdLine, 'off', 'another dialog: the first style');
   assert.equal(GS.parse(S).styles[1].thirdLine, 'wind', 'the edit kept in the style');
-  // A pick that names no style reads as the first and is put right.
+  // A pick that names no style (a graph just deleted) reads as the first, and its dialog shows
+  // nothing, so it closes.
   const T = Object.assign({}, TWO, { graphStylePick: '3' });
-  GSP.onRender({ S: T, env: EMERY, tab: 'graphs', pane: 'forecast' });
-  assert.equal(T.graphStylePick, '1');
+  GSP.onRender({ S: T, env: EMERY, tab: 'graphs', pane: 'forecast', dialog: 'graph' });
   assert.equal(T.forecastHours, '24');
+  assert.equal(GSP.graphShown(T, EMERY), false);
+  assert.equal(GSP.graphShown(S, EMERY), true);
+  assert.equal(GSP.graphShown(T, BASALT), true, 'a watch with one graph: its dialog always shows');
   // A watch without styles: nothing moves.
   const B = Object.assign({}, TWO, { graphStylePick: '2' });
-  GSP.onRender({ S: B, env: BASALT, tab: 'graphs', pane: 'forecast' });
+  GSP.onRender({ S: B, env: BASALT, tab: 'graphs', pane: 'forecast', dialog: 'graph' });
   assert.equal(B.forecastHours, '24');
   assert.equal(B[GSP.SWAP], undefined);
 });
 
-test('the cards\' line: a graph\'s length and the screens it shows on; the page opens on the Default screen\'s graph', () => {
+test('the cards\' line: a graph\'s length and the screens it shows on', () => {
   // The cards' line: the length, then the screens.
   assert.equal(GSP.cardLine(TWO, EMERY, 0), '24 h · Default');
   assert.match(GSP.cardLine(TWO, EMERY, 1), /^\d+ h · Flick 1$/);
@@ -123,9 +126,6 @@ test('the cards\' line: a graph\'s length and the screens it shows on; the page 
   assert.match(GSP.cardLine(layout(['1'], { graphStyles: TWO.graphStyles }), EMERY, 1), /^\d+ h · No screen$/);
   assert.deepEqual(GSP.screensOn(layout(['1', '3'], { graphStyles: TWO.graphStyles }), EMERY, 0), ['Default', 'Flick 1'],
     'a screen on a style that does not exist draws the first');
-  assert.equal(GSP.pickOnOpen(TWO, EMERY), '1', 'the page opens on the Default screen\'s style');
-  assert.equal(GSP.pickOnOpen(layout(['2', '1'], { graphStyles: TWO.graphStyles }), EMERY), '2');
-  assert.equal(GSP.pickOnOpen(layout(['3'], { graphStyles: TWO.graphStyles }), EMERY), '1', 'a style that does not exist');
 });
 
 test('the five-series limit: a pick that would make a sixth series is greyed out on a shown style only', () => {
@@ -186,16 +186,17 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
   assert.equal(GSP.screenOverflows(stripes, EMERY, 1, 1), true);
   assert.equal(GSP.limitDesc(onFlick(stripes), EMERY, 1), 'Also needs Cloud cover % (stripe) and Precipitation % (stripe):'
     + ' that makes 6 metrics on your screens. The watch can show 5.');
-  // The note under the editor's chips names each graph greyed out and what it needs.
+  // The Show on row's note under its greyed-out screens: the rule, what the screens use, what the
+  // dialog's graph needs on top.
   const two = Object.assign({}, fits, { graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'pressure',
     fourthLine: 'off', fifthLine: 'off' }, { secondaryLine: 'dew', thirdLine: 'feels', fourthLine: 'off', fifthLine: 'off' },
   ['', 'Long', 'Air']) });
   const inUse = 'The watch can show 5 metrics across all your screens. In use: Precipitation %, UV Index, Wind'
     + ' speed, Wind gusts.';
-  assert.equal(GSP.limitNote(two, EMERY, [1, 2]), inUse + ' Long also needs Cloud cover % and Air pressure (hPa). Air also'
-    + ' needs Dew point and Feels-like temperature. To make room, turn off a line in one of your graphs.');
+  assert.equal(GSP.limitNote(two, EMERY, 1), inUse + ' Long also needs Cloud cover % and Air pressure (hPa). To make room,'
+    + ' turn off a line in one of your graphs.');
   assert.equal(GSP.limitNote(two, EMERY, 2), inUse + ' Air also needs Dew point and Feels-like temperature. To make room,'
-    + ' turn off a line in one of your graphs.', 'one graph, as the Show on row asks');
+    + ' turn off a line in one of your graphs.');
 });
 
 /**
@@ -205,7 +206,7 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
  * @returns {Array<Array<string>>}
  */
 function rows(html) {
-  const out = [], re = /<div class="ui-row gl-row" role="listitem"><button type="button" class="gl-open" data-action="openGraph" data-action-arg="(\d)"><span class="gl-pic" aria-hidden="true">([\s\S]*?)<\/span><span class="gl-txt"><span class="ui-n">([^<]*)<\/span>(?:<span class="ui-d">([^<]*)<\/span>)?<span class="ui-d gl-met">([^<]*)<\/span><span class="ui-d">([^<]*)<\/span><\/span><span class="chev nav" aria-hidden="true">&#8250;<\/span><\/button><\/div>/g;
+  const out = [], re = /<div class="ui-row gl-row" role="listitem"><button type="button" class="gl-open" data-action="openGraph" data-action-arg="(\d)"><span class="ssel-pic gl-pic" aria-hidden="true">([\s\S]*?)<\/span><span class="gl-txt"><span class="ui-n">([^<]*)<\/span>(?:<span class="ui-d">([^<]*)<\/span>)?<span class="ui-d gl-met">([^<]*)<\/span><span class="ui-d">([^<]*)<\/span><\/span><span class="chev nav" aria-hidden="true">&#8250;<\/span><\/button><\/div>/g;
   let m;
   while ((m = re.exec(html))) {
     assert.match(m[2], /^<svg class="wiz-graph-scr" /, 'the row\'s picture of its graph');
@@ -221,20 +222,6 @@ function rows(html) {
  */
 function cardTitles(html) {
   return [...html.matchAll(/<span class="ttl">([^<]*)<\/span>/g)].map((m) => m[1]);
-}
-
-/**
- * A tap on a segmented option (data-k, data-v) in a host: the page's #scroll or the open
- * dialog's #modal.
- * @param {Object} host The harness element.
- * @param {string} key The key.
- * @param {string} value The option's value.
- * @returns {void}
- */
-function tapSeg(host, key, value) {
-  const t = { getAttribute: (n) => (n === 'data-k' ? key : (n === 'data-v' ? value : null)),
-    closest: (sel) => (sel === '[data-v]' ? t : null) };
-  host.dispatch('click', { target: t });
 }
 
 /**
@@ -296,9 +283,13 @@ test('the page: Your graphs lists each graph with its picture, where it shows, i
 });
 
 test('a row\'s room: the graph\'s free lines, and on a graph the screens show no more than their five metrics leave', () => {
-  assert.equal(GSP.lineSlots(EMERY), 4);
-  assert.equal(GSP.lineSlots(BASALT), 4);
-  assert.equal(GSP.lineSlots(platform.computeEnv({ platform: 'aplite' })), 2, 'aplite draws two lines');
+  assert.equal(GS.linesDrawn(EMERY), 4);
+  assert.equal(GS.linesDrawn(BASALT), 4);
+  assert.equal(GS.linesDrawn(null), 4, 'an unknown watch reads as one that draws them all');
+  const APLITE = platform.computeEnv({ platform: 'aplite' });
+  assert.equal(GS.linesDrawn(APLITE), 2, 'aplite draws two lines');
+  assert.equal(GSP.roomText(layout(['1'], { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'uv' }), APLITE, 0),
+    'Room for 1 more metric', 'a third line aplite does not draw leaves room in its two');
   // Graph 1 draws four metrics on the Default, Long the fifth on Flick 1.
   const four = layout(['1', '2'], { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust',
     graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' }) });
@@ -327,21 +318,24 @@ test('the page: a row opens its graph\'s dialog; its edits are that graph\'s, Do
   assert.ok(dlg.endsWith('</div></div></div></div><button type="button" class="ui-del" data-action="deleteGraphStyle">Delete Long'
     + '</button></div>'), 'Delete under the last card, by the graph\'s name');
   assert.equal(revert.hidden, true, 'opening a graph is no change');
-  tapSeg(p.modal, 'forecastHours', '12');
+  p.tapSegment('forecastHours', '12', 'modal');
   assert.equal(p.S.forecastHours, '12');
   assert.equal(revert.hidden, false, 'an edit is');
+  p.asked.length = 0;
   p.doneDialog();
   assert.equal(p.modal.innerHTML, '', 'Done closes it');
+  assert.equal(p.S.forecastHours, '24', 'and the flat keys hold the first graph again');
+  assert.equal(p.S[GSP.SWAP], undefined);
   assert.equal(rows(p.scroll.innerHTML)[1][2], '12 h · Flick 1', 'the row says the new length');
+  assert.ok(p.asked.indexOf('[data-action="openGraph"][data-action-arg="2"]') !== -1, 'the focus goes back to its row');
+  assert.ok(p.scroll.innerHTML.indexOf('data-action="openGraph" data-action-arg="2"') !== -1);
   // × puts back what the dialog changed.
   p.tapAction('openGraph', 2);
-  tapSeg(p.modal, 'forecastHours', '24');
+  assert.equal(p.S.forecastHours, '12', 'Long with its edit, in the flat keys while its dialog is open');
+  p.tapSegment('forecastHours', '24', 'modal');
   p.cancelDialog();
-  assert.equal(p.S.forecastHours, '12');
-  p.clickPane('graphs', 'radar');
-  assert.equal(p.S.forecastHours, '24', 'off the pane the flat keys hold the first graph');
-  p.clickPane('graphs', 'forecast');
-  assert.equal(p.S.forecastHours, '12', 'and Long comes back with its edit');
+  assert.equal(p.S.forecastHours, '24', 'the first graph\'s');
+  assert.equal(GS.parse(p.S).styles[1].forecastHours, '12', 'Long keeps the edit Done stored');
   const blob = await p.save();
   assert.equal(blob.forecastHours, '24', 'the first graph stored in the flat keys');
   const two = GS.parse(blob).styles[1];
@@ -365,7 +359,7 @@ test('the page: Revert puts every graph back, the pick too', () => {
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
   p.tapAction('openGraph', 2);
-  tapSeg(p.modal, 'forecastHours', '12');
+  p.tapSegment('forecastHours', '12', 'modal');
   p.doneDialog();
   p.window.document.getElementById('revert').dispatch('click', { target: {} });
   const act = { getAttribute: (n) => (n === 'data-confirm' ? 'action' : null) };
@@ -402,7 +396,7 @@ test('the page: New graph from a template opens the new graph\'s dialog, its nam
     + ' placeholder="Graph 3" value="Graph 3">') !== -1, 'its dialog, the name field open');
   // The template's values, in the flat keys while it shows (wizard-forecast.js LOOKS, the one
   // definition of a template).
-  const clean = WF.LOOKS.find((l) => l.id === 'clean');
+  const clean = WF.lookOf('clean');
   assert.equal(p.S.forecastHours, clean.span, 'the template\'s length');
   Object.keys(clean.over).forEach((k) => assert.equal(p.S[k], clean.over[k], k));
   assert.equal(p.S.graphStyleNewFrom, '', 'the picker is cleared');
@@ -498,18 +492,18 @@ test('the page: Delete in a graph\'s dialog closes it and moves its screens to t
   p.doneDialog();
   p.tapAction('openGraph', 2);
   p.tapAction('deleteGraphStyle', undefined, 'modal');
-  assert.equal(p.modal.innerHTML, '', 'the dialog closes');
+  assert.equal(p.modal.innerHTML, '', 'the dialog closes: its graph is gone');
+  assert.equal(GSP.graphShown(p.S, EMERY), false);
   assert.equal(GS.count(p.S), 1);
   assert.equal(p.S.viewStyle1, '1', 'Flick 1 draws the first graph');
-  assert.equal(p.S.graphStylePick, '1');
   assert.equal(p.S.forecastHours, '24');
   assert.deepEqual(rows(p.scroll.innerHTML).map((x) => x[1]), ['Graph 1']);
   assert.match(p.scroll.innerHTML, /Long deleted\./);
   p.tapAction('undoDeleteGraphStyle');
   assert.equal(GS.count(p.S), 2);
   assert.equal(p.S.viewStyle1, '2');
-  assert.equal(p.S.graphStylePick, '2');
-  assert.equal(p.S.forecastHours, '48', 'Long picked again, in the flat keys');
+  assert.equal(GS.settingsFor(p.S, 1).forecastHours, '48', 'Long with its values');
+  assert.equal(p.S.forecastHours, '24', 'the first graph in the flat keys');
   assert.equal(p.scroll.innerHTML.indexOf('deleted.'), -1, 'the Undo is gone');
   assert.equal(p.modal.innerHTML, '', 'and no dialog opens');
 });
@@ -698,7 +692,7 @@ test('the page: Your graphs\' header counts the metrics the screens use, "2/5 me
   p.pickOption('fourthLine', 'gust');
   p.backDialog();
   p.doneDialog();
-  assert.equal(p.S.fourthLine, 'gust', 'Long\'s, in the flat keys while the pane shows it');
+  assert.equal(GS.settingsFor(GSP.normalize(p.S), 1).fourthLine, 'gust', 'Long\'s');
   assert.equal(headerNote(p.scroll.innerHTML).text, '3/5 metrics active');
   // The same on a page with every info text behind a '?' (Hide info text).
   const hidden = bootGeneratedPage(Object.assign({}, TWO, { hideInfoText: true }), 'emery');

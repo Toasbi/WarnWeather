@@ -211,10 +211,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // into the visible form or save-and-close.
     onReady: function (fn) { readyFns.push(fn); },
     // onRender runs at the top of every render(), before anything reads the settings, with
-    // {S, env, tab, pane}: the tab on screen and its shown pane's id (null without panes).
-    // Every way to a tab or a pane ends in a render(), so a page module that holds some
-    // settings elsewhere while one pane shows (graph-styles-page.js: a graph style's values
-    // in the flat keys on Graphs › Forecast) moves them here, for every path at once.
+    // {S, env, tab, pane, dialog}: the tab on screen, its shown pane's id (null without panes)
+    // and the root of the dialogs open (null for none). Every way to a tab, a pane or a dialog
+    // ends in a render(), so a page module that holds some settings elsewhere while one shows
+    // (graph-styles-page.js: a graph style's values in the flat keys while its dialog is open)
+    // moves them here, for every path at once.
     onRender: function (fn) { renderFns.push(fn); },
     // onNormalize: fn(state, env) returns the settings as Save stores them: the state itself
     // when nothing is held elsewhere, else a copy (never the state changed). Save and Revert
@@ -1233,7 +1234,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // name while it has none). Its showWhen gates it (a graph is renamed only where a watch has
     // several); placeholderBy resolves the placeholder as titleBy does the title (the default
     // name of the graph the dialog shows).
-    var rn = sec.rename && (!sec.rename.showWhen || PConf.showWhen.isVisible(sec.rename, cx.evalCtx)) ? sec.rename : null;
+    var rn = sec.rename && PConf.showWhen.isVisible(sec.rename, cx.evalCtx) ? sec.rename : null;
     var rename = rn ? { key: rn.key, label: rn.label || 'Name', title: title,
       maxlength: Number(rn.maxlength) || 40, placeholder: resolvedTitle(rn.placeholderBy, cx) || rn.placeholder || '',
       value: title, editing: cx.renaming === cx.openEdit } : null;
@@ -2481,18 +2482,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // parent, so past that section the header scrolls away with the page.
       // A section with beforePin renders into `lead` instead: above all of that, first in
       // the tab, scrolling away with the page (the fetch-error notices: the news the page
-      // opens on). One with abovePin renders between the pane switcher and the pinned
-      // preview, scrolling away with the switcher (the Graph style card: which style the
-      // preview and the cards below show).
+      // opens on).
       var pane = activePaneOf(t, cx);
       var scoped = Boolean(t.pinThrough), passedPin = false;
-      var head = '';
-      for (si = 0; si < t.sections.length; si++) {
-        var hs = t.sections[si];
-        if (!hs.abovePin || hs.sheetOnly || (hs.pane && pane && hs.pane !== pane.id)) { continue; }
-        head += renderSection(hs, cx, t.id + ':' + (hs.id || si));
-      }
-      var lead = '', pin = renderPin(t, pane, cx, head), body = '';
+      var lead = '', pin = renderPin(t, pane, cx), body = '';
       for (si = 0; si < t.sections.length; si++) {
         var sec = t.sections[si];
         if (scoped && passedPin) {
@@ -2503,7 +2496,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (scoped && sec.id === t.pinThrough) { passedPin = true; }
         // A sheetOnly section renders only inside the edit-sheet dialog (renderEditModal);
         // its items still hydrate/serialize like any other, they just have no card.
-        if (sec.sheetOnly || sec.abovePin) { continue; }
+        if (sec.sheetOnly) { continue; }
         if (sec.pane && pane && sec.pane !== pane.id) { continue; }
         if (sec.beforePin) {
           lead += renderSection(sec, cx, t.id + ':' + (sec.id || si));
@@ -2561,15 +2554,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * A tab's header: its pane switcher (more than one shown pane), which scrolls with the
-   * page, the abovePin sections' cards (`head`), which scroll with it too, then the sticky
-   * pinned preview block (the active pane's pinBlock, else the tab's). '' when it has none.
+   * page, then the sticky pinned preview block (the active pane's pinBlock, else the tab's).
+   * '' when it has none.
    * @param {Object} tab Schema tab.
    * @param {?Object} pane The active pane (activePaneOf).
    * @param {Object} cx Render context.
-   * @param {string} [head] The abovePin sections' HTML.
    * @returns {string} The header HTML.
    */
-  function renderPin(tab, pane, cx, head) {
+  function renderPin(tab, pane, cx) {
     var seg = '', shown = [], i;
     if (tab.panes) {
       shown = tab.panes.filter(function (p) { return !cx || PConf.showWhen.isVisible(p, cx.evalCtx); });
@@ -2593,7 +2585,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // pinned preview alone keeps the top of the screen (owner, 2026-10-04).
     // tab.pinBare: the block draws its own cards (the Watchface tab's watch, one card per view),
     // so the pin gives it no card of its own.
-    return seg + (head || '') + (block ? '<div class="' + pinClass(cx) + '"><div class="pin-blk' + (tab.pinBare ? ' bare' : '') + '">'
+    return seg + (block ? '<div class="' + pinClass(cx) + '"><div class="pin-blk' + (tab.pinBare ? ' bare' : '') + '">'
       + block + '</div></div>' : '');
   }
 
@@ -2695,11 +2687,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var activeTab = initialTab(SCHEMA, S);
     // The one sheet open in the shared <dialog id="modal">, or null. An opener sets it
     // whole, so two sheets can never be open at once:
-    // - {kind: 'select', key, focusBack, onClose}: a select/searchSelect's options (key:
-    //   its messageKey). openSheet() sets focusBack false, since its trigger lives in the
-    //   caller's overlay, and an onClose to run after any close.
+    // - {kind: 'select', key, focusBack, focusSel, onClose}: a select/searchSelect's options
+    //   (key: its messageKey). openSheet() sets focusBack false unless it is given the page's
+    //   own trigger (focusSel), since the wizard's lives in its overlay, and an onClose to run
+    //   after any close.
     // - {kind: 'date', key}: a date's wheels.
-    // - {kind: 'edit', key}: a sheetOnly section (key: its sheetId).
+    // - {kind: 'edit', key, focusBack, focusSel, onClose}: a sheetOnly section (key: its
+    //   sheetId); the close options as ctx.openDialog sets them, kept across its nested dialogs
+    //   (stackSheet).
     // - {kind: 'confirm', confirm}: the Save button's dialog while a row needs attention
     //   (requestSave; confirm: {title, body, actionLabel, confirmLabel, tab, sheet}).
     var sheet = null;
@@ -2945,6 +2940,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (!closing) { return; }
       // By key, never a node captured at open time: render() replaced the old trigger.
       var selector = (noFocus || closing.focusBack === false) ? null
+        : closing.focusSel ? closing.focusSel
         : closing.kind === 'confirm' ? (closing.confirm && closing.confirm.revert ? '#revert' : '#save')
         : '[' + TRIGGER_ATTR[closing.kind] + '="' + (rootKey || closing.key) + '"]';
       var trigger = !selector ? null
@@ -2995,6 +2991,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       return tabLabel(activeTab);
     }
     /**
+     * The sheet of a dialog on the open stack, nested or stepped back to: it keeps the stack's
+     * close options (onClose, focusBack, focusSel: ctx.openDialog), which apply however the
+     * stack closes.
+     * @param {string} id The dialog's sheetId.
+     * @returns {Object} The sheet.
+     */
+    function stackSheet(id) {
+      var was = sheetIs('edit') ? sheet : {};
+      return { kind: 'edit', key: id, onClose: was.onClose || null, focusBack: was.focusBack, focusSel: was.focusSel || null };
+    }
+    /**
      * Open a full-screen dialog (a sheetOnly section). From a tab it becomes the root,
      * snapshotting the settings for its ×; from inside a dialog it stacks on top (its ‹
      * steps back, keeping what was changed), remembering where the parent was scrolled.
@@ -3011,14 +3018,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // raised .picking cap.
       expanded = null;
       if (renaming !== id) { renaming = null; }
-      if (nested && editStack.length) {
+      var stacked = Boolean(nested && editStack.length);
+      if (stacked) {
         var list = document.getElementById('modal').querySelector('.ssel-list');
         editStack[editStack.length - 1].scrollTop = list ? list.scrollTop : 0;
         editStack.push({ id: id, kicker: kicker });
       } else {
         editStack = [{ id: id, kicker: kicker, snap: Object.assign({}, S) }];
       }
-      sheet = { kind: 'edit', key: id };
+      sheet = stacked ? stackSheet(id) : { kind: 'edit', key: id };
       nextEditScroll = 0;
       render();
       focusInModal(['.dlg-x']);
@@ -3035,7 +3043,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       expanded = null;
       renaming = null;
       var top = editStack[editStack.length - 1];
-      sheet = { kind: 'edit', key: top.id };
+      sheet = stackSheet(top.id);
       nextEditScroll = top.scrollTop || 0;
       render();
       focusInModal(left ? ['[data-edit-sheet="' + left.id + '"]', '.dlg-x'] : ['.dlg-x']);
@@ -3129,9 +3137,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     function render() {
-      // First: a page module may move settings for the tab and pane about to show
-      // (PConf.hooks.onRender), and everything below reads them.
-      PConf.hooks.runRender({ S: S, env: ENV, tab: activeTab, pane: shownPaneId(activeTab) });
+      // First: a page module may move settings for the tab, the pane and the dialog about to show
+      // (PConf.hooks.onRender; dialog: the root of the dialogs open, null for none), and
+      // everything below reads them.
+      PConf.hooks.runRender({ S: S, env: ENV, tab: activeTab, pane: shownPaneId(activeTab),
+        dialog: sheetIs('edit') && editStack.length ? editStack[0].id : null });
       snapShownOptions(SCHEMA, S, ENV, INITIAL);
       // A palette reads `expanded` as openColor in the tab body and in the sheet (only a
       // palette: a pinned header lets go for it, pinClass); a select's list reads it as
@@ -4061,33 +4071,33 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // Open a schema select/searchSelect in the shared bottom-sheet dialog. Used by the wizard,
       // which lives in its own overlay: the sheet is a showModal() top-layer dialog, so it renders
       // above that overlay. The engine sets S[key] on pick; onClose fires after any close.
-      // The trigger lives in that overlay, so closing hands focus back to nothing on the page.
-      openSheet: function (key, onClose) {
+      // Closing hands focus back to focusSel (a selector: the page's own trigger, e.g. New
+      // graph), else to nothing on the page (the wizard's trigger lives in its overlay).
+      openSheet: function (key, onClose, focusSel) {
         dateWiring.flushPending();
-        sheet = { kind: 'select', key: key, focusBack: false, onClose: onClose || null };
+        sheet = { kind: 'select', key: key, focusBack: Boolean(focusSel), focusSel: focusSel || null,
+          onClose: onClose || null };
         selectQuery = '';
         render(); focusModal();
       },
       // Open a full-screen dialog (a sheetOnly section) as one opened from a tab: its × puts
       // back what it changed. opts.rename opens its title as the name field; opts.kicker says
-      // where it opened from; opts.onClose runs after it closes; opts.overlay: it opens over a
-      // page module's own overlay (the screen editor), so focus goes back to nothing on the page.
+      // where it opened from; opts.onClose runs after it closes; opts.focusBack (a selector)
+      // names the page's own trigger focus goes back to (a graph's row); opts.overlay: it opens
+      // over a page module's own overlay (the screen editor), so focus goes back to nothing on
+      // the page.
       openDialog: function (id, opts) {
         var o = opts || {};
         renaming = o.rename ? id : null;
         openDialog(id, o.kicker || tabLabel(activeTab), false);
         if (!sheetIs('edit')) { return; }
         sheet.onClose = o.onClose || null;
+        sheet.focusSel = o.focusBack || null;
         if (o.overlay) { sheet.focusBack = false; }
         if (renaming) {
           var inp = document.getElementById('modal').querySelector('[data-dlg-rename-in]');
           if (inp && inp.focus) { inp.focus(); if (inp.select) { inp.select(); } }
         }
-      },
-      // Close the open dialog, nested ones too, keeping what they changed: an action that takes
-      // away what the dialog is about (a graph's Delete) closes it as Done would.
-      closeDialog: function () {
-        if (sheetIs('edit')) { closeModal(); }
       }
     });
     // The page is ready: what it holds now is where Revert goes back to.
