@@ -86,9 +86,9 @@ test('the names are the page\'s own: the watch is sent the same message with or 
 function barLine(html, bar) {
   const at = html.indexOf('data-edit-sheet="bar-' + bar + '"');
   assert.ok(at !== -1, bar + ' is listed');
-  const start = html.lastIndexOf('<div class="bl-bar">', at);
-  const next = html.indexOf('<div class="bl-bar">', at);
-  const tail = html.indexOf('<button type="button" class="bl-new"', at);
+  const start = html.lastIndexOf('<div class="ui-row bl-bar">', at);
+  const next = html.indexOf('<div class="ui-row bl-bar">', at);
+  const tail = html.indexOf('<button type="button" class="ui-row ui-new"', at);
   const ends = [next, tail].filter((i) => i !== -1);
   return html.slice(start, ends.length ? Math.min.apply(null, ends) : html.length);
 }
@@ -97,7 +97,7 @@ test('the Your bars card prints the screens\' names as text, not markup', () => 
   const page = bootGeneratedPage(Object.assign({}, THREE, { viewName0: '<i>Mine</i>' }));
   page.clickTab('watch');
   const line = barLine(page.scroll.innerHTML, 'forecast');
-  assert.ok(line.indexOf('<span class="bl-w">&lt;i&gt;Mine&lt;/i&gt;</span>') !== -1, line);
+  assert.ok(line.indexOf('<span class="ui-d">&lt;i&gt;Mine&lt;/i&gt;</span>') !== -1, line);
   assert.equal(line.indexOf('<i>Mine</i>'), -1);
 });
 
@@ -110,14 +110,16 @@ test('the Your bars card: every bar by its name, where it shows and its slots; a
   [['forecast', 'Forecast bar', 'Default', 'statusForecast'], ['health', 'Health bar', 'Flick 1', 'statusHealth'],
     ['radar', 'Radar bar', 'Flick 2', 'statusRadar']].forEach(([bar, name, where, prefix]) => {
     const line = barLine(html, bar);
-    assert.ok(line.indexOf('<button type="button" class="bl-name" data-edit-sheet="bar-' + bar + '"><span class="bl-n">'
-      + name + '</span><span class="bl-w">' + where + '</span>') !== -1, bar + ': its name and where it shows');
+    // Its name line: the name, where it shows and the red arrow of a row that opens a screen.
+    assert.ok(line.indexOf('<button type="button" class="bl-name" data-edit-sheet="bar-' + bar + '"><span class="ui-n">'
+      + name + '</span><span class="ui-d">' + where + '</span><span class="chev nav" aria-hidden="true">&#8250;</span>'
+      + '</button>') !== -1, bar + ': its name, where it shows, the red arrow');
     ['Left', 'Mid', 'Right'].forEach((pos) => {
       assert.ok(line.indexOf('data-select="' + prefix + pos + '"') !== -1, bar + ': its ' + pos + ' slot opens its picker');
     });
     assert.equal(line.indexOf(' dim"'), -1, bar + ': on a screen, not dimmed');
   });
-  assert.ok(barLine(html, 'top').indexOf('<span class="bl-n">Watch bar</span>') !== -1, 'the Watch bar first');
+  assert.ok(barLine(html, 'top').indexOf('<span class="ui-n">Watch bar</span>') !== -1, 'the Watch bar first');
   assert.ok(html.indexOf('data-edit-sheet="bar-top"') < html.indexOf('data-edit-sheet="bar-forecast"'));
   // A name opens the bar's dialog: titled by it, its picture and where it shows on top, its slots.
   page.openEditSheet('bar-forecast');
@@ -125,7 +127,7 @@ test('the Your bars card: every bar by its name, where it shows and its slots; a
   assert.ok(dlg.indexOf('id="esheet-ttl-bar-forecast">Forecast bar</span>') !== -1, 'titled by the bar\'s name');
   assert.ok(dlg.indexOf('data-dlg-rename aria-label="Rename Forecast bar"') !== -1, 'its pencil');
   assert.ok(dlg.indexOf('class="sbp one big"') !== -1, 'the bar, large');
-  assert.ok(dlg.indexOf('<div class="bl-pin-w">On Default</div>') !== -1, 'where it shows');
+  assert.ok(dlg.indexOf('<div class="ui-d">On Default</div>') !== -1, 'where it shows');
   assert.ok(dlg.indexOf('<span class="ttl">Slots</span>') !== -1, 'the Slots card');
   ['Left', 'Mid', 'Right'].forEach((pos) => {
     assert.ok(dlg.indexOf('data-select="statusForecast' + pos + '"') !== -1, pos + ' slot in the dialog');
@@ -143,11 +145,11 @@ test('a bar no screen shows is still one of your bars: listed, dimmed, and it sa
   const html = page.scroll.innerHTML;
   ['health', 'radar'].forEach((bar) => {
     const line = barLine(html, bar);
-    assert.ok(line.indexOf('<span class="bl-w">No screen</span>') !== -1, bar + ': No screen');
+    assert.ok(line.indexOf('<span class="ui-d">No screen</span>') !== -1, bar + ': No screen');
     assert.ok(line.indexOf('class="sbp one tap dim"') !== -1, bar + ': its picture dimmed');
   });
   page.openEditSheet('bar-health');
-  assert.ok(page.modal.innerHTML.indexOf('<div class="bl-pin-w">On no screen</div>') !== -1);
+  assert.ok(page.modal.innerHTML.indexOf('<div class="ui-d">On no screen</div>') !== -1);
 });
 
 test('aplite lists its two bars without screens, each with its dialog; no New bar', () => {
@@ -156,13 +158,15 @@ test('aplite lists its two bars without screens, each with its dialog; no New ba
   const html = page.scroll.innerHTML;
   assert.deepEqual((html.match(/data-edit-sheet="bar-[a-z0-9]+"/g) || []), ['data-edit-sheet="bar-top"',
     'data-edit-sheet="bar-forecast"'], 'the Watch and Forecast bars');
-  assert.equal(html.indexOf('class="bl-w"'), -1, 'one screen: no screens named');
+  assert.equal(html.indexOf('class="ui-d"'), -1, 'one screen: no screens named');
+  assert.equal((html.match(/<span class="chev nav" aria-hidden="true">&#8250;<\/span><\/button>/g) || []).length, 2,
+    'each bar\'s name line ends on the red arrow');
   assert.equal(html.indexOf('data-action="newBar"'), -1);
   page.openEditSheet('bar-top');
   const dlg = page.modal.innerHTML;
   assert.ok(dlg.indexOf('<span class="ttl">Icons and vibration</span>') !== -1, 'the Watch bar keeps its own rows');
   ['batteryLowOnly', 'showQt', 'vibe'].forEach((k) => assert.ok(dlg.indexOf('data-k="' + k + '"') !== -1, k));
-  assert.equal(dlg.indexOf('bl-pin-w'), -1, 'one screen: where it shows goes unsaid');
+  assert.equal(dlg.indexOf('<div class="ui-d">On'), -1, 'one screen: where it shows goes unsaid');
 });
 
 test('a name typed in a bar\'s dialog title: OK stores it, and the title, the list and the slot pickers say it, escaped', () => {
@@ -183,7 +187,7 @@ test('a name typed in a bar\'s dialog title: OK stores it, and the title, the li
   assert.equal(dlg.indexOf('Morning <b>'), -1, 'never raw');
   page.doneDialog();
   const html = page.scroll.innerHTML;
-  assert.ok(barLine(html, 'forecast').indexOf('<span class="bl-n">Morning &lt;b&gt;</span>') !== -1, 'the list');
+  assert.ok(barLine(html, 'forecast').indexOf('<span class="ui-n">Morning &lt;b&gt;</span>') !== -1, 'the list');
   page.openSelect('statusForecastLeft');
   assert.equal(sheetTitle(page, 'statusForecastLeft'), 'Morning &lt;b&gt; · Left slot', 'the slot picker names it');
   // Unnamed, a picker reads its bar's own name.
@@ -238,13 +242,17 @@ test('the editor: a bar row reads by its name, with the other screens that show 
   // The same bar on Flick 1 too.
   page.tapAction('openScreen', 1);
   page.tapEditor({ se: 'add', k: 'fcbar' });
-  assert.ok(editorRows(body(page)).indexOf('Morning · Also on Default') !== -1, editorRows(body(page)).join(' | '));
+  // Added, the row is open: what it shows goes under its Bar picker (a folded row says it
+  // beside its name, as a folded card's header says its pick).
+  assert.ok(editorRows(body(page)).indexOf('Morning') !== -1, editorRows(body(page)).join(' | '));
+  assert.ok(body(page).indexOf('aria-label="Edit Morning"><span>Edit</span></button></div><div class="ui-d">Also on Default</div>')
+    !== -1, 'open: the other screens under the picker');
   page.tapEditor({ se: 'close' });
   page.tapAction('openScreen', 0);
   assert.ok(editorRows(body(page)).indexOf('Morning · Also on Flick 1') !== -1);
   // "Add" offers each bar by its name, a calm chip with a plus.
   page.tapEditor({ se: 'rm', j: 3 });
-  assert.match(body(page), /<button type="button" class="se-add" data-se="add" data-k="fcbar"><svg class="scr-ic"[^>]*>[\s\S]*?<\/svg>Morning<\/button>/);
+  assert.match(body(page), /<button type="button" class="ui-chip" data-se="add" data-k="fcbar"><svg class="ui-ic"[^>]*>[\s\S]*?<\/svg>Morning<\/button>/);
 });
 
 test('the editor: an open bar row shows its Bar picker and Edit; a pick shows another bar; Edit opens the bar\'s dialog over the editor', () => {
@@ -270,7 +278,10 @@ test('the editor: an open bar row shows its Bar picker and Edit; a pick shows an
   page.pickOption('screenBar', 'radarbar');
   assert.deepEqual(M.screensOf(page.S, BASALT)[1].map((b) => b.k), ['strip', 'clock', 'radarbar', 'health']);
   html = body(page);
-  assert.ok(editorRows(html).indexOf('Wind · Also on Flick 2') !== -1, editorRows(html).join(' | '));
+  assert.ok(editorRows(html).indexOf('Wind') !== -1, editorRows(html).join(' | '));
+  assert.ok(html.indexOf('<div class="ui-d">Also on Flick 2</div>') !== -1, 'the row stays open, the other screens under it');
+  page.tapEditor({ se: 'expand', j });
+  assert.ok(editorRows(body(page)).indexOf('Wind · Also on Flick 2') !== -1, 'folded: beside its name');
   // Edit: the bar's dialog over the editor, which stays open under it.
   page.tapEditor({ se: 'editbar', j });
   assert.ok(page.editor(), 'the editor stays');

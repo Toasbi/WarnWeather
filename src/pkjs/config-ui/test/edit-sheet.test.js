@@ -424,7 +424,7 @@ test('type:sheet renders a trigger row for its sheet, with no key of its own', (
   // follows the light theme instead of being frozen at the dark link colour.
   assert.ok(html.indexOf('<div class="row nav" data-edit-sheet="sheetColors" role="button" tabindex="0"') !== -1,
     'the whole row is the way in (a nav row)');
-  assert.ok(html.indexOf('<span class="chev">&#8250;</span>') !== -1, 'class-based chevron');
+  assert.ok(html.indexOf('<span class="chev nav" aria-hidden="true">&#8250;</span>') !== -1, 'class-based chevron');
   assert.equal(html.indexOf('#FF6A52'), -1, 'no hard-coded link colour');
 });
 
@@ -464,13 +464,13 @@ test('type:sheet WITH a badge renders as a nav row with the badge preview before
   assert.equal(html.indexOf('has-pen'), -1, 'no swatch+Edit control cell');
   assert.equal(html.split('pen-dot').length - 1, 2, 'both badge dots rendered');
   assert.ok(html.indexOf('<div class="lbl">Wind speed</div>') !== -1, 'the label still shows');
-  assert.ok(/<div class="rgt"><span class="thr-swatch" aria-hidden="true"><span class="pen-dot fill" style="--th-c:#55AAFF"><\/span><span class="pen-dot ring" style="--th-c:#0055AA"><\/span><\/span><span class="chev">&#8250;<\/span><\/div>/.test(html),
+  assert.ok(/<div class="rgt"><span class="thr-swatch" aria-hidden="true"><span class="pen-dot fill" style="--th-c:#55AAFF"><\/span><span class="pen-dot ring" style="--th-c:#0055AA"><\/span><\/span><span class="chev nav" aria-hidden="true">&#8250;<\/span><\/div>/.test(html),
     'the preview sits right before the chevron, nothing in between');
 
   // Same item without the badge: the same nav row, with no preview.
   const PLAIN = sheetTriggerSchema({ type: 'sheet', sheetId: 'sheetColors', label: 'Wind speed' });
   const plain = E.renderBody(PLAIN, 't', cxFor(E.hydrate(PLAIN, {})));
-  assert.ok(plain.indexOf('<div class="rgt"><span class="chev">&#8250;</span></div>') !== -1, 'a bare chevron row');
+  assert.ok(plain.indexOf('<div class="rgt"><span class="chev nav" aria-hidden="true">&#8250;</span></div>') !== -1, 'a bare chevron row');
   assert.equal(plain.indexOf('thr-swatch'), -1, 'no preview');
   assert.equal(plain.indexOf('thr-btn'), -1, 'and no Edit button');
 });
@@ -590,7 +590,7 @@ test('a dialog titled by the settings, whose title renames: a pencil, then a fie
   assert.ok(html.indexOf('data-dlg-done') !== -1, 'Done');
   assert.equal(html.indexOf('data-dlg-rename-in'), -1, 'no field yet');
   html = E.renderEditModal(RENAME, cxFor(S, { openEdit: 'probeSheet', renaming: 'probeSheet' }));
-  assert.ok(html.indexOf('<input type="text" class="dlg-rn-in" data-dlg-rename-in maxlength="24" autocomplete="off" '
+  assert.ok(html.indexOf('<input type="text" class="ui-rn-in" data-dlg-rename-in maxlength="24" autocomplete="off" '
     + 'aria-label="Probe name" placeholder="Probe" value="Probe &lt;bar&gt;">') !== -1, 'the field holds the name shown');
   assert.ok(html.indexOf('data-dlg-rename-ok>OK</button>') !== -1, 'OK');
   assert.equal(html.indexOf('data-dlg-done'), -1, 'in Done\'s place');

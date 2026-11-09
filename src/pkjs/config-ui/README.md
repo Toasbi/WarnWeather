@@ -36,10 +36,11 @@ each consuming app supplies its schema, custom blocks, and hooks.
    - [When-resolver registry — PConf.whenResolvers](#when-resolver-registry--pconfwhenresolvers)
    - [Action registry — PConf.actions](#action-registry--pconfactions)
    - [Hook registry — PConf.hooks](#hook-registry--pconfhooks)
-6. [Build step — buildPage](#build-step--buildpage)
-7. [Clay compatibility](#clay-compatibility)
-8. [Lift-out / extraction note](#lift-out--extraction-note)
-9. [ES5 constraint](#es5-constraint)
+6. [Shared parts — PConf.ui](#shared-parts--pconfui)
+7. [Build step — buildPage](#build-step--buildpage)
+8. [Clay compatibility](#clay-compatibility)
+9. [Lift-out / extraction note](#lift-out--extraction-note)
+10. [ES5 constraint](#es5-constraint)
 
 ---
 
@@ -287,8 +288,9 @@ titled by its text (see Progressive disclosure), so one section can hold a card 
 | `readout` | Label (+ `icon`) and a live hint; no control, no key | — (not serialized) | — |
 
 A `sheet` item is a **nav row**: the whole row is the tap target (`role="button"`, Enter and
-Space tap it) and opens its dialog; its label leads, its summary sits under the label and a
-chevron (›) closes the row on the right. The summary is the row's static `hint` or a
+Space tap it) and opens its dialog; its label leads, its summary sits under the label and the
+red arrow (›, [`ui.navArrow`](#shared-parts--pconfui)) closes the row on the right, as it ends
+everything that opens a screen of its own. The summary is the row's static `hint` or a
 `hintFrom` resolver's answer — the live state of the settings behind it ("Off", or their
 current levels) — and, unlike a value row's hint, it is always in view (no '?'). The resolver
 gets no row value (`args.value` is `undefined` — the row stores nothing) and reads whatever it
@@ -306,7 +308,11 @@ re-renders the page when it closes.
 
 A `button` item is the same nav row, dispatching `action` (or, with `gotoTab: '<tab id>'`,
 bringing that tab to the front like a tab link); with `style: 'link'` it is a single line of
-link-coloured text instead (a reset). A status-slot select keeps its own per-value dialog
+link-coloured text instead (a reset). With `style: 'delete'` it is **Delete**
+([`ui.deleteButton`](#shared-parts--pconfui)): drawn under its card, outside it, centred in the
+accent, the last thing under what it deletes (a status bar's *Delete bar* under its dialog's
+last card, Graphs' *Delete Graph 2* under Your graphs). `labelFrom` names it and `showWhen`
+hides it where there is nothing to delete; its card still needs another row to show. A status-slot select keeps its own per-value dialog
 behind an **Edit** button beside the dropdown (`editSheetFrom` on a value row).
 
 The preview comes in two shapes, chosen by how many colours the row owns. `chip` is ONE
@@ -427,7 +433,7 @@ picking the shown swatch is what writes it.
 | `title` | string | Section heading |
 | `intro` | string | HTML rendered above items |
 | `block` | string | Custom-block id rendered BELOW the items (see [Registries](#registries-and-hooks)). A block ABOVE the items is the item-level `blockBefore` on the section's first item — the engine has no section-level `blockBefore`; for a card that stacks several blocks, share a `groupCard` id across consecutive sections instead. |
-| `collapsible` | boolean | Collapses the section into an expandable card (collapsed by default; state is per page open) |
+| `collapsible` | boolean | Collapses the section into an expandable card (collapsed by default; state is per page open). Its header ends on the red ▸, ▾ while open ([`ui.foldChev`](#shared-parts--pconfui)). |
 | `titleBy` | `{resolver, args?}` | The card header's title itself follows the settings: a `PConf.displayResolvers` id whose `fn(S, env, args)` answer replaces `title` (escaped); `''` or no answer keeps `title`. The header marks it (`data-title-by`), so a text commit that skips the re-render retitles it in place. A dialog's title follows it too (e.g. a status bar's name titling the bar's dialog). |
 | `titleFrom` | `{resolver, args?}` | Collapsible sections only: a `PConf.displayResolvers` id whose `fn(S, env, args)` result is painted next to the title while the card is COLLAPSED (e.g. the current pick of a select inside), so a closed card still says what's selected. Open cards show the plain `title`. `args` pass through verbatim (no messageKey merge — sections have none). |
 | `rename` | `{key, label, placeholder?, maxlength?}` | `sheetOnly` only: a pencil beside the dialog's title turns it into a text field for the setting `key` (`label` its accessible name, `placeholder` the name an empty field stands for, `maxlength` 40 unless given), with an OK button in Done's place. OK or Enter stores the text and fires the key's item `onChange`; Escape or × puts the title back. See Dialogs. |
@@ -472,7 +478,7 @@ picking the shown swatch is what writes it.
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
 | `groupLabel` | string | On the first member of an `inline` group: renders the group as ONE labelled row, the members side by side joined by a dash (a From–To row). |
 | `gotoTab` | string | `button` only: the row brings that tab to the front. |
-| `style` | `'link'` | `button` only: a line of link text instead of a nav row. |
+| `style` | `'link'` \| `'delete'` | `button` only: a line of link text instead of a nav row (`'link'`), or Delete under its card (`'delete'`, see the `button` type above). |
 | `navNote`, `labelFrom`, `summaryFaintFrom` | | `sheet`/`button` nav rows only (see the `sheet` type above). |
 | `captionsOnly` | boolean | `checklist` only: its header row shows only the column captions (the card's title already names the grid). |
 | `columns` | `[{label}]` | `checklist` only: the columns' captions, left to right (see above). |
@@ -508,7 +514,8 @@ one tap away. Every piece of this state is UI-only (per page open, never saved).
 
 ### Dialogs
 
-A `sheetOnly` section opens as a **full-screen dialog** on the page ground: the header holds ×
+A `sheetOnly` section opens as a **full-screen dialog** on the page ground: the header
+([`ui.header`](#shared-parts--pconfui), which an app's own full-screen views share) holds ×
 (close and put back every setting as it was when the dialog opened — changes made in dialogs
 opened from it included), the kicker (where it was opened from: the tapped row's card title,
 else the tab label) over the title with the dialog's '?' and `labelAction` beside it, and
@@ -946,6 +953,34 @@ Multiple `onLoad`/`onSubmit` registrations are allowed and fire in registration 
 
 ---
 
+## Shared parts — PConf.ui
+
+`lib/ui.js` holds one builder for each piece more than one place draws, so a tab's rows, a
+block's list, a dialog and an app's own full-screen view read the same. The markup is built
+there and nowhere else; the look is in `shell.html` (the `.ui-*` rules, and the `.chev` and
+`.dlg-*` rules the engine's own parts share). The engine draws its nav rows, its folding cards,
+its dialogs' headers and their Delete with it; an app's page modules call it as
+`PConf.ui` in the page (`require('…/config-ui/lib/ui.js')` under Node). WarnWeather's
+`test/config-ui-parts.test.js` fails on a page file that writes one of these out by hand.
+
+| Builder | Draws |
+|---------|-------|
+| `navArrow()` | The red arrow (›) at the end of anything that opens a screen of its own: a nav row, a list row that opens a dialog or an editor. |
+| `foldChev(open)` | The red ▸ of anything that folds open in place, ▾ while open: a collapsible card's header, a row whose options open under it. The button that carries it says `aria-expanded`. |
+| `deleteButton(label, at)` | Delete: centred in the accent, under (outside) what it deletes. The `style: 'delete'` button item is this. |
+| `undoToast(text, at)` | The Undo after a delete, in the list the thing went from. `flash(box, v, ms, repaint)` keeps its text in `box` for `ms`, then repaints without it; `unflash(box)` takes it early. |
+| `newRow(label, note, at)` | A list's New row at its foot: the plus and what it makes in the accent, how many there are on the right. |
+| `chip(label, at, {icon, on})` | A chip: an Add chip (the plus first) or a toggle chip (tinted and ticked while on). |
+| `penButton(name, at)`, `renameField(o)` | The pencil after a name that renames it, and the name field with OK beside it. |
+| `header(o)` | A full-screen view's header: the way out (× or ‹), the kicker over the title with its pencil, Done; while renamed, the name field with OK. |
+| `popupHeader(title, closeAt)` | A popup over the page: its title and the × that closes it, in a `.ui-pop` holding a `.ui-pop-card`. |
+| `note(text)`, `icon(name)`, `attrs(map)` | A note in the page's info look; a line icon (plus, pen, check, x, grip, up, down); a tag's attributes, each escaped. |
+
+`at` is always a tag's attributes as a map (what a tap does, `aria-*`), escaped by `attrs`:
+`true` gives a bare attribute, and `null`, `undefined` and `false` leave it out.
+
+---
+
 ## Build step — buildPage
 
 The page is a self-contained HTML string built once, before `pebble build`. The build step
@@ -987,6 +1022,8 @@ rename, so a concurrent reader never sees a half-written file), and returns `out
    - `lib/html.js` — the escape helper, the shared sheet header, the swatch+hex
      colour readout the `rgb` control and a `chip` badge both print, and a joined row's
      no-divider class (`PConf.html`)
+   - `lib/ui.js` — the [shared parts](#shared-parts--pconfui) (`PConf.ui`): after `html.js`,
+     whose escape it reads, and before `engine.js`, which draws its own with it
    - `lib/date-picker.js` — the date control: value helpers, wheel renderers, scroll-settle wiring (`PConf.datePicker`)
    - `lib/range-control.js` — the dual-thumb, one-thumb and threshold sliders: numeric rules, renderers,
      the single-thumb track, and the drag wiring every slider and the `rgb` control share (`PConf.rangeControl`)

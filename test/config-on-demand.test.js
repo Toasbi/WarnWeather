@@ -200,7 +200,7 @@ test('each bar\'s dialog ends on one Alerts nav row: the icons on each side, a t
   const top = rowOf(dialog, '<div class="lbl">Alerts</div>');
   assert.ok(top.startsWith('<div class="row nav" data-goto-tab="alerts" role="button" tabindex="0"'
     + ' style="cursor:pointer"><div class="lft"><div class="lbl">Alerts</div>'), 'a nav row to the Alerts tab, labelled Alerts');
-  assert.ok(top.indexOf('<div class="rgt"><span class="nav-note">Alerts</span><span class="chev">&#8250;</span></div>')
+  assert.ok(top.indexOf('<div class="rgt"><span class="nav-note">Alerts</span><span class="chev nav" aria-hidden="true">&#8250;</span></div>')
     !== -1, 'it names where it goes, then the chevron');
   assert.equal(barHint(page, 'Watch bar'), TOP_HINT, 'Left + its icons, Right + its icons');
   assert.equal(top.indexOf('data-edit-sheet'), -1, 'no dialog of its own');
@@ -594,7 +594,7 @@ test('the Alerts tab rows: each opens its item\'s dialog, with an icon, a live t
       label + ': the icon leads the label');
     assert.ok(r.indexOf('<div class="hint' + (faint ? ' faint' : '') + '">' + hint + '</div>') !== -1,
       label + ': ' + r);
-    assert.ok(r.indexOf('<span class="chev">&#8250;</span></div></div>') !== -1, label + ': a chevron');
+    assert.ok(r.indexOf('<span class="chev nav" aria-hidden="true">&#8250;</span></div></div>') !== -1, label + ': a chevron');
     assert.equal(r.indexOf('<span>Edit</span>'), -1, label + ': no Edit button');
     return r;
   };

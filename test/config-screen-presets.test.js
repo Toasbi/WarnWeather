@@ -322,7 +322,7 @@ test('setup\'s Health screen is the Health preset, and setup names what it adds'
  */
 function cardRows(html) {
   const out = [];
-  const re = /<div class="scr-row" data-scr-row="\d+">(<button type="button" class="scr-grip"[^>]*>)?[\s\S]*?<span class="scr-t">([^<]*)(?:<span class="scr-pill">([^<]*)<\/span>)?<\/span>/g;
+  const re = /<div class="ui-row scr-row" data-scr-row="\d+">(<button type="button" class="scr-grip"[^>]*>)?[\s\S]*?<span class="ui-n">([^<]*)(?:<span class="scr-pill">([^<]*)<\/span>)?<\/span>/g;
   let m;
   while ((m = re.exec(html))) { out.push([m[2], m[3] || '', Boolean(m[1])]); }
   return out;
@@ -347,7 +347,7 @@ test('the Screens card: a ≡ on each screen with two or more, the line that say
   const page = bootGeneratedPage(Object.assign({ viewName1: 'Steps' }, THREE));
   let html = page.scroll.innerHTML;
   assert.deepEqual(cardRows(html), [['Default', '', true], ['Steps', '', true], ['Flick 2', '', true]]);
-  assert.ok(html.indexOf('<div class="scr-hint" id="scrHint">' + SP.REORDER_HINT + '</div>') !== -1);
+  assert.ok(html.indexOf('<div class="ui-row ui-foot" id="scrHint">' + SP.REORDER_HINT + '</div>') !== -1);
   assert.ok(html.indexOf('aria-label="Move Steps (arrow keys)" aria-describedby="scrHint"') !== -1);
   const key = (i, k) => page.docDispatch('keydown', { key: k, target: grip(i), preventDefault() {} });
   key(1, 'ArrowUp');
@@ -360,7 +360,7 @@ test('the Screens card: a ≡ on each screen with two or more, the line that say
   key(0, 'ArrowDown');
   assert.deepEqual(cardRows(page.scroll.innerHTML).map((r) => r[0]), ['Default', 'Steps', 'Flick 2']);
   html = page.scroll.innerHTML;
-  assert.equal(html.indexOf('scr-note'), -1, 'no reason to give');
+  assert.equal(html.indexOf('ui-note'), -1, 'no reason to give');
 });
 
 test('a drag on the card moves a screen; one with no room for the clock snaps back and says why', (t) => {
@@ -379,10 +379,10 @@ test('a drag on the card moves a screen; one with no room for the clock snaps ba
     page.docDispatch('pointerup', { pointerId: id });
   };
   press(1, 90, 10, 1);
-  assert.ok(page.scroll.innerHTML.indexOf('<div class="scr-note" role="status">Tall' + SP.NO_ROOM_FOR_CLOCK + '</div>') !== -1);
+  assert.ok(page.scroll.innerHTML.indexOf('<div class="ui-note" role="status">Tall' + SP.NO_ROOM_FOR_CLOCK + '</div>') !== -1);
   assert.deepEqual(cardRows(page.scroll.innerHTML).map((r) => r[0]), ['Default', 'Tall'], 'nothing moved');
   t.mock.timers.tick(4000);
-  assert.equal(page.scroll.innerHTML.indexOf('scr-note'), -1, 'the note goes after four seconds');
+  assert.equal(page.scroll.innerHTML.indexOf('ui-note'), -1, 'the note goes after four seconds');
   // The Default dragged below it: Tall would be the top screen again, the same reason.
   press(0, 30, 110, 2);
   assert.ok(page.scroll.innerHTML.indexOf('Tall' + SP.NO_ROOM_FOR_CLOCK) !== -1);
@@ -415,9 +415,13 @@ function sheetCards(body) {
 test('+ Add screen opens Add a screen: Blank, then the presets with their pictures; a pick opens its editor', () => {
   const page = bootGeneratedPage({ provider: 'dwd' }, 'emery');
   page.tapAction('addScreen');
-  const ed = page.editor();
-  assert.equal(ed.querySelector('[data-se-title]').innerHTML, 'Add a screen');
-  assert.equal(ed.querySelector('.se-done').style.display, 'none', 'nothing to be done: ‹ closes it');
+  const ed = page.editor(), head = ed.querySelector('[data-se-head]');
+  // A dialog's header (ui.js header): ‹, the kicker over the title, no Done (nothing to be done).
+  assert.ok(head.innerHTML.indexOf('<button type="button" class="dlg-x" data-se="close" aria-label="Back">&#8249;</button>')
+    !== -1, '‹ closes it');
+  assert.ok(head.innerHTML.indexOf('<span class="dlg-kick">Screens</span>') !== -1, 'where it opened from');
+  assert.ok(head.innerHTML.indexOf('id="seTitle">Add a screen</span></span></div></div>') !== -1, 'titled, no pencil');
+  assert.equal(head.innerHTML.indexOf('>Done</button>'), -1, 'nothing to be done');
   const body = ed.querySelector('[data-se-body]').innerHTML;
   assert.deepEqual(sheetCards(body).map((c) => c.slice(0, 2)), [['blank', 'Blank'], ['classic', 'Classic'],
     ['weathergraph', 'Weathergraph'], ['clean', 'Clean'], ['stripes', 'Stripes'], ['healthCal', 'Health + calendar'],
@@ -428,12 +432,11 @@ test('+ Add screen opens Add a screen: Blank, then the presets with their pictur
   page.tapEditor({ se: 'pick', id: 'weathergraph' });
   assert.equal(page.S.viewName1, 'Weathergraph');
   assert.equal(page.S.viewStyle1, '2');
-  const title = ed.querySelector('[data-se-title]').innerHTML;
-  assert.ok(title.indexOf('data-se="rename" aria-label="Rename Weathergraph"><span>Weathergraph</span>') !== -1,
-    'its editor, by its name');
-  assert.equal(ed.querySelector('.se-done').style.display, '');
+  assert.ok(head.innerHTML.indexOf('id="seTitle">Weathergraph</span><button type="button" class="ui-pen" data-se="rename" '
+    + 'aria-label="Rename Weathergraph">') !== -1, 'its editor, by its name, the pencil after it');
+  assert.ok(head.innerHTML.indexOf('<button type="button" class="dlg-done" data-se="close">Done</button>') !== -1, 'Done');
   page.tapEditor({ se: 'close' });
-  assert.ok(page.scroll.innerHTML.indexOf('<span class="scr-t">Weathergraph</span>') !== -1, 'the card names it');
+  assert.ok(page.scroll.innerHTML.indexOf('<span class="ui-n">Weathergraph</span>') !== -1, 'the card names it');
 });
 
 test('a greyed-out preset is a disabled card with its reason; a basalt says its graph stays', () => {
@@ -444,37 +447,40 @@ test('a greyed-out preset is a disabled card with its reason; a basalt says its 
   assert.ok(body.indexOf('A preset adds its rows. Your graph and your bars stay as they are.') !== -1);
   page.tapEditor({ se: 'pick', id: 'stripes', disabled: true });
   assert.equal(page.S.viewCount, '1', 'nothing added');
-  assert.equal(page.editor().querySelector('[data-se-title]').innerHTML, 'Add a screen', 'still open');
+  assert.ok(page.editor().querySelector('[data-se-head]').innerHTML.indexOf('id="seTitle">Add a screen</span>') !== -1,
+    'still open');
 });
 
 test('the editor\'s title renames the screen: Enter keeps the name, Escape drops it', () => {
   const page = bootGeneratedPage(THREE);
   page.tapAction('openScreen', 1);
-  const ed = page.editor(), title = ed.querySelector('[data-se-title]');
+  const ed = page.editor(), title = ed.querySelector('[data-se-head]');
   assert.ok(title.innerHTML.indexOf('aria-label="Rename Flick 1"') !== -1);
   page.tapEditor({ se: 'rename' });
-  assert.match(title.innerHTML, /<input type="text" class="se-name-in" maxlength="24" aria-label="Screen name" autocomplete="off" value="Flick 1">/);
-  const input = title.querySelector('input');
+  // The page's one rename (ui.js renameField): the field in the title's place, OK in Done's.
+  assert.match(title.innerHTML, /<input type="text" class="ui-rn-in" data-se-name maxlength="24" autocomplete="off" aria-label="Screen name" placeholder="Flick 1" value="Flick 1"><button type="button" class="dlg-done" data-se="renameok">OK<\/button><\/div>$/);
+  assert.equal(title.innerHTML.indexOf('>Done</button>'), -1, 'OK in Done\'s place');
+  const input = ed.querySelector('[data-se-name]');
   assert.ok(input.focuses > 0, 'the field takes the focus');
   input.value = '  Steps ';
   input.dispatch('keydown', { key: 'Enter', preventDefault() {}, stopPropagation() {} });
   assert.equal(page.S.viewName1, 'Steps');
-  assert.ok(title.innerHTML.indexOf('<span>Steps</span>') !== -1);
-  assert.ok(page.scroll.innerHTML.indexOf('<span class="scr-t">Steps</span>') !== -1, 'the card follows');
+  assert.ok(title.innerHTML.indexOf('id="seTitle">Steps</span>') !== -1);
+  assert.ok(page.scroll.innerHTML.indexOf('<span class="ui-n">Steps</span>') !== -1, 'the card follows');
   // Escape: the name as it was, the editor still open.
   page.tapEditor({ se: 'rename' });
-  const again = title.querySelector('input');
+  const again = ed.querySelector('[data-se-name]');
   again.value = 'Nope';
   again.dispatch('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() {} });
   assert.equal(page.S.viewName1, 'Steps');
   assert.ok(page.editor(), 'still open');
   // Blur keeps what was typed; the place's name stores none.
   page.tapEditor({ se: 'rename' });
-  const third = title.querySelector('input');
+  const third = ed.querySelector('[data-se-name]');
   third.value = 'Flick 1';
   third.dispatch('blur', {});
   assert.equal(page.S.viewName1, '');
-  assert.ok(title.innerHTML.indexOf('<span>Flick 1</span>') !== -1);
+  assert.ok(title.innerHTML.indexOf('id="seTitle">Flick 1</span>') !== -1);
 });
 
 test('the names everywhere: the pinned watch\'s captions, the delete toast and the graph chips', (t) => {

@@ -763,7 +763,7 @@ test('renderBody: button and sheet rows share ONE chevron, coloured by class not
   assert.ok(html.indexOf('data-action="doIt"') >= 0, 'the button row dispatches its action');
   assert.ok(html.indexOf('data-edit-sheet="more"') >= 0, 'the sheet row opens its sheet');
   // Both are nav rows now: the whole row is the way in, the › chevron on its right.
-  assert.equal(html.split('<span class="chev">&#8250;</span>').length - 1, 2,
+  assert.equal(html.split('<span class="chev nav" aria-hidden="true">&#8250;</span>').length - 1, 2,
     'both rows emit the same class-based chevron');
   assert.equal((html.match(/<div class="row nav" data-(action|edit-sheet)="/g) || []).length, 2,
     'both render as the same nav-row shape');

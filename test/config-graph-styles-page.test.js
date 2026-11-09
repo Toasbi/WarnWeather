@@ -214,7 +214,7 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
  * @returns {Array<Array>}
  */
 function rows(html) {
-  const out = [], re = /<div class="gl-row( on)?" role="listitem"><button type="button" class="gl-pick" aria-pressed="(true|false)" data-action="pickGraph" data-action-arg="(\d)"><span class="gl-txt"><span class="gl-n">([^<]*)<\/span><span class="gl-d">([^<]*)<\/span>/g;
+  const out = [], re = /<div class="ui-row gl-row( on)?" role="listitem"><button type="button" class="gl-pick" aria-pressed="(true|false)" data-action="pickGraph" data-action-arg="(\d)"><span class="gl-txt"><span class="ui-n">([^<]*)<\/span><span class="ui-d">([^<]*)<\/span>/g;
   let m;
   while ((m = re.exec(html))) {
     assert.equal(Boolean(m[1]), m[2] === 'true', 'a picked row is tinted');
@@ -231,7 +231,7 @@ function rows(html) {
  * @returns {Array<Array<string>>}
  */
 function chips(html) {
-  const out = [], re = /<button type="button" class="gc-chip( on)?"([^>]*)>(?:<svg[\s\S]*?<\/svg>)?([^<]*)<\/button>/g;
+  const out = [], re = /<button type="button" class="ui-chip( on)?"([^>]*)>(?:<svg[\s\S]*?<\/svg>)?([^<]*)<\/button>/g;
   let m;
   while ((m = re.exec(html))) {
     const a = m[2];
@@ -256,14 +256,14 @@ test('the page: Your graphs sits above the pinned preview on emery only, a plain
   assert.match(r[1][3], /^\d+ h · Flick 1$/);
   // No pictures: the preview below draws the picked graph (the owner's, 2026-11-09).
   assert.equal(html.indexOf('id="nh-gc0"'), -1, 'no picture per graph');
-  assert.ok(html.indexOf('data-action-arg="1"><span class="gl-txt"><span class="gl-n">Graph 1</span><span class="gl-d">24 h · '
-    + 'Default</span></span><svg class="gc-ic"') !== -1, 'the picked row ticked');
-  assert.ok(html.indexOf('<button type="button" class="gl-rn" data-action="renameGraph" aria-label="Rename Graph 1">') !== -1,
+  assert.ok(html.indexOf('data-action-arg="1"><span class="gl-txt"><span class="ui-n">Graph 1</span><span class="ui-d">24 h · '
+    + 'Default</span></span><svg class="ui-ic"') !== -1, 'the picked row ticked');
+  assert.ok(html.indexOf('<button type="button" class="ui-pen" data-action="renameGraph" aria-label="Rename Graph 1">') !== -1,
     'its pencil');
   assert.equal((html.match(/data-action="renameGraph"/g) || []).length, 1, 'on the picked row alone');
-  assert.ok(html.indexOf('<button type="button" class="gl-new" data-select="graphStyleNewFrom">') !== -1,
+  assert.ok(html.indexOf('<button type="button" class="ui-row ui-new" data-select="graphStyleNewFrom">') !== -1,
     'New graph while a slot is free');
-  assert.ok(html.indexOf('<span class="gl-n">New graph</span><span class="gl-d">2 of 3 graphs</span>') !== -1, 'its count');
+  assert.ok(html.indexOf('<span class="ui-n">New graph</span><span class="ui-d">2 of 3 graphs</span>') !== -1, 'its count');
   assert.equal(html.indexOf('data-action="deleteGraphStyle"'), -1, 'no Delete on the first graph');
   const b = bootGeneratedPage(TWO, 'basalt');
   b.clickTab('graphs');
@@ -272,13 +272,13 @@ test('the page: Your graphs sits above the pinned preview on emery only, a plain
   const one = bootGeneratedPage(layout(['1', '1'], { provider: 'dwd' }), 'emery');
   one.clickTab('graphs');
   assert.equal(rows(one.scroll.innerHTML).length, 1);
-  assert.equal(one.scroll.innerHTML.indexOf('gc-chip'), -1);
+  assert.equal(one.scroll.innerHTML.indexOf('ui-chip'), -1);
   assert.ok(one.scroll.innerHTML.indexOf('New graph gives a screen a graph of its own.') !== -1);
   // Three graphs: why there is no New graph.
   const full = bootGeneratedPage(Object.assign({}, TWO, { graphStyles: stylesItem({ forecastHours: '48' }, { forecastHours: '12' }) }),
     'emery');
   full.clickTab('graphs');
-  assert.equal(full.scroll.innerHTML.indexOf('class="gl-new"'), -1);
+  assert.equal(full.scroll.innerHTML.indexOf('ui-new'), -1);
   assert.ok(full.scroll.innerHTML.indexOf('You have 3 graphs, the most there can be. Delete one to make another.') !== -1);
 });
 
@@ -291,7 +291,11 @@ test('the page: picking a style edits it; Save stores it in graphStyles and the 
   // The page shows Revert only once something changed (the harness's classList is a stub).
   const revert = p.window.document.getElementById('revert');
   assert.equal(revert.hidden, true, 'a pick alone is no change');
-  assert.ok(p.scroll.innerHTML.indexOf('data-action="deleteGraphStyle"') !== -1, 'Delete on another style');
+  // Delete: the page's one Delete, under the Your graphs card as the editor's Delete screen.
+  const html2 = p.scroll.innerHTML, del = html2.indexOf('<button type="button" class="ui-del" data-action="deleteGraphStyle">'
+    + 'Delete Long</button>');
+  assert.ok(del !== -1, 'Delete on another style, by its name');
+  assert.ok(html2.lastIndexOf('</div></div>', del) === del - '</div></div>'.length, 'under the card, outside it');
   // An edit on Long: its length.
   const t = { getAttribute: (n) => (n === 'data-k' ? 'forecastHours' : (n === 'data-v' ? '12' : null)),
     closest: (sel) => (sel === '[data-v]' ? t : null) };
@@ -377,9 +381,9 @@ test('the page: the picked graph\'s pencil makes its name a field; OK, Enter and
   p.tapAction('pickGraph', 2);
   p.tapAction('renameGraph');
   let html = p.scroll.innerHTML;
-  assert.ok(html.indexOf('<div class="gl-row on rn" role="listitem"><input type="text" class="gl-rn-in" data-gl-rename-in '
+  assert.ok(html.indexOf('<div class="ui-row gl-row on rn" role="listitem"><input type="text" class="ui-rn-in" data-gl-rename-in '
     + 'maxlength="24" autocomplete="off" aria-label="Graph name" placeholder="Graph 2" value="Long"><button type="button" '
-    + 'class="gl-ok" data-action="renameGraphOk">OK</button></div>') !== -1, 'the field holds the name, OK beside it');
+    + 'class="dlg-done" data-action="renameGraphOk">OK</button></div>') !== -1, 'the field holds the name, OK beside it');
   p.typeName('[data-gl-rename-in]', '  Weekend ');
   p.tapAction('renameGraphOk');
   assert.equal(GS.name(p.S, 1), 'Weekend', 'trimmed');
@@ -498,10 +502,10 @@ test('the screen editor: the forecast row names its graph; open, its Graph picke
   // basalt: no Graph line.
   const b = bootGeneratedPage(TWO, 'basalt');
   b.tapAction('openScreen', 0);
+  assert.match(b.editor().querySelector('[data-se-body]').innerHTML, /<span>Forecast graph<\/span><span class="se-val">(?:Fill|\d rows)<\/span>/,
+    'folded: no graph named beside the size');
   b.tapEditor({ se: 'expand', j: M.idxOf(M.screensOf(b.S, BASALT)[0], 'fc') });
   assert.equal(b.editor().querySelector('[data-se-body]').innerHTML.indexOf('data-se="style"'), -1);
-  assert.match(b.editor().querySelector('[data-se-body]').innerHTML, /<span>Forecast graph<\/span><span class="se-val">(?:Fill|\d rows)<\/span>/,
-    'and no graph named beside the size');
 });
 
 test('the page: Show on puts the picked graph on a screen or takes it off', async () => {

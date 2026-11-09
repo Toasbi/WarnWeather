@@ -2023,9 +2023,12 @@ test('Status bars tab (id watch): Your bars, the All status bars card, then each
     const prefix = 'statusBar' + (i + 4);
     assert.deepEqual(card.showWhen, { all: [{ env: 'extraBars' }, { key: prefix + 'Made', eq: true }] },
       id + ': once made, on a watch that has it');
+    // Delete bar: the page's one Delete (style 'delete'), drawn under the Slots card; no card
+    // of its own (no empty subheader before it).
     const del = card.items[card.items.length - 1];
     assert.deepEqual([del.type, del.style, del.action, del.actionArg, del.label],
-      ['button', 'link', 'deleteBar', id, 'Delete bar'], id + ': Delete bar last');
+      ['button', 'delete', 'deleteBar', id, 'Delete bar'], id + ': Delete bar last');
+    assert.equal(card.items.filter((it) => it.type === 'subheader').length, 1, id + ': the Slots card alone');
   });
   // The made flags and the names: hidden keys of a section never opened.
   const keys = watch.sections.find((s) => s.sheetId === 'barKeys');
@@ -2555,7 +2558,7 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
   assert.match(basaltSheet, new RegExp('<div class="row nav" data-edit-sheet="alertAqi" role="button" tabindex="0"'
     + ' style="cursor:pointer"><div class="lft"><div class="lbl">Alert levels and colors</div>'
     + '<div class="hint">Warn \\d+ · Danger \\d+</div></div><div class="rgt"><span class="nav-note">Alerts</span>'
-    + '<span class="chev">&#8250;</span></div></div>'), 'basalt slot sheet opens the alert sheet, its levels summarised');
+    + '<span class="chev nav" aria-hidden="true">&#8250;</span></div></div>'), 'basalt slot sheet opens the alert sheet, its levels summarised');
   assert.equal(basaltSheet.indexOf('Alert levels and colors are set in the'), -1, 'the old pointer box is gone');
   assert.equal(basaltSheet.indexOf('data-range="threshAqiWarn"'), -1, 'no levels in the slot sheet');
   const alertSheet = eng.renderEditModal(schema, watchCx('basalt', 'alertAqi'));

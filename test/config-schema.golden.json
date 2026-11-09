@@ -4709,26 +4709,11 @@
                 }
               },
               {
-                "type": "subheader",
-                "text": ""
-              },
-              {
                 "type": "button",
-                "style": "link",
+                "style": "delete",
                 "action": "deleteBar",
                 "actionArg": "bar4",
-                "label": "Delete bar",
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "extraBars"
-                    },
-                    {
-                      "key": "statusBar4Made",
-                      "eq": true
-                    }
-                  ]
-                }
+                "label": "Delete bar"
               }
             ],
             "rename": {
@@ -5016,26 +5001,11 @@
                 }
               },
               {
-                "type": "subheader",
-                "text": ""
-              },
-              {
                 "type": "button",
-                "style": "link",
+                "style": "delete",
                 "action": "deleteBar",
                 "actionArg": "bar5",
-                "label": "Delete bar",
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "extraBars"
-                    },
-                    {
-                      "key": "statusBar5Made",
-                      "eq": true
-                    }
-                  ]
-                }
+                "label": "Delete bar"
               }
             ],
             "rename": {
@@ -5323,26 +5293,11 @@
                 }
               },
               {
-                "type": "subheader",
-                "text": ""
-              },
-              {
                 "type": "button",
-                "style": "link",
+                "style": "delete",
                 "action": "deleteBar",
                 "actionArg": "bar6",
-                "label": "Delete bar",
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "extraBars"
-                    },
-                    {
-                      "key": "statusBar6Made",
-                      "eq": true
-                    }
-                  ]
-                }
+                "label": "Delete bar"
               }
             ],
             "rename": {
@@ -10527,6 +10482,18 @@
                 "defaultValue": "1",
                 "initFrom": {
                   "resolver": "graphStyleOnOpen"
+                }
+              },
+              {
+                "type": "button",
+                "style": "delete",
+                "action": "deleteGraphStyle",
+                "label": "Delete graph",
+                "labelFrom": {
+                  "resolver": "graphDeleteLabel"
+                },
+                "showWhen": {
+                  "when": "graphDeletable"
                 }
               }
             ],

@@ -209,7 +209,7 @@ test('sheet rows are nav rows: summary in view, swatch and note before the chevr
   assert.ok(body.indexOf('<div class="row nav" data-edit-sheet="dlg" role="button" tabindex="0" style="cursor:pointer">'
     + '<div class="lft"><div class="lbl">Levels</div><div class="hint">Warn 6 · Danger 8</div></div>'
     + '<div class="rgt"><span class="thr-swatch" aria-hidden="true"><span class="pen-dot fill" style="--th-c:#FF0000"></span></span>'
-    + '<span class="nav-note">Alerts</span><span class="chev">&#8250;</span></div></div>') !== -1, body);
+    + '<span class="nav-note">Alerts</span><span class="chev nav" aria-hidden="true">&#8250;</span></div></div>') !== -1, body);
   assert.equal(body.indexOf('thr-btn'), -1, 'no Edit button on a nav row');
   assert.ok(body.indexOf('data-goto-tab="other" role="button"') !== -1, 'gotoTab: a nav row to a tab');
   assert.ok(body.indexOf('<div class="hint">To the other tab.</div>') !== -1, 'its static hint is the summary');

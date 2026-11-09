@@ -9,6 +9,10 @@
 // which is absent from the flat concatenated page.
 (function () {
     var BMC_URL = 'https://buymeacoffee.com/toaster2';
+    // The page's shared parts (config-ui/lib/ui.js): the popup's frame and header, the look
+    // in shell.html (.ui-pop*), the same as News'. window's: this file's own PConf (below) is
+    // hoisted over the page's.
+    var kit = (typeof require !== 'undefined') ? require('../config-ui/lib/ui.js') : window.PConf.ui;
 
     // A CSS transform on an SVG child is expressed in that element's USER
     // coordinate system, so the keyframes' translateY moves the wisps this many
@@ -60,8 +64,7 @@
      * @returns {string} Modal HTML.
      */
     function renderSupportModalHtml() {
-        return '<div class="bmc-modal-hdr"><h2>Support me</h2>'
-            + '<button class="bmc-close" data-bmc-close="1" aria-label="Close">✕</button></div>'
+        return kit.popupHeader('Support me', { 'data-bmc-close': '1' })
             + '<div class="bmc-body">'
             + '<p>Thank you for using my watchface WarnWeather. It means a lot to me! '
             + 'If you want to support me, you can send me a cup of coffee through '
@@ -113,18 +116,8 @@
                 +   ' 100% { opacity: 0; transform: translateY(-' + STEAM_RISE_UNITS + 'px); } }'
                 + '@media (prefers-reduced-motion: reduce) {'
                 +   ' .bmc-steam path { animation: none; } }'
-                + '.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;'
-                +   ' overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }'
-                + '.bmc-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 60;'
-                +   ' background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; }'
-                + '.bmc-modal { background: var(--card); color: var(--fg); border: 1px solid var(--card-line);'
-                +   ' border-radius: 14px; width: calc(100% - 32px); max-width: 420px; max-height: 80vh;'
-                +   ' display: flex; flex-direction: column; overflow: hidden; }'
-                + '.bmc-modal-hdr { flex: 0 0 auto; display: flex; align-items: center;'
-                +   ' justify-content: space-between; padding: 4px 16px 0; }'
-                + '.bmc-modal-hdr h2 { font-size: 17px; margin: 12px 0 4px; }'
-                + '.bmc-close { border: none; background: none; color: var(--muted); font-size: 20px;'
-                +   ' cursor: pointer; padding: 8px 0 0 8px; }'
+                // The popup's frame (.ui-pop, .ui-pop-card, its header) and .sr-only are
+                // the page's own (shell.html); only the popup's body is styled here.
                 + '.bmc-body { flex: 1 1 auto; overflow-y: auto; padding: 4px 16px 18px;'
                 +   ' font-size: 13px; line-height: 1.5; }'
                 + '.bmc-body p { margin: 0 0 14px; }'
@@ -142,8 +135,8 @@
 
         var injectOverlay = function () {
             supportOverlay = document.createElement('div');
-            supportOverlay.className = 'bmc-overlay';
-            supportOverlay.innerHTML = '<div class="bmc-modal">' + renderSupportModalHtml() + '</div>';
+            supportOverlay.className = 'ui-pop';
+            supportOverlay.innerHTML = '<div class="ui-pop-card">' + renderSupportModalHtml() + '</div>';
             supportOverlay.addEventListener('click', function (e) {
                 if (e.target === supportOverlay || e.target.closest('[data-bmc-close]')) {
                     closeSupportPopup();

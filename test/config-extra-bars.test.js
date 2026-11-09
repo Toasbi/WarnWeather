@@ -48,16 +48,16 @@ function offered(sheet) {
 function barLine(html, bar) {
   const at = html.indexOf('data-edit-sheet="bar-' + bar + '"');
   if (at === -1) { return ''; }
-  const start = html.lastIndexOf('<div class="bl-bar">', at);
-  const ends = [html.indexOf('<div class="bl-bar">', at), html.indexOf('class="bl-new"', at)].filter((i) => i !== -1);
+  const start = html.lastIndexOf('<div class="ui-row bl-bar">', at);
+  const ends = [html.indexOf('<div class="ui-row bl-bar">', at), html.indexOf('class="ui-row ui-new"', at)].filter((i) => i !== -1);
   return html.slice(start, ends.length ? Math.min.apply(null, ends) : html.length);
 }
 
 test('New bar on the Your bars card: an empty "Bar 4" at once, its dialog open with the name field ready', () => {
   const page = statusTab();
   let html = page.scroll.innerHTML;
-  assert.ok(html.indexOf('<button type="button" class="bl-new" data-action="newBar">') !== -1, 'the New bar row');
-  assert.ok(html.indexOf('<span class="bl-n">New bar</span><span class="bl-w">3 of 6 bars</span>') !== -1, 'its count');
+  assert.ok(html.indexOf('<button type="button" class="ui-row ui-new" data-action="newBar">') !== -1, 'the New bar row');
+  assert.ok(html.indexOf('<span class="ui-n">New bar</span><span class="ui-d">3 of 6 bars</span>') !== -1, 'its count');
   assert.equal(barLine(html, 'bar4'), '', 'no bar 4 before New bar');
   page.tapAction('newBar');
   assert.equal(page.S.statusBar4Made, true, 'bar 4 made');
@@ -69,18 +69,20 @@ test('New bar on the Your bars card: an empty "Bar 4" at once, its dialog open w
   assert.ok(dlg.indexOf('<span class="ssel-modal-ttl sr-only" id="esheet-ttl-bar-bar4">Bar 4</span>') !== -1, 'bar 4\'s dialog');
   assert.ok(dlg.indexOf('aria-label="Bar name" placeholder="Bar 4" value="Bar 4">') !== -1, 'the name field, ready');
   assert.ok(dlg.indexOf('data-dlg-rename-ok>OK</button>') !== -1);
-  assert.ok(dlg.indexOf('data-action="deleteBar" data-action-arg="bar4"') !== -1, 'Delete bar');
+  // Delete bar: the page's one Delete, under the Slots card as the editor's Delete screen.
+  assert.ok(dlg.indexOf('</div></div><button type="button" class="ui-del" data-action="deleteBar" data-action-arg="bar4">'
+    + 'Delete bar</button>') !== -1, 'Delete bar, under the card');
   // The list shows it at once, on no screen yet.
   html = page.scroll.innerHTML;
-  assert.ok(barLine(html, 'bar4').indexOf('<span class="bl-n">Bar 4</span><span class="bl-w">No screen</span>') !== -1);
-  assert.ok(html.indexOf('<span class="bl-w">4 of 6 bars</span>') !== -1, 'the count follows');
+  assert.ok(barLine(html, 'bar4').indexOf('<span class="ui-n">Bar 4</span><span class="ui-d">No screen</span>') !== -1);
+  assert.ok(html.indexOf('<span class="ui-d">4 of 6 bars</span>') !== -1, 'the count follows');
   // A name typed and OK: the bar is called that.
   page.typeName('[data-dlg-rename-in]', 'Commute');
   page.okRename();
   assert.equal(page.S.statusBar4Name, 'Commute');
   assert.ok(page.modal.innerHTML.indexOf('id="esheet-ttl-bar-bar4">Commute</span>') !== -1, 'titled by it');
   page.doneDialog();
-  assert.ok(barLine(page.scroll.innerHTML, 'bar4').indexOf('<span class="bl-n">Commute</span>') !== -1, 'listed by it');
+  assert.ok(barLine(page.scroll.innerHTML, 'bar4').indexOf('<span class="ui-n">Commute</span>') !== -1, 'listed by it');
 });
 
 test('a new bar\'s name is its own "Bar <n>", unless another bar has it', () => {
@@ -104,9 +106,9 @@ test('Delete bar: the bar unmade, its dialog closed, the screens that showed it 
   const page = statusTab({ statusBar4Made: true, statusBar4Name: 'Wind bar', statusBar4Left: 'uv',
     viewLower0: 'bar4', statusBar4OnDemandLeftItems: 'bt' });
   let html = page.scroll.innerHTML;
-  assert.ok(barLine(html, 'bar4').indexOf('<span class="bl-n">Wind bar</span><span class="bl-w">Default</span>') !== -1);
+  assert.ok(barLine(html, 'bar4').indexOf('<span class="ui-n">Wind bar</span><span class="ui-d">Default</span>') !== -1);
   page.openEditSheet('bar-bar4');
-  assert.ok(page.modal.innerHTML.indexOf('<div class="bl-pin-w">On Default</div>') !== -1);
+  assert.ok(page.modal.innerHTML.indexOf('<div class="ui-d">On Default</div>') !== -1);
   page.tapAction('deleteBar', 'bar4', 'modal');
   assert.equal(page.S.statusBar4Made, false);
   assert.equal(page.S.statusBar4Name, '');
@@ -155,7 +157,7 @@ test('the screen editor: + New bar puts an empty bar on the screen and opens its
   const page = statusTab();
   page.tapAction('openScreen', 0);
   let ed = editorBody(page);
-  assert.match(ed, /<button type="button" class="se-add" data-se="newbar"><svg class="scr-ic"[^>]*>[\s\S]*?<\/svg>New bar<\/button>/,
+  assert.match(ed, /<button type="button" class="ui-chip" data-se="newbar"><svg class="ui-ic"[^>]*>[\s\S]*?<\/svg>New bar<\/button>/,
     '+ New bar, a calm chip');
   page.tapEditor({ se: 'newbar' });
   assert.equal(page.S.statusBar4Made, true);

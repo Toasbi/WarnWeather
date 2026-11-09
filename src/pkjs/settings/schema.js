@@ -874,7 +874,8 @@ function barSlots(prefix, barWhen, leftJoins) {
  * slots and the Alerts row, all behind the bar's gate.
  * @param {Object} b The bar's on-demand.js BARS entry.
  * @param {?Object} when The bar's gate (null = always).
- * @param {Array<Object>} [tail] Items after the Alerts row (a card of their own after a subheader).
+ * @param {Array<Object>} [tail] Items after the Alerts row: aplite's Watch bar its icons card, a bar 4
+ *   to 6 its Delete bar (drawn under the Slots card).
  * @returns {Object} Schema section (sheetOnly).
  */
 function barDialog(b, when, tail) {
@@ -897,15 +898,15 @@ function barDialog(b, when, tail) {
 
 /**
  * A bar 4 to 6's dialog (Pebble Time 2, made by New bar): the other bars' dialog, then Delete bar
- * in a card of its own (screens-page.js deleteBar: every screen that shows it drops the row; the
- * Your bars card's Undo puts it back).
+ * under its card, as the screen editor's Delete screen (style 'delete', engine buildCards;
+ * screens-page.js deleteBar: every screen that shows it drops the row; the Your bars card's
+ * Undo puts it back).
  * @param {Object} b Its on-demand.js BARS entry.
  * @returns {Object} Schema section (sheetOnly).
  */
 function extraBarDialog(b) {
-    var when = extraBarWhen(b.prefix);
-    return barDialog(b, when, [{type: 'subheader', text: ''}, {
-        type: 'button', style: 'link', action: 'deleteBar', actionArg: b.bar, label: 'Delete bar', showWhen: when
+    return barDialog(b, extraBarWhen(b.prefix), [{
+        type: 'button', style: 'delete', action: 'deleteBar', actionArg: b.bar, label: 'Delete bar'
     }]);
 }
 
@@ -1932,9 +1933,9 @@ module.exports = {
             // The Your graphs card (Pebble Time 2; settings/graph-styles-page.js, where a graph is
             // a graph style): a row per graph, the picked one the graph the preview and every card
             // below show (the page swaps its values into the flat keys while the pane shows it),
-            // its name renamed in place; New graph, the screens it shows on and Delete. The pick
-            // is a page-only key the rows set (no row of its own). Under the pane switcher, above
-            // the pinned preview (abovePin), so it scrolls away with the switcher.
+            // its name renamed in place; New graph, the screens it shows on, and Delete under the
+            // card. The pick is a page-only key the rows set (no row of its own). Under the pane
+            // switcher, above the pinned preview (abovePin), so it scrolls away with the switcher.
             pane: 'forecast',
             id: 'graphStyle',
             title: 'Your graphs',
@@ -1946,6 +1947,16 @@ module.exports = {
                 uiOnly: true,
                 defaultValue: '1',
                 initFrom: {resolver: 'graphStyleOnOpen'}
+            }, {
+                // Delete <the picked graph>, any but the first, under the card as the screen
+                // editor's Delete screen (style 'delete', engine buildCards); the card's Undo puts
+                // it back (graph-styles-page.js deletePicked).
+                type: 'button',
+                style: 'delete',
+                action: 'deleteGraphStyle',
+                label: 'Delete graph',
+                labelFrom: {resolver: 'graphDeleteLabel'},
+                showWhen: {when: 'graphDeletable'}
             }],
             block: 'graphStyleCards'
         }, {

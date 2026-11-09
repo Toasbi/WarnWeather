@@ -22,6 +22,10 @@
     var buildSeenPayload = protocol.buildSeenPayload;
     var buildReplyPayload = protocol.buildReplyPayload;
     var buildVotePayload = protocol.buildVotePayload;
+    // The page's shared parts (config-ui/lib/ui.js): the popup's frame and header, the look
+    // in shell.html (.ui-pop*), the same as Support's. window's: this file's own PConf (below)
+    // is hoisted over the page's.
+    var kit = (typeof require !== 'undefined') ? require('../config-ui/lib/ui.js') : window.PConf.ui;
 
     /**
      * Escape the HTML metacharacters. Runs BEFORE any markdown transform so
@@ -196,8 +200,7 @@
         // top and bottom of the flex-column modal; only the items scroll. This
         // keeps the "Write a message" button reachable without scrolling past a
         // long announcement.
-        var html = '<div class="news-modal-hdr"><h2>News</h2>'
-            + '<button class="news-close" data-news-close="1">✕</button></div>'
+        var html = kit.popupHeader('News', { 'data-news-close': '1' })
             + '<div class="news-scroll">';
         if (!items.length) {
             html += '<div class="news-item news-empty">Nothing here yet. Check back after the next update.</div>';
@@ -295,20 +298,12 @@
                 +   ' animation: news-bell-shake 6s ease-in-out 1.5s infinite; }'
                 + '@media (prefers-reduced-motion: reduce) {'
                 +   ' #newsHint.has-unread .news-bell { animation: none; } }'
-                + '.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;'
-                +   ' overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }'
-                + '.news-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 60;'
-                +   ' background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; }'
-                + '.news-modal { background: var(--card); color: var(--fg); border: 1px solid var(--card-line);'
-                +   ' border-radius: 14px; width: calc(100% - 32px); max-width: 420px; max-height: 80vh;'
-                +   ' display: flex; flex-direction: column; overflow: hidden; }'
-                + '.news-modal-hdr { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 4px 16px 0; }'
-                + '.news-modal-hdr h2 { font-size: 17px; margin: 12px 0 4px; }'
+                // The popup's frame (.ui-pop, .ui-pop-card, its header) and .sr-only are
+                // the page's own (shell.html); only the popup's body is styled here.
                 + '.news-scroll { flex: 1 1 auto; overflow-y: auto; padding: 0 16px; }'
                 + '.news-message { flex: 0 0 auto; border-top: 1px solid var(--row-line); padding: 12px 16px 16px; background: var(--card); }'
                 + '.news-message-hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 0 0 8px; }'
                 + '.news-message-hint a { color: var(--link); }'
-                + '.news-close { border: none; background: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 8px 0 0 8px; }'
                 + '.news-item { border-top: 1px solid var(--row-line); padding: 10px 0 12px; }'
                 + '.news-empty { color: var(--muted); font-size: 13px; }'
                 + '.news-scroll > .news-item:first-child { border-top: none; }'
@@ -392,8 +387,8 @@
         };
         var injectOverlay = function () {
             newsOverlay = document.createElement('div');
-            newsOverlay.className = 'news-overlay';
-            newsOverlay.innerHTML = '<div class="news-modal">'
+            newsOverlay.className = 'ui-pop';
+            newsOverlay.innerHTML = '<div class="ui-pop-card">'
                 + renderNewsListHtml(newsItems, Boolean(USERDATA.accountToken)) + '</div>';
             newsOverlay.addEventListener('click', function (e) {
                 var t;

@@ -2,9 +2,10 @@
 // settings page (Pebble Time 2; src/pkjs/graph-styles.js is the model, which calls a graph a graph
 // style): the Your graphs card at the top of Graphs › Forecast (a plain list of the graphs, each
 // its name, length and screens, the picked one ticked and renamed in place with an OK button; New
-// graph; the screens the picked graph shows on; Delete with Undo), the swap that lets every row on
-// that pane edit the graph picked there, the screen editor's graph picker's options, and the
-// five-series limit the forecast pickers and that picker keep.
+// graph; the screens the picked graph shows on; then, under the card, Delete with Undo, a schema
+// item the engine draws like every Delete: the page's shared parts, config-ui/lib/ui.js), the
+// swap that lets every row on that pane edit the graph picked there, the screen editor's graph
+// picker's options, and the five-series limit the forecast pickers and that picker keep.
 //
 // TEMPLATES AND GRAPHS (the owner's pick, 2026-11-08). A template is one of the setup's forecast
 // looks (wizard-forecast.js LOOKS: Classic, Clean, Stripes). The Your graphs card's New graph starts
@@ -51,6 +52,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var spanHours = node ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
     var esc = node ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
+    // The page's shared parts (config-ui/lib/ui.js): the card's list, New graph, the chips, the
+    // pencil and the name field, the Undo and its timer.
+    var kit = node ? require('../config-ui/lib/ui.js') : PConf.ui;
 
     // The swap state in S: {k, held}, the style whose values sit in the flat keys and the
     // first style's values of the governed keys. Never a schema key, so never saved.
@@ -77,17 +81,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         clean: 'Clouds along the top, solid rain bars',
         stripes: 'Clouds and rain chance as stripes, solid rain bars from the top'
     };
-    var I_PLUS = '<svg class="gc-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>';
-    var I_CHECK = '<svg class="gc-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-    var I_PEN = '<svg class="gc-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-        + '<path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>';
     // Why the card has no New graph: every slot holds one.
     var FULL = 'You have ' + GS.MAX_STYLES + ' graphs, the most there can be. Delete one to make another.';
 
-    // The page's live state (onReady), the card's Undo toast, the screen the editor's picker is
-    // for, the defaults a template starts from (themedDefaults), kept per theme, and whether the
-    // picked graph's name is a field right now (the card's pencil).
-    var UI = { ctx: null, toast: null, timer: null, screenSlot: 0, defaults: null, renaming: false };
+    // The page's live state (onReady), the card's Undo (a flash: kit.flash), the screen the
+    // editor's picker is for, the defaults a template starts from (themedDefaults), kept per
+    // theme, and whether the picked graph's name is a field right now (the card's pencil).
+    var UI = { ctx: null, toast: { v: null, t: null }, screenSlot: 0, defaults: null, renaming: false };
 
     /**
      * @param {Object} o An object.
@@ -851,7 +851,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var undo = { k: k, name: o.names[k], values: o.styles[k], label: GS.name(S, k), views: GS.deleteStyle(S, k) };
         S[PICK] = '1';
         UI.renaming = false;
-        showToast(undo);
+        kit.flash(UI.toast, undo, 5000, function () { if (UI.ctx) { UI.ctx.render(); } });
     }
 
     /**
@@ -861,40 +861,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function undoDelete(S) {
-        var u = UI.toast;
+        var u = UI.toast.v;
         if (!u) { return; }
-        clearToast();
+        kit.unflash(UI.toast);
         settle(S);
         if (GS.exists(S, u.k)) { return; }
         S.graphStyles = GS.withStyle(S, u.k, u.values);
         S.graphStyles = GS.withName(S, u.k, u.name);
         u.views.forEach(function (i) { S['viewStyle' + i] = String(u.k + 1); });
         S[PICK] = String(u.k + 1);
-    }
-
-    /**
-     * Show the Undo for five seconds.
-     * @param {Object} undo What Undo puts back.
-     * @returns {void}
-     */
-    function showToast(undo) {
-        clearToast();
-        UI.toast = undo;
-        UI.timer = setTimeout(function () {
-            UI.toast = null;
-            UI.timer = null;
-            if (UI.ctx) { UI.ctx.render(); }
-        }, 5000);
-    }
-
-    /**
-     * Drop the Undo.
-     * @returns {void}
-     */
-    function clearToast() {
-        if (UI.timer) { clearTimeout(UI.timer); }
-        UI.toast = null;
-        UI.timer = null;
     }
 
     // ── The screens a graph shows on ────────────────────────────────────────
@@ -966,53 +941,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // ── The Your graphs card ────────────────────────────────────────────────
 
-    // The card's rows bleed over the .blockrow's padding at the top and the sides, so they are the
-    // card's own rows (the Your bars card's look); what follows them keeps the padding.
-    var CSS = '.gl{margin:-12px -16px 0}'
-        + '.gl-lead{padding:12px 16px 10px}'
-        + '.gl-row{display:flex;align-items:stretch;border-top:1px solid var(--row-line)}'
+    // The card's own look; its list, New graph, the chips, the pencil, the name field and the Undo
+    // are the page's shared parts (kit: config-ui/lib/ui.js, their look in shell.html).
+    var CSS = '.gl-lead{padding:12px 16px 10px}'
+        + '.gl-row{display:flex;align-items:center}'
         + '.gl-row.on{background:rgba(250,74,53,.12)}'
         + '.gl-pick{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;margin:0;padding:12px 16px;border:none;'
         + 'background:none;color:var(--lbl);text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
         + '.gl-txt{flex:1 1 auto;min-width:0;display:grid;gap:2px}'
-        + '.gl-n{font:600 14.5px/1.3 Inter,system-ui,sans-serif;color:var(--lbl);overflow-wrap:anywhere}'
-        + '.gl-d{font:500 12.5px/1.35 Inter,system-ui,sans-serif;color:var(--hint)}'
-        + '.gl-pick .gc-ic{flex:none;width:18px;height:18px;color:var(--link);stroke-width:2.6}'
-        + '.gl-rn{flex:none;width:46px;display:flex;align-items:center;justify-content:center;margin:0;padding:0;border:none;'
-        + 'background:none;color:var(--link);cursor:pointer}'
-        + '.gl-rn .gc-ic{width:17px;height:17px}'
-        + '.gl-row.rn{align-items:center;gap:8px;padding:8px 12px 8px 16px}'
-        + 'input[type=text].gl-rn-in{flex:1 1 auto;min-width:0;width:auto;height:40px;padding:0 10px;border:2px solid var(--link);'
-        + 'border-radius:10px;background:var(--bg);color:var(--lbl);font:700 15px Inter,system-ui,sans-serif}'
-        + '.gl-ok{flex:none;height:40px;padding:0 16px;border:none;border-radius:10px;background:linear-gradient(135deg,#FA4A35,#D93A24);'
-        + 'color:#FFFFFF;font:700 14px Inter,system-ui,sans-serif;cursor:pointer}'
-        + '.gl-new{display:flex;align-items:center;gap:10px;width:100%;margin:0;padding:14px 16px;border:none;'
-        + 'border-top:1px solid var(--row-line);background:none;text-align:left;font:inherit;cursor:pointer;'
-        + '-webkit-appearance:none;appearance:none}'
-        + '.gl-new .gc-ic{flex:none;width:18px;height:18px;color:var(--link)}'
-        + '.gl-new .gl-n{flex:1 1 auto;color:var(--link)}'
-        + '.gl-full{padding:12px 16px;border-top:1px solid var(--row-line);line-height:1.45}'
-        // The icons only: a graph's picture inherits nothing from here (an inherited stroke
-        // would outline every shape in it).
-        + '.gc-ic{fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}'
-        + '.gc-show{display:grid;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--row-line)}'
-        + '.gc-cap{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ttl)}'
-        + '.gc-chips{display:flex;flex-wrap:wrap;gap:6px}'
-        + '.gc-chip{display:inline-flex;align-items:center;gap:5px;margin:0;padding:7px 11px;border:none;border-radius:999px;'
-        + 'background:var(--ctl);box-shadow:inset 0 0 0 1px var(--ctl-line);color:var(--lbl);'
-        + 'font:600 12.5px/1.2 Inter,system-ui,sans-serif;cursor:pointer;-webkit-appearance:none;appearance:none}'
-        + '.gc-chip.on{background:rgba(250,74,53,.14);box-shadow:inset 0 0 0 1.5px #FA4A35;color:var(--link)}'
-        + '.gc-chip[disabled]{opacity:.42;cursor:default}'
-        + '.gc-chip[aria-disabled="true"]{cursor:default}'
-        + '.gc-chip .gc-ic{width:13px;height:13px}'
-        + '.gs-acts{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;margin-top:12px;padding-top:12px;'
-        + 'border-top:1px solid var(--row-line)}'
-        + '.gs-act{border:none;background:none;padding:2px 0;color:var(--link);font:700 13px Inter,system-ui,sans-serif;'
-        + 'cursor:pointer}'
-        + '.gs-toast{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;'
-        + 'background:var(--ctl);border-radius:10px;padding:9px 12px;font-size:12.5px;color:var(--lbl)}'
-        + '.gs-undo{flex:none;border:none;background:none;padding:2px 4px;color:var(--link);'
-        + 'font:800 12.5px Inter,system-ui,sans-serif;cursor:pointer}';
+        + '.gl-pick .ui-ic{flex:none;color:var(--link);stroke-width:2.6}'
+        + '.gl-row .ui-pen{margin:0 10px 0 0}'
+        + '.gl-row.rn{gap:8px;padding:8px 12px 8px 16px}'
+        + '.gc-show{display:grid;gap:8px;padding:12px 16px 14px}';
 
     /**
      * Put the card's styles on the page once.
@@ -1038,18 +978,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function showOnHtml(S, env, k) {
         var lists = M.screensOf(S, env), none = [], full = false, kept = false;
         var chips = lists.map(function (list, i) {
-            var name = esc(M.nameOf(S, i)), drawn = drawnBy(S, list[M.idxOf(list, 'fc')]);
-            if (drawn < 0) { none.push(M.nameOf(S, i)); return '<button type="button" class="gc-chip" disabled>' + name + '</button>'; }
+            var name = M.nameOf(S, i), drawn = drawnBy(S, list[M.idxOf(list, 'fc')]);
+            if (drawn < 0) { none.push(name); return kit.chip(name, { disabled: true }); }
             if (drawn === k) {
                 // The first graph's tick stays: a screen draws it unless it has another graph.
                 if (k === 0) { kept = true; }
-                return '<button type="button" class="gc-chip on" aria-pressed="true"'
-                    + (k === 0 ? ' aria-disabled="true"' : ' data-action="graphOnScreen" data-action-arg="' + i + '"')
-                    + '>' + I_CHECK + name + '</button>';
+                return kit.chip(name, k === 0 ? { 'aria-pressed': 'true', 'aria-disabled': 'true' }
+                    : { 'aria-pressed': 'true', 'data-action': 'graphOnScreen', 'data-action-arg': i }, { icon: 'check', on: true });
             }
-            if (screenOverflows(S, env, i, k)) { full = true; return '<button type="button" class="gc-chip" disabled>' + name + '</button>'; }
-            return '<button type="button" class="gc-chip" aria-pressed="false" data-action="graphOnScreen" data-action-arg="'
-                + i + '">' + name + '</button>';
+            if (screenOverflows(S, env, i, k)) { full = true; return kit.chip(name, { disabled: true }); }
+            return kit.chip(name, { 'aria-pressed': 'false', 'data-action': 'graphOnScreen', 'data-action-arg': i });
         }).join('');
         var notes = [];
         if (none.length === lists.length) {
@@ -1059,19 +997,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if (full) { notes.push(limitNote(S, env, k)); }
         if (kept) { notes.push('A screen shows ' + GS.name(S, 0) + ' unless you give it another graph.'); }
-        return '<div class="gc-show"><span class="gc-cap" id="gc-show-cap">Show on</span>'
-            + '<div class="gc-chips" role="group" aria-labelledby="gc-show-cap">' + chips + '</div>'
-            + (notes.length ? '<div>' + esc(notes.join(' ')) + '</div>' : '') + '</div>';
+        return '<div class="ui-row gc-show"><span class="ui-cap" id="gc-show-cap">Show on</span>'
+            + '<div class="ui-chips" role="group" aria-labelledby="gc-show-cap">' + chips + '</div>'
+            + (notes.length ? '<div class="ui-d">' + esc(notes.join(' ')) + '</div>' : '') + '</div>';
     }
 
     /**
      * The Your graphs card (block 'graphStyleCards'; the owner's pick, 2026-11-09: a plain list
-     * like the Your bars card and the screen editor's pickers): what a tap does, then a row per
-     * graph, its name over its length and the screens that show it, the picked one tinted and
-     * ticked (a tap picks another: the settings below then change it) with a pencil that makes
-     * its name a field with OK; New graph while a slot is free, with how many graphs there are
-     * (its sheet starts one from a template or as a copy), else why there is none; the Show on
-     * row with two graphs or more; Delete on a graph but the first, and the Undo after a delete.
+     * like the Your bars card and the screen editor's pickers), in the page's shared parts (kit):
+     * what a tap does, then a row per graph, its name over its length and the screens that show
+     * it, the picked one tinted and ticked (a tap picks another: the settings below then change
+     * it) with a pencil that makes its name a field with OK; New graph while a slot is free, with
+     * how many graphs there are (its sheet starts one from a template or as a copy), else why
+     * there is none; the Undo after a delete; the Show on row with two graphs or more. Delete
+     * is the section's own item, under the card (schema.js; deleteLabel, deletable).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {string} HTML ('' where the watch has no graph styles)
@@ -1080,37 +1019,47 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!on(env) || !S) { return ''; }
         ensureStyle();
         var k = pickIndex(S), ks = existing(S);
-        var h = '<div class="gl"><div class="gl-lead">' + esc(cardHint(S)) + '</div>'
-            + '<div role="list" aria-label="Your graphs">' + ks.map(function (j) {
-                var picked = j === k, name = esc(GS.name(S, j));
-                if (picked && UI.renaming) {
-                    return '<div class="gl-row on rn" role="listitem"><input type="text" class="gl-rn-in" data-gl-rename-in maxlength="'
-                        + M.NAME_MAX + '" autocomplete="off" aria-label="Graph name" placeholder="' + esc(GS.defaultName(j))
-                        + '" value="' + name + '"><button type="button" class="gl-ok" data-action="renameGraphOk">OK</button></div>';
-                }
-                return '<div class="gl-row' + (picked ? ' on' : '') + '" role="listitem"><button type="button" class="gl-pick"'
-                    + ' aria-pressed="' + picked + '" data-action="pickGraph" data-action-arg="' + (j + 1) + '">'
-                    + '<span class="gl-txt"><span class="gl-n">' + name + '</span><span class="gl-d">' + esc(cardLine(S, env, j))
-                    + '</span></span>' + (picked ? I_CHECK : '') + '</button>'
-                    + (picked ? '<button type="button" class="gl-rn" data-action="renameGraph" aria-label="Rename ' + name + '">'
-                        + I_PEN + '</button>' : '') + '</div>';
-            }).join('') + '</div>'
-            + (GS.freeSlot(normalize(S)) >= 0 ? '<button type="button" class="gl-new" data-select="' + NEW_FROM + '">' + I_PLUS
-                + '<span class="gl-n">New graph</span><span class="gl-d">' + ks.length + ' of ' + GS.MAX_STYLES + ' graphs</span></button>'
-                : '<div class="gl-full">' + esc(FULL) + '</div>')
+        var rows = ks.map(function (j) {
+            var picked = j === k, name = GS.name(S, j);
+            if (picked && UI.renaming) {
+                return '<div class="ui-row gl-row on rn" role="listitem">' + kit.renameField({
+                    at: { 'data-gl-rename-in': true }, okAt: { 'data-action': 'renameGraphOk' }, label: 'Graph name',
+                    maxlength: M.NAME_MAX, placeholder: GS.defaultName(j), value: name }) + '</div>';
+            }
+            return '<div class="ui-row gl-row' + (picked ? ' on' : '') + '" role="listitem"><button type="button" class="gl-pick"'
+                + ' aria-pressed="' + picked + '" data-action="pickGraph" data-action-arg="' + (j + 1) + '">'
+                + '<span class="gl-txt"><span class="ui-n">' + esc(name) + '</span><span class="ui-d">' + esc(cardLine(S, env, j))
+                + '</span></span>' + (picked ? kit.icon('check') : '') + '</button>'
+                + (picked ? kit.penButton(name, { 'data-action': 'renameGraph' }) : '') + '</div>';
+        }).join('');
+        return '<div class="ui-list"><div class="gl-lead">' + esc(cardHint(S)) + '</div>'
+            + '<div role="list" aria-label="Your graphs">' + rows + '</div>'
+            + (GS.freeSlot(normalize(S)) >= 0
+                ? kit.newRow('New graph', ks.length + ' of ' + GS.MAX_STYLES + ' graphs', { 'data-select': NEW_FROM })
+                : '<div class="ui-row ui-foot">' + esc(FULL) + '</div>')
+            + (UI.toast.v ? kit.undoToast(UI.toast.v.label + ' deleted.', { 'data-action': 'undoDeleteGraphStyle' }) : '')
+            + (ks.length > 1 ? showOnHtml(S, env, k) : '')
             + '</div>';
-        if (ks.length > 1) { h += showOnHtml(S, env, k); }
-        var name = esc(GS.name(S, k));
-        if (k > 0) {
-            h += '<div class="gs-acts"><button type="button" class="gs-act" data-action="deleteGraphStyle">Delete ' + name
-                + '</button></div>';
-        }
-        var t = UI.toast;
-        if (t) {
-            h += '<div class="gs-toast" role="status"><span>' + esc(t.label) + ' deleted.</span>'
-                + '<button type="button" class="gs-undo" data-action="undoDeleteGraphStyle">Undo</button></div>';
-        }
-        return h;
+    }
+
+    /**
+     * Whether the card's Delete shows (when resolver 'graphDeletable'): on a watch with graph
+     * styles, while the picked graph is not the first, which every screen falls back to.
+     * @param {Object} S Settings (the show-when context: the settings by key).
+     * @param {?Object} env Platform env.
+     * @returns {boolean}
+     */
+    function deletable(S, env) {
+        return on(env) && pickIndex(S) > 0;
+    }
+
+    /**
+     * What the card's Delete says (hint resolver 'graphDeleteLabel'): the picked graph by name.
+     * @param {Object} S Settings.
+     * @returns {string} "Delete Graph 2"
+     */
+    function deleteLabel(S) {
+        return 'Delete ' + GS.name(S, pickIndex(S));
     }
 
     // ── Registration (the webview; a no-op under Node without the page) ─────
@@ -1147,7 +1096,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             PConf.optionsResolvers.register('graphStyleOptions', styleOptions);
             PConf.optionsResolvers.register('graphStyleStarts', startOptions);
         }
-        if (PConf.hintResolvers) { PConf.hintResolvers.register('graphStyleShared', sharedHint); }
+        if (PConf.hintResolvers) {
+            PConf.hintResolvers.register('graphStyleShared', sharedHint);
+            PConf.hintResolvers.register('graphDeleteLabel', deleteLabel);
+        }
+        if (PConf.whenResolvers) { PConf.whenResolvers.register('graphDeletable', deletable); }
         if (PConf.pictureResolvers) { PConf.pictureResolvers.register('graphStylePicture', optionPicture); }
         if (PConf.displayResolvers) { PConf.displayResolvers.register('graphStyleOnOpen', pickOnOpen); }
         if (PConf.onChange) { PConf.onChange.register('graphStyleCreate', createStyle); }
@@ -1222,6 +1175,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         toggleScreen: toggleScreen,
         pickForScreen: pickForScreen,
         cardsBlock: cardsBlock,
+        deletable: deletable,
+        deleteLabel: deleteLabel,
         _test: { UI: UI }
     };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

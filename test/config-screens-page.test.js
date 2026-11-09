@@ -16,6 +16,7 @@ const SP = require('../src/pkjs/settings/screens-page.js');
 const M = require('../src/pkjs/screens.js');
 const VC = require('../src/pkjs/view-cycle.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
+const ui = require('../src/pkjs/config-ui/lib/ui.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const { blankBar, slotsOf } = require('./helpers/status-slots.js');
 
@@ -58,22 +59,24 @@ function words(S) {
  */
 function cardRows(html) {
   const out = [];
-  const re = /<div class="scr-row" data-scr-row="\d+">[\s\S]*?<span class="scr-t">([^<]*)(?:<span class="scr-pill">[^<]*<\/span>)?<\/span><span class="scr-els">([^<]*)<\/span>[\s\S]*?(<button type="button" class="scr-x"|<span class="scr-xpad")/g;
+  const re = /<div class="ui-row scr-row" data-scr-row="\d+">[\s\S]*?<span class="ui-n">([^<]*)(?:<span class="scr-pill">[^<]*<\/span>)?<\/span><span class="ui-d">([^<]*)<\/span>[\s\S]*?(<button type="button" class="scr-x"|<span class="scr-xpad")/g;
   let m;
   while ((m = re.exec(html))) { out.push([m[1], m[2], m[3].indexOf('scr-x"') !== -1]); }
   return out;
 }
 
 /**
- * The open overlay's body and title (the title's text: the screen's name, or Add a screen).
+ * The open overlay's body, header and title (the title's text: the screen's name, or Add a
+ * screen; the header is a dialog's, ui.js header).
  * @param {Object} page bootGeneratedPage handle.
- * @returns {{title: string, body: string, titleHtml: string}}
+ * @returns {{title: string, body: string, head: string}}
  */
 function editorOf(page) {
   const ed = page.editor();
   assert.ok(ed, 'the screen editor is open');
-  const titleHtml = ed.querySelector('[data-se-title]').innerHTML;
-  return { title: titleHtml.replace(/<[^>]*>/g, ''), titleHtml, body: ed.querySelector('[data-se-body]').innerHTML };
+  const head = ed.querySelector('[data-se-head]').innerHTML;
+  const m = /id="seTitle">([^<]*)<\/span>/.exec(head);
+  return { title: m ? m[1] : '', head, body: ed.querySelector('[data-se-body]').innerHTML };
 }
 
 /**
@@ -305,16 +308,19 @@ test('a ✕ deletes a flick screen at once, and Undo puts it back', (t) => {
     ['Default', 'Calendar · Clock · Forecast bar · Forecast graph'],
     ['Flick 1', 'Clock · Radar bar · Rain radar']
   ]);
-  assert.match(page.scroll.innerHTML, /<div class="scr-toast" role="status"><span>Flick 1 deleted\.<\/span><button type="button" class="scr-undo" data-action="undoDeleteScreen">Undo<\/button><\/div>/);
-  assert.ok(page.scroll.innerHTML.indexOf('data-action="addScreen">+ Add screen<') !== -1, 'room for one more');
+  // The page's one Undo (ui.js undoToast), as after a Delete bar or a deleted graph.
+  assert.match(page.scroll.innerHTML, /<div class="ui-toast" role="status"><span>Flick 1 deleted\.<\/span><button type="button" class="ui-undo" data-action="undoDeleteScreen">Undo<\/button><\/div>/);
+  assert.ok(page.scroll.innerHTML.indexOf('<button type="button" class="ui-row ui-new" data-action="addScreen"><svg class="ui-ic"')
+    !== -1 && page.scroll.innerHTML.indexOf('<span class="ui-n">Add screen</span></button>') !== -1,
+  'room for one more: the New row, as New bar and New graph');
   page.tapAction('undoDeleteScreen');
   assert.equal(cardRows(page.scroll.innerHTML).length, 3, 'Undo: all three again');
-  assert.equal(page.scroll.innerHTML.indexOf('scr-toast'), -1, 'and the toast goes');
+  assert.equal(page.scroll.innerHTML.indexOf('ui-toast'), -1, 'and the toast goes');
   // Unanswered, the toast goes by itself.
   page.tapAction('deleteScreen', 2);
   assert.ok(page.scroll.innerHTML.indexOf('Flick 2 deleted.') !== -1);
   t.mock.timers.tick(5000);
-  assert.equal(page.scroll.innerHTML.indexOf('scr-toast'), -1, 'gone after five seconds');
+  assert.equal(page.scroll.innerHTML.indexOf('ui-toast'), -1, 'gone after five seconds');
 });
 
 test('a new install: the Default screen alone; + Add screen\'s Blank opens the editor on the Watch bar and the Clock', () => {
@@ -332,10 +338,11 @@ test('a new install: the Default screen alone; + Add screen\'s Blank opens the e
   assert.deepEqual(editorRows(ed.body), ['Watch bar', 'Clock']);
   assert.ok(ed.body.indexOf('<span class="se-main fixed"><span>Watch bar</span></span>') !== -1, 'the Watch bar has no handle');
   assert.ok(ed.body.indexOf('aria-label="Remove Clock"') !== -1, 'a flick screen may drop its Clock');
-  assert.deepEqual((ed.body.match(/class="se-add" data-se="add" data-k="[^"]*"><svg[\s\S]*?<\/svg>[^<]*</g) || [])
+  assert.deepEqual((ed.body.match(/class="ui-chip" data-se="add" data-k="[^"]*"><svg[\s\S]*?<\/svg>[^<]*</g) || [])
     .map((x) => x.replace(/^[\s\S]*<\/svg>|<$/g, '')),
     ['Calendar', 'Forecast bar', 'Radar bar', 'Health bar', 'Forecast graph', 'Rain radar', 'Health graph']);
-  assert.ok(ed.body.indexOf('data-se="delscreen">Delete screen<') !== -1);
+  assert.ok(ed.body.endsWith('</div><button type="button" class="ui-del" data-se="delscreen">Delete screen</button>'),
+    'Delete screen: the page\'s one Delete, last, under the card');
   page.tapEditor({ se: 'close' });
   assert.ok(page.scroll.innerHTML.indexOf('<span class="ttl">Screen switching</span>') !== -1, 'two screens now');
 });
@@ -371,7 +378,10 @@ test('the editor: a row\'s option, its moves, a ✕ and + Add, each stored at on
   // The calendar's rows.
   page.tapEditor({ se: 'expand', j: 1 });
   page.tapEditor({ se: 'opt', j: 1, key: 'rows', v: '3' });
-  assert.deepEqual(editorRows(editorOf(page).body)[1], 'Calendar · 3 rows');
+  assert.match(editorOf(page).body, /class="on" data-se="opt" data-j="1" data-key="rows" data-v="3" aria-pressed="true">3</);
+  assert.deepEqual(editorRows(editorOf(page).body)[1], 'Calendar', 'open: the value is in its options');
+  page.tapEditor({ se: 'expand', j: 1 });
+  assert.deepEqual(editorRows(editorOf(page).body)[1], 'Calendar · 3 rows', 'folded: beside its name');
   // Move the Forecast bar above the Clock, then remove it, then add it back.
   page.tapEditor({ se: 'up', j: 3 });
   assert.deepEqual(editorRows(editorOf(page).body), ['Watch bar', 'Calendar · 3 rows', 'Forecast bar', 'Clock',
@@ -383,6 +393,63 @@ test('the editor: a row\'s option, its moves, a ✕ and + Add, each stored at on
     'Forecast graph · 3 rows'], 'at its natural place: above the bottom graph');
   // Each edit is on the page at once: the Screens card under the editor follows.
   assert.equal(cardRows(page.scroll.innerHTML)[0][1], 'Calendar · Clock · Forecast bar · Forecast graph');
+});
+
+/**
+ * One editor row's markup, from its start to the next row's (to the body's end for the last).
+ * @param {string} body The editor's body.
+ * @param {number} j The row.
+ * @returns {string}
+ */
+function editorRow(body, j) {
+  const at = body.indexOf('<div class="se-row" role="listitem" data-j="' + j + '">');
+  assert.ok(at !== -1, 'row ' + j + ' drawn');
+  const next = body.indexOf('<div class="se-row"', at + 1);
+  return body.slice(at, next === -1 ? body.length : next);
+}
+
+test('the editor\'s rows fold like a folding card: the red ▸ and the value folded, ▾ and the options open', () => {
+  const page = bootGeneratedPage(THREE);
+  page.tapAction('openScreen', 0);
+  let body = editorOf(page).body;
+  // Folded: the name, the value beside it, the red ▸; the button says it is folded.
+  assert.ok(editorRow(body, 1).indexOf('<button type="button" class="se-main" data-se="expand" data-j="1" aria-expanded="false">'
+    + '<span>Calendar</span><span class="se-val">2 rows</span>' + ui.foldChev(false) + '</button>') !== -1, editorRow(body, 1));
+  assert.equal(editorRow(body, 1).indexOf('se-more'), -1, 'no options while folded');
+  // Every row but the Watch bar folds: one ▸ each, none open.
+  assert.equal(body.split(ui.foldChev(false)).length - 1, 4, 'Calendar, Clock, Forecast bar, Forecast graph');
+  assert.equal(body.indexOf(ui.foldChev(true)), -1);
+  // The Watch bar stays at the top with nothing to open: its name alone, no button, no arrow.
+  assert.ok(editorRow(body, 0).indexOf('<span class="se-main fixed"><span>Watch bar</span></span>') !== -1);
+  assert.equal(editorRow(body, 0).indexOf('class="chev'), -1);
+  // Open: ▾, the value moved into the options under it.
+  page.tapEditor({ se: 'expand', j: 1 });
+  body = editorOf(page).body;
+  assert.ok(editorRow(body, 1).indexOf('<button type="button" class="se-main" data-se="expand" data-j="1" aria-expanded="true">'
+    + '<span>Calendar</span>' + ui.foldChev(true) + '</button>') !== -1, editorRow(body, 1));
+  assert.match(editorRow(body, 1), /<div class="se-sub se-more">[\s\S]*data-key="rows" data-v="2" aria-pressed="true">2</);
+  // One row open at a time: opening another folds the first again.
+  page.tapEditor({ se: 'expand', j: 4 });
+  body = editorOf(page).body;
+  assert.match(editorRow(body, 1), /aria-expanded="false"><span>Calendar<\/span><span class="se-val">2 rows<\/span>/);
+  assert.match(editorRow(body, 4), /aria-expanded="true"><span>Forecast graph<\/span><span class="chev fold"/);
+  assert.equal(body.split(ui.foldChev(true)).length - 1, 1);
+  // A second tap folds it.
+  page.tapEditor({ se: 'expand', j: 4 });
+  assert.equal(editorOf(page).body.indexOf(ui.foldChev(true)), -1);
+});
+
+test('the Screens card\'s rows open a screen of their own, so each ends on the red arrow', () => {
+  const page = bootGeneratedPage(THREE);
+  const html = page.scroll.innerHTML;
+  [0, 1, 2].forEach((i) => {
+    // The card's row (the pictures pinned over the card open the editor too, by the picture).
+    const row = html.indexOf('<div class="ui-row scr-row" data-scr-row="' + i + '">');
+    assert.ok(row !== -1, 'row ' + i);
+    const at = html.indexOf('data-action="openScreen" data-action-arg="' + i + '"', row);
+    const end = html.indexOf('</button>', at) + '</button>'.length;
+    assert.ok(html.slice(at, end).endsWith(ui.navArrow() + '</button>'), html.slice(at, end));
+  });
 });
 
 test('a drag by the handle moves a row; one that breaks a rule snaps back and says which', (t) => {

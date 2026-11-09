@@ -15,6 +15,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   var swatchReadout = htmlLib.swatchReadout;
   // A joined row's no-divider class (' nb' / ' nbl'), shared with the checklist's rows.
   var nbClass = htmlLib.nbClass;
+  // The page's shared parts (lib/ui.js, concatenated before this file): the nav rows' red
+  // arrow, the folding cards' chevron, the dialogs' header and their Delete are drawn with the
+  // builders the page modules draw theirs with.
+  var ui = (typeof require !== 'undefined') ? require('./ui.js') : PConf.ui;
   // The date control (value helpers + renderers + wheel wiring) lives in
   // lib/date-picker.js; the aliases keep this file's call sites and export
   // surface unchanged.
@@ -1304,12 +1308,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * A full-screen dialog's header: on the left the way out — × (close and discard what
-   * was changed since the dialog opened) on a dialog opened from a tab, ‹ (back to the
-   * dialog it was opened from, keeping the changes) on a nested one — then the kicker
-   * (where it was opened from) over the title, with the title's '?' and reset beside it,
-   * and Done (keep the changes) on the right. The title carries ssel-modal-ttl so the
-   * dialog's aria-labelledby finds it like every sheet's.
+   * A full-screen dialog's header (ui.js header, the screen editor's too): on the left the way
+   * out — × (close and discard what was changed since the dialog opened) on a dialog opened
+   * from a tab, ‹ (back to the dialog it was opened from, keeping the changes) on a nested
+   * one — then the kicker (where it was opened from) over the title, with the title's '?' and
+   * reset beside it, and Done (keep the changes) on the right.
    * @param {string} titleId DOM id of the title.
    * @param {string} title The dialog's title (plain text).
    * @param {string} kicker Where it opened from (plain text, '' for none).
@@ -1323,24 +1326,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {string} Header HTML.
    */
   function dialogHeader(titleId, title, kicker, nested, info, afterTitle, rename) {
-    var way = nested
-      ? '<button type="button" class="dlg-x" data-dlg-back aria-label="Back">&#8249;</button>'
-      : '<button type="button" class="dlg-x" data-dlg-close aria-label="Close and discard changes">&#215;</button>';
-    if (rename && rename.editing) {
-      return '<div class="dlg-hdr renaming">' + way
-        + '<span class="ssel-modal-ttl sr-only" id="' + titleId + '">' + esc(title) + '</span>'
-        + '<input type="text" class="dlg-rn-in" data-dlg-rename-in maxlength="' + rename.maxlength + '" autocomplete="off" aria-label="'
-        + esc(rename.label) + '" placeholder="' + esc(rename.placeholder) + '" value="' + esc(rename.value) + '">'
-        + '<button type="button" class="dlg-done" data-dlg-rename-ok>OK</button></div>';
-    }
-    var pen = rename ? '<button type="button" class="dlg-rn" data-dlg-rename aria-label="Rename ' + esc(rename.title)
-      + '"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/>'
-      + '</svg></button>' : '';
-    return '<div class="dlg-hdr">' + way
-      + '<div class="dlg-ttlwrap">' + (kicker ? '<span class="dlg-kick">' + esc(kicker) + '</span>' : '')
-      + '<span class="dlg-ttlline"><span class="ssel-modal-ttl dlg-ttl" id="' + titleId + '">'
-      + labelWithInfo(title, info || '') + '</span>' + pen + (afterTitle || '') + '</span></div>'
-      + '<button type="button" class="dlg-done" data-dlg-done>Done</button></div>';
+    return ui.header({
+      titleId: titleId, title: title, titleHtml: labelWithInfo(title, info || ''), kicker: kicker,
+      way: nested ? { glyph: '&#8249;', label: 'Back', at: { 'data-dlg-back': true } }
+        : { glyph: '&#215;', label: 'Close and discard changes', at: { 'data-dlg-close': true } },
+      pen: rename ? { 'data-dlg-rename': true } : null,
+      afterTitle: afterTitle || '',
+      done: { 'data-dlg-done': true },
+      rename: rename && rename.editing ? { at: { 'data-dlg-rename-in': true }, okAt: { 'data-dlg-rename-ok': true },
+        label: rename.label, maxlength: rename.maxlength, placeholder: rename.placeholder, value: rename.value } : null
+    });
   }
 
   function renderText(item, v) {
@@ -1675,6 +1670,35 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * An item's label: the one read off the settings when it has labelFrom (e.g. "Tomorrow.io
+   * API key" for the picked provider, "Delete Graph 2"), through the hint-resolver registry
+   * like a hint, else its static label.
+   * @param {Object} item Schema item (label, optional labelFrom: {resolver, args}).
+   * @param {?Object} cx Render context.
+   * @returns {string} The label (plain text).
+   */
+  function itemLabel(item, cx) {
+    if (item.labelFrom && cx) {
+      var fn = PConf.hintResolvers.get(item.labelFrom.resolver);
+      var v = fn ? fn(cx.S, cx.ENV, Object.assign({}, item.labelFrom.args || {})) : null;
+      if (v != null && v !== '') { return String(v); }
+    }
+    return item.label;
+  }
+
+  /**
+   * A Delete item (type 'button', style 'delete'): its action as the page's one Delete
+   * (ui.js deleteButton), the item's actionArg handed to the action as data-action-arg.
+   * @param {Object} item Schema item (label or labelFrom, action, optional actionArg).
+   * @param {Object} cx Render context.
+   * @returns {string} Button HTML.
+   */
+  function deleteItemHtml(item, cx) {
+    return ui.deleteButton(itemLabel(item, cx), { 'data-action': item.action,
+      'data-action-arg': item.actionArg == null ? null : String(item.actionArg) });
+  }
+
+  /**
    * A whole-row tap target that leads somewhere: a `button` item's action or a `sheet`
    * item's sheetOnly section. Both rows are the same chrome — label, optional hint, a
    * chevron on the right — and differ only in the data attribute the click delegate
@@ -1701,14 +1725,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var derived = resolveHint(item, cx.S, cx.ENV, undefined);
       if (derived !== undefined) { summary = derived; }
     }
-    // labelFrom: a label read off the settings (e.g. "Tomorrow.io API key" for the picked
-    // provider), through the hint-resolver registry like a hint; the static label else.
-    var label = item.label;
-    if (item.labelFrom && cx) {
-      var lfn = PConf.hintResolvers.get(item.labelFrom.resolver);
-      var lv = lfn ? lfn(cx.S, cx.ENV, Object.assign({}, item.labelFrom.args || {})) : null;
-      if (lv != null && lv !== '') { label = String(lv); }
-    }
+    var label = itemLabel(item, cx);
     var faint = item.summaryFaintFrom && cx
       && PConf.showWhen.evaluate(item.summaryFaintFrom, cx.evalCtx);
     var sub = summary ? '<div class="hint' + (faint ? ' faint' : '') + '">' + summary + '</div>' : '';
@@ -1727,7 +1744,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + '<div class="lft"><div class="lbl">' + labelIconHtml(item) + esc(label) + '</div>' + sub
       + (ariaNote ? '<span class="sr-only">' + esc(String(ariaNote)) + '</span>' : '') + '</div>'
       + '<div class="rgt">' + (swatch || '') + (item.navNote ? '<span class="nav-note">' + esc(item.navNote) + '</span>' : '')
-      + '<span class="chev">&#8250;</span></div></div>';
+      + ui.navArrow() + '</div></div>';
   }
 
   // Render one schema item honoring showWhen. Returns { html, kind } with kind in
@@ -1736,6 +1753,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (!PConf.showWhen.isVisible(item, cx.evalCtx)) { return { html: '', kind: 'hidden' }; }
     // A persisted-but-invisible key (hydrated + serialized, never drawn) — e.g. onboardingDone.
     if (item.type === 'hidden') { return { html: '', kind: 'hidden' }; }
+    // A Delete (style 'delete'): buildCards draws it under its card; anywhere else in place.
+    if (item.type === 'button' && item.style === 'delete') { return { kind: 'control', html: deleteItemHtml(item, cx) }; }
     // A tappable action row: dispatches to PConf.actions[item.action] via the scroll click handler.
     if (item.type === 'button') {
       // gotoTab: a nav row that brings another tab to the front (a tab link's
@@ -2055,7 +2074,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       return '<button class="cardHdr coll" data-coll="' + esc(h.secId) + '" aria-expanded="'
         + (h.open ? 'true' : 'false') + '">'
         + '<span class="ttlwrap"><span class="ttl"' + titleByAttr(h) + '>' + esc(h.title || '') + '</span></span>' + val
-        + '<span class="chev">' + (h.open ? '&#9662;' : '&#9656;') + '</span></button>';
+        + ui.foldChev(h.open) + '</button>';
     }
     return '<div class="cardHdr">'
       + '<span class="ttlwrap"><span class="ttl"' + titleByAttr(h) + '>' + esc(h.title || '') + '</span>'
@@ -2238,12 +2257,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       groups[groups.length - 1].items.push(it);
     }
-    var cards = [], gi, g, main, more, mainR, moreR, cardId, head, introId, introOpen, intro;
+    var cards = [], gi, g, main, more, dels, mainR, moreR, cardId, head, introId, introOpen, intro;
     var infoOpen = cx.infoOpen || {}, moreOpen = cx.moreOpen || {};
     for (gi = 0; gi < groups.length; gi++) {
       g = groups[gi];
-      main = []; more = [];
-      for (i = 0; i < g.items.length; i++) { (g.items[i].more ? more : main).push(g.items[i]); }
+      main = []; more = []; dels = [];
+      // A Delete (a button with style 'delete': a status bar's Delete bar, Graphs' Delete) is
+      // drawn under its card, outside it, as the screen editor's Delete screen is: the last
+      // thing under what it deletes (ui.js deleteButton). It goes with its card.
+      for (i = 0; i < g.items.length; i++) {
+        it = g.items[i];
+        if (it.type === 'button' && it.style === 'delete') { dels.push(it); continue; }
+        (it.more ? more : main).push(it);
+      }
       cardId = secKey + '/' + gi;
       mainR = renderItemRun(main, cx, hosted);
       var blockHtml = gi === groups.length - 1 ? renderBlock(sec.block, cx.S, cx.ENV, cx.USERDATA) : '';
@@ -2286,7 +2312,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           + (mOpen ? '' : '<span class="more-n">' + moreCount + ' more</span>') + '</button>';
       }
       cards.push({ isEmpty: false, html: '<div class="card' + (hdr ? '' : ' nohdr') + '">' + hdr
-        + (isOpen ? '<div>' + body + '</div>' : '') + '</div>' });
+        + (isOpen ? '<div>' + body + '</div>' : '') + '</div>'
+        + dels.map(function (d) { return renderItem(d, null, cx, false).html; }).join('') });
     }
     return cards;
   }

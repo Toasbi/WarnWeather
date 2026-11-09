@@ -230,7 +230,9 @@ test('renderNewsListHtml wraps items in a scroll container between the pinned he
   // header pins to the top and the composer pins to the bottom (flex column),
   // leaving only the news items to scroll.
   assert.match(html, /<div class="news-scroll">/);
-  const hdr = html.indexOf('news-modal-hdr');
+  assert.ok(html.startsWith(require('../src/pkjs/config-ui/lib/ui.js').popupHeader('News', { 'data-news-close': '1' })),
+    'the popup header Support has too');
+  const hdr = html.indexOf('ui-pop-hdr');
   const scroll = html.indexOf('news-scroll');
   const item = html.indexOf('news-item');
   const composer = html.indexOf('news-message');

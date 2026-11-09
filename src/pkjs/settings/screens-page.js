@@ -1,14 +1,17 @@
 // src/pkjs/settings/screens-page.js — ES5, WebView (+ Node for tests). The Watchface tab's
-// screens: the Screens card (one row per screen by its name, dragged by its ≡ or moved with the
-// arrow keys, the top one the Default; a ✕ with Undo on each other; "+ Add screen"), the Add a
-// screen sheet (Blank, then the presets this watch can draw: screen-presets.js), the screen
-// editor (a full-screen sheet: the screen's name, which a tap renames with an OK button, its
-// picture and its rows top to bottom, dragged or moved, each with its option, a bar's and the
-// forecast graph's a picker and an Edit button, then the Add chips), the Status bars tab's Your
-// bars card (each bar's name, the screens that show it and its picture, whose slots a tap
-// changes; a tap on the name opens the bar's dialog, schema.js barDialog, which pins the bar's
-// picture; New bar makes an empty bar and opens it), Setup's Rain radar picker (Off keeps the
-// source) and the modes the page works out from the screens.
+// screens: the Screens card (one row per screen by its name, ending on the red arrow that opens
+// its editor, dragged by its ≡ or moved with the arrow keys, the top one the Default; a ✕ with
+// Undo on each other; "+ Add screen"), the Add a screen sheet (Blank, then the presets this
+// watch can draw: screen-presets.js), the screen editor (a full-screen view under a dialog's
+// header: the screen's name, which its pencil renames with an OK button, its picture and its
+// rows top to bottom, dragged or moved, each folding open on its red ▸ like a folding card to
+// show its option and its moves, a bar's and the forecast graph's a picker and an Edit button,
+// then the Add chips, and Delete screen under the card), the Status bars tab's Your bars card
+// (each bar's name, ending on the red arrow, the screens that show it and its picture, whose
+// slots a tap changes; a tap on the name opens the bar's dialog, schema.js barDialog, which pins
+// the bar's picture; New bar makes an empty bar and opens it), Setup's Rain radar picker (Off
+// keeps the source) and the modes the page works out from the screens. Every arrow, chevron,
+// Delete, Undo, chip and header is the page's shared part (config-ui/lib/ui.js).
 //
 // The screens are read from and written to the custom layout's per-view keys (screens.js
 // screensOf / compileKeys), one screen at a time, so a screen the user does not touch keeps
@@ -45,6 +48,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var PRESETS = (typeof require !== 'undefined') ? require('../screen-presets.js') : window.ScreenPresets;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
     var esc = (typeof require !== 'undefined') ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
+    // The page's shared parts (config-ui/lib/ui.js): the lists' rows, red arrows, New rows and
+    // Undo (with the timer that takes a message away: flash), the editor's header, its folding
+    // rows' chevrons, its chips and Delete screen, the icons.
+    var kit = (typeof require !== 'undefined') ? require('../config-ui/lib/ui.js') : PConf.ui;
 
     // The places' names, the Default first (a screen's own name: screens.js nameOf).
     var NAMES = M.NAMES;
@@ -220,26 +227,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * A message that goes by itself: `box.v` holds it for `ms`, then `repaint` draws the page
-     * without it. A new one replaces the one shown. (The Undo of a deleted screen or bar, why a
-     * move snapped back.)
-     * @param {{v: *, t: *}} box Where it is kept, and its timer.
-     * @param {*} v The message.
-     * @param {number} ms How long it stays.
-     * @param {function(): void} repaint What draws it.
-     * @returns {void}
-     */
-    function flash(box, v, ms, repaint) {
-        box.v = v;
-        if (box.t) { clearTimeout(box.t); }
-        box.t = setTimeout(function () {
-            box.v = null;
-            box.t = null;
-            repaint();
-        }, ms);
-    }
-
-    /**
      * An Undo tapped (a flash holding {text, snap}): its snapshot put back (restore) and the
      * message gone.
      * @param {{v: *, t: *}} box The Undo's box.
@@ -249,19 +236,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function takeUndo(box, S, env) {
         if (box.v) { restore(S, box.v.snap, env); }
-        dropFlash(box);
+        kit.unflash(box);
         return true;
     }
 
-    /**
-     * A flash gone before its time: its message and its timer.
-     * @param {{v: *, t: *}} box The flash's box.
-     * @returns {void}
-     */
-    function dropFlash(box) {
-        box.v = null;
-        if (box.t) { clearTimeout(box.t); box.t = null; }
-    }
 
     /**
      * New bar, wherever it is tapped (the Your bars card, the editor's + New bar, the bar
@@ -273,7 +251,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function makeBar(S, env) {
         var made = M.makeBar(S, env);
-        if (made) { dropFlash(BAR_UNDO); }
+        if (made) { kit.unflash(BAR_UNDO); }
         return made;
     }
 
@@ -769,19 +747,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var name = M.barName(S, bar), snap = M.unmakeBar(S, bar, env);
         if (!snap) { return false; }
         applyModes(S, env);
-        flash(BAR_UNDO, { text: name + ' deleted.', snap: snap }, 5000, renderPage);
+        kit.flash(BAR_UNDO, { text: name + ' deleted.', snap: snap }, 5000, renderPage);
         return true;
     }
 
     // ── The Your bars card and a bar's dialog (the Status bars tab) ─────────
 
     /**
-     * The Your bars card (block 'barsList', the owner's pick, 2026-11-09): a line per bar, the
-     * Watch bar first and then your bars (screens.js yourBars), each its name, the screens that
-     * show it (none on aplite, which has one) and a chevron, a tap opening the bar's dialog
-     * (schema.js barDialog); under it the bar's picture, where a tap on a slot opens its picker,
-     * dimmed while no screen shows it. Then New bar with how many bars there are (Pebble Time 2),
-     * or with six why there is none, and the Undo after a Delete bar.
+     * The Your bars card (block 'barsList', the owner's pick, 2026-11-09), in the page's shared
+     * parts (kit): a line per bar, the Watch bar first and then your bars (screens.js yourBars),
+     * each its name, the screens that show it (none on aplite, which has one) and the red arrow
+     * of a row that opens a screen of its own, a tap opening the bar's dialog (schema.js
+     * barDialog); under it the bar's picture, where a tap on a slot opens its picker, dimmed
+     * while no screen shows it. Then New bar with how many bars there are (Pebble Time 2), or
+     * with six why there is none, and the Undo after a Delete bar.
      * @param {Object} S Live settings.
      * @param {?Object} env Platform env.
      * @returns {string} HTML
@@ -792,24 +771,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var name = M.barName(st, bar), places = cycle ? barPlaces(st, env, bar, cycle) : null;
             var where = !places ? '' : places.length ? places.map(function (i) { return M.nameOf(st, i); }).join(', ')
                 : 'No screen';
-            return '<div class="bl-bar"><button type="button" class="bl-name" data-edit-sheet="' + M.barSheet(bar) + '">'
-                + '<span class="bl-n">' + esc(name) + '</span>' + (where ? '<span class="bl-w">' + esc(where) + '</span>' : '')
-                + '<span class="bl-chev" aria-hidden="true">›</span></button>'
+            return '<div class="ui-row bl-bar"><button type="button" class="bl-name" data-edit-sheet="' + M.barSheet(bar) + '">'
+                + '<span class="ui-n">' + esc(name) + '</span>' + (where ? '<span class="ui-d">' + esc(where) + '</span>' : '')
+                + kit.navArrow() + '</button>'
                 + PSB.barPicture(st, env, bar, { tappable: true, dim: Boolean(places && !places.length) }) + '</div>';
         }).join('');
         if (M.freeBar(st, env)) {
-            h += '<button type="button" class="bl-new" data-action="newBar">' + I_PLUS + '<span class="bl-n">New bar</span>'
-                + '<span class="bl-w">' + esc(barCount(st, env)) + '</span></button>';
+            h += kit.newRow('New bar', barCount(st, env), { 'data-action': 'newBar' });
         } else if (env && env.extraBars) {
-            h += '<div class="bl-full">' + esc(BARS_FULL) + '</div>';
+            h += '<div class="ui-row ui-foot">' + esc(BARS_FULL) + '</div>';
         }
-        var u = BAR_UNDO.v;
-        if (u) {
-            h += '<div class="scr-toast bl-toast" role="status"><span>' + esc(u.text) + '</span>'
-                + '<button type="button" class="scr-undo" data-action="undoDeleteBar">Undo</button></div>';
-        }
+        if (BAR_UNDO.v) { h += kit.undoToast(BAR_UNDO.v.text, { 'data-action': 'undoDeleteBar' }); }
         ensureStyle();
-        return '<div class="bl">' + h + '</div>';
+        return '<div class="ui-list">' + h + '</div>';
     }
 
     /**
@@ -827,121 +801,75 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!bar) { return ''; }
         ensureStyle();
         return '<div class="bl-pin">' + PSB.barPicture(S || {}, env, bar, { big: true })
-            + (hasScreens(env) ? '<div class="bl-pin-w">' + esc(barWhere(S || {}, env, bar)) + '</div>' : '') + '</div>';
+            + (hasScreens(env) ? '<div class="ui-d">' + esc(barWhere(S || {}, env, bar)) + '</div>' : '') + '</div>';
     }
 
-    // ── Icons ──────────────────────────────────────────────────
+    // ── Styles ──────────────────────────────────────────────────
 
-    /**
-     * A line icon (the editor's and the card's).
-     * @param {string} d Its SVG path.
-     * @returns {string} SVG markup
-     */
-    function ic(d) { return '<svg class="scr-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="' + d + '"/></svg>'; }
-    var I_X = ic('M6 6l12 12M18 6L6 18');
-    var I_GRIP = ic('M5 8.5h14M5 12h14M5 15.5h14');
-    var I_BACK = ic('M15 5l-7 7 7 7');
-    var I_UP = ic('M12 19V5M6 11l6-6 6 6');
-    var I_DOWN = ic('M12 5v14M6 13l6 6 6-6');
-    var I_PEN = ic('M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4');
-    var I_PLUS = ic('M12 5v14M5 12h14');
-
+    // The cards' and the editor's own look. Their lists, red arrows, folding chevrons, New rows,
+    // Undo, notes, chips, Delete screen, the editor's header and the icons are the page's shared
+    // parts (kit: config-ui/lib/ui.js, their look in shell.html); the editor's card is the
+    // page's .card.
     var CSS = ''
-        + '.scr-ic{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}'
-        // The list bleeds over the .blockrow's padding (12px 16px 14px) so its rows are the
-        // card's own rows: the text 16px in and the dividers edge to edge, like every card below.
-        + '.scr-list{margin:-12px -16px -14px}'
-        + '.scr-row{display:flex;align-items:stretch;border-bottom:1px solid var(--row-line)}'
-        + '.scr-row:last-child{border-bottom:none}'
+        // The Screens card: a row per screen in the shared list, its ≡ (two screens or more), its
+        // name over what it shows and the red arrow, then the ✕ of any but the first.
+        + '.scr-row{position:relative;display:flex;align-items:stretch;background:var(--card);transition:transform .16s ease}'
         + '.scr-main{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:14px 8px 14px 16px;border:none;'
         + 'background:none;text-align:left;cursor:pointer;color:var(--lbl);font:inherit}'
+        + '.scr-main.g{padding-left:0}'
         + '.scr-mid{flex:1;min-width:0;display:block}'
-        + '.scr-t{display:block;font-size:14.5px;font-weight:700}'
-        + '.scr-els{display:block;font-size:12px;color:var(--hint);line-height:1.4;margin-top:1px}'
-        + '.scr-chev{flex:none;color:var(--faint);font-size:18px;line-height:1}'
+        + '.scr-mid>span{display:block}'
+        + '.scr-mid .ui-d{margin-top:1px}'
         + '.scr-x,.scr-xpad{flex:none;width:46px}'
         + '.scr-x{display:flex;align-items:center;justify-content:center;border:none;border-left:1px solid var(--row-line);'
         + 'background:none;color:var(--muted);cursor:pointer}'
-        + '.scr-add{display:block;width:100%;padding:14px 16px;border:none;background:none;text-align:left;color:var(--link);'
-        + 'font:700 13.5px Inter,system-ui,sans-serif;cursor:pointer}'
-        + '.scr-toast{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 16px 14px;'
-        + 'background:var(--ctl);border-radius:10px;padding:9px 12px;font-size:12.5px;color:var(--lbl)}'
-        + '.scr-undo{flex:none;border:none;background:none;padding:2px 4px;color:var(--link);font:800 12.5px Inter,system-ui,sans-serif;cursor:pointer}'
-        // The card's ≡ (two screens or more): a row lifts and follows it, the others make room.
-        + '.scr-row{position:relative;background:var(--card);transition:transform .16s ease}'
+        // The card's ≡: a row lifts and follows it, the others make room.
         + '.scr-row.lift{z-index:5;transition:none;background:var(--bg);border-radius:10px;'
         + 'box-shadow:0 12px 26px rgba(0,0,0,.3),0 0 0 1px var(--card-line)}'
         + '.scr-list.dragging{-webkit-user-select:none;user-select:none}'
         + '.scr-grip{flex:none;width:42px;display:flex;align-items:center;justify-content:center;margin:0;padding:0 0 0 4px;'
         + 'border:none;background:none;color:var(--faint);cursor:grab;touch-action:none;-webkit-appearance:none;appearance:none}'
         + '.scr-grip:focus-visible{outline:2px solid var(--link);outline-offset:-6px;border-radius:12px}'
-        + '.scr-main.g{padding-left:0}'
         + '.scr-pill{display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;background:var(--ctl);'
         + 'color:var(--muted);font:700 10.5px/1.3 Inter,system-ui,sans-serif;vertical-align:1px}'
-        + '.scr-hint{padding:10px 16px 14px;font-size:12px;line-height:1.4;color:var(--hint)}'
-        + '.scr-note{margin:0 16px 14px;border-left:3px solid var(--info-rule);background:var(--info-tint);border-radius:8px;'
-        + 'padding:9px 11px;font-size:12.5px;line-height:1.45;color:var(--static)}'
-        // The Your bars card: the card's own rows (bleeding over the .blockrow's padding, as the
-        // Screens card's), each a bar's name line over its picture; then New bar.
-        + '.bl{margin:-12px -16px -14px}'
-        + '.bl-bar{padding:10px 16px 12px;border-top:1px solid var(--row-line)}'
+        // The Your bars card: a bar's name line (the red arrow: its dialog) over its picture.
+        + '.bl-bar{padding:10px 16px 12px}'
         + '.bl-name{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 7px;padding:3px 0;border:none;background:none;'
         + 'color:var(--lbl);text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
-        + '.bl-n{flex:1 1 auto;min-width:0;font:600 14.5px/1.3 Inter,system-ui,sans-serif;overflow-wrap:anywhere}'
-        + '.bl-w{flex:0 1 auto;min-width:0;max-width:55%;font:500 12.5px Inter,system-ui,sans-serif;color:var(--hint);'
-        + 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
-        + '.bl-chev{flex:none;color:var(--faint);font-size:18px;line-height:1}'
-        + '.bl-new{display:flex;align-items:center;gap:10px;width:100%;margin:0;padding:14px 16px;border:none;'
-        + 'border-top:1px solid var(--row-line);background:none;text-align:left;font:inherit;cursor:pointer;'
-        + '-webkit-appearance:none;appearance:none}'
-        + '.bl-new .scr-ic{color:var(--link)}'
-        + '.bl-new .bl-n{color:var(--link)}'
-        + '.bl-full{padding:12px 16px 14px;border-top:1px solid var(--row-line);font-size:12.5px;line-height:1.45;color:var(--hint)}'
-        + '.bl-toast{margin:2px 16px 14px}'
+        + '.bl-name .ui-n{flex:1 1 auto;min-width:0}'
+        + '.bl-name .ui-d{flex:0 1 auto;min-width:0;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
         // A bar's dialog's picture: the bar, large, where it shows under it.
         + '.bl-pin{display:grid;gap:8px}'
-        + '.bl-pin-w{text-align:center;font:500 12.5px Inter,system-ui,sans-serif;color:var(--hint)}'
-        // The editor (a full-screen sheet, the wizard's pattern).
+        + '.bl-pin .ui-d{text-align:center}'
+        // The editor: a full-screen view (the wizard's pattern) under a dialog's header.
         + '#screenEditor{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;'
         + 'max-width:460px;margin:0 auto;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,sans-serif}'
-        + '#screenEditor .se-hdr{flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:16px 14px 10px}'
-        + '#screenEditor .se-back{justify-self:start;width:38px;height:38px;border-radius:11px;border:none;background:var(--ctl);'
-        + 'color:var(--lbl);display:flex;align-items:center;justify-content:center;cursor:pointer}'
-        + '#screenEditor .se-ttl{margin:0;min-width:0;font-size:17px;font-weight:800;text-align:center}'
-        // The editor's title: the screen's name, a tap renames it.
-        + '.se-name{display:inline-flex;align-items:center;gap:6px;max-width:100%;margin:0;padding:4px 6px;border:none;'
-        + 'border-radius:8px;background:none;color:var(--fg);font:800 17px/1.25 Inter,system-ui,sans-serif;cursor:pointer}'
-        + '.se-name span{overflow-wrap:anywhere}'
-        + '.se-name .scr-ic{flex:none;width:15px;height:15px;color:var(--link)}'
-        + '.se-name-in{box-sizing:border-box;width:12em;max-width:100%;margin:0;padding:6px 8px;border:2px solid var(--link);'
-        + 'border-radius:8px;background:var(--bg);color:var(--fg);font:700 16px Inter,system-ui,sans-serif;text-align:center}'
-        + '#screenEditor .se-ttl.renaming{display:flex;align-items:center;gap:8px;grid-column:2/4}'
-        + '#screenEditor .se-ttl.renaming .se-name-in{flex:1 1 auto;min-width:0;width:auto}'
-        + '#screenEditor .se-done{justify-self:end}'
-        + '#screenEditor .se-body{flex:1;min-height:0;overflow-y:auto;padding:4px 14px 28px;display:flex;flex-direction:column;gap:12px}'
+        + '#screenEditor .se-body{flex:1;min-height:0;overflow-y:auto;padding:4px 16px 28px;display:flex;flex-direction:column;gap:12px}'
         + '#screenEditor .se-body>*{flex:none}'
+        + '#screenEditor .se-body>.card{margin:0}'
         + '.se-pic{display:flex;justify-content:center}'
         + '.se-pic-card{display:block;width:148px;border-radius:13px;overflow:hidden;line-height:0;'
         + 'box-shadow:0 8px 20px rgba(0,0,0,.28),0 0 0 1px var(--card-line)}'
         + '.se-pic-card svg{display:block;width:100%;height:auto}'
-        + '.se-note{border-left:3px solid var(--info-rule);background:var(--info-tint);border-radius:8px;padding:9px 11px;'
-        + 'font-size:12.5px;line-height:1.45;color:var(--static)}'
-        + '.se-card{background:var(--card);border:1px solid var(--card-line);border-radius:16px;overflow:hidden}'
-        + '.se-cardhd{padding:14px 16px 8px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ttl)}'
+        // A row: its ≡, its name, what it shows while folded and the red ▸ (▾ while open), its ✕.
         + '.se-row{position:relative;display:grid;grid-template-columns:40px minmax(0,1fr) 44px;align-items:center;'
-        + 'border-top:1px solid var(--row-line);background:var(--card);transition:transform .16s ease}'
+        + 'background:var(--card);transition:transform .16s ease}'
+        + '.se-row+.se-row{border-top:1px solid var(--row-line)}'
         + '.se-row.lift{z-index:5;transition:none;background:var(--bg);border-radius:10px;'
         + 'box-shadow:0 12px 26px rgba(0,0,0,.3),0 0 0 1px var(--card-line)}'
         + '.se-list.dragging{-webkit-user-select:none;user-select:none}'
         + '.se-grip{align-self:stretch;display:flex;align-items:center;justify-content:center;color:var(--faint);cursor:grab;touch-action:none}'
         + '.se-grip.off{cursor:default}'
-        + '.se-main{min-width:0;display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:13px 2px 13px 0;'
+        + '.se-main{min-width:0;display:flex;align-items:center;gap:8px;padding:13px 2px 13px 0;'
         + 'border:none;background:none;text-align:left;color:var(--lbl);font:600 14px Inter,system-ui,sans-serif;cursor:pointer}'
+        + '.se-main>span:first-child{flex:1 1 auto;min-width:0}'
         + '.se-main.fixed{cursor:default}'
-        + '.se-val{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}'
+        + '.se-val{flex:0 1 auto;min-width:0;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;'
+        + 'text-overflow:ellipsis}'
+        + '.se-main .chev{width:12px;text-align:center}'
         + '.se-x{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:none;background:none;'
         + 'color:var(--muted);cursor:pointer}'
-        + '.se-x .scr-ic{width:16px;height:16px}'
+        + '.se-x .ui-ic{width:16px;height:16px}'
         + '.se-sub{grid-column:1/-1;padding:0 14px 12px 40px}'
         + '.se-off{font-size:12.5px;color:var(--lbl);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}'
         + '.se-link{border:none;background:none;padding:0;color:var(--link);font:700 12.5px Inter,system-ui,sans-serif;cursor:pointer}'
@@ -954,18 +882,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-moves{display:flex;gap:8px;margin-top:6px}'
         + '.se-mv{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--ctl-line);'
         + 'background:var(--bg);color:var(--lbl);border-radius:9px;padding:8px 6px;font:600 12px Inter,system-ui,sans-serif;cursor:pointer}'
-        + '.se-mv .scr-ic{width:14px;height:14px}'
+        + '.se-mv .ui-ic{width:14px;height:14px}'
         + '.se-mv:disabled{opacity:.4;cursor:default}'
-        + '.se-adds{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
-        + '.se-addlbl{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ttl);margin-right:2px}'
-        // Add's chips: calm, an outline and the row's own text, the plus in the accent.
-        + '.se-add{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line-strong);background:var(--bg);'
-        + 'color:var(--lbl);border-radius:999px;padding:6px 11px 6px 9px;font:600 12.5px Inter,system-ui,sans-serif;cursor:pointer}'
-        + '.se-add .scr-ic{width:12px;height:12px;color:var(--link);stroke-width:3}'
-        + '.se-del{align-self:center;border:none;background:none;color:var(--link);font:700 13.5px Inter,system-ui,sans-serif;'
-        + 'padding:10px 16px;cursor:pointer}'
-        + '.se-toast{position:absolute;left:12px;right:12px;bottom:16px;z-index:40;background:var(--ctl);color:var(--lbl);'
-        + 'border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;box-shadow:0 10px 30px rgba(0,0,0,.35)}'
+        // Add's chips under the rows, the caption first.
+        + '.se-adds{padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
+        + '.se-adds .ui-cap{margin-right:2px}'
         // Add a screen: Blank across the top, the presets two by two, each with its picture.
         + '.sa-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}'
         + '.sa-card{display:grid;justify-items:center;align-content:start;gap:8px;min-width:0;margin:0;padding:12px 10px;'
@@ -1011,10 +932,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The Screens card's rows: one per screen, its name (the top one's "Default" pill when it
-     * has a name of its own) and what it shows; with two screens or more a ≡ that drags it
-     * (the arrow keys move it too) and the line that says so; a ✕ on each flick screen;
-     * "+ Add screen" while there are fewer than three; why a move snapped back; the Undo toast
+     * The Screens card's rows, in the page's shared parts (kit): one per screen, its name (the
+     * top one's "Default" pill when it has a name of its own) over what it shows and the red
+     * arrow of a row that opens a screen of its own (the editor); with two screens or more a ≡
+     * that drags it (the arrow keys move it too) and the line that says so; a ✕ on each flick
+     * screen; Add screen while there are fewer than three; why a move snapped back; the Undo
      * after a delete.
      * @param {Object} S Live settings.
      * @param {?Object} env Platform env.
@@ -1027,24 +949,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var rows = lists.map(function (list, i) {
             var name = esc(M.nameOf(s, i));
             var pill = i === 0 && M.nameOf(s, 0) !== NAMES[0] ? '<span class="scr-pill">' + NAMES[0] + '</span>' : '';
-            return '<div class="scr-row" data-scr-row="' + i + '">'
+            return '<div class="ui-row scr-row" data-scr-row="' + i + '">'
                 + (many ? '<button type="button" class="scr-grip" data-scr-grip="' + i + '" aria-label="Move ' + name
-                    + ' (arrow keys)" aria-describedby="scrHint">' + I_GRIP + '</button>' : '')
+                    + ' (arrow keys)" aria-describedby="scrHint">' + kit.icon('grip') + '</button>' : '')
                 + '<button type="button" class="scr-main' + (many ? ' g' : '') + '" data-action="openScreen" data-action-arg="' + i
-                + '"><span class="scr-mid"><span class="scr-t">' + name + pill + '</span><span class="scr-els">'
-                + esc(contents(list, s)) + '</span></span><span class="scr-chev" aria-hidden="true">›</span></button>'
+                + '"><span class="scr-mid"><span class="ui-n">' + name + pill + '</span><span class="ui-d">'
+                + esc(contents(list, s)) + '</span></span>' + kit.navArrow() + '</button>'
                 + (i > 0 ? '<button type="button" class="scr-x" data-action="deleteScreen" data-action-arg="' + i
-                    + '" aria-label="Delete ' + name + '">' + I_X + '</button>' : '<span class="scr-xpad" aria-hidden="true"></span>')
+                    + '" aria-label="Delete ' + name + '">' + kit.icon('x') + '</button>' : '<span class="scr-xpad" aria-hidden="true"></span>')
                 + '</div>';
         }).join('');
-        var add = lists.length < M.MAX_SCREENS
-            ? '<button type="button" class="scr-add" data-action="addScreen">+ Add screen</button>' : '';
-        var hint = many ? '<div class="scr-hint" id="scrHint">' + REORDER_HINT + '</div>' : '';
-        var note = UI.note.v ? '<div class="scr-note" role="status">' + esc(UI.note.v) + '</div>' : '';
-        var t = UI.toast.v;
-        var toast = t ? '<div class="scr-toast" role="status"><span>' + esc(t.text) + '</span>'
-            + '<button type="button" class="scr-undo" data-action="undoDeleteScreen">Undo</button></div>' : '';
-        return '<div class="scr-list">' + rows + add + hint + note + toast + '</div>';
+        var add = lists.length < M.MAX_SCREENS ? kit.newRow('Add screen', '', { 'data-action': 'addScreen' }) : '';
+        var hint = many ? '<div class="ui-row ui-foot" id="scrHint">' + REORDER_HINT + '</div>' : '';
+        var note = UI.note.v ? kit.note(UI.note.v) : '';
+        var toast = UI.toast.v ? kit.undoToast(UI.toast.v.text, { 'data-action': 'undoDeleteScreen' }) : '';
+        return '<div class="ui-list scr-list">' + rows + add + hint + note + toast + '</div>';
     }
 
     /**
@@ -1053,7 +972,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function showNote(text) {
-        flash(UI.note, text, 4000, renderPage);
+        kit.flash(UI.note, text, 4000, renderPage);
     }
 
     /**
@@ -1129,7 +1048,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function showToast(text, snap) {
-        flash(UI.toast, { text: text, snap: snap }, 5000, renderPage);
+        kit.flash(UI.toast, { text: text, snap: snap }, 5000, renderPage);
     }
 
     // ── The editor ──────────────────────────────────────────────────────────
@@ -1243,23 +1162,29 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * An open bar row's Bar line: the picker of your bars, by the bar's name, and Edit, which
-     * opens the bar's dialog over the editor.
+     * opens the bar's dialog over the editor; under it the other screens that show the bar (the
+     * folded row says it beside its name).
      * @param {number} j The row.
      * @param {Object} S Settings.
      * @param {string} bar An on-demand.js BARS bar.
+     * @param {string} also alsoOn's line ('' for none).
      * @returns {string} HTML
      */
-    function barHtml(j, S, bar) {
+    function barHtml(j, S, bar, also) {
         var name = M.barName(S, bar);
-        return pickerLine('Bar', 'bar', 'editbar', j, name, 'Edit ' + name);
+        return pickerLine('Bar', 'bar', 'editbar', j, name, 'Edit ' + name) + (also ? '<div class="ui-d">' + esc(also) + '</div>' : '');
     }
 
     /**
-     * One row of the list.
+     * One row of the list, folding as a collapsible card does (kit.foldChev): its ≡, its name,
+     * what it shows while it is folded ("Graph 2 · Fill", as a folded card's header says its
+     * pick) and the red ▸ of a row that opens in place, ▾ while its options show under it (the
+     * values among them); then its ✕. The Watch bar's row neither folds nor moves.
      * @param {Array<Object>} list The screen.
      * @param {number} j The row.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
+     * @param {Array<?Array>} cycle The screens' cycle (view-cycle.js screensCycle).
      * @returns {string} HTML
      */
     function rowHtml(list, j, S, env, cycle) {
@@ -1268,28 +1193,30 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // The forecast graph's own graph (a watch with graph styles) beside its size, so the
         // folded row names it too: "Graph 2 · Fill".
         var styled = b.k === 'fc' && Boolean(env && env.graphStyles);
-        var val = b.k === 'cal' ? b.rows + ' rows' : styled ? GS.name(S, blockStyle(b, S)) + ' · ' + sizeLabel(b)
-            : K.graph ? sizeLabel(b) : bar ? alsoOn(S, env, bar, cycle) : '';
+        var also = bar ? alsoOn(S, env, bar, cycle) : '';
+        var val = open ? '' : b.k === 'cal' ? b.rows + ' rows' : styled ? GS.name(S, blockStyle(b, S)) + ' · ' + sizeLabel(b)
+            : K.graph ? sizeLabel(b) : also;
         var h = '<div class="se-row" role="listitem" data-j="' + j + '">';
         h += fixed ? '<span class="se-grip off" aria-hidden="true"></span>'
-            : '<span class="se-grip" data-grip="' + j + '" title="Drag to move" aria-hidden="true">' + I_GRIP + '</span>';
+            : '<span class="se-grip" data-grip="' + j + '" title="Drag to move" aria-hidden="true">' + kit.icon('grip') + '</span>';
         h += fixed ? '<span class="se-main fixed"><span>' + name + '</span></span>'
             : '<button type="button" class="se-main" data-se="expand" data-j="' + j + '" aria-expanded="' + open + '"><span>'
-                + name + '</span>' + (val ? '<span class="se-val">' + esc(val) + '</span>' : '') + '</button>';
+                + name + '</span>' + (val ? '<span class="se-val">' + esc(val) + '</span>' : '') + kit.foldChev(open) + '</button>';
         h += keepClock ? '<span class="se-x" aria-hidden="true"></span>'
-            : '<button type="button" class="se-x" data-se="rm" data-j="' + j + '" aria-label="Remove ' + name + '">' + I_X + '</button>';
+            : '<button type="button" class="se-x" data-se="rm" data-j="' + j + '" aria-label="Remove ' + name + '">'
+                + kit.icon('x') + '</button>';
         if (b.k === 'radar' && S.radarEnabled === false) {
             h += '<div class="se-sub se-off"><span>' + RADAR_OFF + '</span>'
                 + '<button type="button" class="se-link" data-se="radaron">Turn on</button></div>';
         }
         if (open) {
-            h += '<div class="se-sub se-more">' + (styled ? styleHtml(list, j, S, env) : '') + (bar ? barHtml(j, S, bar) : '');
+            h += '<div class="se-sub se-more">' + (styled ? styleHtml(list, j, S, env) : '') + (bar ? barHtml(j, S, bar, also) : '');
             if (b.k === 'cal') { h += optHtml(list, j, 'Rows', 'rows', M.CAL_ROWS, env); }
             if (K.graph) { h += optHtml(list, j, 'Size', 'size', M.GRAPH_SIZES, env); }
             h += '<div class="se-moves"><button type="button" class="se-mv" data-se="up" data-j="' + j + '"'
-                + (moveOk(list, j, j - 1) ? '' : ' disabled') + '>' + I_UP + 'Move up</button>'
+                + (moveOk(list, j, j - 1) ? '' : ' disabled') + '>' + kit.icon('up') + 'Move up</button>'
                 + '<button type="button" class="se-mv" data-se="down" data-j="' + j + '"'
-                + (moveOk(list, j, j + 1) ? '' : ' disabled') + '>' + I_DOWN + 'Move down</button></div></div>';
+                + (moveOk(list, j, j + 1) ? '' : ' disabled') + '>' + kit.icon('down') + 'Move down</button></div></div>';
         }
         return h + '</div>';
     }
@@ -1309,19 +1236,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var free = M.newBarFor(list, S, env);
         var newBar = Boolean(free) && fitsWatch(M.add(list, free), i, env);
         var pic = screenPicture(S, i, env, userData, 'se' + i + '-', cycle).svg;
+        var chips = adds.map(function (k) {
+            return kit.chip(M.blockName({ k: k }, S), { 'data-se': 'add', 'data-k': k }, { icon: 'plus' });
+        }).join('') + (newBar ? kit.chip('New bar', { 'data-se': 'newbar' }, { icon: 'plus' }) : '');
+        // The page's own card (the engine's .card and header), the Add chips under its rows, and
+        // Delete screen under the card, as a dialog's Delete (kit.deleteButton).
         return '<div class="se-pic"><span class="se-pic-card" role="img" aria-label="' + esc(M.nameOf(S, i) + ': ' + contents(list, S))
             + '">' + pic + '</span></div>'
-            + (note ? '<div class="se-note" role="status">' + note + '</div>' : '')
-            + '<div class="se-card"><div class="se-cardhd" id="seTtl">Top to bottom</div>'
-            + '<div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
+            + (note ? kit.note(note) : '')
+            + '<div class="card se-card"><div class="cardHdr"><span class="ttlwrap"><span class="ttl" id="seTtl">Top to bottom</span>'
+            + '</span></div><div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
             + list.map(function (b, j) { return rowHtml(list, j, S, env, cycle); }).join('') + '</div>'
-            + (adds.length || newBar ? '<div class="se-adds"><span class="se-addlbl">Add</span>' + adds.map(function (k) {
-                return '<button type="button" class="se-add" data-se="add" data-k="' + k + '">' + I_PLUS
-                    + esc(M.blockName({ k: k }, S)) + '</button>';
-            }).join('') + (newBar ? '<button type="button" class="se-add" data-se="newbar">' + I_PLUS + 'New bar</button>' : '')
-                + '</div>' : '')
+            + (chips ? '<div class="ui-chips se-adds"><span class="ui-cap">Add</span>' + chips + '</div>' : '')
             + '</div>'
-            + (i > 0 ? '<button type="button" class="se-del" data-se="delscreen">Delete screen</button>' : '');
+            + (i > 0 ? kit.deleteButton('Delete screen', { 'data-se': 'delscreen' }) : '');
     }
 
     /**
@@ -1347,35 +1275,38 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The overlay's title: "Add a screen", or the screen's name, which a tap renames (an input
-     * while it is renamed: left alone by a repaint, so typing goes on).
+     * The overlay's header, a dialog's (kit.header): ‹ back to the page (the edits stay: the
+     * page's Save and Revert decide), the kicker over the title, and Done. The title is the
+     * screen's name with the pencil that renames it, or "Add a screen" (no pencil, no Done).
+     * While the name is renamed (ED.nameEl) the header is its field with OK and a repaint
+     * leaves it alone, so typing goes on.
      * @param {Object} S Settings.
+     * @param {boolean} [renaming] Draw the name field (startRename).
      * @returns {void}
      */
-    function renderTitle(S) {
-        var h = ED.overlay.querySelector('[data-se-title]');
-        if (ED.mode === 'add') { h.innerHTML = 'Add a screen'; return; }
+    function renderHeader(S, renaming) {
         if (ED.nameEl) { return; }
-        var name = esc(M.nameOf(S, ED.i));
-        h.innerHTML = '<button type="button" class="se-name" data-se="rename" aria-label="Rename ' + name + '"><span>' + name
-            + '</span>' + I_PEN + '</button>';
+        var add = ED.mode === 'add', name = add ? 'Add a screen' : M.nameOf(S, ED.i);
+        ED.overlay.querySelector('[data-se-head]').innerHTML = kit.header({
+            titleId: 'seTitle', title: name, kicker: 'Screens',
+            way: { glyph: '&#8249;', label: 'Back', at: { 'data-se': 'close' } },
+            pen: add ? null : { 'data-se': 'rename' },
+            done: add ? null : { 'data-se': 'close' },
+            rename: renaming ? { at: { 'data-se-name': true }, okAt: { 'data-se': 'renameok' }, label: 'Screen name',
+                maxlength: M.NAME_MAX, placeholder: NAMES[ED.i] || '', value: name } : null
+        });
     }
 
     /**
-     * Rename the screen: the title becomes an input holding its name, focused and selected, with
-     * OK beside it in Done's place (as every rename on the page). OK, Enter or leaving it stores
-     * the name, Escape keeps the old one (endRename).
+     * Rename the screen: the title becomes its name field, focused and selected, with OK in
+     * Done's place (as every rename on the page). OK, Enter or leaving it stores the name,
+     * Escape keeps the old one (endRename).
      * @param {Object} S Settings.
      * @returns {void}
      */
     function startRename(S) {
-        var h = ED.overlay.querySelector('[data-se-title]');
-        h.innerHTML = '<input type="text" class="se-name-in" maxlength="' + M.NAME_MAX + '" aria-label="Screen name"'
-            + ' autocomplete="off" value="' + esc(M.nameOf(S, ED.i)) + '">'
-            + '<button type="button" class="dlg-done se-ok" data-se="renameok">OK</button>';
-        h.className = 'se-ttl renaming';
-        ED.overlay.querySelector('.se-done').style.display = 'none';
-        var input = ED.nameEl = h.querySelector('input');
+        renderHeader(S, true);
+        var input = ED.nameEl = ED.overlay.querySelector('[data-se-name]');
         input.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') { e.preventDefault(); endRename(input.value); }
             if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endRename(null); }
@@ -1391,14 +1322,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * End the rename: the name typed stored (renameScreen), or with null nothing changed; the
-     * focus back on the name.
+     * focus back on the pencil.
      * @param {?string} text The name typed, or null to cancel.
      * @returns {void}
      */
     function endRename(text) {
         if (!ED.nameEl || !ED.overlay || !UI.ctx) { return; }
         ED.nameEl = null;
-        ED.overlay.querySelector('[data-se-title]').className = 'se-ttl';
         if (text !== null) {
             renameScreen(UI.ctx.S, ED.i, text);
             UI.ctx.render();
@@ -1416,13 +1346,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!ED.overlay || !UI.ctx) { return; }
         var ctx = UI.ctx, body = ED.overlay.querySelector('[data-se-body]'), add = ED.mode === 'add';
         var top = body.scrollTop;
-        renderTitle(ctx.S);
-        ED.overlay.querySelector('.se-done').style.display = add ? 'none' : '';
+        renderHeader(ctx.S);
         body.innerHTML = add ? addBody(ctx.S, ctx.ENV, ctx.USERDATA) : editorBody(ctx.S, ctx.ENV, ctx.USERDATA);
         body.scrollTop = top;
+        // Why a move went back: the page's toast (shell.html .toast), for three seconds.
         var t = ED.overlay.querySelector('[data-se-toast]');
         t.textContent = ED.toast.v || '';
-        t.style.display = ED.toast.v ? '' : 'none';
+        t.className = ED.toast.v ? 'toast show' : 'toast';
     }
 
     /**
@@ -1431,7 +1361,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function editorToast(text) {
-        flash(ED.toast, text, 3000, renderEditor);
+        kit.flash(ED.toast, text, 3000, renderEditor);
     }
 
     /**
@@ -1741,10 +1671,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('aria-labelledby', 'seTitle');
-        overlay.innerHTML = '<div class="se-hdr"><button type="button" class="se-back" data-se="close" aria-label="Back">' + I_BACK
-            + '</button><h2 class="se-ttl" id="seTitle" data-se-title></h2>'
-            + '<button type="button" class="dlg-done se-done" data-se="close">Done</button></div>'
-            + '<div class="se-body" data-se-body></div><div class="se-toast" role="status" data-se-toast style="display:none"></div>';
+        overlay.innerHTML = '<div data-se-head></div><div class="se-body" data-se-body></div>'
+            + '<div class="toast" role="status" data-se-toast></div>';
         document.body.appendChild(overlay);
         ED.overlay = overlay;
         overlay.addEventListener('click', onClick);

@@ -92,7 +92,7 @@ function colorRow(card) {
   const at = card.indexOf('data-edit-sheet="' + SHEET_ID + '"');
   if (at === -1) { return ''; }
   const open = card.lastIndexOf('<div class="row', at);
-  const end = card.indexOf('<span class="chev">', at);
+  const end = card.indexOf('<span class="chev nav" aria-hidden="true">', at);
   return card.slice(open, card.indexOf('</div></div>', end) + '</div></div>'.length);
 }
 
@@ -131,7 +131,7 @@ test('the Theme & night card shows one Dim backlight color row — the readout a
   const row = colorRow(card);
   assert.match(row, /^<div class="row nav[^"]*" data-edit-sheet="backlightColor" role="button" tabindex="0"[^>]*>/,
     'a nav row: the whole row opens the sheet');
-  assert.match(row, /<div class="lbl">Dim backlight color<\/div>[\s\S]*?<div class="rgt"><span class="thr-swatch" aria-hidden="true"><span class="sw-wrap sw-ro">[\s\S]*?<\/span><\/span><span class="chev">/,
+  assert.match(row, /<div class="lbl">Dim backlight color<\/div>[\s\S]*?<div class="rgt"><span class="thr-swatch" aria-hidden="true"><span class="sw-wrap sw-ro">[\s\S]*?<\/span><\/span><span class="chev nav" aria-hidden="true">/,
     'the label, then the readout ahead of the chevron');
   assert.equal(card.indexOf('thr-btn'), -1, 'no Edit button beside it');
   assert.equal(card.indexOf('pen-dot'), -1, 'the small dot it replaced is gone');
