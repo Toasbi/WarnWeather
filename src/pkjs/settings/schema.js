@@ -1175,6 +1175,205 @@ function keyRow(picker, when) {
     return row;
 }
 
+/**
+ * A graph's dialog (the owner's ask, 2026-11-09: the graphs in a list with their pictures, a
+ * graph's settings behind a tap). The Your graphs list opens it on the graph a row picks
+ * (graph-styles-page.js openGraph), whose values the page holds in the flat keys while it shows
+ * (THE SWAP there), so every row edits that graph. Its preview pinned, then its cards: Lines,
+ * Rain bars, Other, Left axis (Pebble Time 2), Graph colors (colour themes) and, with several
+ * graphs, the screens it shows on (block 'graphShowOn') with Delete under them. Its title is
+ * the graph's name, which the pencil renames where a watch has several graphs (the page-only
+ * graphStyleName: graph-styles-page.js renameStyle); elsewhere it is the Forecast graph.
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function graphDialog() {
+    var bars = [{
+        type: 'segmented',
+        messageKey: 'barSource',
+        label: 'Bars',
+        defaultValue: 'rain',
+        hintByValue: {rain: 'Adds bars that show how much rain falls in each hour.'},
+        // With the bars on, the scale note (colour) or the B&W legend joins the
+        // hint (blocks.js colorNoteHint).
+        hintFrom: {resolver: 'colorNoteHint', args: {colorNote: SCALE_NOTE, bwNote: BW_LEGEND}},
+        options: [['Rain', 'rain'], ['Off', 'off']]
+    }, {
+        type: 'segmented',
+        messageKey: 'rainBarColor',
+        label: 'Bar color',
+        // The DARK-polarity default. The light polarity starts on Solid instead:
+        // resolve-ink.js's barColorDefault owns that pair, and theme-convert.js
+        // converts a value still holding this one when the Theme control flips
+        // polarity. This cannot become a defaultFrom — a defaults-resolver is
+        // handed only `env` (platform facts), and the theme is a settings key.
+        defaultValue: 'multicolor',
+        hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
+        capabilities: ['COLOR'],
+        // VALUE stays 'white' for wire compatibility (the watch resolves it to the
+        // right polarity color itself — see rain-tier.js); only the label changes.
+        options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
+        more: true,
+        showWhen: {all: [{key: 'barSource', eq: 'rain'}, COLOR_THEME_WHEN]}
+    }, {
+        // Bars from [Bottom | Top] (draw-from.js rainBarFrom): while the bars are
+        // drawn, on a watch with line styles (the WW_LINE_STYLE mirror the watch's
+        // flip sits behind; aplite never hangs them).
+        type: 'segmented',
+        messageKey: 'rainBarFrom',
+        label: 'Bars from',
+        defaultValue: DRAW_FROM.BOTTOM,
+        hintByValue: {top: BARS_TOP_HINT},
+        options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
+        more: true,
+        showWhen: {all: [{key: 'barSource', eq: 'rain'}, LINE_STYLES_WHEN]}
+    }];
+    // Other: the graph-wide rows that belong to no line and no bars. Every watch shows
+    // the card (the shading is everywhere); Forecast length is emery's alone.
+    //
+    // Forecast length (emery only): how many hours the forecast graph looks ahead. The phone
+    // fetches and sends 14, 24 (26 with no left axis) or 68 hourly points
+    // (src/pkjs/forecast-span.js); the watch's grid follows the count it receives and
+    // fills the plot's width, so the hours on screen follow the layout
+    // (src/c/appendix/forecast_span.h). '48' is the long span's stored token. Its label
+    // names the whole hours the watch will show for the picked weather provider and the
+    // layout (forecastSpanOptions, src/pkjs/forecast-span-hours.js spanOptions); the
+    // stored value never moves.
+    // The default is the long span, a new install's; setup starts a new install on the
+    // Clean look, which takes it too (settings/wizard-forecast.js FIRST_RUN; the
+    // defaults are none of the looks on emery). An existing install without the key
+    // keeps the 24 h it had (clay-settings.js upgradeBackfill), and an absent value still
+    // reads 24 h (forecast-span-hours.js storedHours).
+    // Every other watch keeps 24 h, whatever the key holds: the 640 B / 536 B inboxes
+    // cannot take the long span's 68-hour bundle and the 64 KB images have no room. A
+    // changed span re-fetches (render-signature.js). Not `more`: the span frames the
+    // whole graph.
+    var other = [{
+        type: 'toggle',
+        messageKey: 'dayNightShading',
+        label: 'Day / night shading',
+        defaultValue: true,
+        hint: 'Hatches the hours between sunset and sunrise and draws a line at midnight.',
+        // On a colour theme the hint also says where the colours are set.
+        hintFrom: {resolver: 'colorNoteHint', args: {
+            colorNote: 'Set their colors under Graph colors › Night shading. '
+                + 'A color that matches the background hides it.'
+        }}
+    }, {
+        type: 'segmented',
+        messageKey: 'forecastHours',
+        label: 'Forecast length',
+        defaultValue: '48',
+        hintByValue: {
+            '12': 'The next 12 hours, in wider columns.',
+            '24': 'The next 24 hours.',
+            '48': 'As many hours as your weather provider\'s hourly forecast covers and the '
+                + 'graph can fit, in narrow columns. The number of hours depends on the provider '
+                + 'and the graph\'s layout.'
+        },
+        optionsFrom: {resolver: 'forecastSpanOptions'},
+        showWhen: FORECAST_SPAN_WHEN
+    }];
+    // Left axis, emery only (owner, 2026-10-09): where the high / low values go
+    // (On axis: beside the axis line on the left, today's look; On graph: the high one
+    // under its point, the low one over its own; Off: none; the last two draw no left
+    // axis at all, so the graph starts at the screen's left edge) and whether they name
+    // the whole temperature scale. The axis line and the numbers' outline follow the place (the 2.2.0 betas
+    // had a row each; a beta's stored 'beside' reads as 'axis', the default).
+    // src/pkjs/forecast-axis.js is the one reading (wire bits on the
+    // CLAY_LARGE_GRAPH_FONT word, the scale bake, the 24 h span's 26 hours, the
+    // preview); the watch's rules live in src/c/appendix/temp_axis_pad.h (THE NUMBERS
+    // ON THE GRAPH) and forecast_layer.c. The scale is `more`: its card opens by itself
+    // when it differs from its default. A dormant scale (the
+    // numbers off, or no feels-like / dew point line) is kept and sent as the default,
+    // so it never costs a resend. At 24 h, moving the numbers between On axis and the
+    // other two re-fetches: the hours sent follow (forecast-span.js hours()).
+    var axis = [{
+        type: 'segmented',
+        messageKey: FORECAST_AXIS.KEYS.numbers,
+        label: 'Left axis values',
+        // On graph out of the box since 2.6 (2.6's Clean graph; setup's Clean
+        // look keeps it). An existing install that lacks the key keeps its axis
+        // (clay-settings.js upgradeBackfill).
+        defaultValue: FORECAST_AXIS.GRAPH,
+        options: [['On axis', FORECAST_AXIS.AXIS], ['On graph', FORECAST_AXIS.GRAPH],
+            ['Off', FORECAST_AXIS.OFF]],
+        hintByValue: {
+            graph: 'Removes the left axis and draws the high and low values on the graph.',
+            off: 'Removes the left axis and the high and low values.'
+        },
+        showWhen: EMERY_WHEN
+    }, {
+        // Gated on a drawn feels-like or dew point line (when-resolvers.js
+        // tempAxisLineDrawn): without one the scale is the air temperature's own.
+        // Changes what the phone bakes into TEMP_MIN / TEMP_MAX, so a flip re-fetches
+        // (render-signature.js).
+        type: 'toggle',
+        messageKey: FORECAST_AXIS.KEYS.scale,
+        label: 'High/low includes feels-like & dew point',
+        defaultValue: false,
+        hint: 'The high and low values come from all temperature lines on the graph, not '
+            + 'only the air temperature.',
+        more: true,
+        showWhen: {all: [EMERY_WHEN, {key: FORECAST_AXIS.KEYS.numbers, ne: FORECAST_AXIS.OFF},
+            {when: 'tempAxisLineDrawn'}]}
+    }, {
+        type: 'toggle',
+        messageKey: 'largeGraphFont',
+        label: 'Larger graph fonts',
+        // ON out of the box: on emery's 200 px screen the taller tier is simply the
+        // more readable one at a glance, and it costs no band height (chart.c solves
+        // both tiers against the same ink floor). Only a FRESH install -- or an
+        // upgrade from before the setting existed, whose missing key seedDefaults
+        // backfills -- lands here; a v1.14.0 install already stores its own value.
+        defaultValue: true,
+        hint: 'Draw the graph axis labels in bigger type.',
+        more: true,
+        // Emery only (the card's gate): on a 144 px watch the graph's left axis is
+        // already drawn at the calendar size, so there is nothing to step.
+        showWhen: {env: 'platform', eq: 'emery'}
+    }];
+    // The Graph colors row, a card of its own: one dialog holding one row per graph metric plus
+    // the night band, each opening that row's colours. B&W watches and themes have no colours to
+    // pick, so the card is gone there.
+    var colors = [{
+        type: 'sheet',
+        sheetId: 'graphColors',
+        label: 'Graph colors',
+        hint: 'Pick the colors of each metric and of the night shading.',
+        navNote: String(GRAPH_COLOR_ROWS.length),
+        capabilities: ['COLOR'],
+        showWhen: COLOR_THEME_WHEN
+    }];
+    return {
+        sheetOnly: true,
+        sheetId: 'graph',
+        id: 'graph',
+        title: 'Forecast graph',
+        titleBy: {resolver: 'graphName'},
+        rename: {key: 'graphStyleName', label: 'Graph name', placeholderBy: {resolver: 'graphDefaultName'},
+            maxlength: NAME_MAX, showWhen: GRAPH_STYLES_WHEN},
+        pinBlock: 'forecastPreview',
+        // The screens the graph shows on, in the last card (graph-styles-page.js showOnBlock).
+        block: 'graphShowOn',
+        items: [{type: 'subheader', text: 'Lines', intro: FORECAST_INTRO}].concat(GRAPH_LINES.map(lineRow),
+            [{type: 'subheader', text: 'Rain bars'}], bars,
+            [{type: 'subheader', text: 'Other'}], other,
+            [{type: 'subheader', text: 'Left axis', showWhen: EMERY_WHEN}], axis,
+            [{type: 'subheader', text: '', capabilities: ['COLOR'], showWhen: COLOR_THEME_WHEN}], colors,
+            [{type: 'subheader', text: 'Show on', showWhen: GRAPH_STYLES_WHEN}, {
+                // Delete <the graph>, any but the first, under the card as the screen editor's
+                // Delete screen (style 'delete', engine buildCards): the dialog closes, and the
+                // Your graphs card's Undo puts the graph back (graph-styles-page.js deletePicked).
+                type: 'button',
+                style: 'delete',
+                action: 'deleteGraphStyle',
+                label: 'Delete graph',
+                labelFrom: {resolver: 'graphDeleteLabel'},
+                showWhen: {when: 'graphDeletable'}
+            }])
+    };
+}
+
 module.exports = {
     appName: 'WarnWeather',
     themeKey: 'configTheme',
@@ -1923,24 +2122,27 @@ module.exports = {
         // switch, the matching live preview pinned under it. Every graph dialog repeats
         // the preview at its top so colour and style edits show as they are made.
         id: 'graphs', label: 'Graphs', icon: 'tab-graphs', panes: [
-            {id: 'forecast', label: 'Forecast', pinBlock: 'forecastPreview'},
+            // The Forecast pane is the list of your graphs, each drawn on its row; a graph's dialog
+            // pins its preview (graphDialog).
+            {id: 'forecast', label: 'Forecast'},
             // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined).
             {id: 'radar', label: 'Rain radar', pinBlock: 'radarPreview', showWhen: {env: 'radar'}},
             // The health graph's one setting is the heart-rate line's scale: only the
             // heart-rate watches have one (platform.js HR_PLATFORMS).
             {id: 'health', label: 'Health', pinBlock: 'healthPreview', showWhen: {all: [{env: 'health'}, {env: 'hr'}]}}
         ], sections: [{
-            // The Your graphs card (Pebble Time 2; settings/graph-styles-page.js, where a graph is
-            // a graph style): a row per graph, the picked one the graph the preview and every card
-            // below show (the page swaps its values into the flat keys while the pane shows it),
-            // its name renamed in place; New graph, the screens it shows on, and Delete under the
-            // card. The pick is a page-only key the rows set (no row of its own). Under the pane
-            // switcher, above the pinned preview (abovePin), so it scrolls away with the switcher.
+            // The Your graphs card (the owner's ask, 2026-11-09: the graphs in a list with their
+            // pictures, a graph's settings behind a tap; settings/graph-styles-page.js, where a
+            // graph is a graph style): a row per graph, one on a watch without graph styles, its
+            // picture, name, length and screens, the metrics it draws and the room left for more;
+            // a tap opens its dialog (graphDialog). New graph and the Undo of a Delete under the
+            // rows (Pebble Time 2). The pick is a page-only key the rows set: the graph the dialog
+            // shows, whose values the page swaps into the flat keys while the pane shows it.
             pane: 'forecast',
             id: 'graphStyle',
-            title: 'Your graphs',
-            abovePin: true,
-            showWhen: GRAPH_STYLES_WHEN,
+            // "Your graphs" where a watch has several, no title where it has the one.
+            title: '',
+            titleBy: {resolver: 'graphListTitle'},
             // "4/5 metrics active" on the right of the header: how many of the watch's five
             // metric rows the graphs on the screens use, with a '?' that lists them and says
             // what counts (graph-styles-page.js metricsNote).
@@ -1951,199 +2153,9 @@ module.exports = {
                 uiOnly: true,
                 defaultValue: '1',
                 initFrom: {resolver: 'graphStyleOnOpen'}
-            }, {
-                // Delete <the picked graph>, any but the first, under the card as the screen
-                // editor's Delete screen (style 'delete', engine buildCards); the card's Undo puts
-                // it back (graph-styles-page.js deletePicked).
-                type: 'button',
-                style: 'delete',
-                action: 'deleteGraphStyle',
-                label: 'Delete graph',
-                labelFrom: {resolver: 'graphDeleteLabel'},
-                showWhen: {when: 'graphDeletable'}
             }],
-            block: 'graphStyleCards'
-        }, {
-            pane: 'forecast',
-            id: 'lines',
-            title: 'Lines',
-            intro: FORECAST_INTRO,
-            items: GRAPH_LINES.map(lineRow)
-        }, {
-            pane: 'forecast',
-            id: 'bars',
-            title: 'Rain bars',
-            items: [{
-                type: 'segmented',
-                messageKey: 'barSource',
-                label: 'Bars',
-                defaultValue: 'rain',
-                hintByValue: {rain: 'Adds bars that show how much rain falls in each hour.'},
-                // With the bars on, the scale note (colour) or the B&W legend joins the
-                // hint (blocks.js colorNoteHint).
-                hintFrom: {resolver: 'colorNoteHint', args: {colorNote: SCALE_NOTE, bwNote: BW_LEGEND}},
-                options: [['Rain', 'rain'], ['Off', 'off']]
-            }, {
-                type: 'segmented',
-                messageKey: 'rainBarColor',
-                label: 'Bar color',
-                // The DARK-polarity default. The light polarity starts on Solid instead:
-                // resolve-ink.js's barColorDefault owns that pair, and theme-convert.js
-                // converts a value still holding this one when the Theme control flips
-                // polarity. This cannot become a defaultFrom — a defaults-resolver is
-                // handed only `env` (platform facts), and the theme is a settings key.
-                defaultValue: 'multicolor',
-                hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
-                capabilities: ['COLOR'],
-                // VALUE stays 'white' for wire compatibility (the watch resolves it to the
-                // right polarity color itself — see rain-tier.js); only the label changes.
-                options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
-                more: true,
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, COLOR_THEME_WHEN]}
-            }, {
-                // Bars from [Bottom | Top] (draw-from.js rainBarFrom): while the bars are
-                // drawn, on a watch with line styles (the WW_LINE_STYLE mirror the watch's
-                // flip sits behind; aplite never hangs them).
-                type: 'segmented',
-                messageKey: 'rainBarFrom',
-                label: 'Bars from',
-                defaultValue: DRAW_FROM.BOTTOM,
-                hintByValue: {top: BARS_TOP_HINT},
-                options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
-                more: true,
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, LINE_STYLES_WHEN]}
-            }]
-        }, {
-            // Other: the graph-wide rows that belong to no line and no bars. Every watch shows
-            // the card (the shading is everywhere); Forecast length is emery's alone.
-            //
-            // Forecast length (emery only): how many hours the forecast graph looks ahead. The phone
-            // fetches and sends 14, 24 (26 with no left axis) or 68 hourly points
-            // (src/pkjs/forecast-span.js); the watch's grid follows the count it receives and
-            // fills the plot's width, so the hours on screen follow the layout
-            // (src/c/appendix/forecast_span.h). '48' is the long span's stored token. Its label
-            // names the whole hours the watch will show for the picked weather provider and the
-            // layout (forecastSpanOptions, src/pkjs/forecast-span-hours.js spanOptions); the
-            // stored value never moves.
-            // The default is the long span, a new install's; setup starts a new install on the
-            // Clean look, which takes it too (settings/wizard-forecast.js FIRST_RUN; the
-            // defaults are none of the looks on emery). An existing install without the key
-            // keeps the 24 h it had (clay-settings.js upgradeBackfill), and an absent value still
-            // reads 24 h (forecast-span-hours.js storedHours).
-            // Every other watch keeps 24 h, whatever the key holds: the 640 B / 536 B inboxes
-            // cannot take the long span's 68-hour bundle and the 64 KB images have no room. A
-            // changed span re-fetches (render-signature.js). Not `more`: the span frames the
-            // whole graph.
-            pane: 'forecast',
-            id: 'other',
-            title: 'Other',
-            items: [{
-                type: 'toggle',
-                messageKey: 'dayNightShading',
-                label: 'Day / night shading',
-                defaultValue: true,
-                hint: 'Hatches the hours between sunset and sunrise and draws a line at midnight.',
-                // On a colour theme the hint also says where the colours are set.
-                hintFrom: {resolver: 'colorNoteHint', args: {
-                    colorNote: 'Set their colors under Graph colors › Night shading. '
-                        + 'A color that matches the background hides it.'
-                }}
-            }, {
-                type: 'segmented',
-                messageKey: 'forecastHours',
-                label: 'Forecast length',
-                defaultValue: '48',
-                hintByValue: {
-                    '12': 'The next 12 hours, in wider columns.',
-                    '24': 'The next 24 hours.',
-                    '48': 'As many hours as your weather provider\'s hourly forecast covers and the '
-                        + 'graph can fit, in narrow columns. The number of hours depends on the provider '
-                        + 'and the graph\'s layout.'
-                },
-                optionsFrom: {resolver: 'forecastSpanOptions'},
-                showWhen: FORECAST_SPAN_WHEN
-            }]
-        }, {
-            // Left axis, emery only (owner, 2026-10-09): where the high / low values go
-            // (On axis: beside the axis line on the left, today's look; On graph: the high one
-            // under its point, the low one over its own; Off: none; the last two draw no left
-            // axis at all, so the graph starts at the screen's left edge) and whether they name
-            // the whole temperature scale. The axis line and the numbers' outline follow the place (the 2.2.0 betas
-            // had a row each; a beta's stored 'beside' reads as 'axis', the default).
-            // src/pkjs/forecast-axis.js is the one reading (wire bits on the
-            // CLAY_LARGE_GRAPH_FONT word, the scale bake, the 24 h span's 26 hours, the
-            // preview); the watch's rules live in src/c/appendix/temp_axis_pad.h (THE NUMBERS
-            // ON THE GRAPH) and forecast_layer.c. The scale is `more`: its card opens by itself
-            // when it differs from its default. A dormant scale (the
-            // numbers off, or no feels-like / dew point line) is kept and sent as the default,
-            // so it never costs a resend. At 24 h, moving the numbers between On axis and the
-            // other two re-fetches: the hours sent follow (forecast-span.js hours()).
-            pane: 'forecast',
-            id: 'axis',
-            title: 'Left axis',
-            showWhen: EMERY_WHEN,
-            items: [{
-                type: 'segmented',
-                messageKey: FORECAST_AXIS.KEYS.numbers,
-                label: 'Left axis values',
-                // On graph out of the box since 2.6 (2.6's Clean graph; setup's Clean
-                // look keeps it). An existing install that lacks the key keeps its axis
-                // (clay-settings.js upgradeBackfill).
-                defaultValue: FORECAST_AXIS.GRAPH,
-                options: [['On axis', FORECAST_AXIS.AXIS], ['On graph', FORECAST_AXIS.GRAPH],
-                    ['Off', FORECAST_AXIS.OFF]],
-                hintByValue: {
-                    graph: 'Removes the left axis and draws the high and low values on the graph.',
-                    off: 'Removes the left axis and the high and low values.'
-                },
-                showWhen: EMERY_WHEN
-            }, {
-                // Gated on a drawn feels-like or dew point line (when-resolvers.js
-                // tempAxisLineDrawn): without one the scale is the air temperature's own.
-                // Changes what the phone bakes into TEMP_MIN / TEMP_MAX, so a flip re-fetches
-                // (render-signature.js).
-                type: 'toggle',
-                messageKey: FORECAST_AXIS.KEYS.scale,
-                label: 'High/low includes feels-like & dew point',
-                defaultValue: false,
-                hint: 'The high and low values come from all temperature lines on the graph, not '
-                    + 'only the air temperature.',
-                more: true,
-                showWhen: {all: [EMERY_WHEN, {key: FORECAST_AXIS.KEYS.numbers, ne: FORECAST_AXIS.OFF},
-                    {when: 'tempAxisLineDrawn'}]}
-            }, {
-                type: 'toggle',
-                messageKey: 'largeGraphFont',
-                label: 'Larger graph fonts',
-                // ON out of the box: on emery's 200 px screen the taller tier is simply the
-                // more readable one at a glance, and it costs no band height (chart.c solves
-                // both tiers against the same ink floor). Only a FRESH install -- or an
-                // upgrade from before the setting existed, whose missing key seedDefaults
-                // backfills -- lands here; a v1.14.0 install already stores its own value.
-                defaultValue: true,
-                hint: 'Draw the graph axis labels in bigger type.',
-                more: true,
-                // Emery only (the card's gate): on a 144 px watch the graph's left axis is
-                // already drawn at the calendar size, so there is nothing to step.
-                showWhen: {env: 'platform', eq: 'emery'}
-            }]
-        }, {
-            // The Graph colors row, a card of its own: one dialog holding one row per graph
-            // metric plus the night band, each opening that row's colours. B&W watches and
-            // themes have no colours to pick, so the card is gone there.
-            pane: 'forecast',
-            id: 'graphColorsCard',
-            capabilities: ['COLOR'],
-            showWhen: COLOR_THEME_WHEN,
-            items: [{
-                type: 'sheet',
-                sheetId: 'graphColors',
-                label: 'Graph colors',
-                hint: 'Pick the colors of each metric and of the night shading.',
-                navNote: String(GRAPH_COLOR_ROWS.length),
-                capabilities: ['COLOR']
-            }]
-        }, {
+            block: 'graphList'
+        }, graphDialog(), {
             sheetOnly: true,
             sheetId: 'graphColors',
             title: 'Graph colors',
@@ -2166,6 +2178,14 @@ module.exports = {
             sheetId: 'graphStyleKeys',
             title: 'Graph styles',
             items: [{type: 'hidden', messageKey: 'graphStyles', defaultValue: ''}, {
+                // The name the graph dialog's title renames (rename.key): written into graphStyles
+                // for the graph the dialog shows (graph-styles-page.js renameStyle). Page-only.
+                type: 'hidden',
+                messageKey: 'graphStyleName',
+                uiOnly: true,
+                defaultValue: '',
+                onChange: 'graphStyleRenamed'
+            }, {
                 type: 'select',
                 messageKey: 'graphStyleNewFrom',
                 uiOnly: true,

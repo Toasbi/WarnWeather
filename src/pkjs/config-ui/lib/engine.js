@@ -1227,12 +1227,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     // The title: the section's titleBy answer (a status bar's name), else its title.
     var title = sectionTitle(sec, cx) || 'Edit';
-    // sec.rename ({key, label, placeholder}): the title renames what the dialog is about, a
-    // pencil beside it turning it into a field with an OK button (cx.renaming: this dialog).
-    // The field opens on the name as the title shows it (a bar's own name while it has none).
-    var rename = sec.rename ? { key: sec.rename.key, label: sec.rename.label || 'Name', title: title,
-      maxlength: Number(sec.rename.maxlength) || 40, placeholder: sec.rename.placeholder || '', value: title,
-      editing: cx.renaming === cx.openEdit } : null;
+    // sec.rename ({key, label, placeholder, placeholderBy?, showWhen?}): the title renames what
+    // the dialog is about, a pencil beside it turning it into a field with an OK button
+    // (cx.renaming: this dialog). The field opens on the name as the title shows it (a bar's own
+    // name while it has none). Its showWhen gates it (a graph is renamed only where a watch has
+    // several); placeholderBy resolves the placeholder as titleBy does the title (the default
+    // name of the graph the dialog shows).
+    var rn = sec.rename && (!sec.rename.showWhen || PConf.showWhen.isVisible(sec.rename, cx.evalCtx)) ? sec.rename : null;
+    var rename = rn ? { key: rn.key, label: rn.label || 'Name', title: title,
+      maxlength: Number(rn.maxlength) || 40, placeholder: resolvedTitle(rn.placeholderBy, cx) || rn.placeholder || '',
+      value: title, editing: cx.renaming === cx.openEdit } : null;
     return dialogHeader(titleId, title, cx.editKicker || '', Boolean(cx.editNested),
         introId ? infoButtonHtml(introId, introOpen, title) : '', labelActionHtml(sec), rename)
       + '<div class="ssel-list esheet">' + pin
@@ -4079,6 +4083,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           var inp = document.getElementById('modal').querySelector('[data-dlg-rename-in]');
           if (inp && inp.focus) { inp.focus(); if (inp.select) { inp.select(); } }
         }
+      },
+      // Close the open dialog, nested ones too, keeping what they changed: an action that takes
+      // away what the dialog is about (a graph's Delete) closes it as Done would.
+      closeDialog: function () {
+        if (sheetIs('edit')) { closeModal(); }
       }
     });
     // The page is ready: what it holds now is where Revert goes back to.

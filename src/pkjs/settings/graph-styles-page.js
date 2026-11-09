@@ -1,11 +1,13 @@
 // src/pkjs/settings/graph-styles-page.js — ES5, WebView (+ Node for tests). The graphs on the
-// settings page (Pebble Time 2; src/pkjs/graph-styles.js is the model, which calls a graph a graph
-// style): the Your graphs card at the top of Graphs › Forecast (a plain list of the graphs, each
-// its name, length and screens, the picked one ticked and renamed in place with an OK button; New
-// graph; the screens the picked graph shows on; then, under the card, Delete with Undo, a schema
-// item the engine draws like every Delete: the page's shared parts, config-ui/lib/ui.js), the
-// swap that lets every row on that pane edit the graph picked there, and the five-series limit
-// the forecast pickers, the Show on row and the screen editor's graph chips keep.
+// settings page (src/pkjs/graph-styles.js is the model, which calls a graph a graph style): the
+// Your graphs card on Graphs › Forecast (the owner's ask, 2026-11-09: a list of the graphs, each
+// with its picture, name, length and screens, the metrics it draws and the room left; a tap opens
+// the graph's dialog, schema.js graphDialog, with its settings; New graph and the Undo of a Delete
+// under the rows; on a watch without graph styles the one graph), the dialog's title (the graph's
+// name, renamed there) and its Show on card with Delete under it (the page's shared parts,
+// config-ui/lib/ui.js), the swap that lets every row of the dialog edit the graph it shows, and
+// the five-series limit the forecast pickers, the Show on card and the screen editor's graph
+// chips keep.
 //
 // TEMPLATES AND GRAPHS (the owner's pick, 2026-11-08). A template is one of the setup's forecast
 // looks (wizard-forecast.js LOOKS: Classic, Clean, Stripes). The Your graphs card's New graph starts
@@ -15,10 +17,11 @@
 // never reads as its template. The templates sheet draws each one as the setup draws its looks
 // (graphPicture).
 //
-// THE SWAP. Every row, hint, resolver and the pinned preview on Graphs › Forecast reads the flat
-// keys, which hold the first graph. While the pane shows another graph k, its values sit in the
-// flat keys and the first graph's wait in S[SWAP].held, so every row edits graph k unchanged. The
-// invariant: off that pane the flat keys hold the first graph. The engine's render hook
+// THE SWAP. Every row, hint, resolver and the pinned preview of a graph's dialog reads the flat
+// keys, which hold the first graph. While Graphs › Forecast shows another graph k (its dialog
+// open over the pane, the pick k), its values sit in the flat keys and the first graph's wait in
+// S[SWAP].held, so every row edits graph k unchanged. The invariant: off that pane the flat keys
+// hold the first graph. The engine's render hook
 // (PConf.hooks.onRender) swaps on every way to and from the pane; its normalize hook
 // (PConf.hooks.onNormalize) hands Save and Revert the settings as stored, graph k written into
 // graphStyles and the first graph back in the flat keys, so picking a graph never lights Save
@@ -29,13 +32,14 @@
 // a spare), so the graphs the screens show draw at most five series between them (graph-styles.js
 // THE UNION), a series being a metric drawn as a line or as a stripe. A graph keeps its four lines:
 // the spare row has no picker (the owner's call, 2026-11-08: "only use for multiple graphs"). A
-// pick that would make a sixth is greyed out, and its words say why in the page's terms, "lines
-// and stripes": a forecast line's metric or style on a shown graph (LIMIT), a screen of the Show
-// on row and a graph's Add chip in the screen editor (limitNote: the rule, what the screens use,
-// what the graph adds), and Add a screen's preset whose graph would join the screens
-// (limitDesc). A graph no screen shows is free. The Your graphs card's header counts what the
-// screens use, "4/5 metrics active", with which ones and what counts behind its '?'
-// (metricsNote, the section's noteFrom).
+// pick that would make a sixth is greyed out, and its words say why in the page's terms,
+// "metrics" (a metric drawn as a line and as a stripe counting twice): a forecast line's metric or
+// style on a shown graph (LIMIT), a screen of the Show on card and a graph's Add chip in the
+// screen editor (limitNote: the rule, what the screens use, what the graph adds), and Add a
+// screen's preset whose graph would join the screens (limitDesc). A graph no screen shows is
+// free. The Your graphs card's header counts what the screens use, "4/5 metrics active", with
+// which ones and what counts behind its '?' (metricsNote, the section's noteFrom), and each row
+// says how many more metrics its graph has room for (roomText).
 //
 // Dual-context: a CommonJS module in the tests; in the webview a concatenated <script> after
 // graph-styles.js and screens.js (scripts/build-config-page.js APP_FILES) and ahead of
@@ -54,8 +58,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var spanHours = node ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
     var esc = node ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
-    // The page's shared parts (config-ui/lib/ui.js): the card's list, New graph, the chips, the
-    // pencil and the name field, the Undo and its timer.
+    // The page's shared parts (config-ui/lib/ui.js): the card's list, its red arrows, New graph,
+    // the chips, the Undo and its timer.
     var kit = node ? require('../config-ui/lib/ui.js') : PConf.ui;
 
     // The swap state in S: {k, held}, the style whose values sit in the flat keys and the
@@ -64,12 +68,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The page-only items (schema.js): the card's pick and New graph's picker.
     var PICK = 'graphStylePick';
     var NEW_FROM = 'graphStyleNewFrom';
+    // A graph's dialog (schema.js graphDialog).
+    var SHEET = 'graph';
     // The pane the card and the swap belong to.
     var TAB = 'graphs';
     var PANE = 'forecast';
     // A line picker's greyed-out option (limitOptions): one change adds one series at most.
-    var LIMIT = 'That makes ' + (GS.ROWS + 1) + ' lines and stripes on your screens. The watch can show '
-        + GS.ROWS + '.';
+    var LIMIT = 'That makes ' + (GS.ROWS + 1) + ' metrics on your screens. The watch can show ' + GS.ROWS + '.';
     // New graph's copies: 'copy<n>', a copy of graph n. A picker's group header: GROUP (never a
     // value anything stores).
     var COPY = 'copy';
@@ -84,9 +89,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var FULL = 'You have ' + GS.MAX_STYLES + ' graphs, the most there can be. Delete one to make another.';
 
     // The page's live state (onReady), the card's Undo (a flash: kit.flash), the defaults a
-    // template starts from (themedDefaults), kept per theme, and whether the picked graph's name
-    // is a field right now (the card's pencil).
-    var UI = { ctx: null, toast: { v: null, t: null }, defaults: null, renaming: false };
+    // template starts from (themedDefaults), kept per theme, and the graph New graph has just
+    // made, whose dialog opens once its sheet has closed (newGraph).
+    var UI = { ctx: null, toast: { v: null, t: null }, defaults: null, made: 0 };
+    // A one-graph watch's graph, by the name the page gives it (its list row, its dialog).
+    var SOLO = 'Forecast graph';
 
     /**
      * @param {Object} o An object.
@@ -186,7 +193,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The engine's render hook: on Graphs › Forecast the picked style's values in the flat keys,
-     * anywhere else the first style's (and no name field open).
+     * anywhere else the first style's.
      * @param {{S: Object, env: ?Object, tab: string, pane: ?string}} c The render's context.
      * @returns {void}
      */
@@ -196,7 +203,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (S[PICK] !== undefined && pickIndex(S) === 0 && S[PICK] !== '1') { S[PICK] = '1'; }
         var here = on(c.env) && c.tab === TAB && c.pane === PANE;
         var want = here ? pickIndex(S) : 0;
-        if (!here) { UI.renaming = false; }
         if (want !== editing(S)) {
             settle(S);
             if (want) { swapIn(S, want); }
@@ -438,7 +444,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Why Add a screen greys out a preset for its graph: what the graph would add to the
-     * graphs it would show beside, and how many lines and stripes the screens would then show.
+     * graphs it would show beside, and how many metrics the screens would then show.
      * @param {Object} N The settings as stored, with the screen on style k (withScreen).
      * @param {?Object} env Platform env.
      * @param {number} k The style picked (or to be made).
@@ -448,7 +454,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var shown = GS.stylesShown(N, env);
         var extra = extraNames(N, env, k, shown.filter(function (j) { return j !== k; }));
         return (extra.length ? 'Also needs ' + andList(extra) + ': that makes ' : 'That makes ')
-            + seriesUnion(N, env, shown).length + ' lines and stripes on your screens. The watch can show '
+            + seriesUnion(N, env, shown).length + ' metrics on your screens. The watch can show '
             + GS.ROWS + '.';
     }
 
@@ -480,7 +486,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Why the limit greys out a graph (the Show on row's note under a screen's chip, the screen
-     * editor's under a graph's Add chip): the rule, the lines and stripes the screens use now,
+     * editor's under a graph's Add chip): the rule, the metrics the screens use now,
      * what each graph greyed out needs on top, and how to make room.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
@@ -495,18 +501,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var extra = extraNames(N, env, k, shown);
             return extra.length ? ' ' + GS.name(S, k) + ' also needs ' + andList(extra) + '.' : '';
         }).join('');
-        return 'The watch can show ' + GS.ROWS + ' lines and stripes across all your screens.'
+        return 'The watch can show ' + GS.ROWS + ' metrics across all your screens.'
             + (inUse.length ? ' In use: ' + inUse.join(', ') + '.' : '')
             + needs + ' To make room, turn off a line in one of your graphs.';
     }
 
     /**
-     * The card's hint under the graphs: what a tap does, or with one graph what New graph is for.
+     * The card's lead over its one graph, on a watch with graph styles: what New graph is for.
+     * With two graphs or more the rows say it themselves.
      * @param {Object} S Settings.
-     * @returns {string}
+     * @returns {string} '' for none
      */
     function cardHint(S) {
-        return GS.count(S) < 2 ? 'New graph gives a screen a graph of its own.' : 'Tap a graph to change it below.';
+        return GS.count(S) < 2 ? 'New graph gives a screen a graph of its own.' : '';
     }
 
     /**
@@ -738,8 +745,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * New graph's pick (onChange 'graphStyleCreate'): the graph made (createGraph) and picked, so
-     * the pane shows it; the picker cleared.
+     * New graph's pick (onChange 'graphStyleCreate'): the graph made (createGraph) and picked,
+     * its dialog opened once the sheet has closed (newGraph); the picker cleared.
      * @param {Object} S Settings (S[NEW_FROM] picked).
      * @param {*} oldValue The picker's value before.
      * @param {string} from A template's id, or 'copy<n>'.
@@ -749,12 +756,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function createStyle(S, oldValue, from, env) {
         S[NEW_FROM] = '';
         var k = createGraph(S, from, env);
-        if (k > 0) { S[PICK] = String(k + 1); }
+        if (k > 0) {
+            S[PICK] = String(k + 1);
+            UI.made = k;
+        }
     }
 
     /**
-     * A name typed for the picked graph (the card's name field): its name, '' for the default
-     * one. Written into the item as stored, so the swap keeps it.
+     * A name typed for the picked graph (onChange 'graphStyleRenamed': the graph dialog's title,
+     * schema.js graphDialog rename): its name, '' for the default one. Written into the item as
+     * stored, so the swap keeps it.
      * @param {Object} S Settings.
      * @param {*} oldValue The name before.
      * @param {string} value The name typed.
@@ -766,27 +777,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The card's name field, when it shows.
-     * @returns {?Element}
-     */
-    function nameField() {
-        return (typeof document !== 'undefined' && document.querySelector) ? document.querySelector('[data-gl-rename-in]') : null;
-    }
-
-    /**
-     * OK (or Enter) in the card's name field: the name stored (renameStyle), the field gone.
-     * @param {Object} S Settings.
-     * @returns {void}
-     */
-    function commitName(S) {
-        var el = nameField();
-        if (el) { renameStyle(S, null, el.value); }
-        UI.renaming = false;
-    }
-
-    /**
-     * Delete the picked graph (the card's Delete): the screens on it draw the first graph, the
-     * card picks the first, and an Undo shows for five seconds. Never the first graph.
+     * Delete the picked graph (its dialog's Delete): the screens on it draw the first graph, the
+     * card picks the first, and an Undo shows on the card for five seconds. Never the first graph.
      * @param {Object} S Settings.
      * @returns {void}
      */
@@ -797,7 +789,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var o = GS.parse(S);
         var undo = { k: k, name: o.names[k], values: o.styles[k], label: GS.name(S, k), views: GS.deleteStyle(S, k) };
         S[PICK] = '1';
-        UI.renaming = false;
         kit.flash(UI.toast, undo, 5000, function () { if (UI.ctx) { UI.ctx.render(); } });
     }
 
@@ -822,7 +813,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // ── The screens a graph shows on ────────────────────────────────────────
 
     /**
-     * Put graph k on screen i's forecast graph (the Show on row),
+     * Put graph k on screen i's forecast graph (the Show on card),
      * through the screens' writer (screens-page.js writeScreen), with the swap undone first
      * (the next render swaps the pane's graph back in). A screen without a forecast graph is
      * left as it is.
@@ -842,7 +833,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * A tap on a Show on chip (action 'graphOnScreen'): the picked graph onto screen i, or off
+     * A tap on a Show on chip (action 'graphOnScreen'): the dialog's graph onto screen i, or off
      * it again (the screen then draws the first graph). The first graph's own chips do nothing:
      * a screen draws it unless it has another graph. A chip the limit greys out does nothing.
      * @param {Object} S Settings.
@@ -863,18 +854,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // ── The Your graphs card ────────────────────────────────────────────────
 
-    // The card's own look; its list, New graph, the chips, the pencil, the name field and the Undo
-    // are the page's shared parts (kit: config-ui/lib/ui.js, their look in shell.html).
+    // The card's own look; its list, red arrows, New graph, the chips and the Undo are the page's
+    // shared parts (kit: config-ui/lib/ui.js, their look in shell.html).
     var CSS = '.gl-lead{padding:12px 16px 10px}'
-        + '.gl-row{display:flex;align-items:center}'
-        + '.gl-row.on{background:rgba(250,74,53,.12)}'
-        + '.gl-pick{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;margin:0;padding:12px 16px;border:none;'
+        // A row: the graph's picture, its name, where it shows, its metrics and the room left,
+        // the red arrow of a row that opens a screen of its own.
+        + '.gl-open{display:flex;align-items:center;gap:12px;width:100%;margin:0;padding:12px 12px 12px 16px;border:none;'
         + 'background:none;color:var(--lbl);text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
-        + '.gl-txt{flex:1 1 auto;min-width:0;display:grid;gap:2px}'
-        + '.gl-pick .ui-ic{flex:none;color:var(--link);stroke-width:2.6}'
-        + '.gl-row .ui-pen{margin:0 10px 0 0}'
-        + '.gl-row.rn{gap:8px;padding:8px 12px 8px 16px}'
-        + '.gc-show{display:grid;gap:8px;padding:12px 16px 14px}';
+        + '.gl-pic{flex:none;width:118px;border-radius:9px;overflow:hidden;line-height:0;box-shadow:0 0 0 1px var(--card-line)}'
+        + '.gl-pic svg{display:block;width:100%;height:auto}'
+        + '.gl-txt{flex:1 1 auto;min-width:0;display:grid;gap:3px}'
+        + '.gl-met{color:var(--lbl)}'
+        // The Show on card's chips and the line under them, in the card's block row.
+        + '.gc-show{display:grid;gap:8px}';
 
     /**
      * Put the card's styles on the page once.
@@ -889,16 +881,112 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The Show on row for graph k (two graphs or more): a chip per screen, ticked where the
-     * screen draws k, greyed out where it has no forecast graph or where k would make the
-     * screens draw a sixth series; a line under it says why.
+     * How many metric lines a graph has on this watch: the four lines where the watch has line
+     * styles, else the first two (schema.js GRAPH_LINES' gates).
+     * @param {?Object} env Platform env.
+     * @returns {number}
+     */
+    function lineSlots(env) {
+        return env && env.lineStyles ? GS.TRENDS : 2;
+    }
+
+    /**
+     * The series graph k draws on this watch, each once (graph-styles.js seriesOf, the lines the
+     * watch has).
+     * @param {Object} N Settings as stored.
+     * @param {?Object} env Platform env.
+     * @param {number} k A style index.
+     * @returns {Array<{metric: string, stripe: boolean}>}
+     */
+    function seriesOfGraph(N, env, k) {
+        var out = [];
+        GS.seriesOf(GS.settingsFor(N, k), env).slice(0, lineSlots(env)).forEach(function (s) {
+            if (s && !hasSeries(out, s)) { out.push(s); }
+        });
+        return out;
+    }
+
+    /**
+     * How many more metrics graph k has room for (its row's last line): its free lines, and on
+     * a shown graph no more than the screens' five leave (THE LIMIT; a metric another graph on
+     * the screens draws would fit too, the '?' in the header says how they count).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
-     * @param {number} k The picked graph.
+     * @param {number} k A style index.
+     * @returns {string} "Room for 2 more metrics", "Full: 4 metrics", "Full: the screens show 5 metrics"
+     */
+    function roomText(S, env, k) {
+        var N = normalize(S), slots = lineSlots(env), free = Math.max(0, slots - seriesOfGraph(N, env, k).length);
+        var shown = on(env) ? GS.stylesShown(N, env) : [], room = free;
+        if (shown.indexOf(k) !== -1) { room = Math.min(free, Math.max(0, GS.ROWS - seriesUnion(N, env, shown).length)); }
+        if (room > 0) { return 'Room for ' + room + ' more metric' + (room > 1 ? 's' : ''); }
+        return free === 0 ? 'Full: ' + slots + ' metrics' : 'Full: the screens show ' + GS.ROWS + ' metrics';
+    }
+
+    /**
+     * One graph's row on the Your graphs card: its picture (graphPicture), its name, where it
+     * shows (cardLine; nothing on a watch with one graph), the metrics it draws and the room
+     * left (roomText), the red arrow; a tap opens its dialog (action 'openGraph').
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {?Object} userData Page userData (the palette).
+     * @param {number} k A style index.
      * @returns {string} HTML
      */
-    function showOnHtml(S, env, k) {
-        var lists = M.screensOf(S, env), none = [], full = false, kept = false;
+    function graphRow(S, env, userData, k) {
+        var N = normalize(S), where = on(env) ? cardLine(S, env, k) : '';
+        var metrics = seriesOfGraph(N, env, k).map(seriesName);
+        return '<div class="ui-row gl-row" role="listitem"><button type="button" class="gl-open" data-action="openGraph"'
+            + ' data-action-arg="' + (k + 1) + '"><span class="gl-pic" aria-hidden="true">'
+            + graphPicture(GS.settingsFor(N, k), env, userData, 'gl' + k) + '</span><span class="gl-txt">'
+            + '<span class="ui-n">' + esc(on(env) ? GS.name(N, k) : SOLO) + '</span>'
+            + (where ? '<span class="ui-d">' + esc(where) + '</span>' : '')
+            + '<span class="ui-d gl-met">' + esc(metrics.length ? metrics.join(', ') : 'No metrics') + '</span>'
+            + '<span class="ui-d">' + esc(roomText(S, env, k)) + '</span></span>' + kit.navArrow() + '</button></div>';
+    }
+
+    /**
+     * The Your graphs card (block 'graphList'; the owner's ask, 2026-11-09: the graphs in a list
+     * with their pictures, a graph's settings behind a tap), in the page's shared parts (kit): a
+     * row per graph (graphRow), the one graph on a watch without graph styles; then, on a watch
+     * with them, New graph while a slot is free, with how many graphs there are (its sheet starts
+     * one from a template or as a copy, and the new graph's dialog opens), else why there is none,
+     * and the Undo after a Delete.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {?Object} userData Page userData (the palette).
+     * @returns {string} HTML
+     */
+    function listBlock(S, env, userData) {
+        if (!S) { return ''; }
+        ensureStyle();
+        var ks = on(env) ? existing(S) : [0], lead = on(env) ? cardHint(S) : '';
+        var h = (lead ? '<div class="gl-lead">' + esc(lead) + '</div>' : '')
+            + '<div role="list" aria-label="' + (on(env) ? 'Your graphs' : SOLO) + '">'
+            + ks.map(function (k) { return graphRow(S, env, userData, k); }).join('') + '</div>';
+        if (on(env)) {
+            h += GS.freeSlot(normalize(S)) >= 0
+                ? kit.newRow('New graph', ks.length + ' of ' + GS.MAX_STYLES + ' graphs', { 'data-action': 'newGraph' })
+                : '<div class="ui-row ui-foot">' + esc(FULL) + '</div>';
+            if (UI.toast.v) { h += kit.undoToast(UI.toast.v.label + ' deleted.', { 'data-action': 'undoDeleteGraphStyle' }); }
+        }
+        return '<div class="ui-list">' + h + '</div>';
+    }
+
+    // ── A graph's dialog (schema.js graphDialog) ────────────────────────────
+
+    /**
+     * The Show on card of a graph's dialog (block 'graphShowOn'; two graphs or more): a chip per
+     * screen, ticked where the screen draws the graph, greyed out where it has no forecast graph
+     * or where the graph would make the screens show a sixth metric; a line under it says why.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {string} HTML ('' with one graph or none to choose between)
+     */
+    function showOnBlock(S, env) {
+        if (!on(env) || !S || GS.count(S) < 2) { return ''; }
+        ensureStyle();
+        var k = pickIndex(S), lists = M.screensOf(S, env), none = [], full = false, kept = false;
         var chips = lists.map(function (list, i) {
             var name = M.nameOf(S, i), drawn = drawnBy(S, list[M.idxOf(list, 'fc')]);
             if (drawn < 0) { none.push(name); return kit.chip(name, { disabled: true }); }
@@ -919,54 +1007,58 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if (full) { notes.push(limitNote(S, env, k)); }
         if (kept) { notes.push('A screen shows ' + GS.name(S, 0) + ' unless you give it another graph.'); }
-        return '<div class="ui-row gc-show"><span class="ui-cap" id="gc-show-cap">Show on</span>'
-            + '<div class="ui-chips" role="group" aria-labelledby="gc-show-cap">' + chips + '</div>'
+        return '<div class="gc-show"><div class="ui-chips" role="group" aria-label="Show on">' + chips + '</div>'
             + (notes.length ? '<div class="ui-d">' + esc(notes.join(' ')) + '</div>' : '') + '</div>';
     }
 
     /**
-     * The Your graphs card (block 'graphStyleCards'; the owner's pick, 2026-11-09: a plain list
-     * like the Your status bars card), in the page's shared parts (kit):
-     * what a tap does, then a row per graph, its name over its length and the screens that show
-     * it, the picked one tinted and ticked (a tap picks another: the settings below then change
-     * it) with a pencil that makes its name a field with OK; New graph while a slot is free, with
-     * how many graphs there are (its sheet starts one from a template or as a copy), else why
-     * there is none; the Undo after a delete; the Show on row with two graphs or more. Delete
-     * is the section's own item, under the card (schema.js; deleteLabel, deletable).
+     * The dialog's title (display resolver 'graphName'): the graph's name, or on a watch with
+     * one graph the Forecast graph.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
-     * @returns {string} HTML ('' where the watch has no graph styles)
+     * @returns {string}
      */
-    function cardsBlock(S, env) {
-        if (!on(env) || !S) { return ''; }
-        ensureStyle();
-        var k = pickIndex(S), ks = existing(S);
-        var rows = ks.map(function (j) {
-            var picked = j === k, name = GS.name(S, j);
-            if (picked && UI.renaming) {
-                return '<div class="ui-row gl-row on rn" role="listitem">' + kit.renameField({
-                    at: { 'data-gl-rename-in': true }, okAt: { 'data-action': 'renameGraphOk' }, label: 'Graph name',
-                    maxlength: M.NAME_MAX, placeholder: GS.defaultName(j), value: name }) + '</div>';
-            }
-            return '<div class="ui-row gl-row' + (picked ? ' on' : '') + '" role="listitem"><button type="button" class="gl-pick"'
-                + ' aria-pressed="' + picked + '" data-action="pickGraph" data-action-arg="' + (j + 1) + '">'
-                + '<span class="gl-txt"><span class="ui-n">' + esc(name) + '</span><span class="ui-d">' + esc(cardLine(S, env, j))
-                + '</span></span>' + (picked ? kit.icon('check') : '') + '</button>'
-                + (picked ? kit.penButton(name, { 'data-action': 'renameGraph' }) : '') + '</div>';
-        }).join('');
-        return '<div class="ui-list"><div class="gl-lead">' + esc(cardHint(S)) + '</div>'
-            + '<div role="list" aria-label="Your graphs">' + rows + '</div>'
-            + (GS.freeSlot(normalize(S)) >= 0
-                ? kit.newRow('New graph', ks.length + ' of ' + GS.MAX_STYLES + ' graphs', { 'data-select': NEW_FROM })
-                : '<div class="ui-row ui-foot">' + esc(FULL) + '</div>')
-            + (UI.toast.v ? kit.undoToast(UI.toast.v.label + ' deleted.', { 'data-action': 'undoDeleteGraphStyle' }) : '')
-            + (ks.length > 1 ? showOnHtml(S, env, k) : '')
-            + '</div>';
+    function dialogTitle(S, env) {
+        return on(env) ? GS.name(S, pickIndex(S)) : SOLO;
     }
 
     /**
-     * Whether the card's Delete shows (when resolver 'graphDeletable'): on a watch with graph
-     * styles, while the picked graph is not the first, which every screen falls back to.
+     * The dialog's name field's placeholder (display resolver 'graphDefaultName'): the graph's
+     * default name, which an empty name stands for.
+     * @param {Object} S Settings.
+     * @returns {string} "Graph 2"
+     */
+    function defaultNameOfPick(S) {
+        return GS.defaultName(pickIndex(S));
+    }
+
+    /**
+     * The Your graphs card's title (display resolver 'graphListTitle'): "Your graphs" where the
+     * watch has graph styles, none over the one graph elsewhere (its row names it).
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {string}
+     */
+    function listTitle(S, env) {
+        return on(env) ? 'Your graphs' : '';
+    }
+
+    /**
+     * Open graph k's dialog: it is picked (the next render swaps it in), then the dialog opens
+     * over the pane, its title a name field when asked (a new graph).
+     * @param {Object} S Settings.
+     * @param {number} k A style index.
+     * @param {boolean} rename Open the title as the name field.
+     * @returns {void}
+     */
+    function openGraph(S, k, rename) {
+        S[PICK] = String(k + 1);
+        if (UI.ctx && UI.ctx.openDialog) { UI.ctx.openDialog(SHEET, { rename: rename, kicker: on(UI.ctx.ENV) ? 'Your graphs' : '' }); }
+    }
+
+    /**
+     * Whether the dialog's Delete shows (when resolver 'graphDeletable'): on a watch with graph
+     * styles, while the dialog's graph is not the first, which every screen falls back to.
      * @param {Object} S Settings (the show-when context: the settings by key).
      * @param {?Object} env Platform env.
      * @returns {boolean}
@@ -976,7 +1068,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * What the card's Delete says (hint resolver 'graphDeleteLabel'): the picked graph by name.
+     * What the dialog's Delete says (hint resolver 'graphDeleteLabel'): the graph by name.
      * @param {Object} S Settings.
      * @returns {string} "Delete Graph 2"
      */
@@ -989,31 +1081,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     if (PConf) {
         if (PConf.hooks && PConf.hooks.onRender) { PConf.hooks.onRender(onRender); }
         if (PConf.hooks && PConf.hooks.onNormalize) { PConf.hooks.onNormalize(normalize); }
-        if (PConf.hooks && PConf.hooks.onReady) {
-            PConf.hooks.onReady(function (ctx) {
-                UI.ctx = ctx;
-                // The card's name field: Enter stores the name as OK does, Escape keeps the old one;
-                // leaving it for anything but OK stores it too, without a repaint, so the tap that
-                // took the focus lands (its own repaint shows the name again).
-                if (typeof document === 'undefined' || !document.addEventListener) { return; }
-                document.addEventListener('keydown', function (e) {
-                    if (!UI.renaming || !e.target || !e.target.closest || !e.target.closest('[data-gl-rename-in]')) { return; }
-                    if (e.key !== 'Enter' && e.key !== 'Escape') { return; }
-                    e.preventDefault();
-                    if (e.key === 'Enter') { commitName(ctx.S); } else { UI.renaming = false; }
-                    ctx.render();
-                    var pen = document.querySelector('[data-action="renameGraph"]');
-                    if (pen) { pen.focus(); }
-                });
-                document.addEventListener('focusout', function (e) {
-                    var el = e.target && e.target.closest ? e.target.closest('[data-gl-rename-in]') : null, to = e.relatedTarget;
-                    if (!el || !UI.renaming || (to && to.closest && to.closest('[data-action="renameGraphOk"]'))) { return; }
-                    renameStyle(ctx.S, null, el.value);
-                    UI.renaming = false;
-                });
-            });
+        if (PConf.hooks && PConf.hooks.onReady) { PConf.hooks.onReady(function (ctx) { UI.ctx = ctx; }); }
+        if (PConf.blocks) {
+            PConf.blocks.register('graphList', listBlock);
+            PConf.blocks.register('graphShowOn', showOnBlock);
         }
-        if (PConf.blocks) { PConf.blocks.register('graphStyleCards', cardsBlock); }
         if (PConf.optionsResolvers) {
             PConf.optionsResolvers.register('graphStyleStarts', startOptions);
         }
@@ -1026,27 +1098,39 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.displayResolvers) {
             PConf.displayResolvers.register('graphStyleOnOpen', pickOnOpen);
             PConf.displayResolvers.register('graphMetricsNote', metricsNote);
+            PConf.displayResolvers.register('graphName', dialogTitle);
+            PConf.displayResolvers.register('graphDefaultName', defaultNameOfPick);
+            PConf.displayResolvers.register('graphListTitle', listTitle);
         }
-        if (PConf.onChange) { PConf.onChange.register('graphStyleCreate', createStyle); }
+        if (PConf.onChange) {
+            PConf.onChange.register('graphStyleCreate', createStyle);
+            PConf.onChange.register('graphStyleRenamed', renameStyle);
+        }
         PConf.actions = PConf.actions || {};
-        PConf.actions.pickGraph = function (arg, S) {
-            S[PICK] = String(arg);
-            UI.renaming = false;
-            return true;
+        // A row of the Your graphs card: its graph's dialog.
+        PConf.actions.openGraph = function (arg, S) {
+            openGraph(S, Math.max(0, (parseInt(arg, 10) || 1) - 1), false);
+            return false;
         };
-        // The picked graph's pencil: its name becomes a field, focused with the name selected
-        // once the page has repainted; OK stores it.
-        PConf.actions.renameGraph = function () {
-            UI.renaming = true;
-            setTimeout(function () {
-                var el = nameField();
-                if (el) { el.focus(); if (el.select) { el.select(); } }
-            }, 0);
-            return true;
+        // New graph: its sheet (templates and copies); a pick makes the graph (createStyle), whose
+        // dialog opens with its name field ready once the sheet has closed.
+        PConf.actions.newGraph = function (arg, S) {
+            if (!UI.ctx || !UI.ctx.openSheet) { return false; }
+            UI.made = 0;
+            UI.ctx.openSheet(NEW_FROM, function () {
+                var k = UI.made;
+                UI.made = 0;
+                if (k > 0) { openGraph(S, k, true); }
+            });
+            return false;
         };
-        PConf.actions.renameGraphOk = function (arg, S) { commitName(S); return true; };
         PConf.actions.graphOnScreen = function (arg, S, env) { toggleScreen(S, env, Number(arg)); return true; };
-        PConf.actions.deleteGraphStyle = function (arg, S) { deletePicked(S); return true; };
+        // Delete in a graph's dialog: the graph gone, so is its dialog; the card's Undo shows.
+        PConf.actions.deleteGraphStyle = function (arg, S) {
+            deletePicked(S);
+            if (UI.ctx && UI.ctx.closeDialog) { UI.ctx.closeDialog(); return false; }
+            return true;
+        };
         PConf.actions.undoDeleteGraphStyle = function (arg, S) { undoDelete(S); return true; };
     }
 
@@ -1088,12 +1172,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         createGraph: createGraph,
         createStyle: createStyle,
         renameStyle: renameStyle,
-        commitName: commitName,
         deletePicked: deletePicked,
         undoDelete: undoDelete,
         setScreenGraph: setScreenGraph,
         toggleScreen: toggleScreen,
-        cardsBlock: cardsBlock,
+        listBlock: listBlock,
+        showOnBlock: showOnBlock,
+        roomText: roomText,
+        lineSlots: lineSlots,
+        dialogTitle: dialogTitle,
         deletable: deletable,
         deleteLabel: deleteLabel,
         _test: { UI: UI }

@@ -94,7 +94,7 @@
     var FIRST_RUN = 'clean';
     var OWN = { id: 'own', label: 'Your own' };
 
-    // Forecast length (emery only): the schema's Graphs › Forecast › Other row. Setup shows its
+    // Forecast length (emery only): the schema's Other row of a graph's dialog (Graphs › Forecast). Setup shows its
     // hints, the long span's shortened to this.
     var SPAN_DESC = {
         '48': 'Shows as many hours as your weather service forecasts and the graph can fit, in narrow columns.'

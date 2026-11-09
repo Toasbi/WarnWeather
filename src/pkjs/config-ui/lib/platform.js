@@ -67,15 +67,15 @@ var NO_ON_DEMAND_PLATFORMS = { aplite: true };
 // Unknown platforms read the 10 % steps (conservative, the colorBacklight precedent: a
 // wrong guess then fires at most one 5 % step early on an emery, never late elsewhere).
 var FINE_BATTERY_PLATFORMS = { emery: true };
-// Platforms whose forecast graph offers a 12 h / 24 h / long time span (Graphs > Forecast >
-// Forecast length): emery (Pebble Time 2) only. Keep in lockstep with the C
+// Platforms whose forecast graph offers a 12 h / 24 h / long time span (Graphs > Forecast > a
+// graph > Other > Forecast length): emery (Pebble Time 2) only. Keep in lockstep with the C
 // `#if defined(PBL_PLATFORM_EMERY)` arm of src/c/appendix/forecast_span.h, which sizes the
 // watch's forecast buffers for 68 hours there and 24 everywhere else. Every other watch is
 // sent 24 hours whatever is stored: their 640 / 536 B AppMessage inboxes would drop the long
 // span's 68-hour bundle (test/inbox-size.test.js). Unknown platforms get 24 h (fail closed,
 // the colorBacklight precedent: never send more hours to a watch that may drop the message).
 var FORECAST_SPAN_PLATFORMS = { emery: true };
-// Platforms whose screens each draw their own graph style (Graphs > Forecast > Graph style;
+// Platforms whose screens each draw their own graph style (Graphs > Forecast > Your graphs;
 // src/pkjs/graph-styles.js): emery (Pebble Time 2) only. Keep in lockstep with the C
 // `#if defined(PBL_PLATFORM_EMERY)` arms that read the style records (src/c/appendix/
 // graph_style.h). Every other watch keeps one graph look and is never sent a record. Unknown

@@ -20,6 +20,7 @@ const byKey = (k) => items.filter((i) => i.messageKey === k)[0];
 // in line order — the rows the old Forecast tab stacked under each metric picker.
 const LINE_SHEETS = ['lineMain', 'lineSecond', 'lineThird', 'lineFourth'];
 const graphsTab = (s) => (s || schema).tabs.find((t) => t.id === 'graphs');
+const { graphDialog, dialogCards, dialogCard } = require('./helpers/graph-dialog.js');
 const lineSheetById = (id, s) => graphsTab(s).sections.find((sec) => sec.sheetId === id);
 function forecastItems(s) { return LINE_SHEETS.reduce((acc, id) => acc.concat(lineSheetById(id, s).items), []); }
 
@@ -1446,19 +1447,24 @@ test('largeGraphFont is offered on emery only, and hidden when watchInfo is unav
   assert.equal(showWhen.isVisible(it, unknown), false, 'hidden without watchInfo');
 });
 
-test('the Other card: after Rain bars on every watch, shading, Forecast length', () => {
+test('the Forecast pane is the Your graphs card; a graph\'s cards are its dialog\'s, Other after Rain bars', () => {
   const graphs = graphsTab();
+  // The pane: the list alone, on every watch, with no pinned preview of its own (each row draws
+  // its graph; the dialog pins the one it shows).
   const ids = graphs.sections.filter((sec) => sec.pane === 'forecast' && !sec.sheetOnly).map((sec) => sec.id);
-  // The Your graphs card first: it renders above the pinned preview (abovePin), emery only.
-  assert.deepEqual(ids.slice(0, 5), ['graphStyle', 'lines', 'bars', 'other', 'axis']);
-  assert.equal(graphs.sections.find((sec) => sec.id === 'graphStyle').abovePin, true);
-  const bars = graphs.sections.find((sec) => sec.id === 'bars');
-  assert.equal(bars.title, 'Rain bars');
-  assert.deepEqual(bars.items.map((it) => it.messageKey), ['barSource', 'rainBarColor', 'rainBarFrom'],
+  assert.deepEqual(ids, ['graphStyle']);
+  const list = graphs.sections.find((sec) => sec.id === 'graphStyle');
+  assert.equal(list.showWhen, undefined, 'every watch lists its graphs');
+  assert.equal(list.block, 'graphList');
+  assert.equal(graphs.panes.find((p) => p.id === 'forecast').pinBlock, undefined);
+  // The dialog: the graph's preview pinned, its cards in order.
+  const dlg = graphDialog(schema);
+  assert.equal(dlg.pinBlock, 'forecastPreview');
+  assert.deepEqual(dialogCards(schema).map((c) => c.head.text), ['Lines', 'Rain bars', 'Other', 'Left axis', '', 'Show on']);
+  assert.deepEqual(dialogCard(schema, 'Rain bars').items.map((it) => it.messageKey), ['barSource', 'rainBarColor', 'rainBarFrom'],
     'only about the bars: the shading left');
-  const other = graphs.sections.find((sec) => sec.id === 'other');
-  assert.equal(other.title, 'Other');
-  assert.equal(other.showWhen, undefined, 'the shading is on every watch, so the card is too');
+  const other = dialogCard(schema, 'Other');
+  assert.equal(other.head.showWhen, undefined, 'the shading is on every watch, so the card is too');
   assert.deepEqual(other.items.map((it) => it.messageKey), ['dayNightShading', 'forecastHours']);
 });
 
@@ -1512,16 +1518,13 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
 // The forecast's left axis options (emery only; src/pkjs/forecast-axis.js).
 test('Left axis: Left axis values in the card, the scale and the font size under More, after Other, emery only', () => {
   const forecastAxis = require('../src/pkjs/forecast-axis.js');
-  const graphs = graphsTab();
-  const ids = graphs.sections.filter((sec) => sec.pane === 'forecast' && !sec.sheetOnly).map((sec) => sec.id);
-  const at = ids.indexOf('axis');
-  assert.ok(at > 0, 'the section exists in the forecast pane');
-  assert.equal(ids[at - 1], 'other', 'directly after Other');
-  assert.equal(ids[at + 1], 'graphColorsCard', 'directly before the Graph colors card');
-  const section = graphs.sections.find((sec) => sec.id === 'axis');
-  assert.equal(section.title, 'Left axis');
-  assert.deepEqual(section.showWhen, { env: 'platform', eq: 'emery' });
-  assert.ok(!section.collapsible, 'no Forecast-pane section collapses');
+  const titles = dialogCards(schema).map((c) => c.head.text);
+  const at = titles.indexOf('Left axis');
+  assert.ok(at > 0, 'the card is in the graph dialog');
+  assert.equal(titles[at - 1], 'Other', 'directly after Other');
+  assert.equal(titles[at + 1], '', 'directly before the Graph colors card');
+  const section = { items: dialogCard(schema, 'Left axis').items };
+  assert.deepEqual(dialogCard(schema, 'Left axis').head.showWhen, { env: 'platform', eq: 'emery' });
   // The betas' Axis line and Number outline rows are gone: both follow where the numbers go.
   // Larger graph fonts joined it from the Views card (the owner's Screens plan): it sizes
   // the axis labels.
@@ -2898,7 +2901,7 @@ test('the Third metric row and every line-style row hide behind the lineStyles c
   assert.equal(thirdSheet.title, 'Third metric');
   assert.ok(thirdSheet.items.indexOf(byKey('fourthLine')) !== -1, 'the picker lives in the Third metric dialog');
   assert.deepEqual(thirdSheet.showWhen, LINE_STYLES_GATE);
-  const linesCard = graphsTab().sections.find((s) => s.id === 'lines');
+  const linesCard = dialogCard(schema, 'Lines');
   assert.deepEqual(linesCard.items.find((i) => i.sheetId === 'lineThird').showWhen, LINE_STYLES_GATE);
   assert.equal(linesCard.items.find((i) => i.sheetId === 'lineThird').label, 'Third metric');
   assert.deepEqual(byKey('secondaryLineStyle').showWhen, { all: [LINE_STYLES_GATE] });
@@ -3038,8 +3041,7 @@ test('pressureScale hint copy quotes the curve core (no drift)', () => {
 // is a CONCRETE per-polarity value defaulting to the built-in line-style.js resolves
 // today, so a picker opens with the colour the graph already draws highlighted — no Auto
 // sentinel, no curated palette.
-const forecastSections = () => graphsTab().sections.filter((s) => s.pane === 'forecast');
-const graphCard = () => graphsTab().sections.find((s) => s.id === 'graphColorsCard');
+const graphCard = () => dialogCard(schema, '');
 const graphColorsDialog = () => graphsTab().sections.find((s) => s.sheetId === 'graphColors');
 const graphSheets = () => graphsTab().sections.filter((s) => s.sheetOnly && /^gc/.test(s.sheetId));
 const gcSheetById = (id) => graphSheets().find((s) => s.sheetId === id);
@@ -3054,28 +3056,23 @@ const graphState = (over) => Object.assign({
   secondaryLine: 'wind', secondaryLineFill: true, thirdLine: 'uv', dayNightShading: true
 }, over || {});
 
-test('the Forecast pane carries ONE Graph colors card, always open, under an explicit id', () => {
+test('a graph\'s dialog carries ONE Graph colors card, a row with no title above it', () => {
   const card = graphCard();
-  assert.ok(card, 'the card is in the Graphs tab');
-  assert.equal(card.pane, 'forecast', 'on the Forecast pane');
-  assert.equal(forecastSections().filter((s) => s.id === 'graphColorsCard').length, 1, 'one card');
-  // Plain section: its row is visible without a tap. Nothing on this pane collapses.
-  assert.equal(card.collapsible, undefined, 'the Graph colors card is not expandable');
-  assert.equal(forecastSections().filter((s) => s.collapsible).length, 0,
-    'no collapsible section on the Forecast pane');
-  assert.equal(card.id, 'graphColorsCard');
-  // A groupCard section renders through renderSectionGroup, which emits no card header.
-  assert.equal(card.groupCard, undefined);
-  assert.equal(card.sheetOnly, undefined, 'the card itself is a normal tab section');
-  // One nav row, labelled for what it opens: the Graph colors dialog, its rows counted.
+  assert.equal(dialogCards(schema).filter((c) => c.items.some((it) => it.sheetId === 'graphColors')).length, 1, 'one card');
+  // Its row is visible without a tap; nothing in the dialog folds away but More options.
+  assert.equal(graphDialog(schema).collapsible, undefined);
+  // One nav row, labelled for what it opens: the Graph colors dialog, its rows counted; it and
+  // the card's subheader carry the theme gate, so a B&W theme leaves no empty card.
   assert.deepEqual(card.items, [{ type: 'sheet', sheetId: 'graphColors', label: 'Graph colors',
-    hint: 'Pick the colors of each metric and of the night shading.', navNote: '9', capabilities: ['COLOR'] }]);
+    hint: 'Pick the colors of each metric and of the night shading.', navNote: '9', capabilities: ['COLOR'],
+    showWhen: { key: 'theme', nin: ['bw', 'bw-light'] } }]);
   const dialog = graphColorsDialog();
   assert.equal(dialog.sheetOnly, true);
   assert.equal(dialog.title, 'Graph colors');
   assert.ok(dialog.intro, 'the dialog says what its rows are');
   assert.equal(dialog.pinBlock, 'forecastPreview', 'the forecast preview pinned atop it');
-  [card, dialog].forEach((sec) => {
+  assert.deepEqual(dialog.capabilities, ['COLOR']);
+  [card.head, card.items[0], dialog].forEach((sec) => {
     assert.deepEqual(sec.capabilities, ['COLOR']);
     assert.deepEqual(sec.showWhen, { key: 'theme', nin: ['bw', 'bw-light'] });
     // Both gates, evaluated: a B&W theme or a B&W watch hides the whole card, header

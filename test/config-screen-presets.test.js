@@ -289,7 +289,7 @@ test('no free graph slot, or a graph that would make too many lines: the preset 
     secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLine: 'wind', fourthLine: 'uv', fifthLine: 'gust'
   });
   const why = byId(busy).stripes;
-  assert.match(why, /^Also needs .*: that makes \d+ lines and stripes on your screens. The watch can show 5\.$/);
+  assert.match(why, /^Also needs .*: that makes \d+ metrics on your screens. The watch can show 5\.$/);
   const kept = JSON.stringify(busy);
   assert.equal(SP.addChosen(busy, EMERY, 'stripes'), -1);
   assert.equal(JSON.stringify(busy), kept, 'no graph made');

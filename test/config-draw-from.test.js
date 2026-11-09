@@ -37,7 +37,7 @@ const LINE_SHEETS = { secondaryLine: 'lineMain', thirdLine: 'lineSecond', fourth
 const lineSheet = (picker) => graphsTab.sections.find((s) => s.sheetOnly && s.sheetId === LINE_SHEETS[picker]);
 // Every line dialog's rows, in line order: a picker, its own rows, then the next picker.
 const forecastItems = PICKERS.reduce((all, picker) => all.concat(lineSheet(picker).items), []);
-const barItems = graphsTab.sections.find((s) => s.pane === 'forecast' && s.id === 'bars').items;
+const barItems = require('./helpers/graph-dialog.js').dialogCard(schema, 'Rain bars').items;
 const radarItems = graphsTab.sections.find((s) => s.pane === 'radar' && s.id === 'radar').items;
 const fromItems = forecastItems.filter((i) => i.label === 'Draw from');
 
@@ -55,7 +55,8 @@ function visibleRows(S, env) {
 /**
  * What the page draws for one graph, through the real engine: the Graphs tab's pane
  * with every card's More options open (Bars from waits there), and for the forecast
- * also the four line dialogs its Lines card opens (where the Draw from rows live).
+ * the graph's dialog (its Rain bars card) and the four line dialogs its Lines card opens
+ * (where the Draw from rows live).
  * @param {string} pane 'forecast' | 'radar'.
  * @param {Object} stored Stored settings.
  * @param {Object} env Platform env.
@@ -74,6 +75,7 @@ function body(pane, stored, env, folded) {
     assert.ok(html.indexOf('aria-selected="true" data-pane="graphs:radar"') !== -1, 'premise: the radar pane is shown');
   }
   if (pane === 'forecast') {
+    html += E.renderEditModal(schema, Object.assign({}, cx, { openEdit: 'graph' }));
     PICKERS.forEach((picker) => {
       html += E.renderEditModal(schema, Object.assign({}, cx, { openEdit: LINE_SHEETS[picker] }));
     });
@@ -194,21 +196,25 @@ test('the row sits where draw-from.js rowLine puts it: a stored repeat hides it,
 test('the real generated page draws each row family under its picker', () => {
   // The bundle the phone loads (test/helpers/page-harness.js), so a when resolver missing
   // from APP_FILES (an unregistered leaf reads false) shows here and not only in Node.
-  // The Graphs tab's Forecast pane, then every line dialog its rows open (the line rows
-  // live in the dialogs), each with its More options open.
+  // The Graphs tab's Forecast pane and its graph's dialog, then every line dialog the graph's
+  // Lines card opens (the line rows live in the dialogs), each with its More options open.
   const forecast = (cfg, platformName) => {
     const page = bootGeneratedPage(cfg, platformName);
     page.clickTab('graphs');
     // aplite has no Rain radar pane, so no pane bar: the Forecast rows are the tab.
     if (page.scroll.innerHTML.indexOf('data-pane="graphs:forecast"') !== -1) { page.clickPane('graphs', 'forecast'); }
     let html = page.scroll.innerHTML;
+    page.tapAction('openGraph', 1);
+    page.openAllMore('modal');
+    html += page.modal.innerHTML;
     PICKERS.forEach((picker) => {
-      if (page.scroll.innerHTML.indexOf('data-edit-sheet="' + LINE_SHEETS[picker] + '"') === -1) { return; }
-      page.openEditSheet(LINE_SHEETS[picker]);
+      if (page.modal.innerHTML.indexOf('data-edit-sheet="' + LINE_SHEETS[picker] + '"') === -1) { return; }
+      page.openNestedSheet(LINE_SHEETS[picker]);
       page.openAllMore('modal');
       html += page.modal.innerHTML;
-      page.doneDialog();
+      page.backDialog();
     });
+    page.doneDialog();
     return html;
   };
   const S = { secondaryLine: 'wind', thirdLine: 'pressure', fourthLine: 'uv', fifthLine: 'off', windUnits: 'kph' };

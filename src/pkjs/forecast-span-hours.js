@@ -1,5 +1,5 @@
 // src/pkjs/forecast-span-hours.js — ES5. The Forecast length row's stored option and the long time
-// span's label (Graphs > Forecast > Other > Forecast length, emery only).
+// span's label (Graphs > Forecast > a graph > Other > Forecast length, emery only).
 //
 // THE STORED OPTION (CHOICES, storedHours, option): '12', '24' or '48'. One reading for the
 // hours sent, the render signature and telemetry (forecast-span.js re-exports it), the Time

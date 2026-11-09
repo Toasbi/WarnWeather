@@ -2,11 +2,12 @@
 // test/config-graph-styles-page.test.js — graph styles on the settings page, where each is "a
 // graph" (src/pkjs/settings/graph-styles-page.js, Pebble Time 2): the swap that puts the picked
 // graph's values in the flat keys on Graphs › Forecast and the first graph's everywhere else, the
-// settings as Save stores them, the Your graphs card (a plain row per graph, renamed in place with
-// OK; New graph from a template or as a copy; the Show on row; Delete with Undo), the screen
-// editor's graph chips (a chip per graph, the row named after its graph), and the five-series
-// limit with its count in the card's header ("4/5 metrics active" and its '?'). The module
-// first, then the REAL generated page (test/helpers/page-harness.js).
+// settings as Save stores them, the Your graphs card (a row per graph with its picture, its
+// screens, its metrics and the room left; New graph from a template or as a copy; the Undo of a
+// Delete), a graph's dialog behind its row (renamed in its title, its settings, Show on and
+// Delete), the screen editor's graph chips (a chip per graph, the row named after its graph), and
+// the five-series limit with its count in the card's header ("4/5 metrics active" and its '?').
+// The module first, then the REAL generated page (test/helpers/page-harness.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
@@ -142,7 +143,7 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
   const fifth = metric(S, EMERY, { key: 'fifthLine', off: true, exclude: lines });
   assert.deepEqual(off(fifth), ['pressure', 'feels', 'dew']);
   assert.equal(fifth.find((o) => o[1] === 'pressure')[2].desc, GSP.LIMIT);
-  assert.equal(GSP.LIMIT, 'That makes 6 lines and stripes on your screens. The watch can show 5.');
+  assert.equal(GSP.LIMIT, 'That makes 6 metrics on your screens. The watch can show 5.');
   // Changing a line swaps one series for another, so the first style's gust line may become
   // anything.
   assert.deepEqual(off(metric(S, EMERY, { key: 'fourthLine', off: true, exclude: lines.slice(0, 2) })), []);
@@ -177,19 +178,19 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
   assert.equal(GSP.screenOverflows(busy, EMERY, 1, 0), false);
   // Why, as Add a screen says it under a preset: what the graph adds, and the count.
   const onFlick = (T) => Object.assign({}, GSP.asStored(T), { viewStyle1: '2' });
-  assert.equal(GSP.limitDesc(onFlick(busy), EMERY, 1), 'Also needs Cloud cover % and Air pressure (hPa): that makes 6 lines'
-    + ' and stripes on your screens. The watch can show 5.');
+  assert.equal(GSP.limitDesc(onFlick(busy), EMERY, 1), 'Also needs Cloud cover % and Air pressure (hPa): that makes 6'
+    + ' metrics on your screens. The watch can show 5.');
   // A line and a stripe of one metric are two series.
   const stripes = Object.assign({}, fits, { graphStyles: stylesItem({ secondaryLine: 'cloud',
     secondaryLineStyle: 'stripeTop', thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop', fourthLine: 'off', fifthLine: 'off' }) });
   assert.equal(GSP.screenOverflows(stripes, EMERY, 1, 1), true);
   assert.equal(GSP.limitDesc(onFlick(stripes), EMERY, 1), 'Also needs Cloud cover % (stripe) and Precipitation % (stripe):'
-    + ' that makes 6 lines and stripes on your screens. The watch can show 5.');
+    + ' that makes 6 metrics on your screens. The watch can show 5.');
   // The note under the editor's chips names each graph greyed out and what it needs.
   const two = Object.assign({}, fits, { graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'pressure',
     fourthLine: 'off', fifthLine: 'off' }, { secondaryLine: 'dew', thirdLine: 'feels', fourthLine: 'off', fifthLine: 'off' },
   ['', 'Long', 'Air']) });
-  const inUse = 'The watch can show 5 lines and stripes across all your screens. In use: Precipitation %, UV Index, Wind'
+  const inUse = 'The watch can show 5 metrics across all your screens. In use: Precipitation %, UV Index, Wind'
     + ' speed, Wind gusts.';
   assert.equal(GSP.limitNote(two, EMERY, [1, 2]), inUse + ' Long also needs Cloud cover % and Air pressure (hPa). Air also'
     + ' needs Dew point and Feels-like temperature. To make room, turn off a line in one of your graphs.');
@@ -198,18 +199,42 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
 });
 
 /**
- * The Your graphs rows in the page: [value, picked, name, line] per row.
+ * The Your graphs rows in the page: [arg, name, where, metrics, room] per row, where '' on a row
+ * that names no screens (a watch with one graph). Every row draws its graph.
  * @param {string} html The page's HTML.
- * @returns {Array<Array>}
+ * @returns {Array<Array<string>>}
  */
 function rows(html) {
-  const out = [], re = /<div class="ui-row gl-row( on)?" role="listitem"><button type="button" class="gl-pick" aria-pressed="(true|false)" data-action="pickGraph" data-action-arg="(\d)"><span class="gl-txt"><span class="ui-n">([^<]*)<\/span><span class="ui-d">([^<]*)<\/span>/g;
+  const out = [], re = /<div class="ui-row gl-row" role="listitem"><button type="button" class="gl-open" data-action="openGraph" data-action-arg="(\d)"><span class="gl-pic" aria-hidden="true">([\s\S]*?)<\/span><span class="gl-txt"><span class="ui-n">([^<]*)<\/span>(?:<span class="ui-d">([^<]*)<\/span>)?<span class="ui-d gl-met">([^<]*)<\/span><span class="ui-d">([^<]*)<\/span><\/span><span class="chev nav" aria-hidden="true">&#8250;<\/span><\/button><\/div>/g;
   let m;
   while ((m = re.exec(html))) {
-    assert.equal(Boolean(m[1]), m[2] === 'true', 'a picked row is tinted');
-    out.push([m[3], m[2] === 'true', m[4], m[5]]);
+    assert.match(m[2], /^<svg class="wiz-graph-scr" /, 'the row\'s picture of its graph');
+    out.push([m[1], m[3], m[4] || '', m[5], m[6]]);
   }
   return out;
+}
+
+/**
+ * The card titles of the open dialog, in order.
+ * @param {string} html The dialog's HTML.
+ * @returns {string[]}
+ */
+function cardTitles(html) {
+  return [...html.matchAll(/<span class="ttl">([^<]*)<\/span>/g)].map((m) => m[1]);
+}
+
+/**
+ * A tap on a segmented option (data-k, data-v) in a host: the page's #scroll or the open
+ * dialog's #modal.
+ * @param {Object} host The harness element.
+ * @param {string} key The key.
+ * @param {string} value The option's value.
+ * @returns {void}
+ */
+function tapSeg(host, key, value) {
+  const t = { getAttribute: (n) => (n === 'data-k' ? key : (n === 'data-v' ? value : null)),
+    closest: (sel) => (sel === '[data-v]' ? t : null) };
+  host.dispatch('click', { target: t });
 }
 
 /**
@@ -230,39 +255,38 @@ function chips(html) {
   return out;
 }
 
-test('the page: Your graphs sits above the pinned preview on emery only, a plain row per graph', () => {
+test('the page: Your graphs lists each graph with its picture, where it shows, its metrics and the room left', () => {
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
   const html = p.scroll.innerHTML;
-  assert.ok(html.indexOf('Your graphs') !== -1, 'the card\'s title');
-  assert.ok(html.indexOf('data-action="pickGraph"') < html.indexOf('class="pin"'), 'above the pinned preview');
-  assert.ok(html.indexOf('pane-seg') < html.indexOf('data-action="pickGraph"'), 'under the pane switcher');
-  assert.ok(html.indexOf('<div class="gl-lead">Tap a graph to change it below.</div>') !== -1, 'what a tap does, first');
+  assert.ok(html.indexOf('<span class="ttl" data-title-by="graphStyle">Your graphs</span>') !== -1, 'the card\'s title');
+  assert.ok(html.indexOf('pane-seg') < html.indexOf('data-action="openGraph"'), 'under the pane switcher');
+  assert.equal(html.indexOf('pin-blk'), -1, 'no pinned preview: each row draws its graph, its dialog pins it');
   const r = rows(html);
-  assert.equal(r.length, 2, 'one row per graph');
-  assert.deepEqual(r[0], ['1', true, 'Graph 1', '24 h · Default'], 'the first graph, picked');
-  assert.deepEqual(r[1].slice(0, 3), ['2', false, 'Long']);
-  assert.match(r[1][3], /^\d+ h · Flick 1$/);
-  // No pictures: the preview below draws the picked graph (the owner's, 2026-11-09).
-  assert.equal(html.indexOf('id="nh-gc0"'), -1, 'no picture per graph');
-  assert.ok(html.indexOf('data-action-arg="1"><span class="gl-txt"><span class="ui-n">Graph 1</span><span class="ui-d">24 h · '
-    + 'Default</span></span><svg class="ui-ic"') !== -1, 'the picked row ticked');
-  assert.ok(html.indexOf('<button type="button" class="ui-pen" data-action="renameGraph" aria-label="Rename Graph 1">') !== -1,
-    'its pencil');
-  assert.equal((html.match(/data-action="renameGraph"/g) || []).length, 1, 'on the picked row alone');
-  assert.ok(html.indexOf('<button type="button" class="ui-row ui-new" data-select="graphStyleNewFrom">') !== -1,
+  assert.deepEqual(r.map((x) => [x[0], x[1], x[3], x[4]]), [
+    ['1', 'Graph 1', 'Precipitation %', 'Room for 3 more metrics'],
+    ['2', 'Long', 'Precipitation %, Cloud cover % (stripe)', 'Room for 2 more metrics']], 'a row per graph, a tap opens it');
+  assert.equal(r[0][2], '24 h · Default', 'its length and its screens');
+  assert.match(r[1][2], /^\d+ h · Flick 1$/);
+  assert.ok(html.indexOf('id="nh-gl0"') !== -1 && html.indexOf('id="nh-gl1"') !== -1, 'each picture\'s ids its own');
+  assert.equal(html.indexOf('gl-lead'), -1, 'two graphs: no lead');
+  ['pickGraph', 'renameGraph', 'ui-pen', 'deleteGraphStyle', 'graphOnScreen'].forEach((gone) =>
+    assert.equal(html.indexOf(gone), -1, gone + ': the dialog\'s, not the list\'s'));
+  assert.ok(html.indexOf('<button type="button" class="ui-row ui-new" data-action="newGraph">') !== -1,
     'New graph while a slot is free');
   assert.ok(html.indexOf('<span class="ui-n">New graph</span><span class="ui-d">2 of 3 graphs</span>') !== -1, 'its count');
-  assert.equal(html.indexOf('data-action="deleteGraphStyle"'), -1, 'no Delete on the first graph');
+  // A watch without graphs of its own: its one graph, untitled, named Forecast graph.
   const b = bootGeneratedPage(TWO, 'basalt');
   b.clickTab('graphs');
-  assert.equal(b.scroll.innerHTML.indexOf('pickGraph'), -1, 'basalt: one look, no card');
-  // One graph: no Show on row, the lead says what New graph is for.
+  const bh = b.scroll.innerHTML;
+  assert.deepEqual(rows(bh), [['1', 'Forecast graph', '', 'Precipitation %', 'Room for 3 more metrics']]);
+  ['Your graphs', 'hdr-note', 'newGraph', 'gl-lead'].forEach((gone) => assert.equal(bh.indexOf(gone), -1, gone));
+  // One graph: the lead says what New graph is for.
   const one = bootGeneratedPage(layout(['1', '1'], { provider: 'dwd' }), 'emery');
   one.clickTab('graphs');
   assert.equal(rows(one.scroll.innerHTML).length, 1);
-  assert.equal(one.scroll.innerHTML.indexOf('ui-chip'), -1);
-  assert.ok(one.scroll.innerHTML.indexOf('New graph gives a screen a graph of its own.') !== -1);
+  assert.ok(one.scroll.innerHTML.indexOf('<div class="gl-lead">New graph gives a screen a graph of its own.</div>') !== -1);
+  assert.ok(one.scroll.innerHTML.indexOf('<span class="ui-n">New graph</span><span class="ui-d">1 of 3 graphs</span>') !== -1);
   // Three graphs: why there is no New graph.
   const full = bootGeneratedPage(Object.assign({}, TWO, { graphStyles: stylesItem({ forecastHours: '48' }, { forecastHours: '12' }) }),
     'emery');
@@ -271,45 +295,78 @@ test('the page: Your graphs sits above the pinned preview on emery only, a plain
   assert.ok(full.scroll.innerHTML.indexOf('You have 3 graphs, the most there can be. Delete one to make another.') !== -1);
 });
 
-test('the page: picking a style edits it; Save stores it in graphStyles and the first style in the flat keys', async () => {
+test('a row\'s room: the graph\'s free lines, and on a graph the screens show no more than their five metrics leave', () => {
+  assert.equal(GSP.lineSlots(EMERY), 4);
+  assert.equal(GSP.lineSlots(BASALT), 4);
+  assert.equal(GSP.lineSlots(platform.computeEnv({ platform: 'aplite' })), 2, 'aplite draws two lines');
+  // Graph 1 draws four metrics on the Default, Long the fifth on Flick 1.
+  const four = layout(['1', '2'], { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust',
+    graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' }) });
+  assert.equal(GSP.roomText(four, EMERY, 0), 'Full: 4 metrics', 'every line taken');
+  assert.equal(GSP.roomText(four, EMERY, 1), 'Full: the screens show 5 metrics', 'three lines free, the screens full');
+  assert.equal(GSP.roomText(Object.assign({}, four, { viewStyle1: '1' }), EMERY, 1), 'Room for 3 more metrics',
+    'a graph no screen shows: its free lines');
+  const three = Object.assign({}, four, { fifthLine: 'off' });
+  assert.equal(GSP.roomText(three, EMERY, 0), 'Room for 1 more metric');
+  assert.equal(GSP.roomText(three, EMERY, 1), 'Room for 1 more metric', 'the one the screens leave');
+});
+
+test('the page: a row opens its graph\'s dialog; its edits are that graph\'s, Done keeps them, × puts them back, Save stores them', async () => {
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
-  p.tapAction('pickGraph', 2);
-  assert.equal(p.S.forecastHours, '48', 'Long\'s length in the Forecast length row');
-  assert.deepEqual(rows(p.scroll.innerHTML).map((c) => c[1]), [false, true], 'the tick on Long');
-  // The page shows Revert only once something changed (the harness's classList is a stub).
   const revert = p.window.document.getElementById('revert');
-  assert.equal(revert.hidden, true, 'a pick alone is no change');
-  // Delete: the page's one Delete, under the Your graphs card as the editor's Delete screen.
-  const html2 = p.scroll.innerHTML, del = html2.indexOf('<button type="button" class="ui-del" data-action="deleteGraphStyle">'
-    + 'Delete Long</button>');
-  assert.ok(del !== -1, 'Delete on another style, by its name');
-  assert.ok(html2.lastIndexOf('</div></div>', del) === del - '</div></div>'.length, 'under the card, outside it');
-  // An edit on Long: its length.
-  const t = { getAttribute: (n) => (n === 'data-k' ? 'forecastHours' : (n === 'data-v' ? '12' : null)),
-    closest: (sel) => (sel === '[data-v]' ? t : null) };
-  p.scroll.dispatch('click', { target: t });
+  p.tapAction('openGraph', 2);
+  assert.equal(p.S.graphStylePick, '2');
+  assert.equal(p.S.forecastHours, '48', 'Long\'s length in the flat keys');
+  const dlg = p.modal.innerHTML;
+  assert.ok(dlg.indexOf('<span class="dlg-kick">Your graphs</span>') !== -1, 'the list it came from, over the title');
+  assert.ok(dlg.indexOf('id="esheet-ttl-graph">Long</span>') !== -1, 'the graph\'s name as the title');
+  assert.ok(dlg.indexOf('<div class="pin dlg-pin">') !== -1, 'its preview pinned at the top');
+  assert.deepEqual(cardTitles(dlg), ['Lines', 'Rain bars', 'Other', 'Left axis', 'Show on']);
+  assert.ok(dlg.indexOf('data-edit-sheet="graphColors"') !== -1, 'Graph colors, a card of its own');
+  assert.ok(dlg.endsWith('</div></div></div></div><button type="button" class="ui-del" data-action="deleteGraphStyle">Delete Long'
+    + '</button></div>'), 'Delete under the last card, by the graph\'s name');
+  assert.equal(revert.hidden, true, 'opening a graph is no change');
+  tapSeg(p.modal, 'forecastHours', '12');
   assert.equal(p.S.forecastHours, '12');
   assert.equal(revert.hidden, false, 'an edit is');
+  p.doneDialog();
+  assert.equal(p.modal.innerHTML, '', 'Done closes it');
+  assert.equal(rows(p.scroll.innerHTML)[1][2], '12 h · Flick 1', 'the row says the new length');
+  // × puts back what the dialog changed.
+  p.tapAction('openGraph', 2);
+  tapSeg(p.modal, 'forecastHours', '24');
+  p.cancelDialog();
+  assert.equal(p.S.forecastHours, '12');
   p.clickPane('graphs', 'radar');
-  assert.equal(p.S.forecastHours, '24', 'off the pane the flat keys hold the first style');
+  assert.equal(p.S.forecastHours, '24', 'off the pane the flat keys hold the first graph');
   p.clickPane('graphs', 'forecast');
   assert.equal(p.S.forecastHours, '12', 'and Long comes back with its edit');
   const blob = await p.save();
-  assert.equal(blob.forecastHours, '24', 'the first style stored in the flat keys');
+  assert.equal(blob.forecastHours, '24', 'the first graph stored in the flat keys');
   const two = GS.parse(blob).styles[1];
   assert.equal(two.forecastHours, '12', 'Long\'s edit in graphStyles');
   assert.equal(two.thirdLine, 'cloud');
   assert.equal(blob.graphStylePick, undefined, 'the pick is the page\'s own');
 });
 
-test('the page: Revert puts every style back, the pick too', () => {
+test('the page: the one graph\'s dialog on a watch without graphs of its own', () => {
+  const b = bootGeneratedPage(TWO, 'basalt');
+  b.clickTab('graphs');
+  b.tapAction('openGraph', 1);
+  const dlg = b.modal.innerHTML;
+  assert.ok(dlg.indexOf('<span class="dlg-kick">Graphs</span>') !== -1, 'the tab over the title');
+  assert.ok(dlg.indexOf('id="esheet-ttl-graph">Forecast graph</span>') !== -1);
+  assert.deepEqual(cardTitles(dlg), ['Lines', 'Rain bars', 'Other']);
+  ['data-dlg-rename', 'deleteGraphStyle', 'graphOnScreen'].forEach((gone) => assert.equal(dlg.indexOf(gone), -1, gone));
+});
+
+test('the page: Revert puts every graph back, the pick too', () => {
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
-  p.tapAction('pickGraph', 2);
-  const t = { getAttribute: (n) => (n === 'data-k' ? 'forecastHours' : (n === 'data-v' ? '12' : null)),
-    closest: (sel) => (sel === '[data-v]' ? t : null) };
-  p.scroll.dispatch('click', { target: t });
+  p.tapAction('openGraph', 2);
+  tapSeg(p.modal, 'forecastHours', '12');
+  p.doneDialog();
   p.window.document.getElementById('revert').dispatch('click', { target: {} });
   const act = { getAttribute: (n) => (n === 'data-confirm' ? 'action' : null) };
   p.modal.dispatch('click', { target: { closest: (sel) => (sel === '[data-confirm]' ? act : null) } });
@@ -319,10 +376,11 @@ test('the page: Revert puts every style back, the pick too', () => {
   assert.equal(p.S.graphStyles, TWO.graphStyles, 'Long as it was');
 });
 
-test('the page: New graph from a template, picked at once and called Graph <n>; a fourth is not offered', async () => {
+test('the page: New graph from a template opens the new graph\'s dialog, its name ready to type; a fourth is not offered', async () => {
+  const WF = require('../src/pkjs/settings/wizard-forecast.js');
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
-  p.openSelect('graphStyleNewFrom');
+  p.tapAction('newGraph');
   const sheet = p.modal.innerHTML;
   assert.match(sheet, /New graph/);
   assert.ok(sheet.indexOf('<div class="ssel-lead">Start from a template. You get your own copy, and the template stays as it is.</div>') !== -1);
@@ -335,26 +393,36 @@ test('the page: New graph from a template, picked at once and called Graph <n>; 
   assert.equal(p.S.graphStylePick, '3', 'the new graph takes the free slot and is picked');
   assert.equal(GS.name(GSP.normalize(p.S), 2), 'Graph 3', 'never the template\'s name');
   assert.equal(GS.parse(GSP.normalize(p.S)).names[2], '', 'stored as the default name');
-  assert.equal(p.S.forecastHours, '48', 'the template\'s length, in the flat keys while it shows');
-  assert.deepEqual([p.S.thirdLine, p.S.thirdLineStyle, p.S.rainBarColor, p.S.forecastAxisNumbers, p.S.dayNightShading],
-    ['cloud', 'stripeTop', 'white', 'graph', true], 'the template\'s lines, bars, high and low and night shading');
+  assert.ok(p.modal.innerHTML.indexOf('data-dlg-rename-in maxlength="24" autocomplete="off" aria-label="Graph name"'
+    + ' placeholder="Graph 3" value="Graph 3">') !== -1, 'its dialog, the name field open');
+  // The template's values, in the flat keys while it shows (wizard-forecast.js LOOKS, the one
+  // definition of a template).
+  const clean = WF.LOOKS.find((l) => l.id === 'clean');
+  assert.equal(p.S.forecastHours, clean.span, 'the template\'s length');
+  Object.keys(clean.over).forEach((k) => assert.equal(p.S[k], clean.over[k], k));
   assert.equal(p.S.graphStyleNewFrom, '', 'the picker is cleared');
-  assert.equal(p.scroll.innerHTML.indexOf('data-select="graphStyleNewFrom"'), -1, 'three graphs: no New graph');
-  assert.match(rows(p.scroll.innerHTML)[2][3], /^\d+ h · No screen$/, 'a new graph is on no screen yet');
+  p.enterRename('Weekend');
+  assert.equal(GS.name(p.S, 2), 'Weekend', 'named as it is made');
+  p.doneDialog();
+  const html = p.scroll.innerHTML;
+  assert.equal(html.indexOf('data-action="newGraph"'), -1, 'three graphs: no New graph');
+  assert.deepEqual(rows(html).map((x) => x[1]), ['Graph 1', 'Long', 'Weekend']);
+  assert.match(rows(html)[2][2], /^\d+ h · No screen$/, 'a new graph is on no screen yet');
   const blob = await p.save();
   assert.equal(GS.count(blob), 3);
   assert.equal(blob.thirdLine, 'off', 'the first graph is untouched');
-  assert.equal(GS.settingsFor(blob, 2).thirdLine, 'cloud', 'the new graph holds the template');
+  assert.equal(GS.settingsFor(blob, 2).thirdLine, clean.over.thirdLine, 'the new graph holds the template');
 });
 
 test('the page: New graph as a copy of a graph; a renamed graph keeps its default name from a new one', () => {
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
-  p.openSelect('graphStyleNewFrom');
+  p.tapAction('newGraph');
   p.pickOption('graphStyleNewFrom', 'copy2');
   const N = GSP.normalize(p.S);
   assert.equal(GS.name(N, 2), 'Graph 3');
   assert.deepEqual(GS.valuesOf(N, 2), GS.valuesOf(N, 1), 'Long\'s values');
+  assert.ok(p.modal.innerHTML.indexOf('placeholder="Graph 3" value="Graph 3">') !== -1, 'its dialog, the name field open');
   // A graph renamed to the name the new one would have: the new one takes the first free number.
   const S = layout(['1'], { graphStyles: stylesItem({ forecastHours: '48' }, null, ['', 'Graph 3', '']) });
   assert.equal(GSP.createGraph(S, 'classic', EMERY), 2);
@@ -364,62 +432,73 @@ test('the page: New graph as a copy of a graph; a renamed graph keeps its defaul
   assert.equal(GSP.createGraph(layout(['1']), 'copy3', EMERY), -1, 'no such graph');
 });
 
-test('the page: the picked graph\'s pencil makes its name a field; OK, Enter and leaving it store the name, Escape keeps it', () => {
+test('the page: a graph\'s name is its dialog\'s title; OK, Enter and leaving the field store it, Escape keeps it, × puts it back', () => {
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
-  p.tapAction('pickGraph', 2);
-  p.tapAction('renameGraph');
-  let html = p.scroll.innerHTML;
-  assert.ok(html.indexOf('<div class="ui-row gl-row on rn" role="listitem"><input type="text" class="ui-rn-in" data-gl-rename-in '
-    + 'maxlength="24" autocomplete="off" aria-label="Graph name" placeholder="Graph 2" value="Long"><button type="button" '
-    + 'class="dlg-done" data-action="renameGraphOk">OK</button></div>') !== -1, 'the field holds the name, OK beside it');
-  p.typeName('[data-gl-rename-in]', '  Weekend ');
-  p.tapAction('renameGraphOk');
+  p.tapAction('openGraph', 2);
+  assert.ok(p.modal.innerHTML.indexOf('<button type="button" class="ui-pen" data-dlg-rename aria-label="Rename Long">') !== -1,
+    'the title\'s pencil');
+  p.renameDialog();
+  assert.ok(p.modal.innerHTML.indexOf('<input type="text" class="ui-rn-in" data-dlg-rename-in maxlength="24" autocomplete="off"'
+    + ' aria-label="Graph name" placeholder="Graph 2" value="Long"><button type="button" class="dlg-done"'
+    + ' data-dlg-rename-ok>OK</button>') !== -1, 'the field holds the name, OK beside it');
+  p.typeName('[data-dlg-rename-in]', '  Weekend ');
+  p.okRename();
   assert.equal(GS.name(p.S, 1), 'Weekend', 'trimmed');
-  html = p.scroll.innerHTML;
-  assert.equal(rows(html)[1][2], 'Weekend', 'the row shows the new name');
-  assert.equal(html.indexOf('data-gl-rename-in'), -1, 'the field gone');
+  let dlg = p.modal.innerHTML;
+  assert.ok(dlg.indexOf('id="esheet-ttl-graph">Weekend</span>') !== -1, 'the title says it');
+  assert.ok(dlg.indexOf('>Delete Weekend</button>') !== -1, 'so does Delete');
+  assert.equal(dlg.indexOf('data-dlg-rename-in'), -1, 'the field gone');
   // The default name back: stored as none.
-  p.tapAction('renameGraph');
-  p.typeName('[data-gl-rename-in]', 'Graph 2');
-  p.tapAction('renameGraphOk');
+  p.renameDialog();
+  p.enterRename('Graph 2');
   assert.equal(GS.parse(GSP.normalize(p.S)).names[1], '');
   // Enter stores it as OK does.
-  const field = (value) => {
-    const f = { value, closest: (sel) => (sel === '[data-gl-rename-in]' ? f : null) };
-    return f;
-  };
-  p.tapAction('renameGraph');
-  p.typeName('[data-gl-rename-in]', 'Weekend');
-  p.docDispatch('keydown', { key: 'Enter', target: field('Weekend'), preventDefault() {} });
+  p.renameDialog();
+  p.enterRename('Weekend');
   assert.equal(GS.name(p.S, 1), 'Weekend');
-  assert.equal(p.scroll.innerHTML.indexOf('data-gl-rename-in'), -1);
-  // Escape keeps the old name.
-  p.tapAction('renameGraph');
-  p.typeName('[data-gl-rename-in]', 'Other');
-  p.docDispatch('keydown', { key: 'Escape', target: field('Other'), preventDefault() {} });
+  // Escape keeps the name and the dialog.
+  p.renameDialog();
+  p.typeName('[data-dlg-rename-in]', 'Other');
+  p.escapeDialog();
   assert.equal(GS.name(p.S, 1), 'Weekend');
-  assert.equal(p.scroll.innerHTML.indexOf('data-gl-rename-in'), -1, 'the field gone');
-  // Leaving the field for anything but OK stores the name.
-  p.tapAction('renameGraph');
-  p.docDispatch('focusout', { target: field('Away'), relatedTarget: null });
+  assert.ok(p.modal.innerHTML.indexOf('data-dlg-rename aria-label="Rename Weekend"') !== -1, 'the title is back');
+  // Leaving the field stores it; Done keeps it, and the list says it.
+  p.renameDialog();
+  p.leaveRename('Away');
   assert.equal(GS.name(p.S, 1), 'Away');
-  // Picking another graph ends a rename, and keeps the name stored.
-  p.tapAction('renameGraph');
-  p.tapAction('pickGraph', 1);
-  assert.equal(p.scroll.innerHTML.indexOf('data-gl-rename-in'), -1);
+  p.doneDialog();
+  assert.equal(rows(p.scroll.innerHTML)[1][1], 'Away');
+  // × puts back every name the dialog stored.
+  p.tapAction('openGraph', 2);
+  p.renameDialog();
+  p.enterRename('Gone');
+  dlg = p.modal.innerHTML;
+  assert.ok(dlg.indexOf('id="esheet-ttl-graph">Gone</span>') !== -1);
+  p.cancelDialog();
   assert.equal(GS.name(GSP.normalize(p.S), 1), 'Away');
+  // The first graph renames too.
+  p.tapAction('openGraph', 1);
+  p.renameDialog();
+  p.enterRename('Today');
+  p.doneDialog();
+  assert.equal(GS.name(GSP.normalize(p.S), 0), 'Today');
 });
 
-test('the page: Delete moves its screens to the first style; Undo brings both back', () => {
+test('the page: Delete in a graph\'s dialog closes it and moves its screens to the first graph; Undo on the list brings both back', () => {
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
-  p.tapAction('pickGraph', 2);
-  p.tapAction('deleteGraphStyle');
+  p.tapAction('openGraph', 1);
+  assert.equal(p.modal.innerHTML.indexOf('deleteGraphStyle'), -1, 'the first graph has no Delete');
+  p.doneDialog();
+  p.tapAction('openGraph', 2);
+  p.tapAction('deleteGraphStyle', undefined, 'modal');
+  assert.equal(p.modal.innerHTML, '', 'the dialog closes');
   assert.equal(GS.count(p.S), 1);
-  assert.equal(p.S.viewStyle1, '1', 'Flick 1 draws the first style');
+  assert.equal(p.S.viewStyle1, '1', 'Flick 1 draws the first graph');
   assert.equal(p.S.graphStylePick, '1');
   assert.equal(p.S.forecastHours, '24');
+  assert.deepEqual(rows(p.scroll.innerHTML).map((x) => x[1]), ['Graph 1']);
   assert.match(p.scroll.innerHTML, /Long deleted\./);
   p.tapAction('undoDeleteGraphStyle');
   assert.equal(GS.count(p.S), 2);
@@ -427,6 +506,7 @@ test('the page: Delete moves its screens to the first style; Undo brings both ba
   assert.equal(p.S.graphStylePick, '2');
   assert.equal(p.S.forecastHours, '48', 'Long picked again, in the flat keys');
   assert.equal(p.scroll.innerHTML.indexOf('deleted.'), -1, 'the Undo is gone');
+  assert.equal(p.modal.innerHTML, '', 'and no dialog opens');
 });
 
 test('the screen editor: with several graphs a chip per graph adds the forecast graph, and its row is named after its graph', () => {
@@ -488,7 +568,7 @@ test('the screen editor: a graph that would make the screens show a sixth metric
   const body = () => p.editor().querySelector('[data-se-body]').innerHTML;
   assert.deepEqual(editorAddChips(body()).filter((c) => /^(Graph 1|Long|Sky)/.test(c)), ['Graph 1', 'Long (off)', 'Sky']);
   assert.ok(body().indexOf(ui.chip('Long', { disabled: true }, { icon: 'plus' })) !== -1, 'no action on it');
-  assert.equal(editorAddNote(body()), 'The watch can show 5 lines and stripes across all your screens. In use: Precipitation %,'
+  assert.equal(editorAddNote(body()), 'The watch can show 5 metrics across all your screens. In use: Precipitation %,'
     + ' UV Index, Wind speed, Wind gusts. Long also needs Cloud cover % and Air pressure (hPa). To make room, turn off a line'
     + ' in one of your graphs.');
   // A greyed-out graph is never put on, whatever asks for it.
@@ -501,49 +581,65 @@ test('the screen editor: a graph that would make the screens show a sixth metric
   assert.equal(editorAddNote(body()), '', 'no graph chips left, no note');
 });
 
-test('the page: Show on puts the picked graph on a screen or takes it off', async () => {
+test('the page: Show on in a graph\'s dialog puts the graph on a screen or takes it off', async () => {
   // Default and Flick 1 draw graph 1, Flick 2 has no forecast graph; Long is on no screen.
   const S = layout(['1', '1', '1'], { provider: 'dwd', forecastHours: '24', viewBody2: 'none', viewTop2: 'cal',
     graphStyles: stylesItem({ forecastHours: '48', thirdLine: 'cloud', thirdLineStyle: 'stripeTop' }) });
   const p = bootGeneratedPage(S, 'emery');
   p.clickTab('graphs');
   // Graph 1: its ticks stay (a screen draws it unless it has another graph).
-  assert.deepEqual(chips(p.scroll.innerHTML), [['Default', 'kept'], ['Flick 1', 'kept'], ['Flick 2', 'dim']]);
-  assert.ok(p.scroll.innerHTML.indexOf('Flick 2 has no forecast graph. A screen shows Graph 1 unless you give it another graph.') !== -1);
-  p.tapAction('pickGraph', 2);
-  assert.deepEqual(chips(p.scroll.innerHTML), [['Default', 'off'], ['Flick 1', 'off'], ['Flick 2', 'dim']]);
-  p.tapAction('graphOnScreen', 1);
+  p.tapAction('openGraph', 1);
+  assert.deepEqual(chips(p.modal.innerHTML), [['Default', 'kept'], ['Flick 1', 'kept'], ['Flick 2', 'dim']]);
+  assert.ok(p.modal.innerHTML.indexOf('Flick 2 has no forecast graph. A screen shows Graph 1 unless you give it another graph.') !== -1);
+  p.doneDialog();
+  p.tapAction('openGraph', 2);
+  assert.deepEqual(chips(p.modal.innerHTML), [['Default', 'off'], ['Flick 1', 'off'], ['Flick 2', 'dim']]);
+  p.tapAction('graphOnScreen', 1, 'modal');
   assert.equal(p.S.viewStyle1, '2', 'Flick 1 draws Long');
   assert.equal(p.S.forecastHours, '48', 'Long is still the graph on show');
-  assert.deepEqual(chips(p.scroll.innerHTML), [['Default', 'off'], ['Flick 1', 'on'], ['Flick 2', 'dim']]);
-  assert.match(rows(p.scroll.innerHTML)[1][3], /^\d+ h · Flick 1$/);
-  p.tapAction('graphOnScreen', 2);
+  assert.deepEqual(chips(p.modal.innerHTML), [['Default', 'off'], ['Flick 1', 'on'], ['Flick 2', 'dim']]);
+  p.tapAction('graphOnScreen', 2, 'modal');
   assert.equal(p.S.viewStyle2, '1', 'a screen without a forecast graph is left alone');
-  p.tapAction('graphOnScreen', 1);
+  p.tapAction('graphOnScreen', 1, 'modal');
   assert.equal(p.S.viewStyle1, '1', 'off again: Flick 1 draws the first graph');
-  p.tapAction('graphOnScreen', 0);
-  p.tapAction('pickGraph', 1);
-  assert.deepEqual(chips(p.scroll.innerHTML), [['Default', 'off'], ['Flick 1', 'kept'], ['Flick 2', 'dim']]);
-  p.tapAction('graphOnScreen', 1);
+  p.tapAction('graphOnScreen', 0, 'modal');
+  p.doneDialog();
+  assert.match(rows(p.scroll.innerHTML)[1][2], /^\d+ h · Default$/, 'the list says where it shows');
+  // × puts back the screens the dialog changed.
+  p.tapAction('openGraph', 2);
+  p.tapAction('graphOnScreen', 1, 'modal');
+  assert.equal(p.S.viewStyle1, '2');
+  p.cancelDialog();
+  assert.equal(p.S.viewStyle1, '1');
+  p.tapAction('openGraph', 1);
+  assert.deepEqual(chips(p.modal.innerHTML), [['Default', 'off'], ['Flick 1', 'kept'], ['Flick 2', 'dim']]);
+  p.tapAction('graphOnScreen', 1, 'modal');
   assert.equal(p.S.viewStyle1, '1', 'the first graph\'s own tick does nothing');
+  p.doneDialog();
   const blob = await p.save();
   assert.equal(blob.viewStyle0, '2');
   assert.equal(blob.viewStyle1, '1');
   assert.equal(blob.forecastHours, '24', 'the first graph back in the flat keys');
+  // One graph: nothing to show on.
+  const one = bootGeneratedPage(layout(['1', '1'], { provider: 'dwd' }), 'emery');
+  one.clickTab('graphs');
+  one.tapAction('openGraph', 1);
+  assert.equal(cardTitles(one.modal.innerHTML).indexOf('Show on'), -1);
+  assert.equal(one.modal.innerHTML.indexOf('ui-chip'), -1);
   // The limit: a screen that would make the screens draw a sixth series is greyed out.
   const busy = layout(['1', '1'], { provider: 'dwd',
     secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust',
     graphStyles: stylesItem({ secondaryLine: 'cloud', thirdLine: 'pressure', fourthLine: 'off', fifthLine: 'off' }) });
   const q = bootGeneratedPage(busy, 'emery');
   q.clickTab('graphs');
-  q.tapAction('pickGraph', 2);
+  q.tapAction('openGraph', 2);
   // Graph 1 draws four series on the other screen, so Long's cloud and pressure would make six
   // on either.
-  assert.deepEqual(chips(q.scroll.innerHTML), [['Default', 'dim'], ['Flick 1', 'dim']]);
-  assert.ok(q.scroll.innerHTML.indexOf('The watch can show 5 lines and stripes across all your screens. In use: Precipitation %,'
+  assert.deepEqual(chips(q.modal.innerHTML), [['Default', 'dim'], ['Flick 1', 'dim']]);
+  assert.ok(q.modal.innerHTML.indexOf('The watch can show 5 metrics across all your screens. In use: Precipitation %,'
     + ' UV Index, Wind speed, Wind gusts. Long also needs Cloud cover % and Air pressure (hPa). To make room, turn off a line'
     + ' in one of your graphs.') !== -1, 'the limit says why: what is in use, what Long adds, what to do');
-  q.tapAction('graphOnScreen', 0);
+  q.tapAction('graphOnScreen', 0, 'modal');
   assert.equal(q.S.viewStyle0, '1', 'a greyed-out chip does nothing');
 });
 
@@ -554,7 +650,7 @@ test('the page: Show on puts the picked graph on a screen or takes it off', asyn
  * @returns {?{text: string, label: string, open: boolean}} null when the header has none
  */
 function headerNote(html) {
-  const m = /<span class="ttl">Your graphs<\/span><\/span><span class="hdr-note"><span aria-hidden="true">([^<]*)<\/span><span class="sr-only">([^<]*)<\/span><button type="button" class="info-q( on)?" data-info="n:graphs:graphStyle\/0" aria-expanded="(true|false)"/.exec(html);
+  const m = /<span class="ttl" data-title-by="graphStyle">Your graphs<\/span><\/span><span class="hdr-note"><span aria-hidden="true">([^<]*)<\/span><span class="sr-only">([^<]*)<\/span><button type="button" class="info-q( on)?" data-info="n:graphs:graphStyle\/0" aria-expanded="(true|false)"/.exec(html);
   return m ? { text: m[1], label: m[2], open: m[4] === 'true' } : null;
 }
 
@@ -578,21 +674,24 @@ test('the page: Your graphs\' header counts the metrics the screens use, "2/5 me
   assert.equal(headerNote(html).open, true);
   const info = '<div class="intro">Active: Precipitation %, Cloud cover % (stripe).' + COUNTS + '</div>';
   assert.ok(html.indexOf(info) !== -1, 'the metrics active, then what counts');
-  assert.ok(html.indexOf(info) < html.indexOf('<div class="gl-lead">'), 'first in the card');
+  assert.ok(html.indexOf(info) < html.indexOf('data-action="openGraph"'), 'first in the card');
   p.toggleInfo('n:graphs:graphStyle/0');
   assert.equal(p.scroll.innerHTML.indexOf('Active:'), -1, 'the \'?\' again hides it');
   // It follows the screens: Long off Flick 1 draws Graph 1 there, and a graph no screen shows
   // does not count.
-  p.tapAction('pickGraph', 2);
-  p.tapAction('graphOnScreen', 1);
+  p.tapAction('openGraph', 2);
+  p.tapAction('graphOnScreen', 1, 'modal');
+  p.doneDialog();
   assert.equal(p.S.viewStyle1, '1');
   assert.equal(headerNote(p.scroll.innerHTML).text, '1/5 metrics active');
   // And the lines: a third metric on Long while it is back on Flick 1.
-  p.tapAction('graphOnScreen', 1);
-  p.openEditSheet('lineThird');
+  p.tapAction('openGraph', 2);
+  p.tapAction('graphOnScreen', 1, 'modal');
+  p.openNestedSheet('lineThird');
   p.pickOption('fourthLine', 'gust');
+  p.backDialog();
   p.doneDialog();
-  assert.equal(p.S.fourthLine, 'gust');
+  assert.equal(p.S.fourthLine, 'gust', 'Long\'s, in the flat keys while the pane shows it');
   assert.equal(headerNote(p.scroll.innerHTML).text, '3/5 metrics active');
   // The same on a page with every info text behind a '?' (Hide info text).
   const hidden = bootGeneratedPage(Object.assign({}, TWO, { hideInfoText: true }), 'emery');
@@ -650,18 +749,21 @@ test('a screen picture draws its forecast graph with the screen\'s style', () =>
 test('a shared row says every graph shares it, while more than one graph exists', () => {
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
-  p.openAllMore();
+  p.tapAction('openGraph', 2);
+  p.openAllMore('modal');
   const tail = 'Every graph shares this.';
-  assert.ok(p.scroll.innerHTML.indexOf('Draw the graph axis labels in bigger type. ' + tail) !== -1, 'Larger graph fonts');
+  assert.ok(p.modal.innerHTML.indexOf('Draw the graph axis labels in bigger type. ' + tail) !== -1, 'Larger graph fonts');
   assert.equal(GSP.sharedHint(layout(['1']), EMERY), '', 'one style: no tail');
   assert.equal(GSP.sharedHint(TWO, BASALT), '', 'a watch without styles: none');
   const one = bootGeneratedPage(layout(['1'], { provider: 'dwd' }), 'emery');
   one.clickTab('graphs');
-  one.openAllMore();
-  assert.equal(one.scroll.innerHTML.indexOf(tail), -1);
+  one.tapAction('openGraph', 1);
+  one.openAllMore('modal');
+  assert.ok(one.modal.innerHTML.indexOf('Draw the graph axis labels in bigger type.') !== -1);
+  assert.equal(one.modal.innerHTML.indexOf(tail), -1);
 });
 
-test('the card\'s hint: what a tap on a card does, or with one graph what New graph is for', () => {
-  assert.equal(GSP.cardHint(TWO), 'Tap a graph to change it below.');
+test('the card\'s lead: with one graph what New graph is for; with more the rows speak for themselves', () => {
+  assert.equal(GSP.cardHint(TWO), '');
   assert.equal(GSP.cardHint(layout(['1', '1'])), 'New graph gives a screen a graph of its own.');
 });

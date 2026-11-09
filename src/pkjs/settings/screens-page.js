@@ -453,7 +453,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * (graph-styles-page.js presetGraph: yours that reads as its template, else a new one).
      * `W` is the settings with it added, which its picture draws; `why` greys it out: it is one
      * of your screens already (its rows, and its graph where it brings one), no graph slot is
-     * free, or its graph would make more lines and stripes than the watch shows.
+     * free, or its graph would make more metrics than the watch shows.
      * @param {Object} N Settings as stored (graph-styles-page.js asStored).
      * @param {?Object} env Platform env.
      * @param {Array<Array<Object>>} lists The screens.
@@ -1161,7 +1161,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * The forecast graph's Add chips while there are several graphs (the owner's ask,
      * 2026-11-09: a chip per graph): each graph by its name, greyed out (off) where screen i
-     * drawing it would make the screens draw more lines and stripes than the watch shows
+     * drawing it would make the screens show more metrics than the watch can
      * (graph-styles-page.js screenOverflows, as Add a screen reads a preset's graph). null with
      * one graph: the Forecast graph chip stands.
      * @param {Object} S Settings.

@@ -31,10 +31,10 @@ test('page-only keys are never stored: the Night hours, Separate hours and the R
   schema.tabs.forEach(t => t.sections.forEach(s => s.items.forEach(it => { if (it.uiOnly) { uiOnly.push(it.messageKey); } })));
   // The Rain radar picker writes radarEnabled and radarProvider (screens-page.js), so its Off
   // keeps the source.
-  // The graph styles' pick and New graph's picker (graph-styles-page.js) write graphStyles and
-  // the screens' viewStyle keys; the screen editor's Rows and Size picker (screens-page.js)
-  // writes the screen's rows.
-  assert.deepEqual(uiOnly.sort(), ['graphStyleNewFrom', 'graphStylePick', 'nightHoursFrom',
+  // The graph styles' pick, New graph's picker and the name a graph's dialog renames
+  // (graph-styles-page.js) write graphStyles and the screens' viewStyle keys; the screen
+  // editor's Rows and Size picker (screens-page.js) writes the screen's rows.
+  assert.deepEqual(uiOnly.sort(), ['graphStyleName', 'graphStyleNewFrom', 'graphStylePick', 'nightHoursFrom',
     'nightHoursSeparate', 'nightHoursTo', 'radarSource', 'screenRowSize']);
   const S = E.hydrate(schema, {}, platformLib.computeEnv({ platform: 'emery' }));
   const blob = E.serialize(schema, S);
@@ -325,7 +325,9 @@ test('More options stays folded for colours the light theme set and alert colour
   r.clickTab('watchface');
   assert.ok(r.scroll.innerHTML.indexOf('data-more="watchface:time/0#more" aria-expanded="false"') !== -1, 'Time');
   r.clickTab('graphs');
-  assert.ok(r.scroll.innerHTML.indexOf('data-more="graphs:bars/0#more" aria-expanded="false"') !== -1, 'Bars');
+  r.tapAction('openGraph', 1);
+  assert.ok(/data-more="dlg:graph\/\d+#more" aria-expanded="false"/.test(r.modal.innerHTML), 'the graph\'s Rain bars');
+  r.doneDialog();
   r.clickTab('alerts');
   r.openEditSheet('alertGust');
   assert.ok(/data-more="dlg:alertGust\/\d+#more" aria-expanded="false"/.test(r.modal.innerHTML), 'the gust alert');

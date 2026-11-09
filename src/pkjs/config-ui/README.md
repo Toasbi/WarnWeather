@@ -258,7 +258,7 @@ Schema
             ├─ beforePin    boolean (renders first in the tab, above its pinned header; scrolls away)
             ├─ sheetOnly / sheetId  (a full-screen dialog, not a card; see Dialogs)
             ├─ pinBlock     string  (sheetOnly only: block pinned under the dialog's header)
-            ├─ rename       {key, label, placeholder?, maxlength?} (sheetOnly only: the title renames a setting; see Dialogs)
+            ├─ rename       {key, label, placeholder?, placeholderBy?, maxlength?, showWhen?} (sheetOnly only: the title renames a setting; see Dialogs)
             └─ items[]
                  └─ (see Item fields below; blockBefore is ITEM-level)
 ```
@@ -437,7 +437,7 @@ picking the shown swatch is what writes it.
 | `titleBy` | `{resolver, args?}` | The card header's title itself follows the settings: a `PConf.displayResolvers` id whose `fn(S, env, args)` answer replaces `title` (escaped); `''` or no answer keeps `title`. The header marks it (`data-title-by`), so a text commit that skips the re-render retitles it in place. A dialog's title follows it too (e.g. a status bar's name titling the bar's dialog). |
 | `titleFrom` | `{resolver, args?}` | Collapsible sections only: a `PConf.displayResolvers` id whose `fn(S, env, args)` result is painted next to the title while the card is COLLAPSED (e.g. the current pick of a select inside), so a closed card still says what's selected. Open cards show the plain `title`. `args` pass through verbatim (no messageKey merge — sections have none). |
 | `noteFrom` | `{resolver, args?}` | A short note on the right of the card's header (the Your graphs card's "4/5 metrics active"): a `PConf.displayResolvers` id whose `fn(S, env, args)` answers `{text, label?, info?}` or null for none. `text` shows (escaped), `label` is what a screen reader says instead (else `text`), and `info` (HTML, like `intro`) waits behind a '?' after the note and shows first in the card while it is on. The '?' is drawn whatever the page's info mode, so the note asks for little attention and what it means is always a tap away. Not on a collapsible card: its header is one button. `args` pass through verbatim. |
-| `rename` | `{key, label, placeholder?, maxlength?}` | `sheetOnly` only: a pencil beside the dialog's title turns it into a text field for the setting `key` (`label` its accessible name, `placeholder` the name an empty field stands for, `maxlength` 40 unless given), with an OK button in Done's place. OK or Enter stores the text and fires the key's item `onChange`; Escape or × puts the title back. See Dialogs. |
+| `rename` | `{key, label, placeholder?, placeholderBy?, maxlength?, showWhen?}` | `sheetOnly` only: a pencil beside the dialog's title turns it into a text field for the setting `key` (`label` its accessible name, `placeholder` the name an empty field stands for, `maxlength` 40 unless given), with an OK button in Done's place. OK or Enter stores the text and fires the key's item `onChange`; Escape or × puts the title back. `placeholderBy` (`{resolver, args?}`, a `PConf.displayResolvers` id) answers the placeholder from the settings as `titleBy` answers the title (a graph's default name); `showWhen` gates the pencil (a predicate as an item's). See Dialogs. |
 | `groupCard` | string | Consecutive sections sharing a `groupCard` id render into ONE card: titles become in-card sub-headers, and each section's intro/items/`block` stack inside it. Empty sub-sections drop out cleanly. |
 | `items` | Item[] | The items to render |
 
@@ -533,7 +533,9 @@ leaving the field stores the text (through the item's `onChange`, which may clea
 Escape puts the old title back. A page module opens a dialog itself with the ready ctx's
 `openDialog(id, {rename, kicker, onClose, overlay})`: `rename` opens it with the field ready,
 `kicker` names where it opened from, `onClose` runs after it closes, and `overlay` marks one
-opened over the module's own overlay, so focus goes back to nothing on the page.
+opened over the module's own overlay, so focus goes back to nothing on the page. The ctx's
+`closeDialog()` closes the open dialog, nested ones too, keeping what they changed, as Done
+does: an action that takes away what the dialog is about (a graph's Delete) closes it.
 
 ### showWhen predicate grammar
 

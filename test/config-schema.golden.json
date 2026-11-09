@@ -10439,8 +10439,7 @@
         "panes": [
           {
             "id": "forecast",
-            "label": "Forecast",
-            "pinBlock": "forecastPreview"
+            "label": "Forecast"
           },
           {
             "id": "radar",
@@ -10470,10 +10469,9 @@
           {
             "pane": "forecast",
             "id": "graphStyle",
-            "title": "Your graphs",
-            "abovePin": true,
-            "showWhen": {
-              "env": "graphStyles"
+            "title": "",
+            "titleBy": {
+              "resolver": "graphListTitle"
             },
             "noteFrom": {
               "resolver": "graphMetricsNote"
@@ -10487,28 +10485,37 @@
                 "initFrom": {
                   "resolver": "graphStyleOnOpen"
                 }
-              },
-              {
-                "type": "button",
-                "style": "delete",
-                "action": "deleteGraphStyle",
-                "label": "Delete graph",
-                "labelFrom": {
-                  "resolver": "graphDeleteLabel"
-                },
-                "showWhen": {
-                  "when": "graphDeletable"
-                }
               }
             ],
-            "block": "graphStyleCards"
+            "block": "graphList"
           },
           {
-            "pane": "forecast",
-            "id": "lines",
-            "title": "Lines",
-            "intro": "The forecast graph shows up to 24 hours ahead. On Pebble Time 2 you can pick 12, 24 or up to 66 hours under Forecast length. Temperature is always drawn, and the metrics and rain bars you pick below are added to it.",
+            "sheetOnly": true,
+            "sheetId": "graph",
+            "id": "graph",
+            "title": "Forecast graph",
+            "titleBy": {
+              "resolver": "graphName"
+            },
+            "rename": {
+              "key": "graphStyleName",
+              "label": "Graph name",
+              "placeholderBy": {
+                "resolver": "graphDefaultName"
+              },
+              "maxlength": 24,
+              "showWhen": {
+                "env": "graphStyles"
+              }
+            },
+            "pinBlock": "forecastPreview",
+            "block": "graphShowOn",
             "items": [
+              {
+                "type": "subheader",
+                "text": "Lines",
+                "intro": "The forecast graph shows up to 24 hours ahead. On Pebble Time 2 you can pick 12, 24 or up to 66 hours under Forecast length. Temperature is always drawn, and the metrics and rain bars you pick below are added to it."
+              },
               {
                 "type": "sheet",
                 "sheetId": "lineMain",
@@ -10586,14 +10593,11 @@
                 "showWhen": {
                   "env": "lineStyles"
                 }
-              }
-            ]
-          },
-          {
-            "pane": "forecast",
-            "id": "bars",
-            "title": "Rain bars",
-            "items": [
+              },
+              {
+                "type": "subheader",
+                "text": "Rain bars"
+              },
               {
                 "type": "segmented",
                 "messageKey": "barSource",
@@ -10689,14 +10693,11 @@
                     }
                   ]
                 }
-              }
-            ]
-          },
-          {
-            "pane": "forecast",
-            "id": "other",
-            "title": "Other",
-            "items": [
+              },
+              {
+                "type": "subheader",
+                "text": "Other"
+              },
               {
                 "type": "toggle",
                 "messageKey": "dayNightShading",
@@ -10726,18 +10727,15 @@
                 "showWhen": {
                   "env": "forecastSpan"
                 }
-              }
-            ]
-          },
-          {
-            "pane": "forecast",
-            "id": "axis",
-            "title": "Left axis",
-            "showWhen": {
-              "env": "platform",
-              "eq": "emery"
-            },
-            "items": [
+              },
+              {
+                "type": "subheader",
+                "text": "Left axis",
+                "showWhen": {
+                  "env": "platform",
+                  "eq": "emery"
+                }
+              },
               {
                 "type": "segmented",
                 "messageKey": "forecastAxisNumbers",
@@ -10806,23 +10804,21 @@
                 "hintTailFrom": {
                   "resolver": "graphStyleShared"
                 }
-              }
-            ]
-          },
-          {
-            "pane": "forecast",
-            "id": "graphColorsCard",
-            "capabilities": [
-              "COLOR"
-            ],
-            "showWhen": {
-              "key": "theme",
-              "nin": [
-                "bw",
-                "bw-light"
-              ]
-            },
-            "items": [
+              },
+              {
+                "type": "subheader",
+                "text": "",
+                "capabilities": [
+                  "COLOR"
+                ],
+                "showWhen": {
+                  "key": "theme",
+                  "nin": [
+                    "bw",
+                    "bw-light"
+                  ]
+                }
+              },
               {
                 "type": "sheet",
                 "sheetId": "graphColors",
@@ -10831,7 +10827,33 @@
                 "navNote": "9",
                 "capabilities": [
                   "COLOR"
-                ]
+                ],
+                "showWhen": {
+                  "key": "theme",
+                  "nin": [
+                    "bw",
+                    "bw-light"
+                  ]
+                }
+              },
+              {
+                "type": "subheader",
+                "text": "Show on",
+                "showWhen": {
+                  "env": "graphStyles"
+                }
+              },
+              {
+                "type": "button",
+                "style": "delete",
+                "action": "deleteGraphStyle",
+                "label": "Delete graph",
+                "labelFrom": {
+                  "resolver": "graphDeleteLabel"
+                },
+                "showWhen": {
+                  "when": "graphDeletable"
+                }
               }
             ]
           },
@@ -10968,6 +10990,13 @@
                 "type": "hidden",
                 "messageKey": "graphStyles",
                 "defaultValue": ""
+              },
+              {
+                "type": "hidden",
+                "messageKey": "graphStyleName",
+                "uiOnly": true,
+                "defaultValue": "",
+                "onChange": "graphStyleRenamed"
               },
               {
                 "type": "select",

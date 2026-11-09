@@ -12,10 +12,10 @@
 // it on the forecast block). settingsFor(S, k) is THE reading of a style: the settings with
 // style k's values laid over the flat keys, for every packer, preview and picture.
 //
-// WHAT A STYLE HOLDS (GOVERNED): everything on Graphs › Forecast that draws the graph — the
-// four lines' metric and style, the Draw from keys, the Main metric's fill, the rain bars
-// (on/off, colour, Bars from), Day / night shading, Forecast length, Left axis values and the
-// graph colours. What shapes the data the phone bakes stays ONE setting for every style
+// WHAT A STYLE HOLDS (GOVERNED): everything in a graph's dialog (Graphs › Forecast) that draws
+// the graph — the four lines' metric and style, the Draw from keys, the Main metric's fill, the
+// rain bars (on/off, colour, Bars from), Day / night shading, Forecast length, Left axis values
+// and the graph colours. What shapes the data the phone bakes stays ONE setting for every style
 // (SHARED): the wind and pressure scales, the lines' Show: All | Alert, the left axis's
 // scale option (it decides TEMP_MIN / TEMP_MAX) and Larger graph fonts, a watch-wide tier.
 //
