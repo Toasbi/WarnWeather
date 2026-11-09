@@ -191,7 +191,7 @@ function cellBytes(settings, env, bars) {
  * @returns {number[]} ITEMS.length bytes
  */
 function buildExtraCells(settings, env) {
-  return cellBytes(settings, env, onDemand.BARS.filter(function (b) { return b.extra; }));
+  return cellBytes(settings, env, onDemand.EXTRA_BARS);
 }
 
 // ── the weather levels (STATUS_LEVELS_UINT8) ─────────────────────────────────

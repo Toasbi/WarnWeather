@@ -7,7 +7,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { readC, cDefine } = require('./helpers/c-source.js');
+const { readC, cDefine, cEnum } = require('./helpers/c-source.js');
 
 global.localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
 const VC = require('../src/pkjs/view-cycle.js');
@@ -36,18 +36,6 @@ function emeryOnly(src, needle) {
   assert.ok(at !== -1, 'missing: ' + needle);
   const guard = src.lastIndexOf('#if defined(PBL_PLATFORM_EMERY)', at);
   return guard !== -1 && src.indexOf('#endif', guard) > at;
-}
-
-/**
- * An enum constant's value, `NAME = n`.
- * @param {string} src C source text
- * @param {string} name the constant
- * @returns {number}
- */
-function cEnum(src, name) {
-  const m = new RegExp('\\b' + name + '\\s*=\\s*(\\d+)').exec(src);
-  assert.ok(m, 'no enum constant ' + name);
-  return Number(m[1]);
 }
 
 test('the four keys are appended after SPARE_LINE_TREND_UINT8: the three lines, then the cells', () => {

@@ -54,7 +54,6 @@
         { w: 144, h: 168, floor: 168 },
         { w: 200, h: 228, floor: 222 }
     ];
-    // The screens' names, as the Screens card calls them.
     // A screen's name (screens.js nameOf), the caption under its picture.
     var screens = NODE ? require('../screens.js') : window.Screens;
     // The watch's text in the page: a narrow system sans stands in for the watch's Gothic.

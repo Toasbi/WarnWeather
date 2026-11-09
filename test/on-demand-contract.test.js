@@ -11,6 +11,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const OD = require('../src/pkjs/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
+const { cEnum } = require('./helpers/c-source.js');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -22,17 +23,6 @@ const C_ITEMS = {
   battery: 'OD_BATTERY', bt: 'OD_BLUETOOTH', qt: 'OD_QUIET_TIME', snooze: 'OD_SLEEP',
   rain: 'OD_RAIN', gust: 'OD_GUST', uv: 'OD_UV', aqi: 'OD_AQI', pollen: 'OD_POLLEN', wind: 'OD_WIND'
 };
-
-/**
- * @param {string} src C source text.
- * @param {string} name Enum constant.
- * @returns {number} its explicit value
- */
-function cEnum(src, name) {
-  const m = src.match(new RegExp('\\b' + name + '\\s*=\\s*(\\d+)'));
-  assert.ok(m, name + ' has no explicit value');
-  return Number(m[1]);
-}
 
 test('ITEMS is the watch\'s OdItem order (the priority and the cell order)', () => {
   assert.equal(Object.keys(C_ITEMS).length, OD.ITEMS.length);

@@ -15,6 +15,7 @@ global.localStorage = {
 };
 
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
+const { rowOf, editorBody: body } = require('./helpers/page-rows.js');
 const M = require('../src/pkjs/screens.js');
 const VC = require('../src/pkjs/view-cycle.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
@@ -34,17 +35,6 @@ const THREE = { provider: 'dwd', radarMode: 'graph', healthMode: 'all' };
 function sheetTitle(page, key) {
   const m = new RegExp('id="ssel-ttl-' + key + '"[^>]*>([^<]*)<').exec(page.modal.innerHTML);
   return m ? m[1] : '';
-}
-
-/**
- * The open editor's body.
- * @param {Object} page bootGeneratedPage handle.
- * @returns {string}
- */
-function body(page) {
-  const ed = page.editor();
-  assert.ok(ed, 'the screen editor is open');
-  return ed.querySelector('[data-se-body]').innerHTML;
 }
 
 /**
@@ -107,8 +97,7 @@ test('the Status bars tab: each of your bars opens on its Name row, saying where
   [['statusForecastName', 'Forecast bar', 'On Default'], ['statusHealthName', 'Health bar', 'On Flick 1'],
     ['statusRadarName', 'Radar bar', 'On Flick 2']].forEach(([key, name, where]) => {
     assert.equal(titleBefore(html, key), name, key + ': its card is titled by the name');
-    const at = html.indexOf('data-k="' + key + '"');
-    const row = html.slice(html.lastIndexOf('<div class="row', at), html.indexOf('<div class="row', at));
+    const row = rowOf(html, 'data-k="' + key + '"');
     assert.ok(row.startsWith('<div class="row stack nb"><div class="lbl">Name</div><div class="hint" data-hint-for="'
       + key + '">' + where + '</div>'), key + ': a Name row, its hint ' + where);
     assert.ok(row.indexOf('placeholder="' + name + '"') !== -1, key + ': the default name as its placeholder');

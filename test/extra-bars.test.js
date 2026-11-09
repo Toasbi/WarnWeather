@@ -120,8 +120,12 @@ test('the catalog: three extra lines, their wire keys and slots, empty until New
   assert.deepEqual(catalog.EXTRA_LINES.map((l) => l.wireKey),
     ['STATUS_LINE_5_UINT8', 'STATUS_LINE_6_UINT8', 'STATUS_LINE_7_UINT8']);
   assert.deepEqual(catalog.EXTRA_LINES[0].slots, ['statusBar4Left', 'statusBar4Mid', 'statusBar4Right']);
-  assert.equal(catalog.extraSlotKeys().length, 9);
-  catalog.extraSlotKeys().forEach((k) => assert.equal(catalog.slotDefault(k, EMERY), 'empty', k));
+  const extraSlots = [].concat(...catalog.EXTRA_LINES.map((l) => l.slots));
+  assert.equal(extraSlots.length, 9);
+  extraSlots.forEach((k) => assert.equal(catalog.slotDefault(k, EMERY), 'empty', k));
+  assert.equal(catalog.lineById('bar5'), catalog.EXTRA_LINES[1]);
+  assert.equal(catalog.lineById('forecast'), catalog.LINES.find((l) => l.id === 'forecast'));
+  assert.equal(catalog.lineById('nope'), null);
   assert.equal(catalog.lineOf('statusBar6Right').id, 'bar6');
   assert.equal(catalog.allSlotKeys().length, 12, 'the twelve stay twelve (telemetry, the migration)');
   const S = { statusBar4Made: true, statusBar6Made: true };

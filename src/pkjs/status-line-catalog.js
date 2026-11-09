@@ -139,8 +139,7 @@
     var slots = [b.prefix + 'Left', b.prefix + 'Mid', b.prefix + 'Right'];
     var defaults = {};
     slots.forEach(function (key) { defaults[key] = 'empty'; });
-    return { id: b.bar, wireKey: 'STATUS_LINE_' + (i + 5) + '_UINT8', slots: slots,
-             defaults: defaults, extra: true };
+    return { id: b.bar, wireKey: 'STATUS_LINE_' + (i + 5) + '_UINT8', slots: slots, defaults: defaults };
   });
   var ALL_LINES = LINES.concat(EXTRA_LINES);
 
@@ -284,7 +283,7 @@
    */
   function selectedCodes(settings) {
     var out = [];
-    var lines = LINES.concat(madeExtraLines(settings));
+    var lines = bakedLines(settings);
     for (var l = 0; l < lines.length; l++) {
       var line = lines[l];
       for (var s = 0; s < line.slots.length; s++) {
@@ -310,13 +309,6 @@
     return code;
   }
 
-  /** @returns {string[]} bars 4 to 6's nine slot settings keys, line order */
-  function extraSlotKeys() {
-    var out = [];
-    for (var l = 0; l < EXTRA_LINES.length; l++) { out = out.concat(EXTRA_LINES[l].slots); }
-    return out;
-  }
-
   /**
    * Bars 4 to 6's lines a watch carries: each made bar's (view-cycle.js barMade) on a watch
    * that has them (env.extraBars). The bake sends exactly these (status-lines.js), and what
@@ -327,6 +319,28 @@
    */
   function madeExtraLines(settings, env) {
     return EXTRA_LINES.filter(function (line) { return VC.extraBarOn(settings, line.id, env); });
+  }
+
+  /**
+   * The lines the bake sends: the four every watch has, then a made bar 4 to 6's
+   * (madeExtraLines).
+   * @param {Object} settings Clay settings blob
+   * @param {?Object} [env] platform env (omitted: capable)
+   * @returns {Array<Object>} LINES and EXTRA_LINES entries
+   */
+  function bakedLines(settings, env) {
+    return LINES.concat(madeExtraLines(settings, env));
+  }
+
+  /**
+   * @param {string} id A line's id (an on-demand.js BARS bar).
+   * @returns {?Object} its LINES or EXTRA_LINES entry, null for none
+   */
+  function lineById(id) {
+    for (var l = 0; l < ALL_LINES.length; l++) {
+      if (ALL_LINES[l].id === id) { return ALL_LINES[l]; }
+    }
+    return null;
   }
 
   /** @returns {string[]} the 12 configurable slot settings keys, line order */
@@ -409,16 +423,11 @@
    * @returns {Array<string>} the slot keys
    */
   function healthSlots(S, lineId, env) {
-    var out = [];
-    for (var l = 0; l < ALL_LINES.length; l++) {
-      if (ALL_LINES[l].id !== lineId) { continue; }
-      for (var s = 0; s < ALL_LINES[l].slots.length; s++) {
-        var key = ALL_LINES[l].slots[s];
-        var item = byCode((S || {})[key] || slotDefault(key, env));
-        if (item && item.needsHealth) { out.push(key); }
-      }
-    }
-    return out;
+    var line = lineById(lineId);
+    return (line ? line.slots : []).filter(function (key) {
+      var item = byCode((S || {})[key] || slotDefault(key, env));
+      return Boolean(item && item.needsHealth);
+    });
   }
 
   /**
@@ -520,7 +529,7 @@
 
   var api = {
     KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES, SLOT_POSITIONS: SLOT_POSITIONS,
-    EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, extraSlotKeys: extraSlotKeys,
+    EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
     madeExtraLines: madeExtraLines,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,

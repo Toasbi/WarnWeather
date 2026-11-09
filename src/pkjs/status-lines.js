@@ -487,7 +487,7 @@ function buildStatusLines(payload, settings, watchInfo) {
   // The four lines every watch has, then a made bar 4 to 6's on a watch that has them (Pebble
   // Time 2: STATUS_LINE_5..7_UINT8, catalog madeExtraLines). A bar that is not made sends no
   // line, so a watch without one is sent exactly the four.
-  var lines = catalog.LINES.concat(catalog.madeExtraLines(settings, env));
+  var lines = catalog.bakedLines(settings, env);
   for (var l = 0; l < lines.length; l++) {
     var line = lines[l];
     payload[line.wireKey] = packLine(line, payload, settings, env, alerts);

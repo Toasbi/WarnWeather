@@ -32,7 +32,8 @@ var EXTRA_BARS = [
 ];
 // Each status source's bar (on-demand.js BARS' ids), by its STATUS_SRC_* value: THE table every
 // reader of a view's rows names its bars by (barsIn, the page's previews and gates).
-var BAR_OF_SRC = ['', 'forecast', 'radar', 'health', 'bar4', 'bar5', 'bar6'];
+var BAR_OF_SRC = ['', 'forecast', 'radar', 'health'];
+EXTRA_BARS.forEach(function (b) { BAR_OF_SRC[b.src] = b.bar; });
 
 // Band size codes (the ext word's topSize / bodySize fields — one vocabulary for both
 // seats, mirroring BandSize in src/c/windows/layout.h). 0 = the seat's default: 3 rows
@@ -708,9 +709,12 @@ var CUSTOM_TOP = {
 var CUSTOM_BODY = { forecast: BODY_FC, health: BODY_GRAPH, radar: BODY_RADAR, none: BODY_NONE };
 var CUSTOM_SRC = {
   off: STATUS_SRC_NONE, weather: STATUS_SRC_FORECAST,
-  radar: STATUS_SRC_RADAR, health: STATUS_SRC_HEALTH,
-  bar4: STATUS_SRC_BAR4, bar5: STATUS_SRC_BAR5, bar6: STATUS_SRC_BAR6
+  radar: STATUS_SRC_RADAR, health: STATUS_SRC_HEALTH
 };
+EXTRA_BARS.forEach(function (b) { CUSTOM_SRC[b.bar] = b.src; });
+// And back: a status source's row value (specToKeys).
+var SRC_NAME = [];
+Object.keys(CUSTOM_SRC).forEach(function (value) { SRC_NAME[CUSTOM_SRC[value]] = value; });
 
 /**
  * A row's status source (CUSTOM_SRC): a bar 4 to 6 only while it is on the watch
@@ -858,7 +862,6 @@ var BODY_SIZE_NAME = ['fill', '2', '3', '4', 'fill'];
  */
 function specToKeys(cycle) {
   var keys = { viewCount: String(cycle.length) };
-  var srcName = ['off', 'weather', 'radar', 'health', 'bar4', 'bar5', 'bar6'];
   var alignName = ['clock', 'top', 'center', 'bottom'];
   for (var i = 0; i < cycle.length; i++) {
     var s = cycle[i];
@@ -869,8 +872,8 @@ function specToKeys(cycle) {
     keys['viewBody' + i] = (s.body === BODY_GRAPH) ? 'health'
       : (s.body === BODY_RADAR) ? 'radar'
       : (s.body === BODY_NONE) ? 'none' : 'forecast';
-    keys['viewUpper' + i] = srcName[s.statusUpper] || 'off';
-    keys['viewLower' + i] = srcName[s.statusLower] || 'off';
+    keys['viewUpper' + i] = SRC_NAME[s.statusUpper] || 'off';
+    keys['viewLower' + i] = SRC_NAME[s.statusLower] || 'off';
     keys['viewOrder' + i] = STACK_ORDERS[s.order || 0];
     if (i > 0) { keys['viewClockOff' + i] = Boolean(s.clockOff); }
     keys['viewStripOff' + i] = Boolean(s.stripOff);
@@ -988,8 +991,8 @@ function barsShown(settings, env) {
  *     bar5: boolean, bar6: boolean}}
  */
 function barsIn(cycle) {
-  var out = { top: false, forecast: false, radar: false, health: false,
-              bar4: false, bar5: false, bar6: false };
+  var out = { top: false };
+  BAR_OF_SRC.forEach(function (bar) { if (bar) { out[bar] = false; } });
   for (var i = 0; i < cycle.length; i++) {
     var v = cycle[i];
     if (!v) { continue; }

@@ -59,6 +59,7 @@
   VC.EXTRA_BARS.forEach(function (b, i) {
     BARS.push({bar: b.bar, prefix: b.prefix, name: 'Bar ' + (i + 4), extra: true});
   });
+  var EXTRA_BARS = BARS.slice(BLOB_BARS.length);
   // The same bars in the page's order, the Status bars tab's (the owner, 2026-10-01), bars 4
   // to 6 last.
   var PAGE_BARS = [BARS[0], BARS[1], BARS[3], BARS[2]].concat(BARS.slice(BLOB_BARS.length));
@@ -232,7 +233,8 @@
     if (bar === 'top' || bar === 'forecast') { return true; }
     if (bar === 'radar') { return f.radar && VC.barsShown(s, env).radar; }
     if (bar === 'health') { return f.health && VC.barsShown(s, env).health; }
-    if (VC.extraBar(bar)) { return VC.barsShown(s, env)[bar]; }
+    // An unmade bar shows on no screen: asked first, as it skips compiling the screens.
+    if (VC.extraBar(bar)) { return VC.extraBarOn(s, bar, env) && VC.barsShown(s, env)[bar]; }
     return false;
   }
 
@@ -395,6 +397,7 @@
     ITEMS: ITEMS,
     BARS: BARS,
     BLOB_BARS: BLOB_BARS,
+    EXTRA_BARS: EXTRA_BARS,
     PAGE_BARS: PAGE_BARS,
     SIDES: SIDES,
     DEFAULTS: DEFAULTS,

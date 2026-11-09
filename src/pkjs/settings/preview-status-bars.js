@@ -36,19 +36,13 @@
     var dateFormat = NODE ? require('../date-format.js') : window.DateFormat;
     var VC = NODE ? require('../view-cycle.js') : VIEW_CYCLE;
 
-    // Each bar's short name here and the view-cycle status source that seats it (the Watch
-    // bar is the top strip, src: null).
-    var BAR_SEATS = {
-        top: {name: 'Watch', src: null},
-        forecast: {name: 'Forecast', src: VC.STATUS_SRC_FORECAST},
-        health: {name: 'Health', src: VC.STATUS_SRC_HEALTH},
-        radar: {name: 'Radar', src: VC.STATUS_SRC_RADAR}
-    };
-    // Bars 4 to 6 (Pebble Time 2, New bar): seated by their own sources.
-    VC.EXTRA_BARS.forEach(function (b) { BAR_SEATS[b.bar] = {name: b.bar, src: b.src}; });
-    // The bars in the page's order, with their short names and seats.
+    // The bars in the page's order, each with the view-cycle status source a screen's row
+    // seats it by (view-cycle.js barOfSource, read back); the Watch bar is the top strip
+    // (src: null).
+    var SRC_OF_BAR = {};
+    for (var src = 1; VC.barOfSource(src); src++) { SRC_OF_BAR[VC.barOfSource(src)] = src; }
     var BARS = onDemand.PAGE_BARS.map(function (b) {
-        return {bar: b.bar, name: BAR_SEATS[b.bar].name, src: BAR_SEATS[b.bar].src};
+        return {bar: b.bar, src: b.bar === 'top' ? null : SRC_OF_BAR[b.bar]};
     });
     // Each slot's byte cap, left to right: the middle slot holds 19 bytes, the edges 8
     // (status-line-catalog.js CAPS) — the room the unit and pair fit rules measure.
@@ -259,10 +253,7 @@
      *     'statusTopLeft'); [] for an unknown bar.
      */
     function barCodes(S, env, bar) {
-        var st = S || {}, line = null, i;
-        for (i = 0; i < catalog.ALL_LINES.length; i++) {
-            if (catalog.ALL_LINES[i].id === bar) { line = catalog.ALL_LINES[i]; }
-        }
+        var st = S || {}, line = catalog.lineById(bar);
         if (!line) { return []; }
         return line.slots.map(function (key, p) {
             var pos = catalog.SLOT_POSITIONS[p];
@@ -302,7 +293,7 @@
      * open, it is the picture alone.
      * @param {{pos: string, key: string, code: string, text: string, arrow: boolean}} c The
      *     slot (barSlots).
-     * @param {string} barName The bar's short name.
+     * @param {string} barName The bar's name (screens.js barName).
      * @param {Object} env Platform env.
      * @param {boolean} tappable Whether the slot opens its picker.
      * @returns {string} HTML.

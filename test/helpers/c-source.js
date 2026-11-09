@@ -1,7 +1,7 @@
 // test/helpers/c-source.js — the C sources as the JS↔C lockstep tests read them: a
-// source's text and the value of one of its #defines. One #define reader, so every pinned
-// constant parses the same way: decimal or hex, the name matched whole, and a missing name
-// failing its assert.
+// source's text, the value of one of its #defines and of one of its enum constants. One reader
+// each, so every pinned constant parses the same way: the name matched whole, and a missing
+// name failing its assert.
 'use strict';
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -32,4 +32,17 @@ function cDefine(src, name) {
   return Number(m[1]);
 }
 
-module.exports = { readC, cDefine };
+/**
+ * The value an enum constant states, `NAME = n`. The name is matched whole (FOO_1 never
+ * reads FOO_10's value).
+ * @param {string} src C source text.
+ * @param {string} name The constant's name.
+ * @returns {number} Its explicit value.
+ */
+function cEnum(src, name) {
+  const m = new RegExp('\\b' + name + '\\s*=\\s*(\\d+)').exec(src);
+  assert.ok(m, 'no enum constant ' + name);
+  return Number(m[1]);
+}
+
+module.exports = { readC, cDefine, cEnum };

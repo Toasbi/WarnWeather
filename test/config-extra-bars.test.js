@@ -8,6 +8,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
+const { rowOf, hintOf, editorBody } = require('./helpers/page-rows.js');
 
 // One custom screen, the Watch bar, the Clock, the Forecast bar and the forecast graph.
 const ONE_SCREEN = { provider: 'dwd', layoutPreset: 'custom', viewCount: '1', viewTop0: 'none',
@@ -23,42 +24,6 @@ function statusTab(cfg, platformName) {
   const page = bootGeneratedPage(Object.assign({}, ONE_SCREEN, cfg || {}), platformName || 'emery');
   page.clickTab('watch');
   return page;
-}
-
-/**
- * The markup of one row, from its opening `<div class="row` to the next row's.
- * @param {string} html rendered markup
- * @param {string} needle a string unique to the row
- * @returns {string} '' when absent
- */
-function rowOf(html, needle) {
-  const at = html.indexOf(needle);
-  if (at === -1) { return ''; }
-  const start = html.lastIndexOf('<div class="row', at);
-  const next = html.indexOf('<div class="row', at + 1);
-  return html.slice(start, next === -1 ? html.length : next);
-}
-
-/**
- * The hint under a row.
- * @param {string} html rendered markup
- * @param {string} needle a string unique to the row
- * @returns {string} the hint's inner markup, '' for none
- */
-function hintOf(html, needle) {
-  const m = /<div class="hint[^"]*"[^>]*>([\s\S]*?)<\/div>/.exec(rowOf(html, needle));
-  return m ? m[1] : '';
-}
-
-/**
- * The open screen editor's body.
- * @param {Object} page the page-harness handle
- * @returns {string}
- */
-function editorBody(page) {
-  const ed = page.editor();
-  assert.ok(ed, 'the screen editor is open');
-  return ed.querySelector('[data-se-body]').innerHTML;
 }
 
 /**

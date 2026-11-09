@@ -45,29 +45,30 @@
   var onDemand = (typeof require !== 'undefined') ? require('./on-demand.js') : window.OnDemand;
 
   // The blocks. `bar` names the status source a bar shows (its viewUpper / viewLower value),
-  // `graph` the graph a graph shows (its viewTop / viewBody value).
+  // `graph` the graph a graph shows (its viewTop / viewBody value). A status bar's name until
+  // it is named is its on-demand.js BARS name (set below, with BAR_OF_KIND).
   var KINDS = {
     strip: { name: 'Watch bar' },
     cal: { name: 'Calendar' },
     clock: { name: 'Clock' },
-    fcbar: { name: 'Forecast bar', bar: 'weather' },
-    radarbar: { name: 'Radar bar', bar: 'radar' },
-    healthbar: { name: 'Health bar', bar: 'health' },
-    // Bars 4 to 6: the kind is the bar's id and its row value (view-cycle.js EXTRA_BARS).
-    bar4: { name: 'Bar 4', bar: 'bar4' },
-    bar5: { name: 'Bar 5', bar: 'bar5' },
-    bar6: { name: 'Bar 6', bar: 'bar6' },
+    fcbar: { bar: 'weather' },
+    radarbar: { bar: 'radar' },
+    healthbar: { bar: 'health' },
     fc: { name: 'Forecast graph', graph: 'forecast' },
     radar: { name: 'Rain radar', graph: 'radar' },
     health: { name: 'Health graph', graph: 'health' }
   };
+  // Bars 4 to 6: the kind is the bar's id and its row value (view-cycle.js EXTRA_BARS).
+  VC.EXTRA_BARS.forEach(function (b) { KINDS[b.bar] = { bar: b.bar }; });
   // The order "+ Add" offers them in.
-  var ADD_ORDER = ['strip', 'cal', 'clock', 'fcbar', 'radarbar', 'healthbar', 'bar4', 'bar5', 'bar6',
-    'fc', 'radar', 'health'];
+  var ADD_ORDER = ['strip', 'cal', 'clock', 'fcbar', 'radarbar', 'healthbar']
+    .concat(VC.EXTRA_BARS.map(function (b) { return b.bar; }), ['fc', 'radar', 'health']);
   var MAX_SCREENS = 3;
+  // The most status bars one screen shows (the Watch bar aside).
+  var SCREEN_BARS = 2;
   // The places' names, the Default first: a screen's name until it is given one (nameOf).
   var NAMES = ['Default', 'Flick 1', 'Flick 2'];
-  // The longest name a screen keeps (graph-styles-page.js NAME_MAX for a graph's).
+  // The longest name a screen, a bar or a graph keeps (cleanName).
   var NAME_MAX = 24;
   var CAL_ROWS = ['2', '3'];
   var GRAPH_SIZES = ['2', '3', '4', 'fill'];
@@ -108,11 +109,17 @@
   }
 
   // Each status bar row's bar (on-demand.js BARS: its key prefix, so its slots and its name),
-  // and back.
-  var BAR_OF_KIND = { fcbar: 'forecast', radarbar: 'radar', healthbar: 'health',
-    bar4: 'bar4', bar5: 'bar5', bar6: 'bar6' };
-  var KIND_OF_BAR = { forecast: 'fcbar', radar: 'radarbar', health: 'healthbar',
-    bar4: 'bar4', bar5: 'bar5', bar6: 'bar6' };
+  // and back, read off the rows' sources (ROW_KIND, view-cycle.js barOfSource).
+  var BAR_OF_KIND = {};
+  var KIND_OF_BAR = {};
+  Object.keys(ROW_KIND).forEach(function (src) {
+    var bar = VC.barOfSource(Number(src));
+    BAR_OF_KIND[ROW_KIND[src]] = bar;
+    KIND_OF_BAR[bar] = ROW_KIND[src];
+  });
+  onDemand.BARS.forEach(function (b) {
+    if (KIND_OF_BAR[b.bar]) { KINDS[KIND_OF_BAR[b.bar]].name = b.name; }
+  });
 
   /**
    * The key a status bar's name is stored under (THE NAMES above): '<prefix>Name'.
@@ -269,7 +276,7 @@
     return ADD_ORDER.filter(function (k) {
       if (idxOf(list, k) >= 0 || !offered(k, S, env)) { return false; }
       if (k === 'cal') { return !topTaken; }
-      if (KINDS[k].bar) { return bars < 2; }
+      if (KINDS[k].bar) { return bars < SCREEN_BARS; }
       if (KINDS[k].graph) { return graphs < 2 && (!bot || !topTaken); }
       return true;
     });
@@ -472,6 +479,20 @@
   }
 
   /**
+   * The slots of the screens that pass a test, the Default first.
+   * @param {Object} S Settings.
+   * @param {?Object} env Platform env.
+   * @param {function(Array<Object>): boolean} pred A screen's test, on its list.
+   * @param {Array<?Object>} [cycle] screensCycle(S, env), when the caller has it already.
+   * @returns {number[]}
+   */
+  function placesWhere(S, env, pred, cycle) {
+    var out = [];
+    screensOf(S, env, cycle).forEach(function (list, i) { if (pred(list)) { out.push(i); } });
+    return out;
+  }
+
+  /**
    * Every screen of the settings, as lists (a preset's views too), read off the views the
    * screens show (view-cycle.js screensCycle: a custom layout with every seat kind on, since
    * the modes follow the screens).
@@ -576,18 +597,8 @@
   ];
   // A copy's start: BAR_COPY and the bar it copies ('copy:forecast').
   var BAR_COPY = 'copy:';
-  var MAX_BARS = 6;
-
-  /**
-   * @param {string} bar An on-demand.js BARS bar.
-   * @returns {?Object} its status-line-catalog.js line (ALL_LINES), null for none
-   */
-  function lineOfBar(bar) {
-    for (var i = 0; i < catalog.ALL_LINES.length; i++) {
-      if (catalog.ALL_LINES[i].id === bar) { return catalog.ALL_LINES[i]; }
-    }
-    return null;
-  }
+  // Every bar but the Watch bar.
+  var MAX_BARS = onDemand.BARS.length - 1;
 
   /**
    * Your bars on this watch (YOUR BARS above), in the Status bars tab's order (on-demand.js
@@ -618,6 +629,18 @@
   }
 
   /**
+   * The bar + New bar puts on a screen: the one New bar makes next (freeBar), while the screen
+   * has room for another bar (SCREEN_BARS, as addable offers bars).
+   * @param {Array<Object>} list A screen.
+   * @param {?Object} S Settings.
+   * @param {?Object} env Platform env.
+   * @returns {?string} 'bar4' | 'bar5' | 'bar6', null for none
+   */
+  function newBarFor(list, S, env) {
+    return count(list, isBar) < SCREEN_BARS ? freeBar(S, env) : null;
+  }
+
+  /**
    * The slots a start brings: a set's, its bar's default slots on this watch; a copy's, what
    * the bar copied holds (its stored slots, else their defaults), with their countdown dates.
    * @param {?Object} S Settings.
@@ -632,13 +655,13 @@
       var set = BAR_SETS[i];
       if (set.id !== src) { continue; }
       if (!capable(KIND_OF_BAR[set.from], env)) { return null; }
-      return { name: set.name, dates: null, codes: lineOfBar(set.from).slots.map(function (key) {
+      return { name: set.name, dates: null, codes: catalog.lineById(set.from).slots.map(function (key) {
         return catalog.slotDefault(key, env);
       }) };
     }
     var of = src.indexOf(BAR_COPY) === 0 ? src.slice(BAR_COPY.length) : '';
     if (!of || yourBars(st, env).indexOf(of) === -1) { return null; }
-    var slots = lineOfBar(of).slots;
+    var slots = catalog.lineById(of).slots;
     return {
       name: cleanName('Copy of ' + barName(st, of)),
       codes: slots.map(function (key) { return st[key] || catalog.slotDefault(key, env); }),
@@ -666,16 +689,13 @@
   }
 
   /**
-   * A name none of your other bars has: `base`, else "base 2", "base 3".
-   * @param {?Object} S Settings.
-   * @param {?Object} env Platform env.
+   * A name none of `taken` is, as a name is kept (cleanName): `base`, else "base 2",
+   * "base 3" (your bars' and your graphs' new names).
+   * @param {string[]} taken The names in use.
    * @param {string} base The name wanted.
-   * @param {string} self The bar being named (its own name does not count).
    * @returns {string}
    */
-  function freeBarName(S, env, base, self) {
-    var taken = yourBars(S, env).filter(function (bar) { return bar !== self; })
-      .map(function (bar) { return barName(S, bar); });
+  function freeName(taken, base) {
     var name = cleanName(base), n = 2;
     while (taken.indexOf(name) !== -1) { name = cleanName(base).slice(0, NAME_MAX - 3) + ' ' + n; n++; }
     return name;
@@ -683,7 +703,8 @@
 
   /**
    * New bar: make the next of bars 4 to 6 (freeBar) from a start (barStart), named after it
-   * (a free name, freeBarName), with no alerts on it. On no screen yet. Mutates S.
+   * (a name none of your other bars has, freeName), with no alerts on it. On no screen yet.
+   * Mutates S.
    * @param {Object} S Settings.
    * @param {?Object} env Platform env.
    * @param {string} from A BAR_SETS id, or BAR_COPY + one of your bars.
@@ -693,10 +714,10 @@
   function makeBar(S, env, from) {
     var bar = freeBar(S, env), start = bar ? barStart(S, env, from) : null;
     if (!start) { return null; }
-    var b = VC.extraBar(bar);
-    S[b.prefix + 'Made'] = true;
-    S[b.prefix + 'Name'] = freeBarName(S, env, start.name, bar);
-    lineOfBar(bar).slots.forEach(function (key, p) {
+    var taken = yourBars(S, env).map(function (other) { return barName(S, other); });
+    S[VC.extraBar(bar).prefix + 'Made'] = true;
+    S[barNameKey(bar)] = freeName(taken, start.name);
+    catalog.lineById(bar).slots.forEach(function (key, p) {
       S[key] = start.codes[p];
       if (start.dates && start.dates[p] !== undefined) { S[key + 'Countdown'] = start.dates[p]; }
     });
@@ -710,36 +731,27 @@
    * works the modes out again.
    * @param {Object} S Settings.
    * @param {string} bar 'bar4' | 'bar5' | 'bar6'
-   * @returns {boolean} whether a made bar went
+   * @returns {?Object<string, *>} the keys it wrote with the values they had (the page's
+   *   Undo puts them back), null when no made bar went
    */
   function unmakeBar(S, bar) {
     var b = VC.extraBar(bar);
-    if (!b || !VC.barMade(S, bar)) { return false; }
-    S[b.prefix + 'Made'] = false;
-    S[b.prefix + 'Name'] = '';
-    lineOfBar(bar).slots.forEach(function (key) { S[key] = catalog.slotDefault(key); });
-    onDemand.SIDES.forEach(function (side) { S[onDemand.itemsKey(bar, side)] = ''; });
-    for (var i = 0; i < MAX_SCREENS; i++) {
-      if (S['viewUpper' + i] === bar) { S['viewUpper' + i] = 'off'; }
-      if (S['viewLower' + i] === bar) { S['viewLower' + i] = 'off'; }
+    if (!b || !VC.barMade(S, bar)) { return null; }
+    var was = {};
+    /** @param {string} key A key. @param {*} v Its new value. @returns {void} */
+    function write(key, v) {
+      was[key] = S[key];
+      S[key] = v;
     }
-    return true;
-  }
-
-  /**
-   * The settings keys New bar and Delete bar write for a bar 4 to 6, and the screens' row keys:
-   * what the page's Undo puts back.
-   * @param {string} bar 'bar4' | 'bar5' | 'bar6'
-   * @returns {string[]}
-   */
-  function barKeys(bar) {
-    var b = VC.extraBar(bar), out = [];
-    if (!b) { return out; }
-    out.push(b.prefix + 'Made', b.prefix + 'Name');
-    lineOfBar(bar).slots.forEach(function (key) { out.push(key, key + 'Countdown'); });
-    onDemand.SIDES.forEach(function (side) { out.push(onDemand.itemsKey(bar, side)); });
-    for (var i = 0; i < MAX_SCREENS; i++) { out.push('viewUpper' + i, 'viewLower' + i); }
-    return out;
+    write(b.prefix + 'Made', false);
+    write(barNameKey(bar), '');
+    catalog.lineById(bar).slots.forEach(function (key) { write(key, catalog.slotDefault(key)); });
+    onDemand.SIDES.forEach(function (side) { write(onDemand.itemsKey(bar, side), ''); });
+    for (var i = 0; i < MAX_SCREENS; i++) {
+      if (S['viewUpper' + i] === bar) { write('viewUpper' + i, 'off'); }
+      if (S['viewLower' + i] === bar) { write('viewLower' + i, 'off'); }
+    }
+    return was;
   }
 
   var api = {
@@ -756,6 +768,7 @@
     BAR_OF_KIND: BAR_OF_KIND,
     KIND_OF_BAR: KIND_OF_BAR,
     cleanName: cleanName,
+    freeName: freeName,
     nameOf: nameOf,
     barNameKey: barNameKey,
     barName: barName,
@@ -779,17 +792,16 @@
     compileKeys: compileKeys,
     listFromSpec: listFromSpec,
     screensOf: screensOf,
+    placesWhere: placesWhere,
     fits: fits,
     deriveModes: deriveModes,
-    BAR_SETS: BAR_SETS,
-    BAR_COPY: BAR_COPY,
     MAX_BARS: MAX_BARS,
     yourBars: yourBars,
     freeBar: freeBar,
+    newBarFor: newBarFor,
     barStarts: barStarts,
     makeBar: makeBar,
-    unmakeBar: unmakeBar,
-    barKeys: barKeys
+    unmakeBar: unmakeBar
   };
 
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

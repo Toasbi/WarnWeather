@@ -70,7 +70,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var COPY = 'copy';
     var NEW = 'new:';
     var GROUP = '__group';
-    var NAME_MAX = 24;
     // A template's line under its name in the pickers, after its length (its picture shows the rest).
     var TEMPLATE_LINES = {
         classic: 'Rain chance and rain bars',
@@ -271,11 +270,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string[]} the screens' names
      */
     function screensOn(S, env, k) {
-        var out = [];
-        M.screensOf(S, env).forEach(function (list, i) {
-            if (drawnBy(S, list[M.idxOf(list, 'fc')]) === k) { out.push(M.nameOf(S, i)); }
-        });
-        return out;
+        return M.placesWhere(S, env, function (list) { return drawnBy(S, list[M.idxOf(list, 'fc')]) === k; })
+            .map(function (i) { return M.nameOf(S, i); });
     }
 
     /**
@@ -289,6 +285,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Where something shows, by the screens' names: "On Default and Flick 1", "On no screen".
+     * @param {string[]} names The screens' names.
+     * @returns {string}
+     */
+    function onScreens(names) {
+        return names.length ? 'On ' + andList(names) : 'On no screen';
+    }
+
+    /**
      * Where a graph shows, for its option's second line: "On Default and Flick 1".
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
@@ -296,8 +301,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string}
      */
     function whereText(S, env, k) {
-        var names = screensOn(S, env, k);
-        return names.length ? 'On ' + andList(names) : 'On no screen';
+        return onScreens(screensOn(S, env, k));
     }
 
     /**
@@ -729,19 +733,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * A name no other graph has: `base`, else "base 2", "base 3".
-     * @param {Object} S Settings.
-     * @param {string} base The name wanted.
-     * @returns {string}
-     */
-    function freeName(S, base) {
-        var taken = existing(S).map(function (k) { return GS.name(S, k); });
-        var n = String(base).slice(0, NAME_MAX), i = 2;
-        while (taken.indexOf(n) !== -1) { n = String(base).slice(0, NAME_MAX - 3) + ' ' + i; i++; }
-        return n;
-    }
-
-    /**
      * The name a new graph in slot k stores: '' for its default name ("Graph <k+1>"), else, when
      * another graph was renamed to that, the first "Graph <n>" no other graph has.
      * @param {Object} S Settings.
@@ -806,7 +797,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function renameStyle(S, oldValue, value) {
-        var k = pickIndex(S), name = String(value || '').replace(/^\s+|\s+$/g, '').slice(0, NAME_MAX);
+        var k = pickIndex(S), name = M.cleanName(value);
         S.graphStyles = GS.withName(S, k, name === GS.defaultName(k) ? '' : name);
     }
 
@@ -1111,6 +1102,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         screensOn: screensOn,
         andList: andList,
         whereText: whereText,
+        onScreens: onScreens,
         cardLine: cardLine,
         limitOptions: limitOptions,
         screenOverflows: screenOverflows,

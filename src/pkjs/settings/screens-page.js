@@ -72,9 +72,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var SCREEN_NEW_BAR = 'screenNewBar';
     var BAR_NEW = 'new:';
     var BAR_GROUP = '__group';
-    var BARS_FULL = 'You have 6 bars, the most a watch can have. Delete one to make another.';
+    var BARS_FULL = 'You have ' + M.MAX_BARS + ' bars, the most a watch can have. Delete one to make another.';
     // A Delete bar's Undo while it shows (the New bar card).
-    var BARS_UI = { undo: null, timer: null };
+    var BAR_UNDO = { v: null, t: null };
     // What a preset brings, under Add a screen's cards: with graph styles, and on a watch with
     // one graph (screen-presets.js WHAT A PRESET BRINGS).
     var ADD_FINE = 'A preset brings its graph, or uses one of yours that matches. Your bars keep their slots.';
@@ -220,6 +220,41 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function restore(S, snap, env) {
         Object.assign(S, snap);
         applyModes(S, env);
+    }
+
+    /**
+     * A message that goes by itself: `box.v` holds it for `ms`, then `repaint` draws the page
+     * without it. A new one replaces the one shown. (The Undo of a deleted screen or bar, why a
+     * move snapped back.)
+     * @param {{v: *, t: *}} box Where it is kept, and its timer.
+     * @param {*} v The message.
+     * @param {number} ms How long it stays.
+     * @param {function(): void} repaint What draws it.
+     * @returns {void}
+     */
+    function flash(box, v, ms, repaint) {
+        box.v = v;
+        if (box.t) { clearTimeout(box.t); }
+        box.t = setTimeout(function () {
+            box.v = null;
+            box.t = null;
+            repaint();
+        }, ms);
+    }
+
+    /**
+     * An Undo tapped (a flash holding {text, snap}): its snapshot put back (restore) and the
+     * message gone.
+     * @param {{v: *, t: *}} box The Undo's box.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {boolean} true, the page repaints
+     */
+    function takeUndo(box, S, env) {
+        if (box.v) { restore(S, box.v.snap, env); }
+        box.v = null;
+        if (box.t) { clearTimeout(box.t); box.t = null; }
+        return true;
     }
 
     /**
@@ -459,8 +494,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {number} the new screen's slot, -1 for none (no room, greyed out, no such choice)
      */
     function addChosen(S, env, id) {
-        var c = addChoices(S, env).filter(function (x) { return x.id === id; })[0];
-        if (!c || c.why || c.n >= M.MAX_SCREENS) { return -1; }
+        var N = GSP.asStored(S), lists = M.screensOf(N, env);
+        var p = id === BLANK ? null : PRESETS.byId(id);
+        if (lists.length >= M.MAX_SCREENS || (id !== BLANK && !(p && PRESETS.drawable(p, env)))) { return -1; }
+        var c = addChoice(N, env, lists, p);
+        if (c.why) { return -1; }
         var list = M.copy(c.list);
         if (c.graph && c.graph.values) {
             var k = GSP.createGraph(S, c.look, env), j = M.idxOf(list, 'fc');
@@ -536,14 +574,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} bar An on-demand.js BARS bar.
+     * @param {Array<?Object>} [cycle] VC.screensCycle(S, env), when the caller has it already.
      * @returns {number[]}
      */
-    function barPlaces(S, env, bar) {
-        var out = [];
-        M.screensOf(S, env).forEach(function (list, i) {
-            if (list.some(function (b) { return M.BAR_OF_KIND[b.k] === bar; })) { out.push(i); }
-        });
-        return out;
+    function barPlaces(S, env, bar, cycle) {
+        return M.placesWhere(S || {}, env, function (list) {
+            return list.some(function (b) { return M.BAR_OF_KIND[b.k] === bar; });
+        }, cycle);
     }
 
     /**
@@ -552,11 +589,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} bar An on-demand.js BARS bar.
+     * @param {Array<?Object>} [cycle] VC.screensCycle(S, env), when the caller has it already.
      * @returns {string}
      */
-    function barWhere(S, env, bar) {
-        var names = barPlaces(S || {}, env, bar).map(function (i) { return M.nameOf(S, i); });
-        return names.length ? 'On ' + GSP.andList(names) : 'On no screen';
+    function barWhere(S, env, bar, cycle) {
+        return GSP.onScreens(barPlaces(S, env, bar, cycle).map(function (i) { return M.nameOf(S, i); }));
     }
 
     /**
@@ -568,9 +605,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string}
      */
     function barHolds(S, env, bar) {
-        var labels = PSB.barCodes(S || {}, env, bar).filter(function (c) { return c.code !== 'empty'; })
-            .map(function (c) { return (catalog.byCode(c.code) || {}).label || c.code; });
-        return labels.length ? labels.join(' · ') : 'Nothing in it yet';
+        return codesText(PSB.barCodes(S || {}, env, bar).map(function (c) { return c.code; }));
     }
 
     /**
@@ -583,11 +618,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {Array} [label, kind, meta]
      */
     function barOptions(S, env) {
-        var list = M.screensOf(S || {}, env)[ED.i] || [], cur = list[ED.barRow] || {};
+        var cycle = VC.screensCycle(S || {}, env);
+        var list = M.screensOf(S || {}, env, cycle)[ED.i] || [], cur = list[ED.barRow] || {};
         var out = M.yourBars(S, env).map(function (bar) {
             var k = M.KIND_OF_BAR[bar], here = k !== cur.k && M.idxOf(list, k) >= 0;
             return [M.barName(S, bar), k, here ? { desc: 'Already on this screen', disabled: true }
-                : { desc: barHolds(S, env, bar) + ' · ' + barWhere(S, env, bar).replace(/^On/, 'on') }];
+                : { desc: barHolds(S, env, bar) + ' · ' + barWhere(S, env, bar, cycle).replace(/^On/, 'on') }];
         });
         if (!M.freeBar(S, env)) { return out; }
         out.push(['New bar · ' + barCount(S, env), BAR_GROUP, { groupHeader: true, disabled: true }]);
@@ -705,17 +741,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {boolean} whether a bar went
      */
     function deleteBar(S, bar, env) {
-        var snap = { radarMode: S.radarMode, healthMode: S.healthMode }, name = M.barName(S, bar);
-        M.barKeys(bar).forEach(function (key) { snap[key] = S[key]; });
-        if (!M.unmakeBar(S, bar)) { return false; }
+        var name = M.barName(S, bar), snap = M.unmakeBar(S, bar);
+        if (!snap) { return false; }
         applyModes(S, env);
-        BARS_UI.undo = { text: name + ' deleted.', snap: snap };
-        if (BARS_UI.timer) { clearTimeout(BARS_UI.timer); }
-        BARS_UI.timer = setTimeout(function () {
-            BARS_UI.undo = null;
-            BARS_UI.timer = null;
-            if (UI.ctx) { UI.ctx.render(); }
-        }, 5000);
+        flash(BAR_UNDO, { text: name + ' deleted.', snap: snap }, 5000, renderPage);
         return true;
     }
 
@@ -725,7 +754,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} HTML
      */
     function barUndoNote() {
-        var u = BARS_UI.undo;
+        var u = BAR_UNDO.v;
         return u ? '<span class="bar-undo">' + esc(u.text) + ' <button type="button" class="txt-link" '
             + 'data-action="undoDeleteBar">Undo</button></span>' : '';
     }
@@ -885,7 +914,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // The page's live state (onReady), the card's Undo toast, why a move snapped back, and the
     // card's drag in progress.
-    var UI = { ctx: null, toast: null, timer: null, note: '', noteTimer: null, drag: null };
+    var UI = { ctx: null, toast: { v: null, t: null }, note: { v: null, t: null }, drag: null };
+
+    /**
+     * Repaint the settings page (a flash going).
+     * @returns {void}
+     */
+    function renderPage() {
+        if (UI.ctx) { UI.ctx.render(); }
+    }
 
     /**
      * The Screens card's rows: one per screen, its name (the top one's "Default" pill when it
@@ -917,8 +954,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var add = lists.length < M.MAX_SCREENS
             ? '<button type="button" class="scr-add" data-action="addScreen">+ Add screen</button>' : '';
         var hint = many ? '<div class="scr-hint" id="scrHint">' + REORDER_HINT + '</div>' : '';
-        var note = UI.note ? '<div class="scr-note" role="status">' + esc(UI.note) + '</div>' : '';
-        var t = UI.toast;
+        var note = UI.note.v ? '<div class="scr-note" role="status">' + esc(UI.note.v) + '</div>' : '';
+        var t = UI.toast.v;
         var toast = t ? '<div class="scr-toast" role="status"><span>' + esc(t.text) + '</span>'
             + '<button type="button" class="scr-undo" data-action="undoDeleteScreen">Undo</button></div>' : '';
         return '<div class="scr-list">' + rows + add + hint + note + toast + '</div>';
@@ -930,13 +967,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function showNote(text) {
-        UI.note = text;
-        if (UI.noteTimer) { clearTimeout(UI.noteTimer); }
-        UI.noteTimer = setTimeout(function () {
-            UI.note = '';
-            UI.noteTimer = null;
-            if (UI.ctx) { UI.ctx.render(); }
-        }, 4000);
+        flash(UI.note, text, 4000, renderPage);
     }
 
     /**
@@ -948,8 +979,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function cardMove(from, to) {
         var ctx = UI.ctx, why = moveScreen(ctx.S, from, to, ctx.ENV);
-        if (why) { showNote(why); } else if (UI.note) { UI.note = ''; }
-        UI.toast = null;
+        if (why) { showNote(why); } else { UI.note.v = null; }
+        UI.toast.v = null;
         ctx.render();
         return why;
     }
@@ -1012,22 +1043,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function showToast(text, snap) {
-        UI.toast = { text: text, snap: snap };
-        if (UI.timer) { clearTimeout(UI.timer); }
-        UI.timer = setTimeout(function () {
-            UI.toast = null;
-            UI.timer = null;
-            if (UI.ctx) { UI.ctx.render(); }
-        }, 5000);
+        flash(UI.toast, { text: text, snap: snap }, 5000, renderPage);
     }
 
     // ── The editor ──────────────────────────────────────────────────────────
 
     // The overlay's state: what it shows ('edit' a screen, or 'add': Add a screen), the slot,
-    // the row whose option is open, the snap-back message, the drag in progress, whether the
-    // title is being renamed and its input while it is.
-    var ED = { overlay: null, mode: 'edit', i: 0, open: -1, toast: '', toastTimer: null, drag: null, renaming: false,
-        nameEl: null, barRow: -1 };
+    // the row whose option is open, the snap-back message, the drag in progress, and the name's
+    // input while the title is being renamed.
+    var ED = { overlay: null, mode: 'edit', i: 0, open: -1, toast: { v: null, t: null }, drag: null, nameEl: null,
+        barRow: -1 };
 
     /**
      * A graph's size as its row reads it.
@@ -1116,8 +1141,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {string} bar An on-demand.js BARS bar.
      * @returns {string} '' when this screen alone shows it
      */
-    function alsoOn(S, env, bar) {
-        var others = barPlaces(S, env, bar).filter(function (i) { return i !== ED.i; });
+    function alsoOn(S, env, bar, cycle) {
+        var others = barPlaces(S, env, bar, cycle).filter(function (i) { return i !== ED.i; });
         return others.length ? 'Also on ' + GSP.andList(others.map(function (i) { return M.nameOf(S, i); })) : '';
     }
 
@@ -1150,10 +1175,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {?Object} env Platform env.
      * @returns {string} HTML
      */
-    function rowHtml(list, j, S, env) {
+    function rowHtml(list, j, S, env, cycle) {
         var b = list[j], K = M.KINDS[b.k], fixed = b.k === 'strip', open = ED.open === j && !fixed;
         var keepClock = ED.i === 0 && b.k === 'clock', name = esc(M.blockName(b, S)), bar = M.BAR_OF_KIND[b.k];
-        var val = b.k === 'cal' ? b.rows + ' rows' : K.graph ? sizeLabel(b) : bar ? alsoOn(S, env, bar) : '';
+        var val = b.k === 'cal' ? b.rows + ' rows' : K.graph ? sizeLabel(b) : bar ? alsoOn(S, env, bar, cycle) : '';
         var h = '<div class="se-row" role="listitem" data-j="' + j + '">';
         h += fixed ? '<span class="se-grip off" aria-hidden="true"></span>'
             : '<span class="se-grip" data-grip="' + j + '" title="Drag to move" aria-hidden="true">' + I_GRIP + '</span>';
@@ -1193,17 +1218,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var i = ED.i, cycle = VC.screensCycle(S, env), list = M.screensOf(S, env, cycle)[i] || [];
         var note = !cycle[i] ? NOTHING_YET : !fitsWatch(list, i, env) ? TOO_TALL : '';
         var adds = M.addable(list, env, S).filter(function (k) { return fitsWatch(M.add(list, k), i, env); });
-        // + New bar (Pebble Time 2): while a bar is free, a bar has room here (two at most) and
-        // one would fit.
-        var free = M.freeBar(S, env);
-        var newBar = Boolean(free) && list.filter(M.isBar).length < 2 && fitsWatch(M.add(list, free), i, env);
+        // + New bar (Pebble Time 2): while New bar can make a bar for this screen and it would fit.
+        var free = M.newBarFor(list, S, env);
+        var newBar = Boolean(free) && fitsWatch(M.add(list, free), i, env);
         var pic = screenPicture(S, i, env, userData, 'se' + i + '-', cycle).svg;
         return '<div class="se-pic"><span class="se-pic-card" role="img" aria-label="' + esc(M.nameOf(S, i) + ': ' + contents(list, S))
             + '">' + pic + '</span></div>'
             + (note ? '<div class="se-note" role="status">' + note + '</div>' : '')
             + '<div class="se-card"><div class="se-cardhd" id="seTtl">Top to bottom</div>'
             + '<div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
-            + list.map(function (b, j) { return rowHtml(list, j, S, env); }).join('') + '</div>'
+            + list.map(function (b, j) { return rowHtml(list, j, S, env, cycle); }).join('') + '</div>'
             + (adds.length || newBar ? '<div class="se-adds"><span class="se-addlbl">Add</span>' + adds.map(function (k) {
                 return '<button type="button" class="se-add" data-se="add" data-k="' + k + '">+ ' + esc(M.blockName({ k: k }, S))
                     + '</button>';
@@ -1244,23 +1268,30 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function renderTitle(S) {
         var h = ED.overlay.querySelector('[data-se-title]');
         if (ED.mode === 'add') { h.innerHTML = 'Add a screen'; return; }
-        if (ED.renaming) {
-            if (ED.nameEl) { return; }
-            h.innerHTML = '<input type="text" class="se-name-in" maxlength="' + M.NAME_MAX + '" aria-label="Screen name"'
-                + ' autocomplete="off" value="' + esc(M.nameOf(S, ED.i)) + '">';
-            var input = ED.nameEl = h.querySelector('input');
-            input.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') { e.preventDefault(); endRename(input.value); }
-                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endRename(null); }
-            });
-            input.addEventListener('blur', function () { endRename(input.value); });
-            input.focus();
-            input.select();
-            return;
-        }
+        if (ED.nameEl) { return; }
         var name = esc(M.nameOf(S, ED.i));
         h.innerHTML = '<button type="button" class="se-name" data-se="rename" aria-label="Rename ' + name + '"><span>' + name
             + '</span>' + I_PEN + '</button>';
+    }
+
+    /**
+     * Rename the screen: the title becomes an input holding its name, focused and selected.
+     * Enter or leaving it stores the name, Escape keeps the old one (endRename).
+     * @param {Object} S Settings.
+     * @returns {void}
+     */
+    function startRename(S) {
+        var h = ED.overlay.querySelector('[data-se-title]');
+        h.innerHTML = '<input type="text" class="se-name-in" maxlength="' + M.NAME_MAX + '" aria-label="Screen name"'
+            + ' autocomplete="off" value="' + esc(M.nameOf(S, ED.i)) + '">';
+        var input = ED.nameEl = h.querySelector('input');
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); endRename(input.value); }
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endRename(null); }
+        });
+        input.addEventListener('blur', function () { endRename(input.value); });
+        input.focus();
+        input.select();
     }
 
     /**
@@ -1270,8 +1301,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function endRename(text) {
-        if (!ED.renaming || !ED.overlay || !UI.ctx) { return; }
-        ED.renaming = false;
+        if (!ED.nameEl || !ED.overlay || !UI.ctx) { return; }
         ED.nameEl = null;
         if (text !== null) {
             renameScreen(UI.ctx.S, ED.i, text);
@@ -1295,8 +1325,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         body.innerHTML = add ? addBody(ctx.S, ctx.ENV, ctx.USERDATA) : editorBody(ctx.S, ctx.ENV, ctx.USERDATA);
         body.scrollTop = top;
         var t = ED.overlay.querySelector('[data-se-toast]');
-        t.textContent = ED.toast;
-        t.style.display = ED.toast ? '' : 'none';
+        t.textContent = ED.toast.v || '';
+        t.style.display = ED.toast.v ? '' : 'none';
     }
 
     /**
@@ -1305,9 +1335,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function editorToast(text) {
-        ED.toast = text;
-        if (ED.toastTimer) { clearTimeout(ED.toastTimer); }
-        ED.toastTimer = setTimeout(function () { ED.toast = ''; ED.toastTimer = null; renderEditor(); }, 3000);
+        flash(ED.toast, text, 3000, renderEditor);
     }
 
     /**
@@ -1332,7 +1360,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (ED.overlay.parentNode) { ED.overlay.parentNode.removeChild(ED.overlay); }
         ED.overlay = null;
         ED.drag = null;
-        ED.renaming = false;
         ED.nameEl = null;
         document.removeEventListener('keydown', onKeydown);
         if (UI.ctx) { UI.ctx.render(); }
@@ -1344,7 +1371,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function onKeydown(e) {
-        if (e.key !== 'Escape' || ED.renaming) { return; }
+        if (e.key !== 'Escape' || ED.nameEl) { return; }
         var modal = document.getElementById('modal');
         if (modal && modal.open) { return; }
         if (ED.open >= 0) { ED.open = -1; renderEditor(); return; }
@@ -1379,12 +1406,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var act = t.getAttribute('data-se'), j = Number(t.getAttribute('data-j'));
         var list = M.screensOf(S, env)[ED.i] || [];
         if (act === 'close') { closeEditor(); return; }
-        if (act === 'rename') { ED.renaming = true; renderTitle(S); return; }
+        if (act === 'rename') { startRename(S); return; }
         // Add a screen's pick: the screen added after the others (addChosen), its editor next.
         if (act === 'pick') {
             var slot = t.disabled ? -1 : addChosen(S, env, t.getAttribute('data-id'));
             if (slot < 0) { return; }
-            UI.toast = null;
+            UI.toast.v = null;
             ED.mode = 'edit';
             ED.i = slot;
             ED.open = -1;
@@ -1610,8 +1637,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ED.mode = mode;
         ED.i = i;
         ED.open = -1;
-        ED.toast = '';
-        ED.renaming = false;
+        ED.toast.v = null;
         ED.nameEl = null;
         var overlay = document.createElement('div');
         overlay.id = 'screenEditor';
@@ -1737,22 +1763,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return false;
         };
         PConf.actions.deleteBar = function (arg, S, env) { return deleteBar(S, String(arg || ''), env); };
-        PConf.actions.undoDeleteBar = function (arg, S, env) {
-            if (BARS_UI.undo) {
-                restore(S, BARS_UI.undo.snap, env);
-                BARS_UI.undo = null;
-                if (BARS_UI.timer) { clearTimeout(BARS_UI.timer); BARS_UI.timer = null; }
-            }
-            return true;
-        };
-        PConf.actions.undoDeleteScreen = function (arg, S, env) {
-            if (UI.toast) {
-                restore(S, UI.toast.snap, env);
-                UI.toast = null;
-                if (UI.timer) { clearTimeout(UI.timer); UI.timer = null; }
-            }
-            return true;
-        };
+        PConf.actions.undoDeleteBar = function (arg, S, env) { return takeUndo(BAR_UNDO, S, env); };
+        PConf.actions.undoDeleteScreen = function (arg, S, env) { return takeUndo(UI.toast, S, env); };
         if (PConf.displayResolvers) { PConf.displayResolvers.register('radarSourceValue', radarSourceValue); }
         if (PConf.attentionResolvers) {
             // The Rain radar picker's key check (key-status.js keyAttention, on radarProvider):
@@ -1820,20 +1832,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         addScreen: addScreen,
         moveScreen: moveScreen,
         renameScreen: renameScreen,
-        sameRows: sameRows,
         addChoices: addChoices,
         addChosen: addChosen,
-        barWhere: barWhere,
-        barHolds: barHolds,
-        barOptions: barOptions,
-        screenBarPicked: screenBarPicked,
-        BARS_FULL: BARS_FULL,
-        barCount: barCount,
-        barStartOptions: barStartOptions,
-        barCreate: barCreate,
-        screenNewBarPicked: screenNewBarPicked,
-        deleteBar: deleteBar,
-        barUndoNote: barUndoNote,
         contents: contents,
         drawnView: drawnView,
         screenPicture: screenPicture,
@@ -1844,9 +1844,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         radarSourceValue: radarSourceValue,
         radarSourcePicked: radarSourcePicked,
         screenStylePicked: screenStylePicked,
-        batterySaverPauseHint: batterySaverPauseHint,
-        _test: { ED: ED, UI: UI, openEditor: openEditor, openAdd: openAdd, closeEditor: closeEditor, addBody: addBody,
-            onCardKeydown: onCardKeydown, cardMove: cardMove }
+        batterySaverPauseHint: batterySaverPauseHint
     };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.ScreensPage = api; }

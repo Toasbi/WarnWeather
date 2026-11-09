@@ -11,6 +11,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
+const { rowOf, hintOf } = require('./helpers/page-rows.js');
 const OD = require('../src/pkjs/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const SCHEMA = require('../src/pkjs/settings/schema.js');
@@ -44,20 +45,6 @@ const watchTab = (cfg, platformName) => onTab('watch', cfg, platformName);
 const alertsTab = (cfg, platformName) => onTab('alerts', cfg, platformName);
 
 /**
- * The markup of one row, from its opening `<div class="row` to the next row's.
- * @param {string} html rendered page markup
- * @param {string} needle a string unique to the row (e.g. its data-edit-sheet)
- * @returns {string} the row's markup ('' when absent)
- */
-function rowOf(html, needle) {
-  const at = html.indexOf(needle);
-  if (at === -1) { return ''; }
-  const start = html.lastIndexOf('<div class="row', at);
-  const next = html.indexOf('<div class="row', at);
-  return html.slice(start, next === -1 ? html.length : next);
-}
-
-/**
  * Where each card opens in rendered markup (the card's own div, not its header's).
  * @param {string} html rendered markup
  * @returns {number[]} the offsets, in order
@@ -68,18 +55,6 @@ function cardStarts(html) {
   let m;
   while ((m = re.exec(html))) { out.push(m.index); }
   return out;
-}
-
-/**
- * The hint text of the row holding a needle ('' when the row has none) — a value row's
- * hint or a nav row's summary, dimmed ('hint faint') or not.
- * @param {string} html rendered page markup
- * @param {string} needle a string unique to the row
- * @returns {string} the hint's inner markup
- */
-function hintOf(html, needle) {
-  const m = /<div class="hint[^"]*"[^>]*>([\s\S]*?)<\/div>/.exec(rowOf(html, needle));
-  return m ? m[1] : '';
 }
 
 // Each item's dialog, the one its Alerts-tab row opens.

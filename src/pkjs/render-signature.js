@@ -75,7 +75,7 @@ function isAlertCode(code) {
 function mergedSlots(settings) {
     var out = [];
     // A made bar 4 to 6's too (Pebble Time 2: catalog madeExtraLines, read env-free).
-    var lines = statusCatalog.LINES.concat(statusCatalog.madeExtraLines(settings));
+    var lines = statusCatalog.bakedLines(settings);
     for (var l = 0; l < lines.length; l++) {
         var line = lines[l];
         for (var s = 0; s < 3; s += 2) {
@@ -88,6 +88,20 @@ function mergedSlots(settings) {
         }
     }
     return out.join(',');
+}
+
+/**
+ * Sign slot selections: each slot's code, then its countdown date while it shows the
+ * countdown, '' otherwise (renderSignature says why).
+ * @param {Array} parts The signature's parts; pushed to.
+ * @param {Object} settings Clay settings.
+ * @param {string[]} keys Slot settings keys.
+ * @returns {void}
+ */
+function signSlots(parts, settings, keys) {
+    keys.forEach(function (slotKey) {
+        parts.push(settings[slotKey], settings[slotKey] === 'countdown' ? settings[slotKey + 'Countdown'] : '');
+    });
 }
 
 /**
@@ -177,12 +191,7 @@ function renderSignature(settings, watchInfo) {
     // date to today whether it is used or not, so signing the inert ones would force
     // a needless fetch on the first save that writes them. The '' keeps the
     // position fixed, so no two keys can ever share a signature slot.
-    var slotKeys = statusCatalog.allSlotKeys();
-    for (var i = 0; i < slotKeys.length; i++) {
-        var slotKey = slotKeys[i];
-        parts.push(settings[slotKey],
-            settings[slotKey] === 'countdown' ? settings[slotKey + 'Countdown'] : '');
-    }
+    signSlots(parts, settings, statusCatalog.allSlotKeys());
     // The WEATHER threshold kinds are evaluated phone-side at weather-bake
     // time (STATUS_LEVELS_UINT8 and the alert entries), so a pair edit only
     // shows up after a refetch — without this the new level would first
@@ -240,10 +249,7 @@ function renderSignature(settings, watchInfo) {
     // so every other bake signs as it did before them.
     statusCatalog.madeExtraLines(settings, platformLib.computeEnv(watchInfo || null)).forEach(function (line) {
         parts.push(line.id);
-        line.slots.forEach(function (slotKey) {
-            parts.push(settings[slotKey],
-                settings[slotKey] === 'countdown' ? settings[slotKey + 'Countdown'] : '');
-        });
+        signSlots(parts, settings, line.slots);
     });
     return parts.join('|');
 }

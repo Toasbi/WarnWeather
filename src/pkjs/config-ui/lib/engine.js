@@ -1250,6 +1250,23 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * The first section on any tab that passes a test; null when none does.
+   * @param {Object} schema Config schema.
+   * @param {function(Object): boolean} pred The test.
+   * @returns {?Object} The section.
+   */
+  function findSection(schema, pred) {
+    var ti, si, tabs = schema.tabs || [], secs;
+    for (ti = 0; ti < tabs.length; ti++) {
+      secs = tabs[ti].sections || [];
+      for (si = 0; si < secs.length; si++) {
+        if (pred(secs[si])) { return secs[si]; }
+      }
+    }
+    return null;
+  }
+
+  /**
    * The section an id names (its id, else its title, as a card header marks it), on any tab;
    * null when none does.
    * @param {Object} schema Config schema.
@@ -1257,14 +1274,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {?Object} The section.
    */
   function findSectionById(schema, id) {
-    var ti, si, tabs = schema.tabs || [], secs;
-    for (ti = 0; ti < tabs.length; ti++) {
-      secs = tabs[ti].sections || [];
-      for (si = 0; si < secs.length; si++) {
-        if ((secs[si].id || secs[si].title) === id) { return secs[si]; }
-      }
-    }
-    return null;
+    return findSection(schema, function (sec) { return (sec.id || sec.title) === id; });
   }
 
   /**
@@ -1274,14 +1284,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {?Object} The section.
    */
   function findSheetSection(schema, id) {
-    var sec = null, ti, si, tabs = schema.tabs || [], secs;
-    for (ti = 0; ti < tabs.length; ti++) {
-      secs = tabs[ti].sections || [];
-      for (si = 0; si < secs.length; si++) {
-        if (secs[si].sheetOnly && secs[si].sheetId === id) { sec = secs[si]; }
-      }
-    }
-    return sec;
+    return findSection(schema, function (sec) { return Boolean(sec.sheetOnly) && sec.sheetId === id; });
   }
 
   /**
@@ -1971,6 +1974,26 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * A section's title as its card shows it: its titleBy's answer, else its static title.
+   * @param {Object} sec The section.
+   * @param {Object} cx Render context.
+   * @returns {string}
+   */
+  function sectionTitle(sec, cx) {
+    return resolvedTitle(sec.titleBy, cx) || sec.title || '';
+  }
+
+  /**
+   * The mark on a card title that follows the settings (a section's titleBy): its section's
+   * id, so a text commit retitles it in place (boot's retitleCards).
+   * @param {{titleBy: boolean, secId: string}} h The header.
+   * @returns {string} The attribute, or ''.
+   */
+  function titleByAttr(h) {
+    return h.titleBy ? ' data-title-by="' + esc(h.secId) + '"' : '';
+  }
+
+  /**
    * A card's header: its title (uppercase, the section-title look), then — beside the
    * title — the '?' that opens the card's info text (its intro) and a reset action
    * (labelAction), and on the right a hosted master switch (a subheader's toggleKey), the
@@ -1983,16 +2006,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {Object} cx Render context.
    * @returns {string} Header HTML, or '' for an untitled, non-collapsible card.
    */
-  /**
-   * The mark on a card title that follows the settings (a section's titleBy): its section's
-   * id, so a text commit retitles it in place (boot's retitleCards).
-   * @param {{titleBy: boolean, secId: string}} h The header.
-   * @returns {string} The attribute, or ''.
-   */
-  function titleByAttr(h) {
-    return h.titleBy ? ' data-title-by="' + esc(h.secId) + '"' : '';
-  }
-
   function cardHeaderHtml(h, cx) {
     if (!(h.title || h.collapsible)) { return ''; }
     if (h.collapsible) {
@@ -2211,7 +2224,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         head = { title: g.head.text || '', intro: g.head.intro || '', labelAction: g.head.labelAction || null,
           toggle: subheaderToggleHtml(g.head, sec, cx) };
       } else {
-        head = { title: untitled ? '' : (resolvedTitle(sec.titleBy, cx) || sec.title || ''),
+        head = { title: untitled ? '' : sectionTitle(sec, cx),
           intro: untitled ? '' : (sec.intro || ''), labelAction: untitled ? null : (sec.labelAction || null),
           toggle: '' };
       }
@@ -3401,6 +3414,24 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     /**
+     * Re-resolve every card title that follows the settings (a section's titleBy, e.g. a status
+     * bar's name, which its Name row commits) IN PLACE, after a text commit that skips render()
+     * (commitTextChange, see relabelSelectTriggers below): only the title's text changes, so the
+     * tap the commit ran ahead of still lands.
+     * @returns {void}
+     */
+    function retitleCards() {
+      var host = document.getElementById('scroll');
+      var els = (host && host.querySelectorAll) ? host.querySelectorAll('.ttl[data-title-by]') : [];
+      var cx = { S: S, ENV: ENV }, i, sec, title;
+      for (i = 0; i < els.length; i++) {
+        sec = findSectionById(SCHEMA, els[i].getAttribute('data-title-by'));
+        title = sec ? sectionTitle(sec, cx) : null;
+        if (title !== null && els[i].textContent !== title) { els[i].textContent = title; }
+      }
+    }
+
+    /**
      * The one thing a text commit repaints without render(): select-trigger labels. An
      * optionsFrom resolver may NAME its options from a text key (e.g. a provider picker
      * that calls one provider "limited" until an API key is typed into a field below it),
@@ -3416,24 +3447,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      *
      * @returns {void}
      */
-    /**
-     * Re-resolve every card title that follows the settings (a section's titleBy, e.g. a status
-     * bar's name, which its Name row commits) IN PLACE, after a text commit that skips render()
-     * (commitTextChange, see relabelSelectTriggers below): only the title's text changes, so the
-     * tap the commit ran ahead of still lands.
-     * @returns {void}
-     */
-    function retitleCards() {
-      var host = document.getElementById('scroll');
-      var els = (host && host.querySelectorAll) ? host.querySelectorAll('.ttl[data-title-by]') : [];
-      var cx = { S: S, ENV: ENV }, i, sec, title;
-      for (i = 0; i < els.length; i++) {
-        sec = findSectionById(SCHEMA, els[i].getAttribute('data-title-by'));
-        title = sec ? (resolvedTitle(sec.titleBy, cx) || sec.title || '') : null;
-        if (title !== null && els[i].textContent !== title) { els[i].textContent = title; }
-      }
-    }
-
     function relabelSelectTriggers() {
       var hosts = [document.getElementById('scroll'), document.getElementById('modal')];
       var ctx = evalCtx(), h, i, trigs, item, label, span, aria;
