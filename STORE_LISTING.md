@@ -95,6 +95,11 @@ PLATFORMS
 - Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2,
   Pebble Time 2, and Pebble 2 Duo
 
+PRIVACY
+- Sends anonymous usage data: whether weather updates succeed, app and watch version,
+  country, and which settings are used. Never your location, API keys or health data.
+- Turn it off under Setup → Misc → Share anonymous telemetry.
+
 Weather and radar data from MET Norway (CC BY 4.0).
 
 

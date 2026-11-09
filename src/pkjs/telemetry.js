@@ -216,6 +216,17 @@ function serializeError(value, maxLength) {
 // NEWEST settings per watch (telemetry_rollup_and_prune), so per-event snapshots
 // bought nothing. The ingest keeps accepting the old single-event shape from
 // app versions in the field; this client only sends batches.
+//
+// Two settings-page triggers send early, through the same checks (latch,
+// backoff, stale drop) minus the size/age threshold:
+// - Save, until this install has had a batch accepted: a new watch that leaves
+//   before its first ~12 h batch would otherwise never be counted. Saving is the
+//   deliberate "I'm using this" moment, and the user has had the telemetry toggle
+//   in front of them. An empty queue (no fetch yet) moves the send to the next
+//   track in this session.
+// - Opening the settings, at most once per UTC day, and only once the install
+//   has reported (so a new user is never sent before seeing the toggle): an
+//   engaged user's day shows up hours sooner.
 var storageKeys = require('./storage-keys.js');
 
 var TELEMETRY_FLUSH_AT_EVENTS = 24;                    // ~12 h at the 30-min default
@@ -243,6 +254,10 @@ var TELEMETRY_XHR_TIMEOUT_MS = 30 * 1000;
 // so one latch here covers every client the session creates.
 var telemetryFlushInFlight = false;
 var telemetryNextFlushEarliest = 0;
+// A Save on a never-reported install owes a send; it stays owed (every track
+// tries) until a batch is accepted. Module scope for the same reason as the
+// latch: the Save recreates the client.
+var telemetryReportOwed = false;
 // Per-session tail for record ids: t alone can collide when two fetches land in
 // the same millisecond, and the ACK removes records BY id.
 var telemetryIdSeq = 0;
@@ -329,22 +344,47 @@ function writeTelemetrySendingMark(sent) {
 }
 
 /**
+ * Whether this install has had a telemetry batch accepted.
+ * @returns {boolean} True after the first 2xx.
+ */
+function telemetryReported() {
+    try {
+        return localStorage.getItem(storageKeys.TELEMETRY_REPORTED_KEY) === '1';
+    }
+    catch (ex) {
+        return false;
+    }
+}
+
+/**
+ * Today's UTC day, the unit the settings-open trigger counts in.
+ * @param {number} nowMs Epoch ms.
+ * @returns {string} 'YYYY-MM-DD'.
+ */
+function utcDay(nowMs) {
+    return new Date(nowMs).toISOString().slice(0, 10);
+}
+
+/**
  * Create a telemetry client for weather fetch events.
  *
  * @param {Object} options Telemetry client options.
  * @param {string} options.endpoint Telemetry ingest endpoint.
  * @param {string} options.appVersion App version string.
  * @param {string} options.buildProfile Build profile string.
- * @returns {{enabled: boolean, trackWeatherFetch: Function}} Telemetry client.
+ * @returns {{enabled: boolean, trackWeatherFetch: Function, onSettingsSaved: Function,
+ *     onSettingsOpened: Function}} Telemetry client.
  */
 function createTelemetryClient(options) {
     var enabled = !options || options.enabled !== false;
     var endpoint = options && typeof options.endpoint === 'string' ? options.endpoint.trim() : '';
     var appVersion = options && typeof options.appVersion === 'string' ? options.appVersion : '0.0.0';
     var buildProfile = options && typeof options.buildProfile === 'string' ? options.buildProfile : 'unknown';
-    // The freshest header context, refreshed on every track call: PKJS is torn
-    // down between watchface sessions, but a flush only ever runs FROM a track
-    // call, so this is always populated when the batch is built.
+    // The freshest header context, refreshed on every track call and by the two
+    // settings triggers: PKJS is torn down between watchface sessions and the Save
+    // recreates the client, but every flush runs from one of those three, after it
+    // has filled these. An empty settings header would replace the watch's newest
+    // settings in the rollup.
     var lastSettingsSnapshot = null;
     var lastWatchInfoSnapshot = null;
 
@@ -404,13 +444,15 @@ function createTelemetryClient(options) {
     }
 
     /**
-     * Drain the queue head as one batch when it is full enough or old enough.
-     * @returns {void}
+     * Drain the queue head as one batch when it is full enough or old enough, or
+     * at once when forced (a settings trigger, or a report a Save still owes).
+     * @param {boolean} [force] Skip the size/age threshold; every other check stays.
+     * @returns {boolean} Whether a batch went out.
      */
-    function maybeFlush() {
-        if (telemetryFlushInFlight) { return; }
+    function maybeFlush(force) {
+        if (telemetryFlushInFlight) { return false; }
         var now = Date.now();
-        if (now < telemetryNextFlushEarliest) { return; }   // backing off a failed send
+        if (now < telemetryNextFlushEarliest) { return false; }   // backing off a failed send
         // A sending-mark with no in-flight batch in THIS session means a
         // previous session died between send and ACK — outcome unknown. Drop
         // the marked records rather than resend (see TELEMETRY_SENDING_KEY).
@@ -433,10 +475,11 @@ function createTelemetryClient(options) {
             return ev && typeof ev.t === 'number' && now - ev.t <= TELEMETRY_MAX_EVENT_AGE_MS;
         });
         if (queue.length !== stored.length) { writeTelemetryQueue(queue); }
-        if (queue.length === 0) { return; }
+        if (queue.length === 0) { return false; }
         var headAge = now - queue[0].t;
-        if (queue.length < TELEMETRY_FLUSH_AT_EVENTS && headAge < TELEMETRY_FLUSH_AT_AGE_MS) {
-            return;
+        var due = force || (telemetryReportOwed && !telemetryReported());
+        if (!due && queue.length < TELEMETRY_FLUSH_AT_EVENTS && headAge < TELEMETRY_FLUSH_AT_AGE_MS) {
+            return false;
         }
 
         var accountToken;
@@ -446,11 +489,11 @@ function createTelemetryClient(options) {
         }
         catch (ex) {
             console.log('[telemetry] getAccountToken failed: ' + ex.message);
-            return;
+            return false;
         }
         if (typeof accountToken !== 'string' || accountToken.trim() === '') {
             console.log('[telemetry] getAccountToken returned empty value');
-            return;
+            return false;
         }
         try {
             watchToken = Pebble.getWatchToken();
@@ -486,6 +529,17 @@ function createTelemetryClient(options) {
                     telemetryNextFlushEarliest = Date.now() + TELEMETRY_RETRY_BACKOFF_MS;
                     return;
                 }
+                // A 4xx settles the owed report too: the ingest would refuse the
+                // next one alike, and forcing it would POST on every track.
+                telemetryReportOwed = false;
+                if (outcome === 'sent') {
+                    try {
+                        localStorage.setItem(storageKeys.TELEMETRY_REPORTED_KEY, '1');
+                    }
+                    catch (exFlag) {
+                        console.log('[telemetry] reported-flag write failed: ' + exFlag.message);
+                    }
+                }
                 // 'sent' and 'drop' both remove exactly the records that were
                 // posted — by id, never by position (see removeTelemetryRecords).
                 removeTelemetryRecords(events);
@@ -498,6 +552,60 @@ function createTelemetryClient(options) {
             writeTelemetrySendingMark(null);
             telemetryNextFlushEarliest = Date.now() + TELEMETRY_RETRY_BACKOFF_MS;
             console.log('[telemetry] send threw: ' + exSend.message);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Take the batch header from the settings page's context: the Save recreates
+     * the client, so nothing has filled it yet in this one.
+     * @param {Object} context {settings, watchInfo}.
+     * @returns {void}
+     */
+    function refreshHeader(context) {
+        var ctx = context || {};
+        lastSettingsSnapshot = buildSettingsSnapshot(ctx.settings, ctx.watchInfo);
+        lastWatchInfoSnapshot = buildWatchInfoSnapshot(ctx.watchInfo);
+    }
+
+    /**
+     * The settings were saved. Until this install has reported once, send now (or
+     * at the next track, when nothing is queued yet).
+     * @param {Object} context {settings, watchInfo}.
+     * @returns {void}
+     */
+    function onSettingsSaved(context) {
+        if (!enabled || endpoint === '' || telemetryReported()) { return; }
+        telemetryReportOwed = true;
+        refreshHeader(context);
+        maybeFlush(true);
+    }
+
+    /**
+     * The settings page opened. Once this install has reported, send what is
+     * queued, at most once per UTC day; the day counts only when a batch went out.
+     * @param {Object} context {settings, watchInfo}.
+     * @returns {void}
+     */
+    function onSettingsOpened(context) {
+        if (!enabled || endpoint === '' || !telemetryReported()) { return; }
+        var today = utcDay(Date.now());
+        var lastDay = null;
+        try {
+            lastDay = localStorage.getItem(storageKeys.TELEMETRY_OPEN_SEND_DAY_KEY);
+        }
+        catch (exRead) {
+            lastDay = null;
+        }
+        if (lastDay === today) { return; }
+        refreshHeader(context);
+        if (!maybeFlush(true)) { return; }
+        try {
+            localStorage.setItem(storageKeys.TELEMETRY_OPEN_SEND_DAY_KEY, today);
+        }
+        catch (exDay) {
+            console.log('[telemetry] open-day write failed: ' + exDay.message);
         }
     }
 
@@ -555,7 +663,9 @@ function createTelemetryClient(options) {
 
     return {
         enabled: enabled && endpoint !== '',
-        trackWeatherFetch: trackWeatherFetch
+        trackWeatherFetch: trackWeatherFetch,
+        onSettingsSaved: onSettingsSaved,
+        onSettingsOpened: onSettingsOpened
     };
 }
 
@@ -578,4 +688,5 @@ module.exports.TELEMETRY_BATCH = {
 module.exports._resetBatchStateForTests = function() {
     telemetryFlushInFlight = false;
     telemetryNextFlushEarliest = 0;
+    telemetryReportOwed = false;
 };
