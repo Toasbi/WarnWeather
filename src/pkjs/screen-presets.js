@@ -23,9 +23,9 @@
     var PRESETS = [
         { id: 'classic', name: 'Classic', look: 'classic', needs: [],
             list: [{ k: 'strip' }, { k: 'cal', rows: '3' }, { k: 'clock' }, { k: 'fcbar' }, { k: 'fc', size: 'fill' }] },
-        { id: 'weathergraph', name: 'Weathergraph', look: 'weathergraph', needs: ['graphStyles', 'health'],
+        { id: 'weathergraph', name: 'Weathergraph', look: 'clean', needs: ['graphStyles', 'health'],
             list: [{ k: 'strip' }, { k: 'clock' }, { k: 'fcbar' }, { k: 'fc', size: 'fill' }, { k: 'healthbar' }] },
-        { id: 'clean', name: 'Clean', look: 'weathergraph', needs: ['graphStyles'],
+        { id: 'clean', name: 'Clean', look: 'clean', needs: ['graphStyles'],
             list: [{ k: 'strip' }, { k: 'cal', rows: '2' }, { k: 'clock' }, { k: 'fcbar' }, { k: 'fc', size: 'fill' }] },
         { id: 'stripes', name: 'Stripes', look: 'stripes', needs: [],
             list: [{ k: 'strip' }, { k: 'cal', rows: '2' }, { k: 'clock' }, { k: 'fcbar' }, { k: 'fc', size: 'fill' }] },

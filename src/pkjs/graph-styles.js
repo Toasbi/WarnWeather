@@ -5,7 +5,7 @@
 // THE MODEL. Style 1 is the flat keys every reader already reads (secondaryLine, barSource,
 // forecastHours, the gc* colours ...), so an install without styles has one, its own graph,
 // and nothing migrates. Styles 2 and 3 live in one hidden settings item, graphStyles, a JSON
-// string: {"names": ["", "Weathergraph", ""], "styles": [null, {...}, null]}, each extra style
+// string: {"names": ["", "Long", ""], "styles": [null, {...}, null]}, each extra style
 // an object of the GOVERNED keys' values (style 1's slot is always null: the flat keys hold
 // it). A screen names its style in the per-view key viewStyle<i> ('1' | '2' | '3';
 // view-cycle.js buildCustomCycle puts it in the view word's ext bits 9-10, screens.js carries

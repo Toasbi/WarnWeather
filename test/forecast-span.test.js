@@ -151,7 +151,7 @@ test('lockstep: the schema\'s forecastHours options are CHOICES, its default the
     assert.deepEqual(forecastSpanHours.spanOptions(s).map((o) => o[1]), forecastSpan.CHOICES,
       JSON.stringify(s));
   });
-  // A new install takes the long span, and setup starts it on Weathergraph's, which takes it too
+  // A new install takes the long span, and setup starts it on Clean's, which takes it too
   // (settings/wizard-forecast.js); DAY_HOURS is what an absent value reads, the span an install
   // from before the key keeps.
   assert.equal(item.defaultValue, forecastSpan.CHOICES[2]);

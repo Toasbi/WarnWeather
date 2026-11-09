@@ -6,7 +6,7 @@
 // five-series limit the forecast pickers and that picker keep.
 //
 // TEMPLATES AND GRAPHS (the owner's pick, 2026-11-08). A template is one of the setup's forecast
-// looks (wizard-forecast.js LOOKS: Classic, Weathergraph, Stripes). New graph starts a graph from
+// looks (wizard-forecast.js LOOKS: Classic, Clean, Stripes). New graph starts a graph from
 // one, or as a copy of one of the graphs, and the screen editor's picker can start one for its
 // screen. A template never changes and is never one of the graphs: a graph made from one is
 // "Graph <n>" (graph-styles.js defaultName) until it is renamed, so it never reads as its template.
@@ -74,8 +74,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // A template's line under its name in the pickers, after its length (its picture shows the rest).
     var TEMPLATE_LINES = {
         classic: 'Rain chance and rain bars',
-        weathergraph: 'Clouds along the top, solid rain bars',
-        stripes: 'Clouds and rain chance as stripes'
+        clean: 'Clouds along the top, solid rain bars',
+        stripes: 'Clouds and rain chance as stripes, solid rain bars from the top'
     };
     var I_PLUS = '<svg class="gc-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>';
     var I_CHECK = '<svg class="gc-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';

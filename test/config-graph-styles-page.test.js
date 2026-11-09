@@ -134,10 +134,10 @@ test('the pickers\' graphs: each named with its length, where it shows under it'
   // graph for the screen; with no free slot, the graphs alone.
   GSP.beginScreenPick(TWO, 1, '2');
   const scr = GSP.styleOptions(TWO, EMERY, { screen: true });
-  assert.deepEqual(scr.map((o) => o[1]), ['1', '2', '__group', 'new:classic', 'new:weathergraph', 'new:stripes']);
+  assert.deepEqual(scr.map((o) => o[1]), ['1', '2', '__group', 'new:classic', 'new:clean', 'new:stripes']);
   assert.equal(scr[2][0], 'New graph from a template');
   assert.equal(scr[2][2].groupHeader, true);
-  assert.deepEqual(scr.slice(3).map((o) => o[0]), ['Classic', 'Weathergraph', 'Stripes']);
+  assert.deepEqual(scr.slice(3).map((o) => o[0]), ['Classic', 'Clean', 'Stripes']);
   assert.match(scr[4][2].desc, /^\d+ h · Clouds along the top, solid rain bars$/, 'its length, then what it draws');
   assert.equal(scr[3][2].desc, '24 h · Rain chance and rain bars');
   const full = Object.assign({}, TWO, { graphStyles: stylesItem({ forecastHours: '48' }, { forecastHours: '12' }) });
@@ -196,11 +196,11 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
   assert.equal(opts[1][2].desc, 'Also needs Cloud cover % and Air pressure (hPa): that makes 6 lines and stripes on your'
     + ' screens; the watch can show 5.', 'what it adds, and the count');
   assert.equal(GSP.screenOverflows(busy, EMERY, 1, 0), false);
-  // The templates: Weathergraph's cloud stripe is a fifth series and fits; Stripes' cloud and
+  // The templates: Clean's cloud stripe is a fifth series and fits; Stripes' cloud and
   // rain-chance stripes would make six.
   const tpl = (o) => o.filter((x) => x[1].indexOf(GSP.NEW) === 0);
   assert.deepEqual(tpl(opts).map((o) => [o[1], Boolean(o[2].disabled)]),
-    [['new:classic', false], ['new:weathergraph', false], ['new:stripes', true]]);
+    [['new:classic', false], ['new:clean', false], ['new:stripes', true]]);
   assert.equal(tpl(opts)[2][2].desc, 'Also needs Cloud cover % (stripe) and Precipitation % (stripe): that makes 6 lines'
     + ' and stripes on your screens; the watch can show 5.', 'a line and a stripe of one metric are two');
 });
@@ -317,11 +317,11 @@ test('the page: New graph from a template, picked at once and called Graph <n>; 
   assert.match(sheet, /New graph/);
   assert.ok(sheet.indexOf('<div class="ssel-lead">Start from a template. Templates never change: you get your own copy.</div>') !== -1);
   assert.equal(sheet.indexOf('ssel-chk'), -1, 'nothing ticked');
-  assert.match(sheet, />Classic<[\s\S]*>Weathergraph<[\s\S]*>Stripes<[\s\S]*Or copy one of your graphs[\s\S]*>Copy of Graph 1<[\s\S]*>Copy of Long</,
+  assert.match(sheet, />Classic<[\s\S]*>Clean<[\s\S]*>Stripes<[\s\S]*Or copy one of your graphs[\s\S]*>Copy of Graph 1<[\s\S]*>Copy of Long</,
     'the templates, then a copy of each graph');
   assert.equal((sheet.match(/class="ssel-pic"/g) || []).length, 5, 'a picture for each template and copy');
-  assert.ok(sheet.indexOf('id="nh-gs-weathergraph"') !== -1 && sheet.indexOf('id="nh-gs-copy2"') !== -1, 'tagged ids');
-  p.pickOption('graphStyleNewFrom', 'weathergraph');
+  assert.ok(sheet.indexOf('id="nh-gs-clean"') !== -1 && sheet.indexOf('id="nh-gs-copy2"') !== -1, 'tagged ids');
+  p.pickOption('graphStyleNewFrom', 'clean');
   assert.equal(p.S.graphStylePick, '3', 'the new graph takes the free slot and is picked');
   assert.equal(GS.name(GSP.normalize(p.S), 2), 'Graph 3', 'never the template\'s name');
   assert.equal(GS.parse(GSP.normalize(p.S)).names[2], '', 'stored as the default name');
@@ -422,7 +422,7 @@ test('the screen editor: the forecast row shows its graph, folded or not; its pi
   assert.match(sheet, /Graph on this screen/);
   assert.match(sheet, /Graph 1 · 24 h/);
   assert.match(sheet, /On Default/);
-  assert.match(sheet, /New graph from a template[\s\S]*>Classic<[\s\S]*>Weathergraph<[\s\S]*>Stripes</);
+  assert.match(sheet, /New graph from a template[\s\S]*>Classic<[\s\S]*>Clean<[\s\S]*>Stripes</);
   assert.equal((sheet.match(/class="ssel-pic"/g) || []).length, 5, 'two graphs and three templates');
   p.pickOption('screenGraphStyle', '1');
   assert.equal(p.S.viewStyle1, '1', 'Flick 1 draws the first graph');

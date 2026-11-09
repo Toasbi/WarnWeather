@@ -591,16 +591,16 @@ const LOOK_KEYS = FORECAST.governed(platform.computeEnv({ platform: 'basalt' }))
  */
 const graphOf = (S) => LOOK_KEYS.reduce((o, k) => Object.assign(o, { [k]: S[k] }), {});
 // The looks, in the picker's order.
-const LOOK_IDS = ['classic', 'weathergraph', 'stripes'];
+const LOOK_IDS = ['classic', 'clean', 'stripes'];
 // An emery graph that reads as Classic: the defaults with the high and low beside the axis.
 const EMERY_CLASSIC = { provider: 'dwd', forecastAxisNumbers: 'axis' };
 
-test('the forecast step offers Classic, Weathergraph and Stripes; a 144 px watch\'s new graph is Classic', () => {
+test('the forecast step offers Classic, Clean and Stripes; a 144 px watch\'s new graph is Classic', () => {
   const { ctx, dom } = openSetup();
   walkTo(dom, 'forecastLook');
   assert.match(dom.body.innerHTML, />Choose your forecast</);
   assert.deepEqual(dom.picker().options, LOOK_IDS);
-  assert.deepEqual(dom.picker().labels, ['Classic', 'Weathergraph', 'Stripes']);
+  assert.deepEqual(dom.picker().labels, ['Classic', 'Clean', 'Stripes']);
   assert.equal(dom.picker().selected, 'classic', 'Classic preselected: the defaults on a 144 px watch');
   assert.equal(dom.picker('forecastHours'), null, 'only emery picks a length');
   // The whole Default screen, as the Watchface tab draws it, the look applied.
@@ -623,7 +623,7 @@ test('every look has the night shading on, and the looks are the graph styles\' 
   FORECAST.LOOKS.forEach((look) => assert.equal(look.over.dayNightShading, true, look.id));
   assert.deepEqual(FORECAST.LOOKS.map((look) => look.id), LOOK_IDS);
   assert.deepEqual(FORECAST.LOOKS.map((look) => look.span), ['24', '48', '24']);
-  assert.equal(FORECAST.FIRST_RUN, 'weathergraph');
+  assert.equal(FORECAST.FIRST_RUN, 'clean');
   const { ctx, dom } = openSetup({ saved: { dayNightShading: false } });
   walkTo(dom, 'forecastLook');
   assert.equal(dom.picker().selected, 'own', 'a graph without the shading is none of the looks');
@@ -640,15 +640,17 @@ test('each look\'s copy: the high and low on the graph only where the watch draw
   };
   assert.equal(desc('basalt', 'classic'),
     'The ForecasWatch2 graph: the temperature, rain chance as a shaded area and rain bars.');
-  assert.equal(desc('basalt', 'weathergraph'),
+  assert.equal(desc('basalt', 'clean'),
     'The temperature, rain chance as a shaded area, clouds as a stripe along the top and solid rain bars.');
   assert.equal(desc('basalt', 'stripes'),
-    'The temperature, with clouds and rain chance as stripes along the top, and rain bars.');
-  assert.equal(desc('diorite', 'weathergraph'),
+    'The temperature, with clouds and rain chance as stripes along the top, and solid rain bars that hang from the top.');
+  assert.equal(desc('diorite', 'clean'),
     'The temperature, rain chance as a shaded area, clouds as a stripe along the top and rain bars.',
     'a black-and-white watch outlines its bars');
+  assert.equal(desc('diorite', 'stripes'),
+    'The temperature, with clouds and rain chance as stripes along the top, and rain bars that hang from the top.');
   assert.equal(desc('emery', 'classic'), desc('basalt', 'classic') + ' The high and low go beside the axis.');
-  assert.equal(desc('emery', 'weathergraph'), desc('basalt', 'weathergraph') + ' The high and low go on the graph.');
+  assert.equal(desc('emery', 'clean'), desc('basalt', 'clean') + ' The high and low go on the graph.');
   assert.equal(desc('emery', 'stripes'), desc('basalt', 'stripes') + ' The high and low go beside the axis.');
 });
 
@@ -660,13 +662,14 @@ test('a look writes the whole graph it stands for and redraws the preview in pla
   const classic = graph.innerHTML;
   dom.pick('forecastLook', 'stripes');
   assert.deepEqual(graphOf(ctx.S), Object.assign({}, defaults, {
-    secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop', thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop'
-  }), 'the clouds and the rain chance as stripes: the rain chance\'s line moved into its stripe');
+    secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop', thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop',
+    rainBarColor: 'white', rainBarFrom: 'top'
+  }), 'the clouds and the rain chance as stripes (the rain chance\'s line moved into its stripe), Solid bars from the top');
   assert.equal(dom.find('[data-wiz-graph]'), graph, 'redrawn in place, not re-rendered');
   assert.notEqual(graph.innerHTML, classic);
   assert.equal(graph.getAttribute('aria-label'), 'Forecast preview: Stripes, on the Default screen');
   assert.equal(dom.picker().selected, 'stripes');
-  dom.pick('forecastLook', 'weathergraph');
+  dom.pick('forecastLook', 'clean');
   assert.deepEqual(graphOf(ctx.S), Object.assign({}, defaults, {
     thirdLine: 'cloud', thirdLineStyle: 'stripeTop', rainBarColor: 'white'
   }), 'the clouds\' stripe over the rain chance\'s line, and Solid bars in the dark theme too');
@@ -682,9 +685,9 @@ test('the looks step with a swipe across the screen and with the arrow keys', ()
   const { ctx, dom } = openSetup();
   walkTo(dom, 'forecastLook');
   dom.swipe('forecastLook', -80, 4);
-  assert.equal(dom.picker().selected, 'weathergraph');
+  assert.equal(dom.picker().selected, 'clean');
   assert.equal(ctx.S.thirdLine, 'cloud');
-  dom.key('forecastLook', 'weathergraph', 'ArrowRight');
+  dom.key('forecastLook', 'clean', 'ArrowRight');
   assert.equal(dom.picker().selected, 'stripes');
   dom.key('forecastLook', 'stripes', 'ArrowRight');
   assert.equal(dom.picker().selected, 'classic', 'wraps past the last');
@@ -694,22 +697,22 @@ test('the looks step with a swipe across the screen and with the arrow keys', ()
   assert.equal(dom.picker().selected, 'classic');
 });
 
-test('on emery Weathergraph puts the high and low on the graph, Classic and Stripes beside the axis', () => {
+test('on emery Clean puts the high and low on the graph, Classic and Stripes beside the axis', () => {
   const { ctx, dom } = openSetup({ platform: 'emery', saved: EMERY_CLASSIC });
   walkTo(dom, 'forecastLook');
   assert.equal(dom.picker().selected, 'classic');
   const graph = dom.find('[data-wiz-graph]');
   assert.match(graph.innerHTML, /^<svg class="wiz-scr" viewBox="-12 -12 224 252" /, 'emery\'s own screen');
-  dom.pick('forecastLook', 'weathergraph');
+  dom.pick('forecastLook', 'clean');
   assert.equal(ctx.S.forecastAxisNumbers, 'graph');
   dom.pick('forecastLook', 'stripes');
   assert.equal(ctx.S.forecastAxisNumbers, 'axis');
-  dom.pick('forecastLook', 'weathergraph');
+  dom.pick('forecastLook', 'clean');
   dom.pick('forecastLook', 'classic');
   assert.equal(ctx.S.forecastAxisNumbers, 'axis');
 });
 
-test('on emery Forecast length picks the hours; each look starts on its own: Weathergraph the long span, the others 24', () => {
+test('on emery Forecast length picks the hours; each look starts on its own: Clean the long span, the others 24', () => {
   // DWD's feed reaches the full 68 hours, so the long span's hours follow the plot's width.
   const { ctx, dom } = openSetup({ platform: 'emery', saved: EMERY_CLASSIC });
   walkTo(dom, 'forecastLook');
@@ -721,10 +724,10 @@ test('on emery Forecast length picks the hours; each look starts on its own: Wea
   assert.match(dom.body.innerHTML, /role="radiogroup" aria-labelledby="wiz-span" data-wiz-pick="forecastHours"/);
   assert.deepEqual(span().options, ['12', '24', '48']);
   assert.equal(span().selected, '48', 'the length it was set up with');
-  dom.pick('forecastLook', 'weathergraph');
+  dom.pick('forecastLook', 'clean');
   assert.deepEqual(span().labels, ['12 h', '24 h', '66 h'], 'the long span named by the hours it shows');
   assert.equal(span().selected, '48');
-  assert.deepEqual(drawn(), ['48', 66, 'Forecast preview: Weathergraph, 66 h, on the Default screen'],
+  assert.deepEqual(drawn(), ['48', 66, 'Forecast preview: Clean, 66 h, on the Default screen'],
     'the long span, a full feed across the whole screen');
   assert.match(dom.find('[data-wiz-desc="forecastHours"]').textContent, /^As far ahead as your weather service forecasts/);
   // Another look starts on its own length, and the long span's hours follow its axis.
@@ -744,17 +747,17 @@ test('on emery Forecast length picks the hours; each look starts on its own: Wea
   dom.pick('forecastLook', 'stripes');
   assert.deepEqual(drawn(), ['24', 22, 'Forecast preview: Stripes, 24 h, on the Default screen']);
   assert.equal(span().labels[2], '58 h');
-  dom.pick('forecastLook', 'weathergraph');
-  assert.deepEqual(drawn(), ['48', 66, 'Forecast preview: Weathergraph, 66 h, on the Default screen']);
+  dom.pick('forecastLook', 'clean');
+  assert.deepEqual(drawn(), ['48', 66, 'Forecast preview: Clean, 66 h, on the Default screen']);
   dom.key('forecastHours', '48', 'Home');
   assert.equal(ctx.S.forecastHours, '12', 'the arrow keys step through the lengths');
   assert.match(dom.body.innerHTML, /<p class="wiz-fine">Every line can be changed later on the Graphs tab\.<\/p>/);
   // A new install's graph, the defaults, is none of the looks here (the long span and the high and
-  // low on the graph, no clouds' stripe): setup starts it on Weathergraph's, not as "Your own".
+  // low on the graph, no clouds' stripe): setup starts it on Clean's, not as "Your own".
   const fresh = openSetup({ platform: 'emery', fresh: true });
   walkTo(fresh.dom, 'forecastLook');
   assert.deepEqual(fresh.dom.picker().options, LOOK_IDS);
-  assert.equal(fresh.dom.picker().selected, 'weathergraph');
+  assert.equal(fresh.dom.picker().selected, 'clean');
   assert.equal(fresh.dom.picker('forecastHours').selected, '48');
   assert.deepEqual([fresh.ctx.S.thirdLine, fresh.ctx.S.thirdLineStyle, fresh.ctx.S.rainBarColor],
     ['cloud', 'stripeTop', 'white']);
@@ -795,14 +798,14 @@ test('a graph set up in Settings is kept as "Your own", first, and can be gone b
   assert.deepEqual(long.dom.picker().options, LOOK_IDS);
   assert.equal(long.dom.picker().selected, 'classic');
   assert.equal(long.dom.picker('forecastHours').selected, '48', 'its long span kept');
-  long.dom.pick('forecastLook', 'weathergraph');
+  long.dom.pick('forecastLook', 'clean');
   long.dom.pick('forecastLook', 'classic');
   assert.equal(long.ctx.S.forecastHours, '24', 'Classic picked anew starts on 24 hours');
   // "Your own" goes back to the length it was set up with too.
   const ownLength = openSetup({ platform: 'emery', saved: { secondaryLine: 'wind', forecastHours: '12' } });
   walkTo(ownLength.dom, 'forecastLook');
   assert.equal(ownLength.dom.picker().selected, 'own');
-  ownLength.dom.pick('forecastLook', 'weathergraph');
+  ownLength.dom.pick('forecastLook', 'clean');
   assert.equal(ownLength.ctx.S.forecastHours, '48');
   ownLength.dom.pick('forecastLook', 'own');
   assert.equal(ownLength.ctx.S.forecastHours, '12');
@@ -811,7 +814,7 @@ test('a graph set up in Settings is kept as "Your own", first, and can be gone b
 test('on emery the forecast step sets the graph the Default screen shows, also one of your other graphs', () => {
   // The Default shows your second graph, Stripes at 24 hours; the first graph is Classic at 66.
   const second = { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop', thirdLine: 'precip_prob',
-    thirdLineStyle: 'stripeTop', forecastHours: '24' };
+    thirdLineStyle: 'stripeTop', rainBarColor: 'white', rainBarFrom: 'top', forecastHours: '24' };
   const saved = Object.assign({ forecastHours: '48', layoutPreset: 'custom', viewCount: '1', viewTop0: 'none',
     viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB', viewStyle0: '2',
     graphStyles: JSON.stringify({ names: ['', 'Stripes', ''], styles: [null, second, null] }) }, EMERY_CLASSIC);
@@ -854,18 +857,18 @@ test('a graph changed under setup: the look the picker marks keeps the length pi
   dom.pick('forecastLook', 'classic');
   assert.equal(ctx.S.thirdLine, 'off', 'the look drawn again');
   assert.equal(ctx.S.forecastHours, '12', 'the look the picker marked keeps the length');
-  dom.pick('forecastLook', 'weathergraph');
+  dom.pick('forecastLook', 'clean');
   assert.equal(ctx.S.forecastHours, '48', 'another look starts on its own');
 });
 
 test('a theme picked after the length keeps it: the look laid on again brings no length', () => {
   const { ctx, dom } = openSetup({ platform: 'emery', saved: { provider: 'dwd', theme: 'light' } });
   walkTo(dom, 'forecastLook');
-  dom.pick('forecastLook', 'weathergraph');
+  dom.pick('forecastLook', 'clean');
   dom.pick('forecastHours', '12');
   dom.nav('back');
   dom.pick('theme', 'dark');
-  assert.deepEqual([ctx.S.rainBarColor, ctx.S.thirdLine], ['white', 'cloud'], 'Weathergraph laid on again');
+  assert.deepEqual([ctx.S.rainBarColor, ctx.S.thirdLine], ['white', 'cloud'], 'Clean laid on again');
   assert.equal(ctx.S.forecastHours, '12');
   dom.nav('next');
   assert.equal(dom.picker('forecastHours').selected, '12');
@@ -886,9 +889,9 @@ test('the summary names the forecast look, and on emery its length; Change goes 
   emery.dom.walkToSummary();
   assert.equal(row(emery.dom.body.innerHTML, 'Forecast'), 'Your own, 66 h');
   emery.dom.goto('forecast');
-  emery.dom.pick('forecastLook', 'weathergraph');
+  emery.dom.pick('forecastLook', 'clean');
   emery.dom.nav('summary');
-  assert.equal(row(emery.dom.body.innerHTML, 'Forecast'), 'Weathergraph, 66 h');
+  assert.equal(row(emery.dom.body.innerHTML, 'Forecast'), 'Clean, 66 h');
   emery.dom.goto('forecast');
   emery.dom.pick('forecastLook', 'stripes');
   emery.dom.nav('summary');
@@ -918,18 +921,19 @@ test('a light theme draws the screen\'s whole card white', () => {
   });
 });
 
-test('Weathergraph hangs Solid bars in every theme; Classic and Stripes give them back the colour the theme starts on', () => {
+test('Clean and Stripes hang Solid bars in every theme; Classic gives them back the colour the theme starts on', () => {
   [['dark', 'multicolor'], ['light', 'white'], ['bw', 'multicolor'], ['bw-light', 'white']].forEach(([theme, start]) => {
     const { ctx, dom } = openSetup({ saved: { theme, rainBarColor: start } });
     walkTo(dom, 'forecastLook');
     assert.equal(dom.picker().selected, 'classic', theme + ': its own starting colour is Classic');
-    dom.pick('forecastLook', 'weathergraph');
+    dom.pick('forecastLook', 'clean');
     assert.equal(ctx.S.rainBarColor, 'white', theme);
-    dom.pick('forecastLook', 'stripes');
-    assert.equal(ctx.S.rainBarColor, start, theme);
-    dom.pick('forecastLook', 'weathergraph');
     dom.pick('forecastLook', 'classic');
     assert.equal(ctx.S.rainBarColor, start, theme);
+    dom.pick('forecastLook', 'stripes');
+    assert.deepEqual([ctx.S.rainBarColor, ctx.S.rainBarFrom], ['white', 'top'], theme + ': Stripes hangs them from the top');
+    dom.pick('forecastLook', 'classic');
+    assert.deepEqual([ctx.S.rainBarColor, ctx.S.rainBarFrom], [start, 'bottom'], theme);
   });
   // Solid bars on a dark theme are a graph of the user's own, not Classic.
   const solid = openSetup({ saved: { theme: 'dark', rainBarColor: 'white' } });
@@ -941,7 +945,7 @@ test('Weathergraph hangs Solid bars in every theme; Classic and Stripes give the
   assert.equal(bw.dom.picker().selected, 'classic');
   const bwMulti = openSetup({ platform: 'diorite', saved: { theme: 'dark', rainBarColor: 'multicolor' } });
   walkTo(bwMulti.dom, 'forecastLook');
-  bwMulti.dom.pick('forecastLook', 'weathergraph');
+  bwMulti.dom.pick('forecastLook', 'clean');
   assert.equal(bwMulti.ctx.S.rainBarColor, 'multicolor', 'left as it was');
   assert.equal(bwMulti.ctx.S.thirdLine, 'cloud');
 });
@@ -949,13 +953,13 @@ test('Weathergraph hangs Solid bars in every theme; Classic and Stripes give the
 test('a look holds through a theme picked after it, the bars converted as the theme converts them', () => {
   const { ctx, dom } = openSetup({ saved: { theme: 'light', rainBarColor: 'white' } });
   walkTo(dom, 'forecastLook');
-  dom.pick('forecastLook', 'weathergraph');
+  dom.pick('forecastLook', 'clean');
   dom.nav('back');
   assert.equal(dom.picker().group, 'theme');
   dom.pick('theme', 'dark');
-  assert.deepEqual([ctx.S.rainBarColor, ctx.S.thirdLine], ['white', 'cloud'], 'still Solid: still Weathergraph');
+  assert.deepEqual([ctx.S.rainBarColor, ctx.S.thirdLine], ['white', 'cloud'], 'still Solid: still Clean');
   dom.nav('next');
-  assert.equal(dom.picker().selected, 'weathergraph');
+  assert.equal(dom.picker().selected, 'clean');
   dom.pick('forecastLook', 'classic');
   assert.equal(ctx.S.rainBarColor, 'multicolor', 'Classic in the dark theme');
   dom.nav('back');
@@ -970,10 +974,10 @@ test('a Tomorrow.io key renames the summary\'s weather provider and its long spa
     thirdLine: 'cloud', thirdLineStyle: 'stripeTop', rainBarColor: 'white' } });
   dom.walkToSummary();
   const row = dom.find('[data-wiz-sum-forecast]');
-  assert.equal(row.textContent, 'Weathergraph, 47 h', 'OpenWeatherMap\'s 48-hour feed');
+  assert.equal(row.textContent, 'Clean, 47 h', 'OpenWeatherMap\'s 48-hour feed');
   dom.type('tomorrowioApiKey', 'key');
   assert.equal(dom.find('[data-wiz-sum-weather]').textContent, 'Tomorrow.io');
-  assert.equal(row.textContent, 'Weathergraph, 66 h', 'Tomorrow.io\'s full feed');
+  assert.equal(row.textContent, 'Clean, 66 h', 'Tomorrow.io\'s full feed');
 });
 
 test('"Your own" follows a theme picked after it, as the settings do', () => {
@@ -983,7 +987,7 @@ test('"Your own" follows a theme picked after it, as the settings do', () => {
   assert.equal(ctx.S.rainBarColor, 'white', 'guard: the theme moved the bars to its own start');
   dom.nav('next');
   assert.equal(dom.picker().selected, 'own', 'still the user\'s own graph');
-  dom.pick('forecastLook', 'weathergraph');
+  dom.pick('forecastLook', 'clean');
   dom.pick('forecastLook', 'own');
   assert.equal(ctx.S.secondaryLine, 'wind');
   assert.equal(ctx.S.rainBarColor, 'white', 'in the light theme\'s colour, not the dark one it opened with');
@@ -995,7 +999,7 @@ test('a dormant Draw from or a junk style is no part of the graph: it still read
     dom.walkTo('forecastLook');
     assert.deepEqual(dom.picker().options, LOOK_IDS, JSON.stringify(saved) + ': no "Your own"');
     dom.pick('forecastLook', 'stripes');
-    dom.pick('forecastLook', 'weathergraph');
+    dom.pick('forecastLook', 'clean');
     dom.pick('forecastLook', 'classic');
     if (saved.cloudLineFrom) { assert.equal(ctx.S.cloudLineFrom, 'top', 'a dormant Top waits for its line: a stripe reads none'); }
   });
@@ -1008,6 +1012,6 @@ test('a pick that changes nothing redraws nothing', () => {
   graph.innerHTML = 'untouched';
   dom.pick('forecastLook', 'classic');
   assert.equal(graph.innerHTML, 'untouched');
-  dom.pick('forecastLook', 'weathergraph');
+  dom.pick('forecastLook', 'clean');
   assert.match(graph.innerHTML, /^<svg/);
 });

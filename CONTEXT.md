@@ -172,7 +172,7 @@ every style (SHARED). All the styles the screens show draw at most five series
 together, the weather message's five trend rows: one per line and a spare row
 that no style's own line is (a style keeps its four lines; the spare has no
 picker, `src/pkjs/line-style.js` SPARE_LINE). Setup's forecast looks
-(Classic, Weathergraph, Stripes: `src/pkjs/settings/wizard-forecast.js` LOOKS)
+(Classic, Clean, Stripes: `src/pkjs/settings/wizard-forecast.js` LOOKS)
 are what a new style starts from. The settings page calls a style a graph
 ("Your graphs"; "Graph 2" until it is renamed) and a look it starts from a
 template, which never changes and is never one of the graphs

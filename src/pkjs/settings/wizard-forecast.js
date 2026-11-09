@@ -11,16 +11,17 @@
 // them (engine themedDefaults), and each has the night shading on. Classic is the ForecasWatch2
 // graph: the rain chance as a thin line over a shaded area, the rain bars in the colour the theme
 // starts them on (Multicolor on a dark theme, Solid on a light one, as 2.6's Classic), the high
-// and low beside the axis. Weathergraph adds the clouds as a stripe along the top, with Solid bars
-// in every theme and the high and low on the graph; it is the Clean screen's graph too, and the
-// look a fresh install's setup starts on where its graph is none of them (FIRST_RUN). Stripes is
-// Classic with the clouds and the rain chance as stripes along the top (the rain chance moves
-// from its line into its stripe: a metric shows once per graph). A graph that is none of them
+// and low beside the axis. Clean adds the clouds as a stripe along the top, with Solid bars in
+// every theme and the high and low on the graph; it is the graph of the Clean and Weathergraph
+// screens (screen-presets.js), and the look a fresh install's setup starts on where its graph is
+// none of them (FIRST_RUN). Stripes is Classic with the clouds and the rain chance as stripes
+// along the top (the rain chance moves from its line into its stripe: a metric shows once per
+// graph) and Solid bars hanging from the top (the owner's, 2026-11-09). A graph that is none of them
 // when setup opens is kept as one more record, "Your own", first. The 144 px watches keep the left axis in every look (the owner's, 2026-11-07: emery's
 // numbers On graph do not fit their image), so only emery's copy says where the high and low go.
 //
 // THE LENGTH (emery, the one watch with a Forecast length). Each look starts on a length of its
-// own (LOOKS span: Classic and Stripes 24 hours, Weathergraph the long span), which the step's
+// own (LOOKS span: Classic and Stripes 24 hours, Clean the long span), which the step's
 // Forecast length picker then changes (the owner's, 2026-11-07). "Your own" keeps the length it
 // was set up with. The length is no part of a look: any length reads as the look its graph is.
 //
@@ -82,14 +83,15 @@
     // long span's stored option ("66 h" with the high and low on the graph).
     var LOOKS = [
         { id: 'classic', label: 'Classic', span: '24', over: lookValues({ forecastAxisNumbers: 'axis' }) },
-        { id: 'weathergraph', label: 'Weathergraph', span: '48', over: lookValues({ thirdLine: 'cloud', thirdLineStyle: 'stripeTop',
+        { id: 'clean', label: 'Clean', span: '48', over: lookValues({ thirdLine: 'cloud', thirdLineStyle: 'stripeTop',
             rainBarColor: 'white', forecastAxisNumbers: 'graph' }) },
         { id: 'stripes', label: 'Stripes', span: '24', over: lookValues({ secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop',
-            thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop', forecastAxisNumbers: 'axis' }) }
+            thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop', rainBarColor: 'white', rainBarFrom: drawFrom.TOP,
+            forecastAxisNumbers: 'axis' }) }
     ];
     // The look a fresh install's setup starts on where its graph, the defaults, is none of them
-    // (wizard.js openWizard): the Clean screen's graph.
-    var FIRST_RUN = 'weathergraph';
+    // (wizard.js openWizard).
+    var FIRST_RUN = 'clean';
     var OWN = { id: 'own', label: 'Your own' };
 
     // Forecast length (emery only): the schema's Graphs › Forecast › Other row. Setup shows its
@@ -100,24 +102,26 @@
 
     /**
      * A look's description: one sentence under the picker, and on emery a second that says where
-     * the high and low go (the 144 px watches keep the left axis in every look). Weathergraph's
-     * bars are solid only where the watch colours them: a black-and-white watch outlines its bars.
+     * the high and low go (the 144 px watches keep the left axis in every look). Solid bars are
+     * solid only where the watch colours them: a black-and-white watch outlines its bars.
      * @param {string} id A look's id, or 'own'.
      * @param {?Object} env Platform env.
      * @returns {string}
      */
     function describe(id, env) {
         var where = forecastAxis.isEmery(env)
-            ? ' The high and low go ' + (id === 'weathergraph' ? 'on the graph.' : 'beside the axis.') : '';
+            ? ' The high and low go ' + (id === 'clean' ? 'on the graph.' : 'beside the axis.') : '';
+        var solid = env && env.color ? 'solid ' : '';
         if (id === 'classic') {
             return 'The ForecasWatch2 graph: the temperature, rain chance as a shaded area and rain bars.' + where;
         }
-        if (id === 'weathergraph') {
+        if (id === 'clean') {
             return 'The temperature, rain chance as a shaded area, clouds as a stripe along the top and '
-                + (env && env.color ? 'solid ' : '') + 'rain bars.' + where;
+                + solid + 'rain bars.' + where;
         }
         if (id === 'stripes') {
-            return 'The temperature, with clouds and rain chance as stripes along the top, and rain bars.' + where;
+            return 'The temperature, with clouds and rain chance as stripes along the top, and ' + solid
+                + 'rain bars that hang from the top.' + where;
         }
         return 'Your graph as it is now.';
     }

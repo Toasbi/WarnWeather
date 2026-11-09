@@ -190,7 +190,7 @@ test('the presets: the owner\'s six, each keeping the screens\' rules; each watc
   [EMERY, BASALT, CHALK, DIORITE, FLINT].forEach((env) => P.offered(env).forEach((p) =>
     assert.ok(M.fits(p.list, 1, env.platform), p.id + ' fits on ' + env.platform)));
   assert.deepEqual(P.offered(EMERY).filter((p) => p.look).map((p) => [p.id, p.look]),
-    [['classic', 'classic'], ['weathergraph', 'weathergraph'], ['clean', 'weathergraph'], ['stripes', 'stripes']]);
+    [['classic', 'classic'], ['weathergraph', 'clean'], ['clean', 'clean'], ['stripes', 'stripes']]);
 });
 
 test('a card\'s line: on a watch with one graph a forecast preset says it keeps yours', () => {
@@ -240,7 +240,7 @@ test('a preset on a Pebble Time 2 brings its graph: a new one from its template,
   const S = fresh(EMERY);
   const c = SP.addChoices(S, EMERY).filter((x) => x.id === 'weathergraph')[0];
   assert.deepEqual([c.graph.k, Boolean(c.graph.values), c.why], [1, true, ''],
-    'the first graph does not read as Weathergraph: a new graph in the first free slot');
+    'the first graph does not read as Clean: a new graph in the first free slot');
   assert.equal(SP.addChosen(S, EMERY, 'weathergraph'), 1);
   assert.equal(GS.count(S), 2);
   assert.equal(GS.name(S, 1), 'Graph 2');
@@ -248,7 +248,7 @@ test('a preset on a Pebble Time 2 brings its graph: a new one from its template,
   assert.equal(S[GSP.PICK], '2');
   assert.equal(S.viewName1, 'Weathergraph');
   assert.deepEqual(M.screensOf(S, EMERY)[1].map((x) => x.k), ['strip', 'clock', 'fcbar', 'fc', 'healthbar']);
-  assert.equal(GS.settingsFor(S, 1).forecastHours, GSP.templateValues(S, EMERY, 'weathergraph').forecastHours);
+  assert.equal(GS.settingsFor(S, 1).forecastHours, GSP.templateValues(S, EMERY, 'clean').forecastHours);
   // Clean reads as the same template: it uses that graph, and makes none.
   const clean = SP.addChoices(S, EMERY).filter((x) => x.id === 'clean')[0];
   assert.deepEqual([clean.graph.k, clean.graph.values, clean.why], [1, null, '']);
@@ -258,11 +258,11 @@ test('a preset on a Pebble Time 2 brings its graph: a new one from its template,
 });
 
 test('a preset whose graph is one of yours already uses it; on the screen too, it is greyed out', () => {
-  const tpl = GSP.templateValues(fresh(EMERY), EMERY, 'weathergraph');
+  const tpl = GSP.templateValues(fresh(EMERY), EMERY, 'clean');
   const item = JSON.stringify({ names: ['', 'Long', ''], styles: [null, tpl, null] });
   const S = withScreens(EMERY, [M.screensOf(fresh(EMERY), EMERY)[0]], { graphStyles: item });
   const c = SP.addChoices(S, EMERY).filter((x) => x.id === 'weathergraph')[0];
-  assert.deepEqual([c.graph.k, c.graph.values, c.why], [1, null, ''], 'Long reads as Weathergraph');
+  assert.deepEqual([c.graph.k, c.graph.values, c.why], [1, null, ''], 'Long reads as Clean');
   assert.equal(SP.addChosen(S, EMERY, 'weathergraph'), 1);
   assert.equal(GS.count(S), 2, 'no graph made');
   assert.equal(SP.addChoices(S, EMERY).filter((x) => x.id === 'weathergraph')[0].why, SP.ALREADY);

@@ -16,8 +16,8 @@ FORECAST
 - Pebble Time 2: left axis options: high/low values on the axis, on the graph or off (no left
   axis: the graph uses the full width), values that include feels-like and dew point
 - Pebble Time 2: up to three forecast graphs, so each screen can show its own, e.g. the next
-  24 hours on one screen and 66 hours on another; start one from the Classic, Weathergraph or
-  Stripes template
+  24 hours on one screen and 66 hours on another; start one from the Classic, Clean or Stripes
+  template
 - Fully customizable lines and colors
 - Multiple weather providers, including regional and worldwide sources, picked in one Data sources card
 
@@ -98,7 +98,7 @@ LAYOUT CUSTOMIZATION
 - Edit each screen as a simple list, top to bottom: drag a row, remove it or add one where it fits
 - Name your screens and drag them into the order you want; the top one is the Default
 - Add a screen from Blank or a preset: Classic, Weathergraph, Clean, Stripes, Health + calendar or Health, each drawn as it would look
-- First-run setup that previews your watch as you pick its layout, add a Health or Rain radar screen, pick a theme and a forecast look (Classic, Weathergraph or Stripes, and on the Pebble Time 2 its length), with sensible defaults for your country and watch
+- First-run setup that previews your watch as you pick its layout, add a Health or Rain radar screen, pick a theme and a forecast look (Classic, Clean or Stripes, and on the Pebble Time 2 its length), with sensible defaults for your country and watch
 - A settings page that draws your watch, every screen of it, as you change it, with Revert to undo your changes
 
 WEATHER

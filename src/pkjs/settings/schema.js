@@ -2060,7 +2060,7 @@ module.exports = {
             // layout (forecastSpanOptions, src/pkjs/forecast-span-hours.js spanOptions); the
             // stored value never moves.
             // The default is the long span, a new install's; setup starts a new install on the
-            // Weathergraph look, which takes it too (settings/wizard-forecast.js FIRST_RUN; the
+            // Clean look, which takes it too (settings/wizard-forecast.js FIRST_RUN; the
             // defaults are none of the looks on emery). An existing install without the key
             // keeps the 24 h it had (clay-settings.js upgradeBackfill), and an absent value still
             // reads 24 h (forecast-span-hours.js storedHours).
@@ -2120,7 +2120,7 @@ module.exports = {
                 type: 'segmented',
                 messageKey: FORECAST_AXIS.KEYS.numbers,
                 label: 'Left axis values',
-                // On graph out of the box since 2.6 (2.6's Clean graph; setup's Weathergraph
+                // On graph out of the box since 2.6 (2.6's Clean graph; setup's Clean
                 // look keeps it). An existing install that lacks the key keeps its axis
                 // (clay-settings.js upgradeBackfill).
                 defaultValue: FORECAST_AXIS.GRAPH,
@@ -2277,7 +2277,7 @@ module.exports = {
                 messageKey: 'thirdLine',
                 label: 'Metric',
                 // Off out of the box since 2.6 (2.6's Clean graph: the rain chance alone; on
-                // emery setup then starts a new install on Weathergraph's cloud stripe). An
+                // emery setup then starts a new install on Clean's cloud stripe). An
                 // existing install that lacks the key keeps its UV dots (clay-settings.js
                 // upgradeBackfill).
                 defaultValue: 'off',
