@@ -193,8 +193,12 @@ test('the presets: the owner\'s six, each keeping the screens\' rules; each watc
     [['classic', 'classic'], ['weathergraph', 'clean'], ['clean', 'clean'], ['stripes', 'stripes']]);
 });
 
-test('a card\'s line: on a watch with one graph a forecast preset says it keeps yours', () => {
-  assert.equal(P.describe(P.byId('classic'), EMERY), '3-row calendar and a 24 h graph like ForecasWatch2.');
+test('a card\'s line: its rows, its graph by its template and length; on a watch with one graph it keeps yours', () => {
+  assert.equal(P.describe(P.byId('classic'), EMERY), '3-row calendar, Forecast bar and 24 h Classic graph.');
+  assert.equal(P.describe(P.byId('weathergraph'), EMERY), 'Forecast bar, 66 h Clean graph and Health bar.');
+  assert.equal(P.describe(P.byId('stripes'), EMERY), '2-row calendar, Forecast bar and 24 h Stripes graph.');
+  assert.equal(P.describe(P.byId('healthCal'), EMERY), '2-row calendar, Health bar and health graph.');
+  assert.equal(P.describe(P.byId('clean'), null), '2-row calendar, Forecast bar and Clean graph.', 'an unknown watch: no length');
   assert.equal(P.describe(P.byId('classic'), BASALT), '3-row calendar, Forecast bar and your graph.');
   assert.equal(P.describe(P.byId('health'), BASALT), 'Health bar and health graph.');
   assert.equal(P.byId('nope'), null);

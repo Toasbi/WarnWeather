@@ -56,8 +56,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var GS = node ? require('../graph-styles.js') : window.GraphStyles;
     var M = node ? require('../screens.js') : window.Screens;
     var spanHours = node ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
-    // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
-    var esc = node ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
+    // The page's one escape helper and its sentence lists (config-ui/lib/html.js, concatenated
+    // ahead of every app file).
+    var html = node ? require('../config-ui/lib/html.js') : PConf.html;
+    var esc = html.esc;
+    var andList = html.andList;
     // The page's shared parts (config-ui/lib/ui.js): the card's list, its red arrows, New graph,
     // the chips, the Undo and its timer.
     var kit = node ? require('../config-ui/lib/ui.js') : PConf.ui;
@@ -79,12 +82,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // value anything stores).
     var COPY = 'copy';
     var GROUP = '__group';
-    // A template's line under its name in the pickers, after its length (its picture shows the rest).
-    var TEMPLATE_LINES = {
-        classic: 'Rain chance and rain bars',
-        clean: 'Clouds along the top, solid rain bars',
-        stripes: 'Clouds and rain chance as stripes, solid rain bars from the top'
-    };
     // Why the card has no New graph: every slot holds one.
     var FULL = 'You have ' + GS.MAX_STYLES + ' graphs, the most there can be. Delete one to make another.';
 
@@ -272,16 +269,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function screensOn(S, env, k) {
         return M.placesWhere(S, env, function (list) { return drawnBy(S, list[M.idxOf(list, 'fc')]) === k; })
             .map(function (i) { return M.nameOf(S, i); });
-    }
-
-    /**
-     * Names as a sentence lists them: "Default", "Default and Flick 1", "Default, Flick 1 and
-     * Flick 2".
-     * @param {string[]} names At least one.
-     * @returns {string}
-     */
-    function andList(names) {
-        return names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
     }
 
     /**
@@ -626,8 +613,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * A template's line in the pickers: its length, then what it draws ("66 h · Clouds along the
-     * top, solid rain bars").
+     * A template's line in the pickers: its length, then what it draws, in the words the template
+     * is written in (wizard-forecast.js summary): "66 h · Rain chance as a shaded area, clouds as
+     * a stripe, solid rain bars".
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} id A template's id.
@@ -635,7 +623,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function templateLine(S, env, id) {
         var N = normalize(S), len = lengthLabel(Object.assign({}, N, templateValues(N, env, id)), env);
-        return (len ? len + ' · ' : '') + (TEMPLATE_LINES[id] || forecastLooks().describe(id, env));
+        return (len ? len + ' · ' : '') + forecastLooks().summary(id, env);
     }
 
     /**
@@ -1153,7 +1141,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         existing: existing,
         drawnBy: drawnBy,
         screensOn: screensOn,
-        andList: andList,
         onScreens: onScreens,
         cardLine: cardLine,
         limitOptions: limitOptions,

@@ -1,7 +1,8 @@
 // src/pkjs/config-ui/lib/html.js — shared HTML primitives: the escape helper
 // every renderer interpolates through, the sheet-header chrome the three modals
 // share, the colour readout the rgb control and a row's colour badge both
-// print, and a joined row's no-divider class. A leaf: loaded before
+// print, a joined row's no-divider class, and names joined as a sentence lists
+// them. A leaf: loaded before
 // date-picker.js/range-control.js/rgb-control.js/checklist.js/engine.js
 // in the page concat (build-page.js LIB_PAGE_FILES), required under Node.
 // Dual-context export mirrors color.js: attached to the shared PConf global
@@ -80,5 +81,16 @@ function swatchReadout(hex, live) {
  */
 function nbClass(mode) { return mode === 'loose' ? ' nbl' : (mode ? ' nb' : ''); }
 
-PConf.html = { esc: esc, sheetHeader: sheetHeader, swatchReadout: swatchReadout, nbClass: nbClass };
+/**
+ * Names as a sentence lists them: "Default", "Default and Flick 1", "Default, Flick 1 and
+ * Flick 2" ('' for none). Plain text, as given: escape the result where it goes into HTML.
+ *
+ * @param {string[]} names The names.
+ * @returns {string}
+ */
+function andList(names) {
+  return names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names.join('');
+}
+
+PConf.html = { esc: esc, sheetHeader: sheetHeader, swatchReadout: swatchReadout, nbClass: nbClass, andList: andList };
 if (typeof module !== 'undefined' && module.exports) { module.exports = PConf.html; }

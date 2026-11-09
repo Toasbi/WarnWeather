@@ -16,8 +16,10 @@
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings-page
 // webview (scripts/build-config-page.js' APP_FILES, after screens.js and ahead of the modules that
 // bind window.ScreenPresets while their bodies run: screens-page.js and wizard-screens.js), which
-// has no require(). It reads nothing at load.
+// has no require(). At load it reads only the page's html helpers (config-ui/lib/html.js).
 (function () {
+    // Names as a sentence lists them (config-ui/lib/html.js, concatenated ahead of every app file).
+    var andList = typeof require !== 'undefined' ? require('./config-ui/lib/html.js').andList : window.PConf.html.andList;
     // In the order Add screen lists them. `look` is the template a forecast screen's graph is;
     // `needs` names the env facts (config-ui/lib/platform.js computeEnv) the watch must have.
     var PRESETS = [
@@ -37,20 +39,9 @@
     // Blank: the Watch bar and the clock, the rest the user's.
     var BLANK = [{ k: 'strip' }, { k: 'clock' }];
 
-    // What each card says under its name: with graph styles, and on a watch with one graph,
-    // whose forecast presets keep that graph.
-    var DESC = {
-        classic: '3-row calendar and a 24 h graph like ForecasWatch2.',
-        weathergraph: '66 h graph with the Health bar below it.',
-        clean: '2-row calendar and a 66 h graph.',
-        stripes: '2-row calendar and a graph with clouds and rain chance as stripes.',
-        healthCal: '2-row calendar, Health bar and health graph.',
-        health: 'Health bar and health graph.'
-    };
-    var DESC_ONE_GRAPH = {
-        classic: '3-row calendar, Forecast bar and your graph.',
-        stripes: '2-row calendar, Forecast bar and your graph.'
-    };
+    // What a card's line names for a row of its list (describe); the rows every screen has (the
+    // Watch bar, the clock) it leaves out, and the calendar and the forecast graph it words itself.
+    var ROW_WORDS = { fcbar: 'Forecast bar', healthbar: 'Health bar', health: 'health graph' };
 
     /**
      * Whether a watch can draw a preset: it has every fact the preset needs. An unknown watch
@@ -84,14 +75,43 @@
     }
 
     /**
-     * A preset's card line on this watch.
+     * The setup's looks, the templates a preset's graph is (settings/wizard-forecast.js LOOKS,
+     * their one definition), read when asked: they load after this file in the page.
+     * @returns {Object}
+     */
+    function looks() {
+        return typeof require !== 'undefined' ? require('./settings/wizard-forecast.js') : window.WizardForecast;
+    }
+
+    /**
+     * A preset's forecast graph as its card names it: on a watch with graph styles, the template
+     * it brings by its name and the length it starts on ("24 h Classic graph"); on a watch with
+     * one graph, which the preset keeps, "your graph".
+     * @param {Object} preset A PRESETS entry with a look.
+     * @param {?Object} env Platform env.
+     * @returns {string}
+     */
+    function graphWords(preset, env) {
+        if (env && !env.graphStyles) { return 'your graph'; }
+        var WF = looks(), look = WF.lookOf(preset.look), len = WF.spanLabel(preset.look, env);
+        return (len ? len + ' ' : '') + (look ? look.label + ' ' : '') + 'graph';
+    }
+
+    /**
+     * A preset's card line on this watch, from its list: the calendar's rows, the bars and the
+     * graphs it shows ("3-row calendar, Forecast bar and 24 h Classic graph.").
      * @param {Object} preset A PRESETS entry.
      * @param {?Object} env Platform env.
      * @returns {string}
      */
     function describe(preset, env) {
-        var oneGraph = Boolean(env) && !env.graphStyles;
-        return (oneGraph && DESC_ONE_GRAPH[preset.id]) || DESC[preset.id] || '';
+        var words = preset.list.map(function (b) {
+            if (b.k === 'cal') { return b.rows + '-row calendar'; }
+            if (b.k === 'fc') { return graphWords(preset, env); }
+            return ROW_WORDS[b.k] || '';
+        }).filter(Boolean);
+        var text = andList(words);
+        return text.charAt(0).toUpperCase() + text.slice(1) + '.';
     }
 
     var api = {

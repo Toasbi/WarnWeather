@@ -389,6 +389,11 @@ test('the page: New graph from a template opens the new graph\'s dialog, its nam
     'the templates, then a copy of each graph');
   assert.equal((sheet.match(/class="ssel-pic"/g) || []).length, 5, 'a picture for each template and copy');
   assert.ok(sheet.indexOf('id="nh-gs-clean"') !== -1 && sheet.indexOf('id="nh-gs-copy2"') !== -1, 'tagged ids');
+  // Under each template, its length and what it draws, in the words setup writes from its values.
+  assert.deepEqual([...sheet.matchAll(/<span class="ssel-opt-desc">([^<]*)<\/span>/g)].map((m) => m[1]).slice(0, 3), [
+    '24 h · Rain chance as a shaded area, rain bars',
+    '66 h · Rain chance as a shaded area, clouds as a stripe, solid rain bars',
+    '24 h · Feels-like temperature as a line, clouds and rain chance as stripes, solid rain bars from the top']);
   p.pickOption('graphStyleNewFrom', 'clean');
   assert.equal(p.S.graphStylePick, '3', 'the new graph takes the free slot and is picked');
   assert.equal(GS.name(GSP.normalize(p.S), 2), 'Graph 3', 'never the template\'s name');

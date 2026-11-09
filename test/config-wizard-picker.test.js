@@ -590,6 +590,16 @@ const LOOK_KEYS = FORECAST.governed(platform.computeEnv({ platform: 'basalt' }))
  * @returns {Object} messageKey -> value.
  */
 const graphOf = (S) => LOOK_KEYS.reduce((o, k) => Object.assign(o, { [k]: S[k] }), {});
+/**
+ * A look's values, as LOOKS defines them (wizard-forecast.js, the templates' one definition), by
+ * LOOK_KEYS.
+ * @param {string} id A look's id.
+ * @returns {Object} messageKey -> value.
+ */
+const lookOver = (id) => {
+  const over = FORECAST.lookOf(id).over;
+  return LOOK_KEYS.filter((k) => k in over).reduce((o, k) => Object.assign(o, { [k]: over[k] }), {});
+};
 // The looks, in the picker's order.
 const LOOK_IDS = ['classic', 'clean', 'stripes'];
 // An emery graph that reads as Classic: the defaults with the high and low beside the axis.
@@ -642,16 +652,16 @@ test('each look\'s copy: the high and low on the graph only where the watch draw
     'Draws the graph the way ForecasWatch2 does: the temperature, the rain chance as a shaded area, and rain bars.');
   assert.equal(desc('basalt', 'clean'),
     'Shows the temperature, the rain chance as a shaded area, the clouds as a stripe along the top, and solid rain bars.');
-  assert.equal(desc('basalt', 'stripes'),
-    'Shows the temperature, the clouds and the rain chance as stripes along the top, and solid rain bars that hang from the top.');
+  assert.equal(desc('basalt', 'stripes'), 'Shows the temperature and the feels-like temperature as lines, the clouds and'
+    + ' the rain chance as stripes along the top, and solid rain bars that hang from the top.');
   assert.equal(desc('diorite', 'clean'),
     'Shows the temperature, the rain chance as a shaded area, the clouds as a stripe along the top, and rain bars.',
     'a black-and-white watch outlines its bars');
-  assert.equal(desc('diorite', 'stripes'),
-    'Shows the temperature, the clouds and the rain chance as stripes along the top, and rain bars that hang from the top.');
+  assert.equal(desc('diorite', 'stripes'), 'Shows the temperature and the feels-like temperature as lines, the clouds and'
+    + ' the rain chance as stripes along the top, and rain bars that hang from the top.');
   assert.equal(desc('emery', 'classic'), desc('basalt', 'classic') + ' The high and low go beside the axis.');
   assert.equal(desc('emery', 'clean'), desc('basalt', 'clean') + ' The high and low go on the graph.');
-  assert.equal(desc('emery', 'stripes'), desc('basalt', 'stripes') + ' The high and low go beside the axis.');
+  assert.equal(desc('emery', 'stripes'), desc('basalt', 'stripes') + ' The high and low go on the graph.');
 });
 
 test('a look writes the whole graph it stands for and redraws the preview in place', () => {
@@ -661,18 +671,15 @@ test('a look writes the whole graph it stands for and redraws the preview in pla
   const graph = dom.find('[data-wiz-graph]');
   const classic = graph.innerHTML;
   dom.pick('forecastLook', 'stripes');
-  assert.deepEqual(graphOf(ctx.S), Object.assign({}, defaults, {
-    secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop', thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop',
-    rainBarColor: 'white', rainBarFrom: 'top'
-  }), 'the clouds and the rain chance as stripes (the rain chance\'s line moved into its stripe), Solid bars from the top');
+  assert.deepEqual(graphOf(ctx.S), Object.assign({}, defaults, lookOver('stripes')), 'its values over the defaults');
+  assert.equal(ctx.S.secondaryLine, 'cloud', 'the rain chance\'s line moved into its stripe: a metric shows once');
   assert.equal(dom.find('[data-wiz-graph]'), graph, 'redrawn in place, not re-rendered');
   assert.notEqual(graph.innerHTML, classic);
   assert.equal(graph.getAttribute('aria-label'), 'Forecast preview: Stripes, on the Default screen');
   assert.equal(dom.picker().selected, 'stripes');
   dom.pick('forecastLook', 'clean');
-  assert.deepEqual(graphOf(ctx.S), Object.assign({}, defaults, {
-    thirdLine: 'cloud', thirdLineStyle: 'stripeTop', rainBarColor: 'white'
-  }), 'the clouds\' stripe over the rain chance\'s line, and Solid bars in the dark theme too');
+  assert.deepEqual(graphOf(ctx.S), Object.assign({}, defaults, lookOver('clean')));
+  assert.equal(ctx.S.rainBarColor, 'white', 'Solid bars in the dark theme too');
   dom.pick('forecastLook', 'classic');
   assert.deepEqual(graphOf(ctx.S), defaults, 'Classic is the defaults again');
   assert.equal(graph.innerHTML, classic);
@@ -697,7 +704,7 @@ test('the looks step with a swipe across the screen and with the arrow keys', ()
   assert.equal(dom.picker().selected, 'classic');
 });
 
-test('on emery Clean puts the high and low on the graph, Classic and Stripes beside the axis', () => {
+test('on emery Clean and Stripes put the high and low on the graph, Classic beside the axis', () => {
   const { ctx, dom } = openSetup({ platform: 'emery', saved: EMERY_CLASSIC });
   walkTo(dom, 'forecastLook');
   assert.equal(dom.picker().selected, 'classic');
@@ -705,9 +712,10 @@ test('on emery Clean puts the high and low on the graph, Classic and Stripes bes
   assert.match(graph.innerHTML, /^<svg class="wiz-scr" viewBox="-12 -12 224 252" /, 'emery\'s own screen');
   dom.pick('forecastLook', 'clean');
   assert.equal(ctx.S.forecastAxisNumbers, 'graph');
-  dom.pick('forecastLook', 'stripes');
+  dom.pick('forecastLook', 'classic');
   assert.equal(ctx.S.forecastAxisNumbers, 'axis');
-  dom.pick('forecastLook', 'clean');
+  dom.pick('forecastLook', 'stripes');
+  assert.equal(ctx.S.forecastAxisNumbers, 'graph', 'Stripes too (the owner\'s, 2026-11-09)');
   dom.pick('forecastLook', 'classic');
   assert.equal(ctx.S.forecastAxisNumbers, 'axis');
 });
@@ -745,8 +753,9 @@ test('on emery Forecast length picks the hours; each look starts on its own: Cle
   dom.pick('forecastLook', 'classic');
   assert.equal(ctx.S.forecastHours, '12', 'the look already drawn keeps it');
   dom.pick('forecastLook', 'stripes');
-  assert.deepEqual(drawn(), ['24', 22, 'Forecast preview: Stripes, 24 h, on the Default screen']);
-  assert.equal(span().labels[2], '58 h');
+  assert.deepEqual(drawn(), ['24', 25, 'Forecast preview: Stripes, 24 h, on the Default screen'],
+    'its high and low on the graph: no left axis');
+  assert.equal(span().labels[2], '66 h');
   dom.pick('forecastLook', 'clean');
   assert.deepEqual(drawn(), ['48', 66, 'Forecast preview: Clean, 66 h, on the Default screen']);
   dom.key('forecastHours', '48', 'Home');
@@ -759,8 +768,8 @@ test('on emery Forecast length picks the hours; each look starts on its own: Cle
   assert.deepEqual(fresh.dom.picker().options, LOOK_IDS);
   assert.equal(fresh.dom.picker().selected, 'clean');
   assert.equal(fresh.dom.picker('forecastHours').selected, '48');
-  assert.deepEqual([fresh.ctx.S.thirdLine, fresh.ctx.S.thirdLineStyle, fresh.ctx.S.rainBarColor],
-    ['cloud', 'stripeTop', 'white']);
+  const clean = lookOver('clean');
+  Object.keys(clean).forEach((k) => assert.equal(fresh.ctx.S[k], clean[k], 'Clean\'s ' + k));
 });
 
 test('a graph set up in Settings is kept as "Your own", first, and can be gone back to', () => {
@@ -813,8 +822,7 @@ test('a graph set up in Settings is kept as "Your own", first, and can be gone b
 
 test('on emery the forecast step sets the graph the Default screen shows, also one of your other graphs', () => {
   // The Default shows your second graph, Stripes at 24 hours; the first graph is Classic at 66.
-  const second = { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop', thirdLine: 'precip_prob',
-    thirdLineStyle: 'stripeTop', rainBarColor: 'white', rainBarFrom: 'top', forecastHours: '24' };
+  const second = Object.assign({}, FORECAST.lookOf('stripes').over, { forecastHours: '24' });
   const saved = Object.assign({ forecastHours: '48', layoutPreset: 'custom', viewCount: '1', viewTop0: 'none',
     viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB', viewStyle0: '2',
     graphStyles: JSON.stringify({ names: ['', 'Stripes', ''], styles: [null, second, null] }) }, EMERY_CLASSIC);

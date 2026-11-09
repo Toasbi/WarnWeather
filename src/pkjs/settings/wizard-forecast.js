@@ -3,22 +3,23 @@
 // preview. Pure: the settings, the watch and the defaults come in as arguments; wizard.js does the
 // DOM and the writes.
 //
-// THE LOOKS. Each is a full set of the graph settings it governs (governed): the four lines'
-// metrics and styles, the Main metric's fill, the rain bars and their colour, every Draw from key,
-// Day / night shading, and on emery where the high and low go. They are the owner's graph looks
-// (2026-11-08) and the settings page's templates: New graph starts a graph from one of them
-// (graph-styles-page.js). Each lays its own values over the graph's defaults as the theme starts
-// them (engine themedDefaults), and each has the night shading on. Classic is the ForecasWatch2
-// graph: the rain chance as a thin line over a shaded area, the rain bars in the colour the theme
-// starts them on (Multicolor on a dark theme, Solid on a light one, as 2.6's Classic), the high
-// and low beside the axis. Clean adds the clouds as a stripe along the top, with Solid bars in
-// every theme and the high and low on the graph; it is the graph of the Clean and Weathergraph
-// screens (screen-presets.js), and the look a fresh install's setup starts on where its graph is
-// none of them (FIRST_RUN). Stripes is Classic with the clouds and the rain chance as stripes
-// along the top (the rain chance moves from its line into its stripe: a metric shows once per
-// graph) and Solid bars hanging from the top (the owner's, 2026-11-09). A graph that is none of them
-// when setup opens is kept as one more record, "Your own", first. The 144 px watches keep the left axis in every look (the owner's, 2026-11-07: emery's
-// numbers On graph do not fit their image), so only emery's copy says where the high and low go.
+// THE LOOKS (LOOKS, the owner's graph looks) are the settings page's templates too: New graph
+// starts a graph from one of them (graph-styles-page.js), and a screen preset brings a graph that
+// is one (screen-presets.js). LOOKS is their one definition. Each look is a full set of the graph
+// settings it governs (governed): the four lines' metrics and styles, the Main metric's fill, the
+// rain bars and their colour, every Draw from key, Day / night shading, and on emery where the
+// high and low go. Each lays its own values over the graph's defaults as the theme starts them
+// (engine themedDefaults), and each has the night shading on. Every word the page says about a
+// look is written from its values (THE WORDS), so a look changes in LOOKS alone. A graph that is
+// none of them when setup opens is kept as one more record, "Your own", first. The 144 px watches
+// keep the left axis in every look (the owner's, 2026-11-07: emery's numbers On graph do not fit
+// their image), so only emery's words say where the high and low go.
+//
+// THE WORDS. Setup's sentence under the picker (describe) and the short line under a template in
+// New graph's sheet (summary) name what a look draws, from its values: the temperature and the
+// lines a look draws as lines, a shaded area, dots, × marks or stripes, then the rain bars (Solid
+// on a colour watch, hanging from the top), and on emery where the high and low go. A look's
+// `like` names the watchface it draws like (Classic: ForecasWatch2).
 //
 // THE LENGTH (emery, the one watch with a Forecast length). Each look starts on a length of its
 // own (LOOKS span: Classic and Stripes 24 hours, Clean the long span), which the step's
@@ -52,6 +53,8 @@
     var previewForecast = node ? require('./preview-forecast.js') : window.PreviewForecast;
     var svgLib = node ? require('./preview-svg.js') : window.PreviewSvg;
     var screenFrame = node ? require('./screen-frame.js') : window.ScreenFrame;
+    // Names as a sentence lists them (config-ui/lib/html.js, concatenated ahead of every app file).
+    var andList = node ? require('../config-ui/lib/html.js').andList : window.PConf.html.andList;
 
     // The governed keys, named by the modules that own them.
     var FILL = 'secondaryLineFill';
@@ -82,12 +85,23 @@
     // In the picker's order. `span` is the Forecast length a look starts on (emery): '48' is the
     // long span's stored option ("66 h" with the high and low on the graph).
     var LOOKS = [
-        { id: 'classic', label: 'Classic', span: '24', over: lookValues({ forecastAxisNumbers: 'axis' }) },
+        // The ForecasWatch2 graph: the rain chance as a thin line over a shaded area, the rain bars
+        // in the colour the theme starts them on (Multicolor on a dark theme, Solid on a light one,
+        // as 2.6's Classic), the high and low beside the axis.
+        { id: 'classic', label: 'Classic', span: '24', like: 'ForecasWatch2',
+            over: lookValues({ forecastAxisNumbers: 'axis' }) },
+        // The clouds as a stripe along the top, Solid bars in every theme, the high and low on the
+        // graph: the graph of the Clean and Weathergraph screens (screen-presets.js), and the look a
+        // fresh install's setup starts on where its graph is none of them (FIRST_RUN).
         { id: 'clean', label: 'Clean', span: '48', over: lookValues({ thirdLine: 'cloud', thirdLineStyle: 'stripeTop',
             rainBarColor: 'white', forecastAxisNumbers: 'graph' }) },
-        { id: 'stripes', label: 'Stripes', span: '24', over: lookValues({ secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop',
-            thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop', rainBarColor: 'white', rainBarFrom: drawFrom.TOP,
-            forecastAxisNumbers: 'axis' }) }
+        // The clouds and the rain chance as stripes along the top (the rain chance moves from its
+        // line into its stripe: a metric shows once per graph), Solid bars hanging from the top
+        // (the owner's, 2026-11-09), the feels-like temperature as a thin line and the high and low
+        // on the graph (the owner's, 2026-11-09).
+        { id: 'stripes', label: 'Stripes', span: '24', over: lookValues({ secondaryLine: 'cloud',
+            secondaryLineStyle: 'stripeTop', thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop', fourthLine: 'feels',
+            fourthLineStyle: 'line', rainBarColor: 'white', rainBarFrom: drawFrom.TOP, forecastAxisNumbers: 'graph' }) }
     ];
     // The look a fresh install's setup starts on where its graph, the defaults, is none of them
     // (wizard.js openWizard).
@@ -100,31 +114,120 @@
         '48': 'Shows as many hours as your weather service forecasts and the graph can fit, in narrow columns.'
     };
 
+    // ── THE WORDS ───────────────────────────────────────────────────────────
+
+    // A metric as the words name it.
+    var METRIC_WORDS = { precip_prob: 'rain chance', cloud: 'clouds', wind: 'wind', gust: 'gusts', uv: 'UV index',
+        pressure: 'air pressure', feels: 'feels-like temperature', dew: 'dew point' };
+    // How a line draws, in the order the words name them: [one, several] for the sentence and for
+    // the short line. 'line' joins the temperature (always a line) in the sentence.
+    var HOW = [
+        { id: 'line', long: [' as lines', ' as lines'], short: [' as a line', ' as lines'] },
+        { id: 'area', long: [' as a shaded area', ' as shaded areas'], short: [' as a shaded area', ' as shaded areas'] },
+        { id: 'dots', long: [' as dots', ' as dots'], short: [' as dots', ' as dots'] },
+        { id: 'x', long: [' as \u00d7 marks', ' as \u00d7 marks'], short: [' as \u00d7 marks', ' as \u00d7 marks'] },
+        { id: 'stripeTop', long: [' as a stripe along the top', ' as stripes along the top'],
+            short: [' as a stripe', ' as stripes'] },
+        { id: 'stripeBottom', long: [' as a stripe along the bottom', ' as stripes along the bottom'],
+            short: [' as a stripe at the bottom', ' as stripes at the bottom'] }
+    ];
+
     /**
-     * A look's description: one sentence under the picker, and on emery a second that says where
-     * the high and low go (the 144 px watches keep the left axis in every look). Solid bars are
-     * solid only where the watch colours them: a black-and-white watch outlines its bars.
+     * What a look draws, as the words name it: its lines by how they draw (HOW), then its rain
+     * bars. The sentence names the temperature first and puts "the" before a metric; the short
+     * line leaves both out.
+     * @param {Object<string, *>} over A look's values.
+     * @param {?Object} env Platform env.
+     * @param {boolean} short The short line's words.
+     * @returns {string[]} One phrase per way of drawing, then the bars'.
+     */
+    function drawnPhrases(over, env, short) {
+        var groups = {};
+        lineStyle.FORECAST_LINES.forEach(function (line) {
+            var metric = over[line.key];
+            if (!metric || metric === 'off') { return; }
+            var style = over[line.styleKey] || lineStyle.LINE_STYLE_DEFAULTS[line.styleKey];
+            var how = style === 'bold' ? 'line' : style;
+            if (how === 'line' && line.key === 'secondaryLine' && over[FILL]) { how = 'area'; }
+            (groups[how] = groups[how] || []).push((short ? '' : 'the ') + (METRIC_WORDS[metric] || metric));
+        });
+        var out = [];
+        if (!short && !groups.line) { out.push('the temperature'); }
+        HOW.forEach(function (h) {
+            var names = groups[h.id];
+            if (!names) { return; }
+            var all = (!short && h.id === 'line') ? ['the temperature'].concat(names) : names;
+            out.push(andList(all) + h[short ? 'short' : 'long'][all.length > 1 ? 1 : 0]);
+        });
+        if (over[BARS] === 'rain') {
+            var top = drawFrom.value(over[BAR_FROM]) === drawFrom.TOP;
+            out.push((over[BAR_COLOR] === 'white' && env && env.color ? 'solid ' : '') + 'rain bars'
+                + (top ? (short ? ' from the top' : ' that hang from the top') : ''));
+        }
+        return out;
+    }
+
+    /**
+     * A look by its id.
+     * @param {string} id A look's id.
+     * @returns {?Object} The LOOKS entry, or null.
+     */
+    function lookOf(id) {
+        return LOOKS.filter(function (look) { return look.id === id; })[0] || null;
+    }
+
+    /**
+     * A look's description under setup's picker (THE WORDS): one sentence on what it draws, and on
+     * emery a second on where the high and low go (the 144 px watches keep the left axis in every
+     * look). Solid bars are solid only where the watch colours them: a black-and-white watch
+     * outlines its bars.
      * @param {string} id A look's id, or 'own'.
      * @param {?Object} env Platform env.
      * @returns {string}
      */
     function describe(id, env) {
-        var where = forecastAxis.isEmery(env)
-            ? ' The high and low go ' + (id === 'clean' ? 'on the graph.' : 'beside the axis.') : '';
-        var solid = env && env.color ? 'solid ' : '';
-        if (id === 'classic') {
-            return 'Draws the graph the way ForecasWatch2 does: the temperature, the rain chance as a shaded area, '
-                + 'and rain bars.' + where;
-        }
-        if (id === 'clean') {
-            return 'Shows the temperature, the rain chance as a shaded area, the clouds as a stripe along the top, and '
-                + solid + 'rain bars.' + where;
-        }
-        if (id === 'stripes') {
-            return 'Shows the temperature, the clouds and the rain chance as stripes along the top, and ' + solid
-                + 'rain bars that hang from the top.' + where;
-        }
-        return 'Keeps your graph as it is now.';
+        var look = lookOf(id);
+        if (!look) { return 'Keeps your graph as it is now.'; }
+        var phrases = drawnPhrases(look.over, env, false);
+        // The last phrase after ", and": the sentence's own rhythm, as setup has always said it.
+        var list = phrases.length < 2 ? phrases.join('')
+            : phrases.slice(0, -1).join(', ') + ', and ' + phrases[phrases.length - 1];
+        var numbers = forecastAxis.numbers(look.over);
+        var where = !forecastAxis.isEmery(env) ? ''
+            : numbers === forecastAxis.OFF ? ' The graph shows no high and low.'
+            : ' The high and low go ' + (numbers === forecastAxis.GRAPH ? 'on the graph.' : 'beside the axis.');
+        return (look.like ? 'Draws the graph the way ' + look.like + ' does: ' : 'Shows ') + list + '.' + where;
+    }
+
+    /**
+     * The length a look starts on, as the Forecast length picker names it ("24 h", or the long
+     * span's hours with the look's own Left axis values and a full feed: "66 h"), on a watch
+     * with a Forecast length (emery).
+     * @param {string} id A look's id.
+     * @param {?Object} env Platform env.
+     * @returns {string} '' for no such look, or a watch without the length
+     */
+    function spanLabel(id, env) {
+        var look = lookOf(id);
+        if (!look || !(env && env.forecastSpan)) { return ''; }
+        var hit = spanHours.spanOptions(Object.assign({}, look.over, { forecastHours: look.span }), env)
+            .filter(function (o) { return o[1] === look.span; })[0];
+        return hit ? hit[0] : '';
+    }
+
+    /**
+     * A look's short line (THE WORDS: the New graph sheet's line under a template, after its
+     * length): what it draws, without the temperature every graph draws.
+     * @param {string} id A look's id.
+     * @param {?Object} env Platform env.
+     * @returns {string} "Clouds and rain chance as stripes, solid rain bars from the top"; '' for no
+     *   such look
+     */
+    function summary(id, env) {
+        var look = lookOf(id);
+        if (!look) { return ''; }
+        var text = drawnPhrases(look.over, env, true).join(', ');
+        return text.charAt(0).toUpperCase() + text.slice(1);
     }
 
     // The preview's frame height in viewBox units: the tallest legend's (two rows: the
@@ -295,6 +398,9 @@
         SPAN_DESC: SPAN_DESC,
         FRAME_H: FRAME_H,
         describe: describe,
+        summary: summary,
+        spanLabel: spanLabel,
+        lookOf: lookOf,
         governed: governed,
         same: same,
         state: state,
