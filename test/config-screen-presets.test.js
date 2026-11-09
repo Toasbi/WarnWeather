@@ -357,6 +357,8 @@ test('the Screens card: a ≡ on each screen with two or more, the line that say
   let html = page.scroll.innerHTML;
   assert.deepEqual(cardRows(html), [['Default', '', true], ['Steps', '', true], ['Flick 2', '', true]]);
   assert.ok(html.indexOf('<div class="ui-row ui-foot" id="scrHint">' + SP.REORDER_HINT + '</div>') !== -1);
+  // No "the watch starts on the top screen": it goes without saying (the owner's, 2026-11-09).
+  assert.equal(SP.REORDER_HINT, 'Each flick shows the next one. Drag\u00a0≡ to change the order.');
   assert.ok(html.indexOf('aria-label="Move Steps (arrow keys)" aria-describedby="scrHint"') !== -1);
   const key = (i, k) => page.docDispatch('keydown', { key: k, target: grip(i), preventDefault() {} });
   key(1, 'ArrowUp');

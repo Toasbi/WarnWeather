@@ -345,8 +345,9 @@ test('the editor says how to reorder while two rows can move, and its calendar a
   let body = editorOf(page).body;
   // Flick 1: the Watch bar (it stays on top), the Clock, the Health bar and graph.
   const hint = '<div class="ui-foot se-hint">' + SP.ROWS_HINT + '</div>';
-  assert.equal(SP.ROWS_HINT, 'The watch shows these rows from top to bottom. Drag\u00a0≡ to change the order.',
-    '"Drag ≡" on one line');
+  // How to reorder alone: that the watch shows the rows top to bottom goes without saying (the
+  // owner's, 2026-11-09).
+  assert.equal(SP.ROWS_HINT, 'Drag\u00a0≡ to change the order.', '"Drag ≡" on one line');
   assert.ok(body.indexOf(hint) !== -1, 'how to reorder, as the Screens card says it');
   assert.ok(body.indexOf(hint) > body.indexOf('id="seList"') && body.indexOf(hint) < body.indexOf('<div class="se-adds">'),
     'under the rows, over the Add groups');

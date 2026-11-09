@@ -74,8 +74,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var NO_GRAPH_ROOM = 'It needs a new graph, and you have 3 already. Delete one on the Graphs tab.';
     // How to reorder, under the Screens card's screens and the screen editor's rows; "Drag ≡" kept
     // on one line (a no-break space).
-    var REORDER_HINT = 'The watch starts on the top screen. Each flick shows the next one. Drag\u00a0≡ to change the order.';
-    var ROWS_HINT = 'The watch shows these rows from top to bottom. Drag\u00a0≡ to change the order.';
+    var REORDER_HINT = 'Each flick shows the next one. Drag\u00a0≡ to change the order.';
+    var ROWS_HINT = 'Drag\u00a0≡ to change the order.';
     // The screen editor's Add groups, in the order they show (the owner's ask, 2026-11-09: the
     // chips grouped by what they add), each with its caption, or capOf, which writes it from the
     // chips it holds ("Add the calendar or the clock").
