@@ -1,5 +1,6 @@
 // src/pkjs/settings/preview-forecast.js — ES5, WebView. The forecast-graph
-// preview block: the 12-hour sample scenario, the metric scales (including the
+// preview block: the 12-hour sample scenario (a watch with a Forecast length draws
+// its span's hours of forecast-sample.js' instead), the metric scales (including the
 // pressure-curve mirror of the watch's), and the SVG that paints them. Its
 // colours are not modelled here — line-style.js resolves every one of them from
 // the same settings blob the watch is sent.
@@ -61,6 +62,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     var resolveInkLib = (typeof require !== 'undefined')
         ? require('../resolve-ink.js') : window.ResolveInk;
     var isLightPolarity = resolveInkLib.isLightPolarity;
+    // A watch with a Forecast length draws the hours its graph shows (spanSample), of the
+    // sample the graph cards and the setup draw (both in the page bundle ahead of this file).
+    var forecastSample = (typeof require !== 'undefined')
+        ? require('./forecast-sample.js') : window.ForecastSample;
+    var spanHours = (typeof require !== 'undefined')
+        ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
 
     // 0xRRGGBB int -> uppercase '#RRGGBB'. line-style.js speaks ints; SVG wants strings.
     // The canonical converter, not a local copy: config-ui/lib/color.js is the page
@@ -284,6 +291,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     }
 
     /**
+     * The weather a watch with a Forecast length (emery: env.forecastSpan) draws: the hours its
+     * graph shows (forecast-span-hours.js shownHours) of forecast-sample.js' sample, in the
+     * watch's temperature unit. The graph cards' pictures draw the same (wizard-forecast.js
+     * previewSvg), so the pinned preview follows the 12 h, 24 h and long spans with them. Null
+     * on every other watch: one span, and the noon scenario above.
+     * @param {Object} state Settings.
+     * @param {?Object} env Platform env.
+     * @returns {?Object} The sample, in NOON's shape, or null.
+     */
+    function spanSample(state, env) {
+        if (!(env && env.forecastSpan)) { return null; }
+        return forecastSample.sample(spanHours.shownHours(state, env) + 1, state && state.temperatureUnits);
+    }
+
+    /**
      * The forecast-graph preview block: temp curve, up to three metric lines — each
      * in its selected style (thin/thick line, square dots, x marks); the main one
      * optionally filled — rain bars, night band, axis and legend — the same z-order
@@ -295,8 +317,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * @param {{sample: Object, minHeight: number, bleed: boolean, bare: boolean, axisY: number}} [opts]
      *   For the setup wizard and the Watchface tab's watch, which call this directly
      *   (window.PreviewForecast); the settings page's block call passes none. `sample`: the
-     *   weather to draw in NOON's place, in its shape (forecast-sample.js sample), so a span draws
-     *   its own hours. `minHeight`: the frame's least height in viewBox units, the background
+     *   weather to draw in its shape (forecast-sample.js sample), so a span draws its own hours;
+     *   without one a span watch draws its span's (spanSample) and any other NOON. `minHeight`: the frame's least height in viewBox units, the background
      *   running on under the legend, so one height fits every look. `bleed: false`: the svg fills
      *   its box instead of bleeding over a settings card's padding. `bare`: no legend, the frame
      *   ending BARE_FOOT under the hour axis. `axisY`: where that axis sits (94 without), so the
@@ -338,9 +360,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // silhouette on top (BAR_OUTLINED is drawn in every theme but colour-dark).
         var barEdge = (isColor && isLightPolarity(cx.theme)) ? ink.fg : null;
 
-        // The weather drawn: the noon scenario above in the watch's temperature unit, or the
-        // caller's sample (the setup wizard's spans). Its nights are [from, to] slot positions.
-        var sample = (opts && opts.sample) || noonIn(state && state.temperatureUnits);
+        // The weather drawn: the caller's sample (the setup wizard's spans), else on a watch
+        // with a Forecast length the hours its graph shows (spanSample), else the noon scenario
+        // above in the watch's temperature unit. Its nights are [from, to] slot positions.
+        var sample = (opts && opts.sample) || spanSample(state, env)
+            || noonIn(state && state.temperatureUnits);
         var temps = sample.temps, precip = sample.precip, wind = sample.wind, rain = sample.rain,
             gust = sample.gust, uv = sample.uv, feels = sample.feels, dew = sample.dew,
             pressure = sample.pressure, cloud = sample.cloud;
@@ -1256,6 +1280,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
     var api = {
         forecastPreview: forecastPreview,
+        // The noon scenario in a unit: the tests that place marks on its shape pass it as the
+        // sample on emery too, whose span draws its own hours without one (spanSample).
+        noonSample: noonIn,
         PX0_AXIS: PX0_AXIS,
         PX0_NO_AXIS: PX0_NO_AXIS,
         alertSamples: alertSamples,

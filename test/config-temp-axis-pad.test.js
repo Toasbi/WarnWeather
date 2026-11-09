@@ -104,7 +104,10 @@ function zeroLine(svg) {
 }
 
 const near = (a, b) => Math.abs(a - b) < 1e-9;
-const preview = (over, env) => FC.forecastPreview(Object.assign({}, NONE, over), env || COLOR);
+// The noon scenario on every watch: these tests place the numbers and the hour marks on its
+// shape, emery's too, whose span draws its own hours without a sample (forecast-sample.test.js).
+const preview = (over, env) => FC.forecastPreview(Object.assign({}, NONE, over), env || COLOR, undefined,
+  { sample: FC.noonSample(over && over.temperatureUnits) });
 const HEADER = read('src/c/appendix/temp_axis_pad.h');
 
 /**
@@ -636,8 +639,8 @@ test('bothNumbers: a flat range draws one number; else both, apart', () => {
 });
 
 // --- THE HOUR AXIS (emery's spans and left axis, mirrored) -------------------------------
-// preview-forecast.js drawAxis mirrors forecast_grid.c forecast_grid_fill_axis_span over its
-// own 12-hour noon window: the span's cadence (forecast_span.h forecast_span), each slot's
+// preview-forecast.js drawAxis mirrors forecast_grid.c forecast_grid_fill_axis_span, here over
+// the 12-hour noon window (the helper's sample): the span's cadence (forecast_span.h forecast_span), each slot's
 // mark (forecast_span_mark), no label on slot 0 with no left axis, and no label an edge would
 // cut (forecast_span_label_fits). test/c/forecast_span_test.c pins the watch's half.
 const HOUR_TEXT = /<text x="([\d.]+)" y="105"[^>]*>(\d+)<\/text>/g;

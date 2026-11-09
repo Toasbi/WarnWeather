@@ -1,6 +1,7 @@
-// test/forecast-sample.test.js — the setup wizard's sample weather (src/pkjs/settings/forecast-sample.js)
-// and the forecast preview drawing it (preview-forecast.js forecastPreview's `sample`): every span
-// draws its own hours, from the sample's own first hour, with a night band per night it reaches.
+// test/forecast-sample.test.js — the sample weather (src/pkjs/settings/forecast-sample.js) and the
+// forecast preview drawing it (preview-forecast.js forecastPreview's `sample`, and on a watch with a
+// Forecast length its pinned preview): every span draws its own hours, from the sample's own first
+// hour, with a night band per night it reaches.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -71,10 +72,31 @@ test('a Fahrenheit sample converts the three temperature-axis series, nothing el
   assert.equal(f.temps[0], 75);
 });
 
-test('without a sample the preview draws its 12-point noon scenario, as the settings page shows it', () => {
-  const svg = FC.forecastPreview(S0, EMERY, {});
-  assert.deepEqual(hourLabels(svg), [12, 15, 18, 21]);
-  assert.equal(nightBands(svg), 1);
+test('without a sample a span watch draws the hours its graph shows, any other watch the noon scenario', () => {
+  // Owner, 2026-11-09: the graph cards showed 66 h, the pinned preview did not follow. Emery's
+  // pinned preview draws its span's hours of the cards' sample (wizard-forecast.js previewSvg).
+  const drawn = {};
+  ['12', '24', '48'].forEach((h) => ['c', 'f'].forEach((units) => {
+    const S = Object.assign({}, S0, { forecastHours: h, temperatureUnits: units });
+    const hours = spanHours.shownHours(S, EMERY);
+    const svg = FC.forecastPreview(S, EMERY, {});
+    assert.equal(svg, FC.forecastPreview(S, EMERY, {}, { sample: FS.sample(hours + 1, units) }), h + ' ' + units);
+    if (units === 'c') { drawn[h] = { hours, labels: hourLabels(svg), nights: nightBands(svg) }; }
+  }));
+  assert.deepEqual(drawn['12'], { hours: 12, labels: [15, 17, 19, 21, 23, 1, 3], nights: 1 });
+  assert.deepEqual(drawn['24'], { hours: 22, labels: [15, 18, 21, 0, 3, 6, 9, 12], nights: 1 },
+    '22 whole hours beside the left axis');
+  assert.deepEqual(drawn['48'], { hours: 48, labels: [18, 0, 6, 12, 18, 0, 6, 12], nights: 2 },
+    'Weather Underground\'s 49-hour feed');
+  // The owner's 66 h: a full feed with no left axis, its three nights.
+  const full = Object.assign({}, S0, { forecastHours: '48', provider: 'openmeteo', forecastAxisNumbers: 'graph' });
+  assert.equal(spanHours.shownHours(full, EMERY), 66);
+  assert.equal(nightBands(FC.forecastPreview(full, EMERY, {})), 3);
+  // Every other watch has one span: the 12-point noon scenario, as before.
+  const BASALT = platform.computeEnv({ platform: 'basalt' });
+  const basalt = FC.forecastPreview(Object.assign(E.hydrate(schema, {}, BASALT), { forecastHours: '48' }), BASALT, {});
+  assert.deepEqual(hourLabels(basalt), [12, 15, 18, 21]);
+  assert.equal(nightBands(basalt), 1);
 });
 
 test('with a sample the preview draws its hours from its first hour, a night band per night', () => {
@@ -106,7 +128,7 @@ test('a longer sample draws narrower bars, never wider than the 12-point scenari
     return Array.from(new Set(bars.map((r) => Number(/width="([\d.]+)"/.exec(r)[1]))));
   };
   // Inside the plot: the legend under the hour axis (y 94 on) draws a Rain swatch of its own.
-  const base = barWidths(S0);
+  const base = barWidths(S0, FC.noonSample());
   assert.deepEqual(base, [9]);
   const long = barWidths(Object.assign({}, S0, { forecastHours: '48' }), FS.sample(61));
   assert.equal(long.length, 1);
