@@ -222,7 +222,7 @@ test('the editor: a bar\'s row and its Add chip read by its name; the row has no
   // The same bar on Flick 1 too, by its chip: where else it shows is the Status bars tab's to
   // say, not the row's.
   page.tapAction('openScreen', 1);
-  assert.deepEqual(editorAddChips(body(page)), ['Calendar', 'Morning', 'Radar bar', 'Forecast graph', 'Rain radar']);
+  assert.deepEqual(editorAddChips(body(page)), ['Morning', 'Radar bar', 'Forecast graph', 'Rain radar', 'Calendar']);
   page.tapEditor({ se: 'add', k: 'fcbar' });
   assert.ok(editorRows(body(page)).indexOf('Morning') !== -1, editorRows(body(page)).join(' | '));
   assert.equal(body(page).indexOf('Also on'), -1);

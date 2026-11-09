@@ -20,7 +20,7 @@ const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const ui = require('../src/pkjs/config-ui/lib/ui.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const { blankBar, slotsOf } = require('./helpers/status-slots.js');
-const { editorRows, editorAddChips, editorRow, sheetTitle, sheetOptions } = require('./helpers/page-rows.js');
+const { editorRows, editorAddChips, editorAddGroups, editorRow, sheetTitle, sheetOptions } = require('./helpers/page-rows.js');
 
 const PC = global.PConf;
 const BASALT = platform.computeEnv({ platform: 'basalt' });
@@ -328,12 +328,43 @@ test('a new install: the Default screen alone; + Add screen\'s Blank opens the e
   assert.ok(editorRow(ed.body, 0).indexOf('<span class="se-grip off" aria-hidden="true"></span><div class="se-mid">'
     + '<span class="se-name">Watch bar</span></div>') !== -1, 'the Watch bar has no handle and nothing to pick');
   assert.ok(ed.body.indexOf('aria-label="Remove Clock"') !== -1, 'a flick screen may drop its Clock');
-  assert.deepEqual(editorAddChips(ed.body), ['Calendar', 'Forecast bar', 'Radar bar', 'Health bar', 'Forecast graph',
-    'Rain radar', 'Health graph'], 'a chip each, the bars in their place');
+  assert.deepEqual(editorAddGroups(ed.body), [
+    ['Add a status bar', 'Forecast bar', 'Radar bar', 'Health bar'],
+    ['Add a graph', 'Forecast graph', 'Rain radar', 'Health graph'],
+    ['Add the calendar', 'Calendar']], 'a chip each, grouped by what it adds');
+  assert.equal(ed.body.indexOf('se-hint'), -1, 'one row that moves: nothing to reorder');
   assert.ok(ed.body.endsWith('</div><button type="button" class="ui-del" data-se="delscreen">Delete screen</button>'),
     'Delete screen: the page\'s one Delete, last, under the card');
   page.tapEditor({ se: 'close' });
   assert.ok(page.scroll.innerHTML.indexOf('<span class="ttl">Screen switching</span>') !== -1, 'two screens now');
+});
+
+test('the editor says how to reorder while two rows can move, and its calendar and clock group names what it adds', () => {
+  const page = bootGeneratedPage(THREE);
+  page.tapAction('openScreen', 1);
+  let body = editorOf(page).body;
+  // Flick 1: the Watch bar (it stays on top), the Clock, the Health bar and graph.
+  const hint = '<div class="ui-foot se-hint">' + SP.ROWS_HINT + '</div>';
+  assert.equal(SP.ROWS_HINT, 'The watch shows these rows from top to bottom. Drag\u00a0≡ to change the order.',
+    '"Drag ≡" on one line');
+  assert.ok(body.indexOf(hint) !== -1, 'how to reorder, as the Screens card says it');
+  assert.ok(body.indexOf(hint) > body.indexOf('id="seList"') && body.indexOf(hint) < body.indexOf('<div class="se-adds">'),
+    'under the rows, over the Add groups');
+  // ✕ the Clock: the calendar and the clock, under one caption that names both.
+  page.tapEditor({ se: 'rm', j: 1 });
+  body = editorOf(page).body;
+  assert.deepEqual(editorAddGroups(body).pop(), ['Add the calendar or the clock', 'Calendar', 'Clock']);
+  assert.ok(body.indexOf('<div class="se-add" role="group" aria-labelledby="seAdd-rows"><span class="ui-cap" id="seAdd-rows">'
+    + 'Add the calendar or the clock</span>') !== -1, 'the group named by its caption');
+  assert.ok(body.indexOf(hint) !== -1, 'the bar and the graph still move');
+  // ✕ the Health bar: one row left that moves, so nothing to reorder.
+  page.tapEditor({ se: 'rm', j: 1 });
+  assert.deepEqual(editorRows(editorOf(page).body), ['Watch bar', 'Health graph · Fill']);
+  assert.equal(editorOf(page).body.indexOf('se-hint'), -1);
+  // The Watch bar is a status bar: ✕ it, and its chip comes back in that group.
+  page.tapEditor({ se: 'rm', j: 0 });
+  assert.deepEqual(editorAddGroups(editorOf(page).body)[0], ['Add a status bar', 'Watch bar', 'Forecast bar', 'Radar bar',
+    'Health bar']);
 });
 
 test('+ Health bar on a new screen draws the bar\'s default readings, not an empty row', () => {
@@ -411,9 +442,9 @@ test('Add: a chip per status bar, by its name, in the bars\' place; a tap puts t
   const page = bootGeneratedPage(Object.assign({ statusRadarName: 'Sky' }, THREE));
   page.tapAction('openScreen', 1);
   let body = editorOf(page).body;
-  // Flick 1 shows the Health bar: the other two by their names, after the calendar and before
-  // the graphs. No picker, and no New status bar on a watch without bars 4 to 6.
-  assert.deepEqual(editorAddChips(body), ['Calendar', 'Forecast bar', 'Sky', 'Forecast graph', 'Rain radar']);
+  // Flick 1 shows the Health bar: the other two by their names, in the status bars' group. No
+  // picker, and no New status bar on a watch without bars 4 to 6.
+  assert.deepEqual(editorAddChips(body), ['Forecast bar', 'Sky', 'Forecast graph', 'Rain radar', 'Calendar']);
   assert.ok(body.indexOf(ui.chip('Sky', { 'data-se': 'add', 'data-k': 'radarbar' }, { icon: 'plus' })) !== -1);
   assert.equal(body.indexOf('data-se="newbar"'), -1);
   // A bar the screen shows is never added again, whatever asks for it.
@@ -425,7 +456,7 @@ test('Add: a chip per status bar, by its name, in the bars\' place; a tap puts t
   body = editorOf(page).body;
   assert.deepEqual(editorRows(body), ['Watch bar', 'Clock', 'Health bar', 'Sky', 'Health graph · Fill']);
   // Two bars: a screen's most, so no bar chips, and a forged tap adds no third.
-  assert.deepEqual(editorAddChips(body), ['Calendar', 'Forecast graph']);
+  assert.deepEqual(editorAddChips(body), ['Forecast graph', 'Calendar']);
   page.tapEditor({ se: 'add', k: 'fcbar' });
   assert.equal(M.screensOf(page.S, BASALT)[1].length, 5);
 });

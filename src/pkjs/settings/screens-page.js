@@ -71,7 +71,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Why Add a screen greys out a preset.
     var ALREADY = 'You already have this screen.';
     var NO_GRAPH_ROOM = 'It needs a new graph, and you have 3 already. Delete one on the Graphs tab.';
-    var REORDER_HINT = 'The watch starts on the top screen. Each flick shows the next one. Drag ≡ to change the order.';
+    // How to reorder, under the Screens card's screens and the screen editor's rows; "Drag ≡" kept
+    // on one line (a no-break space).
+    var REORDER_HINT = 'The watch starts on the top screen. Each flick shows the next one. Drag\u00a0≡ to change the order.';
+    var ROWS_HINT = 'The watch shows these rows from top to bottom. Drag\u00a0≡ to change the order.';
+    // The screen editor's Add groups, in the order they show (the owner's ask, 2026-11-09: the
+    // chips grouped by what they add), each with its caption; the calendar and the clock's names
+    // what it offers ("Add the calendar or the clock").
+    var ADD_GROUPS = [{ id: 'bars', cap: 'Add a status bar' }, { id: 'graphs', cap: 'Add a graph' }, { id: 'rows', cap: '' }];
     // The editor's Rows and Size picker (custom-layout-schema.js: a page-only select), for the row
     // in ED.sizeRow: the calendar's rows, a graph's size; why it greys one out.
     var SCREEN_SIZE = 'screenRowSize';
@@ -819,11 +826,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-sub{grid-column:1/-1;padding:0 14px 12px 40px}'
         + '.se-off{font-size:12.5px;color:var(--lbl);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}'
         + '.se-link{border:none;background:none;padding:0;color:var(--link);font:700 12.5px Inter,system-ui,sans-serif;cursor:pointer}'
-        // Add's chips under the rows, the caption first.
-        + '.se-adds{padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
-        + '.se-adds .ui-cap{margin-right:2px}'
-        // Why a graph's chip is greyed out, on a line of its own under the chips.
-        + '.se-adds .se-limit{flex:1 1 100%;margin-top:4px}'
+        // How to reorder, under the rows; the Add groups under it, each its caption over its chips.
+        + '.se-hint{border-top:1px solid var(--row-line)}'
+        + '.se-adds{display:grid;gap:14px;padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
+        + '.se-add{display:grid;gap:7px}'
+        // Why a graph's chip is greyed out, on a line of its own under its group's chips.
+        + '.se-add .se-limit{margin-top:1px}'
         // Add a screen: Blank across the top, the presets two by two, each with its picture.
         + '.sa-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}'
         + '.sa-card{display:grid;justify-items:center;align-content:start;gap:8px;min-width:0;margin:0;padding:12px 10px;'
@@ -1177,56 +1185,71 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var W = Object.assign({}, N);
             ensureCustom(W, env);
             putScreen(W, i, withGraph(list, g));
-            return { se: 'add', k: 'fc', g: g, label: GS.name(N, g), off: GSP.screenOverflows(W, env, i, g) };
+            return { se: 'add', k: 'fc', g: g, label: GS.name(N, g), off: GSP.screenOverflows(W, env, i, g), grp: 'graphs' };
         });
     }
 
     /**
-     * What the editor's Add row offers screen i (the owner's ask, 2026-11-09: a chip for each
+     * Which of the editor's Add groups (ADD_GROUPS) a kind's chip sits in: the status bars (the
+     * Watch bar among them), the graphs, the calendar and the clock.
+     * @param {string} k A kind.
+     * @returns {string} 'bars' | 'graphs' | 'rows'
+     */
+    function addGroupOf(k) {
+        return k === 'strip' || M.isBar({ k: k }) ? 'bars' : M.isGraph({ k: k }) ? 'graphs' : 'rows';
+    }
+
+    /**
+     * What the editor's Add groups offer screen i (the owner's ask, 2026-11-09: a chip for each
      * thing, no pickers): every row the screen can take and the watch has room for (screens.js
      * addable, fitsWatch), in their order, each status bar by its name; New status bar after the
      * bars while it can make one for the screen (Pebble Time 2); with several graphs a chip per
-     * graph in the forecast graph's place (graphOffers). The chips are drawn from it, and a tap
-     * is taken only when it matches one that is not greyed out.
+     * graph in the forecast graph's place (graphOffers). Each names its group (addGroupOf). The
+     * chips are drawn from it, and a tap is taken only when it matches one that is not greyed out.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} i View slot.
      * @param {Array<Object>} list The screen.
-     * @returns {Array<{se: string, label: string, off: boolean, k: (string|undefined), g: (number|undefined)}>}
+     * @returns {Array<{se: string, label: string, off: boolean, grp: string, k: (string|undefined), g: (number|undefined)}>}
      */
     function addOffers(S, env, i, list) {
-        var head = [], tail = [];
+        var out = [];
         M.addable(list, env, S).forEach(function (k) {
             if (!fitsWatch(M.add(list, k), i, env)) { return; }
             var graphs = k === 'fc' ? graphOffers(S, env, i, list) : null;
-            if (graphs) { tail = tail.concat(graphs); return; }
-            (M.isGraph({ k: k }) ? tail : head).push({ se: 'add', k: k, label: M.blockName({ k: k }, S), off: false });
+            out = out.concat(graphs || [{ se: 'add', k: k, label: M.blockName({ k: k }, S), off: false, grp: addGroupOf(k) }]);
         });
         var free = M.newBarFor(list, S, env);
         if (free && fitsWatch(M.add(list, M.KIND_OF_BAR[free]), i, env)) {
-            head.push({ se: 'newbar', label: 'New status bar', off: false });
+            out.push({ se: 'newbar', label: 'New status bar', off: false, grp: 'bars' });
         }
-        return head.concat(tail);
+        return out;
     }
 
     /**
-     * The Add row: a chip per offer (addOffers). A greyed-out graph has no action, and the line
-     * under the chips says why, as the Graphs tab's Show on row does (graph-styles-page.js
-     * limitNote).
+     * The Add groups under the rows (ADD_GROUPS), each with its caption over a chip per offer
+     * (addOffers). A greyed-out graph has no action, and the line under its group's chips says
+     * why, as the Graphs tab's Show on card does (graph-styles-page.js limitNote).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
-     * @param {Array<Object>} offers What the row offers.
-     * @returns {string} HTML ('' when it offers nothing)
+     * @param {Array<Object>} offers What the groups offer.
+     * @returns {string} HTML ('' when they offer nothing)
      */
     function addRowHtml(S, env, offers) {
-        if (!offers.length) { return ''; }
-        var chips = offers.map(function (o) {
-            if (o.off) { return kit.chip(o.label, { disabled: true }, { icon: 'plus' }); }
-            return kit.chip(o.label, { 'data-se': o.se, 'data-k': o.k, 'data-g': o.g }, { icon: 'plus' });
+        var groups = ADD_GROUPS.map(function (grp) {
+            var mine = offers.filter(function (o) { return o.grp === grp.id; });
+            if (!mine.length) { return ''; }
+            var cap = grp.cap || 'Add ' + mine.map(function (o) { return 'the ' + o.label.toLowerCase(); }).join(' or ');
+            var chips = mine.map(function (o) {
+                if (o.off) { return kit.chip(o.label, { disabled: true }, { icon: 'plus' }); }
+                return kit.chip(o.label, { 'data-se': o.se, 'data-k': o.k, 'data-g': o.g }, { icon: 'plus' });
+            }).join('');
+            var off = mine.filter(function (o) { return o.off; }).map(function (o) { return o.g; });
+            return '<div class="se-add" role="group" aria-labelledby="seAdd-' + grp.id + '"><span class="ui-cap" id="seAdd-'
+                + grp.id + '">' + esc(cap) + '</span><div class="ui-chips">' + chips + '</div>'
+                + (off.length ? '<div class="ui-d se-limit">' + esc(GSP.limitNote(S, env, off)) + '</div>' : '') + '</div>';
         }).join('');
-        var off = offers.filter(function (o) { return o.off; }).map(function (o) { return o.g; });
-        return '<div class="ui-chips se-adds"><span class="ui-cap">Add</span>' + chips
-            + (off.length ? '<div class="ui-d se-limit">' + esc(GSP.limitNote(S, env, off)) + '</div>' : '') + '</div>';
+        return groups ? '<div class="se-adds">' + groups + '</div>' : '';
     }
 
     /**
@@ -1240,14 +1263,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var i = ED.i, cycle = VC.screensCycle(S, env), list = M.screensOf(S, env, cycle)[i] || [];
         var note = !cycle[i] ? NOTHING_YET : !fitsWatch(list, i, env) ? TOO_TALL : '';
         var pic = screenPicture(S, i, env, userData, 'se' + i + '-', cycle).svg;
-        // The page's own card (the engine's .card and header), the Add chips under its rows, and
-        // Delete screen under the card, as a dialog's Delete (kit.deleteButton).
+        // The page's own card (the engine's .card and header), how to reorder under its rows while
+        // two rows or more can move (as the Screens card says it), the Add groups, and Delete
+        // screen under the card, as a dialog's Delete (kit.deleteButton).
+        var movable = list.filter(function (b) { return b.k !== 'strip'; }).length;
         return '<div class="se-pic"><span class="se-pic-card" role="img" aria-label="' + esc(M.nameOf(S, i) + ': ' + contents(list, S))
             + '">' + pic + '</span></div>'
             + (note ? kit.note(note) : '')
             + '<div class="card se-card"><div class="cardHdr"><span class="ttlwrap"><span class="ttl" id="seTtl">Top to bottom</span>'
             + '</span></div><div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
             + list.map(function (b, j) { return rowHtml(list, j, S, env); }).join('') + '</div>'
+            + (movable > 1 ? '<div class="ui-foot se-hint">' + esc(ROWS_HINT) + '</div>' : '')
             + addRowHtml(S, env, addOffers(S, env, i, list))
             + '</div>'
             + (i > 0 ? kit.deleteButton('Delete screen', { 'data-se': 'delscreen' }) : '');
@@ -1836,6 +1862,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ALREADY: ALREADY,
         NO_GRAPH_ROOM: NO_GRAPH_ROOM,
         REORDER_HINT: REORDER_HINT,
+        ROWS_HINT: ROWS_HINT,
         hasScreens: hasScreens,
         ensureCustom: ensureCustom,
         applyModes: applyModes,

@@ -61,14 +61,14 @@ function editorRows(html) {
 }
 
 /**
- * The open screen editor's Add chips, by what they say (screens-page.js addOffers): a row each,
- * a status bar by its name, New status bar, and with several graphs a graph each by its name;
- * " (off)" after a greyed-out one.
+ * The open screen editor's Add chips, by what they say (screens-page.js addOffers), group after
+ * group: a row each, a status bar by its name, New status bar, and with several graphs a graph
+ * each by its name; " (off)" after a greyed-out one.
  * @param {string} html The editor's body.
  * @returns {Array<string>}
  */
 function editorAddChips(html) {
-  const at = html.indexOf('<div class="ui-chips se-adds">');
+  const at = html.indexOf('<div class="se-adds">');
   if (at === -1) { return []; }
   const out = [];
   const re = /<button type="button" class="ui-chip"([^>]*)><svg[\s\S]*?<\/svg>([^<]*)<\/button>/g;
@@ -76,6 +76,20 @@ function editorAddChips(html) {
   let m;
   while ((m = re.exec(row))) { out.push(m[2] + (/ disabled(?=\s|$)/.test(m[1]) ? ' (off)' : '')); }
   return out;
+}
+
+/**
+ * The open screen editor's Add groups (screens-page.js ADD_GROUPS): [caption, chip...] per group,
+ * the chips as editorAddChips says them.
+ * @param {string} html The editor's body.
+ * @returns {Array<Array<string>>}
+ */
+function editorAddGroups(html) {
+  return html.split('<div class="se-add" role="group"').slice(1).map((g) => {
+    const cap = /<span class="ui-cap" id="seAdd-[a-z]+">([^<]*)<\/span>/.exec(g);
+    assert.ok(cap, 'each group has its caption');
+    return [cap[1]].concat(editorAddChips('<div class="se-adds">' + g));
+  });
 }
 
 /**
@@ -134,4 +148,5 @@ function sheetOptions(page) {
   return out;
 }
 
-module.exports = { rowOf, hintOf, editorBody, editorRows, editorAddChips, editorAddNote, editorRow, sheetTitle, sheetOptions };
+module.exports = { rowOf, hintOf, editorBody, editorRows, editorAddChips, editorAddGroups, editorAddNote, editorRow, sheetTitle,
+  sheetOptions };

@@ -528,8 +528,8 @@ test('the screen editor: with several graphs a chip per graph adds the forecast 
   ['data-se="style"', 'editstyle', 'se-graph'].forEach((gone) => assert.equal(body().indexOf(gone), -1, gone));
   // ✕ it: a chip per graph by its name, in the forecast graph's place.
   p.tapEditor({ se: 'rm', j: fc() });
-  assert.deepEqual(editorAddChips(body()), ['Calendar', 'Forecast bar', 'Radar bar', 'Health bar', 'New status bar', 'Graph 1',
-    'Long', 'Rain radar', 'Health graph']);
+  assert.deepEqual(editorAddChips(body()), ['Forecast bar', 'Radar bar', 'Health bar', 'New status bar', 'Graph 1', 'Long',
+    'Rain radar', 'Health graph', 'Calendar']);
   assert.ok(body().indexOf(ui.chip('Long', { 'data-se': 'add', 'data-k': 'fc', 'data-g': 1 }, { icon: 'plus' })) !== -1);
   assert.equal(editorAddNote(body()), '', 'nothing greyed out, nothing to say');
   // A tap puts that graph on the screen.

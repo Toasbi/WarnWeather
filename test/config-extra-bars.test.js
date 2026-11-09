@@ -147,7 +147,7 @@ test('the screen editor: + New status bar puts an empty bar on the screen and op
   page.tapAction('openScreen', 0);
   let ed = editorBody(page);
   // The screen shows the Forecast bar: the other bars by name, then New status bar, then the graphs.
-  assert.deepEqual(editorAddChips(ed), ['Calendar', 'Radar bar', 'Health bar', 'New status bar', 'Rain radar', 'Health graph']);
+  assert.deepEqual(editorAddChips(ed), ['Radar bar', 'Health bar', 'New status bar', 'Rain radar', 'Health graph', 'Calendar']);
   assert.ok(ed.indexOf(ui.chip('New status bar', { 'data-se': 'newbar' }, { icon: 'plus' })) !== -1);
   page.tapEditor({ se: 'newbar' });
   assert.equal(page.S.statusBar4Made, true);
