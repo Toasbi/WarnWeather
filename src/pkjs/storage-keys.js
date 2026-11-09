@@ -120,9 +120,19 @@ module.exports = {
     // Pending telemetry events awaiting a batched send (telemetry.js). Each
     // weather fetch used to POST its own event — ~59 edge-function invocations
     // per watch per day against Supabase's 500k/month cap; the queue drains as
-    // ONE batch request every ~12 h / 24 events instead. Slim per-event records
-    // only (the settings/watchInfo header is snapshotted at flush time).
+    // ONE batch request every ~12 h / 24 events instead, plus on the settings
+    // Save and open triggers below. Slim per-event records only (the
+    // settings/watchInfo header is snapshotted at flush time).
     TELEMETRY_QUEUE_KEY: 'telemetryQueue',
+    // '1' once this install has had a telemetry batch accepted (telemetry.js).
+    // Until then a settings Save sends the queue at once, so a new install that
+    // keeps telemetry on is counted even if it leaves before the ~12 h batch;
+    // after it, the once-a-day settings-open send takes over. A reset clears it,
+    // like any fresh install.
+    TELEMETRY_REPORTED_KEY: 'telemetryReported',
+    // UTC day ('YYYY-MM-DD') of the last send triggered by opening the settings
+    // page (telemetry.js): that trigger fires at most once a day.
+    TELEMETRY_OPEN_SEND_DAY_KEY: 'telemetryOpenSendDay',
     // The in-flight batch's record ids ({ids: [...]}), written just before the
     // POST and cleared on its outcome. A mark still present when a NEW PKJS
     // session first flushes means the previous session died between send and

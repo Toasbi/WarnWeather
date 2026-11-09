@@ -1256,6 +1256,149 @@ test('a synchronous XHR throw releases the latch and backs off instead of wedgin
   h.requests[0].respond(202);
 });
 
+// --- settings-page triggers ----------------------------------------------------
+// A new watch that left before its first ~12 h batch was never counted. A Save
+// now sends at once until the install has reported; opening the settings sends
+// once per UTC day after that. Both keep every other flush check.
+const { TELEMETRY_REPORTED_KEY, TELEMETRY_OPEN_SEND_DAY_KEY } = require('../src/pkjs/storage-keys.js');
+const PAGE_CONTEXT = { settings: { provider: 'openmeteo', healthMode: 'all' },
+  watchInfo: { platform: 'emery', model: 'pebble_time_2', language: 'de_DE' } };
+
+/** A client made the way the Save makes one: fresh, nothing tracked through it. */
+function saveClient() {
+  return createTelemetryClient({
+    endpoint: 'https://example.test/ingest', appVersion: '9.9.9', buildProfile: 'test',
+  });
+}
+
+test('a Save on a never-reported install sends the queue at once, headed by the page settings', () => {
+  const h = batchHarness();
+  h.track();
+  assert.equal(h.requests.length, 0);
+  saveClient().onSettingsSaved(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 1, 'one event is enough');
+  const body = h.requests[0].body;
+  assert.equal(body.events.length, 1);
+  assert.equal(body.settings.provider, 'openmeteo',
+    'the recreated client has tracked nothing: an empty header would replace the newest settings');
+  assert.equal(body.settings.healthMode, 'all');
+  assert.equal(body.watchInfo.platform, 'emery');
+  assert.equal(h.store[TELEMETRY_REPORTED_KEY], undefined, 'not reported before the ACK');
+  h.requests[0].respond(202);
+  assert.equal(h.store[TELEMETRY_REPORTED_KEY], '1');
+  assert.equal(h.queue().length, 0);
+  h.track();
+  saveClient().onSettingsSaved(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 1, 'once reported, a Save waits for the regular triggers');
+});
+
+test('a Save with nothing queued yet sends with the next fetch, then the owed report is settled', () => {
+  const h = batchHarness();
+  h.client.onSettingsSaved(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 0, 'an empty queue sends nothing');
+  h.track();
+  assert.equal(h.requests.length, 1, 'the next track sends the owed report');
+  h.requests[0].respond(202);
+  h.track();
+  h.track();
+  assert.equal(h.requests.length, 1, 'back to the regular triggers');
+});
+
+test('an owed report the ingest refuses is not forced again', () => {
+  const h = batchHarness();
+  h.track();
+  h.client.onSettingsSaved(PAGE_CONTEXT);
+  h.requests[0].respond(400);
+  assert.equal(h.store[TELEMETRY_REPORTED_KEY], undefined, 'a 4xx is no report');
+  h.track();
+  h.track();
+  assert.equal(h.requests.length, 1, 'forcing it again would POST on every fetch');
+});
+
+test('a failed owed report retries after the backoff, not on every fetch', () => {
+  const h = batchHarness();
+  h.track();
+  h.client.onSettingsSaved(PAGE_CONTEXT);
+  h.requests[0].respond(503);
+  h.track();
+  assert.equal(h.requests.length, 1, 'inside the backoff');
+  const realNow = Date.now;
+  Date.now = () => realNow() + TELEMETRY_BATCH.RETRY_BACKOFF_MS + 1000;
+  try {
+    h.track();
+  } finally {
+    Date.now = realNow;
+  }
+  assert.equal(h.requests.length, 2, 'still owed once the backoff is over');
+  assert.equal(h.requests[1].body.events.length, 3);
+});
+
+test('a Save while a batch is in flight sends no second one', () => {
+  const h = batchHarness();
+  for (let i = 0; i < TELEMETRY_BATCH.FLUSH_AT_EVENTS; i++) { h.track(); }
+  h.track();
+  saveClient().onSettingsSaved(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 1, 'the latch holds');
+  h.requests[0].respond(202);
+  h.track();
+  assert.equal(h.requests.length, 1, 'the accepted batch settled the report');
+});
+
+test('opening the settings sends nothing before the install has reported', () => {
+  const h = batchHarness();
+  h.track();
+  h.client.onSettingsOpened(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 0, 'a new user is never sent before seeing the toggle');
+  assert.equal(h.store[TELEMETRY_OPEN_SEND_DAY_KEY], undefined);
+});
+
+test('once reported, the first settings open of a UTC day sends the queue', () => {
+  const h = batchHarness();
+  h.store[TELEMETRY_REPORTED_KEY] = '1';
+  h.track();
+  saveClient().onSettingsOpened(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].body.settings.provider, 'openmeteo', 'headed by the page settings');
+  const today = new Date().toISOString().slice(0, 10);
+  assert.equal(h.store[TELEMETRY_OPEN_SEND_DAY_KEY], today);
+  h.requests[0].respond(202);
+  h.track();
+  h.client.onSettingsOpened(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 1, 'the second open that day sends nothing');
+  h.store[TELEMETRY_OPEN_SEND_DAY_KEY] = '2000-01-01';
+  h.client.onSettingsOpened(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 2, 'a new day, a new send');
+});
+
+test('an open that sends nothing does not use up the day', () => {
+  const h = batchHarness();
+  h.store[TELEMETRY_REPORTED_KEY] = '1';
+  h.client.onSettingsOpened(PAGE_CONTEXT);
+  assert.equal(h.store[TELEMETRY_OPEN_SEND_DAY_KEY], undefined, 'empty queue');
+  for (let i = 0; i < TELEMETRY_BATCH.FLUSH_AT_EVENTS; i++) { h.track(); }
+  h.track();
+  h.client.onSettingsOpened(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 1, 'a batch is in flight');
+  assert.equal(h.store[TELEMETRY_OPEN_SEND_DAY_KEY], undefined, 'in flight');
+  h.requests[0].respond(202);
+  h.client.onSettingsOpened(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 2, 'the event queued mid-flight goes on the next open');
+});
+
+test('a disabled client sends nothing on Save or open', () => {
+  const h = batchHarness();
+  h.track();
+  const off = createTelemetryClient({ enabled: false, endpoint: 'https://example.test/ingest' });
+  off.onSettingsSaved(PAGE_CONTEXT);
+  h.store[TELEMETRY_REPORTED_KEY] = '1';
+  off.onSettingsOpened(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 0, 'telemetry turned off on the Save itself sends nothing');
+  const noEndpoint = createTelemetryClient({ endpoint: '' });
+  noEndpoint.onSettingsSaved(PAGE_CONTEXT);
+  noEndpoint.onSettingsOpened(PAGE_CONTEXT);
+  assert.equal(h.requests.length, 0);
+});
+
 test('a clock-step durationMs queues as null; a real one as-is', () => {
   // durationMs is wall-clock (Date.now() - fetchStart), so a clock step inside a
   // fetch makes it huge or negative. Queued raw, a forward step past int4
