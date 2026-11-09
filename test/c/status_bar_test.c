@@ -598,6 +598,83 @@ static void extra_bars_are_bars_too(void) {
 }
 #endif
 
+#if defined(WW_VIEW_CYCLE)
+// A bar no configured view shows is never read (status_bar_set_in_use): create_all, the
+// reframe and every refresh pass it by, so its row stays empty; it is read again the moment
+// a view shows it, with the facts its band got meanwhile.
+static void unused_bars_are_never_read(void) {
+    Layer parent = {0};
+    s_refresh_changed = true;
+    memset(s_live_health, 0, sizeof(s_live_health));
+    reset_records();
+
+    const int fc = STATUS_LINE_FORECAST;
+    status_bar_set_in_use((uint8_t) (1u << STATUS_SRC_FORECAST));
+    ViewSpec spec = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
+    status_bar_create_all(&parent, &spec, &L);
+    expect_int("unused.forecast_read", s_refresh_count[fc], 1);
+#if defined(WW_RAIN_RADAR)
+    const int rd = STATUS_LINE_RADAR;
+    expect_int("unused.radar_not_seated", s_apply_count[rd], 0);
+    expect_int("unused.radar_not_read", s_refresh_count[rd], 0);
+#endif
+#if defined(PBL_HEALTH)
+    const int hl = STATUS_LINE_HEALTH;
+    expect_int("unused.health_not_read", s_apply_count[hl] + s_refresh_count[hl], 0);
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+    expect_int("unused.extra_not_read", s_refresh_count[STATUS_LINE_BAR4] + s_refresh_count[STATUS_LINE_BAR5]
+               + s_refresh_count[STATUS_LINE_BAR6], 0);
+#endif
+
+    // The weather / settings checkpoint reads the bar in use alone.
+    reset_records();
+    status_bar_refresh_all();
+    expect_int("unused.refresh_all_forecast", s_refresh_count[fc], 1);
+#if defined(PBL_HEALTH)
+    expect_int("unused.refresh_all_skips_health", s_refresh_count[hl], 0);
+
+    // A full-tier view: the reframe reads the bar in use and passes the Health bar by.
+    reset_records();
+    ViewSpec full = spec_of(3, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_FULL);
+    status_bar_apply_view(&full, &L);
+    expect_int("unused.reframe_reads_forecast", s_refresh_count[fc], 1);
+    expect_int("unused.reframe_skips_health", s_refresh_count[hl], 0);
+
+    // A view now shows the Health bar: it is seated and read at once (the window's
+    // live-health check for the incoming view reads its slots next), at the tier its band
+    // got while it was out of use; the bar already in use is not read again.
+    reset_records();
+    status_bar_set_in_use((uint8_t) ((1u << STATUS_SRC_FORECAST) | (1u << STATUS_SRC_HEALTH)));
+    expect_int("joined.health_seated", s_apply_count[hl], 1);
+    expect_int("joined.health_read", s_refresh_count[hl], 1);
+    expect_int("joined.health_tier", s_last_tier[hl], LAYOUT_TIER_FULL);
+    expect_int("joined.forecast_not_reread", s_refresh_count[fc], 0);
+    reset_records();
+    status_bar_refresh_all();
+    expect_int("joined.health_in_refresh_all", s_refresh_count[hl], 1);
+
+    // No view shows the Forecast bar any more: nothing reads it.
+    status_bar_set_in_use((uint8_t) (1u << STATUS_SRC_HEALTH));
+    reset_records();
+    status_bar_refresh_all();
+    expect_int("left.forecast_not_read", s_refresh_count[fc], 0);
+    expect_int("left.health_read", s_refresh_count[hl], 1);
+#endif
+
+    // destroy_all puts every bar back in use for the next window.
+    status_bar_destroy_all();
+    reset_records();
+    status_bar_create_all(&parent, &spec, &L);
+    expect_int("destroy.forecast_in_use_again", s_refresh_count[fc], 1);
+#if defined(PBL_HEALTH)
+    expect_int("destroy.health_in_use_again", s_refresh_count[hl], 1);
+#endif
+    status_bar_destroy_all();
+}
+#endif
+
 // The compact enum is the whole aplite story: without radar and health there is
 // exactly ONE bar, and every loop in status_bar.c folds to today's single-row code.
 static void bar_count_matches_platform(void) {
@@ -628,6 +705,9 @@ int main(void) {
 #endif
 #if defined(PBL_PLATFORM_EMERY)
     extra_bars_are_bars_too();
+#endif
+#if defined(WW_VIEW_CYCLE)
+    unused_bars_are_never_read();
 #endif
     if (s_failures) {
         printf("%d status_bar failure(s)\n", s_failures);

@@ -121,6 +121,17 @@ static void config_view_words(uint32_t out[3]) {
     }
 }
 
+// The status sources the configured views show, as status_bar_set_in_use's mask: the only
+// bars the watch reads. Read off the views as configured: neither a data fold (layout.h
+// view_spec_resolve) nor a Quick View peek (layout_peek_spec) touches a status row, so no
+// view the watch draws shows a bar outside the mask.
+static uint8_t config_bar_sources(void) {
+    uint32_t words[3];
+    config_view_words(words);
+    return (uint8_t) (view_word_sources(words[0]) | view_word_sources(words[1])
+                      | view_word_sources(words[2]));
+}
+
 // Decode configured slot `slot` to a ViewSpec — its packed value, then its ext word — and
 // apply runtime availability downgrades (radar data present? health renderable?). The SDK
 // queries happen HERE; layout.c stays pure.
@@ -406,7 +417,11 @@ static void main_window_load(Window *window) {
     // the bands overlap (on the 144px watches at compact tier the calendar spans
     // [15,45) and the upper status band [29,46)) and both sides paint opaque fills,
     // so the bars must be added AFTER the body graphs and BEFORE the calendar, clock,
-    // radar and strip. See layers/status_bar.h.
+    // radar and strip. See layers/status_bar.h. A bar no configured view shows is never
+    // read.
+#if defined(WW_VIEW_CYCLE)
+    status_bar_set_in_use(config_bar_sources());
+#endif
     status_bar_create_all(window_layer, &spec, &L);
     time_layer_create(window_layer, L.time);
     calendar_layer_create(window_layer, L.top);
@@ -653,6 +668,10 @@ void main_window_apply_top_view() {
     config_view_words(words);
     s_view_index = view_cursor_after_config(s_view_index, s_applied_view_word, words);
     memcpy(s_applied_view_word, words, sizeof(s_applied_view_word));
+    // Only the bars the new views show are read from here on: one that joins is read now,
+    // before the live-health check below looks at its slots; one that left is read no
+    // more, not even by the reframe.
+    status_bar_set_in_use(config_bar_sources());
 #endif
 #if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
     // Same transition heal as the flick: a save can add a live-health slot to a

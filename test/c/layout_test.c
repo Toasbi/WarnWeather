@@ -2565,6 +2565,44 @@ static void test_geometry_two_rows(void) {
 
 // The shared tier/status helpers in layout.h — the rules layout.c, the aplite twin and
 // main_window all read from one place instead of restating a ternary each.
+// view_word_sources (main_window.c's in-use mask for status_bar_set_in_use) is the full
+// decode's two rows, bit for bit, for every packed value, under every combination of the ext
+// bits that move a row (bars 4 to 6 on emery) and one that moves none; a slot whose wire tier
+// is off shows nothing.
+static void view_word_sources_tests(void) {
+#ifdef PBL_PLATFORM_EMERY
+    const uint32_t exts[] = { 0, VIEW_EXT_UPPER_BAR_HI, VIEW_EXT_LOWER_BAR_HI,
+                              VIEW_EXT_UPPER_BAR_HI | VIEW_EXT_LOWER_BAR_HI, 2u << 9 };
+#else
+    const uint32_t exts[] = { 0, 2u << 9 };
+#endif
+    int mismatches = 0;
+    for (size_t e = 0; e < sizeof(exts) / sizeof(exts[0]); e++) {
+        for (uint32_t v = 0; v <= 0xFFFF; v++) {
+            const uint32_t word = v | (exts[e] << 16);
+            uint8_t want = 0;
+            if (((v >> 8) & 3) != 0) {
+                ViewSpec s = view_spec_unpack((uint16_t) v);
+                view_spec_apply_ext(&s, (uint16_t) exts[e]);
+                want = (uint8_t) (((1u << s.status_upper) | (1u << s.status_lower))
+                                  & ~(1u << STATUS_SRC_NONE));
+            }
+            if (view_word_sources(word) != want) { mismatches++; }
+        }
+    }
+    expect("word_sources.matches_decode", mismatches == 0, true);
+    expect("word_sources.off_slot", view_word_sources(pack(0, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_HEALTH)) == 0,
+           true);
+    expect("word_sources.dual", view_word_sources(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_HEALTH))
+           == ((1u << STATUS_SRC_FORECAST) | (1u << STATUS_SRC_HEALTH)), true);
+#ifdef PBL_PLATFORM_EMERY
+    expect("word_sources.bar6", view_word_sources(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_HEALTH)
+           | ((uint32_t) VIEW_EXT_LOWER_BAR_HI << 16))
+           == ((1u << STATUS_SRC_FORECAST) | (1u << STATUS_SRC_BAR6)), true);
+#endif
+    printf("view_word_sources OK\n");
+}
+
 static void tier_helper_tests(void) {
     // The composition identity: wire tier -> calendar_rows -> LayoutTier. Wire 0 (a disabled
     // cycle slot) and wire 1 (a deliberate no-calendar view) both land on NONE.
@@ -3828,6 +3866,7 @@ int main(int argc, char **argv) {
     if (!s_dump) test_geometry_none_lone_row();
     if (!s_dump) test_geometry_two_rows();
     if (!s_dump) tier_helper_tests();
+    if (!s_dump) view_word_sources_tests();
     if (!s_dump) seating_no_lift();
     if (!s_dump) calendar_status_clearance();
     if (!s_dump) clock_ink_symmetry();

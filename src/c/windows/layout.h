@@ -369,6 +369,23 @@ static inline uint8_t view_ext_graph_style(uint16_t ext) {
     return k == 3 ? 0 : k;
 }
 #endif
+
+// The status sources a view WORD shows (its packed value, then its ext word in the high
+// half), as a mask of (1 << StatusSource): what view_spec_unpack and view_spec_apply_ext
+// put in status_upper and status_lower, without decoding the rest. A disabled slot (wire
+// tier off, view_slot_available) shows none. main_window.c ORs the configured slots' into
+// status_bar_set_in_use's mask; layout_test.c pins it to the full decode for every word.
+static inline uint8_t view_word_sources(uint32_t word) {
+    if (((word >> 8) & 3) == 0) { return 0; }
+    uint8_t upper = (uint8_t) ((word >> 2) & 3);
+    uint8_t lower = (uint8_t) (word & 3);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: a row that is on names bar 4 to 6 (its source plus 3) while its ext bit is set.
+    if (upper && ((word >> 16) & VIEW_EXT_UPPER_BAR_HI)) { upper += 3; }
+    if (lower && ((word >> 16) & VIEW_EXT_LOWER_BAR_HI)) { lower += 3; }
+#endif
+    return (uint8_t) (((1u << upper) | (1u << lower)) & ~(1u << STATUS_SRC_NONE));
+}
 #endif
 
 // Data-availability downgrades, pure. The status rows always stay: the Radar bar and the

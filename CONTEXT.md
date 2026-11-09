@@ -68,17 +68,20 @@ has a name, the page's own (`<prefix>Name`: never compiled, sent or in telemetry
 kind's, `screens.js` barName); the Watch bar keeps its name. Any screen shows any of them, and the
 watch draws each without radar or health data (`layout.c` view_spec_resolve), so on a custom layout
 the radar and health modes follow what the shown bars hold, not which bar shows (`screens.js`
-deriveModes).
+deriveModes). A bar no screen shows costs nothing: the phone sends it no line and fetches nothing
+for its slots (`status-line-catalog.js` bakedLines), and the watch never reads it (`status_bar.c`
+status_bar_set_in_use). The Watch bar's line always goes, since a Timeline Quick View peek shows
+the strip on every screen.
 _Avoid_: naming a bar by its source ("the radar row") where its name is meant.
 
 **Made bar (bars 4 to 6)**:
 One of the three extra bars of emery (`view-cycle.js` EXTRA_BARS: `bar4`..`bar6`, prefixes
 `statusBar4`..`6`), which exist once New bar made them (`<prefix>Made` true, `view-cycle.js`
 barMade; `screens.js` makeBar from a set or as a copy of one of your bars) and stop at Delete bar
-(`screens.js` unmakeBar: every screen's row naming it goes off). The phone bakes a made bar's line
-and sends its On demand cells (`CLAY_OD_EXTRA_UINT8`) to a known emery alone; a screen row names it
-with an ext bit over the first three bars' sources (`view-cycle.js` packExt, `layout.h`
-VIEW_EXT_UPPER_BAR_HI), and every other watch, an unknown one too, folds such a row off.
+(`screens.js` unmakeBar: every screen's row naming it goes off). The phone bakes its line while a
+screen shows it and sends its On demand cells (`CLAY_OD_EXTRA_UINT8`), to a known emery alone; a
+screen row names it with an ext bit over the first three bars' sources (`view-cycle.js` packExt,
+`layout.h` VIEW_EXT_UPPER_BAR_HI), and every other watch, an unknown one too, folds such a row off.
 _Avoid_: calling bars 4 to 6 "custom bars" or "user bars"; they are your bars like the first three.
 
 **Screen preset**:

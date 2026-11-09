@@ -33,6 +33,14 @@ static StatusBar s_bars[STATUS_BAR_COUNT] = {
 #endif
 };
 
+#if defined(WW_VIEW_CYCLE)
+// The bars the configured views show (status_bar_set_in_use), as a mask of
+// (1 << StatusSource): the only bars ever read. Every bar until the first call, and again
+// after status_bar_destroy_all.
+#define STATUS_BAR_ALL_IN_USE 0xFFu
+static uint8_t s_in_use = STATUS_BAR_ALL_IN_USE;
+#endif
+
 // ── Per-bar identity ─────────────────────────────────────────────────────────
 // Each of these is a switch on evolving platforms and a single constant on
 // aplite, where STATUS_BAR_COUNT is 1. The #if tests the capability macros
@@ -157,6 +165,11 @@ static void apply_row(StatusBarId id) {
 static void refresh_row(StatusBarId id) {
     StatusBar *b = &s_bars[id];
     if (!b->row) { return; }
+#if defined(WW_VIEW_CYCLE)
+    // A bar no configured view shows is never read (status_bar.h): every refresh path
+    // comes through here, so its row stays empty, with no persist read, glyph or layout.
+    if (!((s_in_use >> bar_source(id)) & 1u)) { return; }
+#endif
     apply_row(id);
     if (status_row_refresh(b->row)) {
         layer_mark_dirty(b->layer);
@@ -187,6 +200,18 @@ void status_bar_create_all(Layer *parent, const ViewSpec *spec, const MainLayout
         refresh_row((StatusBarId) i);   // seats the row (refresh_row applies first)
     }
 }
+
+#if defined(WW_VIEW_CYCLE)
+void status_bar_set_in_use(uint8_t sources) {
+    const uint8_t joined = (uint8_t) (sources & ~s_in_use);
+    s_in_use = sources;
+    // A bar that joins is read at once, so a live-health check for the incoming view
+    // (main_window's health_warm_for_incoming_view) sees what its slots hold.
+    for (int i = 0; i < STATUS_BAR_COUNT; i++) {
+        if ((joined >> bar_source((StatusBarId) i)) & 1u) { refresh_row((StatusBarId) i); }
+    }
+}
+#endif
 
 void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L) {
     const uint8_t tier = spec->status_tier;
@@ -278,4 +303,7 @@ void status_bar_destroy_all(void) {
         layer_destroy(b->layer);
         b->layer = NULL;
     }
+#if defined(WW_VIEW_CYCLE)
+    s_in_use = STATUS_BAR_ALL_IN_USE;
+#endif
 }
