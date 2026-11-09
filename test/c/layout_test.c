@@ -1945,6 +1945,11 @@ static void test_unpack_custom_bits(void) {
     printf("unpack_custom_bits OK\n");
 }
 
+static bool same_rect(GRect a, GRect b) {
+    return a.origin.x == b.origin.x && a.origin.y == b.origin.y
+        && a.size.w == b.size.w && a.size.h == b.size.h;
+}
+
 // ── Custom layout v2: the ext word (view_spec_apply_ext) ────────────────────
 #ifdef PBL_PLATFORM_EMERY
 // emery: a view's graph style rides ext bits 9-10 (view-cycle.js packExt); the other ext
@@ -1962,15 +1967,10 @@ static void graph_style_ext_tests(void) {
     expect("graph_style.high_bits_ignored", view_ext_graph_style(0x7800) == 0, true);
 }
 
-static bool same_rect(GRect a, GRect b) {
-    return a.origin.x == b.origin.x && a.origin.y == b.origin.y
-        && a.size.w == b.size.w && a.size.h == b.size.h;
-}
-
 // emery: bars 4 to 6 ride a row's source plus 3 when the row's ext bit is set (bit 11 the
 // upper row, bit 12 the lower; view-cycle.js packExt), and a row that is off stays off. They
-// are status rows like the others: the same bands and tier, no Health bar nudge, a flick
-// stop on their own, and resolve keeps them.
+// are status rows like the others: the same bands and tier, a flick stop on their own,
+// and resolve keeps them.
 static void extra_bars_ext_tests(void) {
     const uint16_t dual = pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_HEALTH);
     ViewSpec s = unpack_ext(dual, VIEW_EXT_UPPER_BAR_HI);
@@ -2006,8 +2006,7 @@ static void extra_bars_ext_tests(void) {
            || layout_status_visible(&bars, STATUS_SRC_HEALTH), false);
     expect("bars.upper_band", same_rect(layout_status_band(&bars, &Lbars, STATUS_SRC_BAR4),
                                         Lbars.status), true);
-    // The Health bar's dual-row nudge stays the Health bar's: bar 6 takes the band as it is.
-    expect("bars.lower_band_no_nudge",
+    expect("bars.lower_band",
            same_rect(layout_status_band(&bars, &Lbars, STATUS_SRC_BAR6), Lbars.status_lower), true);
     ViewSpec r = view_spec_resolve(bars, false, false);
     expect("bars.resolve_keeps", r.status_upper == STATUS_SRC_BAR4
@@ -2625,21 +2624,16 @@ static void tier_helper_tests(void) {
     expect("tier_helpers.dual_bands_differ", Ld.status.origin.y != Ld.status_lower.origin.y, true);
     expect("tier_helpers.dual_lower_band",
            layout_status_band(&dual, &Ld, STATUS_SRC_FORECAST).origin.y == Ld.status_lower.origin.y, true);
-    // The health source's dual-row nudge is folded into layout_status_band: at FULL
-    // status tier under a retained calendar (the dual view above), a tall-enough
-    // health band drops HEALTH_SECTION_DROP px off its top; a band at or under
-    // HEALTH_TALL_BAND_MIN is left alone. Either way it tracks L.status — tens of
-    // pixels from L.status_lower — which pins the upper-band choice too.
-    GRect hb = layout_status_band(&dual, &Ld, STATUS_SRC_HEALTH);
-    if (Ld.status.size.h > HEALTH_TALL_BAND_MIN) {
-        expect("tier_helpers.dual_health_nudged_y",
-               hb.origin.y == Ld.status.origin.y + HEALTH_SECTION_DROP, true);
-        expect("tier_helpers.dual_health_nudged_h",
-               hb.size.h == Ld.status.size.h - HEALTH_SECTION_DROP, true);
-    } else {
-        expect("tier_helpers.dual_health_unnudged",
-               hb.origin.y == Ld.status.origin.y && hb.size.h == Ld.status.size.h, true);
-    }
+    // The Health bar takes the upper band exactly, like every other bar (2.7.0 dropped its
+    // 2 px drop at the full tier under a 2-row calendar, the dual view above). L.status is
+    // tens of pixels from L.status_lower, which pins the upper-band choice too.
+    expect("tier_helpers.dual_health_upper_band",
+           same_rect(layout_status_band(&dual, &Ld, STATUS_SRC_HEALTH), Ld.status), true);
+    // Swapped into the lower band, it takes that band exactly.
+    ViewSpec dual_lo = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_HEALTH));
+    MainLayout Ldl = layout_compute_spec(BOUNDS, &dual_lo, MET(FC_BAND_H, INK));
+    expect("tier_helpers.dual_health_lower_band",
+           same_rect(layout_status_band(&dual_lo, &Ldl, STATUS_SRC_HEALTH), Ldl.status_lower), true);
     printf("tier_helpers OK\n");
 }
 

@@ -291,30 +291,12 @@ static inline bool layout_status_visible(const ViewSpec *spec, uint8_t src) {
     return (spec->status_upper == src) || (spec->status_lower == src);
 }
 
-#if defined(PBL_HEALTH)
-// The health row's nudge away from the calendar/radar in the dual-row compact view,
-// which delegates LAYOUT_TIER_FULL to both rows: the band drops 2 px so the row
-// doesn't hug the content above. The TRUE full view (3-row calendar) stays
-// unshifted, and a band at or under the minimum has no room to give up.
-#define HEALTH_TALL_BAND_MIN 16
-#define HEALTH_SECTION_DROP 2
-#endif
-
-// Which band a source's row renders in: the lower (forecast-abutting) band when the
-// lower slot carries it, otherwise the upper band. Same REAL-source rule as
-// layout_status_visible above — for a source that is on neither slot the answer is the
-// upper band, whose layer the caller hides anyway.
-//
-// The health source's dual-row nudge is folded into the band FRAME here (it used to
-// be applied to the row's derived bounds in status_bar.c, behind the layer's back):
-// the frame a bar is seated in IS the geometry its row lays out against, so
-// layer_set_frame() owns dirtying every geometric change — a full-mode flip included
-// — and no caller needs to track applied bounds by hand.
 #if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
 // Is the top area three (or more) rows tall — the fullCal shape — whatever it shows? A
 // calendar by its rows; a radar/graph top by its size (the default is 3 rows, a 2-row
-// forecast graph renders 3). The row tier follows the same rule (layout.c), so the health
-// row's dense drop below keys on the view's SHAPE, not on the calendar alone.
+// forecast graph renders 3). The row tier follows the same rule (layout.c), and so does the
+// health graph's full mode (main_window.c): both key on the view's SHAPE, not on the
+// calendar alone.
 static inline bool layout_top_three_rows(const ViewSpec *s) {
     if (s->top == TOP_BAND_CALENDAR) { return s->calendar_rows == 3; }
     if (s->top != TOP_BAND_RADAR && s->top != TOP_BAND_GRAPH) { return false; }
@@ -323,22 +305,14 @@ static inline bool layout_top_three_rows(const ViewSpec *s) {
 }
 #endif
 
+// Which band a source's row renders in: the lower (forecast-abutting) band when the
+// lower slot carries it, otherwise the upper band. Same REAL-source rule as
+// layout_status_visible above — for a source that is on neither slot the answer is the
+// upper band, whose layer the caller hides anyway. Every bar sits in its band the same
+// way: the Health bar's own 2 px drop in a dual-row compact view went with 2.7.0's named
+// bars, where a band holds whichever bar the screen puts there.
 static inline GRect layout_status_band(const ViewSpec *spec, const MainLayout *L, uint8_t src) {
-    GRect band = (spec->status_lower == src) ? L->status_lower : L->status;
-#if defined(PBL_HEALTH)
-    if (src == STATUS_SRC_HEALTH
-            && spec->status_tier == LAYOUT_TIER_FULL
-#if defined(WW_VIEW_CYCLE)
-            && !layout_top_three_rows(spec)
-#else
-            && spec->calendar_rows != 3
-#endif
-            && band.size.h > HEALTH_TALL_BAND_MIN) {
-        band.origin.y += HEALTH_SECTION_DROP;
-        band.size.h -= HEALTH_SECTION_DROP;
-    }
-#endif
-    return band;
+    return (spec->status_lower == src) ? L->status_lower : L->status;
 }
 
 #if defined(WW_VIEW_CYCLE)

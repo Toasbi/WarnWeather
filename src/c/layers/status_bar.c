@@ -145,9 +145,9 @@ static inline LayerUpdateProc bar_proc(StatusBarId id) {
 // ── Seating ──────────────────────────────────────────────────────────────────
 
 // Push this bar's bounds/tier/line into its row. Every bar's derived bounds ARE
-// layer_get_bounds() — the health bar's dual-row nudge is folded into the band
-// frame by layout_status_band() — so any geometric change arrives through
-// layer_set_frame(), which the SDK already marks dirty on a real move.
+// layer_get_bounds(), the band frame layout_status_band() picks, so any geometric
+// change arrives through layer_set_frame(), which the SDK already marks dirty on a
+// real move.
 static void apply_row(StatusBarId id) {
     StatusBar *b = &s_bars[id];
     if (!b->row || !b->layer) { return; }
@@ -211,9 +211,8 @@ void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L) {
         layer_set_hidden(b->layer, !layout_status_visible(spec, src));
 
         // Change-gated: an unchanged view must not re-resolve a row, or a settings
-        // save would re-read persist for rows whose content never moved. A
-        // full-mode flip needs no arm of its own: when it matters (the health
-        // nudge) it moves the band frame, which `moved` already catches.
+        // save would re-read persist for rows whose content never moved. A band
+        // that moves needs no arm of its own: `moved` already catches it.
         bool changed = moved;
         if (b->tier != tier) { b->tier = tier; changed = true; }
         if (b->full_date != full_date) {
