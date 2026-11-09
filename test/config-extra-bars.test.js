@@ -111,6 +111,19 @@ test('Delete bar: the bar unmade, the screens that showed it drop the row, and U
   assert.equal(page.scroll.innerHTML.indexOf('Wind bar deleted.'), -1, 'the Undo line goes');
 });
 
+test('a New bar made while a Delete bar\'s Undo shows drops the Undo: it would write the old bar over the new', () => {
+  const page = statusTab({ statusBar4Made: true, statusBar4Name: 'Wind bar', statusBar4Left: 'uv', viewLower0: 'bar4' });
+  page.tapAction('deleteBar', 'bar4');
+  assert.ok(page.scroll.innerHTML.indexOf('Wind bar deleted.') !== -1, 'the Undo line');
+  page.tapAction('newBar');
+  page.pickOption('statusBarNew', 'activity');
+  assert.equal(page.S.statusBar4Name, 'Activity bar', 'New bar takes the freed bar 4');
+  assert.equal(page.scroll.innerHTML.indexOf('Wind bar deleted.'), -1, 'the Undo line goes');
+  page.tapAction('undoDeleteBar');
+  assert.equal(page.S.statusBar4Name, 'Activity bar', 'a stale Undo changes nothing');
+  assert.notEqual(page.S.statusBar4Left, 'uv');
+});
+
 test('the screen editor: + New bar puts a new bar on the screen; the bar picker offers the sets', () => {
   const page = statusTab();
   page.tapAction('openScreen', 0);

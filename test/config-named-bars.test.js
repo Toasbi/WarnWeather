@@ -90,6 +90,14 @@ test('the names are the page\'s own: the watch is sent the same message with or 
 
 // --- the Status bars tab ------------------------------------------------------------
 
+test('a Name row\'s hint prints the screens\' names as text, not markup', () => {
+  const page = bootGeneratedPage(Object.assign({}, THREE, { viewName0: '<i>Mine</i>' }));
+  page.clickTab('watch');
+  const row = rowOf(page.scroll.innerHTML, 'data-k="statusForecastName"');
+  assert.ok(row.indexOf('>On &lt;i&gt;Mine&lt;/i&gt;</div>') !== -1, row);
+  assert.equal(row.indexOf('<i>Mine</i>'), -1);
+});
+
 test('the Status bars tab: each of your bars opens on its Name row, saying where it shows; the Watch bar has none', () => {
   const page = bootGeneratedPage(THREE);
   page.clickTab('watch');

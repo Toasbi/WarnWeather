@@ -19,6 +19,7 @@ const screens = require('../src/pkjs/screens.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { buildClayPayload } = require('../src/pkjs/clay-payload.js');
 const { renderSignature } = require('../src/pkjs/render-signature.js');
+const forecastSeries = require('../src/pkjs/forecast-series.js');
 const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
 const { decodeLine } = require('./helpers/status-line-bytes.js');
 
@@ -154,6 +155,28 @@ test('the bake sends a made bar\'s line on a Pebble Time 2 and nothing else', ()
   // slot of the twelve shows it).
   assert.ok(catalog.selectedCodes({ statusBar4Made: true, statusBar4Left: 'pollen' }).indexOf('pollen') !== -1);
   assert.equal(catalog.selectedCodes({ statusBar4Left: 'pollen' }).indexOf('pollen'), -1, 'not made: not read');
+  // Only where the watch draws the bar: the same settings on another watch fetch nothing for it.
+  const made = { provider: 'dwd', statusBar4Made: true, statusBar4Left: 'pollen' };
+  assert.ok(catalog.selectedCodes(made, EMERY).indexOf('pollen') !== -1, 'a Pebble Time 2 draws bar 4');
+  assert.equal(catalog.selectedCodes(made, BASALT).indexOf('pollen'), -1, 'basalt is never sent its line');
+  assert.equal(forecastSeries.needsPollen(made, { platform: 'emery' }), true);
+  assert.equal(forecastSeries.needsPollen(made, { platform: 'basalt' }), false);
+});
+
+test('Delete bar stores a screen as the editor\'s Remove does: the bar below moves up, the dates go, Undo puts all back', () => {
+  const list = [{ k: 'strip' }, { k: 'cal', rows: '2' }, { k: 'bar4' }, { k: 'clock' }, { k: 'fcbar' },
+    { k: 'fc', size: 'fill' }];
+  const S = Object.assign({ layoutPreset: 'custom', viewCount: '1', statusBar4Made: true, statusBar4Name: 'Wind',
+    statusBar4Left: 'countdown', statusBar4LeftCountdown: '2026-12-24' }, screens.compileKeys(list, 0));
+  const before = Object.assign({}, S);
+  const was = screens.unmakeBar(S, 'bar4', EMERY);
+  const without = screens.remove(list, 2);
+  Object.entries(screens.compileKeys(without, 0)).forEach(([key, v]) => assert.equal(S[key], v, key));
+  assert.equal(S.viewUpper0, 'weather', 'the Forecast bar moves up to the upper row');
+  assert.deepEqual(screens.screensOf(S, EMERY)[0].map((b) => b.k), without.map((b) => b.k));
+  assert.equal(S.statusBar4LeftCountdown, undefined, 'the countdown date goes, so a new bar starts on today');
+  Object.assign(S, was);
+  Object.keys(before).forEach((key) => assert.deepEqual(S[key], before[key], key + ' back after Undo'));
 });
 
 test('bars 4 to 6\'s On demand cells: CLAY_OD_EXTRA_UINT8 on a known emery alone, effective values only', () => {

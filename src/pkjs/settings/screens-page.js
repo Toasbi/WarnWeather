@@ -253,9 +253,33 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function takeUndo(box, S, env) {
         if (box.v) { restore(S, box.v.snap, env); }
+        dropFlash(box);
+        return true;
+    }
+
+    /**
+     * A flash gone before its time: its message and its timer.
+     * @param {{v: *, t: *}} box The flash's box.
+     * @returns {void}
+     */
+    function dropFlash(box) {
         box.v = null;
         if (box.t) { clearTimeout(box.t); box.t = null; }
-        return true;
+    }
+
+    /**
+     * New bar, wherever it is picked (the Status bars tab, the editor's + New bar, the bar
+     * picker): screens.js makeBar, and a Delete bar's Undo dropped, since the bar made can be
+     * the deleted one's slot (freeBar), which the Undo would write the old bar over.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} from A set's id, or a copy's ('copy:<bar>').
+     * @returns {?string} the bar made, null for none
+     */
+    function makeBar(S, env, from) {
+        var made = M.makeBar(S, env, from);
+        if (made) { dropFlash(BAR_UNDO); }
+        return made;
     }
 
     /**
@@ -648,7 +672,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var list = M.screensOf(S, env)[ED.i] || [], j = ED.barRow, v = String(kind || '');
         if (!list[j] || !M.BAR_OF_KIND[list[j].k]) { return; }
         if (v.indexOf(BAR_NEW) === 0) {
-            var made = M.makeBar(S, env, v.slice(BAR_NEW.length));
+            var made = makeBar(S, env, v.slice(BAR_NEW.length));
             S[SCREEN_BAR] = made || oldValue;
             if (!made) { return; }
             v = M.KIND_OF_BAR[made];
@@ -710,7 +734,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function barCreate(S, oldValue, from, env) {
         S[NEW_BAR] = '';
-        M.makeBar(S, env, from);
+        makeBar(S, env, from);
     }
 
     /**
@@ -725,7 +749,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function screenNewBarPicked(S, oldValue, from, env) {
         S[SCREEN_NEW_BAR] = '';
         if (!ED.overlay) { return; }
-        var made = M.makeBar(S, env, from);
+        var made = makeBar(S, env, from);
         if (!made) { return; }
         var next = M.add(M.screensOf(S, env)[ED.i] || [], M.KIND_OF_BAR[made]);
         ED.open = M.idxOf(next, M.KIND_OF_BAR[made]);
@@ -742,7 +766,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {boolean} whether a bar went
      */
     function deleteBar(S, bar, env) {
-        var name = M.barName(S, bar), snap = M.unmakeBar(S, bar);
+        var name = M.barName(S, bar), snap = M.unmakeBar(S, bar, env);
         if (!snap) { return false; }
         applyModes(S, env);
         flash(BAR_UNDO, { text: name + ' deleted.', snap: snap }, 5000, renderPage);
@@ -1798,7 +1822,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if (PConf.hintResolvers) {
             PConf.hintResolvers.register('batterySaverPauseHint', batterySaverPauseHint);
-            PConf.hintResolvers.register('barScreens', function (S, env, args) { return barWhere(S, env, args.bar); });
+            // A hint prints as HTML, and the screens' names are the user's.
+            PConf.hintResolvers.register('barScreens', function (S, env, args) { return esc(barWhere(S, env, args.bar)); });
             PConf.hintResolvers.register('barCount', barCount);
             PConf.hintResolvers.register('barUndoNote', barUndoNote);
             PConf.hintResolvers.register('barsFullNote', function (S, env) { return M.freeBar(S, env) ? '' : BARS_FULL; });

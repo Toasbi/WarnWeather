@@ -726,17 +726,25 @@
   }
 
   /**
-   * Delete bar: a bar 4 to 6 unmade, its name, slots and alerts cleared, and every screen's row
-   * that showed it off (a screen keeps its other rows where they are). Mutates S; the page then
-   * works the modes out again.
+   * Delete bar: a bar 4 to 6 unmade, its name, slots, countdown dates and alerts cleared, and
+   * every screen that showed it stored again without its row, as the editor's Remove stores
+   * one (compileKeys: a bar below it moves up to the upper row). Mutates S; the page then works
+   * the modes out again.
    * @param {Object} S Settings.
    * @param {string} bar 'bar4' | 'bar5' | 'bar6'
+   * @param {?Object} [env] Platform env (omitted: capable).
    * @returns {?Object<string, *>} the keys it wrote with the values they had (the page's
    *   Undo puts them back), null when no made bar went
    */
-  function unmakeBar(S, bar) {
+  function unmakeBar(S, bar, env) {
     var b = VC.extraBar(bar);
     if (!b || !VC.barMade(S, bar)) { return null; }
+    // Read while the bar is still made, so the screens hold its row.
+    var kind = KIND_OF_BAR[bar], redone = [];
+    screensOf(S, env).forEach(function (list, i) {
+      var j = idxOf(list, kind);
+      if (j >= 0) { redone.push(compileKeys(remove(list, j), i)); }
+    });
     var was = {};
     /** @param {string} key A key. @param {*} v Its new value. @returns {void} */
     function write(key, v) {
@@ -745,12 +753,15 @@
     }
     write(b.prefix + 'Made', false);
     write(barNameKey(bar), '');
-    catalog.lineById(bar).slots.forEach(function (key) { write(key, catalog.slotDefault(key)); });
+    catalog.lineById(bar).slots.forEach(function (key) {
+      write(key, catalog.slotDefault(key));
+      // A date only a countdown slot reads; gone, the date row starts on today again.
+      if (S[key + 'Countdown'] !== undefined) { write(key + 'Countdown', undefined); }
+    });
     onDemand.SIDES.forEach(function (side) { write(onDemand.itemsKey(bar, side), ''); });
-    for (var i = 0; i < MAX_SCREENS; i++) {
-      if (S['viewUpper' + i] === bar) { write('viewUpper' + i, 'off'); }
-      if (S['viewLower' + i] === bar) { write('viewLower' + i, 'off'); }
-    }
+    redone.forEach(function (keys) {
+      Object.keys(keys).forEach(function (key) { if (S[key] !== keys[key]) { write(key, keys[key]); } });
+    });
     return was;
   }
 

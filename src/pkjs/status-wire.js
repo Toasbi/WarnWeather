@@ -170,11 +170,16 @@ function buildSettingsBlob(settings, env) {
  */
 function cellBytes(settings, env, bars) {
   var out = [];
+  // onDemand.sideOf, with whether each bar exists asked once, at its first ticked item:
+  // barExists compiles the screens.
+  var exists = [];
   for (var i = 0; i < onDemand.ITEMS.length; i++) {
     var cell = 0;
     for (var b = 0; b < bars.length; b++) {
-      var side = onDemand.sideOf(settings, bars[b].bar, onDemand.ITEMS[i].code, env);
-      if (side !== null) { cell |= (onDemand.SIDES.indexOf(side) + 1) << (2 * b); }
+      var side = onDemand.tickedSide(settings, bars[b].bar, onDemand.ITEMS[i].code, env);
+      if (side === null) { continue; }
+      if (exists[b] === undefined) { exists[b] = onDemand.barExists(settings, bars[b].bar, env); }
+      if (exists[b]) { cell |= (onDemand.SIDES.indexOf(side) + 1) << (2 * b); }
     }
     out.push(cell);
   }

@@ -649,8 +649,9 @@ function applyForecastSeries(payload, settings, watchInfo) {
  * @returns {boolean}
  */
 function metricWanted(settings, code, watchInfo) {
-    return statusThresholds.alertOn(settings, code, configUi.computeEnv(watchInfo))
-        || statusCatalog.selectedCodes(settings).indexOf(code) !== -1;
+    var env = configUi.computeEnv(watchInfo);
+    return statusThresholds.alertOn(settings, code, env)
+        || statusCatalog.selectedCodes(settings, env).indexOf(code) !== -1;
 }
 
 /**
@@ -684,7 +685,7 @@ function dayPeakCodes(settings, watchInfo) {
     if (!settings) { return []; }
     var env = configUi.computeEnv(watchInfo);
     return statusCatalog.DAY_MAX_KINDS.filter(function (kind) {
-        return statusThresholds.alertOn(settings, kind, env) || statusCatalog.dayMaxInUse(settings, kind);
+        return statusThresholds.alertOn(settings, kind, env) || statusCatalog.dayMaxInUse(settings, kind, env);
     });
 }
 

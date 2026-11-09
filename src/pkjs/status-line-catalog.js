@@ -271,19 +271,20 @@
 
   /**
    * The 12 effective slot codes, answering the FLAVOR-LESS line defaults for anything
-   * unset — deliberately env-free. Its callers are fetch gates (forecast-series.js's
-   * needsUv / needsAqi / needsPollen) asking whether uv/aqi/pollen is on screen
-   * anywhere, and no per-platform flavor moves those three, so an env would be a
-   * parameter nothing could pass. Still routed through slotDefault rather than reading
-   * LINES[l].defaults, so there is one reader of the table. A made bar 4 to 6's three
-   * follow them (madeExtraLines, read env-free like the rest).
+   * unset on every watch. Its callers are fetch gates (forecast-series.js's needsUv /
+   * needsAqi / needsPollen, dayMaxInUse) asking whether a code is on screen anywhere, and
+   * no per-platform flavor moves those. Still routed through slotDefault rather than
+   * reading LINES[l].defaults, so there is one reader of the table. A made bar 4 to 6's
+   * three follow them on a watch that draws it (bakedLines: the bake sends its line only
+   * there), which is all `env` decides.
    * @param {Object} settings Clay settings blob
+   * @param {?Object} [env] platform env (omitted: capable)
    * @returns {string[]} the 12 effective slot codes (stored or line default), then a made
    *   bar 4 to 6's
    */
-  function selectedCodes(settings) {
+  function selectedCodes(settings, env) {
     var out = [];
-    var lines = bakedLines(settings);
+    var lines = bakedLines(settings, env);
     for (var l = 0; l < lines.length; l++) {
       var line = lines[l];
       for (var s = 0; s < line.slots.length; s++) {
@@ -519,12 +520,13 @@
    * forecast-series.js dayPeakCodes, so this catalog stays alert-agnostic.
    * @param {Object} settings Clay settings blob.
    * @param {string} kind A DAY_MAX_KINDS entry.
+   * @param {?Object} [env] platform env (omitted: capable)
    * @returns {boolean}
    */
-  function dayMaxInUse(settings, kind) {
+  function dayMaxInUse(settings, kind, env) {
     if (!settings) { return false; }
     var mode = settings[kind + 'SlotDisplay'];
-    return (mode === 'max' || mode === 'both') && selectedCodes(settings).indexOf(kind) !== -1;
+    return (mode === 'max' || mode === 'both') && selectedCodes(settings, env).indexOf(kind) !== -1;
   }
 
   var api = {

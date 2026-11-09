@@ -332,8 +332,7 @@ static void health_warm_for_incoming_view(void) {
     if (!health_renderable()) { return; }
     ViewSpec ns = current_view_spec();
     LayerVisibility nv = layout_visibility(&ns);
-    if (nv.health_status || nv.health_graph
-            || status_bar_any_visible_uses_live_health(&ns)) {
+    if (nv.health_graph || status_bar_any_visible_uses_live_health(&ns)) {
         health_cache_refresh_current_hour();
         health_summary_refresh();
         if (nv.health_graph) { health_graph_layer_refresh(); }
@@ -534,11 +533,13 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     loading_layer_refresh();
 #if defined(PBL_HEALTH)
     // Keep the cache warm whenever health is enabled (rollover-warm always; the
-    // 15-min current-hour re-read only while the health line is on screen). The
-    // render path stays HealthService-free.
+    // 15-min current-hour re-read only while the health graph, its one reader, is on
+    // screen). The render path stays HealthService-free. A status bar is what it holds,
+    // the Health bar too (2.7.0's named bars): its rows count below only while they
+    // carry a live health slot, so a Health bar given weather items reads no health.
     ViewSpec aspec = current_view_spec();
     LayerVisibility av = layout_visibility(&aspec);
-    bool health_on_screen = av.health_status || av.health_graph;
+    bool health_on_screen = av.health_graph;
     // Status rows may carry LIVE health slots on any line — but only VISIBLE rows
     // (plus the top strip, visible on most views) gate the minute work. The hidden health bar's
     // default line is all live-health slots, so an any-bar scan would be ~always

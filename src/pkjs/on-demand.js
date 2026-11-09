@@ -239,9 +239,27 @@
   }
 
   /**
-   * The side of `bar` the watch shows an item on: the watch draws On demand, the item is
-   * ticked there and the bar exists. Left wins an overlap, which only a hand-edited blob can
-   * hold. The ticks are read first: whether the bar exists compiles the screens (barExists).
+   * The side of `bar` an item is ticked on, the watch drawing On demand, whether or not the bar
+   * exists: sideOf without its barExists, for a caller that asks that once per bar
+   * (status-wire.js cellBytes). Left wins an overlap, which only a hand-edited blob can hold.
+   * @param {Object} S Settings blob.
+   * @param {string} bar A BARS bar.
+   * @param {string} code An ITEMS code.
+   * @param {Object} [env] Platform env (omitted = capable).
+   * @returns {?string} 'left' | 'right', or null when the item is not ticked on that bar
+   */
+  function tickedSide(S, bar, code, env) {
+    if (!facts(env).onDemand || prefixOf(bar) === null) { return null; }
+    for (var s = 0; s < SIDES.length; s++) {
+      if (parse(read(S, itemsKey(bar, SIDES[s]))).indexOf(code) >= 0) { return SIDES[s]; }
+    }
+    return null;
+  }
+
+  /**
+   * The side of `bar` the watch shows an item on: the item is ticked there (tickedSide) and
+   * the bar exists. The ticks are read first: whether the bar exists compiles the screens
+   * (barExists).
    * @param {Object} S Settings blob.
    * @param {string} bar A BARS bar.
    * @param {string} code An ITEMS code.
@@ -249,13 +267,8 @@
    * @returns {?string} 'left' | 'right', or null when the item does not show on that bar
    */
   function sideOf(S, bar, code, env) {
-    if (!facts(env).onDemand || prefixOf(bar) === null) { return null; }
-    for (var s = 0; s < SIDES.length; s++) {
-      if (parse(read(S, itemsKey(bar, SIDES[s]))).indexOf(code) >= 0) {
-        return barExists(S, bar, env) ? SIDES[s] : null;
-      }
-    }
-    return null;
+    var side = tickedSide(S, bar, code, env);
+    return side && barExists(S, bar, env) ? side : null;
   }
 
   /**
@@ -413,6 +426,7 @@
     canonical: canonical,
     read: read,
     barExists: barExists,
+    tickedSide: tickedSide,
     sideOf: sideOf,
     placedAnywhere: placedAnywhere,
     tickOn: tickOn,
