@@ -115,12 +115,13 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   full weather-alert entry tuple = 603 B of 640 B (37 B headroom);
   emery's inbox was the owner's call twice: 1024 B for 2.2.0's forecast span (six trends of
   up to 68 B; `src/pkjs/forecast-span.js`), then 1280 B for 2.7.0's bars 4 to 6 (New bar:
-  `STATUS_LINE_5..7_UINT8`, one more status line per made bar, up to 51 B each). Its
+  `STATUS_LINE_5..7_UINT8`, one more status line per bar a screen shows, up to 51 B each). Its
   heaviest bundle is 1095 B of 1280 B: the long span, the graph styles' seventh trend (the
   spare row, `SPARE_LINE_TREND_UINT8`, sent only while the screens' graphs draw five series
-  between them) and three made bars full of City. Every
+  between them) and all six bars on the screens, full of City. A bar no screen shows is sent
+  no line (`status-line-catalog.js` `bakedLines`; the Watch bar's line always goes). Every
   other watch is never sent more than 24 hours or a bar 4 to 6, so it keeps 603 B of 640 B;
-  aplite's heaviest bundle, without the lines it cannot draw, is 473 B of 536 B (see
+  aplite's heaviest bundle, without the lines it cannot draw, is 371 B of 536 B (see
   `test/inbox-size.test.js` — the authoritative computation, which records the bundle
   sizes exactly per platform; keep them in sync). That headroom was 10 B until the settings-derived
   tuples were moved off this message: the rain-bar and radar palettes first, then the

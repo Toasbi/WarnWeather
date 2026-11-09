@@ -133,8 +133,8 @@
   // Bars 4 to 6 (Pebble Time 2, 2.7.0's New bar: view-cycle.js EXTRA_BARS, whose prefixes they
   // take): their lines (STATUS_LINE_5..7_UINT8), every slot empty until New bar writes its
   // starting set. Kept out of LINES, so every reader of the first four (the twelve selections,
-  // telemetry, the 2.6 migration) stays as it is; the bake (status-lines.js) adds them for a
-  // made bar on a watch that has them, and a slot key's lookups walk ALL_LINES.
+  // telemetry, the 2.6 migration) stays as it is; the bake (bakedLines) adds one while a
+  // screen shows the bar, and a slot key's lookups walk ALL_LINES.
   var EXTRA_LINES = VC.EXTRA_BARS.map(function (b, i) {
     var slots = [b.prefix + 'Left', b.prefix + 'Mid', b.prefix + 'Right'];
     var defaults = {};
@@ -270,17 +270,16 @@
   }
 
   /**
-   * The 12 effective slot codes, answering the FLAVOR-LESS line defaults for anything
-   * unset on every watch. Its callers are fetch gates (forecast-series.js's needsUv /
-   * needsAqi / needsPollen, dayMaxInUse) asking whether a code is on screen anywhere, and
-   * no per-platform flavor moves those. Still routed through slotDefault rather than
-   * reading LINES[l].defaults, so there is one reader of the table. A made bar 4 to 6's
-   * three follow them on a watch that draws it (bakedLines: the bake sends its line only
-   * there), which is all `env` decides.
+   * The effective slot codes of every line the bake sends (bakedLines: the Watch bar's and
+   * each bar a screen shows), answering the FLAVOR-LESS line defaults for anything unset on
+   * every watch. Its callers are fetch gates (forecast-series.js's needsUv / needsAqi /
+   * needsPollen, dayMaxInUse) asking whether a code is on screen anywhere, and no
+   * per-platform flavor moves those, so a slot on a bar no screen shows fetches nothing.
+   * Still routed through slotDefault rather than reading LINES[l].defaults, so there is
+   * one reader of the table.
    * @param {Object} settings Clay settings blob
    * @param {?Object} [env] platform env (omitted: capable)
-   * @returns {string[]} the 12 effective slot codes (stored or line default), then a made
-   *   bar 4 to 6's
+   * @returns {string[]} the effective slot codes (stored or line default), three per line
    */
   function selectedCodes(settings, env) {
     var out = [];
@@ -311,26 +310,27 @@
   }
 
   /**
-   * Bars 4 to 6's lines a watch carries: each made bar's (view-cycle.js barMade) on a watch
-   * that has them (env.extraBars). The bake sends exactly these (status-lines.js), and what
-   * reads its slots for the bake (the fetch gates, the render signature) reads them.
-   * @param {Object} settings Clay settings blob
-   * @param {?Object} [env] platform env (omitted: capable, view-cycle.js extraBarOn)
-   * @returns {Array<Object>} EXTRA_LINES entries
-   */
-  function madeExtraLines(settings, env) {
-    return EXTRA_LINES.filter(function (line) { return VC.extraBarOn(settings, line.id, env); });
-  }
-
-  /**
-   * The lines the bake sends: the four every watch has, then a made bar 4 to 6's
-   * (madeExtraLines).
+   * The lines the bake sends (status-lines.js), and so the ones whose slots the fetch gates
+   * and the render signature read: the Watch bar's always, every other bar's while a screen
+   * shows it (view-cycle.js barsShown, which shows a bar 4 to 6 only once made on a watch
+   * that has them). The Watch bar is the exception because every watch can show it on any
+   * screen: aplite has no screen without it, and the others bring it back in a Timeline
+   * Quick View peek (the watch's layout_peek_spec). The Radar and Health bars also need a
+   * watch that draws them, which aplite does not, whatever a settings blob from another
+   * watch puts on its screens. A bar on no screen is sent no line, so the watch keeps the
+   * last one it had (status_bar.c loads no row for it); the save that puts it on a screen
+   * re-bakes at once (status-rebake.js) and fetches what its slots need (render-signature.js).
    * @param {Object} settings Clay settings blob
    * @param {?Object} [env] platform env (omitted: capable)
-   * @returns {Array<Object>} LINES and EXTRA_LINES entries
+   * @returns {Array<Object>} LINES and EXTRA_LINES entries, in wire order
    */
   function bakedLines(settings, env) {
-    return LINES.concat(madeExtraLines(settings, env));
+    var shown = VC.barsShown(settings, env);
+    return ALL_LINES.filter(function (line) {
+      if (line.id === 'top') { return true; }
+      if ((line.id === 'radar' || line.id === 'health') && env && env[line.id] === false) { return false; }
+      return Boolean(shown[line.id]);
+    });
   }
 
   /**
@@ -532,7 +532,6 @@
   var api = {
     KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES, SLOT_POSITIONS: SLOT_POSITIONS,
     EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
-    madeExtraLines: madeExtraLines,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
     allSlotKeys: allSlotKeys, slotDefault: slotDefault,

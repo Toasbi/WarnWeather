@@ -131,9 +131,14 @@ const HEAVIEST_GRAPHS = {
 };
 
 // Emery's bars 4 to 6 at their heaviest: all three made (the New bar button), every slot a
-// full city like the other bars' below. A made bar's line is baked whether or not a screen
-// shows it (status-line-catalog.js madeExtraLines), so the screens need not show them.
-const HEAVIEST_EXTRA_BARS = {};
+// full city like the other bars' below, and HEAVIEST_GRAPHS' three screens showing all six
+// bars between them: the bake sends only the lines of bars a screen shows
+// (status-line-catalog.js bakedLines). On another watch the rows mean nothing (no custom
+// layout there) and bars 4 to 6 do not exist.
+const HEAVIEST_EXTRA_BARS = {
+  viewUpper0: 'weather', viewLower0: 'radar', viewUpper1: 'health', viewLower1: 'bar4',
+  viewUpper2: 'bar5', viewLower2: 'bar6'
+};
 ['statusBar4', 'statusBar5', 'statusBar6'].forEach(function(prefix) {
   HEAVIEST_EXTRA_BARS[prefix + 'Made'] = true;
   ['Left', 'Mid', 'Right'].forEach(function(slot) { HEAVIEST_EXTRA_BARS[prefix + slot] = 'city'; });
@@ -256,9 +261,10 @@ function buildHeaviestBundleWithNotice(platform) {
 // the one place the sizes are asserted. Update a figure here when its wire contract changes
 // (the git log of this file holds how each grew). aplite's is basalt's less both extra line
 // trends (2 × 31 B), the STATUS_LEVELS_UINT8 threshold tuple aplite compiles out, the alert
-// entries and the radar sky rows; emery's carries its long span's 68 hours, the graph
-// styles' spare row and bars 4 to 6's lines (below).
-const WEATHER_BUNDLES = { emery: 1095, basalt: 603, chalk: 603, diorite: 603, flint: 603, aplite: 473 };
+// entries, the radar sky rows and the Radar and Health bars' lines (2 × 51 B), which aplite
+// cannot draw; emery's carries its long span's 68 hours, the graph styles' spare row and bars
+// 4 to 6's lines (below).
+const WEATHER_BUNDLES = { emery: 1095, basalt: 603, chalk: 603, diorite: 603, flint: 603, aplite: 371 };
 const INBOXES = { emery: 1280, basalt: 640, chalk: 640, diorite: 640, flint: 640, aplite: 536 };
 // One of bars 4 to 6's lines with a full city in every slot, as the other bars' lines carry
 // it: a 7 B tuple header and three slots' packed bytes (status-lines.js).
@@ -290,16 +296,21 @@ test('graph styles: a fifth series rides the spare row, a sixth is never sent', 
   assert.equal(dictSize(plain), WEATHER_BUNDLES.emery - (7 + forecastEntries('emery')), 'the spare\'s 75 B');
 });
 
-// Bars 4 to 6 (emery, 2.7.0): each made bar's line rides the status category like the
-// other four, a whole line apiece at its heaviest; a bar that is not made sends none, and
-// no other watch is ever sent one. The inbox grew 1024 -> 1280 B for them.
-test('bars 4 to 6: a made bar\'s line rides the status category, an unmade one sends none', () => {
+// Bars 4 to 6 (emery, 2.7.0): the line of each one a screen shows rides the status category
+// like the other four, a whole line apiece at its heaviest; a bar that is not made, or on no
+// screen, sends none, and no other watch is ever sent one. The inbox grew 1024 -> 1280 B for
+// them.
+test('bars 4 to 6: a shown bar\'s line rides the status category, one on no screen sends none', () => {
   const EXTRA = ['STATUS_LINE_5_UINT8', 'STATUS_LINE_6_UINT8', 'STATUS_LINE_7_UINT8'];
   const made = buildHeaviestBundle('emery');
   EXTRA.forEach((key) => assert.equal(dictSize({ [key]: made[key] }) - 1, EXTRA_LINE_BYTES, key));
   const one = buildHeaviestBundle('emery', { statusBar5Made: false, statusBar6Made: false });
   assert.deepEqual(EXTRA.filter((key) => key in one), ['STATUS_LINE_5_UINT8'], 'bar 4 alone is made');
   assert.equal(dictSize(one), WEATHER_BUNDLES.emery - 2 * EXTRA_LINE_BYTES);
+  const offScreen = buildHeaviestBundle('emery', { viewUpper2: 'off', viewLower2: 'off' });
+  assert.deepEqual(EXTRA.filter((key) => key in offScreen), ['STATUS_LINE_5_UINT8'],
+    'bars 5 and 6 are made but on no screen');
+  assert.equal(dictSize(offScreen), WEATHER_BUNDLES.emery - 2 * EXTRA_LINE_BYTES);
   ['basalt', 'chalk', 'diorite', 'flint', 'aplite'].forEach((platform) => {
     const bundle = buildHeaviestBundle(platform, HEAVIEST_EXTRA_BARS);
     assert.deepEqual(EXTRA.filter((key) => key in bundle), [], platform + ' has no bars 4 to 6');
@@ -308,10 +319,12 @@ test('bars 4 to 6: a made bar\'s line rides the status category, an unmade one s
 
 test('aplite keeps its 536 B inbox and a bundle without the extra metric lines', () => {
   assert.equal(readInboxSize('aplite'), 536, 'aplite\'s inbox comes out of its tiny heap — do not grow it');
-  // aplite draws neither extra metric line, and has no On demand (WW_ON_DEMAND) and no
-  // handler for the weather alerts' entries. Its size is WEATHER_BUNDLES.aplite's.
+  // aplite draws neither extra metric line, nor the Radar or Health bar, and has no On demand
+  // (WW_ON_DEMAND) and no handler for the weather alerts' entries. Its size is
+  // WEATHER_BUNDLES.aplite's.
   const bundle = buildHeaviestBundle('aplite');
-  ['FOURTH_LINE_TREND_UINT8', 'FIFTH_LINE_TREND_UINT8', 'ALERT_ENTRIES_UINT8'].forEach(function(key) {
+  ['FOURTH_LINE_TREND_UINT8', 'FIFTH_LINE_TREND_UINT8', 'ALERT_ENTRIES_UINT8',
+    'STATUS_LINE_2_UINT8', 'STATUS_LINE_4_UINT8'].forEach(function(key) {
     assert.equal(Object.prototype.hasOwnProperty.call(bundle, key), false, 'aplite never receives ' + key);
   });
 });

@@ -282,7 +282,9 @@ test('applyForecastSeries bakes all status lines before deleting trends and lega
     secondaryLine: 'precip_prob', thirdLine: 'off', secondaryLineFill: true,
     barSource: 'rain', windScale: 'mid', theme: 'dark',
     temperatureUnits: 'c', axisTimeFormat: '24h',
-    statusForecastLeft: 'wind'
+    statusForecastLeft: 'wind',
+    // The Health bar on a screen, so its line bakes too (the bake sends only what a screen shows).
+    healthMode: 'status'
   };
   const out = applyForecastSeries(payload, settings, { platform: 'basalt' });
   assert.ok(Array.isArray(out.STATUS_LINE_1_UINT8));
@@ -431,8 +433,9 @@ test('applyForecastSeries stashes the bake inputs BEFORE the bake and before the
     TEMP_TREND_UINT8: [100], TEMP_MIN: 0, TEMP_MAX: 30,
     FORECAST_START: 1700000000, NUM_ENTRIES: 1
   };
+  // healthMode 'status' puts the Health bar on a screen, so all four lines bake.
   const settings = { secondaryLine: 'off', thirdLine: 'off', barSource: 'off',
-                     temperatureUnits: 'c', axisTimeFormat: '24h' };
+                     temperatureUnits: 'c', axisTimeFormat: '24h', healthMode: 'status' };
   const watchInfo = { platform: 'basalt' };
   let out;
   try {

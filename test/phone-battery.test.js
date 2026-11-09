@@ -587,8 +587,9 @@ test('the re-bake runs against a CLONE of the snapshot, not the pruned payload',
 
 test('the re-bake renders the live reading through the real status-line pipeline', () => {
   const mgr = fakeManager(0.62, false);
+  // healthMode 'status' puts the Health bar on a screen, so the bake writes all four lines.
   const h = boot({ navigator: modernNavigator(mgr), realBake: true,
-                   settings: { temperatureUnits: 'c', axisTimeFormat: '24h',
+                   settings: { temperatureUnits: 'c', axisTimeFormat: '24h', healthMode: 'status',
                                statusForecastLeft: 'phoneBattery' } });
   statusRebake.rememberBakeInputs(
     { CITY: 'Bonn', CURRENT_TEMP: 68, SUN_EVENTS: [1, 0, 0, 0, 0] }, { platform: 'basalt' });
@@ -606,17 +607,24 @@ test('the re-bake renders the live reading through the real status-line pipeline
   assert.deepEqual(slot, { kind: catalog.KINDS.TEXT, icon: catalog.ICONS.PHONE_BATTERY_CHG, text: '42%' });
 });
 
-test('on a Pebble Time 2 the re-bake carries a made bar 4 to 6 line too, and only a made one', () => {
+test('on a Pebble Time 2 the re-bake carries the line of a bar 4 to 6 a screen shows', () => {
   const mgr = fakeManager(0.62, false);
+  // One screen: bar 4 above the Forecast bar. Bar 5 is made but on no screen.
   const h = boot({ navigator: modernNavigator(mgr), realBake: true,
                    settings: { temperatureUnits: 'c', axisTimeFormat: '24h',
-                               statusBar4Made: true, statusBar4Left: 'phoneBattery' } });
+                               layoutPreset: 'custom', viewCount: '1', viewTop0: 'none',
+                               viewBody0: 'forecast', viewUpper0: 'bar4', viewLower0: 'weather',
+                               statusBar4Made: true, statusBar4Left: 'phoneBattery',
+                               statusBar5Made: true, statusBar5Left: 'phoneBattery' } });
   statusRebake.rememberBakeInputs(
     { CITY: 'Bonn', CURRENT_TEMP: 68, SUN_EVENTS: [1, 0, 0, 0, 0] }, { platform: 'emery' });
 
   mgr.setLevel(0.42);
-  assert.deepEqual(Object.keys(h.sends[0]).sort(), SIX_STATUS_KEYS.concat('STATUS_LINE_5_UINT8').sort(),
-    'bar 4 is made, bars 5 and 6 are not');
+  assert.deepEqual(Object.keys(h.sends[0]).sort(),
+    ['STATUS_LINE_1_UINT8', 'STATUS_LINE_3_UINT8', 'STATUS_LINE_5_UINT8',
+     'STATUS_LEVELS_UINT8', 'ALERT_ENTRIES_UINT8'].sort(),
+    'the Forecast bar and bar 4 are on the screen and the Watch bar is always sent; '
+    + 'bar 5 is on no screen, bar 6 is not made, and no screen shows the Radar or Health bar');
   assert.deepEqual(decodeLine(h.sends[0].STATUS_LINE_5_UINT8)[0],
     { kind: catalog.KINDS.TEXT, icon: catalog.ICONS.PHONE_BATTERY, text: '42%' },
     'bar 4 carries the live reading');

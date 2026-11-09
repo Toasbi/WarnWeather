@@ -65,17 +65,18 @@ function isAlertCode(code) {
 
 /**
  * The edge slots that merge the weather alert of their metric (status-lines.js
- * mergedAlert): each bar's left or right slot whose selection (stored, else its
+ * mergedAlert): each baked bar's left or right slot whose selection (stored, else its
  * default) is an alert's code while that alert is ticked on the slot's side of the
  * bar. Such a slot bakes the alert's value into its text, so moving the alert onto
  * or off that side re-bakes it; moving it anywhere else does not.
  * @param {Object} settings Clay settings.
+ * @param {Object} env Platform env of the watch the data is baked for.
  * @returns {string} e.g. 'radar.left.uv', comma-joined; '' for none
  */
-function mergedSlots(settings) {
+function mergedSlots(settings, env) {
     var out = [];
-    // A made bar 4 to 6's too (Pebble Time 2: catalog madeExtraLines, read env-free).
-    var lines = statusCatalog.bakedLines(settings);
+    // The lines the bake sends (catalog bakedLines): a bar no screen shows bakes nothing.
+    var lines = statusCatalog.bakedLines(settings, env);
     for (var l = 0; l < lines.length; l++) {
         var line = lines[l];
         for (var s = 0; s < 3; s += 2) {
@@ -117,6 +118,7 @@ function signSlots(parts, settings, keys) {
 function renderSignature(settings, watchInfo) {
     if (!settings) { return ''; }
     settings = graphStyleWire.weatherSettings(settings, watchInfo || null);
+    var env = platformLib.computeEnv(watchInfo || null);
     // Series selection and encoding — fourthLine/fifthLine change which series the phone
     // bakes (and fetches — UV), so it joins. NOT the theme or the area-fill toggle:
     // the line colours, the fill flag, the ...LineStyle keys and the
@@ -185,13 +187,20 @@ function renderSignature(settings, watchInfo) {
     for (var d = 0; d < dayMaxKeys.length; d++) {
         parts.push(settings[dayMaxKeys[d]]);
     }
-    // ...and the twelve slot selections themselves, each followed by its countdown
-    // target date (status-lines.js bakes the day count from '<slot>Countdown') —
-    // but only while that slot shows the countdown. The page hydrates every slot's
-    // date to today whether it is used or not, so signing the inert ones would force
-    // a needless fetch on the first save that writes them. The '' keeps the
-    // position fixed, so no two keys can ever share a signature slot.
-    signSlots(parts, settings, statusCatalog.allSlotKeys());
+    // ...and the slot selections of every line the bake sends (catalog bakedLines: the
+    // Watch bar's and each bar a screen shows), each line's id and then its slots, each
+    // slot followed by its countdown target date (status-lines.js bakes the day count
+    // from '<slot>Countdown') — but only while that slot shows the countdown. The page
+    // hydrates every slot's date to today whether it is used or not, so signing the
+    // inert ones would force a needless fetch on the first save that writes them. The ''
+    // keeps the position fixed, so no two keys can ever share a signature slot. A bar a
+    // screen starts showing joins the list, so its save fetches what its slots need
+    // (UV, AQI, pollen, a day's peaks); a slot on a bar no screen shows bakes and
+    // fetches nothing, so editing it signs nothing.
+    statusCatalog.bakedLines(settings, env).forEach(function (line) {
+        parts.push(line.id);
+        signSlots(parts, settings, line.slots);
+    });
     // The WEATHER threshold kinds are evaluated phone-side at weather-bake
     // time (STATUS_LEVELS_UINT8 and the alert entries), so a pair edit only
     // shows up after a refetch — without this the new level would first
@@ -239,18 +248,11 @@ function renderSignature(settings, watchInfo) {
     }).join(','));
     // The one placement that does bake: an alert on the side whose slot shows its
     // metric, which merges into that slot's text (mergedSlots).
-    parts.push(mergedSlots(settings));
+    parts.push(mergedSlots(settings, env));
     // The graph styles' spare row (emery): the union's fifth series, which no line key holds.
     // Signed only while there is one, so every other bake signs as it did before the spare.
     var spare = spareSignature(settings);
     if (spare) { parts.push(spare); }
-    // Bars 4 to 6 (Pebble Time 2): each line the bake sends (catalog madeExtraLines, the
-    // watch's), its id and then its slots signed as the twelve's are. Only while one is made,
-    // so every other bake signs as it did before them.
-    statusCatalog.madeExtraLines(settings, platformLib.computeEnv(watchInfo || null)).forEach(function (line) {
-        parts.push(line.id);
-        signSlots(parts, settings, line.slots);
-    });
     return parts.join('|');
 }
 

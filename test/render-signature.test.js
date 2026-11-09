@@ -133,13 +133,17 @@ test('the Show unit toggles are independent of each other', () => {
 // shows the countdown: the page hydrates every slot's date to today, so signing the
 // unused ones would buy a needless fetch on the first save that writes them.
 const SLOT_KEYS = require('../src/pkjs/status-line-catalog.js').allSlotKeys();
+// The default screens show the Forecast, Radar and Watch bars; healthMode 'status' adds the
+// Health bar, so every one of the twelve slots bakes (and signs).
+const ALL_BARS = { healthMode: 'status' };
+const withBars = (over) => renderSignature(Object.assign({}, ALL_BARS, over));
 
 test('a countdown slot\'s target date changes the render signature', () => {
   assert.equal(SLOT_KEYS.length, 12);
   SLOT_KEYS.forEach((key) => {
     assert.notEqual(
-      renderSignature({ [key]: 'countdown', [key + 'Countdown']: '2026-12-25' }),
-      renderSignature({ [key]: 'countdown', [key + 'Countdown']: '2027-06-01' }),
+      withBars({ [key]: 'countdown', [key + 'Countdown']: '2026-12-25' }),
+      withBars({ [key]: 'countdown', [key + 'Countdown']: '2027-06-01' }),
       key + 'Countdown must be signed while ' + key + ' shows the countdown');
   });
 });
@@ -147,8 +151,8 @@ test('a countdown slot\'s target date changes the render signature', () => {
 test('the target date of a slot NOT showing the countdown stays out of the signature', () => {
   SLOT_KEYS.forEach((key) => {
     assert.equal(
-      renderSignature({ [key]: 'temp', [key + 'Countdown']: '2026-12-25' }),
-      renderSignature({ [key]: 'temp' }),
+      withBars({ [key]: 'temp', [key + 'Countdown']: '2026-12-25' }),
+      withBars({ [key]: 'temp' }),
       key + 'Countdown is inert while ' + key + ' shows something else');
   });
 });
@@ -157,15 +161,31 @@ test('each countdown date keeps its own signature slot', () => {
   // A fixed position per slot: one slot's date may never read as another's, nor as a
   // slot selection.
   const seen = SLOT_KEYS.map((key) =>
-    renderSignature({ [key]: 'countdown', [key + 'Countdown']: '2026-12-25' }));
+    withBars({ [key]: 'countdown', [key + 'Countdown']: '2026-12-25' }));
   seen.forEach((sig, i) => seen.slice(i + 1).forEach((other, j) =>
     assert.notEqual(sig, other, SLOT_KEYS[i] + ' and ' + SLOT_KEYS[i + 1 + j] + ' collide')));
   const a = SLOT_KEYS[0];
   const b = SLOT_KEYS[1];
   assert.notEqual(
-    renderSignature({ [a]: 'countdown', [a + 'Countdown']: 'x', [b]: 'temp' }),
-    renderSignature({ [a]: 'countdown', [b]: 'x' }),
+    withBars({ [a]: 'countdown', [a + 'Countdown']: 'x', [b]: 'temp' }),
+    withBars({ [a]: 'countdown', [b]: 'x' }),
     'a date may not shift into the next slot selection');
+});
+
+// A bar no screen shows is sent no line and fetches nothing (status-line-catalog.js
+// bakedLines), so its slots sign nothing; the save that puts it on a screen re-signs, which
+// fetches what its slots need.
+test('a bar no screen shows signs none of its slots; putting it on a screen re-signs', () => {
+  assert.equal(renderSignature({ statusHealthLeft: 'uv' }), renderSignature({ statusHealthLeft: 'wind' }),
+    'the default screens show no Health bar');
+  assert.notEqual(withBars({ statusHealthLeft: 'uv' }), withBars({ statusHealthLeft: 'wind' }),
+    'on a screen, its slot edit re-bakes');
+  assert.notEqual(renderSignature({ statusHealthLeft: 'uv' }), withBars({ statusHealthLeft: 'uv' }),
+    'showing the bar re-signs');
+  assert.equal(renderSignature({ radarMode: 'off', statusRadarRight: 'aqi' }),
+    renderSignature({ radarMode: 'off', statusRadarRight: 'pollen' }), 'the radar off: no Radar bar');
+  // The Watch bar is always sent: every watch can show it (a Quick View peek brings it back).
+  assert.notEqual(renderSignature({ statusTopLeft: 'uv' }), renderSignature({ statusTopLeft: 'wind' }));
 });
 
 // The night pause decides whether fetching happens at all (and which IS_SLEEPING glyph

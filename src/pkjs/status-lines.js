@@ -457,8 +457,9 @@ function packLine(line, payload, settings, env, alerts) {
 }
 
 /**
- * Add STATUS_LINE_1..4_UINT8 (and a made bar 4 to 6's STATUS_LINE_5..7_UINT8 on a Pebble
- * Time 2), the packed STATUS_LEVELS_UINT8 threshold bytes and
+ * Add the status lines the watch shows (STATUS_LINE_1..4_UINT8, and a bar 4 to 6's
+ * STATUS_LINE_5..7_UINT8 on a Pebble Time 2: catalog bakedLines), the packed
+ * STATUS_LEVELS_UINT8 threshold bytes and
  * the weather alerts' ALERT_ENTRIES_UINT8 to the weather payload. Must run BEFORE
  * applyForecastSeries deletes the transient trend arrays (AQI_TREND,
  * WIND_TREND_UINT8, GUST_TREND_UINT8, PRESSURE_TREND, POLLEN_TODAY,
@@ -484,9 +485,8 @@ function buildStatusLines(payload, settings, watchInfo) {
   // page threads the same flag into its own env through config-ui/index.js'
   // opts.env, so both sides answer from the one PHONE_BATTERY_SUPPORTED key.
   env.phoneBattery = phoneBatterySupported();
-  // The four lines every watch has, then a made bar 4 to 6's on a watch that has them (Pebble
-  // Time 2: STATUS_LINE_5..7_UINT8, catalog madeExtraLines). A bar that is not made sends no
-  // line, so a watch without one is sent exactly the four.
+  // The Watch bar's line, then each bar's that a screen shows (catalog bakedLines). A bar on
+  // no screen is sent no line: its text would only cost the send and the watch's flash write.
   var lines = catalog.bakedLines(settings, env);
   for (var l = 0; l < lines.length; l++) {
     var line = lines[l];
@@ -497,8 +497,8 @@ function buildStatusLines(payload, settings, watchInfo) {
   // Skipped for a watch that compiles the highlight out (aplite — no
   // WW_THRESHOLD_HIGHLIGHT, so its inbox handler for this tuple is gone too):
   // sending it would only spend BLE bytes and inbox budget on a tuple that is
-  // read and discarded. The 'status' category still carries the four line blobs,
-  // so the change detector is unaffected.
+  // read and discarded. The 'status' category still carries the Watch bar's line
+  // (always baked), so the change detector is unaffected.
   if (env.thresholds) {
     payload.STATUS_LEVELS_UINT8 = statusWire.packWeatherLevels(payload, settings);
     // The weather alerts' metric entries, judged here for the same reason. Its own

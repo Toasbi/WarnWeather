@@ -161,19 +161,29 @@ test('slotOptions: empty first, excludeCodes removed, sibling selections now sho
   assert.ok(codes.includes('date'));       // date is position-free since custom layouts
 });
 
-test('selectedCodes falls back to line defaults for missing keys', () => {
+test('selectedCodes falls back to line defaults for missing keys, over the bars a screen shows', () => {
   const codes = catalog.selectedCodes({ statusRadarMid: 'wind' });
-  assert.equal(codes.length, 12);
+  assert.equal(codes.length, 9, 'the default screens show the Forecast, Radar and Watch bars');
   assert.ok(codes.includes('wind'));  // stored value wins
   assert.ok(codes.includes('temp'));  // forecast-left default
   assert.ok(codes.includes('battery'));
   assert.ok(!codes.includes('sun'), 'it answers the flavor-less top row');
-  // The twelve answer the flavor-less defaults on every watch: its callers are fetch gates
+  assert.ok(!codes.includes('steps'), 'the Health bar\'s defaults count only while a screen shows it');
+  const all = catalog.selectedCodes({ statusRadarMid: 'wind', healthMode: 'status' });
+  assert.equal(all.length, 12, 'with the Health bar on a screen');
+  assert.ok(all.includes('steps'));
+  assert.equal(catalog.selectedCodes({ radarMode: 'off', statusRadarMid: 'pollen' }).indexOf('pollen'), -1,
+    'the radar off: no screen shows the Radar bar, so its slots fetch nothing');
+  // The codes answer the flavor-less defaults on every watch: its callers are fetch gates
   // for uv/aqi/pollen, none of which a per-platform flavor moves. The env decides only
-  // whether a made bar 4 to 6 counts (test/extra-bars.test.js). The emery flavor is pinned
+  // which bars the watch draws (test/extra-bars.test.js). The emery flavor is pinned
   // at its real source instead.
   assert.deepEqual(catalog.selectedCodes({ statusRadarMid: 'wind' }, ENV_EMERY), codes,
     'the env moves no default');
+  // aplite draws neither the Radar bar nor the Health bar, whatever a settings blob from
+  // another watch puts on its screens.
+  assert.equal(catalog.selectedCodes({ statusRadarMid: 'wind', healthMode: 'status' }, ENV_APLITE).length, 6,
+    'aplite: the Forecast and Watch bars');
   assert.equal(catalog.slotDefault('statusTopRight', ENV_EMERY), 'sun');
 });
 
