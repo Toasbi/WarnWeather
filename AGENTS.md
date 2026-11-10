@@ -350,27 +350,28 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   `"What's new in <version>"` and use only the supported markdown subset (`**bold**`
   section headers, `- ` bullets, `*italic*`, `[text](https://…)` links — see
   `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
-- **Changelog style: grouped by kind, one short upbeat row per item** (the owner's,
+- **Changelog style: grouped by kind, one plain sentence per item** (the owner's,
   2026-11-10). The news body and the appstore changelog both list the items under
   `New features`, `Improvements` and `Fixes`: bold headings in the news body, plain lines
-  in the appstore text. Each item is one short row, about eight words: what the user gets,
-  named the way they see it, ending in an exclamation mark where it fits. No second
-  sentence, no aside, no how-to. A platform limit goes in parentheses at the end
-  (`(Pebble Time 2)`), or after the heading when the whole group shares it. Fixes get one
-  row per watchface bug a user would have noticed, then one grouped row for polish. Leave
-  out mechanics, defaults and edge cases. The news body renders flat `- ` bullets only
-  (`news.js`), so no sub-bullets. The shape to match (3.0.0's):
+  in the appstore text. Each item is one row of one sentence, about ten to fifteen words:
+  what the user gets, named the way they see it, and what it does. No exclamation marks,
+  no second sentence, no aside, no how-to and no full stop. A platform limit goes in
+  parentheses at the end (`(Pebble Time 2)`), or after the heading when the whole group
+  shares it. Fixes get one row per watchface bug a user would have noticed, then one
+  grouped row for polish. Leave out mechanics, defaults and edge cases. The news body
+  renders flat `- ` bullets only (`news.js`), so no sub-bullets. The shape to match
+  (3.0.0's):
 
   ```
   **New features** (not on Pebble Classic or Steel)
-  - Name your screens and drag them into order!
-  - Up to six status bars! (Pebble Time 2)
+  - Name your screens and drag them into the order you want
+  - Make up to six status bars and fill them as you like (Pebble Time 2)
 
   **Improvements**
-  - Setup draws your own watch, live!
+  - Setup shows your own watch while you pick its layout and theme
 
   **Fixes**
-  - Settings open again right after Reset watchface
+  - The settings open again right after Reset watchface
   - Smaller fixes and polish
   ```
 - **Write the changelog for users, not the diff** (both the toast and the news body). Call
@@ -378,9 +379,8 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   affected the watchface itself. Group everything else — settings-screen polish, internal
   refactors, small fixes — into one line ("small fixes and polish"), or omit it. A
   polish-only patch gets one grouped line, not an itemized list of cosmetic tweaks.
-  Upbeat is fine (the style above), but keep every claim true and every line short: no
-  filler reassurances ("nothing you need to change on your end") and no generic sign-offs
-  ("more on the way", "message me anytime").
+  Keep the tone factual and concise: no filler reassurances ("nothing you need to change
+  on your end") and no generic sign-offs ("more on the way", "message me anytime").
 - Brainstorming spec/plan files (e.g. under `docs/`, which is gitignored) stay untracked —
   don't `git add -f` them.
 
