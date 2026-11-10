@@ -1005,7 +1005,6 @@ concatenates the library's WebView files and the app's own browser-side files in
 var build = require('../src/pkjs/config-ui/scripts/build-page.js');
 
 function run() {
-  assertScreenshots();   // app-specific guard: fails if required screenshots are missing
   return build.writeGenerated({
     appFiles: [
       'src/pkjs/settings/blocks.js',

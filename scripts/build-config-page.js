@@ -207,8 +207,6 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/alerts-page.js'),
   // The Watchface tab's shared Night hours (its resolvers, onChange hooks and onSubmit).
   path.join(ROOT, 'src/pkjs/settings/night-hours.js'),
-  // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
-  path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),
   // defaults-policy.js assigns window.DefaultsPolicy, which wizard-finish.js binds while its
   // own body runs, so it comes first. test/config-page-bundle.test.js pins every rule id into
   // the generated page: a Node test takes the require() branch and would not notice it missing.
@@ -265,29 +263,7 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/weather-tab.js')
 ];
 
-// Hard-fail if the wizard screenshots are missing/incomplete — the wizard has NO fallback. The
-// required (platform, group, val) matrix is derived from gen-wizard-fixtures.js's SHOTS table, so it
-// stays in lockstep with the capture automatically. Pass a module object to validate it directly (tests).
-function assertScreenshots(mod) {
-  if (!mod) {
-    try { mod = require('../src/pkjs/settings/wizard-screenshots.generated.js'); }
-    catch (e) { throw new Error('wizard screenshots missing — run `mise capture-wizard-screenshots` (on the Mac).'); }
-  }
-  var SHOTS = require('./gen-wizard-fixtures.js').SHOTS;
-  function ok(v) { return typeof v === 'string' && v.indexOf('data:image/png;base64,') === 0; }
-  var missing = [];
-  SHOTS.forEach(function (s) {
-    String(s.platforms || '').split(/\s+/).filter(Boolean).forEach(function (plat) {
-      var g = mod[plat] || {};
-      var got = (s.group === 'radar') ? g.radar : (g[s.group] && g[s.group][s.val]);
-      if (!ok(got)) { missing.push(plat + '.' + s.group + (s.group === 'radar' ? '' : '.' + s.val)); }
-    });
-  });
-  if (missing.length) { throw new Error('wizard screenshots incomplete: ' + missing.join(', ') + ' — run `mise capture-wizard-screenshots`.'); }
-}
-
 function run() {
-  assertScreenshots();
   return build.writeGenerated({ out: OUT, appFiles: APP_FILES });
 }
 
@@ -295,4 +271,4 @@ if (require.main === module) {
   console.log('wrote ' + run());
 }
 
-module.exports = { run: run, APP_FILES: APP_FILES, assertScreenshots: assertScreenshots };
+module.exports = { run: run, APP_FILES: APP_FILES };

@@ -8,10 +8,10 @@
 //
 // Each step is one screen: a progress bar and Back on top, the step in the middle, one primary
 // button at the bottom. The layout and theme steps share a picker: the watch, large, showing the
-// selected option's real screenshot, with the options as a segmented control below it (a radio
-// group: tap, swipe the watch, or use the arrow keys). The Screens and forecast steps draw the
-// watch's own screens live instead (preview-watch.js, as the Watchface tab does). Nothing is
-// written until the user picks. The layout picks the Default screen and the Screens step the flick
+// Default screen with the selected option, with the options as a segmented control below it (a
+// radio group: tap, swipe the watch, or use the arrow keys). Every step draws the watch's own
+// screens live (preview-watch.js, as the Watchface tab does), from the settings as they stand.
+// Nothing is written until the user picks. The layout picks the Default screen and the Screens step the flick
 // screens (screens-page.js writes both, as the Watchface tab's screen editor does).
 /* global PConf, Intl, navigator, document, console, VIEW_CYCLE, COUNTRY_DEFAULTS */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
@@ -37,8 +37,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var GS = node ? require('../graph-styles.js') : window.GraphStyles;
     var FINISH = node ? require('./wizard-finish.js') : window.WizardFinish;
     var UPSELL = node ? require('./wizard-upsell.js') : window.WizardUpsell;
-    // The frame every screen picture sits in (the Watchface tab's too): the screen on its own ground.
-    var FRAME = node ? require('./screen-frame.js') : window.ScreenFrame;
 
     /**
      * The steps. `when` names the env fact a step needs: the Screens step where the watch has a
@@ -103,7 +101,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * The pickers. `options` and `desc` read the run; `selected` is read off the settings (the
      * layout from the Default screen, the forecast look from the graph, the length as the phone
      * reads it): only a highlight, the settings change on a real pick alone; `write` replaces the
-     * plain write; `graph` previews in the forecast step's screen instead of a screenshot.
+     * plain write; `graph` previews in the forecast step's screen, the others on the picker's watch.
      */
     var PICKERS = {
         layoutPreset: {
@@ -142,10 +140,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
     };
 
-    // Real watch screenshots, base64-inlined by `mise capture-wizard-screenshots` into
-    // wizard-screenshots.generated.js (PConf.screenshots, concatenated ahead of this file).
-    var SHOTS = PConf.screenshots || {};
-
     // The page around the wizard: its ready ctx, kept for "Run setup again".
     var page = { ctx: null };
     // One setup run, null while none is open (newRun).
@@ -167,8 +161,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // with its calendar), and the Long forecast screen's graph this run made: its index
             // and the length the Default graph had before it (addTemplate, removeScreen).
             added: [], long: null,
-            // Where a swipe on the picker's preview started; the latest screenshot swap.
-            touch: null, shotSeq: 0,
+            // Where a swipe on the picker's preview started; the latest redraw of its watch.
+            touch: null, picSeq: 0,
             // The summary has been shown (footer); a Tomorrow.io key was typed in this run.
             reachedDone: false, tioTyped: false,
             // Where focus goes when setup closes onto the page: the row that re-ran it.
@@ -246,50 +240,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S.dateSlotFullFormat = m.dateSlotFullFormat;
     }
 
-    // --- screenshots ---
-    // Keyed by platform (SHOTS[platform][group][val]). diorite isn't captured separately: a B&W watch
-    // with health and radar, the class of flint, so it shows flint's.
-    function shotPlatform() {
-        var p = run.env.platform || 'basalt';
-        return (p === 'diorite') ? 'flint' : p;
-    }
-    function shotFor(group, val) { var s = SHOTS[shotPlatform()] || {}; return (s[group] && s[group][val]) || ''; }
+    // --- the watch the pickers show ---
     /**
-     * A screenshot's ground: the background of the theme it was captured on. The light themes'
-     * shots are on white; every other one is captured on Dark (scripts/gen-wizard-fixtures.js).
-     * test/wizard-shot-ground.test.js reads each shot's corners against this.
-     * @param {string} group SHOTS group.
-     * @param {string} val Its value.
-     * @returns {string} '#FFFFFF' | '#000000'.
-     */
-    function shotGround(group, val) {
-        return (group === 'theme' && (val === 'light' || val === 'bw-light')) ? '#FFFFFF' : '#000000';
-    }
-    // The screen the screenshots were captured on: 144 x 168, emery's 200 x 228.
-    function shotScreen() { return shotPlatform() === 'emery' ? { w: 200, h: 228 } : { w: 144, h: 168 }; }
-    /**
-     * One screenshot, at its screen's own size, for watchHtml.
-     * @param {string} src The screenshot.
-     * @param {string} cls Its class.
-     * @param {boolean} [hook] The picker's swappable shot (data-wiz-shot).
-     * @returns {string} SVG markup.
-     */
-    function shotImage(src, cls, hook) {
-        var sc = shotScreen();
-        return FRAME.image(sc.w, sc.h, esc(src), 'class="' + cls + '"' + (hook ? ' data-wiz-shot' : ''));
-    }
-    /**
-     * The watch: its screen in the frame every screen picture shares (screen-frame.js), a margin of
-     * the screenshots' own ground all round, so the card's round corners clip nothing on it.
-     * @param {string} shots The screen: a shotImage.
-     * @param {string} bg Their ground.
+     * The watch showing the Default screen as the screen editor draws it (screenPic), from the
+     * live settings: what the Layout and Theme pickers have picked, and the welcome's first look.
      * @param {string} [label] What it shows, for assistive tech (none: the caption beside it says).
      * @returns {string} HTML.
      */
-    function watchHtml(shots, bg, label) {
-        var sc = shotScreen();
+    function watchHtml(label) {
         return '<div class="wiz-watch" data-wiz-watch' + (label ? ' role="img" aria-label="' + esc(label) + '"' : '') + '>'
-            + FRAME.svg(sc.w, sc.h, bg, shots, 'wiz-scr') + '</div>';
+            + screenPic(run.ctx.S, 0, 'wd-').svg + '</div>';
     }
 
     // --- the forecast step ---
@@ -510,35 +470,36 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function pickerHtml(group) {
         var sel = highlighted(group);
         return '<div class="wiz-stage big" data-wiz-preview="' + esc(group) + '">'
-            + watchHtml(shotImage(shotFor(group, sel), 'wiz-shot', true), shotGround(group, sel),
-                labelFor(optsFor(group), sel) + ' preview')
+            + watchHtml(labelFor(optsFor(group), sel) + ' preview')
             + '</div>' + optsHtml(group, 'wiz-title');
     }
     /**
-     * Swap the picker's screenshot with a short fade (none under reduced motion). A newer swap wins
-     * over one still fading. The ground follows the new shot as it lands (a light theme's is white).
-     * The shot is an SVG <image>: its class is an attribute (className is no string on SVG).
+     * Redraw the picker's watch from the settings the pick wrote, fading the old screen out and the
+     * new one in (no fade under reduced motion). A newer pick wins over one still fading out. The
+     * screen is an SVG: its class is an attribute (className is no string on SVG).
      * @param {string} group The picker.
      * @param {string} val The picked option.
      * @returns {void}
      */
-    function swapShot(group, val) {
-        var watch = run.overlay.querySelector('[data-wiz-watch]'), img = run.overlay.querySelector('[data-wiz-shot]');
-        if (!watch || !img) { return; }
-        var src = shotFor(group, val), bg = shotGround(group, val);
+    function swapPicture(group, val) {
+        var watch = run.overlay.querySelector('[data-wiz-watch]');
+        if (!watch) { return; }
         watch.setAttribute('aria-label', labelFor(optsFor(group), val) + ' preview');
-        run.shotSeq += 1;
-        var seq = run.shotSeq;
+        run.picSeq += 1;
+        var seq = run.picSeq, old = watch.querySelector('.wiz-scr'), fade = Boolean(old) && !reducedMotion();
         function land() {
-            FRAME.setImage(img, src);
-            FRAME.setGround(watch, bg);
-            img.setAttribute('class', 'wiz-shot');
+            watch.innerHTML = screenPic(run.ctx.S, 0, 'wd-').svg;
+            var scr = watch.querySelector('.wiz-scr');
+            if (!fade || !scr) { return; }
+            // In faded out, then let the transition bring it up.
+            scr.setAttribute('class', 'wiz-scr fade');
+            if (scr.getBoundingClientRect) { scr.getBoundingClientRect(); }
+            scr.setAttribute('class', 'wiz-scr');
         }
-        if (img.getAttribute('href') === src) { img.setAttribute('class', 'wiz-shot'); return; }
-        if (reducedMotion()) { land(); return; }
-        img.setAttribute('class', 'wiz-shot fade');
+        if (!fade) { land(); return; }
+        old.setAttribute('class', 'wiz-scr fade');
         setTimeout(function () {
-            if (!run || seq !== run.shotSeq) { return; }
+            if (!run || seq !== run.picSeq) { return; }
             land();
         }, 140);
     }
@@ -557,7 +518,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         commit(group, val);
         markPicked(group, val, focus);
         if (!graph) {
-            swapShot(group, val);
+            swapPicture(group, val);
         } else if (graphState() !== before) {
             refreshForecast();
         }
@@ -640,7 +601,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function screenPic(S, i, prefix, cycle) {
         var pic = SP.screenPicture(S, i, run.env, run.ctx.USERDATA, prefix, cycle);
-        // The wizard's frame class, whose widths follow the screenshots' (wizard-css.js).
+        // The wizard's frame class, whose widths follow the screen's (wizard-css.js).
         return { svg: pic.svg.replace('class="wpv-scr"', 'class="wiz-scr"'), label: pic.label };
     }
     /**
@@ -865,11 +826,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var lead = radar ? 'This watchface shows the forecast, the rain radar and your calendar.'
             : 'This watchface shows the forecast and your calendar.';
         var region = FINISH.findItem(run.ctx.schema, 'holidayRegion');
-        var layout = highlighted('layoutPreset');
-        var h = '<div class="wiz-stage">'
-            + watchHtml(shotImage(shotFor('layoutPreset', layout), 'wiz-shot'), shotGround('layoutPreset', layout),
-                'WarnWeather on your watch')
-            + '</div>'
+        var h = '<div class="wiz-stage">' + watchHtml('WarnWeather on your watch') + '</div>'
             + stepHead('welcome')
             + '<p class="wiz-lead">' + lead + ' Setup takes a minute. You can change everything later.</p>'
             + '<div class="wiz-card"><div class="wiz-card-hd">Your country</div>'
@@ -881,7 +838,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function stepLayout() {
         return stepHead('layout') + pickerHtml('layoutPreset')
             + '<div class="wiz-legend">'
-            + '<p>The <b>Forecast bar</b> shows your location, the temperature and the air quality.</p>'
+            + '<p>The <b>Forecast bar</b> shows the temperature, your location and the next sunset or sunrise.</p>'
             + '<p>The <b>Forecast</b> graph shows the temperature, rain and more, hour by hour.</p></div>';
     }
     /**
@@ -1264,8 +1221,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ensureStyle();
         var overlay = document.createElement('div');
         overlay.id = 'wizard';
-        // emery's screenshots are 200 px wide, the others 144: the CSS sizes each by its own width.
-        overlay.className = shotPlatform() === 'emery' ? 'w200' : '';
+        // emery's screen is 200 px wide, the others 144: the CSS sizes each by its own width.
+        overlay.className = run.env.platform === 'emery' ? 'w200' : '';
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('aria-labelledby', 'wiz-title');
@@ -1294,7 +1251,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.actions.startWizard = function () { if (page.ctx) { openWizard(page.ctx, false); } };
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { buildSteps: buildSteps, shouldShow: shouldShow, applyDerived: applyDerived,
-            shotGround: shotGround };
+        module.exports = { buildSteps: buildSteps, shouldShow: shouldShow, applyDerived: applyDerived };
     }
 })();

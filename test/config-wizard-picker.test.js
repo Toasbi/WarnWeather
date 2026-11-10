@@ -20,8 +20,6 @@ require('../src/pkjs/settings/blocks.js');
 require('../src/pkjs/settings/reset-status-defaults.js');
 // The Theme row's real conversion: the looks' defaults follow it (the bars' colour a theme starts on).
 require('../src/pkjs/settings/theme-convert.js');
-// The real screenshots, as the page concatenates them before wizard.js (which reads them at load).
-require('../src/pkjs/settings/wizard-screenshots.generated.js');
 require('../src/pkjs/settings/wizard.js');
 const FORECAST = require('../src/pkjs/settings/wizard-forecast.js');
 const SCREENS = require('../src/pkjs/settings/wizard-screens.js');
@@ -240,45 +238,56 @@ test('the summary names every theme on a colour watch, B&W ones included', () =>
   });
 });
 
+/**
+ * The Default screen as the Watchface tab's screen editor draws it from the live settings, in the
+ * wizard's frame class: what the Layout and Theme pickers' watch shows.
+ * @param {Object} ctx The page's ctx.
+ * @returns {string} SVG markup.
+ */
+function defaultScreen(ctx) {
+  return SPAGE.screenPicture(ctx.S, 0, ctx.ENV, ctx.USERDATA, 'wd-').svg.replace('class="wpv-scr"', 'class="wiz-scr"');
+}
+
 test('a pick updates the segments, the description and the watch in place', () => {
   mock.timers.enable({ apis: ['setTimeout'] });
   try {
-    const { dom } = openSetup({ saved: { layoutPreset: 'compactCal' } });
+    const { ctx, dom } = openSetup({ saved: { layoutPreset: 'compactCal' } });
     walkTo(dom, 'layoutPreset');
-    const shot = dom.find('[data-wiz-shot]');
-    const compactSrc = shot.getAttribute('href');
-    assert.ok(compactSrc.indexOf('data:image/png;base64,') === 0, 'the screenshot, as the frame\'s <image>');
-    assert.equal(shot.getAttribute('xlink:href'), compactSrc, 'in both href forms');
+    const watch = dom.find('[data-wiz-watch]');
+    const compact = watch.innerHTML;
+    assert.equal(compact, defaultScreen(ctx), 'the Default screen, drawn as the screen editor draws it');
     dom.pick('layoutPreset', 'fullCal');
     assert.deepEqual(dom.picker().selected, 'fullCal');
     const segs = dom.findAll('[data-wiz-opt]');
     assert.deepEqual(segs.map((x) => [x.getAttribute('aria-checked'), x.getAttribute('tabindex'), x.className]),
       [['true', '0', 'wiz-opt on'], ['false', '-1', 'wiz-opt'], ['false', '-1', 'wiz-opt']]);
     assert.match(dom.find('[data-wiz-desc="layoutPreset"]').textContent, /three-row calendar/);
-    assert.equal(shot.getAttribute('class'), 'wiz-shot fade', 'the old picture fades out first');
+    assert.equal(watch.querySelector('.wiz-scr').getAttribute('class'), 'wiz-scr fade', 'the old picture fades out first');
+    assert.equal(watch.innerHTML, compact, 'and stays until it has');
     mock.timers.tick(150);
-    assert.notEqual(shot.getAttribute('href'), compactSrc);
-    assert.equal(shot.getAttribute('class'), 'wiz-shot');
-    assert.equal(dom.find('[data-wiz-watch]').getAttribute('aria-label'), 'Full calendar preview');
+    assert.equal(watch.innerHTML, defaultScreen(ctx), 'then the screen the pick made');
+    assert.notEqual(watch.innerHTML, compact);
+    assert.equal(watch.getAttribute('aria-label'), 'Full calendar preview');
   } finally {
     mock.timers.reset();
   }
 });
 
-test('the watch is its screenshot in the screen pictures\' frame, on the shot\'s own ground', () => {
+test('the watch is the Default screen in the screen pictures\' frame, on the picked theme\'s ground', () => {
   mock.timers.enable({ apis: ['setTimeout'] });
   try {
-    const { dom } = openSetup({ saved: { theme: 'dark' } });
+    const { ctx, dom } = openSetup({ saved: { theme: 'dark' } });
     walkTo(dom, 'theme');
     const watch = dom.find('[data-wiz-watch]');
-    const ground = () => watch.querySelector('rect').getAttribute('fill');
+    const ground = () => (/^<svg [^>]*><rect x="-9" y="-9" width="162" height="186" fill="([^"]*)">/.exec(watch.innerHTML) || [])[1];
     assert.match(watch.innerHTML, /^<svg class="wiz-scr" viewBox="-9 -9 162 186" aria-hidden="true" focusable="false">/,
       'the 144 x 168 screen with a 9 px margin, as the Watchface tab frames it');
-    assert.equal(ground(), '#000000', 'Dark\'s shot is on black');
+    assert.equal(ground(), '#000000', 'Dark draws on black');
     assert.equal(watch.getAttribute('role'), 'img');
     dom.pick('theme', 'light');
     mock.timers.tick(150);
-    assert.equal(ground(), '#FFFFFF', 'Light\'s shot is on white, and its margin with it');
+    assert.equal(ground(), '#FFFFFF', 'Light on white, and its margin with it');
+    assert.equal(watch.innerHTML, defaultScreen(ctx), 'drawn from the settings the pick wrote');
     dom.pick('theme', 'dark');
     mock.timers.tick(150);
     assert.equal(ground(), '#000000');
@@ -290,22 +299,29 @@ test('the watch is its screenshot in the screen pictures\' frame, on the shot\'s
 test('two quick picks end on the second one\'s watch (A, B, back to A before the fade lands)', () => {
   mock.timers.enable({ apis: ['setTimeout'] });
   try {
-    const { dom } = openSetup({ saved: { layoutPreset: 'compactCal' } });
+    const { ctx, dom } = openSetup({ saved: { layoutPreset: 'compactCal' } });
     walkTo(dom, 'layoutPreset');
-    const shot = dom.find('[data-wiz-shot]');
-    const compactSrc = shot.getAttribute('href');
+    const watch = dom.find('[data-wiz-watch]');
     dom.pick('layoutPreset', 'fullCal');
     mock.timers.tick(60);
     dom.pick('layoutPreset', 'compactCal');
     mock.timers.tick(200);
-    assert.equal(shot.getAttribute('href'), compactSrc, 'the watch shows the selected option');
-    assert.equal(shot.getAttribute('class'), 'wiz-shot', 'and is not left faded out');
     assert.equal(dom.picker().selected, 'compactCal');
+    assert.equal(watch.innerHTML, defaultScreen(ctx), 'the watch shows the selected option');
+    assert.equal(watch.getAttribute('aria-label'), 'Compact preview');
   } finally {
     mock.timers.reset();
   }
 });
 
+test('the welcome shows the Default screen too; emery\'s at its own width', () => {
+  const { ctx, dom } = openSetup({});
+  assert.equal(dom.find('[data-wiz-watch]').innerHTML, defaultScreen(ctx), 'the watch as it starts');
+  assert.equal(dom.find('[data-wiz-watch]').getAttribute('aria-label'), 'WarnWeather on your watch');
+  const emery = openSetup({ platform: 'emery' });
+  assert.match(emery.dom.find('[data-wiz-watch]').innerHTML, /^<svg class="wiz-scr" viewBox="-12 -12 224 252"/);
+  assert.equal(emery.dom.overlay.className, 'w200', 'the CSS sizes it by its 200 px screen');
+});
 
 test('opening the Tomorrow.io card shows its field and starts at its instructions; a key names it in the summary', () => {
   const { ctx, dom } = openSetup({ saved: { holidayCountry: 'US' } });
