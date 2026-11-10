@@ -55,6 +55,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var PRESETS = (typeof require !== 'undefined') ? require('../screen-presets.js') : window.ScreenPresets;
     // What a screen's graphs draw, as a legend (Add a screen's picked screen).
     var LEGEND = (typeof require !== 'undefined') ? require('./screen-legend.js') : window.ScreenLegend;
+    // A picture's ground (Add a screen's roll, for a picture drawn a moment later).
+    var SF = (typeof require !== 'undefined') ? require('./screen-frame.js') : window.ScreenFrame;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
     var html = (typeof require !== 'undefined') ? require('../config-ui/lib/html.js') : PConf.html;
     var esc = html.esc;
@@ -489,7 +491,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // plus one), else a template's id.
 
     /**
-     * A graph Add a screen can put on a screen's forecast graph, by its value (THE GRAPHS).
+     * Add a screen's roll of graphs (the owner's, 2026-11-10): yours first, by their names, then
+     * the templates in the New graph sheet's order (screen-presets.js templates); none on a watch
+     * with one graph, where every screen keeps it. Each is what a screen's forecast graph draws
+     * with it: `k` your graph's index (-1 for a template's), `look` the template ('' for yours).
+     * @param {Object} N Settings as stored.
+     * @param {?Object} env Platform env.
+     * @returns {Array<{v: string, name: string, k: number, look: string}>}
+     */
+    function rollItems(N, env) {
+        if (env && !env.graphStyles) { return []; }
+        return GSP.existing(N).map(function (k) { return { v: String(k + 1), name: GS.name(N, k), k: k, look: '' }; })
+            .concat(PRESETS.templates(env).map(function (look) { return { v: look.id, name: look.label, k: -1, look: look.id }; }));
+    }
+
+    /**
+     * A graph Add a screen can put on a screen's forecast graph, by its value (THE GRAPHS): one the
+     * roll offers (rollItems), or your first graph on a watch with one graph, which keeps it.
      * @param {Object} N Settings as stored (graph-styles-page.js asStored).
      * @param {?Object} env Platform env.
      * @param {string} v '1' to '6' one of yours, else a template's id; '' your first graph.
@@ -497,31 +515,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      *   this watch cannot draw (a graph you do not have, a template without graph styles)
      */
     function graphOfValue(N, env, v) {
-        var val = String(v || '1'), k = /^[0-9]$/.test(val) ? parseInt(val, 10) - 1 : -1;
-        if (k >= 0) {
-            return k < GS.MAX_STYLES && GS.exists(N, k) && (k === 0 || !env || env.graphStyles) ? { k: k, look: '' } : null;
-        }
-        return PRESETS.template(val, env) ? { k: -1, look: val } : null;
-    }
-
-    /**
-     * Add a screen's roll of graphs (the owner's, 2026-11-10): yours first, by their names, then
-     * the templates in the New graph sheet's order (screen-presets.js templates); none on a watch
-     * with one graph, where every screen keeps it.
-     * @param {Object} N Settings as stored.
-     * @param {?Object} env Platform env.
-     * @returns {Array<{v: string, name: string, yours: boolean}>}
-     */
-    function rollItems(N, env) {
-        if (env && !env.graphStyles) { return []; }
-        return GSP.existing(N).map(function (k) { return { v: String(k + 1), name: GS.name(N, k), yours: true }; })
-            .concat(PRESETS.templates(env).map(function (look) { return { v: look.id, name: look.label, yours: false }; }));
+        var items = rollItems(N, env), val = String(v || '1'), it = items[rollIndex(items, val)];
+        if (!items.length) { return val === '1' ? { k: 0, look: '' } : null; }
+        return it ? { k: it.k, look: it.look } : null;
     }
 
     /**
      * The name a screen Add a screen adds takes (freeName tells it apart): Blank none (its place's),
-     * a forecast screen its template's or your graph's own name (Forecast for a graph still on its
-     * default name), the others their kind's.
+     * a layout's screen (screen-presets.js KINDS layouts: its card is named after its calendar) its
+     * template's or your graph's own name (Forecast for a graph still on its default name), the
+     * others their kind's.
      * @param {Object} N Settings as stored.
      * @param {?Object} env Platform env.
      * @param {Object} kind A screen-presets.js KINDS entry.
@@ -531,7 +534,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function screenName(N, env, kind, look, k) {
         if (!kind.graph) { return ''; }
-        if (kind.id !== 'forecast') { return kind.name; }
+        if (!kind.layouts) { return kind.name; }
         if (look) { return PRESETS.template(look, env).label; }
         return (k >= 0 && GS.parse(N).names[k]) || kind.name;
     }
@@ -543,8 +546,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * templateGraph: never one of the six, so no screen waits for a free graph). `W` is the
      * settings with it added, which its picture draws (the radar on where the screen shows it, as
      * adding it turns it on; the modes the screens need with it: applyModes, so its picture draws
-     * the radar as the watch will); `why` says why it cannot be added: its graph would make more
-     * metrics than the watch shows.
+     * the radar as the watch will).
      * @param {Object} N Settings as stored (graph-styles-page.js asStored).
      * @param {?Object} env Platform env.
      * @param {Array<Array<Object>>} lists The screens.
@@ -552,9 +554,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {string} cal Its calendar: '' | '2' | '3' | screen-presets.js DENSE.
      * @param {?{k: number, look: string}} g Its forecast graph (graphOfValue); null for your first.
      * @param {string} span A template's length ('12' | '24' | '48'); its own without.
-     * @returns {{id: string, name: string, calName: string, look: string, cal: string, span: string,
-     *   list: Array<Object>, graph: ?{k: number, values: Object}, k: number, W: Object, n: number,
-     *   why: string}} k: the graph its forecast graph draws (-1 for none); span: a template's length
+     * @returns {{id: string, kind: Object, name: string, look: string, cal: string, span: string,
+     *   list: Array<Object>, graph: ?{k: number, values: Object}, k: number, W: Object, n: number}}
+     *   k: the graph its forecast graph draws (-1 for none); span: a template's length
      */
     function addChoice(N, env, lists, kind, cal, g, span) {
         var n = lists.length, list = PRESETS.screenOf(kind, cal), at = M.idxOf(list, 'fc');
@@ -570,9 +572,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         W['viewAlign' + n] = 'clock';
         var name = screenName(N, env, kind, look, k);
         W['viewName' + n] = name;
-        var why = k >= 0 && env && env.graphStyles && GSP.screenOverflows(W, env, n, k) ? GSP.limitDesc(W, env, k) : '';
-        return { id: kind.id, name: name, calName: PRESETS.calendarName(kind, cal), look: look, cal: cal,
-            span: graph ? String(graph.values.forecastHours) : '', list: list, graph: graph, k: k, W: W, n: n, why: why };
+        return { id: kind.id, kind: kind, name: name, look: look, cal: cal,
+            span: graph ? String(graph.values.forecastHours) : '', list: list, graph: graph, k: k, W: W, n: n };
     }
 
     /**
@@ -600,7 +601,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {string} cal Its calendar ('' | '2' | '3' | screen-presets.js DENSE).
      * @param {string} [v] Its forecast graph (graphOfValue): your first without.
      * @param {string} [span] A template's length; its own without.
-     * @returns {?Object} addChoice's result
+     * @returns {?Object} addChoice's result, with `why`: why it cannot be added, its graph making
+     *   more metrics than the watch shows ('' when it can)
      */
     function addPreview(S, env, id, cal, v, span) {
         var N = GSP.asStored(S), lists = M.screensOf(N, env), kind = PRESETS.byId(id);
@@ -609,7 +611,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (cal && !cals.some(function (c) { return c[1] === cal; })) { return null; }
         var g = kind.graph === 'fc' ? graphOfValue(N, env, v) : null;
         if (kind.graph === 'fc' && !g) { return null; }
-        return addChoice(N, env, lists, kind, cal || '', g, span || '');
+        var c = addChoice(N, env, lists, kind, cal || '', g, span || '');
+        c.why = c.k >= 0 && env && env.graphStyles && GSP.screenOverflows(c.W, env, c.n, c.k) ? GSP.limitDesc(c.W, env, c.k) : '';
+        return c;
     }
 
     /**
@@ -953,17 +957,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // its picture over its name. A card picked: its screen big, under it the roll of graphs
         // (a strip scrolled sideways out to the body's edges, each graph's picture over its name,
         // larger than the mockup's, the owner's ask; the one in the middle, under the red mark, on
-        // the picture: it settles on one, scroll-snap), then the graph picked by its name over its
-        // legend, its Calendar or Forecast length (a segmented control), why it cannot be added
-        // and Add screen.
+        // the picture, "Your graph" or "Template" under its name: it settles on one, scroll-snap),
+        // then the legend of what it draws, its Calendar or Forecast length (a segmented control),
+        // why it cannot be added and Add screen.
         + '.sa-group{display:grid;gap:8px;min-width:0}'
-        + '.sa-group+.sa-group,.sa-wide+.sa-group{margin-top:8px}'
+        + '.sa-group+.sa-group{margin-top:8px}'
         + '.sa-group>.ui-cap{padding:0 4px}'
         + '.sa-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}'
         + '.sa-card{display:flex;flex-direction:column;gap:9px;min-width:0;margin:0;padding:10px;border:none;'
         + 'border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--card-line);color:var(--lbl);'
         + 'text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
-        + '.sa-card.sa-wide{flex-direction:row;align-items:center;gap:14px}'
+        + '.sa-card.sa-wide{grid-column:1/-1;flex-direction:row;align-items:center;gap:14px}'
         + '.sa-pic{display:block;width:100%;border-radius:9px;overflow:hidden;line-height:0;'
         + 'box-shadow:0 0 0 1px var(--card-line)}'
         + '.sa-wide .sa-pic{flex:none;width:76px}'
@@ -993,16 +997,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.sa-g.on .sa-th{opacity:1;box-shadow:0 0 0 2px #FA4A35}'
         + '.sa-g:focus-visible{outline:none}'
         + '.sa-g:focus-visible .sa-th{box-shadow:0 0 0 2px var(--link)}'
-        + '.sa-sep{flex:0 0 1px;align-self:stretch;margin:4px 0 22px;background:var(--row-line)}'
+        + '.sa-gt{visibility:hidden;margin-top:-4px;font-weight:500;font-size:12px;color:var(--hint)}'
+        + '.sa-g.on .sa-gt{visibility:visible}'
+        + '.sa-sep{flex:0 0 1px;align-self:stretch;margin:4px 0 40px;background:var(--row-line)}'
         + '.sa-sel{display:grid;justify-items:center;gap:6px;text-align:center}'
-        + '.sa-gsub{margin-top:-10px;font-size:12.5px;color:var(--hint)}'
         + '.sa-legend{margin-top:2px}'
-        + '.sa-legend .sl-card{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px}'
         + '.sa-foot{display:grid;gap:12px}'
         + '.sa-row{display:grid;gap:9px}'
         + '.sa-lbl{font:700 12.5px/1.3 Inter,system-ui,sans-serif;color:var(--lbl);padding:0 3px}'
         + '.sa-why,.sa-gap{padding:0 3px;font-size:12.5px;line-height:1.45;color:var(--hint)}'
-        + '.sa-sel .sa-gap{text-align:center}'
         + '.sa-add{width:100%;min-height:44px;margin-top:2px;border:none;border-radius:12px;'
         + 'background:linear-gradient(135deg,#FA4A35,#D93A24);color:#FFFFFF;font:700 15px Inter,system-ui,sans-serif;'
         + 'box-shadow:0 4px 14px rgba(250,74,53,.35);cursor:pointer}'
@@ -1158,19 +1161,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // The overlay's state: what it shows ('edit' a screen, or 'add': Add a screen), the slot,
     // the row whose Rows or Size picker is open, the snap-back message, the drag in progress,
-    // the name's input while the title is being renamed, Add a screen's pick while it shows one
-    // (its kind, calendar, graph and length: addPick), the graph last picked while it is open (a
-    // layout picked after another keeps it), how far its cards were scrolled down then (backToCards),
-    // whether its cards are drawn (renderAdd: once while it is open, as nothing under the overlay
-    // changes the settings they are drawn from), the kind whose picked screen is drawn (its roll is
-    // drawn once, the rest anew at each pick) and how many have been (a roll drawn anew stops the
-    // last one's fillPictures), the roll's pictures drawn (by graph), the roll's
-    // scroll (a tap's graph rolling to the middle, the timer that lets it go, its frame asked for) and the
-    // overlay's opening, counted (a picture drawn after it opened is drawn for that one only:
-    // fillPictures).
+    // the name's input while the title is being renamed; Add a screen's pick while it shows one (a
+    // new one for each card picked: its kind, calendar, graph and length, addPick, and how far the
+    // cards were scrolled down then, backToCards), the graph last picked while it is open (a
+    // layout picked after another keeps it: backToCards), whether its cards and the picked
+    // screen's places are drawn (renderAdd: once while it is open, as nothing under the overlay
+    // changes what they are drawn from), the pick those places were last set up for (a new one's
+    // graph is put in the roll's middle), the roll's graphs (drawRoll: drawn with the first screen
+    // picked that has a forecast graph, kept while it is open) and the roll's scroll (the time a
+    // tap's graph has to roll to the middle, the frame asked for).
     var ED = { overlay: null, mode: 'edit', i: 0, sizeRow: -1, toast: { v: null, t: null }, drag: null, nameEl: null,
-        pick: null, graph: null, cardsAt: null, drawn: false, frame: '', framed: 0, thumbs: {},
-        roll: { target: '', timer: null, raf: 0 }, opened: 0 };
+        pick: null, graph: null, drawn: false, frame: null, items: null, roll: { timer: null, raf: 0 } };
 
     /**
      * A size as its dropdown and its picker read it: "2 rows", "Fill".
@@ -1524,10 +1525,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Add a screen's body, in two layers: its cards (addCards), drawn once while it is open, and
-     * over them the screen picked while one is (its frame, pickFrame, drawn once a pick, and its
-     * places, renderPick, drawn anew at each change), the cards hidden under it, so ‹ shows them
-     * again as they were.
+     * Add a screen's body, in two layers drawn once while it is open: its cards (addCards) and,
+     * over them while a screen is picked, that screen's places (pickFrame), which renderPick fills
+     * at each change; the cards hidden under it, so ‹ shows them again as they were. The roll of
+     * graphs is drawn with the first screen picked that has a forecast graph (drawRoll) and kept,
+     * hidden under a screen without one; a screen picked anew has its graph put in the roll's
+     * middle, where the roll has it marked already: the last pick's, which a new one starts on
+     * (ED.graph).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
@@ -1536,24 +1540,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function renderAdd(S, env, userData) {
         if (!ED.drawn) {
             ED.overlay.querySelector('[data-se-body]').innerHTML = '<div data-sa-cards>' + addCards(S, env, userData)
-                + '</div><div data-sa-pick></div>';
+                + '</div><div data-sa-pick>' + pickFrame() + '</div>';
             ED.drawn = true;
-            ED.frame = '';
+            var reel = ED.overlay.querySelector('[data-sa-roll]');
+            if (reel.addEventListener) { reel.addEventListener('scroll', onRollScroll); }
         }
-        var pickEl = ED.overlay.querySelector('[data-sa-pick]');
-        ED.overlay.querySelector('[data-sa-cards]').style.display = ED.pick ? 'none' : '';
-        if (!ED.pick) {
-            pickEl.innerHTML = '';
-            ED.frame = '';
-            return;
-        }
-        if (!ED.frame) {
-            var later = [];
-            pickEl.innerHTML = pickFrame(S, env, userData, later);
-            ED.frame = ED.pick.id;
-            ED.framed += 1;
-            wireRoll();
-            fillPictures(later);
+        var pick = ED.pick;
+        ED.overlay.querySelector('[data-sa-cards]').style.display = pick ? 'none' : '';
+        ED.overlay.querySelector('[data-sa-pick]').style.display = pick ? '' : 'none';
+        if (!pick) { return; }
+        var fc = PRESETS.byId(pick.id).graph === 'fc';
+        if (fc && !ED.items) { ED.items = drawRoll(S, env, userData); }
+        var rolls = fc && ED.items.length > 0;
+        ED.overlay.querySelector('[data-sa-rollwrap]').style.display = rolls ? '' : 'none';
+        if (ED.frame !== pick) {
+            ED.frame = pick;
+            if (rolls) { centreOn(pick.v, false); }
         }
         renderPick(S, env, userData);
     }
@@ -1571,28 +1573,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function addCards(S, env, userData) {
         var choices = addChoices(S, env);
         var groups = PRESETS.GROUPS.map(function (grp) {
-            var cards = choices.filter(function (c) { return PRESETS.byId(c.id).group === grp.id; }).map(function (c) {
+            var cards = choices.filter(function (c) { return c.kind.group === grp.id; }).map(function (c) {
                 return addCard(c, env, userData);
             }).join('');
-            if (!cards || !grp.name) { return cards; }
-            return '<div class="sa-group" role="group" aria-labelledby="saGrp-' + grp.id + '"><span class="ui-cap" id="saGrp-'
-                + grp.id + '">' + esc(grp.name) + '</span><div class="sa-grid">' + cards + '</div></div>';
+            if (!cards) { return ''; }
+            return '<div class="sa-group"' + (grp.name ? ' role="group" aria-labelledby="saGrp-' + grp.id + '"><span class="ui-cap" '
+                + 'id="saGrp-' + grp.id + '">' + esc(grp.name) + '</span>' : '>') + '<div class="sa-grid">' + cards + '</div></div>';
         }).join('');
         return groups + '<div class="sa-fine">' + esc(env && env.graphStyles ? ADD_FINE : ADD_FINE_ONE_GRAPH) + '</div>';
     }
 
     /**
      * One of Add a screen's cards: the picture of the screen it adds (screenPicture) over its name
-     * (screen-presets.js cardName), Blank's beside its name and what it is; Dense's calendar said to
-     * a screen reader after its name, which leaves it out.
+     * (screen-presets.js cardName), Blank's beside its name and what it is; what a screen reader
+     * hears after its name (screen-presets.js cardSaid: Dense's calendar).
      * @param {Object} c An addChoice result.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
      * @returns {string} HTML
      */
     function addCard(c, env, userData) {
-        var kind = PRESETS.byId(c.id), blank = !kind.graph;
-        var sr = c.cal === PRESETS.DENSE ? '<span class="sr-only">, ' + esc(c.calName.toLowerCase()) + '</span>' : '';
+        var kind = c.kind, blank = !kind.graph, said = PRESETS.cardSaid(kind, c.cal);
+        var sr = said ? '<span class="sr-only">, ' + esc(said) + '</span>' : '';
         var pic = screenPicture(c.W, c.n, env, userData, 'sa-' + c.id + '-' + (c.cal || '0') + '-').svg;
         return '<button type="button" class="sa-card' + (blank ? ' sa-wide' : '') + '" data-se="pick" data-id="' + c.id
             + '" data-cal="' + c.cal + '"><span class="sa-pic" aria-hidden="true">' + pic + '</span><span class="sa-txt">'
@@ -1601,24 +1603,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Draw the pictures left to draw (pickFrame's `later`: the roll's graphs away from the one
+     * Draw the pictures left to draw (rollHtml's `later`: the roll's graphs away from the one
      * picked), FILL_STEP at a time, each step a frame after the last, so the screen shows and takes
-     * taps at once. A step for an overlay closed or opened anew since, gone on to a screen it
-     * added, or for a roll drawn anew since (whose own steps draw what is left), does nothing; a
-     * picture whose place has gone (‹ to the cards) is not drawn.
+     * taps at once. Their places stay while Add a screen is open (‹ hides them); a step for an
+     * overlay closed since, or gone on to a screen it added, does nothing.
      * @param {Array<{sel: string, draw: function(): string}>} later Each picture's place and what
      *     draws it, in the order to draw them.
      * @returns {void}
      */
     function fillPictures(later) {
-        var opened = ED.opened, framed = ED.framed;
+        var overlay = ED.overlay;
         /** One step: the next pictures into their places, then the next step. */
         function step() {
-            if (!ED.overlay || ED.opened !== opened || ED.framed !== framed || ED.mode !== 'add') { return; }
-            later.splice(0, FILL_STEP).forEach(function (x) {
-                var at = ED.overlay.querySelector(x.sel);
-                if (at) { at.innerHTML = x.draw(); }
-            });
+            if (ED.overlay !== overlay || ED.mode !== 'add') { return; }
+            later.splice(0, FILL_STEP).forEach(function (x) { overlay.querySelector(x.sel).innerHTML = x.draw(); });
             if (later.length) { setTimeout(step, FILL_GAP); }
         }
         if (later.length) { setTimeout(step, FILL_GAP); }
@@ -1640,16 +1638,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Back from a picked screen (‹, Escape) to Add a screen's cards, scrolled where they were
-     * (ED.cardsAt).
+     * Back from a picked screen (‹, Escape) to Add a screen's cards, scrolled where they were, its
+     * graph and length kept for the next screen picked (ED.graph).
      * @returns {void}
      */
     function backToCards() {
-        var top = ED.cardsAt;
+        var pick = ED.pick;
+        if (pick.v) { ED.graph = { v: pick.v, span: pick.span }; }
         ED.pick = null;
-        ED.cardsAt = null;
         renderEditor();
-        if (typeof top === 'number') { ED.overlay.querySelector('[data-se-body]').scrollTop = top; }
+        ED.overlay.querySelector('[data-se-body]').scrollTop = pick.cardsAt;
     }
 
     /**
@@ -1694,63 +1692,75 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Add a screen's picked screen, its frame (the owner's, 2026-11-10: the screen big, under it the
-     * graphs to roll through): the places renderPick fills (its picture; the graph picked and what
-     * it shows; its choices and Add screen) and, for a screen with a forecast graph on a watch with
-     * graph styles, the roll right under the picture (rollHtml), so nothing that changes as it rolls
-     * moves it.
+     * Add a screen's picked screen, its places (the owner's, 2026-11-10: the screen big, under it
+     * the graphs to roll through): its picture, the roll of graphs (drawRoll; hidden for a screen
+     * without a forecast graph and on a watch with one graph), then the legend of what it draws,
+     * its choices and Add screen, which renderPick fills. The roll sits right under the picture, so
+     * nothing that changes as it rolls moves it.
+     * @returns {string} HTML
+     */
+    function pickFrame() {
+        return '<div class="sa-cfg"><div class="sa-bigwrap" data-sa-big></div><div class="sa-roll" role="group" '
+            + 'aria-label="Graph" data-sa-rollwrap><span class="sa-caret" aria-hidden="true"></span>'
+            + '<div class="sa-reel" data-sa-roll></div></div><div class="sa-sel" data-sa-sel></div>'
+            + '<div class="sa-foot" data-sa-foot></div></div>';
+    }
+
+    /**
+     * Draw Add a screen's roll (rollHtml) into its place, for the graphs this watch offers
+     * (rollItems), the pictures left to draw drawn after it (fillPictures).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
-     * @param {Array<Object>} later Takes the roll's pictures left to draw (fillPictures).
-     * @returns {string} HTML
+     * @returns {Array<Object>} the roll's graphs (rollItems): none on a watch with one graph
      */
-    function pickFrame(S, env, userData, later) {
-        var kind = PRESETS.byId(ED.pick.id), items = kind.graph === 'fc' ? rollItems(GSP.asStored(S), env) : [];
-        return '<div class="sa-cfg"><div class="sa-bigwrap" data-sa-big></div>'
-            + (items.length ? rollHtml(items, S, env, userData, later) : '')
-            + '<div class="sa-sel" data-sa-sel></div><div class="sa-foot" data-sa-foot></div></div>';
+    function drawRoll(S, env, userData) {
+        var items = rollItems(GSP.asStored(S), env), later = [];
+        if (items.length) {
+            ED.overlay.querySelector('[data-sa-roll]').innerHTML = rollHtml(items, S, env, userData, later);
+            fillPictures(later);
+        }
+        return items;
     }
 
     /**
      * Add a screen's roll (the owner's, 2026-11-10: "a row of all available graphs", larger than the
-     * mockup's): each graph (rollItems) its picture over its name, side by side, a line between
-     * yours and the templates; the one picked marked, in the middle under the red mark. The pictures
-     * ROLL_NEAR either side of it, and any drawn already while Add a screen is open, are drawn now;
-     * the others hold their graph's ground until fillPictures draws them (`later`, nearest first).
+     * mockup's): each graph (rollItems) its picture over its name and whose it is, side by side, a
+     * line between yours and the templates; the one picked marked, in the middle under the red
+     * mark, and its "Your graph" or "Template" alone shown (the owner's ask, 2026-11-10: its name
+     * once, there). The pictures ROLL_NEAR either side of it are drawn now; the others hold their
+     * graph's ground (screen-frame.js ground) until fillPictures draws them (`later`, nearest
+     * first).
      * @param {Array<Object>} items rollItems.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
      * @param {Array<Object>} later Takes the pictures left to draw.
-     * @returns {string} HTML
+     * @returns {string} HTML: the roll's graphs
      */
     function rollHtml(items, S, env, userData, later) {
         var at = Math.max(0, rollIndex(items, ED.pick.v)), away = [];
-        // A picture's place: its frame and ground, as a drawn one starts (screen-frame.js svg).
-        var ground = (/^<svg[^>]*><rect[^>]*><\/rect>/.exec(thumbOf(S, env, userData, items[at].v)) || ['<svg>'])[0] + '</svg>';
+        var pic = thumbOf(S, env, userData, items[at].v), ground = SF.ground(pic);
         var h = items.map(function (it, x) {
-            var on = x === at, near = Math.abs(x - at) <= ROLL_NEAR || Object.prototype.hasOwnProperty.call(ED.thumbs, it.v);
+            var on = x === at, near = Math.abs(x - at) <= ROLL_NEAR;
             if (!near) { away.push(x); }
-            return (x > 0 && it.yours !== items[x - 1].yours ? '<span class="sa-sep" aria-hidden="true"></span>' : '')
+            return (x > 0 && !it.look !== !items[x - 1].look ? '<span class="sa-sep" aria-hidden="true"></span>' : '')
                 + '<button type="button" class="sa-g' + (on ? ' on' : '') + '" data-se="agraph" data-sa-g="' + esc(it.v)
                 + '" data-v="' + esc(it.v) + '" aria-pressed="' + on + '"><span class="sa-th" aria-hidden="true" data-sa-th="'
-                + esc(it.v) + '">' + (near ? thumbOf(S, env, userData, it.v) : ground) + '</span><span class="sa-gn">'
-                + esc(it.name) + '</span></button>';
+                + esc(it.v) + '">' + (on ? pic : near ? thumbOf(S, env, userData, it.v) : ground) + '</span><span class="sa-gn">'
+                + esc(it.name) + '</span><span class="sa-gt">' + (it.look ? 'Template' : 'Your graph') + '</span></button>';
         }).join('');
         away.sort(function (a, b) { return Math.abs(a - at) - Math.abs(b - at) || a - b; }).forEach(function (x) {
             var v = items[x].v;
             later.push({ sel: '[data-sa-th="' + v + '"]', draw: function () { return thumbOf(S, env, userData, v); } });
         });
-        return '<div class="sa-roll" role="group" aria-label="Graph"><span class="sa-caret" aria-hidden="true"></span>'
-            + '<div class="sa-reel" data-sa-roll>' + h + '</div></div>';
+        return h;
     }
 
     /**
      * A graph's picture in the roll, by its value (graph-styles-page.js valuePicture: as the
-     * Graphs tab draws it, a template at its own length), drawn once while Add a screen is open.
-     * It draws no legend: the one under the row is the picked graph's (the owner's ask, 2026-11-10:
-     * the legend only once, under the row).
+     * Graphs tab draws it, a template at its own length). It draws no legend: the one under the
+     * row is the picked graph's (the owner's ask, 2026-11-10: the legend only once, under the row).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
@@ -1758,18 +1768,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} SVG markup
      */
     function thumbOf(S, env, userData, v) {
-        if (!Object.prototype.hasOwnProperty.call(ED.thumbs, v)) {
-            ED.thumbs[v] = GSP.valuePicture(S, env, v, userData, 'sa-th-' + v, { bare: true });
-        }
-        return ED.thumbs[v];
+        return GSP.valuePicture(S, env, v, userData, 'sa-th-' + v, { bare: true });
     }
 
     /**
      * Fill the picked screen's places (pickFrame) for the pick as it is now: its picture big, which
-     * names the graph picked to a screen reader; whose that graph is, yours or a template, right
-     * under its name in the roll (the name shows once, there: the owner's ask, 2026-11-10), over
-     * the legend of what the screen draws and what the weather service leaves out
-     * (screen-legend.js); then Health's and Rain
+     * names the graph picked to a screen reader (the roll shows its name, once: rollHtml); the
+     * legend of what the screen draws and what the weather service leaves out (screen-legend.js);
+     * then Health's and Rain
      * radar's Calendar, a forecast graph's Forecast length on a watch with one per screen (a
      * template's to pick, yours shown as it is), why it cannot be added, if it cannot, Add screen,
      * and under a template what it is.
@@ -1782,13 +1788,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var big = ED.overlay.querySelector('[data-sa-big]'), sel = ED.overlay.querySelector('[data-sa-sel]');
         var foot = ED.overlay.querySelector('[data-sa-foot]'), c = addPick(S, env);
         if (!c) { big.innerHTML = sel.innerHTML = foot.innerHTML = ''; return; }
-        var kind = PRESETS.byId(c.id), N = GSP.asStored(S), shown = addShown(c, env, userData, 'sa-big-');
-        var items = kind.graph === 'fc' ? rollItems(N, env) : [], item = items[rollIndex(items, ED.pick.v)];
-        var gap = LEGEND.gapNote(shown.legend, N.provider), cals = kind.id === 'forecast' ? [] : PRESETS.calendars(kind, env);
+        var kind = c.kind, N = GSP.asStored(S), shown = addShown(c, env, userData, 'sa-big-');
+        var items = kind.graph === 'fc' ? ED.items : [], item = items[rollIndex(items, ED.pick.v)];
+        var gap = LEGEND.gapNote(shown.legend, N.provider), cals = kind.layouts ? [] : PRESETS.calendars(kind, env);
         big.innerHTML = '<div class="sa-big" role="img" aria-label="' + esc(PRESETS.cardName(kind, c.cal)
             + (item ? ', ' + item.name : '') + ': ' + shown.pic.label) + '">' + shown.pic.svg + '</div>';
-        sel.innerHTML = (item ? '<div class="sa-gsub">' + (item.yours ? 'Your graph' : 'Template') + '</div>' : '')
-            + '<div class="sa-legend">' + LEGEND.cardHtml(shown.legend, shown.pic.bg) + '</div>'
+        sel.innerHTML = '<div class="sa-legend">' + LEGEND.rowsHtml(shown.legend, shown.pic.bg) + '</div>'
             + (gap ? '<div class="sa-gap">' + esc(gap) + '</div>' : '');
         var h = cals.length ? segRow('Calendar', 'acal', cals, c.cal) : '';
         if (item && env && env.forecastSpan) {
@@ -1803,9 +1808,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Pick graph v in the roll (a tap, the arrow keys, or the roll come to rest on it): the picture
-     * and what follows it drawn for it, its length its own (a template's to change, yours as it
-     * is), kept for a layout picked next (ED.graph). `roll` rolls it to the middle, the graphs it
-     * passes on the way left unpicked (ED.roll).
+     * and what follows it drawn for it, at its own length (a template's to change, yours as it is).
+     * `roll` rolls it to the middle, the graphs it passes on the way left unpicked until it gets
+     * there, or for ROLL_MS (ED.roll.timer).
      * @param {string} v A graph's value (THE GRAPHS).
      * @param {boolean} [roll] Roll it to the middle.
      * @returns {void}
@@ -1814,16 +1819,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!ED.pick || !UI.ctx || v === ED.pick.v) { return; }
         var prev = ED.pick.v;
         if (roll) {
-            ED.roll.target = v;
             clearTimeout(ED.roll.timer);
-            ED.roll.timer = setTimeout(function () { ED.roll.target = ''; }, ROLL_MS);
+            ED.roll.timer = setTimeout(function () { ED.roll.timer = null; }, ROLL_MS);
             centreOn(v, true);
         }
         ED.pick.v = v;
-        ED.pick.span = PRESETS.spanOf(v, UI.ctx.ENV);
-        ED.graph = { v: v, span: ED.pick.span };
+        ED.pick.span = '';
         markRoll(prev, v);
-        renderEditor();
+        renderPick(UI.ctx.S, UI.ctx.ENV, UI.ctx.USERDATA);
     }
 
     /**
@@ -1890,7 +1893,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The roll scrolled: once a frame, the graph that has come to its middle is picked (choose),
-     * unless a tap's graph is rolling there (ED.roll: until it arrives, or for ROLL_MS).
+     * unless a tap's graph is rolling there (ED.roll.timer: until it arrives, or for ROLL_MS).
      * @returns {void}
      */
     function onRollScroll() {
@@ -1900,24 +1903,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var reel = ED.overlay && ED.mode === 'add' && ED.pick ? ED.overlay.querySelector('[data-sa-roll]') : null;
             var v = reel && reel.getBoundingClientRect ? centredValue(reel) : '';
             if (!v) { return; }
-            if (ED.roll.target) {
-                if (v !== ED.roll.target) { return; }
-                ED.roll.target = '';
+            if (ED.roll.timer) {
+                if (v !== ED.pick.v) { return; }
+                clearTimeout(ED.roll.timer);
+                ED.roll.timer = null;
             }
             choose(v, false);
         });
-    }
-
-    /**
-     * Listen to the roll of a picked screen just drawn (pickFrame), its graph picked put in its
-     * middle.
-     * @returns {void}
-     */
-    function wireRoll() {
-        var reel = ED.overlay.querySelector('[data-sa-roll]');
-        if (!reel || !reel.addEventListener) { return; }
-        reel.addEventListener('scroll', onRollScroll);
-        centreOn(ED.pick.v, false);
     }
 
     /**
@@ -2086,8 +2078,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var r = e.target && e.target.closest ? e.target.closest('[data-sa-g]') : null;
         if (r && ED.mode === 'add' && ED.pick && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
             e.preventDefault();
-            var items = rollItems(GSP.asStored(UI.ctx.S), UI.ctx.ENV);
-            var to = items[rollIndex(items, r.getAttribute('data-sa-g')) + (e.key === 'ArrowLeft' ? -1 : 1)];
+            var to = ED.items[rollIndex(ED.items, r.getAttribute('data-sa-g')) + (e.key === 'ArrowLeft' ? -1 : 1)];
             if (!to) { return; }
             choose(to.v, true);
             var next = ED.overlay.querySelector('[data-sa-g="' + to.v + '"]');
@@ -2217,17 +2208,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (act === 'renameok') { if (ED.nameEl) { endRename(ED.nameEl.value); } return; }
         // Add a screen's card: Blank goes in at once; another shows its screen big, on its card's
         // calendar (Health's and Rain radar's from none), with the graph picked last while it is
-        // open, else the roll's first (yours); ‹ goes back to the cards where they were.
+        // open, else your first (the roll's first: graph-styles.js exists); ‹ goes back to the
+        // cards where they were.
         if (act === 'pick') {
             var kind = PRESETS.byId(t.getAttribute('data-id'));
             if (!kind) { return; }
             if (!kind.graph) { addNow(kind.id, '', '', ''); return; }
-            var first = kind.graph === 'fc' ? rollItems(GSP.asStored(S), env)[0] : null;
-            var g = kind.graph !== 'fc' ? null : ED.graph || (first ? { v: first.v, span: PRESETS.spanOf(first.v, env) } : null);
+            var g = kind.graph === 'fc' ? ED.graph || { v: '1', span: '' } : null;
             var body = ED.overlay.querySelector('[data-se-body]');
-            ED.cardsAt = body.scrollTop || 0;
-            ED.pick = { id: kind.id, cal: t.getAttribute('data-cal') || '', v: g ? g.v : '', span: g ? g.span : '' };
-            ED.frame = '';
+            ED.pick = { id: kind.id, cal: t.getAttribute('data-cal') || '', v: g ? g.v : '', span: g ? g.span : '',
+                cardsAt: body.scrollTop || 0 };
             body.scrollTop = 0;
             renderEditor();
             return;
@@ -2238,7 +2228,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (act === 'acal' || act === 'aspan') {
             if (!ED.pick || t.disabled) { return; }
             if (act === 'acal') { ED.pick.cal = t.getAttribute('data-v') || ''; } else { ED.pick.span = t.getAttribute('data-v') || ''; }
-            if (act === 'aspan') { ED.graph = { v: ED.pick.v, span: ED.pick.span }; }
             renderEditor();
             return;
         }
@@ -2412,13 +2401,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ED.nameEl = null;
         ED.pick = null;
         ED.graph = null;
-        ED.cardsAt = null;
         ED.drawn = false;
-        ED.frame = '';
-        ED.thumbs = {};
-        ED.roll.target = '';
+        ED.frame = null;
+        ED.items = null;
         clearTimeout(ED.roll.timer);
-        ED.opened += 1;
+        ED.roll.timer = null;
         var overlay = document.createElement('div');
         overlay.id = 'screenEditor';
         overlay.setAttribute('role', 'dialog');

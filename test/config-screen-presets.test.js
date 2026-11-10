@@ -182,6 +182,8 @@ const CAL = { none: '', compact: '2', full: '3', dense: P.DENSE };
 const TEMPLATE_IDS = ['classic', 'clean', 'stripes', 'simple', 'rain', 'sky', 'clouds', 'outdoor', 'sun', 'comfort', 'wind',
   'storm', 'pressure', 'meteogram'];
 const KIND_IDS = ['blank', 'forecast', 'health', 'radar', 'healthfc', 'radarfc'];
+// A first graph that draws four series already, for the five-metric limit.
+const BUSY = { secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLine: 'wind', fourthLine: 'uv', fifthLine: 'gust' };
 
 test('the kinds: Blank, the forecast screen, Health, Rain radar and two graphs on a screen; each watch the ones it can draw', () => {
   assert.deepEqual(P.KINDS.map((k) => k.name), ['Blank', 'Forecast', 'Health', 'Rain radar', 'Health + forecast',
@@ -217,10 +219,9 @@ test('the kinds: Blank, the forecast screen, Health, Rain radar and two graphs o
     'Full calendar', 'Dense', 'Health', 'Rain radar', 'Health + forecast', 'Radar + forecast'],
   'the forecast screen by its calendar');
   assert.equal(P.cardName(P.byId('health'), '3'), 'Health', 'the others by their own, whatever calendar');
-  assert.equal(P.calendarName(P.byId('forecast'), P.DENSE), 'Compact calendar and radar bar');
-  assert.equal(P.calendarName(P.byId('health'), '3'), 'Full calendar');
-  assert.equal(P.calendarName(P.byId('radarfc'), ''), '', 'two graphs: no calendar to name');
-  assert.equal(P.calendarName(P.byId('blank'), ''), '', 'nor on Blank');
+  assert.equal(P.cardSaid(P.byId('forecast'), P.DENSE), 'compact calendar and radar bar', 'Dense\'s calendar said in full');
+  assert.deepEqual(['', '2', '3'].map((cal) => P.cardSaid(P.byId('forecast'), cal)), ['', '', ''], 'the others\' names say it');
+  assert.equal(P.cardSaid(P.byId('health'), P.DENSE), '', 'a kind whose calendar is picked after its card');
   // The templates a forecast graph can draw: the Graphs tab's, in its order, where the watch has
   // graph styles (wizard-forecast.js LOOKS, their one definition).
   assert.deepEqual(P.templates(EMERY).map((look) => look.id), TEMPLATE_IDS);
@@ -276,13 +277,10 @@ test('a screen\'s rows: the Watch bar, its calendar, the clock, its bar and its 
   assert.equal(P.graphOf([b('strip'), b('clock'), b('fc', { size: 'fill' })]), '', 'a screen of your own');
 });
 
-test('Forecast length: a template\'s lengths, on the Pebble Time 2 only; each starts on its own', () => {
+test('Forecast length: a template\'s lengths, on the Pebble Time 2 only', () => {
   assert.deepEqual(P.spanOptions('clean', EMERY, {}), [['12 h', '12'], ['24 h', '24'], ['66 h', '48']]);
   assert.deepEqual(P.spanOptions('clean', BASALT, {}), [], 'no templates there');
   assert.deepEqual(P.spanOptions('nope', EMERY, {}), []);
-  assert.deepEqual(TEMPLATE_IDS.map((id) => P.spanOf(id, EMERY)), ['24', '48', '24', '24', '12', '24', '48', '48', '24',
-    '24', '24', '24', '48', '48']);
-  assert.equal(P.spanOf('clean', BASALT), '');
 });
 
 test('Add a screen\'s cards two a row, Blank across the top; the roll\'s graphs larger than the mockup\'s, one in the middle', () => {
@@ -290,6 +288,7 @@ test('Add a screen\'s cards two a row, Blank across the top; the roll\'s graphs 
   assert.match(rule('.sa-grid'), /grid-template-columns:1fr 1fr/, 'two cards a row');
   assert.match(rule('.sa-card'), /flex-direction:column/, 'a card\'s picture over its name');
   assert.match(rule('.sa-card.sa-wide'), /flex-direction:row/, 'Blank\'s beside its name');
+  assert.match(rule('.sa-card.sa-wide'), /grid-column:1\/-1/, 'across its group\'s grid');
   // The owner's ask, 2026-11-10: "the graphs need to be larger" than the mockup's 96 px.
   const w = Number((/width:(\d+)px/.exec(rule('.sa-g')) || [])[1]);
   assert.ok(w >= 150, 'a graph in the roll is ' + w + ' px wide');
@@ -299,19 +298,21 @@ test('Add a screen\'s cards two a row, Blank across the top; the roll\'s graphs 
   assert.ok(rule('.sa-reel').indexOf('padding:12px calc(50% - ' + w / 2 + 'px) 4px') !== -1,
     'the first and the last graph can reach the middle');
   assert.match(rule('.sa-big'), /width:224px/, 'the screen bigger than on its card');
+  // The owner's ask, 2026-11-10: the graph's name once, in the roll; whose it is under it, for the
+  // graph in the middle alone.
+  assert.match(rule('.sa-gt'), /visibility:hidden/);
+  assert.match(rule('.sa-g.on .sa-gt'), /visibility:visible/);
   assert.match(rule('.sa-cfg'), /grid-template-columns:minmax\(0,1fr\)/, 'the roll\'s length never widens the page');
 });
 
 test('Add a screen\'s cards: Blank, the forecast screen on each calendar, the others; each with your graph', () => {
   const S = fresh(BASALT);
   const choices = SP.addChoices(S, BASALT);
-  const dense = 'Compact calendar and radar bar';
-  assert.deepEqual(choices.map((c) => [c.id, c.cal, c.name, c.calName, c.span, c.why]),
-    [['blank', '', '', '', '', ''], ['forecast', '', 'Forecast', 'No calendar', '', ''],
-      ['forecast', '2', 'Forecast', 'Compact calendar', '', ''], ['forecast', '3', 'Forecast', 'Full calendar', '', ''],
-      ['forecast', 'dense', 'Forecast', dense, '', ''], ['health', '', 'Health', 'No calendar', '', ''],
-      ['radar', '', 'Rain radar', 'No calendar', '', ''], ['healthfc', '', 'Health + forecast', '', '', ''],
-      ['radarfc', '', 'Radar + forecast', '', '', '']]);
+  assert.deepEqual(choices.map((c) => [c.id, c.cal, c.name, c.span]),
+    [['blank', '', '', ''], ['forecast', '', 'Forecast', ''], ['forecast', '2', 'Forecast', ''], ['forecast', '3', 'Forecast', ''],
+      ['forecast', 'dense', 'Forecast', ''], ['health', '', 'Health', ''], ['radar', '', 'Rain radar', ''],
+      ['healthfc', '', 'Health + forecast', ''], ['radarfc', '', 'Radar + forecast', '']]);
+  assert.ok(choices.every((c) => c.kind === P.byId(c.id)), 'each with its kind');
   assert.ok(choices.every((c) => c.graph === null), 'your graph: no screen brings one');
   // Each card's picture settings hold the screen it adds, after the others, on its calendar.
   choices.forEach((c) => assert.deepEqual(M.screensOf(c.W, BASALT)[1], c.list, c.id + '\'s picture'));
@@ -338,8 +339,8 @@ test('the roll\'s graphs: yours first, by their names, then the templates; none 
   const S = withScreens(EMERY, [M.screensOf(fresh(EMERY), EMERY)[0]], {
     graphStyles: JSON.stringify({ names: ['', 'Wind'], styles: [null, { forecastHours: '12', secondaryLine: 'wind' }] })
   });
-  assert.deepEqual(SP.rollItems(GSP.asStored(S), EMERY).map((it) => [it.v, it.name, it.yours]),
-    [['1', 'Graph 1', true], ['2', 'Wind', true]].concat(TEMPLATE_IDS.map((id) => [id, WF.lookOf(id).label, false])));
+  assert.deepEqual(SP.rollItems(GSP.asStored(S), EMERY).map((it) => [it.v, it.name, it.k, it.look]),
+    [['1', 'Graph 1', 0, ''], ['2', 'Wind', 1, '']].concat(TEMPLATE_IDS.map((id) => [id, WF.lookOf(id).label, -1, id])));
   assert.deepEqual(SP.rollItems(GSP.asStored(fresh(BASALT)), BASALT), []);
 });
 
@@ -499,20 +500,17 @@ test('six graphs of yours stop no screen; a graph that would make too many metri
   assert.equal(SP.addChosen(full, EMERY, 'forecast', CAL.none, 'stripes'), 1);
   assert.equal(GS.count(full), 6, 'still six');
   // The first graph draws four series already: Stripes' cloud and rain-chance stripes make six.
-  const busy = withScreens(EMERY, [M.screensOf(fresh(EMERY), EMERY)[0]], {
-    secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLine: 'wind', fourthLine: 'uv', fifthLine: 'gust'
-  });
+  const busy = withScreens(EMERY, [M.screensOf(fresh(EMERY), EMERY)[0]], BUSY);
   const why = SP.addPreview(busy, EMERY, 'forecast', CAL.none, 'stripes').why;
   assert.match(why, /^Also needs .*: that makes \d+ metrics on your screens. The watch can show 5\.$/);
   const kept = JSON.stringify(busy);
   assert.equal(SP.addChosen(busy, EMERY, 'forecast', CAL.none, 'stripes'), -1);
   assert.equal(JSON.stringify(busy), kept, 'no graph made');
   // So can one of yours that no screen shows yet.
-  const mine = withScreens(EMERY, [M.screensOf(fresh(EMERY), EMERY)[0]], Object.assign({}, {
-    secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLine: 'wind', fourthLine: 'uv', fifthLine: 'gust',
+  const mine = withScreens(EMERY, [M.screensOf(fresh(EMERY), EMERY)[0]], Object.assign({
     graphStyles: JSON.stringify({ names: [], styles: [null, { secondaryLine: 'cloud', secondaryLineStyle: 'line',
       thirdLine: 'pressure', fourthLine: 'off', fifthLine: 'off' }] })
-  }));
+  }, BUSY));
   assert.match(SP.addPreview(mine, EMERY, 'forecast', CAL.none, '2').why, /^Also needs Cloud cover % and Air pressure \(hPa\): that makes 6 metrics/);
   assert.equal(SP.addPreview(mine, EMERY, 'forecast', CAL.none, '1').why, '', 'the one the screens show already adds none');
   assert.equal(SP.addChosen(mine, EMERY, 'forecast', CAL.none, '2'), -1);
@@ -650,18 +648,40 @@ function segments(html, act) {
 }
 
 /**
- * Add a screen's picked screen, its frame over the cards (screens-page.js pickFrame, with the
- * roll): '' while no card is picked.
+ * Add a screen's roll as it was drawn (screens-page.js drawRoll: once while it is open, with the
+ * first screen picked that has a forecast graph): '' before.
  * @param {Object} ed The overlay.
  * @returns {string}
  */
-function picked(ed) {
-  return ed.querySelector('[data-sa-pick]').innerHTML;
+function reel(ed) {
+  return ed.querySelector('[data-sa-roll]').innerHTML;
 }
 
 /**
- * One of the picked screen's places (screens-page.js renderPick): 'big' its picture, 'sel' the
- * graph picked and its legend, 'foot' its choices and Add screen.
+ * Whether Add a screen shows a picked screen, over its cards; and whether that screen shows the
+ * roll.
+ * @param {Object} ed The overlay.
+ * @returns {Array<boolean>} [the picked screen, its roll]
+ */
+function pickShown(ed) {
+  return [ed.querySelector('[data-sa-pick]').style.display !== 'none',
+    ed.querySelector('[data-sa-rollwrap]').style.display !== 'none'];
+}
+
+/**
+ * Whether a graph in the roll is marked picked, as a pick after it was drawn marks it
+ * (screens-page.js markRoll): null for one no pick has marked since.
+ * @param {Object} ed The overlay.
+ * @param {string} v The graph's value.
+ * @returns {?string} its aria-pressed
+ */
+function marked(ed, v) {
+  return ed.querySelector('[data-sa-roll]').querySelector('[data-sa-g="' + v + '"]').getAttribute('aria-pressed');
+}
+
+/**
+ * One of the picked screen's places (screens-page.js renderPick): 'big' its picture, 'sel' its
+ * legend, 'foot' its choices and Add screen.
  * @param {Object} ed The overlay.
  * @param {string} name The place.
  * @returns {string}
@@ -682,25 +702,26 @@ function legend(ed) {
 }
 
 /**
- * The graph picked in the roll: its name, as the screen's picture names it to a screen reader (on
- * the page it shows only under its picture in the roll), and whose it is; null without a roll.
+ * The graph on the picked screen: its name, as the screen's picture names it to a screen reader
+ * (on the page it shows once, under its picture in the roll), and whose it is, as the roll says
+ * under that name; null without a roll.
  * @param {Object} ed The overlay.
  * @returns {?Array<string>}
  */
 function graphName(ed) {
-  const whose = /<div class="sa-gsub">([^<]*)<\/div>/.exec(part(ed, 'sel'));
   const name = /^<div class="sa-big" role="img" aria-label="[^",:]*, ([^":]*):/.exec(part(ed, 'big'));
-  return whose && name ? [name[1], whose[1]] : null;
+  const it = name && roll(reel(ed)).find((x) => x[1] === name[1]);
+  return it ? [it[1], it[3]] : null;
 }
 
 /**
- * The roll's graphs as it was drawn: [value, name, picked].
- * @param {string} frame The picked screen's frame.
+ * The roll's graphs as it was drawn: [value, name, picked, whose].
+ * @param {string} html The roll (reel).
  * @returns {Array<Array>}
  */
-function roll(frame) {
-  return [...frame.matchAll(/<button type="button" class="sa-g( on)?" data-se="agraph" data-sa-g="([^"]*)" data-v="[^"]*" aria-pressed="(?:true|false)"><span class="sa-th"[^>]*>[\s\S]*?<\/span><span class="sa-gn">([^<]*)<\/span><\/button>/g)]
-    .map((m) => [m[2], m[3], Boolean(m[1])]);
+function roll(html) {
+  return [...html.matchAll(/<button type="button" class="sa-g( on)?" data-se="agraph" data-sa-g="([^"]*)" data-v="[^"]*" aria-pressed="(?:true|false)"><span class="sa-th"[^>]*>[\s\S]*?<\/span><span class="sa-gn">([^<]*)<\/span><span class="sa-gt">([^<]*)<\/span><\/button>/g)]
+    .map((m) => [m[2], m[3], Boolean(m[1]), m[4]]);
 }
 
 /**
@@ -731,7 +752,7 @@ test('+ Add screen opens Add a screen: Blank first, then the forecast screen on 
     ['forecast', '3', 'Full calendar', '', ''], ['forecast', 'dense', 'Dense', 'compact calendar and radar bar', ''],
     ['health', '', 'Health', '', ''], ['radar', '', 'Rain radar', '', ''], ['healthfc', '', 'Health + forecast', '', ''],
     ['radarfc', '', 'Radar + forecast', '', '']]);
-  assert.match(body, /^<div data-sa-cards><button type="button" class="sa-card sa-wide" data-se="pick" data-id="blank"/,
+  assert.match(body, /^<div data-sa-cards><div class="sa-group"><div class="sa-grid"><button type="button" class="sa-card sa-wide" data-se="pick" data-id="blank"/,
     'Blank across the top, under no heading');
   const pics = [...body.matchAll(/<span class="sa-pic" aria-hidden="true">(<svg[\s\S]*?<\/svg>)<\/span><span class="sa-txt">/g)];
   assert.equal(pics.length, 9);
@@ -748,13 +769,15 @@ test('+ Add screen opens Add a screen: Blank first, then the forecast screen on 
   assert.ok(head.innerHTML.indexOf('<span class="dlg-kick">Add a screen</span>') !== -1);
   assert.ok(head.innerHTML.indexOf('id="seTitle">Compact calendar</span>') !== -1, 'titled by its layout');
   assert.equal(cardsShown(ed), false, 'the cards hidden under it');
-  const frame = picked(ed);
-  assert.deepEqual(roll(frame), [['1', 'Graph 1', true]].concat(TEMPLATE_IDS.map((id) => [id, WF.lookOf(id).label, false])));
-  assert.ok(frame.indexOf('</button><span class="sa-sep" aria-hidden="true"></span><button type="button" class="sa-g" '
+  assert.deepEqual(pickShown(ed), [true, true], 'the screen picked over them, with its roll');
+  const drawn = reel(ed);
+  assert.deepEqual(roll(drawn), [['1', 'Graph 1', true, 'Your graph']]
+    .concat(TEMPLATE_IDS.map((id) => [id, WF.lookOf(id).label, false, 'Template'])), 'each graph says whose it is');
+  assert.ok(drawn.indexOf('</button><span class="sa-sep" aria-hidden="true"></span><button type="button" class="sa-g" '
     + 'data-se="agraph" data-sa-g="classic"') !== -1, 'a line between yours and the templates');
-  assert.ok(frame.indexOf('<div class="sa-roll" role="group" aria-label="Graph"><span class="sa-caret" aria-hidden="true">'
-    + '</span><div class="sa-reel" data-sa-roll>') !== -1, 'the red mark over its middle');
-  assert.ok(frame.indexOf('data-sa-big></div><div class="sa-roll"') !== -1, 'right under the screen\'s picture');
+  assert.ok(body.indexOf('<div class="sa-roll" role="group" aria-label="Graph" data-sa-rollwrap><span class="sa-caret" '
+    + 'aria-hidden="true"></span><div class="sa-reel" data-sa-roll></div></div>') !== -1, 'the red mark over its middle');
+  assert.ok(body.indexOf('data-sa-big></div><div class="sa-roll"') !== -1, 'right under the screen\'s picture');
   assert.match(part(ed, 'big'), /^<div class="sa-big" role="img" aria-label="Compact calendar, Graph 1: [^"]*Calendar \(2 rows\)[^"]*"><svg/,
     'its picture says its calendar and its graph');
   assert.deepEqual(graphName(ed), ['Graph 1', 'Your graph']);
@@ -773,7 +796,8 @@ test('+ Add screen opens Add a screen: Blank first, then the forecast screen on 
   assert.deepEqual(graphName(ed), ['Clean', 'Template']);
   assert.equal(part(ed, 'sel').indexOf('Clean'), -1, 'a template\'s name once too');
   assert.ok(head.innerHTML.indexOf('id="seTitle">Compact calendar</span>') !== -1, 'the layout\'s name stays');
-  assert.equal(picked(ed), frame, 'the roll stays as drawn: it may be rolling');
+  assert.equal(reel(ed), drawn, 'the roll stays as drawn: it may be rolling');
+  assert.deepEqual([marked(ed, '1'), marked(ed, 'clean')], ['false', 'true'], 'Clean marked in it');
   foot = part(ed, 'foot');
   assert.deepEqual(segments(foot, 'aspan'), [['12 h', '12', false, false], ['24 h', '24', false, false],
     ['66 h', '48', true, false]], 'its own length');
@@ -806,13 +830,16 @@ test('Blank goes in at once, the Watch bar and the clock, its editor next', () =
   assert.equal(page.S.graphStyles, fresh(EMERY).graphStyles, 'no graph made');
 });
 
-test('the roll draws the graphs beside the one picked as it opens, the others a few a frame after it, nearest first', (t) => {
+test('the roll is drawn once while it is open: the graphs beside the one picked at once, the others a few a frame after it', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const page = bootGeneratedPage({ provider: 'dwd' }, 'emery');
   page.tapAction('addScreen');
   const ed = page.editor();
+  page.tapEditor({ se: 'pick', id: 'health', cal: '' });
+  assert.deepEqual([reel(ed), pickShown(ed)], ['', [true, false]], 'none for a screen without a forecast graph');
+  page.tapEditor({ se: 'addback' });
   page.tapEditor({ se: 'pick', id: 'forecast', cal: '' });
-  const pics = [...picked(ed).matchAll(/<span class="sa-th" aria-hidden="true" data-sa-th="([^"]+)">(<svg[\s\S]*?<\/svg>)<\/span><span class="sa-gn">/g)];
+  const pics = [...reel(ed).matchAll(/<span class="sa-th" aria-hidden="true" data-sa-th="([^"]+)">(<svg[\s\S]*?<\/svg>)<\/span><span class="sa-gn">/g)];
   assert.equal(pics.length, 1 + TEMPLATE_IDS.length);
   assert.deepEqual(pics.filter((m) => m[2].length > 3000).map((m) => m[1]), ['1', 'classic', 'clean'],
     'the one picked and the two beside it');
@@ -822,30 +849,34 @@ test('the roll draws the graphs beside the one picked as it opens, the others a 
   assert.ok(!TEMPLATE_IDS.some(drawn), 'not yet');
   t.mock.timers.tick(16);
   assert.deepEqual(TEMPLATE_IDS.filter(drawn), ['stripes', 'simple', 'rain'], 'three a frame, nearest first');
+  // Back to the cards: the rest go on into their places, which stay, hidden.
+  page.tapEditor({ se: 'addback' });
+  assert.deepEqual(pickShown(ed)[0], false);
   let steps = 1;
   for (; steps < 20 && !TEMPLATE_IDS.slice(2).every(drawn); steps++) { t.mock.timers.tick(16); }
   assert.equal(steps, 4, 'then the rest');
-  // Drawn once while it is open: the next layout's roll draws them all at once.
-  page.tapEditor({ se: 'addback' });
+  // Another layout, Health or a screen of two graphs: the roll as it is, hidden where it has no use;
+  // a layout picked anew has its graph put back in the middle (Sky 1000 px in, the roll 390 wide).
+  const strip = ed.querySelector('[data-sa-roll]'), sky = strip.querySelector('[data-sa-g="sky"]');
+  Object.assign(strip, { clientWidth: 390, scrollLeft: 0 });
+  Object.assign(sky, { offsetLeft: 1000, offsetWidth: 156 });
+  let writes = 0, html = strip.innerHTML;
+  Object.defineProperty(strip, 'innerHTML', { get: () => html, set: (v) => { html = v; writes += 1; } });
   page.tapEditor({ se: 'pick', id: 'forecast', cal: '3' });
-  assert.equal([...picked(ed).matchAll(/data-sa-th="[^"]+"><svg[\s\S]*?<\/svg><\/span><span class="sa-gn">/g)]
-    .filter((m) => m[0].length > 3000).length, 1 + TEMPLATE_IDS.length);
-  // A graph picked in the middle: the pictures nearest it first, whichever side; the roll drawn
-  // before it draws no more.
-  const other = bootGeneratedPage({ provider: 'dwd' }, 'emery');
-  other.tapAction('addScreen');
-  const ed2 = other.editor();
-  other.tapEditor({ se: 'pick', id: 'forecast', cal: '' });
-  other.tapEditor({ se: 'agraph', v: 'outdoor' });
-  other.tapEditor({ se: 'addback' });
-  other.tapEditor({ se: 'pick', id: 'forecast', cal: '2' });
-  const now = [...picked(ed2).matchAll(/data-sa-th="([^"]+)">(<svg[\s\S]*?<\/svg>)<\/span><span class="sa-gn">/g)]
-    .filter((m) => m[2].length > 3000).map((m) => m[1]);
-  assert.deepEqual(now, ['1', 'classic', 'clean', 'sky', 'clouds', 'outdoor', 'sun', 'comfort'],
-    'the two beside Outdoor, and those drawn already');
-  const drawn2 = (v) => ed2.querySelector('[data-sa-th="' + v + '"]').innerHTML.length > 3000;
-  t.mock.timers.tick(16);
-  assert.deepEqual(TEMPLATE_IDS.filter(drawn2), ['simple', 'rain', 'wind'], 'the nearest three: three away, then four');
+  page.tapEditor({ se: 'agraph', v: 'sky' });
+  assert.equal(strip.scrollLeft, 883, 'Sky rolled to the middle');
+  page.tapEditor({ se: 'addback' });
+  strip.scrollLeft = 0;
+  page.tapEditor({ se: 'pick', id: 'forecast', cal: '2' });
+  assert.equal(strip.scrollLeft, 883, 'in the middle again');
+  assert.deepEqual(pickShown(ed), [true, true]);
+  page.tapEditor({ se: 'addback' });
+  page.tapEditor({ se: 'pick', id: 'health', cal: '' });
+  assert.deepEqual(pickShown(ed), [true, false], 'Health: no roll');
+  page.tapEditor({ se: 'addback' });
+  page.tapEditor({ se: 'pick', id: 'radarfc', cal: '' });
+  assert.deepEqual(pickShown(ed), [true, true], 'the radar over a forecast graph: the roll again');
+  assert.equal(writes, 0, 'never drawn anew');
 });
 
 test('the roll\'s graphs draw no legend: the legend shows once, under the row', (t) => {
@@ -854,18 +885,18 @@ test('the roll\'s graphs draw no legend: the legend shows once, under the row', 
   page.tapAction('addScreen');
   const ed = page.editor();
   page.tapEditor({ se: 'pick', id: 'forecast', cal: '' });
-  t.mock.timers.tick(16 * 5);
-  // Drawn once while it is open: the next layout's roll holds every picture.
-  page.tapEditor({ se: 'addback' });
-  page.tapEditor({ se: 'pick', id: 'forecast', cal: '2' });
+  for (let i = 0; i < 5; i++) { t.mock.timers.tick(16); }
+  // Every picture: those drawn with the roll, and those drawn into their places after it.
+  const inline = new Map([...reel(ed).matchAll(/data-sa-th="([^"]+)">(<svg[\s\S]*?<\/svg>)<\/span><span class="sa-gn">/g)]
+    .map((m) => [m[1], m[2]]));
+  const pics = ['1'].concat(TEMPLATE_IDS).map((v) => [v, ed.querySelector('[data-sa-th="' + v + '"]').innerHTML || inline.get(v)]);
+  assert.ok(pics.every((m) => m[1].length > 3000), 'all drawn');
   const label = />(Temp|Precip %|Cloud %|Wind|Gust|UV|Pressure|Feels|Dew|Rain)<\/text>/;
-  const pics = [...picked(ed).matchAll(/data-sa-th="([^"]+)">(<svg[\s\S]*?<\/svg>)<\/span><span class="sa-gn">/g)];
-  assert.equal(pics.length, 1 + TEMPLATE_IDS.length);
-  assert.deepEqual(pics.filter((m) => label.test(m[2])).map((m) => m[1]), [], 'no legend in the roll');
+  assert.deepEqual(pics.filter((m) => label.test(m[1])).map((m) => m[0]), [], 'no legend in the roll');
   const tall = (svg) => Number(/viewBox="(?:\S+ ){3}(\S+)"/.exec(svg)[1]);
-  const heights = new Set(pics.map((m) => tall(m[2])));
+  const heights = new Set(pics.map((m) => tall(m[1])));
   assert.equal(heights.size, 1, 'every picture one height');
-  const pickers = pics.map((m) => GSP.valuePicture(page.S, EMERY, m[1], {}, 'gs-' + m[1]));
+  const pickers = pics.map((m) => GSP.valuePicture(page.S, EMERY, m[0], {}, 'gs-' + m[0]));
   assert.equal(pickers.filter((svg) => !label.test(svg)).length, 0, 'the same graphs keep theirs in the pickers');
   assert.ok([...heights][0] < Math.min(...pickers.map(tall)), 'no room kept for one: the frame ends under the hours');
   assert.deepEqual(legend(ed), ['Temperature', 'Rain chance', 'Rain'], 'under the row: the picked graph\'s');
@@ -878,12 +909,12 @@ test('the roll: the graph a scroll settles on is picked; a tap rolls one to the 
   const ed = page.editor();
   page.tapEditor({ se: 'pick', id: 'forecast', cal: '' });
   // The roll as the WebView lays it out: the graphs 168 px apart, the middle at 195 px.
-  const reel = ed.querySelector('[data-sa-roll]'), ids = roll(picked(ed)).map((x) => x[0]);
+  const strip = ed.querySelector('[data-sa-roll]'), ids = roll(reel(ed)).map((x) => x[0]);
   let centre = '1';
-  reel.getBoundingClientRect = () => ({ left: 0, width: 390 });
-  reel.querySelectorAll = () => ids.map((v, x) => ({ getAttribute: () => v,
+  strip.getBoundingClientRect = () => ({ left: 0, width: 390 });
+  strip.querySelectorAll = () => ids.map((v, x) => ({ getAttribute: () => v,
     getBoundingClientRect: () => ({ left: 117 + (x - ids.indexOf(centre)) * 168, width: 156 }) }));
-  const settle = (v) => { centre = v; reel.dispatch('scroll', {}); t.mock.timers.tick(16); };
+  const settle = (v) => { centre = v; strip.dispatch('scroll', {}); t.mock.timers.tick(16); };
   settle('storm');
   assert.deepEqual(graphName(ed), ['Storm', 'Template'], 'the graph in the middle is the one on the screen');
   assert.deepEqual(segments(part(ed, 'foot'), 'aspan').map((x) => x[2]), [false, true, false], 'at its own length: 24 h');
@@ -929,10 +960,10 @@ test('Outdoor at the length picked; the graph picked stays for the next layout; 
   assert.deepEqual(legend(ed).slice(2, 4), ['UV index', 'Feels like']);
   // ‹, then another layout: Outdoor still, at 12 hours, marked in its roll.
   page.tapEditor({ se: 'addback' });
-  assert.deepEqual([cardsShown(ed), picked(ed)], [true, ''], 'the cards again');
+  assert.deepEqual([cardsShown(ed), pickShown(ed)[0]], [true, false], 'the cards again');
   page.tapEditor({ se: 'pick', id: 'forecast', cal: '3' });
   assert.deepEqual(graphName(ed), ['Outdoor', 'Template']);
-  assert.deepEqual(roll(picked(ed)).filter((x) => x[2]).map((x) => x[0]), ['outdoor']);
+  assert.deepEqual([marked(ed, '1'), marked(ed, 'outdoor')], ['false', 'true'], 'marked in its roll');
   assert.deepEqual(segments(part(ed, 'foot'), 'aspan').map((x) => x[2]), [true, false, false]);
   page.tapEditor({ se: 'addnow' });
   assert.deepEqual(M.screensOf(page.S, EMERY)[1].map((x) => x.k), ['strip', 'cal', 'clock', 'fcbar', 'fc'], 'the full calendar');
@@ -946,7 +977,7 @@ test('Outdoor at the length picked; the graph picked stays for the next layout; 
   let writes = 0, cards = bodyAgain.innerHTML;
   Object.defineProperty(bodyAgain, 'innerHTML', { get: () => cards, set: (v) => { cards = v; writes += 1; } });
   page.tapEditor({ se: 'pick', id: 'health', cal: '' });
-  assert.equal(picked(again).indexOf('data-sa-roll'), -1, 'no roll');
+  assert.deepEqual(pickShown(again), [true, false], 'no roll');
   assert.equal(graphName(again), null);
   assert.deepEqual(segments(part(again, 'foot'), 'acal'), [['None', '', true, false], ['Compact', '2', false, false],
     ['Full', '3', false, false], ['Dense', 'dense', false, false]]);
@@ -956,11 +987,11 @@ test('Outdoor at the length picked; the graph picked stays for the next layout; 
   assert.match(part(again, 'big'), /aria-label="Health: [^"]*Calendar \(3 rows\)/, 'the full calendar on its picture');
   assert.ok(again.querySelector('[data-se-head]').innerHTML.indexOf('id="seTitle">Health</span>') !== -1);
   page.tapEditor({ se: 'addback' });
-  assert.deepEqual([cardsShown(again), picked(again)], [true, ''], 'the cards again');
+  assert.deepEqual([cardsShown(again), pickShown(again)[0]], [true, false], 'the cards again');
   page.tapEditor({ se: 'pick', id: 'radar', cal: '' });
   page.docDispatch('keydown', { key: 'Escape', target: {}, preventDefault() {} });
   assert.ok(page.editor(), 'still open');
-  assert.deepEqual([cardsShown(again), picked(again)], [true, ''], 'Escape: the cards again');
+  assert.deepEqual([cardsShown(again), pickShown(again)[0]], [true, false], 'Escape: the cards again');
   assert.equal(writes, 0, 'never drawn anew');
   assert.equal(sheetCards(cards).length, 9);
   page.docDispatch('keydown', { key: 'Escape', target: {}, preventDefault() {} });
@@ -1022,9 +1053,7 @@ test('the picked screen says what the weather service leaves out of its graph, u
 });
 
 test('a screen that cannot be added: its reason, Add screen off; a basalt keeps its graph', () => {
-  const busy = { provider: 'dwd', secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLine: 'wind',
-    fourthLine: 'uv', fifthLine: 'gust' };
-  const page = bootGeneratedPage(busy, 'emery');
+  const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, BUSY), 'emery');
   page.tapAction('addScreen');
   page.tapEditor({ se: 'pick', id: 'forecast', cal: '2' });
   assert.equal(part(page.editor(), 'foot').indexOf('sa-why'), -1, 'your graph adds no metric');
@@ -1042,7 +1071,7 @@ test('a screen that cannot be added: its reason, Add screen off; a basalt keeps 
   assert.ok(body.indexOf('A screen brings its rows. Your graph and your status bars stay as they are.') !== -1);
   basalt.tapEditor({ se: 'pick', id: 'forecast', cal: '2' });
   const ed = basalt.editor();
-  assert.equal(picked(ed).indexOf('data-sa-roll'), -1, 'one graph: no roll');
+  assert.deepEqual(pickShown(ed), [true, false], 'one graph: no roll');
   assert.equal(graphName(ed), null);
   assert.deepEqual(segments(part(ed, 'foot'), 'aspan'), [], 'nor a length: the watch has one');
   assert.deepEqual(legend(ed), ['Temperature', 'Rain chance', 'Rain'], 'your graph');
@@ -1087,7 +1116,7 @@ test('a screen of two graphs: no calendar, the health graph or the radar over th
   const emery = bootGeneratedPage({ provider: 'dwd' }, 'emery');
   emery.tapAction('addScreen');
   emery.tapEditor({ se: 'pick', id: 'healthfc', cal: '' });
-  assert.equal(roll(picked(emery.editor())).length, 1 + TEMPLATE_IDS.length);
+  assert.equal(roll(reel(emery.editor())).length, 1 + TEMPLATE_IDS.length);
   emery.tapEditor({ se: 'agraph', v: 'clean' });
   assert.deepEqual(legend(emery.editor()), ['Health graph', 'Temperature', 'Rain chance', 'Rain']);
   emery.tapEditor({ se: 'addnow' });

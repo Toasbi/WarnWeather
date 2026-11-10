@@ -44,7 +44,18 @@
             + svgLib.displayColors(inner) + '</svg>';
     }
 
-    var api = { margin: margin, svg: svg };
+    /**
+     * A picture's frame without its drawing: the <svg> svg drew it in and its ground, the size the
+     * picture takes, for its place until it is drawn (Add a screen's roll, screens-page.js).
+     * @param {string} markup A picture svg drew (its ids tagged or not).
+     * @returns {string} SVG markup, '' for markup svg did not draw
+     */
+    function ground(markup) {
+        var m = /^<svg[^>]*><rect[^>]*><\/rect>/.exec(markup);
+        return m ? m[0] + '</svg>' : '';
+    }
+
+    var api = { margin: margin, svg: svg, ground: ground };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.ScreenFrame = api; }
 })();

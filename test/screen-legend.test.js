@@ -12,6 +12,7 @@ require('../src/pkjs/config-ui/lib/engine.js');
 require('../src/pkjs/settings/blocks.js');
 const L = require('../src/pkjs/settings/screen-legend.js');
 const SP = require('../src/pkjs/settings/screens-page.js');
+const P = require('../src/pkjs/screen-presets.js');
 const FM = require('../src/pkjs/settings/forecast-metrics.js');
 const svgLib = require('../src/pkjs/settings/preview-svg.js');
 const VC = require('../src/pkjs/view-cycle.js');
@@ -44,7 +45,7 @@ function fresh(env, over) {
  * @returns {Array<Object>} screen-legend.js groups
  */
 function legendOf(id, env, S) {
-  const kind = ['forecast', 'health', 'radar', 'healthfc', 'radarfc'].includes(id);
+  const kind = Boolean(P.byId(id));
   const c = kind ? SP.addPreview(S || fresh(env), env, id, '') : SP.addPreview(S || fresh(env), env, 'forecast', '', id);
   assert.ok(c, id + ' is offered');
   return L.groups(SP.drawnView(VC.screensCycle(c.W, env)[c.n], c.W), c.W, env, USER);
@@ -166,11 +167,11 @@ test('a glyph: a tile of the watch\'s ground with the row drawn on it, in the co
 });
 
 test('a screen\'s legend: each row its glyph and name; a screen of two graphs gives the upper one a row', () => {
-  const one = L.cardHtml(legendOf('outdoor', EMERY), '#000000');
+  const one = L.rowsHtml(legendOf('outdoor', EMERY), '#000000');
   assert.deepEqual([...one.matchAll(/<span class="sl-n">([^<]*)<\/span>/g)].map((m) => m[1]),
     ['Temperature', 'Rain chance', 'UV index', 'Rain']);
-  assert.match(one, /^<span class="sl-card"><span class="sl-r"><svg class="sl-g"/);
-  const two = L.cardHtml(legendOf('healthfc', EMERY), '#000000');
+  assert.match(one, /^<span class="sl-rows"><span class="sl-r"><svg class="sl-g"/);
+  const two = L.rowsHtml(legendOf('healthfc', EMERY), '#000000');
   assert.deepEqual([...two.matchAll(/<span class="sl-n">([^<]*)<\/span>/g)].map((m) => m[1]),
     ['Health graph', 'Temperature', 'Rain chance', 'Rain'], 'the health graph in one row, by its name');
 });

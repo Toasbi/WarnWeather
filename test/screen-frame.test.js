@@ -12,6 +12,12 @@ test('the margin is about 6 % of the drawing\'s width: 9 on the 144 px screens, 
   assert.equal(frame.margin(320), 20, 'any other width: its 6.25 %');
 });
 
+test('a picture\'s ground: the frame svg drew it in, without the drawing; none for markup svg did not draw', () => {
+  const drawn = frame.svg(200, 107, '#FFFFFF', '<circle id="a"></circle>', 'wiz-graph-scr');
+  assert.equal(frame.ground(drawn), frame.svg(200, 107, '#FFFFFF', '', 'wiz-graph-scr'));
+  assert.equal(frame.ground('<svg viewBox="0 0 1 1"><circle></circle></svg>'), '');
+});
+
 test('a framed drawing is its ground all round it, then the drawing in its own coordinates', () => {
   assert.equal(frame.svg(144, 168, '#000000', '<circle></circle>', 'wpv-scr'),
     '<svg class="wpv-scr" viewBox="-9 -9 162 186" aria-hidden="true" focusable="false">'

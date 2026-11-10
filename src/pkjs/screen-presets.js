@@ -30,7 +30,7 @@
 // WHAT A SCREEN SHOWS. A card shows its screen with your graph; the screen picked shows the graph
 // picked, with the legend of what its graphs draw (settings/screen-legend.js, read off the
 // picture's settings); a card's picture shows its calendar, which Dense names to a screen reader
-// too (calendarName).
+// too (cardSaid).
 //
 // WHICH ONES A WATCH GETS. Only the ones it can draw (offered): Blank and the forecast screen on
 // every watch, Dense on one with the rain radar, Health and Health + forecast on a watch with
@@ -48,10 +48,12 @@
     // In the order Add a screen lists them. `graph` is the graph the screen shows (screens.js
     // kinds; none on Blank), `upper` the one over it on a screen of two graphs; `needs` names the
     // env facts (config-ui/lib/platform.js computeEnv) the watch must have; `group` the heading it
-    // is listed under (GROUPS).
+    // is listed under (GROUPS). `layouts`: its cards are its layouts, one per calendar (cards),
+    // named after it (cardName), so its calendar is picked on its card and the screen is named
+    // after its graph (screens-page.js); another kind's calendar is picked after its card.
     var KINDS = [
         { id: 'blank', name: 'Blank', graph: '', needs: [], group: 'start' },
-        { id: 'forecast', name: 'Forecast', graph: 'fc', needs: [], group: 'fc' },
+        { id: 'forecast', name: 'Forecast', graph: 'fc', needs: [], group: 'fc', layouts: true },
         { id: 'health', name: 'Health', graph: 'health', needs: ['health'], group: 'more' },
         { id: 'radar', name: 'Rain radar', graph: 'radar', needs: ['radar'], group: 'more' },
         { id: 'healthfc', name: 'Health + forecast', graph: 'fc', upper: 'health', needs: ['health'], group: 'more' },
@@ -67,12 +69,11 @@
     var UPPER_SIZE = '3';
     // A screen's calendars, in the order Add a screen shows them: [name, rows] ('' for none, DENSE
     // for the compact one with the radar bar under it): the forecast screen's cards, by their names
-    // (LAYOUT_NAME), Health's and Rain radar's Calendar choice, by the first.
+    // (LAYOUT_NAME, Dense's said in full to a screen reader: cardSaid), Health's and Rain radar's
+    // Calendar choice, by the first.
     var DENSE = 'dense';
     var CALENDARS = [['None', ''], ['Compact', '2'], ['Full', '3'], ['Dense', DENSE]];
     var LAYOUT_NAME = { '': 'No calendar', '2': 'Compact calendar', '3': 'Full calendar', dense: 'Dense' };
-    var CARD_CALENDAR = { '': 'No calendar', '2': 'Compact calendar', '3': 'Full calendar',
-        dense: 'Compact calendar and radar bar' };
     // A screen with nothing but the Watch bar and the clock: Blank.
     var BLANK = [{ k: 'strip' }, { k: 'clock' }];
 
@@ -165,33 +166,32 @@
     function cards(env) {
         var out = [];
         offered(env).forEach(function (kind) {
-            var cals = kind.id === 'forecast' ? calendars(kind, env) : [['', '']];
+            var cals = kind.layouts ? calendars(kind, env) : [['', '']];
             cals.forEach(function (c) { out.push({ kind: kind, cal: c[1] }); });
         });
         return out;
     }
 
     /**
-     * A card's name: the forecast screen's by its calendar ("Compact calendar", "Dense"), the
-     * others' their own.
+     * A card's name: a layout's by its calendar ("Compact calendar", "Dense"), the others' their
+     * own.
      * @param {Object} kind A KINDS entry.
      * @param {string} cal Its calendar's rows: '' | '2' | '3' | DENSE.
      * @returns {string}
      */
     function cardName(kind, cal) {
-        return kind.id === 'forecast' ? LAYOUT_NAME[cal] || LAYOUT_NAME[''] : kind.name;
+        return kind.layouts ? LAYOUT_NAME[cal] || LAYOUT_NAME[''] : kind.name;
     }
 
     /**
-     * A screen's calendar as a screen reader hears it: "No calendar", "Compact calendar", "Full
-     * calendar", "Compact calendar and radar bar"; '' for a kind with none to pick (Blank, a screen
-     * of two graphs).
+     * What a screen reader hears after a card's name, which leaves it out: Dense's calendar, the
+     * compact one with the radar bar; '' for every other card.
      * @param {Object} kind A KINDS entry.
      * @param {string} cal Its calendar's rows: '' | '2' | '3' | DENSE.
      * @returns {string}
      */
-    function calendarName(kind, cal) {
-        return calendars(kind).length ? CARD_CALENDAR[cal] || '' : '';
+    function cardSaid(kind, cal) {
+        return kind.layouts && cal === DENSE ? 'compact calendar and radar bar' : '';
     }
 
     /**
@@ -261,21 +261,7 @@
      * @returns {?Object} its LOOKS entry
      */
     function template(id, env) {
-        var list = templates(env);
-        for (var i = 0; i < list.length; i += 1) { if (list[i].id === id) { return list[i]; } }
-        return null;
-    }
-
-    /**
-     * The length a template's graph starts on (Classic and Stripes 24 hours, Clean the long span),
-     * where this watch can draw it; '' elsewhere.
-     * @param {string} id A template's id.
-     * @param {?Object} env Platform env.
-     * @returns {string} '12' | '24' | '48' | ''
-     */
-    function spanOf(id, env) {
-        var look = template(id, env);
-        return look ? look.span : '';
+        return templates(env).length ? looks().lookOf(id) : null;
     }
 
     /**
@@ -305,13 +291,12 @@
         calendars: calendars,
         cards: cards,
         cardName: cardName,
-        calendarName: calendarName,
+        cardSaid: cardSaid,
         showsRadar: showsRadar,
         calOf: calOf,
         graphOf: graphOf,
         templates: templates,
         template: template,
-        spanOf: spanOf,
         spanOptions: spanOptions
     };
 

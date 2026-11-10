@@ -2,7 +2,7 @@
 // screen's graphs draw (the owner's, 2026-11-10: "just show a proper legend"): a row for each
 // thing drawn, its glyph on the watch's ground in the colours the screen shows (preview-svg.js
 // displayColors) and its name: the glyph says how it is drawn (the owner's, 2026-11-10: the names
-// only). Add a screen's picked screen shows the rows under its picture (cardHtml), with what the
+// only). Add a screen's picked screen shows the rows under its picture (rowsHtml), with what the
 // weather service leaves out (gapNote).
 //
 // THE ROWS are each graph's own legend (preview-forecast.js, preview-health.js and
@@ -175,7 +175,7 @@
      * @param {string} bg The watch's ground.
      * @returns {string} HTML (spans)
      */
-    function cardHtml(gs, bg) {
+    function rowsHtml(gs, bg) {
         var out = '';
         gs.forEach(function (g, i) {
             if (i < gs.length - 1) {
@@ -184,7 +184,7 @@
             }
             g.rows.forEach(function (r) { out += '<span class="sl-r">' + rowHtml(r, g.graph, bg) + '</span>'; });
         });
-        return '<span class="sl-card">' + out + '</span>';
+        return '<span class="sl-rows">' + out + '</span>';
     }
 
     /**
@@ -205,15 +205,14 @@
         return FM.gapSentence(provider, ids);
     }
 
-    // The legend's look: each row its glyph and its name (Add a screen's picked screen sets the
-    // rows side by side, centred: screens-page.js).
+    // The legend's look: its rows side by side, centred, each its glyph and its name.
     var CSS = '.sl-g{display:block;flex:0 0 auto;width:24px;height:14px;border-radius:3px;box-shadow:0 0 0 1px var(--card-line)}'
-        + '.sl-card{display:grid;gap:4px;min-width:0}'
+        + '.sl-rows{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;min-width:0}'
         + '.sl-r{display:flex;align-items:center;gap:7px;min-width:0}'
         + '.sl-r .sl-n{min-width:0;font:600 12px/1.25 Inter,system-ui,sans-serif;color:var(--lbl);white-space:nowrap;'
         + 'overflow:hidden;text-overflow:ellipsis}';
 
-    var api = { NAME: NAME, groups: groups, glyph: glyph, cardHtml: cardHtml, gapNote: gapNote, CSS: CSS };
+    var api = { NAME: NAME, groups: groups, glyph: glyph, rowsHtml: rowsHtml, gapNote: gapNote, CSS: CSS };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.ScreenLegend = api; }
 })();
