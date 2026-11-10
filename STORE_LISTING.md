@@ -17,7 +17,8 @@ FORECAST
   axis: the graph uses the full width), values that include feels-like and dew point
 - Pebble Time 2: up to six forecast graphs to switch between, so each screen can show its own, e.g. the next
   24 hours on one screen and 66 hours on another; start one from a template (Classic, Clean,
-  Stripes, Outdoor, Meteogram, Wind, Comfort or Clouds); a list shows each graph with its picture,
+  Stripes, Simple, Rain, Sky, Clouds, Outdoor, Sun, Comfort, Wind, Storm, Pressure or Meteogram);
+  a list shows each graph with its picture,
   its metrics and the room left
 - Fully customizable lines and colors
 - Multiple weather providers, including regional and worldwide sources, picked in one Data sources card
@@ -98,7 +99,7 @@ LAYOUT CUSTOMIZATION
 - Up to three screens, switched with a wrist flick (or a double flick, to avoid accidental switches) and back to the Default screen after a time you set
 - Edit each screen as a simple list, top to bottom: drag a row, remove it or add one where it fits, from chips grouped into status bars, graphs and the calendar and clock; on Pebble Time 2, Switch graph swaps a screen's graph for another of yours
 - Name your screens and drag them into the order you want; the top one is the Default
-- Add a screen from rows you scroll sideways, each screen drawn as it would look with no calendar, a compact or a full one, beside a legend of what it shows: on the Pebble Time 2 a forecast screen per template (Classic, Clean, Stripes, Outdoor, Meteogram, Wind, Comfort, Clouds), then Health, Rain radar, and Health + forecast or Radar + forecast for two graphs on one screen; a tap lists what it shows and how each is drawn and, on the Pebble Time 2, picks its forecast length; the same screen can go in twice
+- Add a screen from rows you scroll sideways, each screen drawn as it would look with no calendar, a compact or a full one, beside a legend of what it shows: on the Pebble Time 2 a forecast screen per template, in rows by theme (Everyday, Rain and clouds, Outdoors, Wind and pressure), then Health, Rain radar, and Health + forecast or Radar + forecast for two graphs on one screen; a tap lists what it shows and how each is drawn and, on the Pebble Time 2, picks its forecast length; the same screen can go in twice
 - First-run setup that previews your watch as you pick its layout, add a Health or Rain radar screen (and on the Pebble Time 2 a Long forecast screen), pick a theme and a forecast look (Classic, Clean or Stripes, and on the Pebble Time 2 its length), with sensible defaults for your country and watch
 - A settings page that draws your watch, every screen of it, as you change it, with Revert to undo your changes
 

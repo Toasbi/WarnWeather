@@ -1,10 +1,12 @@
 // src/pkjs/screen-presets.js — ES5. The screens Add a screen offers (the owner's five, 2026-11-09,
-// then many more, to show what the watchface can draw): a forecast screen whose graph is a
-// template (wizard-forecast.js LOOKS: the Graphs tab's templates), Classic, Clean, Stripes,
-// Outdoor, Meteogram, Wind, Comfort and Clouds (the owner's, 2026-11-10: the common ways to show
-// the weather); then Health and Rain radar; then two graphs on one screen, the health graph or the
-// rain radar over the forecast. Setup's Screens step adds its screens from the same lists
-// (settings/wizard-screens.js). Each kind's `group` is the row Add a screen lists it in (GROUPS).
+// then many more, to show what the watchface can draw; 2026-11-10: the common ways to show the
+// weather, and better too many than too few): a forecast screen whose graph is a template
+// (wizard-forecast.js LOOKS: the Graphs tab's templates) in a themed row (GROUPS): Everyday
+// (Classic, Clean, Stripes, Simple), Rain and clouds (Rain, Sky, Clouds), Outdoors (Outdoor, Sun,
+// Comfort), Wind and pressure (Wind, Storm, Pressure, Meteogram); then Health and Rain radar, and
+// two graphs on one screen, the health graph or the rain radar over the forecast. Setup's Screens
+// step adds its screens from the same lists (settings/wizard-screens.js). Each kind's `group` is the
+// row Add a screen lists it in.
 //
 // A SCREEN'S ROWS (listOf): the Watch bar, a calendar of none, two or three rows, the clock, the
 // graph's bar and the graph filling the rest (screens.js THE LIST). Add a screen shows each kind
@@ -44,14 +46,20 @@
     // (config-ui/lib/platform.js computeEnv) the watch must have, `without` one it must not;
     // `group` the heading it is listed under (GROUPS).
     var KINDS = [
-        { id: 'classic', name: 'Classic', look: 'classic', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
-        { id: 'clean', name: 'Clean', look: 'clean', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
-        { id: 'stripes', name: 'Stripes', look: 'stripes', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
-        { id: 'outdoor', name: 'Outdoor', look: 'outdoor', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
-        { id: 'meteogram', name: 'Meteogram', look: 'meteogram', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
-        { id: 'wind', name: 'Wind', look: 'wind', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
-        { id: 'comfort', name: 'Comfort', look: 'comfort', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
-        { id: 'clouds', name: 'Clouds', look: 'clouds', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
+        { id: 'classic', name: 'Classic', look: 'classic', graph: 'fc', needs: ['graphStyles'], group: 'everyday' },
+        { id: 'clean', name: 'Clean', look: 'clean', graph: 'fc', needs: ['graphStyles'], group: 'everyday' },
+        { id: 'stripes', name: 'Stripes', look: 'stripes', graph: 'fc', needs: ['graphStyles'], group: 'everyday' },
+        { id: 'simple', name: 'Simple', look: 'simple', graph: 'fc', needs: ['graphStyles'], group: 'everyday' },
+        { id: 'rain', name: 'Rain', look: 'rain', graph: 'fc', needs: ['graphStyles'], group: 'rain' },
+        { id: 'sky', name: 'Sky', look: 'sky', graph: 'fc', needs: ['graphStyles'], group: 'rain' },
+        { id: 'clouds', name: 'Clouds', look: 'clouds', graph: 'fc', needs: ['graphStyles'], group: 'rain' },
+        { id: 'outdoor', name: 'Outdoor', look: 'outdoor', graph: 'fc', needs: ['graphStyles'], group: 'outdoors' },
+        { id: 'sun', name: 'Sun', look: 'sun', graph: 'fc', needs: ['graphStyles'], group: 'outdoors' },
+        { id: 'comfort', name: 'Comfort', look: 'comfort', graph: 'fc', needs: ['graphStyles'], group: 'outdoors' },
+        { id: 'wind', name: 'Wind', look: 'wind', graph: 'fc', needs: ['graphStyles'], group: 'wind' },
+        { id: 'storm', name: 'Storm', look: 'storm', graph: 'fc', needs: ['graphStyles'], group: 'wind' },
+        { id: 'pressure', name: 'Pressure', look: 'pressure', graph: 'fc', needs: ['graphStyles'], group: 'wind' },
+        { id: 'meteogram', name: 'Meteogram', look: 'meteogram', graph: 'fc', needs: ['graphStyles'], group: 'wind' },
         { id: 'forecast', name: 'Forecast', look: null, graph: 'fc', needs: [], without: 'graphStyles', group: 'fc' },
         { id: 'health', name: 'Health', look: null, graph: 'health', needs: ['health'], group: 'more' },
         { id: 'radar', name: 'Rain radar', look: null, graph: 'radar', needs: ['radar'], group: 'more' },
@@ -59,8 +67,11 @@
             group: 'more' },
         { id: 'radarfc', name: 'Radar + forecast', look: null, graph: 'fc', upper: 'radar', needs: ['radar'], group: 'more' }
     ];
-    // Add a screen's rows, in order, each its heading over the cards of its group, side by side.
-    var GROUPS = [{ id: 'fc', name: 'Forecast' }, { id: 'more', name: 'Health and radar' }];
+    // Add a screen's rows, in order, each its heading over the cards of its group, side by side: a
+    // watch with one graph its Forecast screen, the Pebble Time 2 the templates' screens by theme.
+    // A row with nothing this watch can draw is left out.
+    var GROUPS = [{ id: 'fc', name: 'Forecast' }, { id: 'everyday', name: 'Everyday' }, { id: 'rain', name: 'Rain and clouds' },
+        { id: 'outdoors', name: 'Outdoors' }, { id: 'wind', name: 'Wind and pressure' }, { id: 'more', name: 'Health and radar' }];
     // Each graph's bar, the row over it.
     var BAR_OF = { fc: 'fcbar', health: 'healthbar', radar: 'radarbar' };
     // An upper graph's rows, on a screen of two graphs: three, the forecast filling the rest under

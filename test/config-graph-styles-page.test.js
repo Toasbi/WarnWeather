@@ -405,20 +405,28 @@ test('the page: New graph from a template opens the new graph\'s dialog, its nam
   assert.match(sheet, /New graph/);
   assert.ok(sheet.indexOf('<div class="ssel-lead">Start from a template. You get your own copy, and the template stays as it is.</div>') !== -1);
   assert.equal(sheet.indexOf('ssel-chk'), -1, 'nothing ticked');
-  assert.match(sheet, />Classic<[\s\S]*>Clean<[\s\S]*>Stripes<[\s\S]*>Outdoor<[\s\S]*>Meteogram<[\s\S]*>Wind<[\s\S]*>Comfort<[\s\S]*>Clouds<[\s\S]*Or copy one of your graphs[\s\S]*>Copy of Graph 1<[\s\S]*>Copy of Long</,
-    'the templates, then a copy of each graph');
-  assert.equal((sheet.match(/class="ssel-pic"/g) || []).length, 10, 'a picture for each template and copy');
+  assert.deepEqual([...sheet.matchAll(/data-select-pick="([a-z0-9]+)"/g)].map((m) => m[1]),
+    WF.LOOKS.map((look) => look.id).concat(['copy1', 'copy2']), 'the templates in their order, then a copy of each graph');
+  assert.match(sheet, />Classic<[\s\S]*>Clean<[\s\S]*>Stripes<[\s\S]*>Simple<[\s\S]*>Rain<[\s\S]*>Sky<[\s\S]*>Clouds<[\s\S]*>Outdoor<[\s\S]*>Sun<[\s\S]*>Comfort<[\s\S]*>Wind<[\s\S]*>Storm<[\s\S]*>Pressure<[\s\S]*>Meteogram<[\s\S]*Or copy one of your graphs[\s\S]*>Copy of Graph 1<[\s\S]*>Copy of Long</,
+    'by their names');
+  assert.equal((sheet.match(/class="ssel-pic"/g) || []).length, 16, 'a picture for each template and copy');
   assert.ok(sheet.indexOf('id="nh-gs-clean"') !== -1 && sheet.indexOf('id="nh-gs-copy2"') !== -1, 'tagged ids');
   // Under each template, its length and what it draws, in the words setup writes from its values.
-  assert.deepEqual([...sheet.matchAll(/<span class="ssel-opt-desc">([^<]*)<\/span>/g)].map((m) => m[1]).slice(0, 8), [
+  assert.deepEqual([...sheet.matchAll(/<span class="ssel-opt-desc">([^<]*)<\/span>/g)].map((m) => m[1]).slice(0, 14), [
     '24 h · Rain chance as a shaded area, rain bars',
     '66 h · Rain chance as a shaded area, solid rain bars',
     '24 h · Feels-like temperature as a line, clouds and rain chance as stripes, solid rain bars from the top',
+    '24 h · Rain chance as a line',
+    '12 h · Rain chance as a stripe, rain bars',
+    '24 h · Rain chance as a line, clouds as a shaded area, solid rain bars',
+    '66 h · Clouds as a shaded area, solid rain bars',
     '66 h · UV index as a line, rain chance as a shaded area, solid rain bars from the top',
-    '66 h · Air pressure as a line, wind as dots, clouds as a stripe, rain bars',
-    '24 h · Gusts as a line, wind as a shaded area, rain bars',
+    '24 h · UV index as a shaded area, clouds as a stripe, solid rain bars',
     '24 h · Feels-like temperature as a line, rain chance as a shaded area, dew point as \u00d7 marks, rain bars',
-    '66 h · Clouds as a shaded area, solid rain bars']);
+    '24 h · Gusts as a line, wind as a shaded area, rain bars',
+    '24 h · Air pressure as a line, gusts as a shaded area, rain chance as a stripe, rain bars',
+    '66 h · Air pressure as a line, rain chance as a shaded area, solid rain bars',
+    '66 h · Air pressure as a line, wind as dots, clouds as a stripe, rain bars']);
   p.pickOption('graphStyleNewFrom', 'clean');
   assert.equal(p.S.graphStylePick, '3', 'the new graph takes the free slot and is picked');
   assert.equal(GS.name(GSP.normalize(p.S), 2), 'Graph 3', 'never the template\'s name');

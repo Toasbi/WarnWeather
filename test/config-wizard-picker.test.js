@@ -734,28 +734,54 @@ test('the looks as the owner set them, pinned as written: each one\'s values, le
       secondaryLineFill: true, thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop', fourthLine: 'feels',
       fourthLineStyle: 'line', fifthLine: 'off', barSource: 'rain', rainBarColor: 'white', rainBarFrom: 'top',
       dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The owner's, 2026-11-10: better too many presets than too few. The plainest graph: the rain
+    // chance as a thin line, no bars, no shaded area.
+    simple: { span: '24', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'off',
+      dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The next 12 hours of rain: the rain chance as a stripe along the top over the rain bars.
+    rain: { span: '12', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'stripeTop',
+      secondaryLineFill: true, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
+      dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The day's sky: the clouds as the shaded area under the rain chance's thin line.
+    sky: { span: '24', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'line', secondaryLineFill: true,
+      thirdLine: 'precip_prob', thirdLineStyle: 'line', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
+      rainBarColor: 'white', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // Whether the next nights stay clear, as stargazing forecasts show it.
+    clouds: { span: '48', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'line', secondaryLineFill: true,
+      thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'rain', rainBarColor: 'white', dayNightShading: true,
+      forecastAxisNumbers: 'graph' } },
     // The owner's, 2026-11-09: Clean with its bars from the top and the UV index as a thin line,
     // and on 12 and 24 hours the feels-like temperature too.
     outdoor: { span: '48', like: undefined, short: { fourthLine: 'feels', fourthLineStyle: 'line' },
       over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line', secondaryLineFill: true, thirdLine: 'uv',
         thirdLineStyle: 'line', fourthLine: 'off', fifthLine: 'off', barSource: 'rain', rainBarColor: 'white',
         rainBarFrom: 'top', dayNightShading: true, forecastAxisNumbers: 'graph' } },
-    // The owner's, 2026-11-10: presets from the common ways to show the weather. A meteogram as
-    // weather services draw one (Yr, meteoblue, Windy).
-    meteogram: { span: '48', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop',
-      secondaryLineFill: true, thirdLine: 'pressure', thirdLineStyle: 'line', fourthLine: 'wind', fourthLineStyle: 'dots',
+    // When the sun is strong: the UV index as the shaded area, the clouds as a stripe along the top.
+    sun: { span: '24', like: undefined, over: { secondaryLine: 'uv', secondaryLineStyle: 'line', secondaryLineFill: true,
+      thirdLine: 'cloud', thirdLineStyle: 'stripeTop', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
+      rainBarColor: 'white', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The owner's, 2026-11-10: presets from the common ways to show the weather.
+    comfort: { span: '24', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: true, thirdLine: 'feels', thirdLineStyle: 'line', fourthLine: 'dew', fourthLineStyle: 'x',
       fifthLine: 'off', barSource: 'rain', dayNightShading: true, forecastAxisNumbers: 'graph' } },
     // The wind speed and its gusts, as wind forecasts chart them.
     wind: { span: '24', like: undefined, over: { secondaryLine: 'wind', secondaryLineStyle: 'line', secondaryLineFill: true,
       thirdLine: 'gust', thirdLineStyle: 'line', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
       dayNightShading: true, forecastAxisNumbers: 'graph' } },
-    comfort: { span: '24', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
-      secondaryLineFill: true, thirdLine: 'feels', thirdLineStyle: 'line', fourthLine: 'dew', fourthLineStyle: 'x',
+    // A storm coming in: the gusts as the shaded area, the air pressure as a thin line, the rain
+    // chance as a stripe along the top.
+    storm: { span: '24', like: undefined, over: { secondaryLine: 'gust', secondaryLineStyle: 'line', secondaryLineFill: true,
+      thirdLine: 'pressure', thirdLineStyle: 'line', fourthLine: 'precip_prob', fourthLineStyle: 'stripeTop',
       fifthLine: 'off', barSource: 'rain', dayNightShading: true, forecastAxisNumbers: 'graph' } },
-    // Whether the next nights stay clear, as stargazing forecasts show it.
-    clouds: { span: '48', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'line', secondaryLineFill: true,
-      thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'rain', rainBarColor: 'white', dayNightShading: true,
-      forecastAxisNumbers: 'graph' } }
+    // A front coming in: Clean with the air pressure as a thin line over the long span.
+    pressure: { span: '48', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: true, thirdLine: 'pressure', thirdLineStyle: 'line', fourthLine: 'off', fifthLine: 'off',
+      barSource: 'rain', rainBarColor: 'white', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // A meteogram as weather services draw one (Yr, meteoblue, Windy).
+    meteogram: { span: '48', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop',
+      secondaryLineFill: true, thirdLine: 'pressure', thirdLineStyle: 'line', fourthLine: 'wind', fourthLineStyle: 'dots',
+      fifthLine: 'off', barSource: 'rain', dayNightShading: true, forecastAxisNumbers: 'graph' } }
   };
   assert.deepEqual(FORECAST.LOOKS.map((look) => look.id), Object.keys(pinned));
   FORECAST.LOOKS.forEach((look) => {
@@ -781,18 +807,25 @@ test('the looks as the owner set them, pinned as written: each one\'s values, le
     'Rain chance as a shaded area, rain bars',
     'Rain chance as a shaded area, rain bars',
     'Rain chance as a line, clouds as a shaded area, rain bars']);
-  assert.deepEqual(['outdoor', 'meteogram', 'wind', 'comfort', 'clouds'].map((id) => FORECAST.summary(id, EMERY)), [
+  assert.deepEqual(FORECAST.LOOKS.slice(3).map((look) => FORECAST.summary(look.id, EMERY)), [
+    'Rain chance as a line',
+    'Rain chance as a stripe, rain bars',
+    'Rain chance as a line, clouds as a shaded area, solid rain bars',
+    'Clouds as a shaded area, solid rain bars',
     'UV index as a line, rain chance as a shaded area, solid rain bars from the top',
-    'Air pressure as a line, wind as dots, clouds as a stripe, rain bars',
-    'Gusts as a line, wind as a shaded area, rain bars',
+    'UV index as a shaded area, clouds as a stripe, solid rain bars',
     'Feels-like temperature as a line, rain chance as a shaded area, dew point as \u00d7 marks, rain bars',
-    'Clouds as a shaded area, solid rain bars']);
+    'Gusts as a line, wind as a shaded area, rain bars',
+    'Air pressure as a line, gusts as a shaded area, rain chance as a stripe, rain bars',
+    'Air pressure as a line, rain chance as a shaded area, solid rain bars',
+    'Air pressure as a line, wind as dots, clouds as a stripe, rain bars']);
 });
 
 test('every look has the night shading on, and the looks are the graph styles\' presets', () => {
   FORECAST.LOOKS.forEach((look) => assert.equal(look.over.dayNightShading, true, look.id));
   assert.deepEqual(FORECAST.LOOKS.filter((look) => look.setup).map((look) => look.id), LOOK_IDS, 'setup\'s three');
-  assert.deepEqual(FORECAST.LOOKS.map((look) => look.span), ['24', '48', '24', '48', '48', '24', '24', '48']);
+  assert.deepEqual(FORECAST.LOOKS.map((look) => look.span),
+    ['24', '48', '24', '24', '12', '24', '48', '48', '24', '24', '24', '24', '48', '48']);
   assert.equal(FORECAST.FIRST_RUN, 'clean');
   const { ctx, dom } = openSetup({ saved: { dayNightShading: false } });
   walkTo(dom, 'forecastLook');

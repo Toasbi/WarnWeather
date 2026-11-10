@@ -494,13 +494,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * `calName` names its calendar ('' on a screen of two graphs), for a screen reader: its
      * picture shows it. `W` holds the modes the screens need with it added (applyModes), so its
      * picture draws the radar as the watch will (the radar's sky rows draw as a graph only).
+     * @param {{graph: ?Object, why: string}} [known] What the same kind at the same length found on
+     *     another calendar: its graph and why it cannot be added, the same on every calendar (a
+     *     calendar takes no graph and draws no metric), so Add a screen's cards read them once.
      * @returns {{id: string, name: string, calName: string, look: ?string, cal: string, span: string,
      *   list: Array<Object>, graph: ?{k: number, values: ?Object}, W: Object, n: number, why: string}}
      */
-    function addChoice(N, env, lists, kind, cal, span) {
-        var n = lists.length, list = PRESETS.screenOf(kind, cal), why = '';
+    function addChoice(N, env, lists, kind, cal, span, known) {
+        var n = lists.length, list = PRESETS.screenOf(kind, cal), why = known ? known.why : '';
         var styled = Boolean(kind.look && env && env.graphStyles);
-        var graph = styled ? GSP.presetGraph(N, env, kind.look, span) : null;
+        var graph = known ? known.graph : styled ? GSP.presetGraph(N, env, kind.look, span) : null;
         if (graph && graph.k > 0) { list[M.idxOf(list, 'fc')].style = String(graph.k + 1); }
         var W = Object.assign({}, N);
         if (graph && graph.values) { W.graphStyles = GS.withStyle(W, graph.k, graph.values); }
@@ -510,7 +513,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         applyModes(W, env);
         W['viewAlign' + n] = 'clock';
         W['viewName' + n] = kind.name;
-        if (styled && !graph) {
+        if (known) {
+            // Read on another calendar already.
+        } else if (styled && !graph) {
             why = NO_GRAPH_ROOM;
         } else if (graph && GSP.screenOverflows(W, env, n, graph.k)) {
             why = GSP.limitDesc(W, env, graph.k);
@@ -529,10 +534,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {Array<Object>}
      */
     function addChoices(S, env) {
-        var N = GSP.asStored(S), lists = M.screensOf(N, env);
+        var N = GSP.asStored(S), lists = M.screensOf(N, env), known = {};
         if (lists.length >= M.MAX_SCREENS) { return []; }
         return PRESETS.cards(env).map(function (card) {
-            return addChoice(N, env, lists, card.kind, card.cal, PRESETS.spanOf(card.kind, env));
+            var span = PRESETS.spanOf(card.kind, env), key = card.kind.id + ':' + span;
+            var c = addChoice(N, env, lists, card.kind, card.cal, span, known[key]);
+            known[key] = known[key] || { graph: c.graph, why: c.why };
+            return c;
         });
     }
 
