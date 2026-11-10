@@ -876,23 +876,26 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-adds{display:grid;gap:14px;padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
         + '.se-add{display:grid;gap:7px}'
         // Add a screen: a row per group, its cards side by side, scrolled sideways (the owner's,
-        // 2026-11-10), out to the body's edges; a card its picture beside its name and legend
-        // (screen-legend.js), as tall as the picture. A picked one big, what it shows (the legend
-        // as a list), its Forecast length (a segmented control) and Add screen.
+        // 2026-11-10), out to the body's edges, freely (a snap to every card made a row long to
+        // scroll through, the owner's, 2026-11-10); a card its picture over its name and legend
+        // (screen-legend.js), narrow enough that two and a bit show side by side, each as tall as
+        // its own legend (no empty space under a short one). A picked one big,
+        // what it shows (the legend as a list), its Forecast length (a segmented control) and
+        // Add screen.
         + '.sa-group{display:grid;gap:8px;min-width:0}'
         + '.sa-group+.sa-group{margin-top:6px}'
         + '.sa-group>.ui-cap{padding:0 4px}'
-        + '.sa-strip{display:flex;gap:10px;margin:0 -16px;padding:2px 16px 6px;overflow-x:auto;overflow-y:hidden;'
-        + '-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scroll-padding:0 16px;scrollbar-width:none}'
+        + '.sa-strip{display:flex;align-items:flex-start;gap:10px;margin:0 -16px;padding:2px 16px 6px;overflow-x:auto;'
+        + 'overflow-y:hidden;'
+        + '-webkit-overflow-scrolling:touch;scrollbar-width:none}'
         + '.sa-strip::-webkit-scrollbar{display:none}'
-        + '.sa-card{flex:0 0 auto;display:flex;align-items:flex-start;gap:12px;min-width:0;margin:0;padding:12px;'
-        + 'border:none;border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--card-line);'
-        + 'color:var(--lbl);text-align:left;font:inherit;cursor:pointer;scroll-snap-align:start;'
-        + '-webkit-appearance:none;appearance:none}'
-        + '.sa-pic{display:block;flex:0 0 auto;width:96px;border-radius:9px;overflow:hidden;line-height:0;'
+        + '.sa-card{flex:0 0 auto;display:flex;flex-direction:column;gap:9px;width:156px;min-width:0;margin:0;'
+        + 'padding:10px;border:none;border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--card-line);'
+        + 'color:var(--lbl);text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
+        + '.sa-pic{display:block;width:100%;border-radius:9px;overflow:hidden;line-height:0;'
         + 'box-shadow:0 0 0 1px var(--card-line)}'
         + '.sa-pic svg{display:block;width:100%;height:auto}'
-        + '.sa-txt{display:grid;align-content:start;gap:6px;min-width:0;width:112px;padding-top:1px}'
+        + '.sa-txt{display:grid;align-content:start;gap:6px;min-width:0;padding:0 2px}'
         + '.sa-n{font:700 13.5px/1.25 Inter,system-ui,sans-serif;color:var(--lbl)}'
         + '.sa-fine{padding:2px 4px;font-size:12px;line-height:1.45;color:var(--hint)}'
         + '.sa-cfg{display:grid;gap:14px}'
@@ -1441,7 +1444,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Add a screen's cards: a row of cards per group (screen-presets.js GROUPS), its heading over
      * them, scrolled sideways (the owner's, 2026-11-10); each card (addChoices) the picture of the
-     * screen it adds beside its name and the legend of what it shows (screen-legend.js). The
+     * screen it adds over its name and the legend of what it shows (screen-legend.js). The
      * first EAGER cards of a row hold their pictures; the others hold a place for theirs, which
      * fillPictures draws (`later`, a column of every row after another). Under the rows, what a
      * screen brings.
@@ -2225,6 +2228,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     var api = {
+        CSS: CSS,
         NAMES: NAMES,
         NEW_SCREEN: NEW_SCREEN,
         APLITE_LAYOUTS: APLITE_LAYOUTS,

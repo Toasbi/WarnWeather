@@ -272,6 +272,17 @@ test('Forecast length: a forecast screen\'s lengths, on the Pebble Time 2 only',
   assert.deepEqual(P.spanOptions(P.byId('forecast'), BASALT, {}), []);
 });
 
+test('Add a screen\'s cards: the picture over the legend, a row scrolled freely', () => {
+  // The owner's, 2026-11-10: bigger pictures, the legend under them so more fit side by side,
+  // and no snap to every card while a row scrolls.
+  const rule = (sel) => (new RegExp('(?:^|\\})' + sel.replace('.', '\\.') + '\\{([^}]*)\\}').exec(SP.CSS) || [])[1] || '';
+  assert.match(rule('.sa-card'), /flex-direction:column/, 'the picture over the name and legend');
+  assert.match(rule('.sa-card'), /width:156px/, 'two cards and a bit side by side on a phone');
+  assert.match(rule('.sa-pic'), /width:100%/, 'the picture as wide as its card (136 px, was 96)');
+  assert.equal(SP.CSS.indexOf('scroll-snap'), -1, 'a row scrolls without snapping');
+  assert.match(rule('.sa-strip'), /align-items:flex-start/, 'a card as tall as its own legend');
+});
+
 test('Add a screen\'s cards: each kind on each calendar, on its template\'s length', () => {
   const S = fresh(BASALT);
   const choices = SP.addChoices(S, BASALT);
