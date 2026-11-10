@@ -539,16 +539,20 @@
      * The preview: the settings page's forecast graph, drawn from the sample weather over the
      * hours the watch shows (a span of N hours, N + 1 points), at one frame height, in the frame
      * every screen picture shares (screen-frame.js): a margin of the graph's own ground all round,
-     * so its card's round corners clip none of it.
+     * so its card's round corners clip none of it. A bare one draws no legend, its frame ending
+     * under the hour labels, every bare frame one height already.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {?Object} userData Page userData (the palette snapshot).
+     * @param {{bare: boolean}} [opts] `bare`: no legend (Add a screen's roll, whose legend is the
+     *   one under the row).
      * @returns {string} SVG markup.
      */
-    function previewSvg(S, env, userData) {
-        var hours = spanHours.shownHours(S, env);
+    function previewSvg(S, env, userData, opts) {
+        var hours = spanHours.shownHours(S, env), bare = Boolean(opts && opts.bare);
         var drawn = previewForecast.forecastPreview(S, env, userData, {
-            sample: forecastSample.sample(hours + 1, S.temperatureUnits), minHeight: FRAME_H, bleed: false });
+            sample: forecastSample.sample(hours + 1, S.temperatureUnits), minHeight: bare ? 0 : FRAME_H, bleed: false,
+            bare: bare });
         var body = svgLib.unframe(drawn);
         // The graph's ground is the one its own background rect paints (preview-forecast.js
         // forecastPreview: the picked theme's, a light one white).

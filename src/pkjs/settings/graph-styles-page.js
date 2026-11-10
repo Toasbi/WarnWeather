@@ -658,10 +658,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {?Object} env Platform env.
      * @param {?Object} userData Page userData (the palette).
      * @param {string} tag Unique on the page.
+     * @param {{bare: boolean}} [opts] `bare`: without its legend (previewSvg).
      * @returns {string} SVG markup
      */
-    function graphPicture(Sk, env, userData, tag) {
-        return svgLib().tagIds(forecastLooks().previewSvg(Sk, env, userData || {}), tag);
+    function graphPicture(Sk, env, userData, tag, opts) {
+        return svgLib().tagIds(forecastLooks().previewSvg(Sk, env, userData || {}, opts), tag);
     }
 
     /**
@@ -683,17 +684,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * A graph's picture by its value as the pickers name it (optionSettings: one of yours, a
      * template at its own length), its ids tagged: the pickers' options and Add a screen's roll
-     * (screens-page.js).
+     * (screens-page.js, without the legend).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} v The value.
      * @param {?Object} userData Page userData.
      * @param {string} tag Unique on the page.
+     * @param {{bare: boolean}} [opts] `bare`: without its legend (previewSvg).
      * @returns {string} SVG markup, '' for none
      */
-    function valuePicture(S, env, v, userData, tag) {
+    function valuePicture(S, env, v, userData, tag, opts) {
         var Sk = optionSettings(S, env, String(v || ''));
-        return Sk ? graphPicture(Sk, env, userData, tag.replace(/[^A-Za-z0-9-]/g, '-')) : '';
+        return Sk ? graphPicture(Sk, env, userData, tag.replace(/[^A-Za-z0-9-]/g, '-'), opts) : '';
     }
 
     /**

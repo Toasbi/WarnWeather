@@ -844,6 +844,29 @@ test('the roll draws the graphs beside the one picked as it opens, the others a 
   assert.deepEqual(TEMPLATE_IDS.filter(drawn2), ['simple', 'rain', 'wind'], 'the nearest three: three away, then four');
 });
 
+test('the roll\'s graphs draw no legend: the legend shows once, under the row', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = bootGeneratedPage({ provider: 'dwd' }, 'emery');
+  page.tapAction('addScreen');
+  const ed = page.editor();
+  page.tapEditor({ se: 'pick', id: 'forecast', cal: '' });
+  t.mock.timers.tick(16 * 5);
+  // Drawn once while it is open: the next layout's roll holds every picture.
+  page.tapEditor({ se: 'addback' });
+  page.tapEditor({ se: 'pick', id: 'forecast', cal: '2' });
+  const label = />(Temp|Precip %|Cloud %|Wind|Gust|UV|Pressure|Feels|Dew|Rain)<\/text>/;
+  const pics = [...picked(ed).matchAll(/data-sa-th="([^"]+)">(<svg[\s\S]*?<\/svg>)<\/span><span class="sa-gn">/g)];
+  assert.equal(pics.length, 1 + TEMPLATE_IDS.length);
+  assert.deepEqual(pics.filter((m) => label.test(m[2])).map((m) => m[1]), [], 'no legend in the roll');
+  const tall = (svg) => Number(/viewBox="(?:\S+ ){3}(\S+)"/.exec(svg)[1]);
+  const heights = new Set(pics.map((m) => tall(m[2])));
+  assert.equal(heights.size, 1, 'every picture one height');
+  const pickers = pics.map((m) => GSP.valuePicture(page.S, EMERY, m[1], {}, 'gs-' + m[1]));
+  assert.equal(pickers.filter((svg) => !label.test(svg)).length, 0, 'the same graphs keep theirs in the pickers');
+  assert.ok([...heights][0] < Math.min(...pickers.map(tall)), 'no room kept for one: the frame ends under the hours');
+  assert.deepEqual(legend(ed), ['Temperature', 'Rain chance', 'Rain'], 'under the row: the picked graph\'s');
+});
+
 test('the roll: the graph a scroll settles on is picked; a tap rolls one to the middle; the arrow keys pick the next', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const page = bootGeneratedPage({ provider: 'dwd' }, 'emery');

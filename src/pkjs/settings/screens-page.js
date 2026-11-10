@@ -1750,6 +1750,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * A graph's picture in the roll, by its value (graph-styles-page.js valuePicture: as the
      * Graphs tab draws it, a template at its own length), drawn once while Add a screen is open.
+     * It draws no legend: the one under the row is the picked graph's (the owner's ask, 2026-11-10:
+     * the legend only once, under the row).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
@@ -1758,7 +1760,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function thumbOf(S, env, userData, v) {
         if (!Object.prototype.hasOwnProperty.call(ED.thumbs, v)) {
-            ED.thumbs[v] = GSP.valuePicture(S, env, v, userData, 'sa-th-' + v);
+            ED.thumbs[v] = GSP.valuePicture(S, env, v, userData, 'sa-th-' + v, { bare: true });
         }
         return ED.thumbs[v];
     }
