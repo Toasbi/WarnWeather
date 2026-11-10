@@ -146,15 +146,19 @@ function httpLabel(code) {
 }
 
 // A weather provider failure on the provider's side or on the way to it: a server
-// error (HTTP 5xx), no answer in time, or no connection. Provider codes carry the
-// transport code as a suffix (weather/http.js: 'status_<n>', 'timeout', 'network_error').
-var SERVER_FAILURE_PATTERN = /(^|_)(status_5\d\d|timeout|network_error)$/;
+// error (HTTP 5xx), an answer that cannot be read (an outage sends error pages
+// between its 5xx), no answer in time, or no connection. Provider codes carry the
+// transport code as a suffix (weather/http.js: 'status_<n>', 'timeout',
+// 'network_error'; an adapter's JSON.parse failure is '<id>_parse_error'). A missing
+// field or a mapping throw ('_missing_fields', '_map_error') stays out: that can be
+// our own bug or an API change.
+var SERVER_FAILURE_PATTERN = /(^|_)(status_5\d\d|timeout|network_error|parse_error)$/;
 
 /**
  * Whether a fetch failure is the weather provider not answering: a server error
- * (HTTP 5xx), a timeout or no connection, in its own `provider_data` stage. Such a
- * failure often heals by the next update, so its notice waits for the second one in
- * a row (fetch-cycle.js counts them).
+ * (HTTP 5xx), an unreadable answer, a timeout or no connection, in its own
+ * `provider_data` stage. Such a failure often heals by the next update, so its
+ * notice waits for the second one in a row (fetch-cycle.js counts them).
  * @param {{stage: string, code: string}|*} failure Normalized fetch failure.
  * @returns {boolean} True for a server failure.
  */
@@ -166,10 +170,11 @@ function isServerFailure(failure) {
 /**
  * The plain reason a server failure gives, for the settings panel.
  * @param {string} code Failure code (e.g. 'openmeteo_status_503').
- * @returns {string} "HTTP 503", "no answer in time" or "no connection".
+ * @returns {string} "HTTP 503", "an unreadable answer", "no answer in time" or "no connection".
  */
 function serverReason(code) {
     if (/status_\d+$/.test(code)) { return httpLabel(code); }
+    if (/parse_error$/.test(code)) { return 'an unreadable answer'; }
     return /timeout$/.test(code) ? 'no answer in time' : 'no connection';
 }
 
@@ -185,14 +190,15 @@ function retryPhrase(ms) {
 }
 
 /**
- * The watch line of the neutral "not answering" notice, within WATCH_TEXT_MAX_BYTES.
+ * A watch line that names the provider, within WATCH_TEXT_MAX_BYTES.
  * @param {string} label The provider's watch label (its short name, else its name).
- * @returns {string} "<label> not answering", or "Weather not answering" when that
- *   would not fit the watch.
+ * @param {string} says The rest of the line (' not answering').
+ * @param {string} generic The line without the name, for a name that would not fit.
+ * @returns {string} "<label><says>", or `generic` when that would not fit the watch.
  */
-function notAnsweringWatchText(label) {
-    var text = (label || '') + ' not answering';
-    return label && utf8.byteLength(text) <= WATCH_TEXT_MAX_BYTES ? text : 'Weather not answering';
+function providerWatchText(label, says, generic) {
+    var text = (label || '') + says;
+    return label && utf8.byteLength(text) <= WATCH_TEXT_MAX_BYTES ? text : generic;
 }
 
 // The no-location notice's text per reason (location.js gpsFailure): the watch line
@@ -205,10 +211,15 @@ var LOCATION_NOTICE_TEXT = {
             + 'settings, set the Pebble app\'s location access to “Allow all the time”. '
             + 'Or enter a manual location in Setup › Location.'
     },
+    // The Pebble app's "Location not available": the phone gave no position at all —
+    // location off, or no fix in time and none from before, as when the Pebble app may
+    // only use location while it is open.
     off: {
         watch: 'Location unavailable',
-        html: '<b>No location:</b> your phone had no position to give (location turned off, or '
-            + 'switched off by battery saver), so the weather cannot update. Turn location on. '
+        html: '<b>No location:</b> your phone had no position to give, so the weather cannot '
+            + 'update. Location may be off, or the Pebble app may only use location while it is '
+            + 'open. Turn location on, and in your phone\'s settings set the Pebble app\'s location '
+            + 'access to “Allow all the time” (iPhone: “Always”). '
             + 'Or enter a manual location in Setup › Location.'
     },
     timeout: {
@@ -252,13 +263,18 @@ function mayBeGpsStep(failure) {
 
 /**
  * Build a notice for a fetch failure, or null when the failure is not
- * notice-worthy (parse errors and a first server failure raise nothing).
+ * notice-worthy (a first server failure or 404 for the place raises nothing, nor
+ * does any failure not listed below).
  * Two families, split up front:
  * - Stage `coordinates`: no location (a GPS failure's reason), locationNotice. It
  *   names no provider, so providerName, failedUpdates and watchName go unread.
  * - Stage `provider_data`: every other notice. These name the weather provider, so
  *   only its own stage raises one: a geocoder's 401/403/429 (stages reverse_geocode /
  *   forward_geocode) is neither the provider refusing nor a key the user can fix.
+ * - A failure marked noCoverage (the provider has no data for the place: DWD's
+ *   404, weather/dwd.js): the coverage notice (watch overlay + panel), from the
+ *   second update in a row that failed that way (`failedUpdates`) — one 404 can be a
+ *   hiccup — and then not `whenStale`: waiting does not heal it, another provider does.
  * - 401/403: the auth notice (watch overlay + panel): the user's key.
  * - 429: the rate-limit info (panel only).
  * - A failure the provider gives its own retry delay (failure.retryAfterMs: Weather
@@ -270,11 +286,13 @@ function mayBeGpsStep(failure) {
  * The neutral notice is `whenStale`: its watch line goes out only once the watch's
  * forecast is too old to show (fetch-cycle.js), so the watch keeps its last forecast
  * meanwhile and the line replaces the bare "No data :(" after it.
- * @param {{stage: string, code: string, retryAfterMs?: number}|*} failure Normalized fetch failure.
+ * @param {{stage: string, code: string, retryAfterMs?: number, noCoverage?: boolean}|*} failure
+ *   Normalized fetch failure.
  * @param {string} providerName Active provider display name.
  * @param {number} now Timestamp (Date.now()).
- * @param {number} [failedUpdates] Updates in a row this provider failed with a server
- *   failure, this one included (fetch-cycle.js); read only for a server failure.
+ * @param {number} [failedUpdates] Updates in a row this provider failed the same way (a
+ *   server failure, or no data for the place), this one included (fetch-cycle.js
+ *   countFailureRun); read only for those two.
  * @param {string} [watchName] The provider's short name for the watch line (provider.shortName),
  *   when its display name is too long there; defaults to providerName.
  * @returns {?{key: string, type: string, html: string, watch?: string, whenStale?: boolean, since: number}}
@@ -284,11 +302,24 @@ function noticeForFailure(failure, providerName, now, failedUpdates, watchName) 
     if (!failure || failure.stage !== 'provider_data') { return null; }
     var code = typeof failure.code === 'string' ? failure.code : '';
     var name = providerName || 'The weather provider';
+    var label = watchName || providerName;
+    var run = Math.floor(Number(failedUpdates)) || 0;
+    if (failure.noCoverage === true) {
+        if (run < 2) { return null; }
+        return {
+            key: 'coverage',
+            type: 'error',
+            watch: providerWatchText(label, ' has no data here', 'No weather data here'),
+            html: '<b>' + name + '</b> has no weather data for this place. Pick another weather '
+                + 'provider in Setup › Data sources.',
+            since: now
+        };
+    }
     if (typeof failure.retryAfterMs === 'number' && failure.retryAfterMs > 0) {
         return {
             key: 'unavailable',
             type: 'error',
-            watch: notAnsweringWatchText(watchName || providerName),
+            watch: providerWatchText(label, ' not answering', 'Weather not answering'),
             whenStale: true,
             html: '<b>' + name + '</b> is not answering. The watch tries again '
                 + retryPhrase(failure.retryAfterMs) + '.',
@@ -296,14 +327,13 @@ function noticeForFailure(failure, providerName, now, failedUpdates, watchName) 
         };
     }
     if (isServerFailure(failure)) {
-        var n = Math.floor(Number(failedUpdates)) || 0;
-        if (n < 2) { return null; }
+        if (run < 2) { return null; }
         return {
             key: 'server',
             type: 'error',
-            watch: notAnsweringWatchText(watchName || providerName),
+            watch: providerWatchText(label, ' not answering', 'Weather not answering'),
             whenStale: true,
-            html: '<b>' + name + '</b> is not answering: the last ' + n + ' updates failed ('
+            html: '<b>' + name + '</b> is not answering: the last ' + run + ' updates failed ('
                 + serverReason(code) + '). The watch tries again at the next update.',
             since: now
         };

@@ -102,7 +102,7 @@ const fetchCycle = createFetchCycle({
   env: { waqiToken: '', rainbowEndpoint: ENDPOINT },
   now: function() { return new Date(nowMs); },
   // Everything answers synchronously, so every cycle settles before start()
-  // returns; the 120 s watchdog each start arms is dropped instead of left pending.
+  // returns; the watchdog each start arms is dropped instead of left pending.
   setTimeout: function() {}
 });
 

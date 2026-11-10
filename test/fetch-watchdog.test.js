@@ -12,7 +12,8 @@ const assert = require('node:assert/strict');
 const { HARNESS_NOW, bootIndex, healthyNetwork } = require('./helpers/index-harness.js');
 
 const HOUR_MS = 60 * 60 * 1000;
-const WATCHDOG_MS = 2 * 60 * 1000;
+// A whole number of minutes, so the watchdog falls due with a scheduler tick.
+const WATCHDOG_MS = require('../src/pkjs/fetch-cycle.js').FETCH_WATCHDOG_MS;
 const SKIP_IN_PROGRESS = /another fetch is already in progress/;
 const FETCHING = /^Fetching from /;
 

@@ -709,3 +709,146 @@ test('the default span keeps DWD\'s 24 slots and 25-record window', () => {
   assert.equal(peak.p.tempTrend.length, 24);
   assert.equal(peak.p.windTrend.length, 49, 'the day max tail from slot 24');
 });
+
+// --- Brightsky's 404s: no observing station, no forecast ---------------------------
+// Far from Germany /weather still has a MOSMIX forecast, but /current_weather finds no
+// station within max_dist and answers 404: one user's updates all failed for that while
+// travelling in Italy, Spain and France. The current hour's forecast stands in for the
+// observation. A /weather 404 (or an empty forecast) is DWD having no data for the place.
+
+/**
+ * Drive a DwdProvider at 09:20 Berlin over canned records, answering /current_weather
+ * with `current` and the shared UV request with three days of values.
+ * @param {Object[]} hourly Brightsky forecast records
+ * @param {function(Function, Function)} current Answers /current_weather (onSuccess, onError)
+ * @param {Object} [options] fetchOptions.defaults() overrides
+ * @returns {{p: Object, ok: boolean, failures: Object[], urls: string[]}}
+ */
+function runCurrent(hourly, current, options) {
+  const urls = [];
+  responder = function(url, onSuccess, onError) {
+    urls.push(url);
+    if (url.indexOf('hourly=uv_index') !== -1) {
+      const time = [], uv_index = [];
+      for (let i = 0; i < 72; i += 1) { time.push(SLOT0 / 1000 + i * 3600); uv_index.push(i % 11); }
+      onSuccess(JSON.stringify({ hourly: { time, uv_index } }));
+      return;
+    }
+    if (url.indexOf('/current_weather') !== -1) {
+      current(onSuccess, onError);
+      return;
+    }
+    onSuccess(JSON.stringify({ weather: hourly }));
+  };
+  const p = new DwdProvider();
+  p.options = fetchOptions.defaults(options || {});
+  const realNow = Date.now;
+  Date.now = function() { return SLOT0 + 20 * 60000; };
+  let ok = false;
+  const failures = [];
+  try {
+    p.withProviderData(0, 0, false, function() { ok = true; }, function(f) { failures.push(f); });
+  } finally {
+    Date.now = realNow;
+  }
+  return { p, ok, failures, urls };
+}
+
+/** /current_weather with no station within max_dist. */
+function noStation(onSuccess, onError) { onError({ code: 'status_404', detail: 'http_status' }); }
+
+/**
+ * 25 hourly records from SLOT0 in the live MOSMIX shape (relative_humidity null, a dew
+ * point), slot 0 a warm, breezy hour from the south-west.
+ * @returns {Object[]} Brightsky `weather` records
+ */
+function mosmixRecords() {
+  return stampedRecords(Array.from({ length: 25 }, (_, i) => i), -1).map((r, i) => Object.assign(r, {
+    temperature: i === 0 ? 24.5 : 18, relative_humidity: null, dew_point: 13.5, wind_speed: 14.8, wind_direction: 225
+  }));
+}
+
+test('DWD with no station near enough: the current hour\'s forecast stands in and the update completes', () => {
+  const feelsLikeFromDewF = require('../src/pkjs/weather/feels-like.js').feelsLikeFromDewF;
+  const { p, ok, failures, urls } = runCurrent(mosmixRecords(), noStation, { fetchUv: true });
+  assert.deepEqual(failures, []);
+  assert.equal(ok, true, 'no failed update');
+  assert.equal(p.currentTemp, 24.5 * 9 / 5 + 32, 'slot 0\'s own temperature');
+  assert.equal(p.currentTemp, p.tempTrend[0]);
+  assert.equal(p.currentFeels, feelsLikeFromDewF(24.5 * 9 / 5 + 32, 13.5 * 9 / 5 + 32, 14.8),
+    'feels-like the way the hourly series computes it (the dew route: no relative humidity)');
+  assert.equal(p.currentFeels, p.feelsTrend[0]);
+  assert.equal(p.windDirTrend[0], 225);
+  assert.ok(urls.some((u) => u.indexOf('hourly=uv_index') !== -1), 'the UV request still goes out');
+  assert.ok(p.uvTrend.length > 0);
+});
+
+test('DWD with no station near enough: fetchFeels off leaves no feels-like, and slot 0 no bearing it lacks', () => {
+  const recs = mosmixRecords();
+  delete recs[0].wind_direction;
+  const { p, ok } = runCurrent(recs, noStation, { fetchFeels: false });
+  assert.equal(ok, true);
+  assert.equal(p.currentFeels, null, 'the fetchFeels gate holds');
+  assert.deepEqual(p.feelsTrend, []);
+  assert.equal(p.windDirTrend[0], null, 'no observation to fill it from: no arrow, as with a bearing-less one');
+  assert.equal(p.windDirTrend[1], 225);
+});
+
+test('DWD: every other current-weather failure still fails the update', () => {
+  ['timeout', 'status_503', 'network_error', 'status_400'].forEach((code) => {
+    const { ok, failures } = runCurrent(mosmixRecords(), (onSuccess, onError) => onError({ code: code }));
+    assert.equal(ok, false, code);
+    assert.deepEqual(failures, [{ stage: 'provider_data', code: 'dwd_current_' + code }], code);
+  });
+  const unreadable = runCurrent(mosmixRecords(), (onSuccess) => onSuccess('<html>Service Unavailable</html>'));
+  assert.equal(unreadable.ok, false);
+  assert.deepEqual(unreadable.failures, [{ stage: 'provider_data', code: 'dwd_current_parse_error' }]);
+});
+
+test('DWD marks a forecast 404 as no data for the place, keeping its code, and no other forecast failure', () => {
+  /**
+   * @param {function(Function, Function)} answer Answers every request (onSuccess, onError).
+   * @returns {{failures: Object[], urls: string[]}}
+   */
+  function forecastAnswering(answer) {
+    const urls = [];
+    const failures = [];
+    responder = function(url, onSuccess, onError) { urls.push(url); answer(onSuccess, onError); };
+    new DwdProvider().withProviderData(0, 0, false, assert.fail, function(f) { failures.push(f); });
+    return { failures, urls };
+  }
+  const notFound = forecastAnswering((onSuccess, onError) => onError({ code: 'status_404', detail: 'http_status' }));
+  assert.deepEqual(notFound.failures, [{ stage: 'provider_data', code: 'dwd_forecast_status_404', noCoverage: true }],
+    'no source within max_dist');
+  assert.equal(notFound.urls.length, 1, 'no current-weather request after it');
+  ['timeout', 'status_503'].forEach((code) => {
+    assert.deepEqual(forecastAnswering((onSuccess, onError) => onError({ code: code })).failures,
+      [{ stage: 'provider_data', code: 'dwd_forecast_' + code }], code);
+  });
+  assert.deepEqual(forecastAnswering((onSuccess) => onSuccess('<html>')).failures,
+    [{ stage: 'provider_data', code: 'dwd_forecast_parse_error' }]);
+});
+
+test('DWD reports records it cannot map as dwd_map_error, not as an unreadable answer', () => {
+  const recs = stampedRecords(Array.from({ length: 25 }, (_, i) => i), -1);
+  recs[3] = null;   // valid JSON, but no record
+  const { ok, failures } = runCurrent(recs, (onSuccess) => onSuccess(JSON.stringify({ weather: { temperature: 15 } })));
+  assert.equal(ok, false);
+  assert.deepEqual(failures, [{ stage: 'provider_data', code: 'dwd_map_error' }]);
+});
+
+test('DWD guards only its parse: a throw further down the update is not also reported as a failure', () => {
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/current_weather') !== -1) {
+      onSuccess(JSON.stringify({ weather: { temperature: 15 } }));
+      return;
+    }
+    onSuccess(JSON.stringify({ weather: stampedRecords(Array.from({ length: 25 }, (_, i) => i), -1) }));
+  };
+  const failures = [];
+  assert.throws(function() {
+    new DwdProvider().withProviderData(0, 0, false, function() { throw new Error('downstream'); },
+      function(f) { failures.push(f); });
+  }, /downstream/);
+  assert.deepEqual(failures, [], 'a success is never followed by a parse error');
+});

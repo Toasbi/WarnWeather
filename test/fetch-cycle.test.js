@@ -943,9 +943,9 @@ test('failure: the run counts one provider\'s server failures in a row — anoth
     const h = makeHarness();
     const f502 = { stage: 'provider_data', code: 'fake_status_502' };
     failOnce(h, f502);
-    failOnce(h, { stage: 'provider_data', code: 'fake_parse_error' });
+    failOnce(h, { stage: 'provider_data', code: 'fake_missing_fields' });
     failOnce(h, f502);
-    assert.deepEqual(notices.list(), [], 'a parse error in between ends the run');
+    assert.deepEqual(notices.list(), [], 'a missing field in between ends the run');
 
     h.setProvider(makeProvider('other'));
     failOnce(h, { stage: 'provider_data', code: 'other_status_500' });
@@ -958,6 +958,79 @@ test('failure: the run counts one provider\'s server failures in a row — anoth
     assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['server'],
         'a missing fix neither counts nor ends the run');
     assert.match(notices.list()[0].html, /<b>other weather<\/b> is not answering: the last 2 updates failed \(no connection\)/);
+});
+
+test('failure: an unreadable answer counts as the provider not answering, so an outage mixing it with 5xx shows', () => {
+    resetStore();
+    const h = makeHarness();
+    // As in met.no's November 2026 outage: 5xx between 200s whose bodies were no JSON.
+    failOnce(h, { stage: 'provider_data', code: 'fake_status_503' });
+    failOnce(h, { stage: 'provider_data', code: 'fake_parse_error' });
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['server'], 'the second one in a row shows');
+    assert.match(notices.list()[0].html, /the last 2 updates failed \(an unreadable answer\)/);
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'fake weather not answering' }]);
+
+    // Our own reading of an answer is not the provider failing: it ends the run.
+    ['fake_missing_fields', 'fake_map_error'].forEach(function (code) {
+        resetStore();
+        failOnce(h, { stage: 'provider_data', code: 'fake_status_503' });
+        failOnce(h, { stage: 'provider_data', code: code });
+        failOnce(h, { stage: 'provider_data', code: 'fake_parse_error' });
+        assert.deepEqual(notices.list(), [], code + ' in between ends the run');
+    });
+});
+
+test('failure: a provider with no data for the place raises the coverage notice from the second update in a row, over a fresh forecast; a success clears it', () => {
+    resetStore();
+    const dwd = makeProvider('dwd');
+    dwd.name = 'Brightsky (Deutscher Wetterdienst)';
+    dwd.shortName = 'DWD';
+    const h = makeHarness({ provider: dwd });
+    assert.equal(h.cycle.start(true), true);
+    dwd.fix(52.5, 13.4);
+    dwd.succeed();   // T0: the watch shows this forecast for 12 h
+    h.calls.sendWeather.length = 0;
+
+    h.advance(HOUR);
+    const noData = { stage: 'provider_data', code: 'dwd_forecast_status_404', noCoverage: true };
+    failOnce(h, noData);
+    assert.deepEqual(notices.list(), [], 'one 404 can be a hiccup: nothing yet');
+    assert.deepEqual(h.calls.sendWeather, [], 'and the watch keeps its forecast');
+    assert.deepEqual(readJson(KEYS.LAST_FETCH_ATTEMPT_KEY).error, noData);
+
+    h.advance(MIN);
+    failOnce(h, noData);
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['coverage'], 'the second one in a row shows');
+    assert.match(notices.list()[0].html, /^<b>Brightsky \(Deutscher Wetterdienst\)<\/b> has no weather data for this place\./);
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'DWD has no data here' }],
+        'over the fresh forecast: waiting does not bring DWD data to this place');
+    assert.equal(authBackoff.isActive(), false);
+
+    h.advance(HOUR);
+    assert.equal(h.cycle.start(true), true);
+    dwd.fix(52.5, 13.4);
+    dwd.succeed();
+    assert.deepEqual(notices.list(), [], 'an error notice: the success clears it');
+    assert.equal(store[KEYS.SERVER_FAILURE_STREAK_KEY], undefined, 'and the run');
+    assert.equal(h.calls.clearNoticeCache, 2, 'and resets the notice send-cache, so a later one goes out again');
+});
+
+test('failure: a run counts one kind — a 5xx and a 404 for the place in a row raise neither notice', () => {
+    resetStore();
+    const h = makeHarness();
+    const noData = { stage: 'provider_data', code: 'fake_status_404', noCoverage: true };
+    const f503 = { stage: 'provider_data', code: 'fake_status_503' };
+    failOnce(h, f503);
+    failOnce(h, noData);
+    assert.deepEqual(notices.list(), [], 'a 404 after a 5xx starts its own run');
+    failOnce(h, f503);
+    assert.deepEqual(notices.list(), [], 'and a 5xx after a 404 starts over too');
+    failOnce(h, f503);
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['server'], 'two 5xx in a row show');
+    failOnce(h, noData);
+    failOnce(h, noData);
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }).sort(), ['coverage', 'server'],
+        'two 404s in a row show the coverage notice');
 });
 
 test('failure: a provider\'s own retry delay raises the neutral notice at once and holds scheduled fetches that long', () => {

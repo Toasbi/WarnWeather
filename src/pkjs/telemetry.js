@@ -214,8 +214,7 @@ function serializeError(value, maxLength) {
 // per watch per day). The heavy shared header (settings snapshot, watchInfo,
 // version) is captured once at flush time — the rollup only ever reads the
 // NEWEST settings per watch (telemetry_rollup_and_prune), so per-event snapshots
-// bought nothing. The ingest keeps accepting the old single-event shape from
-// app versions in the field; this client only sends batches.
+// bought nothing.
 //
 // Two settings-page triggers send early, through the same checks (latch,
 // backoff, stale drop) minus the size/age threshold:

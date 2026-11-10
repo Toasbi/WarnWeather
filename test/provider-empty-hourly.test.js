@@ -39,9 +39,10 @@ test('OWM withProviderData routes empty hourly[] to onFailure without throwing',
 });
 
 test('DWD withProviderData routes empty forecast to onFailure with an accurate code', () => {
-  // Without an explicit guard the empty `hourly` still gets caught downstream,
-  // but mislabeled `dwd_current_parse_error`. The guard must reject the empty
-  // forecast directly, before the current-weather call, with a forecast code.
+  // Without an explicit guard the empty `hourly` would only fail in the mapping,
+  // after a current-weather request it did not need. The guard must reject the
+  // empty forecast directly, before that call, with a forecast code — not marked as
+  // DWD having no data for the place: Brightsky says that with a 404.
   var requestedUrls = [];
   responder = function(url, onSuccess) {
     requestedUrls.push(url);
@@ -60,6 +61,7 @@ test('DWD withProviderData routes empty forecast to onFailure with an accurate c
   assert.ok(failureArg, 'onFailure must be called');
   assert.equal(failureArg.stage, 'provider_data');
   assert.equal(failureArg.code, 'dwd_forecast_empty');
+  assert.equal(failureArg.noCoverage, undefined, 'no coverage notice: an answer without records may heal');
   // The guard must short-circuit before the /current_weather request fires.
   assert.equal(requestedUrls.length, 1, 'must not call current-weather on empty forecast');
 });

@@ -81,3 +81,14 @@ test('omitting the body sends undefined (existing GET callers unchanged)', () =>
   assert.equal(xhr.body, undefined);
   assert.equal(xhr.sent, true);
 });
+
+test('a request gives up after 10 s and reports it as a timeout', () => {
+  MockXhr.throwOn = {};
+  let failed = null;
+  WeatherProvider.request('https://x.test/', 'GET', () => { assert.fail('no answer came'); }, (e) => { failed = e; });
+  const xhr = MockXhr.last;
+  // 5 s cut off slow but working providers: a whole successful update takes about 6 s.
+  assert.equal(xhr.timeout, 10000);
+  xhr.ontimeout();
+  assert.deepEqual(failed, { code: 'timeout', detail: 'xhr_timeout' });
+});

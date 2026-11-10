@@ -161,10 +161,11 @@ module.exports = {
     // 'radarKeyResult' ({id, keyHash, status}); nothing reads that string any more, and it
     // is not reused.
     KEY_RESULTS_KEY: 'keyResults',
-    // The weather provider's run of server failures ({id, n}: the provider id and how
-    // many updates in a row it answered with a 5xx, a timeout or no connection;
-    // fetch-cycle.js). Its notice waits for the second one, so a one-off outage stays
-    // quiet; a success, another kind of failure or another provider ends the run.
+    // The weather provider's run of failed updates of one kind ({id, kind, n}: the
+    // provider id, 'server' — a 5xx, an unreadable answer, a timeout or no connection —
+    // or 'coverage' — no data for the place — and how many updates in a row;
+    // fetch-cycle.js countFailureRun). Its notice waits for the second one, so a one-off
+    // stays quiet; a success, another kind of failure or another provider ends the run.
     SERVER_FAILURE_STREAK_KEY: 'serverFailureStreak',
     // Which regional radar sources can see the last update's location ({dwd, metno}:
     // true = outside its area; plus misses: {dwd: n}, DWD's 404s in a row from inside its

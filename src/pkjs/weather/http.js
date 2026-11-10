@@ -6,7 +6,12 @@
 // function bodies to dodge the cycle provider.js's top-level requires of them
 // created around its own helper.
 
-var XHR_TIMEOUT_MS = 5000;
+// How long one request may take before it fails as 'timeout'. At 5 s a slow but
+// working provider was cut off: about a quarter of the failed updates were such
+// timeouts, while a whole successful update takes about 6 s. One update's
+// requests run one after another, so their sum must stay under the fetch
+// watchdog (fetch-cycle.js FETCH_WATCHDOG_MS, which counts them).
+var XHR_TIMEOUT_MS = 10000;
 
 /**
  * Perform an HTTP request and return response text.
