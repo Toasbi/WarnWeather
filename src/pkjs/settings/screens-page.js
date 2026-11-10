@@ -995,8 +995,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.sa-g:focus-visible .sa-th{box-shadow:0 0 0 2px var(--link)}'
         + '.sa-sep{flex:0 0 1px;align-self:stretch;margin:4px 0 22px;background:var(--row-line)}'
         + '.sa-sel{display:grid;justify-items:center;gap:6px;text-align:center}'
-        + '.sa-gname{font:700 18px/1.2 Inter,system-ui,sans-serif;color:var(--lbl)}'
-        + '.sa-gsub{margin-top:-3px;font-size:12.5px;color:var(--hint)}'
+        + '.sa-gsub{margin-top:-10px;font-size:12.5px;color:var(--hint)}'
         + '.sa-legend{margin-top:2px}'
         + '.sa-legend .sl-card{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px}'
         + '.sa-foot{display:grid;gap:12px}'
@@ -1766,9 +1765,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Fill the picked screen's places (pickFrame) for the pick as it is now: its picture big; the
-     * graph picked by its name, one of yours or a template, over the legend of what the screen
-     * draws and what the weather service leaves out (screen-legend.js); then Health's and Rain
+     * Fill the picked screen's places (pickFrame) for the pick as it is now: its picture big, which
+     * names the graph picked to a screen reader; whose that graph is, yours or a template, right
+     * under its name in the roll (the name shows once, there: the owner's ask, 2026-11-10), over
+     * the legend of what the screen draws and what the weather service leaves out
+     * (screen-legend.js); then Health's and Rain
      * radar's Calendar, a forecast graph's Forecast length on a watch with one per screen (a
      * template's to pick, yours shown as it is), why it cannot be added, if it cannot, Add screen,
      * and under a template what it is.
@@ -1784,10 +1785,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var kind = PRESETS.byId(c.id), N = GSP.asStored(S), shown = addShown(c, env, userData, 'sa-big-');
         var items = kind.graph === 'fc' ? rollItems(N, env) : [], item = items[rollIndex(items, ED.pick.v)];
         var gap = LEGEND.gapNote(shown.legend, N.provider), cals = kind.id === 'forecast' ? [] : PRESETS.calendars(kind, env);
-        big.innerHTML = '<div class="sa-big" role="img" aria-label="' + esc(PRESETS.cardName(kind, c.cal) + ': '
-            + shown.pic.label) + '">' + shown.pic.svg + '</div>';
-        sel.innerHTML = (item ? '<div class="sa-gname">' + esc(item.name) + '</div><div class="sa-gsub">'
-            + (item.yours ? 'Your graph' : 'Template') + '</div>' : '')
+        big.innerHTML = '<div class="sa-big" role="img" aria-label="' + esc(PRESETS.cardName(kind, c.cal)
+            + (item ? ', ' + item.name : '') + ': ' + shown.pic.label) + '">' + shown.pic.svg + '</div>';
+        sel.innerHTML = (item ? '<div class="sa-gsub">' + (item.yours ? 'Your graph' : 'Template') + '</div>' : '')
             + '<div class="sa-legend">' + LEGEND.cardHtml(shown.legend, shown.pic.bg) + '</div>'
             + (gap ? '<div class="sa-gap">' + esc(gap) + '</div>' : '');
         var h = cals.length ? segRow('Calendar', 'acal', cals, c.cal) : '';

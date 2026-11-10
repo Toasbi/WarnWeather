@@ -682,13 +682,15 @@ function legend(ed) {
 }
 
 /**
- * The graph picked in the roll, by its name, and whose it is: null without a roll.
+ * The graph picked in the roll: its name, as the screen's picture names it to a screen reader (on
+ * the page it shows only under its picture in the roll), and whose it is; null without a roll.
  * @param {Object} ed The overlay.
  * @returns {?Array<string>}
  */
 function graphName(ed) {
-  const m = /<div class="sa-gname">([^<]*)<\/div><div class="sa-gsub">([^<]*)<\/div>/.exec(part(ed, 'sel'));
-  return m ? [m[1], m[2]] : null;
+  const whose = /<div class="sa-gsub">([^<]*)<\/div>/.exec(part(ed, 'sel'));
+  const name = /^<div class="sa-big" role="img" aria-label="[^",:]*, ([^":]*):/.exec(part(ed, 'big'));
+  return whose && name ? [name[1], whose[1]] : null;
 }
 
 /**
@@ -753,9 +755,10 @@ test('+ Add screen opens Add a screen: Blank first, then the forecast screen on 
   assert.ok(frame.indexOf('<div class="sa-roll" role="group" aria-label="Graph"><span class="sa-caret" aria-hidden="true">'
     + '</span><div class="sa-reel" data-sa-roll>') !== -1, 'the red mark over its middle');
   assert.ok(frame.indexOf('data-sa-big></div><div class="sa-roll"') !== -1, 'right under the screen\'s picture');
-  assert.match(part(ed, 'big'), /^<div class="sa-big" role="img" aria-label="Compact calendar: [^"]*Calendar \(2 rows\)[^"]*"><svg/,
-    'its picture says its calendar');
+  assert.match(part(ed, 'big'), /^<div class="sa-big" role="img" aria-label="Compact calendar, Graph 1: [^"]*Calendar \(2 rows\)[^"]*"><svg/,
+    'its picture says its calendar and its graph');
   assert.deepEqual(graphName(ed), ['Graph 1', 'Your graph']);
+  assert.equal(part(ed, 'sel').indexOf('Graph 1'), -1, 'its name once: under its picture in the roll');
   assert.deepEqual(legend(ed), ['Temperature', 'Rain chance', 'Rain']);
   // Your graph keeps its own length: shown, not picked here.
   let foot = part(ed, 'foot');
@@ -768,6 +771,7 @@ test('+ Add screen opens Add a screen: Blank first, then the forecast screen on 
   // A template in the roll: its graph on the screen, at its own length, which can be picked.
   page.tapEditor({ se: 'agraph', v: 'clean' });
   assert.deepEqual(graphName(ed), ['Clean', 'Template']);
+  assert.equal(part(ed, 'sel').indexOf('Clean'), -1, 'a template\'s name once too');
   assert.ok(head.innerHTML.indexOf('id="seTitle">Compact calendar</span>') !== -1, 'the layout\'s name stays');
   assert.equal(picked(ed), frame, 'the roll stays as drawn: it may be rolling');
   foot = part(ed, 'foot');
