@@ -134,7 +134,7 @@
       hrDefaults: { statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'hr' } }
   ];
 
-  // Bars 4 to 6 (Pebble Time 2, 2.7.0's New status bar: view-cycle.js EXTRA_BARS, whose prefixes they
+  // Bars 4 to 6 (Pebble Time 2, 3.0.0's New status bar: view-cycle.js EXTRA_BARS, whose prefixes they
   // take): their lines (STATUS_LINE_5..7_UINT8), every slot empty until New status bar writes its
   // starting set. Kept out of LINES, so every reader of the first four (the twelve selections,
   // telemetry, the 2.6 migration) stays as it is; the bake (bakedLines) adds one while a

@@ -197,7 +197,7 @@ const settingsSchema = z
     // that sends it, or the strip step silently drops it. An open-ended int (no max, like
     // viewResetMin), not an enum: a longer span a later release adds cannot 400 the batch.
     forecastHours: z.number().int().min(1).optional(),
-    // Graph styles (2.7.0, src/pkjs/graph-styles.js), emery only: how many exist, and the
+    // Graph styles (3.0.0, src/pkjs/graph-styles.js), emery only: how many exist, and the
     // length option of styles 2 and 3 while a screen shows them (as forecastHours: 12/24/48).
     // DEPLOY-ORDERING: ship this function before the app release that sends them, or the
     // strip step silently drops them. Open-ended ints, like forecastHours.

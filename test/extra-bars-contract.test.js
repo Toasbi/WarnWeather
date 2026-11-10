@@ -1,5 +1,5 @@
 'use strict';
-// Bars 4 to 6's wire and storage contract (Pebble Time 2, 2.7.0's New status bar): four appended
+// Bars 4 to 6's wire and storage contract (Pebble Time 2, 3.0.0's New status bar): four appended
 // message keys, four appended persist slots, the watch's line and cell handlers behind
 // PBL_PLATFORM_EMERY, and the view word's row bits read on the watch where the phone packs
 // them (src/c/windows/layout.h, src/pkjs/view-cycle.js packExt). The phone's half of each:

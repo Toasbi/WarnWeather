@@ -33,7 +33,7 @@ var platformLib = require('../config-ui/lib/platform.js');
 /**
  * The views a 2.5 watch drew for a custom layout: buildCustomCycle with the Radar bar
  * folded away outside radarMode 'status' and 'graph' and the Health bar outside healthMode
- * 'status' and 'all', as 2.5's compiler folded them (since 2.6 the Radar bar and since 2.7
+ * 'status' and 'all', as 2.5's compiler folded them (since 2.6 the Radar bar and since 3.0
  * the Health bar no longer need their data, view-cycle.js), the surviving lower row taking
  * the upper seat under the legacy order, and a flick view left with nothing on it disabled.
  * @param {Object} S Settings (layoutPreset 'custom').
@@ -105,7 +105,7 @@ function emptyHealthSlots(blob, bars, env) {
 /**
  * The modes 2.6.0 worked out for the screens: screens.js deriveModes, plus 2.6's rule that a
  * screen showing the Radar bar or the Health bar needs 'status' (unless it shows that graph).
- * Since 2.7.0's named bars a custom layout's bars need no mode, but the move keeps what it
+ * Since 3.0.0's named bars a custom layout's bars need no mode, but the move keeps what it
  * sent 2.6's way, so a 2.5 install is sent nothing new; its next Save works the modes out.
  * @param {Object} blob Settings (a custom layout).
  * @param {Object} env Platform env.

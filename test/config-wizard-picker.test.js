@@ -449,7 +449,7 @@ test('+ puts a screen in where it goes and shows it big; ✕ takes it out again'
   addScreen(dom, 'health');
   assert.deepEqual(screenNames(ctx), ['Default', 'Health', 'Rain radar']);
   assert.deepEqual([ctx.S.viewName1, ctx.S.viewName2], ['Health', 'Rain radar'],
-    'each named as it goes in (2.7: the names move with the screens)');
+    'each named as it goes in (3.0: the names move with the screens)');
   assert.equal(dom.find('[data-wiz-flick-label]').textContent, 'Health');
   assert.equal(ctx.S.healthMode, 'all');
   assert.equal(dom.findAll('[data-wiz-scr-add]').length, 0, 'three screens: nothing more to add');

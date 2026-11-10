@@ -95,7 +95,7 @@ test('a custom layout keeps the views 2.5 drew: a Radar bar its radar mode hid s
 });
 
 test('a custom layout keeps the views 2.5 drew: a Health bar its health mode hid stays hidden', () => {
-  // 2.5 folded the Health bar outside healthMode 'status' and 'all'; since 2.7 the compiler
+  // 2.5 folded the Health bar outside healthMode 'status' and 'all'; since 3.0 the compiler
   // keeps it (a status bar like the others), so the move stores what 2.5 drew.
   const S = seeded({ layoutPreset: 'custom', customLayoutSeeded: true, radarMode: 'graph', healthMode: 'slot',
     viewCount: '2', viewTop1: 'none', viewBody1: 'forecast', viewUpper1: 'health', viewLower1: 'weather',

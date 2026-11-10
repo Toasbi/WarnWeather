@@ -62,7 +62,7 @@ var BOLD_MASTER_WHEN = {key: 'statusBoldAll', in: ['off', 'all']};
 // The two capability gates the Radar/Health status bars share — named once
 // (the THRESHOLD_WHEN precedent) so a bar's visibility rule lives in one
 // constant instead of six inline copies across its slots and countdown rows.
-// Whether the watch draws the bar at all (aplite: neither). Since 2.7 a bar no screen shows
+// Whether the watch draws the bar at all (aplite: neither). Since 3.0 a bar no screen shows
 // keeps its card on the Status bars tab (it says so): any bar can go onto any screen.
 var RADAR_BAR_WHEN = {env: 'radar'};
 var HEALTH_BAR_WHEN = {env: 'health'};

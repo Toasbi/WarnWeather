@@ -255,7 +255,7 @@ test('deriveModes: the radar and health modes the screens need', () => {
   const modes = (s, env) => M.deriveModes(s, env || BASALT);
   assert.deepEqual(modes(S([DEFAULT, HEALTH, RADAR])), { radarMode: 'graph', healthMode: 'all' });
   // The Radar bar alone; the Health bar alone: on a custom layout a bar is what it holds
-  // (2.7.0's named bars), so they need the radar or health only for an item that does.
+  // (3.0.0's named bars), so they need the radar or health only for an item that does.
   const bars = [DEFAULT, [b('strip'), b('clock'), b('radarbar'), b('healthbar')]];
   assert.deepEqual(modes(S(bars, { statusTopOnDemandLeftItems: 'bt' })), { radarMode: 'off', healthMode: 'slot' },
     'the Health bar\'s default slots hold steps and sleep; the Radar bar\'s UV, wind and gusts need no radar');

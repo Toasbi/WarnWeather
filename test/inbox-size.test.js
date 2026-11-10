@@ -281,7 +281,7 @@ test('heaviest bundled payload (DWD + wind) fits the watch inbox, per platform',
   });
 });
 
-// Graph styles (emery, 2.7.0): the shown styles' series share the weather message's five metric
+// Graph styles (emery, 3.0.0): the shown styles' series share the weather message's five metric
 // rows (graph-styles.js assign). A fifth series rides the spare row's trend, one more 68-hour
 // tuple (75 B); a sixth is dropped, never sent. One graph, or a union of four, sends no spare.
 test('graph styles: a fifth series rides the spare row, a sixth is never sent', () => {
@@ -296,7 +296,7 @@ test('graph styles: a fifth series rides the spare row, a sixth is never sent', 
   assert.equal(dictSize(plain), WEATHER_BUNDLES.emery - (7 + forecastEntries('emery')), 'the spare\'s 75 B');
 });
 
-// Bars 4 to 6 (emery, 2.7.0): the line of each one a screen shows rides the status category
+// Bars 4 to 6 (emery, 3.0.0): the line of each one a screen shows rides the status category
 // like the other four, a whole line apiece at its heaviest; a bar that is not made, or on no
 // screen, sends none, and no other watch is ever sent one. The inbox grew 1024 -> 1280 B for
 // them.
@@ -552,13 +552,13 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // of its own would be 11 B -> 533 B, under the 10 B floor).
   // 522 -> 520 when CLAY_LINE_STYLE_UINT8 shrank 16 -> 14: the filled area's night line
   // went with the dusk/dawn lines, and the night-fill flag had no reader.
-  // 520 unchanged when the graph styles joined (2.7.0): their records ride a known emery's
+  // 520 unchanged when the graph styles joined (3.0.0): their records ride a known emery's
   // bundle alone (below).
   assert.equal(size, 520,'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
-// The graph styles' records (CLAY_GRAPH_STYLE_1..3_UINT8, 2.7.0) ride a known emery's Clay
+// The graph styles' records (CLAY_GRAPH_STYLE_1..3_UINT8, 3.0.0) ride a known emery's Clay
 // bundle alone, measured against its own 1280 B inbox: three empty tuples (3 x 7 B) while the
 // first style alone is shown, which clear the watch's records, and at their heaviest three
 // records of 7 B header + 41 B (HEAVIEST_STYLES). Beside them bars 4 to 6's On demand cells

@@ -931,7 +931,7 @@ void app_message_init() {
     // emery: 1024 (was 640, 2.2.0): the long forecast span's six 68-byte trends make the
     // heaviest bundle 867 B, 875 B with a cleared notice (test/inbox-size.test.js); 128 KB of
     // app RAM has the room. Every other watch is never sent more than 24 hours. 1280 (was
-    // 1024, 2.7.0): bars 4 to 6's lines ride the status category, up to 51 B each, so the
+    // 1024, 3.0.0): bars 4 to 6's lines ride the status category, up to 51 B each, so the
     // heaviest bundle is 1095 B, 1103 B with a cleared notice.
     const int inbox_size = 1280;
 #else

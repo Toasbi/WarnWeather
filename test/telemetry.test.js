@@ -895,7 +895,7 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // time span (forecastHours, 2.2.0, an int, the option: 48) is 19 B: 3207 of 4096, headroom 889. The
 // forecast's left axis options (forecastAxisNumbers, forecastAxisScale; 2.2.0, BETA, emery
 // only; 'graph' / false the longer values) are 56 B: 3263 of 4096, headroom 833. The graph
-// styles (graphStyleCount, graphStyle2Hours, graphStyle3Hours; 2.7.0, emery only, the custom
+// styles (graphStyleCount, graphStyle2Hours, graphStyle3Hours; 3.0.0, emery only, the custom
 // fixture's flick screens on styles 2 and 3) bring the batch header to 3323 of 4096, headroom 773.
 test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);

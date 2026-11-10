@@ -309,7 +309,7 @@ static inline bool layout_top_three_rows(const ViewSpec *s) {
 // lower slot carries it, otherwise the upper band. Same REAL-source rule as
 // layout_status_visible above — for a source that is on neither slot the answer is the
 // upper band, whose layer the caller hides anyway. Every bar sits in its band the same
-// way: the Health bar's own 2 px drop in a dual-row compact view went with 2.7.0's named
+// way: the Health bar's own 2 px drop in a dual-row compact view went with 3.0.0's named
 // bars, where a band holds whichever bar the screen puts there.
 static inline GRect layout_status_band(const ViewSpec *spec, const MainLayout *L, uint8_t src) {
     return (spec->status_lower == src) ? L->status_lower : L->status;

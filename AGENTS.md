@@ -116,7 +116,7 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   four metric lines active, the radar's sky rows on, City in every status slot and a
   full weather-alert entry tuple = 603 B of 640 B (37 B headroom);
   emery's inbox was the owner's call twice: 1024 B for 2.2.0's forecast span (six trends of
-  up to 68 B; `src/pkjs/forecast-span.js`), then 1280 B for 2.7.0's bars 4 to 6 (New bar:
+  up to 68 B; `src/pkjs/forecast-span.js`), then 1280 B for 3.0.0's bars 4 to 6 (New bar:
   `STATUS_LINE_5..7_UINT8`, one more status line per bar a screen shows, up to 51 B each). Its
   heaviest bundle is 1095 B of 1280 B: the long span, the graph styles' seventh trend (the
   spare row, `SPARE_LINE_TREND_UINT8`, sent only while the screens' graphs draw five series

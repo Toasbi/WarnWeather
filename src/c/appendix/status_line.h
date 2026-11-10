@@ -9,7 +9,7 @@
 // Deliberately no <pebble.h> so the module host-compiles (scripts/test-c.sh).
 
 #if defined(PBL_PLATFORM_EMERY)
-// emery: the Pebble Time 2 has three more status bars (bars 4 to 6, 2.7.0's New bar), so
+// emery: the Pebble Time 2 has three more status bars (bars 4 to 6, 3.0.0's New bar), so
 // up to six of "your bars" beside the Watch bar: every screen can have two of its own.
 #define STATUS_LINE_COUNT 7
 #else

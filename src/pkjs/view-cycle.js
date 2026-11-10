@@ -16,7 +16,7 @@ var TOP_KIND_FORECAST = 0, TOP_KIND_HEALTH = 1;
 var BODY_FC = 0, BODY_GRAPH = 1, BODY_RADAR = 2, BODY_NONE = 3;
 // Positional status sources: which content feeds the upper/lower status row.
 var STATUS_SRC_NONE = 0, STATUS_SRC_FORECAST = 1, STATUS_SRC_RADAR = 2, STATUS_SRC_HEALTH = 3;
-// Bars 4 to 6 (Pebble Time 2, 2.7.0's New status bar; src/c/windows/layout.h StatusSource): the
+// Bars 4 to 6 (Pebble Time 2, 3.0.0's New status bar; src/c/windows/layout.h StatusSource): the
 // packed value's 2-bit row fields are full, so a row names one as FORECAST / RADAR / HEALTH
 // there plus an ext bit that adds 3 (packExt: bit 11 the upper row, bit 12 the lower).
 var STATUS_SRC_BAR4 = 4, STATUS_SRC_BAR5 = 5, STATUS_SRC_BAR6 = 6;
@@ -762,7 +762,7 @@ function rowSource(S, value, env) {
 // view_spec_resolve: radar CHART seats (top strip / body) need radarMode 'graph';
 // a health graph body needs healthMode 'all'. The status SOURCES need no mode: the Radar
 // bar and the Health bar are status bars like the others (they hold what their slots
-// hold, 2.7.0's named bars), and the watch draws them without radar or health data, so a
+// hold, 3.0.0's named bars), and the watch draws them without radar or health data, so a
 // custom view keeps them whatever the modes say, and capabilities() has no seat for them.
 // RADAR_ROW_MODES and HEALTH_ROW_MODES stay the PRESETS' facts — the modes whose preset
 // cycles draw the Radar bar (MATRIX's 'r' cycles) and the Health bar (its 'status'/'all'

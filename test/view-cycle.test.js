@@ -356,7 +356,7 @@ test('buildCustomCycle: capability folds mirror the watch resolve', () => {
   assert.equal(c[0].statusLower, vc.STATUS_SRC_HEALTH);
   // radarMode 'countdown': the radar ROW still stays (the Radar bar is a status bar like
   // the others; the watch draws it without radar data), and healthMode 'slot' keeps the
-  // health ROW too (since 2.7.0 the Health bar stays without health as well).
+  // health ROW too (since 3.0.0 the Health bar stays without health as well).
   c = vc.buildCustomCycle(Object.assign({ radarMode: 'countdown', healthMode: 'slot' }, base));
   assert.equal(c[0].statusUpper, vc.STATUS_SRC_RADAR);
   assert.equal(c[0].statusLower, vc.STATUS_SRC_HEALTH);
@@ -383,7 +383,7 @@ test('buildCustomCycle: the status rows stay where they are put, under either or
     viewTop0: 'cal2', viewBody0: 'forecast',
     viewUpper0: 'health', viewLower0: 'weather', viewOrder0: order,
   });
-  // Nothing folds a status row (2.7.0: the Health bar stays without health), so no row is
+  // Nothing folds a status row (3.0.0: the Health bar stays without health), so no row is
   // promoted to the other seat.
   const legacy = vc.buildCustomCycle(mk('TACB'))[0];
   assert.equal(legacy.statusUpper, vc.STATUS_SRC_HEALTH);
@@ -521,7 +521,7 @@ test('keys → spec → keys round-trips a graphless view', () => {
 
 test('a flick left with nothing on it compiles to a disabled slot', () => {
   // Flick 1's only element is the Health bar: a status bar like the others, it stays in
-  // every health mode (2.7.0) ...
+  // every health mode (3.0.0) ...
   const S = customState({ viewCount: '2', viewTop1: 'none', viewBody1: 'none', viewUpper1: 'health',
     viewLower1: 'off', viewOrder1: 'TACB', viewClockOff1: true, viewStripOff1: false });
   ['status', 'slot', 'off'].forEach((healthMode) => {
@@ -667,7 +667,7 @@ test('stackFits: legacy-order views always fit; the watch\'s no-data fallbacks a
   assert.equal(vc.stackNeed(vc.resolveForFit(h2, true, true), 0).need, 150);
   assert.equal(vc.stackNeed(vc.resolveForFit(h2, true, false), 0).need, 165);
   assert.deepEqual(vc.stackFits(h2, 'basalt'), { fits: false, over: 10 });
-  // The Health bar stays without health data (2.7.0: a status bar like the others), so it
+  // The Health bar stays without health data (3.0.0: a status bar like the others), so it
   // is budgeted in the health-less fold too: cal3 + a weather and a health row over a 2-row
   // health graph needs 149 with health, 164 without (the graph becomes a 3-row forecast and
   // the row stays) — refused.
@@ -819,7 +819,7 @@ test('capabilities: mode lists pinned, booleans derived per seat kind', () => {
   assert.deepEqual(vc.RADAR_ROW_MODES, ['status', 'graph']);
   assert.deepEqual(vc.HEALTH_ROW_MODES, ['status', 'all']);
   assert.deepEqual(vc.HEALTH_BODY_MODES, ['all']);
-  // The status bars have no seat here: a custom view keeps them in every mode (2.7.0).
+  // The status bars have no seat here: a custom view keeps them in every mode (3.0.0).
   assert.deepEqual(vc.capabilities({ radarMode: 'graph', healthMode: 'all' }),
     { radarChart: true, healthBody: true });
   assert.deepEqual(vc.capabilities({ radarMode: 'status', healthMode: 'status' }),

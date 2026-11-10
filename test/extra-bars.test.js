@@ -1,5 +1,5 @@
 'use strict';
-// test/extra-bars.test.js — bars 4 to 6 on the phone (Pebble Time 2, 2.7.0's New status bar): the
+// test/extra-bars.test.js — bars 4 to 6 on the phone (Pebble Time 2, 3.0.0's New status bar): the
 // screens compile a row naming one only while it is made on a watch that has them, the bake
 // sends its line while a screen shows it, the Clay message its On demand cells, and the
 // change detector signs its slots. The C side's half of each contract: test/extra-bars-contract.test.js.
@@ -81,7 +81,7 @@ test('a row naming a bar 4 to 6 packs as the first three plus the ext bit, and u
     | (VC.EXT_UPPER_BAR_HI << 16);
   assert.equal(VC.unpackWire(stray).statusUpper, VC.STATUS_SRC_NONE);
   assert.equal(VC.unpackWire(stray).statusLower, VC.STATUS_SRC_FORECAST);
-  // A view of the four built-in bars sets neither bit: every pre-2.7 word packs as before.
+  // A view of the four built-in bars sets neither bit: every pre-3.0 word packs as before.
   [VC.STATUS_SRC_NONE, VC.STATUS_SRC_FORECAST, VC.STATUS_SRC_RADAR, VC.STATUS_SRC_HEALTH].forEach((src) =>
     assert.equal((VC.packWire(VC.spec(0, 0, VC.BODY_FC, src, src)) >>> 16) & (VC.EXT_UPPER_BAR_HI | VC.EXT_LOWER_BAR_HI), 0));
 });
@@ -272,7 +272,7 @@ test('the render signature signs the slots of a bar 4 to 6 a screen shows, on a 
     emery({ statusBar4Made: true, statusBar4Left: 'wind' }), 'made, on no screen: nothing to bake');
   assert.notEqual(emery(S), emery(Object.assign({}, S, { viewUpper0: 'weather' })),
     'taking it off the screen re-signs');
-  assert.equal(emery({}), emery({ statusBar4Left: 'uv' }), 'and an unmade bar signs as before 2.7');
+  assert.equal(emery({}), emery({ statusBar4Left: 'uv' }), 'and an unmade bar signs as before 3.0');
   assert.equal(renderSignature(S, { platform: 'basalt' }),
     renderSignature(Object.assign({}, S, { statusBar4Left: 'wind' }), { platform: 'basalt' }), 'basalt');
   // A countdown signs its date while it is the slot's item.

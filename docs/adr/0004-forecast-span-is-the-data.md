@@ -165,7 +165,7 @@ setting, wire bit, persist key or message key for the span on the watch.
 
 - **emery's inbox is 1024 B** (it was 640 B; the heap has the room in 128 KB). With the long
   span's six 68-byte trends its heaviest weather bundle is 867 B, and 875 B with a cleared
-  notice (2.7.0: 942 B and 950 B, the graph styles' spare row adding a seventh 68-byte trend
+  notice (3.0.0: 942 B and 950 B, the graph styles' spare row adding a seventh 68-byte trend
   while the screens' graphs draw five series). `test/inbox-size.test.js` `WEATHER_BUNDLES`
   records every platform's bundle and is
   the one place the sizes are asserted. The span changes no other watch's bundle and no Clay
@@ -230,7 +230,7 @@ Every step was within 2.2.0, before any release:
 
 ## Amendment (2026-11-08): graph styles
 
-From 2.7.0, by the owner's decision, each screen's forecast graph on a Pebble Time 2 draws one of
+From 3.0.0, by the owner's decision, each screen's forecast graph on a Pebble Time 2 draws one of
 up to three graph styles, and each style has its own length: 24 h on one screen, the long span
 on another. The phone still decides the hours. It sends the most hours a shown style needs, and
 each style's record (`src/c/appendix/graph_style.h`, `CLAY_GRAPH_STYLE_1..3_UINT8`) carries how

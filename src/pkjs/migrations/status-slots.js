@@ -1,6 +1,6 @@
 // src/pkjs/migrations/status-slots.js
 //
-// The status-slot migrations (1.8.0, 2.7.0). Registry bodies (migrations/registry.js):
+// The status-slot migrations (1.8.0, 3.0.0). Registry bodies (migrations/registry.js):
 // run(blob, ctx) -> {changed, send}, mutating the blob in place; the runner in
 // clay-migrations.js owns the marker, the save and the send.
 
@@ -46,7 +46,7 @@ function migrateStatusTopRightBattery(blob) {
     return { changed: true, send: false };
 }
 
-// The slots whose default 2.7.0 changed, each with the default it had before, per display
+// The slots whose default 3.0.0 changed, each with the default it had before, per display
 // (status-line-catalog.js: the Forecast bar's right-hand slot everywhere; the top row's
 // right-hand corner on emery and its left slot on the narrow watches).
 var SLOT_DEFAULTS_BEFORE_2_7 = {
@@ -55,7 +55,7 @@ var SLOT_DEFAULTS_BEFORE_2_7 = {
 };
 
 /**
- * 2.7.0 swapped air quality and sunrise/sunset between the Forecast bar and the top row
+ * 3.0.0 swapped air quality and sunrise/sunset between the Forecast bar and the top row
  * (the owner's, 2026-11-09). A slot nobody picked is stored nowhere (the settings page
  * saves the slots, an install that never saved it holds none), so the bake reads such a
  * slot's default, and the new defaults would move an upgrader's readings. This writes the

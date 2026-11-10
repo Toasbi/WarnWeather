@@ -337,7 +337,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // its label) on an emery, 24 on every other watch whatever is stored. Categorical, not the
         // hours sent (forecast-span.js option()). Lockstep with handler.ts.
         forecastHours: forecastSpan.option(safe, env),
-        // Graph styles (2.7.0, emery only): how many exist (1-3), and the length option of
+        // Graph styles (3.0.0, emery only): how many exist (1-6), and the length option of
         // styles 2 and 3 while a screen shows them (the first style's is forecastHours).
         // Lockstep with handler.ts -- deploy it first.
         graphStyleCount: env.graphStyles ? graphStyles.count(safe) : undefined,

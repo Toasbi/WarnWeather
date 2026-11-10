@@ -1907,7 +1907,7 @@ static void test_unpack_custom_bits(void) {
     expect("custom_bits.resolve_keeps_order", r.order == 7, true);
 
     // The Health bar stays without health under either order: nothing is stripped, so no
-    // row moves to the other band (2.7.0's named bars; before, a stripped upper promoted
+    // row moves to the other band (3.0.0's named bars; before, a stripped upper promoted
     // the survivor under the legacy order).
     ViewSpec so = view_spec_unpack(pack_custom(
         pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST), 0, 0, 7));
@@ -2464,7 +2464,7 @@ static void test_resolve_tier_lower_only(void) {
     printf("resolve_tier_lower_only OK\n");
 }
 
-// The Health bar is a status bar like the others (2.7.0's named bars: it holds what its
+// The Health bar is a status bar like the others (3.0.0's named bars: it holds what its
 // slots hold), so it stays without health, as the Radar bar stays without radar data: its
 // health slots show their placeholders. Concretely: compactDense's health default
 // [CAL2_HF_D] while health is unavailable keeps the dense pair and draws exactly as with
@@ -2662,7 +2662,7 @@ static void tier_helper_tests(void) {
     expect("tier_helpers.dual_bands_differ", Ld.status.origin.y != Ld.status_lower.origin.y, true);
     expect("tier_helpers.dual_lower_band",
            layout_status_band(&dual, &Ld, STATUS_SRC_FORECAST).origin.y == Ld.status_lower.origin.y, true);
-    // The Health bar takes the upper band exactly, like every other bar (2.7.0 dropped its
+    // The Health bar takes the upper band exactly, like every other bar (3.0.0 dropped its
     // 2 px drop at the full tier under a 2-row calendar, the dual view above). L.status is
     // tens of pixels from L.status_lower, which pins the upper-band choice too.
     expect("tier_helpers.dual_health_upper_band",

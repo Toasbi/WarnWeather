@@ -114,9 +114,9 @@ const EXPECTED_KEYS = [
   'viewTopSize2','viewBodySize2','viewAlign2',
   // Graph styles (Pebble Time 2): each screen's style and the extra styles' blob.
   'viewStyle0','viewStyle1','viewStyle2','graphStyles',
-  // The screens' names (2.7): page-only, never compiled or sent (screens.js nameOf).
+  // The screens' names (3.0): page-only, never compiled or sent (screens.js nameOf).
   'viewName0','viewName1','viewName2',
-  // The status bars' names (2.7): page-only too (screens.js barName).
+  // The status bars' names (3.0): page-only too (screens.js barName).
   'statusForecastName','statusRadarName','statusHealthName',
   // Bars 4 to 6 (Pebble Time 2, New status bar): each one's made flag, name, slots and their
   // countdown dates (its side lists are on-demand.js DEFAULTS', ALERT_KEYS).
@@ -352,7 +352,7 @@ test('no key rows on the Data sources card: every key lives in a key sheet that 
 });
 
 test('your bars: the Health and Radar bars\' dialogs and slots show on every watch that draws them, whatever the modes', () => {
-  // Since 2.7.0 the Status bars tab lists every bar, also one no screen shows (the Your status bars
+  // Since 3.0.0 the Status bars tab lists every bar, also one no screen shows (the Your status bars
   // card says "No screen"), so any bar can go onto any screen: the gate is the watch's alone.
   const watch = schema.tabs.find((t) => t.id === 'watch');
   [['statusHealth', 'health'], ['statusRadar', 'radar']].forEach(([prefix, cap]) => {

@@ -940,7 +940,7 @@ test('no Watch bar on the Default view and no Alerts on its bars: the card says 
   const health = Object.assign({}, custom, { viewLower0: 'health',
     statusHealthOnDemandLeftItems: 'battery' });
   assert.ok(!shows(Object.assign({ healthMode: 'status' }, health)), 'a health seat carrying items: hidden');
-  // The Health bar is a status bar like the others: it stays without health (2.7.0), so its
+  // The Health bar is a status bar like the others: it stays without health (3.0.0), so its
   // items count whatever the health mode.
   assert.ok(!shows(Object.assign({ healthMode: 'off' }, health)), 'a Health bar without health still counts');
 });

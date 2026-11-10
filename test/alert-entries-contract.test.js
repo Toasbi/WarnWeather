@@ -82,7 +82,7 @@ test('the phone bakes the tuple under the cap the watch accepts', () => {
 test('ALERT_ENTRIES_UINT8 is a declared message key, appended after the shipped ones', () => {
   const keys = template.pebble.messageKeys;
   // Its id is its shipped position (64, then the last key): a key inserted before it would
-  // shift it. Keys appended later (graph styles, 2.7.0) sit after it.
+  // shift it. Keys appended later (graph styles, 3.0.0) sit after it.
   assert.equal(keys.indexOf('ALERT_ENTRIES_UINT8'), 64,
     'appended: a key inserted mid-array would shift every later key id');
   assert.equal(keys.indexOf('ALERT_ENTRIES_UINT8'), keys.lastIndexOf('ALERT_ENTRIES_UINT8'));

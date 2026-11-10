@@ -1,5 +1,5 @@
 'use strict';
-// test/config-extra-bars.test.js — bars 4 to 6 on the settings page (Pebble Time 2, 2.7.0's New
+// test/config-extra-bars.test.js — bars 4 to 6 on the settings page (Pebble Time 2, 3.0.0's New
 // bar), on the REAL generated page (test/helpers/page-harness.js): the Your status bars card's New status bar
 // row (an empty bar at once, its dialog open with the name field ready; no templates), the made
 // bar's dialog with Delete status bar (and the card's Undo), the six-bars note, the screen editor's

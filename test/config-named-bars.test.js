@@ -1,4 +1,4 @@
-// test/config-named-bars.test.js — 2.7.0's named status bars on the settings page: a bar's
+// test/config-named-bars.test.js — 3.0.0's named status bars on the settings page: a bar's
 // name (screens.js barName, the page-only <prefix>Name keys), the Status bars tab's Your status bars
 // card and each bar's dialog, whose title renames it (a pencil, then a field and OK), the
 // screen editor's bar rows and Add chips (the bar's name), and the names wherever the page

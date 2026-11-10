@@ -74,7 +74,7 @@ test('holiday region keys: already-real subdivision preserved, old keys still dr
   assert.equal(L.store[KEYS.HOLIDAY_REGION_KEY_MIGRATION_KEY], '1', 'migration marked done');
 });
 
-test('2.7.0 slot defaults: an existing install keeps the slots it showed, a fresh one takes the new defaults', () => {
+test('3.0.0 slot defaults: an existing install keeps the slots it showed, a fresh one takes the new defaults', () => {
   const L = loadLedger(null);
   const key = KEYS.SLOT_DEFAULTS_2_7_MIGRATION_KEY;
   const catalog = require('../src/pkjs/status-line-catalog.js');
@@ -1212,7 +1212,7 @@ test('the owner\'s dev phone: the alert levels never re-run; On demand runs only
   const boot = (marked) => {
     const L = loadLedger(Object.assign({ alertRain: false, alertUv: true }, SAVED_ON_THE_1_24_PAGE));
     L.claySettings.seedDefaults(COLORS);
-    // The 2.7.0 slot defaults entry came long after these builds and has a test of its own.
+    // The 3.0.0 slot defaults entry came long after these builds and has a test of its own.
     marked.concat([KEYS.SLOT_DEFAULTS_2_7_MIGRATION_KEY]).forEach((k) => { L.store[k] = '1'; });
     const saved = L.read();
     L.saves.n = 0;

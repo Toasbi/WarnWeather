@@ -463,7 +463,7 @@ static void radar_bar_is_a_first_class_bar(void) {
 #endif
 
 #if defined(PBL_HEALTH)
-// The Health bar sits in its band like every other bar: 2.7.0 dropped the 2 px it used to
+// The Health bar sits in its band like every other bar: 3.0.0 dropped the 2 px it used to
 // give up in the dual-row compact view. A band that moves still repaints through the SDK's
 // own frame-change dirty (emulated by the stub's layer_set_frame), and the row's bounds are
 // exactly layer_get_bounds().

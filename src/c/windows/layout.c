@@ -363,7 +363,7 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
     }
     // The status rows stay whatever data is missing: every bar is a status bar like the
     // others (its slots are the phone's, baked into its STATUS_LINE_* on every weather
-    // fetch), so the Radar bar stays without radar data and, since 2.7.0's named bars, the
+    // fetch), so the Radar bar stays without radar data and, since 3.0.0's named bars, the
     // Health bar without health (its health slots show their placeholders, as a health item
     // on any bar does). Only the graphs need their data (the folds above).
     // The folds above can strip a seat (a radar top back to a calendar, …) and leave its

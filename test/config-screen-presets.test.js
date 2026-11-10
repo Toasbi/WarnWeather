@@ -1,5 +1,5 @@
 'use strict';
-// test/config-screen-presets.test.js — screens with names, an order and presets (2.7): a
+// test/config-screen-presets.test.js — screens with names, an order and presets (3.0): a
 // screen's name (screens.js nameOf, the page-only viewName keys), a move to another place
 // (screens-page.js moveScreen: the top screen is the Default, which always shows the clock),
 // the presets Add screen offers (screen-presets.js) with the template's graph each draws on a
