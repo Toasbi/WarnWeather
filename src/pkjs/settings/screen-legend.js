@@ -114,8 +114,10 @@
         // graph's steps name their own outline.
         var edge = typeof row.outline === 'string' ? row.outline : row.outline ? fg : null;
         var barFill = row.outline === true ? bg : c;
-        // A filled main line's area under it, whatever draws the line (line-style.js mainLineFills).
-        if (row.fill) { e += rect(4, 7, 16, 5, c, 'fill-opacity="0.35"'); }
+        // A filled main line's area under it, whatever draws the line (line-style.js
+        // mainLineFills): solid in its own colour, as the watch paints it, else (a
+        // black-and-white display's dither) half the ink.
+        if (row.fill) { e += row.fillColor ? rect(4, 7, 16, 5, row.fillColor) : rect(4, 7, 16, 5, fg, 'fill-opacity="0.5"'); }
         switch (row.kind) {
         case 'line':
             e += '<line x1="4" y1="7" x2="20" y2="7" stroke="' + c + '" stroke-width="' + (row.bold ? 2.6 : 1.4)

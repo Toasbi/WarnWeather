@@ -151,7 +151,11 @@ test('a glyph: a tile of the watch\'s ground with the row drawn on it, in the co
   assert.match(tile({ kind: 'stripe', color: '#AAAAFF', top: false }), /y="8" width="18" height="3.5"/);
   assert.match(tile({ kind: 'stripe', color: '#AAAAFF' }, 'radar'), /y="5.25" width="18" height="3.5"/);
   // A filled line's area, the dots, the marks, the band, the bolt.
-  assert.match(tile({ kind: 'line', color: '#55AAFF', fill: true }), /fill-opacity="0.35"/);
+  // A filled line's area in its own colour, solid as the watch paints it; on a black-and-white
+  // display half the ink.
+  assert.match(tile({ kind: 'line', color: '#55AAFF', fill: true, fillColor: '#0055AA' }),
+    new RegExp('<rect x="4" y="7" width="16" height="5" fill="' + shade('#0055AA') + '"></rect>'));
+  assert.match(tile({ kind: 'line', color: '#FFFFFF', fill: true, fillColor: null }), /fill="#FFFFFF" fill-opacity="0.5"/);
   assert.equal((tile({ kind: 'dots', color: '#FFFF00' }).match(/width="2.4"/g) || []).length, 3);
   assert.match(tile({ kind: 'x', color: '#FF00FF' }), /<path d="M6 5L9.6 8.6/);
   const band = tile({ kind: 'band', color: '#00AAFF', deep: '#0000FF' }, 'health');

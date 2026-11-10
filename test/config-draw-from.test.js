@@ -411,11 +411,11 @@ test('forecast preview: a Visible values: Alert line hangs from its band too', (
 
 test('forecast preview: the hanging Area fill closes on the plot\'s top, the night tint with it', () => {
   const S = Object.assign({}, BASE, { secondaryLine: 'precip_prob', secondaryLineFill: true, dayNightShading: true });
-  const area = (svg) => /<path d="(M[^"]+)" fill="#0055AA" fill-opacity="0.25"><\/path>/.exec(svg)[1];
+  const area = (svg) => /<path d="(M[^"]+)" fill="#0055AA"><\/path>/.exec(svg)[1];
   assert.match(area(FC.forecastPreview(S, COLOR)), / L197,94 L20,94 Z$/);
   const hung = FC.forecastPreview(Object.assign({ precipLineFrom: 'top' }, S), COLOR);
   assert.match(area(hung), / L197,4 L20,4 Z$/);
-  const tint = /<path d="(M[^"]+)" fill="#[0-9A-F]{6}" fill-opacity="0.25" clip-path="url\(#nightclip\)">/.exec(hung);
+  const tint = /<path d="(M[^"]+)" fill="#[0-9A-F]{6}" clip-path="url\(#nightclip\)">/.exec(hung);
   assert.ok(tint, 'premise: the night tint draws');
   assert.equal(tint[1], area(hung), 'the tint re-draws the same hanging area');
   // Under a top stripe the fill hangs from the stripe band's foot (PTL 11).

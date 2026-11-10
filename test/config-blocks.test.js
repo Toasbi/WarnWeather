@@ -224,12 +224,12 @@ test('forecastPreview: feels-like draws no area fill even with secondaryLineFill
   const feels = FC.forecastPreview(
     Object.assign({}, CURVE_BASE, { secondaryLine: 'feels', secondaryLineFill: true }), { color: true });
   assert.ok(/stroke="#AAAAAA"/.test(feels), 'the feels curve itself still renders');
-  assert.equal(/fill-opacity="0.25"/.test(feels), false, 'no filled area under the feels curve');
+  assert.equal(/<path d="[^"]+" fill="#[0-9A-F]{6}"><\/path>/.test(feels), false, 'no filled area under the feels curve');
   // Control: the same settings with a normal metric DO produce the fill, so the
   // assertion above is about feels and not about the fixture being fill-less.
   const precip = FC.forecastPreview(
     Object.assign({}, CURVE_BASE, { secondaryLine: 'precip_prob', secondaryLineFill: true }), { color: true });
-  assert.ok(/fill-opacity="0.25"/.test(precip), 'precip still fills');
+  assert.ok(/<path d="[^"]+" fill="#0055AA"><\/path>/.test(precip), 'precip still fills');
 });
 
 test('forecastMetricFill hook clears the stored fill when feels-like is picked', () => {
@@ -922,8 +922,9 @@ test('countdown glyph follows radarColor=Solid on a colour watch (the watch\'s s
 test('precip secondary line draws the cobalt fill on color and a dither on B&W', () => {
   const base = { barSource: 'off', secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'mid', dayNightShading: false };
   const color = FC.forecastPreview(base, { color: true });
-  assert.ok(color.indexOf('fill="#0055AA"') >= 0 && color.indexOf('fill-opacity="0.25"') >= 0,
-    'color: translucent cobalt precip fill present');
+  assert.ok(/<path d="[^"]+" fill="#0055AA"><\/path>/.test(color),
+    'color: the cobalt precip fill, solid as the watch paints it (no alpha on its display)');
+  assert.equal(color.indexOf('fill-opacity'), -1, 'never a translucent stand-in');
   const bw = FC.forecastPreview(base, { color: false });
   assert.ok(bw.indexOf('fill="url(#fillhatch)"') >= 0, 'B&W: precip fill uses the dither stipple pattern');
   assert.equal(bw.indexOf('fill="#0055AA"'), -1, 'B&W: no solid cobalt fill');
@@ -993,7 +994,7 @@ const GC_BASE = { barSource: 'off', windScale: 'mid', dayNightShading: true,
 test('forecastPreview: an untouched blob draws the built-in colours', () => {
   const svg = FC.forecastPreview(GC_BASE, { color: true });
   assert.ok(svg.indexOf('stroke="#FFFF00"') >= 0, 'the wind line is Yellow');
-  assert.ok(/fill="#555500" fill-opacity="0\.25"><\/path>/.test(svg), 'the area fill is ArmyGreen');
+  assert.ok(/fill="#555500"><\/path>/.test(svg), 'the area fill is ArmyGreen');
   assert.ok(svg.indexOf('fill="#FF00FF"') >= 0, 'the uv dots are Magenta');
   assert.ok(/<pattern id="nh"[^>]*>[\s\S]*?stroke="#555555"/.test(svg),
     'the night hatch is DarkGray — the colour the watch paints, not a translucent stand-in');
@@ -1006,9 +1007,8 @@ test('forecastPreview: a tuned colour overrides the built-in line, fill and dot 
   }), { color: true });
   assert.ok(tuned.indexOf('stroke="#00FFFF"') >= 0, 'the main line takes its colour');
   assert.equal(tuned.indexOf('stroke="#FFFF00"'), -1, 'and the built-in wind yellow is gone');
-  assert.ok(/fill="#AA00AA" fill-opacity="0\.25"/.test(tuned), 'the area fill takes its colour');
-  assert.equal(tuned.search(/fill="#555500" fill-opacity="0\.25"><\/path>/), -1,
-    'and the built-in ArmyGreen day fill is gone');
+  assert.ok(/fill="#AA00AA"><\/path>/.test(tuned), 'the area fill takes its colour');
+  assert.equal(tuned.search(/fill="#555500"><\/path>/), -1, 'and the built-in ArmyGreen day fill is gone');
   assert.ok(tuned.indexOf('fill="#00FF00"') >= 0, 'the second-metric dots take theirs');
   assert.equal(tuned.indexOf('fill="#FF00FF"'), -1, 'and the built-in uv magenta is gone');
 });
@@ -1063,12 +1063,12 @@ test('forecastPreview: the exactly-white→black flip survives in the B&W arm on
 
 test('forecastPreview: the fill colour paints the area only, the second-line colour the dots only', () => {
   const fill = FC.forecastPreview(Object.assign({}, GC_BASE, { gcWindFillDark: '#AA00AA' }), { color: true });
-  assert.ok(/fill="#AA00AA" fill-opacity="0\.25"/.test(fill), 'the area takes it');
+  assert.ok(/fill="#AA00AA"><\/path>/.test(fill), 'the area takes it');
   assert.ok(fill.indexOf('stroke="#FFFF00"') >= 0, 'the wind line keeps its own colour');
   assert.ok(fill.indexOf('fill="#FF00FF"') >= 0, 'and the uv dots keep theirs');
   const dots = FC.forecastPreview(Object.assign({}, GC_BASE, { gcUvLineDark: '#00FF00' }), { color: true });
   assert.ok(dots.indexOf('fill="#00FF00"') >= 0, 'the dots take it');
-  assert.ok(/fill="#555500" fill-opacity="0\.25"><\/path>/.test(dots), 'the area fill is untouched');
+  assert.ok(/fill="#555500"><\/path>/.test(dots), 'the area fill is untouched');
   assert.ok(dots.indexOf('stroke="#FFFF00"') >= 0, 'and so is the main line');
 });
 
@@ -1094,19 +1094,18 @@ test('forecastPreview: the night tint re-shades the filled area in both polariti
   // pick; it now re-shades off NIGHT_AREA_LIGHT_BASE like dark does.
   const dark = FC.forecastPreview(GC_BASE, { color: true });
   assert.ok(dark.indexOf('<clipPath id="nightclip">') >= 0, 'the night band becomes a clip');
-  assert.ok(/<path d="[^"]+" fill="#555500" fill-opacity="0\.25" clip-path="url\(#nightclip\)"><\/path>/.test(dark),
-    "the area is re-drawn in wind's built-in night base, clipped to the night hours");
-  assert.ok(/fill="#555500" fill-opacity="0\.25"><\/path>/.test(dark), 'the day fill is still there underneath');
+  assert.ok(/<path d="([^"]+)" fill="#555500" clip-path="url\(#nightclip\)"><\/path><path d="\1" fill="url\(#nha\)" clip-path="url\(#nightclip\)"><\/path>/.test(dark),
+    "the area is re-drawn in wind's built-in night base, solid, its hatch over it, clipped to the night hours");
+  assert.ok(/<pattern id="nha"[^>]*>[\s\S]*?stroke="#AAAA00"/.test(dark), "the hatch in wind's own night hatch colour (Limerick)");
+  assert.ok(/fill="#555500"><\/path>/.test(dark), 'the day fill is still there underneath');
   const darkTuned = FC.forecastPreview(Object.assign({}, GC_BASE, { gcWindNightDark: '#0000AA' }), { color: true });
-  assert.ok(/fill="#0000AA" fill-opacity="0\.25" clip-path="url\(#nightclip\)"/.test(darkTuned),
-    'a tuned tint paints verbatim');
+  assert.ok(/fill="#0000AA" clip-path="url\(#nightclip\)"/.test(darkTuned), 'a tuned tint paints verbatim');
   const light = FC.forecastPreview(Object.assign({}, GC_BASE, { theme: 'light' }), { color: true });
-  assert.ok(/fill="#FFAA55" fill-opacity="0\.25" clip-path="url\(#nightclip\)"/.test(light),
+  assert.ok(/fill="#FFAA55" clip-path="url\(#nightclip\)"/.test(light),
     "the light theme re-shades in wind's light night base (Rajah), no pick needed");
   const lightTuned = FC.forecastPreview(Object.assign({}, GC_BASE,
     { theme: 'light', gcWindNightLight: '#0000AA' }), { color: true });
-  assert.ok(/fill="#0000AA" fill-opacity="0\.25" clip-path="url\(#nightclip\)"/.test(lightTuned),
-    'and a Light pick still overrides that built-in');
+  assert.ok(/fill="#0000AA" clip-path="url\(#nightclip\)"/.test(lightTuned), 'and a Light pick still overrides that built-in');
   assert.equal(FC.forecastPreview(Object.assign({}, GC_BASE,
     { secondaryLineFill: false }), { color: true }).indexOf('nightclip'), -1,
     'nothing to re-shade with the fill off');

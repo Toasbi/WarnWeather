@@ -397,17 +397,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     /**
      * What a forecast graph draws, as a legend lists it, top to bottom: the temperature (a thick
      * line), each metric line the graph draws in its style and colour (graphKey's lines, the
-     * draw pass's own: a filled main line `fill`, a stripe `top` or along the bottom), then the
-     * rain bars (`tiers`: the palette's tier colours, else one `color`, outlined on a
-     * black-and-white display; `top`: hung from the top). The graph's own legend (drawLegend)
-     * and Add a screen's (screen-legend.js) read it.
+     * draw pass's own: a filled main line `fill`, with its area's colour on a colour display
+     * `fillColor`, a stripe `top` or along the bottom), then the rain bars (`tiers`: the
+     * palette's tier colours, else one `color`, outlined on a black-and-white display; `top`:
+     * hung from the top). The graph's own legend (drawLegend) and Add a screen's
+     * (screen-legend.js) read it.
      * @param {Object} state Live settings.
      * @param {?Object} env Config-UI environment facts.
      * @param {Object} [userData] Page userData (the palette).
      * @param {Object} [key] graphKey(state, env, userData), when the caller has it.
      * @returns {Array<{metric: string, kind: string, color: string, bold: boolean, fill: boolean,
-     *     top: boolean, tiers: ?Array<string>, outline: boolean}>} kind: 'line' | 'dots' | 'x' |
-     *     'stripe' | 'bars'; metric: 'temp', a line's metric, or 'rain'.
+     *     fillColor: ?string, top: boolean, tiers: ?Array<string>, outline: boolean}>} kind:
+     *     'line' | 'dots' | 'x' | 'stripe' | 'bars'; metric: 'temp', a line's metric, or 'rain'.
      */
     function graphLegend(state, env, userData, key) {
         var k = key || graphKey(state, env, userData);
@@ -415,9 +416,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             tiers: null, outline: false }];
         k.lines.forEach(function (l) {
             if (!l.on) { return; }
+            var fills = l.key === 'secondaryLine' && Boolean(k.gc.fillOn);
             out.push({ metric: l.metric, kind: isStripe(l.style) ? 'stripe' : (l.style === 'dots' || l.style === 'x') ? l.style
-                : 'line', color: l.color, bold: l.style === 'bold', fill: l.key === 'secondaryLine' && Boolean(k.gc.fillOn),
-                top: l.style === 'stripeTop', tiers: null, outline: false });
+                : 'line', color: l.color, bold: l.style === 'bold', fill: fills,
+                fillColor: fills && k.isColor ? hexColor(k.gc.fill) : null, top: l.style === 'stripeTop', tiers: null,
+                outline: false });
         });
         if (state.barSource === 'rain') {
             var tiers = k.isColor && state.rainBarColor !== 'white';
@@ -918,11 +921,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var fillsArea = gc.fillOn;
         /**
          * Main metric's area fill only (no stroke) — the resolved fill colour on colour
-         * displays, a dithered stipple on B&W (mirrors the watch's 1-bit dither of the
-         * GColorLightGray fill — not diagonal lines). Drawn separately from lineFor() so
-         * the caller can place it beneath the rain bars, matching chart.c's z-order
-         * (CHART_LAYER_AREA before CHART_LAYER_BARS in forecast_layer.c) — the bars paint
-         * over the fill, not the other way around.
+         * displays, solid as the watch paints it (chart.c chart_render_area: the display has
+         * no alpha, so a full area covers the plot; the owner's, 2026-11-10, after a preview
+         * drawn at a quarter strength looked far lighter than the watch), a dithered stipple
+         * on B&W (mirrors the watch's 1-bit dither of the GColorLightGray fill — not diagonal
+         * lines). Drawn separately from lineFor() so the caller can place it beneath the rain
+         * bars, matching chart.c's z-order (CHART_LAYER_AREA before CHART_LAYER_BARS in
+         * forecast_layer.c) — the bars paint over the fill, not the other way around.
          * @param {string} metric The main metric — state.secondaryLine.
          * @returns {string} SVG markup
          */
@@ -931,13 +936,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var area = areaPathFor(metric);
             if (!area) { return ''; }
             return isColor
-                ? '<path d="' + area + '" fill="' + mainFill + '" fill-opacity="0.25"></path>'
+                ? '<path d="' + area + '" fill="' + mainFill + '"></path>'
                 : '<path d="' + area + '" fill="url(#fillhatch)"></path>';
         }
         /**
          * The night fill tint: the same area path re-drawn clipped to the night band, in
-         * the resolved night-area base — the watch's night UNDERLAY, which re-shades the
-         * filled area during the night hours.
+         * the resolved night-area base, solid, with the night hatch over it in the area's
+         * hatch colour (`nha`) — the watch's night UNDERLAY and its hatch (chart.c
+         * chart_render_hatch), which re-shade the filled area during the night hours.
          *
          * The gate is that underlay's, from forecast_layer.c: a night band and a filled
          * area to re-shade (`night_on && fill_on`) and colour only (`has_underlay =
@@ -951,10 +957,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var area = areaPathFor(state.secondaryLine);
             if (!area) { return ''; }
             // areaBase is the metric's hand-tuned night base, or the user's tint verbatim
-            // once moved off it (nightAreaColorsFor); areaHatch is the watch's derived
-            // overlay, which the preview does not model.
-            return '<path d="' + area + '" fill="' + hexColor(gc.night.areaBase)
-                + '" fill-opacity="0.25" clip-path="url(#nightclip)"></path>';
+            // once moved off it (nightAreaColorsFor); areaHatch the watch's overlay on it.
+            return '<path d="' + area + '" fill="' + hexColor(gc.night.areaBase) + '" clip-path="url(#nightclip)"></path>'
+                + '<path d="' + area + '" fill="url(#nha)" clip-path="url(#nightclip)"></path>';
         }
         /**
          * One metric as a line whose vertices sit on the hour ticks. A zero-based
@@ -1314,6 +1319,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         e += rect(0, 0, 200, frameH, ink.bg);
         e += '<defs>'
             + '<pattern id="nh" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="' + nightHatchStroke + '" stroke-width="0.7"></line></pattern>'
+            // The night area's hatch: the same hatch in the area's own hatch colour.
+            + (nightTint ? '<pattern id="nha" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="' + hexColor(gc.night.areaHatch) + '" stroke-width="0.7"></line></pattern>' : '')
             + stripeDitherDefs()
             + '<pattern id="fillhatch" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect><rect x="1" y="1" width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect></pattern>'
             + (nightTint
