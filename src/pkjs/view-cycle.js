@@ -46,13 +46,27 @@ var ALIGN_CLOCK = 0, ALIGN_TOP = 1, ALIGN_CENTER = 2, ALIGN_BOTTOM = 3;
 var ALIGN_CODE = { clock: ALIGN_CLOCK, top: ALIGN_TOP, center: ALIGN_CENTER, bottom: ALIGN_BOTTOM };
 // A screen's graph style (the viewStyle key: '1' to '6', Pebble Time 2,
 // src/pkjs/graph-styles.js MAX_STYLES) → the spec's graphStyle field, the style's index: '1',
-// the first style, is none. The view word carries the watch's slot for it instead (0..2, ext
-// bits 9-10), which graph-styles.js wireCycle writes into the specs the watch is sent.
+// the first style, is none. A screen added from a template draws the template's own graph
+// instead, one of three after the six (graph-styles.js TEMPLATE GRAPHS): 't1' to 't3', indices
+// 6 to 8. The view word carries the watch's slot for it instead (0..2, ext bits 9-10), which
+// graph-styles.js wireCycle writes into the specs the watch is sent.
 var GRAPH_STYLES = 6;
+var GRAPH_TEMPLATES = 3;
 var GRAPH_STYLE_CODE = {};
 (function () {
   for (var k = 1; k < GRAPH_STYLES; k++) { GRAPH_STYLE_CODE[String(k + 1)] = k; }
+  for (var n = 0; n < GRAPH_TEMPLATES; n++) { GRAPH_STYLE_CODE['t' + (n + 1)] = GRAPH_STYLES + n; }
 })();
+
+/**
+ * A graph style's viewStyle value (GRAPH_STYLE_CODE's inverse): '1' to '6' for the styles,
+ * 't1' to 't3' for the template graphs.
+ * @param {number} k A style index (0 or absent: the first).
+ * @returns {string}
+ */
+function styleCode(k) {
+  return k >= GRAPH_STYLES ? 't' + (k - GRAPH_STYLES + 1) : String((k || 0) + 1);
+}
 // The view word's codes for the watch's style slots (layout.h view_ext_graph_style: code 3
 // reads as the first).
 var GRAPH_STYLE_SLOTS = 3;
@@ -224,7 +238,7 @@ function extFields(s) {
   if (fill) { align = ALIGN_CLOCK; }
   var forecastGraph = s.body === BODY_FC || (s.top === TOP_GRAPH && topKind === TOP_KIND_FORECAST);
   var graphStyle = s.graphStyle || 0;
-  if (!(graphStyle > 0 && graphStyle < GRAPH_STYLES) || !forecastGraph) { graphStyle = 0; }
+  if (!(graphStyle > 0 && graphStyle < GRAPH_STYLES + GRAPH_TEMPLATES) || !forecastGraph) { graphStyle = 0; }
   return { topKind: topKind, topSize: topSize, bodySize: bodySize, align: align,
            graphStyle: graphStyle, fill: fill };
 }
@@ -893,7 +907,7 @@ function specToKeys(cycle) {
       : (TOP_SIZE_NAME[s.topSize || 0] || '3');
     keys['viewBodySize' + i] = BODY_SIZE_NAME[s.bodySize || 0] || 'fill';
     keys['viewAlign' + i] = alignName[s.align || 0] || 'clock';
-    keys['viewStyle' + i] = String((s.graphStyle || 0) + 1);
+    keys['viewStyle' + i] = styleCode(s.graphStyle);
   }
   return keys;
 }
@@ -1044,7 +1058,8 @@ var VIEW_CYCLE = {
   BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR, BODY_NONE: BODY_NONE,
   SIZE_DEFAULT: SIZE_DEFAULT, SIZE_2: SIZE_2, SIZE_3: SIZE_3, SIZE_4: SIZE_4, SIZE_FILL: SIZE_FILL,
   SIZE_CODE: SIZE_CODE, TOP_SIZE_NAME: TOP_SIZE_NAME, BODY_SIZE_NAME: BODY_SIZE_NAME,
-  GRAPH_STYLE_CODE: GRAPH_STYLE_CODE, GRAPH_STYLES: GRAPH_STYLES, GRAPH_STYLE_SLOTS: GRAPH_STYLE_SLOTS,
+  GRAPH_STYLE_CODE: GRAPH_STYLE_CODE, GRAPH_STYLES: GRAPH_STYLES, GRAPH_TEMPLATES: GRAPH_TEMPLATES,
+  GRAPH_STYLE_SLOTS: GRAPH_STYLE_SLOTS, styleCode: styleCode,
   ALIGN_CLOCK: ALIGN_CLOCK, ALIGN_TOP: ALIGN_TOP, ALIGN_CENTER: ALIGN_CENTER,
   ALIGN_BOTTOM: ALIGN_BOTTOM, ALIGN_CODE: ALIGN_CODE,
   STATUS_SRC_NONE: STATUS_SRC_NONE, STATUS_SRC_FORECAST: STATUS_SRC_FORECAST,

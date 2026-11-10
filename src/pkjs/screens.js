@@ -448,7 +448,8 @@
    * (STACK_ORDERS[order] when it is stacked, else its tier's legacy order: a compact
    * calendar's T A C B, every other T C A B), the Watch bar first and the body last. A size
    * code reads as its seat's size name (view-cycle.js TOP_SIZE_NAME / BODY_SIZE_NAME), the
-   * forecast graph's style code as its viewStyle ('2' | '3'; none for the first style).
+   * forecast graph's style as its viewStyle ('2' to '6', 't1' to 't3' for a template's graph:
+   * view-cycle.js styleCode; none for the first style).
    * @param {?Object} s A compiled view (null: a screen with nothing on it).
    * @param {boolean} stripOn Whether a null view's screen keeps its Watch bar.
    * @returns {Array<Object>} the screen
@@ -474,7 +475,7 @@
     });
     if (BODY_KIND[s.body]) { out.push({ k: BODY_KIND[s.body], size: VC.BODY_SIZE_NAME[s.bodySize || 0] }); }
     var fc = out[idxOf(out, 'fc')];
-    if (fc && s.graphStyle) { fc.style = String(s.graphStyle + 1); }
+    if (fc && s.graphStyle) { fc.style = VC.styleCode(s.graphStyle); }
     return out;
   }
 

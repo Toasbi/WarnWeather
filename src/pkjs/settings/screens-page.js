@@ -71,8 +71,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var RADAR_OFF = 'The rain radar is off.';
     // Why a move snaps back: the top screen always shows the clock (the watch keeps it).
     var NO_ROOM_FOR_CLOCK = ' has no room for the clock, which the top screen always shows.';
-    // Why Add a screen cannot add a screen.
-    var NO_GRAPH_ROOM = 'It needs a new graph, and you have ' + GS.MAX_STYLES + ' already. Delete one on the Graphs tab.';
+    // A template's graph on a screen (graph-styles.js TEMPLATE GRAPHS): what its row says, and
+    // why Edit graph cannot make it one of yours.
+    var TEMPLATE_NOTE = 'Not one of your graphs until you edit it.';
+    var NO_GRAPH_ROOM = 'You have ' + GS.MAX_STYLES + ' graphs already. Delete one on the Graphs tab to edit this one.';
     // How to reorder, under the Screens card's screens and the screen editor's rows; "Drag ≡" kept
     // on one line (a no-break space).
     var REORDER_HINT = 'Each flick shows the next one. Drag\u00a0≡ to change the order.';
@@ -98,7 +100,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var BAR_UNDO = { v: null, t: null };
     // What a screen brings, under Add a screen's cards: with graph styles, and on a watch with
     // one graph (screen-presets.js WHAT A SCREEN BRINGS).
-    var ADD_FINE = 'A forecast screen brings its own graph, or uses one of yours that looks the same. Your status bars keep what they show.';
+    var ADD_FINE = 'A forecast screen draws its template’s graph. It becomes one of your graphs only when you edit it.'
+        + ' Your status bars keep what they show.';
     var ADD_FINE_ONE_GRAPH = 'A screen brings its rows. Your graph and your status bars stay as they are.';
     // aplite's Layout choice, its Watchface tab having no screens: the three calendars.
     var APLITE_LAYOUTS = [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal'], ['No calendar', 'noCal']];
@@ -187,6 +190,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!edit()) { return false; }
         fillNewBars(S, before, env);
         applyModes(S, env);
+        // A template's graph no screen draws any more goes with it (graph-styles.js TEMPLATE GRAPHS).
+        var kept = GS.pruneTemplates(S);
+        if (kept !== (S.graphStyles || '')) { S.graphStyles = kept; }
         return true;
     }
 
@@ -216,12 +222,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The view keys of every slot and the screen count, for Undo.
+     * The view keys of every slot and the screen count, for Undo, and the graphs' item, which
+     * holds a template's graph a deleted screen drew (editScreens drops it with the screen).
      * @param {Object} S Settings.
      * @returns {Object} key -> value
      */
     function snapshot(S) {
         var out = { viewCount: S.viewCount, layoutPreset: S.layoutPreset, customLayoutSeeded: S.customLayoutSeeded };
+        if (Object.prototype.hasOwnProperty.call(S, 'graphStyles')) { out.graphStyles = S.graphStyles; }
         for (var i = 0; i < M.MAX_SCREENS; i++) {
             for (var s = 0; s < VIEW_STEMS.length; s++) {
                 var key = 'view' + VIEW_STEMS[s] + i;
@@ -480,16 +488,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * One screen Add a screen can add: a kind with its calendar and, for a forecast screen on a
      * watch with graph styles, its length, as the screen it adds after the others. A forecast
-     * screen there brings its graph (graph-styles-page.js presetGraph: yours that reads as its
-     * template at that length, else a new one). `W` is the settings with it added, which its
-     * picture draws (a Rain radar screen with the radar on, as adding it turns it on); `why` says
-     * why it cannot be added: no graph slot is free, or its graph would make more metrics than
-     * the watch shows.
+     * screen there draws its template's graph (graph-styles-page.js templateGraph: a template
+     * graph, never one of the six, so no screen waits for a free graph). `W` is the settings with
+     * it added, which its picture draws (the radar on where the screen shows it, as adding it
+     * turns it on); `why` says why it cannot be added: its graph would make more metrics than the
+     * watch shows.
      * @param {Object} N Settings as stored (graph-styles-page.js asStored).
      * @param {?Object} env Platform env.
      * @param {Array<Array<Object>>} lists The screens.
      * @param {Object} kind A screen-presets.js KINDS entry.
-     * @param {string} cal Its calendar's rows: '' | '2' | '3'.
+     * @param {string} cal Its calendar: '' | '2' | '3' | screen-presets.js DENSE.
      * @param {string} span Its graph's length ('12' | '24' | '48'), '' where it has none.
      * `calName` names its calendar ('' on a screen of two graphs), for a screen reader: its
      * picture shows it. `W` holds the modes the screens need with it added (applyModes), so its
@@ -498,28 +506,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      *     another calendar: its graph and why it cannot be added, the same on every calendar (a
      *     calendar takes no graph and draws no metric), so Add a screen's cards read them once.
      * @returns {{id: string, name: string, calName: string, look: ?string, cal: string, span: string,
-     *   list: Array<Object>, graph: ?{k: number, values: ?Object}, W: Object, n: number, why: string}}
+     *   list: Array<Object>, graph: ?{k: number, values: Object}, W: Object, n: number, why: string}}
      */
     function addChoice(N, env, lists, kind, cal, span, known) {
         var n = lists.length, list = PRESETS.screenOf(kind, cal), why = known ? known.why : '';
         var styled = Boolean(kind.look && env && env.graphStyles);
-        var graph = known ? known.graph : styled ? GSP.presetGraph(N, env, kind.look, span) : null;
-        if (graph && graph.k > 0) { list[M.idxOf(list, 'fc')].style = String(graph.k + 1); }
+        var graph = known ? known.graph : styled ? GSP.templateGraph(N, env, kind.look, span) : null;
+        if (graph) { list[M.idxOf(list, 'fc')].style = GS.codeOf(graph.k); }
         var W = Object.assign({}, N);
-        if (graph && graph.values) { W.graphStyles = GS.withStyle(W, graph.k, graph.values); }
-        if (PRESETS.showsRadar(kind)) { W.radarEnabled = true; }
+        if (graph) { W.graphStyles = GS.withTemplate(W, graph.k, kind.look, graph.values); }
+        if (PRESETS.showsRadar(kind, cal)) { W.radarEnabled = true; }
         ensureCustom(W, env);
         putScreen(W, n, list);
         applyModes(W, env);
         W['viewAlign' + n] = 'clock';
         W['viewName' + n] = kind.name;
-        if (known) {
-            // Read on another calendar already.
-        } else if (styled && !graph) {
-            why = NO_GRAPH_ROOM;
-        } else if (graph && GSP.screenOverflows(W, env, n, graph.k)) {
-            why = GSP.limitDesc(W, env, graph.k);
-        }
+        if (!known && graph && GSP.screenOverflows(W, env, n, graph.k)) { why = GSP.limitDesc(W, env, graph.k); }
         return { id: kind.id, name: kind.name, calName: PRESETS.calendarName(kind, cal), look: kind.look, cal: cal,
             span: span, list: list, graph: graph, W: W, n: n, why: why };
     }
@@ -545,13 +547,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Add the screen a kind stands for, with its calendar and length, after the others: its
-     * graph made first when it brings a new one, the rain radar turned on for a Rain radar
-     * screen, the screen named after its kind (freeName). Mutates S.
+     * Add the screen a kind stands for, with its calendar and length, after the others: a
+     * forecast screen's template graph stored first (graph-styles.js TEMPLATE GRAPHS), the rain
+     * radar turned on where the screen shows it, the screen named after its kind (freeName).
+     * Mutates S.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} id A kind's id.
-     * @param {string} [cal] Its calendar's rows ('' | '2' | '3'); the Default screen's without.
+     * @param {string} [cal] Its calendar ('' | '2' | '3' | screen-presets.js DENSE); the Default
+     *   screen's without.
      * @param {string} [span] Its graph's length; its template's without.
      * @returns {number} the new screen's slot, -1 for none (no room, it cannot be added, no such kind)
      */
@@ -561,17 +565,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var start = addStart(N, env, kind);
         var c = addChoice(N, env, lists, kind, cal === undefined ? start.cal : cal, span || start.span);
         if (c.why) { return -1; }
-        var list = M.copy(c.list);
-        if (c.graph && c.graph.values) {
-            var k = GSP.createGraph(S, c.look, env, { forecastHours: c.graph.values.forecastHours });
-            var j = M.idxOf(list, 'fc');
-            if (k < 0) { return -1; }
-            if (k > 0) { list[j].style = String(k + 1); } else { delete list[j].style; }
+        var held = S.graphStyles;
+        if (c.graph) {
+            GSP.settle(S);
+            held = S.graphStyles;
+            S.graphStyles = GS.withTemplate(S, c.graph.k, c.look, c.graph.values);
         }
-        var turnOn = PRESETS.showsRadar(kind) && S.radarEnabled === false;
+        var turnOn = PRESETS.showsRadar(kind, c.cal) && S.radarEnabled === false;
         if (turnOn) { setRadarEnabled(S, true, env); }
-        if (!insertScreen(S, c.n, list, env)) {
+        if (!insertScreen(S, c.n, M.copy(c.list), env)) {
             if (turnOn) { setRadarEnabled(S, false, env); }
+            if (c.graph) { S.graphStyles = held; }
             return -1;
         }
         S['viewName' + c.n] = freeName(S, env, c.name, c.n);
@@ -1070,14 +1074,27 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The style a forecast block draws: its own while it exists, else the first.
+     * The style a forecast block draws: its own while it exists, else the first
+     * (graph-styles-page.js drawnBy).
      * @param {Object} b The forecast block.
      * @param {Object} S Settings.
      * @returns {number} A style index.
      */
     function blockStyle(b, S) {
-        var k = (parseInt(b.style, 10) || 1) - 1;
-        return GS.exists(S, k) ? k : 0;
+        return GSP.drawnBy(S, b);
+    }
+
+    /**
+     * The template graph screen i's forecast graph draws (a screen Add a screen added: the
+     * owner's, 2026-11-10), as its row reads it.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Array<Object>} list The screen.
+     * @returns {number} its index, -1 where the screen draws one of your graphs or none
+     */
+    function templateOf(S, env, list) {
+        var at = M.idxOf(list, 'fc'), k = at < 0 || !(env && env.graphStyles) ? -1 : blockStyle(list[at], S);
+        return GS.isTemplate(k) ? k : -1;
     }
 
     /**
@@ -1166,14 +1183,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * A row's name in the list: with several graphs the forecast graph's is its graph's ("Long"),
-     * as a status bar's is its bar's; any other row's is its kind's (screens.js blockName).
+     * and a template's graph is its template's ("Outdoor"), as a status bar's is its bar's; any
+     * other row's is its kind's (screens.js blockName).
      * @param {Object} b A block.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {string}
      */
     function rowName(b, S, env) {
-        return b.k === 'fc' && manyGraphs(S, env) ? GS.name(S, blockStyle(b, S)) : M.blockName(b, S);
+        if (b.k !== 'fc' || !(env && env.graphStyles)) { return M.blockName(b, S); }
+        var k = blockStyle(b, S);
+        return manyGraphs(S, env) || GS.isTemplate(k) ? GSP.graphName(S, env, k) : M.blockName(b, S);
     }
 
     /**
@@ -1209,6 +1229,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             h += '<div class="se-sub se-off"><span>' + RADAR_OFF + '</span>'
                 + '<button type="button" class="se-link" data-se="radaron">Turn on</button></div>';
         }
+        // A template's graph (Add a screen's): what that means, and Edit graph to make it yours.
+        if (b.k === 'fc' && templateOf(S, env, list) >= 0) {
+            h += '<div class="se-sub se-off"><span>' + esc(TEMPLATE_NOTE) + '</span>'
+                + '<button type="button" class="se-link" data-se="adopt">Edit graph</button></div>';
+        }
         return h + '</div>';
     }
 
@@ -1220,7 +1245,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function withGraph(list, g) {
         var next = M.add(list, 'fc');
-        if (g > 0) { next[M.idxOf(next, 'fc')].style = String(g + 1); }
+        if (g > 0) { next[M.idxOf(next, 'fc')].style = GS.codeOf(g); }
         return next;
     }
 
@@ -1257,7 +1282,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function switchedTo(list, g) {
         var next = M.copy(list), fc = next[M.idxOf(next, 'fc')];
-        if (g > 0) { fc.style = String(g + 1); } else { delete fc.style; }
+        if (g > 0) { fc.style = GS.codeOf(g); } else { delete fc.style; }
         return next;
     }
 
@@ -1266,7 +1291,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * screen has its forecast graph): with several graphs, a chip for each graph screen i does not
      * draw, greyed out (off) where drawing it in its place would make the screens show more
      * metrics than the watch can, with the settings that would make (W), as graphOffers reads
-     * an Add chip. None while the screen has no forecast graph: graphOffers' chips add one.
+     * an Add chip. None while the screen has no forecast graph: graphOffers' chips add one. A
+     * screen drawing a template's graph is offered your graphs even while you have one.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} i View slot.
@@ -1275,7 +1301,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function switchOffers(S, env, i, list) {
         var at = M.idxOf(list, 'fc');
-        if (at < 0 || !manyGraphs(S, env)) { return []; }
+        if (at < 0 || !(manyGraphs(S, env) || templateOf(S, env, list) >= 0)) { return []; }
         var N = GSP.asStored(S), now = GSP.drawnBy(N, list[at]);
         return GSP.existing(N).filter(function (g) { return g !== now; }).map(function (g) {
             var W = Object.assign({}, N);
@@ -1737,6 +1763,26 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Edit graph on a template's row (the owner's, 2026-11-10: a template's graph joins your
+     * graphs once you edit it): the graph made one of yours (graph-styles-page.js
+     * adoptTemplate), then its dialog opened over the editor; with six graphs already the toast
+     * says to delete one first.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Array<Object>} list The screen being edited.
+     * @returns {void}
+     */
+    function adoptHere(S, env, list) {
+        var k = templateOf(S, env, list);
+        if (k < 0) { return; }
+        var j = GSP.adoptTemplate(S, k);
+        if (j < 0) { editorToast(NO_GRAPH_ROOM, 5000); return; }
+        renderEditor();
+        UI.ctx.render();
+        GSP.openGraph(S, j, false, { kicker: M.nameOf(S, ED.i), onClose: renderEditor });
+    }
+
+    /**
      * + New status bar in the editor (Pebble Time 2): an empty bar made (makeBar) and put on the
      * screen at a bar's place, then its dialog opened over the editor with its name field ready.
      * @param {Object} S Settings.
@@ -1800,6 +1846,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (act === 'rm') { commit(M.remove(list, j)); return; }
         if (act === 'add' || act === 'newbar' || act === 'switch') { addTap(S, env, list, t); return; }
         if (act === 'radaron') { setRadarEnabled(S, true, env); renderEditor(); ctx.render(); return; }
+        if (act === 'adopt') { adoptHere(S, env, list); return; }
         // A row's Rows or Size: its picker opens over the editor (the page's select sheet, a
         // top-layer dialog), its pick lands through screenRowSizePicked.
         if (act === 'size') {
@@ -2127,6 +2174,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         NOTHING_YET: NOTHING_YET,
         NO_ROOM_FOR_CLOCK: NO_ROOM_FOR_CLOCK,
         NO_GRAPH_ROOM: NO_GRAPH_ROOM,
+        TEMPLATE_NOTE: TEMPLATE_NOTE,
         REORDER_HINT: REORDER_HINT,
         ROWS_HINT: ROWS_HINT,
         hasScreens: hasScreens,

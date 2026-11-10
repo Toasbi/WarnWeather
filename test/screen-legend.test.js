@@ -49,12 +49,34 @@ function legendOf(id, env, S) {
 }
 
 /**
- * A legend's rows as "Name: how", each graph's in a list.
+ * How a row is drawn, in words, as its glyph draws it (screen-legend.js glyph): a filled main
+ * line as its shaded area, dots and marks over theirs.
+ * @param {Object} row A legend row.
+ * @param {string} graph The graph it is of: 'forecast' | 'health' | 'radar'.
+ * @returns {string}
+ */
+function howOf(row, graph) {
+  const over = row.fill ? ' over a shaded area' : '';
+  switch (row.kind) {
+  case 'line': return row.fill ? 'shaded area' : row.bold ? 'thick line' : 'line';
+  case 'dots': return 'dots' + over;
+  case 'x': return '× marks' + over;
+  case 'stripe': return graph !== 'forecast' ? 'stripe' : row.top ? 'stripe along the top' : 'stripe along the bottom';
+  case 'bars': return row.top ? 'bars from the top' : 'bars';
+  case 'nearby': return 'faint bars';
+  case 'band': return 'band along the bottom';
+  case 'bolt': return 'bolt';
+  default: return '?';
+  }
+}
+
+/**
+ * A legend's rows as "Name: how" (howOf), each graph's in a list.
  * @param {Array<Object>} gs screen-legend.js groups.
  * @returns {Array<Array<string>>}
  */
 function said(gs) {
-  return gs.map((g) => [g.graph].concat(g.rows.map((r) => r.name + ': ' + r.how)));
+  return gs.map((g) => [g.graph].concat(g.rows.map((r) => r.name + ': ' + howOf(r, g.graph))));
 }
 
 test('a forecast graph\'s rows: the temperature, each line in its style, then the rain bars', () => {
@@ -142,19 +164,18 @@ test('a card\'s legend: each row its glyph and name; a screen of two graphs give
   assert.deepEqual([...one.matchAll(/<span class="sl-n">([^<]*)<\/span>/g)].map((m) => m[1]),
     ['Temperature', 'Rain chance', 'UV index', 'Rain']);
   assert.match(one, /^<span class="sl-card"><span class="sl-r"><svg class="sl-g"/);
-  assert.equal(one.indexOf('sl-h'), -1, 'no how on a card');
   const two = L.cardHtml(legendOf('healthfc', EMERY), '#000000');
   assert.deepEqual([...two.matchAll(/<span class="sl-n">([^<]*)<\/span>/g)].map((m) => m[1]),
     ['Health graph', 'Temperature', 'Rain chance', 'Rain'], 'the health graph in one row, by its name');
 });
 
-test('the picked screen\'s list: each row\'s glyph, name and how, under its graph\'s caption where asked', () => {
+test('the picked screen\'s list: each row\'s glyph and name as a bullet, under its graph\'s caption where asked', () => {
   const list = L.listHtml(legendOf('healthfc', BASALT), '#000000', { captions: true, yours: true });
   assert.deepEqual([...list.matchAll(/<div class="ui-cap sl-cap">([^<]*)<\/div>/g)].map((m) => m[1]),
     ['Health graph, last 24 hours', 'Your forecast graph']);
-  assert.deepEqual([...list.matchAll(/<li class="sl-li"><svg[\s\S]*?<\/svg><span class="sl-n">([^<]*)<\/span><span class="sl-h">([^<]*)<\/span><\/li>/g)]
-    .map((m) => m[1] + ': ' + m[2]), ['Steps: bars', 'Sleep: band along the bottom', 'Temperature: thick line',
-    'Rain chance: shaded area', 'Rain: bars']);
+  // The names only (the owner's, 2026-11-10): the glyph says how each is drawn.
+  assert.deepEqual([...list.matchAll(/<li class="sl-li"><svg[\s\S]*?<\/svg><span class="sl-n">([^<]*)<\/span><\/li>/g)]
+    .map((m) => m[1]), ['Steps', 'Sleep', 'Temperature', 'Rain chance', 'Rain']);
   assert.equal(L.listHtml(legendOf('clean', EMERY), '#000000', { captions: false, yours: false }).indexOf('sl-cap'), -1);
   assert.equal(L.caption('forecast', false), 'Forecast graph');
   assert.equal(L.caption('radar', false), 'Rain radar, next 2 hours');

@@ -266,7 +266,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function drawnBy(S, fc) {
         if (!fc) { return -1; }
-        var k = (parseInt(fc.style, 10) || 1) - 1;
+        var k = GS.styleOf(fc.style);
         return (k > 0 && GS.exists(S, k)) ? k : 0;
     }
 
@@ -371,7 +371,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function withScreen(S, i, k) {
         var N = Object.assign({}, normalize(S));
-        N['viewStyle' + i] = String(k + 1);
+        N['viewStyle' + i] = GS.codeOf(k);
         return N;
     }
 
@@ -596,28 +596,44 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The graph a forecast screen Add a screen adds brings (screen-presets.js, Pebble Time 2):
-     * the first graph of yours that reads as its template at the length picked, look and length
-     * alike (wizard-forecast.js same, spanOf), else a new one from the template at that length
-     * in the first free slot (values: what createGraph would give it). Null when neither is
-     * there: no graph reads as it and every slot is taken.
+     * The graph a forecast screen Add a screen adds draws (screen-presets.js, Pebble Time 2; the
+     * owner's, 2026-11-10): its template's own at the length picked, a template graph
+     * (graph-styles.js TEMPLATE GRAPHS) and never one of the six, in the first one no screen
+     * names, with the values a graph made from the template would start with (templateValues).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} id The template's id (wizard-forecast.js LOOKS).
      * @param {string} [span] The length ('12' | '24' | '48'); the template's own without.
-     * @returns {?{k: number, values: ?Object}} values null for a graph of yours
+     * @returns {?{k: number, values: Object}} null for no such template
      */
-    function presetGraph(S, env, id, span) {
-        var N = normalize(S), looks = forecastLooks(), look = looks.lookOf(id);
-        if (!look) { return null; }
-        var len = String(span || look.span), values = looks.valuesAt(id, N, env, themedDefaults(N, env), len);
-        var mine = existing(N).filter(function (k) {
-            var Sk = GS.settingsFor(N, k);
-            return looks.same(Sk, values, env) && looks.spanOf(Sk) === len;
-        });
-        if (mine.length) { return { k: mine[0], values: null }; }
-        var k = GS.freeSlot(N);
-        return k < 0 ? null : { k: k, values: templateValues(N, env, id, len) };
+    function templateGraph(S, env, id, span) {
+        var N = normalize(S), k = GS.freeTemplate(N), values = k < 0 ? null : templateValues(N, env, id, span);
+        return values ? { k: k, values: values } : null;
+    }
+
+    /**
+     * Make template graph k one of yours (its screen's Edit graph, the owner's, 2026-11-10: a
+     * template's graph counts toward the six once it is edited): its values in the first free
+     * slot, named after its template ("Outdoor") unless another graph has that name (then as a
+     * new graph is: newName), the screens that drew it drawing that one, the template graph
+     * gone. Mutates S (settled first).
+     * @param {Object} S Settings.
+     * @param {number} k A template graph's index.
+     * @returns {number} the graph made, -1 when there is none to make it from or no free slot
+     */
+    function adoptTemplate(S, k) {
+        settle(S);
+        var j = GS.freeSlot(S), values = GS.isTemplate(k) ? GS.parse(S).styles[k] : null;
+        if (j < 0 || !values) { return -1; }
+        var look = forecastLooks().lookOf(GS.lookOf(S, k));
+        var taken = existing(S).map(function (g) { return GS.name(S, g); });
+        S.graphStyles = GS.withStyle(S, j, values);
+        S.graphStyles = GS.withName(S, j, look && taken.indexOf(look.label) === -1 ? look.label : newName(S, j));
+        for (var i = 0; i < M.MAX_SCREENS; i++) {
+            if (S['viewStyle' + i] === GS.codeOf(k)) { S['viewStyle' + i] = GS.codeOf(j); }
+        }
+        S.graphStyles = GS.pruneTemplates(S);
+        return j;
     }
 
     /**
@@ -800,7 +816,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (GS.exists(S, u.k)) { return; }
         S.graphStyles = GS.withStyle(S, u.k, u.values);
         S.graphStyles = GS.withName(S, u.k, u.name);
-        u.views.forEach(function (i) { S['viewStyle' + i] = String(u.k + 1); });
+        u.views.forEach(function (i) { S['viewStyle' + i] = GS.codeOf(u.k); });
     }
 
     // ── The screens a graph shows on ────────────────────────────────────────
@@ -821,7 +837,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var list = M.screensOf(S, env)[i] || [], j = M.idxOf(list, 'fc');
         if (j < 0) { return; }
         var next = M.copy(list);
-        if (k > 0) { next[j].style = String(k + 1); } else { delete next[j].style; }
+        if (k > 0) { next[j].style = GS.codeOf(k); } else { delete next[j].style; }
         screensPage().writeScreen(S, i, next, env);
     }
 
@@ -916,15 +932,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * A graph by the name the page gives it: its own where the watch has graph styles, else the
-     * Forecast graph.
+     * A graph by the name the page gives it: where the watch has graph styles one of yours by
+     * its own (graph-styles.js name) and a template graph by its template's ("Outdoor"), else
+     * the Forecast graph.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number} k A style index.
      * @returns {string}
      */
     function graphName(S, env, k) {
-        return on(env) ? GS.name(S, k) : SOLO;
+        if (!on(env)) { return SOLO; }
+        if (!GS.isTemplate(k)) { return GS.name(S, k); }
+        var look = forecastLooks().lookOf(GS.lookOf(S, k));
+        return look ? look.label : SOLO;
     }
 
     /**
@@ -1052,17 +1072,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Open graph k's dialog: it is picked (the dialog's render swaps it in), then the dialog
      * opens over the pane, its title a name field when asked (a new graph), its kicker the card's
-     * title; closed, it hands the focus back to the graph's row.
+     * title; closed, it hands the focus back to the graph's row. Over the screen editor (its
+     * template row's Edit graph) it says the screen's name instead, and the editor repaints
+     * once it closes.
      * @param {Object} S Settings.
      * @param {number} k A style index.
      * @param {boolean} rename Open the title as the name field.
+     * @param {{kicker: string, onClose: Function}} [over] Opened over the screen editor.
      * @returns {void}
      */
-    function openGraph(S, k, rename) {
+    function openGraph(S, k, rename, over) {
         S[PICK] = String(k + 1);
         if (!(UI.ctx && UI.ctx.openDialog)) { return; }
-        UI.ctx.openDialog(SHEET, { rename: rename, kicker: listTitle(S, UI.ctx.ENV),
-            focusBack: '[data-action="openGraph"][data-action-arg="' + (k + 1) + '"]' });
+        UI.ctx.openDialog(SHEET, over ? { rename: rename, kicker: over.kicker, onClose: over.onClose, overlay: true }
+            : { rename: rename, kicker: listTitle(S, UI.ctx.ENV),
+                focusBack: '[data-action="openGraph"][data-action-arg="' + (k + 1) + '"]' });
     }
 
     /**
@@ -1171,7 +1195,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         cardHint: cardHint,
         sharedHint: sharedHint,
         templateValues: templateValues,
-        presetGraph: presetGraph,
+        templateGraph: templateGraph,
+        graphName: graphName,
+        adoptTemplate: adoptTemplate,
+        openGraph: openGraph,
         templateLine: templateLine,
         optionPicture: optionPicture,
         startOptions: startOptions,

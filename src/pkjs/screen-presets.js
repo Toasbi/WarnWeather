@@ -10,14 +10,18 @@
 //
 // A SCREEN'S ROWS (listOf): the Watch bar, a calendar of none, two or three rows, the clock, the
 // graph's bar and the graph filling the rest (screens.js THE LIST). Add a screen shows each kind
-// once per calendar (cards: None, Compact and Full, the owner's, 2026-11-10), setup adds it on its
-// Layout's. A screen of two graphs has its upper graph, three rows high, in the calendar's seat
-// (screens.js: one row sits there), so it has no calendar (calendars) and one card. Every kind fits
-// with every calendar on every watch that is offered it (test/config-screen-presets.test.js).
+// once per calendar (cards: None, Compact and Full, the owner's, 2026-11-10, then Dense), setup
+// adds it on its Layout's. Dense (the owner's ask, 2026-11-10: more status bars at once) is the
+// compact calendar with the radar bar right under it and the graph's own bar under the clock (the
+// forecast bar under the Rain radar's), on a watch with the rain radar. A screen of two graphs has
+// its upper graph, three rows high, in the calendar's seat (screens.js: one row sits there), so it
+// has no calendar (calendars) and one card. Every kind fits with every calendar on every watch that
+// is offered it (test/config-screen-presets.test.js).
 //
 // WHAT A SCREEN BRINGS. Its rows, and on a watch with graph styles (Pebble Time 2) a forecast
-// screen's graph: a graph of yours that reads as its template at the length picked, else a new
-// one from the template (screens-page.js). The bars it shows are yours: adding a screen changes
+// screen's graph: its template's, at the length picked, as a template graph (the owner's,
+// 2026-11-10: graph-styles.js TEMPLATE GRAPHS), which is none of your six graphs until you edit
+// it and goes with the screen (screens-page.js). The bars it shows are yours: adding a screen changes
 // no bar's slots (a bar shown for the first time takes its default slots, as every screen edit
 // does), and the Watch bar stays as it is. A watch with one graph keeps that graph on every
 // screen, so it gets one forecast screen, Forecast, which brings its rows alone.
@@ -77,10 +81,13 @@
     // An upper graph's rows, on a screen of two graphs: three, the forecast filling the rest under
     // its bar on every watch (the fit test).
     var UPPER_SIZE = '3';
-    // A screen's calendars, in the order Add a screen's cards show them: [name, rows] ('' for none),
-    // each card naming its own (CARD_CALENDAR).
-    var CALENDARS = [['None', ''], ['Compact', '2'], ['Full', '3']];
-    var CARD_CALENDAR = { '': 'No calendar', '2': 'Compact calendar', '3': 'Full calendar' };
+    // A screen's calendars, in the order Add a screen's cards show them: [name, rows] ('' for none,
+    // DENSE for the compact one with the radar bar under it), each card naming its own
+    // (CARD_CALENDAR) to a screen reader.
+    var DENSE = 'dense';
+    var CALENDARS = [['None', ''], ['Compact', '2'], ['Full', '3'], ['Dense', DENSE]];
+    var CARD_CALENDAR = { '': 'No calendar', '2': 'Compact calendar', '3': 'Full calendar',
+        dense: 'Compact calendar and radar bar' };
     // A screen with nothing but the Watch bar and the clock (screens-page.js addScreen).
     var BLANK = [{ k: 'strip' }, { k: 'clock' }];
 
@@ -120,14 +127,24 @@
     /**
      * A screen's rows (A SCREEN'S ROWS above).
      * @param {string} graph The graph it shows: 'fc' | 'health' | 'radar'.
-     * @param {string} cal Its calendar's rows: '' (none), '2' or '3'; none under an upper graph.
+     * @param {string} cal Its calendar's rows: '' (none), '2' or '3', or DENSE; none under an upper
+     *   graph.
      * @param {string} [upper] The graph over it, on a screen of two graphs: 'health' | 'radar'.
      * @returns {Array<Object>} a new list
      */
     function listOf(graph, cal, upper) {
-        var list = [{ k: 'strip' }];
-        if (upper) { list.push({ k: upper, size: UPPER_SIZE }); } else if (cal) { list.push({ k: 'cal', rows: cal }); }
-        return list.concat([{ k: 'clock' }, { k: BAR_OF[graph] }, { k: graph, size: 'fill' }]);
+        var list = [{ k: 'strip' }], bar = BAR_OF[graph];
+        if (upper) {
+            list.push({ k: upper, size: UPPER_SIZE });
+        } else if (cal === DENSE) {
+            // The radar bar under the compact calendar, the graph's own under the clock: the
+            // forecast bar under the Rain radar's, whose bar is up top.
+            list.push({ k: 'cal', rows: '2' }, { k: BAR_OF.radar });
+            if (graph === 'radar') { bar = BAR_OF.fc; }
+        } else if (cal) {
+            list.push({ k: 'cal', rows: cal });
+        }
+        return list.concat([{ k: 'clock' }, { k: bar }, { k: graph, size: 'fill' }]);
     }
 
     /**
@@ -142,36 +159,39 @@
     }
 
     /**
-     * The calendars a kind can have: every one, none on a screen of two graphs (its upper graph
-     * has the calendar's seat).
+     * The calendars a kind can have: every one, Dense only on a watch with the rain radar (an
+     * unknown one too); none on a screen of two graphs (its upper graph has the calendar's seat).
      * @param {Object} kind A KINDS entry.
+     * @param {?Object} [env] Platform env.
      * @returns {Array<Array<string>>} [name, rows] pairs
      */
-    function calendars(kind) {
-        return kind.upper ? [] : CALENDARS;
+    function calendars(kind, env) {
+        if (kind.upper) { return []; }
+        return !env || env.radar ? CALENDARS : CALENDARS.filter(function (c) { return c[1] !== DENSE; });
     }
 
     /**
      * Add a screen's cards on this watch, in its order: each kind it can draw (offered) once per
-     * calendar it can have, None, Compact and Full in turn (the owner's, 2026-11-10: the calendar
-     * picked on the card, the length on the screen it opens); a screen of two graphs once.
+     * calendar it can have, None, Compact, Full and Dense in turn (the owner's, 2026-11-10: the
+     * calendar picked on the card, the length on the screen it opens); a screen of two graphs once.
      * @param {?Object} env Platform env.
-     * @returns {Array<{kind: Object, cal: string}>} cal: '' | '2' | '3'
+     * @returns {Array<{kind: Object, cal: string}>} cal: '' | '2' | '3' | DENSE
      */
     function cards(env) {
         var out = [];
         offered(env).forEach(function (kind) {
-            var cals = calendars(kind);
+            var cals = calendars(kind, env);
             (cals.length ? cals : [['', '']]).forEach(function (c) { out.push({ kind: kind, cal: c[1] }); });
         });
         return out;
     }
 
     /**
-     * A card's calendar as it names it under its name: "No calendar", "Compact calendar", "Full
-     * calendar"; '' for a screen of two graphs, which has none to pick.
+     * A card's calendar as a screen reader hears it after its name: "No calendar", "Compact
+     * calendar", "Full calendar", "Compact calendar and radar bar"; '' for a screen of two graphs,
+     * which has none to pick.
      * @param {Object} kind A KINDS entry.
-     * @param {string} cal Its calendar's rows: '' | '2' | '3'.
+     * @param {string} cal Its calendar's rows: '' | '2' | '3' | DENSE.
      * @returns {string}
      */
     function calendarName(kind, cal) {
@@ -179,12 +199,14 @@
     }
 
     /**
-     * Whether a kind's screen shows the rain radar (adding it turns the radar on).
+     * Whether a kind's screen shows the rain radar, its graph or, Dense, its bar (adding it turns
+     * the radar on).
      * @param {Object} kind A KINDS entry.
+     * @param {string} [cal] Its calendar: DENSE shows the radar bar.
      * @returns {boolean}
      */
-    function showsRadar(kind) {
-        return kind.graph === 'radar' || kind.upper === 'radar';
+    function showsRadar(kind, cal) {
+        return kind.graph === 'radar' || kind.upper === 'radar' || (!kind.upper && cal === DENSE);
     }
 
     /**
@@ -265,6 +287,7 @@
         KINDS: KINDS,
         GROUPS: GROUPS,
         CALENDARS: CALENDARS,
+        DENSE: DENSE,
         BLANK: BLANK,
         drawable: drawable,
         offered: offered,

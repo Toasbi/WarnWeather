@@ -68,22 +68,33 @@ function upToMax(head, fill) {
   return head.concat(Array(GS.MAX_STYLES - head.length).fill(fill));
 }
 
+/**
+ * A parsed style or look list: the six, then the template graphs (graph-styles.js TEMPLATE
+ * GRAPHS).
+ * @param {Array} head The first entries.
+ * @param {*} fill The rest's value.
+ * @returns {Array}
+ */
+function upToAll(head, fill) {
+  return head.concat(Array(GS.ALL_STYLES - head.length).fill(fill));
+}
+
 test('parse: the names and the styles, the first always the flat keys; a bad item is none', () => {
   assert.equal(GS.MAX_STYLES, 6, 'six graphs to switch between');
-  const none = { names: upToMax([], ''), styles: upToMax([], null) };
+  const none = { names: upToMax([], ''), styles: upToAll([], null), looks: upToAll([], '') };
   assert.deepEqual(GS.parse({}), none);
   assert.deepEqual(GS.parse({ graphStyles: '{not json' }), none);
   assert.deepEqual(GS.parse({ graphStyles: '[1,2]' }).styles, none.styles, 'an array is no item');
   const S = { graphStyles: stylesItem({ forecastHours: '48' }, null, ['Mine', 'Long', 7]) };
   assert.deepEqual(GS.parse(S), { names: upToMax(['Mine', 'Long'], ''),
-    styles: upToMax([null, { forecastHours: '48' }], null) }, 'an item stored with three slots reads');
+    styles: upToAll([null, { forecastHours: '48' }], null), looks: upToAll([], '') }, 'an item stored with three slots reads');
   assert.deepEqual(GS.parse({ graphStyles: { styles: [{ x: 1 }, 'no', { y: 2 }] } }).styles,
-    upToMax([null, null, { y: 2 }], null), 'an object item reads too; the first slot is never a style of its own');
+    upToAll([null, null, { y: 2 }], null), 'an object item reads too; the first slot is never a style of its own');
   const six = { graphStyles: JSON.stringify({ names: upToMax([], ''),
     styles: [null, {}, {}, {}, {}, { forecastHours: '12' }, { forecastHours: '24' }] }) };
   assert.equal(GS.count(six), 6, 'six styles');
   assert.equal(GS.exists(six, 5), true);
-  assert.equal(GS.exists(six, 6), false, 'none past the sixth');
+  assert.equal(GS.exists(six, 6), false, 'none past the sixth: a template graph names its template');
   assert.equal(GS.name(six, 5), 'Graph 6');
   assert.equal(GS.count({}), 1);
   assert.equal(GS.count(S), 2);
@@ -253,10 +264,49 @@ test('the write helpers: a style\'s values, the item written back, a free slot, 
   assert.equal(GS.withName({}, 0, 'Mine'), JSON.stringify({ names: upToMax(['Mine'], ''), styles: upToMax([], null) }),
     'a name alone is kept');
   const w = GS.withStyle({}, 2, { forecastHours: '12' });
-  assert.deepEqual(GS.parse({ graphStyles: w }).styles, upToMax([null, null, { forecastHours: '12' }], null));
+  assert.deepEqual(GS.parse({ graphStyles: w }).styles, upToAll([null, null, { forecastHours: '12' }], null));
   const w6 = GS.withStyle({}, 5, { forecastHours: '24' });
   assert.deepEqual(GS.parse({ graphStyles: w6 }).styles[5], { forecastHours: '24' }, 'the sixth style is stored');
   assert.equal(GS.withStyle({ graphStyles: w }, 0, { x: 1 }), w, 'the first style has no stored values');
+});
+
+test('template graphs: after the six, a screen names one by its template; never one of the six', () => {
+  assert.deepEqual([GS.TEMPLATES, GS.ALL_STYLES], [3, 9], 'one per screen, after the six');
+  assert.deepEqual([5, 6, 8, 9].map(GS.isTemplate), [false, true, true, false]);
+  // Written: its values and the template they were made from; an item without one stores as before.
+  const plain = stylesItem({ forecastHours: '48' });
+  const S = layout(['2', '1'], { secondaryLine: 'precip_prob', graphStyles: plain });
+  assert.equal(GS.withStyle(S, 1, { forecastHours: '48' }), JSON.stringify({ names: upToMax([], ''),
+    styles: upToMax([null, { forecastHours: '48' }], null) }), 'no template graph: the item as before');
+  S.graphStyles = GS.withTemplate(S, 6, 'outdoor', { secondaryLine: 'uv', forecastHours: '24' });
+  assert.deepEqual(JSON.parse(S.graphStyles).looks, upToAll(['', '', '', '', '', '', 'outdoor'], ''));
+  assert.deepEqual([GS.exists(S, 6), GS.lookOf(S, 6), GS.lookOf(S, 1), GS.exists(S, 7)], [true, 'outdoor', '', false]);
+  assert.equal(GS.settingsFor(S, 6).secondaryLine, 'uv', 'read as a style is');
+  assert.deepEqual([GS.count(S), GS.freeSlot(S)], [2, 2], 'never one of the six');
+  // A screen names it 't1': the compiler, the screens' list and the keys carry it.
+  assert.equal(GS.freeTemplate(S), 6, 'no screen names it yet');
+  S.viewStyle1 = 't1';
+  assert.equal(GS.freeTemplate(S), 7);
+  const cycle = VC.resolveViewCycle(S, EMERY);
+  assert.deepEqual(cycle.map((v) => v.graphStyle || 0), [1, 6]);
+  assert.equal(screens.screensOf(S, EMERY)[1].find((b) => b.k === 'fc').style, 't1');
+  assert.equal(VC.specToKeys(cycle).viewStyle1, 't1');
+  assert.equal(screens.compileKeys(screens.screensOf(S, EMERY)[1], 0).viewStyle0, 't1', 'a moved screen keeps it');
+  // Shown and sent as a style is, in a slot the shown styles leave free.
+  assert.deepEqual(GS.stylesShown(S, EMERY), [1, 6]);
+  assert.deepEqual(GS.stylesSent(S, EMERY), [1, 6]);
+  assert.deepEqual(GS.wireCycle(S, EMERY, cycle).map((v) => VC.packExt(v) >> 9), [1, 0]);
+  assert.deepEqual([1, 6].map((k) => GS.assign(S, EMERY, [1, 6]).maps[k]), [[1, 0, 0, 0], [2, 0, 0, 0]],
+    'its UV takes a row of its own, in the union as a style\'s would');
+  // No screen names it: it is dropped, and a deleted screen leaves nothing behind.
+  assert.equal(GS.pruneTemplates(S), S.graphStyles, 'named: kept');
+  S.viewCount = '1';
+  assert.equal(GS.pruneTemplates(S), GS.stringify(GS.parse({ graphStyles: plain })),
+    'the screen gone: the item as it was before');
+  assert.equal(GS.pruneTemplates(layout(['1'])), '', 'nothing to drop');
+  // A template graph without its template is none.
+  const bare = JSON.stringify({ names: [], styles: upToAll([], null).map((v, k) => (k === 6 ? {} : v)) });
+  assert.equal(GS.exists({ graphStyles: bare }, 6), false);
 });
 
 test('rowsNeeded: the distinct series the styles draw between them', () => {

@@ -269,15 +269,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * The graph the forecast step sets: the one its picture draws. On the Pebble Time 2 that
      * screen can show another of your graphs than the first (graph-styles.js); the step then
-     * reads and writes that one, so the picture and the watch follow a pick. Elsewhere, and with
-     * no screen showing the forecast graph, the first graph (the flat keys).
+     * reads and writes that one, so the picture and the watch follow a pick. Elsewhere, with
+     * no screen showing the forecast graph and on a screen drawing a template's graph (Add a
+     * screen's, which is none of yours to set), the first graph (the flat keys).
      * @returns {number} A graph style index.
      */
     function lookStyle() {
         var at = forecastScreen(), screen = at.i >= 0 ? at.list[at.i] : null;
         var fc = screen ? screen[M.idxOf(screen, 'fc')] : null;
-        var k = fc && fc.style ? Number(fc.style) - 1 : 0;
-        return run.env.graphStyles && GS.exists(run.ctx.S, k) ? k : 0;
+        var k = fc ? GS.styleOf(fc.style) : 0;
+        return run.env.graphStyles && !GS.isTemplate(k) && GS.exists(run.ctx.S, k) ? k : 0;
     }
     /**
      * The settings as the forecast step's graph draws them (graph-styles.js settingsFor).
@@ -623,7 +624,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (k < 1) { return -1; }
             S.graphStyles = GS.withStyle(S, k, longValues(S));
             S.graphStyles = GS.withName(S, k, t.name);
-            screen[M.idxOf(screen, 'fc')].style = String(k + 1);
+            screen[M.idxOf(screen, 'fc')].style = GS.codeOf(k);
         }
         if (!SP.insertScreen(S, at, screen, run.env)) {
             S.graphStyles = before;
@@ -737,7 +738,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (turnOn) { run.radarOnForScreen = true; }
             if (id === 'long') {
                 var fc = screens()[at][M.idxOf(screens()[at], 'fc')], span = FORECAST.spanOf(lookSettings());
-                run.long = { k: Number(fc.style) - 1, span: span };
+                run.long = { k: GS.styleOf(fc.style), span: span };
                 if (span === SCREENS.LONG_SPAN) { writeGraph({ forecastHours: '24' }); }
             }
         }
@@ -759,7 +760,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             // The Long forecast screen this run added takes its graph with it, and gives the
             // Default graph back the length it had.
-            if (t && t.id === 'long' && run.long && fc && Number(fc.style) - 1 === run.long.k) {
+            if (t && t.id === 'long' && run.long && fc && GS.styleOf(fc.style) === run.long.k) {
                 var span = run.long.span;
                 GS.deleteStyle(S, run.long.k);
                 run.long = null;

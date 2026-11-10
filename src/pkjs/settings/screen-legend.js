@@ -1,9 +1,9 @@
 // src/pkjs/settings/screen-legend.js — ES5, WebView (+ Node for tests). A legend of what a
 // screen's graphs draw (the owner's, 2026-11-10: "just show a proper legend"): a row for each
 // thing drawn, its glyph on the watch's ground in the colours the screen shows (preview-svg.js
-// displayColors), its name, and on Add a screen's picked screen how it is drawn. Add a screen's
-// cards list the rows (cardHtml), its picked screen lists them as a bulleted list with how each is
-// drawn (listHtml) and what the weather service leaves out (gapNote).
+// displayColors) and its name: the glyph says how it is drawn (the owner's, 2026-11-10: the names
+// only, as bullets). Add a screen's cards list the rows (cardHtml), its picked screen lists them
+// as a bulleted list (listHtml) with what the weather service leaves out (gapNote).
 //
 // THE ROWS are each graph's own legend (preview-forecast.js, preview-health.js and
 // preview-radar.js legend): the same reading of the settings its picture draws with, so a row is
@@ -40,30 +40,8 @@
     var BAR_X = [4, 8.5, 13, 17.5], BAR_H = [4, 7, 10, 5.5], NEAR_H = [6, 9, 8, 4], BAR_W = 3, BAR_ROOM = 10;
 
     /**
-     * How a row is drawn, as the picked screen's list says it: a filled main line as the shaded
-     * area it draws (the setup's words, wizard-forecast.js HOW), dots and marks over theirs.
-     * @param {Object} row A legend row.
-     * @param {string} graph The graph it is of: 'forecast' | 'health' | 'radar'.
-     * @returns {string}
-     */
-    function howOf(row, graph) {
-        var over = row.fill ? ' over a shaded area' : '';
-        switch (row.kind) {
-        case 'line': return row.fill ? 'shaded area' : row.bold ? 'thick line' : 'line';
-        case 'dots': return 'dots' + over;
-        case 'x': return '× marks' + over;
-        case 'stripe': return graph !== 'forecast' ? 'stripe' : row.top ? 'stripe along the top' : 'stripe along the bottom';
-        case 'bars': return row.top ? 'bars from the top' : 'bars';
-        case 'nearby': return 'faint bars';
-        case 'band': return 'band along the bottom';
-        case 'bolt': return 'bolt';
-        default: return '';
-        }
-    }
-
-    /**
      * A screen's legend: each graph it draws, top to bottom (preview-watch.js graphKinds), with
-     * its rows, each named (`name`) and said how it is drawn (`how`).
+     * its rows, each named (`name`).
      * @param {?Object} spec The view as the watch draws it (screens-page.js drawnView).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
@@ -75,7 +53,7 @@
             var rows = graph === 'forecast' ? PF.legend(GSP.screenSettings(S, env, spec), env, userData)
                 : graph === 'health' ? PH.legend(S, env) : PR.legend(S, env, userData);
             return { graph: graph, rows: rows.map(function (r) {
-                return Object.assign({ name: NAME[r.metric] || FM.legendName(r.metric), how: howOf(r, graph) }, r);
+                return Object.assign({ name: NAME[r.metric] || FM.legendName(r.metric) }, r);
             }) };
         });
     }
@@ -179,17 +157,15 @@
     }
 
     /**
-     * One row: its glyph and name, and on the picked screen how it is drawn.
+     * One row: its glyph and name.
      * @param {Object} row A legend row.
      * @param {string} graph The graph it is of.
      * @param {string} bg The watch's ground.
      * @param {string} [name] Its name, for a graph shown in one row.
-     * @param {boolean} [how] Say how it is drawn.
      * @returns {string} HTML
      */
-    function rowHtml(row, graph, bg, name, how) {
-        return glyph(row, graph, bg) + '<span class="sl-n">' + esc(name || row.name) + '</span>'
-            + (how ? '<span class="sl-h">' + esc(row.how) + '</span>' : '');
+    function rowHtml(row, graph, bg, name) {
+        return glyph(row, graph, bg) + '<span class="sl-n">' + esc(name || row.name) + '</span>';
     }
 
     /**
@@ -225,8 +201,8 @@
     }
 
     /**
-     * The picked screen's legend: a bulleted list of each graph's rows, glyph, name and how it is
-     * drawn, under the graph's caption where `captions` asks for one.
+     * The picked screen's legend: a bulleted list of each graph's rows, each its glyph and name,
+     * under the graph's caption where `captions` asks for one.
      * @param {Array<Object>} gs The screen's legend (groups).
      * @param {string} bg The watch's ground.
      * @param {{captions: boolean, yours: boolean}} opts `captions`: a caption over each graph's
@@ -237,7 +213,7 @@
         return gs.map(function (g) {
             return '<div class="sl-grp">' + (opts.captions ? '<div class="ui-cap sl-cap">' + esc(caption(g.graph, opts.yours))
                 + '</div>' : '') + '<ul class="sl-list">' + g.rows.map(function (r) {
-                return '<li class="sl-li">' + rowHtml(r, g.graph, bg, '', true) + '</li>';
+                return '<li class="sl-li">' + rowHtml(r, g.graph, bg) + '</li>';
             }).join('') + '</ul></div>';
         }).join('');
     }
@@ -260,8 +236,8 @@
         return FM.gapSentence(provider, ids);
     }
 
-    // The legend's look: a card's rows tight beside its picture, the list's in three columns (the
-    // glyph, the name, how it is drawn), the names lined up.
+    // The legend's look: a card's rows tight beside its picture, the list's a little larger, each
+    // row its glyph as the bullet and its name.
     var CSS = '.sl-g{display:block;flex:0 0 auto;width:24px;height:14px;border-radius:3px;box-shadow:0 0 0 1px var(--card-line)}'
         + '.sl-card{display:grid;gap:4px;min-width:0}'
         + '.sl-r{display:flex;align-items:center;gap:7px;min-width:0}'
@@ -271,13 +247,12 @@
         + '.sl-grp+.sl-grp{margin-top:8px}'
         + '.sl-cap{padding:0 3px}'
         + '.sl-list{list-style:none;margin:0;padding:0 3px;display:grid;gap:9px}'
-        + '.sl-li{display:grid;grid-template-columns:28px minmax(0,96px) minmax(0,1fr);align-items:center;gap:10px}'
+        + '.sl-li{display:flex;align-items:center;gap:10px;min-width:0}'
         + '.sl-li .sl-g{width:28px;height:16px}'
-        + '.sl-li .sl-n{font:600 13.5px/1.3 Inter,system-ui,sans-serif;color:var(--lbl)}'
-        + '.sl-h{font:500 13px/1.3 Inter,system-ui,sans-serif;color:var(--hint)}';
+        + '.sl-li .sl-n{min-width:0;font:600 13.5px/1.3 Inter,system-ui,sans-serif;color:var(--lbl)}';
 
     var api = { NAME: NAME, groups: groups, glyph: glyph, cardHtml: cardHtml, listHtml: listHtml, caption: caption,
-        gapNote: gapNote, howOf: howOf, CSS: CSS };
+        gapNote: gapNote, CSS: CSS };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.ScreenLegend = api; }
 })();

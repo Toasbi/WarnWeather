@@ -41,6 +41,17 @@
 // (map 0), the last style's last lines first: the settings page keeps the shown styles within
 // five.
 //
+// TEMPLATE GRAPHS (the owner's, 2026-11-10). A screen Add a screen adds from a template draws
+// the template's graph without making one of the six (Your graphs): its values sit after them,
+// at indices 6 to 8 (TEMPLATES, one per screen at most), in the same item ({"styles": [...9],
+// "looks": [...9]}: looks names the template each was made from), and the screen names it
+// viewStyle 't1' to 't3' (view-cycle.js styleCode). Everything that reads a shown style reads one
+// the same way (settingsFor, stylesShown, the union, the records), so it counts toward the
+// metrics the screens show, while count, freeSlot and the page's Your graphs never see one. A
+// template graph no screen names is dropped (pruneTemplates), so a deleted screen leaves nothing
+// behind; editing one makes it one of the six (the settings page's job). An item without one
+// stores as it did before there were template graphs.
+//
 // ONLY WHAT IS SHOWN COUNTS. The styles the screens' forecast graphs draw (stylesShown, off the
 // views the watch runs) are the ones sent. While no screen shows a style other than the first,
 // nothing changes on the wire: no records, today's bake (stylesSent is empty). The phone side
@@ -59,6 +70,9 @@
 
     // At most six styles to switch between; the screens show three of them at most.
     var MAX_STYLES = VC.GRAPH_STYLES;
+    // The template graphs after them, one per screen at most (TEMPLATE GRAPHS above).
+    var TEMPLATES = VC.GRAPH_TEMPLATES;
+    var ALL_STYLES = MAX_STYLES + TEMPLATES;
     // The watch's style slots: three records and the view word's codes 0 to 2 (src/c/windows/
     // layout.h view_ext_graph_style), one per screen.
     var WATCH_SLOTS = VC.GRAPH_STYLE_SLOTS;
@@ -104,11 +118,22 @@
     }
 
     /**
-     * The graphStyles item read: the six names ('' when unnamed) and the styles, the first
-     * always null (the flat keys hold it), another null when it does not exist. A malformed
-     * item reads as no extra styles; an item stored before there were six reads its own.
+     * Whether a style index is a template graph's (TEMPLATE GRAPHS above).
+     * @param {number} k A style index.
+     * @returns {boolean}
+     */
+    function isTemplate(k) {
+        return k >= MAX_STYLES && k < ALL_STYLES;
+    }
+
+    /**
+     * The graphStyles item read: the six names ('' when unnamed; a template graph has none),
+     * the styles, the first always null (the flat keys hold it), another null when it does not
+     * exist, the six and then the template graphs, and the template each template graph was
+     * made from ('' for the six). A malformed item reads as no extra styles; an item stored
+     * before there were six reads its own.
      * @param {?Object} S Settings.
-     * @returns {{names: string[], styles: Array<?Object>}}
+     * @returns {{names: string[], styles: Array<?Object>, looks: string[]}}
      */
     function parse(S) {
         var raw = S && S.graphStyles, o = null;
@@ -117,12 +142,17 @@
         } else if (isRecord(raw)) {
             o = raw;
         }
-        var names = [], styles = [null];
-        for (var k = 0; k < MAX_STYLES; k++) {
-            names.push(isRecord(o) && o.names && typeof o.names[k] === 'string' ? o.names[k] : '');
-            if (k > 0) { styles.push(isRecord(o) && o.styles && isRecord(o.styles[k]) ? o.styles[k] : null); }
+        var names = [], styles = [null], looks = [];
+        for (var k = 0; k < ALL_STYLES; k++) {
+            // A template graph is one only with the template it was made from.
+            var look = isTemplate(k) && isRecord(o) && o.looks && typeof o.looks[k] === 'string' ? o.looks[k] : '';
+            if (k < MAX_STYLES) { names.push(isRecord(o) && o.names && typeof o.names[k] === 'string' ? o.names[k] : ''); }
+            if (k > 0) {
+                styles.push(isRecord(o) && o.styles && isRecord(o.styles[k]) && (k < MAX_STYLES || look) ? o.styles[k] : null);
+            }
+            looks.push(styles[k] ? look : '');
         }
-        return { names: names, styles: styles };
+        return { names: names, styles: styles, looks: looks };
     }
 
     /**
@@ -131,7 +161,7 @@
      * @returns {boolean} whether style k exists (the first always does)
      */
     function exists(S, k) {
-        return k === 0 || (k > 0 && k < MAX_STYLES && parse(S).styles[k] !== null);
+        return k === 0 || (k > 0 && k < ALL_STYLES && parse(S).styles[k] !== null);
     }
 
     /**
@@ -204,15 +234,19 @@
      * The graphStyles item as the settings store it: '' while it holds no extra style and no
      * name (what an install without styles has, so making a style and deleting it again
      * stores what was there before), else its JSON.
-     * @param {{names: string[], styles: Array<?Object>}} o parse()'s shape.
+     * @param {{names: string[], styles: Array<?Object>, looks: string[]}} o parse()'s shape.
      * @returns {string}
      */
     function stringify(o) {
-        var empty = true;
-        for (var k = 0; k < MAX_STYLES; k++) {
-            if (o.names[k] || (k > 0 && o.styles[k])) { empty = false; }
+        var empty = true, templates = false;
+        for (var k = 0; k < ALL_STYLES; k++) {
+            if ((k < MAX_STYLES && o.names[k]) || (k > 0 && o.styles[k])) { empty = false; }
+            if (isTemplate(k) && o.styles[k]) { templates = true; }
         }
-        return empty ? '' : JSON.stringify({ names: o.names, styles: o.styles });
+        if (empty) { return ''; }
+        var out = { names: o.names, styles: o.styles.slice(0, templates ? ALL_STYLES : MAX_STYLES) };
+        if (templates) { out.looks = o.looks.slice(0, ALL_STYLES); }
+        return JSON.stringify(out);
     }
 
     /**
@@ -243,6 +277,92 @@
         var o = parse(S);
         if (k >= 0 && k < MAX_STYLES) { o.names[k] = String(label || ''); }
         return stringify(o);
+    }
+
+    /**
+     * The style a screen's viewStyle value names, as a forecast block carries it too ('1' to
+     * '6', 't1' to 't3': view-cycle.js GRAPH_STYLE_CODE).
+     * @param {*} code The value.
+     * @returns {number} a style index: 0 for the first, for none and for a value it does not know
+     */
+    function styleOf(code) {
+        return VC.GRAPH_STYLE_CODE[code] || 0;
+    }
+
+    /**
+     * The template a template graph was made from (TEMPLATE GRAPHS above).
+     * @param {?Object} S Settings.
+     * @param {number} k A style index.
+     * @returns {string} its id ('' for one of the six, or a template graph that does not exist)
+     */
+    function lookOf(S, k) {
+        return isTemplate(k) ? parse(S).looks[k] : '';
+    }
+
+    /**
+     * The graphStyles item with template graph k replaced: its values (a copy) and the template
+     * they were made from; null values delete it.
+     * @param {?Object} S Settings.
+     * @param {number} k A template graph's index (isTemplate).
+     * @param {string} look The template's id.
+     * @param {?Object} values Its governed values, or null.
+     * @returns {string} The item to store.
+     */
+    function withTemplate(S, k, look, values) {
+        var o = parse(S);
+        if (isTemplate(k)) {
+            o.styles[k] = values ? Object.assign({}, values) : null;
+            o.looks[k] = values ? String(look || '') : '';
+        }
+        return stringify(o);
+    }
+
+    /**
+     * The template graphs the screens name (TEMPLATE GRAPHS above): each screen's viewStyle,
+     * the screen count's screens only.
+     * @param {?Object} S Settings.
+     * @returns {number[]} style indices
+     */
+    function templatesNamed(S) {
+        var T = S || {}, out = [], n = Math.min(parseInt(T.viewCount, 10) || 1, SCREENS);
+        for (var i = 0; i < n; i++) {
+            var k = VC.GRAPH_STYLE_CODE[T['viewStyle' + i]] || 0;
+            if (isTemplate(k) && out.indexOf(k) === -1) { out.push(k); }
+        }
+        return out;
+    }
+
+    /**
+     * The first template graph index no screen names, for a screen being added: one is always
+     * free while a screen can be (three screens at most, one forecast graph each).
+     * @param {?Object} S Settings.
+     * @returns {number} a style index (isTemplate), -1 when the screens name every one
+     */
+    function freeTemplate(S) {
+        var named = templatesNamed(S);
+        for (var k = MAX_STYLES; k < ALL_STYLES; k++) {
+            if (named.indexOf(k) === -1) { return k; }
+        }
+        return -1;
+    }
+
+    /**
+     * The graphStyles item without the template graphs no screen names (a screen deleted, its
+     * graph switched or made one of the six): what a deleted screen leaves behind. The item is
+     * S's own while there is nothing to drop.
+     * @param {?Object} S Settings.
+     * @returns {string} The item to store.
+     */
+    function pruneTemplates(S) {
+        var o = parse(S), named = templatesNamed(S), dropped = false;
+        for (var k = MAX_STYLES; k < ALL_STYLES; k++) {
+            if (o.styles[k] && named.indexOf(k) === -1) {
+                o.styles[k] = null;
+                o.looks[k] = '';
+                dropped = true;
+            }
+        }
+        return dropped ? stringify(o) : (S && S.graphStyles) || '';
     }
 
     /**
@@ -480,6 +600,8 @@
 
     var api = {
         MAX_STYLES: MAX_STYLES,
+        TEMPLATES: TEMPLATES,
+        ALL_STYLES: ALL_STYLES,
         WATCH_SLOTS: WATCH_SLOTS,
         TRENDS: TRENDS,
         ROWS: ROWS,
@@ -495,6 +617,13 @@
         stringify: stringify,
         withStyle: withStyle,
         withName: withName,
+        isTemplate: isTemplate,
+        styleOf: styleOf,
+        codeOf: VC.styleCode,
+        lookOf: lookOf,
+        withTemplate: withTemplate,
+        freeTemplate: freeTemplate,
+        pruneTemplates: pruneTemplates,
         freeSlot: freeSlot,
         deleteStyle: deleteStyle,
         hasForecast: hasForecast,
