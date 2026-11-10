@@ -167,13 +167,15 @@ _Avoid_: provider flags, per-fetch knobs.
 
 **Graph style**:
 A named set of the forecast graph's settings on emery: its four lines (metric,
-style, Draw from), the main metric's fill, the rain bars, Day / night shading,
+style, Draw from, Visible values), the main metric's fill, the rain bars, Day / night shading,
 Forecast length, Left axis values and the graph colors (`src/pkjs/graph-styles.js`
 GOVERNED). Up to three: the first is the flat settings keys, the others live in
 the `graphStyles` item. Each screen's forecast graph names its style
 (`viewStyle{i}`); what shapes the data the phone bakes stays one setting for
 every style (SHARED). All the styles the screens show draw at most five series
-together, the weather message's five trend rows: one per line and a spare row
+together, the weather message's five trend rows (a series is a metric, its
+stripe or line and its Visible values, so a wind line drawn All on one graph
+and Alert on another takes two rows): one per line and a spare row
 that no style's own line is (a style keeps its four lines; the spare has no
 picker, `src/pkjs/line-style.js` SPARE_LINE). Setup's forecast looks
 (Classic, Clean, Stripes: `src/pkjs/settings/wizard-forecast.js` LOOKS)
