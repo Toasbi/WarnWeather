@@ -49,9 +49,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ? require('./graph-styles-page.js') : window.GraphStylesPage;
 
     // The eight graph metrics in picker order (forecast-metrics.js, their one table) — one list
-    // feeds every forecast picker.
-    var FORECAST_METRICS = ((typeof require !== 'undefined')
-        ? require('./forecast-metrics.js') : window.ForecastMetrics).options();
+    // feeds every forecast picker — and the ones each weather service leaves out (gapOf).
+    var forecastMetrics = (typeof require !== 'undefined') ? require('./forecast-metrics.js') : window.ForecastMetrics;
+    var FORECAST_METRICS = forecastMetrics.options();
     // Metric picker options, shaped by self-describing args from the schema:
     // `off` leads with an Off row, `exclude` names the sibling picker keys
     // whose CURRENT pick is withheld (a collision left in a stored value is
@@ -177,12 +177,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         gust: 'Shows the hourly peak.',
         dew: 'The closer it runs to the temperature, the more humid it feels.'
     };
-    // The metrics a weather provider doesn't send: the picker says so while it is the
-    // provider. Met.no sends rain chance and gusts for the Nordics only.
-    var PROVIDER_GAPS = {
-        yandex: { metrics: ['cloud', 'pressure', 'dew'], note: 'Not available with Yandex.' },
-        metno: { metrics: ['precip_prob', 'gust'], note: 'Not available with Met.no outside the Nordics.' }
-    };
     // What the style adds after its line's scale. Thin and Thick say it all.
     var STYLE_NOTES = {
         dots: 'The dots line up with the rain bars.',
@@ -281,7 +275,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} The hint, '' for none.
      */
     function forecastMetricHint(metric, env, S) {
-        var gap = PROVIDER_GAPS[(S || {}).provider];
+        var gap = forecastMetrics.gapOf((S || {}).provider);
         var note = joinHint([copyOf(METRIC_NOTES, metric),
             gap && gap.metrics.indexOf(metric) >= 0 ? gap.note : '']);
         if (env && env.lineStyles) { return note; }

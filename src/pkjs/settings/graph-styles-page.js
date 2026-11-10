@@ -11,7 +11,7 @@
 //
 // TEMPLATES AND GRAPHS (the owner's pick, 2026-11-08). A template is one of the forecast looks
 // (wizard-forecast.js LOOKS: Classic, Clean and Stripes, which setup offers too, then Outdoor,
-// Wind, Sky, Pressure and Comfort). The Your graphs card's New graph starts
+// Meteogram, Wind, Comfort and Clouds). The Your graphs card's New graph starts
 // a graph from one, or as a copy of one of the graphs; the screen editor adds one of the graphs
 // by its chip. A template never changes and is never one of the graphs:
 // a graph made from one is "Graph <n>" (graph-styles.js defaultName) until it is renamed, so it

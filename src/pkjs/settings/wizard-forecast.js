@@ -18,11 +18,13 @@
 // keep the left axis in every look (the owner's, 2026-11-07: emery's numbers On graph do not fit
 // their image), so only emery's words say where the high and low go.
 //
-// THE WORDS. Setup's sentence under the picker (describe) and the short line under a template in
-// New graph's sheet (summary) name what a look draws, from its values: the temperature and the
-// lines a look draws as lines, a shaded area, dots, × marks or stripes, then the rain bars (Solid
-// on a colour watch, hanging from the top), and on emery where the high and low go. A look's
-// `like` names the watchface it draws like (Classic: ForecasWatch2).
+// THE WORDS. Setup's sentence under the picker and on Add a screen's picked screen (describe, at
+// the length picked) and the short line under a template in New graph's sheet (summary) name what
+// a look draws, from its values: the temperature and the lines a look draws as lines, a shaded
+// area, dots, × marks or stripes, then the rain bars (Solid on a colour watch, hanging from the
+// top), and on emery where the high and low go. A look's `like` names the watchface it draws like
+// (Classic: ForecasWatch2). Add a screen's cards list the metrics alone (metricWords: the owner's,
+// 2026-11-10, the metrics under each card).
 //
 // THE LENGTH (emery, the one watch with a Forecast length). Each look starts on a length of its
 // own (LOOKS span: Classic and Stripes 24 hours, Clean the long span), which the step's
@@ -118,21 +120,25 @@
         { id: 'outdoor', label: 'Outdoor', span: '48', over: lookValues({ thirdLine: 'uv', thirdLineStyle: 'line',
             rainBarColor: 'white', rainBarFrom: drawFrom.TOP, forecastAxisNumbers: 'graph' }),
             short: { fourthLine: 'feels', fourthLineStyle: 'line' } },
-        // The wind speed as the shaded area, the gusts as a thin line over it and the rain chance as
-        // dots.
+        // A meteogram, as weather services draw one (Yr, meteoblue, Windy): the clouds as a stripe
+        // along the top, the air pressure as a thin line and the wind as dots over the rain bars,
+        // over the long span (the owner's ask, 2026-11-10: presets from the common ways to show
+        // the weather).
+        { id: 'meteogram', label: 'Meteogram', span: '48', over: lookValues({ secondaryLine: 'cloud',
+            secondaryLineStyle: 'stripeTop', thirdLine: 'pressure', thirdLineStyle: 'line', fourthLine: 'wind',
+            fourthLineStyle: 'dots', forecastAxisNumbers: 'graph' }) },
+        // The wind speed as the shaded area and the gusts as a thin line over it, as wind forecasts
+        // chart them (Windfinder, Apple Weather).
         { id: 'wind', label: 'Wind', span: '24', over: lookValues({ secondaryLine: 'wind', thirdLine: 'gust',
-            thirdLineStyle: 'line', fourthLine: 'precip_prob', fourthLineStyle: 'dots', forecastAxisNumbers: 'graph' }) },
-        // The cloud cover as the shaded area under the rain chance's thin line, Solid bars, the
-        // night shaded: whether the next nights stay clear.
-        { id: 'sky', label: 'Sky', span: '48', over: lookValues({ secondaryLine: 'cloud', thirdLine: 'precip_prob',
-            thirdLineStyle: 'line', rainBarColor: 'white', forecastAxisNumbers: 'graph' }) },
-        // Clean with the air pressure as a thick line: a front coming in.
-        { id: 'pressure', label: 'Pressure', span: '48', over: lookValues({ thirdLine: 'pressure', thirdLineStyle: 'bold',
-            rainBarColor: 'white', forecastAxisNumbers: 'graph' }) },
+            thirdLineStyle: 'line', forecastAxisNumbers: 'graph' }) },
         // The feels-like temperature as a thin line and the dew point as × marks beside the
-        // temperature: how muggy or raw the day feels.
+        // temperature (Apple Weather's Feels Like and Humidity charts): how muggy or raw the day feels.
         { id: 'comfort', label: 'Comfort', span: '24', over: lookValues({ thirdLine: 'feels', thirdLineStyle: 'line',
-            fourthLine: 'dew', fourthLineStyle: 'x', forecastAxisNumbers: 'graph' }) }
+            fourthLine: 'dew', fourthLineStyle: 'x', forecastAxisNumbers: 'graph' }) },
+        // The cloud cover as the shaded area over the long span, the nights shaded, Solid bars:
+        // whether the next nights stay clear, as stargazing forecasts show it (Clear Outside).
+        { id: 'clouds', label: 'Clouds', span: '48', over: lookValues({ secondaryLine: 'cloud', rainBarColor: 'white',
+            forecastAxisNumbers: 'graph' }) }
     ];
     // The long span's stored option (forecast-span-hours.js CHOICES): a look's `short` values are
     // for every other length.
@@ -224,26 +230,85 @@
     }
 
     /**
-     * A look's description under setup's picker (THE WORDS): one sentence on what it draws, and on
-     * emery a second on where the high and low go (the 144 px watches keep the left axis in every
-     * look). Solid bars are solid only where the watch colours them: a black-and-white watch
-     * outlines its bars.
-     * @param {string} id A look's id, or 'own'.
+     * What a graph draws on this watch as a sentence lists it (THE WORDS: SENTENCE), the last
+     * phrase after ", and", the sentence's own rhythm as setup has always said it: "the temperature
+     * and the UV index as lines, the rain chance as a shaded area, and solid rain bars that hang
+     * from the top". Solid bars are solid only where the watch colours them: a black-and-white
+     * watch outlines its bars.
+     * @param {Object<string, *>} values A look's values, or a graph's settings.
      * @param {?Object} env Platform env.
      * @returns {string}
      */
-    function describe(id, env) {
-        var look = lookOf(id);
-        if (!look) { return 'Keeps your graph as it is now.'; }
-        var phrases = drawnPhrases(look.over, env, SENTENCE);
-        // The last phrase after ", and": the sentence's own rhythm, as setup has always said it.
-        var list = phrases.length < 2 ? phrases.join('')
+    function drawnList(values, env) {
+        var phrases = drawnPhrases(values, env, SENTENCE);
+        return phrases.length < 2 ? phrases.join('')
             : phrases.slice(0, -1).join(', ') + ', and ' + phrases[phrases.length - 1];
-        var numbers = forecastAxis.numbers(look.over);
-        var where = !forecastAxis.isEmery(env) ? ''
+    }
+
+    /**
+     * Where a graph puts the high and low, as a sentence after its list says it: on emery only
+     * (the 144 px watches keep the left axis in every look).
+     * @param {Object<string, *>} values A look's values, or a graph's settings.
+     * @param {?Object} env Platform env.
+     * @returns {string} ' The high and low go on the graph.'; '' off emery
+     */
+    function highLowWords(values, env) {
+        var numbers = forecastAxis.numbers(values);
+        return !forecastAxis.isEmery(env) ? ''
             : numbers === forecastAxis.OFF ? ' The graph shows no high and low.'
             : ' The high and low go ' + (numbers === forecastAxis.GRAPH ? 'on the graph.' : 'beside the axis.');
-        return (look.like ? 'Draws the graph the way ' + look.like + ' does: ' : 'Shows ') + list + '.' + where;
+    }
+
+    /**
+     * A look's description (THE WORDS), under setup's picker and on Add a screen's picked screen:
+     * one sentence on what it draws at a length (overAt), and on emery a second on where the high
+     * and low go.
+     * @param {string} id A look's id, or 'own'.
+     * @param {?Object} env Platform env.
+     * @param {string} [span] The length ('12' | '24' | '48'); the look's own without.
+     * @returns {string}
+     */
+    function describe(id, env, span) {
+        var look = lookOf(id);
+        if (!look) { return 'Keeps your graph as it is now.'; }
+        var over = overAt(look, span);
+        return (look.like ? 'Draws the graph the way ' + look.like + ' does: ' : 'Shows ') + drawnList(over, env) + '.'
+            + highLowWords(over, env);
+    }
+
+    /**
+     * The metrics a graph draws on this watch, as Add a screen's cards list them (THE WORDS): the
+     * temperature, each series its lines draw (graph-styles.js seriesOf) in the lines' order, then
+     * the rain bars; not how each one draws, which the sentence says (drawnList).
+     * @param {Object<string, *>} values A look's values, or a graph's settings.
+     * @param {?Object} env Platform env.
+     * @returns {string[]} ["temperature", "rain chance", "UV index", "rain bars"]
+     */
+    function metricWords(values, env) {
+        return ['temperature'].concat(drawnMetrics(values, env).map(metrics.words), values[BARS] === 'rain' ? ['rain bars'] : []);
+    }
+
+    /**
+     * The metrics a graph's lines draw on this watch (graph-styles.js seriesOf), in the lines'
+     * order: not the temperature, nor the rain bars.
+     * @param {Object<string, *>} values A look's values, or a graph's settings.
+     * @param {?Object} env Platform env.
+     * @returns {string[]} metric ids
+     */
+    function drawnMetrics(values, env) {
+        return graphStyles.seriesOf(values, env).filter(Boolean).map(function (series) { return series.metric; });
+    }
+
+    /**
+     * A look's own values at a length (overAt): what it draws there, read by the words (Add a
+     * screen's card and picked screen: Outdoor's feels-like temperature on 12 and 24 hours only).
+     * @param {string} id A look's id.
+     * @param {string} [span] The length; the look's own without.
+     * @returns {?Object<string, *>} null for no such look
+     */
+    function overOf(id, span) {
+        var look = lookOf(id);
+        return look ? overAt(look, span) : null;
     }
 
     /**
@@ -503,6 +568,10 @@
         SPAN_DESC: SPAN_DESC,
         FRAME_H: FRAME_H,
         describe: describe,
+        drawnList: drawnList,
+        metricWords: metricWords,
+        drawnMetrics: drawnMetrics,
+        overOf: overOf,
         summary: summary,
         spanLabel: spanLabel,
         lookOf: lookOf,

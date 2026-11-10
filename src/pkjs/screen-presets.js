@@ -1,17 +1,17 @@
 // src/pkjs/screen-presets.js — ES5. The screens Add a screen offers (the owner's five, 2026-11-09,
 // then many more, to show what the watchface can draw): a forecast screen whose graph is a
 // template (wizard-forecast.js LOOKS: the Graphs tab's templates), Classic, Clean, Stripes,
-// Outdoor, Wind, Sky, Pressure and Comfort; then Health and Rain radar; then two graphs on one
-// screen, the health graph or the rain radar over the forecast. Setup's Screens step adds its
-// screens from the same lists (settings/wizard-screens.js). Each kind's `group` is the heading
-// Add a screen lists it under (GROUPS).
+// Outdoor, Meteogram, Wind, Comfort and Clouds (the owner's, 2026-11-10: the common ways to show
+// the weather); then Health and Rain radar; then two graphs on one screen, the health graph or the
+// rain radar over the forecast. Setup's Screens step adds its screens from the same lists
+// (settings/wizard-screens.js). Each kind's `group` is the row Add a screen lists it in (GROUPS).
 //
-// A SCREEN'S ROWS (listOf): the Watch bar, a calendar of none, two or three rows (picked: Add a
-// screen starts on the Default screen's, setup on its Layout), the clock, the graph's bar and the
-// graph filling the rest (screens.js THE LIST). A screen of two graphs has its upper graph,
-// three rows high, in the calendar's seat (screens.js: one row sits there), so it has no
-// calendar (calendars). Every kind fits with every calendar on every watch that is offered it
-// (test/config-screen-presets.test.js).
+// A SCREEN'S ROWS (listOf): the Watch bar, a calendar of none, two or three rows, the clock, the
+// graph's bar and the graph filling the rest (screens.js THE LIST). Add a screen shows each kind
+// once per calendar (cards: None, Compact and Full, the owner's, 2026-11-10), setup adds it on its
+// Layout's. A screen of two graphs has its upper graph, three rows high, in the calendar's seat
+// (screens.js: one row sits there), so it has no calendar (calendars) and one card. Every kind fits
+// with every calendar on every watch that is offered it (test/config-screen-presets.test.js).
 //
 // WHAT A SCREEN BRINGS. Its rows, and on a watch with graph styles (Pebble Time 2) a forecast
 // screen's graph: a graph of yours that reads as its template at the length picked, else a new
@@ -19,6 +19,10 @@
 // no bar's slots (a bar shown for the first time takes its default slots, as every screen edit
 // does), and the Watch bar stays as it is. A watch with one graph keeps that graph on every
 // screen, so it gets one forecast screen, Forecast, which brings its rows alone.
+//
+// THE WORDS. A card names what its screen's graphs show (metricsLine: the metrics, the owner's,
+// 2026-11-10), its picked screen explains it in sentences (explain), each from the graph's own
+// values: a template's at the length picked, your graph's where the screen keeps it.
 //
 // WHICH ONES A WATCH GETS. Only the ones it can draw (offered): the templates on the Pebble Time 2,
 // Forecast on a watch with one graph, Health and Health + forecast on a watch with health, Rain
@@ -46,10 +50,10 @@
         { id: 'clean', name: 'Clean', look: 'clean', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
         { id: 'stripes', name: 'Stripes', look: 'stripes', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
         { id: 'outdoor', name: 'Outdoor', look: 'outdoor', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
+        { id: 'meteogram', name: 'Meteogram', look: 'meteogram', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
         { id: 'wind', name: 'Wind', look: 'wind', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
-        { id: 'sky', name: 'Sky', look: 'sky', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
-        { id: 'pressure', name: 'Pressure', look: 'pressure', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
         { id: 'comfort', name: 'Comfort', look: 'comfort', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
+        { id: 'clouds', name: 'Clouds', look: 'clouds', graph: 'fc', needs: ['graphStyles'], group: 'fc' },
         { id: 'forecast', name: 'Forecast', look: null, graph: 'fc', needs: [], without: 'graphStyles', group: 'fc' },
         { id: 'health', name: 'Health', look: null, graph: 'health', needs: ['health'], group: 'more' },
         { id: 'radar', name: 'Rain radar', look: null, graph: 'radar', needs: ['radar'], group: 'more' },
@@ -57,15 +61,19 @@
             group: 'more' },
         { id: 'radarfc', name: 'Radar + forecast', look: null, graph: 'fc', upper: 'radar', needs: ['radar'], group: 'more' }
     ];
-    // Add a screen's headings, in order, each over the kinds of its group.
+    // Add a screen's rows, in order, each its heading over the cards of its group, side by side.
     var GROUPS = [{ id: 'fc', name: 'Forecast' }, { id: 'more', name: 'Health and radar' }];
     // Each graph's bar, the row over it.
     var BAR_OF = { fc: 'fcbar', health: 'healthbar', radar: 'radarbar' };
     // An upper graph's rows, on a screen of two graphs: three, the forecast filling the rest under
     // its bar on every watch (the fit test).
     var UPPER_SIZE = '3';
-    // A screen's calendar as Add a screen's Calendar names it: its rows ('' for none).
+    // An upper graph as the sentence under it names it (explain).
+    var UPPER_NAME = { health: 'health graph', radar: 'rain radar' };
+    // A screen's calendars, in the order Add a screen's cards show them: [name, rows] ('' for none),
+    // each card naming its own (CARD_CALENDAR).
     var CALENDARS = [['None', ''], ['Compact', '2'], ['Full', '3']];
+    var CARD_CALENDAR = { '': 'No calendar', '2': 'Compact calendar', '3': 'Full calendar' };
     // A screen with nothing but the Watch bar and the clock (screens-page.js addScreen).
     var BLANK = [{ k: 'strip' }, { k: 'clock' }];
 
@@ -127,13 +135,40 @@
     }
 
     /**
-     * The calendars a kind can have, as Add a screen's Calendar names them: every one, none on a
-     * screen of two graphs (its upper graph has the calendar's seat).
+     * The calendars a kind can have: every one, none on a screen of two graphs (its upper graph
+     * has the calendar's seat).
      * @param {Object} kind A KINDS entry.
-     * @returns {Array<Array<string>>} [label, value] pairs
+     * @returns {Array<Array<string>>} [name, rows] pairs
      */
     function calendars(kind) {
         return kind.upper ? [] : CALENDARS;
+    }
+
+    /**
+     * Add a screen's cards on this watch, in its order: each kind it can draw (offered) once per
+     * calendar it can have, None, Compact and Full in turn (the owner's, 2026-11-10: the calendar
+     * picked on the card, the length on the screen it opens); a screen of two graphs once.
+     * @param {?Object} env Platform env.
+     * @returns {Array<{kind: Object, cal: string}>} cal: '' | '2' | '3'
+     */
+    function cards(env) {
+        var out = [];
+        offered(env).forEach(function (kind) {
+            var cals = calendars(kind);
+            (cals.length ? cals : [['', '']]).forEach(function (c) { out.push({ kind: kind, cal: c[1] }); });
+        });
+        return out;
+    }
+
+    /**
+     * A card's calendar as it names it under its name: "No calendar", "Compact calendar", "Full
+     * calendar"; '' for a screen of two graphs, which has none to pick.
+     * @param {Object} kind A KINDS entry.
+     * @param {string} cal Its calendar's rows: '' | '2' | '3'.
+     * @returns {string}
+     */
+    function calendarName(kind, cal) {
+        return kind.upper ? '' : CARD_CALENDAR[cal] || '';
     }
 
     /**
@@ -184,6 +219,15 @@
     }
 
     /**
+     * The metrics' table (settings/forecast-metrics.js: the metrics each weather service leaves
+     * out), read when asked: it loads after this file in the page.
+     * @returns {Object}
+     */
+    function metricsTable() {
+        return node ? require('./settings/forecast-metrics.js') : window.ForecastMetrics;
+    }
+
+    /**
      * The length a kind's graph starts on: its template's (Classic and Stripes 24 hours, Clean the
      * long span), on a watch with graph styles; '' elsewhere, where every screen keeps your graph.
      * @param {Object} kind A KINDS entry.
@@ -191,7 +235,7 @@
      * @returns {string} '12' | '24' | '48' | ''
      */
     function spanOf(kind, env) {
-        var look = kind.look && (!env || env.graphStyles) ? looks().lookOf(kind.look) : null;
+        var look = lookOn(kind, env) ? looks().lookOf(kind.look) : null;
         return look ? look.span : '';
     }
 
@@ -209,36 +253,110 @@
     }
 
     /**
-     * A kind's forecast graph as its card names it: on a watch with graph styles, the template
-     * it brings by its name and the length (spanOf, or the one picked) with the user's weather
-     * service ("24 h Classic graph", "47 h Clean graph" with OpenWeatherMap); on a watch with one
-     * graph, which every screen keeps, "your graph".
-     * @param {Object} kind A KINDS entry with a forecast graph.
+     * The template a kind's forecast graph is on this watch: its look on a watch with graph
+     * styles (an unknown watch has them), '' where every screen keeps your graph.
+     * @param {Object} kind A KINDS entry.
      * @param {?Object} env Platform env.
-     * @param {?Object} S The user's settings.
-     * @param {string} [span] The length picked ('12' | '24' | '48'); the template's own without.
-     * @returns {string}
+     * @returns {string} a look's id, or ''
      */
-    function graphWords(kind, env, S, span) {
-        if (!kind.look) { return 'your graph'; }
-        var WF = looks(), look = WF.lookOf(kind.look), len = WF.spanLabel(kind.look, env, S, span);
-        return (len ? len + ' ' : '') + (look ? look.label + ' ' : '') + 'graph';
+    function lookOn(kind, env) {
+        return kind.look && (!env || env.graphStyles) ? kind.look : '';
     }
 
     /**
-     * A kind's card line on this watch: its upper graph, its bar by its name and its graph
-     * ("Forecast bar and 24 h Classic graph.", "Health graph, Forecast bar and your graph."). The
-     * calendar is picked once the card is.
+     * What a kind's forecast graph draws from: its template's own values at the length
+     * (wizard-forecast.js overOf), else your graph's settings (the first graph: a watch with one
+     * graph keeps it on every screen, a screen of two graphs keeps it too).
      * @param {Object} kind A KINDS entry.
      * @param {?Object} env Platform env.
-     * @param {?Object} S The user's settings (the bars' names, the weather service).
+     * @param {?Object} S The user's settings.
+     * @param {string} [span] The length picked; the template's own without.
+     * @returns {Object<string, *>}
+     */
+    function forecastValues(kind, env, S, span) {
+        var id = lookOn(kind, env);
+        return id ? looks().overOf(id, span) : (S || {});
+    }
+
+    /**
+     * What one graph of a kind's screen shows, as its card lists it: a forecast graph's metrics
+     * (wizard-forecast.js metricWords), the health graph's steps, heart rate (on a watch with a
+     * heart-rate sensor) and sleep, the rain radar with its clouds and sun rows (on unless turned
+     * off: radar-sky.js).
+     * @param {string} graph 'fc' | 'health' | 'radar'.
+     * @param {Object} kind A KINDS entry.
+     * @param {?Object} env Platform env.
+     * @param {?Object} S The user's settings.
      * @param {string} [span] The length picked, for a forecast graph.
+     * @returns {string[]}
+     */
+    function graphMetrics(graph, kind, env, S, span) {
+        if (graph === 'health') { return ['steps'].concat(env && env.hr ? ['heart rate'] : [], ['sleep']); }
+        if (graph === 'radar') { return ['rain radar'].concat((S || {}).radarSky === false ? [] : ['clouds', 'sun']); }
+        return looks().metricWords(forecastValues(kind, env, S, span), env);
+    }
+
+    /**
+     * A kind's card line (the owner's, 2026-11-10: the metrics it shows): what its graphs show,
+     * top to bottom, each metric once ("Temperature, rain chance, UV index and rain bars").
+     * @param {Object} kind A KINDS entry.
+     * @param {?Object} env Platform env.
+     * @param {?Object} S The user's settings (your graph, the radar's rows).
+     * @param {string} [span] The length picked, for a template's graph; its own without.
      * @returns {string}
      */
-    function describe(kind, env, S, span) {
-        var words = screenOf(kind, '').filter(function (b) { return b.k !== 'strip' && b.k !== 'clock'; })
-            .map(function (b) { return b.k === 'fc' ? graphWords(kind, env, S, span) : M.blockName(b, S); });
-        return html.capitalize(html.andList(words)) + '.';
+    function metricsLine(kind, env, S, span) {
+        var words = [];
+        (kind.upper ? [kind.upper, kind.graph] : [kind.graph]).forEach(function (graph) {
+            graphMetrics(graph, kind, env, S, span).forEach(function (w) {
+                if (words.indexOf(w) === -1) { words.push(w); }
+            });
+        });
+        return html.capitalize(html.andList(words));
+    }
+
+    /**
+     * One graph of a kind's screen in a sentence: a template's (wizard-forecast.js describe, at
+     * the length picked), your forecast graph's as it draws now, the health graph's, the rain
+     * radar's. A forecast graph's metrics your weather service leaves out are said too
+     * (forecast-metrics.js gapSentence).
+     * @param {string} graph 'fc' | 'health' | 'radar'.
+     * @param {Object} kind A KINDS entry.
+     * @param {?Object} env Platform env.
+     * @param {?Object} S The user's settings.
+     * @param {string} [span] The length picked.
+     * @returns {string}
+     */
+    function graphSentence(graph, kind, env, S, span) {
+        var s = S || {}, WF = looks();
+        if (graph === 'health') {
+            return 'The health graph shows the last 24 hours: your steps as bars' + (env && env.hr
+                ? ', your heart rate as a line and' : ' and') + ' your sleep as a band along the bottom.';
+        }
+        if (graph === 'radar') {
+            return 'The rain radar shows the rain coming in the next 2 hours as bars.' + (s.radarSky === false ? ''
+                : ' Stripes under it show the clouds and the sun, and a bolt marks thunderstorms.');
+        }
+        var id = lookOn(kind, env), values = forecastValues(kind, env, S, span);
+        var shows = id ? WF.describe(id, env, span) : (kind.upper ? 'Under the ' + UPPER_NAME[kind.upper]
+            + ', your forecast graph shows ' : 'Keeps your forecast graph, which shows ') + WF.drawnList(values, env) + '.';
+        var gap = metricsTable().gapSentence(s.provider, WF.drawnMetrics(values, env));
+        return shows + (gap ? ' ' + gap : '');
+    }
+
+    /**
+     * What a kind's screen shows, as its picked screen explains it (the owner's, 2026-11-10:
+     * which metrics, where the length is picked): each graph's sentence, top to bottom.
+     * @param {Object} kind A KINDS entry.
+     * @param {?Object} env Platform env.
+     * @param {?Object} S The user's settings.
+     * @param {string} [span] The length picked, for a template's graph; its own without.
+     * @returns {string}
+     */
+    function explain(kind, env, S, span) {
+        return (kind.upper ? [kind.upper, kind.graph] : [kind.graph]).map(function (graph) {
+            return graphSentence(graph, kind, env, S, span);
+        }).join(' ');
     }
 
     var api = {
@@ -252,12 +370,15 @@
         listOf: listOf,
         screenOf: screenOf,
         calendars: calendars,
+        cards: cards,
+        calendarName: calendarName,
         showsRadar: showsRadar,
         calOf: calOf,
         graphOf: graphOf,
         spanOf: spanOf,
         spanOptions: spanOptions,
-        describe: describe
+        metricsLine: metricsLine,
+        explain: explain
     };
 
     // Dual-context export — mirrors the tail of src/pkjs/forecast-axis.js.

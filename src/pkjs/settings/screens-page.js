@@ -462,8 +462,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * What Add a screen starts a kind on: the Default screen's calendar and, for a forecast
-     * screen on a watch with graph styles, its template's length (screen-presets.js spanOf).
+     * What a screen added with no calendar or length named starts on (addChosen): the Default
+     * screen's calendar and, for a forecast screen on a watch with graph styles, its template's
+     * length (screen-presets.js spanOf). Add a screen's cards name their own calendar.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} kind A screen-presets.js KINDS entry.
@@ -488,8 +489,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {Object} kind A screen-presets.js KINDS entry.
      * @param {string} cal Its calendar's rows: '' | '2' | '3'.
      * @param {string} span Its graph's length ('12' | '24' | '48'), '' where it has none.
-     * @returns {{id: string, name: string, desc: string, look: ?string, cal: string, span: string,
-     *   list: Array<Object>, graph: ?{k: number, values: ?Object}, W: Object, n: number, why: string}}
+     * `desc` lists the metrics its graphs show (screen-presets.js metricsLine), `calName` names its
+     * calendar ('' on a screen of two graphs).
+     * @returns {{id: string, name: string, desc: string, calName: string, look: ?string, cal: string,
+     *   span: string, list: Array<Object>, graph: ?{k: number, values: ?Object}, W: Object, n: number,
+     *   why: string}}
      */
     function addChoice(N, env, lists, kind, cal, span) {
         var n = lists.length, list = PRESETS.screenOf(kind, cal), why = '';
@@ -508,14 +512,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         } else if (graph && GSP.screenOverflows(W, env, n, graph.k)) {
             why = GSP.limitDesc(W, env, graph.k);
         }
-        return { id: kind.id, name: kind.name, desc: PRESETS.describe(kind, env, N, span), look: kind.look, cal: cal,
-            span: span, list: list, graph: graph, W: W, n: n, why: why };
+        return { id: kind.id, name: kind.name, desc: PRESETS.metricsLine(kind, env, N, span),
+            calName: PRESETS.calendarName(kind, cal), look: kind.look, cal: cal, span: span, list: list, graph: graph,
+            W: W, n: n, why: why };
     }
 
     /**
-     * Add a screen's cards: the kinds this watch can draw (screen-presets.js offered; each fits
-     * every watch it is offered, with every calendar, test/config-screen-presets.test.js), each as
-     * addChoice reads it on its start (addStart). None with three screens already.
+     * Add a screen's cards: each kind this watch can draw once per calendar it can have
+     * (screen-presets.js cards; each fits every watch it is offered, with every calendar,
+     * test/config-screen-presets.test.js), each as addChoice reads it on its template's length
+     * (screen-presets.js spanOf). None with three screens already.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {Array<Object>}
@@ -523,9 +529,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function addChoices(S, env) {
         var N = GSP.asStored(S), lists = M.screensOf(N, env);
         if (lists.length >= M.MAX_SCREENS) { return []; }
-        return PRESETS.offered(env).map(function (kind) {
-            var start = addStart(N, env, kind);
-            return addChoice(N, env, lists, kind, start.cal, start.span);
+        return PRESETS.cards(env).map(function (card) {
+            return addChoice(N, env, lists, card.kind, card.cal, PRESETS.spanOf(card.kind, env));
         });
     }
 
@@ -856,28 +861,34 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-hint{border-top:1px solid var(--row-line)}'
         + '.se-adds{display:grid;gap:14px;padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
         + '.se-add{display:grid;gap:7px}'
-        // Add a screen: the cards two by two, each with its picture; a picked one big, its rows
-        // (a segmented control each) and Add screen under it.
-        + '.sa-group{display:grid;gap:8px}'
-        + '.sa-group+.sa-group{margin-top:14px}'
+        // Add a screen: a row per group, its cards side by side, scrolled sideways (the owner's,
+        // 2026-11-10), out to the body's edges; a card's picture, name, calendar and metrics. A
+        // picked one big, what it shows, its Forecast length (a segmented control) and Add screen.
+        + '.sa-group{display:grid;gap:8px;min-width:0}'
+        + '.sa-group+.sa-group{margin-top:6px}'
         + '.sa-group>.ui-cap{padding:0 4px}'
-        + '.sa-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}'
-        + '.sa-card{display:grid;justify-items:center;align-content:start;gap:8px;min-width:0;margin:0;padding:12px 10px;'
-        + 'border:none;border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--card-line);color:var(--lbl);'
-        + 'text-align:center;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
+        + '.sa-strip{display:flex;gap:10px;margin:0 -16px;padding:2px 16px 6px;overflow-x:auto;overflow-y:hidden;'
+        + '-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scroll-padding:0 16px;scrollbar-width:none}'
+        + '.sa-strip::-webkit-scrollbar{display:none}'
+        + '.sa-card{flex:0 0 136px;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;margin:0;'
+        + 'padding:12px 10px;border:none;border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--card-line);'
+        + 'color:var(--lbl);text-align:center;font:inherit;cursor:pointer;scroll-snap-align:start;'
+        + '-webkit-appearance:none;appearance:none}'
         + '.sa-pic{display:block;width:104px;border-radius:10px;overflow:hidden;line-height:0;box-shadow:0 0 0 1px var(--card-line)}'
         + '.sa-pic svg{display:block;width:100%;height:auto}'
-        + '.sa-txt{display:grid;gap:3px;min-width:0}'
+        + '.sa-txt{display:grid;gap:3px;min-width:0;width:100%}'
         + '.sa-n{font:700 13.5px/1.25 Inter,system-ui,sans-serif;color:var(--lbl)}'
+        + '.sa-c{font:600 11px/1.3 Inter,system-ui,sans-serif;color:var(--muted)}'
         + '.sa-d{font:500 11.5px/1.35 Inter,system-ui,sans-serif;color:var(--hint);overflow-wrap:anywhere}'
         + '.sa-fine{padding:2px 4px;font-size:12px;line-height:1.45;color:var(--hint)}'
         + '.sa-cfg{display:grid;gap:14px}'
         + '.sa-big{justify-self:center;width:160px;border-radius:14px;overflow:hidden;line-height:0;'
         + 'box-shadow:0 0 0 1px var(--card-line)}'
         + '.sa-big svg{display:block;width:100%;height:auto}'
-        + '.sa-desc{text-align:center;padding:0 8px}'
+        + '.sa-cal{margin-top:-6px;text-align:center;font:600 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted)}'
         + '.sa-row{display:grid;gap:7px}'
         + '.sa-lbl{font:700 12.5px/1.3 Inter,system-ui,sans-serif;color:var(--lbl);padding:0 3px}'
+        + '.sa-ex{padding:0 3px;font:500 13px/1.45 Inter,system-ui,sans-serif;color:var(--lbl)}'
         + '.sa-why{padding:0 3px;font-size:12.5px;line-height:1.45;color:var(--hint)}'
         + '.sa-add{width:100%;min-height:44px;margin-top:2px;border:none;border-radius:12px;'
         + 'background:linear-gradient(135deg,#FA4A35,#D93A24);color:#FFFFFF;font:700 15px Inter,system-ui,sans-serif;'
@@ -1034,10 +1045,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // The overlay's state: what it shows ('edit' a screen, or 'add': Add a screen), the slot,
     // the row whose Rows or Size picker is open, the snap-back message, the drag in progress,
-    // the name's input while the title is being renamed, and Add a screen's pick while it shows
-    // one (its kind, calendar and length: addPick).
+    // the name's input while the title is being renamed, Add a screen's pick while it shows one
+    // (its kind, calendar and length: addPick), where its cards were scrolled to then
+    // (cardsPlace) and its cards' markup, drawn once while it is open (addBody: nothing under
+    // the overlay changes the settings they are drawn from).
     var ED = { overlay: null, mode: 'edit', i: 0, sizeRow: -1, toast: { v: null, t: null }, drag: null, nameEl: null,
-        pick: null };
+        pick: null, cardsAt: null, cards: null };
 
     /**
      * A size as its dropdown and its picker read it: "2 rows", "Fill".
@@ -1365,9 +1378,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Add a screen's body: its cards (addChoices) under their headings (screen-presets.js
-     * GROUPS), two by two, each with the picture of the screen it adds and what it shows; under
-     * them what a screen brings. With a card picked, the picked screen (addPickBody).
+     * Add a screen's body: a row of cards per group (screen-presets.js GROUPS), its heading over
+     * them, scrolled sideways (the owner's, 2026-11-10); each card (addChoices) the picture of the
+     * screen it adds, its name, its calendar and the metrics it shows. Under them what a screen
+     * brings. With a card picked, the picked screen (addPickBody).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
@@ -1375,19 +1389,66 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function addBody(S, env, userData) {
         if (ED.pick) { return addPickBody(S, env, userData); }
+        if (ED.cards === null) { ED.cards = addCards(S, env, userData); }
+        return ED.cards;
+    }
+
+    /**
+     * Add a screen's cards under their headings, and what a screen brings under them (addBody).
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Object} [userData] Page userData (the palette).
+     * @returns {string} HTML
+     */
+    function addCards(S, env, userData) {
         var choices = addChoices(S, env);
-        // Under each heading (screen-presets.js GROUPS) the cards of its group.
         var groups = PRESETS.GROUPS.map(function (grp) {
             var cards = choices.filter(function (c) { return PRESETS.byId(c.id).group === grp.id; }).map(function (c) {
-                return '<button type="button" class="sa-card" data-se="pick" data-id="' + c.id + '">'
-                    + '<span class="sa-pic" aria-hidden="true">' + screenPicture(c.W, c.n, env, userData, 'sa-' + c.id + '-').svg
-                    + '</span><span class="sa-txt"><span class="sa-n">' + esc(c.name) + '</span><span class="sa-d">'
-                    + esc(c.desc) + '</span></span></button>';
+                var key = c.id + '-' + (c.cal || '0');
+                return '<button type="button" class="sa-card" data-se="pick" data-id="' + c.id + '" data-cal="' + c.cal + '">'
+                    + '<span class="sa-pic" aria-hidden="true">' + screenPicture(c.W, c.n, env, userData, 'sa-' + key + '-').svg
+                    + '</span><span class="sa-txt"><span class="sa-n">' + esc(c.name) + '</span>'
+                    + (c.calName ? '<span class="sa-c">' + esc(c.calName) + '</span>' : '')
+                    + '<span class="sa-d">' + esc(c.desc) + '</span></span></button>';
             }).join('');
             return cards ? '<div class="sa-group" role="group" aria-labelledby="saGrp-' + grp.id + '"><span class="ui-cap"'
-                + ' id="saGrp-' + grp.id + '">' + esc(grp.name) + '</span><div class="sa-grid">' + cards + '</div></div>' : '';
+                + ' id="saGrp-' + grp.id + '">' + esc(grp.name) + '</span><div class="sa-strip" data-sa-strip="' + grp.id
+                + '">' + cards + '</div></div>' : '';
         }).join('');
         return groups + '<div class="sa-fine">' + esc(env && env.graphStyles ? ADD_FINE : ADD_FINE_ONE_GRAPH) + '</div>';
+    }
+
+    /**
+     * Where Add a screen's cards are scrolled to: the body, and each row sideways, so ‹ from a
+     * picked card comes back to them (backToCards).
+     * @returns {{top: number, rows: Object<string, number>}}
+     */
+    function cardsPlace() {
+        var body = ED.overlay.querySelector('[data-se-body]'), rows = {};
+        PRESETS.GROUPS.forEach(function (grp) {
+            var row = body.querySelector('[data-sa-strip="' + grp.id + '"]');
+            if (row) { rows[grp.id] = row.scrollLeft || 0; }
+        });
+        return { top: body.scrollTop || 0, rows: rows };
+    }
+
+    /**
+     * Back from a picked card (‹, Escape) to Add a screen's cards, scrolled where they were
+     * (cardsPlace).
+     * @returns {void}
+     */
+    function backToCards() {
+        var at = ED.cardsAt;
+        ED.pick = null;
+        ED.cardsAt = null;
+        renderEditor();
+        if (!at) { return; }
+        var body = ED.overlay.querySelector('[data-se-body]');
+        body.scrollTop = at.top;
+        Object.keys(at.rows).forEach(function (id) {
+            var row = body.querySelector('[data-sa-strip="' + id + '"]');
+            if (row) { row.scrollLeft = at.rows[id]; }
+        });
     }
 
     /**
@@ -1407,7 +1468,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * A row of Add a screen's picked screen: its name over a segmented control (the page's .seg,
      * one equal segment per option), the picked option on.
      * @param {string} label The row's name.
-     * @param {string} act What a tap does (data-se): 'acal' | 'aspan'.
+     * @param {string} act What a tap does (data-se): 'aspan'.
      * @param {Array<Array<string>>} options [label, value] pairs.
      * @param {string} value The option picked.
      * @returns {string} HTML
@@ -1422,11 +1483,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Add a screen's picked screen (the owner's ask, 2026-11-09): its picture big, on the Default
-     * screen's calendar to start; Calendar (None, Compact, Full; none on a screen of two graphs,
-     * screen-presets.js calendars) and, for a forecast screen on a watch with graph styles,
-     * Forecast length (12 h, 24 h, the long span by its hours); why it cannot be added, if it
-     * cannot; Add screen.
+     * Add a screen's picked screen (the owner's asks, 2026-11-09 and 2026-11-10): its picture big
+     * on the calendar its card picked, named under it; what it shows (screen-presets.js explain,
+     * at the length picked); for a forecast screen on a watch with graph styles, Forecast length
+     * (12 h, 24 h, the long span by its hours); why it cannot be added, if it cannot; Add screen.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
@@ -1435,12 +1495,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function addPickBody(S, env, userData) {
         var c = addPick(S, env);
         if (!c) { return ''; }
+        var kind = PRESETS.byId(c.id), N = GSP.asStored(S);
         var pic = screenPicture(c.W, c.n, env, userData, 'sa-big-');
-        var spans = c.span ? PRESETS.spanOptions(PRESETS.byId(c.id), env, GSP.asStored(S)) : [];
-        var cals = PRESETS.calendars(PRESETS.byId(c.id));
-        return '<div class="sa-cfg"><div class="sa-big" role="img" aria-label="' + esc(c.name + ': ' + pic.label) + '">'
-            + pic.svg + '</div><div class="sa-d sa-desc">' + esc(c.desc) + '</div>'
-            + (cals.length ? segRow('Calendar', 'acal', cals, c.cal) : '')
+        var spans = c.span ? PRESETS.spanOptions(kind, env, N) : [];
+        return '<div class="sa-cfg"><div class="sa-big" role="img" aria-label="' + esc(c.name
+            + (c.calName ? ', ' + c.calName : '') + ': ' + pic.label) + '">' + pic.svg + '</div>'
+            + (c.calName ? '<div class="sa-cal">' + esc(c.calName) + '</div>' : '')
+            + '<div class="sa-row"><div class="sa-lbl">What it shows</div><div class="sa-ex">'
+            + esc(PRESETS.explain(kind, env, N, c.span)) + '</div></div>'
             + (spans.length ? segRow('Forecast length', 'aspan', spans, c.span) : '')
             + (c.why ? '<div class="sa-why" role="status">' + esc(c.why) + '</div>' : '')
             + '<button type="button" class="sa-add" data-se="addnow"' + (c.why ? ' disabled' : '') + '>Add screen</button></div>';
@@ -1595,7 +1657,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (modal && modal.open) { return; }
         if (e.key === 'Escape') {
             // Escape on a picked screen goes back to Add a screen's cards, as its ‹ does.
-            if (ED.mode === 'add' && ED.pick) { ED.pick = null; renderEditor(); return; }
+            if (ED.mode === 'add' && ED.pick) { backToCards(); return; }
             closeEditor();
             return;
         }
@@ -1679,20 +1741,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (act === 'close') { closeEditor(); return; }
         if (act === 'rename') { startRename(S); return; }
         if (act === 'renameok') { if (ED.nameEl) { endRename(ED.nameEl.value); } return; }
-        // Add a screen's card: the screen it adds, on its start (addStart), to pick its calendar
-        // and length; ‹ goes back to the cards.
+        // Add a screen's card: the screen it adds on its card's calendar and its template's
+        // length, to pick the length; ‹ goes back to the cards where they were.
         if (act === 'pick') {
             var kind = PRESETS.byId(t.getAttribute('data-id'));
             if (!kind) { return; }
-            var start = addStart(GSP.asStored(S), env, kind);
-            ED.pick = { id: kind.id, cal: start.cal, span: start.span };
+            ED.cardsAt = cardsPlace();
+            ED.pick = { id: kind.id, cal: t.getAttribute('data-cal') || '', span: PRESETS.spanOf(kind, env) };
             ED.overlay.querySelector('[data-se-body]').scrollTop = 0;
             renderEditor();
             return;
         }
-        if (act === 'addback') { ED.pick = null; renderEditor(); return; }
-        if (act === 'acal' || act === 'aspan') {
-            if (ED.pick) { ED.pick[act === 'acal' ? 'cal' : 'span'] = t.getAttribute('data-v') || ''; }
+        if (act === 'addback') { backToCards(); return; }
+        if (act === 'aspan') {
+            if (ED.pick) { ED.pick.span = t.getAttribute('data-v') || ''; }
             renderEditor();
             return;
         }
@@ -1866,6 +1928,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ED.toast.v = null;
         ED.nameEl = null;
         ED.pick = null;
+        ED.cardsAt = null;
+        ED.cards = null;
         var overlay = document.createElement('div');
         overlay.id = 'screenEditor';
         overlay.setAttribute('role', 'dialog');
