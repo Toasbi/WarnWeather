@@ -65,12 +65,19 @@ test('isColorBacklightPlatform: emery only; colour SCREEN is not a colour backli
 });
 
 test('computeEnv from watchInfo', () => {
-  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false, forecastSpan: false });
-  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false, forecastSpan: false });
-  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false, hr: false, thresholds: false, colorBacklight: false, lineStyles: false, onDemand: false, fineBattery: false, forecastSpan: false });
-  assert.deepEqual(platform.computeEnv({ platform: 'emery' }), { color: true, round: false, platform: 'emery', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: true, lineStyles: true, onDemand: true, fineBattery: true, forecastSpan: true });
-  assert.deepEqual(platform.computeEnv({ platform: 'diorite' }), { color: false, round: false, platform: 'diorite', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false, forecastSpan: false });
-  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false, forecastSpan: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false, forecastSpan: false, graphStyles: false, extraBars: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false, forecastSpan: false, graphStyles: false, extraBars: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false, hr: false, thresholds: false, colorBacklight: false, lineStyles: false, onDemand: false, fineBattery: false, forecastSpan: false, graphStyles: false, extraBars: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'emery' }), { color: true, round: false, platform: 'emery', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: true, lineStyles: true, onDemand: true, fineBattery: true, forecastSpan: true, graphStyles: true, extraBars: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'diorite' }), { color: false, round: false, platform: 'diorite', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false, forecastSpan: false, graphStyles: false, extraBars: false });
+  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true, onDemand: true, fineBattery: false, forecastSpan: false, graphStyles: false, extraBars: false });
+});
+
+test('isGraphStylePlatform: emery only, fail closed for an unknown watch', () => {
+  assert.equal(platform.isGraphStylePlatform('emery'), true);
+  ['basalt', 'chalk', 'diorite', 'flint', 'aplite'].forEach((p) =>
+    assert.equal(platform.isGraphStylePlatform(p), false, p));
+  assert.equal(platform.isGraphStylePlatform(''), false, 'unknown watch: one graph style');
 });
 
 test('isForecastSpanPlatform: emery only, fail closed for an unknown watch', () => {

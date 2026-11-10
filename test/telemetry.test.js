@@ -485,7 +485,12 @@ const HEAVIEST_CUSTOM = Object.assign({}, HEAVIEST_SETTINGS, {
   viewTop1: 'radar', viewBody1: 'none', viewUpper1: 'health', viewLower1: 'weather',
   viewOrder1: 'ABCT', viewClockOff1: true, viewStripOff1: true, viewAlign1: 'bottom',
   viewTop2: 'cal2', viewBody2: 'none', viewUpper2: 'radar', viewLower2: 'health',
-  viewOrder2: 'ACBT', viewClockOff2: false, viewStripOff2: true, viewAlign2: 'center'
+  viewOrder2: 'ACBT', viewClockOff2: false, viewStripOff2: true, viewAlign2: 'center',
+  // Graph styles (emery): the flick screens' forecast graphs on styles 2 and 3, both on the
+  // long span, so graphStyleCount and both styles' lengths report.
+  viewBody1: 'forecast', viewStyle1: '2', viewBody2: 'forecast', viewStyle2: '3',
+  graphStyles: JSON.stringify({ names: ['', 'Long', 'Longer'], styles: [null,
+    { forecastHours: '48' }, { forecastHours: '48' }] })
 });
 
 /**
@@ -934,7 +939,9 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // taking the single-event shape of the apps before 1.16 (whose envelope this test had
 // measured too, long past the cap by then). Dropping the fields that read the same on
 // every 2.6 watch, provider (every event carries its own) and the settings page's theme,
-// and adding the Weather tab's three, made it 2745 of 4096, headroom 1351.
+// and adding the Weather tab's three, made it 2745 of 4096, headroom 1351. The graph
+// styles (graphStyleCount, graphStyle2Hours, graphStyle3Hours; 3.0.0, emery only, the
+// custom fixture's flick screens on styles 2 and 3) made it 2810 of 4096, headroom 1286.
 test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYTES', () => {
   const cap = Number(/const MAX_SETTINGS_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');
@@ -951,6 +958,8 @@ test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYT
   assert.deepEqual(Object.keys(settings).filter((key) => settings[key] === undefined),
     ['showQt', 'batteryLowOnly', 'layoutPreset'],
     'a snapshot field the fixture never sets understates the ledger — set it on its longest option');
+  assert.deepEqual([settings.graphStyleCount, settings.graphStyle2Hours, settings.graphStyle3Hours],
+    [3, 48, 48], 'the graph styles report');
 
   // Measured as the ingest measures it: JSON.stringify(batch.settings).length.
   const header = JSON.stringify(settings).length;

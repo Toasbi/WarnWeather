@@ -1116,7 +1116,7 @@
                 + overlayRainTiers(pal, top, bottom)
                 // The row's title, on the fixed overlay so it holds still.
                 + '<text x="4" y="' + (probY - 14) + '" font-size="8" font-weight="600" fill="' + pal.muted
-                + '">Precipitation probability</text>'
+                + '">Chance of precipitation</text>'
         });
     }
 

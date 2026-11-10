@@ -82,6 +82,7 @@ test('support modal closes with the personal sign-off', () => {
   assert.match(html, /Tobi/);
 });
 
-test('support modal offers a close control', () => {
-  assert.match(support.renderSupportModalHtml(), /data-bmc-close/);
+test('support modal offers a close control: the popup header News has too', () => {
+  assert.ok(support.renderSupportModalHtml().startsWith(
+    require('../src/pkjs/config-ui/lib/ui.js').popupHeader('Support me', { 'data-bmc-close': '1' })));
 });

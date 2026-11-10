@@ -152,7 +152,8 @@ test('every Alert line draws its sample\'s upper half, with its gaps, at any lev
         [lineAlert.settingKey(metric)]: 'alert' }, levels(metric, pair)));
       const label = JSON.stringify(S);
       [BASALT, EMERY].forEach((env) => {
-        const svg = FC.forecastPreview(S, env);
+        // The noon scenario on emery too: without a sample its span draws its own hours.
+        const svg = FC.forecastPreview(S, env, undefined, { sample: FC.noonSample() });
         assert.deepEqual(drawnHours(svg, S, 'secondaryLine'), DRAWN[metric], label);
         assert.deepEqual(drawnHours(svg, S, 'secondaryLine', true), JOINED[metric], label);
       });

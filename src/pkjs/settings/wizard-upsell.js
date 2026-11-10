@@ -22,7 +22,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // row names the provider itself. The sheets show the call budget under the key, the card
     // doesn't, so its hint stops short of pointing there.
     var FIELD_LABEL = 'Tomorrow.io API key';
-    var BUDGET_POINTER = ' — see the call budget below.';
+    var BUDGET_POINTER = ' See the call budget below.';
 
     /**
      * Whether a key is there: anything but blanks.
@@ -63,12 +63,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function html(item, S) {
         var key = S.tomorrowioApiKey || '';
-        var hint = String(item.hint || '').replace(BUDGET_POINTER, '.');
+        var hint = String(item.hint || '').replace(BUDGET_POINTER, '');
         var field = PConf.engine.renderRow(Object.assign({}, item, { label: FIELD_LABEL, hint: hint }), { value: key });
         var open = hasKey(key);
         return '<div class="wiz-tio">'
-            + '<div class="wiz-tio-hd"><span>More precise forecasts</span><span class="wiz-tag">Optional</span></div>'
-            + '<p>A free Tomorrow.io account gives you a hyperlocal forecast for where you are.</p>'
+            + '<div class="wiz-tio-hd"><span>Tomorrow.io forecast</span><span class="wiz-tag">Optional</span></div>'
+            + '<p>A free Tomorrow.io account gives you a more precise forecast for where you are.</p>'
             + (open ? '' : '<button type="button" class="wiz-tio-open" data-wiz-tio-open aria-expanded="false">'
                 + 'Add a Tomorrow.io key</button>')
             + '<div class="wiz-tio-field" data-wiz-tio-field' + (open ? '' : ' hidden') + '>' + field + '</div>'

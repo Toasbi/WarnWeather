@@ -90,7 +90,8 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
     assert.ok(page().indexOf('window.' + parts[file] + ' = api') !== -1, 'nothing assigns window.' + parts[file]);
   });
   ['pkjs/line-style.js', 'pkjs/draw-from.js', 'pkjs/forecast-axis.js', 'pkjs/resolve-ink.js', 'pkjs/theme-flip.js',
-    'pkjs/forecast-span-hours.js', 'settings/forecast-sample.js', 'settings/preview-forecast.js'].forEach((file) => {
+    'pkjs/graph-styles.js', 'pkjs/forecast-span-hours.js', 'settings/forecast-sample.js',
+    'settings/preview-forecast.js'].forEach((file) => {
     assert.ok(idx(file) < idx('settings/wizard-forecast.js'), file + ' must precede wizard-forecast.js');
   });
   assert.ok(idx('pkjs/screens.js') < idx('settings/wizard-screens.js'));
@@ -118,6 +119,22 @@ test('the screen pictures\' frame reaches the page ahead of the watch preview an
   assert.ok(page().indexOf('window.ScreenFrame = api') !== -1, 'nothing assigns window.ScreenFrame');
 });
 
+// The metrics' names (forecast-metrics.js) are bound while graph-styles-page.js, forecast-hints.js,
+// blocks.js and wizard-forecast.js run: out of order, the metric pickers, the line summaries and
+// the graph rows lose their names on a real phone while Node (require()) passes.
+test('the metrics\' names reach the page ahead of the modules that bind them', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  ['settings/graph-styles-page.js', 'settings/forecast-hints.js', 'settings/blocks.js', 'settings/wizard-forecast.js']
+    .forEach((reader) =>
+    assert.ok(idx('settings/forecast-metrics.js') < idx(reader), 'forecast-metrics.js must precede ' + reader));
+  assert.ok(page().indexOf('window.ForecastMetrics = api') !== -1, 'nothing assigns window.ForecastMetrics');
+});
+
 // The screens page is the same silent-no-op shape as the defaults policy: its consumers,
 // the screen buttons' and the Screens card's [data-action] dispatch, guard its absence, so
 // dropping screens-page.js from APP_FILES keeps every Node test green while the shipped
@@ -137,6 +154,41 @@ test('the screens page reaches the generated page, after the screens model and t
     assert.ok(idx(dep) !== -1 && idx(dep) < idx('pkjs/screens.js'), dep + ' must precede screens.js'));
   assert.ok(idx('pkjs/screens.js') < at, 'screens.js must precede screens-page.js');
   assert.ok(idx('settings/preview-watch.js') < at, 'preview-watch.js must precede screens-page.js');
+});
+
+// screen-presets.js publishes window.ScreenPresets, which screens-page.js and wizard-screens.js
+// bind while their bodies run: out of order (or dropped), Add screen's presets and setup's Health
+// screen throw on a real phone while every Node test passes through require().
+test('the screen presets are bundled ahead of the screens page and setup\'s screens', () => {
+  assert.ok(page().indexOf('window.ScreenPresets = api') !== -1, 'nothing assigns window.ScreenPresets');
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => appFiles.findIndex((f) => f.endsWith(suffix));
+  const at = idx('pkjs/screen-presets.js');
+  assert.notEqual(at, -1, 'screen-presets.js is not in APP_FILES');
+  assert.ok(at < idx('settings/screens-page.js'), 'screen-presets.js must precede screens-page.js');
+  assert.ok(at < idx('settings/wizard-screens.js'), 'screen-presets.js must precede wizard-screens.js');
+  assert.ok(idx('pkjs/screens.js') < idx('settings/wizard-screens.js'));
+});
+
+// screen-legend.js binds the graph previews' legends (window.PreviewForecast, PreviewHealth,
+// PreviewRadar), window.PreviewWatch, GraphStylesPage, ForecastMetrics and PreviewSvg while its
+// body runs, and screens-page.js binds window.ScreenLegend while its own does: out of order (or
+// dropped), Add a screen throws on a real phone while every Node test passes through require().
+test('Add a screen\'s legend is bundled after the pictures it reads and ahead of the screens page', () => {
+  const src = page();
+  ['ScreenLegend', 'PreviewHealth', 'PreviewRadar', 'PreviewForecast', 'PreviewWatch'].forEach((name) =>
+    assert.ok(src.indexOf('window.' + name + ' = api') !== -1, 'nothing assigns window.' + name));
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  const at = idx('settings/screen-legend.js');
+  ['settings/preview-forecast.js', 'settings/preview-health.js', 'settings/preview-radar.js', 'settings/preview-watch.js',
+    'settings/graph-styles-page.js', 'settings/forecast-metrics.js', 'settings/preview-svg.js']
+    .forEach((dep) => assert.ok(idx(dep) < at, dep + ' must precede screen-legend.js'));
+  assert.ok(at < idx('settings/screens-page.js'), 'screen-legend.js must precede screens-page.js');
 });
 
 // line-alert.js binds window.StatusThresholds and window.LineStyle while its own body
@@ -209,11 +261,11 @@ test('the left axis module is bundled after line-style.js and before its readers
 });
 
 // forecast-span-hours.js (window.ForecastSpanHours, the long time span's whole hours) binds
-// window.ForecastAxis and window.VIEW_CYCLE while its own body runs, and forecast-hints.js binds
+// window.ForecastAxis while its own body runs, and forecast-hints.js binds
 // window.ForecastSpanHours while its own does: out of order, the page throws at boot on a real
 // phone while every Node test passes through require(). Its resolver, forecastSpanOptions,
 // is the Forecast length row's, registered by forecast-hints.js's own part of the page.
-test('the span hours module is bundled after view-cycle.js and forecast-axis.js, before forecast-hints.js', () => {
+test('the span hours module is bundled after forecast-axis.js, before forecast-hints.js', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
     const at = appFiles.findIndex((f) => f.endsWith(suffix));
@@ -222,8 +274,6 @@ test('the span hours module is bundled after view-cycle.js and forecast-axis.js,
   };
   assert.ok(idx('pkjs/forecast-axis.js') < idx('pkjs/forecast-span-hours.js'),
     'forecast-axis.js must precede forecast-span-hours.js');
-  assert.ok(idx('pkjs/view-cycle.js') < idx('pkjs/forecast-span-hours.js'),
-    'view-cycle.js must precede forecast-span-hours.js');
   assert.ok(idx('pkjs/forecast-span-hours.js') < idx('settings/forecast-hints.js'),
     'forecast-span-hours.js must precede forecast-hints.js');
   const src = page();
@@ -312,9 +362,17 @@ test('the forecast line resolvers are bundled after the line modules they read',
     if (typeof node.resolver === 'string') { ids.add(node.resolver); }
     Object.keys(node).forEach((k) => collect(node[k]));
   })(lines);
+  // The tail on the rows every graph style shares is graph-styles-page.js's, which the pickers'
+  // limit binds as forecast-hints.js loads: it precedes forecast-hints.js and registers it.
+  assert.ok(ids.delete('graphStyleShared'), 'the shared rows carry the graph styles\' tail');
+  assert.ok(idx('settings/graph-styles-page.js') < idx('settings/forecast-hints.js'),
+    'graph-styles-page.js must precede forecast-hints.js');
   assert.deepEqual([...ids].sort(), ['forecastMetric', 'forecastMetricHint', 'lineFromHint', 'lineShowHint',
     'lineStyleHint', 'lineStyleOptions', 'windScaleHint'], 'the resolvers the forecast lines\' rows name');
   const src = page();
+  const gsFrom = src.indexOf('/* app: graph-styles-page.js */');
+  assert.notEqual(gsFrom, -1, 'graph-styles-page.js is not in the generated page');
+  assert.ok(src.slice(gsFrom, src.indexOf('/* app: ', gsFrom + 1)).indexOf("register('graphStyleShared'") !== -1);
   const from = src.indexOf('/* app: forecast-hints.js */');
   assert.notEqual(from, -1, 'forecast-hints.js is not in the generated page');
   const part = src.slice(from, src.indexOf('/* app: ', from + 1));

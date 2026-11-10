@@ -151,18 +151,52 @@ function buildSettingsBlob(settings, env) {
   blob[BATTERY_OFFSET] = onDemand.batteryLevel(settings, env)
     | (onDemand.batteryShowsValue(settings) ? BATTERY_VALUE_BIT : 0);
   // The On demand cells: one byte per item in ITEMS order, 2 bits per bar at bits
-  // 2 * bar (BARS order) — 0 none, 1 left, 2 right (the SIDES index + 1). Effective
+  // 2 * bar (BLOB_BARS order) — 0 none, 1 left, 2 right (the SIDES index + 1). Effective
   // values only (sideOf), so a bar the modes remove and a watch without On demand are
-  // zeros.
-  for (i = 0; i < onDemand.ITEMS.length; i++) {
-    var cell = 0;
-    for (var b = 0; b < onDemand.BARS.length; b++) {
-      var side = onDemand.sideOf(settings, onDemand.BARS[b].bar, onDemand.ITEMS[i].code, env);
-      if (side !== null) { cell |= (onDemand.SIDES.indexOf(side) + 1) << (2 * b); }
-    }
-    blob[ON_DEMAND_OFFSET + i] = cell;
-  }
+  // zeros. Bars 4 to 6 have their own cells (buildExtraCells).
+  var cells = cellBytes(settings, env, onDemand.BLOB_BARS);
+  for (i = 0; i < cells.length; i++) { blob[ON_DEMAND_OFFSET + i] = cells[i]; }
   return blob;
+}
+
+/**
+ * The On demand cells of some bars: one byte per item in ITEMS order, 2 bits per bar at
+ * bits 2 * (its index in `bars`) — 0 none, 1 left, 2 right (the SIDES index + 1).
+ * Effective values only (on-demand.js sideOf).
+ * @param {Object} settings Clay settings blob
+ * @param {?Object} env platform env
+ * @param {Array<{bar: string}>} bars at most four on-demand.js BARS entries
+ * @returns {number[]} ITEMS.length bytes
+ */
+function cellBytes(settings, env, bars) {
+  var out = [];
+  // onDemand.sideOf, with whether each bar exists asked once, at its first ticked item:
+  // barExists compiles the screens.
+  var exists = [];
+  for (var i = 0; i < onDemand.ITEMS.length; i++) {
+    var cell = 0;
+    for (var b = 0; b < bars.length; b++) {
+      var side = onDemand.tickedSide(settings, bars[b].bar, onDemand.ITEMS[i].code, env);
+      if (side === null) { continue; }
+      if (exists[b] === undefined) { exists[b] = onDemand.barExists(settings, bars[b].bar, env); }
+      if (exists[b]) { cell |= (onDemand.SIDES.indexOf(side) + 1) << (2 * b); }
+    }
+    out.push(cell);
+  }
+  return out;
+}
+
+/**
+ * Build the CLAY_OD_EXTRA_UINT8 bytes (layout: status_threshold.h THRESH_OD_EXTRA_BYTES):
+ * bars 4 to 6's On demand cells, whose bits the blob's full cell bytes have no room for —
+ * one byte per item, bar 4 at bits 0-1, bar 5 at 2-3, bar 6 at 4-5 (bits 6-7 0). A bar
+ * that is not made, or that no screen shows, is zeros (sideOf).
+ * @param {Object} settings Clay settings blob
+ * @param {?Object} env platform env (config-ui platform.js computeEnv)
+ * @returns {number[]} ITEMS.length bytes
+ */
+function buildExtraCells(settings, env) {
+  return cellBytes(settings, env, onDemand.EXTRA_BARS);
 }
 
 // ── the weather levels (STATUS_LEVELS_UINT8) ─────────────────────────────────
@@ -432,14 +466,16 @@ function alertHeader(kind, level, mark) {
  * read the same list (status-lines.js): a slot merges only an entry that rides.
  * @param {Object} payload weather payload (pre-transform, trends present)
  * @param {Object} settings Clay settings blob
+ * @param {?Object} [env] platform env: an alert placed on a bar 4 to 6 alone counts only on
+ *     a watch that has them (on-demand.js barExists); omitted = capable
  * @returns {Array<{code: string, kindId: number, level: number, nextDay: boolean,
  *     mark: string, text: string}>} the entries in wire order, [] when nothing is
  *     alerting
  */
-function bakedAlerts(payload, settings) {
+function bakedAlerts(payload, settings, env) {
   var out = [];
   if (!payload || !settings) { return out; }
-  var alerts = thresholds.enabledAlerts(settings);
+  var alerts = thresholds.enabledAlerts(settings, env);
   var bytes = 0;
   for (var i = 0; i < alerts.length; i++) {
     var a = alerts[i];
@@ -496,6 +532,7 @@ module.exports = {
   WARN_LOOK_OFFSET: WARN_LOOK_OFFSET,
   ON_DEMAND_OFFSET: ON_DEMAND_OFFSET,
   buildSettingsBlob: buildSettingsBlob,
+  buildExtraCells: buildExtraCells,
   packWeatherLevels: packWeatherLevels,
   ALERT_HEADER: ALERT_HEADER,
   ALERT_DANGER: ALERT_DANGER,

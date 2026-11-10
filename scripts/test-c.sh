@@ -56,6 +56,10 @@ build/host/status_threshold_test
 cc $CFLAGS test/c/status_threshold_on_demand_test.c src/c/appendix/status_threshold.c \
    -o build/host/status_threshold_on_demand_test
 build/host/status_threshold_on_demand_test
+# Again for emery, whose bars 4 to 6 read their cells behind the blob (THRESH_SCRATCH_BYTES).
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_threshold_on_demand_test.c \
+   src/c/appendix/status_threshold.c -o build/host/status_threshold_on_demand_test_emery
+build/host/status_threshold_on_demand_test_emery
 # The weather alerts' pure half (the entries' parse, item map and text lanes, and the
 # rain alert's text).
 # Its body sits behind WW_ON_DEMAND (wscript: every platform but aplite), so the flag
@@ -130,6 +134,8 @@ cc $CFLAGS -DPBL_PLATFORM_BASALT test/c/forecast_span_test.c -o build/host/forec
 build/host/forecast_span_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/forecast_span_test.c -o build/host/forecast_span_test_emery
 build/host/forecast_span_test_emery
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/graph_style_test.c -o build/host/graph_style_test
+build/host/graph_style_test
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the
 # per-platform STATUS_STRIP_CAL_GAP.
 cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test
@@ -184,6 +190,10 @@ build/host/hatch_seam_test
 # force -DPBL_HEALTH everywhere else.
 cc $CFLAGS -DWW_RAIN_RADAR -DWW_VIEW_CYCLE -DWW_ON_DEMAND test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test
 build/host/status_bar_test
+# emery: bars 4 to 6 are three more of them (STATUS_BAR_COUNT == 6).
+cc $CFLAGS -DWW_RAIN_RADAR -DWW_VIEW_CYCLE -DWW_ON_DEMAND -DPBL_PLATFORM_EMERY test/c/status_bar_test.c \
+   src/c/layers/status_bar.c -o build/host/status_bar_test_emery
+build/host/status_bar_test_emery
 cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
    test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test_aplite
 build/host/status_bar_test_aplite
@@ -275,3 +285,12 @@ build/host/radar_limit_test
 cc $CFLAGS test/c/radar_notice_persist_test.c src/c/appendix/persist.c \
    -o build/host/radar_notice_persist_test
 build/host/radar_notice_persist_test
+# Where the status lines live in flash: the first four side by side, bars 4 to 6's lines and
+# On demand cells in the slots appended for them (emery). Built for emery, with On demand
+# (whose accessors the cells ride), and plain.
+cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR -DWW_ON_DEMAND test/c/status_line_persist_test.c \
+   src/c/appendix/persist.c -o build/host/status_line_persist_test_emery
+build/host/status_line_persist_test_emery
+cc $CFLAGS test/c/status_line_persist_test.c src/c/appendix/persist.c \
+   -o build/host/status_line_persist_test
+build/host/status_line_persist_test

@@ -94,6 +94,21 @@ test('a custom layout keeps the views 2.5 drew: a Radar bar its radar mode hid s
   assert.equal(r.send, true);
 });
 
+test('a custom layout keeps the views 2.5 drew: a Health bar its health mode hid stays hidden', () => {
+  // 2.5 folded the Health bar outside healthMode 'status' and 'all'; since 3.0 the compiler
+  // keeps it (a status bar like the others), so the move stores what 2.5 drew.
+  const S = seeded({ layoutPreset: 'custom', customLayoutSeeded: true, radarMode: 'graph', healthMode: 'slot',
+    viewCount: '2', viewTop1: 'none', viewBody1: 'forecast', viewUpper1: 'health', viewLower1: 'weather',
+    viewOrder1: 'TACB', viewClockOff1: false });
+  const drawn = legacyCycle(S).map((v) => vc.packWire(v || null));
+  const r = migrateToScreens(S, { knownPlatform: 'basalt' });
+  assert.equal(S.viewUpper1, 'weather', 'the forecast bar took the upper seat, as on 2.5');
+  assert.equal(S.viewLower1, 'off');
+  assert.deepEqual(words(S, 'basalt').slice(0, 2), drawn);
+  assert.equal(S.healthMode, 'slot', 'the mode it had: nothing on the screens tells');
+  assert.equal(r.send, true, 'the current compiler would have kept the bar: a send is due');
+});
+
 test('a custom layout keeps the views 2.5 drew: a graph its health mode folded stays folded', () => {
   const S = seeded({ layoutPreset: 'custom', customLayoutSeeded: true, radarMode: 'graph', healthMode: 'status',
     viewCount: '2', viewTop1: 'none', viewBody1: 'health', viewUpper1: 'health', viewLower1: 'off',

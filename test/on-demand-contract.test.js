@@ -11,6 +11,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const OD = require('../src/pkjs/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
+const { cEnum } = require('./helpers/c-source.js');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -22,17 +23,6 @@ const C_ITEMS = {
   battery: 'OD_BATTERY', bt: 'OD_BLUETOOTH', qt: 'OD_QUIET_TIME', snooze: 'OD_SLEEP',
   rain: 'OD_RAIN', gust: 'OD_GUST', uv: 'OD_UV', aqi: 'OD_AQI', pollen: 'OD_POLLEN', wind: 'OD_WIND'
 };
-
-/**
- * @param {string} src C source text.
- * @param {string} name Enum constant.
- * @returns {number} its explicit value
- */
-function cEnum(src, name) {
-  const m = src.match(new RegExp('\\b' + name + '\\s*=\\s*(\\d+)'));
-  assert.ok(m, name + ' has no explicit value');
-  return Number(m[1]);
-}
 
 test('ITEMS is the watch\'s OdItem order (the priority and the cell order)', () => {
   assert.equal(Object.keys(C_ITEMS).length, OD.ITEMS.length);
@@ -46,12 +36,30 @@ test('the cell layout: a byte per item from byte 38, 2 bits per bar, 1 left / 2 
   assert.equal(cEnum(onDemandH, 'OD_SIDE_NONE'), 0);
   assert.equal(cEnum(onDemandH, 'OD_SIDE_LEFT'), OD.SIDES.indexOf('left') + 1);
   assert.equal(cEnum(onDemandH, 'OD_SIDE_RIGHT'), OD.SIDES.indexOf('right') + 1);
-  OD.BARS.forEach((b, i) => {
+  OD.BLOB_BARS.forEach((b, i) => {
     assert.equal(cEnum(thresholdH, 'THRESH_BAR_' + b.bar.toUpperCase()), i, b.bar + ' is ThreshBar ' + i);
   });
+  assert.equal(OD.BLOB_BARS.length, 4, 'the blob\'s cell bytes hold four bars');
+  assert.match(thresholdH, /#define THRESH_BAR_COUNT 4\b/);
   assert.match(thresholdH, /#define THRESH_ON_DEMAND_OFFSET 38\b/);
   assert.match(thresholdC, /\(blob\[THRESH_ON_DEMAND_OFFSET \+ item\] >> \(2 \* bar\)\) & 3/,
     'the watch reads the cell at bits 2 * bar of byte 38 + item');
+});
+
+// Bars 4 to 6 (Pebble Time 2): their cells ride a second array (CLAY_OD_EXTRA_UINT8), one byte
+// per item behind the blob in the row's scratch, 2 bits per bar from bar 4 at bits 0-1.
+test('bars 4 to 6: ThreshBar 4 to 6, their cells behind the blob, 2 bits per bar from bit 0', () => {
+  const extra = OD.EXTRA_BARS;
+  assert.deepEqual(extra.map((b) => b.bar), ['bar4', 'bar5', 'bar6']);
+  assert.deepEqual(OD.BARS.slice(0, 4), OD.BLOB_BARS, 'after the blob\'s four, in ThreshBar order');
+  extra.forEach((b, i) => {
+    assert.equal(cEnum(thresholdH, 'THRESH_BAR_' + (i + 4)), i + 4, b.bar + ' is ThreshBar ' + (i + 4));
+  });
+  assert.match(thresholdH, /#define THRESH_EXTRA_BAR_COUNT 3\b/);
+  assert.match(thresholdH, /#define THRESH_OD_EXTRA_BYTES OD_ITEM_COUNT\b/);
+  assert.match(thresholdC,
+    /\(blob\[THRESH_SETTINGS_BYTES \+ item\] >> \(2 \* \(bar - THRESH_BAR_4\)\)\) & 3/,
+    'the watch reads bar 4 to 6\'s cell behind the blob, at bits 2 * (bar - 4)');
 });
 
 test('the compiled Watch Status Bar defaults are the phone\'s DEFAULTS', () => {

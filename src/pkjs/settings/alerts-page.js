@@ -31,6 +31,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // item's warn level — the phone's own reading.
     var onDemand = (typeof require !== 'undefined')
         ? require('../on-demand.js') : window.OnDemand;
+    // The bars' names (screens.js barName: the user's, else the kind's).
+    var screens = (typeof require !== 'undefined') ? require('../screens.js') : window.Screens;
     var rangeOf = PConf.thresholdLevels.rangeOf;
     var levelDots = PConf.thresholdLevels.levelDots;
 
@@ -53,9 +55,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var NOT_PLACED = 'Not in any status bar';
     /**
      * Where an alert shows, for its Alerts-tab row: each bar edge it sits on, in the
-     * page's bar order — "Watch Status Bar, left", "Watch Status Bar, left · Forecast Status
-     * Bar, right" — read the way the watch places it (on-demand.js sideOf: a tick on a bar
-     * that exists).
+     * page's bar order, by the bar's name — "Watch bar, left", "Watch bar, left · Forecast
+     * bar, right" — read the way the watch places it (on-demand.js sideOf: a tick on a bar
+     * that exists). The names are the user's, so they are escaped: the engine prints a hint
+     * as raw HTML.
      * @param {Object} S Live settings state.
      * @param {string} code An on-demand.js ITEMS code.
      * @param {Object} env Platform env.
@@ -65,7 +68,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var out = [];
         onDemand.PAGE_BARS.forEach(function (b) {
             var side = onDemand.sideOf(S || {}, b.bar, code, env);
-            if (side) { out.push(b.name + ', ' + side); }
+            if (side) { out.push(PConf.engine.esc(screens.barName(S, b.bar)) + ', ' + side); }
         });
         return out.join(' · ');
     }
@@ -112,7 +115,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * The Alerts-tab row's summary for a metric alert: "Not in any status bar" while its
      * item is ticked on no bar, else the kind's levels and where it shows, e.g. "Warn 40
-     * kph · Danger 60 kph · Forecast Status Bar, right" (args.levelsOnly: the levels alone, for
+     * kph · Danger 60 kph · Forecast bar, right" (args.levelsOnly: the levels alone, for
      * a slot dialog's row). The pair is the resolved one (the stored pair, else the seed — what the
      * watch judges with), in the unit the kind's slider shows, so the row reads the
      * numbers its sheet opens on. A Days other than the default follows by the label its
@@ -234,27 +237,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var meta = {keys: onDemand.SIDES.map(function (side) { return onDemand.itemsKey(bar, side); })};
             if (inert || reason) { meta.disabled = true; }
             if (reason) { meta.desc = reason; }
-            out.push([b.name, bar, meta]);
+            out.push([screens.barName(S, bar), bar, meta]);
         });
         return out;
     }
 
     /**
-     * Why a bar is not drawn, for its inert Shows on row: no screen shows it. null for a bar
-     * this watch cannot draw at all (no row then).
+     * Why a bar is not drawn, for its inert Shows on row: no screen shows it, by its name. null
+     * for a bar this watch cannot draw at all, and a bar 4 to 6 not made (no row then: screens.js
+     * offered).
      * @param {Object} S Live settings state.
      * @param {string} bar An on-demand.js BARS bar.
      * @param {Object} env Platform env.
      * @returns {?string} The reason.
      */
     function barOffReason(S, bar, env) {
-        if (bar === 'radar') {
-            return (env && env.radar === false) ? null : 'No screen shows the Radar bar';
-        }
-        if (bar === 'health') {
-            return (env && env.health === false) ? null : 'No screen shows the Health bar';
-        }
-        return null;
+        var kind = screens.KIND_OF_BAR[bar];
+        return kind && screens.offered(kind, S, env) ? 'No screen shows ' + screens.barName(S, bar) : null;
     }
     PConf.optionsResolvers.register('onDemandBars', onDemandBars);
 

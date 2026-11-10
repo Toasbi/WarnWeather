@@ -111,17 +111,23 @@ test('the rain look wire values are in lockstep with ThreshRainDisplay', () => {
 
 // The status bars: the phone's On demand bars (on-demand.js BARS) and the watch's
 // ThreshBar share one order, which is the order of the 2-bit cells in every On demand
-// cell byte.
+// cell byte: the blob's for the first four (BLOB_BARS), CLAY_OD_EXTRA_UINT8's for bars 4
+// to 6 (Pebble Time 2, test/extra-bars-contract.test.js).
 test('the bars are in lockstep with ThreshBar', () => {
   const OD = require('../src/pkjs/on-demand.js');
   assert.equal(wire.BATTERY_OFFSET, 35);
   assert.equal(wire.WARN_LOOK_OFFSET, wire.BATTERY_OFFSET + 1, 'the warn-look bytes follow it');
-  assert.deepEqual(OD.BARS.map(b => b.bar), ['top', 'forecast', 'radar', 'health']);
+  assert.deepEqual(OD.BLOB_BARS.map(b => b.bar), ['top', 'forecast', 'radar', 'health']);
+  assert.deepEqual(OD.BARS.map(b => b.bar), ['top', 'forecast', 'radar', 'health', 'bar4', 'bar5', 'bar6']);
   assert.equal(cEnum('THRESH_BAR_TOP'), 0);
   assert.equal(cEnum('THRESH_BAR_FORECAST'), 1);
   assert.equal(cEnum('THRESH_BAR_RADAR'), 2);
   assert.equal(cEnum('THRESH_BAR_HEALTH'), 3);
-  assert.equal(OD.BARS.length, cDefine('THRESH_BAR_COUNT'));
+  assert.equal(cEnum('THRESH_BAR_4'), 4);
+  assert.equal(cEnum('THRESH_BAR_5'), 5);
+  assert.equal(cEnum('THRESH_BAR_6'), 6);
+  assert.equal(OD.BLOB_BARS.length, cDefine('THRESH_BAR_COUNT'));
+  assert.equal(OD.BARS.length - OD.BLOB_BARS.length, cDefine('THRESH_EXTRA_BAR_COUNT'));
   // The C side refuses to compile a layout where the bytes drift apart.
   assert.match(header, /_Static_assert\(THRESH_BATTERY_OFFSET == THRESH_ALERTS_OFFSET \+ 1/);
 });

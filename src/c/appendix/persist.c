@@ -3,6 +3,7 @@
 #include "persist.h"
 #include "config.h"
 #include "status_line.h"
+#include "graph_style.h"
 #include "theme.h"
 
 #define TREND_ENCODING_VERSION_CURRENT 2
@@ -119,7 +120,30 @@ enum key {
     // bool above, whose slot stays listed (append-only) and is never read again: a
     // notice that was up across the upgrade comes back with the source's next answer.
     // Radar-only, so aplite never reads or writes it (the radar callers drop out there).
-    RADAR_NOTICE                  // 58 — <= RADAR_NOTICE_BUF_BYTES text + NUL, absent = no notice
+    RADAR_NOTICE,                 // 58 — <= RADAR_NOTICE_BUF_BYTES text + NUL, absent = no notice
+    // Appended: the graph styles' records (CLAY_GRAPH_STYLE_1..3_UINT8, layout in
+    // graph_style.h), stored as sent while a screen shows a style other than the first,
+    // absent otherwise (every screen then draws the look the other tuples carry). emery
+    // only, so no other platform reads or writes them, but the IDs stay listed on every
+    // platform: the enum is append-only because the numbers are the on-flash slots.
+    GRAPH_STYLE_1,                // 59 — <= GRAPH_STYLE_MAX_BYTES, absent = no record
+    GRAPH_STYLE_2,                // 60 — likewise
+    GRAPH_STYLE_3,                // 61 — likewise
+    // Appended: the graph styles' spare trend (series.h SERIES_SPARE,
+    // SPARE_LINE_TREND_UINT8), the fifth metric row the shown styles' lines share while
+    // they draw five series between them. Existence-keyed like the THIRD..FIFTH trends:
+    // a weather message without it deletes it. emery only, listed everywhere (append-only).
+    SPARE_LINE_TREND,             // 62 — uint8 trend bytes, absent = no spare row
+    // Appended: bars 4 to 6's packed lines (STATUS_LINE_5..7_UINT8, status_line.h
+    // STATUS_LINE_BAR4..6), stored like STATUS_LINE_1..4 but after every other key, so a
+    // line id past the Health bar's maps here (status_line_key below), not onto
+    // STATUS_LINE_1 + id. emery only, listed everywhere (append-only).
+    STATUS_LINE_5,                // 63 — packed line blob, bar 4
+    STATUS_LINE_6,                // 64 — bar 5
+    STATUS_LINE_7,                // 65 — bar 6
+    // Appended: bars 4 to 6's On demand cells (CLAY_OD_EXTRA_UINT8, layout in
+    // status_threshold.h), stored as sent. emery only, listed everywhere (append-only).
+    OD_EXTRA_CELLS                // 66 — OD_ITEM_COUNT bytes, absent = nothing ticked
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -181,7 +205,8 @@ static bool write_sized_data_if_changed(const uint32_t key, const void *data,
     return true;
 }
 
-#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND) || defined(WW_THRESHOLD_HIGHLIGHT)
+#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND) || defined(WW_THRESHOLD_HIGHLIGHT) \
+    || defined(PBL_PLATFORM_EMERY)
 // A blob stored only while it has content (the radar's sky rows, the weather alert
 // entries): a read gives its bytes, 0 while it is absent; an empty write deletes it.
 // The thresholds blob is read the same way.
@@ -192,7 +217,7 @@ static int read_present_blob(const uint32_t key, uint8_t *out, const size_t cap)
 }
 #endif
 
-#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND)
+#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND) || defined(PBL_PLATFORM_EMERY)
 static bool write_present_blob(const uint32_t key, const uint8_t *data, const size_t len) {
     if (len == 0) {
         if (!persist_exists(key)) { return false; }
@@ -261,6 +286,9 @@ bool persist_series_present(SeriesId id) {
         case SERIES_FOURTH: return persist_exists(FOURTH_LINE_TREND);
         case SERIES_FIFTH:  return persist_exists(FIFTH_LINE_TREND);
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+        case SERIES_SPARE:  return persist_exists(SPARE_LINE_TREND);   // emery: graph styles
+#endif
         case SERIES_BARS:   return persist_get_bar_count() > 0;
         default:            return false;  // FIRST: caller uses num_entries > 0
     }
@@ -275,6 +303,9 @@ int persist_series_trend(SeriesId id, int16_t *out, size_t n) {
         case SERIES_FOURTH: return read_trend_widened(FOURTH_LINE_TREND, out, n);
         case SERIES_FIFTH:  return read_trend_widened(FIFTH_LINE_TREND, out, n);
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+        case SERIES_SPARE:  return read_trend_widened(SPARE_LINE_TREND, out, n);   // emery
+#endif
         case SERIES_BARS:   return persist_get_bar_trend(out, n);
         default:            return 0;
     }
@@ -287,6 +318,9 @@ bool persist_series_set_trend(SeriesId id, uint8_t *data, size_t size) {
 #if defined(WW_LINE_STYLE)
         case SERIES_FOURTH: return set_existence_keyed_trend(FOURTH_LINE_TREND, data, size);
         case SERIES_FIFTH:  return set_existence_keyed_trend(FIFTH_LINE_TREND, data, size);
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+        case SERIES_SPARE:  return set_existence_keyed_trend(SPARE_LINE_TREND, data, size);   // emery
 #endif
         case SERIES_BARS:   return persist_set_bar_trend(data, size);
         default:            return false;  // FIRST/temp is handled bespoke
@@ -469,16 +503,27 @@ bool persist_set_radar_palette(uint8_t *data, const size_t size) {
     return write_data_if_changed(RADAR_PALETTE, data, size * sizeof(uint8_t));
 }
 
+// The persist slot of a status line: the first four sit side by side from STATUS_LINE_1,
+// bars 4 to 6 (emery) after every other key, from STATUS_LINE_5. The caller has checked
+// line_id < STATUS_LINE_COUNT.
+static uint32_t status_line_key(uint8_t line_id) {
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6's lines were appended long after the first four's slots.
+    if (line_id >= STATUS_LINE_BAR4) { return STATUS_LINE_5 + (line_id - STATUS_LINE_BAR4); }
+#endif
+    return STATUS_LINE_1 + line_id;
+}
+
 int persist_get_status_line(uint8_t line_id, uint8_t *buffer, size_t buffer_size) {
     if (line_id >= STATUS_LINE_COUNT) { return 0; }
-    uint32_t key = STATUS_LINE_1 + line_id;
+    uint32_t key = status_line_key(line_id);
     if (!persist_exists(key)) { return 0; }
     return persist_read_data(key, (void*) buffer, buffer_size);
 }
 
 bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len) {
     if (line_id >= STATUS_LINE_COUNT || len > STATUS_LINE_MAX_BYTES) { return false; }
-    return write_sized_data_if_changed(STATUS_LINE_1 + line_id, data, len);
+    return write_sized_data_if_changed(status_line_key(line_id), data, len);
 }
 
 bool persist_set_notice_text(const char *text) {
@@ -584,6 +629,20 @@ bool persist_set_radar_notice(const char *text) {
     return write_bounded_text(RADAR_NOTICE, text, RADAR_NOTICE_BUF_BYTES);
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the records ride write_present_blob's compare buffer (write_sized_data_if_changed).
+_Static_assert(GRAPH_STYLE_MAX_BYTES <= STATUS_LINE_MAX_BYTES,
+               "a graph style record must fit the sized blob compare buffer");
+
+int persist_get_graph_style(uint8_t k, uint8_t *buffer, size_t cap) {
+    return k < GRAPH_STYLE_COUNT ? read_present_blob(GRAPH_STYLE_1 + k, buffer, cap) : 0;
+}
+
+bool persist_set_graph_style(uint8_t k, const uint8_t *data, size_t len) {
+    return k < GRAPH_STYLE_COUNT && write_present_blob(GRAPH_STYLE_1 + k, data, len);
+}
+#endif
+
 time_t persist_get_rain_radar_start() {
     return (time_t) persist_read_int(RAIN_RADAR_START);
 }
@@ -647,8 +706,8 @@ void persist_migrate_status_line_encoding(void) {
     // Unknown/old encoding: drop only the line blobs, and force the startup
     // handshake to report forecast data missing so the phone resends the
     // weather bundle (which now carries the lines).
-    for (uint32_t key = STATUS_LINE_1; key <= STATUS_LINE_4; key++) {
-        persist_delete(key);
+    for (uint8_t line = 0; line < STATUS_LINE_COUNT; line++) {
+        persist_delete(status_line_key(line));
     }
     persist_delete(FORECAST_START);
     persist_write_int(STATUS_LINE_ENCODING_VERSION, STATUS_LINE_ENCODING_VERSION_CURRENT);
@@ -768,6 +827,17 @@ bool persist_set_alert_entries(const uint8_t *data, size_t len) {
     // No alert active = no slot (the radar-sky convention): an empty send deletes.
     return write_present_blob(ALERT_ENTRIES, data, len);
 }
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: bars 4 to 6's On demand cells (status_threshold.h THRESH_OD_EXTRA_BYTES).
+int persist_get_od_extra_cells(uint8_t *out, size_t cap) {
+    return out ? read_present_blob(OD_EXTRA_CELLS, out, cap) : 0;
+}
+
+bool persist_set_od_extra_cells(const uint8_t *data, size_t len) {
+    return write_present_blob(OD_EXTRA_CELLS, data, len);
+}
+#endif
 #endif  // WW_ON_DEMAND
 
 #if defined(WW_CURVE_INSET)

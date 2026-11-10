@@ -16,6 +16,24 @@ var TOP_KIND_FORECAST = 0, TOP_KIND_HEALTH = 1;
 var BODY_FC = 0, BODY_GRAPH = 1, BODY_RADAR = 2, BODY_NONE = 3;
 // Positional status sources: which content feeds the upper/lower status row.
 var STATUS_SRC_NONE = 0, STATUS_SRC_FORECAST = 1, STATUS_SRC_RADAR = 2, STATUS_SRC_HEALTH = 3;
+// Bars 4 to 6 (Pebble Time 2, 3.0.0's New status bar; src/c/windows/layout.h StatusSource): the
+// packed value's 2-bit row fields are full, so a row names one as FORECAST / RADAR / HEALTH
+// there plus an ext bit that adds 3 (packExt: bit 11 the upper row, bit 12 the lower).
+var STATUS_SRC_BAR4 = 4, STATUS_SRC_BAR5 = 5, STATUS_SRC_BAR6 = 6;
+var EXT_UPPER_BAR_HI = 1 << 11, EXT_LOWER_BAR_HI = 1 << 12;
+// Each of them: the value a screen's row names it by (viewUpper / viewLower), its source and
+// its settings keys' prefix (statusBar4Left, statusBar4Name, statusBar4Made, ...;
+// on-demand.js BARS and status-line-catalog.js EXTRA_LINES take them from here). A bar
+// exists once New status bar made it (<prefix>Made true), on a watch that has them (env.extraBars).
+var EXTRA_BARS = [
+  { bar: 'bar4', src: STATUS_SRC_BAR4, prefix: 'statusBar4' },
+  { bar: 'bar5', src: STATUS_SRC_BAR5, prefix: 'statusBar5' },
+  { bar: 'bar6', src: STATUS_SRC_BAR6, prefix: 'statusBar6' }
+];
+// Each status source's bar (on-demand.js BARS' ids), by its STATUS_SRC_* value: THE table every
+// reader of a view's rows names its bars by (barsIn, the page's previews and gates).
+var BAR_OF_SRC = ['', 'forecast', 'radar', 'health'];
+EXTRA_BARS.forEach(function (b) { BAR_OF_SRC[b.src] = b.bar; });
 
 // Band size codes (the ext word's topSize / bodySize fields — one vocabulary for both
 // seats, mirroring BandSize in src/c/windows/layout.h). 0 = the seat's default: 3 rows
@@ -26,6 +44,32 @@ var SIZE_CODE = { '2': SIZE_2, '3': SIZE_3, '4': SIZE_4, fill: SIZE_FILL };
 // 0 = the clock's ink centred on the screen midline (Middle when the view has no clock).
 var ALIGN_CLOCK = 0, ALIGN_TOP = 1, ALIGN_CENTER = 2, ALIGN_BOTTOM = 3;
 var ALIGN_CODE = { clock: ALIGN_CLOCK, top: ALIGN_TOP, center: ALIGN_CENTER, bottom: ALIGN_BOTTOM };
+// A screen's graph style (the viewStyle key: '1' to '6', Pebble Time 2,
+// src/pkjs/graph-styles.js MAX_STYLES) → the spec's graphStyle field, the style's index: '1',
+// the first style, is none. A screen added from a template draws the template's own graph
+// instead, one of three after the six (graph-styles.js TEMPLATE GRAPHS): 't1' to 't3', indices
+// 6 to 8. The view word carries the watch's slot for it instead (0..2, ext bits 9-10), which
+// graph-styles.js wireCycle writes into the specs the watch is sent.
+var GRAPH_STYLES = 6;
+var GRAPH_TEMPLATES = 3;
+var GRAPH_STYLE_CODE = {};
+(function () {
+  for (var k = 1; k < GRAPH_STYLES; k++) { GRAPH_STYLE_CODE[String(k + 1)] = k; }
+  for (var n = 0; n < GRAPH_TEMPLATES; n++) { GRAPH_STYLE_CODE['t' + (n + 1)] = GRAPH_STYLES + n; }
+})();
+
+/**
+ * A graph style's viewStyle value (GRAPH_STYLE_CODE's inverse): '1' to '6' for the styles,
+ * 't1' to 't3' for the template graphs.
+ * @param {number} k A style index (0 or absent: the first).
+ * @returns {string}
+ */
+function styleCode(k) {
+  return k >= GRAPH_STYLES ? 't' + (k - GRAPH_STYLES + 1) : String((k || 0) + 1);
+}
+// The view word's codes for the watch's style slots (layout.h view_ext_graph_style: code 3
+// reads as the first).
+var GRAPH_STYLE_SLOTS = 3;
 
 /**
  * Build a view spec object.
@@ -43,7 +87,7 @@ function spec(tier, top, body, statusUpper, statusLower) {
 
 /**
  * Clone a spec, preserving the custom-layout fields (clockOff/stripOff/order and the
- * ext word's topKind/topSize/bodySize/align) that the 5-arg spec() builder does not
+ * ext word's topKind/topSize/bodySize/align/graphStyle) that the 5-arg spec() builder does not
  * carry. Every cycle transform MUST clone through this helper — cloning via spec()
  * silently drops them (pinned by a test).
  * Canonical form: the fields are attached only when set (absent === off/0), so the
@@ -52,7 +96,7 @@ function spec(tier, top, body, statusUpper, statusLower) {
  * @param {{tier:number,top:number,body:number,statusUpper:number,statusLower:number,
  *          clockOff:(boolean|undefined),stripOff:(boolean|undefined),order:(number|undefined),
  *          topKind:(number|undefined),topSize:(number|undefined),bodySize:(number|undefined),
- *          align:(number|undefined)}} s
+ *          align:(number|undefined),graphStyle:(number|undefined)}} s
  * @returns {!Object} an independent copy with the same canonical fields
  */
 function cloneSpec(s) {
@@ -64,7 +108,67 @@ function cloneSpec(s) {
   if (s.topSize) { out.topSize = s.topSize; }
   if (s.bodySize) { out.bodySize = s.bodySize; }
   if (s.align) { out.align = s.align; }
+  if (s.graphStyle) { out.graphStyle = s.graphStyle; }
   return out;
+}
+
+/**
+ * @param {string} bar A bar id.
+ * @returns {?{bar: string, src: number, prefix: string}} its EXTRA_BARS entry, null for any
+ *   other bar
+ */
+function extraBar(bar) {
+  for (var i = 0; i < EXTRA_BARS.length; i++) {
+    if (EXTRA_BARS[i].bar === bar) { return EXTRA_BARS[i]; }
+  }
+  return null;
+}
+
+/**
+ * Whether New status bar made a bar 4 to 6 (its <prefix>Made is true). THE reading of "the bar is one
+ * of yours", whatever the watch: the compiler (rowSource), the bake (status-lines.js) and the
+ * page ask it.
+ * @param {?Object} S Settings.
+ * @param {string} bar 'bar4' | 'bar5' | 'bar6'
+ * @returns {boolean} false for any other bar
+ */
+function barMade(S, bar) {
+  var b = extraBar(bar);
+  return Boolean(b && S && S[b.prefix + 'Made'] === true);
+}
+
+/**
+ * Whether a bar 4 to 6 is on the watch: made, on a watch that has them (env.extraBars; an
+ * unknown watch has three bars, platform.js). An omitted env is capable, as on-demand.js
+ * facts reads one (the render signature's and the tests' reading); every wire path passes
+ * the watch's.
+ * @param {?Object} S Settings.
+ * @param {string} bar 'bar4' | 'bar5' | 'bar6'
+ * @param {?Object} [env] Platform env (omitted = capable).
+ * @returns {boolean}
+ */
+function extraBarOn(S, bar, env) {
+  return (!env || env.extraBars === true) && barMade(S, bar);
+}
+
+/**
+ * The bar a status row draws.
+ * @param {number} src STATUS_SRC_* value.
+ * @returns {?string} 'forecast' | 'radar' | 'health' | 'bar4' | 'bar5' | 'bar6', null for an
+ *   off row
+ */
+function barOfSource(src) {
+  return BAR_OF_SRC[src] || null;
+}
+
+/**
+ * A row's status source in the packed value's 2-bit field: a bar 4 to 6 rides as the first
+ * three's plus 3 (EXT_*_BAR_HI carries the rest).
+ * @param {number} src STATUS_SRC_* value.
+ * @returns {number} 0..3
+ */
+function srcBits(src) {
+  return (src > STATUS_SRC_HEALTH ? src - 3 : src) & 3;
 }
 
 /**
@@ -75,7 +179,8 @@ function cloneSpec(s) {
  * pack to the same 10-bit value as pre-custom builds (pinned by a test); Weather only's
  * Default view sets stripOff + order 1.
  * Values with bit 15 set exceed 0x7FFF and ride the AppMessage int16 as negative;
- * the watch recovers all 16 bits via its (uint16_t) cast (config_wire.c).
+ * the watch recovers all 16 bits via its (uint16_t) cast (config_wire.c). A bar 4 to 6
+ * packs as the first three's source (srcBits); its ext bit is packExt's.
  * @param {?{tier:number,top:number,body:number,statusUpper:number,statusLower:number,
  *           clockOff:(boolean|undefined),stripOff:(boolean|undefined),order:(number|undefined)}} s
  * @returns {number} uint16
@@ -83,7 +188,7 @@ function cloneSpec(s) {
 function packSpec(s) {
   if (!s) { return 0; }
   return ((s.tier & 3) << 8) | ((s.top & 3) << 6) | ((s.body & 3) << 4)
-       | ((s.statusUpper & 3) << 2) | (s.statusLower & 3)
+       | (srcBits(s.statusUpper) << 2) | srcBits(s.statusLower)
        | ((s.clockOff ? 1 : 0) << 10) | ((s.stripOff ? 1 : 0) << 11)
        | ((s.order & 15) << 12);
 }
@@ -111,9 +216,12 @@ function unpackSpec(v) {
  * sizes → 0; explicit fill on the body and 3 rows on the top → 0 (their seat defaults);
  * sizes only on a radar/graph top and on a present body; topKind only on a graph top;
  * one fill per view (both → the body fills, the top takes its 3-row default); align only
- * while no band fills.
+ * while no band fills; a graph style (Pebble Time 2, src/pkjs/graph-styles.js) only on a view
+ * with a forecast graph, the style's index 1 to 5 (0 = the first style), or once wireCycle has
+ * put the watch's slot there, 1 or 2 (packExt sends a slot only).
  * @param {!Object} s view spec
- * @returns {{topKind:number,topSize:number,bodySize:number,align:number,fill:boolean}}
+ * @returns {{topKind:number,topSize:number,bodySize:number,align:number,graphStyle:number,
+ *            fill:boolean}}
  */
 function extFields(s) {
   var topKind = (s.topKind || 0) & 1;
@@ -128,22 +236,33 @@ function extFields(s) {
   if (bodyFills && topSize === SIZE_FILL) { topSize = SIZE_DEFAULT; }
   var fill = bodyFills || topSize === SIZE_FILL;
   if (fill) { align = ALIGN_CLOCK; }
-  return { topKind: topKind, topSize: topSize, bodySize: bodySize, align: align, fill: fill };
+  var forecastGraph = s.body === BODY_FC || (s.top === TOP_GRAPH && topKind === TOP_KIND_FORECAST);
+  var graphStyle = s.graphStyle || 0;
+  if (!(graphStyle > 0 && graphStyle < GRAPH_STYLES + GRAPH_TEMPLATES) || !forecastGraph) { graphStyle = 0; }
+  return { topKind: topKind, topSize: topSize, bodySize: bodySize, align: align,
+           graphStyle: graphStyle, fill: fill };
 }
 
 /**
  * Pack a spec's ext fields into the 16-bit ext word — the HIGH half of the 32-bit
  * CLAY_VIEW_n tuple (the watch's config_wire.c reads it off the int32; aplite ignores
- * it). Bit layout (LSB→MSB): bodySize(0-2) | topSize(3-5) | topKind(6) | align(7-8);
- * 9-15 reserved (bit 15 stays clear so the whole wire word stays a positive int32).
+ * it). Bit layout (LSB→MSB): bodySize(0-2) | topSize(3-5) | topKind(6) | align(7-8) |
+ * graphStyle(9-10, Pebble Time 2: layout.h view_ext_graph_style, the watch's slot: a spec
+ * still naming a style past the slots packs the first, graph-styles.js wireCycle maps them)
+ * | the upper row a bar 4 to
+ * 6 (11) | the lower row one (12) (Pebble Time 2: layout.h VIEW_EXT_UPPER_BAR_HI);
+ * 13-15 reserved (bit 15 stays clear so the whole wire word stays a positive int32).
  * Every field is 0 in its seat's default, so a preset (no fields) packs to 0.
  * @param {?Object} s view spec (null = disabled slot)
- * @returns {number} 0..0x1FF
+ * @returns {number} 0..0x1FFF
  */
 function packExt(s) {
   if (!s) { return 0; }
   var e = extFields(s);
-  return (e.bodySize & 7) | ((e.topSize & 7) << 3) | ((e.topKind & 1) << 6) | ((e.align & 3) << 7);
+  return (e.bodySize & 7) | ((e.topSize & 7) << 3) | ((e.topKind & 1) << 6) | ((e.align & 3) << 7)
+       | ((e.graphStyle < GRAPH_STYLE_SLOTS ? e.graphStyle : 0) << 9)
+       | (s.statusUpper > STATUS_SRC_HEALTH ? EXT_UPPER_BAR_HI : 0)
+       | (s.statusLower > STATUS_SRC_HEALTH ? EXT_LOWER_BAR_HI : 0);
 }
 
 /**
@@ -172,6 +291,11 @@ function unpackWire(v) {
   if ((ext >> 3) & 7) { s.topSize = (ext >> 3) & 7; }
   if ((ext >> 6) & 1) { s.topKind = 1; }
   if ((ext >> 7) & 3) { s.align = (ext >> 7) & 3; }
+  var graphStyle = (ext >> 9) & 3;
+  if (graphStyle === 1 || graphStyle === 2) { s.graphStyle = graphStyle; }
+  // A bar 4 to 6: the row's source plus 3 (a row that is off stays off), as the watch reads it.
+  if ((ext & EXT_UPPER_BAR_HI) && s.statusUpper !== STATUS_SRC_NONE) { s.statusUpper += 3; }
+  if ((ext & EXT_LOWER_BAR_HI) && s.statusLower !== STATUS_SRC_NONE) { s.statusLower += 3; }
   return s;
 }
 
@@ -185,7 +309,7 @@ function unpackWire(v) {
  */
 function canonicalExt(s) {
   var e = extFields(s);
-  var names = ['topKind', 'topSize', 'bodySize', 'align'], j;
+  var names = ['topKind', 'topSize', 'bodySize', 'align', 'graphStyle'], j;
   for (j = 0; j < names.length; j++) {
     if (e[names[j]]) { s[names[j]] = e[names[j]]; } else { delete s[names[j]]; }
   }
@@ -327,10 +451,9 @@ function stackNeed(s, f) {
  * view_spec_resolve, mirrored: without health a health top empties and a health body falls
  * back to the forecast (or empties under a forecast top); without radar a radar top becomes
  * the calendar of its rows (2 → 2-row, else 3-row) and a radar body the forecast; a graph
- * never shows twice; a health row drops without health, and at order 0 a surviving lower
- * row takes the upper seat. The Radar bar stays without radar data (it is a status bar like
- * the others; only the radar GRAPH needs the radar). The order rule stays the configured
- * view's (the watch keeps it).
+ * never shows twice. The status rows always stay: the Radar bar and the Health bar are status
+ * bars like the others and stay without radar or health data (only the GRAPHS need their
+ * data). The order rule stays the configured view's (the watch keeps it).
  * @param {!Object} s compiled view spec
  * @param {boolean} hasRadar
  * @param {boolean} hasHealth
@@ -349,18 +472,6 @@ function resolveForFit(s, hasRadar, hasHealth) {
   if (r.top === TOP_GRAPH && ((!r.topKind && r.body === BODY_FC)
                               || (r.topKind === TOP_KIND_HEALTH && r.body === BODY_GRAPH))) {
     r.body = BODY_NONE;
-  }
-  /** @param {number} src @returns {number} the source, or NONE when its data is missing */
-  function keep(src) {
-    return (src === STATUS_SRC_HEALTH && !hasHealth) ? STATUS_SRC_NONE : src;
-  }
-  var upBefore = r.statusUpper;
-  r.statusUpper = keep(r.statusUpper);
-  r.statusLower = keep(r.statusLower);
-  if (!r.order && upBefore !== STATUS_SRC_NONE && r.statusUpper === STATUS_SRC_NONE
-      && r.statusLower !== STATUS_SRC_NONE) {
-    r.statusUpper = r.statusLower;
-    r.statusLower = STATUS_SRC_NONE;
   }
   return canonicalExt(r);
 }
@@ -381,9 +492,8 @@ function stackFits(s, family) {
   if (!s || !isStacked(s)) { return { fits: true, over: 0 }; }
   var fams = family === 'emery' ? [1] : family ? [0] : [0, 1];
   // Every data state the watch can meet — radar and health present or missing — laid out
-  // the way it folds them (resolveForFit: without radar only the radar graph folds, the
-  // Radar bar stays; without health the health graph and row do): the view must fit in
-  // the worst one.
+  // the way it folds them (resolveForFit: only the graphs fold, the status bars stay): the
+  // view must fit in the worst one.
   var states = [[true, true], [false, true], [true, false], [false, false]];
   var over = 0, j, k, n;
   for (j = 0; j < fams.length; j++) {
@@ -626,20 +736,38 @@ var CUSTOM_SRC = {
   off: STATUS_SRC_NONE, weather: STATUS_SRC_FORECAST,
   radar: STATUS_SRC_RADAR, health: STATUS_SRC_HEALTH
 };
+EXTRA_BARS.forEach(function (b) { CUSTOM_SRC[b.bar] = b.src; });
+// And back: a status source's row value (specToKeys).
+var SRC_NAME = [];
+Object.keys(CUSTOM_SRC).forEach(function (value) { SRC_NAME[CUSTOM_SRC[value]] = value; });
+
+/**
+ * A row's status source (CUSTOM_SRC): a bar 4 to 6 only while it is on the watch
+ * (extraBarOn), else the row is off, as is an unknown value.
+ * @param {Object} S settings state
+ * @param {*} value the row's viewUpper / viewLower value
+ * @param {?Object} [env] platform env
+ * @returns {number} STATUS_SRC_* value
+ */
+function rowSource(S, value, env) {
+  var src = CUSTOM_SRC[value];
+  if (src === undefined) { return STATUS_SRC_NONE; }
+  return (src > STATUS_SRC_HEALTH && !extraBarOn(S, value, env)) ? STATUS_SRC_NONE : src;
+}
 
 // Capability gates, single-sourced: which radarMode/healthMode values unlock each
 // seat kind. THE one copy — buildCustomCycle folds by them, and the modes the page
 // writes are worked out from the screens (screens.js deriveModes), so a seat a screen
 // holds is always unlocked once saved. Mirrors the watch's
 // view_spec_resolve: radar CHART seats (top strip / body) need radarMode 'graph';
-// a health graph body needs healthMode 'all'; a health status source needs
-// 'status'|'all' ('slot' shows health only in the regular slot system, same as the
-// preset MATRIX's bucket rule). The radar status SOURCE (the Radar bar) needs no mode:
-// it is a status bar like the others and the watch draws it without radar data, so a
-// custom view keeps it whatever radarMode says, and capabilities() has no seat for it.
-// RADAR_ROW_MODES stays the PRESETS' fact — the modes whose preset cycles draw the Radar
-// bar (MATRIX's 'r' cycles) — read by the 2.6 migration's 2.5 compile
-// (migrations/screens.js legacyCycle).
+// a health graph body needs healthMode 'all'. The status SOURCES need no mode: the Radar
+// bar and the Health bar are status bars like the others (they hold what their slots
+// hold, 3.0.0's named bars), and the watch draws them without radar or health data, so a
+// custom view keeps them whatever the modes say, and capabilities() has no seat for them.
+// RADAR_ROW_MODES and HEALTH_ROW_MODES stay the PRESETS' facts — the modes whose preset
+// cycles draw the Radar bar (MATRIX's 'r' cycles) and the Health bar (its 'status'/'all'
+// buckets) — read by the 2.6 migration's 2.5 compile (migrations/screens.js legacyCycle,
+// which folds the two bars outside them as 2.5 did).
 var RADAR_CHART_MODES = ['graph'];
 var RADAR_ROW_MODES = ['status', 'graph'];
 var HEALTH_ROW_MODES = ['status', 'all'];
@@ -647,40 +775,38 @@ var HEALTH_BODY_MODES = ['all'];
 
 /**
  * The capability booleans for a settings state — one per seat kind that folds, derived
- * from the mode lists above (reads S.radarMode / S.healthMode). The Radar bar has none:
- * custom views keep it in every mode.
+ * from the mode lists above (reads S.radarMode / S.healthMode). The status bars have none:
+ * custom views keep them in every mode.
  * @param {Object} S settings state
- * @returns {{radarChart:boolean,healthRow:boolean,healthBody:boolean}}
+ * @returns {{radarChart:boolean,healthBody:boolean}}
  */
 function capabilities(S) {
   S = S || {};
   return {
     radarChart: RADAR_CHART_MODES.indexOf(S.radarMode) >= 0,
-    healthRow: HEALTH_ROW_MODES.indexOf(S.healthMode) >= 0,
     healthBody: HEALTH_BODY_MODES.indexOf(S.healthMode) >= 0
   };
 }
 
 // Every seat kind on: how the screens show a custom layout (screensCycle), whatever the
 // modes say, since 2.6 works the modes out from the screens.
-var ALL_CAPABLE = { radarChart: true, healthRow: true, healthBody: true };
+var ALL_CAPABLE = { radarChart: true, healthBody: true };
 
 /**
  * Compile the custom per-view keys into a 1-3 slot cycle. Seats fold by
  * capabilities(S) — the shared gate table above — so the previews and the wire
- * agree with the watch's view_spec_resolve; the Radar bar never folds (the watch
- * draws it without radar data). Under the legacy order a folded-away
- * upper promotes the surviving lower (dense degradation, the watch's rule);
- * explicit stacked orders keep user-placed seats. A flick view left with NOTHING on
- * it (no clock, top band, graph or status row — e.g. its only status bar's source was
- * switched off in settings) compiles to null: a disabled slot the watch skips, instead
- * of a blank screen the flick would stop on.
+ * agree with the watch's view_spec_resolve; the status bars never fold (the watch
+ * draws them without radar or health data). A flick view left with NOTHING on
+ * it (no clock, top band, graph or status row) compiles to null: a disabled slot the
+ * watch skips, instead of a blank screen the flick would stop on.
+ * A row naming a bar 4 to 6 keeps it only while the bar is on the watch (rowSource).
  * @param {Object} S settings state
  * @param {Object} [cap] the seats to keep, in place of capabilities(S) (screensCycle's
  *   ALL_CAPABLE)
+ * @param {?Object} [env] platform env (bars 4 to 6 need env.extraBars; omitted = capable)
  * @returns {Array<?Object>} specs for packWire (length == viewCount, 1-3; null = disabled)
  */
-function buildCustomCycle(S, cap) {
+function buildCustomCycle(S, cap, env) {
   var count = parseInt(S.viewCount, 10);
   if (!(count >= 1 && count <= 3)) { count = 1; }
   cap = cap || capabilities(S);
@@ -695,10 +821,8 @@ function buildCustomCycle(S, cap) {
       : (CUSTOM_TOP[topKey] || CUSTOM_TOP.cal2);
     var body = CUSTOM_BODY[S['viewBody' + i]];
     if (body === undefined) { body = BODY_FC; }
-    var suRaw = CUSTOM_SRC[S['viewUpper' + i]];
-    if (suRaw === undefined) { suRaw = STATUS_SRC_NONE; }
-    var slRaw = CUSTOM_SRC[S['viewLower' + i]];
-    if (slRaw === undefined) { slRaw = STATUS_SRC_NONE; }
+    var su = rowSource(S, S['viewUpper' + i], env);
+    var sl = rowSource(S, S['viewLower' + i], env);
 
     // A radar top without the radar chart falls back to a calendar — the 2-row one for a
     // 2-row radar top (the same height, like the watch's no-data fold), else 3 rows.
@@ -715,18 +839,7 @@ function buildCustomCycle(S, cap) {
                                 || (t.kind === TOP_KIND_HEALTH && body === BODY_GRAPH))) {
       body = BODY_NONE;
     }
-    // A health row folds by healthMode; the Radar bar stays in every radarMode.
-    var su = suRaw, sl = slRaw;
-    if (su === STATUS_SRC_HEALTH && !cap.healthRow) { su = STATUS_SRC_NONE; }
-    if (sl === STATUS_SRC_HEALTH && !cap.healthRow) { sl = STATUS_SRC_NONE; }
-
     var code = orderCode(S['viewOrder' + i] || 'TACB');
-    if (code === 0 && suRaw !== STATUS_SRC_NONE && su === STATUS_SRC_NONE
-        && sl !== STATUS_SRC_NONE) {
-      su = sl;
-      sl = STATUS_SRC_NONE;
-    }
-
     var s = spec(t.tier, t.top, body, su, sl);
     if (t.kind) { s.topKind = t.kind; }
     // The Default view always keeps its clock; any view may drop its top bar.
@@ -743,6 +856,9 @@ function buildCustomCycle(S, cap) {
     if (body === BODY_FC && bs === '2') { bs = '3'; }
     if (SIZE_CODE[ts]) { s.topSize = SIZE_CODE[ts]; }
     if (SIZE_CODE[bs]) { s.bodySize = SIZE_CODE[bs]; }
+    // The forecast graph's style; canonicalExt drops it on a view without one. Whether the
+    // watch draws styles at all, and whether the style exists, graph-styles.js wireCycle says.
+    if (GRAPH_STYLE_CODE[S['viewStyle' + i]]) { s.graphStyle = GRAPH_STYLE_CODE[S['viewStyle' + i]]; }
     canonicalExt(s);
     // Alignment: only while no band fills (the watch zeroes it otherwise), and read
     // with its default so a blob that predates the key compiles to ext 0.
@@ -771,7 +887,6 @@ var BODY_SIZE_NAME = ['fill', '2', '3', '4', 'fill'];
  */
 function specToKeys(cycle) {
   var keys = { viewCount: String(cycle.length) };
-  var srcName = ['off', 'weather', 'radar', 'health'];
   var alignName = ['clock', 'top', 'center', 'bottom'];
   for (var i = 0; i < cycle.length; i++) {
     var s = cycle[i];
@@ -782,8 +897,8 @@ function specToKeys(cycle) {
     keys['viewBody' + i] = (s.body === BODY_GRAPH) ? 'health'
       : (s.body === BODY_RADAR) ? 'radar'
       : (s.body === BODY_NONE) ? 'none' : 'forecast';
-    keys['viewUpper' + i] = srcName[s.statusUpper] || 'off';
-    keys['viewLower' + i] = srcName[s.statusLower] || 'off';
+    keys['viewUpper' + i] = SRC_NAME[s.statusUpper] || 'off';
+    keys['viewLower' + i] = SRC_NAME[s.statusLower] || 'off';
     keys['viewOrder' + i] = STACK_ORDERS[s.order || 0];
     if (i > 0) { keys['viewClockOff' + i] = Boolean(s.clockOff); }
     keys['viewStripOff' + i] = Boolean(s.stripOff);
@@ -792,6 +907,7 @@ function specToKeys(cycle) {
       : (TOP_SIZE_NAME[s.topSize || 0] || '3');
     keys['viewBodySize' + i] = BODY_SIZE_NAME[s.bodySize || 0] || 'fill';
     keys['viewAlign' + i] = alignName[s.align || 0] || 'clock';
+    keys['viewStyle' + i] = styleCode(s.graphStyle);
   }
   return keys;
 }
@@ -855,7 +971,7 @@ function resolvePresetKey(state) {
 function resolveViewCycle(settings, env) {
   var s = settings || {};
   if (s.layoutPreset === 'custom' && !(env && env.platform === 'aplite')) {
-    return buildCustomCycle(s);
+    return buildCustomCycle(s, null, env);
   }
   return buildViewCycle(presetKeyFor(s, env), s.healthMode || 'off', s.radarMode || 'graph',
     Boolean(s.swapClockStatus));
@@ -873,7 +989,7 @@ function resolveViewCycle(settings, env) {
 function screensCycle(settings, env) {
   var s = settings || {};
   if (s.layoutPreset === 'custom' && !(env && env.platform === 'aplite')) {
-    return buildCustomCycle(s, ALL_CAPABLE);
+    return buildCustomCycle(s, ALL_CAPABLE, env);
   }
   return resolveViewCycle(s, env);
 }
@@ -886,7 +1002,8 @@ function screensCycle(settings, env) {
  * barsIn).
  * @param {Object} settings settings state
  * @param {?{platform: string}} [env] platform facts
- * @returns {{top: boolean, forecast: boolean, radar: boolean, health: boolean}}
+ * @returns {{top: boolean, forecast: boolean, radar: boolean, health: boolean, bar4: boolean,
+ *     bar5: boolean, bar6: boolean}}
  */
 function barsShown(settings, env) {
   return barsIn(screensCycle(settings, env));
@@ -895,20 +1012,18 @@ function barsShown(settings, env) {
 /**
  * barsShown over a cycle already compiled by screensCycle.
  * @param {Array<?Object>} cycle the views (null = a screen the watch skips)
- * @returns {{top: boolean, forecast: boolean, radar: boolean, health: boolean}}
+ * @returns {{top: boolean, forecast: boolean, radar: boolean, health: boolean, bar4: boolean,
+ *     bar5: boolean, bar6: boolean}}
  */
 function barsIn(cycle) {
-  var out = { top: false, forecast: false, radar: false, health: false };
+  var out = { top: false };
+  BAR_OF_SRC.forEach(function (bar) { if (bar) { out[bar] = false; } });
   for (var i = 0; i < cycle.length; i++) {
     var v = cycle[i];
     if (!v) { continue; }
     if (!v.stripOff) { out.top = true; }
-    var rows = [v.statusUpper, v.statusLower];
-    for (var r = 0; r < rows.length; r++) {
-      if (rows[r] === STATUS_SRC_FORECAST) { out.forecast = true; }
-      if (rows[r] === STATUS_SRC_RADAR) { out.radar = true; }
-      if (rows[r] === STATUS_SRC_HEALTH) { out.health = true; }
-    }
+    if (barOfSource(v.statusUpper)) { out[barOfSource(v.statusUpper)] = true; }
+    if (barOfSource(v.statusLower)) { out[barOfSource(v.statusLower)] = true; }
   }
   return out;
 }
@@ -943,10 +1058,16 @@ var VIEW_CYCLE = {
   BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR, BODY_NONE: BODY_NONE,
   SIZE_DEFAULT: SIZE_DEFAULT, SIZE_2: SIZE_2, SIZE_3: SIZE_3, SIZE_4: SIZE_4, SIZE_FILL: SIZE_FILL,
   SIZE_CODE: SIZE_CODE, TOP_SIZE_NAME: TOP_SIZE_NAME, BODY_SIZE_NAME: BODY_SIZE_NAME,
+  GRAPH_STYLE_CODE: GRAPH_STYLE_CODE, GRAPH_STYLES: GRAPH_STYLES, GRAPH_TEMPLATES: GRAPH_TEMPLATES,
+  GRAPH_STYLE_SLOTS: GRAPH_STYLE_SLOTS, styleCode: styleCode,
   ALIGN_CLOCK: ALIGN_CLOCK, ALIGN_TOP: ALIGN_TOP, ALIGN_CENTER: ALIGN_CENTER,
   ALIGN_BOTTOM: ALIGN_BOTTOM, ALIGN_CODE: ALIGN_CODE,
   STATUS_SRC_NONE: STATUS_SRC_NONE, STATUS_SRC_FORECAST: STATUS_SRC_FORECAST,
   STATUS_SRC_RADAR: STATUS_SRC_RADAR, STATUS_SRC_HEALTH: STATUS_SRC_HEALTH,
+  STATUS_SRC_BAR4: STATUS_SRC_BAR4, STATUS_SRC_BAR5: STATUS_SRC_BAR5, STATUS_SRC_BAR6: STATUS_SRC_BAR6,
+  EXT_UPPER_BAR_HI: EXT_UPPER_BAR_HI, EXT_LOWER_BAR_HI: EXT_LOWER_BAR_HI,
+  EXTRA_BARS: EXTRA_BARS, extraBar: extraBar, barMade: barMade, extraBarOn: extraBarOn,
+  rowSource: rowSource, barOfSource: barOfSource,
   spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
   packExt: packExt, packWire: packWire, unpackWire: unpackWire, hasFill: hasFill,
   stackFits: stackFits, stackNeed: stackNeed, stackSeats: stackSeats, resolveForFit: resolveForFit, FIT_PX: FIT_PX,

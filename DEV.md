@@ -97,11 +97,6 @@ Capture screenshots for all platforms (replace `v1.4.1` with version):
 mise capture-screenshots v1.4.1
 ```
 
-Capture per-option wizard screenshots (basalt) and inline them (run on the Mac):
-```bash
-mise capture-wizard-screenshots
-```
-
 Capture the curated store configs on every platform (5 configs × 5 platforms):
 ```bash
 scripts/capture-store-shots.sh v1.4.1

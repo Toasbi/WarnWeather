@@ -212,7 +212,7 @@ test('the precip-probability row carries its title and steps its ink with the ch
   const view = charts.prepareView(fixtureData(), NOON);
   const pal = charts.palette(false);
   const temp = charts.tempPanelSvg(view, { temperatureUnits: 'c' }, pal);
-  assert.ok(temp.overlay.indexOf('Precipitation probability') !== -1,
+  assert.ok(temp.overlay.indexOf('Chance of precipitation') !== -1,
     'the row is titled, on the fixed overlay');
   // Fixture: 60% inside 17-23h (a future 3h step lands on 18/21), 10% elsewhere.
   const probSize = Number(/font-size="([\d.]+)"[^>]*>60%</.exec(temp.main)[1]);

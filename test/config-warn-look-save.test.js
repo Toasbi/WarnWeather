@@ -83,13 +83,7 @@ function openAlertSheet(page, stem) {
  */
 function pickLook(page, stem, look) {
   const key = 'thresh' + stem + 'WarnLook';
-  assert.ok(page.modal.innerHTML.indexOf('data-k="' + key + '" data-v="' + look + '"') !== -1,
-    key + ' ' + look + ' is rendered in the open sheet');
-  const t = {
-    getAttribute: n => (n === 'data-k' ? key : (n === 'data-v' ? look : null)),
-    closest: sel => (sel === '[data-v]' ? t : null)
-  };
-  page.modal.dispatch('click', { target: t });
+  page.tapSegment(key, look, 'modal');
   assert.equal(page.S[key], look);
 }
 

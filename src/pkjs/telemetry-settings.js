@@ -36,6 +36,8 @@ var lineAlert = require('./line-alert.js');
 var forecastSpan = require('./forecast-span.js');
 // The forecast's left axis options (emery only), read as the wire reads them.
 var forecastAxis = require('./forecast-axis.js');
+// Graph styles (emery): how many exist, and the length of each one a screen shows.
+var graphStyles = require('./graph-styles.js');
 // SLOT_KEYS / parseSlot — the Weather tab's saved places, read like the tab reads them.
 var weatherTabModel = require('./settings/weather-tab-model.js');
 
@@ -237,7 +239,10 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
     // The v2 fields (sizes, top-graph kind, Position) ride their own ADDITIVE fields
     // (packExt, 0..0x7FFF) rather than widening customView*: an ingest that predates
     // them strips unknown keys, but a known field failing validation 400s the batch.
-    var customExt = customCycle ? customCycle.map(viewCycle.packExt) : null;
+    // The graph styles in the watch's slots (graph-styles.js wireCycle), as the watch is sent them.
+    var customExt = customCycle
+        ? graphStyles.wireCycle(safe, env, customCycle).map(function (v) { return viewCycle.packExt(v); })
+        : null;
     // --- the Nighttime card's gates, resolved once for the fields below ---------
     // Dim backlight is HARDWARE-gated, not only setting-gated: the red tint is
     // light_set_color_rgb888() and emery is the only watch with the LED
@@ -251,6 +256,17 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
     // The left axis options' watch (forecast-axis.js isEmery: a KNOWN emery), which is
     // also the one watch with Larger graph fonts.
     var isEmery = forecastAxis.isEmery(env);
+    // The graph styles the screens show past the first (graph-styles.js stylesSent; none
+    // while only the first shows, and on every watch without styles).
+    var stylesSent = graphStyles.stylesSent(safe, env);
+    /**
+     * The length option of graph style k (forecastHours' reading) while a screen shows it.
+     * @param {number} k Style index.
+     * @returns {(number|undefined)} 12 / 24 / 48, or undefined while no screen shows it.
+     */
+    function shownStyleHours(k) {
+        return stylesSent.indexOf(k) !== -1 ? forecastSpan.option(graphStyles.settingsFor(safe, k), env) : undefined;
+    }
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
@@ -366,6 +382,12 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // other watch is sent 24 whatever is stored, so it reports nothing. Categorical, not
         // the hours sent (forecast-span.js option()). Lockstep with handler.ts.
         forecastHours: env.forecastSpan ? forecastSpan.option(safe, env) : undefined,
+        // Graph styles (3.0.0, emery only): how many exist (1-6), and the length option of
+        // styles 2 and 3 while a screen shows them (the first style's is forecastHours).
+        // Lockstep with handler.ts -- deploy it first.
+        graphStyleCount: env.graphStyles ? graphStyles.count(safe) : undefined,
+        graphStyle2Hours: shownStyleHours(1),
+        graphStyle3Hours: shownStyleHours(2),
         // The forecast's left axis options, emery only (the one watch that offers
         // them), as chosen (forecast-axis.js readers: absent or junk reads the default, a
         // beta's 'beside' included), the Draw from precedent below: whether the scale applies

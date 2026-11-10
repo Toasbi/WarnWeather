@@ -32,6 +32,9 @@ const unescHtml = (s) => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').r
 // A derived (hintFrom) hint as engine.js renderRow writes it; group 2 is its row key,
 // group 4 its markup (no nested divs in any hint the harness drives).
 const HINT_RE = /(<div class="hint" data-hint-for=")([^"]*)(">)([\s\S]*?)(<\/div>)/g;
+// A card title that follows the settings (engine.js titleByAttr); group 2 is its section id,
+// group 4 its text.
+const TITLE_RE = /(<span class="ttl" data-title-by=")([^"]*)(">)([^<]*)(<\/span>)/g;
 
 /** A DOM-element stub for the handful of nodes boot() touches.
  *
@@ -46,12 +49,16 @@ const HINT_RE = /(<div class="hint" data-hint-for=")([^"]*)(">)([\s\S]*?)(<\/div
  * (repaintDerivedHints). Its innerHTML writes are spliced back the same way and bump
  * `hintRepaints`, not `writes`.
  *
+ * `querySelectorAll('.ttl[data-title-by]')` answers one stub per card title that follows the
+ * settings — the engine's in-place retitle after a text commit (retitleCards). Its
+ * textContent writes are spliced back the same way and bump `retitles`.
+ *
  * `focuses` counts focus() calls; `document.querySelector('#save')` answers the Save
  * button's stub, so a test can see the Save dialog hand focus back to it.
  * @param {string} id element id
  * @returns {Object} stub exposing addEventListener/dispatch + an innerHTML counter
  */
-function makeEl(id) {
+function makeEl(id, fields) {
   let raw = '';
   const handlers = {};
   // The current markup match for one trigger, by its data-select key (null once gone).
@@ -106,13 +113,42 @@ function makeEl(id) {
     });
     return stub;
   }
+  // One card title, by its section id.
+  function findTitle(secId) {
+    TITLE_RE.lastIndex = 0;
+    let m;
+    while ((m = TITLE_RE.exec(raw))) { if (unescHtml(m[2]) === secId) { return m; } }
+    return null;
+  }
+  function titleStub(secId) {
+    const stub = { getAttribute: n => (n === 'data-title-by' ? secId : null) };
+    Object.defineProperty(stub, 'textContent', {
+      get() { const m = findTitle(secId); return m ? unescHtml(m[4]) : ''; },
+      set(v) {
+        const m = findTitle(secId);
+        if (!m) { return; }
+        raw = raw.slice(0, m.index) + m[1] + m[2] + m[3] + escHtml(v) + m[5] + raw.slice(m.index + m[0].length);
+        el.retitles += 1;
+      }
+    });
+    return stub;
+  }
   const el = {
-    id, className: '', textContent: '', writes: 0, relabels: 0, hintRepaints: 0, focuses: 0,
+    id, className: '', textContent: '', writes: 0, relabels: 0, hintRepaints: 0, retitles: 0, focuses: 0,
     addEventListener(type, fn) { (handlers[type] = handlers[type] || []).push(fn); },
     dispatch(type, ev) { (handlers[type] || []).forEach(fn => fn(ev)); },
     types() { return Object.keys(handlers); },
-    querySelector() { return null; },
+    // A name field the page reads back when OK is tapped (a dialog title's): what the test
+    // typed into it (typeName), while the markup holds one.
+    querySelector(sel) { return fieldStub(fields, sel, raw, el); },
     querySelectorAll(sel) {
+      if (sel === '.ttl[data-title-by]') {
+        const ids = [];
+        TITLE_RE.lastIndex = 0;
+        let t;
+        while ((t = TITLE_RE.exec(raw))) { ids.push(unescHtml(t[2])); }
+        return ids.map(titleStub);
+      }
       if (sel === '.hint[data-hint-for]') {
         const hints = [];
         HINT_RE.lastIndex = 0;
@@ -139,6 +175,22 @@ function makeEl(id) {
 }
 
 /**
+ * A name field's stub, for a selector the test typed into (typeName) while the host's markup
+ * holds that field: its value, and focus/select that count on the host.
+ * @param {?Object} fields selector -> the text typed
+ * @param {string} sel the selector asked for
+ * @param {string} raw the host's markup
+ * @param {Object} host the host stub (its `focuses` counter)
+ * @returns {?Object} the field, null for none
+ */
+function fieldStub(fields, sel, raw, host) {
+  if (!fields || !Object.prototype.hasOwnProperty.call(fields, sel)) { return null; }
+  if (raw.indexOf(sel.replace(/^\[|\]$/g, '')) === -1) { return null; }
+  return { value: fields[sel], focus() { host.focuses += 1; }, select() {},
+    closest: (s) => (s === sel ? this : null) };
+}
+
+/**
  * A node the page builds itself (document.createElement: the screen editor's overlay,
  * screens-page.js): attributes, innerHTML, listeners it can be dispatched to, and the
  * children querySelector answers, made on first ask and kept per selector so a test reads
@@ -152,7 +204,9 @@ function makeNode(tag) {
   const found = {};
   const node = {
     tagName: String(tag).toUpperCase(), id: '', innerHTML: '', textContent: '', scrollTop: 0, style: {},
-    parentNode: null, children: [],
+    parentNode: null, children: [], value: '', focuses: 0,
+    focus() { node.focuses += 1; },
+    select() {},
     classList: { add() {}, remove() {}, contains() { return false; } },
     setAttribute(n, v) { attrs[n] = String(v); },
     getAttribute(n) { return Object.prototype.hasOwnProperty.call(attrs, n) ? attrs[n] : null; },
@@ -175,10 +229,12 @@ function makeNode(tag) {
  *   the page behaves like a webview with no <dialog>, and Save saves at once).
  * @returns {{S: Object, scroll: Object, modal: Object, tabs: Object, window: Object,
  *   clickTab: function, openEditSheet: function, clickModalToggle: function,
- *   clickToggle: function, typeText: function, openSelect: function, pickOption: function,
- *   save: function, tapSave: function, saved: function}}
+ *   clickToggle: function, tapSegment: function, typeText: function, openSelect: function, openModalSelect: function,
+ *   pickOption: function,
+ *   save: function, tapSave: function, saved: function, asked: string[]}}
  *   `window` is the sandbox's global, for a test that stubs a browser API the page
- *   reads at call time (navigator.clipboard).
+ *   reads at call time (navigator.clipboard). `asked` lists every selector the page asked the
+ *   document for (a closing dialog's focus target among them).
  */
 function bootGeneratedPage(cfg, platformName, opts) {
   opts = opts || {};
@@ -194,14 +250,27 @@ function bootGeneratedPage(cfg, platformName, opts) {
   const src = html.match(/<script>([\s\S]*)<\/script>/)[1]
     .replace(/PConf\.engine\.boot\(\);\s*$/, '');   // boot explicitly, after wiring onReady
   const els = {};
+  // What a test typed into a name field, by its selector (typeName).
+  const fields = {};
+  // The document's own listeners (the Screens card's ≡: its drag and arrow keys).
+  const docHandlers = {};
+  // Every selector the page asked the document for, in order (asked: e.g. the trigger a closing
+  // dialog hands the focus back to).
+  const asked = [];
   const sandbox = { console, setTimeout, clearTimeout };
   sandbox.window = sandbox;
   sandbox.document = {
-    getElementById(id) { return (els[id] = els[id] || makeEl(id)); },
-    querySelector(sel) { return sel === '#save' ? sandbox.document.getElementById('save') : null; },
-    querySelectorAll() { return []; },
-    addEventListener() {},
-    removeEventListener() {},
+    getElementById(id) { return (els[id] = els[id] || makeEl(id, fields)); },
+    // The Save button; a name field in the page or the open dialog (the Your graphs card's).
+    querySelector(sel) {
+      asked.push(sel);
+      if (sel === '#save') { return sandbox.document.getElementById('save'); }
+      return fieldStub(fields, sel, (els.scroll ? els.scroll.innerHTML : '') + (els.modal ? els.modal.innerHTML : ''),
+        els.scroll || { focuses: 0 });
+    },
+    querySelectorAll(sel) { asked.push(sel); return []; },
+    addEventListener(type, fn) { (docHandlers[type] = docHandlers[type] || []).push(fn); },
+    removeEventListener(type, fn) { docHandlers[type] = (docHandlers[type] || []).filter((f) => f !== fn); },
     // The screen editor's overlay is built by the page and appended to the body.
     createElement: makeNode,
     body: makeNode('body')
@@ -231,6 +300,7 @@ function bootGeneratedPage(cfg, platformName, opts) {
     modal: els.modal,
     tabs: els.tabs,
     window: sandbox,
+    asked,
     clickTab(tabId) {
       const t = { getAttribute: n => (n === 'data-tab' ? tabId : null), closest: sel => (sel === '[data-tab]' ? t : null) };
       els.tabs.dispatch('click', { target: t });
@@ -259,6 +329,23 @@ function bootGeneratedPage(cfg, platformName, opts) {
     doneDialog() { tapModal('[data-dlg-done]'); },
     backDialog() { tapModal('[data-dlg-back]'); },
     cancelDialog() { tapModal('[data-dlg-close]'); },
+    // A dialog title that renames: its pencil, then OK (what typeName typed into the field);
+    // Enter in the field and leaving it, as a browser reports them.
+    renameDialog() { tapModal('[data-dlg-rename]'); },
+    okRename() { tapModal('[data-dlg-rename-ok]'); },
+    enterRename(text) {
+      const inp = { value: text, closest: sel => (sel === '[data-dlg-rename-in]' ? inp : null) };
+      els.modal.dispatch('keydown', { key: 'Enter', target: inp, preventDefault() {} });
+    },
+    leaveRename(text, to) {
+      const inp = { value: text, closest: sel => (sel === '[data-dlg-rename-in]' ? inp : null) };
+      els.modal.dispatch('focusout', { target: inp, relatedTarget: to || null });
+    },
+    // Escape in the open dialog (its native cancel).
+    escapeDialog() { els.modal.dispatch('cancel', { preventDefault() {} }); },
+    // Type into a name field the page reads back by its selector when OK is tapped (a dialog
+    // title's '[data-dlg-rename-in]', the Your graphs card's '[data-gl-rename-in]').
+    typeName(selector, text) { fields[selector] = text; },
     // Open every card's More options in a host ('scroll' or 'modal'), so rows behind it
     // render. Repeats until none is left closed (opening one can show another card).
     openAllMore(host) {
@@ -306,6 +393,18 @@ function bootGeneratedPage(cfg, platformName, opts) {
       };
       els.scroll.dispatch('click', { target: t });
     },
+    // Tap one segment of a segmented control (or one option of a radio), the engine's [data-v]
+    // path, in the page or ('modal') the open sheet.
+    tapSegment(key, value, where) {
+      const host = where === 'modal' ? els.modal : els.scroll;
+      assert.ok(host.innerHTML.indexOf('data-k="' + key + '" data-v="' + value + '"') !== -1,
+        key + ' ' + value + ' is rendered in the ' + (where === 'modal' ? 'open sheet' : 'page'));
+      const t = {
+        getAttribute: n => (n === 'data-k' ? key : (n === 'data-v' ? value : null)),
+        closest: sel => (sel === '[data-v]' ? t : null)
+      };
+      host.dispatch('click', { target: t });
+    },
     // Type into a text field rendered in the page and commit it, the way a browser
     // reports it: focusin, one input (S follows per keystroke), then change (blur/Enter).
     typeText(key, value) {
@@ -328,6 +427,16 @@ function bootGeneratedPage(cfg, platformName, opts) {
       };
       els.scroll.dispatch('click', { target: t });
     },
+    // Tap a select row's trigger inside the open dialog: its options expand under it, so a
+    // pick (pickOption) then leaves the dialog open, as a tap does on the phone.
+    openModalSelect(key) {
+      assert.ok(els.modal.innerHTML.indexOf('data-select="' + key + '"') !== -1, key + ' select is in the open dialog');
+      const t = {
+        getAttribute: n => (n === 'data-select' ? key : null),
+        closest: sel => (sel === '[data-select]' ? t : null)
+      };
+      els.modal.dispatch('click', { target: t });
+    },
     // Pick an option in a select sheet — the engine's #modal pick handler (sets the value,
     // runs the item's onChange, closes the sheet).
     pickOption(key, value) {
@@ -344,6 +453,11 @@ function bootGeneratedPage(cfg, platformName, opts) {
       const t = { getAttribute: n => (n === 'data-action' ? action : (n === 'data-action-arg' ? (arg === undefined ? null
         : String(arg)) : null)), closest: sel => (sel === '[data-action]' ? t : null) };
       h.dispatch('click', { target: t });
+    },
+    // Dispatch an event to the document's own listeners (the Screens card's ≡, the editor's
+    // Escape), e.g. { key: 'ArrowUp', target } for a key on a focused handle.
+    docDispatch(type, ev) {
+      (docHandlers[type] || []).slice().forEach((fn) => fn(ev));
     },
     // The screen editor's overlay (screens-page.js), while it is open; else null.
     editor() {

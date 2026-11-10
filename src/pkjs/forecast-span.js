@@ -1,5 +1,5 @@
-// src/pkjs/forecast-span.js — ES5. The forecast graph's time span (Graphs > Forecast >
-// Forecast length): how many hours the phone fetches, bakes and sends (14 / 24 / 68 for the 12 h,
+// src/pkjs/forecast-span.js — ES5. The forecast graph's time span (Graphs > Forecast > a
+// graph > Other > Forecast length): how many hours the phone fetches, bakes and sends (14 / 24 / 68 for the 12 h,
 // 24 h and long options, and 26 for 24 h when the graph has no left axis); the watch fits its
 // grid to them (src/c/appendix/forecast_span.h) and shows as many as its plot's width holds.
 // Emery only (config-ui/lib/platform.js isForecastSpanPlatform, the env.forecastSpan fact):

@@ -51,10 +51,6 @@ static ViewFlickGate s_flick_gate;
 // Tracks the last-seen health_mode so an off->on flip (settings, boot)
 // triggers exactly one cache rebuild.
 static uint8_t s_health_mode_prev;
-// Whether the health GRAPH was reachable when the config was last applied — see
-// health_graph_renderable(). Drives the strip-width retirement in
-// main_window_apply_top_view().
-static bool s_health_graph_reachable;
 #endif
 
 // Radar data present? — the ONE availability predicate the ViewSpec resolves
@@ -92,8 +88,7 @@ static bool health_renderable(void) {
 // true (rows still resolve live health slots) while the phone compiles them to
 // cycles with no BODY_HEALTH_GRAPH view (view-cycle.js). Every
 // health_graph_layer_refresh() call site gates on THIS, so an unreachable graph
-// never reports a left-axis label width into the shared strip (bottom_view.h) —
-// a claim the visible forecast would keep a phantom gutter for.
+// never computes.
 static bool health_graph_renderable(void) {
     if (!health_renderable()) { return false; }
     for (int i = 0; i < 3; i++) {
@@ -119,6 +114,17 @@ static void config_view_words(uint32_t out[3]) {
     for (int i = 0; i < 3; i++) {
         out[i] = (uint32_t) c->view_spec2[i] | ((uint32_t) c->view_ext[i] << 16);
     }
+}
+
+// The status sources the configured views show, as status_bar_set_in_use's mask: the only
+// bars the watch reads. Read off the views as configured: neither a data fold (layout.h
+// view_spec_resolve) nor a Quick View peek (layout_peek_spec) touches a status row, so no
+// view the watch draws shows a bar outside the mask.
+static uint8_t config_bar_sources(void) {
+    uint32_t words[3];
+    config_view_words(words);
+    return (uint8_t) (view_word_sources(words[0]) | view_word_sources(words[1])
+                      | view_word_sources(words[2]));
 }
 
 // Decode configured slot `slot` to a ViewSpec — its packed value, then its ext word — and
@@ -236,8 +242,10 @@ static void render_active_view(void) {
     // there, else the body. (aplite keeps the plain body frames below — the helper
     // call measured +16 B of image there.)
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: the forecast layer sits in a clip of its own (forecast_layer.c), framed with it.
+    // emery: the forecast layer sits in a clip of its own (forecast_layer.c), framed with it,
+    // and draws the view's graph style (the view word's ext bits 9-10; graph_style.h).
     forecast_layer_set_frame(layout_forecast_frame(&spec, &L));
+    forecast_layer_set_style(view_ext_graph_style(config_get()->view_ext[s_view_index]));
 #else
     layer_set_frame(forecast_layer_get_root(), layout_forecast_frame(&spec, &L));
 #endif
@@ -299,13 +307,8 @@ static void quick_view_on_change(void) {
 // the next minute tick. Same read set as the minute handler's inline refresh, so
 // it is safe on the timer callback path.
 static void health_cache_repaint(void) {
-    // THE unbounded width case: a health OFF->ON flip resets the cache, so the
-    // settings save's own refresh reported no width (loading path) — the width
-    // only arrives here, when the sliced build finishes, off any user action,
-    // with the FORECAST typically the visible body. bottom_view owns that repaint
-    // now: a report that moves the shared strip marks both bottom-graph consumers
-    // dirty itself. The health_graph_renderable() gate keeps an unreachable graph
-    // (HEALTH_STATUS/SLOT — cache still warm for the rows) from reporting at all.
+    // The health_graph_renderable() gate keeps an unreachable graph
+    // (HEALTH_STATUS/SLOT — cache still warm for the rows) from computing at all.
     if (health_graph_renderable()) { health_graph_layer_refresh(); }
     if (!health_cache_ready()) { return; }   // loading frame: no new data for the rows
     if (health_summary_refresh()) {
@@ -330,8 +333,7 @@ static void health_warm_for_incoming_view(void) {
     if (!health_renderable()) { return; }
     ViewSpec ns = current_view_spec();
     LayerVisibility nv = layout_visibility(&ns);
-    if (nv.health_status || nv.health_graph
-            || status_bar_any_visible_uses_live_health(&ns)) {
+    if (nv.health_graph || status_bar_any_visible_uses_live_health(&ns)) {
         health_cache_refresh_current_hour();
         health_summary_refresh();
         if (nv.health_graph) { health_graph_layer_refresh(); }
@@ -405,7 +407,11 @@ static void main_window_load(Window *window) {
     // the bands overlap (on the 144px watches at compact tier the calendar spans
     // [15,45) and the upper status band [29,46)) and both sides paint opaque fills,
     // so the bars must be added AFTER the body graphs and BEFORE the calendar, clock,
-    // radar and strip. See layers/status_bar.h.
+    // radar and strip. See layers/status_bar.h. A bar no configured view shows is never
+    // read.
+#if defined(WW_VIEW_CYCLE)
+    status_bar_set_in_use(config_bar_sources());
+#endif
     status_bar_create_all(window_layer, &spec, &L);
     time_layer_create(window_layer, L.time);
     calendar_layer_create(window_layer, L.top);
@@ -435,7 +441,6 @@ static void main_window_load(Window *window) {
     // snapshot if we have one, so the graph doesn't reshow "Loading health data"
     // for a relaunch that changed little; otherwise a full build, as before.
     s_health_mode_prev = config_get()->health_mode;
-    s_health_graph_reachable = health_graph_renderable();
     if (config_get()->health_mode != HEALTH_OFF) {
         if (!health_cache_restore()) {
             health_cache_reset();
@@ -532,11 +537,13 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     loading_layer_refresh();
 #if defined(PBL_HEALTH)
     // Keep the cache warm whenever health is enabled (rollover-warm always; the
-    // 15-min current-hour re-read only while the health line is on screen). The
-    // render path stays HealthService-free.
+    // 15-min current-hour re-read only while the health graph, its one reader, is on
+    // screen). The render path stays HealthService-free. A status bar is what it holds,
+    // the Health bar too (3.0.0's named bars): its rows count below only while they
+    // carry a live health slot, so a Health bar given weather items reads no health.
     ViewSpec aspec = current_view_spec();
     LayerVisibility av = layout_visibility(&aspec);
-    bool health_on_screen = av.health_status || av.health_graph;
+    bool health_on_screen = av.health_graph;
     // Status rows may carry LIVE health slots on any line — but only VISIBLE rows
     // (plus the top strip, visible on most views) gate the minute work. The hidden health bar's
     // default line is all live-health slots, so an any-bar scan would be ~always
@@ -618,25 +625,6 @@ void main_window_apply_top_view() {
     if (config_get()->health_mode != HEALTH_OFF && s_health_mode_prev == HEALTH_OFF) {
         health_cache_reset();
     }
-    // When the GRAPH leaves the cycle, retire its claim on the SHARED left-axis
-    // strip. Keyed on graph REACHABILITY, not on a flip to HEALTH_OFF: switching
-    // "Status + graph" to "Status only" or "Status slots only" also removes the
-    // graph for good (the phone compiles those modes to cycles with no graph view)
-    // while health itself stays on — the flip this block once missed, leaving the
-    // forecast indented for a label that could never render again. Nothing else
-    // can retire it: health_graph_compute() is the only reporter and every path to
-    // it now gates on health_graph_renderable(), so once the graph is unreachable
-    // the last width it reported stays latched in the max for good — and the
-    // now-VISIBLE forecast keeps a gutter sized for a view that can no longer be
-    // shown (a 12.5k-step day leaves the forecast indented for a "12.5" label
-    // beside its own two digits). Report 0 to drop the claim; the strip is a max,
-    // so this only narrows it when health was the wider source, and bottom_view
-    // repaints the strip consumers itself when the width moves.
-    const bool graph_reachable = health_graph_renderable();
-    if (!graph_reachable && s_health_graph_reachable) {
-        bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, 0);
-    }
-    s_health_graph_reachable = graph_reachable;
     s_health_mode_prev = config_get()->health_mode;
 #endif
     // Re-apply the current view after radar availability or config changed. A radar/health
@@ -650,6 +638,10 @@ void main_window_apply_top_view() {
     config_view_words(words);
     s_view_index = view_cursor_after_config(s_view_index, s_applied_view_word, words);
     memcpy(s_applied_view_word, words, sizeof(s_applied_view_word));
+    // Only the bars the new views show are read from here on: one that joins is read now,
+    // before the live-health check below looks at its slots; one that left is read no
+    // more, not even by the reframe.
+    status_bar_set_in_use(config_bar_sources());
 #endif
 #if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
     // Same transition heal as the flick: a save can add a live-health slot to a
@@ -705,14 +697,13 @@ void main_window_refresh() {
 // incoming view actually shows it (tap_handler gates on nv.health_graph); peek and
 // auto-return do not touch the graph at all. Folding this in would put an unconditional
 // 24-bucket health compute plus its label measurements on all three — most visibly on
-// every wrist flick. No visibility gate on purpose: beyond the repaint, the compute
-// re-reports the left-axis label width that feeds the SHARED strip (bottom_view.h,
-// "wider of both"), and a settings apply that changed the label font must refresh that
-// even while the health view is hidden — bottom_view repaints the visible forecast
-// itself if the width moves. health_graph_renderable() gates it: an unreachable graph
-// (health off, no sensors, or no graph view in the configured cycle) must not report a
-// phantom width, and current_view_spec() resolves the graph away in exactly those
-// cases, so this can never skip a visible graph's repaint.
+// every wrist flick. No visibility gate on purpose: the compute re-measures the graph's
+// left-axis labels (its own strip, bottom_view.h), and a settings apply that changed the
+// label font must refresh that even while the health view is hidden; the repaint half is
+// free while hidden. health_graph_renderable() gates it: an unreachable graph (health
+// off, no sensors, or no graph view in the configured cycle) has nothing to compute, and
+// current_view_spec() resolves the graph away in exactly those cases, so this can never
+// skip a visible graph's repaint.
 void main_window_refresh_health_graph(void) {
     if (health_graph_renderable()) { health_graph_layer_refresh(); }
 }

@@ -14,7 +14,7 @@
 // unit, so each gets its own flash.
 // radar_notice_persist_test.c keeps a fake of its own: it stores bools and counts
 // every write and every delete.
-#define FAKE_KEYS 64u
+#define FAKE_KEYS 72u
 #define FAKE_MAX 64u
 
 static bool s_present[FAKE_KEYS];

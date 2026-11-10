@@ -16,6 +16,16 @@ const emery = { platform: 'emery' };
 // config-ui env, the call weather/graph-wire.js packs the wire from.
 const resolve = (settings, watchInfo) => lineStyle.resolveGraphColors(settings, platform.computeEnv(watchInfo));
 
+test('the settings page names the same eight graph metrics the colour keys are scoped by', () => {
+  const metrics = require('../src/pkjs/settings/forecast-metrics.js');
+  const ids = metrics.METRICS.map((m) => m.id);
+  assert.deepEqual(ids.slice().sort(), lineStyle.GRAPH_METRICS.slice().sort());
+  ids.forEach((id) => {
+    assert.ok(lineStyle.METRIC_SLUG[id], id + ' has a key slug');
+    assert.notEqual(metrics.label(id), id, id + ' has a label');
+  });
+});
+
 test('aplite folds a light theme back to dark polarity (no black-on-black)', () => {
   const light = resolve(
     { secondaryLine: 'wind', thirdLine: 'off', theme: 'light' }, { platform: 'aplite' });

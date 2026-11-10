@@ -15,6 +15,9 @@ var onDemand = require('./on-demand.js');
 var lineAlert = require('./line-alert.js');
 var forecastSpan = require('./forecast-span.js');
 var forecastAxis = require('./forecast-axis.js');
+// Graph styles (emery): the bake's settings while screens show several styles.
+var graphStyleWire = require('./weather/graph-style-wire.js');
+var platformLib = require('./config-ui/lib/platform.js');
 
 /**
  * The drawn metrics whose line is a stripe: a stripe line's bytes are level bytes on the
@@ -39,6 +42,31 @@ function stripeMetrics(settings) {
 }
 
 /**
+ * The graph styles' spare row as the bake draws it (emery): the union's fifth series, which
+ * the bake's settings name as line-style.js SPARE_LINE and keep in graphStyleSlots with its
+ * stripe flag. A stripe's bytes are level bytes (stripeMetrics above), so the flag signs too.
+ * @param {Object} settings The bake's settings (weather/graph-style-wire.js weatherSettings).
+ * @returns {string} e.g. 'cloud' or 'cloud stripe'; '' while the union has no fifth series
+ */
+function spareSignature(settings) {
+    var metric = settings[lineStyle.SPARE_LINE.key];
+    if (!metric) { return ''; }
+    var slot = (settings.graphStyleSlots || [])[lineStyle.FORECAST_LINES.length];
+    return metric + (slot && slot.stripe ? ' stripe' : '');
+}
+
+/**
+ * Which of the graph styles' rows draw their metric Show: Alert (emery; graphStyleSlots, the
+ * union's rows): one metric can take a row with all its values and one with Show: Alert, and
+ * which is which sets the bytes each row bakes, so two rows trading places re-bake.
+ * @param {Object} settings The bake's settings (weather/graph-style-wire.js weatherSettings).
+ * @returns {string} e.g. '0,1,0,0,'; '' while no record rides
+ */
+function alertRows(settings) {
+    return (settings.graphStyleSlots || []).map(function (row) { return row ? (row.alert ? '1' : '0') : ''; }).join(',');
+}
+
+/**
  * @param {*} code A status item code.
  * @returns {boolean} whether a metric weather alert has that code (ALERT_KINDS)
  */
@@ -48,17 +76,20 @@ function isAlertCode(code) {
 
 /**
  * The edge slots that merge the weather alert of their metric (status-lines.js
- * mergedAlert): each bar's left or right slot whose selection (stored, else its
+ * mergedAlert): each baked bar's left or right slot whose selection (stored, else its
  * default) is an alert's code while that alert is ticked on the slot's side of the
  * bar. Such a slot bakes the alert's value into its text, so moving the alert onto
  * or off that side re-bakes it; moving it anywhere else does not.
  * @param {Object} settings Clay settings.
+ * @param {Object} env Platform env of the watch the data is baked for.
  * @returns {string} e.g. 'radar.left.uv', comma-joined; '' for none
  */
-function mergedSlots(settings) {
+function mergedSlots(settings, env) {
     var out = [];
-    for (var l = 0; l < statusCatalog.LINES.length; l++) {
-        var line = statusCatalog.LINES[l];
+    // The lines the bake sends (catalog bakedLines): a bar no screen shows bakes nothing.
+    var lines = statusCatalog.bakedLines(settings, env);
+    for (var l = 0; l < lines.length; l++) {
+        var line = lines[l];
         for (var s = 0; s < 3; s += 2) {
             var key = line.slots[s];
             var code = settings[key] || statusCatalog.slotDefault(key);
@@ -72,13 +103,33 @@ function mergedSlots(settings) {
 }
 
 /**
+ * Sign slot selections: each slot's code, then its countdown date while it shows the
+ * countdown, '' otherwise (renderSignature says why).
+ * @param {Array} parts The signature's parts; pushed to.
+ * @param {Object} settings Clay settings.
+ * @param {string[]} keys Slot settings keys.
+ * @returns {void}
+ */
+function signSlots(parts, settings, keys) {
+    keys.forEach(function (slotKey) {
+        parts.push(settings[slotKey], settings[slotKey] === 'countdown' ? settings[slotKey + 'Countdown'] : '');
+    });
+}
+
+/**
  * Join the render-affecting settings into a change-detection signature.
  *
  * @param {Object} settings Clay settings.
+ * @param {?Object} [watchInfo] The watch the data is baked for: while its screens show several
+ *   graph styles (emery), the graph's part signs the bake's settings, the shown styles' union
+ *   (weather/graph-style-wire.js weatherSettings), so another style's metric, line or length
+ *   re-fetches as the first style's does. Omitted: the settings as they are.
  * @returns {string} Pipe-joined signature, or '' when settings is falsy.
  */
-function renderSignature(settings) {
+function renderSignature(settings, watchInfo) {
     if (!settings) { return ''; }
+    settings = graphStyleWire.weatherSettings(settings, watchInfo || null);
+    var env = platformLib.computeEnv(watchInfo || null);
     // Series selection and encoding — fourthLine/fifthLine change which series the phone
     // bakes (and fetches — UV), so it joins. NOT the theme or the area-fill toggle:
     // the line colours, the fill flag, the ...LineStyle keys and the
@@ -147,18 +198,20 @@ function renderSignature(settings) {
     for (var d = 0; d < dayMaxKeys.length; d++) {
         parts.push(settings[dayMaxKeys[d]]);
     }
-    // ...and the twelve slot selections themselves, each followed by its countdown
-    // target date (status-lines.js bakes the day count from '<slot>Countdown') —
-    // but only while that slot shows the countdown. The page hydrates every slot's
-    // date to today whether it is used or not, so signing the inert ones would force
-    // a needless fetch on the first save that writes them. The '' keeps the
-    // position fixed, so no two keys can ever share a signature slot.
-    var slotKeys = statusCatalog.allSlotKeys();
-    for (var i = 0; i < slotKeys.length; i++) {
-        var slotKey = slotKeys[i];
-        parts.push(settings[slotKey],
-            settings[slotKey] === 'countdown' ? settings[slotKey + 'Countdown'] : '');
-    }
+    // ...and the slot selections of every line the bake sends (catalog bakedLines: the
+    // Watch bar's and each bar a screen shows), each line's id and then its slots, each
+    // slot followed by its countdown target date (status-lines.js bakes the day count
+    // from '<slot>Countdown') — but only while that slot shows the countdown. The page
+    // hydrates every slot's date to today whether it is used or not, so signing the
+    // inert ones would force a needless fetch on the first save that writes them. The ''
+    // keeps the position fixed, so no two keys can ever share a signature slot. A bar a
+    // screen starts showing joins the list, so its save fetches what its slots need
+    // (UV, AQI, pollen, a day's peaks); a slot on a bar no screen shows bakes and
+    // fetches nothing, so editing it signs nothing.
+    statusCatalog.bakedLines(settings, env).forEach(function (line) {
+        parts.push(line.id);
+        signSlots(parts, settings, line.slots);
+    });
     // The WEATHER threshold kinds are evaluated phone-side at weather-bake
     // time (STATUS_LEVELS_UINT8 and the alert entries), so a pair edit only
     // shows up after a refetch — without this the new level would first
@@ -206,7 +259,15 @@ function renderSignature(settings) {
     }).join(','));
     // The one placement that does bake: an alert on the side whose slot shows its
     // metric, which merges into that slot's text (mergedSlots).
-    parts.push(mergedSlots(settings));
+    parts.push(mergedSlots(settings, env));
+    // The graph styles' spare row (emery): the union's fifth series, which no line key holds.
+    // Signed only while there is one, so every other bake signs as it did before the spare.
+    var spare = spareSignature(settings);
+    if (spare) { parts.push(spare); }
+    // Which of the union's rows draw Show: Alert (alertRows), signed only while one does, so a
+    // bake without one signs as it did before each graph had its own Visible values.
+    var alerts = alertRows(settings);
+    if (alerts.indexOf('1') !== -1) { parts.push(alerts); }
     return parts.join('|');
 }
 

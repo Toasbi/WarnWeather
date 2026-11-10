@@ -27,6 +27,10 @@ typedef struct {
     int    num_entries;          // clamped to FORECAST_MAX_ENTRIES (forecast_span.h)
 #if defined(PBL_PLATFORM_EMERY)
     int    fit_entries;          // emery: the hours the scale and the labels cover (on screen)
+    int    sent_entries;         // emery: the hours sent; num_entries is the hours the graph
+                                 // style draws of them (graph_style.h), at most as many
+    uint8_t scale_undrawn;       // emery: the trends on the temperature's scale (graph_style.h
+                                 // GS_SCALE bits) this style draws no line of
 #endif
     time_t forecast_start;
     Series series[SERIES_COUNT];
@@ -50,6 +54,10 @@ typedef struct {
     ChartAxisSlot   axis_slots[FORECAST_MAX_ENTRIES];
     ChartBand       night_bands[FORECAST_NIGHTS_MAX];   // forecast_night.h NightSegments' cap
     ChartColorStop  scaled_bar_stops[PALETTE_MAX_STOPS];
+#if defined(PBL_PLATFORM_EMERY)
+    ChartColorStop  style_bar_stops[PALETTE_MAX_STOPS];   // emery: a graph style's own palette
+    int16_t         scale_trend[FORECAST_MAX_ENTRIES];    // emery: an undrawn scale trend's bytes
+#endif
 } ForecastPaint;
 
 // health_graph_update_proc: its layer list (sleep, gridlines, bars, HR, clamp dots,
@@ -68,10 +76,11 @@ typedef struct {
 } RadarPaint;
 
 // status_row.c's refresh and draw passes: the line's packed blob and the thresholds
-// settings blob (load_pass), and a draw's On demand pass.
+// settings blob (load_pass; on emery bars 4 to 6's On demand cells behind it), and a
+// draw's On demand pass.
 typedef struct {
     uint8_t            blob[STATUS_LINE_MAX_BYTES];
-    uint8_t            thresh[THRESH_SETTINGS_BYTES];
+    uint8_t            thresh[THRESH_SCRATCH_BYTES];
     StatusOnDemandPass od;
 } StatusRowPass;
 

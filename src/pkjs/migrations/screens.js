@@ -17,10 +17,10 @@
 //     did not say what it is might be an aplite, so it keeps a preset (the settings page reads
 //     a preset as screens all the same, screens.js screensOf, and its Save stores them); its
 //     custom layout, whose keys aplite never reads, is rewritten all the same.
-//   - The modes, derived from the screens (not on an unknown watch: its page's Save works them
-//     out). Where the screens cannot tell two modes apart (nothing on them shows a health
-//     item, or the rain alert), the install keeps the one it had: 'slot' rather than 'off',
-//     'countdown' rather than 'off'.
+//   - The modes, derived from the screens as 2.6.0 derived them (modesOf26; not on an unknown
+//     watch: its page's Save works them out). Where the screens cannot tell two modes apart
+//     (nothing on them shows a health item, or the rain alert), the install keeps the one it
+//     had: 'slot' rather than 'off', 'countdown' rather than 'off'.
 //   - With healthMode 'off', 2.5 drew a health item in a status slot as an empty slot
 //     (status-line-catalog.js itemAvailable); such a slot on a bar 2.5 drew is stored as
 //     Empty, so the derived modes do not bring it back, on an unknown watch too.
@@ -32,20 +32,24 @@ var platformLib = require('../config-ui/lib/platform.js');
 
 /**
  * The views a 2.5 watch drew for a custom layout: buildCustomCycle with the Radar bar
- * folded away outside radarMode 'status' and 'graph', as 2.5's compiler folded it (since 2.6
- * the bar no longer needs the radar, view-cycle.js), the surviving lower row taking the upper
- * seat under the legacy order, and a flick view left with nothing on it disabled.
+ * folded away outside radarMode 'status' and 'graph' and the Health bar outside healthMode
+ * 'status' and 'all', as 2.5's compiler folded them (since 2.6 the Radar bar and since 3.0
+ * the Health bar no longer need their data, view-cycle.js), the surviving lower row taking
+ * the upper seat under the legacy order, and a flick view left with nothing on it disabled.
  * @param {Object} S Settings (layoutPreset 'custom').
  * @returns {Array<?Object>} the views
  */
 function legacyCycle(S) {
     var cycle = VC.buildCustomCycle(S);
-    if (VC.RADAR_ROW_MODES.indexOf(S.radarMode || 'graph') >= 0) { return cycle; }
+    var folded = [];
+    if (VC.RADAR_ROW_MODES.indexOf(S.radarMode || 'graph') < 0) { folded.push(VC.STATUS_SRC_RADAR); }
+    if (VC.HEALTH_ROW_MODES.indexOf(S.healthMode || 'off') < 0) { folded.push(VC.STATUS_SRC_HEALTH); }
+    if (!folded.length) { return cycle; }
     return cycle.map(function (v) {
         if (!v) { return v; }
         var s = VC.cloneSpec(v);
-        if (s.statusLower === VC.STATUS_SRC_RADAR) { s.statusLower = VC.STATUS_SRC_NONE; }
-        if (s.statusUpper === VC.STATUS_SRC_RADAR) {
+        if (folded.indexOf(s.statusLower) >= 0) { s.statusLower = VC.STATUS_SRC_NONE; }
+        if (folded.indexOf(s.statusUpper) >= 0) {
             s.statusUpper = VC.STATUS_SRC_NONE;
             if (!s.order && s.statusLower !== VC.STATUS_SRC_NONE) {
                 s.statusUpper = s.statusLower;
@@ -99,6 +103,25 @@ function emptyHealthSlots(blob, bars, env) {
 }
 
 /**
+ * The modes 2.6.0 worked out for the screens: screens.js deriveModes, plus 2.6's rule that a
+ * screen showing the Radar bar or the Health bar needs 'status' (unless it shows that graph).
+ * Since 3.0.0's named bars a custom layout's bars need no mode, but the move keeps what it
+ * sent 2.6's way, so a 2.5 install is sent nothing new; its next Save works the modes out.
+ * @param {Object} blob Settings (a custom layout).
+ * @param {Object} env Platform env.
+ * @returns {{radarMode: string, healthMode: string}}
+ */
+function modesOf26(blob, env) {
+    var modes = screens.deriveModes(blob, env);
+    var shown = VC.barsShown(blob, env);
+    if (shown.radar && env.radar !== false && blob.radarEnabled !== false && modes.radarMode !== 'graph') {
+        modes.radarMode = 'status';
+    }
+    if (shown.health && env.health !== false && modes.healthMode !== 'all') { modes.healthMode = 'status'; }
+    return modes;
+}
+
+/**
  * The CLAY_VIEW words and the two modes the settings send, to tell whether the move needs a
  * send.
  * @param {Object} S Settings.
@@ -142,7 +165,7 @@ function migrateToScreens(blob, ctx) {
     Object.assign(blob, keysOf(cycle, blob));
     blob.layoutPreset = 'custom';
     blob.customLayoutSeeded = true;
-    var modes = screens.deriveModes(blob, env);
+    var modes = modesOf26(blob, env);
     if (modes.healthMode === 'off' && oldHealth === 'slot') { modes.healthMode = 'slot'; }
     if (modes.radarMode === 'off' && oldRadar === 'countdown' && blob.radarEnabled) {
         modes.radarMode = 'countdown';

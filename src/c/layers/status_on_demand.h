@@ -75,14 +75,14 @@ void status_on_demand_release(StatusOnDemandRow *row);
 // their live state. The rain alert is re-derived from the radar cache on every call
 // (O(1), flash-free), which is why a bar with items is refreshed on the minute tick.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
-                               const uint8_t blob[THRESH_SETTINGS_BYTES]);
+                               const uint8_t blob[THRESH_SCRATCH_BYTES]);
 
 // What the row hands the layout and the paint, in absolute coordinates in the row's
 // layer.
 typedef struct {
     GFont font;             // the row's regular font
     GFont bold;             // its bold companion
-    const uint8_t *blob;    // thresholds settings blob, normalized (THRESH_SETTINGS_BYTES)
+    const uint8_t *blob;    // thresholds settings blob, normalized (THRESH_SCRATCH_BYTES)
     GRect band;             // the row's band — the highlight boxes clamp to it
     int16_t x;              // left edge of the row's content (the slots' origin)
     int16_t glyph_cy;       // the digits' cap centre (status_glyph_center_y)
@@ -134,7 +134,7 @@ typedef struct {
 // they show, into the pass, read from `blob` as status_on_demand_fold() reads it. A
 // row with no item assigned collects nothing, so none of its slots merges an alert.
 void status_on_demand_collect(const StatusOnDemandRow *row, StatusOnDemandPass *pass,
-                              int bar, const uint8_t blob[THRESH_SETTINGS_BYTES]);
+                              int bar, const uint8_t blob[THRESH_SCRATCH_BYTES]);
 
 // After status_on_demand_collect(), for slot `i` (0 left, 1 middle, 2 right) of the
 // draw, `kind` its ThreshKind: the level the slot is drawn at for the weather alert it

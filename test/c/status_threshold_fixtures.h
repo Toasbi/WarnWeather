@@ -24,7 +24,9 @@ static inline void expect(const char *name, int got, int want) {
 // bytes of `blob` stored, read into a scratch that still holds the previous load's
 // bytes past them (one buffer serves every pass), then normalized. A test's `len` is
 // therefore the STORED length, and 0 or a negative one means nothing stored.
-static uint8_t s_scratch[THRESH_SETTINGS_BYTES];
+// THRESH_SCRATCH_BYTES: on emery bars 4 to 6's cells follow the blob in the row's scratch
+// (extra_side_of below loads them).
+static uint8_t s_scratch[THRESH_SCRATCH_BYTES];
 
 static inline const uint8_t *load(const uint8_t *blob, int len) {
     memset(s_scratch, 0xA5, sizeof(s_scratch));   // the last pass's bytes
@@ -83,6 +85,17 @@ static inline int rain_of(const uint8_t *blob, int len) {
 static inline int side_of(const uint8_t *blob, int len, int bar, int item) {
     return status_threshold_on_demand_side(load(blob, len), bar, item);
 }
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: a side read the way a row reads one with bars 4 to 6's cells loaded behind the
+// blob (status_row.c load_thresholds): the 48-byte blob as stored, then the extra cells.
+static inline int extra_side_of(const uint8_t *blob, const uint8_t extra[THRESH_OD_EXTRA_BYTES],
+                                int bar, int item) {
+    load(blob, THRESH_SETTINGS_BYTES);
+    memcpy(s_scratch + THRESH_SETTINGS_BYTES, extra, THRESH_OD_EXTRA_BYTES);
+    return status_threshold_on_demand_side(s_scratch, bar, item);
+}
+#endif
 
 static inline int battery_level_of(const uint8_t *blob, int len) {
     return status_threshold_battery_level(load(blob, len));

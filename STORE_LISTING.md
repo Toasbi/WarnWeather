@@ -12,6 +12,8 @@ FORECAST
 - Up to four configurable metrics such as precipitation amount & probability, cloud cover, UV index, gusts,
   wind, air pressure, feels-like temperature and dew point
 - Optional day/night shading
+- Pebble Time 2: each screen can show its own forecast graph; keep up to six, or pick one of
+  14 templates such as Clean, Stripes or Meteogram; open a screen's graph right from its editor
 - Fully customizable line, colors and axis
 - Multiple weather providers, including regional and worldwide sources
 
@@ -68,6 +70,8 @@ STATUS LINES
       - watch battery icon
       - watch battery percentage
       - phone battery
+- Name your status bars and put any of them on any screen
+- Up to six status bars on Pebble Time 2
 - Bold status values to make them stand out or easier to read
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
 - Threshold highlighting: bold, outline, or fill a status slot when its value crosses a
@@ -86,6 +90,9 @@ WATCH
 LAYOUT CUSTOMIZATION
 - Up to three screens, switched with a wrist flick
 - Edit each screen as a simple list, top to bottom: drag a row, remove it or add one where it fits
+- Name your screens and drag them into order
+- Add a screen by its layout: with or without a calendar, Health, Rain radar, or two graphs on one screen
+- Change a screen's layout in its editor, keeping its name and place
 - First-run setup wizard that picks sensible defaults for your country and watch
 
 WEATHER

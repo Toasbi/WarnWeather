@@ -52,15 +52,16 @@
         + 'box-shadow:0 14px 34px rgba(0,0,0,.45),0 0 0 1px var(--card-line)}'
         + 'body.light #wizard .wiz-watch{box-shadow:0 12px 28px rgba(0,0,0,.24),0 0 0 1px var(--card-line)}'
         // The frame is the screen plus its margin (162 px wide for a 144 px screen, 224 for emery's
-        // 200, #wizard.w200), and the screenshot is never drawn smaller than it is: a pixelated
-        // downscale drops rows. So each width below is the screen's width x 1.125 (emery 1.12): its
-        // own size, or 252 px (emery 260) on the big stage.
+        // 200, #wizard.w200), and the screen is never drawn smaller than it is, so its text stays
+        // on whole pixels. So each width below is the screen's width x 1.125 (emery 1.12): its own
+        // size, or 252 px (emery 260) on the big stage.
         + '#wizard .wiz-scr{display:block;width:162px;height:auto}'
         + '#wizard.w200 .wiz-scr{width:224px}'
         + '#wizard .wiz-stage.big .wiz-scr{width:283.5px;width:min(69.75vw,283.5px)}'
         + '#wizard.w200 .wiz-stage.big .wiz-scr{width:291px;width:min(85vw,291px)}'
-        + '#wizard .wiz-shot{image-rendering:pixelated;transition:opacity .16s}'
-        + '#wizard .wiz-shot.fade{opacity:0}'
+        // a pick redraws the picker's screen: the old one fades out, the new one in (wizard.js swapPicture)
+        + '#wizard [data-wiz-watch] .wiz-scr{transition:opacity .16s}'
+        + '#wizard [data-wiz-watch] .wiz-scr.fade{opacity:0}'
         // the options: a segmented control under the watch (a radio group), one row whatever the count;
         // a long label wraps inside its own segment
         + '#wizard .wiz-opts{display:flex;margin:16px 0 0;padding:4px;border:1px solid var(--ctl-line);'
@@ -177,7 +178,7 @@
         + '#wizard .wiz-flick .wiz-stage.big .wiz-scr{width:162px}#wizard.w200 .wiz-stage.big .wiz-scr{width:224px}'
         + '#wizard .wiz-graph{max-width:290px}#wizard .wiz-title{font-size:22px}}'
         + '@media (prefers-reduced-motion:reduce){#wizard .wiz-step,#wizard .wiz-badge,#wizard .wiz-flick-watch.tilt,'
-        + '#wizard .wiz-graph svg,#wizard .wiz-look svg{animation:none}#wizard .wiz-shot,#wizard .wiz-seg{transition:none}}';
+        + '#wizard .wiz-graph svg,#wizard .wiz-look svg{animation:none}#wizard [data-wiz-watch] .wiz-scr,#wizard .wiz-seg{transition:none}}';
 
     var api = { CSS: WIZ_CSS, ICON_BACK: ICON_BACK, ICON_DONE: ICON_DONE, ICON_FLICK: ICON_FLICK, ICON_X: ICON_X };
 

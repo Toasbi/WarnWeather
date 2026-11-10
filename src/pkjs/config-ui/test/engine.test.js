@@ -763,7 +763,7 @@ test('renderBody: button and sheet rows share ONE chevron, coloured by class not
   assert.ok(html.indexOf('data-action="doIt"') >= 0, 'the button row dispatches its action');
   assert.ok(html.indexOf('data-edit-sheet="more"') >= 0, 'the sheet row opens its sheet');
   // Both are nav rows now: the whole row is the way in, the › chevron on its right.
-  assert.equal(html.split('<span class="chev">&#8250;</span>').length - 1, 2,
+  assert.equal(html.split('<span class="chev nav" aria-hidden="true">&#8250;</span>').length - 1, 2,
     'both rows emit the same class-based chevron');
   assert.equal((html.match(/<div class="row nav" data-(action|edit-sheet)="/g) || []).length, 2,
     'both render as the same nav-row shape');
@@ -846,6 +846,36 @@ test('renderSelectOptions renders meta.desc as a stacked description; plain opti
   assert.ok(html.indexOf('<span class="ssel-opt-desc">Best in the Nordics</span>') >= 0, 'desc line rendered under the name');
   assert.ok(html.indexOf('<span>Plain</span>') >= 0, 'option without a desc keeps the plain single-span layout');
   assert.equal(html.indexOf('ssel-opt-txt"><span class="ssel-opt-name">Plain'), -1, 'plain option is not wrapped in the desc layout');
+});
+
+test('renderSelectModal: pictureFrom draws a picture at the start of each option; sheetLead a line under the title', () => {
+  E.pictureResolvers.register('testSelectPics', (S, env, args, userData) =>
+    (args.value === 'none' ? '' : '<svg data-pic="' + args.value + '" data-key="' + args.messageKey + '" data-ud="'
+      + (userData.tag || '') + '" data-arg="' + (args.extra || '') + '"></svg>'));
+  const schema = { appName: 'X', versionLabel: '', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
+    { type: 'select', messageKey: 'g', label: 'Graph', sheetLead: 'Start from a template & get a copy.', defaultValue: 'a',
+      options: [['A', 'a', { desc: 'First' }], ['B', 'b'], ['None', 'none']],
+      pictureFrom: { resolver: 'testSelectPics', args: { extra: 'x' } } },
+    { type: 'select', messageKey: 'p', label: 'Plain', defaultValue: 'a', options: [['A', 'a']] }
+  ] } ] } ] };
+  const cx = (key) => ({ S: { g: 'a', p: 'a' }, ENV: {}, USERDATA: { tag: 'ud' }, openColor: null, openSelect: key,
+    selectQuery: '', collapsed: {}, evalCtx: { g: 'a', p: 'a', env: {} } });
+  const html = E.renderSelectModal(schema, cx('g'));
+  // Each option with a picture draws it first in its row, with the resolver's args and userData.
+  assert.ok(/<button type="button" class="ssel-opt on has-pic"[^>]*data-select-pick="a"[^>]*><span class="ssel-pic"/.test(html), html);
+  assert.ok(html.indexOf('<span class="ssel-pic" aria-hidden="true"><svg data-pic="a" data-key="g" data-ud="ud" data-arg="x">'
+    + '</svg></span><span class="ssel-opt-txt">') >= 0, 'the picture, then the name and its line');
+  assert.ok(/class="ssel-opt has-pic"[^>]*data-select-pick="b"[^>]*><span class="ssel-pic"/.test(html), 'a plain option gets its picture too');
+  // An option whose picture is '' keeps the plain row.
+  assert.ok(/class="ssel-opt"[^>]*data-select-pick="none"[^>]*><span>None<\/span>/.test(html), 'no picture, no picture cell');
+  // The lead sits under the title, escaped, before the list.
+  const lead = html.indexOf('<div class="ssel-lead">Start from a template &amp; get a copy.</div>');
+  assert.ok(lead > 0 && lead < html.indexOf('class="ssel-list"'), 'lead line between the title and the list');
+  // A select without pictureFrom or sheetLead renders as before.
+  const plain = E.renderSelectModal(schema, cx('p'));
+  assert.equal(plain.indexOf('ssel-pic'), -1);
+  assert.equal(plain.indexOf('has-pic'), -1);
+  assert.equal(plain.indexOf('ssel-lead'), -1);
 });
 
 test('select trigger uses meta.short for the collapsed label; the sheet keeps the full name', () => {
@@ -1136,9 +1166,12 @@ function bootWithCapturedListeners(schema, env, opts) {
   const BUNDLE = LIB_PAGE_FILES.map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
     + '\nPConf.hooks.onLoad(function (ctx) { module.exports.loadEnv = ctx.env; });'
     + '\nPConf.hooks.onReady(function (ctx) {'
-    + ' module.exports.openSheet = ctx.openSheet;'
+    + ' module.exports.openSheet = ctx.openSheet; module.exports.openDialog = ctx.openDialog;'
     + ' module.exports.activeTab = ctx.activeTab;'
-    + ' module.exports.getValue = ctx.get; module.exports.setValue = ctx.set; });'
+    + ' module.exports.getValue = ctx.get; module.exports.setValue = ctx.set;'
+    + ' module.exports.gotoTab = ctx.gotoTab; module.exports.S = ctx.S; module.exports.render = ctx.render; });'
+    // opts.prelude: page code registered ahead of boot (hooks, blocks, resolvers).
+    + '\n' + ((opts && opts.prelude) || '')
     + '\nPConf.engine.boot();';
   const listeners = {};
   const modalListeners = {};
@@ -1188,7 +1221,9 @@ function bootWithCapturedListeners(schema, env, opts) {
   });
   const revert = Object.assign(generic(), { hidden: true,
     addEventListener: (type, fn) => { headerListeners.revert[type] = fn; } });
-  const ids = { scroll, modal, tabs, save, revert, appTitle: generic(), toast: generic() };
+  // The toast takes classes (Save shows it before it leaves the page).
+  const toast = Object.assign(generic(), { classList: { add: () => {}, remove: () => {} } });
+  const ids = { scroll, modal, tabs, save, revert, appTitle: generic(), toast };
   // Resolve the selectors boot() issues against `document`: live-search lists and the fresh
   // select/date/edit-sheet triggers that closeModal() may restore focus to after render.
   const document = {
@@ -1203,22 +1238,26 @@ function bootWithCapturedListeners(schema, env, opts) {
           focusCounts[m[1]][m[2]] = (focusCounts[m[1]][m[2]] || 0) + 1;
         } };
       }
-      return null;
+      // opts.docQuery: any other selector (a page's own trigger a sheet hands focus back to).
+      return (opts && opts.docQuery) ? opts.docQuery(sel) : null;
     }
   };
   // opts.docQueryAll: the page's querySelectorAll, for the tests that tell twin triggers
   // apart (a key shown in the tab's pinned preview and in its row).
   if (opts && opts.docQueryAll) { document.querySelectorAll = opts.docQueryAll; }
+  // Save leaves the page through location.href (the blob in its hash).
+  const location = { href: '' };
   const fn = new Function('document', 'INJECTED_SCHEMA', 'INJECTED_ENV', 'INJECTED_CFG',
-    'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', BUNDLE);
+    'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', 'location', BUNDLE);
   const mod = { exports: {} };
-  fn(document, schema, env, {}, {}, 'pebblejs://close#', mod);
+  fn(document, schema, env, (opts && opts.cfg) || {}, {}, 'pebblejs://close#', mod, location);
   return {
     listeners, modalListeners, tabsListeners, scroll, modal, tabs, sselList, focusCounts,
-    save, revert, headerListeners,
+    save, revert, headerListeners, location,
     onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv,
     openSheet: mod.exports.openSheet, getValue: mod.exports.getValue, setValue: mod.exports.setValue,
-    activeTab: mod.exports.activeTab
+    activeTab: mod.exports.activeTab, gotoTab: mod.exports.gotoTab, S: mod.exports.S,
+    page: mod.exports
   };
 }
 
@@ -2674,6 +2713,70 @@ test('titleFrom: a collapsed section header paints the resolved value; open/plai
   assert.equal(html.indexOf('ttlval'), -1);
 });
 
+test('titleBy / sheetTitleBy: a card header and a picker named by the settings; the static title otherwise', () => {
+  PConf.displayResolvers.register('namedTitle', function (S, env, args) {
+    return S.name ? S.name + (args.tail || '') : '';
+  });
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{
+    id: 'bar', title: 'Forecast bar', titleBy: { resolver: 'namedTitle' },
+    items: [{ type: 'select', messageKey: 'slot', label: 'Left slot', sheetTitle: 'Forecast bar · Left slot',
+      sheetTitleBy: { resolver: 'namedTitle', args: { tail: ' · Left slot' } }, defaultValue: 'a',
+      options: [['Alpha', 'a'], ['Bravo', 'b']] }]
+  }] }] };
+  const mkCx = (S) => ({ S, ENV: {}, USERDATA: {}, openColor: null, collapsed: {},
+    evalCtx: Object.assign({}, S, { env: {} }) });
+  // Named: the resolver's answer, escaped, marked for the in-place retitle after a text commit.
+  let html = E.renderBody(SCH, 't', mkCx({ name: 'Morning <b>', slot: 'a' }));
+  assert.match(html, /<span class="ttl" data-title-by="bar">Morning &lt;b&gt;<\/span>/);
+  let sheet = E.renderSelectModal(SCH, Object.assign(mkCx({ name: 'Morning <b>', slot: 'a' }), { openSelect: 'slot' }));
+  assert.match(sheet, /id="ssel-ttl-slot">Morning &lt;b&gt; · Left slot</);
+  // Unnamed (the resolver answers ''): the static title stands.
+  html = E.renderBody(SCH, 't', mkCx({ name: '', slot: 'a' }));
+  assert.match(html, /<span class="ttl" data-title-by="bar">Forecast bar<\/span>/);
+  sheet = E.renderSelectModal(SCH, Object.assign(mkCx({ slot: 'a' }), { openSelect: 'slot' }));
+  assert.match(sheet, /id="ssel-ttl-slot">Forecast bar · Left slot</);
+  // A section without titleBy is not marked.
+  const PLAIN = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{
+    id: 'p', title: 'Plain', items: [{ type: 'toggle', messageKey: 'x', defaultValue: false }] }] }] };
+  assert.match(E.renderBody(PLAIN, 't', mkCx({ x: false })), /<span class="ttl">Plain<\/span>/);
+});
+
+test('noteFrom: a short note on the right of a card header, what it means behind a \'?\' that always shows', () => {
+  PConf.displayResolvers.register('countNote', function (S) {
+    return S.n ? { text: S.n + '/5', label: S.n + ' of 5 in use', info: S.info } : null;
+  });
+  const SCH = (extra) => ({ appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [Object.assign({
+    id: 'cnt', title: 'Counted', noteFrom: { resolver: 'countNote' },
+    items: [{ type: 'toggle', messageKey: 'x', defaultValue: false }]
+  }, extra || {})] }] });
+  const mkCx = (S, infoOpen, more) => Object.assign({ S, ENV: {}, USERDATA: {}, openColor: null, collapsed: {},
+    infoOpen: infoOpen || {}, evalCtx: Object.assign({}, S, { env: {} }) }, more || {});
+  const S = { n: 4, info: 'Four <b>of</b> five.' };
+  // After the title: the text for the eye, its label for a screen reader, its '?' closed. The info
+  // waits behind it.
+  const closed = '<span class="ttl">Counted</span></span><span class="hdr-note"><span aria-hidden="true">4/5</span>'
+    + '<span class="sr-only">4 of 5 in use</span><button type="button" class="info-q" data-info="n:t:cnt/0"'
+    + ' aria-expanded="false" aria-label="Info about 4 of 5 in use">?</button></span></div>';
+  let html = E.renderBody(SCH(), 't', mkCx(S));
+  assert.ok(html.indexOf(closed) !== -1, html);
+  assert.equal(html.indexOf('Four'), -1);
+  // Its '?' on: the info (HTML) first in the card.
+  html = E.renderBody(SCH(), 't', mkCx(S, { 'n:t:cnt/0': true }));
+  assert.match(html, /class="info-q on" data-info="n:t:cnt\/0" aria-expanded="true" aria-label="Hide info about 4 of 5 in use"/);
+  assert.ok(html.indexOf('</span></div><div><div class="intro">Four <b>of</b> five.</div>') !== -1, html);
+  // The page's '?' mode changes nothing: with every info text behind a '?' the note is the same.
+  assert.ok(E.renderBody(SCH(), 't', mkCx(S, {}, { infoIcons: true })).indexOf(closed) !== -1);
+  // No info: the note alone. Text escaped.
+  html = E.renderBody(SCH(), 't', mkCx({ n: '<i>' }));
+  assert.ok(html.indexOf('<span class="hdr-note"><span aria-hidden="true">&lt;i&gt;/5</span><span class="sr-only">&lt;i&gt; of'
+    + ' 5 in use</span></span>') !== -1, html);
+  assert.equal(html.indexOf('data-info'), -1);
+  // No answer, an unknown resolver, a collapsible card (its header is one button): no note.
+  assert.equal(E.renderBody(SCH(), 't', mkCx({ n: 0 })).indexOf('hdr-note'), -1);
+  assert.equal(E.renderBody(SCH({ noteFrom: { resolver: 'nope' } }), 't', mkCx(S)).indexOf('hdr-note'), -1);
+  assert.equal(E.renderBody(SCH({ collapsible: true }), 't', mkCx(S)).indexOf('hdr-note'), -1);
+});
+
 test('initialTab: a tab may claim the opening slot, order alone does not', () => {
   const bar = (tabs) => ({ appName: 'X', versionLabel: 'v0', tabs: tabs });
   const T = (id, extra) => Object.assign({ id: id, label: id, sections: [] }, extra || {});
@@ -2984,4 +3087,176 @@ test('single range: the dual and threshold variants are untouched', () => {
   assert.equal(RCTL.isSingleItem({ type: 'range', single: true, rangeFrom: { resolver: 'x' } }), false);
   const dual = E.renderRange({ type: 'range', messageKey: 'r', min: 0, max: 10 }, { value: '2-8' });
   assert.match(dual, /data-lo="2" data-hi="8"/);
+});
+
+// ── Graph styles' engine hooks (src/pkjs/settings/graph-styles-page.js holds a style's values
+// in the flat keys while its dialog is open): onRender, normalize, gotoTab.
+
+test('boot(): an onRender hook runs first in every render, told the tab and the pane on screen', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [
+    { id: 'g', label: 'G', panes: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }], sections: [
+      { pane: 'a', items: [{ type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'x',
+        options: [['X', 'x'], ['Y', 'y']] }] },
+      { pane: 'b', items: [{ type: 'segmented', messageKey: 'size', label: 'Size', defaultValue: 's',
+        options: [['S', 's'], ['L', 'l']] }] }
+    ] },
+    { id: 'h', label: 'H', sections: [{ items: [{ type: 'segmented', messageKey: 'other', label: 'Other',
+      defaultValue: 'n', options: [['N', 'n'], ['M', 'm']] }] }] }
+  ] };
+  // The hook moves a value for pane b and back elsewhere, as a page module would.
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true, prelude:
+    'PConf.hooks.onRender(function (c) {'
+    + ' (module.exports.seen = module.exports.seen || []).push(c.tab + ":" + c.pane);'
+    + ' c.S.size = c.pane === "b" ? "l" : "s"; });' });
+  assert.deepEqual(r.page.seen, ['g:a'], 'the first render: the first tab, its first pane');
+  const pane = { getAttribute: (n) => (n === 'data-pane' ? 'g:b' : null),
+    closest: (sel) => (sel === '[data-pane]' ? pane : null) };
+  r.listeners.click({ target: pane });
+  assert.equal(r.page.seen[r.page.seen.length - 1], 'g:b', 'a pane switch renders with its pane');
+  assert.equal(r.getValue('size'), 'l', 'and the body reads what the hook moved');
+  assert.match(r.scroll.innerHTML, /class="on" data-k="size" data-v="l"/, 'the hook runs before the body renders');
+  r.gotoTab('h');
+  assert.equal(r.page.seen[r.page.seen.length - 1], 'h:null', 'a tab without panes: no pane');
+  assert.equal(r.getValue('size'), 's', 'moved back off the pane');
+  assert.equal(r.activeTab(), 'h', 'gotoTab brings the tab to the front');
+  r.gotoTab('g', 'a');
+  assert.equal(r.page.seen[r.page.seen.length - 1], 'g:a', 'gotoTab with a pane shows that pane');
+});
+
+test('boot(): ctx.openDialog: the render hook hears the root dialog, nested ones too; its close options outlive a nested dialog', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { items: [{ type: 'select', messageKey: 'pick', label: 'Pick', defaultValue: 'x', options: [['X', 'x'], ['Y', 'y']] }] },
+    { sheetOnly: true, sheetId: 'outer', title: 'Outer', items: [{ type: 'sheet', sheetId: 'inner', label: 'Inner' }] },
+    { sheetOnly: true, sheetId: 'inner', title: 'Inner',
+      items: [{ type: 'toggle', messageKey: 'b', label: 'B', defaultValue: false }] }
+  ] }] };
+  const focused = [];
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true,
+    docQuery: (sel) => ({ focus: () => { focused.push(sel); } }),
+    prelude: 'PConf.hooks.onRender(function (c) { (module.exports.dialogs = module.exports.dialogs || []).push(c.dialog); });' });
+  const last = () => r.page.dialogs[r.page.dialogs.length - 1];
+  const tap = (sel, attrs) => {
+    const t = { getAttribute: (n) => (attrs || {})[n] || null, closest: (q) => (q === sel ? t : null) };
+    r.modalListeners.click({ target: t });
+  };
+  assert.equal(last(), null, 'no dialog');
+  let closed = 0;
+  r.page.openDialog('outer', { onClose: () => { closed++; }, focusBack: '[data-action="row"][data-action-arg="2"]' });
+  assert.equal(last(), 'outer');
+  tap('[data-edit-sheet]', { 'data-edit-sheet': 'inner' });
+  assert.match(r.modal.innerHTML, /Inner/);
+  assert.equal(last(), 'outer', 'a nested dialog: the root it sits on');
+  tap('[data-dlg-back]');
+  assert.equal(closed, 0);
+  tap('[data-dlg-done]');
+  assert.equal(r.modal.innerHTML, '', 'Done closes it');
+  assert.equal(last(), null);
+  assert.equal(closed, 1, 'the root\'s onClose runs, a nested dialog opened in between');
+  assert.deepEqual(focused, ['[data-action="row"][data-action-arg="2"]'], 'and the focus goes back to the page\'s own trigger');
+  // An overlay's dialog (the screen editor's) keeps its no-focus through a nested dialog too.
+  focused.length = 0;
+  r.page.openDialog('outer', { onClose: () => { closed++; }, overlay: true });
+  tap('[data-edit-sheet]', { 'data-edit-sheet': 'inner' });
+  tap('[data-dlg-done]');
+  tap('[data-dlg-done]');
+  assert.equal(closed, 2);
+  assert.deepEqual(focused, [], 'nothing on the page takes the focus');
+  // openSheet() hands the focus back to the trigger it is given (New graph), else to nothing.
+  r.openSheet('pick', null, '[data-action="newGraph"]');
+  r.modalListeners.click({ target: { closest: (q) => (q === '[data-select-close]' ? {} : null) } });
+  assert.deepEqual(focused, ['[data-action="newGraph"]']);
+});
+
+test('boot(): a dialog whose subject goes closes itself, the focus on the Undo its Delete left', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { items: [{ type: 'toggle', messageKey: 'alive', label: 'Alive', defaultValue: true }] },
+    { sheetOnly: true, sheetId: 'thing', title: 'Thing', showWhen: { when: 'alive' },
+      items: [{ type: 'toggle', messageKey: 'b', label: 'B', defaultValue: false }] }
+  ] }] };
+  const focused = [];
+  let undoShown = true;
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true,
+    docQuery: (sel) => ((sel !== '#scroll .ui-undo' || undoShown) ? { focus: () => { focused.push(sel); } } : null),
+    prelude: 'PConf.whenResolvers.register("alive", function (S) { return S.alive !== false; });' });
+  const tapDone = () => r.modalListeners.click({ target: { getAttribute: () => null,
+    closest: (q) => (q === '[data-dlg-done]' ? {} : null) } });
+  // Done: the focus goes back to the row that opened it.
+  r.page.openDialog('thing', { focusBack: '[data-action="row"]' });
+  r.setValue('b', true);
+  r.page.render();
+  assert.match(r.modal.innerHTML, /Thing/);
+  tapDone();
+  assert.deepEqual(focused, ['[data-action="row"]']);
+  // Its subject gone (a Delete in it): it closes and the focus goes to the Undo the Delete left.
+  focused.length = 0;
+  r.page.openDialog('thing', { focusBack: '[data-action="row"]' });
+  r.setValue('alive', false);
+  r.page.render();
+  assert.equal(r.modal.innerHTML, '', 'the dialog closed itself');
+  assert.deepEqual(focused, ['#scroll .ui-undo'], 'not the row that took the gone one\'s place');
+  // No Undo showing: focus goes nowhere. A dialog over the screen editor places none at all.
+  [{ focusBack: '[data-action="row"]' }, { overlay: true }].forEach((o, n) => {
+    focused.length = 0;
+    undoShown = n === 1;
+    r.setValue('alive', true);
+    r.page.openDialog('thing', o);
+    r.setValue('alive', false);
+    r.page.render();
+    assert.equal(r.modal.innerHTML, '');
+    assert.deepEqual(focused, [], n ? 'the overlay keeps the focus' : 'no Undo, no focus');
+  });
+  // One gone before it shows closes on its first render, and its onClose still runs.
+  let closed = 0;
+  r.page.openDialog('thing', { onClose: () => { closed++; } });
+  assert.equal(r.modal.innerHTML, '');
+  assert.equal(closed, 1, 'the close options are in place before the first render');
+});
+
+test('boot(): Save and Revert compare the normalized settings, and Save stores them', async () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'a', options: [['A', 'a'], ['B', 'b']] },
+    { type: 'segmented', messageKey: 'size', label: 'Size', defaultValue: 's', options: [['S', 's'], ['L', 'l']] }
+  ] }] }] };
+  // A value moved for the screen: `mode` shows 'b' while `_held` keeps the stored 'a'.
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true, prelude:
+    'PConf.hooks.onNormalize(function (st) {'
+    + ' if (!st._held) { return st; }'
+    + ' var o = Object.assign({}, st); o.mode = st._held; delete o._held; return o; });'
+    + 'PConf.hooks.onSubmit(function (ctx) {'
+    + ' module.exports.submitted = { mode: ctx.get("mode"), held: ctx.get("_held") }; });' });
+  r.S._held = 'a';
+  r.S.mode = 'b';
+  r.page.render();
+  assert.ok(r.save.classes.has('idle'), 'a value moved for the screen is no change');
+  assert.equal(r.revert.hidden, true);
+  tapSegment(r, 'size', 'l');
+  assert.ok(!r.save.classes.has('idle'), 'a real change lights Save');
+  r.headerListeners.save.click({});
+  assert.deepEqual(r.page.submitted, { mode: 'a', held: undefined }, 'the submit hooks see the stored settings');
+  assert.equal(r.getValue('mode'), 'a', 'S is settled in place');
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  const blob = JSON.parse(decodeURIComponent(r.location.href.split('#')[1]));
+  assert.equal(blob.mode, 'a', 'Save stores the normalized value');
+  assert.equal(blob.size, 'l');
+  assert.ok(!Object.prototype.hasOwnProperty.call(blob, '_held'), 'never a key of the schema\'s own');
+});
+
+test('boot(): Revert drops a value held for the screen with the rest', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'a', options: [['A', 'a'], ['B', 'b']] },
+    { type: 'segmented', messageKey: 'size', label: 'Size', defaultValue: 's', options: [['S', 's'], ['L', 'l']] }
+  ] }] }] };
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true, prelude:
+    'PConf.hooks.onNormalize(function (st) {'
+    + ' if (!st._held) { return st; }'
+    + ' var o = Object.assign({}, st); o.mode = st._held; delete o._held; return o; });' });
+  r.S._held = 'a';
+  r.S.mode = 'b';
+  tapSegment(r, 'size', 'l');
+  r.headerListeners.revert.click({});
+  tapConfirm(r, 'action');
+  assert.equal(r.getValue('mode'), 'a');
+  assert.equal(r.getValue('_held'), undefined, 'the held value goes: the page held none when it was ready');
+  assert.equal(r.getValue('size'), 's');
+  assert.ok(r.save.classes.has('idle'));
 });

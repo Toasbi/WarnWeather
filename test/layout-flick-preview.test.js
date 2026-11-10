@@ -69,8 +69,8 @@ test('compactCal + radar shows a Default and a Flick card (radar view present)',
   const body = layoutBody({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off', swapClockStatus: false });
   assert.ok(body.indexOf('<svg') >= 0, 'preview SVG renders');
   assert.deepEqual(views(body), [
-    'Default: Watch Status, Calendar (2 rows), Forecast Status, Clock, Forecast',
-    'Flick 1: Watch Status, Calendar (2 rows), Radar Status, Clock, Radar'
+    'Default: Watch bar, Calendar (2 rows), Forecast bar, Clock, Forecast',
+    'Flick 1: Watch bar, Calendar (2 rows), Radar bar, Clock, Radar'
   ], 'two cards, the second the radar view');
 });
 

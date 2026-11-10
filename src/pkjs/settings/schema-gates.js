@@ -62,9 +62,22 @@ var BOLD_MASTER_WHEN = {key: 'statusBoldAll', in: ['off', 'all']};
 // The two capability gates the Radar/Health status bars share — named once
 // (the THRESHOLD_WHEN precedent) so a bar's visibility rule lives in one
 // constant instead of six inline copies across its slots and countdown rows.
-// Whether a screen shows the bar: on-demand.js barExists (when-resolvers.js barShown).
-var RADAR_BAR_WHEN = {all: [{env: 'radar'}, {when: 'barShown', args: {bar: 'radar'}}]};
-var HEALTH_BAR_WHEN = {all: [{env: 'health'}, {when: 'barShown', args: {bar: 'health'}}]};
+// Whether the watch draws the bar at all (aplite: neither). Since 3.0 a bar no screen shows
+// keeps its card on the Status bars tab (it says so): any bar can go onto any screen.
+var RADAR_BAR_WHEN = {env: 'radar'};
+var HEALTH_BAR_WHEN = {env: 'health'};
+// "This watch has bars 4 to 6" (platform.js env.extraBars: the Pebble Time 2): New status bar and the
+// made bars' cards. Fails closed for an unknown watch.
+var EXTRA_BARS_WHEN = {env: 'extraBars'};
+
+/**
+ * A bar 4 to 6's gate: the watch has them and New status bar made this one (view-cycle.js barMade).
+ * @param {string} prefix The bar's key prefix, e.g. 'statusBar4'.
+ * @returns {Object} showWhen predicate
+ */
+function extraBarWhen(prefix) {
+    return {all: [EXTRA_BARS_WHEN, {key: prefix + 'Made', eq: true}]};
+}
 // "The theme actually renders color choices" — inlined ~10 times before it had
 // a name. (The compound "effectively B&W" check is the BW_LEGEND rows' showWhen in
 // schema.js.)
@@ -79,6 +92,9 @@ var LINE_STYLES_WHEN = {env: 'lineStyles'};
 // (the forecast's Left axis card, src/pkjs/forecast-axis.js). Fails closed: an
 // unknown platform (no watchInfo) hides them, like largeGraphFont's row.
 var EMERY_WHEN = {env: 'platform', eq: 'emery'};
+// "This watch has graph styles" (platform.js env.graphStyles: emery) — the Graph style card,
+// its sheets and the screen editor's style picker (src/pkjs/graph-styles.js). Fails closed.
+var GRAPH_STYLES_WHEN = {env: 'graphStyles'};
 
 /**
  * Gate every item that has no showWhen of its own — the sheet and group
@@ -119,9 +135,12 @@ module.exports = {
     BOLD_MASTER_WHEN: BOLD_MASTER_WHEN,
     RADAR_BAR_WHEN: RADAR_BAR_WHEN,
     HEALTH_BAR_WHEN: HEALTH_BAR_WHEN,
+    EXTRA_BARS_WHEN: EXTRA_BARS_WHEN,
+    extraBarWhen: extraBarWhen,
     COLOR_THEME_WHEN: COLOR_THEME_WHEN,
     LINE_STYLES_WHEN: LINE_STYLES_WHEN,
     EMERY_WHEN: EMERY_WHEN,
+    GRAPH_STYLES_WHEN: GRAPH_STYLES_WHEN,
     gateAll: gateAll,
     tabLink: tabLink,
     linkRow: linkRow

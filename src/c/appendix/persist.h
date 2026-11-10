@@ -114,6 +114,15 @@ bool persist_set_threshold_settings(const uint8_t *data, size_t len);
 // slot; returns whether the stored value actually changed.
 int persist_get_alert_entries(uint8_t *out, size_t cap);
 bool persist_set_alert_entries(const uint8_t *data, size_t len);
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: bars 4 to 6's On demand cells (CLAY_OD_EXTRA_UINT8 tuple, layout in
+// status_threshold.h), stored as sent. Get returns the byte count, 0 when none is stored
+// (nothing ticked on them, or never received). Set with len 0 deletes the slot; returns
+// whether the stored value actually changed.
+int persist_get_od_extra_cells(uint8_t *out, size_t cap);
+bool persist_set_od_extra_cells(const uint8_t *data, size_t len);
+#endif
 #endif
 
 // Forecast curve insets are compiled out of aplite (WW_CURVE_INSET, wscript):
@@ -364,6 +373,14 @@ int  persist_get_norain_text(char *buffer, size_t buffer_size);
 bool persist_has_radar_notice(void);
 int  persist_get_radar_notice(char *buffer, size_t buffer_size);
 bool persist_set_radar_notice(const char *text);
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: graph style k's record (k 0..2, the view word's style; layout in graph_style.h),
+// stored as sent. Get: its length in bytes, 0 while absent. Set: len 0 deletes it; returns
+// whether the stored record changed.
+int  persist_get_graph_style(uint8_t k, uint8_t *buffer, size_t cap);
+bool persist_set_graph_style(uint8_t k, const uint8_t *data, size_t len);
+#endif
 
 bool persist_set_forecast_start(time_t val);
 

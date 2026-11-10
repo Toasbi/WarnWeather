@@ -1,8 +1,9 @@
-// src/pkjs/settings/preview-status-bars.js — ES5, WebView (+ Node for tests). The Status
-// bars tab's pinned preview (block 'statusBarsPreview'): every bar the watch draws right
-// now, one line each, its three slots as sample values — left, middle and right — so a
-// slot pick shows where it lands before the main Save. A tap on a slot opens its picker.
-// Also pinned above every slot dialog, where the slots are the picture alone.
+// src/pkjs/settings/preview-status-bars.js — ES5, WebView (+ Node for tests). The status bars'
+// pictures: one bar's three slots as sample values, left, middle and right (barPicture: the
+// Status bars tab's Your status bars card draws each bar with it, a tap on a slot opening its picker,
+// and a bar's dialog draws its bar large), and the preview pinned above every slot dialog
+// (block 'statusBarsPreview'): the bar the dialog was opened from, else every bar the watch
+// draws right now, one line each, the slots the picture alone.
 //
 // The readings are SAMPLES (a fixed afternoon: 18°, wind 12 now / 30 at its peak, UV 3 …),
 // but the TEXT is the watch's: each sample goes through the code that prints the real
@@ -25,6 +26,9 @@
         : null;
     var NODE = typeof require !== 'undefined';
     var catalog = NODE ? require('../status-line-catalog.js') : window.StatusLineCatalog;
+    // A bar's name (screens.js barName), read when a row is drawn: screens.js loads after this
+    // file's dependencies and before the page draws.
+    var screens = NODE ? require('../screens.js') : window.Screens;
     var onDemand = NODE ? require('../on-demand.js') : window.OnDemand;
     var esc = NODE ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
     var previewInk = (NODE ? require('./preview-svg.js') : window.PreviewSvg).previewInk;
@@ -33,17 +37,13 @@
     var dateFormat = NODE ? require('../date-format.js') : window.DateFormat;
     var VC = NODE ? require('../view-cycle.js') : VIEW_CYCLE;
 
-    // Each bar's short name here and the view-cycle status source that seats it (the Watch
-    // bar is the top strip, src: null).
-    var BAR_SEATS = {
-        top: {name: 'Watch', src: null},
-        forecast: {name: 'Forecast', src: VC.STATUS_SRC_FORECAST},
-        health: {name: 'Health', src: VC.STATUS_SRC_HEALTH},
-        radar: {name: 'Radar', src: VC.STATUS_SRC_RADAR}
-    };
-    // The bars in the page's order, with their short names and seats.
+    // The bars in the page's order, each with the view-cycle status source a screen's row
+    // seats it by (view-cycle.js barOfSource, read back); the Watch bar is the top strip
+    // (src: null).
+    var SRC_OF_BAR = {};
+    for (var src = 1; VC.barOfSource(src); src++) { SRC_OF_BAR[VC.barOfSource(src)] = src; }
     var BARS = onDemand.PAGE_BARS.map(function (b) {
-        return {bar: b.bar, name: BAR_SEATS[b.bar].name, src: BAR_SEATS[b.bar].src};
+        return {bar: b.bar, src: b.bar === 'top' ? null : SRC_OF_BAR[b.bar]};
     });
     // Each slot's byte cap, left to right: the middle slot holds 19 bytes, the edges 8
     // (status-line-catalog.js CAPS) — the room the unit and pair fit rules measure.
@@ -248,14 +248,13 @@
      * fillNewBars reads a bar's slots here to tell one that shows nothing.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
-     * @param {string} bar 'top' | 'forecast' | 'health' | 'radar'.
+     * @param {string} bar 'top' | 'forecast' | 'health' | 'radar', or a bar 4 to 6.
      * @returns {Array<{pos: string, key: string, code: string}>} The left, middle and right
      *     slots (pos from status-line-catalog.js SLOT_POSITIONS, key the slot's setting, e.g.
      *     'statusTopLeft'); [] for an unknown bar.
      */
     function barCodes(S, env, bar) {
-        var st = S || {}, line = null, i;
-        for (i = 0; i < catalog.LINES.length; i++) { if (catalog.LINES[i].id === bar) { line = catalog.LINES[i]; } }
+        var st = S || {}, line = catalog.lineById(bar);
         if (!line) { return []; }
         return line.slots.map(function (key, p) {
             var pos = catalog.SLOT_POSITIONS[p];
@@ -295,7 +294,7 @@
      * open, it is the picture alone.
      * @param {{pos: string, key: string, code: string, text: string, arrow: boolean}} c The
      *     slot (barSlots).
-     * @param {string} barName The bar's short name.
+     * @param {string} barName The bar's name (screens.js barName).
      * @param {Object} env Platform env.
      * @param {boolean} tappable Whether the slot opens its picker.
      * @returns {string} HTML.
@@ -307,54 +306,98 @@
         var cls = 'sbp-v sbp-' + c.pos;
         if (!tappable) { return '<span class="' + cls + '">' + body + '</span>'; }
         var item = catalog.byCode(c.code);
-        var name = barName + ' bar, ' + POS_NAME[c.pos] + ': ' + (item ? item.label : c.code);
+        var name = barName + ', ' + POS_NAME[c.pos] + ': ' + (item ? item.label : c.code);
         return '<button type="button" class="' + cls + (empty ? ' sbp-empty' : '') + '" data-select="' + esc(c.key)
             + '" aria-label="' + esc(name) + '">' + (empty ? '<span class="sbp-hole" aria-hidden="true"></span>' : body)
             + '</button>';
     }
 
     /**
-     * The block: one row per bar the watch draws now, its name and three sample slots. On
-     * the tab a tap on a slot opens its picker; above a slot's dialog (opts.dialog) the rows
-     * are the picture alone.
+     * The pictures' frame: the watch's screen in its theme's ink. The watch draws the bars in
+     * its theme's ink (status_row.c: theme_fg() on the theme's background), so a light theme
+     * previews black on white, except on a watch without the light polarity (aplite), which
+     * always draws white on black.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {string} cls Its classes.
+     * @param {boolean} tappable Whether its slots are buttons (a group), else a picture.
+     * @param {string} label Its accessible name.
+     * @param {string} inner Its rows.
+     * @returns {string} HTML
+     */
+    function frame(S, env, cls, tappable, label, inner) {
+        var ink = previewInk(env && env.themePolarity === false ? 'dark' : S.theme);
+        ensureStyle();
+        return '<div class="' + cls + '" role="' + (tappable ? 'group' : 'img') + '" aria-label="' + esc(label)
+            + '" style="--sbp-bg:' + ink.bg + ';--sbp-fg:' + ink.fg + ';--sbp-dim:' + ink.rgba('0.5') + ';--sbp-line:'
+            + ink.rgba('0.12') + ';--sbp-chip:' + ink.rgba('0.1') + '">' + inner + '</div>';
+    }
+
+    /**
+     * One bar's picture: its three slots as the watch prints them (barSlots), the date slot as
+     * the first view showing the bar shows it. The Your status bars card draws each bar with it, a tap
+     * on a slot opening its picker (opts.tappable), dimmed while no screen shows the bar
+     * (opts.dim); a bar's dialog draws its bar large (opts.big).
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {string} bar An on-demand.js BARS bar.
+     * @param {{tappable: boolean, big: boolean, dim: boolean}} [opts] How it is drawn.
+     * @returns {string} HTML ('' for an unknown bar)
+     */
+    function barPicture(S, env, bar, opts) {
+        var st = S || {}, o = opts || {}, b = null;
+        BARS.forEach(function (x) { if (x.bar === bar) { b = x; } });
+        if (!b) { return ''; }
+        var name = screens.barName(st, bar), tappable = Boolean(o.tappable);
+        var view = barView(VC.resolveViewCycle(st, env), b);
+        var cells = barSlots(st, env, bar, !calendarShown(view), new Date()).map(function (c) {
+            return slotCell(c, name, env, tappable);
+        }).join('');
+        return frame(st, env, 'sbp one' + (tappable ? ' tap' : '') + (o.big ? ' big' : '') + (o.dim ? ' dim' : ''), tappable,
+            name, '<div class="sbp-row">' + cells + '</div>');
+    }
+
+    /**
+     * The block pinned above a slot's dialog: the bar it was opened from (opts.from, that bar's
+     * dialog), else one row per bar the watch draws now, its name and three sample slots, the
+     * picture alone. Off a dialog (the page's old pinned preview) a tap on a slot opens its
+     * picker.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
      * @param {Object} [userData] Page userData (unused).
-     * @param {{dialog: boolean}} [opts] dialog: pinned above a dialog (engine renderEditModal).
+     * @param {{dialog: boolean, from: ?string}} [opts] dialog: pinned above a dialog; from: the
+     *     sheet id of the dialog it was opened from (engine renderEditModal).
      * @returns {string} HTML ('' when no bar exists).
      */
     function statusBarsPreview(S, env, userData, opts) {
         var st = S || {}, rows = '', tappable = !(opts && opts.dialog);
+        var from = screens.barOfSheet(opts && opts.from);
+        if (from) { return barPicture(st, env, from, {big: true}); }
         var views = VC.resolveViewCycle(st, env);
         var now = new Date();
         BARS.forEach(function (b) {
-            var optional = b.bar === 'radar' || b.bar === 'health';
+            var optional = b.bar !== 'top' && b.bar !== 'forecast';
             if (optional && !onDemand.barExists(st, b.bar, env)) { return; }
-            // The Radar and Health bars show while a screen shows them, as their cards on
-            // the tab do (on-demand.js barExists). The Watch and Forecast bars show only
+            // The Radar and Health bars (and a made bar 4 to 6) show while a screen shows
+            // them, as their cards on the tab do (on-demand.js barExists). The Watch and Forecast bars show only
             // where a view seats them (Weather only without health has no top strip
             // anywhere).
             var view = barView(views, b);
             if (!view && !optional) { return; }
+            // Each row by its bar's name (screens.js barName), the label column without the
+            // trailing " bar" every default name has ("Forecast", a "Wind bar" as "Wind").
+            var name = screens.barName(st, b.bar);
             var cells = barSlots(st, env, b.bar, !calendarShown(view), now).map(function (c) {
-                return slotCell(c, b.name, env, tappable);
+                return slotCell(c, name, env, tappable);
             }).join('');
-            rows += '<div class="sbp-row"><span class="sbp-n">' + esc(b.name) + '</span>' + cells + '</div>';
+            rows += '<div class="sbp-row"><span class="sbp-n">' + esc(name.replace(/ bar$/i, '')) + '</span>' + cells
+                + '</div>';
         });
         if (!rows) { return ''; }
         // On the tab, a line under the bars says the slots can be tapped (their chips show
         // which); assistive tech hears each slot's button instead.
         if (tappable) { rows += '<div class="sbp-tip" aria-hidden="true">Tap a slot to change it</div>'; }
-        ensureStyle();
-        // The watch draws the bars in its theme's ink (status_row.c: theme_fg() on the
-        // theme's background), so a light theme previews black on white — except on a
-        // watch without the light polarity (aplite), which always draws white on black.
-        var ink = previewInk(env && env.themePolarity === false ? 'dark' : st.theme);
-        return '<div class="sbp' + (tappable ? ' tap' : '') + '" role="' + (tappable ? 'group' : 'img')
-            + '" aria-label="' + (tappable ? 'Status bars' : 'Status bars preview') + '" style="--sbp-bg:' + ink.bg
-            + ';--sbp-fg:' + ink.fg + ';--sbp-dim:' + ink.rgba('0.5') + ';--sbp-line:' + ink.rgba('0.12')
-            + ';--sbp-chip:' + ink.rgba('0.1') + '">'
-            + rows + '</div>';
+        return frame(st, env, 'sbp' + (tappable ? ' tap' : ''), tappable, tappable ? 'Status bars' : 'Status bars preview', rows);
     }
 
     // The preview's look, injected once: the watch's screen in its theme's ink (the
@@ -395,7 +438,15 @@
         + '.sbp-hole{display:inline-block;width:30px;height:15px;border:1px dashed var(--sbp-dim,#7C808A);'
         + 'border-radius:4px;vertical-align:middle}'
         + '.sbp-tip{padding:6px 0 3px;border-top:1px solid #1C1C1E;border-top-color:var(--sbp-line,#1C1C1E);'
-        + 'text-align:center;font:600 11px Inter,sans-serif;color:#7C808A;color:var(--sbp-dim,#7C808A)}';
+        + 'text-align:center;font:600 11px Inter,sans-serif;color:#7C808A;color:var(--sbp-dim,#7C808A)}'
+        // One bar's picture (barPicture): its own rounded strip, no name column; large in its
+        // dialog; dimmed while no screen shows it.
+        + '.sbp.one{margin:0;padding:0 10px;border-radius:9px}'
+        + '.sbp.one .sbp-row{grid-template-columns:auto minmax(0,1fr) auto}'
+        + '.sbp.big{padding:6px 14px;border-radius:12px}'
+        + '.sbp.big .sbp-v{font-size:17px}'
+        + '.sbp.big .sbp-ico{width:15px;height:15px}'
+        + '.sbp.dim{opacity:.55}';
     /**
      * Inject the preview's stylesheet (id 'sbp-style') once; nothing outside a DOM or when
      * it is already there.
@@ -410,7 +461,7 @@
     }
 
     if (PConf && PConf.blocks) { PConf.blocks.register('statusBarsPreview', statusBarsPreview); }
-    var api = {statusBarsPreview: statusBarsPreview, sample: sample, arrowDue: arrowDue,
+    var api = {statusBarsPreview: statusBarsPreview, barPicture: barPicture, sample: sample, arrowDue: arrowDue,
         arrowShown: arrowShown, calendarShown: calendarShown, barCodes: barCodes, barSlots: barSlots,
         slotIcon: slotIcon};
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

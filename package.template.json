@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "2.6.1",
+  "version": "3.1.0",
   "buildProfile": "{{buildProfile}}",
   "keywords": [
     "pebble-app",
@@ -675,7 +675,15 @@
       "FIFTH_LINE_TREND_UINT8",
       "RADAR_SKY_UINT8",
       "RAIN_RADAR_LIMITED",
-      "ALERT_ENTRIES_UINT8"
+      "ALERT_ENTRIES_UINT8",
+      "CLAY_GRAPH_STYLE_1_UINT8",
+      "CLAY_GRAPH_STYLE_2_UINT8",
+      "CLAY_GRAPH_STYLE_3_UINT8",
+      "SPARE_LINE_TREND_UINT8",
+      "STATUS_LINE_5_UINT8",
+      "STATUS_LINE_6_UINT8",
+      "STATUS_LINE_7_UINT8",
+      "CLAY_OD_EXTRA_UINT8"
     ]
   }
 }

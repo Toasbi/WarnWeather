@@ -51,6 +51,48 @@ Today the stops are hardcoded transitions; the à-la-carte plan makes them user
 data. With *Double flick* on, the cursor advances only on the second accepted
 flick within the pairing window (layout.h `view_flick_accept`).
 
+**Screen (settings page)**:
+One view of the flick cycle as the settings page edits it: a list of rows, top to bottom
+(`src/pkjs/screens.js`), compiled to the custom layout's per-view keys. It has a name, the
+page's own (`viewName{i}`: never compiled, sent or in telemetry; '' reads as its place, Default,
+Flick 1 or Flick 2), which moves with it. The top screen is the Default, the one the watch goes
+back to, and always shows the clock: a screen moved there gets it, or stays where it was when
+the clock does not fit (`src/pkjs/settings/screens-page.js` moveScreen).
+_Avoid_: view (the watch's word for what it draws).
+
+**Status bar (named)**:
+One of the bars a screen can show besides the Watch bar ("your bars"): the Forecast, Radar and
+Health bars (`on-demand.js` BARS, `STATUS_LINE_1`/`_2`/`_4`), and on emery bars 4 to 6 once New
+bar made them (`STATUS_LINE_5..7`), each holding what its three slots hold, whatever its kind. It
+has a name, the page's own (`<prefix>Name`: never compiled, sent or in telemetry; '' reads as its
+kind's, `screens.js` barName); the Watch bar keeps its name. Any screen shows any of them, and the
+watch draws each without radar or health data (`layout.c` view_spec_resolve), so on a custom layout
+the radar and health modes follow what the shown bars hold, not which bar shows (`screens.js`
+deriveModes). A bar no screen shows costs nothing: the phone sends it no line and fetches nothing
+for its slots (`status-line-catalog.js` bakedLines), and the watch never reads it (`status_bar.c`
+status_bar_set_in_use). The Watch bar's line always goes, since a Timeline Quick View peek shows
+the strip on every screen.
+_Avoid_: naming a bar by its source ("the radar row") where its name is meant.
+
+**Made bar (bars 4 to 6)**:
+One of the three extra bars of emery (`view-cycle.js` EXTRA_BARS: `bar4`..`bar6`, prefixes
+`statusBar4`..`6`), which exist once New bar made them (`<prefix>Made` true, `view-cycle.js`
+barMade; `screens.js` makeBar: an empty bar, its slots off, named for its kind unless another
+bar has that name) and stop at Delete bar
+(`screens.js` unmakeBar: every screen's row naming it goes off). The phone bakes its line while a
+screen shows it and sends its On demand cells (`CLAY_OD_EXTRA_UINT8`), to a known emery alone; a
+screen row names it with an ext bit over the first three bars' sources (`view-cycle.js` packExt,
+`layout.h` VIEW_EXT_UPPER_BAR_HI), and every other watch, an unknown one too, folds such a row off.
+_Avoid_: calling bars 4 to 6 "custom bars" or "user bars"; they are your bars like the first three.
+
+**Screen preset**:
+A screen Add screen offers after Blank (the Watch bar and the clock): Classic, Weathergraph,
+Clean, Stripes, Health + calendar and Health (`src/pkjs/screen-presets.js`), each only where the
+watch can draw it. On emery a forecast preset brings a graph: one of yours that reads as its
+template, else a new one from the template. It is one screen, unlike a layout preset
+(`layoutPreset`), which is a whole cycle.
+_Avoid_: calling it a layout preset, or a template (a template is where a graph starts).
+
 **Tier push**:
 Per-view layout facts (calendar rows, the date slot's full-date mode, graph gap,
 status tier and line id) flow one way: view spec → window → owning layer →
@@ -123,6 +165,26 @@ span (hours, emery only). Every default lives there; nothing downstream carries
 its own fallback.
 _Avoid_: provider flags, per-fetch knobs.
 
+**Graph style**:
+A named set of the forecast graph's settings on emery: its four lines (metric,
+style, Draw from, Visible values), the main metric's fill, the rain bars, Day / night shading,
+Forecast length, Left axis values and the graph colors (`src/pkjs/graph-styles.js`
+GOVERNED). Up to three: the first is the flat settings keys, the others live in
+the `graphStyles` item. Each screen's forecast graph names its style
+(`viewStyle{i}`); what shapes the data the phone bakes stays one setting for
+every style (SHARED). All the styles the screens show draw at most five series
+together, the weather message's five trend rows (a series is a metric, its
+stripe or line and its Visible values, so a wind line drawn All on one graph
+and Alert on another takes two rows): one per line and a spare row
+that no style's own line is (a style keeps its four lines; the spare has no
+picker, `src/pkjs/line-style.js` SPARE_LINE). Setup's forecast looks
+(Classic, Clean, Stripes: `src/pkjs/settings/wizard-forecast.js` LOOKS)
+are what a new style starts from. The settings page calls a style a graph
+("Your graphs"; "Graph 2" until it is renamed) and a look it starts from a
+template, which never changes and is never one of the graphs
+(`src/pkjs/settings/graph-styles-page.js`).
+_Avoid_: graph profile; calling a look a style (a look is where a style starts).
+
 **Forecast span**:
 The forecast graph's Forecast length option: 12 h, 24 h or the long span on emery
 (Graphs › Forecast › Other › Forecast length; stored '12' / '24' / '48', '48' being the long
@@ -134,7 +196,9 @@ axis (the high/low numbers On graph or Off on a known emery) (`hours()`;
 `WeatherProvider#payloadEntries`, fewer when a feed is shorter); the watch fits
 its grid to the count it receives (`NUM_ENTRIES`, `src/c/appendix/forecast_span.h`:
 2..14 the 12 h grid, 15..26 the 24 h grid, 27..68 the long one) and to its own
-plot width. See `docs/adr/0004-forecast-span-is-the-data.md`.
+plot width. Each graph style has its own: the phone sends the hours the longest
+style a shown screen uses needs, and each screen draws its own style's hours of them.
+See `docs/adr/0004-forecast-span-is-the-data.md`.
 _Avoid_: a watch-side forecast hours setting; calling the sent hours the span.
 
 **Visible hours**:

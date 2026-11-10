@@ -63,8 +63,14 @@ function bootAndFetch(t, settings) {
 }
 
 test('a UV status slot sends Open-Meteo\'s UV request', (t) => {
-  const h = bootAndFetch(t, noUvNoAqi({ statusRadarLeft: 'uv' }));
+  const h = bootAndFetch(t, noUvNoAqi({ statusForecastLeft: 'uv' }));
   assert.equal(h.requestsTo(UV_REQUEST), 1, 'options.fetchUv reached the provider: hourly=uv_index requested');
+});
+
+test('a UV slot on a bar no screen shows spends no UV request', (t) => {
+  // The harness runs with the radar off, so no screen shows the Radar bar.
+  const h = bootAndFetch(t, noUvNoAqi({ statusRadarLeft: 'uv' }));
+  assert.equal(h.requestsTo(UV_REQUEST), 0, 'the Radar bar is on no screen: its slot fetches nothing');
 });
 
 test('no UV and no AQI selection spends neither request', (t) => {

@@ -18,7 +18,14 @@ typedef enum {
                         // default. Same feature set as FOURTH, compiled out alike.
 #endif
     SERIES_BARS,        // rain bars, multi-stop palette
-    SERIES_COUNT
+    SERIES_COUNT,
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the graph styles' spare trend (graph_style.h GS_TREND_SPARE), a metric row no
+    // line of its own draws: a graph style's line reads it through its record's map. An id
+    // for the persist and AppMessage calls only, past the dataset's series, so never a
+    // Series of ForecastDataset (its loops stop at SERIES_COUNT).
+    SERIES_SPARE = SERIES_COUNT,
+#endif
 } SeriesId;
 
 // The half-open range [SERIES_THIRD, SERIES_BARS) is the platform-correct set

@@ -17,6 +17,7 @@
 #include "rain_countdown.h"
 #include "memory_log.h"
 #include "status_line.h"
+#include "graph_style.h"
 // Unguarded on purpose: declarations only (nothing is emitted), and waf's dependency
 // scanner cannot see an include inside a -D guard (night_light.c). Only the
 // handler below is WW_ON_DEMAND-guarded.
@@ -47,7 +48,7 @@ typedef struct {
 // of warn_bad's log line. The comments name the three numbers that follow it.
 typedef enum {
     BAD_FORECAST = 1,    // trend, start and count tuples present (1/0)
-    BAD_STATUS_LINE,     // line number (1-4), bytes
+    BAD_STATUS_LINE,     // line number (1-4; 5-7 bars 4 to 6 on emery), bytes
     BAD_STATUS_LEVELS,   // bytes
     BAD_THRESHOLDS,      // bytes
     BAD_ALERT_ENTRIES,   // bytes
@@ -57,6 +58,8 @@ typedef enum {
     BAD_CURVE_INSETS,    // bytes
     BAD_LINE_STYLE,      // bytes
     BAD_NIGHT_LIGHT,     // bytes
+    BAD_GRAPH_STYLE,     // style (1-3), bytes
+    BAD_OD_EXTRA,        // bytes
 } BadTuple;
 
 // One log call and one format string for every skip below. noinline: aplite has only
@@ -115,6 +118,11 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
         { SERIES_FOURTH, MESSAGE_KEY_FOURTH_LINE_TREND_UINT8    },
         { SERIES_FIFTH,  MESSAGE_KEY_FIFTH_LINE_TREND_UINT8     },
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: the graph styles' spare trend, sent only while the shown styles draw five
+        // series; a message without it deletes it (existence-keyed).
+        { SERIES_SPARE,  MESSAGE_KEY_SPARE_LINE_TREND_UINT8     },
+#endif
         { SERIES_BARS,   MESSAGE_KEY_BAR_TREND_UINT8            },
     };
     // Render-ready series (trend bytes only) — table-driven.
@@ -158,6 +166,13 @@ static uint32_t status_line_key(int line_id) {
         case 0: return MESSAGE_KEY_STATUS_LINE_1_UINT8;
         case 1: return MESSAGE_KEY_STATUS_LINE_2_UINT8;
         case 2: return MESSAGE_KEY_STATUS_LINE_3_UINT8;
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: bars 4 to 6 (status_line.h STATUS_LINE_BAR4..6). The phone sends a bar's
+        // line only while the bar is made, so a watch without them reads no tuple.
+        case STATUS_LINE_BAR4: return MESSAGE_KEY_STATUS_LINE_5_UINT8;
+        case STATUS_LINE_BAR5: return MESSAGE_KEY_STATUS_LINE_6_UINT8;
+        case STATUS_LINE_BAR6: return MESSAGE_KEY_STATUS_LINE_7_UINT8;
+#endif
         default: return MESSAGE_KEY_STATUS_LINE_4_UINT8;
     }
 }
@@ -234,6 +249,22 @@ static bool handle_alert_entries(DictionaryIterator *iterator, bool *status_dirt
     *status_dirty |= persist_set_alert_entries(tuple->value->data, tuple->length);
     return true;
 }
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: bars 4 to 6's On demand cells (status_threshold.h THRESH_OD_EXTRA_BYTES), on the
+// Clay message beside the thresholds blob, whose cell bytes have no room for them. Any
+// length but the cells' is dropped, and the last good cells stay.
+static bool handle_od_extra(DictionaryIterator *iterator, bool *status_dirty) {
+    Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_OD_EXTRA_UINT8);
+    if (!tuple) { return false; }
+    if (tuple->type != TUPLE_BYTE_ARRAY || tuple->length != THRESH_OD_EXTRA_BYTES) {
+        warn_bad(BAD_OD_EXTRA, tuple->length, 0, 0);
+        return true;
+    }
+    *status_dirty |= persist_set_od_extra_cells(tuple->value->data, tuple->length);
+    return true;
+}
+#endif
 #endif  // WW_ON_DEMAND
 
 #if defined(WW_FETCH_NOTICE)
@@ -509,6 +540,32 @@ static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty
     return true;
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the graph styles' records (graph_style.h) — settings-derived, so they ride the
+// Clay message (clay-payload.js). One optional tuple per style: a record is stored as sent,
+// an empty tuple deletes it (no screen shows that style, or every screen shows the first).
+// A malformed record is refused whole, so the last good one stays. Unconditional like
+// handle_line_style: the fixture path bundles the settings onto the weather message.
+static bool handle_graph_styles(DictionaryIterator *iterator, bool *forecast_dirty) {
+    const uint32_t keys[GRAPH_STYLE_COUNT] = {
+        MESSAGE_KEY_CLAY_GRAPH_STYLE_1_UINT8, MESSAGE_KEY_CLAY_GRAPH_STYLE_2_UINT8,
+        MESSAGE_KEY_CLAY_GRAPH_STYLE_3_UINT8 };
+    bool handled = false;
+    for (uint8_t k = 0; k < GRAPH_STYLE_COUNT; ++k) {
+        Tuple *tuple = dict_find(iterator, keys[k]);
+        if (!tuple) { continue; }
+        handled = true;
+        const int len = (tuple->type == TUPLE_BYTE_ARRAY) ? (int) tuple->length : -1;
+        if (len != 0 && (len < 0 || !graph_style_valid(tuple->value->data, len))) {
+            warn_bad(BAD_GRAPH_STYLE, k + 1u, tuple->length, 0);
+            continue;
+        }
+        *forecast_dirty |= persist_set_graph_style(k, tuple->value->data, (size_t) len);
+    }
+    return handled;
+}
+#endif
+
 #if defined(NIGHT_LIGHT_SUPPORTED)
 // "Dim backlight" (the Nighttime card) — the tint the RGB backlight LED burns at
 // night and the window it burns it in. Settings-derived, so the tuple rides the Clay
@@ -654,6 +711,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // aplite has no On demand (the lean status-row twin draws none) and the phone
     // never sends it the tuple.
     handled |= handle_alert_entries(iterator, &status_dirty);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6's On demand cells.
+    handled |= handle_od_extra(iterator, &status_dirty);
+#endif
 #endif
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
 #if defined(WW_RAIN_RADAR)
@@ -675,6 +736,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // onto the weather message (fixture-weather.js), so this must not sit
     // behind a "settings message only" branch or fixtures render stale colors.
     handled |= handle_line_style(iterator, &forecast_dirty);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: each screen's graph style (graph_style.h).
+    handled |= handle_graph_styles(iterator, &forecast_dirty);
+#endif
 #if defined(NIGHT_LIGHT_SUPPORTED)
     // Called for every inbound message like handle_line_style above, not behind a
     // "settings message only" branch: the fixture path bundles claySettings onto the
@@ -740,9 +805,6 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 #if defined(PBL_HEALTH)
         // A changed HR scale (or other graph-affecting setting) must re-derive from the
         // cache, not repaint the already-blanked/rescaled statics from before the save.
-        // After the refresh above on purpose: that refresh reports the FORECAST left-axis
-        // label width, and the health compute sizes its visible slots from the shared
-        // strip that width feeds (bottom_view.h, "wider of both").
         main_window_refresh_health_graph();
 #endif
         forecast_dirty = false;
@@ -868,8 +930,10 @@ void app_message_init() {
 #elif defined(PBL_PLATFORM_EMERY)
     // emery: 1024 (was 640, 2.2.0): the long forecast span's six 68-byte trends make the
     // heaviest bundle 867 B, 875 B with a cleared notice (test/inbox-size.test.js); 128 KB of
-    // app RAM has the room. Every other watch is never sent more than 24 hours.
-    const int inbox_size = 1024;
+    // app RAM has the room. Every other watch is never sent more than 24 hours. 1280 (was
+    // 1024, 3.0.0): bars 4 to 6's lines ride the status category, up to 51 B each, so the
+    // heaviest bundle is 1095 B, 1103 B with a cleared notice.
+    const int inbox_size = 1280;
 #else
     // Every other platform carries the extra metric lines (test/inbox-size.test.js sizes each
     // platform's heaviest bundle against its own value here). Their heap is not spare either:

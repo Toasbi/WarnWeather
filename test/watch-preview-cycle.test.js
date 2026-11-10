@@ -1,7 +1,7 @@
 // test/watch-preview-cycle.test.js — the view cycle as the Watchface tab's watch preview
 // draws it (settings/preview-watch.js): which views each layout gives, and each view's
-// bands top to bottom as the preview speaks them (the Layout card's words: Watch Status,
-// Calendar (3 rows), Clock, Forecast Status, Forecast …), on the seats the watch gives
+// bands top to bottom as the preview speaks them (the Layout card's words: Watch bar,
+// Calendar (3 rows), Clock, Forecast bar, Forecast …), on the seats the watch gives
 // them (view-cycle.js stackSeats). These checks ran on the schematic band preview
 // (preview-layout.js) until the watch preview replaced it.
 const test = require('node:test');
@@ -41,14 +41,14 @@ function cycleBands(S, env) {
 
 test('each preset\'s Default view, in the watch\'s order', () => {
   const off = (preset) => cycleBands({ layoutPreset: preset, healthMode: 'off', radarMode: 'off' });
-  assert.deepEqual(off('fullCal'), [['Watch Status', 'Calendar (3 rows)', 'Clock', 'Forecast Status', 'Forecast']]);
-  assert.deepEqual(off('compactCal'), [['Watch Status', 'Calendar (2 rows)', 'Forecast Status', 'Clock', 'Forecast']]);
+  assert.deepEqual(off('fullCal'), [['Watch bar', 'Calendar (3 rows)', 'Clock', 'Forecast bar', 'Forecast']]);
+  assert.deepEqual(off('compactCal'), [['Watch bar', 'Calendar (2 rows)', 'Forecast bar', 'Clock', 'Forecast']]);
   assert.deepEqual(off('compactDense'), off('compactCal'), 'dense with no row to add is compact');
-  assert.deepEqual(off('noCal'), [['Watch Status', 'Clock', 'Forecast Status', 'Forecast']]);
+  assert.deepEqual(off('noCal'), [['Watch bar', 'Clock', 'Forecast bar', 'Forecast']]);
   assert.deepEqual(off('bogus'), off('compactCal'), 'an unknown preset reads as Compact calendar');
   // Swap clock and status row: the forecast row moves under the clock, next to the graph.
   assert.deepEqual(cycleBands({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off', swapClockStatus: true }),
-    [['Watch Status', 'Calendar (2 rows)', 'Clock', 'Forecast Status', 'Forecast']]);
+    [['Watch bar', 'Calendar (2 rows)', 'Clock', 'Forecast bar', 'Forecast']]);
 });
 
 test('radar and health grow the cycle by a view each', () => {
@@ -66,40 +66,40 @@ test('radar and health grow the cycle by a view each', () => {
 test('each tier seats its status rows where the watch does', () => {
   const S = vc.spec;
   assert.deepEqual(bands(S(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)),
-    ['Watch Status', 'Calendar (3 rows)', 'Clock', 'Forecast Status', 'Forecast'], 'full: the clock before the row');
+    ['Watch bar', 'Calendar (3 rows)', 'Clock', 'Forecast bar', 'Forecast'], 'full: the clock before the row');
   assert.deepEqual(bands(S(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_HEALTH, vc.STATUS_SRC_NONE)),
-    ['Watch Status', 'Calendar (2 rows)', 'Health Status', 'Clock', 'Forecast'], 'compact: the upper row above the clock');
+    ['Watch bar', 'Calendar (2 rows)', 'Health bar', 'Clock', 'Forecast'], 'compact: the upper row above the clock');
   assert.deepEqual(bands(S(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_RADAR, vc.STATUS_SRC_RADAR, vc.STATUS_SRC_NONE)),
-    ['Watch Status', 'Clock', 'Radar Status', 'Radar'], 'none: no top area, the radar graph below');
+    ['Watch bar', 'Clock', 'Radar bar', 'Radar'], 'none: no top area, the radar graph below');
   assert.deepEqual(bands(S(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE)),
-    ['Watch Status', 'Radar', 'Clock', 'Forecast'], 'the radar in the top area; no status row');
+    ['Watch bar', 'Radar', 'Clock', 'Forecast'], 'the radar in the top area; no status row');
 });
 
 test('a status row is named by its own source, never guessed from the graphs', () => {
   const S = vc.spec;
   const radarBody = bands(S(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.STATUS_SRC_RADAR, vc.STATUS_SRC_NONE));
-  assert.ok(radarBody.indexOf('Radar Status') >= 0 && radarBody.indexOf('Forecast Status') < 0);
+  assert.ok(radarBody.indexOf('Radar bar') >= 0 && radarBody.indexOf('Forecast bar') < 0);
   const topRadarForecastRow = bands(S(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
-  assert.ok(topRadarForecastRow.indexOf('Forecast Status') >= 0 && topRadarForecastRow.indexOf('Radar Status') < 0);
+  assert.ok(topRadarForecastRow.indexOf('Forecast bar') >= 0 && topRadarForecastRow.indexOf('Radar bar') < 0);
   const dual = bands(S(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.STATUS_SRC_HEALTH, vc.STATUS_SRC_RADAR));
-  assert.ok(dual.indexOf('Health Status') >= 0 && dual.indexOf('Radar Status') >= 0);
+  assert.ok(dual.indexOf('Health bar') >= 0 && dual.indexOf('Radar bar') >= 0);
 });
 
 test('a dense view: its upper row above the clock, its lower one below', () => {
   const dense = bands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_HEALTH, vc.STATUS_SRC_FORECAST));
-  assert.ok(dense.indexOf('Health Status') < dense.indexOf('Clock'));
-  assert.ok(dense.indexOf('Clock') < dense.indexOf('Forecast Status'));
+  assert.ok(dense.indexOf('Health bar') < dense.indexOf('Clock'));
+  assert.ok(dense.indexOf('Clock') < dense.indexOf('Forecast bar'));
   // Compact calendar (dense) with the radar bar only: one view, the radar row above the clock.
   const c = cycleBands({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'status' });
   assert.equal(c.length, 1);
-  assert.ok(c[0].indexOf('Radar Status') < c[0].indexOf('Clock'));
-  assert.ok(c[0].indexOf('Clock') < c[0].indexOf('Forecast Status'));
+  assert.ok(c[0].indexOf('Radar bar') < c[0].indexOf('Clock'));
+  assert.ok(c[0].indexOf('Clock') < c[0].indexOf('Forecast bar'));
 });
 
-test('the radar bar alone flicks to the forecast under a Radar Status row', () => {
+test('the radar bar alone flicks to the forecast under a Radar bar row', () => {
   const c = cycleBands({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'status' });
   assert.equal(c.length, 2);
-  assert.ok(c[1].indexOf('Radar Status') >= 0 && c[1].indexOf('Forecast') >= 0);
+  assert.ok(c[1].indexOf('Radar bar') >= 0 && c[1].indexOf('Forecast') >= 0);
 });
 
 test('custom: the preview draws the compiled per-view keys; aplite draws its compactCal fold', () => {
@@ -123,19 +123,19 @@ test('custom flags: no clock, no top bar, a stacked order, a graph in the top ar
     vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE), { clockOff: true, stripOff: true })))), ['Radar'], 'the full-screen radar');
   const ctab = vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_HEALTH);
   ctab.order = vc.orderCode('CTAB');
-  assert.deepEqual(bands(ctab), ['Watch Status', 'Clock', 'Calendar (2 rows)', 'Forecast Status', 'Health Status', 'Forecast']);
+  assert.deepEqual(bands(ctab), ['Watch bar', 'Clock', 'Calendar (2 rows)', 'Forecast bar', 'Health bar', 'Forecast']);
   // Order 0 with a flag: the watch stacks TACB (the upper row above the clock), never the
   // full tier's legacy clock-first order.
   assert.deepEqual(bands(full({ clockOff: true })),
-    ['Watch Status', 'Calendar (3 rows)', 'Forecast Status', 'Health Status', 'Forecast']);
+    ['Watch bar', 'Calendar (3 rows)', 'Forecast bar', 'Health bar', 'Forecast']);
   assert.deepEqual(bands(full({ stripOff: true })),
-    ['Calendar (3 rows)', 'Forecast Status', 'Clock', 'Health Status', 'Forecast']);
+    ['Calendar (3 rows)', 'Forecast bar', 'Clock', 'Health bar', 'Forecast']);
   assert.deepEqual(bands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_GRAPH, vc.STATUS_SRC_NONE,
-    vc.STATUS_SRC_NONE), { order: 1 })), ['Watch Status', 'Forecast', 'Clock', 'Health graph']);
+    vc.STATUS_SRC_NONE), { order: 1 })), ['Watch bar', 'Forecast', 'Clock', 'Health graph']);
   assert.deepEqual(bands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_FC, vc.STATUS_SRC_NONE,
-    vc.STATUS_SRC_NONE), { order: 1, topKind: vc.TOP_KIND_HEALTH })), ['Watch Status', 'Health graph', 'Clock', 'Forecast']);
+    vc.STATUS_SRC_NONE), { order: 1, topKind: vc.TOP_KIND_HEALTH })), ['Watch bar', 'Health graph', 'Clock', 'Forecast']);
   assert.deepEqual(bands(Object.assign(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_NONE, vc.STATUS_SRC_FORECAST,
-    vc.STATUS_SRC_NONE), { order: 1 })), ['Watch Status', 'Calendar (2 rows)', 'Clock', 'Forecast Status'], 'a graphless view');
+    vc.STATUS_SRC_NONE), { order: 1 })), ['Watch bar', 'Calendar (2 rows)', 'Clock', 'Forecast bar'], 'a graphless view');
 });
 
 test('Position moves a stack that fills nothing; the top bar never moves', () => {

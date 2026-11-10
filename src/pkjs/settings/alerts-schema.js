@@ -35,7 +35,8 @@ var RAIN_LOOK_OPTIONS = [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text
 // bar; the make-room order drops the lowest-priority item first, and on-demand.js ITEMS
 // priority is the Alerts tab's row order). The per-bar Alerts sheet's intro said
 // them until the grids replaced it.
-var SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.';
+var SHOWS_ON_NOTE = 'On each bar, the alert can show on the left or the right, not both. When a bar runs out of '
+    + 'room, the alerts lower in the Alerts tab’s list are hidden first.';
 /**
  * An item's Shows on grid and its note, the first rows of its sheet (under the sheet's
  * intro): one row per status bar the watch draws, each with a Left and a Right tick
@@ -56,8 +57,8 @@ function showsOnRows(code, merge, notes) {
     return [{
         type: 'subheader',
         text: 'Shows on',
-        intro: SHOWS_ON_NOTE + (merge ? ' Where the status slot on that side shows ' + merge
-            + ', the alert goes into that slot, with its colors, instead of adding its alert icon.' : '')
+        intro: SHOWS_ON_NOTE + (merge ? ' If the status slot on the same side shows ' + merge
+            + ', the alert shows in that slot, in the alert’s colors, instead of adding its icon.' : '')
     }].concat(notes || [], [{
         type: 'checklist',
         label: 'Shows on',
@@ -77,7 +78,7 @@ function defaultViewNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'Your Default screen has no Watch Status Bar. Tick another bar below.',
+        text: 'Your Default screen has no Watch bar, so this alert won’t show there. Tick a bar that screen shows.',
         showWhen: {when: 'defaultViewLacksOnDemand'}
     };
 }
@@ -124,9 +125,9 @@ function rainAlertSheet() {
         // the radar is snoozed for the Battery saver hours (rain_countdown.c). The colour
         // follows rain_tint (status_on_demand.c): the radar's tier colour only on a colour
         // watch under a colour theme.
-        intro: 'Shows the rain icon at the edge of a status bar while it rains at your location or rain is due '
-            + 'within the time window. On a color watch the rain icon takes the radar’s rain color, except with a '
-            + 'B&W theme. Hidden during the Battery saver hours.',
+        intro: 'Shows the rain icon at the edge of a status bar while it rains at your location or when rain is '
+            + 'due within the time window. On a color watch, the icon uses the radar’s rain color, except with a '
+            + 'B&W theme. The icon is hidden during the Battery saver hours.',
         // Two cards: Shows on (with the boxes on why the icon cannot show yet: the radar
         // off, or Rain on no bar), then the alert's own rows, its time window first.
         items: showsOnRows('rain', null, [rainRadarOffNote(), rainNotPlacedNote()]).concat([
@@ -136,7 +137,7 @@ function rainAlertSheet() {
             label: 'Time window',
             defaultValue: String(STATUS_THRESHOLDS.rainAlert(null).horizonMin),
             options: RAIN_WINDOW_SEGMENTS,
-            hint: 'Rain due further out doesn’t show the icon. Radar forecasts change often, so a shorter window gives fewer false alarms.'
+            hint: 'Rain due later than this doesn’t show the icon. Radar forecasts change often, so a shorter window gives fewer false alarms.'
         }, {
             // How the rain alert draws. 'text' is the "Rain in 12′" the strip always
             // showed. The watch resolves the rain entry itself, so this rides the Clay
@@ -152,8 +153,8 @@ function rainAlertSheet() {
             // and hide first, then Text → minutes → the icon alone). While it rains the
             // '+' number counts the minutes until the rain stops.
             hintByValue: {
-                minutes: 'The rain icon with the minutes until the rain starts or, while it rains, + the minutes until it stops. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then is it just the icon.',
-                text: 'On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it shorten to the minutes, then to the rain icon alone.'
+                minutes: 'Shows the rain icon and the minutes until the rain starts. While it rains, it shows + and the minutes until it stops. When the bar runs out of room, the status slot on the alert’s side and the middle slot first shorten, then hide. Only then does it drop to the icon alone.',
+                text: 'When the bar runs out of room, the status slot on the alert’s side and the middle slot first shorten, then hide. Only then does the text shorten to the minutes, and then to the rain icon alone.'
             }
         }])
     };
@@ -237,7 +238,7 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
         // morning icon for an afternoon peak is by design (status-wire alertReading).
         // `coda` closes it for a kind whose look-ahead depends on its source (AQI).
         intro: 'Shows the ' + iconName + ' icon at the edge of a status bar when ' + subject
-            + ' reaches your warn level at any point left today, so an afternoon peak shows from the morning on.'
+            + ' reaches your warn level at any time in the rest of today, so an afternoon peak already shows in the morning.'
             + (coda || ''),
         // The note on the default levels for the unit or AQI scale in effect, under the intro
         // in the dialog's intro card (engine dialogIntroHtml; owner, 2026-10-04).
@@ -258,7 +259,7 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
             // crowded bar (the make-room order drops the values only after the status
             // slot on the item's side and the middle one have hidden).
             hintByValue: {
-                value: 'Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon.'
+                value: 'Adds the value that set off the alert after the icon. When the bar runs out of room, the status slot on the alert’s side and the middle slot first shorten, then hide. Only then does the alert drop to the icon alone.'
             }
         }, {
             // Whether tomorrow's peak may make the alert active once nothing left today
@@ -273,7 +274,7 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
             options: ALERT_DAYS_OPTIONS,
             more: true,
             hintByValue: {
-                tomorrow: 'When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark.'
+                tomorrow: 'If nothing in the rest of today reaches your warn level but tomorrow does, the alert shows for tomorrow, with the mark set in Tomorrow’s mark.'
             }
         }, {
             // How a tomorrow entry marks its day: the slot's "Tomorrow's peak mark"
@@ -286,7 +287,7 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
             defaultValue: STATUS_THRESHOLDS.alertNextDayMark(null, code),
             options: nextDayMarkOptions(),
             hintByValue: {
-                none: 'An alert for tomorrow then looks just like one for today.'
+                none: 'An alert for tomorrow looks the same as one for today.'
             },
             joinPrevious: true,
             more: true,
@@ -339,43 +340,43 @@ var ALERT_LEVEL_CARDS = {
     Gust: [{
         showWhen: scaleVariantWhen('kph'),
         text: 'The ' + refLink(DWD_GUST_WARNINGS, 'German Weather Service (DWD)') + ' warns of storm gusts '
-            + 'from 65 kph and of severe storm gusts from 90 kph. By default, warn and danger sit at those '
+            + 'from 65 kph and of severe storm gusts from 90 kph. By default, warn and danger are set to these '
             + 'two levels.'
     }, {
         showWhen: scaleVariantWhen('mph'),
         text: 'The ' + refLink(DWD_GUST_WARNINGS, 'German Weather Service (DWD)') + ' warns of storm gusts '
             + 'from 65 kph (about 40 mph) and of severe storm gusts from 90 kph (about 56 mph). By default, '
-            + 'warn sits at 40 mph and danger at 55 mph, the nearest steps.'
+            + 'warn is at 40 mph and danger at 55 mph, the nearest slider steps.'
     }, {
         showWhen: scaleVariantWhen('kn'),
         text: 'The ' + refLink(DWD_GUST_WARNINGS, 'German Weather Service (DWD)') + ' warns of storm gusts '
-            + 'from 34 kn and of severe storm gusts from 48 kn. By default, warn sits at 35 kn and danger at '
-            + '50 kn, the nearest steps.'
+            + 'from 34 kn and of severe storm gusts from 48 kn. By default, warn is at 35 kn and danger at '
+            + '50 kn, the nearest slider steps.'
     }],
     Uv: [{
-        text: 'By default, warn sits at 6, where the '
+        text: 'By default, warn is at 6 and danger at 8. On the '
             + refLink('https://www.who.int/news-room/questions-and-answers/item/radiation-the-ultraviolet-%28uv%29-index',
                 'WHO’s UV index scale')
-            + ' starts High, and danger at 8, where Very high starts and the WHO advises staying out of the '
-            + 'midday sun. The WHO advises sun protection from UV 3 on.'
+            + ', High starts at 6 and Very high at 8, where the WHO advises staying out of the midday sun. '
+            + 'The WHO advises sun protection from UV 3 on.'
     }],
     Aqi: [{
         showWhen: scaleVariantWhen('us'),
-        text: 'By default, warn sits at 100, which equals the '
+        text: 'By default, warn is at 100, the level of the '
             + refLink('https://www.airnow.gov/aqi/aqi-basics/', 'US health standard for short-term exposure')
-            + ': above it, the US EPA rates the air unhealthy for sensitive groups, such as children, older '
-            + 'adults and people with heart or lung disease. Danger sits at 150: above it, the air is rated '
+            + '. Above it, the US EPA rates the air unhealthy for sensitive groups, such as children, older '
+            + 'adults and people with heart or lung disease. Danger is at 150. Above it, the air is rated '
             + 'unhealthy and the general public can be affected too.'
     }, {
         showWhen: scaleVariantWhen('eu'),
-        text: 'By default, warn sits at 60, where the '
+        text: 'By default, warn is at 60, where the '
             + refLink('https://airindex.eea.europa.eu/AQI/index.html', 'European Air Quality Index')
-            + ' rates the air Poor, and danger at 80, where it rates it Very poor. At Poor, the European '
+            + ' rates the air Poor, and danger at 80, where it rates the air Very poor. At Poor, the European '
             + 'Environment Agency advises cutting back on intense outdoor activity if you get sore eyes or a '
-            + 'cough; at Very poor, sensitive people should reduce outdoor activity.'
+            + 'cough. At Very poor, sensitive people should reduce outdoor activity.'
     }],
     Pollen: [{
-        text: 'By default, warn sits at 2 (medium load) and danger at 3 (high load) on the '
+        text: 'By default, warn is at 2 (medium load) and danger at 3 (high load) on the '
             + refLink('https://www.dwd.de/DE/leistungen/gefahrenindizespollen/erklaerungen.html',
                 'German Weather Service’s (DWD) pollen index')
             + '. High means, for example, more than 50 birch or 30 grass pollen grains per cubic meter of air. '
@@ -383,23 +384,23 @@ var ALERT_LEVEL_CARDS = {
     }],
     Wind: [{
         showWhen: scaleVariantWhen('kph'),
-        text: 'By default, warn sits at 40 kph, Beaufort 6 on the '
+        text: 'By default, warn is at 40 kph, Beaufort 6 on the '
             + refLink('https://www.dwd.de/DE/service/lexikon/Functions/glossar.html?lv2=100310&amp;lv3=100390',
                 'wind scale')
-            + ': large branches sway and umbrellas are hard to hold. Danger sits at 60 kph, the top of '
+            + ': large branches sway and umbrellas are hard to hold. Danger is at 60 kph, the top of '
             + 'Beaufort 7 and just below gale force: whole trees move and walking against the wind is hard.'
     }, {
         showWhen: scaleVariantWhen('mph'),
-        text: 'By default, warn sits at 25 mph, where Beaufort 6 starts on the wind scale: large branches sway '
-            + 'and umbrellas are hard to hold. Danger sits at 40 mph, gale force (Beaufort 8) and the '
+        text: 'By default, warn is at 25 mph, where Beaufort 6 starts on the wind scale: large branches sway '
+            + 'and umbrellas are hard to hold. Danger is at 40 mph, gale force (Beaufort 8). This is also the '
             + refLink('https://www.weather.gov/lwx/WarningsDefined',
                 'US National Weather Service’s High Wind Warning')
             + ' level for wind that blows that hard for an hour or more.'
     }, {
         showWhen: scaleVariantWhen('kn'),
-        text: 'By default, warn sits at 20 kn, just below a strong breeze (Beaufort 6, from 22 kn) on the '
+        text: 'By default, warn is at 20 kn, just below a strong breeze (Beaufort 6, from 22 kn) on the '
             + refLink('https://weather.metoffice.gov.uk/guides/coast-and-sea/beaufort-scale', 'Beaufort scale')
-            + '. Danger sits at 35 kn, gale force (Beaufort 8): twigs break off trees and walking is hard going.'
+            + '. Danger is at 35 kn, gale force (Beaufort 8): twigs break off trees and walking is hard.'
     }]
 };
 // The weather alerts' rows and sheets, in the card's order. `title` names both of a kind's
@@ -421,11 +422,11 @@ var ALERT_KINDS = [
     // sheet's source note, in Setup › Data sources' own labels ('Air quality', 'Open-Meteo').
     {keyStem: 'Aqi', label: 'Air quality', title: 'Air quality (AQI)', subject: 'the air quality index',
         iconName: 'air quality', icon: 'aqi', why: ALERT_LEVEL_CARDS.Aqi,
-        coda: ' Looking ahead — later today and tomorrow — needs Open-Meteo for Air quality (Setup › Data sources): '
-            + 'WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading.'},
+        coda: ' To look ahead to later today and tomorrow, pick Open-Meteo for Air quality (Setup › Data sources). '
+            + 'WAQI, which Auto mostly reads, has no forecast, so with it the alert uses the current reading.'},
     {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen index', iconName: 'pollen',
         icon: 'pollen', gate: {key: 'provider', eq: 'dwd'}, why: ALERT_LEVEL_CARDS.Pollen,
-        hint: 'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'},
+        hint: 'The DWD pollen index runs 0–3, and a half level like "2-3" counts as 2.5. Works only with the DWD weather provider.'},
     {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', iconName: 'wind',
         icon: 'wind', why: ALERT_LEVEL_CARDS.Wind}
 ];
@@ -493,14 +494,14 @@ function batteryLevelRow(step, showWhen) {
         step: step,
         unit: '%',
         defaultValue: ON_DEMAND.DEFAULTS.batteryLowLevel,
-        hint: 'The icon shows at this charge or below.',
+        hint: 'Shows the battery icon when the battery is at or below this level.',
         showWhen: showWhen
     };
 }
 // The end of the Battery Look's value hint: its value gives way where an alert's does (the
 // make-room order drops the values only after the status slot on its side and the middle
 // one have hidden), so the hint says it in the alert Look's words.
-var LOOK_TAIL = ' On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it drop to just the icon.';
+var LOOK_TAIL = ' When the bar runs out of room, the status slot on the alert’s side and the middle slot first shorten, then hide. Only then does it drop to the icon alone.';
 /**
  * The Battery item's Look row: the icon alone, or the icon with the value after it. The
  * icon-only look needs no hint; the value look's hint names the value with a sample, then
@@ -536,8 +537,8 @@ function batterySheet() {
         // watch battery in any slot leaves the item out until the make-room order has
         // hidden that slot, whatever the item's Look.
         intro: 'Shows the battery icon at the edge of a status bar while the watch battery is at or below the '
-            + 'warn level. A bar that already shows the battery in a slot (Watch battery or Watch battery '
-            + 'percentage) leaves the icon out, and draws it only when that slot is hidden to make room.',
+            + 'warn level. If a bar already shows the battery in a status slot (Watch battery or Watch battery '
+            + 'percentage), the icon stays off that bar until that slot is hidden to make room.',
         items: showsOnRows('battery').concat([
             {type: 'subheader', text: 'Alert'},
             batteryLevelRow(5, FINE_BATTERY_WHEN),
@@ -573,7 +574,7 @@ function bluetoothSheet() {
             defaultValue: 'disconnected',
             options: BT_ICON_OPTIONS,
             hintByValue: {
-                both: 'The icon while connected, crossed out while disconnected.',
+                both: 'Shows the icon while connected and a crossed-out icon while disconnected.',
                 none: 'The icon never shows. Vibrate on disconnect still works.'
             },
             showWhen: ON_DEMAND_WHEN
@@ -672,14 +673,15 @@ function onDemandCardItems() {
 // (each item's sheet opens on its Shows on grid), with the card's reset (the items'
 // settings and where each shows; blocks.js resetOnDemand). Its second paragraph (the
 // owner, 2026-10-04) carries the warn level onto the graph: a wind, gust or UV line's
-// Visible values: Alert (forecast-lines-schema.js), set in the Graphs tab's metric dialogs.
+// Visible values: Alert (forecast-lines-schema.js), set in a graph's metric dialogs (Graphs ›
+// Forecast lists the graphs; a tap opens one).
 var ON_DEMAND_INTRO = 'An alert shows at the edge of a status bar only when it reaches its warn level or is '
-    + 'active right now, and stays hidden the rest of the time, so the watchface only shows what matters. '
-    + 'For example: the battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn '
-    + 'level. Open an alert to choose which status bars show it, left or right.'
-    + '<p class="intro-more">The warn level works on the graph too: set a wind, gust or UV line’s Visible '
-    + 'values to Alert (' + tabLink('graphs', 'Graphs › Forecast', 'forecast') + ') and it shows only the hours that '
-    + 'reach it, so the graph stays empty until it matters.</p>';
+    + 'active right now. The rest of the time it stays hidden. For example, the battery is low, Bluetooth is '
+    + 'disconnected, rain is coming, or the UV or wind forecast reaches its warn level. Open an alert to choose '
+    + 'which status bars show it, on the left or the right.'
+    + '<p class="intro-more">The warn level works on the graph too. Set the Visible values of a wind, gust or UV '
+    + 'line to Alert (' + tabLink('graphs', 'Graphs › Forecast › a graph', 'forecast') + '), and the line shows only in the '
+    + 'hours that reach the warn level.</p>';
 /**
  * The Alerts tab's cards: About alerts (the intro behind its '?', the card's reset — the
  * items' settings and where each shows, blocks.js resetOnDemand — and the note while the
@@ -695,13 +697,13 @@ function cardSections() {
         showWhen: ON_DEMAND_WHEN,
         intro: ON_DEMAND_INTRO,
         items: [linkRow('resetOnDemand', 'Reset alert settings to defaults'), {
-            // The Default view the watch runs has no Watch Status Bar and none of the bars
+            // The Default view the watch runs has no Watch bar and none of the bars
             // it does show carries an item, so no item is drawn there (settings/
             // when-resolvers.js defaultViewLacksOnDemand). Nothing moves the items for the
             // user: the note names the gap and the fix.
             type: 'staticText',
             style: 'info',
-            text: 'Your Default screen has no Watch Status Bar, so Alerts won’t show there. Open an alert and, '
+            text: 'Your Default screen has no Watch bar, so Alerts won’t show there. Open an alert and, '
                 + 'under Shows on, pick another status bar that screen shows.',
             showWhen: {when: 'defaultViewLacksOnDemand'}
         }]

@@ -36,6 +36,11 @@ var LINE_BIT = 0x20;
 var FLOAT_BIT = 0x40;
 // palette.h: bit 7 of a palette blob's byte [1] (stop 0's threshold, its bit 15).
 var PALETTE_BIT = 0x80;
+// Fixed vertical inset for the temperature axis (px) — the watch's
+// BOTTOM_VIEW_PRIMARY_LINE_INSET_Y. Deliberately NOT a user setting; the wire
+// carries one byte per series (five) so feels-like and dew point inherit it only
+// on the lines where they are selected.
+var CURVE_INSET_PX = 7;
 
 /**
  * A packed line-style byte with the edge its line is drawn from: the Top flag (LINE_BIT)
@@ -169,6 +174,41 @@ function buildLineStyleBytes(settings, watchInfo) {
 }
 
 /**
+ * One forecast line's curve-inset byte: the temp curve's inset for a
+ * temperature-axis metric (feels, dew), 0 (full-height) for every other metric.
+ * @param {Object} settings Clay settings (raw — see buildCurveInsetBytes).
+ * @param {string} key secondaryLine|thirdLine|fourthLine|fifthLine.
+ * @returns {number} Inset in px.
+ */
+function lineCurveInset(settings, key) {
+    return lineStyle.isTempAxisMetric(settings[key]) ? CURVE_INSET_PX : 0;
+}
+
+/**
+ * The CLAY_CURVE_INSET_UINT8 tuple (clay-payload.js; a graph style record carries the same
+ * five bytes, weather/graph-style-wire.js): the forecast graph's value-mapped lines' vertical
+ * insets, render-ready in px, in the watch's Series id order: [SERIES_FIRST (temp),
+ * SERIES_SECOND (main metric), SERIES_THIRD (second metric), SERIES_FOURTH (third metric),
+ * SERIES_FIFTH (fourth metric)]. The watch stays metric-agnostic — the phone decides here
+ * that feels-like and dew point share the temp curve's offset (the watch then maps them on
+ * the temperature's own scale, temp_axis_pad.h) while every other metric keeps the
+ * full-height mapping. Read from the RAW settings: a line that is off or repeats an earlier
+ * line's pick is not drawn on the watch, so its byte is never read and needs no
+ * effective-metric resolution.
+ * @param {Object} settings Clay settings.
+ * @returns {number[]} The five bytes.
+ */
+function buildCurveInsetBytes(settings) {
+    return [
+        CURVE_INSET_PX,
+        lineCurveInset(settings, 'secondaryLine'),
+        lineCurveInset(settings, 'thirdLine'),
+        lineCurveInset(settings, 'fourthLine'),
+        lineCurveInset(settings, 'fifthLine')
+    ];
+}
+
+/**
  * The graph's three Clay tuples for one watch, keyed by their AppMessage names. Derived
  * from the settings blob plus the watch's capabilities alone, never from weather data, so
  * they ride the Clay message (test/inbox-size.test.js budgets them). Deliberately NOT
@@ -197,5 +237,7 @@ module.exports = {
     markPalette: markPalette,
     buildPaletteTuples: buildPaletteTuples,
     buildLineStyleBytes: buildLineStyleBytes,
+    CURVE_INSET_PX: CURVE_INSET_PX,
+    buildCurveInsetBytes: buildCurveInsetBytes,
     buildGraphTuples: buildGraphTuples
 };

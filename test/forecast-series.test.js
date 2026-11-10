@@ -282,7 +282,9 @@ test('applyForecastSeries bakes all status lines before deleting trends and lega
     secondaryLine: 'precip_prob', thirdLine: 'off', secondaryLineFill: true,
     barSource: 'rain', windScale: 'mid', theme: 'dark',
     temperatureUnits: 'c', axisTimeFormat: '24h',
-    statusForecastLeft: 'wind'
+    statusForecastLeft: 'wind',
+    // The Health bar on a screen, so its line bakes too (the bake sends only what a screen shows).
+    healthMode: 'status'
   };
   const out = applyForecastSeries(payload, settings, { platform: 'basalt' });
   assert.ok(Array.isArray(out.STATUS_LINE_1_UINT8));
@@ -312,13 +314,14 @@ test('needsUv is true when any status slot selects uv', () => {
   assert.equal(needsUv(bare({ secondaryLine: 'uv', thirdLine: 'off' })), true);
 });
 
-test('needsAqi is true when a status slot selects aqi; forecast-right defaults to aqi', () => {
+test('needsAqi is true when a status slot selects aqi; the Watch bar defaults to aqi', () => {
   assert.equal(needsAqi(null), false);
-  assert.equal(needsAqi(bare({})), true, 'forecast-right now defaults to aqi');
-  assert.equal(needsAqi(bare({ statusForecastRight: 'empty' })), false, 'no slot selects aqi');
-  assert.equal(needsAqi(bare({ statusForecastRight: 'sun' })), false);
-  assert.equal(needsAqi(bare({ statusForecastLeft: 'aqi' })), true);
-  assert.equal(needsAqi(bare({ statusRadarMid: 'aqi' })), true);
+  assert.equal(needsAqi(bare({})), true, 'the Watch bar\'s left slot defaults to aqi');
+  assert.equal(needsAqi(bare({}), { platform: 'emery' }), true, 'its right-hand corner on emery');
+  assert.equal(needsAqi(bare({ statusTopLeft: 'empty' })), false, 'no slot selects aqi');
+  assert.equal(needsAqi(bare({ statusTopRight: 'sun' }), { platform: 'emery' }), false);
+  assert.equal(needsAqi(bare({ statusTopLeft: 'empty', statusForecastLeft: 'aqi' })), true);
+  assert.equal(needsAqi(bare({ statusTopLeft: 'empty', statusRadarMid: 'aqi' })), true);
 });
 
 test('needsPollen is true only for DWD with an effective pollen status selection', () => {
@@ -431,8 +434,9 @@ test('applyForecastSeries stashes the bake inputs BEFORE the bake and before the
     TEMP_TREND_UINT8: [100], TEMP_MIN: 0, TEMP_MAX: 30,
     FORECAST_START: 1700000000, NUM_ENTRIES: 1
   };
+  // healthMode 'status' puts the Health bar on a screen, so all four lines bake.
   const settings = { secondaryLine: 'off', thirdLine: 'off', barSource: 'off',
-                     temperatureUnits: 'c', axisTimeFormat: '24h' };
+                     temperatureUnits: 'c', axisTimeFormat: '24h', healthMode: 'status' };
   const watchInfo = { platform: 'basalt' };
   let out;
   try {
@@ -1298,7 +1302,7 @@ test('dew never fills the area below its line', () => {
 test('a placed alert makes UV, AQI and pollen fetch with no slot or line', () => {
   const { dayPeakCodes } = require('../src/pkjs/forecast-series');
   const none = bare({ secondaryLine: 'wind', thirdLine: 'off', statusRadarLeft: 'empty',
-    statusForecastRight: 'empty' });
+    statusTopLeft: 'empty' });
   const on = (codes, extra) => placeOn(Object.assign({}, none, extra), 'top', 'right', codes);
   assert.equal(needsUv(none), false, 'guard: nothing selects uv');
   assert.equal(needsUv(on('uv')), true);
@@ -1316,7 +1320,7 @@ test('a placed alert makes UV, AQI and pollen fetch with no slot or line', () =>
   // A partial blob reads the default ticks: gust, UV, AQI and wind — so a slot-less
   // install still fetches UV and AQI and keeps those day records, on purpose.
   const partial = { secondaryLine: 'wind', thirdLine: 'off', statusRadarLeft: 'empty',
-    statusForecastRight: 'empty' };
+    statusTopLeft: 'empty' };
   assert.equal(needsUv(partial), true);
   assert.equal(needsAqi(partial), true);
   assert.deepEqual(dayPeakCodes(partial), ['uv', 'wind', 'gust', 'aqi']);

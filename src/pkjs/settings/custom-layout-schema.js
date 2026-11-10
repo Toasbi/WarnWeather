@@ -34,7 +34,12 @@ function customViewItems(i) {
         // Graph-band size: '2'|'3'|'4'|'fill' (fill = the space left, today's graph).
         {type: 'hidden', messageKey: 'viewBodySize' + i, defaultValue: 'fill'},
         // Position of a stack nothing fills: 'clock'|'top'|'center'|'bottom'.
-        {type: 'hidden', messageKey: 'viewAlign' + i, defaultValue: 'clock'}
+        {type: 'hidden', messageKey: 'viewAlign' + i, defaultValue: 'clock'},
+        // The forecast graph's graph style: '1'|'2'|'3' (Pebble Time 2; graph-styles.js).
+        {type: 'hidden', messageKey: 'viewStyle' + i, defaultValue: '1'},
+        // The screen's name ('' = its place's: Default, Flick 1, Flick 2). The page's own:
+        // never compiled, never sent to the watch, never in telemetry (screens.js nameOf).
+        {type: 'hidden', messageKey: 'viewName' + i, defaultValue: ''}
     ];
     // The Default view always keeps its clock; any view may drop its top bar.
     if (i > 0) { items.push({type: 'hidden', messageKey: 'viewClockOff' + i, defaultValue: false}); }
@@ -65,7 +70,22 @@ var storageSection = {
         // 'graph' and 'all'); the readers' absent radarMode is that same 'graph', the radar
         // as it was before the key existed.
         {type: 'hidden', messageKey: 'radarMode', defaultValue: 'countdown'},
-        {type: 'hidden', messageKey: 'healthMode', defaultValue: 'off'}
+        {type: 'hidden', messageKey: 'healthMode', defaultValue: 'off'},
+        // The screen editor's Rows and Size picker (screens-page.js opens it over the editor from
+        // a row's dropdown): the calendar's rows or a graph's size, titled by the row ("Calendar
+        // rows"), a size with no room greyed out. Page-only (uiOnly); '' is dormant, so the sheet
+        // opens on the row's own size.
+        {
+            type: 'select',
+            messageKey: 'screenRowSize',
+            uiOnly: true,
+            label: 'Size',
+            sheetTitleBy: {resolver: 'screenRowSizeTitle'},
+            defaultValue: '',
+            dormantValues: [''],
+            optionsFrom: {resolver: 'screenRowSizeOptions'},
+            onChange: 'screenRowSizePicked'
+        }
     ].concat(customViewItems(0), customViewItems(1), customViewItems(2))
 };
 

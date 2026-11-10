@@ -8,7 +8,13 @@
 // below; test/status-line-contract.test.js greps this header to enforce it.
 // Deliberately no <pebble.h> so the module host-compiles (scripts/test-c.sh).
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the Pebble Time 2 has three more status bars (bars 4 to 6, 3.0.0's New bar), so
+// up to six of "your bars" beside the Watch bar: every screen can have two of its own.
+#define STATUS_LINE_COUNT 7
+#else
 #define STATUS_LINE_COUNT 4
+#endif
 #define STATUS_SLOT_COUNT 3
 #define STATUS_LINE_MAX_BYTES 48
 #define STATUS_TEXT_EDGE_MAX 8
@@ -19,6 +25,14 @@ typedef enum {
     STATUS_LINE_RADAR = 1,
     STATUS_LINE_TOP = 2,
     STATUS_LINE_HEALTH = 3,
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6 (STATUS_LINE_5..7_UINT8), the bars the settings page's New bar
+    // makes. Their persist slots are appended after every other key (persist.c), so these
+    // ids are not the slot offsets the first four are.
+    STATUS_LINE_BAR4 = 4,
+    STATUS_LINE_BAR5 = 5,
+    STATUS_LINE_BAR6 = 6,
+#endif
 } StatusLineId;
 
 typedef enum {
