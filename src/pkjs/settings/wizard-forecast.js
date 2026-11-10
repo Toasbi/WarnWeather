@@ -95,7 +95,9 @@
     // then rain and clouds, outdoors, wind and pressure. `span` is the Forecast length a look starts
     // on (emery): '48' is the long span's stored option ("66 h" with the high and low on the graph).
     // `setup`: setup's picker offers it; `short`: values it draws on 12 and 24 hours only (THE
-    // LENGTH).
+    // LENGTH). Only the rain chance fills its area: the watch paints an area solid (it has no
+    // alpha), so a metric that sits high for hours, as the clouds, gusts or UV index do, covered
+    // the whole graph; theirs draw as a thick line or a stripe (the owner's, 2026-11-10).
     var LOOKS = [
         // The ForecasWatch2 graph: the rain chance as a thin line over a shaded area, the rain bars
         // in the colour the theme starts them on (Multicolor on a dark theme, Solid on a light one,
@@ -123,36 +125,40 @@
         // the rain bars in the colours of how hard it rains: Multicolor on a dark theme).
         { id: 'rain', label: 'Rain', span: '12', over: lookValues({ secondaryLineStyle: 'stripeTop',
             forecastAxisNumbers: 'graph' }) },
-        // The cloud cover as the shaded area under the rain chance's thin line, Solid bars: the
-        // day's sky over 24 hours (Clouds shows the nights, over the long span).
-        { id: 'sky', label: 'Sky', span: '24', over: lookValues({ secondaryLine: 'cloud', thirdLine: 'precip_prob',
-            thirdLineStyle: 'line', rainBarColor: 'white', forecastAxisNumbers: 'graph' }) },
-        // The cloud cover as the shaded area over the long span, the nights shaded, Solid bars:
-        // whether the next nights stay clear, as stargazing forecasts show it (Clear Outside).
-        { id: 'clouds', label: 'Clouds', span: '48', over: lookValues({ secondaryLine: 'cloud', rainBarColor: 'white',
+        // The cloud cover as a stripe along the top, the sky over the graph, and the rain chance as
+        // a thin line, Solid bars: the day's sky over 24 hours (Clouds shows the nights, over the
+        // long span).
+        { id: 'sky', label: 'Sky', span: '24', over: lookValues({ secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop',
+            secondaryLineFill: false, thirdLine: 'precip_prob', thirdLineStyle: 'line', rainBarColor: 'white',
             forecastAxisNumbers: 'graph' }) },
+        // The cloud cover as a thick line over the long span, the nights shaded, Solid bars:
+        // whether the next nights stay clear, as stargazing forecasts show it (Clear Outside).
+        { id: 'clouds', label: 'Clouds', span: '48', over: lookValues({ secondaryLine: 'cloud', secondaryLineStyle: 'bold',
+            secondaryLineFill: false, rainBarColor: 'white', forecastAxisNumbers: 'graph' }) },
         // Clean with its Solid bars hanging from the top and the UV index as a thin line from the
         // bottom; on 12 and 24 hours the feels-like temperature as a thin line too (the owner's,
         // 2026-11-09: rain from above, sun from below, for a day outside).
         { id: 'outdoor', label: 'Outdoor', span: '48', over: lookValues({ thirdLine: 'uv', thirdLineStyle: 'line',
             rainBarColor: 'white', rainBarFrom: drawFrom.TOP, forecastAxisNumbers: 'graph' }),
             short: { fourthLine: 'feels', fourthLineStyle: 'line' } },
-        // The UV index as the shaded area and the clouds as a stripe along the top, Solid bars: when
+        // The UV index as a thick line and the clouds as a stripe along the top, Solid bars: when
         // the sun is strong, as UV forecasts chart it.
-        { id: 'sun', label: 'Sun', span: '24', over: lookValues({ secondaryLine: 'uv', thirdLine: 'cloud',
-            thirdLineStyle: 'stripeTop', rainBarColor: 'white', forecastAxisNumbers: 'graph' }) },
+        { id: 'sun', label: 'Sun', span: '24', over: lookValues({ secondaryLine: 'uv', secondaryLineStyle: 'bold',
+            secondaryLineFill: false, thirdLine: 'cloud', thirdLineStyle: 'stripeTop', rainBarColor: 'white',
+            forecastAxisNumbers: 'graph' }) },
         // The feels-like temperature as a thin line and the dew point as × marks beside the
         // temperature (Apple Weather's Feels Like and Humidity charts): how muggy or raw the day feels.
         { id: 'comfort', label: 'Comfort', span: '24', over: lookValues({ thirdLine: 'feels', thirdLineStyle: 'line',
             fourthLine: 'dew', fourthLineStyle: 'x', forecastAxisNumbers: 'graph' }) },
-        // The wind speed as the shaded area and the gusts as a thin line over it, as wind forecasts
-        // chart them (Windfinder, Apple Weather).
-        { id: 'wind', label: 'Wind', span: '24', over: lookValues({ secondaryLine: 'wind', thirdLine: 'gust',
-            thirdLineStyle: 'line', forecastAxisNumbers: 'graph' }) },
-        // The gusts as the shaded area, the air pressure as a thin line and the rain chance as a
+        // The wind speed as a thick line and the gusts as dots over it, as wind forecasts chart
+        // them (Windfinder, Apple Weather).
+        { id: 'wind', label: 'Wind', span: '24', over: lookValues({ secondaryLine: 'wind', secondaryLineStyle: 'bold',
+            secondaryLineFill: false, thirdLine: 'gust', thirdLineStyle: 'dots', forecastAxisNumbers: 'graph' }) },
+        // The gusts as a thick line, the air pressure as a thin line and the rain chance as a
         // stripe along the top over the rain bars: a storm coming in.
-        { id: 'storm', label: 'Storm', span: '24', over: lookValues({ secondaryLine: 'gust', thirdLine: 'pressure',
-            thirdLineStyle: 'line', fourthLine: 'precip_prob', fourthLineStyle: 'stripeTop', forecastAxisNumbers: 'graph' }) },
+        { id: 'storm', label: 'Storm', span: '24', over: lookValues({ secondaryLine: 'gust', secondaryLineStyle: 'bold',
+            secondaryLineFill: false, thirdLine: 'pressure', thirdLineStyle: 'line', fourthLine: 'precip_prob',
+            fourthLineStyle: 'stripeTop', forecastAxisNumbers: 'graph' }) },
         // Clean with the air pressure as a thin line over the long span: a front coming in (a thin
         // line: a thick one would read as the temperature's, in much the same red).
         { id: 'pressure', label: 'Pressure', span: '48', over: lookValues({ thirdLine: 'pressure', thirdLineStyle: 'line',
@@ -186,6 +192,7 @@
     // temperature, which every graph draws as a line: alone it needs no "as lines".
     var HOW = [
         { id: 'line', long: ['', ' as lines'], short: [' as a line', ' as lines'] },
+        { id: 'bold', long: [' as a thick line', ' as thick lines'] },
         { id: 'area', long: [' as a shaded area', ' as shaded areas'] },
         { id: 'dots', long: [' as dots', ' as dots'] },
         { id: 'x', long: [' as \u00d7 marks', ' as \u00d7 marks'] },
@@ -204,8 +211,8 @@
     /**
      * How a line of a look draws on this watch (HOW's ids), as the watch reads it: its style
      * (line-style.js lineStyleValue: a stripe on a metric that can't be one draws as a line),
-     * a thin line on a watch without line styles, and the Main metric's line as a shaded area
-     * where the watch fills it (line-style.js mainLineFills).
+     * a thin line on a watch without line styles, and the Main metric's thin or thick line as a
+     * shaded area where the watch fills it (line-style.js mainLineFills).
      * @param {Object<string, *>} over A look's values.
      * @param {{key: string, styleKey: string}} line A line (line-style.js FORECAST_LINES).
      * @param {?Object} env Platform env.
@@ -213,8 +220,8 @@
      */
     function howOf(over, line, env) {
         var style = drawFrom.capable(env) ? lineStyle.lineStyleValue(over, line.styleKey) : 'line';
-        var how = style === 'bold' ? 'line' : style;
-        return how === 'line' && line.key === 'secondaryLine' && lineStyle.mainLineFills(over, env) ? 'area' : how;
+        var solid = style === 'line' || style === 'bold';
+        return solid && line.key === 'secondaryLine' && lineStyle.mainLineFills(over, env) ? 'area' : style;
     }
 
     /**

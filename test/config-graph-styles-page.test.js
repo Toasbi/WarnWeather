@@ -418,13 +418,13 @@ test('the page: New graph from a template opens the new graph\'s dialog, its nam
     '24 h · Feels-like temperature as a line, clouds and rain chance as stripes, solid rain bars from the top',
     '24 h · Rain chance as a line',
     '12 h · Rain chance as a stripe, rain bars',
-    '24 h · Rain chance as a line, clouds as a shaded area, solid rain bars',
-    '66 h · Clouds as a shaded area, solid rain bars',
+    '24 h · Rain chance as a line, clouds as a stripe, solid rain bars',
+    '66 h · Clouds as a thick line, solid rain bars',
     '66 h · UV index as a line, rain chance as a shaded area, solid rain bars from the top',
-    '24 h · UV index as a shaded area, clouds as a stripe, solid rain bars',
+    '24 h · UV index as a thick line, clouds as a stripe, solid rain bars',
     '24 h · Feels-like temperature as a line, rain chance as a shaded area, dew point as \u00d7 marks, rain bars',
-    '24 h · Gusts as a line, wind as a shaded area, rain bars',
-    '24 h · Air pressure as a line, gusts as a shaded area, rain chance as a stripe, rain bars',
+    '24 h · Wind as a thick line, gusts as dots, rain bars',
+    '24 h · Air pressure as a line, gusts as a thick line, rain chance as a stripe, rain bars',
     '66 h · Air pressure as a line, rain chance as a shaded area, solid rain bars',
     '66 h · Air pressure as a line, wind as dots, clouds as a stripe, rain bars']);
   p.pickOption('graphStyleNewFrom', 'clean');
