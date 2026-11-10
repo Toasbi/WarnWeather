@@ -42,12 +42,17 @@ var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var KEY_RADAR_REQUEST = storageKeys.RADAR_REQUEST_THROTTLE_KEY;
 var KEY_SERVER_STREAK = storageKeys.SERVER_FAILURE_STREAK_KEY;
 // How long an in-flight weather fetch may run before it is presumed lost. A
-// healthy chain is bounded by its own timeouts — GPS 10 s, then the radar,
-// geocode, provider and UV/AQI/pollen XHRs at 5 s each, then the AppMessage
-// ACK — so one still running after this long had a callback that threw or
-// never came back, and its in-progress flag would otherwise block every later
-// fetch until PKJS restarts.
-var FETCH_WATCHDOG_MS = 2 * 60 * 1000;
+// healthy chain is bounded by its own timeouts, step after step: the GPS fix
+// (10 s) or the address's geocode; the radar (twice for Rainbow (own key), which
+// retries without its start time; the sky rows ask alongside); the city; the
+// provider (up to three requests for DWD and Open-Meteo, five for Weather
+// Underground when it re-scrapes a refused key); AQI (twice when Auto falls back);
+// pollen. Each request takes at most 10 s (weather/http.js XHR_TIMEOUT_MS), then
+// comes the AppMessage ACK: twelve such waits at the very worst, 120 s plus the
+// ACK. So one still running after 3 min had a callback that threw or never came
+// back, and its in-progress flag would otherwise block every later fetch until
+// PKJS restarts.
+var FETCH_WATCHDOG_MS = 3 * 60 * 1000;
 // Tolerance when comparing a failure backoff against the tick clock (see
 // isFailureBackoffActive): half of the 60 s scheduler tick.
 var FAILURE_BACKOFF_SLACK_MS = 30 * 1000;
@@ -136,35 +141,40 @@ function resetFetchAttemptCounter() {
     localStorage.setItem(KEY_FETCH_ATTEMPT, '0');
 }
 
-// --- server failure run -----------------------------------------------------
-// The weather provider's run of server failures (a 5xx, a timeout, no connection;
-// notices.isServerFailure), so its notice can wait for the second update in a row:
-// an outage that heals by the next update stays quiet. Read and written at call time
-// only (see the load-time invariant above); a broken store just counts from 1 again.
+// --- provider failure run ---------------------------------------------------
+// The weather provider's run of failed updates of one kind: server failures (a 5xx,
+// an unreadable answer, a timeout, no connection; notices.isServerFailure), or no data
+// for the place (failure.noCoverage: DWD's 404). Their notices wait for the second
+// update in a row: an outage, or a one-off 404, that heals by the next update stays
+// quiet. Read and written at call time only (see the load-time invariant above); a
+// broken store just counts from 1 again.
 
 /**
- * Count this failure into the provider's run of server failures. Only the provider's
- * own stage counts: a server failure extends the run of the same provider (another
- * provider starts a new one), any other provider failure ends it, and a failure before
- * the provider was asked (no fix, a NACK, the watchdog) leaves it as it is.
+ * Count this failure into the provider's run of failed updates of its kind. Only the
+ * provider's own stage counts: a server failure, or one marked noCoverage, extends the
+ * run of the same provider and kind (another provider or kind starts a new one), any
+ * other provider failure ends it, and a failure before the provider was asked (no fix,
+ * a NACK, the watchdog) leaves it as it is.
  * @param {string} providerId The failing provider's id.
  * @param {Object} failure Normalized fetch failure.
  * @param {function(Object): boolean} isServerFailure notices.isServerFailure.
- * @returns {number} The run's length with this failure (0 when it is not a server failure).
+ * @returns {number} The run's length with this failure (0 when it is of neither kind).
  */
-function countServerFailure(providerId, failure, isServerFailure) {
+function countFailureRun(providerId, failure, isServerFailure) {
     if (!failure || failure.stage !== 'provider_data') {
         return 0;
     }
     try {
-        if (!isServerFailure(failure)) {
+        var kind = failure.noCoverage === true ? 'coverage' : (isServerFailure(failure) ? 'server' : '');
+        if (!kind) {
             localStorage.removeItem(KEY_SERVER_STREAK);
             return 0;
         }
         var rec = null;
         try { rec = JSON.parse(localStorage.getItem(KEY_SERVER_STREAK)); } catch (e) { rec = null; }
-        var n = (rec && rec.id === providerId && rec.n > 0) ? Math.floor(rec.n) + 1 : 1;
-        localStorage.setItem(KEY_SERVER_STREAK, JSON.stringify({ id: providerId, n: n }));
+        var same = Boolean(rec) && rec.id === providerId && rec.kind === kind && rec.n > 0;
+        var n = same ? Math.floor(rec.n) + 1 : 1;
+        localStorage.setItem(KEY_SERVER_STREAK, JSON.stringify({ id: providerId, kind: kind, n: n }));
         return n;
     } catch (e) {
         return 1;
@@ -653,16 +663,18 @@ function createFetchCycle(deps) {
             // needs rides alone, bundled into ONE send (the channel is half-duplex;
             // change-detector skips absent categories).
             var failureSend = {};
-            // Surface notice-worthy failures (401/403 → watch overlay + settings panel;
-            // 429 → settings panel only; a provider not answering — a server failure
-            // from the second update in a row, or its own retry delay → settings panel,
-            // and the watch overlay only once the watch's forecast is too old to show,
-            // so it never covers a good one; likewise no location: the phone's GPS failed
-            // with no recent fix to stand in). Other failures raise nothing.
+            // Surface notice-worthy failures (401/403, or a provider with no data for the
+            // place from the second update in a row → watch overlay + settings panel;
+            // 429 → settings panel only; a
+            // provider not answering — a server failure from the second update in a row,
+            // or its own retry delay → settings panel, and the watch overlay only once the
+            // watch's forecast is too old to show, so it never covers a good one; likewise
+            // no location: the phone's GPS failed with no recent fix to stand in). Other
+            // failures raise nothing.
             var noticeText = deps.notices.applyFailure(failure, {
                 providerName: provider.name,
                 watchName: provider.shortName,
-                failedUpdates: countServerFailure(provider.id, failure, deps.notices.isServerFailure),
+                failedUpdates: countFailureRun(provider.id, failure, deps.notices.isServerFailure),
                 now: +deps.now(),
                 forecastFresh: watchMayShowForecast(+deps.now())
             });

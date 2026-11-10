@@ -79,7 +79,10 @@ test('noticeForFailure: no location raises the location notice, its text by reas
   assert.strictEqual(refused.watch, 'No location access');
   assert.match(refused.html, /Allow all the time/);
   assert.strictEqual(noFix('off').watch, 'Location unavailable');
-  assert.match(noFix('off').html, /battery saver/);
+  // The Pebble app's "Location not available": location off, or no fix and none from
+  // before, as when the Pebble app may only use location while it is open.
+  assert.match(noFix('off').html, /Location may be off, or the Pebble app may only use location while it is open\./);
+  assert.match(noFix('off').html, /Turn location on, .*“Allow all the time” \(iPhone: “Always”\)\./);
   assert.strictEqual(noFix('timeout').watch, 'Location not found');
   assert.match(noFix('timeout').html, /in time/);
   assert.doesNotMatch(noFix('timeout').html, /Turn location on/);
@@ -156,15 +159,19 @@ test('gc drops entries with a missing or invalid since', function () {
   assert.deepStrictEqual(notices.list(), []);
 });
 
-test('isServerFailure: the provider\'s own 5xx, timeout or no connection', function () {
-  ['openmeteo_status_503', 'wu_current_status_500', 'dwd_forecast_timeout', 'owm_network_error'].forEach(function (code) {
+test('isServerFailure: the provider\'s own 5xx, unreadable answer, timeout or no connection', function () {
+  ['openmeteo_status_503', 'wu_current_status_500', 'dwd_forecast_timeout', 'owm_network_error',
+    'metno_parse_error', 'dwd_current_parse_error'].forEach(function (code) {
     assert.strictEqual(notices.isServerFailure({ stage: 'provider_data', code: code }), true, code);
   });
-  ['owm_status_401', 'yandex_status_429', 'openmeteo_status_404', 'dwd_forecast_parse_error'].forEach(function (code) {
+  // A missing field or a mapping throw can be our own bug or an API change.
+  ['owm_status_401', 'yandex_status_429', 'openmeteo_status_404', 'owm_missing_fields', 'openmeteo_map_error',
+    'dwd_map_error'].forEach(function (code) {
     assert.strictEqual(notices.isServerFailure({ stage: 'provider_data', code: code }), false, code);
   });
   assert.strictEqual(notices.isServerFailure({ stage: 'forward_geocode', code: 'status_503' }), false,
     'a geocoder is not the provider');
+  assert.strictEqual(notices.isServerFailure({ stage: 'forward_geocode', code: 'parse_error' }), false);
   assert.strictEqual(notices.isServerFailure({ stage: 'coordinates', code: 'timeout' }), false);
   assert.strictEqual(notices.isServerFailure(null), false);
 });
@@ -183,6 +190,56 @@ test('noticeForFailure: a server failure raises nothing on the first update, the
     .html.indexOf('the last 3 updates failed (no answer in time)') !== -1);
   assert.ok(notices.noticeForFailure({ stage: 'provider_data', code: 'owm_network_error' }, 'OpenWeatherMap', 1, 2)
     .html.indexOf('(no connection)') !== -1);
+  assert.strictEqual(notices.noticeForFailure({ stage: 'provider_data', code: 'metno_parse_error' }, 'Met.no', 1, 1), null,
+    'a first unreadable answer raises nothing either');
+  assert.ok(notices.noticeForFailure({ stage: 'provider_data', code: 'metno_parse_error' }, 'Met.no', 1, 2)
+    .html.indexOf('the last 2 updates failed (an unreadable answer)') !== -1);
+});
+
+test('noticeForFailure: a provider with no data for the place raises the coverage notice from the second update in a row, on the watch too', function () {
+  var noData = { stage: 'provider_data', code: 'dwd_forecast_status_404', noCoverage: true };
+  var dwd = 'Brightsky (Deutscher Wetterdienst)';
+  assert.strictEqual(notices.noticeForFailure(noData, dwd, 800, 1, 'DWD'), null, 'one 404 can be a hiccup');
+  assert.strictEqual(notices.noticeForFailure(noData, dwd, 800, undefined, 'DWD'), null, 'no run, no notice');
+  var n = notices.noticeForFailure(noData, dwd, 800, 2, 'DWD');
+  assert.deepStrictEqual(n, {
+    key: 'coverage', type: 'error', watch: 'DWD has no data here', since: 800,
+    html: '<b>Brightsky (Deutscher Wetterdienst)</b> has no weather data for this place. '
+      + 'Pick another weather provider in Setup › Data sources.'
+  }, 'no whenStale: waiting does not bring data to this place');
+  assert.strictEqual(notices.noticeForFailure(noData, dwd, 1, 3).watch, 'No weather data here',
+    'a name too long for the watch, without a short one, falls back to a generic line');
+  assert.strictEqual(notices.noticeForFailure({ stage: 'provider_data', code: 'dwd_forecast_status_404' }, 'DWD', 1, 2), null,
+    'only the mark says so: an unmarked 404 raises nothing');
+  assert.strictEqual(notices.noticeForFailure({ stage: 'forward_geocode', code: 'status_404', noCoverage: true }, 'DWD', 1, 2),
+    null, 'and only in the provider\'s own stage');
+
+  var providerFactory = require('../src/pkjs/provider-factory.js');
+  var utf8 = require('../src/pkjs/utf8.js');
+  providerFactory.PROVIDER_IDS.forEach(function (id) {
+    var p = providerFactory.createProvider(id, {});
+    var named = notices.noticeForFailure({ stage: 'provider_data', code: id + '_status_404', noCoverage: true },
+      p.name, 1, 2, p.shortName);
+    assert.strictEqual(named.watch, (p.shortName || p.name) + ' has no data here', id + ' is named on the watch');
+    assert.ok(utf8.byteLength(named.watch) <= notices.WATCH_TEXT_MAX_BYTES, id + ': "' + named.watch + '" fits');
+    assert.ok(named.html.indexOf('<b>' + p.name + '</b>') === 0, id + ': the panel names it in full');
+  });
+});
+
+test('applyFailure: the coverage notice\'s line goes on the watch from the second 404 in a row, over a fresh forecast too', function () {
+  global.localStorage.clear();
+  var ctx = { providerName: 'Brightsky (Deutscher Wetterdienst)', watchName: 'DWD', failedUpdates: 1, now: 5,
+    forecastFresh: true };
+  var noData = { stage: 'provider_data', code: 'dwd_forecast_status_404', noCoverage: true };
+  notices.applyFailure({ stage: 'coordinates', code: 'gps_1', reason: 'off' }, ctx);
+  assert.strictEqual(notices.applyFailure(noData, ctx), null, 'the first: nothing goes to the watch');
+  assert.deepStrictEqual(notices.list(), [], 'and the panel lists nothing either');
+  ctx.failedUpdates = 2;
+  assert.strictEqual(notices.applyFailure(noData, ctx), 'DWD has no data here');
+  assert.deepStrictEqual(notices.list().map(function (n) { return n.key; }), ['coverage'],
+    'past the GPS step: it takes the location notice\'s place');
+  notices.clearErrors();
+  assert.deepStrictEqual(notices.list(), [], 'an error notice, so a successful update clears it');
 });
 
 test('noticeForFailure: the neutral notice\'s watch line fits the watch for every provider, the panel keeps the full name', function () {

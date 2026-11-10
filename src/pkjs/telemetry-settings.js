@@ -7,8 +7,15 @@
 // schema in supabase/functions/telemetry-ingest/handler.ts, and vice versa. A field
 // missing there is silently dropped; a type mismatch fails safeParse and 400s the whole
 // batch. test/telemetry.test.js holds the two key sets and their types equal. Deploy the
-// ingest BEFORE the app that sends a new field ships.
-var statusCatalog = require('./status-line-catalog.js');
+// ingest BEFORE the app that sends a new field ships. Removing a field is safe in either
+// order: the strip step drops what older apps still send, and every field is optional.
+//
+// A field earns its place by telling watches apart. Settings that read the same on every
+// 2.6 watch were dropped (the UV and temperature pairs' presentation, the AQI slot's
+// mode, the wind slot's direction, three Show unit toggles, the six Draw from / Bars
+// from picks, the settings page's own theme), and so was provider: every event already
+// carries the weather provider it fetched from.
+
 // unitEnabled — a Show unit toggle, read like the bake prints the slot.
 var slotText = require('./slot-text.js');
 var configUi = require('./config-ui');          // intToHex, computeEnv
@@ -25,12 +32,27 @@ var statusThresholds = require('./status-thresholds.js');
 var onDemand = require('./on-demand.js');
 // showOf — a graph line's Show choice, read like the bake reads it.
 var lineAlert = require('./line-alert.js');
-// value — a Draw from / Bars from choice, read like the wire reads it.
-var drawFrom = require('./draw-from.js');
 // The forecast's time span option this watch draws (12/24/48 on emery, 24 elsewhere).
 var forecastSpan = require('./forecast-span.js');
 // The forecast's left axis options (emery only), read as the wire reads them.
 var forecastAxis = require('./forecast-axis.js');
+// SLOT_KEYS / parseSlot — the Weather tab's saved places, read like the tab reads them.
+var weatherTabModel = require('./settings/weather-tab-model.js');
+
+// The Show unit toggles worth a field (status-line-catalog.js UNIT_TOGGLES has three more:
+// pressure, rain countdown and dew point read the same on every 2.6 watch).
+var REPORTED_UNIT_TOGGLES = ['windSlotUnit', 'gustSlotUnit', 'tempSlotUnit'];
+
+// radarProvider while Setup's Rain radar is Off: the value apps before 1.10 stored for an
+// Off radar, so the one field reads Off the same way on every version that reported it.
+var RADAR_OFF = 'disabled';
+
+var DAY_MS = 24 * 60 * 60 * 1000;
+// The settings page stamps weatherTabSeenAt with its Date.now() (epoch ms,
+// settings/weather-tab.js) whenever it draws the Weather tab's graphs. The stamp shipped
+// with app 1.23.0 (2026-09), so an older time is no stamp of that page's: a phone clock
+// that was wrong when the page stamped, or a value in another unit.
+var WEATHER_TAB_STAMP_FLOOR_MS = Date.UTC(2026, 8, 1);
 
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
@@ -72,10 +94,9 @@ function boolDefaultOn(value) {
  *
  * A STRING either way: the ingest schema types these z.string(), and a number or a null
  * against a z.number() would fail safeParse and 400 the WHOLE event, taking the fetch
- * outcome with it, with no retry. '#RRGGBB' rather than an int because the dashboards read
- * these through ->> as they are; the int-encoded colorTime family needs a to_hex() in the
- * query (dashboard #11 in supabase/reports/telemetry-dashboards.sql) and has no 'default'
- * sentinel, so an untouched one cannot be told from a picked one.
+ * outcome with it, with no retry. '#RRGGBB' rather than an int because a query reads these
+ * through ->> as they are; the int-encoded colorTime family needs a to_hex() in the query
+ * and has no 'default' sentinel, so an untouched one cannot be told from a picked one.
  *
  * @param {Object} settings Clay settings blob (the gc* keys, plus rainBarColor for gust).
  * @param {string} scope A metric id (line-style's GRAPH_METRICS), or 'night' for the band.
@@ -154,6 +175,38 @@ function warnLooksReport(safe, isColor) {
 }
 
 /**
+ * Whole days since the settings page last drew the Weather tab's graphs, from its
+ * weatherTabSeenAt stamp (epoch ms; a Save brings it to the phone). Absent while there is
+ * no sane stamp: never stamped (0 or absent), or not a past time since the stamp shipped.
+ * @param {*} stamp Stored weatherTabSeenAt.
+ * @param {number} nowMs Reference time (epoch ms).
+ * @returns {number|undefined} Days, an integer >= 0; undefined without a sane stamp.
+ */
+function weatherTabSeenDays(stamp, nowMs) {
+    // Number(), like weather-tab-cache.js tabInUse reads the same stamp.
+    var seen = Number(stamp);
+    if (!isFinite(seen) || seen < WEATHER_TAB_STAMP_FLOOR_MS || seen > nowMs) {
+        return undefined;
+    }
+    return Math.floor((nowMs - seen) / DAY_MS);
+}
+
+/**
+ * How many places the Weather tab has saved (savedLocation1..3), read like the tab reads
+ * its slots: an empty or corrupt slot is no place. A count only, never a place itself.
+ * @param {Object} safe Settings blob (never null).
+ * @returns {number} 0..3.
+ */
+function weatherTabPlaces(safe) {
+    var keys = weatherTabModel.SLOT_KEYS;
+    var count = 0;
+    for (var i = 0; i < keys.length; i++) {
+        if (weatherTabModel.parseSlot(safe[keys[i]])) { count += 1; }
+    }
+    return count;
+}
+
+/**
  * Build a compact, allowlisted settings snapshot for telemetry.
  *
  * @param {Object} settings Clay settings object.
@@ -161,14 +214,21 @@ function warnLooksReport(safe, isColor) {
  *   read: what the watch can show, and the graph colours resolved the way the renderer
  *   does (line-style.renderContextFor: the theme fold and the colour-display check).
  *   Absent = an unknown watch, which answers like basalt: colour, no LED.
+ * @param {number} [nowMs] Reference time for the Weather tab's seen age; defaults to now.
  * @returns {Object} Telemetry-safe settings snapshot.
  */
-function buildSettingsSnapshot(settings, watchInfo) {
+function buildSettingsSnapshot(settings, watchInfo, nowMs) {
     var safe = settings || {};
+    var now = typeof nowMs === 'number' ? nowMs : Date.now();
     // What this watch can show (the config page's own facts): no On demand on aplite.
     // An unknown watch (watchInfo absent) answers like basalt: colour, no LED.
     var env = configUi.computeEnv(watchInfo);
     var cx = lineStyle.renderContextFor(safe, env);
+    // What only a known aplite reads: its fixed quiet-time and low-battery indicators
+    // (every other watch has On demand, the onDemand code below) and its one-screen Layout
+    // radio (every other watch keeps its screens as a custom layout, the customView fields
+    // below). Elsewhere these three are leftovers, or a constant 'custom'.
+    var isAplite = env.platform === 'aplite';
     // Custom-layout usage: the three packed CLAY_VIEW values fully describe what a
     // custom user built (elements, seats, order, clock/strip omissions) in 3 ints.
     // null (-> absent fields) unless custom is active, so preset rows stay unchanged.
@@ -188,7 +248,8 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // direction.
     var hasColorBacklight = env.colorBacklight;
     var dimOn = Boolean(hasColorBacklight && boolDefaultOn(safe.backlightDim));
-    // The left axis options' watch (forecast-axis.js isEmery: a KNOWN emery).
+    // The left axis options' watch (forecast-axis.js isEmery: a KNOWN emery), which is
+    // also the one watch with Larger graph fonts.
     var isEmery = forecastAxis.isEmery(env);
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
@@ -196,30 +257,13 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // The Units tab's feels-like formula ('provider' | 'steadman'), raw like
         // tempSlotDisplay: an absent key reads as the default ('provider').
         feelsFormula: safe.feelsFormula,
-        // The UV slot's display mode ('current' | 'max' | 'both'), raw like
-        // tempSlotDisplay.
+        // The UV, wind and gust slots' display mode ('current' | 'max' | 'both'), raw
+        // like tempSlotDisplay. The two-value slots' presentation (separator, spacing,
+        // order, next-day mark) is not reported; the custom separator text never would
+        // be: it is free text a user typed.
         uvSlotDisplay: safe.uvSlotDisplay,
-        // The two-value slots' presentation (status-pair.js), raw like
-        // tempSlotDisplay: an absent key reads as the default, as it does in the
-        // bake. The custom separator TEXT is never sent -- it is free text a user
-        // typed, and a separator of 'custom' already records the choice.
-        tempSlotSeparator: safe.tempSlotSeparator,
-        // The spacing toggles default OFF, so an absent key reports false --
-        // windSlotDirection's convention for a default-off toggle.
-        tempSlotSeparatorSpaced: Boolean(safe.tempSlotSeparatorSpaced),
-        tempSlotOrder: safe.tempSlotOrder,
-        uvSlotSeparator: safe.uvSlotSeparator,
-        uvSlotSeparatorSpaced: Boolean(safe.uvSlotSeparatorSpaced),
-        uvSlotOrder: safe.uvSlotOrder,
-        uvSlotNextDayMark: safe.uvSlotNextDayMark,
-        // The wind, gust and AQI slots' display mode ('current' | 'max' | 'both'),
-        // raw like uvSlotDisplay. Their pair presentation (separator, spacing,
-        // order, next-day mark) is NOT reported: fifteen more fields would ride
-        // the settings header the ingest copies into every row of a batch, and
-        // UV's picks above already show how people shape a day-max pair.
         windSlotDisplay: safe.windSlotDisplay,
         gustSlotDisplay: safe.gustSlotDisplay,
-        aqiSlotDisplay: safe.aqiSlotDisplay,
         // The date slot's two format picks (edit sheet), raw like tempSlotDisplay.
         // dateSlotFullFormat is wizard-seeded per country ('slash' for US installs,
         // 'auto' elsewhere), so a present value does NOT mean the user opened the
@@ -231,7 +275,6 @@ function buildSettingsSnapshot(settings, watchInfo) {
         aqiSource: safe.aqiSource,
         windUnits: safe.windUnits,
         distanceUnits: safe.distanceUnits,
-        windSlotDirection: Boolean(safe.windSlotDirection),
         gustSlotDirection: Boolean(safe.gustSlotDirection),
         // The one per-kind Bold mode in the snapshot. The phone-battery slot is
         // Android-only (its reading comes from a host API that exists nowhere else),
@@ -239,10 +282,8 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // the other bold modes stay out. Passed through raw like tempSlotDisplay --
         // an unseeded install reports undefined, which the column reads as "default".
         threshPhoneBatteryBoldMode: safe.threshPhoneBatteryBoldMode,
-        configTheme: safe.configTheme,
         dayNightShading: !!safe.dayNightShading,
         healthMode: safe.healthMode || 'off',
-        provider: safe.provider,
         fetchIntervalMin: toIntOrUndefined(safe.fetchIntervalMin),
         rainCountdownHorizon: toIntOrUndefined(safe.rainCountdownHorizon),
         // The weather alerts: each metric alert's look, Days and tomorrow mark (see
@@ -257,8 +298,8 @@ function buildSettingsSnapshot(settings, watchInfo) {
         warnLooks: warnLooksReport(safe, env.color),
         // The battery saver's window — the saver's OWN pair, as it has always been;
         // the Nighttime card groups it with two other features but shares no hours
-        // with them. Present only while the saver is on ("value in effect"), which is
-        // also how supabase/reports/telemetry-dashboards.sql reads "battery saver on".
+        // with them. Present only while the saver is on ("value in effect"), so a
+        // row's `settings_json ? 'sleepStartHour'` reads "battery saver on".
         sleepStartHour: safe.sleepNightEnabled ? toIntOrUndefined(safe.sleepStartHour) : undefined,
         sleepEndHour: safe.sleepNightEnabled ? toIntOrUndefined(safe.sleepEndHour) : undefined,
         // Dim backlight (emery only — see hasColorBacklight above). Sub-settings only
@@ -291,19 +332,21 @@ function buildSettingsSnapshot(settings, watchInfo) {
         timeShowAmPm: !!safe.timeShowAmPm,
         weekStartDay: safe.weekStartDay,
         firstWeek: safe.firstWeek,
-        showQt: !!safe.showQt,
-        batteryLowOnly: Boolean(safe.batteryLowOnly),
+        // aplite only (isAplite above): its quiet-time icon and low-battery-only toggles.
+        showQt: isAplite ? Boolean(safe.showQt) : undefined,
+        batteryLowOnly: isAplite ? Boolean(safe.batteryLowOnly) : undefined,
         // On demand: 40 letters, the ten items of each bar (top, forecast, radar, health)
         // in the On demand order — L/R ticked on a side of a bar that shows, l/r
         // ticked on a bar the layout leaves out, '-' not ticked.
-        // Absent on a known aplite, which has no On demand. showQt and batteryLowOnly
-        // above are what aplite reads; every other watch reads these.
+        // Absent on a known aplite, which has no On demand: showQt and batteryLowOnly
+        // above are what aplite reads, and only aplite reports them.
         onDemand: onDemand.telemetryCode(safe, env),
         // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),
         batteryLowDisplay: safe.batteryLowDisplay,
-        layoutPreset: safe.layoutPreset,
+        // aplite only: the preset its Layout radio stores, raw.
+        layoutPreset: isAplite ? safe.layoutPreset : undefined,
         // Lockstep with the Deno telemetry-ingest .strip() schema — deploy the
         // function BEFORE the app ships, or these fields are silently dropped.
         customView0: customPacked ? customPacked[0] : undefined,
@@ -316,11 +359,13 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // The Screen switching card's Double flick switch. Lockstep with the Deno telemetry-ingest
         // .strip() schema (handler.ts); ships OFF, so aplite's constant false is the default.
         doubleFlick: Boolean(safe.doubleFlick),
-        largeGraphFont: Boolean(safe.largeGraphFont),
+        // emery only: the one watch with the toggle (schema.js shows the row there alone).
+        largeGraphFont: isEmery ? Boolean(safe.largeGraphFont) : undefined,
         // The forecast's time span, the option: 12 / 24 / 48 (48 = the long span, whatever
-        // its label) on an emery, 24 on every other watch whatever is stored. Categorical, not the
-        // hours sent (forecast-span.js option()). Lockstep with handler.ts.
-        forecastHours: forecastSpan.option(safe, env),
+        // its label), on the one watch that offers a span (env.forecastSpan: emery); every
+        // other watch is sent 24 whatever is stored, so it reports nothing. Categorical, not
+        // the hours sent (forecast-span.js option()). Lockstep with handler.ts.
+        forecastHours: env.forecastSpan ? forecastSpan.option(safe, env) : undefined,
         // The forecast's left axis options, emery only (the one watch that offers
         // them), as chosen (forecast-axis.js readers: absent or junk reads the default, a
         // beta's 'beside' included), the Draw from precedent below: whether the scale applies
@@ -338,15 +383,6 @@ function buildSettingsSnapshot(settings, watchInfo) {
         windLineShow: lineAlert.showOf(safe, 'wind'),
         gustLineShow: lineAlert.showOf(safe, 'gust'),
         uvLineShow: lineAlert.showOf(safe, 'uv'),
-        // Draw from / Bars from, 'bottom' or 'top' (draw-from.js value: absent or junk
-        // reads 'bottom'), as chosen: whether such a line or those bars are drawn at
-        // all is the line, style, barSource and radarMode fields beside them.
-        precipLineFrom: drawFrom.value(safe.precipLineFrom),
-        cloudLineFrom: drawFrom.value(safe.cloudLineFrom),
-        windLineFrom: drawFrom.value(safe.windLineFrom),
-        uvLineFrom: drawFrom.value(safe.uvLineFrom),
-        rainBarFrom: drawFrom.value(safe.rainBarFrom),
-        radarBarFrom: drawFrom.value(safe.radarBarFrom),
         pressureScale: safe.pressureScale,
         thirdLine: safe.thirdLine,
         fourthLine: safe.fourthLine,
@@ -360,13 +396,12 @@ function buildSettingsSnapshot(settings, watchInfo) {
         fifthLineStyle: lineStyle.lineStyleValue(safe, 'fifthLineStyle'),
         barSource: safe.barSource,
         rainBarColor: safe.rainBarColor,
-        // "Rainbow (own key)" reports 'rainbowkey', so the own-key share stays countable
-        // without a field of its own (the Deno schema takes any string).
-        radarProvider: safe.radarProvider,
+        // The rain radar's source, or RADAR_OFF while Setup's Rain radar is Off (2.6 keeps
+        // the source apart from the switch, radarEnabled: on by default, so only a stored
+        // false is Off). "Rainbow (own key)" reports 'rainbowkey', so the own-key share
+        // stays countable without a field of its own (the Deno schema takes any string).
+        radarProvider: safe.radarEnabled === false ? RADAR_OFF : safe.radarProvider,
         radarMode: safe.radarMode || 'graph',
-        // Setup's Rain radar Off (2.6), apart from the source above: on by default, so a
-        // missing key is on.
-        radarEnabled: safe.radarEnabled !== false,
         radarColor: safe.radarColor,
         radarSky: safe.radarSky !== false,   // on by default: a missing key is on
         devStatsEnabled: Boolean(safe.devStatsEnabled),
@@ -387,19 +422,24 @@ function buildSettingsSnapshot(settings, watchInfo) {
         colorToday: safe.colorToday,
         colorSunday: safe.colorSunday,
         colorSaturday: safe.colorSaturday,
-        colorUSFederal: safe.colorUSFederal
+        colorUSFederal: safe.colorUSFederal,
+        // The settings page's Weather tab, which the watch never sees: whether the page
+        // opens on it (Setup > Misc, read like the page's openWhen: only true is on), how
+        // long ago the page last drew its graphs, and how many places it has saved.
+        startOnWeatherTab: safe.startOnWeatherTab === true,
+        weatherTabSeenDays: weatherTabSeenDays(safe.weatherTabSeenAt, now),
+        weatherTabPlaces: weatherTabPlaces(safe)
     };
-    // The per-kind "Show unit" toggles, derived from the catalog's table (the
-    // same one formatValue bakes by and settings/schema.js defaults from) so a
-    // flipped default can never desynchronize what telemetry reports from what
-    // the watch renders. Defaults pinned by test/telemetry.test.js. A new key
-    // here must also join the Deno .strip() schema or it is silently dropped
+    // The reported "Show unit" toggles, each read the way the bake prints the slot
+    // (slot-text.js unitEnabled, its absent value from the catalog's UNIT_TOGGLES, the
+    // table settings/schema.js defaults from), so a flipped default can never
+    // desynchronize what telemetry reports from what the watch renders: an absent key
+    // reports what it renders (the look from before the toggle existed), not a fresh
+    // install's default. Pinned by test/telemetry.test.js. A new key here must also join
+    // the Deno .strip() schema or it is silently dropped
     // (supabase/functions/telemetry-ingest/handler.ts).
-    // An absent key reports what it renders (slot-text.js unitEnabled: the look from
-    // before the toggle existed), not a fresh install's default.
-    var toggles = statusCatalog.UNIT_TOGGLES;
-    for (var i = 0; i < toggles.length; i++) {
-        snapshot[toggles[i].key] = slotText.unitEnabled(safe, toggles[i].key);
+    for (var i = 0; i < REPORTED_UNIT_TOGGLES.length; i++) {
+        snapshot[REPORTED_UNIT_TOGGLES[i]] = slotText.unitEnabled(safe, REPORTED_UNIT_TOGGLES[i]);
     }
     // The graph colours, one field per painted ELEMENT, carrying the value for the polarity
     // this watch ACTUALLY RENDERS. Every platform/theme judgement comes from line-style's
@@ -426,7 +466,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // Assign undefined, never delete: the key must still EXIST for the lockstep
     // set-equality test (test/telemetry.test.js). JSON.stringify drops it, and its
     // ABSENCE is then the "this watch paints no colour at all" flag (the
-    // `settings_json ? 'sleepStartHour'` idiom in reports/telemetry-dashboards.sql).
+    // `settings_json ? 'sleepStartHour'` idiom).
     var secMetric = safe.secondaryLine;
     snapshot.graphMainColor = cx.isColor
         ? graphColorReport(safe, secMetric, 'Line', cx.suffix) : undefined;

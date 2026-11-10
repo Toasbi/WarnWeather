@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 set timezone = 'UTC';  -- make current_date / day-bucketing deterministic
-select plan(25);
+select plan(29);
 
 -- ── Schema ────────────────────────────────────────────────────────────────
 select has_table('public', 'telemetry_watch', 'telemetry_watch exists');
@@ -20,6 +20,10 @@ select is(
     where schemaname = 'public'
       and tablename in ('telemetry_watch', 'telemetry_dau', 'telemetry_errors')),
   3, 'three no_api_access policies present');
+-- Dropped: nothing read them, and an error row needs no account hash beside its watch_key.
+select hasnt_column('public', 'telemetry_watch', 'lifetime_events', 'telemetry_watch has no lifetime_events');
+select hasnt_column('public', 'telemetry_watch', 'first_app_version', 'telemetry_watch has no first_app_version');
+select hasnt_column('public', 'telemetry_errors', 'account_token_hash', 'telemetry_errors has no account_token_hash');
 
 -- ── API surface ─────────────────────────────────────────────────────────────
 -- SECURITY DEFINER bypasses RLS, so no API role may call it (a caller could pass a negative
@@ -66,7 +70,15 @@ values
   -- watchT is active RIGHT NOW (today) on 1.8.1 with a status slot set.
   (now(), 'acctT', 'watchT', 'openmeteo', true, null, 'AT',
    '{"radarProvider":"openmeteo","statusForecastLeft":"uv"}', '1.8.1', 'release',
-   '{"platform":"chalk","model":"pebble_time_round","language":"fr"}', 180, 1);
+   '{"platform":"chalk","model":"pebble_time_round","language":"fr"}', 180, 1),
+  -- App 2.6.0/2.6.1 rows stored before the ingest folded radarEnabled: watchOff turned
+  -- the radar off (its source stays stored), watchOn left it on.
+  ((current_date - 2) + time '11:00', 'acctOff', 'watchOff', 'dwd', true, null, 'DE',
+   '{"radarProvider":"dwd","radarEnabled":false}', '2.6.1', 'release',
+   '{"platform":"emery"}', 150, 1),
+  ((current_date - 2) + time '11:00', 'acctOn', 'watchOn', 'dwd', true, null, 'DE',
+   '{"radarProvider":"dwd","radarEnabled":true}', '2.6.1', 'release',
+   '{"platform":"emery"}', 150, 1);
 
 insert into rainbow_nowcast_cache (cache_key, payload, expires_at)
 values ('k-expired', '{}'::jsonb, now() - interval '1 hour'),
@@ -84,8 +96,6 @@ select is((select radar_provider from telemetry_dau
 select is((select watch_key from telemetry_dau
              where watch_key = 'acctB' and activity_date = current_date - 2),
           'acctB', 'null watch_token falls back to account_token as watch_key');
-select is((select lifetime_events from telemetry_watch where watch_key = 'watchA'),
-          3::int, 'lifetime_events sums dau (2 on recent day + 1 on stale day)');
 select is((select last_app_version from telemetry_watch where watch_key = 'watchA'),
           '1.8.0', 'last_app_version is the newest version seen');
 select is((select watch_language from telemetry_watch where watch_key = 'acctB'),
@@ -95,14 +105,19 @@ select is((select count(*)::int from telemetry_errors where watch_key = 'watchA'
 select is((select fetch_count from telemetry_dau
              where watch_key = 'watchT' and activity_date = current_date),
           1::int, 'today is rolled up (live current day, e.g. release-day fleet)');
+select is((select radar_provider from telemetry_dau
+             where watch_key = 'watchOff' and activity_date = current_date - 2),
+          'disabled', 'dau radar_provider: radarEnabled false reads disabled');
+select is((select radar_provider from telemetry_watch where watch_key = 'watchOff'),
+          'disabled', 'watch radar_provider: radarEnabled false reads disabled');
+select is((select radar_provider from telemetry_watch where watch_key = 'watchOn'),
+          'dwd', 'radarEnabled true keeps the stored source');
 
 -- Idempotency: a second identical run must not change counts.
 select telemetry_rollup_and_prune(p_prune => false);
 select is((select fetch_count from telemetry_dau
              where watch_key = 'watchA' and activity_date = current_date - 2),
           2::int, 'fetch_count unchanged after second run (idempotent)');
-select is((select lifetime_events from telemetry_watch where watch_key = 'watchA'),
-          3::int, 'lifetime_events unchanged after second run (idempotent)');
 
 -- Now prune: the stale raw row goes. The Rainbow cache is rainbow_prune's (its own hourly
 -- job, rainbow_nowcast_cache_rpc_test.sql), so even the expired row stays here.

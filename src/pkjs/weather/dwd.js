@@ -108,6 +108,27 @@ function currentFeelsFrom(current) {
 }
 
 /**
+ * The current conditions read off the current hour's forecast record, for a
+ * place with no observing station within MAX_DIST_METERS (withDwdCurrent): the
+ * temperature, feels-like (hourFeels) and bearing (hourBearing) the hourly
+ * series read from that record, so the current values match the graph's first
+ * slot.
+ *
+ * @param {Object} e Brightsky hourly weather record (slot 0's own).
+ * @param {boolean} fetchFeels options.fetchFeels: the Steadman arithmetic runs
+ *   only when the feels-like is wanted (mapForecast's compute-skip).
+ * @returns {{tempF: number, feelsF: ?number, bearing: (number|null)}} Shaped like
+ *   withDwdCurrent's observation.
+ */
+function currentFromHour(e, fetchFeels) {
+    return {
+        tempF: celsiusToFahrenheit(e.temperature),
+        feelsF: fetchFeels ? hourFeels(e) : null,
+        bearing: hourBearing(e)
+    };
+}
+
+/**
  * ISO 8601 forecast window starting at the current wall-clock hour and
  * covering the graph's hours + 1 buckets (FORECAST_HOURS, or emery's 26 or 68
  * hours; or to the end of tomorrow, whichever is later). Brightsky returns `hourly[0]` as the
@@ -242,6 +263,82 @@ function slotRecords(hourly, byEpoch, startEpoch, count) {
     return { own: own, following: following };
 }
 
+/**
+ * Map Brightsky's forecast records, with the current observation when there is
+ * one, into adoptMapped's shape (WeatherProvider.MAPPED_KEYS).
+ *
+ * @param {Object} provider The DWD provider (reads options).
+ * @param {Object[]} hourly Brightsky `weather` records, ascending (non-empty).
+ * @param {?{tempF: number, feelsF: ?number, bearing: ?number}} observed The
+ *   observation (withDwdCurrent), or null when no station is near enough.
+ * @returns {Object} The mapped forecast.
+ */
+function mapForecast(provider, hourly, observed) {
+    var startEpoch = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
+    // The window asks for records out to PEAK_HOURS (forecastWindow);
+    // the slots themselves stop at the graph's window (FORECAST_HOURS, or
+    // emery's 26 or 68) so every series agrees
+    // on its length (wind and gusts read on, peakTail below). A response short of that (fewer records than slots)
+    // stays short, so hasValidData still rejects it.
+    // Instants (temperature, wind speed, pressure, dew point, bearing)
+    // read the slot's own record; the preceding-hour totals read the
+    // record one hour on (slotRecords).
+    var byEpoch = recordsByEpoch(hourly);
+    var paired = slotRecords(hourly, byEpoch, startEpoch,
+        Math.min(hourly.length, hourlyWindow.windowHours(provider.options)));
+    var slots = paired.own;
+    var following = paired.following;
+    // Steadman-computed (no Brightsky feels field): the most expensive
+    // feels path of any provider — an exp() per hour — so the arithmetic
+    // is skipped when options.fetchFeels is off. That is only a
+    // compute-skip; adoptMapped applies the semantic fetchFeels gate on
+    // top. No humidityTrend key, so adoptMapped ships this series
+    // verbatim under either feelsFormula (the humidity branch would
+    // back-fill temp under 'provider' and change DWD's numbers).
+    var fetchFeels = provider.options.fetchFeels;
+    // No observation (no station within max_dist): the current hour's forecast
+    // record stands in, slot 0's own, the one the graph's first slot draws.
+    var current = observed || currentFromHour(slots[0], fetchFeels);
+    var mapped = {
+        tempTrend: slots.map(function(e) { return celsiusToFahrenheit(e.temperature); }),
+        precipTrend: following.map(function(e) { return e ? e.precipitation_probability / 100 : 0; }),
+        rainTrend: following.map(function(e) { return e ? e.precipitation : 0; }),
+        windTrend: slots.map(function(e) { return e.wind_speed || 0; }), // Brightsky wind_speed is km/h
+        gustTrend: following.map(function(e) { return (e && e.wind_gust_speed) || 0; }), // Brightsky wind_gust_speed is km/h
+        pressureTrend: slots.map(function(e) { return e.pressure_msl || 0; }), // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
+        cloudTrend: slots.map(function(e) { return e.cloud_cover || 0; }), // Brightsky cloud_cover is total %
+        // Dew point rides along free: Brightsky returns the full field set, so
+        // this is the same value hourFeels already reads. Ungated by fetchFeels
+        // — the dew slot is independent of the feels curve and costs no math.
+        dewTrend: slots.map(hourDewF), // °F, null where unsourced
+        windDirTrend: slots.map(hourBearing), // degrees 0-359, "comes from"
+        feelsTrend: fetchFeels ? slots.map(hourFeels) : [],
+        currentFeels: fetchFeels ? current.feelsF : null,
+        startTime: startEpoch,
+        currentTemp: current.tempF
+    };
+    // MOSMIX can omit the bearing on the hour we are inside (it already
+    // omits relative_humidity there); the live observation carries it, so
+    // fill just that gap. The forecast wins whenever it has a value: the
+    // arrow annotates windTrend[0], which is the forecast, so the speed and
+    // the direction it points must come from the same record.
+    if (mapped.windDirTrend[0] === null && typeof current.bearing === 'number') {
+        mapped.windDirTrend[0] = current.bearing;
+    }
+    // The day-max series read on past the graph (hourly-window.js
+    // PEAK_HOURS) while a wind or gust slot shows its day max (the
+    // window reached that far, forecastWindow); getPayload cuts them
+    // back to the graph's window. Built on `mapped`, so adoptMapped
+    // takes the full series in one step.
+    if (slots.length >= FORECAST_HOURS
+        && windPeaksWanted(provider)) {
+        var tail = peakTail(byEpoch, startEpoch, slots.length);
+        mapped.windTrend = mapped.windTrend.concat(tail.wind);
+        mapped.gustTrend = mapped.gustTrend.concat(tail.gust);
+    }
+    return mapped;
+}
+
 var DwdProvider = function() {
     this._super.call(this);
     this.name = 'Brightsky (Deutscher Wetterdienst)';
@@ -256,6 +353,17 @@ DwdProvider.prototype = Object.create(WeatherProvider.prototype);
 DwdProvider.prototype.constructor = DwdProvider;
 DwdProvider.prototype._super = WeatherProvider;
 
+/**
+ * Brightsky's hourly records for the place (/weather), from the nearest source
+ * within MAX_DIST_METERS. A 404 is Brightsky finding no source that near: DWD
+ * has no forecast for the place, so the failure is marked noCoverage.
+ *
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {function(*)} callback Receives the response's `weather` records.
+ * @param {Function} onFailure Receives a failure() object.
+ * @returns {void}
+ */
 DwdProvider.prototype.withDwdForecast = function(lat, lon, callback, onFailure) {
     var win = forecastWindow(windPeaksWanted(this), hourlyWindow.windowHours(this.options));
     var url = BRIGHTSKY_BASE + '/weather'
@@ -265,18 +373,42 @@ DwdProvider.prototype.withDwdForecast = function(lat, lon, callback, onFailure) 
         + '&last_date=' + encodeURIComponent(win.end)
         + '&max_dist=' + MAX_DIST_METERS;
     request(url, 'GET', function(response) {
+        var hourly;
+        // Only the parse: a parse error means an unreadable answer, which
+        // notices.js counts as DWD failing, so nothing further down may raise it.
         try {
-            callback(JSON.parse(response).weather);
+            hourly = JSON.parse(response).weather;
         }
         catch (ex) {
             onFailure(failure('provider_data', 'dwd_forecast_parse_error'));
+            return;
         }
+        callback(hourly);
     }, function(error) {
         console.log('[!] DWD forecast request failed: ' + JSON.stringify(error));
-        onFailure(failure('provider_data', 'dwd_forecast_' + error.code));
+        var lost = failure('provider_data', 'dwd_forecast_' + error.code);
+        // The coverage notice's mark (notices.js); the stage and code stay as they are.
+        if (error.code === 'status_404') { lost.noCoverage = true; }
+        onFailure(lost);
     });
 };
 
+/**
+ * Brightsky's latest observation near the place (/current_weather): its
+ * temperature, feels-like and wind bearing. A 404 is Brightsky finding no
+ * station within MAX_DIST_METERS (far from Germany, where /weather still has a
+ * MOSMIX forecast): that calls back null, and the update goes on with the
+ * current hour's forecast in its place (mapForecast). Every other failure (a
+ * timeout, a 5xx, no connection, an unreadable answer) fails the update.
+ *
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {function(?{tempF: number, feelsF: ?number, bearing: ?number})} callback
+ *   Receives the observation (°F; feels-like °F or null; bearing in [0, 360) or
+ *   null), or null when no station is near enough.
+ * @param {Function} onFailure Receives a failure() object.
+ * @returns {void}
+ */
 DwdProvider.prototype.withDwdCurrent = function(lat, lon, callback, onFailure) {
     var url = BRIGHTSKY_BASE + '/current_weather'
         + '?lat=' + lat
@@ -284,15 +416,27 @@ DwdProvider.prototype.withDwdCurrent = function(lat, lon, callback, onFailure) {
         + '&max_dist=' + MAX_DIST_METERS;
     request(url, 'GET', function(response) {
         var current;
+        var observed;
+        // Only the parse and the record's reading, as in withDwdForecast.
         try {
             current = JSON.parse(response).weather;
-            callback(celsiusToFahrenheit(current.temperature), currentFeelsFrom(current),
-                     currentBearingFrom(current));
+            observed = {
+                tempF: celsiusToFahrenheit(current.temperature),
+                feelsF: currentFeelsFrom(current),
+                bearing: currentBearingFrom(current)
+            };
         }
         catch (ex) {
             onFailure(failure('provider_data', 'dwd_current_parse_error'));
+            return;
         }
+        callback(observed);
     }, function(error) {
+        if (error.code === 'status_404') {
+            console.log('No DWD station near enough for the current weather: the forecast\'s current hour stands in.');
+            callback(null);
+            return;
+        }
         console.log('[!] DWD current request failed: ' + JSON.stringify(error));
         onFailure(failure('provider_data', 'dwd_current_' + error.code));
     });
@@ -300,72 +444,26 @@ DwdProvider.prototype.withDwdCurrent = function(lat, lon, callback, onFailure) {
 
 DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
     this.withDwdForecast(lat, lon, (function(hourly) {
-        // Reject an empty/missing forecast before the current-weather call.
-        // Otherwise the `hourly[0].timestamp` deref below only fails downstream
-        // inside withDwdCurrent's try/catch, mislabeled `dwd_current_parse_error`.
+        // Reject an empty/missing forecast before the current-weather call (the
+        // mapping reads hourly[0]). Not the coverage notice's no data for the place:
+        // Brightsky says that with a 404, so an answer without records is a fault of
+        // its own (a gap in its data, a malformed answer) that may heal.
         if (!Array.isArray(hourly) || hourly.length === 0) {
             onFailure(failure('provider_data', 'dwd_forecast_empty'));
             return;
         }
-        this.withDwdCurrent(lat, lon, (function(currentTempF, currentFeelsF, currentBearing) {
-            var startEpoch = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
-            // The window asks for records out to PEAK_HOURS (forecastWindow);
-            // the slots themselves stop at the graph's window (FORECAST_HOURS, or
-            // emery's 26 or 68) so every series agrees
-            // on its length (wind and gusts read on, peakTail below). A response short of that (fewer records than slots)
-            // stays short, so hasValidData still rejects it.
-            // Instants (temperature, wind speed, pressure, dew point, bearing)
-            // read the slot's own record; the preceding-hour totals read the
-            // record one hour on (slotRecords).
-            var byEpoch = recordsByEpoch(hourly);
-            var paired = slotRecords(hourly, byEpoch, startEpoch,
-                Math.min(hourly.length, hourlyWindow.windowHours(this.options)));
-            var slots = paired.own;
-            var following = paired.following;
-            // Steadman-computed (no Brightsky feels field): the most expensive
-            // feels path of any provider — an exp() per hour — so the arithmetic
-            // is skipped when options.fetchFeels is off. That is only a
-            // compute-skip; adoptMapped applies the semantic fetchFeels gate on
-            // top. No humidityTrend key, so adoptMapped ships this series
-            // verbatim under either feelsFormula (the humidity branch would
-            // back-fill temp under 'provider' and change DWD's numbers).
-            var fetchFeels = this.options.fetchFeels;
-            var mapped = {
-                tempTrend: slots.map(function(e) { return celsiusToFahrenheit(e.temperature); }),
-                precipTrend: following.map(function(e) { return e ? e.precipitation_probability / 100 : 0; }),
-                rainTrend: following.map(function(e) { return e ? e.precipitation : 0; }),
-                windTrend: slots.map(function(e) { return e.wind_speed || 0; }), // Brightsky wind_speed is km/h
-                gustTrend: following.map(function(e) { return (e && e.wind_gust_speed) || 0; }), // Brightsky wind_gust_speed is km/h
-                pressureTrend: slots.map(function(e) { return e.pressure_msl || 0; }), // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
-                cloudTrend: slots.map(function(e) { return e.cloud_cover || 0; }), // Brightsky cloud_cover is total %
-                // Dew point rides along free: Brightsky returns the full field set, so
-                // this is the same value hourFeels already reads. Ungated by fetchFeels
-                // — the dew slot is independent of the feels curve and costs no math.
-                dewTrend: slots.map(hourDewF), // °F, null where unsourced
-                windDirTrend: slots.map(hourBearing), // degrees 0-359, "comes from"
-                feelsTrend: fetchFeels ? slots.map(hourFeels) : [],
-                currentFeels: fetchFeels ? currentFeelsF : null,
-                startTime: startEpoch,
-                currentTemp: currentTempF
-            };
-            // MOSMIX can omit the bearing on the hour we are inside (it already
-            // omits relative_humidity there); the live observation carries it, so
-            // fill just that gap. The forecast wins whenever it has a value: the
-            // arrow annotates windTrend[0], which is the forecast, so the speed and
-            // the direction it points must come from the same record.
-            if (mapped.windDirTrend[0] === null && typeof currentBearing === 'number') {
-                mapped.windDirTrend[0] = currentBearing;
+        this.withDwdCurrent(lat, lon, (function(observed) {
+            var mapped;
+            // The mapping runs inside an XHR callback, where a throw would strand
+            // the fetch. It is our reading of the records, not an unreadable
+            // answer: requestMapped's '<id>_map_error'.
+            try {
+                mapped = mapForecast(this, hourly, observed);
             }
-            // The day-max series read on past the graph (hourly-window.js
-            // PEAK_HOURS) while a wind or gust slot shows its day max (the
-            // window reached that far, forecastWindow); getPayload cuts them
-            // back to the graph's window. Built on `mapped`, so adoptMapped
-            // takes the full series in one step.
-            if (slots.length >= FORECAST_HOURS
-                && windPeaksWanted(this)) {
-                var tail = peakTail(byEpoch, startEpoch, slots.length);
-                mapped.windTrend = mapped.windTrend.concat(tail.wind);
-                mapped.gustTrend = mapped.gustTrend.concat(tail.gust);
+            catch (ex) {
+                console.log('[!] DWD response mapping threw: ' + ex.message);
+                onFailure(failure('provider_data', 'dwd_map_error'));
+                return;
             }
             // Total: no uvTrend key, so adoptMapped leaves uvTrend at [] and the
             // Open-Meteo UV fetch below fills it in when options.fetchUv is on —

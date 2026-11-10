@@ -71,9 +71,28 @@ test('snapshot includes rainCountdownHorizon as an int', () => {
   assert.strictEqual(buildSettingsSnapshot({}).rainCountdownHorizon, undefined);
 });
 
-test('snapshot includes layoutPreset as a string', () => {
-  assert.strictEqual(buildSettingsSnapshot({ layoutPreset: 'radarLast' }).layoutPreset, 'radarLast');
-  assert.strictEqual(buildSettingsSnapshot({}).layoutPreset, undefined);
+// What only aplite reads: its quiet-time and low-battery-only toggles (every other watch
+// has On demand) and its Layout radio (every other watch keeps its screens as a custom
+// layout). Elsewhere they are leftovers or a constant, so they report nothing there; an
+// unknown watch answers like basalt, as it does for onDemand.
+test('showQt, batteryLowOnly and layoutPreset are reported on aplite only', () => {
+  const set = { showQt: true, batteryLowOnly: true, layoutPreset: 'fullCal' };
+  const aplite = buildSettingsSnapshot(set, { platform: 'aplite' });
+  assert.strictEqual(aplite.showQt, true);
+  assert.strictEqual(aplite.batteryLowOnly, true);
+  assert.strictEqual(aplite.layoutPreset, 'fullCal', 'the preset as stored');
+  const off = buildSettingsSnapshot({ showQt: false }, { platform: 'aplite' });
+  assert.strictEqual(off.showQt, false);
+  assert.strictEqual(off.batteryLowOnly, false, 'an absent toggle reads off, its default');
+  assert.strictEqual(off.layoutPreset, undefined, 'unseeded: absent');
+  [{ platform: 'basalt' }, { platform: 'diorite' }, { platform: 'emery' }, undefined].forEach((watchInfo) => {
+    const snap = buildSettingsSnapshot(set, watchInfo);
+    ['showQt', 'batteryLowOnly', 'layoutPreset'].forEach((k) => {
+      assert.strictEqual(snap[k], undefined, k + ' on ' + JSON.stringify(watchInfo));
+      assert.ok(Object.prototype.hasOwnProperty.call(snap, k), k + ' must still be emitted as a key');
+    });
+    assert.strictEqual(typeof snap.onDemand, 'string', 'On demand says what this watch draws instead');
+  });
 });
 
 test('snapshot includes viewResetMin as an int', () => {
@@ -84,11 +103,6 @@ test('snapshot includes viewResetMin as an int', () => {
 test('snapshot includes theme as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({ theme: 'light' }).theme, 'light');
   assert.strictEqual(buildSettingsSnapshot({}).theme, undefined);
-});
-
-test('snapshot includes configTheme as a string', () => {
-  assert.strictEqual(buildSettingsSnapshot({ configTheme: 'light' }).configTheme, 'light');
-  assert.strictEqual(buildSettingsSnapshot({}).configTheme, undefined);
 });
 
 test('snapshot includes aqiScale', () => {
@@ -112,36 +126,18 @@ test('snapshot includes uvSlotDisplay as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({}).uvSlotDisplay, undefined);
 });
 
-// The two-value slots' presentation (status-pair.js), raw like tempSlotDisplay — same
-// lockstep rule. The custom separator TEXT is typed by the user and never leaves the
-// phone: a separator of 'custom' already records the choice.
-const PAIR_FIELDS = { tempSlotSeparator: 'brackets', tempSlotOrder: 'feels',
-  uvSlotSeparator: 'custom', uvSlotOrder: 'max', uvSlotNextDayMark: 'star' };
-
-test('snapshot includes the two-value slot presentation picks as strings', () => {
-  const snap = buildSettingsSnapshot(PAIR_FIELDS);
-  Object.keys(PAIR_FIELDS).forEach((key) => {
-    assert.strictEqual(snap[key], PAIR_FIELDS[key], key);
-    assert.strictEqual(buildSettingsSnapshot({})[key], undefined, key + ' absent = default');
+// The snapshot is an allowlist: what a user typed or saved never leaves the phone in it —
+// a custom pair separator, or a place the Weather tab keeps (it reports only how many).
+test('snapshot never carries free text or a saved place', () => {
+  const snap = buildSettingsSnapshot({
+    tempSlotSeparator: 'custom', tempSlotSeparatorCustom: 'Hi!', uvSlotSeparatorCustom: ' ~ ',
+    savedLocation1: JSON.stringify({ name: 'Placeville', lat: 47.123, lon: 8.456, country: 'CH' })
   });
-});
-
-test('snapshot reports the pair spacing toggles as booleans, absent = off', () => {
-  ['tempSlotSeparatorSpaced', 'uvSlotSeparatorSpaced'].forEach((key) => {
-    assert.strictEqual(buildSettingsSnapshot({ [key]: true })[key], true, key);
-    assert.strictEqual(buildSettingsSnapshot({ [key]: false })[key], false, key);
-    assert.strictEqual(buildSettingsSnapshot({})[key], false, key + ' absent = the off default');
-  });
-});
-
-test('snapshot never carries the custom separator text', () => {
-  const snap = buildSettingsSnapshot(Object.assign({
-    tempSlotSeparator: 'custom', tempSlotSeparatorCustom: 'Hi!',
-    uvSlotSeparatorCustom: ' ~ '
-  }, PAIR_FIELDS));
-  assert.ok(!('tempSlotSeparatorCustom' in snap));
-  assert.ok(!('uvSlotSeparatorCustom' in snap));
-  assert.equal(JSON.stringify(snap).indexOf('Hi!'), -1);
+  ['tempSlotSeparatorCustom', 'uvSlotSeparatorCustom', 'savedLocation1']
+    .forEach((k) => assert.ok(!(k in snap), k));
+  const json = JSON.stringify(snap);
+  ['Hi!', 'Placeville', '47.123', '8.456'].forEach((s) => assert.equal(json.indexOf(s), -1, s));
+  assert.strictEqual(snap.weatherTabPlaces, 1);
 });
 
 // The date slot's two format picks, raw like tempSlotDisplay above — same lockstep
@@ -155,45 +151,37 @@ test('snapshot includes the two date-slot format picks as strings', () => {
   assert.strictEqual(buildSettingsSnapshot({}).dateSlotFullFormat, undefined);
 });
 
-// The two per-kind wind-direction toggles. Same lockstep rule as pressureScale above:
-// watch-side snapshot AND the Deno .strip() schema, or ingest silently drops them.
-test('snapshot includes the wind and gust direction toggles as real booleans', () => {
-  assert.strictEqual(buildSettingsSnapshot({ windSlotDirection: true }).windSlotDirection, true);
+// The gust slot's direction toggle. Same lockstep rule as pressureScale above:
+// watch-side snapshot AND the Deno .strip() schema, or ingest silently drops it.
+test('snapshot includes the gust direction toggle as a real boolean', () => {
   assert.strictEqual(buildSettingsSnapshot({ gustSlotDirection: true }).gustSlotDirection, true);
-  assert.strictEqual(buildSettingsSnapshot({}).windSlotDirection, false);
   assert.strictEqual(buildSettingsSnapshot({}).gustSlotDirection, false);
 });
 
-// The six per-kind "Show unit" toggles, same lockstep rule again. Four of them ship ON,
-// so an absent key must report the SHIPPED state and not a spurious "off" — otherwise
-// the fleet reads as having turned kph off en masse. seedDefaults backfills the keys at
-// boot, so this is belt and braces, but a telemetry column that can lie about a default
-// is worse than no column.
-test('snapshot includes the six Show unit toggles as real booleans', () => {
-  ['windSlotUnit', 'gustSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit',
-    'tempSlotUnit', 'dewSlotUnit'].forEach((key) => {
+// The three reported "Show unit" toggles (wind, gusts, temperature), same lockstep rule
+// again.
+const UNIT_FIELDS = ['windSlotUnit', 'gustSlotUnit', 'tempSlotUnit'];
+
+test('snapshot includes the wind, gust and temperature Show unit toggles as real booleans', () => {
+  UNIT_FIELDS.forEach((key) => {
     assert.strictEqual(buildSettingsSnapshot({ [key]: true })[key], true, key + ' reports on');
     assert.strictEqual(buildSettingsSnapshot({ [key]: false })[key], false, key + ' reports off');
   });
 });
 
-// Drift guard for the fallbacks above: the snapshot reads an absent key as the bake does
-// (slot-text.js unitEnabled, over the catalog's UNIT_TOGGLES table, which the settings
-// schema's rows also default from), so flipping a default can never leave telemetry
-// reporting the old one.
+// Drift guard for an absent key: the snapshot reads it as the bake does (slot-text.js
+// unitEnabled, over the catalog's UNIT_TOGGLES table, which the settings schema's rows
+// also default from), so flipping a default can never leave telemetry reporting the old
+// one, and a column cannot lie about a default. seedDefaults backfills the keys at boot,
+// so this is belt and braces.
 test('an absent Show unit key reports what it renders, not false', () => {
-  const schema = require('../src/pkjs/settings/schema.js');
   const catalog = require('../src/pkjs/status-line-catalog.js');
-  const items = [];
-  schema.tabs.forEach((t) => t.sections.forEach((s) => s.items.forEach((i) => items.push(i))));
   const snap = buildSettingsSnapshot({});
-  const unitItems = items.filter((i) => /SlotUnit$/.test(i.messageKey || ''));
-  assert.equal(unitItems.length, 6, 'expected six Show unit rows in the schema');
-  unitItems.forEach((item) => {
+  UNIT_FIELDS.forEach((key) => {
+    assert.ok(catalog.UNIT_TOGGLES.some((t) => t.key === key), key + ' is a catalog toggle');
     // The bake's own reading of an absent key: the legacy look where a default changed
     // after the key shipped (wind and gusts), else the schema default.
-    assert.strictEqual(snap[item.messageKey], catalog.unitToggleAbsent(item.messageKey),
-      item.messageKey + ' must report what the slot renders');
+    assert.strictEqual(snap[key], catalog.unitToggleAbsent(key), key + ' must report what the slot renders');
   });
 });
 
@@ -222,11 +210,6 @@ test('snapshot carries the twelve status slot selections', () => {
   assert.equal(snap.statusTopMid, 'date');
   assert.equal(snap.statusTopRight, 'uv');
   assert.equal(snap.statusHealthRight, 'hr');
-});
-
-test('snapshot includes batteryLowOnly as a real boolean', () => {
-  assert.equal(buildSettingsSnapshot({ batteryLowOnly: true }).batteryLowOnly, true);
-  assert.equal(buildSettingsSnapshot({}).batteryLowOnly, false);
 });
 
 // On demand: where each item is ticked, 40 letters read like the bake reads the sides
@@ -285,8 +268,24 @@ test('radarProvider reports the stored radar source', () => {
   const report = (s) => buildSettingsSnapshot(s, null).radarProvider;
   ['dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio'].forEach((p) => {
     assert.strictEqual(report({ radarProvider: p }), p, p);
+    assert.strictEqual(report({ radarProvider: p, radarEnabled: true }), p, p + ', the radar on');
   });
   assert.strictEqual(report({}), undefined, 'unset stays unset');
+});
+
+// Setup's Rain radar Off (2.6) keeps the source apart from the switch; the report folds the
+// two back into one field, with the Off the apps before 1.10 stored: 'disabled'.
+test('radarProvider reports disabled while the rain radar is off, and radarEnabled is no field', () => {
+  ['dwd', 'rainbowkey', undefined].forEach((p) => {
+    const snap = buildSettingsSnapshot({ radarProvider: p, radarEnabled: false }, { platform: 'basalt' });
+    assert.strictEqual(snap.radarProvider, 'disabled', String(p));
+    assert.ok(!Object.prototype.hasOwnProperty.call(snap, 'radarEnabled'));
+  });
+  // On by default: only a stored false is Off.
+  ['false', 0, null].forEach((v) => {
+    assert.strictEqual(buildSettingsSnapshot({ radarProvider: 'dwd', radarEnabled: v }).radarProvider, 'dwd',
+      JSON.stringify(v));
+  });
 });
 
 // The phone-battery slot's Bold mode — the ONLY per-kind bold mode telemetry reports.
@@ -322,7 +321,7 @@ test("the battery saver reports its own window, gated on its own switch", () => 
   assert.equal(snap.sleepStartHour, 23);
   assert.equal(snap.sleepEndHour, 7);
   // Saver off: the hours drive nothing, so they are not a value in effect. Their
-  // PRESENCE is how supabase/reports/telemetry-dashboards.sql reads "saver on".
+  // PRESENCE is how a reader of the stored settings tells "saver on".
   const off = buildSettingsSnapshot({
     sleepNightEnabled: false, sleepStartHour: '23', sleepEndHour: '7'
   });
@@ -385,21 +384,27 @@ test('Dim backlight sub-settings follow the switch, with no mode to gate them', 
 // --- the ingest lockstep -----------------------------------------------------
 // The heaviest realistic snapshot: every reported setting on its longest realistic
 // option, on a light-polarity colour theme so all the graph colours report (bw would
-// report none of them), on emery so the Dim backlight group reports. The lockstep test
-// below reads its VALUES (one per field) and the envelope test further down its BYTES.
+// report none of them), on emery so the Dim backlight group, the forecast span, the
+// left axis options and Larger graph fonts report. The lockstep test below reads its
+// VALUES (one per field) and the header test further down its BYTES. Three fields are
+// aplite's alone (showQt, batteryLowOnly, layoutPreset): the same settings on an
+// aplite give those their values.
 const HEAVIEST_WATCH = { platform: 'emery' };
+const APLITE_WATCH = { platform: 'aplite' };
+// The reference time the fixtures are read at (buildSettingsSnapshot's nowMs), late enough
+// for a three-digit Weather tab age off a stamp the page could have made.
+const HEAVIEST_NOW = Date.UTC(2030, 0, 1);
+const DAY_MS = 24 * 60 * 60 * 1000;
+const PLACE = (name) => JSON.stringify({ name: name, lat: -33.868, lon: 151.209, country: 'AU' });
 const HEAVIEST_SETTINGS = {
   temperatureUnits: 'fahrenheit', tempSlotDisplay: 'both', uvSlotDisplay: 'current',
   feelsFormula: 'steadman', aqiScale: 'european',
-  tempSlotSeparator: 'brackets', tempSlotOrder: 'actual', uvSlotSeparator: 'brackets',
-  uvSlotOrder: 'now', uvSlotNextDayMark: 'raquo',
-  tempSlotSeparatorSpaced: true, uvSlotSeparatorSpaced: true,
-  windSlotDisplay: 'current', gustSlotDisplay: 'current', aqiSlotDisplay: 'current',
+  windSlotDisplay: 'current', gustSlotDisplay: 'current',
   dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
   aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
-  windSlotDirection: true, gustSlotDirection: true,
-  threshPhoneBatteryBoldMode: 'always', configTheme: 'light', dayNightShading: true,
-  healthMode: 'status', provider: 'openweathermap', fetchIntervalMin: '120',
+  gustSlotDirection: true,
+  threshPhoneBatteryBoldMode: 'always', dayNightShading: true,
+  healthMode: 'status', fetchIntervalMin: '120',
   rainCountdownHorizon: '60', sleepNightEnabled: true, sleepStartHour: '23',
   // The weather alerts at their heaviest: every metric alert placed on a bar, every one
   // printing its value and looking ahead with a mark, and the rain look on its longest
@@ -443,12 +448,11 @@ const HEAVIEST_SETTINGS = {
   fourthLine: 'gust', fifthLine: 'cloud',
   // The three lines' Show on its longer value.
   windLineShow: 'alert', gustLineShow: 'alert', uvLineShow: 'alert',
-  // Draw from / Bars from on the longer value, 'bottom'.
-  precipLineFrom: 'bottom', cloudLineFrom: 'bottom', windLineFrom: 'bottom', uvLineFrom: 'bottom',
-  rainBarFrom: 'bottom', radarBarFrom: 'bottom',
   secondaryLineStyle: 'stripeBottom', thirdLineStyle: 'stripeBottom',
   fourthLineStyle: 'stripeBottom', fifthLineStyle: 'stripeBottom',
-  rainBarColor: 'white', radarProvider: 'rainbow', radarMode: 'countdown',
+  // The longest radar source id ('rainbowkey', beside 'tomorrowio'; an Off radar reports
+  // the shorter 'disabled').
+  rainBarColor: 'white', radarProvider: 'rainbowkey', radarMode: 'countdown',
   radarColor: 'multicolor', devStatsEnabled: true, theme: 'light',
   statusForecastLeft: 'phone_battery', statusForecastMid: 'phone_battery',
   statusForecastRight: 'phone_battery', statusRadarLeft: 'phone_battery',
@@ -465,11 +469,15 @@ const HEAVIEST_SETTINGS = {
   gcPrecipLineLight: 0xFF00FF, gcPrecipFillLight: 0xAAFF55,
   gcWindLineLight: 0x00AAFF, gcGustLineLight: 0x55FF00, gcCloudLineLight: 0x00FF55,
   gcPrecipNightLight: 0xAA5500,
-  gcNightHatchLight: 0xAAAAAA, gcNightBoundaryLight: 0xFF0000
+  gcNightHatchLight: 0xAAAAAA, gcNightBoundaryLight: 0xFF0000,
+  // The Weather tab: the start toggle on its longer value (false), a three-digit age and
+  // all three places saved.
+  startOnWeatherTab: false, weatherTabSeenAt: HEAVIEST_NOW - 999.5 * DAY_MS,
+  savedLocation1: PLACE('Sydney'), savedLocation2: PLACE('Perth'), savedLocation3: PLACE('Hobart')
 };
 // The same watch on a custom layout: the six custom fields report too, each on its
 // widest realistic number (three views, every one with a stacked order and a non-zero
-// ext). This is the snapshot with a value in EVERY field.
+// ext). This is the snapshot with a value in every field but aplite's three.
 const HEAVIEST_CUSTOM = Object.assign({}, HEAVIEST_SETTINGS, {
   layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph', viewCount: '3',
   viewTop0: 'cal3', viewBody0: 'none', viewUpper0: 'weather', viewLower0: 'radar',
@@ -494,8 +502,8 @@ function ingestSettingsSchema() {
   const start = ts.indexOf('const settingsSchema');
   assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/handler.ts');
   const slice = ts.slice(start, ts.indexOf('.strip()', start));
-  // Field lines look like `  fieldName: z.string().optional(),` or
-  // `  provider: providerSchema.optional(),`; comment lines start with `//`.
+  // Field lines look like `  fieldName: z.string().optional(),`; comment lines start
+  // with `//`.
   const fields = {};
   slice.replace(/^\s*([A-Za-z0-9_]+):\s*(\S.*?),?\s*$/gm, function (m, name, expr) {
     fields[name] = expr;
@@ -506,10 +514,10 @@ function ingestSettingsSchema() {
 
 // Each zod constructor the settingsSchema uses -> the JS type the snapshot must carry
 // for it. A constructor missing here fails the test below until it is taught one.
-const ZOD_TYPEOF = {
-  'z.string': 'string', 'z.number': 'number', 'z.boolean': 'boolean',
-  'z.enum': 'string', providerSchema: 'string'
-};
+const ZOD_TYPEOF = { 'z.string': 'string', 'z.number': 'number', 'z.boolean': 'boolean', 'z.enum': 'string' };
+
+// The fields only a known aplite reports (telemetry-settings.js isAplite).
+const APLITE_ONLY_FIELDS = ['batteryLowOnly', 'layoutPreset', 'showQt'];
 
 // The two-place rule, checked in one table: every key buildSettingsSnapshot emits is a
 // field of the ingest's .strip() schema and vice versa (a key missing there is stripped
@@ -523,39 +531,51 @@ test('settings snapshot and the Deno telemetry schema agree on keys and types (l
   const denoKeys = Object.keys(schema.fields);
   assert.ok(denoKeys.length >= 20, 'expected to parse the schema fields, got ' + denoKeys.length);
 
-  const snap = buildSettingsSnapshot(HEAVIEST_CUSTOM, HEAVIEST_WATCH);
-  assert.deepEqual(Object.keys(snap).sort(), denoKeys.slice().sort(),
+  // The heaviest emery snapshot, and the same settings on an aplite for the fields only it
+  // reports: between them every field has a value whose type is checked.
+  const snaps = [buildSettingsSnapshot(HEAVIEST_CUSTOM, HEAVIEST_WATCH, HEAVIEST_NOW),
+    buildSettingsSnapshot(HEAVIEST_SETTINGS, APLITE_WATCH, HEAVIEST_NOW)];
+  const keys = Object.keys(snaps[0]).sort();
+  assert.deepEqual(keys, denoKeys.slice().sort(),
     'buildSettingsSnapshot (telemetry-settings.js) and the Deno settingsSchema must declare the same fields');
   // A field with no value in effect is assigned undefined, never deleted, so the key
-  // set cannot depend on the settings: the emptiest snapshot (a B&W watch, nothing
-  // set) declares exactly the same keys.
-  assert.deepEqual(Object.keys(buildSettingsSnapshot({}, { platform: 'aplite' })).sort(),
-    Object.keys(snap).sort(), 'the snapshot key set must not depend on the settings');
-  assert.deepEqual(denoKeys.filter((key) => snap[key] === undefined), [],
-    'the heaviest fixture must give every field a value, or its type goes unchecked');
+  // set cannot depend on the settings or the watch: the emptiest snapshots (nothing set,
+  // on a B&W watch and on an unknown one) declare exactly the same keys.
+  [snaps[1], buildSettingsSnapshot({}, APLITE_WATCH), buildSettingsSnapshot({})].forEach((snap) => {
+    assert.deepEqual(Object.keys(snap).sort(), keys, 'the snapshot key set must not depend on the settings');
+  });
+  assert.deepEqual(denoKeys.filter((key) => snaps[0][key] === undefined).sort(), APLITE_ONLY_FIELDS,
+    'the heaviest fixture must give every other field a value, or its type goes unchecked');
 
-  const providers = /const providerSchema = z\.enum\(\[([^\]]*)\]\)/.exec(schema.ts);
-  assert.ok(providers, 'providerSchema not found in telemetry-ingest/handler.ts');
   const members = (list) => list.split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
     .filter(Boolean);
   denoKeys.forEach((key) => {
     const expr = schema.fields[key];
-    const ctor = /^(z\.[a-z]+|providerSchema)\b/.exec(expr);
+    const ctor = /^(z\.[a-z]+)\b/.exec(expr);
     assert.ok(ctor && ZOD_TYPEOF[ctor[1]], key + ': teach ZOD_TYPEOF the type of `' + expr + '`');
     // An absent key serialises away (JSON.stringify drops undefined), so a required
     // field would 400 every batch whose snapshot has nothing in effect for it.
     assert.match(expr, /\.optional\(\)/, key + ' must be optional in the ingest');
-    assert.strictEqual(typeof snap[key], ZOD_TYPEOF[ctor[1]],
-      key + ' is sent as ' + typeof snap[key] + ' but the ingest declares `' + expr + '`');
-    if (/\.int\(\)/.test(expr)) {
-      assert.ok(Number.isInteger(snap[key]), key + ' must be sent as an integer');
-    }
-    if (ctor[1] === 'z.enum' || ctor[1] === 'providerSchema') {
-      const allowed = ctor[1] === 'z.enum' ? members(/^z\.enum\(\[([^\]]*)\]\)/.exec(expr)[1])
-        : members(providers[1]);
-      assert.ok(allowed.indexOf(snap[key]) !== -1,
-        key + ' = ' + JSON.stringify(snap[key]) + ' is not in the ingest enum ' + allowed.join('|'));
-    }
+    const values = snaps.map((snap) => snap[key]).filter((v) => v !== undefined);
+    assert.ok(values.length > 0, key + ': no fixture gives it a value, so its type goes unchecked');
+    values.forEach((v) => {
+      assert.strictEqual(typeof v, ZOD_TYPEOF[ctor[1]],
+        key + ' is sent as ' + typeof v + ' but the ingest declares `' + expr + '`');
+      if (/\.int\(\)/.test(expr)) {
+        assert.ok(Number.isInteger(v), key + ' must be sent as an integer');
+      }
+      // A number out of the ingest's range fails the whole batch as surely as a wrong type.
+      const min = /\.min\((\d+)\)/.exec(expr);
+      const max = /\.max\((0x[0-9A-Fa-f]+|\d+)\)/.exec(expr);
+      if (min) { assert.ok(v >= Number(min[1]), key + ' = ' + v + ' is under the ingest\'s min'); }
+      if (max) { assert.ok(v <= Number(max[1]), key + ' = ' + v + ' is over the ingest\'s max'); }
+      if (/\.positive\(\)/.test(expr)) { assert.ok(v > 0, key + ' must be sent positive'); }
+      if (ctor[1] === 'z.enum') {
+        const allowed = members(/^z\.enum\(\[([^\]]*)\]\)/.exec(expr)[1]);
+        assert.ok(allowed.indexOf(v) !== -1,
+          key + ' = ' + JSON.stringify(v) + ' is not in the ingest enum ' + allowed.join('|'));
+      }
+    });
   });
 });
 
@@ -584,15 +604,17 @@ test('custom layouts report customViewExt0-2 = packExt per view; presets report 
   assert.equal(preset.customViewExt2, undefined);
 });
 
-test('snapshot reports the forecast span option this watch draws, as an int: 12 / 24 / 48, not the hours sent', () => {
+test('snapshot reports the forecast span option on emery only, as an int: 12 / 24 / 48, not the hours sent', () => {
   // Categorical (forecast-span.js option()): 48 is the long span, whatever its label, which is
   // sent 68 hours; 12 is sent 14. Same values as before 2.2.0's long span, so handler.ts holds.
   assert.strictEqual(buildSettingsSnapshot({ forecastHours: '48' }, { platform: 'emery' }).forecastHours, 48);
   assert.strictEqual(buildSettingsSnapshot({ forecastHours: '12' }, { platform: 'emery' }).forecastHours, 12);
-  assert.strictEqual(buildSettingsSnapshot({ forecastHours: '48' }, { platform: 'basalt' }).forecastHours, 24,
-    'every other watch is sent 24 whatever is stored');
-  assert.strictEqual(buildSettingsSnapshot({ forecastHours: '48' }).forecastHours, 24, 'an unknown watch');
   assert.strictEqual(buildSettingsSnapshot({}, { platform: 'emery' }).forecastHours, 24);
+  // Every other watch is sent 24 whatever is stored, so it reports no span at all.
+  [{ platform: 'basalt' }, { platform: 'aplite' }, undefined].forEach((watchInfo) => {
+    assert.strictEqual(buildSettingsSnapshot({ forecastHours: '48' }, watchInfo).forecastHours, undefined,
+      JSON.stringify(watchInfo));
+  });
 });
 
 // The left axis options: emery only, as chosen (forecast-axis.js readers: absent or
@@ -627,14 +649,73 @@ test('snapshot reports the left axis options on emery only, as chosen', () => {
   });
 });
 
-test('snapshot includes largeGraphFont as a real boolean', () => {
-  assert.strictEqual(buildSettingsSnapshot({ largeGraphFont: true }).largeGraphFont, true);
-  assert.strictEqual(buildSettingsSnapshot({}).largeGraphFont, false);
+test('snapshot reports largeGraphFont as a real boolean, on emery only', () => {
+  assert.strictEqual(buildSettingsSnapshot({ largeGraphFont: true }, EMERY).largeGraphFont, true);
+  assert.strictEqual(buildSettingsSnapshot({}, EMERY).largeGraphFont, false);
+  // Only emery offers the toggle, so a leftover anywhere else says nothing.
+  [{ platform: 'basalt' }, { platform: 'aplite' }, undefined].forEach((watchInfo) => {
+    assert.strictEqual(buildSettingsSnapshot({ largeGraphFont: true }, watchInfo).largeGraphFont, undefined,
+      JSON.stringify(watchInfo));
+  });
 });
 
 test('snapshot includes doubleFlick as a real boolean', () => {
   assert.strictEqual(buildSettingsSnapshot({ doubleFlick: true }).doubleFlick, true);
   assert.strictEqual(buildSettingsSnapshot({}).doubleFlick, false);
+});
+
+// --- the Weather tab -----------------------------------------------------------
+// The settings page's own tab, which the watch never sees: whether the page opens on it,
+// how long ago the page last drew its graphs (weatherTabSeenAt, the page's Date.now()) and
+// how many places it keeps. Never a place itself (the free-text test above).
+const TAB_NOW = Date.UTC(2026, 10, 10, 12);
+
+test('startOnWeatherTab reports on only for a stored true, as the page reads it', () => {
+  assert.strictEqual(buildSettingsSnapshot({ startOnWeatherTab: true }).startOnWeatherTab, true);
+  assert.strictEqual(buildSettingsSnapshot({}).startOnWeatherTab, false, 'ships off');
+  ['true', 1, null].forEach((v) => {
+    assert.strictEqual(buildSettingsSnapshot({ startOnWeatherTab: v }).startOnWeatherTab, false,
+      JSON.stringify(v));
+  });
+});
+
+test('weatherTabSeenDays is the whole days since the page last drew the tab', () => {
+  const days = (stamp) => buildSettingsSnapshot({ weatherTabSeenAt: stamp }, null, TAB_NOW).weatherTabSeenDays;
+  assert.strictEqual(days(TAB_NOW), 0, 'drawn just now');
+  assert.strictEqual(days(TAB_NOW - DAY_MS + 1), 0, 'under a day is 0');
+  assert.strictEqual(days(TAB_NOW - DAY_MS), 1);
+  assert.strictEqual(days(TAB_NOW - 30.5 * DAY_MS), 30, 'rounded down');
+  assert.strictEqual(days(String(TAB_NOW - 2 * DAY_MS)), 2, 'read with Number(), like the tab cache reads it');
+  // Without a reference time, the snapshot is read now.
+  assert.strictEqual(buildSettingsSnapshot({ weatherTabSeenAt: Date.now() - 3 * DAY_MS }).weatherTabSeenDays, 3);
+});
+
+test('weatherTabSeenDays is absent without a stamp the page could have made', () => {
+  const floor = Date.UTC(2026, 8, 1);   // the stamp shipped with 1.23.0 (2026-09)
+  [undefined, null, 0, '', 'garbage', NaN, true,
+    TAB_NOW + 1,                  // the future: a phone clock that was ahead
+    floor - 1,                    // before the stamp shipped
+    Math.floor(TAB_NOW / 1000)    // seconds, not ms
+  ].forEach((stamp) => {
+    const snap = buildSettingsSnapshot({ weatherTabSeenAt: stamp }, null, TAB_NOW);
+    assert.strictEqual(snap.weatherTabSeenDays, undefined, String(stamp));
+    assert.ok(Object.prototype.hasOwnProperty.call(snap, 'weatherTabSeenDays'), 'still emitted as a key');
+  });
+  assert.strictEqual(buildSettingsSnapshot({ weatherTabSeenAt: floor }, null, TAB_NOW).weatherTabSeenDays,
+    Math.floor((TAB_NOW - floor) / DAY_MS), 'the floor itself is a stamp');
+});
+
+test('weatherTabPlaces counts the saved places the tab can read', () => {
+  const places = (s) => buildSettingsSnapshot(s).weatherTabPlaces;
+  assert.strictEqual(places({}), 0);
+  assert.strictEqual(places({ savedLocation1: PLACE('A'), savedLocation2: PLACE('B'), savedLocation3: PLACE('C') }), 3);
+  assert.strictEqual(places({ savedLocation1: PLACE('A'), savedLocation3: PLACE('C') }), 2, 'a gap is no place');
+  // A slot the tab cannot read is no place either (weather-tab-model.js parseSlot).
+  assert.strictEqual(places({
+    savedLocation1: '{', savedLocation2: '',
+    savedLocation3: JSON.stringify({ name: 'Nowhere', lat: 91, lon: 0 })
+  }), 0);
+  assert.strictEqual(places({ savedLocation1: JSON.stringify({ lat: 1, lon: 1 }) }), 0, 'a slot needs a name');
 });
 
 // The six graph-colour FIELDS, pinned here by hand. They are named for the ELEMENT of the
@@ -844,109 +925,40 @@ test('reporting default agrees with the wire painting the built-in', () => {
   });
 });
 
-// The ingest refuses a body over MAX_BODY_BYTES with a 413, and a 413 is terminal:
-// send() logs the non-2xx and nothing retries it. So the heaviest realistic envelope has
-// to stay under the cap with room left to grow.
-// Ledger (MEASURED — read the byte count off this test's own console line, never
-// arithmetic): 3683 B of 4096, headroom 413. The six colours are 169 B of that, and that
-// is their WORST case however they are set: '#RRGGBB' and 'default' are both seven
-// characters. This envelope was 2787 B before them, and 2956 B before the Nighttime card
-// (the eight new settings fields, the four themeAuto ones this fixture had never switched
-// on, and the emery watch the LED group needs). The five two-value slot picks added 45 B
-// (3318 before them; the custom separator text is never sent, so it cannot grow this),
-// and the two spacing toggles (tempSlotSeparatorSpaced / uvSlotSeparatorSpaced) 60 B
-// (3363 before them). uvSlotDisplay, reported all along but left out of this fixture
-// until the unset-field check below was added, is 26 B (3423 before it). The third
-// metric line's fields (fourthLine, the three per-line styles and graphThirdColor)
-// are 125 B (3449 before them). The wind/gust/AQI day-max display modes are 83 B
-// (3600 before them; their pair presentation is deliberately not reported). The
-// Alerts row's per-bar placement code and rain switch (alertBars, alertRain) are
-// 37 B (3912 before them): 3949 B, headroom 147; the custom-layout envelope 4059 B,
-// headroom 37 — why alertBars is a four-letter code, not a spelled-out list. The
-// eight-letter warn-look code (warnLooks) is 23 B: 3972 B, headroom 124; the
-// custom-layout envelope 4082 B, headroom 14. Folding the two alert comma lists
-// (alertKinds, alertValueKinds) into the ten-letter alerts code — which also carries
-// each alert's Days and tomorrow mark — saved 61 B: 3911 B, headroom 185; the
-// custom-layout envelope 4021 B, headroom 75. On demand retired the placement code and
-// the rain switch (alertBars, alertRain: the side lists replace both) — 37 B: 3874 B,
-// headroom 222; the custom-layout envelope 3984 B, headroom 112. The 40-letter
-// onDemand code and the Battery item's level and look (batteryLowLevel,
-// batteryLowDisplay) are 103 B: 3977 B, headroom 119; the custom-layout envelope
-// 4087 B, headroom 9.
-// Those two measure the legacy single-event shape, which only app versions before 1.16
-// still send, each with its own older and smaller snapshot. This client sends only
-// batches, and what binds it is the settings header measured last: 2957 of 4096,
-// headroom 1139. (So the custom-layout envelope's 9 B is not this client's limit: the
-// next field that tips it over asks for this check to move to the header alone, not for
-// a shorter field.)
-// That field came in 1.24.0: each graph line's Show (windLineShow, gustLineShow,
-// uvLineShow: 'all' or 'alert', the fixture setting the longer 'alert') took the legacy
-// envelope and the custom-layout one past the cap. Both are still measured and printed,
-// but only the batch header is asserted now. With Draw from / Bars from
-// (precipLineFrom, cloudLineFrom, windLineFrom, uvLineFrom, rainBarFrom, radarBarFrom,
-// 144 B on 'bottom', the longer value) the two envelopes are 4188 B and 4298 B, the
-// batch header 3168 of 4096, headroom 928. The Double flick switch (doubleFlick, on its
-// longer value false) is 20 B: batch header 3188 of 4096, headroom 908. The forecast's
-// time span (forecastHours, 2.2.0, an int, the option: 48) is 19 B: 3207 of 4096, headroom 889. The
-// forecast's left axis options (forecastAxisNumbers, forecastAxisScale; 2.2.0, BETA, emery
-// only; 'graph' / false the longer values) are 56 B: 3263 of 4096, headroom 833.
-test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
-  const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
+// The ingest refuses a batch whose settings header is over MAX_SETTINGS_BYTES with a 413
+// (it copies the header into every row the batch writes, so the header keeps a bound of
+// its own), and a 413 is terminal: send() logs the non-2xx and nothing retries it. So the
+// heaviest realistic header has to stay under the cap with room left to grow.
+// Ledger (MEASURED — read the count off this test's own console line, never arithmetic):
+// the emery custom-layout header was 3258 of 4096, headroom 838, when the ingest stopped
+// taking the single-event shape of the apps before 1.16 (whose envelope this test had
+// measured too, long past the cap by then). Dropping the fields that read the same on
+// every 2.6 watch, provider (every event carries its own) and the settings page's theme,
+// and adding the Weather tab's three, made it 2745 of 4096, headroom 1351.
+test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYTES', () => {
+  const cap = Number(/const MAX_SETTINGS_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');
 
-  const payload = {
-    eventType: 'weather_fetch',
-    timestampUtc: new Date().toISOString(),
-    accountToken: 'a'.repeat(64),
-    watchToken: 'b'.repeat(64),
-    provider: 'openweathermap',
-    success: false,
-    usedGpsCache: true,
-    gpsErrorCode: 2,
-    locationMode: 'manual_coordinates',
-    error: 'e'.repeat(512),  // serializeError's own cap
-    countryCode: 'DEU',
-    settings: buildSettingsSnapshot(HEAVIEST_SETTINGS, HEAVIEST_WATCH),
-    appVersion: '10.10.10',
-    buildProfile: 'release',
-    watchInfo: {
-      platform: 'emery', model: 'qemu_platform_emery', language: 'en_US',
-      firmware: { major: 4, minor: 4, patch: 4, suffix: 'beta10' }
-    },
-    durationMs: 999999,
-    attempt: 99
-  };
-  // "Every reported setting" is checked, not claimed: a field left out of the fixture
-  // serialises as undefined and drops out of the byte count. The customView and
-  // customViewExt trios report only under layoutPreset 'custom', which this fixture
-  // does not pick (the custom envelope is measured separately below).
-  const unset = Object.keys(payload.settings).filter((key) => payload.settings[key] === undefined);
-  assert.deepEqual(unset, ['customView0', 'customView1', 'customView2',
-    'customViewExt0', 'customViewExt1', 'customViewExt2'],
-    'a snapshot field the fixture never sets understates the ledger — set it on its longest option');
-  const bytes = Buffer.byteLength(JSON.stringify(payload));
-  // Measured and printed, no longer asserted: the legacy shape (see the ledger above).
-  console.log('heaviest telemetry envelope: ' + bytes + ' B of ' + cap
-    + ' B (headroom ' + (cap - bytes) + ')');
-
-  // The same watch on a custom layout (HEAVIEST_CUSTOM): all six custom fields report.
-  const customPayload = Object.assign({}, payload,
-    { settings: buildSettingsSnapshot(HEAVIEST_CUSTOM, HEAVIEST_WATCH) });
+  // The custom layout's six fields report only under layoutPreset 'custom'.
+  const settings = buildSettingsSnapshot(HEAVIEST_CUSTOM, HEAVIEST_WATCH, HEAVIEST_NOW);
   [0, 1, 2].forEach((i) => {
-    assert.ok(customPayload.settings['customView' + i] > 0, 'customView' + i + ' reports');
-    assert.ok(customPayload.settings['customViewExt' + i] > 0, 'customViewExt' + i + ' reports');
+    assert.ok(settings['customView' + i] > 0, 'customView' + i + ' reports');
+    assert.ok(settings['customViewExt' + i] > 0, 'customViewExt' + i + ' reports');
   });
-  const customBytes = Buffer.byteLength(JSON.stringify(customPayload));
-  console.log('heaviest custom-layout telemetry envelope: ' + customBytes + ' B of ' + cap
-    + ' B (headroom ' + (cap - customBytes) + ')');
+  // "Every reported setting" is checked, not claimed: a field left out of the fixture
+  // serialises as undefined and drops out of the count. Aplite's three are the only
+  // fields an emery never reports, and an aplite reports far less than they add.
+  assert.deepEqual(Object.keys(settings).filter((key) => settings[key] === undefined),
+    ['showQt', 'batteryLowOnly', 'layoutPreset'],
+    'a snapshot field the fixture never sets understates the ledger — set it on its longest option');
 
-  // What binds THIS client: it sends only batches, and the batch branch holds the
-  // settings header alone to the same cap (JSON.stringify(batch.settings).length), a
-  // header the ingest copies into every row the batch writes.
-  const header = JSON.stringify(customPayload.settings).length;
+  // Measured as the ingest measures it: JSON.stringify(batch.settings).length.
+  const header = JSON.stringify(settings).length;
   console.log('heaviest batch settings header: ' + header + ' of ' + cap
     + ' (headroom ' + (cap - header) + ')');
   assert.ok(header <= cap, 'settings header ' + header + ' must not exceed ' + cap);
+  const aplite = JSON.stringify(buildSettingsSnapshot(HEAVIEST_SETTINGS, APLITE_WATCH, HEAVIEST_NOW)).length;
+  assert.ok(aplite < header, 'the aplite header (' + aplite + ') is the lighter one');
 });
 
 // --- batching ----------------------------------------------------------------
@@ -1138,8 +1150,8 @@ test('the heaviest batch envelope stays under the ingest batch body cap', () => 
     appVersion: '10.10.10', buildProfile: 'release',
     watchInfo: { platform: 'basalt', model: 'qemu_platform_basalt', language: 'en_US',
       firmware: { major: 4, minor: 4, patch: 4, suffix: 'beta10' } },
-    // The same worst-case settings snapshot the single-envelope test builds
-    // would add ~2.5 KB; an empty object underestimates — use a generous pad.
+    // The largest header the ingest takes (MAX_SETTINGS_BYTES, the header test
+    // above), whatever the heaviest snapshot measures today.
     settings: { pad: 'x'.repeat(4096) },
     events,
   };
@@ -1261,7 +1273,7 @@ test('a synchronous XHR throw releases the latch and backs off instead of wedgin
 // now sends at once until the install has reported; opening the settings sends
 // once per UTC day after that. Both keep every other flush check.
 const { TELEMETRY_REPORTED_KEY, TELEMETRY_OPEN_SEND_DAY_KEY } = require('../src/pkjs/storage-keys.js');
-const PAGE_CONTEXT = { settings: { provider: 'openmeteo', healthMode: 'all' },
+const PAGE_CONTEXT = { settings: { startOnWeatherTab: true, healthMode: 'all' },
   watchInfo: { platform: 'emery', model: 'pebble_time_2', language: 'de_DE' } };
 
 /** A client made the way the Save makes one: fresh, nothing tracked through it. */
@@ -1279,7 +1291,7 @@ test('a Save on a never-reported install sends the queue at once, headed by the 
   assert.equal(h.requests.length, 1, 'one event is enough');
   const body = h.requests[0].body;
   assert.equal(body.events.length, 1);
-  assert.equal(body.settings.provider, 'openmeteo',
+  assert.equal(body.settings.startOnWeatherTab, true,
     'the recreated client has tracked nothing: an empty header would replace the newest settings');
   assert.equal(body.settings.healthMode, 'all');
   assert.equal(body.watchInfo.platform, 'emery');
@@ -1358,7 +1370,7 @@ test('once reported, the first settings open of a UTC day sends the queue', () =
   h.track();
   saveClient().onSettingsOpened(PAGE_CONTEXT);
   assert.equal(h.requests.length, 1);
-  assert.equal(h.requests[0].body.settings.provider, 'openmeteo', 'headed by the page settings');
+  assert.equal(h.requests[0].body.settings.startOnWeatherTab, true, 'headed by the page settings');
   const today = new Date().toISOString().slice(0, 10);
   assert.equal(h.store[TELEMETRY_OPEN_SEND_DAY_KEY], today);
   h.requests[0].respond(202);

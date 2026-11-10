@@ -1276,8 +1276,9 @@ test('startOnWeatherTab is a page-only toggle that defaults to Watchface', () =>
   const watchSide = fs.readdirSync(pkjs).filter((f) => f.slice(-3) === '.js');
   // Phone-side support for the settings page itself, which may read the page's own
   // keys: weather-tab-cache.js keeps the Weather tab's data only while the tab is in
-  // use. It must never reach the watch — no AppMessage, no outbox.
-  const PAGE_SUPPORT = ['weather-tab-cache.js'];
+  // use, and telemetry-settings.js reports the toggle to the telemetry ingest. Neither
+  // may reach the watch — no AppMessage, no outbox.
+  const PAGE_SUPPORT = ['weather-tab-cache.js', 'telemetry-settings.js'];
   PAGE_SUPPORT.forEach((f) => {
     const src = fs.readFileSync(path.join(pkjs, f), 'utf8');
     assert.ok(!/sendAppMessage|outbox|clay-payload/.test(src), f + ' must not talk to the watch');

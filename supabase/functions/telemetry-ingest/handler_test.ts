@@ -1,8 +1,8 @@
 // The telemetry-ingest handler over the real supabase-js client and a recording fetch: proves
 // what the gateway would log (Supabase logs the full URL of every PostgREST request the
 // function makes, so no account or watch token, neither hash, and no event data may appear in
-// one), what the function logs (a tag and a code, nothing else), and that the answers every
-// app version in the field relies on are unchanged.
+// one), what the function logs (a tag and a code, nothing else), and the answers the phone
+// acts on.
 import { assert, assertEquals } from "@std/assert";
 import { createClient } from "@supabase/supabase-js";
 import { createIngestHandler, type IngestBackend } from "./handler.ts";
@@ -153,18 +153,19 @@ const BATCH = {
   appVersion: "1.23.0",
   buildProfile: "release",
   watchInfo: WATCH_INFO,
-  settings: { provider: "dwd", radarProvider: "rainbowkey", notASetting: "stripped" },
+  settings: { healthMode: "all", radarProvider: "rainbowkey", notASetting: "stripped" },
   events: [FAILED_EVENT, OK_EVENT],
 };
 
-const LEGACY = {
+// The single event an app before 1.16 posts (one request per fetch), no longer accepted.
+const SINGLE_EVENT = {
   eventType: "weather_fetch",
   accountToken: TOKEN,
   provider: "openmeteo",
   success: true,
   error: null,
   countryCode: "AUT",
-  settings: { provider: "openmeteo" },
+  settings: { healthMode: "all" },
   appVersion: "1.15.0",
   buildProfile: "release",
   watchInfo: WATCH_INFO,
@@ -182,7 +183,7 @@ function batchRow(receivedAt: string, event: Record<string, unknown>) {
     success: event.success,
     error: event.error,
     country_code: event.countryCode,
-    settings_json: { provider: "dwd", radarProvider: "rainbowkey" },
+    settings_json: { healthMode: "all", radarProvider: "rainbowkey" },
     app_version: "1.23.0",
     build_profile: "release",
     watch_info: WATCH_INFO,
@@ -194,7 +195,7 @@ function batchRow(receivedAt: string, event: Record<string, unknown>) {
   };
 }
 
-// ── the two shapes ──────────────────────────────────────────────────────────
+// ── the batch ───────────────────────────────────────────────────────────────
 
 Deno.test("batch: the rate check is one RPC with the hash in its body, the rows carry both hashes in theirs", async () => {
   const { res, text, route, bodies, requests, lines } = await post(BATCH, answers(3));
@@ -215,31 +216,22 @@ Deno.test("batch: the rate check is one RPC with the hash in its body, the rows 
   assertEquals(lines, []);
 });
 
-Deno.test("legacy single event: one row, stamped with the server's now", async () => {
-  const { res, text, route, bodies, lines } = await post(LEGACY, answers(0));
-  assertEquals(route, ["POST " + RPC_PATH, "POST " + TABLE_PATH]);
-  assertEquals(bodies[0], { p_account_token_hash: HASH, p_since: HOUR_AGO });
-  assertEquals(bodies[1], [{
-    account_token_hash: HASH,
-    watch_token_hash: null,
-    received_at: NOW.toISOString(),
-    provider: "openmeteo",
-    success: true,
-    error: null,
-    country_code: "AUT",
-    settings_json: { provider: "openmeteo" },
-    app_version: "1.15.0",
-    build_profile: "release",
-    watch_info: WATCH_INFO,
-    used_gps_cache: false,
-    gps_error_code: null,
-    location_mode: "manual_address",
-    duration_ms: 800,
-    attempt: null,
-  }]);
-  assertEquals(res.status, 202);
-  assertEquals(text, '{"status":"accepted","events":1}');
+Deno.test("a single event from an app before 1.16 is 400 invalid_payload, which it drops, and reaches no database", async () => {
+  const { res, text, route, lines } = await post(SINGLE_EVENT, answers(0));
+  assertEquals([res.status, text], [400, '{"error":"invalid_payload","detail":"Invalid input: expected \\"weather_fetch_batch\\""}']);
+  assertEquals(route, []);
   assertEquals(lines, []);
+});
+
+Deno.test("app 2.6.0 and 2.6.1's radarEnabled false is stored as radarProvider 'disabled'", async () => {
+  // Those two versions keep the source apart from the Off switch; radarEnabled is no field
+  // of the schema, so without the fold the strip step would drop the only sign of the Off.
+  const off = await post({ ...BATCH, settings: { radarProvider: "dwd", radarEnabled: false } }, answers(0));
+  assertEquals(off.res.status, 202);
+  for (const row of off.bodies[1]) assertEquals(row.settings_json, { radarProvider: "disabled" });
+
+  const on = await post({ ...BATCH, settings: { radarProvider: "dwd", radarEnabled: true } }, answers(0));
+  for (const row of on.bodies[1]) assertEquals(row.settings_json, { radarProvider: "dwd" });
 });
 
 Deno.test("a blank or absent watch token stores a null hash, never HMAC('')", async () => {
@@ -261,7 +253,7 @@ Deno.test("a U+0000 in any string never reaches the database, and never fails th
     appVersion: "1.23.0" + N,
     buildProfile: N + "release",
     watchInfo: { ...WATCH_INFO, model: "pebble" + N, firmware: { ...WATCH_INFO.firmware, suffix: N } },
-    settings: { provider: "dwd", radarProvider: "rainbow" + N + "key", theme: N },
+    settings: { healthMode: "all", radarProvider: "rainbow" + N + "key", theme: N },
     events: [{ ...FAILED_EVENT, error: ERROR_TEXT + N, countryCode: "D" + N + "EU" }, OK_EVENT],
   }, answers(0));
   assertEquals(res.status, 202);
@@ -275,14 +267,14 @@ Deno.test("a U+0000 in any string never reaches the database, and never fails th
     ERROR_TEXT,
     "DEU",
   ]);
-  assertEquals(failed.settings_json, { provider: "dwd", radarProvider: "rainbowkey", theme: "" });
+  assertEquals(failed.settings_json, { healthMode: "all", radarProvider: "rainbowkey", theme: "" });
   assertEquals(failed.watch_info, { ...WATCH_INFO, model: "pebble" });
 
-  const legacy = await post({ ...LEGACY, success: false, error: "timeout" + N, countryCode: N }, answers(0));
-  assertEquals(legacy.res.status, 202);
-  assertEquals([legacy.bodies[1][0].error, legacy.bodies[1][0].country_code], ["timeout", ""]);
+  const blankCountry = await post({ ...BATCH, events: [{ ...FAILED_EVENT, error: "timeout" + N, countryCode: N }] }, answers(0));
+  assertEquals(blankCountry.res.status, 202);
+  assertEquals([blankCountry.bodies[1][0].error, blankCountry.bodies[1][0].country_code], ["timeout", ""]);
 
-  const onlyNul = await post({ ...LEGACY, success: false, error: N + " " + N }, answers(0));
+  const onlyNul = await post({ ...BATCH, events: [{ ...FAILED_EVENT, error: N + " " + N }] }, answers(0));
   assertEquals(onlyNul.res.status, 400, "an error of nothing but NULs is a blank error");
   assertEquals(onlyNul.route, []);
 });
@@ -357,9 +349,8 @@ Deno.test("transport and validation answers are unchanged, and none of them reac
     [{ method: "GET" }, 405, '{"error":"method_not_allowed"}'],
     [{ method: "PUT", body: JSON.stringify(BATCH) }, 405, '{"error":"method_not_allowed"}'],
     [{ body: "x".repeat(65537) }, 413, '{"error":"payload_too_large"}'],
-    // The legacy shape keeps its tighter 4096 B cap; a batch of the same size is fine.
-    [{ body: JSON.stringify({ ...LEGACY, pad }) }, 413, '{"error":"payload_too_large"}'],
-    // A batch's shared header is written into every row: the settings keep a 4096 B bound.
+    // A batch's shared header is written into every row: the settings keep a 4096 B bound
+    // of their own.
     [
       { body: JSON.stringify({ ...BATCH, settings: { theme: pad } }) },
       413,
@@ -367,7 +358,7 @@ Deno.test("transport and validation answers are unchanged, and none of them reac
     ],
     [{ body: "{nope" }, 400, '{"error":"invalid_json"}'],
     [
-      { body: JSON.stringify({ ...LEGACY, accountToken: "  " }) },
+      { body: JSON.stringify({ ...BATCH, accountToken: "  " }) },
       400,
       '{"error":"invalid_payload","detail":"invalid_account_token"}',
     ],
@@ -377,7 +368,7 @@ Deno.test("transport and validation answers are unchanged, and none of them reac
       '{"error":"invalid_payload","detail":"error_must_be_null_on_success"}',
     ],
     [
-      { body: JSON.stringify({ ...LEGACY, success: false, error: null }) },
+      { body: JSON.stringify({ ...BATCH, events: [{ ...OK_EVENT, success: false }] }) },
       400,
       '{"error":"invalid_payload","detail":"error_required_on_failure"}',
     ],

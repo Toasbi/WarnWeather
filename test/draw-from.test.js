@@ -1,27 +1,16 @@
 // test/draw-from.test.js — Draw from / Bars from [Bottom | Top] (src/pkjs/draw-from.js):
-// the one reading of the six settings, its gates (aplite, a stripe, a line that is not
-// drawn, a metric without the setting), and the telemetry fields. The wire bytes and
-// their bits are pinned in graph-wire.test.js, the settings page in
-// config-draw-from.test.js.
+// the one reading of the six settings and its gates (aplite, a stripe, a line that is not
+// drawn, a metric without the setting). The wire bytes and their bits are pinned in
+// graph-wire.test.js, the settings page in config-draw-from.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-
-// telemetry.js reaches modules that read localStorage: install the mock BEFORE the
-// watch modules load (AGENTS.md).
-global.localStorage = {
-  getItem: () => null,
-  setItem: () => {},
-  removeItem: () => {}
-};
 
 const drawFrom = require('../src/pkjs/draw-from.js');
 const lineStyle = require('../src/pkjs/line-style.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
-const { buildSettingsSnapshot } = require('../src/pkjs/telemetry.js');
 
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 const APLITE = platform.computeEnv({ platform: 'aplite' });
-const KEYS = ['precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom', 'radarBarFrom'];
 const ALL_TOP = { precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top', uvLineFrom: 'top',
   rainBarFrom: 'top', radarBarFrom: 'top' };
 // Each forecast line's lineEdge, in line order.
@@ -227,14 +216,4 @@ test('forecastAnchors: an element with nothing above 0 anchors nothing (hasValue
     BASALT, only([]));
   assert.deepEqual(asked, []);
   assert.deepEqual(drawFrom.forecastAnchors(S, APLITE, only(['bars'])), { top: false, bottom: false }, 'aplite');
-});
-
-test('telemetry reports the six choices as chosen, absent or junk as \'bottom\'', () => {
-  const off = buildSettingsSnapshot({});
-  KEYS.forEach((k) => assert.strictEqual(off[k], 'bottom', k));
-  const on = buildSettingsSnapshot(Object.assign({ secondaryLine: 'feels' }, ALL_TOP), { platform: 'aplite' });
-  KEYS.forEach((k) => assert.strictEqual(on[k], 'top', k + ': as chosen, drawn or not'));
-  const junk = buildSettingsSnapshot({ precipLineFrom: true, rainBarFrom: 'TOP' });
-  assert.strictEqual(junk.precipLineFrom, 'bottom');
-  assert.strictEqual(junk.rainBarFrom, 'bottom');
 });

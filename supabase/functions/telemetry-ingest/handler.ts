@@ -1,24 +1,26 @@
-// The telemetry-ingest function: the phone's per-fetch telemetry (the batched shape and the
-// legacy single event). index.ts only wires the environment in; everything testable lives
-// here, including the settings .strip() schema the watch-side snapshot is in lockstep with.
+// The telemetry-ingest function: the phone's per-fetch telemetry, posted in batches (app
+// >= 1.16). index.ts only wires the environment in; everything testable lives here,
+// including the settings .strip() schema the watch-side snapshot is in lockstep with.
 //
 // Privacy: the API gateway logs the full URL of every request the function makes to
 // PostgREST, so the account-token hash never rides a URL or a query filter. The hourly rate
 // check is an RPC (supabase/schemas/telemetry.sql: POST /rest/v1/rpc/<fn>, arguments in the
 // body), and the insert carries both hashes in its row bodies. Logs go through log.ts only.
 //
-// The external contract is unchanged, since every app version in the field keeps posting:
-// the same request shapes, status codes and bodies. The one new body is 500
-// {error: 'internal_error'} for a deploy missing its secrets or anything thrown, which the
-// runtime used to answer 500 with its own body (the phone reads only the status).
+// The answers the phone acts on (it reads only the status): 202 for an accepted batch, a
+// 4xx for a request to drop, 429 or 500 for one to retry. The single-event shape the apps
+// before 1.16 post is no longer accepted: it gets 400 invalid_payload, which those apps drop
+// like any 4xx. 500 {error: 'internal_error'} answers a deploy missing its secrets, or
+// anything thrown.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { logEvent } from "./log.ts";
 
-const MAX_BODY_BYTES = 4096;
-// Batched shape (app >= 1.16): the phone queues slim per-fetch records and posts
-// them as ONE request every ~12 h instead of one invocation per fetch — the cap
-// covers 50 worst-case events (512 B errors) plus the shared settings header.
+// The settings header's own bound: the ingest copies the header into every row a batch writes.
+const MAX_SETTINGS_BYTES = 4096;
+// The phone queues slim per-fetch records and posts them as ONE request every ~12 h
+// instead of one invocation per fetch — the cap covers 50 worst-case events (512 B
+// errors) plus the shared settings header.
 const MAX_BATCH_BODY_BYTES = 65536;
 const MAX_BATCH_EVENTS = 50;
 // How far back a batched event's client timestamp may claim to be: the phone
@@ -64,50 +66,28 @@ const settingsSchema = z
     // buildSettingsSnapshot in src/pkjs/telemetry-settings.js. z.string() like windUnits
     // so an unexpected value never fails the whole payload.
     feelsFormula: z.string().optional(),
+    // The UV, wind and gust slots' day-max display mode, lockstep with
+    // buildSettingsSnapshot (their pair presentation is not reported).
     uvSlotDisplay: z.string().optional(),
-    // The two-value slots' presentation, lockstep with buildSettingsSnapshot in
-    // src/pkjs/telemetry-settings.js. z.string() for the picks per
-    // threshPhoneBatteryBoldMode's rule below; the two spacing toggles are z.boolean(),
-    // like windSlotDirection.
-    // The custom separator text is deliberately NOT a field: the phone never sends it.
-    // DEPLOY-ORDERING: ship this function before the app release that sends these,
-    // or the strip step drops them silently.
-    tempSlotSeparator: z.string().optional(),
-    tempSlotSeparatorSpaced: z.boolean().optional(),
-    tempSlotOrder: z.string().optional(),
-    uvSlotSeparator: z.string().optional(),
-    uvSlotSeparatorSpaced: z.boolean().optional(),
-    uvSlotOrder: z.string().optional(),
-    uvSlotNextDayMark: z.string().optional(),
-    // The wind, gust and AQI slots' day-max display mode, lockstep with
-    // buildSettingsSnapshot (their pair presentation is not reported). Same
-    // deploy-ordering rule as the block above.
     windSlotDisplay: z.string().optional(),
     gustSlotDisplay: z.string().optional(),
-    aqiSlotDisplay: z.string().optional(),
     dateSlotMonthFormat: z.string().optional(),
     dateSlotFullFormat: z.string().optional(),
     aqiScale: z.enum(['european', 'us']).optional(),
     aqiSource: z.enum(['waqi', 'auto', 'openmeteo']).optional(),
     windUnits: z.string().optional(),
     distanceUnits: z.string().optional(),
-    windSlotDirection: z.boolean().optional(),
     gustSlotDirection: z.boolean().optional(),
     windSlotUnit: z.boolean().optional(),
     gustSlotUnit: z.boolean().optional(),
-    pressureSlotUnit: z.boolean().optional(),
-    countdownSlotUnit: z.boolean().optional(),
     tempSlotUnit: z.boolean().optional(),
-    dewSlotUnit: z.boolean().optional(),
     // Lockstep with buildSettingsSnapshot in src/pkjs/telemetry-settings.js (a field
     // missing here is stripped and silently lost). z.string(), not z.enum: an old or migrated
     // blob can hold a bold mode this build's picker no longer offers, and a stricter
     // type would reject the whole event over one cosmetic setting.
     threshPhoneBatteryBoldMode: z.string().optional(),
-    configTheme: z.enum(['auto', 'light', 'dark']).optional(),
     dayNightShading: z.boolean().optional(),
     healthMode: z.enum(['off', 'status', 'all', 'slot']).optional(),
-    provider: providerSchema.optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
     rainCountdownHorizon: z.number().int().min(0).optional(),
     // The weather alerts (src/pkjs/telemetry-settings.js): the metric alerts, two letters
@@ -124,8 +104,7 @@ const settingsSchema = z
     // resolved with the platform default, e.g. 'ffffooof'.
     warnLooks: z.string().optional(),
     // The battery saver's night window — its own pair, present only while the saver
-    // is on, which is how the night_sleep flag in
-    // supabase/reports/telemetry-dashboards.sql reads "battery saver on".
+    // is on, so a row's `settings_json ? 'sleepStartHour'` reads "battery saver on".
     sleepStartHour: z.number().int().min(0).max(23).optional(),
     sleepEndHour: z.number().int().min(0).max(23).optional(),
     // Dim backlight (emery only — the watch-side snapshot omits the whole group on a
@@ -153,6 +132,8 @@ const settingsSchema = z
     timeShowAmPm: z.boolean().optional(),
     weekStartDay: z.string().optional(),
     firstWeek: z.string().optional(),
+    // aplite only (the watch-side snapshot sends them nowhere else): its quiet-time icon and
+    // low-battery-only toggles, which every other watch replaced with On demand below.
     showQt: z.boolean().optional(),
     batteryLowOnly: z.boolean().optional(),
     // On demand (src/pkjs/on-demand.js telemetryCode): 40 letters, the ten items of
@@ -160,9 +141,8 @@ const settingsSchema = z
     // snooze, rain, gust, uv, aqi, pollen, wind) — L/R ticked on a side of a bar that
     // shows, l/r ticked on a hidden bar, '-' not ticked
     // (e.g. 'RLLLLRRR-R' + 30 '-', an untouched install). Absent on aplite, whose
-    // showQt/batteryLowOnly above still say what it draws; elsewhere those two are
-    // leftovers and onDemand is the truth. z.string() with no length bound, like alerts
-    // and warnLooks: a future item lengthens the code and must not 400 the batch.
+    // showQt/batteryLowOnly above say what it draws. z.string() with no length bound, like
+    // alerts and warnLooks: a future item lengthens the code and must not 400 the batch.
     // DEPLOY-ORDERING: ship this function before the app release that sends these, or
     // the strip step drops them silently.
     onDemand: z.string().optional(),
@@ -170,9 +150,10 @@ const settingsSchema = z
     // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
     batteryLowLevel: z.number().int().min(0).max(100).optional(),
     batteryLowDisplay: z.string().optional(),
-    // DEPLOY ORDERING: a value missing from this enum fails the WHOLE batch (400), so a
-    // new preset (1.23.0: 'weatherOnly') must be deployed here BEFORE the watch build
-    // that can send it ships.
+    // aplite only: the preset its Layout radio stores (every other watch keeps its screens
+    // as a custom layout, the customView fields below). DEPLOY ORDERING: a value missing
+    // from this enum fails the WHOLE batch (400), so a new preset (1.23.0: 'weatherOnly')
+    // must be deployed here BEFORE the watch build that can send it ships.
     layoutPreset: z.enum(['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst', 'compactCal', 'compactDense', 'noCal', 'weatherOnly', 'custom']).optional(),
     // Custom-layout usage: the three packed per-view wire values (uint16; elements,
     // seats, order, clock/top-bar omissions). Present only while layoutPreset is
@@ -191,11 +172,13 @@ const settingsSchema = z
     // The Layout card's Double flick switch (2.1.0). DEPLOY-ORDERING: ship this function
     // before the app release that sends it, or the strip step silently drops it.
     doubleFlick: z.boolean().optional(),
+    // emery only, like forecastHours: the one watch with the toggle.
     largeGraphFont: z.boolean().optional(),
-    // The forecast graph's time span the watch draws, in hours (2.2.0): 12/24/48 on an
-    // emery, 24 elsewhere. DEPLOY-ORDERING: ship this function before the app release
-    // that sends it, or the strip step silently drops it. An open-ended int (no max, like
-    // viewResetMin), not an enum: a longer span a later release adds cannot 400 the batch.
+    // The forecast graph's time span option the watch draws, in hours (2.2.0): 12/24/48,
+    // sent by an emery only (every other watch draws 24). DEPLOY-ORDERING: ship this
+    // function before the app release that sends it, or the strip step silently drops it.
+    // An open-ended int (no max, like viewResetMin), not an enum: a longer span a later
+    // release adds cannot 400 the batch.
     forecastHours: z.number().int().min(1).optional(),
     // The forecast graph's left axis options (2.2.0, BETA, src/pkjs/forecast-axis.js),
     // emery only, as chosen. DEPLOY-ORDERING: ship this function before the app release
@@ -217,16 +200,6 @@ const settingsSchema = z
     windLineShow: z.string().optional(),
     gustLineShow: z.string().optional(),
     uvLineShow: z.string().optional(),
-    // Draw from / Bars from, 'bottom' or 'top' (1.24.0, src/pkjs/draw-from.js value).
-    // DEPLOY-ORDERING: ship this function before the app release that sends them, or the
-    // strip step drops them silently. z.string(), not z.enum: a future value must not 400
-    // the batch.
-    precipLineFrom: z.string().optional(),
-    cloudLineFrom: z.string().optional(),
-    windLineFrom: z.string().optional(),
-    uvLineFrom: z.string().optional(),
-    rainBarFrom: z.string().optional(),
-    radarBarFrom: z.string().optional(),
     pressureScale: z.string().optional(),
     thirdLine: z.string().optional(),
     fourthLine: z.string().optional(),
@@ -237,9 +210,11 @@ const settingsSchema = z
     fifthLineStyle: z.string().optional(),
     barSource: z.string().optional(),
     rainBarColor: z.string().optional(),
+    // The rain radar's source, or RADAR_OFF ('disabled') while it is off (foldRadarOff
+    // below turns app 2.6.0's and 2.6.1's radarEnabled false into that). z.string(), not an
+    // enum: a new source must not 400 the batch.
     radarProvider: z.string().optional(),
     radarMode: z.enum(['off', 'countdown', 'status', 'graph']).optional(),
-    radarEnabled: z.boolean().optional(),
     radarColor: z.string().optional(),
     radarSky: z.boolean().optional(),
     devStatsEnabled: z.boolean().optional(),
@@ -280,8 +255,36 @@ const settingsSchema = z
     nightHatchColor: z.string().optional(),
     nightDayLineColor: z.string().optional(),
     nightFillColor: z.string().optional(),
+    // The settings page's Weather tab: whether the page opens on it, whole days since the
+    // page last drew its graphs (absent without a stamp), and how many places it has saved
+    // (a count; a place never leaves the phone). Open-ended ints (no max, like
+    // viewResetMin): a page that saves more places cannot 400 the batch. DEPLOY-ORDERING:
+    // ship this function before the app release that sends them, or the strip step drops
+    // them silently.
+    startOnWeatherTab: z.boolean().optional(),
+    weatherTabSeenDays: z.number().int().min(0).optional(),
+    weatherTabPlaces: z.number().int().min(0).optional(),
   })
   .strip();
+
+// radarProvider while the rain radar is off: what apps before 1.10 sent, and what the apps
+// after 2.6.1 send again.
+const RADAR_OFF = "disabled";
+
+/**
+ * The z.preprocess step the settings header goes through before the schema: app 2.6.0 and
+ * 2.6.1 report an Off rain radar as radarEnabled false beside the source they keep, and
+ * radarEnabled is no field of settingsSchema, so its strip step would drop the one sign of
+ * the Off. Folded into radarProvider first, every stored row names an Off radar one way
+ * (the nightly rollup folds the rows stored before this). Anything else passes as posted.
+ * @param settings The settings header as posted.
+ * @returns The header, with radarProvider RADAR_OFF when radarEnabled is false.
+ */
+function foldRadarOff(settings: unknown): unknown {
+  if (typeof settings !== "object" || settings === null) return settings;
+  const header = settings as Record<string, unknown>;
+  return header.radarEnabled === false ? { ...header, radarProvider: RADAR_OFF } : settings;
+}
 
 // A fetch's wall-clock duration — a SOFT field: out of range means null, never a
 // rejected event. The phone measures Date.now() - fetchStart, so a clock step
@@ -295,50 +298,8 @@ export const durationMsSchema = z.number().nullable().optional().transform((v) =
   typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= INT4_MAX ? v : null
 );
 
-export const telemetryPayloadSchema = z.object({
-  eventType: z.literal("weather_fetch"),
-  accountToken: z.string().trim().min(1, {
-    message: "invalid_account_token",
-  }),
-  watchToken: z.string().nullable().optional(),
-  provider: providerSchema,
-  success: z.boolean(),
-  error: z.string().trim().min(1).max(512).nullable(),
-  countryCode: z.string().nullable(),
-  settings: settingsSchema.default({}),
-  appVersion: z.string().trim().min(1, { message: "invalid_app_version" }),
-  buildProfile: z.string().trim().min(1, {
-    message: "invalid_build_profile",
-  }),
-  watchInfo: watchInfoSchema.default({}),
-  usedGpsCache: z.boolean().default(false),
-  gpsErrorCode: z.number().int().nonnegative().nullable().optional(),
-  locationMode: locationModeSchema.nullable().optional(),
-  durationMs: durationMsSchema,
-  attempt: z.number().int().positive().nullable().optional(),
-}).superRefine((payload, ctx) => {
-  if (payload.success && payload.error !== null) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "error_must_be_null_on_success",
-      path: ["error"],
-    });
-  }
-
-  if (!payload.success && payload.error === null) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "error_required_on_failure",
-      path: ["error"],
-    });
-  }
-});
-
-type TelemetryPayload = z.infer<typeof telemetryPayloadSchema>;
-
-// One slim record of a batch — the per-event half of the legacy payload, with a
-// client timestamp `t` (epoch ms) standing in for the server-side received_at.
-// The success/error contract is per event, exactly as on the legacy shape.
+// One slim record of a batch: one fetch's outcome, with a client timestamp `t` (epoch ms)
+// that becomes the row's received_at. The success/error contract is per event.
 export const batchEventSchema = z.object({
   t: z.number().int().positive(),
   provider: providerSchema,
@@ -369,10 +330,10 @@ export const batchEventSchema = z.object({
 
 // The batch envelope: tokens/version/watchInfo/settings once (the rollup only
 // ever reads the NEWEST settings per watch, so per-event snapshots bought
-// nothing), then up to MAX_BATCH_EVENTS slim records. settingsSchema is the
-// SAME object the legacy shape uses — the telemetry.js lockstep test keys off
-// it, so the two shapes cannot drift apart.
-const batchPayloadSchema = z.object({
+// nothing), then up to MAX_BATCH_EVENTS slim records. The settings go through
+// foldRadarOff, then settingsSchema, the object the watch-side lockstep test
+// (test/telemetry.test.js) reads.
+export const batchPayloadSchema = z.object({
   eventType: z.literal("weather_fetch_batch"),
   accountToken: z.string().trim().min(1, {
     message: "invalid_account_token",
@@ -383,7 +344,7 @@ const batchPayloadSchema = z.object({
     message: "invalid_build_profile",
   }),
   watchInfo: watchInfoSchema.default({}),
-  settings: settingsSchema.default({}),
+  settings: z.preprocess(foldRadarOff, settingsSchema).default({}),
   events: z.array(batchEventSchema).min(1).max(MAX_BATCH_EVENTS),
 });
 
@@ -472,17 +433,13 @@ async function handle(req: Request, deps: IngestDeps): Promise<Response> {
     return Response.json({ error: "method_not_allowed" }, { status: 405 });
   }
 
-  // Outer cap is the batch bound; the tighter legacy bound is re-checked after
-  // the shape is known (a cap that tight would reject every batch, and the
-  // shape is only knowable after parsing).
   const contentLength = parseInt(req.headers.get("content-length") || "0", 10);
   if (contentLength > MAX_BATCH_BODY_BYTES) {
     return Response.json({ error: "payload_too_large" }, { status: 413 });
   }
 
   const rawBody = await req.text();
-  const rawBytes = encodeUtf8(rawBody).length;
-  if (rawBytes > MAX_BATCH_BODY_BYTES) {
+  if (encodeUtf8(rawBody).length > MAX_BATCH_BODY_BYTES) {
     return Response.json({ error: "payload_too_large" }, { status: 413 });
   }
 
@@ -493,90 +450,46 @@ async function handle(req: Request, deps: IngestDeps): Promise<Response> {
     return Response.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const isBatch = typeof parsed === "object" && parsed !== null &&
-    (parsed as { eventType?: unknown }).eventType === "weather_fetch_batch";
-
-  // Both shapes normalize to the same insert rows; received_at is explicit on
-  // every row (the legacy path's value matches the column default it used to
-  // rely on).
-  let accountToken: string;
-  let watchToken: string | null | undefined;
-  let rows: Record<string, unknown>[];
-  const now = deps.now().getTime();
-
-  if (isBatch) {
-    const batchResult = batchPayloadSchema.safeParse(parsed);
-    if (!batchResult.success) {
-      return Response.json({
-        error: "invalid_payload",
-        detail: batchResult.error.issues[0]?.message || "invalid_payload",
-      }, { status: 400 });
-    }
-    const batch: BatchPayload = batchResult.data;
-    // The header is duplicated into EVERY row of the batch, so its size is a
-    // 50x write amplifier: the legacy shape bounded settings via its 4096 B
-    // whole-payload cap, and a batch keeps the same per-field bound — a legit
-    // snapshot measures ~2.5 KB.
-    if (JSON.stringify(batch.settings).length > MAX_BODY_BYTES ||
-      JSON.stringify(batch.watchInfo).length > 1024) {
-      return Response.json({ error: "payload_too_large" }, { status: 413 });
-    }
-    accountToken = batch.accountToken;
-    watchToken = batch.watchToken;
-    const floor = now - MAX_BATCH_EVENT_AGE_MS;
-    rows = batch.events.map((ev) => ({
-      // The client timestamp, clamped into [now - 72 h, now]: the phone drops
-      // older events before sending, so an out-of-range t is skew or forgery —
-      // and an unclamped future/ancient received_at would corrupt the
-      // day-aligned DAU rollup and dodge the 7-day prune.
-      received_at: new Date(Math.min(Math.max(ev.t, floor), now)).toISOString(),
-      provider: ev.provider,
-      success: ev.success,
-      error: ev.error,
-      country_code: ev.countryCode,
-      settings_json: batch.settings,
-      app_version: batch.appVersion,
-      build_profile: batch.buildProfile,
-      watch_info: batch.watchInfo,
-      used_gps_cache: ev.usedGpsCache,
-      gps_error_code: ev.gpsErrorCode ?? null,
-      location_mode: ev.locationMode ?? null,
-      duration_ms: ev.durationMs ?? null,
-      attempt: ev.attempt ?? null,
-    }));
-  } else {
-    // Legacy single-event shape (app <= 1.15.x keeps sending it from the
-    // field) — including its original tighter body cap.
-    if (rawBytes > MAX_BODY_BYTES) {
-      return Response.json({ error: "payload_too_large" }, { status: 413 });
-    }
-    const payloadResult = telemetryPayloadSchema.safeParse(parsed);
-    if (!payloadResult.success) {
-      return Response.json({
-        error: "invalid_payload",
-        detail: payloadResult.error.issues[0]?.message || "invalid_payload",
-      }, { status: 400 });
-    }
-    const payload: TelemetryPayload = payloadResult.data;
-    accountToken = payload.accountToken;
-    watchToken = payload.watchToken;
-    rows = [{
-      received_at: new Date(now).toISOString(),
-      provider: payload.provider,
-      success: payload.success,
-      error: payload.error,
-      country_code: payload.countryCode,
-      settings_json: payload.settings,
-      app_version: payload.appVersion,
-      build_profile: payload.buildProfile,
-      watch_info: payload.watchInfo,
-      used_gps_cache: payload.usedGpsCache,
-      gps_error_code: payload.gpsErrorCode ?? null,
-      location_mode: payload.locationMode ?? null,
-      duration_ms: payload.durationMs ?? null,
-      attempt: payload.attempt ?? null,
-    }];
+  // A batch, or nothing: the single event an app before 1.16 posts fails here like any
+  // other invalid payload.
+  const batchResult = batchPayloadSchema.safeParse(parsed);
+  if (!batchResult.success) {
+    return Response.json({
+      error: "invalid_payload",
+      detail: batchResult.error.issues[0]?.message || "invalid_payload",
+    }, { status: 400 });
   }
+  const batch: BatchPayload = batchResult.data;
+  // The header is duplicated into EVERY row of the batch, so its size is a 50x write
+  // amplifier: it keeps a bound of its own. The heaviest one the phone sends measures
+  // ~2.7 KB (test/telemetry.test.js).
+  if (JSON.stringify(batch.settings).length > MAX_SETTINGS_BYTES ||
+    JSON.stringify(batch.watchInfo).length > 1024) {
+    return Response.json({ error: "payload_too_large" }, { status: 413 });
+  }
+
+  const now = deps.now().getTime();
+  const floor = now - MAX_BATCH_EVENT_AGE_MS;
+  const rows = batch.events.map((ev) => ({
+    // The client timestamp, clamped into [now - 72 h, now]: the phone drops
+    // older events before sending, so an out-of-range t is skew or forgery —
+    // and an unclamped future/ancient received_at would corrupt the
+    // day-aligned DAU rollup and dodge the 7-day prune.
+    received_at: new Date(Math.min(Math.max(ev.t, floor), now)).toISOString(),
+    provider: ev.provider,
+    success: ev.success,
+    error: ev.error,
+    country_code: ev.countryCode,
+    settings_json: batch.settings,
+    app_version: batch.appVersion,
+    build_profile: batch.buildProfile,
+    watch_info: batch.watchInfo,
+    used_gps_cache: ev.usedGpsCache,
+    gps_error_code: ev.gpsErrorCode ?? null,
+    location_mode: ev.locationMode ?? null,
+    duration_ms: ev.durationMs ?? null,
+    attempt: ev.attempt ?? null,
+  }));
 
   const backend = deps.backend;
   if (!backend) {
@@ -585,13 +498,13 @@ async function handle(req: Request, deps: IngestDeps): Promise<Response> {
   }
   const { client, hashSecret } = backend;
 
-  const accountTokenHash = await hmacSha256Hex(hashSecret, accountToken);
-  const watchTokenHash = watchToken && watchToken.trim() !== ""
-    ? await hmacSha256Hex(hashSecret, watchToken)
+  const accountTokenHash = await hmacSha256Hex(hashSecret, batch.accountToken);
+  const watchTokenHash = batch.watchToken && batch.watchToken.trim() !== ""
+    ? await hmacSha256Hex(hashSecret, batch.watchToken)
     : null;
 
-  // Per-account hourly ARRIVAL count: bounds physical writes per account per hour for both
-  // shapes — a legit watch flushes ~2 batches per DAY.
+  // Per-account hourly ARRIVAL count: bounds physical writes per account per hour — a
+  // legit watch flushes ~2 batches per DAY.
   const recent = await countRecentInserts(client, accountTokenHash, new Date(now - HOUR_MS).toISOString());
   if (recent === null) {
     return Response.json({ error: "rate_check_failed" }, { status: 500 });

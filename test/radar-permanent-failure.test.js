@@ -97,7 +97,7 @@ const fetchCycle = createFetchCycle({
   env: { waqiToken: '', rainbowEndpoint: '' },
   now: function() { return new Date(current.slotZero * 1000); },
   // The stub ACKs synchronously, so every cycle settles before start() returns;
-  // the 120 s watchdog each start arms is dropped instead of left pending.
+  // the watchdog each start arms is dropped instead of left pending.
   setTimeout: function() {}
 });
 

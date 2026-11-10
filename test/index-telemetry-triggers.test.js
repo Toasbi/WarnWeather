@@ -52,11 +52,11 @@ test('a new install is counted on its first Save, not on opening the settings', 
   assert.equal(batches(h).length, 0, 'one queued fetch is below both batch triggers');
   h.listeners.showConfiguration({});
   assert.equal(batches(h).length, 0, 'the open sends nothing before the first report');
-  h.saveSettings({});
+  h.saveSettings({ startOnWeatherTab: true });
   const sent = batches(h);
   assert.equal(sent.length, 1, 'the Save sent the queue');
   assert.equal(sent[0].events.length, 1);
-  assert.equal(sent[0].settings.provider, 'openmeteo', 'headed by the saved settings');
+  assert.equal(sent[0].settings.startOnWeatherTab, true, 'headed by the saved settings');
   assert.equal(sent[0].watchInfo.platform, 'basalt');
   h.advance(1000);   // the ingest's 202
   assert.equal(h.store[TELEMETRY_REPORTED_KEY], '1');
@@ -74,7 +74,7 @@ test('once reported, the first settings open of a UTC day sends the queue', (t) 
   h.listeners.showConfiguration({});
   const sent = batches(h);
   assert.equal(sent.length, 1, 'the open sent the queued fetch');
-  assert.equal(sent[0].settings.provider, 'openmeteo');
+  assert.equal(sent[0].settings.fetchIntervalMin, 60, 'headed by the stored settings');
   h.advance(1000);
   h.minutes(61);   // the next hourly fetch queues another event
   assert.equal(h.count(/Successfully fetched weather/), 2);
