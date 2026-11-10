@@ -10,6 +10,7 @@
 // A card's corner radius clips nothing on the screen while it stays under about 3.4 times the
 // margin as drawn: the corner's arc reaches the screen's corner at r = m·√2 / (√2 − 1).
 (function () {
+    var svgLib = typeof require !== 'undefined' ? require('./preview-svg.js') : window.PreviewSvg;
     // The margin, in the drawing's own pixels: about 6 % of its width, 9 on the 144 px wide
     // screens and 12 on emery's 200.
     var MARGIN = { 144: 9, 200: 12 };
@@ -25,8 +26,10 @@
     }
 
     /**
-     * A picture's <svg>: the drawing on its ground, the ground running on its margin all round.
-     * The <svg> has no size of its own: the caller's CSS gives it a width (height: auto).
+     * A picture's <svg>: the drawing on its ground, the ground running on its margin all round,
+     * in the colours the watch's screen shows (preview-svg.js displayColors), as a screenshot of
+     * it has them. The <svg> has no size of its own: the caller's CSS gives it a width (height:
+     * auto).
      * @param {number} w The drawing's width.
      * @param {number} h Its height.
      * @param {string} bg The ground, the watch's background ('#000000' or '#FFFFFF').
@@ -39,7 +42,7 @@
         return '<svg' + (cls ? ' class="' + cls + '"' : '') + ' viewBox="' + (-m) + ' ' + (-m) + ' ' + vw + ' ' + vh
             + '" aria-hidden="true" focusable="false">'
             + '<rect x="' + (-m) + '" y="' + (-m) + '" width="' + vw + '" height="' + vh + '" fill="' + bg + '"></rect>'
-            + inner + '</svg>';
+            + svgLib.displayColors(inner) + '</svg>';
     }
 
     /**

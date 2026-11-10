@@ -1058,7 +1058,11 @@ test('the preview draws in the watch\'s temperature unit', () => {
   const temps = (unit) => {
     const { dom } = openSetup({ saved: { temperatureUnits: unit } });
     walkTo(dom, 'forecastLook');
-    return (dom.find('[data-wiz-graph]').innerHTML.match(/>(-?\d+)°</g) || []).map((t) => Number(/-?\d+/.exec(t)[0]));
+    // The forecast graph's own drawing (its 200-wide frame), whose high and low print as the
+    // watch prints them: Gothic 18, no degree sign (the hours under it are Gothic 14).
+    const graph = /<svg x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" viewBox="0 0 200 [\s\S]*?<\/svg>/
+      .exec(dom.find('[data-wiz-graph]').innerHTML)[0];
+    return (graph.match(/font-size="18"[^>]*>-?\d+</g) || []).map((t) => Number(/>(-?\d+)</.exec(t)[1]));
   };
   const c = temps('c'), f = temps('f');
   assert.ok(c.length > 0, 'the graph names its temperatures');

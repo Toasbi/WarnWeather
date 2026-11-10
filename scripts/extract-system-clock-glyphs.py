@@ -10,10 +10,8 @@ digits and colon to scripts/clock-glyphs-system.json (committed). The settings
 page's watch preview draws its clock with them (scripts/gen-clock-glyphs-page.js
 bakes the JSON into src/pkjs/settings/clock-glyphs.generated.js).
 
-Each font is a Pebble font resource (v3: the SDK's tools/font/fontgen.py writes it):
-FontInfo, a 255-entry hash table, offset tables of (codepoint, offset), then each
-glyph as a 5-byte header (width, height, left, top, advance) and its bitmap, one
-bit per pixel, rows unaligned, LSB first in 32-bit little-endian words.
+Each font is a Pebble font resource, read by pebble_font_resource.py (shared with
+extract-system-text-fonts.py).
 
 Fonts are found by their headers, and named by what they hold (see FONTS); as a
 check, each face's digits must ink the rows clock_ink.c measured on the watch.
@@ -24,16 +22,15 @@ Then: node scripts/gen-clock-glyphs-page.js
 """
 import argparse
 import base64
-import bz2
 import json
 import os
-import re
 import struct
 import zlib
 
+from pebble_font_resource import DEFAULT_SDK, fonts_in, ink, load_flash
+
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 OUT = os.path.join(ROOT, 'scripts', 'clock-glyphs-system.json')
-DEFAULT_SDK = os.path.expanduser('~/.local/share/pebble-sdk/SDKs/current/sdk-core/pebble')
 GLYPHS = '0123456789:'
 
 # The fonts the clock uses (clock_ink.h), how to tell each from its neighbours in the
@@ -44,58 +41,6 @@ FONTS = {
     'ROBOTO_BOLD_SUBSET_49': {'platform': 'basalt', 'height': 49, 'ink_h': 35},
     'BITHAM_42_MEDIUM_NUMBERS': {'platform': 'basalt', 'height': 42, 'ink_h': 31},
 }
-
-
-def fonts_in(flash):
-    """Every v3 font resource in a flash image, in flash order.
-
-    Returns [(offset, max_height, glyph count, {codepoint: glyph})].
-    """
-    out = []
-    for m in re.finditer(rb'\x03(.)(..)(..)\xff([\x02\x04])\x0a(.)', flash, re.S):
-        max_h = m.group(1)[0]
-        count = struct.unpack('<H', m.group(2))[0]
-        features = m.group(5)[0]
-        if not (6 < max_h < 120 and 1 <= count < 2000 and features < 4):
-            continue
-        out.append((m.start(), max_h, count, parse_font(flash, m.start())))
-    return out
-
-
-def parse_font(flash, at):
-    """The glyphs of the font resource at `at`: {codepoint: (w, h, left, top, adv, rows)}."""
-    version, max_h, count, wildcard, table_size, cp_bytes, size, features = \
-        struct.unpack_from('<BBHHBBBB', flash, at)
-    if features & 0x02:
-        raise ValueError('RLE4 glyphs are not handled')
-    off_bytes = 2 if features & 0x01 else 4
-    entry = cp_bytes + off_bytes
-    tables = at + size + table_size * 4
-    offsets = {}
-    for b in range(table_size):
-        _, n, off = struct.unpack_from('<BBH', flash, at + size + b * 4)
-        for k in range(n):
-            p = tables + off + k * entry
-            cp = struct.unpack_from('<H' if cp_bytes == 2 else '<I', flash, p)[0]
-            offsets[cp] = struct.unpack_from('<H' if off_bytes == 2 else '<I', flash, p + cp_bytes)[0]
-    glyph_table = tables + count * entry
-    glyphs = {}
-    for cp, off in offsets.items():
-        g = glyph_table + off
-        w, h, left, top, adv = struct.unpack_from('<BBbbb', flash, g)
-        words = (w * h + 31) // 32
-        bits = []
-        for i in range(words):
-            word = struct.unpack_from('<I', flash, g + 5 + i * 4)[0]
-            bits.extend((word >> j) & 1 for j in range(32))
-        rows = [bits[r * w:(r + 1) * w] for r in range(h)]
-        glyphs[cp] = (w, h, left, top, adv, rows)
-    return glyphs
-
-
-def ink(glyph):
-    """Pixels a glyph inks."""
-    return sum(sum(r) for r in glyph[5])
 
 
 def pick(fonts, name):
@@ -140,8 +85,7 @@ def main():
     for name, spec in FONTS.items():
         plat = spec['platform']
         if plat not in flashes:
-            path = os.path.join(args.sdk, plat, 'qemu', 'qemu_spi_flash.bin.bz2')
-            flashes[plat] = fonts_in(bz2.decompress(open(path, 'rb').read()))
+            flashes[plat] = fonts_in(load_flash(args.sdk, plat))
         _, max_h, _, glyphs = pick(flashes[plat], name)
         digits = [glyphs[ord(c)] for c in GLYPHS]
         top = min(g[3] for g in digits[:10])

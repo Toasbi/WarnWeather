@@ -63,8 +63,9 @@ test('Roboto and Bitham are the watch\'s glyphs, seated as time_layer.c seats th
     assert.ok(images[k].indexOf('href="data:image/png;base64,' + g[3] + '"') > 0, 'its own image');
     pen += g[2];
   });
-  assert.match(c.svg, /<feFlood flood-color="#FFAA00"><\/feFlood><feComposite in2="SourceAlpha" operator="in">/,
-    'tinted in the time colour through its alpha');
+  // A picture of the screen shows the time colour as the display does (preview-svg.js displayColors).
+  assert.match(c.svg, /<feFlood flood-color="#F1AA86"><\/feFlood><feComposite in2="SourceAlpha" operator="in">/,
+    'tinted in the time colour, as the screen shows #FFAA00, through its alpha');
   assert.equal(clock({ timeFont: 'bitham' }, env).svg.match(/<image /g).length, 5, 'Bitham too');
   assert.match(clock({ timeFont: 'roboto' }, { platform: 'emery', color: true }).svg,
     /height="46" preserveAspectRatio="none" href="data:image\/png;base64,/, 'emery takes its own');
@@ -115,7 +116,7 @@ test('the Clock font picker draws the time in each face, as the watch would', ()
   faces.forEach((svg) => {
     assert.match(svg, /^<svg class="wpv-scr" viewBox="-9 -9 162 67"/);
     assert.equal((svg.match(/<image /g) || []).length, 5);
-    assert.match(svg, /flood-color="#FFAA00"/, 'in the time colour');
+    assert.match(svg, /flood-color="#F1AA86"/, 'in the time colour, as the screen shows #FFAA00');
   });
   assert.equal(new Set(faces).size, 3, 'three different faces');
   assert.match(pic('leco', { platform: 'emery', color: true }), /^<svg class="wpv-scr" viewBox="-12 -12 224 88"/);

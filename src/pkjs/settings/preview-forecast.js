@@ -62,6 +62,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     var resolveInkLib = (typeof require !== 'undefined')
         ? require('../resolve-ink.js') : window.ResolveInk;
     var isLightPolarity = resolveInkLib.isLightPolarity;
+    // The watch's Gothic, for a screen picture's band (opts.watch): its labels at the watch's size.
+    var WT = (typeof require !== 'undefined') ? require('./watch-text.js') : window.WatchText;
     // A watch with a Forecast length draws the hours its graph shows (spanSample), of the
     // sample the graph cards and the setup draw (both in the page bundle ahead of this file).
     var forecastSample = (typeof require !== 'undefined')
@@ -314,15 +316,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * @param {Object} state Live settings (colours as hex strings).
      * @param {Object} env Config-UI environment facts ({ color, platform, … }).
      * @param {Object} [userData] Page userData; `palette` is the page-open snapshot.
-     * @param {{sample: Object, minHeight: number, bleed: boolean, bare: boolean, axisY: number}} [opts]
+     * @param {{sample: Object, minHeight: number, bleed: boolean, bare: boolean, axisY: number,
+     *     watch: {u: number, f: number, w: number, h: number, pad: number, large: boolean}}} [opts]
      *   For the setup wizard and the Watchface tab's watch, which call this directly
      *   (window.PreviewForecast); the settings page's block call passes none. `sample`: the
      *   weather to draw in its shape (forecast-sample.js sample), so a span draws its own hours;
-     *   without one a span watch draws its span's (spanSample) and any other NOON. `minHeight`: the frame's least height in viewBox units, the background
-     *   running on under the legend, so one height fits every look. `bleed: false`: the svg fills
-     *   its box instead of bleeding over a settings card's padding. `bare`: no legend, the frame
-     *   ending BARE_FOOT under the hour axis. `axisY`: where that axis sits (94 without), so the
-     *   plot takes the height of a band on the watch's screen.
+     *   without one a span watch draws its span's (spanSample) and any other NOON. `minHeight`:
+     *   the frame's least height in viewBox units, the background running on under the legend,
+     *   so one height fits every look. `bleed: false`: the svg fills its box instead of bleeding
+     *   over a settings card's padding. `bare`: no legend, the frame ending BARE_FOOT under the
+     *   hour axis. `axisY`: where that axis sits (94 without), so the plot takes the height of a
+     *   band on the watch's screen. `watch`: a band of a picture of the screen (preview-watch.js
+     *   graphBand), drawn at the watch's pixels: `u` frame units a watch pixel, `f` 1 on emery,
+     *   `w` the band's width and `h` its height in frame units, `pad` the screen's side pad,
+     *   `large` emery's larger graph fonts. Its labels, ticks and frame lines are the watch's
+     *   (watch-text.js Gothic, no degree sign), its plot runs to the band's right edge.
      * @returns {string} SVG markup.
      */
     function forecastPreview(state, env, userData, opts) {
@@ -512,18 +520,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // one).
         var ax = forecastAxis.resolved(state, env);
         var axisOn = ax.numbers === forecastAxis.AXIS;
-        var PX0 = axisOn ? PX0_AXIS : PX0_NO_AXIS;
-        var PX1 = 197, PT = 4, PB = AXIS_Y - stripeBand;
-        var PTL = PT + topBand;
-        var MT = topBand ? PTL : PT + 3;   // where a full-height metric value lands
-        var plotW = PX1 - PX0, plotH = PB - PTL;
-        // One watch-faithful slot grid (chart.c): N hourly slots, one tick per slot. Slot 0 is
-        // 12:00; hour = 12 + i. Line vertices sit ON the ticks (so a line spans the first tick to
-        // the last), and rain bars / second-metric dots sit centred in the hour COLUMN between two
-        // ticks — exactly how chart_render_line vs chart_render_bars place them on the watch.
-        var pitch = plotW / (n - 1);
-        var tickX = function (i) { return PX0 + i * pitch; };              // line vertex / hour tick x
-        var gapCenter = function (i) { return PX0 + (i + 0.5) * pitch; };  // bar / dot column centre
         // The temperature axis (temp_axis_pad.h THE SCALE, mirrored; owner, 2026-10-04:
         // "always fit all lines"): the lowest and highest value of the temperature and of
         // every feels-like or dew point line drawn — whatever its style — land on the margin
@@ -558,6 +554,29 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             tLabelMax = Math.ceil(axisRange.max);
         }
         var tmin = axisRange.min, tmax = axisRange.max;
+        // A screen picture's graph band (opts.watch, preview-watch.js graphBand) draws the watch's
+        // own axis furniture, in watch pixels of `u` units each: the label strip as wide as its
+        // Gothic hi/lo numbers need (forecast_layer.c text_labels_refresh: 2 px more, 15 at
+        // least, then BOTTOM_VIEW_LABEL_GAP to the plot), from the screen's edge or emery's pad.
+        var watch = (opts && opts.watch) || null;
+        var labelCh = watch && watch.large ? 24 : 18;
+        var stripW = 0;
+        if (watch && axisOn) {
+            stripW = Math.max(15, Math.max(WT.width(labelCh, false, String(tLabelMax)),
+                WT.width(labelCh, false, String(tLabelMin))) + 2);
+        }
+        var PX0 = !axisOn ? PX0_NO_AXIS : watch ? (watch.pad + stripW + 2) * watch.u : PX0_AXIS;
+        var PX1 = watch ? FRAME_W : 197, PT = watch ? 0 : 4, PB = AXIS_Y - stripeBand;
+        var PTL = PT + topBand;
+        var MT = topBand ? PTL : PT + 3;   // where a full-height metric value lands
+        var plotW = PX1 - PX0, plotH = PB - PTL;
+        // One watch-faithful slot grid (chart.c): N hourly slots, one tick per slot. Slot 0 is
+        // 12:00; hour = 12 + i. Line vertices sit ON the ticks (so a line spans the first tick to
+        // the last), and rain bars / second-metric dots sit centred in the hour COLUMN between two
+        // ticks — exactly how chart_render_line vs chart_render_bars place them on the watch.
+        var pitch = plotW / (n - 1);
+        var tickX = function (i) { return PX0 + i * pitch; };              // line vertex / hour tick x
+        var gapCenter = function (i) { return PX0 + (i + 0.5) * pitch; };  // bar / dot column centre
         // Configurable curve offset: the temp axis (temp + feels/dew via isTempAxisMetric
         // below) is inset symmetrically from the shared full-height band
         // ([MT .. PB], the mapping every other metric uses), mirroring the
@@ -565,7 +584,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // the preview band (87 units) is taller than the watch plot; 7 watch px
         // = the preview's long-standing 12-unit bottom clearance over the axis
         // row (the top gains the same symmetric margin the watch actually draws).
-        var curveInsetPrev = CURVE_INSET_PREV;
+        var curveInsetPrev = watch ? WATCH_INSET_PX * watch.u : CURVE_INSET_PREV;
+        // The label rules' scale (preview-axis.js PREVIEW_SCALE), the watch's in a screen picture:
+        // its label font's digit cap (status_metrics.h: half the size plus 2) and its pixel.
+        var labelScale = watch ? { cap: (labelCh / 2 + 2) * watch.u, px: watch.u, row: watch.u } : undefined;
         // On an anchored edge (the rain bars' or a drawn amount line's with a value above 0:
         // draw-from.js forecastAnchors; none previewing aplite, whose margins are frozen) the
         // margin is at least the share (anchorShare: the eighth, or the curve past it) of the
@@ -589,7 +611,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // top stripe band, never into its gap) down to one watch row over the zero line. A
         // safety net, as on the watch: every value the range covers lies between the margin
         // rows, so only a smoothed stretch's control point could ever reach the plot's edge.
-        var yTTop = MT, yTBottom = PB - CURVE_INSET_PREV / WATCH_INSET_PX;
+        var yTTop = MT, yTBottom = PB - (watch ? watch.u : CURVE_INSET_PREV / WATCH_INSET_PX);
         /**
          * A temperature-axis value's y: the scale through the margin rows (the net: held in
          * the plot).
@@ -616,6 +638,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var tempW = isColor ? 2.2 : 3;               // B&W: thick temp vs thin main line
         var mainW = isColor ? 1.6 : 1;
         var boldW = isColor ? 2.8 : 3;               // the 'bold' (3 px) line style
+        if (watch) {
+            // The watch's own: the temperature 3 px (forecast_layer.c), a line 1, a bold one 3.
+            tempW = 3 * watch.u; mainW = watch.u; boldW = 3 * watch.u;
+        }
 
         // The night colours apply only on an effectively-colour preview. The WIRE carries
         // them either way (resolveNightColors has no isColor gate, deliberately), but a
@@ -630,6 +656,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // The translucent ink is the B&W arm, standing in for the theme foreground the
         // watch hatches with there.
         var nightHatchStroke = nightPicksApply ? hexColor(gc.night.hatch) : ink.rgba('0.30');
+        // A screen picture's axis furniture (opts.watch), in the watch's colours
+        // (bottom_view.c bottom_view_tick_style, forecast_layer.c axis_color): the ink on a
+        // black-and-white watch or theme; else the ticks LightGray on a label and, on a tick,
+        // DarkGray on emery and LightGray on the 144 px watches (black in the light theme), and
+        // the frame's lines DarkGray under the night shading (black in the light theme) or Orange.
+        var lightInk = isLightPolarity(cx.theme);
+        var FUR = !isColor ? { big: ink.fg, small: ink.fg, line: ink.fg }
+            : { big: lightInk ? '#000000' : '#AAAAAA',
+                small: lightInk ? '#000000' : (watch && watch.f ? '#555555' : '#AAAAAA'),
+                line: !state.dayNightShading ? '#FF5500' : (lightInk ? '#000000' : '#555555') };
         /**
          * The night band: the hatch, from the top of the graph (PT) down to the zero line —
          * up through a top stripe band too, as the watch's night hatch runs on through it
@@ -677,6 +713,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             // current hour) keeps its tick but no label, and no label a frame edge would cut is
             // drawn (axisLabelFits).
             var cad = axisCadence(state, env);
+            if (watch) { return drawWatchAxis(cad); }
             var out = '', prev = -1;
             for (var i = 0; i < n; i += 1) {
                 var hour = (startHour + i) % 24;
@@ -693,6 +730,36 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 }
             }
             return out;
+        }
+        /**
+         * The hour axis as the watch draws it, in a screen picture's band (opts.watch): each
+         * mark's tick a pixel wide from the axis row down, 6 px on a label and 4 on a tick, in
+         * the furniture's colours (FUR), and each label in the watch's Gothic (14, or 18 with
+         * emery's larger graph fonts) centred in chart.c's 40 px box under its tick: on the
+         * 144 px watches the box 4 rows over the axis row and 3 px left (CHART_LABEL_BOTTOM_DY,
+         * CHART_LABEL_NUDGE_X), on emery its ink on the strip's last rows (chart_axis_label),
+         * where a label the screen's edge would cut is left out (forecast_span_label_fits).
+         * @param {{labelEvery: number, tickEvery: number, byClock: boolean}} cad The cadence.
+         * @returns {string} SVG markup.
+         */
+        function drawWatchAxis(cad) {
+            var u = watch.u, ch = watch.large ? 18 : 14, ticks = '', labels = '', prev = -1;
+            var row = Math.round(AXIS_Y / u), top = watch.f ? row + 20 - ch : row - 4;
+            for (var i = 0; i < n; i += 1) {
+                var hour = (startHour + i) % 24;
+                var mark = axisMark(cad, i, hour, prev);
+                prev = hour;
+                if (mark === MARK_NONE) { continue; }
+                var big = mark === MARK_LABEL, x = Math.round(tickX(i) / u);
+                ticks += rect(x * u, AXIS_Y, u, (big ? 7 : 5) * u, big ? FUR.big : FUR.small);
+                if (!big || (i === 0 && !axisOn)) { continue; }
+                var label = String(state.axisTimeFormat === '12h' ? (hour % 12 || 12) : hour);
+                var w = WT.width(ch, false, label), lx = x - 20 + (watch.f ? 0 : -3) + Math.floor((40 - w) / 2);
+                var cw = label.length * (watch.large ? 7 : 6), start = x - 20 + Math.floor((40 - cw) / 2);
+                if (watch.f && (start + 1 < 0 || start + cw - 2 > watch.w - 1)) { continue; }
+                labels += WT.line(ch, false, lx, top, ink.fg, label);
+            }
+            return ticks + (labels ? '<g transform="scale(' + u + ')">' + labels + '</g>' : '');
         }
         /**
          * One metric value's y in column/tick i — THE value→y mapping. The
@@ -1034,10 +1101,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 }
             });
             if (!hi) { return ''; }
-            var area = numbersArea(PX0, PX1, PTL, PB);
-            var hiText = tLabelMax + '°', loText = tLabelMin + '°';
-            var wHi = hiText.length * NUMBER_CHAR_W, wLo = loText.length * NUMBER_CHAR_W;
-            var ring = CURVE_INSET_PREV / WATCH_INSET_PX;   // the outline's, one watch px
+            var area = numbersArea(PX0, PX1, PTL, PB, labelScale);
+            // A screen picture's band (opts.watch) prints them as the watch does: the bare number
+            // in its label font, its width the glyphs' advances.
+            var hiText = tLabelMax + (watch ? '' : '°'), loText = tLabelMin + (watch ? '' : '°');
+            var wHi = watch ? WT.width(labelCh, false, hiText) * watch.u : hiText.length * NUMBER_CHAR_W;
+            var wLo = watch ? WT.width(labelCh, false, loText) * watch.u : loText.length * NUMBER_CHAR_W;
+            var ring = watch ? watch.u : CURVE_INSET_PREV / WATCH_INSET_PX;   // the outline's, one watch px
             /**
              * One number centred on its point, under (the hi one) or over its line.
              * @param {{i: number, c: Object}} p The point (its sample and series).
@@ -1049,10 +1119,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 var e = p.c.x(p.i), x = numberCentred(e[0], e[1], w, area);
                 var reach = lineReach(p.c.ys, p.c.x, p.c.marks, p.c.hw, x - ring, x + w + ring,
                     p.c.ys[p.i], under);
-                return { x: x, base: numberClear(reach, under, area) };
+                return { x: x, base: numberClear(reach, under, area, labelScale) };
             }
             var hb = place(hi, wHi, true), lb = place(lo, wLo, false);
-            var both = bothNumbers(hiText, loText, hb, wHi, lb, wLo, area);
+            var both = bothNumbers(hiText, loText, hb, wHi, lb, wLo, area, labelScale);
             /**
              * One number, over its outline (the background colour: On graph always draws it).
              * @param {{x: number, base: number}} b Where (place).
@@ -1060,6 +1130,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
              * @returns {string} SVG markup.
              */
             function number(b, t) {
+                if (watch) {
+                    var u = watch.u, x = Math.round(b.x / u), top = Math.round(b.base / u) - labelCh;
+                    return '<g transform="scale(' + u + ')">'
+                        + WT.line(labelCh, false, x, top, ink.bg, t, 'stroke="' + ink.bg
+                            + '" stroke-width="2" stroke-linejoin="round"')
+                        + WT.line(labelCh, false, x, top, ink.fg, t) + '</g>';
+                }
                 var under = '<text x="' + b.x + '" y="' + b.base + '" font-size="8" fill="' + ink.bg + '" stroke="' + ink.bg
                     + '" stroke-width="2" stroke-linejoin="round" font-family="sans-serif" font-weight="600" text-anchor="start">'
                     + t + '</text>';
@@ -1192,7 +1269,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // background rect below needs before any chart markup is emitted.
         // opts.bare (the Watchface tab's watch): no legend, the frame ends under the hour labels.
         var bare = Boolean(opts && opts.bare);
-        var legend = bare ? { height: AXIS_Y + BARE_FOOT, markup: '' } : drawLegend();
+        var legend = bare ? { height: watch ? watch.h : AXIS_Y + BARE_FOOT, markup: '' } : drawLegend();
         var frameH = Math.max(legend.height, (opts && opts.minHeight) || 0);
         var e = '';
         e += rect(0, 0, 200, frameH, ink.bg);
@@ -1207,7 +1284,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 : '')
             + '</defs>';
         e += drawNightShading();
-        e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.20') + '" stroke-width="0.7"></line>';
+        if (!watch) {
+            e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.20') + '" stroke-width="0.7"></line>';
+        }
         // Z-order matches forecast_layer.c: AREA fill, then BARS, then the LINE strokes —
         // so the bars paint over the (possibly dithered) area fill, and the lines paint over
         // the bars. See areaFillFor()'s doc comment.
@@ -1249,6 +1328,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             }
         }
         e += drawTempCurve();
+        if (watch) {
+            // The plot's frame over the curve (forecast_layer.c CHART_LAYER_FRAME): its zero
+            // row and, with the left axis on, its left edge, a watch pixel wide.
+            e += rect(PX0, PB, PX1 - PX0, watch.u, FUR.line);
+            if (axisOn) { e += rect(PX0, 0, watch.u, PB, FUR.line); }
+        }
         // No status chrome (location / sunset / current-temp pill): the preview doesn't model it.
         // Hi/lo labels are the ACTUAL temperature range (TEMP_MIN/TEMP_MAX on the
         // wire), never the joint band the phone encodes on — the watch prints them as
@@ -1263,7 +1348,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // it names (alignLabels; never previewing aplite, whose labels are frozen). Today's
         // reach gates the lo label always and the hi label only without a top stripe band:
         // under one the watch's plain rule applies (see alignLabels).
-        if (axisOn) {
+        if (axisOn && watch) {
+            // As the watch draws them (forecast_layer.c draw_left_axis): the bare numbers in the
+            // label font, right-aligned in the strip, the hi one's box 3 rows over the band (on
+            // emery its ink on row 7 whatever the font), the lo one's 2 rows over the zero row,
+            // each moved in to its curve's extreme where there is room (temp_labels_align).
+            var u = watch.u, hiTop = watch.f ? 7 - (labelCh / 2 - 2) : -3;
+            var loTop = Math.round(PB / u) - labelCh - 2;
+            var bases = stylesFrozen ? { hi: (hiTop + labelCh) * u, lo: (loTop + labelCh) * u }
+                : alignLabels((hiTop + labelCh) * u, (loTop + labelCh) * u, yT(tLabelMax), yT(tLabelMin),
+                    topBand ? -Infinity : MT + curveInsetPrev, PB - curveInsetPrev, labelScale);
+            e += '<g transform="scale(' + u + ')">'
+                + WT.inBox(labelCh, false, { x: watch.pad, y: Math.round(bases.hi / u) - labelCh, w: stripW },
+                    'right', ink.fg, String(tLabelMax))
+                + WT.inBox(labelCh, false, { x: watch.pad, y: Math.round(bases.lo / u) - labelCh, w: stripW },
+                    'right', ink.fg, String(tLabelMin))
+                + '</g>';
+        } else if (axisOn) {
             var labels = stylesFrozen ? { hi: PT + 11, lo: PB - 1 }
                 : alignLabels(PT + 11, PB - 1, yT(tLabelMax), yT(tLabelMin),
                     topBand ? -Infinity : MT + curveInsetPrev, PB - curveInsetPrev);
