@@ -333,7 +333,9 @@ test('a new install: the Default screen alone; + Add screen adds a screen and op
   ed = editorOf(page);
   assert.deepEqual(editorRows(ed.body), ['Watch bar', 'Clock']);
   assert.ok(editorRow(ed.body, 0).indexOf('<span class="se-grip off" aria-hidden="true"></span><div class="se-mid">'
-    + '<span class="se-name">Watch bar</span></div>') !== -1, 'the Watch bar has no handle and nothing to pick');
+    + '<span class="se-name">Watch bar</span><span class="se-ctl">' + ui.editButton('Edit', { 'data-se': 'editbar',
+      'data-j': 0, 'aria-haspopup': 'dialog', 'aria-label': 'Edit Watch bar' }) + '</span></div>') !== -1,
+  'the Watch bar has no handle; its Edit opens its dialog');
   assert.ok(ed.body.indexOf('aria-label="Remove Clock"') !== -1, 'a flick screen may drop its Clock');
   assert.deepEqual(editorAddGroups(ed.body), [
     ['Add a status bar', 'Forecast bar', 'Radar bar', 'Health bar'],
@@ -470,7 +472,7 @@ test('Add: a chip per status bar, by its name, in the bars\' place; a tap puts t
   assert.equal(M.screensOf(page.S, BASALT)[1].length, 5);
 });
 
-test('the editor\'s rows: the calendar\'s rows and a graph\'s size are dropdowns, a bar its name alone; nothing folds or shows twice', () => {
+test('the editor\'s rows: the calendar\'s rows and a graph\'s size are dropdowns, a bar has Edit; nothing folds or shows twice', () => {
   const page = bootGeneratedPage(THREE);
   page.tapAction('openScreen', 0);
   const body = editorOf(page).body;
@@ -482,20 +484,55 @@ test('the editor\'s rows: the calendar\'s rows and a graph\'s size are dropdowns
   assert.ok(editorRow(body, 4).indexOf('<span class="se-ctl">'
     + ui.dropdown('Fill', { 'data-se': 'size', 'data-j': 4, 'aria-haspopup': 'dialog', 'aria-label': 'Size: Fill' })
     + '</span>') !== -1, editorRow(body, 4));
-  // A bar: its name alone. Its Add chip picked which bar, and the Status bars tab edits it.
-  assert.ok(editorRow(body, 3).indexOf('<div class="se-mid"><span class="se-name">Forecast bar</span></div>') !== -1,
-    editorRow(body, 3));
+  // A bar: its Edit, which opens the bar's dialog over the editor (the owner's pick, B,
+  // 2026-11-10). Its Add chip picked which bar.
+  assert.ok(editorRow(body, 3).indexOf('<div class="se-mid"><span class="se-name">Forecast bar</span><span class="se-ctl">'
+    + ui.editButton('Edit', { 'data-se': 'editbar', 'data-j': 3, 'aria-haspopup': 'dialog', 'aria-label': 'Edit Forecast bar' })
+    + '</span></div>') !== -1, editorRow(body, 3));
   // The Clock: its name alone.
   assert.ok(editorRow(body, 2).indexOf('<div class="se-mid"><span class="se-name">Clock</span></div>') !== -1);
-  // Nothing folds, nothing is said twice, no move buttons, no Edit, no graph picker.
-  ['class="chev', 'aria-expanded', 'se-val', 'se-more', 'Also on', 'Move up', 'Move down', 'thr-btn', 'data-se="editbar"',
-    'data-se="style"'].forEach((gone) => {
+  // Nothing folds, nothing is said twice, no move buttons, no graph picker; Edit on the bars alone.
+  ['class="chev', 'aria-expanded', 'se-val', 'se-more', 'Also on', 'Move up', 'Move down', 'data-se="style"'].forEach((gone) => {
     assert.equal(body.indexOf(gone), -1, gone);
   });
+  assert.deepEqual([...body.matchAll(/data-se="editbar" data-j="(\d+)"/g)].map((m) => Number(m[1])), [0, 3],
+    'the Watch bar and the Forecast bar');
   // The ≡ is a button the arrow keys move; the Watch bar has none.
   assert.ok(editorRow(body, 1).indexOf('<button type="button" class="se-grip" data-grip="1" title="Drag to move" '
     + 'aria-label="Move Calendar (arrow keys)">' + ui.icon('grip') + '</button>') !== -1, editorRow(body, 1));
   assert.equal(editorRow(body, 0).indexOf('data-grip'), -1);
+});
+
+test('the editor: a bar\'s Edit opens its dialog over the editor, which shows what Done kept and nothing × put back', () => {
+  const page = bootGeneratedPage(THREE);
+  page.tapAction('openScreen', 0);
+  page.tapEditor({ se: 'editbar', j: 3 });
+  let dlg = page.modal.innerHTML;
+  assert.ok(dlg.indexOf('id="esheet-ttl-bar-forecast">Forecast bar</span>') !== -1, 'the Forecast bar\'s dialog');
+  assert.ok(dlg.indexOf('<span class="dlg-kick">Default</span>') !== -1, 'opened from the screen');
+  assert.equal(dlg.indexOf('data-dlg-rename-ok'), -1, 'its name is not open to type');
+  page.renameDialog();
+  page.enterRename('Commute');
+  page.doneDialog();
+  assert.equal(page.modal.innerHTML, '', 'the dialog closed');
+  assert.ok(page.editor(), 'back in the editor');
+  assert.equal(page.S.statusForecastName, 'Commute');
+  assert.deepEqual(editorRows(editorOf(page).body).slice(3, 4), ['Commute'], 'the row says the name Done kept');
+  // × puts back what the dialog changed, and the editor shows it.
+  page.tapEditor({ se: 'editbar', j: 3 });
+  page.renameDialog();
+  page.enterRename('Errands');
+  page.cancelDialog();
+  assert.equal(page.S.statusForecastName, 'Commute');
+  assert.deepEqual(editorRows(editorOf(page).body).slice(3, 4), ['Commute']);
+  // The Watch bar's Edit opens the Watch bar's dialog.
+  page.tapEditor({ se: 'editbar', j: 0 });
+  dlg = page.modal.innerHTML;
+  assert.ok(dlg.indexOf('id="esheet-ttl-bar-top">Watch bar</span>') !== -1, 'the Watch bar\'s dialog');
+  page.doneDialog();
+  // A forged Edit on a row that shows no bar (the Clock) opens nothing.
+  page.tapEditor({ se: 'editbar', j: 2 });
+  assert.equal(page.modal.innerHTML, '');
 });
 
 test('the editor\'s ≡ and the arrow keys: a row moves a place, keeps the focus, and a move that breaks a rule stays with why', (t) => {

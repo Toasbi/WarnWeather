@@ -162,8 +162,9 @@ test('the screen editor: + New status bar puts an empty bar on the screen and op
   page.doneDialog();
   assert.ok(page.editor(), 'back in the editor');
   ed = editorBody(page);
-  // The new bar's row is a bar's row: its name alone.
-  assert.ok(ed.indexOf('<div class="se-mid"><span class="se-name">Commute</span></div>') !== -1, 'the editor shows the new name');
+  // The new bar's row is a bar's row: its name and its Edit.
+  assert.ok(ed.indexOf('<div class="se-mid"><span class="se-name">Commute</span><span class="se-ctl">'
+    + '<button type="button" class="thr-btn" data-se="editbar"') !== -1, 'the editor shows the new name');
   assert.deepEqual(editorAddChips(ed), ['Calendar'], 'two bars on the screen: no room for a third, nor for a second graph');
   page.tapEditor({ se: 'newbar' });
   assert.notEqual(page.S.statusBar5Made, true, 'nor does a forged tap make one');

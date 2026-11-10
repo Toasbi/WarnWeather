@@ -166,6 +166,16 @@
   function isBar(b) { return Boolean(b && KINDS[b.k] && KINDS[b.k].bar); }
 
   /**
+   * The bar a row shows: a status bar's (BAR_OF_KIND), the Watch bar's 'top'.
+   * @param {?Object} b A block.
+   * @returns {?string} an on-demand.js BARS bar, null for a row that shows none
+   */
+  function barOfBlock(b) {
+    if (!b) { return null; }
+    return b.k === 'strip' ? 'top' : BAR_OF_KIND[b.k] || null;
+  }
+
+  /**
    * @param {Array<Object>} list A screen.
    * @param {string} k A kind.
    * @returns {number} the index of the kind's block, -1 when the screen has none
@@ -752,6 +762,7 @@
     blockName: blockName,
     isGraph: isGraph,
     isBar: isBar,
+    barOfBlock: barOfBlock,
     idxOf: idxOf,
     copy: copy,
     bottom: bottom,

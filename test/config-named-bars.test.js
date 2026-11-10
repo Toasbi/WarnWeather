@@ -210,14 +210,15 @@ test('a bar\'s name: trimmed and cut, its own name stores none, another bar\'s t
 
 // --- the screen editor ----------------------------------------------------------------
 
-test('the editor: a bar\'s row and its Add chip read by its name; the row has nothing else beside it', () => {
+test('the editor: a bar\'s row and its Add chip read by its name; the row has its Edit beside it', () => {
   const S = Object.assign({ statusForecastName: 'Morning' }, THREE);
   const page = bootGeneratedPage(S);
   page.tapAction('openScreen', 0);
   assert.deepEqual(editorRows(body(page)), ['Watch bar', 'Calendar · 2 rows', 'Clock', 'Morning', 'Forecast graph · Fill']);
-  assert.ok(body(page).indexOf('<div class="se-mid"><span class="se-name">Morning</span></div>') !== -1);
+  assert.ok(body(page).indexOf('<div class="se-mid"><span class="se-name">Morning</span><span class="se-ctl">'
+    + ui.editButton('Edit', { 'data-se': 'editbar', 'data-j': 3, 'aria-haspopup': 'dialog', 'aria-label': 'Edit Morning' })
+    + '</span></div>') !== -1, 'its Edit, named by the bar (the owner\'s pick, 2026-11-10)');
   assert.ok(body(page).indexOf('aria-label="Remove Morning"') !== -1);
-  assert.equal(body(page).indexOf('Edit Morning'), -1, 'the Status bars tab edits a bar');
   page.tapEditor({ se: 'close' });
   // The same bar on Flick 1 too, by its chip: where else it shows is the Status bars tab's to
   // say, not the row's.

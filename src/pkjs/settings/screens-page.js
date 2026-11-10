@@ -5,7 +5,8 @@
 // watch can draw: screen-presets.js), the screen editor (a full-screen view under a dialog's
 // header: the screen's name, which its pencil renames with an OK button, its picture and its
 // rows top to bottom, each by its name, dragged by its ≡ or moved with the arrow keys, the
-// calendar's rows and a graph's size as a dropdown that opens its picker; then the Add chips,
+// calendar's rows and a graph's size as a dropdown that opens its picker, a status bar's Edit
+// opening the bar's dialog over the editor; then the Add chips,
 // one per thing the screen can take: each of your status bars, New status bar, and with
 // several graphs each graph, or, once the screen has its forecast graph, Switch graph's chip
 // per other graph, which puts that one in its place; and Delete screen under the card), the
@@ -14,7 +15,7 @@
 // changes, the red arrow in the middle of the row; a tap on the name opens the bar's dialog,
 // schema.js barDialog, which pins the bar's picture; New status bar makes an empty bar and opens
 // it), Setup's Rain radar picker (Off keeps the source) and the modes the page works out from
-// the screens. Every arrow, dropdown, Delete, Undo, chip and header is the page's shared part
+// the screens. Every arrow, dropdown, Edit, Delete, Undo, chip and header is the page's shared part
 // (config-ui/lib/ui.js).
 //
 // The screens are read from and written to the custom layout's per-view keys (screens.js
@@ -650,7 +651,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function barPlaces(S, env, bar, cycle) {
         return M.placesWhere(S || {}, env, function (list) {
-            return list.some(function (b) { return bar === 'top' ? b.k === 'strip' : M.BAR_OF_KIND[b.k] === bar; });
+            return list.some(function (b) { return M.barOfBlock(b) === bar; });
         }, cycle);
     }
 
@@ -1207,10 +1208,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * One row of the list (the owner's picks, 2026-11-09): its ≡, its name, the calendar's rows
-     * or a graph's size as a dropdown that opens its picker, and its ✕. Which bar or graph a row
-     * is was picked by its Add chip, so nothing else sits on the row: the Status bars tab edits a
-     * bar, the Graphs tab a graph. The ≡ drags the row, and the arrow keys move it while it has
-     * the focus. The Watch bar's row does not move; the Default screen's Clock has no ✕.
+     * or a graph's size as a dropdown that opens its picker, a status bar's Edit (the Watch
+     * bar's too), which opens the bar's dialog over the editor (the owner's pick, 2026-11-10),
+     * and its ✕. Which bar or graph a row is was picked by its Add chip; the Graphs tab edits a
+     * graph. The ≡ drags the row, and the arrow keys move it while it has the focus. The Watch
+     * bar's row does not move; the Default screen's Clock has no ✕.
      * @param {Array<Object>} list The screen.
      * @param {number} j The row.
      * @param {Object} S Settings.
@@ -1224,6 +1226,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var shown = sizeLabel(b[size.key]);
             ctl = kit.dropdown(shown, { 'data-se': 'size', 'data-j': j, 'aria-haspopup': 'dialog',
                 'aria-label': size.cap + ': ' + shown });
+        } else if (M.barOfBlock(b)) {
+            ctl = kit.editButton('Edit', { 'data-se': 'editbar', 'data-j': j, 'aria-haspopup': 'dialog',
+                'aria-label': 'Edit ' + name });
         }
         var h = '<div class="se-row" role="listitem" data-j="' + j + '">';
         h += fixed ? '<span class="se-grip off" aria-hidden="true"></span>'
@@ -1859,8 +1864,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The editor's taps: close, rename, Add a screen's pick, remove, an Add chip (addTap), a
-     * row's dropdown (its picker), turn the radar on, delete the screen. A tap a drag ends in is
-     * no tap.
+     * row's dropdown (its picker), a bar's Edit (its dialog), turn the radar on, delete the
+     * screen. A tap a drag ends in is no tap.
      * @param {MouseEvent} e The click.
      * @returns {void}
      */
@@ -1907,6 +1912,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (act === 'add' || act === 'newbar' || act === 'switch') { addTap(S, env, list, t); return; }
         if (act === 'radaron') { setRadarEnabled(S, true, env); renderEditor(); ctx.render(); return; }
         if (act === 'adopt') { adoptHere(S, env, list); return; }
+        // A status bar's Edit: the bar's dialog over the editor, which repaints as it closes.
+        if (act === 'editbar') {
+            var bar = M.barOfBlock(list[j]);
+            if (bar) { openBar(bar, false, M.nameOf(S, ED.i), renderEditor); }
+            return;
+        }
         // A row's Rows or Size: its picker opens over the editor (the page's select sheet, a
         // top-layer dialog), its pick lands through screenRowSizePicked.
         if (act === 'size') {

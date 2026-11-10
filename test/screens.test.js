@@ -58,6 +58,16 @@ function compiled(screens) {
   return vc.screensCycle(compileAll(screens));
 }
 
+test('barOfBlock: the bar a row shows, the Watch bar\'s too; none for any other row', () => {
+  assert.equal(M.barOfBlock({ k: 'strip' }), 'top');
+  assert.equal(M.barOfBlock({ k: 'fcbar' }), 'forecast');
+  assert.equal(M.barOfBlock({ k: 'radarbar' }), 'radar');
+  assert.equal(M.barOfBlock({ k: 'healthbar' }), 'health');
+  assert.equal(M.barOfBlock({ k: 'bar4' }), 'bar4');
+  ['cal', 'clock', 'fc', 'radar', 'health'].forEach((k) => assert.equal(M.barOfBlock({ k }), null, k));
+  assert.equal(M.barOfBlock(null), null);
+});
+
 test('the default screens compile to exactly today\'s default cycle, picture for picture', () => {
   const today = vc.buildViewCycle('compactCal', 'all', 'graph', true);
   const mine = compiled([DEFAULT, HEALTH, RADAR]);
