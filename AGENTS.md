@@ -350,29 +350,29 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   `"What's new in <version>"` and use only the supported markdown subset (`**bold**`
   section headers, `- ` bullets, `*italic*`, `[text](https://…)` links — see
   `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
-- **Changelog style: grouped by kind, one upbeat line per item** (the owner's, 2026-11-10).
-  The news body and the appstore changelog both list the items under `New features`,
-  `Improvements` and `Fixes`: bold headings in the news body, plain lines in the appstore
-  text, and no `[New feature]`-style tags on the items. Each item is one bullet: what the
-  user gets, named the way they see it, then what it does for them in a short, lively
-  sentence. Exclamation marks and a light aside are welcome ("Perfect for long widgets!").
-  A platform limit goes in parentheses at the end (`(Pebble Time 2)`), or after the
-  heading when the whole group shares it. Fixes get one short line per watchface bug a user
-  would have noticed, then one grouped line for polish. Leave out mechanics, defaults and
-  edge cases. The news body renders flat `- ` bullets only (`news.js`), so a list of new
-  options goes inline in its item, not as sub-bullets. The shape to match (3.0.0's):
+- **Changelog style: grouped by kind, one short upbeat row per item** (the owner's,
+  2026-11-10). The news body and the appstore changelog both list the items under
+  `New features`, `Improvements` and `Fixes`: bold headings in the news body, plain lines
+  in the appstore text, and no `[New feature]`-style tags on the items. Each item is one
+  short row, about eight words: what the user gets, named the way they see it, ending in an
+  exclamation mark where it fits. No second sentence, no aside, no how-to. A platform limit
+  goes in parentheses at the end (`(Pebble Time 2)`), or after the heading when the whole
+  group shares it. Fixes get one row per watchface bug a user would have noticed, then one
+  grouped row for polish. Leave out mechanics, defaults and edge cases. The news body
+  renders flat `- ` bullets only (`news.js`), so no sub-bullets. The shape to match
+  (3.0.0's):
 
   ```
   **New features** (not on Pebble Classic or Steel)
-  - Name your screens and drag them into the order you like!
-  - Up to six status bars! Room for every reading you care about. (Pebble Time 2)
+  - Name your screens and drag them into order!
+  - Up to six status bars! (Pebble Time 2)
 
   **Improvements**
-  - Switch graph swaps a screen's graph in one tap! (Pebble Time 2)
+  - Setup draws your own watch, live!
 
   **Fixes**
-  - The settings open again right after Reset watchface.
-  - Lots of smaller fixes and polish.
+  - Settings open again right after Reset watchface
+  - Smaller fixes and polish
   ```
 - **Write the changelog for users, not the diff** (both the toast and the news body). Call
   out individually only what a user can act on: a feature they can use, or a bug that
