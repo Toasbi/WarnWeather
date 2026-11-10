@@ -643,10 +643,12 @@ test('the screen editor: with several graphs a chip per graph adds the forecast 
   p.tapAction('openScreen', 1);
   const body = () => p.editor().querySelector('[data-se-body]').innerHTML;
   const fc = () => M.idxOf(M.screensOf(p.S, EMERY)[1], 'fc');
-  // The row: its graph's name and its size's dropdown, nothing else (the Graphs tab edits a graph).
+  // The row: its graph's name, its size's dropdown and its Edit, which opens the graph's dialog
+  // (the owner's ask, 2026-11-10).
   assert.deepEqual(editorRows(body()), ['Watch bar', 'Clock', 'Long · Fill']);
   assert.ok(editorRow(body(), fc()).indexOf('<div class="se-mid"><span class="se-name">Long</span><span class="se-ctl">'
     + ui.dropdown('Fill', { 'data-se': 'size', 'data-j': fc(), 'aria-haspopup': 'dialog', 'aria-label': 'Size: Fill' })
+    + ui.editButton('Edit', { 'data-se': 'editgraph', 'data-j': fc(), 'aria-haspopup': 'dialog', 'aria-label': 'Edit Long' })
     + '</span></div>') !== -1, editorRow(body(), fc()));
   ['data-se="style"', 'editstyle', 'se-graph'].forEach((gone) => assert.equal(body().indexOf(gone), -1, gone));
   // ✕ it: a chip per graph by its name, in the forecast graph's place.

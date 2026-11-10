@@ -762,7 +762,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Make template graph k one of yours (its screen's Edit graph, the owner's, 2026-11-10: a
+     * Make template graph k one of yours (its screen row's Edit, the owner's, 2026-11-10: a
      * template's graph counts toward the six once it is edited): its values in the first free
      * slot, named after its template ("Outdoor") unless another graph has that name (then as a
      * new graph is: newName), the screens that drew it drawing that one, the template graph
@@ -1243,7 +1243,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Open graph k's dialog: it is picked (the dialog's render swaps it in), then the dialog
      * opens over the pane, its title a name field when asked (a new graph), its kicker the card's
      * title; closed, it hands the focus back to the graph's row. Over the screen editor (its
-     * template row's Edit graph) it says the screen's name instead, and the editor repaints
+     * graph row's Edit) it says the screen's name instead, and the editor repaints
      * once it closes.
      * @param {Object} S Settings.
      * @param {number} k A style index.

@@ -998,20 +998,22 @@ test('Outdoor at the length picked; the graph picked stays for the next layout; 
   assert.equal(page.editor(), null, 'Escape on the cards closes it');
 });
 
-test('a template screen in its editor: its graph by its template\'s name; Edit graph makes it yours and opens it', () => {
+test('a template screen in its editor: its graph by its template\'s name; its Edit makes it yours and opens it', () => {
   const page = bootGeneratedPage({ provider: 'dwd' }, 'emery');
   page.tapAction('addScreen');
   page.tapEditor({ se: 'pick', id: 'forecast', cal: '' });
   page.tapEditor({ se: 'agraph', v: 'outdoor' });
   page.tapEditor({ se: 'addnow' });
   const body = () => page.editor().querySelector('[data-se-body]').innerHTML;
-  const note = '<div class="se-sub se-off"><span>' + SP.TEMPLATE_NOTE + '</span><button type="button" class="se-link"'
-    + ' data-se="adopt">Edit graph</button></div>';
+  const note = '<div class="se-sub se-off"><span>' + SP.TEMPLATE_NOTE + '</span></div>';
   assert.ok(body().indexOf('<span class="se-name">Outdoor</span>') !== -1, 'its graph by its template\'s name');
-  assert.ok(body().indexOf(note) !== -1, 'what that means, and Edit graph');
+  assert.ok(body().indexOf(note) !== -1, 'what that means');
+  assert.match(body(), /<button type="button" class="thr-btn" data-se="adopt" data-j="\d+" aria-haspopup="dialog" aria-label="Edit Outdoor">/,
+    'the row\'s Edit makes it yours');
+  assert.equal(body().indexOf('data-se="editgraph"'), -1, 'not yet one of yours');
   assert.equal(SP.TEMPLATE_NOTE, 'Not one of your graphs until you edit it.');
   assert.match(body(), /data-se="switch" data-k="fc" data-g="0"/, 'Switch graph offers your graph, though you have one');
-  // Edit graph: one of yours, named after its template, its dialog over the editor.
+  // Its Edit: one of yours, named after its template, its dialog over the editor.
   page.tapEditor({ se: 'adopt' });
   assert.equal(GS.count(page.S), 2);
   assert.equal(GS.name(page.S, 1), 'Outdoor');

@@ -77,7 +77,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Why a move snaps back: the top screen always shows the clock (the watch keeps it).
     var NO_ROOM_FOR_CLOCK = ' has no room for the clock, which the top screen always shows.';
     // A template's graph on a screen (graph-styles.js TEMPLATE GRAPHS): what its row says, and
-    // why Edit graph cannot make it one of yours.
+    // why its Edit cannot make it one of yours.
     var TEMPLATE_NOTE = 'Not one of your graphs until you edit it.';
     var NO_GRAPH_ROOM = 'You have ' + GS.MAX_STYLES + ' graphs already. Delete one on the Graphs tab to edit this one.';
     // How to reorder, under the Screens card's screens and the screen editor's rows; "Drag ≡" kept
@@ -1296,9 +1296,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * One row of the list (the owner's picks, 2026-11-09): its ≡, its name, the calendar's rows
      * or a graph's size as a dropdown that opens its picker, a status bar's Edit (the Watch
      * bar's too), which opens the bar's dialog over the editor (the owner's pick, 2026-11-10),
-     * and its ✕. Which bar or graph a row is was picked by its Add chip; the Graphs tab edits a
-     * graph. The ≡ drags the row, and the arrow keys move it while it has the focus. The Watch
-     * bar's row does not move; the Default screen's Clock has no ✕.
+     * the forecast graph's Edit after its size, which opens the graph's dialog over the editor
+     * (the owner's ask, 2026-11-10; a template's graph is made yours first: adoptHere), and its
+     * ✕. Which bar or graph a row is was picked by its Add chip. The ≡ drags the row, and the
+     * arrow keys move it while it has the focus. The Watch bar's row does not move; the Default
+     * screen's Clock has no ✕.
      * @param {Array<Object>} list The screen.
      * @param {number} j The row.
      * @param {Object} S Settings.
@@ -1316,6 +1318,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             ctl = kit.editButton('Edit', { 'data-se': 'editbar', 'data-j': j, 'aria-haspopup': 'dialog',
                 'aria-label': 'Edit ' + name });
         }
+        var template = b.k === 'fc' && templateOf(S, env, list) >= 0;
+        if (b.k === 'fc') {
+            ctl += kit.editButton('Edit', { 'data-se': template ? 'adopt' : 'editgraph', 'data-j': j,
+                'aria-haspopup': 'dialog', 'aria-label': 'Edit ' + name });
+        }
         var h = '<div class="se-row" role="listitem" data-j="' + j + '">';
         h += fixed ? '<span class="se-grip off" aria-hidden="true"></span>'
             : '<button type="button" class="se-grip" data-grip="' + j + '" title="Drag to move" aria-label="Move ' + esc(name)
@@ -1329,10 +1336,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             h += '<div class="se-sub se-off"><span>' + RADAR_OFF + '</span>'
                 + '<button type="button" class="se-link" data-se="radaron">Turn on</button></div>';
         }
-        // A template's graph (Add a screen's): what that means, and Edit graph to make it yours.
-        if (b.k === 'fc' && templateOf(S, env, list) >= 0) {
-            h += '<div class="se-sub se-off"><span>' + esc(TEMPLATE_NOTE) + '</span>'
-                + '<button type="button" class="se-link" data-se="adopt">Edit graph</button></div>';
+        // A template's graph (Add a screen's): what that means; its Edit makes it yours.
+        if (template) {
+            h += '<div class="se-sub se-off"><span>' + esc(TEMPLATE_NOTE) + '</span></div>';
         }
         return h + '</div>';
     }
@@ -2122,7 +2128,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Edit graph on a template's row (the owner's, 2026-11-10: a template's graph joins your
+     * Edit on a template's graph row (the owner's, 2026-11-10: a template's graph joins your
      * graphs once you edit it): the graph made one of yours (graph-styles-page.js
      * adoptTemplate), then its dialog opened over the editor; with six graphs already the toast
      * says to delete one first.
@@ -2227,6 +2233,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (act === 'add' || act === 'newbar' || act === 'switch') { addTap(S, env, list, t); return; }
         if (act === 'radaron') { setRadarEnabled(S, true, env); renderEditor(); ctx.render(); return; }
         if (act === 'adopt') { adoptHere(S, env, list); return; }
+        // The forecast graph's Edit: the graph's dialog over the editor, which repaints as it closes.
+        if (act === 'editgraph') {
+            if (!list[j] || list[j].k !== 'fc') { return; }
+            GSP.openGraph(S, env && env.graphStyles ? blockStyle(list[j], S) : 0, false,
+                { kicker: M.nameOf(S, ED.i), onClose: renderEditor });
+            return;
+        }
         // A status bar's Edit: the bar's dialog over the editor, which repaints as it closes.
         if (act === 'editbar') {
             var bar = M.barOfBlock(list[j]);
