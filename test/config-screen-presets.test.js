@@ -580,6 +580,25 @@ function segments(body, act) {
 }
 
 /**
+ * Add a screen's picked screen, the layer over its cards (screens-page.js renderAdd): '' while
+ * no card is picked.
+ * @param {Object} ed The overlay.
+ * @returns {string}
+ */
+function picked(ed) {
+  return ed.querySelector('[data-sa-pick]').innerHTML;
+}
+
+/**
+ * Whether Add a screen shows its cards: they stay drawn under a picked screen, hidden.
+ * @param {Object} ed The overlay.
+ * @returns {boolean}
+ */
+function cardsShown(ed) {
+  return ed.querySelector('[data-sa-cards]').style.display !== 'none';
+}
+
+/**
  * The picked screen's What it shows: its legend's rows by name (the owner's, 2026-11-10: the
  * names only, as bullets), each graph's caption before its rows as "# caption", then what the
  * weather service leaves out as "! note".
@@ -593,7 +612,8 @@ function shows(body) {
     .map((x) => (x[1] !== undefined ? '# ' + x[1] : x[3] !== undefined ? '! ' + x[3] : x[2]));
 }
 
-test('+ Add screen opens Add a screen: a row of cards a heading, scrolled sideways; four a preset, one per calendar, each with its legend', () => {
+test('+ Add screen opens Add a screen: a row of cards a heading, scrolled sideways; four a preset, one per calendar, each with its legend', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const page = bootGeneratedPage({ provider: 'dwd' }, 'emery');
   page.tapAction('addScreen');
   const ed = page.editor(), head = ed.querySelector('[data-se-head]'), bodyEl = ed.querySelector('[data-se-body]');
@@ -621,7 +641,22 @@ test('+ Add screen opens Add a screen: a row of cards a heading, scrolled sidewa
   'two graphs: one card, no calendar; the upper graph in one row');
   assert.equal(body.replace(/<span class="sr-only">[^<]*<\/span>/g, '').indexOf('calendar'), -1,
     'no calendar line: the picture shows it');
-  assert.equal((body.match(/<span class="sa-pic" aria-hidden="true"><svg/g) || []).length, 66, 'a picture each');
+  // The first two cards of a row draw their pictures as it opens; the others hold the screen's
+  // frame and draw theirs a few at a time after it, a column of every row first (the owner's
+  // ask, 2026-11-10: it opened slowly).
+  const pics = [...body.matchAll(/<span class="sa-pic" aria-hidden="true"(?: data-sa-pic="([^"]+)")?>(<svg[\s\S]*?<\/svg>)<\/span>/g)];
+  assert.equal(pics.length, 66, 'a picture or its place each');
+  const later = pics.filter((m) => m[1]).map((m) => m[1]);
+  assert.equal(later.length, 66 - 5 * 2, 'two a row at once');
+  assert.ok(pics.every((m) => (m[1] ? m[2].length < 400 : m[2].length > 5000)), 'drawn, or the frame alone');
+  const drawnLater = (key) => ed.querySelector('[data-sa-pic="' + key + '"]').innerHTML.length > 5000;
+  assert.ok(!later.some(drawnLater), 'not yet');
+  t.mock.timers.tick(16);
+  assert.deepEqual(later.filter(drawnLater), ['classic-3', 'rain-3', 'outdoor-3'], 'the third card of each row first');
+  let steps = 1;
+  for (; steps < 40 && !later.every(drawnLater); steps++) { t.mock.timers.tick(16); }
+  assert.ok(later.every(drawnLater), 'then every one');
+  assert.equal(steps, Math.ceil(later.length / 3), 'three a step, a frame apart');
   // A row a heading, scrolled sideways: the templates' screens by theme, then the others; the
   // Forecast row (a watch with one graph's) has nothing here and is left out.
   assert.deepEqual([...body.matchAll(/<span class="ui-cap" id="saGrp-([a-z]+)">([^<]*)<\/span><div class="sa-strip" data-sa-strip="([a-z]+)">/g)]
@@ -642,7 +677,8 @@ test('+ Add screen opens Add a screen: a row of cards a heading, scrolled sidewa
     '‹ goes back to the cards');
   assert.ok(head.innerHTML.indexOf('<span class="dlg-kick">Add a screen</span>') !== -1);
   assert.ok(head.innerHTML.indexOf('id="seTitle">Clean</span>') !== -1, 'titled by its name');
-  body = bodyEl.innerHTML;
+  assert.equal(cardsShown(ed), false, 'the cards hidden under it');
+  body = picked(ed);
   assert.match(body, /<div class="sa-big" role="img" aria-label="Clean: [^"]*Calendar \(3 rows\)[^"]*"><svg/,
     'its picture says its calendar');
   assert.equal(body.indexOf('sa-cal'), -1, 'no calendar line under it');
@@ -652,7 +688,7 @@ test('+ Add screen opens Add a screen: a row of cards a heading, scrolled sidewa
   assert.ok(body.indexOf('<button type="button" class="sa-add" data-se="addnow">Add screen</button>') !== -1);
   // The length picked redraws it.
   page.tapEditor({ se: 'aspan', v: '24' });
-  body = bodyEl.innerHTML;
+  body = picked(ed);
   assert.deepEqual(segments(body, 'aspan').map((x) => x[2]), [false, true, false]);
   // Add screen: the screen goes in after the others, its editor next.
   page.tapEditor({ se: 'addnow' });
@@ -671,12 +707,11 @@ test('+ Add screen opens Add a screen: a row of cards a heading, scrolled sidewa
 test('Outdoor\'s picked screen says what it shows at the length picked; ‹ and Escape go back to the cards', () => {
   const page = bootGeneratedPage({ provider: 'dwd' }, 'emery');
   page.tapAction('addScreen');
-  const ed = page.editor(), bodyEl = ed.querySelector('[data-se-body]');
+  const ed = page.editor();
   page.tapEditor({ se: 'pick', id: 'outdoor', cal: '' });
-  assert.deepEqual(shows(bodyEl.innerHTML), ['Temperature', 'Rain chance', 'UV index', 'Rain'],
-    'the long span: no feels-like line');
+  assert.deepEqual(shows(picked(ed)), ['Temperature', 'Rain chance', 'UV index', 'Rain'], 'the long span: no feels-like line');
   page.tapEditor({ se: 'aspan', v: '12' });
-  assert.deepEqual(shows(bodyEl.innerHTML).slice(2, 4), ['UV index', 'Feels like']);
+  assert.deepEqual(shows(picked(ed)).slice(2, 4), ['UV index', 'Feels like']);
   page.tapEditor({ se: 'addnow' });
   assert.deepEqual(M.screensOf(page.S, EMERY)[1].map((x) => x.k), ['strip', 'clock', 'fcbar', 'fc'], 'no calendar');
   assert.equal(GS.settingsFor(GSP.normalize(page.S), GS.MAX_STYLES).fourthLine, 'feels',
@@ -684,16 +719,21 @@ test('Outdoor\'s picked screen says what it shows at the length picked; ‹ and 
   // Health: its calendar from its card, no length; ‹ and Escape go back to the cards.
   page.tapEditor({ se: 'close' });
   page.tapAction('addScreen');
-  const bodyAgain = page.editor().querySelector('[data-se-body]');
+  const again = page.editor(), bodyAgain = again.querySelector('[data-se-body]');
+  // The cards stay as drawn under a picked screen: ‹ shows them, not drawn anew.
+  let writes = 0, cards = bodyAgain.innerHTML;
+  Object.defineProperty(bodyAgain, 'innerHTML', { get: () => cards, set: (v) => { cards = v; writes += 1; } });
   page.tapEditor({ se: 'pick', id: 'health', cal: '2' });
-  assert.deepEqual(segments(bodyAgain.innerHTML, 'aspan'), [], 'no length');
-  assert.deepEqual(shows(bodyAgain.innerHTML), ['# Health graph, last 24 hours', 'Steps', 'Heart rate', 'Sleep']);
+  assert.deepEqual(segments(picked(again), 'aspan'), [], 'no length');
+  assert.deepEqual(shows(picked(again)), ['# Health graph, last 24 hours', 'Steps', 'Heart rate', 'Sleep']);
   page.tapEditor({ se: 'addback' });
-  assert.equal(sheetCards(bodyAgain.innerHTML).length, 66, 'the cards again');
+  assert.deepEqual([cardsShown(again), picked(again)], [true, ''], 'the cards again');
   page.tapEditor({ se: 'pick', id: 'radar', cal: '3' });
   page.docDispatch('keydown', { key: 'Escape', target: {}, preventDefault() {} });
   assert.ok(page.editor(), 'still open');
-  assert.equal(sheetCards(bodyAgain.innerHTML).length, 66, 'Escape: the cards again');
+  assert.deepEqual([cardsShown(again), picked(again)], [true, ''], 'Escape: the cards again');
+  assert.equal(writes, 0, 'never drawn anew');
+  assert.equal(sheetCards(cards).length, 66);
   page.docDispatch('keydown', { key: 'Escape', target: {}, preventDefault() {} });
   assert.equal(page.editor(), null, 'Escape on the cards closes it');
 });
@@ -742,12 +782,11 @@ test('the picked screen says what the weather service leaves out of its graph, u
   const page = bootGeneratedPage({ provider: 'yandex' }, 'emery');
   page.tapAction('addScreen');
   page.tapEditor({ se: 'pick', id: 'meteogram', cal: '' });
-  const rows = shows(page.editor().querySelector('[data-se-body]').innerHTML);
+  const rows = shows(picked(page.editor()));
   assert.deepEqual(rows.slice(-2), ['Rain', '! Yandex sends no clouds or air pressure.']);
   page.tapEditor({ se: 'addback' });
   page.tapEditor({ se: 'pick', id: 'wind', cal: '' });
-  assert.ok(shows(page.editor().querySelector('[data-se-body]').innerHTML).every((r) => r.charAt(0) !== '!'),
-    'Yandex sends the wind and gusts');
+  assert.ok(shows(picked(page.editor())).every((r) => r.charAt(0) !== '!'), 'Yandex sends the wind and gusts');
 });
 
 test('a screen that cannot be added: its reason, Add screen off; a basalt says its graph stays', () => {
@@ -755,10 +794,10 @@ test('a screen that cannot be added: its reason, Add screen off; a basalt says i
     fourthLine: 'uv', fifthLine: 'gust' };
   const page = bootGeneratedPage(busy, 'emery');
   page.tapAction('addScreen');
-  const bodyEl = page.editor().querySelector('[data-se-body]');
   page.tapEditor({ se: 'pick', id: 'stripes', cal: '2' });
-  assert.match(bodyEl.innerHTML, /<div class="sa-why" role="status">Also needs [^<]*The watch can show 5\.<\/div>/);
-  assert.ok(bodyEl.innerHTML.indexOf('<button type="button" class="sa-add" data-se="addnow" disabled>Add screen</button>') !== -1);
+  const why = picked(page.editor());
+  assert.match(why, /<div class="sa-why" role="status">Also needs [^<]*The watch can show 5\.<\/div>/);
+  assert.ok(why.indexOf('<button type="button" class="sa-add" data-se="addnow" disabled>Add screen</button>') !== -1);
   page.tapEditor({ se: 'addnow', disabled: true });
   assert.equal(page.S.viewCount, '1', 'nothing added');
   const basalt = bootGeneratedPage({ provider: 'dwd' });
@@ -769,8 +808,7 @@ test('a screen that cannot be added: its reason, Add screen off; a basalt says i
     ['Forecast', 'Health and radar'], 'its rows: the template rows have nothing it can draw');
   assert.ok(body.indexOf('A screen brings its rows. Your graph and your status bars stay as they are.') !== -1);
   basalt.tapEditor({ se: 'pick', id: 'forecast', cal: '2' });
-  assert.deepEqual(shows(basalt.editor().querySelector('[data-se-body]').innerHTML), ['# Your forecast graph',
-    'Temperature', 'Rain chance', 'Rain']);
+  assert.deepEqual(shows(picked(basalt.editor())), ['# Your forecast graph', 'Temperature', 'Rain chance', 'Rain']);
 });
 
 test('Add a screen draws its cards once while it is open, anew each time it opens: they follow your graph', () => {
@@ -781,8 +819,10 @@ test('Add a screen draws its cards once while it is open, anew each time it open
   page.tapEditor({ se: 'pick', id: 'forecast', cal: '3' });
   page.tapEditor({ se: 'addback' });
   assert.equal(sheetCards(body()).length, 14, 'back on the cards');
+  const drawn = page.scroll.writes;
   page.tapEditor({ se: 'close' });
   assert.equal(page.editor(), null);
+  assert.equal(page.scroll.writes, drawn, 'closed without adding a screen: the page stays as drawn');
   page.S.secondaryLine = 'wind';
   page.tapAction('addScreen');
   assert.equal(sheetCards(body())[0][4], 'Temperature, Wind, Rain', 'your graph as it is now');
@@ -791,9 +831,9 @@ test('Add a screen draws its cards once while it is open, anew each time it open
 test('a screen of two graphs: no calendar, the health graph or the radar over your forecast', () => {
   const page = bootGeneratedPage({ provider: 'dwd', radarEnabled: false });
   page.tapAction('addScreen');
-  const ed = page.editor(), bodyEl = ed.querySelector('[data-se-body]');
+  const ed = page.editor();
   page.tapEditor({ se: 'pick', id: 'radarfc', cal: '' });
-  const body = bodyEl.innerHTML;
+  const body = picked(ed);
   assert.ok(ed.querySelector('[data-se-head]').innerHTML.indexOf('id="seTitle">Radar + forecast</span>') !== -1);
   assert.deepEqual(segments(body, 'aspan'), [], 'your graph, at its length');
   assert.deepEqual(shows(body), ['# Rain radar, next 2 hours', 'Rain', 'Clouds', 'Sun', 'Lightning', '# Your forecast graph',

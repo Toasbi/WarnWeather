@@ -685,6 +685,20 @@
         return { svg: framedSvg(sc.w, sc.h, ink.bg, e), label: describe(spec, lay, S), bg: ink.bg };
     }
 
+    /**
+     * A screen's frame on its ground with nothing drawn on it, the size screenSvg draws one at:
+     * the place Add a screen keeps for a picture it draws a moment later (screens-page.js
+     * fillPictures).
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {number} f Screen family.
+     * @returns {{svg: string, label: string, bg: string}}
+     */
+    function blankScreen(S, env, f) {
+        var sc = SCREEN[f], ink = svgLib.previewInk(themeOf(S, env));
+        return { svg: framedSvg(sc.w, sc.h, ink.bg, ''), label: '', bg: ink.bg };
+    }
+
     // One card per view, on the page (the tab pins the block bare, schema pinBare): the card is
     // its screen on the screen's own background, black or white throughout, so no grey shows
     // round it; the screen keeps a margin of that ground (framedSvg), so the card's round
@@ -793,7 +807,8 @@
 
     if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }
     if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('timeFontPicture', fontPicture); }
-    var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg, graphKinds: graphKinds,
+    var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg, blankScreen: blankScreen,
+        graphKinds: graphKinds,
                 fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PreviewWatch = api; }

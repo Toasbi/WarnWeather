@@ -1059,10 +1059,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // the row whose Rows or Size picker is open, the snap-back message, the drag in progress,
     // the name's input while the title is being renamed, Add a screen's pick while it shows one
     // (its kind, calendar and length: addPick), where its cards were scrolled to then
-    // (cardsPlace) and its cards' markup, drawn once while it is open (addBody: nothing under
-    // the overlay changes the settings they are drawn from).
+    // (cardsPlace), whether its cards are drawn (renderAdd: once while it is open, as nothing
+    // under the overlay changes the settings they are drawn from) and the overlay's opening,
+    // counted (a picture drawn after it opened is drawn for that one only: fillPictures).
     var ED = { overlay: null, mode: 'edit', i: 0, sizeRow: -1, toast: { v: null, t: null }, drag: null, nameEl: null,
-        pick: null, cardsAt: null, cards: null };
+        pick: null, cardsAt: null, drawn: false, opened: 0 };
+    // Add a screen's pictures (the owner's ask, 2026-11-10: it opened slowly with a card per
+    // preset and calendar): the first EAGER cards of each row draw theirs as it opens, the rest
+    // FILL_STEP at a time after it, FILL_GAP ms (a frame) apart, a column of every row at a time
+    // (fillPictures).
+    var EAGER = 2, FILL_STEP = 3, FILL_GAP = 16;
 
     /**
      * A size as its dropdown and its picker read it: "2 rows", "Fill".
@@ -1412,36 +1418,50 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Add a screen's body: a row of cards per group (screen-presets.js GROUPS), its heading over
-     * them, scrolled sideways (the owner's, 2026-11-10); each card (addChoices) the picture of the
-     * screen it adds beside its name and the legend of what it shows (screen-legend.js). Under
-     * them what a screen brings. With a card picked, the picked screen (addPickBody).
+     * Add a screen's body, in two layers: its cards (addCards), drawn once while it is open, and
+     * over them the picked screen (addPickBody) while one is picked, the cards hidden under it,
+     * so ‹ shows them again as they were (the owner's ask, 2026-11-10: it had grown slow).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
-     * @returns {string} HTML
+     * @returns {void}
      */
-    function addBody(S, env, userData) {
-        if (ED.pick) { return addPickBody(S, env, userData); }
-        if (ED.cards === null) { ED.cards = addCards(S, env, userData); }
-        return ED.cards;
+    function renderAdd(S, env, userData) {
+        if (!ED.drawn) {
+            var later = [];
+            ED.overlay.querySelector('[data-se-body]').innerHTML = '<div data-sa-cards>' + addCards(S, env, userData, later)
+                + '</div><div data-sa-pick></div>';
+            ED.drawn = true;
+            fillPictures(later, env, userData);
+        }
+        ED.overlay.querySelector('[data-sa-pick]').innerHTML = ED.pick ? addPickBody(S, env, userData) : '';
+        ED.overlay.querySelector('[data-sa-cards]').style.display = ED.pick ? 'none' : '';
     }
 
     /**
-     * Add a screen's cards under their headings, and what a screen brings under them (addBody).
+     * Add a screen's cards: a row of cards per group (screen-presets.js GROUPS), its heading over
+     * them, scrolled sideways (the owner's, 2026-11-10); each card (addChoices) the picture of the
+     * screen it adds beside its name and the legend of what it shows (screen-legend.js). The
+     * first EAGER cards of a row hold their pictures; the others hold a place for theirs, which
+     * fillPictures draws (`later`, a column of every row after another). Under the rows, what a
+     * screen brings.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
+     * @param {Array<Object>} later Takes the pictures left to draw, in the order to draw them.
      * @returns {string} HTML
      */
-    function addCards(S, env, userData) {
-        var choices = addChoices(S, env);
+    function addCards(S, env, userData, later) {
+        var choices = addChoices(S, env), columns = [];
         var groups = PRESETS.GROUPS.map(function (grp) {
-            var cards = choices.filter(function (c) { return PRESETS.byId(c.id).group === grp.id; }).map(function (c) {
-                var key = c.id + '-' + (c.cal || '0'), shown = addShown(c, env, userData, 'sa-' + key + '-');
+            var mine = choices.filter(function (c) { return PRESETS.byId(c.id).group === grp.id; });
+            var cards = mine.map(function (c, at) {
+                var key = c.id + '-' + (c.cal || '0'), shown = addShown(c, env, userData, 'sa-' + key + '-', at < EAGER);
+                if (at >= EAGER) { (columns[at] = columns[at] || []).push({ key: key, c: c, cycle: shown.cycle }); }
                 // Its calendar is in its picture, and said to a screen reader after its name.
                 return '<button type="button" class="sa-card" data-se="pick" data-id="' + c.id + '" data-cal="' + c.cal + '">'
-                    + '<span class="sa-pic" aria-hidden="true">' + shown.pic.svg + '</span><span class="sa-txt">'
+                    + '<span class="sa-pic" aria-hidden="true"' + (at < EAGER ? '' : ' data-sa-pic="' + key + '"') + '>'
+                    + shown.pic.svg + '</span><span class="sa-txt">'
                     + '<span class="sa-n">' + esc(c.name) + (c.calName ? '<span class="sr-only">, ' + esc(c.calName.toLowerCase())
                     + '</span>' : '') + '</span>' + LEGEND.cardHtml(shown.legend, shown.pic.bg) + '</span></button>';
             }).join('');
@@ -1449,22 +1469,51 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 + ' id="saGrp-' + grp.id + '">' + esc(grp.name) + '</span><div class="sa-strip" data-sa-strip="' + grp.id
                 + '">' + cards + '</div></div>' : '';
         }).join('');
+        columns.forEach(function (col) { Array.prototype.push.apply(later, col); });
         return groups + '<div class="sa-fine">' + esc(env && env.graphStyles ? ADD_FINE : ADD_FINE_ONE_GRAPH) + '</div>';
+    }
+
+    /**
+     * Draw Add a screen's pictures left to draw (addCards' `later`), FILL_STEP at a time, each
+     * step a frame after the last, so the cards show and take taps at once. A step for an
+     * overlay closed or opened anew since, or gone on to a screen it added, does nothing.
+     * @param {Array<{key: string, c: Object, cycle: Array}>} later The pictures, in order.
+     * @param {?Object} env Platform env.
+     * @param {Object} [userData] Page userData (the palette).
+     * @returns {void}
+     */
+    function fillPictures(later, env, userData) {
+        var opened = ED.opened;
+        /** One step: the next pictures into their places, then the next step. */
+        function step() {
+            if (!ED.overlay || ED.opened !== opened || !ED.drawn) { return; }
+            later.splice(0, FILL_STEP).forEach(function (x) {
+                var at = ED.overlay.querySelector('[data-sa-pic="' + x.key + '"]');
+                if (!at) { return; }
+                at.innerHTML = screenPicture(x.c.W, x.c.n, env, userData, 'sa-' + x.key + '-', x.cycle).svg;
+            });
+            if (later.length) { setTimeout(step, FILL_GAP); }
+        }
+        if (later.length) { setTimeout(step, FILL_GAP); }
     }
 
     /**
      * A screen Add a screen can add as it shows it: its picture (screenPicture) and the legend of
      * what its graphs draw (screen-legend.js groups), read off the one cycle of its settings.
+     * Without its picture (a card that draws it later: fillPictures), the screen's frame on its
+     * ground, for its place (preview-watch.js blankScreen).
      * @param {Object} c An addChoice result.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
      * @param {string} prefix What its graphs' ids start with, unique on the page.
-     * @returns {{pic: {svg: string, label: string, bg: string}, legend: Array<Object>}}
+     * @param {boolean} [draw] Draw the picture (the default); false: its frame only.
+     * @returns {{pic: {svg: string, label: string, bg: string}, legend: Array<Object>, cycle: Array}}
      */
-    function addShown(c, env, userData, prefix) {
+    function addShown(c, env, userData, prefix, draw) {
         var cycle = VC.screensCycle(c.W, env);
-        return { pic: screenPicture(c.W, c.n, env, userData, prefix, cycle),
-            legend: LEGEND.groups(drawnView(cycle[c.n] || null, c.W), c.W, env, userData) };
+        var pic = draw === false ? PW.blankScreen(c.W, env, env && env.platform === 'emery' ? 1 : 0)
+            : screenPicture(c.W, c.n, env, userData, prefix, cycle);
+        return { pic: pic, legend: LEGEND.groups(drawnView(cycle[c.n] || null, c.W), c.W, env, userData), cycle: cycle };
     }
 
     /**
@@ -1626,16 +1675,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Paint the overlay (the editor, or Add a screen), keeping its scroll position.
+     * Paint the overlay (the editor, keeping its scroll position, or Add a screen: renderAdd).
      * @returns {void}
      */
     function renderEditor() {
         if (!ED.overlay || !UI.ctx) { return; }
-        var ctx = UI.ctx, body = ED.overlay.querySelector('[data-se-body]'), add = ED.mode === 'add';
-        var top = body.scrollTop;
+        var ctx = UI.ctx, body = ED.overlay.querySelector('[data-se-body]');
         renderHeader(ctx.S);
-        body.innerHTML = add ? addBody(ctx.S, ctx.ENV, ctx.USERDATA) : editorBody(ctx.S, ctx.ENV, ctx.USERDATA);
-        body.scrollTop = top;
+        if (ED.mode === 'add') {
+            renderAdd(ctx.S, ctx.ENV, ctx.USERDATA);
+        } else {
+            var top = body.scrollTop;
+            ED.drawn = false;
+            body.innerHTML = editorBody(ctx.S, ctx.ENV, ctx.USERDATA);
+            body.scrollTop = top;
+        }
         // Why a move went back: the page's toast (shell.html .toast), for three seconds.
         var t = ED.overlay.querySelector('[data-se-toast]');
         t.textContent = ED.toast.v || '';
@@ -1674,11 +1728,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function closeEditor() {
         if (!ED.overlay) { return; }
         if (ED.overlay.parentNode) { ED.overlay.parentNode.removeChild(ED.overlay); }
+        // Add a screen closed without adding one changed nothing: the page stays as drawn.
+        var changed = ED.mode !== 'add';
         ED.overlay = null;
+        ED.drawn = false;
         ED.drag = null;
         ED.nameEl = null;
         document.removeEventListener('keydown', onKeydown);
-        if (UI.ctx) { UI.ctx.render(); }
+        if (UI.ctx && changed) { UI.ctx.render(); }
     }
 
     /**
@@ -2002,7 +2059,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ED.nameEl = null;
         ED.pick = null;
         ED.cardsAt = null;
-        ED.cards = null;
+        ED.drawn = false;
+        ED.opened += 1;
         var overlay = document.createElement('div');
         overlay.id = 'screenEditor';
         overlay.setAttribute('role', 'dialog');
