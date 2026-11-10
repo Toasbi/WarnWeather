@@ -229,7 +229,8 @@ function makeNode(tag) {
  *   the page behaves like a webview with no <dialog>, and Save saves at once).
  * @returns {{S: Object, scroll: Object, modal: Object, tabs: Object, window: Object,
  *   clickTab: function, openEditSheet: function, clickModalToggle: function,
- *   clickToggle: function, tapSegment: function, typeText: function, openSelect: function, pickOption: function,
+ *   clickToggle: function, tapSegment: function, typeText: function, openSelect: function, openModalSelect: function,
+ *   pickOption: function,
  *   save: function, tapSave: function, saved: function, asked: string[]}}
  *   `window` is the sandbox's global, for a test that stubs a browser API the page
  *   reads at call time (navigator.clipboard). `asked` lists every selector the page asked the
@@ -425,6 +426,16 @@ function bootGeneratedPage(cfg, platformName, opts) {
         closest: sel => (sel === '[data-select]' ? t : null)
       };
       els.scroll.dispatch('click', { target: t });
+    },
+    // Tap a select row's trigger inside the open dialog: its options expand under it, so a
+    // pick (pickOption) then leaves the dialog open, as a tap does on the phone.
+    openModalSelect(key) {
+      assert.ok(els.modal.innerHTML.indexOf('data-select="' + key + '"') !== -1, key + ' select is in the open dialog');
+      const t = {
+        getAttribute: n => (n === 'data-select' ? key : null),
+        closest: sel => (sel === '[data-select]' ? t : null)
+      };
+      els.modal.dispatch('click', { target: t });
     },
     // Pick an option in a select sheet — the engine's #modal pick handler (sets the value,
     // runs the item's onChange, closes the sheet).

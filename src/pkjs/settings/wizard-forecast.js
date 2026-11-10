@@ -33,7 +33,8 @@
 // feels-like line, the owner's, 2026-11-09).
 //
 // THE KEYS are the graph styles' (graph-styles.js GOVERNED, one list) less the length, which the
-// step's own picker sets, and the graph colours, which a look leaves as they are.
+// step's own picker sets, and the lines' Visible values and the graph colours, which a look
+// leaves as they are.
 //
 // HOW A GRAPH READS. Through the readings the watch's own modules give (reading): a line's style
 // only while the line draws, a Draw from key only while a drawn line reads it (draw-from.js
@@ -61,6 +62,8 @@
     var screenFrame = node ? require('./screen-frame.js') : window.ScreenFrame;
     // A metric as a sentence names it (forecast-metrics.js, the metrics' one table).
     var metrics = node ? require('./forecast-metrics.js') : window.ForecastMetrics;
+    // The lines' Visible values (line-alert.js), which a look leaves as they are.
+    var lineAlert = node ? require('../line-alert.js') : window.LineAlert;
     // Names as a sentence lists them, a sentence's capital (config-ui/lib/html.js, concatenated
     // ahead of every app file).
     var html = node ? require('../config-ui/lib/html.js') : window.PConf.html;
@@ -75,10 +78,11 @@
     // A line's style key -> its metric key.
     var LINE_OF_STYLE = {};
     lineStyle.FORECAST_LINES.forEach(function (line) { LINE_OF_STYLE[line.styleKey] = line.key; });
-    // The graph styles' governed keys (THE KEYS above) less the length and the colours.
-    var COLOR_KEYS = lineStyle.graphColorKeys();
+    // The graph styles' governed keys (THE KEYS above) less the length, the Visible values and the
+    // colours.
+    var LEFT_AS_THEY_ARE = lineStyle.graphColorKeys().concat(lineAlert.METRIC_IDS.map(lineAlert.settingKey));
     var KEYS = graphStyles.GOVERNED.filter(function (k) {
-        return k !== 'forecastHours' && COLOR_KEYS.indexOf(k) === -1;
+        return k !== 'forecastHours' && LEFT_AS_THEY_ARE.indexOf(k) === -1;
     });
 
     // What every look sets: the rain chance as a thin line over a shaded area, the other lines

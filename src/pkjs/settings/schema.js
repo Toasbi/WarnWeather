@@ -16,6 +16,8 @@ var STATUS_PAIR = require('../status-pair.js');
 // the renderer doesn't know, miss one it does, or carry a transcribed default hex that
 // drifts away from what the graph paints.
 var lineStyle = require('../line-style.js');
+// The lines' Visible values keys (line-alert.js): a pick there can add a metric to the screens.
+var LINE_ALERT = require('../line-alert.js');
 // Bars from [Bottom | Top]: the values, from the module whose reading the wire packs
 // (weather/graph-wire.js).
 var DRAW_FROM = require('../draw-from.js');
@@ -1118,12 +1120,18 @@ function lineColorsRow(lineKey) {
         showWhen: {all: [COLOR_THEME_WHEN, {key: lineKey, ne: 'off'}]}
     };
 }
+// The rows of a line's dialog whose pick can add a metric to the screens (graph-styles-page.js
+// THE LIMIT): a line's metric and style, and a metric's Visible values.
+var LIMITED_KEYS = GRAPH_LINES.map(function (l) { return l.key; })
+    .concat(GRAPH_LINES.map(function (l) { return l.key + 'Style'; }), LINE_ALERT.METRIC_IDS.map(LINE_ALERT.settingKey));
 /**
  * One line's dialog: its metric, style, Draw from, (the Main metric) fill, the scale and
  * Visible values rows its metric has, and its colours — the rows the old Forecast tab
  * stacked under that picker, in that order. The rows stand apart here (their
  * joinPrevious was the four lines' shared card's rhythm), and the graph preview stays
- * pinned above them.
+ * pinned above them. A pick that makes the screens show more metrics than the watch can is
+ * taken (graph-styles-page.js 'graphLimitPicked', the owner's ask, 2026-11-10), and the
+ * dialog's top then asks which line to turn off (its block 'graphLimit').
  * @param {Object} line A GRAPH_LINES entry.
  * @param {Object[]} rows The line's rows, picker first.
  * @returns {Object} Schema section (sheetOnly).
@@ -1134,9 +1142,14 @@ function lineSheet(line, rows) {
         sheetId: line.sheetId,
         title: line.label,
         pinBlock: 'forecastPreview',
-        items: rows.map(function (item) {
+        items: rows.map(function (item, i) {
             var copy = Object.assign({}, item);
             delete copy.joinPrevious;
+            if (i === 0) { copy.blockBefore = 'graphLimit'; }
+            if (LIMITED_KEYS.indexOf(copy.messageKey) !== -1) {
+                // First, so it sees the line as it was (the Main metric's fill too) for its Undo.
+                copy.onChange = ['graphLimitPicked'].concat(copy.onChange || []);
+            }
             return copy;
         }).concat([lineColorsRow(line.key)])
     };

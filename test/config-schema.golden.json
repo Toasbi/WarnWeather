@@ -12105,7 +12105,11 @@
                     "key": "secondaryLine"
                   }
                 },
-                "onChange": "forecastMetricFill"
+                "onChange": [
+                  "graphLimitPicked",
+                  "forecastMetricFill"
+                ],
+                "blockBefore": "graphLimit"
               },
               {
                 "type": "select",
@@ -12134,7 +12138,10 @@
                       "env": "lineStyles"
                     }
                   ]
-                }
+                },
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -12516,9 +12523,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -12557,9 +12564,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -12598,9 +12605,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "sheet",
@@ -12744,7 +12751,11 @@
                       "secondaryLine"
                     ]
                   }
-                }
+                },
+                "blockBefore": "graphLimit",
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "select",
@@ -12777,7 +12788,10 @@
                       "ne": "off"
                     }
                   ]
-                }
+                },
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -13116,9 +13130,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -13157,9 +13171,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -13198,9 +13212,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "sheet",
@@ -13348,7 +13362,11 @@
                 },
                 "showWhen": {
                   "env": "lineStyles"
-                }
+                },
+                "blockBefore": "graphLimit",
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "select",
@@ -13381,7 +13399,10 @@
                       "ne": "off"
                     }
                   ]
-                }
+                },
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -13720,9 +13741,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -13761,9 +13782,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -13802,9 +13823,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "sheet",
@@ -13956,7 +13977,11 @@
                 },
                 "showWhen": {
                   "env": "lineStyles"
-                }
+                },
+                "blockBefore": "graphLimit",
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "select",
@@ -13989,7 +14014,10 @@
                       "ne": "off"
                     }
                   ]
-                }
+                },
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -14328,9 +14356,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -14369,9 +14397,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "segmented",
@@ -14410,9 +14438,9 @@
                     }
                   ]
                 },
-                "hintTailFrom": {
-                  "resolver": "graphStyleShared"
-                }
+                "onChange": [
+                  "graphLimitPicked"
+                ]
               },
               {
                 "type": "sheet",

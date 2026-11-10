@@ -29,9 +29,12 @@
 // While records ride, the bake reads a copy of the settings whose four lines are the union's
 // first four rows and whose spare line (line-style.js SPARE_LINE) is its fifth, set only while
 // the union has a fifth series (graphStyleSlots names the rows, so a metric drawn as a line in
-// one style and as a stripe in another keeps both rows: forecast-series.js
-// buildForecastSeries), whose rain bars are on while any shown style draws them, and whose
-// length is the longest shown style's (hoursSent). Everything that reads the bake's settings
+// one style and as a stripe in another, or with all its values in one and Show: Alert in
+// another, keeps both rows: forecast-series.js buildForecastSeries), whose lines' Show is
+// Alert for a metric some row draws Show: Alert (the band it is scaled over: line-alert.js
+// alertBands, where wind and gusts share one while both have such a row), whose rain bars are
+// on while any shown style draws them, and whose length is the longest shown style's
+// (hoursSent). Everything that reads the bake's settings
 // reads that copy: applyForecastSeries, the fetch options and the render signature, so a
 // change to another style's metric, line or length re-fetches as one to the first style's
 // does. Without records it is the settings themselves.
@@ -40,6 +43,7 @@ var graphWire = require('./graph-wire.js');
 var forecastSpan = require('../forecast-span.js');
 var forecastAxis = require('../forecast-axis.js');
 var lineStyle = require('../line-style.js');
+var lineAlert = require('../line-alert.js');
 var configUi = require('../config-ui');
 
 // The record's tuples, by style index.
@@ -99,6 +103,12 @@ function weatherSettings(settings, watchInfo) {
     var spare = u.rows[graphStyles.TRENDS];
     if (spare) { out[lineStyle.SPARE_LINE.key] = spare.metric; }
     out.graphStyleSlots = u.rows;
+    // Show: Alert where a row draws its metric so: the band the row is scaled over (the rows
+    // name which of a metric's rows read it).
+    lineAlert.METRIC_IDS.forEach(function (metric) {
+        var alert = u.rows.some(function (row) { return Boolean(row) && row.metric === metric && row.alert; });
+        out[lineAlert.settingKey(metric)] = alert ? lineAlert.SHOW_ALERT : lineAlert.SHOW_ALL;
+    });
     out.barSource = 'off';
     var most = -1;
     u.styles.forEach(function (k) {

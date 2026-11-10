@@ -24,16 +24,19 @@
 //
 // WHAT A STYLE HOLDS (GOVERNED): everything in a graph's dialog (Graphs › Forecast) that draws
 // the graph — the four lines' metric and style, the Draw from keys, the Main metric's fill, the
-// rain bars (on/off, colour, Bars from), Day / night shading, Forecast length, Left axis values
-// and the graph colours. What shapes the data the phone bakes stays ONE setting for every style
-// (SHARED): the wind and pressure scales, the lines' Show: All | Alert, the left axis's
-// scale option (it decides TEMP_MIN / TEMP_MAX) and Larger graph fonts, a watch-wide tier.
+// rain bars (on/off, colour, Bars from), Day / night shading, Forecast length, Left axis values,
+// the lines' Show: All | Alert (the owner's, 2026-11-10: each graph its own Visible values) and
+// the graph colours. What shapes the data the phone bakes stays ONE setting for every style
+// (SHARED): the wind and pressure scales, the left axis's scale option (it decides TEMP_MIN /
+// TEMP_MAX) and Larger graph fonts, a watch-wide tier.
 //
 // THE UNION. The weather message carries five metric rows (ROWS): the trends SECOND..FIFTH,
 // one per line, and a spare row no graph's own line is (line-style.js SPARE_LINE). So the
 // shown styles draw at most five series between them, a series being a metric drawn as a line
-// or as a stripe (the phone bakes a stripe's bytes differently, so a metric drawn both ways
-// takes two rows), while each style keeps its four lines (TRENDS). assign() lays the shown
+// or as a stripe, with all its values or Show: Alert (the phone bakes a stripe's bytes and an
+// Alert line's differently, so a metric drawn two ways takes two rows: the owner's,
+// 2026-11-10, "count it as an additional metric"), while each style keeps its four lines
+// (TRENDS). assign() lays the shown
 // styles' series into the rows, style by style and line by line: a series another style draws
 // too reuses its row, any other takes its own line's row when that is free (so the first style
 // keeps its own rows), else the first free one, the spare last. Each style's map then names
@@ -86,19 +89,18 @@
 
     // The keys a style holds, named by the modules that own them: the four lines' metric and
     // style keys, the Main metric's fill, the rain bars, the Draw from keys, the shading, the
-    // length, the Left axis values and every graph colour.
+    // length, the Left axis values, the lines' Show: All | Alert and every graph colour.
     var GOVERNED = [];
     lineStyle.FORECAST_LINES.forEach(function (line) { GOVERNED.push(line.key, line.styleKey); });
     GOVERNED = GOVERNED.concat(['secondaryLineFill', 'barSource', 'rainBarColor', drawFrom.BAR_KEYS.rain],
         drawFrom.ROWS.map(function (row) { return row.key; }),
         ['dayNightShading', 'forecastHours', forecastAxis.KEYS.numbers],
+        lineAlert.METRIC_IDS.map(lineAlert.settingKey),
         lineStyle.graphColorKeys());
 
     // The keys every style shares, because the phone bakes them into the weather data (or, for
     // Larger graph fonts, because every graph on the watch reads it).
-    var SHARED = ['windScale', 'pressureScale'].concat(
-        lineAlert.METRIC_IDS.map(lineAlert.settingKey),
-        [forecastAxis.KEYS.scale, 'largeGraphFont']);
+    var SHARED = ['windScale', 'pressureScale', forecastAxis.KEYS.scale, 'largeGraphFont'];
 
     /**
      * @param {*} v A value.
@@ -523,29 +525,42 @@
     /**
      * The series each line of a style draws on this watch: its effective metric (line-style.js
      * effectiveLineMetric: an off line or a repeat of an earlier line's pick draws nothing; so
-     * does a line past the ones the watch draws, linesDrawn) and whether it draws it as a stripe,
-     * which needs a watch that draws the line styles.
+     * does a line past the ones the watch draws, linesDrawn), whether it draws it as a stripe,
+     * which needs a watch that draws the line styles, and whether it shows it Show: Alert, which
+     * needs a watch with Alert settings (line-alert.js capable 'onDemand').
      * @param {Object} Sk A style's settings (settingsFor).
      * @param {?Object} env Platform env.
-     * @returns {Array<?{metric: string, stripe: boolean}>} one per line SECOND..FIFTH
+     * @returns {Array<?{metric: string, stripe: boolean, alert: boolean}>} one per line
+     *   SECOND..FIFTH
      */
     function seriesOf(Sk, env) {
-        var drawn = linesDrawn(env), styled = drawn === TRENDS;
+        var drawn = linesDrawn(env), styled = drawn === TRENDS, alerts = lineAlert.capable(env, 'onDemand');
         return lineStyle.FORECAST_LINES.map(function (line, i) {
             var metric = i < drawn ? lineStyle.effectiveLineMetric(Sk, line.key) : null;
             if (!metric) { return null; }
-            return { metric: metric, stripe: styled && lineStyle.isStripeStyle(Sk, line.styleKey) };
+            return { metric: metric, stripe: styled && lineStyle.isStripeStyle(Sk, line.styleKey),
+                alert: alerts && lineAlert.showsAlert(Sk, metric) };
         });
     }
 
     /**
+     * Whether two series are one (THE UNION): the same metric, drawn the same way.
+     * @param {?{metric: string, stripe: boolean, alert: boolean}} a A series.
+     * @param {?{metric: string, stripe: boolean, alert: boolean}} b A series.
+     * @returns {boolean}
+     */
+    function sameSeries(a, b) {
+        return Boolean(a && b) && a.metric === b.metric && a.stripe === b.stripe && Boolean(a.alert) === Boolean(b.alert);
+    }
+
+    /**
      * @param {Array<?Object>} rows The rows so far.
-     * @param {{metric: string, stripe: boolean}} s A series.
+     * @param {{metric: string, stripe: boolean, alert: boolean}} s A series.
      * @returns {number} the row that carries it, -1 when none does
      */
     function rowOf(rows, s) {
         for (var t = 0; t < rows.length; t++) {
-            if (rows[t] && rows[t].metric === s.metric && rows[t].stripe === s.stripe) { return t; }
+            if (sameSeries(rows[t], s)) { return t; }
         }
         return -1;
     }
@@ -573,7 +588,7 @@
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {number[]} styles Style indices, ascending.
-     * @returns {{rows: Array<?{metric: string, stripe: boolean}>, maps: Object<string, number[]>}}
+     * @returns {{rows: Array<?{metric: string, stripe: boolean, alert: boolean}>, maps: Object<string, number[]>}}
      *   rows: the series each row carries (null: none), ROWS of them, the spare last; maps: by
      *   style index, the row + 1 each of its lines SECOND..FIFTH reads, 0 for a line that is
      *   off or dropped.
@@ -633,6 +648,7 @@
         stylesSent: stylesSent,
         linesDrawn: linesDrawn,
         seriesOf: seriesOf,
+        sameSeries: sameSeries,
         rowsNeeded: rowsNeeded,
         assign: assign
     };
