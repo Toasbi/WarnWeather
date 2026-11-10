@@ -1,9 +1,10 @@
 // src/pkjs/settings/forecast-metrics.js — ES5. The forecast graph's eight metrics in picker
 // order, each by the name its pickers show (forecast-hints.js forecastMetric, the Lines card's
-// summaries in blocks.js, schema.js' Graph colors rows, the five-metric limit's words) and by
-// the words a sentence names it with (the templates' words, wizard-forecast.js THE WORDS). One
-// table: a metric added here is named everywhere the page names one (line-style.js
-// GRAPH_METRICS holds the same eight, test/line-style.test.js).
+// summaries in blocks.js, schema.js' Graph colors rows, the five-metric limit's words), by the
+// words a sentence names it with (the templates' words, wizard-forecast.js THE WORDS) and by the
+// short name a legend gives it (Add a screen's legend, screen-legend.js). One table: a metric
+// added here is named everywhere the page names one (line-style.js GRAPH_METRICS holds the same
+// eight, test/line-style.test.js).
 //
 // The metrics each weather service leaves out (GAPS) are here too: the metric pickers say so
 // (forecast-hints.js forecastMetricHint), and so does Add a screen's picked screen (screen-presets.js
@@ -11,21 +12,22 @@
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings-page
 // webview (scripts/build-config-page.js APP_FILES, ahead of graph-styles-page.js, forecast-hints.js,
-// blocks.js and wizard-forecast.js, which bind window.ForecastMetrics while their bodies run),
+// blocks.js, screen-legend.js and wizard-forecast.js, which bind window.ForecastMetrics while their
+// bodies run),
 // which has no require(). At load it reads the page's html helpers (config-ui/lib/html.js,
 // concatenated ahead of every app file).
 (function () {
     // Names as a sentence lists them.
     var html = typeof require !== 'undefined' ? require('../config-ui/lib/html.js') : window.PConf.html;
     var METRICS = [
-        { id: 'precip_prob', label: 'Precipitation %', words: 'rain chance' },
-        { id: 'cloud', label: 'Cloud cover %', words: 'clouds' },
-        { id: 'wind', label: 'Wind speed', words: 'wind' },
-        { id: 'gust', label: 'Wind gusts', words: 'gusts' },
-        { id: 'uv', label: 'UV Index', words: 'UV index' },
-        { id: 'pressure', label: 'Air pressure (hPa)', words: 'air pressure' },
-        { id: 'feels', label: 'Feels-like temperature', words: 'feels-like temperature' },
-        { id: 'dew', label: 'Dew point', words: 'dew point' }
+        { id: 'precip_prob', label: 'Precipitation %', words: 'rain chance', name: 'Rain chance' },
+        { id: 'cloud', label: 'Cloud cover %', words: 'clouds', name: 'Clouds' },
+        { id: 'wind', label: 'Wind speed', words: 'wind', name: 'Wind' },
+        { id: 'gust', label: 'Wind gusts', words: 'gusts', name: 'Gusts' },
+        { id: 'uv', label: 'UV Index', words: 'UV index', name: 'UV index' },
+        { id: 'pressure', label: 'Air pressure (hPa)', words: 'air pressure', name: 'Air pressure' },
+        { id: 'feels', label: 'Feels-like temperature', words: 'feels-like temperature', name: 'Feels like' },
+        { id: 'dew', label: 'Dew point', words: 'dew point', name: 'Dew point' }
     ];
 
     // The metrics a weather service doesn't send, by its id: `who` names it in a sentence, `note`
@@ -40,7 +42,7 @@
     /**
      * A metric by its id.
      * @param {*} id A metric id.
-     * @returns {?{id: string, label: string, words: string}}
+     * @returns {?{id: string, label: string, words: string, name: string}}
      */
     function byId(id) {
         for (var i = 0; i < METRICS.length; i++) {
@@ -67,6 +69,16 @@
     function words(id) {
         var m = byId(id);
         return m ? m.words : String(id);
+    }
+
+    /**
+     * A metric as a legend names it ("Rain chance"); the id itself for one the table lacks.
+     * @param {*} id A metric id.
+     * @returns {string}
+     */
+    function legendName(id) {
+        var m = byId(id);
+        return m ? m.name : String(id);
     }
 
     /**
@@ -100,7 +112,8 @@
         return METRICS.map(function (m) { return [m.label, m.id]; });
     }
 
-    var api = { METRICS: METRICS, label: label, words: words, options: options, gapOf: gapOf, gapSentence: gapSentence };
+    var api = { METRICS: METRICS, label: label, words: words, legendName: legendName, options: options, gapOf: gapOf,
+        gapSentence: gapSentence };
 
     // Dual-context export — mirrors the tail of src/pkjs/forecast-axis.js.
     if (typeof module !== 'undefined' && module.exports) {

@@ -170,6 +170,27 @@ test('the screen presets are bundled ahead of the screens page and setup\'s scre
   assert.ok(idx('pkjs/screens.js') < idx('settings/wizard-screens.js'));
 });
 
+// screen-legend.js binds the graph previews' legends (window.PreviewForecast, PreviewHealth,
+// PreviewRadar), window.PreviewWatch, GraphStylesPage, ForecastMetrics and PreviewSvg while its
+// body runs, and screens-page.js binds window.ScreenLegend while its own does: out of order (or
+// dropped), Add a screen throws on a real phone while every Node test passes through require().
+test('Add a screen\'s legend is bundled after the pictures it reads and ahead of the screens page', () => {
+  const src = page();
+  ['ScreenLegend', 'PreviewHealth', 'PreviewRadar', 'PreviewForecast', 'PreviewWatch'].forEach((name) =>
+    assert.ok(src.indexOf('window.' + name + ' = api') !== -1, 'nothing assigns window.' + name));
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  const at = idx('settings/screen-legend.js');
+  ['settings/preview-forecast.js', 'settings/preview-health.js', 'settings/preview-radar.js', 'settings/preview-watch.js',
+    'settings/graph-styles-page.js', 'settings/forecast-metrics.js', 'settings/preview-svg.js']
+    .forEach((dep) => assert.ok(idx(dep) < at, dep + ' must precede screen-legend.js'));
+  assert.ok(at < idx('settings/screens-page.js'), 'screen-legend.js must precede screens-page.js');
+});
+
 // line-alert.js binds window.StatusThresholds and window.LineStyle while its own body
 // runs, and forecast-hints.js and preview-forecast.js bind window.LineAlert while theirs do: out
 // of order, the Show row's hint and the preview of an Alert line throw on a real phone

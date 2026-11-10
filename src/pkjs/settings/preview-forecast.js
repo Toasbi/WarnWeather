@@ -308,32 +308,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     }
 
     /**
-     * The forecast-graph preview block: temp curve, up to three metric lines — each
-     * in its selected style (thin/thick line, square dots, x marks); the main one
-     * optionally filled — rain bars, night band, axis and legend — the same z-order
-     * and geometry rules forecast_layer.c draws with.
-     * Adapted from index.html:231-267's forecastSVG.
+     * How a forecast graph draws, read off its settings once for the draw pass and every legend
+     * (forecastPreview, graphLegend): its colours (line-style.js resolveGraphColors, the resolver the
+     * watch's wire packs with), the effective colour flag, the ink, the palette, the rain bars'
+     * colours, and its metric lines in order, each with its style and whether it draws.
      * @param {Object} state Live settings (colours as hex strings).
-     * @param {Object} env Config-UI environment facts ({ color, platform, … }).
+     * @param {?Object} env Config-UI environment facts.
      * @param {Object} [userData] Page userData; `palette` is the page-open snapshot.
-     * @param {{sample: Object, minHeight: number, bleed: boolean, bare: boolean, axisY: number,
-     *     watch: {u: number, f: number, w: number, h: number, pad: number, large: boolean}}} [opts]
-     *   For the setup wizard and the Watchface tab's watch, which call this directly
-     *   (window.PreviewForecast); the settings page's block call passes none. `sample`: the
-     *   weather to draw in its shape (forecast-sample.js sample), so a span draws its own hours;
-     *   without one a span watch draws its span's (spanSample) and any other NOON. `minHeight`:
-     *   the frame's least height in viewBox units, the background running on under the legend,
-     *   so one height fits every look. `bleed: false`: the svg fills its box instead of bleeding
-     *   over a settings card's padding. `bare`: no legend, the frame ending BARE_FOOT under the
-     *   hour axis. `axisY`: where that axis sits (94 without), so the plot takes the height of a
-     *   band on the watch's screen. `watch`: a band of a picture of the screen (preview-watch.js
-     *   graphBand), drawn at the watch's pixels: `u` frame units a watch pixel, `f` 1 on emery,
-     *   `w` the band's width and `h` its height in frame units, `pad` the screen's side pad,
-     *   `large` emery's larger graph fonts. Its labels, ticks and frame lines are the watch's
-     *   (watch-text.js Gothic, no degree sign), its plot runs to the band's right edge.
-     * @returns {string} SVG markup.
+     * @returns {{cx: Object, gc: Object, isColor: boolean, ink: Object, P: Object, barFg: string,
+     *     barEdge: ?string, stylesFrozen: boolean, lines: Array<Object>, tempColor: string}}
      */
-    function forecastPreview(state, env, userData, opts) {
+    function graphKey(state, env, userData) {
         // The graph's colours, resolved by the SAME function whose answer the watch's Clay
         // wire packs (weather/graph-wire.js, over the connected watch's computeEnv)
         // and read off `state` — the LIVE settings object render() hands every block —
@@ -367,16 +352,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // The light colour theme keeps that interior and adds chart.c's theme_fg()
         // silhouette on top (BAR_OUTLINED is drawn in every theme but colour-dark).
         var barEdge = (isColor && isLightPolarity(cx.theme)) ? ink.fg : null;
-
-        // The weather drawn: the caller's sample (the setup wizard's spans), else on a watch
-        // with a Forecast length the hours its graph shows (spanSample), else the noon scenario
-        // above in the watch's temperature unit. Its nights are [from, to] slot positions.
-        var sample = (opts && opts.sample) || spanSample(state, env)
-            || noonIn(state && state.temperatureUnits);
-        var temps = sample.temps, precip = sample.precip, wind = sample.wind, rain = sample.rain,
-            gust = sample.gust, uv = sample.uv, feels = sample.feels, dew = sample.dew,
-            pressure = sample.pressure, cloud = sample.cloud;
-        var startHour = sample.startHour, nights = sample.nights;
 
         // The frozen-styles gate: env.lineStyles is the WW_LINE_STYLE mirror
         // (platform.js). Previewing such a watch pins the pre-feature look —
@@ -415,6 +390,86 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
               on: !stylesFrozen && Boolean(lineStyle.effectiveLineMetric(state, 'fifthLine')),
               style: styleFor('fifthLineStyle'), color: hexColor(gc.fifth) }
         ];
+        return { cx: cx, gc: gc, isColor: isColor, ink: ink, P: P, barFg: barFg, barEdge: barEdge,
+            stylesFrozen: stylesFrozen, lines: LINES, tempColor: isColor ? P.temp : ink.fg };
+    }
+
+    /**
+     * What a forecast graph draws, as a legend lists it, top to bottom: the temperature (a thick
+     * line), each metric line the graph draws in its style and colour (graphKey's lines, the
+     * draw pass's own: a filled main line `fill`, a stripe `top` or along the bottom), then the
+     * rain bars (`tiers`: the palette's tier colours, else one `color`, outlined on a
+     * black-and-white display; `top`: hung from the top). The graph's own legend (drawLegend)
+     * and Add a screen's (screen-legend.js) read it.
+     * @param {Object} state Live settings.
+     * @param {?Object} env Config-UI environment facts.
+     * @param {Object} [userData] Page userData (the palette).
+     * @param {Object} [key] graphKey(state, env, userData), when the caller has it.
+     * @returns {Array<{metric: string, kind: string, color: string, bold: boolean, fill: boolean,
+     *     top: boolean, tiers: ?Array<string>, outline: boolean}>} kind: 'line' | 'dots' | 'x' |
+     *     'stripe' | 'bars'; metric: 'temp', a line's metric, or 'rain'.
+     */
+    function graphLegend(state, env, userData, key) {
+        var k = key || graphKey(state, env, userData);
+        var out = [{ metric: 'temp', kind: 'line', color: k.tempColor, bold: true, fill: false, top: false,
+            tiers: null, outline: false }];
+        k.lines.forEach(function (l) {
+            if (!l.on) { return; }
+            out.push({ metric: l.metric, kind: isStripe(l.style) ? 'stripe' : (l.style === 'dots' || l.style === 'x') ? l.style
+                : 'line', color: l.color, bold: l.style === 'bold', fill: l.key === 'secondaryLine' && Boolean(k.gc.fillOn),
+                top: l.style === 'stripeTop', tiers: null, outline: false });
+        });
+        if (state.barSource === 'rain') {
+            var tiers = k.isColor && state.rainBarColor !== 'white';
+            out.push({ metric: 'rain', kind: 'bars', color: k.barFg, bold: false, fill: false,
+                top: drawFrom.barsFromTop(state, 'rain', env), outline: !k.isColor,
+                tiers: tiers ? k.P.rainTiers.map(function (t) { return t.color; }) : null });
+        }
+        return out;
+    }
+
+    /**
+     * The forecast-graph preview block: temp curve, up to three metric lines — each
+     * in its selected style (thin/thick line, square dots, x marks); the main one
+     * optionally filled — rain bars, night band, axis and legend — the same z-order
+     * and geometry rules forecast_layer.c draws with.
+     * Adapted from index.html:231-267's forecastSVG.
+     * @param {Object} state Live settings (colours as hex strings).
+     * @param {Object} env Config-UI environment facts ({ color, platform, … }).
+     * @param {Object} [userData] Page userData; `palette` is the page-open snapshot.
+     * @param {{sample: Object, minHeight: number, bleed: boolean, bare: boolean, axisY: number,
+     *     watch: {u: number, f: number, w: number, h: number, pad: number, large: boolean}}} [opts]
+     *   For the setup wizard and the Watchface tab's watch, which call this directly
+     *   (window.PreviewForecast); the settings page's block call passes none. `sample`: the
+     *   weather to draw in its shape (forecast-sample.js sample), so a span draws its own hours;
+     *   without one a span watch draws its span's (spanSample) and any other NOON. `minHeight`:
+     *   the frame's least height in viewBox units, the background running on under the legend,
+     *   so one height fits every look. `bleed: false`: the svg fills its box instead of bleeding
+     *   over a settings card's padding. `bare`: no legend, the frame ending BARE_FOOT under the
+     *   hour axis. `axisY`: where that axis sits (94 without), so the plot takes the height of a
+     *   band on the watch's screen. `watch`: a band of a picture of the screen (preview-watch.js
+     *   graphBand), drawn at the watch's pixels: `u` frame units a watch pixel, `f` 1 on emery,
+     *   `w` the band's width and `h` its height in frame units, `pad` the screen's side pad,
+     *   `large` emery's larger graph fonts. Its labels, ticks and frame lines are the watch's
+     *   (watch-text.js Gothic, no degree sign), its plot runs to the band's right edge.
+     * @returns {string} SVG markup.
+     */
+    function forecastPreview(state, env, userData, opts) {
+        // How the graph draws: its colours, its lines' styles and on-gates (graphKey).
+        var key = graphKey(state, env, userData);
+        var cx = key.cx, gc = key.gc, isColor = key.isColor, ink = key.ink, P = key.P;
+        var barFg = key.barFg, barEdge = key.barEdge, stylesFrozen = key.stylesFrozen, LINES = key.lines;
+
+        // The weather drawn: the caller's sample (the setup wizard's spans), else on a watch
+        // with a Forecast length the hours its graph shows (spanSample), else the noon scenario
+        // above in the watch's temperature unit. Its nights are [from, to] slot positions.
+        var sample = (opts && opts.sample) || spanSample(state, env)
+            || noonIn(state && state.temperatureUnits);
+        var temps = sample.temps, precip = sample.precip, wind = sample.wind, rain = sample.rain,
+            gust = sample.gust, uv = sample.uv, feels = sample.feels, dew = sample.dew,
+            pressure = sample.pressure, cloud = sample.cloud;
+        var startHour = sample.startHour, nights = sample.nights;
+
         var n = temps.length;
         var windMax = lineAlert.scaleTop(state, 'wind');
         var pCurve = PRESSURE_CURVES[state.pressureScale] || PRESSURE_CURVES.mid;
@@ -1170,29 +1225,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * @returns {{markup: string, height: number}} Legend markup + total frame height.
          */
         function drawLegend() {
-            var LABEL = { precip_prob: 'Precip %', cloud: 'Cloud %', wind: 'Wind', gust: 'Gust', uv: 'UV', pressure: 'Pressure', feels: 'Feels', dew: 'Dew' };
-            /**
-             * One legend entry, glyph kind chosen by the line's style.
-             * @param {string} style 'line'|'bold'|'dots'|'x'|'stripeTop'|'stripeBottom'.
-             * @param {string} color Resolved colour (hex).
-             * @param {string} label Legend label.
-             * @returns {Object} Entry for the loops below.
-             */
-            function legendEntry(style, color, label) {
-                if (isStripe(style)) { return { kind: 'stripe', color: color, label: label }; }
-                if (style === 'dots') { return { kind: 'dots', color: color, label: label }; }
-                if (style === 'x') { return { kind: 'x', color: color, label: label }; }
-                return { kind: 'line', color: color, w: style === 'bold' ? boldW : mainW, label: label };
-            }
-            var entries = [];
-            entries.push({ kind: 'line', color: tempColor, w: tempW, label: 'Temp' });
-            for (var li = 0; li < LINES.length; li += 1) {
-                if (LINES[li].on) {
-                    entries.push(legendEntry(LINES[li].style, LINES[li].color,
-                        LABEL[LINES[li].metric] || ''));
-                }
-            }
-            if (state.barSource === 'rain') { entries.push({ kind: 'rain', label: 'Rain' }); }
+            var LABEL = { temp: 'Temp', precip_prob: 'Precip %', cloud: 'Cloud %', wind: 'Wind', gust: 'Gust', uv: 'UV',
+                pressure: 'Pressure', feels: 'Feels', dew: 'Dew', rain: 'Rain' };
+            // What the graph draws (legend), each glyph at this frame's line widths.
+            var entries = graphLegend(state, env, userData, key).map(function (en) {
+                return { kind: en.kind === 'bars' ? 'rain' : en.kind, color: en.color, label: LABEL[en.metric] || '',
+                    w: en.metric === 'temp' ? tempW : en.bold ? boldW : mainW };
+            });
 
             // Pass 1 — layout. Same width model the draw pass uses: glyph gw, 3-unit
             // gap, ~4.3 units per label character, 8-unit trailing gap. An entry that
@@ -1381,6 +1420,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
     var api = {
         forecastPreview: forecastPreview,
+        legend: graphLegend,
         // The noon scenario in a unit: the tests that place marks on its shape pass it as the
         // sample on emery too, whose span draws its own hours without one (spanSample).
         noonSample: noonIn,

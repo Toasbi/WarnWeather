@@ -48,6 +48,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var GS = (typeof require !== 'undefined') ? require('../graph-styles.js') : window.GraphStyles;
     // The screens Add screen offers after Blank.
     var PRESETS = (typeof require !== 'undefined') ? require('../screen-presets.js') : window.ScreenPresets;
+    // What a screen's graphs draw, as a legend (Add a screen's cards and its picked screen).
+    var LEGEND = (typeof require !== 'undefined') ? require('./screen-legend.js') : window.ScreenLegend;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
     var html = (typeof require !== 'undefined') ? require('../config-ui/lib/html.js') : PConf.html;
     var esc = html.esc;
@@ -489,11 +491,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {Object} kind A screen-presets.js KINDS entry.
      * @param {string} cal Its calendar's rows: '' | '2' | '3'.
      * @param {string} span Its graph's length ('12' | '24' | '48'), '' where it has none.
-     * `desc` lists the metrics its graphs show (screen-presets.js metricsLine), `calName` names its
-     * calendar ('' on a screen of two graphs).
-     * @returns {{id: string, name: string, desc: string, calName: string, look: ?string, cal: string,
-     *   span: string, list: Array<Object>, graph: ?{k: number, values: ?Object}, W: Object, n: number,
-     *   why: string}}
+     * `calName` names its calendar ('' on a screen of two graphs), for a screen reader: its
+     * picture shows it. `W` holds the modes the screens need with it added (applyModes), so its
+     * picture draws the radar as the watch will (the radar's sky rows draw as a graph only).
+     * @returns {{id: string, name: string, calName: string, look: ?string, cal: string, span: string,
+     *   list: Array<Object>, graph: ?{k: number, values: ?Object}, W: Object, n: number, why: string}}
      */
     function addChoice(N, env, lists, kind, cal, span) {
         var n = lists.length, list = PRESETS.screenOf(kind, cal), why = '';
@@ -505,6 +507,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PRESETS.showsRadar(kind)) { W.radarEnabled = true; }
         ensureCustom(W, env);
         putScreen(W, n, list);
+        applyModes(W, env);
         W['viewAlign' + n] = 'clock';
         W['viewName' + n] = kind.name;
         if (styled && !graph) {
@@ -512,9 +515,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         } else if (graph && GSP.screenOverflows(W, env, n, graph.k)) {
             why = GSP.limitDesc(W, env, graph.k);
         }
-        return { id: kind.id, name: kind.name, desc: PRESETS.metricsLine(kind, env, N, span),
-            calName: PRESETS.calendarName(kind, cal), look: kind.look, cal: cal, span: span, list: list, graph: graph,
-            W: W, n: n, why: why };
+        return { id: kind.id, name: kind.name, calName: PRESETS.calendarName(kind, cal), look: kind.look, cal: cal,
+            span: span, list: list, graph: graph, W: W, n: n, why: why };
     }
 
     /**
@@ -862,34 +864,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-adds{display:grid;gap:14px;padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
         + '.se-add{display:grid;gap:7px}'
         // Add a screen: a row per group, its cards side by side, scrolled sideways (the owner's,
-        // 2026-11-10), out to the body's edges; a card's picture, name, calendar and metrics. A
-        // picked one big, what it shows, its Forecast length (a segmented control) and Add screen.
+        // 2026-11-10), out to the body's edges; a card its picture beside its name and legend
+        // (screen-legend.js), as tall as the picture. A picked one big, what it shows (the legend
+        // as a list), its Forecast length (a segmented control) and Add screen.
         + '.sa-group{display:grid;gap:8px;min-width:0}'
         + '.sa-group+.sa-group{margin-top:6px}'
         + '.sa-group>.ui-cap{padding:0 4px}'
         + '.sa-strip{display:flex;gap:10px;margin:0 -16px;padding:2px 16px 6px;overflow-x:auto;overflow-y:hidden;'
         + '-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scroll-padding:0 16px;scrollbar-width:none}'
         + '.sa-strip::-webkit-scrollbar{display:none}'
-        + '.sa-card{flex:0 0 136px;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;margin:0;'
-        + 'padding:12px 10px;border:none;border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--card-line);'
-        + 'color:var(--lbl);text-align:center;font:inherit;cursor:pointer;scroll-snap-align:start;'
+        + '.sa-card{flex:0 0 auto;display:flex;align-items:flex-start;gap:12px;min-width:0;margin:0;padding:12px;'
+        + 'border:none;border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--card-line);'
+        + 'color:var(--lbl);text-align:left;font:inherit;cursor:pointer;scroll-snap-align:start;'
         + '-webkit-appearance:none;appearance:none}'
-        + '.sa-pic{display:block;width:104px;border-radius:10px;overflow:hidden;line-height:0;box-shadow:0 0 0 1px var(--card-line)}'
+        + '.sa-pic{display:block;flex:0 0 auto;width:96px;border-radius:9px;overflow:hidden;line-height:0;'
+        + 'box-shadow:0 0 0 1px var(--card-line)}'
         + '.sa-pic svg{display:block;width:100%;height:auto}'
-        + '.sa-txt{display:grid;gap:3px;min-width:0;width:100%}'
+        + '.sa-txt{display:grid;align-content:start;gap:6px;min-width:0;width:112px;padding-top:1px}'
         + '.sa-n{font:700 13.5px/1.25 Inter,system-ui,sans-serif;color:var(--lbl)}'
-        + '.sa-c{font:600 11px/1.3 Inter,system-ui,sans-serif;color:var(--muted)}'
-        + '.sa-d{font:500 11.5px/1.35 Inter,system-ui,sans-serif;color:var(--hint);overflow-wrap:anywhere}'
         + '.sa-fine{padding:2px 4px;font-size:12px;line-height:1.45;color:var(--hint)}'
         + '.sa-cfg{display:grid;gap:14px}'
         + '.sa-big{justify-self:center;width:160px;border-radius:14px;overflow:hidden;line-height:0;'
         + 'box-shadow:0 0 0 1px var(--card-line)}'
         + '.sa-big svg{display:block;width:100%;height:auto}'
-        + '.sa-cal{margin-top:-6px;text-align:center;font:600 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted)}'
-        + '.sa-row{display:grid;gap:7px}'
+        + '.sa-row{display:grid;gap:9px}'
         + '.sa-lbl{font:700 12.5px/1.3 Inter,system-ui,sans-serif;color:var(--lbl);padding:0 3px}'
-        + '.sa-ex{padding:0 3px;font:500 13px/1.45 Inter,system-ui,sans-serif;color:var(--lbl)}'
-        + '.sa-why{padding:0 3px;font-size:12.5px;line-height:1.45;color:var(--hint)}'
+        + '.sa-why,.sa-gap{padding:0 3px;font-size:12.5px;line-height:1.45;color:var(--hint)}'
         + '.sa-add{width:100%;min-height:44px;margin-top:2px;border:none;border-radius:12px;'
         + 'background:linear-gradient(135deg,#FA4A35,#D93A24);color:#FFFFFF;font:700 15px Inter,system-ui,sans-serif;'
         + 'box-shadow:0 4px 14px rgba(250,74,53,.35);cursor:pointer}'
@@ -903,7 +903,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (typeof document === 'undefined' || !document.getElementById || document.getElementById('scr-style')) { return; }
         var el = document.createElement('style');
         el.id = 'scr-style';
-        el.textContent = CSS;
+        el.textContent = CSS + LEGEND.CSS;
         document.head.appendChild(el);
     }
 
@@ -1380,8 +1380,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Add a screen's body: a row of cards per group (screen-presets.js GROUPS), its heading over
      * them, scrolled sideways (the owner's, 2026-11-10); each card (addChoices) the picture of the
-     * screen it adds, its name, its calendar and the metrics it shows. Under them what a screen
-     * brings. With a card picked, the picked screen (addPickBody).
+     * screen it adds beside its name and the legend of what it shows (screen-legend.js). Under
+     * them what a screen brings. With a card picked, the picked screen (addPickBody).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
@@ -1404,18 +1404,33 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var choices = addChoices(S, env);
         var groups = PRESETS.GROUPS.map(function (grp) {
             var cards = choices.filter(function (c) { return PRESETS.byId(c.id).group === grp.id; }).map(function (c) {
-                var key = c.id + '-' + (c.cal || '0');
+                var key = c.id + '-' + (c.cal || '0'), shown = addShown(c, env, userData, 'sa-' + key + '-');
+                // Its calendar is in its picture, and said to a screen reader after its name.
                 return '<button type="button" class="sa-card" data-se="pick" data-id="' + c.id + '" data-cal="' + c.cal + '">'
-                    + '<span class="sa-pic" aria-hidden="true">' + screenPicture(c.W, c.n, env, userData, 'sa-' + key + '-').svg
-                    + '</span><span class="sa-txt"><span class="sa-n">' + esc(c.name) + '</span>'
-                    + (c.calName ? '<span class="sa-c">' + esc(c.calName) + '</span>' : '')
-                    + '<span class="sa-d">' + esc(c.desc) + '</span></span></button>';
+                    + '<span class="sa-pic" aria-hidden="true">' + shown.pic.svg + '</span><span class="sa-txt">'
+                    + '<span class="sa-n">' + esc(c.name) + (c.calName ? '<span class="sr-only">, ' + esc(c.calName.toLowerCase())
+                    + '</span>' : '') + '</span>' + LEGEND.cardHtml(shown.legend, shown.pic.bg) + '</span></button>';
             }).join('');
             return cards ? '<div class="sa-group" role="group" aria-labelledby="saGrp-' + grp.id + '"><span class="ui-cap"'
                 + ' id="saGrp-' + grp.id + '">' + esc(grp.name) + '</span><div class="sa-strip" data-sa-strip="' + grp.id
                 + '">' + cards + '</div></div>' : '';
         }).join('');
         return groups + '<div class="sa-fine">' + esc(env && env.graphStyles ? ADD_FINE : ADD_FINE_ONE_GRAPH) + '</div>';
+    }
+
+    /**
+     * A screen Add a screen can add as it shows it: its picture (screenPicture) and the legend of
+     * what its graphs draw (screen-legend.js groups), read off the one cycle of its settings.
+     * @param {Object} c An addChoice result.
+     * @param {?Object} env Platform env.
+     * @param {Object} [userData] Page userData (the palette).
+     * @param {string} prefix What its graphs' ids start with, unique on the page.
+     * @returns {{pic: {svg: string, label: string, bg: string}, legend: Array<Object>}}
+     */
+    function addShown(c, env, userData, prefix) {
+        var cycle = VC.screensCycle(c.W, env);
+        return { pic: screenPicture(c.W, c.n, env, userData, prefix, cycle),
+            legend: LEGEND.groups(drawnView(cycle[c.n] || null, c.W), c.W, env, userData) };
     }
 
     /**
@@ -1484,9 +1499,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Add a screen's picked screen (the owner's asks, 2026-11-09 and 2026-11-10): its picture big
-     * on the calendar its card picked, named under it; what it shows (screen-presets.js explain,
-     * at the length picked); for a forecast screen on a watch with graph styles, Forecast length
-     * (12 h, 24 h, the long span by its hours); why it cannot be added, if it cannot; Add screen.
+     * on the calendar its card picked; What it shows, the legend of what its graphs draw at the
+     * length picked as a list, each graph's under its caption but a template's own (its graph
+     * then is the screen), and what the weather service leaves out (screen-legend.js); for a
+     * forecast screen on a watch with graph styles, Forecast length (12 h, 24 h, the long span by
+     * its hours); why it cannot be added, if it cannot; Add screen.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
@@ -1495,14 +1512,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function addPickBody(S, env, userData) {
         var c = addPick(S, env);
         if (!c) { return ''; }
-        var kind = PRESETS.byId(c.id), N = GSP.asStored(S);
-        var pic = screenPicture(c.W, c.n, env, userData, 'sa-big-');
-        var spans = c.span ? PRESETS.spanOptions(kind, env, N) : [];
-        return '<div class="sa-cfg"><div class="sa-big" role="img" aria-label="' + esc(c.name
-            + (c.calName ? ', ' + c.calName : '') + ': ' + pic.label) + '">' + pic.svg + '</div>'
-            + (c.calName ? '<div class="sa-cal">' + esc(c.calName) + '</div>' : '')
-            + '<div class="sa-row"><div class="sa-lbl">What it shows</div><div class="sa-ex">'
-            + esc(PRESETS.explain(kind, env, N, c.span)) + '</div></div>'
+        var kind = PRESETS.byId(c.id), N = GSP.asStored(S), shown = addShown(c, env, userData, 'sa-big-');
+        var spans = c.span ? PRESETS.spanOptions(kind, env, N) : [], gs = shown.legend;
+        // A screen keeps your forecast graph unless it brings a template's, at a length.
+        var yours = !c.span, gap = LEGEND.gapNote(gs, N.provider);
+        return '<div class="sa-cfg"><div class="sa-big" role="img" aria-label="' + esc(c.name + ': ' + shown.pic.label) + '">'
+            + shown.pic.svg + '</div>'
+            + '<div class="sa-row"><div class="sa-lbl">What it shows</div>' + LEGEND.listHtml(gs, shown.pic.bg,
+                { captions: yours || gs.some(function (g) { return g.graph !== 'forecast'; }), yours: yours })
+            + (gap ? '<div class="sa-gap">' + esc(gap) + '</div>' : '') + '</div>'
             + (spans.length ? segRow('Forecast length', 'aspan', spans, c.span) : '')
             + (c.why ? '<div class="sa-why" role="status">' + esc(c.why) + '</div>' : '')
             + '<button type="button" class="sa-add" data-se="addnow"' + (c.why ? ' disabled' : '') + '>Add screen</button></div>';

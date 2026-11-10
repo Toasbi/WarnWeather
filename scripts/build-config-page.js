@@ -177,6 +177,11 @@ var APP_FILES = [
   // which preview-watch.js draws its clocks with.
   path.join(ROOT, 'src/pkjs/settings/clock-glyphs.generated.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-watch.js'),
+  // Add a screen's legend of what a screen's graphs draw: it binds window.PreviewWatch,
+  // GraphStylesPage, PreviewForecast, PreviewHealth, PreviewRadar, ForecastMetrics and PreviewSvg
+  // while its body runs, so it follows them all, and screens-page.js binds window.ScreenLegend
+  // while its own runs, so it precedes that.
+  path.join(ROOT, 'src/pkjs/settings/screen-legend.js'),
   // The schema's when resolvers (PConf.whenResolvers: lineRow, onDemandPlaced,
   // defaultViewLacksOnDemand). They bind window.LineStyle, window.DrawFrom,
   // window.OnDemand and VIEW_CYCLE while their own body runs, so they follow all four;

@@ -579,6 +579,23 @@
     }
 
     /**
+     * The graphs a view draws, top to bottom (its layout's bands): what a legend of it lists
+     * (screen-legend.js).
+     * @param {?Object} spec The view.
+     * @param {number} f Screen family (0 = 144 px, 1 = emery).
+     * @returns {string[]} 'forecast' | 'radar' | 'health' each
+     */
+    function graphKinds(spec, f) {
+        var out = [];
+        if (!spec) { return out; }
+        layoutView(spec, f).bands.forEach(function (b) {
+            var kind = b.band === 'T' || b.band === 'G' ? graphKind(spec, b.band) : null;
+            if (kind) { out.push(kind); }
+        });
+        return out;
+    }
+
+    /**
      * A view's bands, top to bottom, as a screen reader hears the picture: a status bar by its
      * name (screens.js barName).
      * @param {!Object} spec The view.
@@ -776,7 +793,7 @@
 
     if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }
     if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('timeFontPicture', fontPicture); }
-    var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg,
+    var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg, graphKinds: graphKinds,
                 fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PreviewWatch = api; }
