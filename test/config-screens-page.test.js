@@ -15,6 +15,7 @@ require('../src/pkjs/config-ui/lib/engine.js');
 require('../src/pkjs/settings/blocks.js');   // registers screens-page.js' resolvers too
 const SP = require('../src/pkjs/settings/screens-page.js');
 const M = require('../src/pkjs/screens.js');
+const P = require('../src/pkjs/screen-presets.js');
 const VC = require('../src/pkjs/view-cycle.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const ui = require('../src/pkjs/config-ui/lib/ui.js');
@@ -97,18 +98,6 @@ test('a first edit turns a preset custom through its own keys: the other screens
   assert.deepEqual([S.radarMode, S.healthMode], ['graph', 'all'], 'the modes the screens need');
 });
 
-test('Add screen: the Watch bar and the Clock after the others, three at most', () => {
-  const S = preset({ radarMode: 'off', healthMode: 'off' });
-  assert.equal(M.screensOf(S, BASALT).length, 1, 'premise: the Default screen alone');
-  assert.equal(SP.addScreen(S, BASALT), 1);
-  assert.equal(S.viewCount, '2');
-  assert.deepEqual(M.screensOf(S, BASALT)[1], SP.NEW_SCREEN);
-  assert.deepEqual(SP.NEW_SCREEN, [b('strip'), b('clock')]);
-  assert.equal(SP.addScreen(S, BASALT), 2);
-  assert.equal(SP.addScreen(S, BASALT), -1, 'no fourth screen');
-  assert.equal(S.viewCount, '3');
-});
-
 // Bars never set up (helpers/status-slots.js blankBar).
 const BLANK_HEALTH = blankBar('health');
 const BLANK_RADAR = blankBar('radar');
@@ -118,7 +107,7 @@ const ONE = { radarMode: 'off', healthMode: 'off' };
 
 test('a bar an edit brings onto the screens with nothing to show takes its default slots', () => {
   const S = preset(Object.assign({}, ONE, BLANK_HEALTH, BLANK_RADAR));
-  SP.writeScreen(S, SP.addScreen(S, BASALT), M.add(M.add(SP.NEW_SCREEN, 'healthbar'), 'radarbar'), BASALT);
+  SP.writeScreen(S, SP.addChosen(S, BASALT, 'blank'), M.add(M.add(P.BLANK, 'healthbar'), 'radarbar'), BASALT);
   assert.deepEqual(slotsOf(S, 'health'), ['steps', 'empty', 'sleep'], 'a new install\'s, no heart rate on a basalt');
   assert.deepEqual(slotsOf(S, 'radar'), ['uv', 'wind', 'gust']);
   // The modes follow what the shown bars hold (2.7.0): the Health bar's steps and sleep need
@@ -128,22 +117,22 @@ test('a bar an edit brings onto the screens with nothing to show takes its defau
   // The watch's own defaults: emery's heart rate.
   const EMERY = platform.computeEnv({ platform: 'emery' });
   const E = preset(Object.assign({}, ONE, BLANK_HEALTH));
-  SP.writeScreen(E, SP.addScreen(E, EMERY), M.add(SP.NEW_SCREEN, 'healthbar'), EMERY);
+  SP.writeScreen(E, SP.addChosen(E, EMERY, 'blank'), M.add(P.BLANK, 'healthbar'), EMERY);
   assert.deepEqual(slotsOf(E, 'health'), ['steps', 'sleep', 'hr']);
   // An item this watch cannot show is nothing to show either: heart rate on a basalt.
   const hr = preset(Object.assign({}, ONE, BLANK_HEALTH, { statusHealthRight: 'hr' }));
-  SP.writeScreen(hr, SP.addScreen(hr, BASALT), M.add(SP.NEW_SCREEN, 'healthbar'), BASALT);
+  SP.writeScreen(hr, SP.addChosen(hr, BASALT, 'blank'), M.add(P.BLANK, 'healthbar'), BASALT);
   assert.deepEqual(slotsOf(hr, 'health'), ['steps', 'empty', 'sleep']);
 });
 
 test('a bar with a reading of its own, or one a screen shows already, keeps its slots', () => {
   const own = preset(Object.assign({}, ONE, BLANK_HEALTH, { statusHealthMid: 'distance' }));
-  SP.writeScreen(own, SP.addScreen(own, BASALT), M.add(SP.NEW_SCREEN, 'healthbar'), BASALT);
+  SP.writeScreen(own, SP.addChosen(own, BASALT, 'blank'), M.add(P.BLANK, 'healthbar'), BASALT);
   assert.deepEqual(slotsOf(own, 'health'), ['empty', 'distance', 'empty']);
   // The Default screen shows the Forecast bar Empty: a second screen with it changes nothing there.
   const shown = preset(Object.assign({}, ONE, BLANK_FORECAST));
   assert.ok(M.idxOf(M.screensOf(shown, BASALT)[0], 'fcbar') >= 0, 'premise: the Default screen shows the bar');
-  SP.writeScreen(shown, SP.addScreen(shown, BASALT), M.add(SP.NEW_SCREEN, 'fcbar'), BASALT);
+  SP.writeScreen(shown, SP.addChosen(shown, BASALT, 'blank'), M.add(P.BLANK, 'fcbar'), BASALT);
   assert.deepEqual(slotsOf(shown, 'forecast'), ['empty', 'empty', 'empty']);
   // A move or an option on a screen already showing the bar fills nothing either.
   const three = preset(BLANK_HEALTH);

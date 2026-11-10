@@ -67,8 +67,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // The places' names, the Default first (a screen's own name: screens.js nameOf).
     var NAMES = M.NAMES;
-    // A new screen: the Watch bar and the Clock.
-    var NEW_SCREEN = PRESETS.BLANK;
     // The per-view keys a screen owns (custom-layout-schema.js customViewItems): a moved, deleted
     // or restored screen takes all of them along, its graph style (viewStyle) and name too.
     var VIEW_STEMS = ['Top', 'Body', 'Upper', 'Lower', 'Order', 'TopSize', 'BodySize', 'Align', 'ClockOff', 'StripOff',
@@ -379,17 +377,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             putScreen(S, at, list);
             return true;
         });
-    }
-
-    /**
-     * Add a screen (the Watch bar and the Clock) after the others. Mutates S.
-     * @param {Object} S Settings.
-     * @param {?Object} env Platform env.
-     * @returns {number} its slot, or -1 with three screens already
-     */
-    function addScreen(S, env) {
-        var n = M.screensOf(S, env).length;
-        return insertScreen(S, n, M.copy(NEW_SCREEN), env) ? n : -1;
     }
 
     /**
@@ -2572,7 +2559,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var api = {
         CSS: CSS,
         NAMES: NAMES,
-        NEW_SCREEN: NEW_SCREEN,
         APLITE_LAYOUTS: APLITE_LAYOUTS,
         TOO_TALL: TOO_TALL,
         NOTHING_YET: NOTHING_YET,
@@ -2590,7 +2576,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         restore: restore,
         deleteScreen: deleteScreen,
         insertScreen: insertScreen,
-        addScreen: addScreen,
         moveScreen: moveScreen,
         renameScreen: renameScreen,
         addChoices: addChoices,
