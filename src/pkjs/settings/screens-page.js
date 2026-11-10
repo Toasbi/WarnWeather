@@ -5,10 +5,12 @@
 // and the other graphs' screens, as cards; a card's screen big, under it for a screen with a
 // forecast graph a roll of your graphs and the templates, the one in its middle on the picture:
 // screen-presets.js), the screen editor (a full-screen view under a dialog's
-// header: the screen's name, which its pencil renames with an OK button, its picture and its
-// rows top to bottom, each by its name, dragged by its ≡ or moved with the arrow keys, the
-// calendar's rows and a graph's size as a dropdown that opens its picker, a status bar's Edit
-// opening the bar's dialog over the editor; then the Add chips,
+// header: the screen's name, which its pencil renames with an OK button, its picture with
+// Change layout under it (Add a screen's cards for this screen, whose pick takes its place, its
+// name kept), and its rows top to bottom, each by its name, dragged by its ≡ or moved with the
+// arrow keys, the calendar's rows and a graph's size as a dropdown that opens its picker, a
+// status bar's Edit opening the bar's dialog over the editor, the forecast graph's Edit its
+// graph's; then the Add chips,
 // one per thing the screen can take: each of your status bars, New status bar, and with
 // several graphs each graph, or, once the screen has its forecast graph, Switch graph's chip
 // per other graph, which puts that one in its place; and Delete screen under the card), the
@@ -111,6 +113,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var ADD_FINE_ONE_GRAPH = 'A screen brings its rows. Your graph and your status bars stay as they are.';
     var BLANK_LINE = 'The Watch bar and the clock. You add the rest.';
     var TEMPLATE_FINE = 'A template’s graph becomes one of your graphs only when you edit it.';
+    // Change layout (the owner's pick, 2026-11-10): its title, what its cards say first, and its
+    // last button.
+    var CHANGE_LAYOUT = 'Change layout';
+    var RELAYOUT_FINE = 'The screen keeps its name and its place.';
+    var USE_LAYOUT = 'Use this layout';
     var YOUR_LENGTH = 'Your graph keeps its own length. Change it on the Graphs tab.';
     // aplite's Layout choice, its Watchface tab having no screens: the three calendars.
     var APLITE_LAYOUTS = [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal'], ['No calendar', 'noCal']];
@@ -528,12 +535,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * One screen Add a screen can add: a kind on a calendar and, for a screen with a forecast
-     * graph, the graph it draws (graphOfValue), as the screen it adds after the others. A
-     * template's graph is a template graph at the length picked (graph-styles-page.js
-     * templateGraph: never one of the six, so no screen waits for a free graph). `W` is the
-     * settings with it added, which its picture draws (the radar on where the screen shows it, as
-     * adding it turns it on; the modes the screens need with it: applyModes, so its picture draws
-     * the radar as the watch will).
+     * graph, the graph it draws (graphOfValue), as the screen it adds after the others, or, for
+     * Change layout (the owner's pick, 2026-11-10), in screen `into`'s place, keeping its name.
+     * A template's graph is a template graph at the length picked (graph-styles-page.js
+     * templateGraph: never one of the six, so no screen waits for a free graph; the screen it
+     * replaces lets its own go). `W` is the settings with it added, which its picture draws (the
+     * radar on where the screen shows it, as adding it turns it on; the modes the screens need
+     * with it: applyModes, so its picture draws the radar as the watch will).
      * @param {Object} N Settings as stored (graph-styles-page.js asStored).
      * @param {?Object} env Platform env.
      * @param {Array<Array<Object>>} lists The screens.
@@ -541,23 +549,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {string} cal Its calendar: '' | '2' | '3' | screen-presets.js DENSE.
      * @param {?{k: number, look: string}} g Its forecast graph (graphOfValue); null for your first.
      * @param {string} span A template's length ('12' | '24' | '48'); its own without.
+     * @param {number} [into] The screen it takes the place of (Change layout); after the others
+     *   without.
      * @returns {{id: string, kind: Object, name: string, look: string, cal: string, span: string,
      *   list: Array<Object>, graph: ?{k: number, values: Object}, k: number, W: Object, n: number}}
      *   k: the graph its forecast graph draws (-1 for none); span: a template's length
      */
-    function addChoice(N, env, lists, kind, cal, g, span) {
-        var n = lists.length, list = PRESETS.screenOf(kind, cal), at = M.idxOf(list, 'fc');
-        var look = at >= 0 && g ? g.look : '', graph = look ? GSP.templateGraph(N, env, look, span) : null;
+    function addChoice(N, env, lists, kind, cal, g, span, into) {
+        var n = into >= 0 ? into : lists.length, list = PRESETS.screenOf(kind, cal), at = M.idxOf(list, 'fc');
+        // The screen it replaces names no graph any more, so its template's graph is free again.
+        var base = N;
+        if (n < lists.length) { base = Object.assign({}, N); base['viewStyle' + n] = '1'; }
+        var look = at >= 0 && g ? g.look : '', graph = look ? GSP.templateGraph(base, env, look, span) : null;
         var k = at < 0 ? -1 : graph ? graph.k : g ? g.k : 0;
         if (k > 0) { list[at].style = GS.codeOf(k); }
-        var W = Object.assign({}, N);
+        var W = Object.assign({}, base);
         if (graph) { W.graphStyles = GS.withTemplate(W, graph.k, look, graph.values); }
         if (PRESETS.showsRadar(kind, cal)) { W.radarEnabled = true; }
         ensureCustom(W, env);
         putScreen(W, n, list);
         applyModes(W, env);
         W['viewAlign' + n] = 'clock';
-        var name = screenName(N, env, kind, look, k);
+        var name = n < lists.length ? N['viewName' + n] || '' : screenName(N, env, kind, look, k);
         W['viewName' + n] = name;
         return { id: kind.id, kind: kind, name: name, look: look, cal: cal,
             span: graph ? String(graph.values.forecastHours) : '', list: list, graph: graph, k: k, W: W, n: n };
@@ -567,15 +580,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Add a screen's cards: each kind this watch can draw, the forecast screen once per calendar it
      * can have (screen-presets.js cards; each fits every watch it is offered, with every calendar,
      * test/config-screen-presets.test.js), each as addChoice reads it with your first graph. None
-     * with three screens already.
+     * with three screens already, but for Change layout, which replaces one.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
+     * @param {number} [into] The screen Change layout replaces; none without.
      * @returns {Array<Object>}
      */
-    function addChoices(S, env) {
-        var N = GSP.asStored(S), lists = M.screensOf(N, env);
-        if (lists.length >= M.MAX_SCREENS) { return []; }
-        return PRESETS.cards(env).map(function (card) { return addChoice(N, env, lists, card.kind, card.cal, null, ''); });
+    function addChoices(S, env, into) {
+        var N = GSP.asStored(S), lists = M.screensOf(N, env), replace = into >= 0 && into < lists.length;
+        if (!replace && lists.length >= M.MAX_SCREENS) { return []; }
+        return PRESETS.cards(env).map(function (card) {
+            return addChoice(N, env, lists, card.kind, card.cal, null, '', replace ? into : -1);
+        });
     }
 
     /**
@@ -588,17 +604,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {string} cal Its calendar ('' | '2' | '3' | screen-presets.js DENSE).
      * @param {string} [v] Its forecast graph (graphOfValue): your first without.
      * @param {string} [span] A template's length; its own without.
+     * @param {number} [into] The screen Change layout replaces; none without.
      * @returns {?Object} addChoice's result, with `why`: why it cannot be added, its graph making
      *   more metrics than the watch shows ('' when it can)
      */
-    function addPreview(S, env, id, cal, v, span) {
+    function addPreview(S, env, id, cal, v, span, into) {
         var N = GSP.asStored(S), lists = M.screensOf(N, env), kind = PRESETS.byId(id);
-        if (lists.length >= M.MAX_SCREENS || !(kind && PRESETS.drawable(kind, env))) { return null; }
+        var replace = into >= 0 && into < lists.length;
+        if ((!replace && lists.length >= M.MAX_SCREENS) || !(kind && PRESETS.drawable(kind, env))) { return null; }
         var cals = PRESETS.calendars(kind, env);
         if (cal && !cals.some(function (c) { return c[1] === cal; })) { return null; }
         var g = kind.graph === 'fc' ? graphOfValue(N, env, v) : null;
         if (kind.graph === 'fc' && !g) { return null; }
-        var c = addChoice(N, env, lists, kind, cal || '', g, span || '');
+        var c = addChoice(N, env, lists, kind, cal || '', g, span || '', replace ? into : -1);
+        // The top screen always shows the clock (the watch keeps it).
+        if (c.n === 0 && M.idxOf(c.list, 'clock') < 0) { return null; }
         c.why = c.k >= 0 && env && env.graphStyles && GSP.screenOverflows(c.W, env, c.n, c.k) ? GSP.limitDesc(c.W, env, c.k) : '';
         return c;
     }
@@ -607,7 +627,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Add the screen a kind stands for after the others (addPreview): on its calendar, drawing
      * graph v where it has a forecast graph, a template's graph stored first (graph-styles.js
      * TEMPLATE GRAPHS), the rain radar turned on where the screen shows it, the screen named after
-     * its graph or its kind (screenName, freeName). Mutates S.
+     * its graph or its kind (screenName, freeName). With `into` (Change layout, the owner's pick,
+     * 2026-11-10) it takes that screen's place instead, its name and place kept, and a template's
+     * graph only it drew goes (editScreens). Mutates S.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} id A kind's id.
@@ -615,14 +637,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      *   screen's without, for a kind that has one.
      * @param {string} [v] Its forecast graph (graphOfValue): your first without.
      * @param {string} [span] A template's length; its own without.
+     * @param {number} [into] The screen it replaces (Change layout); after the others without.
      * @returns {number} the new screen's slot, -1 for none (no room, it cannot be added, no such kind
      *   or graph)
      */
-    function addChosen(S, env, id, cal, v, span) {
+    function addChosen(S, env, id, cal, v, span, into) {
         var kind = PRESETS.byId(id);
         if (cal === undefined && kind && PRESETS.calendars(kind).length) { cal = PRESETS.calOf(M.screensOf(S, env)[0]); }
-        var c = addPreview(S, env, id, cal || '', v, span);
+        var c = addPreview(S, env, id, cal || '', v, span, into);
         if (!c || c.why) { return -1; }
+        var replace = c.n < M.screensOf(S, env).length;
         var held = S.graphStyles;
         if (c.graph) {
             GSP.settle(S);
@@ -631,6 +655,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         var turnOn = PRESETS.showsRadar(kind, c.cal) && S.radarEnabled === false;
         if (turnOn) { setRadarEnabled(S, true, env); }
+        if (replace) {
+            editScreens(S, env, function () {
+                putScreen(S, c.n, M.copy(c.list));
+                S['viewAlign' + c.n] = 'clock';
+                return true;
+            });
+            return c.n;
+        }
         if (!insertScreen(S, c.n, M.copy(c.list), env)) {
             if (turnOn) { setRadarEnabled(S, false, env); }
             if (c.graph) { S.graphStyles = held; }
@@ -910,6 +942,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '#screenEditor .se-body>*{flex:none}'
         + '#screenEditor .se-body>.card{margin:0}'
         + '.se-pic{display:flex;justify-content:center}'
+        // Change layout, centred under the picture.
+        + '.se-relayout{display:flex;justify-content:center;margin:10px 0 2px}'
         + '.se-pic-card{display:block;width:148px;border-radius:13px;overflow:hidden;line-height:0;'
         + 'box-shadow:0 8px 20px rgba(0,0,0,.28),0 0 0 1px var(--card-line)}'
         + '.se-pic-card svg{display:block;width:100%;height:auto}'
@@ -1157,8 +1191,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // graph is put in the roll's middle), the roll's graphs (drawRoll: drawn with the first screen
     // picked that has a forecast graph, kept while it is open) and the roll's scroll (the time a
     // tap's graph has to roll to the middle, the frame asked for).
+    // into: the screen Change layout replaces while Add a screen's cards show for it, -1 while they
+    // add one.
     var ED = { overlay: null, mode: 'edit', i: 0, sizeRow: -1, toast: { v: null, t: null }, drag: null, nameEl: null,
-        pick: null, graph: null, drawn: false, frame: null, items: null, roll: { timer: null, raf: 0 } };
+        pick: null, graph: null, drawn: false, frame: null, items: null, roll: { timer: null, raf: 0 }, into: -1 };
 
     /**
      * A size as its dropdown and its picker read it: "2 rows", "Fill".
@@ -1507,6 +1543,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var movable = list.filter(moves).length;
         return '<div class="se-pic"><span class="se-pic-card" role="img" aria-label="' + esc(M.nameOf(S, i) + ': ' + contents(list, S))
             + '">' + pic + '</span></div>'
+            // Change layout (the owner's pick, 2026-11-10): Add a screen's cards for this screen.
+            + '<div class="se-relayout">' + kit.chip(CHANGE_LAYOUT, { 'data-se': 'relayout', 'aria-haspopup': 'dialog' },
+                { icon: 'swap' }) + '</div>'
             + (note ? kit.note(note) : '')
             + '<div class="card se-card"><div class="cardHdr"><span class="ttlwrap"><span class="ttl" id="seTtl">Top to bottom</span>'
             + '</span></div><div class="se-list" id="seList" role="list" aria-labelledby="seTtl">'
@@ -1564,7 +1603,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} HTML
      */
     function addCards(S, env, userData) {
-        var choices = addChoices(S, env);
+        var choices = addChoices(S, env, ED.into);
         var groups = PRESETS.GROUPS.map(function (grp) {
             var cards = choices.filter(function (c) { return c.kind.group === grp.id; }).map(function (c) {
                 return addCard(c, env, userData);
@@ -1573,7 +1612,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return '<div class="sa-group"' + (grp.name ? ' role="group" aria-labelledby="saGrp-' + grp.id + '"><span class="ui-cap" '
                 + 'id="saGrp-' + grp.id + '">' + esc(grp.name) + '</span>' : '>') + '<div class="sa-grid">' + cards + '</div></div>';
         }).join('');
-        return groups + '<div class="sa-fine">' + esc(env && env.graphStyles ? ADD_FINE : ADD_FINE_ONE_GRAPH) + '</div>';
+        return groups + '<div class="sa-fine">' + esc((ED.into >= 0 ? RELAYOUT_FINE + ' ' : '')
+            + (env && env.graphStyles ? ADD_FINE : ADD_FINE_ONE_GRAPH)) + '</div>';
     }
 
     /**
@@ -1650,7 +1690,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {?Object} addChoice's result; null with no pick, no room, or one that cannot be
      */
     function addPick(S, env) {
-        return ED.pick ? addPreview(S, env, ED.pick.id, ED.pick.cal, ED.pick.v, ED.pick.span) : null;
+        return ED.pick ? addPreview(S, env, ED.pick.id, ED.pick.cal, ED.pick.v, ED.pick.span, ED.into) : null;
     }
 
     /**
@@ -1795,7 +1835,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 : segRow('Forecast length', 'aspan', spanHours.spanOptions(Sk), String(Sk.forecastHours), YOUR_LENGTH);
         }
         foot.innerHTML = h + (c.why ? '<div class="sa-why" role="status">' + esc(c.why) + '</div>' : '')
-            + '<button type="button" class="sa-add" data-se="addnow"' + (c.why ? ' disabled' : '') + '>Add screen</button>'
+            + '<button type="button" class="sa-add" data-se="addnow"' + (c.why ? ' disabled' : '') + '>'
+            + (ED.into >= 0 ? USE_LAYOUT : 'Add screen') + '</button>'
             + (c.look ? '<div class="sa-fine">' + esc(TEMPLATE_FINE) + '</div>' : '');
     }
 
@@ -1918,10 +1959,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function renderHeader(S, renaming) {
         if (ED.nameEl) { return; }
         var add = ED.mode === 'add', kind = add && ED.pick ? PRESETS.byId(ED.pick.id) : null;
-        var name = kind ? PRESETS.cardName(kind, ED.pick.cal) : add ? 'Add a screen' : M.nameOf(S, ED.i);
+        // Change layout: Add a screen's cards for screen ED.i, ‹ back to its editor.
+        var into = add && ED.into >= 0, what = into ? CHANGE_LAYOUT : 'Add a screen';
+        var name = kind ? PRESETS.cardName(kind, ED.pick.cal) : add ? what : M.nameOf(S, ED.i);
         ED.overlay.querySelector('[data-se-head]').innerHTML = kit.header({
-            titleId: 'seTitle', title: name, kicker: kind ? 'Add a screen' : 'Screens',
-            way: { glyph: '&#8249;', label: 'Back', at: { 'data-se': kind ? 'addback' : 'close' } },
+            titleId: 'seTitle', title: name, kicker: kind ? what : into ? M.nameOf(S, ED.i) : 'Screens',
+            way: { glyph: '&#8249;', label: 'Back', at: { 'data-se': kind ? 'addback' : into ? 'relayoutback' : 'close' } },
             pen: add ? null : { 'data-se': 'rename' },
             done: add ? null : { 'data-se': 'close' },
             rename: renaming ? { at: { 'data-se-name': true }, okAt: { 'data-se': 'renameok' }, label: 'Screen name',
@@ -2025,7 +2068,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!ED.overlay) { return; }
         if (ED.overlay.parentNode) { ED.overlay.parentNode.removeChild(ED.overlay); }
         // Add a screen closed without adding one changed nothing: the page stays as drawn.
-        var changed = ED.mode !== 'add';
+        var changed = ED.mode !== 'add' || ED.into >= 0;
         ED.overlay = null;
         ED.drawn = false;
         ED.drag = null;
@@ -2063,6 +2106,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (e.key === 'Escape') {
             // Escape on a picked screen goes back to Add a screen's cards, as its ‹ does.
             if (ED.mode === 'add' && ED.pick) { backToCards(); return; }
+            // Escape on Change layout's cards goes back to the screen's editor, as their ‹ does.
+            if (ED.mode === 'add' && ED.into >= 0) { relayoutBack(); return; }
             closeEditor();
             return;
         }
@@ -2163,8 +2208,56 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Add a screen's screen after the others (addChosen), its editor next; nothing where it cannot
-     * be added.
+     * The value Add a screen's roll has a forecast block's graph by (THE GRAPHS), with a
+     * template's length: what Change layout's roll starts on, so the screen keeps its graph unless
+     * another is picked.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Object} fc The forecast block.
+     * @returns {{v: string, span: string}}
+     */
+    function graphValueOf(S, env, fc) {
+        var k = env && env.graphStyles ? blockStyle(fc, S) : 0;
+        if (GS.isTemplate(k)) { return { v: GS.lookOf(S, k), span: String(GS.settingsFor(S, k).forecastHours || '') }; }
+        return { v: String(k + 1), span: '' };
+    }
+
+    /**
+     * Change layout (the owner's pick, 2026-11-10: a screen takes a layout and a graph the way a
+     * new one does): Add a screen's cards for the screen being edited, the roll starting on the
+     * graph it draws; the screen picked takes its place (addNow).
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Array<Object>} list The screen.
+     * @returns {void}
+     */
+    function startRelayout(S, env, list) {
+        var at = M.idxOf(list, 'fc');
+        ED.mode = 'add';
+        ED.into = ED.i;
+        ED.pick = null;
+        ED.graph = at >= 0 ? graphValueOf(GSP.asStored(S), env, list[at]) : null;
+        ED.drawn = false;
+        ED.frame = null;
+        ED.items = null;
+        ED.overlay.querySelector('[data-se-body]').scrollTop = 0;
+        renderEditor();
+    }
+
+    /**
+     * Back from Change layout's cards (‹, Escape) to the screen's editor, nothing changed.
+     * @returns {void}
+     */
+    function relayoutBack() {
+        ED.mode = 'edit';
+        ED.into = -1;
+        ED.pick = null;
+        renderEditor();
+    }
+
+    /**
+     * Add a screen's screen after the others, or Change layout's in the place of the screen it
+     * replaces (addChosen), its editor next; nothing where it cannot be.
      * @param {string} id A kind's id.
      * @param {string} cal Its calendar.
      * @param {string} v Its forecast graph (THE GRAPHS).
@@ -2172,10 +2265,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function addNow(id, cal, v, span) {
-        var ctx = UI.ctx, slot = addChosen(ctx.S, ctx.ENV, id, cal, v, span);
+        var ctx = UI.ctx, slot = addChosen(ctx.S, ctx.ENV, id, cal, v, span, ED.into);
         if (slot < 0) { return; }
         UI.toast.v = null;
         ED.pick = null;
+        ED.into = -1;
         ED.mode = 'edit';
         ED.i = slot;
         ED.overlay.querySelector('[data-se-body]').scrollTop = 0;
@@ -2216,6 +2310,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return;
         }
         if (act === 'addback') { backToCards(); return; }
+        if (act === 'relayout') { startRelayout(S, env, list); return; }
+        if (act === 'relayoutback') { relayoutBack(); return; }
         // A graph in the roll: picked, and rolled to the middle.
         if (act === 'agraph') { choose(t.getAttribute('data-v') || '', true); return; }
         if (act === 'acal' || act === 'aspan') {
@@ -2224,7 +2320,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             renderEditor();
             return;
         }
-        // Add screen: the screen added after the others (addChosen), its editor next.
+        // Add screen (Use this layout): the screen added after the others, or in the place of the
+        // one Change layout replaces (addChosen), its editor next.
         if (act === 'addnow') {
             if (!t.disabled && ED.pick) { addNow(ED.pick.id, ED.pick.cal, ED.pick.v, ED.pick.span); }
             return;
@@ -2396,6 +2493,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ensureStyle();
         ED.mode = mode;
         ED.i = i;
+        ED.into = -1;
         ED.sizeRow = -1;
         ED.toast.v = null;
         ED.nameEl = null;

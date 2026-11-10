@@ -344,6 +344,84 @@ test('the roll\'s graphs: yours first, by their names, then the templates; none 
   assert.deepEqual(SP.rollItems(GSP.asStored(fresh(BASALT)), BASALT), []);
 });
 
+test('Change layout: the screen picked takes a screen\'s place, its name kept; three screens and the Default too', () => {
+  // The owner's pick, 2026-11-10: the screen you have takes a layout (and a graph) as a new one does.
+  const S = fresh(BASALT);
+  const count = S.viewCount;
+  assert.equal(SP.addChosen(S, BASALT, 'health', CAL.none, undefined, undefined, 0), 0, 'the Default\'s place');
+  assert.deepEqual(M.screensOf(S, BASALT), [HEALTH], 'no screen added');
+  assert.equal(S.viewCount, count);
+  assert.equal(M.nameOf(S, 0), 'Default', 'its name kept');
+  assert.equal(S.healthMode, 'all', 'the modes follow');
+  // Three screens: no room to add one, but each can change its layout, its name kept.
+  const T = withScreens(BASALT, [M.screensOf(fresh(BASALT), BASALT)[0], HEALTH, RADAR], { viewName2: 'Rain' });
+  assert.deepEqual(SP.addChoices(T, BASALT), [], 'no room to add');
+  assert.equal(SP.addChoices(T, BASALT, 2).length, P.cards(BASALT).length, 'Change layout offers every card');
+  assert.ok(SP.addChoices(T, BASALT, 2).every((c) => c.n === 2), 'each in the place of the screen it replaces');
+  assert.equal(SP.addChosen(T, BASALT, 'blank', '', undefined, undefined, 2), 2);
+  assert.deepEqual(M.screensOf(T, BASALT)[2], [b('strip'), b('clock')]);
+  assert.equal(T.viewName2, 'Rain');
+  assert.notEqual(T.radarMode, 'graph', 'no screen shows the radar graph now');
+  // Every layout keeps the clock the Default always shows, so each can take its place.
+  P.cards(BASALT).forEach((card) => {
+    assert.ok(SP.addPreview(fresh(BASALT), BASALT, card.kind.id, card.cal, undefined, undefined, 0), card.kind.id + card.cal);
+  });
+  // A place no screen has is no Change layout: the screen goes after the others, as Add a screen's.
+  const U = fresh(BASALT);
+  assert.equal(SP.addChosen(U, BASALT, 'health', CAL.none, undefined, undefined, 5), 1);
+});
+
+test('Change layout on the Pebble Time 2: a template\'s graph only the screen drew goes, its slot free for the new one', () => {
+  const S = fresh(EMERY);
+  // Three screens, each on a template's graph: every template slot is taken.
+  ['outdoor', 'sky'].forEach((look) => assert.ok(SP.addChosen(S, EMERY, 'forecast', CAL.none, look) > 0));
+  S.viewStyle0 = 't3';
+  S.graphStyles = GS.withTemplate(S, 8, 'clean', { secondaryLine: 'precip_prob', forecastHours: '24' });
+  assert.deepEqual([0, 1, 2].map((i) => S['viewStyle' + i]), ['t3', 't1', 't2']);
+  // Screen 2 changes to Stripes: the slot its Sky held is its again, Sky gone.
+  assert.equal(SP.addChosen(S, EMERY, 'forecast', CAL.compact, 'stripes', '24', 2), 2);
+  assert.equal(S.viewStyle2, 't2');
+  assert.deepEqual(GS.parse(S).looks.slice(GS.MAX_STYLES), ['outdoor', 'stripes', 'clean']);
+  assert.deepEqual(M.screensOf(S, EMERY)[2].map((x) => x.k), P.listOf('fc', CAL.compact).map((x) => x.k));
+  // To one of your graphs: its template's graph goes.
+  assert.equal(SP.addChosen(S, EMERY, 'forecast', CAL.none, '1', '', 1), 1);
+  assert.equal(S.viewStyle1, '1');
+  assert.equal(GS.exists(S, GS.MAX_STYLES), false, 'Outdoor\'s graph gone with it');
+});
+
+test('Change layout in the editor: under the picture, Add a screen\'s cards for the screen, its pick in the screen\'s place', () => {
+  const page = bootGeneratedPage(THREE);
+  page.tapAction('openScreen', 1);
+  const head = () => page.editor().querySelector('[data-se-head]').innerHTML;
+  const body = () => page.editor().querySelector('[data-se-body]').innerHTML;
+  assert.ok(body().indexOf('<div class="se-relayout">' + require('../src/pkjs/config-ui/lib/ui.js').chip('Change layout',
+    { 'data-se': 'relayout', 'aria-haspopup': 'dialog' }, { icon: 'swap' }) + '</div>') !== -1, 'under the picture');
+  page.tapEditor({ se: 'relayout' });
+  assert.match(head(), /Change layout/);
+  assert.match(head(), /data-se="relayoutback"/, '‹ goes back to the screen');
+  assert.ok(body().indexOf('The screen keeps its name and its place.') !== -1);
+  assert.ok(body().indexOf('data-se="pick" data-id="radar"') !== -1, 'the cards, though there are three screens');
+  // ‹ and Escape: back to the screen's editor, nothing changed.
+  page.tapEditor({ se: 'relayoutback' });
+  assert.match(body(), /data-se="relayout"/);
+  page.tapEditor({ se: 'relayout' });
+  page.docDispatch('keydown', { key: 'Escape', target: {}, preventDefault() {} });
+  assert.ok(page.editor(), 'still open');
+  assert.match(body(), /data-se="relayout"/, 'the editor again');
+  // A card, then Use this layout: the screen takes its place, its name kept, its editor next.
+  const before = JSON.stringify(M.screensOf(page.S, BASALT)[0]);
+  page.tapEditor({ se: 'relayout' });
+  page.tapEditor({ se: 'pick', id: 'radar', cal: '' });
+  assert.ok(part(page.editor(), 'foot').indexOf('<button type="button" class="sa-add" data-se="addnow">Use this layout</button>')
+    !== -1, 'its last button');
+  page.tapEditor({ se: 'addnow' });
+  assert.equal(M.screensOf(page.S, BASALT).length, 3, 'no screen added');
+  assert.deepEqual(M.screensOf(page.S, BASALT)[1], P.listOf('radar', CAL.none));
+  assert.equal(JSON.stringify(M.screensOf(page.S, BASALT)[0]), before, 'the others as they were');
+  assert.match(head(), new RegExp(M.nameOf(page.S, 1)), 'the screen\'s editor');
+  assert.match(body(), /data-se="relayout"/);
+});
+
 test('adding a screen: its rows on the calendar picked, after the others, named after it; the same one twice; Blank', () => {
   const S = fresh(BASALT);
   assert.equal(SP.addChosen(S, BASALT, 'health', CAL.none), 1);
