@@ -170,7 +170,7 @@ test('the bake\'s settings: the union\'s rows, the bars while one style draws th
   const W = wire.weatherSettings(S, EMERY);
   assert.deepEqual([W.secondaryLine, W.thirdLine, W.fourthLine, W.fifthLine], ['precip_prob', 'uv', 'cloud', 'off']);
   assert.deepEqual([W.secondaryLineStyle, W.thirdLineStyle, W.fourthLineStyle], ['line', 'line', 'stripeTop']);
-  assert.deepEqual(W.graphStyleSlots[2], { metric: 'cloud', stripe: true });
+  assert.deepEqual(W.graphStyleSlots[2], { metric: 'cloud', stripe: true, alert: false });
   assert.equal(W.barSource, 'rain', 'the first style draws them');
   assert.equal(W.forecastHours, '48');
   assert.equal(wire.hoursSent(S, EMERY), 68);
@@ -198,6 +198,34 @@ test('the bake sends one metric twice when one style draws it as a line and anot
   assert.ok(payload.FIFTH_LINE_TREND_UINT8.every((b) => stripeLevels.LEVEL_BYTES.includes(b)), 'precip: levels');
   assert.notDeepEqual(payload.FIFTH_LINE_TREND_UINT8, payload.SECONDARY_LINE_TREND_UINT8);
   assert.equal(payload.BAR_TREND_UINT8.length, precips.length);
+});
+
+test('the bake sends one metric twice when one style shows all its values and another alerts only', () => {
+  // The owner's, 2026-11-10: each graph its own Visible values, and a metric shown both ways
+  // counts as another metric. Style 1 draws UV with all its values, style 2 with alerts only.
+  const two = Object.assign({}, LONG, { secondaryLine: 'uv', thirdLine: 'off', fourthLine: 'off', uvLineShow: 'alert' });
+  const S = styled(['1', '2'], two, null, { uvLineShow: 'all' });
+  const W = wire.weatherSettings(S, EMERY);
+  assert.deepEqual(W.graphStyleSlots.slice(0, 3).map((r) => r && [r.metric, r.alert]),
+    [['precip_prob', false], ['uv', false], ['uv', true]]);
+  assert.equal(W.uvLineShow, 'alert', 'the bake\'s settings carry the band of the Alert row');
+  assert.deepEqual(wire.buildStyleTuples(S, EMERY).CLAY_GRAPH_STYLE_2_UINT8.slice(GS.MAP, GS.INSETS), [3, 0, 0, 0],
+    'style 2 reads the Alert row');
+  const payload = bake(S, EMERY);
+  const allOnly = bake(styled(['1'], null, null, { uvLineShow: 'all' }), EMERY);
+  const alertOnly = bake(styled(['1'], null, null, { uvLineShow: 'alert' }), EMERY);
+  assert.deepEqual(payload.THIRD_LINE_TREND_UINT8, allOnly.THIRD_LINE_TREND_UINT8, 'style 1\'s UV: all its values');
+  assert.deepEqual(payload.FOURTH_LINE_TREND_UINT8, alertOnly.THIRD_LINE_TREND_UINT8, 'style 2\'s UV: alerts only');
+  assert.notDeepEqual(payload.FOURTH_LINE_TREND_UINT8, payload.THIRD_LINE_TREND_UINT8);
+  // Both alerts only: one row, as before each graph had its own.
+  const both = styled(['1', '2'], two, null, { uvLineShow: 'alert' });
+  assert.deepEqual(wire.weatherSettings(both, EMERY).graphStyleSlots.slice(0, 3).map((r) => r && r.metric),
+    ['precip_prob', 'uv', null]);
+  // Which row draws alerts only signs: flipping both styles trades the rows' bytes.
+  const flipped = styled(['1', '2'], Object.assign({}, two, { uvLineShow: 'all' }), null, { uvLineShow: 'alert' });
+  assert.notEqual(renderSignature(flipped, EMERY), renderSignature(S, EMERY));
+  assert.equal(renderSignature(styled(['1', '2'], LONG), EMERY).split('|').length,
+    renderSignature(styled(['1', '1'], LONG), EMERY).split('|').length, 'no Alert row: no extra part');
 });
 
 test('the fetch and the render signature read the shown styles\' union', () => {

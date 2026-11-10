@@ -56,6 +56,17 @@ function spareSignature(settings) {
 }
 
 /**
+ * Which of the graph styles' rows draw their metric Show: Alert (emery; graphStyleSlots, the
+ * union's rows): one metric can take a row with all its values and one with Show: Alert, and
+ * which is which sets the bytes each row bakes, so two rows trading places re-bake.
+ * @param {Object} settings The bake's settings (weather/graph-style-wire.js weatherSettings).
+ * @returns {string} e.g. '0,1,0,0,'; '' while no record rides
+ */
+function alertRows(settings) {
+    return (settings.graphStyleSlots || []).map(function (row) { return row ? (row.alert ? '1' : '0') : ''; }).join(',');
+}
+
+/**
  * @param {*} code A status item code.
  * @returns {boolean} whether a metric weather alert has that code (ALERT_KINDS)
  */
@@ -253,6 +264,10 @@ function renderSignature(settings, watchInfo) {
     // Signed only while there is one, so every other bake signs as it did before the spare.
     var spare = spareSignature(settings);
     if (spare) { parts.push(spare); }
+    // Which of the union's rows draw Show: Alert (alertRows), signed only while one does, so a
+    // bake without one signs as it did before each graph had its own Visible values.
+    var alerts = alertRows(settings);
+    if (alerts.indexOf('1') !== -1) { parts.push(alerts); }
     return parts.join('|');
 }
 

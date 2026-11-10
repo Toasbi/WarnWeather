@@ -407,6 +407,7 @@
         showValue: showValue,
         showOf: showOf,
         showsAlert: showsAlert,
+        capable: capable,
         shownNumber: shownNumber,
         reachesWarn: reachesWarn,
         scaleTop: scaleTop,

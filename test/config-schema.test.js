@@ -301,8 +301,9 @@ test('the fill toggle hides for feels-like and stays visible for every other met
     assert.equal(showWhen.isVisible(fill, { secondaryLine: 'pressure', secondaryLineStyle: st,
       env: { lineStyles: true } }), true, st + ' on pressure keeps the fill row');
   });
-  // The metric picker carries the hook that clears the stored value on the way in.
-  assert.equal(byKey('secondaryLine').onChange, 'forecastMetricFill');
+  // The metric picker carries the hook that clears the stored value on the way in, after the
+  // limit's (graph-styles-page.js limitPicked, which keeps the fill for its Undo).
+  assert.deepEqual(byKey('secondaryLine').onChange, ['graphLimitPicked', 'forecastMetricFill']);
 });
 
 // Radar-only Tomorrow.io: its key sheet's gate (Tomorrow.io drives a running radar but is not

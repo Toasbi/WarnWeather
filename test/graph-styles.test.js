@@ -45,18 +45,19 @@ function layout(views, over) {
   return Object.assign(S, over || {});
 }
 
-test('the governed keys: setup\'s look keys, the shading, the length and every graph colour', () => {
+test('the governed keys: setup\'s look keys, the shading, the length, Visible values and every graph colour', () => {
   wizardForecast.KEYS.forEach((k) => assert.ok(GS.GOVERNED.includes(k), k));
-  ['dayNightShading', 'forecastHours'].forEach((k) => assert.ok(GS.GOVERNED.includes(k), k));
+  ['dayNightShading', 'forecastHours', 'windLineShow', 'gustLineShow', 'uvLineShow'].forEach((k) => assert.ok(GS.GOVERNED.includes(k), k));
   lineStyle.graphColorKeys().forEach((k) => assert.ok(GS.GOVERNED.includes(k), k));
-  // Setup's looks set every governed key but the length (its own picker) and the colours.
+  // Setup's looks set every governed key but the length (its own picker), the lines' Visible
+  // values (each graph its own, the owner's, 2026-11-10) and the colours: a look leaves them.
+  const shows = ['windLineShow', 'gustLineShow', 'uvLineShow'];
   assert.deepEqual(GS.GOVERNED.filter((k) => !wizardForecast.KEYS.includes(k)),
-    ['forecastHours'].concat(lineStyle.graphColorKeys()));
+    ['forecastHours'].concat(shows, lineStyle.graphColorKeys()));
   assert.ok(wizardForecast.KEYS.includes('dayNightShading'), 'the looks set the night shading');
   assert.equal(new Set(GS.GOVERNED).size, GS.GOVERNED.length, 'each once');
   GS.SHARED.forEach((k) => assert.equal(GS.GOVERNED.includes(k), false, k + ' is shared, not governed'));
-  assert.deepEqual(GS.SHARED, ['windScale', 'pressureScale', 'windLineShow', 'gustLineShow', 'uvLineShow',
-    'forecastAxisScale', 'largeGraphFont']);
+  assert.deepEqual(GS.SHARED, ['windScale', 'pressureScale', 'forecastAxisScale', 'largeGraphFont']);
 });
 
 /**
@@ -201,13 +202,24 @@ test('stylesShown / stylesSent: the forecast graphs\' styles; nothing is sent wh
     'a preset layout has no styles');
 });
 
-test('seriesOf: each line\'s effective metric, and whether it is a stripe', () => {
+test('seriesOf: each line\'s effective metric, whether it is a stripe and whether it shows alerts only', () => {
   const S = { secondaryLine: 'precip_prob', secondaryLineStyle: 'stripeBottom', thirdLine: 'precip_prob',
     fourthLine: 'feels', fourthLineStyle: 'stripeTop', fifthLine: 'off' };
-  assert.deepEqual(GS.seriesOf(S, EMERY), [{ metric: 'precip_prob', stripe: true }, null,
-    { metric: 'feels', stripe: false }, null], 'a repeat draws nothing; feels-like is never a stripe');
+  assert.deepEqual(GS.seriesOf(S, EMERY), [{ metric: 'precip_prob', stripe: true, alert: false }, null,
+    { metric: 'feels', stripe: false, alert: false }, null], 'a repeat draws nothing; feels-like is never a stripe');
   assert.deepEqual(GS.seriesOf(S, platform.computeEnv({ platform: 'aplite' }))[0],
-    { metric: 'precip_prob', stripe: false }, 'no stripes where the watch draws no styles');
+    { metric: 'precip_prob', stripe: false, alert: false }, 'no stripes where the watch draws no styles');
+  // Visible values: Alert marks the series (each graph's own, the owner's, 2026-11-10); a watch
+  // without Alert settings draws every line with all its values.
+  const W = { secondaryLine: 'wind', thirdLine: 'uv', thirdLineStyle: 'stripeTop', fourthLine: 'off', fifthLine: 'off',
+    windLineShow: 'alert', uvLineShow: 'alert' };
+  assert.deepEqual(GS.seriesOf(W, EMERY).slice(0, 2), [{ metric: 'wind', stripe: false, alert: true },
+    { metric: 'uv', stripe: true, alert: true }]);
+  assert.equal(GS.seriesOf(W, platform.computeEnv({ platform: 'aplite' }))[0].alert, false, 'aplite: always All');
+  assert.equal(GS.sameSeries({ metric: 'wind', stripe: false, alert: true }, { metric: 'wind', stripe: false, alert: false }),
+    false, 'All and Alert of one metric: two series');
+  assert.equal(GS.sameSeries({ metric: 'wind', stripe: false, alert: false }, { metric: 'wind', stripe: false }), true,
+    'a series without the flag reads All');
 });
 
 test('assign: the first style keeps its rows, a shared series one row, a line and a stripe two', () => {
@@ -219,8 +231,9 @@ test('assign: the first style keeps its rows, a shared series one row, a line an
       { secondaryLine: 'uv', thirdLine: 'off', fourthLine: 'off', fifthLine: 'precip_prob' })
   };
   const u = GS.assign(S, EMERY, [0, 1, 2]);
-  assert.deepEqual(u.rows, [{ metric: 'precip_prob', stripe: false }, { metric: 'uv', stripe: false },
-    { metric: 'cloud', stripe: true }, { metric: 'precip_prob', stripe: true }, null], 'four series: no spare');
+  assert.deepEqual(u.rows, [{ metric: 'precip_prob', stripe: false, alert: false }, { metric: 'uv', stripe: false, alert: false },
+    { metric: 'cloud', stripe: true, alert: false }, { metric: 'precip_prob', stripe: true, alert: false }, null],
+  'four series: no spare');
   assert.deepEqual(u.maps[0], [1, 2, 0, 0], 'the first style: its own rows');
   assert.deepEqual(u.maps[1], [3, 4, 2, 0], 'the rain chance as a stripe takes a row of its own');
   assert.deepEqual(u.maps[2], [2, 0, 0, 1], 'uv and the rain-chance line read the first style\'s rows');
@@ -232,11 +245,20 @@ test('assign: the first style keeps its rows, a shared series one row, a line an
   const over = GS.assign(five, EMERY, [0, 1]);
   assert.deepEqual(over.maps[0], [1, 2, 3, 4]);
   assert.deepEqual(over.maps[1], [5, 0, 2, 0], 'the cloud stripe takes the spare, the rain-chance stripe finds no row');
-  assert.deepEqual(over.rows[4], { metric: 'cloud', stripe: true });
+  assert.deepEqual(over.rows[4], { metric: 'cloud', stripe: true, alert: false });
   assert.equal(over.rows.length, GS.ROWS);
   assert.equal(GS.ROWS, GS.TRENDS + 1, 'a row per line, and the spare');
   // The spare is the last free row: a style keeps its own line's row while it is free.
   assert.deepEqual(GS.assign(five, EMERY, [1]).maps[1], [1, 2, 3, 0], 'alone, style 2 needs no spare');
+  // UV with all its values in one style and alerts only in another: two rows (the owner's,
+  // 2026-11-10: "count it as an additional metric"); alerts only in both: one.
+  const mixed = Object.assign({}, S, { graphStyles: stylesItem({ secondaryLine: 'uv', thirdLine: 'off', fourthLine: 'off',
+    fifthLine: 'off', uvLineShow: 'alert' }) });
+  const m = GS.assign(mixed, EMERY, [0, 1]);
+  assert.deepEqual(m.maps[1], [3, 0, 0, 0], 'the Alert UV takes a row of its own');
+  assert.deepEqual(m.rows[2], { metric: 'uv', stripe: false, alert: true });
+  assert.deepEqual(GS.assign(Object.assign({}, mixed, { uvLineShow: 'alert' }), EMERY, [0, 1]).maps[1], [2, 0, 0, 0],
+    'both Alert: one row');
 });
 
 test('the write helpers: a style\'s values, the item written back, a free slot, delete with its screens', () => {
@@ -318,4 +340,6 @@ test('rowsNeeded: the distinct series the styles draw between them', () => {
     'a line and a stripe of one metric: two');
   const full = { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'gust' };
   assert.equal(GS.rowsNeeded([full, b], EMERY), GS.ROWS, 'four lines and another graph\'s cloud: the spare row\'s fifth');
+  assert.equal(GS.rowsNeeded([a, Object.assign({}, a, { uvLineShow: 'alert' })], EMERY), 3,
+    'UV with all values and with alerts only: two');
 });

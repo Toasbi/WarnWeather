@@ -34,10 +34,11 @@
 //
 // THE LIMIT. The weather message carries five metric rows (graph-styles.js ROWS: one per line and
 // a spare), so the graphs the screens show draw at most five series between them (graph-styles.js
-// THE UNION), a series being a metric drawn as a line or as a stripe. A graph keeps its four lines:
+// THE UNION), a series being a metric drawn as a line or as a stripe, with all its values or
+// alerts only (Visible values: each graph's own, the owner's, 2026-11-10). A graph keeps its four lines:
 // the spare row has no picker (the owner's call, 2026-11-08: "only use for multiple graphs"). A
 // pick that would make a sixth is greyed out, and its words say why in the page's terms,
-// "metrics" (a metric drawn as a line and as a stripe counting twice): a forecast line's metric or
+// "metrics" (a metric drawn two ways counting twice): a forecast line's metric or
 // style on a shown graph (LIMIT), a screen of the Show on card (limitNote: the rule, what the
 // screens use, what the graph adds), and a graph that would join the screens: Add a screen's
 // preset and, when tapped, the screen editor's graph chip (limitDesc). A graph no screen shows is
@@ -62,6 +63,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var spanHours = node ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
     // The metrics' names (forecast-metrics.js): the limit's words and the rows name a metric by them.
     var metrics = node ? require('./forecast-metrics.js') : window.ForecastMetrics;
+    // A line's Visible values (line-alert.js): a template's graph starts with your first graph's.
+    var lineAlert = node ? require('../line-alert.js') : window.LineAlert;
+    // A graph's lines (line-style.js FORECAST_LINES): the one a pick over the limit turns off.
+    var lineStyle = node ? require('../line-style.js') : window.LineStyle;
     // The page's one escape helper and its sentence lists (config-ui/lib/html.js, concatenated
     // ahead of every app file).
     var html = node ? require('../config-ui/lib/html.js') : PConf.html;
@@ -79,8 +84,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var NEW_FROM = 'graphStyleNewFrom';
     // A graph's dialog (schema.js graphDialog).
     var SHEET = 'graph';
-    // A line picker's greyed-out option (limitOptions): one change adds one series at most.
-    var LIMIT = 'That makes ' + (GS.ROWS + 1) + ' metrics on your screens. The watch can show ' + GS.ROWS + '.';
+    // A line picker's option over the limit (limitOptions): one change adds one series at most.
+    // It is taken, and the line's dialog then asks which line to turn off (limitBlock).
+    var LIMIT = 'That makes ' + (GS.ROWS + 1) + ' metrics on your screens. The watch can show ' + GS.ROWS
+        + ', so you then turn off a line.';
     // New graph's copies: 'copy<n>', a copy of graph n. A picker's group header: GROUP (never a
     // value anything stores).
     var COPY = 'copy';
@@ -92,7 +99,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // template starts from (themedDefaults), kept per theme.
     // covered: a dialog covers the page this render (onRender); list: the Your graphs card as it
     // was last drawn (listBlock).
-    var UI = { ctx: null, toast: { v: null, t: null }, defaults: null, covered: false, list: '' };
+    // last: the pick over the limit the line dialog's Undo puts back (limitPicked): its key, the
+    // value it had, the graph it was made on and the Main metric's fill before it; null for none.
+    var UI = { ctx: null, toast: { v: null, t: null }, defaults: null, covered: false, list: '', last: null };
     // A one-graph watch's graph, by the name the page gives the row (screens.js KINDS).
     var SOLO = M.blockName({ k: 'fc' });
 
@@ -340,17 +349,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * A forecast picker's options with the limit applied (forecast-hints.js forecastMetric and
-     * lineStyleOptions): a choice that would make the shown styles draw a sixth series is
-     * disabled with LIMIT. The style edited is the one in the flat keys; a style no screen shows
-     * is free, and the current pick is never greyed out. With a single style nothing can be.
+     * lineStyleOptions): a choice that would make the shown styles draw a sixth series says so
+     * (LIMIT), and stays a choice (the owner's ask, 2026-11-10: take it, then pick which line to
+     * turn off: limitBlock). The style edited is the one in the flat keys; a style no screen
+     * shows is free, and the current pick never says it. With a single style shown nothing can.
      * @param {Array} options The picker's options.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} key The picker's key (a line's metric or style key).
-     * @returns {Array} the options, a disabled one with meta {disabled, desc}
+     * @returns {Array} the options, one over the limit with meta {desc}
      */
     function limitOptions(options, S, env, key) {
-        if (!on(env) || !S || GS.count(S) < 2) { return options; }
+        if (!on(env) || !S) { return options; }
         var N = normalize(S), k = editing(S), shown = GS.stylesShown(N, env);
         if (shown.length < 2 || shown.indexOf(k) === -1) { return options; }
         return options.map(function (o) {
@@ -358,8 +368,139 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var over = {};
             over[key] = o[1];
             if (!overflows(N, env, shown, k, over)) { return o; }
-            return [o[0], o[1], Object.assign({}, o[2] || {}, { disabled: true, desc: LIMIT })];
+            return [o[0], o[1], Object.assign({}, o[2] || {}, { desc: LIMIT })];
         });
+    }
+
+    /**
+     * How many metrics the screens show while that is more than the watch can and the graph the
+     * dialog edits is one of the graphs they show (THE LIMIT); 0 otherwise.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {number}
+     */
+    function overBy(S, env) {
+        if (!on(env) || !S) { return 0; }
+        var N = normalize(S), shown = GS.stylesShown(N, env);
+        if (shown.indexOf(editing(S)) === -1) { return 0; }
+        var n = seriesUnion(N, env, shown).length;
+        return n > GS.ROWS ? n : 0;
+    }
+
+    /**
+     * The lines that, turned off, make room for one metric: each line of a graph the screens
+     * show that draws a series no other line draws, the Main metric's aside (it has no Off), and
+     * a template's graph's (it is none of yours until you edit it: TEMPLATE GRAPHS).
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {Array<{k: number, key: string, s: Object}>} k: the graph; key: the line's metric key
+     */
+    function offLines(S, env) {
+        var N = normalize(S), all = [];
+        GS.stylesShown(N, env).forEach(function (k) {
+            GS.seriesOf(GS.settingsFor(N, k), env).forEach(function (s, j) {
+                if (s) { all.push({ k: k, key: lineStyle.FORECAST_LINES[j].key, s: s, j: j }); }
+            });
+        });
+        return all.filter(function (c) {
+            return c.j > 0 && !GS.isTemplate(c.k)
+                && all.filter(function (o) { return GS.sameSeries(o.s, c.s); }).length === 1;
+        }).map(function (c) { return { k: c.k, key: c.key, s: c.s }; });
+    }
+
+    /**
+     * A pick on a line's dialog (onChange 'graphLimitPicked' on a line's metric and style and a
+     * metric's Visible values; schema.js lineSheet runs it first): while it makes the screens
+     * show more metrics than the watch can, what the row held is kept for the dialog's Undo
+     * (limitBlock); else nothing is.
+     * @param {Object} S Settings (the pick in them).
+     * @param {*} oldValue What the row held.
+     * @param {*} value The pick.
+     * @param {?Object} env Platform env.
+     * @param {string} key The row's key.
+     * @returns {void}
+     */
+    function limitPicked(S, oldValue, value, env, key) {
+        UI.last = overBy(S, env) ? { key: key, old: oldValue, k: editing(S), fill: S.secondaryLineFill } : null;
+    }
+
+    /**
+     * Turn line `key` of graph k off (a tap on one of limitBlock's chips), wherever its values sit
+     * while the dialog shows a graph (THE SWAP): the flat keys for the graph shown, the held
+     * values for the first one, else the graph's own stored values. Mutates S.
+     * @param {Object} S Settings.
+     * @param {number} k The graph.
+     * @param {string} key The line's metric key.
+     * @returns {void}
+     */
+    function turnOff(S, k, key) {
+        if (k === editing(S)) {
+            S[key] = 'off';
+        } else if (k === 0) {
+            S[SWAP].held[key] = 'off';
+        } else {
+            var values = GS.valuesOf(normalize(S), k);
+            values[key] = 'off';
+            S.graphStyles = GS.withStyle(S, k, values);
+        }
+    }
+
+    /**
+     * The top of a line's dialog while its graph makes the screens show more metrics than the
+     * watch can (block 'graphLimit', the owner's ask, 2026-11-10: a pick over the limit is
+     * taken, then you choose which line of which graph goes): how many there are, a chip per
+     * line that makes room (offLines: "Long: Wind gusts"), and Undo, which puts the pick back.
+     * '' while they fit.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {string} HTML
+     */
+    function limitBlock(S, env) {
+        var n = overBy(S, env);
+        if (!n) { UI.last = null; return ''; }
+        var N = normalize(S), lines = offLines(S, env);
+        var chips = lines.map(function (c) {
+            return kit.chip(graphName(N, env, c.k) + ': ' + seriesName(c.s),
+                { 'data-action': 'graphLimitOff', 'data-action-arg': c.k + ':' + c.key }, { icon: 'x' });
+        });
+        if (UI.last && UI.last.k === editing(S)) {
+            chips.push(kit.chip('Undo', { 'data-action': 'graphLimitUndo' }));
+        }
+        var text = 'That makes ' + n + ' metrics on your screens, and the watch can show ' + GS.ROWS + '. '
+            + (lines.length ? 'Turn off one of these lines:' : 'Change a line in one of your graphs to make room.');
+        return '<div class="gl-over" role="group" aria-label="Make room">' + kit.note(text)
+            + (chips.length ? '<div class="ui-chips">' + chips.join('') + '</div>' : '') + '</div>';
+    }
+
+    /**
+     * A tap on a chip of limitBlock: its line turned off ("<graph>:<key>"); taken only for a line
+     * offLines offers.
+     * @param {string} arg The chip's argument.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @returns {boolean} whether anything changed
+     */
+    function limitOff(arg, S, env) {
+        var at = String(arg || '').indexOf(':'), k = parseInt(String(arg).slice(0, at), 10), key = String(arg).slice(at + 1);
+        var ok = offLines(S, env).some(function (c) { return c.k === k && c.key === key; });
+        if (!ok) { return false; }
+        turnOff(S, k, key);
+        UI.last = null;
+        return true;
+    }
+
+    /**
+     * limitBlock's Undo: the pick over the limit put back, the Main metric's fill with it.
+     * @param {Object} S Settings.
+     * @returns {boolean} whether anything changed
+     */
+    function limitUndo(S) {
+        var last = UI.last;
+        if (!last || last.k !== editing(S)) { return false; }
+        S[last.key] = last.old;
+        if (last.key === lineStyle.FORECAST_LINES[0].key) { S.secondaryLineFill = last.fill; }
+        UI.last = null;
+        return true;
     }
 
     /**
@@ -390,12 +531,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * A series as the limit's words name it: its metric as the Lines card's pickers name it
-     * (forecast-metrics.js label), "(stripe)" after one drawn as a stripe.
-     * @param {{metric: string, stripe: boolean}} s A series (graph-styles.js seriesOf).
+     * (forecast-metrics.js label), "(stripe)" after one drawn as a stripe, "(alerts only)" after
+     * one whose Visible values are Alert (both: "(stripe, alerts only)").
+     * @param {{metric: string, stripe: boolean, alert: boolean}} s A series (graph-styles.js seriesOf).
      * @returns {string}
      */
     function seriesName(s) {
-        return metrics.label(s.metric) + (s.stripe ? ' (stripe)' : '');
+        var how = (s.stripe ? ['stripe'] : []).concat(s.alert ? ['alerts only'] : []);
+        return metrics.label(s.metric) + (how.length ? ' (' + how.join(', ') + ')' : '');
     }
 
     /**
@@ -428,13 +571,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * @param {Array<{metric: string, stripe: boolean}>} list Series.
-     * @param {{metric: string, stripe: boolean}} s A series.
+     * @param {Array<{metric: string, stripe: boolean, alert: boolean}>} list Series.
+     * @param {{metric: string, stripe: boolean, alert: boolean}} s A series.
      * @returns {boolean} whether the list holds s
      */
     function hasSeries(list, s) {
         for (var i = 0; i < list.length; i++) {
-            if (list[i].metric === s.metric && list[i].stripe === s.stripe) { return true; }
+            if (GS.sameSeries(list[i], s)) { return true; }
         }
         return false;
     }
@@ -491,9 +634,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             info: esc((used ? 'Active: ' + inUse.join(', ') + '.' : 'No screen shows a forecast graph yet.')
                 + (used >= GS.ROWS ? ' To make room, turn off a line in one of your graphs.' : ''))
                 + '<p class="intro-more">' + esc('The graphs on your screens can show ' + GS.ROWS + ' metrics between'
-                + ' them, up to ' + GS.TRENDS + ' in one graph. A metric in two graphs counts once, or twice when one'
-                + ' draws it as a line and the other as a stripe. Temperature, the rain bars and a graph no screen'
-                + ' shows don\'t count.') + '</p>'
+                + ' them, up to ' + GS.TRENDS + ' in one graph. A metric in two graphs counts once, or twice when they'
+                + ' draw it differently: as a line and as a stripe, or with all values and with alerts only.'
+                + ' Temperature, the rain bars and a graph no screen shows don\'t count.') + '</p>'
         };
     }
 
@@ -581,7 +724,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * The values a graph made from a template starts with: the graph's defaults, the
      * template's own values at its length (wizard-forecast.js valuesAt: Outdoor draws its
-     * feels-like line on 12 and 24 hours only) and that length over them.
+     * feels-like line on 12 and 24 hours only) and that length over them, and your first
+     * graph's Visible values (no template sets them: a template's wind, gust or UV line shows
+     * what yours do, so it counts as the same metric on your screens, as it did while every
+     * graph shared them).
      * @param {Object} S Settings as stored (settled or normalize).
      * @param {?Object} env Platform env.
      * @param {string} id A template's id (wizard-forecast.js LOOKS).
@@ -591,8 +737,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function templateValues(S, env, id, span) {
         var looks = forecastLooks(), look = looks.lookOf(id);
         if (!look) { return null; }
-        var defaults = themedDefaults(S, env), len = String(span || look.span);
-        return Object.assign(GS.valuesOf(defaults, 0), looks.valuesAt(id, S, env, defaults, len), { forecastHours: len });
+        var defaults = themedDefaults(S, env), len = String(span || look.span), shows = {};
+        lineAlert.METRIC_IDS.forEach(function (metric) {
+            var key = lineAlert.settingKey(metric);
+            if (has(S, key)) { shows[key] = S[key]; }
+        });
+        return Object.assign(GS.valuesOf(defaults, 0), looks.valuesAt(id, S, env, defaults, len), { forecastHours: len }, shows);
     }
 
     /**
@@ -612,7 +762,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Make template graph k one of yours (its screen's Edit graph, the owner's, 2026-11-10: a
+     * Make template graph k one of yours (its screen row's Edit, the owner's, 2026-11-10: a
      * template's graph counts toward the six once it is edited): its values in the first free
      * slot, named after its template ("Outdoor") unless another graph has that name (then as a
      * new graph is: newName), the screens that drew it drawing that one, the template graph
@@ -893,7 +1043,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.gl-txt{flex:1 1 auto;min-width:0;display:grid;gap:3px}'
         + '.gl-met{color:var(--lbl)}'
         // The Show on card's chips and the line under them, in the card's block row.
-        + '.gc-show{display:grid;gap:8px}';
+        + '.gc-show{display:grid;gap:8px}'
+        // A line's dialog over the limit: the note, the lines to turn off under it.
+        + '.gl-over{display:grid;gap:8px;padding:4px 0}';
 
     /**
      * Put the card's styles on the page once.
@@ -1091,7 +1243,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Open graph k's dialog: it is picked (the dialog's render swaps it in), then the dialog
      * opens over the pane, its title a name field when asked (a new graph), its kicker the card's
      * title; closed, it hands the focus back to the graph's row. Over the screen editor (its
-     * template row's Edit graph) it says the screen's name instead, and the editor repaints
+     * graph row's Edit) it says the screen's name instead, and the editor repaints
      * once it closes.
      * @param {Object} S Settings.
      * @param {number} k A style index.
@@ -1136,6 +1288,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.blocks) {
             PConf.blocks.register('graphList', listBlock);
             PConf.blocks.register('graphShowOn', showOnBlock);
+            PConf.blocks.register('graphLimit', function (S, env) { ensureStyle(); return limitBlock(S, env); });
         }
         if (PConf.optionsResolvers) {
             PConf.optionsResolvers.register('graphStyleStarts', startOptions);
@@ -1158,6 +1311,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.onChange) {
             PConf.onChange.register('graphStyleCreate', createStyle);
             PConf.onChange.register('graphStyleRenamed', renameStyle);
+            PConf.onChange.register('graphLimitPicked', limitPicked);
         }
         PConf.actions = PConf.actions || {};
         // A row of the Your graphs card: its graph's dialog.
@@ -1182,6 +1336,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Undo shows.
         PConf.actions.deleteGraphStyle = function (arg, S) { deletePicked(S); return true; };
         PConf.actions.undoDeleteGraphStyle = function (arg, S) { undoDelete(S); return true; };
+        // A line's dialog over the limit (limitBlock): a line turned off, or the pick put back.
+        PConf.actions.graphLimitOff = limitOff;
+        PConf.actions.graphLimitUndo = function (arg, S) { return limitUndo(S); };
     }
 
     var api = {
@@ -1206,6 +1363,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         listRows: listRows,
         graphShown: graphShown,
         limitOptions: limitOptions,
+        overBy: overBy,
+        offLines: offLines,
+        limitBlock: limitBlock,
         screenOverflows: screenOverflows,
         limitDesc: limitDesc,
         limitNote: limitNote,

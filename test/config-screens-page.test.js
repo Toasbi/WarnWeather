@@ -461,7 +461,7 @@ test('Add: a chip per status bar, by its name, in the bars\' place; a tap puts t
   assert.equal(M.screensOf(page.S, BASALT)[1].length, 5);
 });
 
-test('the editor\'s rows: the calendar\'s rows and a graph\'s size are dropdowns, a bar has Edit; nothing folds or shows twice', () => {
+test('the editor\'s rows: the calendar\'s rows and a graph\'s size are dropdowns, a bar and the forecast graph have Edit; nothing folds or shows twice', () => {
   const page = bootGeneratedPage(THREE);
   page.tapAction('openScreen', 0);
   const body = editorOf(page).body;
@@ -469,9 +469,12 @@ test('the editor\'s rows: the calendar\'s rows and a graph\'s size are dropdowns
   assert.ok(editorRow(body, 1).indexOf('<div class="se-mid"><span class="se-name">Calendar</span><span class="se-ctl">'
     + ui.dropdown('2 rows', { 'data-se': 'size', 'data-j': 1, 'aria-haspopup': 'dialog', 'aria-label': 'Rows: 2 rows' })
     + '</span></div>') !== -1, editorRow(body, 1));
-  // A graph: its size the same way (no graph picker on a watch with one graph).
+  // A graph: its size the same way (no graph picker on a watch with one graph), then the
+  // forecast graph's Edit, which opens its dialog over the editor (the owner's ask, 2026-11-10).
   assert.ok(editorRow(body, 4).indexOf('<span class="se-ctl">'
     + ui.dropdown('Fill', { 'data-se': 'size', 'data-j': 4, 'aria-haspopup': 'dialog', 'aria-label': 'Size: Fill' })
+    + ui.editButton('Edit', { 'data-se': 'editgraph', 'data-j': 4, 'aria-haspopup': 'dialog',
+      'aria-label': 'Edit ' + editorRows(body)[4].split(' · ')[0] })
     + '</span>') !== -1, editorRow(body, 4));
   // A bar: its Edit, which opens the bar's dialog over the editor (the owner's pick, B,
   // 2026-11-10). Its Add chip picked which bar.
@@ -480,7 +483,7 @@ test('the editor\'s rows: the calendar\'s rows and a graph\'s size are dropdowns
     + '</span></div>') !== -1, editorRow(body, 3));
   // The Clock: its name alone.
   assert.ok(editorRow(body, 2).indexOf('<div class="se-mid"><span class="se-name">Clock</span></div>') !== -1);
-  // Nothing folds, nothing is said twice, no move buttons, no graph picker; Edit on the bars alone.
+  // Nothing folds, nothing is said twice, no move buttons, no graph picker; Edit on the bars and the graph.
   ['class="chev', 'aria-expanded', 'se-val', 'se-more', 'Also on', 'Move up', 'Move down', 'data-se="style"'].forEach((gone) => {
     assert.equal(body.indexOf(gone), -1, gone);
   });
@@ -522,6 +525,36 @@ test('the editor: a bar\'s Edit opens its dialog over the editor, which shows wh
   // A forged Edit on a row that shows no bar (the Clock) opens nothing.
   page.tapEditor({ se: 'editbar', j: 2 });
   assert.equal(page.modal.innerHTML, '');
+});
+
+test('the editor: the forecast graph\'s Edit opens the graph the screen draws in its dialog over the editor', () => {
+  // A watch with one graph: its one graph's dialog, opened from the screen.
+  const page = bootGeneratedPage(THREE);
+  page.tapAction('openScreen', 0);
+  page.tapEditor({ se: 'editgraph', j: 4 });
+  let dlg = page.modal.innerHTML;
+  assert.ok(dlg.indexOf('id="esheet-ttl-graph"') !== -1, 'the graph\'s dialog');
+  assert.ok(dlg.indexOf('<span class="dlg-kick">Default</span>') !== -1, 'opened from the screen');
+  page.doneDialog();
+  assert.equal(page.modal.innerHTML, '', 'the dialog closed');
+  assert.ok(page.editor(), 'back in the editor');
+  // A forged Edit on a row that is no forecast graph (the Clock) opens nothing.
+  page.tapEditor({ se: 'editgraph', j: 2 });
+  assert.equal(page.modal.innerHTML, '');
+  // The Pebble Time 2: the graph the screen draws, here the second of two.
+  const GS = require('../src/pkjs/graph-styles.js');
+  const two = { provider: 'dwd', layoutPreset: 'custom', radarMode: 'off', healthMode: 'off', forecastHours: '24',
+    viewCount: '2', viewTop0: 'cal', viewBody0: 'forecast', viewStyle0: '1', viewTop1: 'none', viewBody1: 'forecast',
+    viewStyle1: '2', graphStyles: GS.withName({ graphStyles: GS.withStyle({}, 1, { forecastHours: '48' }) }, 1, 'Long') };
+  const e = bootGeneratedPage(two, 'emery');
+  e.tapAction('openScreen', 1);
+  const j = M.idxOf(M.screensOf(e.S, platform.computeEnv({ platform: 'emery' }))[1], 'fc');
+  assert.match(editorOf(e).body, new RegExp('data-se="editgraph" data-j="' + j + '"'));
+  e.tapEditor({ se: 'editgraph', j: j });
+  assert.ok(e.modal.innerHTML.indexOf('id="esheet-ttl-graph">Long</span>') !== -1, 'Long\'s dialog');
+  assert.equal(e.S.forecastHours, '48', 'Long in the dialog');
+  e.doneDialog();
+  assert.equal(e.S.forecastHours, '24', 'closed: the first graph back in the flat keys');
 });
 
 test('the editor\'s ≡ and the arrow keys: a row moves a place, keeps the focus, and a move that breaks a rule stays with why', (t) => {

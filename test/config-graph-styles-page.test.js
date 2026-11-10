@@ -134,6 +134,88 @@ test('onRender: a graph\'s dialog shows the picked style, anywhere else the firs
   assert.equal(B[GSP.SWAP], undefined);
 });
 
+// Two graphs on two screens with five metrics between them: Graph 1 the rain chance, UV and
+// gusts; Graph 2 the rain chance, cloud cover and wind.
+const FULL_FIVE = layout(['1', '2'], {
+  provider: 'dwd', forecastHours: '24', secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLine: 'uv',
+  fourthLine: 'gust', fifthLine: 'off',
+  graphStyles: stylesItem({ secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLine: 'cloud',
+    thirdLineStyle: 'line', fourthLine: 'wind', fifthLine: 'off' })
+});
+
+test('over the limit: a pick is taken, and the line\'s dialog offers each line that makes room, and Undo', () => {
+  // The owner's ask, 2026-11-10: adding a metric past the five lets you choose which line of
+  // which graph goes. Graph 2's fourth metric becomes pressure, a sixth.
+  const p = bootGeneratedPage(FULL_FIVE, 'emery');
+  p.clickTab('graphs');
+  p.tapAction('openGraph', 2);
+  p.openNestedSheet('lineFourth');
+  assert.equal(p.modal.innerHTML.indexOf('class="gl-over"'), -1, 'five: no note');
+  p.openModalSelect('fifthLine');
+  p.pickOption('fifthLine', 'pressure');
+  assert.equal(GS.settingsFor(GSP.normalize(p.S), 1).fifthLine, 'pressure', 'the pick is taken');
+  const html = p.modal.innerHTML;
+  assert.ok(html.indexOf('That makes 6 metrics on your screens, and the watch can show 5. Turn off one of these lines:')
+    !== -1, 'the note says how many');
+  const offered = (h) => (h.match(/data-action="graphLimitOff" data-action-arg="([^"]+)"/g) || [])
+    .map((m) => m.replace(/.*data-action-arg="([^"]+)"/, '$1'));
+  // Every line whose metric no other line draws, the Main metrics aside (they have no Off).
+  assert.deepEqual(offered(html), ['0:thirdLine', '0:fourthLine', '1:thirdLine', '1:fourthLine', '1:fifthLine']);
+  assert.ok(/Graph 1: UV Index<\/button>/.test(html), 'by graph and metric');
+  assert.ok(html.indexOf('data-action="graphLimitUndo"') !== -1, 'and Undo');
+  // Graph 1's UV goes (it waits held while Graph 2 is in the dialog): five again, the note gone.
+  p.tapAction('graphLimitOff', '0:thirdLine', 'modal');
+  assert.equal(p.modal.innerHTML.indexOf('class="gl-over"'), -1);
+  const N = GSP.normalize(p.S);
+  assert.deepEqual([N.thirdLine, GS.settingsFor(N, 1).fifthLine], ['off', 'pressure']);
+  p.backDialog();
+  p.doneDialog();
+  assert.equal(GSP.normalize(p.S).thirdLine, 'off', 'kept through Done');
+  assert.equal(GSP.metricsNote(p.S, EMERY).text, '5/5 metrics active');
+  // Undo puts the pick back.
+  const u = bootGeneratedPage(FULL_FIVE, 'emery');
+  u.clickTab('graphs');
+  u.tapAction('openGraph', 2);
+  u.openNestedSheet('lineFourth');
+  u.openModalSelect('fifthLine');
+  u.pickOption('fifthLine', 'pressure');
+  u.tapAction('graphLimitUndo', undefined, 'modal');
+  assert.equal(u.modal.innerHTML.indexOf('class="gl-over"'), -1);
+  assert.equal(GS.settingsFor(GSP.normalize(u.S), 1).fifthLine, 'off');
+  assert.equal(GSP.normalize(u.S).thirdLine, 'uv', 'nothing else moved');
+  // A chip for a line it does not offer changes nothing (the Main metric has no Off).
+  u.openModalSelect('fifthLine');
+  u.pickOption('fifthLine', 'pressure');
+  u.tapAction('graphLimitOff', '0:secondaryLine', 'modal');
+  assert.equal(GSP.normalize(u.S).secondaryLine, 'precip_prob');
+});
+
+test('over the limit: Visible values count, a template\'s graph is never offered, a graph no screen shows is free', () => {
+  // UV with all its values on Graph 1 and alerts only on Graph 2 (Graph 2 drew wind before):
+  // six metrics.
+  const S = Object.assign({}, FULL_FIVE, { graphStyles: stylesItem({ secondaryLine: 'precip_prob',
+    secondaryLineStyle: 'line', thirdLine: 'cloud', thirdLineStyle: 'line', fourthLine: 'wind', fifthLine: 'uv',
+    uvLineShow: 'all' }) });
+  assert.equal(GSP.overBy(S, EMERY), 0, 'UV in both with all its values: five');
+  const W = Object.assign({}, S);
+  GSP.swapIn(W, 1);
+  W.uvLineShow = 'alert';
+  assert.equal(GSP.overBy(W, EMERY), 6);
+  assert.ok(GSP.offLines(W, EMERY).some((c) => c.k === 1 && c.key === 'fifthLine' && c.s.alert), 'the Alert UV line');
+  assert.match(GSP.limitBlock(W, EMERY), /Graph 2: UV Index \(alerts only\)|: UV Index \(alerts only\)/);
+  // The graph in the dialog shown on no screen: nothing to say.
+  const free = Object.assign({}, W, { viewStyle1: '1' });
+  assert.equal(GSP.overBy(free, EMERY), 0);
+  assert.equal(GSP.limitBlock(free, EMERY), '');
+  // A template's graph counts, but its lines are not offered: it is none of yours.
+  const T = Object.assign({}, FULL_FIVE, { viewStyle1: 't1', graphStyles: GS.withTemplate(FULL_FIVE, 6, 'outdoor',
+    { secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'wind', fifthLine: 'pressure' }) });
+  assert.equal(GSP.overBy(T, EMERY), 6);
+  assert.deepEqual(GSP.offLines(T, EMERY).map((c) => c.k + ':' + c.key), ['0:thirdLine', '0:fourthLine']);
+  // A watch without graph styles never is.
+  assert.equal(GSP.overBy(W, BASALT), 0);
+});
+
 test('the cards\' line: a graph\'s length and the screens it shows on', () => {
   // The cards' line: the length, then the screens.
   const line = (S, k) => row(S, EMERY, k).where;
@@ -148,7 +230,7 @@ test('the cards\' line: a graph\'s length and the screens it shows on', () => {
   assert.equal(row(TWO, BASALT, 0).where, '', 'one graph: no screens line');
 });
 
-test('the five-series limit: a pick that would make a sixth series is greyed out on a shown style only', () => {
+test('the five-series limit: a pick that would make a sixth series says so on a shown style only, and stays a pick', () => {
   // Style 1 draws rain chance, UV and gusts; style 2 rain chance, cloud and wind: five series
   // between them, the most the watch takes (four lines' rows and the spare).
   const S = layout(['1', '2'], {
@@ -157,13 +239,18 @@ test('the five-series limit: a pick that would make a sixth series is greyed out
       thirdLineStyle: 'line', fourthLine: 'wind', fifthLine: 'off' })
   });
   const metric = PC.optionsResolvers.get('forecastMetric');
-  const off = (opts) => opts.filter((o) => o[2] && o[2].disabled).map((o) => o[1]);
+  // Over the limit: said in the option's line, never greyed out (the owner's ask, 2026-11-10:
+  // the pick is taken and the line's dialog then asks which line to turn off).
+  const off = (opts) => {
+    assert.deepEqual(opts.filter((o) => o[2] && o[2].disabled), [], 'nothing greyed out');
+    return opts.filter((o) => o[2] && o[2].desc === GSP.LIMIT).map((o) => o[1]);
+  };
   // The first style's fifth line: a metric another style draws is free, a new one is not.
   const lines = ['secondaryLine', 'thirdLine', 'fourthLine'];
   const fifth = metric(S, EMERY, { key: 'fifthLine', off: true, exclude: lines });
   assert.deepEqual(off(fifth), ['pressure', 'feels', 'dew']);
   assert.equal(fifth.find((o) => o[1] === 'pressure')[2].desc, GSP.LIMIT);
-  assert.equal(GSP.LIMIT, 'That makes 6 metrics on your screens. The watch can show 5.');
+  assert.equal(GSP.LIMIT, 'That makes 6 metrics on your screens. The watch can show 5, so you then turn off a line.');
   // Changing a line swaps one series for another, so the first style's gust line may become
   // anything.
   assert.deepEqual(off(metric(S, EMERY, { key: 'fourthLine', off: true, exclude: lines.slice(0, 2) })), []);
@@ -556,10 +643,12 @@ test('the screen editor: with several graphs a chip per graph adds the forecast 
   p.tapAction('openScreen', 1);
   const body = () => p.editor().querySelector('[data-se-body]').innerHTML;
   const fc = () => M.idxOf(M.screensOf(p.S, EMERY)[1], 'fc');
-  // The row: its graph's name and its size's dropdown, nothing else (the Graphs tab edits a graph).
+  // The row: its graph's name, its size's dropdown and its Edit, which opens the graph's dialog
+  // (the owner's ask, 2026-11-10).
   assert.deepEqual(editorRows(body()), ['Watch bar', 'Clock', 'Long · Fill']);
   assert.ok(editorRow(body(), fc()).indexOf('<div class="se-mid"><span class="se-name">Long</span><span class="se-ctl">'
     + ui.dropdown('Fill', { 'data-se': 'size', 'data-j': fc(), 'aria-haspopup': 'dialog', 'aria-label': 'Size: Fill' })
+    + ui.editButton('Edit', { 'data-se': 'editgraph', 'data-j': fc(), 'aria-haspopup': 'dialog', 'aria-label': 'Edit Long' })
     + '</span></div>') !== -1, editorRow(body(), fc()));
   ['data-se="style"', 'editstyle', 'se-graph'].forEach((gone) => assert.equal(body().indexOf(gone), -1, gone));
   // ✕ it: a chip per graph by its name, in the forecast graph's place.
@@ -783,8 +872,8 @@ function headerNote(html) {
 
 // What the note's '?' says after the metrics active (metricsNote).
 const COUNTS = '<p class="intro-more">The graphs on your screens can show 5 metrics between them, up to 4 in one graph.'
-  + ' A metric in two graphs counts once, or twice when one draws it as a line and the other as a stripe. Temperature,'
-  + ' the rain bars and a graph no screen shows don&#39;t count.</p>';
+  + ' A metric in two graphs counts once, or twice when they draw it differently: as a line and as a stripe, or with all'
+  + ' values and with alerts only. Temperature, the rain bars and a graph no screen shows don&#39;t count.</p>';
 
 test('the page: Your graphs\' header counts the metrics the screens use, "2/5 metrics active"; its \'?\' says which', () => {
   // Graph 1 draws the rain chance on the Default; Long the rain chance too and the cloud stripe
@@ -843,6 +932,11 @@ test('the metrics count: a line and a stripe of one metric count twice; all five
   assert.deepEqual(note(full, EMERY), { text: '5/5 metrics active', label: '5 of 5 metrics active',
     info: 'Active: Precipitation %, UV Index, Wind speed, Wind gusts, Cloud cover %. To make room, turn off a line in one of'
       + ' your graphs.' + COUNTS });
+  // All values in one graph and alerts only in another count twice, each named (the owner's,
+  // 2026-11-10: each graph its own Visible values).
+  const shows = layout(['1', '2'], { secondaryLine: 'uv', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off',
+    uvLineShow: 'all', graphStyles: stylesItem({ secondaryLine: 'uv', uvLineShow: 'alert' }) });
+  assert.equal(note(shows, EMERY).info.split('.')[0], 'Active: UV Index, UV Index (alerts only)');
   // No screen with a forecast graph: nothing active.
   const none = layout(['1'], { viewBody0: 'none' });
   assert.deepEqual(note(none, EMERY), { text: '0/5 metrics active', label: '0 of 5 metrics active',

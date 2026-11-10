@@ -381,17 +381,19 @@ function metricPermille(metric, raw, settings, band) {
 /**
  * One forecast row's wire bytes: [] for no metric, level bytes for a stripe
  * (stripeBytes), else the metric's permille series as bytes (metricBytes), each over
- * the row's Show: Alert band when its metric has one.
+ * the row's Show: Alert band when its metric has one and the row draws it Show: Alert.
  * @param {?string} metric The row's metric, or null when it draws nothing.
  * @param {boolean} stripe Whether the row is drawn as a stripe.
  * @param {Object} raw Raw provider series (buildForecastSeries' input).
  * @param {Object} settings Clay settings.
  * @param {Object<string, {bottom: number, top: number}>} bands The Show: Alert lines' bands.
+ * @param {boolean} [all] The row draws its metric with all its values, whatever its band: a
+ *   graph style's row (graphStyleSlots) whose alert flag is off.
  * @returns {number[]} Wire bytes.
  */
-function rowBytes(metric, stripe, raw, settings, bands) {
+function rowBytes(metric, stripe, raw, settings, bands, all) {
     if (!metric) { return []; }
-    var band = Object.prototype.hasOwnProperty.call(bands, metric) ? bands[metric] : null;
+    var band = !all && Object.prototype.hasOwnProperty.call(bands, metric) ? bands[metric] : null;
     if (stripe) { return stripeBytes(metric, raw, settings, band); }
     return metricBytes(metric, metricPermille(metric, raw, settings, band), Boolean(band));
 }
@@ -404,7 +406,8 @@ function rowBytes(metric, stripe, raw, settings, bands) {
  * secondary line can fill. While screens show several graph styles (emery), the
  * settings are weather/graph-style-wire.js weatherSettings' and graphStyleSlots names
  * each line's series outright: the union may draw one metric twice, as a line and as
- * a stripe, which effectiveLineMetric would read as a repeat. The union's fifth row,
+ * a stripe or with all its values and Show: Alert, which effectiveLineMetric would read
+ * as a repeat. The union's fifth row,
  * the spare (graph-styles.js ROWS), then bakes into SPARE_LINE_TREND_UINT8; the key is
  * absent while there is no fifth series (the watch then deletes its spare trend, as
  * app_message.c's trend table treats every missing trend).
@@ -446,13 +449,15 @@ function buildForecastSeries(raw, settings) {
         // every metric that can has a scale: stripe-levels.js METRIC_SCALES, pinned equal).
         var stripe = Boolean(metric) && stylesDrawn && (slots ? slot.stripe
             : lineStyle.isStripeStyle(settings, lineStyle.FORECAST_LINES[i].styleKey));
-        out[LINE_TREND_KEYS[key]] = rowBytes(metric, stripe, raw, settings, bands);
+        // A graph style's row draws its metric Show: Alert only where its own flag says so: the
+        // union may draw it with all its values on another row.
+        out[LINE_TREND_KEYS[key]] = rowBytes(metric, stripe, raw, settings, bands, Boolean(slot) && !slot.alert);
     }
     // The union's spare row: its series as the lines bake theirs.
     var spare = slots ? slots[lineStyle.FORECAST_LINES.length] : null;
     if (spare) {
         out.SPARE_LINE_TREND_UINT8 = rowBytes(spare.metric, stylesDrawn && spare.stripe, raw, settings,
-            bands);
+            bands, !spare.alert);
     }
 
     // Rain bars: independent of the metric lines.

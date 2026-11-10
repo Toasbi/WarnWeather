@@ -13,7 +13,7 @@ FORECAST
   wind, air pressure, feels-like temperature and dew point
 - Optional day/night shading
 - Pebble Time 2: each screen can show its own forecast graph; keep up to six, or pick one of
-  14 templates such as Clean, Stripes or Meteogram
+  14 templates such as Clean, Stripes or Meteogram; open a screen's graph right from its editor
 - Fully customizable line, colors and axis
 - Multiple weather providers, including regional and worldwide sources
 
@@ -92,6 +92,7 @@ LAYOUT CUSTOMIZATION
 - Edit each screen as a simple list, top to bottom: drag a row, remove it or add one where it fits
 - Name your screens and drag them into order
 - Add a screen by its layout: with or without a calendar, Health, Rain radar, or two graphs on one screen
+- Change a screen's layout in its editor, keeping its name and place
 - First-run setup wizard that picks sensible defaults for your country and watch
 
 WEATHER

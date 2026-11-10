@@ -206,5 +206,9 @@
   "3.0.0": {
     "title": "Screen layouts and named status bars",
     "body": "On the Watchface tab, add a screen by picking its layout, then rename your screens and drag them into order. Name your status bars on the Status bars tab and put any of them on any screen. On the Pebble Time 2, each screen can show its own forecast graph, one of up to six of yours or one of 14 templates, and you can make up to six status bars. Not on Pebble Classic or Steel."
+  },
+  "3.1.0": {
+    "title": "Change a screen's layout",
+    "body": "Open a screen on the Watchface tab and tap Change layout to give it another layout, keeping its name and place. On the Pebble Time 2, Edit on the screen's graph opens its settings, and each graph keeps its own Visible values. Not on Pebble Classic or Steel."
   }
 }
