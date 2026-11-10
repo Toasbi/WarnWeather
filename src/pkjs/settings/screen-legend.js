@@ -2,8 +2,8 @@
 // screen's graphs draw (the owner's, 2026-11-10: "just show a proper legend"): a row for each
 // thing drawn, its glyph on the watch's ground in the colours the screen shows (preview-svg.js
 // displayColors) and its name: the glyph says how it is drawn (the owner's, 2026-11-10: the names
-// only, as bullets). Add a screen's cards list the rows (cardHtml), its picked screen lists them
-// as a bulleted list (listHtml) with what the weather service leaves out (gapNote).
+// only). Add a screen's picked screen shows the rows under its picture (cardHtml), with what the
+// weather service leaves out (gapNote).
 //
 // THE ROWS are each graph's own legend (preview-forecast.js, preview-health.js and
 // preview-radar.js legend): the same reading of the settings its picture draws with, so a row is
@@ -29,11 +29,8 @@
     // (forecast-metrics.js legendName).
     var NAME = { temp: 'Temperature', rain: 'Rain', radar: 'Rain', nearby: 'Rain nearby', cloud: 'Clouds', sun: 'Sun',
         storm: 'Lightning', steps: 'Steps', hr: 'Heart rate', sleep: 'Sleep' };
-    // A graph by its name: the one row a card gives the upper graph of a screen of two graphs, and
-    // the caption over its rows on the picked screen.
+    // A graph by its name: the one row the legend gives the upper graph of a screen of two graphs.
     var GRAPH = { forecast: 'Forecast graph', health: 'Health graph', radar: 'Rain radar' };
-    // The hours a graph shows, in its caption: the forecast's length is picked under it.
-    var HOURS = { health: 'last 24 hours', radar: 'next 2 hours' };
     // A glyph's tile, in its own units: a card's is drawn 24 x 14 px, the list's 28 x 16.
     var TW = 24, TH = 14;
     // Bars in a tile: four, three units wide, their heights out of the ten a bar can take.
@@ -171,12 +168,12 @@
     }
 
     /**
-     * A card's legend (Add a screen's cards): a row for each thing drawn, its glyph and name. On
-     * a screen of two graphs the upper one takes one row, by its name, with its first row's
-     * glyph, and the lower one its rows.
+     * A screen's legend (Add a screen's picked screen): a row for each thing drawn, its glyph and
+     * name. On a screen of two graphs the upper one takes one row, by its name, with its first
+     * row's glyph, and the lower one its rows.
      * @param {Array<Object>} gs The screen's legend (groups).
      * @param {string} bg The watch's ground.
-     * @returns {string} HTML (spans, for a card that is a button)
+     * @returns {string} HTML (spans)
      */
     function cardHtml(gs, bg) {
         var out = '';
@@ -188,36 +185,6 @@
             g.rows.forEach(function (r) { out += '<span class="sl-r">' + rowHtml(r, g.graph, bg) + '</span>'; });
         });
         return '<span class="sl-card">' + out + '</span>';
-    }
-
-    /**
-     * A graph's caption over its rows: its name, and the hours it shows; a forecast graph the
-     * screen keeps is "Your forecast graph".
-     * @param {string} graph 'forecast' | 'health' | 'radar'.
-     * @param {boolean} yours The forecast graph is yours.
-     * @returns {string}
-     */
-    function caption(graph, yours) {
-        if (graph === 'forecast') { return yours ? 'Your forecast graph' : GRAPH.forecast; }
-        return GRAPH[graph] + ', ' + HOURS[graph];
-    }
-
-    /**
-     * The picked screen's legend: a bulleted list of each graph's rows, each its glyph and name,
-     * under the graph's caption where `captions` asks for one.
-     * @param {Array<Object>} gs The screen's legend (groups).
-     * @param {string} bg The watch's ground.
-     * @param {{captions: boolean, yours: boolean}} opts `captions`: a caption over each graph's
-     *     rows; `yours`: the forecast graph is yours (caption).
-     * @returns {string} HTML
-     */
-    function listHtml(gs, bg, opts) {
-        return gs.map(function (g) {
-            return '<div class="sl-grp">' + (opts.captions ? '<div class="ui-cap sl-cap">' + esc(caption(g.graph, opts.yours))
-                + '</div>' : '') + '<ul class="sl-list">' + g.rows.map(function (r) {
-                return '<li class="sl-li">' + rowHtml(r, g.graph, bg) + '</li>';
-            }).join('') + '</ul></div>';
-        }).join('');
     }
 
     /**
@@ -238,23 +205,15 @@
         return FM.gapSentence(provider, ids);
     }
 
-    // The legend's look: a card's rows tight beside its picture, the list's a little larger, each
-    // row its glyph as the bullet and its name.
+    // The legend's look: each row its glyph and its name (Add a screen's picked screen sets the
+    // rows side by side, centred: screens-page.js).
     var CSS = '.sl-g{display:block;flex:0 0 auto;width:24px;height:14px;border-radius:3px;box-shadow:0 0 0 1px var(--card-line)}'
         + '.sl-card{display:grid;gap:4px;min-width:0}'
         + '.sl-r{display:flex;align-items:center;gap:7px;min-width:0}'
         + '.sl-r .sl-n{min-width:0;font:600 12px/1.25 Inter,system-ui,sans-serif;color:var(--lbl);white-space:nowrap;'
-        + 'overflow:hidden;text-overflow:ellipsis}'
-        + '.sl-grp{display:grid;gap:8px}'
-        + '.sl-grp+.sl-grp{margin-top:8px}'
-        + '.sl-cap{padding:0 3px}'
-        + '.sl-list{list-style:none;margin:0;padding:0 3px;display:grid;gap:9px}'
-        + '.sl-li{display:flex;align-items:center;gap:10px;min-width:0}'
-        + '.sl-li .sl-g{width:28px;height:16px}'
-        + '.sl-li .sl-n{min-width:0;font:600 13.5px/1.3 Inter,system-ui,sans-serif;color:var(--lbl)}';
+        + 'overflow:hidden;text-overflow:ellipsis}';
 
-    var api = { NAME: NAME, groups: groups, glyph: glyph, cardHtml: cardHtml, listHtml: listHtml, caption: caption,
-        gapNote: gapNote, CSS: CSS };
+    var api = { NAME: NAME, groups: groups, glyph: glyph, cardHtml: cardHtml, gapNote: gapNote, CSS: CSS };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.ScreenLegend = api; }
 })();

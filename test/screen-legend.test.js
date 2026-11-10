@@ -36,14 +36,16 @@ function fresh(env, over) {
 }
 
 /**
- * The legend of a screen Add a screen would add: the first card of a kind, as its picture draws.
- * @param {string} id A kind's id.
+ * The legend of a screen Add a screen would add, as its picture draws: a kind's (screen-presets.js
+ * KINDS) with no calendar, or a forecast screen drawing a template's graph.
+ * @param {string} id A kind's or a template's id.
  * @param {Object} env Platform env.
  * @param {Object} [S] Settings; a new install's without.
  * @returns {Array<Object>} screen-legend.js groups
  */
 function legendOf(id, env, S) {
-  const c = SP.addChoices(S || fresh(env), env).find((x) => x.id === id);
+  const kind = ['forecast', 'health', 'radar', 'healthfc', 'radarfc'].includes(id);
+  const c = kind ? SP.addPreview(S || fresh(env), env, id, '') : SP.addPreview(S || fresh(env), env, 'forecast', '', id);
   assert.ok(c, id + ' is offered');
   return L.groups(SP.drawnView(VC.screensCycle(c.W, env)[c.n], c.W), c.W, env, USER);
 }
@@ -121,7 +123,7 @@ test('a template screen\'s rows are its graph\'s, at its length (the Pebble Time
   assert.deepEqual(said(legendOf('outdoor', EMERY)), [['forecast', 'Temperature: thick line', 'Rain chance: shaded area',
     'UV index: line', 'Rain: bars from the top']]);
   // The screen as added at another length: Outdoor's feels-like line on 12 and 24 hours.
-  const S = fresh(EMERY), n = SP.addChosen(S, EMERY, 'outdoor', '', '24');
+  const S = fresh(EMERY), n = SP.addChosen(S, EMERY, 'forecast', '', 'outdoor', '24');
   assert.deepEqual(said(L.groups(SP.drawnView(VC.screensCycle(S, EMERY)[n], S), S, EMERY, USER))[0].slice(3, 5),
     ['UV index: line', 'Feels like: line']);
 });
@@ -163,7 +165,7 @@ test('a glyph: a tile of the watch\'s ground with the row drawn on it, in the co
   assert.ok(tile({ kind: 'bolt', color: '#FFFF00' }, 'radar').indexOf(shade('#FFFF00')) !== -1);
 });
 
-test('a card\'s legend: each row its glyph and name; a screen of two graphs gives the upper one a row', () => {
+test('a screen\'s legend: each row its glyph and name; a screen of two graphs gives the upper one a row', () => {
   const one = L.cardHtml(legendOf('outdoor', EMERY), '#000000');
   assert.deepEqual([...one.matchAll(/<span class="sl-n">([^<]*)<\/span>/g)].map((m) => m[1]),
     ['Temperature', 'Rain chance', 'UV index', 'Rain']);
@@ -171,18 +173,6 @@ test('a card\'s legend: each row its glyph and name; a screen of two graphs give
   const two = L.cardHtml(legendOf('healthfc', EMERY), '#000000');
   assert.deepEqual([...two.matchAll(/<span class="sl-n">([^<]*)<\/span>/g)].map((m) => m[1]),
     ['Health graph', 'Temperature', 'Rain chance', 'Rain'], 'the health graph in one row, by its name');
-});
-
-test('the picked screen\'s list: each row\'s glyph and name as a bullet, under its graph\'s caption where asked', () => {
-  const list = L.listHtml(legendOf('healthfc', BASALT), '#000000', { captions: true, yours: true });
-  assert.deepEqual([...list.matchAll(/<div class="ui-cap sl-cap">([^<]*)<\/div>/g)].map((m) => m[1]),
-    ['Health graph, last 24 hours', 'Your forecast graph']);
-  // The names only (the owner's, 2026-11-10): the glyph says how each is drawn.
-  assert.deepEqual([...list.matchAll(/<li class="sl-li"><svg[\s\S]*?<\/svg><span class="sl-n">([^<]*)<\/span><\/li>/g)]
-    .map((m) => m[1]), ['Steps', 'Sleep', 'Temperature', 'Rain chance', 'Rain']);
-  assert.equal(L.listHtml(legendOf('clean', EMERY), '#000000', { captions: false, yours: false }).indexOf('sl-cap'), -1);
-  assert.equal(L.caption('forecast', false), 'Forecast graph');
-  assert.equal(L.caption('radar', false), 'Rain radar, next 2 hours');
 });
 
 test('what the weather service leaves out of the forecast graph', () => {

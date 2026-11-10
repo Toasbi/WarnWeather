@@ -1,8 +1,10 @@
 // src/pkjs/settings/screens-page.js — ES5, WebView (+ Node for tests). The Watchface tab's
 // screens: the Screens card (one row per screen by its name, ending on the red arrow that opens
 // its editor, dragged by its ≡ or moved with the arrow keys, the top one the Default; a ✕ with
-// Undo on each other; "+ Add screen"), the Add a screen sheet (Blank, then the presets this
-// watch can draw: screen-presets.js), the screen editor (a full-screen view under a dialog's
+// Undo on each other; "+ Add screen"), Add a screen (Blank, the forecast screen on each calendar
+// and the other graphs' screens, as cards; a card's screen big, under it for a screen with a
+// forecast graph a roll of your graphs and the templates, the one in its middle on the picture:
+// screen-presets.js), the screen editor (a full-screen view under a dialog's
 // header: the screen's name, which its pencil renames with an OK button, its picture and its
 // rows top to bottom, each by its name, dragged by its ≡ or moved with the arrow keys, the
 // calendar's rows and a graph's size as a dropdown that opens its picker, a status bar's Edit
@@ -47,9 +49,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // (graph-styles-page.js; graph-styles.js the model).
     var GSP = (typeof require !== 'undefined') ? require('./graph-styles-page.js') : window.GraphStylesPage;
     var GS = (typeof require !== 'undefined') ? require('../graph-styles.js') : window.GraphStyles;
-    // The screens Add screen offers after Blank.
+    // A graph's lengths as the Forecast length pickers name them (the long span by its hours).
+    var spanHours = (typeof require !== 'undefined') ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
+    // The screens Add a screen offers.
     var PRESETS = (typeof require !== 'undefined') ? require('../screen-presets.js') : window.ScreenPresets;
-    // What a screen's graphs draw, as a legend (Add a screen's cards and its picked screen).
+    // What a screen's graphs draw, as a legend (Add a screen's picked screen).
     var LEGEND = (typeof require !== 'undefined') ? require('./screen-legend.js') : window.ScreenLegend;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
     var html = (typeof require !== 'undefined') ? require('../config-ui/lib/html.js') : PConf.html;
@@ -100,10 +104,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // A Delete status bar's Undo while it shows (the Your status bars card).
     var BAR_UNDO = { v: null, t: null };
     // What a screen brings, under Add a screen's cards: with graph styles, and on a watch with
-    // one graph (screen-presets.js WHAT A SCREEN BRINGS).
-    var ADD_FINE = 'A forecast screen draws its template’s graph. It becomes one of your graphs only when you edit it.'
+    // one graph (screen-presets.js WHAT A SCREEN BRINGS); Blank's line; under a picked template,
+    // what it is; under one of your graphs, why its length cannot be picked here.
+    var ADD_FINE = 'A screen with a forecast graph picks its graph next: one of yours or a template.'
         + ' Your status bars keep what they show.';
     var ADD_FINE_ONE_GRAPH = 'A screen brings its rows. Your graph and your status bars stay as they are.';
+    var BLANK_LINE = 'The Watch bar and the clock. You add the rest.';
+    var TEMPLATE_FINE = 'A template’s graph becomes one of your graphs only when you edit it.';
+    var YOUR_LENGTH = 'Your graph keeps its own length. Change it on the Graphs tab.';
     // aplite's Layout choice, its Watchface tab having no screens: the three calendars.
     var APLITE_LAYOUTS = [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal'], ['No calendar', 'noCal']];
 
@@ -472,100 +480,158 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return name + ' ' + k;
     }
 
+    // ── Add a screen ────────────────────────────────────────────────────────
+    //
+    // THE GRAPHS. A screen with a forecast graph, on a watch with graph styles, draws the graph
+    // picked after its layout (the owner's, 2026-11-10: roll through them under the screen's
+    // picture): one of yours, or a template's at the length picked (screen-presets.js templates).
+    // A graph goes by its value, as the graph pickers name it: '1' to '6' one of yours (its index
+    // plus one), else a template's id.
+
     /**
-     * What a screen added with no calendar or length named starts on (addChosen): the Default
-     * screen's calendar and, for a forecast screen on a watch with graph styles, its template's
-     * length (screen-presets.js spanOf). Add a screen's cards name their own calendar.
-     * @param {Object} S Settings.
+     * A graph Add a screen can put on a screen's forecast graph, by its value (THE GRAPHS).
+     * @param {Object} N Settings as stored (graph-styles-page.js asStored).
      * @param {?Object} env Platform env.
-     * @param {Object} kind A screen-presets.js KINDS entry.
-     * @returns {{cal: string, span: string}}
+     * @param {string} v '1' to '6' one of yours, else a template's id; '' your first graph.
+     * @returns {?{k: number, look: string}} k: your graph's index, -1 for a template's; null for one
+     *   this watch cannot draw (a graph you do not have, a template without graph styles)
      */
-    function addStart(S, env, kind) {
-        return { cal: PRESETS.calendars(kind).length ? PRESETS.calOf(M.screensOf(S, env)[0]) : '',
-            span: PRESETS.spanOf(kind, env) };
+    function graphOfValue(N, env, v) {
+        var val = String(v || '1'), k = /^[0-9]$/.test(val) ? parseInt(val, 10) - 1 : -1;
+        if (k >= 0) {
+            return k < GS.MAX_STYLES && GS.exists(N, k) && (k === 0 || !env || env.graphStyles) ? { k: k, look: '' } : null;
+        }
+        return PRESETS.template(val, env) ? { k: -1, look: val } : null;
     }
 
     /**
-     * One screen Add a screen can add: a kind with its calendar and, for a forecast screen on a
-     * watch with graph styles, its length, as the screen it adds after the others. A forecast
-     * screen there draws its template's graph (graph-styles-page.js templateGraph: a template
-     * graph, never one of the six, so no screen waits for a free graph). `W` is the settings with
-     * it added, which its picture draws (the radar on where the screen shows it, as adding it
-     * turns it on); `why` says why it cannot be added: its graph would make more metrics than the
-     * watch shows.
+     * Add a screen's roll of graphs (the owner's, 2026-11-10): yours first, by their names, then
+     * the templates in the New graph sheet's order (screen-presets.js templates); none on a watch
+     * with one graph, where every screen keeps it.
+     * @param {Object} N Settings as stored.
+     * @param {?Object} env Platform env.
+     * @returns {Array<{v: string, name: string, yours: boolean}>}
+     */
+    function rollItems(N, env) {
+        if (env && !env.graphStyles) { return []; }
+        return GSP.existing(N).map(function (k) { return { v: String(k + 1), name: GS.name(N, k), yours: true }; })
+            .concat(PRESETS.templates(env).map(function (look) { return { v: look.id, name: look.label, yours: false }; }));
+    }
+
+    /**
+     * The name a screen Add a screen adds takes (freeName tells it apart): Blank none (its place's),
+     * a forecast screen its template's or your graph's own name (Forecast for a graph still on its
+     * default name), the others their kind's.
+     * @param {Object} N Settings as stored.
+     * @param {?Object} env Platform env.
+     * @param {Object} kind A screen-presets.js KINDS entry.
+     * @param {string} look The template its forecast graph draws, '' for none.
+     * @param {number} k The graph its forecast graph draws (-1 for none).
+     * @returns {string}
+     */
+    function screenName(N, env, kind, look, k) {
+        if (!kind.graph) { return ''; }
+        if (kind.id !== 'forecast') { return kind.name; }
+        if (look) { return PRESETS.template(look, env).label; }
+        return (k >= 0 && GS.parse(N).names[k]) || kind.name;
+    }
+
+    /**
+     * One screen Add a screen can add: a kind on a calendar and, for a screen with a forecast
+     * graph, the graph it draws (graphOfValue), as the screen it adds after the others. A
+     * template's graph is a template graph at the length picked (graph-styles-page.js
+     * templateGraph: never one of the six, so no screen waits for a free graph). `W` is the
+     * settings with it added, which its picture draws (the radar on where the screen shows it, as
+     * adding it turns it on; the modes the screens need with it: applyModes, so its picture draws
+     * the radar as the watch will); `why` says why it cannot be added: its graph would make more
+     * metrics than the watch shows.
      * @param {Object} N Settings as stored (graph-styles-page.js asStored).
      * @param {?Object} env Platform env.
      * @param {Array<Array<Object>>} lists The screens.
      * @param {Object} kind A screen-presets.js KINDS entry.
      * @param {string} cal Its calendar: '' | '2' | '3' | screen-presets.js DENSE.
-     * @param {string} span Its graph's length ('12' | '24' | '48'), '' where it has none.
-     * `calName` names its calendar ('' on a screen of two graphs), for a screen reader: its
-     * picture shows it. `W` holds the modes the screens need with it added (applyModes), so its
-     * picture draws the radar as the watch will (the radar's sky rows draw as a graph only).
-     * @param {{graph: ?Object, why: string}} [known] What the same kind at the same length found on
-     *     another calendar: its graph and why it cannot be added, the same on every calendar (a
-     *     calendar takes no graph and draws no metric), so Add a screen's cards read them once.
-     * @returns {{id: string, name: string, calName: string, look: ?string, cal: string, span: string,
-     *   list: Array<Object>, graph: ?{k: number, values: Object}, W: Object, n: number, why: string}}
+     * @param {?{k: number, look: string}} g Its forecast graph (graphOfValue); null for your first.
+     * @param {string} span A template's length ('12' | '24' | '48'); its own without.
+     * @returns {{id: string, name: string, calName: string, look: string, cal: string, span: string,
+     *   list: Array<Object>, graph: ?{k: number, values: Object}, k: number, W: Object, n: number,
+     *   why: string}} k: the graph its forecast graph draws (-1 for none); span: a template's length
      */
-    function addChoice(N, env, lists, kind, cal, span, known) {
-        var n = lists.length, list = PRESETS.screenOf(kind, cal), why = known ? known.why : '';
-        var styled = Boolean(kind.look && env && env.graphStyles);
-        var graph = known ? known.graph : styled ? GSP.templateGraph(N, env, kind.look, span) : null;
-        if (graph) { list[M.idxOf(list, 'fc')].style = GS.codeOf(graph.k); }
+    function addChoice(N, env, lists, kind, cal, g, span) {
+        var n = lists.length, list = PRESETS.screenOf(kind, cal), at = M.idxOf(list, 'fc');
+        var look = at >= 0 && g ? g.look : '', graph = look ? GSP.templateGraph(N, env, look, span) : null;
+        var k = at < 0 ? -1 : graph ? graph.k : g ? g.k : 0;
+        if (k > 0) { list[at].style = GS.codeOf(k); }
         var W = Object.assign({}, N);
-        if (graph) { W.graphStyles = GS.withTemplate(W, graph.k, kind.look, graph.values); }
+        if (graph) { W.graphStyles = GS.withTemplate(W, graph.k, look, graph.values); }
         if (PRESETS.showsRadar(kind, cal)) { W.radarEnabled = true; }
         ensureCustom(W, env);
         putScreen(W, n, list);
         applyModes(W, env);
         W['viewAlign' + n] = 'clock';
-        W['viewName' + n] = kind.name;
-        if (!known && graph && GSP.screenOverflows(W, env, n, graph.k)) { why = GSP.limitDesc(W, env, graph.k); }
-        return { id: kind.id, name: kind.name, calName: PRESETS.calendarName(kind, cal), look: kind.look, cal: cal,
-            span: span, list: list, graph: graph, W: W, n: n, why: why };
+        var name = screenName(N, env, kind, look, k);
+        W['viewName' + n] = name;
+        var why = k >= 0 && env && env.graphStyles && GSP.screenOverflows(W, env, n, k) ? GSP.limitDesc(W, env, k) : '';
+        return { id: kind.id, name: name, calName: PRESETS.calendarName(kind, cal), look: look, cal: cal,
+            span: graph ? String(graph.values.forecastHours) : '', list: list, graph: graph, k: k, W: W, n: n, why: why };
     }
 
     /**
-     * Add a screen's cards: each kind this watch can draw once per calendar it can have
-     * (screen-presets.js cards; each fits every watch it is offered, with every calendar,
-     * test/config-screen-presets.test.js), each as addChoice reads it on its template's length
-     * (screen-presets.js spanOf). None with three screens already.
+     * Add a screen's cards: each kind this watch can draw, the forecast screen once per calendar it
+     * can have (screen-presets.js cards; each fits every watch it is offered, with every calendar,
+     * test/config-screen-presets.test.js), each as addChoice reads it with your first graph. None
+     * with three screens already.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @returns {Array<Object>}
      */
     function addChoices(S, env) {
-        var N = GSP.asStored(S), lists = M.screensOf(N, env), known = {};
+        var N = GSP.asStored(S), lists = M.screensOf(N, env);
         if (lists.length >= M.MAX_SCREENS) { return []; }
-        return PRESETS.cards(env).map(function (card) {
-            var span = PRESETS.spanOf(card.kind, env), key = card.kind.id + ':' + span;
-            var c = addChoice(N, env, lists, card.kind, card.cal, span, known[key]);
-            known[key] = known[key] || { graph: c.graph, why: c.why };
-            return c;
-        });
+        return PRESETS.cards(env).map(function (card) { return addChoice(N, env, lists, card.kind, card.cal, null, ''); });
     }
 
     /**
-     * Add the screen a kind stands for, with its calendar and length, after the others: a
-     * forecast screen's template graph stored first (graph-styles.js TEMPLATE GRAPHS), the rain
-     * radar turned on where the screen shows it, the screen named after its kind (freeName).
-     * Mutates S.
+     * The screen Add a screen would add (addChoice): a kind on a calendar, drawing graph v at a
+     * length; null with three screens already, for no such kind, one the watch cannot draw, a
+     * calendar it cannot have or a graph it cannot draw.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} id A kind's id.
+     * @param {string} cal Its calendar ('' | '2' | '3' | screen-presets.js DENSE).
+     * @param {string} [v] Its forecast graph (graphOfValue): your first without.
+     * @param {string} [span] A template's length; its own without.
+     * @returns {?Object} addChoice's result
+     */
+    function addPreview(S, env, id, cal, v, span) {
+        var N = GSP.asStored(S), lists = M.screensOf(N, env), kind = PRESETS.byId(id);
+        if (lists.length >= M.MAX_SCREENS || !(kind && PRESETS.drawable(kind, env))) { return null; }
+        var cals = PRESETS.calendars(kind, env);
+        if (cal && !cals.some(function (c) { return c[1] === cal; })) { return null; }
+        var g = kind.graph === 'fc' ? graphOfValue(N, env, v) : null;
+        if (kind.graph === 'fc' && !g) { return null; }
+        return addChoice(N, env, lists, kind, cal || '', g, span || '');
+    }
+
+    /**
+     * Add the screen a kind stands for after the others (addPreview): on its calendar, drawing
+     * graph v where it has a forecast graph, a template's graph stored first (graph-styles.js
+     * TEMPLATE GRAPHS), the rain radar turned on where the screen shows it, the screen named after
+     * its graph or its kind (screenName, freeName). Mutates S.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {string} id A kind's id.
      * @param {string} [cal] Its calendar ('' | '2' | '3' | screen-presets.js DENSE); the Default
-     *   screen's without.
-     * @param {string} [span] Its graph's length; its template's without.
-     * @returns {number} the new screen's slot, -1 for none (no room, it cannot be added, no such kind)
+     *   screen's without, for a kind that has one.
+     * @param {string} [v] Its forecast graph (graphOfValue): your first without.
+     * @param {string} [span] A template's length; its own without.
+     * @returns {number} the new screen's slot, -1 for none (no room, it cannot be added, no such kind
+     *   or graph)
      */
-    function addChosen(S, env, id, cal, span) {
-        var N = GSP.asStored(S), lists = M.screensOf(N, env), kind = PRESETS.byId(id);
-        if (lists.length >= M.MAX_SCREENS || !(kind && PRESETS.drawable(kind, env))) { return -1; }
-        var start = addStart(N, env, kind);
-        var c = addChoice(N, env, lists, kind, cal === undefined ? start.cal : cal, span || start.span);
-        if (c.why) { return -1; }
+    function addChosen(S, env, id, cal, v, span) {
+        var kind = PRESETS.byId(id);
+        if (cal === undefined && kind && PRESETS.calendars(kind).length) { cal = PRESETS.calOf(M.screensOf(S, env)[0]); }
+        var c = addPreview(S, env, id, cal || '', v, span);
+        if (!c || c.why) { return -1; }
         var held = S.graphStyles;
         if (c.graph) {
             GSP.settle(S);
@@ -579,7 +645,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (c.graph) { S.graphStyles = held; }
             return -1;
         }
-        S['viewName' + c.n] = freeName(S, env, c.name, c.n);
+        S['viewName' + c.n] = c.name ? freeName(S, env, c.name, c.n) : '';
         return c.n;
     }
 
@@ -796,6 +862,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // ── Styles ──────────────────────────────────────────────────
 
+    // Add a screen's roll (the owner's ask, 2026-11-10: "the graphs need to be larger" than the
+    // mockup's 96 px): each graph ROLL_W px wide. The graphs ROLL_NEAR either side of the one
+    // picked draw their pictures as it opens, the rest FILL_STEP at a time after it, nearest first,
+    // FILL_GAP ms (a frame) apart (fillPictures); a tap's graph rolls to the middle for at most
+    // ROLL_MS, while the graphs it passes stay unpicked.
+    var ROLL_W = 156, ROLL_NEAR = 2, FILL_STEP = 3, FILL_GAP = 16, ROLL_MS = 700;
     // The cards' and the editor's own look. Their lists, red arrows, folding chevrons, New rows,
     // Undo, notes, chips, Delete screen, the editor's header and the icons are the page's shared
     // parts (kit: config-ui/lib/ui.js, their look in shell.html); the editor's card is the
@@ -876,36 +948,62 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.se-hint{border-top:1px solid var(--row-line)}'
         + '.se-adds{display:grid;gap:14px;padding:12px 14px 14px;border-top:1px solid var(--row-line)}'
         + '.se-add{display:grid;gap:7px}'
-        // Add a screen: a row per group, its cards side by side, scrolled sideways (the owner's,
-        // 2026-11-10), out to the body's edges, freely (a snap to every card made a row long to
-        // scroll through, the owner's, 2026-11-10); a card its picture over its name and legend
-        // (screen-legend.js), narrow enough that two and a bit show side by side, each as tall as
-        // its own legend (no empty space under a short one). A picked one big,
-        // what it shows (the legend as a list), its Forecast length (a segmented control) and
-        // Add screen.
+        // Add a screen (the owner's, 2026-11-10: the layout first, then the graph): Blank across
+        // the top, its picture beside its name; then each heading over its cards, two a row, each
+        // its picture over its name. A card picked: its screen big, under it the roll of graphs
+        // (a strip scrolled sideways out to the body's edges, each graph's picture over its name,
+        // larger than the mockup's, the owner's ask; the one in the middle, under the red mark, on
+        // the picture: it settles on one, scroll-snap), then the graph picked by its name over its
+        // legend, its Calendar or Forecast length (a segmented control), why it cannot be added
+        // and Add screen.
         + '.sa-group{display:grid;gap:8px;min-width:0}'
-        + '.sa-group+.sa-group{margin-top:6px}'
+        + '.sa-group+.sa-group,.sa-wide+.sa-group{margin-top:8px}'
         + '.sa-group>.ui-cap{padding:0 4px}'
-        + '.sa-strip{display:flex;align-items:flex-start;gap:10px;margin:0 -16px;padding:2px 16px 6px;overflow-x:auto;'
-        + 'overflow-y:hidden;'
-        + '-webkit-overflow-scrolling:touch;scrollbar-width:none}'
-        + '.sa-strip::-webkit-scrollbar{display:none}'
-        + '.sa-card{flex:0 0 auto;display:flex;flex-direction:column;gap:9px;width:156px;min-width:0;margin:0;'
-        + 'padding:10px;border:none;border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--card-line);'
-        + 'color:var(--lbl);text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
+        + '.sa-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}'
+        + '.sa-card{display:flex;flex-direction:column;gap:9px;min-width:0;margin:0;padding:10px;border:none;'
+        + 'border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--card-line);color:var(--lbl);'
+        + 'text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
+        + '.sa-card.sa-wide{flex-direction:row;align-items:center;gap:14px}'
         + '.sa-pic{display:block;width:100%;border-radius:9px;overflow:hidden;line-height:0;'
         + 'box-shadow:0 0 0 1px var(--card-line)}'
+        + '.sa-wide .sa-pic{flex:none;width:76px}'
         + '.sa-pic svg{display:block;width:100%;height:auto}'
-        + '.sa-txt{display:grid;align-content:start;gap:6px;min-width:0;padding:0 2px}'
+        + '.sa-txt{display:grid;align-content:start;gap:4px;min-width:0;padding:0 2px}'
         + '.sa-n{font:700 13.5px/1.25 Inter,system-ui,sans-serif;color:var(--lbl)}'
+        + '.sa-d{font-size:12.5px;line-height:1.4;color:var(--hint)}'
         + '.sa-fine{padding:2px 4px;font-size:12px;line-height:1.45;color:var(--hint)}'
-        + '.sa-cfg{display:grid;gap:14px}'
-        + '.sa-big{justify-self:center;width:160px;border-radius:14px;overflow:hidden;line-height:0;'
-        + 'box-shadow:0 0 0 1px var(--card-line)}'
+        + '.sa-cfg{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}'
+        + '.sa-bigwrap{display:flex;justify-content:center}'
+        + '.sa-big{width:224px;border-radius:16px;overflow:hidden;line-height:0;box-shadow:0 0 0 1px var(--card-line)}'
         + '.sa-big svg{display:block;width:100%;height:auto}'
+        + '.sa-roll{position:relative;min-width:0;margin:0 -16px}'
+        + '.sa-caret{position:absolute;left:50%;top:0;z-index:1;width:0;height:0;margin-left:-7px;'
+        + 'border-left:7px solid transparent;border-right:7px solid transparent;border-top:8px solid #FA4A35}'
+        + '.sa-reel{position:relative;display:flex;align-items:flex-start;gap:12px;overflow-x:auto;overflow-y:hidden;'
+        + 'padding:12px calc(50% - ' + (ROLL_W / 2) + 'px) 4px;scroll-snap-type:x mandatory;'
+        + '-webkit-overflow-scrolling:touch;scrollbar-width:none}'
+        + '.sa-reel::-webkit-scrollbar{display:none}'
+        + '.sa-g{flex:0 0 auto;width:' + ROLL_W + 'px;display:grid;gap:7px;justify-items:center;margin:0;padding:0;'
+        + 'border:none;background:none;color:var(--hint);font:600 13px/1.2 Inter,system-ui,sans-serif;'
+        + 'scroll-snap-align:center;cursor:pointer;-webkit-appearance:none;appearance:none}'
+        + '.sa-th{display:block;width:100%;border-radius:10px;overflow:hidden;line-height:0;'
+        + 'box-shadow:0 0 0 1px var(--card-line);opacity:.55;transition:opacity .15s,box-shadow .15s}'
+        + '.sa-th svg{display:block;width:100%;height:auto}'
+        + '.sa-g.on{color:var(--lbl)}'
+        + '.sa-g.on .sa-th{opacity:1;box-shadow:0 0 0 2px #FA4A35}'
+        + '.sa-g:focus-visible{outline:none}'
+        + '.sa-g:focus-visible .sa-th{box-shadow:0 0 0 2px var(--link)}'
+        + '.sa-sep{flex:0 0 1px;align-self:stretch;margin:4px 0 22px;background:var(--row-line)}'
+        + '.sa-sel{display:grid;justify-items:center;gap:6px;text-align:center}'
+        + '.sa-gname{font:700 18px/1.2 Inter,system-ui,sans-serif;color:var(--lbl)}'
+        + '.sa-gsub{margin-top:-3px;font-size:12.5px;color:var(--hint)}'
+        + '.sa-legend{margin-top:2px}'
+        + '.sa-legend .sl-card{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px}'
+        + '.sa-foot{display:grid;gap:12px}'
         + '.sa-row{display:grid;gap:9px}'
         + '.sa-lbl{font:700 12.5px/1.3 Inter,system-ui,sans-serif;color:var(--lbl);padding:0 3px}'
         + '.sa-why,.sa-gap{padding:0 3px;font-size:12.5px;line-height:1.45;color:var(--hint)}'
+        + '.sa-sel .sa-gap{text-align:center}'
         + '.sa-add{width:100%;min-height:44px;margin-top:2px;border:none;border-radius:12px;'
         + 'background:linear-gradient(135deg,#FA4A35,#D93A24);color:#FFFFFF;font:700 15px Inter,system-ui,sans-serif;'
         + 'box-shadow:0 4px 14px rgba(250,74,53,.35);cursor:pointer}'
@@ -1062,17 +1160,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The overlay's state: what it shows ('edit' a screen, or 'add': Add a screen), the slot,
     // the row whose Rows or Size picker is open, the snap-back message, the drag in progress,
     // the name's input while the title is being renamed, Add a screen's pick while it shows one
-    // (its kind, calendar and length: addPick), where its cards were scrolled to then
-    // (cardsPlace), whether its cards are drawn (renderAdd: once while it is open, as nothing
-    // under the overlay changes the settings they are drawn from) and the overlay's opening,
-    // counted (a picture drawn after it opened is drawn for that one only: fillPictures).
+    // (its kind, calendar, graph and length: addPick), the graph last picked while it is open (a
+    // layout picked after another keeps it), how far its cards were scrolled down then (backToCards),
+    // whether its cards are drawn (renderAdd: once while it is open, as nothing under the overlay
+    // changes the settings they are drawn from), the kind whose picked screen is drawn (its roll is
+    // drawn once, the rest anew at each pick) and how many have been (a roll drawn anew stops the
+    // last one's fillPictures), the roll's pictures drawn (by graph), the roll's
+    // scroll (a tap's graph rolling to the middle, the timer that lets it go, its frame asked for) and the
+    // overlay's opening, counted (a picture drawn after it opened is drawn for that one only:
+    // fillPictures).
     var ED = { overlay: null, mode: 'edit', i: 0, sizeRow: -1, toast: { v: null, t: null }, drag: null, nameEl: null,
-        pick: null, cardsAt: null, drawn: false, opened: 0 };
-    // Add a screen's pictures (the owner's ask, 2026-11-10: it opened slowly with a card per
-    // preset and calendar): the first EAGER cards of each row draw theirs as it opens, the rest
-    // FILL_STEP at a time after it, FILL_GAP ms (a frame) apart, a column of every row at a time
-    // (fillPictures).
-    var EAGER = 2, FILL_STEP = 3, FILL_GAP = 16;
+        pick: null, graph: null, cardsAt: null, drawn: false, frame: '', framed: 0, thumbs: {},
+        roll: { target: '', timer: null, raf: 0 }, opened: 0 };
 
     /**
      * A size as its dropdown and its picker read it: "2 rows", "Fill".
@@ -1427,8 +1526,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Add a screen's body, in two layers: its cards (addCards), drawn once while it is open, and
-     * over them the picked screen (addPickBody) while one is picked, the cards hidden under it,
-     * so ‹ shows them again as they were (the owner's ask, 2026-11-10: it had grown slow).
+     * over them the screen picked while one is (its frame, pickFrame, drawn once a pick, and its
+     * places, renderPick, drawn anew at each change), the cards hidden under it, so ‹ shows them
+     * again as they were.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
@@ -1436,69 +1536,89 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function renderAdd(S, env, userData) {
         if (!ED.drawn) {
-            var later = [];
-            ED.overlay.querySelector('[data-se-body]').innerHTML = '<div data-sa-cards>' + addCards(S, env, userData, later)
+            ED.overlay.querySelector('[data-se-body]').innerHTML = '<div data-sa-cards>' + addCards(S, env, userData)
                 + '</div><div data-sa-pick></div>';
             ED.drawn = true;
-            fillPictures(later, env, userData);
+            ED.frame = '';
         }
-        ED.overlay.querySelector('[data-sa-pick]').innerHTML = ED.pick ? addPickBody(S, env, userData) : '';
+        var pickEl = ED.overlay.querySelector('[data-sa-pick]');
         ED.overlay.querySelector('[data-sa-cards]').style.display = ED.pick ? 'none' : '';
+        if (!ED.pick) {
+            pickEl.innerHTML = '';
+            ED.frame = '';
+            return;
+        }
+        if (!ED.frame) {
+            var later = [];
+            pickEl.innerHTML = pickFrame(S, env, userData, later);
+            ED.frame = ED.pick.id;
+            ED.framed += 1;
+            wireRoll();
+            fillPictures(later);
+        }
+        renderPick(S, env, userData);
     }
 
     /**
-     * Add a screen's cards: a row of cards per group (screen-presets.js GROUPS), its heading over
-     * them, scrolled sideways (the owner's, 2026-11-10); each card (addChoices) the picture of the
-     * screen it adds over its name and the legend of what it shows (screen-legend.js). The
-     * first EAGER cards of a row hold their pictures; the others hold a place for theirs, which
-     * fillPictures draws (`later`, a column of every row after another). Under the rows, what a
-     * screen brings.
+     * Add a screen's cards (the owner's, 2026-11-10: the layout first, then its graph; Blank still
+     * the first): Blank across the top, then two a row under each heading (screen-presets.js
+     * GROUPS), each card (addChoices) the picture of the screen it adds, with your graph, over its
+     * name; under them, what a screen brings.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
-     * @param {Array<Object>} later Takes the pictures left to draw, in the order to draw them.
      * @returns {string} HTML
      */
-    function addCards(S, env, userData, later) {
-        var choices = addChoices(S, env), columns = [];
+    function addCards(S, env, userData) {
+        var choices = addChoices(S, env);
         var groups = PRESETS.GROUPS.map(function (grp) {
-            var mine = choices.filter(function (c) { return PRESETS.byId(c.id).group === grp.id; });
-            var cards = mine.map(function (c, at) {
-                var key = c.id + '-' + (c.cal || '0'), shown = addShown(c, env, userData, 'sa-' + key + '-', at < EAGER);
-                if (at >= EAGER) { (columns[at] = columns[at] || []).push({ key: key, c: c, cycle: shown.cycle }); }
-                // Its calendar is in its picture, and said to a screen reader after its name.
-                return '<button type="button" class="sa-card" data-se="pick" data-id="' + c.id + '" data-cal="' + c.cal + '">'
-                    + '<span class="sa-pic" aria-hidden="true"' + (at < EAGER ? '' : ' data-sa-pic="' + key + '"') + '>'
-                    + shown.pic.svg + '</span><span class="sa-txt">'
-                    + '<span class="sa-n">' + esc(c.name) + (c.calName ? '<span class="sr-only">, ' + esc(c.calName.toLowerCase())
-                    + '</span>' : '') + '</span>' + LEGEND.cardHtml(shown.legend, shown.pic.bg) + '</span></button>';
+            var cards = choices.filter(function (c) { return PRESETS.byId(c.id).group === grp.id; }).map(function (c) {
+                return addCard(c, env, userData);
             }).join('');
-            return cards ? '<div class="sa-group" role="group" aria-labelledby="saGrp-' + grp.id + '"><span class="ui-cap"'
-                + ' id="saGrp-' + grp.id + '">' + esc(grp.name) + '</span><div class="sa-strip" data-sa-strip="' + grp.id
-                + '">' + cards + '</div></div>' : '';
+            if (!cards || !grp.name) { return cards; }
+            return '<div class="sa-group" role="group" aria-labelledby="saGrp-' + grp.id + '"><span class="ui-cap" id="saGrp-'
+                + grp.id + '">' + esc(grp.name) + '</span><div class="sa-grid">' + cards + '</div></div>';
         }).join('');
-        columns.forEach(function (col) { Array.prototype.push.apply(later, col); });
         return groups + '<div class="sa-fine">' + esc(env && env.graphStyles ? ADD_FINE : ADD_FINE_ONE_GRAPH) + '</div>';
     }
 
     /**
-     * Draw Add a screen's pictures left to draw (addCards' `later`), FILL_STEP at a time, each
-     * step a frame after the last, so the cards show and take taps at once. A step for an
-     * overlay closed or opened anew since, or gone on to a screen it added, does nothing.
-     * @param {Array<{key: string, c: Object, cycle: Array}>} later The pictures, in order.
+     * One of Add a screen's cards: the picture of the screen it adds (screenPicture) over its name
+     * (screen-presets.js cardName), Blank's beside its name and what it is; Dense's calendar said to
+     * a screen reader after its name, which leaves it out.
+     * @param {Object} c An addChoice result.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
+     * @returns {string} HTML
+     */
+    function addCard(c, env, userData) {
+        var kind = PRESETS.byId(c.id), blank = !kind.graph;
+        var sr = c.cal === PRESETS.DENSE ? '<span class="sr-only">, ' + esc(c.calName.toLowerCase()) + '</span>' : '';
+        var pic = screenPicture(c.W, c.n, env, userData, 'sa-' + c.id + '-' + (c.cal || '0') + '-').svg;
+        return '<button type="button" class="sa-card' + (blank ? ' sa-wide' : '') + '" data-se="pick" data-id="' + c.id
+            + '" data-cal="' + c.cal + '"><span class="sa-pic" aria-hidden="true">' + pic + '</span><span class="sa-txt">'
+            + '<span class="sa-n">' + esc(PRESETS.cardName(kind, c.cal)) + sr + '</span>'
+            + (blank ? '<span class="sa-d">' + esc(BLANK_LINE) + '</span>' : '') + '</span></button>';
+    }
+
+    /**
+     * Draw the pictures left to draw (pickFrame's `later`: the roll's graphs away from the one
+     * picked), FILL_STEP at a time, each step a frame after the last, so the screen shows and takes
+     * taps at once. A step for an overlay closed or opened anew since, gone on to a screen it
+     * added, or for a roll drawn anew since (whose own steps draw what is left), does nothing; a
+     * picture whose place has gone (‹ to the cards) is not drawn.
+     * @param {Array<{sel: string, draw: function(): string}>} later Each picture's place and what
+     *     draws it, in the order to draw them.
      * @returns {void}
      */
-    function fillPictures(later, env, userData) {
-        var opened = ED.opened;
+    function fillPictures(later) {
+        var opened = ED.opened, framed = ED.framed;
         /** One step: the next pictures into their places, then the next step. */
         function step() {
-            if (!ED.overlay || ED.opened !== opened || !ED.drawn) { return; }
+            if (!ED.overlay || ED.opened !== opened || ED.framed !== framed || ED.mode !== 'add') { return; }
             later.splice(0, FILL_STEP).forEach(function (x) {
-                var at = ED.overlay.querySelector('[data-sa-pic="' + x.key + '"]');
-                if (!at) { return; }
-                at.innerHTML = screenPicture(x.c.W, x.c.n, env, userData, 'sa-' + x.key + '-', x.cycle).svg;
+                var at = ED.overlay.querySelector(x.sel);
+                if (at) { at.innerHTML = x.draw(); }
             });
             if (later.length) { setTimeout(step, FILL_GAP); }
         }
@@ -1508,113 +1628,294 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * A screen Add a screen can add as it shows it: its picture (screenPicture) and the legend of
      * what its graphs draw (screen-legend.js groups), read off the one cycle of its settings.
-     * Without its picture (a card that draws it later: fillPictures), the screen's frame on its
-     * ground, for its place (preview-watch.js blankScreen).
      * @param {Object} c An addChoice result.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
      * @param {string} prefix What its graphs' ids start with, unique on the page.
-     * @param {boolean} [draw] Draw the picture (the default); false: its frame only.
-     * @returns {{pic: {svg: string, label: string, bg: string}, legend: Array<Object>, cycle: Array}}
+     * @returns {{pic: {svg: string, label: string, bg: string}, legend: Array<Object>}}
      */
-    function addShown(c, env, userData, prefix, draw) {
+    function addShown(c, env, userData, prefix) {
         var cycle = VC.screensCycle(c.W, env);
-        var pic = draw === false ? PW.blankScreen(c.W, env, env && env.platform === 'emery' ? 1 : 0)
-            : screenPicture(c.W, c.n, env, userData, prefix, cycle);
-        return { pic: pic, legend: LEGEND.groups(drawnView(cycle[c.n] || null, c.W), c.W, env, userData), cycle: cycle };
+        return { pic: screenPicture(c.W, c.n, env, userData, prefix, cycle),
+            legend: LEGEND.groups(drawnView(cycle[c.n] || null, c.W), c.W, env, userData) };
     }
 
     /**
-     * Where Add a screen's cards are scrolled to: the body, and each row sideways, so ‹ from a
-     * picked card comes back to them (backToCards).
-     * @returns {{top: number, rows: Object<string, number>}}
-     */
-    function cardsPlace() {
-        var body = ED.overlay.querySelector('[data-se-body]'), rows = {};
-        PRESETS.GROUPS.forEach(function (grp) {
-            var row = body.querySelector('[data-sa-strip="' + grp.id + '"]');
-            if (row) { rows[grp.id] = row.scrollLeft || 0; }
-        });
-        return { top: body.scrollTop || 0, rows: rows };
-    }
-
-    /**
-     * Back from a picked card (‹, Escape) to Add a screen's cards, scrolled where they were
-     * (cardsPlace).
+     * Back from a picked screen (‹, Escape) to Add a screen's cards, scrolled where they were
+     * (ED.cardsAt).
      * @returns {void}
      */
     function backToCards() {
-        var at = ED.cardsAt;
+        var top = ED.cardsAt;
         ED.pick = null;
         ED.cardsAt = null;
         renderEditor();
-        if (!at) { return; }
-        var body = ED.overlay.querySelector('[data-se-body]');
-        body.scrollTop = at.top;
-        Object.keys(at.rows).forEach(function (id) {
-            var row = body.querySelector('[data-sa-strip="' + id + '"]');
-            if (row) { row.scrollLeft = at.rows[id]; }
-        });
+        if (typeof top === 'number') { ED.overlay.querySelector('[data-se-body]').scrollTop = top; }
     }
 
     /**
-     * The picked card as the screen it adds: addChoice on its calendar and length (ED.pick).
+     * The screen picked as the screen it adds (addPreview on ED.pick).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
-     * @returns {?Object} addChoice's result; null with no pick, no room or no such kind
+     * @returns {?Object} addChoice's result; null with no pick, no room, or one that cannot be
      */
     function addPick(S, env) {
-        var kind = ED.pick ? PRESETS.byId(ED.pick.id) : null;
-        var N = GSP.asStored(S), lists = M.screensOf(N, env);
-        if (!kind || lists.length >= M.MAX_SCREENS) { return null; }
-        return addChoice(N, env, lists, kind, ED.pick.cal, ED.pick.span);
+        return ED.pick ? addPreview(S, env, ED.pick.id, ED.pick.cal, ED.pick.v, ED.pick.span) : null;
     }
 
     /**
      * A row of Add a screen's picked screen: its name over a segmented control (the page's .seg,
-     * one equal segment per option), the picked option on.
+     * one equal segment per option), the picked option on, all of them off where the row only
+     * shows the value (your graph's length), a line under it.
      * @param {string} label The row's name.
-     * @param {string} act What a tap does (data-se): 'aspan'.
+     * @param {string} act What a tap does (data-se): 'acal' | 'aspan'.
      * @param {Array<Array<string>>} options [label, value] pairs.
      * @param {string} value The option picked.
+     * @param {string} [note] A line under the control; its segments off with one.
      * @returns {string} HTML
      */
-    function segRow(label, act, options, value) {
+    function segRow(label, act, options, value, note) {
         return '<div class="sa-row"><div class="sa-lbl" id="sa-' + act + '">' + esc(label) + '</div>'
             + '<div class="seg full" role="group" aria-labelledby="sa-' + act + '">' + options.map(function (o) {
                 var on = o[1] === value;
                 return '<button type="button" data-se="' + act + '" data-v="' + esc(o[1]) + '"' + (on ? ' class="on"' : '')
-                    + ' aria-pressed="' + on + '">' + esc(o[0]) + '</button>';
-            }).join('') + '</div></div>';
+                    + ' aria-pressed="' + on + '"' + (note ? ' disabled' : '') + '>' + esc(o[0]) + '</button>';
+            }).join('') + '</div>' + (note ? '<div class="sa-gap">' + esc(note) + '</div>' : '') + '</div>';
     }
 
     /**
-     * Add a screen's picked screen (the owner's asks, 2026-11-09 and 2026-11-10): its picture big
-     * on the calendar its card picked; What it shows, the legend of what its graphs draw at the
-     * length picked as a list, each graph's under its caption but a template's own (its graph
-     * then is the screen), and what the weather service leaves out (screen-legend.js); for a
-     * forecast screen on a watch with graph styles, Forecast length (12 h, 24 h, the long span by
-     * its hours); why it cannot be added, if it cannot; Add screen.
+     * The value's place in the roll, -1 for none.
+     * @param {Array<{v: string}>} items rollItems.
+     * @param {string} v A graph's value.
+     * @returns {number}
+     */
+    function rollIndex(items, v) {
+        for (var x = 0; x < items.length; x++) { if (items[x].v === v) { return x; } }
+        return -1;
+    }
+
+    /**
+     * Add a screen's picked screen, its frame (the owner's, 2026-11-10: the screen big, under it the
+     * graphs to roll through): the places renderPick fills (its picture; the graph picked and what
+     * it shows; its choices and Add screen) and, for a screen with a forecast graph on a watch with
+     * graph styles, the roll right under the picture (rollHtml), so nothing that changes as it rolls
+     * moves it.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
      * @param {Object} [userData] Page userData (the palette).
+     * @param {Array<Object>} later Takes the roll's pictures left to draw (fillPictures).
      * @returns {string} HTML
      */
-    function addPickBody(S, env, userData) {
-        var c = addPick(S, env);
-        if (!c) { return ''; }
+    function pickFrame(S, env, userData, later) {
+        var kind = PRESETS.byId(ED.pick.id), items = kind.graph === 'fc' ? rollItems(GSP.asStored(S), env) : [];
+        return '<div class="sa-cfg"><div class="sa-bigwrap" data-sa-big></div>'
+            + (items.length ? rollHtml(items, S, env, userData, later) : '')
+            + '<div class="sa-sel" data-sa-sel></div><div class="sa-foot" data-sa-foot></div></div>';
+    }
+
+    /**
+     * Add a screen's roll (the owner's, 2026-11-10: "a row of all available graphs", larger than the
+     * mockup's): each graph (rollItems) its picture over its name, side by side, a line between
+     * yours and the templates; the one picked marked, in the middle under the red mark. The pictures
+     * ROLL_NEAR either side of it, and any drawn already while Add a screen is open, are drawn now;
+     * the others hold their graph's ground until fillPictures draws them (`later`, nearest first).
+     * @param {Array<Object>} items rollItems.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Object} [userData] Page userData (the palette).
+     * @param {Array<Object>} later Takes the pictures left to draw.
+     * @returns {string} HTML
+     */
+    function rollHtml(items, S, env, userData, later) {
+        var at = Math.max(0, rollIndex(items, ED.pick.v)), away = [];
+        // A picture's place: its frame and ground, as a drawn one starts (screen-frame.js svg).
+        var ground = (/^<svg[^>]*><rect[^>]*><\/rect>/.exec(thumbOf(S, env, userData, items[at].v)) || ['<svg>'])[0] + '</svg>';
+        var h = items.map(function (it, x) {
+            var on = x === at, near = Math.abs(x - at) <= ROLL_NEAR || Object.prototype.hasOwnProperty.call(ED.thumbs, it.v);
+            if (!near) { away.push(x); }
+            return (x > 0 && it.yours !== items[x - 1].yours ? '<span class="sa-sep" aria-hidden="true"></span>' : '')
+                + '<button type="button" class="sa-g' + (on ? ' on' : '') + '" data-se="agraph" data-sa-g="' + esc(it.v)
+                + '" data-v="' + esc(it.v) + '" aria-pressed="' + on + '"><span class="sa-th" aria-hidden="true" data-sa-th="'
+                + esc(it.v) + '">' + (near ? thumbOf(S, env, userData, it.v) : ground) + '</span><span class="sa-gn">'
+                + esc(it.name) + '</span></button>';
+        }).join('');
+        away.sort(function (a, b) { return Math.abs(a - at) - Math.abs(b - at) || a - b; }).forEach(function (x) {
+            var v = items[x].v;
+            later.push({ sel: '[data-sa-th="' + v + '"]', draw: function () { return thumbOf(S, env, userData, v); } });
+        });
+        return '<div class="sa-roll" role="group" aria-label="Graph"><span class="sa-caret" aria-hidden="true"></span>'
+            + '<div class="sa-reel" data-sa-roll>' + h + '</div></div>';
+    }
+
+    /**
+     * A graph's picture in the roll, by its value (graph-styles-page.js valuePicture: as the
+     * Graphs tab draws it, a template at its own length), drawn once while Add a screen is open.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Object} [userData] Page userData (the palette).
+     * @param {string} v A graph's value (THE GRAPHS).
+     * @returns {string} SVG markup
+     */
+    function thumbOf(S, env, userData, v) {
+        if (!Object.prototype.hasOwnProperty.call(ED.thumbs, v)) {
+            ED.thumbs[v] = GSP.valuePicture(S, env, v, userData, 'sa-th-' + v);
+        }
+        return ED.thumbs[v];
+    }
+
+    /**
+     * Fill the picked screen's places (pickFrame) for the pick as it is now: its picture big; the
+     * graph picked by its name, one of yours or a template, over the legend of what the screen
+     * draws and what the weather service leaves out (screen-legend.js); then Health's and Rain
+     * radar's Calendar, a forecast graph's Forecast length on a watch with one per screen (a
+     * template's to pick, yours shown as it is), why it cannot be added, if it cannot, Add screen,
+     * and under a template what it is.
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {Object} [userData] Page userData (the palette).
+     * @returns {void}
+     */
+    function renderPick(S, env, userData) {
+        var big = ED.overlay.querySelector('[data-sa-big]'), sel = ED.overlay.querySelector('[data-sa-sel]');
+        var foot = ED.overlay.querySelector('[data-sa-foot]'), c = addPick(S, env);
+        if (!c) { big.innerHTML = sel.innerHTML = foot.innerHTML = ''; return; }
         var kind = PRESETS.byId(c.id), N = GSP.asStored(S), shown = addShown(c, env, userData, 'sa-big-');
-        var spans = c.span ? PRESETS.spanOptions(kind, env, N) : [], gs = shown.legend;
-        // A screen keeps your forecast graph unless it brings a template's, at a length.
-        var yours = !c.span, gap = LEGEND.gapNote(gs, N.provider);
-        return '<div class="sa-cfg"><div class="sa-big" role="img" aria-label="' + esc(c.name + ': ' + shown.pic.label) + '">'
-            + shown.pic.svg + '</div>'
-            + '<div class="sa-row"><div class="sa-lbl">What it shows</div>' + LEGEND.listHtml(gs, shown.pic.bg,
-                { captions: yours || gs.some(function (g) { return g.graph !== 'forecast'; }), yours: yours })
-            + (gap ? '<div class="sa-gap">' + esc(gap) + '</div>' : '') + '</div>'
-            + (spans.length ? segRow('Forecast length', 'aspan', spans, c.span) : '')
-            + (c.why ? '<div class="sa-why" role="status">' + esc(c.why) + '</div>' : '')
-            + '<button type="button" class="sa-add" data-se="addnow"' + (c.why ? ' disabled' : '') + '>Add screen</button></div>';
+        var items = kind.graph === 'fc' ? rollItems(N, env) : [], item = items[rollIndex(items, ED.pick.v)];
+        var gap = LEGEND.gapNote(shown.legend, N.provider), cals = kind.id === 'forecast' ? [] : PRESETS.calendars(kind, env);
+        big.innerHTML = '<div class="sa-big" role="img" aria-label="' + esc(PRESETS.cardName(kind, c.cal) + ': '
+            + shown.pic.label) + '">' + shown.pic.svg + '</div>';
+        sel.innerHTML = (item ? '<div class="sa-gname">' + esc(item.name) + '</div><div class="sa-gsub">'
+            + (item.yours ? 'Your graph' : 'Template') + '</div>' : '')
+            + '<div class="sa-legend">' + LEGEND.cardHtml(shown.legend, shown.pic.bg) + '</div>'
+            + (gap ? '<div class="sa-gap">' + esc(gap) + '</div>' : '');
+        var h = cals.length ? segRow('Calendar', 'acal', cals, c.cal) : '';
+        if (item && env && env.forecastSpan) {
+            var Sk = c.look ? null : GS.settingsFor(N, c.k);
+            h += c.look ? segRow('Forecast length', 'aspan', PRESETS.spanOptions(c.look, env, N), c.span)
+                : segRow('Forecast length', 'aspan', spanHours.spanOptions(Sk), String(Sk.forecastHours), YOUR_LENGTH);
+        }
+        foot.innerHTML = h + (c.why ? '<div class="sa-why" role="status">' + esc(c.why) + '</div>' : '')
+            + '<button type="button" class="sa-add" data-se="addnow"' + (c.why ? ' disabled' : '') + '>Add screen</button>'
+            + (c.look ? '<div class="sa-fine">' + esc(TEMPLATE_FINE) + '</div>' : '');
+    }
+
+    /**
+     * Pick graph v in the roll (a tap, the arrow keys, or the roll come to rest on it): the picture
+     * and what follows it drawn for it, its length its own (a template's to change, yours as it
+     * is), kept for a layout picked next (ED.graph). `roll` rolls it to the middle, the graphs it
+     * passes on the way left unpicked (ED.roll).
+     * @param {string} v A graph's value (THE GRAPHS).
+     * @param {boolean} [roll] Roll it to the middle.
+     * @returns {void}
+     */
+    function choose(v, roll) {
+        if (!ED.pick || !UI.ctx || v === ED.pick.v) { return; }
+        var prev = ED.pick.v;
+        if (roll) {
+            ED.roll.target = v;
+            clearTimeout(ED.roll.timer);
+            ED.roll.timer = setTimeout(function () { ED.roll.target = ''; }, ROLL_MS);
+            centreOn(v, true);
+        }
+        ED.pick.v = v;
+        ED.pick.span = PRESETS.spanOf(v, UI.ctx.ENV);
+        ED.graph = { v: v, span: ED.pick.span };
+        markRoll(prev, v);
+        renderEditor();
+    }
+
+    /**
+     * Mark the graph picked in the roll, the one picked before unmarked, without drawing it anew
+     * (it may be rolling).
+     * @param {string} prev The value picked before.
+     * @param {string} v The value picked now.
+     * @returns {void}
+     */
+    function markRoll(prev, v) {
+        var reel = ED.overlay.querySelector('[data-sa-roll]');
+        if (!reel) { return; }
+        [[prev, false], [v, true]].forEach(function (x) {
+            var it = x[0] ? reel.querySelector('[data-sa-g="' + x[0] + '"]') : null;
+            if (!it) { return; }
+            if (x[1]) { it.classList.add('on'); } else { it.classList.remove('on'); }
+            it.setAttribute('aria-pressed', String(x[1]));
+        });
+    }
+
+    /**
+     * Roll graph v to the roll's middle: smoothly where the WebView can, else at once.
+     * @param {string} v A graph's value.
+     * @param {boolean} smooth Roll it, rather than put it there.
+     * @returns {void}
+     */
+    function centreOn(v, smooth) {
+        var reel = ED.overlay ? ED.overlay.querySelector('[data-sa-roll]') : null;
+        var it = reel ? reel.querySelector('[data-sa-g="' + v + '"]') : null;
+        if (!it || typeof it.offsetLeft !== 'number' || !reel.clientWidth) { return; }
+        var left = it.offsetLeft - (reel.clientWidth - it.offsetWidth) / 2;
+        if (smooth && typeof reel.scrollTo === 'function') {
+            reel.scrollTo({ left: left, behavior: 'smooth' });
+        } else {
+            reel.scrollLeft = left;
+        }
+    }
+
+    /**
+     * The graph in the roll's middle: the one whose picture's middle is nearest it.
+     * @param {Element} reel The roll.
+     * @returns {string} its value, '' for none
+     */
+    function centredValue(reel) {
+        var r = reel.getBoundingClientRect(), mid = r.left + r.width / 2, best = '', least = Infinity;
+        var items = reel.querySelectorAll('[data-sa-g]');
+        for (var x = 0; x < items.length; x++) {
+            var b = items[x].getBoundingClientRect(), d = Math.abs(b.left + b.width / 2 - mid);
+            if (d < least) { least = d; best = items[x].getAttribute('data-sa-g'); }
+        }
+        return best;
+    }
+
+    /**
+     * Run fn at the next frame (a frame's time later where the WebView has no
+     * requestAnimationFrame).
+     * @param {function(): void} fn What to run.
+     * @returns {number} its handle
+     */
+    function nextFrame(fn) {
+        return typeof window !== 'undefined' && window.requestAnimationFrame ? window.requestAnimationFrame(fn)
+            : setTimeout(fn, FILL_GAP);
+    }
+
+    /**
+     * The roll scrolled: once a frame, the graph that has come to its middle is picked (choose),
+     * unless a tap's graph is rolling there (ED.roll: until it arrives, or for ROLL_MS).
+     * @returns {void}
+     */
+    function onRollScroll() {
+        if (ED.roll.raf) { return; }
+        ED.roll.raf = nextFrame(function () {
+            ED.roll.raf = 0;
+            var reel = ED.overlay && ED.mode === 'add' && ED.pick ? ED.overlay.querySelector('[data-sa-roll]') : null;
+            var v = reel && reel.getBoundingClientRect ? centredValue(reel) : '';
+            if (!v) { return; }
+            if (ED.roll.target) {
+                if (v !== ED.roll.target) { return; }
+                ED.roll.target = '';
+            }
+            choose(v, false);
+        });
+    }
+
+    /**
+     * Listen to the roll of a picked screen just drawn (pickFrame), its graph picked put in its
+     * middle.
+     * @returns {void}
+     */
+    function wireRoll() {
+        var reel = ED.overlay.querySelector('[data-sa-roll]');
+        if (!reel || !reel.addEventListener) { return; }
+        reel.addEventListener('scroll', onRollScroll);
+        centreOn(ED.pick.v, false);
     }
 
     /**
@@ -1630,7 +1931,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function renderHeader(S, renaming) {
         if (ED.nameEl) { return; }
         var add = ED.mode === 'add', kind = add && ED.pick ? PRESETS.byId(ED.pick.id) : null;
-        var name = kind ? kind.name : add ? 'Add a screen' : M.nameOf(S, ED.i);
+        var name = kind ? PRESETS.cardName(kind, ED.pick.cal) : add ? 'Add a screen' : M.nameOf(S, ED.i);
         ED.overlay.querySelector('[data-se-head]').innerHTML = kit.header({
             titleId: 'seTitle', title: name, kicker: kind ? 'Add a screen' : 'Screens',
             way: { glyph: '&#8249;', label: 'Back', at: { 'data-se': kind ? 'addback' : 'close' } },
@@ -1778,6 +2079,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             closeEditor();
             return;
         }
+        // ArrowLeft / ArrowRight on a graph in Add a screen's roll pick the one beside it, rolled
+        // to the middle, the focus going along.
+        var r = e.target && e.target.closest ? e.target.closest('[data-sa-g]') : null;
+        if (r && ED.mode === 'add' && ED.pick && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            e.preventDefault();
+            var items = rollItems(GSP.asStored(UI.ctx.S), UI.ctx.ENV);
+            var to = items[rollIndex(items, r.getAttribute('data-sa-g')) + (e.key === 'ArrowLeft' ? -1 : 1)];
+            if (!to) { return; }
+            choose(to.v, true);
+            var next = ED.overlay.querySelector('[data-sa-g="' + to.v + '"]');
+            if (next && next.focus) { next.focus({ preventScroll: true }); }
+            return;
+        }
         var g = e.target && e.target.closest ? e.target.closest('[data-grip]') : null;
         if (!g || !ED.overlay || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) { return; }
         e.preventDefault();
@@ -1863,6 +2177,27 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Add a screen's screen after the others (addChosen), its editor next; nothing where it cannot
+     * be added.
+     * @param {string} id A kind's id.
+     * @param {string} cal Its calendar.
+     * @param {string} v Its forecast graph (THE GRAPHS).
+     * @param {string} span A template's length.
+     * @returns {void}
+     */
+    function addNow(id, cal, v, span) {
+        var ctx = UI.ctx, slot = addChosen(ctx.S, ctx.ENV, id, cal, v, span);
+        if (slot < 0) { return; }
+        UI.toast.v = null;
+        ED.pick = null;
+        ED.mode = 'edit';
+        ED.i = slot;
+        ED.overlay.querySelector('[data-se-body]').scrollTop = 0;
+        renderEditor();
+        ctx.render();
+    }
+
+    /**
      * The editor's taps: close, rename, Add a screen's pick, remove, an Add chip (addTap), a
      * row's dropdown (its picker), a bar's Edit (its dialog), turn the radar on, delete the
      * screen. A tap a drag ends in is no tap.
@@ -1878,34 +2213,36 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (act === 'close') { closeEditor(); return; }
         if (act === 'rename') { startRename(S); return; }
         if (act === 'renameok') { if (ED.nameEl) { endRename(ED.nameEl.value); } return; }
-        // Add a screen's card: the screen it adds on its card's calendar and its template's
-        // length, to pick the length; ‹ goes back to the cards where they were.
+        // Add a screen's card: Blank goes in at once; another shows its screen big, on its card's
+        // calendar (Health's and Rain radar's from none), with the graph picked last while it is
+        // open, else the roll's first (yours); ‹ goes back to the cards where they were.
         if (act === 'pick') {
             var kind = PRESETS.byId(t.getAttribute('data-id'));
             if (!kind) { return; }
-            ED.cardsAt = cardsPlace();
-            ED.pick = { id: kind.id, cal: t.getAttribute('data-cal') || '', span: PRESETS.spanOf(kind, env) };
-            ED.overlay.querySelector('[data-se-body]').scrollTop = 0;
+            if (!kind.graph) { addNow(kind.id, '', '', ''); return; }
+            var first = kind.graph === 'fc' ? rollItems(GSP.asStored(S), env)[0] : null;
+            var g = kind.graph !== 'fc' ? null : ED.graph || (first ? { v: first.v, span: PRESETS.spanOf(first.v, env) } : null);
+            var body = ED.overlay.querySelector('[data-se-body]');
+            ED.cardsAt = body.scrollTop || 0;
+            ED.pick = { id: kind.id, cal: t.getAttribute('data-cal') || '', v: g ? g.v : '', span: g ? g.span : '' };
+            ED.frame = '';
+            body.scrollTop = 0;
             renderEditor();
             return;
         }
         if (act === 'addback') { backToCards(); return; }
-        if (act === 'aspan') {
-            if (ED.pick) { ED.pick.span = t.getAttribute('data-v') || ''; }
+        // A graph in the roll: picked, and rolled to the middle.
+        if (act === 'agraph') { choose(t.getAttribute('data-v') || '', true); return; }
+        if (act === 'acal' || act === 'aspan') {
+            if (!ED.pick || t.disabled) { return; }
+            if (act === 'acal') { ED.pick.cal = t.getAttribute('data-v') || ''; } else { ED.pick.span = t.getAttribute('data-v') || ''; }
+            if (act === 'aspan') { ED.graph = { v: ED.pick.v, span: ED.pick.span }; }
             renderEditor();
             return;
         }
         // Add screen: the screen added after the others (addChosen), its editor next.
         if (act === 'addnow') {
-            var slot = t.disabled || !ED.pick ? -1 : addChosen(S, env, ED.pick.id, ED.pick.cal, ED.pick.span);
-            if (slot < 0) { return; }
-            UI.toast.v = null;
-            ED.pick = null;
-            ED.mode = 'edit';
-            ED.i = slot;
-            ED.overlay.querySelector('[data-se-body]').scrollTop = 0;
-            renderEditor();
-            ctx.render();
+            if (!t.disabled && ED.pick) { addNow(ED.pick.id, ED.pick.cal, ED.pick.v, ED.pick.span); }
             return;
         }
         if (act === 'rm') { commit(M.remove(list, j)); return; }
@@ -2050,7 +2387,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Open Add a screen (the screens this watch can draw: screen-presets.js offered).
+     * Open Add a screen (Blank and the screens this watch can draw: screen-presets.js cards).
      * @returns {void}
      */
     function openAdd() {
@@ -2072,8 +2409,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ED.toast.v = null;
         ED.nameEl = null;
         ED.pick = null;
+        ED.graph = null;
         ED.cardsAt = null;
         ED.drawn = false;
+        ED.frame = '';
+        ED.thumbs = {};
+        ED.roll.target = '';
+        clearTimeout(ED.roll.timer);
         ED.opened += 1;
         var overlay = document.createElement('div');
         overlay.id = 'screenEditor';
@@ -2263,7 +2605,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         moveScreen: moveScreen,
         renameScreen: renameScreen,
         addChoices: addChoices,
+        addPreview: addPreview,
         addChosen: addChosen,
+        rollItems: rollItems,
         freeName: freeName,
         contents: contents,
         drawnView: drawnView,

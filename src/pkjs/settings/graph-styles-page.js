@@ -681,6 +681,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * A graph's picture by its value as the pickers name it (optionSettings: one of yours, a
+     * template at its own length), its ids tagged: the pickers' options and Add a screen's roll
+     * (screens-page.js).
+     * @param {Object} S Settings.
+     * @param {?Object} env Platform env.
+     * @param {string} v The value.
+     * @param {?Object} userData Page userData.
+     * @param {string} tag Unique on the page.
+     * @returns {string} SVG markup, '' for none
+     */
+    function valuePicture(S, env, v, userData, tag) {
+        var Sk = optionSettings(S, env, String(v || ''));
+        return Sk ? graphPicture(Sk, env, userData, tag.replace(/[^A-Za-z0-9-]/g, '-')) : '';
+    }
+
+    /**
      * A picker option's picture (picture resolver 'graphStylePicture', the pickers' pictureFrom).
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.
@@ -689,8 +705,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} SVG markup, '' for none
      */
     function optionPicture(S, env, args, userData) {
-        var v = String(args.value || ''), Sk = optionSettings(S, env, v);
-        return Sk ? graphPicture(Sk, env, userData, 'gs-' + v.replace(/[^A-Za-z0-9]/g, '-')) : '';
+        var v = String(args.value || '');
+        return valuePicture(S, env, v, userData, 'gs-' + v);
     }
 
     // ── New graph, Rename, Delete ───────────────────────────────────────────
@@ -1201,6 +1217,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         openGraph: openGraph,
         templateLine: templateLine,
         optionPicture: optionPicture,
+        valuePicture: valuePicture,
         startOptions: startOptions,
         createGraph: createGraph,
         createStyle: createStyle,

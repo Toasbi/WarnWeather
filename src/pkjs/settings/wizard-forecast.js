@@ -91,8 +91,8 @@
      * @returns {Object<string, *>}
      */
     function lookValues(own) { return Object.assign({}, BASE, own); }
-    // In the pickers' order, Add a screen's rows' (screen-presets.js GROUPS): setup's three and Simple,
-    // then rain and clouds, outdoors, wind and pressure. `span` is the Forecast length a look starts
+    // In the pickers' order, Add a screen's roll's (screens-page.js rollItems): setup's three and
+    // Simple, then rain and clouds, outdoors, wind and pressure. `span` is the Forecast length a look starts
     // on (emery): '48' is the long span's stored option ("66 h" with the high and low on the graph).
     // `setup`: setup's picker offers it; `short`: values it draws on 12 and 24 hours only (THE
     // LENGTH). Only the rain chance fills its area: the watch paints an area solid (it has no
