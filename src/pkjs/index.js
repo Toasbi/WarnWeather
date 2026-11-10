@@ -238,6 +238,10 @@ Pebble.addEventListener('showConfiguration', function(e) {
     // After the page is open: when the Weather tab is in use and the phone holds
     // nothing from today for the place it opens on, fetch it for the next opens.
     weatherTabCache.refreshIfStale(values, graphsSeed, nowMs);
+    // The first open of a UTC day sends the queued telemetry (telemetry.js).
+    if (app.telemetry) {
+        app.telemetry.onSettingsOpened({ settings: app.settings, watchInfo: app.watchInfo });
+    }
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
@@ -311,6 +315,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
         devStats.clear();
     }
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
+    // A new install is counted on its first Save, not ~12 h later (telemetry.js).
+    app.telemetry.onSettingsSaved({ settings: app.settings, watchInfo: app.watchInfo });
     var providerOrLocationChanged = refreshProvider();
     var acked = app.settings.fetchNoticeAck === true;
     // Only an error notice puts text on the watch overlay; capture that BEFORE

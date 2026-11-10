@@ -178,4 +178,5 @@ WarnWeather includes privacy-respecting telemetry. I do not collect precise loca
 - Collected: each weather fetch’s outcome and duration, provider, coarse country code when available, app and watch metadata, and an allowlist of non-sensitive settings.
 - Not collected: coordinates (lat/lon), city/state, manual location strings, your API keys, or any health data — your steps, sleep, and heart-rate readings never leave the watch.
 - Purpose: estimate DAU, see coarse country mix, spot weather-fetch failures, and learn which settings are common.
-- You may opt-out of telemetry by disabling it in the settings.
+- When: in one batch about every 12 hours, plus right away the first time you save the settings (so a new install is counted) and at most once a day when you open them.
+- You may opt-out of telemetry by disabling it in the settings: Setup tab → Misc → Share anonymous telemetry.
