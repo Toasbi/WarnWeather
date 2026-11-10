@@ -5,10 +5,13 @@ const { WEATHER_CATEGORIES } = require('../src/pkjs/outbox');
 const forecastCategory = WEATHER_CATEGORIES.find(function(c) { return c.name === 'forecast'; });
 const statusCategory = WEATHER_CATEGORIES.find(function(c) { return c.name === 'status'; });
 
-test('status category carries the four packed status lines, the levels and the alert entries', function() {
+test('status category carries the packed status lines, the levels and the alert entries', function() {
+    // The four lines every watch has, then bars 4 to 6's (Pebble Time 2, baked only for a
+    // made bar: status-lines.js).
     assert.deepEqual(statusCategory.keys, [
         'STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8',
         'STATUS_LINE_3_UINT8', 'STATUS_LINE_4_UINT8',
+        'STATUS_LINE_5_UINT8', 'STATUS_LINE_6_UINT8', 'STATUS_LINE_7_UINT8',
         'STATUS_LEVELS_UINT8', 'ALERT_ENTRIES_UINT8'
     ]);
 });

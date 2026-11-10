@@ -55,7 +55,7 @@ var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 // Highlight (Goals) switch is off (status_threshold_slot_level), so the hints say "while …
 // is on". 'Always' needs no levels, so its note is the per-kind scope, shared with the
 // level-less kinds' Bold rows (schema.js boldSection).
-var BOLD_ALWAYS_HINT = 'Every status slot showing this value prints it in heavier text.';
+var BOLD_ALWAYS_HINT = 'Every status slot that shows this value prints it in bold.';
 var ALERT_VOICE = {
     header: 'Alert levels',
     // The levels slider's own label, now that its group is a card of its own: the card
@@ -65,9 +65,9 @@ var ALERT_VOICE = {
     // 'Alert highlighting' row (schema.js highlightToggle), and its alert's switch heads the
     // Alert sheet.
     switchLabel: null,
-    intro: 'Warn and danger levels for this value: reaching warn ' +
-        'draws the warn look below, reaching danger fills the alert icon — and the status ' +
-        'slot, while its Alert highlighting is on.',
+    intro: 'Set the warn and danger levels for this value. From the warn level, the alert icon ' +
+        'gets the Warn look below, and from the danger level it is filled. A status slot ' +
+        'showing this value does the same while its Alert highlighting is on.',
     lookLabel: 'Warn look',
     colorLabels: {warn: 'Warn color', danger: 'Danger color'},
     // Unset = AUTO: the theme fg for warn, the contract's red for danger (see the
@@ -78,27 +78,27 @@ var ALERT_VOICE = {
     // the 'Icon + value' look prints next to the alert icon (status_on_demand.c bolds an
     // entry on the kind's ladder at its real level, Highlight or not).
     boldHints: {
-        off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.',
-        warn: 'Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.',
+        off: 'At the danger level, the value still prints in bold: in the slot while Alert highlighting is on, and next to the alert icon.',
+        warn: 'Prints the value in bold from the warn level on: in the slot while Alert highlighting is on, and next to the alert icon.',
         always: BOLD_ALWAYS_HINT
     },
     chips: {warn: 'Warn', danger: 'Danger'},
     look: {
         base: {
-            none: 'No box at warn — bold text still follows the Bold row in the slot’s dialog.',
-            outline: 'A thin frame in the warn color.',
-            fill: 'A solid box in the warn color, with the value in a contrasting color.'
+            none: 'Draws no box at the warn level. The Bold row in the slot’s dialog still decides when the text is bold.',
+            outline: 'Draws a thin frame in the warn color.',
+            fill: 'Draws a solid box in the warn color, with the value in a contrasting color.'
         },
         bw: {
-            outline: 'A thin frame in the text color.',
-            fill: 'A solid box in the text color, with the value in the background color. On ' +
-                'black-and-white screens this looks the same as danger.'
+            outline: 'Draws a thin frame in the text color.',
+            fill: 'Draws a solid box in the text color, with the value in the background color. On ' +
+                'black-and-white screens, this looks the same as danger.'
         },
         night: {
             fill: 'At night (black-and-white theme) this looks the same as danger.'
         },
         sameColor: 'Warn and danger use the same color, so this looks like ' +
-            'danger — pick a different warn color.'
+            'danger. Pick a different warn color.'
     }
 };
 var GOAL_VOICE = {
@@ -108,9 +108,9 @@ var GOAL_VOICE = {
     switchLabel: 'Goals',
     // "On color watches": on B&W the looks are drawn in the theme's ink and the color
     // pickers below are hidden.
-    intro: 'Close and goal levels for this value. The switch ' +
-        'celebrates them on the watch: getting close draws the close look below, reaching ' +
-        'the goal fills the slot. On color watches the colors are yours to change below.',
+    intro: 'Set the close and goal levels for this value. With the switch on, getting close ' +
+        'draws the Close look below, and reaching the goal fills the slot. On color watches, ' +
+        'you can change the colors below.',
     lookLabel: 'Close look',
     colorLabels: {warn: 'Close color', danger: 'Goal fill color'},
     // Green = the celebration look, for both levels.
@@ -119,27 +119,27 @@ var GOAL_VOICE = {
     // one vocabulary.
     boldWarnLabel: 'Close',
     boldHints: {
-        off: 'A reached goal still prints bold while Goals are on.',
-        warn: 'Heavier text once you get close to the goal, while Goals are on.',
+        off: 'A reached goal still prints in bold while the Goals switch is on.',
+        warn: 'Prints the value in bold once you get close to the goal, while the Goals switch is on.',
         always: BOLD_ALWAYS_HINT
     },
     chips: {warn: 'Close', danger: 'Goal'},
     look: {
         base: {
-            none: 'No box when close — bold text still follows the Bold row above.',
-            outline: 'A thin frame in the close color.',
-            fill: 'A solid box in the close color, with the value in a contrasting color.'
+            none: 'Draws no box when you get close. The Bold row above still decides when the text is bold.',
+            outline: 'Draws a thin frame in the close color.',
+            fill: 'Draws a solid box in the close color, with the value in a contrasting color.'
         },
         bw: {
-            outline: 'A thin frame in the text color.',
-            fill: 'A solid box in the text color, with the value in the background color. On ' +
-                'black-and-white screens this looks the same as a reached goal.'
+            outline: 'Draws a thin frame in the text color.',
+            fill: 'Draws a solid box in the text color, with the value in the background color. On ' +
+                'black-and-white screens, this looks the same as a reached goal.'
         },
         night: {
             fill: 'At night (black-and-white theme) this looks the same as a reached goal.'
         },
         sameColor: 'Close and goal use the same color, so this looks like ' +
-            'a reached goal — pick a different close color.'
+            'a reached goal. Pick a different close color.'
     }
 };
 /**

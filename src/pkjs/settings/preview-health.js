@@ -43,6 +43,37 @@
     }
 
     /**
+     * The health graph's colours (health_graph_layer.c), for its drawing and its legend: the
+     * step bars green on a colour theme and the background on black-and-white, outlined in the
+     * ink on every theme but colour-dark; the heart rate red (the ink); light and deep sleep
+     * blue (light gray and the ink).
+     * @param {Object} st Settings.
+     * @param {Object} env Platform env.
+     * @returns {{ink: Object, color: boolean, steps: string, outlined: boolean, hr: string,
+     *     sleepLight: string, sleepDeep: string}}
+     */
+    function healthInk(st, env) {
+        var ink = previewInk(st.theme);
+        var color = Boolean(env && env.color !== false) && !resolveInk.isBwTheme(st.theme);
+        return { ink: ink, color: color, steps: color ? '#00FF00' : ink.bg, outlined: !(color && ink.bg === '#000000'),
+            hr: color ? '#FF0000' : ink.fg, sleepLight: color ? '#00AAFF' : '#AAAAAA', sleepDeep: color ? '#0000FF' : ink.fg };
+    }
+
+    /**
+     * What the health graph draws, as a legend lists it: the steps as bars, the heart rate as a
+     * line on a watch with a heart-rate sensor, the sleep as a band along the bottom.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @returns {Array<{metric: string, kind: string, color: string, outline: ?string, deep: ?string}>}
+     */
+    function healthLegend(S, env) {
+        var k = healthInk(S || {}, env);
+        return [{ metric: 'steps', kind: 'bars', color: k.steps, outline: k.outlined ? k.ink.fg : null, deep: null }]
+            .concat(env && env.hr ? [{ metric: 'hr', kind: 'line', color: k.hr, outline: null, deep: null }] : [],
+                [{ metric: 'sleep', kind: 'band', color: k.sleepLight, outline: null, deep: k.sleepDeep }]);
+    }
+
+    /**
      * The block.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
@@ -50,8 +81,7 @@
      */
     function healthPreview(S, env) {
         var st = S || {};
-        var ink = previewInk(st.theme);
-        var color = Boolean(env && env.color !== false) && !resolveInk.isBwTheme(st.theme);
+        var hk = healthInk(st, env), ink = hk.ink, color = hk.color;
         // The frame and the step gridlines: dark gray on a colour theme, black on light,
         // the ink on B&W (health_graph_layer.c HEALTH_AXIS_COLOR / STEP_GRID_COLOR).
         var furniture = color ? (ink.bg === '#000000' ? '#555555' : '#000000') : ink.fg;
@@ -62,7 +92,7 @@
         // (health_graph_layer.c's z-order: the stripe, the gridlines, the bars, the HR line).
         for (var i = 0; i < n; i++) {
             if (!SLEEP[i]) { continue; }
-            var fill = SLEEP[i] === 2 ? (color ? '#0000FF' : ink.fg) : (color ? '#00AAFF' : '#AAAAAA');
+            var fill = SLEEP[i] === 2 ? hk.sleepDeep : hk.sleepLight;
             e += rect((PX0 + i * pitch).toFixed(1), PB - STRIPE, (pitch + 0.2).toFixed(1), STRIPE, fill);
         }
         // Step bars, on their own scale from the axis (the peak hour reaches near the top),
@@ -80,12 +110,12 @@
                 + '" stroke-width="0.8" stroke-dasharray="2 2"></line>';
             e += txt(PX0 - 3, (+gy + 2.5).toFixed(1), 7, ink.fg, 'end', 700, String(m / 1000));
         });
-        var outlined = !(color && ink.bg === '#000000');
+        var outlined = hk.outlined;
         for (i = 0; i < n; i++) {
             if (!STEPS[i]) { continue; }
             var h = Math.max(1.5, STEPS[i] / (peak * 1.1) * barSpan);
             var x0 = PX0 + i * pitch + 0.8, y0 = PB - h, x1 = x0 + bw, yb = PB;
-            e += rect(x0.toFixed(1), y0.toFixed(1), bw.toFixed(1), h.toFixed(1), color ? '#00FF00' : ink.bg);
+            e += rect(x0.toFixed(1), y0.toFixed(1), bw.toFixed(1), h.toFixed(1), hk.steps);
             if (outlined) {
                 e += '<path d="M' + x0.toFixed(1) + ' ' + yb + ' V' + y0.toFixed(1) + ' H' + x1.toFixed(1) + ' V' + yb
                     + '" fill="none" stroke="' + ink.fg + '" stroke-width="0.8"></path>';
@@ -94,7 +124,7 @@
         // The heart-rate line on the scale: an hour outside it breaks the line and shows as
         // a dot on the edge it left through.
         var sc = hrScale(st.hrScale), yHi = PT + 3, yLo = PB - STRIPE - GAP;
-        var hrColor = color ? '#FF0000' : ink.fg;
+        var hrColor = hk.hr;
         var path = '', dots = '', open = false;
         for (i = 0; i < n; i++) {
             var cx = (PX0 + (i + 0.5) * pitch).toFixed(1);
@@ -126,5 +156,8 @@
     }
 
     if (typeof PConf !== 'undefined' && PConf && PConf.blocks) { PConf.blocks.register('healthPreview', healthPreview); }
-    if (typeof module !== 'undefined' && module.exports) { module.exports = {healthPreview: healthPreview, hrScale: hrScale, stepMarks: stepMarks}; }
+    var api = { healthPreview: healthPreview, legend: healthLegend, hrScale: hrScale, stepMarks: stepMarks };
+    if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
+    // Add a screen's legend (screen-legend.js) reads the legend.
+    if (typeof window !== 'undefined') { window.PreviewHealth = api; }
 })();

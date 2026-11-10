@@ -37,7 +37,7 @@ const LINE_SHEETS = { secondaryLine: 'lineMain', thirdLine: 'lineSecond', fourth
 const lineSheet = (picker) => graphsTab.sections.find((s) => s.sheetOnly && s.sheetId === LINE_SHEETS[picker]);
 // Every line dialog's rows, in line order: a picker, its own rows, then the next picker.
 const forecastItems = PICKERS.reduce((all, picker) => all.concat(lineSheet(picker).items), []);
-const barItems = graphsTab.sections.find((s) => s.pane === 'forecast' && s.id === 'bars').items;
+const barItems = require('./helpers/graph-dialog.js').dialogCard(schema, 'Rain bars').items;
 const radarItems = graphsTab.sections.find((s) => s.pane === 'radar' && s.id === 'radar').items;
 const fromItems = forecastItems.filter((i) => i.label === 'Draw from');
 
@@ -55,7 +55,8 @@ function visibleRows(S, env) {
 /**
  * What the page draws for one graph, through the real engine: the Graphs tab's pane
  * with every card's More options open (Bars from waits there), and for the forecast
- * also the four line dialogs its Lines card opens (where the Draw from rows live).
+ * the graph's dialog (its Rain bars card) and the four line dialogs its Lines card opens
+ * (where the Draw from rows live).
  * @param {string} pane 'forecast' | 'radar'.
  * @param {Object} stored Stored settings.
  * @param {Object} env Platform env.
@@ -74,6 +75,7 @@ function body(pane, stored, env, folded) {
     assert.ok(html.indexOf('aria-selected="true" data-pane="graphs:radar"') !== -1, 'premise: the radar pane is shown');
   }
   if (pane === 'forecast') {
+    html += E.renderEditModal(schema, Object.assign({}, cx, { openEdit: 'graph' }));
     PICKERS.forEach((picker) => {
       html += E.renderEditModal(schema, Object.assign({}, cx, { openEdit: LINE_SHEETS[picker] }));
     });
@@ -82,8 +84,8 @@ function body(pane, stored, env, folded) {
 }
 
 const count = (html, s) => html.split(s).length - 1;
-const LINE_HINT = 'The higher the value, the further down it reaches.';
-const BOTH_HINT = 'Both reach further down the stronger the wind.';
+const LINE_HINT = 'The higher the value, the further down the line reaches.';
+const BOTH_HINT = 'Both lines reach further down the stronger the wind.';
 const BARS_HINT = 'The more rain, the further down they reach.';
 
 test('sixteen rows: the four keys in each of the four line dialogs, right after its Line style', () => {
@@ -194,21 +196,25 @@ test('the row sits where draw-from.js rowLine puts it: a stored repeat hides it,
 test('the real generated page draws each row family under its picker', () => {
   // The bundle the phone loads (test/helpers/page-harness.js), so a when resolver missing
   // from APP_FILES (an unregistered leaf reads false) shows here and not only in Node.
-  // The Graphs tab's Forecast pane, then every line dialog its rows open (the line rows
-  // live in the dialogs), each with its More options open.
+  // The Graphs tab's Forecast pane and its graph's dialog, then every line dialog the graph's
+  // Lines card opens (the line rows live in the dialogs), each with its More options open.
   const forecast = (cfg, platformName) => {
     const page = bootGeneratedPage(cfg, platformName);
     page.clickTab('graphs');
     // aplite has no Rain radar pane, so no pane bar: the Forecast rows are the tab.
     if (page.scroll.innerHTML.indexOf('data-pane="graphs:forecast"') !== -1) { page.clickPane('graphs', 'forecast'); }
     let html = page.scroll.innerHTML;
+    page.tapAction('openGraph', 1);
+    page.openAllMore('modal');
+    html += page.modal.innerHTML;
     PICKERS.forEach((picker) => {
-      if (page.scroll.innerHTML.indexOf('data-edit-sheet="' + LINE_SHEETS[picker] + '"') === -1) { return; }
-      page.openEditSheet(LINE_SHEETS[picker]);
+      if (page.modal.innerHTML.indexOf('data-edit-sheet="' + LINE_SHEETS[picker] + '"') === -1) { return; }
+      page.openNestedSheet(LINE_SHEETS[picker]);
       page.openAllMore('modal');
       html += page.modal.innerHTML;
-      page.doneDialog();
+      page.backDialog();
     });
+    page.doneDialog();
     return html;
   };
   const S = { secondaryLine: 'wind', thirdLine: 'pressure', fourthLine: 'uv', fifthLine: 'off', windUnits: 'kph' };
@@ -296,19 +302,19 @@ test('hints: none for Bottom, what hanging means for Top', () => {
 
 test('a Visible values: Alert line that hangs names its start "Graph top"', () => {
   const env = { lineStyles: true };
-  [['kph', 'Graph top = 65 kph, full height = 90 kph.'], ['mph', 'Graph top = 40 mph, full height = 55 mph.'],
-    ['knots', 'Graph top = 35 kn, full height = 50 kn.']].forEach(([windUnits, want]) => {
+  [['kph', 'The graph top is 65 kph and full height is 90 kph.'], ['mph', 'The graph top is 40 mph and full height is 55 mph.'],
+    ['knots', 'The graph top is 35 kn and full height is 50 kn.']].forEach(([windUnits, want]) => {
     const S = { secondaryLine: 'gust', thirdLine: 'off', windUnits, gustLineShow: 'alert' };
     assert.equal(FH.lineStyleHint('gust', 'line', Object.assign({ windLineFrom: 'top' }, S), env), want, windUnits);
-    assert.equal(FH.lineStyleHint('gust', 'line', S, env), want.replace('Graph top', 'Graph bottom'), windUnits + ' Bottom');
+    assert.equal(FH.lineStyleHint('gust', 'line', S, env), want.replace('graph top', 'graph bottom'), windUnits + ' Bottom');
   });
   assert.equal(FH.lineStyleHint('uv', 'dots', { secondaryLine: 'uv', uvLineShow: 'alert', uvLineFrom: 'top' }, env),
-    'Graph top = UV 6, full height = UV 11. Aligned to the rain bars.');
+    'The graph top is UV 6 and full height is UV 11. The dots line up with the rain bars.');
   // A stripe keeps its colour wording; aplite (no line styles) never hangs.
   assert.equal(FH.lineStyleHint('uv', 'stripeTop', { secondaryLine: 'uv', uvLineShow: 'alert', uvLineFrom: 'top' }, env),
-    'Faintest colour = UV 6, full colour from UV 10.5. One cell per hour.');
+    'The color starts faint at UV 6 and is full from UV 10.5. The stripe has one cell per hour.');
   assert.equal(FH.forecastMetricHint('uv', { lineStyles: false }, { secondaryLine: 'uv', uvLineShow: 'alert',
-    uvLineFrom: 'top' }), 'Graph bottom = UV 6, full height = UV 11.');
+    uvLineFrom: 'top' }), 'The graph bottom is UV 6 and full height is UV 11.');
 });
 
 test('the copy a hanging line made wrong: Area fill, and the Wind graph scale\'s High', () => {
@@ -324,7 +330,7 @@ test('the copy a hanging line made wrong: Area fill, and the Wind graph scale\'s
     assert.equal(i.hint, 'Only drawn while this is the Main metric and “Area fill” is on.', i.messageKey);
   });
   forecastItems.filter((i) => i.messageKey === 'windScale').forEach((i) => {
-    assert.match(i.hintByValue.high, /keeps strong gusts from flattening at full height\.$/);
+    assert.match(i.hintByValue.high, /strong gusts don’t flatten out at full height\.$/);
   });
   // No copy anywhere on the page still says where the fill or the top is.
   const json = JSON.stringify(schema);
@@ -405,11 +411,11 @@ test('forecast preview: a Visible values: Alert line hangs from its band too', (
 
 test('forecast preview: the hanging Area fill closes on the plot\'s top, the night tint with it', () => {
   const S = Object.assign({}, BASE, { secondaryLine: 'precip_prob', secondaryLineFill: true, dayNightShading: true });
-  const area = (svg) => /<path d="(M[^"]+)" fill="#0055AA" fill-opacity="0.25"><\/path>/.exec(svg)[1];
+  const area = (svg) => /<path d="(M[^"]+)" fill="#0055AA"><\/path>/.exec(svg)[1];
   assert.match(area(FC.forecastPreview(S, COLOR)), / L197,94 L20,94 Z$/);
   const hung = FC.forecastPreview(Object.assign({ precipLineFrom: 'top' }, S), COLOR);
   assert.match(area(hung), / L197,4 L20,4 Z$/);
-  const tint = /<path d="(M[^"]+)" fill="#[0-9A-F]{6}" fill-opacity="0.25" clip-path="url\(#nightclip\)">/.exec(hung);
+  const tint = /<path d="(M[^"]+)" fill="#[0-9A-F]{6}" clip-path="url\(#nightclip\)">/.exec(hung);
   assert.ok(tint, 'premise: the night tint draws');
   assert.equal(tint[1], area(hung), 'the tint re-draws the same hanging area');
   // Under a top stripe the fill hangs from the stripe band's foot (PTL 11).

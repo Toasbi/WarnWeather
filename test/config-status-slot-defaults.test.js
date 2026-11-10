@@ -17,13 +17,13 @@ test('real schema hydrates the HR-aware status-slot default set', () => {
   const emery = E.hydrate(SCHEMA, {}, ENV_EMERY);
   assert.equal(emery.statusForecastLeft, 'temp');
   assert.equal(emery.statusForecastMid, 'city');
-  assert.equal(emery.statusForecastRight, 'aqi');
+  assert.equal(emery.statusForecastRight, 'sun');
   assert.equal(emery.statusRadarLeft, 'uv');
   assert.equal(emery.statusRadarMid, 'wind');
   assert.equal(emery.statusRadarRight, 'gust');
   assert.equal(emery.statusTopLeft, 'week');
   assert.equal(emery.statusTopMid, 'date');
-  assert.equal(emery.statusTopRight, 'sun');
+  assert.equal(emery.statusTopRight, 'aqi');
   assert.equal(emery.statusHealthLeft, 'steps');
   assert.equal(emery.statusHealthMid, 'sleep');
   assert.equal(emery.statusHealthRight, 'hr', 'emery is HR-capable');
@@ -32,9 +32,10 @@ test('real schema hydrates the HR-aware status-slot default set', () => {
   assert.equal(basalt.statusHealthMid, 'empty', 'non-HR platform -> empty middle');
   assert.equal(basalt.statusHealthRight, 'sleep', 'non-HR platform -> sleep');
   // The top strip's own flavor, and the one place it is resolved through the REAL
-  // schema: emery carries three readings, the narrower displays the date with the
-  // battery in its corner and the left slot free.
-  assert.equal(basalt.statusTopLeft, 'empty');
+  // schema: emery carries three readings, the narrower displays air quality and the date
+  // with the battery in its corner.
+  assert.equal(basalt.statusForecastRight, 'sun');
+  assert.equal(basalt.statusTopLeft, 'aqi');
   assert.equal(basalt.statusTopMid, 'date');
   assert.equal(basalt.statusTopRight, 'battery');
 });

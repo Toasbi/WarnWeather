@@ -207,7 +207,7 @@ static void hr_clamp_draw(const ChartRender *r, void *user) {
 static ChartDef health_grid_def(void) {
     ChartDef d = FORECAST_GRID_DEF;   // inherit tick_w, insets and num_slots (24)
     const int avail = layer_get_bounds(s_health_graph_layer).size.w
-                          - bottom_view_graph_inset();
+                          - bottom_view_graph_inset(BOTTOM_VIEW_SRC_HEALTH);
     const int fc_pitch = chart_def_pitch(&FORECAST_GRID_DEF);
     int pitch = (d.num_slots > 0) ? avail / d.num_slots : fc_pitch;   // fit all buckets
     if (pitch > fc_pitch)        { pitch = fc_pitch; }        // never sparser than forecast
@@ -235,16 +235,15 @@ static void step_mark_label(int value, char *out, size_t out_sz) {
 }
 
 // Read health for the visible window and derive the step scale + labeled marks into
-// the module statics the update proc renders from, then feed the widest mark label
-// into bottom_view so the shared left strip widens to fit — bottom_view repaints
-// both strip consumers itself when the effective width moves. Create does NOT call
-// this (no compute until the cache is warm), so the strip stays forecast-sized
-// until the first refresh.
+// the module statics the update proc renders from, then report the widest mark label
+// to bottom_view as this graph's own left strip (the caller repaints). Create does NOT
+// call this (no compute until the cache is warm), so the strip stays at its floor until
+// the first refresh.
 static void health_graph_compute(void) {
     const GRect    bounds     = layer_get_bounds(s_health_graph_layer);
     const ChartDef def        = health_grid_def();
     const int      pitch      = chart_def_pitch(&def);
-    const int      graph_left = bottom_view_graph_inset();
+    const int      graph_left = bottom_view_graph_inset(BOTTOM_VIEW_SRC_HEALTH);
 
     // "now" sits at the LAST VISIBLE slot, so don't fill clipped slots. The health
     // pitch is sized so all def.num_slots (24 h) fit; this clamp makes that explicit.
@@ -291,8 +290,8 @@ static void health_graph_compute(void) {
     s_end_hour      = end_hour;
 
     // Measured over every mark, the halfway one too where its plot draws the top one alone
-    // (step_scale_grid, at draw time): the plot's height is the view's, and the strip the
-    // two graphs share stays where it is as the views change.
+    // (step_scale_grid, at draw time): the plot's height is the view's, and the strip stays
+    // where it is as the views change.
     const GFont font = bottom_view_label_font();
     const GRect box  = GRect(0, 0, 200, 40);
     int max_w = 0;
@@ -310,8 +309,8 @@ static void health_graph_compute(void) {
 // thousands ("2", "0.5") — no "k" suffix — each seated by its ink (step_label_ink_y). The
 // vertical axis line itself is painted by the FRAME layer in chart_draw.
 static void draw_left_axis(GContext *ctx, int h, const StepGrid *g) {
-    const int strip_w = bottom_view_label_strip_w();
-    const int inset_w = bottom_view_graph_inset();
+    const int strip_w = bottom_view_label_strip_w(BOTTOM_VIEW_SRC_HEALTH);
+    const int inset_w = bottom_view_graph_inset(BOTTOM_VIEW_SRC_HEALTH);
     const int axis_y  = h - BOTTOM_VIEW_AXIS_H;   // plot bottom; plot height == axis_y
 
     // Mask the label strip (anything that bled left of the plot).
@@ -359,7 +358,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     const GRect   bounds        = layer_get_bounds(layer);
     const int     h             = bounds.size.h - BOTTOM_VIEW_BOTTOM_PAD;
     const int16_t axis_y        = h - BOTTOM_VIEW_AXIS_H;
-    const int     graph_left    = bottom_view_graph_inset();
+    const int     graph_left    = bottom_view_graph_inset(BOTTOM_VIEW_SRC_HEALTH);
     const ChartDef def          = health_grid_def();   // full-24 h pitch (see health_grid_def)
     const int     pitch         = chart_def_pitch(&def);
     const int     visible_slots = s_visible_slots;
@@ -481,9 +480,6 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
 void health_graph_layer_create(Layer *parent_layer, GRect frame) {
     s_health_graph_layer = layer_create(frame);
     layer_set_update_proc(s_health_graph_layer, health_graph_update_proc);
-    // Strip-width consumer: a forecast-side width change repaints this graph too
-    // (shared strip, bottom_view.h) — it reads the gutter at draw time.
-    bottom_view_register_consumer(s_health_graph_layer);
     // No compute here: the cache populates on reset (boot/enable); the update
     // proc paints the loading state until health_cache_ready().
     layer_add_child(parent_layer, s_health_graph_layer);
@@ -496,11 +492,9 @@ Layer *health_graph_layer_get_root(void) {
 void health_graph_layer_refresh(void) {
     if (!health_cache_ready()) {
         layer_mark_dirty(s_health_graph_layer);   // paints the loading state
-        // Report NOTHING while the (re)build runs: the loading frame has no
-        // left-axis labels, so 0 would be the honest measurement — but it would
-        // also shrink the SHARED strip for the duration of a sliced build and
-        // grow it back when the build lands, wobbling the visible forecast's
-        // gutter twice over. Holding the last known width leaves it still.
+        // Report nothing while the (re)build runs: the loading frame draws no
+        // left axis, and the last known width is the best guess for the strip
+        // the build lands with.
         return;
     }
     health_graph_compute();   // copy from the cache + report the width
@@ -508,7 +502,6 @@ void health_graph_layer_refresh(void) {
 }
 
 void health_graph_layer_destroy(void) {
-    bottom_view_unregister_consumer(s_health_graph_layer);
     layer_destroy(s_health_graph_layer);
     s_health_graph_layer = NULL;
 }

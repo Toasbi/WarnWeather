@@ -205,7 +205,8 @@
      * The metrics the watch draws: each forecast line's effective metric (line-style.js
      * effectiveLineMetric — off and repeat-of-an-earlier-line draw nothing), the Third
      * and Fourth metric lines only on a watch that carries them (env.lineStyles, the
-     * WW_LINE_STYLE mirror: not aplite).
+     * WW_LINE_STYLE mirror: not aplite), and after them the graph styles' spare row, which
+     * only the bake's settings copy names (line-style.js BAKE_LINES).
      * @param {Object} settings Clay settings blob.
      * @param {?Object} [env] Platform env (capable; see the header).
      * @returns {string[]} Drawn metric ids, in line order.
@@ -213,9 +214,9 @@
     function drawnMetrics(settings, env) {
         var allLines = capable(env, 'lineStyles');
         var out = [];
-        for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
+        for (var i = 0; i < lineStyle.BAKE_LINES.length; i++) {
             if (i >= 2 && !allLines) { break; }
-            var m = lineStyle.effectiveLineMetric(settings, lineStyle.FORECAST_LINES[i].key);
+            var m = lineStyle.effectiveLineMetric(settings, lineStyle.BAKE_LINES[i].key);
             if (m) { out.push(m); }
         }
         return out;

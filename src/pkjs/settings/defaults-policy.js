@@ -48,10 +48,10 @@
 //                        which knows healthMode's schema default).
 //
 // A row may also carry `dependsOn` (dependent key -> anchor key of the same set),
-// which couples writes that only make sense together — see the health-slots row —
-// and `overrules` (a list of the rule's own set keys), which exempts a key from the
-// consumer's "the user has not spoken here" guard: the rule's value replaces
-// even a hand-customized stored one. applyDefaults below is the one interpreter
+// which couples writes that only make sense together (a key applies only while its
+// anchor holds the rule's value), and `overrules` (a list of the rule's own set keys),
+// which exempts a key from the consumer's "the user has not spoken here" guard: the
+// rule's value replaces even a hand-customized stored one. applyDefaults below is the one interpreter
 // of both. Tests pin that every dependsOn/overrules name references the
 // same rule's set, so a typo fails loudly instead of silently stranding a
 // dependent or protecting nothing.
@@ -68,9 +68,9 @@
             when: {wizard: true},
             // Setup sets no Bold mode at all (the owner, 2026-11-06: every slot keeps its
             // own Bold row's default), so this is the one emphasis it adds.
-            why: 'Air quality is the default reading that can turn unhealthy on an '
-                + 'ordinary day, so setup switches its highlight on: from its warn level '
-                + 'the slot is boxed, and at danger filled.',
+            why: 'Of the readings shown by default, air quality is the one that can turn '
+                + 'unhealthy on an ordinary day, so setup turns on its Alert highlighting. '
+                + 'From the warn level the slot gets a box, and at danger it is filled.',
             // The warn box is the kind's warn look, whose platform default (fill on
             // colour, outline on B&W) already draws one — nothing to set for it. Nor
             // for the levels: the pair stays blank, which means the AQI seed for the
@@ -78,72 +78,13 @@
             // to Open-Meteo's European scale moves the levels with it — exactly what
             // flipping the switch by hand leaves.
             set: {threshAqiOn: true}
-        },
-        {
-            id: 'wizard-health-slots',
-            when: {wizard: true, health: true, platform: 'emery'},
-            // emery only: this promotion takes the top row's RIGHT-HAND corner, which
-            // exists to be taken only where that corner ships a reading to give up
-            // (emeryDefaults' sunrise/sunset). On the narrow platforms the corner is
-            // the battery and steps goes to the free left slot instead — the sibling
-            // rule below, which is otherwise this one.
-            //
-            // Steps vacates the health row's left slot, distance fills it, and no
-            // row ends up holding the same item twice — on a heart-rate watch too,
-            // where that row reads distance / sleep / heart rate.
-            why: 'Steps is the health number people glance at most, and the top row is '
-                + 'on every screen, so setup promotes steps into its right-hand '
-                + 'corner and sunrise/sunset gives up the spot. Walked distance takes '
-                + 'the place steps left in the health row, so no reading is lost.',
-            set: {
-                statusTopRight: 'steps',
-                statusHealthLeft: 'distance'
-            },
-            // These two writes are ONE move, not two: evicting steps from the health
-            // row is only safe while the top row actually shows it. Each key is still
-            // permission-checked on its own (policyMayWrite), so without this the
-            // eviction could run while the promotion was blocked by a customized
-            // top-right slot — deleting the steps reading from the face, the exact
-            // loss the why-text above forbids. dependsOn: a key applies only while
-            // the named sibling HOLDS this rule's value for it when its turn comes
-            // (written this run, or already there from an earlier one).
-            dependsOn: {statusHealthLeft: 'statusTopRight'},
-            // The promotion alone is exempt from the not-still-default guard:
-            // completing setup with health on IS the consent to the layout this
-            // rule promises, so steps takes the top-right slot even from a slot
-            // the user picked by hand (observed live: a phone-battery slot
-            // parked top-right silently blocked the whole swap). The row-sibling
-            // dedupe guard still stands — steps already placed elsewhere in the
-            // top row stops the promotion, and the eviction with it — and the
-            // eviction keeps the normal protection: a customized health row
-            // survives.
-            overrules: ['statusTopRight']
-        },
-        {
-            id: 'wizard-health-slots-compact',
-            when: {wizard: true, health: true, platformNot: 'emery'},
-            // The same move as the rule above, aimed at the slot this platform's top
-            // row actually has free. Its right-hand corner is the battery here, and
-            // the battery is the reason that corner exists — so steps takes the LEFT
-            // slot, which the narrow default ships empty for exactly this.
-            why: 'Steps is the health number people glance at most, and the strip beside '
-                + 'the clock is on every screen — but on these watches its '
-                + 'right-hand corner is the battery, so steps takes the free left slot '
-                + 'and the battery keeps its corner. Walked distance takes the place '
-                + 'steps left in the health row, so no reading is lost.',
-            set: {
-                statusTopLeft: 'steps',
-                statusHealthLeft: 'distance'
-            },
-            // Both halves of one move, exactly as above: the eviction is only safe
-            // while the strip actually shows steps.
-            dependsOn: {statusHealthLeft: 'statusTopLeft'},
-            // Same consent argument as the rule above, on this platform's promoted
-            // slot. It bites less often — the slot ships EMPTY here, so only someone
-            // who parked something there before re-running setup is overruled.
-            overrules: ['statusTopLeft']
         }
 
+        // Deliberately NOT here: steps on the top row. Setup used to move steps there
+        // (and walked distance into the health row's place) when a Health screen was
+        // added; the owner took that out on 2026-11-09, so every bar keeps its own
+        // default.
+        //
         // Deliberately NOT here: the step, sleep and distance GOALS. They stay off
         // until the wearer sets one — a goal nobody chose is a number nobody meant,
         // and it would celebrate on the watch face for it. test/defaults-policy.test.js

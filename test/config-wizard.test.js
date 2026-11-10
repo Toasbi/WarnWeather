@@ -148,7 +148,7 @@ function wizCtx(over) {
   return { S: eng.hydrate(schema, Object.assign({ healthMode: 'all' }, o.saved || {}), ENV), ENV, schema };
 }
 
-test('finishing the wizard on emery promotes steps, hands AQI a warn signal and leaves Bold alone', () => {
+test('finishing the wizard on emery hands AQI a warn signal, moves no slot and leaves Bold alone', () => {
   const ctx = wizCtx({ platform: 'emery' });
   const before = {};
   BOLD_KEYS.forEach((k) => { before[k] = ctx.S[k]; });
@@ -158,28 +158,24 @@ test('finishing the wizard on emery promotes steps, hands AQI a warn signal and 
   BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], before[k], k + ' keeps its own default'));
   assert.equal(ctx.S.threshAqiOn, true, 'AQI highlighting on');
   assert.equal(ctx.S.threshAqiWarnLook, 'fill', 'AQI warn box: the colour watch\'s default look');
-  assert.equal(ctx.S.statusTopRight, 'steps');
-  assert.deepEqual(Object.keys(written).sort(), ['statusHealthLeft', 'statusTopRight', 'threshAqiOn'],
-    'the report names exactly the keys it wrote');
+  assert.equal(ctx.S.statusTopRight, 'aqi', 'the Watch bar keeps air quality in its corner');
+  assert.equal(ctx.S.statusHealthLeft, 'steps', 'the Health bar keeps its steps');
+  assert.deepEqual(Object.keys(written), ['threshAqiOn'], 'the report names exactly the keys it wrote');
 });
 
-test('finishing the wizard on a narrow watch fills the free left slot and leaves Bold alone', () => {
-  // The strip beside the clock ships date + battery here, so steps is promoted into its
-  // EMPTY left slot rather than into the battery corner.
+test('finishing the wizard on a narrow watch moves no slot and leaves Bold alone', () => {
+  // The strip beside the clock ships air quality, the date and the battery corner here.
   const ctx = wizCtx();
-  assert.equal(ctx.S.statusTopLeft, 'empty', 'guard: the narrow strip ships that slot free');
-  assert.equal(ctx.S.statusTopRight, 'battery', 'guard: and the battery in the corner');
   const before = {};
   BOLD_KEYS.forEach((k) => { before[k] = ctx.S[k]; });
 
   const written = FINISH.applyWizardDefaults(ctx, 'save');
 
   BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], before[k], k + ' keeps its own default'));
-  assert.equal(ctx.S.statusTopLeft, 'steps');
+  assert.equal(ctx.S.statusTopLeft, 'aqi');
   assert.equal(ctx.S.statusTopRight, 'battery', 'the battery keeps its corner');
-  assert.equal(ctx.S.statusHealthLeft, 'distance', 'the eviction rides along');
-  assert.deepEqual(Object.keys(written).sort(), ['statusHealthLeft', 'statusTopLeft', 'threshAqiOn'],
-    'the report names exactly the keys it wrote');
+  assert.equal(ctx.S.statusHealthLeft, 'steps');
+  assert.deepEqual(Object.keys(written), ['threshAqiOn'], 'the report names exactly the keys it wrote');
 });
 
 test('the wizard\'s AQI highlight == a hand flip: the switch alone, the pair left blank', () => {
@@ -211,29 +207,23 @@ test('the wizard\'s AQI highlight == a hand flip: the switch alone, the pair lef
   assert.deepEqual(thresholds.resolvedPair('Aqi', ctx.S), { warn: 60, danger: 80, stored: false });
 });
 
-test('the health slots move only where health can actually report', () => {
-  ['all', 'status', 'slot'].forEach((mode) => {
+test('no health mode moves a status slot: steps stays in the Health bar (the owner\'s, 2026-11-09)', () => {
+  ['all', 'status', 'slot', 'off'].forEach((mode) => {
     const ctx = wizCtx({ saved: { healthMode: mode } });
     FINISH.applyWizardDefaults(ctx, 'save');
-    assert.equal(ctx.S.statusTopLeft, 'steps', mode);
-    assert.equal(ctx.S.statusHealthLeft, 'distance', mode);
+    assert.equal(ctx.S.statusTopLeft, 'aqi', mode);
+    assert.equal(ctx.S.statusHealthLeft, 'steps', mode);
+    assert.equal(ctx.S.threshAqiOn, true, 'the AQI rule applies: ' + mode);
 
     const emery = wizCtx({ platform: 'emery', saved: { healthMode: mode } });
     FINISH.applyWizardDefaults(emery, 'save');
-    assert.equal(emery.S.statusTopRight, 'steps', 'emery: ' + mode);
-    assert.equal(emery.S.statusHealthLeft, 'distance', 'emery: ' + mode);
+    assert.equal(emery.S.statusTopRight, 'aqi', 'emery: ' + mode);
+    assert.equal(emery.S.statusHealthLeft, 'steps', 'emery: ' + mode);
   });
-
-  const off = wizCtx({ saved: { healthMode: 'off' } });
-  FINISH.applyWizardDefaults(off, 'save');
-  assert.equal(off.S.statusTopLeft, 'empty', 'health off leaves the top row alone');
-  assert.equal(off.S.statusHealthLeft, 'steps', 'health off leaves the health row alone');
-  assert.equal(off.S.threshAqiOn, true, 'the AQI rule still applies with health off');
 
   // aplite has no health at all; the AQI key is still written (inert there by design).
   const aplite = wizCtx({ platform: 'aplite' });
   FINISH.applyWizardDefaults(aplite, 'save');
-  assert.equal(aplite.S.statusTopLeft, 'empty');
   assert.equal(aplite.S.statusHealthLeft, 'steps');
   assert.equal(aplite.S.threshAqiOn, true);
 });
@@ -251,92 +241,14 @@ test('"Keep customizing" (nav tweak) finishes the wizard too — Skip and the st
   });
 });
 
-test('a key the user changed by hand survives the policy', () => {
-  // statusHealthLeft ships 'steps'; 'sleep' below is therefore a real choice, not a
-  // default that happens to match. (The steps promotion is the ONE declared
-  // exception to this clause — the next test.)
-  const ctx = wizCtx({ saved: { statusHealthLeft: 'sleep' } });
+test('the slots the user picked survive setup', () => {
+  const ctx = wizCtx({ platform: 'emery', saved: { statusTopRight: 'battery', statusHealthLeft: 'sleep' } });
 
   const written = FINISH.applyWizardDefaults(ctx, 'save');
 
-  assert.equal(ctx.S.statusHealthLeft, 'sleep', 'an explicit slot choice is not overwritten');
-  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
-  assert.equal(ctx.S.statusTopLeft, 'steps', 'the untouched keys still get their default');
-  assert.equal(ctx.S.threshAqiOn, true, 'another rule is unaffected');
-});
-
-test('the steps promotion overrules even a hand-picked slot', () => {
-  // emery: statusTopRight ships 'sun', so 'battery' is a real choice — a user parked
-  // another slot top-right, then completed setup with health on. Completing setup IS
-  // the consent to the promised health layout (the rule declares the promotion in
-  // `overrules`), so steps takes the slot anyway, and the eviction rides along — the
-  // swap stays all-or-nothing.
-  const ctx = wizCtx({ platform: 'emery', saved: { statusTopRight: 'battery' } });
-
-  const written = FINISH.applyWizardDefaults(ctx, 'save');
-
-  assert.equal(ctx.S.statusTopRight, 'steps', 'the promotion wins over the custom slot');
-  assert.equal(written.statusTopRight, 'steps');
-  assert.equal(ctx.S.statusHealthLeft, 'distance', 'the eviction rides along');
-  assert.notEqual(ctx.S.threshStepsBoldMode, 'always', 'and no Bold with it');
-
-  // The narrow sibling rule overrules its own slot the same way. It bites far less
-  // often: that slot ships EMPTY, so only a value parked there before re-running
-  // setup is replaced.
-  const narrow = wizCtx({ saved: { statusTopLeft: 'week' } });
-  FINISH.applyWizardDefaults(narrow, 'save');
-  assert.equal(narrow.S.statusTopLeft, 'steps');
-  assert.equal(narrow.S.statusHealthLeft, 'distance');
-});
-
-test('the overrule stops at the promotion: a customized health row still survives', () => {
-  // Only the promotion is declared an overrule. A hand-emptied health-left slot
-  // stays as the user left it; steps simply lives in the top row now, and no
-  // reading is lost — it was not in the health row to begin with.
-  const ctx = wizCtx({ platform: 'emery', saved: { statusTopRight: 'battery', statusHealthLeft: 'empty' } });
-
-  const written = FINISH.applyWizardDefaults(ctx, 'save');
-
-  assert.equal(ctx.S.statusTopRight, 'steps');
-  assert.equal(ctx.S.statusHealthLeft, 'empty', 'the hand-picked health slot survives');
-  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
-
-  const narrow = wizCtx({ saved: { statusTopLeft: 'week', statusHealthLeft: 'empty' } });
-  FINISH.applyWizardDefaults(narrow, 'save');
-  assert.equal(narrow.S.statusTopLeft, 'steps');
-  assert.equal(narrow.S.statusHealthLeft, 'empty', 'same on the narrow rule');
-});
-
-test('the whole health-slot swap is skipped when steps does not reach the top row', () => {
-  // statusTopMid='steps' is the user doing the promotion themselves — the rule's
-  // anchor slot keeps its default (dedupe guard), steps is NOT in the promoted slot,
-  // and the dependent writes stand down with it.
-  const ctx = wizCtx({ saved: { statusTopMid: 'steps' } });
-  const written = FINISH.applyWizardDefaults(ctx, 'save');
-  assert.equal(ctx.S.statusTopLeft, 'empty');
-  assert.equal(ctx.S.statusHealthLeft, 'steps', 'no eviction without the promotion');
-  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
-
-  const emery = wizCtx({ platform: 'emery', saved: { statusTopMid: 'steps' } });
-  FINISH.applyWizardDefaults(emery, 'save');
-  assert.equal(emery.S.statusTopRight, 'sun');
-  assert.equal(emery.S.statusHealthLeft, 'steps');
-
-  // And when the promotion DOES land (default install), the swap completes —
-  // pinned here as the counterpart so the dependency cannot overshoot.
-  const clean = wizCtx();
-  FINISH.applyWizardDefaults(clean, 'save');
-  assert.equal(clean.S.statusTopLeft, 'steps');
-  assert.equal(clean.S.statusHealthLeft, 'distance');
-});
-
-test('the policy never duplicates a code the user already placed in that row', () => {
-  const ctx = wizCtx({ saved: { statusTopMid: 'steps' } });
-
-  FINISH.applyWizardDefaults(ctx, 'save');
-
-  assert.equal(ctx.S.statusTopMid, 'steps', 'the slot the user filled stays filled');
-  assert.equal(ctx.S.statusTopLeft, 'empty', 'steps is already in that row, so the slot is left alone');
+  assert.equal(ctx.S.statusTopRight, 'battery');
+  assert.equal(ctx.S.statusHealthLeft, 'sleep');
+  assert.deepEqual(Object.keys(written), ['threshAqiOn'], 'another rule is unaffected');
 });
 
 // --- the wizard DOM controller: opening must never rewrite stored settings ------------
@@ -374,13 +286,27 @@ test('opening the wizard never rewrites a stored preset; a layout pick makes the
   assert.equal(aplite.ctx.S.layoutPreset, 'noCal');
 });
 
-test('the Screens step\'s screens: Health and Rain radar where the watch draws them, in that order', () => {
+test('the Screens step\'s screens: Long forecast, Health and Rain radar where the watch draws them, in that order', () => {
   const basalt = platform.computeEnv({ platform: 'basalt' });
   assert.deepEqual(SCREENS.offered(basalt).map((t) => t.id), ['health', 'radar']);
+  assert.deepEqual(SCREENS.offered(platform.computeEnv({ platform: 'emery' })).map((t) => t.id), ['long', 'health', 'radar'],
+    'the Pebble Time 2 adds a second graph over the long span');
   assert.deepEqual(SCREENS.offered(platform.computeEnv({ platform: 'aplite' })), []);
   const b = (k, o) => Object.assign({ k }, o || {});
-  assert.deepEqual(SCREENS.byId('health').list, [b('strip'), b('clock'), b('healthbar'), b('health', { size: 'fill' })]);
-  assert.deepEqual(SCREENS.byId('radar').list, [b('strip'), b('clock'), b('radarbar'), b('radar', { size: 'fill' })]);
+  assert.deepEqual(SCREENS.listOf(SCREENS.byId('health'), ''),
+    [b('strip'), b('clock'), b('healthbar'), b('health', { size: 'fill' })]);
+  assert.deepEqual(SCREENS.listOf(SCREENS.byId('radar'), ''),
+    [b('strip'), b('clock'), b('radarbar'), b('radar', { size: 'fill' })]);
+  assert.deepEqual(SCREENS.listOf(SCREENS.byId('health'), '3'),
+    [b('strip'), b('cal', { rows: '3' }), b('clock'), b('healthbar'), b('health', { size: 'fill' })], 'on the Layout\'s calendar');
+  // A screen reads as its template whatever its calendar; the Long forecast screen by a graph of its own.
+  assert.equal(SCREENS.templateOf(SCREENS.listOf(SCREENS.byId('radar'), '2')).id, 'radar');
+  const long = SCREENS.listOf(SCREENS.byId('long'), '');
+  assert.equal(SCREENS.templateOf(long), null, 'a forecast screen on the first graph is the user\'s own');
+  long[3].style = '2';
+  assert.equal(SCREENS.templateOf(long).id, 'long');
+  assert.equal(SCREENS.insertAt([[], long.slice(), SCREENS.listOf(SCREENS.byId('health'), '')], 'radar'), 3);
+  assert.equal(SCREENS.insertAt([[], SCREENS.listOf(SCREENS.byId('health'), '')], 'long'), 1, 'before the Health screen');
   // An upgraded install's flick screens ARE the two (today's Flick 1 and Flick 2).
   const three = M.screensOf({ layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'graph' }, basalt);
   assert.deepEqual(three.map((l, i) => SCREENS.nameOf(l, i)), ['Default', 'Health', 'Rain radar']);
@@ -400,7 +326,7 @@ test('the Screens step\'s screens: Health and Rain radar where the watch draws t
 test('finishing setup without a Health screen leaves the slots to the screens: a new install\'s health is off', () => {
   const ctx = wizCtx({ saved: { healthMode: 'off' } });
   FINISH.applyWizardDefaults(ctx, 'save');
-  assert.equal(ctx.S.statusTopLeft, 'empty', 'no steps on the Watch bar');
+  assert.equal(ctx.S.statusTopLeft, 'aqi', 'the Watch bar keeps its default');
   assert.equal(ctx.S.threshAqiOn, true, 'the AQI rule still applies');
 });
 
@@ -432,8 +358,9 @@ test('the tomorrow.io upsell shows the key row: "Tomorrow.io API key", its hint 
   // The settings sheets show the call budget under the key and the wizard doesn't, so its copy of
   // the hint stops short of pointing at it. Pinned, so a later hint edit can't bring it back.
   const sheetHint = hint(copies);
-  assert.ok(sheetHint.indexOf(' — see the call budget below.') !== -1, 'guard: the sheets\' hint still says it');
-  const wizardHint = sheetHint.replace(' — see the call budget below.', '.');
+  assert.ok(sheetHint.indexOf('The free plan is enough. See the call budget below.') !== -1,
+    'guard: the sheets\' hint still says it');
+  const wizardHint = sheetHint.replace(' See the call budget below.', '');
   const field = '<div class="row stack"><div class="lbl">Tomorrow.io API key</div><div class="hint">' + wizardHint
     + '</div><div><div class="txt-act"><input type="text" data-k="tomorrowioApiKey" value="" placeholder=""'
     + ' aria-label="Tomorrow.io API key">'

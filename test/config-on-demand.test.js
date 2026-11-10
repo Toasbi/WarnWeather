@@ -4,13 +4,14 @@
 // rows (live texts ending on where each alert shows, item dialogs); each item dialog's Shows
 // on card (one row per status bar the watch can draw, a Left and a Right tick writing that
 // side's list through its writer, a bar no screen shows inert), checked against
-// on-demand.js tickOn / untickFrom; each bar's Alerts nav row on the Status bars tab (the
+// on-demand.js tickOn / untickFrom; each bar's Alerts nav row, last in the bar's dialog (the
 // placed items' icons per side; a tap brings the Alerts tab); the rain notes, the resets,
 // and the aplite page, which has none of it. The schema shape itself is pinned in
 // test/config-schema.test.js; this file checks what the page renders and does.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
+const { rowOf, hintOf } = require('./helpers/page-rows.js');
 const OD = require('../src/pkjs/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const SCHEMA = require('../src/pkjs/settings/schema.js');
@@ -44,20 +45,6 @@ const watchTab = (cfg, platformName) => onTab('watch', cfg, platformName);
 const alertsTab = (cfg, platformName) => onTab('alerts', cfg, platformName);
 
 /**
- * The markup of one row, from its opening `<div class="row` to the next row's.
- * @param {string} html rendered page markup
- * @param {string} needle a string unique to the row (e.g. its data-edit-sheet)
- * @returns {string} the row's markup ('' when absent)
- */
-function rowOf(html, needle) {
-  const at = html.indexOf(needle);
-  if (at === -1) { return ''; }
-  const start = html.lastIndexOf('<div class="row', at);
-  const next = html.indexOf('<div class="row', at);
-  return html.slice(start, next === -1 ? html.length : next);
-}
-
-/**
  * Where each card opens in rendered markup (the card's own div, not its header's).
  * @param {string} html rendered markup
  * @returns {number[]} the offsets, in order
@@ -70,24 +57,12 @@ function cardStarts(html) {
   return out;
 }
 
-/**
- * The hint text of the row holding a needle ('' when the row has none) — a value row's
- * hint or a nav row's summary, dimmed ('hint faint') or not.
- * @param {string} html rendered page markup
- * @param {string} needle a string unique to the row
- * @returns {string} the hint's inner markup
- */
-function hintOf(html, needle) {
-  const m = /<div class="hint[^"]*"[^>]*>([\s\S]*?)<\/div>/.exec(rowOf(html, needle));
-  return m ? m[1] : '';
-}
-
 // Each item's dialog, the one its Alerts-tab row opens.
 const SHEET = { battery: 'odBattery', bt: 'odBluetooth', qt: 'odQuiet', snooze: 'odSleep', rain: 'alertRain',
   gust: 'alertGust', uv: 'alertUv', aqi: 'alertAqi', pollen: 'alertPollen', wind: 'alertWind' };
 const CODES = OD.ITEMS.map((i) => i.code);
 // The grid's rows by name, in the page's order (the Status bars tab's).
-const BAR_NAMES = { top: 'Watch Status Bar', forecast: 'Forecast Status Bar', health: 'Health Status Bar', radar: 'Radar Status Bar' };
+const BAR_NAMES = { top: 'Watch bar', forecast: 'Forecast bar', health: 'Health bar', radar: 'Radar bar' };
 const PAGE_BARS = ['top', 'forecast', 'health', 'radar'];
 // The Alerts nav row's summary while nothing is placed on its bar.
 const NONE = 'None';
@@ -163,25 +138,45 @@ function ticked(sheet, bar) {
   return on[0] && on[1] ? 'both' : on[0] ? 'left' : on[1] ? 'right' : 'none';
 }
 
+const BAR_OF = { 'Watch bar': 'top', 'Forecast bar': 'forecast', 'Health bar': 'health', 'Radar bar': 'radar' };
 /**
- * A bar's Alerts nav row on the Status bars tab, found in the bar's own card.
- * @param {string} html the Status bars tab's markup
- * @param {string} title the bar's card title, e.g. 'Watch Status Bar'
- * @returns {string} the row's markup ('' when the bar or its row is absent)
+ * A bar's dialog (screens.js barSheet), the one its name in the Status bars tab's Your status bars
+ * card opens: opened, read, then closed with Done.
+ * @param {Object} page the page-harness handle
+ * @param {string} title the bar's name, e.g. 'Watch bar'
+ * @returns {string} the dialog's markup
  */
-function barRow(html, title) {
-  const at = html.indexOf('<span class="ttl">' + title + '</span>');
-  if (at === -1) { return ''; }
-  const end = cardStarts(html).find((s) => s > at);
-  return rowOf(html.slice(at, end === undefined ? html.length : end), '<div class="lbl">Alerts</div>');
+function barDialogHtml(page, title) {
+  page.openEditSheet('bar-' + BAR_OF[title]);
+  const html = page.modal.innerHTML;
+  page.doneDialog();
+  return html;
 }
 /**
+ * A bar's Alerts nav row, the last row of its dialog's Slots card.
+ * @param {Object} page the page-harness handle
+ * @param {string} title the bar's name, e.g. 'Watch bar'
+ * @returns {string} the row's markup ('' when the dialog has no such row)
+ */
+const barRow = (page, title) => rowOf(barDialogHtml(page, title), '<div class="lbl">Alerts</div>');
+/**
  * A bar's Alerts nav row summary.
- * @param {string} html the Status bars tab's markup
- * @param {string} title the bar's card title
+ * @param {Object} page the page-harness handle
+ * @param {string} title the bar's name
  * @returns {string} the summary's inner markup ('' for none)
  */
-const barHint = (html, title) => hintOf(barRow(html, title), '<div class="lbl">Alerts</div>');
+const barHint = (page, title) => hintOf(barRow(page, title), '<div class="lbl">Alerts</div>');
+/**
+ * Where a card's title sits, a title the settings name (a bar's, titleBy) as well.
+ * @param {string} html rendered page markup
+ * @param {string} title the card's title text
+ * @returns {number} its index, -1 when absent
+ */
+function titleAt(html, title) {
+  const m = new RegExp('<span class="ttl"(?: data-title-by="[^"]*")?>' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    + '</span>').exec(html);
+  return m ? m.index : -1;
+}
 /**
  * One side's icon run as the Alerts nav row draws it: "Left" or "Right", then each item's
  * glyph, named for a screen reader.
@@ -198,33 +193,54 @@ function iconRun(side, codes) {
 const TOP_HINT = iconRun('left', ['bt', 'qt', 'snooze', 'rain']) + ' '
   + iconRun('right', ['battery', 'gust', 'uv', 'aqi', 'wind']);
 
-test('each bar ends on one Alerts nav row: the icons on each side, a tap brings the Alerts tab', () => {
-  const html = watchTab().scroll.innerHTML;
-  const top = barRow(html, 'Watch Status Bar');
+test('each bar\'s dialog ends on one Alerts nav row: the icons on each side, a tap brings the Alerts tab', () => {
+  const page = watchTab();
+  const html = page.scroll.innerHTML;
+  const dialog = barDialogHtml(page, 'Watch bar');
+  const top = rowOf(dialog, '<div class="lbl">Alerts</div>');
   assert.ok(top.startsWith('<div class="row nav" data-goto-tab="alerts" role="button" tabindex="0"'
     + ' style="cursor:pointer"><div class="lft"><div class="lbl">Alerts</div>'), 'a nav row to the Alerts tab, labelled Alerts');
-  assert.ok(top.indexOf('<div class="rgt"><span class="nav-note">Alerts</span><span class="chev">&#8250;</span></div>')
+  assert.ok(top.indexOf('<div class="rgt"><span class="nav-note">Alerts</span><span class="chev nav" aria-hidden="true">&#8250;</span></div>')
     !== -1, 'it names where it goes, then the chevron');
-  assert.equal(barHint(html, 'Watch Status Bar'), TOP_HINT, 'Left + its icons, Right + its icons');
+  assert.equal(barHint(page, 'Watch bar'), TOP_HINT, 'Left + its icons, Right + its icons');
   assert.equal(top.indexOf('data-edit-sheet'), -1, 'no dialog of its own');
   assert.equal(top.indexOf('thr-btn'), -1, 'no Edit button');
   assert.equal(top.indexOf('data-hint-for'), -1, 'no key behind its summary');
   // A nav row's summary is always in view, even with Setup › Misc › Hide info text on: no '?'.
-  const q = watchTab({ hideInfoText: true }).scroll.innerHTML;
-  assert.ok(q.indexOf('class="info-q"') !== -1, 'premise: the \'?\' mode draws its buttons');
-  assert.equal(barRow(q, 'Watch Status Bar').indexOf('info-q'), -1, 'the Alerts row has no \'?\' in that mode');
-  assert.equal(barHint(q, 'Watch Status Bar'), TOP_HINT, 'and keeps its summary in view');
-  assert.match(rowOf(html, 'class="sel-wrap" data-select="statusTopRight"'), /^<div class="row slot">/,
+  const q = watchTab({ hideInfoText: true });
+  assert.ok(q.scroll.innerHTML.indexOf('class="info-q"') !== -1, 'premise: the \'?\' mode draws its buttons');
+  assert.equal(barRow(q, 'Watch bar').indexOf('info-q'), -1, 'the Alerts row has no \'?\' in that mode');
+  assert.equal(barHint(q, 'Watch bar'), TOP_HINT, 'and keeps its summary in view');
+  assert.match(rowOf(dialog, 'class="sel-wrap" data-select="statusTopRight"'), /^<div class="row slot">/,
     'a row of its own: the slot above no longer joins it');
-  assert.equal(barHint(html, 'Forecast Status Bar'), NONE, 'nothing placed: None');
-  ['Health Status Bar', 'Radar Status Bar'].forEach((title) =>
-    assert.equal(barHint(html, title), NONE, title + ': its row by default (radar Graph, health All)'));
+  assert.equal(barHint(page, 'Forecast bar'), NONE, 'nothing placed: None');
+  ['Health bar', 'Radar bar'].forEach((title) =>
+    assert.equal(barHint(page, title), NONE, title + ': its row by default (radar Graph, health All)'));
   ['odTop', 'odForecast', 'odRadar', 'odHealth'].forEach((id) =>
-    assert.equal(html.indexOf('data-edit-sheet="' + id + '"'), -1, id + ': the per-bar sheets are gone'));
-  assert.equal(html.indexOf('data-select="statusTopOnDemand'), -1, 'no Enabled/Disabled dropdown');
+    assert.equal((html + dialog).indexOf('data-edit-sheet="' + id + '"'), -1, id + ': the per-bar sheets are gone'));
+  assert.equal(dialog.indexOf('data-select="statusTopOnDemand'), -1, 'no Enabled/Disabled dropdown');
+  assert.equal(html.indexOf('<div class="lbl">Alerts</div>'), -1, 'the tab itself draws no Alerts row');
 });
 
-test('the Status bars tab: the bars in the owner\'s order, each its own card with its Alerts row, the reset a link row', () => {
+test('Your status bars shows the alerts on each bar\'s row, the icons its dialog\'s Alerts row shows; with none, no line', () => {
+  // The owner, 2026-11-09: "I also want to see right away if there are alarms set for the bar".
+  const page = watchTab({ statusForecastOnDemandRightItems: 'uv' });
+  const html = page.scroll.innerHTML;
+  // A bar's name button, which carries its alerts under its name.
+  const nameOf = (bar) => {
+    const at = html.indexOf('<button type="button" class="bl-name" data-edit-sheet="bar-' + bar + '"');
+    assert.ok(at !== -1, bar + ' listed');
+    return html.slice(at, html.indexOf('</button>', at) + '</button>'.length);
+  };
+  const line = (hint) => '<span class="ui-d bl-al"><span class="bl-al-cap">Alerts</span><span class="bl-al-runs">' + hint
+    + '</span></span></button>';
+  assert.ok(nameOf('top').endsWith(line(TOP_HINT)), 'the Watch bar\'s: Left + its icons, Right + its icons');
+  assert.equal(barHint(page, 'Watch bar'), TOP_HINT, 'the same as its dialog\'s Alerts row');
+  assert.ok(nameOf('forecast').endsWith(line(iconRun('right', ['uv']))), 'one placed on the Forecast bar');
+  ['health', 'radar'].forEach((bar) => assert.equal(nameOf(bar).indexOf('bl-al'), -1, bar + ': none placed, no line'));
+});
+
+test('the Status bars tab: Your status bars in the owner\'s order, each name opening the bar\'s dialog, then the reset as a link row', () => {
   // The owner, 2026-10-01: "1: watch status bar 2 weather 3 health 4 radar" (the page only;
   // the wire keeps its order). The health bar needs a health mode with a status bar.
   const closed = watchTab({ healthMode: 'status' });
@@ -233,18 +249,16 @@ test('the Status bars tab: the bars in the owner\'s order, each its own card wit
   const page = watchTab({ healthMode: 'status' });
   page.openAllMore('scroll');
   const html = page.scroll.innerHTML;
-  const at = (title) => html.indexOf('<span class="ttl">' + title + '</span>');
-  const order = ['Watch Status Bar', 'Forecast Status Bar', 'Health Status Bar', 'Radar Status Bar'];
-  order.forEach((t) => assert.ok(at(t) !== -1, t + ' renders'));
-  assert.deepEqual(order.slice().sort((a, b) => at(a) - at(b)), order, 'Watch, Forecast, Health, Radar');
-  order.forEach((t) => assert.ok(barRow(html, t) !== '', t + ': its Alerts row'));
-  order.slice(1).forEach((t, i) => assert.ok(cardStarts(html).some((s) => s > at(order[i]) && s < at(t)),
-    t + ': a card of its own, apart from ' + order[i]));
-  assert.equal((html.match(/<div class="lbl">Alerts<\/div>/g) || []).length, 4, 'one row per bar');
+  const at = (bar) => html.indexOf('<button type="button" class="bl-name" data-edit-sheet="bar-' + bar + '"');
+  PAGE_BARS.forEach((bar) => assert.ok(at(bar) !== -1, bar + ': its name opens its dialog'));
+  assert.deepEqual(PAGE_BARS.slice().sort((a, b) => at(a) - at(b)), PAGE_BARS, 'Watch, Forecast, Health, Radar');
+  PAGE_BARS.forEach((bar) => assert.ok(at(bar) > titleAt(html, 'Your status bars'), bar + ': in the Your status bars card'));
+  PAGE_BARS.forEach((bar) => assert.ok(barRow(page, BAR_NAMES[bar]) !== '', bar + ': its dialog\'s Alerts row'));
+  assert.equal(html.indexOf('<div class="lbl">Alerts</div>'), -1, 'no Alerts row on the tab itself');
   const reset = html.indexOf('<div class="row linkrow"><button type="button" class="txt-link" '
     + 'data-action="resetStatusSlots">Reset status bars to defaults</button></div>');
-  assert.ok(reset > at('All status bars') && reset < at('Watch Status Bar'),
-    'the reset: a text-link row in the All status bars card, above the bars');
+  assert.ok(reset > titleAt(html, 'All status bars') && titleAt(html, 'All status bars') > at('radar'),
+    'the reset: a text-link row in the All status bars card, below Your status bars');
   assert.ok(reset > html.indexOf('data-k="statusBoldAll"'), 'after Bold values, the last of the More options');
   assert.equal(html.indexOf('txt-act-btn'), -1, 'no boxed chip on the tab');
 });
@@ -265,21 +279,24 @@ function followTabLink(host, tab) {
  */
 const activeTab = (page) => (/<button class="tab on" data-tab="([^"]*)"/.exec(page.tabs.innerHTML) || [])[1];
 
-test('a tap on the Alerts row brings the Alerts tab to the front', () => {
+test('a tap on a bar dialog\'s Alerts row closes the dialog and brings the Alerts tab to the front', () => {
   const page = watchTab();
   assert.equal(activeTab(page), 'watch');
-  followTabLink(page.scroll, 'alerts');
+  page.openEditSheet('bar-forecast');
+  followTabLink(page.modal, 'alerts');
   assert.equal(activeTab(page), 'alerts');
+  assert.equal(page.modal.innerHTML, '', 'the dialog closed');
   assert.ok(page.scroll.innerHTML.indexOf('<span class="ttl">About alerts</span>') !== -1, 'the tab shows');
 });
 
 // --- the Shows on grids -------------------------------------------------------------
 const CAPS = '<span class="chk-caps" aria-hidden="true"><span>Left</span><span>Right</span></span>';
-const NOTE = 'One side per bar. On a crowded bar, the items lower in the Alerts tab’s list drop first.';
+const NOTE = 'On each bar, the alert can show on the left or the right, not both. When a bar runs out of'
+  + ' room, the alerts lower in the Alerts tab’s list are hidden first.';
 // A metric alert's note adds the merge into the slot that shows its value.
 const MERGE = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air quality index',
   pollen: 'the pollen index', wind: 'the wind speed' };
-// Where the defaults put each item on the Watch Status Bar ('none': Pollen).
+// Where the defaults put each item on the Watch bar ('none': Pollen).
 const TOP_SIDE = { battery: 'right', bt: 'left', qt: 'left', snooze: 'left', rain: 'left', gust: 'right',
   uv: 'right', aqi: 'right', pollen: 'none', wind: 'right' };
 
@@ -315,15 +332,15 @@ test('every item dialog opens on its Shows on card: a row per status bar, a Left
     // The note is the card's intro, in view right above the grid: the merge sentence for a
     // metric alert alone.
     assert.ok(sheet.indexOf('<div class="intro">' + NOTE
-      + (MERGE[code] ? ' Where the status slot on that side shows ' + MERGE[code] + ', the alert goes into that'
-        + ' slot, with its colors, instead of adding its alert icon.' : '')
+      + (MERGE[code] ? ' If the status slot on the same side shows ' + MERGE[code] + ', the alert shows in that'
+        + ' slot, in the alert’s colors, instead of adding its icon.' : '')
       + '</div><div class="row stack chk-row">', card) !== -1, code + ': the note leads the grid');
   });
 });
 
 test('a tick places the item; ticking the other side moves it; unticking leaves it on neither', () => {
   const page = alertsTab();
-  // Bluetooth is on the Watch Status Bar's left: ticking Right moves it.
+  // Bluetooth is on the Watch bar's left: ticking Right moves it.
   place(page, 'top', 'right', 'bt');
   assert.equal(page.S.statusTopOnDemandRightItems, 'battery,bt,gust,uv,aqi,wind');
   assert.equal(page.S.statusTopOnDemandLeftItems, 'qt,snooze,rain', 'gone from the left');
@@ -348,8 +365,7 @@ test('a tick places the item; ticking the other side moves it; unticking leaves 
   assert.equal(OD.sideOf(page.S, 'forecast', 'uv'), 'right', 'the watch shows it there');
   page.doneDialog();
   page.clickTab('watch');
-  assert.equal(barHint(page.scroll.innerHTML, 'Forecast Status Bar'), iconRun('right', ['battery', 'uv']),
-    'the Status bars tab shows it');
+  assert.equal(barHint(page, 'Forecast bar'), iconRun('right', ['battery', 'uv']), 'the bar\'s dialog shows it');
 });
 
 test('pinned: the lists a tick stores', () => {
@@ -384,8 +400,10 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+// The four bars every watch has (bars 4 to 6 are Pebble Time 2 only and made on the page:
+// test/config-extra-bars.test.js).
 const LIST_KEYS = [];
-OD.BARS.forEach((b) => OD.SIDES.forEach((side) => LIST_KEYS.push(OD.itemsKey(b.bar, side))));
+OD.BLOB_BARS.forEach((b) => OD.SIDES.forEach((side) => LIST_KEYS.push(OD.itemsKey(b.bar, side))));
 
 test('300 seeded tick sequences through the grids store what on-demand.js tickOn / untickFrom store', () => {
   // All four bars exist (radar Graph, health All) and nothing is blocked (DWD, radar on).
@@ -396,7 +414,7 @@ test('300 seeded tick sequences through the grids store what on-demand.js tickOn
     // The defaults first, then random canonical states: each item on neither side, the
     // left or the right of each bar.
     const start = {};
-    OD.BARS.forEach((b) => {
+    OD.BLOB_BARS.forEach((b) => {
       const sides = { left: [], right: [] };
       OD.ITEMS.forEach((it) => { const r = rnd(); if (r < 1 / 3) { sides.left.push(it.code); } else if (r < 2 / 3) { sides.right.push(it.code); } });
       OD.SIDES.forEach((side) => {
@@ -407,14 +425,14 @@ test('300 seeded tick sequences through the grids store what on-demand.js tickOn
     Object.assign(page.S, start);
     const oracle = Object.assign({}, start);
     for (let i = 0; i < 12; i++) {
-      const bar = pick(OD.BARS).bar, side = pick(OD.SIDES), code = pick(CODES);
+      const bar = pick(OD.BLOB_BARS).bar, side = pick(OD.SIDES), code = pick(CODES);
       const key = OD.itemsKey(bar, side);
       if (OD.parse(oracle[key]).indexOf(code) >= 0) { OD.untickFrom(oracle, key, [code]); } else { OD.tickOn(oracle, bar, side, code); }
       place(page, bar, side, code);
       const got = {};
       LIST_KEYS.forEach((k) => { got[k] = page.S[k]; });
       assert.deepEqual(got, oracle, 'sequence ' + s + ', step ' + i + ': ' + [bar, side, code].join(' '));
-      OD.BARS.forEach((b) => {
+      OD.BLOB_BARS.forEach((b) => {
         const right = OD.parse(page.S[OD.itemsKey(b.bar, 'right')]);
         assert.ok(!OD.parse(page.S[OD.itemsKey(b.bar, 'left')]).some((c) => right.indexOf(c) >= 0),
           'sequence ' + s + ', step ' + i + ': ' + b.bar + ' holds an item on one side at most');
@@ -439,7 +457,7 @@ test('Rain with the radar off: the grid goes inert and keeps its ticks, and a bo
   // The Radar bar shows without radar data, so its row stays, inert like the others, with no
   // reason of its own: only the item cannot show.
   assert.equal(ticksOf(sheet, 'radar').length, 2, 'the radar bar keeps its row with the radar off');
-  assert.ok(sheet.indexOf('<span class="lbl">Radar Status Bar</span></span>') !== -1, 'with no reason of its own');
+  assert.ok(sheet.indexOf('<span class="lbl">Radar bar</span></span>') !== -1, 'with no reason of its own');
   assert.equal(ticked(sheet, 'top'), 'left', 'Rain keeps its tick');
   const box = sheet.indexOf('<div class="static info"><div class="info-box">' + RADAR_OFF_BOX + '</div></div>');
   assert.ok(box > sheet.indexOf('<span class="ttl">Shows on</span>'), 'the box sits in the Shows on card');
@@ -454,9 +472,9 @@ test('Rain with the radar off: the grid goes inert and keeps its ticks, and a bo
   on.openEditSheet('alertRain');
   assert.equal(on.modal.innerHTML.indexOf(RADAR_OFF_BOX), -1, 'no box while the radar is on');
   assert.equal(on.modal.innerHTML.indexOf(' disabled'), -1, 'nothing inert');
-  // The Status bars tab leaves Rain out while it cannot show.
+  // The Watch bar's dialog leaves Rain out while it cannot show.
   page.clickTab('watch');
-  assert.equal(barHint(page.scroll.innerHTML, 'Watch Status Bar'), iconRun('left', ['bt', 'qt', 'snooze']) + ' '
+  assert.equal(barHint(page, 'Watch bar'), iconRun('left', ['bt', 'qt', 'snooze']) + ' '
     + iconRun('right', ['battery', 'gust', 'uv', 'aqi', 'wind']));
 });
 
@@ -464,7 +482,7 @@ test('Pollen off DWD: no Alerts-tab row (so no dialog to open there), and the Al
   const page = alertsTab({ provider: 'openmeteo', statusTopOnDemandRightItems: 'pollen,wind' });
   assert.equal(page.scroll.innerHTML.indexOf('data-edit-sheet="alertPollen"'), -1, 'no Pollen row off DWD');
   page.clickTab('watch');
-  assert.equal(barHint(page.scroll.innerHTML, 'Watch Status Bar'), iconRun('left', ['bt', 'qt', 'snooze', 'rain'])
+  assert.equal(barHint(page, 'Watch bar'), iconRun('left', ['bt', 'qt', 'snooze', 'rain'])
     + ' ' + iconRun('right', ['wind']));
 });
 
@@ -473,14 +491,14 @@ test('Pollen off DWD: no Alerts-tab row (so no dialog to open there), and the Al
 // for every radar and health mode a preset's screens follow, on every watch with Alerts. A bar
 // the watch can draw but no screen shows keeps an inert row that says so; a bar the hardware
 // never draws has none.
-test('the grid\'s live rows are exactly the bars whose Alerts row the Status bars tab shows, in its order', () => {
+test('the grid lists every bar the watch draws, live exactly where a screen shows it; the Status bars tab has them all', () => {
   const bars = PC.optionsResolvers.get('onDemandBars');
   const watch = SCHEMA.tabs.find((t) => t.id === 'watch');
   const sections = PAGE_BARS.map((bar) => watch.sections.find((s) => s.title === BAR_NAMES[bar]));
   const rows = sections.map((sec) => sec.items.find((i) => i.type === 'button' && i.label === 'Alerts'));
   const args = { code: 'uv' };
-  // Why a bar the watch can draw is not drawn (alerts-page.js barOffReason).
-  const reason = (bar) => (bar === 'radar' ? 'No screen shows the Radar bar' : 'No screen shows the Health bar');
+  // Why a bar the watch can draw is not drawn (alerts-page.js barOffReason), by its name.
+  const reason = (bar) => 'No screen shows ' + BAR_NAMES[bar];
   ['basalt', 'emery', 'diorite', 'chalk', 'flint'].forEach((p) => {
     const env = platform.computeEnv({ platform: p });
     // The hardware's own gate: a watch without the radar view or Health never draws that bar.
@@ -488,13 +506,16 @@ test('the grid\'s live rows are exactly the bars whose Alerts row the Status bar
     ['off', 'countdown', 'status', 'graph'].forEach((radarMode) => ['off', 'slot', 'status', 'all'].forEach((healthMode) => {
       const S = { radarMode, healthMode, provider: 'dwd' };
       const ctx = Object.assign({ env }, S);
-      const shown = PAGE_BARS.filter((bar, i) => showWhen.isVisible(sections[i], ctx) && showWhen.isVisible(rows[i], ctx));
       const label = [p, radarMode, healthMode].join(' ');
-      shown.forEach((bar) => assert.ok(canDraw[bar], label + ': ' + bar + ' shows only where the watch draws it'));
+      // Your status bars: the Status bars tab lists every bar the watch can draw, a screen showing it
+      // or not (its Name row says where it shows).
+      const listed = PAGE_BARS.filter((bar, i) => showWhen.isVisible(sections[i], ctx) && showWhen.isVisible(rows[i], ctx));
+      assert.deepEqual(listed, PAGE_BARS.filter((bar) => canDraw[bar]), label + ': the tab lists every bar it can draw');
+      const shown = PAGE_BARS.filter((bar) => canDraw[bar] && OD.barExists(S, bar, env));
       const got = bars(S, env, args);
       assert.deepEqual(got.map((o) => o[1]), PAGE_BARS.filter((bar) => canDraw[bar]), label + ': every bar it can draw');
       assert.deepEqual(got.filter((o) => !o[2].disabled).map((o) => o[0]), shown.map((bar) => BAR_NAMES[bar]),
-        label + ': live exactly where the Status bars tab shows the row');
+        label + ': live exactly where a screen shows the bar');
       got.forEach((o) => {
         const keys = [OD.itemsKey(o[1], 'left'), OD.itemsKey(o[1], 'right')];
         assert.deepEqual(o[2], shown.indexOf(o[1]) >= 0 ? { keys }
@@ -507,8 +528,13 @@ test('the grid\'s live rows are exactly the bars whose Alerts row the Status bar
   const env = platform.computeEnv({ platform: 'basalt' });
   const S = { layoutPreset: 'weatherOnly', radarMode: 'graph', healthMode: 'off', provider: 'dwd' };
   assert.deepEqual(bars(S, env, args).find((o) => o[1] === 'radar')[2], { keys: [OD.itemsKey('radar', 'left'),
-    OD.itemsKey('radar', 'right')], disabled: true, desc: 'No screen shows the Radar bar' }, 'the Radar row goes inert');
-  assert.equal(showWhen.isVisible(sections[3], Object.assign({ env }, S)), false, 'and the Status bars tab has none');
+    OD.itemsKey('radar', 'right')], disabled: true, desc: 'No screen shows Radar bar' }, 'the Radar row goes inert');
+  assert.equal(showWhen.isVisible(sections[3], Object.assign({ env }, S)), true,
+    'and the Status bars tab keeps its card (its Name row says no screen shows it)');
+  // Named: the reason and the row speak the bar's name.
+  const named = bars(Object.assign({ statusRadarName: 'Wind' }, S), env, args).find((o) => o[1] === 'radar');
+  assert.equal(named[0], 'Wind', 'the row reads by the bar\'s name');
+  assert.equal(named[2].desc, 'No screen shows Wind', 'and so does its reason');
   // A blocked item: every row inert. Radar mode Status draws every bar, so only the item can
   // make a row inert: Rain while the radar is off (Setup › Data sources).
   const rain = (over) => bars(Object.assign({ radarMode: 'status', healthMode: 'all', provider: 'dwd' }, over),
@@ -522,12 +548,12 @@ test('the grid\'s live rows are exactly the bars whose Alerts row the Status bar
 
 // --- the Alerts tab -----------------------------------------------------------------
 const ON_DEMAND_INTRO = 'An alert shows at the edge of a status bar only when it reaches its warn level or is active'
-  + ' right now, and stays hidden the rest of the time, so the watchface only shows what matters. For example: the'
-  + ' battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn level. Open an alert to'
-  + ' choose which status bars show it, left or right.<p class="intro-more">The warn level works on the graph too:'
-  + ' set a wind, gust or UV line’s Visible values to Alert (<button type="button" class="txt-link"'
-  + ' data-goto-tab="graphs" data-goto-pane="forecast">Graphs › Forecast</button>) and it shows only the hours'
-  + ' that reach it, so the graph stays empty until it matters.</p>';
+  + ' right now. The rest of the time it stays hidden. For example, the battery is low, Bluetooth is disconnected,'
+  + ' rain is coming, or the UV or wind forecast reaches its warn level. Open an alert to choose which status bars'
+  + ' show it, on the left or the right.<p class="intro-more">The warn level works on the graph too. Set the Visible'
+  + ' values of a wind, gust or UV line to Alert (<button type="button" class="txt-link"'
+  + ' data-goto-tab="graphs" data-goto-pane="forecast">Graphs › Forecast › a graph</button>), and the line shows only in the'
+  + ' hours that reach the warn level.</p>';
 
 test('the Alerts tab sits between Status bars and Graphs: About alerts, then the System info and Weather alerts cards', () => {
   const page = alertsTab();
@@ -558,8 +584,9 @@ test('the Alerts tab sits between Status bars and Graphs: About alerts, then the
   });
 });
 
-// The intro's Graphs › Forecast link opens the Graphs tab on its Forecast pane, where the
-// metric dialogs hold Visible values, even when the tab showed another pane last.
+// The intro's Graphs › Forecast › a graph link opens the Graphs tab on its Forecast pane, the
+// list of graphs whose metric dialogs hold Visible values, even when the tab showed another pane
+// last.
 test('the intro\'s graph link opens Graphs on its Forecast pane, whichever pane showed last', () => {
   const page = onTab('graphs');
   page.clickPane('graphs', 'radar');
@@ -586,21 +613,21 @@ test('the Alerts tab rows: each opens its item\'s dialog, with an icon, a live t
       label + ': the icon leads the label');
     assert.ok(r.indexOf('<div class="hint' + (faint ? ' faint' : '') + '">' + hint + '</div>') !== -1,
       label + ': ' + r);
-    assert.ok(r.indexOf('<span class="chev">&#8250;</span></div></div>') !== -1, label + ': a chevron');
+    assert.ok(r.indexOf('<span class="chev nav" aria-hidden="true">&#8250;</span></div></div>') !== -1, label + ': a chevron');
     assert.equal(r.indexOf('<span>Edit</span>'), -1, label + ': no Edit button');
     return r;
   };
   // basalt's default top-right slot is the Watch battery glyph, so the item stands in.
   row('odBattery', 'battery', 'Battery', 'At 10% or below · Hidden while a battery slot shows the charge'
-    + ' · Watch Status Bar, right');
+    + ' · Watch bar, right');
   // Vibrate on disconnect ships on (2.2.0), so the row names it.
-  row('odBluetooth', 'bluetooth', 'Bluetooth', 'When disconnected · Vibrates on disconnect · Watch Status Bar, left');
+  row('odBluetooth', 'bluetooth', 'Bluetooth', 'When disconnected · Vibrates on disconnect · Watch bar, left');
   // Quiet time and Sleep have a dialog that places them (the owner, 2026-10-02).
-  row('odQuiet', 'quiet', 'Quiet time', 'While Quiet Time is on · Watch Status Bar, left');
-  row('odSleep', 'snooze', 'Battery saver', 'During the Battery saver hours, 0:00–7:00 · Watch Status Bar, left');
-  row('alertRain', 'rain', 'Rain', 'Within 60 min · Text · Watch Status Bar, left');
-  row('alertUv', 'uv', 'UV index', 'Warn 6 · Danger 8 · Watch Status Bar, right');
-  row('alertGust', 'gust', 'Wind gusts', 'Warn 65 kph · Danger 90 kph · Watch Status Bar, right');
+  row('odQuiet', 'quiet', 'Quiet time', 'While Quiet Time is on · Watch bar, left');
+  row('odSleep', 'snooze', 'Battery saver', 'During the Battery saver hours, 0:00–7:00 · Watch bar, left');
+  row('alertRain', 'rain', 'Rain', 'Within 60 min · Text · Watch bar, left');
+  row('alertUv', 'uv', 'UV index', 'Warn 6 · Danger 8 · Watch bar, right');
+  row('alertGust', 'gust', 'Wind gusts', 'Warn 65 kph · Danger 90 kph · Watch bar, right');
   row('alertPollen', 'pollen', 'Pollen', 'Not in any status bar', true);
   // Each group is a card of its own, titled by its old sub-header.
   const cardOf = (sheetId) => {
@@ -632,7 +659,7 @@ test('the Quiet time and Sleep dialogs: their intro, then the Shows on card alon
     assert.ok(sheet.indexOf('data-check="' + code + '"') !== -1, id + ': ticks its own item');
     assert.ok(sheet.indexOf('<div class="intro">' + NOTE + '</div><div class="row stack chk-row">') !== -1,
       id + ': the note leads the grid');
-    // Onto the Forecast Status Bar's right.
+    // Onto the Forecast bar's right.
     tick(page, OD.itemsKey('forecast', 'right'), code);
     assert.equal(OD.sideOf(page.S, 'forecast', code), 'right', id + ': placed');
     page.doneDialog();
@@ -647,8 +674,8 @@ const ENV = { basalt: platform.computeEnv({ platform: 'basalt' }), emery: platfo
 const state = (S) => Object.assign({}, OD.DEFAULTS, S);
 
 // Where the defaults put an item, as each row's text ends.
-const TOP_RIGHT = ' · Watch Status Bar, right';
-const TOP_LEFT = ' · Watch Status Bar, left';
+const TOP_RIGHT = ' · Watch bar, right';
+const TOP_LEFT = ' · Watch bar, left';
 
 test('Battery: the warn level on the watch\'s step, the Look, where it shows, and "Not in any status bar"', () => {
   const t = hint('onDemandBatteryText');
@@ -663,7 +690,7 @@ test('Battery: the warn level on the watch\'s step, the Look, where it shows, an
     'At 30% or below' + TOP_RIGHT, 'an unknown watch reads the 10 % steps');
   assert.equal(t(state(Object.assign({ statusTopOnDemandRightItems: 'rain' }, empty)), ENV.basalt), 'Not in any status bar');
   assert.equal(t(state(Object.assign({ statusForecastOnDemandRightItems: 'battery' }, empty)), ENV.basalt),
-    'At 10% or below · Watch Status Bar, right · Forecast Status Bar, right', 'every bar edge it sits on, in the page\'s order');
+    'At 10% or below · Watch bar, right · Forecast bar, right', 'every bar edge it sits on, in the page\'s order');
 });
 
 // W7 (revised 2026-09-30): a bar that shows the watch battery in a slot leaves the item
@@ -683,14 +710,14 @@ test('Battery: "Hidden while a battery slot shows the charge" only where the ite
   // The item placed on another bar than the battery slot's: nothing to hide it.
   const elsewhere = state({ statusTopRight: 'battery', statusTopOnDemandRightItems: 'rain',
     statusForecastOnDemandLeftItems: 'battery' });
-  assert.equal(t(elsewhere, ENV.basalt), 'At 10% or below · Forecast Status Bar, left');
+  assert.equal(t(elsewhere, ENV.basalt), 'At 10% or below · Forecast bar, left');
   // A battery slot the catalog cannot place (the glyph is the top-right corner's alone)
   // resolves to Empty, so it silences nothing.
   assert.equal(t(state({ statusTopRight: 'sun', statusTopLeft: 'battery' }), ENV.basalt),
     'At 10% or below' + TOP_RIGHT);
   // The item on both bars: the top bar's slot silences it.
   assert.equal(t(Object.assign({}, elsewhere, { statusTopOnDemandRightItems: 'battery' }), ENV.basalt),
-    'At 10% or below' + SUFFIX + TOP_RIGHT + ' · Forecast Status Bar, left');
+    'At 10% or below' + SUFFIX + TOP_RIGHT + ' · Forecast bar, left');
 });
 
 test('Bluetooth, Quiet time and Sleep: their rules, the vibration, the Battery saver', () => {
@@ -796,9 +823,11 @@ test('moving the Warn level thumb stores one plain integer on the watch\'s step'
   });
 });
 
-test('aplite: no Alerts tab, card, rows, links or sheets — the Watch Status Bar keeps its own rows', () => {
+test('aplite: no Alerts tab, card, rows, links or sheets — the Watch bar keeps its own rows', () => {
   const page = watchTab({}, 'aplite');
-  const html = page.scroll.innerHTML;
+  const tab = page.scroll.innerHTML;
+  const top = barDialogHtml(page, 'Watch bar');
+  const html = tab + top;
   assert.equal(page.tabs.innerHTML.indexOf('data-tab="alerts"'), -1, 'no Alerts tab');
   assert.equal(html.indexOf('<div class="lbl">Alerts</div>'), -1, 'no Alerts rows');
   assert.equal(html.indexOf('data-goto-tab'), -1, 'no link to a tab it lacks');
@@ -815,8 +844,8 @@ test('aplite: no Alerts tab, card, rows, links or sheets — the Watch Status Ba
   assert.ok(onTab('setup', {}, 'aplite').scroll.innerHTML.indexOf('data-k="locationMode"') !== -1,
     'the Setup tab renders its Location card');
   ['batteryLowOnly', 'showQt', 'vibe'].forEach((k) =>
-    assert.ok(html.indexOf('data-k="' + k + '" data-toggle="1"') !== -1, k + ' row'));
-  assert.ok(html.indexOf('data-select="btIcons"') !== -1, 'btIcons row');
+    assert.ok(top.indexOf('data-k="' + k + '" data-toggle="1"') !== -1, k + ': a row in the Watch bar\'s dialog'));
+  assert.ok(top.indexOf('data-select="btIcons"') !== -1, 'btIcons row');
   // A sheet opened anyway renders nothing (its section gate).
   ['alertUv', 'odQuiet', 'odBattery', 'odLists'].forEach((id) => {
     const t = { getAttribute: n => (n === 'data-edit-sheet' ? id : null), closest: sel => (sel === '[data-edit-sheet]' ? t : null) };
@@ -826,18 +855,22 @@ test('aplite: no Alerts tab, card, rows, links or sheets — the Watch Status Ba
   // A link to the Alerts tab changes nothing there.
   followTabLink(page.scroll, 'alerts');
   assert.equal(activeTab(page), 'watch', 'the tab stays put');
-  const basalt = watchTab().scroll.innerHTML;
+  const basaltPage = watchTab();
+  const basalt = basaltPage.scroll.innerHTML + barDialogHtml(basaltPage, 'Watch bar');
   ['batteryLowOnly', 'showQt'].forEach((k) =>
     assert.equal(basalt.indexOf('data-k="' + k + '"'), -1, k + ': not on a watch with Alerts'));
 });
 
-test('aplite: the Watch Status Bar\'s bluetooth picker keeps its own title, not the Bluetooth sheet\'s', () => {
+test('aplite: the Watch bar\'s bluetooth picker keeps its own title, not the Bluetooth sheet\'s', () => {
   // The Bluetooth sheet's btIcons/vibe copies are gated at item level, so the engine's
   // "shown copy of a key" lookup (the picker title, a trigger relabel) never lands on them
   // on aplite, whose sheet section is hidden.
   const page = watchTab({}, 'aplite');
-  page.openSelect('btIcons');
-  assert.match(page.modal.innerHTML, /<span class="ssel-modal-ttl" id="ssel-ttl-btIcons">Show icon for bluetooth<\/span>/);
+  page.openEditSheet('bar-top');
+  const t = { getAttribute: n => (n === 'data-select' ? 'btIcons' : null), closest: sel => (sel === '[data-select]' ? t : null) };
+  page.modal.dispatch('click', { target: t });
+  assert.ok(page.modal.innerHTML.indexOf('<button type="button" class="sel-wrap" data-select="btIcons"'
+    + ' aria-label="Show icon for bluetooth: Disconnected"') !== -1, 'the picker reads by its own label');
   assert.ok(page.modal.innerHTML.indexOf('aria-label="Show icon for bluetooth options"') !== -1, 'the list label');
   // The evalCtx shape: the settings with env beside them.
   const ctx = (platformName) => ({ provider: 'dwd', env: platform.computeEnv({ platform: platformName }) });
@@ -878,10 +911,10 @@ test('both resets restore where each item shows; the card\'s reset also the item
   LIST_KEYS.forEach((k) => assert.equal(slots.S[k], OD.DEFAULTS[k], k + ': the status card\'s reset too'));
 });
 
-const NO_TOP_NOTE = 'Your Default screen has no Watch Status Bar, so Alerts won’t show there. Open an alert and, under'
+const NO_TOP_NOTE = 'Your Default screen has no Watch bar, so Alerts won’t show there. Open an alert and, under'
   + ' Shows on, pick another status bar that screen shows.';
 
-test('no Watch Status Bar on the Default view and no Alerts on its bars: the card says so', () => {
+test('no Watch bar on the Default view and no Alerts on its bars: the card says so', () => {
   const shows = (cfg) => alertsTab(cfg).scroll.innerHTML.indexOf('<div class="info-box">' + NO_TOP_NOTE + '</div>') !== -1;
   // Weather only drops the strip in every radar mode but 'Rain alert only'.
   assert.ok(shows({ layoutPreset: 'weatherOnly', radarMode: 'graph' }), 'Weather only, defaults: shown');
@@ -907,7 +940,9 @@ test('no Watch Status Bar on the Default view and no Alerts on its bars: the car
   const health = Object.assign({}, custom, { viewLower0: 'health',
     statusHealthOnDemandLeftItems: 'battery' });
   assert.ok(!shows(Object.assign({ healthMode: 'status' }, health)), 'a health seat carrying items: hidden');
-  assert.ok(shows(Object.assign({ healthMode: 'off' }, health)), 'a health seat folded away does not count');
+  // The Health bar is a status bar like the others: it stays without health (3.0.0), so its
+  // items count whatever the health mode.
+  assert.ok(!shows(Object.assign({ healthMode: 'off' }, health)), 'a Health bar without health still counts');
 });
 
 const RAIN_UNPLACED_BOX = 'Rain isn’t on any status bar yet, so the rain icon won’t show. Tick a side below.';
@@ -921,26 +956,13 @@ test('the Rain dialog\'s box and grid show Rain unplaced, and a tick places it',
   assert.ok(box > sheet.indexOf('<span class="ttl">Shows on</span>') && box < sheet.indexOf('aria-label="Shows on"'),
     'the box: in the Shows on card, above the grid');
   PAGE_BARS.forEach((bar) => assert.equal(ticked(sheet, bar), 'none', bar));
-  assert.ok(sheet.indexOf('<span class="lbl">Radar Status Bar</span><span class="hint">No screen shows the Radar bar</span>')
+  assert.ok(sheet.indexOf('<span class="lbl">Radar bar</span><span class="hint">No screen shows Radar bar</span>')
     !== -1, 'the radar bar\'s row is inert while no screen shows it, and says why');
   // A tick places Rain, and the box goes.
   tick(page, 'statusTopOnDemandLeftItems', 'rain');
   assert.equal(page.S.statusTopOnDemandLeftItems, 'bt,rain');
   assert.equal(page.modal.innerHTML.indexOf(RAIN_UNPLACED_BOX), -1, 'placed: no box');
 });
-
-/**
- * Tap one segment of a segmented control (or one option of a radio), the engine's
- * [data-v] path.
- * @param {Object} host the element the control renders in (page.scroll or page.modal)
- * @param {string} key the control's messageKey
- * @param {string} value the segment's value
- */
-function pickSegment(host, key, value) {
-  const t = { getAttribute: n => (n === 'data-k' ? key : (n === 'data-v' ? value : null)),
-    closest: sel => (sel === '[data-v]' ? t : null) };
-  host.dispatch('click', { target: t });
-}
 
 // The owner's of 2026-10-02: "Rain alert window can be removed from the radar tab.. Alerts
 // is enough". The window is the Rain dialog's row alone: neither the Watchface tab nor the
@@ -964,7 +986,7 @@ test('the Rain dialog holds the one rain window', () => {
   page.clickTab('alerts');
   page.openEditSheet('alertRain');
   assert.match(rowOf(page.modal.innerHTML, 'data-k="rainCountdownHorizon"'),
-    /^<div class="row wrap"><div class="lbl">Time window<\/div><div class="rgt">[\s\S]*<div class="hint">Rain due further out/,
+    /^<div class="row wrap"><div class="lbl">Time window<\/div><div class="rgt">[\s\S]*<div class="hint">Rain due later than this/,
     'the Rain dialog\'s Time window, its hint in view');
   assert.equal((page.modal.innerHTML.match(/data-k="rainCountdownHorizon" data-v=/g) || []).length,
     3, 'its three windows');
@@ -978,7 +1000,7 @@ test('the Rain dialog reads the stored window, writes a pick, and Save carries i
   const page = alertsTab({ radarMode: 'countdown', rainCountdownHorizon: '30' });
   page.openEditSheet('alertRain');
   assert.equal(lit(page), '30', 'the stored window is the lit segment');
-  pickSegment(page.modal, 'rainCountdownHorizon', '120');
+  page.tapSegment('rainCountdownHorizon', '120', 'modal');
   assert.equal(page.S.rainCountdownHorizon, '120', 'the pick lands in the state');
   assert.equal(lit(page), '120', 'and lights its segment');
   assert.equal((await page.save()).rainCountdownHorizon, '120', 'Save carries the pick');

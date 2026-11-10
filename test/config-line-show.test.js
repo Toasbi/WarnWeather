@@ -138,13 +138,13 @@ test('each value has its own hint: All the whole curve, Alert the warn level', (
   assert.equal(hint({}, 'gust', 'all'), 'The line is always visible, calm hours included.');
   assert.equal(hint({}, 'uv', 'all'), 'The line is always visible, low-UV hours included.');
   assert.equal(hint({}, 'wind', 'alert'),
-    'Draws wind only where it reaches your warn level (40 kph), so the line is only visible when you actually care.');
+    'Draws wind only in the hours when it reaches your warn level (40 kph).');
   assert.equal(hint({ windUnits: 'mph' }, 'gust', 'alert'),
-    'Draws gusts only where they reach your warn level (40 mph), so the line is only visible when you actually care.');
+    'Draws gusts only in the hours when they reach your warn level (40 mph).');
   assert.equal(hint({ windUnits: 'knots', threshWindWarn: '25', threshWindDanger: '35' }, 'wind', 'alert'),
-    'Draws wind only where it reaches your warn level (25 kn), so the line is only visible when you actually care.');
+    'Draws wind only in the hours when it reaches your warn level (25 kn).');
   assert.equal(hint({ threshUvWarn: '7', threshUvDanger: '9' }, 'uv', 'alert'),
-    'Draws UV only where it reaches your warn level (UV 7), so the line is only visible when you actually care.');
+    'Draws UV only in the hours when it reaches your warn level (UV 7).');
   // Anything but 'alert' reads All, like the bake reads it.
   assert.equal(hint({}, 'wind', true), hint({}, 'wind', 'all'));
   assert.equal(hint({}, 'cloud', 'alert'), '', 'no hint for a metric without the row');
@@ -161,10 +161,9 @@ test('each value has its own hint: All the whole curve, Alert the warn level', (
 test('the UV line\'s Alert hint closes on its scale, per style', () => {
   const hint = (over, env) => FH.lineShowHint(Object.assign({ secondaryLine: 'uv', uvLineShow: 'alert' }, over),
     env || BASALT, { metric: 'uv', value: 'alert' });
-  const lead = 'Draws UV only where it reaches your warn level (UV 6), so the line is only visible when you'
-    + ' actually care.';
+  const lead = 'Draws UV only in the hours when it reaches your warn level (UV 6).';
   const height = lead + ' The graph then runs from UV 6 at the bottom to UV 11 at the top.';
-  const stripe = lead + ' The stripe\'s colour then runs from faint at UV 6 to full at UV 10.5.';
+  const stripe = lead + ' The stripe\'s color then runs from faint at UV 6 to full at UV 10.5.';
   ['line', 'bold', 'dots', 'x'].forEach((style) =>
     assert.equal(hint({ secondaryLineStyle: style }), height, style));
   assert.equal(hint({ secondaryLineStyle: 'line', secondaryLineFill: true }), height, 'fill');
@@ -172,7 +171,7 @@ test('the UV line\'s Alert hint closes on its scale, per style', () => {
     assert.equal(hint({ secondaryLineStyle: style }), stripe, style));
   // The stripe's full colour is the style hint's own.
   assert.match(FH.lineStyleHint('uv', 'stripeTop', { secondaryLine: 'uv', uvLineShow: 'alert' }, BASALT),
-    /full colour from UV 10\.5\./);
+    /is full from UV 10\.5\./);
   // On whichever picker draws it: a stripe on the Fourth metric line.
   assert.equal(hint({ secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'uv',
     fourthLineStyle: 'stripeBottom' }), stripe, 'fourth line');
@@ -181,26 +180,26 @@ test('the UV line\'s Alert hint closes on its scale, per style', () => {
 test('the UV line\'s Alert scale flips with Draw from: Top and follows the levels', () => {
   const hint = (over) => FH.lineShowHint(Object.assign({ secondaryLine: 'uv', uvLineShow: 'alert' }, over),
     BASALT, { metric: 'uv', value: 'alert' });
-  const scale = (over) => hint(over).replace(/^.*actually care\. /, '');
+  const scale = (over) => hint(over).replace(/^.*your warn level \([^)]*\)\. /, '');
   assert.equal(scale({ uvLineFrom: 'top' }), 'The graph then runs from UV 6 at the top to UV 11 at the bottom.');
   assert.equal(scale({ uvLineFrom: 'top', secondaryLineStyle: 'dots' }),
     'The graph then runs from UV 6 at the top to UV 11 at the bottom.');
   // A stripe keeps its own edge: Top changes nothing there.
   assert.equal(scale({ uvLineFrom: 'top', secondaryLineStyle: 'stripeTop' }),
-    'The stripe\'s colour then runs from faint at UV 6 to full at UV 10.5.');
+    'The stripe\'s color then runs from faint at UV 6 to full at UV 10.5.');
   // A danger level above UV 11 tops the line.
   assert.equal(hint({ threshUvWarn: '9', threshUvDanger: '12' }),
-    'Draws UV only where it reaches your warn level (UV 9), so the line is only visible when you actually care.'
+    'Draws UV only in the hours when it reaches your warn level (UV 9).'
     + ' The graph then runs from UV 9 at the bottom to UV 12 at the top.');
   assert.equal(scale({ threshUvWarn: '9', threshUvDanger: '12', uvLineFrom: 'top' }),
     'The graph then runs from UV 9 at the top to UV 12 at the bottom.');
   assert.equal(scale({ threshUvWarn: '9', threshUvDanger: '12', secondaryLineStyle: 'stripeBottom' }),
-    'The stripe\'s colour then runs from faint at UV 9 to full at UV 11.7.');
+    'The stripe\'s color then runs from faint at UV 9 to full at UV 11.7.');
   // The warn level moves the bottom; a danger level under UV 11 leaves the top.
   assert.equal(scale({ threshUvWarn: '3', threshUvDanger: '5' }),
     'The graph then runs from UV 3 at the bottom to UV 11 at the top.');
   assert.equal(scale({ threshUvWarn: '3', threshUvDanger: '5', secondaryLineStyle: 'stripeTop' }),
-    'The stripe\'s colour then runs from faint at UV 3 to full at UV 10.2.');
+    'The stripe\'s color then runs from faint at UV 3 to full at UV 10.2.');
 });
 
 test('only the UV line\'s Alert hint gets a scale: All, wind and gusts unchanged', () => {
@@ -213,36 +212,36 @@ test('only the UV line\'s Alert hint gets a scale: All, wind and gusts unchanged
     const S = { secondaryLine: 'wind', thirdLine: 'gust', secondaryLineStyle: style, thirdLineStyle: style,
       windLineFrom: from, windLineShow: 'alert', gustLineShow: 'alert' };
     assert.equal(hint(S, 'wind', 'alert'),
-      'Draws wind only where it reaches your warn level (40 kph), so the line is only visible when you actually care.',
+      'Draws wind only in the hours when it reaches your warn level (40 kph).',
       'wind ' + style + ' ' + from);
     assert.equal(hint(S, 'gust', 'alert'),
-      'Draws gusts only where they reach your warn level (65 kph), so the line is only visible when you actually care.',
+      'Draws gusts only in the hours when they reach your warn level (65 kph).',
       'gust ' + style + ' ' + from);
     assert.equal(hint(S, 'wind', 'all'), 'The line is always visible, calm hours included.');
   }));
   // A watch without Alert settings draws the line All, so there is no scale to name (aplite
   // shows no row at all).
   assert.equal(FH.lineShowHint({ secondaryLine: 'uv', uvLineShow: 'alert' }, APLITE, { metric: 'uv', value: 'alert' }),
-    'Draws UV only where it reaches your warn level (UV 6), so the line is only visible when you actually care.');
+    'Draws UV only in the hours when it reaches your warn level (UV 6).');
 });
 
 test('the UV line\'s Visible values row shows its Alert scale, through the real engine', () => {
   const scale = 'The graph then runs from UV 6 at the bottom to UV 11 at the top.';
   const alert = body({ secondaryLine: 'precip_prob', thirdLine: 'uv', uvLineShow: 'alert' }, BASALT);
-  assert.equal(count(alert, 'so the line is only visible when you actually care. ' + scale), 1);
+  assert.equal(count(alert, 'reaches your warn level (UV 6). ' + scale), 1);
   const top = body({ secondaryLine: 'precip_prob', thirdLine: 'uv', uvLineShow: 'alert', uvLineFrom: 'top' },
     BASALT);
   assert.equal(count(top, 'The graph then runs from UV 6 at the top to UV 11 at the bottom.'), 1);
   const stripe = body({ secondaryLine: 'precip_prob', thirdLine: 'uv', thirdLineStyle: 'stripeTop',
     uvLineShow: 'alert' }, BASALT);
-  assert.equal(count(stripe, 'The stripe\'s colour then runs from faint at UV 6 to full at UV 10.5.'), 1);
+  assert.equal(count(stripe, 'The stripe\'s color then runs from faint at UV 6 to full at UV 10.5.'), 1);
   assert.equal(count(body({ secondaryLine: 'precip_prob', thirdLine: 'uv' }, BASALT), 'The graph then runs'), 0,
     'All: no scale');
 });
 
 test('the line dialog renders the row, the picked value lit and its hint, through the real engine', () => {
   const allHint = 'The line is always visible, calm hours included.';
-  const alertHint = 'Draws gusts only where they reach your warn level (65 kph)';
+  const alertHint = 'Draws gusts only in the hours when they reach your warn level (65 kph)';
   const all = body({ secondaryLine: 'precip_prob', thirdLine: 'gust' }, BASALT);
   assert.equal(count(all, '>Visible values<'), 1, 'one row, under the gust line');
   assert.match(all, /<button class="on" data-k="gustLineShow" data-v="all">All<\/button>/);
@@ -252,7 +251,7 @@ test('the line dialog renders the row, the picked value lit and its hint, throug
   assert.match(alert, /<button class="on" data-k="gustLineShow" data-v="alert">Alert<\/button>/);
   assert.equal(count(alert, alertHint), 1, 'Alert\'s hint');
   assert.equal(count(alert, allHint), 0);
-  assert.ok(alert.indexOf('Graph bottom = 65 kph, full height = 90 kph.') !== -1,
+  assert.ok(alert.indexOf('The graph bottom is 65 kph and full height is 90 kph.') !== -1,
     'the gust line\'s style hint gives its band');
   assert.equal(count(body({ secondaryLine: 'precip_prob', thirdLine: 'cloud' }, BASALT), '>Visible values<'), 0,
     'no row for metrics without Alert levels');
@@ -268,45 +267,45 @@ test('the hint resolver is registered and re-reads the live settings', () => {
 test('on Alert, the style hint gives the line\'s band instead of the 0-based scale', () => {
   const env = { lineStyles: true };
   const S = { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid' };
-  assert.equal(FH.lineStyleHint('wind', 'line', S, env), 'Scaled by the Wind graph scale setting.',
+  assert.equal(FH.lineStyleHint('wind', 'line', S, env), 'The height follows the Wind graph scale setting.',
     'All: unchanged');
   // Wind 40/60 over the mid scale: the danger level tops it.
   assert.equal(FH.lineStyleHint('wind', 'line', Object.assign({ windLineShow: 'alert' }, S), env),
-    'Graph bottom = 40 kph, full height = 60 kph.');
+    'The graph bottom is 40 kph and full height is 60 kph.');
   assert.equal(FH.lineStyleHint('wind', 'line', Object.assign({ windLineShow: 'alert' }, S,
-    { windScale: 'high' }), env), 'Graph bottom = 40 kph, full height = 70 kph.');
+    { windScale: 'high' }), env), 'The graph bottom is 40 kph and full height is 70 kph.');
   // A stripe: its faintest colour from the warn level, full colour from 90 % up the band
   // (stripe-levels.js' band scale; the gust band 65..90 kph is full from 87.4, so 88).
   assert.equal(FH.lineStyleHint('gust', 'stripeTop', Object.assign({ gustLineShow: 'alert' }, S), env),
-    'Faintest colour = 65 kph, full colour from 88 kph. One cell per hour.');
+    'The color starts faint at 65 kph and is full from 88 kph. The stripe has one cell per hour.');
   assert.equal(FH.lineStyleHint('uv', 'stripeTop', { secondaryLine: 'uv', uvLineShow: 'alert' }, env),
-    'Faintest colour = UV 6, full colour from UV 10.5. One cell per hour.');
+    'The color starts faint at UV 6 and is full from UV 10.5. The stripe has one cell per hour.');
   // Both on Alert: the shared band, the lower warn at the bottom.
   const both = Object.assign({ windLineShow: 'alert', gustLineShow: 'alert' }, S);
   assert.equal(FH.lineStyleHint('gust', 'dots', both, env),
-    'Graph bottom = 40 kph, full height = 90 kph. Aligned to the rain bars.');
+    'The graph bottom is 40 kph and full height is 90 kph. The dots line up with the rain bars.');
   assert.equal(FH.lineStyleHint('uv', 'line', { secondaryLine: 'uv', uvLineShow: 'alert' }, env),
-    'Graph bottom = UV 6, full height = UV 11.');
+    'The graph bottom is UV 6 and full height is UV 11.');
   assert.equal(FH.lineStyleHint('uv', 'line', { secondaryLine: 'uv', uvLineShow: 'alert',
-    threshUvWarn: '9', threshUvDanger: '12' }, env), 'Graph bottom = UV 9, full height = UV 12.',
+    threshUvWarn: '9', threshUvDanger: '12' }, env), 'The graph bottom is UV 9 and full height is UV 12.',
   'a danger level above UV 11 tops the line');
   // Called the old way (no settings), the hint is the 0-based one.
-  assert.equal(FH.lineStyleHint('uv', 'line'), 'Half height = UV 5.5, full height = UV 11 (extreme).');
+  assert.equal(FH.lineStyleHint('uv', 'line'), 'Half height is UV 5.5, full height is UV 11 (extreme).');
 });
 
 test('aplite: the metric picker\'s height scale stays the 0-based one, Alert stored or not', () => {
   assert.equal(FH.forecastMetricHint('uv', APLITE, { secondaryLine: 'uv', uvLineShow: 'alert' }),
-    'Half height = UV 5.5, full height = UV 11 (extreme).');
+    'Half height is UV 5.5, full height is UV 11 (extreme).');
   assert.equal(FH.forecastMetricHint('wind', APLITE, { secondaryLine: 'wind', windLineShow: 'alert' }),
-    'Scaled by the Wind graph scale setting.');
+    'The height follows the Wind graph scale setting.');
   // A watch without style pickers that has Alert settings (an env with lineStyles false
   // only) gives the band there, a gust line on the hidden Third metric line sharing nothing.
   const noStyles = { lineStyles: false };
   assert.equal(FH.forecastMetricHint('uv', noStyles, { secondaryLine: 'uv', uvLineShow: 'alert' }),
-    'Graph bottom = UV 6, full height = UV 11.');
+    'The graph bottom is UV 6 and full height is UV 11.');
   assert.equal(FH.forecastMetricHint('wind', noStyles, { secondaryLine: 'wind', fourthLine: 'gust',
     windLineShow: 'alert', gustLineShow: 'alert', threshGustWarn: '30', threshGustDanger: '45' }),
-  'Graph bottom = 40 kph, full height = 60 kph.');
+  'The graph bottom is 40 kph and full height is 60 kph.');
 });
 
 test('the preview draws an Alert line where its sample reaches warn, and aplite\'s whole', () => {
@@ -342,16 +341,16 @@ test('the preview draws an Alert line where its sample reaches warn, and aplite\
 test('the Wind graph scale hint names an Alert line\'s real top', () => {
   const env = { lineStyles: true };
   const gust = (over) => Object.assign({ secondaryLine: 'gust', thirdLine: 'off' }, over);
-  const dangerTop = 'Tops out at 90 kph, your gust danger level, while Visible values is set to Alert.';
+  const dangerTop = 'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.';
   assert.equal(FH.windScaleHint(gust({ windScale: 'low' }), env), null, 'All: the row\'s own hint');
   // The gust danger level (90 kph) tops Low, Mid and High alike: no jump at High.
   ['low', 'mid', 'high'].forEach((windScale) => assert.equal(
     FH.windScaleHint(gust({ windScale, gustLineShow: 'alert' }), env), dangerTop, windScale));
   assert.equal(FH.windScaleHint(gust({ windScale: 'low', windUnits: 'knots', gustLineShow: 'alert' }), env),
-    'Tops out at 50 kn, your gust danger level, while Visible values is set to Alert.');
+    'The scale goes up to 50 kn, your gust danger level, while Visible values is set to Alert.');
   // A danger level under the scale: the scale's own value is the top, no danger clause.
   assert.equal(FH.windScaleHint(gust({ windScale: 'high', gustLineShow: 'alert',
-    threshGustWarn: '30', threshGustDanger: '45' }), env), 'Tops out at 70 kph while Visible values is set to Alert.');
+    threshGustWarn: '30', threshGustDanger: '45' }), env), 'The scale goes up to 70 kph while Visible values is set to Alert.');
   // A UV line on Alert leaves the wind scale alone.
   assert.equal(FH.windScaleHint(gust({ thirdLine: 'uv', uvLineShow: 'alert' }), env), null);
 });
@@ -361,14 +360,14 @@ test('the Wind graph scale hint with wind and gusts both drawn', () => {
   const S = (over) => Object.assign({ secondaryLine: 'wind', thirdLine: 'gust', windScale: 'low' }, over);
   // Both on Alert: one shared band, topped by the higher danger level (gusts' 90).
   assert.equal(FH.windScaleHint(S({ windLineShow: 'alert', gustLineShow: 'alert' }), env),
-    'Tops out at 90 kph, your gust danger level, while Visible values is set to Alert.');
+    'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.');
   // One of each, different tops: each line named, the All one first.
   assert.equal(FH.windScaleHint(S({ gustLineShow: 'alert' }), env),
-    'Wind tops out at 30 kph, gusts at 90 kph, your gust danger level.');
+    'The wind line goes up to 30 kph, the gust line to 90 kph, your gust danger level.');
   assert.equal(FH.windScaleHint(S({ secondaryLine: 'gust', thirdLine: 'wind', windLineShow: 'alert' }), env),
-    'Gusts top out at 30 kph, wind at 60 kph, your wind danger level.');
+    'The gust line goes up to 30 kph, the wind line to 60 kph, your wind danger level.');
   // One of each, one top (High's 70 tops the wind danger level, 60): no comparison note.
-  assert.equal(FH.windScaleHint(S({ windScale: 'high', windLineShow: 'alert' }), env), 'Tops out at 70 kph.');
+  assert.equal(FH.windScaleHint(S({ windScale: 'high', windLineShow: 'alert' }), env), 'The scale goes up to 70 kph.');
   // Without the Third metric line, a gust line on the third picker is not drawn.
   assert.equal(FH.windScaleHint({ secondaryLine: 'wind', thirdLine: 'off', fourthLine: 'gust', windScale: 'low',
     gustLineShow: 'alert' }, { lineStyles: false }), null);
@@ -378,21 +377,21 @@ test('the Wind graph scale hint with wind and gusts both drawn', () => {
 
 test('the line dialog\'s Wind graph scale row shows an Alert line\'s top, through the real engine', () => {
   const low = body({ secondaryLine: 'gust', windScale: 'low', gustLineShow: 'alert' }, BASALT);
-  assert.equal(count(low, 'Tops out at 90 kph, your gust danger level, while Visible values is set to Alert.'), 1, 'Low');
-  assert.equal(count(low, 'Tops out at 30 kph'), 0, 'Low: not the scale\'s own top');
+  assert.equal(count(low, 'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.'), 1, 'Low');
+  assert.equal(count(low, 'The scale goes up to 30 kph'), 0, 'Low: not the scale\'s own top');
   const high = body({ secondaryLine: 'gust', windScale: 'high', gustLineShow: 'alert' }, BASALT);
-  assert.equal(count(high, 'Tops out at 90 kph, your gust danger level, while Visible values is set to Alert.'), 1, 'High');
-  assert.equal(count(high, 'keeps strong gusts from flattening'), 0, 'High: no comparison note');
+  assert.equal(count(high, 'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.'), 1, 'High');
+  assert.equal(count(high, 'strong gusts don’t flatten'), 0, 'High: no comparison note');
   // All: the row's own hint, on both watches; aplite keeps it with Alert stored too.
   [BASALT, APLITE].forEach((env) => assert.equal(count(body({ secondaryLine: 'gust', windScale: 'low' }, env),
-    'Tops out at 30 kph — emphasizes light, gentle winds.'), 1, env.platform + ' All'));
+    'The scale goes up to 30 kph, so light winds show more clearly.'), 1, env.platform + ' All'));
   assert.equal(count(body({ secondaryLine: 'gust', windScale: 'low', gustLineShow: 'alert' }, APLITE),
-    'Tops out at 30 kph — emphasizes light, gentle winds.'), 1, 'aplite draws All');
+    'The scale goes up to 30 kph, so light winds show more clearly.'), 1, 'aplite draws All');
   // Knots, gusts on the Fourth metric picker: the band's top in knots.
   const kn = body({ secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'gust', windUnits: 'knots',
     windScale: 'mid', gustLineShow: 'alert' }, BASALT);
-  assert.equal(count(kn, 'Tops out at 50 kn, your gust danger level, while Visible values is set to Alert.'), 1);
-  assert.equal(count(kn, 'Tops out at 27 kn'), 0);
+  assert.equal(count(kn, 'The scale goes up to 50 kn, your gust danger level, while Visible values is set to Alert.'), 1);
+  assert.equal(count(kn, 'The scale goes up to 27 kn'), 0);
 });
 
 test('every Wind graph scale row derives its hint through windScaleHint', () => {

@@ -262,7 +262,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 + '</div>';
         }
         if (!seed && slotCount === 0) {
-            h += '<div class="wx-hint">No location yet — the watch hasn’t fetched weather on this phone. Add a city to see its graphs.</div>';
+            h += '<div class="wx-hint">No location yet. The watch hasn’t fetched weather on this phone. Add a city to see its graphs.</div>';
         }
         return h;
     }

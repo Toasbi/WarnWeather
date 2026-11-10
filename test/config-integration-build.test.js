@@ -66,7 +66,7 @@ test('generated page renders the Watchface tab preview without require() (webvie
     var card = sandbox.PConf.blocks.get('screensCard');
     assert.ok(card, 'screensCard is registered');
     var rows = card(S, { platform: 'basalt', color: true });
-    assert.deepEqual((rows.match(/<span class="scr-t">[^<]*<\/span>/g) || []).map(function (t) {
+    assert.deepEqual((rows.match(/<span class="ui-n">[^<]*<\/span>/g) || []).map(function (t) {
       return t.replace(/<[^>]*>/g, '');
     }), ['Default', 'Flick 1', 'Flick 2'], 'one row per screen');
     assert.equal(rows.indexOf('data-action="addScreen"'), -1, 'three screens: no more to add');

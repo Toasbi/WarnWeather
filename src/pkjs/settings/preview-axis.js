@@ -40,6 +40,12 @@
     var HOUR_DIGIT_W = 4.5;
     // A number's width per character of the 8-unit label font, in units.
     var NUMBER_CHAR_W = 4.6;
+    // The scale the label rules below draw at: the labels' digit cap, the units a watch px
+    // takes (CURVE_INSET_PREV units a WATCH_INSET_PX, as the inset and the label gap) and the
+    // one-row step over the zero line. The preview's own, unless a caller passes the watch's: a
+    // screen picture's graph band draws its labels at the watch's size, the cap its Gothic
+    // digits' and a px a watch pixel (preview-forecast.js opts.watch).
+    var PREVIEW_SCALE = { cap: LABEL_CAP, px: CURVE_INSET_PREV / WATCH_INSET_PX, row: 1 };
 
     /**
      * The hour axis's cadence for the span this watch draws — forecast_span.h forecast_span's
@@ -170,12 +176,13 @@
      * @param {boolean} under Under the line, else over it.
      * @param {{left: number, right: number, top: number, bottom: number}} area Where its ink
      *   may go.
+     * @param {{cap: number, px: number, row: number}} [scale] The scale (PREVIEW_SCALE).
      * @returns {number} The text's baseline.
      */
-    function numberClear(reach, under, area) {
-        var gap = TEMP_LABEL_POINT_GAP * CURVE_INSET_PREV / WATCH_INSET_PX;
-        var base = under ? reach + gap + LABEL_CAP : reach - gap;
-        if (base - LABEL_CAP < area.top) { base = area.top + LABEL_CAP; }
+    function numberClear(reach, under, area, scale) {
+        var m = scale || PREVIEW_SCALE, gap = TEMP_LABEL_POINT_GAP * m.px;
+        var base = under ? reach + gap + m.cap : reach - gap;
+        if (base - m.cap < area.top) { base = area.top + m.cap; }
         if (base > area.bottom) { base = area.bottom; }
         return base;
     }
@@ -191,19 +198,20 @@
      * @param {{x: number, base: number}} lo The lo number.
      * @param {number} wLo Its width.
      * @param {{left: number, right: number, top: number, bottom: number}} area The area.
+     * @param {{cap: number, px: number, row: number}} [scale] The scale (PREVIEW_SCALE).
      * @returns {boolean} False when even that does not fit: the lo number is not drawn.
      */
-    function numbersPart(hi, wHi, lo, wLo, area) {
-        var gap = TEMP_LABEL_PART_GAP * CURVE_INSET_PREV / WATCH_INSET_PX;
+    function numbersPart(hi, wHi, lo, wLo, area, scale) {
+        var m = scale || PREVIEW_SCALE, cap = m.cap, gap = TEMP_LABEL_PART_GAP * m.px;
         if (lo.x >= hi.x + wHi + gap || hi.x >= lo.x + wLo + gap
-            || lo.base - LABEL_CAP >= hi.base + gap || hi.base - LABEL_CAP >= lo.base + gap) {
+            || lo.base - cap >= hi.base + gap || hi.base - cap >= lo.base + gap) {
             return true;
         }
-        lo.base = hi.base + LABEL_CAP + gap;
+        lo.base = hi.base + cap + gap;
         if (lo.base <= area.bottom) { return true; }
         lo.base = area.bottom;
-        var lifted = lo.base - LABEL_CAP - gap;
-        if (lifted - LABEL_CAP < area.top) { return false; }   // no room: hi stays put
+        var lifted = lo.base - cap - gap;
+        if (lifted - cap < area.top) { return false; }   // no room: hi stays put
         hi.base = lifted;
         return true;
     }
@@ -218,11 +226,12 @@
      * @param {number} px1 The plot's right edge.
      * @param {number} top The first content row under the top stripe band.
      * @param {number} zero The zero line's row.
+     * @param {{cap: number, px: number, row: number}} [scale] The scale (PREVIEW_SCALE).
      * @returns {{left: number, right: number, top: number, bottom: number}}
      */
-    function numbersArea(px0, px1, top, zero) {
-        var o = CURVE_INSET_PREV / WATCH_INSET_PX;   // the outline On graph always draws
-        return { left: px0 + o, right: px1 - o, top: top + o, bottom: zero - 1 - o };
+    function numbersArea(px0, px1, top, zero, scale) {
+        var m = scale || PREVIEW_SCALE, o = m.px;   // the outline On graph always draws
+        return { left: px0 + o, right: px1 - o, top: top + o, bottom: zero - m.row - o };
     }
 
     /**
@@ -237,10 +246,11 @@
      * @param {{x: number, base: number}} lo The lo number (numbersPart may move it).
      * @param {number} wLo Its width.
      * @param {{left: number, right: number, top: number, bottom: number}} area numbersArea.
+     * @param {{cap: number, px: number, row: number}} [scale] The scale (PREVIEW_SCALE).
      * @returns {boolean} False when only the hi number is drawn.
      */
-    function bothNumbers(hiText, loText, hi, wHi, lo, wLo, area) {
-        return hiText !== loText && numbersPart(hi, wHi, lo, wLo, area);
+    function bothNumbers(hiText, loText, hi, wHi, lo, wLo, area, scale) {
+        return hiText !== loText && numbersPart(hi, wHi, lo, wLo, area, scale);
     }
 
     /**
@@ -291,12 +301,14 @@
      * @param {number} reachTop The highest y the curve reaches with today's top margin, or
      *   -Infinity under a top stripe band (no gate).
      * @param {number} reachBottom The lowest y it reaches with today's bottom margin.
+     * @param {{cap: number, px: number, row: number}} [scale] The scale (PREVIEW_SCALE).
      * @returns {{hi: number, lo: number}} The baselines to draw.
      */
-    function alignLabels(hiBase, loBase, curveTop, curveBottom, reachTop, reachBottom) {
-        var hi = curveTop > reachTop ? Math.max(hiBase, curveTop + LABEL_CAP / 2) : hiBase;
-        var lo = curveBottom < reachBottom ? Math.min(loBase, curveBottom + LABEL_CAP / 2) : loBase;
-        if (lo - LABEL_CAP - hi >= TEMP_LABEL_MIN_INK_GAP * CURVE_INSET_PREV / WATCH_INSET_PX) {
+    function alignLabels(hiBase, loBase, curveTop, curveBottom, reachTop, reachBottom, scale) {
+        var m = scale || PREVIEW_SCALE;
+        var hi = curveTop > reachTop ? Math.max(hiBase, curveTop + m.cap / 2) : hiBase;
+        var lo = curveBottom < reachBottom ? Math.min(loBase, curveBottom + m.cap / 2) : loBase;
+        if (lo - m.cap - hi >= TEMP_LABEL_MIN_INK_GAP * m.px) {
             return { hi: hi, lo: lo };
         }
         return { hi: hiBase, lo: loBase };

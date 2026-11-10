@@ -25,8 +25,12 @@
     var previewForecast = NODE ? require('./preview-forecast.js') : window.PreviewForecast;
     var forecastSample = NODE ? require('./forecast-sample.js') : window.ForecastSample;
     var spanHours = NODE ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
+    // Graph styles (Pebble Time 2): a screen's forecast graph draws its own style's settings
+    // (graph-styles-page.js screenSettings).
+    var graphStylesPage = NODE ? require('./graph-styles-page.js') : window.GraphStylesPage;
     // The watch's own clock digits (scripts/gen-clock-glyphs-page.js): Roboto and Bitham.
     var clockGlyphs = NODE ? require('./clock-glyphs.generated.js') : window.ClockGlyphs;
+    var WT = NODE ? require('./watch-text.js') : window.WatchText;
     var dateFormat = NODE ? require('../date-format.js') : window.DateFormat;
     var esc = NODE ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
     // The frame every screen picture sits in: the screen on its own ground, with a margin of it.
@@ -51,8 +55,8 @@
         { w: 144, h: 168, floor: 168 },
         { w: 200, h: 228, floor: 222 }
     ];
-    // The screens' names, as the Screens card calls them.
-    var NAMES = ['Default', 'Flick 1', 'Flick 2'];
+    // A screen's name (screens.js nameOf), the caption under its picture.
+    var screens = NODE ? require('../screens.js') : window.Screens;
     // The watch's text in the page: a narrow system sans stands in for the watch's Gothic.
     var FONT = "Roboto, 'Helvetica Neue', Arial, sans-serif";
     // The clock's three faces, by weight and spacing (the watch's own glyphs are bitmaps).
@@ -63,12 +67,8 @@
     };
     // The samples' time: the forecast and the status bars' readings are a fixed afternoon.
     var CLOCK_TEXT = '15:00';
-    var BAR_OF_SRC = {};
-    BAR_OF_SRC[VC.STATUS_SRC_FORECAST] = 'forecast';
-    BAR_OF_SRC[VC.STATUS_SRC_HEALTH] = 'health';
-    BAR_OF_SRC[VC.STATUS_SRC_RADAR] = 'radar';
-    // What a band is called in a screen's spoken description.
-    var STATUS_NAME = { forecast: 'Forecast Status', health: 'Health Status', radar: 'Radar Status' };
+    // What a band is called in a screen's spoken description (a status bar by its name,
+    // screens.js barName).
     var GRAPH_NAME = { forecast: 'Forecast', radar: 'Radar', health: 'Health graph' };
 
     /**
@@ -115,30 +115,6 @@
 
     function r1(v) { return Math.round(v * 10) / 10; }
 
-    var measureCtx = null;
-    /**
-     * How wide a line of the watch's text draws: the page's own measure (a canvas, in the
-     * font the preview draws with), else an average glyph's width (Node, old webviews).
-     * @param {string} s The text.
-     * @param {number} size Font size.
-     * @param {number} weight Font weight.
-     * @returns {number} Width in the screen's units.
-     */
-    function measure(s, size, weight) {
-        try {
-            if (!measureCtx && typeof document !== 'undefined' && document.createElement) {
-                var c = document.createElement('canvas');
-                measureCtx = (c && c.getContext && c.getContext('2d')) || null;
-            }
-            if (measureCtx && measureCtx.measureText) {
-                measureCtx.font = weight + ' ' + size + 'px ' + FONT;
-                var w = measureCtx.measureText(s).width;
-                if (typeof w === 'number' && w > 0) { return w; }
-            }
-        } catch (err) { measureCtx = null; }
-        return s.length * size * 0.56;
-    }
-
     /**
      * The theme the watch draws: the picked one, or dark on a watch without the light
      * polarity (aplite), as the Status bars preview reads it.
@@ -175,7 +151,11 @@
         for (i = 0; i < st.seats.length; i++) {
             var seat = st.seats[i];
             var h = seat.pitch + (i === fillAt && slack > 0 ? slack : 0);
-            bands.push({ band: seat.band, y: y, h: h });
+            // A top area that leads under the strip seats on the strip's ink (layout.c
+            // strip_calendar_seat), not on its slot: a calendar keeps its height, a filling
+            // graph still ends on its slot; the bands after it keep theirs.
+            var by = i === 0 && seat.band === 'T' && !spec.stripOff ? STRIP[f].calY : y;
+            bands.push({ band: seat.band, y: by, h: i === fillAt ? h + y - by : h });
             if (seat.band === 'C') { clock = bands[i]; }
             y += h + seat.gap;
         }
@@ -233,11 +213,25 @@
     }
 
     /**
+     * C's integer division (truncating toward zero), for the watch's own arithmetic.
+     * @param {number} a Dividend.
+     * @param {number} b Divisor.
+     * @returns {number}
+     */
+    function cdiv(a, b) {
+        var q = a / b;
+        return q < 0 ? Math.ceil(q) : Math.floor(q);
+    }
+
+    /**
      * The calendar: its rows of seven days around today (the previous week first on a
      * three-row calendar that starts there), today on a rounded cell in the today colour
      * (Auto: its day's), holidays in the holiday colour and Saturdays and Sundays in theirs
      * — all in the ink on a black-and-white watch or theme — and bold: today, a holiday,
-     * and a weekend day whose colour differs from the ink (calendar_layer.c).
+     * and a weekend day whose colour differs from the ink (calendar_layer.c). Cells and the
+     * digits' seat are the watch's (calendar_cell_rect, calendar_text_top): Gothic 18, 24 on
+     * emery, each date centred in its cell, its box 5 rows over the cell's top (emery: the
+     * line centred in the cell, then lifted 5, a two-digit date starting with 1 a column left).
      * @param {Object} S Settings.
      * @param {{x: number, y: number, w: number, h: number}} box The band.
      * @param {number} rows 2 | 3.
@@ -245,13 +239,13 @@
      * @returns {string} SVG markup.
      */
     function calendarBand(S, box, rows, cx) {
-        var cw = box.w / 7, rh = box.h / rows, e = '', i;
+        var cw = cdiv(box.w, 7), rh = cdiv(box.h, rows), e = '', i;
         var startMon = S.weekStartDay !== 'sun';
         var col = startMon ? (cx.now.getDay() + 6) % 7 : cx.now.getDay();
         var todayAt = col + (rows === 3 && S.firstWeek !== 'curr' ? 7 : 0);
         var sun = hex(S.colorSunday, '#FF0055'), sat = hex(S.colorSaturday, '#FF0055');
         var holidayInk = hex(S.colorUSFederal, '#0055FF');
-        var size = cx.f ? 17 : 13;
+        var size = cx.f ? 24 : 18;
         /** @param {number} dow @param {boolean} holiday @returns {string} */
         function dayColor(dow, holiday) {
             if (!cx.color) { return cx.fg; }
@@ -259,7 +253,7 @@
         }
         for (i = 0; i < rows * 7; i++) {
             var d = new Date(cx.now.getFullYear(), cx.now.getMonth(), cx.now.getDate() + (i - todayAt));
-            var dow = d.getDay(), x = box.x + (i % 7) * cw, y = box.y + Math.floor(i / 7) * rh;
+            var dow = d.getDay(), x = box.x + cdiv((i % 7) * box.w, 7), y = box.y + cdiv(Math.floor(i / 7) * box.h, rows);
             var holiday = isHoliday(S, cx.holidays, d);
             var ink = dayColor(dow, holiday);
             var bold = holiday || (dow === 0 && sun !== cx.fg) || (dow === 6 && sat !== cx.fg);
@@ -267,12 +261,14 @@
                 // Black is the Auto sentinel: today's cell takes its weekday's colour.
                 var pick = hex(S.colorToday, '#000000');
                 var fill = !cx.color ? cx.fg : (pick === '#000000' ? ink : pick);
-                e += '<rect x="' + r1(x + 1) + '" y="' + r1(y + 1) + '" width="' + r1(cw - 2) + '" height="' + r1(rh - 2)
-                    + '" rx="2" fill="' + fill + '"></rect>';
+                e += '<rect x="' + x + '" y="' + y + '" width="' + cw + '" height="' + rh + '" rx="1" fill="' + fill + '"></rect>';
                 ink = legibleOver(fill);
                 bold = true;
             }
-            e += text(x + cw / 2, y + rh / 2 + size * 0.36, size, ink, 'middle', bold ? 700 : 400, String(d.getDate()));
+            var day = String(d.getDate());
+            var top = cx.f ? y + cdiv(rh - size, 2) - 5 : y - 5;
+            var shift = cx.f && day.length === 2 && day.charAt(0) === '1' ? 1 : 0;
+            e += WT.inBox(size, bold, { x: x - shift, y: top, w: cw }, 'center', ink, day);
         }
         return e;
     }
@@ -348,29 +344,68 @@
             + '</filter><g filter="url(#' + id + ')">' + imgs + '</g>';
     }
 
+    // A status row as status_row.c lays it out (status_row_layout.c, status_metrics.h): a slot
+    // is its icon, STATUS_ROW_ICON_TEXT_GAP, its text and, for a wind reading, the direction
+    // arrow after another gap; the edge slots take their full width first, from
+    // STATUS_ROW_MARGIN in, and the middle one is centred on the row in what they leave,
+    // STATUS_ROW_GROUP_GAP from each. Icons are 6/9 of the line's height (the top strip's 5/9).
+    var ROW_MARGIN = 2, ICON_GAP = 3, GROUP_GAP = 4;
+    // The top strip's band (layout.c L.top_status): from the window's top pad, as tall as a
+    // clamp-free line of its font (STATUS_LARGE_BAND_H, status_min_band_h) — taller than the
+    // rows it reserves above the next band, so its line's tails run on into them. calY: where a
+    // top area leading under it starts, on the strip's ink (strip_calendar_seat: the pad, the
+    // band less STATUS_TOP_STRIP_LIFT, and emery's STATUS_STRIP_CAL_GAP).
+    var STRIP = [{ y: 0, h: 17, calY: 15 }, { y: 2, h: 21, calY: 23 }];
+    // The Watch battery glyph (battery_glyph.h): the charging bolt's lane (empty while the
+    // watch is not charging), a 17 × 10 body, a 2-column nub.
+    var BATTERY = { w: 29, h: 10, lane: 10, nub: 2 };
+
     /**
-     * A small battery glyph (the Battery item is its glyph alone): an outline, a nub and
-     * the sample's 80 % charge.
-     * @param {number} x Its left edge.
-     * @param {number} mid The row's middle.
-     * @param {number} size The row's font size.
+     * status_metrics.h status_glyph_below: rows from the content box's bottom up to the
+     * digits' visual centre.
+     * @param {number} ch The line's content height (the Gothic size).
+     * @returns {number}
+     */
+    function glyphBelow(ch) {
+        return cdiv(ch + 6, 4);
+    }
+
+    /**
+     * status_metrics.h status_seat_y: the line's top in a band, its cap centred on the band's
+     * middle unless its descenders would leave the band.
+     * @param {number} bandH The band's height.
+     * @param {number} ch The line's content height.
+     * @returns {number} Rows below the band's top.
+     */
+    function seatY(bandH, ch) {
+        var y = cdiv(bandH, 2) - ch + glyphBelow(ch);
+        var fit = bandH - ch - cdiv(ch + 3, 6);
+        return y < fit ? y : fit;
+    }
+
+    /**
+     * The Watch battery glyph at the sample's 80 % charge: its body outlined, the charge filled,
+     * the nub past its right edge, the bolt's lane empty.
+     * @param {number} x The glyph's left edge (its lane's).
+     * @param {number} mid The row's cap centre.
      * @param {string} fg Ink.
      * @returns {string} SVG markup.
      */
-    function batteryGlyph(x, mid, size, fg) {
-        var w = size * 1.25, h = size * 0.6, y = mid - h / 2;
-        return '<rect x="' + r1(x) + '" y="' + r1(y) + '" width="' + r1(w) + '" height="' + r1(h)
-            + '" rx="1.2" fill="none" stroke="' + fg + '" stroke-width="1"></rect>'
-            + '<rect x="' + r1(x + w) + '" y="' + r1(mid - h / 5) + '" width="1.4" height="' + r1(h * 0.4) + '" fill="' + fg + '"></rect>'
-            + '<rect x="' + r1(x + 1.6) + '" y="' + r1(y + 1.6) + '" width="' + r1((w - 3.2) * 0.8) + '" height="' + r1(h - 3.2)
-            + '" fill="' + fg + '"></rect>';
+    function batteryGlyph(x, mid, fg) {
+        var bx = x + BATTERY.lane, bw = BATTERY.w - BATTERY.lane - BATTERY.nub, y = mid - BATTERY.h / 2;
+        return '<rect x="' + (bx + 0.5) + '" y="' + (y + 0.5) + '" width="' + (bw - 1) + '" height="' + (BATTERY.h - 1)
+            + '" fill="none" stroke="' + fg + '" stroke-width="1"></rect>'
+            + '<rect x="' + (bx + bw) + '" y="' + (y + 3) + '" width="' + BATTERY.nub + '" height="' + (BATTERY.h - 6)
+            + '" fill="' + fg + '"></rect>'
+            + '<rect x="' + (bx + 2) + '" y="' + (y + 2) + '" width="' + Math.round((bw - 4) * 0.8) + '" height="'
+            + (BATTERY.h - 4) + '" fill="' + fg + '"></rect>';
     }
 
     /**
      * A slot's icon (status-slot-icons.js' copy of the watch's), placed on the row.
      * @param {?string} svg The glyph (preview-status-bars.js slotIcon), null for none.
      * @param {number} x Left edge.
-     * @param {number} mid The row's middle.
+     * @param {number} mid The row's cap centre.
      * @param {number} size Icon size.
      * @param {string} fg Ink.
      * @returns {string} SVG markup, '' for an item without one.
@@ -382,48 +417,109 @@
     }
 
     /**
-     * One bar's row: its three slots' sample text (preview-status-bars.js barSlots), the
-     * left one from the left edge, the middle centred, the right one to the right edge,
-     * each after its icon where the page has one; the battery item as its glyph.
+     * The wind reading's direction arrow (status_row.c's turned sun arrow), up and to the right.
+     * @param {number} x Left edge.
+     * @param {number} mid The row's cap centre.
+     * @param {number} w Its width (ARROW_W).
+     * @param {string} fg Ink.
+     * @returns {string} SVG markup.
+     */
+    function arrowAt(x, mid, w, fg) {
+        var c = x + w / 2, r = w / 2;
+        return '<path d="M' + r1(c - r) + ' ' + r1(mid + r) + 'L' + r1(c + r) + ' ' + r1(mid - r) + 'M' + r1(c) + ' '
+            + r1(mid - r) + 'H' + r1(c + r) + 'V' + r1(mid) + '" fill="none" stroke="' + fg
+            + '" stroke-width="1.2" stroke-linecap="square"></path>';
+    }
+
+    /**
+     * A slot's width with a text this wide (status_row_layout.c status_group_w).
+     * @param {number} iw Icon width.
+     * @param {number} tw Text width.
+     * @param {number} sw Suffix (arrow) width.
+     * @returns {number}
+     */
+    function groupW(iw, tw, sw) {
+        return iw + (tw > 0 ? (iw > 0 ? ICON_GAP : 0) + tw : 0) + (sw > 0 ? sw + (tw > 0 ? ICON_GAP : 0) : 0);
+    }
+
+    /**
+     * A slot fitted into a width (status_row_layout.c fit_group): its text shrinks first, the
+     * icon and arrow kept; nothing when they alone do not fit.
+     * @param {?{iw: number, tw: number, sw: number}} m The slot's measures.
+     * @param {number} maxW The room.
+     * @returns {?{tw: number, w: number}} The text's width and the slot's, or null.
+     */
+    function fitSlot(m, maxW) {
+        if (!m || maxW <= 0 || m.iw + m.sw > maxW) { return null; }
+        var tw = m.tw;
+        var room = maxW - m.iw - (m.iw > 0 && tw > 0 ? ICON_GAP : 0) - (m.sw > 0 ? m.sw + (tw > 0 ? ICON_GAP : 0) : 0);
+        if (tw > room) { tw = Math.max(0, room); }
+        if (m.iw === 0 && tw === 0) { return null; }
+        return { tw: tw, w: groupW(m.iw, tw, m.sw) };
+    }
+
+    /**
+     * Where a row's three slots go (status_row_layout.c status_row_layout).
+     * @param {number} cw The row's content width.
+     * @param {!Array<?Object>} m Left, middle and right slots' measures (null: empty).
+     * @returns {!Array<?{x: number, tw: number}>} Each slot's left edge and text width.
+     */
+    function placeSlots(cw, m) {
+        /** @param {?Object} q @returns {number} */
+        function desired(q) { return q && (q.iw > 0 || q.tw > 0) ? groupW(q.iw, q.tw, q.sw) : 0; }
+        var d0 = desired(m[0]), d2 = desired(m[2]), b0, b2;
+        if (d0 > 0 && d2 > 0) {
+            if (d0 + d2 <= cw) { b0 = d0; b2 = d2; }
+            else {
+                var half = cdiv(cw, 2);
+                if (d0 <= d2) { b0 = d0 < half ? d0 : half; b2 = cw - b0; }
+                else { b2 = d2 < half ? d2 : half; b0 = cw - b2; }
+            }
+        } else { b0 = d0 > 0 ? cw : 0; b2 = d2 > 0 ? cw : 0; }
+        var left = fitSlot(m[0], b0), right = fitSlot(m[2], b2);
+        var x0 = left ? left.w + GROUP_GAP : 0, x1 = right ? cw - right.w - GROUP_GAP : cw;
+        var mid = fitSlot(m[1], x1 - x0), midX = 0;
+        if (mid) { midX = Math.min(Math.max(cdiv(cw - mid.w, 2), x0), x1 - mid.w); }
+        return [left ? { x: 0, tw: left.tw } : null, mid ? { x: midX, tw: mid.tw } : null,
+            right ? { x: cw - right.w, tw: right.tw } : null];
+    }
+
+    /**
+     * One bar's row: its three slots' sample text (preview-status-bars.js barSlots) in the
+     * watch's Gothic, each after its icon where the page has one, the battery item as its
+     * glyph; seated (status_seat_y, the top strip 2 rows higher) and laid out as the watch
+     * does both.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @param {string} bar 'top' | 'forecast' | 'health' | 'radar'.
      * @param {{x: number, y: number, w: number, h: number}} box The band.
-     * @param {number} size Font size.
+     * @param {number} ch The row's Gothic size (14 | 18 | 24).
      * @param {{fg: string, f: number, now: Date, fullDate: boolean}} cx Draw context.
      * @returns {string} SVG markup.
      */
-    function rowBand(S, env, bar, box, size, cx) {
-        var pad = cx.f ? 3 : 2, e = '';
-        var items = statusBars.barSlots(S, env, bar, cx.fullDate, cx.now).filter(function (c) {
-            return c.code !== 'empty';
-        }).map(function (c) {
-            var label = c.text + (c.arrow ? '↗' : '');
-            var glyph = c.code === 'battery' && !label;
+    function rowBand(S, env, bar, box, ch, cx) {
+        var top = bar === 'top', e = '';
+        var lineTop = box.y + seatY(box.h, ch) - (top ? 2 : 0);
+        var mid = lineTop + ch - glyphBelow(ch);
+        var iconH = Math.min(cdiv(ch * (top ? 5 : 6), 9), box.h - 2), arrowW = cx.f ? 8 : 6;
+        var slots = [null, null, null], at = { left: 0, mid: 1, right: 2 };
+        statusBars.barSlots(S, env, bar, cx.fullDate, cx.now).forEach(function (c) {
+            if (c.code === 'empty' || !(c.pos in at)) { return; }
+            var glyph = c.code === 'battery' && !c.text;
             var icon = glyph ? null : statusBars.slotIcon(c.code, env);
-            return { pos: c.pos, code: c.code, label: label, glyph: glyph, icon: icon, hasIcon: Boolean(icon) };
+            slots[at[c.pos]] = { label: c.text || '', glyph: glyph, icon: icon,
+                iw: glyph ? BATTERY.w : (icon ? iconH : 0), tw: c.text ? WT.width(ch, false, c.text) : 0,
+                sw: c.arrow ? arrowW : 0 };
         });
-        /** @param {Object} it @param {number} sz @returns {number} the item's ink width */
-        function widthOf(it, sz) {
-            var ico = it.glyph ? sz * 1.45 : (it.hasIcon ? sz + 1 : 0);
-            return ico + (it.label ? measure(it.label, sz, 700) : 0);
-        }
-        // A row whose slots would run into each other draws smaller, as far as three
-        // quarters of its size (the watch's narrower font fits what the page's cannot).
-        var total = 0;
-        items.forEach(function (it) { total += widthOf(it, size); });
-        var room = box.w - 2 * pad - Math.max(0, items.length - 1) * 4;
-        if (total > room) { size = Math.max(size * 0.75, size * room / total); }
-        var mid = box.y + box.h / 2, base = mid + size * 0.36;
-        items.forEach(function (it) {
-            var ico = it.glyph ? size * 1.45 : (it.hasIcon ? size + 1 : 0);
-            var w = widthOf(it, size), x0;
-            if (it.pos === 'left') { x0 = box.x + pad; }
-            else if (it.pos === 'right') { x0 = box.x + box.w - pad - w; }
-            else { x0 = box.x + (box.w - w) / 2; }
-            if (it.glyph) { e += batteryGlyph(x0, mid, size, cx.fg); }
-            else if (it.hasIcon) { e += iconAt(it.icon, x0, mid, size, cx.fg); }
-            if (it.label) { e += text(x0 + ico, base, size, cx.fg, 'start', 700, it.label); }
+        var x0 = box.x + ROW_MARGIN;
+        placeSlots(box.w - 2 * ROW_MARGIN, slots).forEach(function (p, i) {
+            if (!p) { return; }
+            var it = slots[i], x = x0 + p.x;
+            if (it.glyph) { e += batteryGlyph(x, mid, cx.fg); }
+            else if (it.icon) { e += iconAt(it.icon, x, mid, iconH, cx.fg); }
+            var tx = x + it.iw + (it.iw > 0 && p.tw > 0 ? ICON_GAP : 0);
+            if (p.tw > 0) { e += WT.line(ch, false, tx, lineTop, cx.fg, WT.fit(ch, false, it.label, p.tw)); }
+            if (it.sw > 0 && p.tw > 0) { e += arrowAt(tx + p.tw + ICON_GAP, mid, it.sw, cx.fg); }
         });
         return e;
     }
@@ -445,19 +541,23 @@
         var frame;
         if (kind === 'forecast') {
             var hours = spanHours.shownHours(S, env);
-            var frameH = Math.round(200 * box.h / box.w);
+            // The band at the watch's own scale (forecastPreview opts.watch): u frame units a
+            // watch pixel, its hour axis BOTTOM_VIEW_AXIS_H over the band's foot (emery's 10 more
+            // for its labels, BOTTOM_VIEW_BOTTOM_PAD, over the window's bottom pad).
+            var f = box.w === SCREEN[1].w ? 1 : 0, unit = 200 / box.w;
+            var foot = Math.min(box.y + box.h, SCREEN[f].h - (f ? 4 : 0)) - box.y;
             frame = previewForecast.forecastPreview(S, env, userData, {
                 sample: forecastSample.sample(hours + 1, S.temperatureUnits),
-                bare: true, axisY: Math.max(24, frameH - 13), bleed: false });
+                bare: true, axisY: Math.max(12, foot - (f ? 20 : 10)) * unit, bleed: false,
+                watch: { u: unit, f: f, w: box.w, h: box.h * unit, pad: f ? 2 : 0,
+                    large: Boolean(f) && S.largeGraphFont !== false } });
         } else {
             var fn = previewBlock(kind === 'radar' ? 'radarPreview' : 'healthPreview');
             frame = fn ? fn(S, env, userData, { bare: true }) : '';
         }
         var u = svgLib.unframe(frame);
         if (!u) { return ''; }
-        var inner = u.inner.replace(/id="([^"]+)"/g, 'id="$1-' + tag + '"')
-            .replace(/url\(#([^)]+)\)/g, 'url(#$1-' + tag + ')')
-            .replace(/href="#([^"]+)"/g, 'href="#$1-' + tag + '"');
+        var inner = svgLib.tagIds(u.inner, tag);
         return '<svg x="' + r1(box.x) + '" y="' + r1(box.y) + '" width="' + r1(box.w) + '" height="' + r1(box.h)
             + '" viewBox="0 0 200 ' + u.h + '" preserveAspectRatio="none">' + inner + '</svg>';
     }
@@ -479,18 +579,37 @@
     }
 
     /**
-     * A view's bands, top to bottom, as a screen reader hears the picture.
+     * The graphs a view draws, top to bottom (its layout's bands): what a legend of it lists
+     * (screen-legend.js).
+     * @param {?Object} spec The view.
+     * @param {number} f Screen family (0 = 144 px, 1 = emery).
+     * @returns {string[]} 'forecast' | 'radar' | 'health' each
+     */
+    function graphKinds(spec, f) {
+        var out = [];
+        if (!spec) { return out; }
+        layoutView(spec, f).bands.forEach(function (b) {
+            var kind = b.band === 'T' || b.band === 'G' ? graphKind(spec, b.band) : null;
+            if (kind) { out.push(kind); }
+        });
+        return out;
+    }
+
+    /**
+     * A view's bands, top to bottom, as a screen reader hears the picture: a status bar by its
+     * name (screens.js barName).
      * @param {!Object} spec The view.
      * @param {{strip: number, bands: !Array}} lay Its layout (layoutView).
-     * @returns {string} e.g. 'Watch Status, Calendar (2 rows), Clock, Forecast Status, Forecast'.
+     * @param {Object} S Settings (the bars' names).
+     * @returns {string} e.g. 'Watch bar, Calendar (2 rows), Clock, Forecast bar, Forecast'.
      */
-    function describe(spec, lay) {
-        var out = lay.strip ? ['Watch Status'] : [];
+    function describe(spec, lay, S) {
+        var out = lay.strip ? [screens.barName(S, 'top')] : [];
         lay.bands.forEach(function (b) {
             if (b.band === 'C') { out.push('Clock'); return; }
             if (b.band === 'A' || b.band === 'B') {
-                var bar = BAR_OF_SRC[b.band === 'A' ? spec.statusUpper : spec.statusLower];
-                if (bar) { out.push(STATUS_NAME[bar]); }
+                var bar = VC.barOfSource(b.band === 'A' ? spec.statusUpper : spec.statusLower);
+                if (bar) { out.push(screens.barName(S, bar)); }
                 return;
             }
             var kind = graphKind(spec, b.band);
@@ -536,27 +655,34 @@
                    f: f, now: now, fullDate: !statusBars.calendarShown(spec),
                    holidays: (userData && userData.holidays) || null };
         var lay = layoutView(spec, f), e = '';
+        // The forecast graph draws the screen's graph style, as the watch does (the view's
+        // style, where the watch has styles and the style exists); every other band the
+        // settings as they are.
+        var graphS = graphStylesPage.screenSettings(S, env, spec);
         // The rows' tier (layout.c status_tier_for): the squeezed font on a FULL view.
         var rowFull = lay.tier === VC.TIER_FULL;
+        // emery's window keeps LAYOUT_PAD_X columns clear at each side of its text bands (layout.c).
+        var pad = f ? 2 : 0;
         if (lay.strip) {
-            e += rowBand(S, env, 'top', { x: 0, y: 0, w: sc.w, h: lay.strip }, f ? 16 : 12, cx);
+            e += rowBand(S, env, 'top', { x: pad, y: STRIP[f].y, w: sc.w - 2 * pad, h: STRIP[f].h }, f ? 24 : 18, cx);
         }
         lay.bands.forEach(function (b, bi) {
             var box = { x: 0, y: b.y, w: sc.w, h: b.h }, tag = (idPrefix || 'w' + vi) + bi;
+            var inset = { x: pad, y: b.y, w: sc.w - 2 * pad, h: b.h };
             if (b.band === 'C') {
                 e += clockBand(S, box, cx, tag);
             } else if (b.band === 'A' || b.band === 'B') {
-                var bar = BAR_OF_SRC[b.band === 'A' ? spec.statusUpper : spec.statusLower];
-                if (bar) { e += rowBand(S, env, bar, box, f ? (rowFull ? 16 : 18) : (rowFull ? 12 : 13.5), cx); }
+                var bar = VC.barOfSource(b.band === 'A' ? spec.statusUpper : spec.statusLower);
+                if (bar) { e += rowBand(S, env, bar, inset, f ? (rowFull ? 18 : 24) : (rowFull ? 14 : 18), cx); }
             } else {
                 var kind = graphKind(spec, b.band);
-                if (kind) { e += graphBand(kind, S, env, userData, box, tag); }
+                if (kind) { e += graphBand(kind, kind === 'forecast' ? graphS : S, env, userData, box, tag); }
                 else if (b.band === 'T' && spec.top === VC.TOP_CAL) {
-                    e += calendarBand(S, box, spec.tier === VC.TIER_FULL ? 3 : 2, cx);
+                    e += calendarBand(S, inset, spec.tier === VC.TIER_FULL ? 3 : 2, cx);
                 }
             }
         });
-        return { svg: framedSvg(sc.w, sc.h, ink.bg, e), label: describe(spec, lay), bg: ink.bg };
+        return { svg: framedSvg(sc.w, sc.h, ink.bg, e), label: describe(spec, lay, S), bg: ink.bg };
     }
 
     // One card per view, on the page (the tab pins the block bare, schema pinBare): the card is
@@ -607,7 +733,7 @@
         var n = 0, figs = '';
         views.forEach(function (spec, i) {
             if (!spec && !editable) { return; }
-            var name = NAMES[i] || 'View ' + (i + 1);
+            var name = screens.nameOf(st, i) || 'View ' + (i + 1);
             var scr = spec ? screenSvg(spec, i, st, env, userData || {}, f, now) : viewScreen(st, env, i, userData);
             var inner = '<div class="wpv-card" style="background:' + bg + '">' + scr.svg + '</div>'
                 + '<span class="wpv-cap" aria-hidden="true">' + esc(name) + '</span>';
@@ -668,6 +794,7 @@
     if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }
     if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('timeFontPicture', fontPicture); }
     var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg,
+        graphKinds: graphKinds,
                 fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PreviewWatch = api; }

@@ -1,10 +1,11 @@
 'use strict';
 // test/config-screens-page.test.js — the Watchface tab's screens (settings/screens-page.js):
 // the Screens card (a row per screen, a ✕ with Undo on each flick, "+ Add screen"), the
-// screen editor (its picture, the rows top to bottom, a row's option and moves, ✕ and
-// "+ Add", Delete screen, the radar-off row), Setup's Rain radar picker (Off keeps the
-// source) and the modes Save works out from the screens. The module first, then the REAL
-// generated page (test/helpers/page-harness.js), whose fake DOM carries the editor's overlay.
+// screen editor (its picture, the rows top to bottom, a row's dropdowns and their pickers, its
+// moves by drag and by key, ✕ and the Add chips, Delete screen, the radar-off row), Setup's Rain
+// radar picker (Off keeps the source) and the modes Save works out from the screens. The module
+// first, then the REAL generated page (test/helpers/page-harness.js), whose fake DOM carries the
+// editor's overlay.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
@@ -14,10 +15,13 @@ require('../src/pkjs/config-ui/lib/engine.js');
 require('../src/pkjs/settings/blocks.js');   // registers screens-page.js' resolvers too
 const SP = require('../src/pkjs/settings/screens-page.js');
 const M = require('../src/pkjs/screens.js');
+const P = require('../src/pkjs/screen-presets.js');
 const VC = require('../src/pkjs/view-cycle.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
+const ui = require('../src/pkjs/config-ui/lib/ui.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const { blankBar, slotsOf } = require('./helpers/status-slots.js');
+const { editorRows, editorAddChips, editorAddGroups, editorRow, sheetTitle, sheetOptions } = require('./helpers/page-rows.js');
 
 const PC = global.PConf;
 const BASALT = platform.computeEnv({ platform: 'basalt' });
@@ -58,34 +62,24 @@ function words(S) {
  */
 function cardRows(html) {
   const out = [];
-  const re = /<div class="scr-row">[\s\S]*?<span class="scr-t">([^<]*)<\/span><span class="scr-els">([^<]*)<\/span>[\s\S]*?(<button type="button" class="scr-x"|<span class="scr-xpad")/g;
+  const re = /<div class="ui-row scr-row" data-scr-row="\d+">[\s\S]*?<span class="ui-n">([^<]*)(?:<span class="scr-pill">[^<]*<\/span>)?<\/span><span class="ui-d">([^<]*)<\/span>[\s\S]*?(<button type="button" class="scr-x"|<span class="scr-xpad")/g;
   let m;
   while ((m = re.exec(html))) { out.push([m[1], m[2], m[3].indexOf('scr-x"') !== -1]); }
   return out;
 }
 
 /**
- * The open editor's body and title.
+ * The open overlay's body, header and title (the title's text: the screen's name, or Add a
+ * screen; the header is a dialog's, ui.js header).
  * @param {Object} page bootGeneratedPage handle.
- * @returns {{title: string, body: string}}
+ * @returns {{title: string, body: string, head: string}}
  */
 function editorOf(page) {
   const ed = page.editor();
   assert.ok(ed, 'the screen editor is open');
-  return { title: ed.querySelector('[data-se-title]').textContent, body: ed.querySelector('[data-se-body]').innerHTML };
-}
-
-/**
- * The editor's rows, top to bottom: each row's name and its value ('' for none).
- * @param {string} body The editor's body.
- * @returns {Array<string>}
- */
-function editorRows(body) {
-  const out = [];
-  const re = /<div class="se-row" role="listitem" data-j="\d+">[\s\S]*?<span>([^<]*)<\/span>(?:<span class="se-val">([^<]*)<\/span>)?/g;
-  let m;
-  while ((m = re.exec(body))) { out.push(m[2] ? m[1] + ' · ' + m[2] : m[1]); }
-  return out;
+  const head = ed.querySelector('[data-se-head]').innerHTML;
+  const m = /id="seTitle">([^<]*)<\/span>/.exec(head);
+  return { title: m ? m[1] : '', head, body: ed.querySelector('[data-se-body]').innerHTML };
 }
 
 // --- the module ----------------------------------------------------------------------
@@ -104,18 +98,6 @@ test('a first edit turns a preset custom through its own keys: the other screens
   assert.deepEqual([S.radarMode, S.healthMode], ['graph', 'all'], 'the modes the screens need');
 });
 
-test('Add screen: the Watch bar and the Clock after the others, three at most', () => {
-  const S = preset({ radarMode: 'off', healthMode: 'off' });
-  assert.equal(M.screensOf(S, BASALT).length, 1, 'premise: the Default screen alone');
-  assert.equal(SP.addScreen(S, BASALT), 1);
-  assert.equal(S.viewCount, '2');
-  assert.deepEqual(M.screensOf(S, BASALT)[1], SP.NEW_SCREEN);
-  assert.deepEqual(SP.NEW_SCREEN, [b('strip'), b('clock')]);
-  assert.equal(SP.addScreen(S, BASALT), 2);
-  assert.equal(SP.addScreen(S, BASALT), -1, 'no fourth screen');
-  assert.equal(S.viewCount, '3');
-});
-
 // Bars never set up (helpers/status-slots.js blankBar).
 const BLANK_HEALTH = blankBar('health');
 const BLANK_RADAR = blankBar('radar');
@@ -125,29 +107,32 @@ const ONE = { radarMode: 'off', healthMode: 'off' };
 
 test('a bar an edit brings onto the screens with nothing to show takes its default slots', () => {
   const S = preset(Object.assign({}, ONE, BLANK_HEALTH, BLANK_RADAR));
-  SP.writeScreen(S, SP.addScreen(S, BASALT), M.add(M.add(SP.NEW_SCREEN, 'healthbar'), 'radarbar'), BASALT);
+  SP.writeScreen(S, SP.addChosen(S, BASALT, 'blank'), M.add(M.add(P.BLANK, 'healthbar'), 'radarbar'), BASALT);
   assert.deepEqual(slotsOf(S, 'health'), ['steps', 'empty', 'sleep'], 'a new install\'s, no heart rate on a basalt');
   assert.deepEqual(slotsOf(S, 'radar'), ['uv', 'wind', 'gust']);
-  assert.deepEqual([S.radarMode, S.healthMode], ['status', 'status'], 'the modes follow the bars');
+  // The modes follow what the shown bars hold (3.0.0): the Health bar's steps and sleep need
+  // health; the Radar bar's UV, wind and gusts need no radar (the rain alert on the Watch
+  // bar does).
+  assert.deepEqual([S.radarMode, S.healthMode], ['countdown', 'slot'], 'the modes follow what the bars hold');
   // The watch's own defaults: emery's heart rate.
   const EMERY = platform.computeEnv({ platform: 'emery' });
   const E = preset(Object.assign({}, ONE, BLANK_HEALTH));
-  SP.writeScreen(E, SP.addScreen(E, EMERY), M.add(SP.NEW_SCREEN, 'healthbar'), EMERY);
+  SP.writeScreen(E, SP.addChosen(E, EMERY, 'blank'), M.add(P.BLANK, 'healthbar'), EMERY);
   assert.deepEqual(slotsOf(E, 'health'), ['steps', 'sleep', 'hr']);
   // An item this watch cannot show is nothing to show either: heart rate on a basalt.
   const hr = preset(Object.assign({}, ONE, BLANK_HEALTH, { statusHealthRight: 'hr' }));
-  SP.writeScreen(hr, SP.addScreen(hr, BASALT), M.add(SP.NEW_SCREEN, 'healthbar'), BASALT);
+  SP.writeScreen(hr, SP.addChosen(hr, BASALT, 'blank'), M.add(P.BLANK, 'healthbar'), BASALT);
   assert.deepEqual(slotsOf(hr, 'health'), ['steps', 'empty', 'sleep']);
 });
 
 test('a bar with a reading of its own, or one a screen shows already, keeps its slots', () => {
   const own = preset(Object.assign({}, ONE, BLANK_HEALTH, { statusHealthMid: 'distance' }));
-  SP.writeScreen(own, SP.addScreen(own, BASALT), M.add(SP.NEW_SCREEN, 'healthbar'), BASALT);
+  SP.writeScreen(own, SP.addChosen(own, BASALT, 'blank'), M.add(P.BLANK, 'healthbar'), BASALT);
   assert.deepEqual(slotsOf(own, 'health'), ['empty', 'distance', 'empty']);
   // The Default screen shows the Forecast bar Empty: a second screen with it changes nothing there.
   const shown = preset(Object.assign({}, ONE, BLANK_FORECAST));
   assert.ok(M.idxOf(M.screensOf(shown, BASALT)[0], 'fcbar') >= 0, 'premise: the Default screen shows the bar');
-  SP.writeScreen(shown, SP.addScreen(shown, BASALT), M.add(SP.NEW_SCREEN, 'fcbar'), BASALT);
+  SP.writeScreen(shown, SP.addChosen(shown, BASALT, 'blank'), M.add(P.BLANK, 'fcbar'), BASALT);
   assert.deepEqual(slotsOf(shown, 'forecast'), ['empty', 'empty', 'empty']);
   // A move or an option on a screen already showing the bar fills nothing either.
   const three = preset(BLANK_HEALTH);
@@ -301,40 +286,91 @@ test('a ✕ deletes a flick screen at once, and Undo puts it back', (t) => {
     ['Default', 'Calendar · Clock · Forecast bar · Forecast graph'],
     ['Flick 1', 'Clock · Radar bar · Rain radar']
   ]);
-  assert.match(page.scroll.innerHTML, /<div class="scr-toast" role="status"><span>Flick 1 deleted\.<\/span><button type="button" class="scr-undo" data-action="undoDeleteScreen">Undo<\/button><\/div>/);
-  assert.ok(page.scroll.innerHTML.indexOf('data-action="addScreen">+ Add screen<') !== -1, 'room for one more');
+  // The page's one Undo (ui.js undoToast), as after a Delete status bar or a deleted graph.
+  assert.match(page.scroll.innerHTML, /<div class="ui-toast" role="status"><span>Flick 1 deleted\.<\/span><button type="button" class="ui-undo" data-action="undoDeleteScreen">Undo<\/button><\/div>/);
+  assert.ok(page.scroll.innerHTML.indexOf('<button type="button" class="ui-row ui-new" data-action="addScreen"><svg class="ui-ic"')
+    !== -1 && page.scroll.innerHTML.indexOf('<span class="ui-n">Add screen</span></button>') !== -1,
+  'room for one more: the New row, as New status bar and New graph');
   page.tapAction('undoDeleteScreen');
   assert.equal(cardRows(page.scroll.innerHTML).length, 3, 'Undo: all three again');
-  assert.equal(page.scroll.innerHTML.indexOf('scr-toast'), -1, 'and the toast goes');
+  assert.equal(page.scroll.innerHTML.indexOf('ui-toast'), -1, 'and the toast goes');
   // Unanswered, the toast goes by itself.
   page.tapAction('deleteScreen', 2);
   assert.ok(page.scroll.innerHTML.indexOf('Flick 2 deleted.') !== -1);
   t.mock.timers.tick(5000);
-  assert.equal(page.scroll.innerHTML.indexOf('scr-toast'), -1, 'gone after five seconds');
+  assert.equal(page.scroll.innerHTML.indexOf('ui-toast'), -1, 'gone after five seconds');
 });
 
-test('a new install: the Default screen alone; + Add screen opens the editor on the Watch bar and the Clock', () => {
+test('a new install: the Default screen alone; + Add screen adds a screen and opens its editor', () => {
   const page = bootGeneratedPage({ provider: 'dwd' });   // the shipped defaults
   assert.deepEqual(cardRows(page.scroll.innerHTML).map((r) => r[0]), ['Default']);
   assert.equal(page.scroll.innerHTML.indexOf('Screen switching'), -1, 'one screen: nothing to switch');
   page.tapAction('addScreen');
+  assert.equal(editorOf(page).title, 'Add a screen');
+  page.tapEditor({ se: 'pick', id: 'health' });
+  page.tapEditor({ se: 'acal', v: '' });
+  assert.equal(page.S.viewCount, '1', 'nothing added until Add screen');
+  page.tapEditor({ se: 'addnow' });
   assert.equal(page.S.viewCount, '2');
   assert.equal(page.S.layoutPreset, 'custom');
-  const ed = editorOf(page);
-  assert.equal(ed.title, 'Flick 1');
+  let ed = editorOf(page);
+  assert.equal(ed.title, 'Health');
+  assert.deepEqual(editorRows(ed.body), ['Watch bar', 'Clock', 'Health bar', 'Health graph · Fill']);
+  // Its rows taken off one by one: the Watch bar and the Clock left.
+  page.tapEditor({ se: 'rm', j: 3 });
+  page.tapEditor({ se: 'rm', j: 2 });
+  ed = editorOf(page);
   assert.deepEqual(editorRows(ed.body), ['Watch bar', 'Clock']);
-  assert.ok(ed.body.indexOf('<span class="se-main fixed"><span>Watch bar</span></span>') !== -1, 'the Watch bar has no handle');
+  assert.ok(editorRow(ed.body, 0).indexOf('<span class="se-grip off" aria-hidden="true"></span><div class="se-mid">'
+    + '<span class="se-name">Watch bar</span><span class="se-ctl">' + ui.editButton('Edit', { 'data-se': 'editbar',
+      'data-j': 0, 'aria-haspopup': 'dialog', 'aria-label': 'Edit Watch bar' }) + '</span></div>') !== -1,
+  'the Watch bar has no handle; its Edit opens its dialog');
   assert.ok(ed.body.indexOf('aria-label="Remove Clock"') !== -1, 'a flick screen may drop its Clock');
-  assert.deepEqual((ed.body.match(/data-se="add" data-k="[^"]*">\+ [^<]*</g) || []).map((x) => x.replace(/.*">\+ |<$/g, '')),
-    ['Calendar', 'Forecast bar', 'Radar bar', 'Health bar', 'Forecast graph', 'Rain radar', 'Health graph']);
-  assert.ok(ed.body.indexOf('data-se="delscreen">Delete screen<') !== -1);
+  assert.deepEqual(editorAddGroups(ed.body), [
+    ['Add a status bar', 'Forecast bar', 'Radar bar', 'Health bar'],
+    ['Add a graph', 'Forecast graph', 'Rain radar', 'Health graph'],
+    ['Add the calendar', 'Calendar']], 'a chip each, grouped by what it adds');
+  assert.equal(ed.body.indexOf('se-hint'), -1, 'one row that moves: nothing to reorder');
+  assert.ok(ed.body.endsWith('</div><button type="button" class="ui-del" data-se="delscreen">Delete screen</button>'),
+    'Delete screen: the page\'s one Delete, last, under the card');
   page.tapEditor({ se: 'close' });
   assert.ok(page.scroll.innerHTML.indexOf('<span class="ttl">Screen switching</span>') !== -1, 'two screens now');
+});
+
+test('the editor says how to reorder while two rows can move, and its calendar and clock group names what it adds', () => {
+  const page = bootGeneratedPage(THREE);
+  page.tapAction('openScreen', 1);
+  let body = editorOf(page).body;
+  // Flick 1: the Watch bar (it stays on top), the Clock, the Health bar and graph.
+  const hint = '<div class="ui-foot se-hint">' + SP.ROWS_HINT + '</div>';
+  // How to reorder alone: that the watch shows the rows top to bottom goes without saying (the
+  // owner's, 2026-11-09).
+  assert.equal(SP.ROWS_HINT, 'Drag\u00a0≡ to change the order.', '"Drag ≡" on one line');
+  assert.ok(body.indexOf(hint) !== -1, 'how to reorder, as the Screens card says it');
+  assert.ok(body.indexOf(hint) > body.indexOf('id="seList"') && body.indexOf(hint) < body.indexOf('<div class="se-adds">'),
+    'under the rows, over the Add groups');
+  // ✕ the Clock: the calendar and the clock, under one caption that names both.
+  page.tapEditor({ se: 'rm', j: 1 });
+  body = editorOf(page).body;
+  assert.deepEqual(editorAddGroups(body).pop(), ['Add the calendar or the clock', 'Calendar', 'Clock']);
+  assert.ok(body.indexOf('<div class="se-add" role="group" aria-labelledby="seAdd-rows"><span class="ui-cap" id="seAdd-rows">'
+    + 'Add the calendar or the clock</span>') !== -1, 'the group named by its caption');
+  assert.ok(body.indexOf(hint) !== -1, 'the bar and the graph still move');
+  // ✕ the Health bar: one row left that moves, so nothing to reorder.
+  page.tapEditor({ se: 'rm', j: 1 });
+  assert.deepEqual(editorRows(editorOf(page).body), ['Watch bar', 'Health graph · Fill']);
+  assert.equal(editorOf(page).body.indexOf('se-hint'), -1);
+  // The Watch bar is a status bar: ✕ it, and its chip comes back in that group.
+  page.tapEditor({ se: 'rm', j: 0 });
+  assert.deepEqual(editorAddGroups(editorOf(page).body)[0], ['Add a status bar', 'Watch bar', 'Forecast bar', 'Radar bar',
+    'Health bar']);
 });
 
 test('+ Health bar on a new screen draws the bar\'s default readings, not an empty row', () => {
   const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, BLANK_HEALTH));
   page.tapAction('addScreen');
+  page.tapEditor({ se: 'pick', id: 'radar' });
+  page.tapEditor({ se: 'addnow' });
   page.tapEditor({ se: 'add', k: 'healthbar' });
   const pic = /<span class="se-pic-card"[\s\S]*?<\/span><\/div>/.exec(editorOf(page).body)[0];
   assert.match(pic, />6\.2k</, 'steps');
@@ -342,7 +378,7 @@ test('+ Health bar on a new screen draws the bar\'s default readings, not an emp
   assert.deepEqual(slotsOf(page.S, 'health'), ['steps', 'empty', 'sleep']);
 });
 
-test('the editor: a row\'s option, its moves, a ✕ and + Add, each stored at once', () => {
+test('the editor: a row\'s dropdown opens its picker; a pick, a move, a ✕ and + Add, each stored at once', () => {
   const page = bootGeneratedPage(THREE);
   page.tapAction('openScreen', 0);
   let ed = editorOf(page);
@@ -350,21 +386,36 @@ test('the editor: a row\'s option, its moves, a ✕ and + Add, each stored at on
   assert.deepEqual(editorRows(ed.body), ['Watch bar', 'Calendar · 2 rows', 'Clock', 'Forecast bar', 'Forecast graph · Fill']);
   assert.equal(ed.body.indexOf('aria-label="Remove Clock"'), -1, 'the Default screen keeps its Clock');
   assert.equal(ed.body.indexOf('Delete screen'), -1, 'nor can the Default screen go');
-  // The forecast graph's sizes: never 2 rows; the move buttons say where it cannot go.
-  page.tapEditor({ se: 'expand', j: 4 });
-  ed = editorOf(page);
-  assert.match(ed.body, /data-key="size" data-v="2" aria-pressed="false" disabled>2</);
-  assert.match(ed.body, /class="on" data-se="opt" data-j="4" data-key="size" data-v="fill" aria-pressed="true">Fill</);
-  assert.match(ed.body, /data-se="up" data-j="4" disabled>/, 'with a calendar, the graph stays at the bottom');
-  page.tapEditor({ se: 'opt', j: 4, key: 'size', v: '3' });
+  // The forecast graph's Size: its picker over the editor, titled by the row; never 2 rows (the
+  // high and low would overlap), each greyed-out size saying why, Fill said in words.
+  page.tapEditor({ se: 'size', j: 4 });
+  assert.ok(page.editor(), 'the editor stays under the picker');
+  assert.equal(sheetTitle(page, 'screenRowSize'), 'Forecast graph size');
+  assert.deepEqual(sheetOptions(page), ['2 rows (off: Too small for the high and low temperatures)', '3 rows', '4 rows',
+    'Fill ✓ (All the room the other rows leave)']);
+  page.pickOption('screenRowSize', '3');
   assert.deepEqual(M.screensOf(page.S, page.S.env)[0][4], b('fc', { size: '3' }));
   assert.equal(page.S.layoutPreset, 'custom', 'the first edit turned the preset custom');
+  assert.deepEqual(editorRows(editorOf(page).body)[4], 'Forecast graph · 3 rows', 'the editor repaints as the picker closes');
+  // A greyed-out size is never taken, whatever asks for it: not even into the stored key, which
+  // reads back as 3 rows (the watch clamps the forecast to 3).
+  assert.equal(page.S.viewBodySize0, '3', 'premise: the key the size is stored in');
+  page.tapEditor({ se: 'size', j: 4 });
+  page.pickOption('screenRowSize', '2');
+  assert.equal(page.S.viewBodySize0, '3');
   // The calendar's rows.
-  page.tapEditor({ se: 'expand', j: 1 });
-  page.tapEditor({ se: 'opt', j: 1, key: 'rows', v: '3' });
+  page.tapEditor({ se: 'size', j: 1 });
+  assert.equal(sheetTitle(page, 'screenRowSize'), 'Calendar rows');
+  assert.deepEqual(sheetOptions(page), ['2 rows ✓', '3 rows']);
+  page.pickOption('screenRowSize', '3');
   assert.deepEqual(editorRows(editorOf(page).body)[1], 'Calendar · 3 rows');
-  // Move the Forecast bar above the Clock, then remove it, then add it back.
-  page.tapEditor({ se: 'up', j: 3 });
+  // Under the calendar's 3 rows, 4 rows of graph would not fit the watch: greyed out, saying why.
+  page.tapEditor({ se: 'size', j: 4 });
+  assert.deepEqual(sheetOptions(page), ['2 rows (off: Too small for the high and low temperatures)', '3 rows ✓',
+    '4 rows (off: Too tall for the watch)', 'Fill (All the room the other rows leave)']);
+  page.pickOption('screenRowSize', '3');
+  // Move the Forecast bar above the Clock (its ≡ and the arrow keys), then remove it, then add it back.
+  page.docDispatch('keydown', { key: 'ArrowUp', target: grip(3), preventDefault() {} });
   assert.deepEqual(editorRows(editorOf(page).body), ['Watch bar', 'Calendar · 3 rows', 'Forecast bar', 'Clock',
     'Forecast graph · 3 rows']);
   page.tapEditor({ se: 'rm', j: 2 });
@@ -376,6 +427,142 @@ test('the editor: a row\'s option, its moves, a ✕ and + Add, each stored at on
   assert.equal(cardRows(page.scroll.innerHTML)[0][1], 'Calendar · Clock · Forecast bar · Forecast graph');
 });
 
+/**
+ * An editor row's ≡ as the browser hands it to the listeners.
+ * @param {number} j The row.
+ * @returns {Object}
+ */
+function grip(j) {
+  const g = { getAttribute: (n) => (n === 'data-grip' ? String(j) : null), setPointerCapture() {} };
+  g.closest = (sel) => (sel === '[data-grip]' ? g : null);
+  return g;
+}
+
+test('Add: a chip per status bar, by its name, in the bars\' place; a tap puts the bar there at once', () => {
+  const page = bootGeneratedPage(Object.assign({ statusRadarName: 'Sky' }, THREE));
+  page.tapAction('openScreen', 1);
+  let body = editorOf(page).body;
+  // Flick 1 shows the Health bar: the other two by their names, in the status bars' group. No
+  // picker, and no New status bar on a watch without bars 4 to 6.
+  assert.deepEqual(editorAddChips(body), ['Forecast bar', 'Sky', 'Forecast graph', 'Rain radar', 'Calendar']);
+  assert.ok(body.indexOf(ui.chip('Sky', { 'data-se': 'add', 'data-k': 'radarbar' }, { icon: 'plus' })) !== -1);
+  assert.equal(body.indexOf('data-se="newbar"'), -1);
+  // A bar the screen shows is never added again, whatever asks for it.
+  page.tapEditor({ se: 'add', k: 'healthbar' });
+  assert.deepEqual(M.screensOf(page.S, BASALT)[1].map((x) => x.k), ['strip', 'clock', 'healthbar', 'health']);
+  // A tap: the bar above the bottom graph, the editor repainted.
+  page.tapEditor({ se: 'add', k: 'radarbar' });
+  assert.deepEqual(M.screensOf(page.S, BASALT)[1].map((x) => x.k), ['strip', 'clock', 'healthbar', 'radarbar', 'health']);
+  body = editorOf(page).body;
+  assert.deepEqual(editorRows(body), ['Watch bar', 'Clock', 'Health bar', 'Sky', 'Health graph · Fill']);
+  // Two bars: a screen's most, so no bar chips, and a forged tap adds no third.
+  assert.deepEqual(editorAddChips(body), ['Forecast graph', 'Calendar']);
+  page.tapEditor({ se: 'add', k: 'fcbar' });
+  assert.equal(M.screensOf(page.S, BASALT)[1].length, 5);
+});
+
+test('the editor\'s rows: the calendar\'s rows and a graph\'s size are dropdowns, a bar has Edit; nothing folds or shows twice', () => {
+  const page = bootGeneratedPage(THREE);
+  page.tapAction('openScreen', 0);
+  const body = editorOf(page).body;
+  // The Calendar: its name, its rows as the page's dropdown (which opens its picker), its ✕.
+  assert.ok(editorRow(body, 1).indexOf('<div class="se-mid"><span class="se-name">Calendar</span><span class="se-ctl">'
+    + ui.dropdown('2 rows', { 'data-se': 'size', 'data-j': 1, 'aria-haspopup': 'dialog', 'aria-label': 'Rows: 2 rows' })
+    + '</span></div>') !== -1, editorRow(body, 1));
+  // A graph: its size the same way (no graph picker on a watch with one graph).
+  assert.ok(editorRow(body, 4).indexOf('<span class="se-ctl">'
+    + ui.dropdown('Fill', { 'data-se': 'size', 'data-j': 4, 'aria-haspopup': 'dialog', 'aria-label': 'Size: Fill' })
+    + '</span>') !== -1, editorRow(body, 4));
+  // A bar: its Edit, which opens the bar's dialog over the editor (the owner's pick, B,
+  // 2026-11-10). Its Add chip picked which bar.
+  assert.ok(editorRow(body, 3).indexOf('<div class="se-mid"><span class="se-name">Forecast bar</span><span class="se-ctl">'
+    + ui.editButton('Edit', { 'data-se': 'editbar', 'data-j': 3, 'aria-haspopup': 'dialog', 'aria-label': 'Edit Forecast bar' })
+    + '</span></div>') !== -1, editorRow(body, 3));
+  // The Clock: its name alone.
+  assert.ok(editorRow(body, 2).indexOf('<div class="se-mid"><span class="se-name">Clock</span></div>') !== -1);
+  // Nothing folds, nothing is said twice, no move buttons, no graph picker; Edit on the bars alone.
+  ['class="chev', 'aria-expanded', 'se-val', 'se-more', 'Also on', 'Move up', 'Move down', 'data-se="style"'].forEach((gone) => {
+    assert.equal(body.indexOf(gone), -1, gone);
+  });
+  assert.deepEqual([...body.matchAll(/data-se="editbar" data-j="(\d+)"/g)].map((m) => Number(m[1])), [0, 3],
+    'the Watch bar and the Forecast bar');
+  // The ≡ is a button the arrow keys move; the Watch bar has none.
+  assert.ok(editorRow(body, 1).indexOf('<button type="button" class="se-grip" data-grip="1" title="Drag to move" '
+    + 'aria-label="Move Calendar (arrow keys)">' + ui.icon('grip') + '</button>') !== -1, editorRow(body, 1));
+  assert.equal(editorRow(body, 0).indexOf('data-grip'), -1);
+});
+
+test('the editor: a bar\'s Edit opens its dialog over the editor, which shows what Done kept and nothing × put back', () => {
+  const page = bootGeneratedPage(THREE);
+  page.tapAction('openScreen', 0);
+  page.tapEditor({ se: 'editbar', j: 3 });
+  let dlg = page.modal.innerHTML;
+  assert.ok(dlg.indexOf('id="esheet-ttl-bar-forecast">Forecast bar</span>') !== -1, 'the Forecast bar\'s dialog');
+  assert.ok(dlg.indexOf('<span class="dlg-kick">Default</span>') !== -1, 'opened from the screen');
+  assert.equal(dlg.indexOf('data-dlg-rename-ok'), -1, 'its name is not open to type');
+  page.renameDialog();
+  page.enterRename('Commute');
+  page.doneDialog();
+  assert.equal(page.modal.innerHTML, '', 'the dialog closed');
+  assert.ok(page.editor(), 'back in the editor');
+  assert.equal(page.S.statusForecastName, 'Commute');
+  assert.deepEqual(editorRows(editorOf(page).body).slice(3, 4), ['Commute'], 'the row says the name Done kept');
+  // × puts back what the dialog changed, and the editor shows it.
+  page.tapEditor({ se: 'editbar', j: 3 });
+  page.renameDialog();
+  page.enterRename('Errands');
+  page.cancelDialog();
+  assert.equal(page.S.statusForecastName, 'Commute');
+  assert.deepEqual(editorRows(editorOf(page).body).slice(3, 4), ['Commute']);
+  // The Watch bar's Edit opens the Watch bar's dialog.
+  page.tapEditor({ se: 'editbar', j: 0 });
+  dlg = page.modal.innerHTML;
+  assert.ok(dlg.indexOf('id="esheet-ttl-bar-top">Watch bar</span>') !== -1, 'the Watch bar\'s dialog');
+  page.doneDialog();
+  // A forged Edit on a row that shows no bar (the Clock) opens nothing.
+  page.tapEditor({ se: 'editbar', j: 2 });
+  assert.equal(page.modal.innerHTML, '');
+});
+
+test('the editor\'s ≡ and the arrow keys: a row moves a place, keeps the focus, and a move that breaks a rule stays with why', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = bootGeneratedPage(THREE);
+  page.tapAction('openScreen', 0);
+  const ed = page.editor();
+  const key = (j, k) => page.docDispatch('keydown', { key: k, target: grip(j), preventDefault() {} });
+  key(2, 'ArrowDown');
+  assert.deepEqual(M.screensOf(page.S, BASALT)[0].map((x) => x.k), ['strip', 'cal', 'fcbar', 'clock', 'fc']);
+  assert.equal(ed.querySelector('[data-grip="3"]').focuses, 1, 'the ≡ keeps the focus at its new place');
+  // The graph above the bar: with a calendar it stays at the bottom, and the toast says so.
+  key(4, 'ArrowUp');
+  assert.deepEqual(M.screensOf(page.S, BASALT)[0].map((x) => x.k), ['strip', 'cal', 'fcbar', 'clock', 'fc'], 'nothing moved');
+  assert.equal(ed.querySelector('[data-se-toast]').textContent, 'With a calendar, the graph stays at the bottom.');
+  assert.equal(ed.querySelector('[data-grip="4"]').focuses, 1, 'the focus stays on the ≡ that did not move');
+  t.mock.timers.tick(3000);
+  assert.equal(ed.querySelector('[data-se-toast]').textContent, '');
+  // Nowhere to go below the last row; other keys do nothing.
+  key(4, 'ArrowDown');
+  key(1, 'Enter');
+  assert.deepEqual(M.screensOf(page.S, BASALT)[0].map((x) => x.k), ['strip', 'cal', 'fcbar', 'clock', 'fc']);
+  assert.ok(page.editor(), 'still open');
+  // Escape closes the editor.
+  page.docDispatch('keydown', { key: 'Escape' });
+  assert.equal(page.editor(), null);
+});
+
+test('the Screens card\'s rows open a screen of their own, so each ends on the red arrow', () => {
+  const page = bootGeneratedPage(THREE);
+  const html = page.scroll.innerHTML;
+  [0, 1, 2].forEach((i) => {
+    // The card's row (the pictures pinned over the card open the editor too, by the picture).
+    const row = html.indexOf('<div class="ui-row scr-row" data-scr-row="' + i + '">');
+    assert.ok(row !== -1, 'row ' + i);
+    const at = html.indexOf('data-action="openScreen" data-action-arg="' + i + '"', row);
+    const end = html.indexOf('</button>', at) + '</button>'.length;
+    assert.ok(html.slice(at, end).endsWith(ui.navArrow() + '</button>'), html.slice(at, end));
+  });
+});
+
 test('a drag by the handle moves a row; one that breaks a rule snaps back and says which', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const page = bootGeneratedPage(THREE);
@@ -384,11 +571,6 @@ test('a drag by the handle moves a row; one that breaks a rule snaps back and sa
   // The list's rows as the browser lays them out: 40 px each, from the top.
   ed.querySelector('#seList').children = [0, 1, 2, 3, 4].map((j) => ({ style: {},
     classList: { add() {}, remove() {} }, getBoundingClientRect: () => ({ top: j * 40, height: 40 }) }));
-  const grip = (j) => {
-    const g = { getAttribute: (n) => (n === 'data-grip' ? String(j) : null), setPointerCapture() {} };
-    g.closest = (sel) => (sel === '[data-grip]' ? g : null);
-    return g;
-  };
   const drag = (j, from, to, id) => {
     ed.dispatch('pointerdown', { target: grip(j), clientY: from, pointerId: id, button: 0, preventDefault() {} });
     ed.dispatch('pointermove', { clientY: to, pointerId: id });

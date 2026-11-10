@@ -33,20 +33,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var stripeLevels = (typeof require !== 'undefined')
         ? require('../stripe-levels.js') : window.StripeLevels;
     // Draw from / Bars from [Bottom | Top] (draw-from.js): the Draw from rows' Top hint
-    // and the Visible values: Alert scale hint's "Graph top" read it.
+    // and the Visible values: Alert scale hint's "The graph top is" read it.
     var drawFrom = (typeof require !== 'undefined')
         ? require('../draw-from.js') : window.DrawFrom;
+    // Names as a sentence lists them (config-ui/lib/html.js, concatenated ahead of every app file).
+    var andList = (typeof require !== 'undefined')
+        ? require('../config-ui/lib/html.js').andList : PConf.html.andList;
     // The long time span's whole hours for the picked provider and layout
     // (forecast-span-hours.js): the Forecast length row's third label.
     var forecastSpanHours = (typeof require !== 'undefined')
         ? require('../forecast-span-hours.js') : window.ForecastSpanHours;
+    // Graph styles (graph-styles-page.js, Pebble Time 2): the shown styles draw at most five
+    // series between them, so a pick that would make a sixth is greyed out (limitOptions).
+    var graphStylesPage = (typeof require !== 'undefined')
+        ? require('./graph-styles-page.js') : window.GraphStylesPage;
 
-    // The eight graph metrics in picker order — one list feeds every forecast picker.
-    var FORECAST_METRICS = [
-        ['Precipitation %', 'precip_prob'], ['Cloud cover %', 'cloud'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
-        ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
-        ['Dew point', 'dew']
-    ];
+    // The eight graph metrics in picker order (forecast-metrics.js, their one table) — one list
+    // feeds every forecast picker — and the ones each weather service leaves out (gapOf).
+    var forecastMetrics = (typeof require !== 'undefined') ? require('./forecast-metrics.js') : window.ForecastMetrics;
+    var FORECAST_METRICS = forecastMetrics.options();
     // Metric picker options, shaped by self-describing args from the schema:
     // `off` leads with an Off row, `exclude` names the sibling picker keys
     // whose CURRENT pick is withheld (a collision left in a stored value is
@@ -69,7 +74,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             if (!taken) { out.push(opt); }
         }
-        return out;
+        // args.key names the picker's line: with graph styles, a metric that would make the
+        // shown styles draw a sixth series is greyed out (graph-styles-page.js limitOptions).
+        return a.key ? graphStylesPage.limitOptions(out, S, env, a.key) : out;
     });
 
     // The six line styles in picker order — line-style.js' LINE_STYLE_KINDS vocabulary.
@@ -81,21 +88,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // one (line-style.js metricAllowsStripe — the rule the bake resolves by), so the
     // engine's display-snap shows a stored stripe on any other metric as the style the
     // watch actually draws. args.metricKey names the metric picker it sits under.
+    // With graph styles a style that would make the shown styles draw a sixth series (a line
+    // turned stripe is a series of its own) is greyed out (graph-styles-page.js limitOptions).
     PConf.optionsResolvers.register('lineStyleOptions', function (S, env, args) {
-        var metric = S ? S[(args || {}).metricKey] : undefined;
-        if (lineStyle.metricAllowsStripe(metric)) { return LINE_STYLE_OPTIONS.slice(); }
+        var metricKey = (args || {}).metricKey;
+        var metric = S ? S[metricKey] : undefined;
         var out = [];
         for (var i = 0; i < LINE_STYLE_OPTIONS.length; i += 1) {
-            if (!lineStyle.isStripeValue(LINE_STYLE_OPTIONS[i][1])) { out.push(LINE_STYLE_OPTIONS[i]); }
+            if (lineStyle.metricAllowsStripe(metric) || !lineStyle.isStripeValue(LINE_STYLE_OPTIONS[i][1])) {
+                out.push(LINE_STYLE_OPTIONS[i]);
+            }
         }
-        return out;
+        return metricKey ? graphStylesPage.limitOptions(out, S, env, metricKey + 'Style') : out;
     });
 
     // The Forecast length row's options (emery only): 12 h, 24 h and the long span labelled with
     // the whole hours the watch will show, which follow the weather provider's feed and the
-    // plot the layout leaves: where the Left axis values sit, Larger graph fonts and the
-    // health graph's labels (forecast-span-hours.js spanOptions). The values stay '12', '24'
-    // and '48', so a relabel never touches the stored setting.
+    // plot the layout leaves: where the Left axis values sit and Larger graph fonts
+    // (forecast-span-hours.js spanOptions). The values stay '12', '24' and '48', so a relabel
+    // never touches the stored setting.
     PConf.optionsResolvers.register('forecastSpanOptions', forecastSpanHours.spanOptions);
 
     // ---- The forecast line hints: how a metric's value reads on the graph ----
@@ -109,14 +120,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // and gusts both picked, its row sits under the first of them only; the pressure
     // scale row always sits below its (single) pressure line.
     var HEIGHT_SCALE = {
-        precip_prob: 'Half height = 50% chance of rain, full height = 100%.',
-        cloud: 'Half height = half the sky covered, full height = overcast.',
-        wind: 'Scaled by the Wind graph scale setting.',
-        gust: 'Scaled by the Wind graph scale setting.',
-        uv: 'Half height = UV 5.5, full height = UV 11 (extreme).',
-        pressure: 'Sea-level pressure, scaled by the pressure graph scale below.',
-        feels: 'Drawn on the same scale as the temperature curve.',
-        dew: 'Drawn on the same scale as the temperature curve.'
+        precip_prob: 'Half height is a 50% chance of rain, full height is 100%.',
+        cloud: 'Half height is half the sky covered, full height is overcast.',
+        wind: 'The height follows the Wind graph scale setting.',
+        gust: 'The height follows the Wind graph scale setting.',
+        uv: 'Half height is UV 5.5, full height is UV 11 (extreme).',
+        pressure: 'Shows sea-level pressure. The height follows the Pressure graph scale below.',
+        feels: 'Uses the same scale as the temperature curve.',
+        dew: 'Uses the same scale as the temperature curve.'
     };
     /**
      * A stripe scale's four colour steps as whole-percent ranges, e.g. '1–10%, 11–30%,
@@ -130,7 +141,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         for (var i = 0; i < starts.length; i += 1) {
             parts.push(starts[i] + '–' + (i + 1 < starts.length ? starts[i + 1] - 1 : 100) + '%');
         }
-        return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+        return andList(parts);
     }
 
     /**
@@ -153,31 +164,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // (line-style.js STRIPE_METRIC_IDS — a test holds the two lists equal).
     var UV_TOP = lineAlert.UV_FULL_SCALE_TENTHS;
     var STRIPE_SCALE = {
-        precip_prob: 'Four colour steps: ' + stripeStepsText('rain') + ' chance of rain.',
-        cloud: 'Four colour steps: ' + stripeStepsText('cloud') + ' of the sky covered.',
-        wind: 'Colour strength follows the Wind graph scale setting, full colour from 90% of its top.',
-        gust: 'Colour strength follows the Wind graph scale setting, full colour from 90% of its top.',
-        uv: 'Colour steps up at ' + lineAlert.levelText({}, 'uv', stripeStepValue(2, 0, UV_TOP))
-            + ' and ' + stripeStepValue(3, 0, UV_TOP) / 10 + ', full colour from '
+        precip_prob: 'The color gets stronger in four steps: ' + stripeStepsText('rain') + ' chance of rain.',
+        cloud: 'The color gets stronger in four steps: ' + stripeStepsText('cloud') + ' of the sky covered.',
+        wind: 'The color strength follows the Wind graph scale setting, with full color from 90% of its top.',
+        gust: 'The color strength follows the Wind graph scale setting, with full color from 90% of its top.',
+        uv: 'The color steps up at ' + lineAlert.levelText({}, 'uv', stripeStepValue(2, 0, UV_TOP))
+            + ' and ' + stripeStepValue(3, 0, UV_TOP) / 10 + ', with full color from '
             + lineAlert.levelText({}, 'uv', stripeStepValue(4, 0, UV_TOP)) + '.'
     };
     // What the metric picker says whatever the style.
     var METRIC_NOTES = {
-        gust: 'The hourly peak.',
+        gust: 'Shows the hourly peak.',
         dew: 'The closer it runs to the temperature, the more humid it feels.'
-    };
-    // The metrics a weather provider doesn't send: the picker says so while it is the
-    // provider. Met.no sends rain chance and gusts for the Nordics only.
-    var PROVIDER_GAPS = {
-        yandex: { metrics: ['cloud', 'pressure', 'dew'], note: 'Not available with Yandex.' },
-        metno: { metrics: ['precip_prob', 'gust'], note: 'Not available with Met.no outside the Nordics.' }
     };
     // What the style adds after its line's scale. Thin and Thick say it all.
     var STYLE_NOTES = {
-        dots: 'Aligned to the rain bars.',
-        x: 'Aligned to the rain bars.',
-        stripeTop: 'One cell per hour.',
-        stripeBottom: 'One cell per hour. Below the zero line, where bars and lines never cover it.'
+        dots: 'The dots line up with the rain bars.',
+        x: 'The marks line up with the rain bars.',
+        stripeTop: 'The stripe has one cell per hour.',
+        stripeBottom: 'The stripe has one cell per hour. It sits under the zero line, where bars and lines never cover it.'
     };
 
     /**
@@ -239,9 +244,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * The scale of a line drawn Show: Alert, as the style hint gives it (alertScaleLevels):
      * the band's bottom and top as numbers; drawn as a stripe, where its faintest colour
      * starts (the bottom) and where full colour does. Replaces the metric's usual scale
-     * copy, whose anchors ("Half height = UV 5.5") no longer hold there. A line that
+     * copy, whose anchors ("Half height is UV 5.5") no longer hold there. A line that
      * hangs from the top (Draw from: Top, draw-from.js metricFromTop) starts at the
-     * graph's top, so its start is named "Graph top" there; "full height" is a length and
+     * graph's top, so its start is named "The graph top" there; "full height" is a length and
      * reads the same both ways.
      * @param {string} metric The line's metric.
      * @param {boolean} stripe The line is drawn as a stripe (colour strength, not height).
@@ -254,10 +259,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var levels = alertScaleLevels(metric, S, env);
         if (!levels) { return ''; }
         if (stripe) {
-            return 'Faintest colour = ' + levels.bottom + ', full colour from ' + levels.full + '.';
+            return 'The color starts faint at ' + levels.bottom + ' and is full from ' + levels.full + '.';
         }
-        return (drawFrom.metricFromTop(S, metric, env) ? 'Graph top = ' : 'Graph bottom = ')
-            + levels.bottom + ', full height = ' + levels.top + '.';
+        return (drawFrom.metricFromTop(S, metric, env) ? 'The graph top is ' : 'The graph bottom is ')
+            + levels.bottom + ' and full height is ' + levels.top + '.';
     }
 
     /**
@@ -270,7 +275,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {string} The hint, '' for none.
      */
     function forecastMetricHint(metric, env, S) {
-        var gap = PROVIDER_GAPS[(S || {}).provider];
+        var gap = forecastMetrics.gapOf((S || {}).provider);
         var note = joinHint([copyOf(METRIC_NOTES, metric),
             gap && gap.metrics.indexOf(metric) >= 0 ? gap.note : '']);
         if (env && env.lineStyles) { return note; }
@@ -302,11 +307,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // the Wind graph scale row for theirs (windScaleHint).
     var SHOW_HINTS = {
         wind: { all: 'The line is always visible, calm hours included.',
-            alert: 'Draws wind only where it reaches' },
+            alert: 'Draws wind only in the hours when it reaches' },
         gust: { all: 'The line is always visible, calm hours included.',
-            alert: 'Draws gusts only where they reach' },
+            alert: 'Draws gusts only in the hours when they reach' },
         uv: { all: 'The line is always visible, low-UV hours included.',
-            alert: 'Draws UV only where it reaches', scale: true }
+            alert: 'Draws UV only in the hours when it reaches', scale: true }
     };
 
     /**
@@ -346,7 +351,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var levels = alertScaleLevels(metric, S, env);
         if (!levels) { return ''; }
         if (drawnAsStripe(S, metric, env)) {
-            return 'The stripe\'s colour then runs from faint at ' + levels.bottom
+            return 'The stripe\'s color then runs from faint at ' + levels.bottom
                 + ' to full at ' + levels.full + '.';
         }
         var fromTop = drawFrom.metricFromTop(S, metric, env);
@@ -369,20 +374,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var copy = copyOf(SHOW_HINTS, args.metric);
         if (!copy) { return ''; }
         if (lineAlert.showValue(args.value) !== lineAlert.SHOW_ALERT) { return copy.all; }
-        var hint = copy.alert + ' your warn level (' + lineAlert.warnText(S || {}, args.metric)
-            + '), so the line is only visible when you actually care.';
+        var hint = copy.alert + ' your warn level (' + lineAlert.warnText(S || {}, args.metric) + ').';
         return copy.scale ? joinHint([hint, showAlertScale(S, env, args.metric)]) : hint;
     }
 
     // The Wind graph scale row's hint while a drawn wind or gust line shows Alert: such
     // a line runs from its warn level up to its band's top (line-alert.js alertBand),
-    // the higher of the scale's value and the danger level, so the row's own "Tops out at
-    // 50 kph — typical winds sit mid-graph" no longer holds. Each line's start of the
+    // the higher of the scale's value and the danger level, so the row's own "The scale goes
+    // up to 50 kph. ... typical winds sit mid-graph." no longer holds. Each line's start of the
     // sentence, for when the drawn wind and gust lines top out at different values, and
     // its name in "your gust danger level".
     var WIND_LINE_TOPS = {
-        wind: { lead: 'Wind tops out at ', tail: 'wind at ', danger: 'wind' },
-        gust: { lead: 'Gusts top out at ', tail: 'gusts at ', danger: 'gust' }
+        wind: { lead: 'The wind line goes up to ', tail: 'the wind line to ', danger: 'wind' },
+        gust: { lead: 'The gust line goes up to ', tail: 'the gust line to ', danger: 'gust' }
     };
 
     /**
@@ -390,11 +394,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * each drawn wind and gust line tops out (an Alert line at its band's top, an All
      * line at the scale's value) and, where a danger level is that top, whose — without
      * the row's usual note on what the value emphasizes, which compares the scales of a
-     * 0-based line. Every drawn wind and gust line on Alert (one top, shared): "Tops out
-     * at 90 kph, your gust danger level, while Visible values is set to Alert." (without
-     * the danger clause while the scale's own value is the top). One on Alert beside one
-     * on All: "Tops out at 70 kph." for one top; "Wind tops out at 30 kph, gusts at 90
-     * kph, your gust danger level." for two. Reads the stored scale, like the bake.
+     * 0-based line. Every drawn wind and gust line on Alert (one top, shared): "The scale
+     * goes up to 90 kph, your gust danger level, while Visible values is set to Alert."
+     * (without the danger clause while the scale's own value is the top). One on Alert
+     * beside one on All: "The scale goes up to 70 kph." for one top; "The wind line goes up
+     * to 30 kph, the gust line to 90 kph, your gust danger level." for two. Reads the
+     * stored scale, like the bake.
      * @param {Object} S Live settings state.
      * @param {Object} [env] Platform env (see alertScaleLevels).
      * @returns {?string} The hint; null for "use the row's hintByValue" (no drawn wind
@@ -418,12 +423,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var danger = alert.band.topDanger
             ? ', your ' + WIND_LINE_TOPS[alert.band.topDanger].danger + ' danger level' : '';
         if (lines.length === 1 || (lines[0].band && lines[1].band)) {
-            return 'Tops out at ' + alert.top + (danger ? danger + ',' : '')
+            return 'The scale goes up to ' + alert.top + (danger ? danger + ',' : '')
                 + ' while Visible values is set to Alert.';
         }
         // One on Alert beside one on All.
         var plain = lines[0].band ? lines[1] : lines[0];
-        if (plain.top === alert.top) { return 'Tops out at ' + alert.top + '.'; }
+        if (plain.top === alert.top) { return 'The scale goes up to ' + alert.top + '.'; }
         return WIND_LINE_TOPS[plain.metric].lead + plain.top + ', '
             + WIND_LINE_TOPS[alert.metric].tail + alert.top + danger + '.';
     }
@@ -444,8 +449,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // The Draw from row's Top hint: one line, or the wind and the gust line together
     // (draw-from.js windLineFrom moves both). Bottom, the default, has none.
-    var LINE_FROM_TOP_HINT = 'The higher the value, the further down it reaches.';
-    var LINES_FROM_TOP_HINT = 'Both reach further down the stronger the wind.';
+    var LINE_FROM_TOP_HINT = 'The higher the value, the further down the line reaches.';
+    var LINES_FROM_TOP_HINT = 'Both lines reach further down the stronger the wind.';
 
     /**
      * The Draw from row's hint, for the selected value only: none for Bottom; for Top
@@ -463,9 +468,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     PConf.hintResolvers.register('lineFromHint', lineFromHint);
 
-    // The two picker vocabularies, for the Graphs tab's line summaries (blocks.js
-    // lineSummary, resetAllGraphColors), which load after this file.
-    PConf.forecastLineOptions = {metrics: FORECAST_METRICS, styles: LINE_STYLE_OPTIONS};
+    // The line styles' picker vocabulary, for the Graphs tab's line summaries (blocks.js
+    // lineSummary), which load after this file; the metrics' is forecast-metrics.js.
+    PConf.forecastLineOptions = {styles: LINE_STYLE_OPTIONS};
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {

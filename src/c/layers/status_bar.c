@@ -26,7 +26,20 @@ static StatusBar s_bars[STATUS_BAR_COUNT] = {
 #if defined(PBL_HEALTH)
     [STATUS_BAR_HEALTH]   = { .tier = LAYOUT_TIER_COMPACT },
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+    [STATUS_BAR_4]        = { .tier = LAYOUT_TIER_COMPACT },   // emery: bars 4 to 6
+    [STATUS_BAR_5]        = { .tier = LAYOUT_TIER_COMPACT },
+    [STATUS_BAR_6]        = { .tier = LAYOUT_TIER_COMPACT },
+#endif
 };
+
+#if defined(WW_VIEW_CYCLE)
+// The bars the configured views show (status_bar_set_in_use), as a mask of
+// (1 << StatusSource): the only bars ever read. Every bar until the first call, and again
+// after status_bar_destroy_all.
+#define STATUS_BAR_ALL_IN_USE 0xFFu
+static uint8_t s_in_use = STATUS_BAR_ALL_IN_USE;
+#endif
 
 // ── Per-bar identity ─────────────────────────────────────────────────────────
 // Each of these is a switch on evolving platforms and a single constant on
@@ -42,6 +55,11 @@ static inline uint8_t bar_line(StatusBarId id) {
 #endif
 #if defined(PBL_HEALTH)
         case STATUS_BAR_HEALTH: return STATUS_LINE_HEALTH;
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+        case STATUS_BAR_4:      return STATUS_LINE_BAR4;   // emery: bars 4 to 6
+        case STATUS_BAR_5:      return STATUS_LINE_BAR5;
+        case STATUS_BAR_6:      return STATUS_LINE_BAR6;
 #endif
         default: return STATUS_LINE_FORECAST;
     }
@@ -59,6 +77,11 @@ static inline uint8_t bar_source(StatusBarId id) {
 #endif
 #if defined(PBL_HEALTH)
         case STATUS_BAR_HEALTH: return STATUS_SRC_HEALTH;
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+        case STATUS_BAR_4:      return STATUS_SRC_BAR4;   // emery: bars 4 to 6
+        case STATUS_BAR_5:      return STATUS_SRC_BAR5;
+        case STATUS_BAR_6:      return STATUS_SRC_BAR6;
 #endif
         default: return STATUS_SRC_FORECAST;
     }
@@ -89,6 +112,21 @@ static void bar_draw_health(Layer *layer, GContext *ctx) {
     status_row_draw(s_bars[STATUS_BAR_HEALTH].row, ctx);
 }
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+// emery: bars 4 to 6.
+static void bar_draw_4(Layer *layer, GContext *ctx) {
+    (void) layer;
+    status_row_draw(s_bars[STATUS_BAR_4].row, ctx);
+}
+static void bar_draw_5(Layer *layer, GContext *ctx) {
+    (void) layer;
+    status_row_draw(s_bars[STATUS_BAR_5].row, ctx);
+}
+static void bar_draw_6(Layer *layer, GContext *ctx) {
+    (void) layer;
+    status_row_draw(s_bars[STATUS_BAR_6].row, ctx);
+}
+#endif
 
 static inline LayerUpdateProc bar_proc(StatusBarId id) {
 #if defined(WW_RAIN_RADAR) || defined(PBL_HEALTH)
@@ -98,6 +136,11 @@ static inline LayerUpdateProc bar_proc(StatusBarId id) {
 #endif
 #if defined(PBL_HEALTH)
         case STATUS_BAR_HEALTH: return bar_draw_health;
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+        case STATUS_BAR_4:      return bar_draw_4;   // emery: bars 4 to 6
+        case STATUS_BAR_5:      return bar_draw_5;
+        case STATUS_BAR_6:      return bar_draw_6;
 #endif
         default: return bar_draw_forecast;
     }
@@ -110,9 +153,9 @@ static inline LayerUpdateProc bar_proc(StatusBarId id) {
 // ── Seating ──────────────────────────────────────────────────────────────────
 
 // Push this bar's bounds/tier/line into its row. Every bar's derived bounds ARE
-// layer_get_bounds() — the health bar's dual-row nudge is folded into the band
-// frame by layout_status_band() — so any geometric change arrives through
-// layer_set_frame(), which the SDK already marks dirty on a real move.
+// layer_get_bounds(), the band frame layout_status_band() picks, so any geometric
+// change arrives through layer_set_frame(), which the SDK already marks dirty on a
+// real move.
 static void apply_row(StatusBarId id) {
     StatusBar *b = &s_bars[id];
     if (!b->row || !b->layer) { return; }
@@ -122,6 +165,11 @@ static void apply_row(StatusBarId id) {
 static void refresh_row(StatusBarId id) {
     StatusBar *b = &s_bars[id];
     if (!b->row) { return; }
+#if defined(WW_VIEW_CYCLE)
+    // A bar no configured view shows is never read (status_bar.h): every refresh path
+    // comes through here, so its row stays empty, with no persist read, glyph or layout.
+    if (!((s_in_use >> bar_source(id)) & 1u)) { return; }
+#endif
     apply_row(id);
     if (status_row_refresh(b->row)) {
         layer_mark_dirty(b->layer);
@@ -153,6 +201,18 @@ void status_bar_create_all(Layer *parent, const ViewSpec *spec, const MainLayout
     }
 }
 
+#if defined(WW_VIEW_CYCLE)
+void status_bar_set_in_use(uint8_t sources) {
+    const uint8_t joined = (uint8_t) (sources & ~s_in_use);
+    s_in_use = sources;
+    // A bar that joins is read at once, so a live-health check for the incoming view
+    // (main_window's health_warm_for_incoming_view) sees what its slots hold.
+    for (int i = 0; i < STATUS_BAR_COUNT; i++) {
+        if ((joined >> bar_source((StatusBarId) i)) & 1u) { refresh_row((StatusBarId) i); }
+    }
+}
+#endif
+
 void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L) {
     const uint8_t tier = spec->status_tier;
     const bool full_date = layout_full_date(spec);
@@ -176,9 +236,8 @@ void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L) {
         layer_set_hidden(b->layer, !layout_status_visible(spec, src));
 
         // Change-gated: an unchanged view must not re-resolve a row, or a settings
-        // save would re-read persist for rows whose content never moved. A
-        // full-mode flip needs no arm of its own: when it matters (the health
-        // nudge) it moves the band frame, which `moved` already catches.
+        // save would re-read persist for rows whose content never moved. A band
+        // that moves needs no arm of its own: `moved` already catches it.
         bool changed = moved;
         if (b->tier != tier) { b->tier = tier; changed = true; }
         if (b->full_date != full_date) {
@@ -244,4 +303,7 @@ void status_bar_destroy_all(void) {
         layer_destroy(b->layer);
         b->layer = NULL;
     }
+#if defined(WW_VIEW_CYCLE)
+    s_in_use = STATUS_BAR_ALL_IN_USE;
+#endif
 }

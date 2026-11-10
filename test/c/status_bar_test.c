@@ -112,9 +112,8 @@ void layer_destroy(Layer *layer) {
 }
 
 void layer_set_frame(Layer *layer, GRect frame) {
-    // The real SDK marks a layer dirty when its frame actually changes; the health
-    // nudge (folded into layout_status_band) relies on exactly that for its
-    // repaint, so the stub reproduces it.
+    // The real SDK marks a layer dirty when its frame actually changes; a bar whose
+    // band moves relies on exactly that for its repaint, so the stub reproduces it.
     if (frame.origin.x != layer->frame.origin.x || frame.origin.y != layer->frame.origin.y
             || frame.size.w != layer->frame.size.w || frame.size.h != layer->frame.size.h) {
         int id = line_of_layer(layer);
@@ -464,59 +463,56 @@ static void radar_bar_is_a_first_class_bar(void) {
 #endif
 
 #if defined(PBL_HEALTH)
-// The health bar's dual-row nudge lives in layout_status_band() now, so the band
-// FRAME itself drops — the SDK's own frame-change dirty (emulated by the stub's
-// layer_set_frame) is what repaints a nudge-only change, and the derived row
-// bounds are exactly layer_get_bounds() again.
-static void health_nudge_moves_the_band_frame(void) {
+// The Health bar sits in its band like every other bar: 3.0.0 dropped the 2 px it used to
+// give up in the dual-row compact view. A band that moves still repaints through the SDK's
+// own frame-change dirty (emulated by the stub's layer_set_frame), and the row's bounds are
+// exactly layer_get_bounds().
+static void health_bar_sits_in_its_band(void) {
     Layer parent = {0};
     s_refresh_changed = true;
 
-    // calendar_rows 3 => full mode => NO nudge, even at FULL tier on a tall band.
     ViewSpec full = spec_of(3, STATUS_SRC_HEALTH, STATUS_SRC_NONE, LAYOUT_TIER_FULL);
     MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
     status_bar_create_all(&parent, &full, &L);
 
     const int hl = STATUS_LINE_HEALTH;
-    expect_int("health.fullmode.no_nudge.y", s_layer_of[hl]->frame.origin.y, 4);
-    expect_int("health.fullmode.no_nudge.h", s_last_bounds[hl].size.h, 20);
+    expect_int("health.fullmode.y", s_layer_of[hl]->frame.origin.y, 4);
+    expect_int("health.fullmode.h", s_last_bounds[hl].size.h, 20);
 
-    // Dual-row compact: calendar_rows 2 but status_tier FULL => the frame nudges,
-    // and that frame move is what dirties the layer (content unchanged).
+    // Dual-row compact at the full tier, where the old drop applied: the Health bar keeps
+    // its band, so the switch neither moves nor repaints it.
     s_refresh_changed = false;
     reset_records();
     ViewSpec dense = spec_of(2, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST, LAYOUT_TIER_FULL);
     status_bar_apply_view(&dense, &L);
-    expect_int("health.nudge.frame_y", s_layer_of[hl]->frame.origin.y, 6);
-    expect_int("health.nudge.bounds_h", s_last_bounds[hl].size.h, 18);
-    expect_int("health.nudge.dirties", s_dirty_count[hl] >= 1, 1);
+    expect_int("health.dense.frame_y", s_layer_of[hl]->frame.origin.y, 4);
+    expect_int("health.dense.frame_h", s_layer_of[hl]->frame.size.h, 20);
+    expect_int("health.dense.bounds_h", s_last_bounds[hl].size.h, 20);
+    expect_int("health.dense.no_dirty", s_dirty_count[hl], 0);
+    expect_int("health.dense.no_apply", s_apply_count[hl], 0);
 
-    // Re-applying the same view must not repaint — or even re-seat — again.
-    reset_records();
+    // Swapped into the lower band, it takes the frame the Forecast bar had there.
+    const GRect forecast_lower = s_layer_of[STATUS_LINE_FORECAST]->frame;
+    ViewSpec lower = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_HEALTH, LAYOUT_TIER_FULL);
+    status_bar_apply_view(&lower, &L);
+    expect_int("health.lower.frame_y", s_layer_of[hl]->frame.origin.y, forecast_lower.origin.y);
+    expect_int("health.lower.frame_h", s_layer_of[hl]->frame.size.h, forecast_lower.size.h);
+    expect_int("health.lower.band_y", forecast_lower.origin.y, 90);
+
+    // A band that really moves re-seats the row and repaints it through the frame change.
     status_bar_apply_view(&dense, &L);
+    reset_records();
+    MainLayout moved = layout_of(GRect(0, 6, 144, 18), GRect(0, 90, 144, 16));
+    status_bar_apply_view(&dense, &moved);
+    expect_int("health.moved.frame_y", s_layer_of[hl]->frame.origin.y, 6);
+    expect_int("health.moved.bounds_h", s_last_bounds[hl].size.h, 18);
+    expect_int("health.moved.dirties", s_dirty_count[hl] >= 1, 1);
+
+    // Re-applying the same view must not repaint, or even re-seat, again.
+    reset_records();
+    status_bar_apply_view(&dense, &moved);
     expect_int("health.same_view.no_dirty", s_dirty_count[hl], 0);
     expect_int("health.same_view.no_apply", s_apply_count[hl], 0);
-
-    // A band at exactly HEALTH_TALL_BAND_MIN (16) is too short to nudge.
-    MainLayout shortL = layout_of(GRect(0, 4, 144, 16), GRect(0, 90, 144, 16));
-    status_bar_apply_view(&dense, &shortL);
-    expect_int("health.short_band.no_nudge.y", s_layer_of[hl]->frame.origin.y, 4);
-    expect_int("health.short_band.no_nudge.h", s_last_bounds[hl].size.h, 16);
-
-    // One px taller and the nudge is back.
-    MainLayout tallL = layout_of(GRect(0, 4, 144, 17), GRect(0, 90, 144, 16));
-    status_bar_apply_view(&dense, &tallL);
-    expect_int("health.17px.nudge.y", s_layer_of[hl]->frame.origin.y, 6);
-    expect_int("health.17px.nudge.h", s_last_bounds[hl].size.h, 15);
-
-    // At COMPACT tier the nudge never applies, so a full-mode flip cannot move
-    // the band and must not force a repaint on its own.
-    ViewSpec compact = spec_of(2, STATUS_SRC_HEALTH, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
-    status_bar_apply_view(&compact, &L);
-    reset_records();
-    ViewSpec compact_full = spec_of(3, STATUS_SRC_HEALTH, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
-    status_bar_apply_view(&compact_full, &L);
-    expect_int("health.compact_fullmode.no_dirty", s_dirty_count[hl], 0);
 
     status_bar_destroy_all();
 }
@@ -547,10 +543,144 @@ static void health_bar_refreshes_on_visibility(void) {
 }
 #endif
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: bars 4 to 6 are bars like the three: each its own layer and line, framed to the
+// band its source takes, hidden on a view that names none of it, drawn through its own
+// trampoline, in the live-health and On demand sets by the same rules.
+static void extra_bars_are_bars_too(void) {
+    Layer parent = {0};
+    GContext ctx = {0};
+    s_refresh_changed = true;
+    memset(s_live_health, 0, sizeof(s_live_health));
+    memset(s_draw_count, 0, sizeof(s_draw_count));
+
+    // Bar 4 above, bar 6 below, a dual at the full tier.
+    ViewSpec spec = spec_of(2, STATUS_SRC_BAR4, STATUS_SRC_BAR6, LAYOUT_TIER_FULL);
+    MainLayout L = layout_of(GRect(0, 4, 200, 24), GRect(0, 120, 200, 24));
+    status_bar_create_all(&parent, &spec, &L);
+    const int b4 = STATUS_LINE_BAR4, b5 = STATUS_LINE_BAR5, b6 = STATUS_LINE_BAR6;
+    expect_int("extra.created", s_layer_of[b4] && s_layer_of[b5] && s_layer_of[b6], 1);
+    status_bar_apply_view(&spec, &L);
+    expect_int("extra.bar4_upper", s_layer_of[b4]->frame.origin.y, 4);
+    expect_int("extra.bar6_lower", s_layer_of[b6]->frame.origin.y, 120);
+    expect_int("extra.bar6_height", s_layer_of[b6]->frame.size.h, 24);
+    expect_int("extra.bar4_bar6_visible", !s_layer_of[b4]->hidden && !s_layer_of[b6]->hidden, 1);
+    expect_int("extra.bar5_hidden", s_layer_of[b5]->hidden, 1);
+    expect_int("extra.first_three_hidden", s_layer_of[STATUS_LINE_FORECAST]->hidden
+               && s_layer_of[STATUS_LINE_RADAR]->hidden && s_layer_of[STATUS_LINE_HEALTH]->hidden, 1);
+    // Each draws its own row.
+    s_layer_of[b5]->update_proc(s_layer_of[b5], &ctx);
+    expect_int("extra.bar5_draws_its_row", s_draw_count[b5] == 1 && s_draw_count[b4] == 0
+               && s_draw_count[b6] == 0, 1);
+    // Live health on bar 6: seen while shown, refreshed; on bar 5 (hidden) not seen.
+    s_live_health[b5] = true;
+    expect_int("extra.hidden_live_health_unseen", status_bar_any_visible_uses_live_health(&spec), 0);
+    s_live_health[b6] = true;
+    expect_int("extra.live_health_seen", status_bar_any_visible_uses_live_health(&spec), 1);
+    reset_records();
+    status_bar_refresh_live_health(&spec);
+    expect_int("extra.live_health_refreshed", s_refresh_count[b6] >= 1 && s_refresh_count[b5] == 0, 1);
+    // On demand: a shown bar with items refreshes on the tick, a hidden one does not.
+    s_uses_on_demand[b4] = true;
+    s_uses_on_demand[b5] = true;
+    reset_records();
+    status_bar_tick_on_demand();
+    expect_int("extra.on_demand_tick", s_refresh_count[b4] == 1 && s_refresh_count[b5] == 0, 1);
+    memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
+    // Bar 5 takes the lower band when a view puts it there.
+    ViewSpec five = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_BAR5, LAYOUT_TIER_FULL);
+    status_bar_apply_view(&five, &L);
+    expect_int("extra.bar5_lower", s_layer_of[b5]->frame.origin.y == 120 && !s_layer_of[b5]->hidden, 1);
+    expect_int("extra.bar4_hidden_again", s_layer_of[b4]->hidden && s_layer_of[b6]->hidden, 1);
+
+    status_bar_destroy_all();
+    memset(s_live_health, 0, sizeof(s_live_health));
+}
+#endif
+
+#if defined(WW_VIEW_CYCLE)
+// A bar no configured view shows is never read (status_bar_set_in_use): create_all, the
+// reframe and every refresh pass it by, so its row stays empty; it is read again the moment
+// a view shows it, with the facts its band got meanwhile.
+static void unused_bars_are_never_read(void) {
+    Layer parent = {0};
+    s_refresh_changed = true;
+    memset(s_live_health, 0, sizeof(s_live_health));
+    reset_records();
+
+    const int fc = STATUS_LINE_FORECAST;
+    status_bar_set_in_use((uint8_t) (1u << STATUS_SRC_FORECAST));
+    ViewSpec spec = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
+    status_bar_create_all(&parent, &spec, &L);
+    expect_int("unused.forecast_read", s_refresh_count[fc], 1);
+#if defined(WW_RAIN_RADAR)
+    const int rd = STATUS_LINE_RADAR;
+    expect_int("unused.radar_not_seated", s_apply_count[rd], 0);
+    expect_int("unused.radar_not_read", s_refresh_count[rd], 0);
+#endif
+#if defined(PBL_HEALTH)
+    const int hl = STATUS_LINE_HEALTH;
+    expect_int("unused.health_not_read", s_apply_count[hl] + s_refresh_count[hl], 0);
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+    expect_int("unused.extra_not_read", s_refresh_count[STATUS_LINE_BAR4] + s_refresh_count[STATUS_LINE_BAR5]
+               + s_refresh_count[STATUS_LINE_BAR6], 0);
+#endif
+
+    // The weather / settings checkpoint reads the bar in use alone.
+    reset_records();
+    status_bar_refresh_all();
+    expect_int("unused.refresh_all_forecast", s_refresh_count[fc], 1);
+#if defined(PBL_HEALTH)
+    expect_int("unused.refresh_all_skips_health", s_refresh_count[hl], 0);
+
+    // A full-tier view: the reframe reads the bar in use and passes the Health bar by.
+    reset_records();
+    ViewSpec full = spec_of(3, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_FULL);
+    status_bar_apply_view(&full, &L);
+    expect_int("unused.reframe_reads_forecast", s_refresh_count[fc], 1);
+    expect_int("unused.reframe_skips_health", s_refresh_count[hl], 0);
+
+    // A view now shows the Health bar: it is seated and read at once (the window's
+    // live-health check for the incoming view reads its slots next), at the tier its band
+    // got while it was out of use; the bar already in use is not read again.
+    reset_records();
+    status_bar_set_in_use((uint8_t) ((1u << STATUS_SRC_FORECAST) | (1u << STATUS_SRC_HEALTH)));
+    expect_int("joined.health_seated", s_apply_count[hl], 1);
+    expect_int("joined.health_read", s_refresh_count[hl], 1);
+    expect_int("joined.health_tier", s_last_tier[hl], LAYOUT_TIER_FULL);
+    expect_int("joined.forecast_not_reread", s_refresh_count[fc], 0);
+    reset_records();
+    status_bar_refresh_all();
+    expect_int("joined.health_in_refresh_all", s_refresh_count[hl], 1);
+
+    // No view shows the Forecast bar any more: nothing reads it.
+    status_bar_set_in_use((uint8_t) (1u << STATUS_SRC_HEALTH));
+    reset_records();
+    status_bar_refresh_all();
+    expect_int("left.forecast_not_read", s_refresh_count[fc], 0);
+    expect_int("left.health_read", s_refresh_count[hl], 1);
+#endif
+
+    // destroy_all puts every bar back in use for the next window.
+    status_bar_destroy_all();
+    reset_records();
+    status_bar_create_all(&parent, &spec, &L);
+    expect_int("destroy.forecast_in_use_again", s_refresh_count[fc], 1);
+#if defined(PBL_HEALTH)
+    expect_int("destroy.health_in_use_again", s_refresh_count[hl], 1);
+#endif
+    status_bar_destroy_all();
+}
+#endif
+
 // The compact enum is the whole aplite story: without radar and health there is
 // exactly ONE bar, and every loop in status_bar.c folds to today's single-row code.
 static void bar_count_matches_platform(void) {
-#if defined(WW_RAIN_RADAR) && defined(PBL_HEALTH)
+#if defined(PBL_PLATFORM_EMERY)
+    expect_int("bar_count.emery", STATUS_BAR_COUNT, 6);
+#elif defined(WW_RAIN_RADAR) && defined(PBL_HEALTH)
     expect_int("bar_count.evolving", STATUS_BAR_COUNT, 3);
 #elif !defined(WW_RAIN_RADAR) && !defined(PBL_HEALTH)
     expect_int("bar_count.aplite", STATUS_BAR_COUNT, 1);
@@ -570,8 +700,14 @@ int main(void) {
     radar_bar_is_a_first_class_bar();
 #endif
 #if defined(PBL_HEALTH)
-    health_nudge_moves_the_band_frame();
+    health_bar_sits_in_its_band();
     health_bar_refreshes_on_visibility();
+#endif
+#if defined(PBL_PLATFORM_EMERY)
+    extra_bars_are_bars_too();
+#endif
+#if defined(WW_VIEW_CYCLE)
+    unused_bars_are_never_read();
 #endif
     if (s_failures) {
         printf("%d status_bar failure(s)\n", s_failures);

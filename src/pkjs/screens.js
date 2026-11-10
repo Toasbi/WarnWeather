@@ -3,9 +3,11 @@
 // edits, and the modes the phone works out from them.
 //
 // THE LIST. A screen is an array of blocks { k: kind } in drawn order: the Watch bar
-// ('strip'), the Calendar ('cal', rows '2' | '3'), the Clock ('clock'), the three status bars
-// ('fcbar', 'radarbar', 'healthbar') and the three graphs ('fc', 'radar', 'health', size
-// '2' | '3' | '4' | 'fill'). Its rules:
+// ('strip'), the Calendar ('cal', rows '2' | '3'), the Clock ('clock'), the status bars
+// ('fcbar', 'radarbar', 'healthbar', and on a Pebble Time 2 the bars New status bar makes, 'bar4',
+// 'bar5', 'bar6': view-cycle.js EXTRA_BARS) and the three graphs ('fc', 'radar', 'health', size
+// '2' | '3' | '4' | 'fill'; the forecast graph also names its graph style, style '2' | '3',
+// absent for the first: Pebble Time 2, graph-styles.js). Its rules:
 //   - The Watch bar is always first. The Default screen keeps its Clock (the page offers no ✕
 //     there; the compiler and the watch keep it whatever the keys say).
 //   - At most two status bars, each kind once. Each graph kind once, at most two graphs.
@@ -20,6 +22,13 @@
 // compileKeys turns a list into them, listFromSpec reads a compiled view back into a list
 // (the bands in the order the watch draws them, the Watch bar first, the body last), and
 // screensOf reads every screen of a settings blob, a preset's too.
+//
+// THE NAMES. A screen's name is the page's own (viewName{i}, never compiled or sent): what the
+// user called it, else its place's (NAMES: Default, Flick 1, Flick 2), so a screen moved to
+// the top reads as the Default until it is named. nameOf is THE reading, for every label. A
+// status bar's name is the page's own too (<prefix>Name, on-demand.js BARS' prefix): what the
+// user called it, else its kind's (Forecast bar, Radar bar, Health bar, Status bar 4 ...); barName reads
+// it, and blockName names any row by it. The Watch bar is one for every screen and keeps its name.
 //
 // THE MODES. radarMode and healthMode are no longer picked: deriveModes works them out from
 // the screens (on Save, and in the 2.6 migration, migrations/screens.js), so every reader of
@@ -36,21 +45,31 @@
   var onDemand = (typeof require !== 'undefined') ? require('./on-demand.js') : window.OnDemand;
 
   // The blocks. `bar` names the status source a bar shows (its viewUpper / viewLower value),
-  // `graph` the graph a graph shows (its viewTop / viewBody value).
+  // `graph` the graph a graph shows (its viewTop / viewBody value). A status bar's name until
+  // it is named is its on-demand.js BARS name (set below, with BAR_OF_KIND).
   var KINDS = {
     strip: { name: 'Watch bar' },
     cal: { name: 'Calendar' },
     clock: { name: 'Clock' },
-    fcbar: { name: 'Forecast bar', bar: 'weather' },
-    radarbar: { name: 'Radar bar', bar: 'radar' },
-    healthbar: { name: 'Health bar', bar: 'health' },
+    fcbar: { bar: 'weather' },
+    radarbar: { bar: 'radar' },
+    healthbar: { bar: 'health' },
     fc: { name: 'Forecast graph', graph: 'forecast' },
     radar: { name: 'Rain radar', graph: 'radar' },
     health: { name: 'Health graph', graph: 'health' }
   };
+  // Bars 4 to 6: the kind is the bar's id and its row value (view-cycle.js EXTRA_BARS).
+  VC.EXTRA_BARS.forEach(function (b) { KINDS[b.bar] = { bar: b.bar }; });
   // The order "+ Add" offers them in.
-  var ADD_ORDER = ['strip', 'cal', 'clock', 'fcbar', 'radarbar', 'healthbar', 'fc', 'radar', 'health'];
+  var ADD_ORDER = ['strip', 'cal', 'clock', 'fcbar', 'radarbar', 'healthbar']
+    .concat(VC.EXTRA_BARS.map(function (b) { return b.bar; }), ['fc', 'radar', 'health']);
   var MAX_SCREENS = 3;
+  // The most status bars one screen shows (the Watch bar aside).
+  var SCREEN_BARS = 2;
+  // The places' names, the Default first: a screen's name until it is given one (nameOf).
+  var NAMES = ['Default', 'Flick 1', 'Flick 2'];
+  // The longest name a screen, a bar or a graph keeps (cleanName).
+  var NAME_MAX = 24;
   var CAL_ROWS = ['2', '3'];
   var GRAPH_SIZES = ['2', '3', '4', 'fill'];
 
@@ -64,10 +83,75 @@
   ROW_KIND[VC.STATUS_SRC_FORECAST] = 'fcbar';
   ROW_KIND[VC.STATUS_SRC_RADAR] = 'radarbar';
   ROW_KIND[VC.STATUS_SRC_HEALTH] = 'healthbar';
+  VC.EXTRA_BARS.forEach(function (b) { ROW_KIND[b.src] = b.bar; });
   var BODY_KIND = {};
   BODY_KIND[VC.BODY_FC] = 'fc';
   BODY_KIND[VC.BODY_GRAPH] = 'health';
   BODY_KIND[VC.BODY_RADAR] = 'radar';
+
+  /**
+   * A name as a screen keeps it: trimmed, at most NAME_MAX characters ('' for none).
+   * @param {*} text The name typed.
+   * @returns {string}
+   */
+  function cleanName(text) {
+    return String(text === undefined || text === null ? '' : text).replace(/^\s+|\s+$/g, '').slice(0, NAME_MAX);
+  }
+
+  /**
+   * A screen's name (THE NAMES above): its own, else its place's.
+   * @param {?Object} S Settings.
+   * @param {number} i View slot.
+   * @returns {string}
+   */
+  function nameOf(S, i) {
+    return cleanName(S && S['viewName' + i]) || NAMES[i] || '';
+  }
+
+  // Each status bar row's bar (on-demand.js BARS: its key prefix, so its slots and its name),
+  // and back, read off the rows' sources (ROW_KIND, view-cycle.js barOfSource).
+  var BAR_OF_KIND = {};
+  var KIND_OF_BAR = {};
+  Object.keys(ROW_KIND).forEach(function (src) {
+    var bar = VC.barOfSource(Number(src));
+    BAR_OF_KIND[ROW_KIND[src]] = bar;
+    KIND_OF_BAR[bar] = ROW_KIND[src];
+  });
+  onDemand.BARS.forEach(function (b) {
+    if (KIND_OF_BAR[b.bar]) { KINDS[KIND_OF_BAR[b.bar]].name = b.name; }
+  });
+
+  /**
+   * The key a status bar's name is stored under (THE NAMES above): '<prefix>Name'.
+   * @param {string} bar An on-demand.js BARS bar.
+   * @returns {?string} null for the Watch bar (it keeps its name) and an unknown bar
+   */
+  function barNameKey(bar) {
+    var prefix = bar === 'top' ? null : onDemand.prefixOf(bar);
+    return prefix ? prefix + 'Name' : null;
+  }
+
+  /**
+   * A status bar's name (THE NAMES above): its own, else its kind's.
+   * @param {?Object} S Settings.
+   * @param {string} bar An on-demand.js BARS bar ('top' is the Watch bar).
+   * @returns {string}
+   */
+  function barName(S, bar) {
+    if (bar === 'top') { return KINDS.strip.name; }
+    var key = barNameKey(bar), kind = KINDS[KIND_OF_BAR[bar]];
+    return cleanName(S && key && S[key]) || (kind ? kind.name : '');
+  }
+
+  /**
+   * A row's name as the page shows it: a status bar's its bar's (barName), any other its kind's.
+   * @param {Object} b A block.
+   * @param {?Object} S Settings.
+   * @returns {string}
+   */
+  function blockName(b, S) {
+    return BAR_OF_KIND[b.k] ? barName(S, BAR_OF_KIND[b.k]) : KINDS[b.k].name;
+  }
 
   /**
    * @param {?Object} b A block.
@@ -77,9 +161,19 @@
 
   /**
    * @param {?Object} b A block.
-   * @returns {boolean} whether it is one of the three status bars
+   * @returns {boolean} whether it is a status bar (not the Watch bar)
    */
   function isBar(b) { return Boolean(b && KINDS[b.k] && KINDS[b.k].bar); }
+
+  /**
+   * The bar a row shows: a status bar's (BAR_OF_KIND), the Watch bar's 'top'.
+   * @param {?Object} b A block.
+   * @returns {?string} an on-demand.js BARS bar, null for a row that shows none
+   */
+  function barOfBlock(b) {
+    if (!b) { return null; }
+    return b.k === 'strip' ? 'top' : BAR_OF_KIND[b.k] || null;
+  }
 
   /**
    * @param {Array<Object>} list A screen.
@@ -149,7 +243,8 @@
 
   /**
    * Whether this watch draws a kind at all: the radar and health blocks need the watch's
-   * radar and health (aplite has neither). An unknown platform is capable.
+   * radar and health (aplite has neither), bars 4 to 6 a watch that has them (env.extraBars,
+   * the Pebble Time 2). An unknown platform is capable of the rest.
    * @param {string} k A kind.
    * @param {?Object} env config-ui/lib/platform.js computeEnv() result.
    * @returns {boolean}
@@ -158,25 +253,40 @@
     var e = env || {};
     if (k === 'radar' || k === 'radarbar') { return e.radar !== false; }
     if (k === 'health' || k === 'healthbar') { return e.health !== false; }
+    if (VC.extraBar(k)) { return e.extraBars === true; }
     return true;
   }
 
   /**
-   * What "+ Add" offers: the kinds the screen lacks that still have a place, in ADD_ORDER.
-   * Whether the result fits the watch is fits()'s question.
+   * Whether a kind can go onto a screen: the watch draws it (capable), and a bar 4 to 6 is
+   * made (view-cycle.js barMade: New status bar makes one).
+   * @param {string} k A kind.
+   * @param {?Object} S Settings.
+   * @param {?Object} env Platform env.
+   * @returns {boolean}
+   */
+  function offered(k, S, env) {
+    return capable(k, env) && (!VC.extraBar(k) || VC.barMade(S, k));
+  }
+
+  /**
+   * What "+ Add" offers: the kinds the screen lacks that still have a place, in ADD_ORDER,
+   * your bars 4 to 6 among them once made (offered). Whether the result fits the watch is
+   * fits()'s question.
    * @param {Array<Object>} list A screen.
    * @param {?Object} [env] Platform env (omitted = capable).
+   * @param {?Object} [S] Settings (which bars 4 to 6 are made; omitted = none).
    * @returns {Array<string>} kinds
    */
-  function addable(list, env) {
+  function addable(list, env, S) {
     var bars = count(list, isBar);
     var graphs = count(list, isGraph);
     var topTaken = topRows(list).length > 0;
     var bot = bottom(list);
     return ADD_ORDER.filter(function (k) {
-      if (idxOf(list, k) >= 0 || !capable(k, env)) { return false; }
+      if (idxOf(list, k) >= 0 || !offered(k, S, env)) { return false; }
       if (k === 'cal') { return !topTaken; }
-      if (KINDS[k].bar) { return bars < 2; }
+      if (KINDS[k].bar) { return bars < SCREEN_BARS; }
       if (KINDS[k].graph) { return graphs < 2 && (!bot || !topTaken); }
       return true;
     });
@@ -298,8 +408,9 @@
    * One screen's per-view keys (settings/custom-layout-schema.js) for view slot i: no Watch
    * bar is viewStripOff, no Clock viewClockOff (a flick only: the Default keeps its clock);
    * the last row, if a graph, the body; the calendar (its rows) or the upper graph the top;
-   * the bars in list order the upper then the lower row; the order orderFor's. viewAlign is
-   * left as stored: the list has no Position.
+   * the bars in list order the upper then the lower row; the order orderFor's; the forecast
+   * graph's style viewStyle ('1' without one). viewAlign is left as stored: the list has no
+   * Position.
    * @param {Array<Object>} list A screen.
    * @param {number} i View slot (0 = Default, 1-2 = flicks).
    * @returns {Object} key -> value
@@ -309,6 +420,8 @@
     var seq = '';
     var bars = 0;
     var keys = {};
+    var fc = list[idxOf(list, 'fc')];
+    keys['viewStyle' + i] = (fc && fc.style) || '1';
     keys['viewTop' + i] = 'none';
     keys['viewTopSize' + i] = '3';
     keys['viewBody' + i] = bot ? KINDS[bot.k].graph : 'none';
@@ -344,7 +457,9 @@
    * A compiled view read back as a screen: its bands in the order the watch draws them
    * (STACK_ORDERS[order] when it is stacked, else its tier's legacy order: a compact
    * calendar's T A C B, every other T C A B), the Watch bar first and the body last. A size
-   * code reads as its seat's size name (view-cycle.js TOP_SIZE_NAME / BODY_SIZE_NAME).
+   * code reads as its seat's size name (view-cycle.js TOP_SIZE_NAME / BODY_SIZE_NAME), the
+   * forecast graph's style as its viewStyle ('2' to '6', 't1' to 't3' for a template's graph:
+   * view-cycle.js styleCode; none for the first style).
    * @param {?Object} s A compiled view (null: a screen with nothing on it).
    * @param {boolean} stripOn Whether a null view's screen keeps its Watch bar.
    * @returns {Array<Object>} the screen
@@ -369,6 +484,22 @@
       if (bands[ch]) { out.push(bands[ch]); }
     });
     if (BODY_KIND[s.body]) { out.push({ k: BODY_KIND[s.body], size: VC.BODY_SIZE_NAME[s.bodySize || 0] }); }
+    var fc = out[idxOf(out, 'fc')];
+    if (fc && s.graphStyle) { fc.style = VC.styleCode(s.graphStyle); }
+    return out;
+  }
+
+  /**
+   * The slots of the screens that pass a test, the Default first.
+   * @param {Object} S Settings.
+   * @param {?Object} env Platform env.
+   * @param {function(Array<Object>): boolean} pred A screen's test, on its list.
+   * @param {Array<?Object>} [cycle] screensCycle(S, env), when the caller has it already.
+   * @returns {number[]}
+   */
+  function placesWhere(S, env, pred, cycle) {
+    var out = [];
+    screensOf(S, env, cycle).forEach(function (list, i) { if (pred(list)) { out.push(i); } });
     return out;
   }
 
@@ -399,23 +530,27 @@
    */
   function fits(list, i, family) {
     // This one view as slot i of a custom layout, as the screens show it (every seat kind on;
-    // the slots before it read defaults).
+    // the slots before it read defaults; a bar 4 to 6 the list holds as made).
     var S = compileKeys(list, i);
     S.viewCount = String(i + 1);
     S.layoutPreset = 'custom';
+    VC.EXTRA_BARS.forEach(function (b) { S[b.prefix + 'Made'] = true; });
     return VC.stackFits(VC.screensCycle(S)[i], family).fits;
   }
 
   /**
    * The modes the screens need, THE rule for Save and the 2.6 migration:
    *   radarMode — 'off' with the rain radar off (radarEnabled false) or on a watch without
-   *     it; 'graph' when a screen shows the rain radar; 'status' when one shows the Radar bar
-   *     (the mode whose readers ask for the bar: the Status bars tab and On demand); else
-   *     'countdown' when the rain alert is ticked on a bar a screen shows (the radar is
-   *     fetched for it alone); else 'off'.
-   *   healthMode — 'all' when a screen shows the health graph; 'status' when one shows the
-   *     Health bar; 'slot' when a status slot of a bar a screen shows holds a health item;
-   *     else 'off' (always on a watch without health).
+   *     it; 'graph' when a screen shows the rain radar; on a preset, 'status' when one shows
+   *     the Radar bar (a preset's cycle is built from the modes, view-cycle.js
+   *     buildViewCycle); else 'countdown' when the rain alert is ticked on a bar a screen
+   *     shows (the radar is fetched for it alone); else 'off'.
+   *   healthMode — 'all' when a screen shows the health graph; on a preset, 'status' when one
+   *     shows the Health bar; 'slot' when a status slot of a bar a screen shows holds a
+   *     health item; else 'off' (always on a watch without health).
+   * On a custom layout a bar is a status bar like the others (THE NAMES: a bar is what it
+   * holds, not its kind), so the Radar bar alone fetches no radar and the Health bar alone
+   * reads no health: what is on the shown bars decides.
    * @param {Object} S Settings.
    * @param {?Object} [env] Platform env (omitted = capable).
    * @returns {{radarMode: string, healthMode: string}}
@@ -426,7 +561,8 @@
     var cycle = VC.screensCycle(s, env);
     var bars = VC.barsIn(cycle);
     var graphs = VC.graphsIn(cycle);
-    var barNames = ['top', 'forecast', 'radar', 'health'];
+    var barNames = onDemand.BARS.map(function (b) { return b.bar; });
+    var preset = s.layoutPreset !== 'custom';
     /** @param {function(string): boolean} pred @returns {boolean} whether a shown bar passes */
     function anyShownBar(pred) {
       for (var b = 0; b < barNames.length; b++) {
@@ -438,7 +574,7 @@
     if (e.radar !== false && s.radarEnabled !== false) {
       if (graphs.radar) {
         radarMode = 'graph';
-      } else if (bars.radar) {
+      } else if (preset && bars.radar) {
         radarMode = 'status';
       } else if (anyShownBar(function (bar) { return onDemand.sideOf(s, bar, 'rain', env) !== null; })) {
         radarMode = 'countdown';
@@ -448,7 +584,7 @@
     if (e.health !== false) {
       if (graphs.health) {
         healthMode = 'all';
-      } else if (bars.health) {
+      } else if (preset && bars.health) {
         healthMode = 'status';
       } else if (anyShownBar(function (bar) { return catalog.healthSlots(s, bar, env).length > 0; })) {
         healthMode = 'slot';
@@ -457,23 +593,183 @@
     return { radarMode: radarMode, healthMode: healthMode };
   }
 
+  // ── YOUR STATUS BARS: New status bar and Delete status bar (Pebble Time 2) ────────────
+  // Your status bars are the bars a screen can show besides the Watch bar: the Forecast, Radar and
+  // Health bars, and on a Pebble Time 2 bars 4 to 6 once New status bar made them (view-cycle.js
+  // barMade), at most MAX_BARS. New status bar makes the first of bars 4 to 6 not made yet, empty and
+  // called "Bar <n>" (the owner's, 2026-11-09: a bar is too simple for templates); Delete status bar
+  // unmakes one, and every screen that showed it drops the row.
+  // Every bar but the Watch bar.
+  var MAX_BARS = onDemand.BARS.length - 1;
+  // The settings page opens each bar in a dialog of its own (schema.js barDialog): its sheet id
+  // is BAR_SHEET + the bar ('bar-forecast').
+  var BAR_SHEET = 'bar-';
+
+  /**
+   * The sheet id of a bar's dialog on the settings page.
+   * @param {string} bar An on-demand.js BARS bar.
+   * @returns {string}
+   */
+  function barSheet(bar) {
+    return BAR_SHEET + bar;
+  }
+
+  /**
+   * The bar a dialog's sheet id names (barSheet turned round).
+   * @param {?string} id A sheet id.
+   * @returns {?string} the bar, null when the id names no bar's dialog
+   */
+  function barOfSheet(id) {
+    var s = String(id || ''), bar = s.indexOf(BAR_SHEET) === 0 ? s.slice(BAR_SHEET.length) : '';
+    return onDemand.prefixOf(bar) !== null || bar === 'top' ? bar : null;
+  }
+
+  /**
+   * Your status bars on this watch (YOUR STATUS BARS above), in the Status bars tab's order (on-demand.js
+   * PAGE_BARS).
+   * @param {?Object} S Settings.
+   * @param {?Object} env Platform env.
+   * @returns {string[]} bars
+   */
+  function yourBars(S, env) {
+    return onDemand.PAGE_BARS.filter(function (b) {
+      return b.bar !== 'top' && offered(KIND_OF_BAR[b.bar], S, env);
+    }).map(function (b) { return b.bar; });
+  }
+
+  /**
+   * The bar New status bar makes next: the first of bars 4 to 6 not made yet.
+   * @param {?Object} S Settings.
+   * @param {?Object} env Platform env.
+   * @returns {?string} 'bar4' | 'bar5' | 'bar6', null when all three are made or the watch
+   *   has none (capable)
+   */
+  function freeBar(S, env) {
+    for (var i = 0; i < VC.EXTRA_BARS.length; i++) {
+      var bar = VC.EXTRA_BARS[i].bar;
+      if (capable(bar, env) && !VC.barMade(S, bar)) { return bar; }
+    }
+    return null;
+  }
+
+  /**
+   * The bar + New status bar puts on a screen: the one New status bar makes next (freeBar), while the screen
+   * has room for another bar (SCREEN_BARS, as addable offers bars).
+   * @param {Array<Object>} list A screen.
+   * @param {?Object} S Settings.
+   * @param {?Object} env Platform env.
+   * @returns {?string} 'bar4' | 'bar5' | 'bar6', null for none
+   */
+  function newBarFor(list, S, env) {
+    return count(list, isBar) < SCREEN_BARS ? freeBar(S, env) : null;
+  }
+
+  /**
+   * A name none of `taken` is, as a name is kept (cleanName): `base`, else "base 2",
+   * "base 3" (your bars' and your graphs' new names).
+   * @param {string[]} taken The names in use.
+   * @param {string} base The name wanted.
+   * @returns {string}
+   */
+  function freeName(taken, base) {
+    var name = cleanName(base), n = 2;
+    while (taken.indexOf(name) !== -1) { name = cleanName(base).slice(0, NAME_MAX - 3) + ' ' + n; n++; }
+    return name;
+  }
+
+  /**
+   * New status bar: make the next of bars 4 to 6 (freeBar), empty (its slots' defaults: Empty), with
+   * no countdown date and no alerts, and on no screen yet. It is called "Bar <n>" (its own name,
+   * so '' is stored), unless another bar was renamed to that: then a name none of your bars has
+   * (freeName). Mutates S.
+   * @param {Object} S Settings.
+   * @param {?Object} env Platform env.
+   * @returns {?string} the bar made, null for none (all made, or a watch without them)
+   */
+  function makeBar(S, env) {
+    var bar = freeBar(S, env);
+    if (!bar) { return null; }
+    var taken = yourBars(S, env).map(function (other) { return barName(S, other); });
+    var own = KINDS[KIND_OF_BAR[bar]].name;
+    S[VC.extraBar(bar).prefix + 'Made'] = true;
+    S[barNameKey(bar)] = taken.indexOf(own) === -1 ? '' : freeName(taken, own);
+    catalog.lineById(bar).slots.forEach(function (key) {
+      S[key] = catalog.slotDefault(key, env);
+      if (S[key + 'Countdown'] !== undefined) { S[key + 'Countdown'] = undefined; }
+    });
+    onDemand.SIDES.forEach(function (side) { S[onDemand.itemsKey(bar, side)] = ''; });
+    return bar;
+  }
+
+  /**
+   * Delete status bar: a bar 4 to 6 unmade, its name, slots, countdown dates and alerts cleared, and
+   * every screen that showed it stored again without its row, as the editor's Remove stores
+   * one (compileKeys: a bar below it moves up to the upper row). Mutates S; the page then works
+   * the modes out again.
+   * @param {Object} S Settings.
+   * @param {string} bar 'bar4' | 'bar5' | 'bar6'
+   * @param {?Object} [env] Platform env (omitted: capable).
+   * @returns {?Object<string, *>} the keys it wrote with the values they had (the page's
+   *   Undo puts them back), null when no made bar went
+   */
+  function unmakeBar(S, bar, env) {
+    var b = VC.extraBar(bar);
+    if (!b || !VC.barMade(S, bar)) { return null; }
+    // Read while the bar is still made, so the screens hold its row.
+    var kind = KIND_OF_BAR[bar], redone = [];
+    screensOf(S, env).forEach(function (list, i) {
+      var j = idxOf(list, kind);
+      if (j >= 0) { redone.push(compileKeys(remove(list, j), i)); }
+    });
+    var was = {};
+    /** @param {string} key A key. @param {*} v Its new value. @returns {void} */
+    function write(key, v) {
+      was[key] = S[key];
+      S[key] = v;
+    }
+    write(b.prefix + 'Made', false);
+    write(barNameKey(bar), '');
+    catalog.lineById(bar).slots.forEach(function (key) {
+      write(key, catalog.slotDefault(key));
+      // A date only a countdown slot reads; gone, the date row starts on today again.
+      if (S[key + 'Countdown'] !== undefined) { write(key + 'Countdown', undefined); }
+    });
+    onDemand.SIDES.forEach(function (side) { write(onDemand.itemsKey(bar, side), ''); });
+    redone.forEach(function (keys) {
+      Object.keys(keys).forEach(function (key) { if (S[key] !== keys[key]) { write(key, keys[key]); } });
+    });
+    return was;
+  }
+
   var api = {
     KINDS: KINDS,
     ADD_ORDER: ADD_ORDER,
     MAX_SCREENS: MAX_SCREENS,
+    NAMES: NAMES,
+    NAME_MAX: NAME_MAX,
     CAL_ROWS: CAL_ROWS,
     GRAPH_SIZES: GRAPH_SIZES,
     WATCH_BAR_FIRST: WATCH_BAR_FIRST,
     CAL_GRAPH_BOTTOM: CAL_GRAPH_BOTTOM,
     ONE_GRAPH_BOTTOM: ONE_GRAPH_BOTTOM,
+    BAR_OF_KIND: BAR_OF_KIND,
+    KIND_OF_BAR: KIND_OF_BAR,
+    cleanName: cleanName,
+    freeName: freeName,
+    nameOf: nameOf,
+    barNameKey: barNameKey,
+    barName: barName,
+    blockName: blockName,
     isGraph: isGraph,
     isBar: isBar,
+    barOfBlock: barOfBlock,
     idxOf: idxOf,
     copy: copy,
     bottom: bottom,
     topRows: topRows,
     problem: problem,
     capable: capable,
+    offered: offered,
     addable: addable,
     oneFill: oneFill,
     add: add,
@@ -484,8 +780,17 @@
     compileKeys: compileKeys,
     listFromSpec: listFromSpec,
     screensOf: screensOf,
+    placesWhere: placesWhere,
     fits: fits,
-    deriveModes: deriveModes
+    deriveModes: deriveModes,
+    MAX_BARS: MAX_BARS,
+    yourBars: yourBars,
+    freeBar: freeBar,
+    newBarFor: newBarFor,
+    barSheet: barSheet,
+    barOfSheet: barOfSheet,
+    makeBar: makeBar,
+    unmakeBar: unmakeBar
   };
 
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

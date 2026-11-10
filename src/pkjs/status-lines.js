@@ -457,7 +457,9 @@ function packLine(line, payload, settings, env, alerts) {
 }
 
 /**
- * Add STATUS_LINE_1..4_UINT8, the packed STATUS_LEVELS_UINT8 threshold bytes and
+ * Add the status lines the watch shows (STATUS_LINE_1..4_UINT8, and a bar 4 to 6's
+ * STATUS_LINE_5..7_UINT8 on a Pebble Time 2: catalog bakedLines), the packed
+ * STATUS_LEVELS_UINT8 threshold bytes and
  * the weather alerts' ALERT_ENTRIES_UINT8 to the weather payload. Must run BEFORE
  * applyForecastSeries deletes the transient trend arrays (AQI_TREND,
  * WIND_TREND_UINT8, GUST_TREND_UINT8, PRESSURE_TREND, POLLEN_TODAY,
@@ -473,7 +475,7 @@ function buildStatusLines(payload, settings, watchInfo) {
   // The weather alerts' entries, judged before the lines: a slot showing an alert's
   // metric on the alert's side merges it (packLine). Only for a watch they ride to
   // (see below); null elsewhere, so aplite's lines bake exactly as before.
-  var alerts = env.thresholds ? statusWire.bakedAlerts(payload, settings) : null;
+  var alerts = env.thresholds ? statusWire.bakedAlerts(payload, settings, env) : null;
   // computeEnv derives WATCH facts from watchInfo and nothing else, but the two
   // phone-battery items are gated on a PHONE fact: whether this PKJS host
   // exposes the Battery Status API (Android's Chromium WebView only). The flag
@@ -483,8 +485,11 @@ function buildStatusLines(payload, settings, watchInfo) {
   // page threads the same flag into its own env through config-ui/index.js'
   // opts.env, so both sides answer from the one PHONE_BATTERY_SUPPORTED key.
   env.phoneBattery = phoneBatterySupported();
-  for (var l = 0; l < catalog.LINES.length; l++) {
-    var line = catalog.LINES[l];
+  // The Watch bar's line, then each bar's that a screen shows (catalog bakedLines). A bar on
+  // no screen is sent no line: its text would only cost the send and the watch's flash write.
+  var lines = catalog.bakedLines(settings, env);
+  for (var l = 0; l < lines.length; l++) {
+    var line = lines[l];
     payload[line.wireKey] = packLine(line, payload, settings, env, alerts);
   }
   // Packed weather-kind threshold levels: computed here because the raw
@@ -492,8 +497,8 @@ function buildStatusLines(payload, settings, watchInfo) {
   // Skipped for a watch that compiles the highlight out (aplite — no
   // WW_THRESHOLD_HIGHLIGHT, so its inbox handler for this tuple is gone too):
   // sending it would only spend BLE bytes and inbox budget on a tuple that is
-  // read and discarded. The 'status' category still carries the four line blobs,
-  // so the change detector is unaffected.
+  // read and discarded. The 'status' category still carries the Watch bar's line
+  // (always baked), so the change detector is unaffected.
   if (env.thresholds) {
     payload.STATUS_LEVELS_UINT8 = statusWire.packWeatherLevels(payload, settings);
     // The weather alerts' metric entries, judged here for the same reason. Its own

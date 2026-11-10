@@ -7,7 +7,8 @@
 // ── The band status rows ─────────────────────────────────────────────────────
 //
 // One owner for every status row that rides a LAYOUT BAND: the forecast row, the
-// radar row and the health row. Each is a Layer + StatusRow pair; this module owns
+// radar row and the health row, and on emery bars 4 to 6. Each is a Layer + StatusRow
+// pair; this module owns
 // the pair, the per-view facts pushed into it (render tier, full-date, the health
 // row's full-mode) and its band frame.
 //
@@ -44,6 +45,13 @@ typedef enum {
 #if defined(PBL_HEALTH)
     STATUS_BAR_HEALTH,
 #endif
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6 (status_line.h STATUS_LINE_BAR4..6), one layer each like the
+    // three above; hidden on every view that names none of them.
+    STATUS_BAR_4,
+    STATUS_BAR_5,
+    STATUS_BAR_6,
+#endif
     STATUS_BAR_COUNT
 } StatusBarId;
 
@@ -62,6 +70,19 @@ typedef enum {
 void status_bar_create_all(Layer *parent, const ViewSpec *spec, const MainLayout *L);
 
 void status_bar_destroy_all(void);
+
+#if defined(WW_VIEW_CYCLE)
+// Which bars the configured views show, as a mask of (1 << StatusSource): the only bars
+// ever read. No refresh reaches a bar outside it, so its row stays empty: no persist read,
+// no glyph, no layout. It is hidden on every view anyway, and the phone stops sending its
+// line too (status-line-catalog.js bakedLines). Call it before status_bar_create_all,
+// which then reads the bars in use alone, and whenever the configured views change
+// (main_window_apply_top_view), before that change's live-health check and render: a bar
+// that joins is read at once, so status_bar_any_visible_uses_live_health knows its slots.
+// Every bar is in use until the first call and again after status_bar_destroy_all. Absent
+// on aplite, whose one bar is the forecast row.
+void status_bar_set_in_use(uint8_t sources);
+#endif
 
 // Re-push the per-view facts to every bar, reseat it in its band, and set its
 // visibility. Replaces the window's per-source fan-outs for render tier,

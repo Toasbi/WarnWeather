@@ -81,7 +81,9 @@ test('the phone bakes the tuple under the cap the watch accepts', () => {
 
 test('ALERT_ENTRIES_UINT8 is a declared message key, appended after the shipped ones', () => {
   const keys = template.pebble.messageKeys;
-  assert.equal(keys[keys.length - 1], 'ALERT_ENTRIES_UINT8',
+  // Its id is its shipped position (64, then the last key): a key inserted before it would
+  // shift it. Keys appended later (graph styles, 3.0.0) sit after it.
+  assert.equal(keys.indexOf('ALERT_ENTRIES_UINT8'), 64,
     'appended: a key inserted mid-array would shift every later key id');
   assert.equal(keys.indexOf('ALERT_ENTRIES_UINT8'), keys.lastIndexOf('ALERT_ENTRIES_UINT8'));
   assert.match(appMessageC, /MESSAGE_KEY_ALERT_ENTRIES_UINT8/);
@@ -99,8 +101,8 @@ test('the watch checks the tuple before persisting it, behind WW_ON_DEMAND', () 
 });
 
 // The persist enum is append-only: its numbers are the on-flash slots. The key
-// sits right after RADAR_LIMITED (56), i.e. slot 57; only RADAR_NOTICE (58, the
-// radar notice's text) came after it.
+// sits right after RADAR_LIMITED (56), i.e. slot 57; RADAR_NOTICE (58, the radar
+// notice's text) came after it, then the graph styles (test/graph-style-contract.test.js).
 test('PERSIST ALERT_ENTRIES is appended after RADAR_LIMITED in the key enum (57)', () => {
   const m = persistC.match(/enum key \{([\s\S]*?)\n\};/);
   assert.ok(m, 'persist.c key enum missing');
@@ -108,7 +110,6 @@ test('PERSIST ALERT_ENTRIES is appended after RADAR_LIMITED in the key enum (57)
     .replace(/\/\/[^\n]*/g, '')
     .split(/[,\s]+/)
     .filter((t) => /^[A-Z][A-Z0-9_]*$/.test(t));
-  assert.equal(names[names.length - 1], 'RADAR_NOTICE');
   assert.equal(names.indexOf('RADAR_LIMITED'), 56);
   assert.equal(names.indexOf('ALERT_ENTRIES'), 57);
   assert.equal(names.indexOf('RADAR_NOTICE'), 58);

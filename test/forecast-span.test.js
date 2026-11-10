@@ -151,28 +151,26 @@ test('lockstep: the schema\'s forecastHours options are CHOICES, its default the
     assert.deepEqual(forecastSpanHours.spanOptions(s).map((o) => o[1]), forecastSpan.CHOICES,
       JSON.stringify(s));
   });
-  // A new install's Clean graph takes the long span (settings/wizard-forecast.js); DAY_HOURS is
-  // what an absent value reads, the span an install from before the key keeps.
+  // A new install takes the long span, and setup starts it on Clean's, which takes it too
+  // (settings/wizard-forecast.js); DAY_HOURS is what an absent value reads, the span an install
+  // from before the key keeps.
   assert.equal(item.defaultValue, forecastSpan.CHOICES[2]);
   assert.equal(forecastSpan.storedHours({}), forecastSpan.DAY_HOURS);
   assert.deepEqual(Object.keys(item.hintByValue).sort(), forecastSpan.CHOICES.slice().sort());
 });
 
 test('a full feed at the default emery layout is labelled 58 h, its whole hours at the 3 px pitch', () => {
-  // The page's plot (forecast-span-hours.js plotWidth) is the watch's: the default Health
-  // (Status + Graph) puts the health graph's "0.5" step mark (22 px in GOTHIC_24) on the shared
-  // strip, graph_left 24, 198 - 24 = 174 px; without the health graph the two-digit hi/lo
-  // labels' 20 px strip leaves 176. 58 either way, a full feed held at the 3 px floor and
-  // running past the edge.
+  // The page's plot (forecast-span-hours.js plotWidth) is the watch's: the two-digit hi/lo
+  // labels' 20 px strip in GOTHIC_24, graph_left 22, 198 - 22 = 176 px, the default Health
+  // (Status + Graph) on or off (each graph has its own strip). 58, a full feed held at the 3 px
+  // floor and running past the edge.
   const PITCH = 3;
   const page = forecastSpanHours.plotWidth({ largeGraphFont: true, healthMode: 'all' });
-  assert.equal(page, 174);
+  assert.equal(page, 176);
   assert.equal(forecastSpanHours.plotWidth({ largeGraphFont: true, healthMode: 'off' }), 176);
-  [page, 176].forEach((w) => {
-    assert.equal(Math.floor(w / PITCH), 58, 'whole hours at ' + w);
-    assert.equal(forecastSpanHours.wholeHours(hourlyWindow.MAX_FORECAST_HOURS, w), 58, 'at ' + w);
-    assert.ok(hourlyWindow.MAX_FORECAST_HOURS * PITCH >= w, 'a full feed reaches the edge at ' + w);
-  });
+  assert.equal(Math.floor(page / PITCH), 58, 'whole hours');
+  assert.equal(forecastSpanHours.wholeHours(hourlyWindow.MAX_FORECAST_HOURS, page), 58);
+  assert.ok(hourlyWindow.MAX_FORECAST_HOURS * PITCH >= page, 'a full feed reaches the edge');
   assert.equal(forecastSpanHours.longHours({ provider: 'openmeteo', largeGraphFont: true,
     healthMode: 'all' }), 58);
 });

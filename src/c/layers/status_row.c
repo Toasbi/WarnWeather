@@ -342,11 +342,35 @@ static int8_t resolve_slot_text(const StatusRow *row, const StatusSlotView *slot
     return -1;
 }
 
-static void load_thresholds(void) {
+// How many bytes of the scratch a row of `line_id` reads, and so signs: the blob, plus on
+// emery bars 4 to 6's cells behind it for those bars' rows.
+static size_t thresh_bytes_of(uint8_t line_id) {
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: only bars 4 to 6 read the cells behind the blob.
+    if (status_threshold_bar_of_line(line_id) >= THRESH_BAR_4) { return THRESH_SCRATCH_BYTES; }
+#else
+    (void)line_id;
+#endif
+    return THRESH_SETTINGS_BYTES;
+}
+
+static void load_thresholds(uint8_t line_id) {
     // Judge the blob ONCE per refresh/draw pass: the per-slot accessor calls below
     // all read the normalized full layout.
     status_threshold_normalize(s_thresh_scratch,
-        persist_get_threshold_settings(s_thresh_scratch, sizeof(s_thresh_scratch)));
+        persist_get_threshold_settings(s_thresh_scratch, THRESH_SETTINGS_BYTES));
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6's On demand cells, right behind the blob (THRESH_SCRATCH_BYTES),
+    // zeros (nothing ticked) for any byte not stored. Only their rows read them, so the
+    // other rows skip the flash read.
+    if (thresh_bytes_of(line_id) > THRESH_SETTINGS_BYTES) {
+        uint8_t *extra = s_thresh_scratch + THRESH_SETTINGS_BYTES;
+        const int n = persist_get_od_extra_cells(extra, THRESH_OD_EXTRA_BYTES);
+        memset(extra + n, 0, THRESH_OD_EXTRA_BYTES - n);
+    }
+#else
+    (void)line_id;
+#endif
     s_levels_word = persist_get_status_levels();
 }
 
@@ -366,7 +390,7 @@ static void load_thresholds(void) {
 // and load whatever the line holds: the bar's On demand items are read from them
 // even for a line with nothing to render.
 static int load_pass(uint8_t line_id, StatusSlotView out[STATUS_SLOT_COUNT]) {
-    load_thresholds();
+    load_thresholds(line_id);
     int len = persist_get_status_line(line_id, s_blob_scratch, sizeof(s_blob_scratch));
     if (len <= 0) { return 0; }
     if (status_line_slots(s_blob_scratch, (size_t)len, out) != STATUS_SLOT_COUNT) {
@@ -545,7 +569,7 @@ bool status_row_refresh(StatusRow *row) {
     const bool has_line = load_pass(row->line_id, views) > 0;
     // The settings blob, whole: every look, cell and item setting the row paints is
     // read from it, so a save that changes any of them is a new paint.
-    sig = sig_fold(sig, s_thresh_scratch, THRESH_SETTINGS_BYTES);
+    sig = sig_fold(sig, s_thresh_scratch, thresh_bytes_of(row->line_id));
     // The items' entries tuple and live state. Also where row->od.assigned is derived.
     sig = status_on_demand_fold(&row->od, sig, status_threshold_bar_of_line(row->line_id),
                                 s_thresh_scratch);

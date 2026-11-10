@@ -121,16 +121,16 @@ test('the separator is a dropdown of example-labelled presets plus Custom, each 
         assert.equal(hint, undefined, k.prefix + ': no hint for the default ' + value);
         return;
       }
-      assert.match(String(hint), /drops its spaces/, k.prefix + ' ' + value + ': the spaces go first');
-      assert.ok(String(hint).indexOf('falls back to ' + last) !== -1,
+      assert.match(String(hint), /drops the spaces first/, k.prefix + ' ' + value + ': the spaces go first');
+      assert.ok(String(hint).indexOf('switches to ' + last) !== -1,
         k.prefix + ' ' + value + ': names the pair it falls back to, ' + last);
     });
   });
   // Only a day-max pair can still be too wide in its default form.
   assert.equal(item('uvSlotSeparator').hintByValue.bar,
-    'When the pair doesn\'t fit, it drops its spaces, then falls back to 3/7, then to the reading alone.');
+    'If the pair doesn\'t fit, the slot drops the spaces first, then switches to 3/7, then shows the reading alone.');
   assert.equal(item('tempSlotSeparator').hintByValue.slash,
-    'When the pair doesn\'t fit, it drops its spaces, then falls back to 12|10.');
+    'If the pair doesn\'t fit, the slot drops the spaces first, then switches to 12|10.');
 });
 
 test('spacing is one toggle over every preset, off by default, its hint on the kind\'s samples', () => {
@@ -198,8 +198,8 @@ test('the custom separator is a 2-character text field that explains what surviv
     assert.match(hint, /Latin-1/, 'hint names what the font draws');
   });
   // Empty falls back to the kind's default separator.
-  assert.match(String(item('tempSlotSeparatorCustom').hint), /empty prints 12\|10\./);
-  assert.match(String(item('uvSlotSeparatorCustom').hint), /empty uses the slash\./);
+  assert.match(String(item('tempSlotSeparatorCustom').hint), /Leave it empty to print 12\|10\./);
+  assert.match(String(item('uvSlotSeparatorCustom').hint), /Leave it empty to use the slash\./);
 });
 
 test('the order pills keep the order the slot has always printed as the default', () => {

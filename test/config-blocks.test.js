@@ -224,12 +224,12 @@ test('forecastPreview: feels-like draws no area fill even with secondaryLineFill
   const feels = FC.forecastPreview(
     Object.assign({}, CURVE_BASE, { secondaryLine: 'feels', secondaryLineFill: true }), { color: true });
   assert.ok(/stroke="#AAAAAA"/.test(feels), 'the feels curve itself still renders');
-  assert.equal(/fill-opacity="0.25"/.test(feels), false, 'no filled area under the feels curve');
+  assert.equal(/<path d="[^"]+" fill="#[0-9A-F]{6}"><\/path>/.test(feels), false, 'no filled area under the feels curve');
   // Control: the same settings with a normal metric DO produce the fill, so the
   // assertion above is about feels and not about the fixture being fill-less.
   const precip = FC.forecastPreview(
     Object.assign({}, CURVE_BASE, { secondaryLine: 'precip_prob', secondaryLineFill: true }), { color: true });
-  assert.ok(/fill-opacity="0.25"/.test(precip), 'precip still fills');
+  assert.ok(/<path d="[^"]+" fill="#0055AA"><\/path>/.test(precip), 'precip still fills');
 });
 
 test('forecastMetricFill hook clears the stored fill when feels-like is picked', () => {
@@ -331,6 +331,24 @@ test('colorNoteHint adds the note for how the page draws to the row\'s hint', ()
   assert.equal(hint({ theme: 'dark' }, { color: true }, { colorNote: 'In color.' }), null, 'a value with no hint');
 });
 
+test('lineSummary names a line\'s metric by the one metric table, its style by its picker', () => {
+  const summary = PConf.hintResolvers.get('lineSummary');
+  const metrics = require('../src/pkjs/settings/forecast-metrics.js');
+  const styled = { lineStyles: true };
+  const main = { lineKey: 'secondaryLine', main: true };
+  assert.equal(summary({ secondaryLine: 'precip_prob', secondaryLineStyle: 'line', secondaryLineFill: true }, styled, main),
+    'Precipitation % · Thin line, filled');
+  assert.equal(summary({ secondaryLine: 'feels', secondaryLineStyle: 'line', secondaryLineFill: true }, styled, main),
+    'Feels-like temperature · Thin line', 'feels-like never fills');
+  metrics.METRICS.forEach((m) => {
+    assert.equal(summary({ thirdLine: m.id, thirdLineStyle: 'dots' }, styled, { lineKey: 'thirdLine' }),
+      m.label + ' · Square dots', m.id);
+    assert.equal(summary({ thirdLine: m.id }, { lineStyles: false }, { lineKey: 'thirdLine' }), m.label,
+      m.id + ': the metric alone where the watch draws no styles');
+  });
+  assert.equal(summary({ thirdLine: 'off' }, styled, { lineKey: 'thirdLine' }), 'Off');
+});
+
 // The Alert settings card's rows read an item's placement (on-demand.js placedAnywhere): a
 // partial settings blob reads the default ticks, so an empty right list unplaces UV.
 const UNPLACED = { statusTopOnDemandRightItems: '' };
@@ -340,9 +358,9 @@ test('alertLevelsHint: "Not in any status bar" while unplaced, else the resolved
   assert.equal(typeof hint, 'function', 'hint resolver registered');
   const env = { thresholds: true };
   const uv = { keyStem: 'Uv' };
-  // The default ticks put the metric alerts on the Watch Status Bar's right side, and the
+  // The default ticks put the metric alerts on the Watch bar's right side, and the
   // Alerts-tab row says so after the levels.
-  const WHERE = ' · Watch Status Bar, right';
+  const WHERE = ' · Watch bar, right';
   assert.equal(hint(UNPLACED, env, uv), 'Not in any status bar');
   assert.equal(hint(Object.assign({ threshUvOn: true }, UNPLACED), env, uv), 'Not in any status bar',
     'whatever the highlight says: the row describes the alert');
@@ -376,13 +394,13 @@ test('alertLevelsHint: "Not in any status bar" while unplaced, else the resolved
   assert.equal(hint(Object.assign({ alertUvDays: 'today' }, UNPLACED), env, uvDays), 'Not in any status bar',
     'an unplaced alert reads that only');
   assert.equal(hint({ statusForecastOnDemandLeftItems: 'pollen' }, env,
-    { keyStem: 'Pollen' }), 'Warn 2 · Danger 3 · Forecast Status Bar, left', 'placed on another bar counts too');
+    { keyStem: 'Pollen' }), 'Warn 2 · Danger 3 · Forecast bar, left', 'placed on another bar counts too');
   assert.equal(hint({ statusForecastOnDemandLeftItems: 'uv' }, env, uv),
-    'Warn 6 · Danger 8 · Watch Status Bar, right · Forecast Status Bar, left',
+    'Warn 6 · Danger 8 · Watch bar, right · Forecast bar, left',
     'every bar edge it sits on, in the page\'s bar order');
   assert.equal(hint({ radarMode: 'graph', healthMode: 'all', statusHealthOnDemandRightItems: 'uv',
     statusRadarOnDemandLeftItems: 'uv' }, env, uv),
-    'Warn 6 · Danger 8 · Watch Status Bar, right · Health Status Bar, right · Radar Status Bar, left',
+    'Warn 6 · Danger 8 · Watch bar, right · Health bar, right · Radar bar, left',
     'Health before Radar: the page\'s order, not the wire\'s');
   // A slot dialog's "Alert levels and colors" row (levelsOnly): the levels alone — no
   // placement, no Days, and no "Not in any status bar" (they drive the slot's highlight).
@@ -404,8 +422,8 @@ test('rainAlertHint: the radar first, then the placement, else its window, look 
     windows: [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
     looks: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']]
   };
-  // The default ticks put Rain on the Watch Status Bar's left side.
-  const WHERE = ' · Watch Status Bar, left';
+  // The default ticks put Rain on the Watch bar's left side.
+  const WHERE = ' · Watch bar, left';
   assert.equal(hint({}, {}, args), 'Within 60 min · Text' + WHERE, 'unset: the sheet\'s defaults, placed by default');
   assert.equal(hint({ rainCountdownHorizon: '120', rainAlertDisplay: 'minutes' }, {}, args),
     'Within 2 hours · Icon + minutes' + WHERE);
@@ -413,7 +431,7 @@ test('rainAlertHint: the radar first, then the placement, else its window, look 
     'a numeric window reads like its stored string');
   assert.equal(hint({ statusTopOnDemandLeftItems: 'bt' }, {}, args), 'Not in any status bar');
   assert.equal(hint({ statusTopOnDemandLeftItems: 'bt', statusForecastOnDemandRightItems: 'rain' }, {}, args),
-    'Within 60 min · Text · Forecast Status Bar, right', 'placed on another bar: that bar\'s edge');
+    'Within 60 min · Text · Forecast bar, right', 'placed on another bar: that bar\'s edge');
   assert.equal(hint({ radarEnabled: false }, {}, args), 'Turn on the rain radar (Setup › Data sources)');
   assert.equal(hint({ radarEnabled: false, statusTopOnDemandLeftItems: '' }, {}, args),
     'Turn on the rain radar (Setup › Data sources)', 'the radar comes first: no tick helps while it is off');
@@ -823,16 +841,16 @@ test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown 
   assert.ok(svg.indexOf('viewBox="0 0 200 95"') >= 0, 'frame grew by the 14px band height');
 });
 
-// Rain ticked on neither side of the Watch Status Bar: the strip shows no rain alert, so
+// Rain ticked on neither side of the Watch bar: the strip shows no rain alert, so
 // the preview drops the band with it.
-test('radarPreview hides the countdown band while the Watch Status Bar shows no rain', () => {
+test('radarPreview hides the countdown band while the Watch bar shows no rain', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
     statusTopOnDemandLeftItems: 'bt' }, { color: true });
   assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text with Rain unticked');
   assert.ok(svg.indexOf('viewBox="0 0 200 81"') >= 0, 'the frame keeps the no-band height');
   const elsewhere = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
     statusTopOnDemandLeftItems: 'bt', statusForecastOnDemandLeftItems: 'rain' }, { color: true });
-  assert.equal(elsewhere.indexOf("Rain in 15'"), -1, 'the band mocks the Watch Status Bar only');
+  assert.equal(elsewhere.indexOf("Rain in 15'"), -1, 'the band mocks the Watch bar only');
   const unset = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
   assert.ok(unset.indexOf("Rain in 15'") >= 0, 'the default ticks show it');
 });
@@ -866,7 +884,7 @@ function rainBand(svg) {
   return { x: Number(m[1]), text: t ? t[1] : null };
 }
 
-test('radarPreview draws the rain entry in its Look, at the side of the Watch Status Bar that ticks Rain', () => {
+test('radarPreview draws the rain entry in its Look, at the side of the Watch bar that ticks Rain', () => {
   const base = { radarProvider: 'dwd', radarColor: 'multicolor' };
   const at = (S) => rainBand(RD.radarPreview(Object.assign({}, base, S), { color: true }));
   assert.equal(at({}).text, "Rain in 15'", 'the default Look: the countdown text');
@@ -904,8 +922,9 @@ test('countdown glyph follows radarColor=Solid on a colour watch (the watch\'s s
 test('precip secondary line draws the cobalt fill on color and a dither on B&W', () => {
   const base = { barSource: 'off', secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'mid', dayNightShading: false };
   const color = FC.forecastPreview(base, { color: true });
-  assert.ok(color.indexOf('fill="#0055AA"') >= 0 && color.indexOf('fill-opacity="0.25"') >= 0,
-    'color: translucent cobalt precip fill present');
+  assert.ok(/<path d="[^"]+" fill="#0055AA"><\/path>/.test(color),
+    'color: the cobalt precip fill, solid as the watch paints it (no alpha on its display)');
+  assert.equal(color.indexOf('fill-opacity'), -1, 'never a translucent stand-in');
   const bw = FC.forecastPreview(base, { color: false });
   assert.ok(bw.indexOf('fill="url(#fillhatch)"') >= 0, 'B&W: precip fill uses the dither stipple pattern');
   assert.equal(bw.indexOf('fill="#0055AA"'), -1, 'B&W: no solid cobalt fill');
@@ -975,7 +994,7 @@ const GC_BASE = { barSource: 'off', windScale: 'mid', dayNightShading: true,
 test('forecastPreview: an untouched blob draws the built-in colours', () => {
   const svg = FC.forecastPreview(GC_BASE, { color: true });
   assert.ok(svg.indexOf('stroke="#FFFF00"') >= 0, 'the wind line is Yellow');
-  assert.ok(/fill="#555500" fill-opacity="0\.25"><\/path>/.test(svg), 'the area fill is ArmyGreen');
+  assert.ok(/fill="#555500"><\/path>/.test(svg), 'the area fill is ArmyGreen');
   assert.ok(svg.indexOf('fill="#FF00FF"') >= 0, 'the uv dots are Magenta');
   assert.ok(/<pattern id="nh"[^>]*>[\s\S]*?stroke="#555555"/.test(svg),
     'the night hatch is DarkGray — the colour the watch paints, not a translucent stand-in');
@@ -988,9 +1007,8 @@ test('forecastPreview: a tuned colour overrides the built-in line, fill and dot 
   }), { color: true });
   assert.ok(tuned.indexOf('stroke="#00FFFF"') >= 0, 'the main line takes its colour');
   assert.equal(tuned.indexOf('stroke="#FFFF00"'), -1, 'and the built-in wind yellow is gone');
-  assert.ok(/fill="#AA00AA" fill-opacity="0\.25"/.test(tuned), 'the area fill takes its colour');
-  assert.equal(tuned.search(/fill="#555500" fill-opacity="0\.25"><\/path>/), -1,
-    'and the built-in ArmyGreen day fill is gone');
+  assert.ok(/fill="#AA00AA"><\/path>/.test(tuned), 'the area fill takes its colour');
+  assert.equal(tuned.search(/fill="#555500"><\/path>/), -1, 'and the built-in ArmyGreen day fill is gone');
   assert.ok(tuned.indexOf('fill="#00FF00"') >= 0, 'the second-metric dots take theirs');
   assert.equal(tuned.indexOf('fill="#FF00FF"'), -1, 'and the built-in uv magenta is gone');
 });
@@ -1045,12 +1063,12 @@ test('forecastPreview: the exactly-white→black flip survives in the B&W arm on
 
 test('forecastPreview: the fill colour paints the area only, the second-line colour the dots only', () => {
   const fill = FC.forecastPreview(Object.assign({}, GC_BASE, { gcWindFillDark: '#AA00AA' }), { color: true });
-  assert.ok(/fill="#AA00AA" fill-opacity="0\.25"/.test(fill), 'the area takes it');
+  assert.ok(/fill="#AA00AA"><\/path>/.test(fill), 'the area takes it');
   assert.ok(fill.indexOf('stroke="#FFFF00"') >= 0, 'the wind line keeps its own colour');
   assert.ok(fill.indexOf('fill="#FF00FF"') >= 0, 'and the uv dots keep theirs');
   const dots = FC.forecastPreview(Object.assign({}, GC_BASE, { gcUvLineDark: '#00FF00' }), { color: true });
   assert.ok(dots.indexOf('fill="#00FF00"') >= 0, 'the dots take it');
-  assert.ok(/fill="#555500" fill-opacity="0\.25"><\/path>/.test(dots), 'the area fill is untouched');
+  assert.ok(/fill="#555500"><\/path>/.test(dots), 'the area fill is untouched');
   assert.ok(dots.indexOf('stroke="#FFFF00"') >= 0, 'and so is the main line');
 });
 
@@ -1076,19 +1094,18 @@ test('forecastPreview: the night tint re-shades the filled area in both polariti
   // pick; it now re-shades off NIGHT_AREA_LIGHT_BASE like dark does.
   const dark = FC.forecastPreview(GC_BASE, { color: true });
   assert.ok(dark.indexOf('<clipPath id="nightclip">') >= 0, 'the night band becomes a clip');
-  assert.ok(/<path d="[^"]+" fill="#555500" fill-opacity="0\.25" clip-path="url\(#nightclip\)"><\/path>/.test(dark),
-    "the area is re-drawn in wind's built-in night base, clipped to the night hours");
-  assert.ok(/fill="#555500" fill-opacity="0\.25"><\/path>/.test(dark), 'the day fill is still there underneath');
+  assert.ok(/<path d="([^"]+)" fill="#555500" clip-path="url\(#nightclip\)"><\/path><path d="\1" fill="url\(#nha\)" clip-path="url\(#nightclip\)"><\/path>/.test(dark),
+    "the area is re-drawn in wind's built-in night base, solid, its hatch over it, clipped to the night hours");
+  assert.ok(/<pattern id="nha"[^>]*>[\s\S]*?stroke="#AAAA00"/.test(dark), "the hatch in wind's own night hatch colour (Limerick)");
+  assert.ok(/fill="#555500"><\/path>/.test(dark), 'the day fill is still there underneath');
   const darkTuned = FC.forecastPreview(Object.assign({}, GC_BASE, { gcWindNightDark: '#0000AA' }), { color: true });
-  assert.ok(/fill="#0000AA" fill-opacity="0\.25" clip-path="url\(#nightclip\)"/.test(darkTuned),
-    'a tuned tint paints verbatim');
+  assert.ok(/fill="#0000AA" clip-path="url\(#nightclip\)"/.test(darkTuned), 'a tuned tint paints verbatim');
   const light = FC.forecastPreview(Object.assign({}, GC_BASE, { theme: 'light' }), { color: true });
-  assert.ok(/fill="#FFAA55" fill-opacity="0\.25" clip-path="url\(#nightclip\)"/.test(light),
+  assert.ok(/fill="#FFAA55" clip-path="url\(#nightclip\)"/.test(light),
     "the light theme re-shades in wind's light night base (Rajah), no pick needed");
   const lightTuned = FC.forecastPreview(Object.assign({}, GC_BASE,
     { theme: 'light', gcWindNightLight: '#0000AA' }), { color: true });
-  assert.ok(/fill="#0000AA" fill-opacity="0\.25" clip-path="url\(#nightclip\)"/.test(lightTuned),
-    'and a Light pick still overrides that built-in');
+  assert.ok(/fill="#0000AA" clip-path="url\(#nightclip\)"/.test(lightTuned), 'and a Light pick still overrides that built-in');
   assert.equal(FC.forecastPreview(Object.assign({}, GC_BASE,
     { secondaryLineFill: false }), { color: true }).indexOf('nightclip'), -1,
     'nothing to re-shade with the fill off');
@@ -1329,11 +1346,12 @@ test('statusSlotDefault resolver: env-aware slot default sourced from the catalo
   assert.equal(typeof fn, 'function', 'resolver registered');
   assert.equal(fn({ hr: true }, { slotKey: 'statusHealthRight' }), 'hr');
   assert.equal(fn({ hr: false }, { slotKey: 'statusHealthRight' }), 'sleep');
-  assert.equal(fn({}, { slotKey: 'statusForecastRight' }), 'aqi');
-  // The top strip carries the other flavor: three readings on emery, date + battery
-  // corner on the narrower displays.
+  assert.equal(fn({}, { slotKey: 'statusForecastRight' }), 'sun');
+  // The top strip carries the other flavor: three readings on emery, air quality in its
+  // corner; on the narrower displays air quality, the date and the battery corner.
   assert.equal(fn({ platform: 'emery' }, { slotKey: 'statusTopLeft' }), 'week');
-  assert.equal(fn({ platform: 'basalt' }, { slotKey: 'statusTopLeft' }), 'empty');
+  assert.equal(fn({ platform: 'emery' }, { slotKey: 'statusTopRight' }), 'aqi');
+  assert.equal(fn({ platform: 'basalt' }, { slotKey: 'statusTopLeft' }), 'aqi');
   assert.equal(fn({ platform: 'basalt' }, { slotKey: 'statusTopRight' }), 'battery');
 });
 
@@ -1393,13 +1411,13 @@ test('tomorrowioBudget block derives the unlock rule and the hourly heads-up', (
   // 5 min is locked at a 2 h pause -> rule names 5 minutes and >= 4 h
   const html = block(budgetState({ sleepEndHour: '2', fetchIntervalMin: '10' }), {});
   assert.match(html, /5-minute/);
-  assert.match(html, /≥ 4 h/);
+  assert.match(html, /at least 4 h/);
   // at 5 min + radar (24 of 25 calls/hour) the same-hour save note appears
   const busy = block(budgetState(), {});
-  assert.match(busy, /may delay one cycle/);
+  assert.match(busy, /can delay one update/);
   // at 10 min (12 calls/hour) the same-hour save note must not appear
   const quiet = block(budgetState({ fetchIntervalMin: '10' }), {});
-  assert.doesNotMatch(quiet, /may delay one cycle/);
+  assert.doesNotMatch(quiet, /can delay one update/);
 });
 
 test('fetchIntervalBudget resolver: filters when guard on, passes through when off or not tomorrow.io', () => {
@@ -1442,8 +1460,8 @@ test('rainbowBudget block states the monthly plan, the projected month and the v
   assert.ok(ok.indexOf('no night pause') !== -1, ok);
   assert.equal(ok,
     '<b>Free plan: 5,000 calls/month.</b> Your settings: every 15 min, no night pause → '
-    + '<b>~2,976 calls/month ✓</b>.<br>5-minute updates need a night pause of ≥ 11 h — '
-    + 'widen the pause to unlock faster updates.');
+    + '<b>~2,976 calls/month ✓</b>.<br>5-minute updates need a night pause of at least 11 h. '
+    + 'Make the pause longer to get faster updates.');
   // The worked copy example: every 15 min with the default 9 h pause.
   const pausedHtml = block(rainbowState({ sleepNightEnabled: true }), {});
   assert.ok(pausedHtml.indexOf('every 15 min, night pause 9 h → <b>~1,860 calls/month ✓</b>.') !== -1, pausedHtml);
@@ -1452,7 +1470,7 @@ test('rainbowBudget block states the monthly plan, the projected month and the v
   const over = block(rainbowState({ fetchIntervalMin: '5', rainbowFitBudget: false }), {});   // 8928
   assert.ok(over.indexOf('every 5 min, no night pause → '
     + '<b style="color:#FF6A52">~8,928 calls/month ✗ over budget</b>') !== -1, over);
-  assert.ok(over.indexOf('5-minute updates need a night pause of ≥ 11 h') !== -1, over);
+  assert.ok(over.indexOf('5-minute updates need a night pause of at least 11 h') !== -1, over);
 });
 
 test('rainbowBudget block writes its numbers with thousands commas, like the hints around it', () => {
@@ -1470,7 +1488,7 @@ test('rainbowBudget block reads the interval Save stores: Fit on replaces 5 min 
   const fitted = block(rainbowState({ fetchIntervalMin: '5' }), {});
   assert.ok(fitted.indexOf('every 15 min, no night pause → <b>~2,976 calls/month ✓</b>') !== -1, fitted);
   assert.doesNotMatch(fitted, /✗ over budget/);
-  assert.ok(fitted.indexOf('5-minute updates need a night pause of ≥ 11 h') !== -1, 'the unlock line stays');
+  assert.ok(fitted.indexOf('5-minute updates need a night pause of at least 11 h') !== -1, 'the unlock line stays');
   // Both guards on (weather on tomorrow.io too): the intersection's fit, 15.
   const both = block(rainbowState({ provider: 'tomorrowio', fetchIntervalMin: '5' }), {});
   assert.ok(both.indexOf('every 15 min') !== -1, both);
@@ -1492,7 +1510,7 @@ test('rainbowBudget block: bare content, no radar qualifier and no hourly heads-
     const html = block(s, {});
     assert.doesNotMatch(html, /class="static"/, 'no nested .static row inside the .blockrow');
     assert.doesNotMatch(html, /\/hour/, 'Rainbow has no hourly limit');
-    assert.doesNotMatch(html, /may delay one cycle/, 'no same-hour heads-up');
+    assert.doesNotMatch(html, /can delay one update/, 'no same-hour heads-up');
     assert.doesNotMatch(html, /with radar|incl\. radar/, 'every Rainbow call is a radar call');
   });
 });

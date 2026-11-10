@@ -28,28 +28,30 @@ const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
 // The four gates as the On demand settings define them, the reference.
 const expected = (() => {
   const placed = (s, code, wi) => OD.placedAnywhere(s, code, platform.computeEnv(wi));
-  const dayMaxInUse = (s, kind) => {
+  // A made bar 4 to 6's slots count where the watch draws the bar.
+  const shown = (s, code, wi) => catalog.selectedCodes(s, platform.computeEnv(wi)).indexOf(code) !== -1;
+  const dayMaxInUse = (s, kind, wi) => {
     const mode = s[kind + 'SlotDisplay'];
-    return (mode === 'max' || mode === 'both') && catalog.selectedCodes(s).indexOf(kind) !== -1;
+    return (mode === 'max' || mode === 'both') && shown(s, kind, wi);
   };
   return {
     needsUv(s, wi) {
       if (!s) { return false; }
       if (s.secondaryLine === 'uv' || s.thirdLine === 'uv'
         || s.fourthLine === 'uv' || s.fifthLine === 'uv') { return true; }
-      return placed(s, 'uv', wi) || catalog.selectedCodes(s).indexOf('uv') !== -1;
+      return placed(s, 'uv', wi) || shown(s, 'uv', wi);
     },
     needsAqi(s, wi) {
       if (!s) { return false; }
-      return placed(s, 'aqi', wi) || catalog.selectedCodes(s).indexOf('aqi') !== -1;
+      return placed(s, 'aqi', wi) || shown(s, 'aqi', wi);
     },
     needsPollen(s, wi) {
       if (!s || s.provider !== 'dwd') { return false; }
-      return placed(s, 'pollen', wi) || catalog.selectedCodes(s).indexOf('pollen') !== -1;
+      return placed(s, 'pollen', wi) || shown(s, 'pollen', wi);
     },
     dayPeakCodes(s, wi) {
       if (!s) { return []; }
-      return catalog.DAY_MAX_KINDS.filter(kind => placed(s, kind, wi) || dayMaxInUse(s, kind));
+      return catalog.DAY_MAX_KINDS.filter(kind => placed(s, kind, wi) || dayMaxInUse(s, kind, wi));
     }
   };
 })();

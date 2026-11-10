@@ -1,7 +1,7 @@
 'use strict';
 
-// The store screenshots, the showcase GIF, the promo reel, the time-lapse and the wizard
-// shots are curated scenes. The default On demand ticks on the Watch Status Bar's right
+// The store screenshots, the showcase GIF, the promo reel and the time-lapse are curated
+// scenes. The default On demand ticks on the Watch Status Bar's right
 // side (Wind gusts, UV index, Air quality and Wind speed beside the battery) would give
 // most of them alert icons, and which icons bake depends on the wall-clock time of the
 // capture: a day peak counts only while it is still ahead. So every fixture those
@@ -119,14 +119,12 @@ test('every showcase frame (variants included) pins its On demand ticks and bake
   });
 });
 
-test('every reel, wizard and time-lapse frame pins its On demand ticks', () => {
+test('every reel and time-lapse frame pins its On demand ticks', () => {
   const { generateReelFixtures } = require('../scripts/gen-reel-fixtures');
-  const wizard = require('../scripts/gen-wizard-fixtures');
   const { generateFrames } = require('../scripts/gen-timelapse-fixtures');
   const timelapse = generateFrames({ outDir: tmpDir('timelapse') });
   const files = [].concat(
     generateReelFixtures({ outDir: tmpDir('reel') }),
-    wizard.generate({ outDir: tmpDir('wizard') }),
     timelapse.a, timelapse.b);
   assert.ok(files.length > 0, 'the frames were generated');
   files.forEach((file) => assertPinned(readFixture(file), path.basename(file)));

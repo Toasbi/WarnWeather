@@ -92,15 +92,15 @@ var kmhToDisplay = require('../wire-units.js').kmhToDisplay;
  */
 function windScaleHints(windUnits, unitLabel) {
     function tops(scale, tail) {
-        return 'Tops out at ' + kmhToDisplay(WIND_SCALE_KMH[scale], windUnits)
-            + ' ' + unitLabel + ' — ' + tail;
+        return 'The scale goes up to ' + kmhToDisplay(WIND_SCALE_KMH[scale], windUnits)
+            + ' ' + unitLabel + tail;
     }
     return {
-        low: tops('low', 'emphasizes light, gentle winds.'),
-        mid: tops('mid', 'general use; gusts visible, typical winds sit mid-graph.'),
+        low: tops('low', ', so light winds show more clearly.'),
+        mid: tops('mid', '. This suits everyday use: gusts stay visible and typical winds sit mid-graph.'),
         // "At full height", not "against the top": a line drawn from the top reaches
         // full height at the graph's bottom.
-        high: tops('high', 'keeps strong gusts from flattening at full height.')
+        high: tops('high', ', so strong gusts don’t flatten out at full height.')
     };
 }
 var WIND_SCALE_HINTS_KPH = windScaleHints('kph', 'kph');
@@ -221,12 +221,13 @@ function lineFromCopies(pickerKey) {
  */
 function pressureHint(scale, tail) {
     var pts = PRESSURE_SCALE_CURVE_HPA[scale];
-    return 'Full detail ' + pts[1][0] + '\u2013' + pts[2][0] + ' hPa, extremes compressed instead of cut off — ' + tail;
+    return 'Shows ' + pts[1][0] + '\u2013' + pts[2][0] + ' hPa in full detail and compresses readings outside '
+        + 'that range instead of cutting them off. ' + tail;
 }
 var PRESSURE_SCALE_HINTS = {
-    low:  pressureHint('low', 'magnifies the smallest movements.'),
-    mid:  pressureHint('mid', 'a typical day\'s swing reads clearly.'),
-    high: pressureHint('high', 'keeps storm-depth swings in the detailed range.')
+    low:  pressureHint('low', 'Even small changes are easy to see.'),
+    mid:  pressureHint('mid', 'A typical day\'s swing is easy to read.'),
+    high: pressureHint('high', 'Even the deep swings of a storm stay in the detailed range.')
 };
 /**
  * One pressureScale control under one picker, shown while that picker's line draws

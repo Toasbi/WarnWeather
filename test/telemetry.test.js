@@ -477,7 +477,12 @@ const HEAVIEST_CUSTOM = Object.assign({}, HEAVIEST_SETTINGS, {
   viewTop1: 'radar', viewBody1: 'none', viewUpper1: 'health', viewLower1: 'weather',
   viewOrder1: 'ABCT', viewClockOff1: true, viewStripOff1: true, viewAlign1: 'bottom',
   viewTop2: 'cal2', viewBody2: 'none', viewUpper2: 'radar', viewLower2: 'health',
-  viewOrder2: 'ACBT', viewClockOff2: false, viewStripOff2: true, viewAlign2: 'center'
+  viewOrder2: 'ACBT', viewClockOff2: false, viewStripOff2: true, viewAlign2: 'center',
+  // Graph styles (emery): the flick screens' forecast graphs on styles 2 and 3, both on the
+  // long span, so graphStyleCount and both styles' lengths report.
+  viewBody1: 'forecast', viewStyle1: '2', viewBody2: 'forecast', viewStyle2: '3',
+  graphStyles: JSON.stringify({ names: ['', 'Long', 'Longer'], styles: [null,
+    { forecastHours: '48' }, { forecastHours: '48' }] })
 });
 
 /**
@@ -889,7 +894,9 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // longer value false) is 20 B: batch header 3188 of 4096, headroom 908. The forecast's
 // time span (forecastHours, 2.2.0, an int, the option: 48) is 19 B: 3207 of 4096, headroom 889. The
 // forecast's left axis options (forecastAxisNumbers, forecastAxisScale; 2.2.0, BETA, emery
-// only; 'graph' / false the longer values) are 56 B: 3263 of 4096, headroom 833.
+// only; 'graph' / false the longer values) are 56 B: 3263 of 4096, headroom 833. The graph
+// styles (graphStyleCount, graphStyle2Hours, graphStyle3Hours; 3.0.0, emery only, the custom
+// fixture's flick screens on styles 2 and 3) bring the batch header to 3323 of 4096, headroom 773.
 test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');
@@ -918,11 +925,12 @@ test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES',
   };
   // "Every reported setting" is checked, not claimed: a field left out of the fixture
   // serialises as undefined and drops out of the byte count. The customView and
-  // customViewExt trios report only under layoutPreset 'custom', which this fixture
-  // does not pick (the custom envelope is measured separately below).
+  // customViewExt trios, and the lengths of the graph styles the screens show, report only
+  // under layoutPreset 'custom', which this fixture does not pick (the custom envelope is
+  // measured separately below).
   const unset = Object.keys(payload.settings).filter((key) => payload.settings[key] === undefined);
   assert.deepEqual(unset, ['customView0', 'customView1', 'customView2',
-    'customViewExt0', 'customViewExt1', 'customViewExt2'],
+    'customViewExt0', 'customViewExt1', 'customViewExt2', 'graphStyle2Hours', 'graphStyle3Hours'],
     'a snapshot field the fixture never sets understates the ledger — set it on its longest option');
   const bytes = Buffer.byteLength(JSON.stringify(payload));
   // Measured and printed, no longer asserted: the legacy shape (see the ledger above).
@@ -936,6 +944,8 @@ test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES',
     assert.ok(customPayload.settings['customView' + i] > 0, 'customView' + i + ' reports');
     assert.ok(customPayload.settings['customViewExt' + i] > 0, 'customViewExt' + i + ' reports');
   });
+  assert.deepEqual([customPayload.settings.graphStyleCount, customPayload.settings.graphStyle2Hours,
+    customPayload.settings.graphStyle3Hours], [3, 48, 48], 'the graph styles report');
   const customBytes = Buffer.byteLength(JSON.stringify(customPayload));
   console.log('heaviest custom-layout telemetry envelope: ' + customBytes + ' B of ' + cap
     + ' B (headroom ' + (cap - customBytes) + ')');

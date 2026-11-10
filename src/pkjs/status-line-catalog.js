@@ -7,6 +7,9 @@
  * test/status-line-contract.test.js enforces it. ES5 only (aplite PKJS).
  */
 (function() {
+  // view-cycle.js requires nothing, so there is no cycle; in the flat settings page it is
+  // concatenated ahead of this file (scripts/build-config-page.js APP_FILES).
+  var VC = (typeof require !== 'undefined') ? require('./view-cycle.js') : window.VIEW_CYCLE;
   var KINDS = {
     EMPTY: 0, TEXT: 1, LIVE_DATE: 2,
     LIVE_STEPS: 3, LIVE_HR: 4, LIVE_SLEEP: 5, LIVE_DISTANCE: 6, LIVE_WEEK: 7,
@@ -103,21 +106,25 @@
   var LINES = [
     { id: 'forecast', wireKey: 'STATUS_LINE_1_UINT8',
       slots: ['statusForecastLeft', 'statusForecastMid', 'statusForecastRight'],
-      defaults: { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi' } },
+      // Sunrise/sunset on the right (the owner's, 2026-11-09: it swapped places with the top
+      // row's air quality). An install from before keeps what it showed
+      // (migrations/status-slots.js keepSlotDefaults27).
+      defaults: { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun' } },
     { id: 'radar', wireKey: 'STATUS_LINE_2_UINT8',
       slots: ['statusRadarLeft', 'statusRadarMid', 'statusRadarRight'],
       defaults: { statusRadarLeft: 'uv', statusRadarMid: 'wind', statusRadarRight: 'gust' } },
     { id: 'top', wireKey: 'STATUS_LINE_3_UINT8',
       slots: ['statusTopLeft', 'statusTopMid', 'statusTopRight'],
-      // The strip beside the clock, and the one row on screen in EVERY view. emery's
-      // 200 px display is the only one with the width to carry three readings there,
-      // so it keeps the three-up row; on the 144/180 px platforms the strip ships the
-      // date alone with the battery in its corner (the corner that already reads as
-      // the battery — see the topRightOnly items). That leaves the left slot free,
-      // which is where the wizard's steps promotion lands on those platforms
-      // (defaults-policy.js wizard-health-slots-compact).
-      defaults: { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery' },
-      emeryDefaults: { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' } },
+      // The strip beside the clock, and the one row on screen in EVERY view. Air quality
+      // sits here, where every screen shows it (the owner's, 2026-11-09: it swapped places
+      // with the Forecast bar's sunrise/sunset). emery's 200 px display has the width for
+      // three readings: the week, the date and air quality in the right-hand corner. On
+      // the 144/180 px platforms that corner is the battery (it already reads as the
+      // battery: see the topRightOnly items), so air quality takes the left slot. An
+      // install from before keeps what it showed (migrations/status-slots.js
+      // keepSlotDefaults27).
+      defaults: { statusTopLeft: 'aqi', statusTopMid: 'date', statusTopRight: 'battery' },
+      emeryDefaults: { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'aqi' } },
     { id: 'health', wireKey: 'STATUS_LINE_4_UINT8',
       slots: ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'],
       // Non-HR platforms (basalt/chalk/aplite): leave the middle empty and show
@@ -126,6 +133,19 @@
       defaults: { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' },
       hrDefaults: { statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'hr' } }
   ];
+
+  // Bars 4 to 6 (Pebble Time 2, 3.0.0's New status bar: view-cycle.js EXTRA_BARS, whose prefixes they
+  // take): their lines (STATUS_LINE_5..7_UINT8), every slot empty until New status bar writes its
+  // starting set. Kept out of LINES, so every reader of the first four (the twelve selections,
+  // telemetry, the 2.6 migration) stays as it is; the bake (bakedLines) adds one while a
+  // screen shows the bar, and a slot key's lookups walk ALL_LINES.
+  var EXTRA_LINES = VC.EXTRA_BARS.map(function (b, i) {
+    var slots = [b.prefix + 'Left', b.prefix + 'Mid', b.prefix + 'Right'];
+    var defaults = {};
+    slots.forEach(function (key) { defaults[key] = 'empty'; });
+    return { id: b.bar, wireKey: 'STATUS_LINE_' + (i + 5) + '_UINT8', slots: slots, defaults: defaults };
+  });
+  var ALL_LINES = LINES.concat(EXTRA_LINES);
 
   /**
    * @param {string} code catalog item code
@@ -254,23 +274,26 @@
   }
 
   /**
-   * The 12 effective slot codes, answering the FLAVOR-LESS line defaults for anything
-   * unset — deliberately env-free. Its callers are fetch gates (forecast-series.js's
-   * needsUv / needsAqi / needsPollen) asking whether uv/aqi/pollen is on screen
-   * anywhere, and no per-platform flavor moves those three, so an env would be a
-   * parameter nothing could pass. Still routed through slotDefault rather than reading
-   * LINES[l].defaults, so there is one reader of the table.
+   * The effective slot codes of every line the bake sends (bakedLines: the Watch bar's and
+   * each bar a screen shows), answering each unset slot with the default the bake packs for
+   * this watch (slotDefault with env: status-lines.js packLine). Its callers are fetch gates
+   * (forecast-series.js's needsUv / needsAqi / needsPollen, dayMaxInUse) asking whether a
+   * code is on screen anywhere, and a flavor moves one of those: air quality sits in the top
+   * row's corner on emery and in its left slot elsewhere. So a slot on a bar no screen shows
+   * fetches nothing, and an unset slot fetches what the watch draws in it.
    * @param {Object} settings Clay settings blob
-   * @returns {string[]} the 12 effective slot codes (stored or line default)
+   * @param {?Object} [env] platform env (omitted: capable, the base flavor)
+   * @returns {string[]} the effective slot codes (stored or line default), three per line
    */
-  function selectedCodes(settings) {
+  function selectedCodes(settings, env) {
     var out = [];
-    for (var l = 0; l < LINES.length; l++) {
-      var line = LINES[l];
+    var lines = bakedLines(settings, env);
+    for (var l = 0; l < lines.length; l++) {
+      var line = lines[l];
       for (var s = 0; s < line.slots.length; s++) {
         var key = line.slots[s];
         var v = settings && settings[key];
-        out.push(v || slotDefault(key));
+        out.push(v || slotDefault(key, env));
       }
     }
     return out;
@@ -288,6 +311,41 @@
     var item = byCode(code);
     if (!item || !itemAvailable(item, settings, env, slotCtx)) { return 'empty'; }
     return code;
+  }
+
+  /**
+   * The lines the bake sends (status-lines.js), and so the ones whose slots the fetch gates
+   * and the render signature read: the Watch bar's always, every other bar's while a screen
+   * shows it (view-cycle.js barsShown, which shows a bar 4 to 6 only once made on a watch
+   * that has them). The Watch bar is the exception because every watch can show it on any
+   * screen: aplite has no screen without it, and the others bring it back in a Timeline
+   * Quick View peek (the watch's layout_peek_spec). The Radar and Health bars also need a
+   * watch that draws them, which aplite does not, whatever a settings blob from another
+   * watch puts on its screens. A bar on no screen is sent no line, so the watch keeps the
+   * last one it had (status_bar.c loads no row for it); the save that puts it on a screen
+   * re-bakes at once (status-rebake.js) and fetches what its slots need (render-signature.js).
+   * @param {Object} settings Clay settings blob
+   * @param {?Object} [env] platform env (omitted: capable)
+   * @returns {Array<Object>} LINES and EXTRA_LINES entries, in wire order
+   */
+  function bakedLines(settings, env) {
+    var shown = VC.barsShown(settings, env);
+    return ALL_LINES.filter(function (line) {
+      if (line.id === 'top') { return true; }
+      if ((line.id === 'radar' || line.id === 'health') && env && env[line.id] === false) { return false; }
+      return Boolean(shown[line.id]);
+    });
+  }
+
+  /**
+   * @param {string} id A line's id (an on-demand.js BARS bar).
+   * @returns {?Object} its LINES or EXTRA_LINES entry, null for none
+   */
+  function lineById(id) {
+    for (var l = 0; l < ALL_LINES.length; l++) {
+      if (ALL_LINES[l].id === id) { return ALL_LINES[l]; }
+    }
+    return null;
   }
 
   /** @returns {string[]} the 12 configurable slot settings keys, line order */
@@ -317,8 +375,8 @@
    * @returns {string|undefined} default item code, or undefined for an unknown slotKey
    */
   function slotDefault(slotKey, env) {
-    for (var l = 0; l < LINES.length; l++) {
-      var line = LINES[l];
+    for (var l = 0; l < ALL_LINES.length; l++) {
+      var line = ALL_LINES[l];
       if (line.slots.indexOf(slotKey) === -1) { continue; }
       if (env && env.platform === 'emery' && line.emeryDefaults) {
         return line.emeryDefaults[slotKey];
@@ -331,11 +389,12 @@
 
   /**
    * @param {string} slotKey Slot messageKey.
-   * @returns {?Object} The LINES entry owning the slot, or null for non-slot keys.
+   * @returns {?Object} The LINES (or EXTRA_LINES) entry owning the slot, or null for
+   *   non-slot keys.
    */
   function lineOf(slotKey) {
-    for (var l = 0; l < LINES.length; l++) {
-      if (LINES[l].slots.indexOf(slotKey) !== -1) { return LINES[l]; }
+    for (var l = 0; l < ALL_LINES.length; l++) {
+      if (ALL_LINES[l].slots.indexOf(slotKey) !== -1) { return ALL_LINES[l]; }
     }
     return null;
   }
@@ -369,16 +428,11 @@
    * @returns {Array<string>} the slot keys
    */
   function healthSlots(S, lineId, env) {
-    var out = [];
-    for (var l = 0; l < LINES.length; l++) {
-      if (LINES[l].id !== lineId) { continue; }
-      for (var s = 0; s < LINES[l].slots.length; s++) {
-        var key = LINES[l].slots[s];
-        var item = byCode((S || {})[key] || slotDefault(key, env));
-        if (item && item.needsHealth) { out.push(key); }
-      }
-    }
-    return out;
+    var line = lineById(lineId);
+    return (line ? line.slots : []).filter(function (key) {
+      var item = byCode((S || {})[key] || slotDefault(key, env));
+      return Boolean(item && item.needsHealth);
+    });
   }
 
   /**
@@ -470,16 +524,18 @@
    * forecast-series.js dayPeakCodes, so this catalog stays alert-agnostic.
    * @param {Object} settings Clay settings blob.
    * @param {string} kind A DAY_MAX_KINDS entry.
+   * @param {?Object} [env] platform env (omitted: capable)
    * @returns {boolean}
    */
-  function dayMaxInUse(settings, kind) {
+  function dayMaxInUse(settings, kind, env) {
     if (!settings) { return false; }
     var mode = settings[kind + 'SlotDisplay'];
-    return (mode === 'max' || mode === 'both') && selectedCodes(settings).indexOf(kind) !== -1;
+    return (mode === 'max' || mode === 'both') && selectedCodes(settings, env).indexOf(kind) !== -1;
   }
 
   var api = {
     KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES, SLOT_POSITIONS: SLOT_POSITIONS,
+    EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
     allSlotKeys: allSlotKeys, slotDefault: slotDefault,

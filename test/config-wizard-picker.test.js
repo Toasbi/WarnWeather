@@ -20,8 +20,6 @@ require('../src/pkjs/settings/blocks.js');
 require('../src/pkjs/settings/reset-status-defaults.js');
 // The Theme row's real conversion: the looks' defaults follow it (the bars' colour a theme starts on).
 require('../src/pkjs/settings/theme-convert.js');
-// The real screenshots, as the page concatenates them before wizard.js (which reads them at load).
-require('../src/pkjs/settings/wizard-screenshots.generated.js');
 require('../src/pkjs/settings/wizard.js');
 const FORECAST = require('../src/pkjs/settings/wizard-forecast.js');
 const SCREENS = require('../src/pkjs/settings/wizard-screens.js');
@@ -30,6 +28,7 @@ const M = require('../src/pkjs/screens.js');
 const VC = require('../src/pkjs/view-cycle.js');
 const PW = require('../src/pkjs/settings/preview-watch.js');
 const spanHours = require('../src/pkjs/forecast-span-hours.js');
+const GS = require('../src/pkjs/graph-styles.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { openSetup } = require('./helpers/wizard-dom.js');
 const { blankBar, slotsOf } = require('./helpers/status-slots.js');
@@ -239,45 +238,56 @@ test('the summary names every theme on a colour watch, B&W ones included', () =>
   });
 });
 
+/**
+ * The Default screen as the Watchface tab's screen editor draws it from the live settings, in the
+ * wizard's frame class: what the Layout and Theme pickers' watch shows.
+ * @param {Object} ctx The page's ctx.
+ * @returns {string} SVG markup.
+ */
+function defaultScreen(ctx) {
+  return SPAGE.screenPicture(ctx.S, 0, ctx.ENV, ctx.USERDATA, 'wd-').svg.replace('class="wpv-scr"', 'class="wiz-scr"');
+}
+
 test('a pick updates the segments, the description and the watch in place', () => {
   mock.timers.enable({ apis: ['setTimeout'] });
   try {
-    const { dom } = openSetup({ saved: { layoutPreset: 'compactCal' } });
+    const { ctx, dom } = openSetup({ saved: { layoutPreset: 'compactCal' } });
     walkTo(dom, 'layoutPreset');
-    const shot = dom.find('[data-wiz-shot]');
-    const compactSrc = shot.getAttribute('href');
-    assert.ok(compactSrc.indexOf('data:image/png;base64,') === 0, 'the screenshot, as the frame\'s <image>');
-    assert.equal(shot.getAttribute('xlink:href'), compactSrc, 'in both href forms');
+    const watch = dom.find('[data-wiz-watch]');
+    const compact = watch.innerHTML;
+    assert.equal(compact, defaultScreen(ctx), 'the Default screen, drawn as the screen editor draws it');
     dom.pick('layoutPreset', 'fullCal');
     assert.deepEqual(dom.picker().selected, 'fullCal');
     const segs = dom.findAll('[data-wiz-opt]');
     assert.deepEqual(segs.map((x) => [x.getAttribute('aria-checked'), x.getAttribute('tabindex'), x.className]),
       [['true', '0', 'wiz-opt on'], ['false', '-1', 'wiz-opt'], ['false', '-1', 'wiz-opt']]);
-    assert.match(dom.find('[data-wiz-desc="layoutPreset"]').textContent, /three-row month grid/);
-    assert.equal(shot.getAttribute('class'), 'wiz-shot fade', 'the old picture fades out first');
+    assert.match(dom.find('[data-wiz-desc="layoutPreset"]').textContent, /three-row calendar/);
+    assert.equal(watch.querySelector('.wiz-scr').getAttribute('class'), 'wiz-scr fade', 'the old picture fades out first');
+    assert.equal(watch.innerHTML, compact, 'and stays until it has');
     mock.timers.tick(150);
-    assert.notEqual(shot.getAttribute('href'), compactSrc);
-    assert.equal(shot.getAttribute('class'), 'wiz-shot');
-    assert.equal(dom.find('[data-wiz-watch]').getAttribute('aria-label'), 'Full calendar preview');
+    assert.equal(watch.innerHTML, defaultScreen(ctx), 'then the screen the pick made');
+    assert.notEqual(watch.innerHTML, compact);
+    assert.equal(watch.getAttribute('aria-label'), 'Full calendar preview');
   } finally {
     mock.timers.reset();
   }
 });
 
-test('the watch is its screenshot in the screen pictures\' frame, on the shot\'s own ground', () => {
+test('the watch is the Default screen in the screen pictures\' frame, on the picked theme\'s ground', () => {
   mock.timers.enable({ apis: ['setTimeout'] });
   try {
-    const { dom } = openSetup({ saved: { theme: 'dark' } });
+    const { ctx, dom } = openSetup({ saved: { theme: 'dark' } });
     walkTo(dom, 'theme');
     const watch = dom.find('[data-wiz-watch]');
-    const ground = () => watch.querySelector('rect').getAttribute('fill');
+    const ground = () => (/^<svg [^>]*><rect x="-9" y="-9" width="162" height="186" fill="([^"]*)">/.exec(watch.innerHTML) || [])[1];
     assert.match(watch.innerHTML, /^<svg class="wiz-scr" viewBox="-9 -9 162 186" aria-hidden="true" focusable="false">/,
       'the 144 x 168 screen with a 9 px margin, as the Watchface tab frames it');
-    assert.equal(ground(), '#000000', 'Dark\'s shot is on black');
+    assert.equal(ground(), '#000000', 'Dark draws on black');
     assert.equal(watch.getAttribute('role'), 'img');
     dom.pick('theme', 'light');
     mock.timers.tick(150);
-    assert.equal(ground(), '#FFFFFF', 'Light\'s shot is on white, and its margin with it');
+    assert.equal(ground(), '#FFFFFF', 'Light on white, and its margin with it');
+    assert.equal(watch.innerHTML, defaultScreen(ctx), 'drawn from the settings the pick wrote');
     dom.pick('theme', 'dark');
     mock.timers.tick(150);
     assert.equal(ground(), '#000000');
@@ -289,22 +299,29 @@ test('the watch is its screenshot in the screen pictures\' frame, on the shot\'s
 test('two quick picks end on the second one\'s watch (A, B, back to A before the fade lands)', () => {
   mock.timers.enable({ apis: ['setTimeout'] });
   try {
-    const { dom } = openSetup({ saved: { layoutPreset: 'compactCal' } });
+    const { ctx, dom } = openSetup({ saved: { layoutPreset: 'compactCal' } });
     walkTo(dom, 'layoutPreset');
-    const shot = dom.find('[data-wiz-shot]');
-    const compactSrc = shot.getAttribute('href');
+    const watch = dom.find('[data-wiz-watch]');
     dom.pick('layoutPreset', 'fullCal');
     mock.timers.tick(60);
     dom.pick('layoutPreset', 'compactCal');
     mock.timers.tick(200);
-    assert.equal(shot.getAttribute('href'), compactSrc, 'the watch shows the selected option');
-    assert.equal(shot.getAttribute('class'), 'wiz-shot', 'and is not left faded out');
     assert.equal(dom.picker().selected, 'compactCal');
+    assert.equal(watch.innerHTML, defaultScreen(ctx), 'the watch shows the selected option');
+    assert.equal(watch.getAttribute('aria-label'), 'Compact preview');
   } finally {
     mock.timers.reset();
   }
 });
 
+test('the welcome shows the Default screen too; emery\'s at its own width', () => {
+  const { ctx, dom } = openSetup({});
+  assert.equal(dom.find('[data-wiz-watch]').innerHTML, defaultScreen(ctx), 'the watch as it starts');
+  assert.equal(dom.find('[data-wiz-watch]').getAttribute('aria-label'), 'WarnWeather on your watch');
+  const emery = openSetup({ platform: 'emery' });
+  assert.match(emery.dom.find('[data-wiz-watch]').innerHTML, /^<svg class="wiz-scr" viewBox="-12 -12 224 252"/);
+  assert.equal(emery.dom.overlay.className, 'w200', 'the CSS sizes it by its 200 px screen');
+});
 
 test('opening the Tomorrow.io card shows its field and starts at its instructions; a key names it in the summary', () => {
   const { ctx, dom } = openSetup({ saved: { holidayCountry: 'US' } });
@@ -395,10 +412,10 @@ test('starting setup again while it is open replaces it: one overlay, one set of
 
 test('the copy follows the watch: no radar promise on aplite', () => {
   const aplite = openSetup({ platform: 'aplite' });
-  assert.match(aplite.dom.body.innerHTML, /Picks the weather service for your area/);
+  assert.match(aplite.dom.body.innerHTML, /Your country sets the weather service for your area/);
   assert.doesNotMatch(aplite.dom.body.innerHTML, /radar/);
   const basalt = openSetup({ platform: 'basalt' });
-  assert.match(basalt.dom.body.innerHTML, /Picks the weather and radar service for your area/);
+  assert.match(basalt.dom.body.innerHTML, /Your country sets the weather and radar service for your area/);
 });
 
 // --- the Screens step: the watch's own screens, + and ✕, the flick ---
@@ -407,13 +424,13 @@ test('the Screens step on a new install: the Default alone, Try a flick off, Hea
   const { ctx, dom } = openSetup();
   walkToTitle(dom, 'Flick to switch screens');
   const body = dom.body.innerHTML;
-  assert.match(body, /<p class="wiz-lead">Add screens to flick to\. The watch goes back to Default by itself\.<\/p>/);
+  assert.match(body, /<p class="wiz-lead">Add the screens you want to flick to\. The watch goes back to the Default screen by itself\.<\/p>/);
   assert.equal(dom.find('[data-wiz-flick-label]').textContent, 'Default');
   assert.match(body, /<button type="button" class="wiz-try" data-wiz-flick disabled>/, 'nothing to flick to yet');
   assert.deepEqual(dom.findAll('[data-wiz-scr-add]').map((b) => b.getAttribute('data-wiz-scr-add')), ['health', 'radar']);
   assert.equal(dom.findAll('[data-wiz-scr-rm]').length, 0, 'the Default screen has no ✕');
   assert.match(body, /aria-label="Add the Health screen"/);
-  assert.match(body, /<p class="wiz-fine">Rain alerts show on the Watch bar either way\. Change screens later on the Watchface tab\.<\/p>/);
+  assert.match(body, /<p class="wiz-fine">Rain alerts stay on the Watch bar whichever screens you add\. You can change the screens later on the Watchface tab\.<\/p>/);
   // The big screen is the watch's own Default, drawn as the Watchface tab draws it.
   const pic = PW.screenSvg(VC.screensCycle(ctx.S, ctx.ENV)[0], 0, ctx.S, ctx.ENV, {}, 0, new Date(), 'wz0-');
   assert.equal(dom.find('[data-wiz-screen]').getAttribute('aria-label'), 'Default: ' + pic.label);
@@ -431,19 +448,16 @@ test('+ puts a screen in where it goes and shows it big; ✕ takes it out again'
   // Health goes in before the Rain radar screen, whatever the order of the taps.
   addScreen(dom, 'health');
   assert.deepEqual(screenNames(ctx), ['Default', 'Health', 'Rain radar']);
+  assert.deepEqual([ctx.S.viewName1, ctx.S.viewName2], ['Health', 'Rain radar'],
+    'each named as it goes in (3.0: the names move with the screens)');
   assert.equal(dom.find('[data-wiz-flick-label]').textContent, 'Health');
   assert.equal(ctx.S.healthMode, 'all');
   assert.equal(dom.findAll('[data-wiz-scr-add]').length, 0, 'three screens: nothing more to add');
   assert.deepEqual(dom.findAll('[data-wiz-scr-rm]').map((b) => b.getAttribute('data-wiz-scr-rm')), ['1', '2']);
-  // Today's Flick 1 and Flick 2: an upgraded install's screens, drawn the same (the screen editor's
-  // encoding: an explicit band order, where the preset leaves the tier's own).
-  const upgraded = Object.assign(JSON.parse(JSON.stringify(ctx.S)),
-    { layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'graph', swapClockStatus: true });
-  assert.deepEqual(M.screensOf(ctx.S, ctx.ENV), M.screensOf(upgraded, ctx.ENV));
-  const now = new Date(2026, 10, 6, 15);
-  [1, 2].forEach((i) => assert.equal(
-    PW.screenSvg(VC.resolveViewCycle(ctx.S, ctx.ENV)[i], i, ctx.S, ctx.ENV, {}, 0, now, 'x').svg,
-    PW.screenSvg(VC.resolveViewCycle(upgraded, ctx.ENV)[i], i, upgraded, ctx.ENV, {}, 0, now, 'x').svg, 'screen ' + i));
+  // Each on the Default screen's calendar (the Layout's, Compact on a new install: the owner's ask,
+  // 2026-11-09), Add a screen's screens.
+  assert.deepEqual(M.screensOf(ctx.S, ctx.ENV).slice(1), [SCREENS.listOf(SCREENS.byId('health'), '2'),
+    SCREENS.listOf(SCREENS.byId('radar'), '2')]);
   removeScreen(dom, 1);
   assert.deepEqual(screenNames(ctx), ['Default', 'Rain radar']);
   assert.equal(ctx.S.healthMode, 'off', 'no screen shows health');
@@ -453,6 +467,83 @@ test('+ puts a screen in where it goes and shows it big; ✕ takes it out again'
   assert.deepEqual(screenNames(ctx), ['Default']);
   assert.equal(ctx.S.radarMode, 'countdown', 'the rain alert on the Watch bar still fetches the radar');
   assert.equal(ctx.S.viewCount, '1');
+});
+
+test('the screens setup offers show the Layout\'s calendar; a layout picked later moves the ones it added', () => {
+  const { ctx, dom } = openSetup();
+  walkTo(dom, 'layoutPreset');
+  dom.pick('layoutPreset', 'noCal');
+  walkToTitle(dom, 'Flick to switch screens');
+  const offeredPic = dom.find('[data-wiz-scr-add="health"]').getAttribute('aria-label');
+  assert.equal(offeredPic, 'Add the Health screen');
+  addScreen(dom, 'health');
+  assert.deepEqual(M.screensOf(ctx.S, ctx.ENV)[1], SCREENS.listOf(SCREENS.byId('health'), ''), 'no calendar, as the Default');
+  dom.nav('back');
+  dom.pick('layoutPreset', 'fullCal');
+  assert.deepEqual(M.screensOf(ctx.S, ctx.ENV)[1], SCREENS.listOf(SCREENS.byId('health'), '3'), 'the full calendar now');
+  assert.equal(ctx.S.viewName1, 'Health', 'still named');
+  dom.pick('layoutPreset', 'compactCal');
+  assert.deepEqual(M.screensOf(ctx.S, ctx.ENV)[1], SCREENS.listOf(SCREENS.byId('health'), '2'));
+  // A screen of the user's own is left as it is.
+  const own = openSetup({ saved: Object.assign({ layoutPreset: 'custom', customLayoutSeeded: true, viewCount: '2' },
+    M.compileKeys(M.screensOf(ctx.S, ctx.ENV)[0], 0), M.compileKeys(SCREENS.listOf(SCREENS.byId('health'), ''), 1)) });
+  walkTo(own.dom, 'layoutPreset');
+  own.dom.pick('layoutPreset', 'fullCal');
+  assert.deepEqual(M.screensOf(own.ctx.S, own.ctx.ENV)[1], SCREENS.listOf(SCREENS.byId('health'), ''),
+    'a Health screen setup did not add keeps its calendar');
+});
+
+test('on emery Long forecast adds a second graph over the long span; the Default\'s goes to 24 hours', () => {
+  const { ctx, dom } = openSetup({ platform: 'emery', fresh: true });
+  walkToTitle(dom, 'Flick to switch screens');
+  assert.deepEqual(dom.findAll('[data-wiz-scr-add]').map((b) => b.getAttribute('data-wiz-scr-add')), ['long', 'health', 'radar']);
+  assert.equal(FORECAST.spanOf(ctx.S), '48', 'premise: a new install\'s graph shows the long span');
+  addScreen(dom, 'long');
+  assert.deepEqual(screenNames(ctx), ['Default', 'Long forecast']);
+  assert.equal(ctx.S.viewName1, 'Long forecast');
+  assert.equal(ctx.S.viewStyle1, '2', 'it draws a graph of its own');
+  assert.equal(GS.name(ctx.S, 1), 'Long forecast', 'named as the screen');
+  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48', 'over the long span');
+  assert.equal(ctx.S.forecastHours, '24', 'the Default\'s graph shows the next day now');
+  assert.deepEqual(GS.stylesShown(ctx.S, ctx.ENV), [0, 1]);
+  // Health goes in after it.
+  addScreen(dom, 'health');
+  assert.deepEqual(screenNames(ctx), ['Default', 'Long forecast', 'Health']);
+  // The forecast step's look shows on both; the Default keeps its 24 hours.
+  walkTo(dom, 'forecastLook');
+  const lookOf = (id) => FORECAST.looks(ctx.S, ctx.ENV, PConf.engine.themedDefaults(ctx.schema, ctx.S, ctx.ENV), null)
+    .filter((r) => r.id === id)[0];
+  dom.pick('forecastLook', 'stripes');
+  assert.ok(FORECAST.same(GS.settingsFor(ctx.S, 1), lookOf('stripes').values, ctx.ENV), 'the long graph draws Stripes too');
+  dom.pick('forecastLook', 'clean');
+  assert.equal(ctx.S.forecastHours, '24', 'a look picked keeps the Default\'s length beside the long one');
+  assert.ok(FORECAST.same(GS.settingsFor(ctx.S, 1), lookOf('clean').values, ctx.ENV), 'and Clean');
+  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48');
+  dom.nav('back');
+  dom.pick('theme', 'light');
+  assert.equal(ctx.S.theme, 'light');
+  assert.deepEqual(GS.valuesOf(ctx.S, 1), Object.assign(GS.valuesOf(ctx.S, 0), { forecastHours: '48' }),
+    'a theme picked after shows on both');
+  // Taken out again: its graph goes, and the Default's length comes back.
+  dom.nav('back');
+  removeScreen(dom, 1);
+  assert.deepEqual(screenNames(ctx), ['Default', 'Health']);
+  assert.equal(GS.count(ctx.S), 1, 'its graph went with it');
+  assert.equal(ctx.S.forecastHours, '48', 'the Default shows the long span again');
+});
+
+test('Long forecast beside a Default graph of 24 hours leaves the Default as it is', () => {
+  const { ctx, dom } = openSetup({ platform: 'emery', saved: { forecastHours: '24' } });
+  walkToTitle(dom, 'Flick to switch screens');
+  addScreen(dom, 'long');
+  assert.equal(ctx.S.forecastHours, '24');
+  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48');
+  removeScreen(dom, 1);
+  assert.equal(ctx.S.forecastHours, '24');
+  // Not on a watch with one graph.
+  const basalt = openSetup();
+  walkToTitle(basalt.dom, 'Flick to switch screens');
+  assert.equal(basalt.dom.findAll('[data-wiz-scr-add="long"]').length, 0);
 });
 
 test('a screen setup adds brings its bar with the bar\'s default readings, not an empty row', () => {
@@ -479,7 +570,7 @@ test('a layout that puts the Forecast bar back gives it its readings when it has
   walkTo(dom, 'layoutPreset');
   dom.pick('layoutPreset', 'fullCal');
   assert.ok(M.idxOf(M.screensOf(ctx.S, ctx.ENV)[0], 'fcbar') >= 0, 'the layout\'s Default screen has it');
-  assert.deepEqual(slotsOf(ctx.S, 'forecast'), ['temp', 'city', 'aqi']);
+  assert.deepEqual(slotsOf(ctx.S, 'forecast'), ['temp', 'city', 'sun']);
 });
 
 test('Try a flick steps through the screens and back to Default', () => {
@@ -539,12 +630,12 @@ test('with the rain radar off, a Rain radar screen is drawn as the watch draws i
   const SP = require('../src/pkjs/settings/screens-page.js');
   const base = openSetup().ctx;
   const saved = Object.assign({ layoutPreset: 'custom', viewCount: '2', radarEnabled: false, radarProvider: 'dwd' },
-    M.compileKeys(M.screensOf(base.S, base.ENV)[0], 0), M.compileKeys(SCREENS.byId('radar').list, 1));
+    M.compileKeys(M.screensOf(base.S, base.ENV)[0], 0), M.compileKeys(SCREENS.listOf(SCREENS.byId('radar'), ''), 1));
   const { ctx, dom } = openSetup({ saved });
   walkToTitle(dom, 'Flick to switch screens');
   assert.deepEqual(screenNames(ctx), ['Default', 'Rain radar']);
   const drawn = SP.screenPicture(ctx.S, 1, ctx.ENV, ctx.USERDATA, 'x').label;
-  assert.equal(drawn, 'Watch Status, Clock, Radar Status, Forecast', 'the radar graph folds to the forecast');
+  assert.equal(drawn, 'Watch bar, Clock, Radar bar, Forecast', 'the radar graph folds to the forecast');
   assert.ok(dom.body.innerHTML.indexOf('aria-label="Rain radar: ' + drawn + '"') >= 0, 'the small screen is that picture');
   assert.equal(ctx.S.radarEnabled, false, 'drawing it turns nothing on');
 });
@@ -564,7 +655,7 @@ test('a screen of the user\'s own keeps its place\'s name, and only what fits is
   assert.equal(dom.findAll('[data-wiz-scr-add]').length, 0);
 });
 
-test('the Health screen added in setup earns the steps reading on the Watch bar as it finishes', () => {
+test('the Health screen added in setup keeps steps in the Health bar: the Watch bar keeps its own', () => {
   const finish = (add) => {
     const { ctx, dom } = openSetup();
     walkToTitle(dom, 'Flick to switch screens');
@@ -573,8 +664,10 @@ test('the Health screen added in setup earns the steps reading on the Watch bar 
     dom.nav('tweak');
     return ctx.S;
   };
-  assert.equal(finish(true).statusTopLeft, 'steps', 'health on: steps on the Watch bar');
-  assert.equal(finish(false).statusTopLeft, 'empty', 'a new install without it: health off');
+  const withHealth = finish(true);
+  assert.equal(withHealth.statusTopLeft, 'aqi', 'health on: the Watch bar keeps air quality');
+  assert.equal(withHealth.statusHealthLeft, 'steps', 'and the Health bar its steps');
+  assert.equal(finish(false).statusTopLeft, 'aqi', 'a new install without it: the same Watch bar');
 });
 
 // --- the forecast step: the graph's look, previewed live on the Default screen ---
@@ -587,23 +680,178 @@ const LOOK_KEYS = FORECAST.governed(platform.computeEnv({ platform: 'basalt' }))
  * @returns {Object} messageKey -> value.
  */
 const graphOf = (S) => LOOK_KEYS.reduce((o, k) => Object.assign(o, { [k]: S[k] }), {});
+/**
+ * A look's values, as LOOKS defines them (wizard-forecast.js, the templates' one definition), by
+ * LOOK_KEYS.
+ * @param {string} id A look's id.
+ * @returns {Object} messageKey -> value.
+ */
+const lookOver = (id) => {
+  const over = FORECAST.lookOf(id).over;
+  return LOOK_KEYS.filter((k) => k in over).reduce((o, k) => Object.assign(o, { [k]: over[k] }), {});
+};
+// The looks, in the picker's order.
+const LOOK_IDS = ['classic', 'clean', 'stripes'];
+// An emery graph that reads as Classic: the defaults with the high and low beside the axis.
+const EMERY_CLASSIC = { provider: 'dwd', forecastAxisNumbers: 'axis' };
 
-test('the forecast step offers Classic, Clean and Stripes; a fresh install\'s graph is Clean', () => {
+test('the forecast step offers Classic, Clean and Stripes; a 144 px watch\'s new graph is Classic', () => {
   const { ctx, dom } = openSetup();
   walkTo(dom, 'forecastLook');
-  assert.match(dom.body.innerHTML, />Choose your forecast</);
-  assert.deepEqual(dom.picker().options, ['classic', 'clean', 'stripes']);
+  assert.match(dom.body.innerHTML, />Choose a forecast graph</);
+  assert.deepEqual(dom.picker().options, LOOK_IDS);
   assert.deepEqual(dom.picker().labels, ['Classic', 'Clean', 'Stripes']);
-  assert.equal(dom.picker().selected, 'clean', 'Clean preselected: a new install\'s defaults');
+  assert.equal(dom.picker().selected, 'classic', 'Classic preselected: the defaults on a 144 px watch');
   assert.equal(dom.picker('forecastHours'), null, 'only emery picks a length');
   // The whole Default screen, as the Watchface tab draws it, the look applied.
   const graph = dom.find('[data-wiz-graph]');
   assert.match(graph.innerHTML, /^<svg class="wiz-scr" viewBox="-9 -9 162 186" /, 'the screen in its frame');
   const pic = PW.screenSvg(VC.screensCycle(ctx.S, ctx.ENV)[0], 0, ctx.S, ctx.ENV, {}, 0, new Date(), 'wf0-');
   assert.equal(graph.innerHTML, pic.svg.replace('class="wpv-scr"', 'class="wiz-scr"'));
-  assert.equal(graph.getAttribute('aria-label'), 'Forecast preview: Clean, on the Default screen');
-  assert.equal(dom.find('[data-wiz-desc="forecastLook"]').textContent, 'Just the temperature, rain chance and rain bars.');
-  assert.match(dom.body.innerHTML, /<p class="wiz-fine">Every line can be changed later on the Graphs tab\.<\/p>/);
+  assert.equal(graph.getAttribute('aria-label'), 'Forecast preview: Classic, on the Default screen');
+  assert.equal(dom.find('[data-wiz-desc="forecastLook"]').textContent,
+    'Draws the graph the way ForecasWatch2 does: the temperature, the rain chance as a shaded area, and rain bars.');
+  assert.match(dom.body.innerHTML, /<p class="wiz-fine">You can change every line of the graph later on the Graphs tab\.<\/p>/);
+  // A new install opens on it too, its graph left as it was.
+  const fresh = openSetup({ fresh: true });
+  walkTo(fresh.dom, 'forecastLook');
+  assert.equal(fresh.dom.picker().selected, 'classic');
+  assert.deepEqual(graphOf(fresh.ctx.S), graphOf(ctx.S));
+});
+
+test('the looks as the owner set them, pinned as written: each one\'s values, length and words', () => {
+  // Literal, not read back from LOOKS: a wrong value there fails here.
+  const pinned = {
+    classic: { span: '24', like: 'ForecasWatch2', over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: true, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
+      dayNightShading: true, forecastAxisNumbers: 'axis' } },
+    // The owner's, 2026-11-09: no cloud cover (a user adds it).
+    clean: { span: '48', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: true, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off',
+      barSource: 'rain', rainBarColor: 'white', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The owner's, 2026-11-09: the feels-like temperature as a thin line, the high and low on the graph.
+    stripes: { span: '24', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop',
+      secondaryLineFill: true, thirdLine: 'precip_prob', thirdLineStyle: 'stripeTop', fourthLine: 'feels',
+      fourthLineStyle: 'line', fifthLine: 'off', barSource: 'rain', rainBarColor: 'white', rainBarFrom: 'top',
+      dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The owner's, 2026-11-10: better too many presets than too few. The plainest graph: the rain
+    // chance as a thin line, no bars, no shaded area.
+    simple: { span: '24', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'off',
+      dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The next 12 hours of rain: the rain chance as a stripe along the top over the rain bars.
+    rain: { span: '12', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'stripeTop',
+      secondaryLineFill: true, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
+      dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The owner's, 2026-11-10: only the rain chance fills its area (the watch paints it solid).
+    // The day's sky: the clouds as a stripe along the top over the rain chance's thin line.
+    sky: { span: '24', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop',
+      secondaryLineFill: false, thirdLine: 'precip_prob', thirdLineStyle: 'line', fourthLine: 'off', fifthLine: 'off',
+      barSource: 'rain', rainBarColor: 'white', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // Whether the next nights stay clear, as stargazing forecasts show it: the clouds as a thick line.
+    clouds: { span: '48', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'bold', secondaryLineFill: false,
+      thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', barSource: 'rain', rainBarColor: 'white', dayNightShading: true,
+      forecastAxisNumbers: 'graph' } },
+    // The owner's, 2026-11-09: Clean with its bars from the top and the UV index as a thin line,
+    // and on 12 and 24 hours the feels-like temperature too.
+    outdoor: { span: '48', like: undefined, short: { fourthLine: 'feels', fourthLineStyle: 'line' },
+      over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line', secondaryLineFill: true, thirdLine: 'uv',
+        thirdLineStyle: 'line', fourthLine: 'off', fifthLine: 'off', barSource: 'rain', rainBarColor: 'white',
+        rainBarFrom: 'top', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // When the sun is strong: the UV index as a thick line, the clouds as a stripe along the top.
+    sun: { span: '24', like: undefined, over: { secondaryLine: 'uv', secondaryLineStyle: 'bold', secondaryLineFill: false,
+      thirdLine: 'cloud', thirdLineStyle: 'stripeTop', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
+      rainBarColor: 'white', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The owner's, 2026-11-10: presets from the common ways to show the weather.
+    comfort: { span: '24', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: true, thirdLine: 'feels', thirdLineStyle: 'line', fourthLine: 'dew', fourthLineStyle: 'x',
+      fifthLine: 'off', barSource: 'rain', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // The wind speed as a thick line and its gusts as dots, as wind forecasts chart them.
+    wind: { span: '24', like: undefined, over: { secondaryLine: 'wind', secondaryLineStyle: 'bold', secondaryLineFill: false,
+      thirdLine: 'gust', thirdLineStyle: 'dots', fourthLine: 'off', fifthLine: 'off', barSource: 'rain',
+      dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // A storm coming in: the gusts as a thick line, the air pressure as a thin line, the rain
+    // chance as a stripe along the top.
+    storm: { span: '24', like: undefined, over: { secondaryLine: 'gust', secondaryLineStyle: 'bold', secondaryLineFill: false,
+      thirdLine: 'pressure', thirdLineStyle: 'line', fourthLine: 'precip_prob', fourthLineStyle: 'stripeTop',
+      fifthLine: 'off', barSource: 'rain', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // A front coming in: Clean with the air pressure as a thin line over the long span.
+    pressure: { span: '48', like: undefined, over: { secondaryLine: 'precip_prob', secondaryLineStyle: 'line',
+      secondaryLineFill: true, thirdLine: 'pressure', thirdLineStyle: 'line', fourthLine: 'off', fifthLine: 'off',
+      barSource: 'rain', rainBarColor: 'white', dayNightShading: true, forecastAxisNumbers: 'graph' } },
+    // A meteogram as weather services draw one (Yr, meteoblue, Windy).
+    meteogram: { span: '48', like: undefined, over: { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop',
+      secondaryLineFill: true, thirdLine: 'pressure', thirdLineStyle: 'line', fourthLine: 'wind', fourthLineStyle: 'dots',
+      fifthLine: 'off', barSource: 'rain', dayNightShading: true, forecastAxisNumbers: 'graph' } }
+  };
+  assert.deepEqual(FORECAST.LOOKS.map((look) => look.id), Object.keys(pinned));
+  FORECAST.LOOKS.forEach((look) => {
+    assert.deepEqual({ span: look.span, like: look.like, short: look.short, over: look.over },
+      Object.assign({ short: undefined }, pinned[look.id]), look.id);
+    assert.equal(Boolean(look.setup), LOOK_IDS.indexOf(look.id) !== -1, look.id + ': setup offers the first three');
+  });
+  // Outdoor's feels-like line: on 12 and 24 hours, not over the long span.
+  ['12', '24', '48'].forEach((span) => assert.equal(FORECAST.valuesAt('outdoor', {}, null, {}, span).fourthLine,
+    span === '48' ? 'off' : 'feels', span));
+  assert.equal(FORECAST.valuesAt('outdoor', {}, null, {}).fourthLine, 'off', 'its own length is the long span');
+  assert.equal(FORECAST.valuesAt('meteogram', {}, null, {}, '24').fourthLine, 'wind', 'a look without short values');
+  assert.equal(FORECAST.valuesAt('nothing', {}, null, {}, '24'), null);
+  // The short lines New graph's sheet shows under them, on a colour watch and on aplite, which
+  // draws neither stripes nor a third line and fills the Main metric's line.
+  const APLITE = platform.computeEnv({ platform: 'aplite' });
+  const EMERY = platform.computeEnv({ platform: 'emery' });
+  assert.deepEqual(LOOK_IDS.map((id) => FORECAST.summary(id, EMERY)), [
+    'Rain chance as a shaded area, rain bars',
+    'Rain chance as a shaded area, solid rain bars',
+    'Feels-like temperature as a line, clouds and rain chance as stripes, solid rain bars from the top']);
+  assert.deepEqual(LOOK_IDS.map((id) => FORECAST.summary(id, APLITE)), [
+    'Rain chance as a shaded area, rain bars',
+    'Rain chance as a shaded area, rain bars',
+    'Rain chance as a line, clouds as a shaded area, rain bars']);
+  assert.deepEqual(FORECAST.LOOKS.slice(3).map((look) => FORECAST.summary(look.id, EMERY)), [
+    'Rain chance as a line',
+    'Rain chance as a stripe, rain bars',
+    'Rain chance as a line, clouds as a stripe, solid rain bars',
+    'Clouds as a thick line, solid rain bars',
+    'UV index as a line, rain chance as a shaded area, solid rain bars from the top',
+    'UV index as a thick line, clouds as a stripe, solid rain bars',
+    'Feels-like temperature as a line, rain chance as a shaded area, dew point as \u00d7 marks, rain bars',
+    'Wind as a thick line, gusts as dots, rain bars',
+    'Air pressure as a line, gusts as a thick line, rain chance as a stripe, rain bars',
+    'Air pressure as a line, rain chance as a shaded area, solid rain bars',
+    'Air pressure as a line, wind as dots, clouds as a stripe, rain bars']);
+});
+
+test('only the rain chance fills its area in a look: the watch paints an area solid', () => {
+  // The owner's, 2026-11-10: the watch has no alpha, so the clouds', gusts' or UV index's area,
+  // high for hours, covered the whole graph. Their looks draw a thick line or a stripe instead.
+  // The colour watches; a black-and-white one dithers its area at half strength (chart.c).
+  const lineStyle = require('../src/pkjs/line-style.js');
+  ['emery', 'basalt', 'chalk'].forEach((p) => {
+    const env = platform.computeEnv({ platform: p });
+    FORECAST.LOOKS.forEach((look) => {
+      [look.over, Object.assign({}, look.over, look.short)].forEach((over) => {
+        if (lineStyle.mainLineFills(over, env)) {
+          assert.equal(over.secondaryLine, 'precip_prob', p + ' ' + look.id + ' fills ' + over.secondaryLine);
+        }
+      });
+    });
+  });
+  const EMERY = platform.computeEnv({ platform: 'emery' });
+  assert.equal(FORECAST.summary('clouds', EMERY), 'Clouds as a thick line, solid rain bars', 'a thick line says so');
+});
+
+test('every look has the night shading on, and the looks are the graph styles\' presets', () => {
+  FORECAST.LOOKS.forEach((look) => assert.equal(look.over.dayNightShading, true, look.id));
+  assert.deepEqual(FORECAST.LOOKS.filter((look) => look.setup).map((look) => look.id), LOOK_IDS, 'setup\'s three');
+  assert.deepEqual(FORECAST.LOOKS.map((look) => look.span),
+    ['24', '48', '24', '24', '12', '24', '48', '48', '24', '24', '24', '24', '48', '48']);
+  assert.equal(FORECAST.FIRST_RUN, 'clean');
+  const { ctx, dom } = openSetup({ saved: { dayNightShading: false } });
+  walkTo(dom, 'forecastLook');
+  assert.equal(dom.picker().selected, 'own', 'a graph without the shading is none of the looks');
+  dom.pick('forecastLook', 'classic');
+  assert.equal(ctx.S.dayNightShading, true);
 });
 
 test('each look\'s copy: the high and low on the graph only where the watch draws them there', () => {
@@ -614,12 +862,19 @@ test('each look\'s copy: the high and low on the graph only where the watch draw
     return dom.find('[data-wiz-desc="forecastLook"]').textContent;
   };
   assert.equal(desc('basalt', 'classic'),
-    'The ForecasWatch2 graph: the temperature, rain chance as a shaded area, UV as dots and rain bars.');
-  assert.equal(desc('basalt', 'stripes'), 'Clouds and rain chance as stripes along the top, rain bars hanging below.');
-  assert.equal(desc('emery', 'clean'), 'Just the temperature, rain chance and rain bars, with the high and low on the graph.');
-  assert.equal(desc('emery', 'stripes'),
-    'Clouds and rain chance as stripes along the top, rain bars hanging below, the high and low on the graph.');
-  assert.equal(desc('emery', 'classic'), desc('basalt', 'classic'));
+    'Draws the graph the way ForecasWatch2 does: the temperature, the rain chance as a shaded area, and rain bars.');
+  assert.equal(desc('basalt', 'clean'),
+    'Shows the temperature, the rain chance as a shaded area, and solid rain bars.');
+  assert.equal(desc('basalt', 'stripes'), 'Shows the temperature and the feels-like temperature as lines, the clouds and'
+    + ' the rain chance as stripes along the top, and solid rain bars that hang from the top.');
+  assert.equal(desc('diorite', 'clean'),
+    'Shows the temperature, the rain chance as a shaded area, and rain bars.',
+    'a black-and-white watch outlines its bars');
+  assert.equal(desc('diorite', 'stripes'), 'Shows the temperature and the feels-like temperature as lines, the clouds and'
+    + ' the rain chance as stripes along the top, and rain bars that hang from the top.');
+  assert.equal(desc('emery', 'classic'), desc('basalt', 'classic') + ' The high and low go beside the axis.');
+  assert.equal(desc('emery', 'clean'), desc('basalt', 'clean') + ' The high and low go on the graph.');
+  assert.equal(desc('emery', 'stripes'), desc('basalt', 'stripes') + ' The high and low go on the graph.');
 });
 
 test('a look writes the whole graph it stands for and redraws the preview in place', () => {
@@ -627,34 +882,33 @@ test('a look writes the whole graph it stands for and redraws the preview in pla
   const defaults = graphOf(ctx.S);
   walkTo(dom, 'forecastLook');
   const graph = dom.find('[data-wiz-graph]');
-  const clean = graph.innerHTML;
+  const classic = graph.innerHTML;
   dom.pick('forecastLook', 'stripes');
-  assert.deepEqual(graphOf(ctx.S), Object.assign({}, defaults, {
-    secondaryLine: 'uv', secondaryLineStyle: 'dots', secondaryLineFill: false,
-    thirdLine: 'cloud', thirdLineStyle: 'stripeTop', fourthLine: 'precip_prob', fourthLineStyle: 'stripeTop',
-    fifthLine: 'feels', fifthLineStyle: 'line', rainBarColor: 'white', rainBarFrom: 'top'
-  }), 'Solid rain bars hanging from under the stripes, in the dark theme too');
+  assert.deepEqual(graphOf(ctx.S), Object.assign({}, defaults, lookOver('stripes')), 'its values over the defaults');
+  assert.equal(ctx.S.secondaryLine, 'cloud', 'the rain chance\'s line moved into its stripe: a metric shows once');
   assert.equal(dom.find('[data-wiz-graph]'), graph, 'redrawn in place, not re-rendered');
-  assert.notEqual(graph.innerHTML, clean);
+  assert.notEqual(graph.innerHTML, classic);
   assert.equal(graph.getAttribute('aria-label'), 'Forecast preview: Stripes, on the Default screen');
   assert.equal(dom.picker().selected, 'stripes');
-  // Classic puts the UV dots back; off emery, the Left axis values and the length stay as they are
-  // (dormant).
+  dom.pick('forecastLook', 'clean');
+  assert.deepEqual(graphOf(ctx.S), Object.assign({}, defaults, lookOver('clean')));
+  assert.equal(ctx.S.rainBarColor, 'white', 'Solid bars in the dark theme too');
   dom.pick('forecastLook', 'classic');
-  assert.equal(ctx.S.thirdLine, 'uv');
+  assert.deepEqual(graphOf(ctx.S), defaults, 'Classic is the defaults again');
+  assert.equal(graph.innerHTML, classic);
+  // Off emery the Left axis values and the length stay as they are (dormant).
   assert.equal(ctx.S.forecastAxisNumbers, 'graph', 'a 144 px watch keeps its axis whatever the key holds');
   assert.equal(ctx.S.forecastHours, '48', 'and draws 24 hours whatever the key holds');
-  dom.pick('forecastLook', 'clean');
-  assert.deepEqual(graphOf(ctx.S), defaults, 'Clean is the defaults again');
-  assert.equal(graph.innerHTML, clean);
 });
 
 test('the looks step with a swipe across the screen and with the arrow keys', () => {
   const { ctx, dom } = openSetup();
   walkTo(dom, 'forecastLook');
   dom.swipe('forecastLook', -80, 4);
+  assert.equal(dom.picker().selected, 'clean');
+  assert.equal(ctx.S.rainBarColor, 'white');
+  dom.key('forecastLook', 'clean', 'ArrowRight');
   assert.equal(dom.picker().selected, 'stripes');
-  assert.equal(ctx.S.fourthLine, 'precip_prob');
   dom.key('forecastLook', 'stripes', 'ArrowRight');
   assert.equal(dom.picker().selected, 'classic', 'wraps past the last');
   dom.key('forecastLook', 'classic', 'End');
@@ -664,21 +918,24 @@ test('the looks step with a swipe across the screen and with the arrow keys', ()
 });
 
 test('on emery Clean and Stripes put the high and low on the graph, Classic beside the axis', () => {
-  const { ctx, dom } = openSetup({ platform: 'emery', saved: { provider: 'dwd' } });
+  const { ctx, dom } = openSetup({ platform: 'emery', saved: EMERY_CLASSIC });
   walkTo(dom, 'forecastLook');
-  assert.equal(dom.picker().selected, 'clean');
-  assert.equal(ctx.S.forecastAxisNumbers, 'graph', 'a new install\'s Clean graph');
+  assert.equal(dom.picker().selected, 'classic');
   const graph = dom.find('[data-wiz-graph]');
   assert.match(graph.innerHTML, /^<svg class="wiz-scr" viewBox="-12 -12 224 252" /, 'emery\'s own screen');
+  dom.pick('forecastLook', 'clean');
+  assert.equal(ctx.S.forecastAxisNumbers, 'graph');
   dom.pick('forecastLook', 'classic');
   assert.equal(ctx.S.forecastAxisNumbers, 'axis');
   dom.pick('forecastLook', 'stripes');
-  assert.equal(ctx.S.forecastAxisNumbers, 'graph');
+  assert.equal(ctx.S.forecastAxisNumbers, 'graph', 'Stripes too (the owner\'s, 2026-11-09)');
+  dom.pick('forecastLook', 'classic');
+  assert.equal(ctx.S.forecastAxisNumbers, 'axis');
 });
 
 test('on emery Forecast length picks the hours; each look starts on its own: Clean the long span, the others 24', () => {
   // DWD's feed reaches the full 68 hours, so the long span's hours follow the plot's width.
-  const { ctx, dom } = openSetup({ platform: 'emery', saved: { provider: 'dwd' } });
+  const { ctx, dom } = openSetup({ platform: 'emery', saved: EMERY_CLASSIC });
   walkTo(dom, 'forecastLook');
   const span = () => dom.picker('forecastHours');
   const graph = dom.find('[data-wiz-graph]');
@@ -687,11 +944,13 @@ test('on emery Forecast length picks the hours; each look starts on its own: Cle
   assert.match(dom.body.innerHTML, /<h3 class="wiz-sub" id="wiz-span">Forecast length<\/h3>/);
   assert.match(dom.body.innerHTML, /role="radiogroup" aria-labelledby="wiz-span" data-wiz-pick="forecastHours"/);
   assert.deepEqual(span().options, ['12', '24', '48']);
+  assert.equal(span().selected, '48', 'the length it was set up with');
+  dom.pick('forecastLook', 'clean');
   assert.deepEqual(span().labels, ['12 h', '24 h', '66 h'], 'the long span named by the hours it shows');
   assert.equal(span().selected, '48');
   assert.deepEqual(drawn(), ['48', 66, 'Forecast preview: Clean, 66 h, on the Default screen'],
-    'a new install\'s Clean graph: the long span, a full feed across the whole screen');
-  assert.match(dom.find('[data-wiz-desc="forecastHours"]').textContent, /^As far ahead as your weather service forecasts/);
+    'the long span, a full feed across the whole screen');
+  assert.match(dom.find('[data-wiz-desc="forecastHours"]').textContent, /^Shows as many hours as your weather service forecasts/);
   // Another look starts on its own length, and the long span's hours follow its axis.
   dom.pick('forecastLook', 'classic');
   assert.deepEqual(drawn(), ['24', 22, 'Forecast preview: Classic, 24 h, on the Default screen'],
@@ -707,48 +966,63 @@ test('on emery Forecast length picks the hours; each look starts on its own: Cle
   dom.pick('forecastLook', 'classic');
   assert.equal(ctx.S.forecastHours, '12', 'the look already drawn keeps it');
   dom.pick('forecastLook', 'stripes');
-  assert.deepEqual(drawn(), ['24', 25, 'Forecast preview: Stripes, 24 h, on the Default screen']);
+  assert.deepEqual(drawn(), ['24', 25, 'Forecast preview: Stripes, 24 h, on the Default screen'],
+    'its high and low on the graph: no left axis');
   assert.equal(span().labels[2], '66 h');
   dom.pick('forecastLook', 'clean');
   assert.deepEqual(drawn(), ['48', 66, 'Forecast preview: Clean, 66 h, on the Default screen']);
   dom.key('forecastHours', '48', 'Home');
   assert.equal(ctx.S.forecastHours, '12', 'the arrow keys step through the lengths');
-  assert.match(dom.body.innerHTML, /<p class="wiz-fine">Every line can be changed later on the Graphs tab\.<\/p>/);
-  // A new install opens on Clean's long span (its country's full feed).
+  assert.match(dom.body.innerHTML, /<p class="wiz-fine">You can change every line of the graph later on the Graphs tab\.<\/p>/);
+  // A new install's graph, the defaults, is none of the looks here (the long span and the high and
+  // low on the graph, no clouds' stripe): setup starts it on Clean's, not as "Your own".
   const fresh = openSetup({ platform: 'emery', fresh: true });
   walkTo(fresh.dom, 'forecastLook');
+  assert.deepEqual(fresh.dom.picker().options, LOOK_IDS);
   assert.equal(fresh.dom.picker().selected, 'clean');
   assert.equal(fresh.dom.picker('forecastHours').selected, '48');
+  const clean = lookOver('clean');
+  Object.keys(clean).forEach((k) => assert.equal(fresh.ctx.S[k], clean[k], 'Clean\'s ' + k));
 });
 
 test('a graph set up in Settings is kept as "Your own", first, and can be gone back to', () => {
   const { ctx, dom } = openSetup({ saved: { secondaryLine: 'wind', thirdLine: 'gust', thirdLineStyle: 'line' } });
   const own = graphOf(ctx.S);
   walkTo(dom, 'forecastLook');
-  assert.deepEqual(dom.picker().options, ['own', 'classic', 'clean', 'stripes']);
+  assert.deepEqual(dom.picker().options, ['own'].concat(LOOK_IDS));
   assert.equal(dom.picker().labels[0], 'Your own');
   assert.equal(dom.picker().selected, 'own');
-  assert.match(dom.find('[data-wiz-desc="forecastLook"]').textContent, /as you set it up in Settings/);
+  assert.equal(dom.find('[data-wiz-desc="forecastLook"]').textContent, 'Keeps your graph as it is now.');
   dom.pick('forecastLook', 'stripes');
-  assert.equal(ctx.S.secondaryLine, 'uv');
+  assert.equal(ctx.S.secondaryLine, 'cloud');
   dom.pick('forecastLook', 'own');
   assert.deepEqual(graphOf(ctx.S), own);
-  // The style of a line that is Off is no part of the graph: still Clean.
+  // The style of a line that is Off is no part of the graph: still Classic.
   const offStyle = openSetup({ saved: { fourthLineStyle: 'dots', fifthLineStyle: 'bold' } });
   walkTo(offStyle.dom, 'forecastLook');
-  assert.deepEqual(offStyle.dom.picker().options, ['classic', 'clean', 'stripes']);
-  assert.equal(offStyle.dom.picker().selected, 'clean');
-  // An upgraded install's graph (the UV dots, the high and low beside the axis) is Classic, at any
-  // length: the length is no part of a look.
+  assert.deepEqual(offStyle.dom.picker().options, LOOK_IDS);
+  assert.equal(offStyle.dom.picker().selected, 'classic');
+  // An upgraded install's graph (2.5's UV dots, the high and low beside the axis) is its own:
+  // Classic draws no UV.
   const upgraded = openSetup({ platform: 'emery',
-    saved: { provider: 'dwd', thirdLine: 'uv', forecastAxisNumbers: 'axis', forecastHours: '48' } });
+    saved: { provider: 'dwd', thirdLine: 'uv', forecastAxisNumbers: 'axis', forecastHours: '24' } });
   walkTo(upgraded.dom, 'forecastLook');
-  assert.deepEqual(upgraded.dom.picker().options, ['classic', 'clean', 'stripes']);
-  assert.equal(upgraded.dom.picker().selected, 'classic');
-  assert.equal(upgraded.dom.picker('forecastHours').selected, '48', 'its long span kept');
-  upgraded.dom.pick('forecastLook', 'clean');
-  upgraded.dom.pick('forecastLook', 'classic');
-  assert.equal(upgraded.ctx.S.forecastHours, '24', 'Classic picked anew starts on 24 hours');
+  assert.deepEqual(upgraded.dom.picker().options, ['own'].concat(LOOK_IDS));
+  assert.equal(upgraded.dom.picker().selected, 'own');
+  // So is 2.6's new-install graph on emery, when setup runs again: setup changes no graph by itself.
+  const twoSix = openSetup({ platform: 'emery', saved: { provider: 'dwd' } });
+  walkTo(twoSix.dom, 'forecastLook');
+  assert.equal(twoSix.dom.picker().selected, 'own');
+  assert.deepEqual([twoSix.ctx.S.thirdLine, twoSix.ctx.S.forecastAxisNumbers], ['off', 'graph']);
+  // Classic at any length: the length is no part of a look.
+  const long = openSetup({ platform: 'emery', saved: Object.assign({ forecastHours: '48' }, EMERY_CLASSIC) });
+  walkTo(long.dom, 'forecastLook');
+  assert.deepEqual(long.dom.picker().options, LOOK_IDS);
+  assert.equal(long.dom.picker().selected, 'classic');
+  assert.equal(long.dom.picker('forecastHours').selected, '48', 'its long span kept');
+  long.dom.pick('forecastLook', 'clean');
+  long.dom.pick('forecastLook', 'classic');
+  assert.equal(long.ctx.S.forecastHours, '24', 'Classic picked anew starts on 24 hours');
   // "Your own" goes back to the length it was set up with too.
   const ownLength = openSetup({ platform: 'emery', saved: { secondaryLine: 'wind', forecastHours: '12' } });
   walkTo(ownLength.dom, 'forecastLook');
@@ -759,31 +1033,63 @@ test('a graph set up in Settings is kept as "Your own", first, and can be gone b
   assert.equal(ownLength.ctx.S.forecastHours, '12');
 });
 
+test('on emery the forecast step sets the graph the Default screen shows, also one of your other graphs', () => {
+  // The Default shows your second graph, Stripes at 24 hours; the first graph is Classic at 66.
+  const second = Object.assign({}, FORECAST.lookOf('stripes').over, { forecastHours: '24' });
+  const saved = Object.assign({ forecastHours: '48', layoutPreset: 'custom', viewCount: '1', viewTop0: 'none',
+    viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB', viewStyle0: '2',
+    graphStyles: JSON.stringify({ names: ['', 'Stripes', ''], styles: [null, second, null] }) }, EMERY_CLASSIC);
+  const { ctx, dom } = openSetup({ platform: 'emery', saved });
+  const first = graphOf(ctx.S);
+  const label = () => dom.find('[data-wiz-graph]').getAttribute('aria-label');
+  const secondGraph = () => GS.parse(ctx.S).styles[1];
+  walkTo(dom, 'forecastLook');
+  assert.equal(dom.picker().selected, 'stripes', 'the look of the graph the Default shows');
+  assert.equal(dom.picker('forecastHours').selected, '24', 'and its length');
+  assert.equal(label(), 'Forecast preview: Stripes, 24 h, on the Default screen');
+  dom.pick('forecastLook', 'classic');
+  assert.deepEqual([secondGraph().secondaryLine, secondGraph().thirdLine], ['precip_prob', 'off'],
+    'the pick lands in the graph the screen shows');
+  assert.equal(label(), 'Forecast preview: Classic, 24 h, on the Default screen');
+  dom.pick('forecastHours', '12');
+  assert.equal(secondGraph().forecastHours, '12', 'so does a length');
+  assert.equal(label(), 'Forecast preview: Classic, 12 h, on the Default screen');
+  assert.deepEqual(graphOf(ctx.S), first, 'the first graph, which no screen shows, is left as it was');
+  assert.equal(ctx.S.viewStyle0, '2');
+  // A screen that shows the first graph sets the first graph, as before.
+  const plain = openSetup({ platform: 'emery', saved: Object.assign({}, saved, { viewStyle0: '1' }) });
+  walkTo(plain.dom, 'forecastLook');
+  assert.equal(plain.dom.picker().selected, 'classic');
+  plain.dom.pick('forecastLook', 'stripes');
+  assert.equal(plain.ctx.S.secondaryLine, 'cloud');
+  assert.deepEqual(GS.parse(plain.ctx.S).styles[1], second, 'your second graph untouched');
+});
+
 test('a graph changed under setup: the look the picker marks keeps the length picked under it', () => {
-  const { ctx, dom } = openSetup({ platform: 'emery', saved: { provider: 'dwd' } });
+  const { ctx, dom } = openSetup({ platform: 'emery', saved: EMERY_CLASSIC });
   walkTo(dom, 'forecastLook');
   dom.pick('forecastHours', '12');
-  // A graph none of the looks draws, and no "Your own" (setup opened on Clean): the picker marks
-  // the first look.
+  // A graph none of the looks draws, and no "Your own" (setup opened on Classic): the picker
+  // marks the first look.
   ctx.S.thirdLine = 'gust';
   dom.nav('back');
   dom.nav('next');
   assert.equal(dom.picker().selected, 'classic');
   dom.pick('forecastLook', 'classic');
-  assert.equal(ctx.S.thirdLine, 'uv', 'the look drawn again');
+  assert.equal(ctx.S.thirdLine, 'off', 'the look drawn again');
   assert.equal(ctx.S.forecastHours, '12', 'the look the picker marked keeps the length');
-  dom.pick('forecastLook', 'stripes');
-  assert.equal(ctx.S.forecastHours, '24', 'another look starts on its own');
+  dom.pick('forecastLook', 'clean');
+  assert.equal(ctx.S.forecastHours, '48', 'another look starts on its own');
 });
 
 test('a theme picked after the length keeps it: the look laid on again brings no length', () => {
   const { ctx, dom } = openSetup({ platform: 'emery', saved: { provider: 'dwd', theme: 'light' } });
   walkTo(dom, 'forecastLook');
-  dom.pick('forecastLook', 'stripes');
+  dom.pick('forecastLook', 'clean');
   dom.pick('forecastHours', '12');
   dom.nav('back');
   dom.pick('theme', 'dark');
-  assert.deepEqual([ctx.S.rainBarColor, ctx.S.rainBarFrom], ['white', 'top'], 'Stripes laid on again');
+  assert.deepEqual([ctx.S.rainBarColor, ctx.S.forecastAxisNumbers], ['white', 'graph'], 'Clean laid on again');
   assert.equal(ctx.S.forecastHours, '12');
   dom.nav('next');
   assert.equal(dom.picker('forecastHours').selected, '12');
@@ -802,6 +1108,10 @@ test('the summary names the forecast look, and on emery its length; Change goes 
 
   const emery = openSetup({ platform: 'emery', saved: { provider: 'dwd' } });
   emery.dom.walkToSummary();
+  assert.equal(row(emery.dom.body.innerHTML, 'Forecast'), 'Your own, 66 h');
+  emery.dom.goto('forecast');
+  emery.dom.pick('forecastLook', 'clean');
+  emery.dom.nav('summary');
   assert.equal(row(emery.dom.body.innerHTML, 'Forecast'), 'Clean, 66 h');
   emery.dom.goto('forecast');
   emery.dom.pick('forecastLook', 'stripes');
@@ -817,7 +1127,11 @@ test('the preview draws in the watch\'s temperature unit', () => {
   const temps = (unit) => {
     const { dom } = openSetup({ saved: { temperatureUnits: unit } });
     walkTo(dom, 'forecastLook');
-    return (dom.find('[data-wiz-graph]').innerHTML.match(/>(-?\d+)°</g) || []).map((t) => Number(/-?\d+/.exec(t)[0]));
+    // The forecast graph's own drawing (its 200-wide frame), whose high and low print as the
+    // watch prints them: Gothic 18, no degree sign (the hours under it are Gothic 14).
+    const graph = /<svg x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" viewBox="0 0 200 [\s\S]*?<\/svg>/
+      .exec(dom.find('[data-wiz-graph]').innerHTML)[0];
+    return (graph.match(/font-size="18"[^>]*>-?\d+</g) || []).map((t) => Number(/>(-?\d+)</.exec(t)[1]));
   };
   const c = temps('c'), f = temps('f');
   assert.ok(c.length > 0, 'the graph names its temperatures');
@@ -832,40 +1146,47 @@ test('a light theme draws the screen\'s whole card white', () => {
   });
 });
 
-test('Stripes hangs Solid bars in every theme; Classic and Clean give them back the colour the theme starts on', () => {
+test('Clean and Stripes hang Solid bars in every theme; Classic gives them back the colour the theme starts on', () => {
   [['dark', 'multicolor'], ['light', 'white'], ['bw', 'multicolor'], ['bw-light', 'white']].forEach(([theme, start]) => {
     const { ctx, dom } = openSetup({ saved: { theme, rainBarColor: start } });
     walkTo(dom, 'forecastLook');
-    assert.equal(dom.picker().selected, 'clean', theme + ': its own starting colour is Clean');
+    assert.equal(dom.picker().selected, 'classic', theme + ': its own starting colour is Classic');
+    dom.pick('forecastLook', 'clean');
+    assert.equal(ctx.S.rainBarColor, 'white', theme);
+    dom.pick('forecastLook', 'classic');
+    assert.equal(ctx.S.rainBarColor, start, theme);
     dom.pick('forecastLook', 'stripes');
-    assert.deepEqual([ctx.S.rainBarColor, ctx.S.rainBarFrom], ['white', 'top'], theme);
+    assert.deepEqual([ctx.S.rainBarColor, ctx.S.rainBarFrom], ['white', 'top'], theme + ': Stripes hangs them from the top');
     dom.pick('forecastLook', 'classic');
     assert.deepEqual([ctx.S.rainBarColor, ctx.S.rainBarFrom], [start, 'bottom'], theme);
   });
-  // Solid bars on a dark theme are a graph of the user's own, not Clean.
+  // Solid bars on a dark theme are Clean, not Classic: off emery Clean is the rain chance and
+  // Solid bars (the owner's, 2026-11-09: no cloud cover).
   const solid = openSetup({ saved: { theme: 'dark', rainBarColor: 'white' } });
   walkTo(solid.dom, 'forecastLook');
-  assert.equal(solid.dom.picker().selected, 'own');
+  assert.equal(solid.dom.picker().selected, 'clean');
   // A black-and-white watch outlines its bars whatever the colour says: it is no part of a look there.
   const bw = openSetup({ platform: 'diorite', saved: { theme: 'dark', rainBarColor: 'white' } });
   walkTo(bw.dom, 'forecastLook');
-  assert.equal(bw.dom.picker().selected, 'clean');
-  bw.dom.pick('forecastLook', 'stripes');
-  assert.deepEqual([bw.ctx.S.rainBarColor, bw.ctx.S.rainBarFrom], ['white', 'top']);
-  bw.dom.pick('forecastLook', 'clean');
-  assert.equal(bw.ctx.S.rainBarColor, 'white', 'left as it was');
+  assert.equal(bw.dom.picker().selected, 'classic');
+  const bwMulti = openSetup({ platform: 'diorite', saved: { theme: 'dark', rainBarColor: 'multicolor' } });
+  walkTo(bwMulti.dom, 'forecastLook');
+  bwMulti.dom.pick('forecastLook', 'clean');
+  assert.equal(bwMulti.ctx.S.rainBarColor, 'multicolor', 'left as it was');
+  // Clean draws as Classic there: the pick names which (the picker keeps the one picked).
+  assert.equal(bwMulti.dom.picker().selected, 'clean');
 });
 
 test('a look holds through a theme picked after it, the bars converted as the theme converts them', () => {
   const { ctx, dom } = openSetup({ saved: { theme: 'light', rainBarColor: 'white' } });
   walkTo(dom, 'forecastLook');
-  dom.pick('forecastLook', 'stripes');
+  dom.pick('forecastLook', 'clean');
   dom.nav('back');
   assert.equal(dom.picker().group, 'theme');
   dom.pick('theme', 'dark');
-  assert.deepEqual([ctx.S.rainBarColor, ctx.S.rainBarFrom], ['white', 'top'], 'still Solid: still Stripes');
+  assert.equal(ctx.S.rainBarColor, 'white', 'still Solid: still Clean, though Classic drew alike on the light theme');
   dom.nav('next');
-  assert.equal(dom.picker().selected, 'stripes');
+  assert.equal(dom.picker().selected, 'clean');
   dom.pick('forecastLook', 'classic');
   assert.equal(ctx.S.rainBarColor, 'multicolor', 'Classic in the dark theme');
   dom.nav('back');
@@ -876,7 +1197,8 @@ test('a look holds through a theme picked after it, the bars converted as the th
 });
 
 test('a Tomorrow.io key renames the summary\'s weather provider and its long span; the look stays', () => {
-  const { dom } = openSetup({ platform: 'emery', saved: { holidayCountry: 'US', provider: 'openweathermap' } });
+  const { dom } = openSetup({ platform: 'emery', saved: { holidayCountry: 'US', provider: 'openweathermap',
+    rainBarColor: 'white' } });
   dom.walkToSummary();
   const row = dom.find('[data-wiz-sum-forecast]');
   assert.equal(row.textContent, 'Clean, 47 h', 'OpenWeatherMap\'s 48-hour feed');
@@ -892,7 +1214,7 @@ test('"Your own" follows a theme picked after it, as the settings do', () => {
   assert.equal(ctx.S.rainBarColor, 'white', 'guard: the theme moved the bars to its own start');
   dom.nav('next');
   assert.equal(dom.picker().selected, 'own', 'still the user\'s own graph');
-  dom.pick('forecastLook', 'stripes');
+  dom.pick('forecastLook', 'clean');
   dom.pick('forecastLook', 'own');
   assert.equal(ctx.S.secondaryLine, 'wind');
   assert.equal(ctx.S.rainBarColor, 'white', 'in the light theme\'s colour, not the dark one it opened with');
@@ -902,10 +1224,11 @@ test('a dormant Draw from or a junk style is no part of the graph: it still read
   [{ cloudLineFrom: 'top' }, { uvLineFrom: 'top', thirdLine: 'off' }, { secondaryLineStyle: 'junk' }].forEach((saved) => {
     const { ctx, dom } = openSetup({ saved });
     dom.walkTo('forecastLook');
-    assert.deepEqual(dom.picker().options, ['classic', 'clean', 'stripes'], JSON.stringify(saved) + ': no "Your own"');
+    assert.deepEqual(dom.picker().options, LOOK_IDS, JSON.stringify(saved) + ': no "Your own"');
     dom.pick('forecastLook', 'stripes');
     dom.pick('forecastLook', 'clean');
-    if (saved.cloudLineFrom) { assert.equal(ctx.S.cloudLineFrom, 'top', 'a dormant Top waits for its line'); }
+    dom.pick('forecastLook', 'classic');
+    if (saved.cloudLineFrom) { assert.equal(ctx.S.cloudLineFrom, 'top', 'a dormant Top waits for its line: a stripe reads none'); }
   });
 });
 
@@ -914,8 +1237,8 @@ test('a pick that changes nothing redraws nothing', () => {
   dom.walkTo('forecastLook');
   const graph = dom.find('[data-wiz-graph]');
   graph.innerHTML = 'untouched';
-  dom.pick('forecastLook', 'clean');
-  assert.equal(graph.innerHTML, 'untouched');
   dom.pick('forecastLook', 'classic');
+  assert.equal(graph.innerHTML, 'untouched');
+  dom.pick('forecastLook', 'clean');
   assert.match(graph.innerHTML, /^<svg/);
 });

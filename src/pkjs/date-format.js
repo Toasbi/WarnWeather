@@ -53,13 +53,16 @@
      * blob (making this arm unreachable there), but fixture applications and
      * direct payload builds still exercise it, and flipping them to day-first
      * dates would be a silent behavior change. THE one home for that knowledge —
-     * it used to be inlined at three sites that could drift apart.
+     * it used to be inlined at three sites that could drift apart. No blob at all
+     * reads the same: from a "Reset watchface" until the next launch nothing is
+     * stored (clay-settings.js resetAll), and opening the settings then must not
+     * throw (index.js showConfiguration).
      *
-     * @param {Object} settings Clay settings blob.
-     * @returns {string} Country code ('US' when the key is absent).
+     * @param {?Object} settings Clay settings blob, or null when none is stored.
+     * @returns {string} Country code ('US' when the key or the blob is absent).
      */
     function effectiveHolidayCountry(settings) {
-        return Object.prototype.hasOwnProperty.call(settings, 'holidayCountry')
+        return settings && Object.prototype.hasOwnProperty.call(settings, 'holidayCountry')
             ? settings.holidayCountry : 'US';
     }
 

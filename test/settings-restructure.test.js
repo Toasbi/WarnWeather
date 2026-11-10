@@ -31,7 +31,11 @@ test('page-only keys are never stored: the Night hours, Separate hours and the R
   schema.tabs.forEach(t => t.sections.forEach(s => s.items.forEach(it => { if (it.uiOnly) { uiOnly.push(it.messageKey); } })));
   // The Rain radar picker writes radarEnabled and radarProvider (screens-page.js), so its Off
   // keeps the source.
-  assert.deepEqual(uiOnly.sort(), ['nightHoursFrom', 'nightHoursSeparate', 'nightHoursTo', 'radarSource']);
+  // The graph styles' pick, New graph's picker and the name a graph's dialog renames
+  // (graph-styles-page.js) write graphStyles and the screens' viewStyle keys; the screen
+  // editor's Rows and Size picker (screens-page.js) writes the screen's rows.
+  assert.deepEqual(uiOnly.sort(), ['graphStyleName', 'graphStyleNewFrom', 'graphStylePick', 'nightHoursFrom',
+    'nightHoursSeparate', 'nightHoursTo', 'radarSource', 'screenRowSize']);
   const S = E.hydrate(schema, {}, platformLib.computeEnv({ platform: 'emery' }));
   const blob = E.serialize(schema, S);
   uiOnly.forEach(k => assert.equal(Object.prototype.hasOwnProperty.call(blob, k), false, k));
@@ -250,10 +254,16 @@ test('a choice made on another watch survives a save it was not drawn in, as on 
   assert.equal((await p.save()).statusTopLeft, 'hr', 'an unrelated change keeps it too');
   const aplite = await bootGeneratedPage({ provider: 'dwd', thirdLine: 'feels' }, 'aplite').save();
   assert.equal(aplite.thirdLine, 'feels');
-  // Drawn, the row shows what this watch can do and saves that — the old page's rule.
+  // Drawn, the row shows what this watch can do and saves that — the old page's rule. The
+  // slot's row is in the Watch bar's dialog.
   const shown = bootGeneratedPage({ provider: 'dwd', statusTopLeft: 'hr' }, 'basalt');
   shown.clickTab('watch');
-  assert.notEqual((await shown.save()).statusTopLeft, 'hr');
+  assert.equal((await shown.save()).statusTopLeft, 'hr', 'the tab alone draws no slot row');
+  const opened = bootGeneratedPage({ provider: 'dwd', statusTopLeft: 'hr' }, 'basalt');
+  opened.clickTab('watch');
+  opened.openEditSheet('bar-top');
+  opened.doneDialog();
+  assert.notEqual((await opened.save()).statusTopLeft, 'hr');
 });
 
 test('with no night feature in use there is no Night hours row to pick in', () => {
@@ -315,7 +325,9 @@ test('More options stays folded for colours the light theme set and alert colour
   r.clickTab('watchface');
   assert.ok(r.scroll.innerHTML.indexOf('data-more="watchface:time/0#more" aria-expanded="false"') !== -1, 'Time');
   r.clickTab('graphs');
-  assert.ok(r.scroll.innerHTML.indexOf('data-more="graphs:bars/0#more" aria-expanded="false"') !== -1, 'Bars');
+  r.tapAction('openGraph', 1);
+  assert.ok(/data-more="dlg:graph\/\d+#more" aria-expanded="false"/.test(r.modal.innerHTML), 'the graph\'s Rain bars');
+  r.doneDialog();
   r.clickTab('alerts');
   r.openEditSheet('alertGust');
   assert.ok(/data-more="dlg:alertGust\/\d+#more" aria-expanded="false"/.test(r.modal.innerHTML), 'the gust alert');

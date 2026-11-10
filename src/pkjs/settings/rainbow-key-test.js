@@ -68,12 +68,12 @@
             return xhr.status ? -1 : 0;
         },
         messages: {
-            401: '✗ Rejected (401). The key is invalid — copy it again from your profile page on developer.rainbow.ai.',
-            403: '✗ Refused (403). Rainbow won’t serve this key right now — check its plan and monthly allowance on developer.rainbow.ai.',
-            429: '✗ Rate limited (429). The key is valid but over its allowance right now — try again later.',
-            '-1': '✗ Couldn’t check the key right now — try again later.',
-            '-2': '✗ That doesn’t look like a Rainbow key — copy it again from your profile page on developer.rainbow.ai.',
-            '-3': '✗ Rainbow didn’t answer — try again later.'
+            401: '✗ Rejected (401). The key is invalid. Copy it again from your profile page on developer.rainbow.ai.',
+            403: '✗ Refused (403). Rainbow won’t accept this key right now. Check its plan and monthly allowance on developer.rainbow.ai.',
+            429: '✗ Rate limited (429). The key is valid but over its allowance right now. Try again later.',
+            '-1': '✗ Couldn’t check the key right now. Try again later.',
+            '-2': '✗ That doesn’t look like a Rainbow key. Copy it again from your profile page on developer.rainbow.ai.',
+            '-3': '✗ Rainbow didn’t answer. Try again later.'
         },
         unavailableMessage: '✗ Key test isn’t available in this build. You can still save the key.'
     });

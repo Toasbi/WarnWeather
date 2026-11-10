@@ -12,11 +12,13 @@ var statusThresholds = require('./status-thresholds.js');
 // buildSettingsBlob, the CLAY_THRESHOLDS_UINT8 packer.
 var statusWire = require('./status-wire.js');
 var platformLib = require('./config-ui/lib/platform.js');
-var lineStyle = require('./line-style.js');
 var dateFormat = require('./date-format.js');
 var nightLight = require('./night-light.js');
 // The forecast's left axis options (emery): bits of the CLAY_LARGE_GRAPH_FONT word.
 var forecastAxis = require('./forecast-axis.js');
+// Graph styles (emery): each view's style as the watch draws it, and the styles' records.
+var graphStyles = require('./graph-styles.js');
+var graphStyleWire = require('./weather/graph-style-wire.js');
 
 // The radar's built-in no-rain text — the schema's radarNoRainText default and the
 // watch's fallback string (rain_radar_layer.c). test/clay-payload.test.js pins all three.
@@ -88,23 +90,6 @@ function holidayWindowOpts(settings, watchInfo) {
         viewCycle.resolveViewCycle(settings, platformLib.computeEnv(watchInfo)));
 }
 
-// Fixed vertical inset for the temperature axis (px) — the watch's
-// BOTTOM_VIEW_PRIMARY_LINE_INSET_Y. Deliberately NOT a user setting; the wire
-// carries one byte per series (five) so feels-like and dew point inherit it only
-// on the lines where they are selected.
-var CURVE_INSET_PX = 7;
-
-/**
- * One forecast line's curve-inset byte: the temp curve's inset for a
- * temperature-axis metric (feels, dew), 0 (full-height) for every other metric.
- * @param {Object} settings Clay settings (raw — see CLAY_CURVE_INSET_UINT8).
- * @param {string} key secondaryLine|thirdLine|fourthLine|fifthLine.
- * @returns {number} Inset in px.
- */
-function lineCurveInset(settings, key) {
-    return lineStyle.isTempAxisMetric(settings[key]) ? CURVE_INSET_PX : 0;
-}
-
 // CLAY_VIEW_RESET_MIN's wire layout: config_wire.h VIEW_RESET_DOUBLE_FLICK (pinned equal by
 // test/flick-presets.test.js). A bit, not a tuple: 11 B would break the Clay message's 10 B
 // headroom floor (test/inbox-size.test.js).
@@ -170,7 +155,9 @@ function buildClayPayload(settings, watchInfo, now) {
     // Resolve the packed view cycle up front (view-cycle.js, the reading the Layout
     // preview shows) — the holiday mask below anchors on it (holidayWindowOptsForCycle,
     // the same rule index.js's prefetch uses).
-    var cycle = viewCycle.resolveViewCycle(settings, env);
+    // Each view's graph style survives only on a watch with styles where the style exists
+    // (graph-styles.js wireCycle), so every other watch's view words are today's.
+    var cycle = graphStyles.wireCycle(settings, env, viewCycle.resolveViewCycle(settings, env));
     var defaultIsFull = cycle[0].tier === viewCycle.TIER_FULL;   // slot 0 is the 3-row calendar
     // CLAY_TOP_VIEW_MODE (TopViewMode enum: 0=full,1=compact,2=none) is a boot-time hint the
     // watch overwrites per active view; derive it from the default slot's tier for correctness.
@@ -277,6 +264,10 @@ function buildClayPayload(settings, watchInfo, now) {
     // (env computed at the top of this function, beside the cycle branch.)
     if (env.thresholds) {
         payload.CLAY_THRESHOLDS_UINT8 = statusWire.buildSettingsBlob(settings, env);
+        // Bars 4 to 6's On demand cells (Pebble Time 2, status-wire.js buildExtraCells): the
+        // blob's cell bytes have no room for them. Known emery only, like the graph styles'
+        // records below; zeros while no made bar shows.
+        if (env.extraBars) { payload.CLAY_OD_EXTRA_UINT8 = statusWire.buildExtraCells(settings, env); }
         // Date-slot formats [monthYear, fullDate] — settings-derived, so they ride
         // the Clay message. Gated with the threshold blob: the pickers live on the
         // Date slot's edit sheet, which shares this env gate, and an aplite watch
@@ -301,28 +292,15 @@ function buildClayPayload(settings, watchInfo, now) {
     }
 
     // Per-series vertical insets for the forecast graph's value-mapped lines,
-    // render-ready in px, five bytes in the watch's Series id order:
-    // [SERIES_FIRST (temp), SERIES_SECOND (main metric), SERIES_THIRD (second
-    // metric), SERIES_FOURTH (third metric), SERIES_FIFTH (fourth metric)]. The
-    // watch stays metric-agnostic — the phone decides here that feels-like and
-    // dew point share the temp curve's offset (the watch then maps them on the
-    // temperature's own scale, temp_axis_pad.h) while every other metric keeps
-    // the full-height mapping. Read from the RAW settings: a line that is off or
-    // repeats an earlier line's pick is not drawn on the watch, so its byte is
-    // never read and needs no effective-metric resolution. Settings-derived, so
+    // render-ready in px (graph-wire.js buildCurveInsetBytes: feels-like and dew
+    // point share the temp curve's offset). Settings-derived, so
     // it rides the Clay message. Omitted for a watch that compiles the
     // configurable inset out (aplite, no WW_CURVE_INSET): its inbox handler for
     // this tuple is gone and it keeps the frozen 7/0/0 constants, so the 12 B
     // stay out of its Clay bundle. An unknown platform is treated as capable
     // (computeEnv's platform is '' then), so a missing watchInfo never drops it.
     if (env.platform !== 'aplite') {
-        payload.CLAY_CURVE_INSET_UINT8 = [
-            CURVE_INSET_PX,
-            lineCurveInset(settings, 'secondaryLine'),
-            lineCurveInset(settings, 'thirdLine'),
-            lineCurveInset(settings, 'fourthLine'),
-            lineCurveInset(settings, 'fifthLine')
-        ];
+        payload.CLAY_CURVE_INSET_UINT8 = graphWire.buildCurveInsetBytes(settings);
     }
 
     // Pack the cycle into the three view words (unused slots → 0 = disabled). Each is
@@ -349,6 +327,12 @@ function buildClayPayload(settings, watchInfo, now) {
     // guard). With every axis option at its default (always, for a known non-emery watch) it
     // is the bare boolean it always was.
     payload.CLAY_LARGE_GRAPH_FONT = graphOptionsWord(settings, env);
+
+    // The graph styles' records (emery): while a screen shows a style other than the first,
+    // each shown style's look, hours and line-to-row map; empty tuples otherwise, which clear
+    // the watch's. Known emery only (graph-style-wire.js buildStyleTuples): up to 3 x 48 B,
+    // which emery's 1024 B inbox has room for and an aplite's 536 B has not.
+    Object.assign(payload, graphStyleWire.buildStyleTuples(settings, watchInfo));
 
     return payload;
 }

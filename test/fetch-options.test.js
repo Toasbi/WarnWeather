@@ -140,7 +140,7 @@ test('build() returns every knob and a fresh object per call', () => {
 
 test('a placed alert fetches its metric AND its day peaks with no slot showing it — not on aplite', () => {
   const none = Object.assign({ statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
-    statusForecastRight: 'empty' }, NOTHING_PLACED);
+    statusTopLeft: 'empty' }, NOTHING_PLACED);
   const off = fetchOptions.build(none);
   assert.equal(off.fetchUv, false, 'guard: no UV slot');
   assert.equal(off.fetchAqi, false, 'guard: no AQI slot');
@@ -163,7 +163,7 @@ test('a placed alert fetches its metric AND its day peaks with no slot showing i
   // Bar): with no slot showing them it still fetches UV and AQI and keeps those four day
   // records — on purpose, the owner switched those alerts on for every install.
   const partial = { statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
-    statusForecastRight: 'empty' };
+    statusTopLeft: 'empty' };
   const dflt = fetchOptions.build(partial);
   assert.equal(dflt.fetchUv, true);
   assert.equal(dflt.fetchAqi, true);

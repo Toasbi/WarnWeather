@@ -34,6 +34,9 @@
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
         : null;
+    // Names as a sentence lists them (config-ui/lib/html.js, concatenated ahead of every app file).
+    var andList = (typeof require !== 'undefined')
+        ? require('../config-ui/lib/html.js').andList : PConf.html.andList;
 
     // The three pairs, in the card's order, with the defaults a missing key reads as (the
     // schema's) and when the feature reads its pair at all.
@@ -224,9 +227,7 @@
     function nightHoursHint(S, env) {
         var names = [], i;
         for (i = 0; i < PAIRS.length; i++) { if (PAIRS[i].exists(env)) { names.push(PAIRS[i].name); } }
-        var list = names.length > 1
-            ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
-        return 'Used by ' + list + '.';
+        return 'Used by ' + andList(names) + '.';
     }
 
     /**

@@ -165,19 +165,23 @@ static void forecast_numbers_on_graph(GContext *ctx, const ForecastDataset *ds,
 }
 
 // emery: the hi/lo labels name the hours on screen (the 12 h and long grids, which clip the
-// hours past the right edge): the visible byte extremes, read back to whole degrees on the
-// line through the global extremes and TEMP_MIN / TEMP_MAX (temp_axis_pad.h
-// temp_axis_byte_temp). With the left axis naming the scale (GRAPH_OPT_SCALE_NUMS) the
-// extremes run over the same lines as the phone's baked scale ends (the temperature plus the
-// present inset lines), as forecast_numbers_extremes' do. Reads the bytes, so it runs before
-// fit_temp_axis turns them into rows. The label strip was measured on the global labels
+// hours past the right edge, and a graph style drawing fewer hours than were sent): the
+// visible byte extremes, read back to whole degrees on the line through the global extremes
+// (every hour sent) and TEMP_MIN / TEMP_MAX (temp_axis_pad.h temp_axis_byte_temp). With the
+// left axis naming the scale (GRAPH_OPT_SCALE_NUMS) the extremes run over the same lines as
+// the phone's baked scale ends (the temperature plus the present inset lines), as
+// forecast_numbers_extremes' do, and the global ones also over a trend on the scale this
+// graph style draws no line of (graph_style.h GS_SCALE: the phone baked the ends over every
+// shown style's lines), read into `scratch`. Reads the bytes, so it runs before fit_temp_axis
+// turns them into rows. The label strip was measured on the global labels
 // (text_labels_refresh), never narrower: digits are monospace and every visible value lies
 // inside [TEMP_MIN, TEMP_MAX]. Writes the texts to hi and lo, cap bytes each.
 static __attribute__((noinline)) void forecast_numbers_relabel(const ForecastDataset *ds,
-                                                                bool scale, char *hi, char *lo,
+                                                                bool scale, int16_t *scratch,
+                                                                char *hi, char *lo,
                                                                 size_t cap) {
     const Series *const first = &ds->series[SERIES_FIRST];
-    const int fit = ds->fit_entries, n = ds->num_entries;
+    const int fit = ds->fit_entries, n = ds->sent_entries;
     TempAxisRange r = TEMP_AXIS_RANGE_NONE;
     for (const Series *s = first; s < &ds->series[SERIES_BARS]; ++s) {
         if (!on_numbers_scale(s, first, scale)) { continue; }
@@ -187,6 +191,12 @@ static __attribute__((noinline)) void forecast_numbers_relabel(const ForecastDat
     for (const Series *s = first; s < &ds->series[SERIES_BARS]; ++s) {
         if (!on_numbers_scale(s, first, scale)) { continue; }
         temp_axis_range_widen(&g, s->line.values + fit, n - fit, s->line.floating);
+    }
+    for (int t = SERIES_SECOND; scale && t <= GS_TREND_MAX; ++t) {
+        if (!(ds->scale_undrawn & (1u << t))) { continue; }
+        // A feels-like or dew point trend: it floats, its 0 a missing reading.
+        const int got = persist_series_trend(graph_style_series((uint8_t) t), scratch, (size_t) n);
+        if (got > 0) { temp_axis_range_widen(&g, scratch, got, true); }
     }
     const int t_lo = persist_get_temp_min(), t_hi = persist_get_temp_max();
     snprintf(lo, cap, "%d", config_localize_temp(temp_axis_byte_temp(r.lo, g, t_lo, t_hi)));

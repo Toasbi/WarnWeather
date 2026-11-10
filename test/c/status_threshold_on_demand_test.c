@@ -43,7 +43,13 @@ static void on_demand_cell_tests(void) {
     expect("cells.wind_top_none", side_of(blob, n, THRESH_BAR_TOP, OD_WIND), OD_SIDE_NONE);
     // Out of range: none, never a read past the end.
     expect("cells.oob_bar_neg", side_of(blob, n, -1, OD_RAIN), OD_SIDE_NONE);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6 follow the blob's four (extra_cell_tests below).
+    expect("cells.oob_bar", side_of(blob, n, THRESH_BAR_4 + THRESH_EXTRA_BAR_COUNT, OD_RAIN),
+           OD_SIDE_NONE);
+#else
     expect("cells.oob_bar", side_of(blob, n, THRESH_BAR_COUNT, OD_RAIN), OD_SIDE_NONE);
+#endif
     expect("cells.oob_item_neg", side_of(blob, n, THRESH_BAR_TOP, -1), OD_SIDE_NONE);
     expect("cells.oob_item", side_of(blob, n, THRESH_BAR_TOP, OD_ITEM_COUNT), OD_SIDE_NONE);
     // The warn-look and Battery bytes never leak into the cells, nor they into them.
@@ -131,8 +137,63 @@ static void battery_byte_tests(void) {
     expect("battery.low_empty", status_threshold_battery_low(0, 5), 1);
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: bars 4 to 6's cells (CLAY_OD_EXTRA_UINT8) ride behind the blob in the row's scratch:
+// one byte per OdItem, 2 bits per bar at bits 2 * (bar - 4), the same values. They and the
+// blob's own cells never read each other's bytes, and bits 6-7 are reserved.
+static void extra_cell_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    uint8_t extra[THRESH_OD_EXTRA_BYTES];
+    memset(blob, 0, sizeof(blob));
+    memset(extra, 0, sizeof(extra));
+    expect("extra.bars", THRESH_BAR_4 * 100 + THRESH_EXTRA_BAR_COUNT, 403);
+    expect("extra.bytes", THRESH_OD_EXTRA_BYTES, OD_ITEM_COUNT);
+    expect("extra.scratch", THRESH_SCRATCH_BYTES, THRESH_SETTINGS_BYTES + OD_ITEM_COUNT);
+    for (int bar = THRESH_BAR_4; bar <= THRESH_BAR_6; bar++) {
+        for (int item = 0; item < OD_ITEM_COUNT; item++) {
+            expect("extra.zero_none", extra_side_of(blob, extra, bar, item), OD_SIDE_NONE);
+        }
+    }
+    // Rain: bar 4 right, bar 5 left, bar 6 the reserved 3.
+    extra[OD_RAIN] = (uint8_t)(OD_SIDE_RIGHT | (OD_SIDE_LEFT << 2) | (3 << 4));
+    expect("extra.rain_bar4", extra_side_of(blob, extra, THRESH_BAR_4, OD_RAIN), OD_SIDE_RIGHT);
+    expect("extra.rain_bar5", extra_side_of(blob, extra, THRESH_BAR_5, OD_RAIN), OD_SIDE_LEFT);
+    expect("extra.rain_bar6_reserved", extra_side_of(blob, extra, THRESH_BAR_6, OD_RAIN),
+           OD_SIDE_NONE);
+    expect("extra.uv_untouched", extra_side_of(blob, extra, THRESH_BAR_4, OD_UV), OD_SIDE_NONE);
+    // The first and the last byte; bits 6-7 are no bar's.
+    memset(extra, 0, sizeof(extra));
+    extra[OD_BATTERY] = (uint8_t)(OD_SIDE_LEFT << 4);
+    extra[OD_WIND] = (uint8_t)(OD_SIDE_RIGHT | 0xC0);
+    expect("extra.battery_bar6", extra_side_of(blob, extra, THRESH_BAR_6, OD_BATTERY), OD_SIDE_LEFT);
+    expect("extra.wind_bar4", extra_side_of(blob, extra, THRESH_BAR_4, OD_WIND), OD_SIDE_RIGHT);
+    expect("extra.wind_bar6_high_bits", extra_side_of(blob, extra, THRESH_BAR_6, OD_WIND),
+           OD_SIDE_NONE);
+    // Neither array reads the other's bytes.
+    memset(blob + THRESH_ON_DEMAND_OFFSET, OD_SIDE_LEFT * 0x55, OD_ITEM_COUNT);   // every bar left
+    memset(extra, 0, sizeof(extra));
+    expect("extra.not_from_blob", extra_side_of(blob, extra, THRESH_BAR_4, OD_RAIN), OD_SIDE_NONE);
+    memset(blob, 0, sizeof(blob));
+    memset(extra, OD_SIDE_RIGHT * 0x15, sizeof(extra));   // bars 4 to 6 right
+    expect("extra.into_blob_top", extra_side_of(blob, extra, THRESH_BAR_TOP, OD_RAIN),
+           OD_SIDE_NONE);
+    expect("extra.into_blob_health", extra_side_of(blob, extra, THRESH_BAR_HEALTH, OD_WIND),
+           OD_SIDE_NONE);
+    expect("extra.all_right", extra_side_of(blob, extra, THRESH_BAR_5, OD_WIND), OD_SIDE_RIGHT);
+    expect("extra.oob_bar", extra_side_of(blob, extra, THRESH_BAR_6 + 1, OD_RAIN), OD_SIDE_NONE);
+    expect("extra.oob_item", extra_side_of(blob, extra, THRESH_BAR_4, OD_ITEM_COUNT), OD_SIDE_NONE);
+    // The line ids map onto them.
+    expect("extra.line_bar4", status_threshold_bar_of_line(STATUS_LINE_BAR4), THRESH_BAR_4);
+    expect("extra.line_bar5", status_threshold_bar_of_line(STATUS_LINE_BAR5), THRESH_BAR_5);
+    expect("extra.line_bar6", status_threshold_bar_of_line(STATUS_LINE_BAR6), THRESH_BAR_6);
+}
+#endif
+
 int main(void) {
     on_demand_cell_tests();
+#if defined(PBL_PLATFORM_EMERY)
+    extra_cell_tests();
+#endif
     on_demand_default_tests();
     battery_byte_tests();
     if (s_failures) { printf("%d failure(s)\n", s_failures); return 1; }

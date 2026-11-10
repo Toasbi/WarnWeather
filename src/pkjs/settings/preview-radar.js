@@ -177,6 +177,61 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     var AXIS_Y = 12, PLOT_H = 45, NO_SKY_H = AXIS_Y + 7 + PLOT_H + 17, ALERT_BAND_H = 14;
 
     /**
+     * The Solid ('white') radar bars' colour: DarkGray in light polarity, white in dark (mirrors
+     * rain-tier.js buildPalette's colorMode==='white' branch: forecastPreview's barFg, same
+     * rule). B&W/bw themes draw an OUTLINE instead (rainBars' `outline`) in ink.fg, which this
+     * also equals there: same value, different role.
+     * @param {Object} state Settings.
+     * @param {boolean} isColor The effective colour flag.
+     * @param {Object} ink The theme's ink (previewInk).
+     * @returns {string}
+     */
+    function barFg(state, isColor, ink) {
+        return isColor ? (isLightPolarity(state.theme) ? '#555555' : '#FFFFFF') : ink.fg;
+    }
+
+    /**
+     * Whether the radar draws its sky rows (Radar tab -> Clouds, sun & lightning): on, as a
+     * graph, and never on aplite.
+     * @param {Object} state Settings.
+     * @param {?Object} env Platform env.
+     * @returns {boolean}
+     */
+    function skyOn(state, env) {
+        return Boolean(state.radarSky) && (state.radarMode || 'graph') === 'graph' && !(env && env.platform === 'aplite');
+    }
+
+    /**
+     * What the rain radar draws, as a legend lists it: the rain coming as bars (the palette's
+     * tier colours, else Solid's one colour, outlined on a black-and-white display; `top`: hung
+     * from the top), DWD's rain nearby as faint bars, then with the sky rows on the clouds and
+     * sun stripes and the lightning bolt (skyColors). Nothing while the radar is off.
+     * @param {Object} state Settings.
+     * @param {?Object} env Platform env.
+     * @param {Object} [userData] Page userData (the palette).
+     * @returns {Array<{metric: string, kind: string, color: string, tiers: ?Array<string>, outline: boolean,
+     *     top: boolean}>} kind: 'bars' | 'nearby' | 'stripe' | 'bolt'
+     */
+    function radarLegend(state, env, userData) {
+        if ((state.radarMode || 'graph') === 'off') { return []; }
+        var isColor = drawsColor(env, state.theme), ink = previewInk(state.theme);
+        var P = (userData && userData.palette) || FALLBACK_PALETTE;
+        var tiers = !(state.radarColor === 'white' || !isColor), top = drawFrom.barsFromTop(state, 'radar', env);
+        var out = [{ metric: 'radar', kind: 'bars', color: barFg(state, isColor, ink), outline: !isColor, top: top,
+            tiers: tiers ? P.rainTiers.map(function (t) { return t.color; }) : null }];
+        if (state.radarProvider === 'dwd') {
+            out.push({ metric: 'nearby', kind: 'nearby', color: ink.fg, outline: true, top: top, tiers: null });
+        }
+        if (skyOn(state, env)) {
+            var sc = skyColors(state.theme, isColor, ink.fg);
+            out.push({ metric: 'cloud', kind: 'stripe', color: sc.cloud, outline: false, top: false, tiers: null },
+                { metric: 'sun', kind: 'stripe', color: sc.sun, outline: false, top: false, tiers: null },
+                { metric: 'storm', kind: 'bolt', color: sc.bolt, outline: false, top: false, tiers: null });
+        }
+        return out;
+    }
+
+    /**
      * The rain-radar preview block — adapted from index.html:270-286's radarSVG.
      * @param {Object} state Live settings (colours as hex strings).
      * @param {Object} env Config-UI environment facts ({ color, platform, … }).
@@ -207,7 +262,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // and leaves the bars less room, which the preview does not model: the 144 px
         // watches' radar top band, and on either size a body under a tall stack of
         // calendar and status rows (a 3-row calendar with both status rows is one).
-        var skyOn = Boolean(state.radarSky) && radarMode === 'graph' && !isAplite;
+        var sky = skyOn(state, env);
         var n = local.length, PX0 = 11, PX1 = 196;
         var step = (PX1 - PX0) / n, bw = step - 1.6;
         // The watch's pixel grid, for the sky rows: its 24 slots of RADAR_DEF's pitch
@@ -215,11 +270,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // lines' anchor) at PX0 — so one watch pixel is `unit` preview units.
         var WATCH_PITCH = (env && env.platform === 'emery') ? 8 : 6, SKY_H = 4;
         var unit = step / WATCH_PITCH, topY = AXIS_Y;
-        var skyBand = skyOn ? (2 * SKY_H + 2) * unit : 0;
+        var skyBand = sky ? (2 * SKY_H + 2) * unit : 0;
         // The plot keeps its height with the sky rows on: they and their legend row grow
         // the frame instead (owner, 2026-10-04: a short pinned preview leaves the pane room).
         var PT = topY + 7 + skyBand, PB = PT + PLOT_H, plotH = PLOT_H;
-        var frameH = skyOn ? Math.ceil(NO_SKY_H + skyBand + 10) : NO_SKY_H;
+        var frameH = sky ? Math.ceil(NO_SKY_H + skyBand + 10) : NO_SKY_H;
         var e = rect(0, 0, 200, frameH, ink.bg);
         e += '<line x1="' + PX0 + '" y1="' + topY + '" x2="' + PX1 + '" y2="' + topY + '" stroke="' + ink.rgba('0.22') + '" stroke-width="0.6"></line>';
         for (var k = 0; k <= n; k++) {
@@ -236,7 +291,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         if (!barsTop) {
             e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
         }
-        if (skyOn) {
+        if (sky) {
             var sc = skyColors(state.theme, isColor, ink.fg);
             var skyY = topY + 5;   // below the preview's downward ticks
             if (!isColor) { e += '<defs>' + previewStripe.ditherDefs(ink.fg, 'rsd') + '</defs>'; }
@@ -262,12 +317,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         var P = (userData && userData.palette) || FALLBACK_PALETTE;
         var radarWhite = state.radarColor === 'white' || !isColor;
-        // Solid ('white'/Solid) radar-bar color: DarkGray in light polarity, white in
-        // dark (mirrors rain-tier.js buildPalette's colorMode==='white' branch — see
-        // forecastPreview's barFg, same rule). B&W/bw themes draw an OUTLINE instead
-        // (see the `outline` param below) using ink.fg as the stroke color, which this
-        // also equals there — same value, different role.
-        var radarBarFg = isColor ? (isLightPolarity(state.theme) ? '#555555' : '#FFFFFF') : ink.fg;
+        var radarBarFg = barFg(state, isColor, ink);
         // rain_radar_layer.c draws BAR_OUTLINED, which chart.c strokes in theme_fg() in
         // every theme but colour-dark: the light colour theme outlines its bars too.
         var radarBarEdge = (isColor && isLightPolarity(state.theme)) ? ink.fg : null;
@@ -311,7 +361,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             lx += 11;
             e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Nearby (2 km)');
         }
-        if (skyOn) {
+        if (sky) {
             // Second legend row: the two rows and the bolt.
             var sy = lgy + 10, sx = PX0, skc = skyColors(state.theme, isColor, ink.fg);
             e += previewStripe.cell(isColor, sx, sy - 2, 10, 4, skc.cloud, 4, ink.bg, 'rsd', unit, PX0);
@@ -359,7 +409,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
     PConf.blocks.register('radarPreview', radarPreview);
 
+    var api = { radarPreview: radarPreview, legend: radarLegend, boltGlyph: boltGlyph, skyLevel: skyLevel };
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { radarPreview: radarPreview, skyLevel: skyLevel };
+        module.exports = api;
     }
+    // Add a screen's legend (screen-legend.js) reads the legend.
+    if (typeof window !== 'undefined') { window.PreviewRadar = api; }
 })();

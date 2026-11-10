@@ -872,7 +872,7 @@ if (typeof require !== 'undefined') {
                 var need = B.minSleepHoursFor(state, min);
                 if (need !== null && need > sleep) {
                     return '<br>' + min + '-minute updates' + qualifier
-                        + ' need a night pause of ≥ ' + need + ' h — widen the pause to unlock faster updates.';
+                        + ' need a night pause of at least ' + need + ' h. Make the pause longer to get faster updates.';
                 }
                 return '';
             }
@@ -945,7 +945,7 @@ if (typeof require !== 'undefined') {
             + 'Your settings: ' + settingsBits + ' → ' + verdict + '.';
         html += unlockRuleHtml(B, state, sleep, radarOn ? ' with radar' : '');
         if (B.hourlyCalls(state, interval) >= B.LIMIT_HOUR - 1) {
-            html += '<br>At this rate a settings-save refetch in the same hour may delay one cycle — harmless.';
+            html += '<br>At this rate, the refetch after you save settings can delay one update in the same hour. This is harmless.';
         }
         // Return bare content: the engine's renderBlock wraps this in .blockrow, which
         // already supplies padding, colour and its own bottom divider. Wrapping in .static
@@ -1070,10 +1070,12 @@ if (typeof require !== 'undefined') {
 
     // ---- The Graphs tab's line rows and dialogs ----
 
-    // The graph metrics and line styles in picker order, as the line pickers offer them
-    // (forecast-hints.js, which loads ahead of this file in both contexts): a line's
-    // summary names its metric and style by the labels its pickers show.
-    var FORECAST_METRICS = PConf.forecastLineOptions.metrics;
+    // The graph metrics (forecast-metrics.js, their one table, which loads ahead of this file)
+    // and the line styles in picker order, as the line pickers offer them (forecast-hints.js,
+    // ahead of this file too): a line's summary names its metric and style by the labels its
+    // pickers show.
+    var forecastMetrics = (typeof require !== 'undefined')
+        ? require('./forecast-metrics.js') : window.ForecastMetrics;
     var LINE_STYLE_OPTIONS = PConf.forecastLineOptions.styles;
 
     /**
@@ -1108,7 +1110,7 @@ if (typeof require !== 'undefined') {
         var st = S || {}, a = args || {};
         var metric = st[a.lineKey];
         if (!metric || metric === 'off') { return 'Off'; }
-        var name = optionLabel(FORECAST_METRICS, metric) || String(metric);
+        var name = forecastMetrics.label(metric);
         if (env && env.lineStyles === false) { return name; }
         var style = lineStyle.lineStyleValue(st, a.lineKey + 'Style');
         var text = name + ' · ' + (optionLabel(LINE_STYLE_OPTIONS, style) || style);
@@ -1228,7 +1230,7 @@ if (typeof require !== 'undefined') {
      */
     PConf.actions.resetAllGraphColors = function (arg, S, env, defaultOf) {
         if (!S || !defaultOf || !lineStyle) { return false; }
-        var scopes = FORECAST_METRICS.map(function (m) { return m[1]; }).concat(['night']);
+        var scopes = forecastMetrics.METRICS.map(function (m) { return m.id; }).concat(['night']);
         scopes.forEach(function (scope) {
             lineStyle.graphColorRoles(scope).forEach(function (role) {
                 ['Dark', 'Light'].forEach(function (sfx) {

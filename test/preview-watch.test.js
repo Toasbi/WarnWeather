@@ -58,14 +58,23 @@ test('every preset\'s views sit on the watch\'s seats, the filling graph running
         assert.equal(lay.strip, spec.stripOff ? 0 : sc.floor - VC.FIT_PX.availStrip[f], at + ': the top bar');
         const walk = VC.isStacked(spec) ? spec : Object.assign(VC.cloneSpec(spec),
           { order: spec.tier === VC.TIER_COMPACT ? 0 : 1 });
-        const seats = VC.stackSeats(walk, f).seats;
+        const st = VC.stackSeats(walk, f), seats = st.seats;
         assert.deepEqual(lay.bands.map((b) => b.band), seats.map((s) => s.band), at + ': the bands, in order');
-        for (let j = 1; j < lay.bands.length; j++) {
-          assert.equal(lay.bands[j].y, lay.bands[j - 1].y + lay.bands[j - 1].h + seats[j - 1].gap,
-            at + ': band ' + j + ' follows the one above');
-        }
+        // A top area that leads under the strip seats on the strip's ink (layout.c
+        // strip_calendar_seat: 15 rows down on a 144 px watch, 23 on emery), not on its slot;
+        // the bands after it follow the slots. A stack that fills nothing is then aligned.
+        const onInk = lay.bands[0].band === 'T' && !spec.stripOff;
+        const top = (spec.stripOff ? sc.floor - VC.FIT_PX.availNoStrip[f] : lay.strip) + st.lead;
+        const off = lay.bands[0].y - (onInk ? [15, 23][f] : top);
+        const fills = seats.some((s) => s.fill);
+        assert.ok(fills ? off === 0 : off >= 0, at + ': the first band on its seat');
+        let slot = top + off;
+        lay.bands.forEach((b, j) => {
+          if (j > 0) { assert.equal(b.y, slot, at + ': band ' + j + ' follows the one above'); }
+          slot = (seats[j].fill ? b.y + b.h : slot + b.h) + seats[j].gap;
+        });
         const last = lay.bands[lay.bands.length - 1];
-        if (seats.some((s) => s.fill)) {
+        if (fills) {
           assert.equal(last.y + last.h, sc.h, at + ': the graph fills to the foot');
         } else {
           assert.ok(last.y + last.h <= sc.h, at + ': it fits');
@@ -80,16 +89,16 @@ test('each screen is named and spoken band by band, and a tap opens its editor',
   const env = plat.computeEnv({ platform: 'basalt' });
   const html = pw.watchPreview(S, env, {});
   assert.deepEqual(labels(html), [
-    'Edit Default: Watch Status, Calendar (2 rows), Clock, Forecast Status, Forecast',
-    'Edit Flick 1: Watch Status, Clock, Health Status, Health graph',
-    'Edit Flick 2: Watch Status, Clock, Radar Status, Radar'
+    'Edit Default: Watch bar, Calendar (2 rows), Clock, Forecast bar, Forecast',
+    'Edit Flick 1: Watch bar, Clock, Health bar, Health graph',
+    'Edit Flick 2: Watch bar, Clock, Radar bar, Radar'
   ]);
   // Each is a button that opens its screen's editor (screens-page.js openScreen).
   assert.deepEqual((html.match(/<button type="button" class="wpv-v wpv-btn" data-action="openScreen" data-action-arg="\d"/g)
     || []).map((b) => b.slice(-2, -1)), ['0', '1', '2']);
   assert.match(html, /<\/div><span class="wpv-tap">Tap a screen to edit it<\/span>$/, 'and the pin says so');
   assert.deepEqual(labels(pw.watchPreview(settings({ layoutPreset: 'fullCal', radarMode: 'off', healthMode: 'off' }), env, {})),
-    ['Edit Default: Watch Status, Calendar (3 rows), Clock, Forecast Status, Forecast'], 'one view, one screen');
+    ['Edit Default: Watch bar, Calendar (3 rows), Clock, Forecast bar, Forecast'], 'one view, one screen');
   assert.match(html, /^<div class="wpv n3" role="group" aria-label="Your watch">/);
   // aplite has no screen editor: its one screen is a picture.
   const aplite = plat.computeEnv({ platform: 'aplite' });
@@ -131,36 +140,42 @@ test('the calendar: its week as Start week on says, today in its cell, Auto taki
   const env = plat.computeEnv({ platform: 'basalt' });
   const c = cycle(settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }), 'basalt');
   const friday = new Date(2026, 10, 6), sunday = new Date(2026, 10, 8);
-  const draw = (over, now) => pw.screenSvg(c.views[0], 0, settings(Object.assign({ layoutPreset: 'compactCal' }, over)),
-    env, {}, 0, now).svg;
-  const todayCell = (svg) => /<rect x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" rx="2" fill="([^"]*)"><\/rect><text[^>]*fill="([^"]*)"[^>]*>(\d+)</.exec(svg);
+  // The strip's left slot emptied (its air quality is a number too): the first numbers drawn are
+  // the calendar's.
+  const draw = (over, now) => pw.screenSvg(c.views[0], 0,
+    settings(Object.assign({ layoutPreset: 'compactCal', statusTopLeft: 'empty' }, over)), env, {}, 0, now).svg;
+  // Today's cell: the watch's fill_rect with corner radius 1 (calendar_layer.c), its date on it.
+  const todayCell = (svg) => /<rect x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" rx="1" fill="([^"]*)"><\/rect><text[^>]*fill="([^"]*)"[^>]*>(\d+)</.exec(svg);
   // A Monday start puts Friday the 6th fifth in its row; a Sunday start sixth.
   const firstRow = (svg) => (svg.match(/>(\d+)<\/text>/g) || []).slice(0, 7).map((t) => t.replace(/\D/g, ''));
   assert.deepEqual(firstRow(draw({ weekStartDay: 'mon' }, friday)), ['2', '3', '4', '5', '6', '7', '8']);
   assert.deepEqual(firstRow(draw({ weekStartDay: 'sun' }, friday)), ['1', '2', '3', '4', '5', '6', '7']);
   let cell = todayCell(draw({ colorToday: '#000000' }, friday));
   assert.deepEqual([cell[1], cell[2], cell[3]], ['#FFFFFF', '#000000', '6'], 'Auto on a weekday: the ink, the date legible over it');
+  // A picture of the screen shows each colour as the display does (preview-svg.js displayColors):
+  // #FF0055 as #E25874, #00AAFF as #4CB4DB; black and white as they are.
   cell = todayCell(draw({ colorToday: '#000000', colorSunday: '#FF0055' }, sunday));
-  assert.equal(cell[1], '#FF0055', 'Auto on a Sunday: the Sunday colour');
+  assert.equal(cell[1], '#E25874', 'Auto on a Sunday: the Sunday colour');
   cell = todayCell(draw({ colorToday: '#00AAFF' }, friday));
-  assert.equal(cell[1], '#00AAFF', 'a picked colour');
+  assert.equal(cell[1], '#4CB4DB', 'a picked colour');
   const bw = pw.screenSvg(c.views[0], 0, settings({ layoutPreset: 'compactCal', colorToday: '#00AAFF', colorSunday: '#FF0055' }),
     plat.computeEnv({ platform: 'diorite' }), {}, 0, sunday).svg;
   assert.equal(todayCell(bw)[1], '#FFFFFF', 'a black-and-white watch draws today in its ink');
-  assert.doesNotMatch(bw, /#FF0055/, 'and no weekday colours');
+  assert.doesNotMatch(bw, /#FF0055|#E25874/, 'and no weekday colours');
 });
 
 test('the clock: the samples\' 15:00 in the time colour and the picked face\'s weight', () => {
   const env = plat.computeEnv({ platform: 'basalt' });
   const c = cycle(settings({ layoutPreset: 'noCal', radarMode: 'off', healthMode: 'off' }), 'basalt');
   const svg = (over) => pw.screenSvg(c.views[0], 0, settings(Object.assign({ layoutPreset: 'noCal' }, over)), env, {}, 0, new Date()).svg;
-  // Roboto and Bitham: the watch's glyph images, tinted (test/clock-glyphs-page.test.js has the seating).
+  // Roboto and Bitham: the watch's glyph images, tinted (test/clock-glyphs-page.test.js has the
+  // seating) in the colour as the screen shows it: #FFAA00 as #F1AA86 (displayColors).
   const tint = (over) => (/<feFlood flood-color="([^"]*)">/.exec(svg(over)) || [])[1];
   assert.equal(tint({ colorTime: '#FFFFFF', timeFont: 'roboto' }), '#FFFFFF');
-  assert.equal(tint({ colorTime: '#FFAA00', timeFont: 'bitham' }), '#FFAA00');
+  assert.equal(tint({ colorTime: '#FFAA00', timeFont: 'bitham' }), '#F1AA86');
   assert.equal((svg({ timeFont: 'bitham' }).match(/<image /g) || []).length, 5);
   // LECO: the watch's system font, tinted the same way.
-  assert.equal(tint({ colorTime: '#FFAA00', timeFont: 'leco' }), '#FFAA00');
+  assert.equal(tint({ colorTime: '#FFAA00', timeFont: 'leco' }), '#F1AA86');
   assert.equal((svg({ timeFont: 'leco' }).match(/<image /g) || []).length, 5);
   assert.equal(svg({ timeFont: 'leco' }).indexOf('>15:00</text>'), -1, 'no stand-in text');
 });
@@ -171,7 +186,8 @@ test('a light theme draws black on white, the status rows print the Status bars 
     statusForecastLeft: 'city', statusForecastMid: 'empty', statusForecastRight: 'empty' });
   const html = pw.watchPreview(S, env, {});
   assert.match(html, /<rect x="-9" y="-9" width="162" height="186" fill="#FFFFFF"><\/rect>/);
-  assert.match(html, /fill="#000000" text-anchor="start" font-weight="700"[^>]*>Berlin<\/text>/, 'the city in the left slot');
+  // In the watch's Gothic 18, regular as status_row.c row_font draws a slot under no threshold.
+  assert.match(html, /fill="#000000" font-family="WatchGothic18[^"]*" font-weight="400">Berlin<\/text>/, 'the city in the left slot');
 });
 
 test('a graph\'s pattern and clip ids carry its band\'s suffix, so two graphs never share one', () => {
@@ -223,10 +239,11 @@ test('the calendar marks the holidays the phone holds for the picked country, in
       holidayCountry: 'DE', holidayRegion: 'all', weekStartDay: 'mon', colorUSFederal: '#0055FF' }, over));
     return pw.screenSvg(VC.resolveViewCycle(S, env)[0], 0, S, env, ud === undefined ? { holidays: holidays } : ud, 0, now).svg;
   };
-  const day = (svg, n) => (new RegExp('fill="([^"]*)" text-anchor="middle" font-weight="(\\d+)"[^>]*>' + n + '</text>').exec(svg) || []).slice(1);
-  assert.deepEqual(day(cal({}), 3), ['#0055FF', '700'], 'a nationwide holiday: its colour, bold');
+  const day = (svg, n) => (new RegExp('fill="([^"]*)" font-family="[^"]*" font-weight="(\\d+)">' + n + '</text>').exec(svg) || []).slice(1);
+  // #0055FF as the screen shows it (displayColors).
+  assert.deepEqual(day(cal({}), 3), ['#007DCE', '700'], 'a nationwide holiday: its colour, bold');
   assert.deepEqual(day(cal({}), 11), ['#FFFFFF', '400'], 'a regional one is not the whole country\'s');
-  assert.deepEqual(day(cal({ holidayRegion: 'DE-BY' }), 11), ['#0055FF', '700'], 'but is its region\'s');
+  assert.deepEqual(day(cal({ holidayRegion: 'DE-BY' }), 11), ['#007DCE', '700'], 'but is its region\'s');
   assert.deepEqual(day(cal({ holidayCountry: 'AT' }), 3), ['#FFFFFF', '400'], 'another country: nothing held');
   assert.deepEqual(day(cal({ holidaysEnabled: false }), 3), ['#FFFFFF', '400'], 'Holiday highlight off');
   assert.deepEqual(day(cal({}, {}), 3), ['#FFFFFF', '400'], 'nothing cached');

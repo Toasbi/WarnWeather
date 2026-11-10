@@ -120,15 +120,16 @@ test('Reset watchface marks the reset-safe migrations done in the wiped store', 
   assert.deepEqual([KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY,
     KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, KEYS.ALERT_LEVELS_MIGRATION_KEY,
     KEYS.ON_DEMAND_MIGRATION_KEY, KEYS.RAINBOW_OWN_KEY_SOURCE_MIGRATION_KEY,
-    KEYS.ALERT_DEFAULTS_MIGRATION_KEY],
+    KEYS.ALERT_DEFAULTS_MIGRATION_KEY, KEYS.SLOT_DEFAULTS_2_7_MIGRATION_KEY],
   ['v1.23.0_norain_default_text_migration', 'v1.23.1_fifth_line_style_default_migration',
     'v1.24.0_warn_look_migration', 'v1.24.0_on_demand_migration',
-    'v1.24.0_rainbow_own_key_source_migration', 'v2.0.1_alert_defaults_migration'],
+    'v1.24.0_rainbow_own_key_source_migration', 'v2.0.1_alert_defaults_migration',
+    'v2.7.0_slot_defaults_migration'],
   'the reset-safe marker strings are the shipped ones');
   assert.deepEqual(resetSafe.slice().sort(), [KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY,
     KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, KEYS.ALERT_LEVELS_MIGRATION_KEY,
     KEYS.ON_DEMAND_MIGRATION_KEY, KEYS.RAINBOW_OWN_KEY_SOURCE_MIGRATION_KEY,
-    KEYS.ALERT_DEFAULTS_MIGRATION_KEY].sort(),
+    KEYS.ALERT_DEFAULTS_MIGRATION_KEY, KEYS.SLOT_DEFAULTS_2_7_MIGRATION_KEY].sort(),
   'the ledger marks exactly these on a reset');
   resetSafe.forEach((key) => {
     assert.equal(h.store[key], '1', key + ' is marked done after the reset');

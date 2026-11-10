@@ -233,3 +233,25 @@ test('auto (fg) threshold colours convert in either encoding; blank and picks do
   assert.strictEqual(S.threshUvDangerColor, 0xFF0000, 'a real pick is untouched');
   assert.strictEqual(S.threshAqiWarnOutlineOn, true, 'only *Color keys are colours');
 });
+
+test('graph styles 2 and 3 convert with the flat keys; an untouched item stays byte for byte', () => {
+  const resolveInk = require('../src/pkjs/resolve-ink.js');
+  const dark = resolveInk.barColorDefault('dark'), light = resolveInk.barColorDefault('light');
+  const item = (two, three) => JSON.stringify({ names: ['', 'Long', ''], styles: [null, two, three] });
+  const S = { rainBarColor: dark, graphStyles: item({ rainBarColor: dark, forecastHours: '48' }, { rainBarColor: 'white' }) };
+  applyThemeConvert(S, 'dark', 'light');
+  assert.equal(S.rainBarColor, light);
+  const styles = JSON.parse(S.graphStyles).styles;
+  assert.equal(styles[1].rainBarColor, light, 'style 2 still on the old default converts');
+  assert.equal(styles[1].forecastHours, '48');
+  assert.equal(styles[2].rainBarColor, 'white', 'a pick of its own is left alone');
+  assert.deepEqual(JSON.parse(S.graphStyles).names, ['', 'Long', '']);
+  // Nothing to convert: the item is not rewritten.
+  const raw = item({ rainBarColor: 'white' }, null);
+  const T = { graphStyles: raw };
+  applyThemeConvert(T, 'dark', 'light');
+  assert.equal(T.graphStyles, raw);
+  const bad = { graphStyles: '{not json' };
+  applyThemeConvert(bad, 'dark', 'light');
+  assert.equal(bad.graphStyles, '{not json', 'a bad item is left alone');
+});

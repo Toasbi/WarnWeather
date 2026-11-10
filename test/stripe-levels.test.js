@@ -331,12 +331,12 @@ test('the stripe hints name where the bake\'s colour steps start', () => {
   const hint = (metric, S) => FH.lineStyleHint(metric, 'stripeTop', S, env);
   // Rain chance and cloud: the scale's ranges, as the bake steps.
   assert.equal(hint('precip_prob', { secondaryLine: 'precip_prob' }),
-    'Four colour steps: 1–10%, 11–30%, 31–60% and 61–100% chance of rain. One cell per hour.');
+    'The color gets stronger in four steps: 1–10%, 11–30%, 31–60% and 61–100% chance of rain. The stripe has one cell per hour.');
   assert.equal(hint('cloud', { secondaryLine: 'cloud' }),
-    'Four colour steps: 10–29%, 30–59%, 60–89% and 90–100% of the sky covered. One cell per hour.');
+    'The color gets stronger in four steps: 10–29%, 30–59%, 60–89% and 90–100% of the sky covered. The stripe has one cell per hour.');
   // UV drawn All: 3.3, 6.6 and 9.9 are where the bake's level 2, 3 and 4 start.
   assert.equal(hint('uv', { secondaryLine: 'uv' }),
-    'Colour steps up at UV 3.3 and 6.6, full colour from UV 9.9. One cell per hour.');
+    'The color steps up at UV 3.3 and 6.6, with full color from UV 9.9. The stripe has one cell per hour.');
   const uvAll = buildForecastSeries(Object.assign({}, RAW, { uvs: [32, 33, 65, 66, 98, 99] }),
     { secondaryLine: 'uv', secondaryLineStyle: 'stripeTop', thirdLine: 'off', barSource: 'off' });
   assert.deepEqual(uvAll.SECONDARY_LINE_TREND_UINT8, [L1, L2, L2, L3, L3, FULL]);
@@ -348,7 +348,7 @@ test('the stripe hints name where the bake\'s colour steps start', () => {
       ['wind', 'gust'].forEach((m) => {
         if (!lineAlert.showsAlert(over, m)) { return; }
         const S = Object.assign({ secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid' }, over);
-        const full = Number(/full colour from (\d+) kph/.exec(hint(m, S))[1]);
+        const full = Number(/is full from (\d+) kph/.exec(hint(m, S))[1]);
         const settings = Object.assign({ barSource: 'off', secondaryLineStyle: m === 'wind' ? 'stripeTop' : 'line',
           thirdLineStyle: m === 'gust' ? 'stripeTop' : 'line' }, S);
         const key = m === 'wind' ? 'SECONDARY_LINE_TREND_UINT8' : 'THIRD_LINE_TREND_UINT8';
@@ -363,7 +363,7 @@ test('the stripe hints name where the bake\'s colour steps start', () => {
   // too, so the hint names the next one: the seed gust band in mph is full from 86 km/h,
   // and 85 km/h shows as 53 mph like 86 does, so "from 54 mph").
   assert.equal(hint('gust', { secondaryLine: 'gust', thirdLine: 'off', windUnits: 'mph',
-    gustLineShow: 'alert' }), 'Faintest colour = 40 mph, full colour from 54 mph. One cell per hour.');
+    gustLineShow: 'alert' }), 'The color starts faint at 40 mph and is full from 54 mph. The stripe has one cell per hour.');
   let checked = 0;
   ['mph', 'knots'].forEach((windUnits) => {
     [{ gustLineShow: 'alert' }, { windLineShow: 'alert' },
@@ -375,7 +375,7 @@ test('the stripe hints name where the bake\'s colour steps start', () => {
           if (!lineAlert.showsAlert(over, m)) { return; }
           const S = Object.assign({ secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', windUnits }, over);
           const label = windUnits === 'mph' ? 'mph' : 'kn';
-          const full = Number(new RegExp('full colour from (\\d+) ' + label).exec(hint(m, S))[1]);
+          const full = Number(new RegExp('is full from (\\d+) ' + label).exec(hint(m, S))[1]);
           const settings = Object.assign({ barSource: 'off', secondaryLineStyle: m === 'wind' ? 'stripeTop' : 'line',
             thirdLineStyle: m === 'gust' ? 'stripeTop' : 'line' }, S);
           const key = m === 'wind' ? 'SECONDARY_LINE_TREND_UINT8' : 'THIRD_LINE_TREND_UINT8';
@@ -396,7 +396,7 @@ test('the stripe hints name where the bake\'s colour steps start', () => {
   assert.equal(checked, 12, 'premise: every unit and line was checked');
   // UV on Alert: the band UV 6..11, full from UV 10.5.
   assert.equal(hint('uv', { secondaryLine: 'uv', uvLineShow: 'alert' }),
-    'Faintest colour = UV 6, full colour from UV 10.5. One cell per hour.');
+    'The color starts faint at UV 6 and is full from UV 10.5. The stripe has one cell per hour.');
   assert.deepEqual(buildForecastSeries(Object.assign({}, RAW, { uvs: [104, 105] }),
     { secondaryLine: 'uv', secondaryLineStyle: 'stripeTop', thirdLine: 'off', barSource: 'off',
       uvLineShow: 'alert' }).SECONDARY_LINE_TREND_UINT8, [L3, FULL]);

@@ -36,10 +36,11 @@ each consuming app supplies its schema, custom blocks, and hooks.
    - [When-resolver registry — PConf.whenResolvers](#when-resolver-registry--pconfwhenresolvers)
    - [Action registry — PConf.actions](#action-registry--pconfactions)
    - [Hook registry — PConf.hooks](#hook-registry--pconfhooks)
-6. [Build step — buildPage](#build-step--buildpage)
-7. [Clay compatibility](#clay-compatibility)
-8. [Lift-out / extraction note](#lift-out--extraction-note)
-9. [ES5 constraint](#es5-constraint)
+6. [Shared parts — PConf.ui](#shared-parts--pconfui)
+7. [Build step — buildPage](#build-step--buildpage)
+8. [Clay compatibility](#clay-compatibility)
+9. [Lift-out / extraction note](#lift-out--extraction-note)
+10. [ES5 constraint](#es5-constraint)
 
 ---
 
@@ -249,12 +250,15 @@ Schema
             ├─ intro        string  (HTML — the card's info text; behind its header's '?' in the '?' mode)
             ├─ block        string  (custom-block id — rendered below the items)
             ├─ collapsible  boolean (renders section as a collapsible card)
+            ├─ titleBy      {resolver, args?} (the header's title from the settings; see Section fields)
             ├─ titleFrom    {resolver, args?} (collapsed-header value; see Section fields)
+            ├─ noteFrom     {resolver, args?} (a short note on the header's right, its '?'; see Section fields)
             ├─ groupCard    string  (consecutive sections sharing an id merge into one card)
             ├─ pane         string  (renders only while its tab shows that pane)
             ├─ beforePin    boolean (renders first in the tab, above its pinned header; scrolls away)
             ├─ sheetOnly / sheetId  (a full-screen dialog, not a card; see Dialogs)
             ├─ pinBlock     string  (sheetOnly only: block pinned under the dialog's header)
+            ├─ rename       {key, label, placeholder?, placeholderBy?, maxlength?, showWhen?} (sheetOnly only: the title renames a setting; see Dialogs)
             └─ items[]
                  └─ (see Item fields below; blockBefore is ITEM-level)
 ```
@@ -285,8 +289,9 @@ titled by its text (see Progressive disclosure), so one section can hold a card 
 | `readout` | Label (+ `icon`) and a live hint; no control, no key | — (not serialized) | — |
 
 A `sheet` item is a **nav row**: the whole row is the tap target (`role="button"`, Enter and
-Space tap it) and opens its dialog; its label leads, its summary sits under the label and a
-chevron (›) closes the row on the right. The summary is the row's static `hint` or a
+Space tap it) and opens its dialog; its label leads, its summary sits under the label and the
+red arrow (›, [`ui.navArrow`](#shared-parts--pconfui)) closes the row on the right, as it ends
+everything that opens a screen of its own. The summary is the row's static `hint` or a
 `hintFrom` resolver's answer — the live state of the settings behind it ("Off", or their
 current levels) — and, unlike a value row's hint, it is always in view (no '?'). The resolver
 gets no row value (`args.value` is `undefined` — the row stores nothing) and reads whatever it
@@ -304,7 +309,11 @@ re-renders the page when it closes.
 
 A `button` item is the same nav row, dispatching `action` (or, with `gotoTab: '<tab id>'`,
 bringing that tab to the front like a tab link); with `style: 'link'` it is a single line of
-link-coloured text instead (a reset). A status-slot select keeps its own per-value dialog
+link-coloured text instead (a reset). With `style: 'delete'` it is **Delete**
+([`ui.deleteButton`](#shared-parts--pconfui)): drawn under its card, outside it, centred in the
+accent, the last thing under what it deletes (a status bar's *Delete status bar* under its dialog's
+last card, Graphs' *Delete Graph 2* under Your graphs). `labelFrom` names it and `showWhen`
+hides it where there is nothing to delete; its card still needs another row to show. A status-slot select keeps its own per-value dialog
 behind an **Edit** button beside the dropdown (`editSheetFrom` on a value row).
 
 The preview comes in two shapes, chosen by how many colours the row owns. `chip` is ONE
@@ -424,8 +433,11 @@ picking the shown swatch is what writes it.
 | `title` | string | Section heading |
 | `intro` | string | HTML rendered above items |
 | `block` | string | Custom-block id rendered BELOW the items (see [Registries](#registries-and-hooks)). A block ABOVE the items is the item-level `blockBefore` on the section's first item — the engine has no section-level `blockBefore`; for a card that stacks several blocks, share a `groupCard` id across consecutive sections instead. |
-| `collapsible` | boolean | Collapses the section into an expandable card (collapsed by default; state is per page open) |
+| `collapsible` | boolean | Collapses the section into an expandable card (collapsed by default; state is per page open). Its header ends on the red ▸, ▾ while open ([`ui.foldChev`](#shared-parts--pconfui)). |
+| `titleBy` | `{resolver, args?}` | The card header's title itself follows the settings: a `PConf.displayResolvers` id whose `fn(S, env, args)` answer replaces `title` (escaped); `''` or no answer keeps `title`. The header marks it (`data-title-by`), so a text commit that skips the re-render retitles it in place. A dialog's title follows it too (e.g. a status bar's name titling the bar's dialog). |
 | `titleFrom` | `{resolver, args?}` | Collapsible sections only: a `PConf.displayResolvers` id whose `fn(S, env, args)` result is painted next to the title while the card is COLLAPSED (e.g. the current pick of a select inside), so a closed card still says what's selected. Open cards show the plain `title`. `args` pass through verbatim (no messageKey merge — sections have none). |
+| `noteFrom` | `{resolver, args?}` | A short note on the right of the card's header (the Your graphs card's "4/5 metrics active"): a `PConf.displayResolvers` id whose `fn(S, env, args)` answers `{text, label?, info?}` or null for none. `text` shows (escaped), `label` is what a screen reader says instead (else `text`), and `info` (HTML, like `intro`) waits behind a '?' after the note and shows first in the card while it is on. The '?' is drawn whatever the page's info mode, so the note asks for little attention and what it means is always a tap away. Not on a collapsible card: its header is one button. `args` pass through verbatim. |
+| `rename` | `{key, label, placeholder?, placeholderBy?, maxlength?, showWhen?}` | `sheetOnly` only: a pencil beside the dialog's title turns it into a text field for the setting `key` (`label` its accessible name, `placeholder` the name an empty field stands for, `maxlength` 40 unless given), with an OK button in Done's place. OK or Enter stores the text and fires the key's item `onChange`; Escape or × puts the title back. `placeholderBy` (`{resolver, args?}`, a `PConf.displayResolvers` id) answers the placeholder from the settings as `titleBy` answers the title (a graph's default name); `showWhen` gates the pencil (a predicate as an item's). See Dialogs. |
 | `groupCard` | string | Consecutive sections sharing a `groupCard` id render into ONE card: titles become in-card sub-headers, and each section's intro/items/`block` stack inside it. Empty sub-sections drop out cleanly. |
 | `items` | Item[] | The items to render |
 
@@ -461,11 +473,13 @@ picking the shown swatch is what writes it.
 | `stamp` | boolean | A value the page writes on its own (the Weather tab's last-opened time): it is saved like any other, but its change never lights Save or shows Revert, and Revert leaves it as it is. |
 | `full` | boolean | `segmented` only: one equal segment per option across the row, a long label wrapping inside its own segment, the picked option's hint under it (the setup's pickers). |
 | `sheetTitle` | string | `select`/`searchSelect` only: the picker sheet's title, where the row's label alone would not name it (a row whose picker also opens from a preview). Default: the label. |
-| `pictureFrom` | `{ resolver, args }` | `radio` only: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry--pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). |
+| `sheetTitleBy` | `{resolver, args?}` | `select` only: a `PConf.displayResolvers` id whose answer titles the picker sheet instead of `sheetTitle` (a slot picker named by its bar's name); `''` keeps `sheetTitle`. |
+| `sheetLead` | string | `select`/`searchSelect` only: one plain line under the picker sheet's title that says what the picker does (escaped). |
+| `pictureFrom` | `{ resolver, args }` | `radio`: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry--pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). `select`/`searchSelect`: each option's picture at the start of its row in the picker sheet. |
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
 | `groupLabel` | string | On the first member of an `inline` group: renders the group as ONE labelled row, the members side by side joined by a dash (a From–To row). |
 | `gotoTab` | string | `button` only: the row brings that tab to the front. |
-| `style` | `'link'` | `button` only: a line of link text instead of a nav row. |
+| `style` | `'link'` \| `'delete'` | `button` only: a line of link text instead of a nav row (`'link'`), or Delete under its card (`'delete'`, see the `button` type above). |
 | `navNote`, `labelFrom`, `summaryFaintFrom` | | `sheet`/`button` nav rows only (see the `sheet` type above). |
 | `captionsOnly` | boolean | `checklist` only: its header row shows only the column captions (the card's title already names the grid). |
 | `columns` | `[{label}]` | `checklist` only: the columns' captions, left to right (see above). |
@@ -501,7 +515,8 @@ one tap away. Every piece of this state is UI-only (per page open, never saved).
 
 ### Dialogs
 
-A `sheetOnly` section opens as a **full-screen dialog** on the page ground: the header holds ×
+A `sheetOnly` section opens as a **full-screen dialog** on the page ground: the header
+([`ui.header`](#shared-parts--pconfui), which an app's own full-screen views share) holds ×
 (close and put back every setting as it was when the dialog opened — changes made in dialogs
 opened from it included), the kicker (where it was opened from: the tapped row's card title,
 else the tab label) over the title with the dialog's '?' and `labelAction` beside it, and
@@ -509,7 +524,24 @@ else the tab label) over the title with the dialog's '?' and `labelAction` besid
 stacks on top with ‹ instead of ×, stepping back to its parent and keeping its changes; Escape
 steps back like Done. The section's `pinBlock` stays pinned under the header; its items render
 as cards like a tab's. Edits only reach the watch with the main Save. Select pickers, the date
-wheel and the Save confirm stay bottom sheets.
+wheel and the Save confirm stay bottom sheets. A dialog whose section renders nothing (its
+`showWhen` turned false, e.g. after a Delete inside it) closes itself, and the focus goes to the
+Undo the Delete left in the tab body (`kit.undoToast`), if one shows.
+
+A section with `rename` titles its dialog by a setting (`titleBy`) and lets the title rename
+it: the pencil opens a text field in the title's place and an OK button in Done's; OK, Enter or
+leaving the field stores the text (through the item's `onChange`, which may clean it), and
+Escape puts the old title back. A page module opens a dialog itself with the ready ctx's
+`openDialog(id, {rename, kicker, onClose, focusBack, overlay})`: `rename` opens it with the
+field ready, `kicker` names where it opened from, `onClose` runs after it closes, `focusBack` (a
+selector) names the module's own trigger the focus goes back to (a graph's row), and `overlay`
+marks one opened over the module's own overlay, so focus goes back to nothing on the page. These
+hold however the dialog closes, a dialog opened from inside it in between. `openSheet(key,
+onClose, focusSel)` opens a select's options the same way, the focus going back to `focusSel`
+when given. An action that takes away what a dialog is about (a graph's Delete) turns its
+section's `showWhen` false, and the dialog closes itself. The render hook
+(`PConf.hooks.onRender`) is told the dialog on screen (`dialog`: the root of the dialogs open,
+null for none) with the tab and the pane.
 
 ### showWhen predicate grammar
 
@@ -622,9 +654,11 @@ Registering to the same `id` twice overwrites the first registration. Requesting
 or any other data that must travel from PKJS into the page without going through settings storage.
 
 A block pinned above a dialog (a `sheetOnly` section's `pinBlock`) gets a fourth argument,
-`{ dialog: true }`. A block whose parts open a sheet themselves (a `[data-select]` that opens a
-select's picker) draws them inert there: the dialog is the page's one sheet, so a picker cannot
-open over it. Everywhere else the fourth argument is absent.
+`{ dialog: true, sheet, from }`: the open dialog's id, and the id of the dialog it was opened
+from (`null` for one opened from a tab), so one block can draw what its dialog is about (e.g. the
+bar a slot's dialog was opened from). A block whose parts open a sheet themselves (a
+`[data-select]` that opens a select's picker) draws them inert there: the dialog is the page's
+one sheet, so a picker cannot open over it. Everywhere else the fourth argument is absent.
 
 ### Icon registry — PConf.icons
 
@@ -718,10 +752,12 @@ to `undefined`: the key stays unset.
 
 An item with a `displayFrom: { resolver: id, args }` field PAINTS a derived value while its
 stored value stays untouched — for a key whose effective value is computed elsewhere (a colour
-that cascades from a sibling key until the user pins it). Two consumers read the registry
+that cascades from a sibling key until the user pins it). Several consumers read the registry
 today: `color` items via `displayFrom` (args get the item's messageKey merged under them),
-and collapsible sections via `titleFrom` (the collapsed card header's value — args pass
-through verbatim, with NO messageKey merged in, since sections have none).
+collapsible sections via `titleFrom` (the collapsed card header's value — args pass
+through verbatim, with NO messageKey merged in, since sections have none), the titles
+themselves via a section's `titleBy` and a select's `sheetTitleBy` (args verbatim too), and a
+section's header note via `noteFrom` (an object, `{text, label?, info?}`; args verbatim).
 
 ```js
 // Returns the value to display; return null/undefined for "use the stored value".
@@ -789,6 +825,10 @@ PConf.pictureResolvers.register('layoutPresetPicture', function (state, env, arg
   return drawDefaultView(state, env, args.value, userData);
 });
 ```
+
+A `select` with `pictureFrom` keeps its trigger and its sheet; the sheet draws each option's
+picture at the start of its row, its name and `desc` beside it (WarnWeather's graph pickers: each
+graph and template as it draws). An option whose picture is `''` keeps the plain row.
 
 The resolver runs once per option the row offers (an `optionsFrom` list is resolved first), at
 render time, like the hint resolver. Its markup is printed unescaped inside the card, so only
@@ -923,6 +963,37 @@ Multiple `onLoad`/`onSubmit` registrations are allowed and fire in registration 
 
 ---
 
+## Shared parts — PConf.ui
+
+`lib/ui.js` holds one builder for each piece more than one place draws, so a tab's rows, a
+block's list, a dialog and an app's own full-screen view read the same. The markup is built
+there and nowhere else; the look is in `shell.html` (the `.ui-*` rules, and the `.chev` and
+`.dlg-*` rules the engine's own parts share). The engine draws its nav rows, its folding cards,
+its dropdowns, its Edit buttons, its dialogs' headers and their Delete with it; an app's page
+modules call it as `PConf.ui` in the page (`require('…/config-ui/lib/ui.js')` under Node).
+WarnWeather's `test/config-ui-parts.test.js` fails on a page file that writes one of these out
+by hand.
+
+| Builder | Draws |
+|---------|-------|
+| `navArrow()` | The red arrow (›) at the end of anything that opens a screen of its own: a nav row, a list row that opens a dialog or an editor. |
+| `foldChev(open)` | The red ▸ of anything that folds open in place, ▾ while open: a collapsible card's header. The button that carries it says `aria-expanded`. |
+| `deleteButton(label, at)` | Delete: centred in the accent, under (outside) what it deletes. The `style: 'delete'` button item is this. |
+| `undoToast(text, at)` | The Undo after a delete, in the list the thing went from. `flash(box, v, ms, repaint)` keeps its text in `box` for `ms`, then repaints without it; `unflash(box)` takes it early. |
+| `newRow(label, note, at)` | A list's New row at its foot: the plus and what it makes in the accent, how many there are on the right. |
+| `chip(label, at, {icon, on})` | A chip: an Add chip (the plus first) or a toggle chip (tinted and ticked while on). |
+| `dropdown(label, at)` | A dropdown: what is picked, then the ▾ that opens its picker. A `select` row's trigger is this, and so is a value an app's own view picks through a sheet (`ctx.openSheet`). |
+| `editButton(label, at)` | An Edit button: the outlined text button beside a value that opens what changes it (a row's edit sheet, a dialog an app's own view opens). |
+| `penButton(name, at)`, `renameField(o)` | The pencil after a name that renames it, and the name field with OK beside it. |
+| `header(o)` | A full-screen view's header: the way out (× or ‹), the kicker over the title with its pencil, Done; while renamed, the name field with OK. |
+| `popupHeader(title, closeAt)` | A popup over the page: its title and the × that closes it, in a `.ui-pop` holding a `.ui-pop-card`. |
+| `note(text)`, `icon(name)`, `attrs(map)` | A note in the page's info look; a line icon (plus, pen, check, x, grip); a tag's attributes, each escaped. |
+
+`at` is always a tag's attributes as a map (what a tap does, `aria-*`), escaped by `attrs`:
+`true` gives a bare attribute, and `null`, `undefined` and `false` leave it out.
+
+---
+
 ## Build step — buildPage
 
 The page is a self-contained HTML string built once, before `pebble build`. The build step
@@ -934,7 +1005,6 @@ concatenates the library's WebView files and the app's own browser-side files in
 var build = require('../src/pkjs/config-ui/scripts/build-page.js');
 
 function run() {
-  assertScreenshots();   // app-specific guard: fails if required screenshots are missing
   return build.writeGenerated({
     appFiles: [
       'src/pkjs/settings/blocks.js',
@@ -964,6 +1034,8 @@ rename, so a concurrent reader never sees a half-written file), and returns `out
    - `lib/html.js` — the escape helper, the shared sheet header, the swatch+hex
      colour readout the `rgb` control and a `chip` badge both print, and a joined row's
      no-divider class (`PConf.html`)
+   - `lib/ui.js` — the [shared parts](#shared-parts--pconfui) (`PConf.ui`): after `html.js`,
+     whose escape it reads, and before `engine.js`, which draws its own with it
    - `lib/date-picker.js` — the date control: value helpers, wheel renderers, scroll-settle wiring (`PConf.datePicker`)
    - `lib/range-control.js` — the dual-thumb, one-thumb and threshold sliders: numeric rules, renderers,
      the single-thumb track, and the drag wiring every slider and the `rgb` control share (`PConf.rangeControl`)

@@ -90,7 +90,7 @@ function combo(rnd) {
   // On demand: every bar's sides and their lists, the modes that make a bar exist, and
   // the Battery item. Each side's retired Enabled/Disabled switch is still drawn, so the
   // PRNG sequence (every other byte's draw) is the recorded one; the packer ignores it.
-  OD.BARS.forEach((b) => OD.SIDES.forEach((side) => {
+  OD.BLOB_BARS.forEach((b) => OD.SIDES.forEach((side) => {
     put(s, OD.itemsKey(b.bar, side).replace(/Items$/, ''), pick(rnd, [ABSENT, 'on', 'off', 'maybe']));
     put(s, OD.itemsKey(b.bar, side), pick(rnd, [ABSENT, '', 'battery', 'bt,qt,snooze', 'rain,uv,wind',
       'gust,aqi,pollen', 'wind,battery,zzz', 7]));

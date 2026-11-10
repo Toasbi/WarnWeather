@@ -37,15 +37,11 @@ function ctx(over) {
 
 // The matrix, spelled out once. The tests below assert the resolver reproduces
 // exactly this and nothing more. Setup sets no Bold mode (the owner, 2026-11-06: every
-// slot keeps its own Bold row's default). emery is the one display whose top strip
-// ships a reading in its RIGHT corner to give up, so it is the only one where steps is
-// promoted there (elsewhere that corner is the battery).
+// slot keeps its own Bold row's default) and moves no slot (the owner, 2026-11-09: steps
+// no longer moves to the top row, nor walked distance into its place).
 // The warn box is the kind's warn look, whose platform default already draws one —
 // the rule switches the highlight on and nothing else.
 const AQI_HIGHLIGHT = { threshAqiOn: true };
-const HEALTH_SLOTS = { statusTopRight: 'steps', statusHealthLeft: 'distance' };
-// The narrow platforms: the left slot instead of the corner.
-const HEALTH_SLOTS_COMPACT = { statusTopLeft: 'steps', statusHealthLeft: 'distance' };
 
 // --- ruleApplies: the `when` predicate -------------------------------------
 
@@ -132,17 +128,13 @@ test('nothing is overridden outside the wizard', () => {
   assert.deepEqual(policy.resolveDefaults(ctx({ wizard: false })), {});
 });
 
-test('the wizard on an emery health watch applies the whole matrix', () => {
-  assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, env: ENV_EMERY })),
-    Object.assign({}, AQI_HIGHLIGHT, HEALTH_SLOTS));
-});
-
-test('a narrow health watch promotes steps into the left slot', () => {
-  assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true })),
-    Object.assign({}, AQI_HIGHLIGHT, HEALTH_SLOTS_COMPACT));
-  assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, env: ENV_DIORITE })),
-    Object.assign({}, AQI_HIGHLIGHT, HEALTH_SLOTS_COMPACT),
-    'the split is by display width, not by colour or heart rate');
+test('the wizard on a health watch moves no status slot: steps stays in the Health bar', () => {
+  [ENV_EMERY, ENV_BASALT, ENV_DIORITE, { platform: 'chalk', health: true }].forEach((env) => {
+    assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, env })), AQI_HIGHLIGHT, env.platform);
+  });
+  policy.RULES.forEach((rule) => Object.keys(rule.set).forEach((key) => {
+    assert.ok(!/^status(Top|Health)/.test(key), rule.id + ' writes ' + key);
+  }));
 });
 
 test('the wizard with health off applies the AQI rule only', () => {
@@ -168,10 +160,9 @@ test('later rules win when two rules set the same key', () => {
 test('resolveDefaults returns a fresh object and never mutates the table', () => {
   const first = policy.resolveDefaults(ctx({ wizard: true }));
   first.threshAqiOn = false;
-  delete first.statusTopLeft;
   const second = policy.resolveDefaults(ctx({ wizard: true }));
   assert.equal(second.threshAqiOn, true);
-  assert.equal(second.statusTopLeft, 'steps');
+  assert.deepEqual(policy.RULES.find((r) => r.id === 'wizard-aqi-keeps-a-warn-signal').set, { threshAqiOn: true });
 });
 
 test('rulesFor exposes the matching rules themselves (ids, why)', () => {
@@ -252,16 +243,6 @@ test('setup writes no Bold mode, on any watch', () => {
   });
 });
 
-test('the health slot overrides do not collide with their own row siblings', () => {
-  const overrides = policy.resolveDefaults(ctx({ wizard: true }));
-  catalog.LINES.forEach((line) => {
-    const resolved = line.slots.map((slot) => overrides[slot] || line.defaults[slot]);
-    const filled = resolved.filter((code) => code && code !== 'empty');
-    assert.equal(new Set(filled).size, filled.length,
-      line.id + ' row would hold a duplicate slot: ' + resolved.join(', '));
-  });
-});
-
 // --- deliberate omissions (matrix item D) ----------------------------------
 
 test('the step and sleep goals stay off — no rule may switch them on', () => {
@@ -305,35 +286,6 @@ test('dependsOn always names a key of the same rule\'s set — a typo must not s
   });
 });
 
-test('the health-slot swap declares its coupling: the eviction depends on the promotion', () => {
-  const rule = policy.RULES.find((r) => r.id === 'wizard-health-slots');
-  assert.ok(rule, 'the rule exists');
-  assert.deepEqual(rule.dependsOn, { statusHealthLeft: 'statusTopRight' },
-    'the eviction hangs off the steps promotion');
-  assert.equal(rule.set.threshStepsBoldMode, undefined, 'setup sets no Bold mode, the promoted steps included');
-
-  const compact = policy.RULES.find((r) => r.id === 'wizard-health-slots-compact');
-  assert.ok(compact, 'the narrow-platform sibling exists');
-  assert.deepEqual(compact.dependsOn, { statusHealthLeft: 'statusTopLeft' },
-    'the eviction hangs off the promotion there too');
-  assert.deepEqual(compact.overrules, ['statusTopLeft']);
-  assert.equal(compact.set.threshStepsBoldMode, undefined, 'no Bold mode there either');
-});
-
-test('the two health-slot rules are mutually exclusive — never both on one watch', () => {
-  // They set overlapping keys (statusHealthLeft) with the same value, so a context
-  // matching both would be harmless today; it would stop being harmless the moment
-  // either rule's eviction changes. Pin the split instead of trusting it.
-  const emeryRule = policy.RULES.find((r) => r.id === 'wizard-health-slots');
-  const compact = policy.RULES.find((r) => r.id === 'wizard-health-slots-compact');
-  [ENV_EMERY, ENV_BASALT, ENV_DIORITE, ENV_APLITE, { platform: 'chalk', health: true }]
-    .forEach((env) => {
-      const c = { wizard: true, env, choices: { healthMode: 'all' } };
-      assert.notEqual(policy.ruleApplies(emeryRule, c) && policy.ruleApplies(compact, c), true,
-        env.platform + ' matches both health-slot rules');
-    });
-});
-
 test('overrules always names keys of the same rule\'s set — a typo must not silently protect nothing', () => {
   // The consumer (wizard.js policyMayWrite) skips the not-still-default guard for
   // a key the rule declares in `overrules`; a name that matches nothing in `set`
@@ -344,15 +296,6 @@ test('overrules always names keys of the same rule\'s set — a typo must not si
         rule.id + ': overrules names "' + key + '", which the rule does not set');
     });
   });
-});
-
-test('the health-slot swap declares exactly the promotion an overrule', () => {
-  // Completing setup with health on is consent to the promised layout, so the
-  // promotion may replace even a hand-picked top-right slot. The eviction and
-  // bold are NOT listed: they keep the normal protection, and the row-sibling
-  // dedupe guard still stands for the promotion itself.
-  const rule = policy.RULES.find((r) => r.id === 'wizard-health-slots');
-  assert.deepEqual(rule.overrules, ['statusTopRight']);
 });
 
 // --- applyDefaults: the ONE interpreter of the execution vocabulary ---------

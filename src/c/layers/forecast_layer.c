@@ -15,6 +15,7 @@
 #include "c/appendix/bottom_view.h"
 #include "c/appendix/theme.h"
 #include "c/appendix/temp_axis_pad.h"
+#include "c/appendix/graph_style.h"
 #include "paint_scratch.h"
 
 #define TEMP_LABEL_PAD 2
@@ -71,6 +72,54 @@ static uint8_t s_night_ink[NIGHT_COLOR_BYTES];
 #define NIGHT_C(i) GColorWhite
 #endif
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the graph style the view on screen draws (forecast_layer_set_style; graph_style.h)
+// and its record, re-read on every refresh and style change, never per paint. s_style_len is
+// 0 while the style has no valid record: the forecast then draws the look the other tuples
+// carry over every hour sent, as before graph styles.
+static uint8_t s_style;
+static uint8_t s_style_rec[GRAPH_STYLE_MAX_BYTES];
+static int s_style_len;
+
+static void style_reload(void) {
+    const int n = persist_get_graph_style(s_style, s_style_rec, sizeof(s_style_rec));
+    s_style_len = graph_style_valid(s_style_rec, n) ? n : 0;
+}
+#endif
+
+// The day/night shading and the left axis's options (config.h GRAPH_OPT_*; 0 off emery) of
+// the graph on screen. Plain reads of the settings off emery: the helper functions measured
+// 4 B more on the 64 KB B&W images (scripts/check-64k-size.sh).
+#if defined(PBL_PLATFORM_EMERY)
+// emery: its graph style's record's, while it has one.
+static inline bool forecast_night_on(void) {
+    if (s_style_len) { return (s_style_rec[GS_FLAGS] & GS_FLAG_NIGHT) != 0; }
+    return config_get()->day_night_shading;
+}
+
+static inline uint8_t forecast_axis_opts(void) {
+    if (s_style_len) { return s_style_rec[GS_FLAGS] & GS_FLAG_AXIS_MASK; }
+    return config_forecast_axis();
+}
+#else
+#define forecast_night_on() (config_get()->day_night_shading)
+#define forecast_axis_opts() config_forecast_axis()
+#endif
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the SeriesId a graph style record's map value names (graph_style.h): SECOND..FIFTH
+// as they are, GS_TREND_SPARE the spare trend (series.h SERIES_SPARE: 5 is SERIES_BARS).
+static inline SeriesId graph_style_series(uint8_t t) {
+    return t == GS_TREND_SPARE ? SERIES_SPARE : (SeriesId) t;
+}
+
+// emery: the trend series s reads: its own, or the one its graph style's record names.
+#define SERIES_TREND(rec, s) (((rec) && (s) >= SERIES_SECOND && (s) <= SERIES_FIFTH) \
+                              ? graph_style_series(graph_style_trend((rec), (s))) : (s))
+#else
+#define SERIES_TREND(rec, s) (s)
+#endif
+
 // Chart config: frame + ticks + slots in one block. Two variants because
 // the axis colour tracks the night-overlay state — orange (or theme_fg() on
 // B&W) normally, darker grey under night shading so the axis reads as
@@ -109,6 +158,39 @@ static void apply_line_style(SeriesLine *line, uint8_t style_byte, int solid_wid
 #else
 #define SERIES_IS_STRIPE(s) false
 #define SERIES_FROM_TOP(s) false
+#endif
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: graph style record rec's look over the first style's, which load_dataset loaded: the
+// curve insets, each line's colour, style and the trend it reads, the area fill and the night
+// colours (graph_style.h), and the trends on the temperature's scale it draws no line of.
+static void style_apply(ForecastDataset *ds, const uint8_t *rec) {
+    const uint8_t *const ls = rec + GS_LINE_STYLE;
+    for (int s = SERIES_FIRST; s <= SERIES_FIFTH; ++s) {
+        const uint8_t inset = rec[GS_INSETS + s];   // clamped as app_message.c clamps
+        ds->series[s].line.inset_y = inset > CURVE_INSET_MAX ? CURVE_INSET_MAX : inset;
+    }
+    memcpy(s_night_ink, ls + GS_LS_NIGHT, NIGHT_COLOR_BYTES);
+    SeriesLine *const second = &ds->series[SERIES_SECOND].line;
+    second->color      = (GColor){ .argb = ls[GS_LS_SECOND_COLOR] };
+    second->fill_color = (GColor){ .argb = ls[GS_LS_FILL_COLOR] };
+    second->fill_on    = (ls[GS_LS_FLAGS] & GS_LS_FILL_ON) != 0;
+    ds->series[SERIES_THIRD].line.color  = (GColor){ .argb = ls[GS_LS_THIRD_COLOR] };
+    ds->series[SERIES_FOURTH].line.color = (GColor){ .argb = ls[GS_LS_FOURTH_COLOR] };
+    ds->series[SERIES_FIFTH].line.color  = (GColor){ .argb = ls[GS_LS_FIFTH_COLOR] };
+    apply_line_style(second, ls[GS_LS_STYLES], 1);
+    apply_line_style(&ds->series[SERIES_THIRD].line, ls[GS_LS_STYLES + 1], 1);
+    apply_line_style(&ds->series[SERIES_FOURTH].line, ls[GS_LS_STYLES + 2], 1);
+    apply_line_style(&ds->series[SERIES_FIFTH].line, ls[GS_LS_FIFTH_STYLE], 1);
+    uint8_t drawn = 0;   // the scale's trends a line of this style draws, by map value
+    for (int s = SERIES_SECOND; s <= SERIES_FIFTH; ++s) {
+        const uint8_t t = graph_style_trend(rec, s);
+        Series *const series = &ds->series[s];
+        series->present = t != 0 && persist_series_present(graph_style_series(t));
+        if (series->present && series->line.inset_y) { drawn |= (uint8_t) (1u << t); }
+    }
+    ds->scale_undrawn = rec[GS_SCALE] & (uint8_t) ~drawn;
+}
 #endif
 
 static void load_dataset(ForecastDataset *ds) {
@@ -186,7 +268,7 @@ static void load_dataset(ForecastDataset *ds) {
                   .width  = FORECAST_GRID_BAR_W,   // marks match the rain-bar columns
                   .inset_y = curve_insets[SERIES_FOURTH] } };
 
-    // Per-line marker styles, phone-resolved (bytes [11..13] of
+    // Per-line marker styles, phone-resolved (bytes [9..11] of
     // CLAY_LINE_STYLE_UINT8 → LINE_STYLES persist blob). The persisted
     // defaults ARE the pre-feature look, so this only moves lines the user
     // restyled. A SOLID kind takes its stroke width from the byte; the mark
@@ -212,10 +294,23 @@ static void load_dataset(ForecastDataset *ds) {
         .bars = { .style = BAR_OUTLINED } };
     // .bars.stops/.num_stops are attached at render (scaled palette).
 
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: a graph style with a record restyles the lines, routes each to its trend and
+    // draws its own number of the hours sent (graph_style.h). Every hour sent still loads:
+    // the labels' readback runs through them all (forecast_numbers.h).
+    ds->sent_entries = n;
+    const uint8_t *const rec = s_style_len ? s_style_rec : NULL;
+    if (rec) {
+        style_apply(ds, rec);
+        ds->num_entries = graph_style_shown(n, rec[GS_HOURS]);
+        // A style without a bar palette draws no rain bars, though another style may.
+        ds->series[SERIES_BARS].present &= graph_style_bars(s_style_len);
+    }
+#endif
     if (n > 0) {
         for (SeriesId s = 0; s < SERIES_COUNT; ++s) {
             if (ds->series[s].present) {
-                persist_series_trend(s, series_values(&ds->series[s]), n);
+                persist_series_trend(SERIES_TREND(rec, s), series_values(&ds->series[s]), n);
             }
         }
     }
@@ -333,8 +428,8 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
     // Mask anything drawn into the label strip. The vertical axis line
     // itself is painted by graph_frame_draw(cfg->frame, ...) earlier in
     // the update proc.
-    const int strip_w = bottom_view_label_strip_w();
-    const int inset_w = bottom_view_graph_inset();
+    const int strip_w = bottom_view_label_strip_w(BOTTOM_VIEW_SRC_FORECAST);
+    const int inset_w = bottom_view_graph_inset(BOTTOM_VIEW_SRC_FORECAST);
     graphics_context_set_fill_color(ctx, theme_bg());
     graphics_fill_rect(ctx, GRect(0, 0, inset_w, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
 
@@ -463,14 +558,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 {
     MEMORY_LOG_HEAP("forecast_update:enter");
     GRect bounds = layer_get_bounds(layer);
-    const bool night_on = config_get()->day_night_shading;
+    const bool night_on = forecast_night_on();
     // The left axis's options (config.h GRAPH_OPT_*; 0 off emery, so axis_on is true
     // there). The numbers On axis (today) draw the left axis: the label strip and the axis line
     // along the plot's left edge. On graph or Off draw no left axis at all (owner, 2026-10-09:
     // "the complete left axis should not be drawn, and the graph should start as much on the
     // left screen as possible"): no strip, no axis line (the frame's left border, in the plot
     // and both stripe bands), and the plot starts at the screen's left edge.
-    const uint8_t axis_opts = config_forecast_axis();
+    const uint8_t axis_opts = forecast_axis_opts();
     const bool axis_on = !(axis_opts & GRAPH_OPT_NUMS_MASK);
 #if defined(PBL_PLATFORM_EMERY)
     // emery: the screen's left edge is `screen_left` in the layer's coordinates (the layer sits
@@ -480,9 +575,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // the screen's edge (the owner's, 2026-11-07), as the two never shared an hour column
     // anyway (the health graph's past day at its own pitch, the forecast's hours ahead).
     const int screen_left = -layer_get_frame(layer).origin.x;
-    const int graph_left = axis_on ? bottom_view_graph_inset() : screen_left;
+    const int graph_left = axis_on ? bottom_view_graph_inset(BOTTOM_VIEW_SRC_FORECAST) : screen_left;
 #else
-    const int graph_left = bottom_view_graph_inset();
+    const int graph_left = bottom_view_graph_inset(BOTTOM_VIEW_SRC_FORECAST);
 #endif
     const GRect graph_bounds = GRect(graph_left, 0,
                                      bounds.size.w - graph_left,
@@ -656,6 +751,17 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 
     int bar_num_stops = 0;
     const ChartColorStop *bar_stops = palette_bar_stops(&bar_num_stops);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: a graph style's record carries its own rain-bar palette (graph_style.h).
+    if (s_style_len) {
+        const int k = palette_parse_stops(s_style_rec + GS_PALETTE, s_style_len - GS_PALETTE,
+                                          paint->style_bar_stops);
+        if (k > 0) {
+            bar_stops = paint->style_bar_stops;
+            bar_num_stops = k;
+        }
+    }
+#endif
     // bar_stops are the canonical rain tiers in permille (0..1000) — the radar
     // consumes them as-is at hi=1000. The forecast bars render in
     // 0..FORECAST_TREND_FULL_SCALE space (uint8 wire), the same scale the bar
@@ -685,12 +791,19 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // emery: the 12 h and long grids, and the 24 h grid past 24 slots (26 hours on the
     // screen-wide plot), fit the scale and name the labels over the hours on screen, every
     // hour whose tick is (forecast_span_drawn: the edge rule's last hour's point is on the
-    // plot's last column); the 24-slot grid keeps every hour sent (pixel-identical). Before
-    // fit_temp_axis: the relabel reads the bytes, which it turns into rows.
+    // plot's last column); the 24-slot grid keeps every hour it draws. Its labels are
+    // TEMP_MIN / TEMP_MAX as sent (pixel-identical) unless its graph style draws fewer hours
+    // than were sent, or the scale's ends lie on a trend the style draws no line of
+    // (graph_style.h): then it names its own too. Before fit_temp_axis: the relabel reads the
+    // bytes, which it turns into rows.
+    const bool scale_nums = (axis_opts & GRAPH_OPT_SCALE_NUMS) != 0;
     ds->fit_entries = ds->num_entries;
     if (span.slots != FORECAST_SPAN_DAY_SLOTS) {
         ds->fit_entries = forecast_span_drawn(span, ds->num_entries, bounds.size.w - graph_left);
-        forecast_numbers_relabel(ds, (axis_opts & GRAPH_OPT_SCALE_NUMS) != 0,   // every paint
+    }
+    if (span.slots != FORECAST_SPAN_DAY_SLOTS || ds->num_entries < ds->sent_entries
+            || (scale_nums && ds->scale_undrawn)) {
+        forecast_numbers_relabel(ds, scale_nums, paint->scale_trend,   // every paint
                                  s_buffer_hi, s_buffer_lo, sizeof(s_buffer_hi));
     }
 #endif
@@ -886,10 +999,8 @@ static void text_labels_refresh()
     snprintf(s_buffer_hi, sizeof(s_buffer_hi), "%d", config_localize_temp(temp_hi));
     snprintf(s_buffer_lo, sizeof(s_buffer_lo), "%d", config_localize_temp(temp_lo));
     // The left axis's numbers On graph or Off (emery's options; 0 elsewhere) claim no strip:
-    // the forecast then draws from the screen's left edge (forecast_update_proc), so the health
-    // graph's strip is its own labels' alone (main_window.c retires the health graph's claim
-    // the same way).
-    if (config_forecast_axis() & GRAPH_OPT_NUMS_MASK) {
+    // the forecast then draws from the screen's left edge (forecast_update_proc).
+    if (forecast_axis_opts() & GRAPH_OPT_NUMS_MASK) {
         bottom_view_report_label_w(BOTTOM_VIEW_SRC_FORECAST, 0);
         return;
     }
@@ -902,8 +1013,8 @@ static void text_labels_refresh()
     }
     content_w += TEMP_LABEL_PAD;
 
-    // Report the measured content width (pre-floor); bottom_view applies the
-    // MIN_W floor and takes the max with health's reported width.
+    // Report the measured content width (pre-floor); bottom_view applies the MIN_W floor.
+    // The strip is the forecast's own: a health graph's wider step marks never widen it.
     bottom_view_report_label_w(BOTTOM_VIEW_SRC_FORECAST, content_w);
 }
 
@@ -937,9 +1048,11 @@ void forecast_layer_create(Layer *parent_layer, GRect frame)
     s_forecast_layer = layer_create(frame);
 #endif
     layer_set_update_proc(s_forecast_layer, forecast_update_proc);
-    // Registered before the first report below, so a width change repaints this
-    // layer from then on (shared strip, bottom_view.h).
-    bottom_view_register_consumer(s_forecast_layer);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the first style until main_window renders a view (forecast_layer_set_style).
+    s_style = 0;
+    style_reload();
+#endif
     text_labels_refresh();
 #if defined(PBL_PLATFORM_EMERY)
     layer_add_child(s_forecast_clip, s_forecast_layer);
@@ -950,8 +1063,26 @@ void forecast_layer_create(Layer *parent_layer, GRect frame)
     MEMORY_LOG_HEAP("after_forecast_layer_create");
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+// emery: a flick to a view of another graph style re-reads its record, the label strip it
+// claims (its left axis's options) and repaints.
+void forecast_layer_set_style(uint8_t k)
+{
+    if (k == s_style) { return; }
+    s_style = k;
+    style_reload();
+    text_labels_refresh();
+    layer_mark_dirty(s_forecast_layer);
+}
+#endif
+
 void forecast_layer_refresh()
 {
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the style on screen's record, re-read with everything else (a Clay message may
+    // have replaced or deleted it).
+    style_reload();
+#endif
     text_labels_refresh();
     layer_mark_dirty(s_forecast_layer);
 #ifdef WW_ENABLE_MEMORY_LOGGING
@@ -965,7 +1096,6 @@ void forecast_layer_refresh()
 void forecast_layer_destroy()
 {
     MEMORY_LOG_HEAP("forecast_layer_destroy:before");
-    bottom_view_unregister_consumer(s_forecast_layer);
     layer_destroy(s_forecast_layer);
 #if defined(PBL_PLATFORM_EMERY)
     layer_destroy(s_forecast_clip);   // emery: the clip, emptied above

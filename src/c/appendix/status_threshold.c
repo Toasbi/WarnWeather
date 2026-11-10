@@ -181,12 +181,21 @@ int status_threshold_rain_display(const uint8_t blob[THRESH_SETTINGS_BYTES]) {
     return mode == 3 ? THRESH_RAIN_DISPLAY_TEXT : mode;   // 3 is reserved
 }
 
-OdSide status_threshold_on_demand_side(const uint8_t blob[THRESH_SETTINGS_BYTES], int bar,
+OdSide status_threshold_on_demand_side(const uint8_t blob[THRESH_SCRATCH_BYTES], int bar,
                                        int item) {
-    if (bar < 0 || bar >= THRESH_BAR_COUNT || item < 0 || item >= OD_ITEM_COUNT) {
-        return OD_SIDE_NONE;
+    if (bar < 0 || item < 0 || item >= OD_ITEM_COUNT) { return OD_SIDE_NONE; }
+    int cell;
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6 read the extra cells behind the blob.
+    if (bar >= THRESH_BAR_4) {
+        if (bar >= THRESH_BAR_4 + THRESH_EXTRA_BAR_COUNT) { return OD_SIDE_NONE; }
+        cell = (blob[THRESH_SETTINGS_BYTES + item] >> (2 * (bar - THRESH_BAR_4))) & 3;
+    } else
+#endif
+    {
+        if (bar >= THRESH_BAR_COUNT) { return OD_SIDE_NONE; }
+        cell = (blob[THRESH_ON_DEMAND_OFFSET + item] >> (2 * bar)) & 3;
     }
-    int cell = (blob[THRESH_ON_DEMAND_OFFSET + item] >> (2 * bar)) & 3;
     return cell == 3 ? OD_SIDE_NONE : (OdSide)cell;   // 3 is reserved
 }
 

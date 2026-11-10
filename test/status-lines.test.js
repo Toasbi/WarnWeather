@@ -341,16 +341,17 @@ test('buildStatusLines packs four lines with defaults', () => {
   assert.equal(forecast[0].text, '20'); // bare number; thermometer icon carries context
   assert.equal(forecast[1].icon, I.NONE);
   assert.equal(forecast[1].text, 'Saarbrücken'); // default mid = city
-  assert.equal(forecast[2].icon, I.AQI);
+  assert.equal(forecast[2].icon, I.DRAWN_SUN); // default right = sunrise/sunset
 
   const radar = decodeLine(p.STATUS_LINE_2_UINT8);
   assert.equal(radar[1].icon, I.WIND);
   assert.equal(radar[2].icon, I.GUST);
 
-  // basalt is not emery, so the top strip is the narrow one: date alone in the
-  // middle, battery in the corner, left free.
+  // basalt is not emery, so the top strip is the narrow one: air quality on the left,
+  // the date in the middle, the battery in the corner.
   const top = decodeLine(p.STATUS_LINE_3_UINT8);
-  assert.equal(top[0].kind, K.EMPTY);
+  assert.equal(top[0].kind, K.TEXT);
+  assert.equal(top[0].icon, I.AQI);
   assert.equal(top[1].kind, K.LIVE_DATE); // mid slot is selectable; defaults to date
   assert.equal(top[2].kind, K.LIVE_BATTERY);
 
@@ -410,16 +411,17 @@ test('top line: mid defaults to live date; stored mid packs; date packs at edges
   const topLine = catalog.LINES.filter(l => l.id === 'top')[0];
   const env = basaltEnv();
   const p = basePayload();
-  // default (narrow): empty / date / battery
+  // default (narrow): air quality / date / battery
   let slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), env));
-  assert.deepEqual(slots.map(s => s.kind), [K.EMPTY, K.LIVE_DATE, K.LIVE_BATTERY]);
+  assert.deepEqual(slots.map(s => s.kind), [K.TEXT, K.LIVE_DATE, K.LIVE_BATTERY]);
+  assert.equal(slots[0].icon, I.AQI);
   // and the emery flavor, which packLine has to take from the env rather than from
   // the flat table — an install that never opened the settings page has nothing
   // stored here, so this fallback IS what such a watch renders.
   const emeryEnv = Object.assign({}, env, { platform: 'emery', hr: true });
   slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), emeryEnv));
   assert.deepEqual(slots.map(s => s.kind), [K.LIVE_WEEK, K.LIVE_DATE, K.TEXT]);
-  assert.equal(slots[2].icon, I.DRAWN_SUN);
+  assert.equal(slots[2].icon, I.AQI);
   // stored mid selection packs as TEXT
   slots = decodeLine(statusLines.packLine(topLine, p,
     baseSettings({ statusTopMid: 'city' }), env));
@@ -1436,8 +1438,9 @@ test('the weather alerts are no slot item: no catalog kind, and the lines carry 
   const p = alertPayload();
   statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_BASALT);
   const top = decodeLine(p.STATUS_LINE_3_UINT8);
-  assert.deepEqual(top.map((slot) => slot.kind), [K.EMPTY, K.LIVE_DATE, K.LIVE_BATTERY],
+  assert.deepEqual(top.map((slot) => slot.kind), [K.TEXT, K.LIVE_DATE, K.LIVE_BATTERY],
     'the strip keeps its shipped slots; the watch overlays the row itself');
+  assert.equal(top[0].icon, I.AQI, 'its left: air quality, a slot like any other');
 });
 
 test('the entry cap holds all five alerts with their widest values', () => {

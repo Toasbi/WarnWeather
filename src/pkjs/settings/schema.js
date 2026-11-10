@@ -41,9 +41,11 @@ var ON_DEMAND_WHEN = gates.ON_DEMAND_WHEN;
 var BOLD_MASTER_WHEN = gates.BOLD_MASTER_WHEN;
 var RADAR_BAR_WHEN = gates.RADAR_BAR_WHEN;
 var HEALTH_BAR_WHEN = gates.HEALTH_BAR_WHEN;
+var extraBarWhen = gates.extraBarWhen;
 var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 var LINE_STYLES_WHEN = gates.LINE_STYLES_WHEN;
 var EMERY_WHEN = gates.EMERY_WHEN;
+var GRAPH_STYLES_WHEN = gates.GRAPH_STYLES_WHEN;
 var gateAll = gates.gateAll;
 var tabLink = gates.tabLink;
 var linkRow = gates.linkRow;
@@ -62,6 +64,9 @@ var levelRows = levelRowsSchema.levelRows;
 // leaf).
 var alertsSchema = require('./alerts-schema.js');
 var ON_DEMAND = require('../on-demand.js');
+// The longest name a bar, a screen or a graph keeps (screens.js cleanName).
+var SCREENS = require('../screens.js');
+var NAME_MAX = SCREENS.NAME_MAX;
 var ALERT_KINDS = alertsSchema.ALERT_KINDS;
 var ALERT_DAYS_OPTIONS = alertsSchema.ALERT_DAYS_OPTIONS;
 var BT_ICON_OPTIONS = alertsSchema.BT_ICON_OPTIONS;
@@ -113,22 +118,14 @@ function sheetOf(keyStem, title, items) {
 }
 
 // The nine rows of the Graph colors dialog, each opening its own sheet. The eight metrics
-// come first, labelled and ordered exactly like the Main/Second metric pickers offer
-// them (forecast-hints.js' FORECAST_METRICS — a user reads the two lists together), then
-// the full-height night band. `scope` is line-style.js' vocabulary: a metric id or 'night'.
+// come first, labelled and ordered exactly like the metric pickers offer them
+// (forecast-metrics.js, their one table — a user reads the two lists together), then the
+// full-height night band. `scope` is line-style.js' vocabulary: a metric id or 'night'.
 // A row is NOT gated on the metric being selected — its colours are configurable before
 // it is picked, and the feels row simply has fewer pickers in its sheet.
-var GRAPH_COLOR_ROWS = [
-    {scope: 'precip_prob', sheetId: 'gcPrecip', label: 'Precipitation %'},
-    {scope: 'cloud', sheetId: 'gcCloud', label: 'Cloud cover %'},
-    {scope: 'wind', sheetId: 'gcWind', label: 'Wind speed'},
-    {scope: 'gust', sheetId: 'gcGust', label: 'Wind gusts'},
-    {scope: 'uv', sheetId: 'gcUv', label: 'UV Index'},
-    {scope: 'pressure', sheetId: 'gcPressure', label: 'Air pressure (hPa)'},
-    {scope: 'feels', sheetId: 'gcFeels', label: 'Feels-like temperature'},
-    {scope: 'dew', sheetId: 'gcDew', label: 'Dew point'},
-    {scope: 'night', sheetId: 'gcNight', label: 'Night shading'}
-];
+var GRAPH_COLOR_ROWS = require('./forecast-metrics.js').METRICS.map(function (m) {
+    return {scope: m.id, sheetId: 'gc' + lineStyle.METRIC_SLUG[m.id], label: m.label};
+}).concat([{scope: 'night', sheetId: 'gcNight', label: 'Night shading'}]);
 // What each role is called and explained as inside a sheet. Keyed by line-style.js'
 // role names, so a role it stops handing out simply stops being rendered.
 var GRAPH_ROLE_LABELS = {
@@ -142,7 +139,7 @@ var GRAPH_ROLE_LABELS = {
 };
 var GRAPH_ROLE_HINTS = {
     Fill: 'Only drawn while this is the Main metric and “Area fill” is on.',
-    Night: 'Re-shades the filled area under the night hours. Follows the fill colour until you pick one here.',
+    Night: 'Colors the filled area during the night hours. Until you pick a color here, it uses the fill color.',
     Hatch: 'Only drawn while “Day / night shading” is on.',
     Boundary: 'The line at midnight. Only drawn while “Day / night shading” is on.'
 };
@@ -252,8 +249,8 @@ function graphColorRow(row, joins) {
 // blowing), not the meteorological "comes from" bearing the providers report — the
 // phone flips it before baking — so the copy has to say which way it points, or half
 // the readers will read it backwards. Shared by both slots: one arrow, two kinds.
-var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the ' +
-    'wind is blowing now. Not while Day max shows a peak alone.';
+var WIND_DIRECTION_HINT = 'Draws an arrow after the speed that points the way the ' +
+    'wind is blowing now. No arrow is drawn while Day max shows a peak on its own.';
 // The two-value slots — Temperature and the day-max kinds in their "Both" mode — print a
 // pair in one slot (12|10, 3/7). How the pair reads is chosen per kind, on the rows
 // orderRow() and separatorRows() build below that kind's Value selection. The phone
@@ -280,8 +277,8 @@ function pairFallbackHints(prefix, first, second, values) {
     var preset = STATUS_PAIR.SEPARATORS[def];
     // Only a day-max pair can still be too wide in its default form (a mark and two
     // three-digit numbers: '152/»178'); then the slot shows the reading alone.
-    var tail = prefix === 'temp' ? '.' : ', then to the reading alone.';
-    var hint = 'When the pair doesn\'t fit, it drops its spaces, then falls back to ' +
+    var tail = prefix === 'temp' ? '.' : ', then shows the reading alone.';
+    var hint = 'If the pair doesn\'t fit, the slot drops the spaces first, then switches to ' +
         first + preset.mid + second + preset.end + tail;
     var out = {};
     values.forEach(function (value) {
@@ -302,10 +299,10 @@ function pairFallbackHints(prefix, first, second, values) {
 function pairCustomHint(prefix, first, second) {
     var def = STATUS_PAIR.defaultSeparator(prefix);
     var preset = STATUS_PAIR.SEPARATORS[def];
-    var empty = def === 'slash' ? 'empty uses the slash'
-        : 'empty prints ' + first + preset.mid + second + preset.end;
-    return 'Up to ' + STATUS_PAIR.CUSTOM_MAX_CHARS + ' characters, spaces included; ' +
-        empty + '. Only characters the watch font can draw are kept ' +
+    var empty = def === 'slash' ? 'Leave it empty to use the slash'
+        : 'Leave it empty to print ' + first + preset.mid + second + preset.end;
+    return 'Up to ' + STATUS_PAIR.CUSTOM_MAX_CHARS + ' characters, spaces included. ' +
+        empty + '. The watch keeps only the characters its font can draw ' +
         '(printable ASCII and Latin-1).';
 }
 /**
@@ -453,7 +450,7 @@ function dayMaxRows(prefix, copy, now, max) {
             messageKey: prefix + 'SlotNextDayMark',
             label: 'Tomorrow\'s peak mark',
             defaultValue: 'raquo',
-            hintByValue: {none: 'Tomorrow\'s peak then looks just like today\'s.'},
+            hintByValue: {none: 'Tomorrow\'s peak then looks the same as today\'s.'},
             options: nextDayMarkOptions(),
             joinPrevious: true,
             more: true,
@@ -475,12 +472,12 @@ function dayMaxRows(prefix, copy, now, max) {
 function dayMaxHints(noun, sample) {
     var never = ' Tomorrow\'s peak never triggers Alert highlighting.';
     return {
-        max: 'The highest ' + noun + ' left today, while that peak is still ahead or happening '
-            + 'now. After it, tomorrow\'s peak with Tomorrow\'s peak mark, or the reading when '
-            + 'tomorrow\'s isn\'t known.' + never,
-        both: 'The ' + noun + ' now and the highest left today, like ' + sample + ', while that '
+        max: 'Shows the highest ' + noun + ' left today while that peak is still ahead or happening '
+            + 'now. After it, the slot shows tomorrow\'s peak with Tomorrow\'s peak mark, or the '
+            + 'current reading if tomorrow\'s isn\'t known.' + never,
+        both: 'Shows the ' + noun + ' now and the highest left today, like ' + sample + ', while that '
             + 'peak is still ahead or happening now. After it, tomorrow\'s peak takes its place '
-            + 'with Tomorrow\'s peak mark, or the reading shows alone when tomorrow\'s isn\'t '
+            + 'with Tomorrow\'s peak mark, or the current reading shows alone if tomorrow\'s isn\'t '
             + 'known.' + never
     };
 }
@@ -519,7 +516,7 @@ function unitRow(key, withUnit, without) {
                 without + '.'
             // Wind and gusts: withUnit drops the unit when it doesn't fit, after the
             // direction arrow's byte is reserved (status-lines.js) — so say when.
-            : 'Prints the unit after the value when it fits — in a narrow left or right slot, a pair plus the direction arrow leaves no room for it.'
+            : 'Prints the unit after the value when it fits. In a narrow left or right slot, a pair plus the direction arrow leaves no room for it.'
     };
 }
 // The Bold row is a SLOT-level setting, not a level one: it closes the slot's own rows
@@ -630,7 +627,7 @@ function highlightToggle(keyStem) {
         // the levels are set is the info box right below. A toggle's value keys its
         // hint as the string 'true', quoted: a bare reserved word as a key is not ES3.
         hintByValue: {
-            'true': 'Fills this slot from the danger level on and draws the warn look from warn.'
+            'true': 'Fills this slot when the value reaches the danger level, and draws the warn look when it reaches the warn level.'
         },
         defaultValue: false
     };
@@ -695,25 +692,25 @@ function boldSection(title, keyStem, gate, extraItems) {
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
 var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
 // Bar color hint depends on the selected mode (hintByValue): Multicolor shows the swatches; White doesn't.
-var MULTICOLOR_HINT = 'Colors each part differently depending on intensity:' + SWATCHES;
+var MULTICOLOR_HINT = 'Colors each part of a bar by how heavy the rain is:' + SWATCHES;
 var WHITE_HINT = 'Shows every bar in a single color.';
 // Full-width note between the Bars and Bar color controls (its own staticText) so the prose isn't
 // cramped in a control's left column. Color watches only; B/W uses BW_LEGEND.
-var SCALE_NOTE = 'The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall, so light drizzle stays visible while heavy rain still has room to grow.';
+var SCALE_NOTE = 'The bars don\'t scale linearly. Their height is split into 5 parts, for rain up to 0.1, 0.5, 2, 10 and 40 mm/h, so light drizzle stays visible and heavy rain still has room to grow.';
 // B/W watches hide the color picker (no colors to choose), so this stands in for COLOR_LEGEND
 // there: text-only, since height is the only encoding (no color steps to show).
-var BW_LEGEND = 'The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall.';
+var BW_LEGEND = 'The bars don\'t scale linearly. Their height is split into 5 parts, for rain up to 0.1, 0.5, 2, 10 and 40 mm/h.';
 // Per-provider "why it's best" note — the picker's hintByValue, so only the selected provider's
 // rationale renders. The hinted-row wrap layout flows it around the trigger and gives it the
 // full row width below, so the fuller prose no longer needs its own staticText. The short
 // tags live in the dropdown option descs; these give the fuller rationale.
 var PROVIDER_WHY = {
-    dwd: 'Germany\'s national weather service — the most accurate forecasts across Germany and decent across Central Europe (ICON model). No API key needed.',
-    metno: 'The service behind yr.no — best across the Nordics with a 2.5 km model, and solid worldwide. No API key needed.',
+    dwd: 'Germany\'s national weather service, with the most accurate forecasts in Germany and decent ones across Central Europe (ICON model). No API key needed.',
+    metno: 'The service behind yr.no. Best in the Nordics, with a 2.5 km model, and solid worldwide. No API key needed.',
     openmeteo: 'Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.',
     openweathermap: 'A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.',
-    tomorrowio: 'Minute-by-minute hyperlocal forecasts worldwide, from proprietary ML models and satellites. Needs a free API key.',
-    wunderground: 'A huge crowd-sourced network of 250,000+ personal weather stations — dense local readings, strongest across the US and Europe. No API key needed.',
+    tomorrowio: 'Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key.',
+    wunderground: 'A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.',
     yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key.'
 };
 // The radar picker's options in order. desc (3rd tuple slot) = the short "what it's best at"
@@ -760,19 +757,19 @@ var RAINBOW_OWN_KEY_WHEN = {all: [{key: 'radarProvider', eq: 'rainbowkey'}, {key
 // alert"), so it has none.
 var RAINBOW_LINK = 'Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.';
 var RADAR_SOURCE_HINTS = {
-    dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.',
-    metno: 'Precise weather radar — rain at your exact spot. Nordics only.',
+    dwd: 'Precise weather radar that shows rain at your exact spot and nearby (about 2 km). Germany only.',
+    metno: 'Precise weather radar that shows rain at your exact spot. Nordics only.',
     // "Rainbow (limited)": the calls every user shares are the developer's (the
     // rainbow-nowcast proxy caps them at RAINBOW_MONTHLY_BUDGET upstream calls, DEV.md), so
     // the shared radar refreshes at most every 30 minutes. "Rainbow (own key)" lifts it.
     rainbow: 'Refreshes at most every 30 minutes. ' + RAINBOW_LINK,
     // "Rainbow (own key)": the same nowcast on the user's own Rainbow account.
-    rainbowkey: 'A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at '
+    rainbowkey: 'A worldwide nowcast from satellite and radar data. It uses your own Rainbow key, so it refreshes at '
         + 'every update. A key is free: Rainbow\'s free plan covers 5,000 calls a month. ' + RAINBOW_LINK,
     // Without a key the amber note under the row says what goes missing, so the hint here
     // only says whose key and whose budget.
-    tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key and counts against the same '
-        + 'call budget.'
+    tomorrowio: 'A precise rain nowcast from machine-learning models, worldwide. It uses your tomorrow.io API key '
+        + 'and counts against that key\'s call budget.'
 };
 // The radar's on-state rows (its key row and its coverage note) and the picker itself: a
 // watch with the radar (not aplite).
@@ -823,9 +820,11 @@ function slotItem(slotKey, position, barWhen, joins) {
         type: 'select',
         messageKey: slotKey,
         label: labels[position],
-        // The picker names the bar too: it also opens from a tap on the slot in the
-        // tab's pinned preview (preview-status-bars.js), away from the bar's card.
-        sheetTitle: bar.name.replace(/ Status Bar$/, '') + ' bar · ' + labels[position],
+        // The picker names the bar too, by its name (screens.js barName): it also opens from a
+        // tap on the slot in the tab's pinned preview (preview-status-bars.js), away from the
+        // bar's card.
+        sheetTitle: bar.name + ' · ' + labels[position],
+        sheetTitleBy: {resolver: 'barSlotTitle', args: {bar: bar.bar, label: labels[position]}},
         defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: slotKey}},
         onChange: 'dedupeStatusSlot',
         editSheetFrom: {resolver: 'statusSlotEditSheet'},
@@ -858,11 +857,74 @@ function barSlots(prefix, barWhen, leftJoins) {
         onDemandRow(prefix, barWhen)
     ];
 }
+/**
+ * A status bar's dialog (the owner's pick, 2026-11-09): the Status bars tab's Your status bars card
+ * lists the bars (screens-page.js barsCard) and a tap on a name opens the bar's dialog
+ * (screens.js barSheet). Titled by the bar's name (titleBy: screens.js barName), which the
+ * title renames (rename: an OK button stores it; the Watch bar keeps its name); the bar's
+ * picture pinned on top with where it shows (block 'barPicture'); then the Slots card, the three
+ * slots and the Alerts row, all behind the bar's gate.
+ * @param {Object} b The bar's on-demand.js BARS entry.
+ * @param {?Object} when The bar's gate (null = always).
+ * @param {Array<Object>} [tail] Items after the Alerts row: aplite's Watch bar its icons card, a bar 4
+ *   to 6 its Delete status bar (drawn under the Slots card).
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function barDialog(b, when, tail) {
+    var sheet = SCREENS.barSheet(b.bar);
+    var sec = {
+        sheetOnly: true,
+        sheetId: sheet,
+        id: sheet,
+        title: b.name,
+        titleBy: {resolver: 'barName', args: {bar: b.bar}},
+        pinBlock: 'barPicture',
+        items: [{type: 'subheader', text: 'Slots'}].concat(barSlots(b.prefix, when), tail || [])
+    };
+    // Each bar's name (screens.js THE NAMES): '' for its own, NAME_MAX characters at most, a
+    // hidden item of the tab's (barKeysSection). Page-only: never compiled or sent.
+    if (b.bar !== 'top') { sec.rename = {key: b.prefix + 'Name', label: 'Status bar name', placeholder: b.name, maxlength: NAME_MAX}; }
+    if (when) { sec.showWhen = when; }
+    return sec;
+}
+
+/**
+ * A bar 4 to 6's dialog (Pebble Time 2, made by New status bar): the other bars' dialog, then Delete status bar
+ * under its card, as the screen editor's Delete screen (style 'delete', engine buildCards;
+ * screens-page.js deleteBar: every screen that shows it drops the row; the Your status bars card's
+ * Undo puts it back).
+ * @param {Object} b Its on-demand.js BARS entry.
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function extraBarDialog(b) {
+    return barDialog(b, extraBarWhen(b.prefix), [{
+        type: 'button', style: 'delete', action: 'deleteBar', actionArg: b.bar, label: 'Delete status bar'
+    }]);
+}
+
+/**
+ * The bars' keys with no row of their own: the made flags of bars 4 to 6 (<prefix>Made: New status bar
+ * sets one, Delete status bar clears it; the phone reads them, view-cycle.js barMade) and every bar's
+ * name but the Watch bar's (<prefix>Name, which a bar's dialog's title renames: screens-page.js
+ * barRenamed cleans it). Blob-only: sheetOnly keeps it off the tab.
+ * @returns {Object} Schema section (sheetOnly, never opened).
+ */
+function barKeysSection() {
+    return {
+        sheetOnly: true,
+        sheetId: 'barKeys',
+        items: ON_DEMAND.EXTRA_BARS.map(function (b) {
+            return {type: 'hidden', messageKey: b.prefix + 'Made', defaultValue: false};
+        }).concat(ON_DEMAND.PAGE_BARS.filter(function (b) { return b.bar !== 'top'; }).map(function (b) {
+            return {type: 'hidden', messageKey: b.prefix + 'Name', defaultValue: '', onChange: 'barRenamed'};
+        }))
+    };
+}
 // The signup link opens in an external browser (target=_blank). The Development > API Keys page 404s on
 // tomorrow.io's MOBILE site, so it gets a copy button instead of a (useless-on-mobile) link — users copy
 // the URL and open it in desktop-site mode. See copyBtn() + the engine's [data-copy] handler.
-var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b>' + copyBtn('https://app.tomorrow.io/development/keys', 'Copy the API-keys page link') + ', copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io\'s mobile site shows an error (404) on the API-keys page — tap the copy button, then open the link in your browser\'s desktop-site mode.</b>';
-var TOMORROWIO_BUDGET_HINT = 'Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.';
+var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b>' + copyBtn('https://app.tomorrow.io/development/keys', 'Copy the API-keys page link') + ', copy your key, paste it here and tap Test. The free plan is enough. See the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io\'s mobile site shows an error (404) on the API-keys page. Tap the copy button, then open the link in your browser\'s desktop-site mode.</b>';
+var TOMORROWIO_BUDGET_HINT = 'Offers only the update intervals that fit the free plan. Turn it off to pick any interval. Tomorrow.io then rejects the calls over the limit until it resets, and the watch keeps its last data.';
 // The rows of both Tomorrow.io key sheets, the weather provider's (Setup › Data sources) and
 // the radar-only one (Graphs › Rain radar): the key field with its Test button, then the
 // budget guard with the call-budget read-out between the two (blockBefore).
@@ -889,7 +951,7 @@ var TOMORROWIO_KEY_ROWS = [{
 // Rainbow's terms (developer.rainbow.ai, checked 2026-09-25): signup takes payment details, the
 // Nowcast API's first 5,000 calls each calendar month are free, then $0.10 per 1,000.
 var RAINBOW_KEY_HINT = '<b>How to get a key:</b><br>1. <a target=\'_blank\' href=\'https://developer.rainbow.ai/signup/\'>Sign up at developer.rainbow.ai</a>. Rainbow asks for a credit card, but the first 5,000 calls each month are free.<br>2. Open your <a target=\'_blank\' href=\'https://developer.rainbow.ai/profile\'>profile page</a>' + copyBtn('https://developer.rainbow.ai/profile', 'Copy the profile page link') + ', copy the API key and paste it here.<br>3. Tap Test.<br>Keep "Fit update interval to rate limit" on and the watch stays within the free 5,000 calls.';
-var RAINBOW_BUDGET_HINT = 'Only offer update intervals that fit the free 5,000 calls a month. Turn off to pick any interval — Rainbow bills calls past 5,000 to your card at $0.10 per 1,000.';
+var RAINBOW_BUDGET_HINT = 'Offers only the update intervals that fit the free 5,000 calls a month. Turn it off to pick any interval. Rainbow bills calls past 5,000 to your card at $0.10 per 1,000.';
 
 /**
  * A keyed source's key sheet (sheetOnly; the sheet its key-sources.js entry names for
@@ -1000,13 +1062,14 @@ var VIEW_FLICK_WHEN = {env: 'platform', ne: 'aplite'};
 var FORECAST_SPAN_WHEN = {env: 'forecastSpan'};
 // The owner's text (2026-11-06). The tap is said twice on purpose: the bars' own line under
 // them (preview-status-bars.js) and here, because a tap on a picture was not obvious.
-var STATUS_INTRO = 'Each bar has a left, middle and right slot. Tap a slot above to change it.';
+var STATUS_INTRO = 'Each status bar has a left, middle and right slot. Tap a slot to change it, or tap a bar’s name for '
+    + 'the rest of its settings.';
 // "up to 66": a full feed on the whole screen (the Left axis values On graph or Off).
-var FORECAST_INTRO = 'The forecast graph looks up to 24 hours ahead (on Pebble Time 2, 12, 24 or up to '
-    + String(spanHours.wholeHours(spanHours.FULL_HOURS, spanHours.SCREEN_W)) + ': '
-    + 'Forecast length). Temperature is always drawn; the metrics and rain bars you pick below join it.';
-var GRAPH_COLORS_INTRO = 'One row per metric, plus the night shading. Each row’s colours are remembered '
-    + 'separately for the Dark and the Light theme.';
+var FORECAST_INTRO = 'The forecast graph shows up to 24 hours ahead. On Pebble Time 2 you can pick 12, 24 or up to '
+    + String(spanHours.wholeHours(spanHours.FULL_HOURS, spanHours.SCREEN_W)) + ' hours under Forecast length. '
+    + 'Temperature is always drawn, and the metrics and rain bars you pick below are added to it.';
+var GRAPH_COLORS_INTRO = 'There is a row for each metric and one for the night shading. Each row keeps '
+    + 'separate colors for the Dark and the Light theme.';
 
 // The forecast graph's four lines: each a nav row on the Graphs tab (its metric and
 // style as the summary, its line colour as the swatch) opening the line's own dialog.
@@ -1104,6 +1167,209 @@ function keyRow(picker, when) {
     return row;
 }
 
+/**
+ * A graph's dialog (the owner's ask, 2026-11-09: the graphs in a list with their pictures, a
+ * graph's settings behind a tap). The Your graphs list opens it on the graph a row picks
+ * (graph-styles-page.js openGraph), whose values the page holds in the flat keys while it shows
+ * (THE SWAP there), so every row edits that graph. Its preview pinned, then its cards: Lines,
+ * Rain bars, Other, Left axis (Pebble Time 2), Graph colors (colour themes) and, with several
+ * graphs, the screens it shows on (block 'graphShowOn') with Delete under them. Its title is
+ * the graph's name, which the pencil renames where a watch has several graphs (the page-only
+ * graphStyleName: graph-styles-page.js renameStyle); elsewhere it is the Forecast graph.
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function graphDialog() {
+    var bars = [{
+        type: 'segmented',
+        messageKey: 'barSource',
+        label: 'Bars',
+        defaultValue: 'rain',
+        hintByValue: {rain: 'Adds bars that show how much rain falls in each hour.'},
+        // With the bars on, the scale note (colour) or the B&W legend joins the
+        // hint (blocks.js colorNoteHint).
+        hintFrom: {resolver: 'colorNoteHint', args: {colorNote: SCALE_NOTE, bwNote: BW_LEGEND}},
+        options: [['Rain', 'rain'], ['Off', 'off']]
+    }, {
+        type: 'segmented',
+        messageKey: 'rainBarColor',
+        label: 'Bar color',
+        // The DARK-polarity default. The light polarity starts on Solid instead:
+        // resolve-ink.js's barColorDefault owns that pair, and theme-convert.js
+        // converts a value still holding this one when the Theme control flips
+        // polarity. This cannot become a defaultFrom — a defaults-resolver is
+        // handed only `env` (platform facts), and the theme is a settings key.
+        defaultValue: 'multicolor',
+        hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
+        capabilities: ['COLOR'],
+        // VALUE stays 'white' for wire compatibility (the watch resolves it to the
+        // right polarity color itself — see rain-tier.js); only the label changes.
+        options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
+        more: true,
+        showWhen: {all: [{key: 'barSource', eq: 'rain'}, COLOR_THEME_WHEN]}
+    }, {
+        // Bars from [Bottom | Top] (draw-from.js rainBarFrom): while the bars are
+        // drawn, on a watch with line styles (the WW_LINE_STYLE mirror the watch's
+        // flip sits behind; aplite never hangs them).
+        type: 'segmented',
+        messageKey: 'rainBarFrom',
+        label: 'Bars from',
+        defaultValue: DRAW_FROM.BOTTOM,
+        hintByValue: {top: BARS_TOP_HINT},
+        options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
+        more: true,
+        showWhen: {all: [{key: 'barSource', eq: 'rain'}, LINE_STYLES_WHEN]}
+    }];
+    // Other: the graph-wide rows that belong to no line and no bars. Every watch shows
+    // the card (the shading is everywhere); Forecast length is emery's alone.
+    //
+    // Forecast length (emery only): how many hours the forecast graph looks ahead. The phone
+    // fetches and sends 14, 24 (26 with no left axis) or 68 hourly points
+    // (src/pkjs/forecast-span.js); the watch's grid follows the count it receives and
+    // fills the plot's width, so the hours on screen follow the layout
+    // (src/c/appendix/forecast_span.h). '48' is the long span's stored token. Its label
+    // names the whole hours the watch will show for the picked weather provider and the
+    // layout (forecastSpanOptions, src/pkjs/forecast-span-hours.js spanOptions); the
+    // stored value never moves.
+    // The default is the long span, a new install's; setup starts a new install on the
+    // Clean look, which takes it too (settings/wizard-forecast.js FIRST_RUN; the
+    // defaults are none of the looks on emery). An existing install without the key
+    // keeps the 24 h it had (clay-settings.js upgradeBackfill), and an absent value still
+    // reads 24 h (forecast-span-hours.js storedHours).
+    // Every other watch keeps 24 h, whatever the key holds: the 640 B / 536 B inboxes
+    // cannot take the long span's 68-hour bundle and the 64 KB images have no room. A
+    // changed span re-fetches (render-signature.js). Not `more`: the span frames the
+    // whole graph.
+    var other = [{
+        type: 'toggle',
+        messageKey: 'dayNightShading',
+        label: 'Day / night shading',
+        defaultValue: true,
+        hint: 'Hatches the hours between sunset and sunrise and draws a line at midnight.',
+        // On a colour theme the hint also says where the colours are set.
+        hintFrom: {resolver: 'colorNoteHint', args: {
+            colorNote: 'Set their colors under Graph colors › Night shading. '
+                + 'A color that matches the background hides it.'
+        }}
+    }, {
+        type: 'segmented',
+        messageKey: 'forecastHours',
+        label: 'Forecast length',
+        defaultValue: '48',
+        hintByValue: {
+            '12': 'The next 12 hours, in wider columns.',
+            '24': 'The next 24 hours.',
+            '48': 'As many hours as your weather provider\'s hourly forecast covers and the '
+                + 'graph can fit, in narrow columns. The number of hours depends on the provider '
+                + 'and the graph\'s layout.'
+        },
+        optionsFrom: {resolver: 'forecastSpanOptions'},
+        showWhen: FORECAST_SPAN_WHEN
+    }];
+    // Left axis, emery only (owner, 2026-10-09): where the high / low values go
+    // (On axis: beside the axis line on the left, today's look; On graph: the high one
+    // under its point, the low one over its own; Off: none; the last two draw no left
+    // axis at all, so the graph starts at the screen's left edge) and whether they name
+    // the whole temperature scale. The axis line and the numbers' outline follow the place (the 2.2.0 betas
+    // had a row each; a beta's stored 'beside' reads as 'axis', the default).
+    // src/pkjs/forecast-axis.js is the one reading (wire bits on the
+    // CLAY_LARGE_GRAPH_FONT word, the scale bake, the 24 h span's 26 hours, the
+    // preview); the watch's rules live in src/c/appendix/temp_axis_pad.h (THE NUMBERS
+    // ON THE GRAPH) and forecast_layer.c. The scale is `more`: its card opens by itself
+    // when it differs from its default. A dormant scale (the
+    // numbers off, or no feels-like / dew point line) is kept and sent as the default,
+    // so it never costs a resend. At 24 h, moving the numbers between On axis and the
+    // other two re-fetches: the hours sent follow (forecast-span.js hours()).
+    var axis = [{
+        type: 'segmented',
+        messageKey: FORECAST_AXIS.KEYS.numbers,
+        label: 'Left axis values',
+        // On graph out of the box since 2.6 (2.6's Clean graph; setup's Clean
+        // look keeps it). An existing install that lacks the key keeps its axis
+        // (clay-settings.js upgradeBackfill).
+        defaultValue: FORECAST_AXIS.GRAPH,
+        options: [['On axis', FORECAST_AXIS.AXIS], ['On graph', FORECAST_AXIS.GRAPH],
+            ['Off', FORECAST_AXIS.OFF]],
+        hintByValue: {
+            graph: 'Removes the left axis and draws the high and low values on the graph.',
+            off: 'Removes the left axis and the high and low values.'
+        },
+        showWhen: EMERY_WHEN
+    }, {
+        // Gated on a drawn feels-like or dew point line (when-resolvers.js
+        // tempAxisLineDrawn): without one the scale is the air temperature's own.
+        // Changes what the phone bakes into TEMP_MIN / TEMP_MAX, so a flip re-fetches
+        // (render-signature.js).
+        type: 'toggle',
+        messageKey: FORECAST_AXIS.KEYS.scale,
+        label: 'High/low includes feels-like & dew point',
+        defaultValue: false,
+        hint: 'The high and low values come from all temperature lines on the graph, not '
+            + 'only the air temperature.',
+        more: true,
+        showWhen: {all: [EMERY_WHEN, {key: FORECAST_AXIS.KEYS.numbers, ne: FORECAST_AXIS.OFF},
+            {when: 'tempAxisLineDrawn'}]}
+    }, {
+        type: 'toggle',
+        messageKey: 'largeGraphFont',
+        label: 'Larger graph fonts',
+        // ON out of the box: on emery's 200 px screen the taller tier is simply the
+        // more readable one at a glance, and it costs no band height (chart.c solves
+        // both tiers against the same ink floor). Only a FRESH install -- or an
+        // upgrade from before the setting existed, whose missing key seedDefaults
+        // backfills -- lands here; a v1.14.0 install already stores its own value.
+        defaultValue: true,
+        hint: 'Draw the graph axis labels in bigger type.',
+        more: true,
+        // Emery only (the card's gate): on a 144 px watch the graph's left axis is
+        // already drawn at the calendar size, so there is nothing to step.
+        showWhen: {env: 'platform', eq: 'emery'}
+    }];
+    // The Graph colors row, a card of its own: one dialog holding one row per graph metric plus
+    // the night band, each opening that row's colours. B&W watches and themes have no colours to
+    // pick, so the card is gone there.
+    var colors = [{
+        type: 'sheet',
+        sheetId: 'graphColors',
+        label: 'Graph colors',
+        hint: 'Pick the colors of each metric and of the night shading.',
+        navNote: String(GRAPH_COLOR_ROWS.length),
+        capabilities: ['COLOR'],
+        showWhen: COLOR_THEME_WHEN
+    }];
+    return {
+        sheetOnly: true,
+        sheetId: 'graph',
+        id: 'graph',
+        // A graph that is gone (its Delete) has no dialog: it closes (graph-styles-page.js graphShown).
+        showWhen: {when: 'graphShown'},
+        title: 'Forecast graph',
+        titleBy: {resolver: 'graphName'},
+        rename: {key: 'graphStyleName', label: 'Graph name', placeholderBy: {resolver: 'graphDefaultName'},
+            maxlength: NAME_MAX, showWhen: GRAPH_STYLES_WHEN},
+        pinBlock: 'forecastPreview',
+        // The screens the graph shows on, in the last card (graph-styles-page.js showOnBlock).
+        // Each card's rows carry their own gates, and a card with none to show drops out (engine
+        // buildCards), so the subheaders need none.
+        block: 'graphShowOn',
+        items: [{type: 'subheader', text: 'Lines', intro: FORECAST_INTRO}].concat(GRAPH_LINES.map(lineRow),
+            [{type: 'subheader', text: 'Rain bars'}], bars,
+            [{type: 'subheader', text: 'Other'}], other,
+            [{type: 'subheader', text: 'Left axis'}], axis,
+            [{type: 'subheader', text: ''}], colors,
+            [{type: 'subheader', text: 'Show on'}, {
+                // Delete <the graph>, any but the first, under the card as the screen editor's
+                // Delete screen (style 'delete', engine buildCards): the dialog closes, and the
+                // Your graphs card's Undo puts the graph back (graph-styles-page.js deletePicked).
+                type: 'button',
+                style: 'delete',
+                action: 'deleteGraphStyle',
+                label: 'Delete graph',
+                labelFrom: {resolver: 'graphDeleteLabel'},
+                showWhen: {when: 'graphDeletable'}
+            }])
+    };
+}
+
 module.exports = {
     appName: 'WarnWeather',
     themeKey: 'configTheme',
@@ -1137,7 +1403,7 @@ module.exports = {
                 // keep the stored pick, so re-entering the key restores it
                 // instead of a render+Save silently erasing it to 'auto'.
                 dormantValues: ['openweathermap', 'tomorrowio'],
-                hint: 'Only for this tab’s graphs — the watchface keeps its own provider and location. Keyed providers appear once their API key is set.'
+                hint: 'Used only for this tab’s graphs. The watchface keeps its own provider and location. Providers that need an API key appear once their key is set.'
             }]
         }, {
             // Chips + graphs render as ONE card: two untitled sections sharing
@@ -1204,9 +1470,9 @@ module.exports = {
                 label: 'Layout',
                 defaultValue: 'compactCal',
                 hintByValue: {
-                    fullCal: '3-row calendar.',
-                    compactCal: '2-row calendar.',
-                    noCal: 'No calendar — a big forecast.'
+                    fullCal: 'Shows a calendar with 3 rows.',
+                    compactCal: 'Shows a calendar with 2 rows.',
+                    noCal: 'No calendar, so the forecast graph is bigger.'
                 },
                 // The three calendars (screens-page.js apliteLayouts). Derived only so the
                 // engine's dormant fallback applies: a stored compactDense, Weather only or
@@ -1264,10 +1530,10 @@ module.exports = {
                 label: 'Theme',
                 defaultValue: 'dark',
                 hintByValue: {
-                    dark: 'Black background, white text/lines (default).',
-                    light: 'White background, black text/lines. The graph and rain-bar colors are tuned for it.',
-                    bw: 'Renders exactly like a Black & White watch — same colors, same drawing.',
-                    'bw-light': 'Renders exactly like a Black & White watch in its Light theme — black on white.'
+                    dark: 'White text and lines on a black background (the default).',
+                    light: 'Black text and lines on a white background. The graph and rain-bar colors are tuned for it.',
+                    bw: 'Looks exactly like a Black & White watch: the same colors, drawn the same way.',
+                    'bw-light': 'Looks exactly like a Black & White watch in its Light theme: black on white.'
                 },
                 options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
                 // Always visible and never renamed. `theme` has always doubled as the
@@ -1283,8 +1549,8 @@ module.exports = {
                 label: 'Theme',
                 defaultValue: 'dark',
                 hintByValue: {
-                    dark: 'Black background, white text/lines (default).',
-                    light: 'White background, black text/lines.'
+                    dark: 'White text and lines on a black background (the default).',
+                    light: 'Black text and lines on a white background.'
                 },
                 options: [['Dark', 'dark'], ['Light', 'light']],
                 // aplite compiles the light polarity out (no WW_THEME_POLARITY — the
@@ -1343,7 +1609,7 @@ module.exports = {
                 messageKey: 'themeAuto',
                 label: 'Night theme',
                 defaultValue: false,
-                hint: 'Switch between two themes automatically — with the sun, or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.',
+                hint: 'Switch between two themes automatically, at sunrise and sunset or at fixed hours. The phone makes the switch, so it can happen a little late while the watch is disconnected.',
                 // themePolarity: aplite has nothing to switch between.
                 showWhen: {env: 'themePolarity'},
                 // Seeds a night theme on first enable (theme-convert.js), and joins the shared
@@ -1450,7 +1716,7 @@ module.exports = {
             sheetId: BACKLIGHT_COLOR_SHEET,
             title: 'Dim backlight color',
             showWhen: BACKLIGHT_ON_WHEN,
-            intro: 'Pick the color the backlight glows during the hours you set for Dim backlight. Lower values dim it further; your watch’s own brightness setting still applies on top.',
+            intro: 'Pick the color the backlight glows during the hours you set for Dim backlight. Lower values dim it further. Your watch’s own brightness setting still applies on top.',
             items: [{
                 // One "r,g,b" string, each channel 0-255 — the LED takes 8 bits per
                 // channel. A dim red by default: the driver scales every channel by
@@ -1482,7 +1748,7 @@ module.exports = {
                 messageKey: 'axisTimeFormat',
                 label: 'Axis time format',
                 defaultValue: '24h',
-                hint: 'Tip: Settings &gt; Date &amp; Time &gt; Time Format changes the main time format.',
+                hint: 'The big clock follows the watch\'s own setting: Settings &gt; Date &amp; Time &gt; Time Format on the watch.',
                 options: [['12h', '12h'], ['24h', '24h']],
                 more: true
             }, {
@@ -1530,7 +1796,7 @@ module.exports = {
                 messageKey: 'firstWeek',
                 label: 'First week to display',
                 defaultValue: 'prev',
-                options: [['Prev', 'prev'], ['Curr', 'curr']],
+                options: [['Last week', 'prev'], ['This week', 'curr']],
                 more: true
             }, {
                 type: 'color',
@@ -1538,7 +1804,7 @@ module.exports = {
                 label: 'Today highlight',
                 defaultValue: 0,
                 capabilities: ['COLOR'],
-                hint: 'Black (default) means match date color; any other value overrides it.',
+                hint: 'Black (the default) uses the date color. Any other color replaces it.',
                 more: true,
                 showWhen: COLOR_THEME_WHEN
             }, {
@@ -1584,10 +1850,19 @@ module.exports = {
         // Status bars — only the bars and their slots (the id stays 'watch': links and
         // tests key on it). Where alerts sit at a bar's edges is the Alerts tab's; each
         // bar's Alerts row shows them and opens it. All active bars stay pinned at the top.
-        id: 'watch', label: 'Status bars', short: 'Status', icon: 'tab-status', pinBlock: 'statusBarsPreview', sections: [{
+        id: 'watch', label: 'Status bars', short: 'Status', icon: 'tab-status', sections: [{
+            // Your status bars (screens-page.js barsCard, the owner's pick, 2026-11-09): every bar the
+            // watch has, a bar no screen shows too, so any bar can go onto any screen. Each is
+            // its name, the screens that show it and its picture, a tap on a slot changing it and
+            // a tap on the name opening the bar's dialog (barDialog below); then New status bar.
+            id: 'yourBars',
+            title: 'Your status bars',
+            intro: STATUS_INTRO,
+            block: 'barsList',
+            items: []
+        }, {
             id: 'statusAll',
             title: 'All status bars',
-            intro: STATUS_INTRO,
             items: [
                 // Master bold switch over EVERY slot kind: 'all' packs each kind's bold
                 // cell as always-bold when the threshold blob is built, 'off' as Off
@@ -1618,16 +1893,15 @@ module.exports = {
                 // bars" stays truthful there either way.
                 linkRow('resetStatusSlots', 'Reset status bars to defaults', true)
             ]
-        }, {
-            // The bars in the page's order (on-demand.js PAGE_BARS): Watch, Forecast, Health,
-            // Radar; on-demand.js BARS, the wire and the keys keep theirs.
-            id: 'barTop',
-            title: ON_DEMAND.PAGE_BARS[0].name,
-            // aplite has no On demand (ON_DEMAND_WHEN): it keeps the bar's fixed battery,
-            // quiet-time and Bluetooth rows, and only it. Everywhere else the Battery,
-            // Quiet time and Bluetooth items live on the Alerts tab, and vibe/btIcons in
-            // the Bluetooth dialog (the same keys, gated apart).
-            items: barSlots('statusTop', null).concat(gateAll([
+        },
+        // The bars' dialogs in the page's order (on-demand.js PAGE_BARS): Watch, Forecast,
+        // Health, Radar, then bars 4 to 6 (Pebble Time 2) once New status bar made them; on-demand.js
+        // BARS, the wire and the keys keep theirs.
+        // aplite has no On demand (ON_DEMAND_WHEN): the Watch bar's dialog keeps its fixed
+        // battery, quiet-time and Bluetooth rows there, and only there. Everywhere else the
+        // Battery, Quiet time and Bluetooth items live on the Alerts tab, and vibe/btIcons in the
+        // Bluetooth dialog (the same keys, gated apart).
+        barDialog(ON_DEMAND.PAGE_BARS[0], null, gateAll([{type: 'subheader', text: 'Icons and vibration'}, 
                 {
                     type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',
                     defaultValue: true,
@@ -1651,22 +1925,14 @@ module.exports = {
                     joinPrevious: 'loose',
                     options: BT_ICON_OPTIONS
                 }
-            ], {not: ON_DEMAND_WHEN}))
-        }, {
-            id: 'barForecast',
-            title: ON_DEMAND.PAGE_BARS[1].name,
-            items: barSlots('statusForecast', null)
-        }, {
-            id: 'barHealth',
-            title: ON_DEMAND.PAGE_BARS[2].name,
-            showWhen: HEALTH_BAR_WHEN,
-            items: barSlots('statusHealth', HEALTH_BAR_WHEN)
-        }, {
-            id: 'barRadar',
-            title: ON_DEMAND.PAGE_BARS[3].name,
-            showWhen: RADAR_BAR_WHEN,
-            items: barSlots('statusRadar', RADAR_BAR_WHEN)
-        },
+            ], {not: ON_DEMAND_WHEN})),
+        barDialog(ON_DEMAND.PAGE_BARS[1], null),
+        barDialog(ON_DEMAND.PAGE_BARS[2], HEALTH_BAR_WHEN),
+        barDialog(ON_DEMAND.PAGE_BARS[3], RADAR_BAR_WHEN),
+        extraBarDialog(ON_DEMAND.PAGE_BARS[4]),
+        extraBarDialog(ON_DEMAND.PAGE_BARS[5]),
+        extraBarDialog(ON_DEMAND.PAGE_BARS[6]),
+        barKeysSection(),
         // Slot dialogs (sheetOnly): reachable only through the Edit button next to a
         // status slot whose selected value has a dialog — never rendered as cards here.
         // Each keeps the bars pinned above it.
@@ -1682,7 +1948,7 @@ module.exports = {
                 fallback: 'waqi',
                 byValue: {
                     waqi: ' Your AQI provider (WAQI) has no forecast, so the current reading shows.',
-                    auto: ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.'
+                    auto: ' Auto mostly reads WAQI, which has no forecast, so the current reading shows.'
                 }
             }
         }, '42', '58')),
@@ -1745,10 +2011,10 @@ module.exports = {
             // The selected mode only; the measured temperature (the default) needs
             // none. The sample pair is printed with the default separator.
             hintByValue: {
-                feels: 'What it feels like, by the formula set under Setup › Units.',
-                both: 'The temperature and what it feels like, like 12' +
+                feels: 'Shows the feels-like temperature, using the formula set under Setup › Units.',
+                both: 'Shows the temperature and the feels-like temperature, like 12' +
                     STATUS_PAIR.SEPARATORS[STATUS_PAIR.defaultSeparator('temp')].mid +
-                    '10. Order and Separator shape the pair.'
+                    '10. Order and Separator set how the pair looks.'
             },
             defaultValue: 'actual',
             options: [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']]
@@ -1763,10 +2029,10 @@ module.exports = {
             Object.assign(unitRow('tempSlotUnit', '12°', '12'), {
                 hint: 'Prints the unit after the value: 12° instead of 12. With Both, '
                     + 'each value gets one, like 12°' + STATUS_PAIR.SEPARATORS[
-                        STATUS_PAIR.defaultSeparator('temp')].mid + '10°, when the pair '
-                    + 'fits the slot: always in the middle slot, and in a left or right '
-                    + 'slot only for short pairs like 8°' + STATUS_PAIR.SEPARATORS[
-                        STATUS_PAIR.defaultSeparator('temp')].mid + '6°.'
+                        STATUS_PAIR.defaultSeparator('temp')].mid + '10°, if the pair '
+                    + 'fits the slot. It always fits in the middle slot. In a left or right '
+                    + 'slot, only short pairs like 8°' + STATUS_PAIR.SEPARATORS[
+                        STATUS_PAIR.defaultSeparator('temp')].mid + '6° fit.'
             })])),
         boldSection('Air pressure (hPa)', 'Pressure', null,
             [unitRow('pressureSlotUnit', '1013hPa', '1013')]),
@@ -1823,8 +2089,10 @@ module.exports = {
         // needs no extra gate, because a slot that can't be chosen never opens it.
         boldSection('Phone battery', 'PhoneBattery')
         ].map(function (sec) {
-            // Every slot dialog keeps the bars pinned above its rows.
-            if (sec.sheetOnly) { sec.pinBlock = 'statusBarsPreview'; }
+            // Every slot dialog keeps the bars pinned above its rows: the bar it was opened
+            // from, a bar's dialog (preview-status-bars.js statusBarsPreview). The bars' own
+            // dialogs pin their bar (barDialog).
+            if (sec.sheetOnly && !sec.pinBlock) { sec.pinBlock = 'statusBarsPreview'; }
             return sec;
         })
     }, {
@@ -1850,191 +2118,34 @@ module.exports = {
         // switch, the matching live preview pinned under it. Every graph dialog repeats
         // the preview at its top so colour and style edits show as they are made.
         id: 'graphs', label: 'Graphs', icon: 'tab-graphs', panes: [
-            {id: 'forecast', label: 'Forecast', pinBlock: 'forecastPreview'},
+            // The Forecast pane is the list of your graphs, each drawn on its row; a graph's dialog
+            // pins its preview (graphDialog).
+            {id: 'forecast', label: 'Forecast'},
             // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined).
             {id: 'radar', label: 'Rain radar', pinBlock: 'radarPreview', showWhen: {env: 'radar'}},
             // The health graph's one setting is the heart-rate line's scale: only the
             // heart-rate watches have one (platform.js HR_PLATFORMS).
             {id: 'health', label: 'Health', pinBlock: 'healthPreview', showWhen: {all: [{env: 'health'}, {env: 'hr'}]}}
         ], sections: [{
+            // The Your graphs card (the owner's ask, 2026-11-09: the graphs in a list with their
+            // pictures, a graph's settings behind a tap; settings/graph-styles-page.js, where a
+            // graph is a graph style): a row per graph, one on a watch without graph styles, its
+            // picture, name, length and screens, the metrics it draws and the room left for more;
+            // a tap opens its dialog (graphDialog). New graph and the Undo of a Delete under the
+            // rows (Pebble Time 2). The pick is a page-only key the rows set: the graph the dialog
+            // shows, whose values the page swaps into the flat keys while the dialog is open.
             pane: 'forecast',
-            id: 'lines',
-            title: 'Lines',
-            intro: FORECAST_INTRO,
-            items: GRAPH_LINES.map(lineRow)
-        }, {
-            pane: 'forecast',
-            id: 'bars',
-            title: 'Rain bars',
-            items: [{
-                type: 'segmented',
-                messageKey: 'barSource',
-                label: 'Bars',
-                defaultValue: 'rain',
-                hintByValue: {rain: 'Adds bars that represent the rain amount in one hour.'},
-                // With the bars on, the scale note (colour) or the B&W legend joins the
-                // hint (blocks.js colorNoteHint).
-                hintFrom: {resolver: 'colorNoteHint', args: {colorNote: SCALE_NOTE, bwNote: BW_LEGEND}},
-                options: [['Rain', 'rain'], ['Off', 'off']]
-            }, {
-                type: 'segmented',
-                messageKey: 'rainBarColor',
-                label: 'Bar color',
-                // The DARK-polarity default. The light polarity starts on Solid instead:
-                // resolve-ink.js's barColorDefault owns that pair, and theme-convert.js
-                // converts a value still holding this one when the Theme control flips
-                // polarity. This cannot become a defaultFrom — a defaults-resolver is
-                // handed only `env` (platform facts), and the theme is a settings key.
-                defaultValue: 'multicolor',
-                hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
-                capabilities: ['COLOR'],
-                // VALUE stays 'white' for wire compatibility (the watch resolves it to the
-                // right polarity color itself — see rain-tier.js); only the label changes.
-                options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
-                more: true,
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, COLOR_THEME_WHEN]}
-            }, {
-                // Bars from [Bottom | Top] (draw-from.js rainBarFrom): while the bars are
-                // drawn, on a watch with line styles (the WW_LINE_STYLE mirror the watch's
-                // flip sits behind; aplite never hangs them).
-                type: 'segmented',
-                messageKey: 'rainBarFrom',
-                label: 'Bars from',
-                defaultValue: DRAW_FROM.BOTTOM,
-                hintByValue: {top: BARS_TOP_HINT},
-                options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
-                more: true,
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, LINE_STYLES_WHEN]}
-            }]
-        }, {
-            // Other: the graph-wide rows that belong to no line and no bars. Every watch shows
-            // the card (the shading is everywhere); Forecast length is emery's alone.
-            //
-            // Forecast length (emery only): how many hours the forecast graph looks ahead. The phone
-            // fetches and sends 14, 24 (26 with no left axis) or 68 hourly points
-            // (src/pkjs/forecast-span.js); the watch's grid follows the count it receives and
-            // fills the plot's width, so the hours on screen follow the layout
-            // (src/c/appendix/forecast_span.h). '48' is the long span's stored token. Its label
-            // names the whole hours the watch will show for the picked weather provider and the
-            // layout (forecastSpanOptions, src/pkjs/forecast-span-hours.js spanOptions); the
-            // stored value never moves.
-            // The default is the long span, a new install's; setup's Clean look, the defaults,
-            // starts on it too (settings/wizard-forecast.js). An existing install without the key
-            // keeps the 24 h it had (clay-settings.js upgradeBackfill), and an absent value still
-            // reads 24 h (forecast-span-hours.js storedHours).
-            // Every other watch keeps 24 h, whatever the key holds: the 640 B / 536 B inboxes
-            // cannot take the long span's 68-hour bundle and the 64 KB images have no room. A
-            // changed span re-fetches (render-signature.js). Not `more`: the span frames the
-            // whole graph.
-            pane: 'forecast',
-            id: 'other',
-            title: 'Other',
-            items: [{
-                type: 'toggle',
-                messageKey: 'dayNightShading',
-                label: 'Day / night shading',
-                defaultValue: true,
-                hint: 'Hatches the hours between sunset and sunrise and draws a line at midnight.',
-                // On a colour theme the hint also says where the colours are set.
-                hintFrom: {resolver: 'colorNoteHint', args: {
-                    colorNote: 'Set their colors under Graph colors › Night shading. '
-                        + 'A color that matches the background hides it.'
-                }}
-            }, {
-                type: 'segmented',
-                messageKey: 'forecastHours',
-                label: 'Forecast length',
-                defaultValue: '48',
-                hintByValue: {
-                    '12': 'The next 12 hours, in wider columns.',
-                    '24': 'The next 24 hours.',
-                    '48': 'As far ahead as your weather provider\'s hourly forecast reaches and the '
-                        + 'graph fits, in narrow columns. How many hours depends on the provider and '
-                        + 'the graph\'s layout.'
-                },
-                optionsFrom: {resolver: 'forecastSpanOptions'},
-                showWhen: FORECAST_SPAN_WHEN
-            }]
-        }, {
-            // Left axis, emery only (owner, 2026-10-09): where the high / low values go
-            // (On axis: beside the axis line on the left, today's look; On graph: the high one
-            // under its point, the low one over its own; Off: none; the last two draw no left
-            // axis at all, so the graph starts at the screen's left edge) and whether they name
-            // the whole temperature scale. The axis line and the numbers' outline follow the place (the 2.2.0 betas
-            // had a row each; a beta's stored 'beside' reads as 'axis', the default).
-            // src/pkjs/forecast-axis.js is the one reading (wire bits on the
-            // CLAY_LARGE_GRAPH_FONT word, the scale bake, the 24 h span's 26 hours, the
-            // preview); the watch's rules live in src/c/appendix/temp_axis_pad.h (THE NUMBERS
-            // ON THE GRAPH) and forecast_layer.c. The scale is `more`: its card opens by itself
-            // when it differs from its default. A dormant scale (the
-            // numbers off, or no feels-like / dew point line) is kept and sent as the default,
-            // so it never costs a resend. At 24 h, moving the numbers between On axis and the
-            // other two re-fetches: the hours sent follow (forecast-span.js hours()).
-            pane: 'forecast',
-            id: 'axis',
-            title: 'Left axis',
-            showWhen: EMERY_WHEN,
-            items: [{
-                type: 'segmented',
-                messageKey: FORECAST_AXIS.KEYS.numbers,
-                label: 'Left axis values',
-                // On graph out of the box since 2.6 (the Clean graph). An existing install
-                // that lacks the key keeps its axis (clay-settings.js upgradeBackfill).
-                defaultValue: FORECAST_AXIS.GRAPH,
-                options: [['On axis', FORECAST_AXIS.AXIS], ['On graph', FORECAST_AXIS.GRAPH],
-                    ['Off', FORECAST_AXIS.OFF]],
-                hintByValue: {
-                    graph: 'Disables the left axis and draws the high/low values on the graph.',
-                    off: 'Disables the left axis and the high/low values.'
-                },
-                showWhen: EMERY_WHEN
-            }, {
-                // Gated on a drawn feels-like or dew point line (when-resolvers.js
-                // tempAxisLineDrawn): without one the scale is the air temperature's own.
-                // Changes what the phone bakes into TEMP_MIN / TEMP_MAX, so a flip re-fetches
-                // (render-signature.js).
-                type: 'toggle',
-                messageKey: FORECAST_AXIS.KEYS.scale,
-                label: 'High/low includes feels-like & dew point',
-                defaultValue: false,
-                hint: 'The high and low values come from all temperature lines on the graph, not '
-                    + 'only the air temperature.',
-                more: true,
-                showWhen: {all: [EMERY_WHEN, {key: FORECAST_AXIS.KEYS.numbers, ne: FORECAST_AXIS.OFF},
-                    {when: 'tempAxisLineDrawn'}]}
-            }, {
-                type: 'toggle',
-                messageKey: 'largeGraphFont',
-                label: 'Larger graph fonts',
-                // ON out of the box: on emery's 200 px screen the taller tier is simply the
-                // more readable one at a glance, and it costs no band height (chart.c solves
-                // both tiers against the same ink floor). Only a FRESH install -- or an
-                // upgrade from before the setting existed, whose missing key seedDefaults
-                // backfills -- lands here; a v1.14.0 install already stores its own value.
-                defaultValue: true,
-                hint: 'Draw the graph axis labels in bigger type.',
-                more: true,
-                // Emery only (the card's gate): on a 144 px watch the graph's left axis is
-                // already drawn at the calendar size, so there is nothing to step.
-                showWhen: {env: 'platform', eq: 'emery'}
-            }]
-        }, {
-            // The Graph colors row, a card of its own: one dialog holding one row per graph
-            // metric plus the night band, each opening that row's colours. B&W watches and
-            // themes have no colours to pick, so the card is gone there.
-            pane: 'forecast',
-            id: 'graphColorsCard',
-            capabilities: ['COLOR'],
-            showWhen: COLOR_THEME_WHEN,
-            items: [{
-                type: 'sheet',
-                sheetId: 'graphColors',
-                label: 'Graph colors',
-                hint: 'One row per metric, plus the night shading.',
-                navNote: String(GRAPH_COLOR_ROWS.length),
-                capabilities: ['COLOR']
-            }]
-        }, {
+            id: 'graphStyle',
+            // "Your graphs" where a watch has several, no title where it has the one.
+            title: '',
+            titleBy: {resolver: 'graphListTitle'},
+            // "4/5 metrics active" on the right of the header: how many of the watch's five
+            // metric rows the graphs on the screens use, with a '?' that lists them and says
+            // what counts (graph-styles-page.js metricsNote).
+            noteFrom: {resolver: 'graphMetricsNote'},
+            items: [{type: 'hidden', messageKey: 'graphStylePick', uiOnly: true, defaultValue: '1'}],
+            block: 'graphList'
+        }, graphDialog(), {
             sheetOnly: true,
             sheetId: 'graphColors',
             title: 'Graph colors',
@@ -2045,6 +2156,38 @@ module.exports = {
             items: GRAPH_COLOR_ROWS.map(function (row) {
                 return graphColorRow(row, false);
             }).concat([linkRow('resetAllGraphColors', 'Reset graph colors to defaults')])
+        }, {
+            // Graph styles 2 to 6 (Pebble Time 2): their names and their values of the keys a
+            // style holds, one JSON string (src/pkjs/graph-styles.js parse). The flat keys are the
+            // first style, so an install without the key has one style and nothing migrates.
+            // Blob-only: sheetOnly keeps it off the tab; it hydrates and serializes with the blob.
+            // With it the page-only picker that has no row of its own: New graph, which draws its
+            // templates and graphs (pictureFrom; the card's New graph opens its sheet, a pick makes
+            // the graph). Its '' is dormant, so the sheet opens with nothing ticked.
+            sheetOnly: true,
+            sheetId: 'graphStyleKeys',
+            title: 'Graph styles',
+            items: [{type: 'hidden', messageKey: 'graphStyles', defaultValue: ''}, {
+                // The name the graph dialog's title renames (rename.key): written into graphStyles
+                // for the graph the dialog shows (graph-styles-page.js renameStyle). Page-only.
+                type: 'hidden',
+                messageKey: 'graphStyleName',
+                uiOnly: true,
+                defaultValue: '',
+                onChange: 'graphStyleRenamed'
+            }, {
+                type: 'select',
+                messageKey: 'graphStyleNewFrom',
+                uiOnly: true,
+                label: 'New graph',
+                sheetTitle: 'New graph',
+                sheetLead: 'Start from a template. You get your own copy, and the template stays as it is.',
+                defaultValue: '',
+                dormantValues: [''],
+                optionsFrom: {resolver: 'graphStyleStarts'},
+                pictureFrom: {resolver: 'graphStylePicture'},
+                onChange: 'graphStyleCreate'
+            }]
         }].concat(GRAPH_COLOR_ROWS.map(function (row) {
             var sheet = graphColorSheet(row);
             sheet.pinBlock = 'forecastPreview';
@@ -2058,7 +2201,7 @@ module.exports = {
                 label: 'Metric',
                 defaultValue: 'precip_prob',
                 hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric'},
+                optionsFrom: {resolver: 'forecastMetric', args: {key: 'secondaryLine'}},
                 onChange: 'forecastMetricFill'
             },
             lineStyleCopy('secondaryLine')
@@ -2097,12 +2240,13 @@ module.exports = {
                 type: 'select',
                 messageKey: 'thirdLine',
                 label: 'Metric',
-                // Off out of the box since 2.6: a new install starts on the Clean graph (the
-                // setup's middle look). An existing install that lacks the key keeps its UV
-                // dots (clay-settings.js upgradeBackfill).
+                // Off out of the box since 2.6 (2.6's Clean graph: the rain chance alone; on
+                // emery setup then starts a new install on Clean's cloud stripe). An
+                // existing install that lacks the key keeps its UV dots (clay-settings.js
+                // upgradeBackfill).
                 defaultValue: 'off',
                 hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine']}}
+                optionsFrom: {resolver: 'forecastMetric', args: {key: 'thirdLine', off: true, exclude: ['secondaryLine']}}
             },
             lineStyleCopy('thirdLine', true)
             ].concat(lineFromCopies('thirdLine'), [
@@ -2119,7 +2263,8 @@ module.exports = {
                 label: 'Metric',
                 defaultValue: 'off',
                 hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine']}},
+                optionsFrom: {resolver: 'forecastMetric', args: {key: 'fourthLine', off: true,
+                    exclude: ['secondaryLine', 'thirdLine']}},
                 // Only watches with enough memory carry a third metric line
                 // (LINE_STYLES_WHEN — the WW_LINE_STYLE mirror, fail-open for
                 // an unknown platform). Row-level hiding, not option-gating,
@@ -2142,7 +2287,8 @@ module.exports = {
                 label: 'Metric',
                 defaultValue: 'off',
                 hintFrom: METRIC_HINT_FROM,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine']}},
+                optionsFrom: {resolver: 'forecastMetric', args: {key: 'fifthLine', off: true,
+                    exclude: ['secondaryLine', 'thirdLine', 'fourthLine']}},
                 // Same row-level gate as the third metric (WW_LINE_STYLE mirror).
                 showWhen: LINE_STYLES_WHEN
             },
@@ -2223,7 +2369,7 @@ module.exports = {
                 messageKey: 'radarSky',
                 label: 'Clouds, sun & lightning',
                 defaultValue: true,
-                hint: 'Two thin stripes under the radar\'s time axis show the next two hours, one cell per quarter hour.<br>Top, clouds: a full stripe means overcast. Thin high cloud, which the sun shines through, counts half.<br>Bottom, sun: a full stripe means sunshine as strong as on a clear day at that time of day, so a low morning sun can be full too.<br>Thin cloud can let the sun through, so both stripes can show at once. A bolt marks expected thunderstorms. Uses Open-Meteo, whatever the radar source.',
+                hint: 'Two thin stripes under the radar\'s time axis show the next two hours, one cell per quarter hour.<br>The top stripe shows clouds: a full stripe means overcast. Thin high cloud, which the sun shines through, counts half.<br>The bottom stripe shows sun: a full stripe means sunshine as strong as on a clear day at that time of day, so a low morning sun can be full too.<br>Thin cloud can let the sun through, so both stripes can show at once. A bolt marks expected thunderstorms. This data comes from Open-Meteo, whatever the radar source.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
             }, {
                 // Custom quiet-state text: drawn in the radar GRAPH when the nowcast
@@ -2240,7 +2386,7 @@ module.exports = {
                 label: 'No-rain message',
                 defaultValue: "You're good :)",
                 attributes: {maxlength: 24},
-                hint: 'Shown in the radar graph when no rain is coming; the default is “You\'re good :)”. Up to 24 characters; leave it empty to show nothing.',
+                hint: 'Shown in the radar graph when no rain is coming. The default is “You\'re good :)”. Up to 24 characters. Leave it empty to show nothing.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
             }, {
                 // Bars from [Bottom | Top] (draw-from.js radarBarFrom): the radar graph's
@@ -2276,8 +2422,8 @@ module.exports = {
                 // hugging the floor, and anything above it still shows as edge dots.
                 defaultValue: '40-150',
                 min: 30, max: 220, step: 5, minSpan: 50, unit: 'BPM',
-                hint: 'The top and bottom of the heart-rate line in the health graph. '
-                    + 'A narrower range makes small changes visible; hours outside it '
+                hint: 'Sets the top and bottom of the heart-rate line in the health graph. '
+                    + 'A narrower range makes small changes visible. Hours outside the range '
                     + 'are drawn as dots on the edge.',
                 // The HR line lives only in the graph ('all'), and only emery/diorite
                 // have a sensor (platform.js HR_PLATFORMS) — on anything else the line
@@ -2299,7 +2445,7 @@ module.exports = {
             title: 'Location',
             items: [{
                 type: 'segmented', messageKey: 'locationMode', label: 'Location', defaultValue: 'gps', hintByValue: {
-                    gps: 'Detect your location automatically via phone GPS.', manual: 'Enter a city or address below.'
+                    gps: 'Finds your location automatically with the phone\'s GPS.', manual: 'Enter a city or address below.'
                 }, options: [['GPS', 'gps'], ['Manual', 'manual']]
             }, {
                 type: 'text',
@@ -2317,7 +2463,7 @@ module.exports = {
                 optionsFrom: {interval: 'fetchIntervalMin', ladder: [30, 60, 120, 360, 720, 1440]},
                 more: true,
                 showWhen: {key: 'locationMode', eq: 'gps'},
-                hint: 'How long a GPS fix is reused before re-acquiring. Longer saves battery; shorter keeps your location fresher on the move. The lowest value matches your update interval.'
+                hint: 'Sets how long a GPS position is reused before the phone gets a new one. Longer saves battery; shorter keeps your location up to date when you move. The shortest option matches your update interval.'
             }]
         }, {
             // Where the data comes from: the weather, the rain radar, the air quality, and how
@@ -2347,9 +2493,9 @@ module.exports = {
                 options: [
                     ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
                     ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
-                    ['Open-Meteo', 'openmeteo', {desc: 'Good automatic national model selection · no key'}],
+                    ['Open-Meteo', 'openmeteo', {desc: 'Picks the best national model · no key'}],
                     ['OpenWeatherMap', 'openweathermap', {desc: 'Popular general-purpose API, worldwide · needs a free key'}],
-                    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise hyperlocal forecasts, worldwide · needs a free key'}],
+                    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise local forecasts, worldwide · needs a free key'}],
                     ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
                     ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
                 ]
@@ -2399,9 +2545,9 @@ module.exports = {
                 label: 'Air quality',
                 defaultValue: 'waqi',
                 hintByValue: {
-                    auto: 'Prefers WAQI and falls back to Open-Meteo when no nearby station is available.',
-                    waqi: 'WAQI (aqicn.org) reads real monitoring stations — most accurate, but rural / under-monitored areas may have no nearby station and show "--".',
-                    openmeteo: 'Open-Meteo is a global model with coverage everywhere.'
+                    auto: 'Uses WAQI, or Open-Meteo when no WAQI station is nearby.',
+                    waqi: 'WAQI (aqicn.org) reads real monitoring stations, which is the most accurate. Rural areas and areas with few stations may have no station nearby and show "--".',
+                    openmeteo: 'Open-Meteo uses a global model, so it covers every location.'
                 },
                 options: [['Auto', 'auto'], ['WAQI', 'waqi'], ['Open-Meteo', 'openmeteo']]
             }, {
@@ -2409,7 +2555,7 @@ module.exports = {
                 messageKey: 'fetchIntervalMin',
                 label: 'Update interval',
                 defaultValue: '15',
-                hint: 'Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.',
+                hint: 'Each update sends only what changed, so short intervals like 5 min use little battery.',
                 // While the Battery saver is on (Watchface › Theme & night), its hours pause
                 // the updates: said here, from its hours (screens-page.js).
                 hintFrom: {resolver: 'batterySaverPauseHint'},
@@ -2427,7 +2573,7 @@ module.exports = {
             defaultValue: '',
             suffixAction: 'testOwmKey',
             suffixLabel: 'Test',
-            hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401.'
+            hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then tap Test. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance), or weather updates fail with error 401.'
         }]),
         // Shown only while tomorrow.io is the WEATHER provider; when it is radar-only the same key
         // + budget guard live in the Rain radar pane's Tomorrow.io dialog instead (see
@@ -2482,14 +2628,14 @@ module.exports = {
                 label: 'Wind speed',
                 defaultValue: 'kph',
                 options: [['kph', 'kph'], ['mph', 'mph'], ['Knots', 'knots']],
-                hint: 'Unit for the wind and gust status items.'
+                hint: 'The wind and gust slots in the status bars use this unit.'
             }, {
                 type: 'segmented',
                 messageKey: 'distanceUnits',
                 label: 'Distance',
                 defaultValue: 'metric',
-                options: [['Kilometres', 'metric'], ['Miles', 'imperial']],
-                hint: 'Unit for the "Walked distance" status item.'
+                options: [['Kilometers', 'metric'], ['Miles', 'imperial']],
+                hint: 'The "Walked distance" slot in the status bars uses this unit.'
             }, {
                 type: 'segmented',
                 messageKey: 'aqiScale',
@@ -2498,7 +2644,7 @@ module.exports = {
                 options: [['European', 'european'], ['US', 'us']],
                 more: true,
                 showWhen: {key: 'aqiSource', eq: 'openmeteo'},
-                hint: 'Which air-quality index the Open-Meteo source reports. WAQI always uses the US EPA scale.'
+                hint: 'Sets which air quality index the Open-Meteo source reports. WAQI always uses the US EPA scale.'
             }, {
                 // Phone-side only (feels-like.js resolvers; fetch-cycle.js hands it to
                 // the provider per fetch) and in renderSignature, so a flip refetches.
@@ -2539,7 +2685,7 @@ module.exports = {
                 messageKey: 'telemetryEnabled',
                 label: 'Share anonymous telemetry',
                 defaultValue: true,
-                hint: 'Share privacy-respecting weather telemetry to improve reliability and understand usage patterns. Learn more about what gets sent in the <a href="https://github.com/Toasbi/WarnWeather#telemetry">Telemetry section</a>.'
+                hint: 'Sends anonymous data about weather updates and how the watchface is used, to improve reliability. See what is sent in the <a href="https://github.com/Toasbi/WarnWeather#telemetry">Telemetry section</a>.'
             }, {
                 type: 'button',
                 label: 'Run setup again',
@@ -2566,7 +2712,7 @@ module.exports = {
                 label: 'Settings Theme',
                 defaultValue: 'auto',
                 options: [['Auto', 'auto'], ['Light', 'light'], ['Dark', 'dark']],
-                hint: 'Auto follows your Pebble app theme. The watchface itself is unaffected.'
+                hint: 'Sets the theme of this settings page. Auto follows your Pebble app theme. The watchface is not affected.'
             }, {
                 type: 'toggle',
                 messageKey: 'fetch',
@@ -2579,7 +2725,7 @@ module.exports = {
                 messageKey: 'devStatsEnabled',
                 label: 'Enable connection stats',
                 defaultValue: false,
-                hint: 'Locally records connection events sent to the watch. Events older than 7 days are deleted.'
+                hint: 'Records connection events sent to the watch, on this phone only. Events older than 7 days are deleted.'
             }, {
                 type: 'toggle',
                 messageKey: 'reset',
@@ -2598,3 +2744,13 @@ module.exports = {
         }]
     }]
 };
+
+// Every row of a key the graph styles share (graph-styles.js SHARED: what the phone bakes into
+// the weather data, and Larger graph fonts, a watch-wide tier) says so while more than one style
+// exists (graph-styles-page.js 'graphStyleShared'), wherever the row sits. One pass, so a row
+// added later cannot miss it.
+require('../config-ui/lib/schema-walk.js').eachItem(module.exports, function (item) {
+    if (require('../graph-styles.js').SHARED.indexOf(item.messageKey) !== -1) {
+        item.hintTailFrom = {resolver: 'graphStyleShared'};
+    }
+});

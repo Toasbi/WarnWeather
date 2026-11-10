@@ -1,7 +1,8 @@
 // src/pkjs/config-ui/lib/html.js — shared HTML primitives: the escape helper
 // every renderer interpolates through, the sheet-header chrome the three modals
 // share, the colour readout the rgb control and a row's colour badge both
-// print, and a joined row's no-divider class. A leaf: loaded before
+// print, a joined row's no-divider class, and names joined as a sentence lists
+// them, a sentence's capital. A leaf: loaded before
 // date-picker.js/range-control.js/rgb-control.js/checklist.js/engine.js
 // in the page concat (build-page.js LIB_PAGE_FILES), required under Node.
 // Dual-context export mirrors color.js: attached to the shared PConf global
@@ -80,5 +81,30 @@ function swatchReadout(hex, live) {
  */
 function nbClass(mode) { return mode === 'loose' ? ' nbl' : (mode ? ' nb' : ''); }
 
-PConf.html = { esc: esc, sheetHeader: sheetHeader, swatchReadout: swatchReadout, nbClass: nbClass };
+/**
+ * Names as a sentence lists them: "Default", "Default and Flick 1", "Default, Flick 1 and
+ * Flick 2" ('' for none), or with another word before the last ("the calendar or the clock").
+ * Plain text, as given: escape the result where it goes into HTML.
+ *
+ * @param {string[]} names The names.
+ * @param {string} [word] The word before the last name: 'and' unless given ('or').
+ * @returns {string}
+ */
+function andList(names, word) {
+  return names.length > 1
+    ? names.slice(0, -1).join(', ') + ' ' + (word || 'and') + ' ' + names[names.length - 1] : names.join('');
+}
+
+/**
+ * A sentence's start: the text with its first letter upper case.
+ *
+ * @param {string} text Plain text.
+ * @returns {string}
+ */
+function capitalize(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+PConf.html = { esc: esc, sheetHeader: sheetHeader, swatchReadout: swatchReadout, nbClass: nbClass, andList: andList,
+  capitalize: capitalize };
 if (typeof module !== 'undefined' && module.exports) { module.exports = PConf.html; }

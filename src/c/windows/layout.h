@@ -174,6 +174,14 @@ typedef enum {
     STATUS_SRC_FORECAST = 1,
     STATUS_SRC_RADAR = 2,
     STATUS_SRC_HEALTH = 3,
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: bars 4 to 6 (status_line.h STATUS_LINE_BAR4..6). The packed value's 2-bit row
+    // fields are full, so a row names one as FORECAST / RADAR / HEALTH there plus an ext
+    // bit that adds 3 (view_spec_apply_ext: bit 11 the upper row, bit 12 the lower).
+    STATUS_SRC_BAR4 = 4,
+    STATUS_SRC_BAR5 = 5,
+    STATUS_SRC_BAR6 = 6,
+#endif
 } StatusSource;
 
 typedef struct {
@@ -275,37 +283,20 @@ static inline LayoutTier layout_status_tier(uint8_t layout_tier, bool two_rows) 
 }
 
 // Is `src` on screen, in either status band? `src` must be a REAL source
-// (STATUS_SRC_FORECAST / _RADAR / _HEALTH): with STATUS_SRC_NONE this answers true for
+// (STATUS_SRC_FORECAST / _RADAR / _HEALTH, or a bar 4 to 6 on emery): with STATUS_SRC_NONE
+// this answers true for
 // a statusless spec, which is never the question being asked. The band-OCCUPANCY test
 // is the separate `spec->status_upper != STATUS_SRC_NONE` idiom — don't fold it in here.
 static inline bool layout_status_visible(const ViewSpec *spec, uint8_t src) {
     return (spec->status_upper == src) || (spec->status_lower == src);
 }
 
-#if defined(PBL_HEALTH)
-// The health row's nudge away from the calendar/radar in the dual-row compact view,
-// which delegates LAYOUT_TIER_FULL to both rows: the band drops 2 px so the row
-// doesn't hug the content above. The TRUE full view (3-row calendar) stays
-// unshifted, and a band at or under the minimum has no room to give up.
-#define HEALTH_TALL_BAND_MIN 16
-#define HEALTH_SECTION_DROP 2
-#endif
-
-// Which band a source's row renders in: the lower (forecast-abutting) band when the
-// lower slot carries it, otherwise the upper band. Same REAL-source rule as
-// layout_status_visible above — for a source that is on neither slot the answer is the
-// upper band, whose layer the caller hides anyway.
-//
-// The health source's dual-row nudge is folded into the band FRAME here (it used to
-// be applied to the row's derived bounds in status_bar.c, behind the layer's back):
-// the frame a bar is seated in IS the geometry its row lays out against, so
-// layer_set_frame() owns dirtying every geometric change — a full-mode flip included
-// — and no caller needs to track applied bounds by hand.
 #if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
 // Is the top area three (or more) rows tall — the fullCal shape — whatever it shows? A
 // calendar by its rows; a radar/graph top by its size (the default is 3 rows, a 2-row
-// forecast graph renders 3). The row tier follows the same rule (layout.c), so the health
-// row's dense drop below keys on the view's SHAPE, not on the calendar alone.
+// forecast graph renders 3). The row tier follows the same rule (layout.c), and so does the
+// health graph's full mode (main_window.c): both key on the view's SHAPE, not on the
+// calendar alone.
 static inline bool layout_top_three_rows(const ViewSpec *s) {
     if (s->top == TOP_BAND_CALENDAR) { return s->calendar_rows == 3; }
     if (s->top != TOP_BAND_RADAR && s->top != TOP_BAND_GRAPH) { return false; }
@@ -314,22 +305,14 @@ static inline bool layout_top_three_rows(const ViewSpec *s) {
 }
 #endif
 
+// Which band a source's row renders in: the lower (forecast-abutting) band when the
+// lower slot carries it, otherwise the upper band. Same REAL-source rule as
+// layout_status_visible above — for a source that is on neither slot the answer is the
+// upper band, whose layer the caller hides anyway. Every bar sits in its band the same
+// way: the Health bar's own 2 px drop in a dual-row compact view went with 3.0.0's named
+// bars, where a band holds whichever bar the screen puts there.
 static inline GRect layout_status_band(const ViewSpec *spec, const MainLayout *L, uint8_t src) {
-    GRect band = (spec->status_lower == src) ? L->status_lower : L->status;
-#if defined(PBL_HEALTH)
-    if (src == STATUS_SRC_HEALTH
-            && spec->status_tier == LAYOUT_TIER_FULL
-#if defined(WW_VIEW_CYCLE)
-            && !layout_top_three_rows(spec)
-#else
-            && spec->calendar_rows != 3
-#endif
-            && band.size.h > HEALTH_TALL_BAND_MIN) {
-        band.origin.y += HEALTH_SECTION_DROP;
-        band.size.h -= HEALTH_SECTION_DROP;
-    }
-#endif
-    return band;
+    return (spec->status_lower == src) ? L->status_lower : L->status;
 }
 
 #if defined(WW_VIEW_CYCLE)
@@ -364,15 +347,52 @@ ViewSpec view_spec_unpack(uint16_t v);
 // body, 3 rows for a top), sizes survive only on a radar/graph top and a present body,
 // top_kind only on a graph top, one band fills at most (both → the body), and align only
 // while nothing fills. Call after view_spec_unpack, before view_spec_resolve. ext 0 is
-// the identity, so a preset (or a pre-v2 phone) renders exactly as before.
+// the identity, so a preset (or a pre-v2 phone) renders exactly as before. On emery bits
+// 11 and 12 move the upper and the lower row to bars 4 to 6 (VIEW_EXT_UPPER_BAR_HI below).
 void view_spec_apply_ext(ViewSpec *s, uint16_t ext);
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the ext bits that name bars 4 to 6 (StatusSource above): set, they add 3 to the
+// row's source in the packed value (FORECAST -> BAR4, RADAR -> BAR5, HEALTH -> BAR6); on a
+// row that is off they mean nothing. view-cycle.js packExt sets them.
+#define VIEW_EXT_UPPER_BAR_HI (1u << 11)
+#define VIEW_EXT_LOWER_BAR_HI (1u << 12)
 #endif
 
-// Data-availability downgrades, pure. A health row without health data is downgraded to
-// NONE; the surviving row keeps its band. The Radar bar is a status bar like the others
-// and stays without radar data. Without health data (aplite, or health off): a health
-// graph body -> forecast. Without radar data: a radar top band -> calendar, a radar body
-// -> forecast (radar-in-body is valid with a calendar).
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the graph style a view's forecast graph draws (graph_style.h), ext bits 9-10
+// (view-cycle.js packExt): 0..2, the first style for an unknown code 3. Only a view with a
+// forecast graph carries one (extFields), and a view without one hides the forecast anyway,
+// so the spec needs no field: the window hands it to the forecast layer (main_window.c).
+static inline uint8_t view_ext_graph_style(uint16_t ext) {
+    const uint8_t k = (uint8_t) ((ext >> 9) & 3);
+    return k == 3 ? 0 : k;
+}
+#endif
+
+// The status sources a view WORD shows (its packed value, then its ext word in the high
+// half), as a mask of (1 << StatusSource): what view_spec_unpack and view_spec_apply_ext
+// put in status_upper and status_lower, without decoding the rest. A disabled slot (wire
+// tier off, view_slot_available) shows none. main_window.c ORs the configured slots' into
+// status_bar_set_in_use's mask; layout_test.c pins it to the full decode for every word.
+static inline uint8_t view_word_sources(uint32_t word) {
+    if (((word >> 8) & 3) == 0) { return 0; }
+    uint8_t upper = (uint8_t) ((word >> 2) & 3);
+    uint8_t lower = (uint8_t) (word & 3);
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: a row that is on names bar 4 to 6 (its source plus 3) while its ext bit is set.
+    if (upper && ((word >> 16) & VIEW_EXT_UPPER_BAR_HI)) { upper += 3; }
+    if (lower && ((word >> 16) & VIEW_EXT_LOWER_BAR_HI)) { lower += 3; }
+#endif
+    return (uint8_t) (((1u << upper) | (1u << lower)) & ~(1u << STATUS_SRC_NONE));
+}
+#endif
+
+// Data-availability downgrades, pure. The status rows always stay: the Radar bar and the
+// Health bar are status bars like the others and stay without radar or health data. Without
+// health data (aplite, or health off): a health graph body -> forecast, a health graph top
+// -> empty. Without radar data: a radar top band -> calendar, a radar body -> forecast
+// (radar-in-body is valid with a calendar).
 ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health);
 
 LayerVisibility layout_visibility(const ViewSpec *spec);
@@ -449,9 +469,8 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics
 // — Config.view_spec2[i] | Config.view_ext[i] << 16.
 
 // Is a configured slot renderable right now? Disabled (wire tier 0) never; the radar
-// graph (top or body) needs radar data, the Radar bar does not; a health band/row/graph
-// needs health. Availability is
-// caller-supplied. Decodes the whole word (unpack + apply_ext), so a graph the ext
+// graph (top or body) needs radar data and the health graph health, the Radar bar and the
+// Health bar do not. Availability is caller-supplied. Decodes the whole word (unpack + apply_ext), so a graph the ext
 // word places — e.g. a health graph in the top band — gates the slot too.
 bool view_slot_available(uint32_t word, bool has_radar, bool has_health);
 
