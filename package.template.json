@@ -582,32 +582,119 @@
       "health"
     ],
     "usesPermissions": [
-      "Location",
-      "Health",
+      {
+        "name": "Location",
+        "reason": "To get the forecast for where you are",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.brightsky.dev",
+            "api.met.no",
+            "api.open-meteo.com",
+            "api.weather.com",
+            "www.wunderground.com"
+          ]
+        },
+        "reason": "To get your forecast and rain radar",
+        "required": true
+      },
       {
         "name": "Internet",
         "parameters": {
           "domains": [
             "air-quality-api.open-meteo.com",
-            "api.brightsky.dev",
-            "api.met.no",
-            "api.open-meteo.com",
-            "api.openweathermap.org",
-            "api.rainbow.ai",
-            "api.tomorrow.io",
-            "api.waqi.info",
-            "api.weather.com",
-            "api.weather.yandex.ru",
-            "appstore-api.rebble.io",
-            "appstore-api.repebble.com",
-            "date.nager.at",
-            "geocode.arcgis.com",
-            "geocoding-api.open-meteo.com",
-            "maps.dwd.de",
-            "us1.locationiq.com",
-            "www.wunderground.com"
+            "api.waqi.info"
           ]
-        }
+        },
+        "reason": "To show the air quality",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "geocode.arcgis.com",
+            "geocoding-api.open-meteo.com"
+          ]
+        },
+        "reason": "To show your town's name and find the places you search for",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.openweathermap.org",
+            "api.tomorrow.io",
+            "api.weather.yandex.ru"
+          ]
+        },
+        "reason": "To use OpenWeatherMap, Tomorrow.io or Yandex with your own key",
+        "required": false
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.rainbow.ai"
+          ]
+        },
+        "reason": "To show Rainbow's rain radar with your own key",
+        "required": false
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "us1.locationiq.com"
+          ]
+        },
+        "reason": "To look up your town's name with your own LocationIQ key",
+        "required": false
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "maps.dwd.de"
+          ]
+        },
+        "reason": "To show the pollen count from DWD",
+        "required": false
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "date.nager.at"
+          ]
+        },
+        "reason": "To mark public holidays in the calendar",
+        "required": false
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "appstore-api.rebble.io",
+            "appstore-api.repebble.com"
+          ]
+        },
+        "reason": "To tell you when a new version is out",
+        "required": false
+      },
+      {
+        "name": "ShowNotifications",
+        "reason": "To tell you on your watch what's new and when an update is out",
+        "required": false
+      },
+      {
+        "name": "Health",
+        "reason": "To show your steps, sleep and heart rate",
+        "required": false
       }
     ],
     "messageKeys": [

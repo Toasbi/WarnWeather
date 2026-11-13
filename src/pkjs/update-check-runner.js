@@ -80,8 +80,11 @@ function fetchStoreVersions(urls, callback) {
  *   {string} opts.appVersion The running version (pkg.version).
  *   {Object} [opts.devConfig] dev-config.js exports (force flag / overrides).
  *   {function(): boolean} opts.isWatchConnected Watch-connectivity probe.
- *   {function(string, string)} opts.notify Shows the (title, body)
- *     notification on the watch — injected so this module stays Pebble-free.
+ *   {function(string, string, function(boolean))} opts.notify Shows the
+ *     (title, body) notification on the watch and calls back whether the user
+ *     has decided (notify-watch.js: false while the phone asks for
+ *     ShowNotifications first and drops this one) — injected so this module
+ *     stays Pebble-free.
  * @returns {void}
  */
 function runDailyUpdateCheck(opts) {
@@ -110,10 +113,18 @@ function runDailyUpdateCheck(opts) {
         if (decision.shouldNotify) {
             opts.notify(
                 'WarnWeather update',
-                'A new version is available. Open the Pebble app on your phone to install it.'
+                'A new version is available. Open the Pebble app on your phone to install it.',
+                function (decided) {
+                    // Dropped while the phone asked for ShowNotifications: unremembered,
+                    // so the next daily check tells the user again.
+                    if (decided === false) {
+                        console.log('[update-check] the phone asks for notifications first; next check');
+                        return;
+                    }
+                    localStorage.setItem(KEY_UPDATE_NOTIFIED_VERSION, decision.version);
+                    console.log('[update-check] notified version=' + decision.version);
+                }
             );
-            localStorage.setItem(KEY_UPDATE_NOTIFIED_VERSION, decision.version);
-            console.log('[update-check] notified version=' + decision.version);
         }
     }
 

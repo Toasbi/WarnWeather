@@ -39,6 +39,7 @@ var renderSignature = require('./render-signature.js').renderSignature;
 var decideConfigClose = require('./config-close.js').decideConfigClose;
 var phoneBattery = require('./phone-battery.js');
 var statusRebake = require('./status-rebake.js');
+var notifyWatch = require('./notify-watch.js').notifyWatch;
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -517,18 +518,26 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
     }
     console.log(decision.logLine);
 
+    // The decision owns the whole persist policy (release-notifications.js);
+    // this caller only performs the write it names.
+    function persist() {
+        if (decision.persistMaxNotified !== null) {
+            localStorage.setItem(KEY_MAX_NOTIFIED_VERSION, decision.persistMaxNotified);
+            console.log('[release-notification] set max_notified_version=' + decision.persistMaxNotified);
+        }
+    }
     if (decision.shouldNotify) {
         console.log('[release-notification] showing notification');
-        Pebble.showSimpleNotificationOnPebble(decision.title, decision.body);
+        // Dropped while the phone asks for ShowNotifications (notify-watch.js): not
+        // persisted, so the next run shows it.
+        notifyWatch(decision.title, decision.body, function (decided) {
+            if (decided) { persist(); return; }
+            console.log('[release-notification] the phone asks for notifications first; next run');
+        });
     }
     else {
         console.log('[release-notification] skip');
-    }
-    // The decision owns the whole persist policy (release-notifications.js);
-    // this caller only performs the write it names.
-    if (decision.persistMaxNotified !== null) {
-        localStorage.setItem(KEY_MAX_NOTIFIED_VERSION, decision.persistMaxNotified);
-        console.log('[release-notification] set max_notified_version=' + decision.persistMaxNotified);
+        persist();
     }
 }
 
@@ -551,7 +560,7 @@ function onSchedulerTick() {
         appVersion: pkg.version,
         devConfig: app.devConfig,
         isWatchConnected: isWatchConnected,
-        notify: function (title, body) { Pebble.showSimpleNotificationOnPebble(title, body); }
+        notify: notifyWatch
     });
 }
 
