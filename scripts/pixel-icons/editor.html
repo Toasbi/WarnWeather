@@ -1,0 +1,659 @@
+<title>WarnWeather Icon Pixels</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Silkscreen&display=swap">
+<style>
+/* Layout: a workbench — icon list on the left, the four sizes of one icon side by side. */
+:root {
+  --bg: #f1f0ec;
+  --panel: #ffffff;
+  --ink: #1c1b19;
+  --muted: #6c6a64;
+  --line: #dcd9d2;
+  --accent: #d9481a;
+  --accent-ink: #ffffff;
+  --accent-soft: #fbe3d8;
+  --ok: #2f7d4f;
+  --warn: #a5560a;
+  --screen: #000000;
+  --pixel: #ffffff;
+  --gridline: rgba(255, 255, 255, 0.10);
+  --guide: rgba(64, 190, 255, 0.85);
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-pixel: "Silkscreen", "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131312; --panel: #1d1c1a; --ink: #edebe6; --muted: #9c9991; --line: #33312d;
+    --accent: #ff6b38; --accent-ink: #1a0d07; --accent-soft: #3a2116; --ok: #5fbf86; --warn: #e3a356;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131312; --panel: #1d1c1a; --ink: #edebe6; --muted: #9c9991; --line: #33312d;
+  --accent: #ff6b38; --accent-ink: #1a0d07; --accent-soft: #3a2116; --ok: #5fbf86; --warn: #e3a356;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font-ui);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 40px;
+}
+button { font: inherit; color: inherit; }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand h1 { font: 400 20px/1.1 var(--font-pixel); margin: 0; letter-spacing: 0.02em; text-wrap: balance; }
+.logo { width: 18px; height: 18px; flex: none; background:
+  conic-gradient(var(--accent) 0 25%, transparent 0 50%, var(--accent) 0 75%, transparent 0) 0 0 / 9px 9px; }
+.hint { color: var(--muted); flex: 1 1 260px; min-width: 0; }
+.tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.status { font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status[data-s="saved"]::before { background: var(--ok); }
+.status[data-s="saving"]::before { background: var(--warn); }
+.status[data-s="error"]::before, .status[data-s="local"]::before { background: var(--accent); }
+.btn { height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel);
+  cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible, .ic:focus-visible, .seg button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.wrap { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.list { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px;
+  display: flex; flex-direction: column; gap: 2px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px);
+  max-height: calc(100vh - 32px); overflow-y: auto; }
+@media (max-width: 860px) { .list { position: static; flex-direction: row; overflow-x: auto; } }
+.progress { font-size: 12px; color: var(--muted); padding: 4px 8px 8px; }
+.grp { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 10px 8px 2px; }
+@media (max-width: 860px) { .grp { display: none; } }
+@media (max-width: 860px) { .progress { display: none; } }
+.ic { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 7px; border: 0;
+  background: transparent; cursor: pointer; text-align: left; min-width: 0; flex: none; }
+.ic:hover { background: var(--bg); }
+.ic[aria-current="true"] { background: var(--accent-soft); }
+.ic canvas { image-rendering: pixelated; background: var(--screen); border-radius: 3px; flex: none; }
+.ic .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ic .tick { width: 16px; color: var(--ok); font-weight: 600; flex: none; }
+.ic .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); flex: none; }
+@media (max-width: 860px) { .ic .nm { display: none; } }
+.main { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.head h2 { margin: 0; font-size: 20px; font-weight: 600; text-wrap: balance; }
+.head .short { font: 400 13px var(--font-pixel); color: var(--muted); }
+.head .sp { flex: 1; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--panel); }
+.seg button { border: 0; background: transparent; padding: 0 10px; height: 30px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.seglabel { color: var(--muted); font-size: 13px; }
+.sizes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 760px) { .sizes { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card h3 { margin: 0; font-size: 15px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.card .use { color: var(--muted); font-size: 12.5px; margin-top: -6px; }
+.board { overflow-x: auto; }
+.board canvas { display: block; touch-action: none; cursor: crosshair; border-radius: 4px; }
+.prev { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.prev figure { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.prev figcaption { font-size: 11.5px; color: var(--muted); }
+.prev canvas { image-rendering: pixelated; display: block; border-radius: 3px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.row .sp { flex: 1; }
+.small { height: 28px; padding: 0 10px; font-size: 13px; }
+.note { font-size: 12.5px; color: var(--muted); }
+.json { width: 100%; min-height: 120px; font: 12px/1.4 ui-monospace, Menlo, monospace; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 8px; }
+@media (prefers-reduced-motion: no-preference) { .btn, .ic, .seg button { transition: background-color .12s, border-color .12s; } }
+</style>
+<style id="watchfonts"></style>
+
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true"></span><h1>WarnWeather icon pixels</h1></div>
+  <p class="hint">Click a pixel to turn it on or off, or drag to paint. Weather icons show the library's outline in blue. Every change saves on its own.</p>
+  <div class="tools">
+    <span class="status" id="status" data-s="local">Connecting</span>
+    <button class="btn" id="copy" type="button">Copy all as JSON</button>
+  </div>
+</header>
+<div class="wrap">
+  <nav class="list" id="list" aria-label="Icons"></nav>
+  <main class="main" id="main"></main>
+</div>
+<textarea class="json" id="jsonbox" hidden readonly aria-label="All icons as JSON"></textarea>
+
+<script>
+/*ICON_DATA*/
+</script>
+<script>
+(function () {
+  'use strict';
+  var D = window.ICON_DATA, FONTS = window.WATCH_FONTS;
+  var LABEL = { saved: 'Your saved drawing', now: 'Today’s icon', lucide: 'Lucide', tabler: 'Tabler' };
+  // The digits' cap centre below the text frame top (status_metrics.h: content_h - glyph_below).
+  var CAP_CY = { GOTHIC_14: 9, GOTHIC_18: 12, GOTHIC_24: 17 };
+
+  // ---- grids ---------------------------------------------------------------------------------
+  function parse(lines, rows, cols) {
+    var px = new Uint8Array(cols * rows);
+    for (var y = 0; y < rows; y++) {
+      var s = lines[y] || '';
+      for (var x = 0; x < cols; x++) px[y * cols + x] = s.charAt(x) === '#' ? 1 : 0;
+    }
+    return px;
+  }
+  // Lines of any width, their ink centred across `cols` (left alone when it already fits as is).
+  function fit(lines, rows, cols) {
+    var w = lines.length ? lines[0].length : cols;
+    if (w === cols) return parse(lines, rows, cols);
+    var src = parse(lines, rows, w), box = inkBox(src, rows, w), px = new Uint8Array(cols * rows);
+    if (!box) return px;
+    var ox = Math.floor((cols - box.w) / 2) - box.x0;
+    for (var y = 0; y < rows; y++) for (var x = 0; x < w; x++) {
+      if (src[y * w + x] && x + ox >= 0 && x + ox < cols) px[y * cols + x + ox] = 1;
+    }
+    return px;
+  }
+  function lines(px, rows, cols) {
+    var out = [];
+    for (var y = 0; y < rows; y++) {
+      var s = '';
+      for (var x = 0; x < cols; x++) s += px[y * cols + x] ? '#' : '.';
+      out.push(s);
+    }
+    return out;
+  }
+  function inkBox(px, rows, cols) {
+    var x0 = cols, x1 = -1, y0 = rows, y1 = -1;
+    for (var y = 0; y < rows; y++) for (var x = 0; x < cols; x++) if (px[y * cols + x]) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    return x1 < 0 ? null : { x0: x0, x1: x1, y0: y0, y1: y1, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+  }
+
+  // ---- state ---------------------------------------------------------------------------------
+  // A size starts from the drawing saved in the repo, else from the icon's default source.
+  function startOf(icon, z) { return z.start || (z.sources[icon.start] ? icon.start : 'now'); }
+  var state = {}, byKey = {};
+  D.icons.forEach(function (icon) {
+    byKey[icon.key] = icon;
+    var sizes = {};
+    icon.sizes.forEach(function (z) {
+      var src = startOf(icon, z);
+      sizes[z.id] = { source: src === 'saved' ? (z.savedSource || 'saved') : src,
+        px: fit(z.sources[src], z.rows, z.cols), edited: false, undo: [] };
+    });
+    state[icon.key] = { done: Boolean(icon.done), sizes: sizes };
+  });
+  function sizeOf(key, id) { return byKey[key].sizes.filter(function (z) { return z.id === id; })[0]; }
+  var current = D.icons[0].key;
+  var showGuide = true;
+
+  // ---- saving --------------------------------------------------------------------------------
+  var db = null, dbReady = false, statusEl = document.getElementById('status');
+  var timers = {}, inflight = {}, again = {}, failed = false;
+  function setStatus(s, text) { statusEl.dataset.s = s; statusEl.textContent = text; }
+  function refreshStatus() {
+    if (!db) { setStatus('local', dbReady ? 'Saved in this browser only: use Copy all as JSON' : 'Connecting'); return; }
+    var busy = Object.keys(timers).length || Object.keys(inflight).some(function (k) { return inflight[k]; });
+    if (failed) setStatus('error', 'Last save failed, retrying on your next change');
+    else setStatus(busy ? 'saving' : 'saved', busy ? 'Saving' : 'Saved');
+  }
+  function glyphDoc(key, id) {
+    var z = sizeOf(key, id), s = state[key].sizes[id];
+    return { icon: key, size: id, rows: z.rows, cols: z.cols, aplite: Boolean(z.aplite), source: s.source,
+      pixels: lines(s.px, z.rows, z.cols), updatedAt: Date.now() };
+  }
+  function scheduleSave(key, id) {
+    var docId = key + '_' + id;
+    clearTimeout(timers[docId]);
+    timers[docId] = setTimeout(function () { delete timers[docId]; flush(docId, key, id); }, 450);
+    backupLocal();
+    refreshStatus();
+  }
+  function flush(docId, key, id) {
+    if (!db) { refreshStatus(); return; }
+    if (inflight[docId]) { again[docId] = true; return; }
+    inflight[docId] = true; refreshStatus();
+    db.doc('glyphs/' + docId).set(glyphDoc(key, id)).then(function () { failed = false; }, function () { failed = true; })
+      .then(function () {
+        inflight[docId] = false;
+        if (again[docId]) { again[docId] = false; flush(docId, key, id); } else refreshStatus();
+      });
+  }
+  function saveDone(key) {
+    backupLocal();
+    if (!db) return;
+    db.doc('icons/' + key).set({ done: state[key].done }).then(function () { failed = false; refreshStatus(); },
+      function () { failed = true; refreshStatus(); });
+  }
+  function applyRemote(snap) {
+    snap.docs.forEach(function (doc) {
+      var d = doc.data(); if (!d || !state[d.icon]) return;
+      var id = d.size || String(d.rows), z = sizeOf(d.icon, id);
+      if (!z || !Array.isArray(d.pixels) || d.pixels.length !== z.rows) return;
+      var docId = d.icon + '_' + id;
+      if (timers[docId] || inflight[docId] || (active && active.key === d.icon && active.id === id)) return;
+      var s = state[d.icon].sizes[id];
+      s.px = fit(d.pixels, z.rows, z.cols); s.source = d.source || s.source; s.edited = true;
+    });
+    renderAll();
+  }
+  function applyDone(snap) {
+    snap.docs.forEach(function (doc) { var d = doc.data(); if (d && state[doc.id]) state[doc.id].done = Boolean(d.done); });
+    renderAll();
+  }
+  function exportAll() {
+    var out = { format: 'warnweather-icon-pixels-2', icons: {} };
+    D.icons.forEach(function (i) {
+      var st = state[i.key], sizes = {};
+      i.sizes.forEach(function (z) { var s = st.sizes[z.id];
+        sizes[z.id] = { rows: z.rows, cols: z.cols, aplite: Boolean(z.aplite), source: s.source, edited: s.edited, pixels: lines(s.px, z.rows, z.cols) }; });
+      out.icons[i.key] = { done: st.done, sizes: sizes };
+    });
+    return out;
+  }
+  function backupLocal() {
+    try { localStorage.setItem('ww-icon-pixels-2', JSON.stringify(exportAll())); } catch (e) { /* storage off */ }
+  }
+  function restoreLocal() {
+    try {
+      var j = JSON.parse(localStorage.getItem('ww-icon-pixels-2') || 'null');
+      if (!j || !j.icons) return;
+      Object.keys(j.icons).forEach(function (k) {
+        if (!state[k]) return;
+        state[k].done = Boolean(j.icons[k].done);
+        Object.keys(j.icons[k].sizes || {}).forEach(function (id) {
+          var e = j.icons[k].sizes[id], z = sizeOf(k, id);
+          if (z && e && e.edited && e.pixels && e.pixels.length === z.rows) {
+            var s = state[k].sizes[id]; s.px = fit(e.pixels, z.rows, z.cols); s.source = e.source; s.edited = true;
+          }
+        });
+      });
+    } catch (e) { /* nothing kept */ }
+  }
+
+  // ---- drawing helpers -----------------------------------------------------------------------
+  var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  function sizeCanvas(cv, w, h, scale) {
+    cv.width = Math.round(w * scale * dpr); cv.height = Math.round(h * scale * dpr);
+    cv.style.width = (w * scale) + 'px'; cv.style.height = (h * scale) + 'px';
+  }
+  function paintGlyph(ctx, px, rows, cols, ox, oy, fg) {
+    var box = inkBox(px, rows, cols); if (!box) return 0;
+    ctx.fillStyle = fg;
+    for (var y = box.y0; y <= box.y1; y++) for (var x = box.x0; x <= box.x1; x++)
+      if (px[y * cols + x]) ctx.fillRect(ox + x - box.x0, oy + y - box.y0, 1, 1);
+    return box.w;
+  }
+  function divRound(a, b) { return a >= 0 ? Math.floor((a + Math.floor(b / 2)) / b) : -Math.floor((-a + Math.floor(b / 2)) / b); }
+
+  // ---- the icon list -------------------------------------------------------------------------
+  var listEl = document.getElementById('list'), mainEl = document.getElementById('main');
+  var progressEl = document.createElement('div'); progressEl.className = 'progress';
+  listEl.appendChild(progressEl);
+  var listButtons = {}, lastGroup = null;
+  D.icons.forEach(function (icon) {
+    if (icon.group !== lastGroup) {
+      lastGroup = icon.group;
+      var g = document.createElement('div'); g.className = 'grp'; g.textContent = icon.group;
+      listEl.appendChild(g);
+    }
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'ic';
+    var cv = document.createElement('canvas');
+    var nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = icon.name;
+    var tick = document.createElement('span'); tick.className = 'tick';
+    b.append(cv, nm, tick);
+    b.addEventListener('click', function () { current = icon.key; renderAll(true); });
+    listEl.appendChild(b);
+    listButtons[icon.key] = { b: b, cv: cv, tick: tick };
+  });
+  function thumbSize(icon) {
+    var best = icon.sizes[0];
+    icon.sizes.forEach(function (z) { if (!z.aplite && Math.abs(z.rows - 13) < Math.abs(best.rows - 13)) best = z; });
+    return best;
+  }
+  function renderList() {
+    var done = 0;
+    D.icons.forEach(function (icon) {
+      var st = state[icon.key], L = listButtons[icon.key];
+      if (st.done) done++;
+      L.b.setAttribute('aria-current', String(icon.key === current));
+      L.tick.textContent = st.done ? '✓' : '';
+      L.b.title = icon.name + (st.done ? ' (done)' : '');
+      var z = thumbSize(icon), s = st.sizes[z.id];
+      sizeCanvas(L.cv, 25, 17, 1);
+      var ctx = L.cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 25, 17);
+      var box = inkBox(s.px, z.rows, z.cols);
+      if (box) paintGlyph(ctx, s.px, z.rows, z.cols, Math.floor((25 - box.w) / 2), Math.floor((17 - box.h) / 2), '#fff');
+      L.cv.style.width = '50px'; L.cv.style.height = '34px';
+    });
+    progressEl.textContent = done + ' of ' + D.icons.length + ' icons done';
+  }
+
+  // ---- the editors ---------------------------------------------------------------------------
+  var active = null;      // the stroke in progress: {key, id}
+  var editors = [];
+  function build() {
+    mainEl.textContent = '';
+    editors = [];
+    var icon = byKey[current], st = state[current];
+    var head = document.createElement('div'); head.className = 'head';
+    var h2 = document.createElement('h2'); h2.textContent = icon.name;
+    var grp = document.createElement('span'); grp.className = 'short'; grp.textContent = icon.group;
+    var sp = document.createElement('span'); sp.className = 'sp';
+    var guideBtn = null;
+    if (Object.keys(icon.guides).length) {
+      guideBtn = document.createElement('button'); guideBtn.type = 'button'; guideBtn.className = 'btn small';
+      guideBtn.textContent = 'Outline'; guideBtn.setAttribute('aria-pressed', String(showGuide));
+      guideBtn.addEventListener('click', function () { showGuide = !showGuide; guideBtn.setAttribute('aria-pressed', String(showGuide)); editors.forEach(function (e) { e.draw(); }); });
+    }
+    var doneBtn = document.createElement('button'); doneBtn.type = 'button'; doneBtn.className = 'btn small' + (st.done ? '' : ' primary');
+    doneBtn.textContent = st.done ? 'Done ✓ (undo)' : 'Mark as done';
+    doneBtn.addEventListener('click', function () { st.done = !st.done; saveDone(current); renderAll(true); });
+    head.append(h2, grp, sp);
+    if (guideBtn) head.appendChild(guideBtn);
+    head.appendChild(doneBtn);
+    mainEl.appendChild(head);
+    if (icon.note) {
+      var noteEl = document.createElement('p'); noteEl.className = 'note'; noteEl.style.margin = '-6px 0 0';
+      noteEl.textContent = icon.note;
+      mainEl.appendChild(noteEl);
+    }
+    if (icon.sources.length > 1) {
+      var srcRow = document.createElement('div'); srcRow.className = 'row';
+      var lab = document.createElement('span'); lab.className = 'seglabel'; lab.textContent = 'Start every size from:';
+      srcRow.appendChild(lab);
+      icon.sources.forEach(function (src) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'btn small'; b.textContent = LABEL[src];
+        b.addEventListener('click', function () {
+          icon.sizes.forEach(function (z) { if (z.sources[src]) resetTo(current, z.id, src); });
+          renderAll();
+        });
+        srcRow.appendChild(b);
+      });
+      var note = document.createElement('span'); note.className = 'note';
+      note.textContent = 'This replaces your pixels; Undo on each size brings them back.';
+      srcRow.appendChild(note);
+      mainEl.appendChild(srcRow);
+    }
+    var sizes = document.createElement('div'); sizes.className = 'sizes';
+    mainEl.appendChild(sizes);
+    icon.sizes.forEach(function (z) { editors.push(makeEditor(icon, z, sizes)); });
+  }
+  function pushUndo(s) { s.undo.push(s.px.slice()); if (s.undo.length > 60) s.undo.shift(); }
+  function resetTo(key, id, src) {
+    var s = state[key].sizes[id], z = sizeOf(key, id);
+    if (!z.sources[src]) return;
+    pushUndo(s);
+    s.px = fit(z.sources[src], z.rows, z.cols); s.source = src === 'saved' ? (z.savedSource || 'saved') : src;
+    s.edited = true;
+    scheduleSave(key, id);
+  }
+  // Another size's pixels, centred in this grid (cut where they do not fit).
+  function copyFrom(key, id, fromId) {
+    var s = state[key].sizes[id], z = sizeOf(key, id), fz = sizeOf(key, fromId), f = state[key].sizes[fromId];
+    var src = f.px, box = inkBox(src, fz.rows, fz.cols), px = new Uint8Array(z.cols * z.rows);
+    if (box) {
+      var ox = Math.floor((z.cols - box.w) / 2) - box.x0, oy = Math.floor((z.rows - box.h) / 2) - box.y0;
+      for (var y = 0; y < fz.rows; y++) for (var x = 0; x < fz.cols; x++) {
+        var nx = x + ox, ny = y + oy;
+        if (src[y * fz.cols + x] && nx >= 0 && ny >= 0 && nx < z.cols && ny < z.rows) px[ny * z.cols + nx] = 1;
+      }
+    }
+    pushUndo(s); s.px = px; s.source = 'copy'; s.edited = true;
+    scheduleSave(key, id);
+  }
+  function sizeTitle(z) { return z.aplite ? 'Pebble Classic, Steel' : z.rows + ' px tall'; }
+  function makeEditor(icon, z, parent) {
+    var key = icon.key, id = z.id, c = z.cols, rows = z.rows;
+    var card = document.createElement('section'); card.className = 'card';
+    var h3 = document.createElement('h3'); h3.textContent = sizeTitle(z);
+    var use = document.createElement('div'); use.className = 'use';
+    // "Pebble Time, Pebble 2: bars with 18 px text, top bar. Pebble Time 2: ..." - one line per
+    // watch; a size only the Windy weather icon uses says so.
+    var WINDY = ' (Windy weather)', byWatch = {}, order = [], windyOnly = true;
+    z.uses.forEach(function (u) {
+      if (u.where.indexOf(WINDY) < 0) windyOnly = false;
+      var parts = u.where.replace(WINDY, '').split(': '), watch = parts[0], bar = parts[1];
+      if (!byWatch[watch]) { byWatch[watch] = []; order.push(watch); }
+      if (byWatch[watch].indexOf(bar) < 0) byWatch[watch].push(bar);
+    });
+    use.textContent = z.aplite ? 'A bit mask in the aplite code: up to 16 px wide, ' + rows + ' px tall.'
+      : order.map(function (w) { return w + ': ' + byWatch[w].join(', ') + '.'; }).join(' ')
+        + (windyOnly ? ' Only the Windy weather icon uses this size.' : '');
+    var board = document.createElement('div'); board.className = 'board';
+    var cv = document.createElement('canvas'); cv.tabIndex = 0;
+    cv.setAttribute('aria-label', icon.name + ', ' + sizeTitle(z) + ': pixel grid');
+    board.appendChild(cv);
+    var prev = document.createElement('div'); prev.className = 'prev';
+    var row = document.createElement('div'); row.className = 'row';
+    function btn(t) { var b = document.createElement('button'); b.type = 'button'; b.className = 'btn small'; b.textContent = t; return b; }
+    var undo = btn('Undo'), clear = btn('Clear'), reset = btn('Reset');
+    var copySel = document.createElement('select'); copySel.className = 'btn small'; copySel.id = 'copy-' + key + '-' + id;
+    copySel.setAttribute('aria-label', 'Copy pixels from another size');
+    var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Copy from…'; copySel.appendChild(o0);
+    icon.sizes.forEach(function (oz) {
+      if (oz.id === id) return;
+      var o = document.createElement('option'); o.value = oz.id; o.textContent = sizeTitle(oz); copySel.appendChild(o);
+    });
+    var src = document.createElement('span'); src.className = 'note';
+    var spc = document.createElement('span'); spc.className = 'sp';
+    row.append(undo, clear, reset, copySel, spc, src);
+    card.append(h3, use, board, prev, row);
+    parent.appendChild(card);
+    var cell = 14, hover = null;
+
+    // Previews: actual size on black and white, 3x, and in a bar beside the watch's text.
+    function fig(caption) {
+      var f = document.createElement('figure'), cvp = document.createElement('canvas'), fc = document.createElement('figcaption');
+      fc.textContent = caption; f.append(cvp, fc); prev.appendChild(f); return cvp;
+    }
+    var pBlack = fig('Actual size'), pWhite = fig('Light theme'), pBig = fig('3×');
+    // One bar preview per text size and seating; the Windy weather copies of the wind bars
+    // add nothing new unless this size is theirs alone.
+    var texts = [], seen = {};
+    var own = z.uses.filter(function (u) { return u.where.indexOf(' (Windy weather)') < 0; });
+    (own.length ? own : z.uses).forEach(function (u) {
+      var k2 = u.font + '/' + (u.weight || 50);
+      if (seen[k2]) return; seen[k2] = true;
+      texts.push({ u: u, cv: fig('Next to ' + u.font.replace('GOTHIC_', '') + ' px text, 2\u00d7') });
+    });
+
+    function layout() {
+      var avail = Math.max(120, board.clientWidth || card.clientWidth - 24);
+      cell = Math.max(8, Math.min(22, Math.floor(avail / c)));
+      sizeCanvas(cv, c * cell, rows * cell, 1);
+      draw();
+    }
+    function draw() {
+      var s = state[key].sizes[id], ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, c * cell, rows * cell);
+      ctx.fillStyle = '#fff';
+      for (var y = 0; y < rows; y++) for (var x = 0; x < c; x++) if (s.px[y * c + x]) ctx.fillRect(x * cell, y * cell, cell, cell);
+      ctx.lineWidth = 1;
+      for (var gx = 0; gx <= c; gx++) {
+        ctx.strokeStyle = gx * 2 === c - 1 || gx * 2 === c + 1 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.09)';
+        ctx.beginPath(); ctx.moveTo(gx * cell + 0.5, 0); ctx.lineTo(gx * cell + 0.5, rows * cell); ctx.stroke();
+      }
+      for (var gy = 0; gy <= rows; gy++) {
+        ctx.strokeStyle = gy * 2 === rows - 1 || gy * 2 === rows + 1 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.09)';
+        ctx.beginPath(); ctx.moveTo(0, gy * cell + 0.5); ctx.lineTo(c * cell, gy * cell + 0.5); ctx.stroke();
+      }
+      var glib = icon.guides[s.source] ? s.source : (icon.guides.lucide ? 'lucide' : null);
+      if (showGuide && glib && z.guides && z.guides[glib]) {
+        // The library's grid may be narrower than this one; fit() moved its ink by this much.
+        var lg = z.sources[glib], lw = lg[0].length, lb = inkBox(parse(lg, rows, lw), rows, lw);
+        var m = z.guides[glib], ox = lw === c ? 0 : (lb ? Math.floor((c - lb.w) / 2) - lb.x0 : (c - lw) / 2);
+        ctx.save();
+        ctx.setTransform(dpr * cell * m[0], 0, 0, dpr * cell * m[0], dpr * cell * (m[1] + ox), dpr * cell * m[2]);
+        ctx.lineWidth = 1.6 / (cell * m[0]); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(64,190,255,0.85)';
+        icon.guides[glib].forEach(function (d) { try { ctx.stroke(new Path2D(d)); } catch (e) { /* bad path */ } });
+        ctx.restore();
+      }
+      if (hover) {
+        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ff6b38';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(hover.x * cell + 1, hover.y * cell + 1, cell - 2, cell - 2);
+      }
+      src.textContent = s.source === 'copy' ? 'Copied from another size' : 'Started from ' + (LABEL[s.source] || s.source);
+      undo.disabled = !s.undo.length;
+      drawPreviews(s);
+    }
+    function drawPreviews(s) {
+      var box = inkBox(s.px, rows, c), w = box ? box.w + 4 : 8, h = rows + 4;
+      [[pBlack, '#000', '#fff', 1], [pWhite, '#fff', '#000', 1], [pBig, '#000', '#fff', 3]].forEach(function (p) {
+        sizeCanvas(p[0], w, h, p[3]);
+        var ctx = p[0].getContext('2d'); ctx.setTransform(dpr * p[3], 0, 0, dpr * p[3], 0, 0);
+        ctx.fillStyle = p[1]; ctx.fillRect(0, 0, w, h);
+        paintGlyph(ctx, s.px, rows, c, 2, 2 + (box ? box.y0 : 0), p[2]);
+      });
+      texts.forEach(function (t) { drawText(t, s, box); });
+    }
+    // A bar on the watch: text frame top at 2, the icon seated as that watch seats it.
+    function drawText(t, s, box) {
+      var u = t.u, f = FONTS[u.font], label = icon.sample;
+      var meas = document.createElement('canvas').getContext('2d');
+      meas.font = f.height + 'px ' + f.family;
+      var tw = label ? Math.ceil(meas.measureText(label).width) : 0;
+      var gap = z.aplite ? 2 : 3;
+      var iw = box ? box.w : 0, W = 4 + iw + (label ? gap + tw : 0) + 4, H = f.height + 10;
+      var off = document.createElement('canvas'); off.width = W; off.height = H;
+      var o = off.getContext('2d');
+      o.fillStyle = '#000'; o.fillRect(0, 0, W, H);
+      var textY = 2, cy = textY + CAP_CY[u.font];
+      if (box) {
+        var top;
+        if (z.aplite) top = cy - Math.floor(box.h / 2) + 1;           // status_row_aplite.c status_mask_draw
+        else top = cy - Math.floor((box.h - 1) / 2) - divRound(((u.weight || 50) - 50) * box.h, 100);
+        paintGlyph(o, s.px, rows, c, 4, top, '#fff');
+      }
+      if (label) {
+        o.font = f.height + 'px ' + f.family; o.fillStyle = '#fff'; o.textBaseline = 'alphabetic';
+        o.fillText(label, 4 + iw + gap, textY + f.height);
+      }
+      var img = o.getImageData(0, 0, W, H), dd = img.data;
+      for (var i = 0; i < dd.length; i += 4) { var v = dd[i] > 127 ? 255 : 0; dd[i] = dd[i + 1] = dd[i + 2] = v; dd[i + 3] = 255; }
+      o.putImageData(img, 0, 0);
+      sizeCanvas(t.cv, W, H, 2);
+      var ctx = t.cv.getContext('2d'); ctx.setTransform(dpr * 2, 0, 0, dpr * 2, 0, 0);
+      ctx.imageSmoothingEnabled = false; ctx.drawImage(off, 0, 0);
+    }
+
+    // Painting: the first pixel decides draw or erase for the whole stroke.
+    var mode = 1, last = null;
+    function cellAt(ev) {
+      var r = cv.getBoundingClientRect();
+      var x = Math.floor((ev.clientX - r.left) / cell), y = Math.floor((ev.clientY - r.top) / cell);
+      return x >= 0 && y >= 0 && x < c && y < rows ? { x: x, y: y } : null;
+    }
+    function setPx(p) { state[key].sizes[id].px[p.y * c + p.x] = mode; }
+    function lineTo(a, b) {
+      var dx = Math.abs(b.x - a.x), dy = -Math.abs(b.y - a.y), sx = a.x < b.x ? 1 : -1, sy = a.y < b.y ? 1 : -1;
+      var err = dx + dy, x = a.x, y = a.y;
+      for (;;) {
+        setPx({ x: x, y: y });
+        if (x === b.x && y === b.y) break;
+        var e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x += sx; }
+        if (e2 <= dx) { err += dx; y += sy; }
+      }
+    }
+    cv.addEventListener('pointerdown', function (ev) {
+      var p = cellAt(ev); if (!p) return;
+      ev.preventDefault();
+      cv.setPointerCapture(ev.pointerId);
+      var s = state[key].sizes[id];
+      pushUndo(s);
+      mode = s.px[p.y * c + p.x] ? 0 : 1;
+      active = { key: key, id: id };
+      setPx(p); last = p; draw();
+    });
+    cv.addEventListener('pointermove', function (ev) {
+      var p = cellAt(ev);
+      if (active && active.key === key && active.id === id && last) {
+        if (p && (p.x !== last.x || p.y !== last.y)) { lineTo(last, p); last = p; draw(); }
+        return;
+      }
+      if ((p && (!hover || p.x !== hover.x || p.y !== hover.y)) || (!p && hover)) { hover = p; draw(); }
+    });
+    function end() {
+      if (!active || active.key !== key || active.id !== id) return;
+      active = null; last = null;
+      state[key].sizes[id].edited = true;
+      scheduleSave(key, id); renderList();
+    }
+    cv.addEventListener('pointerup', end);
+    cv.addEventListener('pointercancel', end);
+    cv.addEventListener('pointerleave', function () { if (!active && hover) { hover = null; draw(); } });
+    undo.addEventListener('click', function () {
+      var s = state[key].sizes[id]; if (!s.undo.length) return;
+      s.px = s.undo.pop(); s.edited = true; scheduleSave(key, id); draw(); renderList();
+    });
+    clear.addEventListener('click', function () {
+      var s = state[key].sizes[id];
+      pushUndo(s); s.px = new Uint8Array(c * rows); s.edited = true;
+      scheduleSave(key, id); draw(); renderList();
+    });
+    reset.title = 'Back to ' + LABEL[startOf(icon, z)];
+    reset.addEventListener('click', function () {
+      resetTo(key, id, startOf(icon, z)); draw(); renderList();
+    });
+    copySel.addEventListener('change', function () {
+      if (!copySel.value) return;
+      copyFrom(key, id, copySel.value); copySel.value = ''; draw(); renderList();
+    });
+    var ro = new ResizeObserver(function () { layout(); });
+    ro.observe(card);
+    layout();
+    return { draw: draw, layout: layout, id: id };
+  }
+
+  function renderAll(rebuild) {
+    renderList();
+    if (rebuild || !editors.length) build();
+    else editors.forEach(function (e) { e.draw(); });
+  }
+
+  // ---- copy ----------------------------------------------------------------------------------
+  var jsonBox = document.getElementById('jsonbox');
+  document.getElementById('copy').addEventListener('click', function () {
+    var text = JSON.stringify(exportAll());
+    var done = function () { setStatus('saved', 'Copied'); setTimeout(refreshStatus, 1500); };
+    var fallback = function () { jsonBox.hidden = false; jsonBox.value = text; jsonBox.focus(); jsonBox.select(); };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+  });
+
+  // ---- start ---------------------------------------------------------------------------------
+  document.getElementById('watchfonts').textContent = ['GOTHIC_14', 'GOTHIC_18', 'GOTHIC_24'].map(function (k) { return FONTS[k].css; }).join('\n');
+  restoreLocal();
+  renderAll(true);
+  if (document.fonts && document.fonts.load) {
+    Promise.all(['GOTHIC_14', 'GOTHIC_18', 'GOTHIC_24'].map(function (k) { return document.fonts.load(FONTS[k].height + 'px ' + FONTS[k].family); }))
+      .then(function () { editors.forEach(function (e) { e.draw(); }); }, function () {});
+  }
+  var claude = window.claude;
+  if (claude && claude.use) {
+    claude.use('db').then(function (handle) {
+      dbReady = true; db = handle;
+      if (!db) { refreshStatus(); return; }
+      var first = false;
+      var timer = setTimeout(function () { if (!first) setStatus('error', 'Saved edits not reachable yet'); }, 10000);
+      db.collection('glyphs').onSnapshot(function (snap) {
+        if (!snap.metadata.fromCache) { first = true; clearTimeout(timer); }
+        applyRemote(snap); refreshStatus();
+      }, function () { clearTimeout(timer); setStatus('error', 'Saved edits not reachable'); });
+      db.collection('icons').onSnapshot(applyDone, function () {});
+      refreshStatus();
+    }, function () { dbReady = true; refreshStatus(); });
+  } else {
+    dbReady = true; refreshStatus();
+  }
+})();
+</script>

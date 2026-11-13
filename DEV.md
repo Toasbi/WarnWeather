@@ -437,6 +437,17 @@ automatic: aplite has no themes chapter and no radar/health frames; flint shows 
 committed) for manual upload. Re-assemble a single reel without recapturing with
 `scripts/assemble-reel.sh <version> <platform> [fps]`.
 
+### Pixel icons
+
+The status icons are drawn pixel by pixel, once per size, in the pixel icon editor:
+
+```bash
+python3 scripts/pixel-icons/build_editor.py          # -> build/pixel-icons/editor.html
+python3 scripts/pixel-icons/import_pixels.py --export editor-export.json
+```
+
+The whole process, the sizes and the file formats: `scripts/pixel-icons/README.md`.
+
 ### Package generation
 
 `package.json` is generated from `package.template.json` + profile in `profiles/`.
