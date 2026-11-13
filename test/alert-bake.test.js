@@ -52,7 +52,7 @@ test('buildSettingsBlob: byte 35 packs the Battery item — its warn level on th
   assert.equal(both[B], 20);
 });
 
-test('buildSettingsBlob: bit 2 of byte 34 is "Alerts replace slots: Right away"', () => {
+test('buildSettingsBlob: bit 2 of byte 34 is "Weather alerts replace slots: Right away"', () => {
   const A = wire.ALERTS_OFFSET;
   assert.equal(wire.ALERTS_REPLACE_BIT, 4);
   assert.equal(wire.buildSettingsBlob({})[A] & wire.ALERTS_REPLACE_BIT, 0, 'absent: If needed');

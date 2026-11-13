@@ -242,7 +242,7 @@ test('snapshot reports onDemand, batteryLowLevel and batteryLowDisplay', () => {
   assert.equal(battery.batteryLowDisplay, 'value');
 });
 
-// The All status bars card's "Alerts replace slots": read like the thresholds
+// The All status bars card's "Weather alerts replace slots": read like the thresholds
 // blob packs it (status-wire.js alertsReplaceSlot), absent where onDemand is.
 test('snapshot reports alertsReplaceSlot where On demand exists', () => {
   assert.equal(buildSettingsSnapshot({}).alertsReplaceSlot, 'needed', 'absent: If needed');

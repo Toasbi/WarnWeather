@@ -137,7 +137,7 @@ static void battery_byte_tests(void) {
     expect("battery.low_empty", status_threshold_battery_low(0, 5), 1);
 }
 
-// The alerts byte [34]: bits 0-1 the rain look, bit 2 "Alerts replace slots: Right
+// The alerts byte [34]: bits 0-1 the rain look, bit 2 "Weather alerts replace slots: Right
 // away", bits 3-7 reserved. Neither reads the other's bits, and a blob from before
 // the bit (0 there) keeps the make-room ladder.
 static void alerts_replace_tests(void) {

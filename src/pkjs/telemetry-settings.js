@@ -363,7 +363,7 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // Absent on a known aplite, which has no On demand: showQt and batteryLowOnly
         // above are what aplite reads, and only aplite reports them.
         onDemand: onDemandCode,
-        // The All status bars card's "Alerts replace slots": 'now' (Right away) or 'needed'
+        // The All status bars card's "Weather alerts replace slots": 'now' (Right away) or 'needed'
         // (If needed, also what an absent key reads as). Absent where onDemand is:
         // aplite has no On demand. Lockstep with handler.ts -- deploy it first.
         alertsReplaceSlot: onDemandCode === undefined ? undefined

@@ -103,7 +103,7 @@ function healthWire(kindIndex, v, settings) {
 
 /**
  * Whether weather alerts replace the slot on their side right away: the All status bars
- * card's "Alerts replace slots" set to Right away ('now'). Anything else, absent
+ * card's "Weather alerts replace slots" set to Right away ('now'). Anything else, absent
  * included, is If needed: the slot gives way only when the bar needs the room.
  * @param {Object} settings Clay settings blob
  * @returns {boolean}

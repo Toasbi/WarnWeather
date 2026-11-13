@@ -3566,7 +3566,7 @@
               {
                 "type": "segmented",
                 "messageKey": "alertsReplaceSlot",
-                "label": "Alerts replace slots",
+                "label": "Weather alerts replace slots",
                 "hintByValue": {
                   "needed": "A weather alert sits beside the slot on its side, which makes room only when the bar is full.",
                   "now": "A weather alert takes the place of the slot on its side while it shows."

@@ -2406,23 +2406,23 @@ test('the All status bars card carries the reset-status-bars link row, ungated',
   // machinery it must NOT be thresholds-gated (neither the section nor the row).
   assert.equal(intro.showWhen, undefined, 'the card carries no platform gate');
   assert.equal(reset.showWhen, undefined, 'the reset row carries no platform gate');
-  // Bold values (thresholds-gated, in view: the owner, 2026-11-06), then Alerts replace slots
+  // Bold values (thresholds-gated, in view: the owner, 2026-11-06), then Weather alerts replace slots
   // (On demand-gated: aplite has no alerts to place), are the card's other rows.
   assert.deepEqual(intro.items.slice(0, -1).map((i) => i.messageKey), ['statusBoldAll', 'alertsReplaceSlot']);
   assert.equal(byKey('statusBoldAll').more, undefined, 'Bold values is not tucked under More options');
   assert.deepEqual(byKey('statusBoldAll').showWhen, { env: 'thresholds' });
-  assert.equal(byKey('alertsReplaceSlot').more, undefined, 'Alerts replace slots is in view');
+  assert.equal(byKey('alertsReplaceSlot').more, undefined, 'Weather alerts replace slots is in view');
   assert.deepEqual(byKey('alertsReplaceSlot').showWhen, { env: 'onDemand' });
 });
 
-// Alerts replace slots (the owner's ask, 2026-11-13: an alert that takes its slot's place
+// Weather alerts replace slots (the owner's ask, 2026-11-13: an alert that takes its slot's place
 // the moment it shows, not only once the bar runs out of room): If needed, the old
 // behaviour, by default; each value's hint says what it does; Reset status bars to defaults
 // puts it back.
-test('Alerts replace slots: If needed by default, Right away on demand, reset with the bars', () => {
+test('Weather alerts replace slots: If needed by default, Right away on demand, reset with the bars', () => {
   const row = byKey('alertsReplaceSlot');
   assert.equal(row.type, 'segmented');
-  assert.equal(row.label, 'Alerts replace slots');
+  assert.equal(row.label, 'Weather alerts replace slots');
   assert.equal(row.defaultValue, 'needed');
   assert.deepEqual(row.options, [['If needed', 'needed'], ['Right away', 'now']]);
   assert.ok(/beside the slot/.test(row.hintByValue.needed), 'If needed: beside the slot');

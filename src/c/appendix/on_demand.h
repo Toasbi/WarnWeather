@@ -216,7 +216,7 @@ void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[
                const int8_t bleed[2], uint8_t battery_slots, OdLayout *out);
 
 // Weather alerts replace the slot on their side right away (the All status bars card's
-// "Alerts replace slots: Right away", status_threshold_alerts_replace): a
+// "Weather alerts replace slots: Right away", status_threshold_alerts_replace): a
 // side with an active weather alert (rain or a metric alert, OD_RAIN on) is laid out as
 // though its own slot were empty, so its items start at the bar's edge whatever room
 // the bar has, and the slot is back once those alerts end. "If needed", the default,

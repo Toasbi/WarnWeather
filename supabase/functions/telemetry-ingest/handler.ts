@@ -146,7 +146,7 @@ const settingsSchema = z
     // DEPLOY-ORDERING: ship this function before the app release that sends these, or
     // the strip step drops them silently.
     onDemand: z.string().optional(),
-    // The All status bars card's "Alerts replace slots": 'now' (Right away) or 'needed'
+    // The All status bars card's "Weather alerts replace slots": 'now' (Right away) or 'needed'
     // (If needed). Absent on aplite, like onDemand. z.string() per
     // threshPhoneBatteryBoldMode's rule above. DEPLOY-ORDERING: ship this function before
     // the app release that sends it, or the strip step drops it silently.

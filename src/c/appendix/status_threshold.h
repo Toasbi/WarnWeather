@@ -257,7 +257,7 @@ void status_threshold_normalize(uint8_t blob[THRESH_SETTINGS_BYTES], int stored_
 int status_threshold_rain_display(const uint8_t blob[THRESH_SETTINGS_BYTES]);
 
 // Bit 2 of the alerts byte: weather alerts replace the slot on their side right away
-// (the All status bars card's "Alerts replace slots: Right away").
+// (the All status bars card's "Weather alerts replace slots: Right away").
 #define THRESH_ALERTS_REPLACE_BIT 4u
 
 // Whether weather alerts replace the slot on their side right away (on_demand.h

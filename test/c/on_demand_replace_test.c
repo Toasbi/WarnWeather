@@ -2,7 +2,7 @@
 #include <string.h>
 #include "on_demand_fixtures.h"
 
-// Host test for "Alerts replace slots: Right away" (on_demand.h
+// Host test for "Weather alerts replace slots: Right away" (on_demand.h
 // od_replace_slots, the All status bars card): a side with an active weather alert is
 // laid out as though its own slot were empty, so its items start at the bar's edge
 // however much room the bar has, while the middle and the far slot keep their places.
