@@ -25,6 +25,8 @@ information only when it's important.
 - System info/alerts: low watch battery, Bluetooth disconnected, quiet time, and a
   sleep icon during the Battery saver hours
 - Weather alerts: rain, wind gusts, UV index, air quality, pollen (DWD) and wind speed
+- Alerts replace slots: a weather alert sits beside the status slot on its side, or
+  takes that slot's place right away
 - Graph lines on Alert: show a wind, gust or UV line only where it reaches your warn
   level, so the graph stays clean until it matters (e.g. UV index only above 5, so you
   know exactly which hours you need sunscreen)

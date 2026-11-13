@@ -214,3 +214,28 @@ typedef struct {
 // sides merge an alert and the bar without either hides both slots.
 void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[2],
                const int8_t bleed[2], uint8_t battery_slots, OdLayout *out);
+
+// Weather alerts replace the slot on their side right away (the All status bars card's
+// "Alerts replace slots: Right away", status_threshold_alerts_replace): a
+// side with an active weather alert (rain or a metric alert, OD_RAIN on) is laid out as
+// though its own slot were empty, so its items start at the bar's edge whatever room
+// the bar has, and the slot is back once those alerts end. "If needed", the default,
+// leaves every slot to the make-room ladder above. A side whose one weather alert is
+// the one its slot merged keeps that slot: it already shows the alert's value at the
+// alert's level. The system items (Battery, Bluetooth, Quiet time, Sleep) never take a
+// slot by themselves. Where a side's slot is taken, od_layout() stands its merged alert
+// in for it, and the Battery item for a battery slot, as for any slot it hides.
+static inline bool od_side_replaces(const OdSideIn *side) {
+    for (int i = 0; i < side->n; i++) {
+        if (side->rank[i] >= OD_RAIN && i + 1 != side->merged) { return true; }
+    }
+    return false;
+}
+
+// Empty the own slot (0 left, 2 right) of each side od_side_replaces() names, in
+// `slots`, od_layout()'s input.
+static inline void od_replace_slots(OdSlotIn slots[3], const OdSideIn sides[2]) {
+    for (int d = 0; d < 2; d++) {
+        if (od_side_replaces(&sides[d])) { slots[d ? 2 : 0] = (OdSlotIn) { .n = 0 }; }
+    }
+}

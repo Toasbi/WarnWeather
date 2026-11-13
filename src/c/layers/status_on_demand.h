@@ -116,6 +116,8 @@ typedef struct {
     uint8_t charge;                            // the watch's charge in %
     bool charging;                             // charging or plugged in
     bool battery_value;                        // Look Icon + value
+    bool alerts_replace;                       // weather alerts replace their side's
+                                               // slot right away (on_demand.h)
 } StatusOnDemandState;
 
 // One draw's On demand pass, filled by status_on_demand_layout() and read by

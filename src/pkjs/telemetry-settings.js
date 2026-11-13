@@ -30,6 +30,9 @@ var viewCycle = require('./view-cycle.js');
 var statusThresholds = require('./status-thresholds.js');
 // telemetryCode — where each On demand item is ticked, read like the bake reads it.
 var onDemand = require('./on-demand.js');
+// alertsReplaceSlot — whether weather alerts take their slot right away, read like the
+// thresholds blob packs it.
+var statusWire = require('./status-wire.js');
 // showOf — a graph line's Show choice, read like the bake reads it.
 var lineAlert = require('./line-alert.js');
 // The forecast's time span option this watch draws (12/24/48 on emery, 24 elsewhere).
@@ -231,6 +234,9 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
     // radio (every other watch keeps its screens as a custom layout, the customView fields
     // below). Elsewhere these three are leftovers, or a constant 'custom'.
     var isAplite = env.platform === 'aplite';
+    // The On demand items' code (undefined on a watch without On demand), which the
+    // settings that only On demand reads follow.
+    var onDemandCode = onDemand.telemetryCode(safe, env);
     // Custom-layout usage: the three packed CLAY_VIEW values fully describe what a
     // custom user built (elements, seats, order, clock/strip omissions) in 3 ints.
     // null (-> absent fields) unless custom is active, so preset rows stay unchanged.
@@ -356,7 +362,12 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // ticked on a bar the layout leaves out, '-' not ticked.
         // Absent on a known aplite, which has no On demand: showQt and batteryLowOnly
         // above are what aplite reads, and only aplite reports them.
-        onDemand: onDemand.telemetryCode(safe, env),
+        onDemand: onDemandCode,
+        // The All status bars card's "Alerts replace slots": 'now' (Right away) or 'needed'
+        // (If needed, also what an absent key reads as). Absent where onDemand is:
+        // aplite has no On demand. Lockstep with handler.ts -- deploy it first.
+        alertsReplaceSlot: onDemandCode === undefined ? undefined
+            : (statusWire.alertsReplaceSlot(safe) ? 'now' : 'needed'),
         // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),

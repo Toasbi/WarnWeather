@@ -52,6 +52,25 @@ test('buildSettingsBlob: byte 35 packs the Battery item — its warn level on th
   assert.equal(both[B], 20);
 });
 
+test('buildSettingsBlob: bit 2 of byte 34 is "Alerts replace slots: Right away"', () => {
+  const A = wire.ALERTS_OFFSET;
+  assert.equal(wire.ALERTS_REPLACE_BIT, 4);
+  assert.equal(wire.buildSettingsBlob({})[A] & wire.ALERTS_REPLACE_BIT, 0, 'absent: If needed');
+  assert.equal(wire.buildSettingsBlob({ alertsReplaceSlot: 'needed' })[A], 0);
+  assert.equal(wire.buildSettingsBlob({ alertsReplaceSlot: 'now' })[A], wire.ALERTS_REPLACE_BIT);
+  assert.equal(wire.buildSettingsBlob({ alertsReplaceSlot: 'yes' })[A], 0, 'junk reads as If needed');
+  // Beside the rain look in bits 0-1, neither touching the other, nor the Battery byte.
+  ['text', 'icon', 'minutes'].forEach((look, i) => {
+    const blob = wire.buildSettingsBlob({ alertsReplaceSlot: 'now', rainAlertDisplay: look });
+    assert.equal(blob[A], wire.ALERTS_REPLACE_BIT | i, look);
+    assert.equal(blob[wire.BATTERY_OFFSET], 10, look);
+  });
+  // Only byte 34 moves.
+  const off = wire.buildSettingsBlob({ rainAlertDisplay: 'icon' });
+  const on = wire.buildSettingsBlob({ rainAlertDisplay: 'icon', alertsReplaceSlot: 'now' });
+  off.forEach((b, i) => { if (i !== A) { assert.equal(on[i], b, 'byte ' + i); } });
+});
+
 test('buildSettingsBlob: bytes 38-47 carry the On demand cells, effective values only', () => {
   const O = wire.ON_DEMAND_OFFSET;
   assert.equal(O, 38);

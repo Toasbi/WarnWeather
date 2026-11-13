@@ -122,7 +122,7 @@ const EXPECTED_KEYS = [
   // countdown dates (its side lists are on-demand.js DEFAULTS', ALERT_KEYS).
   ...['statusBar4', 'statusBar5', 'statusBar6'].reduce((all, p) => all.concat([p + 'Made', p + 'Name',
     p + 'Left', p + 'LeftCountdown', p + 'Mid', p + 'MidCountdown', p + 'Right', p + 'RightCountdown']), []),
-  'statusBoldAll',
+  'statusBoldAll', 'alertsReplaceSlot',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
   'statusTopLeft','statusTopLeftCountdown','statusTopMid','statusTopMidCountdown','statusTopRight','statusTopRightCountdown',
@@ -2406,10 +2406,31 @@ test('the All status bars card carries the reset-status-bars link row, ungated',
   // machinery it must NOT be thresholds-gated (neither the section nor the row).
   assert.equal(intro.showWhen, undefined, 'the card carries no platform gate');
   assert.equal(reset.showWhen, undefined, 'the reset row carries no platform gate');
-  // Bold values (thresholds-gated, in view: the owner, 2026-11-06) is the card's one other row.
-  assert.deepEqual(intro.items.slice(0, -1).map((i) => i.messageKey), ['statusBoldAll']);
+  // Bold values (thresholds-gated, in view: the owner, 2026-11-06), then Alerts replace slots
+  // (On demand-gated: aplite has no alerts to place), are the card's other rows.
+  assert.deepEqual(intro.items.slice(0, -1).map((i) => i.messageKey), ['statusBoldAll', 'alertsReplaceSlot']);
   assert.equal(byKey('statusBoldAll').more, undefined, 'Bold values is not tucked under More options');
   assert.deepEqual(byKey('statusBoldAll').showWhen, { env: 'thresholds' });
+  assert.equal(byKey('alertsReplaceSlot').more, undefined, 'Alerts replace slots is in view');
+  assert.deepEqual(byKey('alertsReplaceSlot').showWhen, { env: 'onDemand' });
+});
+
+// Alerts replace slots (the owner's ask, 2026-11-13: an alert that takes its slot's place
+// the moment it shows, not only once the bar runs out of room): If needed, the old
+// behaviour, by default; each value's hint says what it does; Reset status bars to defaults
+// puts it back.
+test('Alerts replace slots: If needed by default, Right away on demand, reset with the bars', () => {
+  const row = byKey('alertsReplaceSlot');
+  assert.equal(row.type, 'segmented');
+  assert.equal(row.label, 'Alerts replace slots');
+  assert.equal(row.defaultValue, 'needed');
+  assert.deepEqual(row.options, [['If needed', 'needed'], ['Right away', 'now']]);
+  assert.ok(/beside the slot/.test(row.hintByValue.needed), 'If needed: beside the slot');
+  assert.ok(/takes the place of the slot/.test(row.hintByValue.now), 'Right away: takes its place');
+  const S = { alertsReplaceSlot: 'now' };
+  global.PConf.actions.resetStatusSlots(null, S, { platform: 'basalt', onDemand: true },
+    (k) => (k === 'alertsReplaceSlot' ? 'needed' : undefined));
+  assert.equal(S.alertsReplaceSlot, 'needed', 'Reset status bars to defaults puts it back');
 });
 
 test('every threshold sheet is sheetOnly and gated off on aplite (which compiles the highlight out)', () => {

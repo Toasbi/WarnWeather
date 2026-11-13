@@ -174,6 +174,7 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SC
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
     s->bt_key = 0;
     s->battery_value = false;
+    s->alerts_replace = status_threshold_alerts_replace(blob);
     BatteryChargeState bs = watch_services_battery_state();
     s->charge = bs.charge_percent;
     s->charging = bs.is_charging || bs.is_plugged;
@@ -312,11 +313,11 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
     const bool batt = s.active[OD_BATTERY];
     const bool rain = s.active[OD_RAIN];
     const bool text = rain && s.rain_display != THRESH_RAIN_DISPLAY_ICON;
-    uint8_t live[10] = { (uint8_t)batt, s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
+    uint8_t live[11] = { (uint8_t)batt, s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
                          (uint8_t)s.active[OD_SLEEP], (uint8_t)rain,
                          batt ? s.charge : 0, (uint8_t)(batt && s.charging),
                          rain ? s.rain.tier : 0, text ? s.rain.mins : 0,
-                         (uint8_t)(text && s.rain.raining) };
+                         (uint8_t)(text && s.rain.raining), (uint8_t)s.alerts_replace };
     sig = sig_fold(sig, live, sizeof(live));
     return sig_fold(sig, s.bytes, (size_t)n);
 }
@@ -428,6 +429,9 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     Families f;
     f.charging = s->charging;
     for (int i = 0; i < 3; i++) { measure_family(&f, i, &slots[i], &m[i], env, content_w); }
+    // Weather alerts that replace their side's slot right away: that slot is laid out as
+    // empty, so it does not show and the side's items start at the edge.
+    if (s->alerts_replace) { od_replace_slots(f.in, pass->sides); }
     const int8_t bleed[2] = { env->bleed_left, 0 };
     // W7: a slot of this bar that shows the watch battery (the glyph or the Battery %,
     // anywhere) already says what the Battery item would, whatever its Look, so the

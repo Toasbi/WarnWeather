@@ -146,6 +146,11 @@ const settingsSchema = z
     // DEPLOY-ORDERING: ship this function before the app release that sends these, or
     // the strip step drops them silently.
     onDemand: z.string().optional(),
+    // The All status bars card's "Alerts replace slots": 'now' (Right away) or 'needed'
+    // (If needed). Absent on aplite, like onDemand. z.string() per
+    // threshPhoneBatteryBoldMode's rule above. DEPLOY-ORDERING: ship this function before
+    // the app release that sends it, or the strip step drops it silently.
+    alertsReplaceSlot: z.string().optional(),
     // The Battery item's warn level as stored (a percentage) and its look ('icon' /
     // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
     batteryLowLevel: z.number().int().min(0).max(100).optional(),

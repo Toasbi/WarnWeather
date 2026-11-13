@@ -1900,6 +1900,26 @@ module.exports = {
                     options: [['Off', 'off'], ['Per slot', 'perSlot'], ['All', 'all']],
                     showWhen: THRESHOLD_WHEN
                 },
+                // Alerts replace slots: whether a weather alert (rain, wind, gusts, UV, air
+                // quality, pollen) takes the place of the slot on its side the moment it shows
+                // (Right away), or sits beside it and the slot gives way only when the bar runs
+                // out of room (If needed: the make-room ladder, the default). The system items
+                // (Battery, Bluetooth, Quiet time, Sleep) always sit beside it: "Weather" is in
+                // both hints, as the label has no room for it. A settings-store key only, like Bold values: it rides the packed
+                // blob's alerts byte (status-wire.js ALERTS_REPLACE_BIT; the watch's
+                // on_demand.h od_replace_slots). aplite has no On demand.
+                {
+                    type: 'segmented',
+                    messageKey: 'alertsReplaceSlot',
+                    label: 'Alerts replace slots',
+                    hintByValue: {
+                        needed: 'A weather alert sits beside the slot on its side, which makes room only when the bar is full.',
+                        now: 'A weather alert takes the place of the slot on its side while it shows.'
+                    },
+                    defaultValue: 'needed',
+                    options: [['If needed', 'needed'], ['Right away', 'now']],
+                    showWhen: ON_DEMAND_WHEN
+                },
                 // The reset reverts every slot AND the bold settings in one tap (blocks.js
                 // resetStatusSlots); last under More options (owner, 2026-10-04). Deliberately
                 // NOT thresholds-gated: aplite has slots but no bold machinery, and "status
