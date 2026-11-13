@@ -135,20 +135,24 @@ test('every declared domain is one the code requests', () => {
   });
 });
 
-// Required: what a fresh install needs to show its screens (the forecast, before and after setup
-// picks a service by country; the Watch bar's air quality and the Forecast bar's town name) and
-// what the settings page needs as it opens (a page's domains are fixed while it is open: place
-// search). Optional: what only a choice of the user's uses, asked about when first used.
-test('what a fresh install and the settings page use is required; a service you add a key for is not', () => {
+// Required (the owner's, 2026-11-13): every weather service the app can fetch from (the
+// forecast and radar services, keyed or not, air quality, DWD pollen), place names and search,
+// and the app's own backend (the build adds its entry, required). Installing then waits for an
+// answer on all of them, so switching services or opening settings never meets a first request
+// that fails while the phone asks; a "no" is an answer too, and the install goes on. Optional:
+// what is not weather data and only some installs use, asked about when first used.
+test('every weather service and place lookup is required; holidays, updates, notifications and Health are not', () => {
   ['api.weather.com', 'www.wunderground.com', 'api.open-meteo.com', 'api.met.no', 'api.brightsky.dev',
-    'api.waqi.info', 'geocode.arcgis.com', 'geocoding-api.open-meteo.com'].forEach((d) => {
+    'api.openweathermap.org', 'api.tomorrow.io', 'api.weather.yandex.ru', 'api.rainbow.ai',
+    'api.waqi.info', 'air-quality-api.open-meteo.com', 'maps.dwd.de',
+    'geocode.arcgis.com', 'geocoding-api.open-meteo.com'].forEach((d) => {
     assert.equal(entryOf(d).required, true, d + ' is required');
   });
-  ['api.openweathermap.org', 'api.tomorrow.io', 'api.weather.yandex.ru', 'api.rainbow.ai',
-    'us1.locationiq.com', 'maps.dwd.de', 'date.nager.at', 'appstore-api.repebble.com'].forEach((d) => {
+  ['us1.locationiq.com', 'date.nager.at', 'appstore-api.repebble.com', 'appstore-api.rebble.io'].forEach((d) => {
     assert.equal(entryOf(d).required, false, d + ' is optional');
   });
   assert.equal(uses.find((p) => p.name === 'Location').required, true, 'the forecast is for where you are');
+  ['ShowNotifications', 'Health'].forEach((n) => assert.equal(uses.find((p) => p.name === n).required, false, n));
 });
 
 // Pebble app 1.18.0: Pebble.showSimpleNotificationOnPebble needs ShowNotifications, or the phone drops

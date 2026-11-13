@@ -594,11 +594,15 @@
             "api.brightsky.dev",
             "api.met.no",
             "api.open-meteo.com",
+            "api.openweathermap.org",
+            "api.rainbow.ai",
+            "api.tomorrow.io",
             "api.weather.com",
+            "api.weather.yandex.ru",
             "www.wunderground.com"
           ]
         },
-        "reason": "To get your forecast and rain radar",
+        "reason": "To get your forecast and rain radar from the weather service you pick",
         "required": true
       },
       {
@@ -616,6 +620,16 @@
         "name": "Internet",
         "parameters": {
           "domains": [
+            "maps.dwd.de"
+          ]
+        },
+        "reason": "To show the pollen count from DWD",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
             "geocode.arcgis.com",
             "geocoding-api.open-meteo.com"
           ]
@@ -627,42 +641,10 @@
         "name": "Internet",
         "parameters": {
           "domains": [
-            "api.openweathermap.org",
-            "api.tomorrow.io",
-            "api.weather.yandex.ru"
-          ]
-        },
-        "reason": "To use OpenWeatherMap, Tomorrow.io or Yandex with your own key",
-        "required": false
-      },
-      {
-        "name": "Internet",
-        "parameters": {
-          "domains": [
-            "api.rainbow.ai"
-          ]
-        },
-        "reason": "To show Rainbow's rain radar with your own key",
-        "required": false
-      },
-      {
-        "name": "Internet",
-        "parameters": {
-          "domains": [
             "us1.locationiq.com"
           ]
         },
         "reason": "To look up your town's name with your own LocationIQ key",
-        "required": false
-      },
-      {
-        "name": "Internet",
-        "parameters": {
-          "domains": [
-            "maps.dwd.de"
-          ]
-        },
-        "reason": "To show the pollen count from DWD",
         "required": false
       },
       {
