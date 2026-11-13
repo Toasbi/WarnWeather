@@ -18,14 +18,16 @@ const BASALT = { platform: 'basalt', color: true };
 const APLITE = { platform: 'aplite', color: false };
 
 /**
- * SUN_EVENTS bytes for a sun event pair: a sunset first (day now) or a sunrise first (night
- * now), 11 hours apart, or a polar pair (6 days apart), which reads the other way round.
+ * SUN_EVENTS bytes for a sun event pair ahead of now: a sunset first (day now) or a sunrise
+ * first (night now), 11 hours apart, or a polar pair (6 days apart), which reads the other way
+ * round.
  * @param {boolean} night Night now.
  * @param {boolean} [polar] A polar pair.
+ * @param {number} [aheadMs] How far ahead the first event is (negative: gone by).
  * @returns {number[]}
  */
-function sun(night, polar) {
-  const t = 1780315200 * 1000;
+function sun(night, polar, aheadMs) {
+  const t = Math.floor(Date.now() / 1000) * 1000 + (aheadMs === undefined ? 3600000 : aheadMs);
   const gap = polar ? 6 * 86400000 : 40000000;
   // A polar night is a sunset then a sunrise; an ordinary night starts on the sunrise.
   const first = (night !== Boolean(polar)) ? 'sunrise' : 'sunset';
@@ -62,6 +64,23 @@ test('a clear night says Clear with the moon', () => {
   assert.equal(mid.icon, catalog.ICONS.COND_MOON);
   assert.equal(left.icon, catalog.ICONS.COND_MOON);
   assert.equal(bake('partly', {}, BASALT, true)[1].icon, catalog.ICONS.COND_MOON_CLOUD);
+});
+
+test('a sun event gone by since the forecast came flips it: the re-bake turns at sunset', () => {
+  const bakeAt = (night, aheadMs) => decodeLine(lines.packLine(LINE,
+    { CURRENT_CONDITION: 'clear', SUN_EVENTS: sun(night, false, aheadMs) },
+    { statusForecastMid: 'condition' }, BASALT, null))[1];
+  // Day when the forecast came, its sunset an hour ago: night now.
+  assert.equal(bakeAt(false, -3600000).icon, catalog.ICONS.COND_MOON);
+  assert.equal(bakeAt(false, -3600000).text, 'Clear' + SEP + 'CLR');
+  // Night then, its sunrise gone by: day.
+  assert.equal(bakeAt(true, -3600000).icon, catalog.ICONS.COND_SUN);
+  // Both gone by (a sunset, then the next sunrise): day again.
+  assert.equal(bakeAt(false, -50000000).icon, catalog.ICONS.COND_SUN);
+  // A polar pair's events are no real sunset or sunrise: it never flips.
+  const polar = decodeLine(lines.packLine(LINE, { CURRENT_CONDITION: 'clear', SUN_EVENTS: sun(true, true, -3600000) },
+    { statusForecastMid: 'condition' }, BASALT, null))[1];
+  assert.equal(polar.icon, catalog.ICONS.COND_MOON);
 });
 
 test('a polar pair reads the other way round: polar night has the moon, polar day the sun', () => {

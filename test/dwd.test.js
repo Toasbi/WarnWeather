@@ -877,16 +877,20 @@ test('DWD names the condition now from the observation\'s icon, graded by its la
   });
 });
 
-test('DWD leaves the condition unknown when the observation names none, whatever the forecast says', () => {
+test('DWD falls back to the forecast\'s condition for the hour now when the observation names none', () => {
   const recs = fullRecords().map((r) => Object.assign(r, { icon: 'cloudy', condition: 'dry' }));
   [{ temperature: 15 }, { temperature: 15, icon: 'nonsense', condition: 'dry' },
     { temperature: 15, icon: 42, condition: ['rain'] }].forEach((current) => {
     const { p, mapped, ok } = runSeam(recs, { current });
     assert.equal(ok, true, JSON.stringify(current));
-    assert.equal(mapped[0].currentCondition, null, JSON.stringify(current));
-    assert.equal(p.currentCondition, null);
-    assert.equal('CURRENT_CONDITION' in p.getPayload(), false);
+    assert.equal(mapped[0].currentCondition, 'cloudy', JSON.stringify(current));
+    assert.equal(p.getPayload().CURRENT_CONDITION, 'cloudy');
   });
+  // Neither names one: none.
+  const bare = fullRecords().map((r) => Object.assign(r, { icon: null, condition: 'dry' }));
+  const { p } = runSeam(bare, { current: { temperature: 15, condition: 'dry' } });
+  assert.equal(p.currentCondition, null);
+  assert.equal('CURRENT_CONDITION' in p.getPayload(), false);
 });
 
 test('DWD with no station near enough: the condition is the forecast\'s for the hour now, the record an hour on', () => {

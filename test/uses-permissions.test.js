@@ -177,6 +177,12 @@ test('the build adds the injected endpoints\' hosts as a required entry of their
   assert.equal(pkg.usesPermissions.length, 4);
   assert.deepEqual(perms.addEndpointHosts(pkg, ['https://abc.supabase.co/functions/v1/news']), [],
     'a host already declared adds nothing');
+  // An optional entry covering the host leaves it to a question the user may decline: the app's
+  // own backend still gets its required entry.
+  const optional = { usesPermissions: [{ name: 'Internet', parameters: { domains: ['api.met.no'] }, reason: 'To a', required: true },
+    { name: 'Internet', parameters: { domains: ['supabase.co'] }, reason: 'To b', required: false }] };
+  assert.deepEqual(perms.addEndpointHosts(optional, ['https://abc.supabase.co/functions/v1/news']), ['abc.supabase.co']);
+  assert.equal(optional.usesPermissions[1].required, true, 'its own required entry, after the required one');
   // A dev build without the endpoints adds no entry: one without domains would reach every site.
   const dev = { usesPermissions: [{ name: 'Internet', parameters: { domains: ['api.met.no'] }, reason: 'To a', required: true }] };
   assert.deepEqual(perms.addEndpointHosts(dev, ['', '', '']), []);

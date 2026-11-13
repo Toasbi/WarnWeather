@@ -79,6 +79,9 @@ module.exports = {
     HOLIDAY_CACHE_PREFIX: 'holidays_',
     HOLIDAY_BACKOFF_PREFIX: 'holidaysBackoff_',
     UPDATE_NOTIFIED_VERSION_KEY: 'update_notified_version',
+    // Set once a notification made the phone ask for ShowNotifications (notify-watch.js), so a
+    // question the user dismissed is not asked again on every run.
+    NOTIFY_ASKED_KEY: 'notify_asked',
     LAST_UPDATE_CHECK_KEY: 'last_update_check',
     WU_HOURLY_CACHE_KEY: 'wuHourlyCache',
     // The UV / wind / gust / AQI forecast for today's hours already begun, kept

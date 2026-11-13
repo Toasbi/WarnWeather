@@ -63,9 +63,11 @@ function declaredDomains(uses) {
 
 /**
  * Declare the hosts of the build's endpoints, in place: an Internet entry of their own
- * (ENDPOINTS_REASON, required), after the last required Internet entry, for every host no entry
- * covers yet, once each. An empty endpoint (a dev build without it) adds nothing, and with
- * nothing to add no entry is made: an Internet entry without domains would reach every site.
+ * (ENDPOINTS_REASON, required), after the last required Internet entry, for every host no
+ * required entry covers yet, once each (an optional entry covering one would leave the app's
+ * own backend to a question the user may decline). An empty endpoint (a dev build without it)
+ * adds nothing, and with nothing to add no entry is made: an Internet entry without domains
+ * would reach every site.
  * @param {Object} pebble package.json's "pebble" object, holding usesPermissions.
  * @param {string[]} endpoints The endpoint URLs.
  * @returns {string[]} The hosts added.
@@ -76,12 +78,13 @@ function addEndpointHosts(pebble, endpoints) {
   if (!entries.length) {
     throw new Error('package.template.json declares no Internet permission to add the endpoint hosts to');
   }
+  const required = entries.filter((p) => p.required === true);
+  const requiredDomains = declaredDomains(required);
   const added = [];
   endpoints.map(hostOf).forEach((host) => {
-    if (host && !covered(host, declaredDomains(uses).concat(added))) { added.push(host); }
+    if (host && !covered(host, requiredDomains.concat(added))) { added.push(host); }
   });
   if (!added.length) { return added; }
-  const required = entries.filter((p) => p.required === true);
   const after = uses.indexOf(required.length ? required[required.length - 1] : entries[entries.length - 1]);
   uses.splice(after + 1, 0, {
     name: 'Internet',

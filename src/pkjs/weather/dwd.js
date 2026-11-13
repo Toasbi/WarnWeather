@@ -135,27 +135,25 @@ function hourCondition(e) {
 }
 
 /**
- * The current conditions read off the current hour's forecast records, for a
+ * The current conditions read off the current hour's forecast record, for a
  * place with no observing station within MAX_DIST_METERS (withDwdCurrent): the
  * temperature, feels-like (hourFeels) and bearing (hourBearing) the hourly
  * series read from slot 0's own record, so the current values match the graph's
- * first slot; and the weather condition from the record an hour on, the one
- * that covers the hour now, where slot 0's rain comes from too (hourCondition).
+ * first slot. Its weather condition is the forecast's, as for an observation that
+ * names none (mapForecast).
  *
  * @param {Object} e Brightsky hourly weather record (slot 0's own).
- * @param {?Object} next The record stamped an hour later (slot 0's `following`),
- *   or null when Brightsky did not return it.
  * @param {boolean} fetchFeels options.fetchFeels: the Steadman arithmetic runs
  *   only when the feels-like is wanted (mapForecast's compute-skip).
- * @returns {{tempF: number, feelsF: ?number, bearing: (number|null), condition: ?string}}
+ * @returns {{tempF: number, feelsF: ?number, bearing: (number|null), condition: null}}
  *   Shaped like withDwdCurrent's observation.
  */
-function currentFromHour(e, next, fetchFeels) {
+function currentFromHour(e, fetchFeels) {
     return {
         tempF: celsiusToFahrenheit(e.temperature),
         feelsF: fetchFeels ? hourFeels(e) : null,
         bearing: hourBearing(e),
-        condition: next ? hourCondition(next) : null
+        condition: null
     };
 }
 
@@ -328,9 +326,8 @@ function mapForecast(provider, hourly, observed) {
     // back-fill temp under 'provider' and change DWD's numbers).
     var fetchFeels = provider.options.fetchFeels;
     // No observation (no station within max_dist): the current hour's forecast
-    // records stand in, slot 0's own, the one the graph's first slot draws, and
-    // for the condition the one after it, which covers the current hour.
-    var current = observed || currentFromHour(slots[0], following[0], fetchFeels);
+    // record stands in, slot 0's own, the one the graph's first slot draws.
+    var current = observed || currentFromHour(slots[0], fetchFeels);
     var mapped = {
         tempTrend: slots.map(function(e) { return celsiusToFahrenheit(e.temperature); }),
         precipTrend: following.map(function(e) { return e ? e.precipitation_probability / 100 : 0; }),
@@ -348,8 +345,10 @@ function mapForecast(provider, hourly, observed) {
         currentFeels: fetchFeels ? current.feelsF : null,
         startTime: startEpoch,
         currentTemp: current.tempF,
-        // The observation's, or the forecast record standing in for it.
-        currentCondition: current.condition || null
+        // The observation's; where it names none (no station near, or a station whose
+        // record has neither icon nor condition), the forecast's for the hour now: the
+        // record an hour on, which covers it, where slot 0's rain comes from too.
+        currentCondition: current.condition || (following[0] ? hourCondition(following[0]) : null)
     };
     // MOSMIX can omit the bearing on the hour we are inside (it already
     // omits relative_humidity there); the live observation carries it, so

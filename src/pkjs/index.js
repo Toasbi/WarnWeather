@@ -518,8 +518,11 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
     }
     console.log(decision.logLine);
 
-    // The decision owns the whole persist policy (release-notifications.js);
-    // this caller only performs the write it names.
+    /**
+     * Record the newest version shown, as the decision names it. The decision owns the whole
+     * persist policy (release-notifications.js); this caller only performs the write.
+     * @returns {void}
+     */
     function persist() {
         if (decision.persistMaxNotified !== null) {
             localStorage.setItem(KEY_MAX_NOTIFIED_VERSION, decision.persistMaxNotified);

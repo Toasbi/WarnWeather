@@ -105,7 +105,8 @@ var STATUS_KEYS = outbox.WEATHER_CATEGORIES.find(function (category) {
 // 3: ...and WIND_DAY_PEAKS / GUST_DAY_PEAKS / AQI_DAY_PEAKS (theirs).
 // 4: ...and POLLEN_TOMORROW (the pollen alert's look-ahead; the day-max kinds'
 //    tomorrow rides their *_DAY_PEAKS already).
-var SNAPSHOT_VERSION = 4;
+// 5: ...and CURRENT_CONDITION (the weather condition slot).
+var SNAPSHOT_VERSION = 5;
 
 var deps = {};        // injected environment (see init)
 var snapshot = null;  // last bake inputs ({payload, watchInfo}) from THIS PKJS life

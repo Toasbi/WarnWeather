@@ -62,15 +62,24 @@ function decodeFirstSunEvent(sunEvents) {
 }
 
 /**
- * Whether it is night now: the next sun event is a sunrise (start type 0), or for a polar
- * pair the other way round (polar night is a sunset then a sunrise). No events: day.
+ * Whether it is night at `nowSec`: the next sun event when the forecast came was a sunrise
+ * (start type 0), each event gone by since flipping it, so a re-bake from older inputs
+ * (status-rebake.js) still turns at sunset. A polar pair reads the other way round (polar
+ * night is a sunset then a sunrise) and never flips: neither of its events is a real sunrise
+ * or sunset. No events: day.
  * @param {number[]} sunEvents packed SUN_EVENTS wire bytes
+ * @param {number} nowSec now, in epoch seconds
  * @returns {boolean}
  */
-function isNightNow(sunEvents) {
+function isNightNow(sunEvents, nowSec) {
   if (!sunEvents || sunEvents.length < 5) { return false; }
-  var polar = sunEvents.length >= 9 && isPolarSunPair(readInt32LE(sunEvents, 1), readInt32LE(sunEvents, 5));
-  return (sunEvents[0] === 1) === polar;
+  var first = readInt32LE(sunEvents, 1);
+  var second = sunEvents.length >= 9 ? readInt32LE(sunEvents, 5) : null;
+  if (second !== null && isPolarSunPair(first, second)) { return sunEvents[0] === 1; }
+  var night = sunEvents[0] === 0;
+  if (nowSec >= first) { night = !night; }
+  if (second !== null && nowSec >= second) { night = !night; }
+  return night;
 }
 
 /**
@@ -281,7 +290,7 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) 
  */
 function conditionNow(payload) {
   var id = payload && payload.CURRENT_CONDITION;
-  var night = isNightNow(payload && payload.SUN_EVENTS);
+  var night = isNightNow(payload && payload.SUN_EVENTS, Date.now() / 1000);
   var n = condition.names(id, night);
   return n ? { id: id, night: night, names: n } : null;
 }
