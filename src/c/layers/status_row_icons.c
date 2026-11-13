@@ -7,6 +7,8 @@
 // (status_row_aplite.c) loads no glyph.
 #if !defined(PBL_PLATFORM_APLITE)
 
+#include "status_pixel_icons.generated.h"
+
 #define PRECISE_UNITS_PER_PX 8
 
 // The keep-fill recolour: the fill-authored RAIN_* drops (scripts/gen-rain-pdc.py:
@@ -312,6 +314,43 @@ static int phone_icon_h(uint8_t icon_id, int h, bool top_strip) {
     return (h < PHONE_ICON_MIN_H) ? PHONE_ICON_MIN_H : h;
 }
 
+// ── Pixel drawings: one per painted height ──────────────────────────────────
+//
+// An icon marked done in the pixel icon editor (scripts/pixel-icons/README.md) has a drawing
+// for every height the watch draws it at: 1 px lines already on pixel centres, from (0, 0).
+// Drawn 1:1 nothing is scaled, so no line lands between two pixels (and none turns grey under
+// antialiasing: level, upright and 45-degree runs through pixel centres draw the same either
+// way). Any other height, and every icon not done, scales the PDC through icon_load() as before.
+
+// The rows a glyph scaled to h paints: h + 1 for an even h, h + 2 for an odd one (ADR-0002 §3).
+static int painted_rows(int h) { return (h & 1) ? h + 2 : h + 1; }
+
+// The drawing `table` holds for `key` at `rows`, or 0.
+static uint32_t pixel_resource(const StatusPixelIcon *table, int count, uint8_t key, int rows) {
+    for (int i = 0; i < count; i++) {
+        if (table[i].key == key && table[i].rows == rows) { return table[i].resource; }
+    }
+    return 0;
+}
+
+static bool pixel_ink_cb(GDrawCommand *command, uint32_t index, void *context) {
+    (void) index;
+    gdraw_command_set_stroke_color(command, *(const GColor *)context);
+    gdraw_command_set_fill_color(command, GColorClear);
+    return true;
+}
+
+// A pixel drawing in `ink`, its bounds one less than its painted size like every other glyph's
+// (icon_load); the generator writes the ink's size as the image's own bounds.
+static GDrawCommandImage *icon_load_pixels(uint32_t resource_id, GColor ink) {
+    GDrawCommandImage *image = gdraw_command_image_create_with_resource(resource_id);
+    if (!image) { return NULL; }
+    gdraw_command_list_iterate(gdraw_command_image_get_command_list(image), pixel_ink_cb, &ink);
+    GSize size = gdraw_command_image_get_bounds_size(image);
+    gdraw_command_image_set_bounds_size(image, GSize(size.w - 1, size.h - 1));
+    return image;
+}
+
 GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top_strip) {
     if (target_h <= 0) { return NULL; }
     int h = (target_h * icon_scale_pct(icon_id)) / 100;
@@ -341,6 +380,8 @@ GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top
     if (icon_id == STATUS_ICON_PHONE_BATTERY || icon_id == STATUS_ICON_PHONE_BATTERY_CHG) {
         h = phone_icon_h(icon_id, h, top_strip);
     }
+    uint32_t pixels = pixel_resource(s_status_pixel_icons, STATUS_PIXEL_ICON_COUNT, icon_id, painted_rows(h));
+    if (pixels) { return icon_load_pixels(pixels, theme_fg()); }
     if (resource == 0) { return NULL; }
     return icon_load(resource, h, NULL);
 }
@@ -357,6 +398,14 @@ GDrawCommandImage *status_row_icons_load_filled(uint32_t resource_id, int target
     if (resource_id == 0 || target_h <= 0) { return NULL; }
     IconFill fill = { .tint = tint, .outline = outline };
     return icon_load(resource_id, (target_h * RAIN_BOX_PCT) / 100, &fill);
+}
+
+GDrawCommandImage *status_row_icons_load_rain(uint8_t bucket, uint32_t drops_resource, int target_h,
+                                              GColor tint, bool outline) {
+    if (target_h <= 0) { return NULL; }
+    uint32_t pixels = pixel_resource(s_status_pixel_rain, STATUS_PIXEL_RAIN_COUNT, bucket, painted_rows(target_h));
+    if (pixels) { return icon_load_pixels(pixels, outline ? theme_fg() : tint); }
+    return status_row_icons_load_filled(drops_resource, target_h, tint, outline);
 }
 
 void status_row_icons_destroy(GDrawCommandImage *image) {

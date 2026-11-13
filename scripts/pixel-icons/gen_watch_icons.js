@@ -1,0 +1,323 @@
+#!/usr/bin/env node
+/**
+ * Build the pixel drawings of the icons marked done into the watch (README.md in this folder).
+ *
+ *   node scripts/pixel-icons/gen_watch_icons.js           write the files below
+ *   node scripts/pixel-icons/gen_watch_icons.js --check   exit 1 if any of them is stale
+ *
+ * From resources/pixel-icons.json, for every icon marked done:
+ *   resources/data/PX_<KEY>_<rows>.pdc   each size as 1 px lines through pixel centres: level,
+ *                                        upright and 45-degree runs, joined end to end, and
+ *                                        single dots, which the watch draws exactly, smoothing
+ *                                        on or off;
+ *   package.template.json                one raw resource per drawing, on the watches that draw
+ *                                        that size;
+ *   src/c/layers/status_pixel_icons.generated.h   which drawing each icon id (and each rain
+ *                                        alert bucket) uses at each painted height;
+ *   src/c/layers/status_row_aplite.c     the Pebble Classic/Steel bit mask, when the icon has one.
+ * Icons not done keep their PDC, scaled as before.
+ */
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '..', '..');
+const PIXELS = path.join(ROOT, 'resources', 'pixel-icons.json');
+const DATA_DIR = path.join(ROOT, 'resources', 'data');
+const PACKAGE = path.join(ROOT, 'package.template.json');
+const HEADER = path.join(ROOT, 'src', 'c', 'layers', 'status_pixel_icons.generated.h');
+const APLITE_C = path.join(ROOT, 'src', 'c', 'layers', 'status_row_aplite.c');
+const PU = 8;
+
+// The watch's icon ids for each drawing (status_line.h, status_row_icons.h).
+const ICON_IDS = {
+    SUN: ['STATUS_ICON_COND_SUN'], MOON: ['STATUS_ICON_COND_MOON'],
+    SUN_CLOUD: ['STATUS_ICON_COND_SUN_CLOUD'], MOON_CLOUD: ['STATUS_ICON_COND_MOON_CLOUD'],
+    CLOUD: ['STATUS_ICON_COND_CLOUD'], FOG: ['STATUS_ICON_COND_FOG'], HAZE: ['STATUS_ICON_COND_HAZE'],
+    DRIZZLE: ['STATUS_ICON_COND_DRIZZLE'], RAIN: ['STATUS_ICON_COND_RAIN'], HEAVY_RAIN: [],
+    SLEET: ['STATUS_ICON_COND_SLEET'], SNOW: ['STATUS_ICON_COND_SNOW'], HAIL: ['STATUS_ICON_COND_HAIL'],
+    THUNDER: ['STATUS_ICON_COND_THUNDER'],
+    TEMP: ['STATUS_ICON_TEMP'], DEW: ['STATUS_ICON_DEWPOINT'], UV: ['STATUS_ICON_UV'],
+    WIND: ['STATUS_ICON_WIND', 'STATUS_ICON_COND_WIND'], GUST: ['STATUS_ICON_GUST'], AQI: ['STATUS_ICON_AQI'],
+    POLLEN: ['STATUS_ICON_POLLEN'], COUNTDOWN: ['STATUS_ICON_COUNTDOWN'],
+    PHONE_BATTERY: ['STATUS_ICON_PHONE_BATTERY'], PHONE_BATTERY_CHG: ['STATUS_ICON_PHONE_BATTERY_CHG'],
+    STEPS: ['STATUS_ICON_STEPS'], DISTANCE: ['STATUS_ICON_DISTANCE'], SLEEP: ['STATUS_ICON_SLEEP'],
+    HEART: ['STATUS_ICON_HR'],
+    QUIET: ['STATUS_ROW_ICON_QUIET'], BT: ['STATUS_ROW_ICON_BT'], BT_OFF: ['STATUS_ROW_ICON_BT_OFF'],
+};
+// The rain alert's buckets (status_on_demand.c rain_resource): light, rain, heavy.
+const RAIN_BUCKETS = [[1, 'DRIZZLE'], [2, 'RAIN'], [3, 'HEAVY_RAIN']];
+// The watches each platform's resources go to.
+const TARGETS = { basalt: ['basalt', 'diorite', 'flint'], emery: ['emery'] };
+
+/**
+ * The set pixels of '#'/'.' rows, moved so the ink starts at (0, 0).
+ * @param {!Array<string>} lines The drawing's rows.
+ * @returns {!Array<!Array<number>>} [x, y] of each set pixel; empty for a blank drawing.
+ */
+function inkPixels(lines) {
+    const px = [];
+    lines.forEach((s, y) => { for (let x = 0; x < s.length; x++) if (s[x] === '#') px.push([x, y]); });
+    if (!px.length) return px;
+    const x0 = Math.min(...px.map(p => p[0])), y0 = Math.min(...px.map(p => p[1]));
+    return px.map(([x, y]) => [x - x0, y - y0]);
+}
+
+/**
+ * The pixels as runs: level, upright and 45-degree lines through lit pixels only, chosen greedily
+ * (the run that covers the most pixels not yet drawn first), so drawing every run lights exactly
+ * these pixels. A pixel no run of two reaches is a dot (both ends the same).
+ * @param {!Array<!Array<number>>} px [x, y] of each lit pixel.
+ * @returns {!Array<!Array<!Array<number>>>} [[x0, y0], [x1, y1]] per run.
+ */
+function runs(px) {
+    const lit = new Set(px.map(([x, y]) => x + ',' + y));
+    const todo = new Set(lit);
+    const has = (x, y) => lit.has(x + ',' + y);
+    const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]];
+    const order = px.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+    const out = [];
+    while (todo.size) {
+        let best = null;
+        for (const [x, y] of order) {
+            if (!todo.has(x + ',' + y)) continue;
+            for (const [dx, dy] of dirs) {
+                let ax = x, ay = y, bx = x, by = y;
+                while (has(ax - dx, ay - dy)) { ax -= dx; ay -= dy; }
+                while (has(bx + dx, by + dy)) { bx += dx; by += dy; }
+                const len = Math.max(Math.abs(bx - ax), Math.abs(by - ay)) + 1;
+                let gain = 0;
+                for (let i = 0; i < len; i++) if (todo.has((ax + i * dx) + ',' + (ay + i * dy))) gain++;
+                if (!best || gain > best.gain || (gain === best.gain && len > best.len)) {
+                    best = { gain, len, ax, ay, dx, dy };
+                }
+            }
+        }
+        for (let i = 0; i < best.len; i++) todo.delete((best.ax + i * best.dx) + ',' + (best.ay + i * best.dy));
+        out.push([[best.ax, best.ay], [best.ax + (best.len - 1) * best.dx, best.ay + (best.len - 1) * best.dy]]);
+    }
+    return out;
+}
+
+/**
+ * The runs joined end to end into open paths: a run that starts where another ends continues it,
+ * so the image holds fewer commands (9 bytes each, plus 4 per point) and costs the watch less heap.
+ * The pixels stay the same: a path is drawn as its runs, one after another.
+ * @param {!Array<!Array<!Array<number>>>} segs runs() of the drawing.
+ * @returns {!Array<!Array<!Array<number>>>} The paths' points, [x, y] each.
+ */
+function paths(segs) {
+    const key = (p) => p[0] + ',' + p[1];
+    const at = {};
+    segs.forEach((s, i) => s.forEach(p => { (at[key(p)] = at[key(p)] || []).push(i); }));
+    const used = segs.map(() => false);
+    const out = [];
+    segs.forEach((seg, i) => {
+        if (used[i]) return;
+        used[i] = true;
+        const pts = seg.slice();
+        for (const tail of [true, false]) {
+            for (;;) {
+                const end = tail ? pts[pts.length - 1] : pts[0];
+                const j = at[key(end)].find(q => !used[q]);
+                if (j === undefined) break;
+                used[j] = true;
+                const next = key(segs[j][0]) === key(end) ? segs[j][1] : segs[j][0];
+                if (tail) pts.push(next); else pts.unshift(next);
+            }
+        }
+        out.push(pts);
+    });
+    return out;
+}
+
+/**
+ * A PDC image of 1 px open precise paths through pixel centres (svg2pdc.py's layout).
+ * @param {!Array<!Array<!Array<number>>>} lines The paths' points, [x, y] each (paths()).
+ * @param {number} w The image's width in pixels, its view box.
+ * @param {number} h Its height.
+ * @returns {!Buffer} The .pdc file.
+ */
+function pdc(lines, w, h) {
+    const cmds = lines.map((pts) => {
+        const b = Buffer.alloc(9 + 4 * pts.length);
+        b.writeUInt8(3, 0);        // precise path
+        b.writeUInt8(0, 1);        // not hidden
+        b.writeUInt8(0xFF, 2);     // stroke colour, recoloured on load
+        b.writeUInt8(1, 3);        // stroke width
+        b.writeUInt8(0x00, 4);     // fill clear
+        b.writeUInt16LE(1, 5);     // open
+        b.writeUInt16LE(pts.length, 7);
+        pts.forEach(([x, y], k) => {
+            b.writeInt16LE(x * PU + PU / 2, 9 + 4 * k);
+            b.writeInt16LE(y * PU + PU / 2, 11 + 4 * k);
+        });
+        return b;
+    });
+    const head = Buffer.alloc(8);
+    head.writeUInt8(1, 0);         // version
+    head.writeUInt8(0, 1);
+    head.writeInt16LE(w, 2);
+    head.writeInt16LE(h, 4);
+    head.writeUInt16LE(cmds.length, 6);
+    const body = Buffer.concat([head, ...cmds]);
+    const size = Buffer.alloc(4);
+    size.writeUInt32LE(body.length, 0);
+    return Buffer.concat([Buffer.from('PDCI'), size, body]);
+}
+
+/**
+ * Every file this generator owns, as {path: Buffer|string}.
+ * @param {!Object=} doc resources/pixel-icons.json's content; the file by default.
+ * @returns {!Object<string, (!Buffer|string)>} The files' content by absolute path.
+ */
+function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
+    const files = {};
+    const media = [];
+    const table = [];        // [icon id, rows, resource, platforms]
+    const rainTable = [];    // [bucket, rows, resource, platforms]
+    const masks = {};        // aplite: KEY -> {rows: [uint16], w}
+    const done = Object.keys(doc.icons).filter(k => doc.icons[k].done);
+    for (const key of done) {
+        if (!ICON_IDS[key]) throw new Error('unknown icon ' + key);
+        const sizes = doc.icons[key].sizes;
+        for (const id of Object.keys(sizes).sort((a, b) => (a === 'A') - (b === 'A') || Number(a) - Number(b))) {
+            const s = sizes[id];
+            const px = inkPixels(s.pixels);
+            if (!px.length) continue;
+            const w = Math.max(...px.map(p => p[0])) + 1, h = Math.max(...px.map(p => p[1])) + 1;
+            if (id === 'A') {
+                if (w > 16) throw new Error(key + ': the Pebble Classic/Steel mask is wider than 16 px');
+                const rows = [];
+                for (let y = 0; y < h; y++) {
+                    let bits = 0;
+                    px.forEach(([x, py]) => { if (py === y) bits |= 1 << x; });
+                    rows.push(bits);
+                }
+                masks[key] = { rows, w };
+                continue;
+            }
+            // The size is the painted height the watch looks it up by; the image is the ink alone
+            // (a drawing may leave its top or bottom row blank), seated by its ink as the editor
+            // seats it.
+            const rows = Number(id);
+            const plats = s.platforms || ['basalt', 'emery'];
+            if (!plats.length) continue;   // a size no watch draws any more
+            const name = 'PX_' + key + '_' + id;
+            files[path.join(DATA_DIR, name + '.pdc')] = pdc(paths(runs(px)), w, h);
+            const targets = [].concat(...plats.map(p => TARGETS[p] || [])).sort();
+            media.push({ type: 'raw', name, file: 'data/' + name + '.pdc', targetPlatforms: targets });
+            ICON_IDS[key].forEach(icon => table.push([icon, rows, 'RESOURCE_ID_' + name, plats]));
+            RAIN_BUCKETS.forEach(([bucket, k]) => {
+                if (k === key) rainTable.push([bucket, rows, 'RESOURCE_ID_' + name, plats]);
+            });
+        }
+    }
+    // package.template.json: the drawings' resources after every other one, in a fixed order.
+    const pkg = JSON.parse(fs.readFileSync(PACKAGE, 'utf8'));
+    const res = pkg.pebble.resources;
+    res.media = res.media.filter(m => !/^PX_/.test(m.name)).concat(media);
+    files[PACKAGE] = JSON.stringify(pkg, null, 2) + '\n';
+    files[HEADER] = header(table, rainTable);
+    files[APLITE_C] = apliteSource(masks);
+    return files;
+}
+
+/**
+ * status_pixel_icons.generated.h: the drawings each watch family looks up. Each family lists only
+ * its own, since a resource is built for the watches that draw that size and another family's
+ * resource id does not exist there.
+ * @param {!Array<!Array>} table [icon id, rows, resource, platforms] per icon drawing.
+ * @param {!Array<!Array>} rainTable [bucket, rows, resource, platforms] per rain alert drawing.
+ * @returns {string} The header.
+ */
+function header(table, rainTable) {
+    const section = (plat) => {
+        const mine = (t) => t.filter(e => e[3].includes(plat));
+        const rows = (t) => t.length ? t.map(([a, b, c]) => '    { ' + a + ', ' + b + ', ' + c + ' },').join('\n')
+            : '    { 0, 0, 0 },   // none yet';
+        const icons = mine(table), rain = mine(rainTable);
+        return `#define STATUS_PIXEL_ICON_COUNT ${icons.length}
+static const StatusPixelIcon s_status_pixel_icons[] = {
+${rows(icons)}
+};
+#define STATUS_PIXEL_RAIN_COUNT ${rain.length}
+static const StatusPixelIcon s_status_pixel_rain[] = {
+${rows(rain)}
+};`;
+    };
+    return `// GENERATED by scripts/pixel-icons/gen_watch_icons.js from resources/pixel-icons.json: do not
+// edit. The status icons drawn pixel by pixel (scripts/pixel-icons/README.md): the drawing each
+// icon id uses at each painted height. status_row_icons.c draws it 1:1 where a bar asks for that
+// height; any other height, and every icon not marked done, scales the icon's PDC as before.
+// s_status_pixel_rain: the rain alert's drawings by bucket (1 light, 2 rain, 3 heavy): Drizzle,
+// Rain and Heavy rain.
+#pragma once
+#include <stdint.h>
+
+typedef struct {
+    uint8_t key;        // an icon id (status_line.h, status_row_icons.h), or a rain alert bucket
+    uint8_t rows;       // the painted height it is drawn at
+    uint32_t resource;
+} StatusPixelIcon;
+
+#if defined(PBL_PLATFORM_EMERY)
+// emery: the Pebble Time 2's sizes (13, 15 and 17 rows for a weather icon).
+${section('emery')}
+#else
+${section('basalt')}
+#endif
+`;
+}
+
+/**
+ * status_row_aplite.c with the done icons' masks (and their sizes) written in. A mask is its ink
+ * and nothing more, as the editor's preview shows it.
+ * @param {!Object<string, {rows: !Array<number>, w: number}>} masks By icon key.
+ * @param {string=} src The file's text; the file by default.
+ * @returns {string} The file's new text.
+ */
+function apliteSource(masks, src = fs.readFileSync(APLITE_C, 'utf8')) {
+    for (const key of Object.keys(masks).sort()) {
+        const { rows, w } = masks[key];
+        const hex = rows.map(v => '0x' + v.toString(16).padStart(3, '0')).join(',');
+        const arr = new RegExp('(static const uint16_t MASK_' + key + '\\[\\]\\s*=\\s*)\\{[^}]*\\}');
+        if (!arr.test(src)) throw new Error('no MASK_' + key + ' in status_row_aplite.c');
+        src = src.replace(arr, '$1{' + hex + '}');
+        const dims = new RegExp('(\\{ MASK_' + key + ',\\s*)\\d+(,\\s*)\\d+( \\})');
+        if (!dims.test(src)) throw new Error('no StatusMask for MASK_' + key);
+        src = src.replace(dims, '$1' + rows.length + '$2' + w + '$3');
+    }
+    return src;
+}
+
+/**
+ * Write the files, or with --check exit 1 when one of them is stale.
+ * @returns {void}
+ */
+function main() {
+    const check = process.argv.includes('--check');
+    const files = outputs();
+    // Drawings no longer built (an icon set back to not done) leave resources/data.
+    const stale = fs.readdirSync(DATA_DIR).filter(f => /^PX_.*\.pdc$/.test(f))
+        .map(f => path.join(DATA_DIR, f)).filter(f => !(f in files));
+    const changed = Object.keys(files).filter(f => !fs.existsSync(f)
+        || !Buffer.from(files[f]).equals(fs.readFileSync(f)));
+    if (check) {
+        const all = changed.concat(stale).map(f => path.relative(ROOT, f));
+        if (all.length) {
+            console.error('Stale, run node scripts/pixel-icons/gen_watch_icons.js:\n  ' + all.join('\n  '));
+            process.exit(1);
+        }
+        return;
+    }
+    changed.forEach(f => fs.writeFileSync(f, files[f]));
+    stale.forEach(f => fs.unlinkSync(f));
+    const n = Object.keys(files).filter(f => f.endsWith('.pdc')).length;
+    console.log('pixel icons: ' + n + ' drawings; wrote ' + changed.length + ' files, removed ' + stale.length);
+}
+
+if (require.main === module) main();
+module.exports = { outputs, header, apliteSource, runs, paths, pdc, inkPixels, ICON_IDS, TARGETS,
+    PACKAGE, HEADER, APLITE_C, DATA_DIR };

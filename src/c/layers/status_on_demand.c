@@ -135,8 +135,8 @@ static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int t
         // redraw at the latest — tries again, as the old strip's indicator icons did;
         // until then the item measures text-only, or not at all (Bluetooth, Quiet time).
         cache->images[slot] = (key & RAIN_KEY_FLAG)
-            ? status_row_icons_load_filled(rain_resource(key & ~RAIN_KEY_FLAG), target_h,
-                                           tint, outline)
+            ? status_row_icons_load_rain(key & ~RAIN_KEY_FLAG, rain_resource(key & ~RAIN_KEY_FLAG),
+                                         target_h, tint, outline)
             : status_row_icons_load(key, target_h, top_strip);
         if (cache->images[slot]) { cache->keys[slot] = key; }
     }

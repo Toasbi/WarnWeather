@@ -522,7 +522,10 @@ button { font: inherit; color: inherit; }
       var meas = document.createElement('canvas').getContext('2d');
       meas.font = f.height + 'px ' + f.family;
       var tw = label ? Math.ceil(meas.measureText(label).width) : 0;
-      var gap = z.aplite ? 2 : 3;
+      // The text frame's distance past the ink: the bit masks' SLOT_GAP (status_row_aplite.c),
+      // and STATUS_ROW_ICON_TEXT_GAP - 1 on the colour watches, which count a glyph one column
+      // narrower than its ink (its bounds, as icon_load sets them).
+      var gap = 2;
       var iw = box ? box.w : 0, W = 4 + iw + (label ? gap + tw : 0) + 4, H = f.height + 10;
       var off = document.createElement('canvas'); off.width = W; off.height = H;
       var o = off.getContext('2d');

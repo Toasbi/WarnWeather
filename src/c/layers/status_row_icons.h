@@ -32,4 +32,10 @@ _Static_assert(STATUS_ROW_ICON_BT_OFF < 0x80, "the system glyph ids stay below t
 // NULL for resource 0, a non-positive target_h and a load failure.
 GDrawCommandImage *status_row_icons_load_filled(uint32_t resource_id, int target_h,
                                                 GColor tint, bool outline);
+// The rain alert's icon for `bucket` (1 light, 2 rain, 3 heavy): the Drizzle, Rain or Heavy rain
+// pixel drawing (scripts/pixel-icons/README.md) at the weather icons' size, drawn in `tint`, or
+// in the foreground when `outline` (a pale tint does not read on the light theme's white); the
+// filled drops of `drops_resource` (status_row_icons_load_filled) until that drawing is done.
+GDrawCommandImage *status_row_icons_load_rain(uint8_t bucket, uint32_t drops_resource, int target_h,
+                                              GColor tint, bool outline);
 void status_row_icons_destroy(GDrawCommandImage *image);

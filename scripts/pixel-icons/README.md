@@ -11,6 +11,7 @@ pixels and turns grey. This folder holds the tools that make that work:
 | `build_editor.py` | Builds the pixel icon editor, one HTML page |
 | `editor.html` | The editor's page; `build_editor.py` fills in its data |
 | `import_pixels.py` | Brings edits from the editor into `resources/pixel-icons.json` |
+| `gen_watch_icons.js` | Builds the icons marked done into the watch |
 | `THIRD_PARTY.md` | The licences of the two icon libraries the weather icons start from |
 
 `resources/pixel-icons.json` is the source of truth: every edited size of every icon, and which
@@ -36,8 +37,34 @@ icons are done. Only icons marked done are built into the watch.
    as JSON export; `--db <dir>` reads a dump of the published page's storage (Claude writes it
    with ArtifactData `list ... out_dir`). An icon marked done gets every size; a size you never
    touched takes the editor's starting pixels.
-4. **Build into the watch** and check it in the emulator, then commit `resources/pixel-icons.json`
-   with what the build writes.
+4. **Build into the watch.** `node scripts/pixel-icons/gen_watch_icons.js` writes every size of
+   every icon marked done into the watch (below), then `mise build`. Check the icons in the
+   emulator and commit `resources/pixel-icons.json` with the files the script wrote.
+   `--check` fails while they are stale, and so does `test/pixel-icons.test.js`.
+
+## What the watch does with a drawing
+
+`gen_watch_icons.js` writes, for every icon marked done:
+
+| File | What |
+|---|---|
+| `resources/data/PX_<ICON>_<size>.pdc` | Each size as 1 px lines through pixel centres: level, upright and 45-degree runs, and single dots. The watch draws them exactly, with smoothing on or off. Runs that touch are joined into one path, which keeps a drawing small on the watch's heap: about 170 bytes, against 140 for today's icons |
+| `package.template.json` | One resource per size, only on the watches that draw that size |
+| `src/c/layers/status_pixel_icons.generated.h` | Which drawing each icon uses at each height, one table per watch family |
+| `src/c/layers/status_row_aplite.c` | The Pebble Classic and Steel bit mask, for the seven icons that have one |
+
+The watch draws a done icon's drawing 1:1 wherever a bar asks for the height it was drawn for
+(`status_row_icons.c`). Any other height, and every icon not done, scales the icon's PDC as
+before, so an icon can be finished one at a time. A drawing is its ink: rows and columns left
+blank fall away, and the watch seats the ink beside the text the way the editor's previews do.
+Icons draw in the theme's foreground colour.
+
+The rain alert draws the Drizzle, Rain or Heavy rain drawing in the alert's colour, or in the
+foreground on the light theme, where a pale colour does not read on white. Until that drawing is
+done it draws its filled drops.
+
+A Pebble Classic mask is its ink too. Two of today's masks, gusts and pollen, carry spare blank
+columns; marking one done drops them, so its text moves a pixel closer, as the editor shows.
 
 ## Which sizes an icon gets
 
@@ -64,8 +91,6 @@ drawing, so Wind has every size either uses.
 Pebble Classic and Steel draw seven icons (thermometer, wind, gusts, UV, air quality, pollen,
 countdown) from bit masks in `src/c/layers/status_row_aplite.c`, one size each; the editor shows
 them as a size of their own. Every other icon is text only on those watches.
-
-The rain alert draws the Drizzle, Rain and Heavy rain drawings, in the alert's colour.
 
 ## Starting pixels
 

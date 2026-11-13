@@ -444,6 +444,7 @@ The status icons are drawn pixel by pixel, once per size, in the pixel icon edit
 ```bash
 python3 scripts/pixel-icons/build_editor.py          # -> build/pixel-icons/editor.html
 python3 scripts/pixel-icons/import_pixels.py --export editor-export.json
+node scripts/pixel-icons/gen_watch_icons.js          # the icons marked done, into the watch
 ```
 
 The whole process, the sizes and the file formats: `scripts/pixel-icons/README.md`.

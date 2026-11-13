@@ -32,9 +32,20 @@ def load():
     return {'format': 1, 'about': ABOUT, 'icons': {}}
 
 
+def platforms(key, size_id):
+    """The platforms (watch_icons.PLATFORMS, or aplite) that draw this size of the icon."""
+    if size_id == 'A':
+        return ['aplite']
+    rows = int(size_id)
+    return sorted({u['plat'] for u in W.uses(key) if W.painted_rows(u['h']) == rows})
+
+
 def save(doc):
     doc['about'] = ABOUT
     doc['icons'] = {k: doc['icons'][k] for k in W.KEYS if k in doc['icons']}
+    for key, entry in doc['icons'].items():
+        for size_id, s in entry['sizes'].items():
+            s['platforms'] = platforms(key, size_id)
     with open(W.PIXELS_JSON, 'w') as f:
         json.dump(doc, f, indent=2, ensure_ascii=False)
         f.write('\n')
