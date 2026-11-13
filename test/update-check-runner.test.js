@@ -46,7 +46,8 @@ const run = (over) => {
     appVersion: '1.13.4',
     devConfig: {},
     isWatchConnected: () => true,
-    notify: (title, body) => notified.push({ title, body }),
+    // notify-watch.js calls back true once the user has decided (it showed).
+    notify: (title, body, done) => { notified.push({ title, body }); done(true); },
   }, over || {}));
   return notified;
 };
@@ -73,6 +74,22 @@ test('a newer version in EVERY store notifies once and persists the version', ()
   // Second run within 24h: throttled, no second notification.
   installFakeXhr({});
   assert.equal(run().length, 0, 'throttled — the slot was already claimed today');
+});
+
+// Pebble app 1.18.0 with its permissions preview on: while the user has not answered for
+// ShowNotifications, the phone drops the notification and asks (notify-watch.js calls back false).
+// The version stays unremembered, so the next daily check tells them.
+test('a notification the phone dropped while asking for the permission is not remembered', () => {
+  const store = installFakeStorage();
+  installFakeXhr({
+    'https://a/api': { status: 200, body: storeBody('1.14.0') },
+    'https://b/api': { status: 200, body: storeBody('1.14.0') },
+  });
+  const shown = [];
+  run({ notify: (title, body, done) => { shown.push(title); done(false); } });
+  assert.equal(shown.length, 1, 'shown, which makes the phone ask');
+  assert.equal(store.update_notified_version, undefined, 'not remembered');
+  assert.ok(store.last_update_check, 'the daily slot is still claimed: one check a day');
 });
 
 test('the daily slot is claimed BEFORE fetching, so a failing store cannot retry every tick', () => {

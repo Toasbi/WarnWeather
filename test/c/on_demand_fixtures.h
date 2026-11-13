@@ -88,6 +88,20 @@ static inline void strip_slots(OdSlotIn slots[3]) {
     slots[2] = slot_battery();
 }
 
+// Whether side d draws its input item k.
+static inline int drawn(const OdLayout *out, int d, int k) {
+    return k >= out->first[d] && k < out->first[d] + out->n[d] && k + 1 != out->skip[d];
+}
+
+// W 144: a 30 px left slot, a 40 px middle and a 30 px right slot, no short forms (plain:
+// 0, 52, 114). A 12 px item fits beside either edge slot: its claim (30 + gap + 12) and the
+// gap stay clear of the middle at 52.
+static inline void three_slots(OdSlotIn slots[3]) {
+    slots[0] = slot_text(30, 0);
+    slots[1] = slot_text(40, 0);
+    slots[2] = slot_text(30, 0);
+}
+
 // od_layout's `battery_slots`: bit i marks slot i as one that shows the watch battery.
 #define BATT_L 1
 #define BATT_M 2

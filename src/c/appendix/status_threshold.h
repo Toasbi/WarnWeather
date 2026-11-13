@@ -43,8 +43,11 @@
 //      [34]             alerts options (THRESH_ALERTS_OFFSET). Bits 0-1: the
 //                       Rain item's look (0 text — the legacy "Rain in 12'"
 //                       countdown, 1 icon, 2 icon + minutes; 3 reserved, reads
-//                       as text). Bits 2-7 reserved (DWD official-warning flags
-//                       later) — written 0. Which METRIC alerts are active never
+//                       as text). Bit 2: weather alerts replace the slot on their
+//                       side right away (THRESH_ALERTS_REPLACE_BIT, on_demand.h
+//                       od_replace_slots); 0, the default, leaves the slot to the
+//                       make-room ladder. Bits 3-7 reserved (DWD official-warning
+//                       flags later) — written 0. Which METRIC alerts are active never
 //                       rides here: the phone bakes the placed, active ones into
 //                       their own weather tuple (ALERT_ENTRIES_UINT8, encoding in
 //                       alert_set.h).
@@ -252,6 +255,15 @@ void status_threshold_normalize(uint8_t blob[THRESH_SETTINGS_BYTES], int stored_
 // The rain look (a ThreshRainDisplay, on_demand.h) from bits 0-1 of the alerts byte;
 // the reserved wire value 3 reads as THRESH_RAIN_DISPLAY_TEXT.
 int status_threshold_rain_display(const uint8_t blob[THRESH_SETTINGS_BYTES]);
+
+// Bit 2 of the alerts byte: weather alerts replace the slot on their side right away
+// (the All status bars card's "Weather alerts replace slots: Right away").
+#define THRESH_ALERTS_REPLACE_BIT 4u
+
+// Whether weather alerts replace the slot on their side right away (on_demand.h
+// od_replace_slots); false, the default and every blob from before the bit, leaves the
+// slot to the make-room ladder.
+bool status_threshold_alerts_replace(const uint8_t blob[THRESH_SETTINGS_BYTES]);
 
 // The box a paired kind draws at the WARN level (a goal kind's "close"), for its
 // status slot and its alert icon. The danger level is always filled.

@@ -157,13 +157,26 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   `draw-from.js`' readings, and `clay-payload.js` sends them alongside the other settings.
   Colours pack as single `GColor8` argb bytes, not int32 hex: an array tuple costs 7 B + N,
   a scalar costs 7 B + 4, so packing several into one array is the cheap shape.)
-- **A new API host must be declared in `package.template.json`'s `usesPermissions`** (the
-  `Internet` permission's `domains`; each covers its subdomains). SDK 4.44 builds manifest
-  version 2 pbws: the phone app lets PKJS reach only the declared domains and asks before
-  `Location`. `test/uses-permissions.test.js` fails on a URL in `src/pkjs` that is neither
-  declared nor named there as a non-request (a link in a hint, a comment), and on a declared
-  domain nothing requests. The hosts of the endpoints `prepare-package.sh` injects (telemetry,
-  the Rainbow proxy, news) are added at build time (`scripts/lib/uses-permissions.js`).
+- **A new API host must be declared in `package.template.json`'s `usesPermissions`**, in the
+  `Internet` entry for what it is for (each domain covers its subdomains). SDK 4.44 builds
+  manifest version 2 pbws. With the Pebble app's permissions preview on (its Settings ›
+  Plugins; on for everyone in a later release) the phone lets PKJS and the settings page reach
+  only the declared domains the user allowed, and asks before the rest the app declares
+  (`Location`; `ShowNotifications` for `Pebble.showSimpleNotificationOnPebble`, which goes
+  through `notify-watch.js`). Every entry carries a `reason` (one short "To ..." sentence the
+  user reads) and `required` (app 1.18.0.1: installing waits for an answer on the required
+  ones, though a "no" counts and the install goes on; the others are asked about on first
+  use, and that first request fails). Required (the owner's, 2026-11-13): every weather
+  service the app can fetch from (forecast and radar, keyed or not, air quality, pollen), place
+  lookup and the app's own backend; optional: what is not weather data (holidays, the update
+  check, a LocationIQ key, notifications, Health). With the preview off, the phone grants
+  everything and ignores both fields. A settings-page link to an undeclared site opens through `Pebble.openUrl`
+  (`config-ui/lib/links.js`). `test/uses-permissions.test.js` fails on a URL in `src/pkjs` that
+  is neither declared nor named there as a non-request (a link in a hint, a comment), on a
+  declared domain nothing requests, and on an entry without a reason or `required`. The hosts
+  of the endpoints `prepare-package.sh` injects (telemetry, the Rainbow proxy, news) are added
+  at build time, as an entry of their own (`scripts/lib/uses-permissions.js`). Docs:
+  https://developer.repebble.com/guides/plugins/preview/ (Declaring, Approval).
 - **A new telemetry setting must be added in two places or it's silently dropped:** the
   watch-side snapshot in `src/pkjs/telemetry.js` AND the Deno `.strip()` schema in
   `supabase/functions/telemetry-ingest/handler.ts`.

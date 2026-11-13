@@ -181,6 +181,10 @@ int status_threshold_rain_display(const uint8_t blob[THRESH_SETTINGS_BYTES]) {
     return mode == 3 ? THRESH_RAIN_DISPLAY_TEXT : mode;   // 3 is reserved
 }
 
+bool status_threshold_alerts_replace(const uint8_t blob[THRESH_SETTINGS_BYTES]) {
+    return (blob[THRESH_ALERTS_OFFSET] & THRESH_ALERTS_REPLACE_BIT) != 0;
+}
+
 OdSide status_threshold_on_demand_side(const uint8_t blob[THRESH_SCRATCH_BYTES], int bar,
                                        int item) {
     if (bar < 0 || item < 0 || item >= OD_ITEM_COUNT) { return OD_SIDE_NONE; }

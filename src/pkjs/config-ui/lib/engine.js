@@ -4050,6 +4050,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     wireInputs();
     wireModal();
     wireSave();
+    // Links to other sites through Pebble.openUrl where the app gives the page one (links.js).
+    if (PConf.links && document.addEventListener) {
+      PConf.links.wireLinks(document, typeof window !== 'undefined' ? window : null);
+    }
     // Re-fit the sheet whenever the on-screen keyboard opens/closes or the viewport shifts.
     if (typeof window !== 'undefined' && window.visualViewport) {
       // Only react to keyboard open/close (resize). NOT visualViewport 'scroll' — that fires when

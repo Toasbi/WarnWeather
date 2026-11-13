@@ -6,7 +6,7 @@ var LIB = path.join(__dirname, '..', 'lib');
 // ui.js (the shared parts) reads html.js's esc while its body runs and engine.js reads PConf.ui
 // while its own runs, so it sits between them.
 var LIB_PAGE_FILES = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'ui.js', 'date-picker.js', 'range-control.js',
-  'rgb-control.js', 'checklist.js', 'engine.js'];
+  'rgb-control.js', 'checklist.js', 'links.js', 'engine.js'];
 
 /**
  * Drop the whole-line comments and the leading indentation of one JS file.

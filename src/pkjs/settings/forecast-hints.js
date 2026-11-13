@@ -378,28 +378,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return copy.scale ? joinHint([hint, showAlertScale(S, env, args.metric)]) : hint;
     }
 
-    // The Wind graph scale row's hint while a drawn wind or gust line shows Alert: such
-    // a line runs from its warn level up to its band's top (line-alert.js alertBand),
-    // the higher of the scale's value and the danger level, so the row's own "The scale goes
-    // up to 50 kph. ... typical winds sit mid-graph." no longer holds. Each line's start of the
-    // sentence, for when the drawn wind and gust lines top out at different values, and
-    // its name in "your gust danger level".
-    var WIND_LINE_TOPS = {
-        wind: { lead: 'The wind line goes up to ', tail: 'the wind line to ', danger: 'wind' },
-        gust: { lead: 'The gust line goes up to ', tail: 'the gust line to ', danger: 'gust' }
-    };
-
     /**
-     * The Wind graph scale row's hint while a drawn wind or gust line shows Alert: where
-     * each drawn wind and gust line tops out (an Alert line at its band's top, an All
-     * line at the scale's value) and, where a danger level is that top, whose — without
-     * the row's usual note on what the value emphasizes, which compares the scales of a
-     * 0-based line. Every drawn wind and gust line on Alert (one top, shared): "The scale
-     * goes up to 90 kph, your gust danger level, while Visible values is set to Alert."
-     * (without the danger clause while the scale's own value is the top). One on Alert
-     * beside one on All: "The scale goes up to 70 kph." for one top; "The wind line goes up
-     * to 30 kph, the gust line to 90 kph, your gust danger level." for two. Reads the
-     * stored scale, like the bake.
+     * The Wind graph scale row's hint while a drawn wind or gust line shows Alert. Such a
+     * line runs from its warn level up to its band's top (line-alert.js alertBand): the
+     * higher of the scale's value and the danger level. So the hint says first where the
+     * picked scale goes up to, which moves with every pick, then in one short sentence what
+     * Alert does to the line: "The scale goes up to 30 kph. With Alert, the line runs from
+     * your warn level, 60 kph, to your danger level, 90 kph." While the scale is above the
+     * danger level, the line tops out at the scale: "... With Alert, the line starts at your
+     * warn level, 60 kph." Wind and gusts both on Alert share one band, from the lower warn
+     * level: "the lines run from 40 kph to your gust danger level, 90 kph". One on Alert
+     * beside one on All names the Alert one: "the gust line runs ...". Without the row's
+     * usual note on what the value emphasizes, which compares the scales of a 0-based line.
+     * Reads the stored scale, like the bake.
      * @param {Object} S Live settings state.
      * @param {Object} [env] Platform env (see alertScaleLevels).
      * @returns {?string} The hint; null for "use the row's hintByValue" (no drawn wind
@@ -409,28 +400,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!S) { return null; }
         var drawn = lineAlert.drawnMetrics(S, env);
         var bands = lineAlert.alertBands(S, env);
-        var lines = [], anyAlert = false, i, m;
+        var winds = 0, onAlert = [], i;
         for (i = 0; i < drawn.length; i += 1) {
-            m = drawn[i];
-            if (!Object.prototype.hasOwnProperty.call(WIND_LINE_TOPS, m)) { continue; }
-            lines.push({ metric: m, band: bands[m] || null,
-                top: lineAlert.levelText(S, m, bands[m] ? bands[m].top : lineAlert.scaleTop(S, m)) });
-            if (bands[m]) { anyAlert = true; }
+            if (drawn[i] !== 'wind' && drawn[i] !== 'gust') { continue; }
+            winds += 1;
+            if (bands[drawn[i]]) { onAlert.push(drawn[i]); }
         }
-        if (!anyAlert) { return null; }
-        // The line on Alert (the first, when both are: they share one band).
-        var alert = lines[0].band ? lines[0] : lines[1];
-        var danger = alert.band.topDanger
-            ? ', your ' + WIND_LINE_TOPS[alert.band.topDanger].danger + ' danger level' : '';
-        if (lines.length === 1 || (lines[0].band && lines[1].band)) {
-            return 'The scale goes up to ' + alert.top + (danger ? danger + ',' : '')
-                + ' while Visible values is set to Alert.';
-        }
-        // One on Alert beside one on All.
-        var plain = lines[0].band ? lines[1] : lines[0];
-        if (plain.top === alert.top) { return 'The scale goes up to ' + alert.top + '.'; }
-        return WIND_LINE_TOPS[plain.metric].lead + plain.top + ', '
-            + WIND_LINE_TOPS[alert.metric].tail + alert.top + danger + '.';
+        if (!onAlert.length) { return null; }
+        // The line on Alert; both on Alert share one band, the first's.
+        var metric = onAlert[0], band = bands[metric], shared = onAlert.length === 2;
+        var lead = 'The scale goes up to ' + lineAlert.levelText(S, metric, lineAlert.scaleTop(S, metric))
+            + '. With Alert, ' + (winds === 1 ? 'the line' : shared ? 'the lines' : 'the ' + metric + ' line');
+        var s = shared ? '' : 's';
+        var from = lineAlert.levelText(S, metric, band.bottom);
+        // A shared band starts at the lower warn level of the two.
+        var start = shared ? from : 'your warn level, ' + from;
+        if (!band.topDanger) { return lead + ' start' + s + ' at ' + start + '.'; }
+        return lead + ' run' + s + ' from ' + start + (shared ? ' to your ' + band.topDanger + ' ' : ', to your ')
+            + 'danger level, ' + lineAlert.levelText(S, metric, band.top) + '.';
     }
 
     PConf.hintResolvers.register('forecastMetricHint', function (S, env, args) {

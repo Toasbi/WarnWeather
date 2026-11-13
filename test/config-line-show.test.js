@@ -334,23 +334,27 @@ test('the preview draws an Alert line where its sample reaches warn, and aplite\
   assert.equal(strokes(windSvg({ windLineShow: 'alert', threshWindWarn: '20', threshWindDanger: '30' })), 2);
 });
 
-// The Wind graph scale row: while a drawn wind or gust line shows Alert its top is its
-// band's — the higher of the scale's value and the danger level — so the row's "Tops out
-// at 30 kph — emphasizes light, gentle winds." gives way to the real tops
-// (forecast-hints.js windScaleHint).
-test('the Wind graph scale hint names an Alert line\'s real top', () => {
+// The Wind graph scale row: while a drawn wind or gust line shows Alert, it runs from the warn
+// level to its band's top, the higher of the scale's value and the danger level. The hint says
+// where the picked scale goes up to (it moves with every pick), then in one short sentence what
+// Alert does to the line (forecast-hints.js windScaleHint).
+test('the Wind graph scale hint names the picked scale, then what Alert does to the line', () => {
   const env = { lineStyles: true };
   const gust = (over) => Object.assign({ secondaryLine: 'gust', thirdLine: 'off' }, over);
-  const dangerTop = 'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.';
   assert.equal(FH.windScaleHint(gust({ windScale: 'low' }), env), null, 'All: the row\'s own hint');
-  // The gust danger level (90 kph) tops Low, Mid and High alike: no jump at High.
-  ['low', 'mid', 'high'].forEach((windScale) => assert.equal(
-    FH.windScaleHint(gust({ windScale, gustLineShow: 'alert' }), env), dangerTop, windScale));
+  // The gust danger level (90 kph) tops Low, Mid and High alike: each pick names its own top.
+  [['low', '30 kph'], ['mid', '50 kph'], ['high', '70 kph']].forEach(([windScale, top]) => assert.equal(
+    FH.windScaleHint(gust({ windScale, gustLineShow: 'alert' }), env),
+    'The scale goes up to ' + top + '. With Alert, the line runs from your warn level, 65 kph, to your danger level, 90 kph.',
+    windScale));
   assert.equal(FH.windScaleHint(gust({ windScale: 'low', windUnits: 'knots', gustLineShow: 'alert' }), env),
-    'The scale goes up to 50 kn, your gust danger level, while Visible values is set to Alert.');
-  // A danger level under the scale: the scale's own value is the top, no danger clause.
+    'The scale goes up to 16 kn. With Alert, the line runs from your warn level, 35 kn, to your danger level, 50 kn.');
+  // No stored scale reads as Mid, as the bake reads it.
+  assert.match(FH.windScaleHint(gust({ gustLineShow: 'alert' }), env), /^The scale goes up to 50 kph\. /);
+  // A danger level under the scale: the line tops out at the scale, so only its start is named.
   assert.equal(FH.windScaleHint(gust({ windScale: 'high', gustLineShow: 'alert',
-    threshGustWarn: '30', threshGustDanger: '45' }), env), 'The scale goes up to 70 kph while Visible values is set to Alert.');
+    threshGustWarn: '30', threshGustDanger: '45' }), env),
+  'The scale goes up to 70 kph. With Alert, the line starts at your warn level, 30 kph.');
   // A UV line on Alert leaves the wind scale alone.
   assert.equal(FH.windScaleHint(gust({ thirdLine: 'uv', uvLineShow: 'alert' }), env), null);
 });
@@ -358,16 +362,18 @@ test('the Wind graph scale hint names an Alert line\'s real top', () => {
 test('the Wind graph scale hint with wind and gusts both drawn', () => {
   const env = { lineStyles: true };
   const S = (over) => Object.assign({ secondaryLine: 'wind', thirdLine: 'gust', windScale: 'low' }, over);
-  // Both on Alert: one shared band, topped by the higher danger level (gusts' 90).
+  // Both on Alert: one shared band, from the lower warn level (wind's 40) to the higher danger
+  // level (gusts' 90).
   assert.equal(FH.windScaleHint(S({ windLineShow: 'alert', gustLineShow: 'alert' }), env),
-    'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.');
-  // One of each, different tops: each line named, the All one first.
+    'The scale goes up to 30 kph. With Alert, the lines run from 40 kph to your gust danger level, 90 kph.');
+  // One of each: the Alert one is named.
   assert.equal(FH.windScaleHint(S({ gustLineShow: 'alert' }), env),
-    'The wind line goes up to 30 kph, the gust line to 90 kph, your gust danger level.');
+    'The scale goes up to 30 kph. With Alert, the gust line runs from your warn level, 65 kph, to your danger level, 90 kph.');
   assert.equal(FH.windScaleHint(S({ secondaryLine: 'gust', thirdLine: 'wind', windLineShow: 'alert' }), env),
-    'The gust line goes up to 30 kph, the wind line to 60 kph, your wind danger level.');
-  // One of each, one top (High's 70 tops the wind danger level, 60): no comparison note.
-  assert.equal(FH.windScaleHint(S({ windScale: 'high', windLineShow: 'alert' }), env), 'The scale goes up to 70 kph.');
+    'The scale goes up to 30 kph. With Alert, the wind line runs from your warn level, 40 kph, to your danger level, 60 kph.');
+  // High's 70 tops the wind danger level (60): the wind line tops out at the scale.
+  assert.equal(FH.windScaleHint(S({ windScale: 'high', windLineShow: 'alert' }), env),
+    'The scale goes up to 70 kph. With Alert, the wind line starts at your warn level, 40 kph.');
   // Without the Third metric line, a gust line on the third picker is not drawn.
   assert.equal(FH.windScaleHint({ secondaryLine: 'wind', thirdLine: 'off', fourthLine: 'gust', windScale: 'low',
     gustLineShow: 'alert' }, { lineStyles: false }), null);
@@ -375,23 +381,25 @@ test('the Wind graph scale hint with wind and gusts both drawn', () => {
   assert.equal(FH.windScaleHint(S({ windLineShow: 'alert', gustLineShow: 'alert' }), APLITE), null);
 });
 
-test('the line dialog\'s Wind graph scale row shows an Alert line\'s top, through the real engine', () => {
+test('the line dialog\'s Wind graph scale row shows the note, through the real engine', () => {
   const low = body({ secondaryLine: 'gust', windScale: 'low', gustLineShow: 'alert' }, BASALT);
-  assert.equal(count(low, 'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.'), 1, 'Low');
-  assert.equal(count(low, 'The scale goes up to 30 kph'), 0, 'Low: not the scale\'s own top');
+  assert.equal(count(low, 'The scale goes up to 30 kph. With Alert, the line runs from your warn level, 65 kph, '
+    + 'to your danger level, 90 kph.'), 1, 'Low');
+  assert.equal(count(low, 'so light winds show more clearly'), 0, 'Low: not the row\'s own hint');
   const high = body({ secondaryLine: 'gust', windScale: 'high', gustLineShow: 'alert' }, BASALT);
-  assert.equal(count(high, 'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.'), 1, 'High');
+  assert.equal(count(high, 'The scale goes up to 70 kph. With Alert, the line runs from your warn level, 65 kph, '
+    + 'to your danger level, 90 kph.'), 1, 'High');
   assert.equal(count(high, 'strong gusts don’t flatten'), 0, 'High: no comparison note');
   // All: the row's own hint, on both watches; aplite keeps it with Alert stored too.
   [BASALT, APLITE].forEach((env) => assert.equal(count(body({ secondaryLine: 'gust', windScale: 'low' }, env),
     'The scale goes up to 30 kph, so light winds show more clearly.'), 1, env.platform + ' All'));
   assert.equal(count(body({ secondaryLine: 'gust', windScale: 'low', gustLineShow: 'alert' }, APLITE),
     'The scale goes up to 30 kph, so light winds show more clearly.'), 1, 'aplite draws All');
-  // Knots, gusts on the Fourth metric picker: the band's top in knots.
+  // Knots, gusts on the Fourth metric picker: the band in knots.
   const kn = body({ secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'gust', windUnits: 'knots',
     windScale: 'mid', gustLineShow: 'alert' }, BASALT);
-  assert.equal(count(kn, 'The scale goes up to 50 kn, your gust danger level, while Visible values is set to Alert.'), 1);
-  assert.equal(count(kn, 'The scale goes up to 27 kn'), 0);
+  assert.equal(count(kn, 'The scale goes up to 27 kn. With Alert, the line runs from your warn level, 35 kn, '
+    + 'to your danger level, 50 kn.'), 1);
 });
 
 test('every Wind graph scale row derives its hint through windScaleHint', () => {

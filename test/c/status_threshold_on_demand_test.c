@@ -137,6 +137,28 @@ static void battery_byte_tests(void) {
     expect("battery.low_empty", status_threshold_battery_low(0, 5), 1);
 }
 
+// The alerts byte [34]: bits 0-1 the rain look, bit 2 "Weather alerts replace slots: Right
+// away", bits 3-7 reserved. Neither reads the other's bits, and a blob from before
+// the bit (0 there) keeps the make-room ladder.
+static void alerts_replace_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    expect("replace.bit_pinned", THRESH_ALERTS_REPLACE_BIT, 4);
+    expect("replace.default_off", status_threshold_alerts_replace(blob), 0);
+    for (int look = 0; look < 4; look++) {
+        blob[THRESH_ALERTS_OFFSET] = (uint8_t)look;
+        expect("replace.rain_look_no_alias", status_threshold_alerts_replace(blob), 0);
+        blob[THRESH_ALERTS_OFFSET] = (uint8_t)(THRESH_ALERTS_REPLACE_BIT | look);
+        expect("replace.on", status_threshold_alerts_replace(blob), 1);
+        expect("replace.keeps_rain_look", status_threshold_rain_display(blob),
+               look == 3 ? THRESH_RAIN_DISPLAY_TEXT : look);
+    }
+    // The reserved bits and the Battery byte next door never turn it on.
+    blob[THRESH_ALERTS_OFFSET] = (uint8_t)(0xFF & ~THRESH_ALERTS_REPLACE_BIT);
+    blob[THRESH_BATTERY_OFFSET] = 0xFF;
+    expect("replace.reserved_no_alias", status_threshold_alerts_replace(blob), 0);
+}
+
 #if defined(PBL_PLATFORM_EMERY)
 // emery: bars 4 to 6's cells (CLAY_OD_EXTRA_UINT8) ride behind the blob in the row's scratch:
 // one byte per OdItem, 2 bits per bar at bits 2 * (bar - 4), the same values. They and the
@@ -196,6 +218,7 @@ int main(void) {
 #endif
     on_demand_default_tests();
     battery_byte_tests();
+    alerts_replace_tests();
     if (s_failures) { printf("%d failure(s)\n", s_failures); return 1; }
     printf("status_threshold_on_demand_test OK\n");
     return 0;

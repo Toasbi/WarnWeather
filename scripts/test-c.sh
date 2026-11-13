@@ -112,6 +112,11 @@ build/host/on_demand_merge_test
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_short_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_short_test
 build/host/on_demand_short_test
+# "Weather alerts replace the slot: Right away" (on_demand.h od_replace_slots): a side
+# with a weather alert lays out as though its own slot were empty.
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_replace_test.c src/c/appendix/on_demand.c \
+   src/c/layers/status_row_layout.c -o build/host/on_demand_replace_test
+build/host/on_demand_replace_test
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
 build/host/hr_scale_test
 # The health graph's step scale (header-only, step_scale.h): every mark it picks draws,

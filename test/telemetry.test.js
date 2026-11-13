@@ -242,6 +242,18 @@ test('snapshot reports onDemand, batteryLowLevel and batteryLowDisplay', () => {
   assert.equal(battery.batteryLowDisplay, 'value');
 });
 
+// The All status bars card's "Weather alerts replace slots": read like the thresholds
+// blob packs it (status-wire.js alertsReplaceSlot), absent where onDemand is.
+test('snapshot reports alertsReplaceSlot where On demand exists', () => {
+  assert.equal(buildSettingsSnapshot({}).alertsReplaceSlot, 'needed', 'absent: If needed');
+  assert.equal(buildSettingsSnapshot({ alertsReplaceSlot: 'now' }).alertsReplaceSlot, 'now');
+  assert.equal(buildSettingsSnapshot({ alertsReplaceSlot: 'soon' }).alertsReplaceSlot, 'needed',
+    'junk reads as the default, as the blob packs it');
+  const aplite = buildSettingsSnapshot({ alertsReplaceSlot: 'now' }, { platform: 'aplite' });
+  assert.strictEqual(aplite.alertsReplaceSlot, undefined, 'a known aplite has no On demand');
+  assert.ok(Object.prototype.hasOwnProperty.call(aplite, 'alertsReplaceSlot'), 'still emitted as a key');
+});
+
 test('buildSettingsSnapshot includes radarMode (default graph)', () => {
   assert.strictEqual(buildSettingsSnapshot({ radarMode: 'status' }).radarMode, 'status');
   assert.strictEqual(buildSettingsSnapshot({}).radarMode, 'graph');
