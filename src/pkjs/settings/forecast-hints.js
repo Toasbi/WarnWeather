@@ -388,6 +388,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         wind: { lead: 'The wind line goes up to ', tail: 'the wind line to ', danger: 'wind' },
         gust: { lead: 'The gust line goes up to ', tail: 'the gust line to ', danger: 'gust' }
     };
+    // The Wind graph scale row's option labels (forecast-lines-schema.js windScaleCopy), by
+    // value, for the hint that names the picked scale.
+    var WIND_SCALE_NAMES = { low: 'Low', mid: 'Mid', high: 'High' };
 
     /**
      * The Wind graph scale row's hint while a drawn wind or gust line shows Alert: where
@@ -395,11 +398,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * line at the scale's value) and, where a danger level is that top, whose — without
      * the row's usual note on what the value emphasizes, which compares the scales of a
      * 0-based line. Every drawn wind and gust line on Alert (one top, shared): "The scale
-     * goes up to 90 kph, your gust danger level, while Visible values is set to Alert."
-     * (without the danger clause while the scale's own value is the top). One on Alert
-     * beside one on All: "The scale goes up to 70 kph." for one top; "The wind line goes up
-     * to 30 kph, the gust line to 90 kph, your gust danger level." for two. Reads the
-     * stored scale, like the bake.
+     * goes up to 70 kph while Visible values is set to Alert." while the scale's own value
+     * is the top; while a danger level tops it, the picked scale's own top and why the line
+     * still goes higher: "Low goes up to 30 kph, below your gust danger level, so the line
+     * still goes up to 90 kph while Visible values is set to Alert." The scale moves nothing
+     * on such a line, so a hint that named only the band's top read the same for every pick,
+     * as if the row did nothing. One on Alert beside one on All: "The scale goes up to 70
+     * kph." for one top; "The wind line goes up to 30 kph, the gust line to 90 kph, your
+     * gust danger level." for two. Reads the stored scale, like the bake.
      * @param {Object} S Live settings state.
      * @param {Object} [env] Platform env (see alertScaleLevels).
      * @returns {?string} The hint; null for "use the row's hintByValue" (no drawn wind
@@ -423,7 +429,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var danger = alert.band.topDanger
             ? ', your ' + WIND_LINE_TOPS[alert.band.topDanger].danger + ' danger level' : '';
         if (lines.length === 1 || (lines[0].band && lines[1].band)) {
-            return 'The scale goes up to ' + alert.top + (danger ? danger + ',' : '')
+            var scale = Object.prototype.hasOwnProperty.call(WIND_SCALE_NAMES, S.windScale) ? S.windScale : 'mid';
+            var own = lineAlert.levelText(S, alert.metric, lineAlert.scaleTop(S, alert.metric));
+            // A scale whose own top prints like the danger level's (a knot rounds them
+            // together) has nothing to tell apart: the band's top alone.
+            if (!alert.band.topDanger || own === alert.top) {
+                return 'The scale goes up to ' + alert.top + ' while Visible values is set to Alert.';
+            }
+            return WIND_SCALE_NAMES[scale] + ' goes up to ' + own + ', below your '
+                + WIND_LINE_TOPS[alert.band.topDanger].danger + ' danger level, so the '
+                + (lines.length === 1 ? 'line still goes' : 'lines still go') + ' up to ' + alert.top
                 + ' while Visible values is set to Alert.';
         }
         // One on Alert beside one on All.

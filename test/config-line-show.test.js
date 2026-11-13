@@ -341,13 +341,21 @@ test('the preview draws an Alert line where its sample reaches warn, and aplite\
 test('the Wind graph scale hint names an Alert line\'s real top', () => {
   const env = { lineStyles: true };
   const gust = (over) => Object.assign({ secondaryLine: 'gust', thirdLine: 'off' }, over);
-  const dangerTop = 'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.';
+  const dangerTop = (name, own) => name + ' goes up to ' + own + ', below your gust danger level, so the line '
+    + 'still goes up to 90 kph while Visible values is set to Alert.';
   assert.equal(FH.windScaleHint(gust({ windScale: 'low' }), env), null, 'All: the row\'s own hint');
-  // The gust danger level (90 kph) tops Low, Mid and High alike: no jump at High.
-  ['low', 'mid', 'high'].forEach((windScale) => assert.equal(
-    FH.windScaleHint(gust({ windScale, gustLineShow: 'alert' }), env), dangerTop, windScale));
+  // The gust danger level (90 kph) tops Low, Mid and High alike, so the line goes up to it
+  // whichever is picked: each pick names its own top, so the hint changes with the pick.
+  [['low', 'Low', '30 kph'], ['mid', 'Mid', '50 kph'], ['high', 'High', '70 kph']].forEach(([windScale, name, own]) =>
+    assert.equal(FH.windScaleHint(gust({ windScale, gustLineShow: 'alert' }), env), dangerTop(name, own), windScale));
   assert.equal(FH.windScaleHint(gust({ windScale: 'low', windUnits: 'knots', gustLineShow: 'alert' }), env),
-    'The scale goes up to 50 kn, your gust danger level, while Visible values is set to Alert.');
+    'Low goes up to 16 kn, below your gust danger level, so the line still goes up to 50 kn while Visible values is set to Alert.');
+  // No stored scale reads as Mid, as the bake reads it.
+  assert.equal(FH.windScaleHint(gust({ gustLineShow: 'alert' }), env), dangerTop('Mid', '50 kph'));
+  // A danger level a knot rounds onto the scale's own top: one number, the band's top alone.
+  assert.equal(FH.windScaleHint(gust({ windScale: 'high', windUnits: 'knots', gustLineShow: 'alert',
+    threshGustWarn: '20', threshGustDanger: '38' }), env),
+  'The scale goes up to 38 kn while Visible values is set to Alert.');
   // A danger level under the scale: the scale's own value is the top, no danger clause.
   assert.equal(FH.windScaleHint(gust({ windScale: 'high', gustLineShow: 'alert',
     threshGustWarn: '30', threshGustDanger: '45' }), env), 'The scale goes up to 70 kph while Visible values is set to Alert.');
@@ -360,7 +368,7 @@ test('the Wind graph scale hint with wind and gusts both drawn', () => {
   const S = (over) => Object.assign({ secondaryLine: 'wind', thirdLine: 'gust', windScale: 'low' }, over);
   // Both on Alert: one shared band, topped by the higher danger level (gusts' 90).
   assert.equal(FH.windScaleHint(S({ windLineShow: 'alert', gustLineShow: 'alert' }), env),
-    'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.');
+    'Low goes up to 30 kph, below your gust danger level, so the lines still go up to 90 kph while Visible values is set to Alert.');
   // One of each, different tops: each line named, the All one first.
   assert.equal(FH.windScaleHint(S({ gustLineShow: 'alert' }), env),
     'The wind line goes up to 30 kph, the gust line to 90 kph, your gust danger level.');
@@ -377,10 +385,12 @@ test('the Wind graph scale hint with wind and gusts both drawn', () => {
 
 test('the line dialog\'s Wind graph scale row shows an Alert line\'s top, through the real engine', () => {
   const low = body({ secondaryLine: 'gust', windScale: 'low', gustLineShow: 'alert' }, BASALT);
-  assert.equal(count(low, 'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.'), 1, 'Low');
-  assert.equal(count(low, 'The scale goes up to 30 kph'), 0, 'Low: not the scale\'s own top');
+  assert.equal(count(low, 'Low goes up to 30 kph, below your gust danger level, so the line still goes up to 90 kph'
+    + ' while Visible values is set to Alert.'), 1, 'Low');
+  assert.equal(count(low, 'The scale goes up to 30 kph'), 0, 'Low: not the row\'s own hint');
   const high = body({ secondaryLine: 'gust', windScale: 'high', gustLineShow: 'alert' }, BASALT);
-  assert.equal(count(high, 'The scale goes up to 90 kph, your gust danger level, while Visible values is set to Alert.'), 1, 'High');
+  assert.equal(count(high, 'High goes up to 70 kph, below your gust danger level, so the line still goes up to 90 kph'
+    + ' while Visible values is set to Alert.'), 1, 'High');
   assert.equal(count(high, 'strong gusts don’t flatten'), 0, 'High: no comparison note');
   // All: the row's own hint, on both watches; aplite keeps it with Alert stored too.
   [BASALT, APLITE].forEach((env) => assert.equal(count(body({ secondaryLine: 'gust', windScale: 'low' }, env),
@@ -390,7 +400,8 @@ test('the line dialog\'s Wind graph scale row shows an Alert line\'s top, throug
   // Knots, gusts on the Fourth metric picker: the band's top in knots.
   const kn = body({ secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'gust', windUnits: 'knots',
     windScale: 'mid', gustLineShow: 'alert' }, BASALT);
-  assert.equal(count(kn, 'The scale goes up to 50 kn, your gust danger level, while Visible values is set to Alert.'), 1);
+  assert.equal(count(kn, 'Mid goes up to 27 kn, below your gust danger level, so the line still goes up to 50 kn'
+    + ' while Visible values is set to Alert.'), 1);
   assert.equal(count(kn, 'The scale goes up to 27 kn'), 0);
 });
 
