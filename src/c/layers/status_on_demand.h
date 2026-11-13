@@ -102,6 +102,7 @@ typedef struct {
     GFont font;             // the font it measures and draws in
     char *text;             // its full text; the layout writes the member it drew
     size_t cap;             // over it, in a buffer of this size
+    const char *alt;        // the short form it brought ("" none: status_short_alt)
 } StatusOnDemandSlot;
 
 // The entries and item states one pass resolves.

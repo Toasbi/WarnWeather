@@ -177,6 +177,18 @@ test('getPayload emits sourced feelsTrend as whole °F, trimmed to numEntries', 
   assert.equal('FEELS_CURRENT' in out, false, 'current is independent of the trend');
 });
 
+// The weather condition now (weather/condition.js) follows the feels keys' rule:
+// a transient key, present only when the provider named a condition.
+test('getPayload omits CURRENT_CONDITION when the provider named no condition', () => {
+  assert.equal('CURRENT_CONDITION' in pressureProvider().getPayload(), false, 'the constructor default');
+  assert.equal('CURRENT_CONDITION' in pressureProvider({ currentCondition: null }).getPayload(), false);
+});
+
+test('getPayload carries a named condition as CURRENT_CONDITION', () => {
+  assert.equal(pressureProvider({ currentCondition: 'partly' }).getPayload().CURRENT_CONDITION, 'partly');
+  assert.equal(pressureProvider({ currentCondition: 'heavysnow' }).getPayload().CURRENT_CONDITION, 'heavysnow');
+});
+
 test('getPayload passes CURRENT_TEMP and FEELS_CURRENT through unrounded (0 °F is a real value)', () => {
   // Transient keys formatTemp rounds once, in the display unit — a whole-°F
   // pre-round here made every °C reading round twice.

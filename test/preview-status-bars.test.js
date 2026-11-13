@@ -277,3 +277,25 @@ test('barCodes reads each bar\'s slots as barSlots does, without the sample text
   assert.equal(preview.barCodes(S, basalt, 'health')[2].code, 'empty');
   assert.deepEqual(preview.barCodes(S, basalt, 'unknown'), []);
 });
+
+// The weather condition slot's picture prints the sample partly cloudy afternoon as the bake
+// does (slot-text.js conditionText): the name with its short form where the slot has the
+// bytes, split into the text and the form the watch picture swaps in where the row would cut
+// the name; the short form alone in an edge slot and on aplite. The Look decides the glyph
+// in one place, slotIcon.
+test('the condition slot: the bake\'s forms, split, and one place for the glyph', () => {
+  const basalt = { platform: 'basalt' };
+  const aplite = { platform: 'aplite' };
+  assert.equal(sample('condition', {}, { cap: MID, env: basalt }), 'Partly cloudy' + catalog.ALT_SEP + 'PCLD');
+  assert.equal(sample('condition', {}, { cap: EDGE, env: basalt }), 'PCLD');
+  assert.equal(sample('condition', { conditionSlotLook: 'icon' }, { cap: MID, env: basalt }), '');
+  assert.equal(sample('condition', { conditionSlotLook: 'icon' }, { cap: MID, env: aplite }), 'PCLD',
+    'aplite prints the text whatever the Look');
+  const S = { statusForecastLeft: 'condition', statusForecastMid: 'condition', statusForecastRight: 'empty' };
+  const [left, mid] = preview.barSlots(S, basalt, 'forecast');
+  assert.deepEqual([mid.text, mid.alt], ['Partly cloudy', 'PCLD']);
+  assert.deepEqual([left.text, left.alt], ['PCLD', '']);
+  assert.equal(preview.slotIcon('condition', basalt, { conditionSlotLook: 'text' }), null, 'the Text look: no glyph');
+  assert.equal(preview.slotIcon('condition', aplite, {}), null, 'aplite draws none');
+  assert.equal(preview.barSlots(Object.assign({ conditionSlotLook: 'text' }, S), basalt, 'forecast')[1].icon, null);
+});

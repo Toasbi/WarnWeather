@@ -151,6 +151,10 @@ const settingsSchema = z
     // threshPhoneBatteryBoldMode's rule above. DEPLOY-ORDERING: ship this function before
     // the app release that sends it, or the strip step drops it silently.
     alertsReplaceSlot: z.string().optional(),
+    // The weather condition slot's Look: 'both', 'text' or 'icon'. Absent on aplite. z.string()
+    // per threshPhoneBatteryBoldMode's rule above. DEPLOY-ORDERING: ship this function before
+    // the app release that sends it, or the strip step drops it silently.
+    conditionSlotLook: z.string().optional(),
     // The Battery item's warn level as stored (a percentage) and its look ('icon' /
     // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
     batteryLowLevel: z.number().int().min(0).max(100).optional(),

@@ -155,6 +155,8 @@ if (typeof require !== 'undefined') {
     PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
         if (!env || !env.thresholds) { return null; }
         var code = S[args.messageKey];
+        // The weather condition slot has a dialog without levels or a bold cell: its Look.
+        if (code === 'condition') { return 'slotCondition'; }
         for (var i = 0; i < thresholds.KINDS.length; i++) {
             if (thresholds.KINDS[i].code === code) { return 'thresh' + thresholds.KINDS[i].key; }
         }
@@ -655,7 +657,7 @@ if (typeof require !== 'undefined') {
         for (var i = 0; i < slotKeys.length; i++) {
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
-        var schemaKeys = ['statusBoldAll', 'alertsReplaceSlot', 'tempSlotDisplay',
+        var schemaKeys = ['statusBoldAll', 'alertsReplaceSlot', 'conditionSlotLook', 'tempSlotDisplay',
             // How the temp slot prints its pair in Both mode (separator preset,
             // custom separator text, spacing, which value leads).
             'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',

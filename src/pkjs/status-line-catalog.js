@@ -34,8 +34,16 @@
     // Text-only, exactly like PRESSURE: the no-icon phone-battery item never
     // loads a glyph, and the id exists so it does not arrive as TEXT + NONE and
     // inherit city's bold mode.
-    PHONE_BATTERY_PLAIN: 18
+    PHONE_BATTERY_PLAIN: 18,
+    // The weather condition slot (weather/condition.js): the glyph of the condition now,
+    // picked per bake like the phone battery's pair; COND_TEXT its text-only look, which
+    // loads no glyph (and, like PRESSURE, keeps it off TEXT + NONE).
+    COND_TEXT: 19, COND_SUN: 20, COND_MOON: 21, COND_SUN_CLOUD: 22, COND_MOON_CLOUD: 23,
+    COND_CLOUD: 24, COND_FOG: 25, COND_HAZE: 26, COND_DRIZZLE: 27, COND_RAIN: 28,
+    COND_SLEET: 29, COND_SNOW: 30, COND_HAIL: 31, COND_THUNDER: 32, COND_WIND: 33
   };
+  // A TEXT slot's short form rides after this byte (status_line.h STATUS_TEXT_ALT_SEP).
+  var ALT_SEP = '\u001f';
   var CAPS = { LINE_MAX: 48, EDGE_TEXT_MAX: 8, MID_TEXT_MAX: 19 };
 
   var ITEMS = [
@@ -60,6 +68,11 @@
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.AQI, category: 'weather' },
     { code: 'pollen', label: 'Pollen (DWD)', kind: KINDS.TEXT, icon: ICONS.POLLEN, needsProvider: 'dwd', category: 'weather' },
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'weather' },
+    // What the weather is like now (weather/condition.js): its name, or its short form where
+    // the slot is short of room, with the condition's glyph; the edit sheet's Look picks icon
+    // and text, text alone or the icon alone. The baked icon varies (status-lines.js
+    // iconFor); COND_TEXT is the id of the text-only look.
+    { code: 'condition', label: 'Weather condition', kind: KINDS.TEXT, icon: ICONS.COND_TEXT, category: 'weather' },
     // Any position since custom layouts: the calendar can sit anywhere or be absent
     // now, so the date is a first-class slot like City (the middle-only gate was a
     // leftover from when it was hard-wired into the strip's centre; the watch's
@@ -534,7 +547,7 @@
   }
 
   var api = {
-    KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES, SLOT_POSITIONS: SLOT_POSITIONS,
+    KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, ALT_SEP: ALT_SEP, LINES: LINES, SLOT_POSITIONS: SLOT_POSITIONS,
     EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,

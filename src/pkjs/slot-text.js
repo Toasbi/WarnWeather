@@ -259,6 +259,41 @@
         return 1 + Math.round((t - firstThursday) / 604800000); // 7*24*3600*1000
     }
 
+    /**
+     * The weather condition slot's Look (its dialog's conditionSlotLook): 'both' (the glyph and
+     * the name, the default, and what anything unknown reads as), 'text' or 'icon'. aplite
+     * draws no condition glyph, so with its env this is 'text' there whatever is stored.
+     * @param {Object} settings Settings.
+     * @param {Object} [env] Platform env; without it, the stored Look.
+     * @returns {string} 'both', 'text' or 'icon'
+     */
+    function conditionLook(settings, env) {
+        if (env && env.platform === 'aplite') { return 'text'; }
+        var look = settings && settings.conditionSlotLook;
+        return look === 'text' || look === 'icon' ? look : 'both';
+    }
+
+    /**
+     * The weather condition's text for a slot of `cap` bytes: the full name with its short form
+     * after catalog.ALT_SEP where both fit (the middle slot's 19 bytes always hold both), for
+     * the watch to swap in where the row would cut the name; else the full name where it fits
+     * (an edge slot's 'Cloudy'), else the short form ('PCLD'). A short form no shorter than the
+     * name ('RAIN' for 'Rain') rides with nothing. aplite's lean row reads no short form: it
+     * gets the name where it fits an edge slot's 8 bytes, else the short form, in every slot.
+     * @param {{full: string, short: string}} n The condition's names (weather/condition.js).
+     * @param {number} cap The slot's byte cap.
+     * @param {Object} [env] Platform env.
+     * @returns {string}
+     */
+    function conditionText(n, cap, env) {
+        if (env && env.platform === 'aplite') {
+            return utf8.byteLength(n.full) <= catalog.CAPS.EDGE_TEXT_MAX ? n.full : n.short;
+        }
+        var both = n.full + catalog.ALT_SEP + n.short;
+        if (n.short.length < n.full.length && utf8.byteLength(both) <= cap) { return both; }
+        return utf8.byteLength(n.full) <= cap ? n.full : n.short;
+    }
+
     var api = {
         DEGREE: DEGREE,
         unitEnabled: unitEnabled,
@@ -271,7 +306,9 @@
         pad2: pad2,
         clockText: clockText,
         formatCountdown: formatCountdown,
-        isoWeek: isoWeek
+        isoWeek: isoWeek,
+        conditionLook: conditionLook,
+        conditionText: conditionText
     };
 
     // Dual-context export, the tail of status-line-catalog.js.

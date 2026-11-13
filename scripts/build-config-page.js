@@ -168,6 +168,9 @@ var APP_FILES = [
   // blocks.js, and is only looked up at render time. Dropping it throws nothing —
   // an unregistered icon id just prints no glyph — so
   // test/config-page-bundle.test.js pins its register() calls into the page.
+  // The weather condition glyphs' outlines (window.ConditionGlyphs), which status-slot-icons.js
+  // reads while its body runs.
+  path.join(ROOT, 'src/pkjs/settings/condition-glyphs.generated.js'),
   path.join(ROOT, 'src/pkjs/settings/status-slot-icons.js'),
   // The tab bar's glyphs (tab.icon), into the same registry.
   path.join(ROOT, 'src/pkjs/settings/tab-icons.js'),

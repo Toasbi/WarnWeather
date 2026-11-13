@@ -313,11 +313,11 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
     const bool batt = s.active[OD_BATTERY];
     const bool rain = s.active[OD_RAIN];
     const bool text = rain && s.rain_display != THRESH_RAIN_DISPLAY_ICON;
-    uint8_t live[11] = { (uint8_t)batt, s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
+    uint8_t live[10] = { (uint8_t)batt, s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
                          (uint8_t)s.active[OD_SLEEP], (uint8_t)rain,
                          batt ? s.charge : 0, (uint8_t)(batt && s.charging),
                          rain ? s.rain.tier : 0, text ? s.rain.mins : 0,
-                         (uint8_t)(text && s.rain.raining), (uint8_t)s.alerts_replace };
+                         (uint8_t)(text && s.rain.raining) };
     sig = sig_fold(sig, live, sizeof(live));
     return sig_fold(sig, s.bytes, (size_t)n);
 }
@@ -331,10 +331,12 @@ typedef struct {
     bool charging;   // the watch is charging: the battery glyph keeps its bolt lane
 } Families;
 
-// Member `v` of slot `slot`'s short family into `buf` (status_short_member): its
-// flags, 0 for none. `suffix`: the slot's full form draws the wind arrow.
+// Member `v` of slot `slot`'s short family into `buf`: the short form it brought
+// (status_short_alt), else the ones its text derives (status_short_member). Its flags,
+// 0 for none. `suffix`: the slot's full form draws the wind arrow.
 static uint8_t family_member(const Families *f, const StatusOnDemandSlot *slot, bool suffix,
                              uint8_t v, char *buf) {
+    if (slot->alt[0] != '\0') { return status_short_alt(slot->alt, v, buf, STATUS_SHORT_CAP); }
     return status_short_member(slot->kind, slot->icon, slot->text, suffix, f->charging, v,
                                buf, STATUS_SHORT_CAP);
 }

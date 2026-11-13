@@ -13,6 +13,7 @@ var slotText = require('./slot-text.js');
 var wireUnits = require('./wire-units.js');
 var cityLadder = require('./city-ladder.js');
 var onDemand = require('./on-demand.js');
+var condition = require('./weather/condition.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
 var POSITIONS = catalog.SLOT_POSITIONS;
@@ -58,6 +59,27 @@ function decodeFirstSunEvent(sunEvents) {
   var epoch = readInt32LE(sunEvents, 1);
   if (sunEvents.length >= 9 && isPolarSunPair(epoch, readInt32LE(sunEvents, 5))) { return null; }
   return { startType: sunEvents[0], epoch: epoch };
+}
+
+/**
+ * Whether it is night at `nowSec`: the next sun event when the forecast came was a sunrise
+ * (start type 0), each event gone by since flipping it, so a re-bake from older inputs
+ * (status-rebake.js) still turns at sunset. A polar pair reads the other way round (polar
+ * night is a sunset then a sunrise) and never flips: neither of its events is a real sunrise
+ * or sunset. No events: day.
+ * @param {number[]} sunEvents packed SUN_EVENTS wire bytes
+ * @param {number} nowSec now, in epoch seconds
+ * @returns {boolean}
+ */
+function isNightNow(sunEvents, nowSec) {
+  if (!sunEvents || sunEvents.length < 5) { return false; }
+  var first = readInt32LE(sunEvents, 1);
+  var second = sunEvents.length >= 9 ? readInt32LE(sunEvents, 5) : null;
+  if (second !== null && isPolarSunPair(first, second)) { return sunEvents[0] === 1; }
+  var night = sunEvents[0] === 0;
+  if (nowSec >= first) { night = !night; }
+  if (second !== null && nowSec >= second) { night = !night; }
+  return night;
 }
 
 /**
@@ -162,6 +184,13 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) 
       settings, cap);
   }
   if (code === 'city') { return payload.CITY || '--'; }
+  // The weather condition's name in the slot's Look ('' for the glyph alone), its short form
+  // after it where the slot has the bytes (slot-text.js conditionText); iconFor picks the glyph.
+  if (code === 'condition') {
+    var cn = conditionNow(payload);
+    if (!cn) { return '--'; }
+    return slotText.conditionLook(settings, env) === 'icon' ? '' : slotText.conditionText(cn.names, cap, env);
+  }
   if (code === 'sun') {
     var ev = decodeFirstSunEvent(payload.SUN_EVENTS);
     return ev ? formatSunTime(ev.epoch, settings) : '--';
@@ -254,6 +283,19 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) 
 }
 
 /**
+ * The weather condition now (CURRENT_CONDITION), by day or by night (the next sun event,
+ * SUN_EVENTS): its id and names; null while no condition is known.
+ * @param {Object} payload weather payload (pre-transform)
+ * @returns {?{id: string, night: boolean, names: {full: string, short: string}}}
+ */
+function conditionNow(payload) {
+  var id = payload && payload.CURRENT_CONDITION;
+  var night = isNightNow(payload && payload.SUN_EVENTS, Date.now() / 1000);
+  var n = condition.names(id, night);
+  return n ? { id: id, night: night, names: n } : null;
+}
+
+/**
  * @param {number} slotIndex 0..2
  * @returns {number} the slot's text byte cap
  */
@@ -327,25 +369,35 @@ function arrowSector(code, payload, settings, env, dayMax) {
 /**
  * The icon id to pack for one resolved item.
  *
- * Every other item packs the static `icon` off its catalog entry. 'phoneBattery'
- * is the single item whose icon is chosen PER BAKE: the phone swaps in the
- * charging glyph while it charges, so charging state reaches the watch as a
- * different id inside a byte the slot already pays for -- no wire field, no
- * watch-side logic, no C plumbing. 'phoneBatteryPlain' draws nothing in either
- * state, so its id never varies; it exists only so the no-icon variant does not
- * arrive as TEXT + NONE and inherit City's bold mode (status_threshold.h).
+ * Every other item packs the static `icon` off its catalog entry. Two items choose
+ * theirs PER BAKE, inside a byte the slot already pays for -- no wire field, no
+ * watch-side logic, no C plumbing: 'phoneBattery' swaps in the charging glyph while
+ * the phone charges, and 'condition' draws the glyph of the weather now, by day or
+ * night. 'phoneBatteryPlain' draws nothing in either state, so its id never varies;
+ * it exists only so the no-icon variant does not arrive as TEXT + NONE and inherit
+ * City's bold mode (status_threshold.h), as the condition's text-only id does.
  *
  * Resolved into a local exactly like `kind` is for the imperial distance slot --
  * the catalog entry itself is shared and must never be mutated.
  *
  * @param {string} code catalog item code
  * @param {Object} item the resolved catalog entry
+ * @param {Object} payload weather payload (pre-transform)
+ * @param {Object} settings Clay settings blob
+ * @param {?Object} env platform environment
  * @returns {number} STATUS_ICON_* id to pack
  */
-function iconFor(code, item) {
+function iconFor(code, item, payload, settings, env) {
   if (code === 'phoneBattery') {
     var pb = phoneBatteryReading();
     if (pb && pb.charging) { return catalog.ICONS.PHONE_BATTERY_CHG; }
+  }
+  // The weather condition's glyph; the text-only id while none is known and in the Text
+  // look (aplite's too).
+  if (code === 'condition') {
+    var cn = conditionNow(payload);
+    return cn && slotText.conditionLook(settings, env) !== 'text'
+      ? catalog.ICONS[condition.glyph(cn.id, cn.night)] : catalog.ICONS.COND_TEXT;
   }
   return item.icon;
 }
@@ -406,9 +458,9 @@ function packLine(line, payload, settings, env, alerts) {
     if (code === 'distance' && settings && settings.distanceUnits === 'imperial') {
       kind = catalog.KINDS.LIVE_DISTANCE_MI;
     }
-    // Likewise resolved per bake rather than read straight off the entry: today
-    // only the charging phone-battery glyph varies (see iconFor).
-    var icon = iconFor(code, item);
+    // Likewise resolved per bake rather than read straight off the entry: the charging
+    // phone-battery glyph and the weather condition's (see iconFor).
+    var icon = iconFor(code, item, payload, settings, env);
     if (env.platform === 'aplite' && item.kind === catalog.KINDS.LIVE_WEEK) {
       // aplite has no watch-side iso_week() (reaped for image budget), so the
       // phone bakes the ISO week as an ordinary TEXT slot instead.
@@ -531,6 +583,9 @@ function buildStatusLines(payload, settings, watchInfo) {
 var SOURCE_KEYS = [
   'CITY',
   'CURRENT_TEMP',
+  // The weather condition now (weather/condition.js), and the sun events say whether it
+  // is night.
+  'CURRENT_CONDITION',
   'FEELS_CURRENT',
   'SUN_EVENTS',
   'WIND_DIR_TREND',

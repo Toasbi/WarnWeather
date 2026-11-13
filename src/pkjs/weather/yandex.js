@@ -2,6 +2,7 @@ var WeatherProvider = require('./provider.js');
 var failure = WeatherProvider.failure;
 
 var hourlyWindow = require('./hourly-window.js');
+var condition = require('./condition.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
 var YANDEX_ENDPOINT = 'https://api.weather.yandex.ru/graphql/query';
 
@@ -27,7 +28,12 @@ function buildQuery(lat, lon, hours) {
     var latNum = Number(lat);
     var lonNum = Number(lon);
     return '{ weatherByPoint(request: {lat: ' + latNum + ', lon: ' + lonNum + '}) {'
-        + ' now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) }'
+        // condition is the weather condition slot's "now" (condition.js fromYandex).
+        // Unlike the fields left out below, it was checked against Yandex's published
+        // GraphQL schema (2026-11-13), though not against live traffic: Now.condition is
+        // a Condition! enum (CLEAR, PARTLY_CLOUDY ... THUNDERSTORM_WITH_HAIL) that takes
+        // no arguments.
+        + ' now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) condition }'
         // No cloud cover either: its GraphQL field name can't be verified against
         // live traffic, and a wrong one fails the whole query (see below) — the
         // cloud line stays off on Yandex.
@@ -121,6 +127,7 @@ function anchorIndex(hours, nowEpoch) {
  * correct (server-side FAHRENHEIT/KILOMETERS_PER_HOUR), precProbability is
  * already [0,1], and prec is already mm/h, so every field passes through. A
  * missing/non-numeric optional field collapses to 0 (getPayload renders 0).
+ * The weather condition now is now.condition.
  *
  * @param {Object} json Parsed GraphQL response ({data:{weatherByPoint:...}}).
  * @param {number} nowEpoch Current time in epoch seconds.
@@ -178,7 +185,8 @@ function mapResponse(json, nowEpoch, want) {
         startTime: hourEpoch(hours[anchor]),
         currentTemp: now.temperature,
         // Missing → null so FEELS_CURRENT is omitted rather than echoing the temp.
-        currentFeels: typeof now.feelsLike === 'number' ? now.feelsLike : null
+        currentFeels: typeof now.feelsLike === 'number' ? now.feelsLike : null,
+        currentCondition: condition.fromYandex(now.condition)
     };
 }
 

@@ -62,7 +62,10 @@ function mapFixtureWeather(weather) {
         // current, each defaulting to empty ([] / null) so the line stays off and
         // the temp slot renders the actual temp alone (a live provider gap's shape).
         feelsTrend: Array.isArray(weather.feelsTemps) ? weather.feelsTemps.slice(0) : [],
-        currentFeels: (typeof weather.currentFeels === 'number') ? weather.currentFeels : null
+        currentFeels: (typeof weather.currentFeels === 'number') ? weather.currentFeels : null,
+        // The weather condition now (weather/condition.js id, e.g. 'partly'); adoptMapped
+        // keeps a known id and turns anything else into null, and the slot then shows '--'.
+        currentCondition: weather.condition
     };
     mapArrayIfPresent(mapped, 'rainTrend', weather.rainMm);
     mapArrayIfPresent(mapped, 'windTrend', weather.windKmh);

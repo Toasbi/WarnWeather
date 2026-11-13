@@ -56,6 +56,8 @@
         tempF: 64.4,
         feelsF: 60.8,
         dewF: 48.2,
+        // A partly cloudy afternoon (weather/condition.js names('partly')).
+        condition: {full: 'Partly cloudy', short: 'PCLD'},
         uv: [3, 7],
         aqi: [42, 58],
         wind: {kph: [12, 30], mph: [7, 19], knots: [6, 16]},
@@ -194,6 +196,11 @@
         case 'date': return dateText(S, c.env, now, Boolean(c.fullDate));
         case 'week': return 'W' + slotText.isoWeek(now);
         case 'city': return 'Berlin';
+        // As the bake prints it: no text in the Icon look; the name, with its short form
+        // after catalog.ALT_SEP where the slot has the bytes (barSlots splits them).
+        case 'condition':
+            if (slotText.conditionLook(S, c.env) === 'icon') { return ''; }
+            return slotText.conditionText(SAMPLE.condition, cap, c.env);
         case 'countdown':
             return slotText.formatCountdown(c.slotKey ? S[c.slotKey + 'Countdown'] : undefined, now,
                 slotText.unitEnabled(S, 'countdownSlotUnit'), cap);
@@ -224,22 +231,13 @@
      * watch pictures (preview-watch.js) both ask here.
      * @param {string} code The slot's item.
      * @param {Object} [env] Platform env.
+     * @param {Object} [S] Settings: the weather condition in its Text look draws none.
      * @returns {?string} The glyph's <svg>, or null for none.
      */
-    function slotIcon(code, env) {
+    function slotIcon(code, env, S) {
         if (env && env.platform === 'aplite' && !APLITE_GLYPHS[code]) { return null; }
+        if (code === 'condition' && slotText.conditionLook(S, env) === 'text') { return null; }
         return (PConf && PConf.icons && PConf.icons.get && PConf.icons.get(code)) || null;
-    }
-
-    /**
-     * The glyph a slot's text follows, as the row's leading icon.
-     * @param {string} code The slot's item.
-     * @param {Object} [env] Platform env.
-     * @returns {string} HTML ('' for none).
-     */
-    function lead(code, env) {
-        var svg = slotIcon(code, env);
-        return svg ? '<span class="sbp-ico" aria-hidden="true">' + svg + '</span>' : '';
     }
 
     /**
@@ -272,15 +270,19 @@
      * @param {boolean} fullDate Whether the view drawing the bar shows no calendar (the
      *     date slot prints the full date there).
      * @param {Date} [now] Today (absent = the clock's).
-     * @returns {Array<{pos: string, key: string, code: string, text: string, arrow: boolean}>}
-     *     The left, middle and right slots (pos 'left' | 'mid' | 'right', key the slot's
-     *     setting, e.g. 'statusTopLeft'); [] for an unknown bar.
+     * @returns {Array<{pos: string, key: string, code: string, text: string, alt: string,
+     *     arrow: boolean, icon: ?string}>} The left, middle and right slots (pos 'left' | 'mid' |
+     *     'right', key the slot's setting, e.g. 'statusTopLeft'; alt the short form the text
+     *     brought after catalog.ALT_SEP, '' for none; icon its glyph's <svg>, slotIcon); [] for
+     *     an unknown bar.
      */
     function barSlots(S, env, bar, fullDate, now) {
         var st = S || {}, when = now || new Date();
         return barCodes(st, env, bar).map(function (c, p) {
-            var text = sample(c.code, st, {cap: SLOT_CAPS[p], env: env, now: when, fullDate: fullDate, slotKey: c.key});
-            return {pos: c.pos, key: c.key, code: c.code, text: text, arrow: arrowShown(c.code, text, st, env, SLOT_CAPS[p])};
+            var forms = sample(c.code, st, {cap: SLOT_CAPS[p], env: env, now: when, fullDate: fullDate,
+                slotKey: c.key}).split(catalog.ALT_SEP);
+            return {pos: c.pos, key: c.key, code: c.code, text: forms[0], alt: forms[1] || '',
+                arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: slotIcon(c.code, env, st)};
         });
     }
 
@@ -302,7 +304,8 @@
     function slotCell(c, barName, env, tappable) {
         var arrow = c.arrow ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
         var empty = c.code === 'empty';
-        var body = empty ? '' : lead(c.code, env) + esc(c.text) + arrow;
+        var lead = c.icon ? '<span class="sbp-ico" aria-hidden="true">' + c.icon + '</span>' : '';
+        var body = empty ? '' : lead + esc(c.text) + arrow;
         var cls = 'sbp-v sbp-' + c.pos;
         if (!tappable) { return '<span class="' + cls + '">' + body + '</span>'; }
         var item = catalog.byCode(c.code);

@@ -86,10 +86,51 @@ typedef enum {
                                 // arriving as SLOT_TEXT + STATUS_ICON_NONE, falling
                                 // through to THRESH_CITY and silently driving
                                 // City's Bold row (status_threshold.h)
+    // The weather condition slot (src/pkjs/weather/condition.js): phone-baked SLOT_TEXT
+    // whose icon is the condition's glyph, picked per bake like the phone-battery pair.
+    // COND_TEXT is its text-only look: no glyph may load, and like PRESSURE above the id
+    // keeps it from arriving as TEXT + NONE. Its text may carry a short form after
+    // STATUS_TEXT_ALT_SEP ("Partly cloudy" SEP "PCLD").
+    STATUS_ICON_COND_TEXT = 19,
+    STATUS_ICON_COND_SUN = 20,
+    STATUS_ICON_COND_MOON = 21,
+    STATUS_ICON_COND_SUN_CLOUD = 22,
+    STATUS_ICON_COND_MOON_CLOUD = 23,
+    STATUS_ICON_COND_CLOUD = 24,
+    STATUS_ICON_COND_FOG = 25,
+    STATUS_ICON_COND_HAZE = 26,
+    STATUS_ICON_COND_DRIZZLE = 27,
+    STATUS_ICON_COND_RAIN = 28,
+    STATUS_ICON_COND_SLEET = 29,
+    STATUS_ICON_COND_SNOW = 30,
+    STATUS_ICON_COND_HAIL = 31,
+    STATUS_ICON_COND_THUNDER = 32,
+    STATUS_ICON_COND_WIND = 33,     // the wind glyph, under an id of its own: STATUS_ICON_WIND
+                                    // is the wind speed slot's (its bold mode, its pair)
 } StatusIconId;
 // Id 6 (STATUS_ICON_PRECIP, removed in 3dae9f4) is a retired hole: never reuse it —
 // a pre-3dae9f4 install can still hold a persisted blob referencing it.
-#define STATUS_ICON_MAX STATUS_ICON_PHONE_BATTERY_PLAIN
+#define STATUS_ICON_MAX STATUS_ICON_COND_WIND
+
+// A SLOT_TEXT value may carry a short form after this byte: "full" SEP "short". The watch
+// draws the full form and swaps in the short one where the row would cut the full one
+// short, and offers it as the slot's short member where On demand needs the room
+// (status_short_text.h). Only the middle slot has the bytes for both; an edge slot carries
+// one form. Never in a slot with a wind-direction sentinel (status_row_direction.h).
+#define STATUS_TEXT_ALT_SEP 0x1F
+// Room for the longest short form, four capitals (condition.js), and the slack the
+// separator's check leaves: a longer one is cut to this many bytes.
+#define STATUS_TEXT_ALT_MAX 5
+
+// The full form's length in a SLOT_TEXT value of `len` bytes: the bytes before the
+// first STATUS_TEXT_ALT_SEP, or all of them. The short form, if any, is what follows
+// the separator.
+static inline size_t status_text_full_len(const char *value, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        if (value[i] == STATUS_TEXT_ALT_SEP) { return i; }
+    }
+    return len;
+}
 
 typedef struct {
     uint8_t kind;
