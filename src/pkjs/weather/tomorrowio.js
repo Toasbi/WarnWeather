@@ -3,21 +3,23 @@ var failure = WeatherProvider.failure;
 
 var hourlyWindow = require('./hourly-window.js');
 var dayPeaks = require('./day-peaks.js');
+var condition = require('./condition.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 // Shared unit helpers (wire-units.js owns them; local aliases keep call sites).
 var celsiusToFahrenheit = require('../wire-units.js').celsiusToFahrenheit;
 var normalizeBearing = require('../wire-units.js').normalizeBearing;
 var TIMELINES_ENDPOINT = 'https://api.tomorrow.io/v4/timelines';
-// Core-layer fields only. AQI/pollen are enterprise-gated (403 on a free key)
-// and nothing in the app consumes a condition code, so no weatherCode either.
-// dewPoint, windDirection and humidity are free Core-tier fields and cost nothing
-// extra: the budget guard bills per CALL, not per field (settings/tomorrowio-budget.js
-// WEATHER_CALLS_PER_CYCLE), and this is still the same single Timelines GET.
+// Core-layer fields only. AQI/pollen are enterprise-gated (403 on a free key).
+// dewPoint, windDirection, humidity and weatherCode are free Core-tier fields and
+// cost nothing extra: the budget guard bills per CALL, not per field
+// (settings/tomorrowio-budget.js WEATHER_CALLS_PER_CYCLE), and this is still the
+// same single Timelines GET.
 // humidity feeds the Units tab's Steadman feels-like option (feels-like.js):
 // temperatureApparent is the US heat-index / wind-chill value, equal to the air
-// temperature between roughly 5 °C and 27 °C.
-var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,cloudCover,temperatureApparent,dewPoint,windDirection,humidity';
+// temperature between roughly 5 °C and 27 °C. The anchor interval's weatherCode is
+// the weather condition slot's "now" (condition.js fromTomorrow).
+var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,cloudCover,temperatureApparent,dewPoint,windDirection,humidity,weatherCode';
 var MPS_TO_KMH = 3.6;
 
 /**
@@ -109,7 +111,8 @@ function anchorIndex(intervals, nowEpoch) {
  * probability %->[0,1]; rain (mm/h) and UV pass through (getPayload scales);
  * dew point °C->°F; the bearing is already degrees and only gets normalized.
  * The anchor bucket's temperature doubles as currentTemp (metno.js precedent —
- * no separate "current conditions" call, keeping the cycle at one API call).
+ * no separate "current conditions" call, keeping the cycle at one API call), and
+ * its weatherCode as the weather condition now, set only when it names one.
  *
  * @param {Object} json Parsed Timelines response.
  * @param {number} nowEpoch Current time in epoch seconds.
@@ -182,7 +185,7 @@ function mapResponse(json, nowEpoch, hours) {
         }
     }
 
-    return {
+    var mapped = {
         tempTrend: tempTrend,
         precipTrend: precipTrend,
         rainTrend: rainTrend,
@@ -208,6 +211,11 @@ function mapResponse(json, nowEpoch, hours) {
         currentHumidity: humidityTrend[0],
         currentWindKmh: anchorWindKmh
     };
+    var currentCondition = condition.fromTomorrow((intervals[anchor].values || {}).weatherCode);
+    if (currentCondition) {
+        mapped.currentCondition = currentCondition;
+    }
+    return mapped;
 }
 
 var TomorrowIoProvider = function(apiKey) {

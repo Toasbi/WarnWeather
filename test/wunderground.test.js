@@ -635,3 +635,70 @@ test('long span: WU sends the 48hour feed\'s 48 hours on a 48 h or 68 h window, 
   });
   assert.equal(p.getPayload().NUM_ENTRIES, 24);
 });
+
+// --- the weather condition now ------------------------------------------------------
+// The v3 observation's iconCode (0..47, part of its default response; weather/condition.js).
+
+/**
+ * A responder whose observation carries `observation`'s fields beside its temperature.
+ * @param {Object} observation Extra v3 observation fields.
+ * @returns {Function} The responder.
+ */
+function respondObserving(observation) {
+  return function(url, onSuccess) {
+    if (url.indexOf('/wx/observations/current') !== -1) {
+      onSuccess(JSON.stringify(Object.assign({ temperature: 71 }, observation)));
+      return;
+    }
+    onSuccess(JSON.stringify({ forecasts: [
+      { temp: 50, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR },
+      { temp: 60, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR + HOUR }
+    ] }));
+  };
+}
+
+/**
+ * One fetch on `p` at 13:20 into NOW_HOUR.
+ * @param {Object} p The provider.
+ * @returns {void}
+ */
+function fetchAtNow(p) {
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+}
+
+test('WU names the condition now from the observation\'s iconCode', () => {
+  [[30, 'partly'], [27, 'mostly'], [31, 'clear'], [12, 'rain'], [4, 'thunder'], [0, 'windy']].forEach(([code, id]) => {
+    responder = respondObserving({ iconCode: code, wxPhraseLong: 'whatever' });
+    const p = new WundergroundProvider();
+    fetchAtNow(p);
+    assert.equal(p.currentCondition, id, 'iconCode ' + code);
+    assert.equal(p.getPayload().CURRENT_CONDITION, id);
+  });
+});
+
+test('WU leaves the condition unknown when the observation names none, and a reused instance drops it', () => {
+  [undefined, null, 44, 25, 48, '30x'].forEach((code) => {
+    responder = respondObserving(code === undefined ? {} : { iconCode: code });
+    const p = new WundergroundProvider();
+    fetchAtNow(p);
+    assert.equal(p.currentCondition, null, 'iconCode ' + JSON.stringify(code));
+    assert.equal('CURRENT_CONDITION' in p.getPayload(), false);
+  });
+  const p = new WundergroundProvider();
+  responder = respondObserving({ iconCode: 20 });
+  fetchAtNow(p);
+  assert.equal(p.currentCondition, 'fog');
+  responder = respondObserving({});
+  fetchAtNow(p);
+  assert.equal(p.currentCondition, null, 'not the previous cycle\'s');
+});
+
+test('WU mapForecast carries the observation\'s condition only when it names one', () => {
+  const forecast = [{ temp: 50, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR }];
+  assert.equal(WundergroundProvider.mapForecast(forecast, { temp: 71, condition: 'haze' }).currentCondition, 'haze');
+  assert.equal('currentCondition' in WundergroundProvider.mapForecast(forecast, { temp: 71, condition: null }), false);
+  assert.equal('currentCondition' in WundergroundProvider.mapForecast(forecast, { temp: 71 }), false);
+});

@@ -331,10 +331,14 @@ typedef struct {
     bool charging;   // the watch is charging: the battery glyph keeps its bolt lane
 } Families;
 
-// Member `v` of slot `slot`'s short family into `buf` (status_short_member): its
-// flags, 0 for none. `suffix`: the slot's full form draws the wind arrow.
+// Member `v` of slot `slot`'s short family into `buf`: the short form it brought
+// (status_short_alt), else the ones its text derives (status_short_member). Its flags,
+// 0 for none. `suffix`: the slot's full form draws the wind arrow.
 static uint8_t family_member(const Families *f, const StatusOnDemandSlot *slot, bool suffix,
                              uint8_t v, char *buf) {
+    if (slot->alt && slot->alt[0] != '\0') {
+        return status_short_alt(slot->alt, v, buf, STATUS_SHORT_CAP);
+    }
     return status_short_member(slot->kind, slot->icon, slot->text, suffix, f->charging, v,
                                buf, STATUS_SHORT_CAP);
 }

@@ -506,7 +506,7 @@
         statusBars.barSlots(S, env, bar, cx.fullDate, cx.now).forEach(function (c) {
             if (c.code === 'empty' || !(c.pos in at)) { return; }
             var glyph = c.code === 'battery' && !c.text;
-            var icon = glyph ? null : statusBars.slotIcon(c.code, env);
+            var icon = glyph || c.iconless ? null : statusBars.slotIcon(c.code, env);
             slots[at[c.pos]] = { label: c.text || '', glyph: glyph, icon: icon,
                 iw: glyph ? BATTERY.w : (icon ? iconH : 0), tw: c.text ? WT.width(ch, false, c.text) : 0,
                 sw: c.arrow ? arrowW : 0 };

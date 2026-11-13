@@ -194,6 +194,14 @@
         case 'date': return dateText(S, c.env, now, Boolean(c.fullDate));
         case 'week': return 'W' + slotText.isoWeek(now);
         case 'city': return 'Berlin';
+        // A sample afternoon, partly cloudy (weather/condition.js), as the bake sends it: the
+        // middle slot has the bytes for the name, a left or right slot gets the short form,
+        // and aplite gets the short form wherever the name is longer than a left slot. The
+        // Icon look prints no text (aplite prints text whatever is stored).
+        case 'condition':
+            if (c.env && c.env.platform === 'aplite') { return 'PCLD'; }
+            if (S.conditionSlotLook === 'icon') { return ''; }
+            return cap >= catalog.CAPS.MID_TEXT_MAX ? 'Partly cloudy' : 'PCLD';
         case 'countdown':
             return slotText.formatCountdown(c.slotKey ? S[c.slotKey + 'Countdown'] : undefined, now,
                 slotText.unitEnabled(S, 'countdownSlotUnit'), cap);
@@ -280,8 +288,20 @@
         var st = S || {}, when = now || new Date();
         return barCodes(st, env, bar).map(function (c, p) {
             var text = sample(c.code, st, {cap: SLOT_CAPS[p], env: env, now: when, fullDate: fullDate, slotKey: c.key});
-            return {pos: c.pos, key: c.key, code: c.code, text: text, arrow: arrowShown(c.code, text, st, env, SLOT_CAPS[p])};
+            return {pos: c.pos, key: c.key, code: c.code, text: text, arrow: arrowShown(c.code, text, st, env, SLOT_CAPS[p]),
+                iconless: iconless(c.code, st)};
         });
+    }
+
+    /**
+     * Whether a slot draws no glyph although its item has one: the weather condition in its
+     * Text look (status-lines.js conditionLook).
+     * @param {string} code The slot's item.
+     * @param {Object} S Settings.
+     * @returns {boolean}
+     */
+    function iconless(code, S) {
+        return code === 'condition' && S.conditionSlotLook === 'text';
     }
 
     // How a slot is named to a screen reader, after its bar's name.
@@ -302,7 +322,7 @@
     function slotCell(c, barName, env, tappable) {
         var arrow = c.arrow ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
         var empty = c.code === 'empty';
-        var body = empty ? '' : lead(c.code, env) + esc(c.text) + arrow;
+        var body = empty ? '' : (c.iconless ? '' : lead(c.code, env)) + esc(c.text) + arrow;
         var cls = 'sbp-v sbp-' + c.pos;
         if (!tappable) { return '<span class="' + cls + '">' + body + '</span>'; }
         var item = catalog.byCode(c.code);

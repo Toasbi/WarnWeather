@@ -396,3 +396,40 @@ test('long span: OWM sends all 48 One Call hours on a 48 h or 68 h window, 24 on
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   assert.equal(p.getPayload().NUM_ENTRIES, 24);
 });
+
+// --- the weather condition now ------------------------------------------------------
+// One Call's current block lists its conditions, the primary first (weather/condition.js).
+
+test('OWM names the condition now from current.weather[0].id', () => {
+  responder = function(url, onSuccess) {
+    const response = twoHourResponse();
+    response.current.weather = [{ id: 802, main: 'Clouds', icon: '03d' }, { id: 500, main: 'Rain' }];
+    response.hourly[0].weather = [{ id: 211 }];   // a later hour's: not now
+    onSuccess(JSON.stringify(response));
+  };
+  const p = new OpenWeatherMapProvider('test-key');
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.equal(p.currentCondition, 'partly', 'the first (primary) entry');
+  assert.equal(p.getPayload().CURRENT_CONDITION, 'partly');
+});
+
+test('OWM leaves the condition out when current.weather names none, and a reused instance drops it', () => {
+  [undefined, [], [null], 'x', [{ id: 900 }], [{ main: 'Clouds' }]].forEach((weather) => {
+    const response = twoHourResponse();
+    if (weather !== undefined) { response.current.weather = weather; }
+    const mapped = OpenWeatherMapProvider.mapOneCall(response);
+    assert.equal('currentCondition' in mapped, false, 'weather ' + JSON.stringify(weather));
+    assert.deepEqual(mapped.tempTrend, [50, 60], 'the rest maps as before');
+  });
+  // Each cycle's One Call answer, as the chain's withSunEvents leaves it for withProviderData.
+  const p = new OpenWeatherMapProvider('test-key');
+  const snowy = twoHourResponse();
+  snowy.current.weather = [{ id: 601 }];
+  p.weatherDataCache = snowy;
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.equal(p.currentCondition, 'snow');
+  p.weatherDataCache = twoHourResponse();
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.equal(p.currentCondition, null, 'not the previous cycle\'s');
+  assert.equal('CURRENT_CONDITION' in p.getPayload(), false);
+});

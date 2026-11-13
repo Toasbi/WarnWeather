@@ -8145,6 +8145,42 @@
               }
             ],
             "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "slotCondition",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Weather condition slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "conditionSlotLook",
+                "label": "Look",
+                "hintByValue": {
+                  "both": "Shows the weather symbol and its name, like Partly cloudy, or PCLD where the slot is short of room.",
+                  "text": "Shows the name alone, like Partly cloudy, or PCLD where the slot is short of room.",
+                  "icon": "Shows the weather symbol alone."
+                },
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ]
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
           }
         ]
       },

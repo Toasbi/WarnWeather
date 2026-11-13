@@ -82,6 +82,49 @@ test('the phone-battery icon ids are 16/17/18 on both sides of the wire', () => 
   assert.equal(catalog.ICONS.PHONE_BATTERY_PLAIN, 18);
 });
 
+test('the weather condition icon ids are 19..33 on both sides of the wire', () => {
+  const names = ['TEXT', 'SUN', 'MOON', 'SUN_CLOUD', 'MOON_CLOUD', 'CLOUD', 'FOG', 'HAZE', 'DRIZZLE', 'RAIN',
+    'SLEET', 'SNOW', 'HAIL', 'THUNDER', 'WIND'];
+  names.forEach((n, i) => {
+    assert.equal(catalog.ICONS['COND_' + n], 19 + i, 'COND_' + n);
+    assert.equal(cEnum('STATUS_ICON_COND_' + n), 19 + i, 'STATUS_ICON_COND_' + n);
+  });
+  assert.equal(catalog.ALT_SEP.charCodeAt(0), Number(header.match(/#define\s+STATUS_TEXT_ALT_SEP\s+(0x[0-9A-Fa-f]+)/)[1]));
+  // Every glyph condition.js names is a catalog icon.
+  const C = require('../src/pkjs/weather/condition.js');
+  Object.keys(C.CONDITIONS).forEach((id) => [false, true].forEach((night) => {
+    assert.ok(Object.prototype.hasOwnProperty.call(catalog.ICONS, C.glyph(id, night)), id + ' ' + night);
+  }));
+});
+
+// Each condition glyph exists three times: the watch's PDC resource (declared in
+// package.template.json, mapped in status_row_icons.c) and the settings page's outline
+// (condition-glyphs.generated.js), all written by scripts/gen-condition-glyphs.py. A glyph
+// missing one of them draws on one side only, or as nothing, without an error.
+test('every condition glyph has its resource, its watch mapping and its page outline', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const ROOT = path.join(__dirname, '..');
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.template.json'), 'utf8'));
+  const media = pkg.pebble.resources.media;
+  const icons = fs.readFileSync(path.join(ROOT, 'src/c/layers/status_row_icons.c'), 'utf8');
+  const page = require('../src/pkjs/settings/condition-glyphs.generated.js');
+  const drawn = Object.keys(catalog.ICONS).filter((k) => /^COND_/.test(k) && k !== 'COND_TEXT' && k !== 'COND_WIND');
+  assert.deepEqual(drawn.map((k) => k.slice(5)).sort(), Object.keys(page).sort(), 'the page draws every glyph, and no other');
+  drawn.forEach((k) => {
+    const name = 'STATUS_' + k;
+    const res = media.find((m) => m.name === name);
+    assert.ok(res, name + ' is declared');
+    assert.equal(res.file, 'data/' + name + '.pdc', name + ': its file');
+    assert.ok(fs.existsSync(path.join(ROOT, 'resources', res.file)), name + ': the file is committed');
+    assert.deepEqual(res.targetPlatforms, ['basalt', 'diorite', 'emery', 'flint'], name + ': every watch with glyphs');
+    assert.ok(icons.indexOf('case STATUS_ICON_' + k + ': return RESOURCE_ID_' + name + ';') !== -1,
+      name + ': status_row_icons.c maps it');
+  });
+  assert.ok(icons.indexOf('case STATUS_ICON_COND_WIND: return RESOURCE_ID_STATUS_WIND;') !== -1, 'windy borrows the flag');
+  assert.ok(icons.indexOf('case STATUS_ICON_COND_TEXT: return 0;') !== -1, 'the Text look loads no glyph');
+});
+
 test('STATUS_ICON_MAX names the highest icon id in the enum', () => {
   const ids = [...header.matchAll(/(STATUS_ICON_[A-Z_]+)\s*=\s*(\d+)/g)]
     .map(m => ({ name: m[1], value: Number(m[2]) }));

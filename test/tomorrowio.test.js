@@ -101,9 +101,33 @@ test('buildUrl floors the hour, requests 1h metric timelines with the reduced fi
   assert.ok(url.indexOf('startTime=' + startIso) >= 0, 'startTime is the floored hour');
   assert.ok(url.indexOf('endTime=' + endIso) >= 0,
     'endTime is floored hour + (PEAK_HOURS + 1) h: the UV series reads PEAK_HOURS buckets');
-  // no weatherCode / 1d fields — nothing consumes them (see plan spec-corrections)
-  assert.doesNotMatch(url, /weatherCode/);
+  // weatherCode names the weather condition now; still no 1d fields — nothing consumes them
+  assert.match(url, /fields=[^&]*\bweatherCode\b/);
   assert.doesNotMatch(url, /1d/);
+});
+
+test('tomorrow.io names the condition now from the anchor interval\'s weatherCode', () => {
+  const json = sampleResponse();
+  json.data.timelines[0].intervals.forEach((iv, i) => { iv.values.weatherCode = i === 3 ? 4200 : 8000; });
+  const out = mapResponse(json, BASE + 3 * 3600 + 600); // anchor at bucket 3
+  assert.equal(out.currentCondition, 'lightrain', 'the anchor\'s, the moment currentTemp describes');
+  [[1101, 'partly'], [1001, 'cloudy'], [5101, 'heavysnow'], [6201, 'freezing']].forEach(([code, id]) => {
+    json.data.timelines[0].intervals[3].values.weatherCode = code;
+    assert.equal(mapResponse(json, BASE + 3 * 3600 + 600).currentCondition, id, 'weatherCode ' + code);
+  });
+});
+
+test('tomorrow.io leaves the condition out when the anchor interval names none', () => {
+  const nowEpoch = BASE + 3 * 3600 + 600;
+  assert.equal('currentCondition' in mapResponse(sampleResponse(), nowEpoch), false, 'no weatherCode');
+  [0, null, 'x', 9999].forEach((code) => {
+    const json = sampleResponse();
+    json.data.timelines[0].intervals[3].values.weatherCode = code;
+    json.data.timelines[0].intervals[4].values.weatherCode = 1000;
+    const out = mapResponse(json, nowEpoch);
+    assert.equal('currentCondition' in out, false, 'weatherCode ' + JSON.stringify(code));
+    assert.equal(out.tempTrend.length, 24, 'the rest maps as before');
+  });
 });
 
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
@@ -342,6 +366,30 @@ test('withProviderData populates dewTrend and windDirTrend, numEntries long', ()
     assert.equal(p.windDirTrend.length, p.numEntries);
     p.windDirTrend.forEach((v) => assert.ok(v >= 0 && v < 360, `${v} is outside [0, 360)`));
     assert.equal(p.windDirTrend[0], 250);
+  } finally {
+    global.XMLHttpRequest = prevXhr;
+  }
+});
+
+test('withProviderData carries the condition now to the payload, and a reused instance drops it', () => {
+  const prevXhr = global.XMLHttpRequest;
+  global.XMLHttpRequest = MockXhr;
+  try {
+    const p = new TomorrowIoProvider('KEY123');
+    const fetchWith = (response) => {
+      p.withProviderData(52.52, 13.41, false, () => {}, (f) => { throw new Error(f.code); });
+      MockXhr.last.status = 200;
+      MockXhr.last.responseText = JSON.stringify(response);
+      MockXhr.last.onload();
+    };
+    const foggy = liveSampleResponse();
+    foggy.data.timelines[0].intervals.forEach((iv) => { iv.values.weatherCode = 2100; });
+    fetchWith(foggy);
+    assert.equal(p.currentCondition, 'fog');
+    assert.equal(p.getPayload().CURRENT_CONDITION, 'fog');
+    fetchWith(liveSampleResponse());
+    assert.equal(p.currentCondition, null, 'no weatherCode the next cycle: not the previous one');
+    assert.equal('CURRENT_CONDITION' in p.getPayload(), false);
   } finally {
     global.XMLHttpRequest = prevXhr;
   }

@@ -178,6 +178,24 @@ static uint32_t icon_resource(uint8_t icon_id) {
         // the draw site (status_row.c ensure_glyphs) never asks for them anyway.
         case STATUS_ICON_PRESSURE: return 0;
         case STATUS_ICON_PHONE_BATTERY_PLAIN: return 0;
+        // The weather condition's glyphs (scripts/gen-condition-glyphs.py), picked by
+        // the phone per condition and day or night. Its Text look (COND_TEXT) is
+        // text-only like PRESSURE; windy borrows the wind speed slot's flag.
+        case STATUS_ICON_COND_TEXT: return 0;
+        case STATUS_ICON_COND_SUN: return RESOURCE_ID_STATUS_COND_SUN;
+        case STATUS_ICON_COND_MOON: return RESOURCE_ID_STATUS_COND_MOON;
+        case STATUS_ICON_COND_SUN_CLOUD: return RESOURCE_ID_STATUS_COND_SUN_CLOUD;
+        case STATUS_ICON_COND_MOON_CLOUD: return RESOURCE_ID_STATUS_COND_MOON_CLOUD;
+        case STATUS_ICON_COND_CLOUD: return RESOURCE_ID_STATUS_COND_CLOUD;
+        case STATUS_ICON_COND_FOG: return RESOURCE_ID_STATUS_COND_FOG;
+        case STATUS_ICON_COND_HAZE: return RESOURCE_ID_STATUS_COND_HAZE;
+        case STATUS_ICON_COND_DRIZZLE: return RESOURCE_ID_STATUS_COND_DRIZZLE;
+        case STATUS_ICON_COND_RAIN: return RESOURCE_ID_STATUS_COND_RAIN;
+        case STATUS_ICON_COND_SLEET: return RESOURCE_ID_STATUS_COND_SLEET;
+        case STATUS_ICON_COND_SNOW: return RESOURCE_ID_STATUS_COND_SNOW;
+        case STATUS_ICON_COND_HAIL: return RESOURCE_ID_STATUS_COND_HAIL;
+        case STATUS_ICON_COND_THUNDER: return RESOURCE_ID_STATUS_COND_THUNDER;
+        case STATUS_ICON_COND_WIND: return RESOURCE_ID_STATUS_WIND;
         // The On demand system items (in-memory ids, never on the wire).
         case STATUS_ROW_ICON_QUIET: return RESOURCE_ID_STATUS_QUIET;
         case STATUS_ROW_ICON_BT: return RESOURCE_ID_STATUS_BT;

@@ -133,6 +133,9 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     // The chain-stage fields a live fetch fills after the adapter (city lookup,
     // sun events, the AQI and pollen aux fetches) are faked directly.
     provider.cityName = weather.city || 'Fixture City';
+    // The weather condition now (weather/condition.js id, e.g. 'partly'); absent -> the
+    // condition slot renders '--'.
+    provider.currentCondition = (typeof weather.condition === 'string') ? weather.condition : null;
     // AQI is a status-slot value, not a forecast line: accept a scalar current
     // index (weather.aqi) — wrapped as a one-element trend, like the WAQI source —
     // or an explicit array. Absent -> [] and the slot renders '--'.

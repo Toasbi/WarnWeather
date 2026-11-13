@@ -163,6 +163,34 @@ test('buildForecastUrl asks for three GMT days', () => {
   assert.match(openmeteo.buildForecastUrl(52.52, 13.41), /&forecast_days=3(&|$)/);
 });
 
+test('buildForecastUrl asks the pinned main call for the current weather_code beside the temperature', () => {
+  const url = openmeteo.buildForecastUrl(52.52, 13.41);
+  assert.match(url, /&current=temperature_2m,weather_code(&|$)/);
+  assert.match(url, /&models=ecmwf_ifs025(&|$)/, 'the same model as the rain bars');
+  assert.doesNotMatch(openmeteo.buildGustUrl(52.52, 13.41), /weather_code/, 'the aux call keeps its fields');
+});
+
+test('mapResponse names the condition now from the current block\'s WMO weather_code', () => {
+  const nowEpoch = BASE + 18 * 3600 + 600;
+  [[0, 'clear'], [2, 'partly'], [61, 'lightrain'], [75, 'heavysnow'], [95, 'thunder']].forEach(([code, id]) => {
+    const json = sampleResponse();
+    json.current.weather_code = code;
+    assert.equal(mapResponse(json, nowEpoch).currentCondition, id, 'WMO ' + code);
+  });
+});
+
+test('mapResponse leaves the condition out when the current block names none', () => {
+  const nowEpoch = BASE + 18 * 3600 + 600;
+  assert.equal('currentCondition' in mapResponse(sampleResponse(), nowEpoch), false, 'no weather_code');
+  [null, 4, 'x'].forEach((code) => {
+    const json = sampleResponse();
+    json.current.weather_code = code;
+    const out = mapResponse(json, nowEpoch);
+    assert.equal('currentCondition' in out, false, 'weather_code ' + JSON.stringify(code));
+    assert.equal(out.tempTrend.length, 24, 'the rest maps as before');
+  });
+});
+
 test('mapResponse returns null when fewer than 24 buckets remain after the anchor', () => {
   // Anchor at bucket 30 -> only 18 buckets left in a 48-bucket response.
   const nowEpoch = BASE + 30 * 3600;

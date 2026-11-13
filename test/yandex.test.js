@@ -104,6 +104,32 @@ test('buildQuery selects feelsLike with the temperature unit arg in now{} and ho
   assert.match(q, /hours \{[^}]*feelsLike\(unit: FAHRENHEIT\)/);
 });
 
+test('buildQuery selects the condition now, a bare enum field of now{}', () => {
+  const q = yandex.buildQuery(52.52, 13.41);
+  assert.match(q, /now \{[^}]*\bcondition \}/, 'no arguments: Now.condition takes none');
+  assert.doesNotMatch(q, /hours \{[^}]*\bcondition\b/, 'the hours need none');
+});
+
+test('mapResponse names the condition now from now.condition, either spelling', () => {
+  [['PARTLY_CLOUDY', 'partly'], ['CLOUDY', 'mostly'], ['OVERCAST', 'cloudy'], ['LIGHT_RAIN', 'lightrain'],
+    ['SNOWFALL', 'heavysnow'], ['THUNDERSTORM_WITH_RAIN', 'thunder'], ['partly-cloudy', 'partly']].forEach(([value, id]) => {
+    const r = sampleResponse();
+    r.data.weatherByPoint.now.condition = value;
+    assert.equal(mapResponse(r, BASE).currentCondition, id, value);
+  });
+});
+
+test('mapResponse leaves the condition out when now names none', () => {
+  assert.equal('currentCondition' in mapResponse(sampleResponse(), BASE), false, 'no condition');
+  [null, '', 'NOPE', 3].forEach((value) => {
+    const r = sampleResponse();
+    r.data.weatherByPoint.now.condition = value;
+    const out = mapResponse(r, BASE);
+    assert.equal('currentCondition' in out, false, 'condition ' + JSON.stringify(value));
+    assert.equal(out.tempTrend.length, 24, 'the rest maps as before');
+  });
+});
+
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 const YandexProvider = yandex.YandexProvider;
 
@@ -194,6 +220,31 @@ test('withProviderData POSTs the built query with auth headers, and onload popul
     assert.equal(p.tempTrend.length, 24);
     assert.equal(p.currentTemp, 71);
     assert.equal(typeof p.startTime, 'number');
+  }
+  finally {
+    global.XMLHttpRequest = prevXhr;
+  }
+});
+
+test('withProviderData carries the condition now to the payload, and a reused instance drops it', () => {
+  const prevXhr = global.XMLHttpRequest;
+  global.XMLHttpRequest = MockXhr;
+  try {
+    const p = new YandexProvider('KEY123');
+    const fetchWith = (response) => {
+      p.withProviderData(52.52, 13.41, false, () => {}, (f) => { throw new Error(f.code); });
+      MockXhr.last.status = 200;
+      MockXhr.last.responseText = JSON.stringify(response);
+      MockXhr.last.onload();
+    };
+    const wet = liveSampleResponse();
+    wet.data.weatherByPoint.now.condition = 'HEAVY_RAIN';
+    fetchWith(wet);
+    assert.equal(p.currentCondition, 'heavyrain');
+    assert.equal(p.getPayload().CURRENT_CONDITION, 'heavyrain');
+    fetchWith(liveSampleResponse());
+    assert.equal(p.currentCondition, null, 'not the previous cycle\'s');
+    assert.equal('CURRENT_CONDITION' in p.getPayload(), false);
   }
   finally {
     global.XMLHttpRequest = prevXhr;

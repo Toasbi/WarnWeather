@@ -682,7 +682,7 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
   assert.notEqual(at, -1, 'status-slot-icons.js is not in APP_FILES');
   const src = page();
   const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze',
-    'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun'];
+    'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun', 'condition'];
   IDS.forEach((id) => {
     assert.ok(src.indexOf("icons.register('" + id + "'") !== -1,
       'no register(\'' + id + '\' in page.generated.js — status-slot-icons.js did not reach the page');
@@ -690,6 +690,12 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
   // And what it registers is what the module exports (the map the tests read).
   const icons = require('../src/pkjs/settings/status-slot-icons.js');
   assert.deepEqual(Object.keys(icons).sort(), IDS.slice().sort());
+  // The condition glyph reads window.ConditionGlyphs while its IIFE runs: the generated
+  // outlines have to be on the page first, or the page throws at boot on a real phone.
+  const glyphs = appFiles.findIndex((f) => f.endsWith('settings/condition-glyphs.generated.js'));
+  assert.ok(glyphs !== -1 && glyphs < at, 'condition-glyphs.generated.js must precede status-slot-icons.js');
+  assert.ok(src.indexOf('window.ConditionGlyphs = GLYPHS') < src.indexOf("icons.register('condition'"),
+    'the page carries the condition glyphs ahead of their registration');
 });
 
 // The update-interval budget modules are the same silent-no-op shape: blocks.js and

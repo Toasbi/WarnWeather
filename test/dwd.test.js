@@ -852,3 +852,66 @@ test('DWD guards only its parse: a throw further down the update is not also rep
   }, /downstream/);
   assert.deepEqual(failures, [], 'a success is never followed by a parse error');
 });
+
+// --- the weather condition now ------------------------------------------------------
+// The observation's icon (else its condition), rain or snow graded by its last hour's
+// precipitation; with no station near enough, the forecast record that covers the hour
+// now: the one stamped an hour on, whose icon, condition and precipitation are that
+// hour's (Brightsky's preceding-hour convention), where slot 0's rain bar reads too.
+
+test('DWD names the condition now from the observation\'s icon, graded by its last hour\'s precipitation', () => {
+  const cases = [
+    [{ icon: 'partly-cloudy-night', condition: 'dry', precipitation_60: 0 }, 'partly'],
+    [{ icon: 'rain', condition: 'rain', precipitation_60: 0.2, precipitation_10: 0.2 }, 'lightrain'],
+    [{ icon: 'rain', condition: 'rain', precipitation_60: 5.2 }, 'heavyrain'],
+    [{ icon: 'rain', condition: 'rain' }, 'rain'],
+    [{ icon: null, condition: 'thunderstorm' }, 'thunder'],
+    [{ icon: 'fog', condition: 'fog' }, 'fog']
+  ];
+  cases.forEach(([fields, expected]) => {
+    const { p, mapped, ok } = runSeam(fullRecords(), { current: Object.assign({ temperature: 15 }, fields) });
+    assert.equal(ok, true);
+    assert.equal(mapped[0].currentCondition, expected, JSON.stringify(fields));
+    assert.equal(p.currentCondition, expected);
+    assert.equal(p.getPayload().CURRENT_CONDITION, expected);
+  });
+});
+
+test('DWD leaves the condition unknown when the observation names none, whatever the forecast says', () => {
+  const recs = fullRecords().map((r) => Object.assign(r, { icon: 'cloudy', condition: 'dry' }));
+  [{ temperature: 15 }, { temperature: 15, icon: 'nonsense', condition: 'dry' },
+    { temperature: 15, icon: 42, condition: ['rain'] }].forEach((current) => {
+    const { p, mapped, ok } = runSeam(recs, { current });
+    assert.equal(ok, true, JSON.stringify(current));
+    assert.equal('currentCondition' in mapped[0], false, JSON.stringify(current));
+    assert.equal(p.currentCondition, null);
+    assert.equal('CURRENT_CONDITION' in p.getPayload(), false);
+  });
+});
+
+test('DWD with no station near enough: the condition is the forecast\'s for the hour now, the record an hour on', () => {
+  const recs = mosmixRecords().map((r, i) => Object.assign(r, {
+    icon: i === 1 ? 'rain' : 'clear-day', condition: i === 1 ? 'rain' : 'dry', precipitation: i === 1 ? 0.3 : 0
+  }));
+  const { p, ok } = runCurrent(recs, noStation);
+  assert.equal(ok, true);
+  assert.equal(p.rainTrend[0], 0.3, 'slot 0\'s rain bar reads the same record');
+  assert.equal(p.currentCondition, 'lightrain', 'not slot 0\'s own record, which covers the hour that ended');
+  assert.equal(p.getPayload().CURRENT_CONDITION, 'lightrain');
+});
+
+test('DWD with no station near enough and no record an hour on: no condition, rather than the hour that ended', () => {
+  const recs = mosmixRecords().map((r) => Object.assign(r, { icon: 'cloudy', condition: 'dry' }));
+  recs.splice(1, 1);   // Brightsky skipped the record stamped an hour on
+  const { p, ok } = runCurrent(recs, noStation);
+  assert.equal(ok, true);
+  assert.equal(p.currentCondition, null);
+  assert.equal('CURRENT_CONDITION' in p.getPayload(), false);
+});
+
+test('DWD on a reused instance: a cycle whose observation names no condition drops the previous one', () => {
+  const first = runSeam(fullRecords(), { current: { temperature: 15, icon: 'snow', condition: 'snow', precipitation_60: 1 } });
+  assert.equal(first.p.currentCondition, 'snow');
+  const second = runSeam(fullRecords(), { provider: first.p, current: { temperature: 15 } });
+  assert.equal(second.p.currentCondition, null);
+});

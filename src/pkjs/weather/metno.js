@@ -2,6 +2,7 @@ var WeatherProvider = require('./provider.js');
 var metnoHeaders = require('./metno-headers.js');
 var feelsLikeF = require('./feels-like.js').feelsLikeF;
 var weightedCloudCover = require('./cloud-cover.js').weightedCloudCover;
+var condition = require('./condition.js');
 
 var hourlyWindow = require('./hourly-window.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
@@ -49,6 +50,18 @@ function entryEpoch(entry) {
  */
 function instantOf(entry) {
     return (entry && entry.data && entry.data.instant && entry.data.instant.details) || null;
+}
+
+/**
+ * The weather condition (condition.js) of the hour that starts at a bucket: its
+ * next_1_hours symbol. For the anchor bucket that is the hour now.
+ *
+ * @param {Object} entry A locationforecast timeseries bucket.
+ * @returns {?string} A condition id, or null when the bucket names none.
+ */
+function entryCondition(entry) {
+    var next1 = entry && entry.data && entry.data.next_1_hours;
+    return condition.fromMetno(next1 && next1.summary && next1.summary.symbol_code);
 }
 
 /**
@@ -285,7 +298,9 @@ function hourlyTail(timeseries, anchor, hours) {
  * — missing values read 0, they are not a failure (the "(Nordics only)" label
  * documents the scope). Rain and chance come from next_1_hours, the hour that
  * starts at the stamp, so slot i reads its own bucket; the gust is the peak of
- * the hour ending at the stamp, so it reads the next one (followingGust).
+ * the hour ending at the stamp, so it reads the next one (followingGust). The
+ * weather condition now is the anchor bucket's next_1_hours symbol, set only
+ * when the bucket names one.
  *
  * Met.no is hourly to about 60 h and 6-hourly after. The long span's window (past
  * PEAK_HOURS: 68) has the 6-hourly part made hourly first (hourlyTail); every
@@ -301,9 +316,9 @@ function hourlyTail(timeseries, anchor, hours) {
  *   windTrend: number[], gustTrend: number[], uvTrend: number[],
  *   pressureTrend: number[], feelsTrend: number[], dewTrend: Array.<?number>,
  *   windDirTrend: Array.<?number>, startTime: number, currentTemp: number,
- *   currentFeels: ?number}|null} Mapped fields, or null when the response is
- *   malformed or has fewer than FORECAST_HOURS hourly buckets at/after the
- *   current hour.
+ *   currentFeels: ?number, currentCondition: (string|undefined)}|null} Mapped
+ *   fields, or null when the response is malformed or has fewer than
+ *   FORECAST_HOURS hourly buckets at/after the current hour.
  */
 function mapResponse(json, nowEpoch, hours) {
     var timeseries = json && json.properties && json.properties.timeseries;
@@ -385,7 +400,7 @@ function mapResponse(json, nowEpoch, hours) {
             ? next1.probability_of_precipitation / 100 : 0);
     }
 
-    return {
+    var mapped = {
         tempTrend: tempTrend,
         precipTrend: precipTrend,
         rainTrend: rainTrend,
@@ -408,6 +423,12 @@ function mapResponse(json, nowEpoch, hours) {
         currentTemp: celsiusToFahrenheit(timeseries[anchor].data.instant.details.air_temperature),
         currentFeels: currentFeels
     };
+    // The anchor bucket doubles as "now" here too: its next hour's symbol.
+    var currentCondition = entryCondition(timeseries[anchor]);
+    if (currentCondition) {
+        mapped.currentCondition = currentCondition;
+    }
+    return mapped;
 }
 
 var MetnoProvider = function() {

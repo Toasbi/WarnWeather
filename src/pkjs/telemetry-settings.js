@@ -368,6 +368,11 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // aplite has no On demand. Lockstep with handler.ts -- deploy it first.
         alertsReplaceSlot: onDemandCode === undefined ? undefined
             : (statusWire.alertsReplaceSlot(safe) ? 'now' : 'needed'),
+        // The weather condition slot's Look ('both' icon and text, 'text', 'icon'; absent or
+        // junk reads 'both'), on the watches that draw its glyph: aplite prints text whatever
+        // is stored. Lockstep with handler.ts -- deploy it first.
+        conditionSlotLook: isAplite ? undefined
+            : (safe.conditionSlotLook === 'text' || safe.conditionSlotLook === 'icon' ? safe.conditionSlotLook : 'both'),
         // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),

@@ -573,3 +573,29 @@ test('a 3-hour fixture still sends its 3 hours on every span', () => {
     assert.equal(out.TEMP_TREND_UINT8.length, 3, h);
   });
 });
+
+// fixtures/condition.json is the emulator sign-off scene for the weather condition slot:
+// partly cloudy at 15:24, before the 21:00 sunset, so the sun-behind-a-cloud glyph. The
+// forecast bar's middle slot carries the name with its short form after the separator
+// (the watch swaps the short one in where the row would cut the name); the Watch bar's
+// left slot has room for one form only, so the short one, beside the calendar week and
+// air quality (the rain alert, whose text would take that side, is off there).
+test('fixtures/condition.json bakes the condition into the forecast bar and the Watch bar', () => {
+  const { normalizeWeather } = require('../scripts/lib/fixture-time');
+  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'condition.json'), 'utf8'));
+  normalizeWeather(fx);
+  ['basalt', 'emery'].forEach((platform) => {
+    const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
+    const mid = decodeLine(out.STATUS_LINE_1_UINT8)[1];
+    assert.equal(mid.icon, catalog.ICONS.COND_SUN_CLOUD, platform + ': the day glyph');
+    assert.equal(mid.text, 'Partly cloudy\u001fPCLD', platform + ': the name and its short form');
+    const topLeft = decodeLine(out.STATUS_LINE_3_UINT8)[0];
+    assert.deepEqual([topLeft.kind, topLeft.icon, topLeft.text],
+      [catalog.KINDS.TEXT, catalog.ICONS.COND_SUN_CLOUD, 'PCLD'], platform + ': the edge slot');
+  });
+  const aplite = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform: 'aplite' });
+  const apliteMid = decodeLine(aplite.STATUS_LINE_1_UINT8)[1];
+  assert.deepEqual([apliteMid.icon, apliteMid.text], [catalog.ICONS.COND_TEXT, 'PCLD'],
+    'aplite: the text-only look, one form');
+});
