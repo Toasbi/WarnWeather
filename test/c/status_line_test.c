@@ -312,42 +312,11 @@ static void iso_week_tests(void) {
     expect("isoweek.2020-12-31(Thu)", iso_week(2020, 365, 4), 53); // leap, 53-week year
 }
 
-// The weather condition slot: a SLOT_TEXT value may carry its short form after
-// STATUS_TEXT_ALT_SEP ("Partly cloudy" SEP "PCLD"), which the line validates as plain
-// text, and status_text_full_len() splits off.
-static void alt_tests(void) {
-    const char both[] = "Partly cloudy\x1fPCLD";
-    expect("alt.split", (int)status_text_full_len(both, strlen(both)), 13);
-    expect("alt.none", (int)status_text_full_len("Cloudy", 6), 6);
-    expect("alt.empty", (int)status_text_full_len("", 0), 0);
-    expect("alt.first-sep", (int)status_text_full_len("a\x1f" "b\x1f" "c", 5), 1);
-    expect("alt.sep-last", (int)status_text_full_len("Sunny\x1f", 6), 5);
-    // Only the bytes it is given: a separator past `len` is not looked at.
-    expect("alt.bounded", (int)status_text_full_len(both, 4), 4);
-
-    uint8_t b[64];
-    size_t n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_TEXT, "--");
-    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_COND_SUN_CLOUD, both);
-    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_COND_WIND, "WNDY");
-    expect("alt.line-valid", status_line_validate(b, n), 1);
-    StatusSlotView v[STATUS_SLOT_COUNT];
-    expect("alt.line-slots", status_line_slots(b, n, v), STATUS_SLOT_COUNT);
-    expect("alt.mid-len", v[1].value_len, (int)strlen(both));
-    // The short form ends in a letter, never in a wind sentinel.
-    expect("alt.no-dir", status_slot_direction(&v[1]), -1);
-    expect("alt.max-icon", STATUS_ICON_MAX, STATUS_ICON_COND_WIND);
-    n = put_slot(b, 0, SLOT_TEXT, (uint8_t)(STATUS_ICON_COND_WIND + 1), "x");
-    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
-    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
-    expect("alt.past-max-invalid", status_line_validate(b, n), 0);
-}
-
 int main(void) {
     validate_tests();
     slot_tests();
     direction_tests();
     iso_week_tests();
-    alt_tests();
     if (s_failures) { printf("%d status_line failure(s)\n", s_failures); return 1; }
     printf("status_line OK\n");
     return 0;

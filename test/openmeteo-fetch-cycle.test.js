@@ -212,33 +212,3 @@ test('the long span (emery, 68 h): 4-day main, aux and UV calls, 68 hours in the
   assert.match(urls[2], /&forecast_days=2(&|$)/);
   assert.equal(p.getPayload().NUM_ENTRIES, 24);
 });
-
-test('the condition now rides the main call: kept through an aux failure, dropped when the next answer names none', () => {
-  const p = new OpenMeteoProvider();
-  p.options = fetchOptions.defaults({ fetchUv: false });
-
-  // Cycle 1: the main call names light rain; the aux call times out.
-  responder = function(url, onSuccess, onError) {
-    if (url.indexOf('current=apparent_temperature') !== -1) { onError({ code: 0, message: 'timeout' }); return; }
-    const main = mainResponse();
-    main.current.weather_code = 61;
-    onSuccess(JSON.stringify(main));
-  };
-  withMockedNow(BASE + 9 * HOUR + 300, function() {
-    p.withProviderData(0, 0, false, function() {},
-      function(f) { throw new Error('cycle 1 failed: ' + JSON.stringify(f)); });
-  });
-  assert.equal(p.currentCondition, 'lightrain');
-  assert.equal(p.getPayload().CURRENT_CONDITION, 'lightrain');
-
-  // Cycle 2: both calls answer, the main one without a weather_code.
-  responder = function(url, onSuccess) {
-    onSuccess(JSON.stringify(url.indexOf('current=apparent_temperature') !== -1 ? auxResponse() : mainResponse()));
-  };
-  withMockedNow(BASE + 10 * HOUR + 300, function() {
-    p.withProviderData(0, 0, false, function() {},
-      function(f) { throw new Error('cycle 2 failed: ' + JSON.stringify(f)); });
-  });
-  assert.equal(p.currentCondition, null, 'not the previous cycle\'s');
-  assert.equal('CURRENT_CONDITION' in p.getPayload(), false);
-});

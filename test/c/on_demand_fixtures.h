@@ -88,7 +88,6 @@ static inline void strip_slots(OdSlotIn slots[3]) {
     slots[2] = slot_battery();
 }
 
-// od_layout's `battery_slots`: bit i marks slot i as one that shows the watch battery.
 // Whether side d draws its input item k.
 static inline int drawn(const OdLayout *out, int d, int k) {
     return k >= out->first[d] && k < out->first[d] + out->n[d] && k + 1 != out->skip[d];
@@ -103,6 +102,7 @@ static inline void three_slots(OdSlotIn slots[3]) {
     slots[2] = slot_text(30, 0);
 }
 
+// od_layout's `battery_slots`: bit i marks slot i as one that shows the watch battery.
 #define BATT_L 1
 #define BATT_M 2
 #define BATT_R 4

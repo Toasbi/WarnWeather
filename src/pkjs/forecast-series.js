@@ -600,7 +600,6 @@ function applyForecastSeries(payload, settings, watchInfo) {
     var series = buildForecastSeries(raw, settings);
     delete payload.TEMP_RAW_TREND; // transient PKJS-only; encoded into TEMP_TREND_UINT8 above, never wired
     delete payload.CURRENT_TEMP; // baked into the status lines; no longer a wire key
-    delete payload.CURRENT_CONDITION; // baked into the weather condition slot (status-lines.js)
     delete payload.CITY;         // baked into the status lines; no longer a wire key
     delete payload.PRECIP_TREND_UINT8;
     delete payload.RAIN_TREND_UINT8;

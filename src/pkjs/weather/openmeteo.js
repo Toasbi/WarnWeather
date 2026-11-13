@@ -5,7 +5,6 @@ var failure = WeatherProvider.failure;
 var hourlyWindow = require('./hourly-window.js');
 var dayPeaks = require('./day-peaks.js');
 var weightedCloudCover = require('./cloud-cover.js').weightedCloudCover;
-var condition = require('./condition.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 
@@ -131,15 +130,12 @@ function ensembleBlockSlice(series, times, anchor, hours) {
  * step further: the pinned model's comes from a 3-hourly ensemble, so each
  * slot reads its whole 3-hour block (ensembleBlockSlice).
  *
- * The weather condition now is the current block's WMO weather_code, beside its
- * temperature_2m (currentTemp).
- *
  * @param {Object} json Parsed Open-Meteo /v1/forecast response.
  * @param {number} nowEpoch Current time in epoch seconds.
  * @param {number} [hours] The window to map (hourly-window.js windowHours: 24, or
  *   emery's 26 or 68); FORECAST_HOURS when absent. Past the base 24 the window
  *   takes what the response holds.
- * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], cloudTrend: number[], startTime: number, currentTemp: number, currentCondition: ?string}|null}
+ * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], cloudTrend: number[], startTime: number, currentTemp: number}|null}
  *   Mapped fields, or null when the response is malformed or has fewer than
  *   FORECAST_HOURS buckets at/after the current hour. (The last slot's
  *   preceding-hour values sit in the bucket after the window; a response
@@ -199,8 +195,7 @@ function mapResponse(json, nowEpoch, hours) {
         // [] → the cloud line stays off.
         cloudTrend: Array.isArray(hourly.cloud_cover) ? cloudSlice(hourly, anchor, end) : [],
         startTime: times[anchor],
-        currentTemp: current.temperature_2m,
-        currentCondition: condition.fromWmo(current.weather_code)
+        currentTemp: current.temperature_2m
     };
 }
 
@@ -235,11 +230,6 @@ OpenMeteoProvider.prototype._super = WeatherProvider;
  * chance comes from the same model's ensemble, 3-hourly -- see
  * ensembleBlockSlice.)
  *
- * The current block carries the WMO weather_code beside the temperature: the
- * condition slot's "now", from the same model as the rain bars and the cloud
- * line. The pinned model does answer it, current and hourly (verified
- * 2026-11-13), unlike the derived fields the aux call fetches.
- *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {number} [hours] The window mapResponse maps (windowHours); 24 when absent.
@@ -251,7 +241,7 @@ function buildForecastUrl(lat, lon, hours) {
         + '&longitude=' + lon
         + '&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl,cloud_cover'
         + ',cloud_cover_low,cloud_cover_mid,cloud_cover_high'
-        + '&current=temperature_2m,weather_code'
+        + '&current=temperature_2m'
         + '&temperature_unit=fahrenheit'
         + '&windspeed_unit=kmh'
         + '&precipitation_unit=mm'

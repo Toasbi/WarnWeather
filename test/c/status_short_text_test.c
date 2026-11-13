@@ -469,24 +469,6 @@ static void od_variants(void) {
     expect_true("variants.widest_fills_the_bound", widest == OD_VARIANTS - 1);
 }
 
-// The weather condition: its text derives no short form (a name has no unit, no pair,
-// no words to abbreviate), whatever its look's icon, so the slot hides at its turn
-// unless it brought its own (status_short_alt), which is then its one member.
-static void condition(void) {
-    for (uint8_t icon = STATUS_ICON_COND_TEXT; icon <= STATUS_ICON_COND_WIND; icon++) {
-        no_family("condition name", SLOT_TEXT, icon, "Partly cloudy");
-        no_family("condition short", SLOT_TEXT, icon, "PCLD");
-        no_family("condition unknown", SLOT_TEXT, icon, "--");
-    }
-    char out[STATUS_SHORT_CAP];
-    expect_true("alt member", status_short_alt("PCLD", 1, out, sizeof(out)) == SST_MEMBER);
-    expect_str("alt member", out, "PCLD");
-    expect_true("alt one member", !status_short_alt("PCLD", 2, out, sizeof(out)));
-    expect_true("alt v0", !status_short_alt("PCLD", 0, out, sizeof(out)));
-    char tiny[4];
-    expect_true("alt cap", !status_short_alt("PCLD", 1, tiny, sizeof(tiny)));
-}
-
 int main(void) {
     temperature();
     wind_and_gusts();
@@ -497,7 +479,6 @@ int main(void) {
     city();
     caps();
     od_variants();
-    condition();
     if (s_failures) {
         printf("%d status_short_text failure(s)\n", s_failures);
         return 1;

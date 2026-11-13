@@ -2,7 +2,6 @@ var WeatherProvider = require('./provider.js');
 var KEYS = require('../storage-keys');
 var mphToKmh = require('../wire-units.js').mphToKmh;
 var wuCache = require('./wu-current-hour-cache.js');
-var condition = require('./condition.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
@@ -20,11 +19,10 @@ var INHG_TO_HPA = 33.8639;
  * API feels_like AND humidity (hourly rh, the observation's relativeHumidity), so
  * feelsTrend/currentFeels are WU's raw values (null per missing reading) beside
  * humidityTrend/currentHumidity/currentWindKmh: adoptMapped applies the fetchFeels
- * gate and the Units tab's formula to them, and the fetchUv gate to uvTrend. The
- * weather condition now is the observation's (its iconCode).
+ * gate and the Units tab's formula to them, and the fetchUv gate to uvTrend.
  *
  * @param {Object[]} forecast Anchored v1 hourly buckets (wuCache.anchorForecast); non-empty.
- * @param {{temp: number, feels: ?number, humidity: ?number, windKmh: ?number, condition: ?string}} current
+ * @param {{temp: number, feels: ?number, humidity: ?number, windKmh: ?number}} current
  *   The parsed v3 observation (withWundergroundCurrent's callback value).
  * @returns {Object} The mapped forecast.
  */
@@ -101,8 +99,7 @@ function mapForecast(forecast, current) {
         currentTemp: current.temp,
         currentFeels: current.feels,
         currentHumidity: current.humidity,
-        currentWindKmh: current.windKmh,
-        currentCondition: current.condition || null
+        currentWindKmh: current.windKmh
     };
 }
 
@@ -179,8 +176,6 @@ WundergroundProvider.prototype.withWundergroundCurrent = function(lat, lon, apiK
             // station feeds; null → FEELS_CURRENT omitted, temp slot degrades.
             // relativeHumidity (%) and windSpeed feed the Units tab's Steadman
             // option; a missing reading stays null (never "calm" / "dry").
-            // iconCode (0..47, part of the default response) is the weather
-            // condition now; a missing or unknown code reads null.
             callback({
                 temp: weatherData.temperature,
                 feels: typeof weatherData.temperatureFeelsLike === 'number'
@@ -188,8 +183,7 @@ WundergroundProvider.prototype.withWundergroundCurrent = function(lat, lon, apiK
                 humidity: typeof weatherData.relativeHumidity === 'number'
                     ? weatherData.relativeHumidity : null,
                 windKmh: typeof weatherData.windSpeed === 'number'
-                    ? mphToKmh(weatherData.windSpeed) : null,
-                condition: condition.fromWu(weatherData.iconCode)
+                    ? mphToKmh(weatherData.windSpeed) : null
             });
         }).bind(this),
         function(error) {

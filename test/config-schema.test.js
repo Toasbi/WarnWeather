@@ -96,8 +96,6 @@ const EXPECTED_KEYS = [
   'precipLineFrom','cloudLineFrom','windLineFrom','uvLineFrom','rainBarFrom','radarBarFrom',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
-  // The weather condition slot's Look (Icon + text / Text / Icon).
-  'conditionSlotLook',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','forecastHours',
   'forecastAxisNumbers','forecastAxisScale','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
@@ -2057,14 +2055,13 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
   // the contract's wire-id order (KINDS 8..19). 'Phone battery slot' is last and
   // serves BOTH phone-battery kinds (18 and 19) — they share key 'PhoneBattery',
-  // so there are eleven sheets for twelve bold-only kinds. The weather condition slot's
-  // dialog, its Look and no Bold row, closes the tab.
+  // so there are eleven sheets for twelve bold-only kinds.
   assert.deepEqual(titles.slice(17),
     ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
       'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
-      'Phone battery slot', 'Weather condition slot'],
-    'bold-only slot sheets follow, in wire-id order, then the condition slot\'s');
+      'Phone battery slot'],
+    'bold-only slot sheets close the tab, in wire-id order');
   // Every slot sheet previews the bars while it is open (the bar it came from, when it came
   // from a bar's dialog: preview-status-bars.js statusBarsPreview).
   watch.sections.filter((s) => /^thresh/.test(s.sheetId || '')).forEach((s) =>
@@ -2446,16 +2443,14 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // opened as a sheet of its own (schema.js barKeysSection); each bar's dialog is a sheet that
   // holds slots, not levels (barDialog).
   const sheets = watch.sections.filter((s) => s.sheetOnly && s.sheetId !== 'barKeys' && !/^bar-/.test(s.sheetId));
-  // The weather condition slot's dialog comes last: its Look, no levels and no bold row, so
-  // not a thresh<Stem> sheet (blocks.js statusSlotEditSheet names it).
-  assert.equal(sheets.length, 20,
-    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only), then the condition slot\'s');
+  assert.equal(sheets.length, 19,
+    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only)');
   assert.deepEqual(sheets.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct',
-      'threshDew', 'threshPhoneBattery', 'slotCondition'],
+      'threshDew', 'threshPhoneBattery'],
     'sheet ids follow the thresh<Stem> convention the slot resolver derives');
   // The On demand sheets (the side lists' section + 10 item sheets) moved with the alerts
   // to the Alerts tab, and carry the On demand gate (aplite has no On demand).

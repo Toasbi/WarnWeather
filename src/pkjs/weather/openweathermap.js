@@ -1,7 +1,6 @@
 var WeatherProvider = require('./provider.js');
 var nextSunEvents = require('./sun-events.js').nextSunEvents;
 var mphToKmh = require('../wire-units.js').mphToKmh;
-var condition = require('./condition.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
@@ -36,26 +35,13 @@ function hourlyTrend(hourly, field, transform) {
 var normalizeBearing = require('../wire-units.js').normalizeBearing;
 
 /**
- * The weather condition (condition.js) One Call's current block names: the id
- * of its first `weather` entry, the primary one.
- *
- * @param {Object} current One Call `current`.
- * @returns {?string} A condition id, or null when it names none.
- */
-function currentConditionOf(current) {
-    var primary = Array.isArray(current.weather) ? current.weather[0] : null;
-    return condition.fromOwm(primary ? primary.id : null);
-}
-
-/**
  * Map a One Call 3.0 response (units=imperial) onto the mapped-forecast
  * vocabulary (WeatherProvider.MAPPED_KEYS). Pure: it reads no options and no
  * instance state — adoptMapped applies the feels/uv gates and the Units tab's
  * feels-like formula. The unit work lives here: wind/gust mph → km/h,
  * rain.1h + snow.1h in mm, pressure 0 per missing hour (0 hPa is impossible,
  * so forecast-series reads it as a gap), dew point and bearing null per missing
- * hour and [] when wholly unsourced (hourlyTrend). The weather condition now is
- * current.weather[0].id (currentConditionOf).
+ * hour and [] when wholly unsourced (hourlyTrend).
  *
  * Precondition: `json.hourly` is a non-empty array and `json.current` an
  * object — withOwmResponse and withProviderData reject anything else first.
@@ -119,8 +105,7 @@ function mapOneCall(json) {
         currentHumidity: current.humidity,
         currentWindKmh: typeof current.wind_speed === 'number' ? mphToKmh(current.wind_speed) : null,
         startTime: hourly[0].dt,
-        currentTemp: current.temp,
-        currentCondition: currentConditionOf(current)
+        currentTemp: current.temp
     };
 }
 

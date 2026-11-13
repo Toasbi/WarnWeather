@@ -5,7 +5,6 @@ var openmeteo = require('./openmeteo.js');
 var feelsLike = require('./feels-like.js');
 var feelsLikeF = feelsLike.feelsLikeF;
 var feelsLikeFromDewF = feelsLike.feelsLikeFromDewF;
-var condition = require('./condition.js');
 
 var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var MAX_DIST_METERS = 500000;
@@ -109,51 +108,23 @@ function currentFeelsFrom(current) {
 }
 
 /**
- * The weather condition (condition.js) from the /current_weather record: its
- * icon, else its condition, the rain or snow graded by the last hour's
- * precipitation (precipitation_60).
- *
- * @param {Object} current Brightsky current_weather `weather` record.
- * @returns {?string} A condition id, or null when the record names none.
- */
-function currentConditionFrom(current) {
-    return condition.fromBrightsky(current.icon, current.condition, current.precipitation_60);
-}
-
-/**
- * The weather condition (condition.js) a forecast record names for the hour
- * ENDING at its stamp: its icon, else its condition, the rain or snow graded by
- * its precipitation. All three are that preceding hour's: Brightsky derives the
- * icon and the condition from the record's precipitation, which covers the 60
- * minutes before the stamp (slotRecords).
- *
- * @param {Object} e Brightsky hourly weather record.
- * @returns {?string} A condition id, or null when the record names none.
- */
-function hourCondition(e) {
-    return condition.fromBrightsky(e.icon, e.condition, e.precipitation);
-}
-
-/**
  * The current conditions read off the current hour's forecast record, for a
  * place with no observing station within MAX_DIST_METERS (withDwdCurrent): the
  * temperature, feels-like (hourFeels) and bearing (hourBearing) the hourly
- * series read from slot 0's own record, so the current values match the graph's
- * first slot. Its weather condition is the forecast's, as for an observation that
- * names none (mapForecast).
+ * series read from that record, so the current values match the graph's first
+ * slot.
  *
  * @param {Object} e Brightsky hourly weather record (slot 0's own).
  * @param {boolean} fetchFeels options.fetchFeels: the Steadman arithmetic runs
  *   only when the feels-like is wanted (mapForecast's compute-skip).
- * @returns {{tempF: number, feelsF: ?number, bearing: (number|null), condition: null}}
- *   Shaped like withDwdCurrent's observation.
+ * @returns {{tempF: number, feelsF: ?number, bearing: (number|null)}} Shaped like
+ *   withDwdCurrent's observation.
  */
 function currentFromHour(e, fetchFeels) {
     return {
         tempF: celsiusToFahrenheit(e.temperature),
         feelsF: fetchFeels ? hourFeels(e) : null,
-        bearing: hourBearing(e),
-        condition: null
+        bearing: hourBearing(e)
     };
 }
 
@@ -298,8 +269,8 @@ function slotRecords(hourly, byEpoch, startEpoch, count) {
  *
  * @param {Object} provider The DWD provider (reads options).
  * @param {Object[]} hourly Brightsky `weather` records, ascending (non-empty).
- * @param {?{tempF: number, feelsF: ?number, bearing: ?number, condition: ?string}} observed
- *   The observation (withDwdCurrent), or null when no station is near enough.
+ * @param {?{tempF: number, feelsF: ?number, bearing: ?number}} observed The
+ *   observation (withDwdCurrent), or null when no station is near enough.
  * @returns {Object} The mapped forecast.
  */
 function mapForecast(provider, hourly, observed) {
@@ -344,11 +315,7 @@ function mapForecast(provider, hourly, observed) {
         feelsTrend: fetchFeels ? slots.map(hourFeels) : [],
         currentFeels: fetchFeels ? current.feelsF : null,
         startTime: startEpoch,
-        currentTemp: current.tempF,
-        // The observation's; where it names none (no station near, or a station whose
-        // record has neither icon nor condition), the forecast's for the hour now: the
-        // record an hour on, which covers it, where slot 0's rain comes from too.
-        currentCondition: current.condition || (following[0] ? hourCondition(following[0]) : null)
+        currentTemp: current.tempF
     };
     // MOSMIX can omit the bearing on the hour we are inside (it already
     // omits relative_humidity there); the live observation carries it, so
@@ -428,18 +395,17 @@ DwdProvider.prototype.withDwdForecast = function(lat, lon, callback, onFailure) 
 
 /**
  * Brightsky's latest observation near the place (/current_weather): its
- * temperature, feels-like, wind bearing and weather condition. A 404 is
- * Brightsky finding no station within MAX_DIST_METERS (far from Germany, where
- * /weather still has a MOSMIX forecast): that calls back null, and the update
- * goes on with the current hour's forecast in its place (mapForecast). Every
- * other failure (a timeout, a 5xx, no connection, an unreadable answer) fails
- * the update.
+ * temperature, feels-like and wind bearing. A 404 is Brightsky finding no
+ * station within MAX_DIST_METERS (far from Germany, where /weather still has a
+ * MOSMIX forecast): that calls back null, and the update goes on with the
+ * current hour's forecast in its place (mapForecast). Every other failure (a
+ * timeout, a 5xx, no connection, an unreadable answer) fails the update.
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
- * @param {function(?{tempF: number, feelsF: ?number, bearing: ?number, condition: ?string})} callback
+ * @param {function(?{tempF: number, feelsF: ?number, bearing: ?number})} callback
  *   Receives the observation (°F; feels-like °F or null; bearing in [0, 360) or
- *   null; a condition.js id or null), or null when no station is near enough.
+ *   null), or null when no station is near enough.
  * @param {Function} onFailure Receives a failure() object.
  * @returns {void}
  */
@@ -457,8 +423,7 @@ DwdProvider.prototype.withDwdCurrent = function(lat, lon, callback, onFailure) {
             observed = {
                 tempF: celsiusToFahrenheit(current.temperature),
                 feelsF: currentFeelsFrom(current),
-                bearing: currentBearingFrom(current),
-                condition: currentConditionFrom(current)
+                bearing: currentBearingFrom(current)
             };
         }
         catch (ex) {

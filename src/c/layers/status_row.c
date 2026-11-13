@@ -298,26 +298,16 @@ static bool is_phone_battery_slot(const StatusSlotView *slot) {
             || slot->icon == STATUS_ICON_PHONE_BATTERY_PLAIN);
 }
 
-// Copy `n` bytes of `src` into `buf` as a string, cut to its `cap`.
-static void copy_text(char *buf, size_t cap, const char *src, size_t n) {
-    if (n > cap - 1) { n = cap - 1; }
-    memcpy(buf, src, n);
-    buf[n] = '\0';
-}
-
 // Materialise one slot's display text, and report the wind-direction sector
-// (0..15, -1 = none) the phone baked into its trailing byte. A short form the phone
-// baked after STATUS_TEXT_ALT_SEP (the weather condition's "PCLD") goes into `alt`,
-// which is otherwise left empty.
+// (0..15, -1 = none) the phone baked into its trailing byte.
 //
 // This is the ONE place a slot's text is materialised, which is exactly why the
-// sentinel and the separator are stripped here: shortening the copy at the single
-// source means neither control byte can reach a measurement, graphics_draw_text, or
-// the content signature. Every caller gets the sector back instead — it is content
+// sentinel is stripped here: shortening the copy by a byte at the single source
+// means the control byte can never reach a measurement, graphics_draw_text, or the
+// content signature. Every caller gets the sector back instead — it is content
 // (the arrow's heading), not decoration, so refresh folds it and draw paints it.
 static int8_t resolve_slot_text(const StatusRow *row, const StatusSlotView *slot,
-                                char *buf, size_t cap, char *alt, size_t alt_cap) {
-    alt[0] = '\0';
+                                char *buf, size_t cap) {
     if (cap == 0) { return -1; }
     if (slot->kind == SLOT_TEXT) {
         // The Bluetooth freshness rule: the link IS the phone-battery reading's
@@ -338,11 +328,9 @@ static int8_t resolve_slot_text(const StatusRow *row, const StatusSlotView *slot
         int8_t dir = status_slot_direction(slot);
         size_t n = slot->value_len;
         if (dir >= 0) { n--; }   // drop the sentinel; see status_row_direction.h
-        const size_t full = status_text_full_len(slot->value, n);
-        if (full < n) {
-            copy_text(alt, alt_cap, slot->value + full + 1, n - full - 1);
-        }
-        copy_text(buf, cap, slot->value, full);
+        if (n > cap - 1) { n = cap - 1; }
+        memcpy(buf, slot->value, n);
+        buf[n] = '\0';
         return dir;
     } else if (slot->kind == SLOT_EMPTY || slot->kind == SLOT_LIVE_BATTERY) {
         // Glyph battery is icon-only; SLOT_LIVE_BATTERY_PCT must NOT join this
@@ -444,7 +432,6 @@ typedef struct {
     StatusSlotView slot;                    // the packed slot
     GFont          font;                    // regular, or the bold companion
     char    text[STATUS_TEXT_MID_MAX + 1];  // direction sentinel already stripped
-    char    alt[STATUS_TEXT_ALT_MAX + 1];   // its short form, if it brought one ("")
     int8_t  dir;                            // wind sector 0..15, -1 = none
     uint8_t level;                          // ThreshLevel, gated on the Highlight switch
     ThreshLook look;                        // box, bold bit, RAW accent byte at `level`
@@ -458,8 +445,7 @@ typedef struct {
 static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView *view,
                          ResolvedSlot *out, int i) {
     out->slot = *view;
-    out->dir = resolve_slot_text(row, &out->slot, out->text, sizeof(out->text), out->alt,
-                                 sizeof(out->alt));
+    out->dir = resolve_slot_text(row, &out->slot, out->text, sizeof(out->text));
     // The ThreshKind is scaffolding, not a result: every consumer of it lives in
     // this function, so it stays a local. (The array it replaced carried it across
     // two loops, which is why the first cut made it a field.)
@@ -600,8 +586,6 @@ bool status_row_refresh(StatusRow *row) {
             sig = sig_fold(sig, &slot->kind, 1);
             sig = sig_fold(sig, &slot->icon, 1);
             sig = sig_fold(sig, (const uint8_t *)r->text, strlen(r->text));
-            // With its NUL, so the text and the short form cannot trade bytes unseen.
-            sig = sig_fold(sig, (const uint8_t *)r->alt, strlen(r->alt) + 1);
             // The signature folds the RESOLVED text, and the resolver has already
             // stripped the direction sentinel out of it — so the sector has to be
             // folded on its own or a wind that veers without changing speed would
@@ -680,13 +664,25 @@ static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int conte
     GColor fg = theme_fg();
     bool env_changed = target_h != row->glyph_h || !gcolor_equal(fg, row->glyph_fg);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        // An id with no glyph (NONE, the drawn sun arrow, the text-only ids such as
-        // PRESSURE) loads as NULL (status_row_icons.c icon_resource), so its slot reserves
-        // no icon width and draws as bare text.
-        uint8_t wanted = views[i].kind != SLOT_EMPTY ? views[i].icon : STATUS_ICON_NONE;
+        const StatusSlotView *slot = &views[i];
+        uint8_t wanted = STATUS_ICON_NONE;
+        if (slot->kind != SLOT_EMPTY
+                && slot->icon != STATUS_ICON_NONE
+                && slot->icon != STATUS_ICON_DRAWN_SUN
+                // PRESSURE is text-only by contract (status_line.h): no PDC
+                // exists, so never attempt a load and reserve no icon width.
+                && slot->icon != STATUS_ICON_PRESSURE
+                // Same contract for the no-icon phone-battery variant: the id
+                // exists only to keep it off THRESH_CITY's bold row, and no
+                // glyph may load for it.
+                && slot->icon != STATUS_ICON_PHONE_BATTERY_PLAIN) {
+            wanted = slot->icon;
+        }
         if (!env_changed && wanted == row->glyph_icons[i]) { continue; }
         status_row_icons_destroy(row->glyphs[i]);
-        row->glyphs[i] = status_row_icons_load(wanted, target_h, top);
+        row->glyphs[i] = wanted != STATUS_ICON_NONE
+            ? status_row_icons_load(wanted, target_h, top)
+            : NULL;
         row->glyph_icons[i] = wanted;
     }
     row->glyph_h = target_h;
@@ -753,31 +749,6 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
     return GRect((int16_t)(x0 + lo - 2), v.y, (int16_t)((hi - lo) + 4), v.h);
 }
 
-// A slot that brought its own short form (the weather condition: "Partly cloudy" with
-// "PCLD") draws that form wherever the plain row would cut or hide the full one. Judged
-// on the plain layout, before On demand makes room, so the ladder starts from the form
-// the slot draws; a slot that swaps has no short member left (`alt` is spent). Only
-// the middle slot has the bytes for both forms, so a row lays itself out once here at
-// most.
-static void swap_in_short_forms(const StatusRow *row, ResolvedSlot slots[STATUS_SLOT_COUNT],
-                                StatusSlotMeasure m[STATUS_SLOT_COUNT],
-                                StatusSlotPlace plain[STATUS_SLOT_COUNT], int16_t content_w) {
-    bool any = false;
-    for (int i = 0; i < STATUS_SLOT_COUNT; i++) { any = any || slots[i].alt[0] != '\0'; }
-    if (!any) { return; }
-    status_row_layout(content_w, m, plain);
-    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        ResolvedSlot *s = &slots[i];
-        if (s->alt[0] == '\0'
-                || (plain[i].text_visible && plain[i].text_w >= m[i].text_w)) {
-            continue;
-        }
-        copy_text(s->text, sizeof(s->text), s->alt, strlen(s->alt));
-        s->alt[0] = '\0';
-        m[i].text_w = status_row_text_w(s->text, s->font, content_w, row->bounds.size.h);
-    }
-}
-
 // The shared arrow (s_arrow_path), turned to `angle`, centred on `at` and drawn in
 // `ink`, outline and fill: the sunrise/sunset arrow and the wind-direction arrow.
 static void draw_arrow(GContext *ctx, int32_t angle, GPoint at, GColor ink) {
@@ -823,9 +794,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         measures[i] = measure_slot(row, i, slots[i].font, content_w,
                                    &slots[i].slot, slots[i].text, slots[i].dir);
     }
-    // Its scratch is the layout's own places, which status_on_demand_layout overwrites.
-    StatusSlotPlace places[STATUS_SLOT_COUNT];
-    swap_in_short_forms(row, slots, measures, places, content_w);
 
     int text_y_rel = row_text_y(row, font);
     int text_y = row->bounds.origin.y + text_y_rel;
@@ -859,8 +827,9 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         od_slots[i] = (StatusOnDemandSlot) { slots[i].slot.kind, slots[i].slot.icon,
                                              slots[i].font, slots[i].text,
-                                             sizeof(slots[i].text), slots[i].alt };
+                                             sizeof(slots[i].text) };
     }
+    StatusSlotPlace places[STATUS_SLOT_COUNT];
     status_on_demand_layout(&row->od, &s_od_pass, &od_env, od_slots, measures, places,
                             content_w);
 

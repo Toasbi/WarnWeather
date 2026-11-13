@@ -29,11 +29,6 @@
 // battery number shows whole or not at all; its % is never dropped (owner,
 // 2026-09-30).
 //
-// One slot brings its own: the weather condition's middle slot carries its short form
-// after STATUS_TEXT_ALT_SEP ("Partly cloudy" with "PCLD"; status_line.h), the one
-// variant the phone bakes, since no rule turns a name into its code. Its family is that
-// one member (status_short_alt).
-//
 // Written for size — the app image comes out of the heap on every platform — so the
 // caller asks for one member at a time (status_short_member) and gets that one
 // computed, the transforms work in place, and the city finds its two rungs in one
@@ -306,10 +301,4 @@ static inline uint8_t status_short_member(uint8_t kind, uint8_t icon, const char
         if (sst_apply(kind, icon, t, out) && ++found == v) { return SST_MEMBER; }
     }
     return suffix && found + 1 == v ? (SST_MEMBER | SST_NO_SUFFIX) : 0;
-}
-
-// Member `v` of the family of a slot whose text came with its own short form `alt`
-// (the bytes after STATUS_TEXT_ALT_SEP, not empty): that form as member 1, and no other.
-static inline uint8_t status_short_alt(const char *alt, uint8_t v, char *out, size_t cap) {
-    return v == 1 && sst_copy(out, cap, alt, strlen(alt)) ? SST_MEMBER : 0;
 }

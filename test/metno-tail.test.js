@@ -210,12 +210,7 @@ test('gate: windows 24 and 48 (and none) map exactly as 1fb8bb9 did, no hour syn
     Object.keys(c.mapped).forEach((w) => {
       const window = w === 'undefined' ? undefined : Number(w);
       assert.ok(window === undefined || window <= PEAK_HOURS, 'the gate is the long span only');
-      const mapped = metno.mapResponse(metnoFeed(c.feed), NOW, window);
-      // The condition now came after 1fb8bb9: the anchor bucket's symbol (the feed's
-      // 'cloudy'), checked on its own; everything else as the golden has it.
-      assert.equal(mapped.currentCondition, 'cloudy', `${name} at ${w}: the condition now`);
-      delete mapped.currentCondition;
-      assert.deepEqual(mapped, c.mapped[w], `${name} at ${w}`);
+      assert.deepEqual(metno.mapResponse(metnoFeed(c.feed), NOW, window), c.mapped[w], `${name} at ${w}`);
     });
   });
   // A 30-hour run at 48 still stops at 30, as it always has.

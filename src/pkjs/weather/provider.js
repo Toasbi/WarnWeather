@@ -11,7 +11,6 @@ var dayPeaks = require('./day-peaks.js');
 var feelsLike = require('./feels-like.js');
 var fetchOptions = require('./fetch-options.js');
 var hourlyWindow = require('./hourly-window.js');
-var condition = require('./condition.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
 // fetches can require them without the old provider-cycle lazy-require hack);
@@ -113,11 +112,6 @@ var WeatherProvider = function() {
     // the wind and gust slots simply draw no arrow. Transient: consumed by
     // formatValue/packLine, never wired.
     this.windDirTrend = [];
-    // The weather condition now: a condition.js id ('partly', 'lightrain', ...),
-    // read off the same moment as currentTemp. null when the provider names none,
-    // and the condition slot shows '--'. Transient: consumed by the condition
-    // slot, never wired.
-    this.currentCondition = null;
 };
 
 /**
@@ -786,13 +780,6 @@ WeatherProvider.prototype.getPayload = function() {
     if (typeof this.currentFeels === 'number') {
         payload.FEELS_CURRENT = this.currentFeels; // °F, unrounded like CURRENT_TEMP
     }
-    // The weather condition now follows the same rule: absent rather than null
-    // when the provider names none. Transient PKJS-only: buildStatusLines bakes it
-    // into the condition slot's text and glyph, and forecast-series deletes it
-    // before send.
-    if (this.currentCondition) {
-        payload.CURRENT_CONDITION = this.currentCondition; // a condition.js id, e.g. 'partly'
-    }
     // Dew point and wind bearing follow the same conditional-emit rule as the
     // feels-like keys: absent rather than empty, so a provider that does not
     // source them leaves no key to strip. Transient PKJS-only — buildStatusLines
@@ -872,24 +859,20 @@ WeatherProvider.requestMapped = function(opts, onMapped, onFailure) {
  *   feels  — apparent temperature plus the inputs the feelsFormula resolvers
  *            need (humidity + wind); only feelsTrend/currentFeels are stored.
  *   uv     — the UV series, adopted only when options.fetchUv is on.
- *   condition — the weather condition now (a condition.js id), read off the
- *            moment currentTemp describes; null when the response names none.
  */
 WeatherProvider.MAPPED_KEYS = {
     core: ['tempTrend', 'precipTrend', 'startTime', 'currentTemp'],
     zeroed: ['rainTrend', 'windTrend', 'gustTrend'],
     empty: ['pressureTrend', 'cloudTrend', 'dewTrend', 'windDirTrend'],
     feels: ['feelsTrend', 'currentFeels', 'humidityTrend', 'currentHumidity', 'currentWindKmh'],
-    uv: ['uvTrend'],
-    condition: ['currentCondition']
+    uv: ['uvTrend']
 };
 WeatherProvider.MAPPED_KEYS.all = [].concat(
     WeatherProvider.MAPPED_KEYS.core,
     WeatherProvider.MAPPED_KEYS.zeroed,
     WeatherProvider.MAPPED_KEYS.empty,
     WeatherProvider.MAPPED_KEYS.feels,
-    WeatherProvider.MAPPED_KEYS.uv,
-    WeatherProvider.MAPPED_KEYS.condition
+    WeatherProvider.MAPPED_KEYS.uv
 );
 
 /**
@@ -922,8 +905,6 @@ function hasKey(obj, key) {
  *            with currentFeels copied when present, null when not.
  *            Else feelsTrend [], currentFeels null.
  *   uv     — options.fetchUv on and uvTrend present → copied; else [].
- *   condition — present and a condition.js id → copied; absent, null or any
- *            other value → null.
  *
  * These are the semantic feels/uv gates, in ONE place for every adapter. An
  * adapter may still skip computing a feels series when options.fetchFeels is
@@ -985,7 +966,6 @@ WeatherProvider.prototype.adoptMapped = function(mapped) {
         this.currentFeels = null;
     }
     this.uvTrend = (options.fetchUv && hasKey(mapped, 'uvTrend')) ? mapped.uvTrend : [];
-    this.currentCondition = condition.isCondition(mapped.currentCondition) ? mapped.currentCondition : null;
 };
 
 /**

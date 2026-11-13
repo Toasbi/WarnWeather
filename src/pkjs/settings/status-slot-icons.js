@@ -62,11 +62,6 @@
         return '<svg viewBox="0 0 24 24"' + attrs + '>' + body + '</svg>';
     }
 
-    // The weather condition glyphs (scripts/gen-condition-glyphs.py writes them with the
-    // watch's PDCs, from one set of points).
-    var CONDITION_GLYPHS = (typeof require !== 'undefined') ? require('./condition-glyphs.generated.js')
-        : window.ConditionGlyphs;
-
     var ICONS = {
         // The watch's rain drop is a pure fill with no outline (gen-rain-pdc.py: a cone
         // from the tip tangent to a round body). Same construction here — tip at y 3,
@@ -157,10 +152,7 @@
         // stem, a head 3 px tall and 2 px either side, outline and fill), at 2.5x.
         sun: svg24(OUTLINE,
             '<path d="M12 2v12.5"/>'
-            + '<path d="M7 14.5L12 22L17 14.5Z" fill="currentColor"/>'),
-        // The weather condition slot's sample, a partly cloudy afternoon
-        // (STATUS_COND_SUN_CLOUD.pdc).
-        condition: svg24(OUTLINE, '<path d="' + CONDITION_GLYPHS.SUN_CLOUD + '"/>')
+            + '<path d="M7 14.5L12 22L17 14.5Z" fill="currentColor"/>')
     };
 
     // Register into the engine's icon registry when it is there: always on the page
@@ -190,7 +182,6 @@
         P.icons.register('sleep', ICONS.sleep);
         P.icons.register('hr', ICONS.hr);
         P.icons.register('sun', ICONS.sun);
-        P.icons.register('condition', ICONS.condition);
     }
 
     if (typeof module !== 'undefined' && module.exports) {
